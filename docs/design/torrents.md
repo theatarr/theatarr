@@ -70,7 +70,7 @@ Each torrent on Real-Debrid, AllDebrid and TorBox is one of:
 
 | Usage | When |
 |---|---|
-| **used** | a file of it is referenced: a library link of Theatarr (active or dead; by the content's or the download's hash, the hash in the link's file metadata, or the mount folder its target names), a current arr file (arr import: the content tied to it, else the arr's download id), a download that is queued or in flight (`queued`, `adding`, `added`, `downloading`, `ready`, `importing`), or a symlink into the debrid mount under one of `torrents.scan_roots`. The report lists which references (up to 20) and counts them all |
+| **used** | a file of it is referenced: a library link of Theatarr (active or dead; by the content's or the download's hash, the hash in the link's file metadata, the adopted source's hash of an adopted link, or the mount folder its target names; a hash stored in base32 counts as its hex form), a current arr file (arr import: the content tied to it, else the arr's download id), a download that is queued or in flight (`queued`, `adding`, `added`, `downloading`, `ready`, `importing`), or a symlink into the debrid mount under one of `torrents.scan_roots`. The report lists which references (up to 20) and counts them all |
 | **unknown** | Theatarr lacks the data: the provider was never listed completely by the registry sync, the hash is not in the registry yet (added since the last sync), a scan root could not be read, `torrents.scan_roots` is set without `library.mount`, library links could not be tied to a torrent, or the torrent has no v1 hash. The reasons are listed. Never offered as unused |
 | **unused** | every file is unreferenced and none of the above applies |
 
@@ -319,8 +319,10 @@ differences:
   first, and again right before each delete under the fence (the deletes are paced, so a restore can land between
   them).
 - **One read, as Torrents › Refresh does it:** the provider sync lists every account and writes the record and the
-  registry, then the usage is worked out. If any provider's listing fails, nothing is deleted anywhere ("torrents
-  not cleaned up: could not read RD"). Planning and the backup use those lists; nothing is listed again.
+  registry; the stored usage is left to the usage worker, and the plan is the clean-up's one reference pass. If any
+  provider's listing fails, nothing is deleted anywhere ("torrents not cleaned up: could not read RD"). Planning and
+  the backup use the listings exactly as that read gave them (files included where the provider lists them), so the
+  backup is as complete as the Torrents page delete's; nothing is listed again.
 - **Every entry of a candidate hash** on every provider is a candidate (a copy on another provider, an entry reused
   or already on the account included).
 - **Usage:** the normal plan rules (step 3, fresh): a torrent another title or library links, a download in hand, a

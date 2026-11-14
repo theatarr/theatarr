@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Choice, ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Modal } from "@/components/ui/modal";
 import { listToReturnTo } from "@/lib/last-list";
-import { REMOVAL_DEBRID_NEEDS_FILES, removalScope, unlinkable, unlinkScope } from "@/lib/ops";
+import { leftoverLinks, REMOVAL_DEBRID_NEEDS_FILES, removalScope, unlinkable, unlinkScope } from "@/lib/ops";
 
 /** The removal confirmation: the server's scope for versions (none: the whole title), with the files choice. Once
  *  done, the outcome is a notice that opens the title's History (the Removed event, with the debrid clean-up's outcome
@@ -154,8 +154,8 @@ export function LeftoverLinks({ titleId, versions, label = "Delete files…" }: 
 /** A title with no library copy left whose removed libraries still have library links: "N files kept from before it
  *  was removed", and for managers Delete them (LeftoverLinks for those libraries). */
 export function KeptFiles({ titleId, versions, manage }: { titleId: number; versions: Version[]; manage: boolean }) {
-  const kept = versions.filter((v) => v.removed && v.key && unlinkable(v.links).length > 0);
-  const n = kept.reduce((sum, v) => sum + unlinkable(v.links).length, 0);
+  const kept = versions.filter((v) => v.removed && v.key && leftoverLinks(v.links).length > 0);
+  const n = kept.reduce((sum, v) => sum + leftoverLinks(v.links).length, 0);
   if (n === 0) return null;
   return (
     <p className="text-sm text-[var(--ink-2)]" data-testid="kept-files">

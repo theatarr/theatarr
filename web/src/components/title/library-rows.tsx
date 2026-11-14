@@ -31,7 +31,7 @@ import { ColumnPicker } from "@/components/ui/column-picker";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
 import { fmtAgo, fmtBytes, fmtNumber, fmtTime } from "@/lib/format";
 import { currentLibraries, DEFAULT_LIBRARY_COLUMNS, fileName, LIBRARY_COLUMNS, lastSearch, libraryColumns, libraryStatus, nextSearch, nextSearchOf, type LibraryColumn } from "@/lib/library-rows";
-import { unlinkable } from "@/lib/ops";
+import { leftoverLinks } from "@/lib/ops";
 import { useColumnPrefs } from "@/lib/prefs";
 import { belowCount, nextLine } from "@/lib/upgrade";
 import { cn } from "@/lib/utils";
@@ -203,7 +203,7 @@ export function LibraryRows({ title, versions }: { title: TitleDetail; versions:
   const titleId = title.id ?? 0;
   const kind: Kind = title.kind === "series" ? "series" : "movie";
   const rows = currentLibraries(versions);
-  const leftover = versions.filter((v) => v.removed && unlinkable(v.links).length > 0);
+  const leftover = versions.filter((v) => v.removed && leftoverLinks(v.links).length > 0);
   const offered = libraryColumns(kind, rows);
   const [prefs, savePrefs] = useColumnPrefs(PREFS, LIBRARY_COLUMNS, DEFAULT_LIBRARY_COLUMNS);
   const shown = prefs.order.filter((id) => prefs.shown.includes(id) && offered.some((c) => c.id === id));
@@ -348,7 +348,7 @@ export function LibraryRows({ title, versions }: { title: TitleDetail; versions:
           {leftover.map((v, i) => (
             <span key={v.key}>
               {i > 0 ? "; " : ""}
-              {nameOf(v)} ({unlinkable(v.links).length === 1 ? "1 file" : `${unlinkable(v.links).length} files`}).{" "}
+              {nameOf(v)} ({leftoverLinks(v.links).length === 1 ? "1 file" : `${leftoverLinks(v.links).length} files`}).{" "}
               {perms.manage && v.key ? <LeftoverLinks titleId={titleId} versions={[v.key]} /> : null}
             </span>
           ))}

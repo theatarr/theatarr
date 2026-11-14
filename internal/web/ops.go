@@ -717,9 +717,9 @@ type RemovalScope struct {
 	Copies  []RemovalCopy `json:"copies"`
 	// Title is true when the copies are every copy the title has: the title leaves the library and the arr views.
 	Title bool `json:"title"`
-	// Leftover are copies in scope removed before whose library symlinks are still active (a removal with unlink
-	// whose file moves failed part way, or one without unlink): a removal with unlink moves their links to the trash
-	// too, and finishes the earlier one.
+	// Leftover are copies in scope removed before whose library symlinks are still there, active or dead (a removal
+	// with unlink whose file moves failed part way, or one without unlink): a removal with unlink moves their links to
+	// the trash too, and finishes the earlier one.
 	Leftover []RemovalCopy `json:"leftover"`
 }
 
@@ -763,7 +763,7 @@ func (w *Web) removalScope(ctx context.Context, titleID int64, keys []string) (*
 	err = scanAll(ctx, w.st.Reader(), `SELECT v.policy_key, COUNT(DISTINCT l.id)
 		FROM version v JOIN arrview_removed_version r ON r.version_id = v.id
 		JOIN link_version lv ON lv.version_id = v.id JOIN link l ON l.id = lv.link_id
-		WHERE v.title_id = ? AND l.state = 'active' AND l.kind = 'symlink'
+		WHERE v.title_id = ? AND l.state IN ('active', 'dead') AND l.kind = 'symlink'
 		GROUP BY v.id ORDER BY v.policy_key`, []any{titleID}, func(r *sql.Rows) error {
 		var c RemovalCopy
 		if err := r.Scan(&c.Key, &c.Links); err != nil {

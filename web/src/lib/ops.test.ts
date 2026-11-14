@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   failedDownloadId,
   grabScope,
+  leftoverLinks,
   removalLinks,
   removalScope,
   removeDownloadScope,
@@ -129,6 +130,16 @@ describe("recovery scopes", () => {
     expect(removalLinks(one)).toBe(3);
     expect(removalScope(one, true).does).toContain("3 library files are deleted from the library (moved to Theatarr's trash), with the folders left empty");
     expect(removalScope(one, false).keeps).toContain("1 library file stays linked and playable");
+  });
+
+  it("counts a removed library's dead symlinks among the files Delete files takes", () => {
+    const ls = [
+      { id: 1, path: "/a", kind: "symlink", state: "active" },
+      { id: 2, path: "/b", kind: "symlink", state: "dead" },
+      { id: 3, path: "/c", kind: "symlink", state: "unlinked" },
+      { id: 4, path: "/d", kind: "hardlink", state: "active" },
+    ];
+    expect(leftoverLinks(ls).map((l) => l.id)).toEqual([1, 2]);
   });
 
   it("unlinks only active symlinks, and says the target stays", () => {

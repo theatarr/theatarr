@@ -141,3 +141,26 @@ func TestRemoveFilesKeepsTorrentsWhenAsked(t *testing.T) {
 		t.Errorf("event %+v", rm)
 	}
 }
+
+// A dead symlink a removal without the files left is a kept file too: the scope lists it and Delete files takes it.
+func TestLeftoverIncludesDeadLinks(t *testing.T) {
+	t.Parallel()
+	o := newOpsEnv(t)
+	now := store.Millis(testNow)
+	o.exec(`INSERT INTO link (id, path, target, kind, title_id, state, created_at, updated_at) VALUES
+		(7, '/lib/Beta/b.mkv', '/mnt/zurg/b.mkv', 'symlink', 2, 'dead', ?, ?)`, now, now)
+	o.exec(`INSERT INTO link_version (link_id, version_id) VALUES (7, 3)`)
+	if code := o.jsonCall("POST", APIBase+"/titles/2/remove", RemoveRequest{}, o.mc, o.mcsrf, nil); code != 200 {
+		t.Fatalf("remove: %d", code)
+	}
+	var scope RemovalScope
+	if code := o.jsonCall("GET", APIBase+"/titles/2/removal", nil, o.mc, "", &scope); code != 200 ||
+		len(scope.Leftover) != 1 || scope.Leftover[0].Links != 1 {
+		t.Fatalf("scope: %d %+v", code, scope)
+	}
+	var got RemoveResult
+	if code := o.jsonCall("POST", APIBase+"/titles/2/remove", RemoveRequest{Unlink: true}, o.mc, o.mcsrf,
+		&got); code != 200 || len(got.Unlinked) != 1 {
+		t.Fatalf("delete files: %d %+v", code, got)
+	}
+}

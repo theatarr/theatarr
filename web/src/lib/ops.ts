@@ -214,6 +214,12 @@ export function reassignScope(path: string, copy: string, replace: boolean, chos
 }
 
 /** The links of a copy an operator may unlink: Theatarr's own active symlinks. */
+/** The links a removed library left that "Delete files" takes out: Theatarr's symlinks, active or dead (a dead one's
+ *  file is gone, but the link stays in the folder). */
+export function leftoverLinks<T extends { kind?: string; state?: string; id?: number; path?: string }>(links: T[] | undefined): T[] {
+  return (links ?? []).filter((l) => l.kind === "symlink" && (l.state === "active" || l.state === "dead") && !!l.id && !!l.path);
+}
+
 export function unlinkable<T extends { kind?: string; state?: string; id?: number; path?: string }>(links: T[] | undefined): T[] {
   return (links ?? []).filter((l) => l.kind === "symlink" && l.state === "active" && !!l.id && !!l.path);
 }

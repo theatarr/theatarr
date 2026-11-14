@@ -8,7 +8,7 @@ import { useLocation } from "react-router";
 import { afterEach, describe, expect, it } from "vitest";
 import { json, mockFetch, renderPage } from "@/test/page";
 import { Toaster } from "@/components/toaster";
-import { rememberList } from "@/lib/last-list";
+import { noteLocation } from "@/lib/last-list";
 import { LibraryRows } from "./library-rows";
 
 afterEach(() => window.localStorage.clear());
@@ -179,7 +179,8 @@ describe("fix round 1", () => {
       setVersions = set;
       return <LibraryRows title={title as never} versions={versions as never} />;
     }
-    rememberList("/series?availability=missing");
+    noteLocation("/series?availability=missing");
+    noteLocation("/title/7");
     renderPage(<><Page /><Where /><Toaster /></>, "/title/7");
     await user.click(await screen.findByTestId("copy-details-movie-web"));
     await user.click(screen.getByTestId("copy-remove-movie-web"));

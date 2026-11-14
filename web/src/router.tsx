@@ -1,9 +1,10 @@
 import { SETTINGS_PAGES } from "./lib/settings-map";
-import { lazy, Suspense, type ComponentType, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, type ComponentType, type ReactNode } from "react";
 import { createBrowserRouter, Navigate, Outlet, useLocation, useSearchParams, type RouteObject } from "react-router";
 import { LEGACY_ROUTES, legacyTarget } from "./lib/legacy-routes";
 import { useAuth } from "./api/auth";
 import { LibraryNamesProvider } from "./lib/library-names";
+import { noteLocation } from "./lib/last-list";
 import { ApiError } from "./api/client";
 import { LiveProvider } from "./api/events";
 import { SearchProvider } from "./components/search/search-context";
@@ -72,6 +73,8 @@ function Splash() {
 function RequireAuth() {
   const me = useAuth();
   const loc = useLocation();
+  // Where a title removal returns to: the list the title was opened from (lib/last-list.ts).
+  useEffect(() => noteLocation(loc.pathname + loc.search), [loc.pathname, loc.search]);
   if (me.isPending) return <Splash />;
   if (me.error) {
     if (me.error instanceof ApiError && me.error.status === 401) {
