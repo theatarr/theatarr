@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { fmtAgo, fmtNumber, fmtTime } from "@/lib/format";
 import { errorComponentWords, errorSourceWords, errorStatusWords } from "@/lib/error-words";
+import { jobName } from "@/lib/jobs";
 
 const STATUSES = [
   { id: "open", label: "Open" },
@@ -139,7 +140,7 @@ function ErrorRow({ row, open, onToggle }: { row: ErrorEvent; open: boolean; onT
             <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <Badge tone={STATUS_TONE[row.status] ?? "neutral"} data-testid="error-status" title={row.status}>{errorStatusWords(row.status)}</Badge>
               <Badge tone="outline" title={row.source}>{errorSourceWords(row.source)}</Badge>
-              <span title={row.component || undefined}><Mono className="text-[11.5px] text-muted-foreground">{errorComponentWords(row.component)}</Mono></span>
+              <span title={row.component || undefined}><Mono className="text-[11.5px] text-muted-foreground">{row.source === "job" && row.component ? jobName(row.component) : errorComponentWords(row.component)}</Mono></span>
               {row.regressions > 0 ? <Badge tone="warning">came back {row.regressions}×</Badge> : null}
             </span>
             <span className="mt-1 block break-words text-[13px] text-[var(--ink)]" data-testid="error-sample">{row.sample || row.message}</span>

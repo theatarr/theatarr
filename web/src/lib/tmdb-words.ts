@@ -2,26 +2,28 @@
 // column and the admin release dates print them. Unknown values fall back to the code made readable.
 import { wordsFor } from "./code-words";
 
+// A movie reads Announced, In cinemas or Released; a series Continuing, Ended, Cancelled or Upcoming (the Movies and
+// Series "status" column and the About tab use the same words).
 const STATUS: Record<string, string> = {
   announced: "Announced",
+  tba: "Announced",
+  rumored: "Announced",
   incinemas: "In cinemas",
   released: "Released",
-  tba: "To be announced",
   deleted: "Removed from TMDb",
-  rumored: "Rumoured",
-  planned: "Planned",
-  "in production": "In production",
-  "post production": "Post-production",
+  "returning series": "Continuing",
+  continuing: "Continuing",
+  ended: "Ended",
   canceled: "Cancelled",
   cancelled: "Cancelled",
-  "returning series": "Returning series",
-  continuing: "Returning series",
-  ended: "Ended",
+  "in production": "Upcoming",
+  "post production": "Upcoming",
+  planned: "Upcoming",
+  pilot: "Upcoming",
   upcoming: "Upcoming",
-  pilot: "Pilot",
 };
 
-/** A title's status in words: "inCinemas" → "In cinemas", "Returning Series" → "Returning series". */
+/** A title's status in words: "inCinemas" → "In cinemas", "Returning Series" → "Continuing". */
 export const titleStatusWords = (s: string | null | undefined) => (s ? STATUS[s.toLowerCase()] ?? wordsFor({}, s) : "");
 
 const RELEASE: Record<string, string> = {

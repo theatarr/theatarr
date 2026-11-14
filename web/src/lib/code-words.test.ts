@@ -47,7 +47,8 @@ describe("TMDb words", () => {
   it("statuses and release types", () => {
     expect(titleStatusWords("inCinemas")).toBe("In cinemas");
     expect(titleStatusWords("released")).toBe("Released");
-    expect(titleStatusWords("Returning Series")).toBe("Returning series");
+    expect(titleStatusWords("Returning Series")).toBe("Continuing");
+    expect(titleStatusWords("In Production")).toBe("Upcoming");
     expect(titleStatusWords("someStatus")).toBe("Some status");
     expect(releaseTypeWords("theatrical_limited")).toBe("Limited cinema release");
     expect(releaseTypeWords("theatrical")).toBe("In cinemas");

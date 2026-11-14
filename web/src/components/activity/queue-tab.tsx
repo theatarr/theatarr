@@ -100,7 +100,7 @@ function DownloadDetails({ d }: { d: ActivityDownload }) {
                   {a.provider ? <ProviderTag account={a.provider} className="font-medium" /> : null}
                   <Badge tone={a.outcome === "accepted" ? "positive" : a.outcome === "deferred" ? "warning" : a.outcome === "skipped" ? "neutral" : "negative"} title={[a.outcome, a.code].filter(Boolean).join(" · ")}>
                     {attemptOutcomeWords(a.outcome)}
-                    {a.code ? ` · ${attemptCodeWords(a.code)}` : ""}
+                    {a.code && attemptCodeWords(a.code).toLowerCase() !== attemptOutcomeWords(a.outcome).toLowerCase() ? ` · ${attemptCodeWords(a.code)}` : ""}
                   </Badge>
                   <span className="text-xs text-muted-foreground">{fmtTime(a.at)}</span>
                   {a.message ? <span className="w-full break-words text-xs text-muted-foreground">{a.message}</span> : null}

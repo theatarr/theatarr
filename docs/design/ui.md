@@ -524,7 +524,7 @@ by the full name, then the year ("Alien" before "Alien³").
 **Shared controls**: a sortable header (`SortHead`) looks like every other header (small capitals). A list read a page
 at a time shows the pager only when there is more than one page; a list that fits one page says "All 48 shown". A
 table wider than its frame scrolls inside the frame, and while columns are hidden on the right the frame's right edge
-fades; library pills in the catalog table wrap instead of widening it. The sidebar's Reviews badge shows nothing
+fades. The sidebar's Reviews badge shows nothing
 until all its counts have loaded. On a phone, a title page and Home's "See all" lists highlight **Browse**.
 
 **Codes in words** (`web/src/lib/code-words.ts` and one file per domain): a stored code is never printed as it is.
