@@ -366,7 +366,8 @@ export function ReleaseGrid({
                       <div className="font-mono text-[12px] text-[var(--ink)] [overflow-wrap:anywhere]">{c.release}</div>
                     </TableCell>
                     {after.map((id) => (
-                      <TableCell key={id} className="align-top" data-column={id}>
+                      // Status keeps a readable width (the table scrolls) rather than wrapping its reasons a word a line.
+                      <TableCell key={id} className={cn("align-top", id === "status" && "min-w-44")} data-column={id}>
                         <Cell id={id} c={c} outcomes={outcomes} />
                       </TableCell>
                     ))}

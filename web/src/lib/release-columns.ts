@@ -48,8 +48,16 @@ export type ReleaseSortKey = "rank" | "age" | "title" | "indexer" | "size" | "pe
 export type ReleaseSort = { key: ReleaseSortKey; dir: "asc" | "desc" };
 export type ReleaseColumnPrefs = { order: ReleaseColumnId[]; shown: ReleaseColumnId[]; sort: ReleaseSort };
 
+/** Status (accepted, or why not) right after Title by default, so the verdict stays in view when the wide table
+ *  scrolls sideways; the rest in the list's order. A stored order is kept as it is. */
+const DEFAULT_ORDER: ReleaseColumnId[] = (() => {
+  const ids: ReleaseColumnId[] = RELEASE_COLUMNS.map((c) => c.id).filter((id) => id !== "status");
+  ids.splice(ids.indexOf("age") + 1, 0, "status");
+  return ids;
+})();
+
 export const DEFAULT_RELEASE_COLUMNS: ReleaseColumnPrefs = {
-  order: RELEASE_COLUMNS.map((c) => c.id),
+  order: DEFAULT_ORDER,
   shown: RELEASE_COLUMNS.map((c) => c.id).filter((id) => id !== "formats"),
   sort: { key: "rank", dir: "asc" },
 };

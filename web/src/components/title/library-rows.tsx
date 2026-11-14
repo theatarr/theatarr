@@ -293,10 +293,11 @@ export function LibraryRows({ title, versions }: { title: TitleDetail; versions:
     const facts = [v.has_file ? c?.quality : "", v.has_file && c?.size_bytes ? fmtBytes(c.size_bytes) : ""].filter(Boolean).join(" · ");
     return (
       <div className="space-y-1.5">
-        <div className="flex items-start gap-2">
+        {/* The status moves under the name when both do not fit, so the name is never cut to a letter. */}
+        <div className="flex flex-wrap items-start gap-2">
           {monitor(v)}
-          <div className="min-w-0 flex-1"><LibraryName v={v} wrap /></div>
-          <div className="shrink-0"><StatusCell v={v} title={title} kind={kind} /></div>
+          <div className="min-w-[8rem] flex-1"><LibraryName v={v} wrap /></div>
+          <div className="max-w-full"><StatusCell v={v} title={title} kind={kind} /></div>
         </div>
         {v.has_file ? (
           <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--ink-2)]">

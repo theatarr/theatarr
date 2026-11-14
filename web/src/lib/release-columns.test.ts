@@ -22,6 +22,8 @@ describe("normalizeReleaseColumns", () => {
     expect(p.order.slice(0, 2)).toEqual(["age", "size"]);
     expect(p.order).toHaveLength(DEFAULT_RELEASE_COLUMNS.order.length);
     expect(p.order).toContain("flags");
+    // By default the verdict follows Title (the leading Source and Age columns come before Title).
+    expect(DEFAULT_RELEASE_COLUMNS.order.slice(0, 3)).toEqual(["source", "age", "status"]);
     expect(p.shown).toEqual(["age", "size"]);
     expect(p.sort).toEqual({ key: "rank", dir: "asc" });
     expect(normalizeReleaseColumns({ order: [], shown: [], sort: { key: "score", dir: "desc" } }).sort).toEqual({ key: "score", dir: "desc" });

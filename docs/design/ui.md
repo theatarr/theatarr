@@ -453,9 +453,10 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   still lists removed copies, so the window takes the current ones from the removal scope (`GET
   titles/{id}/removal`, its `copies`): a removed copy gets no tab, and a search asked for it opens on a current one. While the indexers answer, the window says "Searching the
   indexers for <library>…" with a seconds counter; closing it stops the search. One row per release, with the
-  columns Source (indexer kind, private trackers marked), Age, Title, Indexer, History (what came of the release
-  before), Size, Peers, Cached on (provider pills), Episodes (series), Language, Quality, Score, Formats, Flags and
-  Status, then Grab. Columns sort, can be hidden and reordered (Columns); the choice and the sort are kept per user
+  columns Source (indexer kind, private trackers marked), Age, Title, Status (right after Title by default, so the
+  verdict stays in view when the table scrolls sideways; it keeps a readable width), Indexer, History (what came of
+  the release before), Size, Peers, Cached on (provider pills), Episodes (series), Language, Quality, Score, Formats
+  and Flags, then Grab. Columns sort, can be hidden and reordered (Columns); the choice and the sort are kept per user
   in this browser (`localStorage` `theatarr.library.release-columns.<user>`). Filters (text, Accepted only, Cached
   only, Packs only for a series) are not kept. On a phone each release is a card with its indexer, the episodes it covers, languages and flags. A title in several
   libraries that search live gets a tab per library (its colour and name, the key as tooltip):
