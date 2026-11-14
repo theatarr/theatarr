@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   clearHistoryFilters,
   historyFilterCount,
+  historyFiltersFor,
   historyParams,
   NO_HISTORY_FILTERS,
   parseHistoryFilters,
@@ -18,8 +19,9 @@ describe("activity history filters", () => {
       since: "2026-10-01",
     });
     expect(parseHistoryFilters(new URLSearchParams("event=shadow&since=yesterday"))).toEqual(NO_HISTORY_FILTERS);
-    // The words before Radarr's (grabs, upgrades, imports, failures) are no longer events: all.
-    expect(parseHistoryFilters(new URLSearchParams("event=imports")).event).toBe("all");
+    // Bookmarks from before Radarr's words open the matching filter.
+    for (const [old, now] of [["grabs", "grabbed"], ["upgrades", "grabbed"], ["imports", "imported"], ["failures", "failed"]])
+      expect(parseHistoryFilters(new URLSearchParams(`event=${old}`)).event).toBe(now);
   });
   it("changes one filter and keeps the rest of the URL", () => {
     const sp = new URLSearchParams("as=user&title=Alpha");
@@ -35,6 +37,9 @@ describe("activity history filters", () => {
     const p = historyParams({ title: "Alpha", copy: "movie-web", event: "imported", since: "2026-10-01" });
     expect(p).toMatchObject({ title: "Alpha", version: "movie-web", events: "imported,adopted" });
     expect(historyParams({ ...NO_HISTORY_FILTERS, event: "deleted" }).events).toBe("deleted,removed,missing");
+    // Other providers is for accounts that see files: the user view asks for every event.
+    expect(historyFiltersFor({ ...NO_HISTORY_FILTERS, event: "copies" }, false).event).toBe("all");
+    expect(historyFiltersFor({ ...NO_HISTORY_FILTERS, event: "copies" }, true).event).toBe("copies");
     // Since is local midnight of that day.
     expect(new Date(p.since!).getTime()).toBe(new Date(2026, 9, 1).getTime());
     expect(historyFilterCount({ title: "A", copy: "", event: "all", since: "2026-10-01" })).toBe(2);

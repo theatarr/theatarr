@@ -67,3 +67,14 @@ it("words rows like Radarr's: one import with its episodes, the deleted file and
   expect(got[0].querySelector('[data-testid="history-reason"]')?.textContent).toBe("Not cached on AD; our add was deleted");
   expect(fetch.calls("GET", "/activity")[0].search).toContain("title_id=3");
 });
+
+it("drops the Other providers filter in a view without see files, instead of asking for it", async () => {
+  const fetch = mockFetch([
+    { method: "GET", path: "/auth/me", reply: me },
+    { method: "GET", path: "/titles/facets", reply: {} },
+    { method: "GET", path: "/activity", reply: { state: "history", admin: false, history: [] } },
+  ]);
+  renderPage(<HistoryTab admin={false} as="user" />, "/activity/history?event=copies");
+  await screen.findByText("Nothing has happened yet.");
+  expect(fetch.calls("GET", "/activity").every((r) => !r.search.includes("events="))).toBe(true);
+});

@@ -7,8 +7,8 @@
 // (lib/activity-history-columns.ts), and Retry on a failed download and the journal link. Household accounts and
 // "View as a user" keep the simple rows grouped by day: no library key, no release.
 import { Columns3, History as HistoryIcon, NotebookPen } from "lucide-react";
-import { useState } from "react";
-import { Link } from "react-router";
+import { useEffect, useState } from "react";
+import { Link, useSearchParams } from "react-router";
 import { useActivityHistory, type ActivityEvent } from "@/api/activity";
 import { usePerms } from "@/api/library";
 import { HistoryRetry } from "@/components/activity/download-actions";
@@ -22,7 +22,7 @@ import { DataTable, type DataColumn } from "@/components/ui/data-table";
 import { fmtBytes, fmtNumber, fmtTime, titleWithYear } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { adminLink, journalLink } from "@/lib/admin-links";
-import { historyFilterCount, historyParams } from "@/lib/activity-history";
+import { historyFilterCount, historyFiltersFor, historyParams, withHistoryFilter } from "@/lib/activity-history";
 import { eventMeaning, HISTORY_COLUMNS, HISTORY_DEFAULT, type HistoryColumnId } from "@/lib/activity-history-columns";
 import { useColumnPrefs } from "@/lib/prefs";
 import { ProviderTag } from "@/components/provider-pills";
@@ -172,7 +172,13 @@ function HistoryActions({ e }: { e: ActivityEvent }) {
 
 /** History. titleId: one title's (the title page's History tab): no filters and no Title column, the same rows. */
 export function HistoryTab({ admin, as, titleId }: { admin: boolean; as?: "user"; titleId?: number }) {
-  const filters = useHistoryFilters();
+  const asked = useHistoryFilters();
+  // A view that cannot use the filter (Other providers in the user view) drops it from the URL too.
+  const filters = historyFiltersFor(asked, admin);
+  const [sp, setSp] = useSearchParams();
+  useEffect(() => {
+    if (!titleId && filters.event !== asked.event) setSp(withHistoryFilter(sp, "event", filters.event), { replace: true });
+  }, [titleId, filters.event, asked.event, sp, setSp]);
   const q = useActivityHistory({ as }, titleId ? { title_id: titleId } : historyParams(filters));
   const [prefs, savePrefs] = useColumnPrefs("activity-history", HISTORY_COLUMNS, HISTORY_DEFAULT);
   const [picking, setPicking] = useState(false);

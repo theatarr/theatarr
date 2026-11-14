@@ -15,6 +15,9 @@ export const HISTORY_EVENTS: { id: HistoryEventId; label: string; events: string
   { id: "copies", label: "Other providers", events: ["copy_added", "copy_not_cached"], admin: true },
 ];
 
+/** Event filters of bookmarks from before Radarr's words, and the filter each now is. */
+const OLD_EVENTS: Record<string, HistoryEventId> = { grabs: "grabbed", upgrades: "grabbed", imports: "imported", failures: "failed" };
+
 export type HistoryFilters = { title: string; copy: string; event: HistoryEventId; since: string };
 
 export const NO_HISTORY_FILTERS: HistoryFilters = { title: "", copy: "", event: "all", since: "" };
@@ -28,7 +31,7 @@ export function parseHistoryFilters(sp: URLSearchParams): HistoryFilters {
   return {
     title: (sp.get("title") ?? "").trim(),
     copy: (sp.get("copy") ?? "").trim(),
-    event: HISTORY_EVENTS.some((e) => e.id === event) ? (event as HistoryEventId) : "all",
+    event: HISTORY_EVENTS.some((e) => e.id === event) ? (event as HistoryEventId) : (OLD_EVENTS[event] ?? "all"),
     since: DATE.test(since) && !Number.isNaN(new Date(`${since}T00:00:00`).getTime()) ? since : "",
   };
 }
@@ -62,4 +65,9 @@ export function historyParams(f: HistoryFilters): { title?: string; version?: st
     events: events.length ? events.join(",") : undefined,
     since: f.since ? new Date(`${f.since}T00:00:00`).toISOString() : undefined,
   };
+}
+
+/** The filters as a view can use them: the admin-only event types (Other providers) are All events without "see files". */
+export function historyFiltersFor(f: HistoryFilters, admin: boolean): HistoryFilters {
+  return !admin && HISTORY_EVENTS.find((e) => e.id === f.event)?.admin ? { ...f, event: "all" } : f;
 }
