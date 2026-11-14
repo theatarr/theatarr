@@ -184,7 +184,7 @@ type ActivityEvent struct {
 	Version string        `json:"version,omitempty"`
 	Words   string        `json:"words"`
 	Tone    string        `json:"tone"` // ok, info, warn, bad
-	// Episodes are the row's episodes (S01E02); Files the files a grouped row stands for (adopted, deleted).
+	// Admin: the row's episodes (S01E02; an import's, those its links hold) and the files a library row stands for.
 	Episodes []string `json:"episodes,omitempty"`
 	Files    int      `json:"files,omitempty"`
 
@@ -303,7 +303,7 @@ func (w *Web) apiActivity(rw http.ResponseWriter, r *http.Request) {
 			page.Counts[d.State]++
 		}
 	case "history":
-		f := journal.Filter{History: true, Cursor: q.Get("cursor"), Limit: limit,
+		f := journal.Filter{Cursor: q.Get("cursor"), Limit: limit,
 			Title: strings.TrimSpace(q.Get("title")), Version: strings.TrimSpace(q.Get("version"))}
 		if titleID > 0 {
 			f.Title = strconv.FormatInt(titleID, 10)
@@ -369,7 +369,7 @@ func (w *Web) apiActivity(rw http.ResponseWriter, r *http.Request) {
 		} else if !admin {
 			f.Events = allowed
 		}
-		jp, err := w.journal.List(ctx, f)
+		jp, err := w.journal.History(ctx, f)
 		if errors.Is(err, journal.ErrBadFilter) {
 			badRequest(rw, strings.TrimPrefix(err.Error(), "journal: "))
 			return
@@ -642,11 +642,11 @@ func (w *Web) nowDownloads(ctx context.Context, admin bool, kind string, titleID
 	return w.downloadViews(ctx, ds, admin)
 }
 
-// historyEvents turns History's entries (journal.Filter.History) into plain-words rows.
-func (w *Web) historyEvents(ctx context.Context, es []*journal.Entry, admin bool) ([]ActivityEvent, error) {
-	ids := make([]int64, 0, len(es))
-	for _, e := range es {
-		ids = append(ids, e.Title.ID)
+// historyEvents turns History's rows (journal.History) into plain-words rows.
+func (w *Web) historyEvents(ctx context.Context, hs []*journal.HistoryRow, admin bool) ([]ActivityEvent, error) {
+	ids := make([]int64, 0, len(hs))
+	for _, h := range hs {
+		ids = append(ids, h.Title.ID)
 	}
 	posters, err := w.posters(ctx, ids)
 	if err != nil {
@@ -657,22 +657,21 @@ func (w *Web) historyEvents(ctx context.Context, es []*journal.Entry, admin bool
 		return nil, err
 	}
 	out := []ActivityEvent{}
-	for _, e := range es {
-		t := activityTitle(e.Title.ID, e.Title.Name, e.Title.Year, e.Title.Kind, anime[e.Title.ID], posters)
-		notStarted := historyNotStarted(e)
-		h := historyFacts(e)
-		words, tone := entryWords(e, h, notStarted, w.providerTag)
-		x := ActivityEvent{ID: e.ID, At: e.At, Kind: e.Kind, Event: h.Event, Title: t, Version: e.Version, Words: words,
-			Tone: tone, Episodes: h.Episodes, Files: h.Files}
+	for _, h := range hs {
+		t := activityTitle(h.Title.ID, h.Title.Name, h.Title.Year, h.Title.Kind, anime[h.Title.ID], posters)
+		notStarted := historyNotStarted(h)
+		words, tone := entryWords(h, notStarted, w.providerTag)
+		x := ActivityEvent{ID: h.ID, At: h.At, Kind: h.Kind, Event: h.Event, Title: t, Version: h.Version, Words: words,
+			Tone: tone}
 		if !admin {
 			// Journal ids name their source rows; users get an opaque one.
-			x.ID = opaqueID(e.ID)
+			x.ID = opaqueID(h.ID)
 		}
 		if admin {
-			x.Summary, x.Source, x.Suspect, x.Provider = e.Summary, e.Source, e.Suspect, h.Provider
-			x.Reason = historyReason(e, h, notStarted, w.providerTag)
+			x.Episodes, x.Files, x.Provider = h.Episodes, h.Files, h.Provider
+			x.Reason = historyReason(h, notStarted, w.providerTag)
 			if notStarted != "" {
-				x.Summary = activity.NotStartedMessage(notStarted) // the journal entry keeps its own text
+				x.Summary = activity.NotStartedMessage(notStarted)
 			}
 			if r := h.Release; r != nil {
 				x.Release, x.Quality, x.Score, x.Indexer, x.Size, x.Formats = r.Title, r.Quality, r.Score, r.Indexer,
@@ -685,52 +684,6 @@ func (w *Web) historyEvents(ctx context.Context, es []*journal.Entry, admin bool
 		out = append(out, x)
 	}
 	return out, nil
-}
-
-// historyFacts are an entry's History facts: the ones History's listing set, else (an entry read without it) its
-// event from its kind, with the entry's own release.
-func historyFacts(e *journal.Entry) *journal.HistoryFacts {
-	if e.Hist != nil {
-		return e.Hist
-	}
-	h := &journal.HistoryFacts{Release: e.Release}
-	if e.Release != nil {
-		h.Episodes = e.Release.Episodes
-	}
-	if e.Download != nil {
-		h.Provider, h.Reason = e.Download.Provider, e.Download.Error
-	}
-	switch e.Kind {
-	case journal.KindGrab, journal.KindUpgrade:
-		h.Event = journal.EvGrabbed
-	case journal.KindImport:
-		h.Event = journal.EvImported
-		if e.Import != nil && (e.Import.State == "rejected" || e.Import.State == "failed") {
-			h.Event = journal.EvFailed
-		}
-	case journal.KindLink:
-		h.Event = journal.EvAdopted
-		if e.Import != nil && len(e.Import.Links) > 0 {
-			switch e.Import.Links[0].Kind {
-			case "replace":
-				h.Event = journal.EvRemoved
-				if len(e.Related) > 0 {
-					h.Event = journal.EvDeleted
-				}
-			case "dead":
-				h.Event = journal.EvMissing
-			case "link":
-				if len(e.Related) > 0 {
-					h.Event = journal.EvImported
-				}
-			}
-		}
-	case journal.KindFailure, journal.KindStall:
-		h.Event = journal.EvFailed
-	case journal.KindBlocklist:
-		h.Event = journal.EvBlocked
-	}
-	return h
 }
 
 func animeTitles(ctx context.Context, db *sql.DB, ids []int64) (map[int64]bool, error) {
@@ -758,17 +711,17 @@ func animeTitles(ctx context.Context, db *sql.DB, ids []int64) (map[int64]bool, 
 	return out, rows.Err()
 }
 
-// historyNotStarted is the not-started reason of a failure entry (as activity.Download.NotStarted: a gate text and
-// no attempt activity.Tried counts), "" for any other entry.
-func historyNotStarted(e *journal.Entry) string {
-	if e.Kind != journal.KindFailure || e.Download == nil {
+// historyNotStarted is the not-started reason of a failed download's row (as activity.Download.NotStarted: a gate
+// text and no attempt activity.Tried counts), "" for any other row.
+func historyNotStarted(h *journal.HistoryRow) string {
+	if h.Event != journal.EvFailed || h.Kind != journal.KindFailure {
 		return ""
 	}
-	r := activity.NotStarted(e.Download.Error)
+	r := activity.NotStarted(h.Reason)
 	if r == "" {
 		return ""
 	}
-	for _, a := range e.Attempts {
+	for _, a := range h.Attempts {
 		if activity.Tried(a.Outcome, a.Code) {
 			return ""
 		}
@@ -776,21 +729,20 @@ func historyNotStarted(e *journal.Entry) string {
 	return r
 }
 
-// historyWords says what a History entry means, without release names; providers by their tag (RD, AD, TB).
-func historyWords(e *journal.Entry) (words, tone string) {
-	return entryWords(e, historyFacts(e), historyNotStarted(e), strings.ToUpper)
+// historyWords says what a History row means, without release names; providers by their tag (RD, AD, TB).
+func historyWords(h *journal.HistoryRow) (words, tone string) {
+	return entryWords(h, historyNotStarted(h), strings.ToUpper)
 }
 
 // entryWords is a History row's words, like Radarr's: Grabbed, Imported, Adopted, Deleted (upgrade), Removed,
-// Failed, Blocked, Added to <provider>, Not cached on <provider>. notStarted is the entry's historyNotStarted reason;
+// Failed, Blocked, Added to <provider>, Not cached on <provider>. notStarted is the row's historyNotStarted reason;
 // tag names a provider account.
-func entryWords(e *journal.Entry, h *journal.HistoryFacts, notStarted string, tag func(string) string) (words,
-	tone string) {
+func entryWords(h *journal.HistoryRow, notStarted string, tag func(string) string) (words, tone string) {
 	switch h.Event {
 	case journal.EvGrabbed:
 		return "Grabbed", "info"
 	case journal.EvImported:
-		if e.Import != nil && e.Import.State == "partial" {
+		if h.Import == "partial" {
 			return "Imported", "warn"
 		}
 		return "Imported", "ok"
@@ -814,12 +766,12 @@ func entryWords(e *journal.Entry, h *journal.HistoryFacts, notStarted string, ta
 	case journal.EvCopyNotCached:
 		return "Not cached on " + tag(h.Provider), "info"
 	}
-	return e.Kind, "info"
+	return h.Event, "info"
 }
 
 // historyReason is a History row's reason in plain words: why a download failed or stalled, why a release was blocked,
 // why a file was removed, what is left of a partial import, a copy's message when it says more than the words.
-func historyReason(e *journal.Entry, h *journal.HistoryFacts, notStarted string, tag func(string) string) string {
+func historyReason(h *journal.HistoryRow, notStarted string, tag func(string) string) string {
 	switch h.Event {
 	case journal.EvFailed:
 		if notStarted != "" || h.Reason == "" {
@@ -832,13 +784,13 @@ func historyReason(e *journal.Entry, h *journal.HistoryFacts, notStarted string,
 		}
 		return blockWords(h.Source) + ": " + h.Reason
 	case journal.EvImported:
-		if e.Import != nil && e.Import.State == "partial" {
+		if h.Import == "partial" {
 			return "Partly imported; the rest is tried again"
 		}
 	case journal.EvRemoved:
 		return h.Reason
 	case journal.EvCopyAdded, journal.EvCopyNotCached:
-		if w, _ := entryWords(e, h, "", tag); !strings.EqualFold(h.Reason, w) {
+		if w, _ := entryWords(h, "", tag); !strings.EqualFold(h.Reason, w) {
 			return h.Reason
 		}
 	}

@@ -363,7 +363,7 @@ func TestPartialImportActivity(t *testing.T) {
 		t.Errorf("partial next retry: %v", d.NextRetry)
 	}
 
-	words, tone := historyWords(&journal.Entry{Kind: journal.KindImport, Import: &journal.Import{State: "partial"}})
+	words, tone := historyWords(&journal.HistoryRow{Kind: journal.KindImport, Event: journal.EvImported, Import: "partial"})
 	if words != "Imported" || tone != "warn" {
 		t.Errorf("partial history: %q, %q", words, tone)
 	}
@@ -636,8 +636,8 @@ func TestActivityNotStartedDownload(t *testing.T) {
 			t.Errorf("failed step %+v", d.Steps)
 		}
 	}
-	words, tone := historyWords(&journal.Entry{Kind: journal.KindFailure,
-		Download: &journal.Download{State: "failed", Error: "route ended: " + router.ErrDisabled.Error()}})
+	words, tone := historyWords(&journal.HistoryRow{Kind: journal.KindFailure, Event: journal.EvFailed,
+		Reason: "route ended: " + router.ErrDisabled.Error()})
 	if words != "Not started: downloads were off" || tone != "info" {
 		t.Errorf("history: %q, %q", words, tone)
 	}
@@ -686,19 +686,18 @@ func TestActivityNotStartedDownload(t *testing.T) {
 		}
 	}
 	tried := []journal.Attempt{{Provider: "rd", Outcome: "refused", Code: "too_many_active"}}
-	if words, _ := historyWords(&journal.Entry{Kind: journal.KindFailure, Attempts: tried,
-		Download: &journal.Download{State: "failed", Error: "route ended: " + router.ErrDisabled.Error()}}); words != "Failed" {
+	if words, _ := historyWords(&journal.HistoryRow{Kind: journal.KindFailure, Event: journal.EvFailed, Attempts: tried,
+		Reason: "route ended: " + router.ErrDisabled.Error()}); words != "Failed" {
 		t.Errorf("tried history: %q", words)
 	}
 	// The admin's History summary of a not-started row is the plain message; the journal keeps its own text.
-	h, err := e.web.historyEvents(context.Background(), []*journal.Entry{{Kind: journal.KindFailure,
-		Summary: "download failed: route ended: router: router.enabled is false", Title: journal.TitleRef{ID: 1},
-		Download: &journal.Download{State: "failed", Error: "route ended: " + router.ErrDisabled.Error()}}}, true)
+	h, err := e.web.historyEvents(context.Background(), []*journal.HistoryRow{{Kind: journal.KindFailure,
+		Event: journal.EvFailed, Title: journal.TitleRef{ID: 1}, Reason: "route ended: " + router.ErrDisabled.Error()}}, true)
 	if err != nil || len(h) != 1 || h[0].Summary != "Nothing was added to a provider. Use Retry once downloads are on again." {
 		t.Errorf("history summary: %+v, %v", h, err)
 	}
-	if words, tone = historyWords(&journal.Entry{Kind: journal.KindFailure,
-		Download: &journal.Download{State: "failed", Error: "download failed: x"}}); words != "Failed" || tone != "bad" {
+	if words, tone = historyWords(&journal.HistoryRow{Kind: journal.KindFailure, Event: journal.EvFailed,
+		Reason: "download failed: x"}); words != "Failed" || tone != "bad" {
 		t.Errorf("real failure history: %q, %q", words, tone)
 	}
 }
@@ -798,5 +797,45 @@ func TestHistorySameForTitle(t *testing.T) {
 	}
 	if code := e.getKey(APIBase+"/activity?state=history&events=copy_added&as=user", key, nil); code != 400 {
 		t.Errorf("user copy filter: %d", code)
+	}
+}
+
+// A series' History rows keep their episodes and file counts for those who see files; a household account (and the
+// user view) gets the event words and title only.
+func TestHistorySeriesRedaction(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	key := e.apiKey()
+	now := store.Millis(testNow)
+	e.exec(`INSERT INTO version (id, title_id, policy_key, state, created_at, updated_at) VALUES (9, 3, 'tv-2160p', 'wanted', ?, ?)`,
+		now, now)
+	e.exec(`INSERT INTO episode (id, title_id, season, number, created_at, updated_at) VALUES (31, 3, 1, 1, ?, ?),
+		(32, 3, 1, 2, ?, ?)`, now, now, now, now)
+	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, quality,
+		score, episodes, state, created_at, updated_at, imported_at) VALUES
+		(5, 3, 9, 'tv-2160p', 'f5', 'Gamma.S01.2160p.WEB', 'dmm', 'WEBDL-2160p', 700, '[31,32]', 'imported', ?, ?, ?)`,
+		now, now+5, now+5)
+	e.exec(`INSERT INTO library_import (download_id, state, mount_folder, plan, created_at, updated_at) VALUES
+		(5, 'linked', '/m/g', '{}', ?, ?)`, now+5, now+5)
+	e.exec(`INSERT INTO link (id, path, target, title_id, download_id, state, created_at, updated_at) VALUES
+		(80, '/tv/G/S01E01.mkv', '/t1', 3, 5, 'active', ?, ?), (81, '/tv/G/S01E02.mkv', '/t2', 3, 5, 'active', ?, ?)`,
+		now, now, now, now)
+	e.exec(`INSERT INTO link_episode (link_id, episode_id) VALUES (80, 31), (81, 32)`)
+	e.exec(`INSERT INTO library_action (at, kind, mode, version_key, download_id, link_id, path) VALUES
+		(?, 'link', 'applied', 'tv-2160p', 5, 80, '/tv/G/S01E01.mkv'), (?, 'link', 'applied', 'tv-2160p', 5, 81, '/tv/G/S01E02.mkv')`,
+		now+5, now+5)
+	var a, u ActivityPage
+	e.getKey(APIBase+"/activity?state=history&title_id=3", key, &a)
+	if len(a.History) != 2 || !slices.Equal(a.History[0].Episodes, []string{"S01E01", "S01E02"}) {
+		t.Fatalf("admin series history: %+v", a.History)
+	}
+	e.getKey(APIBase+"/activity?state=history&title_id=3&as=user", key, &u)
+	if len(u.History) != 2 {
+		t.Fatalf("user series history: %+v", u.History)
+	}
+	for _, x := range u.History {
+		if x.Episodes != nil || x.Files != 0 || x.Release != "" || x.Quality != "" || x.Provider != "" {
+			t.Errorf("user row has file details: %+v", x)
+		}
 	}
 }
