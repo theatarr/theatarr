@@ -12,6 +12,8 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetCancel, SheetLayout, useEditParam } from "@/components/ui/sheet";
 import { changedPaths } from "@/components/settings/section-draft";
+import { keyProblem } from "@/lib/field-checks";
+import { Field } from "@/components/settings/parts";
 import { explainError } from "@/lib/settings";
 import { qk } from "@/api/query-keys";
 import { FormatFields, FormGrid, JSONField, ProfileFields, Select, TextField, Toggle, object, pretty, text, type Config, type FormatJSON, type Implementation } from "./fields";
@@ -142,6 +144,8 @@ export function QualityPanel({ entity, compact = false, skip = [], match }: { en
   };
   const patch = (patch: Partial<QualityRecord>) => { if (session) { setSession({ ...session, draft: { ...session.draft, ...patch } }); setPreview(undefined); } };
   const c = session?.draft.config ?? {};
+  // Profile and format set keys follow the server's key rule (checkKey); other records' keys are left to it.
+  const keyError = session && !session.id && session.draft.key && (entity === "profiles" || entity === "format_sets") ? keyProblem(session.draft.key) : undefined;
   const set = (key: string, value: unknown) => patch({ config: { ...c, [key]: value } });
   return <div ref={panel} tabIndex={-1} className="space-y-4 outline-none">
     {settingsBannerNeeded(o) ? <SettingsAuthority compact={compact} overview={o} /> : null}{!compact ? <ManagedInSettings /> : null}
@@ -157,11 +161,11 @@ export function QualityPanel({ entity, compact = false, skip = [], match }: { en
       <SheetLayout testid="quality-form" headingRef={heading} onClose={close} changes={readOnly ? 0 : changedPaths(session.draft, session.start).length}
         title={`${session.id ? "Edit" : "Add"} ${entity.replaceAll("_", " ")}`}
         subtitle={session.id ? session.draft.key : undefined}
-        footer={<><Button type="submit" form={formId} disabled={busy || readOnly}>{busy ? "Saving…" : "Save"}</Button><SheetCancel variant="outline" onClick={close}>Cancel</SheetCancel>{session.id ? <Button type="button" variant="destructive" className="ml-auto" disabled={busy || readOnly} onClick={() => setConfirmDelete(true)}>Delete</Button> : null}</>}>
+        footer={<><Button type="submit" form={formId} disabled={busy || readOnly || !!keyError}>{busy ? "Saving…" : "Save"}</Button><SheetCancel variant="outline" onClick={close}>Cancel</SheetCancel>{session.id ? <Button type="button" variant="destructive" className="ml-auto" disabled={busy || readOnly} onClick={() => setConfirmDelete(true)}>Delete</Button> : null}</>}>
       <div ref={errorBox}>{error ? <div className="mb-4"><ExplainBox error={explainError(error)} onReload={() => { void rebase(false); }} onReloadKeep={() => { void rebase(true); }} />{error instanceof ApiError && object(error.body).uses ? <pre className="whitespace-pre-wrap text-sm">{pretty(object(error.body).uses)}</pre> : null}</div> : null}</div>
       <form id={formId} key={formRevision} className="space-y-4" onSubmit={(e) => { e.preventDefault(); void write(); }}>
         <fieldset disabled={busy || readOnly} className="space-y-4">
-          <label className="flex flex-col gap-1 text-sm">{entity === "naming" ? "Library key" : "Key"}<Input className="h-9" required disabled={!!session.id} value={session.draft.key} onChange={(e) => patch({ key: e.target.value })} /></label>
+          <Field label={entity === "naming" ? "Library key" : "Key"} error={keyError}><Input className="h-9" required disabled={!!session.id} value={session.draft.key} onChange={(e) => patch({ key: e.target.value })} /></Field>
           {entity === "profiles" ? <ProfileFields config={c} onChange={(config) => patch({ config })} /> : null}
           {entity === "formats" ? <><Select label="Flavour" value={text(c.flavour)} values={["", "radarr", "sonarr"]} onChange={(v) => set("flavour", v)} />{schema.isPending ? <Loading /> : schema.error ? <ErrorState error={schema.error} /> : <FormatFields spec={session.draft.specification ?? blankFormat()} schema={schema.data} flavour={text(c.flavour)} onChange={(specification) => patch({ specification, config: { ...c, trash_id: specification.trash_id ?? "", include_when_renaming: specification.includeCustomFormatWhenRenaming } })} />}</> : null}
           {entity === "format_sets" ? <><Select label="Flavour" value={text(c.flavour)} values={["radarr", "sonarr"]} onChange={(v) => set("flavour", v)} /><JSONField label={'Formats by display name: {"WEB Tier 01": {"ref": "global-key"}}; inline entries use trash_id and a specification below'} value={c.formats ?? {}} onChange={(v) => set("formats", v)} /><JSONField label="Full inline arr JSON by display name" value={session.draft.specifications ?? {}} onChange={(v) => patch({ specifications: v as Record<string, FormatJSON> })} /></> : null}

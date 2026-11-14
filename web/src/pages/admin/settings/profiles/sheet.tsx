@@ -15,6 +15,8 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetCancel, SheetLayout } from "@/components/ui/sheet";
 import { changedPaths } from "@/components/settings/section-draft";
+import { Field } from "@/components/settings/parts";
+import { keyProblem } from "@/lib/field-checks";
 import { explainError } from "@/lib/settings";
 import { cn } from "@/lib/utils";
 import { FormGrid, NumberInput, PROPERS, PROPERS_LABELS, Select, TextField, Toggle, object, type Config } from "../quality/fields";
@@ -210,7 +212,7 @@ export function ProfileSheet({ session: initial, readOnly, onClose, onSaved, onR
   const footer = picking ? undefined : <>
     {edit && !impact ? <Button type="button" disabled={busy || readOnly || sizesInvalid} onClick={() => void review()}>{busy ? "Checking…" : "Review and save"}</Button> : null}
     {edit && impact ? <><Button type="button" disabled={busy || readOnly || sizesInvalid} onClick={() => void save()}>{busy ? "Saving…" : "Save"}</Button><Button type="button" variant="outline" onClick={() => setImpact(undefined)}>Back to editing</Button></> : null}
-    {create ? <Button type="button" disabled={busy || readOnly || sizesInvalid || !create.key.trim()} onClick={() => void save()}>{busy ? "Creating…" : "Create profile"}</Button> : null}
+    {create ? <Button type="button" disabled={busy || readOnly || sizesInvalid || !!keyProblem(create.key)} onClick={() => void save()}>{busy ? "Creating…" : "Create profile"}</Button> : null}
     <SheetCancel variant="outline" onClick={onClose}>Cancel</SheetCancel>
     {edit && used.length === 0 && edit.id ? <Button type="button" variant="destructive" className="ml-auto" disabled={busy || readOnly} onClick={() => setConfirmDelete(true)}>Delete</Button> : null}
   </>;
@@ -240,7 +242,7 @@ export function ProfileSheet({ session: initial, readOnly, onClose, onSaved, onR
           {compare && summary?.diff ? <div className="rounded-lg border border-[var(--line)] p-3"><p className="mb-2 text-xs text-muted-foreground">The saved profile against {summary.diff.preset} as TRaSH builds it today.</p><DiffLists diff={summary.diff} /></div> : null}
         </section>
         <fieldset disabled={busy || readOnly} className="space-y-5">
-          {create ? <label className="flex flex-col gap-1 text-sm">Key<Input className="h-9" required value={create.key} onChange={(e) => setSession({ ...create, key: e.target.value })} /></label> : null}
+          {create ? <Field label="Key" help="Lower case letters, digits, - and _." error={create.key ? keyProblem(create.key) : undefined}><Input className="h-9" required value={create.key} onChange={(e) => setSession({ ...create, key: e.target.value })} /></Field> : null}
           <section className="space-y-2"><h3 className="font-semibold">Qualities</h3><QualityLadder config={config} onChange={change} /></section>
           <section className="space-y-2"><h3 className="font-semibold">Upgrades and scores</h3>
             <FormGrid>

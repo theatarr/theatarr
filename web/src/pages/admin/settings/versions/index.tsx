@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { keyProblem } from "@/lib/field-checks";
 import { useQueryClient } from "@tanstack/react-query";
 import { setupKey } from "@/api/setup";
 import { qk } from "@/api/query-keys";
@@ -59,6 +60,9 @@ function Field({ label, children, changed, onUndo, name, error, help }: { label:
 }
 
 /** The library draft's edits against the stored record (key, settings and write roots). */
+/** A new library's typed key, checked as the server checks it (shown once it is typed). */
+const newKeyProblem = (session: Session) => session.create && session.record.key !== session.saved.key ? keyProblem(session.record.key) : undefined;
+
 export function libraryChanges(record: VersionRecord, saved: VersionRecord): number {
   const view = (r: VersionRecord) => ({ key: r.key, config: r.config, roots: r.roots ?? [] });
   return changedPaths(view(record), view(saved)).length;
@@ -335,7 +339,7 @@ export function VersionsPage({ embedded = false }: { embedded?: boolean }) {
         <SheetLayout key={session.draftID} testid="version-form" headingRef={heading} onClose={close} changes={readOnly ? 0 : libraryChanges(session.record, session.saved)}
           title={`${session.create ? "New library" : `Edit library ${nameOf(session.record.key, libraryLabel(session.record.key, session.saved.config.profile, session.saved.config.name, session.saved.config.kind))}`}`}
           subtitle={session.create ? "Starts as Watch only unless you choose otherwise." : `${KIND_WORD[session.record.config.kind] ?? session.record.config.kind}${session.record.config.anime ? " · anime" : ""} · ${CHOICE_LABEL[choiceOf(session.record.config.mode) ?? "watch"]}`}
-          footer={<><Button onClick={() => void review()} disabled={readOnly || busy}>Save</Button><SheetCancel variant="outline" onClick={close}>Cancel</SheetCancel>{libraryChanges(session.record, session.saved) ? <><span className="text-[13px] font-medium text-[var(--ink)]" data-testid="unsaved-count" aria-live="polite">{changeCount(libraryChanges(session.record, session.saved))}</span><Button variant="ghost" size="sm" disabled={busy} data-testid="version-discard" onClick={() => { setSession({ ...session, record: copy(session.saved) }); setError(undefined); setPending(undefined); setDiscards(discards + 1); }}>Discard</Button></> : null}<Link className="text-sm text-[var(--accent-ink)] underline" to="/admin/settings/libraries/naming">Edit naming</Link>{!session.create ? <Button className="ml-auto" variant="destructive" onClick={() => void review(true)} disabled={readOnly || busy}>Stop managing library</Button> : null}</>}>
+          footer={<><Button onClick={() => void review()} disabled={readOnly || busy || newKeyProblem(session) !== undefined}>Save</Button><SheetCancel variant="outline" onClick={close}>Cancel</SheetCancel>{libraryChanges(session.record, session.saved) ? <><span className="text-[13px] font-medium text-[var(--ink)]" data-testid="unsaved-count" aria-live="polite">{changeCount(libraryChanges(session.record, session.saved))}</span><Button variant="ghost" size="sm" disabled={busy} data-testid="version-discard" onClick={() => { setSession({ ...session, record: copy(session.saved) }); setError(undefined); setPending(undefined); setDiscards(discards + 1); }}>Discard</Button></> : null}<Link className="text-sm text-[var(--accent-ink)] underline" to="/admin/settings/libraries/naming">Edit naming</Link>{!session.create ? <Button className="ml-auto" variant="destructive" onClick={() => void review(true)} disabled={readOnly || busy}>Stop managing library</Button> : null}</>}>
           {made ? <p className="mb-4 rounded-md border border-[var(--line)] px-3 py-2 text-[13px]" role="status" data-testid="preset-profile-made">The profile <span className="font-mono">{made.key}</span> was created from the TRaSH default {made.name} and is selected. The library itself is saved when Save succeeds; the profile stays either way.</p> : null}
           {error ? <div ref={errorBox} tabIndex={-1} className="mb-4"><ExplainBox error={explainError(error)} onReload={() => void reload(false)} onReloadKeep={() => void reload(true)} /></div> : null}
           <fieldset disabled={readOnly || busy}>
@@ -458,7 +462,7 @@ function VersionForm({ session, data, defaults, profiles, error, onChange }: { s
     {repeatsChoice(draftState, config.mode) ? null : <div className="flex flex-wrap items-center gap-2 text-sm"><span>Draft after saving:</span><VersionStatus words state={draftState} /></div>}
     <Part title="Where" help="What the library holds, where its folder lives and how files get there.">
       <Field label="Name" help="Optional. Shown in place of the guessed label, such as 4K WEB. Connected apps never see it." changed={(config.name ?? "") !== (saved.config.name ?? "")} onUndo={() => setName(saved.config.name ?? "")} error={fieldError("name")}><Input value={config.name ?? ""} maxLength={40} onChange={(event) => setName(event.target.value)} /></Field>
-      <Field label="Key" help="Used by connected apps and in settings; fixed once the library exists." changed={record.key !== saved.key} onUndo={() => onChange({ ...record, key: saved.key })}><Input value={record.key} disabled={!session.create} onChange={(event) => onChange({ ...record, key: event.target.value })} /></Field>
+      <Field label="Key" help="Used by connected apps and in settings; fixed once the library exists. Lower case letters, digits, - and _." changed={record.key !== saved.key} onUndo={() => onChange({ ...record, key: saved.key })} error={newKeyProblem(session) ?? fieldError("key")}><Input value={record.key} disabled={!session.create} onChange={(event) => onChange({ ...record, key: event.target.value })} /></Field>
       <div className="flex flex-col gap-1 text-sm" data-changed={choiceChanged || undefined}>
         <span>State</span>
         <ChoicePick mode={config.mode} label="State" onChange={(choice) => onChange({ ...record, config: withChoice(config, choice) })} />

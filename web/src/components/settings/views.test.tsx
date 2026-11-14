@@ -291,3 +291,18 @@ describe("Connected apps bindings (moved from Settings › Libraries)", () => {
     expect(confirmed.body).toEqual(fetch.calls("PUT", "/settings/view-bindings/radarr")[0].body);
   });
 });
+
+it("checks a new app's key as typed and holds Save while it is not one", async () => {
+  mockFetch(routes());
+  const user = userEvent.setup();
+  renderPage(<ViewsCard readOnly={false} />);
+  await user.click(await screen.findByRole("button", { name: "Add app" }));
+  const sheet = await screen.findByTestId("view-editor");
+  await user.type(within(sheet).getByRole("textbox", { name: "Key" }), "My App");
+  expect(within(sheet).getByText("Use lower case letters, digits, - and _, starting with a letter or digit.")).toBeTruthy();
+  expect((within(sheet).getByRole("button", { name: "Save" }) as HTMLButtonElement).disabled).toBe(true);
+  await user.clear(within(sheet).getByRole("textbox", { name: "Key" }));
+  await user.type(within(sheet).getByRole("textbox", { name: "Key" }), "my-app");
+  expect((within(sheet).getByRole("button", { name: "Save" }) as HTMLButtonElement).disabled).toBe(false);
+});
+

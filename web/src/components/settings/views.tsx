@@ -20,6 +20,7 @@ import { Input } from "@/components/ui/input";
 import { VersionStatus } from "@/components/version-status";
 import { Sheet, SheetCancel, SheetLayout } from "@/components/ui/sheet";
 import { changedPaths } from "./section-draft";
+import { keyProblem } from "@/lib/field-checks";
 import { type Explained, type SecretAction } from "@/lib/settings";
 import { useLibraryName } from "@/lib/library-names";
 import { useSettingsEditor } from "./use-settings-editor";
@@ -198,7 +199,7 @@ export function ViewSheet({ view: opened, generation: openedAt, readOnly, onClos
         onClose={onClose}
         testid="view-editor"
         footer={readOnly ? <Button variant="outline" onClick={onClose}>Close</Button> : <>
-          <Button onClick={() => void save()} disabled={busy}>Save</Button>
+          <Button onClick={() => void save()} disabled={busy || (create && !!key && !!keyProblem(key))}>Save</Button>
           <SheetCancel variant="outline" onClick={onClose}>Cancel</SheetCancel>
           {!create ? <Button className="ml-auto" variant="destructive" onClick={() => setDeleting(true)} disabled={busy}>Delete app</Button> : null}
         </>}
@@ -211,7 +212,7 @@ export function ViewSheet({ view: opened, generation: openedAt, readOnly, onClos
         ) : null}
         {!seeded ? <p className="mb-4 text-sm text-muted-foreground">Path, flavour and key come from the policy files until Theatarr restarts once on this release.</p> : null}
         <div className="grid gap-4 sm:grid-cols-2">
-          {create ? <Field label="Key" help="A name for the app; it cannot be renamed later."><Input value={key} onChange={(e) => setKey(e.target.value)} disabled={off} /></Field> : null}
+          {create ? <Field label="Key" help="A name for the app; it cannot be renamed later." error={key ? keyProblem(key) : undefined}><Input value={key} onChange={(e) => setKey(e.target.value)} disabled={off} /></Field> : null}
           <Field label="Flavour">
             <select className={SELECT_CLASS} value={flavour} onChange={(e) => setFlavour(e.target.value)} disabled={off || !seeded}>
               <option value="radarr">radarr</option>

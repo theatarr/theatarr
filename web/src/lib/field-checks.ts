@@ -7,15 +7,29 @@ export function clockProblem(v: string): string | undefined {
   return /^([01]?\d|2[0-3]):[0-5]\d$/.test(v.trim()) ? undefined : "Enter a time as HH:MM, from 00:00 to 23:59.";
 }
 
-/** An http(s) address with a host. */
-export function urlProblem(v: string): string | undefined {
-  try {
-    const u = new URL(v.trim());
-    if ((u.protocol === "http:" || u.protocol === "https:") && u.host) return undefined;
-  } catch {
-    // not a URL
+// Query parameter names that carry a credential (internal/secrets CredentialQueryName): compared lower case without
+// separators, by name or ending.
+const CREDENTIAL_NAMES = ["key", "auth", "pass", "pwd", "sig", "signature", "session", "sid", "cookie"];
+const CREDENTIAL_ENDS = ["apikey", "passkey", "authkey", "rsskey", "token", "secret", "password", "passwd"];
+export function credentialQueryName(name: string): boolean {
+  const n = name.toLowerCase().replace(/[^a-z0-9]/g, "");
+  return !!n && (CREDENTIAL_NAMES.includes(n) || CREDENTIAL_ENDS.some((end) => n.endsWith(end)));
+}
+
+/** An http(s) address with a host, as Go's url.Parse and checkURL read it (never stricter): the scheme, a host, no
+ * user:password@ and, unless credentials is false, no credential in the query (an API key goes in the credential). */
+export function urlProblem(v: string, credentials = true): string | undefined {
+  const m = /^(https?):\/\/([^/?#]*)([^?#]*)(\?[^#]*)?/i.exec(v.trim());
+  const authority = m?.[2] ?? "";
+  const host = authority.slice(authority.lastIndexOf("@") + 1);
+  if (!m || !host) return "Enter a full address that starts with http:// or https://.";
+  if (authority.includes("@")) return "Leave the user name and password out of the address.";
+  if (credentials && m[4]) {
+    const names = m[4].slice(1).split("&").map((kv) => { try { return decodeURIComponent(kv.split("=")[0].replace(/\+/g, " ")); } catch { return kv.split("=")[0]; } });
+    const found = names.find(credentialQueryName);
+    if (found) return `Leave the key out of the address (${found}=); it goes in the credential.`;
   }
-  return "Enter a full address that starts with http:// or https://.";
+  return undefined;
 }
 
 /** A record key (a stable name other settings refer to). */
@@ -24,22 +38,27 @@ export function keyProblem(v: string): string | undefined {
   return /^[a-z0-9][a-z0-9_-]*$/.test(v) ? undefined : "Use lower case letters, digits, - and _, starting with a letter or digit.";
 }
 
-// The settings sections' fields the server checks as http(s) addresses (checkURL in internal/policy).
+// The settings sections' fields the server checks as http(s) addresses (checkURL in internal/policy), whenever set.
 const URL_PATHS = [
   /^cardigann\.flaresolverr_url$/,
   /^cardigann\.prowlarr\.url$/,
   /^egress\.check_url$/,
-  /^library\.mount\.(zurg_log|zurg_api)$/,
+  /^library\.mount\.zurg_api$/,
   /^library\.mount\.(rclone_rc|decypharr)\.url$/,
   /^library\.plex\.url$/,
   /^metadata\.sources\.[^.]+\.url$/,
+  /^clients\.[^.]+\.url$/,
 ];
 
 /** The inline problem of a settings section value at path, if any (empty values are left to the server: most fields
- * take their default then). */
+ * take their default then). Each rule is the server's for that field, never stricter. */
 export function sectionProblem(path: string, value: unknown): string | undefined {
   if (typeof value !== "string" || value === "") return undefined;
   if (path === "notify.digest_at") return clockProblem(value);
+  // The zurg log is a file (an absolute path) or an http(s) address (policy.ZurgLogIsURL).
+  if (path === "library.mount.zurg_log") return /^https?:\/\//.test(value) ? urlProblem(value) : value.startsWith("/") ? undefined : "Enter an absolute path (/…) or an address that starts with http:// or https://.";
+  // A notification destination refuses a user:password@ but takes a token in its query (ntfy, webhooks).
+  if (/^notify\.targets\.[^.]+\.url$/.test(path)) return urlProblem(value, false);
   if (URL_PATHS.some((re) => re.test(path))) return urlProblem(value);
   return undefined;
 }

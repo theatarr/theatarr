@@ -160,6 +160,11 @@ describe("Quality profiles page", () => {
     await user.clear(score);
     await user.type(score, "2000");
     expect(within(tier).getByText("yours")).toBeTruthy();
+    // The key is checked as typed: Create waits for one the server takes.
+    await user.type(within(sheet).getByRole("textbox", { name: "Key" }), "Movies Web");
+    expect(within(sheet).getByText("Use lower case letters, digits, - and _, starting with a letter or digit.")).toBeTruthy();
+    expect((within(sheet).getByRole("button", { name: "Create profile" }) as HTMLButtonElement).disabled).toBe(true);
+    await user.clear(within(sheet).getByRole("textbox", { name: "Key" }));
     await user.type(within(sheet).getByRole("textbox", { name: "Key" }), "movies-web");
     await user.click(within(sheet).getByRole("button", { name: "Create profile" }));
     await waitFor(() => expect(fetch.calls("POST", "/settings/presets/create")).toHaveLength(1));
