@@ -136,7 +136,7 @@ type RequestEvent struct {
 	// listener. Mine is set in the copy of the event sent to a requester.
 	Users []int64 `json:"-"`
 	Mine  bool    `json:"mine,omitempty"`
-	// Change: created, merged, approved, declined, canceled, status.
+	// Change: created, merged, approved, declined, canceled, status, removed (moved by a removal: not announced).
 	Change string `json:"change"`
 	// Notification is the native webhook payload; it never reaches SSE listeners.
 	Notification *notify.Event `json:"-"`
@@ -326,15 +326,24 @@ func (w *Web) fillRequests(ctx context.Context, items []Request, viewer *auth.Id
 	}
 	db := w.st.Reader()
 	states := map[int64]map[string]string{}
+	removed := map[int64]map[string]bool{}
 	if len(ids) > 0 {
 		b, _ := json.Marshal(ids)
-		// A library the title was removed from has no state (liveVersion): it is not available there.
-		err := scanAll(ctx, db, `SELECT v.title_id, v.policy_key, v.state FROM version v
-			WHERE v.title_id IN (SELECT value FROM json_each(?)) AND `+liveVersion, []any{string(b)}, func(rows *sql.Rows) error {
+		// A library the title was removed from has no state: it leaves the scope of a request in play (below).
+		err := scanAll(ctx, db, `SELECT v.title_id, v.policy_key, v.state, NOT `+liveVersion+` FROM version v
+			WHERE v.title_id IN (SELECT value FROM json_each(?))`, []any{string(b)}, func(rows *sql.Rows) error {
 			var id int64
 			var key, state string
-			if err := rows.Scan(&id, &key, &state); err != nil {
+			var gone bool
+			if err := rows.Scan(&id, &key, &state, &gone); err != nil {
 				return err
+			}
+			if gone {
+				if removed[id] == nil {
+					removed[id] = map[string]bool{}
+				}
+				removed[id][key] = true
+				return nil
 			}
 			if states[id] == nil {
 				states[id] = map[string]string{}
@@ -391,9 +400,14 @@ func (w *Web) fillRequests(ctx context.Context, items []Request, viewer *auth.Id
 		}
 		r.Versions = []RequestVersion{}
 		names := w.keyLabels(r.keys)
+		inPlay := r.Status != ReqPending && r.Status != ReqDeclined && r.Status != ReqCanceled
 		for _, k := range r.keys {
+			if inPlay && r.TitleID != nil && removed[*r.TitleID][k] {
+				// Removed from that library: no longer part of the request (requestStatus).
+				continue
+			}
 			v := RequestVersion{Key: k, Label: names[k], GrabState: versionGrabState(w.pol, k)}
-			if r.Status != ReqPending && r.Status != ReqDeclined && r.Status != ReqCanceled {
+			if inPlay {
 				if r.TitleID != nil {
 					v.State = states[*r.TitleID][k]
 				}
@@ -861,8 +875,8 @@ func (w *Web) createRequest(ctx context.Context, userID int64, n newRequest) (*C
 	res := &CreateResult{}
 	var ev RequestEvent
 	err := w.st.WriteTx(ctx, func(tx *sql.Tx) error {
-		q := `SELECT id, user_id, status, versions, seasons FROM request WHERE kind = ? AND status IN ('pending',
-			'approved', 'processing') AND (`
+		q := `SELECT id, user_id, status, versions, seasons, COALESCE(title_id, 0) FROM request WHERE kind = ?
+			AND status IN ('pending', 'approved', 'processing') AND (`
 		args := []any{string(n.kind)}
 		var or []string
 		if n.tmdbID > 0 {
@@ -884,12 +898,13 @@ func (w *Web) createRequest(ctx context.Context, userID int64, n newRequest) (*C
 			status   string
 			versions []string
 			seasons  []int
+			title    int64
 		}
 		var opens []open
 		for rows.Next() {
 			var o open
 			var vs, ss string
-			if err := rows.Scan(&o.id, &o.owner, &o.status, &vs, &ss); err != nil {
+			if err := rows.Scan(&o.id, &o.owner, &o.status, &vs, &ss, &o.title); err != nil {
 				rows.Close()
 				return err
 			}
@@ -899,6 +914,17 @@ func (w *Web) createRequest(ctx context.Context, userID int64, n newRequest) (*C
 		}
 		if err := rows.Close(); err != nil {
 			return err
+		}
+		// An approved request no longer covers a library the title was removed from: asking for it again is a new
+		// request (pending ones are left as they are).
+		for i := range opens {
+			if o := &opens[i]; o.status != ReqPending && o.title > 0 {
+				gone, err := removedKeys(ctx, tx, o.title)
+				if err != nil {
+					return err
+				}
+				o.versions = slices.DeleteFunc(o.versions, func(k string) bool { return gone[k] })
+			}
 		}
 		join := func(o open, keys []string, seasons []int) error {
 			if o.owner.Int64 != userID {
@@ -1339,6 +1365,26 @@ func (w *Web) publishUsersChanged() {
 	w.hub.publish(event{name: "users", data: []byte(`{}`), need: auth.PermUsers})
 }
 
+// removedKeys are the libraries title id was removed from (arrview_removed_version), on q.
+func removedKeys(ctx context.Context, q interface {
+	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
+}, id int64) (map[string]bool, error) {
+	rows, err := q.QueryContext(ctx, `SELECT v.policy_key FROM version v WHERE v.title_id = ? AND NOT `+liveVersion, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]bool{}
+	for rows.Next() {
+		var k string
+		if err := rows.Scan(&k); err != nil {
+			return nil, err
+		}
+		out[k] = true
+	}
+	return out, rows.Err()
+}
+
 // RequestRemovedReason is the reason of a request canceled because every library it asked for was removed.
 const RequestRemovedReason = "removed from the library"
 
@@ -1348,6 +1394,12 @@ const RequestRemovedReason = "removed from the library"
 // removed from the library (RequestRemovedReason), else approved. Versions removed from a request's scope drop out
 // of it.
 func (w *Web) syncRequests(ctx context.Context, ids ...int64) error {
+	return w.syncRequestsAfter(ctx, false, ids...)
+}
+
+// syncRequestsAfter is syncRequests; removal: the change follows a removal (syncTitleRequests), so no file arrived and
+// nothing is announced (the event's change is "removed": no toast, no webhook), and a cancel is the removal's, now.
+func (w *Web) syncRequestsAfter(ctx context.Context, removal bool, ids ...int64) error {
 	q := requestSelect + ` WHERE r.status IN ('approved', 'processing', 'failed', 'available') AND r.title_id IS NOT NULL`
 	var args []any
 	if len(ids) > 0 {
@@ -1371,7 +1423,7 @@ func (w *Web) syncRequests(ctx context.Context, ids ...int64) error {
 		if err != nil {
 			return err
 		}
-		if w.onRequest != nil && next != ReqAvailable && next != ReqCanceled && r.Kind == "series" {
+		if w.onRequest != nil && !removal && next != ReqAvailable && next != ReqCanceled && r.Kind == "series" {
 			if err := w.notifyRequestPartial(ctx, &r); err != nil {
 				return err
 			}
@@ -1379,12 +1431,15 @@ func (w *Web) syncRequests(ctx context.Context, ids ...int64) error {
 		if next == r.Status {
 			continue
 		}
-		reason := r.Reason
+		now := store.Millis(w.now())
+		q, args := `UPDATE request SET status = ?, updated_at = ? WHERE id = ? AND status = ?`,
+			[]any{next, now, r.ID, r.Status}
 		if next == ReqCanceled {
-			reason = RequestRemovedReason
+			// Canceled by the removal: its time and reason, nobody's decision.
+			q, args = `UPDATE request SET status = ?, reason = ?, decided_by = NULL, decided_at = ?, updated_at = ?
+				WHERE id = ? AND status = ?`, []any{next, RequestRemovedReason, now, now, r.ID, r.Status}
 		}
-		res, err := w.st.Writer().ExecContext(ctx, `UPDATE request SET status = ?, reason = ?, updated_at = ? WHERE id = ?
-			AND status = ?`, next, reason, store.Millis(w.now()), r.ID, r.Status)
+		res, err := w.st.Writer().ExecContext(ctx, q, args...)
 		if err != nil {
 			return err
 		}
@@ -1392,8 +1447,12 @@ func (w *Web) syncRequests(ctx context.Context, ids ...int64) error {
 			continue
 		}
 		w.log.Info("request status", "request", r.ID, "from", r.Status, "to", next)
+		change := "status"
+		if removal {
+			change = "removed"
+		}
 		w.requestChanged(ctx, RequestEvent{ID: r.ID, Status: next, Previous: r.Status, Name: r.Name,
-			TitleID: r.TitleID, Change: "status"})
+			TitleID: r.TitleID, Change: change})
 	}
 	return nil
 }
@@ -1412,7 +1471,7 @@ func (w *Web) syncTitleRequests(ctx context.Context, titleID int64) error {
 	if err != nil || len(ids) == 0 {
 		return err
 	}
-	return w.syncRequests(ctx, ids...)
+	return w.syncRequestsAfter(ctx, true, ids...)
 }
 
 // requestStatus is where an approved request stands now. A library the title was removed from no longer counts: the
