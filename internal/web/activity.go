@@ -1050,7 +1050,7 @@ func (w *Web) apiCalendar(rw http.ResponseWriter, r *http.Request) {
 		} else {
 			stage, inHand = movieStage[it.TitleID]
 			a := avail[it.TitleID]
-			x.Available, x.Partial = a == "available" || a == "partial", a == "partial"
+			x.Available, x.Partial = a == "available" || a == "partial", seeFiles && a == "partial"
 		}
 		x.Acquiring = inHand
 		if seeFiles {

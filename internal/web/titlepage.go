@@ -171,19 +171,15 @@ func (w *Web) enrichTitle(ctx context.Context, d *TitleDetail) error {
 	}
 	d.Availability = avail[d.ID]
 	if d.Kind == "movie" {
-		dates, err := availability.DatesFor(ctx, db, []any{d.ID})
+		dates, err := activity.ReadMovieDates(ctx, db, []any{d.ID})
 		if err != nil {
 			return err
 		}
-		if h := availability.HomeRelease(dates[d.ID]); !h.IsZero() {
+		if h := availability.HomeRelease(dates[d.ID].Canonical); !h.IsZero() {
 			d.HomeRelease = h.Format(time.DateOnly)
 		}
 		// The dates the About facts show: the release-date choice Home, the calendar and the lists use.
-		first, err := activity.FirstReleases(ctx, db, []any{d.ID})
-		if err != nil {
-			return err
-		}
-		fr := first[d.ID]
+		fr := dates[d.ID].First
 		d.InCinemas, d.DigitalRelease, d.PhysicalRelease = fr["theatrical"], fr["digital"], fr["physical"]
 	}
 	if len(ids) > 0 {

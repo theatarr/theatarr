@@ -37,7 +37,7 @@ function CollectionRow({ c, libraries, save, busy, refresh }: { c: Collection; l
         <h2 className="min-w-0 font-semibold text-[var(--ink)] [overflow-wrap:anywhere]">{name}</h2>
         {/* In the library: the movie is in a library; available: it has a file there. */}
         <Chip tone={c.total > 0 && c.available >= c.total ? "ok" : "ghost"}>{c.held} of {c.total} in the library · {c.available} available</Chip>
-        {c.monitored && refresh && c.held < c.total ? <Button variant="outline" size="xs" disabled={busy} onClick={refresh}>Add missing movies now</Button> : null}
+        {c.monitored && refresh ? <Button variant="outline" size="xs" disabled={busy} onClick={refresh}>Add missing movies now</Button> : null}
       </div>
       {!c.name ? <p className="text-xs text-muted-foreground">Name and movies arrive with the next list refresh.</p> : null}
       <fieldset className="flex flex-wrap items-center gap-1.5 text-sm" disabled={busy}>
@@ -79,13 +79,15 @@ export function CollectionsPage() {
   const [done, setDone] = useState("");
   const [filter, setFilter] = useState("");
   const [onlyMonitored, setOnlyMonitored] = useState(false);
+  const [opened, setOpened] = useState<number | null>(null);
   if (me.isPending) return <Loading />;
   if (!perms.manage) return <Forbidden description="Collections are for managers and admins." />;
   const d = q.data;
   const match = wordMatcher(filter);
   // A collection found through a movie has no name or movies until the next list refresh: it waits off the list,
   // unless it is monitored (then its row and switch stay).
-  const waiting = (c: Collection) => !c.name && c.total === 0 && !c.monitored;
+  // A row chosen from the add dialog's "Already added" result always shows.
+  const waiting = (c: Collection) => !c.name && c.total === 0 && !c.monitored && c.tmdb_id !== opened;
   const listed = (d?.collections ?? []).filter(c => !waiting(c));
   const unnamed = (d?.collections.length ?? 0) - listed.length;
   const shown = listed.filter(c => (!onlyMonitored || c.monitored) && match(c.name || String(c.tmdb_id)));
@@ -94,6 +96,7 @@ export function CollectionsPage() {
   const show = (id: number) => {
     setFilter("");
     setOnlyMonitored(false);
+    setOpened(id);
     window.setTimeout(() => document.querySelector(`[data-testid="collection-${id}"]`)?.scrollIntoView?.({ block: "center" }), 0);
   };
   return <div>

@@ -64,7 +64,7 @@ const DEFS: Def[] = [
   { id: "quality", ...both("Quality"), hint: "Each library's current quality", sort: "quality", seeFiles: true },
   { id: "profile", ...both("Quality profile"), hint: "Each library's quality profile", seeFiles: true },
   { id: "year", ...both("Year"), hint: "The release year", sort: "year" },
-  { id: "release", movie: "Release date", series: "First aired", hint: "From TMDb", sort: "release" },
+  { id: "release", movie: "Release date", series: "First aired", hint: "A movie's first cinema release, else TMDb's date; a series' first air date", sort: "release" },
   { id: "in_cinemas", movie: "In cinemas", hint: "The first cinema release" },
   { id: "digital", movie: "Digital release", hint: "The first digital release" },
   { id: "physical", movie: "Physical release", hint: "The first disc release" },

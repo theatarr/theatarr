@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/theatarr/theatarr/internal/activity"
 	"github.com/theatarr/theatarr/internal/auth"
 	"github.com/theatarr/theatarr/internal/indexer"
 	"github.com/theatarr/theatarr/internal/metadata/art"
@@ -445,7 +446,10 @@ func (g TitleGridFilter) orderBy() (string, []any) {
 	case "year":
 		expr = "t.year"
 	case "release":
-		expr = "COALESCE(NULLIF(m.release_date, ''), CASE WHEN t.year IS NOT NULL THEN printf('%04d-99', t.year) END)"
+		// What the Release date cell shows: a movie's first cinema date of the release-date choice, else TMDb's date.
+		expr = "COALESCE(CASE WHEN t.kind = 'movie' THEN (SELECT x.date FROM (" +
+			activity.FirstReleasesSQL("d.title_id = t.id AND d.type = 'theatrical'") + ") x) END, NULLIF(m.release_date, ''), " +
+			"CASE WHEN t.year IS NOT NULL THEN printf('%04d-99', t.year) END)"
 	case "rating":
 		expr = "CASE WHEN m.rating_votes > 0 THEN m.rating END"
 	case "size":

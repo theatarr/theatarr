@@ -69,7 +69,7 @@ export function episodeCode(season?: number, number?: number): string {
 /** A release type in words (tmdb-words.ts). */
 export const releaseLabel = (type: string) => releaseTypeWords(type);
 
-type Toned = { kind: string; type: string; date: string; at?: string; monitored: boolean; available: boolean; partial?: boolean; acquiring: boolean; stage?: Stage };
+type Toned = { kind: string; type: string; date: string; at?: string; monitored: boolean; available: boolean; partial?: boolean; acquiring: boolean; stage?: Stage; types?: string[] };
 
 /** A calendar entry's status colour: the theme's status tokens (calendar.css theatarr-cal-tone-*). */
 export type CalendarTone = "ok" | "progress" | "bad" | "neutral" | "idle";
@@ -79,7 +79,8 @@ export type CalendarTone = "ok" | "progress" | "bad" | "neutral" | "idle";
  * available (a file is held), the stage of a download in hand ("Queued", "Downloading", "Waiting for mount"; "Getting
  * ready" without one), not monitored, upcoming, else missing. Upcoming is the rule the title page and the lists use: an
  * air moment still ahead; a date alone strictly after today's UTC day (upcomingRelease, the server's aired rule). A
- * movie's past cinema date is never missing: a film is missing from its digital or physical date. plain (accounts
+ * movie's past cinema date is never missing: a film is missing from its digital or physical date (also when it joins
+ * the cinema date on one entry). plain (accounts
  * without "see files") gets the title page's household words (titleWatchWords): Available in green; Getting ready,
  * Upcoming and Not available in grey.
  */
@@ -91,7 +92,8 @@ export function calendarTone(e: Toned, now: Date, plain = false): { tone: Calend
   const ahead = e.at && !Number.isNaN(new Date(e.at).getTime()) ? new Date(e.at) > now : e.date > utcToday(now);
   if (ahead) return { tone: "neutral", label: "Upcoming" };
   if (plain) return { tone: "neutral", label: notAvailable };
-  if (e.kind === "movie" && e.type === "theatrical") return { tone: "neutral", label: "Released in cinemas" };
+  // A cinema date alone is never missing; joined with a digital or disc date of the day (joinReleases), it is.
+  if (e.kind === "movie" && (e.types ?? [e.type]).every((t) => t === "theatrical")) return { tone: "neutral", label: "Released in cinemas" };
   return { tone: "bad", label: "Missing" };
 }
 

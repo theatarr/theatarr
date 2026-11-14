@@ -40,56 +40,72 @@ type CalendarItem struct {
 var CalendarTypes = []string{"theatrical", "digital", "physical"}
 
 // The release-date choice (docs/design/ui.md "Release dates"), one rule for Home's Upcoming row, the calendar, the
-// lists' Next release and its sort, and the title page's dates: per movie and release type (in cinemas, digital,
+// lists' Next release and Release date and their sorts, and the title page's dates: per movie and release type (in cinemas, digital,
 // physical), the type's first date, from the canonical dates (country '', the successful TMDb refresh when there is
 // one, else the arrs' dates), else from TMDb's US dates while the title has no refresh. Later dates of a type (a
 // re-release, a streaming service picking an old film up) are never the type's date. Display only: what may be
 // fetched reads availability.Dates.
 
-// releaseTypesSQL is CalendarTypes as an SQL list.
-const releaseTypesSQL = `('theatrical', 'digital', 'physical')`
-
-// FirstReleaseSQL is the SQL value of the release-date choice for title title and release type typ (SQL
-// expressions, such as "d.title_id" and "d.type"): the type's first date, YYYY-MM-DD, or NULL.
-func FirstReleaseSQL(title, typ string) string {
-	refreshed := `EXISTS (SELECT 1 FROM title_meta fm WHERE fm.title_id = f.title_id AND fm.movie_dates_at IS NOT NULL)`
-	return `COALESCE((SELECT MIN(substr(f.date, 1, 10)) FROM title_release_date f WHERE f.title_id = ` + title + `
-			AND f.type = ` + typ + ` AND f.country = '' AND (f.source = 'tmdb-art' OR NOT ` + refreshed + `)),
-		(SELECT MIN(substr(f.date, 1, 10)) FROM title_release_date f WHERE f.title_id = ` + title + `
-			AND f.type = ` + typ + ` AND f.source = 'tmdb' AND f.country = 'US' AND NOT ` + refreshed + `))`
+// releaseDatesSQL aggregates title_release_date d per title and release type (CalendarTypes), the rows narrowed by
+// cond (an SQL condition on d, such as "d.title_id = t.id"): canon is the type's first canonical date (country ”,
+// the successful TMDb refresh when there is one, else the arrs' dates: availability.Dates' choice), us its first TMDb
+// US date while the title has no refresh. One pass over the rows; YYYY-MM-DD.
+func releaseDatesSQL(cond string) string {
+	return `SELECT d.title_id, d.type,
+		MIN(CASE WHEN d.country = '' AND (d.source = 'tmdb-art' OR fm.movie_dates_at IS NULL) THEN substr(d.date, 1, 10) END) AS canon,
+		MIN(CASE WHEN d.source = 'tmdb' AND d.country = 'US' AND fm.movie_dates_at IS NULL THEN substr(d.date, 1, 10) END) AS us
+		FROM title_release_date d LEFT JOIN title_meta fm ON fm.title_id = d.title_id
+		WHERE d.type IN ('theatrical', 'digital', 'physical') AND (` + cond + `) GROUP BY d.title_id, d.type`
 }
 
-// FirstReleaseRowSQL is the condition that release date row d (title_release_date) is its title's chosen date of its
-// type (FirstReleaseSQL), one of CalendarTypes.
-var FirstReleaseRowSQL = `d.type IN ` + releaseTypesSQL + ` AND substr(d.date, 1, 10) = ` + FirstReleaseSQL("d.title_id", "d.type")
+// FirstReleasesSQL selects title_id, type and date of the release-date choice for the rows cond narrows
+// (releaseDatesSQL): per type the canonical first date, else the US one.
+func FirstReleasesSQL(cond string) string {
+	return `SELECT title_id, type, COALESCE(canon, us) AS date FROM (` + releaseDatesSQL(cond) + `)
+		WHERE COALESCE(canon, us) IS NOT NULL`
+}
 
-// FirstReleasesBetweenSQL selects title_id, type and date of every chosen release date (FirstReleaseSQL) from the
+// FirstReleasesBetweenSQL selects title_id, type and date of every chosen release date (FirstReleasesSQL) from the
 // first to the second argument (YYYY-MM-DD, both included).
-var FirstReleasesBetweenSQL = `SELECT d.title_id, d.type, substr(d.date, 1, 10) FROM title_release_date d
-	WHERE substr(d.date, 1, 10) >= ? AND substr(d.date, 1, 10) <= ? AND ` + FirstReleaseRowSQL + `
-	GROUP BY d.title_id, d.type`
+var FirstReleasesBetweenSQL = `SELECT title_id, type, date FROM (` + FirstReleasesSQL("1") + `) WHERE date >= ? AND date <= ?`
 
-// FirstReleases reads the release-date choice (FirstReleaseSQL) of titles ids: by title id, release type to date.
-func FirstReleases(ctx context.Context, db *sql.DB, ids []any) (map[int64]map[string]string, error) {
-	out := map[int64]map[string]string{}
+// MovieDates are a movie's dates by release type: First is the release-date choice (FirstReleasesSQL), Canonical
+// availability.Dates' canonical dates of the three types (what HomeRelease reads).
+type MovieDates struct {
+	First     map[string]string
+	Canonical map[string]time.Time
+}
+
+// ReadMovieDates reads MovieDates for titles ids in one pass over their release dates; titles without dates are left
+// out.
+func ReadMovieDates(ctx context.Context, db *sql.DB, ids []any) (map[int64]MovieDates, error) {
+	out := map[int64]MovieDates{}
 	for chunk := range slices.Chunk(ids, 500) {
-		rows, err := db.QueryContext(ctx, `SELECT d.title_id, d.type, substr(d.date, 1, 10) FROM title_release_date d
-			WHERE d.title_id IN (`+store.Placeholders(len(chunk))+`) AND `+FirstReleaseRowSQL+` GROUP BY d.title_id, d.type`,
-			chunk...)
+		rows, err := db.QueryContext(ctx, releaseDatesSQL(`d.title_id IN (`+store.Placeholders(len(chunk))+`)`), chunk...)
 		if err != nil {
 			return nil, err
 		}
 		for rows.Next() {
 			var id int64
-			var typ, date string
-			if err := rows.Scan(&id, &typ, &date); err != nil {
+			var typ string
+			var canon, us sql.NullString
+			if err := rows.Scan(&id, &typ, &canon, &us); err != nil {
 				rows.Close()
 				return nil, err
 			}
-			if out[id] == nil {
-				out[id] = map[string]string{}
+			m, ok := out[id]
+			if !ok {
+				m = MovieDates{First: map[string]string{}, Canonical: map[string]time.Time{}}
+				out[id] = m
 			}
-			out[id][typ] = date
+			if canon.Valid {
+				m.First[typ] = canon.String
+				if d, err := time.Parse(time.DateOnly, canon.String); err == nil {
+					m.Canonical[typ] = d
+				}
+			} else if us.Valid {
+				m.First[typ] = us.String
+			}
 		}
 		if err := rows.Close(); err != nil {
 			return nil, err
@@ -99,7 +115,7 @@ func FirstReleases(ctx context.Context, db *sql.DB, ids []any) (map[int64]map[st
 }
 
 // Calendar lists the movie release dates and episode air dates from from to to (dates, both included), oldest
-// first. Movie dates are the release-date choice (FirstReleaseSQL). Episodes come from the episode table (TVDB and
+// first. Movie dates are the release-date choice (FirstReleasesSQL). Episodes come from the episode table (TVDB and
 // the arrs). Only monitored titles (and monitored episodes) unless unmonitored.
 func Calendar(ctx context.Context, db *sql.DB, from, to string, unmonitored bool) ([]CalendarItem, error) {
 	var out []CalendarItem

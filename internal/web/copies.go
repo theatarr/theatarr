@@ -73,7 +73,7 @@ type NextUp struct {
 	Type string `json:"type,omitempty"`
 }
 
-// nextRelease is a movie's coming release from its release-date choice (activity.FirstReleases' dates by type): the
+// nextRelease is a movie's coming release from its release-date choice (activity.MovieDates.First, by type): the
 // earliest date today or later, in cinemas first on a shared day; nil without one. The Next sort orders by the same day.
 func nextRelease(first map[string]string, today string) *NextUp {
 	var n *NextUp
@@ -321,8 +321,8 @@ func (w *Web) fillCopies(ctx context.Context, db *sql.DB, items []TitleRow) erro
 }
 
 // fillNext sets each row's next episode (series: the first still to come by the clock's rule) or coming release
-// (movies: nextRelease, else TMDb's release date when it is still to come), each movie's home release and its first
-// dates in cinemas, digital and on disc (the release-date choice, activity.FirstReleaseSQL).
+// (movies: nextRelease; TMDb's release date when it is still to come and the movie has no chosen date at all), each movie's home release and its first
+// dates in cinemas, digital and on disc (the release-date choice, activity.FirstReleasesSQL), all from one read.
 func (w *Web) fillNext(ctx context.Context, db *sql.DB, items []TitleRow, tids, seriesIDs []any, clock airClock) error {
 	today := clock.today
 	idx := map[int64]*TitleRow{}
@@ -353,11 +353,7 @@ func (w *Web) fillNext(ctx context.Context, db *sql.DB, items []TitleRow, tids, 
 		}
 	}
 	if len(movieIDs) > 0 {
-		first, err := activity.FirstReleases(ctx, db, movieIDs)
-		if err != nil {
-			return err
-		}
-		dates, err := availability.DatesFor(ctx, db, movieIDs)
+		dates, err := activity.ReadMovieDates(ctx, db, movieIDs)
 		if err != nil {
 			return err
 		}
@@ -379,12 +375,14 @@ func (w *Web) fillNext(ctx context.Context, db *sql.DB, items []TitleRow, tids, 
 		}
 		for _, id := range movieIDs {
 			it := idx[id.(int64)]
-			fr := first[it.ID]
+			fr := dates[it.ID].First
 			it.Next = nextRelease(fr, today)
-			if it.Next == nil && it.ReleaseDate >= today {
+			// TMDb's release date only stands in for a movie with no chosen date at all: one whose dates have passed
+			// has no next release (a later re-release is not one).
+			if len(fr) == 0 && it.ReleaseDate >= today {
 				it.Next = &NextUp{Date: it.ReleaseDate}
 			}
-			it.HomeRelease = day(availability.HomeRelease(dates[it.ID]))
+			it.HomeRelease = day(availability.HomeRelease(dates[it.ID].Canonical))
 			it.InCinemas, it.DigitalRelease, it.PhysicalRelease = fr["theatrical"], fr["digital"], fr["physical"]
 			for j := range it.Versions {
 				it.Versions[j].MinimumAvailability = rules[it.Versions[j].ID].Minimum
@@ -564,12 +562,11 @@ func copySortExpr(sort, key string, clock airClock) (string, []any) {
 			strings.Join(activity.InHand, "', '") + `')` + cond + `)`, args
 	case "next":
 		// The day the Next column shows (fillNext): a series' next episode; a movie's first coming release of the
-		// release-date choice, else its TMDb release date while that is still to come.
+		// release-date choice, else, for a movie with no chosen date at all, its TMDb release date while that is to come.
 		coming, comingArgs := clock.comingSQL("e")
 		return `CASE WHEN t.kind = 'series' THEN (SELECT MIN(e.air_date) FROM episode e WHERE e.title_id = t.id
-			AND ` + coming + `) ELSE COALESCE((SELECT MIN(substr(d.date, 1, 10)) FROM title_release_date d
-			WHERE d.title_id = t.id AND substr(d.date, 1, 10) >= ? AND ` + activity.FirstReleaseRowSQL + `),
-			CASE WHEN m.release_date >= ? THEN m.release_date END) END`,
+			AND ` + coming + `) ELSE (SELECT CASE WHEN COUNT(*) = 0 THEN CASE WHEN m.release_date >= ? THEN m.release_date END
+			ELSE MIN(CASE WHEN x.date >= ? THEN x.date END) END FROM (` + activity.FirstReleasesSQL("d.title_id = t.id") + `) x) END`,
 			append(comingArgs, today, today)
 	}
 	return "", nil

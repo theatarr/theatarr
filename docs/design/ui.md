@@ -199,14 +199,17 @@ episode window, cell tooltips, the Libraries table and Why?.
   release date strictly after today (the UTC day, as the server's Missing row and fetching count it). A film in cinemas with its digital release to come reads Upcoming until that
   day. It is still wanted; only the word changes, and Wanted's counts do not. `home_release` is per title.
 - **Release dates**: one choice of a movie's dates (`activity.FirstReleaseSQL`, `internal/activity/calendar.go`) for
-  Home's Upcoming row, the Calendar, the lists' **Next release** column and its sort, the **In cinemas**, **Digital
-  release** and **Physical release** columns and the title page's About facts: per release type (in cinemas, digital,
+  Home's Upcoming row, the Calendar, the lists' **Next release** and **Release date** columns and their sorts, the **In
+  cinemas**, **Digital release** and **Physical release** columns and the title page's About facts (and the summary of
+  Details › Release dates, every other stored row behind Show all): per release type (in cinemas, digital,
   physical) the type's **first** date, from the canonical dates (the successful TMDb refresh when there is one, else
   the arrs' dates), else TMDb's US date while the title has no refresh. A later date of a type (a re-release, a
   streaming service picking an old film up) and limited, premiere or TV releases are never a type's date, so an old
   film gets no "next release". A movie's next release is the earliest of its three dates today or later (in cinemas
-  first on a shared day), else its TMDb release date while that is to come; the **Next** sort orders by exactly that
-  day. About's **Released** is the first cinema date, else TMDb's release date (**Releases** while still to come).
+  first on a shared day); TMDb's release date stands in only for a movie with no chosen date at all; the **Next** sort
+  orders by exactly that day. A movie's **Release date** (lists) and About's **Released** are its first cinema date,
+  else TMDb's release date (**Releases** while still to come). On the Calendar a movie's cinema date alone is never
+  Missing; joined with a digital or disc date of the same day it is.
   Display only: what may be fetched reads `availability.Dates` and `home_release` (above), unchanged.
 - **Added and Latest file**: **Added** is the day the title was added to Theatarr (lists' Added column and sort,
   poster detail); **Latest file** is when the newest current file came (lists' Latest file column and sort, Home's

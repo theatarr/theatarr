@@ -24,7 +24,7 @@ import (
 // SPA's /discover/{row}, which reads this route: the same picks in the same order as the Home row, every kind.
 //
 //   - recent: titles by their newest current file.
-//   - upcoming: digital, physical and theatrical release dates (the release-date choice, activity.FirstReleaseSQL),
+//   - upcoming: digital, physical and theatrical release dates (the release-date choice, activity.FirstReleasesSQL),
 //     and episode air dates, in the next upcomingDays days; the earliest per title.
 //   - missing: monitored titles with a monitored version that is wanted and out: a movie counts as out from its
 //     first digital or physical date, or 90 days after the TMDb release date when there is none, or after its year;
@@ -213,7 +213,7 @@ func (w *Web) recentPicks(ctx context.Context, db *sql.DB) ([]pick, error) {
 
 // upcomingPicks: the earliest release or air date per title in the next upcomingDays days; an episode is upcoming
 // while it is still to come (airClock). A movie's dates are the release-date choice the calendar and the lists use
-// (activity.FirstReleaseSQL): the first date of each type, so a later date of the same type (a streaming service
+// (activity.FirstReleasesSQL): the first date of each type, so a later date of the same type (a streaming service
 // picking up a 2015 film is a "digital" date in 2026) is not an upcoming release.
 func (w *Web) upcomingPicks(ctx context.Context, db *sql.DB) ([]pick, error) {
 	now := w.now().UTC()

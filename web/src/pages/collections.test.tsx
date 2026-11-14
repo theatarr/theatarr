@@ -146,16 +146,21 @@ it("is not for plain users and does not ask for collections", async () => {
   expect(fetch.calls("GET", "/collections")).toHaveLength(0);
 });
 
-it("keeps nameless empty collections off the list until named, and offers Add missing only when movies are missing", async () => {
+it("keeps nameless empty collections off the list until named, and shows one when the add dialog opens it", async () => {
   const nameless = { tmdb_id: 1802110, name: "", monitored: false, versions: [], search_on_add: false, minimum_availability: "released" as const, held: 0, available: 0, total: 0 };
   mockFetch([
     { method: "GET", path: "/auth/me", reply: manager },
     { method: "GET", path: "/collections", reply: { ...page, collections: [{ ...alien, held: 6, available: 6 }, nameless] } },
+    { method: "GET", path: "/collections/search", reply: { results: [{ tmdb_id: 1802110, name: "Found Collection", added: true }] } },
   ]);
   renderPage(<CollectionsPage />, "/collections");
-  const row = within(await screen.findByTestId("collection-8091"));
-  expect(row.queryByRole("button", { name: "Add missing movies now" })).toBeNull();
+  const user = userEvent.setup();
+  await screen.findByTestId("collection-8091");
   expect(screen.queryByTestId("collection-1802110")).toBeNull();
   expect(screen.queryByText(/0 of 0/)).toBeNull();
   expect(screen.getByText("1 collection, 1 monitored. 1 more collection gets its name with the next list refresh.", { exact: false })).toBeTruthy();
+  await user.click(screen.getByRole("button", { name: "Add collection" }));
+  await user.type(within(screen.getByTestId("add-collection")).getByLabelText("Search TMDb collections"), "found");
+  await user.click(await screen.findByTestId("collection-hit-1802110"));
+  expect(await screen.findByTestId("collection-1802110")).toBeTruthy();
 });

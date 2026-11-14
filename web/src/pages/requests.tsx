@@ -5,7 +5,7 @@
 // version that turns green when that version is in the library. /requests/<id> opens its timeline; old
 // ?request=<id> links redirect there. The server answers only a request the caller may see.
 import { Check, CheckCircle2, Inbox, Loader2, Pencil, Send, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, Navigate, useParams, useSearchParams } from "react-router";
 import { useAddOptions } from "@/api/add";
 import { ApiError } from "@/api/client";
@@ -135,6 +135,11 @@ function RequestQueue() {
   };
   const status = tab === "queue" ? "pending" : filter;
   const list = useRequests({ status, mine: tab === "mine", offset, limit: REQUEST_PAGE });
+  // The list shrank under a later page (the last request there was decided): go back to the last page that has rows.
+  const total = list.data?.total;
+  useEffect(() => {
+    if (total !== undefined && total > 0 && offset >= total) setOffset(Math.floor((total - 1) / REQUEST_PAGE) * REQUEST_PAGE);
+  }, [total, offset]);
   const counts = list.data?.counts ?? {};
   const items = list.data?.items ?? [];
   return (

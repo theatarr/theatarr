@@ -103,6 +103,9 @@ describe("calendarTone", () => {
     expect(tone(movie("digital", "2026-10-01")).tone).toBe("bad");
     expect(tone(movie("physical", "2026-10-01")).tone).toBe("bad");
     expect(tone(movie("digital", "2026-12-01")).tone).toBe("neutral");
+    // Cinema and digital on the same past day, joined into one entry: missing, as its digital date is.
+    expect(tone({ ...movie("theatrical", "2026-10-01"), types: ["theatrical", "digital"] })).toEqual({ tone: "bad", label: "Missing" });
+    expect(tone({ ...movie("theatrical", "2026-10-01"), types: ["theatrical"] }).label).toBe("Released in cinemas");
   });
 
   it("gives accounts without see files the title page's words, never a red missing", () => {

@@ -202,7 +202,8 @@ function cell(id: IndexColumnId, t: TitleRow, open: () => void): ReactNode {
     case "year":
       return or(t.year, "tabular-nums");
     case "release":
-      return or(dayOf(t.release_date));
+      // A movie's first cinema date (the release-date choice, as About and the sort), else TMDb's date.
+      return or(dayOf((t.kind === "movie" ? t.in_cinemas : undefined) || t.release_date));
     case "in_cinemas":
       return or(dayOf(t.in_cinemas));
     case "digital":

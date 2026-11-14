@@ -65,6 +65,14 @@ func TestCalendar(t *testing.T) {
 	if !cal.Items[0].Partial || cal.Items[2].Partial {
 		t.Errorf("partly available: %+v", cal.Items)
 	}
+	// A household account gets watchability only: no partly available.
+	ur := httptest.NewRequest("GET", APIBase+"/calendar?from=2026-11-01&to=2026-11-30", nil)
+	ur.Header.Set(auth.APIKeyHeader, key)
+	urec := httptest.NewRecorder()
+	e.userMux().ServeHTTP(urec, ur)
+	if urec.Code != 200 || strings.Contains(urec.Body.String(), `"partial"`) || !strings.Contains(urec.Body.String(), `"available":true`) {
+		t.Errorf("household calendar: %d %s", urec.Code, urec.Body.String())
+	}
 	e.getKey(APIBase+"/calendar?from=2026-11-01&to=2026-11-30&unmonitored=true", key, &cal)
 	if len(cal.Items) != 4 {
 		t.Errorf("with unmonitored: %d items", len(cal.Items))
@@ -915,5 +923,19 @@ func TestReleaseDateChoice(t *testing.T) {
 	e.getKey(APIBase+"/titles/1", key, &td)
 	if td.InCinemas != "1968-04-02" || td.DigitalRelease != "2026-11-22" {
 		t.Errorf("Alpha's title page dates: %s, %s", td.InCinemas, td.DigitalRelease)
+	}
+	// Alpha's chosen dates have all passed and TMDb's release date moved to a re-release: no Next (Home and the
+	// calendar have none either), and the Release date sort orders by the first cinema date, 1968.
+	e.exec(`DELETE FROM title_release_date WHERE title_id = 1 AND type = 'digital'`)
+	e.exec(`UPDATE title_meta SET release_date = '2026-12-25' WHERE title_id = 1`)
+	p = TitlePage{}
+	e.getKey(APIBase+"/titles?kind=movie&sort=next", key, &p)
+	if a := rowOf(t, p, 1); a.Next != nil || p.Items[0].ID != 2 {
+		t.Errorf("Alpha's next after its dates passed: %+v, first %s", a.Next, p.Items[0].Name)
+	}
+	p = TitlePage{}
+	e.getKey(APIBase+"/titles?kind=movie&sort=release&order=asc", key, &p)
+	if len(p.Items) < 2 || p.Items[0].ID != 1 || p.Items[1].ID != 2 {
+		t.Errorf("release sort by the first cinema date: %+v", p.Items)
 	}
 }

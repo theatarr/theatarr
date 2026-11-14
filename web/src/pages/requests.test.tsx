@@ -92,4 +92,20 @@ describe("the request queue", () => {
     expect(await screen.findAllByText("Film 51")).not.toHaveLength(0);
     expect(fetch.requests.some((r) => r.path === "/requests" && new URLSearchParams(r.search).get("offset") === "50")).toBe(true);
   });
+
+  it("goes back to the last page with rows when the list shrinks under a later page", async () => {
+    const user = userEvent.setup();
+    // Page 2's one request was decided before it was read: offset 50 now has nothing, and the total is 50.
+    const fetch = mockFetch([
+      { method: "GET", path: "/auth/me", reply: manager },
+      { method: "GET", path: "/requests", reply: (r: { search: string }) => new URLSearchParams(r.search).get("offset") === "50"
+        ? { items: [], total: 50, counts: { pending: 50 } } : { items: [row(1)], total: 51, counts: { pending: 51 } } },
+    ]);
+    renderPage(<Routes><Route path="/requests/:tab?" element={<RequestsPage />} /></Routes>, "/requests");
+    await screen.findAllByText("Film 1");
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    await waitFor(() => expect(fetch.requests.filter((r) => r.path === "/requests").length).toBeGreaterThanOrEqual(3));
+    expect(await screen.findAllByText("Film 1")).not.toHaveLength(0);
+    expect(screen.queryByText("Nothing waits for a decision.")).toBeNull();
+  });
 });
