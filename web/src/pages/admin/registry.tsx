@@ -46,9 +46,13 @@ function StateBadge({ s }: { s?: string }) {
   return <Badge tone={tone} title={s}>{STATE_WORDS[s ?? ""] ?? s ?? "—"}</Badge>;
 }
 
-/** The Torrents page's usage of a hash with its link count; "—" when no account holds it in the record. */
-function UsedCell({ usage, links, reason }: { usage?: string; links?: number; reason?: string }) {
-  if (!usage) return <span className="text-muted-foreground" title="No account holds it in the record">—</span>;
+/** Why a hash has no usage: the Torrents page works usage out from its last read of the accounts, so a torrent the
+ *  saved inventory holds (an add since that read) is not in it yet; otherwise no account holds it. */
+export const noUsageWords = (held: boolean) => (held ? "Not in the last read of the accounts yet, so its usage is not worked out: Refresh on Torrents reads them again." : "No account holds it in the record, so its usage is not worked out.");
+
+/** The Torrents page's usage of a hash with its link count; "—" without one (noUsageWords). */
+function UsedCell({ usage, links, reason, held }: { usage?: string; links?: number; reason?: string; held: boolean }) {
+  if (!usage) return <span className="text-muted-foreground" title={noUsageWords(held)}>—</span>;
   return (
     <span className="flex flex-wrap items-baseline gap-x-1.5" title={reason}>
       <UsageBadge u={{ usage, reasons: reason ? [reason] : undefined }} />
@@ -115,7 +119,7 @@ export function Registry() {
                 <TableRow key={c.info_hash}>
                   <TableCell><Link className="hover:text-primary" to={`/admin/torrents/inventory/${c.info_hash}`}><Mono>{c.info_hash?.slice(0, 12)}</Mono></Link></TableCell>
                   <TableCell className="max-w-[30rem] text-[13px] [overflow-wrap:anywhere]">{c.name}</TableCell>
-                  <TableCell data-testid="inventory-used"><UsedCell usage={c.usage} links={c.linked_files} reason={c.usage_reason} /></TableCell>
+                  <TableCell data-testid="inventory-used"><UsedCell usage={c.usage} links={c.linked_files} reason={c.usage_reason} held={c.state === "present"} /></TableCell>
                   <TableCell className="hidden sm:table-cell"><StateBadge s={c.state} /></TableCell>
                   <TableCell className="hidden whitespace-nowrap md:table-cell">{fmtAgo(c.last_seen_at)}</TableCell>
                 </TableRow>
@@ -169,7 +173,7 @@ export function RegistryContent() {
               <div className="text-muted-foreground"><UsageDetail u={c.usage} /></div>
               <p className="text-xs text-muted-foreground">Used and unused are worked out again after each read of the accounts or Refresh (Torrents).</p>
             </div>
-          ) : <p className="text-muted-foreground">No account holds it in the record, so its usage is not worked out.</p>}
+          ) : <p className="text-muted-foreground">{noUsageWords(c.state === "present" || (c.providers ?? []).some((p) => p.state !== "absent"))}</p>}
         </Card>
       </Section>
       {/* Theatarr's own imports recorded with this content; most library links are counted under Used instead. */}

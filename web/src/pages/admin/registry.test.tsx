@@ -114,3 +114,19 @@ it("says a hash no account holds has no usage worked out, not unused", async () 
   expect(screen.queryByTestId("inventory-copies")).toBeNull();
   expect(screen.getByText("Removed").className).toMatch(/bad-ink/);
 });
+
+// opus A29, carbon C4: a held entry the accounts' last read has not seen does not also say no account holds it.
+it("says a held hash without usage is not in the last read yet, not that no account holds it", async () => {
+  const hash = "f".repeat(40);
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["admin", "see_files"] } },
+    { method: "GET", path: "/status", reply: { versions: [] } },
+    { method: "GET", path: "/torrents/copies", reply: { copies: [] } },
+    { method: "GET", path: `/registry/${hash}`, reply: { info_hash: hash, name: "Fresh", state: "present", files: [], versions: [], arr_files: [], links: [],
+      providers: [{ provider: "rd", torrent_id: "R9", folder_name: "Fresh", seen_at: "2026-11-14T00:00:00Z", state: "present" }] } },
+  ]);
+  renderPage(<Routes><Route path="/admin/torrents/inventory/:hash" element={<RegistryContent />} /></Routes>, `/admin/torrents/inventory/${hash}`);
+  const used = await screen.findByTestId("inventory-usage");
+  expect(used.textContent).toBe("Not in the last read of the accounts yet, so its usage is not worked out: Refresh on Torrents reads them again.");
+  expect(screen.getByText("Held")).toBeTruthy();
+});
