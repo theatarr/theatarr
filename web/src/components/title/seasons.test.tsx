@@ -423,7 +423,7 @@ describe("Acting on the libraries in view", () => {
 
 describe("Episode window", () => {
   it("has Details, History and Last search tabs, with the file's facts and Cached on open in Details", async () => {
-    const withFile = { ...detail, versions: [detail.versions[0], { ...detail.versions[1], file: { quality: "WEBDL-1080p", release_title: "Tsukikage.Signal.S01E13.1080p.WEB-DL-NTb", cached_on: ["rd"] }, history: [] }] };
+    const withFile = { ...detail, versions: [detail.versions[0], { ...detail.versions[1], file: { quality: "WEBDL-1080p", release_title: "Tsukikage.Signal.S01E13.1080p.WEB-DL-NTb", cached_on: ["rd"], score: 4200, instance: "theatarr" }, history: [] }] };
     mockFetch([routes[0], routes[1], { method: "GET", path: "/titles/1/episodes/102", reply: withFile }]);
     const user = userEvent.setup();
     renderPage(<Seasons id="1" anime />, "/title/1?episode=102");
@@ -433,6 +433,9 @@ describe("Episode window", () => {
     expect(within(file).getByText("Tsukikage.Signal.S01E13.1080p.WEB-DL-NTb")).toBeTruthy();
     expect(within(file).getByText("Cached on")).toBeTruthy();
     expect(within(file).getByText("RD")).toBeTruthy();
+    // The score through the number format; Theatarr's own link has no "From" row.
+    expect(within(file).getByText("4,200")).toBeTruthy();
+    expect(within(file).queryByText("From")).toBeNull();
     await user.click(within(dialog).getByRole("tab", { name: "History" }));
     expect(within(dialog).getAllByTestId("episode-history")).toHaveLength(2);
     expect(within(dialog).queryByTestId("episode-file")).toBeNull();

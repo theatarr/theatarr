@@ -302,7 +302,7 @@ const COLUMN_HEAD: Record<EpisodeColumnId, { label: string; className?: string }
   status: { label: "Status", className: "w-40" },
   quality: { label: "Quality", className: "w-32" },
   size: { label: "Size", className: "w-20 text-right" },
-  cached: { label: "Cached on", className: "w-24" },
+  cached: { label: "Cached on", className: "w-36" },
   score: { label: "Score", className: "w-16 text-right" },
   group: { label: "Release group", className: "w-28" },
   release: { label: "Release" },
@@ -331,9 +331,10 @@ function ColumnCell({ id, e, c, seeFiles, day, off = false }: { id: EpisodeColum
     case "size":
       return <TableCell className="whitespace-nowrap text-right tabular-nums">{file?.size_bytes ? fmtBytes(file.size_bytes) : ""}</TableCell>;
     case "cached":
-      return <TableCell data-col="cached">{file ? <span className="flex flex-wrap items-center gap-1.5"><ProviderPills codes={file.cached_on} /><TorrentLink hash={file.info_hash} /></span> : null}</TableCell>;
+      // On one line: the tags and the Torrent link side by side, never one per line.
+      return <TableCell data-col="cached">{file ? <span className="flex items-center gap-1.5 whitespace-nowrap [&>*]:flex-nowrap"><ProviderPills codes={file.cached_on} /><TorrentLink hash={file.info_hash} /></span> : null}</TableCell>;
     case "score":
-      return <TableCell className="text-right tabular-nums">{file?.score != null ? String(file.score) : ""}</TableCell>;
+      return <TableCell className="text-right tabular-nums">{file?.score != null ? fmtNumber(file.score) : ""}</TableCell>;
     case "group":
       return <TableCell className="whitespace-nowrap">{file?.release_group ?? ""}</TableCell>;
     case "release":

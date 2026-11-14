@@ -37,7 +37,7 @@ import { belowCount, nextLine } from "@/lib/upgrade";
 import { cn } from "@/lib/utils";
 import { downloadReason, globalDownloadsOff, linksOff, MODE_WORDS, verdict } from "@/lib/version-grab";
 import { otherProvidersLine } from "@/lib/provider-copies";
-import { mediaLine } from "@/lib/media";
+import { mediaLine, subsList } from "@/lib/media";
 
 type Kind = "movie" | "series";
 
@@ -130,7 +130,7 @@ function cellOf(id: LibraryColumn, v: Version, kind: Kind, title: TitleDetail): 
     case "languages":
       return held && c?.languages?.length ? c.languages.join(", ") : blank;
     case "media":
-      return held ? mediaLine(c?.media) || blank : blank;
+      return held && mediaLine(c?.media) ? <span title={c?.media?.subtitles ? `Subtitles: ${subsList(c.media.subtitles)}` : undefined}>{mediaLine(c?.media)}</span> : blank;
     case "formats":
       return held && c?.formats?.length ? (
         <span className="flex flex-wrap gap-1">{c.formats.map((f) => <Tag key={f.name}>{f.name} {f.score >= 0 ? "+" : ""}{fmtNumber(f.score)}</Tag>)}</span>

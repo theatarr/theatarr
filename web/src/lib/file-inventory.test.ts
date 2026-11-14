@@ -12,7 +12,7 @@ describe("file inventory", () => {
         files: [{ id: 10, path: "/library/flower.mkv", instance: "sonarr", current: true, quality: "Bluray-1080p", size_bytes: 100 }],
         links: [
           { id: 20, path: "/library/flower.mkv", state: "active", quality: "Bluray-1080p", info_hash: "abc" },
-          { id: 21, path: "/library/native.mkv", state: "active", quality: "WEBDL-1080p", info_hash: "def" },
+          { id: 21, path: "/library/native.mkv", state: "active", quality: "WEBDL-1080p", info_hash: "def", size_bytes: 300 },
           { id: 22, path: "/library/old.mkv", state: "unlinked" },
         ],
       },
@@ -22,6 +22,8 @@ describe("file inventory", () => {
     const rows = fileInventoryRows(versions);
     expect(rows).toHaveLength(2);
     expect(rows[0]).toMatchObject({ path: "/library/flower.mkv", instance: "sonarr", size_bytes: 100, versions: ["anime-1080p", "anime-remux"] });
-    expect(rows[1]).toMatchObject({ path: "/library/native.mkv", instance: "theatarr", current: true, info_hash: "def" });
+    // Theatarr's own link: its size, and no "theatarr" instance word.
+    expect(rows[1]).toMatchObject({ path: "/library/native.mkv", current: true, info_hash: "def", size_bytes: 300 });
+    expect(rows[1].instance).toBeUndefined();
   });
 });

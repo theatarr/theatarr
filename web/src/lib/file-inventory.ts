@@ -25,6 +25,7 @@ export function fileInventoryRows(versions: Version[]): FileInventoryRow[] {
       if (!found.versions.includes(version)) found.versions.push(version);
       if (!found.quality && row.quality) found.quality = row.quality;
       if (!found.info_hash && row.info_hash) found.info_hash = row.info_hash;
+      if (found.size_bytes == null && row.size_bytes != null) found.size_bytes = row.size_bytes;
       return;
     }
     const next: FileInventoryRow = { ...row, path, key: path, versions: [version] };
@@ -47,11 +48,12 @@ export function fileInventoryRows(versions: Version[]): FileInventoryRow[] {
     }
     for (const l of v.links ?? []) {
       if (l.state !== "active") continue;
+      // Theatarr's own link: no instance word ("theatarr" says nothing here).
       add(version, {
         path: l.path,
-        instance: "theatarr",
         current: true,
         quality: l.quality ?? "",
+        size_bytes: l.size_bytes,
         custom_format_score: l.score,
         info_hash: l.info_hash,
       });

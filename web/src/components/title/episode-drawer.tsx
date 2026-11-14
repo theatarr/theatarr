@@ -37,9 +37,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { fmtAgo, fmtBytes, fmtTime } from "@/lib/format";
+import { fmtAgo, fmtBytes, fmtNumber, fmtTime } from "@/lib/format";
 import { fmtDay, fmtRuntime } from "@/lib/library";
-import { mediaLine } from "@/lib/media";
+import { mediaLine, subsList } from "@/lib/media";
 import { cellStatus, episodeNumber, mergedStatus, plainAvailable, statusWords } from "@/lib/seasons";
 import { activityHref, stageTone, stageWords } from "@/lib/copies";
 import { cn } from "@/lib/utils";
@@ -84,17 +84,18 @@ function fileRows(f: EpisodeVersionDetail["file"]): [React.ReactNode, React.Reac
   if (!f) return rows;
   if (f.release_title || f.scene_name) rows.push(["Release", <Mono key="r" className="break-all">{f.release_title || f.scene_name}</Mono>]);
   if (f.quality) rows.push(["Quality", f.quality]);
-  if (f.score !== undefined && f.score !== null) rows.push(["Profile score", String(f.score)]);
+  if (f.score !== undefined && f.score !== null) rows.push(["Profile score", fmtNumber(f.score)]);
   if (f.size_bytes) rows.push(["Size", fmtBytes(f.size_bytes)]);
   if (f.release_group) rows.push(["Group", f.release_group]);
   rows.push(["Cached on", <span key="c" className="flex flex-wrap items-center gap-x-2 gap-y-1"><ProviderPills codes={f.cached_on} /><TorrentLink hash={f.info_hash} /></span>]);
   if (otherProvidersLine(f.copies, f.cached_on)) rows.push(["Other providers", <OtherProviders key="o" copies={f.copies} shown={f.cached_on} />]);
   if (f.languages?.length) rows.push(["Languages", f.languages.join(", ")]);
   const media = mediaLine(f.media);
-  if (media) rows.push(["Media", media]);
+  if (media) rows.push(["Media", <span key="m" title={f.media?.subtitles ? `Subtitles: ${subsList(f.media.subtitles)}` : undefined}>{media}</span>]);
   if (f.episodes && f.episodes.length > 1) rows.push(["In the file", f.episodes.join(", ")]);
   if (f.added_at) rows.push(["Added", <span key="a" title={fmtTime(f.added_at)}>{fmtAgo(f.added_at)}</span>]);
-  if (f.instance) rows.push(["From", f.instance]);
+  // Where an arr's file came from; Theatarr's own links need no "From".
+  if (f.instance && f.instance !== "theatarr") rows.push(["From", f.instance]);
   if (f.path) rows.push(["Path", <Mono key="p" className="break-all text-muted-foreground">{f.path}</Mono>]);
   return rows;
 }

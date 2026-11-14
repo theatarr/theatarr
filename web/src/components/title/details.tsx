@@ -2,14 +2,17 @@
 // registry; the grab journal for the title (GET /journal?title=<id>) is TitleJournal, on the
 // History tab.
 import { ExternalLink } from "lucide-react";
+import { useState } from "react";
 import { Link } from "react-router";
 import { useTitleJournal, type TitleDetail, type Version } from "@/api/library";
 import { Empty, ErrorState, KV, Loading, Mono, Section, VersionTag } from "@/components/page";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { journalHome, journalLink } from "@/lib/admin-links";
-import { fmtBytes, fmtDayYear, fmtTime } from "@/lib/format";
+import { fmtBytes, fmtDayYear, fmtNumber, fmtTime } from "@/lib/format";
+import { readableCode } from "@/lib/code-words";
 import { fileInventoryRows } from "@/lib/file-inventory";
 import { releaseTypeWords } from "@/lib/tmdb-words";
 
@@ -85,25 +88,64 @@ function Files({ versions }: { versions: Version[] }) {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {rows.slice(0, 300).map((f) => (
-            <TableRow key={f.key}>
-              <TableCell>{f.versions.map((v) => <VersionTag key={v} k={v} />)}</TableCell>
-              <TableCell>
-                <Mono className="break-all">{f.path}</Mono>
-                <div className="text-xs text-muted-foreground">
-                  {f.instance}
-                  {f.current ? " · current" : ""}
-                  {f.custom_format_score != null ? ` · profile score ${f.custom_format_score}` : ""}
-                  {f.info_hash ? <> · <Link className="font-mono text-primary hover:underline" to={`/admin/registry/${f.info_hash}`}>{f.info_hash.slice(0, 12)}</Link></> : null}
-                </div>
-              </TableCell>
-              <TableCell className="hidden md:table-cell">{f.quality || "—"}</TableCell>
-              <TableCell className="hidden whitespace-nowrap text-right tabular-nums sm:table-cell">{f.size_bytes != null ? fmtBytes(f.size_bytes) : "—"}</TableCell>
+          {rows.slice(0, 300).map((f) => {
+            const facts = [f.instance, f.current ? "current" : "", f.custom_format_score != null ? `profile score ${fmtNumber(f.custom_format_score)}` : ""].filter(Boolean).join(" · ");
+            return (
+              <TableRow key={f.key}>
+                <TableCell>{f.versions.map((v) => <VersionTag key={v} k={v} />)}</TableCell>
+                <TableCell>
+                  <Mono className="break-all">{f.path}</Mono>
+                  <div className="text-xs text-muted-foreground">
+                    {facts}
+                    {f.info_hash ? <>{facts ? " · " : ""}<Link className="font-mono text-primary hover:underline" to={`/admin/registry/${f.info_hash}`}>{f.info_hash.slice(0, 12)}</Link></> : null}
+                  </div>
+                </TableCell>
+                <TableCell className="hidden md:table-cell">{f.quality || "—"}</TableCell>
+                <TableCell className="hidden whitespace-nowrap text-right tabular-nums sm:table-cell">{f.size_bytes != null ? fmtBytes(f.size_bytes) : "—"}</TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+      {rows.length > 300 ? <p className="px-4 py-2 text-xs text-muted-foreground">Showing 300 of {rows.length} files.</p> : null}
+    </Card>
+  );
+}
+
+type ReleaseDate = NonNullable<TitleDetail["release_dates"]>[number];
+
+/** The canonical dates (country empty: the theatrical, digital and physical dates the calendar and Home use) and
+ *  "Show all" for every stored row, which runs to a hundred and more for a big film. With no canonical row every row
+ *  shows. */
+function ReleaseDates({ rows }: { rows: ReleaseDate[] }) {
+  const [all, setAll] = useState(false);
+  const canonical = rows.filter((r) => !r.country);
+  const shown = all || canonical.length === 0 ? rows : canonical;
+  if (rows.length === 0) return <Card><Empty>No release dates.</Empty></Card>;
+  return (
+    <Card className="p-0" data-testid="release-dates">
+      <Table density="dense">
+        <TableHeader>
+          <TableRow><TableHead>Date</TableHead><TableHead>Type</TableHead><TableHead>Country</TableHead><TableHead className="hidden sm:table-cell">Source</TableHead></TableRow>
+        </TableHeader>
+        <TableBody>
+          {shown.map((r, i) => (
+            <TableRow key={i}>
+              <TableCell className="whitespace-nowrap">{fmtDayYear(r.date)}</TableCell>
+              <TableCell title={r.type}>{releaseTypeWords(r.type)}</TableCell>
+              <TableCell>{r.country || "—"}</TableCell>
+              <TableCell className="hidden sm:table-cell" title={r.source}>{readableCode(r.source)}</TableCell>
             </TableRow>
           ))}
         </TableBody>
       </Table>
-      {rows.length > 300 ? <p className="px-4 py-2 text-xs text-muted-foreground">Showing 300 of {rows.length} files.</p> : null}
+      {shown.length < rows.length || all ? (
+        <div className="border-t border-[var(--line)] px-3 py-2">
+          <Button size="xs" variant="ghost" onClick={() => setAll(!all)} data-testid="release-dates-all">
+            {all ? "Show fewer" : `Show all (${fmtNumber(rows.length)})`}
+          </Button>
+        </div>
+      ) : null}
     </Card>
   );
 }
@@ -133,20 +175,7 @@ export function Details({ d }: { d: TitleDetail }) {
         <Card><KV items={ids} /></Card>
       </Section>
       <Section title="Release dates">
-        {(d.release_dates ?? []).length === 0 ? <Card><Empty>No release dates.</Empty></Card> : (
-          <Card className="p-0">
-            <Table density="dense">
-              <TableHeader>
-                <TableRow><TableHead>Date</TableHead><TableHead>Type</TableHead><TableHead>Country</TableHead><TableHead className="hidden sm:table-cell">Source</TableHead></TableRow>
-              </TableHeader>
-              <TableBody>
-                {(d.release_dates ?? []).map((r, i) => (
-                  <TableRow key={i}><TableCell className="whitespace-nowrap">{fmtDayYear(r.date)}</TableCell><TableCell title={r.type}>{releaseTypeWords(r.type)}</TableCell><TableCell>{r.country || "—"}</TableCell><TableCell className="hidden sm:table-cell">{r.source}</TableCell></TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </Card>
-        )}
+        <ReleaseDates rows={d.release_dates ?? []} />
       </Section>
       <Section title="Files">
         <Files versions={versions} />
