@@ -25,14 +25,16 @@ export function libraryTitleId(target: AddTarget, opts?: Pick<AddOptions, "title
   return target.title_id ?? opts?.title_id ?? undefined;
 }
 
-export function addRequest(target: AddTarget, opts: Pick<AddOptions, "kind" | "title_id">, c: AddChoice): AddRequest {
+export function addRequest(target: AddTarget, opts: Pick<AddOptions, "kind" | "title_id"> & { in_library?: boolean }, c: AddChoice): AddRequest {
   const kind = opts.kind === "series" ? "series" : "movie";
   const titleId = libraryTitleId(target, opts);
+  // A title every copy of which was removed is added like a new one, by the title id it keeps: its choices go along.
+  const fresh = titleId === undefined || opts.in_library === false;
   // A movie's choice goes with the libraries the request adds, in the library or not; left at "Library default" it
   // adds no key.
   const movie: Partial<AddRequest> = kind === "movie" && c.minimumAvailability ? { minimum_availability: c.minimumAvailability } : {};
-  const common = { versions: c.versions, seasons: c.monitor && kind === "series" && titleId === undefined ? undefined : c.seasons, search: c.search, ...movie };
-  if (titleId !== undefined) return { title_id: titleId, kind, ...common };
+  const common = { versions: c.versions, seasons: c.monitor && kind === "series" && fresh ? undefined : c.seasons, search: c.search, ...movie };
+  if (!fresh) return { title_id: titleId, kind, ...common };
   // The preset, the new-seasons choice and the type are a new series' only: the request names the libraries the
   // title already has too, and they would be rewritten; the type is the one the series has. Each left at its default adds no key, so the body is the one sent before
   // these choices existed. monitor_new none alone would leave the seasons of the first refresh unmonitored as well
@@ -45,5 +47,6 @@ export function addRequest(target: AddTarget, opts: Pick<AddOptions, "kind" | "t
     ...(later ? { monitor_new: "none" } : {}),
     ...(c.seriesType ? { series_type: c.seriesType } : {}),
   } : {};
+  if (titleId !== undefined) return { title_id: titleId, kind, anime: c.anime, ...common, ...series };
   return { kind, tmdb_id: target.tmdb_id || undefined, title: target.name, year: target.year, anime: c.anime, ...common, ...series };
 }

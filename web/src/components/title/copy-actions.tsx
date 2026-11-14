@@ -115,39 +115,30 @@ export function CopyActions({ v, label, onRemove }: { v: Version; label: string;
   );
 }
 
-/** Remove links…: the links a library the title was removed from still has, moved to Theatarr's trash through the
- *  removal dialog (the server's leftover case). */
-export function LeftoverLinks({ titleId, version }: { titleId: number; version: string }) {
+/** Remove links…: the links libraries the title was removed from still have, moved to Theatarr's trash through the
+ *  removal dialog (the server's leftover case). label is the link's words (Remove links…, or Delete them). */
+export function LeftoverLinks({ titleId, versions, label = "Remove links…" }: { titleId: number; versions: string[]; label?: string }) {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <button type="button" className="font-medium text-primary hover:underline" onClick={() => setOpen(true)} data-testid={`leftover-remove-${version}`}>
-        Remove links…
+      <button type="button" className="font-medium text-primary hover:underline" onClick={() => setOpen(true)} data-testid={`leftover-remove-${versions.join(",")}`}>
+        {label}
       </button>
-      {open ? <RemoveDialog titleId={titleId} versions={[version]} onClose={() => setOpen(false)} /> : null}
+      {open ? <RemoveDialog titleId={titleId} versions={versions} onClose={() => setOpen(false)} /> : null}
     </>
   );
 }
 
 /** A title with no library copy left whose removed libraries still have library links: "N files kept from before it
- *  was removed", and for managers Delete them (the removal dialog's leftover case for those libraries). */
+ *  was removed", and for managers Delete them (LeftoverLinks for those libraries). */
 export function KeptFiles({ titleId, versions, manage }: { titleId: number; versions: Version[]; manage: boolean }) {
-  const [open, setOpen] = useState(false);
   const kept = versions.filter((v) => v.removed && v.key && unlinkable(v.links).length > 0);
   const n = kept.reduce((sum, v) => sum + unlinkable(v.links).length, 0);
   if (n === 0) return null;
   return (
     <p className="text-sm text-[var(--ink-2)]" data-testid="kept-files">
       {n === 1 ? "1 file" : `${n} files`} kept from before it was removed
-      {manage ? (
-        <>
-          :{" "}
-          <button type="button" className="font-medium text-primary hover:underline" onClick={() => setOpen(true)} data-testid="kept-files-delete">
-            {n === 1 ? "Delete it" : "Delete them"}
-          </button>
-        </>
-      ) : "."}
-      {open ? <RemoveDialog titleId={titleId} versions={kept.map((v) => v.key ?? "")} onClose={() => setOpen(false)} /> : null}
+      {manage ? <>: <LeftoverLinks titleId={titleId} versions={kept.map((v) => v.key ?? "")} label={n === 1 ? "Delete it" : "Delete them"} /></> : "."}
     </p>
   );
 }

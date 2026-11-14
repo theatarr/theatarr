@@ -211,8 +211,20 @@ it("reads a film every copy of which was removed as a new add, restored by its t
   await screen.findByTestId("add-versions");
   expect(screen.queryByText("In library")).toBeNull();
   expect(screen.getByTestId("add-submit").textContent).toBe("Add");
+  // The new title's choices are offered and sent along.
+  expect(screen.getByTestId("add-anime")).toBeTruthy();
   await user.click(screen.getByTestId("add-submit"));
-  expect(((await bodyOf(fetch)) as { title_id?: number }).title_id).toBe(5);
+  expect(await bodyOf(fetch)).toMatchObject({ title_id: 5, kind: "movie", anime: false });
+});
+
+it("offers a removed series the new series' choices and sends them with its title id", async () => {
+  const fetch = mockFetch(routes({ ...seriesOptions, title_id: 10, in_library: false }));
+  const user = userEvent.setup();
+  renderPage(<AddSheet target={{ kind: "series", name: "Kappa", title_id: 10 }} onClose={() => {}} />);
+  await user.selectOptions(await screen.findByTestId("add-series-type"), "daily");
+  for (const id of ["add-monitor", "add-monitor-new", "add-anime"]) expect(screen.getByTestId(id)).toBeTruthy();
+  await user.click(screen.getByTestId("add-submit"));
+  expect(await bodyOf(fetch)).toMatchObject({ title_id: 10, kind: "series", series_type: "daily" });
 });
 
 it("sends a new series' type only when it differs from the one the series would get", async () => {

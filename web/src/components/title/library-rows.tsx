@@ -349,7 +349,7 @@ export function LibraryRows({ title, versions }: { title: TitleDetail; versions:
             <span key={v.key}>
               {i > 0 ? "; " : ""}
               {nameOf(v)} ({unlinkable(v.links).length === 1 ? "1 file" : `${unlinkable(v.links).length} files`}).{" "}
-              {perms.manage && v.key ? <LeftoverLinks titleId={titleId} version={v.key} /> : null}
+              {perms.manage && v.key ? <LeftoverLinks titleId={titleId} versions={[v.key]} /> : null}
             </span>
           ))}
         </p>

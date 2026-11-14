@@ -229,7 +229,7 @@ export function AddSheet({ target, onClose }: { target: AddTarget; onClose: () =
                 <p className="text-sm text-[var(--bad-ink)]">{String((opts.error as Error).message)}</p>
               ) : o ? (
                 <>
-                  {!inLibrary ? (
+                  {!current ? (
                     <CheckRow checked={anime} onChange={(v) => { setAnime(v); setPicked({}); }} testid="add-anime">
                       <span className="block text-sm font-medium">Anime</span>
                       <span className="block text-xs text-[var(--ink-3)]">Anime titles get the anime libraries.{target.anime ? " TMDb says Japanese animation." : ""}</span>
@@ -262,7 +262,7 @@ export function AddSheet({ target, onClose }: { target: AddTarget; onClose: () =
                   {o.kind === "series" ? (
                     <section>
                       <h3 className="mb-2 text-[13px] font-semibold uppercase tracking-[0.08em] text-[var(--ink-3)]">Seasons</h3>
-                      {!inLibrary ? (
+                      {!current ? (
                         <div className="mb-2">
                           <SelectRow
                             label="Monitor"
@@ -274,7 +274,7 @@ export function AddSheet({ target, onClose }: { target: AddTarget; onClose: () =
                           />
                         </div>
                       ) : null}
-                      {monitor && !inLibrary ? null : epKnown ? (
+                      {monitor && !current ? null : epKnown ? (
                         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2" data-testid="add-seasons">
                           {(o.seasons ?? []).map((s) => (
                             <CheckRow key={s.season} checked={seasonOn(s.season, s.monitored ?? true)} onChange={(c) => setSeasons((p) => ({ ...p, [s.season]: c }))}>
@@ -291,7 +291,7 @@ export function AddSheet({ target, onClose }: { target: AddTarget; onClose: () =
                           Every season is monitored. Season choices apply once the library knows the episodes; change them on the title page then.
                         </p>
                       )}
-                      {!inLibrary ? (
+                      {!current ? (
                         <div className="mt-2 space-y-2">
                           <SwitchRow
                             on={monitorNew}
@@ -315,7 +315,7 @@ export function AddSheet({ target, onClose }: { target: AddTarget; onClose: () =
                   {o.kind === "movie" && chosen.length > 0 ? (
                     <SelectRow
                       label="Minimum availability"
-                      detail={`When the movie counts as out and is searched${inLibrary ? ", for the libraries added now" : ""}. Library default keeps each library's own setting.`}
+                      detail={`When the movie counts as out and is searched${current ? ", for the libraries added now" : ""}. Library default keeps each library's own setting.`}
                       value={minimum ?? ""}
                       onChange={(v) => setMinimum((v || undefined) as AddChoice["minimumAvailability"])}
                       options={[["", "Library default"], ...MINIMUM_AVAILABILITY]}
