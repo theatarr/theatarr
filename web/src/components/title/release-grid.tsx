@@ -34,6 +34,7 @@ import {
   naturalDir,
   needsConfirm,
   normalizeReleaseColumns,
+  RELEASE_PAGE,
   peersText,
   releaseColumnsFor,
   sortReleases,
@@ -256,6 +257,7 @@ export function ReleaseGrid({
   grab,
   focus,
   capped,
+  reason,
 }: {
   items: Candidate[];
   outcomes?: Releases["outcomes"];
@@ -266,6 +268,8 @@ export function ReleaseGrid({
   focus?: string;
   /** The search's result count, when the answer holds only the best of them. */
   capped?: number;
+  /** A rejection reason picked outside the grid (interactive search's summary chips): only those rows. */
+  reason?: string;
 }) {
   const uid = useAuth().data?.id;
   const [saved, setSaved] = useState<ReleaseColumnPrefs | null>(null);
@@ -284,8 +288,15 @@ export function ReleaseGrid({
   while (lead < shown.length && (shown[lead] === "source" || shown[lead] === "age")) lead++;
   const before = shown.slice(0, lead);
   const after = shown.slice(lead);
-  const rows = useMemo(() => sortReleases(filterReleases(items, filter), prefs.sort), [items, filter, prefs.sort]);
+  const rows = useMemo(() => sortReleases(filterReleases(items, { ...filter, reason }), prefs.sort), [items, filter, reason, prefs.sort]);
   const picked = (c: Candidate) => !!focus && !!c.info_hash && c.info_hash.toLowerCase() === focus.toLowerCase();
+  // The first RELEASE_PAGE rows, more with each Show more; a new list (filter, sort, library) starts again. A focused
+  // release further down is shown with the rows above it.
+  const [more, setMore] = useState<{ rows: Candidate[]; n: number }>({ rows, n: RELEASE_PAGE });
+  const focusAt = focus ? rows.findIndex(picked) : -1;
+  const limit = Math.max(more.rows === rows ? more.n : RELEASE_PAGE, focusAt + 1);
+  const visible = rows.length > limit ? rows.slice(0, limit) : rows;
+  const filtered = rows.length !== items.length;
   useEffect(() => {
     if (!focus || !/^[0-9a-f]+$/i.test(focus)) return;
     // The table from md up, the cards below it: scroll the one on screen.
@@ -339,7 +350,11 @@ export function ReleaseGrid({
           <Columns3 /> Columns
         </Button>
       </div>
-      {capped && capped > items.length ? <p className="text-xs text-[var(--ink-3)]" data-testid="release-capped">Showing the best {items.length} of {capped}.</p> : null}
+      {capped && capped > items.length ? (
+        <p className="text-xs text-[var(--ink-3)]" data-testid="release-capped">
+          {filtered ? `${rows.length} of the best ${items.length} of ${capped} match the filter.` : `Showing the best ${items.length} of ${capped}.`}
+        </p>
+      ) : null}
       {rows.length === 0 ? (
         <p className="py-4 text-center text-sm text-muted-foreground" data-testid="release-no-match">No release matches the filter.</p>
       ) : (
@@ -355,7 +370,7 @@ export function ReleaseGrid({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rows.map((c) => (
+                {visible.map((c) => (
                   <TableRow key={key(c)} data-release-hash={c.info_hash?.toLowerCase()} data-focus={picked(c) || undefined} className={cn(!c.accepted && "opacity-80", picked(c) && "bg-[var(--accent-soft)] opacity-100")}>
                     {before.map((id) => (
                       <TableCell key={id} className="align-top" data-column={id}>
@@ -382,7 +397,7 @@ export function ReleaseGrid({
             </Table>
           </div>
           <ul className="space-y-2 md:hidden" data-testid="releases-list">
-            {rows.map((c) => (
+            {visible.map((c) => (
               <li key={key(c)} data-release-hash={c.info_hash?.toLowerCase()} data-focus={picked(c) || undefined} className={cn("rounded-[5px] border border-[var(--line)] bg-[var(--surface)] p-3", picked(c) && "border-[var(--accent)] bg-[var(--accent-soft)]")}>
                 <div className="flex items-start justify-between gap-3">
                   <span className="font-mono text-[12px] text-[var(--ink)] [overflow-wrap:anywhere]">{c.release}</span>
@@ -407,6 +422,13 @@ export function ReleaseGrid({
               </li>
             ))}
           </ul>
+          {visible.length < rows.length ? (
+            <div className="flex justify-center">
+              <Button size="sm" variant="outline" onClick={() => setMore({ rows, n: limit + RELEASE_PAGE })} data-testid="release-more">
+                Show more ({rows.length - visible.length} left)
+              </Button>
+            </div>
+          ) : null}
         </>
       )}
       {picker ? (

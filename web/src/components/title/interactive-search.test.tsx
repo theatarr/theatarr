@@ -259,3 +259,38 @@ it("a phone card shows the indexer, the episodes covered, languages and flags", 
   expect(card.textContent).toContain("English");
   expect(card.textContent).toContain("Freeleech");
 });
+
+// Hundreds of releases: the first 50 render, Show more adds the next; a rejection chip keeps its releases, and the
+// "best of" line follows the filter.
+it("renders the first 50 releases, shows more on asking, and filters by a rejection chip", async () => {
+  const many = Array.from({ length: 120 }, (_, i) => ({ ...rejected, rank: i + 2, info_hash: `h${i}`, release: `Alpha.2020.720p.R${i}`,
+    rejections: [{ reason: i < 30 ? "DiskHigherPreference" : "QualityNotWanted", message: "x" }] }));
+  mockFetch([ME, TITLE, CURRENT, CURRENT, { method: "GET", path: "/titles/7/releases",
+    reply: answer("movie-web", { results: 500, accepted: 1, candidates: [accepted, ...many], rejections: { DiskHigherPreference: 30, QualityNotWanted: 90 } }) }]);
+  renderPage(<InteractiveSearchButton titleId={7} version="movie-web" />);
+  open();
+  const rows = async () => within(await table()).getAllByRole("row").length - 1;
+  expect(await rows()).toBe(50);
+  expect(screen.getByTestId("release-capped").textContent).toBe("Showing the best 121 of 500.");
+  fireEvent.click(screen.getByTestId("release-more"));
+  expect(await rows()).toBe(100);
+  const chip = screen.getAllByTestId("releases-reason").find((b) => b.textContent?.startsWith("Not better than the file held"))!;
+  fireEvent.click(chip);
+  expect(chip.getAttribute("aria-pressed")).toBe("true");
+  expect(await rows()).toBe(30);
+  expect(screen.queryByTestId("release-more")).toBeNull();
+  expect(screen.getByTestId("release-capped").textContent).toBe("30 of the best 121 of 500 match the filter.");
+  fireEvent.click(chip);
+  expect(await rows()).toBe(50);
+});
+
+it("leads with no release of this title when every result is another title", async () => {
+  const other = { ...rejected, rejections: [{ reason: "UnknownMovie", message: "Unknown Movie." }] };
+  mockFetch([ME, TITLE, CURRENT, CURRENT, { method: "GET", path: "/titles/7/releases",
+    reply: answer("movie-web", { results: 1, accepted: 0, indexers: 8, candidates: [other], rejections: { UnknownMovie: 1 } }) }]);
+  renderPage(<InteractiveSearchButton titleId={7} version="movie-web" />);
+  open();
+  expect((await screen.findByTestId("interactive-none-of-title")).textContent).toBe("No release of this title was found on 8 indexers.");
+  // The film holds no file in this library: the line says so, whatever a candidate compared against.
+  expect(screen.getByTestId("interactive-current").textContent).toBe("No file held");
+});

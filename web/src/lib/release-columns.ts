@@ -144,15 +144,18 @@ export function sortReleases(items: Candidate[], sort: ReleaseSort): Candidate[]
     .map((x) => x.c);
 }
 
-export type ReleaseFilter = { text: string; accepted: boolean; cached: boolean; packs: boolean };
+/** reason: a rejection reason code picked from the summary chips (interactive search); "" none. */
+export type ReleaseFilter = { text: string; accepted: boolean; cached: boolean; packs: boolean; reason?: string };
 
 export const NO_FILTER: ReleaseFilter = { text: "", accepted: false, cached: false, packs: false };
 
-/** The rows the filters keep: every word in the name, indexer, quality or languages; accepted only; cached only; packs only. */
+/** The rows the filters keep: every word in the name, indexer, quality or languages; accepted only; cached only;
+ *  packs only; rejected for the picked reason. */
 export function filterReleases(items: Candidate[], f: ReleaseFilter): Candidate[] {
   const match = wordMatcher(f.text);
   return items.filter((c) => {
     if (f.accepted && !c.accepted) return false;
+    if (f.reason && (c.accepted || !(c.rejections ?? []).some((r) => r.reason === f.reason))) return false;
     if (f.cached && !c.cached_on?.length) return false;
     if (f.packs && (c.episodes?.length ?? 0) <= 1) return false;
     return match(c.release, c.indexer, c.quality, ...(c.languages ?? []));
@@ -264,3 +267,15 @@ export function currentFile(items: Candidate[], held: boolean | undefined, episo
   const c = items.find((x) => x.existing && (code === undefined || (x.episodes?.length === 1 && x.episodes[0].toUpperCase() === code)));
   return c?.existing ? { held: true, quality: c.existing.quality, score: c.existing.score } : null;
 }
+
+/** The reasons that say a release is of another title, not a worse copy of this one. */
+const OTHER_TITLE = new Set(["UnknownMovie", "UnknownSeries", "WrongMovie", "WrongSeries", "MatchesAnotherSeries"]);
+
+/** Whether a search found nothing of the title itself: results came back, none was accepted, and every release was
+ *  rejected as another title (A Life Illuminated's 50 results, all other films). */
+export function noneOfTitle(items: Candidate[], accepted: number): boolean {
+  return items.length > 0 && accepted === 0 && items.every((c) => !c.accepted && (c.rejections ?? []).some((r) => OTHER_TITLE.has(r.reason ?? "")));
+}
+
+/** How many release rows the grid renders at first and adds with each Show more: hundreds at once froze the tab. */
+export const RELEASE_PAGE = 50;

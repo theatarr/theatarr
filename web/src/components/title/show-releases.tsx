@@ -26,7 +26,9 @@ const SOURCE: Record<string, string> = {
   none: "Nothing stored",
 };
 
-export function Summary({ r }: { r: Releases }) {
+/** The search's facts and rejection counts. With onReason (interactive search) each count is a toggle that keeps
+ *  the list to the releases rejected for it. */
+export function Summary({ r, reason, onReason }: { r: Releases; reason?: string; onReason?: (code: string | undefined) => void }) {
   const rej = Object.entries(r.rejections ?? {}).sort((a, b) => b[1] - a[1]);
   return (
     <div className="space-y-2">
@@ -41,11 +43,18 @@ export function Summary({ r }: { r: Releases }) {
       {r.grabbed ? <p className="text-sm font-medium text-[var(--ink)]" data-testid="releases-grabbed">{r.grabbed}</p> : null}
       {rej.length > 0 ? (
         <div className="flex flex-wrap gap-1.5">
-          {rej.map(([k, n]) => (
-            <span key={k} title={k} className="rounded-md border border-[var(--th-danger-border)] bg-[var(--bad-soft)] px-1.5 py-0.5 text-[11px] text-[var(--bad-ink)]">
-              {rejectionWords(k)} <span className="tabular-nums opacity-80">×{n}</span>
-            </span>
-          ))}
+          {rej.map(([k, n]) => {
+            const chip = "rounded-md border border-[var(--th-danger-border)] bg-[var(--bad-soft)] px-1.5 py-0.5 text-[11px] text-[var(--bad-ink)]";
+            const words = <>{rejectionWords(k)} <span className="tabular-nums opacity-80">×{n}</span></>;
+            return onReason ? (
+              <button key={k} type="button" title={k} aria-pressed={reason === k} onClick={() => onReason(reason === k ? undefined : k)}
+                className={cn(chip, "hover:border-[var(--bad-ink)]", reason === k && "ring-2 ring-[var(--line-focus)]")} data-testid="releases-reason">
+                {words}
+              </button>
+            ) : (
+              <span key={k} title={k} className={chip}>{words}</span>
+            );
+          })}
         </div>
       ) : null}
       {r.notes ? <p className="text-[11.5px] text-[var(--ink-3)]">Indexers: {r.notes}</p> : null}

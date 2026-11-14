@@ -31,6 +31,8 @@ type Searched struct {
 	// NoAnswer: the target asked at least one indexer and none answered (every request failed). The search says
 	// nothing about the title; acquire records it as an infrastructure failure, not as searched.
 	NoAnswer bool
+	// Indexers counts the indexers the target asked (at least one request planned), answered or not.
+	Indexers int
 	// Releases maps every decision of Ranked to the release it was made for (rejected ones too), for interactive
 	// search answers.
 	Releases map[*decide.Decision]indexer.Release
@@ -139,6 +141,7 @@ func SearchRequests(ctx context.Context, eng *decide.Engine, svc *indexer.Servic
 		}
 		plan := planSeries(&tt, target.Series, q)
 		targetSeen := map[string]int{}
+		asked := map[string]bool{}
 		for _, k := range v.Policy.Indexers {
 			sr := svc.Searcher(k)
 			if sr == nil {
@@ -165,13 +168,14 @@ func SearchRequests(ctx context.Context, eng *decide.Engine, svc *indexer.Servic
 				}
 				targetSeen[key] = len(refs[target.ID])
 				refs[target.ID] = append(refs[target.ID], ref)
+				asked[k] = true
 				if !querySeen[key] {
 					querySeen[key] = true
 					queries = append(queries, ref)
 				}
 			}
 		}
-		out[target.ID] = &Searched{}
+		out[target.ID] = &Searched{Indexers: len(asked)}
 	}
 
 	results := make(map[string]queryResult, len(queries))

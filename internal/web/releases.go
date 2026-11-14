@@ -41,6 +41,8 @@ type Releases struct {
 	Candidates []snapshot.Candidate `json:"candidates"`
 	Rejections map[string]int       `json:"rejections"`
 	Notes      string               `json:"notes,omitempty"`
+	// Indexers counts the indexers a live search asked; absent for a stored answer.
+	Indexers int `json:"indexers,omitempty"`
 	// Message says why nothing live was searched, or what the stored answer is.
 	Message string `json:"message,omitempty"`
 	// Grab: a live answer whose candidates may be grabbed for 30 minutes (POST /titles/{id}/releases/grab, ops.go).
@@ -216,6 +218,7 @@ func rankedInto(out *Releases, sr *router.Searched, now time.Time) {
 		}
 	}
 	out.Notes = strings.Join(sr.Notes, "; ")
+	out.Indexers = sr.Indexers
 }
 
 // storedReleases fills the answer from the newest stored decision for the title and version.

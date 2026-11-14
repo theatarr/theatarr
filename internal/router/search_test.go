@@ -123,6 +123,9 @@ func TestSearchNoAnswer(t *testing.T) {
 		if got["a"].NoAnswer != down {
 			t.Errorf("indexer down %v: NoAnswer %v (notes %v)", down, got["a"].NoAnswer, got["a"].Notes)
 		}
+		if got["a"].Indexers != 1 {
+			t.Errorf("indexer down %v: Indexers %d, want 1 (asked, answered or not)", down, got["a"].Indexers)
+		}
 	}
 }
 

@@ -3,6 +3,7 @@ import type { Candidate } from "@/api/add";
 import {
   DEFAULT_RELEASE_COLUMNS,
   currentFile,
+  noneOfTitle,
   scopeTarget,
   searchTargetWords,
   NO_FILTER,
@@ -127,5 +128,19 @@ describe("currentFile", () => {
   it("reads a film's file from any candidate, and gives a season no line", () => {
     expect(currentFile([single], true)).toEqual({ held: true, quality: "WEBDL-1080p", score: 1775 });
     expect(currentFile([pack], undefined)).toBeNull();
+  });
+});
+
+describe("rejection reason filter and other-title answers", () => {
+  const wrong = { rank: 1, accepted: false, rejections: [{ reason: "UnknownMovie" }] } as Candidate;
+  const held = { rank: 2, accepted: false, rejections: [{ reason: "DiskHigherPreference" }, { reason: "QualityNotWanted" }] } as Candidate;
+  const ok = { rank: 3, accepted: true } as Candidate;
+  it("keeps the releases rejected for the picked reason", () => {
+    expect(filterReleases([wrong, held, ok], { ...NO_FILTER, reason: "QualityNotWanted" }).map((c) => c.rank)).toEqual([2]);
+  });
+  it("says nothing of the title was found only when every release is another title and none is accepted", () => {
+    expect(noneOfTitle([wrong], 0)).toBe(true);
+    expect(noneOfTitle([wrong, held], 0)).toBe(false);
+    expect(noneOfTitle([], 0)).toBe(false);
   });
 });

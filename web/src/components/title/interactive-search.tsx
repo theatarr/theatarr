@@ -20,9 +20,11 @@ import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { cn } from "@/lib/utils";
 import { titleWithYear } from "@/lib/format";
-import { currentFile, scopeTarget, searchTargetWords } from "@/lib/release-columns";
+import { currentFile, noneOfTitle, scopeTarget, searchTargetWords } from "@/lib/release-columns";
 
-export type SearchScope = { titleId: number; version?: string; season?: number; episode?: { id: number; code: string } };
+/** episode.held: whether the episode has a file, by library key, when the opener knows (the episode rows); otherwise
+ *  the window reads the episode. */
+export type SearchScope = { titleId: number; version?: string; season?: number; episode?: { id: number; code: string; held?: Record<string, boolean> } };
 
 /** The title's libraries interactive search may search: current copies (not removed: the removal scope's copies;
  *  the title data still lists removed ones) that search the indexers live. */
@@ -73,9 +75,13 @@ export function InteractiveSearch({ titleId, version, season, episode, onClose }
   const live = r?.source === "live";
   const items = r?.candidates ?? [];
   // Whether the requested film or episode has a file in this library: a season or the whole series has no one file.
-  const ep = useEpisode(titleId, episode?.id ?? null);
-  const held = episode ? ep.data?.versions.find((v) => v.key === lib?.key)?.has_file : kind === "movie" && season === undefined ? lib?.has_file ?? false : undefined;
+  const ep = useEpisode(titleId, episode && !episode.held ? episode.id : null);
+  const held = episode ? (episode.held ? episode.held[lib?.key ?? ""] ?? false : ep.data?.versions.find((v) => v.key === lib?.key)?.has_file) : kind === "movie" && season === undefined ? lib?.has_file ?? false : undefined;
   const current = currentFile(items, held, episode?.code);
+  // A rejection reason picked from the summary: the list keeps those releases; another library starts unfiltered.
+  const [picked, setPicked] = useState<{ lib?: string; reason?: string }>({});
+  const reason = picked.lib === lib?.key ? picked.reason : undefined;
+  const pick = (code: string | undefined) => setPicked({ lib: lib?.key, reason: code });
   const grab = r && live && r.grab && perms.manage && lib ? { titleId, version: r.version, label: library } : undefined;
   return (
     <Modal
@@ -130,8 +136,13 @@ export function InteractiveSearch({ titleId, version, season, episode, onClose }
               <ErrorState error={q.error} />
             ) : r ? (
               <>
+                {live && noneOfTitle(items, r.accepted) ? (
+                  <p className="text-sm font-medium text-[var(--ink)]" data-testid="interactive-none-of-title">
+                    No release of this title was found{r.indexers ? ` on ${r.indexers === 1 ? "1 indexer" : `${r.indexers} indexers`}` : ""}.
+                  </p>
+                ) : null}
                 {live ? (
-                  <Summary r={r} />
+                  <Summary r={r} reason={reason} onReason={pick} />
                 ) : (
                   <>
                     <div className="space-y-1 rounded-[5px] border border-[var(--th-warning-border)] bg-[var(--warn-soft)] p-3 text-sm text-[var(--warn-ink)] [overflow-wrap:anywhere]" role="alert" data-testid="interactive-fallback">
@@ -153,7 +164,7 @@ export function InteractiveSearch({ titleId, version, season, episode, onClose }
                 {items.length === 0 ? (
                   <p className="py-4 text-center text-sm text-muted-foreground">No releases found.</p>
                 ) : (
-                  <ReleaseGrid items={items} outcomes={r.outcomes} kind={kind} grab={grab} capped={r.results > items.length ? r.results : undefined} />
+                  <ReleaseGrid items={items} outcomes={r.outcomes} kind={kind} grab={grab} capped={r.results > items.length ? r.results : undefined} reason={reason} />
                 )}
               </>
             ) : null}
