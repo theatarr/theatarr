@@ -140,7 +140,8 @@ func Calendar(ctx context.Context, db *sql.DB, from, to string, unmonitored bool
 		mon = live
 	}
 	rows, err := db.QueryContext(ctx, `WITH best (title_id, type, date) AS (`+FirstReleasesBetweenSQL+`)
-	SELECT t.id, t.name, COALESCE(t.year, 0), t.anime, t.monitored, best.type, best.date,
+	SELECT t.id, t.name, COALESCE(t.year, 0), t.anime,
+		t.monitored AND EXISTS (SELECT 1 FROM version v WHERE v.title_id = t.id AND v.monitored = 1), best.type, best.date,
 		EXISTS (SELECT 1 FROM version v WHERE v.title_id = t.id AND v.state IN ('filled', 'cutoff_met')
 			AND NOT EXISTS (SELECT 1 FROM arrview_removed_version r WHERE r.version_id = v.id))
 	FROM best JOIN title t ON t.id = best.title_id

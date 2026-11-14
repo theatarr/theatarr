@@ -77,6 +77,16 @@ func TestCalendar(t *testing.T) {
 	if len(cal.Items) != 4 {
 		t.Errorf("with unmonitored: %d items", len(cal.Items))
 	}
+	// A movie is monitored when a library monitors it, as the monitored-only list counts it: Beta's one library does not.
+	e.exec(`UPDATE version SET monitored = 0 WHERE id = 3`)
+	cal = CalendarPage{}
+	e.getKey(APIBase+"/calendar?from=2026-11-01&to=2026-11-30&unmonitored=true", key, &cal)
+	for _, it := range cal.Items {
+		if it.Title.Name == "Beta" && it.Monitored || it.Title.Name == "Alpha" && !it.Monitored {
+			t.Errorf("monitored: %+v", it)
+		}
+	}
+	e.exec(`UPDATE version SET monitored = 1 WHERE id = 3`)
 	// An imported series: no air time in series_meta (or no row at all), yet its episode has a real evening instant.
 	// The entry keeps the moment.
 	evening := time.Date(2026, 11, 5, 2, 0, 0, 0, time.UTC)
