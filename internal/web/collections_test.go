@@ -302,3 +302,50 @@ func TestAddCollectionNeedsTMDb(t *testing.T) {
 		}
 	}
 }
+
+// GET /collections/{id} lists the stored parts in release order with their place in the library, without TMDb.
+func TestCollectionDetailAPI(t *testing.T) {
+	t.Parallel()
+	e := newEnvWith(t, func(c *Config) { c.Policy.Versions["movie-remux"].Mode = policy.ModeActive })
+	e.exec(`INSERT INTO title (id, kind, name, year, tmdb_id, created_at, updated_at) VALUES (4, 'movie', 'Alpha 2', 2024, 103, 0, 0)`)
+	e.exec(`INSERT INTO version (id, title_id, policy_key, state, created_at, updated_at) VALUES (4, 4, 'movie-remux', 'wanted', 0, 0)`)
+	e.exec(`INSERT INTO movie_collection (tmdb_id, name, monitored, versions, search_on_add, minimum_availability, movies,
+		updated_at) VALUES (7, 'Alpha Collection', 1, '["movie-remux"]', 1, 'announced', ?, 0)`,
+		`[{"id":104,"title":"Alpha 3","release_date":""},{"id":103,"title":"Alpha 2","release_date":"2024-01-01","poster_path":"/posterTwo123.jpg"},`+
+			`{"id":101,"title":"Alpha","release_date":"2020-05-01","overview":"First.","poster_path":"/posterOne123.jpg"},{"id":101,"title":"Alpha"}]`)
+	key := e.apiKey()
+	var d CollectionDetail
+	if code := e.getKey(APIBase+"/collections/7", key, &d); code != 200 {
+		t.Fatalf("GET %d", code)
+	}
+	if d.Collection.Name != "Alpha Collection" || d.Collection.Held != 2 || d.Collection.Total != 3 || d.Libraries["movie-remux"] == "" || d.CanAdd {
+		t.Errorf("detail %+v", d)
+	}
+	got := []string{}
+	for _, p := range d.Parts {
+		got = append(got, fmt.Sprintf("%d %s %d %d %s %s", p.TmdbID, p.Title, p.Year, p.TitleID, p.Availability, p.Poster))
+	}
+	want := []string{
+		"101 Alpha 2020 1 partial /img/tmdb/" + tmdbPosterSize + "/posterOne123.jpg",
+		"103 Alpha 2 2024 4 upcoming /img/tmdb/" + tmdbPosterSize + "/posterTwo123.jpg",
+		"104 Alpha 3 0 0  ",
+	}
+	if strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Errorf("parts\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+	if d.Parts[0].Overview != "First." {
+		t.Errorf("overview %q", d.Parts[0].Overview)
+	}
+	// A film removed from every view is not in the library.
+	e.exec(`INSERT INTO arrview_removed_version (version_id, view, removed_at) VALUES (4, 'radarr', 0)`)
+	d = CollectionDetail{}
+	if code := e.getKey(APIBase+"/collections/7", key, &d); code != 200 || d.Parts[1].TitleID != 0 || d.Parts[1].Availability != "" {
+		t.Errorf("removed part %d %+v", code, d.Parts[1])
+	}
+	if code := e.getKey(APIBase+"/collections/99", key, &d); code != 404 {
+		t.Errorf("unknown collection %d", code)
+	}
+	if rec := e.sendCollection("GET", "/collections/7", "", "", auth.RoleUser); rec.Code != 403 {
+		t.Errorf("user GET %d", rec.Code)
+	}
+}
