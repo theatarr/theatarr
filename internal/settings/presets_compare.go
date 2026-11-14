@@ -63,15 +63,18 @@ type VersionUse struct {
 }
 
 type ProfileSummary struct {
-	ID        int64          `json:"id"`
-	Key       string         `json:"key"`
-	Flavour   string         `json:"flavour"`
-	Qualities []string       `json:"qualities"`
-	Cutoff    string         `json:"cutoff"`
-	FormatSet string         `json:"format_set"`
-	Formats   int            `json:"formats"`
-	UsedBy    []VersionUse   `json:"used_by"`
-	Origin    *ProfileOrigin `json:"origin"`
+	ID        int64    `json:"id"`
+	Key       string   `json:"key"`
+	Flavour   string   `json:"flavour"`
+	Qualities []string `json:"qualities"`
+	Cutoff    string   `json:"cutoff"`
+	// CutoffScore is the "upgrade until" format score; Upgrades whether the profile upgrades at all.
+	CutoffScore int            `json:"cutoff_score"`
+	Upgrades    bool           `json:"upgrades"`
+	FormatSet   string         `json:"format_set"`
+	Formats     int            `json:"formats"`
+	UsedBy      []VersionUse   `json:"used_by"`
+	Origin      *ProfileOrigin `json:"origin"`
 	// Guessed marks an origin that is not stored: the closest preset (with modifiers) Theatarr found.
 	Guessed bool        `json:"guessed"`
 	Diff    *OriginDiff `json:"diff"`
@@ -327,7 +330,7 @@ func QualityOverviewOf(in OverviewInput) QualityOverview {
 		fl := profileFlavour(p, key, pr)
 		t := in.Trash[fl]
 		s := ProfileSummary{Key: key, Flavour: fl, Qualities: allowedNames(pr.Qualities), Cutoff: pr.Cutoff, FormatSet: pr.FormatSet,
-			Formats: len(pr.Formats), UsedBy: []VersionUse{}, Scores: []ScoreRow{}}
+			CutoffScore: pr.CutoffScore, Upgrades: pr.Upgrades == nil || *pr.Upgrades, Formats: len(pr.Formats), UsedBy: []VersionUse{}, Scores: []ScoreRow{}}
 		if r, ok := records[key]; ok {
 			s.ID = r.ID
 			if r.Origin != nil {

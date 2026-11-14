@@ -18,7 +18,7 @@ const qualityOverview = (o: Partial<QualityOverview> = {}): QualityOverview => (
   source: "db", generation: 4, trash: ["radarr"], categories: ["movie", "series", "anime_movie", "anime_series"], defaults: { movie: "radarr-4k-web" },
   profiles: [
     {
-      id: 7, key: "radarr-4k-web", flavour: "radarr", qualities: ["WEB 2160p", "Remux-1080p", "WEB 1080p"], cutoff: "WEB 2160p", format_set: "radarr-4k-web", formats: 3,
+      id: 7, key: "radarr-4k-web", flavour: "radarr", qualities: ["WEB 2160p", "Remux-1080p", "WEB 1080p"], cutoff: "WEB 2160p", cutoff_score: 10000, upgrades: true, format_set: "radarr-4k-web", formats: 3,
       used_by: [{ key: "movie-web", mode: "active", kind: "movie", anime: false, active: true }, { key: "movie-web-shadow", mode: "shadow", kind: "movie", anime: false, active: false }],
       origin: { preset: "0537bd27bcf8da604f30a862343b1742", name: "WEB 2160p", flavour: "radarr", modifiers: ["fallbacks_1080p"] }, guessed: true,
       diff: { preset: "WEB 2160p + 1080p fallbacks", qualities_added: [], qualities_removed: ["Bluray-1080p"], cutoff: null, settings: [], formats_added: [{ format: "DD+", trash_id: "abc", ours: 2500, trash: null }, { format: "Our Group", ours: 150, trash: null }], formats_missing: [], scores_changed: [], summary: ["− Bluray-1080p", "DD+ +2500 (not in the preset)", "Our Group +150 (ours)"], same: false },
@@ -29,7 +29,7 @@ const qualityOverview = (o: Partial<QualityOverview> = {}): QualityOverview => (
         { format: "Our Group", score: 150, trash: null, state: "ours", definition: "ours", group: "Our formats" },
       ],
     },
-    { id: 8, key: "web-2160p", flavour: "", qualities: ["WEBDL-2160p"], cutoff: "WEBDL-2160p", format_set: "", formats: 0, used_by: [], origin: null, guessed: false, diff: null, binding: "", score_set: "", scores: [] },
+    { id: 8, key: "web-2160p", flavour: "", qualities: ["WEBDL-2160p"], cutoff: "WEBDL-2160p", cutoff_score: 0, upgrades: false, format_set: "", formats: 0, used_by: [], origin: null, guessed: false, diff: null, binding: "", score_set: "", scores: [] },
   ],
   formats: [],
   ...o,
@@ -62,12 +62,14 @@ describe("Quality profiles page", () => {
     const row = (await screen.findAllByText("radarr-4k-web"))[0].closest("tr")!;
     const chips = within(row).getAllByRole("list", { name: "Allowed qualities, best first" })[0];
     expect(within(chips).getAllByRole("listitem").map((li) => li.textContent)).toEqual(["WEB 2160p · cutoff", "Remux-1080p", "WEB 1080p"]);
+    expect(within(row).getAllByTestId("profile-until").map((d) => d.textContent)).toContain("Upgrades until WEB 2160p and a score of 10,000");
     expect(within(row).getAllByText("TRaSH WEB 2160p + 1080p fallbacks").length).toBeGreaterThan(0);
     expect(within(row).getAllByText("closest").length).toBeGreaterThan(0);
     expect(within(row).getAllByText("DD+ +2500 (not in the preset)").length).toBeGreaterThan(0);
     expect(within(row).getAllByText("WEB · Live").length).toBeGreaterThan(0);
     const unused = screen.getAllByText("web-2160p")[0].closest("tr")!;
     expect(within(unused).getAllByText("unused").length).toBeGreaterThan(0);
+    expect(within(unused).getAllByTestId("profile-until")[0].textContent).toBe("No upgrades");
     expect(within(unused).getAllByText("Our own").length).toBeGreaterThan(0);
     // Format sets are no longer a page of their own.
     expect(screen.getByRole("link", { name: "format set editor" }).getAttribute("href")).toBe("/admin/settings/profiles/format_sets");

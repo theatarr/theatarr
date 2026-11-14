@@ -224,6 +224,10 @@ func TestApplyPresetStoresOriginAndFollowsTrash(t *testing.T) {
 	if s.Guessed || s.Origin == nil || s.Diff == nil || !s.Diff.Same || s.Binding != "trash-radarr" || len(s.UsedBy) != 0 || s.Flavour != "radarr" {
 		t.Fatalf("summary %+v diff %+v", s, s.Diff)
 	}
+	// The Profiles list says where upgrades stop: the cutoff quality and the upgrade-until score.
+	if s.Cutoff != pr.Cutoff || s.CutoffScore != pr.CutoffScore || s.CutoffScore == 0 || !s.Upgrades {
+		t.Fatalf("cutoff %q score %d upgrades %v, want %q %d true", s.Cutoff, s.CutoffScore, s.Upgrades, pr.Cutoff, pr.CutoffScore)
+	}
 	for _, row := range s.Scores {
 		if row.Trash == nil && row.State == StateNoScore {
 			continue

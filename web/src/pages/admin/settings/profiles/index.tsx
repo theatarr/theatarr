@@ -1,6 +1,6 @@
 import { SettingsAuthority, settingsBannerNeeded } from "@/components/settings/authority";
 // Settings › Profiles (docs/design/settings.md, "Profiles, presets and formats"): every profile
-// with its allowed qualities (best first, cutoff marked), how many formats it scores, the TRaSH preset it started
+// with its allowed qualities (best first, cutoff marked) and where upgrades stop (cutoff quality and score), how many formats it scores, the TRaSH preset it started
 // from and how ours differs, and the versions that use it (unused ones are shown, never deleted by themselves). The
 // default profile per kind of version is what Add version preselects. New profiles start from a TRaSH preset; the
 // TRaSH defaults (every preset, built in) are listed below the profiles.
@@ -21,7 +21,7 @@ import { useEditParam } from "@/components/ui/sheet";
 import { explainError } from "@/lib/settings";
 import { QualityPanel, type QualityRecord } from "../quality";
 import { TrashDefaults } from "./defaults";
-import { QualityChips } from "./parts";
+import { QualityChips, upgradeUntil } from "./parts";
 import { ProfileSheet, type ProfileSession } from "./sheet";
 import { useLibraryName } from "@/lib/library-names";
 
@@ -34,6 +34,11 @@ function OriginCell({ p }: { p: ProfileSummary }) {
     <div className="flex flex-wrap items-center gap-1.5"><span className="font-medium">TRaSH {originLabel(p.origin)}</span>{p.guessed ? <Badge tone="outline" title="No origin is stored: the closest TRaSH preset.">closest</Badge> : null}</div>
     {p.diff?.same ? <div className="text-muted-foreground">no edits</div> : <ul className="text-muted-foreground">{lines.slice(0, 3).map((l) => <li key={l} className="[overflow-wrap:anywhere]">{l}</li>)}{lines.length > 3 ? <li>…</li> : null}</ul>}
   </div>;
+}
+
+/** Under the qualities: the cutoff quality and the upgrade-until score. */
+function Until({ p }: { p: ProfileSummary }) {
+  return <div className="text-xs text-muted-foreground" data-testid="profile-until">{upgradeUntil(p)}</div>;
 }
 
 function UsedBy({ p }: { p: ProfileSummary }) {
@@ -127,10 +132,10 @@ export function ProfilesPage({ compact = false }: { compact?: boolean }) {
             <TableCell className="align-top">
               <div className="font-mono text-[13px] [overflow-wrap:anywhere]">{p.key}</div>
               <div className="text-xs text-muted-foreground">{p.flavour || "flavour unknown"}</div>
-              <div className="mt-1.5 space-y-1.5 md:hidden"><QualityChips qualities={p.qualities} cutoff={p.cutoff} /></div>
+              <div className="mt-1.5 space-y-1.5 md:hidden"><QualityChips qualities={p.qualities} cutoff={p.cutoff} /><Until p={p} /></div>
               <div className="mt-1.5 space-y-1.5 sm:hidden"><OriginCell p={p} /><UsedBy p={p} /></div>
             </TableCell>
-            <TableCell className="hidden max-w-[22rem] align-top md:table-cell"><QualityChips qualities={p.qualities} cutoff={p.cutoff} /></TableCell>
+            <TableCell className="hidden max-w-[22rem] space-y-1.5 align-top md:table-cell"><QualityChips qualities={p.qualities} cutoff={p.cutoff} /><Until p={p} /></TableCell>
             <TableCell className="hidden align-top tabular-nums lg:table-cell">{p.formats}</TableCell>
             <TableCell className="hidden max-w-[20rem] align-top sm:table-cell"><OriginCell p={p} /></TableCell>
             <TableCell className="hidden align-top sm:table-cell"><UsedBy p={p} /></TableCell>
