@@ -262,16 +262,21 @@ func TestDemoScreens(t *testing.T) {
 	// reads run at once, as a browser's do.
 	var wg sync.WaitGroup
 	for path, fields := range map[string][]string{
-		"/status":                                    {"counts"},
-		"/auth/me":                                   {"username"},
-		"/titles":                                    {"items"},
-		"/titles?kind=movie&anime=0":                 {"items"},
-		"/titles?kind=series&anime=0":                {"items"},
-		"/titles?anime=1":                            {"items"},
-		"/titles?availability=partial":               {"items"},
-		"/titles?availability=upgrade":               {"items"},
-		"/titles?availability=missing":               {"items"},
-		"/titles/facets?kind=movie":                  {"versions", "qualities", "genres", "certifications", "providers"},
+		"/status":                        {"counts"},
+		"/auth/me":                       {"username"},
+		"/titles":                        {"items"},
+		"/titles?kind=movie&anime=0":     {"items"},
+		"/titles?kind=series&anime=0":    {"items"},
+		"/titles?anime=1":                {"items"},
+		"/titles?availability=available": {"items"},
+		"/titles?availability=partial":   {"items"},
+		"/titles?availability=missing":   {"items"},
+		"/titles?availability=upcoming":  {"items"},
+		// The demo has no title without a file that no library monitors: the filter answers, with no rows.
+		"/titles?availability=unmonitored":           {},
+		"/titles?upgrade=found":                      {"items"},
+		"/titles?upgrade=best_known":                 {"items"},
+		"/titles/facets?kind=movie":                  {"versions", "qualities", "genres", "certifications", "providers", "upgrades"},
 		"/titles/facets?kind=series":                 {"versions", "qualities", "genres"},
 		"/discover":                                  {"recent.items", "upcoming.items", "missing.items", "upgrades.items"},
 		fmt.Sprintf("/titles/%d", movieID):           {"versions", "meta", "genres"},
@@ -1031,7 +1036,8 @@ func TestDemoLibraryViews(t *testing.T) {
 			if kind == "movie" && len(r.Versions) > 1 {
 				movieTwo++
 			}
-			if r.Availability == "missing" && r.ReleaseDate != "" && r.ReleaseDate <= today && r.HomeRelease > today {
+			// In cinemas with its home release ahead: Upcoming, not Missing (the status words).
+			if r.Availability == "upcoming" && r.ReleaseDate != "" && r.ReleaseDate <= today && r.HomeRelease > today {
 				inCinemas++
 			}
 			for _, v := range r.Versions {
@@ -1057,7 +1063,7 @@ func TestDemoLibraryViews(t *testing.T) {
 			movieNext, movieTwo)
 	}
 	if inCinemas == 0 {
-		t.Error("no missing movie is in cinemas with its home release ahead")
+		t.Error("no upcoming movie is in cinemas with its home release ahead")
 	}
 	var missing web.DiscoverRow
 	get("/discover/missing", &missing)
