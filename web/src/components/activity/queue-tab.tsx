@@ -248,7 +248,7 @@ function DownloadRow({ d, now }: { d: ActivityDownload; now: number }) {
 /** Details, or Inspect when the row needs attention; the chevron is left out in the table, where width is short. */
 function DetailsButton({ attention, open, onClick, chevron = true }: { attention: boolean; open: boolean; onClick: () => void; chevron?: boolean }) {
   return (
-    <Button size="xs" variant={attention ? "outline" : "ghost"} onClick={onClick} aria-expanded={open} data-testid="download-details">
+    <Button size="xs" variant={attention ? "outline" : "ghost"} onClick={onClick} aria-expanded={open} data-testid="download-details" className="max-sm:h-9 max-sm:px-3">
       {attention ? "Inspect" : "Details"} {chevron ? open ? <ChevronUp /> : <ChevronDown /> : null}
     </Button>
   );
@@ -339,8 +339,9 @@ function searchScope(d: ActivityDownload): SearchScope {
 function OpenPanel({ d }: { d: ActivityDownload }) {
   const lead = failedLead(d);
   const manage = usePerms().manage;
+  // contain: the panel takes the row's width without widening the table's columns (no reflow when it opens).
   return (
-    <div data-testid="download-open">
+    <div data-testid="download-open" className="[contain:inline-size]">
       {lead ? (
         <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2" data-testid="failed-lead">
           <p className="min-w-0 max-w-2xl text-sm text-[var(--ink)]">{lead}</p>
@@ -542,9 +543,10 @@ export function QueueTab({ admin, as, show, onShow }: { admin: boolean; as?: "us
                 show === s.id
                   ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent-ink)]"
                   : "border-[var(--line)] text-muted-foreground hover:bg-[var(--hover)] hover:text-foreground",
-                s.id === "attention" && counts.attention > 0 && show !== s.id && "border-[var(--warn)] text-[var(--warn)]",
               )}
             >
+              {/* Only the chosen chip is coloured; an unchosen Needs attention with rows shows an amber dot. */}
+              {s.id === "attention" && counts.attention > 0 && show !== s.id ? <span className="mr-1.5 inline-block size-2 rounded-full bg-[var(--warn)] align-middle" data-testid="attention-dot" aria-hidden /> : null}
               {admin || !s.userLabel ? s.label : s.userLabel} <span className="tabular-nums opacity-80">{counts[s.id]}</span>
             </button>
           ))}

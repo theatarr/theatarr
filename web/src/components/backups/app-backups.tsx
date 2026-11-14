@@ -4,6 +4,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetLayout } from "@/components/ui/sheet";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { fmtAgo, fmtBytes, fmtTime } from "@/lib/format";
 
 /** A backup's age in whole days: "1 day", "3 days". */
@@ -60,16 +61,21 @@ export function AppBackups() {
           <Button disabled={!data.enabled || backupNow.isPending || restore.isPending} onClick={() => backupNow.mutate()}>Back up now</Button>
           {backupNow.isSuccess && <p role="status">Backup created: {backupNow.data.name}</p>}
           {backupNow.error && <p role="alert">{backupNow.error.message}</p>}
-          <div className="overflow-x-auto"><table className="w-full text-left text-sm">
-            <thead><tr><th className="p-2">Date / name</th><th className="p-2">Age</th><th className="p-2">Size</th><th className="p-2">Restore</th></tr></thead>
-            <tbody>{data.sets.map((set) => <tr key={set.name} className="border-t">
-              <td className="p-2">{fmtTime(set.created_at)}<div className="font-mono text-xs">{set.name}</div></td>
-              <td className="p-2">{fmtAgo(set.created_at)}</td>
-              <td className="p-2">{fmtBytes(set.bytes)}</td>
-              <td className="p-2"><Button variant="outline" disabled={!set.restorable || !data.enabled || backupNow.isPending} onClick={() => { setSelected(set); setConfirm(""); restore.reset(); }}>Restore…</Button>
-                {set.why_not && <p className="text-xs">{set.why_not}</p>}</td>
-            </tr>)}</tbody>
-          </table></div>
+          {/* On a phone the age and size go under the date and name, and Restore stays in its own column. */}
+          {data.sets.length > 0 && <Table className="mt-3" data-testid="app-backups">
+            <TableHeader><TableRow><TableHead>Taken</TableHead><TableHead className="hidden sm:table-cell">Age</TableHead><TableHead className="hidden sm:table-cell">Size</TableHead><TableHead className="text-right"><span className="sr-only">Restore</span></TableHead></TableRow></TableHeader>
+            <TableBody>{data.sets.map((set) => <TableRow key={set.name}>
+              <TableCell className="min-w-0">
+                <div className="whitespace-nowrap">{fmtTime(set.created_at)}</div>
+                <div className="font-mono text-xs text-muted-foreground [overflow-wrap:anywhere]">{set.name}</div>
+                <div className="text-xs text-muted-foreground sm:hidden">{fmtAgo(set.created_at)} · {fmtBytes(set.bytes)}</div>
+              </TableCell>
+              <TableCell className="hidden whitespace-nowrap sm:table-cell">{fmtAgo(set.created_at)}</TableCell>
+              <TableCell className="hidden whitespace-nowrap tabular-nums sm:table-cell">{fmtBytes(set.bytes)}</TableCell>
+              <TableCell className="text-right"><Button size="sm" variant="outline" disabled={!set.restorable || !data.enabled || backupNow.isPending} onClick={() => { setSelected(set); setConfirm(""); restore.reset(); }}>Restore…</Button>
+                {set.why_not && <p className="text-xs">{set.why_not}</p>}</TableCell>
+            </TableRow>)}</TableBody>
+          </Table>}
           {!data.sets.length && <p>No backup sets yet.</p>}
         </>}
       </>}

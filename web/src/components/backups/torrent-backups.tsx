@@ -85,9 +85,9 @@ export function TorrentBackups() {
       }
     >
       <p className="mb-2 text-sm text-muted-foreground">Saved lists of your debrid torrents. Restoring re-adds them to a provider; it does not touch Theatarr’s settings.</p>
-      <p className="mb-2 text-sm text-muted-foreground">
-        {every > 0 ? `Scheduled every ${Math.round(every / 3600)} h` : "Scheduled backups are off"} · keeps the newest {q.data?.keep ?? "—"} and every backup from the last week. A Debrid Media Manager backup imports with a provider chosen above.
-      </p>
+      {q.data ? <p className="mb-2 text-sm text-muted-foreground">
+        {every > 0 ? `Scheduled every ${Math.round(every / 3600)} h` : "Scheduled backups are off"} · keeps the newest {q.data.keep} and every backup from the last week. A Debrid Media Manager backup imports with a provider chosen above.
+      </p> : null}
       <SectionPanel {...SETTINGS_PANELS.find(p => p.id === "torrent-backups")!} title="Schedule" onSaved={() => { void qc.invalidateQueries({ queryKey: qk.torrents.backups }); }} />
       {q.isPending ? <Loading /> : q.error ? <ErrorState error={q.error} /> : (q.data?.backups ?? []).length === 0 ? <Card><Empty>No backup yet.</Empty></Card> : (
         <Card className="p-0">
@@ -95,23 +95,29 @@ export function TorrentBackups() {
             <TableHeader>
               <TableRow>
                 <TableHead>Taken</TableHead>
-                <TableHead>Reason</TableHead>
-                <TableHead className="text-right">Torrents</TableHead>
-                <TableHead className="hidden sm:table-cell">Providers</TableHead>
-                <TableHead />
+                <TableHead className="hidden sm:table-cell">Reason</TableHead>
+                <TableHead className="hidden text-right sm:table-cell">Torrents</TableHead>
+                <TableHead className="hidden md:table-cell">Providers</TableHead>
+                <TableHead><span className="sr-only">Actions</span></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {(q.data?.backups ?? []).map((b) => (
                 <TableRow key={b.id}>
-                  <TableCell className="whitespace-nowrap" title={b.id}>{fmtTime(b.created_at)}</TableCell>
-                  <TableCell><Badge tone={b.reason === "pre-delete" ? "warning" : "neutral"}>{b.reason}</Badge></TableCell>
-                  <TableCell className="whitespace-nowrap text-right tabular-nums">{fmtNumber(b.torrents)} · {fmtBytes(b.bytes)}</TableCell>
-                  <TableCell className="hidden text-xs sm:table-cell">{b.providers.map((p, i) => <span key={p.provider}>{i > 0 ? ", " : ""}<ProviderTag account={p.provider} /> {p.ok ? p.torrents : "unreadable"}</span>)}</TableCell>
-                  <TableCell className="whitespace-nowrap text-right">
-                    <a className="mr-2 text-sm hover:text-primary" href={backupURL(b.id)} download>Download</a>
-                    <a className="mr-2 text-sm hover:text-primary" href={backupURL(b.id, "dmm")} download>DMM</a>
-                    <Button size="xs" variant="outline" onClick={() => openRestore(b.id)} disabled={actions.restorePreview.isPending}>Restore…</Button>
+                  <TableCell title={b.id}>
+                    <div className="whitespace-nowrap">{fmtTime(b.created_at)}</div>
+                    {/* On a phone the reason and count go under the date, the actions stack in their column. */}
+                    <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground sm:hidden"><Badge tone={b.reason === "pre-delete" ? "warning" : "neutral"}>{b.reason}</Badge>{fmtNumber(b.torrents)} · {fmtBytes(b.bytes)}</div>
+                  </TableCell>
+                  <TableCell className="hidden sm:table-cell"><Badge tone={b.reason === "pre-delete" ? "warning" : "neutral"}>{b.reason}</Badge></TableCell>
+                  <TableCell className="hidden whitespace-nowrap text-right tabular-nums sm:table-cell">{fmtNumber(b.torrents)} · {fmtBytes(b.bytes)}</TableCell>
+                  <TableCell className="hidden text-xs md:table-cell">{b.providers.map((p, i) => <span key={p.provider}>{i > 0 ? ", " : ""}<ProviderTag account={p.provider} /> {p.ok ? p.torrents : "unreadable"}</span>)}</TableCell>
+                  <TableCell className="text-right">
+                    <span className="inline-flex flex-col items-end gap-1 sm:flex-row sm:items-center sm:gap-2">
+                      <a className="text-sm hover:text-primary" href={backupURL(b.id)} download>Download</a>
+                      <a className="text-sm hover:text-primary" href={backupURL(b.id, "dmm")} download title="Download in Debrid Media Manager's format">DMM</a>
+                      <Button size="xs" variant="outline" onClick={() => openRestore(b.id)} disabled={actions.restorePreview.isPending}>Restore…</Button>
+                    </span>
                   </TableCell>
                 </TableRow>
               ))}

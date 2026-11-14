@@ -1,5 +1,5 @@
 // Activity › History filters (lib/activity-history.ts): a title search, the copy, the event type, Today and a since date,
-// in one wrapping row; at phone width they stack, one per line, the date input full width. Every change goes to the URL, so a filtered history survives a reload
+// in one wrapping row; at phone width two to a line under the title box. Every change goes to the URL, so a filtered history survives a reload
 // and can be shared; the title search waits for typing to pause.
 import { Search, X } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
@@ -58,19 +58,19 @@ export function HistoryFilters({ tools, admin = false }: { tools?: ReactNode; ad
   const count = historyFilterCount(f);
   const isToday = !!f.since && f.since === today();
   return (
-    <div className="mb-4 grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-center" data-testid="history-filters">
-      <div className="relative min-w-0 sm:max-w-64 sm:flex-1">
+    <div className="mb-4 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center" data-testid="history-filters">
+      <div className="relative col-span-2 min-w-0 sm:max-w-64 sm:flex-1">
         <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
         <Input aria-label="Title" placeholder="Title" value={text} onChange={(e) => setText(e.target.value)} className="h-8 pl-8" data-testid="history-title" />
       </div>
-      <Select aria-label="Library" value={f.copy} onChange={(e) => set("copy", e.target.value)} className="sm:w-auto" data-testid="history-copy">
+      <Select aria-label="Library" value={f.copy} onChange={(e) => set("copy", e.target.value)} className="min-w-0 sm:w-auto" data-testid="history-copy">
         <option value="">All libraries</option>
         {copies.map((v) => (
           <option key={v.key} value={v.key}>{v.label || v.key}</option>
         ))}
         {f.copy && !copies.some((v) => v.key === f.copy) ? <option value={f.copy}>{known(f.copy) ? nameOf(f.copy) : "Removed library"}</option> : null}
       </Select>
-      <Select aria-label="Event" value={f.event} onChange={(e) => set("event", e.target.value)} className="sm:w-auto" data-testid="history-event">
+      <Select aria-label="Event" value={f.event} onChange={(e) => set("event", e.target.value)} className="min-w-0 sm:w-auto" data-testid="history-event">
         {HISTORY_EVENTS.filter((e) => admin || !e.admin).map((e) => (
           <option key={e.id} value={e.id}>{e.label}</option>
         ))}
@@ -103,7 +103,7 @@ export function HistoryFilters({ tools, admin = false }: { tools?: ReactNode; ad
           <X /> Clear {count > 1 ? `${count} filters` : "filter"}
         </Button>
       ) : null}
-      {tools ? <div className="flex justify-end sm:ml-auto">{tools}</div> : null}
+      {tools ? <div className="col-span-2 flex justify-end sm:ml-auto">{tools}</div> : null}
     </div>
   );
 }

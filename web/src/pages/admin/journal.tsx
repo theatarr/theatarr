@@ -111,9 +111,9 @@ export function JournalList() {
           <option value="">All kinds</option>
           {JOURNAL_KINDS.map((k) => <option key={k} value={k}>{journalKindWords(k)}</option>)}
         </Select>
-        <form className="flex gap-2" onSubmit={(ev) => { ev.preventDefault(); set("title", title.trim()); }}>
+        <form className="flex items-center gap-2" onSubmit={(ev) => { ev.preventDefault(); set("title", title.trim()); }}>
           <Input aria-label="Title" placeholder="Title or id" value={title} onChange={(e) => setTitle(e.target.value)} className="h-8 w-48" />
-          <Button size="xs" variant="outline" type="submit">Filter</Button>
+          <Button size="sm" variant="outline" type="submit" className="h-8">Filter</Button>
         </form>
       </div>
       {q.isPending ? <Loading /> : q.error ? <ErrorState error={q.error} /> : items.length === 0 && !q.data?.next_cursor ? (

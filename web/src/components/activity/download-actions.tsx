@@ -36,11 +36,11 @@ export function DownloadActions({ d }: { d: ActivityDownload }) {
   return (
     <span className="inline-flex gap-1" data-testid="download-actions">
       {kind ? (
-        <Button size="xs" variant="outline" onClick={() => setOpen("retry")} data-testid="download-retry">
+        <Button size="xs" variant="outline" onClick={() => setOpen("retry")} data-testid="download-retry" className="max-sm:h-9 max-sm:px-3">
           {kind === "import" ? "Import now" : "Retry"}
         </Button>
       ) : null}
-      <Button size="xs" variant="outline" onClick={() => setOpen("remove")} data-testid="download-remove">
+      <Button size="xs" variant="outline" onClick={() => setOpen("remove")} data-testid="download-remove" className="max-sm:h-9 max-sm:px-3">
         {d.state === "failed" ? "Dismiss" : "Remove"}
       </Button>
       {open === "remove" ? (

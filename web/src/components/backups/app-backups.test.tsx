@@ -26,6 +26,8 @@ describe("AppBackups", () => {
     expect(await screen.findByText(name)).toBeTruthy();
     expect(screen.getByText("Nightly at 03:00, keeping 14.")).toBeTruthy();
     expect(screen.getByText("4.0 KiB")).toBeTruthy();
+    // On a phone the age and size sit under the name, in the shared table.
+    expect(screen.getByTestId("app-backups").textContent).toMatch(/ago · 4\.0 KiB/);
   });
   it("says how old a day-old backup is", async () => {
     list.sets[0].created_at = new Date(Date.now() - 30 * 3600_000).toISOString();

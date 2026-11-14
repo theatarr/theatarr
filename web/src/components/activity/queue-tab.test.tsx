@@ -210,3 +210,12 @@ it("opens a failed download with one sentence and Interactive search, its attemp
   expect(details.open).toBe(false);
   expect(await within(details).findByText("Waiting for the 20 s minimum gap between adds")).toBeTruthy();
 });
+
+it("colours only the chosen chip; Needs attention with rows shows a dot when not chosen", async () => {
+  show();
+  const chips = await screen.findByTestId("counts");
+  const attention = chips.querySelector("[data-show='attention']")!;
+  expect(attention.getAttribute("aria-pressed")).toBe("false");
+  expect(attention.className).not.toContain("border-[var(--warn)]");
+  expect(within(attention as HTMLElement).getByTestId("attention-dot")).toBeTruthy();
+});
