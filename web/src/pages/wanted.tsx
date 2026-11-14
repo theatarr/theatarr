@@ -34,12 +34,14 @@ const PAGE = 50;
 type GlobalOff = ReturnType<typeof globalDownloadsOff> | "unknown";
 const OFF_WORD = { locked: "Paused (locked)", off: "Paused", unknown: "Paused" } as const;
 
-export function searchResult(run: WantedRow["last_run"]): string {
+/** The Last search cell's words. still: the row is still on the list with no download in progress, so a grab did not
+ * fill it ("Grabbed, still missing"), named for the tab. */
+export function searchResult(run: WantedRow["last_run"], still?: "missing" | "cutoff"): string {
   if (!run) return "Never searched";
   if (run.state === "failed") return `Failed: ${run.message}`;
   if (run.state === "queued") return "Queued";
   if (run.state === "searching") return "Searching";
-  if (run.downloaded) return "Grabbed";
+  if (run.downloaded) return still === "cutoff" ? "Grabbed, still below the cutoff" : still === "missing" ? "Grabbed, still missing" : "Grabbed";
   if (run.state === "routed") return "Sent to download";
   return run.results ? `${plural(run.results, "result")}, none accepted` : "Nothing found";
 }
@@ -168,7 +170,8 @@ export function WantedPage() {
     library: { id: "library", label: "Library", cell: row => <VersionTag k={row.version} label={d?.libraries[row.version]} /> },
     what: { id: "what", label: "What", cell: row => targetWords(row.targets) },
     next: { id: "next", label: "Next search", cell: row => <NextSearch row={row} state={states.get(row.version)} off={off} admin={perms.admin} /> },
-    last: { id: "last", label: "Last search", cell: row => <>{row.last_run ? <span title={fmtTime(row.last_run.at)}>{fmtAgo(row.last_run.at)} · </span> : null}{searchResult(row.last_run)}</> },
+    // The decision behind the last search sits with it, so the row's actions keep their place.
+    last: { id: "last", label: "Last search", cell: row => <>{row.last_run ? <span title={fmtTime(row.last_run.at)}>{fmtAgo(row.last_run.at)} · </span> : null}{searchResult(row.last_run, row.waiting === "in_flight" ? undefined : only)}{row.decision_id && perms.admin ? <> · <Link className="text-primary hover:underline" to={journalLink(String(row.decision_id))}>Decision</Link></> : null}</> },
   };
   const columns: DataColumn<WantedRow>[] = [
     { id: "title", label: "Title", cell: titleLink, card: "none", cellClassName: "min-w-[10rem]" },
@@ -178,7 +181,6 @@ export function WantedPage() {
     const why = blocked(row);
     return <div className="flex flex-wrap items-baseline gap-2 md:flex-nowrap md:justify-end">
       <InteractiveSearchButton titleId={row.title_id} version={row.version} season={row.season} size="xs" variant="ghost" />
-      {row.decision_id && perms.admin ? <Link className="text-primary hover:underline" to={journalLink(String(row.decision_id))}>Decision</Link> : null}
       <button type="button" className="text-primary hover:underline disabled:cursor-not-allowed disabled:text-[var(--ink-3)] disabled:no-underline" disabled={!!why || asked(row) || search.isPending} title={why || (asked(row) ? "Already asked for" : undefined)} onClick={() => request({ body: { only, items: [rowItem(row)] }, count: 1, title: "Search now" }, false)}>Search now</button>
       {why && row.waiting !== "downloads_off" && row.waiting !== "in_flight" ? <span className="text-[var(--ink-3)]" data-testid="search-blocked">{why}</span> : null}
     </div>;
@@ -187,7 +189,7 @@ export function WantedPage() {
     <PageHeader title="Wanted" description="What is waiting for a search and when each item is searched next. Search now starts a search under the hourly limit." />
     <WantedTabs active={only} query={tabQuery} admin={perms.admin} />
     {q.isLoading ? <Loading /> : q.error ? <ErrorState error={q.error} /> : d ? <div className="space-y-4">
-      <p className="text-sm text-muted-foreground" data-testid="wanted-pace">Up to {d.per_hour} searches an hour ({d.searched_last_hour} in the last hour). {backlogOn ? `Items are searched again every ${fmtGoDuration(d.again_after)}. ` : ""}A missing new release is tried again sooner: the wait starts at 1 hour and doubles each time, up to {fmtGoDuration(d.again_after)}, until a week after its release.</p>
+      <p className="text-sm text-muted-foreground" data-testid="wanted-pace">Up to {fmtNumber(d.per_hour)} searches an hour ({fmtNumber(d.searched_last_hour)} in the last hour).{backlogOn ? ` Items are searched again every ${fmtGoDuration(d.again_after)}.` : ""}{only === "missing" ? ` A missing new release is tried again sooner: the wait starts at 1 hour and doubles each time, up to ${fmtGoDuration(d.again_after)}, until a week after its release.` : ""}</p>
       {switchOff ? <p role="status" data-testid="wanted-switch-off" className="rounded-[5px] border border-[var(--line)] bg-[var(--sunken)] px-3 py-2 text-[13px] text-[var(--ink-2)]">Theatarr is not searching for {only === "cutoff" ? "upgrades" : "missing items"} by itself. Items here are searched when you ask, or after a failed download.{perms.admin ? <> <Link className="text-primary hover:underline" to={settingHref("router", only === "cutoff" ? "wanted.cutoff_unmet" : "wanted.missing") ?? "/admin/settings/downloads"}>Automatic search settings</Link></> : null}</p> : null}
       <DownloadsOffNotice off={off} canManage={perms.admin} />
       <label className="flex items-center gap-2 text-sm text-[var(--ink-3)]">Library
@@ -206,12 +208,14 @@ export function WantedPage() {
         <Button variant="outline" size="sm" disabled={clear.isPending} onClick={() => clear.mutate()}>Cancel queued searches</Button>
       </p> : null}
       <div className="flex flex-wrap items-center gap-2" aria-label="Search now">
-        <Button variant="outline" size="sm" disabled={!chosen.length || search.isPending} onClick={() => request({ body: { only, items: chosen.map(rowItem) }, count: chosen.length, title: `Search ${chosen.length} selected` }, chosen.length > left)}>Search selected ({chosen.length})</Button>
+        <Button variant="outline" size="sm" disabled={!chosen.length || search.isPending} onClick={() => request({ body: { only, items: chosen.map(rowItem) }, count: chosen.length, title: `Search ${fmtNumber(chosen.length)} selected` }, chosen.length > left)}>Search selected ({fmtNumber(chosen.length)})</Button>
         <Button variant="outline" size="sm" disabled={!d.searchable || !d.downloads_enabled || search.isPending} title={!d.downloads_enabled ? "Paused" : !d.searchable ? "Nothing in this list can be searched now" : undefined} onClick={() => request({ body: { only, all: { ...(version ? { version } : {}), ...(waiting ? { waiting: waiting as NonNullable<WantedSearchBody["all"]>["waiting"] } : {}) } }, count: d.searchable, title: `Search all ${fmtNumber(d.searchable)} ${what}${version ? ` in ${label(version)}` : ""}` }, true)}>Search all {d.searchable > 0 ? `${fmtNumber(d.searchable)} ` : ""}{what}{version ? ` in ${label(version)}` : ""}</Button>
         <Button variant="outline" size="sm" className="ml-auto" aria-label="Columns" onClick={() => setPicker(true)}><Columns3 /><span className="hidden sm:inline">Columns</span></Button>
         {search.data && !ask ? <span role="status" className="basis-full text-[13px] text-[var(--ink-2)]" data-testid="search-now-result">{searchNowWords(search.data)}</span> : null}
         {(search.error && !ask) || clear.error ? <span role="alert" className="basis-full text-[13px] text-[var(--bad-ink)]">{errText(search.error ?? clear.error)}</span> : null}
       </div>
+      {/* The unit: a row is one search (a film, or a series' season, in one library), not an episode or a title. */}
+      {d.total > 0 ? <p className="text-[13px] text-[var(--ink-3)]" data-testid="wanted-count">{plural(d.total, "item")}: one per film or season in each library, not per episode.</p> : null}
       {!items.length ? <Card><Empty>No items waiting in this selection.</Empty></Card> : <DataTable
         testid="wanted-table"
         rows={items}

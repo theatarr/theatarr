@@ -343,3 +343,23 @@ it("opens for a manager without the admin links, and says Search all missing whe
   const all = screen.getByRole("button", { name: "Search all missing" }) as HTMLButtonElement;
   expect(all.disabled).toBe(true);
 });
+
+it("keeps the retry sentence to Missing, names the unit, and puts Decision with the last search", async () => {
+  const grabbed = { ...row, waiting: "scheduled" as const, next_at: inHours(2), last_run: { ...row.last_run!, state: "routed", downloaded: true } };
+  mockFetch([admin, { method: "GET", path: "/wanted", reply: { ...page, items: [grabbed], total: 1128, counts: { scheduled: 1128 } } }, status]);
+  renderPage(<WantedPage />, "/wanted/cutoff");
+  const r = await screen.findByTestId("wanted-row");
+  expect(screen.getByTestId("wanted-pace").textContent).toBe("Up to 20 searches an hour (4 in the last hour). Items are searched again every 24 h.");
+  expect(screen.getByTestId("wanted-count").textContent).toBe("1,128 items: one per film or season in each library, not per episode.");
+  const last = r.querySelector('[data-column="last"]')!;
+  expect(last.textContent).toMatch(/Grabbed, still below the cutoff · Decision$/);
+  expect(within(last as HTMLElement).getByRole("link", { name: "Decision" }).getAttribute("href")).toBe("/activity/journal/9");
+  expect(screen.getByRole("button", { name: "All (1,128)" })).toBeTruthy();
+});
+
+it("words a grab by the tab while the row is still wanted", () => {
+  const run = { id: 1, at: "2026-11-01T00:00:00Z", state: "routed", results: 1, accepted: 1, message: "", downloaded: true };
+  expect(searchResult(run, "missing")).toBe("Grabbed, still missing");
+  expect(searchResult(run, "cutoff")).toBe("Grabbed, still below the cutoff");
+  expect(searchResult(run)).toBe("Grabbed");
+});
