@@ -224,6 +224,9 @@ it("a release sent for one library is not shown as sent for another", async () =
   fireEvent.click(screen.getByRole("tab", { name: "Remux" }));
   await waitFor(async () => expect(within(await table()).getAllByTestId("release-grab")).toHaveLength(2));
   expect(screen.queryByTestId("release-sent")).toBeNull();
+  // Back on WEB, the grab sent there still shows Sent: no second click can send it again.
+  fireEvent.click(screen.getByRole("tab", { name: "WEB" }));
+  expect(await within(await table()).findByTestId("release-sent")).toBeTruthy();
 });
 
 it("leaves a removed copy out: no tab, and a search asked for it opens on a current copy", async () => {

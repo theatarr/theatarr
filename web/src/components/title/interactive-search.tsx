@@ -75,6 +75,8 @@ export function InteractiveSearch({ titleId, version, season, episode, onClose }
   const current = r?.current;
   // A rejection reason picked from the summary: the list keeps those releases; another library starts unfiltered.
   const [reason, setReason] = useState<string>();
+  // Grabs sent in this window, per title, library and hash: the grid unmounts while another library searches.
+  const sentState = useState<ReadonlySet<string>>(new Set());
   const grab = r && live && r.grab && perms.manage && lib ? { titleId, version: r.version, label: library } : undefined;
   return (
     <Modal
@@ -157,7 +159,7 @@ export function InteractiveSearch({ titleId, version, season, episode, onClose }
                 {items.length === 0 ? (
                   <p className="py-4 text-center text-sm text-muted-foreground">No releases found.</p>
                 ) : (
-                  <ReleaseGrid key={lib.key} items={items} outcomes={r.outcomes} kind={kind} grab={grab} capped={r.results > items.length ? r.results : undefined} reason={reason} />
+                  <ReleaseGrid items={items} outcomes={r.outcomes} kind={kind} grab={grab} capped={r.results > items.length ? r.results : undefined} reason={reason} sentState={sentState} />
                 )}
               </>
             ) : null}

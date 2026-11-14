@@ -258,6 +258,7 @@ export function ReleaseGrid({
   focus,
   capped,
   reason,
+  sentState,
 }: {
   items: Candidate[];
   outcomes?: Releases["outcomes"];
@@ -270,6 +271,8 @@ export function ReleaseGrid({
   capped?: number;
   /** A rejection reason picked outside the grid (interactive search's summary chips): only those rows. */
   reason?: string;
+  /** The grabs sent, kept by the caller when the grid may unmount between libraries (interactive search). */
+  sentState?: [ReadonlySet<string>, (update: (s: ReadonlySet<string>) => ReadonlySet<string>) => void];
 }) {
   const uid = useAuth().data?.id;
   const [saved, setSaved] = useState<ReleaseColumnPrefs | null>(null);
@@ -280,7 +283,8 @@ export function ReleaseGrid({
   };
   const [filter, setFilter] = useState<ReleaseFilter>(NO_FILTER);
   const [picker, setPicker] = useState(false);
-  const [sent, setSent] = useState<ReadonlySet<string>>(new Set());
+  const own = useState<ReadonlySet<string>>(new Set());
+  const [sent, setSent] = sentState ?? own;
   const columns = releaseColumnsFor(kind);
   const shown = prefs.order.filter((id) => prefs.shown.includes(id) && columns.some((c) => c.id === id));
   // Title follows the leading Source and Age columns, as in Radarr; the rest come after it.
@@ -292,13 +296,11 @@ export function ReleaseGrid({
   const { key: sortKey, dir: sortDir } = prefs.sort;
   const rows = useMemo(() => sortReleases(filterReleases(items, { ...filter, reason }), { key: sortKey, dir: sortDir }), [items, filter, reason, sortKey, sortDir]);
   const picked = (c: Candidate) => !!focus && !!c.info_hash && c.info_hash.toLowerCase() === focus.toLowerCase();
-  // The first RELEASE_PAGE rows, more with each Show more; a change of filter or sort starts again (the window keys
-  // the grid on the library). A focused release further down is shown with the rows above it.
-  const view = JSON.stringify([filter, reason ?? "", sortKey, sortDir]);
-  const [more, setMore] = useState({ view, n: RELEASE_PAGE });
-  if (more.view !== view) setMore({ view, n: RELEASE_PAGE }); // React's "adjust state on a prop change" pattern
+  // The first RELEASE_PAGE rows, more with each Show more; a new list (other items, filter, reason or sort: rows is
+  // memoised on their values) starts again. A focused release further down is shown with the rows above it.
+  const [more, setMore] = useState<{ rows: Candidate[]; n: number }>({ rows, n: RELEASE_PAGE });
   const focusAt = focus ? rows.findIndex(picked) : -1;
-  const limit = Math.max(more.view === view ? more.n : RELEASE_PAGE, focusAt + 1);
+  const limit = Math.max(more.rows === rows ? more.n : RELEASE_PAGE, focusAt + 1);
   const visible = rows.length > limit ? rows.slice(0, limit) : rows;
   const filtered = rows.length !== items.length;
   useEffect(() => {
@@ -310,7 +312,7 @@ export function ReleaseGrid({
   }, [focus, items]);
   const sortBy = (key: ReleaseSortKey) =>
     save({ ...prefs, sort: prefs.sort.key === key ? { key, dir: prefs.sort.dir === "asc" ? "desc" : "asc" } : { key, dir: naturalDir(key) } });
-  // Sent is per title, library and hash: the grid stays mounted while the window switches library.
+  // Sent is per title, library and hash (interactive search keeps it while the grid unmounts between libraries).
   const sentKey = (c: Candidate) => `${grab?.titleId}:${grab?.version}:${(c.info_hash ?? "").toLowerCase()}`;
   const markSent = (c: Candidate) => () => setSent((s) => new Set(s).add(sentKey(c)));
   const isSent = (c: Candidate) => !!c.info_hash && sent.has(sentKey(c));
@@ -428,7 +430,7 @@ export function ReleaseGrid({
           </ul>
           {visible.length < rows.length ? (
             <div className="flex justify-center">
-              <Button size="sm" variant="outline" onClick={() => setMore({ view, n: limit + RELEASE_PAGE })} data-testid="release-more">
+              <Button size="sm" variant="outline" onClick={() => setMore({ rows, n: limit + RELEASE_PAGE })} data-testid="release-more">
                 Show more ({rows.length - visible.length} left)
               </Button>
             </div>
