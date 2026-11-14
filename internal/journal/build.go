@@ -27,6 +27,8 @@ type builder struct {
 	db     *sql.DB
 	own    bool
 	titles map[int64]*titleInfo
+	// firstDeads are the journal ids of every dead-link finding's first action (deadlink.go), read once.
+	firstDeads map[string]bool
 }
 
 func (j *Journal) newBuilder(ctx context.Context) *builder {

@@ -343,6 +343,11 @@ func (j *Journal) heads(ctx context.Context, f Filter, titles []int64, cur *curs
 			args = append(args, k)
 		}
 	}
+	if f.Suspect || f.Severity != "" {
+		// A link entry's only flag is dead_link, and only a finding's first dead action carries it (deadlink.go):
+		// the repeats are skipped before they are built.
+		q += ` AND (kind <> 'link' OR id IN (` + firstDeadSQL + `))`
+	}
 	if cur != nil {
 		q += ` AND (at < ? OR (at = ? AND id < ?))`
 		args = append(args, cur.at, cur.at, cur.id)

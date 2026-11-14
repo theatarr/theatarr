@@ -76,4 +76,24 @@ func TestJournalAPI(t *testing.T) {
 	if code := e.getKey(APIBase+"/journal/dl:1", key, &en); code != 200 || en.Verdict == nil || en.Verdict.ID != v.ID {
 		t.Errorf("entry verdict: %+v", en.Verdict)
 	}
+
+	// A dead-link flag whose link is gone is listed as resolved and acknowledged in bulk.
+	e.exec(`INSERT INTO library_action (at, kind, mode, version_key, link_id, path, target)
+		VALUES (?, 'dead', 'dry_run', 'movie-web', 999, '/lib/x.mkv', '/mnt/x.mkv')`, now-3000)
+	var res struct {
+		Count int `json:"count"`
+		Items []struct{ Entry, Why string }
+	}
+	if code := e.getKey(APIBase+"/journal/resolved", key, &res); code != 200 || res.Count != 1 ||
+		res.Items[0].Why != journal.ResolvedGone {
+		t.Fatalf("resolved: %d %+v", code, res)
+	}
+	if code, body := e.postKeyJSON(APIBase+"/journal/resolved/acknowledge", key, ``); code != 200 ||
+		body["acknowledged"] != float64(1) {
+		t.Errorf("acknowledge: %d %v", code, body)
+	}
+	if code := e.getKey(APIBase+"/journal/"+res.Items[0].Entry, key, &en); code != 200 || en.Suspect ||
+		en.Verdict == nil || en.Verdict.By != "key:test-client" {
+		t.Errorf("acknowledged entry: %d %+v", code, en)
+	}
 }

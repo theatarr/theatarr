@@ -21,6 +21,44 @@ func (w *Web) mountJournalAPI(mux *http.ServeMux) {
 	w.handle(mux, "GET "+b, SignedIn, auth.PermAdmin, w.apiJournal)
 	w.handle(mux, "GET "+b+"/{id}", SignedIn, auth.PermAdmin, w.apiJournalEntry)
 	w.handle(mux, "POST "+b+"/{id}/verdict", SignedIn, auth.PermAdmin, w.apiJournalVerdict)
+	w.handle(mux, "GET "+b+"/resolved", SignedIn, auth.PermAdmin, w.apiJournalResolved)
+	w.handle(mux, "POST "+b+"/resolved/acknowledge", SignedIn, auth.PermAdmin, w.apiJournalAcknowledgeResolved)
+}
+
+// GET /journal/resolved: the open dead-link flags that are resolved or superseded (journal.ResolvedDeadLinks), the
+// ones Reviews offers to acknowledge in bulk.
+func (w *Web) apiJournalResolved(rw http.ResponseWriter, r *http.Request) {
+	list, err := w.journal.ResolvedDeadLinks(r.Context())
+	if err != nil {
+		w.internal(rw, err)
+		return
+	}
+	writeJSON(rw, http.StatusOK, map[string]any{"count": len(list), "items": list})
+}
+
+// POST /journal/resolved/acknowledge: an "ok" verdict on each of them (journal.AcknowledgeResolved); the records stay.
+func (w *Web) apiJournalAcknowledgeResolved(rw http.ResponseWriter, r *http.Request) {
+	n, err := w.journal.AcknowledgeResolved(r.Context(), w.verdictBy(r))
+	switch {
+	case errors.Is(err, journal.ErrNotMigrated):
+		writeJSON(rw, http.StatusServiceUnavailable, apiError{Error: "the database lacks the journal tables (migrate)"})
+	case err != nil:
+		w.internal(rw, err)
+	default:
+		writeJSON(rw, http.StatusOK, map[string]int{"acknowledged": n})
+	}
+}
+
+// verdictBy names who records a verdict: the user, or key:<name> for an API key.
+func (w *Web) verdictBy(r *http.Request) string {
+	id := auth.FromContext(r.Context())
+	if id == nil {
+		return ""
+	}
+	if id.Kind == "apikey" {
+		return "key:" + id.KeyName
+	}
+	return id.Username
 }
 
 // journalFilter reads since (RFC 3339, YYYY-MM-DD, or a duration back from now such as 72h), title (id or part of
@@ -121,14 +159,7 @@ func (w *Web) apiJournalVerdict(rw http.ResponseWriter, r *http.Request) {
 		badRequest(rw, "invalid JSON: "+err.Error())
 		return
 	}
-	by := ""
-	if id := auth.FromContext(r.Context()); id != nil {
-		by = id.Username
-		if id.Kind == "apikey" {
-			by = "key:" + id.KeyName
-		}
-	}
-	v, err := w.journal.Judge(r.Context(), r.PathValue("id"), req, by)
+	v, err := w.journal.Judge(r.Context(), r.PathValue("id"), req, w.verdictBy(r))
 	switch {
 	case errors.Is(err, journal.ErrNotFound):
 		notFound(rw)

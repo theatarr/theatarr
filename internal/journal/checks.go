@@ -69,11 +69,11 @@ func (b *builder) check(e *Entry) error {
 	case KindFailure, KindStall, KindBlocklist:
 		switch n := e.f.failureCount; {
 		case e.f.failuresAfter > 0:
-			// Flag the latest failure of a run only: the agent acts once per title and version.
+			// Flag the latest failure of a run only: the agent acts once per title and library.
 		case n >= 5:
-			e.flag(CheckFailures, SevError, "%d failures for this title and version in 30 days", n)
+			e.flag(CheckFailures, SevError, "%d failures for this title and library in 30 days", n)
 		case n >= 3:
-			e.flag(CheckFailures, SevWarn, "%d failures for this title and version in 30 days", n)
+			e.flag(CheckFailures, SevWarn, "%d failures for this title and library in 30 days", n)
 		}
 	case KindImport:
 		b.checkGuardRejects(e)
@@ -86,7 +86,14 @@ func (b *builder) check(e *Entry) error {
 		}
 	case KindLink:
 		if strings.HasPrefix(e.Summary, "dead (applied)") || strings.HasPrefix(e.Summary, "dead (dry_run)") {
-			e.flag(CheckDeadLink, SevWarn, "the link's target is gone and no provider folder holds the file")
+			// One flag per finding: a later scan that finds the same link dead again is a repeat (deadlink.go).
+			first, err := b.firstDead(e.ID)
+			if err != nil {
+				return err
+			}
+			if first {
+				e.flag(CheckDeadLink, SevWarn, "the link's target is gone and no provider folder holds the file")
+			}
 		}
 	}
 	if d := e.Download; d != nil && (e.Kind == KindGrab || e.Kind == KindUpgrade) &&

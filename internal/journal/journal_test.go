@@ -669,3 +669,87 @@ func TestPolicyRevision(t *testing.T) {
 		t.Fatalf("download: policy %q queued %q", dl.PolicyRev, dl.QueuedPolicyRev)
 	}
 }
+
+// The same dead link found by every dry-run scan is flagged once; a repaired, removed or working link's flag is
+// acknowledged in bulk, a current problem's is not, and nothing but verdicts is written.
+func TestDeadLinkFlagsOncePerFinding(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	now := msOf(testNow)
+	at := func(h int) int64 { return msOf(testNow.Add(time.Duration(-h) * time.Hour)) }
+	e.exec(`INSERT INTO link (id, path, target, title_id, state, created_at, updated_at) VALUES
+		(10, '/lib/Alpha/a.mkv', '/mnt/zurg/A/a.mkv', 1, 'active', ?, ?),
+		(11, '/lib/Beta/b.mkv', '/mnt/zurg/B2/b.mkv', 2, 'active', ?, ?),
+		(12, '/lib/Gamma/c.mkv', '/mnt/zurg/C/c.mkv', 3, 'active', ?, ?),
+		(14, '/lib/Alpha/d.mkv', '/mnt/zurg/D/d.mkv', 1, 'dead', ?, ?)`, now, now, now, now, now, now, now, now)
+	dead := func(h int, link int64, path, target, mode string) {
+		e.exec(`INSERT INTO library_action (at, kind, mode, version_key, link_id, path, target, detail)
+			VALUES (?, 'dead', ?, 'movie-remux', ?, ?, ?, 'unknown')`, at(h), mode, link, path, target)
+	}
+	dead(10, 10, "/lib/Alpha/a.mkv", "/mnt/zurg/A/a.mkv", "dry_run") // lib:1, still dangling
+	dead(9, 10, "/lib/Alpha/a.mkv", "/mnt/zurg/A/a.mkv", "dry_run")  // lib:2, a repeat
+	dead(8, 11, "/lib/Beta/b.mkv", "/mnt/zurg/B/b.mkv", "dry_run")   // lib:3, repaired since (new target)
+	dead(8, 12, "/lib/Gamma/c.mkv", "/mnt/zurg/C/c.mkv", "dry_run")  // lib:4, works again
+	dead(8, 13, "/lib/Gone/x.mkv", "/mnt/zurg/X/x.mkv", "dry_run")   // lib:5, link row gone
+	dead(7, 10, "/lib/Alpha/a.mkv", "/mnt/zurg/A/a.mkv", "dry_run")  // lib:6, a repeat
+	dead(6, 14, "/lib/Alpha/d.mkv", "/mnt/zurg/D/d.mkv", "dry_run")  // lib:7, superseded by lib:8
+	dead(5, 14, "/lib/Alpha/d.mkv", "/mnt/zurg/D/d.mkv", "applied")  // lib:8, marked dead: a current problem
+	e.exec(`INSERT INTO library_dangling_scan (at, roots, links, dangling, took_ms) VALUES (?, '[]', 10, 1, 1)`, at(1))
+	e.exec(`INSERT INTO library_dangling (path, target, root, folder, first_seen_at, last_seen_at)
+		VALUES ('/lib/Alpha/a.mkv', '/mnt/zurg/A/a.mkv', '/lib', 'A', ?, ?)`, at(1), at(1))
+
+	flagged := func(id string) bool {
+		en := e.get(id)
+		return slices.ContainsFunc(en.Flags, func(f Flag) bool { return f.Code == CheckDeadLink })
+	}
+	for id, want := range map[string]bool{"lib:1": true, "lib:2": false, "lib:6": false, "lib:7": true, "lib:8": true} {
+		if got := flagged(id); got != want {
+			t.Errorf("%s flagged %v, want %v", id, got, want)
+		}
+	}
+	var ids []string
+	for _, en := range e.list(Filter{Suspect: true}).Items {
+		ids = append(ids, en.ID)
+	}
+	if want := []string{"lib:8", "lib:7", "lib:5", "lib:4", "lib:3", "lib:1"}; !slices.Equal(ids, want) {
+		t.Errorf("suspect entries %v, want %v", ids, want)
+	}
+
+	res, err := e.j.ResolvedDeadLinks(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]string{}
+	for _, r := range res {
+		got[r.Entry] = r.Why
+	}
+	want := map[string]string{"lib:3": ResolvedRepaired, "lib:4": ResolvedWorks, "lib:5": ResolvedGone,
+		"lib:7": ResolvedSuperseded}
+	if fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Errorf("resolved %v, want %v", got, want)
+	}
+	n, err := e.j.AcknowledgeResolved(ctx, "admin")
+	if err != nil || n != 4 {
+		t.Fatalf("acknowledged %d, %v", n, err)
+	}
+	ids = nil
+	for _, en := range e.list(Filter{Suspect: true}).Items {
+		ids = append(ids, en.ID)
+	}
+	if want := []string{"lib:8", "lib:1"}; !slices.Equal(ids, want) {
+		t.Errorf("suspect after acknowledge %v, want %v", ids, want)
+	}
+	if en := e.get("lib:3"); en.Verdict == nil || en.Verdict.Verdict != VerdictOK || !en.Flags[0].Acked {
+		t.Errorf("lib:3 after: %+v", en)
+	}
+	if n, _ := e.j.AcknowledgeResolved(ctx, "admin"); n != 0 {
+		t.Errorf("second acknowledge: %d", n)
+	}
+	// Only verdicts were written: the actions, links and blocklist are as they were, and no job was queued.
+	var actions, links, blocked, jobs int
+	e.st.Reader().QueryRow(`SELECT (SELECT COUNT(*) FROM library_action), (SELECT COUNT(*) FROM link),
+		(SELECT COUNT(*) FROM router_blocklist), (SELECT COUNT(*) FROM job)`).Scan(&actions, &links, &blocked, &jobs)
+	if actions != 8 || links != 4 || blocked != 0 || jobs != 0 {
+		t.Errorf("side effects: actions %d links %d blocklist %d jobs %d", actions, links, blocked, jobs)
+	}
+}
