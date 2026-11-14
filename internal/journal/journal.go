@@ -256,30 +256,36 @@ var headParts = []struct{ prefix, sql string }{
 FROM download d WHERE d.state = 'failed'`},
 	{"dl", `SELECT 'dl:' || li.download_id || ':import', li.updated_at, d.title_id, d.version_key, 'import'
 FROM library_import li JOIN download d ON d.id = li.download_id`},
-	{"lib", `SELECT 'lib:' || la.id, la.at,
-	COALESCE((SELECT title_id FROM download WHERE id = la.download_id), (SELECT title_id FROM link WHERE id = la.link_id),
-		(SELECT vf.title_id FROM version_file vf WHERE vf.path = la.path LIMIT 1), 0),
-	COALESCE(la.version_key, ''), 'link'
-FROM library_action la ` + libKinds},
+	{"lib", libHeadSQL + `WHERE la.kind IN ('link', 'replace', 'relink', 'dead')`},
 	{"bl", `SELECT 'bl:' || b.rowid, b.created_at, COALESCE(b.title_id, 0), b.version_key, 'blocklist' FROM router_blocklist b`},
 	{"run", runHeadSQL + ` WHERE ` + failureRunSQL + ` OR r.state IN ('nothing', 'failed')`},
 	{"plan", `SELECT 'plan:' || p.id, p.created_at, p.title_id, p.version_key, 'plan' FROM router_plan p`},
 }
 
 // headSQL is the union of every part.
-var headSQL = unionOf(func(string) bool { return true })
+var headSQL = unionOf(func(string) bool { return true }, "")
 
-// libKinds is the library part's own filter; filteredHeadSQL replaces it with the list of flagged dead actions
-// (rowid lookups, one JSON argument).
-const libKinds = `WHERE la.kind IN ('link', 'replace', 'relink', 'dead')`
+// libHeadSQL is the library part without its filter.
+const libHeadSQL = `SELECT 'lib:' || la.id, la.at,
+	COALESCE((SELECT title_id FROM download WHERE id = la.download_id), (SELECT title_id FROM link WHERE id = la.link_id),
+		(SELECT vf.title_id FROM version_file vf WHERE vf.path = la.path LIMIT 1), 0),
+	COALESCE(la.version_key, ''), 'link'
+FROM library_action la `
 
-var filteredHeadSQL = strings.Replace(headSQL, libKinds, `WHERE la.id IN (SELECT value FROM json_each(?))`, 1)
+// filteredHeadSQL is headSQL for a filtered listing: its library part lists only the flagged dead actions (rowid
+// lookups, one JSON argument).
+var filteredHeadSQL = unionOf(func(string) bool { return true }, libHeadSQL+`WHERE la.id IN (SELECT value FROM json_each(?))`)
 
-// unionOf is the union of the parts keep selects. Its first member only names the columns.
-func unionOf(keep func(prefix string) bool) string {
+// unionOf is the union of the parts keep selects, with lib, when set, in place of the library part. Its first
+// member only names the columns.
+func unionOf(keep func(prefix string) bool, lib string) string {
 	qs := []string{`SELECT '' AS id, 0 AS at, 0 AS title_id, '' AS version_key, '' AS kind WHERE 0`}
 	for _, p := range headParts {
 		if keep(p.prefix) {
+			if p.prefix == "lib" && lib != "" {
+				qs = append(qs, lib)
+				continue
+			}
 			qs = append(qs, p.sql)
 		}
 	}
@@ -501,7 +507,7 @@ func (j *Journal) headOf(ctx context.Context, id string) (head, error) {
 		return head{}, ErrNotFound
 	}
 	prefix, _, _ := strings.Cut(id, ":")
-	q := unionOf(func(p string) bool { return p == prefix })
+	q := unionOf(func(p string) bool { return p == prefix }, "")
 	// A direct search handoff includes routed runs too; the feed still represents those by their downloads.
 	if prefix == "run" {
 		q = runHeadSQL

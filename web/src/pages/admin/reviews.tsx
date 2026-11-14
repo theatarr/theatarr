@@ -8,6 +8,7 @@ import { DefinitionHolds } from "@/components/settings/add-indexer";
 import { fmtTime, plural } from "@/lib/format";
 import { useJournalVerdict } from "@/api/hooks";
 import { toast } from "@/components/toaster";
+import { journalFlagWords } from "@/lib/journal-words";
 import { episodesWords } from "@/components/activity/row-bits";
 import { journalHome, journalLink } from "@/lib/admin-links";
 import { AnimeMappings } from "./anime-mappings";
@@ -43,8 +44,6 @@ export function Waiting() {
 }
 function FlaggedDecisions() {
   const q = useFlaggedDecisions();
-  const resolved = useResolvedFlags();
-  const settled = new Set((resolved.data?.items ?? []).map(r => r.entry));
   return <>
     <p className="mb-3 text-[13px]"><Link className="text-[var(--accent-ink)] underline-offset-2 hover:underline" to={journalHome()}>See the full journal</Link></p>
     <ResolvedFlags />
@@ -57,9 +56,8 @@ function FlaggedDecisions() {
         <p className="flex flex-wrap items-center gap-2 text-[12.5px] text-[var(--ink-3)]">{e.version ? <VersionTag k={e.version} /> : null}<span>{fmtTime(e.at)}</span></p>
         {e.release?.title ? <p className="text-[12.5px] text-[var(--ink-3)] [overflow-wrap:anywhere]">{e.release.title}</p> : path ? <p className="font-mono text-[11.5px] text-[var(--ink-3)] [overflow-wrap:anywhere]">{path}</p> : null}
         <div className="flex flex-wrap items-start gap-2">
-          <p className="min-w-0 flex-1 text-[13px] text-[var(--ink-2)] [overflow-wrap:anywhere]">{e.flags?.filter(f => !f.acked).map(f => f.reason || f.code).join("; ") || e.summary}</p>
-          {/* A dead link that is still broken is not acknowledged from here: it needs a new grab. */}
-          {e.id && (!e.flags?.some(f => !f.acked && f.code === "dead_link") || settled.has(e.id)) ? <AcknowledgeOne id={e.id} /> : null}
+          <p className="min-w-0 flex-1 text-[13px] text-[var(--ink-2)] [overflow-wrap:anywhere]">{e.flags?.filter(f => !f.acked).map(f => f.reason || journalFlagWords(f.code)).join("; ") || e.summary}</p>
+          {e.id ? <AcknowledgeOne id={e.id} /> : null}
         </div>
       </li>;
     })}</ul>}
@@ -75,7 +73,7 @@ function AcknowledgeOne({ id }: { id: string }) {
   })}>Acknowledge</Button>;
 }
 
-/** Dead-link flags that are settled (the link is gone, repaired or works again, or a newer flag for it exists),
+/** Dead-link flags the action log proves settled (repaired since, or a newer flag for the same link exists),
  * acknowledged in one go. The entries stay in the journal with an OK verdict. Nothing shows while it loads. */
 function ResolvedFlags() {
   const q = useResolvedFlags();
@@ -84,7 +82,7 @@ function ResolvedFlags() {
   const n = q.data?.count ?? 0;
   if (n === 0) return null;
   return <Card className="mb-3 flex flex-wrap items-center gap-3" data-testid="resolved-flags">
-    <p className="min-w-0 flex-1 text-[13px] text-[var(--ink-2)]">{plural(n, "dead-link flag")} {n === 1 ? "is" : "are"} settled: the link is gone, repaired or works again, or a newer flag for the same link exists. Acknowledging keeps the entries in the journal.</p>
+    <p className="min-w-0 flex-1 text-[13px] text-[var(--ink-2)]">{plural(n, "dead-link flag")} {n === 1 ? "is" : "are"} settled: the link was repaired since, or a newer flag for the same link exists. Acknowledging keeps the entries in the journal.</p>
     <Button size="sm" variant="outline" disabled={ack.isPending} onClick={() => ack.mutate()}>Acknowledge {plural(n, "settled flag")}</Button>
   </Card>;
 }

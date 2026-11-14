@@ -736,52 +736,46 @@ func newDeadEnv(t *testing.T) deadEnv {
 	return d
 }
 
-// The same dead link found by every dry-run scan is flagged once; a repaired, removed or working link's flag is
-// acknowledged in bulk, a current problem's is not, and nothing but verdicts is written.
+// The same dead link found by every scan is flagged once; only the action log starts a new finding or proves one
+// settled for bulk Acknowledge, and bulk Acknowledge writes nothing but verdicts.
 func TestDeadLinkFlagsOncePerFinding(t *testing.T) {
 	d := newDeadEnv(t)
 	ctx := context.Background()
-	d.dead(10, 10, "/lib/Alpha/a.mkv", "/mnt/zurg/A/a.mkv", "dry_run")                // lib:1, still dangling
-	d.dead(9, 10, "/lib/Alpha/a.mkv", "/mnt/zurg/A/a.mkv", "dry_run")                 // lib:2, a repeat
-	d.dead(8, 11, "/lib/Beta/b.mkv", "/mnt/zurg/B/b.mkv", "dry_run")                  // lib:3, repaired since
-	d.dead(8, 12, "/lib/Gamma/c.mkv", "/mnt/zurg/C/c.mkv", "dry_run")                 // lib:4, works again
-	d.dead(8, 13, "/lib/Gone/x.mkv", "/mnt/zurg/X/x.mkv", "dry_run")                  // lib:5, link row gone
-	d.dead(7, 10, "/lib/Alpha/a.mkv", "/mnt/zurg/A/a.mkv", "dry_run")                 // lib:6, a repeat
-	d.dead(6, 14, "/lib/Alpha/d.mkv", "/mnt/zurg/D/d.mkv", "dry_run")                 // lib:7, a current problem
-	d.dead(5, 14, "/lib/Alpha/d.mkv", "/mnt/zurg/D/d.mkv", "applied")                 // lib:8, the same run, marked dead
-	d.action(4, "relink", "applied", 11, "/lib/Beta/b.mkv", "/mnt/zurg/B2/b.mkv", "") // lib:9, the repair
-	d.scan(1, "/lib", "/lib/Alpha/a.mkv")
+	const a, b, c, x = "/lib/Alpha/a.mkv", "/lib/Beta/b.mkv", "/lib/Gamma/c.mkv", "/lib/Gone/x.mkv"
+	d.dead(20, 10, a, "/mnt/zurg/A/a.mkv", "dry_run")                            // lib:1, three times dead: one finding
+	d.dead(19, 10, a, "/mnt/zurg/A/a.mkv", "dry_run")                            // lib:2
+	d.dead(18, 10, a, "/mnt/zurg/A/a.mkv", "applied")                            // lib:3
+	d.dead(17, 11, b, "/mnt/zurg/B/b.mkv", "dry_run")                            // lib:4, repaired by an action
+	d.action(16, "relink", "applied", 11, b, "/mnt/zurg/B2/b.mkv", "")           // lib:5
+	d.dead(15, 12, c, "/mnt/zurg/C/c.mkv", "dry_run")                            // lib:6, dead, relinked, dead again
+	d.action(14, "relink", "dry_run", 0, c, "/mnt/zurg/C/c.mkv", "revive: back") // lib:7
+	d.dead(13, 12, c, "/mnt/zurg/C/c.mkv", "dry_run")                            // lib:8, a new finding: lib:6 superseded
+	d.dead(12, 13, x, "/mnt/zurg/X/x.mkv", "dry_run")                            // lib:9, no link row: not provable
+	d.scan(1, "/lib", a)                                                         // a clean report for b, c and x
 
-	for id, want := range map[string]bool{"lib:1": true, "lib:2": false, "lib:6": false, "lib:7": true, "lib:8": false,
-		"lib:3": true, "lib:4": true, "lib:5": true} {
+	for id, want := range map[string]bool{"lib:1": true, "lib:2": false, "lib:3": false, "lib:4": true, "lib:6": true,
+		"lib:8": true, "lib:9": true} {
 		if got := d.flagged(id); got != want {
 			t.Errorf("%s flagged %v, want %v", id, got, want)
 		}
+	}
+	want := map[string]string{"lib:4": ResolvedRepaired, "lib:6": ResolvedSuperseded}
+	if got := d.resolved(); fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Errorf("resolved %v, want %v", got, want)
+	}
+	n, err := d.j.AcknowledgeResolved(ctx, "admin")
+	if err != nil || n != 2 {
+		t.Fatalf("acknowledged %d, %v", n, err)
 	}
 	var ids []string
 	for _, en := range d.list(Filter{Suspect: true}).Items {
 		ids = append(ids, en.ID)
 	}
-	if want := []string{"lib:7", "lib:5", "lib:4", "lib:3", "lib:1"}; !slices.Equal(ids, want) {
-		t.Errorf("suspect entries %v, want %v", ids, want)
-	}
-	want := map[string]string{"lib:3": ResolvedRepaired, "lib:4": ResolvedWorks, "lib:5": ResolvedGone}
-	if got := d.resolved(); fmt.Sprint(got) != fmt.Sprint(want) {
-		t.Errorf("resolved %v, want %v", got, want)
-	}
-	n, err := d.j.AcknowledgeResolved(ctx, "admin")
-	if err != nil || n != 3 {
-		t.Fatalf("acknowledged %d, %v", n, err)
-	}
-	ids = nil
-	for _, en := range d.list(Filter{Suspect: true}).Items {
-		ids = append(ids, en.ID)
-	}
-	if want := []string{"lib:7", "lib:1"}; !slices.Equal(ids, want) {
+	if want := []string{"lib:9", "lib:8", "lib:1"}; !slices.Equal(ids, want) {
 		t.Errorf("suspect after acknowledge %v, want %v", ids, want)
 	}
-	if en := d.get("lib:3"); en.Verdict == nil || en.Verdict.Verdict != VerdictOK || !en.Flags[0].Acked {
-		t.Errorf("lib:3 after: %+v", en)
+	if en := d.get("lib:4"); en.Verdict == nil || en.Verdict.Verdict != VerdictOK || !en.Flags[0].Acked {
+		t.Errorf("lib:4 after: %+v", en)
 	}
 	if n, _ := d.j.AcknowledgeResolved(ctx, "admin"); n != 0 {
 		t.Errorf("second acknowledge: %d", n)
@@ -795,56 +789,18 @@ func TestDeadLinkFlagsOncePerFinding(t *testing.T) {
 	}
 }
 
-// A link that dies again after it was seen working gets a new flag, and bulk Acknowledge never clears a link that
-// is broken now.
-func TestDeadLinkFindingsAndCurrentProblems(t *testing.T) {
+// What the action log cannot prove is never acknowledged in bulk and never starts a new finding.
+func TestDeadLinkCurrentProblems(t *testing.T) {
 	ctx := context.Background()
-	t.Run("dead, revived, acknowledged, dead again", func(t *testing.T) {
-		d := newDeadEnv(t)
-		d.dead(10, 10, "/lib/Alpha/a.mkv", "/mnt/zurg/A/a.mkv", "dry_run")                                  // lib:1
-		d.action(9, "relink", "dry_run", 0, "/lib/Alpha/a.mkv", "/mnt/zurg/A/a.mkv", "revive: back; gated") // lib:2
-		d.scan(8, "/lib")
-		if n, err := d.j.AcknowledgeResolved(ctx, "admin"); err != nil || n != 1 {
-			t.Fatalf("acknowledged %d, %v", n, err)
-		}
-		d.dead(4, 10, "/lib/Alpha/a.mkv", "/mnt/zurg/A/a.mkv", "dry_run") // lib:3: a new finding
-		d.dead(3, 10, "/lib/Alpha/a.mkv", "/mnt/zurg/A/a.mkv", "dry_run") // lib:4: its repeat
-		d.scan(2, "/lib", "/lib/Alpha/a.mkv")
-		if !d.flagged("lib:3") || d.flagged("lib:4") || !d.get("lib:3").Suspect {
-			t.Error("dead again: want a new open flag on lib:3 only")
-		}
-		if got := d.resolved(); len(got) != 0 {
-			t.Errorf("a dangling link is acknowledgeable: %v", got)
-		}
-	})
-	t.Run("dead, recovered in a report, acknowledged, dead again", func(t *testing.T) {
+	t.Run("dead, acknowledged, dead again with no action: no new flag (documented limit)", func(t *testing.T) {
 		d := newDeadEnv(t)
 		d.dead(10, 10, "/lib/Alpha/a.mkv", "/mnt/zurg/A/a.mkv", "dry_run") // lib:1
-		d.scan(9, "/lib")
-		if n, _ := d.j.AcknowledgeResolved(ctx, "admin"); n != 1 {
-			t.Fatalf("acknowledged %d", n)
+		if _, err := d.j.Judge(ctx, "lib:1", VerdictRequest{Verdict: "ok", Reason: "seen"}, "admin"); err != nil {
+			t.Fatal(err)
 		}
-		d.dead(-1, 10, "/lib/Alpha/a.mkv", "/mnt/zurg/A/a.mkv", "dry_run") // lib:2, after the verdict
-		if !d.flagged("lib:2") {
-			t.Error("dead again after a settled acknowledgement: no new flag")
-		}
-	})
-	t.Run("dry-run dead, clean report, dead again before the next report", func(t *testing.T) {
-		d := newDeadEnv(t)
-		d.dead(10, 12, "/lib/Gamma/c.mkv", "/mnt/zurg/C/c.mkv", "dry_run")
-		d.scan(9, "/lib")
-		d.dead(8, 12, "/lib/Gamma/c.mkv", "/mnt/zurg/C/c.mkv", "dry_run")
-		if got := d.resolved(); len(got) != 0 {
-			t.Errorf("dead after the clean report is acknowledgeable: %v", got)
-		}
-	})
-	t.Run("a report that could not walk the root", func(t *testing.T) {
-		d := newDeadEnv(t)
-		d.dead(10, 12, "/lib/Gamma/c.mkv", "/mnt/zurg/C/c.mkv", "dry_run")
-		d.scan(9, "/lib")
-		d.exec(`UPDATE library_dangling_scan SET error = '/lib: not reachable'`)
-		if got := d.resolved(); len(got) != 0 {
-			t.Errorf("an unwalked root counts as clean: %v", got)
+		d.dead(4, 10, "/lib/Alpha/a.mkv", "/mnt/zurg/A/a.mkv", "dry_run") // lib:2
+		if d.flagged("lib:2") {
+			t.Error("a repeat with no recovery action got a flag")
 		}
 	})
 	t.Run("repaired to a target that is dangling", func(t *testing.T) {
@@ -854,6 +810,24 @@ func TestDeadLinkFindingsAndCurrentProblems(t *testing.T) {
 		d.scan(8, "/lib", "/lib/Beta/b.mkv")
 		if got := d.resolved(); len(got) != 0 {
 			t.Errorf("a repair to a dangling target is acknowledgeable: %v", got)
+		}
+	})
+	t.Run("repaired, then marked dead", func(t *testing.T) {
+		d := newDeadEnv(t)
+		d.dead(10, 14, "/lib/Alpha/d.mkv", "/mnt/zurg/D/d.mkv", "dry_run")
+		d.action(9, "relink", "applied", 14, "/lib/Alpha/d.mkv", "/mnt/zurg/D/d.mkv", "")
+		if got := d.resolved(); len(got) != 0 { // link 14's row is dead
+			t.Errorf("a dead link is acknowledgeable: %v", got)
+		}
+	})
+	t.Run("an unlinked row or a clean report alone", func(t *testing.T) {
+		d := newDeadEnv(t)
+		d.exec(`UPDATE link SET state = 'unlinked' WHERE id = 11`)
+		d.dead(10, 11, "/lib/Beta/b.mkv", "/mnt/zurg/B/b.mkv", "dry_run")
+		d.dead(10, 12, "/lib/Gamma/c.mkv", "/mnt/zurg/C/c.mkv", "dry_run")
+		d.scan(1, "/lib")
+		if got := d.resolved(); len(got) != 0 {
+			t.Errorf("inferred settled: %v", got)
 		}
 	})
 }

@@ -77,15 +77,16 @@ func TestJournalAPI(t *testing.T) {
 		t.Errorf("entry verdict: %+v", en.Verdict)
 	}
 
-	// A dead-link flag whose link is gone is listed as resolved and acknowledged in bulk.
+	// A dead-link flag superseded by a newer finding of the same link is listed as resolved and acknowledged in bulk.
 	e.exec(`INSERT INTO library_action (at, kind, mode, version_key, link_id, path, target)
-		VALUES (?, 'dead', 'dry_run', 'movie-web', 999, '/lib/x.mkv', '/mnt/x.mkv')`, now-3000)
+		VALUES (?, 'dead', 'dry_run', 'movie-web', 999, '/lib/x.mkv', '/mnt/x.mkv'),
+		(?, 'dead', 'dry_run', 'movie-web', 999, '/lib/x.mkv', '/mnt/y.mkv')`, now-3000, now-2000)
 	var res struct {
 		Count int `json:"count"`
 		Items []struct{ Entry, Why string }
 	}
 	if code := e.getKey(APIBase+"/journal/resolved", key, &res); code != 200 || res.Count != 1 ||
-		res.Items[0].Why != journal.ResolvedGone {
+		res.Items[0].Why != journal.ResolvedSuperseded {
 		t.Fatalf("resolved: %d %+v", code, res)
 	}
 	if code, body := e.postKeyJSON(APIBase+"/journal/resolved/acknowledge", key, ``); code != 200 ||

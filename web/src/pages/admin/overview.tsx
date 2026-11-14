@@ -24,7 +24,7 @@ import { episodesWords } from "@/components/activity/row-bits";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
-import { needsAttention, showCounts, stageLabel, timing } from "@/lib/activity";
+import { downloadHref, needsAttention, showCounts, stageLabel, timing } from "@/lib/activity";
 import { fmtAgo, fmtNumber, fmtTime } from "@/lib/format";
 import { danglingNext, healthAttention, healthBadgeTone, healthEffect, healthLink, healthStatTone } from "@/lib/health";
 import { attentionCount, jobEffect, jobName, type Job } from "@/lib/jobs";
@@ -87,8 +87,10 @@ export function Overview() {
   const downloads = now.data?.now ?? [];
   const stuck = downloads.filter((d) => needsAttention(d, t));
   const dl = showCounts(downloads, t);
-  // In hand: neither finished (linked, failed) nor never started.
-  const inHand = downloads.filter((d) => !d.not_started && d.state !== "failed" && d.state !== "imported").length;
+  // In hand: neither finished (linked, failed) nor never started; one held for review (the library refused it) or
+  // whose link failed counts under need attention only.
+  const inHand = downloads.filter((d) => !d.not_started && d.state !== "failed" && d.state !== "imported" &&
+    d.import_state !== "rejected" && d.import_state !== "failed").length;
 
   const items: Attention[] = [];
   for (const name of reviews.failures) items.push({ key: `reviews-${name}`, tone: "warn", title: `Reviews: couldn't load ${name}`, effect: "Waiting decisions are unknown.", next: "Open Reviews", to: "/admin/reviews" });
@@ -149,7 +151,7 @@ export function Overview() {
       title: <>{d.title.id ? <Link className="hover:underline" to={`/title/${d.title.id}`}>{d.title.name}</Link> : d.title.name}{eps ? ` ${eps}` : ""} {d.version ? <VersionTag k={d.version} className="ml-1 align-middle" /> : null} <span className="font-normal text-muted-foreground">· {stageLabel(d)}</span></>,
       effect: <>{what}{w.waited ? `; waiting ${w.waited}` : w.updated ? `; last update ${w.updated}` : ""}{w.retry ? `; next try ${w.retry}` : ""}.{d.release ? <span className="block text-[var(--ink-3)] [overflow-wrap:anywhere]" data-testid="attention-release">Release: {d.release}</span> : null}</>,
       next: "Inspect the download",
-      to: `/activity?show=attention&open=${d.id}`,
+      to: downloadHref(d.id),
       open: "Inspect",
     });
   }

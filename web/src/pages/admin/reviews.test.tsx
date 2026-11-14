@@ -112,8 +112,8 @@ it("names each flagged item and its reason, and acknowledges settled dead-link f
  expect(within(rows[1]).getByRole("link", { name: "Gamma S01E03" })).toBeTruthy();
  expect(within(rows[1]).getByText("Gamma.S01E03.2160p.WEB-DL")).toBeTruthy();
  expect(within(rows[1]).getByText("4 failures for this title and library in 30 days")).toBeTruthy();
- // A current dead link has no Acknowledge of its own; another flag does, and it records an OK verdict.
- expect(within(rows[0]).queryByRole("button", { name: "Acknowledge" })).toBeNull();
+ // Every row has its own Acknowledge, which records the plain OK verdict.
+ expect(within(rows[0]).getByRole("button", { name: "Acknowledge" })).toBeTruthy();
  fireEvent.click(within(rows[1]).getByRole("button", { name: "Acknowledge" }));
  await waitFor(() => expect(fetch.calls("POST", "/journal/dl%3A9%3Afail/verdict")[0]?.body).toEqual({ verdict: "ok", reason: "Acknowledged on Reviews" }));
  const bar = await screen.findByTestId("resolved-flags");

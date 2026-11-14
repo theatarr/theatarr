@@ -211,7 +211,7 @@ it("names a failed download's item, error and release, and Inspect opens that do
  expect(within(row).getByText(/miss on every provider/)).toBeTruthy();
  expect(within(row).getByTestId("attention-release").textContent).toBe("Release: The.Kardashians.S05E03.2160p.WEB-DL");
  expect(row.querySelector("[data-vkey='tv-2160p']")).toBeTruthy();
- expect(within(row).getByRole("link", { name: "Inspect" }).getAttribute("href")).toBe("/activity?show=attention&open=7");
+ expect(within(row).getByRole("link", { name: "Inspect" }).getAttribute("href")).toBe("/activity?open=7");
  expect(within(row).queryByText(/No file from this download yet/)).toBeNull();
 });
 
@@ -239,4 +239,23 @@ it("says Loading on readiness switches until the settings load", async () => {
  renderPage(<Readiness />);
  expect(await screen.findByRole("link", { name: "Pause Loading…" })).toBeTruthy();
  expect(screen.queryByText("Unknown")).toBeNull();
+});
+
+it("counts a download held for review or with a failed link under need attention only", async () => {
+ const base = { title: { id: 3, name: "Gamma" }, version: "tv-2160p", step: "", steps: [], words: "", progress: 100, created_at: "2026-11-01T12:00:00Z", updated_at: new Date().toISOString() };
+ mockFetch([...reviewRoutes,
+  { method: "GET", path: "/readyz", reply: { status: "ok" } },
+  { method: "GET", path: "/status", reply: status },
+  { method: "GET", path: "/jobs", reply: { items: [], counts: {} } },
+  { method: "GET", path: "/gateway", reply: { egress: { vpn_ok: true }, backoffs: [] } },
+  { method: "GET", path: "/health", reply: { checks: [] } },
+  { method: "GET", path: "/activity", reply: { now: [
+   { ...base, id: 1, state: "ready", import_state: "rejected" },
+   { ...base, id: 2, state: "importing", import_state: "failed" },
+   { ...base, id: 3, state: "downloading", progress: 40 },
+  ] } },
+ ]);
+ renderPage(<Overview />);
+ expect((await screen.findByTestId("dl-all")).textContent).toContain("1");
+ expect(screen.getByTestId("dl-attention").textContent).toContain("2");
 });

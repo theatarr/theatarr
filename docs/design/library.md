@@ -735,9 +735,10 @@ folder and, without manual files, only the files under the path. A path anywhere
   would mark dead, revive or repoint is recorded as `dry_run` actions, and no link or title state changes
   (`TestRelinkDeadWhileGated`).
   Every sweep records its dead links again, so the journal's `dead_link` review flag is raised once per finding (an
-  unbroken run of dead observations of the link; it ends when the link is seen working again), not once per sweep: a
-  repeat carries no flag, and settled flags (link gone,
-  repaired, working again, or superseded) can be acknowledged in bulk on Reviews (docs/journal.md "dead_link";
+  unbroken run of dead actions of the link; only a recovery action at its path or a dead action with another target
+  ends it, so a recovery that left no library action cannot start a new finding), not once per sweep: a
+  repeat carries no flag, and flags the action log proves
+  settled (repaired by an action, or superseded) can be acknowledged in bulk on Reviews (docs/journal.md "dead_link";
   `TestDeadLinkFlagsOncePerFinding`). The sweep itself, what it records and what it repairs or searches are unchanged.
 - **An implausible listing is a mount that is down** (`Mount.checkListing`). `Healthy` only stats
   `__all__`, and a zurg that restarted can serve it present but empty or half-loaded. So relink, the dangling report,
