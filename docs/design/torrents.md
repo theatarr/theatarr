@@ -4,7 +4,7 @@ A library view of every debrid account's torrents, like Debrid Media Manager's: 
 each torrent is used by, backups, restores and deleting the torrents a person picks. Migration
 `00078_torrent_journal.sql` (and `00093_torrent_restore_pending.sql`). Commands `theatarr torrents …`; API `/api/theatarr/v1/torrents/…` (admin); UI
 Admin › Torrents (`/admin/torrents`); backups and restore live at System › Backup (`/admin/system/backup`).
-The record of the accounts: migration `00129_provider_torrent.sql`.
+The record of the accounts: migration `00130_provider_torrent.sql`.
 
 Nothing here deletes on its own: there is no automatic cleanup. None of it needs `router.enabled`: a restore is not a
 grab. Reports read the record (below), backups read the providers (GET through the gateway, like the registry sync).
@@ -18,34 +18,42 @@ Sources (Admin › Connections) and Saved inventory read it instead of the provi
   complete listing gave it: provider, torrent id, hash, name, the torrent's own name when the listing gives it
   (TorBox's files), size, status, state, progress, added date, selected file count (`-1` when the listing has none)
   and download links. Two torrents of one hash on one account are two rows (the registry's `content_provider` keeps
-  one per hash). `provider_torrent_read` holds when that listing ended (`as_of`) and how many torrents it held.
+  one per hash). `provider_torrent_read` holds when that listing ended (`as_of`). Every count the screens show is
+  counted from the rows.
 - **Written by the provider sync** (providers.md "Registry sync"), every 6 hours by default and on Refresh: in the
   same transaction as the registry update, a provider's rows are replaced by its complete list and its time is set.
   A failed or discarded listing writes nothing: the previous record and its time stay, and the report names the
   error (`error`, `error_at`: the newest sync run failed after `as_of`). A dry run writes nothing either. A torrent
-  a delete removes leaves the record at once; restores and copies show up at the next sync or Refresh.
+  a delete removes leaves the record at once (the counts follow; `as_of` stays the last complete read); restores and
+  copies show up at the next sync or Refresh. A provider account changed or removed in Settings loses its record and
+  read time in the same commit that clears its registry rows, so the new account reads "never read" until a sync
+  lists it.
 - **Never read** (`never_read`, no `as_of`): the account has had no successful complete listing since the record
   exists (on an upgrade, until the first sync after it). That is not an empty account, which has an `as_of` and no
   torrents.
 - **Refresh** (`POST /torrents/refresh`, the page's **Refresh**): runs the provider sync now for every account with
   a key, back-off or not, and answers when it is done with the report from the record; an account whose listing
   failed keeps its record and carries the error, and `refresh_error` says the refresh did not complete for every
-  account. A failed account gets its retry job as after a scheduled sync. Nothing else about the scheduled sync
-  changes (interval, back-off, what it writes).
+  account. A failed account gets its retry job as after a scheduled sync, and the usage is worked out again
+  (below). The scheduled sync's interval and back-off do not change.
 - **Not the authority for a delete:** a delete lists the provider again and checks usage again (Delete selected,
   below); the record only says what to show.
 
 ### "Used", one answer
 
-The usage (below) is decided at read time from the record and the reference index (library links, arr files,
-downloads in flight, the scan roots' symlinks; `loadRefs`), for the Torrents page, Sources and Saved inventory
-alike: no backfill and no stored state (`content.state` stays the registry's own rule, providers.md). A hash's
-usage (Saved inventory) is used when any account torrent of it is used, else unknown when any is unknown, else
-unused; a hash no account holds in the record has none. Cost per page open: the record (one indexed read) plus the
-reference index as the Torrents page has always built it on each open: every library link, arr file, download and
-registry hash from the database, a walk of `torrents.scan_roots` (bounded, below), and decypharr's or zurg's listing
-when that mount is configured. No provider is called. Sources and Saved inventory build it once per request; it is
-not cached.
+The usage (below) is worked out once right after each provider sync (the scheduled job and its retries) and after
+Refresh, from the reference index (library links, arr files, downloads in flight, the scan roots' symlinks, the
+mount's listing; `loadRefs`, `StoreUsage`), and stored with the record: per account torrent (`usage`,
+`linked_files`, and the shown file count, references, titles and reasons in `detail`) and per hash
+(`provider_hash_usage`). So "used" is as of the same time as the record: a library link made since shows at the
+next sync or Refresh. The Torrents page, Sources and Saved inventory read that stored answer with plain indexed
+queries; a page open walks no scan root, reads no mount listing and calls no provider (`TestRecordReadsNothingLive`:
+about 30 ms for a report of 2,750 torrents in the test). `theatarr serve` also works it out once at start when the
+record has rows without it (a demo seed, or a sync run by `theatarr providers sync`); until then such a torrent is
+unknown. No backfill and no other stored state changes (`content.state` stays the registry's own rule,
+providers.md). A hash's usage (Saved inventory) is used when any account torrent of it is used, with the references
+of all of them united and counted once; else unknown when any is unknown; else unused. A hash no account holds in
+the record has none. Deletes never read the stored usage: they list the provider and check usage live.
 
 Counts name their unit: `account_torrents` (two of one hash count twice), `unique_hashes`, and `linked_files`
 (links: library links and scanned symlinks into a torrent). Names that arrive URL-encoded (TorBox's

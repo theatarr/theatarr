@@ -7,12 +7,12 @@ import (
 	"github.com/theatarr/theatarr/internal/store"
 )
 
-// 00129: the record of the accounts is two new tables; two torrents of one hash on one account are two rows, and
+// 00130: the record of the accounts is two new tables; two torrents of one hash on one account are two rows, and
 // content_provider is left as it was.
 func TestMigrationProviderTorrent(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	st := store.OpenAt(t, 128)
+	st := store.OpenAt(t, 129)
 	db := st.Writer()
 	const h = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	for _, q := range []string{
@@ -24,13 +24,13 @@ func TestMigrationProviderTorrent(t *testing.T) {
 			t.Fatalf("%s: %v", q, err)
 		}
 	}
-	if err := st.UpTo(ctx, 129); err != nil {
+	if err := st.UpTo(ctx, 130); err != nil {
 		t.Fatal(err)
 	}
 	for _, q := range []string{
 		`INSERT INTO provider_torrent (provider, torrent_id, info_hash, name) VALUES ('rd', 'R1', '` + h + `', 'X'),
 			('rd', 'R2', '` + h + `', 'X')`,
-		`INSERT INTO provider_torrent_read (provider, read_at, torrents) VALUES ('rd', 10, 2)`,
+		`INSERT INTO provider_torrent_read (provider, read_at) VALUES ('rd', 10)`,
 	} {
 		if _, err := db.ExecContext(ctx, q); err != nil {
 			t.Fatalf("%s: %v", q, err)

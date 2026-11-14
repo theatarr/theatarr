@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -137,33 +138,20 @@ type Report struct {
 	RefreshError string `json:"refresh_error,omitempty"`
 }
 
-// Report is every configured provider's torrents from the record (no provider is called), with each torrent's usage
-// decided now from the reference index, and the groups. A provider never listed completely is NeverRead; one whose
-// newest sync failed keeps its record and carries the error. Read-only.
+// Report is every configured provider's torrents from the record with their stored usage (worked out after the
+// last sync or Refresh), and the groups. No provider is called and no reference is read. A provider never listed
+// completely is NeverRead; one whose newest sync failed keeps its record and carries the error. Read-only.
 func (m *Manager) Report(ctx context.Context) (*Report, error) {
-	ix, err := m.loadRefs(ctx)
-	if err != nil {
-		return nil, err
-	}
 	rec, err := m.readRecord(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return m.build(ix, rec, true), nil
-}
-
-// build is the report of the record; full parses the names and fills the groups (the Torrents page), without it
-// only the usage is decided (RecordUsage).
-func (m *Manager) build(ix *refIndex, rec map[string]*recorded, full bool) *Report {
 	now := m.now()
-	r := &Report{GeneratedAt: now, Unknown: ix.unknown, Unused: []Member{}, DuplicateHash: []Group{},
+	r := &Report{GeneratedAt: now, Unused: []Member{}, DuplicateHash: []Group{},
 		DuplicateTitle: []Group{}, Failed: []Member{}, Stalled: []Member{}, Largest: []Member{}}
 	for _, k := range m.keys() {
 		pr := ProviderReport{Provider: k, Kind: m.kind(k), Torrents: []Torrent{}}
 		rc := rec[k]
-		if rc == nil {
-			rc = &recorded{}
-		}
 		if rc.failed != "" {
 			pr.Error, pr.ErrorAt = rc.failed, &rc.failedAt
 		}
@@ -175,9 +163,14 @@ func (m *Manager) build(ix *refIndex, rec map[string]*recorded, full bool) *Repo
 			r.Providers = append(r.Providers, pr)
 			continue
 		}
+		for _, u := range rc.unknown {
+			if !slices.Contains(r.Unknown, u) {
+				r.Unknown = append(r.Unknown, u)
+			}
+		}
 		pr.OK, pr.AsOf = true, &rc.at
-		for _, lt := range rc.list {
-			t := ix.torrent(k, lt.Torrent, lt.files, now, full)
+		for _, t := range rc.list {
+			t.setGroups(now)
 			pr.AccountTorrents++
 			pr.Bytes += t.Bytes
 			switch t.Usage {
@@ -198,15 +191,13 @@ func (m *Manager) build(ix *refIndex, rec map[string]*recorded, full bool) *Repo
 		pr.NearLimit = policy.NearTorrentLimit(pr.AccountTorrents, pr.Limit)
 		r.Providers = append(r.Providers, pr)
 	}
-	if full {
-		r.group()
-	}
-	return r
+	r.group()
+	return r, nil
 }
 
-// torrent is lt (with files, its selected file count from the listing, -1 when it had none) with its usage and,
-// with parse, its parsed title (from its display name).
-func (ix *refIndex) torrent(key string, lt provider.Torrent, files int, now time.Time, parse bool) Torrent {
+// torrent is lt (with files, its selected file count from the listing, -1 when it had none) with its usage and its
+// parsed title (from its display name): what StoreUsage keeps.
+func (ix *refIndex) torrent(key string, lt provider.Torrent, files int, now time.Time) Torrent {
 	h := indexer.NormalizeHash(lt.Hash)
 	if h == "" {
 		h = strings.ToLower(lt.Hash)
@@ -222,20 +213,22 @@ func (ix *refIndex) torrent(key string, lt provider.Torrent, files int, now time
 	}
 	t.Usage, t.Refs, t.RefList, t.Reasons, t.Titles = ix.usage(key, lt)
 	t.LinkedFiles = t.Refs[RefLink] + t.Refs[RefScan]
-	if parse {
-		t.titleKey, t.Parsed, t.Quality = parseName(t.Name, now.Year())
-	}
+	t.titleKey, t.Parsed, t.Quality = parseName(t.Name, now.Year())
+	return t
+}
+
+// setGroups puts t in the unused, failed and stalled groups (stalled as of now).
+func (t *Torrent) setGroups(now time.Time) {
 	if t.Usage == Unused {
 		t.Groups = append(t.Groups, GroupUnused)
 	}
-	if lt.State == provider.StateError {
+	if t.State == provider.StateError {
 		t.Groups = append(t.Groups, GroupFailed)
 	}
-	if (lt.State == provider.StateQueued || lt.State == provider.StateDownloading) && !lt.Added.IsZero() &&
-		now.Sub(lt.Added) > StalledAfter {
+	if (t.State == provider.StateQueued || t.State == provider.StateDownloading) && !t.Added.IsZero() &&
+		now.Sub(t.Added) > StalledAfter {
 		t.Groups = append(t.Groups, GroupStalled)
 	}
-	return t
 }
 
 // group fills the report's groups and each torrent's Groups.

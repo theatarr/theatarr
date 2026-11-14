@@ -58,9 +58,8 @@ func (s *seeder) record() {
 			added_at, files, links) SELECT cp.provider, cp.torrent_id, c.info_hash, cp.folder_name, COALESCE(cp.size_bytes, 0),
 			'downloaded', 'downloaded', 100, cp.added_at, -1, COALESCE(cp.links, -1) FROM content_provider cp
 			JOIN content c ON c.id = cp.content_id WHERE cp.provider = ? AND cp.state = 'present'`, p)
-		s.exec(`INSERT INTO provider_torrent_read (provider, read_at, torrents) SELECT ?, MAX(finished_at),
-			(SELECT COUNT(*) FROM provider_torrent WHERE provider = ?) FROM provider_sync_run WHERE provider = ? AND ok = 1`,
-			p, p, p)
+		s.exec(`INSERT INTO provider_torrent_read (provider, read_at) SELECT ?, MAX(finished_at) FROM provider_sync_run
+			WHERE provider = ? AND ok = 1`, p, p)
 	}
 }
 

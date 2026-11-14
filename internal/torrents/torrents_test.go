@@ -230,9 +230,13 @@ func (e *env) record() {
 	}
 }
 
-// report is the report after recording the fakes' lists (record).
+// report is the report after recording the fakes' lists (record) and working out their usage (StoreUsage), as a
+// sync in serve does.
 func (e *env) report(ctx context.Context) (*Report, error) {
 	e.record()
+	if err := e.m.StoreUsage(ctx); err != nil {
+		return nil, err
+	}
 	return e.m.Report(ctx)
 }
 

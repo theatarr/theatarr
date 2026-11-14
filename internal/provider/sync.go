@@ -444,7 +444,7 @@ func applyList(ctx context.Context, tx *sql.Tx, key string, list []Torrent, cont
 	return created, nil
 }
 
-// WriteRecord replaces provider key's rows of the record (provider_torrent, migration 00129) with its complete list,
+// WriteRecord replaces provider key's rows of the record (provider_torrent, migration 00130) with its complete list,
 // every torrent as listed (two of one hash are two rows), and sets the time of that read. It runs in the sync's
 // transaction, so a failed listing or a failed registry update leaves the previous record and its time.
 func WriteRecord(ctx context.Context, tx *sql.Tx, key string, list []Torrent, now int64) error {
@@ -485,9 +485,22 @@ func WriteRecord(ctx context.Context, tx *sql.Tx, key string, list []Torrent, no
 			return err
 		}
 	}
-	_, err = tx.ExecContext(ctx, `INSERT INTO provider_torrent_read (provider, read_at, torrents) VALUES (?, ?, ?)
-		ON CONFLICT (provider) DO UPDATE SET read_at = excluded.read_at, torrents = excluded.torrents`,
-		key, now, len(list))
+	_, err = tx.ExecContext(ctx, `INSERT INTO provider_torrent_read (provider, read_at) VALUES (?, ?)
+		ON CONFLICT (provider) DO UPDATE SET read_at = excluded.read_at`, key, now)
+	return err
+}
+
+// ClearRecord removes provider key's record and its read time (an account changed or removed by settings): the
+// account reads "never read" until a sync lists it. Hash usages no account holds any more go too.
+func ClearRecord(ctx context.Context, tx *sql.Tx, key string) error {
+	for _, q := range []string{`DELETE FROM provider_torrent WHERE provider = ?`,
+		`DELETE FROM provider_torrent_read WHERE provider = ?`} {
+		if _, err := tx.ExecContext(ctx, q, key); err != nil {
+			return err
+		}
+	}
+	_, err := tx.ExecContext(ctx, `DELETE FROM provider_hash_usage
+		WHERE info_hash NOT IN (SELECT info_hash FROM provider_torrent)`)
 	return err
 }
 

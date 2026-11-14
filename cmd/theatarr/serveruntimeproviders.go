@@ -111,6 +111,12 @@ func (r *serveRuntime) CommitSettings(ctx context.Context, tx *sql.Tx) error {
 			return err
 		}
 	}
+	// The record of a changed or removed account (docs/design/torrents.md "The record") is the old account's.
+	for _, key := range append(append([]string(nil), c.changed...), c.removed...) {
+		if err := provider.ClearRecord(ctx, tx, key); err != nil {
+			return err
+		}
+	}
 	if c.advancesEpoch() {
 		if err := settings.IncrementProviderEpoch(ctx, tx); err != nil {
 			return err

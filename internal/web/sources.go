@@ -62,7 +62,7 @@ type ProviderSource struct {
 	// Counts are the registry's hashes for this provider by content_provider.state: present and absent.
 	Counts map[string]int `json:"counts"`
 	// Record is the account in the record (the Torrents page's): when it was read, its account torrents and unique
-	// hashes, and their usage from the Torrents page's reference index. Absent when the torrent manager is not running.
+	// hashes, and their stored usage (worked out after the same sync).
 	Record     *torrents.ProviderRecord `json:"record,omitempty"`
 	LastSync   *ProviderSync            `json:"last_sync,omitempty"`
 	LastOKSync *time.Time               `json:"last_ok_sync,omitempty"`
@@ -128,7 +128,6 @@ func (w *Web) sources(ctx context.Context) (Sources, error) {
 	}
 	db := w.st.Reader()
 	since := w.now().Add(-24 * time.Hour).UnixMilli()
-	usage := w.recordUsage(ctx)
 	for _, k := range sortedKeys(w.pol.Providers) {
 		p := w.pol.Providers[k]
 		ps := ProviderSource{Key: k, Kind: p.Kind, Order: p.Order, Budget: p.Budget,
@@ -147,11 +146,11 @@ func (w *Web) sources(ctx context.Context) (Sources, error) {
 			}); err != nil {
 			return out, err
 		}
-		if usage != nil {
-			if rec, ok := usage.Providers[k]; ok {
-				ps.Record = &rec
-			}
+		rec, rerr := torrents.ReadProviderRecord(ctx, db, k)
+		if rerr != nil {
+			return out, rerr
 		}
+		ps.Record = &rec
 		var run ProviderSync
 		var s, f int64
 		var ok int
@@ -235,26 +234,4 @@ func (w *Web) mountAdminAPI(mux *http.ServeMux) {
 	w.handle(mux, "GET "+APIBase+"/logs/files/{name}", SignedIn, auth.PermAdmin, w.apiLogFile)
 	w.handle(mux, "GET "+APIBase+"/logs/level", SignedIn, auth.PermAdmin, w.apiLogLevel)
 	w.handle(mux, "PUT "+APIBase+"/logs/level", SignedIn, auth.PermAdmin, w.apiLogLevel)
-}
-
-// recordUsage is the Torrents page's "used" for Sources and Saved inventory (torrents.Manager.RecordUsage: the record
-// with the reference index, decided at read time). nil when the torrent manager is not running or cannot answer
-// (logged): the callers then leave the usage out.
-func (w *Web) recordUsage(ctx context.Context) *torrents.RecordUsage {
-	if w.torrents == nil {
-		return nil
-	}
-	if w.captureRuntime != nil {
-		ctx = w.captureRuntime(ctx)
-	}
-	m, err := w.torrents.Manager(ctx)
-	if err != nil {
-		return nil
-	}
-	u, err := m.RecordUsage(ctx)
-	if err != nil {
-		w.log.Warn("torrents: usage from the record", "err", err)
-		return nil
-	}
-	return u
 }

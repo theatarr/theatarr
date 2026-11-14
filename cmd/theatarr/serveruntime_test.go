@@ -186,10 +186,29 @@ func TestProviderAccountChangeDeletesOnlyItsContentRows(t *testing.T) {
 		(7, 'rd', 'rd-old', 0), (8, 'tb', 'tb-old', 0)`); err != nil {
 		t.Fatal(err)
 	}
+	// The record of the accounts: rd's is the old account's and goes, so rd reads "never read".
+	if _, err := db.Writer().Exec(`INSERT INTO provider_torrent (provider, torrent_id, info_hash) VALUES
+		('rd', 'rd-old', ?), ('tb', 'tb-old', ?)`, strings.Repeat("c", 40), strings.Repeat("d", 40)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Writer().Exec(`INSERT INTO provider_torrent_read (provider, read_at) VALUES ('rd', 1), ('tb', 1)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Writer().Exec(`INSERT INTO provider_hash_usage (info_hash, usage) VALUES (?, 'used'), (?, 'used')`,
+		strings.Repeat("c", 40), strings.Repeat("d", 40)); err != nil {
+		t.Fatal(err)
+	}
 	if err := db.WriteTx(ctx, func(tx *sql.Tx) error {
 		return (&serveRuntime{Continuity: &providerContinuity{changed: []string{"rd"}}}).CommitSettings(ctx, tx)
 	}); err != nil {
 		t.Fatal(err)
+	}
+	if eCount(db, "SELECT COUNT(*) FROM provider_torrent WHERE provider = 'rd'") != 0 ||
+		eCount(db, "SELECT COUNT(*) FROM provider_torrent_read WHERE provider = 'rd'") != 0 ||
+		eCount(db, "SELECT COUNT(*) FROM provider_torrent WHERE provider = 'tb'") != 1 ||
+		eCount(db, "SELECT COUNT(*) FROM provider_torrent_read WHERE provider = 'tb'") != 1 ||
+		eCount(db, "SELECT COUNT(*) FROM provider_hash_usage") != 1 {
+		t.Fatal("a changed account's record and read time go; the others stay")
 	}
 	if n := eCount(db, "SELECT COUNT(*) FROM content_provider WHERE provider = 'rd'"); n != 0 ||
 		eCount(db, "SELECT COUNT(*) FROM content_provider WHERE provider = 'tb'") != 1 ||

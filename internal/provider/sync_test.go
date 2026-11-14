@@ -592,8 +592,8 @@ func TestSyncWritesRecord(t *testing.T) {
 		t.Helper()
 		var at int64
 		var n int
-		if err := e.st.Reader().QueryRow(`SELECT read_at, torrents FROM provider_torrent_read WHERE provider = ?`, p).
-			Scan(&at, &n); err != nil {
+		if err := e.st.Reader().QueryRow(`SELECT read_at, (SELECT count(*) FROM provider_torrent WHERE provider = ?)
+			FROM provider_torrent_read WHERE provider = ?`, p, p).Scan(&at, &n); err != nil {
 			t.Fatalf("%s read: %v", p, err)
 		}
 		return at, n

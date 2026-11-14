@@ -13,9 +13,9 @@
 //
 // # The record
 //
-// Reports read the record (record.go: provider_torrent, written by the provider sync), never the providers; Refresh
-// runs the sync now. Sources and Saved inventory take their "used" from the same record and reference index
-// (RecordUsage).
+// Reports read the record (record.go: provider_torrent, written by the provider sync) with the usage worked out
+// once after each sync and Refresh (StoreUsage), never the providers or the references; Refresh runs the sync now.
+// Sources and Saved inventory read the same stored answer (ReadProviderRecord, HashUsages).
 //
 // # Writes
 //

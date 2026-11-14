@@ -70,3 +70,18 @@ func (s *serveTorrents) Manager(ctx context.Context) (*torrents.Manager, error) 
 	}
 	return m, nil
 }
+
+// storeTorrentUsage works out and stores the usage of the record of the debrid accounts (torrents.Manager.StoreUsage)
+// after a provider sync; a failure is logged, and the screens keep the usage of the last time it worked.
+func storeTorrentUsage(ctx context.Context, s *serveTorrents, log *slog.Logger) {
+	if s == nil {
+		return
+	}
+	m, err := s.Manager(ctx)
+	if err == nil {
+		err = m.StoreUsage(ctx)
+	}
+	if err != nil {
+		log.Warn("torrents: working out the usage of the record", "err", err)
+	}
+}

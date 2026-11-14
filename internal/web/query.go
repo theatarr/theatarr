@@ -674,8 +674,8 @@ type Content struct {
 	Versions    []CVersion `json:"versions"`
 	ArrFiles    []ArrFile  `json:"arr_files"`
 	Links       []Link     `json:"links"`
-	// Usage is the Torrents page's answer for this hash from the record (used, unused or unknown, with its
-	// references); absent when no account holds it in the record or the torrent manager is not running.
+	// Usage is the Torrents page's stored answer for this hash (used, unused or unknown, with its references, as of
+	// the record); absent when no account holds it in the record.
 	Usage *torrents.HashUsage `json:"usage,omitempty"`
 }
 
@@ -819,10 +819,12 @@ func (w *Web) getContent(ctx context.Context, hash string) (*Content, error) {
 			return nil, err
 		}
 	}
-	if u := w.recordUsage(ctx); u != nil {
-		if hu, ok := u.Hashes[c.InfoHash]; ok {
-			c.Usage = &hu
-		}
+	us, err := torrents.HashUsages(ctx, db, []string{c.InfoHash})
+	if err != nil {
+		return nil, err
+	}
+	if hu, ok := us[c.InfoHash]; ok {
+		c.Usage = &hu
 	}
 	return c, nil
 }
@@ -877,11 +879,14 @@ func (w *Web) listContent(ctx context.Context, q, state string, limit, offset in
 	if err != nil || len(out) == 0 {
 		return out, total, err
 	}
-	if u := w.recordUsage(ctx); u != nil {
-		for i := range out {
-			if hu, ok := u.Hashes[normHash(out[i].InfoHash)]; ok {
-				out[i].Usage, out[i].LinkedFiles = hu.Usage, hu.LinkedFiles
-			}
+	hashes := make([]string, len(out))
+	for i := range out {
+		hashes[i] = normHash(out[i].InfoHash)
+	}
+	us, err := torrents.HashUsages(ctx, w.st.Reader(), hashes)
+	for i := range out {
+		if hu, ok := us[hashes[i]]; ok {
+			out[i].Usage, out[i].LinkedFiles = hu.Usage, hu.LinkedFiles
 		}
 	}
 	return out, total, err
