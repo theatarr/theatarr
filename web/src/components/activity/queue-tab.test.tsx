@@ -182,3 +182,15 @@ it("says when the download ?open= names has left the queue", async () => {
   show([], "/activity?open=99");
   expect((await screen.findByTestId("open-missing")).textContent).toContain("Download 99 is no longer in the queue");
 });
+
+it("keeps a not-started row's own words, with no reason or release line", async () => {
+  const notStarted = { ...base, id: 40, title: { id: 4, name: "Delta", kind: "movie", poster: "" }, state: "failed", not_started: true, words: "Not started", detail: "Downloads were off when it was due to start", error: "downloads were off", release: "Delta.2026.1080p", info_hash: "dd" };
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: me },
+    { method: "GET", path: "/activity", reply: { state: "now", admin: true, total: 1, now: [notStarted] } },
+  ]);
+  renderPage(<QueueTab admin show="all" onShow={() => {}} />, "/activity");
+  const row = await screen.findByTestId("download");
+  expect(within(row).getByTestId("words").textContent).toBe("Downloads were off when it was due to start");
+  expect(within(row).queryByTestId("failed-release")).toBeNull();
+});

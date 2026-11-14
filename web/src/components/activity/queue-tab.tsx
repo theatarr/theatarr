@@ -135,7 +135,7 @@ function DownloadDetails({ d }: { d: ActivityDownload }) {
 
 /** Whether the row's message (its error) is its reason: a failed download, or a link the library refused or that
  * failed. */
-const failedWhy = (d: ActivityDownload) => d.state === "failed" || d.import_state === "rejected" || d.import_state === "failed";
+const failedWhy = (d: ActivityDownload) => (d.state === "failed" && !d.not_started) || d.import_state === "rejected" || d.import_state === "failed";
 
 function Stage({ d, admin, attention }: { d: ActivityDownload; admin: boolean; attention: boolean }) {
   const label = stageLabel(d);

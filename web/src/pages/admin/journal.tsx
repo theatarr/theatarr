@@ -84,6 +84,8 @@ export function JournalList() {
   // change of the URL's filters, by the controls or a link, starts at the newest page.
   const filterKey = `${suspect}|${kind}|${urlTitle}`;
   const [paging, setPaging] = useState<{ key: string; cursors: string[] }>({ key: filterKey, cursors: [] });
+  // A new filter key drops the stored cursors, so going back to an earlier filter starts at its newest page too.
+  if (paging.key !== filterKey) setPaging({ key: filterKey, cursors: [] });
   const cursors = paging.key === filterKey ? paging.cursors : [];
   const setCursors = (c: string[]) => setPaging({ key: filterKey, cursors: c });
   const cursor = cursors[cursors.length - 1];

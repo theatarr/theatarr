@@ -171,7 +171,7 @@ export function WantedPage() {
     what: { id: "what", label: "What", cell: row => targetWords(row.targets) },
     next: { id: "next", label: "Next search", cell: row => <NextSearch row={row} state={states.get(row.version)} off={off} admin={perms.admin} /> },
     // The decision behind the last search sits with it, so the row's actions keep their place.
-    last: { id: "last", label: "Last search", cell: row => <>{row.last_run ? <span title={fmtTime(row.last_run.at)}>{fmtAgo(row.last_run.at)} · </span> : null}{searchResult(row.last_run, row.waiting === "in_flight" || row.search_blocked === "in_flight" ? undefined : only)}{row.decision_id && perms.admin ? <> · <Link className="text-primary hover:underline" to={journalLink(String(row.decision_id))}>Decision</Link></> : null}</> },
+    last: { id: "last", label: "Last search", cell: row => <>{row.last_run ? <span title={fmtTime(row.last_run.at)}>{fmtAgo(row.last_run.at)} · </span> : null}{searchResult(row.last_run, row.waiting === "in_flight" || row.waiting === "downloads_off" ? undefined : only)}{row.decision_id && perms.admin ? <> · <Link className="text-primary hover:underline" to={journalLink(String(row.decision_id))}>Decision</Link></> : null}</> },
   };
   const columns: DataColumn<WantedRow>[] = [
     { id: "title", label: "Title", cell: titleLink, card: "none", cellClassName: "min-w-[10rem]" },

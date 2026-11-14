@@ -24,7 +24,7 @@ export const journalKindWords = (k: string | null | undefined) => wordsFor(KINDS
 export const JOURNAL_KINDS = ["grab", "upgrade", "plan", "search", "research", "failure", "stall", "blocklist", "import", "link", "verdict"] as const;
 
 const SOURCES: Record<string, string> = {
-  theatarr: "Theatarr's search",
+  theatarr: "Theatarr",
   router: "Download router",
   library: "Library",
   web: "Web UI",
@@ -35,7 +35,7 @@ const SOURCES: Record<string, string> = {
   ready_timeout: "Ready timeout",
 };
 
-/** Who wrote an entry: "theatarr" → "Theatarr's search"; "arr:radarr_4k" → "Radarr (radarr_4k)". */
+/** Who wrote an entry: "theatarr" → "Theatarr"; "arr:radarr_4k" → "Radarr (radarr_4k)". */
 export function journalSourceWords(s: string | null | undefined): string {
   const inst = s?.startsWith("arr:") ? s.slice(4) : "";
   if (inst) return `${inst.includes("sonarr") ? "Sonarr" : inst.includes("radarr") ? "Radarr" : "Sonarr/Radarr"} (${inst})`;

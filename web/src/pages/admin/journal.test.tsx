@@ -75,7 +75,7 @@ it("words kinds, sources and flags, keeping the codes as tooltips", async () => 
   renderPage(<JournalList />, "/activity/journal");
   const row = await screen.findByTestId("journal-row");
   expect(within(row).getAllByText("Search after a failure")[0].getAttribute("title")).toBe("research");
-  expect(within(row).getByText("Theatarr's search").getAttribute("title")).toBe("theatarr");
+  expect(within(row).getByText("Theatarr").getAttribute("title")).toBe("theatarr");
   expect(within(row).getAllByText("Dead link")[0].getAttribute("title")).toBe("dead_link");
   expect(within(row).queryByText("dead_link")).toBeNull();
   expect(screen.getByRole("option", { name: "All kinds" })).toBeTruthy();
@@ -93,4 +93,19 @@ it("keeps the title box in step with the URL when a link drops the filter", asyn
   await screen.findByText(/No entries yet/);
   expect(box.value).toBe("");
   expect(fetch.calls("GET", "/journal").at(-1)!.search).not.toContain("title=");
+});
+
+it("starts at the newest page when the filter comes back to one paged before", async () => {
+  const fetch = mockFetch([
+    { method: "GET", path: "/journal", reply: { items: [{ id: "dl:1", kind: "grab", source: "theatarr", at: "2026-11-07T10:00:00Z", title: { id: 3, name: "Ferrous Bay" }, summary: "s" }], next_cursor: "c1" } },
+    { method: "GET", path: "/status", reply: {} },
+  ]);
+  renderPage(<JournalList />, "/activity/journal");
+  await screen.findByTestId("journal-row");
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("button", { name: "Older" }));
+  await user.click(screen.getByTestId("journal-suspect"));
+  await user.click(screen.getByRole("button", { name: "All" }));
+  await screen.findByTestId("journal-row");
+  expect(fetch.calls("GET", "/journal").at(-1)!.search).not.toContain("cursor=");
 });
