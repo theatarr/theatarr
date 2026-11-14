@@ -311,32 +311,31 @@ differences only:
 - **The candidates** are the hashes of the removed copies' links (active or dead), their arr files and their
   downloads not failed, read before the removal, each with the removed libraries it belongs to. A hash a link that
   stayed names (refused, failed, shared with a current library, not a symlink), one sharing a staying link's target,
-  or an arr file left names is dropped; a staying link with no hash drops every candidate of its library. The shared
-  check is made again right before each unlink.
-- **It waits** (at most 10 minutes) for copies to other providers adding or checking one of them to settle; one still
-  unsettled is kept. A removed library restored (an Add) since keeps its torrents ("restored before the clean-up
-  ran"): checked after the wait and again right before each delete, under the fence.
-- **Every configured provider is listed** now; if any listing fails, nothing is deleted anywhere ("torrents not
-  cleaned up: could not read RD").
-- **Only Theatarr's own adds go:** an entry is taken only with own-add evidence for that provider and torrent id (a
-  download of ours that was not a reuse, or a copy of ours that was not on the account before). An entry Theatarr
-  reused, one on the account before, or one whose ownership is unknown is kept ("it was on the account before
-  Theatarr added it"); Torrents › Unused can still delete it.
-- **Usage** is planned as in step 3, fresh: a torrent another title or library links, a download in hand, a file of
-  the removed title that was kept or a configured other library's folder (`torrents.scan_roots`) uses is kept. No
-  override is ever given, except for a torrent unknown only because the registry has not synced its hash yet (a
-  fresh add of ours). Any other unknown is kept.
-- **Recent or busy** (step 4): the 24-hour guard is lifted for these torrents; the still-downloading guard only for
-  our own add (the removal ended its download). The Torrents page's `allow_recent` is unchanged.
+  or an arr file left names is dropped; a staying link or arr file with no hash drops every candidate of its library.
+  The shared check is made again right before each unlink.
+- **A removed library restored** (an Add) since keeps its torrents ("restored before the clean-up ran"): checked
+  first, and again right before each delete under the fence (the deletes are paced, so a restore can land between
+  them).
+- **One read, as Torrents › Refresh does it:** the provider sync lists every account and writes the record and the
+  registry, then the usage is worked out. If any provider's listing fails, nothing is deleted anywhere ("torrents
+  not cleaned up: could not read RD"). Planning and the backup use those lists; nothing is listed again.
+- **Only Theatarr's own adds go:** an entry is taken only with a positive own-add mark (`download.own_add = 1`: the
+  router saw the hash absent and a new id at the add) for the same provider, torrent id and hash, in the current
+  provider epoch (the account the id belongs to). Anything else is kept ("Theatarr cannot tell that it added it"): a
+  reuse, AllDebrid handing back an existing magnet, a reconciled entry, an id that holds another hash now, another
+  account epoch, and a copy to another provider (its rows carry no epoch). Torrents › Unused can still delete them.
+- **Usage:** the normal plan rules (step 3, fresh): a torrent another title or library links, a download in hand, a
+  file of the removed title that was kept or a configured other library's folder (`torrents.scan_roots`) uses is
+  kept, and so is any torrent whose usage is unknown. No override is given.
+- **Recent or busy** (step 4): `allow_recent` lifts both guards, and only our own adds are selected.
 - Steps 6 to 9 run unchanged, except that the backup must hold every provider's complete list (no backup, no delete:
-  "torrents not cleaned up: backup failed (RD, …)").
+  "torrents not cleaned up: backup failed (TB)", naming the provider whose backup failed).
 - At most 200 torrents go per removal; the rest are kept and said so ("see Torrents › Unused").
-- **The outcome** of each removed library's own torrents ("deleted on RD, TB"; "kept on AD: used by <title>"; "TB:
-  failed, <reason>") goes into that library's Removed event (`journal.Removal.Cleanup`), which History shows. Nothing
-  is retried (`TestDeleteForRemoval`, `TestRemovalDeleteNeedsOwnershipWhileDownloading`,
-  `TestDeleteForRemovalBackupFails`, `TestDeleteForRemovalNeedsACompleteBackup`, `TestDeleteForRemovalProviderErrors`,
-  `TestDeleteForRemovalWaitsForMidAddCopy`, `TestDeleteForRemovalKeepsARestoredLibrary`,
-  `TestDeleteForRemovalSaysWhatItLeftOver`).
+- **The outcome** of each removed library's own torrents ("deleted on RD"; "kept on AD: used by <title>"; "TB:
+  failed, <reason>"; "torrents of the files that stay kept") goes into that library's Removed event
+  (`journal.Removal.Cleanup`), which History shows. Nothing is retried (`TestDeleteForRemoval`,
+  `TestDeleteForRemovalNeedsProvenOwnership`, `TestDeleteForRemovalBackupFails`, `TestDeleteForRemovalProviderErrors`,
+  `TestDeleteForRemovalKeepsARestoredLibrary`, `TestDeleteForRemovalSaysWhatItLeftOver`).
 
 A removal also stops queued copies to other providers that no current copy of any title wants (a download in hand,
 an active link or an arr file of a version not removed), and an interrupted add whose torrent never landed is not

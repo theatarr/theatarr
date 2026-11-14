@@ -388,8 +388,8 @@ Left as before, on purpose:
   `deleteFiles` omitted or `false` keeps the files and the torrents (as Radarr and Sonarr default); `true` (Seerr
   sends it) is the web UI's removal with "Also delete the files and clean up the debrid torrents": Theatarr links in
   the versions' own library roots go through the library trash gate, dead ones too, and the folders they leave
-  empty go, strictly below the library root; then, after the answer, the torrents nothing else uses are deleted from
-  the providers (torrents.md "Removal clean-up"). Every link is checked before anything changes, and a closed gate
+  empty go, strictly below the library root; then, after the answer, the torrents Theatarr itself added that nothing
+  else uses are deleted from the providers (torrents.md "Removal clean-up"). Every link is checked before anything changes, and a closed gate
   or refused path answers 409 with the title and links intact.
   Each version is unmonitored and listed in `arrview_removed_version`, which every view hides; the version row, its
   history and arr records stay (the view's own `arrview_title` row goes, the libraries' rows keep everything but the

@@ -80,9 +80,10 @@ describe("recovery scopes", () => {
     expect(keep.cleanup).toEqual({ text: "To free space at the provider, delete torrents nothing uses any more under", label: "Admin › Torrents (the Unused filter)", to: "/admin/torrents", admin: true });
     const files = removalScope(one, true);
     expect(files.does).toContain("2 library files are deleted from the library (moved to Theatarr's trash), with the folders left empty");
-    expect(files.does).toContain("Their debrid torrents are deleted from the providers after a backup, unless another title, library or download still uses them");
+    expect(files.does).toContain("The debrid torrents Theatarr itself added for it are deleted from the providers after a backup, when nothing else uses them");
     expect(files.keeps).toEqual([
       "A file another library of the title uses stays",
+      "Torrents that were already on the account stay; Admin › Torrents lists them under Unused",
       "Its history stays",
       "Import lists will not restore the removed libraries; add it yourself to bring it back",
     ]);
@@ -114,7 +115,7 @@ describe("recovery scopes", () => {
     expect(s.confirm).toBe("Delete files");
     expect(s.does).toEqual([
       "2 library files of removed libraries are deleted from the library (moved to Theatarr's trash)",
-      "Their debrid torrents are deleted from the providers after a backup, unless another title, library or download still uses them",
+      "The debrid torrents Theatarr itself added for it are deleted from the providers after a backup, when nothing else uses them",
     ]);
     const one = { name: "Dune", title: true, copies: [{ key: "movie-remux", label: "4K Remux", links: 1, downloads: 0 }], leftover: [left] };
     expect(removalLinks(one)).toBe(3);

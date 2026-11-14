@@ -129,7 +129,8 @@ export function removalLinks(s: RemovalScopeLike): number {
 }
 
 /** The torrent clean-up a removal with the files does, and its guard. */
-export const REMOVAL_CLEANUP = "Their debrid torrents are deleted from the providers after a backup, unless another title, library or download still uses them";
+export const REMOVAL_CLEANUP = "The debrid torrents Theatarr itself added for it are deleted from the providers after a backup, when nothing else uses them";
+export const REMOVAL_ACCOUNT_TORRENTS = "Torrents that were already on the account stay; Admin › Torrents lists them under Unused";
 export const REMOVAL_LISTS = "Import lists will not restore the removed libraries; add it yourself to bring it back";
 
 /** The removal dialog's scope. files: "Also delete the files and clean up the debrid torrents" (the dialog's box). */
@@ -143,7 +144,7 @@ export function removalScope(s: RemovalScopeLike, files: boolean): Scope {
         `${plural(leftover, "library file")} of removed libraries ${leftover === 1 ? "is" : "are"} deleted from the library (moved to Theatarr's trash)`,
         REMOVAL_CLEANUP,
       ],
-      keeps: ["A file another library of the title uses stays", "The libraries stay removed; its history stays"],
+      keeps: ["A file another library of the title uses stays", REMOVAL_ACCOUNT_TORRENTS, "The libraries stay removed; its history stays"],
       confirm: "Delete files",
     };
   }
@@ -159,7 +160,7 @@ export function removalScope(s: RemovalScopeLike, files: boolean): Scope {
   if (files) does.push(REMOVAL_CLEANUP);
   const keeps = [
     ...(files
-      ? ["A file another library of the title uses stays"]
+      ? ["A file another library of the title uses stays", REMOVAL_ACCOUNT_TORRENTS]
       : [
           ...(links === 0 ? [] : [`${plural(links, "library file")} ${links === 1 ? "stays" : "stay"} linked and playable`]),
           "Its debrid torrents stay",
