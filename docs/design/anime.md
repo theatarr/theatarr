@@ -116,7 +116,14 @@ season (one cour), the decision covers only those regular episodes, keeping the 
 entry split into parts, `al:N#1..k`, the AniList entry `al:N` they share: files never map through one part). A pack
 for one cour cannot take the rest of the season's episode slots (`TestSeaDexEntryCoversOnlyItsCour`). An entry whose
 mapping (or a split part's) is not importable does not narrow the pack: TVDB's numbering takes the season
-(`TestSeaDexUnreviewedEntryUsesSonarrNumbering`).
+(`TestSeaDexUnreviewedEntryUsesSonarrNumbering`). When SeaDex lists the same info hash under several entries (a
+whole-season batch listed under each of its cours), the release carries all of them (`seadex_entries`, collected by
+the seadex indexer before it keeps one listing per hash, and from the stored standing with Prefer SeaDex), and when at
+least two of them are importable and map into the pack's season, the decision covers the union of their regular
+episodes in that season, and the size limits apply to that union (`anime_mapping: season:<n>`, no entry). Its files then
+take that season's numbering: a file numbered 13 is SnnE13, never one cour's 13th episode
+(`TestSeaDexBatchUnderSeveralCoursCoversTheSeason`, `TestSeaDexBatchEntriesFromStanding`). A hash listed under one
+entry is unchanged.
 
 Then every episode only non-importable ranges cover, and every episode of a release that named a non-importable
 entry (step 2 or a SeaDex pack), is listed in the decision's `anime_fallback` with the entry and its status

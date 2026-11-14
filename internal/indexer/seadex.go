@@ -38,8 +38,9 @@ import (
 //     is told to the ranking through seeders: 1000 for a preferred Nyaa entry, 10 for the others (the arrs compare
 //     seeders on a log scale after quality and score). The recent feed prefers best entries, as seadexerr's does.
 //   - Every entry carries seadexerr's rare indexer flag combination (download factor 0.75, upload factor 2,
-//     internal, scene), so an arr-style "Seadex" format requiring all four (the one the arr profiles score +5000)
-//     matches exactly the releases it matches in the arrs.
+//     internal, scene), as in the arrs. Deliberate deviation: the decider builds an arr-style "Seadex" format
+//     requiring all four (the one the arr profiles score +5000) as SeaDex best (format.SeaDexBestForSeaDexerr), so
+//     it scores SeaDex's best torrent wherever it was found, and not alternatives.
 //   - The AniList id comes from the query, else from the service's resolver (TVDB id and season, or TMDb/IMDb id
 //     for a movie), as seadexerr maps them through anibridge.
 //   - Titles retain seadexerr's mapped identity and record id, but use the feature filenames' actual quality
@@ -68,6 +69,34 @@ const (
 	FlagSeaDexBest      = "seadex-best"
 	FlagSeaDexPreferred = "seadex-preferred"
 )
+
+// ExtraSeaDexEntries lists, comma-separated, the AniList entries SeaDex lists one torrent under when there is more
+// than one (a whole-season batch listed under each of the season's cours); the release's "anilist" extra stays the
+// first. The decision of a seadex listing covers the union of those entries' episodes (decide/anime.go).
+const ExtraSeaDexEntries = "seadex_entries"
+
+// JoinSeaDexEntries is the ExtraSeaDexEntries value for ids: empty for fewer than two.
+func JoinSeaDexEntries(ids []int) string {
+	if len(ids) < 2 {
+		return ""
+	}
+	out := make([]string, len(ids))
+	for i, id := range ids {
+		out[i] = strconv.Itoa(id)
+	}
+	return strings.Join(out, ",")
+}
+
+// SeaDexEntries reads an ExtraSeaDexEntries value.
+func SeaDexEntries(v string) []int {
+	var ids []int
+	for _, x := range strings.Split(v, ",") {
+		if id, err := strconv.Atoi(strings.TrimSpace(x)); err == nil && id > 0 {
+			ids = appendUnique(ids, id)
+		}
+	}
+	return ids
+}
 
 // seadexerr's priority seeders for a Nyaa entry: a value has to be ten times the next for the arrs to rank by it.
 const (
@@ -256,6 +285,7 @@ func (s *seadex) Search(ctx context.Context, q Query) (*Result, error) {
 	}
 	var entries []entry
 	seen := map[string]bool{}
+	members := map[string][]int{} // every entry listing a hash, before the de-duplication below keeps the first
 	dropped, excluded, shape, unmapped, unlisted, wrongEntry, noRelations := 0, 0, 0, 0, 0, 0, 0
 	var mapErr error
 	name, year := s.feedName(ctx, q)
@@ -394,6 +424,7 @@ func (s *seadex) Search(ctx context.Context, q Query) (*Result, error) {
 			}
 			for _, l := range eligible {
 				r, t, feats := l.r, l.t, l.feats
+				members[r.InfoHash] = appendUnique(members[r.InfoHash], e.AlID)
 				if s.excluded(t.Tags) {
 					excluded++
 					continue
@@ -441,6 +472,7 @@ func (s *seadex) Search(ctx context.Context, q Query) (*Result, error) {
 		if e.preferred {
 			r.Flags = append(r.Flags, FlagSeaDexPreferred)
 		}
+		r.setExtra(ExtraSeaDexEntries, JoinSeaDexEntries(members[r.InfoHash]))
 		if q.Type == QueryRSS && e.t.IsBest || q.Type != QueryRSS && legacyPreferred[i] {
 			r.Seeders = seadexSeedersPreferred
 		}

@@ -1,10 +1,13 @@
 package decide
 
 import (
+	"cmp"
+	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/theatarr/theatarr/internal/decide/parser/sonarr"
+	"github.com/theatarr/theatarr/internal/indexer"
 	animemeta "github.com/theatarr/theatarr/internal/metadata/anime"
 	"github.com/theatarr/theatarr/internal/metadata/anime/animemap"
 )
@@ -32,7 +35,10 @@ import (
 const (
 	AnimeMapFranchise = "franchise"
 	AnimeMapAltCut    = "alt_cut"
-	AnimeMapSonarr    = "sonarr"
+	// AnimeMapSeason ("season:<n>"): a SeaDex pack listed under several cours of TVDB season n covers their union, and
+	// its files take season n's numbering (a file numbered 13 is SnnE13).
+	AnimeMapSeason = "season"
+	AnimeMapSonarr = "sonarr"
 )
 
 // AnimeFallback is an episode that used Sonarr's numbering because its franchise mapping is not importable: the
@@ -147,10 +153,17 @@ func (s *series) applyAnimeMap(d *Decision, p *sonarr.ParsedEpisodeInfo, rel Rel
 	}
 	named := skipped // the entry the release title names, whose mapping is not importable
 	// SeaDex calls each AniList entry a season pack. A TVDB season may contain several cours; its synthetic
-	// Sxx title cannot claim episodes outside the entry's mapping.
+	// Sxx title cannot claim episodes outside the entry's mapping, or outside the union of the entries SeaDex lists
+	// the same torrent under (a whole-season batch listed under each cour).
 	if rel.Kind == "seadex" && p.FullSeason {
-		cour, key, mapped, notReviewed, mapErr := s.seadexCour(rel.Extras["anilist"], p.SeasonNumber, am)
-		if mapped || mapErr != nil {
+		union, unionErr := s.seadexSeason(rel.Extras[indexer.ExtraSeaDexEntries], p.SeasonNumber, am)
+		if unionErr != nil {
+			return nil, unionErr
+		}
+		if union != nil {
+			eps, entry, ok = union, "", true
+			how = AnimeMapSeason + ":" + strconv.Itoa(p.SeasonNumber)
+		} else if cour, key, mapped, notReviewed, mapErr := s.seadexCour(rel.Extras["anilist"], p.SeasonNumber, am); mapped || mapErr != nil {
 			eps, entry, ok, err = cour, key, true, mapErr
 			how = AnimeMapFranchise
 		} else if notReviewed != nil {
@@ -228,6 +241,35 @@ func (s *series) seadexCour(id string, season int, am *animemap.Series) (eps []*
 		}
 	}
 	return eps, key, mapped, nil, nil
+}
+
+// seadexSeason is the union of the regular episodes in season of the entries ids (ExtraSeaDexEntries) lists, when at
+// least two of them are mapped, importable and hold episodes of that season; nil otherwise (one entry's cour applies).
+func (s *series) seadexSeason(ids string, season int, am *animemap.Series) ([]*Episode, error) {
+	var eps []*Episode
+	seen := map[int64]bool{}
+	cours := 0
+	for _, id := range indexer.SeaDexEntries(ids) {
+		cour, _, mapped, notReviewed, err := s.seadexCour(strconv.Itoa(id), season, am)
+		if err != nil {
+			return nil, err
+		}
+		if !mapped || notReviewed != nil || len(cour) == 0 {
+			continue
+		}
+		cours++
+		for _, ep := range cour {
+			if !seen[ep.ID] {
+				seen[ep.ID] = true
+				eps = append(eps, ep)
+			}
+		}
+	}
+	if cours < 2 {
+		return nil, nil
+	}
+	slices.SortFunc(eps, func(a, b *Episode) int { return cmp.Compare(a.Number, b.Number) })
+	return eps, nil
 }
 
 // seaDexEntry unions disjoint split parts; an exact key beside parts or overlapping parts is ambiguous.

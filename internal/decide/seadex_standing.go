@@ -535,12 +535,25 @@ func RefreshSeaDexRelease(ctx context.Context, r indexer.Release) indexer.Releas
 	if x.SeaDexPreference >= 3 {
 		r.Flags = append(r.Flags, indexer.FlagSeaDexPreferred)
 	}
-	if x.SeaDexEntry > 0 {
-		extra := make(map[string]string, len(r.Extras)+1)
+	// Every entry the stored standing lists this hash under, with the search's own (ExtraSeaDexEntries).
+	ids := indexer.SeaDexEntries(r.Extras[indexer.ExtraSeaDexEntries])
+	for _, m := range state.hashes[h] {
+		if m.torrent.Preference > 0 && !slices.Contains(ids, m.entry) {
+			ids = append(ids, m.entry)
+		}
+	}
+	entries := indexer.JoinSeaDexEntries(ids)
+	if x.SeaDexEntry > 0 || entries != r.Extras[indexer.ExtraSeaDexEntries] {
+		extra := make(map[string]string, len(r.Extras)+2)
 		for k, v := range r.Extras {
 			extra[k] = v
 		}
-		extra["anilist"] = strconv.Itoa(x.SeaDexEntry)
+		if x.SeaDexEntry > 0 {
+			extra["anilist"] = strconv.Itoa(x.SeaDexEntry)
+		}
+		if entries != "" {
+			extra[indexer.ExtraSeaDexEntries] = entries
+		}
 		r.Extras = extra
 	}
 	if x.InfoHash != "" {

@@ -126,3 +126,52 @@ func TestSeadexRSSFiledUnderTitles(t *testing.T) {
 		t.Errorf("notes %v", res.Notes)
 	}
 }
+
+// A whole-season batch SeaDex lists under each cour of the season (Dr. STONE S04: one hash under three AniList
+// entries) is returned once, carrying every entry it is listed under; a hash under one entry carries none.
+func TestSeadexBatchCarriesEveryEntry(t *testing.T) {
+	const batch = "5bf61ad8aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	files := make([]string, 37)
+	for i := range files {
+		files[i] = fmt.Sprintf(`{"length":3000000000,"name":"[sam] Dr. STONE - Science Future - %02d (BD 1080p).mkv"}`, i+1)
+	}
+	tor := func(id, hash string) string {
+		return `{"id":"` + id + `","url":"https://nyaa.si/view/1","infoHash":"` + hash + `","isBest":true,"tags":[],` +
+			`"tracker":"Nyaa","releaseGroup":"sam","files":[` + strings.Join(files, ",") + `]}`
+	}
+	entry := func(al string, tors ...[2]string) string {
+		var ids, exp []string
+		for _, x := range tors {
+			ids = append(ids, `"`+x[0]+`"`)
+			exp = append(exp, tor(x[0], x[1]))
+		}
+		return `{"page":1,"perPage":100,"totalItems":1,"totalPages":1,"items":[{"alID":` + al + `,"trs":[` +
+			strings.Join(ids, ",") + `],"expand":{"trs":[` + strings.Join(exp, ",") + `]}}]}`
+	}
+	answers := map[string]string{
+		"172019": entry("172019", [2]string{"sam1", batch}),
+		"189117": entry("189117", [2]string{"sam1", batch}, [2]string{"cour2", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}),
+		"199221": entry("199221", [2]string{"sam1", batch}),
+	}
+	n := newNet(t)
+	n.serve("seadex.test", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, answers[strings.TrimPrefix(r.URL.Query().Get("filter"), "alID=")])
+	}))
+	h := newHarness(t, n, testPolicy(), false)
+	h.svc.SetMetadata(Metadata{AniList: AniListFunc(func(context.Context, Query) ([]int, error) {
+		return []int{172019, 189117, 199221}, nil
+	})})
+	res := search(t, h, "seadex", Query{Type: QuerySeries, TVDB: 3003, Season: 4, Title: "Dr. STONE"})
+	if len(res.Releases) != 2 {
+		t.Fatalf("releases %v", titles(res.Releases))
+	}
+	for _, r := range res.Releases {
+		want := ""
+		if r.InfoHash == batch {
+			want = "172019,189117,199221"
+		}
+		if r.Extras[ExtraSeaDexEntries] != want || r.Extras["anilist"] == "" {
+			t.Errorf("%s: extras %v", r.InfoHash, r.Extras)
+		}
+	}
+}

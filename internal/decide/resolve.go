@@ -3,6 +3,7 @@ package decide
 import (
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/theatarr/theatarr/internal/decide/parser/sonarr"
@@ -26,7 +27,8 @@ import (
 
 // EpisodeMap is how a decision mapped a series release when it was not Sonarr's own mapping: through a franchise
 // entry (How AnimeMapFranchise, Entry the entry key; for a SeaDex pack of split parts, the AniList entry "al:<id>"
-// they share) or an alternate cut (How "alt_cut:<name>"). Fallback marks a release that named the entry while its
+// they share), an alternate cut (How "alt_cut:<name>") or, for a SeaDex pack listed under several cours of one
+// season, that season's numbering (How "season:<n>"). Fallback marks a release that named the entry while its
 // mapping was not importable: its episodes are Sonarr's. The router stores it on the download (download.episode_map),
 // and the import maps the release's files the same way.
 type EpisodeMap struct {
@@ -229,6 +231,18 @@ func (s *series) fileFranchise(p *sonarr.ParsedEpisodeInfo, in FileInput, am *an
 			return eps, m.How, true, nil
 		}
 		return nil, m.How, true, nil
+	}
+	if season, isSeason := strings.CutPrefix(m.How, AnimeMapSeason+":"); isSeason {
+		// A SeaDex pack of several cours: the file's number is its episode in that TVDB season.
+		n, _ := strconv.Atoi(season)
+		for _, x := range nums {
+			e, err := s.find(n, x)
+			if err != nil || e == nil {
+				return nil, "", false, err
+			}
+			eps = append(eps, e)
+		}
+		return eps, m.How, true, nil
 	}
 	if m.How != AnimeMapFranchise {
 		return nil, "", false, nil
