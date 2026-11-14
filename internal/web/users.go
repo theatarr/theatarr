@@ -55,12 +55,29 @@ type Me struct {
 	CSRFToken       string   `json:"csrf_token,omitempty"`
 	KeyID           int64    `json:"key_id,omitempty"`
 	KeyName         string   `json:"key_name,omitempty"`
+	// Libraries names every library in the settings, in key order (libraryNames), so the SPA labels a library key
+	// the same way everywhere. The names never contain a key, for every account.
+	Libraries []LibraryName `json:"libraries"`
+}
+
+// LibraryName is a library's key and its name for people.
+type LibraryName struct {
+	Key   string `json:"key"`
+	Label string `json:"label"`
 }
 
 func (w *Web) apiMe(rw http.ResponseWriter, r *http.Request) {
 	id := auth.FromContext(r.Context())
 	out := Me{Kind: id.Kind, ID: id.UserID, Username: id.Username, DisplayName: id.DisplayName, Role: id.Role,
-		Permissions: w.perms(id).List(), Local: id.Local}
+		Permissions: w.perms(id).List(), Local: id.Local, Libraries: []LibraryName{}}
+	if w.pol != nil {
+		names := libraryNames(w.pol)
+		for _, k := range sortedKeys(w.pol.Versions) {
+			if l, ok := names[k]; ok {
+				out.Libraries = append(out.Libraries, LibraryName{Key: k, Label: l})
+			}
+		}
+	}
 	if out.DisplayName == "" {
 		out.DisplayName = id.Username
 	}

@@ -21,15 +21,18 @@ type VersionGrabState struct {
 
 // VersionGrabSummary is a configured version's runtime gates on Overview and Setup.
 type VersionGrabSummary struct {
-	Key       string           `json:"key"`
+	Key string `json:"key"`
+	// Label is the library's name (libraryNames).
+	Label     string           `json:"label"`
 	GrabState VersionGrabState `json:"grab_state"`
 }
 
 func versionGrabSummaries(p *policy.Policy) []VersionGrabSummary {
 	out := []VersionGrabSummary{}
 	if p != nil {
+		names := libraryNames(p)
 		for _, key := range sortedKeys(p.Versions) {
-			out = append(out, VersionGrabSummary{Key: key, GrabState: versionGrabState(p, key)})
+			out = append(out, VersionGrabSummary{Key: key, Label: names[key], GrabState: versionGrabState(p, key)})
 		}
 	}
 	return out

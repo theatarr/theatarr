@@ -158,7 +158,7 @@ func TestTitlesSortAndFilters(t *testing.T) {
 		t.Errorf("Alpha versions: %+v", a.Versions)
 	}
 	e.getKey(APIBase+"/titles?q=Delta", key, &p)
-	if v := p.Items[0].Versions[0]; v.Label != "Anime" || v.Files != 2 || v.Quality != "Bluray-1080p" {
+	if v := p.Items[0].Versions[0]; v.Label != "Anime series" || v.Files != 2 || v.Quality != "Bluray-1080p" {
 		t.Errorf("Delta version: %+v", v)
 	}
 }
@@ -195,15 +195,22 @@ func TestAvailabilityOf(t *testing.T) {
 
 func TestVersionLabels(t *testing.T) {
 	t.Parallel()
-	for _, c := range []struct{ key, profile, want string }{
-		{"movie-remux", "remux-2160p", "4K Remux"},
-		{"movie-web", "web-2160p", "4K WEB"},
-		{"tv-2160p", "tv-2160p", "4K"},
-		{"anime-tv", "anime-tv", "Anime"},
-		{"anime-movie", "anime-remux-1080p-movie", "Anime"},
-		{"custom", "", "custom"},
+	for _, c := range []struct {
+		key, profile string
+		kind         policy.Kind
+		want         string
+	}{
+		{"movie-remux", "remux-2160p", policy.KindMovie, "4K Remux"},
+		{"movie-web", "web-2160p", policy.KindMovie, "4K WEB"},
+		{"tv-2160p", "tv-2160p", policy.KindSeries, "4K"},
+		{"anime-tv", "anime-tv", policy.KindSeries, "Anime series"},
+		{"anime-movie", "anime-remux-1080p-movie", policy.KindMovie, "Anime movies"},
+		// A key no longer in the settings: the kind comes from the key.
+		{"anime-tv-mm", "", "", "Anime series"},
+		{"anime-movie-mm", "", "", "Anime movies"},
+		{"custom", "", "", "custom"},
 	} {
-		if got := labelFor(c.key, c.profile); got != c.want {
+		if got := labelFor(c.key, c.profile, c.kind); got != c.want {
 			t.Errorf("%s/%s: %q, want %q", c.key, c.profile, got, c.want)
 		}
 	}
@@ -705,6 +712,16 @@ func TestNoFilesWithoutSeeFiles(t *testing.T) {
 	if json.Unmarshal([]byte(body), &me); fmt.Sprint(me["permissions"]) != "[browse request]" {
 		t.Errorf("me: %v", me)
 	}
+	// Library names for the SPA: every library, named, and no name holds its key.
+	var who Me
+	if err := json.Unmarshal([]byte(body), &who); err != nil || len(who.Libraries) == 0 || len(who.Libraries) != len(e.web.pol.Versions) {
+		t.Errorf("me libraries: %v %+v", err, who.Libraries)
+	}
+	for _, l := range who.Libraries {
+		if l.Label == "" || strings.Contains(l.Label, l.Key) {
+			t.Errorf("me library %s: name %q", l.Key, l.Label)
+		}
+	}
 	// An admin sees them.
 	var adm map[string]any
 	if e.getKey(APIBase+"/auth/me", key, &adm); !strings.Contains(fmt.Sprint(adm["permissions"]), "see_files") {
@@ -851,23 +868,35 @@ func TestMissingRowHomeRelease(t *testing.T) {
 	}
 }
 
-// A library's own name wins over the guessed label; an empty or blank one falls back, and two libraries with the
-// same name are told apart by key like any other colliding labels.
+// libraryNames: a library's own name wins over the default; an empty or blank one falls back; the two anime
+// defaults differ by kind; libraries that would share a name are told apart by kind, then by number, never by key.
 func TestVersionLabelName(t *testing.T) {
 	t.Parallel()
 	w := &Web{pol: &policy.Policy{Versions: map[string]*policy.VersionPolicy{
-		"movie-web":   {Profile: "web-2160p", Name: " Films "},
-		"movie-remux": {Profile: "remux-2160p", Name: "Films"},
-		"tv-2160p":    {Profile: "tv-2160p"},
-		"anime-tv":    {Profile: "anime-tv", Name: "  "},
+		"movie-web":      {Kind: policy.KindMovie, Profile: "web-2160p", Name: " Films "},
+		"movie-remux":    {Kind: policy.KindMovie, Profile: "remux-2160p", Name: "Films"},
+		"movie-2160p":    {Kind: policy.KindMovie, Profile: "remux-2160p", Name: "4K"},
+		"tv-2160p":       {Kind: policy.KindSeries, Profile: "tv-2160p"},
+		"anime-tv-mm":    {Kind: policy.KindSeries, Profile: "anime-tv", Name: "  "},
+		"anime-movie-mm": {Kind: policy.KindMovie, Profile: "anime-remux-1080p-movie"},
 	}}}
-	for key, want := range map[string]string{"movie-web": "Films", "tv-2160p": "4K", "anime-tv": "Anime", "gone": "gone"} {
+	for key, want := range map[string]string{
+		"movie-remux": "Films", "movie-web": "Films (2)", // same kind: numbered in key order
+		"movie-2160p": "4K movies", "tv-2160p": "4K series", // kinds differ: the kind tells them apart
+		"anime-tv-mm": "Anime series", "anime-movie-mm": "Anime movies",
+		"gone": "gone",
+	} {
 		if got := w.versionLabel(key); got != want {
 			t.Errorf("%s: %q, want %q", key, got, want)
 		}
 	}
+	for k, l := range libraryNames(w.pol) {
+		if strings.Contains(l, k) {
+			t.Errorf("%s: name %q holds the key", k, l)
+		}
+	}
 	got := w.keyLabels([]string{"movie-web", "movie-remux", "tv-2160p"})
-	want := map[string]string{"movie-web": "Films · movie-web", "movie-remux": "Films · movie-remux", "tv-2160p": "4K"}
+	want := map[string]string{"movie-web": "Films (2)", "movie-remux": "Films", "tv-2160p": "4K series"}
 	if !maps.Equal(got, want) {
 		t.Errorf("labels %v, want %v", got, want)
 	}

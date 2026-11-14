@@ -868,7 +868,7 @@ func (w *Web) apiContinue(rw http.ResponseWriter, r *http.Request) {
 	for i, it := range row.Items {
 		keys[i] = it.Version
 	}
-	names := w.keyLabelsFor(keys, w.permsOf(r).SeeFiles)
+	names := w.keyLabels(keys)
 	for i := range row.Items {
 		row.Items[i].Label = names[row.Items[i].Version]
 	}

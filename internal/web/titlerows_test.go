@@ -392,8 +392,8 @@ func TestHistoryNotStarted(t *testing.T) {
 	}
 }
 
-// TestLibraryLabelsWithoutKeys: two libraries with the same label are told apart by key for a caller who sees files,
-// by number for one who does not (no library key in the labels).
+// TestLibraryLabelsWithoutKeys: two libraries with the same label are told apart by number for every caller (no
+// library key in the labels).
 func TestLibraryLabelsWithoutKeys(t *testing.T) {
 	t.Parallel()
 	e := newManageEnv(t, func(p *policy.Policy) {
@@ -409,7 +409,7 @@ func TestLibraryLabelsWithoutKeys(t *testing.T) {
 	}
 	var o AddOptions
 	e.call("GET", APIBase+"/add/options?kind=series&title_id=10", nil, 200, &o)
-	if got := labels(o); got["tv-2160p"] != "4K · tv-2160p" || got["tv-2160p-theatarr"] != "4K · tv-2160p-theatarr" {
+	if got := labels(o); got["tv-2160p"] != "4K" || got["tv-2160p-theatarr"] != "4K (2)" {
 		t.Errorf("admin labels: %v", got)
 	}
 	o = AddOptions{}

@@ -17,13 +17,11 @@ func TestDistinctLabels(t *testing.T) {
 		{"no collision", []copyName{{"tv-2160p", "4K"}, {"tv-web", "1080p WEB"}},
 			map[string]string{"tv-2160p": "4K", "tv-web": "1080p WEB"}},
 		{"collision", []copyName{{"tv-2160p", "4K"}, {"tv-2160p-theatarr", "4K"}, {"tv-web", "WEB"}},
-			map[string]string{"tv-2160p": "4K · tv-2160p", "tv-2160p-theatarr": "4K · tv-2160p-theatarr", "tv-web": "WEB"}},
+			map[string]string{"tv-2160p": "4K", "tv-2160p-theatarr": "4K (2)", "tv-web": "WEB"}},
 		{"two collide", []copyName{{"anime-tv", "Anime"}, {"anime-tv-theatarr", "Anime"}},
-			map[string]string{"anime-tv": "Anime · anime-tv", "anime-tv-theatarr": "Anime · anime-tv-theatarr"}},
-		{"two of two", []copyName{{"a", "4K"}, {"b", "4K"}},
-			map[string]string{"a": "4K · a", "b": "4K · b"}},
+			map[string]string{"anime-tv": "Anime", "anime-tv-theatarr": "Anime (2)"}},
 		{"three", []copyName{{"a", "4K"}, {"b", "4K"}, {"c", "4K"}},
-			map[string]string{"a": "4K · a", "b": "4K · b", "c": "4K · c"}},
+			map[string]string{"a": "4K", "b": "4K (2)", "c": "4K (3)"}},
 		{"once per key", []copyName{{"a", "4K"}, {"a", "4K"}, {"b", ""}, {"", "x"}},
 			map[string]string{"a": "4K", "b": "b"}},
 	} {
@@ -39,8 +37,8 @@ func twinPolicy(p *policy.Policy) {
 	p.Versions["tv-2160p-theatarr"] = &v
 }
 
-// TestSameNamedCopiesServerWords: server words and labels that name a copy tell same-named copies apart as the SPA
-// does: by key when labels collide.
+// TestSameNamedCopiesServerWords: server words and labels that name a copy tell same-named copies apart by number
+// (libraryNames), never by key.
 func TestSameNamedCopiesServerWords(t *testing.T) {
 	t.Parallel()
 	e := newManageEnv(t, twinPolicy)
@@ -50,10 +48,10 @@ func TestSameNamedCopiesServerWords(t *testing.T) {
 		(11, 10, 'tv-2160p-theatarr', 1, 'wanted', ?, ?)`, now, now)
 	e.exec(`INSERT INTO episode_version_state (version_id, episode_id, monitored, state, updated_at) VALUES
 		(11, 101, 1, 'wanted', ?), (11, 102, 1, 'wanted', ?)`, now, now)
-	if got := e.web.versionLabel("tv-2160p-theatarr"); got != "4K" {
+	if got := e.web.versionLabel("tv-2160p-theatarr"); got != "4K (2)" {
 		t.Fatalf("the twin's label: %q", got)
 	}
-	want := map[string]string{"tv-2160p": "4K · tv-2160p", "tv-2160p-theatarr": "4K · tv-2160p-theatarr"}
+	want := map[string]string{"tv-2160p": "4K", "tv-2160p-theatarr": "4K (2)"}
 
 	f := false
 	var pre BulkMonitorResult
@@ -69,13 +67,13 @@ func TestSameNamedCopiesServerWords(t *testing.T) {
 	var one BulkMonitorResult
 	e.call("POST", APIBase+"/titles/monitor", BulkMonitorRequest{TitleIDs: []int64{10}, Versions: []string{"tv-2160p-theatarr"},
 		Monitored: &f, DryRun: true}, 200, &one)
-	if len(one.Items) != 1 || one.Items[0].Label != "4K · tv-2160p-theatarr" {
+	if len(one.Items) != 1 || one.Items[0].Label != "4K (2)" {
 		t.Errorf("bulk one copy: %+v", one.Items)
 	}
 
 	var scope RemovalScope
 	e.call("GET", APIBase+"/titles/10/removal?versions=tv-2160p-theatarr", nil, 200, &scope)
-	if len(scope.Copies) != 1 || scope.Copies[0].Label != "4K · tv-2160p-theatarr" {
+	if len(scope.Copies) != 1 || scope.Copies[0].Label != "4K (2)" {
 		t.Errorf("removal scope: %+v", scope.Copies)
 	}
 
@@ -89,16 +87,16 @@ func TestSameNamedCopiesServerWords(t *testing.T) {
 		t.Errorf("episode overview: %v", got)
 	}
 
-	// Request lists and cross-title notes: the key tells them apart.
+	// Request lists and cross-title notes: the same names.
 	if got := e.web.keyLabels([]string{"tv-2160p", "tv-2160p-theatarr", "movie-remux"}); !maps.Equal(got,
-		map[string]string{"tv-2160p": "4K · tv-2160p", "tv-2160p-theatarr": "4K · tv-2160p-theatarr", "movie-remux": "4K Remux"}) {
+		map[string]string{"tv-2160p": "4K", "tv-2160p-theatarr": "4K (2)", "movie-remux": "4K Remux"}) {
 		t.Errorf("key labels: %v", got)
 	}
 	choices := map[string]string{}
 	for _, c := range e.web.versionChoices() {
 		choices[c.Key] = c.Label
 	}
-	if choices["tv-2160p"] != "4K · tv-2160p" || choices["tv-2160p-theatarr"] != "4K · tv-2160p-theatarr" {
+	if choices["tv-2160p"] != "4K" || choices["tv-2160p-theatarr"] != "4K (2)" {
 		t.Errorf("version choices: %v", choices)
 	}
 }

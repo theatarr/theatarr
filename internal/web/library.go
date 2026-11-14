@@ -457,22 +457,77 @@ type VersionFiles struct {
 	Providers []string `json:"providers,omitempty"`
 }
 
-// versionLabel names a version for people: its name when it has one, else a label from its key and profile:
-// movie-web with profile web-2160p is "4K WEB", tv-2160p is "4K", anime-tv is "Anime".
+// versionLabel names a library for people (libraryNames); a key no longer in the settings gets the label its key
+// suggests ("movie-remux" is "Remux").
 func (w *Web) versionLabel(key string) string {
-	profile := ""
 	if w.pol != nil {
-		if v := w.pol.Versions[key]; v != nil {
-			if name := strings.TrimSpace(v.Name); name != "" {
-				return name
-			}
-			profile = v.Profile
+		if l, ok := libraryNames(w.pol)[key]; ok {
+			return l
 		}
 	}
-	return labelFor(key, profile)
+	return labelFor(key, "", "")
 }
 
-func labelFor(key, profile string) string {
+// libraryNames is the one rule for a library's name, used for every caller and sent to the SPA (auth/me): the
+// configured name, else a default from the key, profile and kind ("4K WEB", "Anime movies", "Anime series").
+// Libraries that would get the same name are told apart by words, never by key: by kind when their kinds differ
+// ("4K movies", "4K series"), then by number in key order ("4K", "4K (2)").
+func libraryNames(p *policy.Policy) map[string]string {
+	names := map[string]string{}
+	if p == nil {
+		return names
+	}
+	keys := sortedKeys(p.Versions)
+	base := map[string]string{}
+	kinds := map[string]map[policy.Kind]bool{}
+	for _, k := range keys {
+		v := p.Versions[k]
+		if v == nil {
+			continue
+		}
+		l := strings.TrimSpace(v.Name)
+		if l == "" {
+			l = labelFor(k, v.Profile, v.Kind)
+		}
+		base[k] = l
+		if kinds[l] == nil {
+			kinds[l] = map[policy.Kind]bool{}
+		}
+		kinds[l][v.Kind] = true
+	}
+	n := map[string]int{}
+	for _, k := range keys {
+		l, ok := base[k]
+		if !ok {
+			continue
+		}
+		if len(kinds[l]) > 1 {
+			l = strings.TrimSpace(l + " " + kindWord(p.Versions[k].Kind))
+		}
+		n[l]++
+		if n[l] > 1 {
+			l += " (" + strconv.Itoa(n[l]) + ")"
+		}
+		names[k] = l
+	}
+	return names
+}
+
+// kindWord is a library kind in a name: "movies", "series".
+func kindWord(k policy.Kind) string {
+	switch k {
+	case policy.KindMovie:
+		return "movies"
+	case policy.KindSeries:
+		return "series"
+	}
+	return ""
+}
+
+// labelFor is a library's default name from its key, profile and kind: movie-web with profile web-2160p is
+// "4K WEB", tv-2160p is "4K"; an anime library is "Anime movies" or "Anime series" by kind (by key when the kind is
+// not known). A key with no known word is its own name.
+func labelFor(key, profile string, kind policy.Kind) string {
 	words := map[string]string{"2160p": "4K", "4k": "4K", "uhd": "4K", "1080p": "1080p", "720p": "720p",
 		"web": "WEB", "remux": "Remux", "bluray": "Blu-ray", "anime": "Anime", "hdr": "HDR"}
 	var res, rest []string
@@ -490,7 +545,8 @@ func labelFor(key, profile string) string {
 			rest = append(rest, w)
 		}
 	}
-	for _, t := range strings.Split(strings.ToLower(key), "-") {
+	keyToks := strings.Split(strings.ToLower(key), "-")
+	for _, t := range keyToks {
 		add(t)
 	}
 	if !seen["Anime"] {
@@ -499,7 +555,15 @@ func labelFor(key, profile string) string {
 		}
 	}
 	if seen["Anime"] {
-		return "Anime"
+		if kind == "" {
+			switch {
+			case slices.Contains(keyToks, "movie"):
+				kind = policy.KindMovie
+			case slices.Contains(keyToks, "tv"), slices.Contains(keyToks, "series"):
+				kind = policy.KindSeries
+			}
+		}
+		return strings.TrimSpace("Anime " + kindWord(kind))
 	}
 	out := strings.Join(append(res, rest...), " ")
 	if out == "" {
@@ -512,97 +576,40 @@ func labelFor(key, profile string) string {
 type copyName struct{ key, label string }
 
 // distinctLabels gives each copy (one per key) a label unique among the copies named together, as the SPA's
-// distinctLabels (web/src/lib/copies.ts) does: labels that collide ("4K" for tv-2160p and tv-2160p-theatarr) get the
-// version key ("4K · tv-2160p-theatarr"); unique labels stay plain.
+// distinctLabels (web/src/lib/copies.ts) does. Current libraries already have distinct names (libraryNames); a
+// library no longer in the settings may share one, and is then numbered after the first ("Remux", "Remux (2)"),
+// never told apart by key.
 func distinctLabels(cs []copyName) map[string]string {
-	var order []copyName
-	seen := map[string]bool{}
+	names := map[string]string{}
+	n := map[string]int{}
 	for _, c := range cs {
-		if c.key == "" || seen[c.key] {
+		if c.key == "" {
 			continue
 		}
-		seen[c.key] = true
-		if c.label == "" {
-			c.label = c.key
+		if _, ok := names[c.key]; ok {
+			continue
 		}
-		order = append(order, c)
-	}
-	count := func(names map[string]string) map[string]int {
-		n := map[string]int{}
-		for _, l := range names {
-			n[l]++
+		l := c.label
+		if l == "" {
+			l = c.key
 		}
-		return n
-	}
-	names := map[string]string{}
-	for _, c := range order {
-		names[c.key] = c.label
-	}
-	first := count(names)
-	for _, c := range order {
-		if first[c.label] > 1 {
-			names[c.key] = c.label + " · " + c.key
+		n[l]++
+		if n[l] > 1 {
+			l += " (" + strconv.Itoa(n[l]) + ")"
 		}
+		names[c.key] = l
 	}
 	return names
 }
 
-// keyLabels is distinctLabels for keys named together (request lists, cross-title notes): same-named copies are told
-// apart by key.
+// keyLabels is distinctLabels for keys named together (request lists, cross-title notes). Every caller gets the
+// same names: they never contain a key.
 func (w *Web) keyLabels(keys []string) map[string]string {
 	cs := make([]copyName, len(keys))
 	for i, k := range keys {
 		cs[i] = copyName{key: k, label: w.versionLabel(k)}
 	}
 	return distinctLabels(cs)
-}
-
-// keyLabelsFor is keyLabels for a caller: one without "see files" never sees a library key, so same-named libraries
-// are numbered instead ("4K", "4K (2)"), as the SPA's plainLabels does: one numbering over the current libraries of
-// each kind in key order (plainLabels), so a library has the same label in every list. A key no longer in the
-// settings keeps its plain label.
-func (w *Web) keyLabelsFor(keys []string, seeFiles bool) map[string]string {
-	if seeFiles {
-		return w.keyLabels(keys)
-	}
-	all := w.plainLabels()
-	names := map[string]string{}
-	for _, k := range keys {
-		if l, ok := all[k]; ok {
-			names[k] = l
-		} else if k != "" {
-			names[k] = w.versionLabel(k)
-		}
-	}
-	return names
-}
-
-// plainLabels numbers same-named libraries of a kind in key order, over the libraries in the settings.
-func (w *Web) plainLabels() map[string]string {
-	names := map[string]string{}
-	if w.pol == nil {
-		return names
-	}
-	keys := make([]string, 0, len(w.pol.Versions))
-	for k := range w.pol.Versions {
-		keys = append(keys, k)
-	}
-	slices.Sort(keys)
-	n := map[string]int{}
-	for _, k := range keys {
-		vp := w.pol.Versions[k]
-		if vp == nil {
-			continue
-		}
-		l := w.versionLabel(k)
-		kl := string(vp.Kind) + "\x00" + l
-		n[kl]++
-		if n[kl] > 1 {
-			l += " (" + strconv.Itoa(n[kl]) + ")"
-		}
-		names[k] = l
-	}
-	return names
 }
 
 type fileAgg struct {

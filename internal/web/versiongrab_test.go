@@ -78,6 +78,16 @@ func TestVersionGrabState(t *testing.T) {
 	if got := versionGrabSummaries(nil); got == nil || len(got) != 0 {
 		t.Fatalf("empty summaries must marshal as an array: %+v", got)
 	}
+	// GET status names each library (its label), never by its key.
+	named := &policy.Policy{Versions: map[string]*policy.VersionPolicy{
+		"anime-tv-mm": {Kind: policy.KindSeries, Profile: "anime-tv"}, "anime-movie-mm": {Kind: policy.KindMovie}}}
+	got := map[string]string{}
+	for _, s := range versionGrabSummaries(named) {
+		got[s.Key] = s.Label
+	}
+	if got["anime-tv-mm"] != "Anime series" || got["anime-movie-mm"] != "Anime movies" {
+		t.Errorf("status labels: %v", got)
+	}
 }
 
 func TestVersionGrabStateAPI(t *testing.T) {
