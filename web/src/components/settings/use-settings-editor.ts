@@ -50,6 +50,8 @@ export function useSettingsEditor<S extends { generation: number }>({ initial, r
         void qc.invalidateQueries({ queryKey: qk.policy.all });
         void qc.invalidateQueries({ queryKey: qk.sources });
         void qc.invalidateQueries({ queryKey: qk.gateway });
+        // A provider account's tag (auth/me providers) follows an added, changed or removed account.
+        if (request.path.includes("/providers")) void qc.invalidateQueries({ queryKey: qk.me });
         saved(result);
       } catch (e) {
         if (confirm.ask(e, (next) => void send(next))) callbacks?.onConfirmation?.();

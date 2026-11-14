@@ -228,7 +228,9 @@ export function VersionsPage({ embedded = false }: { embedded?: boolean }) {
       void qc.invalidateQueries({ queryKey: qk.titles.all });
       // The header Pause saves with the overview's generation, which this save moved on.
       void qc.invalidateQueries({ queryKey: qk.settings.overview });
-      setNotice(`${nameOf(body.key ?? "")} ${body.delete ? "is no longer managed" : "saved"}.`);
+      // The name as saved (the names from auth/me still hold the old one until they reload).
+      const saved = body.delete || !body.config ? nameOf(body.key ?? "") : libraryLabel(body.key ?? "", body.config.profile, body.config.name, body.config.kind);
+      setNotice(`${saved} ${body.delete ? "is no longer managed" : "saved"}.`);
       // Library names (auth/me) follow a renamed, added or removed library.
       void qc.invalidateQueries({ queryKey: qk.me });
       // A stopped version's row goes away: focus goes to Add library instead of its Edit button.

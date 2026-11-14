@@ -18,7 +18,7 @@ import {
   type HistoryFilters as Filters,
 } from "@/lib/activity-history";
 import { distinctLabels, relabel } from "@/lib/copies";
-import { useLibraryName } from "@/lib/library-names";
+import { useLibraryKnown, useLibraryName } from "@/lib/library-names";
 import { today } from "@/lib/library";
 
 const FIELD = "h-8 rounded-[5px] border border-input bg-field px-2 text-[13.5px]";
@@ -32,6 +32,7 @@ export function useHistoryFilters(): Filters {
 /** tools: buttons at the row's end (the table's Columns). Library names never hold keys, for every account. */
 export function HistoryFilters({ tools }: { tools?: ReactNode } = {}) {
   const nameOf = useLibraryName();
+  const known = useLibraryKnown();
   const [sp, setSp] = useSearchParams();
   const f = parseHistoryFilters(sp);
   const facets = useFacets();
@@ -57,7 +58,7 @@ export function HistoryFilters({ tools }: { tools?: ReactNode } = {}) {
         {copies.map((v) => (
           <option key={v.key} value={v.key}>{v.label || v.key}</option>
         ))}
-        {f.copy && !copies.some((v) => v.key === f.copy) ? <option value={f.copy}>{nameOf(f.copy)}</option> : null}
+        {f.copy && !copies.some((v) => v.key === f.copy) ? <option value={f.copy}>{known(f.copy) ? nameOf(f.copy) : "Removed library"}</option> : null}
       </Select>
       <Select aria-label="Event" value={f.event} onChange={(e) => set("event", e.target.value)} className="sm:w-auto" data-testid="history-event">
         {HISTORY_EVENTS.map((e) => (

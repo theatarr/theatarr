@@ -14,6 +14,7 @@ import { fmtBytes, fmtNumber, fmtTime } from "@/lib/format";
 import { restoreScope, type RestorePlan } from "@/lib/torrents";
 import { SectionPanel } from "@/components/settings/section-panel";
 import { SETTINGS_PANELS } from "@/lib/settings-map";
+import { ProviderTag } from "@/components/provider-pills";
 
 export function TorrentBackups() {
   const qc = useQueryClient();
@@ -106,7 +107,7 @@ export function TorrentBackups() {
                   <TableCell className="whitespace-nowrap" title={b.id}>{fmtTime(b.created_at)}</TableCell>
                   <TableCell><Badge tone={b.reason === "pre-delete" ? "warning" : "neutral"}>{b.reason}</Badge></TableCell>
                   <TableCell className="whitespace-nowrap text-right tabular-nums">{fmtNumber(b.torrents)} · {fmtBytes(b.bytes)}</TableCell>
-                  <TableCell className="hidden text-xs sm:table-cell">{b.providers.map((p) => (p.ok ? `${p.provider} ${p.torrents}` : `${p.provider} unreadable`)).join(", ")}</TableCell>
+                  <TableCell className="hidden text-xs sm:table-cell">{b.providers.map((p, i) => <span key={p.provider}>{i > 0 ? ", " : ""}<ProviderTag account={p.provider} /> {p.ok ? p.torrents : "unreadable"}</span>)}</TableCell>
                   <TableCell className="whitespace-nowrap text-right">
                     <a className="mr-2 text-sm hover:text-primary" href={backupURL(b.id)} download>Download</a>
                     <a className="mr-2 text-sm hover:text-primary" href={backupURL(b.id, "dmm")} download>DMM</a>

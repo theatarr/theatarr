@@ -15,6 +15,6 @@ it("says a torrent the saved inventory does not know yet will appear after the n
   ]);
   renderPage(<Routes><Route path="/admin/torrents/inventory/:hash" element={<RegistryContent />} /></Routes>, `/admin/torrents/inventory/${hash}`);
   const box = await screen.findByTestId("inventory-unknown");
-  expect(box.textContent).toContain("Not in the saved inventory yet. It appears after the next provider sync.");
+  expect(box.textContent).toContain("Not in the saved inventory. It appears after a provider sync if one of your provider accounts holds it.");
   expect(screen.getByRole("link", { name: "See it on Torrents" }).getAttribute("href")).toBe(`/admin/torrents?q=${hash.slice(0, 12)}`);
 });

@@ -112,7 +112,7 @@ export function RegistryContent() {
     <div>
       <PageHeader crumb={crumb} title={<Mono className="text-xl">{hash.slice(0, 12)}</Mono>} />
       <Card data-testid="inventory-unknown">
-        <p className="text-sm">Not in the saved inventory yet. It appears after the next provider sync.</p>
+        <p className="text-sm">Not in the saved inventory. It appears after a provider sync if one of your provider accounts holds it.</p>
         <Link className="mt-2 inline-block text-sm text-primary hover:underline" to={torrentsLink(hash)}>See it on Torrents</Link>
       </Card>
     </div>

@@ -95,11 +95,13 @@ export function useSettingsWrite() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (c: SettingsCall) => api<SettingsWrite>("/settings" + c.path, { method: c.method, body: c.body, headers: confirmationHeaders(c.token) }),
-    onSuccess: () => {
+    onSuccess: (_data, c) => {
       void qc.invalidateQueries({ queryKey: setupKey });
       void qc.invalidateQueries({ queryKey: qk.settings.all });
       void qc.invalidateQueries({ queryKey: qk.sources });
       void qc.invalidateQueries({ queryKey: qk.gateway });
+      // A provider account's tag (auth/me providers) follows an added, changed or removed account.
+      if (c.path.includes("/providers")) void qc.invalidateQueries({ queryKey: qk.me });
     },
   });
 }

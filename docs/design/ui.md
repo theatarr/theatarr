@@ -506,7 +506,7 @@ TB). Where only an account key is at hand, `ProviderTag` resolves it to its kind
 `providers`, accounts with See files; a custom key such as `realdebrid` reads RD) with the key as tooltip; server text
 does the same ("Grabbed #1 via RD"). A torrent hash with a destination is a link (`InfoHash` to Saved inventory,
 `TorrentLink` to Admin › Torrents); a hash the saved inventory does not know yet opens a plain "Not in the saved
-inventory yet. It appears after the next provider sync." with a link back to Torrents. A title named next to its id
+inventory. It appears after a provider sync if one of your provider accounts holds it." with a link back to Torrents. A title named next to its id
 links to the title page.
 
 - **Page:** Movies, Series and Anime use the full width. The toolbar has the title search ("Filter by title", the

@@ -13,9 +13,8 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { fmtAgo, fmtBytes } from "@/lib/format";
 import { fmtClock, fmtMbps, healthBadge, itemLabel, placeLabel, prewarmText, progress, streamLabel } from "@/lib/now-playing";
-import { ProviderPills } from "@/components/provider-pills";
+import { ProviderTag } from "@/components/provider-pills";
 import { TorrentLink } from "@/components/title/info-hash";
-import { useProviderCode } from "@/lib/library-names";
 
 export function NowPlayingPage() {
   const q = useNowPlaying();
@@ -81,7 +80,6 @@ export function NowPlayingPage() {
 }
 
 function SessionCard({ s, seeFiles }: { s: NowPlayingSession; seeFiles: boolean }) {
-  const code = useProviderCode();
   const health = healthBadge(s.health);
   const src = s.source;
   const pw = prewarmText(s.prewarm);
@@ -97,7 +95,7 @@ function SessionCard({ s, seeFiles }: { s: NowPlayingSession; seeFiles: boolean 
       details.push([
         "Providers",
         <span className="flex flex-wrap items-center gap-1.5">
-          {(src.providers ?? []).length ? <ProviderPills codes={(src.providers ?? []).map(code)} /> : null}
+          {(src.providers ?? []).map((p) => <Badge key={p} tone="ok"><ProviderTag account={p} /></Badge>)}
           {src.hash ? <TorrentLink hash={src.hash} /> : null}
           {src.single_copy ? <Badge tone="warning">single copy</Badge> : null}
           {src.served_by ? <span className="text-muted-foreground">served by {src.served_by}</span> : null}

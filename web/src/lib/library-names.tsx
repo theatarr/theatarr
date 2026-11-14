@@ -57,6 +57,12 @@ export function useLibraryName(): (key: string, fallback?: string) => string {
   return useCallback((key: string, fallback?: string) => names.get(key) ?? (fallback || libraryLabel(key)), [names]);
 }
 
+/** Whether a library key is one of the configured libraries (auth/me). */
+export function useLibraryKnown(): (key: string) => boolean {
+  const { names } = useContext(Names);
+  return useCallback((key: string) => names.has(key), [names]);
+}
+
 /** A library key as a tooltip: the key for an account that sees files, nothing for the others. */
 export function useLibraryKeyTip(): (key: string) => string | undefined {
   const { keys } = useContext(Names);
