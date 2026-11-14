@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"log/slog"
 	"path/filepath"
@@ -55,6 +56,7 @@ func TestRemoveRunsTheCleanupAfterTheAnswer(t *testing.T) {
 			provider, provider_torrent_id, own_add, provider_epoch, created_at, updated_at) VALUES (2, 3, 'movie-web', ?,
 			'Beta', 'idx', 'imported', 'rd', '20', 1, 0, ?, ?)`, hb, now, now)
 
+		ch := o.web.hub.subscribe()
 		var got RemoveResult
 		if code := o.jsonCall("POST", APIBase+"/titles/2/remove", RemoveRequest{Unlink: unlink}, o.mc, o.mcsrf,
 			&got); code != 200 || !got.Title || got.Cleanup != unlink {
@@ -63,6 +65,19 @@ func TestRemoveRunsTheCleanupAfterTheAnswer(t *testing.T) {
 		// The request's context is over; the service's runs the clean-up on.
 		o.web.cleanups.Wait()
 		cancel()
+		// The clean-up's end is a title event (versions), so open History and Torrents pages refetch.
+		var titleEvent bool
+		for len(ch) > 0 {
+			ev := <-ch
+			var te TitleEvent
+			if ev.name == "title" && json.Unmarshal(ev.data, &te) == nil && te.ID == 2 && te.Reason == "versions" {
+				titleEvent = true
+			}
+		}
+		o.web.hub.unsubscribe(ch)
+		if titleEvent != unlink {
+			t.Errorf("clean-up title event (files %v): %v", unlink, titleEvent)
+		}
 		var detail string
 		if err := o.st.Reader().QueryRow(`SELECT detail FROM journal_action WHERE action = ?`,
 			journal.ActRemoveTitle).Scan(&detail); err != nil {

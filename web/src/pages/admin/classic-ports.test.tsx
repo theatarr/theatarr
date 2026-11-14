@@ -16,7 +16,7 @@ it("shows episode numbering and alternate cuts in the franchise", async () => {
   expect(screen.getByText("Director's Cut")).toBeTruthy();
   expect(screen.getByText("S01E01, S01E02")).toBeTruthy();
   expect(screen.getByText("Main story")).toBeTruthy();
-  expect(screen.getByText("scudlee")).toBeTruthy();
+  expect(screen.getByText("Anime-Lists (ScudLee)")).toBeTruthy();
   expect(screen.getByText("TVDB's numbering")).toBeTruthy();
   expect(screen.queryByRole("link", { name: /classic/i })).toBeNull();
 });

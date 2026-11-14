@@ -72,6 +72,27 @@ it("says when automatic builds are off", async () => {
   expect(await screen.findByText(/Automatic builds are off \(metadata.anime.auto_build\)/)).toBeTruthy();
 });
 
+it("names an empty Replaced tab by its label", async () => {
+  mockFetch([
+    { method: "GET", path: "/anime/review", reply: { items: [] } },
+    { method: "GET", path: "/anime/franchises", reply: { items: [] } },
+    { method: "GET", path: "/anime/uncovered", reply: { builds: on, items: [] } },
+  ]);
+  renderPage(<AnimeMappings />, "/?state=superseded");
+  expect(await screen.findByText("No replaced items.")).toBeTruthy();
+});
+
+it("shows a franchise's mapping statuses and sources in words", async () => {
+  mockFetch([{ method: "GET", path: "/anime/franchises/mushoku-tensei", reply: { ...franchise(null), orders: [],
+    numbering: [{ tvdb: 371310, episode: "S01E01", absolute: 1, entry: "al:108465", entry_title: "Mushoku Tensei", entry_number: 1, status: "auto", importable: true, source: "scudlee" }],
+    mappings: [{ entry: "al:108465", title: "Mushoku Tensei", status: "heuristic", importable: true, tvdb: 371310, range: "S01E01-S01E11", reason: "" }] } }]);
+  renderPage(<Routes><Route path="/anime/:slug" element={<MetadataFranchise />} /></Routes>, "/anime/mushoku-tensei");
+  expect(await screen.findByText("Matched")).toBeTruthy();
+  expect(screen.getByText("Anime-Lists (ScudLee)")).toBeTruthy();
+  expect(screen.getByText("Matched by date and title")).toBeTruthy();
+  expect(screen.queryByText("scudlee")).toBeNull();
+});
+
 it("rebuilds from the franchise page and shows the next refresh", async () => {
   const api = mockFetch([
     { method: "GET", path: "/anime/franchises/mushoku-tensei", reply: { ...franchise(null), orders: [], numbering: [] } },

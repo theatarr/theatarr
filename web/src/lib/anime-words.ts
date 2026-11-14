@@ -53,6 +53,7 @@ const SOURCES: Record<string, string> = {
   kitsu: "Kitsu",
   manami: "Manami",
   "anime-lists": "Anime-Lists (ScudLee)",
+  scudlee: "Anime-Lists (ScudLee)",
   seadex: "SeaDex",
   thexem: "TheXEM",
 };

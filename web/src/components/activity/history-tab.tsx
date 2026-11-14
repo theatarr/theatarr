@@ -118,14 +118,14 @@ function TitleCell({ e }: { e: ActivityEvent }) {
   );
 }
 
-/** The release (unknown for a file event from before its facts were recorded) and what replaced a deleted file. */
+/** The release ("Name not recorded" for a file event from before its facts were recorded) and what replaced a deleted file. */
 function ReleaseCell({ e }: { e: ActivityEvent }) {
   const r = e.replaced_by;
   return (
     <div className="min-w-0">
       {e.release ? (
         <span className="block font-mono text-[12px] max-sm:break-all sm:truncate" title={e.release}>{e.release}</span>
-      ) : FILE_EVENTS.has(e.event) ? <span className="text-[var(--ink-3)]">unknown</span> : <Dash />}
+      ) : FILE_EVENTS.has(e.event) ? <span className="text-[var(--ink-3)]">Name not recorded</span> : <Dash />}
       {r ? (
         <span className="block text-xs text-muted-foreground max-sm:break-all sm:truncate" title={[r.release, r.quality, r.score != null ? `score ${fmtNumber(r.score)}` : ""].filter(Boolean).join(" · ")} data-testid="history-replaced-by">
           Replaced by <span className="font-mono">{r.release}</span>

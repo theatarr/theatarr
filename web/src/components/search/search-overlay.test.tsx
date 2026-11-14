@@ -54,5 +54,6 @@ it("starts with the previous text selected, and shows an in-library title's stat
   renderPage(<SearchProvider><Opener /></SearchProvider>, "/");
   const input = (await screen.findByTestId("search-input")) as HTMLInputElement;
   await waitFor(() => expect([input.selectionStart, input.selectionEnd]).toEqual([0, "Signal".length]));
+  expect(input.maxLength).toBe(200);
   expect((await screen.findByTestId("search-status")).textContent).toBe("Not monitored");
 });

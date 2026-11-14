@@ -2,8 +2,10 @@ package web
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
+	"github.com/theatarr/theatarr/internal/auth"
 	"github.com/theatarr/theatarr/internal/removal"
 	"github.com/theatarr/theatarr/internal/torrents"
 )
@@ -58,6 +60,12 @@ func (w *Web) StartCleanup(c removal.Cleanup) {
 			w.log.Info("removal: debrid clean-up", "title", c.TitleID, "version", k, "outcome", ws)
 			removal.RecordCleanup(context.WithoutCancel(ctx), w.st, w.log, id, ws)
 		}
+		// Open History and Torrents pages refetch the outcome.
+		var name string
+		_ = w.st.Reader().QueryRowContext(context.WithoutCancel(ctx), `SELECT name FROM title WHERE id = ?`,
+			c.TitleID).Scan(&name)
+		data, _ := json.Marshal(TitleEvent{ID: c.TitleID, Name: name, Reason: "versions"})
+		w.hub.publish(event{name: "title", data: data, need: auth.PermBrowse})
 	}()
 }
 

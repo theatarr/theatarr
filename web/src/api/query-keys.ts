@@ -106,6 +106,7 @@ export const qk = {
   collections: ["collections"] as const,
 };
 
-/** What changes when a title's versions, seasons or files change: refresh every view of it. */
+/** What changes when a title's versions, seasons or files change: refresh every view of it, Wanted and Calendar included. */
 export const titleChanged = (t?: Id) =>
-  [qk.titles.all, qk.discover.all, qk.search.all, qk.addOptions.all, qk.collections, ...(t === undefined ? [] : [qk.title(t)])] as const;
+  [qk.titles.all, qk.discover.all, qk.search.all, qk.addOptions.all, qk.collections, ["wanted"] as const, qk.calendar.all,
+    ...(t === undefined ? [] : [qk.title(t)])] as const;

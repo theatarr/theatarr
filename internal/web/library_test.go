@@ -708,6 +708,15 @@ func TestTitlePageSearchFacts(t *testing.T) {
 	if e.getKey(APIBase+"/titles/1", key, &d); d.Versions[0].Searching != "queued" {
 		t.Errorf("asked row: %q", d.Versions[0].Searching)
 	}
+	// A list addition's due row is queued too, with both backlog switches off (it is searched whatever they say).
+	off := false
+	e.web.pol.Router.Wanted = &policy.Wanted{Missing: &off, CutoffUnmet: policy.CutoffOff}
+	e.exec(`UPDATE search_request SET why = 'added' WHERE title_id = 1`)
+	d = TitleDetail{}
+	if e.getKey(APIBase+"/titles/1", key, &d); d.Versions[0].Searching != "queued" || d.AutoSearch.Missing ||
+		d.AutoSearch.Upgrades {
+		t.Errorf("added row: %q %+v", d.Versions[0].Searching, d.AutoSearch)
+	}
 	// Episode monitoring: S01E03 unmonitored leaves 2 of 2 monitored held; Have and Missing keep their rules.
 	e.exec(`UPDATE episode_version_state SET monitored = 0 WHERE episode_id = 43`)
 	d = TitleDetail{}

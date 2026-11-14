@@ -61,7 +61,7 @@ it("words rows like Radarr's: one import with its episodes, the deleted file and
   expect(ep?.getAttribute("title")).toBe(eps.join(" "));
   expect(got[1].querySelector('[data-column="release"]')?.textContent).toBe("Gamma.S01.1080p.WEB-OLDReplaced by Gamma.S01.2160p.WEB-GRP");
   expect(got[1].querySelector('[data-column="score"]')?.textContent).toBe("900");
-  expect(got[3].querySelector('[data-column="release"]')?.textContent).toBe("unknown");
+  expect(got[3].querySelector('[data-column="release"]')?.textContent).toBe("Name not recorded");
   expect(got[3].querySelector('[data-column="quality"]')?.textContent).toBe("—");
   expect(got[4].querySelector('[data-testid="history-reason"]')?.textContent).toBe("Provider refused: too many active");
   expect(got[0].querySelector('[data-testid="history-reason"]')?.textContent).toBe("Not cached on AD; our add was deleted");

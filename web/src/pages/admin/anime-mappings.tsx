@@ -87,7 +87,7 @@ export function AnimeMappings() {
         }
       >
         {review.isPending ? <Loading /> : review.error ? <ErrorState error={review.error} /> : (review.data?.items ?? []).length === 0 ? (
-          <Card><Empty>No {state === "all" ? "" : state} items.</Empty></Card>
+          <Card><Empty>No {state === "all" ? "" : (STATES.find(([s]) => s === state)?.[1] ?? state).toLowerCase()} items.</Empty></Card>
         ) : (
           <div className="space-y-3">{(review.data?.items ?? []).map((it) => <ReviewCard key={it.id} it={it} />)}</div>
         )}
@@ -258,7 +258,7 @@ export function MetadataFranchise() {
             <TableBody>{(f.numbering ?? []).map((n, i) => <TableRow key={i}>
               <TableCell>{n.tvdb}</TableCell><TableCell><Mono>{n.episode}</Mono></TableCell><TableCell>{n.absolute ?? "—"}</TableCell>
               <TableCell><span>{n.entry_title}</span><div className="text-xs"><Mono>{n.entry}</Mono></div></TableCell><TableCell>{n.entry_number}</TableCell>
-              <TableCell><Badge tone={n.importable ? "positive" : "warning"}>{n.status}</Badge>{!n.importable ? <span className="ml-2">TVDB's numbering</span> : null}</TableCell><TableCell>{n.source}</TableCell>
+              <TableCell><Badge tone={n.importable ? "positive" : "warning"} title={n.status}>{mappingWords(n.status)}</Badge>{!n.importable ? <span className="ml-2">TVDB's numbering</span> : null}</TableCell><TableCell title={n.source}>{animeSourceWords(n.source)}</TableCell>
             </TableRow>)}</TableBody>
           </Table>}
         </Card>
@@ -278,7 +278,7 @@ export function MetadataFranchise() {
               {(f.mappings ?? []).map((m) => (
                 <TableRow key={m.entry}>
                   <TableCell>{m.title}<div className="text-xs text-muted-foreground"><Mono>{m.entry}</Mono></div></TableCell>
-                  <TableCell><Badge tone={m.importable ? "positive" : "warning"}>{m.status}</Badge></TableCell>
+                  <TableCell><Badge tone={m.importable ? "positive" : "warning"} title={m.status}>{mappingWords(m.status)}</Badge></TableCell>
                   <TableCell className="hidden sm:table-cell"><Mono>{m.tvdb ? `${m.tvdb} ${m.range ?? ""}` : "—"}</Mono></TableCell>
                   <TableCell className="hidden max-w-[28rem] break-words text-[13px] text-muted-foreground md:table-cell">{m.reason}</TableCell>
                 </TableRow>

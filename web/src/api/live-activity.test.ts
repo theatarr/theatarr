@@ -1,7 +1,7 @@
 import { QueryClient } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
 import type { DownloadEvent } from "./activity";
-import { downloadToast, libraryRefresh, onDownloadEvent, PROGRESS_REFRESH_MS } from "./live-activity";
+import { downloadToast, libraryRefresh, onDownloadEvent, onTitleEvent, PROGRESS_REFRESH_MS } from "./live-activity";
 import { qk } from "./query-keys";
 
 const base: DownloadEvent = {
@@ -58,5 +58,16 @@ describe("onDownloadEvent", () => {
     qc.setQueryData(key, { items: [] });
     onDownloadEvent(qc, JSON.stringify({ ...base, state: "downloading", previous: "downloading", progress: 40 }));
     expect(qc.getQueryState(key)?.isInvalidated).toBe(true);
+  });
+});
+
+describe("onTitleEvent", () => {
+  it("refreshes the torrent lists on a versions event (a removal's clean-up ended), not on art", () => {
+    const qc = new QueryClient();
+    qc.setQueryData(qk.torrents.report, {});
+    onTitleEvent(qc, JSON.stringify({ id: 2, name: "Beta", reason: "art" }));
+    expect(qc.getQueryState(qk.torrents.report)?.isInvalidated).toBe(false);
+    onTitleEvent(qc, JSON.stringify({ id: 2, name: "Beta", reason: "versions" }));
+    expect(qc.getQueryState(qk.torrents.report)?.isInvalidated).toBe(true);
   });
 });

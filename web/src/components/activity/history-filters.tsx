@@ -31,7 +31,7 @@ export function useHistoryFilters(): Filters {
 }
 
 /** tools: buttons at the row's end (the table's Columns); admin: the caller sees files (the Other providers event).
- *  Library names never hold keys, for every account. */
+ *  Library names never hold keys, for every account; the library selector is for admin only. */
 export function HistoryFilters({ tools, admin = false }: { tools?: ReactNode; admin?: boolean } = {}) {
   const nameOf = useLibraryName();
   const known = useLibraryKnown();
@@ -63,13 +63,14 @@ export function HistoryFilters({ tools, admin = false }: { tools?: ReactNode; ad
         <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
         <Input aria-label="Title" placeholder="Title" value={text} onChange={(e) => setText(e.target.value)} className="h-8 pl-8" data-testid="history-title" />
       </div>
-      <Select aria-label="Library" value={f.copy} onChange={(e) => set("copy", e.target.value)} className="min-w-0 sm:w-auto" data-testid="history-copy">
+      {/* The household view has no library to choose. */}
+      {admin ? <Select aria-label="Library" value={f.copy} onChange={(e) => set("copy", e.target.value)} className="min-w-0 sm:w-auto" data-testid="history-copy">
         <option value="">All libraries</option>
         {copies.map((v) => (
           <option key={v.key} value={v.key}>{v.label || v.key}</option>
         ))}
         {f.copy && !copies.some((v) => v.key === f.copy) ? <option value={f.copy}>{known(f.copy) ? nameOf(f.copy) : "Removed library"}</option> : null}
-      </Select>
+      </Select> : null}
       <Select aria-label="Event" value={f.event} onChange={(e) => set("event", e.target.value)} className="min-w-0 sm:w-auto" data-testid="history-event">
         {HISTORY_EVENTS.filter((e) => admin || !e.admin).map((e) => (
           <option key={e.id} value={e.id}>{e.label}</option>

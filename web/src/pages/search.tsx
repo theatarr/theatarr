@@ -99,6 +99,7 @@ export function SearchPage() {
           placeholder="Search movies, series and anime"
           aria-label="Search movies, series and anime"
           data-testid="search-page-input"
+          maxLength={200}
           autoFocus
           autoComplete="off"
           className="h-10 min-w-0 flex-1 border-0 bg-transparent text-[16px] text-[var(--ink)] caret-[var(--accent)] outline-none placeholder:text-[var(--ink-3)]"
@@ -122,7 +123,7 @@ export function SearchPage() {
       ) : (
         <div className="space-y-8">
           <section data-testid="search-page-library">
-            <GroupHeader title="In your library" note="already in the collection" count={libProblem ? undefined : libTotal} />
+            <GroupHeader title="In your library" note="already added" count={libProblem ? undefined : libTotal} />
             {libProblem ? (
               <SectionError problem={libProblem} onRetry={() => void lib.refetch()} retrying={lib.isFetching} testid="search-library-error" />
             ) : lib.isPending ? (
@@ -149,7 +150,7 @@ export function SearchPage() {
             )}
           </section>
           <section data-testid="search-page-tmdb">
-            <GroupHeader title={words.tmdb} note="movies and series" count={tmNow?.tmdb_state === "ok" && !tmProblem ? hits.length : undefined} />
+            <GroupHeader title={words.tmdb} note={kind === "movie" ? "movies" : kind === "series" ? "series" : "movies and series"} count={tmNow?.tmdb_state === "ok" && !tmProblem ? hits.length : undefined} />
             {query.length < 2 ? (
               <SectionNote>Type at least two characters to search TMDb.</SectionNote>
             ) : tmProblem ? (

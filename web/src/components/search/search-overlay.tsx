@@ -90,6 +90,7 @@ export function SearchOverlay({ initial, onClose, onAdd }: { initial: string; on
               placeholder="Search movies, series and anime"
               aria-label="Search movies, series and anime"
               data-testid="search-input"
+              maxLength={200}
               autoComplete="off"
               data-1p-ignore="true"
               data-lpignore="true"
@@ -125,7 +126,7 @@ export function SearchOverlay({ initial, onClose, onAdd }: { initial: string; on
           ) : (
             <div className="space-y-6">
               <section data-testid="search-group-library">
-                <GroupHeader title="In your library" note="already in the collection" count={lib.data && !libProblem ? merged.total : undefined} />
+                <GroupHeader title="In your library" note="already added" count={lib.data && !libProblem ? merged.total : undefined} />
                 {libProblem ? (
                   <SectionError problem={libProblem} onRetry={() => void lib.refetch()} retrying={lib.isFetching} testid="search-library-error" />
                 ) : lib.isPending ? (

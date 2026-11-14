@@ -7,10 +7,10 @@ describe("query keys", () => {
     expect(qk.title(5)).toEqual(qk.title("5"));
     expect(qk.episodes(5, 1)).toEqual(qk.episodes("5", 1));
   });
-  it("lets an invalidation by numeric id reach the title page, its episodes and the home rows", () => {
+  it("lets an invalidation by numeric id reach the title page, its episodes, the home rows, Wanted and Calendar", () => {
     const qc = new QueryClient();
     // Cached as the screens key them: the title page from its route param (a string).
-    const hit = [qk.title("5"), qk.episodes("5"), qk.discover.home, qk.discover.row("missing"), qk.titles.grid({ kind: "movie" })];
+    const hit = [qk.title("5"), qk.episodes("5"), qk.discover.home, qk.discover.row("missing"), qk.titles.grid({ kind: "movie" }), ["wanted", "missing"], [...qk.calendar.all, "2026-11-01", "2026-11-30"]];
     const miss = [qk.title("50"), qk.releases(5, "movie-web", true)];
     for (const k of [...hit, ...miss]) qc.setQueryData(k, {});
     // Invalidated as a mutation or a live event does it: by the number in the API answer.

@@ -67,6 +67,9 @@ export function onTitleEvent(qc: QueryClient, raw: string) {
     return;
   }
   for (const queryKey of titleChanged(ev.id)) qc.invalidateQueries({ queryKey });
-  qc.invalidateQueries({ queryKey: qk.calendar.all });
-  if (ev.reason === "versions") qc.invalidateQueries({ queryKey: qk.activity.all });
+  if (ev.reason === "versions") {
+    qc.invalidateQueries({ queryKey: qk.activity.all });
+    // A removal's debrid clean-up ends with this event: the torrent lists follow.
+    qc.invalidateQueries({ queryKey: qk.torrents.all });
+  }
 }

@@ -208,3 +208,16 @@ it("hides an earlier query's TMDb cards while the new query's answer loads", asy
   expect(screen.getByTestId("search-page-tmdb").textContent).toContain("Searching TMDb");
   expect(screen.getByTestId("search-page-library").textContent).not.toContain("Spider-Man: Brand New Day");
 });
+
+it("names the groups for the chosen kind and caps the query at the server's 200 characters", async () => {
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: { id: 9, username: "someone", permissions: ["browse", "add"], csrf_token: "t" } },
+    { method: "GET", path: "/search", reply: answer },
+    { method: "GET", path: "/requests", reply: { items: [], total: 0 } },
+  ]);
+  renderPage(<SearchProvider><SearchPage /></SearchProvider>, "/search?q=Signal&kind=series");
+  expect(await screen.findByText("already added")).toBeTruthy();
+  expect(screen.getByText("series")).toBeTruthy();
+  expect(screen.queryByText("movies and series")).toBeNull();
+  expect(screen.getByTestId("search-page-input").getAttribute("maxLength")).toBe("200");
+});

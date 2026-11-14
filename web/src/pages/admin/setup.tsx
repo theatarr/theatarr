@@ -100,7 +100,7 @@ export function SetupPage() {
       </Step>
       <Step n={5} title="Check readiness" done={progress.steps[4]}>
         <Preflight generation={progress.versions.data?.generation} report={progress.report} last={progress.last} />
-        <Link className="underline" to={journalHome()}>Open the decision journal</Link>
+        <p><Link className="underline" to={journalHome()}>Open the decision journal</Link></p>
       </Step>
       <Step n={6} title="Review activation" done={progress.steps[5]}>
         <p>A library created with "Create library and start downloading" is Live with Pause off already. For any other library: when you're ready, set it to Live on Libraries and turn Pause off at the top of the page.</p>

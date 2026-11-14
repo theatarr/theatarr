@@ -35,6 +35,7 @@ it("says what the shown search did and picks out the followed release", async ()
       title_id: 7, version: "movie-web", versions: ["movie-web"], mode: "active", live_allowed: false, source: "journal", results: 12, accepted: 2,
       candidates: [cand(1, "aaa"), cand(2, "bbb")], rejections: {}, outcomes: { aaa: { outcome: "failed", provider: "rd", reason: "RD status error" }, bbb: { outcome: "current", provider: "rd" } },
       grabbed: "Grabbed #2 via rd → imported (the current file)", grab: false,
+      notes: "seadex: dropped 1 entries: private tracker; dropped 1 recent entries not filed under one of our titles; dropped 2 entries with an excluded tag",
     } },
   ]);
   renderPage(<LibraryNamesProvider keys><ShowReleases titleId={7} defaultOpen initialVersion="movie-web" focus="BBB" labels={{ "movie-web": "Movies WEB" }} /></LibraryNamesProvider>);
@@ -47,6 +48,7 @@ it("says what the shown search did and picks out the followed release", async ()
   // A Live library whose acquirer is down is not called Watch only; the facts are one text run.
   expect(screen.getByTestId("releases-no-live").textContent).toBe("The acquirer is not running");
   expect(screen.getByTestId("releases-facts").textContent).toBe("12 results, 2 accepted");
+  expect(screen.getByTestId("releases-notes").textContent).toBe("Indexers: seadex: dropped 1 entry: private tracker; dropped 1 recent entry not filed under one of our titles; dropped 2 entries with an excluded tag");
   expect(screen.queryByText("the last search Theatarr decided for each library")).toBeNull();
 });
 

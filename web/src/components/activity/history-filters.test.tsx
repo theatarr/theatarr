@@ -26,7 +26,7 @@ it("lets Since reach today in the browser's time zone, not the UTC day", async (
 
 it("names libraries without their keys, telling equal names apart by number", async () => {
   mockFetch([{ method: "GET", path: "/titles/facets", reply: { versions: [{ key: "movie-4k", label: "4K" }, { key: "tv-4k", label: "4K" }, { key: "movie-web", label: "WEB" }] } }]);
-  renderPage(<HistoryFilters />);
+  renderPage(<HistoryFilters admin />);
   const select = (await screen.findByTestId("history-copy")) as HTMLSelectElement;
   await screen.findByRole("option", { name: "4K (2)" });
   expect([...select.options].map((o) => [o.textContent, o.value])).toEqual([["All libraries", ""], ["4K", "movie-4k"], ["4K (2)", "tv-4k"], ["WEB", "movie-web"]]);
@@ -61,4 +61,11 @@ it("Today sets Since to today and clears it again; adoption is its own event", a
   const events = [...(screen.getByTestId("history-event") as HTMLSelectElement).options].map((o) => o.textContent);
   expect(events).toContain("Imported");
   expect(events).toContain("Adopted (files found in the library)");
+});
+
+it("has no library selector in the household view", async () => {
+  mockFetch([{ method: "GET", path: "/titles/facets", reply: { versions: [{ key: "movie-web", label: "WEB" }] } }]);
+  renderPage(<HistoryFilters />);
+  await screen.findByTestId("history-event");
+  expect(screen.queryByTestId("history-copy")).toBeNull();
 });

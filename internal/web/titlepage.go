@@ -632,13 +632,14 @@ func (w *Web) searchFacts(ctx context.Context, db *sql.DB, titleID int64, versio
 	if err != nil {
 		return nil, err
 	}
-	// Search now writes its row due now with why asked; the next round starts it.
+	// Search now writes its row due now with why asked, a list addition with why added; the next round starts it,
+	// whatever the backlog switches say.
 	scond, sargs := "", []any{titleID, store.Millis(w.now())}
 	if ep != nil {
 		scond, sargs = " AND sr.season IN (-1, ?)", append(sargs, ep.season)
 	}
 	err = scanAll(ctx, db, `SELECT DISTINCT v.id FROM search_request sr JOIN version v ON v.title_id = sr.title_id
-		AND v.policy_key = sr.version_key WHERE sr.title_id = ? AND sr.why = 'asked' AND sr.next_at <= ?`+scond, sargs,
+		AND v.policy_key = sr.version_key WHERE sr.title_id = ? AND sr.why IN ('asked', 'added') AND sr.next_at <= ?`+scond, sargs,
 		func(rows *sql.Rows) error {
 			var vid int64
 			if err := rows.Scan(&vid); err != nil {
