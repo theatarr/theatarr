@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, screen } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 import { mockFetch, renderPage } from "@/test/page";
 import { Logs } from "./logs";
@@ -30,4 +30,25 @@ it("shows a restart marker when the new process has no log entries", async () =>
   await act(async()=>{await vi.advanceTimersByTimeAsync(5000)});
   expect(screen.getByText(/Theatarr restarted/)).toBeTruthy();
  } finally {vi.useRealTimers();}
+});
+
+it("keeps the service log level apart from the viewing filter: a choice applies only with Apply", async () => {
+  const fetch = mockFetch([
+    { method: "GET", path: "/logs", reply: { items: [], components: [], boot_id: "b", after: 0, more: false, skipped: 0 } },
+    { method: "GET", path: "/logs/files", reply: { items: [] } },
+    { method: "GET", path: "/logs/level", reply: { level: "INFO" } },
+    { method: "PUT", path: "/logs/level", reply: { level: "DEBUG" } },
+  ]);
+  renderPage(<Logs />);
+  const card = await screen.findByTestId("log-level");
+  // The viewing filter sits above, the card after the lines.
+  expect(screen.getByText("Show lines from:").compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  const select = within(card).getByRole("combobox", { name: "Service log level" }) as HTMLSelectElement;
+  await waitFor(() => expect(select.value).toBe("INFO"));
+  const apply = within(card).getByRole("button", { name: "Apply" }) as HTMLButtonElement;
+  expect(apply.disabled).toBe(true);
+  fireEvent.change(select, { target: { value: "DEBUG" } });
+  expect(fetch.calls("PUT", "/logs/level")).toHaveLength(0);
+  fireEvent.click(apply);
+  await waitFor(() => expect(fetch.calls("PUT", "/logs/level")[0]?.body).toEqual({ level: "DEBUG" }));
 });

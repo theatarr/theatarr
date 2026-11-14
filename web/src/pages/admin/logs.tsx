@@ -1,5 +1,6 @@
 // Admin › System › Logs: recent log lines from the service's in-memory ring (GET /logs), newest first, polled every 5 s,
-// and the rotated log files to download (GET /logs/files).
+// and the rotated log files to download (GET /logs/files). The service's own log level is a separate card at the end
+// with its own Apply (PUT /logs/level): it changes what the running service writes, unlike the viewing filter.
 import { useState } from "react";
 import { API_BASE } from "@/api/client";
 import { useLogFiles, useLogLevel, useLogs, useSetLogLevel } from "@/api/hooks";
@@ -17,30 +18,11 @@ export function Logs() {
   const [component, setComponent] = useState("");
   const q = useLogs(level, component);
   const files = useLogFiles();
-  const runtime = useLogLevel();
-  const changeLevel = useSetLogLevel();
+
   const items = [...(q.data?.items ?? [])].reverse();
   return (
     <div>
       <PageHeader crumb={[{ label: "System", to: "/admin" }]} title="Logs" description="The last 2,000 lines since the service started. Secret-looking fields are redacted." />
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <label className="flex items-center gap-2 text-sm">
-          Service log level
-          <select
-            aria-label="Service log level"
-            value={runtime.data?.level ?? ""}
-            disabled={!runtime.data || changeLevel.isPending}
-            onChange={(e) => changeLevel.mutate(e.target.value)}
-            className="h-8 rounded-md border border-input bg-field px-2 text-sm"
-          >
-            {!runtime.data ? <option value="">Loading…</option> : null}
-            {LEVELS.map((l) => <option key={l} value={l.toUpperCase()}>{l}</option>)}
-          </select>
-        </label>
-        <span className="text-sm text-muted-foreground">Resets to the configured default on restart.</span>
-      </div>
-      {runtime.error ? <ErrorState error={runtime.error} /> : null}
-      {changeLevel.error ? <ErrorState error={changeLevel.error} /> : null}
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <span className="text-sm text-muted-foreground">Download logs:</span>
         {(files.data?.items ?? []).map((f) => (
@@ -55,7 +37,7 @@ export function Logs() {
       </p> : null}
       {files.error ? <ErrorState error={files.error} /> : null}
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        <span className="text-sm text-muted-foreground">View minimum:</span>
+        <span className="text-sm text-muted-foreground">Show lines from:</span>
         <div className="flex gap-1">
           {LEVELS.map((l) => (
             <Button key={l} size="xs" variant={l === level ? "secondary" : "ghost"} onClick={() => setLevel(l)}>{l}</Button>
@@ -93,6 +75,34 @@ export function Logs() {
           </ul>
         </Card>
       )}
+      <ServiceLevel />
     </div>
+  );
+}
+
+/** The level the running service writes at: a setting of the service, apart from the viewer's filter above, applied
+ *  only with Apply. It lasts until a restart, which brings back the configured default. */
+function ServiceLevel() {
+  const runtime = useLogLevel();
+  const changeLevel = useSetLogLevel();
+  const [draft, setDraft] = useState<string>();
+  const current = runtime.data?.level ?? "";
+  const value = draft ?? current;
+  return (
+    <Card id="log-level" className="mt-6 scroll-mt-[calc(var(--top)+1rem)]" data-testid="log-level">
+      <h2 className="text-[15px] font-semibold text-[var(--ink)]">Service log level</h2>
+      <p className="mt-1 text-sm text-muted-foreground">What the running service writes to its logs, for every reader. It applies at once with Apply and goes back to the configured default on restart. The filter above only changes what this page shows.</p>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <select aria-label="Service log level" value={value} disabled={!runtime.data || changeLevel.isPending} onChange={(e) => setDraft(e.target.value)}
+          className="h-8 rounded-md border border-input bg-field px-2 text-sm">
+          {!runtime.data ? <option value="">Loading…</option> : null}
+          {LEVELS.map((l) => <option key={l} value={l.toUpperCase()}>{l}</option>)}
+        </select>
+        <Button size="sm" disabled={!runtime.data || changeLevel.isPending || value === current} onClick={() => changeLevel.mutate(value, { onSuccess: () => setDraft(undefined) })}>Apply</Button>
+        {runtime.data ? <span className="text-sm text-muted-foreground" data-testid="log-level-now">Now: {current.toLowerCase()}</span> : null}
+      </div>
+      {runtime.error ? <ErrorState error={runtime.error} /> : null}
+      {changeLevel.error ? <ErrorState error={changeLevel.error} /> : null}
+    </Card>
   );
 }
