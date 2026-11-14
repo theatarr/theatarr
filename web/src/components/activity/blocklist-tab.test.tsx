@@ -36,7 +36,9 @@ it("sends the typed title, pages with the filtered total, and shows quality and 
   renderPage(<BlocklistTab />, "/activity/blocklist");
   const rows = await screen.findAllByTestId("blocked-row");
   expect(rows[0].querySelector('[data-column="quality"]')?.textContent).toBe("WEBDL-1080p");
-  expect(rows[0].querySelector('[data-column="indexer"]')?.textContent).toBe("torrentio");
+  // The indexer sits under the release name (no column of dashes).
+  expect(rows[0].querySelector('[data-column="indexer"]')).toBeNull();
+  expect(within(rows[0]).getByTestId("blocked-indexer").textContent).toBe("from torrentio");
   // The title opens its page.
   expect(within(rows[0]).getAllByRole("link", { name: "Title 1" })[0].getAttribute("href")).toBe("/title/1");
   expect(screen.getByTestId("pager-range").textContent).toBe("1–50 of 312");
@@ -88,4 +90,14 @@ it("unblocks the selected releases one by one", async () => {
     { version: "movie-web", info_hash: "h1", search: false },
     { version: "movie-web", info_hash: "h2", search: false },
   ]);
+});
+
+it("says when a blocked release was searched again", async () => {
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: me },
+    { method: "GET", path: "/titles/facets", reply: {} },
+    { method: "GET", path: "/activity", reply: { state: "blocked", admin: true, total: 1, blocked: [{ ...blocked(1), researched_at: new Date(Date.now() - 3 * 86_400_000).toISOString() }] } },
+  ]);
+  renderPage(<BlocklistTab />, "/activity/blocklist");
+  expect((await screen.findByTestId("blocked-researched")).textContent).toMatch(/^searched again 3 d(ays)? ago$/);
 });

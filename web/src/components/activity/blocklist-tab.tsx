@@ -18,7 +18,7 @@ import { Pager } from "@/components/ui/pager";
 import { Select } from "@/components/ui/select";
 import { bulkWords } from "@/lib/activity";
 import { distinctLabels, relabel } from "@/lib/copies";
-import { fmtTime, titleWithYear } from "@/lib/format";
+import { fmtAgo, fmtTime, titleWithYear } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 const rowKey = (b: ActivityBlocked) => `${b.version}\n${b.info_hash}`;
@@ -40,10 +40,16 @@ const COLUMNS: DataColumn<ActivityBlocked>[] = tight([
     label: "Release",
     card: "full",
     cellClassName: "max-w-[12rem]",
-    cell: (b) => <span className="block font-mono text-[12px] max-sm:break-all sm:truncate" title={b.release}>{b.release}</span>,
+    // The indexer (rarely known: a release taken over from Sonarr/Radarr has none) goes under the name, not in a column
+    // of dashes.
+    cell: (b) => (
+      <>
+        <span className="block font-mono text-[12px] max-sm:break-all sm:truncate" title={b.release}>{b.release}</span>
+        {b.indexer ? <span className="block text-[11px] text-muted-foreground" data-testid="blocked-indexer">from {b.indexer}</span> : null}
+      </>
+    ),
   },
   { id: "quality", label: "Quality", card: "none", cellClassName: "whitespace-nowrap", cell: (b) => b.quality || <Dash /> },
-  { id: "indexer", label: "Indexer", card: "none", cellClassName: "whitespace-nowrap", cell: (b) => b.indexer || <Dash /> },
   {
     id: "reason",
     label: "Reason",
@@ -53,7 +59,7 @@ const COLUMNS: DataColumn<ActivityBlocked>[] = tight([
       <span className="block text-[12.5px] leading-snug" title={b.reason || undefined}>
         <span className="text-[var(--warn-ink)]">{b.words}</span>
         {b.reason && b.reason !== b.words ? <span className="line-clamp-3 block break-words text-[11px] text-muted-foreground">{b.reason}</span> : null}
-        {b.researched_at ? <span className="block text-[11px] text-muted-foreground">searched again</span> : null}
+        {b.researched_at ? <span className="block text-[11px] text-muted-foreground" title={fmtTime(b.researched_at)} data-testid="blocked-researched">searched again {fmtAgo(b.researched_at)}</span> : null}
       </span>
     ),
   },
