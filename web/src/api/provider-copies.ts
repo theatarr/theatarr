@@ -41,3 +41,13 @@ export function useTorrentCopies(hash: string, at: string, initial?: Schemas["Pr
     refetchInterval: (q) => (copiesUnfinished(q.state.data?.copies) ? COPY_POLL_MS : false),
   });
 }
+
+/** A hash's copies read when it is opened (Saved inventory), and again while one is unfinished. Shares its key with
+ *  useCopyTorrent(hash, "inventory"), whose answer seeds it. */
+export function useHashCopies(hash: string) {
+  return useQuery({
+    queryKey: ["torrents", "copies", hash, "inventory"],
+    queryFn: () => api<CopiesResult>(`/torrents/copies?hash=${encodeURIComponent(hash)}`),
+    refetchInterval: (q) => (copiesUnfinished(q.state.data?.copies) ? COPY_POLL_MS : false),
+  });
+}

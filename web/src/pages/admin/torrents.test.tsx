@@ -65,6 +65,7 @@ describe("torrents page", () => {
     expect(screen.getByTestId("provider-as-of-rd").textContent).toMatch(/^as of /);
     // Said once, near the times: usage is as of the record.
     expect(screen.getAllByTestId("usage-as-of")).toHaveLength(1);
+    expect(screen.getByTestId("usage-as-of").textContent).not.toMatch(/same time/);
   });
 
   it("keeps showing the earlier record of an account whose read failed, and says so", async () => {

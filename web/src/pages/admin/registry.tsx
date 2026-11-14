@@ -6,7 +6,7 @@ import { Search } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { useContent, useRegistry, useStatus } from "@/api/hooks";
-import { useCopyTorrent, useTorrentCopies } from "@/api/provider-copies";
+import { useCopyTorrent, useHashCopies } from "@/api/provider-copies";
 import { AddToProviders, OtherProviders } from "@/components/title/provider-copies";
 import { UsageBadge, UsageDetail } from "@/components/torrent-usage";
 import { otherProvidersLine } from "@/lib/provider-copies";
@@ -40,16 +40,16 @@ const STATE_HELP = "The saved inventory's own state. Tied to an import: a Theata
 const HASH = /^[0-9a-fA-F]{40}$/;
 
 function StateBadge({ s }: { s?: string }) {
-  const tone = s === "present" ? "positive" : s === "absent" ? "negative" : "neutral";
+  const tone = s === "present" ? "positive" : s === "absent" || s === "gone" ? "negative" : "neutral";
   return <Badge tone={tone} title={s}>{STATE_WORDS[s ?? ""] ?? s ?? "—"}</Badge>;
 }
 
 /** The Torrents page's usage of a hash with its link count; "—" when no account holds it in the record. */
-function UsedCell({ usage, links }: { usage?: string; links?: number }) {
+function UsedCell({ usage, links, reason }: { usage?: string; links?: number; reason?: string }) {
   if (!usage) return <span className="text-muted-foreground" title="No account holds it in the record">—</span>;
   return (
-    <span className="flex flex-wrap items-baseline gap-x-1.5">
-      <UsageBadge u={{ usage }} />
+    <span className="flex flex-wrap items-baseline gap-x-1.5" title={reason}>
+      <UsageBadge u={{ usage, reasons: reason ? [reason] : undefined }} />
       {links ? <span className="text-xs text-muted-foreground tabular-nums">{plural(links, "link")}</span> : null}
     </span>
   );
@@ -113,7 +113,7 @@ export function Registry() {
                 <TableRow key={c.info_hash}>
                   <TableCell><Link className="hover:text-primary" to={`/admin/torrents/inventory/${c.info_hash}`}><Mono>{c.info_hash?.slice(0, 12)}</Mono></Link></TableCell>
                   <TableCell className="max-w-[30rem] text-[13px] [overflow-wrap:anywhere]">{c.name}</TableCell>
-                  <TableCell data-testid="inventory-used"><UsedCell usage={c.usage} links={c.linked_files} /></TableCell>
+                  <TableCell data-testid="inventory-used"><UsedCell usage={c.usage} links={c.linked_files} reason={c.usage_reason} /></TableCell>
                   <TableCell className="hidden sm:table-cell"><StateBadge s={c.state} /></TableCell>
                   <TableCell className="hidden whitespace-nowrap md:table-cell">{fmtAgo(c.last_seen_at)}</TableCell>
                 </TableRow>
@@ -221,15 +221,19 @@ export function RegistryContent() {
  *  when no provider holds it. */
 function InventoryCopies({ hash, providers }: { hash: string; providers: { provider?: string; torrent_id?: string; state?: string }[] }) {
   const held = providers.find((p) => p.state !== "absent" && p.provider && p.torrent_id);
+  return held ? <HeldCopies hash={hash} provider={held.provider ?? ""} id={held.torrent_id ?? ""} /> : null;
+}
+
+/** The copies of a held hash, read when the entry opens and polled while one is unfinished, and the action. */
+function HeldCopies({ hash, provider, id }: { hash: string; provider: string; id: string }) {
   const m = useCopyTorrent(hash, "inventory");
-  const copies = useTorrentCopies(hash, "inventory").data?.copies;
+  const copies = useHashCopies(hash).data?.copies;
   const status = useStatus();
   const paused = globalDownloadsOff((status.data?.versions ?? []).map((v) => v.grab_state));
-  if (!held) return null;
   return (
     <div className="mt-2 space-y-1 text-[13px]" data-testid="inventory-copies">
       {otherProvidersLine(copies) ? <div>Other providers: <OtherProviders copies={copies} /></div> : null}
-      <AddToProviders m={m} vars={{ provider: held.provider ?? "", id: held.torrent_id ?? "" }} paused={paused} current={copies} />
+      <AddToProviders m={m} vars={{ provider, id }} paused={paused} current={copies} />
     </div>
   );
 }

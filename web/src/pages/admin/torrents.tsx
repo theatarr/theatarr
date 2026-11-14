@@ -343,7 +343,7 @@ function RecordSummary({ r, codes }: { r: TorrentReport; codes: Record<string, s
       })}
       {r.providers.some((p) => p.as_of) ? (
         <p className="px-4 py-2 text-xs text-muted-foreground" data-testid="usage-as-of">
-          Used and unused are worked out with each read, so they are as of the same time: a library link made since shows after the next read.
+          Each time is when that account's torrent list was read. Used and unused are worked out again after each read or Refresh.
         </p>
       ) : null}
     </Card>
