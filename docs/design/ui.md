@@ -246,8 +246,8 @@ The remaining pages use the same tokens and primitives:
 - The confirmation dialog, filter sheet and dropdown menu use the Button, Checkbox, Select and token shadows; the
   components use the short tokens.
 - Sheets and dialogs (bulk monitor, copy, view options, episode drawer, upgrade why, add and request drawers) use
-  the 8px panel radius and the shadow token; a schema boolean with a default (On / Off / Default) stays a three-state
-  outline button rather than a Switch.
+  the 8px panel radius and the shadow token. A schema boolean in a settings form is a Switch with its state beside it
+  ("On", "Off", "On (default)" while nothing is stored).
 - Keyboard focus: `outline-none` sets Tailwind v4's outline style to none, so a primitive that removes the browser
   outline also sets `focus-visible:outline-solid` with its 2px focus outline (Button, Switch, Checkbox, tab triggers and
   the focusable tab panel, search fields).
@@ -736,8 +736,10 @@ remain admin-only; managers keep copyable hashes and unlinked summaries.
 `/admin/settings` is the Settings home, with **Find a setting** and a card for each page below in sidebar order.
 Search understands familiar arr terms, schema field labels and technical paths; Enter opens the first result.
 Panel anchors scroll into view and briefly highlight. **Show advanced settings** is shared across all forms and
-remembered in this browser. Normal database mode has a compact saved-settings notice with a Details disclosure;
-Startup fallback retains the full notice and reload/confirmation behavior.
+remembered in this browser; the button shows only where it shows something (Settings home, and a page tab with an
+advanced panel or field). Settings home has a compact saved-settings notice with a Details disclosure; the task pages
+show the notice only when something is off (startup fallback, the settings service unavailable), with the full notice
+and reload/confirmation behavior. Each page says its intro once, as its description.
 
 | Page | Route | Tabs / contents |
 |---|---|---|
@@ -748,7 +750,7 @@ Startup fallback retains the full notice and reload/confirmation behavior.
 | Indexers | `/admin/settings/indexers` | Indexers · VPN · Catalog · RSS |
 | Download clients | `/admin/settings/downloads` | Debrid providers (with Provider account sync above their status) · Other clients · Behaviour |
 | Notifications | `/admin/settings/notifications` | Where and when Theatarr sends messages. |
-| Plex & playback | `/admin/settings/plex` | Plex connections, playback and playlists; read-only Playlists Theatarr keeps below the playlists panel. |
+| Plex & playback | `/admin/settings/plex` | Plex connections, playback and playlists; read-only Playlists Theatarr keeps below the playlists panel, folded with its count ("90 playlists, 8 empty"). |
 | Metadata & artwork | `/admin/settings/metadata` | Metadata services, refresh schedules and the artwork cache. |
 | Connected apps | `/admin/settings/apps` | Compatible endpoints for Seerr and other apps: each app's libraries, profiles and API key. Replace a library puts a new library in an old one's place in the app's libraries and every profile, in the draft; Save sends both. |
 
@@ -794,8 +796,10 @@ Advanced includes **YAML settings**
 (`/admin/advanced/config`, with Policy files, Sections and Import & export tabs), **Settings history**
 (`/admin/advanced/history`) and **Request limits** (`/admin/advanced/limits`, including back-offs and budgets).
 Previous admin URLs redirect with their query string and hash intact.
-On phones (below `md`) the side list is hidden, so the top of each Settings page has a labelled **Settings page**
-select that moves between the pages.
+On phones (below `md`) the side list is hidden, so the top of each Settings page has one labelled **Settings page**
+select that moves between the pages and their tabs (grouped by page, in place of the route tabs' Section select), with
+Show advanced settings under it. Request limits lists each budget once, in the editable table, with its cap bars and
+who uses it by name ("Provider AD", "Indexer prowlarr-tpb"); the status part below keeps the back-offs.
 
 **Settings forms.** Panels (`section-panel.tsx`, through `field-input.tsx`) and record sheets
 (`record-form.tsx`) share one pattern: an edited field is marked **Changed** with **Undo** back to the saved value;
@@ -808,7 +812,8 @@ values have a Changed mark but no Undo (a record's Service, which fills a new re
 Root and Write roots); Discard resets the whole draft. Undo under an object the saved settings
 did not have leaves it absent, so the draft equals the saved value again. The Libraries editor has the same marks (a new
 library's key included), count and Discard (it has no schema defaults, so no Reset); list rows tie their indexed error and the help to their
-control. Most saves apply at once; the few changes the server confirms (going Live, Pause off, removing a library, or an address change that keeps a stored
+control. Durations and byte sizes are shown and entered in plain units, booleans are switches, and Add buttons name
+one item; stored values are never rewritten on load ([Settings](settings.md), Section editing). Most saves apply at once; the few changes the server confirms (going Live, Pause off, removing a library, or an address change that keeps a stored
 key; [Settings](settings.md#sections-and-views)) keep its 422 confirmation: the dialog (`EffectsConfirmDialog`) lists the effects word for word as the server returns them,
 grouped by library (effects that name none first, under "This change"; nothing is added to what the server sends), says which libraries are affected and, when the change is about one
 library, names the other libraries it also affects; Cancel has the focus.

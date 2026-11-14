@@ -79,11 +79,14 @@ checkboxes), path, aliases and API key, with each library's state in the list. L
 `PUT /settings/view-bindings/{key}`.
 
 **Show advanced settings** is one app-wide flag, off by default, stored as `theatarr.settings.advanced` in localStorage
-(with unavailable storage tolerated). It controls both advanced panels and fields. **Find a setting** on Settings
-home searches pages, tabs, panels and schema fields (including dotted technical paths), plus arr aliases such as
+(with unavailable storage tolerated). It controls both advanced panels and fields; its button shows only on Settings
+home and on a page tab that has an advanced panel or field (not on Backup or the Advanced pages). **Find a setting** on Settings
+home searches pages, tabs, panels and schema fields (including dotted technical paths, which are matched but not
+printed; a result's path is its tooltip), plus arr aliases such as
 Recyclarr, Prowlarr, root folder, Seerr and rclone. Named records saved in a section (a metadata source such as
 `tmdb`, a client, a notification target, a library's Plex mapping) are indexed by name with their field labels, so
-"tmdb key" opens Metadata & artwork › Metadata services with the tmdb record unfolded (`?open=metadata.sources.tmdb`). Results are limited to 12; Enter
+"tmdb key" opens Metadata & artwork › Metadata services with the tmdb record unfolded (`?open=metadata.sources.tmdb`). Advanced
+fields and panels (credential environment variables and the like) are found only with Show advanced settings on. Results are limited to 12; Enter
 opens the first. Anchors scroll and highlight the panel. An arr page that has a Theatarr page (Prowlarr's Apps:
 Connected apps) points there, not at a "no separate page" entry.
 
@@ -196,13 +199,24 @@ Each save publishes a runtime generation without a restart. New routes and libra
 **Section editing.** The inline Settings panels are the forms. The section list opens the raw YAML editor directly with **Edit as YAML**. The inline panels use the shared schema and section API.
 
 Forms keep the loaded config intact: an untouched default is not inserted, leaf Reset removes only that key,
-and unknown keys survive edits. Objects and named-record collections have no Reset. Default-on switches show
-the effective default and a click writes an explicit false.
-Duration presets compare parsed values (`6h0m0s` selects 6h); Off removes the key for off-by-default
-settings, including the Torrents schedule control. The router’s stalled and no-progress timeouts retain
-explicit `0s` for Off: omitting them restores their nonzero runtime defaults. Weekly is `168h` because
-policy durations do not accept days. Byte sizes initially use the largest exact GB/MB/KB unit (bytes when
-none fits). Configured nullable sections offer **Remove this section**, which submits `config: null` through
+and unknown keys survive edits. Nothing is rewritten on load: opening a page and saving without an edit sends the
+stored values as they were (a stored `6m0s` shown as "6 minutes" stays `6m0s`). Objects and named-record collections
+have no Reset. Booleans are switches with their state in words: "On" / "Off", with "(default)" while nothing is
+stored (the effective default); a click writes an explicit value.
+Durations are shown in words ("10 minutes", "24 hours", "7 days" from two days up). Presets compare parsed values
+(`6h0m0s` selects 6 hours) and write the short Go form (`6h`); **Custom** is an amount and a unit (seconds, minutes,
+hours, days), written as a Go duration (days as hours, `48h`, because policy durations do not accept days). Changing
+only the unit rescales the amount and writes nothing. A stored value Go accepts but the form cannot split (`500ms`)
+stays an editable text. A stored `0s` on a duration without Off is shown as Default, which is what the server reads it
+as, and stays stored until edited. Off removes the key for off-by-default settings, including the Torrents schedule
+control. The router’s stalled and no-progress timeouts retain explicit `0s` for Off: omitting them restores their
+nonzero runtime defaults. Byte sizes are an amount and a unit (B, KB, MB, GB, TB, KiB, MiB, GiB, TiB, as
+`policy.ByteSize` reads them): a stored count shows in the unit that gives the smallest whole number (2147483648 is
+2 GiB, 25000000 is 25 MB), a stored unit string keeps its unit, and an edit writes bytes; a speed's units read
+`MB/s`. Add buttons name one item ("Add folder", "Add destination"; `addLabel` in `field-input.tsx`). On Plex &
+playback, a per-library row whose key is no longer a configured library is marked **library removed** with
+**Remove**, which drops that key in the draft; the section's Save writes it like any other edit (and it shows in
+Settings history). Configured nullable sections offer **Remove this section**, which submits `config: null` through
 the same confirmation flow. Credentials are never pre-filled: Set/Replace and Clear send write-only secret
 updates. Renaming a record with stored credentials requires re-entering them; a masked notification
 destination also needs its full URL. Rename moves draft replacements and clears to the new path. Empty or
@@ -222,10 +236,14 @@ time** (`digest_at`, local `HH:MM`, default 09:00) sets when the Discord and ntf
 
 `GET /settings/schema` includes `sections` and `section_nullable`, built by reflection over policy types.
 Help comes from Go field comments: `go generate ./internal/web` parses policy source and writes the embedded
-`sectionfields_gen.json`. The generator rejects undocumented reachable fields. `TestSectionFieldDocsCurrent`
+`sectionfields_gen.json`. Where a comment is written for developers (it names a source file, a design document, a job
+name or another field's YAML key, or is cut short), `sectionHelp` in `sectionschema.go` gives the form's text, with the
+same meaning, defaults and bounds; Go durations in any help are written in words ("Default 6h" reads "Default 6
+hours"). A web test keeps file names, design documents, job names and raw durations out of every help. The generator rejects undocumented reachable fields. `TestSectionFieldDocsCurrent`
 catches stale output; `TestSectionSchemaCoverage` independently checks every policy field, owned-field
 exclusions and credential paths. Generated help replaces Go field identifiers and expands “environment
-variable”; `TestSectionHelpHasNoGoFieldNames` checks every reachable field name without exceptions.
+variable”; `TestSectionHelpHasNoGoFieldNames` checks every reachable field name in the generated help (the
+hand-written `sectionHelp` texts may say Plex, RSS and URL).
 `TestSectionSchemaFixture` checks the real schema fixture used to render all 13 forms in web tests
 (regenerate with `go test ./internal/web -run TestSectionSchemaFixture -update-section-fixture`).
 `TestSectionDefaultTrue` checks runtime defaults against annotations. Limits and enums live in the
