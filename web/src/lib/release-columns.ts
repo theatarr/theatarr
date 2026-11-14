@@ -170,6 +170,12 @@ export function fmtAge(published: string | undefined, now: Date | number = Date.
 }
 
 /** Seeders / leechers: "120 / 8", "120" without leechers, "—" when the indexer gave no count. */
+/** An indexer by its key, without the "prowlarr-" prefix a linked Prowlarr indexer's key carries ("prowlarr-therarbg"
+ *  reads "therarbg"); the key stays in the tooltip. */
+export function indexerWords(key: string | null | undefined): string {
+  return (key ?? "").replace(/^prowlarr-/, "");
+}
+
 export function peersText(c: Pick<Candidate, "seeders" | "leechers">): string {
   const s = c.seeders ?? 0;
   if (s < 0) return "—";

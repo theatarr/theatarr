@@ -30,6 +30,7 @@ import {
   episodesText,
   filterReleases,
   fmtAge,
+  indexerWords,
   naturalDir,
   needsConfirm,
   normalizeReleaseColumns,
@@ -150,7 +151,7 @@ function Cell({ id, c, outcomes }: { id: ReleaseColumnId; c: Candidate; outcomes
     case "age":
       return <span className="whitespace-nowrap" title={c.published}>{fmtAge(c.published)}</span>;
     case "indexer":
-      return <span className="whitespace-nowrap">{c.indexer || "—"}</span>;
+      return <span className="whitespace-nowrap" title={c.indexer}>{indexerWords(c.indexer) || "—"}</span>;
     case "history":
       return <Outcome o={outcomeOf(c, outcomes)} />;
     case "size":
@@ -322,7 +323,8 @@ export function ReleaseGrid({
           className="h-8 min-w-56 flex-1 sm:max-w-sm"
           value={filter.text}
           onChange={(e) => setFilter({ ...filter, text: e.target.value })}
-          placeholder="Filter by title, indexer, quality or language"
+          placeholder="Filter releases"
+          title="Filter by title, indexer, quality or language"
           aria-label="Filter releases"
           data-testid="release-filter"
         />
@@ -386,7 +388,7 @@ export function ReleaseGrid({
                   <Score c={c} />
                 </div>
                 <div className="mt-1 text-xs text-[var(--ink-2)]">
-                  {[c.quality || "—", c.size ? fmtBytes(c.size) : "", fmtAge(c.published) !== "—" ? fmtAge(c.published) : "", `${peersText(c)} peers`, c.indexer ?? ""].filter(Boolean).join(" · ")}
+                  {[c.quality || "—", c.size ? fmtBytes(c.size) : "", fmtAge(c.published) !== "—" ? fmtAge(c.published) : "", `${peersText(c)} peers`, indexerWords(c.indexer)].filter(Boolean).join(" · ")}
                 </div>
                 {kind === "series" && c.episodes?.length ? <div className="mt-1 font-mono text-[12px] text-[var(--ink-2)]" data-testid="release-card-episodes">{episodesText(c.episodes)}</div> : null}
                 {c.cached_on?.length || c.languages?.length || c.flags?.length ? (

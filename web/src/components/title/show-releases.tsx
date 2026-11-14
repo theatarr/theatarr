@@ -32,9 +32,10 @@ export function Summary({ r }: { r: Releases }) {
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <Badge tone={r.source === "live" ? "info" : r.source === "none" ? "neutral" : "accent"} data-testid="releases-source">{SOURCE[r.source] ?? r.source}</Badge>
-        {r.at ? <span className="text-muted-foreground">{fmtAgo(r.at)}</span> : null}
-        {r.target && r.target !== "movie" ? <span className="text-muted-foreground">· {r.target === "rss" ? "RSS" : r.target}</span> : null}
-        <span className="text-muted-foreground">· {plural(r.results ?? 0, "result")}, {fmtNumber(r.accepted ?? 0)} accepted</span>
+        {/* One text run, so a wrapped line never starts with a separator; what the search covered is in the message. */}
+        <span className="text-muted-foreground" data-testid="releases-facts">
+          {[r.at ? fmtAgo(r.at) : "", `${plural(r.results ?? 0, "result")}, ${fmtNumber(r.accepted ?? 0)} accepted`].filter(Boolean).join(" · ")}
+        </span>
       </div>
       {r.message ? <p className="text-xs text-[var(--ink-3)]" data-testid="releases-message">{r.message}</p> : null}
       {r.grabbed ? <p className="text-sm font-medium text-[var(--ink)]" data-testid="releases-grabbed">{r.grabbed}</p> : null}
@@ -80,7 +81,8 @@ export function ShowReleases({
       >
         <Search className="size-4 text-primary" />
         <span className="flex-1 font-semibold">Last search</span>
-        <span className="hidden text-xs text-muted-foreground sm:inline">the last search Theatarr decided for each library</span>
+        {/* The Last search page says this in its header already. */}
+        {defaultOpen ? null : <span className="hidden text-xs text-muted-foreground sm:inline">the last search Theatarr decided for each library</span>}
         <ChevronDown className={cn("size-4 transition-transform", !open && "-rotate-90")} />
       </button>
       {open ? <Panel titleId={titleId} kind={kind} initialVersion={initialVersion} focus={focus} labels={labels} /> : null}
@@ -120,7 +122,7 @@ function Panel({ titleId, kind, initialVersion, focus, labels }: { titleId: numb
           // A series is searched per season or per episode, never as a whole.
           kind === "movie" ? <InteractiveSearchButton titleId={titleId} version={r.version} variant="outline" /> : null
         ) : r ? (
-          <span className="text-xs text-[var(--ink-3)]" data-testid="releases-no-live">Watch only: no live indexer search</span>
+          <span className="text-xs text-[var(--ink-3)]" data-testid="releases-no-live">{r.mode === "active" ? "The acquirer is not running" : "Watch only: no live indexer search"}</span>
         ) : null}
       </div>
       {q.isPending ? (

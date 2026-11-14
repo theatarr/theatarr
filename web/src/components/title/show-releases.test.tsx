@@ -44,6 +44,10 @@ it("says what the shown search did and picks out the followed release", async ()
   const rows = within(screen.getByTestId("releases-table")).getAllByRole("row").filter((r) => r.dataset.releaseHash);
   expect(rows.map((r) => r.dataset.focus ?? "")).toEqual(["", "true"]);
   expect(screen.queryByTestId("releases-focus-missing")).toBeNull();
+  // A Live library whose acquirer is down is not called Watch only; the facts are one text run.
+  expect(screen.getByTestId("releases-no-live").textContent).toBe("The acquirer is not running");
+  expect(screen.getByTestId("releases-facts").textContent).toBe("12 results, 2 accepted");
+  expect(screen.queryByText("the last search Theatarr decided for each library")).toBeNull();
 });
 
 it("says when the followed release is not in the stored list", async () => {
@@ -188,4 +192,12 @@ it("a manager has no Add by magnet or hash", async () => {
   renderPage(<ShowReleases titleId={7} defaultOpen initialVersion="movie-web" />);
   await screen.findByTestId("releases-grabbed");
   expect(screen.queryByTestId("add-by-hash")).toBeNull();
+});
+
+it("shows the indexer without its prowlarr- prefix, the key as tooltip, and a short filter hint", () => {
+  mockFetch([ME]);
+  renderPage(<ReleaseGrid kind="movie" items={[{ ...cand(1, "aaa"), indexer: "prowlarr-therarbg" }]} />);
+  const cell = within(screen.getByTestId("releases-table")).getByText("therarbg");
+  expect(cell.getAttribute("title")).toBe("prowlarr-therarbg");
+  expect(screen.getByTestId("release-filter").getAttribute("placeholder")).toBe("Filter releases");
 });
