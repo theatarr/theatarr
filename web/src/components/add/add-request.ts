@@ -42,15 +42,16 @@ export function addRequest(target: AddTarget, opts: Pick<AddOptions, "kind" | "t
   // it goes with monitor all: the first seasons are monitored and only the ones after them are not.
   const later = c.monitorNew === false;
   const monitor = c.monitor ?? (later && !c.seasons?.length ? "all" : undefined);
+  // A removed series (by its title id) keeps its old type and new-season rule unless told: it gets what the sheet
+  // shows. A new one gets only what differs from the default.
+  const restore = titleId !== undefined;
+  const seriesType = c.seriesType ?? (restore ? (c.anime ? "anime" : "standard") : undefined);
+  const monitorNew = later ? "none" : restore ? "all" : undefined;
   const series: Partial<AddRequest> = kind === "series" ? {
     ...(monitor ? { monitor } : {}),
-    ...(later ? { monitor_new: "none" } : {}),
-    ...(c.seriesType ? { series_type: c.seriesType } : {}),
+    ...(monitorNew ? { monitor_new: monitorNew } : {}),
+    ...(seriesType ? { series_type: seriesType } : {}),
   } : {};
-  // A removed series keeps its old type and new-season rule unless told: send what the sheet shows.
-  if (titleId !== undefined) {
-    const shown: Partial<AddRequest> = kind === "series" ? { series_type: c.seriesType ?? (c.anime ? "anime" : "standard"), monitor_new: later ? "none" : "all" } : {};
-    return { title_id: titleId, kind, anime: c.anime, ...common, ...series, ...shown };
-  }
+  if (restore) return { title_id: titleId, kind, anime: c.anime, ...common, ...series };
   return { kind, tmdb_id: target.tmdb_id || undefined, title: target.name, year: target.year, anime: c.anime, ...common, ...series };
 }

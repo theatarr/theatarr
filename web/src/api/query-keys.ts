@@ -97,8 +97,8 @@ export const qk = {
   },
   addOptions: {
     all: ["add-options"] as const,
-    one: (kind?: string, tmdb?: number, title?: Id, anime?: boolean) =>
-      ["add-options", kind ?? "", tmdb ?? "", title === undefined ? "" : id(title), anime ?? false] as const,
+    one: (kind?: string, tmdb?: number, title?: Id, anime?: 0 | 1) =>
+      ["add-options", kind ?? "", tmdb ?? "", title === undefined ? "" : id(title), anime ?? ""] as const,
   },
   activity: { all: ["activity"] as const },
   calendar: { all: ["calendar"] as const },

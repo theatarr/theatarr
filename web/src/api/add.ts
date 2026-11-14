@@ -85,12 +85,16 @@ export type AddTarget = {
   anime?: boolean;
 };
 
-export function useAddOptions(t: AddTarget | null, anime: boolean) {
+/** The add options for t. anime marks the title anime (anime=1); explicit (the Add sheet's own Anime choice) also
+ *  sends anime=0, so a title every copy of which was removed is offered by that choice rather than its stored flag.
+ *  Without it the options follow the stored flag, as a request does. */
+export function useAddOptions(t: AddTarget | null, anime: boolean, explicit = false) {
+  const param = anime ? 1 : explicit ? 0 : undefined;
   return useQuery({
-    queryKey: qk.addOptions.one(t?.kind, t?.tmdb_id, t?.title_id, anime),
+    queryKey: qk.addOptions.one(t?.kind, t?.tmdb_id, t?.title_id, param),
     queryFn: () =>
       api<AddOptions>(
-        "/add/options" + qs({ kind: t?.kind, tmdb_id: t?.tmdb_id, title_id: t?.title_id, anime: anime ? 1 : 0 }),
+        "/add/options" + qs({ kind: t?.kind, tmdb_id: t?.tmdb_id, title_id: t?.title_id, anime: param }),
       ),
     enabled: t !== null,
   });

@@ -132,7 +132,7 @@ export function AddSheet({ target, onClose }: { target: AddTarget; onClose: () =
   const [seriesType, setSeriesType] = useState<AddChoice["seriesType"]>();
   // The libraries offered ticked are the ones acquisition will search the title in: it reads a series as anime by
   // the Anime mark or the type picked here.
-  const opts = useAddOptions(target, anime || seriesType === "anime");
+  const opts = useAddOptions(target, anime || seriesType === "anime", true);
   const inLibrary = libraryTitleId(target, opts.data) !== undefined;
   // A title every copy of which was removed is added by its title id (which restores it), but reads as a new add.
   const current = inLibrary && opts.data?.in_library !== false;

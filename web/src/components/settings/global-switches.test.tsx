@@ -17,7 +17,7 @@ function StatusAndWanted() {
 
 /** Reads what a title page reads for Search now: the add options and the title. */
 function TitleReads() {
-  useQuery({ queryKey: qk.addOptions.one("movie", undefined, 7, false), queryFn: () => api("/add/options") });
+  useQuery({ queryKey: qk.addOptions.one("movie", undefined, 7), queryFn: () => api("/add/options") });
   useQuery({ queryKey: qk.title(7), queryFn: () => api("/titles/7") });
   return null;
 }
