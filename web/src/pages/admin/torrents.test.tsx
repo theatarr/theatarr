@@ -302,4 +302,13 @@ it("saving the schedule in Settings refreshes what System › Backup says, and k
  await screen.findByText(/Scheduled every 24 h/);
  expect(api.calls("GET", "/torrents/backups").length).toBeGreaterThan(1);
  expect(screen.getByText("Saved.")).toBeTruthy();
+ // The schedule form sends only its own field changed; the folders stay as stored.
+ expect(api.calls("PUT", "/settings/sections/torrents")[0].body).toEqual({ generation: 1, config: { scan_roots: ["/other/movies"], backup: { every: "24h", keep: 30 } } });
+ // The folders form beside it saves the folders and keeps the stored schedule.
+ const folders = screen.getByRole("heading", { name: "Other libraries’ folders" }).closest("[id]") as HTMLElement;
+ expect(folders.id).toBe("scan-roots");
+ fireEvent.change(within(folders).getByDisplayValue("/other/movies"), { target: { value: "/other/films" } });
+ fireEvent.click(within(folders).getByRole("button", { name: "Save" }));
+ await waitFor(() => expect(api.calls("PUT", "/settings/sections/torrents")).toHaveLength(2));
+ expect(api.calls("PUT", "/settings/sections/torrents")[1].body).toEqual({ generation: 1, config: { scan_roots: ["/other/films"], backup: { every: "6h0m0s", keep: 30 } } });
 });

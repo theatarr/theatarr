@@ -41,8 +41,9 @@ it("keeps the service log level apart from the viewing filter: a choice applies 
   ]);
   renderPage(<Logs />);
   const card = await screen.findByTestId("log-level");
-  // The viewing filter sits above, the card after the lines.
-  expect(screen.getByText("Show lines from:").compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  // Its own card, above the viewing filter and the lines, so #log-level reaches it.
+  expect(screen.getByText("Show lines from:").compareDocumentPosition(card) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
+  expect(card.id).toBe("log-level");
   const select = within(card).getByRole("combobox", { name: "Service log level" }) as HTMLSelectElement;
   await waitFor(() => expect(select.value).toBe("INFO"));
   const apply = within(card).getByRole("button", { name: "Apply" }) as HTMLButtonElement;

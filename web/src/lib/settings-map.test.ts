@@ -94,7 +94,7 @@ it("lists rows with the whole typed phrase before rows with only its words", () 
  const index = settingsIndex(schema as never);
  for (const [query, field] of [["plex library", "Plex library ID"], ["check interval", "RSS feed check interval"]]) {
   const found = findSettings(index, query);
-  expect(found.some(r => r.field === field), query).toBe(true);
+  expect(found.some(r => r.fields?.includes(field)), query).toBe(true);
   const firstWordsOnly = found.findIndex(r => !r.terms.toLowerCase().includes(query));
   if (firstWordsOnly >= 0) expect(found.slice(firstWordsOnly).every(r => !r.terms.toLowerCase().includes(query)), query).toBe(true);
  }
@@ -104,9 +104,12 @@ it("lists rows with the whole typed phrase before rows with only its words", () 
 it("lists each destination once and finds the profile cutoff, Users & access and Import lists", () => {
  const index = settingsIndex(schema as never);
  for (const q of ["backup", "cutoff", "user", "general", "clients", "download clients", "import lists"]) {
-  const found = findSettings(index, q).map(r => `${r.href}|${r.field ?? ""}`);
+  const found = findSettings(index, q).map(r => r.href);
   expect(new Set(found).size, q).toBe(found.length);
  }
+ // A panel's matching fields are listed in its one row, not as rows of their own.
+ const clients = findSettings(index, "clients").filter(r => r.href === "/admin/settings/downloads/clients#clients");
+ expect(clients).toHaveLength(1);
  expect(findSettings(index, "cutoff")[0].href).toBe("/admin/settings/profiles");
  for (const q of ["user", "users", "household", "family"]) expect(findSettings(index, q)[0], q).toMatchObject({ href: "/admin/users", label: "Users & access" });
  expect(findSettings(index, "import lists")[0]).toMatchObject({ href: "/admin/settings/import-lists", label: "Import lists" });

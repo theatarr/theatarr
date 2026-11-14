@@ -62,34 +62,30 @@ export const LEGACY_ROUTES: [from: string, to: string][] = [
   ["/admin/logs", "/admin/system/logs"],
 ];
 
-/** Settings › General was removed (audit 14): its panel anchors go to the pages that own those panels now. */
-const LEGACY_ANCHORS: Record<string, Record<string, string>> = {
+/** Panel anchors that moved: Settings › General was removed (audit 14), and phase J moved panels off pages that still
+ *  exist. An old link to such an anchor goes on to the panel's page, the anchor kept; the page without it stays. */
+const ANCHORS: Record<string, Record<string, string>> = {
   "/admin/settings/general": {
     "#provider-sync": "/admin/settings/downloads",
     "#artwork-cache": "/admin/settings/metadata",
     "#scan-roots": "/admin/settings/downloads/torrents",
     "#torrent-backups": "/admin/settings/downloads/torrents",
   },
-};
-
-/** Settings panels that left a page which still exists (phase J): an old link to the panel's anchor goes on to its new
- *  page, the anchor kept; the page without that anchor stays. */
-const MOVED_ANCHORS: Record<string, Record<string, string>> = {
   "/admin/settings/downloads/behaviour": { "#searches": "/admin/settings/indexers/rss" },
   "/admin/torrents": { "#scan-roots": "/admin/settings/downloads/torrents" },
   "/admin/system/backup": { "#torrent-backups": "/admin/settings/downloads/torrents" },
 };
 
-/** Where a panel anchor on a current page lives now, with the query and hash; null when it has not moved. */
+/** Where a moved panel anchor lives now, with the query and hash; null when it has not moved. */
 export function movedAnchor(pathname: string, search = "", hash = ""): string | null {
-  const to = MOVED_ANCHORS[pathname]?.[hash];
+  const to = ANCHORS[pathname]?.[hash];
   return to ? to + search + hash : null;
 }
 
 /** Where an old URL lives now, with its query and hash; null when the path is not an old one. */
 export function legacyTarget(pathname: string, search = "", hash = ""): string | null {
-  const anchored = LEGACY_ANCHORS[pathname]?.[hash];
-  if (anchored) return anchored + search + hash;
+  const anchored = movedAnchor(pathname, search, hash);
+  if (anchored) return anchored;
   for (const [from, to] of LEGACY_ROUTES) {
     if (!matchPath({ path: from, end: true }, pathname)) continue;
     // matchPath decodes some escapes (%2F becomes "/"), so each value is the old address's own segment.

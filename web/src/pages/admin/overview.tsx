@@ -81,6 +81,8 @@ export function downloadsWords(ds: ActivityDownload[]): string {
 }
 
 export function Overview() {
+  // Readiness reads its own answers (settings sections, Theatarr backups) only once Details is opened.
+  const [details, setDetails] = useState(false);
   const reviews = useReviewCounts();
   const setup = useSetup();
   const ready = useReady();
@@ -245,9 +247,9 @@ export function Overview() {
         </Card>
       </Section>
       {/* The rest repeats other pages or is for diagnosis: folded, so the verdict comes first. */}
-      <details className="group mt-8" data-testid="status-details">
+      <details className="group mt-8" data-testid="status-details" onToggle={(e) => setDetails(e.currentTarget.open)}>
         <summary className="cursor-pointer select-none text-[15px] font-semibold text-[var(--ink)]">Details: readiness, downloads, tasks, libraries, diagnostics</summary>
-      <Readiness />
+      {details ? <Readiness /> : null}
       <Section title="Downloads" aside={<Link to="/activity" className="text-primary hover:underline">Open queue</Link>}>
         {now.error ? <ErrorState error={now.error} /> : now.isPending ? <Loading /> : (
           <Strip

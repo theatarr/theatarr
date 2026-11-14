@@ -136,8 +136,9 @@ function NavEntry({ it, pathname, onNavigate, collapsed, toggle, depth = 0, sub 
 }) {
   const kids = it.children ?? [];
   const key = `item:${it.label}`;
-  // A More group (startCollapsed) is closed until tapped; the stored list then holds it as opened.
-  const open = it.childrenWhenActive ? itemActive(pathname, it) : it.startCollapsed ? collapsed.includes(key) : !collapsed.includes(key);
+  // A More group (startCollapsed) is closed until tapped, in plain state: closing the sheet closes it again.
+  const [opened, setOpened] = useState(false);
+  const open = it.childrenWhenActive ? itemActive(pathname, it) : it.startCollapsed ? opened : !collapsed.includes(key);
   const inner = (
     <>
       {sub ? null : <it.icon className="size-4 shrink-0" />}
@@ -159,7 +160,7 @@ function NavEntry({ it, pathname, onNavigate, collapsed, toggle, depth = 0, sub 
           {kids.length > 0 ? <ChevronDown className={cn("size-3.5 transition-transform", !open && "-rotate-90")} aria-hidden /> : null}
         </NavLink>
       ) : (
-        <button type="button" onClick={() => toggle(key)} aria-expanded={open} className={cn(NAV_BUTTON, "text-left")} data-nav-parent={it.label}>
+        <button type="button" onClick={() => (it.startCollapsed ? setOpened(!opened) : toggle(key))} aria-expanded={open} className={cn(NAV_BUTTON, "text-left")} data-nav-parent={it.label}>
           {inner}
           <ChevronDown className={cn("size-3.5 transition-transform", !open && "-rotate-90")} aria-hidden />
         </button>

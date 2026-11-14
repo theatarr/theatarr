@@ -2,7 +2,8 @@ import type { SchemaField, SettingsSchema, SettingsSections } from "@/api/settin
 import { ADVANCED_SETTINGS_PAGES, SETTINGS_PAGES, SETTINGS_PANELS, SETTINGS_ALIASES, panelHref } from "./settings-map";
 import { wordMatcher } from "@/lib/words";
 export type SettingResult = { href: string; label: string; field?: string; path?: string; terms: string; /** An advanced field or panel: listed only with Show advanced settings on. */ advanced?: boolean;
- /** Alias words that name this row exactly: a query equal to one lists the row first ("cutoff", "user"). */ keywords?: string[] };
+ /** Alias words that name this row exactly: a query equal to one lists the row first ("cutoff", "user"). */ keywords?: string[];
+ /** findSettings: every matching field of the row's destination, best match first (field is the first). */ fields?: string[] };
 /** Every page, tab, panel and field, plus each named record the saved settings hold (a metadata source such as tmdb,
  * a client, a notification target) with its fields: "tmdb key" finds the tmdb source's API key. */
 export function settingsIndex(schema?: SettingsSchema, sections?: SettingsSections): SettingResult[] {
@@ -45,8 +46,8 @@ export function settingsIndex(schema?: SettingsSchema, sections?: SettingsSectio
 }
 const record = (v: unknown): Record<string, unknown> => v && typeof v === "object" && !Array.isArray(v) ? v as Record<string, unknown> : {};
 /** The first 20 rows with every word typed: rows an alias names exactly first, then rows holding the whole typed
- * phrase, then the other matches, each in index order. One row per destination (address and field): a page found
- * under several names is listed once, under its best match. */
+ * phrase, then the other matches, each in index order. One row per destination (address): a page or panel found
+ * under several names or fields is listed once, under its best match, with the matching fields in fields. */
 export function findSettings(index: SettingResult[], query: string) {
  const q = query.trim().toLowerCase();
  if (!q) return [];
@@ -57,11 +58,12 @@ export function findSettings(index: SettingResult[], query: string) {
   else if (r.terms.toLowerCase().includes(q)) phrase.push(r);
   else if (match(r.terms)) words.push(r);
  }
- const seen = new Set<string>();
- return [...exact, ...phrase, ...words].filter(r => {
-  const key = `${r.href}|${r.field ?? ""}`;
-  if (seen.has(key)) return false;
-  seen.add(key);
-  return true;
- }).slice(0, 20);
+ // One row per destination: a panel's matching fields are listed inside its row (fields), the best match first.
+ const rows = new Map<string, SettingResult>();
+ for (const r of [...exact, ...phrase, ...words]) {
+  const row = rows.get(r.href);
+  if (!row) rows.set(r.href, { ...r, fields: r.field ? [r.field] : [] });
+  else if (r.field && !row.fields!.includes(r.field)) row.fields!.push(r.field);
+ }
+ return [...rows.values()].slice(0, 20);
 }

@@ -323,6 +323,11 @@ it("leads with Needs attention and Checks; readiness, strips, libraries and diag
  expect(h2[1]).toBe("Checks");
  const details = screen.getByTestId("status-details") as HTMLDetailsElement;
  expect(details.open).toBe(false);
+ // Readiness is not even read until Details opens.
+ expect(screen.queryByRole("heading", { name: "Readiness" })).toBeNull();
+ details.open = true;
+ fireEvent(details, new Event("toggle"));
+ expect(await screen.findByRole("heading", { name: "Readiness" })).toBeTruthy();
  for (const name of ["Readiness", "Downloads", "Tasks", "Libraries", "Diagnostics"]) expect(details.contains(screen.getByRole("heading", { name }))).toBe(true);
  expect(details.contains(screen.getByRole("heading", { name: "Checks" }))).toBe(false);
 });

@@ -1,5 +1,5 @@
 // Admin › System › Logs: recent log lines from the service's in-memory ring (GET /logs), newest first, polled every 5 s,
-// and the rotated log files to download (GET /logs/files). The service's own log level is a separate card at the end
+// and the rotated log files to download (GET /logs/files). The service's own log level is a separate card above the lines
 // with its own Apply (PUT /logs/level): it changes what the running service writes, unlike the viewing filter.
 import { useState } from "react";
 import { API_BASE } from "@/api/client";
@@ -31,6 +31,8 @@ export function Logs() {
           </a>
         ))}
       </div>
+      {/* Above the lines, so a link to #log-level lands on it however many lines there are. */}
+      <ServiceLevel />
       {(q.data?.restartTotal ?? 0) > 0 ? <p role="status" className="mb-4 text-sm text-muted-foreground">Theatarr restarted. The viewer is showing logs from the new process.</p> : null}
       {(q.data?.skippedTotal ?? 0) > 0 ? <p role="status" className="mb-4 text-sm text-muted-foreground">
         {q.data!.skippedTotal} log lines skipped: the in-memory log buffer filled before they could be read. Older lines are in the log files above.
@@ -75,7 +77,6 @@ export function Logs() {
           </ul>
         </Card>
       )}
-      <ServiceLevel />
     </div>
   );
 }
@@ -89,9 +90,9 @@ function ServiceLevel() {
   const current = runtime.data?.level ?? "";
   const value = draft ?? current;
   return (
-    <Card id="log-level" className="mt-6 scroll-mt-[calc(var(--top)+1rem)]" data-testid="log-level">
+    <Card id="log-level" className="mb-4 scroll-mt-[calc(var(--top)+1rem)]" data-testid="log-level">
       <h2 className="text-[15px] font-semibold text-[var(--ink)]">Service log level</h2>
-      <p className="mt-1 text-sm text-muted-foreground">What the running service writes to its logs, for every reader. It applies at once with Apply and goes back to the configured default on restart. The filter above only changes what this page shows.</p>
+      <p className="mt-1 text-sm text-muted-foreground">What the running service writes to its logs, for every reader. It applies at once with Apply and goes back to the configured default on restart. The filter below only changes what this page shows.</p>
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <select aria-label="Service log level" value={value} disabled={!runtime.data || changeLevel.isPending} onChange={(e) => setDraft(e.target.value)}
           className="h-8 rounded-md border border-input bg-field px-2 text-sm">

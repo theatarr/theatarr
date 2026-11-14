@@ -209,7 +209,7 @@ it("confirms Search all with the count, the library and the time the hourly limi
   const estimate = within(dialog).getByTestId("search-now-estimate");
   expect(estimate.textContent).toContain("312 searches. They start as the hourly limit allows: up to 10 an hour (4 used this hour).");
   expect(estimate.textContent).not.toMatch(/round|takes about|start now|oldest/);
-  expect(within(estimate).getByRole("link", { name: "Settings › Download clients" }).getAttribute("href")).toBe("/admin/settings/indexers/rss#searches");
+  expect(within(estimate).getByRole("link", { name: "Settings › Indexers › Search & RSS" }).getAttribute("href")).toBe("/admin/settings/indexers/rss#searches");
   expect(fetch.calls("POST", "/wanted/search")).toHaveLength(0);
   await user.click(within(dialog).getByRole("button", { name: "Queue 312 searches" }));
   await waitFor(() => expect(fetch.calls("POST", "/wanted/search")).toHaveLength(1));
