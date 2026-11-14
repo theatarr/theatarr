@@ -58,7 +58,7 @@ type HistoryEvent struct {
 	DecisionID *int64 `json:"decision_id,omitempty"`
 	RunID      *int64 `json:"run_id,omitempty"`
 	// Event is grabbed, imported, upgraded, failed, not_started (a download never tried because downloads were off;
-	// Reason says why), deleted, renamed, ignored or searched.
+	// Reason says why), deleted, renamed, ignored, searched or adopted (a file taken over from an arr: the episode window).
 	Event   string    `json:"event"`
 	Date    time.Time `json:"date"`
 	Quality string    `json:"quality,omitempty"`

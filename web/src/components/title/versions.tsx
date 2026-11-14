@@ -1,6 +1,6 @@
 // A library's (or an episode's) release history on the title page's History tab and in the episode window
 // (docs/design/ui.md, Title page), and the link to a library's releases view. The library rows are in library-rows.tsx.
-import { ArrowUpCircle, CheckCircle2, CircleDashed, CirclePause, Download, FileX2, PencilLine, Search, XCircle } from "lucide-react";
+import { ArrowUpCircle, CheckCircle2, CircleDashed, FileInput, CirclePause, Download, FileX2, PencilLine, Search, XCircle } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router";
 import { usePerms, type HistoryEvent } from "@/api/library";
@@ -22,6 +22,8 @@ const EVENTS: Record<HistoryEvent["event"], { label: string; icon: typeof Downlo
   deleted: { label: "File removed", icon: FileX2, cls: "text-[var(--ink-3)]" },
   renamed: { label: "Renamed", icon: PencilLine, cls: "text-[var(--ink-3)]" },
   ignored: { label: "Ignored", icon: CircleDashed, cls: "text-[var(--ink-3)]" },
+  // A file taken over from Sonarr/Radarr (the episode window; the title's History says the same).
+  adopted: { label: "Adopted", icon: FileInput, cls: "text-[var(--ok-ink)]" },
 };
 
 /** The releases view of a title's library, with the row of one release (by hash) picked out when given. */

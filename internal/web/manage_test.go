@@ -235,6 +235,20 @@ func TestUpgradeEvidence(t *testing.T) {
 	if ep.Versions[0].Upgrade.State != "below_cutoff" || ep.Versions[0].Upgrade.Next != nil {
 		t.Errorf("episode 102: %+v", ep.Versions[0].Upgrade)
 	}
+	// A file taken over from Sonarr for S01E02: the episode window's History lists the adoption, as the title's does;
+	// another library's adoption is not this one's.
+	e.exec(`INSERT INTO link (id, path, target, title_id, release_title, quality, state, created_at, updated_at) VALUES
+		(70, '/media/tv/The Show/S01E02.mkv', '/zurg/Show/e2.mkv', 10, 'The.Show.S01E02.1080p.WEB-DL', 'WEBDL-1080p', 'active', 5000, 5000)`)
+	e.exec(`INSERT INTO link_episode (link_id, episode_id) VALUES (70, 102)`)
+	e.exec(`INSERT INTO library_action (at, kind, mode, version_key, link_id, path, detail) VALUES
+		(5000, 'link', 'applied', 'tv-2160p', 70, '/media/tv/The Show/S01E02.mkv', 'adopted from sonarr_4k'),
+		(5001, 'link', 'applied', 'anime-tv', 70, '/media/tv/The Show/S01E02.mkv', 'adopted from sonarr_anime')`)
+	ep = EpisodeDetail{}
+	e.call("GET", APIBase+"/titles/10/episodes/102", nil, 200, &ep)
+	if h := ep.Versions[0].History; len(h) != 1 || h[0].Event != "adopted" || h[0].Source != "sonarr_4k" ||
+		h[0].ReleaseTitle != "The.Show.S01E02.1080p.WEB-DL" || h[0].Quality != "WEBDL-1080p" {
+		t.Errorf("episode 102 history: %+v", h)
+	}
 
 	var page TitlePage
 	e.call("GET", APIBase+"/titles?sort=name", nil, 200, &page)

@@ -1106,6 +1106,34 @@ func (w *Web) episodeHistory(ctx context.Context, db *sql.DB, titleID, versionID
 	if err != nil {
 		return nil, err
 	}
+	// Files taken over from Sonarr/Radarr that hold the episode, as the title's History lists them (adopted): the
+	// action's own episodes, else its link's.
+	err = scanAll(ctx, db, `SELECT la.at, COALESCE(la.release_title, l.release_title, ''), COALESCE(la.quality, l.quality, ''),
+		COALESCE(la.score, l.score), la.detail FROM library_action la LEFT JOIN link l ON l.id = la.link_id
+		WHERE `+journal.AdoptedWhere+` AND la.version_key = (SELECT policy_key FROM version WHERE id = ?)
+		AND CASE WHEN la.episodes IS NOT NULL THEN EXISTS (SELECT 1 FROM json_each(la.episodes) j WHERE j.value = ?)
+			ELSE EXISTS (SELECT 1 FROM link_episode le WHERE le.link_id = la.link_id AND le.episode_id = ?) END`,
+		[]any{versionID, eid, eid}, func(r *sql.Rows) error {
+			var at int64
+			var score sql.NullInt64
+			var detail string
+			h := HistoryEvent{Event: "adopted"}
+			if err := r.Scan(&at, &h.ReleaseTitle, &h.Quality, &score, &detail); err != nil {
+				return err
+			}
+			h.Date = ts(at)
+			if score.Valid {
+				h.Score = &score.Int64
+			}
+			if from, _, _ := strings.Cut(strings.TrimPrefix(detail, "adopted from "), " "); from != "" {
+				h.Source = from
+			}
+			out = append(out, h)
+			return nil
+		})
+	if err != nil {
+		return nil, err
+	}
 	slices.SortStableFunc(out, func(a, b HistoryEvent) int { return b.Date.Compare(a.Date) })
 	// An import after an earlier import of the same episode replaced its file: an upgrade.
 	imports := 0

@@ -114,7 +114,7 @@ func relSQL(linkSQL string) string {
 const (
 	deletedWhere = `la.kind = 'replace' AND la.mode = 'applied' AND la.download_id IS NOT NULL
 		AND la.detail NOT LIKE 'import undone%'`
-	adoptedWhere = `la.kind = 'link' AND la.mode = 'applied' AND la.download_id IS NULL AND la.detail LIKE 'adopted from %'`
+	adoptedWhere = AdoptedWhere
 	removedWhere = `la.kind = 'replace' AND la.mode = 'applied' AND la.download_id IS NULL
 		AND la.detail NOT LIKE 'change of episodes failed%'`
 	missingWhere = `la.kind = 'dead' AND la.mode = 'applied'`
@@ -123,6 +123,10 @@ const (
 	grabbedWhere = `(d.state NOT IN ('queued', 'adding', 'failed') OR d.added_at IS NOT NULL OR d.reused = 1
 		OR EXISTS (SELECT 1 FROM download_attempt a WHERE a.download_id = d.id AND a.outcome = 'accepted'))`
 )
+
+// AdoptedWhere selects the library actions (alias la) that took a file over from Sonarr/Radarr: History's adopted
+// rows, and the episode window's (internal/web episodeHistory).
+const AdoptedWhere = `la.kind = 'link' AND la.mode = 'applied' AND la.download_id IS NULL AND la.detail LIKE 'adopted from %'`
 
 // historyArm is one source of History's rows: a SELECT of (id, at, title_id, version_key, kind, event), and the
 // events it can give.
