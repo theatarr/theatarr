@@ -588,4 +588,33 @@ func TestWantedTitleFilterSortAndDates(t *testing.T) {
 	if n := e.count(`SELECT COUNT(*) FROM search_request WHERE title_id = 2`); n != 1 {
 		t.Errorf("Search all for title 2: %d rows, want 1", n)
 	}
+	// A season search with several downloads: one failed and a later one imported says the failed one; one still
+	// in flight wins over both.
+	e.exec(`INSERT INTO acquire_run (id, source, title_id, version_id, version_key, target, season, state, created_at, updated_at)
+		VALUES (600, 'wanted', 10, 201, 'series', 's01', 1, 'routed', ?, ?)`, store.Millis(t0.Add(-time.Hour)), store.Millis(t0.Add(-time.Hour)))
+	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, state, error, source,
+		created_at, updated_at) VALUES (41, 10, 201, 'series', ?, 'x', 'pub', 'failed', 'stalled: no progress', 'acquire:600', 0, 0),
+		(42, 10, 201, 'series', ?, 'y', 'pub', 'imported', NULL, 'acquire:600', 0, 0)`, h("b"), h("c"))
+	season1 := func() *WantedRun {
+		t.Helper()
+		for _, r := range list(WantedQuery{TitleID: 10}).Items {
+			if seasonOf(r.Season) == 1 {
+				return r.LastRun
+			}
+		}
+		t.Fatal("no season 1 row")
+		return nil
+	}
+	if r := season1(); r == nil || r.DownloadID == nil || *r.DownloadID != 41 || r.DownloadState != "failed" {
+		t.Errorf("failed then imported: %+v", r)
+	}
+	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, state, source,
+		created_at, updated_at) VALUES (43, 10, 201, 'series', ?, 'z', 'pub', 'ready', 'acquire:600', 0, 0)`, h("d"))
+	if r := season1(); r == nil || r.DownloadID == nil || *r.DownloadID != 43 || r.DownloadState != "ready" {
+		t.Errorf("one in flight: %+v", r)
+	}
+	e.exec(`DELETE FROM download WHERE id IN (41, 43)`)
+	if r := season1(); r == nil || r.DownloadID == nil || *r.DownloadID != 42 || r.DownloadState != "imported" {
+		t.Errorf("imported only: %+v", r)
+	}
 }

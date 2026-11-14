@@ -40,6 +40,8 @@ describe("the quality word", () => {
     expect(qualityWord({ availability: "partial", upgrade_state: "upgrade_available" })?.label).toBe("Upgrade found");
     for (const state of ["below_cutoff", "best_available", "best_source_seen", "higher_source_exists", "cutoff_met"] as const) {
       expect(qualityWord({ availability: "available", upgrade_state: state })).toBeUndefined();
+      // A partly available title says no quality word either: its row reads just "Partly available".
+      expect(qualityWord({ availability: "partial", upgrade_state: state })).toBeUndefined();
     }
     expect(qualityWord({ availability: "available" })).toBeUndefined();
     expect(qualityWord({ availability: "missing", upgrade_seen: true })).toBeUndefined();
