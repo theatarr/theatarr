@@ -12,7 +12,7 @@ type VersionBrief = Schemas["VersionBrief"];
 export type CopyTone = "ok" | "bad" | "progress" | "warn" | "idle";
 
 /** The facts of the title the rule reads: its kind and, for a movie, its release days. */
-export type ToneTitle = Pick<TitleRow, "kind" | "release_date" | "home_release"> & Partial<Pick<TitleRow, "status" | "digital_release" | "physical_release">>;
+export type ToneTitle = Pick<TitleRow, "kind" | "release_date" | "home_release"> & Partial<Pick<TitleRow, "status" | "in_cinemas" | "digital_release" | "physical_release">>;
 
 /** A download in hand for the library is blocked. A row summarises all of a library's downloads (the most advanced
  *  stage, blocked first), so for a series it does not say which episodes the blocked one covers: no counts are given

@@ -46,7 +46,7 @@ export function useSearch(q: string, scope: "library" | "tmdb", limit = 12, kind
 
 /** The library group with the TMDb answer's library part merged in: titles a TMDb hit is marked In library for that
  *  the name search does not find (the server sends only those), once each, counted in the total. */
-export function withInLibrary<T extends { id: number }>(items: T[], total: number | undefined, tmdb: { library?: T[] } | undefined): { items: T[]; total: number | undefined } {
+export function withInLibrary<T extends { id?: number }>(items: T[], total: number | undefined, tmdb: { library?: T[] } | undefined): { items: T[]; total: number | undefined } {
   const ids = new Set(items.map((t) => t.id));
   const extra = (tmdb?.library ?? []).filter((t) => !ids.has(t.id));
   if (extra.length === 0) return { items, total };
