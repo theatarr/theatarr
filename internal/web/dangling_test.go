@@ -45,12 +45,13 @@ func TestHealthDanglingAPI(t *testing.T) {
 	e.exec(`INSERT INTO link (path, target, title_id, state, created_at, updated_at) VALUES
 		('/media/remux/Alpha (2020)/Alpha.mkv', '/mnt/zurg/Alpha.2020/Alpha.mkv', 1, 'dead', ?, ?),
 		('/media/web/Beta (2021)/Beta.mkv', '/mnt/zurg/Beta.2021/Beta.mkv', 2, 'active', ?, ?)`, now, now, now, now)
+	// The path under the extra root is not one of the libraries' and is left out (D9).
 	var got DanglingList
 	if code := e.getKey(APIBase+"/health/dangling", key, &got); code != 200 || got.At == nil ||
-		!got.At.Equal(testNow) || got.Links != 40 || got.Dangling != 3 || got.Truncated || len(got.Items) != 3 {
+		!got.At.Equal(testNow) || got.Links != 40 || got.Dangling != 2 || got.Truncated || len(got.Items) != 2 {
 		t.Fatalf("list: %d %+v", code, got)
 	}
-	a, b, s := got.Items[0], got.Items[1], got.Items[2]
+	a, b := got.Items[0], got.Items[1]
 	if a.Title != "Alpha" || a.TitleID != 1 || a.LinkState != "dead" || a.Cause != "no_video" ||
 		a.Library != "movie-remux" || a.Label != e.web.versionLabel("movie-remux") || a.Label == "" ||
 		a.Folder != "Alpha.2020" || a.Target != "/mnt/zurg/Alpha.2020/Alpha.mkv" ||
@@ -59,10 +60,6 @@ func TestHealthDanglingAPI(t *testing.T) {
 	}
 	if b.Title != "Beta" || b.TitleID != 2 || b.LinkState != "active" || b.Cause != "" || b.Library != "movie-web" {
 		t.Errorf("active link: %+v", b)
-	}
-	if s.Path != "/media/other/Stray.mkv" || s.TitleID != 0 || s.Title != "" || s.LinkState != "" ||
-		s.Library != "" || s.Label != "" || s.Folder != "Stray" {
-		t.Errorf("not a link of ours: %+v", s)
 	}
 
 	// Admins only.
@@ -84,8 +81,8 @@ func TestHealthDanglingAPITruncates(t *testing.T) {
 	now := store.Millis(testNow)
 	for i := 0; i < n; i++ {
 		// Path order is the reverse of age, so the cap must follow first_seen.
-		e.exec(`INSERT INTO library_dangling (path, target, root, folder, first_seen_at, last_seen_at)
-			VALUES (?, '/mnt/zurg/x', '/media/other', 'x', ?, ?)`, fmt.Sprintf("/media/other/%04d.mkv", n-i),
+		e.exec(`INSERT INTO library_dangling (path, target, root, version_key, folder, first_seen_at, last_seen_at)
+			VALUES (?, '/mnt/zurg/x', '/media/other', 'movie-web', 'x', ?, ?)`, fmt.Sprintf("/media/other/%04d.mkv", n-i),
 			store.Millis(testNow.Add(time.Duration(i-n)*time.Minute)), now)
 	}
 	var got DanglingList

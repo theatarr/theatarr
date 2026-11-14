@@ -313,14 +313,14 @@ func settingsFallbackHealth(m *settings.RuntimeCoordinator) health.Func {
 		active, head, behind, err := m.Behind(ctx)
 		switch {
 		case err != nil:
-			return health.Result{Type: health.Warning, Message: "Cannot read the stored settings generation"}
+			return health.Result{Type: health.Warning, Message: "Cannot read which saved settings are in use"}
 		case behind:
 			return health.Result{Type: health.Error, Detail: map[string]int64{"active_generation": active, "stored_generation": head},
 				Message: fmt.Sprintf("Running settings generation %d, not the stored %d: the stored one could not be prepared "+
 					"at start (startup fallback). Saved settings are not in force until it loads; see the log, then load it "+
 					"again from Settings.", active, head)}
 		}
-		return health.Result{Type: health.OK, Message: fmt.Sprintf("Running the stored settings generation %d", active)}
+		return health.Result{Type: health.OK, Message: fmt.Sprintf("The latest saved settings are in use (save %d)", active)}
 	}
 }
 

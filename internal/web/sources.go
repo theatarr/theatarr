@@ -16,9 +16,11 @@ import (
 
 // IndexerSource is one policy indexer with its live state.
 type IndexerSource struct {
-	Key      string   `json:"key"`
-	Kind     string   `json:"kind"`
-	Privacy  string   `json:"privacy"`
+	Key     string `json:"key"`
+	Kind    string `json:"kind"`
+	Privacy string `json:"privacy"`
+	// Disabled is an indexer switched off in Settings (setting_indexer.enabled 0): it is not searched.
+	Disabled bool     `json:"disabled,omitempty"`
 	Budget   string   `json:"budget,omitempty"`
 	Proxy    bool     `json:"proxy"`
 	Versions []string `json:"versions"`
@@ -116,13 +118,25 @@ func (w *Web) sources(ctx context.Context) (Sources, error) {
 		}
 		return vs
 	}
+	off := map[string]bool{}
+	if err := scanAll(ctx, w.st.Reader(), `SELECT key FROM setting_indexer WHERE enabled = 0`, nil,
+		func(r *sql.Rows) error {
+			var k string
+			if err := r.Scan(&k); err != nil {
+				return err
+			}
+			off[k] = true
+			return nil
+		}); err != nil {
+		return out, err
+	}
 	for _, k := range sortedKeys(w.pol.Indexers) {
 		ix := w.pol.Indexers[k]
 		priv := string(ix.Privacy)
 		if priv == "" {
 			priv = "unknown"
 		}
-		out.Indexers = append(out.Indexers, IndexerSource{Key: k, Kind: ix.Kind, Privacy: priv, Budget: ix.Budget,
+		out.Indexers = append(out.Indexers, IndexerSource{Key: k, Kind: ix.Kind, Privacy: priv, Disabled: off[k], Budget: ix.Budget,
 			Proxy: ix.Proxy != "", Versions: usedBy(func(i, _ []string) []string { return i }, k),
 			Backoff: backoff("indexer:" + k), BudgetUse: budget(ix.Budget)})
 	}

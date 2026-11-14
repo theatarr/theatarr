@@ -413,17 +413,19 @@ func UnfinishedCacheChecks(st *store.Store, after time.Duration, now func() time
 }
 
 // Dangling reports the latest dangling-link report (library_dangling_scan): links into the zurg mount whose target
-// is missing. A notice while there are any, naming how many zurg's API says lost their video upstream (when
-// library.mount.zurg_api is set) and whether zurg was repairing; the links themselves are on System › Status (GET /health/dangling) and in theatarr library dangling.
+// is missing, under Theatarr's own library roots only (rows with a library; links under the extra roots of
+// library.dangling.roots, other apps' folders, are not counted). A notice while there are any, naming how many zurg's
+// API says lost their video upstream (when library.mount.zurg_api is set) and whether zurg was repairing; the links
+// themselves are on System › Status (GET /health/dangling) and in theatarr library dangling.
 func Dangling(st *store.Store) Func {
 	return func(ctx context.Context) Result {
-		var links, dangling int
+		var links int
 		var at int64
 		var walkErr, zurgErr sql.NullString
 		var noVideo, noVideoTorrents sql.NullInt64
 		var repairing sql.NullBool
-		err := st.Reader().QueryRowContext(ctx, `SELECT at, links, dangling, error, no_video, no_video_torrents,
-			repairing, zurg_error FROM library_dangling_scan ORDER BY id DESC LIMIT 1`).Scan(&at, &links, &dangling,
+		err := st.Reader().QueryRowContext(ctx, `SELECT at, links, error, no_video, no_video_torrents,
+			repairing, zurg_error FROM library_dangling_scan ORDER BY id DESC LIMIT 1`).Scan(&at, &links,
 			&walkErr, &noVideo, &noVideoTorrents, &repairing, &zurgErr)
 		if errors.Is(err, sql.ErrNoRows) {
 			return Result{Type: OK, Message: "No dangling-link report yet"}
@@ -431,9 +433,14 @@ func Dangling(st *store.Store) Func {
 		if err != nil {
 			return fail("Dangling-link report not readable: %v", err)
 		}
+		var dangling, ownNoVideo int
+		if err := st.Reader().QueryRowContext(ctx, `SELECT COUNT(*), COALESCE(SUM(cause = 'no_video'), 0)
+			FROM library_dangling WHERE version_key IS NOT NULL`).Scan(&dangling, &ownNoVideo); err != nil {
+			return fail("Dangling-link report not readable: %v", err)
+		}
 		detail := map[string]any{"links": links, "dangling": dangling, "at": store.FromMillis(at)}
 		if noVideo.Valid {
-			detail["no_video"], detail["no_video_torrents"] = noVideo.Int64, noVideoTorrents.Int64
+			detail["no_video"], detail["no_video_torrents"] = ownNoVideo, noVideoTorrents.Int64
 			detail["zurg_repairing"] = repairing.Bool
 			if zurgErr.String != "" {
 				detail["zurg_error"] = short(zurgErr.String)
@@ -443,11 +450,14 @@ func Dangling(st *store.Store) Func {
 			detail["error"] = short(walkErr.String)
 		}
 		if dangling == 0 {
-			return Result{Type: OK, Detail: detail, Message: fmt.Sprintf("No dangling links (%d links into the mount)", links)}
+			return Result{Type: OK, Detail: detail, Message: "No dangling links in the libraries"}
 		}
-		msg := fmt.Sprintf("%d of %d links into the mount are dangling", dangling, links)
-		if noVideo.Valid && zurgErr.String == "" {
-			msg += fmt.Sprintf("; %d of them: torrent has no video upstream", noVideo.Int64)
+		msg := fmt.Sprintf("%d dangling links in the libraries", dangling)
+		if dangling == 1 {
+			msg = "1 dangling link in the libraries"
+		}
+		if noVideo.Valid && zurgErr.String == "" && ownNoVideo > 0 {
+			msg += fmt.Sprintf("; %d of them: torrent has no video upstream", ownNoVideo)
 		}
 		if repairing.Bool {
 			msg += "; zurg was repairing"

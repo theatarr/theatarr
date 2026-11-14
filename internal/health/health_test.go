@@ -574,3 +574,25 @@ func TestAccountsCache(t *testing.T) {
 		t.Fatalf("cancelled run cached: %d", blocked.reads.Load())
 	}
 }
+
+// The dangling-link check counts links under the libraries' roots only, not other folders the report also walks.
+func TestDanglingCountsLibraryRootsOnly(t *testing.T) {
+	st := openStore(t)
+	ctx := context.Background()
+	at := store.Millis(t0)
+	exec(t, st, `INSERT INTO library_dangling_scan (at, roots, links, dangling, took_ms, no_video, no_video_torrents,
+		repairing) VALUES (?, '[]', 100, 3, 1, 2, 5, 0)`, at)
+	exec(t, st, `INSERT INTO library_dangling (path, target, root, version_key, folder, cause, first_seen_at,
+		last_seen_at) VALUES ('/media/mm/tv/A/a.mkv', '/mnt/z/A/a.mkv', '/media/mm/tv', 'tv-2160p', 'A', 'no_video', ?, ?),
+		('/media/shows4k-zurg/B/b.mkv', '/mnt/z/B/b.mkv', '/media', NULL, 'B', 'no_video', ?, ?),
+		('/media/shows4k-zurg/C/c.mkv', '/mnt/z/C/c.mkv', '/media', NULL, 'C', NULL, ?, ?)`, at, at, at, at, at, at)
+	r := Dangling(st)(ctx)
+	if r.Type != Notice || r.Message != "1 dangling link in the libraries; 1 of them: torrent has no video upstream" ||
+		r.Detail.(map[string]any)["dangling"] != 1 {
+		t.Errorf("one library link: %+v", r)
+	}
+	exec(t, st, `DELETE FROM library_dangling WHERE version_key IS NOT NULL`)
+	if r := Dangling(st)(ctx); r.Type != OK || r.Message != "No dangling links in the libraries" {
+		t.Errorf("only other folders: %+v", r)
+	}
+}
