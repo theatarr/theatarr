@@ -279,11 +279,24 @@ func (a *Acquirer) fromLastRun(ctx context.Context, t target, l lastRuns, now in
 	return last + wait.Milliseconds(), tries, why, nil
 }
 
-// qualityCutoff says whether Wanted > Cutoff unmet, its Search now and a round's cutoff targets take files below the
-// profile's quality cutoff only (the arrs' Cutoff Unmet): every router.wanted.cutoff_unmet but an explicit score.
-// off only stops the regular cutoff searches (switchOn); what the list shows and Search now searches stays the
-// quality cutoff.
+// qualityCutoff says whether Wanted > Cutoff unmet, its Search now and a round's cutoff targets from Wanted take
+// files below the profile's quality cutoff only (the arrs' Cutoff Unmet): every router.wanted.cutoff_unmet but an
+// explicit score. off only stops the regular cutoff searches (switchOn); what the list shows and Search now searches
+// stays the quality cutoff. A re-search after a failure keeps its own selection (fullCutoffResearch).
 func (a *Acquirer) qualityCutoff() bool { return a.set.CutoffUnmet != policy.CutoffScore }
+
+// fullCutoffResearch says whether a round's cutoff re-searches after a failure (a row whose why is the router's
+// failure) take the full cutoff while Wanted's rows take the quality cutoff: with cutoff_unmet off, where they
+// always did (the quality cutoff was only ever cutoff_unmet: quality's).
+func (a *Acquirer) fullCutoffResearch(only string) bool {
+	return only == OnlyCutoff && a.set.CutoffUnmet == policy.CutoffOff
+}
+
+// fromWanted says whether a schedule row's why comes from Wanted (the regular schedule, Search now, a list add, a new
+// release's retry) rather than from a failure the router reported.
+func fromWanted(why string) bool {
+	return why == "" || why == whyAsked || why == whyAdded || why == whyNew
+}
 
 // roundSelection is the targets a round looks at for one reason: cutoff with the configured cutoff_unmet mode.
 func (a *Acquirer) roundSelection(active []string, only string, titles []int64) Selection {
@@ -355,24 +368,33 @@ func (a *Acquirer) Round(ctx context.Context, scope []int64) (*WantedSummary, er
 	taken := map[string]bool{}
 	if len(dueTitles) > 0 {
 		for _, only := range []string{OnlyMissing, OnlyCutoff} {
-			ts, err := a.targets(ctx, a.roundSelection(active, only, dueTitles))
-			if err != nil {
-				return nil, err
+			sels := []Selection{a.roundSelection(active, only, dueTitles)}
+			split := a.fullCutoffResearch(only)
+			if split {
+				full := sels[0]
+				full.QualityCutoff = false
+				sels = append(sels, full)
 			}
-			for _, t := range ts {
-				r, ok := rows[targetKey(t)]
-				if !ok || r.nextAt > now || r.why == "" && !a.switchOn(only) {
-					continue
+			for i, sel := range sels {
+				ts, err := a.targets(ctx, sel)
+				if err != nil {
+					return nil, err
 				}
-				taken[targetKey(t)] = true
-				t.why = r.why
-				switch r.why {
-				case whyAsked:
-					asked = append(asked, due{t, r.nextAt})
-				case "":
-					regular = append(regular, due{t, r.nextAt})
-				default:
-					early = append(early, due{t, r.nextAt})
+				for _, t := range ts {
+					r, ok := rows[targetKey(t)]
+					if !ok || r.nextAt > now || r.why == "" && !a.switchOn(only) || split && (i == 0) != fromWanted(r.why) {
+						continue
+					}
+					taken[targetKey(t)] = true
+					t.why = r.why
+					switch r.why {
+					case whyAsked:
+						asked = append(asked, due{t, r.nextAt})
+					case "":
+						regular = append(regular, due{t, r.nextAt})
+					default:
+						early = append(early, due{t, r.nextAt})
+					}
 				}
 			}
 		}

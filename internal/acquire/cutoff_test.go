@@ -178,6 +178,14 @@ func TestWantedCutoffListFollowsMode(t *testing.T) {
 		if got := e.runs(); got != sortWords(tc.runs) {
 			t.Errorf("cutoff_unmet %q: Search all searched %s, want %s", tc.mode, got, sortWords(tc.runs))
 		}
+		// The mixed season's actual episodes: only the one below the quality cutoff, unless the mode is score.
+		want := "[1003]"
+		if tc.mode == policy.CutoffScore {
+			want = "[1002,1003]"
+		}
+		if got := e.runEpisodes(201); got != want {
+			t.Errorf("cutoff_unmet %q: the season's run searched episodes %s, want %s", tc.mode, got, want)
+		}
 		var states string
 		if err := e.st.Reader().QueryRowContext(e.ctx, `SELECT (SELECT group_concat(state) FROM (SELECT state FROM
 			version WHERE id IN (103, 104) ORDER BY id)) || '/' || (SELECT group_concat(state) FROM (SELECT state FROM
@@ -188,4 +196,35 @@ func TestWantedCutoffListFollowsMode(t *testing.T) {
 			t.Errorf("cutoff_unmet %q: states %s, want the full cutoff's filled", tc.mode, states)
 		}
 	}
+}
+
+// A re-search after a failure is not Wanted's: with cutoff_unmet off it keeps the full cutoff it always had, so a
+// failed score-only upgrade (movie 3, at the cutoff quality, below the cutoff score) is searched again, and the mixed
+// season's failed season search searches the same two episodes again.
+func TestCutoffResearchKeepsFullCutoff(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true, &policy.Wanted{PerHour: 100, Missing: new(false), CutoffUnmet: policy.CutoffOff})
+	cutoffFixture(t, e)
+	e.row(3, "movie", OnlyCutoff, -1, t0, "stalled", 0)
+	e.row(10, "series", OnlyCutoff, 1, t0, "stalled", 0)
+	if _, err := e.a.Round(e.ctx, []int64{3, 10}); err != nil {
+		t.Fatal(err)
+	}
+	if got := e.runs(); got != "103:movie 201:s01" {
+		t.Errorf("re-searched %s, want 103:movie 201:s01", got)
+	}
+	if got := e.runEpisodes(201); got != "[1002,1003]" {
+		t.Errorf("season re-search episodes %s, want [1002,1003]", got)
+	}
+}
+
+// runEpisodes is the episodes of version id's newest run, as stored.
+func (e *env) runEpisodes(versionID int64) string {
+	e.t.Helper()
+	var eps string
+	if err := e.st.Reader().QueryRowContext(e.ctx, `SELECT episodes FROM acquire_run WHERE version_id = ? ORDER BY id DESC
+		LIMIT 1`, versionID).Scan(&eps); err != nil {
+		e.t.Fatal(err)
+	}
+	return eps
 }
