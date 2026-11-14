@@ -1,5 +1,7 @@
 package web
 
+import "sync"
+
 // SchemaField describes one field of a settings record for the UI's forms. Config fields use the policy's YAML
 // names; record fields (enabled, priority, secret) sit beside config in a request.
 type SchemaField struct {
@@ -46,6 +48,10 @@ type SettingsSchema struct {
 	// Rules are the write rules every form must follow.
 	Rules []string `json:"rules"`
 }
+
+// staticSettingsSchema builds the schema once: it is the same for every request (reflection over the policy types and
+// fixed annotations). Callers only read it.
+var staticSettingsSchema = sync.OnceValue(settingsSchema)
 
 func settingsSchema() SettingsSchema {
 	secret := SchemaField{Name: "secret", Type: "secret", Help: "API key or token. Write-only: responses show secret_set. " +

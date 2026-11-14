@@ -4,11 +4,11 @@ import { Link, useLocation, useNavigate } from "react-router";
 import { useId } from "react";
 import { Select } from "@/components/ui/select";
 import { usePolicy } from "@/api/hooks";
-import { useSettings, useSettingsSchema, type SettingsOverview } from "@/api/settings";
+import { useSettings, useSettingsSchema } from "@/api/settings";
 import { PageHeader, RouteTabs, Loading, ErrorState } from "@/components/page";
 import { SETTINGS_PAGES, ADVANCED_SETTINGS_PAGES, SETTINGS_PANELS, ShowAdvancedToggle } from "@/lib/settings-map";
 import { SectionPanel } from "@/components/settings/section-panel";
-import { SettingsAuthority } from "@/components/settings/authority";
+import { SettingsAuthority, settingsBannerNeeded as bannerNeeded } from "@/components/settings/authority";
 import { SourcesPanel, BudgetsPanel } from "@/components/settings/sources";
 import { ViewsCard } from "@/components/settings/views";
 import { SectionsCard } from "@/components/settings/sections";
@@ -42,9 +42,6 @@ export function SettingsPicker({ current }: { current: string }) {
   </Select>
  </div>;
 }
-/** The settings banner on a task page only when something is off (startup fallback, the service unavailable): the
- * normal "saved in Theatarr" note is on Settings home. */
-const bannerNeeded = (o: SettingsOverview) => { const a = authority(o); return a.mode !== "db" || !!a.fallback; };
 export function SettingsPage() {
  const { pathname } = useLocation();
  const overview = useSettings(); const schema = useSettingsSchema(); const policy = usePolicy();

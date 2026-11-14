@@ -60,3 +60,17 @@ it("shows both caps of a budget with their bars, its rate in words and who uses 
   expect(row.textContent).toContain("40 / min");
   expect(row.textContent).toContain("Provider AD, Indexer prowlarr-tpb, Metadata tmdb");
 });
+
+it("takes budget use from the live gateway state, not the settings read", async () => {
+  const { BudgetsPanel } = await import("./sources");
+  const { overview, schema } = await import("./fixtures");
+  mockFetch([{ method: "GET", path: "/gateway", reply: { egress: {}, backoffs: [],
+    budgets: [{ key: "tmdb", requests: 40, per: "1m0s", hourly: 1000, used_hour: 750, used_day: 900, used_by: ["metadata:tmdb"] }] } }]);
+  const o = overview();
+  o.budgets = [{ key: "tmdb", config: { requests: 40, per: "1m0s", hourly: 1000 }, usage: { used_hour: 1, used_day: 2, used_by: [] } } as unknown as SettingsRecord];
+  renderPage(<BudgetsPanel overview={o} ent={schema.budgets} />);
+  await screen.findByText("Metadata tmdb");
+  const row = document.querySelector<HTMLElement>('[data-record="tmdb"]')!;
+  expect(row.querySelector('[data-col="hour"]')?.textContent).toContain("750");
+  expect(row.querySelector('[data-col="day"]')?.textContent).toContain("900");
+});

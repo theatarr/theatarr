@@ -1,4 +1,4 @@
-import { SettingsAuthority } from "@/components/settings/authority";
+import { SettingsAuthority, settingsBannerNeeded } from "@/components/settings/authority";
 // Settings › Profiles (docs/design/settings.md, "Profiles, presets and formats"): every profile
 // with its allowed qualities (best first, cutoff marked), how many formats it scores, the TRaSH preset it started
 // from and how ours differs, and the versions that use it (unused ones are shown, never deleted by themselves). The
@@ -103,7 +103,7 @@ export function ProfilesPage({ compact = false }: { compact?: boolean }) {
   const open = (key: string) => { const s = sessionFor(key); if (s) { deleted.current = false; setSession(s); setEdit(key); } };
   const unused = o.profiles.filter((p) => p.used_by.length === 0).length;
   return <div className="space-y-4">
-    {settings.data ? <SettingsAuthority compact={compact} overview={settings.data} /> : null}
+    {settings.data && settingsBannerNeeded(settings.data) ? <SettingsAuthority compact={compact} overview={settings.data} /> : null}
     <Announcer announcement={announcement} testid="profiles-announcer" />
     {!db ? <p className="text-sm font-medium" data-testid="read-only-note">Settings service unavailable.</p> : null}
     {!o.trash.length ? <p className="text-sm text-muted-foreground" data-testid="trash-note">{o.trash_note ?? "No TRaSH guides tree"}: presets, TRaSH scores and comparisons are unavailable. A profile can still be made by hand in the <Link className="underline" to="/admin/settings/profiles?raw=1">raw profile editor</Link>.</p>

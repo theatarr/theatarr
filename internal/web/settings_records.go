@@ -164,7 +164,7 @@ func (w *Web) apiSettingsSchema(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	writeJSON(rw, http.StatusOK, settingsSchema())
+	writeJSON(rw, http.StatusOK, staticSettingsSchema())
 }
 
 func (w *Web) apiSettingsExport(rw http.ResponseWriter, r *http.Request) {

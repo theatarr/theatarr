@@ -1,4 +1,4 @@
-import { SettingsAuthority } from "@/components/settings/authority";
+import { SettingsAuthority, settingsBannerNeeded } from "@/components/settings/authority";
 import { useEffect, useId, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, API_BASE, ApiError } from "@/api/client";
@@ -131,7 +131,7 @@ export function QualityPanel({ entity, compact = false, skip = [], match }: { en
   const c = session?.draft.config ?? {};
   const set = (key: string, value: unknown) => patch({ config: { ...c, [key]: value } });
   return <div ref={panel} tabIndex={-1} className="space-y-4 outline-none">
-    <SettingsAuthority compact={compact} overview={o} />{!compact ? <ManagedInSettings /> : null}
+    {settingsBannerNeeded(o) ? <SettingsAuthority compact={compact} overview={o} /> : null}{!compact ? <ManagedInSettings /> : null}
     {confirm.dialog}
     <Announcer announcement={announcement} testid="quality-announcer" />
     {records.error ? <ErrorState error={records.error} /> : null}

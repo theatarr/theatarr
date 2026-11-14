@@ -799,7 +799,7 @@ Previous admin URLs redirect with their query string and hash intact.
 On phones (below `md`) the side list is hidden, so the top of each Settings page has one labelled **Settings page**
 select that moves between the pages and their tabs (grouped by page, in place of the route tabs' Section select), with
 Show advanced settings under it. Request limits lists each budget once, in the editable table, with its cap bars and
-who uses it by name ("Provider AD", "Indexer prowlarr-tpb"); the status part below keeps the back-offs.
+who uses it by name ("Provider AD", "Indexer prowlarr-tpb"), its use read from the live gateway state; the status part below keeps the back-offs.
 
 **Settings forms.** Panels (`section-panel.tsx`, through `field-input.tsx`) and record sheets
 (`record-form.tsx`) share one pattern: an edited field is marked **Changed** with **Undo** back to the saved value;

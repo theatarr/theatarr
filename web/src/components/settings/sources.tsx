@@ -6,6 +6,7 @@ import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Loader2, Pencil, Plus, Zap }
 import { useEffect, useReducer, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { qk } from "@/api/query-keys";
+import { useGateway } from "@/api/hooks";
 import { useWriteConfirmation } from "./confirm-write";
 import {
   testAll,
@@ -709,6 +710,11 @@ function CapBars({ hourly, daily, usedHour, usedDay }: { hourly?: number; daily?
 export function BudgetsPanel({ overview, ent, readOnly }: { overview: SettingsOverview; ent: SchemaEntity; readOnly?: string }) {
   const entity: Entity = "budgets";
   const ed = useEditor(entity, overview.budgets, overview.generation);
+  // Use comes from the gateway (GET /gateway, which the live events refresh), not the settings read: the counts and
+  // cap bars follow the requests as they happen.
+  const gw = useGateway();
+  const use = new Map((gw.data?.budgets ?? []).map((b) => [b.key, b]));
+  const live = overview.budgets.map((r) => use.has(r.key) ? { ...r, usage: use.get(r.key) } : r);
   return (
     <div ref={ed.root} tabIndex={-1} className="outline-none">
       {ed.editing ? (
@@ -725,7 +731,7 @@ export function BudgetsPanel({ overview, ent, readOnly }: { overview: SettingsOv
           />
         </Sheet>
       ) : null}
-      <BudgetsView records={overview.budgets} readOnly={readOnly} onEdit={ed.open} selected={ed.selected} />
+      <BudgetsView records={live} readOnly={readOnly} onEdit={ed.open} selected={ed.selected} />
     </div>
   );
 }
