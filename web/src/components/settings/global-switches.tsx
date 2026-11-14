@@ -1,5 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useId, useState } from "react";
+import { toast } from "@/components/toaster";
+import { Switch } from "@/components/ui/switch";
 import { api } from "@/api/client";
 import { qk } from "@/api/query-keys";
 import { confirmationHeaders, useSettings } from "@/api/settings";
@@ -30,6 +32,10 @@ function useSwitchSave() {
       void qc.invalidateQueries({ queryKey: ["title"] });
       // The lists' row actions read Pause from each row's libraries.
       void qc.invalidateQueries({ queryKey: qk.titles.all });
+      // Pause acts at once, without a confirm: say what it did.
+      toast(paused
+        ? { tone: "warn", title: "Paused", body: "Nothing is searched, downloaded or linked until you turn Pause off. Downloads already started finish at the provider." }
+        : { tone: "ok", title: "Pause is off", body: "Searches, downloads and library changes run again; downloads that finished meanwhile are imported now." });
     } catch (e) {
       if (!confirm.ask(e, (next) => void save(paused, generation, next))) setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -45,6 +51,7 @@ const PILL = "flex h-8 shrink-0 items-center gap-1.5 rounded-[5px] px-2 text-[12
 export function PauseSwitch() {
   const o = useSettings().data;
   const { save, busy, error, dialog } = useSwitchSave();
+  const id = useId();
   if (!o) return null;
   if (o.switches.pause_forced) {
     return (
@@ -57,12 +64,12 @@ export function PauseSwitch() {
   const paused = o.switches.paused;
   return (
     <>
-      <label className={PILL} data-testid="pause" data-paused={paused || undefined}
+      <span className={PILL} data-testid="pause" data-paused={paused || undefined}
         title={paused ? "Paused: nothing is searched, downloaded or linked. Turn off to resume." : "Pause stops searches, new downloads, list syncs and changes in your library folders, for every library. Downloads already started finish at the provider and are imported when you turn Pause off."}>
-        <input type="checkbox" role="switch" aria-label="Pause" checked={paused} disabled={busy || !o.writable || o.source !== "db"}
-          onChange={(e) => void save(e.target.checked, o.generation)} />
-        <span className={paused ? "whitespace-nowrap font-medium text-[var(--warn-ink)]" : "whitespace-nowrap"}>{paused ? "Paused" : "Pause"}</span>
-      </label>
+        <Switch id={id} size="sm" aria-label="Pause" checked={paused} disabled={busy || !o.writable || o.source !== "db"}
+          onCheckedChange={(on) => void save(on, o.generation)} />
+        <label htmlFor={id} className={paused ? "cursor-pointer whitespace-nowrap font-medium text-[var(--warn-ink)]" : "cursor-pointer whitespace-nowrap"}>{paused ? "Paused" : "Pause"}</label>
+      </span>
       {error ? <span role="alert" className="text-xs text-destructive">{error}</span> : null}
       {dialog}
     </>

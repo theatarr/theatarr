@@ -3,6 +3,7 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { PauseSwitch } from "./global-switches";
+import { Toaster } from "@/components/toaster";
 import { json, mockFetch, renderPage } from "@/test/page";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/api/client";
@@ -30,14 +31,20 @@ const overview = (paused: boolean, extra: Record<string, unknown> = {}, pause_fo
 describe("Pause in the admin header", () => {
   it("on: sends paused in one save, without a dialog", async () => {
     const fetch = mockFetch([{ method: "GET", path: "/settings", reply: overview(false) }, { method: "PUT", path: "/settings/switches", reply: { generation: 8 } }]);
-    renderPage(<PauseSwitch />);
+    renderPage(<><PauseSwitch /><Toaster /></>);
     const pause = await screen.findByRole("switch", { name: "Pause" });
-    expect((pause as HTMLInputElement).checked).toBe(false);
+    expect(pause.getAttribute("aria-checked")).toBe("false");
+    // The app's Switch, not a browser checkbox.
+    expect(pause.tagName).toBe("BUTTON");
+    expect(pause.getAttribute("data-slot")).toBe("switch");
     expect(screen.getByTestId("pause").getAttribute("title")).toBe("Pause stops searches, new downloads, list syncs and changes in your library folders, for every library. Downloads already started finish at the provider and are imported when you turn Pause off.");
     await userEvent.setup().click(pause);
     await waitFor(() => expect(fetch.calls("PUT", "/settings/switches")).toHaveLength(1));
     expect(fetch.calls("PUT", "/settings/switches")[0].body).toEqual({ generation: 7, paused: true });
     expect(screen.queryByRole("dialog")).toBeNull();
+    // It acts at once, so it says what it did.
+    expect(await screen.findByText("Paused")).toBeTruthy();
+    expect(screen.getByText(/Nothing is searched, downloaded or linked until you turn Pause off/)).toBeTruthy();
   });
 
   it("a save reads the status and Wanted again, so due rows and search buttons follow Pause", async () => {
@@ -82,7 +89,7 @@ describe("Pause in the admin header", () => {
     const user = userEvent.setup();
     renderPage(<PauseSwitch />);
     const pause = await screen.findByRole("switch", { name: "Pause" });
-    expect((pause as HTMLInputElement).checked).toBe(true);
+    expect(pause.getAttribute("aria-checked")).toBe("true");
     expect(screen.getByText("Paused")).toBeTruthy();
     expect(screen.getByTestId("pause").getAttribute("title")).toBe("Paused: nothing is searched, downloaded or linked. Turn off to resume.");
     await user.click(pause);
