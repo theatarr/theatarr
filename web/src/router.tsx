@@ -117,13 +117,13 @@ function NotAsUser({ to, children }: { to: string; children: ReactNode }) {
 
 /**
  * /admin: Status for admins; an account that only manages users lands on Users & access. A fresh install (no
- * version yet, settings in the database) leads to Setup once per browser session.
+ * version yet, settings in the database) leads to Setup once per browser session. Status renders at once: the Setup
+ * check runs beside it and only moves a fresh install on when its answer arrives.
  */
 function AdminHome() {
   const me = useAuth();
   const p = permsOf(me.data?.permissions);
   const setup = useSetup(p.admin && !setupShown());
-  if (p.admin && setup.isLoading) return <Loading />;
   if (p.admin && setup.data?.first_run && setup.data.settings_source === "db" && !setupShown()) {
     sessionStorage.setItem(SETUP_SHOWN, "1");
     return <Navigate to="/admin/setup" replace />;

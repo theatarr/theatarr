@@ -96,3 +96,17 @@ it("leads a new install from / through Create your admin account to Setup", asyn
   await new Promise((r) => setTimeout(r, 50));
   expect(router.state.location.pathname).toBe("/admin/setup");
 });
+
+// System > Status does not wait for the Setup check: a slow GET /setup leaves the page rendered.
+it("renders Status for an admin while the Setup check has not answered", async () => {
+  sessionStorage.clear();
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: { kind: "session", id: 1, username: "admin", permissions: ADMIN, csrf_token: "t" } },
+    { method: "GET", path: "/setup", reply: () => new Promise(() => {}) },
+  ]);
+  const router = createMemoryRouter(routes, { initialEntries: ["/admin"] });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+  render(<QueryClientProvider client={client}><RouterProvider router={router} /></QueryClientProvider>);
+  expect(await screen.findByRole("heading", { name: "Status" })).toBeTruthy();
+  expect(router.state.location.pathname).toBe("/admin");
+});
