@@ -616,17 +616,17 @@ func (w *Web) addTitle(ctx context.Context, req AddRequest, source string) (*Add
 		}
 		// A title every copy of which was removed is added like a new one: its choices (anime, monitoring, series
 		// type) apply, by the title id it keeps.
-		var restored bool
-		if err := tx.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM title t WHERE t.kind = ?
-			AND (t.id = ? OR ? <= 0 AND (t.tmdb_id = ? OR t.kind = 'series' AND t.tvdb_id = ?)) AND NOT `+inLibrary+`)`,
-			string(kind), req.TitleID, req.TitleID, req.TMDbID, req.TVDbID).Scan(&restored); err != nil {
+		var restoredID int64
+		err = tx.QueryRowContext(ctx, `SELECT t.id FROM title t WHERE t.kind = ?
+			AND (t.id = ? OR ? <= 0 AND (t.tmdb_id = ? OR t.kind = 'series' AND t.tvdb_id = ?)) AND NOT `+inLibrary+`
+			ORDER BY t.id LIMIT 1`, string(kind), req.TitleID, req.TitleID, req.TMDbID, req.TVDbID).Scan(&restoredID)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return err
 		}
+		restored := restoredID > 0
 		// Its anime choice applies before the add picks the libraries for it.
 		if restored && req.Anime != nil {
-			if _, err := tx.ExecContext(ctx, `UPDATE title SET anime = ? WHERE kind = ? AND (id = ? OR ? <= 0
-				AND (tmdb_id = ? OR kind = 'series' AND tvdb_id = ?))`, *req.Anime, string(kind), req.TitleID,
-				req.TitleID, req.TMDbID, req.TVDbID); err != nil {
+			if _, err := tx.ExecContext(ctx, `UPDATE title SET anime = ? WHERE id = ?`, *req.Anime, restoredID); err != nil {
 				return err
 			}
 		}
