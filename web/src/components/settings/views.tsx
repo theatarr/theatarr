@@ -141,8 +141,6 @@ export function ViewSheet({ view: opened, generation: openedAt, readOnly, onClos
   // A view the first start of this version has not seeded yet keeps its identity and key in the policy files.
   const seeded = create || !!view.identity;
   const [key, setKey] = useState(view?.key ?? "");
-  // The key's reason shows once it has been typed in; Save waits for a valid one either way.
-  const [keyTouched, setKeyTouched] = useState(false);
   const [flavour, setFlavour] = useState(view?.identity?.flavour ?? "radarr");
   const [path, setPath] = useState(view?.identity?.path ?? "");
   const [versions, setVersions] = useState<string[]>(view?.versions ?? []);
@@ -214,7 +212,7 @@ export function ViewSheet({ view: opened, generation: openedAt, readOnly, onClos
         ) : null}
         {!seeded ? <p className="mb-4 text-sm text-muted-foreground">Path, flavour and key come from the policy files until Theatarr restarts once on this release.</p> : null}
         <div className="grid gap-4 sm:grid-cols-2">
-          {create ? <Field label="Key" help="A name for the app; it cannot be renamed later." error={keyTouched ? keyProblem(key) : undefined}><Input value={key} onChange={(e) => { setKey(e.target.value); setKeyTouched(true); }} disabled={off} /></Field> : null}
+          {create ? <Field label="Key" help={`${key ? "" : "Enter a name. "}A name for the app; it cannot be renamed later.`} error={key ? keyProblem(key) : undefined}><Input value={key} onChange={(e) => setKey(e.target.value)} disabled={off} /></Field> : null}
           <Field label="Flavour">
             <select className={SELECT_CLASS} value={flavour} onChange={(e) => setFlavour(e.target.value)} disabled={off || !seeded}>
               <option value="radarr">radarr</option>

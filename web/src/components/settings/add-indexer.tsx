@@ -134,7 +134,9 @@ export function AddIndexer({
     >
       {/* Manual activation: focus coming back to a tab after the unsaved question must not ask again. */}
       <Tabs value={tab} activationMode="manual" onValueChange={(v) => request(() => setTab(v as Tab))}>
-        <TabsList className="flex w-full flex-wrap justify-start" aria-label="How to add an indexer">
+        {/* Enter has switched (or asked about switching) by the time it reaches the list: its default press must not
+            land on the question's focused Cancel. */}
+        <TabsList className="flex w-full flex-wrap justify-start" aria-label="How to add an indexer" onKeyDown={(e) => { if (e.key === "Enter") e.preventDefault(); }}>
           <TabsTrigger value="catalog" data-testid="tab-catalog">Catalog</TabsTrigger>
           <TabsTrigger value="builtin" data-testid="tab-builtin">Torznab &amp; built-in sources</TabsTrigger>
           <TabsTrigger value="link" data-testid="tab-link">Link Prowlarr</TabsTrigger>

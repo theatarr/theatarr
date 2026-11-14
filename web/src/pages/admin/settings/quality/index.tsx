@@ -83,8 +83,6 @@ export function QualityPanel({ entity, compact = false, skip = [], match }: { en
   const [busy, setBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [formRevision, setFormRevision] = useState(0);
-  // A new key's reason shows once it has been typed in; Save waits for a valid one either way.
-  const [keyTouched, setKeyTouched] = useState(false);
   const [preview, setPreview] = useState<{ file: string; folder: string }>();
   const [announcement, announce] = useAnnouncement();
   const confirm = useWriteConfirmation();
@@ -106,7 +104,6 @@ export function QualityPanel({ entity, compact = false, skip = [], match }: { en
   }, [session]);
   const start = (record?: QualityRecord) => {
     deleted.current = false;
-    setKeyTouched(false);
     setError(undefined); setConfirmDelete(false); setFormRevision((n) => n + 1);
     const draft: QualityRecord = record ? draftRecord(record) : { id: 0, key: "", config: defaults(entity), ...(entity === "formats" ? { specification: blankFormat() } : {}) };
     setSession({ entity, id: record?.id, generation: records.data?.generation ?? overview.data?.generation ?? 0, draft, start: clone(draft) });
@@ -168,7 +165,7 @@ export function QualityPanel({ entity, compact = false, skip = [], match }: { en
       <div ref={errorBox}>{error ? <div className="mb-4"><ExplainBox error={explainError(error)} onReload={() => { void rebase(false); }} onReloadKeep={() => { void rebase(true); }} />{error instanceof ApiError && object(error.body).uses ? <pre className="whitespace-pre-wrap text-sm">{pretty(object(error.body).uses)}</pre> : null}</div> : null}</div>
       <form id={formId} key={formRevision} className="space-y-4" onSubmit={(e) => { e.preventDefault(); void write(); }}>
         <fieldset disabled={busy || readOnly} className="space-y-4">
-          <Field label={entity === "naming" ? "Library key" : "Key"} error={keyTouched ? keyError : undefined}><Input className="h-9" required disabled={!!session.id} value={session.draft.key} onChange={(e) => { setKeyTouched(true); patch({ key: e.target.value }); }} /></Field>
+          <Field label={entity === "naming" ? "Library key" : "Key"} help={keyError && !session.draft.key ? "Enter a name." : undefined} error={session.draft.key ? keyError : undefined}><Input className="h-9" required disabled={!!session.id} value={session.draft.key} onChange={(e) => patch({ key: e.target.value })} /></Field>
           {entity === "profiles" ? <ProfileFields config={c} onChange={(config) => patch({ config })} /> : null}
           {entity === "formats" ? <><Select label="Flavour" value={text(c.flavour)} values={["", "radarr", "sonarr"]} onChange={(v) => set("flavour", v)} />{schema.isPending ? <Loading /> : schema.error ? <ErrorState error={schema.error} /> : <FormatFields spec={session.draft.specification ?? blankFormat()} schema={schema.data} flavour={text(c.flavour)} onChange={(specification) => patch({ specification, config: { ...c, trash_id: specification.trash_id ?? "", include_when_renaming: specification.includeCustomFormatWhenRenaming } })} />}</> : null}
           {entity === "format_sets" ? <><Select label="Flavour" value={text(c.flavour)} values={["radarr", "sonarr"]} onChange={(v) => set("flavour", v)} /><JSONField label={'Formats by display name: {"WEB Tier 01": {"ref": "global-key"}}; inline entries use trash_id and a specification below'} value={c.formats ?? {}} onChange={(v) => set("formats", v)} /><JSONField label="Full inline arr JSON by display name" value={session.draft.specifications ?? {}} onChange={(v) => patch({ specifications: v as Record<string, FormatJSON> })} /></> : null}

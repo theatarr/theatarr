@@ -747,6 +747,8 @@ describe("Versions grouped by kind", () => {
     await user.selectOptions(profile, "preset:0537");
     // Without a key there is nothing to name the profile after: Save waits for one, nothing is created.
     expect((within(form).getByRole("button", { name: "Save" }) as HTMLButtonElement).disabled).toBe(true);
+    // The reason is there before anything is typed: a plain hint under the key.
+    expect(within(form).getByText(/^Enter a name\. Used by connected apps/)).toBeTruthy();
     expect(fetch.calls("POST", "/settings/presets/create")).toHaveLength(0);
     await user.type(within(form).getByRole("textbox", { name: "Key" }), "movies");
     await user.click(within(form).getByRole("button", { name: "Save" }));

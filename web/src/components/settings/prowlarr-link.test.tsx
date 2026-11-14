@@ -177,3 +177,31 @@ it("treats a saved connection as saved at once, and asks before a tab change dro
   expect(screen.queryByTestId("discard-confirm")).toBeNull();
 });
 
+
+it("keeps the unsaved question open when Enter on a tab asked it", async () => {
+  mockFetch([
+    { method: "GET", path: "/settings/versions", reply: json({ source: "db", generation: 4, versions: [lib("movies", "movie")] }) },
+    { method: "GET", path: "/cardigann/definitions", reply: json({ status: {}, total: 0, definitions: [], unavailable: "off" }) },
+    { method: "GET", path: "/settings/prowlarr/feeds", reply: json({ configured: false }) },
+    { method: "GET", path: "/settings/sections", reply: json({ source: "db", generation: 4, sections: [] }) },
+  ]);
+  const user = userEvent.setup();
+  renderPage(<SettingsTabView tab="indexers" overview={overview({ indexers: [dmm] })} schema={schema} versions={[]} />, "/admin/settings/indexers");
+  await user.click(screen.getByRole("button", { name: "Add indexer" }));
+  await user.click(screen.getByRole("tab", { name: "Link Prowlarr" }));
+  await user.type(await within(await screen.findByTestId("link-tab")).findByRole("textbox", { name: "Prowlarr address" }), "http://10.0.0.5:9696");
+  screen.getByRole("tab", { name: "Catalog" }).focus();
+  await user.keyboard("{Enter}");
+  const ask = await screen.findByTestId("discard-confirm");
+  await new Promise((r) => setTimeout(r, 50));
+  expect(ask.isConnected).toBe(true);
+  expect(screen.getByTestId("discard-confirm")).toBeTruthy();
+  expect(screen.getByRole("tab", { name: "Link Prowlarr" }).getAttribute("aria-selected")).toBe("true");
+  // Without a draft Enter still switches.
+  await user.click(within(ask).getByTestId("confirm-cancel"));
+  await user.clear(within(screen.getByTestId("link-tab")).getByRole("textbox", { name: "Prowlarr address" }));
+  screen.getByRole("tab", { name: "Catalog" }).focus();
+  await user.keyboard("{Enter}");
+  await waitFor(() => expect(screen.getByRole("tab", { name: "Catalog" }).getAttribute("aria-selected")).toBe("true"));
+  expect(screen.queryByTestId("discard-confirm")).toBeNull();
+});

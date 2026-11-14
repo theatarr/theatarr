@@ -70,7 +70,7 @@ describe("View editor", () => {
     expect((within(sheet).getByRole("button", { name: "Save" }) as HTMLButtonElement).disabled).toBe(true);
     await user.type(within(sheet).getByRole("textbox", { name: "Key" }), "radarr2");
     await user.clear(within(sheet).getByRole("textbox", { name: "Key" }));
-    expect(within(sheet).getByText("Enter a name.")).toBeTruthy();
+    expect(within(sheet).getByText(/^Enter a name\. A name for the app/)).toBeTruthy();
     await user.type(within(sheet).getByRole("textbox", { name: "Key" }), "radarr2");
     await user.click(within(sheet).getByRole("button", { name: "Save" }));
     expect((await within(sheet).findByTestId("settings-error")).textContent).toContain("needs its API key");
