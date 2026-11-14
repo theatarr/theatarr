@@ -227,8 +227,17 @@ func TestProviderSyncSchedule(t *testing.T) {
 	if got := at(); !got.Equal(now.Add(ps.delay)) {
 		t.Errorf("first, tb never ran: %v", got)
 	}
-	// Both ran: an interval after the older run.
+	// Both ran, but neither has a torrent read yet (just upgraded): still soon.
 	run("tb", 2*time.Hour)
+	if got := at(); !got.Equal(now.Add(ps.delay)) {
+		t.Errorf("first, no torrent read: %v", got)
+	}
+	for _, k := range []string{"rd", "tb"} {
+		if _, err := st.Writer().Exec(`INSERT INTO provider_torrent_read (provider, read_at) VALUES (?, 1)`, k); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Both ran and read: an interval after the older run.
 	if got := at(); !got.Equal(now.Add(4 * time.Hour)) {
 		t.Errorf("first, both ran: %v", got)
 	}

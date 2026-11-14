@@ -943,12 +943,13 @@ func newProviderSync(pol *policy.Policy, st *store.Store, q *jobs.Queue, d provi
 }
 
 // first is when the first sync after start is due: an interval after the oldest provider's latest run, or soon if a
-// provider has never run.
+// provider has never run. A provider with no torrent read (provider_torrent_read: just upgraded from a release
+// without the record) counts as never run.
 func (p *providerSync) first(ctx context.Context, now time.Time) (time.Time, error) {
 	earliest := now.Add(p.delay)
 	last := map[string]int64{}
-	rows, err := p.st.Reader().QueryContext(ctx,
-		`SELECT provider, MAX(started_at) FROM provider_sync_run GROUP BY provider`)
+	rows, err := p.st.Reader().QueryContext(ctx, `SELECT provider, MAX(started_at) FROM provider_sync_run
+		WHERE provider IN (SELECT provider FROM provider_torrent_read) GROUP BY provider`)
 	if err != nil {
 		return earliest, err
 	}
