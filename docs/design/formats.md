@@ -86,8 +86,9 @@ a corpus that drops the key disagrees on Season Pack formats.
 
 - Theatarr's own condition types are further `Condition` implementations: `SeaDexSpecification` (`seadex.go`, both
   flavours) matches `best`, `alt` or `any` against `Input.SeaDex`; grouping by `Implementation()` keeps the arr rules.
-  The arr-style "Seadex" format (seadexerr's four indexer-flag conditions) is built as `SeaDexSpecification` `best`
-  (`format.SeaDexBestForSeaDexerr`): one bonus rule, SeaDex best only, wherever the torrent was found.
+  For a version with `prefer_seadex`, the arr-style "Seadex" format (seadexerr's four indexer-flag conditions) is
+  evaluated as `SeaDexSpecification` `best` (`format.SeaDexBestForSeaDexerr`): one bonus rule, SeaDex best only,
+  wherever the torrent was found. Without `prefer_seadex` it matches on the flags, as in the arrs.
 - Profile evaluation (allowed qualities, cutoff, upgrades) is in `internal/decide/profile` ([profiles.md](profiles.md)).
 - `internal/decide/adapt` turns each parser's output into `Input`. For Radarr it produces `SimpleReleaseTitle`, and it
   ports `AggregateLanguages`, because formats see the augmented languages: languages found only in the movie (or

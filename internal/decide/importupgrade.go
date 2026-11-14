@@ -34,6 +34,7 @@ func (e *Engine) ImportUpgrade(t *Title, v Version, nw, cur *ExistingFile) (bool
 	if p == nil || p.Profile == nil || p.Engine == nil {
 		return false, "", fmt.Errorf("decide: version %q: profile %q was not built", v.Key, v.Policy.Profile)
 	}
+	p = withVersionRules(p, v.Policy)
 	if v.Policy.PreferSeaDex && SameTorrent(nw, cur) {
 		x := *cur
 		x.SeaDexPreference, x.SeaDex = nw.SeaDexPreference, nw.SeaDex

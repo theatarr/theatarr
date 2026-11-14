@@ -577,9 +577,10 @@ func TestProfileRank(t *testing.T) {
 	}
 }
 
-// The arr-style "Seadex" format synced from the arrs (seadexerr's four indexer-flag conditions) scores as SeaDex best:
-// the same for the seadex listing, the same hash found on another indexer and a held file with best standing, and not
-// for an alternative. A format with any other flag set still matches on the flags.
+// With Prefer SeaDex, the arr-style "Seadex" format synced from the arrs (seadexerr's four indexer-flag conditions)
+// scores as SeaDex best: the same for the seadex listing, the same hash found on another indexer and a held file with
+// best standing, and not for an alternative. Without, it matches on the flags as on main. A format with any other flag
+// set always matches on the flags.
 func TestSeaDexerrFormatScoresSeaDexBest(t *testing.T) {
 	t.Parallel()
 	pol, err := policy.Load("testdata/policy")
@@ -617,26 +618,40 @@ func TestSeaDexerrFormatScoresSeaDexBest(t *testing.T) {
 			Seeders: 10, Peers: 10, Privacy: policy.PrivacyPublic, InfoHash: "2123456789abcdef0123456789abcdef01234567"},
 	}
 	indexer.MarkSeaDex(rels)
-	ctx := context.Background()
-	v := Version{Key: "movie-remux"}
-	for i, want := range []int{5000, 5010, 10, 0} {
-		d, err := e.Decide(ctx, Release{Release: rels[i]}, dune, v, nil)
-		if err != nil {
-			t.Fatal(err)
+	// With Prefer SeaDex a release's flags come from the standing.
+	ctx := WithSeaDex(context.Background(), []indexer.SeaDexSnapshot{factsSnapshot(indexer.SeaDexSnapshot{AniList: 1,
+		Torrents: []indexer.SeaDexStanding{{RecordID: "rec1", InfoHash: hash, IsBest: true, Preference: 2},
+			{RecordID: "rec2", InfoHash: alt, Preference: 1}}})})
+	mask, _ := format.Radarr.IndexerFlagsValue("G_Freeleech25, G_DoubleUpload, G_Internal, G_Scene")
+	for _, prefer := range []bool{true, false} {
+		cfg := *e.Policy.Versions["movie-remux"]
+		cfg.PreferSeaDex = prefer
+		v := Version{Key: "movie-remux", Policy: &cfg}
+		// Prefer SeaDex off: the format matches on the four flags, as in the arrs.
+		want, held := []int{5000, 5010, 10, 0}, map[format.SeaDexRank]int{format.SeaDexBest: 5010, format.SeaDexAlt: 10}
+		if !prefer {
+			want, held = []int{0, 5010, 5010, 0}, map[format.SeaDexRank]int{format.SeaDexBest: 5010, format.SeaDexAlt: 5010}
 		}
-		if d.Score != want {
-			t.Errorf("%s: score %d, want %d (%v)", rels[i].Title, d.Score, want, d.Formats)
+		for i, want := range want {
+			d, err := e.Decide(ctx, Release{Release: rels[i]}, dune, v, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if d.Score != want {
+				t.Errorf("prefer %v, %s: score %d, want %d (%v)", prefer, rels[i].Title, d.Score, want, d.Formats)
+			}
 		}
-	}
-	for rank, want := range map[format.SeaDexRank]int{format.SeaDexBest: 5000, format.SeaDexAlt: 0} {
-		held := &ExistingFile{Quality: "Remux-2160p", Revision: 1, SceneName: "Dune.Part.Two.2024.2160p.BluRay.REMUX-HELD",
-			Size: 60 * gb, InfoHash: "3123456789abcdef0123456789abcdef01234567", SeaDex: rank}
-		d, err := e.Decide(ctx, Release{Release: rels[3]}, dune, v, held)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if d.Existing == nil || d.Existing.Score != want {
-			t.Errorf("held file %v: existing %+v, want score %d", rank, d.Existing, want)
+		for rank, want := range held {
+			// A held file carries the tracker flags it was grabbed with and, with Prefer SeaDex, its standing.
+			x := &ExistingFile{Quality: "Remux-2160p", Revision: 1, SceneName: "Dune.Part.Two.2024.2160p.BluRay.REMUX-HELD",
+				Size: 60 * gb, InfoHash: "3123456789abcdef0123456789abcdef01234567", SeaDex: rank, IndexerFlags: mask}
+			d, err := e.Decide(ctx, Release{Release: rels[3]}, dune, v, x)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if d.Existing == nil || d.Existing.Score != want {
+				t.Errorf("prefer %v, held file %v: existing %+v, want score %d", prefer, rank, d.Existing, want)
+			}
 		}
 	}
 }

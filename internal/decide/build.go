@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"sort"
 	"sync"
 	"time"
@@ -24,6 +25,9 @@ type Profile struct {
 	Flavour    format.Flavour
 	Profile    *profile.Profile
 	Formats    []*format.Format
+	// seaDexFormats are Formats with the arr-style "Seadex" format scored as SeaDex best
+	// (format.SeaDexBestForSeaDexerr), for versions with Prefer SeaDex (withVersionRules); nil when there is none.
+	seaDexFormats []*format.Format
 	// CustomFormats retains the JSON used to build this runtime, for arr-view reads.
 	CustomFormats []format.FormatJSON
 	Engine        *profile.Engine
@@ -313,7 +317,16 @@ func (b *builder) fromPolicy(path, key string, pr *policy.Profile, fl format.Fla
 	if !ok {
 		return nil
 	}
-	return &Profile{Key: key, Flavour: fl, Profile: qp, Formats: formats, CustomFormats: customFormats,
+	var seaDexFormats []*format.Format
+	for i, f := range formats {
+		if best := format.SeaDexBestForSeaDexerr(f); best != nil {
+			if seaDexFormats == nil {
+				seaDexFormats = slices.Clone(formats)
+			}
+			seaDexFormats[i] = best
+		}
+	}
+	return &Profile{Key: key, Flavour: fl, Profile: qp, Formats: formats, seaDexFormats: seaDexFormats, CustomFormats: customFormats,
 		Engine: &profile.Engine{Flavour: fl, Config: profile.Config{PreferredProtocol: profile.ProtocolTorrent}, Definitions: defs}}
 }
 
@@ -357,9 +370,6 @@ func (b *builder) format(key string, ref *policy.FormatRef, fl format.Flavour) (
 		return nil, j, err
 	}
 	f.Name = key
-	// The arr-style "Seadex" format (seadexerr's flag combination) is scored as SeaDex best: one bonus rule for the
-	// seadex listing, the same torrent found elsewhere and held files. The stored definition stays as synced.
-	format.SeaDexBestForSeaDexerr(f)
 	if ref.IncludeWhenRenaming != nil {
 		f.IncludeWhenRenaming = *ref.IncludeWhenRenaming
 	}

@@ -79,6 +79,9 @@ func (e *Engine) ScoreFile(t *Title, v Version, x *ExistingFile) error {
 // x.Formats and x.Score are set as the decision's existing-file comparison sees them.
 func ScoreFileWith(p *Profile, t *Title, v Version, x *ExistingFile) error {
 	fl := flavourOf(v.Policy.Kind)
+	if p.Engine != nil {
+		p = withVersionRules(p, v.Policy)
+	}
 	var f *profile.File
 	var err error
 	if fl == format.Sonarr {

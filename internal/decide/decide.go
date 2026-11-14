@@ -335,7 +335,9 @@ func profileRank(pr *profile.Profile, fl format.Flavour, name string) (rank, of 
 }
 
 // withVersionRules applies the version's pack rule (every series version takes a pack that upgrades or fills any
-// episode) and curator preference to a copy of the shared profile engine.
+// episode) and curator preference to a copy of the shared profile engine. With Prefer SeaDex the arr-style "Seadex"
+// format scores SeaDex best (seaDexFormats); without, it is evaluated on its indexer flags as in the arrs, since a
+// prefer-off version resolves no stored standing for held files.
 func withVersionRules(p *Profile, v *policy.VersionPolicy) *Profile {
 	anyRule := v.Kind == policy.KindSeries
 	if anyRule == p.Engine.Config.AcceptReleaseAnyUpgradable && v.PreferSeaDex == p.Engine.Config.PreferSeaDex {
@@ -347,6 +349,9 @@ func withVersionRules(p *Profile, v *policy.VersionPolicy) *Profile {
 	q := *p
 	q.baseEngine = p.Engine
 	q.Engine = &eng
+	if v.PreferSeaDex && p.seaDexFormats != nil {
+		q.Formats = p.seaDexFormats
+	}
 	return &q
 }
 
