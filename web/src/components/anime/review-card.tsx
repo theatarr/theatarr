@@ -139,7 +139,7 @@ function EditForm({ it, busy, onUse, onCancel }: { it: ReviewItem; busy: boolean
   const [tvdb, setTvdb] = useState(p?.series?.tvdb ?? series[0]?.tvdb ?? 0);
   const [season, setSeason] = useState(run === null ? "" : String(run?.season ?? 1));
   const [start, setStart] = useState(run === null ? "" : String(run?.first ?? 1));
-  const [count, setCount] = useState(run === null ? "" : String(it.entry?.episodes || p?.count || 1));
+  const [count, setCount] = useState(run === null ? "" : String(run?.count || it.entry?.episodes || p?.count || 1));
   const s = Number(season), f = Number(start), n = Number(count);
   const valid = season !== "" && start !== "" && count !== "" && tvdb > 0 && Number.isInteger(s) && s >= 0 && Number.isInteger(f) && f >= 1 && Number.isInteger(n) && n >= 1;
   const preview = valid ? `${seriesName(series.find((x) => x?.tvdb === tvdb) ?? { tvdb })} ${rangeWords(Array.from({ length: Math.min(n, 500) }, (_, i) => [s, f + i]))}` : "";

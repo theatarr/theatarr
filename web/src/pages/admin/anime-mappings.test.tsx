@@ -271,3 +271,15 @@ it("does not prefill Edit season/offset… from a split proposal", async () => {
   const form = screen.getByLabelText("Series").closest("div.rounded-lg") as HTMLElement;
   expect((within(form).getByRole("button", { name: "Use this mapping" }) as HTMLButtonElement).disabled).toBe(true);
 });
+
+// A contiguous proposal prefills its own run, count included, not the source entry's episode count.
+it("prefills Edit season/offset… from a contiguous proposal's run", async () => {
+  const short = { ...conflict, id: 6, kind: "heuristic", snippet: undefined, mapping: { ...conflict.mapping, winner: "heuristic", candidates: [] },
+    options: [{ ...conflict.options[0], source: "heuristic", episodes: Array.from({ length: 10 }, (_, i) => [2, i + 13]), count: 10 }] };
+  mockFetch(lists([short]));
+  renderPage(<AnimeMappings />);
+  fireEvent.click(await screen.findByRole("button", { name: "Edit season/offset…" }));
+  expect((screen.getByLabelText("Season") as HTMLInputElement).value).toBe("2");
+  expect((screen.getByLabelText("First episode") as HTMLInputElement).value).toBe("13");
+  expect((screen.getByLabelText("Episodes") as HTMLInputElement).value).toBe("10");
+});
