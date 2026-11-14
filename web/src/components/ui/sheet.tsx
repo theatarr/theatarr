@@ -10,15 +10,28 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Modal } from "@/components/ui/modal";
 import { discardScope, useUnsavedChanges } from "@/lib/unsaved";
 
-/** A sheet's close with its unsaved edits in mind: SheetLayout reports its change count, and Escape, the backdrop,
+/** A sheet's close with its unsaved edits in mind: SheetLayout (and any draft inside, useSheetChanges) reports its
+ * change count, and Escape, the backdrop,
  * Close and SheetCancel ask before dropping them. */
-type Guard = { report: (changes: number) => void; request: (close: () => void) => void };
+type Guard = { report: (id: symbol, changes: number) => void; request: (close: () => void) => void };
 const SheetGuard = createContext<Guard | null>(null);
 
 /** Close the sheet, asking first while it holds unsaved edits (outside a sheet: close at once). */
 export function useSheetClose(): (close: () => void) => void {
   const guard = useContext(SheetGuard);
   return guard ? guard.request : (close) => close();
+}
+
+/** Report a draft's unsaved changes to the sheet it is in (asked about on close) and to the page (asked about on
+ * leaving). Outside a sheet only the page hears it. */
+export function useSheetChanges(changes: number) {
+  const guard = useContext(SheetGuard);
+  const [id] = useState(() => Symbol("draft"));
+  useEffect(() => {
+    guard?.report(id, changes);
+    return () => guard?.report(id, 0);
+  }, [guard, id, changes]);
+  useUnsavedChanges(changes);
 }
 
 /** A footer's Cancel: asks before dropping the sheet's unsaved edits. */
@@ -44,11 +57,12 @@ export function Sheet({
   returnFocus?: () => HTMLElement | null | undefined;
   testid?: string;
 }) {
-  const changes = useRef(0);
+  const drafts = useRef(new Map<symbol, number>());
   const [asking, setAsking] = useState<{ close: () => void; changes: number } | null>(null);
-  const report = useCallback((n: number) => { changes.current = n; }, []);
+  const report = useCallback((id: symbol, n: number) => { if (n > 0) drafts.current.set(id, n); else drafts.current.delete(id); }, []);
   const request = useCallback((close: () => void) => {
-    if (changes.current > 0) setAsking({ close, changes: changes.current });
+    const n = [...drafts.current.values()].reduce((a, b) => a + b, 0);
+    if (n > 0) setAsking({ close, changes: n });
     else close();
   }, []);
   const guard = useMemo(() => ({ report, request }), [report, request]);
@@ -99,9 +113,7 @@ export function SheetLayout({
   const own = useId();
   const id = headingId ?? own;
   const guard = useContext(SheetGuard);
-  useEffect(() => { guard?.report(changes); }, [guard, changes]);
-  useEffect(() => () => guard?.report(0), [guard]);
-  useUnsavedChanges(changes);
+  useSheetChanges(changes);
   return (
     <section className="flex min-h-0 flex-1 flex-col" aria-labelledby={id} data-testid={testid} {...rest}>
       <header className="flex items-start justify-between gap-3 border-b border-[var(--line)] px-4 py-3.5 sm:px-5">

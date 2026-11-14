@@ -125,3 +125,24 @@ it("reports a saved connection that cannot reach Prowlarr apart from the save, a
   await user.click(within(box).getByRole("button", { name: "Try again" }));
   await waitFor(() => expect(reads()).toBe(failed + 1));
 });
+
+it("asks before a tab change or Close drops a typed Prowlarr address", async () => {
+  mockFetch([
+    { method: "GET", path: "/settings/versions", reply: json({ source: "db", generation: 4, versions: [lib("movies", "movie")] }) },
+    { method: "GET", path: "/cardigann/definitions", reply: json({ status: {}, total: 0, definitions: [], unavailable: "off" }) },
+    { method: "GET", path: "/settings/prowlarr/feeds", reply: json({ configured: false }) },
+    { method: "GET", path: "/settings/sections", reply: json({ source: "db", generation: 4, sections: [] }) },
+  ]);
+  const user = userEvent.setup();
+  renderPage(<SettingsTabView tab="indexers" overview={overview({ indexers: [dmm] })} schema={schema} versions={[]} />, "/admin/settings/indexers");
+  await user.click(screen.getByRole("button", { name: "Add indexer" }));
+  await user.click(screen.getByRole("tab", { name: "Link Prowlarr" }));
+  await user.type(await within(await screen.findByTestId("link-tab")).findByRole("textbox", { name: "Prowlarr address" }), "http://10.0.0.5:9696");
+  await user.click(screen.getByRole("tab", { name: "Catalog" }));
+  const ask = await screen.findByTestId("discard-confirm");
+  await user.click(within(ask).getByTestId("confirm-cancel"));
+  expect(screen.getByRole("tab", { name: "Link Prowlarr" }).getAttribute("aria-selected")).toBe("true");
+  await user.click(screen.getByTestId("add-close"));
+  await user.click(within(await screen.findByTestId("discard-confirm")).getByRole("button", { name: "Close without saving" }));
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+});

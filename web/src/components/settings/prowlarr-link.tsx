@@ -16,6 +16,7 @@ import { explainError, type Explained } from "@/lib/settings";
 import { IndexerLibraries, librariesReady, type LibraryList } from "./indexer-libraries";
 import { Announcer, ExplainBox, Field, useAnnouncement } from "./parts";
 import { useSectionPatch } from "./use-section-patch";
+import { useSheetChanges } from "@/components/ui/sheet";
 
 /** Prowlarr's address and key. Not configured: the fields and Connect. Configured: where it is, and Change. */
 export function ProwlarrConnection({ configured, url, onSaved }: { configured: boolean; url?: string; onSaved?: () => void }) {
@@ -24,6 +25,9 @@ export function ProwlarrConnection({ configured, url, onSaved }: { configured: b
   const [key, setKey] = useState("");
   const [keyError, setKeyError] = useState("");
   const qc = useQueryClient();
+  // A typed address or key is a draft: closing the sheet or changing its tab asks first.
+  const open = !configured || editing;
+  useSheetChanges(open ? (address.trim() !== (url ?? "").trim() ? 1 : 0) + (key ? 1 : 0) : 0);
   const patch = useSectionPatch("cardigann", () => {
     setEditing(false);
     setKey("");

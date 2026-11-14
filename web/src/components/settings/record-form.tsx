@@ -119,7 +119,7 @@ export type RecordFormProps = {
 /** The edits a record draft holds against its saved state (the typed credential counts once, as its action; a new
  * record's name counts too). */
 export function recordChanges(st: EditorState, saved: EditorState): number {
-  const view = (s: EditorState) => ({ key: s.key, kind: s.kind, enabled: s.enabled, priority: s.priority, config: s.config, secret: s.secretAction, orphan: s.orphan });
+  const view = (s: EditorState) => ({ key: s.key, kind: s.kind, enabled: s.enabled, priority: s.priority, config: s.config, secret: s.secretAction, orphan: s.orphan, libraries: [...(s.libraries ?? [])].sort() });
   return changedPaths(view(st), view(saved)).length;
 }
 
@@ -460,7 +460,11 @@ export function RecordEditor({
   const ownHeading = useRef<HTMLHeadingElement>(null);
   const heading = headingRef ?? ownHeading;
   const record = sess.record;
-  const savedState = useMemo(() => record ? editorFrom(sess.entity, ent, record, sess.kind) : first, [record, sess.entity, sess.kind, ent, first]);
+  // A new indexer's baseline holds the libraries it starts with ticked (once they have loaded), so only a change of
+  // them counts.
+  const savedState = useMemo(() => record ? editorFrom(sess.entity, ent, record, sess.kind)
+    : !session.record && session.entity === "indexers" && versions ? { ...first, libraries: matchingLibraries({ kind: first.kind }, versions) } : first,
+  [record, sess.entity, sess.kind, ent, first, versions, session.record, session.entity]);
   const discard = () => {
     setSt(ticked({ ...savedState }));
     setErrors({});

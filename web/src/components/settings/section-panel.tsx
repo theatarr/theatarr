@@ -10,7 +10,6 @@ import { useShowAdvanced } from "@/lib/settings-map";
 import { SectionFields, objectValue, type Config } from "./field-input";
 import { changedPaths, emptySecrets, sectionSecrets, sectionErrors, withSecretParents } from "./section-draft";
 import { UnsavedBar } from "./unsaved-bar";
-import { useUnsavedChanges } from "@/lib/unsaved";
 import { sectionProblems } from "@/lib/field-checks";
 import { useSectionPatch } from "./use-section-patch";
 
@@ -59,8 +58,6 @@ function PanelEditor({ id, title, help, section: key, keys, onSaved }: Props) {
  const libraries = useVersions(perLibrary);
  // THEATARR_FORCE_OFF=notify keeps notifications off whatever the stored tick says; the tick stays editable.
  const notifyForced = useSettings(key === "notify").data?.switches.notify_forced === true;
- const [changeCount, setChangeCount] = useState(0);
- useUnsavedChanges(changeCount);
  const editor = useSectionPatch(key, () => {
   setSaved(true); setDraft(undefined); setSecrets(emptySecrets());
   onSaved?.();
@@ -86,7 +83,6 @@ function PanelEditor({ id, title, help, section: key, keys, onSaved }: Props) {
  const value = draft ?? loaded;
  const changes = changedPaths(value, loaded).length + Object.values(secrets.actions).filter(a => a !== "keep").length;
  const dirty = changes > 0;
- if (changes !== changeCount) setChangeCount(changes);
  // Values the server would refuse (a time, an address) are said under their field before Save.
  const problems = sectionProblems(value, loaded, key);
  const blocked = Object.keys(problems).length > 0;

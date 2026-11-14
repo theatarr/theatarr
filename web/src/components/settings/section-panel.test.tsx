@@ -240,7 +240,7 @@ it("asks before leaving the page with unsaved changes, and leaves once confirmed
   { method: "GET", path: "/settings/sections", reply: { source: "db", generation: 4, sections: [{ key: "router", config: { cached_only: false }, secrets: [] }] } },
  ]);
  const router = createMemoryRouter([
-  { path: "/admin/settings/downloads", element: <><LeaveGuard /><SectionPanel id="grabbing" title="What to grab" section="router" keys={["cached_only"]} /><Link to="/admin/settings/profiles">Profiles</Link><Link to="/admin/settings/downloads#grabbing">Anchor</Link></> },
+  { path: "/admin/settings/downloads", element: <><LeaveGuard /><SectionPanel id="grabbing" title="What to grab" section="router" keys={["cached_only"]} /><Link to="/admin/settings/profiles">Profiles</Link><Link to="/admin/settings/downloads#grabbing">Anchor</Link><Link to="/admin/settings/downloads?raw=1">Raw editor</Link></> },
   { path: "/admin/settings/profiles", element: <p>Profiles page</p> },
  ], { initialEntries: ["/admin/settings/downloads"] });
  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
@@ -249,6 +249,11 @@ it("asks before leaving the page with unsaved changes, and leaves once confirmed
  // The same page (an anchor) is not leaving it.
  fireEvent.click(screen.getByRole("link", { name: "Anchor" }));
  expect(screen.queryByTestId("leave-confirm")).toBeNull();
+ // A raw editor replaces the form: switching to it is leaving too.
+ fireEvent.click(screen.getByRole("link", { name: "Raw editor" }));
+ fireEvent.click((await screen.findByTestId("leave-confirm")).querySelector('[data-testid="confirm-cancel"]')!);
+ await waitFor(() => expect(screen.queryByTestId("leave-confirm")).toBeNull());
+ expect(router.state.location.search).toBe("");
  fireEvent.click(screen.getByRole("link", { name: "Profiles" }));
  const ask = await screen.findByTestId("leave-confirm");
  expect(ask.textContent).toContain("Drop 1 unsaved change.");

@@ -4,7 +4,7 @@
 import { useContext, useEffect, useState, type ReactNode } from "react";
 import { UNSAFE_DataRouterContext, useBlocker } from "react-router";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { changeCount, discardScope, unsavedTotal } from "@/lib/unsaved";
+import { changeCount, discardScope, unsavedTotal, useUnsavedChanges } from "@/lib/unsaved";
 import { cn } from "@/lib/utils";
 
 export { changeCount };
@@ -28,7 +28,9 @@ function Blocker() {
   const [count, setCount] = useState(0);
   const blocker = useBlocker(({ currentLocation, nextLocation }) => {
     const n = unsavedTotal();
-    if (n === 0 || currentLocation.pathname === nextLocation.pathname) return false;
+    // Another page is leaving it; so is a switch to or from a raw editor (?raw=1), which replaces the form.
+    const raw = (search: string) => new URLSearchParams(search).get("raw");
+    if (n === 0 || (currentLocation.pathname === nextLocation.pathname && raw(currentLocation.search) === raw(nextLocation.search))) return false;
     setCount(n);
     return true;
   });
@@ -38,6 +40,8 @@ function Blocker() {
 
 export function UnsavedBar({ changes, label, children }: { changes: number; label?: string; children: ReactNode }) {
   const dirty = changes > 0;
+  // Leaving the page with these changes asks first (LeaveGuard).
+  useUnsavedChanges(changes);
   return (
     <div
       role={dirty ? "region" : undefined}

@@ -328,3 +328,16 @@ it("shows a field's default as its placeholder, not a 0 that reads as the value"
   renderPage(<RecordEditor entity="providers" ent={ent} session={{ entity: "providers", generation: 4, record: rd }} nextOrder={1} onDone={vi.fn()} />);
   expect((screen.getByRole("textbox", { name: /Magnet limit/ }) as HTMLInputElement).placeholder).toBe("5000 (default)");
 });
+
+it("counts a new indexer's library ticks against the ones it started with", async () => {
+  mockFetch([]);
+  const user = userEvent.setup();
+  const lib = (key: string, kind: string) => ({ id: 1, key, created_at: "", updated_at: "", roots: [], config: { kind, anime: null, mode: "active" } }) as unknown as VersionRecord;
+  renderPage(<RecordEditor entity="indexers" ent={indexerSchema} session={{ entity: "indexers", generation: 4, kind: "torrentio" }} libraries={{ versions: [lib("movies", "movie"), lib("tv", "series")], retry: () => {} }} nextOrder={1} onDone={vi.fn()} />);
+  expect(screen.queryByTestId("unsaved-count")).toBeNull();
+  await user.click(screen.getByRole("checkbox", { name: /^movies/ }));
+  expect(screen.getByTestId("unsaved-count").textContent).toBe("1 unsaved change");
+  // Ticked again (now last in the list): the same selection, nothing to ask about.
+  await user.click(screen.getByRole("checkbox", { name: /^movies/ }));
+  expect(screen.queryByTestId("unsaved-count")).toBeNull();
+});

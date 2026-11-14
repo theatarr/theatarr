@@ -32,7 +32,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
-import { SheetLayout } from "@/components/ui/sheet";
+import { SheetCancel, SheetLayout, useSheetClose } from "@/components/ui/sheet";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -60,6 +60,7 @@ import { Announcer, ExplainBox, Field, SELECT_CLASS, TestResult, useAnnouncement
 import { LinkTab, ProwlarrConnection } from "./prowlarr-link";
 import { useSectionPatch } from "./use-section-patch";
 import { changedPaths } from "./section-draft";
+import { keyProblem } from "@/lib/field-checks";
 import { languageName } from "@/lib/cardigann";
 
 const STATUS: Record<string, { label: string; tone: "positive" | "info" | "warning" | "negative" }> = {
@@ -120,6 +121,15 @@ export function AddIndexer({
     setSetup(d);
   };
   if (setup) return <SetupView def={setup} overview={overview} libraries={libraries} onBack={() => show(undefined)} onDone={onDone} headingRef={headingRef} />;
+  return <AddIndexerTabs tab={tab} setTab={setTab} show={show} kinds={kinds} overview={overview} libraries={libraries} onBuiltIn={onBuiltIn} onDone={onDone} headingRef={headingRef} />;
+}
+
+/** The add-indexer sheet's tabs; a tab change drops an unsaved Prowlarr address or key, so it asks first. */
+function AddIndexerTabs({ tab, setTab, show, kinds, overview, libraries, onBuiltIn, onDone, headingRef }: {
+  tab: Tab; setTab: (t: Tab) => void; show: (d: CardigannDefinition | undefined) => void; kinds: string[]; overview: SettingsOverview;
+  libraries: LibraryList; onBuiltIn: (kind: string) => void; onDone: (added?: string) => void; headingRef?: RefObject<HTMLHeadingElement | null>;
+}) {
+  const request = useSheetClose();
   return (
     <SheetLayout
       testid="add-indexer"
@@ -127,9 +137,9 @@ export function AddIndexer({
       title="Add indexer"
       subtitle="A new indexer is on, and the libraries you tick search it."
       onClose={() => onDone()}
-      footer={<Button type="button" size="sm" variant="outline" onClick={() => onDone()} data-testid="add-close">Close</Button>}
+      footer={<SheetCancel size="sm" variant="outline" onClick={() => onDone()} data-testid="add-close">Close</SheetCancel>}
     >
-      <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
+      <Tabs value={tab} onValueChange={(v) => request(() => setTab(v as Tab))}>
         <TabsList className="flex w-full flex-wrap justify-start" aria-label="How to add an indexer">
           <TabsTrigger value="catalog" data-testid="tab-catalog">Catalog</TabsTrigger>
           <TabsTrigger value="builtin" data-testid="tab-builtin">Torznab &amp; built-in sources</TabsTrigger>
@@ -357,7 +367,8 @@ function SetupView({
   const [enabled, setEnabled] = useState(true);
   // The ticked libraries; until the admin changes them, every library that suits the definition's content.
   const [chosen, setChosen] = useState<string[]>();
-  const versions = chosen ?? matchingLibraries({ kind: "cardigann", categories: def.categories }, libraries.versions ?? []);
+  const initialLibraries = matchingLibraries({ kind: "cardigann", categories: def.categories }, libraries.versions ?? []);
+  const versions = chosen ?? initialLibraries;
   // The budget keys this view wrote (by Test search), so Add doesn't write them again before the overview reloads.
   const [made, setMade] = useState<string[]>([]);
   const [announcement, announce] = useAnnouncement();
@@ -425,14 +436,14 @@ function SetupView({
       title={`Set up ${def.name}`}
       subtitle={`definition ${def.id}`}
       onClose={() => onDone()}
-      changes={changedPaths(form, first).length + (enabled ? 0 : 1) + (chosen ? 1 : 0)}
+      changes={changedPaths(form, first).length + (enabled ? 0 : 1) + (chosen && [...chosen].sort().join() !== [...initialLibraries].sort().join() ? 1 : 0)}
       footer={
         <>
-          <Button type="button" size="sm" variant="outline" onClick={onBack} data-testid="setup-back"><ArrowLeft /> Catalog</Button>
+          <SheetCancel size="sm" variant="outline" onClick={onBack} data-testid="setup-back"><ArrowLeft /> Catalog</SheetCancel>
           <Button type="button" size="sm" variant="outline" onClick={() => void onTest()} disabled={!!busy} data-testid="setup-test">
             {busy === "test" ? <Loader2 className="animate-spin" /> : <Zap />} Test search
           </Button>
-          <Button type="button" size="sm" onClick={() => void onAdd()} disabled={!!busy || !librariesReady(libraries)} className="ml-auto" data-testid="setup-add">
+          <Button type="button" size="sm" onClick={() => void onAdd()} disabled={!!busy || !librariesReady(libraries) || (form.key !== first.key && !!keyProblem(form.key))} className="ml-auto" data-testid="setup-add">
             {busy === "add" ? <Loader2 className="animate-spin" /> : <Plus />} Add
           </Button>
         </>
@@ -458,7 +469,7 @@ function SetupView({
           <summary className="cursor-pointer text-sm font-medium">Advanced options</summary>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
           {settings.filter(s => !inCredential(s)).map((s) => <SettingField key={s.name} s={s} value={form.values[s.name]} error={errors[`setting.${s.name}`]} onChange={(v) => setValue(s.name, v)} />)}
-          <Field label="Key" error={errors.key} help="The indexer's name in Theatarr; its budget gets the same key.">
+          <Field label="Key" error={errors.key ?? (form.key !== first.key ? keyProblem(form.key) : undefined)} help="The indexer's name in Theatarr; its budget gets the same key.">
             <Input value={form.key} onChange={(e) => set({ key: e.target.value })} aria-invalid={!!errors.key} data-testid="setup-key" />
           </Field>
           <Field label="Site address" error={errors.url}>
