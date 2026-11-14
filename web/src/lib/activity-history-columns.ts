@@ -7,10 +7,10 @@ export type HistoryColumnId = "library" | "quality" | "score" | "date" | "releas
 
 export const HISTORY_COLUMNS: ColumnDef<HistoryColumnId>[] = [
   { id: "library", label: "Library", hint: "The library it is about" },
-  { id: "quality", label: "Quality", hint: "The release's quality, when the event has a download" },
-  { id: "score", label: "Score", hint: "The release's custom format score, when the event has one" },
+  { id: "quality", label: "Quality", hint: "The release's quality, when it is known" },
+  { id: "score", label: "Score", hint: "The release's custom format score, when it was scored" },
   { id: "date", label: "Date", hint: "When it happened" },
-  { id: "release", label: "Release", hint: "The release name" },
+  { id: "release", label: "Release", hint: "The release name; for a deleted file, what replaced it" },
   { id: "provider", label: "Provider", hint: "The debrid provider or download client" },
   { id: "indexer", label: "Indexer", hint: "Where the release was found" },
   { id: "formats", label: "Formats", hint: "The custom formats it matched" },
@@ -19,27 +19,25 @@ export const HISTORY_COLUMNS: ColumnDef<HistoryColumnId>[] = [
 
 export const HISTORY_DEFAULT: HistoryColumnId[] = ["library", "quality", "score", "date", "release"];
 
-/** What each History event means, by its words. */
+/** What each History event means, by its words (the server words them: internal/web/activity.go entryWords). */
 export const EVENT_MEANINGS: { words: string; meaning: string }[] = [
-  { words: "Found a release", meaning: "Theatarr picked a release and sent it to a provider or client." },
-  { words: "Found a better release", meaning: "The same, to replace a file the library already has." },
-  { words: "Linked into the library", meaning: "The file is now in the library folder." },
-  { words: "Replaced by an upgrade", meaning: "An older file was swapped for a better one." },
-  { words: "Link repaired", meaning: "A broken library link was pointed at its file again." },
-  { words: "A link broke and could not be repaired", meaning: "The file behind a library link is gone." },
-  { words: "Partly imported (retrying)", meaning: "Some files are linked; the rest are tried again." },
-  { words: "Rejected by the library check", meaning: "The file failed the library's check and was not linked." },
-  { words: "Waiting for the mount", meaning: "Finished, files not visible on the mount yet." },
-  { words: "Linking failed", meaning: "Linking hit an error." },
-  { words: "Download failed", meaning: "The provider or client could not complete it." },
-  { words: "Download stalled and was dropped", meaning: "No progress for too long." },
+  { words: "Grabbed", meaning: "Theatarr picked this release and sent it to a provider or download client." },
+  { words: "Imported", meaning: "The release's files were linked into the library." },
+  { words: "Adopted", meaning: "A file Sonarr or Radarr had was taken over into the library." },
+  { words: "Deleted (upgrade)", meaning: "This file was moved out of the library because a better release replaced it." },
+  { words: "Removed", meaning: "This file was taken out of the library by hand (or by Sonarr/Radarr deleting it)." },
+  { words: "File missing", meaning: "The file behind a library link is gone and could not be found again." },
+  { words: "Failed", meaning: "The download or its import did not complete; the reason says why." },
   { words: "Not started: …", meaning: "It never left the queue because downloads were off." },
-  { words: "Release blocked; it won't be tried again", meaning: "This release is on the library's blocklist." },
-  { words: "Searching again after a failure", meaning: "A new search was started to replace a failed download." },
+  { words: "Blocked", meaning: "This release is on the library's blocklist and won't be tried again." },
+  { words: "Added to …", meaning: "The torrent was added to another provider as well (Add to other providers)." },
+  { words: "Not cached on …", meaning: "Another provider did not have the torrent cached, so it was not added there." },
 ];
 
-/** The meaning of an event's words ("Not started: …" for every not-started reason); "" when the list has none. */
+/** The meaning of an event's words ("Not started: …" for every not-started reason, "Added to …" and "Not cached on …"
+ *  for every provider); "" when the list has none. */
 export function eventMeaning(words: string): string {
-  const key = words.startsWith("Not started: ") ? "Not started: …" : words;
+  const prefix = ["Not started: ", "Added to ", "Not cached on "].find((p) => words.startsWith(p));
+  const key = prefix ? `${prefix.trimEnd()} …` : words;
   return EVENT_MEANINGS.find((m) => m.words === key)?.meaning ?? "";
 }

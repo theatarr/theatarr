@@ -1,16 +1,18 @@
 // Activity › History filters (docs/design/ui.md, Activity): title, copy, event type and a since date, kept in the URL
-// (?title=, ?copy=, ?event=, ?since=) so a filtered history can be bookmarked and shared. The server filters the
-// grab journal (GET /activity?state=history&title=&version=&kinds=&since=), so paging stays right.
+// (?title=, ?copy=, ?event=, ?since=) so a filtered history can be bookmarked and shared. The server filters History's
+// rows (GET /activity?state=history&title=&version=&events=&since=), so paging stays right.
 
-export type HistoryEventId = "all" | "grabs" | "upgrades" | "imports" | "failures";
+export type HistoryEventId = "all" | "grabbed" | "imported" | "deleted" | "failed" | "copies";
 
-/** The event types, in the words the history rows use, and the journal kinds behind each. */
-export const HISTORY_EVENTS: { id: HistoryEventId; label: string; kinds: string[] }[] = [
-  { id: "all", label: "All events", kinds: [] },
-  { id: "grabs", label: "Grabs", kinds: ["grab"] },
-  { id: "upgrades", label: "Upgrades", kinds: ["upgrade"] },
-  { id: "imports", label: "Imports and links", kinds: ["import", "link"] },
-  { id: "failures", label: "Failures and blocks", kinds: ["failure", "stall", "blocklist", "research"] },
+/** The event types, in the words the history rows use, and the History events behind each. admin: only for accounts
+ *  that see files (the copies to other providers are theirs only). */
+export const HISTORY_EVENTS: { id: HistoryEventId; label: string; events: string[]; admin?: boolean }[] = [
+  { id: "all", label: "All events", events: [] },
+  { id: "grabbed", label: "Grabbed", events: ["grabbed"] },
+  { id: "imported", label: "Imported and adopted", events: ["imported", "adopted"] },
+  { id: "deleted", label: "Deleted and removed", events: ["deleted", "removed", "missing"] },
+  { id: "failed", label: "Failed and blocked", events: ["failed", "blocked"] },
+  { id: "copies", label: "Other providers", events: ["copy_added", "copy_not_cached"], admin: true },
 ];
 
 export type HistoryFilters = { title: string; copy: string; event: HistoryEventId; since: string };
@@ -52,12 +54,12 @@ export function historyFilterCount(f: HistoryFilters): number {
 }
 
 /** The API parameters for the filters: since is the start of that day in the browser's time zone. */
-export function historyParams(f: HistoryFilters): { title?: string; version?: string; kinds?: string; since?: string } {
-  const kinds = HISTORY_EVENTS.find((e) => e.id === f.event)?.kinds ?? [];
+export function historyParams(f: HistoryFilters): { title?: string; version?: string; events?: string; since?: string } {
+  const events = HISTORY_EVENTS.find((e) => e.id === f.event)?.events ?? [];
   return {
     title: f.title || undefined,
     version: f.copy || undefined,
-    kinds: kinds.length ? kinds.join(",") : undefined,
+    events: events.length ? events.join(",") : undefined,
     since: f.since ? new Date(`${f.since}T00:00:00`).toISOString() : undefined,
   };
 }

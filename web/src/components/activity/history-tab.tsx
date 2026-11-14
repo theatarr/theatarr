@@ -1,6 +1,9 @@
-// Activity › History (pages/activity.tsx): what happened to downloads (the grab journal in plain words), filtered by
-// title, copy, event and since date in the URL (lib/activity-history.ts), newest first, 50 a page with Load more.
-// Accounts that see files get a table (DataTable): Event and Title, the columns they chose
+// History (pages/activity.tsx, and the title page's History tab): what happened to the titles' files, worded like
+// Radarr's (Grabbed, Imported, Adopted, Deleted (upgrade), Removed, Failed, Blocked, Added to / Not cached on a
+// provider). The server builds the rows (journal history.go; GET /activity?state=history, the title tab with
+// title_id), so both places show the same rows. Activity filters by title, copy, event and since date in the URL
+// (lib/activity-history.ts), newest first, 50 a page with Load more. Accounts that see files get a table (DataTable):
+// Event (with its episodes on the title tab, and its reason) and Title, the columns they chose
 // (lib/activity-history-columns.ts), and Retry on a failed download and the journal link. Household accounts and
 // "View as a user" keep the simple rows grouped by day: no library key, no release.
 import { Columns3, History as HistoryIcon, NotebookPen } from "lucide-react";
@@ -43,6 +46,15 @@ function dayLabel(iso: string): string {
 
 const titleName = (e: ActivityEvent) => titleWithYear(e.title.name, e.title.year);
 
+/** Events whose file may be unknown on rows from before their facts were recorded. */
+const FILE_EVENTS = new Set(["adopted", "deleted", "removed", "missing"]);
+
+/** A row's episodes in short, the full list on hover. */
+function Episodes({ e }: { e: ActivityEvent }) {
+  if (!e.episodes?.length) return null;
+  return <p className="truncate text-xs text-muted-foreground" title={e.episodes.join(" ")} data-testid="history-episodes">{episodesWords(e.episodes)}</p>;
+}
+
 /** A simple row, for household accounts and "View as a user". */
 function EventRow({ e }: { e: ActivityEvent }) {
   return (
@@ -67,6 +79,7 @@ function EventRow({ e }: { e: ActivityEvent }) {
             <Link to={`/title/${e.title.id}`} className="truncate text-foreground hover:text-primary">{titleName(e)}</Link>
           ) : <span className="truncate text-foreground">{titleName(e)}</span>}
         </div>
+        <Episodes e={e} />
       </div>
     </li>
   );
@@ -78,8 +91,19 @@ function EventWords({ e }: { e: ActivityEvent }) {
   return (
     <span className="flex min-w-0 items-baseline gap-2" title={tip || undefined}>
       <span className={cn("size-2 shrink-0 translate-y-[-1px] rounded-full", EVENT_TONE[e.tone])} aria-hidden />
-      <span className="text-[13px] font-medium leading-snug">{e.words}</span>
+      <span className="text-[13px] font-medium leading-snug" data-testid="history-words">{e.words}</span>
     </span>
+  );
+}
+
+/** The Event cell: the words, the episodes when no Title column shows them, and the reason. */
+function EventCell({ e, episodes }: { e: ActivityEvent; episodes: boolean }) {
+  return (
+    <div className="min-w-0">
+      <EventWords e={e} />
+      {episodes ? <Episodes e={e} /> : null}
+      {e.reason ? <p className="mt-0.5 text-xs text-muted-foreground max-sm:break-words sm:line-clamp-2" title={e.reason} data-testid="history-reason">{e.reason}</p> : null}
+    </div>
   );
 }
 
@@ -89,27 +113,40 @@ function TitleCell({ e }: { e: ActivityEvent }) {
       {e.title.id ? (
         <Link to={`/title/${e.title.id}`} className="block truncate font-medium text-[var(--ink)] hover:text-primary">{titleName(e)}</Link>
       ) : <span className="block truncate font-medium text-[var(--ink)]">{titleName(e)}</span>}
-      {e.episodes?.length ? <p className="truncate text-xs text-muted-foreground" title={e.episodes.join(" ")}>{episodesWords(e.episodes)}</p> : null}
+      <Episodes e={e} />
     </div>
   );
 }
 
-const HISTORY_FIXED: DataColumn<ActivityEvent>[] = [
-  { id: "event", label: "Event", card: "none", cellClassName: "min-w-[8rem] max-w-[10rem]", cell: (e) => <EventWords e={e} /> },
-  { id: "title", label: "Title", card: "none", cellClassName: "max-w-[12rem]", cell: (e) => <TitleCell e={e} /> },
-];
+/** The release (unknown for a file event from before its facts were recorded) and what replaced a deleted file. */
+function ReleaseCell({ e }: { e: ActivityEvent }) {
+  const r = e.replaced_by;
+  return (
+    <div className="min-w-0">
+      {e.release ? (
+        <span className="block font-mono text-[12px] max-sm:break-all sm:truncate" title={e.release}>{e.release}</span>
+      ) : FILE_EVENTS.has(e.event) ? <span className="text-[var(--ink-3)]">unknown</span> : <Dash />}
+      {r ? (
+        <span className="block text-xs text-muted-foreground max-sm:break-all sm:truncate" title={[r.release, r.quality, r.score != null ? `score ${fmtNumber(r.score)}` : ""].filter(Boolean).join(" · ")} data-testid="history-replaced-by">
+          Replaced by <span className="font-mono">{r.release}</span>
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+function historyFixed(withTitle: boolean): DataColumn<ActivityEvent>[] {
+  const event: DataColumn<ActivityEvent> = { id: "event", label: "Event", card: "none", cellClassName: withTitle ? "min-w-[8rem] max-w-[10rem]" : "min-w-[9rem] max-w-[14rem]", cell: (e) => <EventCell e={e} episodes={!withTitle} /> };
+  if (!withTitle) return [event];
+  return [event, { id: "title", label: "Title", card: "none", cellClassName: "max-w-[12rem]", cell: (e) => <TitleCell e={e} /> }];
+}
 
 const HISTORY_OPTIONAL: Record<HistoryColumnId, DataColumn<ActivityEvent>> = {
   library: { id: "library", label: "Library", cell: (e) => (e.version ? <VersionTag k={e.version} className="text-[11px]" /> : <Dash />) },
   quality: { id: "quality", label: "Quality", cellClassName: "whitespace-nowrap", cell: (e) => e.quality || <Dash /> },
-  score: { id: "score", label: "Score", cellClassName: "tabular-nums", cell: (e) => (e.score !== undefined ? fmtNumber(e.score) : <Dash />) },
+  score: { id: "score", label: "Score", cellClassName: "tabular-nums", cell: (e) => (e.score !== undefined && e.score !== null ? fmtNumber(e.score) : <Dash />) },
   date: { id: "date", label: "Date", card: "none", cellClassName: "whitespace-nowrap tabular-nums", cell: (e) => fmtTime(e.at) },
-  release: {
-    id: "release",
-    label: "Release",
-    cellClassName: "max-w-[13rem]",
-    cell: (e) => (e.release ? <span className="block font-mono text-[12px] max-sm:break-all sm:truncate" title={e.release}>{e.release}</span> : <Dash />),
-  },
+  release: { id: "release", label: "Release", cellClassName: "max-w-[13rem]", cell: (e) => <ReleaseCell e={e} /> },
   provider: { id: "provider", label: "Provider", cellClassName: "whitespace-nowrap", cell: (e) => (e.provider ? <ProviderTag account={e.provider} /> : <Dash />) },
   indexer: { id: "indexer", label: "Indexer", cellClassName: "whitespace-nowrap", cell: (e) => e.indexer || <Dash /> },
   formats: { id: "formats", label: "Formats", cell: (e) => <FormatPills formats={e.formats} /> },
@@ -131,24 +168,22 @@ function HistoryActions({ e }: { e: ActivityEvent }) {
   );
 }
 
-export function HistoryTab({ admin, as }: { admin: boolean; as?: "user" }) {
+/** History. titleId: one title's (the title page's History tab): no filters and no Title column, the same rows. */
+export function HistoryTab({ admin, as, titleId }: { admin: boolean; as?: "user"; titleId?: number }) {
   const filters = useHistoryFilters();
-  const q = useActivityHistory({ as }, historyParams(filters));
+  const q = useActivityHistory({ as }, titleId ? { title_id: titleId } : historyParams(filters));
   const [prefs, savePrefs] = useColumnPrefs("activity-history", HISTORY_COLUMNS, HISTORY_DEFAULT);
   const [picking, setPicking] = useState(false);
+  const columns = admin ? (
+    <Button variant="outline" size="sm" aria-label="Columns" onClick={() => setPicking(true)}>
+      <Columns3 />
+      <span className="hidden sm:inline">Columns</span>
+    </Button>
+  ) : undefined;
   return (
     <div>
-      <HistoryFilters
-        tools={
-          admin ? (
-            <Button variant="outline" size="sm" aria-label="Columns" onClick={() => setPicking(true)}>
-              <Columns3 />
-              <span className="hidden sm:inline">Columns</span>
-            </Button>
-          ) : undefined
-        }
-      />
-      {q.isPending ? <Loading /> : q.error ? <ErrorState error={q.error} /> : <HistoryList q={q} admin={admin} prefs={prefs} filtered={historyFilterCount(filters) > 0} />}
+      {titleId ? (columns ? <div className="mb-3 flex justify-end">{columns}</div> : null) : <HistoryFilters admin={admin} tools={columns} />}
+      {q.isPending ? <Loading /> : q.error ? <ErrorState error={q.error} /> : <HistoryList q={q} admin={admin} prefs={prefs} filtered={!titleId && historyFilterCount(filters) > 0} withTitle={!titleId} />}
       {picking ? (
         <ColumnPicker
           label="History columns"
@@ -163,7 +198,7 @@ export function HistoryTab({ admin, as }: { admin: boolean; as?: "user" }) {
   );
 }
 
-function HistoryList({ q, admin, prefs, filtered }: { q: ReturnType<typeof useActivityHistory>; admin: boolean; prefs: { order: HistoryColumnId[]; shown: HistoryColumnId[] }; filtered: boolean }) {
+function HistoryList({ q, admin, prefs, filtered, withTitle }: { q: ReturnType<typeof useActivityHistory>; admin: boolean; prefs: { order: HistoryColumnId[]; shown: HistoryColumnId[] }; filtered: boolean; withTitle: boolean }) {
   const items = q.data?.pages.flatMap((p) => p.history ?? []) ?? [];
   if (items.length === 0) {
     return (
@@ -189,7 +224,7 @@ function HistoryList({ q, admin, prefs, filtered }: { q: ReturnType<typeof useAc
     </div>
   ) : null;
   if (admin) {
-    const columns = tight([...HISTORY_FIXED, ...prefs.order.filter((id) => prefs.shown.includes(id)).map((id) => HISTORY_OPTIONAL[id])]);
+    const columns = tight([...historyFixed(withTitle), ...prefs.order.filter((id) => prefs.shown.includes(id)).map((id) => HISTORY_OPTIONAL[id])]);
     return (
       <div className="space-y-4">
         <DataTable
@@ -204,7 +239,8 @@ function HistoryList({ q, admin, prefs, filtered }: { q: ReturnType<typeof useAc
                 <EventWords e={e} />
                 <span className="text-xs tabular-nums text-muted-foreground">{fmtTime(e.at)}</span>
               </div>
-              <TitleCell e={e} />
+              {withTitle ? <TitleCell e={e} /> : <Episodes e={e} />}
+              {e.reason ? <p className="text-xs text-muted-foreground" data-testid="history-reason">{e.reason}</p> : null}
             </>
           )}
           actions={(e) => <HistoryActions e={e} />}

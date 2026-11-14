@@ -27,7 +27,7 @@ import { LibraryRows } from "@/components/title/library-rows";
 import { TitleToolbar, inEveryLibrary } from "@/components/title/title-toolbar";
 import { RequestMoreSeasons, TitleRequest, TitleRequestButton } from "@/components/title/title-request";
 import { SeriesTypeControl } from "@/components/title/title-choices";
-import { History } from "@/components/title/versions";
+import { HistoryTab } from "@/components/activity/history-tab";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -169,23 +169,13 @@ function About({ d }: { d: TitleDetail }) {
   );
 }
 
-/** History: each current library's release history (see files), and the title's journal for admins. */
-function TitleHistory({ d, versions }: { d: TitleDetail; versions: Version[] }) {
+/** History: the title's History rows (the same rows Activity › History shows for it; see files), and the title's
+ *  journal for admins. */
+function TitleHistory({ d }: { d: TitleDetail }) {
   const perms = usePerms();
   return (
     <div className="space-y-5" data-testid="title-history">
-      {versions.length === 0 ? <Card><Empty>No libraries yet.</Empty></Card> : null}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {versions.map((v) => (
-          <Card key={v.id}>
-            <h3 className="mb-3 flex items-center gap-2 font-semibold text-[var(--ink)]">
-              <span className="size-2.5 rounded-[3px] bg-[var(--vc)]" data-vkey={v.key} aria-hidden />
-              {v.label ?? v.key}
-            </h3>
-            <History events={v.history ?? []} titleId={v.title_id ?? d.id} version={v.key} />
-          </Card>
-        ))}
-      </div>
+      <HistoryTab admin={perms.seeFiles} titleId={d.id ?? 0} />
       {perms.admin ? <TitleJournal id={d.id ?? 0} /> : null}
     </div>
   );
@@ -331,7 +321,7 @@ export function TitlePage() {
       ) : null}
       {tab === "order" ? <AnimeOrder franchises={franchises} admin={perms.admin} /> : null}
       {tab === "about" ? <About d={d} /> : null}
-      {tab === "history" ? <TitleHistory d={d} versions={versions} /> : null}
+      {tab === "history" ? <TitleHistory d={d} /> : null}
 
       {/* Phones: the primary action stays reachable above the bottom tabs. */}
       {action ? (

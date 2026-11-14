@@ -29,7 +29,7 @@ export const useActivityNow = (v: View = {}) =>
   });
 
 /** History filters as API parameters (lib/activity-history.ts historyParams). */
-type HistoryParams = { title?: string; version?: string; kinds?: string; since?: string };
+type HistoryParams = { title?: string; title_id?: number; version?: string; events?: string; since?: string };
 
 export const useActivityHistory = (v: View = {}, f: HistoryParams = {}) =>
   useInfiniteQuery({
