@@ -2,7 +2,9 @@
 // grid's URL parameters.
 import type { Availability, GridQuery, TitleRow } from "@/api/library";
 import { fmtDay } from "@/lib/format";
-import { availableIn, upgradeBadge, type Tone } from "@/lib/upgrade";
+import { availableIn, type Tone } from "@/lib/upgrade";
+
+const UPGRADE_FOUND_WORD = "Upgrade found";
 
 /**
  * A title's status word (docs/design/ui.md "Status words"): the poster badge, the table's Status, the title page's
@@ -119,16 +121,13 @@ export function posterStatus(a: Availability | undefined, plain = false, title?:
 }
 
 /**
- * The quality word beside a held title's status (those who see files): Upgrade found once a better release was found,
- * Best quality known while a file is below its preferred quality with nothing better found, Preferred quality met when
- * every file is at it (upgradeBadge, the word the title page's libraries, season headers and episodes use). Undefined
- * without a file.
+ * The quality word a list row or poster says beside a held title's status (those who see files): "Upgrade found" once
+ * a better release was found, else nothing (Best quality known and Preferred quality met are the title page's words,
+ * lib/upgrade.ts upgradeBadge). Undefined without a file.
  */
-export function qualityWord(t: Pick<TitleRow, "availability" | "upgrade_seen" | "upgrade_state">): { label: string; tone: Tone; found: boolean } | undefined {
+export function qualityWord(t: Pick<TitleRow, "availability" | "upgrade_seen" | "upgrade_state">): { label: string; tone: Tone } | undefined {
   if (t.availability !== "available" && t.availability !== "partial") return undefined;
-  const found = !!t.upgrade_seen || t.upgrade_state === "upgrade_available";
-  const b = upgradeBadge({ state: found ? "upgrade_available" : t.upgrade_state || "cutoff_met" });
-  return b ? { label: b.label, tone: b.tone, found } : undefined;
+  return t.upgrade_seen || t.upgrade_state === "upgrade_available" ? { label: UPGRADE_FOUND_WORD, tone: "info" } : undefined;
 }
 
 /** A family account: no file detail and no request queue. Home shows it requests, what is available and browsing. */

@@ -234,6 +234,8 @@ type target struct {
 	joined bool
 	// why is the schedule row's why a loop search started for (acquire_run.research; "" for none).
 	why string
+	// airDate is the newest stored air date (YYYY-MM-DD) of a series target's episodes (Wanted's Released).
+	airDate string
 }
 
 // namedEpisode tells a stored run of a named episode search: an arr command's run for one episode with no reason
@@ -540,7 +542,7 @@ func (a *Acquirer) seriesTargets(ctx context.Context, db *sql.DB, versionID, tit
 	}
 	// An episode the metadata source dropped (removed_at; kept for its files or history) is searched only when named.
 	rows, err := db.QueryContext(ctx, `SELECT e.id, e.season, e.number, COALESCE(s.state, 'wanted'), e.air_date_utc_at,
-		COALESCE(s.updated_at, e.created_at)
+		COALESCE(s.updated_at, e.created_at), COALESCE(e.air_date, '')
 		FROM episode e LEFT JOIN episode_version_state s ON s.episode_id = e.id AND s.version_id = ?
 		WHERE e.title_id = ? AND (COALESCE(s.monitored, e.monitored) = 1 OR ?) AND (e.removed_at IS NULL OR ?)
 		ORDER BY e.season, e.number`, versionID, titleID, sel.named(policy.KindSeries), len(sel.EpisodeIDs) > 0)
@@ -552,6 +554,7 @@ func (a *Acquirer) seriesTargets(ctx context.Context, db *sql.DB, versionID, tit
 		id             int64
 		season, number int
 		joinedAt       int64
+		airDate        string
 	}
 	bySeason := map[int][]ep{}
 	var seasons []int
@@ -559,8 +562,12 @@ func (a *Acquirer) seriesTargets(ctx context.Context, db *sql.DB, versionID, tit
 		var e ep
 		var state string
 		var aired sql.NullInt64
-		if err := rows.Scan(&e.id, &e.season, &e.number, &state, &aired, &e.joinedAt); err != nil {
+		if err := rows.Scan(&e.id, &e.season, &e.number, &state, &aired, &e.joinedAt, &e.airDate); err != nil {
 			return nil, err
+		}
+		// The stored air date (the day the episode page shows); the instant's UTC day without one.
+		if e.airDate == "" && aired.Valid {
+			e.airDate = time.UnixMilli(aired.Int64).UTC().Format(time.DateOnly)
 		}
 		switch {
 		case len(sel.EpisodeIDs) > 0 && !slices.Contains(sel.EpisodeIDs, e.id):
@@ -596,7 +603,7 @@ func (a *Acquirer) seriesTargets(ctx context.Context, db *sql.DB, versionID, tit
 			for _, e := range eps {
 				out = append(out, target{titleID: titleID, versionID: versionID, key: key, reason: sel.Only,
 					name: fmt.Sprintf("s%02de%02d", e.season, e.number), season: &season, episodes: []int64{e.id}, joinedAt: e.joinedAt,
-					anyMonitored: sel.named(policy.KindSeries)})
+					anyMonitored: sel.named(policy.KindSeries), airDate: e.airDate})
 			}
 			continue
 		}
@@ -605,6 +612,7 @@ func (a *Acquirer) seriesTargets(ctx context.Context, db *sql.DB, versionID, tit
 		for _, e := range eps {
 			t.episodes = append(t.episodes, e.id)
 			t.joinedAt = max(t.joinedAt, e.joinedAt)
+			t.airDate = max(t.airDate, e.airDate)
 		}
 		out = append(out, t)
 	}

@@ -510,6 +510,8 @@ func TestWantedTitleFilterSortAndDates(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, true, &policy.Wanted{PerHour: 100, Missing: new(false), CutoffUnmet: policy.CutoffOff})
 	e.exec(`UPDATE title_release_date SET date = '2024-06-01' WHERE title_id = 2`)
+	// Season 1's stored air date is a day before its instant's UTC day: the stored date is the one shown.
+	e.exec(`UPDATE episode SET air_date = '2026-10-24' WHERE season = 1`)
 	e.exec(`INSERT INTO acquire_run (id, source, title_id, version_id, version_key, target, state, created_at, updated_at)
 		VALUES (5, 'wanted', 1, 101, 'movie', 'movie', 'routed', ?, ?)`, store.Millis(t0.Add(-2*time.Hour)), store.Millis(t0.Add(-2*time.Hour)))
 	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, state, error, source,
@@ -536,10 +538,12 @@ func TestWantedTitleFilterSortAndDates(t *testing.T) {
 	}
 	for _, r := range all.Items {
 		switch {
-		case r.TitleID == 1 && (r.Date == nil || !r.Date.Equal(time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC))):
+		case r.TitleID == 1 && r.Date != "2024-01-01":
 			t.Errorf("film date %v", r.Date)
-		case r.TitleID == 10 && (r.Date == nil || !r.Date.Equal(t0.Add(-24*time.Hour))):
-			t.Errorf("season %v date %v, want the newest aired episode's", r.Season, r.Date)
+		case r.TitleID == 10 && seasonOf(r.Season) == 1 && r.Date != "2026-10-24":
+			t.Errorf("season 1 date %v, want the stored air date", r.Date)
+		case r.TitleID == 10 && seasonOf(r.Season) != 1 && r.Date != "2026-10-25":
+			t.Errorf("season %v date %v, want the instant's UTC day without a stored date", r.Season, r.Date)
 		case r.TitleID == 10 && seasonOf(r.Season) == 1 && r.Episodes != 2:
 			t.Errorf("season 1: %d episodes, want 2", r.Episodes)
 		case r.TitleID != 10 && r.Episodes != 0:
@@ -551,8 +555,8 @@ func TestWantedTitleFilterSortAndDates(t *testing.T) {
 	for _, tc := range []struct{ sort, want string }{
 		{"title", "1/movie/-1 10/series/0 10/series/1 10/series/2 2/movie/-1"},
 		{"-title", "2/movie/-1 10/series/0 10/series/1 10/series/2 1/movie/-1"},
-		{"-date", "10/series/0 10/series/1 10/series/2 2/movie/-1 1/movie/-1"},
-		{"date", "1/movie/-1 2/movie/-1 10/series/0 10/series/1 10/series/2"},
+		{"-date", "10/series/0 10/series/2 10/series/1 2/movie/-1 1/movie/-1"},
+		{"date", "1/movie/-1 2/movie/-1 10/series/1 10/series/0 10/series/2"},
 		// Only film 1 was searched: first either way, the never-searched rows after it.
 		{"last", "1/movie/-1"},
 		{"-last", "1/movie/-1"},

@@ -35,14 +35,13 @@ describe("the status word", () => {
 });
 
 describe("the quality word", () => {
-  it("is said beside a held title only: Upgrade found, Best quality known, Preferred quality met", () => {
+  it("is said beside a held title only, and only as Upgrade found", () => {
     expect(qualityWord({ availability: "available", upgrade_seen: true, upgrade_state: "upgrade_available" })?.label).toBe("Upgrade found");
-    for (const state of ["below_cutoff", "best_available", "best_source_seen", "higher_source_exists"] as const) {
-      expect(qualityWord({ availability: "available", upgrade_state: state })?.label).toBe("Best quality known");
-      expect(qualityWord({ availability: "partial", upgrade_state: state })?.label).toBe("Best quality known");
+    expect(qualityWord({ availability: "partial", upgrade_state: "upgrade_available" })?.label).toBe("Upgrade found");
+    for (const state of ["below_cutoff", "best_available", "best_source_seen", "higher_source_exists", "cutoff_met"] as const) {
+      expect(qualityWord({ availability: "available", upgrade_state: state })).toBeUndefined();
     }
-    expect(qualityWord({ availability: "available", upgrade_state: "cutoff_met" })?.label).toBe("Preferred quality met");
-    expect(qualityWord({ availability: "available" })?.label).toBe("Preferred quality met");
+    expect(qualityWord({ availability: "available" })).toBeUndefined();
     expect(qualityWord({ availability: "missing", upgrade_seen: true })).toBeUndefined();
     expect(qualityWord({ availability: "upcoming" })).toBeUndefined();
   });

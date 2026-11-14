@@ -107,8 +107,7 @@ function StatusCell({ t, words = false }: { t: TitleRow; words?: boolean }) {
   const home = s === "upcoming" ? upcomingRelease(t) : undefined;
   const day = s === "upcoming" ? (home ?? (notAiredYet(t) ? t.next_up?.date : undefined)) : undefined;
   const undated = s === "upcoming" && !day && undatedUpcoming(t);
-  const quality = qualityWord(t);
-  const q = quality?.found ? quality : undefined;
+  const q = qualityWord(t);
   const word = (
     <span className="inline-flex min-w-0 flex-col">
       <span data-testid="status-cell" className={cn("text-[13px] font-medium", TONE_INK[badgeTone(s)])}>

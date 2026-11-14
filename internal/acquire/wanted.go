@@ -80,15 +80,17 @@ type WantedRow struct {
 	// else the failure the router reported; absent on the regular schedule); Tries counts the retries of a new
 	// release (or the searches no indexer answered).
 	Waiting string `json:"waiting"`
-	// Date is the row's air or release date: the newest air date of its episodes, a film's home release
-	// (availability.HomeRelease); absent when unknown. Episodes counts a season row's episodes.
-	Date     *time.Time `json:"date,omitempty"`
+	// Date is the row's air or release date, YYYY-MM-DD: the newest stored air date of its episodes, a film's home
+	// release (availability.HomeRelease); absent when unknown. Episodes counts a season row's episodes.
+	Date     string     `json:"date,omitempty"`
 	Episodes int        `json:"episodes,omitempty"`
 	NextAt   *time.Time `json:"next_at"`
 	Why      string     `json:"why,omitempty"`
 	Tries    int        `json:"tries,omitempty"`
 	// Season is the row's season (absent for a movie).
 	Season *int `json:"season,omitempty"`
+	// versionID keys the row's latest runs (sortWanted).
+	versionID int64
 	// SearchBlocked says why Search now cannot search the row, independent of Waiting (which names the loop's
 	// reason first): downloads_off (Pause is on) or in_flight; "" when it can.
 	SearchBlocked string     `json:"search_blocked,omitempty"`
@@ -147,6 +149,9 @@ func (a *Acquirer) WantedList(ctx context.Context, q WantedQuery) (*WantedList, 
 	if q.Offset < len(rows) {
 		out.Items = rows[q.Offset:min(q.Offset+q.Limit, len(rows))]
 	}
+	if err := a.movieDates(ctx, out.Items); err != nil {
+		return nil, err
+	}
 	if out.SearchNowPending, err = a.askedDue(ctx); err != nil {
 		return nil, err
 	}
@@ -180,7 +185,6 @@ func (a *Acquirer) wantedRows(ctx context.Context, q WantedQuery, out *WantedLis
 		return nil, err
 	}
 	var list []WantedRow
-	var groups [][]target
 	for _, group := range wantedGroups(orderTargets(ts, v.last)) {
 		row, err := a.wantedRow(ctx, v, q.Only, group)
 		if err != nil {
@@ -194,72 +198,41 @@ func (a *Acquirer) wantedRows(ctx context.Context, q WantedQuery, out *WantedLis
 			out.Searchable++
 		}
 		list = append(list, row)
-		groups = append(groups, group)
 	}
-	if err := a.wantedDates(ctx, list, groups); err != nil {
-		return nil, err
+	if strings.TrimPrefix(q.Sort, "-") == "date" {
+		if err := a.movieDates(ctx, list); err != nil {
+			return nil, err
+		}
 	}
-	return a.sortWanted(ctx, list, groups, v.last, q.Sort)
+	return a.sortWanted(ctx, list, v.last, q.Sort)
 }
 
-// wantedDates sets each row's Date: a film's home release, else the newest air date of the row's episodes.
-func (a *Acquirer) wantedDates(ctx context.Context, list []WantedRow, groups [][]target) error {
-	var movies, episodes []any
-	for i, group := range groups {
-		if list[i].Season == nil {
-			movies = append(movies, list[i].TitleID)
-		}
-		for _, t := range group {
-			for _, id := range t.episodes {
-				episodes = append(episodes, id)
-			}
+// movieDates sets the Date of the film rows that have none: the home release (availability.HomeRelease).
+func (a *Acquirer) movieDates(ctx context.Context, list []WantedRow) error {
+	var ids []any
+	for _, r := range list {
+		if r.Season == nil && r.Date == "" {
+			ids = append(ids, r.TitleID)
 		}
 	}
-	dates, err := availability.DatesFor(ctx, a.st.Reader(), movies)
+	if len(ids) == 0 {
+		return nil
+	}
+	dates, err := availability.DatesFor(ctx, a.st.Reader(), ids)
 	if err != nil {
 		return err
 	}
-	aired := map[int64]int64{}
-	for ids := range slices.Chunk(episodes, 500) {
-		rows, err := a.st.Reader().QueryContext(ctx, `SELECT id, air_date_utc_at FROM episode WHERE air_date_utc_at IS NOT NULL
-			AND id IN (`+store.Placeholders(len(ids))+`)`, ids...)
-		if err != nil {
-			return err
-		}
-		for rows.Next() {
-			var id, at int64
-			if err := rows.Scan(&id, &at); err != nil {
-				rows.Close()
-				return err
-			}
-			aired[id] = at
-		}
-		if err := rows.Close(); err != nil {
-			return err
-		}
-	}
-	for i, group := range groups {
-		var d time.Time
-		if list[i].Season == nil {
-			d = availability.HomeRelease(dates[list[i].TitleID])
-		}
-		for _, t := range group {
-			for _, id := range t.episodes {
-				if at, ok := aired[id]; ok && time.UnixMilli(at).After(d) {
-					d = time.UnixMilli(at).UTC()
-				}
-			}
-		}
-		if !d.IsZero() {
-			list[i].Date = &d
+	for i := range list {
+		if d := availability.HomeRelease(dates[list[i].TitleID]); list[i].Season == nil && !d.IsZero() {
+			list[i].Date = d.Format(time.DateOnly)
 		}
 	}
 	return nil
 }
 
 // sortWanted orders the rows by q's sort (WantedSorts), keeping the schedule's order among equals.
-func (a *Acquirer) sortWanted(ctx context.Context, list []WantedRow, groups [][]target, last map[string]lastRuns,
-	by string) ([]WantedRow, error) {
+func (a *Acquirer) sortWanted(ctx context.Context, list []WantedRow, last map[string]lastRuns, by string) ([]WantedRow,
+	error) {
 	if by == "" || len(list) < 2 {
 		return list, nil
 	}
@@ -294,44 +267,37 @@ func (a *Acquirer) sortWanted(ctx context.Context, list []WantedRow, groups [][]
 			}
 		}
 	}
+	// Each row's sort value: the title's sort name, the date (YYYY-MM-DD) or the last search (zero-padded millis);
+	// an empty date or a row never searched goes last either way.
 	type entry struct {
-		row  WantedRow
-		name string
-		at   int64 // the date or the last search; 0: none (last either way)
+		row WantedRow
+		v   string
 	}
 	es := make([]entry, len(list))
 	for i, r := range list {
-		e := entry{row: r, name: names[r.TitleID]}
+		e := entry{row: r}
 		switch key {
+		case "title":
+			e.v = names[r.TitleID]
 		case "date":
-			if r.Date != nil {
-				e.at = r.Date.UnixMilli()
-			}
+			e.v = r.Date
 		case "last":
-			e.at = last[seasonKey(groups[i][0].versionID, seasonOf(r.Season))].any
+			if at := last[seasonKey(r.versionID, seasonOf(r.Season))].any; at > 0 {
+				e.v = fmt.Sprintf("%020d", at)
+			}
 		}
 		es[i] = e
 	}
 	slices.SortStableFunc(es, func(x, y entry) int {
-		c := strings.Compare(x.name, y.name)
-		if key != "title" {
-			switch {
-			case x.at == y.at:
-				c = 0
-			case x.at == 0:
-				return 1
-			case y.at == 0:
-				return -1
-			case x.at < y.at:
-				c = -1
-			default:
-				c = 1
-			}
+		switch {
+		case key != "title" && x.v == "" && y.v != "":
+			return 1
+		case key != "title" && y.v == "" && x.v != "":
+			return -1
+		case desc:
+			return strings.Compare(y.v, x.v)
 		}
-		if desc {
-			return -c
-		}
-		return c
+		return strings.Compare(x.v, y.v)
 	})
 	for i := range es {
 		list[i] = es[i].row
@@ -411,6 +377,10 @@ func (a *Acquirer) wantedRow(ctx context.Context, v *wantedView, only string, gr
 	}
 	if row.Season != nil {
 		row.Episodes = len(episodes)
+	}
+	row.versionID = group[0].versionID
+	for _, t := range group {
+		row.Date = max(row.Date, t.airDate)
 	}
 	r, has := v.sched[targetKey(group[0])]
 	scheduled := has && (r.why != "" || on)

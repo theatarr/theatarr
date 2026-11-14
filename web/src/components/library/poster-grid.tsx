@@ -101,8 +101,7 @@ function statusLines(t: TitleRow, badge: PosterStatus | undefined, day: string, 
 
 /** The quality word a poster shows: Upgrade found only (the other quality words are said on the title page). */
 function foundWord(t: TitleRow): string | undefined {
-  const q = qualityWord(t);
-  return q?.found ? q.label : undefined;
+  return qualityWord(t)?.label;
 }
 
 export function PosterGrid<T extends TitleRow>({
