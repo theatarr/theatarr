@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Candidate } from "@/api/add";
 import {
   DEFAULT_RELEASE_COLUMNS,
+  currentFile,
   scopeTarget,
   searchTargetWords,
   NO_FILTER,
@@ -110,5 +111,21 @@ describe("a pack", () => {
     expect(grabConfirmScope(pack, "WEB").title).toBe("Grab this release");
     expect(needsConfirm({ ...pack, accepted: false })).toBe(true);
     expect(needsConfirm({ ...pack, episodes: ["S01E01"] })).toBe(true);
+  });
+});
+
+describe("currentFile", () => {
+  const pack = { release: "Show.S01.2160p", episodes: ["S01E01", "S01E02", "S01E03"], existing: { quality: "WEBDL-2160p", score: 900 } } as Candidate;
+  const single = { release: "Show.S01E03.1080p", episodes: ["S01E03"], existing: { quality: "WEBDL-1080p", score: 1775 } } as Candidate;
+  it("says no file is held for a missing episode, whatever a pack compared against", () => {
+    expect(currentFile([pack], false, "S01E03")).toEqual({ held: false });
+  });
+  it("reads a held episode's file from a release of that episode alone, never a pack's", () => {
+    expect(currentFile([pack, single], true, "S01E03")).toEqual({ held: true, quality: "WEBDL-1080p", score: 1775 });
+    expect(currentFile([pack], true, "S01E03")).toBeNull();
+  });
+  it("reads a film's file from any candidate, and gives a season no line", () => {
+    expect(currentFile([single], true)).toEqual({ held: true, quality: "WEBDL-1080p", score: 1775 });
+    expect(currentFile([pack], undefined)).toBeNull();
   });
 });

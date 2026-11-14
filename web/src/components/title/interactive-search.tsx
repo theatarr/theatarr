@@ -11,6 +11,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useLiveSearch } from "@/api/add";
 import { qk } from "@/api/query-keys";
 import { usePerms, useTitle } from "@/api/library";
+import { useEpisode } from "@/api/manage";
 import { useRemovalScope } from "@/api/ops";
 import { ErrorState, Loading, VersionTag } from "@/components/page";
 import { ReleaseGrid } from "@/components/title/release-grid";
@@ -19,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { cn } from "@/lib/utils";
 import { titleWithYear } from "@/lib/format";
-import { scopeTarget, searchTargetWords } from "@/lib/release-columns";
+import { currentFile, scopeTarget, searchTargetWords } from "@/lib/release-columns";
 
 export type SearchScope = { titleId: number; version?: string; season?: number; episode?: { id: number; code: string } };
 
@@ -71,7 +72,10 @@ export function InteractiveSearch({ titleId, version, season, episode, onClose }
   const scope = episode ? episode.code : season === undefined ? "" : season === 0 ? "Specials" : `Season ${season}`;
   const live = r?.source === "live";
   const items = r?.candidates ?? [];
-  const existing = items.find((c) => c.existing)?.existing;
+  // Whether the requested film or episode has a file in this library: a season or the whole series has no one file.
+  const ep = useEpisode(titleId, episode?.id ?? null);
+  const held = episode ? ep.data?.versions.find((v) => v.key === lib?.key)?.has_file : kind === "movie" && season === undefined ? lib?.has_file ?? false : undefined;
+  const current = currentFile(items, held, episode?.code);
   const grab = r && live && r.grab && perms.manage && lib ? { titleId, version: r.version, label: library } : undefined;
   return (
     <Modal
@@ -141,9 +145,9 @@ export function InteractiveSearch({ titleId, version, season, episode, onClose }
                     <Summary r={{ ...r, message: undefined }} />
                   </>
                 )}
-                {existing ? (
+                {current ? (
                   <p className="text-sm text-[var(--ink-2)]" data-testid="interactive-current">
-                    Current file: {existing.quality || "unknown quality"}, score {existing.score ?? 0}
+                    {current.held ? `Current file: ${current.quality || "unknown quality"}, score ${current.score ?? 0}` : "No file held"}
                   </p>
                 ) : null}
                 {items.length === 0 ? (
