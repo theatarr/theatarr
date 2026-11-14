@@ -370,7 +370,7 @@ function JournalSection() {
                 <TableRow key={e.id}>
                   <TableCell className="whitespace-nowrap">{fmtTime(e.at)}</TableCell>
                   <TableCell><Badge tone={e.outcome === "failed" ? "negative" : "neutral"} title={`${e.action} ${e.outcome}`}>{torrentJournalWords(e.action, e.outcome)}</Badge></TableCell>
-                  <TableCell className="text-[13px] [overflow-wrap:anywhere]">{e.provider ? <ProviderTag account={e.provider} className="mr-1 font-medium" /> : null}{e.name || e.hash || (e.backup_id ? <span title={e.backup_id}>{e.provider ? "Backup" : "All providers"}</span> : null)}{e.detail ? <div className="text-xs text-muted-foreground">{e.detail}</div> : null}</TableCell>
+                  <TableCell className="text-[13px] [overflow-wrap:anywhere]">{e.provider ? <ProviderTag account={e.provider} className="mr-1 font-medium" /> : null}{e.name || e.hash || (e.backup_id ? <span title={e.backup_id}>Backup</span> : null)}{e.detail ? <div className="text-xs text-muted-foreground">{e.detail}</div> : null}</TableCell>
                   <TableCell className="hidden whitespace-nowrap md:table-cell">{torrentJournalBy(e.by)}</TableCell>
                 </TableRow>
               ))}

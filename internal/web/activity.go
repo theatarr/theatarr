@@ -764,7 +764,8 @@ func blockWords(source string) string {
 	case "journal":
 		return "Judged wrong in the journal"
 	case "provider":
-		return "Refused by the provider"
+		// A refusal, a torrent that disappeared or one with no video: the stored reason says which.
+		return "Failed at the provider"
 	case "ready_timeout":
 		return "Never appeared on the mount"
 	}

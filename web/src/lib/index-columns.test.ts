@@ -8,10 +8,10 @@ import {
   listColumns,
   perLibrary,
   sortColumn,
-  statusWords,
   visibleIndexColumns,
 } from "./index-columns";
 import { normalizeColumnPrefs } from "./prefs";
+import { titleStatusWords } from "./tmdb-words";
 
 const ids = (cs: { id: string }[]) => cs.map((c) => c.id);
 const label = (list: "movies" | "series" | "anime", id: string, seeFiles = true) => indexColumns(list, seeFiles).find((c) => c.id === id)?.label;
@@ -73,11 +73,11 @@ describe("the lists' columns", () => {
   });
 
   it("words statuses, languages and per-library values", () => {
-    expect(statusWords("series", "Returning Series")).toBe("Continuing");
-    expect(statusWords("series", "Canceled")).toBe("Cancelled");
-    expect(statusWords("series", "Planned")).toBe("Upcoming");
-    expect(statusWords("series", "Something")).toBe("Something");
-    expect(statusWords("movie", "inCinemas")).toBe("In cinemas");
+    expect(titleStatusWords("Returning Series")).toBe("Continuing");
+    expect(titleStatusWords("Canceled")).toBe("Cancelled");
+    expect(titleStatusWords("Planned")).toBe("Upcoming");
+    expect(titleStatusWords("Something")).toBe("Something");
+    expect(titleStatusWords("inCinemas")).toBe("In cinemas");
     expect(languageWords("ja")).toBe("Japanese");
     const vs = [{ label: "4K" }, { label: "WEB" }];
     expect(perLibrary(vs, () => "HD")).toBe("HD");

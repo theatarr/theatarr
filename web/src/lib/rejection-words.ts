@@ -6,8 +6,8 @@ const REJECTIONS: Record<string, string> = {
   // Parsing and identity.
   UnableToParse: "Name not understood",
   Unknown: "Not matched",
-  UnknownMovie: "Not this movie",
-  UnknownSeries: "Not this series",
+  UnknownMovie: "Movie not recognised",
+  UnknownSeries: "Series not recognised",
   UnknownEpisode: "Episode not recognised",
   WrongMovie: "A different movie",
   WrongSeries: "A different series",

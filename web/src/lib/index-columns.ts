@@ -3,7 +3,6 @@
 // words some cells read (release and series status, series type, minimum availability, language). Title is fixed and
 // not in this list, nor is the managers' last column of row actions (title-table.tsx RowActions). The choice is kept per list and per user (lib/prefs.ts useColumnPrefs, key columns.<list>).
 import type { ColumnDef } from "@/lib/prefs";
-import { titleStatusWords } from "./tmdb-words";
 
 export type ListId = "movies" | "series" | "anime";
 
@@ -127,13 +126,6 @@ export function defaultDesc(sort: string): boolean {
 }
 
 // ---- Cell words ----
-
-/** A title's stored status in words: a movie's Announced, In cinemas, Released; a series' Continuing, Ended,
- *  Cancelled, Upcoming (tmdb-words.ts); anything else made readable. */
-export function statusWords(_kind: string | undefined, status: string | undefined | null): string {
-  if (!status) return "";
-  return titleStatusWords(status);
-}
 
 const SERIES_TYPE: Record<string, string> = { standard: "Standard", daily: "Daily", anime: "Anime" };
 

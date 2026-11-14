@@ -117,6 +117,16 @@ export function nameWithoutYear(name: string | null | undefined, year?: number |
   return n.endsWith(tail) && n.length > tail.length ? n.slice(0, -tail.length) : n;
 }
 
+/** "Oct 27" for a YYYY-MM-DD this year, "Oct 27, 2024" otherwise. */
+export function fmtDay(d: string | undefined | null, now: Date = new Date()): string {
+  if (!d) return "—";
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d);
+  if (!m) return d;
+  const y = Number(m[1]);
+  const s = `${MONTHS[Number(m[2]) - 1]} ${Number(m[3])}`;
+  return y === now.getFullYear() ? s : `${s}, ${y}`;
+}
+
 /** "Oct 27, 2025" for a YYYY-MM-DD (or the day part of a timestamp), always with the year: for a list whose dates
  *  span more than one year (dayFormatter). */
 export function fmtDayYear(d: string | null | undefined): string {
@@ -131,9 +141,5 @@ export function fmtDayYear(d: string | null | undefined): string {
 export function dayFormatter(dates: readonly (string | null | undefined)[], now: Date = new Date()): (d: string | null | undefined) => string {
   const y = String(now.getFullYear());
   const mixed = dates.some((d) => !!d && /^\d{4}-/.test(d) && d.slice(0, 4) !== y);
-  if (mixed) return fmtDayYear;
-  return (d) => {
-    const s = fmtDayYear(d);
-    return s.endsWith(`, ${y}`) ? s.slice(0, -`, ${y}`.length) : s;
-  };
+  return mixed ? fmtDayYear : (d) => fmtDay(d, now);
 }

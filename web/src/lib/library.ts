@@ -1,6 +1,7 @@
 // Library helpers shared by Home, the grids and the title page: kinds, badges, version states in words, and the
 // grid's URL parameters.
 import type { Availability, GridQuery, TitleRow } from "@/api/library";
+import { fmtDay } from "@/lib/format";
 import { availableIn, BEST_KNOWN } from "@/lib/upgrade";
 
 /** A poster card's availability badge. */
@@ -173,17 +174,8 @@ export function fmtRuntime(min: number | undefined | null): string | undefined {
   return h > 0 ? `${h} h ${m ? `${m} min` : ""}`.trim() : `${m} min`;
 }
 
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-/** "Oct 27" for a YYYY-MM-DD this year, "Oct 27, 2024" otherwise. */
-export function fmtDay(d: string | undefined | null, now: Date = new Date()): string {
-  if (!d) return "—";
-  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d);
-  if (!m) return d;
-  const y = Number(m[1]);
-  const s = `${MONTHS[Number(m[2]) - 1]} ${Number(m[3])}`;
-  return y === now.getFullYear() ? s : `${s}, ${y}`;
-}
+// fmtDay lives in format.ts with the other formatters; re-exported for the files that import it from here.
+export { fmtDay };
 
 /**
  * "today", "tomorrow", "in 4 days" or "3 days ago", against the local day. A YYYY-MM-DD is a calendar day as written;

@@ -17,16 +17,26 @@ export function torrentStateWords(state: string | null | undefined, progress?: n
   return state !== "downloaded" && progress !== undefined && progress < 100 ? `${s} ${Math.round(progress)}%` : s;
 }
 
-const ACTIONS: Record<string, { ok: string; failed: string }> = {
+// The outcomes internal/torrents writes per action: backup ok/failed; delete deleted/failed/skipped; restore
+// added/uncached/incomplete/failed/skipped/sending.
+const ACTIONS: Record<string, Record<string, string>> = {
   backup: { ok: "Backed up", failed: "Backup failed" },
-  delete: { ok: "Deleted", failed: "Delete failed" },
-  restore: { ok: "Restored", failed: "Restore failed" },
+  delete: { deleted: "Deleted", failed: "Delete failed", skipped: "Not deleted" },
+  restore: {
+    added: "Restored",
+    uncached: "Restored (downloading)",
+    incomplete: "Restored (incomplete)",
+    failed: "Restore failed",
+    skipped: "Not restored",
+    sending: "Restoring",
+  },
 };
 
-/** A journal entry's action and outcome: "backup ok" → "Backed up", "delete failed" → "Delete failed". */
+/** A journal entry's action and outcome: "backup ok" → "Backed up", "delete deleted" → "Deleted", "restore added" →
+ *  "Restored". */
 export function torrentJournalWords(action: string | null | undefined, outcome: string | null | undefined): string {
-  const a = action ? ACTIONS[action] : undefined;
-  if (a && (outcome === "ok" || outcome === "failed")) return a[outcome];
+  const words = action && outcome ? ACTIONS[action]?.[outcome] : undefined;
+  if (words) return words;
   return [wordsFor({}, action), outcome && outcome !== "ok" ? wordsFor({}, outcome).toLowerCase() : ""].filter(Boolean).join(" ");
 }
 

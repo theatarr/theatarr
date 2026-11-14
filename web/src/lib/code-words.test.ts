@@ -26,7 +26,8 @@ describe("rejection reasons", () => {
   it("in words, with a readable fallback", () => {
     expect(rejectionWords("DiskHigherPreference")).toBe("Not better than the file held");
     expect(rejectionWords("CustomFormatMinimumScore")).toBe("Format score too low");
-    expect(rejectionWords("UnknownMovie")).toBe("Not this movie");
+    expect(rejectionWords("UnknownMovie")).toBe("Movie not recognised");
+    expect(rejectionWords("UnknownSeries")).toBe("Series not recognised");
     expect(rejectionWords("BrandNewReason")).toBe("Brand new reason");
   });
 });
@@ -106,6 +107,9 @@ describe("torrent words", () => {
     expect(torrentStateWords("stalled_new", 100)).toBe("Stalled new");
     expect(torrentJournalWords("backup", "ok")).toBe("Backed up");
     expect(torrentJournalWords("delete", "failed")).toBe("Delete failed");
+    expect(torrentJournalWords("delete", "deleted")).toBe("Deleted");
+    expect(torrentJournalWords("restore", "added")).toBe("Restored");
+    expect(torrentJournalWords("restore", "uncached")).toBe("Restored (downloading)");
     expect(torrentJournalWords("prune", "ok")).toBe("Prune");
     expect(torrentJournalWords("prune", "partial")).toBe("Prune partial");
     expect(torrentJournalBy("schedule")).toBe("Scheduled");

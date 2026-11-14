@@ -52,6 +52,7 @@ const COLUMNS: DataColumn<ActivityBlocked>[] = tight([
     cell: (b) => (
       <span className="block text-[12.5px] leading-snug" title={b.reason || undefined}>
         <span className="text-[var(--warn-ink)]">{b.words}</span>
+        {b.reason && b.reason !== b.words ? <span className="line-clamp-3 block break-words text-[11px] text-muted-foreground">{b.reason}</span> : null}
         {b.researched_at ? <span className="block text-[11px] text-muted-foreground">searched again</span> : null}
       </span>
     ),

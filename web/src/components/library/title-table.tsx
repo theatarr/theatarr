@@ -30,7 +30,6 @@ import {
   perLibrary,
   seriesTypeWords,
   sortColumn,
-  statusWords,
   type IndexColumnId,
 } from "@/lib/index-columns";
 import { badgeTone, copyTone, copyWords, type CopyTone } from "@/lib/library-status";
@@ -40,6 +39,7 @@ import { StageLink, useMinWidth } from "./copy-bits";
 import { CopyDialog } from "./copy-dialog";
 import { LibraryPill } from "./library-pill";
 import { useEndReached } from "./poster-grid";
+import { titleStatusWords } from "@/lib/tmdb-words";
 
 type Version = NonNullable<TitleRow["versions"]>[number];
 type Acquisition = Schemas["Acquisition"];
@@ -203,7 +203,7 @@ function cell(id: IndexColumnId, t: TitleRow, open: () => void): ReactNode {
     case "physical":
       return or(dayOf(t.physical_release));
     case "title_status":
-      return or(statusWords(t.kind, t.status));
+      return or(titleStatusWords(t.status));
     case "series_type":
       return or(seriesTypeWords(t.series_type));
     case "runtime":
