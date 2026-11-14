@@ -975,6 +975,8 @@ func removeMessage(scope *RemovalScope, unlink bool, out *RemoveResult) string {
 	case !unlink && links > 0:
 		what += "; its files stay linked and its debrid torrents stay"
 	case !unlink:
+	case left > 0 && len(out.Unlinked) == 0:
+		what += fmt.Sprintf("; %s left in place", libraryFiles(left))
 	case left > 0:
 		what += fmt.Sprintf("; %s deleted, %d left in place", libraryFiles(len(out.Unlinked)), left)
 	case len(out.Unlinked) > 0:

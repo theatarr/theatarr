@@ -44,8 +44,6 @@ export function RemoveDialog({ titleId, versions, onClose, kind, anime }: { titl
   const s = q.data;
   // Nothing left to hide: only the files of libraries removed before, which a removal with the files deletes.
   const leftoverOnly = s.copies.length === 0;
-  const listed = (label: string, ls: { path: string; reason: string }[]) =>
-    ls.length ? ` ${label}: ${ls.map((k) => `${k.path} (${k.reason})`).join("; ")}` : "";
   return (
     <ConfirmDialog
       scope={removalScope(s, files || leftoverOnly)}
@@ -64,11 +62,12 @@ export function RemoveDialog({ titleId, versions, onClose, kind, anime }: { titl
           },
           {
             onSuccess: (r) => {
-              const left = r.kept.length + (r.failed ?? []).length > 0;
+              // The first reason a file stayed; History lists the outcome per library.
+              const first = [...(r.failed ?? []), ...r.kept][0];
               toast({
-                tone: left ? "warn" : "ok",
+                tone: first ? "warn" : "ok",
                 title: r.title ? `Removed ${s.name}` : s.name,
-                body: `${r.message}${listed("Kept", r.kept)}${listed("Failed", r.failed ?? [])} Open its History for the details.`,
+                body: `${r.message}${first ? ` Left in place because: ${first.reason}.` : ""} Open its History for the details.`,
                 to: `/title/${titleId}?tab=history`,
               });
               onClose();
