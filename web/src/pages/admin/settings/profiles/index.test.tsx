@@ -85,69 +85,34 @@ describe("Quality profiles page", () => {
     expect(screen.queryByTestId("trash-defaults")).toBeNull();
   });
 
-  it("lists every TRaSH default of both flavours from the bundle, with our copies, and reports a broken checkout", async () => {
-    const copy = { ...qualityOverview().profiles[1], key: "my-web", origin: { preset: "0537", name: "WEB 2160p", flavour: "radarr" }, guessed: false };
+  it("keeps the TRaSH preset catalogue inside New profile only, says where it comes from, and reports a broken checkout", async () => {
     mockFetch(routes(qualityOverview({
       trash: ["radarr", "sonarr"], trash_source: "bundled", trash_commit: "ed6d7226232c6194730c945938985dfa68c75e6b", trash_commit_date: "2026-10-26",
       trash_note: "THEATARR_TRASH is set but holds no TRaSH-Guides checkout: the TRaSH defaults bundled with this version are used instead",
-      profiles: [...qualityOverview().profiles, copy],
     })));
+    const user = userEvent.setup();
     renderPage(<ProfilesPage />, "/admin/settings/profiles");
-    const section = await screen.findByTestId("trash-defaults");
-    expect(within(section).getByTestId("trash-source").textContent).toBe("TRaSH defaults bundled with this version (commit ed6d722, 2026-10-26). This list changes with a new version of Theatarr, or follows a TRaSH-Guides checkout when one is mounted (THEATARR_TRASH). Quality sync updates the profiles bound to a source, not this list.");
-    expect(within(section).getByRole("link", { name: "Quality sync" }).getAttribute("href")).toBe("/admin/settings/quality-sync");
-    const radarr = await within(section).findByTestId("trash-defaults-radarr");
-    await within(radarr).findByText("Remux + WEB 2160p");
-    expect(within(radarr).getAllByRole("row").slice(1).map((r) => r.getAttribute("data-preset"))).toEqual(["fd16", "0537"]);
-    // A stored copy is a hint on the default, which stays listed; a guessed origin is not a copy.
-    const used = within(radarr).getByText("WEB 2160p").closest("tr")!;
-    expect(within(used).getAllByText("my-web").length).toBeGreaterThan(0);
-    expect(within(used).getByRole("button", { name: "Create a copy: WEB 2160p (Movies (Radarr))" })).toBeTruthy();
-    expect(within(radarr).getByRole("button", { name: "Use: Remux + WEB 2160p (Movies (Radarr))" })).toBeTruthy();
-    const sonarr = within(section).getByTestId("trash-defaults-sonarr");
-    expect(await within(sonarr).findByRole("button", { name: "Use: WEB-1080p (Series (Sonarr))" })).toBeTruthy();
+    await screen.findByRole("table");
+    expect(screen.queryByTestId("trash-defaults")).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Use: / })).toBeNull();
     // The bundle is in use, so presets are on; the misconfigured checkout is still reported.
     expect(screen.getByTestId("trash-note").textContent).toContain("THEATARR_TRASH is set but holds no TRaSH-Guides checkout");
-    expect((screen.getByRole("button", { name: "New profile from TRaSH preset" }) as HTMLButtonElement).disabled).toBe(false);
+    await user.click(screen.getByRole("button", { name: "New profile from TRaSH preset" }));
+    const picker = await screen.findByTestId("preset-picker");
+    expect(await within(picker).findByRole("radio", { name: "WEB 2160p" })).toBeTruthy();
+    await user.click(within(picker).getByRole("radio", { name: "Series (Sonarr)" }));
+    expect((await within(picker).findByTestId("trash-source")).textContent).toContain("TRaSH defaults bundled with this version (commit ed6d722, 2026-10-26)");
+    expect(within(picker).getByRole("radio", { name: "WEB-1080p" })).toBeTruthy();
   });
 
-  it("uses a TRaSH default: the editor opens on a copy under a free key and creates it", async () => {
-    const fetch = mockFetch([
-      ...routes(),
-      { method: "POST", path: "/settings/presets/build", reply: { ...built, origin: { preset: "0537", name: "WEB 2160p", flavour: "radarr" } } },
-      { method: "POST", path: "/settings/presets/create", reply: json({ generation: 5, key: "web-2160p-2", binding: "" }) },
-    ]);
-    const user = userEvent.setup();
+  it("lists the profiles libraries use before the unused ones", async () => {
+    const [used, unused] = qualityOverview().profiles;
+    mockFetch(routes(qualityOverview({ profiles: [unused, used] })));
     renderPage(<ProfilesPage />);
-    await user.click(await screen.findByRole("button", { name: "Use: WEB 2160p (Movies (Radarr))" }));
-    await waitFor(() => expect(fetch.calls("POST", "/settings/presets/build")).toHaveLength(1));
-    expect(fetch.calls("POST", "/settings/presets/build")[0].body).toEqual({ flavour: "radarr", preset: "0537", modifiers: [] });
-    const sheet = await screen.findByTestId("profile-sheet");
-    expect(within(sheet).getByText("TRaSH WEB 2160p")).toBeTruthy();
-    // "web-2160p" is a profile already: the suggested key is the next free one.
-    expect((within(sheet).getByRole("textbox", { name: "Key" }) as HTMLInputElement).value).toBe("web-2160p-2");
-    await user.click(within(sheet).getByRole("button", { name: "Create profile" }));
-    await waitFor(() => expect(fetch.calls("POST", "/settings/presets/create")).toHaveLength(1));
-    expect(fetch.calls("POST", "/settings/presets/create")[0].body).toEqual({ generation: 4, key: "web-2160p-2", flavour: "radarr", preset: "0537", modifiers: [], config: built.profile });
-  });
-
-  it("suggests a key no format set has, also a set left behind by a deleted profile", async () => {
-    // The sets are read at each Use, not once when the page loads: the set appears while the page is open.
-    let sets: { id: number; key: string; config: object }[] = [];
-    const fetch = mockFetch([
-      ...routes(),
-      { method: "GET", path: "/settings/format_sets", reply: () => json({ generation: 4, records: sets }) },
-      { method: "POST", path: "/settings/presets/build", reply: { ...built, origin: { preset: "0537", name: "WEB 2160p", flavour: "radarr" } } },
-    ]);
-    const user = userEvent.setup();
-    renderPage(<ProfilesPage />);
-    const use = await screen.findByRole("button", { name: "Use: WEB 2160p (Movies (Radarr))" });
-    sets = [{ id: 3, key: "web-2160p-2", config: {} }];
-    await user.click(use);
-    const sheet = await screen.findByTestId("profile-sheet");
-    expect(fetch.calls("GET", "/settings/format_sets")).toHaveLength(1);
-    // "web-2160p" is a profile and "web-2160p-2" a format set no profile uses.
-    expect((within(sheet).getByRole("textbox", { name: "Key" }) as HTMLInputElement).value).toBe("web-2160p-3");
+    await screen.findByRole("table");
+    expect([...document.querySelectorAll("[data-profile]")].map((r) => r.getAttribute("data-profile"))).toEqual(["radarr-4k-web", "web-2160p"]);
+    // A profile with no recorded flavour is a custom one, not "flavour unknown".
+    expect(document.querySelector('[data-profile="web-2160p"]')!.textContent).toContain("Custom profile");
   });
 
   it("saves the defaults Add version preselects", async () => {
@@ -305,6 +270,20 @@ describe("Quality profiles page", () => {
       "Remux-1080p": { min: 5, preferred: 0, max: 100 },
       "WEBRip-1080p": { min: 0, preferred: 0, max: 0 },
     });
+  });
+
+  it("puts the ladder, cutoff and scores before size limits, and folds limits of qualities the profile does not allow", async () => {
+    const sized = { ...webConfig, sizes: { "Bluray-480p": { min: 1, preferred: 0, max: 10 } } };
+    mockFetch(routes().map((r) => r.path === "/settings/profiles" ? { ...r, reply: { ...records, records: [{ id: 7, key: "radarr-4k-web", config: sized }, records.records[1]] } } : r));
+    const user = userEvent.setup();
+    renderPage(<ProfilesPage />);
+    await user.click(await screen.findByRole("button", { name: "Edit radarr-4k-web" }));
+    const sheet = await screen.findByTestId("profile-sheet");
+    expect(within(sheet).getAllByRole("heading", { level: 3 }).map((h) => h.textContent)).toEqual(["Qualities", "Upgrades and scores", "Formats and scores", "Size limits"]);
+    const sizes = within(sheet).getByTestId("size-limits");
+    expect(sizes.querySelector('[data-quality="Bluray-480p"]')).toBeNull();
+    await user.click(within(sizes).getByTestId("sizes-other"));
+    expect(sizes.querySelector('[data-quality="Bluray-480p"]')).toBeTruthy();
   });
 
   it("round-trips size limits against the engine's reading of the sizes map", () => {

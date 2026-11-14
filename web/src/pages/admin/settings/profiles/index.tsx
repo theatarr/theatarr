@@ -2,15 +2,15 @@ import { SettingsAuthority, settingsBannerNeeded } from "@/components/settings/a
 // Settings › Profiles (docs/design/settings.md, "Profiles, presets and formats"): every profile
 // with its allowed qualities (best first, cutoff marked) and where upgrades stop (cutoff quality and score), how many formats it scores, the TRaSH preset it started
 // from and how ours differs, and the versions that use it (unused ones are shown, never deleted by themselves). The
-// default profile per kind of version is what Add version preselects. New profiles start from a TRaSH preset; the
-// TRaSH defaults (every preset, built in) are listed below the profiles.
+// default profile per kind of version is what Add version preselects. Profiles in use come first. New profiles start
+// from a TRaSH preset, chosen in the New profile sheet (the preset catalogue lives there only).
 import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/api/client";
 import { qk } from "@/api/query-keys";
 import { useSettings } from "@/api/settings";
-import { CATEGORY_LABEL, freeKey, keyFromName, originLabel, overviewKey, saveDefaults, useQualityOverview, type Category, type ProfileSummary } from "@/api/settings-profiles";
+import { CATEGORY_LABEL, originLabel, overviewKey, saveDefaults, useQualityOverview, type Category, type ProfileSummary } from "@/api/settings-profiles";
 import { ErrorState, Loading, Section } from "@/components/page";
 import { Announcer, ExplainBox, SELECT_CLASS, useAnnouncement } from "@/components/settings/parts";
 import { Badge } from "@/components/ui/badge";
@@ -20,10 +20,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useEditParam } from "@/components/ui/sheet";
 import { explainError } from "@/lib/settings";
 import { QualityPanel, type QualityRecord } from "../quality";
-import { TrashDefaults } from "./defaults";
-import { QualityChips, upgradeUntil } from "./parts";
+import { flavourWord, QualityChips, upgradeUntil } from "./parts";
 import { ProfileSheet, type ProfileSession } from "./sheet";
 import { useLibraryName } from "@/lib/library-names";
+import { useUnsavedChanges } from "@/lib/unsaved";
+import { changedPaths } from "@/components/settings/section-draft";
 
 const CATEGORIES: Category[] = ["movie", "series", "anime_movie", "anime_series"];
 
@@ -52,6 +53,7 @@ function Defaults({ profiles, defaults, readOnly, onSaved }: { profiles: string[
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>();
   useEffect(() => setDraft(defaults), [defaults]);
+  useUnsavedChanges(readOnly ? 0 : changedPaths(draft, defaults).length);
   const save = async () => {
     setBusy(true); setError(undefined);
     try { await saveDefaults(draft); onSaved("Default profiles saved."); } catch (e) { setError(e); } finally { setBusy(false); }
@@ -107,6 +109,8 @@ export function ProfilesPage({ compact = false }: { compact?: boolean }) {
   const refresh = async () => { await qc.invalidateQueries({ queryKey: qk.settings.all }); await qc.invalidateQueries({ queryKey: overviewKey }); };
   const open = (key: string) => { const s = sessionFor(key); if (s) { deleted.current = false; setSession(s); setEdit(key); } };
   const unused = o.profiles.filter((p) => p.used_by.length === 0).length;
+  // The profiles libraries use first, the rest after them, each in the server's order.
+  const listed = [...o.profiles.filter((p) => p.used_by.length > 0), ...o.profiles.filter((p) => p.used_by.length === 0)];
   return <div className="space-y-4">
     {settings.data && settingsBannerNeeded(settings.data) ? <SettingsAuthority compact={compact} overview={settings.data} /> : null}
     <Announcer announcement={announcement} testid="profiles-announcer" />
@@ -128,12 +132,12 @@ export function ProfilesPage({ compact = false }: { compact?: boolean }) {
           <TableHead><span className="sr-only">Actions</span></TableHead>
         </TableRow></TableHeader>
         <TableBody>
-          {o.profiles.map((p) => <TableRow key={p.key} data-profile={p.key} data-selected={session?.mode === "edit" && session.key === p.key ? "true" : undefined}>
+          {listed.map((p) => <TableRow key={p.key} data-profile={p.key} data-selected={session?.mode === "edit" && session.key === p.key ? "true" : undefined}>
             <TableCell className="align-top">
               <div className="font-mono text-[13px] [overflow-wrap:anywhere]">{p.key}</div>
-              <div className="text-xs text-muted-foreground">{p.flavour || "flavour unknown"}</div>
+              <div className="text-xs text-muted-foreground">{flavourWord(p.flavour)}</div>
               <div className="mt-1.5 space-y-1.5 md:hidden"><QualityChips qualities={p.qualities} cutoff={p.cutoff} /><Until p={p} /></div>
-              <div className="mt-1.5 space-y-1.5 sm:hidden"><OriginCell p={p} /><UsedBy p={p} /></div>
+              <div className="mt-1.5 flex flex-col items-start gap-1.5 sm:hidden"><OriginCell p={p} /><UsedBy p={p} /></div>
             </TableCell>
             <TableCell className="hidden max-w-[22rem] space-y-1.5 align-top md:table-cell"><QualityChips qualities={p.qualities} cutoff={p.cutoff} /><Until p={p} /></TableCell>
             <TableCell className="hidden align-top tabular-nums lg:table-cell">{p.formats}</TableCell>
@@ -145,16 +149,6 @@ export function ProfilesPage({ compact = false }: { compact?: boolean }) {
       </Table>
     </Card>
     <Defaults profiles={o.profiles.map((p) => p.key)} defaults={o.defaults} readOnly={readOnly} onSaved={(t) => { announce(t); void refresh(); }} />
-    <TrashDefaults overview={o} readOnly={readOnly} onUse={async (flavour, preset, built) => {
-      // The editor opens on a copy of the default, under a free key the user can change before creating it.
-      // Its key must be free among every format set too, read now: deleting a profile leaves its set, which no
-      // profile names any more. When that read fails the sets the profiles use are all that is known.
-      const sets = await api<{ records: { key: string }[] }>("/settings/format_sets").catch(() => undefined);
-      const taken = [...o.profiles.map((p) => p.key), ...o.profiles.map((p) => p.format_set), ...(sets?.records ?? []).map((r) => r.key)];
-      deleted.current = false;
-      setSession({ mode: "create", generation: o.generation, flavour, key: freeKey(keyFromName(preset.name), taken), config: built.profile, preset: { trash_id: preset.trash_id, modifiers: [], built } });
-      setEdit("new");
-    }} />
     <Section title="Format sets"><p className="text-[13px] text-muted-foreground">Each profile scores the formats of its own format set; editing a profile's scores edits its set. Format sets are not a page of their own any more; the raw <Link className="underline" to="/admin/settings/profiles/format_sets">format set editor</Link> and the <Link className="underline" to="/admin/settings/profiles?raw=1">raw profile editor</Link> stay for exceptions.</p></Section>
     {session ? <ProfileSheet key={session.mode === "edit" ? session.key : "new"} session={session} readOnly={readOnly} onClose={close}
       onReload={async () => { const [r, ov] = await Promise.all([records.refetch(), overview.refetch()]); return session.mode === "edit" ? sessionFor(session.key, r.data, ov.data) : undefined; }}

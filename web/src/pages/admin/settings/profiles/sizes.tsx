@@ -34,9 +34,16 @@ const same = (a: Effective, b: Effective) => a.min === b.min && a.max === b.max 
 
 /** The qualities a profile allows, groups flattened to their members, best first. */
 export function sizeRows(config: Config): string[] {
+  const { allowed, other } = sizeRowGroups(config);
+  return [...allowed, ...other];
+}
+
+/** The size rows in two groups: the qualities the profile allows, then the others that have a limit set (kept, but
+ * folded under "Show other qualities"). */
+export function sizeRowGroups(config: Config): { allowed: string[]; other: string[] } {
   const allowed = ((config.qualities ?? []) as Quality[]).flatMap((q) => typeof q === "string" ? [q] : q.qualities);
-  const set = Object.keys(object(config.sizes)).filter((q) => !allowed.includes(q));
-  return [...allowed, ...set.sort()];
+  const other = Object.keys(object(config.sizes)).filter((q) => !allowed.includes(q)).sort();
+  return { allowed, other };
 }
 
 /** The sizes map with one field set (undefined: back to the default for that field). The other fields keep their
@@ -77,13 +84,15 @@ export function SizeLimits({ config, flavours, rawHref, onChange, onInvalid, rea
   config: Config; flavours: string[]; rawHref?: string; onChange: (c: Config) => void; onInvalid?: (invalid: boolean) => void; readOnly: boolean;
 }) {
   const sizes = object(config.sizes) as Record<string, Limit>;
-  const rows = sizeRows(config);
+  const groups = sizeRowGroups(config);
+  const [showOther, setShowOther] = useState(false);
+  const rows = showOther ? [...groups.allowed, ...groups.other] : groups.allowed;
   const [picked, setPicked] = useState("");
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const invalid = Object.entries(drafts).some(([k, t]) => parseSize(k.split("\n")[1] as Field, t) === false);
   useEffect(() => { onInvalid?.(invalid); }, [invalid, onInvalid]);
   const name = useId();
-  if (!rows.length) return <p className="text-sm text-muted-foreground">Allow a quality to set its size limits.</p>;
+  if (!groups.allowed.length && !groups.other.length) return <p className="text-sm text-muted-foreground">Allow a quality to set its size limits.</p>;
   const mixed = flavours.length > 1;
   const flavour = flavours.length === 1 ? flavours[0] : mixed ? "" : picked;
   const locked = readOnly || mixed;
@@ -128,6 +137,9 @@ export function SizeLimits({ config, flavours, rawHref, onChange, onInvalid, rea
           </li>;
         })}
       </ul>
+      {groups.other.length ? <button type="button" className="text-[13px] text-[var(--accent-ink)] underline-offset-2 hover:underline" aria-expanded={showOther} onClick={() => setShowOther(!showOther)} data-testid="sizes-other">
+        {showOther ? "Hide the other qualities" : `Show other qualities (${groups.other.length} not allowed, with a limit set)`}
+      </button> : null}
       {invalid ? <p role="alert" className="text-xs text-destructive">A size is a number (a decimal point or comma is fine), blank for the default, or none.</p> : null}
     </> : null}
   </div>;

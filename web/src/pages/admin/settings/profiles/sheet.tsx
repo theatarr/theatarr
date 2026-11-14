@@ -13,12 +13,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
-import { Sheet, SheetLayout } from "@/components/ui/sheet";
+import { Sheet, SheetCancel, SheetLayout } from "@/components/ui/sheet";
+import { changedPaths } from "@/components/settings/section-draft";
 import { explainError } from "@/lib/settings";
 import { cn } from "@/lib/utils";
 import { FormGrid, NumberInput, PROPERS, PROPERS_LABELS, Select, TextField, Toggle, object, type Config } from "../quality/fields";
-import { DiffLists, QualityLadder, StateTag } from "./parts";
+import { DiffLists, flavourWord, QualityLadder, StateTag } from "./parts";
 import { profileFlavours, SizeLimits } from "./sizes";
+import { TrashSourceLine } from "./defaults";
 import { useLibraryName } from "@/lib/library-names";
 
 export type ProfileSession =
@@ -121,6 +123,7 @@ function PresetPicker({ flavour, setFlavour, onBuilt, onCancel }: { flavour: str
     <fieldset className="flex flex-wrap gap-3 text-sm"><legend className="mb-1 font-medium">Arr flavour</legend>
       {["radarr", "sonarr"].map((f) => <label key={f} className="flex items-center gap-1.5"><input type="radio" name="flavour" checked={flavour === f} onChange={() => { setFlavour(f); setChosen(""); setMods([]); }} />{f === "radarr" ? "Movies (Radarr)" : "Series (Sonarr)"}</label>)}
     </fieldset>
+    {presets.data && !presets.data.unavailable ? <TrashSourceLine source={presets.data.source} commit={presets.data.commit} date={presets.data.commit_date} /> : null}
     {presets.isPending ? <Loading /> : presets.error ? <ErrorState error={presets.error} /> : presets.data.unavailable ? <p className="text-sm text-muted-foreground" data-testid="presets-off">{presets.data.unavailable}.</p> : <fieldset className="space-y-2"><legend className="mb-1 text-sm font-medium">TRaSH preset</legend>
       {presets.data.presets.map((p) => <label key={p.trash_id} className={cn("flex cursor-pointer gap-3 rounded-lg border p-3", chosen === p.trash_id ? "border-[var(--th-baccent)] bg-[color-mix(in_srgb,var(--accent)_8%,transparent)]" : "border-[var(--line)]")} data-preset={p.trash_id}>
         <input type="radio" name="preset" className="mt-1" aria-label={p.name} aria-describedby={`preset-${p.trash_id}`} checked={chosen === p.trash_id} onChange={() => { setChosen(p.trash_id); setMods(mods.filter((m) => p.modifiers.includes(m))); }} />
@@ -208,13 +211,16 @@ export function ProfileSheet({ session: initial, readOnly, onClose, onSaved, onR
     {edit && !impact ? <Button type="button" disabled={busy || readOnly || sizesInvalid} onClick={() => void review()}>{busy ? "Checking…" : "Review and save"}</Button> : null}
     {edit && impact ? <><Button type="button" disabled={busy || readOnly || sizesInvalid} onClick={() => void save()}>{busy ? "Saving…" : "Save"}</Button><Button type="button" variant="outline" onClick={() => setImpact(undefined)}>Back to editing</Button></> : null}
     {create ? <Button type="button" disabled={busy || readOnly || sizesInvalid || !create.key.trim()} onClick={() => void save()}>{busy ? "Creating…" : "Create profile"}</Button> : null}
-    <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+    <SheetCancel variant="outline" onClick={onClose}>Cancel</SheetCancel>
     {edit && used.length === 0 && edit.id ? <Button type="button" variant="destructive" className="ml-auto" disabled={busy || readOnly} onClick={() => setConfirmDelete(true)}>Delete</Button> : null}
   </>;
 
+  // A built preset not created yet is one change of its own: closing drops it.
+  const diff = picking || readOnly || !config ? 0 : changedPaths(config, edit ? edit.config : built?.profile).length;
+  const changes = create && built && !readOnly ? Math.max(1, diff) : diff;
   return <Sheet label={picking ? "New profile from a TRaSH preset" : create ? "New profile" : `Edit profile ${edit!.key}`} onClose={onClose} initialFocus={heading}>
-    <SheetLayout testid="profile-sheet" headingRef={heading} onClose={onClose} title={title}
-      subtitle={edit ? `${summary?.flavour || "flavour unknown"} · ${summary?.formats ?? 0} formats` : create?.preset ? `${create.flavour} · ${create.preset.built.formats} formats from TRaSH` : undefined}
+    <SheetLayout testid="profile-sheet" headingRef={heading} onClose={onClose} title={title} changes={changes}
+      subtitle={edit ? `${flavourWord(summary?.flavour)} · ${summary?.formats ?? 0} formats` : create?.preset ? `${flavourWord(create.flavour)} · ${create.preset.built.formats} formats from TRaSH` : undefined}
       footer={footer}>
       {confirm.dialog}
       {picking ? <PresetPicker flavour={flavour} setFlavour={setFlavour} onCancel={onClose} onBuilt={(trash_id, modifiers, b) => { setSession({ ...create, flavour, preset: { trash_id, modifiers, built: b } }); setConfig(b.profile); window.setTimeout(() => heading.current?.focus(), 0); }} /> : config ? <div className="space-y-5">
@@ -236,11 +242,6 @@ export function ProfileSheet({ session: initial, readOnly, onClose, onSaved, onR
         <fieldset disabled={busy || readOnly} className="space-y-5">
           {create ? <label className="flex flex-col gap-1 text-sm">Key<Input className="h-9" required value={create.key} onChange={(e) => setSession({ ...create, key: e.target.value })} /></label> : null}
           <section className="space-y-2"><h3 className="font-semibold">Qualities</h3><QualityLadder config={config} onChange={change} /></section>
-          <section className="space-y-2" aria-labelledby="profile-sizes"><h3 id="profile-sizes" className="font-semibold">Size limits</h3>
-            <p className="text-xs text-muted-foreground">MB per minute of runtime, as in the arrs' quality definitions. A blank field uses the arr default shown in it; type none for no limit (Max) or no preferred size.</p>
-            <SizeLimits config={config} flavours={create?.preset ? [create.flavour] : profileFlavours(used.map((u) => u.kind))} rawHref={edit ? `/admin/settings/profiles?raw=1&edit=${encodeURIComponent(edit.key)}` : undefined}
-              onChange={change} onInvalid={setSizesInvalid} readOnly={readOnly} />
-          </section>
           <section className="space-y-2"><h3 className="font-semibold">Upgrades and scores</h3>
             <FormGrid>
               <TextField label="Minimum format score" type="number" value={config.min_score ?? 0} onChange={(v) => setField("min_score", Number(v))} />
@@ -254,6 +255,11 @@ export function ProfileSheet({ session: initial, readOnly, onClose, onSaved, onR
             <p className="text-xs text-muted-foreground">Grouped as TRaSH groups them. A score equal to TRaSH's follows TRaSH; one you change is yours and is kept when TRaSH changes it.</p>
             <ScoreGroups rows={rows} readOnly={readOnly} onScore={(format, score) => change({ ...config, formats: { ...object(config.formats), [format]: score } })} />
             {edit && summary?.flavour ? <AddFormat flavour={summary.flavour} scored={object(config.formats)} disabled={readOnly} onAdd={(format) => change({ ...config, formats: { ...object(config.formats), [format]: 0 } })} /> : null}
+          </section>
+          <section className="space-y-2" aria-labelledby="profile-sizes"><h3 id="profile-sizes" className="font-semibold">Size limits</h3>
+            <p className="text-xs text-muted-foreground">MB per minute of runtime, as in the arrs' quality definitions. A blank field uses the arr default shown in it; type none for no limit (Max) or no preferred size.</p>
+            <SizeLimits config={config} flavours={create?.preset ? [create.flavour] : profileFlavours(used.map((u) => u.kind))} rawHref={edit ? `/admin/settings/profiles?raw=1&edit=${encodeURIComponent(edit.key)}` : undefined}
+              onChange={change} onInvalid={setSizesInvalid} readOnly={readOnly} />
           </section>
         </fieldset>
         {impact ? <ImpactView impact={impact} /> : null}

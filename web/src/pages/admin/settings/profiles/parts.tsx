@@ -117,3 +117,7 @@ export function DiffLists({ diff }: { diff: OriginDiff }) {
     {diff.formats_missing.length ? <div><h4 className="font-medium">In the preset, not scored here</h4><p className="mt-1 [overflow-wrap:anywhere]">{diff.formats_missing.map((s) => `${s.format} ${signed(s.trash ?? 0)}`).join(" · ")}</p></div> : null}
   </div>;
 }
+
+/** A profile's arr flavour in words: "Movies (Radarr)"; none recorded (a profile made by hand): "Custom profile". */
+export const flavourWord = (flavour?: string | null) =>
+  flavour === "radarr" ? "Movies (Radarr)" : flavour === "sonarr" ? "Series (Sonarr)" : flavour ? flavour : "Custom profile";

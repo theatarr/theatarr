@@ -123,7 +123,7 @@ once. `section-panel.test.tsx` exercises partial writes, credentials, 422, 409, 
 ### Form details
 
 - **Indexer form:** a new indexer shows Service, Enabled, API key, Name and its required fields (the URL) before
-  Show advanced; only tuning is under it. Providers keep Name and URL under Show advanced (the service fills them).
+  Advanced options; only tuning is under it. Providers keep Name and URL under Advanced options (the service fills them).
 - **Indexer provider allowlist:** "Any provider chosen by the library" (saves an empty list) or "Only these
   providers" with a checkbox per provider key; it saves the same `providers` list the comma field did. A saved key no
   provider has stays listed, ticked and marked "(not found)".
@@ -1015,7 +1015,7 @@ Contrast, editors and the indexer pages. Profiles and presets are in the next se
   **Libraries** list (below). Test these values tests the unsaved form; while the form still
   holds exactly the values of a passed test and Enabled is off, the result line offers **Enable and save**, which
   turns Enabled on and saves in one write. A retest clears the last result. Save alone stores the record as the
-  form has it. **Show advanced** exposes the record key, endpoint and tuning fields. Providers get
+  form has it. **Advanced options** exposes the record key, endpoint and tuning fields. Providers get
   editable service defaults; self-hosted indexers need their address entered.
 - **Adding an indexer.** Add indexer opens a sheet with four tabs, on Catalog. Every way of adding saves the indexer
   **on** (the API's own default stays `enabled: false` when the field is omitted; the UI always sends it), with a
@@ -1038,7 +1038,7 @@ Contrast, editors and the indexer pages. Profiles and presets are in the next se
     its own under its key (10 per 1m by default). Test search runs the candidate test (`POST /settings/indexers/test`)
     and, because a candidate needs its budget to exist, writes that budget first; Add reuses it. **Add** writes the
     budget (if new) and then the indexer with the form's **Enabled** (on) and Libraries. Credentials, Enabled and
-    Libraries appear first; **Show advanced** exposes the other settings.
+    Libraries appear first; **Advanced options** exposes the other settings.
   - *Torznab & built-in sources*: torznab/newznab, dmm, torrentio, zilean and seadex open the record editor in the
     same sheet with that kind chosen. The DMM card carries a **Paid key** badge: DMM gives its API key only to paying
     GitHub sponsors.
@@ -1089,8 +1089,9 @@ says which (`source`: `checkout` or `bundled`, with `commit`), and the quality o
 - Settings › Profiles lists each stored profile with its allowed qualities (the cutoff marked) and, under them,
   where its upgrades stop: "Upgrades until WEBDL-2160p and a score of 10,000" (`cutoff`, `cutoff_score` and
   `upgrades` of the quality overview's profile summary; the score whatever its sign; "No upgrades" with upgrades off).
-- Settings › Profiles lists every preset of both flavours under **TRaSH defaults**, with the stored copies of each.
-  **Use** (**Create a copy** when one exists) opens the profile editor on a copy under a free key.
+- Settings › Profiles lists the profiles libraries use first, then the unused ones. The presets of both flavours are
+  chosen in **New profile from TRaSH preset** only (the sheet says where they come from); the page lists no preset
+  catalogue of its own.
 - The library editor's profile picker has two groups: the stored profiles and the TRaSH defaults of the library's
   kind (movies: Radarr's, series: Sonarr's). Saving with a default picked first creates its profile, named after the
   library (or the next free key), then saves the library with it: two saves, and the profile stays if the second
