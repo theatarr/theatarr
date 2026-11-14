@@ -48,8 +48,8 @@ export function upcomingRelease(t: Pick<TitleRow, "kind" | "release_date" | "hom
 }
 
 /** The statuses of a movie announced or still being made: TMDb's Rumored, Planned, In Production, Post Production and
- *  the arrs' announced and tba (internal/web/library.go undatedMovieSQL). */
-const UNDATED_STATUS = new Set(["rumored", "planned", "in production", "post production", "announced", "tba"]);
+ *  the arrs' announced and tba, and none yet (just added, before its metadata) (internal/web/library.go undatedMovieSQL). */
+const UNDATED_STATUS = new Set(["", "rumored", "planned", "in production", "post production", "announced", "tba"]);
 
 /** A movie with no date of any kind that is announced or still being made: Upcoming, date unknown, not Missing (the
  *  server's rule for the status word, undatedMovieSQL). Without dates the metadata job calls a movie announced, as

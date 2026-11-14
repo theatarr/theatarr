@@ -168,10 +168,11 @@ func availStateSQL(c airClock) string {
 
 // undatedMovieSQL is true for a movie t without any date whose status (m, title_meta) says it is announced or still
 // being made: TMDb's Rumored, Planned, In Production and Post Production, and the arrs' announced and tba. It reads
-// Upcoming, date unknown, not Missing (web/src/lib/library.ts undatedUpcoming). Display only.
+// Upcoming, date unknown, not Missing (web/src/lib/library.ts undatedUpcoming). Display only. No status yet (a movie
+// just added, before its metadata arrives) counts as announced, as the metadata job would call it without dates.
 // No date of any kind is required: the metadata job derives "announced" from missing dates (art.go), as Radarr calls
 // a movie with no dates Announced, and such a movie is far more often not made yet than released without a date.
-const undatedMovieSQL = `(lower(COALESCE(m.status, '')) IN ('rumored', 'planned', 'in production', 'post production',
+const undatedMovieSQL = `(lower(COALESCE(m.status, '')) IN ('', 'rumored', 'planned', 'in production', 'post production',
 	'announced', 'tba') AND COALESCE(m.release_date, '') = '' AND NOT EXISTS (SELECT 1 FROM title_release_date d_u
 	WHERE d_u.title_id = t.id))`
 

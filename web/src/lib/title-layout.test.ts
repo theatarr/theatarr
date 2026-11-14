@@ -48,7 +48,7 @@ describe("the title's status for those who see files", () => {
     expect(titleStatus({ availability: "missing", kind: "movie" }, [])).toEqual({ label: "Missing", tone: "negative" });
     expect(titleStatus({ availability: "unmonitored", kind: "movie" }, [])).toEqual({ label: "Not monitored", tone: "neutral" });
     expect(titleStatus({ availability: "upcoming", kind: "movie", status: "In Production" }, [])).toEqual({ label: "Upcoming, date unknown", tone: "neutral" });
-    expect(titleStatus({ availability: "upcoming", kind: "movie" }, [])).toEqual({ label: "Upcoming", tone: "neutral" });
+    expect(titleStatus({ availability: "upcoming", kind: "movie", release_date: "2099-01-01" }, [])).toEqual({ label: "Upcoming", tone: "neutral" });
     // Only a title in no library is "Not in the library yet".
     expect(titleStatus({ availability: "none", kind: "movie" }, [])).toEqual({ label: "Not in the library yet", tone: "neutral" });
   });

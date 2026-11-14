@@ -337,6 +337,8 @@ func TestUserAvailabilityIsWatchability(t *testing.T) {
 	e.exec(`UPDATE version SET state = 'wanted' WHERE id = 4`)
 	e.exec(`INSERT INTO title (id, kind, name, year, tmdb_id, created_at, updated_at) VALUES
 		(5, 'movie', 'Epsilon', 2024, 505, ?, ?)`, now, now)
+	// Released (dated): with no date at all it would read Upcoming, date unknown.
+	e.exec(`INSERT INTO title_meta (title_id, release_date, status, attempted_at, refresh_after) VALUES (5, '2024-01-01', 'released', 0, 0)`)
 	e.exec(`INSERT INTO version (id, title_id, policy_key, state, created_at, updated_at) VALUES
 		(5, 5, 'movie-web', 'wanted', ?, ?)`, now, now)
 	uid := e.account("usr", auth.RoleUser, auth.StatusActive, true)

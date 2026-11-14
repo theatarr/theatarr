@@ -1062,16 +1062,18 @@ func TestStatusWords(t *testing.T) {
 		(922, 2201), (922, 2202)`)
 	// M Announced has no date at all and TMDb says Post Production: Upcoming, date unknown. M Undated has no date
 	// and no such status: Missing.
-	// M Dated Elsewhere is announced but has a (non-canonical) dated release: not undated, so Missing.
+	// M Dated Elsewhere is announced but has a (non-canonical) dated release: not undated, so Missing. M No Meta was
+	// just added: no metadata, no date: Upcoming, date unknown.
 	e.exec(`INSERT INTO title (id, kind, name, year, created_at, updated_at) VALUES (16, 'movie', 'M Announced', NULL, 0, 0),
-		(17, 'movie', 'M Undated', NULL, 0, 0), (18, 'movie', 'M Dated Elsewhere', NULL, 0, 0)`)
+		(17, 'movie', 'M Undated', NULL, 0, 0), (18, 'movie', 'M Dated Elsewhere', NULL, 0, 0), (19, 'movie', 'M No Meta', NULL, 0, 0)`)
 	e.exec(`INSERT INTO title_meta (title_id, release_date, status, attempted_at, refresh_after) VALUES
 		(16, '', 'Post Production', 0, 0), (17, '', 'Released', 0, 0), (18, '', 'announced', 0, 0)`)
 	e.exec(`INSERT INTO title_release_date (title_id, source, country, type, date) VALUES (18, 'tmdb', 'FR', 'theatrical', '2020-01-01')`)
 	e.exec(`INSERT INTO version (id, title_id, policy_key, state, monitored, created_at, updated_at) VALUES
-		(161, 16, 'movie-web', 'wanted', 1, 0, 0), (171, 17, 'movie-web', 'wanted', 1, 0, 0), (181, 18, 'movie-web', 'wanted', 1, 0, 0)`)
+		(161, 16, 'movie-web', 'wanted', 1, 0, 0), (171, 17, 'movie-web', 'wanted', 1, 0, 0), (181, 18, 'movie-web', 'wanted', 1, 0, 0),
+		(191, 19, 'movie-web', 'wanted', 1, 0, 0)`)
 	want := map[string]string{
-		"M Announced": "upcoming", "M Undated": "missing", "M Dated Elsewhere": "missing",
+		"M Announced": "upcoming", "M Undated": "missing", "M Dated Elsewhere": "missing", "M No Meta": "upcoming",
 		"M Partial": "partial", "M Off Gap": "available", "M Missing": "missing", "M Upcoming": "upcoming",
 		"M Digital": "upcoming", "M Unmonitored": "unmonitored", "S Full": "available", "S Gap": "partial",
 		"S Off Gap": "available", "S Not Aired": "upcoming", "S None": "none", "S Tonight": "upcoming",
