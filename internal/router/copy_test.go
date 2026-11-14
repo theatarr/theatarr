@@ -168,6 +168,24 @@ func TestCopyTorBox(t *testing.T) {
 	}
 }
 
+// A copy asked for without a title (a Torrents row) is recorded for the one title that holds the hash.
+func TestCopyEventFindsTitle(t *testing.T) {
+	t.Parallel()
+	e := newCopyEnv(t, provider.StateDownloaded, "tb")
+	e.pr["tb"].cache = map[string]bool{h("c"): true}
+	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, provider,
+		quality, score, state, created_at, updated_at) VALUES (7, 1, 10, 'movie', ?, 'x', 'pub', 'rd', 'WEBDL-2160p', 900,
+		'imported', 0, 0)`, h("c"))
+	if _, err := e.r.QueueCopies(e.ctx, CopyRequest{Hash: h("c"), Names: []string{"Movie.2024.2160p.WEB-GRP"}}); err != nil {
+		t.Fatal(err)
+	}
+	e.run()
+	if got := e.count(`SELECT COUNT(*) FROM provider_copy_event WHERE title_id = 1 AND quality = 'WEBDL-2160p'
+		AND score = 900`); got != 1 {
+		t.Fatalf("events with the title: %d", got)
+	}
+}
+
 // Real-Debrid with no evidence: a trial add. Complete: added. Not complete after the grace: our add is deleted,
 // not_cached, and the uncached add counts in pacing.
 func TestCopyRealDebridTrial(t *testing.T) {

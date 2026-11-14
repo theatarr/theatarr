@@ -209,7 +209,8 @@ func (l *Library) reconcileRoot(ctx context.Context, sc *LinkScan, titleIDs []in
 				return err
 			}
 			if err := l.record(ctx, tx, action{Kind: "dead", Mode: "applied", Version: sc.Version, LinkID: lk.LinkID,
-				Path: lk.Path, Target: lk.Target, Detail: "vanished: the symlink is no longer in the library"}); err != nil {
+				Path: lk.Path, Target: lk.Target, Detail: "vanished: the symlink is no longer in the library",
+				Rel: linkFacts(ctx, tx, lk.LinkID, lk.Path)}); err != nil {
 				return err
 			}
 		}

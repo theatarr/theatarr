@@ -496,9 +496,34 @@ func copyEvent(ctx context.Context, tx *sql.Tx, c *copyRow, state, msg string, a
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return err
 	}
+	// A copy asked for without a title (a Torrents row) belongs to the one title whose active link or download holds
+	// the hash, when there is exactly one.
 	var title any
 	if c.titleID > 0 {
 		title = c.titleID
+	} else {
+		var ids []int64
+		rows, err := tx.QueryContext(ctx, `SELECT l.title_id FROM link l JOIN content_file cf ON cf.id = l.content_file_id
+			JOIN content ct ON ct.id = cf.content_id WHERE ct.info_hash = ?1 AND l.state = 'active'
+			UNION SELECT d.title_id FROM download d WHERE d.info_hash = ?1`, c.hash)
+		if err != nil {
+			return err
+		}
+		for rows.Next() {
+			var id int64
+			if err := rows.Scan(&id); err != nil {
+				rows.Close()
+				return err
+			}
+			ids = append(ids, id)
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return err
+		}
+		if len(ids) == 1 {
+			title = ids[0]
+		}
 	}
 	_, err = tx.ExecContext(ctx, `INSERT INTO provider_copy_event (at, info_hash, name, title_id, provider, state,
 		message, quality, score) VALUES (?, ?, ?, ?, ?, ?, ?, NULLIF(?, ''), ?)`, at, c.hash, c.name, title, c.pk, state,

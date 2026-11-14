@@ -77,8 +77,6 @@ func (b *builder) build(h head) (*Entry, error) {
 		err = b.verdictEntry(e, rest)
 	case "act":
 		err = b.actionEntry(e, rest)
-	case KindCopy:
-		err = b.copyEntry(e, rest)
 	default:
 		return nil, nil
 	}

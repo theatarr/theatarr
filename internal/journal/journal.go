@@ -145,10 +145,6 @@ type Filter struct {
 	Limit int
 	// ScanLimit caps how many entries one page may build while looking for suspect ones: default 2000.
 	ScanLimit int
-	// History lists History's rows instead of the journal's (history.go), each with Entry.Hist; Events keeps these
-	// History events.
-	History bool
-	Events  []string
 }
 
 // Page is one page of entries, newest first.
@@ -167,7 +163,6 @@ type head struct {
 	titleID int64
 	version string
 	kind    string
-	event   string // History's event (Filter.History)
 }
 
 type cursor struct {
@@ -205,11 +200,6 @@ func (f *Filter) Validate() error {
 	if f.TitleKind != "" && f.TitleKind != "movie" && f.TitleKind != "series" && f.TitleKind != "anime" {
 		return fmt.Errorf("%w: title kind %q: want movie, series or anime", ErrBadFilter, f.TitleKind)
 	}
-	for _, ev := range f.Events {
-		if !slices.Contains(HistoryEvents, ev) {
-			return fmt.Errorf("%w: event %q: want one of %s", ErrBadFilter, ev, strings.Join(HistoryEvents, ", "))
-		}
-	}
 	if f.Severity != "" && SevRank(f.Severity) == 0 {
 		return fmt.Errorf("%w: severity %q: want info, warn or error", ErrBadFilter, f.Severity)
 	}
@@ -244,8 +234,10 @@ const failureRunSQL = `(` + router.FailureResearchSQL + `)`
 const runHeadSQL = `SELECT 'run:' || r.id AS id, r.created_at AS at, r.title_id, r.version_key,
 	CASE WHEN ` + failureRunSQL + ` THEN 'research' ELSE 'search' END AS kind FROM acquire_run r`
 
-// grabKindSQL is a download's kind: upgrade when the version already had a file of its episodes, else grab.
-const grabKindSQL = `CASE WHEN EXISTS (SELECT 1 FROM version_file vf WHERE vf.version_id = d.version_id
+// headParts are every source's entries as (id, at, title_id, version_key, kind), by id prefix.
+var headParts = []struct{ prefix, sql string }{
+	{"dl", `SELECT 'dl:' || d.id, d.created_at, d.title_id, d.version_key,
+	CASE WHEN EXISTS (SELECT 1 FROM version_file vf WHERE vf.version_id = d.version_id
 			AND COALESCE(vf.added_at, 0) < d.created_at
 			AND (d.episodes = '[]' OR EXISTS (SELECT 1 FROM version_file_episode vfe WHERE vfe.version_file_id = vf.id
 				AND vfe.episode_id IN (SELECT value FROM json_each(d.episodes)))))
@@ -253,11 +245,8 @@ const grabKindSQL = `CASE WHEN EXISTS (SELECT 1 FROM version_file vf WHERE vf.ve
 			AND p.state = 'imported' AND p.imported_at < d.created_at
 			AND (d.episodes = '[]' OR EXISTS (SELECT 1 FROM json_each(p.episodes) pe
 				WHERE pe.value IN (SELECT value FROM json_each(d.episodes)))))
-	THEN 'upgrade' ELSE 'grab' END`
-
-// headParts are every source's entries as (id, at, title_id, version_key, kind), by id prefix.
-var headParts = []struct{ prefix, sql string }{
-	{"dl", `SELECT 'dl:' || d.id, d.created_at, d.title_id, d.version_key, ` + grabKindSQL + ` FROM download d`},
+	THEN 'upgrade' ELSE 'grab' END
+FROM download d`},
 	{"dl", `SELECT 'dl:' || d.id || ':fail', d.updated_at, d.title_id, d.version_key,
 	CASE WHEN d.error LIKE 'stalled%' THEN 'stall' ELSE 'failure' END
 FROM download d WHERE d.state = 'failed'`},
@@ -300,11 +289,7 @@ func (j *Journal) heads(ctx context.Context, f Filter, titles []int64, cur *curs
 	if j.hasActions(ctx) {
 		q += actionHeadSQL
 	}
-	q = `SELECT id, at, title_id, version_key, kind, '' AS event FROM (` + q + `)`
-	if f.History {
-		q = historyHeadSQL
-	}
-	q = `SELECT id, at, title_id, version_key, kind, event FROM (` + q + `) WHERE 1 = 1`
+	q = `SELECT id, at, title_id, version_key, kind FROM (` + q + `) WHERE 1 = 1`
 	var args []any
 	if !f.Since.IsZero() {
 		q += ` AND at >= ?`
@@ -355,12 +340,6 @@ func (j *Journal) heads(ctx context.Context, f Filter, titles []int64, cur *curs
 			args = append(args, k)
 		}
 	}
-	if len(f.Events) > 0 {
-		q += ` AND event IN (` + store.Placeholders(len(f.Events)) + `)`
-		for _, ev := range f.Events {
-			args = append(args, ev)
-		}
-	}
 	if cur != nil {
 		q += ` AND (at < ? OR (at = ? AND id < ?))`
 		args = append(args, cur.at, cur.at, cur.id)
@@ -375,7 +354,7 @@ func (j *Journal) heads(ctx context.Context, f Filter, titles []int64, cur *curs
 	var out []head
 	for rows.Next() {
 		var h head
-		if err := rows.Scan(&h.id, &h.at, &h.titleID, &h.version, &h.kind, &h.event); err != nil {
+		if err := rows.Scan(&h.id, &h.at, &h.titleID, &h.version, &h.kind); err != nil {
 			return nil, err
 		}
 		out = append(out, h)
@@ -451,13 +430,6 @@ func (j *Journal) List(ctx context.Context, f Filter) (*Page, error) {
 			e, err := b.build(h)
 			if err != nil {
 				return nil, err
-			}
-			if e != nil && f.History {
-				if err := b.history(e, h); errors.Is(err, sql.ErrNoRows) {
-					e = nil
-				} else if err != nil {
-					return nil, fmt.Errorf("journal: %s: history: %w", h.id, err)
-				}
 			}
 			if e != nil && keep(e, f) {
 				page.Items = append(page.Items, e)

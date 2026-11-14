@@ -893,7 +893,7 @@ func (l *Library) markMissing(ctx context.Context, tx *sql.Tx, version string, d
 		return err
 	}
 	return l.record(ctx, tx, action{Kind: "dead", Mode: "applied", Version: version, LinkID: id, Path: dl.Path,
-		Target: dl.Target, Detail: dl.Cause + " " + dl.Hash})
+		Target: dl.Target, Detail: dl.Cause + " " + dl.Hash, Rel: linkFacts(ctx, tx, id, dl.Path)})
 }
 
 // queueDeadLinkSearch queues, in the dead mark's transaction, one search per version of a link marked dead: its

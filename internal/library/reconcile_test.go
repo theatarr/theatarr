@@ -135,6 +135,10 @@ func TestReconcileVanishedLinks(t *testing.T) {
 	if n := e.one(`SELECT COUNT(*) FROM library_action WHERE kind = 'dead' AND mode = 'applied'`); n != "1" {
 		t.Errorf("actions %s", n)
 	}
+	// History's File missing row names the file (00129): the link is unlinked, so nothing else would.
+	if got := e.one(`SELECT release_title FROM library_action WHERE kind = 'dead' AND mode = 'applied'`); got != movieRelease {
+		t.Errorf("dead action release %q", got)
+	}
 }
 
 func TestReconcileSkipsUnavailableRoots(t *testing.T) {
