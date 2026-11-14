@@ -14,6 +14,7 @@ import { journalHome, journalLink } from "@/lib/admin-links";
 import { fmtBytes, fmtDayYear, fmtNumber, fmtTime } from "@/lib/format";
 import { readableCode } from "@/lib/code-words";
 import { fileInventoryRows } from "@/lib/file-inventory";
+import { chosenReleaseRows } from "@/lib/release-dates";
 import { releaseTypeWords } from "@/lib/tmdb-words";
 
 function outside(d: TitleDetail): { label: string; url: string }[] {
@@ -114,13 +115,13 @@ function Files({ versions }: { versions: Version[] }) {
 
 type ReleaseDate = NonNullable<TitleDetail["release_dates"]>[number];
 
-/** The canonical dates (country empty: the theatrical, digital and physical dates the calendar and Home use) and
- *  "Show all" for every stored row, which runs to a hundred and more for a big film. With no canonical row every row
- *  shows. */
-function ReleaseDates({ rows }: { rows: ReleaseDate[] }) {
+/** The summary: the stored rows behind the release-date choice the calendar, Home and the lists use, one per type
+ *  (chosenReleaseRows), and "Show all" for every stored row, which runs to a hundred and more for a big film. With no
+ *  chosen date every row shows. */
+function ReleaseDates({ rows, chosen }: { rows: ReleaseDate[]; chosen: Pick<TitleDetail, "in_cinemas" | "digital_release" | "physical_release"> }) {
   const [all, setAll] = useState(false);
-  const canonical = rows.filter((r) => !r.country);
-  const shown = all || canonical.length === 0 ? rows : canonical;
+  const summary = chosenReleaseRows(rows, chosen);
+  const shown = all || summary.length === 0 ? rows : summary;
   if (rows.length === 0) return <Card><Empty>No release dates.</Empty></Card>;
   return (
     <Card className="p-0" data-testid="release-dates">
@@ -175,7 +176,7 @@ export function Details({ d }: { d: TitleDetail }) {
         <Card><KV items={ids} /></Card>
       </Section>
       <Section title="Release dates">
-        <ReleaseDates rows={d.release_dates ?? []} />
+        <ReleaseDates rows={d.release_dates ?? []} chosen={d} />
       </Section>
       <Section title="Files">
         <Files versions={versions} />

@@ -411,8 +411,8 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   to come, and **Latest file** ("see files" only: when the newest current file came; when the title was added is under Details, "Added
   to Theatarr"); **On disk** counts a file two libraries share once. About's Files inventory includes old-manager
   files (with their instance) and active native library links (with their size, no instance word), deduplicated by
-  path. Release dates show the canonical rows (country empty: the theatrical, digital and physical dates the calendar
-  and Home use) with **Show all (N)** for every stored row; type and source in words, the raw value as tooltip.
+  path. Release dates show the rows behind the release-date choice (one per type: the
+  theatrical, digital and physical dates the calendar, Home and the lists use) with **Show all (N)** for every stored row; type and source in words, the raw value as tooltip.
   Old `?tab=seasons|details` links open Episodes and About; `?tab=versions|copies` open the first tab.
 - **Minimum availability and series type.** A movie's Libraries table shows **Minimum availability** (a column, or
   the row's Details when the column is hidden), the value in

@@ -24,7 +24,7 @@ import { AnimeOrder } from "@/components/title/anime-order";
 import { Details, TitleJournal, outsideLinks } from "@/components/title/details";
 import { Seasons } from "@/components/title/seasons";
 import { LibraryRows } from "@/components/title/library-rows";
-import { TitleToolbar, inEveryLibrary } from "@/components/title/title-toolbar";
+import { TitleToolbar, inEveryLibrary, monitorOnly } from "@/components/title/title-toolbar";
 import { RequestMoreSeasons, TitleRequest, TitleRequestButton } from "@/components/title/title-request";
 import { SeriesTypeControl } from "@/components/title/title-choices";
 import { HistoryTab } from "@/components/activity/history-tab";
@@ -98,13 +98,6 @@ function usePrimaryAction({ target, has, held }: { target: Target; has: boolean;
   }
   if (perms.request) return (className) => <TitleRequestButton target={target} className={className} />;
   return null;
-}
-
-/** Every library that fits the title already has it, some not monitored: the add sheet can only monitor them again,
- *  so the hero says "Monitor again" rather than "Add to another library" (held: the libraries the title is in). */
-function monitorOnly(o: Parameters<typeof inEveryLibrary>[0], held: readonly string[]): boolean {
-  const fitting = (o?.versions ?? []).filter((v) => v.fits || v.on);
-  return fitting.length > 0 && fitting.every((v) => held.includes(v.key ?? ""));
 }
 
 function About({ d }: { d: TitleDetail }) {
