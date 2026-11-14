@@ -21,7 +21,7 @@ func TestReportTorrentLimit(t *testing.T) {
 		ad.list = append(ad.list, tor(string(rune('a'+i)), "", "Some.Movie.2001.1080p", 1, e.now, provider.StateDownloaded))
 	}
 	limits := func() map[string]ProviderReport {
-		r, err := e.m.Report(context.Background())
+		r, err := e.report(context.Background())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -32,14 +32,14 @@ func TestReportTorrentLimit(t *testing.T) {
 		return out
 	}
 	got := limits()
-	if p := got["ad"]; p.Count != 8 || p.Limit != 10 || p.NearLimit {
+	if p := got["ad"]; p.AccountTorrents != 8 || p.Limit != 10 || p.NearLimit {
 		t.Errorf("8 of 10: %+v", p)
 	}
 	if p := got["rd"]; p.Limit != 0 || p.NearLimit {
 		t.Errorf("rd has no limit: limit %d near %v", p.Limit, p.NearLimit)
 	}
 	ad.list = append(ad.list, tor("z", "", "Other.Movie.2002.1080p", 1, e.now, provider.StateDownloaded))
-	if p := limits()["ad"]; p.Count != 9 || !p.NearLimit {
+	if p := limits()["ad"]; p.AccountTorrents != 9 || !p.NearLimit {
 		t.Errorf("9 of 10 is 90%%: %+v", p)
 	}
 	e.pol.Providers["ad"].MagnetLimit = nil

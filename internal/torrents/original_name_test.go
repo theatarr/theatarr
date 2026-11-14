@@ -160,7 +160,7 @@ func TestReportTorBoxOriginalName(t *testing.T) {
 	e.tb.list = append(e.tb.list, provider.Torrent{ID: "91", Hash: hH, Name: "Movie T 2011", Bytes: 10,
 		Added: e.now.Add(-72 * time.Hour), State: provider.StateDownloaded,
 		Files: []provider.File{{Path: "Movie.X.2013.1080p.WEB-DL/X.mkv", Bytes: 10, Selected: true}}})
-	r, err := e.m.Report(context.Background())
+	r, err := e.report(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -2,6 +2,7 @@ package torrents
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"io"
 	"log/slog"
@@ -39,6 +40,7 @@ type fakeProvider struct {
 	detail    map[string]*provider.Torrent
 	detailErr error
 	reads     int
+	lists     int    // list calls
 	onDetail  func() // runs on each detail read
 }
 
@@ -49,6 +51,7 @@ func (f *fakeProvider) Account(context.Context) (*provider.Account, error) {
 }
 
 func (f *fakeProvider) Torrents(context.Context) ([]provider.Torrent, error) {
+	f.lists++
 	if f.listErr != nil {
 		return nil, f.listErr
 	}
@@ -209,6 +212,30 @@ func (e *env) content(hash string, files int) int64 {
 	return id
 }
 
+// record writes what each provider's fake lists now into the record (as a successful provider sync does; a provider
+// whose list fails keeps its record), so a report shows it.
+func (e *env) record() {
+	e.t.Helper()
+	ctx := context.Background()
+	for k, p := range e.m.Providers {
+		list, err := p.Torrents(ctx)
+		if err != nil {
+			continue
+		}
+		if err := e.st.WriteTx(ctx, func(tx *sql.Tx) error {
+			return provider.WriteRecord(ctx, tx, k, list, store.Millis(e.now))
+		}); err != nil {
+			e.t.Fatal(err)
+		}
+	}
+}
+
+// report is the report after recording the fakes' lists (record).
+func (e *env) report(ctx context.Context) (*Report, error) {
+	e.record()
+	return e.m.Report(ctx)
+}
+
 func (e *env) synced(prov string) {
 	e.exec(`INSERT INTO provider_sync_run (provider, started_at, finished_at, ok) VALUES (?, 0, 0, 1)`, prov)
 }
@@ -281,7 +308,7 @@ func usageFixture(t *testing.T) (*env, string) {
 func TestUsage(t *testing.T) {
 	t.Parallel()
 	e, _ := usageFixture(t)
-	r, err := e.m.Report(context.Background())
+	r, err := e.report(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -349,7 +376,7 @@ func TestReportTitlesBeforeCut(t *testing.T) {
 		e.exec(`INSERT INTO link (path, target, content_file_id, title_id, created_at, updated_at)
 			VALUES (?, '/elsewhere/x.mkv', ?, ?, 0, 0)`, "/lib/"+string(rune('a'+i))+".mkv", file, title)
 	}
-	r, err := e.m.Report(context.Background())
+	r, err := e.report(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -367,7 +394,7 @@ func TestUsageUnreadableScanRoot(t *testing.T) {
 	t.Parallel()
 	e, _ := usageFixture(t)
 	e.pol.Torrents.ScanRoots = append(e.pol.Torrents.ScanRoots, filepath.Join(t.TempDir(), "missing"))
-	r, err := e.m.Report(context.Background())
+	r, err := e.report(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -386,7 +413,7 @@ func TestUsageScanRootInMount(t *testing.T) {
 	t.Parallel()
 	e, _ := usageFixture(t)
 	e.pol.Torrents.ScanRoots = []string{mountPath + "/__all__"}
-	r, err := e.m.Report(context.Background())
+	r, err := e.report(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -414,7 +441,7 @@ func TestReportGroups(t *testing.T) {
 	for _, h := range []string{hA, hB, hC, hD, hE} {
 		e.content(h, 1)
 	}
-	r, err := e.m.Report(context.Background())
+	r, err := e.report(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -659,6 +686,10 @@ func TestDelete(t *testing.T) {
 		{Provider: "rd", ID: "99", Hash: hB},                 // gone: refused
 		{Provider: "tb", ID: "90", Hash: hF, Override: true}, // unknown with a wrong override: refused
 	}
+	// The record holds rd 99 too: a delete lists the provider again, the record is not its authority.
+	e.record()
+	e.exec(`INSERT INTO provider_torrent (provider, torrent_id, info_hash, name) VALUES ('rd', '99', ?, 'Gone')`, hB)
+	e.rd.lists = 0
 	plan, err := e.m.PlanDelete(ctx, sel)
 	if err != nil {
 		t.Fatal(err)
@@ -703,6 +734,15 @@ func TestDelete(t *testing.T) {
 	}
 	if deletes != 1 {
 		t.Errorf("one delete journaled: %+v", j)
+	}
+	if e.rd.lists == 0 || plan.Items[4].Refusal != "no longer on the provider" {
+		t.Errorf("the delete listed rd (%d lists) and refused 99 the record still holds: %+v", e.rd.lists, plan.Items[4])
+	}
+	var left string
+	if err := e.st.Reader().QueryRow(`SELECT group_concat(torrent_id, ' ') FROM (SELECT torrent_id FROM provider_torrent
+		WHERE provider = 'rd' ORDER BY torrent_id)`).Scan(&left); err != nil || strings.Contains(" "+left+" ", " 6 ") ||
+		!strings.Contains(left, "1") {
+		t.Errorf("the deleted torrent left the record, the refused ones stay: %q %v", left, err)
 	}
 }
 

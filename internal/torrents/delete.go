@@ -77,7 +77,7 @@ type DeletePlan struct {
 	Refused int          `json:"refused"`
 	Digest  string       `json:"digest"`
 	Token   string       `json:"confirmation_token"`
-	// Warning is said with every delete: other apps on the account may use these torrents.
+	// Warning is said with every delete: the backup taken first.
 	Warning string `json:"warning"`
 	// BackupID is set by Delete: the backup taken before it.
 	BackupID string `json:"backup_id,omitempty"`
@@ -88,9 +88,8 @@ type DeletePlan struct {
 }
 
 // DeleteWarning is the plan's warning.
-const DeleteWarning = "Debrid accounts are shared: another app or person using the same account may rely on a " +
-	"torrent Theatarr sees as unused. A full backup of every provider is taken first; a deleted torrent can be " +
-	"re-added from it while the provider still holds the content."
+const DeleteWarning = "A full backup of every provider is taken first; a deleted torrent can be re-added from it " +
+	"while the provider still holds the content."
 
 // ErrTooMany: more selections than MaxDelete.
 var ErrTooMany = fmt.Errorf("torrents: at most %d torrents per delete", MaxDelete)
@@ -325,6 +324,7 @@ func (m *Manager) Delete(ctx context.Context, sel []DeleteSelection, token, by s
 		default:
 			it.Outcome = "deleted"
 			plan.Deleted++
+			m.forget(ctx, it.Provider, it.ID)
 		}
 		m.journal(ctx, JournalEntry{Action: "delete", Provider: it.Provider, TorrentID: it.ID, Hash: it.Hash,
 			Name: it.Name, Bytes: it.Bytes, BackupID: b.ID, Outcome: it.Outcome, Detail: deleteDetail(it), By: by})

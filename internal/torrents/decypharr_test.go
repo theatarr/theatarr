@@ -68,7 +68,7 @@ func TestUsageDecypharr(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	e, srv := decypharrFixture(t)
-	r, err := e.m.Report(ctx)
+	r, err := e.report(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -113,7 +113,7 @@ func TestUsageDecypharr(t *testing.T) {
 	if why, err := e.m.usageChanged(ctx, plan, &plan.Items[0], newScanIndex()); err != nil || !strings.Contains(why, "unknown") {
 		t.Errorf("index unknown at the delete: %q, %v", why, err)
 	}
-	r, err = e.m.Report(ctx)
+	r, err = e.report(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -129,7 +129,7 @@ func TestUsageDecypharr(t *testing.T) {
 
 	// Without a client (a command without a gateway) nothing is known either.
 	e.m.Decypharr = nil
-	if r, err = e.m.Report(ctx); err != nil {
+	if r, err = e.report(ctx); err != nil {
 		t.Fatal(err)
 	}
 	if got := find(r, "rd", "6"); got.Usage != Unknown {

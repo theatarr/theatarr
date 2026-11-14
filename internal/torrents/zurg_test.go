@@ -103,7 +103,7 @@ func TestUsageZurgName(t *testing.T) {
 	t.Parallel()
 	e, z := zurgFixture(t)
 	ctx := context.Background()
-	r, err := e.m.Report(ctx)
+	r, err := e.report(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -140,7 +140,7 @@ func TestUsageZurgAdditiveOnly(t *testing.T) {
 	e, z := zurgFixture(t)
 	zc := e.m.Zurg
 	e.m.Zurg = nil
-	base, err := e.m.Report(ctx)
+	base, err := e.report(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -149,7 +149,7 @@ func TestUsageZurgAdditiveOnly(t *testing.T) {
 	}
 	e.m.Zurg = zc
 	z.fail.Store(true)
-	failed, err := e.m.Report(ctx)
+	failed, err := e.report(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -159,7 +159,7 @@ func TestUsageZurgAdditiveOnly(t *testing.T) {
 
 	e2, z2 := zurgFixture(t)
 	e2.pol.Torrents = nil
-	if _, err := e2.m.Report(ctx); err != nil {
+	if _, err := e2.report(ctx); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := e2.m.PlanDelete(ctx, []DeleteSelection{{Provider: "rd", ID: "6", Hash: hF}}); err != nil {
@@ -238,7 +238,7 @@ func TestUsageZurgLeavesUnknown(t *testing.T) {
 	t.Parallel()
 	e, _ := zurgFixture(t)
 	e.exec(`DELETE FROM provider_sync_run WHERE provider = 'tb'`)
-	r, err := e.m.Report(context.Background())
+	r, err := e.report(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}

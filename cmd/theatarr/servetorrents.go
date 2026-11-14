@@ -36,6 +36,7 @@ type serveTorrents struct {
 func (s *serveTorrents) Manager(ctx context.Context) (*torrents.Manager, error) {
 	pol, gw := s.pol, s.gw
 	var provs = s.ps.syncer.Providers
+	syncer := s.ps.syncer
 	var keys map[string]string
 	lib := s.lib
 	if s.manager != nil {
@@ -51,6 +52,7 @@ func (s *serveTorrents) Manager(ctx context.Context) (*torrents.Manager, error) 
 			return nil, errors.New("torrents: the active settings runtime is unavailable")
 		}
 		pol, gw, provs, keys = active.Policy, active.Gateway, active.Providers.syncer.Providers, active.ProviderKeys
+		syncer = active.Providers.syncer
 		lib = active.Library
 	} else {
 		keys = map[string]string{}
@@ -60,7 +62,7 @@ func (s *serveTorrents) Manager(ctx context.Context) (*torrents.Manager, error) 
 	}
 	adders, _ := router.BuildAddersWithKeys(pol, gw, keys, s.log)
 	m := &torrents.Manager{Store: s.st, Policy: pol, Providers: provs, Adders: adders, Dir: s.dir, Queue: s.q,
-		Log: s.log, AddLock: s.addLock}
+		Log: s.log, AddLock: s.addLock, Syncer: syncer}
 	if lib != nil && lib.lib != nil {
 		// The library's own decypharr client (library.mount.decypharr), so its index is read once for both.
 		m.Decypharr = lib.lib.Decypharr()

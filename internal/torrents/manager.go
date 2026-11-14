@@ -48,6 +48,8 @@ type Manager struct {
 	// between a route's look at the account and its own add, and a delete's per-item usage checks and its deletes
 	// run under it (local reference writers are kept out by reffence). nil (the CLI) relies on the journal row alone.
 	AddLock sync.Locker
+	// Syncer is the provider sync of this settings generation: Refresh runs it. nil (the CLI): no Refresh.
+	Syncer *provider.Syncer
 }
 
 // opMu keeps restores and deletes from running at the same time in this process: each reads a provider's list and

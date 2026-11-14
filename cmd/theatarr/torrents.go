@@ -112,7 +112,8 @@ func printJSON(v any) error {
 
 func runTorrentsReport(args []string) error {
 	f := newTorrentFlags("report", "report [flags]",
-		"Lists every configured provider's torrents (GET only) with what uses them: used (a library link, an arr\n"+
+		"Lists every configured provider's torrents from the record (the provider sync's last complete listing; no\n"+
+			"provider is called) with what uses them: used (a library link, an arr\n"+
 			"file, a download, a symlink under torrents.scan_roots), unused, or unknown. Groups: unused, duplicate\n"+
 			"hash, duplicate title, failed, stalled, largest. Writes nothing; works with the router off.", true, false)
 	group := f.fs.String("group", "", "print only this group: unused, failed, stalled, largest")
@@ -145,13 +146,14 @@ func writeTorrentReport(w io.Writer, r *torrents.Report, group string) {
 		}
 	}
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "provider\tok\ttorrents\tsize\tused\tunused\tunused size\tunknown\t")
+	fmt.Fprintln(tw, "provider\tas of\ttorrents\thashes\tsize\tused\tunused\tunused size\tunknown\t")
 	for _, p := range r.Providers {
-		ok := "yes"
-		if !p.OK {
-			ok = "NO"
+		asOf := "never read"
+		if p.AsOf != nil {
+			asOf = p.AsOf.Local().Format("2006-01-02 15:04")
 		}
-		fmt.Fprintf(tw, "%s\t%s\t%d\t%s\t%d\t%d\t%s\t%d\t\n", p.Provider, ok, p.Count, humanBytes(p.Bytes),
+		fmt.Fprintf(tw, "%s\t%s\t%d\t%d\t%s\t%d\t%d\t%s\t%d\t\n", p.Provider, asOf, p.AccountTorrents,
+			p.UniqueHashes, humanBytes(p.Bytes),
 			p.Usage.Used, p.Usage.Unused, humanBytes(p.Usage.UnusedBytes), p.Usage.Unknown)
 	}
 	tw.Flush()
@@ -161,7 +163,7 @@ func writeTorrentReport(w io.Writer, r *torrents.Report, group string) {
 		}
 		if p.NearLimit {
 			fmt.Fprintf(w, "%s: %d of its %d torrent limit (magnet_limit); nothing is removed automatically\n",
-				p.Provider, p.Count, p.Limit)
+				p.Provider, p.AccountTorrents, p.Limit)
 		}
 	}
 	for _, u := range r.Unknown {

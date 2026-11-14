@@ -36,10 +36,13 @@ const largestN = 25
 
 // Torrent is one provider torrent in the report.
 type Torrent struct {
-	Provider string         `json:"provider"`
-	ID       string         `json:"id"`
-	Hash     string         `json:"hash"`
+	Provider string `json:"provider"`
+	ID       string `json:"id"`
+	Hash     string `json:"hash"`
+	// Name is the provider's name for display (DisplayName: a URL-encoded name decoded); RawName is the provider's
+	// own name when it differs.
 	Name     string         `json:"name"`
+	RawName  string         `json:"raw_name,omitempty"`
 	Bytes    int64          `json:"bytes"`
 	Added    time.Time      `json:"added,omitzero"`
 	Status   string         `json:"status"`
@@ -47,7 +50,7 @@ type Torrent struct {
 	Progress float64        `json:"progress"`
 	// Files is the number of files (selected ones on Real-Debrid), -1 when neither the list nor the registry says.
 	Files int `json:"files"`
-	// LinkedFiles counts the library links and scanned symlinks that point into it.
+	// LinkedFiles counts the links into it: library links and scanned symlinks.
 	LinkedFiles int   `json:"linked_files"`
 	Usage       Usage `json:"usage"`
 	// Reasons say why the usage is unknown.
@@ -83,15 +86,24 @@ type Group struct {
 	Members []Member `json:"members"`
 }
 
-// ProviderReport is one account's torrents.
+// ProviderReport is one account's torrents, from the record.
 type ProviderReport struct {
-	Provider string    `json:"provider"`
-	Kind     string    `json:"kind"`
-	OK       bool      `json:"ok"`
-	Error    string    `json:"error,omitempty"`
-	Count    int       `json:"count"`
-	Bytes    int64     `json:"bytes"`
-	Usage    UsageSums `json:"usage"`
+	Provider string `json:"provider"`
+	Kind     string `json:"kind"`
+	// OK: the record holds a complete listing of the account, ended at AsOf. NeverRead: it holds none yet (not the
+	// same as an empty account).
+	OK        bool       `json:"ok"`
+	AsOf      *time.Time `json:"as_of,omitempty"`
+	NeverRead bool       `json:"never_read,omitempty"`
+	// Error is why the account could not be read: the newest sync's error when it failed after AsOf (at ErrorAt), or
+	// that its key is not set. The record before it is still reported.
+	Error   string     `json:"error,omitempty"`
+	ErrorAt *time.Time `json:"error_at,omitempty"`
+	// AccountTorrents counts the account's torrents (two of one hash are two); UniqueHashes the distinct hashes.
+	AccountTorrents int       `json:"account_torrents"`
+	UniqueHashes    int       `json:"unique_hashes"`
+	Bytes           int64     `json:"bytes"`
+	Usage           UsageSums `json:"usage"`
 	// Limit is how many torrents the account may hold (AllDebrid's magnet_limit; 0: none known). NearLimit is set
 	// from policy.TorrentLimitWarnPercent of it. Only reported.
 	Limit     int       `json:"limit,omitempty"`
@@ -99,7 +111,7 @@ type ProviderReport struct {
 	Torrents  []Torrent `json:"torrents"`
 }
 
-// UsageSums counts torrents and bytes per usage.
+// UsageSums counts account torrents and their bytes per usage.
 type UsageSums struct {
 	Used         int   `json:"used"`
 	Unused       int   `json:"unused"`
@@ -120,38 +132,53 @@ type Report struct {
 	Failed         []Member `json:"failed"`
 	Stalled        []Member `json:"stalled"`
 	Largest        []Member `json:"largest"`
+	// RefreshError is set by a Refresh that did not complete for every provider (each provider's own error is in
+	// its Error).
+	RefreshError string `json:"refresh_error,omitempty"`
 }
 
-// Report lists every configured provider (only) and decides each torrent's usage. A provider whose list fails is in
-// the report with its error. Read-only.
+// Report is every configured provider's torrents from the record (no provider is called), with each torrent's usage
+// decided now from the reference index, and the groups. A provider never listed completely is NeverRead; one whose
+// newest sync failed keeps its record and carries the error. Read-only.
 func (m *Manager) Report(ctx context.Context) (*Report, error) {
 	ix, err := m.loadRefs(ctx)
 	if err != nil {
 		return nil, err
 	}
-	lists := map[string][]provider.Torrent{}
-	errs := map[string]error{}
-	for _, k := range m.keys() {
-		lists[k], errs[k] = m.list(ctx, k)
+	rec, err := m.readRecord(ctx)
+	if err != nil {
+		return nil, err
 	}
-	return m.build(ix, lists, errs), nil
+	return m.build(ix, rec, true), nil
 }
 
-func (m *Manager) build(ix *refIndex, lists map[string][]provider.Torrent, errs map[string]error) *Report {
+// build is the report of the record; full parses the names and fills the groups (the Torrents page), without it
+// only the usage is decided (RecordUsage).
+func (m *Manager) build(ix *refIndex, rec map[string]*recorded, full bool) *Report {
 	now := m.now()
 	r := &Report{GeneratedAt: now, Unknown: ix.unknown, Unused: []Member{}, DuplicateHash: []Group{},
 		DuplicateTitle: []Group{}, Failed: []Member{}, Stalled: []Member{}, Largest: []Member{}}
 	for _, k := range m.keys() {
 		pr := ProviderReport{Provider: k, Kind: m.kind(k), Torrents: []Torrent{}}
-		if err := errs[k]; err != nil {
-			pr.Error = err.Error()
+		rc := rec[k]
+		if rc == nil {
+			rc = &recorded{}
+		}
+		if rc.failed != "" {
+			pr.Error, pr.ErrorAt = rc.failed, &rc.failedAt
+		}
+		if m.Providers[k] == nil {
+			pr.Error, pr.ErrorAt = fmt.Errorf("%s: %w", k, ErrNoClient).Error(), nil
+		}
+		if !rc.read {
+			pr.NeverRead = true
 			r.Providers = append(r.Providers, pr)
 			continue
 		}
-		pr.OK = true
-		for _, lt := range lists[k] {
-			t := ix.torrent(k, lt, now)
-			pr.Count++
+		pr.OK, pr.AsOf = true, &rc.at
+		for _, lt := range rc.list {
+			t := ix.torrent(k, lt.Torrent, lt.files, now, full)
+			pr.AccountTorrents++
 			pr.Bytes += t.Bytes
 			switch t.Usage {
 			case Used:
@@ -166,36 +193,38 @@ func (m *Manager) build(ix *refIndex, lists map[string][]provider.Torrent, errs 
 			pr.Torrents = append(pr.Torrents, t)
 		}
 		sort.SliceStable(pr.Torrents, func(i, j int) bool { return pr.Torrents[i].Bytes > pr.Torrents[j].Bytes })
+		pr.UniqueHashes = uniqueHashes(pr.Torrents)
 		pr.Limit = m.Policy.Providers[k].TorrentLimit()
-		pr.NearLimit = policy.NearTorrentLimit(pr.Count, pr.Limit)
+		pr.NearLimit = policy.NearTorrentLimit(pr.AccountTorrents, pr.Limit)
 		r.Providers = append(r.Providers, pr)
 	}
-	r.group()
+	if full {
+		r.group()
+	}
 	return r
 }
 
-// torrent is lt with its usage and parsed title.
-func (ix *refIndex) torrent(key string, lt provider.Torrent, now time.Time) Torrent {
+// torrent is lt (with files, its selected file count from the listing, -1 when it had none) with its usage and,
+// with parse, its parsed title (from its display name).
+func (ix *refIndex) torrent(key string, lt provider.Torrent, files int, now time.Time, parse bool) Torrent {
 	h := indexer.NormalizeHash(lt.Hash)
 	if h == "" {
 		h = strings.ToLower(lt.Hash)
 	}
-	t := Torrent{Provider: key, ID: lt.ID, Hash: h, Name: lt.Name, Bytes: lt.Bytes, Added: lt.Added,
-		Status: lt.Status, State: lt.State, Progress: lt.Progress, Files: -1,
+	t := Torrent{Provider: key, ID: lt.ID, Hash: h, Name: DisplayName(lt.Name), Bytes: lt.Bytes, Added: lt.Added,
+		Status: lt.Status, State: lt.State, Progress: lt.Progress, Files: files,
 		AddedByTheatarr: ix.added[key+"\x00"+lt.ID]}
-	if lt.Files != nil {
-		t.Files = 0
-		for _, f := range lt.Files {
-			if f.Selected {
-				t.Files++
-			}
-		}
-	} else if n, ok := ix.files[h]; ok {
+	if t.Name != lt.Name {
+		t.RawName = lt.Name
+	}
+	if n, ok := ix.files[h]; files < 0 && ok {
 		t.Files = n
 	}
 	t.Usage, t.Refs, t.RefList, t.Reasons, t.Titles = ix.usage(key, lt)
 	t.LinkedFiles = t.Refs[RefLink] + t.Refs[RefScan]
-	t.titleKey, t.Parsed, t.Quality = parseName(lt.Name, now.Year())
+	if parse {
+		t.titleKey, t.Parsed, t.Quality = parseName(t.Name, now.Year())
+	}
 	if t.Usage == Unused {
 		t.Groups = append(t.Groups, GroupUnused)
 	}
