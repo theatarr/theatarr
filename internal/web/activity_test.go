@@ -703,3 +703,19 @@ func TestActivityNotStartedDownload(t *testing.T) {
 		t.Errorf("real failure history: %q, %q", words, tone)
 	}
 }
+
+func TestBlockWords(t *testing.T) {
+	for source, want := range map[string]string{
+		"library":            "Failed the library check (sample or runtime)",
+		"provider":           "Refused by the provider",
+		"ready_timeout":      "Never appeared on the mount",
+		"arr:radarr_4k_zurg": "Imported from Radarr's blocklist",
+		"arr:sonarr_4k_zurg": "Imported from Sonarr's blocklist",
+		"arr:lidarr":         "Imported from a Sonarr/Radarr blocklist",
+		"something_new":      "Blocked",
+	} {
+		if got := blockWords(source); got != want {
+			t.Errorf("blockWords(%q) = %q, want %q", source, got, want)
+		}
+	}
+}

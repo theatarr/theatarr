@@ -452,7 +452,7 @@ func Dangling(st *store.Store) Func {
 		if repairing.Bool {
 			msg += "; zurg was repairing"
 		}
-		return Result{Type: Notice, Detail: detail, Message: msg + " (listed on System › Status; or theatarr library dangling)"}
+		return Result{Type: Notice, Detail: detail, Message: msg}
 	}
 }
 
@@ -621,7 +621,8 @@ func Providers(st *store.Store, o ProviderOptions) Func {
 			switch {
 			case ok == 0:
 				d["error"] = short(errText)
-				bad = append(bad, p+": "+short(errText))
+				// The sync's error often names the provider already ("rd: Get …"): say it once.
+				bad = append(bad, p+": "+strings.TrimPrefix(short(errText), p+": "))
 			case now.Sub(store.NullMillis(lastOK)) > 3*o.Interval:
 				bad = append(bad, p+": no complete sync in "+age(now.Sub(store.NullMillis(lastOK))))
 			}
@@ -807,15 +808,15 @@ func Accounts(accounts func(ctx context.Context) map[string]AccountSource, o Acc
 			case r.err != nil:
 				t, line = Warning, k+": account not readable ("+short(r.err.Error())+")"
 			case !a.Expires.IsZero() && !a.Expires.After(now):
-				t, line = Error, k+": premium ended "+a.Expires.UTC().Format(time.DateOnly)
+				t, line = Error, k+": premium ended "+day(a.Expires, now)
 			case !a.Premium:
 				t, line = Error, k+": not premium"
 			case !a.Expires.IsZero() && a.Expires.Sub(now) < AccountWarnWithin:
-				t, line = Warning, k+": premium ends "+a.Expires.UTC().Format(time.DateOnly)+" (in "+age(a.Expires.Sub(now))+")"
+				t, line = Warning, k+": premium ends "+day(a.Expires, now)+" (in "+age(a.Expires.Sub(now))+")"
 			case a.Expires.IsZero():
 				line = k + ": premium"
 			default:
-				line = k + ": premium until " + a.Expires.UTC().Format(time.DateOnly)
+				line = k + ": premium until " + day(a.Expires, now)
 			}
 			if r.err != nil {
 				d["error"] = short(r.err.Error())
@@ -971,4 +972,12 @@ func bytesText(n uint64) string {
 		return fmt.Sprintf("%.1f GiB", float64(n)/gib)
 	}
 	return fmt.Sprintf("%d MiB", n>>20)
+}
+
+// day is a date as the UI writes it: "Nov 17" this year, "Jan 24, 2027" otherwise (UTC).
+func day(t, now time.Time) string {
+	if t.UTC().Year() == now.UTC().Year() {
+		return t.UTC().Format("Jan 2")
+	}
+	return t.UTC().Format("Jan 2, 2006")
 }

@@ -763,6 +763,20 @@ func blockWords(source string) string {
 		return "Removed in Activity with blocklist"
 	case "journal":
 		return "Judged wrong in the journal"
+	case "provider":
+		return "Refused by the provider"
+	case "ready_timeout":
+		return "Never appeared on the mount"
+	}
+	// Taken over from a Sonarr or Radarr instance's blocklist: arr:<instance key>.
+	if inst, ok := strings.CutPrefix(source, "arr:"); ok {
+		switch {
+		case strings.Contains(inst, "sonarr"):
+			return "Imported from Sonarr's blocklist"
+		case strings.Contains(inst, "radarr"):
+			return "Imported from Radarr's blocklist"
+		}
+		return "Imported from a Sonarr/Radarr blocklist"
 	}
 	return "Blocked"
 }

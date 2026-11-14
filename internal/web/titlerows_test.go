@@ -554,3 +554,16 @@ func TestMoviePartlyAvailable(t *testing.T) {
 	e.exec(`INSERT INTO arrview_removed_version (version_id, view, removed_at) VALUES (2, 'web', 0)`)
 	check("removed", "upgrade")
 }
+
+// Titles with the same sort name order by their full name: "Alien" before "Alien³" whatever their ids.
+func TestNameSortTieBreak(t *testing.T) {
+	t.Parallel()
+	e := newManageEnv(t, nil)
+	e.exec(`INSERT INTO title (id, kind, name, sort_name, year, created_at, updated_at) VALUES
+		(5, 'movie', 'Alien³', 'alien', 1992, 0, 0), (6, 'movie', 'Alien', 'alien', 1979, 0, 0)`)
+	var p TitlePage
+	e.call("GET", APIBase+"/titles?kind=movie&sort=name&order=asc", nil, 200, &p)
+	if got := names(p); !strings.Contains(got, "Alien,Alien³") {
+		t.Errorf("name order: %s", got)
+	}
+}

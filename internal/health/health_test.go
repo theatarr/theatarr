@@ -263,7 +263,7 @@ func TestProviders(t *testing.T) {
 	at := store.Millis(t0.Add(-10 * time.Minute))
 	exec(t, st, `INSERT INTO provider_sync_run (provider, started_at, finished_at, ok, error) VALUES
 		('rd', ?, ?, 1, NULL), ('tb', ?, ?, 0, 'tb: 401 unauthorized')`, at, at, at, at)
-	if r := f(ctx); r.Type != Warning || !strings.Contains(r.Message, "tb: tb: 401") {
+	if r := f(ctx); r.Type != Warning || !strings.Contains(r.Message, "tb: 401") || strings.Contains(r.Message, "tb: tb:") {
 		t.Errorf("one failing: %+v", r)
 	}
 	old := store.Millis(t0.Add(-5 * time.Hour))
@@ -484,10 +484,10 @@ func TestAccounts(t *testing.T) {
 		msg  string
 	}{
 		{"none", nil, OK, "No debrid provider keys set; no account to read"},
-		{"far", map[string]AccountReader{"rd": far, "tb": lifetime}, OK, "Debrid accounts: rd: premium until 2027-01-24; tb: premium"},
+		{"far", map[string]AccountReader{"rd": far, "tb": lifetime}, OK, "Debrid accounts: rd: premium until Jan 24, 2027; tb: premium"},
 		{"soon", map[string]AccountReader{"rd": far, "tb": soon}, Warning,
-			"Debrid account needs attention: tb: premium ends 2026-11-01 (in 6d)"},
-		{"expired", map[string]AccountReader{"ad": expired}, Error, "Debrid account needs attention: ad: premium ended 2026-10-25"},
+			"Debrid account needs attention: tb: premium ends Nov 1 (in 6d)"},
+		{"expired", map[string]AccountReader{"ad": expired}, Error, "Debrid account needs attention: ad: premium ended Oct 25"},
 		{"free", map[string]AccountReader{"ad": free}, Error, "Debrid account needs attention: ad: not premium"},
 		{"refused", map[string]AccountReader{"rd": refused, "tb": far}, Error,
 			"Debrid account needs attention: rd: key refused (realdebrid: provider: authentication refused). Check the key in " + uipages.Providers},
@@ -496,7 +496,7 @@ func TestAccounts(t *testing.T) {
 		{"hung", map[string]AccountReader{"tb": hung}, Warning,
 			"Debrid account needs attention: tb: account not readable (context deadline exceeded)"},
 		{"worst", map[string]AccountReader{"ad": free, "tb": soon}, Error,
-			"Debrid account needs attention: ad: not premium; tb: premium ends 2026-11-01 (in 6d)"},
+			"Debrid account needs attention: ad: not premium; tb: premium ends Nov 1 (in 6d)"},
 	} {
 		r := run(tc.m)
 		if r.Type != tc.typ || r.Message != tc.msg {
@@ -543,7 +543,7 @@ func TestAccountsCache(t *testing.T) {
 	}
 	// Four hours on, the cached expiry is inside the window: a warning without a new read.
 	now = t0.Add(4 * time.Hour)
-	if r := f(ctx); r.Type != Warning || !strings.Contains(r.Message, "rd: premium ends 2026-11-02 (in 6d)") || acct.reads.Load() != 1 {
+	if r := f(ctx); r.Type != Warning || !strings.Contains(r.Message, "rd: premium ends Nov 2 (in 6d)") || acct.reads.Load() != 1 {
 		t.Fatalf("window: %+v, reads %d", r, acct.reads.Load())
 	}
 	// After the interval the account is read again.

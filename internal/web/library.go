@@ -329,10 +329,11 @@ func (g TitleGridFilter) orderBy() (string, []any) {
 		dir = "ASC"
 	}
 	if expr == "" {
-		return " ORDER BY " + nameExpr + " " + dir + ", t.id", nil
+		// Equal sort names ("Alien" and "Alien³" both sort as "alien") fall back to the full name, then the year.
+		return " ORDER BY " + nameExpr + " " + dir + ", lower(t.name) " + dir + ", t.year, t.id", nil
 	}
 	// The expression appears twice (nulls last, then the value), so its arguments do too.
-	return " ORDER BY (" + expr + ") IS NULL, (" + expr + ") " + dir + ", " + nameExpr + ", t.id", append(args, args...)
+	return " ORDER BY (" + expr + ") IS NULL, (" + expr + ") " + dir + ", " + nameExpr + ", lower(t.name), t.year, t.id", append(args, args...)
 }
 
 func boolParam(r *http.Request, name string) (*bool, error) {
