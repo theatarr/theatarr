@@ -30,7 +30,7 @@ func RegisterJobs(w *jobs.Worker, st *store.Store, pol *policy.Policy) {
 			ids = append(ids, p.TitleID)
 		} else {
 			rows, err := st.Reader().QueryContext(ctx, `SELECT t.id FROM title t LEFT JOIN source_ceiling c ON c.title_id=t.id
-    WHERE EXISTS(SELECT 1 FROM version v WHERE v.title_id=t.id)
+    WHERE EXISTS(SELECT 1 FROM version v WHERE v.title_id=t.id AND NOT EXISTS(SELECT 1 FROM arrview_removed_version r WHERE r.version_id=v.id))
  AND (t.kind='movie' OR EXISTS(SELECT 1 FROM episode e WHERE e.title_id=t.id))
  GROUP BY t.id HAVING MIN(c.next_check_at)<=? OR COUNT(c.title_id)=0 ORDER BY COALESCE(MIN(c.next_check_at),0),t.id LIMIT 25`, now.UnixMilli())
 			if err != nil {

@@ -319,6 +319,27 @@ func TestRunFillsEveryTitle(t *testing.T) {
 	}
 }
 
+// A title every copy of which was removed is not fetched (nor counted missing); one with a copy left, or with no
+// version yet, is.
+func TestRunSkipsRemovedTitles(t *testing.T) {
+	e := newTestEnv(t)
+	e.seed(t)
+	e.exec(t, `INSERT INTO version (id, title_id, policy_key, created_at, updated_at) VALUES (1, 1, 'movie-web', 0, 0),
+		(2, 1, 'movie-remux', 0, 0), (4, 4, 'movie-web', 0, 0)`)
+	e.exec(t, `INSERT INTO arrview_removed_version (version_id, view, removed_at) VALUES (1, 'ui', 0), (4, 'ui', 0)`)
+	ctx := context.Background()
+	if n, err := e.svc.missing(ctx); err != nil || n != 5 {
+		t.Errorf("missing %d %v, want 5", n, err)
+	}
+	if _, err := e.svc.RunBatch(ctx); err != nil {
+		t.Fatal(err)
+	}
+	m := e.meta(t)
+	if _, ok := m[4]; ok || len(m) != 5 {
+		t.Errorf("rows %v: title 4 was removed", m)
+	}
+}
+
 // A run keeps a good row's art when a later try fails, stops at an error that is not about one title, and pushes
 // that title back so the next try starts with the others.
 func TestRunStopsOnError(t *testing.T) {

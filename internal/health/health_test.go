@@ -127,8 +127,12 @@ func TestMetadata(t *testing.T) {
 	// Title 2 has no row a day after it was added; title 3 is new.
 	exec(t, st, `INSERT INTO title_meta (title_id, refreshed_at, attempted_at, refresh_after) VALUES (1, ?, ?, ?)`,
 		store.Millis(t0.Add(-time.Hour)), store.Millis(t0.Add(-time.Hour)), store.Millis(t0.Add(72*time.Hour)))
+	// Title 4, every copy removed, has no row either: it is not fetched, so it does not count.
+	exec(t, st, `INSERT INTO title (id, kind, name, created_at, updated_at) VALUES (4, 'movie', 'D', ?, ?)`, old, old)
+	exec(t, st, `INSERT INTO version (id, title_id, policy_key, created_at, updated_at) VALUES (4, 4, 'movie-web', 0, 0)`)
+	exec(t, st, `INSERT INTO arrview_removed_version (version_id, view, removed_at) VALUES (4, 'ui', 0)`)
 	r := Metadata(st, MetadataOptions{TMDb: true, Now: now})(ctx)
-	if r.Type != Warning || !strings.Contains(r.Message, "1 title(s) have no metadata") {
+	if r.Type != Warning || !strings.Contains(r.Message, "1 title(s) have no metadata") || r.Detail.(map[string]any)["titles"] != 3 {
 		t.Errorf("missing: %+v", r)
 	}
 	exec(t, st, `INSERT INTO title_meta (title_id, attempted_at, refresh_after) VALUES (2, ?, ?)`,
