@@ -2,15 +2,12 @@ package web
 
 import (
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"net/http"
-	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/theatarr/theatarr/internal/metadata/art"
-	"github.com/theatarr/theatarr/internal/metadata/tmdb"
 	"github.com/theatarr/theatarr/internal/store"
 )
 
@@ -61,23 +58,15 @@ func (w *Web) apiCollection(rw http.ResponseWriter, r *http.Request) {
 		w.internal(rw, err)
 		return
 	}
-	var stored []tmdb.MovieSummary
-	if err := json.Unmarshal([]byte(movies), &stored); err != nil {
+	parts, err := collectionParts(movies)
+	if err != nil {
 		w.internal(rw, err)
 		return
 	}
-	slices.SortStableFunc(stored, func(a, b tmdb.MovieSummary) int {
-		return strings.Compare(cmpDate(a.ReleaseDate), cmpDate(b.ReleaseDate))
-	})
 	targets := w.collectionTargets()
 	out := CollectionDetail{Parts: []CollectionPart{}, Libraries: w.keyLabels(targets), CanAdd: w.add.Collections != nil}
-	seen := map[int]bool{}
 	tmdbIDs := []any{}
-	for _, p := range stored {
-		if p.ID <= 0 || seen[p.ID] {
-			continue
-		}
-		seen[p.ID] = true
+	for _, p := range parts {
 		tmdbIDs = append(tmdbIDs, p.ID)
 		part := CollectionPart{TmdbID: int64(p.ID), Title: p.Title, Overview: shortText(p.Overview, overviewShort)}
 		if len(p.ReleaseDate) >= 4 {
@@ -109,7 +98,7 @@ func (w *Web) apiCollection(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if out.Collection, err = buildCollection(c, versions, movies, held, targets); err != nil {
+	if out.Collection, err = buildCollection(c, versions, parts, held, targets); err != nil {
 		w.internal(rw, err)
 		return
 	}

@@ -5,9 +5,9 @@
 // "+N more". Scryer renders with FullCalendar; this grid is our own (see styles/calendar.css). At phone width the grid
 // shows dots and the chosen day's list below it; the agenda is the default there. The month, the media type toggles
 // and Monitored only live in the URL (?month=YYYY-MM, ?types=movie,series, ?monitored=1); the view is kept per
-// browser. Titles not monitored show greyed, as Home's Upcoming row lists them, unless Monitored only is on (accounts
-// that see files; household accounts get the monitored titles only, as before). The agenda of the current month
-// starts at today, with Show earlier.
+// browser. Titles not monitored show greyed for every account, as Home's Upcoming row lists them, unless Monitored
+// only is on (household accounts keep their watchability words). The agenda of the current month starts at today,
+// with Show earlier.
 import { CalendarDays, Check, ChevronLeft, ChevronRight, List } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
@@ -95,7 +95,7 @@ function EventChip({ e, plain, now }: { e: Entry; plain: boolean; now: Date }) {
       title={tooltip(e, s.label)}
       data-testid="cal-event"
       data-tone={s.tone}
-      className={cn("theatarr-cal-event", `theatarr-cal-tone-${s.tone}`, !plain && !e.monitored && "is-unmonitored")}
+      className={cn("theatarr-cal-event", `theatarr-cal-tone-${s.tone}`, !e.monitored && "is-unmonitored")}
     >
       <div className="theatarr-cal-event-title">{e.title.name}</div>
       <div className="theatarr-cal-event-meta">
@@ -111,7 +111,7 @@ function AgendaItem({ e, plain, now }: { e: Entry; plain: boolean; now: Date }) 
   const s = calendarTone(e, now, plain);
   return (
     <li>
-      <Link to={calendarHref(e)} data-tone={s.tone} className={cn("flex items-center gap-3 px-3 py-2.5 hover:bg-[var(--hover)] sm:px-4", !plain && !e.monitored && "opacity-60")} data-testid="agenda-item">
+      <Link to={calendarHref(e)} data-tone={s.tone} className={cn("flex items-center gap-3 px-3 py-2.5 hover:bg-[var(--hover)] sm:px-4", !e.monitored && "opacity-60")} data-testid="agenda-item">
         <img src={e.title.poster} alt="" loading="lazy" decoding="async" className="aspect-[2/3] w-9 shrink-0 rounded-[4px] object-cover ring-1 ring-[var(--line)]" />
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-medium text-[var(--ink)]">{e.title.name}</div>
@@ -172,7 +172,7 @@ function Agenda({
   plain,
   now,
   startAtToday,
-  hiddenSince,
+  filtered,
   onShowAll,
   earlier,
   onEarlier,
@@ -183,8 +183,8 @@ function Agenda({
   now: Date;
   /** The month shown is this one: the agenda starts at today, unless earlier. */
   startAtToday: boolean;
-  /** The month has entries from this day (YYYY-MM-DD; "" for the whole month) that the toggles or Monitored only hide. */
-  hiddenSince: (day: string) => boolean;
+  /** The toggles or Monitored only hide entries in the range the agenda would show (from today when it starts there). */
+  filtered: boolean;
   onShowAll: () => void;
   earlier: boolean;
   onEarlier: () => void;
@@ -199,11 +199,11 @@ function Agenda({
         </Button>
       ) : null}
       {days.length === 0 ? (
-        <NothingHere filtered={hiddenSince("") ? "No entries match these filters this month." : ""} onShowAll={onShowAll}>
+        <NothingHere filtered={filtered ? "No entries match these filters this month." : ""} onShowAll={onShowAll}>
           Nothing is released or airs in this month.
         </NothingHere>
       ) : shown.length === 0 ? (
-        <NothingHere filtered={hiddenSince(today) ? "No more entries this month match these filters." : ""} onShowAll={onShowAll}>
+        <NothingHere filtered={filtered ? "No more entries this month match these filters." : ""} onShowAll={onShowAll}>
           Nothing more this month.
         </NothingHere>
       ) : null}
@@ -308,7 +308,7 @@ export function CalendarPageView() {
   const anchor = useMemo(() => readMonth(monthKey, new Date()), [monthKey]);
   const facets = useMemo(() => readFacets(params.get("types")), [params]);
   // Accounts that see files get every title, those not monitored greyed (as Home's Upcoming row); Monitored only hides them.
-  const monitoredOnly = !plain && params.get("monitored") === "1";
+  const monitoredOnly = params.get("monitored") === "1";
   const setParam = (key: string, value: string | null) =>
     setParams(
       (p) => {
@@ -335,7 +335,7 @@ export function CalendarPageView() {
   const from = view === "month" ? ymd(days[0]) : ymd(new Date(anchor.y, anchor.m, 1));
   const to = view === "month" ? ymd(days[days.length - 1]) : ymd(new Date(anchor.y, anchor.m + 1, 0));
   // One day wider on each side: an episode's air moment can fall on the day before or after the network's here.
-  const q = useCalendar(shiftDay(from, -1), shiftDay(to, 1), !plain);
+  const q = useCalendar(shiftDay(from, -1), shiftDay(to, 1), true);
   const all = useMemo(() => joinReleases(placeEntries(q.data?.items ?? [], from, to)), [q.data, from, to]);
   const placed = useMemo(() => all.filter(({ e }) => !monitoredOnly || e.monitored), [all, monitoredOnly]);
 
@@ -357,12 +357,11 @@ export function CalendarPageView() {
     for (const { day, e } of placed) if (day >= first && day <= last) c[e.title.kind as Facet] = (c[e.title.kind as Facet] ?? 0) + 1;
     return c;
   }, [placed, anchor]);
-  // The month has entries from day on (the whole month for "") that the toggles or Monitored only hide.
-  const hiddenSince = (day: string) => {
-    const first = ymd(new Date(anchor.y, anchor.m, 1));
-    const last = ymd(new Date(anchor.y, anchor.m + 1, 0));
-    return all.some(({ day: d, e }) => d >= first && d <= last && d >= day && ((monitoredOnly && !e.monitored) || !facets.includes(e.title.kind as Facet)));
-  };
+  // Some entry from day a to day b (both included) is hidden by the toggles or Monitored only.
+  const hiddenBetween = (a: string, b: string) =>
+    all.some(({ day, e }) => day >= a && day <= b && ((monitoredOnly && !e.monitored) || !facets.includes(e.title.kind as Facet)));
+  const monthFirst = ymd(new Date(anchor.y, anchor.m, 1));
+  const monthLast = ymd(new Date(anchor.y, anchor.m + 1, 0));
 
   const goTo = (a: { y: number; m: number }) => {
     const cur = { y: now.getFullYear(), m: now.getMonth() };
@@ -429,12 +428,10 @@ export function CalendarPageView() {
               </button>
             );
           })}
-          {!plain ? (
-            <label className="ml-1 inline-flex items-center gap-2 text-[12.5px] font-medium text-[var(--ink-2)]">
-              <Checkbox checked={monitoredOnly} onChange={(e) => setParam("monitored", e.target.checked ? "1" : null)} />
-              Monitored only
-            </label>
-          ) : null}
+          <label className="ml-1 inline-flex items-center gap-2 text-[12.5px] font-medium text-[var(--ink-2)]">
+            <Checkbox checked={monitoredOnly} onChange={(e) => setParam("monitored", e.target.checked ? "1" : null)} />
+            Monitored only
+          </label>
         </div>
         <h2 className="order-first text-center text-2xl font-bold tracking-tight text-[var(--ink)] lg:order-none" data-testid="cal-title">
           {title}
@@ -477,7 +474,8 @@ export function CalendarPageView() {
         <ErrorState error={q.error} />
       ) : view === "agenda" ? (
         <div ref={agendaTop} className="scroll-mt-20">
-          <Agenda days={agendaDays} today={today} plain={plain} now={now} startAtToday={isThisMonth} hiddenSince={hiddenSince} onShowAll={showAll}
+          <Agenda days={agendaDays} today={today} plain={plain} now={now} startAtToday={isThisMonth}
+            filtered={hiddenBetween(agendaDays.length === 0 || !isThisMonth || earlier ? monthFirst : today, monthLast)} onShowAll={showAll}
             earlier={earlier} onEarlier={() => setEarlier(true)} />
         </div>
       ) : (
@@ -487,9 +485,9 @@ export function CalendarPageView() {
             <section className="mt-5">
               <h3 ref={dayPanel} tabIndex={-1} data-testid="cal-day-panel" className="mb-2 scroll-mt-20 text-[12px] font-semibold uppercase tracking-[0.14em] text-[var(--ink-3)] outline-none">{dayHeading(selected, today)}</h3>
               {selectedItems.length === 0 ? (
-                <Card>
-                  <Empty icon={CalendarDays}>Nothing on this day.</Empty>
-                </Card>
+                <NothingHere filtered={hiddenBetween(selected, selected) ? "This day's entries are hidden by the filters." : ""} onShowAll={showAll}>
+                  Nothing on this day.
+                </NothingHere>
               ) : (
                 <Card className="p-0">
                   <ul className="divide-y divide-border">

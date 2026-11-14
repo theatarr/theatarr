@@ -6,6 +6,7 @@ import { Route, Routes } from "react-router";
 import { CollectionPage } from "./collection";
 import { json, mockFetch, renderPage } from "@/test/page";
 import { SearchProvider } from "@/components/search/search-context";
+import { useRemove } from "@/api/ops";
 import type { Schemas } from "@/api/client";
 
 const manager = { id: 2, username: "m", permissions: ["browse", "see_files", "manage", "add"], csrf_token: "t" };
@@ -23,8 +24,14 @@ const detail = (c: Schemas["Collection"]): Schemas["CollectionDetail"] => ({
 });
 const lonely: Schemas["Collection"] = { tmdb_id: 9100, name: "", monitored: false, versions: [], search_on_add: false, minimum_availability: "released", held: 1, available: 1, total: 1 };
 
-const show = (path: string) => renderPage(
-  <SearchProvider><Routes><Route path="/collections/:id" element={<CollectionPage />} /></Routes></SearchProvider>, path);
+const show = (path: string, extra?: React.ReactNode) => renderPage(
+  <SearchProvider><Routes><Route path="/collections/:id" element={<><CollectionPage />{extra}</>} /></Routes></SearchProvider>, path);
+
+/** Removes title 217 as the title page's Remove does. */
+function RemoveAlien() {
+  const remove = useRemove(217);
+  return <button type="button" onClick={() => remove.mutate({} as Parameters<typeof remove.mutate>[0])}>Remove Alien</button>;
+}
 
 it("shows a collection's films with their status and offers Add for one not in the library", async () => {
   const user = userEvent.setup();
@@ -143,4 +150,22 @@ it("marks a film removed from every library, offers Add for it, and refreshes th
   // The page reads the collection again: the film now links to its title.
   await waitFor(() => expect(within(screen.getByTestId("part-679")).getByRole("link").getAttribute("href")).toBe("/title/218"));
   expect(screen.getByText("2 of 3 in the library · 1 available")).toBeTruthy();
+});
+
+it("follows a removal: the film no longer links to its title and the counts change", async () => {
+  const user = userEvent.setup();
+  let removed = false;
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: manager },
+    { method: "GET", path: "/collections/8091", reply: () => removed
+      ? { ...detail({ ...alien, held: 1, available: 0, removed: 1 }), parts: [{ tmdb_id: 348, title: "Alien", year: 1979, removed: true }, ...detail(alien).parts.slice(1)] }
+      : detail(alien) },
+    { method: "POST", path: "/titles/217/remove", reply: () => { removed = true; return {}; } },
+  ]);
+  show("/collections/8091", <RemoveAlien />);
+  expect(within(await screen.findByTestId("part-348")).getByRole("link").getAttribute("href")).toBe("/title/217");
+  await user.click(screen.getByRole("button", { name: "Remove Alien" }));
+  await waitFor(() => expect(within(screen.getByTestId("part-348")).queryByRole("link")).toBeNull());
+  expect(within(screen.getByTestId("part-348")).getByTestId("part-not-held").textContent).toBe("Removed from the library · Add");
+  expect(screen.getByText("1 of 3 in the library (1 removed) · 0 available")).toBeTruthy();
 });

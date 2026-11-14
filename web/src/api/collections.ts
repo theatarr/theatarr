@@ -1,5 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, qs, type Schemas } from "./client";
+import { qk } from "./query-keys";
 
 export type Collection = Schemas["Collection"];
 export type CollectionsPage = Schemas["CollectionsPage"];
@@ -10,9 +11,7 @@ export type CollectionHit = Schemas["CollectionHit"];
 export type CollectionAdd = Schemas["CollectionAdd"];
 export type CollectionRefreshed = Schemas["CollectionRefreshed"];
 
-const KEY = ["collections"] as const;
-/** Every collections query: an added title changes their counts and parts. */
-export const collectionsKey = KEY;
+const KEY = qk.collections;
 
 /** GET /collections: every collection movie intake knows, and the movie libraries one may target. */
 export const useCollections = (enabled = true) =>

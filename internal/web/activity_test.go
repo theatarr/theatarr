@@ -103,6 +103,14 @@ func TestCalendar(t *testing.T) {
 	if got := movieMonitored(); !maps.Equal(got, map[string]bool{"Alpha": false}) {
 		t.Errorf("monitored movies after removal: %v", got)
 	}
+	// The monitored-only calendar follows the same rule: Alpha's only monitored copy was removed.
+	cal = CalendarPage{}
+	e.getKey(APIBase+"/calendar?from=2026-11-01&to=2026-11-30", key, &cal)
+	for _, it := range cal.Items {
+		if it.Kind == "movie" {
+			t.Errorf("monitored-only calendar lists %s", it.Title.Name)
+		}
+	}
 	e.exec(`DELETE FROM arrview_removed_version`)
 	e.exec(`UPDATE version SET monitored = 1 WHERE id = 2`)
 	// An imported series: no air time in series_meta (or no row at all), yet its episode has a real evening instant.

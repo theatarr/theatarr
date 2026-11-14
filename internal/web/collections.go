@@ -177,30 +177,43 @@ func scanCollection(row interface{ Scan(...any) error }, held map[int]heldMovie,
 		&movies); err != nil {
 		return c, err
 	}
-	return buildCollection(c, versions, movies, held, targets)
+	parts, err := collectionParts(movies)
+	if err != nil {
+		return c, err
+	}
+	return buildCollection(c, versions, parts, held, targets)
 }
 
-// buildCollection completes c from its stored versions and movies (JSON) and how the catalog holds them.
-func buildCollection(c Collection, versions, movies string, held map[int]heldMovie, targets []string) (Collection, error) {
+// collectionParts are a collection's stored movies (JSON) in release order, undated (announced) last as TMDb lists
+// them, each once.
+func collectionParts(movies string) ([]tmdb.MovieSummary, error) {
+	var stored []tmdb.MovieSummary
+	if err := json.Unmarshal([]byte(movies), &stored); err != nil {
+		return nil, err
+	}
+	slices.SortStableFunc(stored, func(a, b tmdb.MovieSummary) int {
+		return strings.Compare(cmpDate(a.ReleaseDate), cmpDate(b.ReleaseDate))
+	})
+	seen := map[int]bool{}
+	parts := []tmdb.MovieSummary{}
+	for _, p := range stored {
+		if p.ID > 0 && !seen[p.ID] {
+			seen[p.ID] = true
+			parts = append(parts, p)
+		}
+	}
+	return parts, nil
+}
+
+// buildCollection completes c from its stored versions (JSON), its parts (collectionParts) and how the catalog holds
+// them.
+func buildCollection(c Collection, versions string, parts []tmdb.MovieSummary, held map[int]heldMovie, targets []string) (Collection, error) {
 	var stored []string
 	if err := json.Unmarshal([]byte(versions), &stored); err != nil {
 		return c, err
 	}
 	c.Versions = eligible(stored, targets)
-	var parts []tmdb.MovieSummary
-	if err := json.Unmarshal([]byte(movies), &parts); err != nil {
-		return c, err
-	}
-	// TMDb lists parts by release; undated ones (announced) go last.
-	slices.SortStableFunc(parts, func(a, b tmdb.MovieSummary) int {
-		return strings.Compare(cmpDate(a.ReleaseDate), cmpDate(b.ReleaseDate))
-	})
-	seen := map[int]bool{}
 	for _, p := range parts {
-		if p.ID <= 0 || seen[p.ID] {
-			continue
-		}
-		seen[p.ID] = true
 		switch h, ok := held[p.ID]; {
 		case ok && h.live:
 			c.Held++
@@ -214,7 +227,7 @@ func buildCollection(c Collection, versions, movies string, held map[int]heldMov
 			c.Poster = "/img/tmdb/" + tmdbPosterSize + "/" + f
 		}
 	}
-	c.Total = len(seen)
+	c.Total = len(parts)
 	return c, nil
 }
 

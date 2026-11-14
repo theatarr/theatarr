@@ -102,8 +102,10 @@ export const qk = {
   },
   activity: { all: ["activity"] as const },
   calendar: { all: ["calendar"] as const },
+  /** Collections and a collection's page: their counts and films follow a title's libraries. */
+  collections: ["collections"] as const,
 };
 
 /** What changes when a title's versions, seasons or files change: refresh every view of it. */
 export const titleChanged = (t?: Id) =>
-  [qk.titles.all, qk.discover.all, qk.search.all, qk.addOptions.all, ...(t === undefined ? [] : [qk.title(t)])] as const;
+  [qk.titles.all, qk.discover.all, qk.search.all, qk.addOptions.all, qk.collections, ...(t === undefined ? [] : [qk.title(t)])] as const;

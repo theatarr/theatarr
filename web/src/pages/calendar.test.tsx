@@ -163,8 +163,8 @@ it("says the filters hide this month's entries instead of claiming the month is 
   renderPage(<CalendarPageView />, "/calendar?month=2026-12&types=anime");
   expect(await screen.findByText("No entries match these filters this month.", { exact: false })).toBeTruthy();
   expect(screen.queryByText("Nothing is released or airs in this month.")).toBeNull();
-  // A household account gets no Monitored only (it sees monitored titles only, as before).
-  expect(screen.queryByLabelText("Monitored only")).toBeNull();
+  // A household account follows Home's Upcoming row too: titles not monitored are asked for, with Monitored only.
+  expect(screen.getByLabelText("Monitored only")).toBeTruthy();
   await user.click(screen.getByRole("button", { name: "Show all" }));
   expect(screen.getByText("Gamma")).toBeTruthy();
 });
@@ -203,4 +203,35 @@ it("does not say no entries match while earlier ones of the month are behind Sho
   renderPage(<CalendarPageView />, "/calendar?types=movie");
   expect(await screen.findByText("No more entries this month match these filters.", { exact: false })).toBeTruthy();
   expect(screen.queryByText(/No entries match/)).toBeNull();
+});
+
+it("shows a household account titles not monitored greyed, with its own words", async () => {
+  vi.setSystemTime(new Date(2026, 10, 14, 12));
+  const fetch = mockFetch([
+    { method: "GET", path: "/auth/me", reply: { id: 1, permissions: [] } },
+    { method: "GET", path: "/calendar", reply: { from: nov(1), to: nov(30), items: [ep(4, nov(18), "Quiet", "series", false)] } },
+  ]);
+  renderPage(<CalendarPageView />, "/calendar");
+  const quiet = (await screen.findByText("Quiet")).closest("a")!;
+  expect(fetch.calls("GET", "/calendar").every((c) => c.search.endsWith("&unmonitored=1"))).toBe(true);
+  expect(quiet.className).toContain("opacity-60");
+  expect(quiet.textContent).not.toContain("Not monitored");
+});
+
+it("says a day's entries are hidden by the filters instead of nothing on this day", async () => {
+  vi.setSystemTime(new Date(2026, 10, 14, 12));
+  window.localStorage.setItem("theatarr.calendar.view", "month");
+  const user = userEvent.setup();
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["see_files"] } },
+    { method: "GET", path: "/calendar", reply: { from: nov(1), to: nov(30), items: [ep(4, nov(18), "Quiet", "series", false)] } },
+  ]);
+  renderPage(<CalendarPageView />, "/calendar?monitored=1");
+  await user.click(await screen.findByRole("button", { name: /^Wednesday, November 18/ }));
+  expect(screen.getByText("This day's entries are hidden by the filters.", { exact: false })).toBeTruthy();
+  expect(screen.queryByText("Nothing on this day.")).toBeNull();
+  await user.click(screen.getByRole("button", { name: "Show all" }));
+  expect(screen.getAllByText("Quiet").length).toBeGreaterThan(0);
+  await user.click(screen.getByRole("button", { name: /^Thursday, November 19/ }));
+  expect(screen.getByText("Nothing on this day.")).toBeTruthy();
 });

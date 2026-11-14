@@ -3,7 +3,6 @@
 import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { api, qs, type Schemas } from "./client";
-import { collectionsKey } from "./collections";
 import { qk, titleChanged } from "./query-keys";
 
 export type SearchAnswer = Schemas["SearchAnswer"];
@@ -111,11 +110,7 @@ export function useAddTitle() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: AddRequest) => api<AddResult>("/titles", { method: "POST", body }),
-    onSuccess: (r) => {
-      refreshTitle(qc, r.title.id, Boolean(r.search?.started));
-      // A collection's counts and its page's films follow the add.
-      void qc.invalidateQueries({ queryKey: collectionsKey });
-    },
+    onSuccess: (r) => refreshTitle(qc, r.title.id, Boolean(r.search?.started)),
   });
 }
 

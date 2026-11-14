@@ -49,6 +49,10 @@ it("lists collections compactly, each opening its page, with the filter in the U
   await user.click(screen.getByLabelText("Monitored only"));
   expect(screen.queryByTestId("collection-9100")).toBeNull();
   expect(screen.getByTestId("location").textContent).toBe("/collections?monitored=1");
+  await user.click(screen.getByLabelText("Monitored only"));
+  expect(await screen.findByTestId("collection-9100")).toBeTruthy();
+  expect(screen.getByTestId("location").textContent).toBe("/collections");
+  await user.click(screen.getByLabelText("Monitored only"));
   await user.type(screen.getByLabelText("Filter collections"), "al");
   expect(screen.getByTestId("location").textContent).toBe("/collections?monitored=1&q=al");
 });

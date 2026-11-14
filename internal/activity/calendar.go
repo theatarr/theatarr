@@ -135,7 +135,8 @@ func Calendar(ctx context.Context, db *sql.DB, from, to string, unmonitored bool
 	var out []CalendarItem
 	// Titles in the library only, with or without unmonitored: a title every copy of which was removed is gone.
 	live := ` AND ` + store.TitleInLibrarySQL
-	mon := live + ` AND t.monitored = 1 AND EXISTS (SELECT 1 FROM version v WHERE v.title_id = t.id AND v.monitored = 1)`
+	mon := live + ` AND t.monitored = 1 AND EXISTS (SELECT 1 FROM version v WHERE v.title_id = t.id AND v.monitored = 1
+		AND NOT EXISTS (SELECT 1 FROM arrview_removed_version r WHERE r.version_id = v.id))`
 	if unmonitored {
 		mon = live
 	}
