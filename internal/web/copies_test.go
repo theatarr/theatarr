@@ -226,12 +226,17 @@ func TestCopySorts(t *testing.T) {
 	}
 	e.exec(`DELETE FROM link_version WHERE link_id = 40`)
 	e.exec(`DELETE FROM link WHERE id = 40`)
-	// The Show's waiting download changed last; the imported Alpha download is not in hand.
-	if got := order("sort=activity"); got != "The Show,Alpha" {
+	// Latest activity is the newest change of any download, finished or failed too: Alpha's import came last.
+	if got := order("sort=activity"); got != "Alpha,The Show" {
 		t.Errorf("activity: %s", got)
 	}
 	if got := order("sort=activity&sort_version=movie-remux"); got != "Alpha,The Show" {
 		t.Errorf("activity of movie-remux: %s", got)
+	}
+	// The Show's download fails after it: The Show leads.
+	e.exec(`UPDATE download SET state = 'failed', updated_at = ? WHERE id = 1`, store.Millis(addNow))
+	if got := order("sort=activity"); got != "The Show,Alpha" {
+		t.Errorf("activity after a failure: %s", got)
 	}
 	e.exec(`UPDATE episode SET air_date = '2026-11-02' WHERE id = 103`)
 	airAtMidnight(e.exec)

@@ -558,8 +558,8 @@ func copySortExpr(sort, key string, clock airClock) (string, []any) {
 		if key != "" {
 			cond, args = ` AND d.version_key = ?`, append(args, key)
 		}
-		return `(SELECT MAX(d.updated_at) FROM download d WHERE d.title_id = t.id AND d.state IN ('` +
-			strings.Join(activity.InHand, "', '") + `')` + cond + `)`, args
+		// The newest change of any of the title's downloads (in the library), finished and failed ones too.
+		return `(SELECT MAX(d.updated_at) FROM download d WHERE d.title_id = t.id` + cond + `)`, args
 	case "next":
 		// The day the Next column shows (fillNext): a series' next episode; a movie's first coming release of the
 		// release-date choice, else, for a movie with no chosen date at all, its TMDb release date while that is to come.
