@@ -328,8 +328,9 @@ func (w *Web) fillRequests(ctx context.Context, items []Request, viewer *auth.Id
 	states := map[int64]map[string]string{}
 	if len(ids) > 0 {
 		b, _ := json.Marshal(ids)
-		err := scanAll(ctx, db, `SELECT title_id, policy_key, state FROM version
-			WHERE title_id IN (SELECT value FROM json_each(?))`, []any{string(b)}, func(rows *sql.Rows) error {
+		// A library the title was removed from has no state (liveVersion): it is not available there.
+		err := scanAll(ctx, db, `SELECT v.title_id, v.policy_key, v.state FROM version v
+			WHERE v.title_id IN (SELECT value FROM json_each(?)) AND `+liveVersion, []any{string(b)}, func(rows *sql.Rows) error {
 			var id int64
 			var key, state string
 			if err := rows.Scan(&id, &key, &state); err != nil {
@@ -1338,9 +1339,14 @@ func (w *Web) publishUsersChanged() {
 	w.hub.publish(event{name: "users", data: []byte(`{}`), need: auth.PermUsers})
 }
 
+// RequestRemovedReason is the reason of a request canceled because every library it asked for was removed.
+const RequestRemovedReason = "removed from the library"
+
 // syncRequests moves approved requests along with their versions (all of them when ids is empty). A request is
 // available when every requested version has its file, processing while a download for one is in hand, failed when
-// the latest download of a missing version failed and none is in hand, else approved.
+// the latest download of a missing version failed and none is in hand, canceled when every requested version was
+// removed from the library (RequestRemovedReason), else approved. Versions removed from a request's scope drop out
+// of it.
 func (w *Web) syncRequests(ctx context.Context, ids ...int64) error {
 	q := requestSelect + ` WHERE r.status IN ('approved', 'processing', 'failed', 'available') AND r.title_id IS NOT NULL`
 	var args []any
@@ -1365,7 +1371,7 @@ func (w *Web) syncRequests(ctx context.Context, ids ...int64) error {
 		if err != nil {
 			return err
 		}
-		if w.onRequest != nil && next != ReqAvailable && r.Kind == "series" {
+		if w.onRequest != nil && next != ReqAvailable && next != ReqCanceled && r.Kind == "series" {
 			if err := w.notifyRequestPartial(ctx, &r); err != nil {
 				return err
 			}
@@ -1373,8 +1379,12 @@ func (w *Web) syncRequests(ctx context.Context, ids ...int64) error {
 		if next == r.Status {
 			continue
 		}
-		res, err := w.st.Writer().ExecContext(ctx, `UPDATE request SET status = ?, updated_at = ? WHERE id = ?
-			AND status = ?`, next, store.Millis(w.now()), r.ID, r.Status)
+		reason := r.Reason
+		if next == ReqCanceled {
+			reason = RequestRemovedReason
+		}
+		res, err := w.st.Writer().ExecContext(ctx, `UPDATE request SET status = ?, reason = ?, updated_at = ? WHERE id = ?
+			AND status = ?`, next, reason, store.Millis(w.now()), r.ID, r.Status)
 		if err != nil {
 			return err
 		}
@@ -1388,22 +1398,46 @@ func (w *Web) syncRequests(ctx context.Context, ids ...int64) error {
 	return nil
 }
 
-// requestStatus is where an approved request stands now.
+// syncTitleRequests moves the requests of one title along now (syncRequests), as after a removal; nothing when it
+// has none.
+func (w *Web) syncTitleRequests(ctx context.Context, titleID int64) error {
+	var ids []int64
+	err := scanAll(ctx, w.st.Reader(), `SELECT id FROM request WHERE title_id = ? AND status IN ('approved',
+		'processing', 'failed', 'available')`, []any{titleID}, func(rows *sql.Rows) error {
+		var id int64
+		err := rows.Scan(&id)
+		ids = append(ids, id)
+		return err
+	})
+	if err != nil || len(ids) == 0 {
+		return err
+	}
+	return w.syncRequests(ctx, ids...)
+}
+
+// requestStatus is where an approved request stands now. A library the title was removed from no longer counts: the
+// request stands by the libraries it asked for that remain, and is canceled once every one of them was removed.
 func (w *Web) requestStatus(ctx context.Context, r *Request) (string, error) {
 	db := w.st.Reader()
 	all := true
+	removed := 0
 	var missing []int64
 	for _, k := range r.keys {
 		var vid int64
 		var state string
-		err := db.QueryRowContext(ctx, `SELECT id, state FROM version WHERE title_id = ? AND policy_key = ?`,
-			*r.TitleID, k).Scan(&vid, &state)
+		var gone bool
+		err := db.QueryRowContext(ctx, `SELECT v.id, v.state, NOT `+liveVersion+` FROM version v WHERE v.title_id = ?
+			AND v.policy_key = ?`, *r.TitleID, k).Scan(&vid, &state, &gone)
 		if errors.Is(err, sql.ErrNoRows) {
 			all = false
 			continue
 		}
 		if err != nil {
 			return "", err
+		}
+		if gone {
+			removed++
+			continue
 		}
 		filled := filledState(state)
 		if filled && r.Kind == string(policy.KindSeries) && len(r.Seasons) > 0 {
@@ -1416,6 +1450,9 @@ func (w *Web) requestStatus(ctx context.Context, r *Request) (string, error) {
 			all = false
 			missing = append(missing, vid)
 		}
+	}
+	if len(r.keys) > 0 && removed == len(r.keys) {
+		return ReqCanceled, nil
 	}
 	if all {
 		return ReqAvailable, nil

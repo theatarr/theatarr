@@ -26,7 +26,7 @@ func TestRequestPageReadsEachTitleStateOnce(t *testing.T) {
 	}
 	e := newEnv(t)
 	e.exec(`ALTER TABLE version RENAME TO request_state_source`)
-	e.exec(`CREATE VIEW version AS SELECT title_id, policy_key, ` + name + `(state) AS state FROM request_state_source`)
+	e.exec(`CREATE VIEW version AS SELECT id, title_id, policy_key, ` + name + `(state) AS state FROM request_state_source`)
 	titleID := int64(1)
 	items := make([]Request, 200)
 	for i := range items {

@@ -906,11 +906,13 @@ func (w *Web) apiRemove(rw http.ResponseWriter, r *http.Request) {
 		if out.Removed, err = catalog.Remove(ctx, tx, id, keys, "ui", now); err != nil {
 			return err
 		}
-		// Each link moved to the trash gets its own unlink_file entry once it has moved.
-		detail := "files left linked"
+		// Each link moved to the trash gets its own unlink_file entry once it has moved; History reads the files'
+		// fate from the detail (journal.Removal).
+		rm := journal.Removal{Files: journal.RemovalFilesKept}
 		if req.Unlink {
-			detail = "its library links go to the trash next (one unlink_file entry each)"
+			rm.Files = journal.RemovalFilesDeleted
 		}
+		detail := journal.RemovalDetail(rm)
 		for _, k := range out.Removed {
 			if _, err := journal.RecordAction(ctx, tx, journal.Action{Action: act, TitleID: id, Version: k,
 				Target: scope.Name, Detail: detail, By: by, At: now}); err != nil {
@@ -930,6 +932,12 @@ func (w *Web) apiRemove(rw http.ResponseWriter, r *http.Request) {
 	}
 	if out.Removed == nil {
 		out.Removed = []string{}
+	}
+	// Requests follow now: one whose libraries were all removed is canceled, the others stand by what remains.
+	if len(out.Removed) > 0 {
+		if err := w.syncTitleRequests(ctx, id); err != nil {
+			w.log.Warn("remove: requests", "title", id, "err", err)
+		}
 	}
 	if req.Unlink {
 		var links []struct {
