@@ -78,7 +78,7 @@ describe("recovery scopes", () => {
       "Its history stays",
       "Import lists will not restore the removed libraries; add it yourself to bring it back",
     ]);
-    expect(keep.cleanup).toEqual({ text: "To free space at the provider, delete torrents nothing uses any more under", label: "Admin › Torrents (the Unused filter)", to: "/admin/torrents", admin: true });
+    expect(keep.cleanup).toEqual({ text: "To free space at the provider, delete torrents nothing uses any more under", label: "Admin › Torrents › Not used by Theatarr", to: "/admin/torrents?group=unused", admin: true });
     // The torrents cannot go while the files are kept.
     expect(removalScope(one, false, true).does).toEqual(keep.does);
     const both = removalScope(one, true, true);
@@ -91,7 +91,7 @@ describe("recovery scopes", () => {
     ]);
     expect(both.cleanup).toBeUndefined();
     expect(both.confirm).toBe("Remove from this library");
-    // Files deleted, torrents kept: they stay, and the Unused filter is named.
+    // Files deleted, torrents kept: they stay, and the Not used by Theatarr filter is linked.
     const filesOnly = removalScope(one, true, false);
     expect(filesOnly.does).not.toContain(both.does.at(-1));
     expect(filesOnly.keeps).toContain("Its debrid torrents stay");

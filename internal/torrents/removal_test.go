@@ -375,7 +375,7 @@ func TestDeleteForRemovalWaitsForMidAddCopy(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got := e2.deletedIDs(); !slices.Equal(got, []string{"rd/4"}) ||
-		!strings.Contains(out.Words([]string{hD}), "a copy to TB was still being added; see Torrents › Unused") {
+		!strings.Contains(out.Words([]string{hD}), "a copy to TB was still being added; see Torrents › Not used by Theatarr") {
 		t.Errorf("deleted %v, words %q", got, out.Words([]string{hD}))
 	}
 }

@@ -121,7 +121,7 @@ func (m *Manager) DeleteForRemoval(ctx context.Context, c RemovalCleanup) (*Remo
 	}
 	for _, hk := range slices.Sorted(maps.Keys(unsettled)) {
 		h, k, _ := strings.Cut(hk, "\x00")
-		out.add(h, k, "kept", "a copy to "+m.code(k)+" was still being added; see Torrents › Unused")
+		out.add(h, k, "kept", "a copy to "+m.code(k)+" was still being added; see Torrents › Not used by Theatarr")
 	}
 	opMu.Lock()
 	defer opMu.Unlock()
@@ -176,7 +176,7 @@ func (m *Manager) DeleteForRemoval(ctx context.Context, c RemovalCleanup) (*Remo
 	if len(sel) > MaxDelete {
 		for _, s := range sel[MaxDelete:] {
 			out.add(s.Hash, s.Provider, "kept", fmt.Sprintf("not cleaned up: more than %d torrents in one removal; "+
-				"see Torrents › Unused", MaxDelete))
+				"see Torrents › Not used by Theatarr", MaxDelete))
 		}
 		sel = sel[:MaxDelete]
 	}

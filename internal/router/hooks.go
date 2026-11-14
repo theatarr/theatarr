@@ -291,7 +291,7 @@ const copyWantedSQL = `(EXISTS (SELECT 1 FROM download d WHERE lower(d.info_hash
 // hashes a removal took from the library, so they are not started later or resumed at startup: each becomes
 // skipped with msg. A copy belongs to its hash and provider, not to a library, so one whose hash a current copy of
 // any title still wants (copyWantedSQL, the hash compared in hex and base32) is left as it is, and so is a copy already
-// adding or checking: it settles on its own, and a torrent it leaves shows under Torrents › Unused. It returns how
+// adding or checking: it settles on its own, and a torrent it leaves shows under Torrents › Not used by Theatarr. It returns how
 // many copies it stopped.
 func StopRemovedCopies(ctx context.Context, tx *sql.Tx, hashes []string, msg string, at int64) (int, error) {
 	var done []string

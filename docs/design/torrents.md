@@ -322,7 +322,7 @@ differences:
   cleaned up: could not read TB"), and so does a backup that does not hold every provider's list.
 - **A copy still being added** (to another provider, adding or checking one of the hashes) is waited for first, at
   most 10 minutes, so its torrent is in the read; one still unsettled then is not cleaned up ("a copy to AD was still
-  being added; see Torrents › Unused").
+  being added; see Torrents › Not used by Theatarr").
 - **One read, as Torrents › Refresh does it:** the provider sync lists every account and writes the record and the
   registry; the stored usage is left to the usage worker, and the plan is the clean-up's one reference pass. If any
   provider's listing fails, nothing is deleted anywhere ("torrents not cleaned up: could not read RD"). Planning and
@@ -337,7 +337,7 @@ differences:
   the Torrents page's own delete is unchanged.
 - Steps 6 to 9 run unchanged, except that the backup must hold every provider's complete list (no backup, no delete:
   "torrents not cleaned up: backup failed (TB)", naming the provider whose backup failed).
-- At most 200 torrents go per removal; the rest are kept and said so ("see Torrents › Unused").
+- At most 200 torrents go per removal; the rest are kept and said so ("see Torrents › Not used by Theatarr").
 - **The outcome** of each removed library's own torrents ("deleted on RD"; "kept on AD: used by <title>"; "TB:
   failed, <reason>"; "torrents of the files that stay kept") goes into that library's Removed event
   (`journal.Removal.Cleanup`), which History shows. Nothing is retried (`TestDeleteForRemoval`,
@@ -347,7 +347,7 @@ differences:
 A removal also stops, once and at the removal, queued copies to other providers that no current copy of any title
 wants (a download in hand, an active link or an arr file of a version not removed, or a current link to the same
 file; hashes compared in hex and base32). A copy already adding is left to settle; a torrent it leaves shows under
-Torrents › Unused, and a copy asked later is added as any other. With the files kept, nothing on a
+Torrents › Not used by Theatarr, and a copy asked later is added as any other. With the files kept, nothing on a
 provider is deleted because of the removal: a copy settling later deletes only its own incomplete new add on the other
 provider, as before, and ending the removed download does not change that check (`copyInUse` looks at that provider
 only).

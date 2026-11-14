@@ -941,7 +941,7 @@ func (w *Web) apiRemove(rw http.ResponseWriter, r *http.Request) {
 	}
 	out.Message = removeMessage(scope, req.Unlink, &out)
 	if req.Unlink && keep {
-		out.Message = strings.TrimSuffix(out.Message, ".") + "; its debrid torrents stay (Torrents › Unused lists them)."
+		out.Message = strings.TrimSuffix(out.Message, ".") + "; its debrid torrents stay (Torrents › Not used by Theatarr lists them)."
 	}
 	w.log.Info("copies removed by hand", "title", id, "versions", strings.Join(out.Removed, ","), "title_removed",
 		out.Title, "downloads_ended", out.DownloadsEnded, "unlinked", len(out.Unlinked), "kept", len(out.Kept),
