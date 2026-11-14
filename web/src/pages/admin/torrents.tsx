@@ -350,7 +350,7 @@ function RecordSummary({ r, codes }: { r: TorrentReport; codes: Record<string, s
   );
 }
 
-/** What the last Refresh read, per account. */
+/** What the last Refresh read, per account; refresh_error only when no account's own line already says why. */
 function RefreshResult({ r, codes }: { r: TorrentReport; codes: Record<string, string> }) {
   const parts = r.providers.map((p) => {
     const label = providerLabel(codes[p.provider] ?? p.provider);
@@ -359,7 +359,7 @@ function RefreshResult({ r, codes }: { r: TorrentReport; codes: Record<string, s
   });
   return (
     <p className="mb-2 text-sm" data-testid="refresh-result">
-      Read the accounts: {parts.join(" · ")}.{r.refresh_error ? ` Not every account was read: ${r.refresh_error}.` : ""}
+      Read the accounts: {parts.join(" · ")}.{r.refresh_error && !r.providers.some((p) => p.error) ? ` Not every account was read: ${r.refresh_error}.` : ""}
     </p>
   );
 }

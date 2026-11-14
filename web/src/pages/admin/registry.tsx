@@ -122,10 +122,10 @@ export function Registry() {
           </Table>
         </Card>
       )}
-      <div className="mt-3 space-y-1">
+      {reg.data ? <div className="mt-3 space-y-1">
         <p className="text-center text-sm text-muted-foreground" data-testid="inventory-total">{plural(total, "torrent")} (unique hashes)</p>
         <Pager offset={offset} limit={50} total={total} onPage={(o) => { const n = new URLSearchParams(params); if (o > 0) n.set("offset", String(o)); else n.delete("offset"); setParams(n); }} />
-      </div>
+      </div> : null}
     </div>
   );
 }

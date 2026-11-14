@@ -102,7 +102,7 @@ describe("torrents page", () => {
     expect((busy as HTMLButtonElement).disabled).toBe(true);
     release();
     const result = await screen.findByTestId("refresh-result");
-    expect(result.textContent).toBe("Read the accounts: RD 1 account torrent · TB could not be read. Not every account was read: tb: HTTP 401.");
+    expect(result.textContent).toBe("Read the accounts: RD 1 account torrent · TB could not be read.");
     expect(await screen.findByText("New.Movie")).toBeTruthy();
     expect(screen.queryByText("Used.Movie")).toBeNull();
     expect(screen.getByTestId("provider-problem-tb").textContent).toMatch(/^Could not read TB just now: HTTP 401\./);
