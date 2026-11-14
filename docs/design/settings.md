@@ -206,17 +206,19 @@ stored (the effective default); a click writes an explicit value.
 Durations are shown in words ("10 minutes", "24 hours", "7 days" from two days up). Presets compare parsed values
 (`6h0m0s` selects 6 hours) and write the short Go form (`6h`); **Custom** is an amount and a unit (seconds, minutes,
 hours, days), written as the exact Go duration (1.25 hours is `1h15m`; days as hours, `48h`, because policy
-durations do not accept days). While the amount is typed, Custom and the unit stay as shown and only a valid amount
-writes (an empty or half-typed one keeps the stored value); Custom is left only through the preset select. Changing
-only the unit rescales the amount and writes nothing. Record editors (provider pacing, budget periods) use the same
-control. A stored value Go accepts but the form cannot split (`500ms`)
+durations do not accept days). While the amount is typed, Custom and the unit stay as shown and a valid amount writes;
+a blank or half-typed amount puts the saved value back in the draft (the box is marked invalid and shows the saved
+amount again when left), so Save never sends an edit the box does not show. Custom is left only through the preset
+select. Changing only the unit rescales the amount exactly (every digit needed, never rounded) and writes nothing.
+Discard, Reset, Undo and a reload show the value they set. Record editors (provider pacing, budget periods) keep
+plain text boxes for durations. A stored value Go accepts but the form cannot split (`500ms`)
 stays an editable text. A stored `0s` on a duration without Off is shown as Default, which is what the server reads it
 as, and stays stored until edited. Off removes the key for off-by-default settings, including the Torrents schedule
 control. The router’s stalled and no-progress timeouts retain explicit `0s` for Off: omitting them restores their
 nonzero runtime defaults. Byte sizes are an amount and a unit (B, KB, MB, GB, TB, KiB, MiB, GiB, TiB, as
 `policy.ByteSize` reads them): a stored count shows in the unit that gives the smallest whole number (2147483648 is
 2 GiB, 25000000 is 25 MB), a stored unit string keeps its unit, and a valid typed amount writes amount × unit in
-bytes (1.25 GB is 1250000000); a speed's units read
+bytes (1.25 GB is 1250000000), with the same rules for a blank amount, unit changes and Discard; a speed's units read
 `MB/s`. Add buttons name one item ("Add folder", "Add destination"; `addLabel` in `field-input.tsx`). On Plex &
 playback, a per-library row whose key is no longer a configured library is marked **library removed** with
 **Remove**, which drops that key in the draft; the section's Save writes it like any other edit (and it shows in
@@ -242,7 +244,8 @@ time** (`digest_at`, local `HH:MM`, default 09:00) sets when the Discord and ntf
 Help comes from Go field comments: `go generate ./internal/web` parses policy source and writes the embedded
 `sectionfields_gen.json`. Where a comment is written for developers (it names a source file, a design document, a job
 name or another field's YAML key, or is cut short), `sectionHelp` in `sectionschema.go` gives the form's text, with the
-same meaning, defaults and bounds; Go durations in any help are written in words ("Default 6h" reads "Default 6
+same meaning, defaults and bounds (still checked: no Go field names other than product words such as Plex, RSS and
+URL, no source files, no cut-offs); Go durations in any help are written in words ("Default 6h" reads "Default 6
 hours"). A web test keeps file names, design documents, job names and raw durations out of every help. The generator rejects undocumented reachable fields. `TestSectionFieldDocsCurrent`
 catches stale output; `TestSectionSchemaCoverage` independently checks every policy field, owned-field
 exclusions and credential paths. Generated help replaces Go field identifiers and expands “environment

@@ -249,19 +249,80 @@ describe("typing an amount keeps the unit and Custom as shown", () => {
   fireEvent.change(screen.getByLabelText("Option"), { target: { value: "" } });
   expect(value().value).toBe(2e9);
  });
+ it("puts the stored duration back when an edited amount is cleared, and shows it again on leaving the box", () => {
+  render(<Harness field={field("duration", { min: 60, default: "6m" })} initial="7m0s" />);
+  const amount = screen.getByLabelText("Option amount") as HTMLInputElement;
+  fireEvent.change(amount, { target: { value: "" } });
+  type(amount, "12");
+  expect(value().value).toBe("12m");
+  fireEvent.change(amount, { target: { value: "1" } });
+  fireEvent.change(amount, { target: { value: "" } });
+  expect(value().value).toBe("7m0s");
+  expect(amount.getAttribute("aria-invalid")).toBe("true");
+  fireEvent.blur(amount);
+  expect(amount.value).toBe("7");
+  expect(amount.getAttribute("aria-invalid")).toBeNull();
+ });
+ it("puts the stored size back while the amount is half typed", () => {
+  render(<Harness field={field("bytes", { default: "20GB" })} initial={2e9} />);
+  const amount = screen.getByLabelText("Option") as HTMLInputElement;
+  fireEvent.change(amount, { target: { value: "5" } });
+  expect(value().value).toBe(5e9);
+  fireEvent.change(amount, { target: { value: "5x" } });
+  expect(value().value).toBe(2e9);
+  fireEvent.blur(amount);
+  expect(amount.value).toBe("2");
+ });
+ it("shows the exact amount after a unit change", () => {
+  render(<Harness field={field("duration", { min: 60, default: "6m" })} initial="7m30s" />);
+  fireEvent.change(screen.getByLabelText("Option unit"), { target: { value: "hours" } });
+  expect((screen.getByLabelText("Option amount") as HTMLInputElement).value).toBe("0.125");
+  fireEvent.change(screen.getByLabelText("Option unit"), { target: { value: "seconds" } });
+  expect((screen.getByLabelText("Option amount") as HTMLInputElement).value).toBe("450");
+  expect(value().value).toBe("7m30s");
+ });
+ it("shows every digit of a size after a unit change, never a rounded figure", () => {
+  render(<Harness field={field("bytes")} initial={123456789} />);
+  fireEvent.change(screen.getByLabelText("Option unit"), { target: { value: "GB" } });
+  expect((screen.getByLabelText("Option") as HTMLInputElement).value).toBe("0.123456789");
+  expect(value().value).toBe(123456789);
+ });
 });
 
-it("gives a record editor's duration the same control, and keeps an untouched value", async () => {
- const { ConfigFields } = await import("./field-input");
- function Rec() {
-  const [values, setValues] = useState<Record<string, unknown>>({ cooldown: "1m0s" });
-  return <><ConfigFields fields={[{ name: "cooldown", type: "duration", help: "" }]} values={values as never} errors={{}} onChange={setValues as never} /><output data-testid="rec">{JSON.stringify(values)}</output></>;
+
+describe("Discard, Reset and Undo show the value they set", () => {
+ function Form({ field: f, saved }: { field: SchemaField; saved: string | number }) {
+  const [v, setV] = useState<unknown>(saved);
+  return <><FieldInput field={f} value={v} path="library.option" onChange={setV} tracked saved={saved} /><button type="button" onClick={() => setV(saved)}>Discard</button><output data-testid="v">{JSON.stringify(v ?? null)}</output></>;
  }
- render(<Rec />);
- const select = screen.getByRole("combobox", { name: "Pause after a refusal" }) as HTMLSelectElement;
- expect(select.selectedOptions[0].textContent).toBe("1 minute");
- expect(JSON.parse(screen.getByTestId("rec").textContent!)).toEqual({ cooldown: "1m0s" });
- fireEvent.change(select, { target: { value: "custom" } });
- fireEvent.change(screen.getByLabelText("Pause after a refusal amount"), { target: { value: "90" } });
- expect(JSON.parse(screen.getByTestId("rec").textContent!)).toEqual({ cooldown: "1h30m" });
+ const type = (el: HTMLElement, text: string) => { let t = ""; for (const c of text) { t += c; fireEvent.change(el, { target: { value: t } }); } };
+ it("shows the stored duration again after Discard, after Undo and after Reset", () => {
+  render(<Form field={field("duration", { min: 60, default: "6m" })} saved="7m0s" />);
+  const amount = () => screen.getByLabelText("Option amount") as HTMLInputElement;
+  fireEvent.change(amount(), { target: { value: "" } });
+  type(amount(), "15");
+  expect(screen.getByTestId("v").textContent).toBe('"15m"');
+  fireEvent.click(screen.getByRole("button", { name: "Discard" }));
+  expect(amount().value).toBe("7");
+  fireEvent.change(screen.getByLabelText("Option unit"), { target: { value: "seconds" } });
+  expect(amount().value).toBe("420");
+  fireEvent.change(amount(), { target: { value: "" } });
+  type(amount(), "425");
+  expect(screen.getByTestId("v").textContent).toBe('"7m5s"');
+  fireEvent.click(screen.getByRole("button", { name: /^Undo/ }));
+  expect(screen.getByTestId("v").textContent).toBe('"7m0s"');
+  expect(amount().value).toBe("7");
+  fireEvent.click(screen.getByRole("button", { name: "Reset Option" }));
+  expect(screen.getByTestId("v").textContent).toBe("null");
+  expect((screen.getByRole("combobox", { name: "Option" }) as HTMLSelectElement).value).toBe("");
+ });
+ it("shows the stored size again after Discard", () => {
+  render(<Form field={field("bytes", { default: "20GB" })} saved={2e9} />);
+  const amount = () => screen.getByLabelText("Option") as HTMLInputElement;
+  fireEvent.change(amount(), { target: { value: "" } });
+  type(amount(), "3.5");
+  expect(screen.getByTestId("v").textContent).toBe("3500000000");
+  fireEvent.click(screen.getByRole("button", { name: "Discard" }));
+  expect(amount().value).toBe("2");
+ });
 });

@@ -118,6 +118,8 @@ func TestSectionHelpHasNoGoFieldNames(t *testing.T) {
 	for name := range names {
 		patterns[name] = regexp.MustCompile(`\b` + regexp.QuoteMeta(name) + `\b`)
 	}
+	productWords := map[string]bool{"Plex": true, "RSS": true, "URL": true}
+	sourceFile := regexp.MustCompile(`\.go\b|docs/|\.md\b`)
 	var check func(string, []SchemaField)
 	check = func(path string, fields []SchemaField) {
 		for _, f := range fields {
@@ -129,14 +131,19 @@ func TestSectionHelpHasNoGoFieldNames(t *testing.T) {
 			if f.Type == "keyed" || f.Type == "object_list" {
 				children += ".*"
 			}
-			// The hand-written help in sectionHelp says Plex, RSS and URL as words; only text taken from the doc
-			// comments is checked.
-			if _, ok := sectionHelp[full]; !ok {
-				for name, pattern := range patterns {
-					if pattern.MatchString(f.Help) {
-						t.Errorf("%s help contains %s: %s", full, name, f.Help)
-					}
+			// The hand-written help in sectionHelp may say product words that are also Go field names (Plex, RSS,
+			// URL); every other field name, a source file or a cut-off is refused there too.
+			_, written := sectionHelp[full]
+			for name, pattern := range patterns {
+				if written && productWords[name] {
+					continue
 				}
+				if pattern.MatchString(f.Help) {
+					t.Errorf("%s help contains %s: %s", full, name, f.Help)
+				}
+			}
+			if written && (sourceFile.MatchString(f.Help) || strings.Contains(f.Help, "…")) {
+				t.Errorf("%s help names a source file or is cut off: %s", full, f.Help)
 			}
 			check(children, f.Fields)
 		}
