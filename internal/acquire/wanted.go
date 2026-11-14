@@ -2,6 +2,7 @@ package acquire
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"slices"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"github.com/theatarr/theatarr/internal/activity"
+	"github.com/theatarr/theatarr/internal/availability"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/store"
 )
@@ -25,13 +27,21 @@ type WantedSummary struct {
 	SearchedLastHour int `json:"searched_last_hour"`
 }
 
-// WantedQuery selects a view of the automatic search backlog.
+// WantedQuery selects a view of the automatic search backlog. TitleID (0: every title) narrows it to one title;
+// Sort orders it (WantedSorts; "" is the schedule's order).
 type WantedQuery struct {
 	Only          string
 	Version       string
 	Waiting       string
+	TitleID       int64
+	Sort          string
 	Limit, Offset int
 }
+
+// WantedSorts are the orders of the Wanted list besides the schedule's: by title, by air or release date (the
+// newest of the row's episodes; a film's home release) and by last search, each ascending or ("-") descending.
+// Rows without a date or never searched go last either way.
+var WantedSorts = []string{"title", "-title", "date", "-date", "last", "-last"}
 
 type WantedRun struct {
 	ID         int64     `json:"id"`
@@ -40,7 +50,9 @@ type WantedRun struct {
 	Results    int       `json:"results"`
 	Accepted   int       `json:"accepted"`
 	Downloaded bool      `json:"downloaded"`
-	Message    string    `json:"message"`
+	// DownloadID is the newest download the run started (with Downloaded).
+	DownloadID *int64 `json:"download_id,omitempty"`
+	Message    string `json:"message"`
 }
 
 // Waiting states of a Wanted row.
@@ -66,10 +78,14 @@ type WantedRow struct {
 	// and scheduled rows. Why is why the row is due early ("asked": Search now, "new": a retry of a new release,
 	// else the failure the router reported; absent on the regular schedule); Tries counts the retries of a new
 	// release (or the searches no indexer answered).
-	Waiting string     `json:"waiting"`
-	NextAt  *time.Time `json:"next_at"`
-	Why     string     `json:"why,omitempty"`
-	Tries   int        `json:"tries,omitempty"`
+	Waiting string `json:"waiting"`
+	// Date is the row's air or release date: the newest air date of its episodes, a film's home release
+	// (availability.HomeRelease); absent when unknown. Episodes counts a season row's episodes.
+	Date     *time.Time `json:"date,omitempty"`
+	Episodes int        `json:"episodes,omitempty"`
+	NextAt   *time.Time `json:"next_at"`
+	Why      string     `json:"why,omitempty"`
+	Tries    int        `json:"tries,omitempty"`
 	// Season is the row's season (absent for a movie).
 	Season *int `json:"season,omitempty"`
 	// SearchBlocked says why Search now cannot search the row, independent of Waiting (which names the loop's
@@ -150,15 +166,20 @@ func (a *Acquirer) wantedRows(ctx context.Context, q WantedQuery, out *WantedLis
 		}
 		versions = []string{q.Version}
 	}
-	v, err := a.wantedView(ctx, versions, 0)
+	v, err := a.wantedView(ctx, versions, q.TitleID)
 	if err != nil {
 		return nil, err
 	}
-	ts, err := a.targets(ctx, Selection{Versions: versions, Only: q.Only, QualityCutoff: a.qualityCutoff()})
+	sel := Selection{Versions: versions, Only: q.Only, QualityCutoff: a.qualityCutoff()}
+	if q.TitleID != 0 {
+		sel.TitleIDs = []int64{q.TitleID}
+	}
+	ts, err := a.targets(ctx, sel)
 	if err != nil {
 		return nil, err
 	}
 	var list []WantedRow
+	var groups [][]target
 	for _, group := range wantedGroups(orderTargets(ts, v.last)) {
 		row, err := a.wantedRow(ctx, v, q.Only, group)
 		if err != nil {
@@ -172,6 +193,147 @@ func (a *Acquirer) wantedRows(ctx context.Context, q WantedQuery, out *WantedLis
 			out.Searchable++
 		}
 		list = append(list, row)
+		groups = append(groups, group)
+	}
+	if err := a.wantedDates(ctx, list, groups); err != nil {
+		return nil, err
+	}
+	return a.sortWanted(ctx, list, groups, v.last, q.Sort)
+}
+
+// wantedDates sets each row's Date: a film's home release, else the newest air date of the row's episodes.
+func (a *Acquirer) wantedDates(ctx context.Context, list []WantedRow, groups [][]target) error {
+	var movies, episodes []any
+	for i, group := range groups {
+		if list[i].Season == nil {
+			movies = append(movies, list[i].TitleID)
+		}
+		for _, t := range group {
+			for _, id := range t.episodes {
+				episodes = append(episodes, id)
+			}
+		}
+	}
+	dates, err := availability.DatesFor(ctx, a.st.Reader(), movies)
+	if err != nil {
+		return err
+	}
+	aired := map[int64]int64{}
+	for ids := range slices.Chunk(episodes, 500) {
+		rows, err := a.st.Reader().QueryContext(ctx, `SELECT id, air_date_utc_at FROM episode WHERE air_date_utc_at IS NOT NULL
+			AND id IN (`+store.Placeholders(len(ids))+`)`, ids...)
+		if err != nil {
+			return err
+		}
+		for rows.Next() {
+			var id, at int64
+			if err := rows.Scan(&id, &at); err != nil {
+				rows.Close()
+				return err
+			}
+			aired[id] = at
+		}
+		if err := rows.Close(); err != nil {
+			return err
+		}
+	}
+	for i, group := range groups {
+		var d time.Time
+		if list[i].Season == nil {
+			d = availability.HomeRelease(dates[list[i].TitleID])
+		}
+		for _, t := range group {
+			for _, id := range t.episodes {
+				if at, ok := aired[id]; ok && time.UnixMilli(at).After(d) {
+					d = time.UnixMilli(at).UTC()
+				}
+			}
+		}
+		if !d.IsZero() {
+			list[i].Date = &d
+		}
+	}
+	return nil
+}
+
+// sortWanted orders the rows by q's sort (WantedSorts), keeping the schedule's order among equals.
+func (a *Acquirer) sortWanted(ctx context.Context, list []WantedRow, groups [][]target, last map[string]lastRuns,
+	by string) ([]WantedRow, error) {
+	if by == "" || len(list) < 2 {
+		return list, nil
+	}
+	desc := strings.HasPrefix(by, "-")
+	key := strings.TrimPrefix(by, "-")
+	names := map[int64]string{}
+	if key == "title" {
+		var ids []any
+		for _, r := range list {
+			if _, ok := names[r.TitleID]; !ok {
+				names[r.TitleID] = ""
+				ids = append(ids, r.TitleID)
+			}
+		}
+		for chunk := range slices.Chunk(ids, 500) {
+			rows, err := a.st.Reader().QueryContext(ctx, `SELECT id, CASE WHEN sort_name = '' THEN lower(name) ELSE sort_name END
+				FROM title WHERE id IN (`+store.Placeholders(len(chunk))+`)`, chunk...)
+			if err != nil {
+				return nil, err
+			}
+			for rows.Next() {
+				var id int64
+				var name string
+				if err := rows.Scan(&id, &name); err != nil {
+					rows.Close()
+					return nil, err
+				}
+				names[id] = name
+			}
+			if err := rows.Close(); err != nil {
+				return nil, err
+			}
+		}
+	}
+	type entry struct {
+		row  WantedRow
+		name string
+		at   int64 // the date or the last search; 0: none (last either way)
+	}
+	es := make([]entry, len(list))
+	for i, r := range list {
+		e := entry{row: r, name: names[r.TitleID]}
+		switch key {
+		case "date":
+			if r.Date != nil {
+				e.at = r.Date.UnixMilli()
+			}
+		case "last":
+			e.at = last[seasonKey(groups[i][0].versionID, seasonOf(r.Season))].any
+		}
+		es[i] = e
+	}
+	slices.SortStableFunc(es, func(x, y entry) int {
+		c := strings.Compare(x.name, y.name)
+		if key != "title" {
+			switch {
+			case x.at == y.at:
+				c = 0
+			case x.at == 0:
+				return 1
+			case y.at == 0:
+				return -1
+			case x.at < y.at:
+				c = -1
+			default:
+				c = 1
+			}
+		}
+		if desc {
+			return -c
+		}
+		return c
+	})
+	for i := range es {
+		list[i] = es[i].row
 	}
 	return list, nil
 }
@@ -238,9 +400,16 @@ func (a *Acquirer) wantedRow(ctx context.Context, v *wantedView, only string, gr
 	row := WantedRow{TitleID: group[0].titleID, Version: group[0].key, Reason: only, Targets: []string{},
 		Season: group[0].season}
 	allBusy := true
+	episodes := map[int64]bool{}
 	for _, t := range group {
 		row.Targets = append(row.Targets, t.name)
 		allBusy = allBusy && v.flight.busy(t)
+		for _, id := range t.episodes {
+			episodes[id] = true
+		}
+	}
+	if row.Season != nil {
+		row.Episodes = len(episodes)
 	}
 	r, has := v.sched[targetKey(group[0])]
 	scheduled := has && (r.why != "" || on)
@@ -442,7 +611,7 @@ func (a *Acquirer) wantedRuns(ctx context.Context, items []WantedRow) error {
 	}
 	rows, err := a.st.Reader().QueryContext(ctx, `WITH page(idx,title,key,season) AS (VALUES `+strings.Join(values, ",")+`), ranked AS (
  SELECT p.idx, r.id, r.created_at, r.state, r.results, r.accepted, r.message,
- EXISTS(SELECT 1 FROM download WHERE download.source = 'acquire:' || r.id
+ (SELECT MAX(download.id) FROM download WHERE download.source = 'acquire:' || r.id
    AND NOT (download.state = 'failed' AND `+activity.NotStartedSQL+`)) AS downloaded,
  ROW_NUMBER() OVER (PARTITION BY p.idx ORDER BY r.created_at DESC, r.id DESC) AS rank
  FROM page p JOIN version v ON v.title_id = p.title AND v.policy_key = p.key
@@ -455,10 +624,14 @@ func (a *Acquirer) wantedRuns(ctx context.Context, items []WantedRow) error {
 	for rows.Next() {
 		var i int
 		var at int64
+		var download sql.NullInt64
 		run := &WantedRun{}
-		if err := rows.Scan(&i, &run.ID, &at, &run.State, &run.Results, &run.Accepted, &run.Message, &run.Downloaded); err != nil {
+		if err := rows.Scan(&i, &run.ID, &at, &run.State, &run.Results, &run.Accepted, &run.Message, &download); err != nil {
 			rows.Close()
 			return err
+		}
+		if download.Valid {
+			run.Downloaded, run.DownloadID = true, &download.Int64
 		}
 		run.At = time.UnixMilli(at).UTC()
 		items[i].LastRun = run

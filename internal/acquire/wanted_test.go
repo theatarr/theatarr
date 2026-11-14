@@ -503,3 +503,85 @@ func TestWantedListLastRunBySeason(t *testing.T) {
 		t.Fatalf("no season 1 row: %+v", l.Items)
 	}
 }
+
+// Wanted's title filter narrows rows, counts, paging and Search all; its sorts order the whole list before paging;
+// each row carries its air or release date, a season row its episode count, and a grabbed run its download.
+func TestWantedTitleFilterSortAndDates(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true, &policy.Wanted{PerHour: 100, Missing: new(false), CutoffUnmet: policy.CutoffOff})
+	e.exec(`UPDATE title_release_date SET date = '2024-06-01' WHERE title_id = 2`)
+	e.exec(`INSERT INTO acquire_run (id, source, title_id, version_id, version_key, target, state, created_at, updated_at)
+		VALUES (5, 'wanted', 1, 101, 'movie', 'movie', 'routed', ?, ?)`, store.Millis(t0.Add(-2*time.Hour)), store.Millis(t0.Add(-2*time.Hour)))
+	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, state, error, source,
+		created_at, updated_at) VALUES (40, 1, 101, 'movie', ?, 'x', 'pub', 'failed', 'stalled: no progress', 'acquire:5', 0, 0)`, h("a"))
+	list := func(q WantedQuery) *WantedList {
+		t.Helper()
+		q.Only = OnlyMissing
+		l, err := e.a.WantedList(e.ctx, q)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return l
+	}
+	order := func(l *WantedList) string {
+		var out []string
+		for _, r := range l.Items {
+			out = append(out, fmt.Sprintf("%d/%s/%d", r.TitleID, r.Version, seasonOf(r.Season)))
+		}
+		return strings.Join(out, " ")
+	}
+	all := list(WantedQuery{})
+	if all.Total != 5 {
+		t.Fatalf("rows %s", order(all))
+	}
+	for _, r := range all.Items {
+		switch {
+		case r.TitleID == 1 && (r.Date == nil || !r.Date.Equal(time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC))):
+			t.Errorf("film date %v", r.Date)
+		case r.TitleID == 10 && (r.Date == nil || !r.Date.Equal(t0.Add(-24*time.Hour))):
+			t.Errorf("season %v date %v, want the newest aired episode's", r.Season, r.Date)
+		case r.TitleID == 10 && seasonOf(r.Season) == 1 && r.Episodes != 2:
+			t.Errorf("season 1: %d episodes, want 2", r.Episodes)
+		case r.TitleID != 10 && r.Episodes != 0:
+			t.Errorf("film with episodes %+v", r)
+		case r.TitleID == 1 && (r.LastRun == nil || !r.LastRun.Downloaded || r.LastRun.DownloadID == nil || *r.LastRun.DownloadID != 40):
+			t.Errorf("grabbed run %+v", r.LastRun)
+		}
+	}
+	for _, tc := range []struct{ sort, want string }{
+		{"title", "1/movie/-1 10/series/0 10/series/1 10/series/2 2/movie/-1"},
+		{"-title", "2/movie/-1 10/series/0 10/series/1 10/series/2 1/movie/-1"},
+		{"-date", "10/series/0 10/series/1 10/series/2 2/movie/-1 1/movie/-1"},
+		{"date", "1/movie/-1 2/movie/-1 10/series/0 10/series/1 10/series/2"},
+		// Only film 1 was searched: first either way, the never-searched rows after it.
+		{"last", "1/movie/-1"},
+		{"-last", "1/movie/-1"},
+	} {
+		got := order(list(WantedQuery{Sort: tc.sort}))
+		if !strings.HasPrefix(got, tc.want) {
+			t.Errorf("sort %s: %s, want %s", tc.sort, got, tc.want)
+		}
+	}
+	// Paging follows the sort.
+	if got := order(list(WantedQuery{Sort: "-title", Limit: 1, Offset: 4})); got != "1/movie/-1" {
+		t.Errorf("last page of -title: %s", got)
+	}
+	one := list(WantedQuery{TitleID: 10})
+	sum := 0
+	for _, n := range one.Counts {
+		sum += n
+	}
+	if one.Total != 3 || sum != 3 || one.Searchable != 3 || !strings.HasPrefix(order(one), "10/") || strings.Contains(order(one), " 1/") ||
+		strings.Contains(order(one), " 2/") {
+		t.Fatalf("title 10: %s total %d counts %v", order(one), one.Total, one.Counts)
+	}
+	if _, err := e.a.RequestSearchNowAll(e.ctx, WantedQuery{Only: OnlyMissing, TitleID: 2}); err != nil {
+		t.Fatal(err)
+	}
+	if n := e.count(`SELECT COUNT(*) FROM search_request WHERE title_id <> 2`); n != 0 {
+		t.Errorf("Search all for title 2 asked for %d rows of other titles", n)
+	}
+	if n := e.count(`SELECT COUNT(*) FROM search_request WHERE title_id = 2`); n != 1 {
+		t.Errorf("Search all for title 2: %d rows, want 1", n)
+	}
+}

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"net/http"
+	"slices"
 	"strconv"
 
 	"github.com/theatarr/theatarr/internal/acquire"
@@ -37,7 +38,7 @@ func wantedWaiting(v string) bool {
 	return false
 }
 
-// POST /wanted/search {only, items: [{title_id, version, season?}]} or {only, all: {version?, waiting?}}: queue a
+// POST /wanted/search {only, items: [{title_id, version, season?}]} or {only, all: {version?, waiting?, title_id?}}: queue a
 // search of the named rows of the Wanted list, or of every row the list shows for the filter: they become due, asked
 // for, and start first under router.wanted.per_hour; the answer says how many started at once and how many wait. 409
 // while paused.
@@ -48,6 +49,7 @@ func (w *Web) apiWantedSearch(rw http.ResponseWriter, r *http.Request) {
 		All   *struct {
 			Version string `json:"version"`
 			Waiting string `json:"waiting"`
+			TitleID int64  `json:"title_id"`
 		} `json:"all"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
@@ -83,7 +85,7 @@ func (w *Web) apiWantedSearch(rw http.ResponseWriter, r *http.Request) {
 	var err error
 	if req.All != nil {
 		out, err = sn.RequestSearchNowAll(r.Context(), acquire.WantedQuery{Only: req.Only, Version: req.All.Version,
-			Waiting: req.All.Waiting})
+			Waiting: req.All.Waiting, TitleID: req.All.TitleID})
 	} else {
 		out, err = sn.RequestSearchNow(r.Context(), req.Only, req.Items)
 	}
@@ -134,19 +136,37 @@ func (w *Web) apiWanted(rw http.ResponseWriter, r *http.Request) {
 		badRequest(rw, "invalid waiting filter")
 		return
 	}
+	if s := q.Get("sort"); s != "" && !slices.Contains(acquire.WantedSorts, s) {
+		badRequest(rw, "invalid sort")
+		return
+	}
+	var titleID int64
+	if s := q.Get("title"); s != "" {
+		var err error
+		if titleID, err = strconv.ParseInt(s, 10, 64); err != nil || titleID <= 0 {
+			badRequest(rw, "title must be a title id")
+			return
+		}
+	}
 	limit, _ := strconv.Atoi(q.Get("limit"))
 	offset, _ := strconv.Atoi(q.Get("offset"))
 	if w.add.Acquirer == nil {
 		writeJSON(rw, http.StatusServiceUnavailable, apiError{Error: "acquirer is not running"})
 		return
 	}
-	list, err := w.add.Acquirer.WantedList(r.Context(), acquire.WantedQuery{Only: q.Get("only"), Version: q.Get("version"), Waiting: q.Get("waiting"), Limit: limit, Offset: offset})
+	list, err := w.add.Acquirer.WantedList(r.Context(), acquire.WantedQuery{Only: q.Get("only"), Version: q.Get("version"),
+		Waiting: q.Get("waiting"), TitleID: titleID, Sort: q.Get("sort"), Limit: limit, Offset: offset})
 	if err != nil {
 		w.internal(rw, err)
 		return
 	}
 	out := WantedPage{WantedList: list, Titles: map[int64]string{}, Libraries: w.keyLabels(w.pol.ActiveVersions())}
+	// The filtered title is named even when none of its rows is listed (its chip on the page).
 	var ids []any
+	if titleID != 0 {
+		ids = append(ids, titleID)
+		out.Titles[titleID] = ""
+	}
 	for _, row := range list.Items {
 		if _, ok := out.Titles[row.TitleID]; !ok {
 			ids = append(ids, row.TitleID)

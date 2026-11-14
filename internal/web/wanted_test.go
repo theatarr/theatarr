@@ -38,8 +38,10 @@ func TestWantedAPI(t *testing.T) {
 			t.Errorf("bad only: %d", code)
 		}
 	}
-	if code := e.getKey(APIBase+"/wanted?only=missing&waiting=wrong", key, nil); code != 400 {
-		t.Errorf("bad waiting: %d", code)
+	for _, bad := range []string{"waiting=wrong", "sort=name", "title=x", "title=0"} {
+		if code := e.getKey(APIBase+"/wanted?only=missing&"+bad, key, nil); code != 400 {
+			t.Errorf("%s: %d", bad, code)
+		}
 	}
 	var out WantedPage
 	if code := e.getKey(APIBase+"/wanted?only=missing&version=movie-web&waiting=due&limit=1&offset=1", key, &out); code != 200 {
@@ -66,6 +68,17 @@ func TestWantedAPI(t *testing.T) {
 	}
 	if len(acq.queries) != 2 {
 		t.Fatalf("queries %d: only the manager's request reaches the acquirer", len(acq.queries))
+	}
+	// The title filter and the sort reach the acquirer; the filtered title is named even with no row of its own.
+	out = WantedPage{}
+	if code := e.getKey(APIBase+"/wanted?only=cutoff&title=2&sort=-date", key, &out); code != 200 {
+		t.Fatalf("title filter %d", code)
+	}
+	if q := acq.queries[len(acq.queries)-1]; q != (acquire.WantedQuery{Only: "cutoff", TitleID: 2, Sort: "-date"}) {
+		t.Fatalf("query %+v", q)
+	}
+	if _, ok := out.Titles[2]; !ok {
+		t.Fatalf("titles %+v", out.Titles)
 	}
 }
 
@@ -128,10 +141,10 @@ func TestWantedSearchAPI(t *testing.T) {
 	if acq.only != "cutoff" || len(acq.items) != 2 || acq.items[0].Season != nil || acq.items[1].Season == nil || *acq.items[1].Season != 2 {
 		t.Fatalf("items %s %+v", acq.only, acq.items)
 	}
-	if code, out = post(`{"only":"missing","all":{"version":"movie-web","waiting":"due"}}`); code != 200 || out["queued"] != float64(7) {
+	if code, out = post(`{"only":"missing","all":{"version":"movie-web","waiting":"due","title_id":4}}`); code != 200 || out["queued"] != float64(7) {
 		t.Fatalf("all %d %+v", code, out)
 	}
-	if len(acq.all) != 1 || acq.all[0] != (acquire.WantedQuery{Only: "missing", Version: "movie-web", Waiting: "due"}) {
+	if len(acq.all) != 1 || acq.all[0] != (acquire.WantedQuery{Only: "missing", Version: "movie-web", Waiting: "due", TitleID: 4}) {
 		t.Fatalf("all query %+v", acq.all)
 	}
 	acq.off = true
