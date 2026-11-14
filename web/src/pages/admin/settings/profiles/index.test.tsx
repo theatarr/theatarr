@@ -412,3 +412,10 @@ it("retries deleting an unused profile with the server confirmation token", asyn
   expect(retry.search).toBe(first.search);
   await waitFor(() => expect(screen.queryByRole("dialog", { name: "Confirm what this change enables" })).toBeNull());
 });
+
+it("says the upgrade-until score whatever its sign", async () => {
+  const { upgradeUntil } = await import("./parts");
+  expect(upgradeUntil({ cutoff: "WEBDL-2160p", cutoff_score: 0, upgrades: true })).toBe("Upgrades until WEBDL-2160p and a score of 0");
+  expect(upgradeUntil({ cutoff: "WEBDL-2160p", cutoff_score: -500, upgrades: true })).toBe("Upgrades until WEBDL-2160p and a score of -500");
+  expect(upgradeUntil({ cutoff: "WEBDL-2160p", cutoff_score: 10000, upgrades: false })).toBe("No upgrades");
+});

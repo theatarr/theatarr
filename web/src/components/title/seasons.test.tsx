@@ -496,7 +496,7 @@ describe("One status vocabulary", () => {
     expect(within(why).getByRole("heading").textContent).toBe("Best quality known");
     // Current and preferred quality are equal: Why? leads with the score that falls short, and the equal source
     // lines are folded.
-    expect(within(why).getByTestId("why-short").textContent).toMatch(/^Score 1,500 of 10,000; the quality is already the preferred one/);
+    expect(within(why).getByTestId("why-short").textContent).toBe("Score 1,500 of 10,000.");
     expect(within(why).getByTestId("why-sources").hasAttribute("open")).toBe(false);
     await user.click(within(why).getByRole("button", { name: "Close" }));
     // The episode window says what the row says: Available, then the quality word with Why?; Not monitored for the

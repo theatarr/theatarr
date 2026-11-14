@@ -121,9 +121,9 @@ function WhyDialog({
   const sc = score !== undefined ? score : u.score;
   const co = cutoff ?? u.cutoff;
   const line = cutoffLine(u.quality, sc, co);
-  // Every state short of the preferred quality leads with the part that falls short and its numbers, Best source seen
-  // so far and Best available included (the quality can match while the score does not).
-  const short = u.state !== "cutoff_met" && u.state !== "none" ? shortfall(u.quality, sc, co) : "";
+  // Every state short of the preferred quality leads with the profile score when it falls short, Best source seen so
+  // far and Best available included (the quality can match while the score does not).
+  const short = u.state !== "cutoff_met" && u.state !== "none" ? shortfall(sc, co) : "";
   // The source lines say one thing when current, preferred and reachable are the same source: folded.
   const sameSource = why.current === why.preferred && (!why.reachable || why.reachable === why.current);
   const sources = (

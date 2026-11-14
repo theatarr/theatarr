@@ -60,7 +60,7 @@ export function cutoffLine(quality: string | undefined, score: number | undefine
   if (quality) parts.push(quality);
   if (score !== undefined && score !== null) {
     parts.push(cutoff?.score !== undefined && cutoff.score !== null ? `profile score ${fmtNumber(score)} / ${fmtNumber(cutoff.score)}` : `profile score ${fmtNumber(score)}`);
-  } else if (cutoff?.score !== undefined && cutoff.score !== null && cutoff.score > 0) {
+  } else if (cutoff?.score !== undefined && cutoff.score !== null) {
     parts.push(`cutoff score ${fmtNumber(cutoff.score)}`);
   }
   if (cutoff?.quality) parts.push(`cutoff ${cutoff.quality}`);
@@ -74,20 +74,13 @@ const SOURCE: Record<string, string> = {
 };
 
 /**
- * Why?'s first line: the condition that falls short, with its numbers. "Score 8,550 of 10,000; the quality is already
- * the preferred one (Remux-2160p)." or "Quality Bluray-1080p, short of the preferred Remux-2160p; score 6,302 of
- * 10,000." "" when neither part falls short or nothing is known.
+ * Why?'s first line: the profile score that falls short, with its numbers ("Score 8,550 of 10,000."); "" when it does
+ * not fall short or is not known. The quality part is not judged here: the API does not say whether the file's quality
+ * meets a cutoff that is a group (WEBDL-2160p in "WEB 2160p"), so the source lines and the cutoff line say it.
  */
-export function shortfall(quality: string | undefined, score: number | undefined | null, cutoff: Cutoff | undefined | null): string {
-  if (!cutoff) return "";
-  const qualityShort = !!(cutoff.quality && quality && quality !== cutoff.quality);
-  const scored = score !== undefined && score !== null && cutoff.score !== undefined && cutoff.score !== null && cutoff.score > 0;
-  const scoreShort = scored && score < (cutoff.score ?? 0);
-  if (!qualityShort && !scoreShort) return "";
-  const numbers = scored ? `${fmtNumber(score)} of ${fmtNumber(cutoff.score ?? 0)}` : "";
-  if (qualityShort) return `Quality ${quality}, short of the preferred ${cutoff.quality}${numbers ? `; score ${numbers}` : ""}.`;
-  const met = quality ? `; the quality is already the preferred one${cutoff.quality ? ` (${cutoff.quality})` : ""}` : "";
-  return `Score ${numbers}${met}.`;
+export function shortfall(score: number | undefined | null, cutoff: Cutoff | undefined | null): string {
+  if (score === undefined || score === null || cutoff?.score === undefined || cutoff.score === null || score >= cutoff.score) return "";
+  return `Score ${fmtNumber(score)} of ${fmtNumber(cutoff.score)}.`;
 }
 
 /** What Theatarr would take next and why, or why there is nothing to take. */

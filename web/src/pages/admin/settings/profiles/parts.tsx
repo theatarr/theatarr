@@ -31,7 +31,7 @@ export const DEFINITION: Record<string, { label: string; tone: Tone; help: strin
 /** Where a profile's upgrades stop, in words: "Upgrades until WEBDL-2160p and a score of 10,000". */
 export function upgradeUntil(p: { cutoff: string; cutoff_score: number; upgrades: boolean }): string {
   if (!p.upgrades) return "No upgrades";
-  return `Upgrades until ${p.cutoff}${p.cutoff_score > 0 ? ` and a score of ${p.cutoff_score.toLocaleString("en-US")}` : ""}`;
+  return `Upgrades until ${p.cutoff} and a score of ${p.cutoff_score.toLocaleString("en-US")}`;
 }
 
 /** Allowed qualities as chips, best first, the cutoff marked. */

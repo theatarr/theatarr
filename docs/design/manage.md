@@ -28,9 +28,8 @@ status word (Available, Partly available: docs/design/ui.md, Status words), neve
   found for its profile (a movie with Remux-1080p whose profile prefers WEBDL-2160p, after a search that found
   nothing better); it is neutral or positive, never a warning. **Preferred quality met** at the preferred quality.
 - The quality word opens **Why?** (docs/design/ceilings.md), headed by that same word with the state's wording under
-  it, led by what falls short with its numbers (for every state short of the preferred quality, so "Best source seen
-  so far" with current and preferred quality equal says "Score 7,555 of 10,000; the quality is already the preferred
-  one"), then the cutoff line ("WEBDL-2160p · profile score 2,244 / 2,000 · cutoff Remux-2160p"), what Theatarr would
+  it, led by the profile score when it falls short (for every state short of the preferred quality, so "Best source
+  seen so far" with current and preferred quality equal says "Score 7,555 of 10,000."), then the cutoff line ("WEBDL-2160p · profile score 2,244 / 2,000 · cutoff Remux-2160p"), what Theatarr would
   take next, and the source-ceiling evidence.
 - List rows carry `upgrade_state` for a title with a file; posters show "Upgrade found" on the year line, and so does
   the table's Status, under the status word (J2: "Best quality known" and "Preferred quality met" are the title

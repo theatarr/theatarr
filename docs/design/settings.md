@@ -1088,7 +1088,7 @@ says which (`source`: `checkout` or `bundled`, with `commit`), and the quality o
 
 - Settings › Profiles lists each stored profile with its allowed qualities (the cutoff marked) and, under them,
   where its upgrades stop: "Upgrades until WEBDL-2160p and a score of 10,000" (`cutoff`, `cutoff_score` and
-  `upgrades` of the quality overview's profile summary; "No upgrades" with upgrades off).
+  `upgrades` of the quality overview's profile summary; the score whatever its sign; "No upgrades" with upgrades off).
 - Settings › Profiles lists every preset of both flavours under **TRaSH defaults**, with the stored copies of each.
   **Use** (**Create a copy** when one exists) opens the profile editor on a copy under a free key.
 - The library editor's profile picker has two groups: the stored profiles and the TRaSH defaults of the library's
