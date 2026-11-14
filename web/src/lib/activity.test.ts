@@ -114,7 +114,6 @@ describe("failedLead", () => {
   it("leads a failure with what happened and what helps", () => {
     expect(failedLead({ state: "failed", error: "stalled: not ready" })).toMatch(/^It stalled at the provider/);
     expect(failedLead({ state: "failed", error: "ready timeout: not imported after 6h0m0s" })).toMatch(/^It finished at the provider but was not linked in time/);
-    expect(failedLead({ state: "failed", error: "miss on every provider" })).toMatch(/^No provider has this release cached/);
     expect(failedLead({ state: "ready", import_state: "rejected" })).toBe("The library did not take its files. Import now tries again; Interactive search lets you choose another.");
     expect(failedLead({ state: "failed", error: "provider status error" })).toMatch(/^The download failed\./);
     expect(failedLead({ state: "failed", not_started: true, error: "x" })).toBe("");

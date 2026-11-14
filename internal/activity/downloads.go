@@ -30,15 +30,16 @@ const QueueFailureSQL = `d.state='failed' AND d.dismissed_at IS NULL AND d.updat
 // keeps QueueFailureSQL). The download alias is d; its one argument is the 7-day cutoff (ms). A miss on every
 // provider and a download never started (NotStarted) belong to History only. Any other failure (stalled, refused by
 // the library, not imported in time, a provider error) shows until a newer download of the same title and library is
-// imported that covers all of its episodes (none: a movie), for at most 7 days. It only reads: stored attempts and
-// ownership evidence are untouched.
-const NativeQueueFailureSQL = `d.state='failed' AND d.dismissed_at IS NULL AND d.updated_at > ?
+// imported whose links hold all of its episodes (what it really linked, not what it asked for; a movie has none, so
+// any newer import covers it), for at most 7 days. It only reads: stored attempts and ownership evidence are
+// untouched.
+var NativeQueueFailureSQL = `d.state='failed' AND d.dismissed_at IS NULL AND d.updated_at > ?
  AND COALESCE(d.error, '') NOT GLOB 'miss on every provider*'
- AND NOT ` + notStartedAliasSQL + `
+ AND NOT ` + notStartedSQL("d") + `
  AND NOT EXISTS (SELECT 1 FROM download newer WHERE newer.title_id=d.title_id
   AND newer.version_key=d.version_key AND newer.id>d.id AND newer.state='imported'
-  AND NOT EXISTS (SELECT 1 FROM json_each(d.episodes) e
-   WHERE e.value NOT IN (SELECT n.value FROM json_each(newer.episodes) n)))`
+  AND NOT EXISTS (SELECT 1 FROM json_each(d.episodes) e WHERE e.value NOT IN
+   (SELECT le.episode_id FROM link l JOIN link_episode le ON le.link_id = l.id WHERE l.download_id = newer.id)))`
 
 // Download is one download row with its title and its library import (migrations 00014, 00015).
 type Download struct {

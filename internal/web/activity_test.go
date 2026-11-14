@@ -1012,9 +1012,11 @@ func TestActivityQueueFailureRule(t *testing.T) {
 		{8, 1, 1, "movie-remux", "failed", "[]", "stalled: not ready", now},
 		{9, 2, 3, "movie-web", "failed", "[]", "stalled: not ready", old},
 		{11, 3, 9, "tv-2160p", "failed", "[31,32]", "stalled: not ready", now},
-		{12, 3, 9, "tv-2160p", "imported", "[31]", nil, now},
+		// 12 asked for E01-E02 but linked E01 only (E02 refused): 11 stays. 14 asked for nothing listed but linked
+		// E02-E03: 13 is covered. Coverage is what the newer download linked, not what it asked for.
+		{12, 3, 9, "tv-2160p", "imported", "[31,32]", nil, now},
 		{13, 3, 9, "tv-2160p", "failed", "[33]", "stalled: not ready", now},
-		{14, 3, 9, "tv-2160p", "imported", "[32,33]", nil, now},
+		{14, 3, 9, "tv-2160p", "imported", "[]", nil, now},
 		{15, 2, 3, "movie-web", "downloading", "[]", nil, now},
 	} {
 		e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, episodes,
@@ -1024,9 +1026,13 @@ func TestActivityQueueFailureRule(t *testing.T) {
 	}
 	e.exec(`INSERT INTO download_attempt (download_id, provider, outcome, code, attempted_at) VALUES
 		(1, 'rd', 'skipped', 'uncached', ?), (3, 'rd', 'accepted', '', ?)`, now, now)
+	e.exec(`INSERT INTO link (id, path, target, title_id, download_id, state, created_at, updated_at) VALUES
+		(90, '/tv/G/S01E01.mkv', '/t1', 3, 12, 'active', ?, ?), (91, '/tv/G/S01E02.mkv', '/t2', 3, 14, 'active', ?, ?),
+		(92, '/tv/G/S01E03.mkv', '/t3', 3, 14, 'active', ?, ?)`, now, now, now, now, now, now)
+	e.exec(`INSERT INTO link_episode (link_id, episode_id) VALUES (90, 31), (91, 32), (92, 33)`)
 	snapshot := func() string {
 		var b strings.Builder
-		for _, table := range []string{"download", "download_attempt", "library_import", "router_blocklist"} {
+		for _, table := range []string{"download", "download_attempt", "library_import", "router_blocklist", "link", "link_episode"} {
 			rows, err := e.st.Reader().Query(`SELECT * FROM ` + table + ` ORDER BY rowid`)
 			if err != nil {
 				t.Fatal(err)

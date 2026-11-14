@@ -134,8 +134,8 @@ export function stageLabel(d: D): string {
 }
 
 /** A failed download's Inspect panel opens with this sentence (admins): what happened and what helps, from its error
- *  text (internal/router: "stalled: …", "ready timeout: …", "library: …", "miss on every provider"). "" for a row that
- *  did not fail. */
+ *  text (internal/router: "stalled: …", "ready timeout: …", "library: …"). A miss on every provider never reaches the
+ *  queue (activity.NativeQueueFailureSQL). "" for a row that did not fail. */
 export function failedLead(d: Pick<ActivityDownload, "state" | "error" | "import_state" | "not_started">): string {
   const refused = d.import_state === "rejected" || d.import_state === "failed";
   if ((d.state !== "failed" || d.not_started) && !refused) return "";
@@ -144,7 +144,6 @@ export function failedLead(d: Pick<ActivityDownload, "state" | "error" | "import
   if (refused || e.startsWith("library:")) return `The library did not take its files. ${pick}`;
   if (e.startsWith("stalled")) return `It stalled at the provider and was dropped. ${pick}`;
   if (e.startsWith("ready timeout")) return `It finished at the provider but was not linked in time. ${pick}`;
-  if (e.startsWith("miss on every provider")) return "No provider has this release cached, so Retry would fail the same way. Choose another release with Interactive search, or wait.";
   return `The download failed. ${pick}`;
 }
 
