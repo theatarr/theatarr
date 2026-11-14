@@ -113,6 +113,17 @@ func TestTorrentsAPI(t *testing.T) {
 			t.Errorf("inventory %s: %q, want %q (none for a hash no account holds)", it.Name, it.Usage, want)
 		}
 	}
+	// A used hash names its titles in the list, so a row can link to them.
+	e.exec(`UPDATE provider_hash_usage SET usage = 'used', detail = ? WHERE info_hash = ?`, `{"titles":[{"id":7,"name":"Alpha"}]}`, h1)
+	if code := e.getKey(APIBase+"/registry", key, &inv); code != 200 {
+		t.Fatalf("inventory: %d", code)
+	}
+	for _, it := range inv.Items {
+		if got := len(it.Titles); (it.InfoHash == h1) != (got == 1) || got == 1 && (it.Titles[0].ID != 7 || it.Titles[0].Name != "Alpha") {
+			t.Errorf("inventory %s titles: %+v", it.InfoHash, it.Titles)
+		}
+	}
+	e.exec(`UPDATE provider_hash_usage SET usage = 'unused', detail = '{}' WHERE info_hash = ?`, h1)
 	var c Content
 	if code := e.getKey(APIBase+"/registry/"+h1, key, &c); code != 200 || c.Usage == nil || c.Usage.Usage != torrents.Unused {
 		t.Errorf("inventory entry: %d %+v", code, c.Usage)

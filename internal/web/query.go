@@ -835,17 +835,18 @@ func (w *Web) getContent(ctx context.Context, hash string) (*Content, error) {
 	return c, nil
 }
 
-// ContentRow is a registry list row. Usage, LinkedFiles (links: library links and scanned symlinks) and UsageReason
-// (the first reason of an unknown usage, such as not worked out yet) are the Torrents page's answer for the hash from
-// the record; absent when no account holds it there.
+// ContentRow is a registry list row. Usage, LinkedFiles (links: library links and scanned symlinks), UsageReason
+// (the first reason of an unknown usage, such as not worked out yet) and Titles (the titles its references belong to)
+// are the Torrents page's answer for the hash from the record; absent when no account holds it there.
 type ContentRow struct {
-	InfoHash    string         `json:"info_hash"`
-	Name        string         `json:"name"`
-	State       string         `json:"state"`
-	LastSeenAt  time.Time      `json:"last_seen_at"`
-	Usage       torrents.Usage `json:"usage,omitempty"`
-	LinkedFiles int            `json:"linked_files,omitempty"`
-	UsageReason string         `json:"usage_reason,omitempty"`
+	InfoHash    string                 `json:"info_hash"`
+	Name        string                 `json:"name"`
+	State       string                 `json:"state"`
+	LastSeenAt  time.Time              `json:"last_seen_at"`
+	Usage       torrents.Usage         `json:"usage,omitempty"`
+	LinkedFiles int                    `json:"linked_files,omitempty"`
+	UsageReason string                 `json:"usage_reason,omitempty"`
+	Titles      []torrents.LinkedTitle `json:"titles,omitempty"`
 }
 
 // listContent lists registry contents, newest first; each word of q matches a name substring or a hash prefix.
@@ -892,7 +893,7 @@ func (w *Web) listContent(ctx context.Context, q, state string, limit, offset in
 	us, err := torrents.HashUsages(ctx, w.st.Reader(), hashes)
 	for i := range out {
 		if hu, ok := us[hashes[i]]; ok {
-			out[i].Usage, out[i].LinkedFiles = hu.Usage, hu.LinkedFiles
+			out[i].Usage, out[i].LinkedFiles, out[i].Titles = hu.Usage, hu.LinkedFiles, hu.Titles
 			if hu.Usage == torrents.Unknown && len(hu.Reasons) > 0 {
 				out[i].UsageReason = hu.Reasons[0]
 			}

@@ -10,7 +10,7 @@ import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { useContent, useRegistry, useStatus } from "@/api/hooks";
 import { useCopyTorrent, useHashCopies } from "@/api/provider-copies";
 import { AddToProviders, OtherProviders } from "@/components/title/provider-copies";
-import { UsageBadge, UsageDetail } from "@/components/torrent-usage";
+import { TitleLinks, UsageBadge, UsageDetail } from "@/components/torrent-usage";
 import { otherProvidersLine } from "@/lib/provider-copies";
 import { globalDownloadsOff } from "@/lib/version-grab";
 import { Pager } from "@/components/ui/pager";
@@ -107,8 +107,8 @@ export function Registry() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Hash</TableHead>
                 <TableHead>Name</TableHead>
+                <TableHead className="hidden sm:table-cell">Hash</TableHead>
                 <TableHead title="The Torrents page's answer, as of the last read of the accounts">Used</TableHead>
                 <TableHead className="hidden sm:table-cell" title={STATE_HELP}>State</TableHead>
                 <TableHead className="hidden md:table-cell">Last seen</TableHead>
@@ -117,8 +117,13 @@ export function Registry() {
             <TableBody>
               {(reg.data?.items ?? []).map((c) => (
                 <TableRow key={c.info_hash}>
-                  <TableCell><Link className="hover:text-primary" to={`/admin/torrents/inventory/${c.info_hash}`}><Mono>{c.info_hash?.slice(0, 12)}</Mono></Link></TableCell>
-                  <TableCell className="max-w-[30rem] text-[13px] [overflow-wrap:anywhere]">{c.name}</TableCell>
+                  {/* The name leads and opens the entry; the titles it serves link to their pages; the hash comes second (under the name on a phone). */}
+                  <TableCell className="max-w-[30rem] text-[13px] [overflow-wrap:anywhere]">
+                    <Link className="font-medium hover:text-primary" to={`/admin/torrents/inventory/${c.info_hash}`} data-testid="inventory-name">{c.name || <Mono>{c.info_hash?.slice(0, 12)}</Mono>}</Link>
+                    {(c.titles ?? []).length > 0 ? <TitleLinks titles={c.titles ?? []} max={3} className="block text-xs" testid="inventory-titles" /> : null}
+                    <Mono className="block text-[11.5px] text-[var(--ink-3)] sm:hidden">{c.info_hash?.slice(0, 12)}</Mono>
+                  </TableCell>
+                  <TableCell className="hidden sm:table-cell"><Mono className="text-[12px] text-[var(--ink-3)]">{c.info_hash?.slice(0, 12)}</Mono></TableCell>
                   <TableCell data-testid="inventory-used"><UsedCell usage={c.usage} links={c.linked_files} reason={c.usage_reason} held={c.state === "present"} /></TableCell>
                   <TableCell className="hidden sm:table-cell"><StateBadge s={c.state} /></TableCell>
                   <TableCell className="hidden whitespace-nowrap md:table-cell">{fmtAgo(c.last_seen_at)}</TableCell>

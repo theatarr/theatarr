@@ -25,7 +25,7 @@ it("lists each hash with the Torrents page's usage and links, the state in words
   mockFetch([
     { method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["admin", "see_files"] } },
     { method: "GET", path: "/registry", reply: { total: 3, items: [
-      { info_hash: a, name: "[SoM] Dragon Ball Z", state: "unreferenced", last_seen_at: "2026-11-13T10:00:00Z", usage: "used", linked_files: 291 },
+      { info_hash: a, name: "[SoM] Dragon Ball Z", state: "unreferenced", last_seen_at: "2026-11-13T10:00:00Z", usage: "used", linked_files: 291, titles: [{ id: 7, name: "Dragon Ball Z" }] },
       { info_hash: b, name: "Other", state: "absent", last_seen_at: "2026-11-01T10:00:00Z" },
       { info_hash: "e".repeat(40), name: "Pending", state: "unreferenced", last_seen_at: "2026-11-01T10:00:00Z", usage: "unknown",
         usage_reason: "its usage is worked out after the next provider sync; Refresh works it out now" },
@@ -42,6 +42,10 @@ it("lists each hash with the Torrents page's usage and links, the state in words
   expect(screen.queryByRole("columnheader", { name: "Libraries" })).toBeNull();
   expect(screen.getByTestId("state-unreferenced").textContent).toBe("Held, no import recorded");
   expect(screen.getByTestId("inventory-total").textContent).toBe("3 torrents (unique hashes)");
+  // The name leads and opens the entry, its title links to the title page, the hash comes second.
+  expect(screen.getAllByRole("columnheader").map((h) => h.textContent).slice(0, 2)).toEqual(["Name", "Hash"]);
+  expect(screen.getAllByTestId("inventory-name")[0].getAttribute("href")).toBe(`/admin/torrents/inventory/${a}`);
+  expect(screen.getByRole("link", { name: "Dragon Ball Z" }).getAttribute("href")).toBe("/title/7");
 });
 
 it("shows a hash's usage with five references and how many more, the providers with a header and a gone badge, its copies, and no empty sections", async () => {
