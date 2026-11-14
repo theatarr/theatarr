@@ -81,9 +81,10 @@ function NextSearch({ row, state, off, admin }: { row: WantedRow; state?: Versio
   }
 }
 
-/** The journal entry of the row's last search (admins). */
+/** The journal entry of the row's last search (admins): the search run's entry ("run:<id>"), which shows the decision. */
 function DecisionLink({ row }: { row: WantedRow }) {
-  return <Link className="text-primary hover:underline" to={journalLink(String(row.decision_id))}>Decision</Link>;
+  if (!row.last_run) return null;
+  return <Link className="text-primary hover:underline" to={journalLink(`run:${row.last_run.id}`)}>Decision</Link>;
 }
 
 /** Why a row cannot be searched now ("" when it can). */

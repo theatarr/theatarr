@@ -8,7 +8,7 @@ import { History } from "./versions";
 it("keeps the journal link for admins, quieter, as Journal entry", async () => {
   mockFetch([{ method: "GET", path: "/auth/me", reply: { permissions: ["admin", "manage", "browse", "see_files"] } }]);
   renderPage(<History events={[{ event: "searched", date: "2026-11-02T00:00:00Z", run_id: 1, decision_id: 7 }]} titleId={7} version="movie-web" />);
-  expect((await screen.findByRole("link", { name: "Journal entry" })).getAttribute("href")).toBe("/activity/journal/7");
+  expect((await screen.findByRole("link", { name: "Journal entry" })).getAttribute("href")).toBe("/activity/journal/run%3A1");
   expect(screen.queryByRole("link", { name: "Why this decision" })).toBeNull();
 });
 
@@ -52,7 +52,7 @@ describe("release history", () => {
     mockFetch([{ method: "GET", path: "/auth/me", reply: { permissions: ["admin", "browse", "see_files"] } }]);
     renderPage(<History titleId={7} version="movie-web" events={[
       { event: "grabbed", date: "2026-11-02T01:00:00Z", release_title: "Alpha.2020.2160p.WEB-A", info_hash: "aaa111", provider: "rd", trigger: "RSS" },
-      { event: "searched", date: "2026-11-02T00:00:00Z", decision_id: 3, latest: true },
+      { event: "searched", date: "2026-11-02T00:00:00Z", run_id: 3, decision_id: 3, latest: true },
     ]} />);
     expect(await screen.findByRole("link", { name: "Journal entry" })).toBeTruthy();
     expect(screen.getAllByRole("link")).toHaveLength(1);
