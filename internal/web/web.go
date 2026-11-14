@@ -157,6 +157,9 @@ type HealthChecker interface {
 
 // Web holds the handlers.
 type Web struct {
+	// names is libraryNames(pol), built once (libraryName): a settings reload builds a new Web.
+	namesOnce         sync.Once
+	names             map[string]string
 	mux               *http.ServeMux
 	backups           Backups
 	restart           func()

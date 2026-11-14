@@ -165,11 +165,9 @@ describe("library labels on the title page", () => {
   const vs = [{ key: "tv-2160p", label: "4K" }, { key: "tv-2160p-theatarr", label: "4K" }];
   it("tells same-named libraries apart by number, never by key, for every account", () => {
     expect(withDistinctLabels(vs).map((v) => v.label)).toEqual(["4K", "4K (2)"]);
-    expect(withDistinctLabels(vs, true).map((v) => v.label)).toEqual(["4K", "4K (2)"]);
   });
   it("leaves a library alone once the other was removed", () => {
     const removed = [vs[0], { ...vs[1], removed: true }];
     expect(withDistinctLabels(removed).map((v) => v.label)).toEqual(["4K", "4K"]);
-    expect(withDistinctLabels(removed, true).map((v) => v.label)).toEqual(["4K", "4K"]);
   });
 });

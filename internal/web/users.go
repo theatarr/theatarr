@@ -80,11 +80,16 @@ func (w *Web) apiMe(rw http.ResponseWriter, r *http.Request) {
 	out := Me{Kind: id.Kind, ID: id.UserID, Username: id.Username, DisplayName: id.DisplayName, Role: id.Role,
 		Permissions: w.perms(id).List(), Local: id.Local, Libraries: []LibraryName{}}
 	if w.pol != nil {
-		names := libraryNames(w.pol)
+		names := w.libraryNames()
 		for _, k := range sortedKeys(w.pol.Versions) {
 			if l, ok := names[k]; ok {
 				out.Libraries = append(out.Libraries, LibraryName{Key: k, Label: l})
 			}
+		}
+	}
+	if w.pol != nil && w.perms(id).SeeFiles {
+		for _, k := range sortedKeys(w.pol.Providers) {
+			out.Providers = append(out.Providers, ProviderCode{Key: k, Code: w.providerCode(k)})
 		}
 	}
 	if out.DisplayName == "" {

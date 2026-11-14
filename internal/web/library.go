@@ -460,12 +460,16 @@ type VersionFiles struct {
 // versionLabel names a library for people (libraryNames); a key no longer in the settings gets the label its key
 // suggests ("movie-remux" is "Remux").
 func (w *Web) versionLabel(key string) string {
-	if w.pol != nil {
-		if l, ok := libraryNames(w.pol)[key]; ok {
-			return l
-		}
+	if l, ok := w.libraryNames()[key]; ok {
+		return l
 	}
 	return labelFor(key, "", "")
+}
+
+// libraryNames is libraryNames(w.pol), built once per Web.
+func (w *Web) libraryNames() map[string]string {
+	w.namesOnce.Do(func() { w.names = libraryNames(w.pol) })
+	return w.names
 }
 
 // libraryNames is the one rule for a library's name, used for every caller and sent to the SPA (auth/me): the

@@ -12,13 +12,12 @@ import { useLiveSearch } from "@/api/add";
 import { qk } from "@/api/query-keys";
 import { usePerms, useTitle } from "@/api/library";
 import { useRemovalScope } from "@/api/ops";
-import { ErrorState, Loading } from "@/components/page";
+import { ErrorState, Loading, VersionTag } from "@/components/page";
 import { ReleaseGrid } from "@/components/title/release-grid";
 import { Summary } from "@/components/title/show-releases";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { cn } from "@/lib/utils";
-import { useLibraryKeyTip, useLibraryName } from "@/lib/library-names";
 
 export type SearchScope = { titleId: number; version?: string; season?: number; episode?: { id: number; code: string } };
 
@@ -30,22 +29,6 @@ export function useLiveLibraries(titleId: number, enabled = true) {
   const current = new Set((scope.data?.copies ?? []).map((c) => c.key));
   const libs = (t.data?.versions ?? []).filter((v) => v.control?.live_releases && v.key && current.has(v.key));
   return { libs, title: t, pending: t.isPending || scope.isPending, error: t.error ?? scope.error };
-}
-
-/** A library tab's face: the library's colour and name; the settings key is the tooltip. */
-export function LibraryTabLabel({ k, name }: { k: string; name?: string }) {
-  const nameOf = useLibraryName();
-  const tip = useLibraryKeyTip();
-  return (
-    <span
-      data-vkey={k}
-      title={tip(k)}
-      className="inline-flex h-5 items-center gap-1.5 whitespace-nowrap rounded-[3px] px-1.5 text-[12px] font-medium leading-none text-[var(--ink-2)] shadow-[inset_0_0_0_1px_var(--line-2)]"
-    >
-      <span className="size-2 rounded-[2px] bg-[var(--vc)]" />
-      {name || nameOf(k)}
-    </span>
-  );
 }
 
 let sessions = 0;
@@ -127,7 +110,7 @@ export function InteractiveSearch({ titleId, version, season, episode, onClose }
                     onClick={() => setChosen(v.key)}
                     className={cn("rounded-md p-0.5 ring-offset-0 transition", v.key === lib.key ? "ring-2 ring-[var(--line-focus)]" : "opacity-70 hover:opacity-100")}
                   >
-                    <LibraryTabLabel k={v.key ?? ""} name={v.label} />
+                    <VersionTag k={v.key ?? ""} label={v.label} className="text-[12px]" />
                   </button>
                 ))}
               </div>

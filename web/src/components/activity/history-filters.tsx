@@ -17,7 +17,8 @@ import {
   withHistoryFilter,
   type HistoryFilters as Filters,
 } from "@/lib/activity-history";
-import { distinctLabels, plainLabels, relabel } from "@/lib/copies";
+import { distinctLabels, relabel } from "@/lib/copies";
+import { useLibraryName } from "@/lib/library-names";
 import { today } from "@/lib/library";
 
 const FIELD = "h-8 rounded-[5px] border border-input bg-field px-2 text-[13.5px]";
@@ -28,10 +29,9 @@ export function useHistoryFilters(): Filters {
   return parseHistoryFilters(sp);
 }
 
-export { plainLabels };
-
-/** tools: buttons at the row's end (the table's Columns); plain: library names without keys (household views). */
-export function HistoryFilters({ tools, plain = false }: { tools?: ReactNode; plain?: boolean } = {}) {
+/** tools: buttons at the row's end (the table's Columns). Library names never hold keys, for every account. */
+export function HistoryFilters({ tools }: { tools?: ReactNode } = {}) {
+  const nameOf = useLibraryName();
   const [sp, setSp] = useSearchParams();
   const f = parseHistoryFilters(sp);
   const facets = useFacets();
@@ -44,7 +44,7 @@ export function HistoryFilters({ tools, plain = false }: { tools?: ReactNode; pl
   }, [typed]);
   const set = (key: keyof Filters, value: string) => setSp(withHistoryFilter(sp, key, value), { replace: true });
   const all = facets.data?.versions ?? [];
-  const copies = plain ? plainLabels(all) : relabel(all, distinctLabels(all));
+  const copies = relabel(all, distinctLabels(all));
   const count = historyFilterCount(f);
   return (
     <div className="mb-4 grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-center" data-testid="history-filters">
@@ -57,7 +57,7 @@ export function HistoryFilters({ tools, plain = false }: { tools?: ReactNode; pl
         {copies.map((v) => (
           <option key={v.key} value={v.key}>{v.label || v.key}</option>
         ))}
-        {f.copy && !copies.some((v) => v.key === f.copy) ? <option value={f.copy}>{plain ? "Chosen library" : f.copy}</option> : null}
+        {f.copy && !copies.some((v) => v.key === f.copy) ? <option value={f.copy}>{nameOf(f.copy)}</option> : null}
       </Select>
       <Select aria-label="Event" value={f.event} onChange={(e) => set("event", e.target.value)} className="sm:w-auto" data-testid="history-event">
         {HISTORY_EVENTS.map((e) => (

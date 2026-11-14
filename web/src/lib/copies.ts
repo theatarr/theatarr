@@ -95,24 +95,12 @@ export function distinctLabels(copies: readonly { key?: string; label?: string }
   }));
 }
 
-/** Library names without their keys, for accounts that do not see files: the plain label, and "(2)", "(3)" after a
- * name already taken. */
-export function plainLabels<T extends { key?: string; label?: string }>(vs: readonly T[]): T[] {
-  const seen = new Map<string, number>();
-  return vs.map((v) => {
-    const base = v.label ? libraryLabel(v.key ?? "", v.label) : "Library";
-    const n = (seen.get(base) ?? 0) + 1;
-    seen.set(base, n);
-    return { ...v, label: n > 1 ? `${base} (${n})` : base };
-  });
-}
-
 /** The copies of one title with their labels made distinct among the libraries it is in now, by number
- * (distinctLabels, plainLabels): no account sees keys in them. A library the title was
- * removed from takes part in no collision and keeps its plain name. */
-export function withDistinctLabels<T extends { key?: string; label?: string; removed?: boolean }>(vs: readonly T[], plain = false): T[] {
+ * (distinctLabels): no account sees keys in them. A library the title was removed from takes part in no collision and
+ * keeps its plain name. */
+export function withDistinctLabels<T extends { key?: string; label?: string; removed?: boolean }>(vs: readonly T[]): T[] {
   const current = vs.filter((v) => !v.removed);
-  const names = new Map((plain ? plainLabels(current) : relabel(current, distinctLabels(current))).map((v) => [v.key ?? "", v.label ?? ""]));
+  const names = new Map(relabel(current, distinctLabels(current)).map((v) => [v.key ?? "", v.label ?? ""]));
   for (const v of vs) if (v.removed && v.key) names.set(v.key, libraryLabel(v.key, v.label));
   return relabel(vs, names);
 }
