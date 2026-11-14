@@ -6,7 +6,9 @@ export type WantedQuery = { only: "missing" | "cutoff"; version?: string; waitin
 export const useWanted = (q: WantedQuery) => useQuery({
   queryKey: ["wanted", q],
   queryFn: ({ signal }) => api<Schemas["WantedPage"]>("/wanted" + qs(q), { signal }),
-  placeholderData: keepPreviousData,
+  // The previous page stays up while paging or filtering one tab; switching tab shows none of the other tab's rows
+  // (they would sit under this tab's Search all).
+  placeholderData: (prev, prevQuery) => (prevQuery?.queryKey[1] as WantedQuery | undefined)?.only === q.only ? keepPreviousData(prev) : undefined,
   refetchInterval: 60_000,
 });
 

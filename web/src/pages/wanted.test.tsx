@@ -30,7 +30,7 @@ it("shows read-only waits and handoffs, filters and pages on the server", async 
   expect(within(screen.getByTestId("wanted-row")).getByText("Now")).toBeTruthy();
   expect(screen.getByText(/3 results, none accepted/)).toBeTruthy();
   expect(await screen.findByRole("link", { name: "Decision" })).toBeTruthy();
-  expect(screen.getByRole("link", { name: "Decision" }).getAttribute("href")).toBe("/activity/journal/9");
+  expect(screen.getByRole("link", { name: "Decision" }).getAttribute("href")).toBe("/activity/journal/run%3A3");
   expect(screen.queryByRole("button", { name: /Downloading/ })).toBeNull();
   expect(screen.getByTestId("pager-range").textContent).toBe("1–50 of 51");
   await user.click(screen.getByRole("button", { name: "Next" }));
@@ -353,7 +353,7 @@ it("keeps the retry sentence to Missing, names the unit, and puts Decision with 
   expect(screen.getByTestId("wanted-count").textContent).toBe("1,128 items: one per film or season in each library, not per episode.");
   const last = r.querySelector('[data-column="last"]')!;
   expect(last.textContent).toMatch(/Grabbed · Decision$/);
-  expect(within(last as HTMLElement).getByRole("link", { name: "Decision" }).getAttribute("href")).toBe("/activity/journal/9");
+  expect(within(last as HTMLElement).getByRole("link", { name: "Decision" }).getAttribute("href")).toBe("/activity/journal/run%3A3");
   expect(screen.getByRole("button", { name: "All (1,128)" })).toBeTruthy();
 });
 
@@ -372,6 +372,18 @@ it("keeps Decision as a row action when Last search is hidden", async () => {
   renderPage(<WantedPage />, "/wanted");
   const r = await screen.findByTestId("wanted-row");
   expect(r.querySelector('[data-column="last"]')).toBeNull();
-  expect(within(r).getByRole("link", { name: "Decision" }).getAttribute("href")).toBe("/activity/journal/9");
+  expect(within(r).getByRole("link", { name: "Decision" }).getAttribute("href")).toBe("/activity/journal/run%3A3");
   window.localStorage.clear();
+});
+
+// Switching tab never leaves Missing's rows under Cutoff unmet's actions while the cutoff rows load.
+it("shows no Missing rows under Cutoff unmet while its rows load", async () => {
+  const user = userEvent.setup();
+  mockFetch([admin, status, { method: "GET", path: "/wanted", reply: (r) => r.search.includes("only=cutoff") ? new Promise(() => {}) : page }]);
+  renderPage(<WantedPage />, "/wanted");
+  expect(await screen.findByRole("button", { name: "Search all 51 missing" })).toBeTruthy();
+  await user.click(screen.getByRole("tab", { name: "Cutoff unmet" }));
+  await waitFor(() => expect(screen.queryByRole("button", { name: "Search all 51 missing" })).toBeNull());
+  expect(screen.queryByRole("button", { name: /Search all 51 cutoff unmet/ })).toBeNull();
+  expect(screen.queryByRole("checkbox", { name: "Select Alpha, Movie, 4K WEB" })).toBeNull();
 });
