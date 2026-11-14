@@ -131,6 +131,14 @@ func TestSeaDexBatchUnderSeveralCoursCoversTheSeason(t *testing.T) {
 	if err != nil || len(res.EpisodeIDs) != 1 || res.EpisodeIDs[0] != 413 {
 		t.Errorf("Part 3 - 13v2: %v %s %v", res.EpisodeIDs, res.How, err)
 	}
+	// An extra the 1..N proof left out (a full-length "SP - 01") is never placed by the season's numbering: it stays
+	// unmatched (refused, no canonical fallback), so episode 1 keeps its own file.
+	for _, name := range []string{"[sam] Dr. STONE - Science Future - SP - 01 (BD 1080p).mkv", "[sam] Dr. STONE - Science Future - NCOP 01 (BD 1080p).mkv"} {
+		res, err = ResolveFile(&ti, FileInput{Path: name, Release: d.Release, OtherVideoFiles: true, Mapping: m})
+		if err != nil || len(res.EpisodeIDs) != 0 || res.Refused == "" {
+			t.Errorf("%s: %v %s refused %q %v", name, res.EpisodeIDs, res.How, res.Refused, err)
+		}
+	}
 }
 
 // Reviewers' shapes: a season of two cours whose batch is numbered series-wide (13..36) or from 01 in each cour's

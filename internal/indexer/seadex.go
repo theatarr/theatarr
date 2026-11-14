@@ -94,6 +94,13 @@ const ExtraSeaDexNumbered = "seadex_numbered"
 // seadexExtraRE names extras that are not regular episodes: OVAs, specials, creditless openings and endings.
 var seadexExtraRE = regexp.MustCompile(`(?i)\b(?:OVA|OAD|ONA|specials?|SP\d*|NC ?(?:OP|ED)\d*)\b`)
 
+// SeaDexExtra says a file of a SeaDex batch is an extra, not a regular episode, by its name (the base name of the
+// path): the one classification the 1..N proof (seadexNumbered) and the import's season numbering
+// (decide.fileFranchise) both use, so an extra the proof left out is never placed as an episode.
+func SeaDexExtra(name string) bool {
+	return seadexExtraRE.MatchString(path.Base(strings.ReplaceAll(name, `\`, "/")))
+}
+
 // seadexNumbered is N when the feature files (extras excluded) are numbered exactly 1..N, each once, read as the
 // import reads a file (sonarr.ParsePath: one absolute number, a vN suffix allowed); 0 in any other shape. Files named
 // as extras (seadexExtraRE) are left out.
@@ -103,11 +110,10 @@ func seadexNumbered(t *sdTorrent, largest int64) int {
 		if f.Length <= 0 || f.Length < largest/2 {
 			continue
 		}
-		name := strings.ReplaceAll(f.Name, `\`, "/")
-		if seadexExtraRE.MatchString(path.Base(name)) {
+		if SeaDexExtra(f.Name) {
 			continue
 		}
-		p := sonarr.ParsePath(name)
+		p := sonarr.ParsePath(strings.ReplaceAll(f.Name, `\`, "/"))
 		if p == nil || p.Special || len(p.EpisodeNumbers) > 0 || len(p.AbsoluteEpisodeNumbers) != 1 {
 			return 0
 		}
@@ -670,7 +676,7 @@ func seadexRelease(t *sdTorrent, alID int, typ QueryType) (Release, int) {
 	r.setExtra("tracker", t.Tracker)
 	r.setExtra("group", t.ReleaseGroup)
 	r.setExtra("features", strconv.Itoa(features))
-	if n := seadexNumbered(t, largest); n > 0 {
+	if n := seadexNumbered(t, largest); n > 0 && typ != QueryMovie {
 		r.setExtra(ExtraSeaDexNumbered, strconv.Itoa(n))
 	}
 	r.setExtra("tags", strings.Join(t.Tags, ","))

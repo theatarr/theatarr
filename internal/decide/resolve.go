@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/theatarr/theatarr/internal/decide/parser/sonarr"
+	"github.com/theatarr/theatarr/internal/indexer"
 	"github.com/theatarr/theatarr/internal/metadata/anime/animemap"
 )
 
@@ -191,7 +192,11 @@ func (s *series) fileFranchise(p *sonarr.ParsedEpisodeInfo, in FileInput, am *an
 	if m := in.Mapping; m != nil && len(p.AbsoluteEpisodeNumbers) > 0 {
 		if season, isSeason := strings.CutPrefix(m.How, AnimeMapSeason+":"); isSeason {
 			// A SeaDex pack of several cours whose files are numbered 1..N for the season (decided from its file
-			// list): the file's number is its episode in that TVDB season, before any entry its name matches.
+			// list): the file's number is its episode in that TVDB season, before any entry its name matches. A file
+			// the proof counted as an extra (indexer.SeaDexExtra) is never placed by it: it stays unmatched.
+			if indexer.SeaDexExtra(in.Path) {
+				return nil, m.How, true, nil
+			}
 			n, _ := strconv.Atoi(season)
 			for _, x := range p.AbsoluteEpisodeNumbers {
 				e, err := s.find(n, x)

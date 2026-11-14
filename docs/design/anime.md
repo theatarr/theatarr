@@ -123,7 +123,8 @@ made only on evidence: at least two of them are importable and map into the pack
 are exactly the season's episodes 1..N, and the torrent's episode files (SeaDex's file list; extras such as OVAs, specials
 and NCOP/NCED left out) are numbered exactly 1..N, each once, as the import parses them (`seadex_numbered`, set by the
 indexer). Then the decision covers the union, the size limits apply to it (`anime_mapping: season:<n>`, no entry), and
-each file takes that season's numbering before any entry its name matches: a file numbered 13 (or 13v2) is SnnE13
+each file takes that season's numbering before any entry its name matches: a file numbered 13 (or 13v2) is SnnE13,
+and a file the proof counted as an extra (`indexer.SeaDexExtra`, the same test) is never placed by it and stays unmatched
 (`TestSeaDexBatchUnderSeveralCoursCoversTheSeason`, `TestSeaDexBatchEntriesFromStanding`). In every other shape
 (numbers repeat per cour, start elsewhere, are series-wide absolute, cannot be read, or there is no file list), and for a
 hash listed under one entry, the listing is decided as one cour, as before (`TestSeaDexBatchWithoutSeasonNumberingAsBefore`).
