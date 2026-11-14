@@ -789,6 +789,39 @@ func TestDeadLinkFlagsOncePerFinding(t *testing.T) {
 	}
 }
 
+// Old dead actions have no link id (they predate the column), and most of their paths have no link row any more:
+// each path's run is its own finding, and a newer flag supersedes only an older one at the same path.
+func TestDeadLinkNullLinkIDByPath(t *testing.T) {
+	d := newDeadEnv(t)
+	const a, b, x, y = "/lib/Alpha/a.mkv", "/lib/Beta/b.mkv", "/lib/Gone/x.mkv", "/lib/Gone/y.mkv"
+	sweep := func(h int) {
+		d.dead(h, 0, a, "/mnt/zurg/A/a.mkv", "dry_run")
+		d.dead(h, 0, b, "/mnt/zurg/B/b.mkv", "dry_run")
+		d.dead(h, 0, x, "/mnt/zurg/X/x.mkv", "dry_run")
+		d.dead(h, 0, y, "/mnt/zurg/Y/y.mkv", "dry_run")
+	}
+	sweep(20)                                                        // lib:1-4
+	sweep(19)                                                        // lib:5-8, repeats
+	d.action(18, "relink", "applied", 0, b, "/mnt/zurg/B/b.mkv", "") // lib:9
+	sweep(17)                                                        // lib:10-13: only b (lib:11) starts a new finding
+	d.scan(1, "/lib", a)                                             // a is still dangling
+	for i := 1; i <= 13; i++ {
+		id := fmt.Sprintf("lib:%d", i)
+		if i == 9 {
+			continue
+		}
+		want := i <= 4 || i == 11
+		if got := d.flagged(id); got != want {
+			t.Errorf("%s flagged %v, want %v", id, got, want)
+		}
+	}
+	// lib:1 (a, still dead) is not superseded by another path's newer flag; x and y have no link row.
+	want := map[string]string{"lib:2": ResolvedSuperseded}
+	if got := d.resolved(); fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Errorf("resolved %v, want %v", got, want)
+	}
+}
+
 // What the action log cannot prove is never acknowledged in bulk and never starts a new finding.
 func TestDeadLinkCurrentProblems(t *testing.T) {
 	ctx := context.Background()

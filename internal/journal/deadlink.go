@@ -14,7 +14,7 @@ import (
 
 // Dead-link flags (docs/journal.md "dead_link"). The library writes a library_action row of kind dead every time a
 // sweep finds a link dead: a gated version's sweep records the same dead link as a dry run on every scan. The flag
-// is one per finding, not one per scan. A finding is one unbroken run of dead actions of a link: its first dead
+// is one per finding, not one per scan. A finding is one unbroken run of dead actions at a link's path: its first dead
 // action carries the flag, and the repeats after it do not (an open flag already says it; an acknowledged one stays
 // acknowledged). Only the action log breaks a run: a recovery action at the link's path (recoverySQL) or a dead
 // action with another target starts a new finding with its own flag. A recovery that left no library action cannot
@@ -33,6 +33,18 @@ const recoverySQL = `((mode = 'applied' AND kind IN ('link', 'relink', 'replace'
 type deadRow struct {
 	id, link              int64
 	target, path, version string
+}
+
+// key is what a finding belongs to: the action's path (link.path is unique; most old dead actions have no link id),
+// else its link id, else the action alone.
+func (r deadRow) key() string {
+	switch {
+	case r.path != "":
+		return "path:" + r.path
+	case r.link != 0:
+		return "link:" + strconv.FormatInt(r.link, 10)
+	}
+	return "action:" + strconv.FormatInt(r.id, 10)
 }
 
 // deadRun is one finding: its first (flagged) and latest dead action.
@@ -55,7 +67,7 @@ func (j *Journal) deadRuns(ctx context.Context, db *sql.DB) ([]*deadRun, map[str
 	}
 	defer rows.Close()
 	var runs []*deadRun
-	open := map[int64]*deadRun{} // link → its latest finding
+	open := map[string]*deadRun{} // key → its latest finding
 	recovered := map[string]int64{}
 	for rows.Next() {
 		var r deadRow
@@ -67,7 +79,7 @@ func (j *Journal) deadRuns(ctx context.Context, db *sql.DB) ([]*deadRun, map[str
 			recovered[r.path] = r.id
 			continue
 		}
-		run := open[r.link]
+		run := open[r.key()]
 		var prev *deadRow
 		if run != nil {
 			prev = &run.last
@@ -75,7 +87,7 @@ func (j *Journal) deadRuns(ctx context.Context, db *sql.DB) ([]*deadRun, map[str
 		if startsFinding(prev, r, recovered[r.path]) {
 			run = &deadRun{first: r}
 			runs = append(runs, run)
-			open[r.link] = run
+			open[r.key()] = run
 		}
 		run.last = r
 	}
@@ -96,7 +108,8 @@ func (j *Journal) deadFirsts(ctx context.Context, db *sql.DB) (map[int64]bool, e
 }
 
 // firstDead says whether a dead action starts its finding. A listing reads every finding once (b.firsts); a single
-// entry seeks back by rowid to the link's previous dead action and checks only what lies between.
+// entry seeks back by rowid to the previous dead action at the same path (deadRow.key) and checks only what lies
+// between.
 func (b *builder) firstDead(e *Entry) (bool, error) {
 	id, err := strconv.ParseInt(strings.TrimPrefix(e.ID, "lib:"), 10, 64)
 	if err != nil {
@@ -110,9 +123,18 @@ func (b *builder) firstDead(e *Entry) (bool, error) {
 	}
 	lk := e.Import.Links[0]
 	cur := deadRow{id: id, link: lk.ID, target: lk.Target, path: lk.Path}
+	same := `path = ?`
+	arg := any(lk.Path)
+	switch {
+	case lk.Path != "":
+	case lk.ID != 0:
+		same, arg = `COALESCE(path, '') = '' AND link_id = ?`, lk.ID
+	default:
+		return true, nil
+	}
 	var prev deadRow
 	err = b.db.QueryRowContext(b.ctx, `SELECT id, COALESCE(target, '') FROM library_action WHERE id < ?
-		AND kind = 'dead' AND mode IN `+deadModes+` AND link_id = ? ORDER BY id DESC LIMIT 1`, id, lk.ID).
+		AND kind = 'dead' AND mode IN `+deadModes+` AND `+same+` ORDER BY id DESC LIMIT 1`, id, arg).
 		Scan(&prev.id, &prev.target)
 	if errors.Is(err, sql.ErrNoRows) {
 		return true, nil
@@ -171,34 +193,36 @@ func (j *Journal) ResolvedDeadLinks(ctx context.Context) ([]ResolvedLink, error)
 		state string
 		title int64
 	}
-	links := map[int64]linkRow{}
-	ids := make([]int64, 0, len(runs))
+	links := map[string]linkRow{} // path → its link
+	paths := make([]string, 0, len(runs))
 	for _, r := range runs {
-		ids = append(ids, r.first.link)
+		if r.first.path != "" {
+			paths = append(paths, r.first.path)
+		}
 	}
-	idsJSON, _ := json.Marshal(ids)
-	lr, err := db.QueryContext(ctx, `SELECT id, state, title_id FROM link WHERE id IN (SELECT value FROM json_each(?))`,
-		string(idsJSON))
+	pathsJSON, _ := json.Marshal(paths)
+	lr, err := db.QueryContext(ctx, `SELECT path, state, title_id FROM link WHERE path IN (SELECT value FROM json_each(?))`,
+		string(pathsJSON))
 	if err != nil {
 		return nil, err
 	}
 	defer lr.Close()
 	for lr.Next() {
-		var id int64
+		var path string
 		var l linkRow
-		if err := lr.Scan(&id, &l.state, &l.title); err != nil {
+		if err := lr.Scan(&path, &l.state, &l.title); err != nil {
 			return nil, err
 		}
-		links[id] = l
+		links[path] = l
 	}
 	if err := lr.Err(); err != nil {
 		return nil, err
 	}
 	entry := func(r *deadRun) string { return "lib:" + strconv.FormatInt(r.first.id, 10) }
-	newestOpen := map[int64]int64{} // link → its newest open finding's first action
+	newestOpen := map[string]int64{} // key → its newest open finding's first action
 	for _, r := range runs {
-		if !judged[entry(r)] {
-			newestOpen[r.first.link] = max(newestOpen[r.first.link], r.first.id)
+		if k := r.first.key(); !judged[entry(r)] {
+			newestOpen[k] = max(newestOpen[k], r.first.id)
 		}
 	}
 	out := []ResolvedLink{}
@@ -206,10 +230,10 @@ func (j *Journal) ResolvedDeadLinks(ctx context.Context) ([]ResolvedLink, error)
 		if judged[entry(r)] {
 			continue
 		}
-		l, ok := links[r.first.link]
+		l, ok := links[r.first.path]
 		why := ""
 		switch {
-		case newestOpen[r.first.link] > r.first.id:
+		case newestOpen[r.first.key()] > r.first.id:
 			why = ResolvedSuperseded
 		case ok && l.state != "dead" && !dangling[r.first.path] && recovered[r.first.path] > r.last.id:
 			why = ResolvedRepaired
