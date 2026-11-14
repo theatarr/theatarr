@@ -215,7 +215,7 @@ func TestUserSeesAvailabilityOnly(t *testing.T) {
 		b+"/search?q=delta&scope=library", b+"/titles?kind=series", b+"/requests?status=all", b+"/requests/1",
 		b+"/titles/4/episodes/41", b+"/titles/4/episodes/42", b+"/titles/facets?kind=movie",
 		b+"/titles/facets?kind=series", b+"/titles/2", b+"/versions?state=filled", b+"/titles?state=filled",
-		b+"/titles?availability=available", b+"/titles?quality=2160p", b+"/discover/recent")
+		b+"/titles?availability=available", b+"/titles?quality=2160p", b+"/discover/recent", b+"/add/options?title_id=1")
 	adminSaw := map[string]bool{}
 	get := func(path, key string) (int, string) {
 		r := httptest.NewRequest("GET", path, nil)
@@ -253,6 +253,14 @@ func TestUserSeesAvailabilityOnly(t *testing.T) {
 		for _, l := range plainLeaks(v) {
 			t.Errorf("GET %s as user: %s: %s", path, l, body)
 		}
+	}
+	// The add sheet's libraries carry no profile, cutoff or held state for a user (J5).
+	if _, body := get(b+"/add/options?title_id=1", ukey); strings.Contains(body, `"profile"`) || strings.Contains(body, `"held"`) ||
+		strings.Contains(body, `"cutoff"`) || strings.Contains(body, `"upgrades"`) {
+		t.Errorf("add options as user: %s", body)
+	}
+	if _, body := get(b+"/add/options?title_id=1", akey); !strings.Contains(body, `"cutoff"`) {
+		t.Errorf("add options as admin lack the cutoff: %s", body)
 	}
 	// What a user does see: the resolution, and below-cutoff titles as available.
 	for path, want := range map[string]string{

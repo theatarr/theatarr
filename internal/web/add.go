@@ -228,6 +228,7 @@ func (w *Web) apiAddOptions(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	anime, _ := strconv.ParseBool(q.Get("anime"))
+	seeFiles := w.permsOf(r).SeeFiles
 	var on, held []string
 	if t != nil {
 		kind = t.kind
@@ -281,9 +282,11 @@ func (w *Web) apiAddOptions(rw http.ResponseWriter, r *http.Request) {
 		}
 		o := VersionOption{GrabState: versionGrabState(w.pol, k), OpenSeasons: open, Key: k, Kind: string(vp.Kind), Label: names[k], Anime: vp.Anime, Mode: string(vp.Mode),
 			Enable: vp.Enable,
-			Fits:   catalog.Fits(vp, kind, anime), On: slices.Contains(on, k), Held: slices.Contains(held, k)}
-		if pr := w.pol.Profiles[vp.Profile]; pr != nil {
-			o.Profile, o.Cutoff, o.Upgrades = vp.Profile, pr.Cutoff, pr.Upgrades == nil || *pr.Upgrades
+			Fits:   catalog.Fits(vp, kind, anime), On: slices.Contains(on, k)}
+		if seeFiles {
+			// What the library fetches and whether the title holds it unmonitored: for callers who see files.
+			o.Held = slices.Contains(held, k)
+			o.Profile, o.Cutoff, o.Upgrades = w.fetches(vp)
 		}
 		if o.Mode == "" {
 			o.Mode = string(policy.ModeShadow)
@@ -723,6 +726,16 @@ func (w *Web) addTitle(ctx context.Context, req AddRequest, source string) (*Add
 }
 
 var errNoFit = errors.New("no library fits")
+
+// fetches is what a library fetches: its profile's key, the cutoff quality it upgrades to, and whether it upgrades
+// at all, the profile's switch and the library's own (upgrades: off never replaces a file).
+func (w *Web) fetches(vp *policy.VersionPolicy) (profile, cutoff string, upgrades bool) {
+	pr := w.pol.Profiles[vp.Profile]
+	if pr == nil {
+		return "", "", false
+	}
+	return vp.Profile, pr.Cutoff, (pr.Upgrades == nil || *pr.Upgrades) && vp.Upgrades != "off"
+}
 
 // labelList names libraries for people: "4K Remux and 4K WEB", "4K, 4K WEB and Anime movies".
 func (w *Web) labelList(keys []string) string {

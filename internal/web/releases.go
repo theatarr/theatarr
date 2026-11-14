@@ -323,7 +323,7 @@ func (w *Web) storedReleases(ctx context.Context, out *Releases) error {
 			return err
 		}
 	} else if out.Message == "" {
-		out.Message = "Never searched in this library"
+		out.Message = "No search result is stored for this library yet"
 	}
 	if out.Candidates == nil {
 		out.Candidates = []snapshot.Candidate{}

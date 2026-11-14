@@ -714,6 +714,33 @@ func TestTitlePageSearchFacts(t *testing.T) {
 		t.Errorf("Delta counts: %+v", d.Versions[0].Episodes)
 	}
 
+	// The episode window: only the runs that searched the episode count, with counts only for a run of it alone.
+	e.exec(`INSERT INTO acquire_run (id, source, title_id, version_id, version_key, target, season, episodes, state,
+		results, accepted, message, created_at, updated_at) VALUES
+		(61, 'command', 4, 4, 'anime-tv', 's01e01', 1, '[41]', 'nothing', 7, 0, '', ?, ?),
+		(62, 'command', 4, 4, 'anime-tv', 's01e02', 1, '[42]', 'failed', 0, 0, 'search failed', ?, ?),
+		(63, 'wanted', 4, 4, 'anime-tv', 's02', 2, '[]', 'routed', 30, 2, '', ?, ?)`,
+		now-3000, now-3000, now-2000, now-2000, now-1000, now-1000)
+	ep := func(id int) *EpisodeVersionDetail {
+		var out EpisodeDetail
+		if code := e.getKey(fmt.Sprintf("%s/titles/4/episodes/%d", APIBase, id), key, &out); code != 200 || len(out.Versions) == 0 {
+			t.Fatalf("episode %d: %d", id, code)
+		}
+		return &out.Versions[0]
+	}
+	if l := ep(41).LastSearch; l == nil || l.RunID != 61 || l.Results == nil || *l.Results != 7 {
+		t.Errorf("S01E01 last search: %+v", l)
+	}
+	if l := ep(42).LastSearch; l == nil || l.RunID != 62 || l.State != "failed" {
+		t.Errorf("S01E02 last search: %+v", l)
+	}
+	if l := ep(43).LastSearch; l != nil {
+		t.Errorf("S01E03 was never searched, not by another episode's run: %+v", l)
+	}
+	if l := ep(44).LastSearch; l == nil || l.RunID != 63 || l.Results != nil {
+		t.Errorf("S02E01 is covered by the season run, without its counts: %+v", l)
+	}
+
 	mux := e.userMux()
 	for _, p := range []string{"/titles/1", "/titles/4", "/titles/4/episodes/43"} {
 		r := httptest.NewRequest("GET", APIBase+p, nil)

@@ -952,6 +952,14 @@ func (w *Web) apiEpisode(rw http.ResponseWriter, r *http.Request) {
 	for _, v := range list.Versions {
 		on[v.Key] = v.Monitored
 	}
+	// The searches that covered this episode, per library, in one read for the title (see files).
+	var facts map[int64]*searchFact
+	if seeFiles {
+		if facts, err = w.searchFacts(ctx, db, t.id, &struct{ id, season int64 }{eid, int64(season)}); err != nil {
+			w.internal(rw, err)
+			return
+		}
+	}
 	for i, v := range mvs {
 		c := out.Episode.Versions[v.key]
 		d := EpisodeVersionDetail{Key: v.key, Label: labels[v.key], State: c.State, Monitored: c.Monitored,
@@ -975,10 +983,8 @@ func (w *Web) apiEpisode(rw http.ResponseWriter, r *http.Request) {
 				w.internal(rw, err)
 				return
 			}
-			s := int64(season)
-			if d.LastSearch, d.Searching, err = w.searchFacts(ctx, db, v.id, t.id, v.key, &s); err != nil {
-				w.internal(rw, err)
-				return
+			if f := facts[v.id]; f != nil {
+				d.LastSearch, d.Searching = f.last, f.searching
 			}
 		}
 		if seeFiles && w.journal != nil {
@@ -1322,7 +1328,7 @@ func (w *Web) storedEpisodeReleases(ctx context.Context, out *Releases, it evIte
 	}
 	if best == nil {
 		if out.Message == "" {
-			out.Message = "Never searched for " + it.code() + " in this library"
+			out.Message = "No search result is stored for " + it.code() + " in this library yet"
 		}
 		return nil
 	}

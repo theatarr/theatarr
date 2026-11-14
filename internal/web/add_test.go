@@ -685,6 +685,16 @@ func TestAddOptions(t *testing.T) {
 		}
 	}
 	e.exec(`UPDATE version SET monitored = 1 WHERE id = 1`)
+	// A library whose own upgrades are off does not upgrade, whatever its profile says.
+	e.web.pol.Versions["movie-remux"].Upgrades = "off"
+	o = AddOptions{}
+	e.call("GET", APIBase+"/add/options?kind=movie", nil, 200, &o)
+	for _, v := range o.Versions {
+		if v.Key == "movie-remux" && v.Upgrades {
+			t.Errorf("upgrades off: %+v", v)
+		}
+	}
+	e.web.pol.Versions["movie-remux"].Upgrades = ""
 	e.call("GET", APIBase+"/add/options?title_id=10", nil, 200, &o)
 	if o.Kind != "series" || !o.EpisodesKnown || len(o.Seasons) != 3 || *o.Seasons[0].Monitored || !*o.Seasons[1].Monitored ||
 		o.CanSearch {
