@@ -30,6 +30,7 @@ function Row({
   row,
   empty,
   caption,
+  also,
 }: {
   /** The row's key (data-row). */
   id: string;
@@ -37,6 +38,8 @@ function Row({
   row: DiscoverRow | undefined;
   empty: string;
   caption: (it: DiscoverItem) => ReactNode;
+  /** A link beside See all (Missing: the same gap in Wanted's unit, for managers). */
+  also?: ReactNode;
 }) {
   const perms = usePerms();
   const items = row?.items ?? [];
@@ -51,11 +54,14 @@ function Row({
         ) : (
           <h2 className="min-w-0 truncate font-display text-lg font-semibold text-[var(--ink)] sm:text-xl">{title}</h2>
         )}
-        {row && row.total > items.length ? (
-          <Link to={row.more} className="shrink-0 text-sm text-muted-foreground hover:text-foreground">
-            See all {plural(row.total, "title")}
-          </Link>
-        ) : null}
+        <span className="flex shrink-0 items-baseline gap-3">
+          {row && row.total > items.length ? (
+            <Link to={row.more} className="shrink-0 text-sm text-muted-foreground hover:text-foreground">
+              See all {plural(row.total, "title")}
+            </Link>
+          ) : null}
+          {also}
+        </span>
       </div>
       {items.length === 0 ? (
         <Card className="mt-2"><Empty>{empty}</Empty></Card>
@@ -193,7 +199,12 @@ export function Home() {
           />
           {perms.seeFiles ? (
             <>
-              <Row id="missing" title="Missing" row={d.data.missing} empty="Nothing released is missing." caption={(t) => t.note} />
+              <Row id="missing" title="Missing" row={d.data.missing} empty="Nothing released is missing." caption={(t) => t.note}
+                also={perms.manage && (d.data.missing?.total ?? 0) > 0 ? (
+                  <Link to="/wanted" className="text-sm text-[var(--accent-ink)] hover:underline" data-testid="missing-in-wanted" title="Wanted lists one item per film or season in each library">
+                    In Wanted
+                  </Link>
+                ) : undefined} />
               <Row id="upgrades" title="Upgrade found" row={d.data.upgrades} empty="No upgrades found." caption={(t) => t.note} />
             </>
           ) : null}

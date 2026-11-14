@@ -33,6 +33,10 @@ it("shows read-only waits and handoffs, filters and pages on the server", async 
   expect(screen.getByRole("link", { name: "Decision" }).getAttribute("href")).toBe("/activity/journal/run%3A3");
   expect(screen.queryByRole("button", { name: /Downloading/ })).toBeNull();
   expect(screen.getByTestId("pager-range").textContent).toBe("1–50 of 51");
+  // Missing counts items; Home's Missing counts titles, and the line says so with a link.
+  const count = screen.getByTestId("wanted-count");
+  expect(count.textContent).toBe("51 items (one per film or season in each library, not per episode); Home's Missing counts titles.");
+  expect(within(count).getByRole("link", { name: "Missing" }).getAttribute("href")).toBe("/discover/missing");
   await user.click(screen.getByRole("button", { name: "Next" }));
   await waitFor(() => expect(new URLSearchParams(fetch.calls("GET", "/wanted").at(-1)?.search).get("offset")).toBe("50"));
   await user.click(screen.getByRole("button", { name: "Not scheduled (2)" }));
@@ -76,11 +80,11 @@ it("says the tab's switch is off, every row reads Not scheduled, and Search now 
     { method: "POST", path: "/wanted/search", reply: { queued: 1, started: 1, pending: 0, skipped: [] } }]);
   renderPage(<WantedPage />, "/wanted");
   const banner = await screen.findByTestId("wanted-switch-off");
-  expect(banner.textContent).toBe("Theatarr is not searching for missing items by itself. Items here are searched when you ask, or after a failed download. Automatic search settings");
+  expect(banner.textContent).toBe("Theatarr is not searching for missing items by itself. Items here are searched when you ask, or after a failed download. New releases are still picked up from RSS feeds, and one that a search did not find is tried again sooner, until a week after its release. Automatic search settings");
   expect(within(banner).getByRole("link", { name: "Automatic search settings" }).getAttribute("href")).toBe("/admin/settings/downloads/behaviour#searches");
   const r = screen.getByTestId("wanted-row");
-  // Both switches off: no regular repeat is promised, only the new-release retries.
-  expect(screen.getByTestId("wanted-pace").textContent).toBe("Up to 20 searches an hour (4 in the last hour). A missing new release is tried again sooner: the wait starts at 1 hour and doubles each time, up to 24 h, until a week after its release.");
+  // Both switches off: no regular repeat and no retry rule is promised; the banner says new releases still come.
+  expect(screen.getByTestId("wanted-pace").textContent).toBe("Up to 20 searches an hour (4 in the last hour).");
   expect(r.querySelector('[data-column="next"]')?.textContent).toBe("Not scheduled");
   await user.click(within(r).getByRole("button", { name: "Search now" }));
   await waitFor(() => expect(fetch.calls("POST", "/wanted/search")).toHaveLength(1));
@@ -92,6 +96,7 @@ it("names upgrades on the cutoff tab's banner and links its switch", async () =>
   renderPage(<WantedPage />, "/wanted/cutoff?version=movie-web");
   const banner = await screen.findByTestId("wanted-switch-off");
   expect(banner.textContent).toContain("Theatarr is not searching for upgrades by itself.");
+  expect(banner.textContent).toContain("Better releases are still picked up from RSS feeds.");
   expect(within(banner).getByRole("link", { name: "Automatic search settings" }).getAttribute("href")).toBe("/admin/settings/downloads/behaviour#searches");
   expect(screen.queryByRole("switch")).toBeNull();
   expect(screen.getByRole("tab", { name: "Missing" }).getAttribute("href")).toBe("/wanted?version=movie-web");
@@ -350,7 +355,7 @@ it("keeps the retry sentence to Missing, names the unit, and puts Decision with 
   renderPage(<WantedPage />, "/wanted/cutoff");
   const r = await screen.findByTestId("wanted-row");
   expect(screen.getByTestId("wanted-pace").textContent).toBe("Up to 20 searches an hour (4 in the last hour). Items are searched again every 24 h.");
-  expect(screen.getByTestId("wanted-count").textContent).toBe("1,128 items: one per film or season in each library, not per episode.");
+  expect(screen.getByTestId("wanted-count").textContent).toBe("1,128 items (one per film or season in each library, not per episode).");
   const last = r.querySelector('[data-column="last"]')!;
   expect(last.textContent).toMatch(/Grabbed · Decision$/);
   expect(within(last as HTMLElement).getByRole("link", { name: "Decision" }).getAttribute("href")).toBe("/activity/journal/run%3A3");
