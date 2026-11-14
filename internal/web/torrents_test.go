@@ -19,14 +19,20 @@ import (
 )
 
 // torrentProvider is a read-only provider with a fixed list (invented torrents).
-type torrentProvider struct{ list []provider.Torrent }
+type torrentProvider struct {
+	list  []provider.Torrent
+	lists int // list calls
+}
 
 func (p *torrentProvider) Key() string  { return "rd" }
 func (p *torrentProvider) Kind() string { return provider.KindRealDebrid }
 func (p *torrentProvider) Account(context.Context) (*provider.Account, error) {
 	return &provider.Account{}, nil
 }
-func (p *torrentProvider) Torrents(context.Context) ([]provider.Torrent, error) { return p.list, nil }
+func (p *torrentProvider) Torrents(context.Context) ([]provider.Torrent, error) {
+	p.lists++
+	return p.list, nil
+}
 func (p *torrentProvider) Torrent(_ context.Context, id string) (*provider.Torrent, error) {
 	for _, t := range p.list {
 		if t.ID == id {
@@ -66,10 +72,53 @@ func TestTorrentsAPI(t *testing.T) {
 	csrf := e.csrfFor(sess)
 	key := e.apiKey()
 
+	// Before any read the account is never read (not empty), and Refresh needs the sync.
 	var rep torrents.Report
+	if code := e.getKey(APIBase+"/torrents/report", key, &rep); code != 200 || !rep.Providers[0].NeverRead ||
+		rep.Providers[0].OK || prov.lists != 0 {
+		t.Fatalf("never read: %d %+v", code, rep)
+	}
+	if code := e.jsonCall("POST", APIBase+"/torrents/refresh", nil, sess, csrf, nil); code != 503 {
+		t.Errorf("refresh without a sync: %d", code)
+	}
+	m.Syncer = &provider.Syncer{Store: e.st, Providers: m.Providers, Configured: []string{"rd"}, Now: m.Now,
+		Log: m.Log}
+	if code := e.jsonCall("POST", APIBase+"/torrents/refresh", nil, sess, csrf, &rep); code != 200 || prov.lists != 1 ||
+		rep.Providers[0].AccountTorrents != 2 || rep.Providers[0].AsOf == nil || rep.RefreshError != "" {
+		t.Fatalf("refresh: %d %d %+v", code, prov.lists, rep)
+	}
+	prov.lists = 0
 	if code := e.getKey(APIBase+"/torrents/report", key, &rep); code != 200 || len(rep.Unused) != 2 ||
-		rep.Providers[0].Usage.Unused != 2 {
-		t.Fatalf("report: %d %+v", code, rep)
+		rep.Providers[0].Usage.Unused != 2 || prov.lists != 0 {
+		t.Fatalf("report from the record, no provider call: %d %d %+v", code, prov.lists, rep)
+	}
+	// Sources and Saved inventory say "used" from the same record and reference index.
+	var src Sources
+	if code := e.getKey(APIBase+"/sources", key, &src); code != 200 {
+		t.Fatalf("sources: %d", code)
+	}
+	for _, p := range src.Providers {
+		if p.Key == "rd" && (p.Record == nil || p.Record.Usage != rep.Providers[0].Usage || p.Record.AccountTorrents != 2) {
+			t.Errorf("sources rd: %+v", p.Record)
+		}
+	}
+	var inv struct {
+		Items []ContentRow `json:"items"`
+	}
+	if code := e.getKey(APIBase+"/registry", key, &inv); code != 200 {
+		t.Fatalf("inventory: %d", code)
+	}
+	for _, it := range inv.Items {
+		if want := map[string]torrents.Usage{h1: torrents.Unused, h2: torrents.Unused}[it.InfoHash]; it.Usage != want {
+			t.Errorf("inventory %s: %q, want %q (none for a hash no account holds)", it.Name, it.Usage, want)
+		}
+	}
+	var c Content
+	if code := e.getKey(APIBase+"/registry/"+h1, key, &c); code != 200 || c.Usage == nil || c.Usage.Usage != torrents.Unused {
+		t.Errorf("inventory entry: %d %+v", code, c.Usage)
+	}
+	if prov.lists != 0 {
+		t.Errorf("sources and inventory call no provider: %d", prov.lists)
 	}
 
 	// Backups: none yet; an import of a DMM backup needs the provider.

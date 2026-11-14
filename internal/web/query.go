@@ -18,6 +18,7 @@ import (
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/store"
 	"github.com/theatarr/theatarr/internal/textsearch"
+	"github.com/theatarr/theatarr/internal/torrents"
 )
 
 // The read model behind the API and the UI. Every query runs on the reader pool.
@@ -673,14 +674,19 @@ type Content struct {
 	Versions    []CVersion `json:"versions"`
 	ArrFiles    []ArrFile  `json:"arr_files"`
 	Links       []Link     `json:"links"`
+	// Usage is the Torrents page's answer for this hash from the record (used, unused or unknown, with its
+	// references); absent when no account holds it in the record or the torrent manager is not running.
+	Usage *torrents.HashUsage `json:"usage,omitempty"`
 }
 
-// Provider is where a content is held.
+// Provider is where a content is held. State is present or absent (gone from the account since AbsentAt).
 type Provider struct {
-	Provider   string    `json:"provider"`
-	TorrentID  string    `json:"torrent_id,omitempty"`
-	FolderName string    `json:"folder_name,omitempty"`
-	SeenAt     time.Time `json:"seen_at"`
+	Provider   string     `json:"provider"`
+	TorrentID  string     `json:"torrent_id,omitempty"`
+	FolderName string     `json:"folder_name,omitempty"`
+	SeenAt     time.Time  `json:"seen_at"`
+	State      string     `json:"state"`
+	AbsentAt   *time.Time `json:"absent_at,omitempty"`
 }
 
 // CFile is a file inside a content.
@@ -743,20 +749,23 @@ func (w *Web) getContent(ctx context.Context, hash string) (*Content, error) {
 	if err != nil {
 		return nil, err
 	}
+	c.Name = torrents.DisplayName(c.Name)
 	c.MountFolder, c.SizeBytes = mount.String, nullInt(size)
 	c.FirstSeenAt, c.LastSeenAt = ts(first), ts(last)
 	steps := []struct {
 		q    string
 		scan func(*sql.Rows) error
 	}{
-		{`SELECT provider, COALESCE(torrent_id, ''), COALESCE(folder_name, ''), seen_at FROM content_provider
-			WHERE content_id = ? ORDER BY provider`, func(r *sql.Rows) error {
+		{`SELECT provider, COALESCE(torrent_id, ''), COALESCE(folder_name, ''), seen_at, state, absent_at
+			FROM content_provider WHERE content_id = ? ORDER BY provider`, func(r *sql.Rows) error {
 			var p Provider
 			var seen int64
-			if err := r.Scan(&p.Provider, &p.TorrentID, &p.FolderName, &seen); err != nil {
+			var absent sql.NullInt64
+			if err := r.Scan(&p.Provider, &p.TorrentID, &p.FolderName, &seen, &p.State, &absent); err != nil {
 				return err
 			}
-			p.SeenAt = ts(seen)
+			p.FolderName = torrents.DisplayName(p.FolderName)
+			p.SeenAt, p.AbsentAt = ts(seen), nullTS(absent)
 			c.Providers = append(c.Providers, p)
 			return nil
 		}},
@@ -810,16 +819,24 @@ func (w *Web) getContent(ctx context.Context, hash string) (*Content, error) {
 			return nil, err
 		}
 	}
+	if u := w.recordUsage(ctx); u != nil {
+		if hu, ok := u.Hashes[c.InfoHash]; ok {
+			c.Usage = &hu
+		}
+	}
 	return c, nil
 }
 
-// ContentRow is a registry list row.
+// ContentRow is a registry list row. Usage and LinkedFiles (links: library links and scanned symlinks) are the
+// Torrents page's answer for the hash from the record; absent when no account holds it there.
 type ContentRow struct {
-	InfoHash   string    `json:"info_hash"`
-	Name       string    `json:"name"`
-	State      string    `json:"state"`
-	Versions   int       `json:"versions"`
-	LastSeenAt time.Time `json:"last_seen_at"`
+	InfoHash    string         `json:"info_hash"`
+	Name        string         `json:"name"`
+	State       string         `json:"state"`
+	Versions    int            `json:"versions"`
+	LastSeenAt  time.Time      `json:"last_seen_at"`
+	Usage       torrents.Usage `json:"usage,omitempty"`
+	LinkedFiles int            `json:"linked_files,omitempty"`
 }
 
 // listContent lists registry contents, newest first; each word of q matches a name substring or a hash prefix.
@@ -853,9 +870,20 @@ func (w *Web) listContent(ctx context.Context, q, state string, limit, offset in
 				return err
 			}
 			c.LastSeenAt = ts(last)
+			c.Name = torrents.DisplayName(c.Name)
 			out = append(out, c)
 			return nil
 		})
+	if err != nil || len(out) == 0 {
+		return out, total, err
+	}
+	if u := w.recordUsage(ctx); u != nil {
+		for i := range out {
+			if hu, ok := u.Hashes[normHash(out[i].InfoHash)]; ok {
+				out[i].Usage, out[i].LinkedFiles = hu.Usage, hu.LinkedFiles
+			}
+		}
+	}
 	return out, total, err
 }
 

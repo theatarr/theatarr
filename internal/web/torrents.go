@@ -25,6 +25,7 @@ type TorrentsSource interface {
 func (w *Web) mountTorrentsAPI(mux *http.ServeMux) {
 	b := APIBase + "/torrents"
 	w.handle(mux, "GET "+b+"/report", SignedIn, auth.PermAdmin, w.apiTorrentsReport)
+	w.handle(mux, "POST "+b+"/refresh", SignedIn, auth.PermAdmin, w.apiTorrentsRefresh)
 	w.handle(mux, "GET "+b+"/backups", SignedIn, auth.PermAdmin, w.apiTorrentBackups)
 	w.handle(mux, "POST "+b+"/backups", SignedIn, auth.PermAdmin, w.apiTorrentBackupNow)
 	w.handle(mux, "GET "+b+"/backups/{id}", SignedIn, auth.PermAdmin, w.apiTorrentBackupDownload)
@@ -53,17 +54,41 @@ func (w *Web) torrentManager(rw http.ResponseWriter, r *http.Request) *torrents.
 	return m
 }
 
-// GET /torrents/report: every provider's torrents with their usage, and the groups.
+// GET /torrents/report: every provider's torrents from the record (no provider call) with their usage, and the groups.
 func (w *Web) apiTorrentsReport(rw http.ResponseWriter, r *http.Request) {
 	m := w.torrentManager(rw, r)
 	if m == nil {
 		return
 	}
+	w.writeTorrentReport(rw, r, m, "")
+}
+
+// POST /torrents/refresh: run the provider sync now (every provider, back-off or not), then answer with the report
+// from the record it wrote. A provider whose list failed keeps its record and carries its error.
+func (w *Web) apiTorrentsRefresh(rw http.ResponseWriter, r *http.Request) {
+	m := w.torrentManager(rw, r)
+	if m == nil {
+		return
+	}
+	err := m.Refresh(r.Context())
+	if errors.Is(err, torrents.ErrNoSync) {
+		writeJSON(rw, http.StatusServiceUnavailable, apiError{Error: err.Error()})
+		return
+	}
+	refreshErr := ""
+	if err != nil {
+		refreshErr = err.Error()
+	}
+	w.writeTorrentReport(rw, r, m, refreshErr)
+}
+
+func (w *Web) writeTorrentReport(rw http.ResponseWriter, r *http.Request, m *torrents.Manager, refreshErr string) {
 	rep, err := m.Report(r.Context())
 	if err != nil {
 		w.internal(rw, err)
 		return
 	}
+	rep.RefreshError = refreshErr
 	var hashes []string
 	for _, p := range rep.Providers {
 		for _, t := range p.Torrents {

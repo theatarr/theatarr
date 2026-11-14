@@ -96,7 +96,7 @@ func TestAPISourcesLogsMe(t *testing.T) {
 		t.Fatalf("sources: %+v", s)
 	}
 	rd := s.Providers[0]
-	if rd.Counts["present"] != 2 || rd.Counts["unreferenced"] != 1 || rd.LastSync == nil || !rd.LastSync.OK ||
+	if rd.Counts["present"] != 2 || rd.Record != nil || rd.LastSync == nil || !rd.LastSync.OK ||
 		rd.LastOKSync == nil || rd.Pacing == nil || rd.Pacing.WindowAdds != 2 || rd.Pacing.BackoffUntil == nil ||
 		len(rd.Versions) == 0 {
 		t.Errorf("rd: %+v", rd)

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/theatarr/theatarr/internal/auth"
+	"github.com/theatarr/theatarr/internal/torrents"
 )
 
 // GET /sources (Admin › Connections) and GET /logs (Admin › Advanced › Logs), docs/design/ui.md.
@@ -58,12 +59,14 @@ type ProviderSource struct {
 	Order    int      `json:"order"`
 	Budget   string   `json:"budget,omitempty"`
 	Versions []string `json:"versions"`
-	// Counts are registry rows for this provider: present and absent (content_provider.state) and unreferenced
-	// (present here, but no version points at the content).
-	Counts     map[string]int  `json:"counts"`
-	LastSync   *ProviderSync   `json:"last_sync,omitempty"`
-	LastOKSync *time.Time      `json:"last_ok_sync,omitempty"`
-	Pacing     *ProviderPacing `json:"pacing,omitempty"`
+	// Counts are the registry's hashes for this provider by content_provider.state: present and absent.
+	Counts map[string]int `json:"counts"`
+	// Record is the account in the record (the Torrents page's): when it was read, its account torrents and unique
+	// hashes, and their usage from the Torrents page's reference index. Absent when the torrent manager is not running.
+	Record     *torrents.ProviderRecord `json:"record,omitempty"`
+	LastSync   *ProviderSync            `json:"last_sync,omitempty"`
+	LastOKSync *time.Time               `json:"last_ok_sync,omitempty"`
+	Pacing     *ProviderPacing          `json:"pacing,omitempty"`
 	// Attempts24h counts the router's download attempts in the last 24 hours by outcome (accepted, refused, ...).
 	Attempts24h map[string]int `json:"attempts_24h"`
 	Backoff     *Backoff       `json:"backoff,omitempty"`
@@ -125,11 +128,12 @@ func (w *Web) sources(ctx context.Context) (Sources, error) {
 	}
 	db := w.st.Reader()
 	since := w.now().Add(-24 * time.Hour).UnixMilli()
+	usage := w.recordUsage(ctx)
 	for _, k := range sortedKeys(w.pol.Providers) {
 		p := w.pol.Providers[k]
 		ps := ProviderSource{Key: k, Kind: p.Kind, Order: p.Order, Budget: p.Budget,
 			Versions: usedBy(func(_, pr []string) []string { return pr }, k),
-			Counts:   map[string]int{"present": 0, "absent": 0, "unreferenced": 0}, Attempts24h: map[string]int{},
+			Counts:   map[string]int{"present": 0, "absent": 0}, Attempts24h: map[string]int{},
 			Backoff: backoff("provider:" + k), BudgetUse: budget(p.Budget)}
 		if err := scanAll(ctx, db, `SELECT state, COUNT(*) FROM content_provider WHERE provider = ? GROUP BY state`,
 			[]any{k}, func(r *sql.Rows) error {
@@ -143,12 +147,11 @@ func (w *Web) sources(ctx context.Context) (Sources, error) {
 			}); err != nil {
 			return out, err
 		}
-		var unref int
-		if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM content_provider cp JOIN content c ON c.id = cp.content_id
-			WHERE cp.provider = ? AND cp.state = 'present' AND c.state = 'unreferenced'`, k).Scan(&unref); err != nil {
-			return out, err
+		if usage != nil {
+			if rec, ok := usage.Providers[k]; ok {
+				ps.Record = &rec
+			}
 		}
-		ps.Counts["unreferenced"] = unref
 		var run ProviderSync
 		var s, f int64
 		var ok int
@@ -232,4 +235,26 @@ func (w *Web) mountAdminAPI(mux *http.ServeMux) {
 	w.handle(mux, "GET "+APIBase+"/logs/files/{name}", SignedIn, auth.PermAdmin, w.apiLogFile)
 	w.handle(mux, "GET "+APIBase+"/logs/level", SignedIn, auth.PermAdmin, w.apiLogLevel)
 	w.handle(mux, "PUT "+APIBase+"/logs/level", SignedIn, auth.PermAdmin, w.apiLogLevel)
+}
+
+// recordUsage is the Torrents page's "used" for Sources and Saved inventory (torrents.Manager.RecordUsage: the record
+// with the reference index, decided at read time). nil when the torrent manager is not running or cannot answer
+// (logged): the callers then leave the usage out.
+func (w *Web) recordUsage(ctx context.Context) *torrents.RecordUsage {
+	if w.torrents == nil {
+		return nil
+	}
+	if w.captureRuntime != nil {
+		ctx = w.captureRuntime(ctx)
+	}
+	m, err := w.torrents.Manager(ctx)
+	if err != nil {
+		return nil
+	}
+	u, err := m.RecordUsage(ctx)
+	if err != nil {
+		w.log.Warn("torrents: usage from the record", "err", err)
+		return nil
+	}
+	return u
 }
