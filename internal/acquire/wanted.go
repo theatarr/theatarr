@@ -1,6 +1,7 @@
 package acquire
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -149,8 +150,11 @@ func (a *Acquirer) WantedList(ctx context.Context, q WantedQuery) (*WantedList, 
 	if q.Offset < len(rows) {
 		out.Items = rows[q.Offset:min(q.Offset+q.Limit, len(rows))]
 	}
-	if err := a.movieDates(ctx, out.Items); err != nil {
-		return nil, err
+	// A date sort has read the films' dates for every row already.
+	if strings.TrimPrefix(q.Sort, "-") != "date" {
+		if err := a.movieDates(ctx, out.Items); err != nil {
+			return nil, err
+		}
 	}
 	if out.SearchNowPending, err = a.askedDue(ctx); err != nil {
 		return nil, err
@@ -267,11 +271,12 @@ func (a *Acquirer) sortWanted(ctx context.Context, list []WantedRow, last map[st
 			}
 		}
 	}
-	// Each row's sort value: the title's sort name, the date (YYYY-MM-DD) or the last search (zero-padded millis);
-	// an empty date or a row never searched goes last either way.
+	// Each row's sort value: the title's sort name or the date (YYYY-MM-DD) in v, the last search in at; an empty date
+	// or a row never searched goes last either way.
 	type entry struct {
 		row WantedRow
 		v   string
+		at  int64
 	}
 	es := make([]entry, len(list))
 	for i, r := range list {
@@ -282,20 +287,20 @@ func (a *Acquirer) sortWanted(ctx context.Context, list []WantedRow, last map[st
 		case "date":
 			e.v = r.Date
 		case "last":
-			if at := last[seasonKey(r.versionID, seasonOf(r.Season))].any; at > 0 {
-				e.v = fmt.Sprintf("%020d", at)
-			}
+			e.at = last[seasonKey(r.versionID, seasonOf(r.Season))].any
 		}
 		es[i] = e
 	}
 	slices.SortStableFunc(es, func(x, y entry) int {
+		xNone, yNone := key == "date" && x.v == "" || key == "last" && x.at == 0, key == "date" && y.v == "" || key == "last" && y.at == 0
 		switch {
-		case key != "title" && x.v == "" && y.v != "":
-			return 1
-		case key != "title" && y.v == "" && x.v != "":
-			return -1
+		case xNone || yNone:
+			return cmp.Compare(boolInt(xNone), boolInt(yNone))
 		case desc:
-			return strings.Compare(y.v, x.v)
+			x, y = y, x
+		}
+		if key == "last" {
+			return cmp.Compare(x.at, y.at)
 		}
 		return strings.Compare(x.v, y.v)
 	})
@@ -638,4 +643,11 @@ func (a *Acquirer) wantedRuns(ctx context.Context, items []WantedRow) error {
 		}
 	}
 	return rows.Err()
+}
+
+func boolInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
 }
