@@ -154,14 +154,14 @@ it("keeps the bulk result in a toast when the removal empties the list, with the
   expect(fetch.calls("POST", "/activity/downloads/31/remove")[0].body).toEqual({ blocklist: true, search: true });
 });
 
-it("names a failed download's reason and release, and says no provider took it", async () => {
+it("names a failed download's reason and release, and says it was not added", async () => {
   show();
   const row = (await screen.findAllByTestId("download")).find((r) => r.textContent?.includes("Beta"))!;
   expect(within(row).getByTestId("stage").textContent).toBe("Failed");
   expect(within(row).getByTestId("words").textContent).toBe("miss on every provider");
   expect(within(row).queryByText("Download failed")).toBeNull();
   expect(within(row).getByTestId("failed-release").textContent).toBe("Beta.2026.1080p");
-  expect(row.querySelector('[data-column="provider"]')?.textContent).toBe("None took it");
+  expect(row.querySelector('[data-column="provider"]')?.textContent).toBe("Not added");
   // A download in progress keeps its own words and shows no release line under the title.
   const alpha = (await screen.findAllByTestId("download")).find((r) => r.textContent?.includes("Alpha"))!;
   expect(within(alpha).queryByTestId("failed-release")).toBeNull();

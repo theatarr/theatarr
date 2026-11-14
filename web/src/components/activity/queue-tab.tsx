@@ -267,7 +267,7 @@ function TableTitle({ t }: { t: ActivityDownload["title"] }) {
 /** The provider (or download client) and whether it was cached or reused. */
 function ProviderCell({ d }: { d: ActivityDownload }) {
   // A failed download no provider accepted: say so rather than a bare dash.
-  if (!d.provider_name && !d.client) return d.state === "failed" && !d.not_started ? <span className="whitespace-nowrap text-muted-foreground" data-testid="no-provider">None took it</span> : <Dash />;
+  if (!d.provider_name && !d.client) return d.state === "failed" && !d.not_started ? <span className="whitespace-nowrap text-muted-foreground" data-testid="no-provider">Not added</span> : <Dash />;
   return (
     <span className="block whitespace-nowrap">
       {d.provider_name ? <span className="block">{d.provider_name}</span> : <span className="block">client {d.client}</span>}

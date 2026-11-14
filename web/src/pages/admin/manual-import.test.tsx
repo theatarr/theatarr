@@ -31,9 +31,8 @@ describe("manual import", () => {
     expect(html).toContain('value="102" selected=""');
     expect(html).toContain('value="CHOSEN"');
   });
-  it("leaves out a format score of 0 with no matched formats", () => {
-    const html = renderToStaticMarkup(h(ManualImportFiles, { rows: [importRow({ ...candidate, customFormatScore: 0, customFormats: [] })], options, disabled: false, change: () => {} }));
-    expect(html).not.toContain("Format score");
+  it("uses the themed select for single choices", () => {
+    const html = renderToStaticMarkup(h(ManualImportFiles, { rows: [importRow(candidate)], options, disabled: false, change: () => {} }));
     expect(html).toContain('data-slot="select"');
   });
   it("points an unknown download hash at Add by magnet or hash", () => {

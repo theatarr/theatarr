@@ -34,14 +34,12 @@ const PAGE = 50;
 type GlobalOff = ReturnType<typeof globalDownloadsOff> | "unknown";
 const OFF_WORD = { locked: "Paused (locked)", off: "Paused", unknown: "Paused" } as const;
 
-/** The Last search cell's words. still: the row is still on the list with no download in progress, so a grab did not
- * fill it ("Grabbed, still missing"), named for the tab. */
-export function searchResult(run: WantedRow["last_run"], still?: "missing" | "cutoff"): string {
+export function searchResult(run: WantedRow["last_run"]): string {
   if (!run) return "Never searched";
   if (run.state === "failed") return `Failed: ${run.message}`;
   if (run.state === "queued") return "Queued";
   if (run.state === "searching") return "Searching";
-  if (run.downloaded) return still === "cutoff" ? "Grabbed, still below the cutoff" : still === "missing" ? "Grabbed, still missing" : "Grabbed";
+  if (run.downloaded) return "Grabbed";
   if (run.state === "routed") return "Sent to download";
   return run.results ? `${plural(run.results, "result")}, none accepted` : "Nothing found";
 }
@@ -81,6 +79,11 @@ function NextSearch({ row, state, off, admin }: { row: WantedRow; state?: Versio
     case "not_scheduled": return <>Not scheduled{state && !willGrab(state) ? <div className="mt-1">{library}</div> : null}</>;
     case "downloads_off": return library ?? <>{OFF_WORD[off ?? "unknown"]}</>;
   }
+}
+
+/** The journal entry of the row's last search (admins). */
+function DecisionLink({ row }: { row: WantedRow }) {
+  return <Link className="text-primary hover:underline" to={journalLink(String(row.decision_id))}>Decision</Link>;
 }
 
 /** Why a row cannot be searched now ("" when it can). */
@@ -171,7 +174,7 @@ export function WantedPage() {
     what: { id: "what", label: "What", cell: row => targetWords(row.targets) },
     next: { id: "next", label: "Next search", cell: row => <NextSearch row={row} state={states.get(row.version)} off={off} admin={perms.admin} /> },
     // The decision behind the last search sits with it, so the row's actions keep their place.
-    last: { id: "last", label: "Last search", cell: row => <>{row.last_run ? <span title={fmtTime(row.last_run.at)}>{fmtAgo(row.last_run.at)} · </span> : null}{searchResult(row.last_run, row.waiting === "in_flight" || row.waiting === "downloads_off" ? undefined : only)}{row.decision_id && perms.admin ? <> · <Link className="text-primary hover:underline" to={journalLink(String(row.decision_id))}>Decision</Link></> : null}</> },
+    last: { id: "last", label: "Last search", cell: row => <>{row.last_run ? <span title={fmtTime(row.last_run.at)}>{fmtAgo(row.last_run.at)} · </span> : null}{searchResult(row.last_run)}{row.decision_id && perms.admin ? <> · <DecisionLink row={row} /></> : null}</> },
   };
   const columns: DataColumn<WantedRow>[] = [
     { id: "title", label: "Title", cell: titleLink, card: "none", cellClassName: "min-w-[10rem]" },
@@ -181,6 +184,8 @@ export function WantedPage() {
     const why = blocked(row);
     return <div className="flex flex-wrap items-baseline gap-2 md:flex-nowrap md:justify-end">
       <InteractiveSearchButton titleId={row.title_id} version={row.version} season={row.season} size="xs" variant="ghost" />
+      {/* With Last search hidden, the decision link stays a row action. */}
+      {row.decision_id && perms.admin && !prefs.shown.includes("last") ? <DecisionLink row={row} /> : null}
       <button type="button" className="text-primary hover:underline disabled:cursor-not-allowed disabled:text-[var(--ink-3)] disabled:no-underline" disabled={!!why || asked(row) || search.isPending} title={why || (asked(row) ? "Already asked for" : undefined)} onClick={() => request({ body: { only, items: [rowItem(row)] }, count: 1, title: "Search now" }, false)}>Search now</button>
       {why && row.waiting !== "downloads_off" && row.waiting !== "in_flight" ? <span className="text-[var(--ink-3)]" data-testid="search-blocked">{why}</span> : null}
     </div>;

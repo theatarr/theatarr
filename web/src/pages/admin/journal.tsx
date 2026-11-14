@@ -239,7 +239,7 @@ export function JournalEntryPage() {
                   <TableRow key={i}>
                     <TableCell className="whitespace-nowrap text-[13px]">{fmtTime(a.at)}</TableCell>
                     <TableCell>{a.provider ? <ProviderTag account={a.provider} className="font-medium" /> : null}</TableCell>
-                    <TableCell><Badge tone={a.outcome === "accepted" ? "positive" : "warning"} title={[a.outcome, a.code].filter(Boolean).join(" · ")}>{attemptOutcomeWords(a.outcome)}</Badge></TableCell>
+                    <TableCell><Badge tone={a.outcome === "accepted" ? "positive" : "warning"} title={[a.outcome, a.code].filter(Boolean).join(" · ")}>{a.code === "reused" ? "Reused" : attemptOutcomeWords(a.outcome)}</Badge></TableCell>
                     <TableCell className="hidden break-words text-[13px] text-muted-foreground sm:table-cell">{a.message || attemptCodeWords(a.code)}</TableCell>
                   </TableRow>
                 ))}

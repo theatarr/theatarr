@@ -352,16 +352,9 @@ it("keeps the retry sentence to Missing, names the unit, and puts Decision with 
   expect(screen.getByTestId("wanted-pace").textContent).toBe("Up to 20 searches an hour (4 in the last hour). Items are searched again every 24 h.");
   expect(screen.getByTestId("wanted-count").textContent).toBe("1,128 items: one per film or season in each library, not per episode.");
   const last = r.querySelector('[data-column="last"]')!;
-  expect(last.textContent).toMatch(/Grabbed, still below the cutoff · Decision$/);
+  expect(last.textContent).toMatch(/Grabbed · Decision$/);
   expect(within(last as HTMLElement).getByRole("link", { name: "Decision" }).getAttribute("href")).toBe("/activity/journal/9");
   expect(screen.getByRole("button", { name: "All (1,128)" })).toBeTruthy();
-});
-
-it("words a grab by the tab while the row is still wanted", () => {
-  const run = { id: 1, at: "2026-11-01T00:00:00Z", state: "routed", results: 1, accepted: 1, message: "", downloaded: true };
-  expect(searchResult(run, "missing")).toBe("Grabbed, still missing");
-  expect(searchResult(run, "cutoff")).toBe("Grabbed, still below the cutoff");
-  expect(searchResult(run)).toBe("Grabbed");
 });
 
 it("says only Grabbed while paused, where a download in flight cannot be told apart", async () => {
@@ -371,4 +364,14 @@ it("says only Grabbed while paused, where a download in flight cannot be told ap
   renderPage(<WantedPage />, "/wanted");
   const r = await screen.findByTestId("wanted-row");
   expect(r.querySelector('[data-column="last"]')?.textContent).toMatch(/· Grabbed · Decision$/);
+});
+
+it("keeps Decision as a row action when Last search is hidden", async () => {
+  window.localStorage.setItem("theatarr.library.wanted-columns.1", JSON.stringify({ order: ["library", "what", "next", "last"], shown: ["library", "what", "next"] }));
+  mockFetch([admin, { method: "GET", path: "/wanted", reply: page }, status]);
+  renderPage(<WantedPage />, "/wanted");
+  const r = await screen.findByTestId("wanted-row");
+  expect(r.querySelector('[data-column="last"]')).toBeNull();
+  expect(within(r).getByRole("link", { name: "Decision" }).getAttribute("href")).toBe("/activity/journal/9");
+  window.localStorage.clear();
 });
