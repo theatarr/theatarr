@@ -21,7 +21,7 @@ import { Card } from "@/components/ui/card";
 import { Modal } from "@/components/ui/modal";
 import { copyColumns, distinctLabels, relabel } from "@/lib/copies";
 import { fmtBytes, plural, pluralWord } from "@/lib/format";
-import { defaultColumns, defaultDesc, indexColumns, listColumns, visibleIndexColumns } from "@/lib/index-columns";
+import { defaultColumns, defaultDesc, indexColumns, listColumns, sortColumn, visibleIndexColumns } from "@/lib/index-columns";
 import { activeFilters, CATALOGS, FILTER_KEYS, filterChips, gridQuery, offeredSorts, withoutChip, type CatalogId } from "@/lib/library";
 import { normalizePosters, type PosterPrefs } from "@/lib/poster-options";
 import { prefKey, readPref, useColumnPrefs, writePref } from "@/lib/prefs";
@@ -151,7 +151,12 @@ export function Catalog({ id }: { id: CatalogId }) {
   const sort = query.sort ?? "name";
   const desc = query.order ? query.order === "desc" : defaultDesc(sort);
   const offered = indexColumns(id, perms.seeFiles);
-  const shown = visibleIndexColumns(columnsPref, id, perms.seeFiles).map((c) => offered.find((o) => o.id === c)!);
+  const picked = visibleIndexColumns(columnsPref, id, perms.seeFiles).map((c) => offered.find((o) => o.id === c)!);
+  // The table shows what it is sorted by: a sort whose column is not chosen (Next release, Latest file) shows that
+  // column first, for as long as the sort lasts; the chosen columns are not changed.
+  const sortedBy = sortColumn(sort);
+  const sortCell = sortedBy && sortedBy !== "title" && !picked.some((c) => c.id === sortedBy) ? offered.find((o) => o.id === sortedBy) : undefined;
+  const shown = sortCell ? [sortCell, ...picked] : picked;
   // A sort is asked for in one URL update (separate updates in one event each start from the same render's params, so
   // only the last would stick): the copy goes; a header asking for the sort already shown flips the order, anything
   // else starts in the sort's default order.

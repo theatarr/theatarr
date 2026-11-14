@@ -50,6 +50,13 @@ describe("Library table", () => {
   beforeEach(() => window.localStorage.setItem("theatarr.catalog.view", "table"));
   afterEach(() => vi.unstubAllGlobals());
 
+  it("shows the column it is sorted by while its sort lasts, so the order follows a visible cell", async () => {
+    mockFetch(routes());
+    renderPage(<Catalog id="movies" />, "/movies?sort=next");
+    await screen.findAllByRole("columnheader");
+    await waitFor(() => expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Title", "Next release", "Status", "Libraries", "Studio", "Size", "Added", "Actions"]));
+  });
+
   // The frame is 800 px wide; the table as wide as its columns make it.
   const measured = async (tableWidth: number) => {
     const observers: (() => void)[] = [];
