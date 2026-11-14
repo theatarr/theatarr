@@ -1,27 +1,36 @@
 // Removal on the title page (docs/design/ui.md "Recovery actions"), for managers: Remove from this library (in the
-// library row's Details), Unlink one of its library files, Remove links left by a library the title was removed from
-// (the line under the Libraries table), and Remove the whole title (the action bar). Each confirmation spells out the scope the
-// server reports (copies, links, downloads in progress, an arr that still manages a copy) and what never happens:
-// a debrid torrent or a file on the mount deleted. An unlink moves only Theatarr's own symlink to the trash.
+// library row's Details), Unlink one of its library files, Delete the files a library the title was removed from kept
+// (the line under the Libraries table, and the kept-files line of a title in no library), and Remove the whole title
+// (the action bar). Each confirmation spells out the scope the server reports (copies, links, downloads in progress)
+// and what stays. The removal's one choice, "Also delete the files and clean up the debrid torrents", is on by default:
+// Theatarr's own symlinks go to its trash, and the torrents nothing else uses are deleted from the providers after a
+// backup. An unlink moves only Theatarr's own symlink to the trash.
 import { FileX2, Loader2, Trash2 } from "lucide-react";
 import { useState } from "react";
+import { useNavigate } from "react-router";
 import type { Version } from "@/api/library";
 import { useRemovalScope, useRemove, useUnlink } from "@/api/ops";
 import { Mono } from "@/components/page";
+import { toast } from "@/components/toaster";
 import { Button } from "@/components/ui/button";
 import { Choice, ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Modal } from "@/components/ui/modal";
-import { removalLinks, removalScope, unlinkable, unlinkScope } from "@/lib/ops";
+import { listToReturnTo } from "@/lib/last-list";
+import { removalScope, unlinkable, unlinkScope } from "@/lib/ops";
 
-/** The removal confirmation: the server's scope for versions (none: the whole title), with the unlink choice. */
-export function RemoveDialog({ titleId, versions, onClose }: { titleId: number; versions?: string[]; onClose: () => void }) {
+/** The removal confirmation: the server's scope for versions (none: the whole title), with the files choice. Once
+ *  done, the outcome is a notice that opens the title's History (the Removed event, with the debrid clean-up's outcome
+ *  once it ran); a removal that leaves the title in no library goes back to the list the person came from (the last
+ *  list opened, else the list of the title's kind), any other closes the dialog. */
+export function RemoveDialog({ titleId, versions, onClose, kind, anime }: { titleId: number; versions?: string[]; onClose: () => void; kind?: string; anime?: boolean }) {
   const remove = useRemove(titleId);
+  const navigate = useNavigate();
   // The scope the dialog was opened with stays: once the removal runs, the title's refresh must not read it again
   // (it would describe what is left, or fail when nothing is).
   // Set in the confirm click itself (a discrete event renders before the request answers), so no refresh refetches it.
   const [started, setStarted] = useState(false);
   const q = useRemovalScope(titleId, versions, !started);
-  const [unlink, setUnlink] = useState(false);
+  const [files, setFiles] = useState(true);
   if (!q.data) {
     return (
       <Modal label="Remove" onClose={onClose} testid="remove-dialog" className="z-[85] flex items-center justify-center p-6"
@@ -33,35 +42,46 @@ export function RemoveDialog({ titleId, versions, onClose }: { titleId: number; 
     );
   }
   const s = q.data;
-  const links = removalLinks(s);
-  // Nothing left to hide: only the links of copies removed before, which a removal with unlink moves.
+  // Nothing left to hide: only the files of libraries removed before, which a removal with the files deletes.
   const leftoverOnly = s.copies.length === 0;
-  const r = remove.data;
   const listed = (label: string, ls: { path: string; reason: string }[]) =>
     ls.length ? ` ${label}: ${ls.map((k) => `${k.path} (${k.reason})`).join("; ")}` : "";
-  const done = r ? r.message + listed("Kept", r.kept) + listed("Failed", r.failed ?? []) : undefined;
   return (
     <ConfirmDialog
-      scope={removalScope(s, unlink || leftoverOnly)}
+      scope={removalScope(s, files || leftoverOnly)}
       subject={s.name}
       busy={remove.isPending}
       error={remove.error}
-      done={done}
       onClose={onClose}
       onConfirm={() => {
         setStarted(true);
-        remove.mutate({
-          // A removal asked for named libraries (a row, a leftover line) stays scoped to them even when they are the
-          // title's last; none (the action bar) is the whole title, with the links of libraries removed earlier.
-          versions: versions ?? [],
-          unlink: unlink || leftoverOnly,
-        });
+        remove.mutate(
+          {
+            // A removal asked for named libraries (a row, a leftover line) stays scoped to them even when they are the
+            // title's last; none (the action bar) is the whole title, with the files of libraries removed earlier.
+            versions: versions ?? [],
+            unlink: files || leftoverOnly,
+          },
+          {
+            onSuccess: (r) => {
+              const left = r.kept.length + (r.failed ?? []).length > 0;
+              toast({
+                tone: left ? "warn" : "ok",
+                title: r.title ? `Removed ${s.name}` : s.name,
+                body: `${r.message}${listed("Kept", r.kept)}${listed("Failed", r.failed ?? [])} Open its History for the details.`,
+                to: `/title/${titleId}?tab=history`,
+              });
+              onClose();
+              if (r.title) navigate(listToReturnTo(kind, anime));
+            },
+          },
+        );
       }}
       testid="remove-dialog"
     >
-      {links > 0 && !r && !leftoverOnly ? (
-        <Choice checked={unlink} onChange={setUnlink} testid="remove-unlink">
-          Also move the {links === 1 ? "library link" : `${links} library links`} to Theatarr's trash (the files on the mount stay)
+      {!leftoverOnly ? (
+        <Choice checked={files} onChange={setFiles} testid="remove-files">
+          Also delete the files and clean up the debrid torrents
         </Choice>
       ) : null}
     </ConfirmDialog>
@@ -115,9 +135,10 @@ export function CopyActions({ v, label, onRemove }: { v: Version; label: string;
   );
 }
 
-/** Remove links…: the links libraries the title was removed from still have, moved to Theatarr's trash through the
- *  removal dialog (the server's leftover case). label is the link's words (Remove links…, or Delete them). */
-export function LeftoverLinks({ titleId, versions, label = "Remove links…" }: { titleId: number; versions: string[]; label?: string }) {
+/** Delete files…: the links libraries the title was removed from still have, deleted through the removal dialog (the
+ *  server's leftover case), their debrid torrents cleaned up with the same guard. label is the link's words (Delete
+ *  files…, or Delete them). */
+export function LeftoverLinks({ titleId, versions, label = "Delete files…" }: { titleId: number; versions: string[]; label?: string }) {
   const [open, setOpen] = useState(false);
   return (
     <>

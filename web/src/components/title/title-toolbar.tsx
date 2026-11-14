@@ -244,7 +244,7 @@ export function TitleToolbar({ titleId, name, year, kind, poster, anime, version
       ) : null}
       {dialog === "interactive" ? <InteractiveSearch titleId={titleId} onClose={() => setDialog(null)} /> : null}
       {dialog === "rename" ? <RenameDialog titleId={titleId} labels={labels} onClose={() => setDialog(null)} /> : null}
-      {dialog === "remove" ? <RemoveDialog titleId={titleId} onClose={() => setDialog(null)} /> : null}
+      {dialog === "remove" ? <RemoveDialog titleId={titleId} kind={kind} anime={anime} onClose={() => setDialog(null)} /> : null}
     </div>
   );
 }

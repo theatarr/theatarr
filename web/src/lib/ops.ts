@@ -1,7 +1,7 @@
 // What each recovery action does and leaves alone, in words, for its confirmation (docs/design/ui.md "Recovery
-// actions"). Every dialog names its scope explicitly: the copy, the release, the counts, and the two things that never
-// happen (a debrid torrent deleted: they are shared by every library; a real file deleted: only Theatarr's own symlinks
-// move to the trash).
+// actions"). Every dialog names its scope explicitly: the copy, the release, the counts, and what never happens: a real
+// file deleted (only Theatarr's own symlinks move to the trash), or a debrid torrent deleted that anything else still
+// uses (only a title removal with its files deletes torrents, and only those nothing else uses).
 import { plural } from "./format";
 
 export type Scope = {
@@ -123,23 +123,31 @@ export type RemovalCopyLike = { key: string; label: string; links: number; downl
 /** leftover: copies removed before whose library links are still active (an earlier removal's failed moves). */
 export type RemovalScopeLike = { name: string; title: boolean; copies: RemovalCopyLike[]; leftover?: RemovalCopyLike[] };
 
-/** The library links a removal with unlink moves: its copies' and the leftover copies'. */
+/** The library links a removal with the files deleted takes out: its copies' and the leftover copies'. */
 export function removalLinks(s: RemovalScopeLike): number {
   return [...s.copies, ...(s.leftover ?? [])].reduce((n, c) => n + c.links, 0);
 }
 
-export function removalScope(s: RemovalScopeLike, unlink: boolean): Scope {
+/** The torrent clean-up a removal with the files does, and its guard. */
+export const REMOVAL_CLEANUP = "Their debrid torrents are deleted from the providers after a backup, unless another title, library or download still uses them";
+export const REMOVAL_LISTS = "Import lists will not restore the removed libraries; add it yourself to bring it back";
+
+/** The removal dialog's scope. files: "Also delete the files and clean up the debrid torrents" (the dialog's box). */
+export function removalScope(s: RemovalScopeLike, files: boolean): Scope {
   const leftover = (s.leftover ?? []).reduce((n, c) => n + c.links, 0);
   if (s.copies.length === 0 && leftover > 0) {
-    // Only the links of copies removed before: removing again with unlink moves them.
+    // Only the files libraries removed before kept: deleting them takes their torrents along, with the same guard.
     return {
-      title: `Unlink the files left by removed copies of ${s.name}`,
-      does: [`${plural(leftover, "library link")} of removed copies ${leftover === 1 ? "moves" : "move"} to Theatarr's trash`],
-      keeps: ["Debrid torrents and the files on the mount are never deleted", "The copies stay removed"],
-      confirm: "Unlink files",
+      title: `Delete the files kept from ${s.name}`,
+      does: [
+        `${plural(leftover, "library file")} of removed libraries ${leftover === 1 ? "is" : "are"} deleted from the library (moved to Theatarr's trash)`,
+        REMOVAL_CLEANUP,
+      ],
+      keeps: ["A file another library of the title uses stays", "The libraries stay removed; its history stays"],
+      confirm: "Delete files",
     };
   }
-  const links = s.copies.reduce((n, c) => n + c.links, 0) + (unlink ? leftover : 0);
+  const links = s.copies.reduce((n, c) => n + c.links, 0) + (files ? leftover : 0);
   const downloads = s.copies.reduce((n, c) => n + c.downloads, 0);
   const names = s.copies.map((c) => c.label).join(", ");
   const does: string[] = [];
@@ -147,18 +155,24 @@ export function removalScope(s: RemovalScopeLike, unlink: boolean): Scope {
   else does.push(`${s.name} is removed from ${names}: ${s.copies.length === 1 ? "this copy stops" : "these copies stop"} being wanted, searched or upgraded`);
   does.push(`${s.title ? "It is" : s.copies.length === 1 ? "It is" : "They are"} hidden from Seerr and the other arr clients`);
   if (downloads > 0) does.push(`Theatarr stops following ${plural(downloads, "download")} in progress`);
-  if (unlink && links > 0) does.push(`${plural(links, "library link")} ${links === 1 ? "moves" : "move"} to Theatarr's trash`);
+  if (files && links > 0) does.push(`${plural(links, "library file")} ${links === 1 ? "is" : "are"} deleted from the library (moved to Theatarr's trash), with the folders left empty`);
+  if (files) does.push(REMOVAL_CLEANUP);
   const keeps = [
-    "Debrid torrents and the files on the mount are never deleted",
-    ...(unlink || links === 0 ? [] : [`${plural(links, "library file")} ${links === 1 ? "stays" : "stay"} linked and playable`]),
-    s.title ? "Its history stays; adding the title again restores it" : `Its history stays; adding ${s.name} to the library again restores it`,
+    ...(files
+      ? ["A file another library of the title uses stays"]
+      : [
+          ...(links === 0 ? [] : [`${plural(links, "library file")} ${links === 1 ? "stays" : "stay"} linked and playable`]),
+          "Its debrid torrents stay",
+        ]),
+    "Its history stays",
+    REMOVAL_LISTS,
   ];
   return {
     title: s.title ? `Remove ${s.name}` : `Remove from ${names}`,
     does,
     keeps,
     confirm: s.title ? "Remove title" : s.copies.length === 1 ? "Remove from this library" : "Remove from these libraries",
-    cleanup: UNUSED_TORRENTS,
+    cleanup: files ? undefined : UNUSED_TORRENTS,
     blocked: s.copies.length === 0 ? "Nothing to remove" : undefined,
   };
 }

@@ -1,11 +1,13 @@
 // @vitest-environment jsdom
 // The title page's Libraries table: one row per current library, provider pills and the file name, the Watch-only
 // row's limits, the removed library's leftover line, chosen columns kept, and the details panel. Invented keys.
-import { act, screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useState } from "react";
+import { useLocation } from "react-router";
 import { afterEach, describe, expect, it } from "vitest";
 import { json, mockFetch, renderPage } from "@/test/page";
+import { Toaster } from "@/components/toaster";
+import { rememberList } from "@/lib/last-list";
 import { LibraryRows } from "./library-rows";
 
 afterEach(() => window.localStorage.clear());
@@ -148,44 +150,62 @@ describe("Add to other providers", () => {
 });
 
 describe("fix round 1", () => {
-  it("keeps a row removal scoped to its library when it is the title's last, and keeps the result after the row goes", async () => {
+  it("keeps a row removal scoped to its library when it is the title's last, deletes the files by default, and goes back to the list with a notice", async () => {
     const links = [{ id: 9, kind: "symlink", state: "active", path: "/media/remux/Alpha/a.mkv" }];
-    let removed = false;
     const fetch = manager([
-      // Before the removal the scope is the library; afterwards the server has nothing to scope (400).
-      { method: "GET", path: "/titles/7/removal", reply: () => removed
-        ? json({ error: "the title has no copy \"movie-web\"" }, 400)
-        : { title_id: 7, name: "Alpha", title: true, copies: [{ key: "movie-web", label: "WEB", links: 1, downloads: 0 }], leftover: [] } },
-      { method: "POST", path: "/titles/7/remove", reply: () => {
-        removed = true;
-        return { message: "Alpha was removed from WEB.", kept: [{ path: "/media/movies/Alpha/a.mkv", reason: "unlink refused" }] };
+      { method: "GET", path: "/titles/7/removal", reply: { title_id: 7, name: "Alpha", title: true, copies: [{ key: "movie-web", label: "WEB", links: 1, downloads: 0 }], leftover: [] } },
+      { method: "POST", path: "/titles/7/remove", reply: {
+        title: true, cleanup: true, failed: [],
+        message: "Removed Alpha from the library; 1 library file deleted; its debrid torrents are being cleaned up (History shows the outcome).",
+        kept: [{ path: "/media/movies/Alpha/b.mkv", reason: "another library still uses it" }],
       } },
       { method: "GET", path: "/titles/7", reply: {} },
     ]);
     const user = userEvent.setup();
-    let setVersions: (v: object[]) => void = () => {};
-    function Page() {
-      const [versions, set] = useState<object[]>([web, { ...remux, removed: true, links }]);
-      setVersions = set;
-      return <LibraryRows title={title as never} versions={versions as never} />;
+    function Where() {
+      return <div data-testid="where">{useLocation().pathname}</div>;
     }
-    renderPage(<Page />);
+    rememberList("/series?availability=missing");
+    renderPage(<><LibraryRows title={title as never} versions={[web, { ...remux, removed: true, links }] as never} /><Where /><Toaster /></>, "/title/7");
     await user.click(await screen.findByTestId("copy-details-movie-web"));
     await user.click(screen.getByTestId("copy-remove-movie-web"));
-    await user.click(await screen.findByTestId("remove-unlink"));
+    const box = (await screen.findByTestId("remove-files")) as HTMLInputElement;
+    expect(box.checked).toBe(true);
+    expect(screen.getByTestId("remove-dialog").textContent).toContain("Import lists will not restore the removed libraries; add it yourself to bring it back");
     await user.click(screen.getByTestId("confirm-ok"));
     await waitFor(() => expect(fetch.calls("POST", "/titles/7/remove")).toHaveLength(1));
     expect(fetch.calls("POST", "/titles/7/remove")[0].body).toEqual({ versions: ["movie-web"], unlink: true });
-    expect((await screen.findByTestId("confirm-done")).textContent).toContain("unlink refused");
-    // The title data comes back without the row: the result stays until dismissed.
-    act(() => setVersions([{ ...web, removed: true }, { ...remux, removed: true, links }]));
-    expect(screen.queryAllByTestId("library-row")).toHaveLength(0);
-    expect(screen.getByTestId("confirm-done").textContent).toContain("unlink refused");
-    // The scope is not read again after the removal: the dialog keeps its heading and result.
-    await new Promise((r) => setTimeout(r, 50));
+    // The title is in no library now: back to the list last opened, with the outcome as a notice that opens History.
+    await waitFor(() => expect(screen.getByTestId("where").textContent).toBe("/series"));
+    expect(screen.queryByTestId("remove-dialog")).toBeNull();
+    const notice = screen.getAllByTestId("toast").at(-1) as HTMLElement;
+    expect(notice.textContent).toContain("Removed Alpha from the library; 1 library file deleted");
+    expect(notice.textContent).toContain("another library still uses it");
+    expect(within(notice).getAllByRole("link")[0].getAttribute("href")).toBe("/title/7?tab=history");
     expect(fetch.calls("GET", "/titles/7/removal")).toHaveLength(1);
-    expect(within(screen.getByTestId("remove-dialog")).getByRole("heading").textContent).toBe("Remove Alpha");
-    expect(screen.getByTestId("confirm-done").textContent).toContain("unlink refused");
+  });
+
+  it("keeps the files and torrents when the box is cleared, and stays on the page for a library the title is not left without", async () => {
+    const fetch = manager([
+      { method: "GET", path: "/titles/7/removal", reply: { title_id: 7, name: "Alpha", title: false, copies: [{ key: "movie-web", label: "WEB", links: 1, downloads: 0 }], leftover: [] } },
+      { method: "POST", path: "/titles/7/remove", reply: { title: false, cleanup: false, failed: [], kept: [], message: "Removed Alpha from WEB; its files stay linked and its debrid torrents stay." } },
+      { method: "GET", path: "/titles/7", reply: {} },
+    ]);
+    const user = userEvent.setup();
+    function Where() {
+      return <div data-testid="where">{useLocation().pathname}</div>;
+    }
+    renderPage(<><LibraryRows title={title as never} versions={[web, remux] as never} /><Where /><Toaster /></>, "/title/7");
+    await user.click(await screen.findByTestId("copy-details-movie-web"));
+    await user.click(screen.getByTestId("copy-remove-movie-web"));
+    await user.click(await screen.findByTestId("remove-files"));
+    expect(screen.getByTestId("confirm-keeps").textContent).toContain("Its debrid torrents stay");
+    await user.click(screen.getByTestId("confirm-ok"));
+    await waitFor(() => expect(fetch.calls("POST", "/titles/7/remove")).toHaveLength(1));
+    expect(fetch.calls("POST", "/titles/7/remove")[0].body).toEqual({ versions: ["movie-web"], unlink: false });
+    await waitFor(() => expect(screen.queryByTestId("remove-dialog")).toBeNull());
+    expect(screen.getByTestId("where").textContent).toBe("/title/7");
+    expect(screen.getAllByTestId("toast").at(-1)?.textContent).toContain("its debrid torrents stay");
   });
 
   it("says a row's search may serve the title's other Live libraries", async () => {

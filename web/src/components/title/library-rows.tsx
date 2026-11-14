@@ -213,7 +213,7 @@ export function LibraryRows({ title, versions }: { title: TitleDetail; versions:
   const setVersion = useSetVersion(titleId);
   const searchNow = useSearchNow(titleId);
   const [interactive, setInteractive] = useState<string | null>(null);
-  // The removal dialog lives here, not in the row: its result stays on screen after the row goes.
+  // The removal dialog lives here, not in the row: it stays open while the row goes.
   const [removing, setRemoving] = useState<string | null>(null);
   const toggle = (key: string) => setOpen((o) => {
     const n = new Set(o);
@@ -358,7 +358,7 @@ export function LibraryRows({ title, versions }: { title: TitleDetail; versions:
         <ColumnPicker label="Columns" note="Monitored, Library and the actions always stay. Kept for your account in this browser."
           columns={offered} prefs={prefs} onChange={savePrefs} onClose={() => setPicking(false)} />
       ) : null}
-      {removing ? <RemoveDialog titleId={titleId} versions={[removing]} onClose={() => setRemoving(null)} /> : null}
+      {removing ? <RemoveDialog titleId={titleId} versions={[removing]} kind={kind} anime={title.anime} onClose={() => setRemoving(null)} /> : null}
       {interactive ? <InteractiveSearch titleId={titleId} version={interactive} onClose={() => setInteractive(null)} /> : null}
     </section>
   );

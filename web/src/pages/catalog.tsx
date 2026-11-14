@@ -24,6 +24,7 @@ import { fmtBytes, plural, pluralWord } from "@/lib/format";
 import { defaultColumns, defaultDesc, indexColumns, listColumns, sortColumn, visibleIndexColumns } from "@/lib/index-columns";
 import { activeFilters, CATALOGS, FILTER_KEYS, filterChips, gridQuery, offeredSorts, withoutChip, type CatalogId } from "@/lib/library";
 import { normalizePosters, type PosterPrefs } from "@/lib/poster-options";
+import { rememberList } from "@/lib/last-list";
 import { prefKey, readPref, useColumnPrefs, writePref } from "@/lib/prefs";
 import { resolutionWords } from "@/lib/upgrade";
 import { cn } from "@/lib/utils";
@@ -105,6 +106,11 @@ export function Catalog({ id }: { id: CatalogId }) {
   const [dialog, setDialog] = useState<"columns" | "posters" | null>(null);
   const [selecting, setSelecting] = useState(false);
   const [chosen, setChosen] = useState<ReadonlySet<number>>(new Set());
+  // A title removed from its page comes back here, filters and all.
+  useEffect(() => {
+    const q = params.toString();
+    rememberList(cat.path + (q ? `?${q}` : ""));
+  }, [cat.path, params]);
   // A selection belongs to one catalog.
   useEffect(() => {
     setSelecting(false);

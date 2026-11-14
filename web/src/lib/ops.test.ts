@@ -62,7 +62,7 @@ describe("recovery scopes", () => {
     expect(unblockScope("x", "4K", false).confirm).toBe("Unblock");
   });
 
-  it("scopes a copy removal with its links and downloads", () => {
+  it("scopes a copy removal with its links and downloads, with and without the files", () => {
     const one = { name: "Dune", title: false, copies: [{ key: "movie-web", label: "4K WEB", links: 2, downloads: 1 }] };
     const keep = removalScope(one, false);
     expect(keep.title).toBe("Remove from 4K WEB");
@@ -71,17 +71,26 @@ describe("recovery scopes", () => {
       "It is hidden from Seerr and the other arr clients",
       "Theatarr stops following 1 download in progress",
     ]);
-    expect(keep.keeps).toContain("2 library files stay linked and playable");
-    expect(keep.keeps[0]).toBe("Debrid torrents and the files on the mount are never deleted");
-    const unlink = removalScope(one, true);
-    expect(unlink.does).toContain("2 library links move to Theatarr's trash");
-    expect(unlink.keeps).not.toContain("2 library files stay linked and playable");
-    expect(unlink.confirm).toBe("Remove from this library");
+    expect(keep.keeps).toEqual([
+      "2 library files stay linked and playable",
+      "Its debrid torrents stay",
+      "Its history stays",
+      "Import lists will not restore the removed libraries; add it yourself to bring it back",
+    ]);
     expect(keep.cleanup).toEqual({ text: "To free space at the provider, delete torrents nothing uses any more under", label: "Admin › Torrents (the Unused filter)", to: "/admin/torrents", admin: true });
-    expect(keep.keeps).toContain("Its history stays; adding Dune to the library again restores it");
+    const files = removalScope(one, true);
+    expect(files.does).toContain("2 library files are deleted from the library (moved to Theatarr's trash), with the folders left empty");
+    expect(files.does).toContain("Their debrid torrents are deleted from the providers after a backup, unless another title, library or download still uses them");
+    expect(files.keeps).toEqual([
+      "A file another library of the title uses stays",
+      "Its history stays",
+      "Import lists will not restore the removed libraries; add it yourself to bring it back",
+    ]);
+    expect(files.cleanup).toBeUndefined();
+    expect(files.confirm).toBe("Remove from this library");
   });
 
-  it("scopes a title removal, a copy an arr imports included", () => {
+  it("scopes a title removal", () => {
     const all = {
       name: "Dune",
       title: true,
@@ -98,15 +107,18 @@ describe("recovery scopes", () => {
     expect(removalScope({ name: "X", title: false, copies: [] }, false).blocked).toBe("Nothing to remove");
   });
 
-  it("offers to move the links removed copies left behind", () => {
+  it("offers to delete the files removed libraries kept, with their torrents", () => {
     const left = { key: "movie-web", label: "4K WEB", links: 2, downloads: 0 };
     const s = removalScope({ name: "Dune", title: false, copies: [], leftover: [left] }, true);
     expect(s.blocked).toBeUndefined();
-    expect(s.confirm).toBe("Unlink files");
-    expect(s.does).toEqual(["2 library links of removed copies move to Theatarr's trash"]);
+    expect(s.confirm).toBe("Delete files");
+    expect(s.does).toEqual([
+      "2 library files of removed libraries are deleted from the library (moved to Theatarr's trash)",
+      "Their debrid torrents are deleted from the providers after a backup, unless another title, library or download still uses them",
+    ]);
     const one = { name: "Dune", title: true, copies: [{ key: "movie-remux", label: "4K Remux", links: 1, downloads: 0 }], leftover: [left] };
     expect(removalLinks(one)).toBe(3);
-    expect(removalScope(one, true).does).toContain("3 library links move to Theatarr's trash");
+    expect(removalScope(one, true).does).toContain("3 library files are deleted from the library (moved to Theatarr's trash), with the folders left empty");
     expect(removalScope(one, false).keeps).toContain("1 library file stays linked and playable");
   });
 
