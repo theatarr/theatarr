@@ -13,7 +13,7 @@ import { AddToProviders, OtherProviders } from "@/components/title/provider-copi
 import { otherProvidersLine } from "@/lib/provider-copies";
 import { globalDownloadsOff } from "@/lib/version-grab";
 import { Empty, ErrorState, Loading, PageHeader, Section, Strip } from "@/components/page";
-import { ProviderPills, providerLabel } from "@/components/provider-pills";
+import { ProviderPills, ProviderTag, providerLabel } from "@/components/provider-pills";
 import { inventoryLink } from "@/lib/admin-links";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -369,7 +369,7 @@ function JournalSection() {
                 <TableRow key={e.id}>
                   <TableCell className="whitespace-nowrap">{fmtTime(e.at)}</TableCell>
                   <TableCell><Badge tone={e.outcome === "failed" ? "negative" : "neutral"}>{e.action} {e.outcome}</Badge></TableCell>
-                  <TableCell className="text-[13px] [overflow-wrap:anywhere]">{e.provider ? <span className="mr-1 font-medium" title={e.provider}>{providerLabel(e.provider)}</span> : null}{e.name || e.hash || e.backup_id}{e.detail ? <div className="text-xs text-muted-foreground">{e.detail}</div> : null}</TableCell>
+                  <TableCell className="text-[13px] [overflow-wrap:anywhere]">{e.provider ? <ProviderTag account={e.provider} className="mr-1 font-medium" /> : null}{e.name || e.hash || e.backup_id}{e.detail ? <div className="text-xs text-muted-foreground">{e.detail}</div> : null}</TableCell>
                   <TableCell className="hidden whitespace-nowrap md:table-cell">{e.by}</TableCell>
                 </TableRow>
               ))}

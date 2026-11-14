@@ -2,6 +2,7 @@
 // code (rd → RD, ad → AD, tb → TB, anything else upper-cased); "—" or the given empty node when there is none.
 import type { ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
+import { useProviderCode } from "@/lib/library-names";
 
 const LABELS: Record<string, string> = { rd: "RD", ad: "AD", tb: "TB" };
 
@@ -21,4 +22,10 @@ export function ProviderPills({ codes, empty, testid }: { codes?: readonly strin
       ))}
     </span>
   );
+}
+
+/** A provider account by its key: its RD/AD/TB tag (the account's kind, from auth/me), the key as tooltip. */
+export function ProviderTag({ account, className }: { account: string; className?: string }) {
+  const code = useProviderCode();
+  return <span className={className} title={account}>{providerLabel(code(account))}</span>;
 }

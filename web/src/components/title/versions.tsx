@@ -9,7 +9,7 @@ import { journalLink } from "@/lib/admin-links";
 import { Button } from "@/components/ui/button";
 import { fmtAgo, fmtNumber, fmtTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { providerLabel } from "@/components/provider-pills";
+import { ProviderTag } from "@/components/provider-pills";
 
 const EVENTS: Record<HistoryEvent["event"], { label: string; icon: typeof Download; cls: string }> = {
   searched: { label: "Searched", icon: Search, cls: "text-muted-foreground" },
@@ -61,7 +61,7 @@ export function History({ events, titleId, version }: { events: HistoryEvent[]; 
               <e.icon className={cn("absolute -left-[25px] top-0.5 size-[17px] rounded-full bg-card", e.cls)} />
               <div className="flex flex-wrap items-baseline gap-x-2 text-sm">
                 <span className="font-medium">{e.label}</span>
-                {h.provider && (h.event === "grabbed" || h.event === "failed") ? <span className="text-muted-foreground" title={h.provider}>via {providerLabel(h.provider)}</span> : null}
+                {h.provider && (h.event === "grabbed" || h.event === "failed") ? <span className="text-muted-foreground">via <ProviderTag account={h.provider} /></span> : null}
                 {h.episode ? <Mono className="text-muted-foreground">{h.episode}</Mono> : null}
                 {h.quality ? <span className="text-muted-foreground">{h.quality}</span> : null}
                 {h.score !== undefined && h.score !== null ? <span className="text-xs text-muted-foreground">Score then {h.score}</span> : null}

@@ -8,6 +8,7 @@ import { explainError } from "@/lib/settings";
 import { text } from "./fields";
 import type { QualityRecord } from "./index";
 import { TrashLink } from "./link";
+import { useLibraryName } from "@/lib/library-names";
 
 type Change = { key: string; trash_id?: string; reason?: string };
 // A score of a bound profile kept as yours: you changed it (it differs from TRaSH's last score) and TRaSH changed it
@@ -64,6 +65,7 @@ function ChangeLists({ p, retiredLabel }: { p: Preview; retiredLabel: string }) 
 }
 
 export function SyncSources({ records, generation, draft, baseGeneration, onChanged }: { records: QualityRecord[]; generation: number; draft?: QualityRecord; baseGeneration?: number; onChanged: () => Promise<void> }) {
+  const nameOf = useLibraryName();
   const changes = useSyncChanges(generation);
   const runs = useQuery({ queryKey: ["quality-runs", generation], queryFn: () => api<Run[]>("/settings/sync/runs"), refetchInterval: 60_000 });
   const [preview, setPreview] = useState<Preview>();
@@ -90,7 +92,7 @@ export function SyncSources({ records, generation, draft, baseGeneration, onChan
     {preview ? <Card className="space-y-3 p-4"><h3 ref={previewHeading} tabIndex={-1} className="font-semibold outline-none">{preview.source} · {preview.commit}</h3>
       <ChangeLists p={preview} retiredLabel="Retired (retained)" />
       <h4 className="font-medium">Effect on existing files</h4><p>{preview.impact.files} files evaluated; {preview.impact.score_changed} scores, {preview.impact.cutoff_changed} cutoff states and {preview.impact.upgrade_changed} upgrade eligibility states would change.</p>
-      <ul className="space-y-2 text-sm">{preview.impact.examples.map((x, i) => <li key={i}>{x.title} / {x.version}: {x.file}<br />Score {x.before_score} → {x.after_score}; cutoff met {String(x.before_cutoff_met)} → {String(x.after_cutoff_met)}; upgrade eligible {String(x.before_upgrade)} → {String(x.after_upgrade)}</li>)}</ul>
+      <ul className="space-y-2 text-sm">{preview.impact.examples.map((x, i) => <li key={i}>{x.title} / {nameOf(x.version)}: {x.file}<br />Score {x.before_score} → {x.after_score}; cutoff met {String(x.before_cutoff_met)} → {String(x.after_cutoff_met)}; upgrade eligible {String(x.before_upgrade)} → {String(x.after_upgrade)}</li>)}</ul>
       <p>A preview saves nothing. The next run applies these changes.</p>
       <Button variant="outline" onClick={() => setPreview(undefined)}>Close preview</Button>
     </Card> : null}

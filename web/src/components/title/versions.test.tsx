@@ -41,7 +41,7 @@ describe("release history", () => {
       { event: "failed", date: "2026-11-02T02:00:00Z", release_title: "Alpha.2020.2160p.WEB-A", info_hash: "aaa111", provider: "rd", reason: "RD status error", source: "theatarr via rd", trigger: "automatic search" },
       { event: "grabbed", date: "2026-11-02T01:00:00Z", release_title: "Alpha.2020.2160p.WEB-A", info_hash: "aaa111", provider: "rd", source: "theatarr via rd", trigger: "automatic search" },
     ]} />);
-    expect((await screen.findAllByText("via RD")).length).toBe(2);
+    expect((await screen.findAllByText((_, el) => el?.tagName === "SPAN" && el.textContent === "via RD")).length).toBe(2);
     expect(screen.getByTestId("history-reason").textContent).toBe("RD status error");
     expect((await screen.findAllByTestId("history-release")).map((l) => l.getAttribute("href"))).toEqual([
       "/title/7/releases?version=movie-web&hash=aaa111", "/title/7/releases?version=movie-web&hash=aaa111"]);

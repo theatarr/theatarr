@@ -24,7 +24,7 @@ it("badges each row by what came of its release", () => {
     }}
   />);
   const table = screen.getByTestId("releases-table");
-  expect(within(table).getAllByTestId("release-outcome").map((b) => b.textContent)).toEqual(["Grabbed · rd", "Imported", "Current file", "Failed · RD status error", "Replaced"]);
+  expect(within(table).getAllByTestId("release-outcome").map((b) => b.textContent)).toEqual(["Grabbed · RD", "Imported", "Current file", "Failed · RD status error", "Replaced"]);
   expect(within(table).getByText("by Alpha.2020.2160p.REMUX-X")).toBeTruthy();
 });
 

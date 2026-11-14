@@ -8,7 +8,9 @@ import { libraryLabel } from "./library-label";
 
 export type LibraryName = { key: string; label: string };
 
-const Names = createContext<{ names: ReadonlyMap<string, string>; keys: boolean }>({ names: new Map(), keys: false });
+export type ProviderCode = { key: string; code: string };
+
+const Names = createContext<{ names: ReadonlyMap<string, string>; keys: boolean; codes: ReadonlyMap<string, string> }>({ names: new Map(), keys: false, codes: new Map() });
 
 /** How many colour marks the palette has (--v-0 … in styles/globals.css). */
 export const MARKS = 10;
@@ -24,7 +26,6 @@ export function markRules(keys: readonly string[]): string {
   return [...libraryMarks(keys)].map(([k, i]) => `[data-vkey=${JSON.stringify(k)}]{--vc:var(--v-${i})}`).join("\n");
 }
 
-/** keys: the account sees files, so a library's key may show as its tooltip. */
 /** Puts the mark rules on the page as a constructed style sheet: the page's CSP (style-src 'self') refuses an inline
  * <style>, not a sheet built through the CSSOM. Returns the cleanup. Without constructable sheets (old browsers,
  * tests) the marks stay the accent. */
@@ -36,8 +37,14 @@ function adoptRules(rules: string): (() => void) | undefined {
   return () => { document.adoptedStyleSheets = document.adoptedStyleSheets.filter((s) => s !== sheet); };
 }
 
-export function LibraryNamesProvider({ libraries, keys = false, children }: { libraries?: readonly LibraryName[] | null; keys?: boolean; children: ReactNode }) {
-  const value = useMemo(() => ({ names: new Map((libraries ?? []).map((l) => [l.key, l.label])), keys }), [libraries, keys]);
+/** keys: the account sees files, so a library's key may show as its tooltip. providers: each provider account's cache
+ * code (auth/me, accounts that see files). */
+export function LibraryNamesProvider({ libraries, providers, keys = false, children }: { libraries?: readonly LibraryName[] | null; providers?: readonly ProviderCode[] | null; keys?: boolean; children: ReactNode }) {
+  const value = useMemo(() => ({
+    names: new Map((libraries ?? []).map((l) => [l.key, l.label])),
+    keys,
+    codes: new Map((providers ?? []).map((p) => [p.key, p.code])),
+  }), [libraries, providers, keys]);
   const rules = useMemo(() => markRules([...value.names.keys()]), [value]);
   useEffect(() => adoptRules(rules), [rules]);
   return <Names.Provider value={value}>{children}</Names.Provider>;
@@ -54,4 +61,11 @@ export function useLibraryName(): (key: string, fallback?: string) => string {
 export function useLibraryKeyTip(): (key: string) => string | undefined {
   const { keys } = useContext(Names);
   return useCallback((key: string) => (keys ? key : undefined), [keys]);
+}
+
+/** A function that gives a provider account key's cache code (a custom "realdebrid" is rd), for the provider tag
+ * (providerLabel, ProviderPills); a key the server does not list is its own code. */
+export function useProviderCode(): (key: string) => string {
+  const { codes } = useContext(Names);
+  return useCallback((key: string) => codes.get(key) ?? key, [codes]);
 }

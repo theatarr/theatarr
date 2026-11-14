@@ -6,6 +6,7 @@ import type { QueryClient } from "@tanstack/react-query";
 import { toast, type ToastTone } from "@/components/toaster";
 import type { DownloadEvent, TitleEvent } from "./activity";
 import { qk, titleChanged } from "./query-keys";
+import { libraryLabel } from "@/lib/library-label";
 
 const TONE: Record<string, ToastTone> = {
   imported: "ok",
@@ -14,15 +15,15 @@ const TONE: Record<string, ToastTone> = {
 };
 
 /**
- * The toast for a download event, or null when nothing worth a toast changed (progress only). The library key is for
- * accounts that see files; others get the words alone (docs/design/users.md).
+ * The toast for a download event, or null when nothing worth a toast changed (progress only). The library's name
+ * (nameOf, lib/library-names) is for accounts that see files; others get the words alone (docs/design/users.md).
  */
-export function downloadToast(ev: DownloadEvent, seeFiles = true): { title: string; body: string; tone: ToastTone } | null {
+export function downloadToast(ev: DownloadEvent, seeFiles = true, nameOf: (key: string) => string = libraryLabel): { title: string; body: string; tone: ToastTone } | null {
   const changed = ev.previous ? ev.previous !== ev.state : true;
   if (!changed && ev.state !== "ready") return null;
   if (!ev.previous && ev.state === "downloading") return null;
   const name = ev.title.year ? `${ev.title.name} (${ev.title.year})` : ev.title.name;
-  return { title: name, body: seeFiles && ev.version ? `${ev.words} · ${ev.version}` : ev.words, tone: TONE[ev.state] ?? "info" };
+  return { title: name, body: seeFiles && ev.version ? `${ev.words} · ${nameOf(ev.version)}` : ev.words, tone: TONE[ev.state] ?? "info" };
 }
 
 /** How often progress alone refreshes a title and the library lists. */
@@ -41,7 +42,7 @@ export function libraryRefresh(ev: Pick<DownloadEvent, "state" | "previous" | "t
   return { title, lists };
 }
 
-export function onDownloadEvent(qc: QueryClient, raw: string, now: number = Date.now(), seeFiles = true) {
+export function onDownloadEvent(qc: QueryClient, raw: string, now: number = Date.now(), seeFiles = true, nameOf?: (key: string) => string) {
   let ev: DownloadEvent;
   try {
     ev = JSON.parse(raw) as DownloadEvent;
@@ -53,7 +54,7 @@ export function onDownloadEvent(qc: QueryClient, raw: string, now: number = Date
   const r = libraryRefresh(ev, now);
   if (r.title) qc.invalidateQueries({ queryKey: qk.title(ev.title.id) });
   if (r.lists) qc.invalidateQueries({ queryKey: qk.titles.all });
-  const t = downloadToast(ev, seeFiles);
+  const t = downloadToast(ev, seeFiles, nameOf);
   if (t) toast({ ...t, to: "/activity", image: ev.title.poster });
 }
 

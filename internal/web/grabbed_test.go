@@ -123,7 +123,7 @@ func TestReleaseOutcomesAndHistory(t *testing.T) {
 			t.Errorf("outcome of %s: %+v, want %+v", h[:4], r.Outcomes[h], o)
 		}
 	}
-	if r.Source != "journal" || r.Grabbed != "Grabbed #1 via rd → imported (the current file)" {
+	if r.Source != "journal" || r.Grabbed != "Grabbed #1 via RD → imported (the current file)" {
 		t.Errorf("stored search: %q %q", r.Source, r.Grabbed)
 	}
 
@@ -153,10 +153,10 @@ func TestReleaseOutcomesAndHistory(t *testing.T) {
 		{"grabbed", "manual grab by alice", "tb", "", ""},
 		{"upgraded", "search again after a failure", "rd", "", ""},
 		{"grabbed", "search again after a failure", "rd", "", ""},
-		{"searched", "search again after a failure", "rd", "", "Grabbed #1 via rd → imported (the current file)"},
+		{"searched", "search again after a failure", "rd", "", "Grabbed #1 via RD → imported (the current file)"},
 		{"failed", "automatic search", "rd", "RD status error", ""},
 		{"grabbed", "automatic search", "rd", "", ""},
-		{"searched", "automatic search", "rd", "", "Grabbed #1 via rd → failed (RD status error)"},
+		{"searched", "automatic search", "rd", "", "Grabbed #1 via RD → failed (RD status error)"},
 		{"searched", "Seerr request", "", "", "Nothing grabbed: no accepted release among 0 results"},
 		{"searched", "manual search", "", "", "Nothing grabbed: no accepted release among 4 results"},
 		{"imported", "RSS", "rd", "", ""},
@@ -203,7 +203,7 @@ func TestSearchSummaryKeepsItsOwnDownload(t *testing.T) {
 		'Alpha.2020.2160p.WEB-FIVE', 'unlinked', ?, ?)`, now-2500, now-2500, now-19000, now-2500)
 	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (1, 2), (2, 2)`)
 
-	const want = "Grabbed #1 via rd → failed (RD status error)"
+	const want = "Grabbed #1 via RD → failed (RD status error)"
 	var r Releases
 	if code := e.getKey(APIBase+"/titles/1/releases?version=movie-web", key, &r); code != 200 {
 		t.Fatalf("releases %d", code)
@@ -277,7 +277,7 @@ func TestEpisodeReleasesScopedToEpisode(t *testing.T) {
 	if o := r.Outcomes[hu]; o.Outcome != "current" {
 		t.Errorf("E02 upgrade: %+v", o)
 	}
-	if r.Grabbed != "Grabbed #1 via tb → imported (the current file)" {
+	if r.Grabbed != "Grabbed #1 via TB → imported (the current file)" {
 		t.Errorf("E02 summary %q", r.Grabbed)
 	}
 	r = Releases{}
@@ -288,7 +288,7 @@ func TestEpisodeReleasesScopedToEpisode(t *testing.T) {
 	if _, ok := r.Outcomes[hu]; ok {
 		t.Errorf("E01 has E02's upgrade: %+v", r.Outcomes)
 	}
-	if r.Grabbed != "Grabbed #1 via rd → imported (the current file)" {
+	if r.Grabbed != "Grabbed #1 via RD → imported (the current file)" {
 		t.Errorf("E01 summary %q", r.Grabbed)
 	}
 }
@@ -408,12 +408,12 @@ func TestEpisodeOutcomeFromLinks(t *testing.T) {
 	if o, ok := r.Outcomes[hp]; ok {
 		t.Errorf("E02 pack badged %+v without a file for E02", o)
 	}
-	if r.Grabbed != "Grabbed #1 via rd → imported, without a file for this episode" {
+	if r.Grabbed != "Grabbed #1 via RD → imported, without a file for this episode" {
 		t.Errorf("E02 summary %q", r.Grabbed)
 	}
 	r = Releases{}
 	e.call("GET", APIBase+"/titles/10/episodes/101/releases", nil, 200, &r)
-	if r.Outcomes[hp].Outcome != "current" || r.Grabbed != "Grabbed #1 via rd → imported (the current file)" {
+	if r.Outcomes[hp].Outcome != "current" || r.Grabbed != "Grabbed #1 via RD → imported (the current file)" {
 		t.Errorf("E01: %+v %q", r.Outcomes[hp], r.Grabbed)
 	}
 
@@ -490,7 +490,7 @@ func TestEpisodeReplacedInPlace(t *testing.T) {
 	if o, ok := r.Outcomes[hp]; ok {
 		t.Errorf("pack on E01 badged %+v with nothing known for E01", o)
 	}
-	if r.Grabbed != "Grabbed #1 via rd → imported" {
+	if r.Grabbed != "Grabbed #1 via RD → imported" {
 		t.Errorf("E01 summary %q", r.Grabbed)
 	}
 	// With the import's record of the pack's files.
@@ -500,7 +500,7 @@ func TestEpisodeReplacedInPlace(t *testing.T) {
 	r = Releases{}
 	e.call("GET", APIBase+"/titles/10/episodes/101/releases", nil, 200, &r)
 	if o := r.Outcomes[hp]; o.Outcome != "replaced" || o.ReplacedBy != "The.Show.S01E01.2160p.REMUX-UP" ||
-		r.Grabbed != "Grabbed #1 via rd → imported, later replaced" {
+		r.Grabbed != "Grabbed #1 via RD → imported, later replaced" {
 		t.Errorf("with recorded files: %+v %q", r.Outcomes[hp], r.Grabbed)
 	}
 }
@@ -534,7 +534,7 @@ func TestEpisodeEvidenceOwnDownloadOnly(t *testing.T) {
 
 	var r Releases
 	e.call("GET", APIBase+"/titles/10/episodes/101/releases", nil, 200, &r)
-	if r.Grabbed != "Grabbed #1 via rd → imported" {
+	if r.Grabbed != "Grabbed #1 via RD → imported" {
 		t.Errorf("E01 summary %q", r.Grabbed)
 	}
 	if o, ok := r.Outcomes[hp]; ok {

@@ -810,6 +810,24 @@ func scanProviders(ctx context.Context, db *sql.DB, q string, args []any) (map[i
 
 // cacheCodes turns provider keys into cache codes (rd, ad, tb) by their kind in the running settings; a key of no
 // known kind stays as it is. No duplicates; rd, ad, tb first, then the rest in order. nil for none.
+// providerCode is a provider account key's cache code (rd, ad, tb), or the key itself for a provider whose kind has
+// none or that is no longer configured.
+func (w *Web) providerCode(key string) string {
+	if w.pol != nil {
+		if p := w.pol.Providers[key]; p != nil {
+			if c := indexer.CacheCode(p.Kind); c != "" {
+				return c
+			}
+		}
+	}
+	return key
+}
+
+// providerTag is a provider account as the SPA's provider tag shows it: RD, AD, TB.
+func (w *Web) providerTag(key string) string {
+	return strings.ToUpper(w.providerCode(key))
+}
+
 func (w *Web) cacheCodes(keys []string) []string {
 	var codes, rest []string
 	for _, k := range keys {

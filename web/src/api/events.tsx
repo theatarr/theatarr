@@ -12,6 +12,7 @@ import { qk } from "./query-keys";
 import { onDownloadEvent, onTitleEvent } from "./live-activity";
 import { requestToast, type RequestEvent } from "./requests";
 import { toast, Toaster } from "@/components/toaster";
+import { useLibraryName } from "@/lib/library-names";
 
 export type Live = {
   connected: boolean;
@@ -34,6 +35,9 @@ export function LiveProvider({ enabled, seeFiles = false, children }: { enabled:
   // Read at each event, so a permission change does not reopen the stream.
   const seeFilesRef = useRef(seeFiles);
   seeFilesRef.current = seeFiles;
+  const nameOf = useLibraryName();
+  const nameRef = useRef(nameOf);
+  nameRef.current = nameOf;
   useEffect(() => {
     if (!enabled || typeof EventSource === "undefined") return;
     const es = new EventSource(`${API_BASE}/events`);
@@ -54,7 +58,7 @@ export function LiveProvider({ enabled, seeFiles = false, children }: { enabled:
       const now = Date.now();
       setLive((l) => ({ ...l, connected: true, connectedAt: l.connected ? l.connectedAt : now, gateway: g, gatewayAt: now, lastEventAt: now }));
     });
-    es.addEventListener("download", (e) => onDownloadEvent(qc, (e as MessageEvent).data, Date.now(), seeFilesRef.current));
+    es.addEventListener("download", (e) => onDownloadEvent(qc, (e as MessageEvent).data, Date.now(), seeFilesRef.current, nameRef.current));
     es.addEventListener("title", (e) => onTitleEvent(qc, (e as MessageEvent).data));
     es.addEventListener("request", (e) => {
       const ev = JSON.parse((e as MessageEvent).data) as RequestEvent;

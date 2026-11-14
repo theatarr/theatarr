@@ -399,7 +399,7 @@ func (w *Web) versionHistory(ctx context.Context, db *sql.DB, titleID int64, kin
 		_ = json.Unmarshal([]byte(cj), &cands)
 		h := HistoryEvent{Event: "searched", Date: ts(at), Episode: target, RunID: &id, DecisionID: nullInt(decision),
 			Results: &results, Accepted: &accepted, Trigger: origins[id].words(),
-			Summary: searchSummary(runDLs[id], cands, oc, state, message),
+			Summary: searchSummary(runDLs[id], cands, oc, state, message, w.providerTag),
 			Latest:  decision.Valid && newest[key] == decision.Int64}
 		if dls := runDLs[id]; len(dls) > 0 {
 			h.InfoHash, h.Provider = dls[0].hash, dls[0].provider

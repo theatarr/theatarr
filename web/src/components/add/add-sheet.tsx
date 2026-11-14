@@ -363,6 +363,7 @@ export function AddSheet({ target, onClose }: { target: AddTarget; onClose: () =
 
 function Done({ result, onClose }: { result: AddResult; onClose: () => void }) {
   const t = result.title;
+  const nameOf = useLibraryName();
   // The submit button is gone: focus the result, so it is read out and Tab starts here.
   const box = useRef<HTMLDivElement>(null);
   useEffect(() => box.current?.focus({ preventScroll: true }), []);
@@ -373,7 +374,7 @@ function Done({ result, onClose }: { result: AddResult; onClose: () => void }) {
         <div>
           <div className="font-semibold">{result.created ? `${t.name} is in the library` : `${t.name} updated`}</div>
           <div className="mt-0.5 opacity-90">
-            {result.new.length > 0 ? `Turned on: ${result.new.join(", ")}. New libraries start as wanted.` : "Saved."}
+            {result.new.length > 0 ? `Turned on: ${result.new.map((k) => nameOf(k)).join(", ")}. New libraries start as wanted.` : "Saved."}
           </div>
         </div>
       </div>

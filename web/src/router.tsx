@@ -85,7 +85,7 @@ function RequireAuth() {
   if (me.data?.kind !== "session") return <Navigate to="/login" replace />;
   const perms = permsOf(me.data?.permissions);
   return (
-    <LibraryNamesProvider libraries={me.data.libraries} keys={perms.seeFiles}>
+    <LibraryNamesProvider libraries={me.data.libraries} providers={me.data.providers} keys={perms.seeFiles}>
       <LiveProvider enabled seeFiles={perms.seeFiles}>
         <SearchProvider>
           <AppShell perms={perms}>

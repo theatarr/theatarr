@@ -327,7 +327,7 @@ type runDownload struct {
 // candidates, else the release's short title), or "Nothing grabbed: why". state and message are the acquire run's;
 // a search without a run (an RSS read) passes routed.
 func searchSummary(dls []runDownload, cands []snapshot.Candidate, outcomes map[string]ReleaseOutcome, state,
-	message string) string {
+	message string, provider func(string) string) string {
 	if len(dls) == 0 {
 		switch state {
 		case "routed":
@@ -350,7 +350,7 @@ func searchSummary(dls []runDownload, cands []snapshot.Candidate, outcomes map[s
 	}
 	s := "Grabbed " + what
 	if d.provider != "" {
-		s += " via " + d.provider
+		s += " via " + provider(d.provider)
 	}
 	if n := len(dls) - 1; n > 0 {
 		s += fmt.Sprintf(" and %d more", n)

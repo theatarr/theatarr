@@ -55,9 +55,18 @@ type Me struct {
 	CSRFToken       string   `json:"csrf_token,omitempty"`
 	KeyID           int64    `json:"key_id,omitempty"`
 	KeyName         string   `json:"key_name,omitempty"`
+	// Providers gives each configured provider account's cache code (rd, ad, tb), for accounts that see files, so
+	// the SPA shows an account key (a custom "realdebrid") as its RD/AD/TB tag.
+	Providers []ProviderCode `json:"providers,omitempty"`
 	// Libraries names every library in the settings, in key order (libraryNames), so the SPA labels a library key
 	// the same way everywhere. The names never contain a key, for every account.
 	Libraries []LibraryName `json:"libraries"`
+}
+
+// ProviderCode is a provider account key and its cache code.
+type ProviderCode struct {
+	Key  string `json:"key"`
+	Code string `json:"code"`
 }
 
 // LibraryName is a library's key and its name for people.

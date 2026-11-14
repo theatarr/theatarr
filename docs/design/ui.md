@@ -502,8 +502,12 @@ edited or identified: Settings › Libraries (muted, under the name), the Naming
 name), and Advanced › Policy files.
 
 **Providers and torrents**: a provider is printed through the provider tag (`ProviderPills` / `providerLabel`: RD, AD,
-TB), with the account key as tooltip where it differs; a torrent hash with a destination is a link (`InfoHash` to
-Saved inventory, `TorrentLink` to Admin › Torrents), and a title named next to its id links to the title page.
+TB). Where only an account key is at hand, `ProviderTag` resolves it to its kind's code first (`GET auth/me`
+`providers`, accounts with See files; a custom key such as `realdebrid` reads RD) with the key as tooltip; server text
+does the same ("Grabbed #1 via RD"). A torrent hash with a destination is a link (`InfoHash` to Saved inventory,
+`TorrentLink` to Admin › Torrents); a hash the saved inventory does not know yet opens a plain "Not in the saved
+inventory yet. It appears after the next provider sync." with a link back to Torrents. A title named next to its id
+links to the title page.
 
 - **Page:** Movies, Series and Anime use the full width. The toolbar has the title search ("Filter by title", the
   `q` parameter) and **Select** (managers) on the left; **Columns** (table) or **Poster options** (posters), the

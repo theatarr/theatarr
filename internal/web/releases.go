@@ -335,7 +335,7 @@ func (w *Web) storedGrabbed(ctx context.Context, out *Releases, run sql.NullInt6
 			}
 		}
 	}
-	out.Grabbed = searchSummary(dls, out.Candidates, oc, state, message)
+	out.Grabbed = searchSummary(dls, out.Candidates, oc, state, message, w.providerTag)
 	return nil
 }
 

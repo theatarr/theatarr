@@ -137,7 +137,7 @@ export function Overview() {
     items.push({
       key: `download-${d.id}`,
       tone: d.state === "failed" || d.steps?.some((s) => s.state === "failed") ? "bad" : "warn",
-      title: <>{d.title.name} <span className="font-normal text-muted-foreground">· {stageLabel(d)}</span></>,
+      title: <>{d.title.id ? <Link className="hover:underline" to={`/title/${d.title.id}`}>{d.title.name}</Link> : d.title.name} <span className="font-normal text-muted-foreground">· {stageLabel(d)}</span></>,
       effect: `Not in the library yet${w.waited ? `; waiting ${w.waited}` : w.updated ? `; last update ${w.updated}` : ""}${w.retry ? `; next try ${w.retry}` : ""}.`,
       next: "Inspect the download",
       to: "/activity?show=attention",

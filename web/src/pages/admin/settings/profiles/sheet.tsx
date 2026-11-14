@@ -93,11 +93,12 @@ function AddFormat({ flavour, scored, disabled, onAdd }: { flavour: string; scor
 
 function ImpactView({ impact }: { impact: ProfileImpact }) {
   const i = impact.impact;
+  const nameOf = useLibraryName();
   return <div className="space-y-2 rounded-lg border border-[var(--th-info-border)] bg-[var(--accent-soft)] p-3 text-sm text-[var(--accent-ink)]" data-testid="profile-impact" role="status">
     {!impact.available ? <p>Impact not available: {impact.reason}. You can still save.</p> : i.changed === 0 ? <p>No file in the library would be decided differently ({i.files} checked in the libraries this change affects).</p> : <p>
       {i.changed} {i.changed === 1 ? "file" : "files"} in the library would be decided differently (of {i.files} checked in the libraries this change affects): {i.score_changed} score {i.score_changed === 1 ? "change" : "changes"}, {i.cutoff_changed} cutoff {i.cutoff_changed === 1 ? "change" : "changes"}, {i.upgrade_changed} upgrade {i.upgrade_changed === 1 ? "decision" : "decisions"}.
     </p>}
-    {impact.available && i.examples.length ? <ul className="space-y-0.5">{i.examples.slice(0, 6).map((e, n) => <li key={n} className="[overflow-wrap:anywhere]">{e.title} <span className="opacity-80">({e.version})</span>: score {e.before_score} → {e.after_score}{e.before_upgrade !== e.after_upgrade ? (e.after_upgrade ? " · now upgrades" : " · stops upgrading") : ""}{e.before_cutoff_met !== e.after_cutoff_met ? (e.after_cutoff_met ? " · cutoff met" : " · cutoff no longer met") : ""}</li>)}</ul> : null}
+    {impact.available && i.examples.length ? <ul className="space-y-0.5">{i.examples.slice(0, 6).map((e, n) => <li key={n} className="[overflow-wrap:anywhere]">{e.title} <span className="opacity-80">({nameOf(e.version)})</span>: score {e.before_score} → {e.after_score}{e.before_upgrade !== e.after_upgrade ? (e.after_upgrade ? " · now upgrades" : " · stops upgrading") : ""}{e.before_cutoff_met !== e.after_cutoff_met ? (e.after_cutoff_met ? " · cutoff met" : " · cutoff no longer met") : ""}</li>)}</ul> : null}
     <p className="opacity-90">Nothing is grabbed or searched by saving: decisions change from the next search or upgrade check.</p>
   </div>;
 }

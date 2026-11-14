@@ -12,7 +12,7 @@ import type { Candidate, ReleaseOutcome, Releases } from "@/api/add";
 import { useAuth } from "@/api/auth";
 import { useGrab } from "@/api/ops";
 import { ColumnPicker } from "@/components/library/view-options";
-import { ProviderPills } from "@/components/provider-pills";
+import { ProviderPills, ProviderTag } from "@/components/provider-pills";
 import { GrabDialog, lateRejections, type GrabTarget } from "@/components/title/release-grab";
 import { toast } from "@/components/toaster";
 import { Badge } from "@/components/ui/badge";
@@ -49,7 +49,7 @@ export function Outcome({ o }: { o?: ReleaseOutcome }) {
   if (!o) return null;
   switch (o.outcome) {
     case "grabbed":
-      return <Badge tone="info" data-testid="release-outcome">Grabbed{o.provider ? ` · ${o.provider}` : ""}</Badge>;
+      return <Badge tone="info" data-testid="release-outcome">Grabbed{o.provider ? <> · <ProviderTag account={o.provider} /></> : null}</Badge>;
     case "imported":
       return <Badge tone="ok" data-testid="release-outcome">Imported</Badge>;
     case "current":

@@ -41,7 +41,7 @@ import { resolutionWords } from "@/lib/upgrade";
 import { cn } from "@/lib/utils";
 import { adminLink, journalLink } from "@/lib/admin-links";
 import { FAILED_WORDS } from "@/lib/request-timeline";
-import { providerLabel } from "@/components/provider-pills";
+import { ProviderTag } from "@/components/provider-pills";
 import { InfoHash } from "@/components/title/info-hash";
 
 const WORD_TONE = {
@@ -96,7 +96,7 @@ function DownloadDetails({ d }: { d: ActivityDownload }) {
             <ul className="mt-1 space-y-1 text-sm">
               {attempts.map((a, i) => (
                 <li key={i} className="flex flex-wrap items-baseline gap-x-2">
-                  <span className="font-medium" title={a.provider}>{providerLabel(a.provider)}</span>
+                  {a.provider ? <ProviderTag account={a.provider} className="font-medium" /> : null}
                   <Badge tone={a.outcome === "accepted" ? "positive" : a.outcome === "deferred" ? "warning" : a.outcome === "skipped" ? "neutral" : "negative"}>
                     {a.outcome}
                     {a.code ? ` · ${a.code}` : ""}
@@ -116,7 +116,7 @@ function DownloadDetails({ d }: { d: ActivityDownload }) {
             <div className="mt-1 flex flex-wrap gap-1.5">
               {(d.cache ?? []).map((c, i) => (
                 <Badge key={i} tone={c.state === "cached" ? "positive" : c.state === "miss" || c.state === "uncached" ? "negative" : "neutral"}>
-                  {providerLabel(c.provider)} {c.state} <span className="opacity-70">({c.source})</span>
+                  {c.provider ? <ProviderTag account={c.provider} /> : null} {c.state} <span className="opacity-70">({c.source})</span>
                 </Badge>
               ))}
             </div>

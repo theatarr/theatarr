@@ -39,7 +39,7 @@ it("opens a journal entry and Manual import for an admin", async () => {
 it("opens Manual import as a tab of Wanted for an admin", async () => {
   const page = open("/wanted/manual-import", ADMIN);
   expect((await screen.findByRole("tab", { name: "Manual import" })).getAttribute("aria-selected")).toBe("true");
-  expect(page.fetch.calls("GET", "/policy")).toHaveLength(1);
+  await waitFor(() => expect(page.fetch.calls("GET", "/policy")).toHaveLength(1));
 });
 
 it("sends an admin viewing as a user from a journal entry to Activity, in that view, without reading the journal", async () => {

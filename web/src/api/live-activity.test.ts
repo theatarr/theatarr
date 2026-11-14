@@ -19,7 +19,7 @@ describe("downloadToast", () => {
   it("toasts a change of state", () => {
     expect(downloadToast(base)).toEqual({
       title: "Alpha (2020)",
-      body: "Download complete, waiting to be linked · movie-web",
+      body: "Download complete, waiting to be linked · WEB",
       tone: "ok",
     });
     expect(downloadToast({ ...base, state: "failed", words: "Download failed" })?.tone).toBe("bad");
@@ -30,7 +30,9 @@ describe("downloadToast", () => {
   });
   it("names the library only to accounts that see files", () => {
     expect(downloadToast(base, false)?.body).toBe("Download complete, waiting to be linked");
-    expect(downloadToast(base, true)?.body).toBe("Download complete, waiting to be linked · movie-web");
+    expect(downloadToast(base, true)?.body).toBe("Download complete, waiting to be linked · WEB");
+    // The library's name from auth/me, never its key.
+    expect(downloadToast(base, true, (k) => (k === "movie-web" ? "4K WEB" : k))?.body).toBe("Download complete, waiting to be linked · 4K WEB");
   });
   it("toasts a new download", () => {
     expect(downloadToast({ ...base, state: "queued", previous: undefined, words: "Queued" })?.tone).toBe("info");

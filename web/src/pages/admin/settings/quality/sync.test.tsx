@@ -44,7 +44,7 @@ describe("TRaSH sync", () => {
       "3 files evaluated; 2 scores, 1 cutoff states and 1 upgrade eligibility states would change.",
       "A preview saves nothing. The next run applies these changes.",
     ]) expect(screen.getByText(text)).toBeTruthy();
-    const example = screen.getAllByRole("listitem").find((item) => item.textContent?.includes("Example Movie / movie-web: Example.Movie.1080p.mkv"));
+    const example = screen.getAllByRole("listitem").find((item) => item.textContent?.includes("Example Movie / WEB: Example.Movie.1080p.mkv"));
     expect(example?.textContent).toContain("Score 5 → 10; cutoff met false → true; upgrade eligible false → true");
     expect(screen.queryByRole("button", { name: /Approve/ })).toBeNull();
     expect(screen.queryByRole("button", { name: /Keep our/ })).toBeNull();

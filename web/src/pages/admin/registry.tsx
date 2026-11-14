@@ -13,8 +13,10 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { fmtAgo, fmtBytes, fmtNumber, fmtTime } from "@/lib/format";
-import { providerLabel } from "@/components/provider-pills";
+import { ProviderTag } from "@/components/provider-pills";
 import { TorrentLink } from "@/components/title/info-hash";
+import { ApiError } from "@/api/client";
+import { torrentsLink } from "@/lib/admin-links";
 
 const STATES = ["", "present", "absent", "unreferenced", "gone", "unknown"];
 const HASH = /^[0-9a-fA-F]{40}$/;
@@ -105,6 +107,16 @@ export function RegistryContent() {
   const q = useContent(hash);
   const crumb = [{ label: "Admin", to: "/admin" }, { label: "Torrents", to: "/admin/torrents" }, { label: "Saved inventory", to: "/admin/torrents/inventory" }];
   if (q.isPending) return <Loading />;
+  // The Torrents page lists what the providers hold now; the saved inventory catches up at the next sync.
+  if (q.error instanceof ApiError && q.error.status === 404) return (
+    <div>
+      <PageHeader crumb={crumb} title={<Mono className="text-xl">{hash.slice(0, 12)}</Mono>} />
+      <Card data-testid="inventory-unknown">
+        <p className="text-sm">Not in the saved inventory yet. It appears after the next provider sync.</p>
+        <Link className="mt-2 inline-block text-sm text-primary hover:underline" to={torrentsLink(hash)}>See it on Torrents</Link>
+      </Card>
+    </div>
+  );
   if (q.error) return (<div><PageHeader crumb={crumb} title={<Mono className="text-xl">{hash.slice(0, 12)}</Mono>} /><ErrorState error={q.error} /></div>);
   const c = q.data;
   return (
@@ -135,7 +147,7 @@ export function RegistryContent() {
       <Section title="Providers">
         {(c.providers ?? []).length === 0 ? <Card><Empty>No provider lists it.</Empty></Card> : (
           <Card className="p-0"><Table><TableBody>{(c.providers ?? []).map((p, i) => (
-            <TableRow key={i}><TableCell><span className="font-medium" title={p.provider}>{providerLabel(p.provider)}</span></TableCell><TableCell className="break-all text-[13px]">{p.folder_name}</TableCell><TableCell className="hidden sm:table-cell"><Mono>{p.torrent_id}</Mono></TableCell><TableCell className="hidden whitespace-nowrap md:table-cell">{fmtAgo(p.seen_at)}</TableCell></TableRow>
+            <TableRow key={i}><TableCell><ProviderTag account={p.provider ?? ""} className="font-medium" /></TableCell><TableCell className="break-all text-[13px]">{p.folder_name}</TableCell><TableCell className="hidden sm:table-cell"><Mono>{p.torrent_id}</Mono></TableCell><TableCell className="hidden whitespace-nowrap md:table-cell">{fmtAgo(p.seen_at)}</TableCell></TableRow>
           ))}</TableBody></Table></Card>
         )}
       </Section>

@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -717,6 +718,9 @@ func TestNoFilesWithoutSeeFiles(t *testing.T) {
 	if err := json.Unmarshal([]byte(body), &who); err != nil || len(who.Libraries) == 0 || len(who.Libraries) != len(e.web.pol.Versions) {
 		t.Errorf("me libraries: %v %+v", err, who.Libraries)
 	}
+	if len(who.Providers) != 0 {
+		t.Errorf("me providers for a caller without see_files: %+v", who.Providers)
+	}
 	for _, l := range who.Libraries {
 		if l.Label == "" || strings.Contains(l.Label, l.Key) {
 			t.Errorf("me library %s: name %q", l.Key, l.Label)
@@ -726,6 +730,12 @@ func TestNoFilesWithoutSeeFiles(t *testing.T) {
 	var adm map[string]any
 	if e.getKey(APIBase+"/auth/me", key, &adm); !strings.Contains(fmt.Sprint(adm["permissions"]), "see_files") {
 		t.Errorf("admin me: %v", adm)
+	}
+	// Accounts that see files get each provider account's cache code.
+	var admMe Me
+	e.getKey(APIBase+"/auth/me", key, &admMe)
+	if !slices.Contains(admMe.Providers, ProviderCode{Key: "rd", Code: "rd"}) {
+		t.Errorf("admin me providers: %+v", admMe.Providers)
 	}
 
 	// List rows carry no library profile, availability rule or folder; an admin's do.

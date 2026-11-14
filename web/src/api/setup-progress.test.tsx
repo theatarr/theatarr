@@ -9,6 +9,7 @@ import type { VersionList } from "./settings-versions";
 import { mockFetch, renderPage } from "@/test/page";
 import { SetupReminder } from "@/components/setup-reminder";
 import { SetupPage } from "@/pages/admin/setup";
+import { LibraryNamesProvider } from "@/lib/library-names";
 const state: SetupState = { first_run: false, settings_source: "db", admin_password_generated: false, providers: 1, indexers: 1, versions: 1, versions_with_roots: 1, profiles: 1, api_keys: 1, tmdb: true, ready_providers: ["rd"], ready_indexers: ["feed"], trash: true, missing: ["no libraries"] };
 const versions: VersionList = { source: "db", generation: 1, versions: [{ id: 1, key: "movies", created_at: "", updated_at: "", roots: ["/media/movies"], config: { mode: "active", kind: "movie", anime: false, profile: "hd", library: "/media/movies", storage: "debrid", indexers: ["feed"], providers: ["rd"], client: "", import: "symlink", upgrades: "auto" } }], profiles: {}, format_sets: [], clients: [], indexers: ["feed"], providers: ["rd"], switches: { paused: false, pause_forced: false, notify_forced: false, versions: [{ key: "movies", mode: "active", grab_state: { mode: "active", paused: false, pause_forced: false, will_grab: true } }] } };
 it("counts six independent steps without requiring activation or treating missing data as done", () => {
@@ -99,13 +100,12 @@ it("heads the activation card with the library's name, its key beside it", async
  expect(screen.getByText("movie-web")).toBeTruthy();
 });
 
-it("heads activation cards that share a display label with their distinct keys beside it", async () => {
+it("names activation cards that share a default label apart by the server's names", async () => {
  const twins = { ...versions, versions: ["movie-web", "movie-web-theatarr"].map(key => ({ ...versions.versions[0], key, config: { ...versions.versions[0].config, profile: "web-2160p" } })) };
  mockFetch([{ method: "GET", path: "/setup", reply: state }, { method: "GET", path: "/settings/versions", reply: twins }]);
- renderPage(<SetupPage />);
- for (const key of ["movie-web", "movie-web-theatarr"]) {
-  const heading = await screen.findByRole("heading", { name: `4K WEB ${key}` });
-  expect(heading.firstElementChild?.textContent).toBe(key);
+ renderPage(<LibraryNamesProvider libraries={[{ key: "movie-web", label: "4K WEB" }, { key: "movie-web-theatarr", label: "4K WEB (2)" }]}><SetupPage /></LibraryNamesProvider>);
+ for (const [key, name] of [["movie-web", "4K WEB"], ["movie-web-theatarr", "4K WEB (2)"]]) {
+  const heading = await screen.findByRole("heading", { name: `${name} ${key}` });
   expect(within(heading).getByText(key).className).toContain("text-muted-foreground");
  }
 });
