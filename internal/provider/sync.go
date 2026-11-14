@@ -89,11 +89,11 @@ type ProviderSummary struct {
 	Provider string `json:"provider"`
 	// List is the complete listing the sync read (as the provider answered it, files included when it gives them),
 	// for a caller that acts on the same read (a removal's clean-up); nil when the listing failed.
-	List []Torrent `json:"-"`
-	OK       bool   `json:"ok"`
-	Error    string `json:"error,omitempty"`
-	RunID    int64  `json:"run_id,omitempty"`
-	ListMS   int64  `json:"list_ms"`
+	List   []Torrent `json:"-"`
+	OK     bool      `json:"ok"`
+	Error  string    `json:"error,omitempty"`
+	RunID  int64     `json:"run_id,omitempty"`
+	ListMS int64     `json:"list_ms"`
 	// Torrents is the number of torrents listed; Hashes the distinct valid hashes among them.
 	Torrents      int           `json:"torrents"`
 	Hashes        int           `json:"hashes"`
