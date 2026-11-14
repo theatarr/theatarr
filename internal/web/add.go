@@ -215,7 +215,8 @@ func (w *Web) apiAddOptions(rw http.ResponseWriter, r *http.Request) {
 	var on []string
 	if t != nil {
 		kind = t.kind
-		if t.anime {
+		// A title every copy of which was removed is added like a new one: the anime choice the sheet sends decides.
+		if t.anime && (t.inLib || q.Get("anime") == "") {
 			anime = true
 		}
 		if on, err = w.versionsOn(ctx, t.id); err != nil {
@@ -621,17 +622,18 @@ func (w *Web) addTitle(ctx context.Context, req AddRequest, source string) (*Add
 			string(kind), req.TitleID, req.TitleID, req.TMDbID, req.TVDbID).Scan(&restored); err != nil {
 			return err
 		}
+		// Its anime choice applies before the add picks the libraries for it.
+		if restored && req.Anime != nil {
+			if _, err := tx.ExecContext(ctx, `UPDATE title SET anime = ? WHERE kind = ? AND (id = ? OR ? <= 0
+				AND (tmdb_id = ? OR kind = 'series' AND tvdb_id = ?))`, *req.Anime, string(kind), req.TitleID,
+				req.TitleID, req.TMDbID, req.TVDbID); err != nil {
+				return err
+			}
+		}
 		if res, err = catalog.Add(ctx, tx, in, w.now(), w.log); err != nil {
 			return err
 		}
 		if restored && !res.Created {
-			if req.Anime != nil {
-				if _, err := tx.ExecContext(ctx, `UPDATE title SET anime = ? WHERE id = ?`, *req.Anime,
-					res.TitleID); err != nil {
-					return err
-				}
-				res.Anime = *req.Anime
-			}
 			if err := catalog.SetSeriesType(ctx, tx, res.TitleID, req.SeriesType); err != nil {
 				return err
 			}

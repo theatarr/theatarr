@@ -90,7 +90,7 @@ export function useAddOptions(t: AddTarget | null, anime: boolean) {
     queryKey: qk.addOptions.one(t?.kind, t?.tmdb_id, t?.title_id, anime),
     queryFn: () =>
       api<AddOptions>(
-        "/add/options" + qs({ kind: t?.kind, tmdb_id: t?.tmdb_id, title_id: t?.title_id, anime: anime ? 1 : undefined }),
+        "/add/options" + qs({ kind: t?.kind, tmdb_id: t?.tmdb_id, title_id: t?.title_id, anime: anime ? 1 : 0 }),
       ),
     enabled: t !== null,
   });

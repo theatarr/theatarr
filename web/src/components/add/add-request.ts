@@ -47,6 +47,10 @@ export function addRequest(target: AddTarget, opts: Pick<AddOptions, "kind" | "t
     ...(later ? { monitor_new: "none" } : {}),
     ...(c.seriesType ? { series_type: c.seriesType } : {}),
   } : {};
-  if (titleId !== undefined) return { title_id: titleId, kind, anime: c.anime, ...common, ...series };
+  // A removed series keeps its old type and new-season rule unless told: send what the sheet shows.
+  if (titleId !== undefined) {
+    const shown: Partial<AddRequest> = kind === "series" ? { series_type: c.seriesType ?? (c.anime ? "anime" : "standard"), monitor_new: later ? "none" : "all" } : {};
+    return { title_id: titleId, kind, anime: c.anime, ...common, ...series, ...shown };
+  }
   return { kind, tmdb_id: target.tmdb_id || undefined, title: target.name, year: target.year, anime: c.anime, ...common, ...series };
 }

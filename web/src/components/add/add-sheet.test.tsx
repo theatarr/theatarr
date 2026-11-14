@@ -224,7 +224,16 @@ it("offers a removed series the new series' choices and sends them with its titl
   await user.selectOptions(await screen.findByTestId("add-series-type"), "daily");
   for (const id of ["add-monitor", "add-monitor-new", "add-anime"]) expect(screen.getByTestId(id)).toBeTruthy();
   await user.click(screen.getByTestId("add-submit"));
-  expect(await bodyOf(fetch)).toMatchObject({ title_id: 10, kind: "series", series_type: "daily" });
+  expect(await bodyOf(fetch)).toMatchObject({ title_id: 10, kind: "series", series_type: "daily", monitor_new: "all" });
+});
+
+it("sends a removed series the defaults it shows, so its old type and new-season rule do not stay", async () => {
+  const fetch = mockFetch(routes({ ...seriesOptions, title_id: 10, in_library: false }));
+  const user = userEvent.setup();
+  renderPage(<AddSheet target={{ kind: "series", name: "Kappa", title_id: 10 }} onClose={() => {}} />);
+  await screen.findByTestId("add-series-type");
+  await user.click(screen.getByTestId("add-submit"));
+  expect(await bodyOf(fetch)).toMatchObject({ title_id: 10, anime: false, series_type: "standard", monitor_new: "all" });
 });
 
 it("sends a new series' type only when it differs from the one the series would get", async () => {
