@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { cn } from "@/lib/utils";
 import { titleWithYear } from "@/lib/format";
+import { scopeTarget, searchTargetWords } from "@/lib/release-columns";
 
 export type SearchScope = { titleId: number; version?: string; season?: number; episode?: { id: number; code: string } };
 
@@ -131,6 +132,10 @@ export function InteractiveSearch({ titleId, version, season, episode, onClose }
                   <>
                     <div className="space-y-1 rounded-[5px] border border-[var(--th-warning-border)] bg-[var(--warn-soft)] p-3 text-sm text-[var(--warn-ink)] [overflow-wrap:anywhere]" role="alert" data-testid="interactive-fallback">
                       {r.message ? <p>{r.message}</p> : null}
+                      {/* The newest stored decision may come from another search than the one asked (Season 1's for Season 2). */}
+                      {r.source === "journal" && (r.target || "movie").toLowerCase() !== scopeTarget(season, episode?.code) ? (
+                        <p data-testid="interactive-fallback-from">The stored results are from {searchTargetWords(r.target)}{scope ? `, not ${scope}` : ""}.</p>
+                      ) : null}
                       <p>{r.source === "none" ? "" : "These are the last stored results and cannot be grabbed. "}Try Search again.</p>
                     </div>
                     <Summary r={{ ...r, message: undefined }} />

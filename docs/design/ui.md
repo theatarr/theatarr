@@ -309,7 +309,7 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   episodes ready"; "Not available yet", or "Getting ready" without See files while a download is in hand; a movie
   missing one of its copies is still ready), audio languages, a
   synopsis cut to three lines with More, and the primary action beside the title: **Add to another library** (add;
-  **Monitor in another library** when every library that fits has the title, some not monitored; no action at all
+  **Monitor again** when every library that fits has the title, some not monitored; no action at all
   when every library that fits has it monitored, nor while the add options load), else **Request** / **View
   request** (request). On phones that action also sticks above the bottom tabs; with no action nothing is pinned
   there.
@@ -391,7 +391,7 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   files": the title's rows of Activity › History, the same builder and the same table without filters or a Title
   column, the episodes under each event; admins also the title's journal). There is no Libraries tab: the table is under
   the hero. About's facts say **Released** (a series **First aired**), or **Releases** / **First airs** for a day still
-  to come, and **Latest file** (when the newest current file came; when the title was added is under Details, "Added
+  to come, and **Latest file** ("see files" only: when the newest current file came; when the title was added is under Details, "Added
   to Theatarr"); **On disk** counts a file two libraries share once. About's Files inventory includes old-manager
   files (with their instance) and active native library links (with their size, no instance word), deduplicated by
   path. Release dates show the canonical rows (country empty: the theatrical, digital and physical dates the calendar
@@ -465,7 +465,9 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   release, one that would replace a better-scored file, or one the server rejects at grab time asks first ("Grab
   anyway"). A live answer keeps the best 300 releases ("Showing the best 300 of N" beyond that). The indexers reuse an
   answer for 15 minutes, so opening again within that time re-decides the same results. A search the server refused
-  or that failed shows the last stored results with the reason, and those cannot be grabbed.
+  or that failed shows the last stored results with the reason, and those cannot be grabbed. When the stored
+  decision came from another search than the one asked, it says so ("The stored results are from a search for S01,
+  not Season 2.").
 - **Episodes** (`components/title/seasons.tsx`, `episode-drawer.tsx`, logic in
   `lib/seasons.ts`, columns `lib/episode-columns.ts`), phone first:
   - **Library in view:** with two or more libraries a selector above the seasons: **All libraries** (the default from

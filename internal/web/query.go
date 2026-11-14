@@ -338,7 +338,7 @@ type Link struct {
 	Score        *int64 `json:"score,omitempty"`
 	TitleID      int64  `json:"title_id"`
 	InfoHash     string `json:"info_hash,omitempty"`
-	// SizeBytes is the linked file's size where it is known (a title's versions only).
+	// SizeBytes is the linked file's size where it is known (versions only; left out without "see files").
 	SizeBytes *int64 `json:"size_bytes,omitempty"`
 }
 

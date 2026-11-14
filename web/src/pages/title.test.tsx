@@ -66,7 +66,7 @@ describe("Title page", () => {
   it("offers no hero action when every library that fits is on the title, other libraries aside", async () => {
     const adder = { ...me, permissions: ["see_files", "manage", "add"] };
     const lib = { kind: "movie", mode: "active", enable: "", fits: true, default: true, on: true, searchable: true, label: "WEB" };
-    for (const [versions, want] of [[[{ ...lib, key: "movie-web" }, { ...lib, key: "movie-remux" }, { ...lib, key: "anime-movie", fits: false, default: false, on: false }], null], [[{ ...lib, key: "movie-web" }, { ...lib, key: "movie-2160", on: false }], "Add to another library"]] as const) {
+    for (const [versions, want] of [[[{ ...lib, key: "movie-web" }, { ...lib, key: "movie-remux" }, { ...lib, key: "anime-movie", fits: false, default: false, on: false }], null], [[{ ...lib, key: "movie-web" }, { ...lib, key: "movie-2160", on: false }], "Add to another library"], [[{ ...lib, key: "movie-web", on: false }], "Monitor again"]] as const) {
       document.body.innerHTML = "";
       const api = mockFetch([
         { method: "GET", path: "/auth/me", reply: adder },

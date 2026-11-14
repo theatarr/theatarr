@@ -94,7 +94,7 @@ function usePrimaryAction({ target, has, held }: { target: Target; has: boolean;
   const opts = useAddOptions(perms.add && has ? { kind: target.kind, name: target.name, title_id: target.title_id } : null, !!target.anime);
   if (perms.add) {
     if (has && (!opts.data || inEveryLibrary(opts.data))) return null;
-    const label = !has ? "Add" : monitorOnly(opts.data, held) ? "Monitor in another library" : "Add to another library";
+    const label = !has ? "Add" : monitorOnly(opts.data, held) ? "Monitor again" : "Add to another library";
     return (className) => (
       <Button onClick={() => openAdd(target)} className={className} data-testid="hero-add">
         <Plus /> {label}
@@ -106,7 +106,7 @@ function usePrimaryAction({ target, has, held }: { target: Target; has: boolean;
 }
 
 /** Every library that fits the title already has it, some not monitored: the add sheet can only monitor them again,
- *  so the hero says so rather than "Add to another library" (held: the libraries the title is in). */
+ *  so the hero says "Monitor again" rather than "Add to another library" (held: the libraries the title is in). */
 function monitorOnly(o: Parameters<typeof inEveryLibrary>[0], held: readonly string[]): boolean {
   const fitting = (o?.versions ?? []).filter((v) => v.fits || v.on);
   return fitting.length > 0 && fitting.every((v) => held.includes(v.key ?? ""));
@@ -155,7 +155,7 @@ function About({ d }: { d: TitleDetail }) {
             {m?.original_language ? <Fact label="Language">{languageName(m.original_language)}</Fact> : null}
             {d.rating ? <Fact label="TMDb rating">{d.rating.toFixed(1)} <span className="text-xs">({plural(m?.rating_votes ?? 0, "vote")})</span></Fact> : null}
             {/* The newest current file's time (when the title was added is under Details: Added to Theatarr). */}
-            {d.added_at ? <Fact label="Latest file">{fmtAgo(d.added_at)}</Fact> : null}
+            {perms.seeFiles && d.added_at ? <Fact label="Latest file">{fmtAgo(d.added_at)}</Fact> : null}
             {d.size_bytes ? <Fact label="On disk">{fmtBytes(d.size_bytes)}</Fact> : null}
             {perms.seeFiles && !d.monitored ? <Fact label="Monitored">No</Fact> : null}
           </div>

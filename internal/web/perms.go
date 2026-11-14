@@ -176,6 +176,8 @@ func redactVersion(v *Version) {
 func redactTitle(d *TitleDetail) {
 	// The title page's versions are d.Versions (TitleRow.Versions stays empty there); removed ones count in nothing.
 	redactRowWith(&d.TitleRow, liveStates(d.Versions))
+	// On the title page added_at is the newest current file's time (enrichTitle), a file fact.
+	d.AddedAt = nil
 	d.Registry = []RegistryEntry{}
 	for i := range d.Versions {
 		redactVersion(&d.Versions[i])

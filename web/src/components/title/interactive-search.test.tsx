@@ -157,8 +157,17 @@ it("a refused live search shows why and offers no Grab", async () => {
   const box = await screen.findByTestId("interactive-fallback");
   expect(box.textContent).toContain("Live search failed: no indexer answered");
   expect(box.textContent).toContain("cannot be grabbed");
+  // The stored decision is the movie's own search: nothing more to say.
+  expect(screen.queryByTestId("interactive-fallback-from")).toBeNull();
   await table();
   expect(screen.queryByTestId("release-grab")).toBeNull();
+});
+
+it("a refused live search says when the stored results come from another search", async () => {
+  mockFetch([ME, TITLE, CURRENT, CURRENT, { method: "GET", path: "/titles/7/releases", reply: answer("movie-web", { source: "journal", target: "rss", grab: false, message: "Live search failed: no indexer answered; showing the last stored decision" }) }]);
+  renderPage(<InteractiveSearchButton titleId={7} version="movie-web" />);
+  open();
+  expect((await screen.findByTestId("interactive-fallback-from")).textContent).toBe("The stored results are from RSS.");
 });
 
 it("a refused live search with nothing stored does not speak of stored results", async () => {

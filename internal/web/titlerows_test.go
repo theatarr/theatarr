@@ -614,4 +614,27 @@ func TestTitleOnDiskCountsSharedFileOnce(t *testing.T) {
 			}
 		}
 	}
+
+	// The same file also listed by the old manager, at the tracked link's path: still one file.
+	e.exec(`INSERT INTO version_file (id, version_id, title_id, instance, arr_file_id, path, size_bytes, quality, added_at)
+		VALUES (950, 1, 1, 'radarr', 9, '/remux/Alpha.mkv', 1000, 'Remux-2160p', 0)`)
+	d = TitleDetail{}
+	e.call("GET", APIBase+"/titles/1", nil, 200, &d)
+	if d.SizeBytes == nil || *d.SizeBytes != 1000 {
+		t.Errorf("legacy file and link: on disk %v, want 1000", d.SizeBytes)
+	}
+
+	// A household account gets neither the size, the links nor the newest file's time.
+	var u TitleDetail
+	if err := json.Unmarshal([]byte(e.userBody(APIBase+"/titles/1")), &u); err != nil {
+		t.Fatal(err)
+	}
+	if u.SizeBytes != nil || u.AddedAt != nil {
+		t.Errorf("user: size %v added %v", u.SizeBytes, u.AddedAt)
+	}
+	for _, v := range u.Versions {
+		if len(v.Links) != 0 {
+			t.Errorf("user: %s links %+v", v.Key, v.Links)
+		}
+	}
 }

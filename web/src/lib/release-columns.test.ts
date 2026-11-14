@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { Candidate } from "@/api/add";
 import {
   DEFAULT_RELEASE_COLUMNS,
+  scopeTarget,
+  searchTargetWords,
   NO_FILTER,
   episodesText,
   filterReleases,
@@ -23,6 +25,9 @@ describe("normalizeReleaseColumns", () => {
     expect(p.order).toHaveLength(DEFAULT_RELEASE_COLUMNS.order.length);
     expect(p.order).toContain("flags");
     // By default the verdict follows Title (the leading Source and Age columns come before Title).
+    expect(scopeTarget(2)).toBe("s02");
+    expect(scopeTarget(undefined, "S02E05")).toBe("s02e05");
+    expect(searchTargetWords("s01")).toBe("a search for S01");
     expect(DEFAULT_RELEASE_COLUMNS.order.slice(0, 3)).toEqual(["source", "age", "status"]);
     expect(p.shown).toEqual(["age", "size"]);
     expect(p.sort).toEqual({ key: "rank", dir: "asc" });

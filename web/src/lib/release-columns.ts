@@ -27,6 +27,8 @@ export type ReleaseColumn = { id: ReleaseColumnId; label: string; hint: string; 
 export const RELEASE_COLUMNS: ReleaseColumn[] = [
   { id: "source", label: "Source", hint: "Where it came from: a Torznab feed, a built-in indexer, DMM, Torrentio, Zilean or SeaDex" },
   { id: "age", label: "Age", hint: "How long ago the indexer published it" },
+  // Status (accepted, or why not) right after Title, so the verdict stays in view when the table scrolls sideways.
+  { id: "status", label: "Status", hint: "Accepted, or why Theatarr rejects it" },
   { id: "indexer", label: "Indexer", hint: "The indexer that returned it" },
   { id: "history", label: "History", hint: "What came of this release before: grabbed, imported, failed or replaced" },
   { id: "size", label: "Size", hint: "Size" },
@@ -38,7 +40,6 @@ export const RELEASE_COLUMNS: ReleaseColumn[] = [
   { id: "score", label: "Score", hint: "Custom format score; point at it for the formats it matched" },
   { id: "formats", label: "Formats", hint: "The custom formats it matched" },
   { id: "flags", label: "Flags", hint: "Indexer flags such as freeleech or internal" },
-  { id: "status", label: "Status", hint: "Accepted, or why Theatarr rejects it" },
 ];
 
 /** The columns a kind of title has (Episodes only for a series). */
@@ -48,16 +49,8 @@ export type ReleaseSortKey = "rank" | "age" | "title" | "indexer" | "size" | "pe
 export type ReleaseSort = { key: ReleaseSortKey; dir: "asc" | "desc" };
 export type ReleaseColumnPrefs = { order: ReleaseColumnId[]; shown: ReleaseColumnId[]; sort: ReleaseSort };
 
-/** Status (accepted, or why not) right after Title by default, so the verdict stays in view when the wide table
- *  scrolls sideways; the rest in the list's order. A stored order is kept as it is. */
-const DEFAULT_ORDER: ReleaseColumnId[] = (() => {
-  const ids: ReleaseColumnId[] = RELEASE_COLUMNS.map((c) => c.id).filter((id) => id !== "status");
-  ids.splice(ids.indexOf("age") + 1, 0, "status");
-  return ids;
-})();
-
 export const DEFAULT_RELEASE_COLUMNS: ReleaseColumnPrefs = {
-  order: DEFAULT_ORDER,
+  order: RELEASE_COLUMNS.map((c) => c.id),
   shown: RELEASE_COLUMNS.map((c) => c.id).filter((id) => id !== "formats"),
   sort: { key: "rank", dir: "asc" },
 };
@@ -182,6 +175,23 @@ export function fmtAge(published: string | undefined, now: Date | number = Date.
  *  reads "therarbg"); the key stays in the tooltip. */
 export function indexerWords(key: string | null | undefined): string {
   return (key ?? "").replace(/^prowlarr-/, "");
+}
+
+/** What a stored decision's search target was, after "from": "RSS", "a search", "a search for S01" (the server's
+ *  sourceWord, internal/web/releases.go). */
+export function searchTargetWords(target: string | null | undefined): string {
+  const t = (target ?? "").toLowerCase();
+  if (t === "rss") return "RSS";
+  if (t === "" || t === "movie") return "a search";
+  return `a search for ${t.toUpperCase()}`;
+}
+
+/** The target a search of this scope stores: "s02e05" for an episode, "s02" for a season, "movie" otherwise (a
+ *  series is always searched per season or episode). */
+export function scopeTarget(season?: number, episodeCode?: string): string {
+  if (episodeCode) return episodeCode.toLowerCase();
+  if (season !== undefined) return `s${String(season).padStart(2, "0")}`;
+  return "movie";
 }
 
 export function peersText(c: Pick<Candidate, "seeders" | "leechers">): string {
