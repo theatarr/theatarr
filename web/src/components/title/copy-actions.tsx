@@ -69,6 +69,8 @@ export function RemoveDialog({ titleId, versions, onClose, kind, anime }: { titl
                 title: r.title ? `Removed ${s.name}` : s.name,
                 body: `${r.message}${first ? ` Left in place because: ${first.reason}.` : ""} Open its History for the details.`,
                 to: `/title/${titleId}?tab=history`,
+                // Long enough to read it and follow the link.
+                duration: 10_000,
               });
               onClose();
               if (r.title) navigate(listToReturnTo(kind, anime));

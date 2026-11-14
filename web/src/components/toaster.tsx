@@ -7,7 +7,8 @@ import { Link } from "react-router";
 import { cn } from "@/lib/utils";
 
 export type ToastTone = "ok" | "info" | "warn" | "bad";
-export type Toast = { id: number; title: string; body?: string; tone: ToastTone; to?: string; image?: string };
+/** duration: how long it stays (ms), 6 s when unset; longer for a notice whose link is the point. */
+export type Toast = { id: number; title: string; body?: string; tone: ToastTone; to?: string; image?: string; duration?: number };
 
 let seq = 0;
 let toasts: Toast[] = [];
@@ -42,9 +43,9 @@ const TONE: Record<ToastTone, string> = {
 
 function ToastCard({ t }: { t: Toast }) {
   useEffect(() => {
-    const h = window.setTimeout(() => dismiss(t.id), 6000);
+    const h = window.setTimeout(() => dismiss(t.id), t.duration ?? 6000);
     return () => window.clearTimeout(h);
-  }, [t.id]);
+  }, [t.id, t.duration]);
   const Icon = ICON[t.tone];
   const body = (
     <>
