@@ -282,14 +282,17 @@ func (a *Acquirer) fromLastRun(ctx context.Context, t target, l lastRuns, now in
 // qualityCutoff says whether Wanted > Cutoff unmet, its Search now and a round's cutoff targets from Wanted take
 // files below the profile's quality cutoff only (the arrs' Cutoff Unmet): every router.wanted.cutoff_unmet but an
 // explicit score. off only stops the regular cutoff searches (switchOn); what the list shows and Search now searches
-// stays the quality cutoff. A re-search after a failure keeps its own selection (fullCutoffResearch).
+// stays the quality cutoff. A re-search after a failure keeps its own selection (rowQualityCutoff).
 func (a *Acquirer) qualityCutoff() bool { return a.set.CutoffUnmet != policy.CutoffScore }
 
-// fullCutoffResearch says whether a round's cutoff re-searches after a failure (a row whose why is the router's
-// failure) take the full cutoff while Wanted's rows take the quality cutoff: with cutoff_unmet off, where they
-// always did (the quality cutoff was only ever cutoff_unmet: quality's).
-func (a *Acquirer) fullCutoffResearch(only string) bool {
-	return only == OnlyCutoff && a.set.CutoffUnmet == policy.CutoffOff
+// rowQualityCutoff is the QualityCutoff a round searches a due schedule row with: qualityCutoff, except that with
+// cutoff_unmet off a re-search after a failure (a row whose why is the router's failure) keeps the full cutoff it
+// always had (the quality cutoff was only ever cutoff_unmet: quality's).
+func (a *Acquirer) rowQualityCutoff(r schedRow) bool {
+	if r.reason == OnlyCutoff && a.set.CutoffUnmet == policy.CutoffOff && !fromWanted(r.why) {
+		return false
+	}
+	return a.qualityCutoff()
 }
 
 // fromWanted says whether a schedule row's why comes from Wanted (the regular schedule, Search now, a list add, a new
@@ -359,43 +362,58 @@ func (a *Acquirer) Round(ctx context.Context, scope []int64) (*WantedSummary, er
 	}
 	var asked, early, regular []due
 	var unscheduled []target
-	var dueTitles []int64
-	for _, r := range rows {
-		if r.nextAt <= now && !slices.Contains(dueTitles, r.titleID) {
-			dueTitles = append(dueTitles, r.titleID)
-		}
+	// The due rows' titles by the selection that searches them: reason and quality cutoff (rowQualityCutoff).
+	type pick struct {
+		only    string
+		quality bool
 	}
+	var picks []pick
+	dueTitles := map[pick][]int64{}
+	for _, r := range rows {
+		p := pick{r.reason, a.rowQualityCutoff(r)}
+		if r.nextAt > now || slices.Contains(dueTitles[p], r.titleID) {
+			continue
+		}
+		if _, ok := dueTitles[p]; !ok {
+			picks = append(picks, p)
+		}
+		dueTitles[p] = append(dueTitles[p], r.titleID)
+	}
+	// Missing first, as the two reasons always were; then Wanted's quality cutoff before the full one.
+	slices.SortFunc(picks, func(x, y pick) int {
+		if x.only != y.only {
+			return strings.Compare(y.only, x.only)
+		}
+		if x.quality == y.quality {
+			return 0
+		}
+		if x.quality {
+			return -1
+		}
+		return 1
+	})
 	taken := map[string]bool{}
-	if len(dueTitles) > 0 {
-		for _, only := range []string{OnlyMissing, OnlyCutoff} {
-			sels := []Selection{a.roundSelection(active, only, dueTitles)}
-			split := a.fullCutoffResearch(only)
-			if split {
-				full := sels[0]
-				full.QualityCutoff = false
-				sels = append(sels, full)
+	for _, p := range picks {
+		sel := a.roundSelection(active, p.only, dueTitles[p])
+		sel.QualityCutoff = p.quality
+		ts, err := a.targets(ctx, sel)
+		if err != nil {
+			return nil, err
+		}
+		for _, t := range ts {
+			r, ok := rows[targetKey(t)]
+			if !ok || r.nextAt > now || r.why == "" && !a.switchOn(p.only) || a.rowQualityCutoff(r) != p.quality {
+				continue
 			}
-			for i, sel := range sels {
-				ts, err := a.targets(ctx, sel)
-				if err != nil {
-					return nil, err
-				}
-				for _, t := range ts {
-					r, ok := rows[targetKey(t)]
-					if !ok || r.nextAt > now || r.why == "" && !a.switchOn(only) || split && (i == 0) != fromWanted(r.why) {
-						continue
-					}
-					taken[targetKey(t)] = true
-					t.why = r.why
-					switch r.why {
-					case whyAsked:
-						asked = append(asked, due{t, r.nextAt})
-					case "":
-						regular = append(regular, due{t, r.nextAt})
-					default:
-						early = append(early, due{t, r.nextAt})
-					}
-				}
+			taken[targetKey(t)] = true
+			t.why = r.why
+			switch r.why {
+			case whyAsked:
+				asked = append(asked, due{t, r.nextAt})
+			case "":
+				regular = append(regular, due{t, r.nextAt})
+			default:
+				early = append(early, due{t, r.nextAt})
 			}
 		}
 	}
