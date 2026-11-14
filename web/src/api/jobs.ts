@@ -13,6 +13,12 @@ type JobFilter = { kind?: string; state?: string; attention?: boolean; dismissed
 export const useJobsFiltered = (f: JobFilter) =>
   useQuery({ queryKey: qk.jobs.filtered(f), queryFn: () => api<JobList>("/jobs" + qs(f)) });
 
+export type JobSchedule = Schemas["JobSchedule"];
+
+/** GET /jobs/recurring: the recurring tasks with their interval, last run and (when queued) next run. */
+export const useJobsRecurring = () =>
+  useQuery({ queryKey: [...qk.jobs.all, "recurring"], queryFn: () => api<{ items: JobSchedule[] }>("/jobs/recurring") });
+
 export function useJobActions() {
   const qc = useQueryClient();
   const refresh = () => qc.invalidateQueries({ queryKey: qk.jobs.all });

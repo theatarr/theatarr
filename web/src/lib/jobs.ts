@@ -89,3 +89,29 @@ export function needsAttention(j: Job): boolean {
   if (j.attention !== undefined) return j.attention;
   return !j.resolved_by && !j.retried_as && !j.dismissed_at;
 }
+
+/** How often a recurring task runs, in words: "every 15 min", "every 6 h", "daily at 09:00", "daily". */
+export function everyWords(seconds: number, at?: string): string {
+  if (seconds === 86_400) return at ? `daily at ${at}` : "daily";
+  if (seconds % 3600 === 0) return `every ${seconds / 3600} h`;
+  if (seconds % 60 === 0) return `every ${seconds / 60} min`;
+  return `every ${seconds} s`;
+}
+
+/** Finished jobs with one row per kind: the newest job, how many of that kind finished, in the list's order. */
+export function collapseDone(done: Job[]): { job: Job; count: number }[] {
+  const out: { job: Job; count: number }[] = [];
+  const at = new Map<string, number>();
+  for (const j of done) {
+    const k = `${j.kind}:${j.state}`;
+    const i = at.get(k);
+    if (i === undefined) {
+      at.set(k, out.length);
+      out.push({ job: j, count: 1 });
+    } else {
+      out[i].count++;
+      if ((j.finished_at ?? "") > (out[i].job.finished_at ?? "")) out[i].job = j;
+    }
+  }
+  return out;
+}

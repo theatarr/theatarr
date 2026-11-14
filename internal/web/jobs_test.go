@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/theatarr/theatarr/internal/auth"
 	"github.com/theatarr/theatarr/internal/store"
@@ -164,5 +165,42 @@ func TestConfirmedJobRetryWithKey(t *testing.T) {
 	}
 	if e.count(`SELECT COUNT(*) FROM job WHERE retry_of = 3`) != 1 {
 		t.Fatal("key retry queued no restore")
+	}
+}
+
+// GET /jobs/recurring lists the recurring tasks the settings schedule, with their interval, the last finished run and
+// the next run only when one is queued for later.
+func TestJobsRecurring(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	now := store.Millis(testNow)
+	// The seed queues db.nightly an hour ahead (and has a failed one, never finished).
+	e.exec(`INSERT INTO job (id, kind, payload, state, run_at, created_at, updated_at, finished_at) VALUES
+		(10, 'shadow.rss', '{}', 'done', ?, ?, ?, ?), (11, 'shadow.rss', '{}', 'failed', ?, ?, ?, ?),
+		(12, 'meta.art', '{}', 'done', ?, ?, ?, ?)`,
+		now, now, now, now, now, now, now, now-60000, now, now, now, now)
+	var js JobSchedules
+	if code := e.getKey(APIBase+"/jobs/recurring", e.apiKey(), &js); code != 200 {
+		t.Fatalf("recurring: %d", code)
+	}
+	by := map[string]JobSchedule{}
+	for _, s := range js.Items {
+		by[s.Kind] = s
+	}
+	rss := by["shadow.rss"]
+	if rss.EverySeconds != 900 || rss.LastRun == nil || !rss.LastRun.Equal(testNow) || rss.LastState != "done" || rss.NextRun != nil {
+		t.Errorf("rss: %+v", rss)
+	}
+	if s := by["provider.sync"]; s.EverySeconds != 6*3600 || s.LastRun != nil {
+		t.Errorf("provider sync: %+v", s)
+	}
+	if s := by["db.nightly"]; s.EverySeconds != 86400 || s.NextRun == nil || !s.NextRun.Equal(testNow.Add(time.Hour)) {
+		t.Errorf("nightly: %+v", s)
+	}
+	if _, ok := by["meta.art"]; ok {
+		t.Errorf("an on-demand task is listed: %+v", js.Items)
+	}
+	if _, ok := by["notify.digest"]; ok {
+		t.Errorf("the digest is listed with notifications off: %+v", js.Items)
 	}
 }
