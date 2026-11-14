@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/theatarr/theatarr/internal/indexer"
 	"github.com/theatarr/theatarr/internal/store"
 )
 
@@ -267,4 +268,55 @@ func EndRemoved(ctx context.Context, tx *sql.Tx, titleID int64, keys []string, r
 		}
 	}
 	return n, nil
+}
+
+// StopRemovedCopies stops, in the removal's transaction, the queued copies to other providers (provider_copy) of
+// hashes a removal took from the library, so they are not started later or resumed at startup: each becomes
+// skipped with msg. A copy belongs to its hash and provider, not to a library, so one whose hash a current library
+// still links (an active link of a version not removed) or a download still in hand still wants is left as it is,
+// and so is a copy already adding or checking: it settles on its own (the removal's clean-up waits for it). It
+// returns how many copies it stopped.
+func StopRemovedCopies(ctx context.Context, tx *sql.Tx, hashes []string, msg string, at int64) (int, error) {
+	var args []any
+	for _, h := range hashes {
+		if h = indexer.NormalizeHash(h); h != "" && !slices.Contains(args, any(h)) {
+			args = append(args, h)
+		}
+	}
+	if len(args) == 0 {
+		return 0, nil
+	}
+	res, err := tx.ExecContext(ctx, `UPDATE provider_copy SET state = 'skipped', message = ?, updated_at = ?
+		WHERE state = 'queued' AND info_hash IN (`+store.Placeholders(len(args))+`)
+		AND NOT EXISTS (SELECT 1 FROM download d WHERE lower(d.info_hash) = provider_copy.info_hash
+			AND d.state NOT IN ('failed', 'imported'))
+		AND NOT EXISTS (SELECT 1 FROM link l JOIN link_version lv ON lv.link_id = l.id WHERE l.state = 'active'
+			AND NOT EXISTS (SELECT 1 FROM arrview_removed_version r WHERE r.version_id = lv.version_id)
+			AND `+LinkStoredHashSQL+` = provider_copy.info_hash)`, append([]any{msg, at}, args...)...)
+	if err != nil {
+		return 0, fmt.Errorf("router: stopping removed copies: %w", err)
+	}
+	n, err := res.RowsAffected()
+	return int(n), err
+}
+
+// EndRemovedOffers declines, in the removal's transaction, the pending offers (router_offer) into a title's removed
+// libraries (by policy key) with reason removed, as the sweep would on its next pass; an Add that restores the
+// library has them decided again (offerTo). It returns how many it declined.
+func EndRemovedOffers(ctx context.Context, tx *sql.Tx, titleID int64, keys []string, at int64) (int, error) {
+	if len(keys) == 0 {
+		return 0, nil
+	}
+	args := []any{`["` + offerRemoved + `"]`, at, titleID}
+	for _, k := range keys {
+		args = append(args, k)
+	}
+	res, err := tx.ExecContext(ctx, `UPDATE router_offer SET outcome = 'declined', reasons = ?, next_at = NULL,
+		updated_at = ? WHERE title_id = ? AND version_key IN (`+store.Placeholders(len(keys))+`)
+		AND outcome = 'pending'`, args...)
+	if err != nil {
+		return 0, fmt.Errorf("router: declining removed offers: %w", err)
+	}
+	n, err := res.RowsAffected()
+	return int(n), err
 }

@@ -18,6 +18,18 @@ import (
 // actually removed (the ones the title had and that were not removed already) are returned.
 func Remove(ctx context.Context, tx *sql.Tx, titleID int64, keys []string, view string, now time.Time) ([]string,
 	error) {
+	return remove(ctx, tx, titleID, keys, view, now, true)
+}
+
+// Hide is Remove without the title's arr view records: an arr view's DELETE handles its own (its row goes, the
+// libraries' rows keep what a re-add reads, internal/arrview deleteTitle).
+func Hide(ctx context.Context, tx *sql.Tx, titleID int64, keys []string, view string, now time.Time) ([]string,
+	error) {
+	return remove(ctx, tx, titleID, keys, view, now, false)
+}
+
+func remove(ctx context.Context, tx *sql.Tx, titleID int64, keys []string, view string, now time.Time,
+	records bool) ([]string, error) {
 	ms := store.Millis(now)
 	var removed []string
 	for _, k := range keys {
@@ -45,7 +57,7 @@ func Remove(ctx context.Context, tx *sql.Tx, titleID int64, keys []string, view 
 		(SELECT 1 FROM arrview_removed_version r WHERE r.version_id = v.id)`, titleID).Scan(&left); err != nil {
 		return nil, err
 	}
-	if left == 0 {
+	if left == 0 && records {
 		if _, err := tx.ExecContext(ctx, `DELETE FROM arrview_title WHERE title_id = ?`, titleID); err != nil {
 			return nil, err
 		}
