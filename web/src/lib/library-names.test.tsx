@@ -45,9 +45,4 @@ describe("the library tag", () => {
     render(<LibraryNamesProvider libraries={LIBS}><VersionTag k="movie-remux" /></LibraryNamesProvider>);
     expect(screen.getByText("Remux")).toBeTruthy();
   });
-
-  it("puts the marks for the listed libraries on the page", () => {
-    const { container } = render(<LibraryNamesProvider libraries={LIBS}><span /></LibraryNamesProvider>);
-    expect(container.querySelector("style")?.textContent?.split("\n")).toHaveLength(5);
-  });
 });

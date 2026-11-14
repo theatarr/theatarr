@@ -3,7 +3,7 @@
 // default by kind and profile, with same-named libraries told apart by words, never by key. Every account gets
 // them; none contains a key. The key stays the identifier: data-vkey, and the tooltip for accounts that see files
 // (a household account never sees a key).
-import { createContext, useCallback, useContext, useMemo, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, type ReactNode } from "react";
 import { libraryLabel } from "./library-label";
 
 export type LibraryName = { key: string; label: string };
@@ -25,15 +25,22 @@ export function markRules(keys: readonly string[]): string {
 }
 
 /** keys: the account sees files, so a library's key may show as its tooltip. */
+/** Puts the mark rules on the page as a constructed style sheet: the page's CSP (style-src 'self') refuses an inline
+ * <style>, not a sheet built through the CSSOM. Returns the cleanup. Without constructable sheets (old browsers,
+ * tests) the marks stay the accent. */
+function adoptRules(rules: string): (() => void) | undefined {
+  if (!rules || typeof CSSStyleSheet === "undefined" || !("adoptedStyleSheets" in document)) return undefined;
+  const sheet = new CSSStyleSheet();
+  sheet.replaceSync(rules);
+  document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+  return () => { document.adoptedStyleSheets = document.adoptedStyleSheets.filter((s) => s !== sheet); };
+}
+
 export function LibraryNamesProvider({ libraries, keys = false, children }: { libraries?: readonly LibraryName[] | null; keys?: boolean; children: ReactNode }) {
   const value = useMemo(() => ({ names: new Map((libraries ?? []).map((l) => [l.key, l.label])), keys }), [libraries, keys]);
   const rules = useMemo(() => markRules([...value.names.keys()]), [value]);
-  return (
-    <Names.Provider value={value}>
-      {rules ? <style data-testid="library-marks">{rules}</style> : null}
-      {children}
-    </Names.Provider>
-  );
+  useEffect(() => adoptRules(rules), [rules]);
+  return <Names.Provider value={value}>{children}</Names.Provider>;
 }
 
 /** A function that names a library key: the server's name, else the fallback given (a settings page's own guess from
