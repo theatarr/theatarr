@@ -181,6 +181,54 @@ func TestOfferDeclinedSameAndDryRun(t *testing.T) {
 	}
 }
 
+// A library the title was removed from is offered nothing: a release the remaining library imports is neither
+// routed nor linked there, nothing is remembered for it, and the other libraries' offers are as before. A pending
+// offer remembered from before the removal is declined (removed); once an Add restores the library it is offered
+// again.
+func TestOfferSkipsRemovedLibrary(t *testing.T) {
+	t.Parallel()
+	e := newOfferEnv(t)
+	h := strings.Repeat("9", 40)
+	e.exec(`INSERT INTO arrview_removed_version (version_id, view, removed_at) VALUES (11, 'ui', 0)`)
+	e.download(1, 1, 10, "movie-remux", h, "Movie.2001.2160p.WEB-DL.DDP5.1.Atmos-GRP", "imported")
+	res, err := e.off.Offer(e.ctx, 1, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := byVersion(res)
+	if _, ok := m["movie-web"]; ok || len(res) != 1 || m["movie-extra"].Outcome != OfferPlanned {
+		t.Fatalf("results %+v", res)
+	}
+	if e.outcome("movie-web", 1, h) != "" || len(e.enq.reqs) != 1 || e.enq.reqs[0].Version != "movie-extra" ||
+		slices.Contains(e.asked, "movie-web") {
+		t.Errorf("removed library: outcome %q, queued %+v, asked %v", e.outcome("movie-web", 1, h), e.enq.reqs, e.asked)
+	}
+	// An offer still pending from before the removal is declined, not retried.
+	h2 := strings.Repeat("8", 40)
+	e.exec(`INSERT INTO router_offer (version_key, title_id, info_hash, from_version, release_title, outcome, reasons,
+		attempts, first_at, next_at, updated_at) VALUES ('movie-web', 1, ?, 'movie-remux', 'Movie.WEB', 'pending', '[]',
+		1, 0, 0, 0)`, h2)
+	e.download(2, 1, 10, "movie-remux", h2, "Movie.2001.2160p.WEB-DL-OTHER", "imported")
+	if res, err = e.off.Offer(e.ctx, 2, false); err != nil {
+		t.Fatal(err)
+	}
+	if m := byVersion(res); m["movie-web"].Outcome != OfferDeclined || e.outcome("movie-web", 1, h2) != OfferDeclined {
+		t.Fatalf("pending before the removal: %+v", res)
+	}
+	// Added again: both are offered and routed to it.
+	e.exec(`DELETE FROM arrview_removed_version WHERE version_id = 11`)
+	e.off.seen = nil
+	for _, dl := range []int64{1, 2} {
+		res, err := e.off.Offer(e.ctx, dl, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if m := byVersion(res); m["movie-web"].Outcome != OfferRouted {
+			t.Errorf("download %d after the add: %+v", dl, res)
+		}
+	}
+}
+
 func TestOfferPendingRetriesThenGivesUp(t *testing.T) {
 	t.Parallel()
 	e := newOfferEnv(t)

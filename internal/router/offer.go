@@ -36,6 +36,8 @@ import (
 //   - the 6-hourly sweep both ways: imported downloads, adopted links and imported arr files;
 //     never back to their source or the arr's own library, never without a known hash (no_hash);
 //   - replaced sources are not offered; their pending offers are declined with reason superseded;
+//   - never to a library the title was removed from (arrview_removed_version): nothing is recorded, and an offer on
+//     record is declined with reason removed, decided again once an Add restores the library;
 //   - offer/backfill commands: theatarr router offer -download ID | -sweep [-dry-run] [-limit N].
 //
 // Shadow targets get the same decision; the route is then a dry-run plan (router_plan), so an offer is visible
@@ -66,6 +68,9 @@ const (
 	OfferSame     = "same"     // the target holds this release already
 	OfferGaveUp   = "gave_up"  // still pending after OfferRetryFor
 )
+
+// offerRemoved is the reason of an offer declined because the title was removed from the target library.
+const offerRemoved = "removed"
 
 // DecideFunc decides a release for a version (decide.Engine.Decide).
 type DecideFunc func(ctx context.Context, rel decide.Release, t decide.Title, v decide.Version,
@@ -290,13 +295,18 @@ func (o *Offerer) offerTo(ctx context.Context, s *offerSource, key string, dryRu
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, err
 	}
+	// remembered: an offer is on record; a removed decline (removedAgain) is decided again when the target is back.
+	remembered, removedAgain := memory.outcome != "", false
 	switch memory.outcome {
 	case "", OfferPending, OfferGaveUp:
 	case OfferDeclined:
 		// An unknown_indexer decline is decided again once the source's indexer is a configured one; the target's
 		// own rules then decide. private_indexer declines, which no longer happen but older databases still hold,
-		// are decided again the same way.
-		if (reasons != `["unknown_indexer"]` && reasons != `["private_indexer"]`) || o.Policy.Indexers[s.indexer] == nil {
+		// are decided again the same way. A removed decline is decided again when the target is in the library again
+		// (an Add restores it).
+		removedAgain = reasons == `["`+offerRemoved+`"]`
+		if !removedAgain && ((reasons != `["unknown_indexer"]` && reasons != `["private_indexer"]`) ||
+			o.Policy.Indexers[s.indexer] == nil) {
 			return nil, nil
 		}
 		memory.outcome = ""
@@ -328,6 +338,23 @@ func (o *Offerer) offerTo(ctx context.Context, s *offerSource, key string, dryRu
 	v, err := decide.LoadVersion(ctx, db, o.Policy, s.titleID, key)
 	if err != nil {
 		return nil, err
+	}
+	if v.ID != 0 {
+		// A library the title was removed from (arrview_removed_version) is offered nothing and linked nothing. With
+		// no memory nothing is recorded, so an Add that restores it gets the offer at the next sweep; a remembered
+		// offer still open is declined (removed), and decided again once the library has the title again.
+		var removed bool
+		if err := db.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM arrview_removed_version WHERE version_id = ?)`,
+			v.ID).Scan(&removed); err != nil {
+			return nil, err
+		}
+		if removed {
+			if !remembered || removedAgain {
+				return nil, nil
+			}
+			res.Outcome, res.Reasons = OfferDeclined, []string{offerRemoved}
+			return o.finish(ctx, s, res, memory, now, dryRun)
+		}
 	}
 	busy := false
 	if v.ID != 0 {

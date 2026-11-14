@@ -1574,7 +1574,10 @@ again. After the flip the planned offers are paced: one offer pass routes at mos
 `OfferPlannedExpiry` (7 days) is declined `planned_expired` instead of routed (`TestPlannedOffersPacedPerSweep`,
 `TestPlannedOffersExpire`). Migration 00069 turns `routed` rows that made no download of the target for that hash (accepted while the
 router was off) into `planned`. Tests: `TestOfferArrIndexerMatchedByName`, `policy.TestIndexerByName`,
-`TestOfferWhileGateShutIsRetried`, `TestOfferGateRetryMigration`.
+`TestOfferWhileGateShutIsRetried`, `TestOfferGateRetryMigration`. A library the title was removed from
+(`arrview_removed_version`) is offered nothing: without a remembered offer nothing is recorded (an Add that restores
+it gets the offer at the next sweep); a remembered pending, given-up or planned offer is declined `removed`, and
+decided again once the library has the title again (`TestOfferSkipsRemovedLibrary`).
 
 **Active RSS.** RSS reads the feeds of shadow and active versions. Accepted items of an active version are not
 shadow picks:
