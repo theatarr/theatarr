@@ -88,8 +88,14 @@ func (w *Web) titleFacets(ctx context.Context, f TitleFilter, seeFiles bool) (Ti
 	states := map[int64][]versionState{}
 	kinds := map[int64]string{}
 	keys := map[string]*VersionFacet{}
+	// The versions' availability state only for watchability (the household path); those who see files get the
+	// title rule below.
+	avail := `''`
+	if !seeFiles {
+		avail = availStateSQL(newAirClock(w.now()))
+	}
 	err := scanAll(ctx, db, `SELECT t.id, t.kind, v.policy_key, v.state, v.monitored, `+hasFileSQL+`, `+
-		availStateSQL(newAirClock(w.now()))+titleFrom+` JOIN version v ON v.title_id = t.id`+andWhere(where, liveVersion),
+		avail+titleFrom+` JOIN version v ON v.title_id = t.id`+andWhere(where, liveVersion),
 		args, func(r *sql.Rows) error {
 			var tid int64
 			var kind, key, state, avail string
@@ -122,34 +128,36 @@ func (w *Web) titleFacets(ctx context.Context, f TitleFilter, seeFiles bool) (Ti
 		return out, err
 	}
 	if seeFiles {
-		// The status words and the quality filters, by the conditions the list filters by (library.go).
-		clock := newAirClock(w.now())
-		for _, a := range titleAvailabilities {
-			out.Availability[a] = 0
-		}
-		if err := scanAll(ctx, db, `SELECT `+titleAvailabilitySQL(clock)+`, COUNT(*)`+titleFrom+where+` GROUP BY 1`, args,
-			func(r *sql.Rows) error {
-				var a string
-				var n int
-				if err := r.Scan(&a, &n); err != nil {
-					return err
-				}
-				out.Availability[a] = n
-				return nil
-			}); err != nil {
-			return out, err
-		}
+		// The status words and the quality filters, by the conditions the list filters by (library.go), in one pass:
+		// each title's word, whether it has an upgrade found and whether it holds a file below its cutoff.
 		found, err := w.upgradeFoundTitles(ctx, db)
 		if err != nil {
 			return out, err
 		}
-		up := upgradeConds(clock)
-		var nFound, nBest int
-		if err := db.QueryRowContext(ctx, `SELECT COALESCE(SUM(`+up["found"]+`), 0), COALESCE(SUM(`+up["best_known"]+`), 0)`+
-			titleFrom+where, append([]any{found, found}, args...)...).Scan(&nFound, &nBest); err != nil {
+		for _, a := range titleAvailabilities {
+			out.Availability[a] = 0
+		}
+		out.Upgrades = map[string]int{"found": 0, "best_known": 0}
+		if err := scanAll(ctx, db, `SELECT `+titleAvailabilitySQL(newAirClock(w.now()))+`, `+upgradeFoundSQL+`, `+
+			heldBelowCutoffSQL+titleFrom+where, append([]any{found}, args...), func(r *sql.Rows) error {
+			var a string
+			var up, below bool
+			if err := r.Scan(&a, &up, &below); err != nil {
+				return err
+			}
+			out.Availability[a]++
+			if a == "available" || a == "partial" {
+				switch {
+				case up:
+					out.Upgrades["found"]++
+				case below:
+					out.Upgrades["best_known"]++
+				}
+			}
+			return nil
+		}); err != nil {
 			return out, err
 		}
-		out.Upgrades = map[string]int{"found": nFound, "best_known": nBest}
 	} else {
 		// Watchability (perms.go plainAvailability).
 		out.Availability = map[string]int{"missing": 0, "partial": 0, "available": 0}

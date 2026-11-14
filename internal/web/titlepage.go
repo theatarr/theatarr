@@ -125,6 +125,8 @@ type EpisodeCounts struct {
 	// library (0 in one that is not monitored).
 	Have    int `json:"have"`
 	Missing int `json:"missing"`
+	// watchMissing is Missing whatever the library's monitoring: what a caller without "see files" gets (redactVersion).
+	watchMissing int
 }
 
 // FranchiseRef is an anime franchise that maps into a title.
@@ -443,6 +445,7 @@ func (w *Web) episodeCounts(ctx context.Context, db *sql.DB, ids []any, byID map
 				return err
 			}
 			if v := byID[vid]; v != nil {
+				c.watchMissing = c.Missing
 				if !v.Monitored {
 					c.Missing = 0 // a gap in a library that is not monitored is not missing (titleAvailabilitySQL)
 				}

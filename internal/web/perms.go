@@ -166,6 +166,10 @@ func redactVersion(v *Version) {
 	v.History = nil
 	v.Upgrade = nil
 	v.Acquisition = nil
+	// Watchability: an aired episode no library holds is missing whatever the library's monitoring.
+	if v.Episodes != nil {
+		v.Episodes.Missing = v.Episodes.watchMissing
+	}
 	redactControl(v.Control)
 }
 
@@ -198,7 +202,8 @@ func redactEpisodes(out *EpisodeList) {
 	}
 	for i := range out.Seasons {
 		for k, c := range out.Seasons[i].Versions {
-			out.Seasons[i].Versions[k] = SeasonCounts{Have: c.Have, Missing: c.Missing, Monitored: c.Monitored}
+			// Watchability: missing whatever the version's monitoring (watchMissing).
+			out.Seasons[i].Versions[k] = SeasonCounts{Have: c.Have, Missing: c.watchMissing, Monitored: c.Monitored}
 		}
 	}
 	for i := range out.Episodes {

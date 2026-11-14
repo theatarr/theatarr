@@ -1044,6 +1044,12 @@ func TestStatusWords(t *testing.T) {
 		(2201, 22, 1, 1, 'a', '2026-01-01', 0, 0), (2202, 22, 1, 2, 'b', '2026-01-08', 0, 0),
 		(2301, 23, 1, 1, 'a', '2027-02-01', 0, 0)`)
 	airAtMidnight(e.exec)
+	// S Tonight premieres today, later than now: its air instant is known and still to come.
+	e.exec(`INSERT INTO title (id, kind, name, year, created_at, updated_at) VALUES (25, 'series', 'S Tonight', 2026, 0, 0)`)
+	e.exec(`INSERT INTO title_meta (title_id, release_date, status, attempted_at, refresh_after) VALUES (25, '2026-10-26', 'Returning Series', 0, 0)`)
+	e.exec(`INSERT INTO version (id, title_id, policy_key, state, monitored, created_at, updated_at) VALUES (251, 25, 'tv-2160p', 'wanted', 1, 0, 0)`)
+	e.exec(`INSERT INTO episode (id, title_id, season, number, name, air_date, air_date_utc_at, created_at, updated_at) VALUES
+		(2501, 25, 1, 1, 'a', '2026-10-26', ?, 0, 0)`, store.Millis(testNow.Add(3*time.Hour)))
 	e.exec(`INSERT INTO episode_version_state (version_id, episode_id, state, updated_at) VALUES
 		(201, 2001, 'filled', 0), (201, 2002, 'filled', 0), (201, 2003, 'wanted', 0),
 		(211, 2101, 'filled', 0), (211, 2102, 'wanted', 0),
@@ -1057,7 +1063,7 @@ func TestStatusWords(t *testing.T) {
 	want := map[string]string{
 		"M Partial": "partial", "M Off Gap": "available", "M Missing": "missing", "M Upcoming": "upcoming",
 		"M Digital": "upcoming", "M Unmonitored": "unmonitored", "S Full": "available", "S Gap": "partial",
-		"S Off Gap": "available", "S Not Aired": "upcoming", "S None": "none",
+		"S Off Gap": "available", "S Not Aired": "upcoming", "S None": "none", "S Tonight": "upcoming",
 		// newEnv's: Alpha held in one library and wanted in another, Beta below its cutoff, Gamma in none.
 		"Alpha": "partial", "Beta": "available", "Gamma": "none",
 	}
@@ -1095,6 +1101,27 @@ func TestStatusWords(t *testing.T) {
 	}
 	if len(p.Items) != len(want) {
 		t.Fatalf("%d rows, want %d", len(p.Items), len(want))
+	}
+	// A household account (no "see files") keeps watchability: S Off Gap's unmonitored copy still lacks two aired
+	// episodes, on the title page and the season counts.
+	uid := e.account("household", auth.RoleUser, auth.StatusActive, true)
+	ukey, _, err := e.auth.CreateKey(context.Background(), "k-household", uid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var hd TitleDetail
+	e.getKey(APIBase+"/titles/22", ukey, &hd)
+	for _, v := range hd.Versions {
+		if want := map[string]int{"tv-2160p": 0, "anime-tv": 2}[v.Key]; v.Episodes == nil || v.Episodes.Missing != want {
+			t.Errorf("household S Off Gap %s episodes: %+v, want %d missing", v.Key, v.Episodes, want)
+		}
+	}
+	var hl EpisodeList
+	e.getKey(APIBase+"/titles/22/episodes", ukey, &hl)
+	for _, s := range hl.Seasons {
+		if c := s.Versions["anime-tv"]; s.Season == 1 && c.Missing != 2 {
+			t.Errorf("household S Off Gap season %d unmonitored copy: %+v", s.Season, c)
+		}
 	}
 	// Each filter lists exactly the titles with that word, and its facet counts them; the facets add up.
 	for _, scope := range []string{"kind=movie", "kind=series"} {

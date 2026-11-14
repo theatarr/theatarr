@@ -156,8 +156,9 @@ func availStateSQL(c airClock) string {
 //     missing an aired, monitored episode);
 //   - unmonitored: no file, and no library is monitored;
 //   - upcoming: no file, monitored, and not out yet: a movie's home release (else its TMDb release date) is still to
-//     come; a series has no aired episode and its first air date is still to come (without one, its TMDb status is not
-//     Returning Series, Ended or Canceled);
+//     come; a series has no aired episode and an episode's air time is still to come (one airing later today
+//     included), or its first air date is still to come (without one, its TMDb status is not Returning Series, Ended
+//     or Canceled);
 //   - missing: no file, monitored and out.
 // A gap in a library that is not monitored is no gap. Quality is said apart from it (upgradeFilters). Display and
 // filters only: searching, grabbing and Wanted read the stored states.
@@ -176,13 +177,6 @@ const homeReleaseSQL = `COALESCE((SELECT MIN(d.date) FROM title_release_date d W
 	(SELECT date(MIN(d.date), '+90 days') FROM title_release_date d WHERE d.title_id = t.id AND d.type = 'theatrical'
 	AND ` + canonicalDate + `))`
 
-// heldEpisodeSQL is true when version v holds episode e: a current arr file or an active link (heldEpisodes).
-const heldEpisodeSQL = `(EXISTS (SELECT 1 FROM version_file vf JOIN version_file_episode fe ON fe.version_file_id = vf.id
-		LEFT JOIN version_source vs ON vs.version_id = vf.version_id WHERE vf.version_id = v.id AND fe.episode_id = e.id
-		AND ` + curFile + `)
-	OR EXISTS (SELECT 1 FROM link_version lv JOIN link l ON l.id = lv.link_id JOIN link_episode le ON le.link_id = l.id
-		WHERE lv.version_id = v.id AND le.episode_id = e.id AND l.state = 'active'))`
-
 // titleAvailabilitySQL is title t's availability (see above) as an SQL value; m is t's title_meta row (titleFrom).
 // The clock's values are written into the SQL. A series library's gap is what its coverage counts as missing (an
 // aired episode, specials left out, monitored in the library, that it does not hold), so the badge and the library
@@ -192,14 +186,16 @@ func titleAvailabilitySQL(c airClock) string {
 		ELSE e.air_date IS NOT NULL AND e.air_date <= '%s' END)`, c.nowMs, c.today)
 	live := `FROM version v WHERE v.title_id = t.id AND ` + liveVersion
 	seriesGap := `EXISTS (SELECT 1 FROM episode_version_state s JOIN episode e ON e.id = s.episode_id
-		WHERE s.version_id = v.id AND s.monitored = 1 AND e.season > 0 AND ` + aired + ` AND NOT ` + heldEpisodeSQL + `)`
+		WHERE s.version_id = v.id AND s.monitored = 1 AND e.season > 0 AND ` + aired + ` AND NOT ` + episodeHeld + `)`
 	gap := `EXISTS (SELECT 1 ` + live + ` AND v.monitored = 1 AND CASE WHEN t.kind = 'movie' THEN NOT ` + hasFileSQL +
 		` ELSE ` + seriesGap + ` END)`
 	upcoming := `CASE WHEN t.kind = 'movie' THEN COALESCE(substr(COALESCE(` + homeReleaseSQL + `, NULLIF(m.release_date, '')), 1, 10)
 		> '` + c.today + `', 0)
 		ELSE NOT EXISTS (SELECT 1 FROM episode e WHERE e.title_id = t.id AND e.season > 0 AND ` + aired + `) AND
+			(EXISTS (SELECT 1 FROM episode e WHERE e.title_id = t.id AND e.season > 0 AND e.air_date_utc_at > ` +
+		fmt.Sprint(c.nowMs) + `) OR
 			CASE WHEN COALESCE(m.release_date, '') <> '' THEN substr(m.release_date, 1, 10) > '` + c.today + `'
-			ELSE COALESCE(m.status, '') NOT IN ('Returning Series', 'Ended', 'Canceled') END END`
+			ELSE COALESCE(m.status, '') NOT IN ('Returning Series', 'Ended', 'Canceled') END) END`
 	return `(CASE WHEN NOT EXISTS (SELECT 1 ` + live + `) THEN 'none'
 		WHEN EXISTS (SELECT 1 ` + live + ` AND ` + hasFileSQL + `) THEN CASE WHEN ` + gap + ` THEN 'partial' ELSE 'available' END
 		WHEN NOT EXISTS (SELECT 1 ` + live + ` AND v.monitored = 1) THEN 'unmonitored'
@@ -267,39 +263,61 @@ var upgradeFilters = map[string]bool{"found": true, "best_known": true}
 // belowCutoffSQL is true when version v of title t has a file below its cutoff, as the upgrade explanation counts
 // them: a movie version filled, or a series episode held in a filled state.
 const belowCutoffSQL = `(CASE WHEN t.kind = 'movie' THEN v.state = 'filled' ELSE EXISTS (SELECT 1 FROM episode_version_state s
-	JOIN episode e ON e.id = s.episode_id WHERE s.version_id = v.id AND s.state = 'filled' AND ` + heldEpisodeSQL + `) END)`
+	JOIN episode e ON e.id = s.episode_id WHERE s.version_id = v.id AND s.state = 'filled' AND ` + episodeHeld + `) END)`
 
 // upgradeConds are the quality filters' conditions on title t; each takes the found title ids (upgradeFoundTitles)
 // as one JSON array argument.
 func upgradeConds(c airClock) map[string]string {
 	held := titleAvailabilitySQL(c) + ` IN ('available', 'partial')`
-	found := `t.id IN (SELECT value FROM json_each(?))`
 	return map[string]string{
-		"found": held + ` AND ` + found,
-		"best_known": held + ` AND NOT ` + found + ` AND EXISTS (SELECT 1 FROM version v WHERE v.title_id = t.id AND ` +
-			liveVersion + ` AND ` + hasFileSQL + ` AND ` + belowCutoffSQL + `)`,
+		"found":      held + ` AND ` + upgradeFoundSQL,
+		"best_known": held + ` AND NOT ` + upgradeFoundSQL + ` AND ` + heldBelowCutoffSQL,
 	}
 }
+
+// upgradeFoundSQL is true when title t is in upgradeFoundTitles' list, given as one JSON array argument.
+const upgradeFoundSQL = `t.id IN (SELECT value FROM json_each(?))`
+
+// heldBelowCutoffSQL is true when some version of title t in the library has a file below its cutoff.
+const heldBelowCutoffSQL = `EXISTS (SELECT 1 FROM version v WHERE v.title_id = t.id AND ` + liveVersion + ` AND ` +
+	hasFileSQL + ` AND ` + belowCutoffSQL + `)`
 
 // upgradeFoundTitles lists, as a JSON array, the titles with an upgrade found: some version in the library with a
 // file below its cutoff (a movie version filled; a series version with files) for which a better release was seen,
 // as markUpgradeSeen marks rows. Only a version with a stored decision that accepted a release can have one, so the
 // others are left out before the evidence is read.
 func (w *Web) upgradeFoundTitles(ctx context.Context, db *sql.DB) (string, error) {
-	var vs []upgradeVersion
-	err := scanAll(ctx, db, `SELECT v.id, v.title_id, v.policy_key, t.kind, v.state FROM version v JOIN title t ON t.id = v.title_id
-		WHERE `+liveVersion+` AND (v.state = 'filled' OR (t.kind = 'series' AND `+hasFileSQL+`))
-		AND EXISTS (SELECT 1 FROM journal_decision j WHERE j.title_id = v.title_id AND j.version_key = v.policy_key
-			AND j.accepted > 0)`, nil, func(r *sql.Rows) error {
-		var v upgradeVersion
-		if err := r.Scan(&v.id, &v.titleID, &v.key, &v.kind, &v.state); err != nil {
-			return err
-		}
-		vs = append(vs, v)
-		return nil
-	})
+	// The (title, library) pairs with an accepted release, read once (as upgradePicks does).
+	maybe := map[titleKey]bool{}
+	err := scanAll(ctx, db, `SELECT DISTINCT title_id, version_key FROM journal_decision WHERE accepted > 0`, nil,
+		func(r *sql.Rows) error {
+			var k titleKey
+			if err := r.Scan(&k.titleID, &k.key); err != nil {
+				return err
+			}
+			maybe[k] = true
+			return nil
+		})
 	if err != nil {
 		return "", err
+	}
+	var vs []upgradeVersion
+	if len(maybe) > 0 {
+		err = scanAll(ctx, db, `SELECT v.id, v.title_id, v.policy_key, t.kind, v.state FROM version v
+			JOIN title t ON t.id = v.title_id WHERE `+liveVersion+` AND (v.state = 'filled' OR (t.kind = 'series' AND `+
+			hasFileSQL+`))`, nil, func(r *sql.Rows) error {
+			var v upgradeVersion
+			if err := r.Scan(&v.id, &v.titleID, &v.key, &v.kind, &v.state); err != nil {
+				return err
+			}
+			if maybe[titleKey{v.titleID, v.key}] {
+				vs = append(vs, v)
+			}
+			return nil
+		})
+		if err != nil {
+			return "", err
+		}
 	}
 	ids := []int64{}
 	if len(vs) > 0 {

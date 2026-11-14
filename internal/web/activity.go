@@ -517,8 +517,12 @@ func (w *Web) downloadViews(ctx context.Context, ds []activity.Download, admin b
 		}
 		if admin {
 			x.Quality = d.Quality
-			score := d.Score
-			x.Release, x.Indexer, x.Hash, x.Size, x.Score = d.Release, d.Indexer, d.Hash, d.Size, &score
+			x.Release, x.Indexer, x.Hash, x.Size = d.Release, d.Indexer, d.Hash, d.Size
+			// A score only with scoring evidence: stored formats ('[]' for a calculated 0) or a score; a download
+			// with neither (formats NULL, score 0) was never scored.
+			if score := d.Score; d.Formats != "" || score != 0 {
+				x.Score = &score
+			}
 			x.Provider, x.ProviderName, x.Client = d.Provider, w.providerName(d.Provider), d.Client
 			by := x.ProviderName
 			if by == "" && d.Client != "" {

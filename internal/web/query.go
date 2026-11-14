@@ -596,7 +596,7 @@ func (w *Web) versions(ctx context.Context, cond string, args []any, limit, offs
 		}
 	}
 	err = scanAll(ctx, db, uniqueLinkedTargetHash+`SELECT lv.version_id, l.id, l.path, l.target, l.kind, l.state, COALESCE(l.release_title, ''),
-		COALESCE(l.quality, ''), l.score, l.title_id, `+linkHashSQL+`
+		COALESCE(l.quality, ''), `+linkScoreSQL+`, l.title_id, `+linkHashSQL+`
 		FROM link_version lv JOIN link l ON l.id = lv.link_id`+linkHashJoin+`
 		WHERE lv.version_id IN (`+in+`) ORDER BY l.path`, targetArgs, func(r *sql.Rows) error {
 		var vid int64

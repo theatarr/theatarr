@@ -90,6 +90,11 @@ describe("availability for family accounts", () => {
     // A movie has no episodes: its catalog has no "Some episodes".
     expect(availabilityFilters(false, "movie").map((a) => a.label)).toEqual(["Not available", "Available"]);
   });
+  it("keeps a series with a complete copy and a part-way one Available for family", () => {
+    const series = { kind: "series" as const, versions: [{ coverage: { have: 12, total: 24, missing: 0, aired: 24, upcoming: 0 } }] };
+    const mixed = { ...series, versions: [...series.versions, { coverage: { have: 1, total: 24, missing: 23, aired: 24, upcoming: 0 } }] };
+    expect(label("available", true, mixed)).toBe("Available");
+  });
   it("tells a family account apart", () => {
     expect(isFamily({ seeFiles: false, manageRequests: false })).toBe(true);
     expect(isFamily({ seeFiles: true, manageRequests: true })).toBe(false);

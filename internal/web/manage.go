@@ -247,11 +247,10 @@ func linkMedia(probeRaw, adoptedMedia sql.NullString, adopted bool, scene string
 }
 
 // linkFacts fills a movie's current file from its link's stored file metadata (decide.ExistingFile): release group,
-// languages, edition and matched formats where the link has them. A link that stored no scoring evidence (no
-// calculated score and no formats: linkScoreSQL) shows no score; a calculated score stays, 0 included.
+// languages, edition and matched formats where the link has them. Its score is the link's read through linkScoreSQL
+// (none without scoring evidence).
 func linkFacts(c *CurrentFile, meta string) {
 	var m struct {
-		Score        *int
 		Formats      []decide.FormatScore
 		ReleaseGroup string
 		Edition      string
@@ -270,9 +269,6 @@ func linkFacts(c *CurrentFile, meta string) {
 		c.Languages = m.Languages
 	}
 	c.Formats = m.Formats
-	if len(c.Formats) == 0 && m.Score == nil {
-		c.Score = nil
-	}
 }
 
 // enrichManage adds the title page's upgrade explanation and controls to each version, and the media of a movie
@@ -312,9 +308,6 @@ func (w *Web) enrichManage(ctx context.Context, db *sql.DB, d *TitleDetail) erro
 			if err == nil {
 				c.Media = linkMedia(pr, am, adopted, scene, false)
 				linkFacts(c, meta.String)
-				if c.Score == nil && v.Upgrade != nil {
-					v.Upgrade.Score = nil // as current.score: no score without scoring evidence
-				}
 				continue
 			}
 			if !errors.Is(err, sql.ErrNoRows) {

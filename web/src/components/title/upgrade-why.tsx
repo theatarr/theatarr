@@ -159,7 +159,7 @@ function WhyDialog({
         {why.sightings.length > 0 ? (
           <details className="text-sm">
             <summary className="cursor-pointer font-medium">Sources seen ({why.sightings.length})</summary>
-            <ul className="mt-2 space-y-1 break-all text-xs text-muted-foreground">{why.sightings.map((c, i) => <li key={i}>{c}</li>)}</ul>
+            <ul className="mt-2 space-y-1 break-all text-xs text-muted-foreground">{why.sightings.map((c, i) => <li key={i} title={c.source}>{c.text}</li>)}</ul>
           </details>
         ) : null}
         <div className="rounded-[5px] border border-[var(--line)] bg-[var(--surface)] px-3 py-2.5 text-xs" data-testid="why-scores">

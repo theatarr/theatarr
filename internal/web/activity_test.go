@@ -719,3 +719,30 @@ func TestBlockWords(t *testing.T) {
 		}
 	}
 }
+
+// TestQueueScoreEvidence: a queue row shows a score only with scoring evidence: stored formats ('[]' for a calculated
+// 0) or a score; a download with neither shows none.
+func TestQueueScoreEvidence(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	key := e.apiKey()
+	now := store.Millis(testNow)
+	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, quality,
+		score, formats, episodes, progress, state, created_at, updated_at) VALUES
+		(1, 1, 2, 'movie-web', 'f1', 'A.2160p.WEB', 'dmm', 'WEBDL-2160p', 0, NULL, '[]', 40, 'downloading', ?, ?),
+		(2, 2, 3, 'movie-web', 'f2', 'B.2160p.WEB', 'dmm', 'WEBDL-2160p', 0, '[]', '[]', 40, 'downloading', ?, ?),
+		(3, 1, 1, 'movie-remux', 'f3', 'A.2160p.REMUX', 'dmm', 'Remux-2160p', 900, NULL, '[]', 40, 'downloading', ?, ?)`,
+		now, now, now, now, now, now)
+	var q ActivityPage
+	e.getKey(APIBase+"/activity?state=now", key, &q)
+	got := map[int64]string{}
+	for _, x := range q.Now {
+		got[x.ID] = "none"
+		if x.Score != nil {
+			got[x.ID] = itoa(int64(*x.Score))
+		}
+	}
+	if want := map[int64]string{1: "none", 2: "0", 3: "900"}; !maps.Equal(got, want) {
+		t.Errorf("queue scores %v, want %v", got, want)
+	}
+}

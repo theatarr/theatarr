@@ -80,9 +80,10 @@ describe("upgrade words", () => {
     expect(known.preferred).toBe("4K Remux");
     expect(known.reachable).toBe("4K WEB");
     expect(known.evidence).toBe("Known: searches over at least 90 days found nothing above 4K WEB.");
-    expect(known.checked).toBe("Checked 1 d ago; next check 2026-10-27.");
-    expect(known.coverage).toEqual(["2026-09-01: disc-feed, dmm (partial or cached)"]);
-    expect(known.sightings[0]).toContain("Alpha.2160p.WEB-DL");
+    expect(known.checked).toBe("Checked 1 d ago; next check Oct 27.");
+    expect(known.coverage).toEqual(["Sep 1: disc-feed, dmm (partial or cached)"]);
+    // The source in words, its raw key kept for the tooltip; positive-only evidence in plain words.
+    expect(known.sightings[0]).toEqual({ text: "4K WEB · Sonarr/Radarr history: Alpha.2160p.WEB-DL · last seen Jul 1 · seen, not confirmed", source: "arr_history" });
     expect(known.override).toBeUndefined();
     const likely = whyOf({ ...base, state: "best_source_seen", ceiling: { ...ceiling, status: "likely" } }, now);
     expect(likely.headline).toBe("Best quality known");
@@ -98,7 +99,7 @@ describe("upgrade words", () => {
       (id) => (id === 3 ? "Nick" : `user #${id}`),
     );
     expect(manual.evidence).toBe("Set by hand to 4K WEB.");
-    expect(manual.override).toBe("Set to 4K WEB by Nick on 2026-10-20: “No disc exists”.");
+    expect(manual.override).toBe("Set to 4K WEB by Nick on Oct 20: “No disc exists”.");
     // No ceiling: only current against preferred.
     const plain = whyOf({ ...base, state: "below_cutoff" }, now);
     expect(plain.headline).toBe("Best quality known");

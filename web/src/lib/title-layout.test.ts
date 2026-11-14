@@ -65,6 +65,9 @@ describe("readiness", () => {
     expect(readiness("movie", [v({ current: { quality: "1080p" } })], true).label).toBe("Ready to watch in 1080p");
   });
   it("tells complete series from partial ones", () => {
+    // Household: a series copy missing aired episodes is partly ready whatever the library's monitoring (the server
+    // sends its watchability count).
+    expect(readiness("series", [v({ key: "tv", monitored: false, current: { quality: "WEBDL-2160p" }, episodes: { have: 2, total: 3, missing: 1 } })])).toEqual({ label: "2 of 3 episodes ready", tone: "partial" });
     const part = v({ key: "tv-2160p", current: { quality: "WEBDL-2160p" }, episodes: { have: 5, total: 10, missing: 5 } });
     expect(readiness("series", [part])).toEqual({ label: "5 of 10 episodes ready", tone: "partial" });
     const full = v({ key: "anime", current: undefined, upgrade: { state: "below_cutoff", quality: "Bluray-1080p" }, episodes: { have: 12, total: 12, missing: 0 } });

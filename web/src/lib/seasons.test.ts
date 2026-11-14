@@ -84,8 +84,10 @@ describe("season summary", () => {
     expect(seasonSummary(season, [k4, k1], false, true).text).toBe("4 of 6 available · 1 missing · 1 not aired");
     expect(seasonSummary(season, [k4, k1], false).text).toBe("4 of 6 available · 2 missing in 4K · 1 missing in 1080p · 1 not aired");
   });
-  it("counts no missing episode in a library that is not monitored", () => {
+  it("counts no missing episode in a library that is not monitored, for those who see files only", () => {
     expect(seasonSummary(season, [{ ...k4, monitored: false }], true).text).toBe("3 of 6 available · 1 upgrade found · 1 not aired");
+    // Without "see files" it stays watchability: the aired episodes the copy lacks are missing.
+    expect(seasonSummary(season, [{ ...k4, monitored: false }], false).text).toBe("3 of 6 available · 2 missing · 1 not aired");
     expect(seasonSummary(season, [{ ...k4, monitored: false }, k1], true).text).toBe("4 of 6 available · 1 missing in 1080p · 1 upgrade found · 1 not aired");
   });
   it("says when nothing has aired", () => {

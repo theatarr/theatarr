@@ -117,7 +117,7 @@ type StatusOf = { s: Status; label: string; quality?: string; cell?: Cell; upgra
  *  it, and the quality for managers. A gap in a library that is not monitored reads Not monitored. */
 function statusOf(e: Episode, copies: { key: string; monitored?: boolean }[], merged: boolean, seeFiles: boolean): StatusOf {
   const keys = copies.map((v) => v.key);
-  const off = offCopies(copies);
+  const off = seeFiles ? offCopies(copies) : new Set<string>();
   if (merged) {
     const s = mergedStatus(e, keys, off);
     return { s, label: s === "available" && !seeFiles ? plainAvailable(e, keys) : statusWords(s, seeFiles).label, upgrade: mergedUpgrade(e, keys, seeFiles) };
@@ -413,7 +413,7 @@ function LibraryTable({ episodes, copies, anime, manage, seeFiles, selected, onS
                 <div className={cn("font-medium", manage && !on && "text-muted-foreground")}>{e.name || `Episode ${e.number}`}</div>
               </TableCell>
               {columns.map((id) => (
-                <ColumnCell key={id} id={id} e={e} c={c} seeFiles={seeFiles} day={day} off={v?.monitored === false} />
+                <ColumnCell key={id} id={id} e={e} c={c} seeFiles={seeFiles} day={day} off={seeFiles && v?.monitored === false} />
               ))}
               {act || live ? (
                 <TableCell className="pl-0 text-right">
@@ -684,7 +684,7 @@ function SeasonBlock({
 }) {
   const actions = useSeasonActions(titleId, scope);
   const keys = copies.map((v) => v.key);
-  const off = offCopies(copies);
+  const off = seeFiles ? offCopies(copies) : new Set<string>();
   const all = list.episodes.filter((e) => e.season === season.season);
   const merged = layout.columns === "merged";
   const one = layout.columns === "selected" ? copies[0] : undefined;
@@ -892,7 +892,7 @@ export function Seasons({ id, anime, franchises = [] }: { id: string; anime: boo
   const merged = layout.columns === "merged";
   const keys = copies.map((v) => v.key);
   // A collapsed season shows none of its episodes, so it counts as hidden too.
-  const off = offCopies(copies);
+  const off = seeFiles ? offCopies(copies) : new Set<string>();
   const shown = (e: Episode) => opened.includes(e.season) && matchesFilter(e, filters[e.season] ?? "all", keys, seeFiles, merged, off);
   const hidden = new Set(l.episodes.filter((e) => !shown(e)).map((e) => e.id));
   if (ticked.view !== view) setTicked({ view, ids: new Set() });
