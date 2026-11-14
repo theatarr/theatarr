@@ -279,9 +279,15 @@ func (a *Acquirer) fromLastRun(ctx context.Context, t target, l lastRuns, now in
 	return last + wait.Milliseconds(), tries, why, nil
 }
 
+// qualityCutoff says whether Wanted > Cutoff unmet, its Search now and a round's cutoff targets take files below the
+// profile's quality cutoff only (the arrs' Cutoff Unmet): every router.wanted.cutoff_unmet but an explicit score.
+// off only stops the regular cutoff searches (switchOn); what the list shows and Search now searches stays the
+// quality cutoff.
+func (a *Acquirer) qualityCutoff() bool { return a.set.CutoffUnmet != policy.CutoffScore }
+
 // roundSelection is the targets a round looks at for one reason: cutoff with the configured cutoff_unmet mode.
 func (a *Acquirer) roundSelection(active []string, only string, titles []int64) Selection {
-	return Selection{Versions: active, TitleIDs: titles, Only: only, QualityCutoff: a.set.CutoffUnmet == policy.CutoffQuality}
+	return Selection{Versions: active, TitleIDs: titles, Only: only, QualityCutoff: a.qualityCutoff()}
 }
 
 // Round starts the due items of the titles in scope (nil: a full round, which also takes the unscheduled items of

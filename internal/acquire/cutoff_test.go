@@ -1,6 +1,7 @@
 package acquire
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -140,4 +141,51 @@ func sortWords(s string) string {
 	w := strings.Fields(s)
 	slices.Sort(w)
 	return strings.Join(w, " ")
+}
+
+// Wanted > Cutoff unmet lists, and its Search all searches, the quality cutoff in every mode but an explicit score;
+// off no longer falls through to score (it only stops the regular cutoff rounds). The season row of the mixed-quality
+// season goes through roundSelection: in quality mode its asked search is the one episode below the quality cutoff,
+// not the season. The stored states keep the full cutoff whatever the mode.
+func TestWantedCutoffListFollowsMode(t *testing.T) {
+	t.Parallel()
+	const quality, score = "4/movie:movie 10/series:s01e03", "3/movie:movie 4/movie:movie 10/series:s01"
+	for _, tc := range []struct {
+		mode       policy.CutoffMode
+		list, runs string
+	}{
+		{"", quality, "104:movie 201:s01e03"},
+		{policy.CutoffQuality, quality, "104:movie 201:s01e03"},
+		{policy.CutoffOff, quality, "104:movie 201:s01e03"},
+		{policy.CutoffScore, score, "103:movie 104:movie 201:s01"},
+	} {
+		e := newEnv(t, true, &policy.Wanted{PerHour: 100, Missing: new(false), CutoffUnmet: tc.mode})
+		cutoffFixture(t, e)
+		l, err := e.a.WantedList(e.ctx, WantedQuery{Only: OnlyCutoff})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var got []string
+		for _, r := range l.Items {
+			got = append(got, fmt.Sprintf("%d/%s:%s", r.TitleID, r.Version, strings.Join(r.Targets, ",")))
+		}
+		if g := sortWords(strings.Join(got, " ")); g != sortWords(tc.list) || l.Total != len(got) {
+			t.Errorf("cutoff_unmet %q: lists %s (total %d), want %s", tc.mode, g, l.Total, sortWords(tc.list))
+		}
+		if _, err := e.a.RequestSearchNowAll(e.ctx, WantedQuery{Only: OnlyCutoff}); err != nil {
+			t.Fatal(err)
+		}
+		if got := e.runs(); got != sortWords(tc.runs) {
+			t.Errorf("cutoff_unmet %q: Search all searched %s, want %s", tc.mode, got, sortWords(tc.runs))
+		}
+		var states string
+		if err := e.st.Reader().QueryRowContext(e.ctx, `SELECT (SELECT group_concat(state) FROM (SELECT state FROM
+			version WHERE id IN (103, 104) ORDER BY id)) || '/' || (SELECT group_concat(state) FROM (SELECT state FROM
+			episode_version_state WHERE version_id = 201 AND episode_id IN (1002, 1003) ORDER BY episode_id))`).Scan(&states); err != nil {
+			t.Fatal(err)
+		}
+		if states != "filled,filled/filled,filled" {
+			t.Errorf("cutoff_unmet %q: states %s, want the full cutoff's filled", tc.mode, states)
+		}
+	}
 }

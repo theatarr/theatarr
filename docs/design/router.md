@@ -1511,7 +1511,8 @@ The schedule paces by `per_hour` and the router by provider pacing only; there i
     `EpisodeCutoffService.EpisodesWhereCutoffUnmet`, used by `CutoffUnmetMoviesSearch` and
     `CutoffUnmetEpisodeSearch`. They select by quality only (`BuildQualityCutoffWhereClause`).
   - `score` searches every `filled` file, also one at the cutoff quality but below `cutoff_score`.
-  - `off` searches no file for an upgrade.
+  - `off` searches no file for an upgrade by itself. Wanted > Cutoff unmet still lists, and its Search now and
+    Search all still search, what `quality` takes: only `score` widens that list.
   - `true` and `false`, the earlier schema, still load as `quality` and `off`; anything else fails validation.
 - Only the schedule's selection changes. Version and episode states (`filled` while below the quality or the score
   cutoff), feeds and every upgrade decision keep the full cutoff, as the arrs' RSS sync and searches do

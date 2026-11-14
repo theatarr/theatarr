@@ -195,8 +195,8 @@ type Selection struct {
 	// Only is "" (every monitored item: MoviesSearch, SeriesSearch, SeasonSearch, EpisodeSearch), OnlyMissing or
 	// OnlyCutoff.
 	Only string
-	// QualityCutoff narrows OnlyCutoff to files below the profile's quality cutoff (router.wanted.cutoff_unmet:
-	// quality), as the arrs' cutoff-unmet search selects. Without it OnlyCutoff takes every item below the full
+	// QualityCutoff narrows OnlyCutoff to files below the profile's quality cutoff (router.wanted.cutoff_unmet: any
+	// but score), as the arrs' cutoff-unmet search selects. Without it OnlyCutoff takes every item below the full
 	// cutoff (state filled).
 	QualityCutoff bool
 	userInvoked   bool

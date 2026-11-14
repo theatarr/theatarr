@@ -119,7 +119,8 @@ const (
 	CutoffQuality CutoffMode = "quality"
 	// CutoffScore searches every file below the full cutoff (state filled): also those below the cutoff score.
 	CutoffScore CutoffMode = "score"
-	// CutoffOff searches no file for an upgrade.
+	// CutoffOff searches no file for an upgrade by itself. Wanted > Cutoff unmet and its Search now keep the quality
+	// cutoff (acquire's qualityCutoff: only score widens them).
 	CutoffOff CutoffMode = "off"
 )
 

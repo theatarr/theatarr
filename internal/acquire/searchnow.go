@@ -255,7 +255,7 @@ func (a *Acquirer) askedDue(ctx context.Context) (int, error) {
 
 func (a *Acquirer) searchNowSelection(titleID int64, key, reason string, season int) Selection {
 	sel := Selection{Versions: []string{key}, TitleIDs: []int64{titleID}, Only: reason,
-		QualityCutoff: a.set.CutoffUnmet == policy.CutoffQuality}
+		QualityCutoff: a.qualityCutoff()}
 	if season >= 0 {
 		sel.Season = &season
 	}

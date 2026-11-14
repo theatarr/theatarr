@@ -154,7 +154,7 @@ func (a *Acquirer) wantedRows(ctx context.Context, q WantedQuery, out *WantedLis
 	if err != nil {
 		return nil, err
 	}
-	ts, err := a.targets(ctx, Selection{Versions: versions, Only: q.Only, QualityCutoff: a.set.CutoffUnmet == policy.CutoffQuality})
+	ts, err := a.targets(ctx, Selection{Versions: versions, Only: q.Only, QualityCutoff: a.qualityCutoff()})
 	if err != nil {
 		return nil, err
 	}
@@ -326,7 +326,7 @@ func (a *Acquirer) NextSearches(ctx context.Context, titleID int64) ([]NextSearc
 	var out []NextSearch
 	for _, only := range []string{OnlyMissing, OnlyCutoff} {
 		ts, err := a.targets(ctx, Selection{Versions: versions, TitleIDs: []int64{titleID}, Only: only,
-			QualityCutoff: a.set.CutoffUnmet == policy.CutoffQuality})
+			QualityCutoff: a.qualityCutoff()})
 		if err != nil {
 			return nil, err
 		}
