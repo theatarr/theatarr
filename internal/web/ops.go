@@ -708,6 +708,9 @@ type RemovalCopy struct {
 	// whose records end (the provider's copies are left alone).
 	Links     int `json:"links"`
 	Downloads int `json:"downloads"`
+	// ArrFiles are Sonarr's or Radarr's own files of the copy (its version_file paths that are no library symlink of
+	// Theatarr's): a removal leaves them in place whatever its choices ("Sonarr's or Radarr's own file stays").
+	ArrFiles int `json:"arr_files,omitempty"`
 }
 
 // RemovalScope is what removing copies (or the whole title) would do: GET /titles/{id}/removal?versions=.
@@ -735,12 +738,14 @@ func (w *Web) removalScope(ctx context.Context, titleID int64, keys []string) (*
 	err = scanAll(ctx, w.st.Reader(), `SELECT v.policy_key,
 		(SELECT COUNT(*) FROM link l JOIN link_version lv ON lv.link_id = l.id WHERE lv.version_id = v.id
 			AND l.state = 'active' AND l.kind = 'symlink'),
-		(SELECT COUNT(*) FROM download d WHERE d.version_id = v.id AND d.state NOT IN ('failed', 'imported'))
+		(SELECT COUNT(*) FROM download d WHERE d.version_id = v.id AND d.state NOT IN ('failed', 'imported')),
+		(SELECT COUNT(DISTINCT vf.path) FROM version_file vf WHERE vf.version_id = v.id
+			AND NOT EXISTS (SELECT 1 FROM link l WHERE l.path = vf.path AND l.kind = 'symlink' AND l.state IN ('active', 'dead')))
 		FROM version v WHERE v.title_id = ?
 		AND NOT EXISTS (SELECT 1 FROM arrview_removed_version r WHERE r.version_id = v.id) ORDER BY v.policy_key`,
 		[]any{titleID}, func(r *sql.Rows) error {
 			var c RemovalCopy
-			if err := r.Scan(&c.Key, &c.Links, &c.Downloads); err != nil {
+			if err := r.Scan(&c.Key, &c.Links, &c.Downloads, &c.ArrFiles); err != nil {
 				return err
 			}
 			all = append(all, c.Key)

@@ -523,7 +523,8 @@ func TestUnblock(t *testing.T) {
 	}
 }
 
-// TestRemoveCopiesAndTitle: the removal scope names each copy with its links and downloads; a copy an arr still
+// TestRemoveCopiesAndTitle: the removal scope names each copy with its links, downloads and Sonarr's or Radarr's own
+// files; a copy an arr still
 // owns is refused; removing a copy hides and unmonitors it, ends its downloads in hand in Theatarr's records only, and
 // with unlink sends its symlinks to Ops (the gate decides); without unlink nothing on disk changes. Removing every
 // copy removes the title.
@@ -566,7 +567,9 @@ func TestRemoveCopiesAndTitle(t *testing.T) {
 	}
 
 	if code := o.jsonCall("GET", APIBase+"/titles/2/removal", nil, o.mc, "", &scope); code != 200 || !scope.Title ||
-		len(scope.Copies) != 1 || scope.Copies[0].Links != 1 || scope.Copies[0].Downloads != 1 {
+		len(scope.Copies) != 1 || scope.Copies[0].Links != 1 || scope.Copies[0].Downloads != 1 ||
+		scope.Copies[0].ArrFiles != 1 {
+		// ArrFiles: the radarr file at /movies, which stays whatever the choices.
 		t.Fatalf("Beta scope: %d %+v", code, scope)
 	}
 	// Beta's only copy is owned by radarr_4k_web, which the example policy does not import: removable.

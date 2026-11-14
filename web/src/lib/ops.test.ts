@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   endedByRemoval,
   failedDownloadId,
+  arrFilesStay,
+  leftoverOnly,
   grabScope,
   leftoverLinks,
   removalLinks,
@@ -92,7 +94,7 @@ describe("recovery scopes", () => {
     // The torrents cannot go while the files are kept.
     expect(removalScope(one, false, true).does).toEqual(keep.does);
     const both = removalScope(one, true, true);
-    expect(both.does).toContain("2 library files are deleted from the library (moved to Theatarr's trash), with the folders left empty");
+    expect(both.does).toContain("2 library files are deleted from the library (moved to Theatarr's trash), and the folders they leave empty are removed");
     expect(both.does).toContain("Its debrid torrents are deleted from the providers, after a backup, unless another title or library in Theatarr uses them");
     expect(both.keeps).toEqual([
       "A file another library of the title uses stays",
@@ -106,6 +108,16 @@ describe("recovery scopes", () => {
     expect(filesOnly.does).not.toContain(both.does.at(-1));
     expect(filesOnly.keeps).toContain("Its debrid torrents stay");
     expect(filesOnly.cleanup).toBeDefined();
+    // Sonarr's or Radarr's own files stay whatever the choices: one line under what stays.
+    const arr = { ...one, copies: [{ ...one.copies[0], arr_files: 24 }] };
+    expect(removalScope(arr, true).keeps).toEqual([
+      "A file another library of the title uses stays",
+      "24 files that Sonarr or Radarr manages stay",
+      "Its history stays",
+      "Import lists will not restore the removed libraries; add it yourself to bring it back",
+    ]);
+    expect(removalScope(arr, false).keeps).toContain("24 files that Sonarr or Radarr manages stay");
+    expect(arrFilesStay(1)).toBe("1 file that Sonarr or Radarr manages stays");
   });
 
   it("scopes a title removal", () => {
@@ -122,6 +134,8 @@ describe("recovery scopes", () => {
     expect(s.does[0]).toBe("Dune is removed from every library it is in (4K Remux, 4K WEB): it stops being wanted, searched or upgraded there");
     expect(s.confirm).toBe("Remove title");
     expect(s.blocked).toBeUndefined();
+    // No library of the title stays, so no file is shared with one.
+    expect(s.keeps).not.toContain("A file another library of the title uses stays");
     expect(removalScope({ name: "X", title: false, copies: [] }, false).blocked).toBe("Nothing to remove");
   });
 
@@ -136,9 +150,13 @@ describe("recovery scopes", () => {
     ]);
     expect(removalScope({ name: "Dune", title: false, copies: [], leftover: [left] }, true, false).keeps).toContain("Its debrid torrents stay");
     expect(removalScope({ name: "Dune", title: false, copies: [], leftover: [left] }, false).blocked).toBe("Nothing to do: the files are kept");
+    expect(s.keeps).toContain("A file another library of the title uses stays");
+    // The kept files of a title in no library: no library is left to share one.
+    expect(removalScope({ name: "Dune", title: false, copies: [], leftover: [left] }, true, true, true).keeps).not.toContain("A file another library of the title uses stays");
+    expect(leftoverOnly({ name: "Dune", title: false, copies: [], leftover: [left] })).toBe(true);
     const one = { name: "Dune", title: true, copies: [{ key: "movie-remux", label: "4K Remux", links: 1, downloads: 0 }], leftover: [left] };
     expect(removalLinks(one)).toBe(3);
-    expect(removalScope(one, true).does).toContain("3 library files are deleted from the library (moved to Theatarr's trash), with the folders left empty");
+    expect(removalScope(one, true).does).toContain("3 library files are deleted from the library (moved to Theatarr's trash), and the folders they leave empty are removed");
     expect(removalScope(one, false).keeps).toContain("1 library file stays linked and playable");
   });
 

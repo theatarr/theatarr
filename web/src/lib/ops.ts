@@ -124,7 +124,7 @@ export function unblockScope(release: string, copy: string, search: boolean): Sc
 
 // ---- Copies, titles and files ----
 
-export type RemovalCopyLike = { key: string; label: string; links: number; downloads: number };
+export type RemovalCopyLike = { key: string; label: string; links: number; downloads: number; arr_files?: number };
 /** leftover: copies removed before whose library links are still active (an earlier removal's failed moves). */
 export type RemovalScopeLike = { name: string; title: boolean; copies: RemovalCopyLike[]; leftover?: RemovalCopyLike[] };
 
@@ -133,19 +133,32 @@ export function removalLinks(s: RemovalScopeLike): number {
   return [...s.copies, ...(s.leftover ?? [])].reduce((n, c) => n + c.links, 0);
 }
 
+/** Whether a removal only deletes the files libraries removed before kept (the Delete files… dialog): no copy to
+ *  remove, so deleting the files is the point and not a choice. */
+export function leftoverOnly(s: RemovalScopeLike): boolean {
+  return s.copies.length === 0 && (s.leftover ?? []).some((c) => c.links > 0);
+}
+
+/** "24 files that Sonarr or Radarr manages stay": their own files, which a removal leaves in place whatever its choices. */
+export function arrFilesStay(n: number): string {
+  return `${plural(n, "file")} that Sonarr or Radarr manages ${n === 1 ? "stays" : "stay"}`;
+}
+
 /** The torrent clean-up a removal does with "Delete it from the debrid providers", and its guard. */
 export const REMOVAL_CLEANUP = "Its debrid torrents are deleted from the providers, after a backup, unless another title or library in Theatarr uses them";
 export const REMOVAL_LISTS = "Import lists will not restore the removed libraries; add it yourself to bring it back";
 /** Why "Delete it from the debrid providers" is off while the files are kept. */
 export const REMOVAL_DEBRID_NEEDS_FILES = "Deleting the torrents needs the files deleted too: kept files would stop playing";
+const SHARED_FILE_STAYS = "A file another library of the title uses stays";
 
 /** The removal dialog's scope. files: "Delete the files"; debrid: "Delete it from the debrid providers" (only with
- *  files). */
-export function removalScope(s: RemovalScopeLike, files: boolean, debrid = files): Scope {
+ *  files). gone: the title is in no library (the kept-files line of a removed title), so no other library can share
+ *  a file. */
+export function removalScope(s: RemovalScopeLike, files: boolean, debrid = files, gone = false): Scope {
   debrid = files && debrid;
   const leftover = (s.leftover ?? []).reduce((n, c) => n + c.links, 0);
   const torrents = debrid ? [] : ["Its debrid torrents stay"];
-  if (s.copies.length === 0 && leftover > 0) {
+  if (leftoverOnly(s)) {
     // Only the files libraries removed before kept: deleting them takes their torrents along when asked, with the
     // same guard.
     return {
@@ -154,13 +167,14 @@ export function removalScope(s: RemovalScopeLike, files: boolean, debrid = files
         `${plural(leftover, "library file")} of removed libraries ${leftover === 1 ? "is" : "are"} deleted from the library (moved to Theatarr's trash)`,
         ...(debrid ? [REMOVAL_CLEANUP] : []),
       ],
-      keeps: ["A file another library of the title uses stays", ...torrents, "The libraries stay removed; its history stays"],
+      keeps: [...(gone ? [] : [SHARED_FILE_STAYS]), ...torrents, "The libraries stay removed; its history stays"],
       confirm: "Delete files",
       cleanup: debrid ? undefined : UNUSED_TORRENTS,
       blocked: files ? undefined : "Nothing to do: the files are kept",
     };
   }
   const links = s.copies.reduce((n, c) => n + c.links, 0) + (files ? leftover : 0);
+  const arr = s.copies.reduce((n, c) => n + (c.arr_files ?? 0), 0);
   const downloads = s.copies.reduce((n, c) => n + c.downloads, 0);
   const names = s.copies.map((c) => c.label).join(", ");
   const does: string[] = [];
@@ -168,12 +182,14 @@ export function removalScope(s: RemovalScopeLike, files: boolean, debrid = files
   else does.push(`${s.name} is removed from ${names}: ${s.copies.length === 1 ? "this copy stops" : "these copies stop"} being wanted, searched or upgraded`);
   does.push(`${s.title ? "It is" : s.copies.length === 1 ? "It is" : "They are"} hidden from Seerr and the other arr clients`);
   if (downloads > 0) does.push(`Theatarr stops following ${plural(downloads, "download")} in progress`);
-  if (files && links > 0) does.push(`${plural(links, "library file")} ${links === 1 ? "is" : "are"} deleted from the library (moved to Theatarr's trash), with the folders left empty`);
+  if (files && links > 0) does.push(`${plural(links, "library file")} ${links === 1 ? "is" : "are"} deleted from the library (moved to Theatarr's trash), and the folders they leave empty are removed`);
   if (debrid) does.push(REMOVAL_CLEANUP);
   const keeps = [
+    // A file can be shared only with a library the title stays in.
     ...(files
-      ? ["A file another library of the title uses stays"]
+      ? s.title ? [] : [SHARED_FILE_STAYS]
       : links === 0 ? [] : [`${plural(links, "library file")} ${links === 1 ? "stays" : "stay"} linked and playable`]),
+    ...(arr > 0 ? [arrFilesStay(arr)] : []),
     ...torrents,
     "Its history stays",
     REMOVAL_LISTS,
