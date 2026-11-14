@@ -102,7 +102,12 @@ export function cacheSourceWords(src: string | null | undefined): string {
   return CACHE_SOURCES[head] ?? wordsFor({}, src).toLowerCase();
 }
 
-const BACKOFF_KINDS: Record<string, string> = { provider: "Provider", indexer: "Indexer", budget: "Request budget", metadata: "Metadata source" };
+const BACKOFF_KINDS: Record<string, string> = {
+  provider: "Provider",
+  indexer: "Indexer",
+  budget: "Request budget",
+  metadata: "Metadata source",
+};
 
 /** A gateway back-off's subject as a sentence: "indexer:nyaa" → "Indexer nyaa is backed off". */
 export function backoffWords(subject: string | null | undefined): string {

@@ -120,8 +120,7 @@ func TestActivityMatchesQueue(t *testing.T) {
 	for _, h := range hist.History {
 		kinds[h.Kind+":"+h.Words] = true
 	}
-	for _, k := range []string{"stall:Download stalled and was dropped", "failure:Download failed",
-		"grab:Found a release"} {
+	for _, k := range []string{"stall:Failed", "failure:Failed", "grab:Grabbed"} {
 		if !kinds[k] {
 			t.Errorf("history lacks %s: %v", k, kinds)
 		}

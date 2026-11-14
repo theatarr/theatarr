@@ -33,6 +33,9 @@ func init() {
 	for _, tb := range strings.Fields(`router_offer notify_event router_blocklist journal_action journal_verdict torrent_journal provider_copy_event`) {
 		keptByDesign[tb] = "kept by design (package comment, journal): a memory or record that must not be forgotten"
 	}
+	for _, tb := range strings.Fields(`provider_hash_usage provider_torrent provider_torrent_read`) {
+		keptByDesign[tb] = "a record replaced at each provider read, not history that grows without bound"
+	}
 	keptByDesign["arr_frozen_input"] = "arr snapshots kept for FreezeStored; a later migration drops the table"
 	for _, tb := range strings.Fields(`release decision`) {
 		keptByDesign[tb] = "from the first schema; nothing writes it"

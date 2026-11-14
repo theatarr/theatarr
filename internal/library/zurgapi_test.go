@@ -264,7 +264,7 @@ func TestDanglingReportNoVideo(t *testing.T) {
 		}
 	}
 	res := health.Dangling(e.st)(e.ctx)
-	if res.Type != health.Notice || !strings.Contains(res.Message, "2 of 3 links") ||
+	if res.Type != health.Notice || !strings.Contains(res.Message, "2 dangling links in the libraries") ||
 		!strings.Contains(res.Message, "1 of them: "+ReasonNoVideo) {
 		t.Errorf("health %+v", res)
 	}
