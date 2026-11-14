@@ -210,7 +210,16 @@ func TestRemovalCancelsRequests(t *testing.T) {
 	if vs := rs.Items[0].Versions; len(vs) != 1 || vs[0].Key != "movie-remux" || !vs[0].Available {
 		t.Errorf("request 202 libraries: %+v", vs)
 	}
-	// Asking for the removed library again is a new request, not one absorbed by 202.
+	// The scope is stored: 202 asks for remux alone now.
+	var vs string
+	if err := o.st.Reader().QueryRow(`SELECT versions FROM request WHERE id = 202`).Scan(&vs); err != nil ||
+		vs != `["movie-remux"]` {
+		t.Errorf("202 versions %s %v", vs, err)
+	}
+	// 202 still waiting for remux (an approved request that would have taken web in): asking for the removed library
+	// again is a new request, not one absorbed by 202.
+	o.exec(`UPDATE version SET state = 'wanted' WHERE id = 1`)
+	o.exec(`UPDATE request SET status = 'approved' WHERE id = 202`)
 	o.exec(`DELETE FROM request WHERE id = 203`)
 	var cr CreateResult
 	if code := o.jsonCall("POST", APIBase+"/requests", CreateRequest{Kind: "movie", TitleID: 1,
@@ -219,6 +228,15 @@ func TestRemovalCancelsRequests(t *testing.T) {
 	}
 	if cr.Request.ID == 202 || cr.Request.ID == 201 {
 		t.Errorf("merged into %d", cr.Request.ID)
+	}
+	// Adding web back does not bring it into 202 again.
+	if code := o.jsonCall("PUT", APIBase+"/titles/1/versions/movie-web", map[string]bool{"monitored": true}, o.mc,
+		o.mcsrf, nil); code != 200 {
+		t.Fatalf("add web again: %d", code)
+	}
+	if err := o.st.Reader().QueryRow(`SELECT versions FROM request WHERE id = 202`).Scan(&vs); err != nil ||
+		vs != `["movie-remux"]` {
+		t.Errorf("202 versions after the add %s %v", vs, err)
 	}
 }
 
@@ -244,6 +262,26 @@ func TestReAddRemovedTitleTakesNewTitleChoices(t *testing.T) {
 	}
 	if n := o.count(`SELECT COUNT(*) FROM arrview_removed_version WHERE version_id = 9`); n != 0 {
 		t.Errorf("still removed")
+	}
+	// A removed film once anime, added back as not anime: the options and the add go by that choice.
+	o.exec(`UPDATE title SET anime = 1 WHERE id = 2`)
+	o.exec(`INSERT INTO arrview_removed_version (version_id, view, removed_at) VALUES (3, 'ui', 0)`)
+	var opts AddOptions
+	o.jsonCall("GET", APIBase+"/add/options?title_id=2&anime=0", nil, ac, "", &opts)
+	for _, v := range opts.Versions {
+		if v.Default && v.Anime != nil && *v.Anime {
+			t.Errorf("anime library offered: %+v", v)
+		}
+	}
+	if code := o.jsonCall("POST", APIBase+"/titles", map[string]any{"title_id": 2, "kind": "movie", "anime": false},
+		ac, acsrf, nil); code != 200 && code != 201 {
+		t.Fatalf("re-add film: %d", code)
+	}
+	if n := o.count(`SELECT COUNT(*) FROM version WHERE title_id = 2 AND policy_key = 'anime-movie'`); n != 0 {
+		t.Errorf("an anime library was chosen")
+	}
+	if n := o.count(`SELECT COUNT(*) FROM title WHERE id = 2 AND anime = 0`); n != 1 {
+		t.Errorf("anime flag kept")
 	}
 	// Now in the library: a monitor preset would rewrite its copies' monitoring.
 	if code := o.jsonCall("POST", APIBase+"/titles", body, ac, acsrf, nil); code != 400 {
@@ -284,5 +322,27 @@ func TestRemovedCopyIsNotActionable(t *testing.T) {
 	}
 	if len(o.ops.grabs) != 0 {
 		t.Errorf("grabbed %+v", o.ops.grabs)
+	}
+}
+
+// A broken symlink is not unlinked (yet): a removal that deleted the copy's other file says one was left in place.
+func TestRemovalCountsBrokenLinkAsLeft(t *testing.T) {
+	t.Parallel()
+	o := newOpsEnv(t)
+	now := store.Millis(testNow)
+	o.exec(`INSERT INTO link (id, path, target, kind, title_id, state, created_at, updated_at) VALUES
+		(5, '/lib/Beta/a.mkv', '/mnt/zurg/a.mkv', 'symlink', 2, 'active', ?, ?),
+		(7, '/lib/Beta/b.mkv', '/mnt/zurg/b.mkv', 'symlink', 2, 'dead', ?, ?)`, now, now, now, now)
+	o.exec(`INSERT INTO link_version (link_id, version_id) VALUES (5, 3), (7, 3)`)
+	if code := o.jsonCall("POST", APIBase+"/titles/2/remove", RemoveRequest{Unlink: true}, o.mc, o.mcsrf, nil); code != 200 {
+		t.Fatalf("remove: %d", code)
+	}
+	acts := o.actions()
+	if len(acts) == 0 || acts[0].Action != journal.ActRemoveTitle {
+		t.Fatalf("actions %+v", acts)
+	}
+	if rm := journal.ParseRemovalDetail(acts[0].Detail); rm.Files != journal.RemovalFilesPartial || rm.Left != 1 ||
+		rm.Reason != "broken link" {
+		t.Errorf("outcome %q", acts[0].Detail)
 	}
 }
