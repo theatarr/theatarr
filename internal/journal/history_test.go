@@ -1,6 +1,7 @@
 package journal
 
 import (
+	"context"
 	"fmt"
 	"slices"
 	"strings"
@@ -9,8 +10,7 @@ import (
 )
 
 // row is one History row in brief: event, release, quality, score, episodes and what replaced it.
-func histRow(e *Entry) string {
-	h := e.Hist
+func histRow(h *HistoryRow) string {
 	s := h.Event
 	if r := h.Release; r != nil {
 		s += " " + r.Title + " " + r.Quality
@@ -37,9 +37,12 @@ func histRow(e *Entry) string {
 
 func (e *env) history(f Filter) []string {
 	e.t.Helper()
-	f.History = true
+	p, err := e.j.History(context.Background(), f)
+	if err != nil {
+		e.t.Fatal(err)
+	}
 	var out []string
-	for _, x := range e.list(f).Items {
+	for _, x := range p.Items {
 		out = append(out, histRow(x))
 	}
 	return out
@@ -158,8 +161,48 @@ func TestHistoryRows(t *testing.T) {
 	}
 	// The journal itself still lists every link action, and no copy.
 	for _, x := range e.list(Filter{Title: "1"}).Items {
-		if strings.HasPrefix(x.ID, "copy:") || x.Hist != nil {
-			t.Errorf("journal entry %s: %+v", x.ID, x.Hist)
+		if strings.HasPrefix(x.ID, "copy:") {
+			t.Errorf("journal entry %s", x.ID)
 		}
+	}
+}
+
+// An import lists the episodes its links hold, not the ones asked for; a download that never reached a provider is
+// no grab (only its failure shows).
+func TestHistoryImportEpisodesAndNeverStarted(t *testing.T) {
+	e := newEnv(t)
+	at := testNow.Add(-time.Hour)
+	e.dlEvent(40, "imported", at, 3, 3, "tv-2160p", hashA, "Gamma.S01E01-E04.WEB", "WEBDL-2160p", 1000, 4<<30,
+		[]int64{101, 102, 103, 104}, "")
+	e.exec(`INSERT INTO library_import (download_id, state, mount_folder, plan, created_at, updated_at)
+		VALUES (40, 'linked', '/m/G', '{}', ?, ?)`, msOf(at.Add(time.Minute)), msOf(at.Add(time.Minute)))
+	for i, ep := range []int64{102, 103} {
+		id := int64(70 + i)
+		e.exec(`INSERT INTO link (id, path, target, title_id, download_id, state, created_at, updated_at)
+			VALUES (?, ?, '/t', 3, 40, 'active', 0, 0)`, id, fmt.Sprintf("/tv/G/%d.mkv", ep))
+		e.exec(`INSERT INTO link_episode (link_id, episode_id) VALUES (?, ?)`, id, ep)
+		e.exec(`INSERT INTO library_action (at, kind, mode, version_key, download_id, link_id, path) VALUES
+			(?, 'link', 'applied', 'tv-2160p', 40, ?, '/p')`, msOf(at.Add(time.Minute)), id)
+	}
+	e.dlEvent(41, "failed", at.Add(2*time.Minute), 1, 2, "movie-web", hashB, "Alpha.Never.Started", "WEBDL-2160p", 0,
+		1<<30, nil, "route ended: router: router.enabled is false")
+	e.exec(`UPDATE download SET added_at = NULL WHERE id = 41`)
+	got := e.history(Filter{})
+	want := []string{
+		"failed Alpha.Never.Started WEBDL-2160p (route ended: router: router.enabled is false)",
+		"imported Gamma.S01E01-E04.WEB WEBDL-2160p 1000 [S01E02,S01E03]",
+		"grabbed Gamma.S01E01-E04.WEB WEBDL-2160p 1000 [S01E01,S01E02,S01E03,S01E04]",
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("rows:\n got %q\nwant %q", got, want)
+	}
+	// Paging: one row a page, each page after the last.
+	p, err := e.j.History(context.Background(), Filter{Limit: 1})
+	if err != nil || len(p.Items) != 1 || p.NextCursor == "" {
+		t.Fatalf("page 1: %+v %v", p, err)
+	}
+	p2, err := e.j.History(context.Background(), Filter{Limit: 2, Cursor: p.NextCursor})
+	if err != nil || len(p2.Items) != 2 || p2.NextCursor != "" || p2.Items[0].Event != EvImported {
+		t.Fatalf("page 2: %+v %v", p2, err)
 	}
 }

@@ -145,6 +145,8 @@ type Filter struct {
 	Limit int
 	// ScanLimit caps how many entries one page may build while looking for suspect ones: default 2000.
 	ScanLimit int
+	// Events keeps these History events (History only, history.go).
+	Events []string
 }
 
 // Page is one page of entries, newest first.
@@ -234,10 +236,8 @@ const failureRunSQL = `(` + router.FailureResearchSQL + `)`
 const runHeadSQL = `SELECT 'run:' || r.id AS id, r.created_at AS at, r.title_id, r.version_key,
 	CASE WHEN ` + failureRunSQL + ` THEN 'research' ELSE 'search' END AS kind FROM acquire_run r`
 
-// headParts are every source's entries as (id, at, title_id, version_key, kind), by id prefix.
-var headParts = []struct{ prefix, sql string }{
-	{"dl", `SELECT 'dl:' || d.id, d.created_at, d.title_id, d.version_key,
-	CASE WHEN EXISTS (SELECT 1 FROM version_file vf WHERE vf.version_id = d.version_id
+// grabKindSQL is a download's kind (alias d): upgrade when the version already had a file of its episodes, else grab.
+const grabKindSQL = `CASE WHEN EXISTS (SELECT 1 FROM version_file vf WHERE vf.version_id = d.version_id
 			AND COALESCE(vf.added_at, 0) < d.created_at
 			AND (d.episodes = '[]' OR EXISTS (SELECT 1 FROM version_file_episode vfe WHERE vfe.version_file_id = vf.id
 				AND vfe.episode_id IN (SELECT value FROM json_each(d.episodes)))))
@@ -245,8 +245,11 @@ var headParts = []struct{ prefix, sql string }{
 			AND p.state = 'imported' AND p.imported_at < d.created_at
 			AND (d.episodes = '[]' OR EXISTS (SELECT 1 FROM json_each(p.episodes) pe
 				WHERE pe.value IN (SELECT value FROM json_each(d.episodes)))))
-	THEN 'upgrade' ELSE 'grab' END
-FROM download d`},
+	THEN 'upgrade' ELSE 'grab' END`
+
+// headParts are every source's entries as (id, at, title_id, version_key, kind), by id prefix.
+var headParts = []struct{ prefix, sql string }{
+	{"dl", `SELECT 'dl:' || d.id, d.created_at, d.title_id, d.version_key, ` + grabKindSQL + ` FROM download d`},
 	{"dl", `SELECT 'dl:' || d.id || ':fail', d.updated_at, d.title_id, d.version_key,
 	CASE WHEN d.error LIKE 'stalled%' THEN 'stall' ELSE 'failure' END
 FROM download d WHERE d.state = 'failed'`},
