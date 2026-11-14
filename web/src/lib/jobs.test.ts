@@ -27,7 +27,8 @@ describe("jobs", () => {
   it("friendly names keep unknown kinds as they are", () => {
     expect(jobName("provider.sync")).toBe("Sync debrid holdings");
     expect(jobName("db.nightly")).toBe("Nightly database backup");
-    expect(jobName("new.kind")).toBe("new.kind");
+    expect(jobName("new.kind")).toBe("New kind");
+    expect(jobName("router.copy")).toBe("Add a torrent to another provider");
     expect(jobName(undefined)).toBe("Job");
     expect(jobEffect("plex.scan")).not.toBe("");
     expect(jobEffect("new.kind")).toBe("");

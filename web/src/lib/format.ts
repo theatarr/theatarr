@@ -24,8 +24,8 @@ export function fmtPercent(r: number | null | undefined, digits = 1): string {
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-/** "Oct 26 18:24" in local time; with the year when it is not the current one. */
-export function fmtTime(iso: string | null | undefined, now: Date = new Date()): string {
+/** "Oct 26 18:24" in local time; with the year when it is not the current one. A number is milliseconds. */
+export function fmtTime(iso: string | number | null | undefined, now: Date = new Date()): string {
   if (!iso) return "—";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime()) || d.getFullYear() < 1971) return "—";
@@ -89,4 +89,51 @@ export function fmtRate(requests: number | undefined, per: string | undefined): 
   if (!requests) return "—";
   const p = fmtGoDuration(per);
   return `${requests} / ${p.replace(/^1 /, "")}`;
+}
+
+/** "1 title", "2 titles", "1,128 titles": the count through fmtNumber and the noun in the number it needs. many
+ *  defaults to one + "s". */
+export function plural(n: number, one: string, many: string = `${one}s`): string {
+  return `${fmtNumber(n)} ${pluralWord(n, one, many)}`;
+}
+
+/** The word alone, for a verb or a noun the count is not printed with: pluralWord(1, "matches", "match"). */
+export function pluralWord(n: number, one: string, many: string = `${one}s`): string {
+  return n === 1 ? one : many;
+}
+
+/** The name with its year in brackets, "Alien (1979)"; once only when the name already ends with that year, as
+ *  "Foundation (2021)" does. A different year at the end ("Dune (1984)" of 2021) is kept and the year added. */
+export function titleWithYear(name: string | null | undefined, year?: number | null): string {
+  const n = nameWithoutYear(name, year);
+  return year ? `${n} (${year})` : n;
+}
+
+/** The name without a trailing "(year)" equal to year: for a screen that shows the year beside or under the name. */
+export function nameWithoutYear(name: string | null | undefined, year?: number | null): string {
+  const n = name ?? "";
+  if (!year) return n;
+  const tail = ` (${year})`;
+  return n.endsWith(tail) && n.length > tail.length ? n.slice(0, -tail.length) : n;
+}
+
+/** "Oct 27, 2025" for a YYYY-MM-DD (or the day part of a timestamp), always with the year: for a list whose dates
+ *  span more than one year (dayFormatter). */
+export function fmtDayYear(d: string | null | undefined): string {
+  if (!d) return "—";
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d);
+  if (!m) return d;
+  return `${MONTHS[Number(m[2]) - 1]} ${Number(m[3])}, ${m[1]}`;
+}
+
+/** The day format for one list: "Oct 27" when every date is in the current year, else every date with its year, so
+ *  "Jan 1" never follows "Dec 25, 2025". */
+export function dayFormatter(dates: readonly (string | null | undefined)[], now: Date = new Date()): (d: string | null | undefined) => string {
+  const y = String(now.getFullYear());
+  const mixed = dates.some((d) => !!d && /^\d{4}-/.test(d) && d.slice(0, 4) !== y);
+  if (mixed) return fmtDayYear;
+  return (d) => {
+    const s = fmtDayYear(d);
+    return s.endsWith(`, ${y}`) ? s.slice(0, -`, ${y}`.length) : s;
+  };
 }

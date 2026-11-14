@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { fmtAgo, fmtBytes, fmtDuration, fmtGoDuration, fmtPercent, fmtRate, fmtTime, localDay } from "./format";
+import { dayFormatter, fmtAgo, fmtBytes, fmtDayYear, fmtDuration, fmtGoDuration, fmtPercent, fmtRate, fmtTime, localDay, nameWithoutYear, plural, pluralWord, titleWithYear } from "./format";
 
 describe("format", () => {
   const now = new Date("2026-10-26T19:00:00Z");
@@ -48,5 +48,50 @@ describe("the day of a moment", () => {
     process.env.TZ = "America/Los_Angeles";
     expect(localDay("2026-10-27")).toBe("2026-10-27");
     expect(localDay(undefined)).toBe("—");
+  });
+});
+
+describe("titleWithYear", () => {
+  it("adds the year once", () => {
+    expect(titleWithYear("Alien", 1979)).toBe("Alien (1979)");
+    expect(titleWithYear("Foundation (2021)", 2021)).toBe("Foundation (2021)");
+    expect(titleWithYear("Dune (1984)", 2021)).toBe("Dune (1984) (2021)");
+    expect(titleWithYear("Alien", undefined)).toBe("Alien");
+    expect(titleWithYear("(2021)", 2021)).toBe("(2021) (2021)");
+  });
+  it("drops only a trailing year equal to the year", () => {
+    expect(nameWithoutYear("Foundation (2021)", 2021)).toBe("Foundation");
+    expect(nameWithoutYear("Dune (1984)", 2021)).toBe("Dune (1984)");
+    expect(nameWithoutYear("Foundation (2021)", undefined)).toBe("Foundation (2021)");
+    expect(nameWithoutYear(undefined, 2021)).toBe("");
+  });
+});
+
+describe("plural", () => {
+  it("picks the word by the count and formats the number", () => {
+    expect(plural(1, "title")).toBe("1 title");
+    expect(plural(2, "title")).toBe("2 titles");
+    expect(plural(0, "result")).toBe("0 results");
+    expect(plural(1128, "search", "searches")).toBe("1,128 searches");
+    expect(plural(1, "frozen copy", "frozen copies")).toBe("1 frozen copy");
+    expect(`${plural(1, "title")} ${pluralWord(1, "matches", "match")}`).toBe("1 title matches");
+    expect(`${plural(2, "title")} ${pluralWord(2, "matches", "match")}`).toBe("2 titles match");
+  });
+});
+
+describe("days", () => {
+  const now = new Date("2026-11-13T12:00:00Z");
+  it("always with the year", () => {
+    expect(fmtDayYear("2026-01-01")).toBe("Jan 1, 2026");
+    expect(fmtDayYear("2025-12-25T08:00:00Z")).toBe("Dec 25, 2025");
+    expect(fmtDayYear(undefined)).toBe("—");
+  });
+  it("one format per list: the year on every date once a date is in another year", () => {
+    const mixed = dayFormatter(["2025-12-25", "2026-01-01"], now);
+    expect(mixed("2025-12-25")).toBe("Dec 25, 2025");
+    expect(mixed("2026-01-01")).toBe("Jan 1, 2026");
+    const thisYear = dayFormatter(["2026-01-01", undefined, "2026-11-20"], now);
+    expect(thisYear("2026-01-01")).toBe("Jan 1");
+    expect(thisYear("2026-11-20")).toBe("Nov 20");
   });
 });

@@ -1,6 +1,7 @@
 // What became of a job, for the Jobs tab and Needs attention (internal/jobs manage.go): a failed job needs attention
 // until a later done job of the same kind and payload resolves it, it is retried, or someone dismisses it.
 import type { Schemas } from "@/api/client";
+import { readableCode } from "./code-words";
 
 export type Job = Schemas["Job"];
 
@@ -31,7 +32,7 @@ export function attentionCount(counts?: Record<string, number>): number {
 }
 
 // Friendly names for the job kinds (the one place they live); the raw kind stays visible as secondary text. A kind
-// not listed shows as itself.
+// not listed shows as itself made readable (code-words.ts).
 const JOB_KINDS: Record<string, { name: string; effect: string }> = {
   "acquire.search": { name: "Search for a title", effect: "A wanted title was not searched." },
   "acquire.wanted": { name: "Search everything wanted", effect: "The periodic search for wanted titles did not run." },
@@ -46,10 +47,17 @@ const JOB_KINDS: Record<string, { name: string; effect: string }> = {
   "shadow.rss": { name: "Check RSS feeds", effect: "The indexers' RSS feeds were not read: new releases for Live libraries may be missed." },
   "arrview.maintenance": { name: "Arr view housekeeping", effect: "Old arr-view records were not tidied." },
   "db.nightly": { name: "Nightly database backup", effect: "Last night's backup may be missing." },
+  "router.copy": { name: "Add a torrent to another provider", effect: "A copy to another debrid provider was not made." },
+  "meta.scene": { name: "Read scene names for a series", effect: "Releases named by scene numbering may not be matched." },
+  anime_build: { name: "Build an anime franchise mapping", effect: "An anime series' watch order and episode mapping may be out of date." },
+  "db.retention": { name: "Tidy old records", effect: "Old journal, history and log rows were not pruned." },
+  "torrents.backup": { name: "Back up the debrid torrent lists", effect: "The latest torrent backup may be missing." },
+  "torrents.restore": { name: "Restore torrents from a backup", effect: "Torrents from a backup were not added back." },
+  "notify.digest": { name: "Send the daily digest", effect: "Today's digest was not sent." },
 };
 
 /** A job kind in plain words. */
-export const jobName = (kind?: string) => (kind ? JOB_KINDS[kind]?.name ?? kind : "Job");
+export const jobName = (kind?: string) => (kind ? JOB_KINDS[kind]?.name ?? readableCode(kind) : "Job");
 
 /** What a failed job of this kind means, in plain words; empty for a kind not listed. */
 export const jobEffect = (kind?: string) => (kind ? JOB_KINDS[kind]?.effect ?? "" : "");
