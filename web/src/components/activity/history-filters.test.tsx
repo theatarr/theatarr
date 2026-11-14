@@ -63,9 +63,11 @@ it("Today sets Since to today and clears it again; adoption is its own event", a
   expect(events).toContain("Adopted (files found in the library)");
 });
 
-it("has no library selector in the household view", async () => {
-  mockFetch([{ method: "GET", path: "/titles/facets", reply: { versions: [{ key: "movie-web", label: "WEB" }] } }]);
-  renderPage(<HistoryFilters />);
+it("has no library selector in the household view, asks for no libraries and counts no library filter", async () => {
+  const api = mockFetch([{ method: "GET", path: "/titles/facets", reply: { versions: [{ key: "movie-web", label: "WEB" }] } }]);
+  renderPage(<HistoryFilters />, "/activity/history?copy=movie-web");
   await screen.findByTestId("history-event");
   expect(screen.queryByTestId("history-copy")).toBeNull();
+  expect(screen.queryByTestId("history-clear")).toBeNull();
+  expect(api.calls("GET", "/titles/facets")).toHaveLength(0);
 });

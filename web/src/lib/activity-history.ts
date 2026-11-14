@@ -69,7 +69,9 @@ export function historyParams(f: HistoryFilters): { title?: string; version?: st
   };
 }
 
-/** The filters as a view can use them: the admin-only event types (Other providers) are All events without "see files". */
+/** The filters as a view can use them: without "see files" the admin-only event types (Other providers) are All
+ *  events and the library filter is dropped (the view has no library selector). */
 export function historyFiltersFor(f: HistoryFilters, admin: boolean): HistoryFilters {
-  return !admin && HISTORY_EVENTS.find((e) => e.id === f.event)?.admin ? { ...f, event: "all" } : f;
+  if (admin) return f;
+  return { ...f, copy: "", event: HISTORY_EVENTS.find((e) => e.id === f.event)?.admin ? "all" : f.event };
 }

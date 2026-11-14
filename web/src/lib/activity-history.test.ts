@@ -41,6 +41,9 @@ describe("activity history filters", () => {
     // Other providers is for accounts that see files: the user view asks for every event.
     expect(historyFiltersFor({ ...NO_HISTORY_FILTERS, event: "copies" }, false).event).toBe("all");
     expect(historyFiltersFor({ ...NO_HISTORY_FILTERS, event: "copies" }, true).event).toBe("copies");
+    // The household view has no library selector, so a library in the URL filters nothing there.
+    expect(historyFiltersFor({ ...NO_HISTORY_FILTERS, copy: "movie-web" }, false).copy).toBe("");
+    expect(historyFiltersFor({ ...NO_HISTORY_FILTERS, copy: "movie-web" }, true).copy).toBe("movie-web");
     // Since is local midnight of that day.
     expect(new Date(p.since!).getTime()).toBe(new Date(2026, 9, 1).getTime());
     expect(historyFilterCount({ title: "A", copy: "", event: "all", since: "2026-10-01" })).toBe(2);

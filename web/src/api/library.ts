@@ -62,11 +62,12 @@ export function useTitleGrid(q: GridQuery) {
   });
 }
 
-export const useFacets = (kind?: string, anime?: boolean) =>
+export const useFacets = (kind?: string, anime?: boolean, enabled = true) =>
   useQuery({
     queryKey: qk.titles.facets(kind, anime),
     queryFn: () => api<TitleFacets>("/titles/facets" + qs({ kind, anime })),
     staleTime: 60_000,
+    enabled,
   });
 
 // A title's copies shown together get labels that tell same-named ones apart (lib/copies withDistinctLabels), by

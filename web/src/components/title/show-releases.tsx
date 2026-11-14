@@ -57,7 +57,7 @@ export function Summary({ r, reason, onReason }: { r: Releases; reason?: string;
           })}
         </div>
       ) : null}
-      {r.notes ? <p className="text-[11.5px] text-[var(--ink-3)]" data-testid="releases-notes">Indexers: {r.notes.replace(/\b1 (\w+ )?entries\b/g, "1 $1entry")}</p> : null}
+      {r.notes ? <p className="text-[11.5px] text-[var(--ink-3)]" data-testid="releases-notes">Indexers: {r.notes.replace(/\b1 ([\w-]+ )?entries\b/g, "1 $1entry")}</p> : null}
     </div>
   );
 }

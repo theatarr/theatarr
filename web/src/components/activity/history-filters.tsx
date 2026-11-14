@@ -13,6 +13,7 @@ import {
   clearHistoryFilters,
   HISTORY_EVENTS,
   historyFilterCount,
+  historyFiltersFor,
   parseHistoryFilters,
   withHistoryFilter,
   type HistoryFilters as Filters,
@@ -37,7 +38,8 @@ export function HistoryFilters({ tools, admin = false }: { tools?: ReactNode; ad
   const known = useLibraryKnown();
   const [sp, setSp] = useSearchParams();
   const f = parseHistoryFilters(sp);
-  const facets = useFacets();
+  // Only the admin view has the library selector; it alone asks for the libraries.
+  const facets = useFacets(undefined, undefined, admin);
   const [text, setText] = useState(f.title);
   const typed = useDebounced(text.trim(), 350);
   // A change of ?title= that did not come from this box (the tab link drops it, Back) shows in the box, so it never
@@ -55,7 +57,7 @@ export function HistoryFilters({ tools, admin = false }: { tools?: ReactNode; ad
   const set = (key: keyof Filters, value: string) => setSp(withHistoryFilter(sp, key, value), { replace: true });
   const all = facets.data?.versions ?? [];
   const copies = relabel(all, distinctLabels(all));
-  const count = historyFilterCount(f);
+  const count = historyFilterCount(historyFiltersFor(f, admin));
   const isToday = !!f.since && f.since === today();
   return (
     <div className="mb-4 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center" data-testid="history-filters">
