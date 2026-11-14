@@ -344,9 +344,10 @@ differences:
 `TestDeleteForRemovalBackupFails`, `TestDeleteForRemovalProviderErrors`,
   `TestDeleteForRemovalKeepsARestoredLibrary`, `TestDeleteForRemovalSaysWhatItLeftOver`).
 
-A removal also stops queued copies to other providers that no current copy of any title wants (a download in hand,
-an active link or an arr file of a version not removed), and an interrupted add whose torrent never landed is not
-queued again once nothing wants its hash (router.md "Copies to other providers"). With the files kept, nothing on a
+A removal also stops, once and at the removal, queued copies to other providers that no current copy of any title
+wants (a download in hand, an active link or an arr file of a version not removed, or a current link to the same
+file; hashes compared in hex and base32). A copy already adding is left to settle; a torrent it leaves shows under
+Torrents › Unused, and a copy asked later is added as any other. With the files kept, nothing on a
 provider is deleted because of the removal: a copy settling later deletes only its own incomplete new add on the other
 provider, as before, and ending the removed download does not change that check (`copyInUse` looks at that provider
 only).

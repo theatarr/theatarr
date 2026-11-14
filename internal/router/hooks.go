@@ -4,6 +4,8 @@ import (
 	"context"
 	"crypto/sha256"
 	"database/sql"
+	"encoding/base32"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -270,56 +272,52 @@ func EndRemoved(ctx context.Context, tx *sql.Tx, titleID int64, keys []string, r
 	return n, nil
 }
 
-// copyWantedSQL is the condition that hash expression h is still wanted by a current copy of a title: a download of
-// it in hand, an active link of it of a version not removed, or an arr file of it of a version not removed.
-func copyWantedSQL(h string) string {
-	return `(EXISTS (SELECT 1 FROM download d WHERE lower(d.info_hash) = ` + h + `
-			AND d.state NOT IN ('failed', 'imported'))
-		OR EXISTS (SELECT 1 FROM link l JOIN link_version lv ON lv.link_id = l.id WHERE l.state = 'active'
-			AND NOT EXISTS (SELECT 1 FROM arrview_removed_version r WHERE r.version_id = lv.version_id)
-			AND ` + LinkStoredHashSQL + ` = ` + h + `)
-		OR EXISTS (SELECT 1 FROM version_file vf
-			WHERE NOT EXISTS (SELECT 1 FROM arrview_removed_version r WHERE r.version_id = vf.version_id)
-			AND (lower(vf.download_id) = ` + h + ` OR EXISTS (SELECT 1 FROM content c WHERE c.id = vf.content_id
-				AND lower(c.info_hash) = ` + h + `))))`
-}
-
-// copyOfRemovedSQL is the condition that hash expression h belonged to a copy of a title that was removed: a
-// download, a link or an arr file of a removed version holds it.
-func copyOfRemovedSQL(h string) string {
-	return `(EXISTS (SELECT 1 FROM download d JOIN arrview_removed_version r ON r.version_id = d.version_id
-			WHERE lower(d.info_hash) = ` + h + `)
-		OR EXISTS (SELECT 1 FROM link l JOIN link_version lv ON lv.link_id = l.id
-			JOIN arrview_removed_version r ON r.version_id = lv.version_id WHERE ` + LinkStoredHashSQL + ` = ` + h + `)
-		OR EXISTS (SELECT 1 FROM version_file vf JOIN arrview_removed_version r ON r.version_id = vf.version_id
-			WHERE lower(vf.download_id) = ` + h + ` OR EXISTS (SELECT 1 FROM content c WHERE c.id = vf.content_id
-				AND lower(c.info_hash) = ` + h + `)))`
-}
+// copyWantedSQL is the condition that a hash, given as ?1 (lower-case hex) and ?2 (its lower-case base32 form, as a
+// row may store it), is still wanted by a current copy of a title: a download of it in hand, an active link of a
+// version not removed that records it or points at the same target as a link that records it, or an arr file of it of
+// a version not removed.
+const copyWantedSQL = `(EXISTS (SELECT 1 FROM download d WHERE lower(d.info_hash) IN (?1, ?2)
+		AND d.state NOT IN ('failed', 'imported'))
+	OR EXISTS (SELECT 1 FROM link lc JOIN link_version lvc ON lvc.link_id = lc.id WHERE lc.state = 'active'
+		AND NOT EXISTS (SELECT 1 FROM arrview_removed_version r WHERE r.version_id = lvc.version_id)
+		AND lc.id IN (SELECT l.id FROM link l WHERE ` + LinkStoredHashSQL + ` IN (?1, ?2)
+			OR l.target IN (SELECT l.target FROM link l WHERE ` + LinkStoredHashSQL + ` IN (?1, ?2))))
+	OR EXISTS (SELECT 1 FROM version_file vf
+		WHERE NOT EXISTS (SELECT 1 FROM arrview_removed_version r WHERE r.version_id = vf.version_id)
+		AND (lower(vf.download_id) IN (?1, ?2) OR EXISTS (SELECT 1 FROM content c WHERE c.id = vf.content_id
+			AND lower(c.info_hash) IN (?1, ?2)))))`
 
 // StopRemovedCopies stops, in the removal's transaction, the queued copies to other providers (provider_copy) of
 // hashes a removal took from the library, so they are not started later or resumed at startup: each becomes
 // skipped with msg. A copy belongs to its hash and provider, not to a library, so one whose hash a current copy of
-// any title still wants (copyWantedSQL: a download in hand, an active link or an arr file of a version not removed)
-// is left as it is, and so is a copy already adding or checking: it settles on its own (the removal's clean-up waits
-// for it, and recoverAdding does not queue it again once nothing wants it). It returns how many copies it stopped.
+// any title still wants (copyWantedSQL, the hash compared in hex and base32) is left as it is, and so is a copy already
+// adding or checking: it settles on its own, and a torrent it leaves shows under Torrents › Unused. It returns how
+// many copies it stopped.
 func StopRemovedCopies(ctx context.Context, tx *sql.Tx, hashes []string, msg string, at int64) (int, error) {
-	var args []any
+	var done []string
+	n := 0
 	for _, h := range hashes {
-		if h = indexer.NormalizeHash(h); h != "" && !slices.Contains(args, any(h)) {
-			args = append(args, h)
+		if h = indexer.NormalizeHash(h); h == "" || slices.Contains(done, h) {
+			continue
 		}
+		done = append(done, h)
+		b, err := hex.DecodeString(h)
+		if err != nil {
+			continue
+		}
+		b32 := strings.ToLower(base32.StdEncoding.EncodeToString(b))
+		res, err := tx.ExecContext(ctx, `UPDATE provider_copy SET state = 'skipped', message = ?3, updated_at = ?4
+			WHERE state = 'queued' AND info_hash = ?1 AND NOT `+copyWantedSQL, h, b32, msg, at)
+		if err != nil {
+			return n, fmt.Errorf("router: stopping removed copies: %w", err)
+		}
+		k, err := res.RowsAffected()
+		if err != nil {
+			return n, err
+		}
+		n += int(k)
 	}
-	if len(args) == 0 {
-		return 0, nil
-	}
-	res, err := tx.ExecContext(ctx, `UPDATE provider_copy SET state = 'skipped', message = ?, updated_at = ?
-		WHERE state = 'queued' AND info_hash IN (`+store.Placeholders(len(args))+`)
-		AND NOT `+copyWantedSQL("provider_copy.info_hash"), append([]any{msg, at}, args...)...)
-	if err != nil {
-		return 0, fmt.Errorf("router: stopping removed copies: %w", err)
-	}
-	n, err := res.RowsAffected()
-	return int(n), err
+	return n, nil
 }
 
 // EndRemovedOffers declines, in the removal's transaction, the pending offers (router_offer) into a title's removed

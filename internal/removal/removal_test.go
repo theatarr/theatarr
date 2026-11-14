@@ -577,3 +577,32 @@ func TestRunKeepsALinkACurrentArrFileUses(t *testing.T) {
 		t.Errorf("unlinked %v, shared %v", f.u.calls, paths(res.Shared))
 	}
 }
+
+// A queued copy survives the removal while a current library still uses its file: through a link to the same target
+// as the removed copy's link (no hash of its own), or a download that stores the hash in base32.
+func TestRunKeepsCopiesACurrentLibrarySharing(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	f.exec(`INSERT INTO link (id, path, target, kind, title_id, state, file_metadata, created_at, updated_at) VALUES
+		(16, '/lib/web/Gone/h.mkv', '/mnt/debrid/__all__/H/h.mkv', 'symlink', 1, 'active', ?, 0, 0),
+		(26, '/lib/remux/Gone/h.mkv', '/mnt/debrid/__all__/H/h.mkv', 'symlink', 1, 'active', '{}', 0, 0)`,
+		`{"InfoHash":"`+hH+`"}`)
+	f.exec(`INSERT INTO link_version (link_id, version_id) VALUES (16, 1), (26, 2)`)
+	if _, err := Run(context.Background(), f.deps(), webSpec(false)); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.str(`SELECT state FROM provider_copy WHERE info_hash = ? AND provider = 'tb'`, hH); got != "queued" {
+		t.Errorf("a copy the Remux library's file shares: %s", got)
+	}
+
+	g := newFixture(t)
+	g.exec(`INSERT INTO download (title_id, version_id, version_key, info_hash, release_title, indexer, state,
+		created_at, updated_at) VALUES (2, 3, 'movie-web', 'EIRCEIRCEIRCEIRCEIRCEIRCEIRCEIRC', 'Other.H', 'idx',
+		'downloading', 0, 0)`)
+	if _, err := Run(context.Background(), g.deps(), webSpec(false)); err != nil {
+		t.Fatal(err)
+	}
+	if got := g.str(`SELECT state FROM provider_copy WHERE info_hash = ? AND provider = 'tb'`, hH); got != "queued" {
+		t.Errorf("a copy Other's base32 download wants: %s", got)
+	}
+}
