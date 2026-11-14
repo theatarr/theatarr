@@ -22,6 +22,7 @@ import { QualityPanel } from "./quality";
 import { ProviderStatus, IndexerStatus } from "../sources";
 import { VpnStatus, RequestLimitsStatus } from "./network";
 import { PolicyFiles } from "../policy";
+import { LeaveGuard } from "@/components/settings/unsaved-bar";
 const HELP: Record<string, string> = {
  libraries: "Each library is a folder Theatarr fills and the Plex library that shows it, for example Movies 4K and Movies 1080p. Each has its own quality profile, indexers and debrid providers.",
  downloads: "Debrid providers are tried in the order shown. Download clients take the grabs of a library set to send them there: a decypharr client adds to its own debrid account. A seedbox qBittorrent client is not supported yet: nothing sends grabs to it.",
@@ -30,15 +31,16 @@ const HELP: Record<string, string> = {
 /** Phones (docs/design/ui.md "Settings"): the side list is hidden there, so one labelled select at the top of
  * Settings moves between the settings pages and their tabs (grouped by page), in place of a page picker and a
  * section picker. */
-export function SettingsPicker({ current }: { current: string }) {
+export function SettingsPicker({ current, extra }: { current: string; extra?: { route: string; label: string } }) {
  const id = useId();
  const navigate = useNavigate();
  return <div className="mb-4 grid gap-1 md:hidden" data-testid="settings-picker">
   <label htmlFor={id} className="text-xs font-medium text-[var(--ink-3)]">Settings page</label>
   <Select id={id} className="h-10 text-[15px]" value={current} onChange={(e) => navigate(e.target.value)}>
    {SETTINGS_PAGES.filter(p => !p.system).map(p => p.tabs.length > 1
-    ? <optgroup key={p.id} label={p.label}>{p.tabs.map(t => <option key={t.id} value={t.route}>{`${p.label} › ${t.label}`}</option>)}</optgroup>
+    ? <optgroup key={p.id} label={p.label}>{p.tabs.map(t => <option key={t.id} value={t.route}>{t.label === p.label ? p.label : `${p.label} › ${t.label}`}</option>)}</optgroup>
     : <option key={p.id} value={p.route}>{p.label}</option>)}
+   {extra ? <option value={extra.route}>{extra.label}</option> : null}
   </Select>
  </div>;
 }
@@ -50,9 +52,13 @@ export function SettingsPage() {
  const tab = page.tabs.find(t => t.route === pathname)?.id ?? page.tabs[0]?.id;
  const o = overview.data; const s = schema.data;
  const phonePicker = SETTINGS_PAGES.some(p => p.id === page.id && !p.system);
+ // The raw format set editor sits under Profiles without a tab of its own: it names itself and leads back.
+ const formatSets = page.id === "profiles" && pathname.endsWith("/format_sets");
  return <div>
-  <PageHeader crumb={[{ label: "Admin", to: "/admin" }, { label: "Settings", to: "/admin/settings" }]} title={page.label} description={HELP[page.id] ?? page.description} actions={<ShowAdvancedToggle className="max-md:hidden" />} />
-  {phonePicker ? <SettingsPicker current={page.tabs.find(t => t.id === tab)?.route ?? page.route} /> : null}
+  <LeaveGuard />
+  <PageHeader crumb={[{ label: "Admin", to: "/admin" }, { label: "Settings", to: "/admin/settings" }, ...(formatSets ? [{ label: page.label, to: page.route }] : [])]} title={formatSets ? "Format sets" : page.label} description={formatSets ? "The raw format set editor: each profile scores the formats of its own set." : HELP[page.id] ?? page.description} actions={<ShowAdvancedToggle className="max-md:hidden" />} />
+  {formatSets ? <p className="mb-4"><Link className="text-sm text-[var(--accent-ink)] underline" to={page.route} data-testid="back-to-profiles">Back to profiles</Link></p> : null}
+  {phonePicker ? <SettingsPicker current={formatSets ? pathname : page.tabs.find(t => t.id === tab)?.route ?? page.route} extra={formatSets ? { route: pathname, label: "Profiles › Format sets" } : undefined} /> : null}
   {phonePicker ? <ShowAdvancedToggle className="mb-4 md:hidden" /> : null}
   {o && bannerNeeded(o) && !["profiles", "formats", "quality-sync"].includes(page.id) && !(page.id === "libraries" && tab === "naming") ? <SettingsAuthority overview={o} compact /> : null}
   {overview.error || schema.error ? <ErrorState error={overview.error ?? schema.error} /> : null}
@@ -80,7 +86,7 @@ export function AdvancedSettingsPage() {
  const overview = useSettings(); const schema = useSettingsSchema();
  const limits = pathname.endsWith("/limits"); const history = pathname.endsWith("/history");
  const tab = RAW_TABS.find(t => t.to === pathname)?.id ?? "files";
- return <div><PageHeader crumb={[{ label: "Admin", to: "/admin" }, { label: "Advanced", to: "/admin/advanced" }]} title={ADVANCED_SETTINGS_PAGES.find(p => p.id === (limits ? "limits" : history ? "history" : "config"))!.label} />
+ return <div><LeaveGuard /><PageHeader crumb={[{ label: "Admin", to: "/admin" }, { label: "Advanced", to: "/admin/advanced" }]} title={ADVANCED_SETTINGS_PAGES.find(p => p.id === (limits ? "limits" : history ? "history" : "config"))!.label} />
   {limits ? <p><Link className="text-primary underline" to="/admin/settings/indexers/vpn">VPN status: Indexers › VPN</Link></p> : null}
   {overview.data && (!limits && !history || bannerNeeded(overview.data)) ? <SettingsAuthority overview={overview.data} /> : null}
   {!limits && !history ? <RouteTabs tabs={RAW_TABS} active={tab} /> : null}

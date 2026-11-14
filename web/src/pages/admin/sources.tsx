@@ -7,6 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { fmtAgo, fmtNumber, fmtTime } from "@/lib/format";
+import { PeriodUse } from "@/components/settings/sources";
+import { adapterWord } from "@/components/settings/record-form";
 
 const KIND: Record<string, string> = { realdebrid: "Real-Debrid", alldebrid: "AllDebrid", torbox: "TorBox" };
 
@@ -21,7 +23,7 @@ export function SourcesPanel({ kind }: { kind?: "providers" | "indexers" }) {
   const sharedWith = (ix: (typeof s.indexers)[number]) => ix.budget ? s.indexers.filter((o) => o.key !== ix.key && o.budget === ix.budget).map((o) => o.key) : [];
   return (
     <div>
-      {kind !== "indexers" ? <Section title="Status" className="mt-0">
+      {kind !== "indexers" ? <Section title="Status">
         {s.providers.length === 0 ? <Card><Empty>No providers configured.</Empty></Card> : (
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {s.providers.map((p) => {
@@ -29,13 +31,16 @@ export function SourcesPanel({ kind }: { kind?: "providers" | "indexers" }) {
               const tone = !sync ? "neutral" : sync.ok ? "positive" : "negative";
               const backedOff = p.backoff?.active || (p.pacing?.backoff_until && new Date(p.pacing.backoff_until) > new Date());
               return (
-                <Card key={p.key} className="min-w-0 [overflow-wrap:anywhere]" data-provider={p.key}><Link to={`/admin/settings/downloads?edit=${encodeURIComponent(p.key)}`}>Edit</Link>
+                <Card key={p.key} className="min-w-0 [overflow-wrap:anywhere]" data-provider={p.key}>
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <h3 className="font-semibold">{KIND[p.kind] ?? p.kind} <Mono className="text-muted-foreground">{p.key}</Mono></h3>
                       <div className="text-xs text-muted-foreground">order {p.order} · budget <Mono>{p.budget ?? "—"}</Mono></div>
                     </div>
-                    <Badge tone={backedOff ? "warning" : tone}>{backedOff ? "backed off" : !sync ? "never synced" : sync.ok ? "ok" : "sync failed"}</Badge>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <Badge tone={backedOff ? "warning" : tone}>{backedOff ? "backed off" : !sync ? "never synced" : sync.ok ? "ok" : "sync failed"}</Badge>
+                      <Link className="text-sm text-[var(--accent-ink)] underline-offset-2 hover:underline" to={`/admin/settings/downloads?edit=${encodeURIComponent(p.key)}`} aria-label={`Edit ${p.key}`}>Edit</Link>
+                    </div>
                   </div>
                   {sync && !sync.ok && sync.error ? <p className="mt-2 break-words text-[13px] text-[var(--bad-ink)]">{sync.error}</p> : null}
                   <div className="mt-3">
@@ -69,13 +74,13 @@ export function SourcesPanel({ kind }: { kind?: "providers" | "indexers" }) {
             <TableBody>
               {s.indexers.map((ix) => { const shared = sharedWith(ix); return (
                 <TableRow key={ix.key} data-indexer={ix.key}>
-                  <TableCell><Link className="text-[var(--accent-ink)] underline-offset-2 hover:underline" to={`/admin/settings/indexers?edit=${encodeURIComponent(ix.key)}`} aria-label={`Edit ${ix.key}`}><Mono className="[overflow-wrap:anywhere]">{ix.key}</Mono></Link>{ix.disabled ? <Badge className="ml-2" title="Switched off in Settings › Indexers: not searched">Off</Badge> : null}<div className="mt-1 flex flex-wrap gap-1 sm:hidden">{ix.kind}</div></TableCell>
-                  <TableCell className="hidden sm:table-cell">{ix.kind}{ix.proxy ? <Badge className="ml-2">proxy</Badge> : null}</TableCell>
+                  <TableCell><Link className="text-[var(--accent-ink)] underline-offset-2 hover:underline" to={`/admin/settings/indexers?edit=${encodeURIComponent(ix.key)}`} aria-label={`Edit ${ix.key}`}><Mono className="[overflow-wrap:anywhere]">{ix.key}</Mono></Link>{ix.disabled ? <Badge className="ml-2" title="Switched off in Settings › Indexers: not searched">Off</Badge> : null}<div className="mt-1 flex flex-wrap gap-1 sm:hidden">{adapterWord(ix.kind)}</div></TableCell>
+                  <TableCell className="hidden sm:table-cell">{adapterWord(ix.kind)}{ix.proxy ? <Badge className="ml-2">proxy</Badge> : null}</TableCell>
                   <TableCell><Badge tone={ix.privacy === "public" ? "positive" : "warning"}>{ix.privacy}</Badge></TableCell>
                   <TableCell className="hidden md:table-cell">
                     <Mono>{ix.budget ?? "—"}</Mono>
                     {shared.length ? <span className="text-xs text-muted-foreground"> · shared with {shared.join(", ")}</span> : null}
-                    {ix.budget_use ? <span className="text-xs text-muted-foreground"> · {fmtNumber(ix.budget_use.used_hour)} this hour · {fmtNumber(ix.budget_use.used_day)} today</span> : null}
+                    {ix.budget_use ? <span className="text-xs text-muted-foreground"> · <PeriodUse used={ix.budget_use.used_hour} cap={ix.budget_use.hourly} per="hourly" /> this hour · <PeriodUse used={ix.budget_use.used_day} cap={ix.budget_use.daily} per="daily" /> today</span> : null}
                   </TableCell>
                   <TableCell className="max-w-[22rem] text-[13px]">
                     {ix.backoff ? (

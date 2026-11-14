@@ -11,9 +11,9 @@ import { plural } from "@/lib/format";
 import { useLibraryName } from "@/lib/library-names";
 // A number weight keeps a typed lone "-" (a plain number input set it to 0 at once), so a negative can be typed.
 import { NumberInput } from "@/pages/admin/settings/quality/fields";
-const recordLabel = (f: SchemaField) => f.label || ({ url: "Service URL", budget: "Request budget", pacing: "Add limits", cooldown: "Pause after a refusal", min_gap: "Minimum request gap", stalled_after: "Stalled add timeout", backoff_max: "Maximum retry delay" }[f.name] ?? f.name.replaceAll("_", " ").replace(/^./, c => c.toUpperCase()));
+const recordLabel = (f: SchemaField) => f.label || ({ url: "Service URL", budget: "Request budget", pacing: "Add limits", page_cap: "Results per search", cooldown: "Pause after a refusal", min_gap: "Minimum request gap", stalled_after: "Stalled add timeout", backoff_max: "Maximum retry delay" }[f.name] ?? f.name.replaceAll("_", " ").replace(/^./, c => c.toUpperCase()));
 const recordHelp = (f: SchemaField) => f.name === "stalled_after" ? "Wait before a stalled add is given up." : f.help || `Set ${recordLabel(f).toLowerCase()} for this service.`;
-const PLACEHOLDER: Record<string, string> = { list: "a, b, c", map: "name=10, other=-5", string_map: "name=value, other=value", duration: "5m", integer: "0" };
+const PLACEHOLDER: Record<string, string> = { list: "comma-separated", map: "name=10, other=-5", string_map: "name=value, other=value", duration: "5m", integer: "0" };
 
 export function ConfigFields({
   fields,
@@ -40,7 +40,7 @@ export function ConfigFields({
         if (f.type === "object") {
           return (
             <fieldset key={name} className="grid gap-3 rounded-lg border border-border p-3 sm:col-span-2 sm:grid-cols-2">
-              <legend className="px-1 text-sm font-medium text-[var(--ink)]">{recordLabel(f)}{keyHint(f) ? <> <small className="text-muted-foreground">{f.name}</small></> : null}</legend>
+              <legend className="px-1 text-sm font-medium text-[var(--ink)]">{recordLabel(f)}</legend>
               <p className="text-[12.5px] text-muted-foreground sm:col-span-2">{recordHelp(f)}</p>
               <ConfigFields
                 fields={f.fields ?? []}
@@ -85,8 +85,6 @@ type FieldInputProps = {
   libraryKeys?: string[];
 };
 const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
-/** The record's key beside its label only when it says something the label does not ("Requests", not "Requests requests"). */
-const keyHint = (f: SchemaField) => recordLabel(f).toLowerCase().replace(/\s+/g, "_") !== f.name;
 
 /** Shared recursive inputs use YAML-shaped values; untouched keys never pass through a coercion. */
 export function FieldInput(p: FieldInputProps) {
@@ -100,7 +98,7 @@ export function FieldInput(p: FieldInputProps) {
     const v = typeof value === "string" ? value : "";
     const changed = p.tracked && v !== (typeof p.saved === "string" ? p.saved : "");
     return (
-          <Field changed={changed} onUndo={() => onChange(p.saved ?? "")} disabled={disabled} name={recordLabel(f)} label={<>{recordLabel(f)}{keyHint(f) ? <> <small className="font-normal text-muted-foreground">{f.name}</small></> : null}{f.required ? <span className="text-[var(--bad-ink)]"> *</span> : null}</>} help={recordHelp(f)} error={p.errors?.[path]} wide={f.name === "url" || f.type === "list" || f.type === "map" || f.type === "string_map"}>
+          <Field changed={changed} onUndo={() => onChange(p.saved ?? "")} disabled={disabled} name={recordLabel(f)} label={<>{recordLabel(f)}{f.required ? <span className="text-[var(--bad-ink)]"> *</span> : null}</>} help={recordHelp(f)} error={p.errors?.[path]} wide={f.name === "url" || f.type === "list" || f.type === "map" || f.type === "string_map"}>
             {f.type === "enum" ? (
               <select className={SELECT_CLASS} value={v} disabled={disabled} onChange={(e) => onChange(e.target.value)} data-field={path}>
                 {f.required ? null : <option value="">(unset)</option>}
@@ -111,7 +109,7 @@ export function FieldInput(p: FieldInputProps) {
                 className="h-9"
                 value={v}
                 inputMode={f.type === "integer" ? "numeric" : undefined}
-                placeholder={PLACEHOLDER[f.type]}
+                placeholder={f.default ? `${f.default} (default)` : PLACEHOLDER[f.type]}
                 disabled={disabled}
                 onChange={(e) => onChange(e.target.value)}
                 data-field={path}
@@ -133,7 +131,7 @@ export function FieldInput(p: FieldInputProps) {
     case "secret": {
       const info = p.secrets?.find((s) => s.path === path);
       const draft = p.secretDraft ?? { actions: {}, values: {} };
-      return <div data-field={path}><SecretField label={label} set={info?.set ?? false} hint={info?.env ? `Environment fallback: ${info.env}` : undefined} action={draft.actions[path] ?? "keep"} value={draft.values[path] ?? ""} onAction={(action) => p.onSecrets?.({ ...draft, actions: { ...draft.actions, [path]: action } })} onValue={(text) => p.onSecrets?.({ ...draft, values: { ...draft.values, [path]: text } })} disabled={disabled} />{p.errors?.[path] ? <p role="alert">{p.errors[path]}</p> : null}</div>;
+      return <div data-field={path}><SecretField label={label} set={info?.set ?? false} hint={info?.env ? `Without a stored value, the server uses its ${info.env} environment variable when that is set.` : undefined} action={draft.actions[path] ?? "keep"} value={draft.values[path] ?? ""} onAction={(action) => p.onSecrets?.({ ...draft, actions: { ...draft.actions, [path]: action } })} onValue={(text) => p.onSecrets?.({ ...draft, values: { ...draft.values, [path]: text } })} disabled={disabled} />{p.errors?.[path] ? <p role="alert">{p.errors[path]}</p> : null}</div>;
     }
     // A switch with its state in words; "(default)" while nothing is stored, so an untouched field stays unset.
     case "boolean": control = <div className="flex items-center gap-2"><Switch aria-label={label} {...describe} checked={checked === true} disabled={disabled} onCheckedChange={(next) => onChange(next)} /><span className="text-sm" data-testid="switch-state">{checked === true ? "On" : "Off"}{value === undefined || value === null ? " (default)" : ""}</span></div>; break;
@@ -158,7 +156,7 @@ export function FieldInput(p: FieldInputProps) {
         const rowError = p.errors?.[`${path}.${i}`];
         return { "aria-describedby": [rowError ? `${id}-${i}-error` : "", describe["aria-describedby"] ?? ""].filter(Boolean).join(" ") || undefined, "aria-invalid": rowError || error ? true : undefined };
       };
-      control = <div className="grid gap-2">{rows.map((row, i) => <div key={i} className="rounded border p-2">{f.type === "object_list" ? children(objectValue(row), `${path}.${i}`, (v) => update(i, v), Array.isArray(p.saved) ? p.saved[i] : undefined) : f.enum ? <select aria-label={`${label} ${i + 1}`} {...rowDescribe(i)} className={SELECT_CLASS} disabled={disabled} value={String(row)} onChange={(e) => update(i, e.target.value)}><option value="">Choose…</option>{f.enum.map((v) => <option key={v}>{v}</option>)}</select> : <Input aria-label={`${label} ${i + 1}`} {...rowDescribe(i)} value={String(row)} disabled={disabled} onChange={(e) => update(i, e.target.value)} />}{p.errors?.[`${path}.${i}`] ? <p id={`${id}-${i}-error`} role="alert">{p.errors[`${path}.${i}`]}</p> : null}<Button type="button" variant="ghost" disabled={disabled} onClick={() => onChange(rows.filter((_, n) => n !== i))}>Remove {i + 1}</Button>{f.type === "object_list" ? <><Button type="button" variant="ghost" disabled={disabled || i === 0} onClick={() => move(i, -1)}>Move up</Button><Button type="button" variant="ghost" disabled={disabled || i === rows.length - 1} onClick={() => move(i, 1)}>Move down</Button></> : null}</div>)}<Button type="button" variant="outline" disabled={disabled} onClick={() => onChange([...rows, f.type === "object_list" ? {} : ""])}>{addLabel(f)}</Button></div>; break;
+      control = <div className="grid gap-2">{rows.map((row, i) => <div key={i} className="rounded border p-2">{f.type === "object_list" ? children(objectValue(row), `${path}.${i}`, (v) => update(i, v), Array.isArray(p.saved) ? p.saved[i] : undefined) : f.enum ? <select aria-label={`${label} ${i + 1}`} {...rowDescribe(i)} className={SELECT_CLASS} disabled={disabled} value={String(row)} onChange={(e) => update(i, e.target.value)}><option value="">Choose…</option>{f.enum.map((v) => <option key={v}>{v}</option>)}</select> : <Input aria-label={`${label} ${i + 1}`} {...rowDescribe(i)} value={String(row)} disabled={disabled} onChange={(e) => update(i, e.target.value)} />}{p.errors?.[`${path}.${i}`] ? <p id={`${id}-${i}-error`} role="alert">{p.errors[`${path}.${i}`]}</p> : null}<Button type="button" variant="ghost" disabled={disabled} aria-label={`Remove ${label} ${i + 1}`} onClick={() => onChange(rows.filter((_, n) => n !== i))}>Remove</Button>{f.type === "object_list" ? <><Button type="button" variant="ghost" disabled={disabled || i === 0} onClick={() => move(i, -1)}>Move up</Button><Button type="button" variant="ghost" disabled={disabled || i === rows.length - 1} onClick={() => move(i, 1)}>Move down</Button></> : null}</div>)}<Button type="button" variant="outline" disabled={disabled} onClick={() => onChange([...rows, f.type === "object_list" ? {} : ""])}>{addLabel(f)}</Button></div>; break;
     }
     case "map": case "string_map": {
       const entries = objectValue(value);
@@ -174,7 +172,9 @@ export function FieldInput(p: FieldInputProps) {
 export function SectionFields(p: Omit<FieldInputProps, "field" | "value" | "onChange" | "saved" | "tracked"> & { fields: SchemaField[]; config: Config; onChange: (v: Config) => void; saved?: Config }) {
   const visible = p.fields.filter((f) => !f.advanced || p.advanced);
   const groups = [...new Set(visible.map((f) => f.group || ""))];
-  return <>{groups.map((group) => <div key={group} className={group ? "grid gap-4 rounded border p-3" : "grid gap-4"}>{group ? <h3>{group}</h3> : null}{visible.filter((f) => (f.group || "") === group).map((f) => <FieldInput {...p} key={f.name} field={f} tracked={!!p.saved} saved={p.saved && (f.name ? p.saved[f.name] : p.saved)} path={f.name ? `${p.path}.${f.name}` : p.path} value={f.name ? p.config[f.name] : p.config} onChange={(v) => p.onChange(f.name ? changeField(p.config, f.name, v) : objectValue(v))} />)}</div>)}</>;
+  // One group alone needs no box of its own inside the panel's card (no third frame); several are boxed apart.
+  const boxed = groups.length > 1;
+  return <>{groups.map((group) => <div key={group} data-group={group || undefined} className={group && boxed ? "grid gap-4 rounded border p-3" : "grid gap-4"}>{group ? <h3 className={boxed ? undefined : "text-sm font-medium text-muted-foreground"}>{group}</h3> : null}{visible.filter((f) => (f.group || "") === group).map((f) => <FieldInput {...p} key={f.name} field={f} tracked={!!p.saved} saved={p.saved && (f.name ? p.saved[f.name] : p.saved)} path={f.name ? `${p.path}.${f.name}` : p.path} value={f.name ? p.config[f.name] : p.config} onChange={(v) => p.onChange(f.name ? changeField(p.config, f.name, v) : objectValue(v))} />)}</div>)}</>;
 }
 
 // Go policy.Duration accepts h/m/s (not days). Match compound serialized values too.
@@ -189,9 +189,12 @@ const DURATION_PRESETS = {
 function durationPresets(f: SchemaField, saved?: number): readonly (readonly [string, number])[] {
   const scale = (f.default ? parseDuration(f.default) : undefined) || f.min || 0;
   const presets: readonly (readonly [string, number])[] = scale > 0 && scale < 60 ? DURATION_PRESETS.seconds : scale > 0 && scale < 3600 ? DURATION_PRESETS.minutes : DURATION_PRESETS.hours;
-  if (saved === undefined || presets.some(([, n]) => n === saved)) return presets;
+  // The field's own default is always a choice, so a stored default (6m, 15m) shows as itself, not Custom.
+  const def = f.default ? parseDuration(f.default) : undefined;
+  const withDefault = def && !presets.some(([, n]) => n === def) ? [...presets, [f.default!, def] as const].sort((a, b) => a[1] - b[1]) : presets;
+  if (saved === undefined || withDefault.some(([, n]) => n === saved)) return withDefault;
   const other = Object.values(DURATION_PRESETS).flat().find(([, n]) => n === saved);
-  return other ? [...presets, other].sort((a, b) => a[1] - b[1]) : presets;
+  return other ? [...withDefault, other].sort((a, b) => a[1] - b[1]) : withDefault;
 }
 
 export function parseDuration(value: string): number | undefined {
@@ -230,7 +233,7 @@ function KeyedRecord(p: FieldInputProps & { name: string; records: Config; manag
     p.onSecrets?.(next);
   };
   const removed = p.managed && !!p.libraryKeys && !p.libraryKeys.includes(name);
-  return <details className="rounded border p-3" open={unfolded || undefined} data-removed={removed || undefined}><summary>{p.managed ? <><span>{libraryName(name)}</span>{libraryName(name) !== name ? <> <small className="font-mono text-muted-foreground">{name}</small></> : null}{removed ? <> <Badge tone="warning">library removed</Badge></> : null}</> : name}</summary>{removed ? <div className="my-2 flex flex-wrap items-center gap-2 text-sm"><span>No library has this key any more. Remove the row; Save writes the change.</span><Button type="button" variant="outline" size="sm" disabled={disabled} onClick={() => p.onChange(changeField(records, name, undefined))}>Remove {name}</Button></div> : null}{!p.managed ? <>
+  return <details className="rounded border p-3" open={unfolded || undefined} data-removed={removed || undefined}><summary>{p.managed ? <><span>{libraryName(name)}</span>{libraryName(name) !== name ? <> <small className="font-mono text-muted-foreground">{name}</small></> : null}{removed ? <> <Badge tone="warning">library removed</Badge></> : null}</> : <>{name}{path === "clients" && record.kind === "qbittorrent" ? <> <Badge tone="neutral" title="A seedbox qBittorrent client is not supported yet: nothing sends grabs to it." data-testid="client-unused">not used yet</Badge></> : null}</>}</summary>{removed ? <div className="my-2 flex flex-wrap items-center gap-2 text-sm"><span>No library has this key any more. Remove the row; Save writes the change.</span><Button type="button" variant="outline" size="sm" disabled={disabled} onClick={() => p.onChange(changeField(records, name, undefined))}>Remove {name}</Button></div> : null}{!p.managed ? <>
     <label>Rename<Input aria-label={`Rename ${name}`} value={nameDraft} disabled={disabled} onChange={(e) => setName(e.target.value)} /></label>
     {renaming && (stored.length > 0 || maskedURL) ? <div className="grid gap-2"><p>Renaming needs its credentials again</p>{credentials.map((s) => <label key={s.path}>{s.label}{draft.actions[s.path] === "clear" ? <span> — will be removed</span> : <Input aria-label={`Rename ${s.label}`} type="password" required value={draft.values[s.path] ?? ""} disabled={disabled} onChange={(e) => p.onSecrets?.({ actions: { ...draft.actions, [s.path]: "replace" }, values: { ...draft.values, [s.path]: e.target.value } })} />}</label>)}{maskedURL ? <label>Full URL<Input aria-label="Rename URL" required value={url} disabled={disabled} onChange={(e) => setURL(e.target.value)} /></label> : null}</div> : null}
     {invalid ? <p role="alert">{invalid}</p> : null}
@@ -349,7 +352,7 @@ function BytesControl({ f, label, describe, disabled, value, stored, onChange }:
   const bytes = parse(value).bytes;
   const rate = f.unit === "bytes/s" ? "/s" : "";
   return <div className="flex gap-2">
-    <Input aria-label={label} {...describe} aria-invalid={state.invalid || describe?.["aria-invalid"]} inputMode="decimal" placeholder={defaultMatch ? `${defaultMatch[1]} ${defaultMatch[2]}${rate}` : f.default} disabled={disabled} value={state.text}
+    <Input aria-label={label} {...describe} aria-invalid={state.invalid || describe?.["aria-invalid"]} inputMode="decimal" placeholder={defaultMatch ? (defaultMatch[2] === state.unit ? defaultMatch[1] : `${defaultMatch[1]} ${defaultMatch[2]}${rate}`) : f.default} disabled={disabled} value={state.text}
       onChange={(e) => {
         const n = amountOf(e.target.value);
         setState({ ...state, text: e.target.value, invalid: n === undefined });

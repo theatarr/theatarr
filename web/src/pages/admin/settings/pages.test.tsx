@@ -88,6 +88,9 @@ it("offers a labelled settings page select for phones that moves between pages",
  expect(select.value).toBe("/admin/settings/libraries");
  // One select for pages and their tabs, grouped by page (no second "Section" select on a phone).
  expect([...select.options].map(o => o.textContent)).toContain("Download clients › Debrid providers");
+ // A tab named like its page is not said twice ("Libraries › Libraries").
+ expect([...select.options].map(o => o.textContent)).not.toContain("Libraries › Libraries");
+ expect([...select.options].map(o => o.textContent)).toContain("Libraries › Naming");
  expect([...select.options].map(o => o.textContent)).toContain("Notifications");
  expect([...select.options].map(o => o.textContent)).not.toContain("Backup");
  expect(select.querySelectorAll("optgroup").length).toBeGreaterThan(2);
@@ -118,3 +121,20 @@ it("shows no advanced toggle on the Advanced pages", async () => {
  await screen.findByRole("heading", { level: 1, name: "Settings history" });
  expect(screen.queryByRole("button", { name: "Show advanced settings" })).toBeNull();
 });
+
+it("names the format set page for what it is, with a way back to the profiles", async () => {
+ mockFetch([
+  { method: "GET", path: "/settings", reply: overview() },
+  { method: "GET", path: "/settings/schema", reply: schema },
+  { method: "GET", path: "/policy", reply: { versions: [] } },
+  { method: "GET", path: "/settings/format_sets", reply: { generation: 4, records: [] } },
+  { method: "GET", path: "/settings/formats/schema", reply: [] },
+ ]);
+ renderPage(<SettingsPage />, "/admin/settings/profiles/format_sets");
+ expect((await screen.findByRole("heading", { level: 1 })).textContent).toBe("Format sets");
+ expect(screen.getByTestId("back-to-profiles").getAttribute("href")).toBe("/admin/settings/profiles");
+ const select = screen.getByRole("combobox", { name: "Settings page" }) as HTMLSelectElement;
+ expect(select.value).toBe("/admin/settings/profiles/format_sets");
+ expect(select.selectedOptions[0].textContent).toBe("Profiles › Format sets");
+});
+

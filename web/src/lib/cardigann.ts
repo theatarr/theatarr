@@ -183,3 +183,16 @@ export function contentLabel(categories: number[]): string {
   const names: Record<CatalogCategory, string> = { movies: "Movies", tv: "TV", anime: "Anime" };
   return contentOf(categories).map((c) => names[c]).join(", ") || "Other";
 }
+
+let languageNames: Intl.DisplayNames | undefined;
+/** A definition's language tag in words ("uk-UA" is "Ukrainian (Ukraine)"); an unknown tag as written. */
+export function languageName(tag: string): string {
+  if (!tag) return tag;
+  try {
+    languageNames ??= new Intl.DisplayNames(["en"], { type: "language" });
+    const name = languageNames.of(tag);
+    return name && name !== tag ? name : tag;
+  } catch {
+    return tag;
+  }
+}

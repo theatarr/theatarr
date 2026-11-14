@@ -62,13 +62,15 @@ export function ProfileFields({ config: c, onChange }: { config: Config; onChang
   const reorder = (i: number, step: number) => { const next = [...order]; [next[i], next[i + step]] = [next[i + step], next[i]]; onChange({ ...c, quality_order: next, qualities: next.filter((q) => allowed.some((a) => qualityName(a) === qualityName(q))) }); };
   return <div className="space-y-4">
     <p className="text-sm text-muted-foreground">Qualities are ordered best first. A group treats its members as equal. Disabled qualities retain their position.</p>
-    {order.map((q, i) => <div className="flex flex-wrap items-center gap-2 rounded border p-2" key={i}>
+    {order.map((q, i) => <div className="flex flex-wrap items-center gap-2 rounded border p-2" key={i} data-testid="raw-quality-row">
       <Toggle label={`Allow ${qualityName(q)}`} checked={allowed.some((a) => qualityName(a) === qualityName(q))} onChange={(on) => set("qualities", order.filter((x) => qualityName(x) === qualityName(q) ? on : allowed.some((a) => qualityName(a) === qualityName(x))))} />
-      <span className="flex-1 text-sm">{typeof q === "string" ? q : `${q.group}: ${q.qualities.join(", ")}`}</span>
-      {typeof q !== "string" ? <TextField label={`${q.group} members (comma separated)`} value={q.qualities.join(", ")} onChange={(v) => { const replacement = { ...q, qualities: v.split(",").map((s) => s.trim()).filter(Boolean) }; onChange({ ...c, quality_order: order.map((x, n) => n === i ? replacement : x), qualities: allowed.map((x) => qualityName(x) === q.group ? replacement : x) }); }} /> : null}
-      <Button type="button" size="xs" disabled={i === 0} aria-label={`Move ${qualityName(q)} up`} onClick={() => reorder(i, -1)}>Up</Button>
-      <Button type="button" size="xs" disabled={i === order.length - 1} aria-label={`Move ${qualityName(q)} down`} onClick={() => reorder(i, 1)}>Down</Button>
-      <Button type="button" size="xs" onClick={() => { const next = order.filter((_, n) => n !== i); onChange({ ...c, quality_order: next, qualities: allowed.filter((a) => qualityName(a) !== qualityName(q)) }); }}>Remove</Button>
+      <span className="min-w-[12rem] flex-1 basis-48 text-sm [overflow-wrap:anywhere]">{typeof q === "string" ? q : `${q.group}: ${q.qualities.join(", ")}`}</span>
+      {typeof q !== "string" ? <div className="min-w-0 basis-full"><TextField label={`${q.group} members (comma separated)`} value={q.qualities.join(", ")} onChange={(v) => { const replacement = { ...q, qualities: v.split(",").map((s) => s.trim()).filter(Boolean) }; onChange({ ...c, quality_order: order.map((x, n) => n === i ? replacement : x), qualities: allowed.map((x) => qualityName(x) === q.group ? replacement : x) }); }} /></div> : null}
+      <span className="ml-auto inline-flex shrink-0 gap-1" data-testid="raw-quality-actions">
+        <Button type="button" size="xs" disabled={i === 0} aria-label={`Move ${qualityName(q)} up`} onClick={() => reorder(i, -1)}>Up</Button>
+        <Button type="button" size="xs" disabled={i === order.length - 1} aria-label={`Move ${qualityName(q)} down`} onClick={() => reorder(i, 1)}>Down</Button>
+        <Button type="button" size="xs" onClick={() => { const next = order.filter((_, n) => n !== i); onChange({ ...c, quality_order: next, qualities: allowed.filter((a) => qualityName(a) !== qualityName(q)) }); }}>Remove</Button>
+      </span>
     </div>)}
     <FormGrid><TextField label="New quality or group name" value={newQuality} onChange={setNewQuality} /><TextField label="Group members (comma separated; empty for one quality)" value={members} onChange={setMembers} /></FormGrid>
     <Button type="button" variant="outline" disabled={!newQuality.trim()} onClick={() => { const q: Quality = members.trim() ? { group: newQuality.trim(), qualities: members.split(",").map((v) => v.trim()).filter(Boolean) } : newQuality.trim(); onChange({ ...c, quality_order: [...order, q], qualities: [...allowed, q] }); setNewQuality(""); setMembers(""); }}>Add quality or group</Button>
@@ -90,20 +92,36 @@ export function ProfileFields({ config: c, onChange }: { config: Config; onChang
   </div>;
 }
 
+/** A condition's implementation in words: "ReleaseTitleSpecification" is "Release title". */
+export function conditionWord(implementation: string): string {
+  const words = implementation.replace(/Specification$/, "").replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
+  return words ? words[0].toUpperCase() + words.slice(1) : implementation;
+}
+// Conditions whose value is matched against text as a regular expression.
+const PATTERN_CONDITIONS = new Set(["ReleaseTitleSpecification", "ReleaseGroupSpecification", "EditionSpecification"]);
+/** A condition field's name in words: a text condition's "value" is its pattern; "min" is Minimum. */
+export function conditionFieldWord(implementation: string, field: string): string {
+  if (field === "value") return PATTERN_CONDITIONS.has(implementation) ? "Pattern (regular expression)" : "Value";
+  const named: Record<string, string> = { min: "Minimum", max: "Maximum" };
+  if (named[field]) return named[field];
+  const words = field.replace(/([a-z])([A-Z])/g, "$1 $2").replaceAll("_", " ").toLowerCase();
+  return words[0].toUpperCase() + words.slice(1);
+}
+
 export function FormatFields({ spec, onChange, schema, flavour }: { spec: FormatJSON; onChange: (v: FormatJSON) => void; schema: Implementation[]; flavour: string }) {
   const update = (i: number, patch: Partial<Specification>) => onChange({ ...spec, specifications: spec.specifications.map((s, n) => n === i ? { ...s, ...patch } : s) });
   return <div className="space-y-4">
     <TextField label="Format name" value={spec.name} onChange={(name) => onChange({ ...spec, name })} />
     <TextField label="TRaSH ID" value={spec.trash_id} onChange={(trash_id) => onChange({ ...spec, trash_id })} />
     <Toggle label="Include when renaming" checked={spec.includeCustomFormatWhenRenaming} onChange={(v) => onChange({ ...spec, includeCustomFormatWhenRenaming: v })} />
-    {spec.specifications.map((s, i) => { const fields = Array.isArray(s.fields) ? Object.fromEntries(s.fields.map((f) => [f.name, f.value])) : s.fields; return <fieldset className="space-y-3 rounded border p-3" key={i}><legend>Specification {i + 1}</legend>
-      <TextField label={`Specification ${i + 1} name`} value={s.name} onChange={(name) => update(i, { name })} />
-      <Select label="Implementation" value={s.implementation} values={schema.filter((x) => !flavour || x.flavours.includes(flavour)).map((x) => x.implementation)} onChange={(implementation) => update(i, { implementation, fields: {} })} />
+    {spec.specifications.map((s, i) => { const fields = Array.isArray(s.fields) ? Object.fromEntries(s.fields.map((f) => [f.name, f.value])) : s.fields; return <fieldset className="space-y-3 rounded border p-3" key={i}><legend>Condition {i + 1}</legend>
+      <TextField label={`Condition ${i + 1} name`} value={s.name} onChange={(name) => update(i, { name })} />
+      <Select label="Condition type" value={s.implementation} values={schema.filter((x) => !flavour || x.flavours.includes(flavour)).map((x) => x.implementation)} labels={Object.fromEntries(schema.map((x) => [x.implementation, conditionWord(x.implementation)]))} onChange={(implementation) => update(i, { implementation, fields: {} })} />
       <Toggle label="Negate" checked={s.negate} onChange={(negate) => update(i, { negate })} /><Toggle label="Required" checked={s.required} onChange={(required) => update(i, { required })} />
-      {schema.find((x) => x.implementation === s.implementation)?.fields.map((f) => f.type === "boolean" ? <Toggle key={f.name} label={f.name} checked={fields[f.name] === true} onChange={(v) => update(i, { fields: { ...fields, [f.name]: v } })} /> : f.options?.[flavour] ? <Field key={f.name} label={f.name}><select className={SELECT_CLASS} value={String(fields[f.name] ?? "")} onChange={(e) => update(i, { fields: { ...fields, [f.name]: Number(e.target.value) } })}><option value="" disabled>Select a value</option>{f.options[flavour].map((o) => <option key={o.value} value={o.value}>{o.name}</option>)}</select></Field> : <TextField key={f.name} label={f.name} type={f.type === "string" ? "text" : "number"} value={fields[f.name]} onChange={(v) => update(i, { fields: { ...fields, [f.name]: f.type === "string" ? v : Number(v) } })} />)}
-      <Button type="button" onClick={() => onChange({ ...spec, specifications: spec.specifications.filter((_, n) => n !== i) })}>Remove specification</Button>
+      {schema.find((x) => x.implementation === s.implementation)?.fields.map((f) => f.type === "boolean" ? <Toggle key={f.name} label={conditionFieldWord(s.implementation, f.name)} checked={fields[f.name] === true} onChange={(v) => update(i, { fields: { ...fields, [f.name]: v } })} /> : f.options?.[flavour] ? <Field key={f.name} label={conditionFieldWord(s.implementation, f.name)}><select className={SELECT_CLASS} value={String(fields[f.name] ?? "")} onChange={(e) => update(i, { fields: { ...fields, [f.name]: Number(e.target.value) } })}><option value="" disabled>Select a value</option>{f.options[flavour].map((o) => <option key={o.value} value={o.value}>{o.name}</option>)}</select></Field> : <TextField key={f.name} label={conditionFieldWord(s.implementation, f.name)} type={f.type === "string" ? "text" : "number"} value={fields[f.name]} onChange={(v) => update(i, { fields: { ...fields, [f.name]: f.type === "string" ? v : Number(v) } })} />)}
+      <Button type="button" onClick={() => onChange({ ...spec, specifications: spec.specifications.filter((_, n) => n !== i) })}>Remove condition</Button>
     </fieldset>; })}
-    <Button type="button" onClick={() => onChange({ ...spec, specifications: [...spec.specifications, { name: "Condition", implementation: "ReleaseTitleSpecification", negate: false, required: false, fields: { value: "" } }] })}>Add specification</Button>
+    <Button type="button" onClick={() => onChange({ ...spec, specifications: [...spec.specifications, { name: "Condition", implementation: "ReleaseTitleSpecification", negate: false, required: false, fields: { value: "" } }] })}>Add condition</Button>
     <JSONField label="Import arr custom format JSON (replaces this draft)" value={spec} validate={(v) => {
       const candidate = object(v);
       if (typeof candidate.name !== "string" || !Array.isArray(candidate.specifications)) return false;

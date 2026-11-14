@@ -2,7 +2,7 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, it, vi } from "vitest";
-import { DiscordID } from "./users";
+import { DiscordID, permissionWords } from "./users";
 import type { User } from "@/api/users";
 afterEach(cleanup);
 const user = (discord_id?: string) => ({ id: 3, username: "ann", display_name: "Ann", role: "user", status: "active", local: false,
@@ -27,3 +27,11 @@ it("saves a Discord user id, refuses other text and clears it", async () => {
  await ue.click(screen.getByRole("button", { name: "Save" }));
  expect(onSave).toHaveBeenLastCalledWith("");
 });
+
+it("says an account's permissions in words, not their stored names", () => {
+ expect(permissionWords(["browse", "request", "auto_approve", "manage_requests", "see_files", "own_keys"]))
+  .toBe("browse the library, request titles, have requests apply at once, approve and decline requests, see files, sizes and releases, make their own API keys");
+ expect(permissionWords(["future_perm"])).toBe("future_perm");
+ expect(permissionWords([])).toBe("nothing yet");
+});
+

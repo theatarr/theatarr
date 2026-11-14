@@ -34,7 +34,7 @@ describe("View editor", () => {
     ]);
     const user = userEvent.setup();
     renderPage(<GeneralSettingsPage />);
-    await user.click(await screen.findByRole("button", { name: "Add view" }));
+    await user.click(await screen.findByRole("button", { name: "Add app" }));
     const sheet = await screen.findByTestId("view-editor");
     await user.click(within(sheet).getByRole("textbox", { name: /^Key/ }));
     await user.paste("radarr2");
@@ -64,7 +64,7 @@ describe("View editor", () => {
     const fetch = mockFetch(routes([]));
     const user = userEvent.setup();
     renderPage(<GeneralSettingsPage />);
-    await user.click(await screen.findByRole("button", { name: "Add view" }));
+    await user.click(await screen.findByRole("button", { name: "Add app" }));
     const sheet = await screen.findByTestId("view-editor");
     await user.click(within(sheet).getByRole("button", { name: "Save" }));
     expect((await within(sheet).findByTestId("settings-error")).textContent).toContain("needs its API key");
@@ -138,7 +138,7 @@ describe("View editor", () => {
     views = [];
     act(() => { focusManager.setFocused(false); focusManager.setFocused(true); });
     await waitFor(() => expect(fetch.calls("GET", "/settings/view-bindings").length).toBeGreaterThan(1));
-    expect(within(sheet).getByText("View radarr")).toBeTruthy();
+    expect(within(sheet).getByText("Edit app radarr")).toBeTruthy();
     await user.click(within(sheet).getByRole("button", { name: "Save" }));
     await within(sheet).findByTestId("settings-error");
     expect(fetch.calls("POST", "/settings/view-bindings")).toHaveLength(0);
@@ -152,9 +152,9 @@ describe("View editor", () => {
     renderPage(<GeneralSettingsPage />);
     const row = (await screen.findByText("API key set")).closest("li") as HTMLElement;
     await user.click(within(row).getByRole("button", { name: /Edit/ }));
-    await user.click(within(await screen.findByTestId("view-editor")).getByRole("button", { name: "Delete view" }));
-    const dialog = await screen.findByRole("dialog", { name: "Delete view radarr" });
-    await user.click(within(dialog).getByRole("button", { name: "Delete view" }));
+    await user.click(within(await screen.findByTestId("view-editor")).getByRole("button", { name: "Delete app" }));
+    const dialog = await screen.findByRole("dialog", { name: "Delete app radarr" });
+    await user.click(within(dialog).getByRole("button", { name: "Delete app" }));
     await waitFor(() => expect(fetch.calls("DELETE", "/settings/view-bindings/radarr")).toHaveLength(1));
     expect(fetch.calls("DELETE", "/settings/view-bindings/radarr")[0].search).toBe("?generation=7");
   });
@@ -201,8 +201,8 @@ it("retries deleting a view binding with the server confirmation token", async (
   const user = userEvent.setup();
   renderPage(<GeneralSettingsPage />);
   await user.click(await screen.findByRole("button", { name: /Edit/ }));
-  await user.click(within(await screen.findByTestId("view-editor")).getByRole("button", { name: "Delete view" }));
-  await user.click(within(await screen.findByRole("dialog", { name: "Delete view radarr" })).getByRole("button", { name: "Delete view" }));
+  await user.click(within(await screen.findByTestId("view-editor")).getByRole("button", { name: "Delete app" }));
+  await user.click(within(await screen.findByRole("dialog", { name: "Delete app radarr" })).getByRole("button", { name: "Delete app" }));
   const confirmation = await screen.findByRole("dialog", { name: "Confirm what this change enables" });
   expect(confirmation.textContent).toContain("After a startup fallback");
   await user.click(within(confirmation).getByRole("button", { name: "Confirm and save" }));

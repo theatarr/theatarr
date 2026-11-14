@@ -67,7 +67,7 @@ export function FormatsPage({ compact = false }: { compact?: boolean }) {
     {overview.isPending ? <Loading /> : overview.error ? <ErrorState error={overview.error} /> : o ? <section className="space-y-3" aria-label="Formats by group">
       <div className="flex flex-wrap items-center gap-3">
         <Input className="h-9 w-full sm:w-72" placeholder="Filter by format or profile" aria-label="Filter formats" value={filter} onChange={(e) => setFilter(e.target.value)} />
-        <span className="text-[13px] text-muted-foreground">{o.formats.length} formats · {o.formats.filter((f) => f.definition === "trash").length} TRaSH · {plural(o.formats.filter((f) => f.definition === "frozen").length, "frozen copy", "frozen copies")} · {o.formats.filter((f) => f.definition === "ours").length} ours</span>
+        <span className="text-[13px] text-muted-foreground" data-testid="formats-count">{filter.trim() ? `${groups.reduce((n, [, list]) => n + list.length, 0)} of ` : ""}{o.formats.length} formats · {o.formats.filter((f) => f.definition === "trash").length} TRaSH · {plural(o.formats.filter((f) => f.definition === "frozen").length, "frozen copy", "frozen copies")} · {o.formats.filter((f) => f.definition === "ours").length} ours</span>
       </div>
       {o.formats.some((f) => f.definition === "frozen") ? <p className="text-[13px] text-muted-foreground">Frozen copies carry a TRaSH name but no TRaSH id, so no sync updates them: <Link className="underline" to="/admin/settings/quality-sync">Link formats to TRaSH</Link> on the Quality sync page.</p> : null}
       {groups.map(([group, list]) => <details key={group} open className="rounded-xl border border-[var(--line)]" data-group={group}>

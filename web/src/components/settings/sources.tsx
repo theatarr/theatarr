@@ -50,12 +50,13 @@ import {
 import { returnTarget } from "./focus";
 import { Sheet, useEditParam } from "@/components/ui/sheet";
 import { Announcer, ExplainBox, TestResult, useAnnouncement, type Announcement } from "./parts";
-import { NOUN, RecordEditor } from "./record-form";
+import { adapterWord, NOUN, RecordEditor } from "./record-form";
 import { AddIndexer, HoldsCard } from "./add-indexer";
 import { useCardigannCatalog, type CardigannDefinition } from "@/api/cardigann";
 import { useVersions } from "@/api/settings-versions";
 import type { LibraryList } from "./indexer-libraries";
 import { wordMatcher } from "@/lib/words";
+import { inCredential } from "@/lib/cardigann";
 
 const KIND: Record<string, string> = { realdebrid: "Real-Debrid", alldebrid: "AllDebrid", torbox: "TorBox" };
 
@@ -180,6 +181,10 @@ export type SourcesViewProps = {
   rssProblems?: Record<string, string>;
   /** The budgets, for an indexer's budget use beside its requests. */
   budgets?: SettingsRecord[];
+  /** Catalog definitions that take no account or key, by id: their indexers show no "credential not set". */
+  keyless?: Set<string>;
+  /** The last move, saved: said beside the list. */
+  moveNote?: string;
 };
 
 function TestAllBar(p: SourcesViewProps) {
@@ -244,7 +249,14 @@ function TestEdit({ p, r }: { p: SourcesViewProps; r: SettingsRecord }) {
  * set". Zilean takes an optional one, shown when set. */
 const KEYLESS_KINDS = new Set(["torrentio", "zilean", "seadex"]);
 
-const ADAPTER: Record<string, string> = { torznab: "Torznab", dmm: "DMM", torrentio: "Torrentio", zilean: "Zilean", seadex: "SeaDex", cardigann: "Catalog" };
+
+/** Whether an indexer row says "credential not set" when none is stored: not for kinds or catalog definitions that
+ * search without one. */
+export function wantsCredential(r: SettingsRecord, keyless?: Set<string>): boolean {
+  const kind = String(r.config?.kind ?? r.kind ?? "");
+  if (KEYLESS_KINDS.has(kind)) return false;
+  return !(kind === "cardigann" && keyless?.has(String(r.config?.definition ?? "")));
+}
 
 function host(url: unknown): string {
   try {
@@ -259,7 +271,7 @@ function host(url: unknown): string {
 export function via(r: SettingsRecord, rssProblems?: Record<string, string>): string {
   const c = r.config ?? {};
   const kind = String(c.kind ?? r.kind ?? "");
-  const name = ADAPTER[kind] ?? kind;
+  const name = adapterWord(kind);
   const noRSS = kind === "cardigann" && c.definition ? rssProblems?.[String(c.definition)] : undefined;
   const parts = [kind === "cardigann" && c.definition ? `${name} · ${String(c.definition)}` : name, host(c.url), noRSS ? `no RSS: ${noRSS}` : ""];
   return parts.filter(Boolean).join(" · ");
@@ -309,11 +321,12 @@ export function SourcesView(p: SourcesViewProps) {
       <TestAllBar {...p} />
       {p.moveError ? <ExplainBox error={p.moveError} onReload={p.onReload} className="mb-3" /> : null}
       {p.orderNote ? <p className="mb-3 text-[13px] text-[var(--warn-ink)]" data-testid="order-note">{p.orderNote}</p> : null}
+      <p className="mb-2 min-h-[1lh] text-[13px] text-[var(--ok-ink)]" role="status" data-testid="move-saved">{p.moveNote ?? ""}</p>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <p className="min-w-0 flex-1 basis-64 text-[13px] text-muted-foreground">
           {entity === "indexers"
-            ? "Searched in priority order (lower first); the arrows swap neighbours. Requests use the gateway with the configured VPN requirements. Privacy is a label: the libraries that list an indexer decide where its releases go."
-            : "Tried in this fallback order; the arrows move one place earlier or later. Libraries list their providers in Settings, and the order here must agree."}
+            ? "Searched in this order, first to last; an arrow swaps neighbours and saves at once. Requests use the gateway with the configured VPN requirements. Privacy is a label: the libraries that list an indexer decide where its releases go."
+            : "Tried in this fallback order; an arrow moves one place earlier or later and saves at once. Libraries list their providers in Settings, and the order here must agree."}
         </p>
         <div className="flex flex-wrap items-center gap-2">
           {entity === "indexers" ? (
@@ -344,7 +357,7 @@ export function SourcesView(p: SourcesViewProps) {
                 <TableHead>Indexer</TableHead>
                 <TableHead className="hidden md:table-cell">Via</TableHead>
                 <TableHead>Privacy</TableHead>
-                <TableHead className="hidden sm:table-cell">Priority</TableHead>
+                <TableHead className="hidden sm:table-cell">Order</TableHead>
                 <TableHead>Last test</TableHead>
                 <TableHead className="text-right"><span className="sr-only">Actions</span></TableHead>
               </TableRow>
@@ -359,7 +372,7 @@ export function SourcesView(p: SourcesViewProps) {
                       <Mono className="[overflow-wrap:anywhere]">{r.key}</Mono>
                       <div className="mt-1 flex flex-wrap gap-1">
                         <Badge tone={r.enabled ? "positive" : "neutral"} data-testid="enabled-state">{r.enabled ? "enabled" : "disabled"}</Badge>
-                        {r.secret_set || !KEYLESS_KINDS.has(String(r.config?.kind ?? r.kind ?? "")) ? <Badge tone={r.secret_set ? "positive" : "neutral"} data-testid="row-secret">credential {r.secret_set ? "set" : "not set"}</Badge> : null}
+                        {r.secret_set || wantsCredential(r, p.keyless) ? <Badge tone={r.secret_set ? "positive" : "neutral"} data-testid="row-secret">credential {r.secret_set ? "set" : "not set"}</Badge> : null}
                       </div>
                       <div className="mt-1 text-xs text-muted-foreground md:hidden">{via(r, p.rssProblems)}</div>
                       <div className="md:hidden"><IndexerRequests r={r} budgets={p.budgets} /></div>
@@ -374,7 +387,7 @@ export function SourcesView(p: SourcesViewProps) {
                       <Badge tone={privacy === "public" ? "positive" : "warning"}>{privacy}</Badge>
                     </TableCell>
                     <TableCell className="hidden whitespace-nowrap tabular-nums sm:table-cell">
-                      <span className="mr-1 inline-block min-w-[1.5ch] text-right">{r.priority ?? 0}</span>
+                      <span className="mr-1 inline-block min-w-[1.5ch] text-right" title={`Search priority ${r.priority ?? 0}`} data-testid="search-order">{i + 1}</span>
                       <MoveButtons p={view} r={r} i={i} count={records.length} />
                     </TableCell>
                     <TableCell className="max-w-[16rem] max-sm:col-start-1 max-sm:max-w-none max-sm:whitespace-normal max-sm:pt-1"><LastTest r={r} tests={p.tests} now={p.now} /></TableCell>
@@ -502,6 +515,7 @@ export function SourcesPanel({
   const ed = useEditor(entity, records, overview.generation);
   const [moveError, setMoveError] = useState<Explained>();
   const [orderNote, setOrderNote] = useState<string>();
+  const [moveNote, setMoveNote] = useState<string>();
   const write = useSettingsWrite();
   const confirm = useWriteConfirmation();
   const reload = useReloadSettings();
@@ -530,10 +544,12 @@ export function SourcesPanel({
   const onMove = (r: SettingsRecord, dir: -1 | 1) => {
     setMoveError(undefined);
     setOrderNote(undefined);
+    setMoveNote(undefined);
+    const saved = () => setMoveNote(`Saved: ${r.key} moved ${entity === "indexers" ? (dir < 0 ? "up" : "down") : dir < 0 ? "earlier" : "later"}.`);
     if (entity === "indexers") {
       const priorities = movedPriorities(records, r.id!, dir);
       if (!priorities) return;
-      const send = (token?: string) => write.mutate({ method: "PUT", path: "/indexers/priority", body: { generation: overview.generation, priorities }, token }, { onError: (e) => { if (!confirm.ask(e, send)) setMoveError(explainError(e)); } });
+      const send = (token?: string) => write.mutate({ method: "PUT", path: "/indexers/priority", body: { generation: overview.generation, priorities }, token }, { onSuccess: saved, onError: (e) => { if (!confirm.ask(e, send)) setMoveError(explainError(e)); } });
       send();
       return;
     }
@@ -548,7 +564,7 @@ export function SourcesPanel({
       );
       return;
     }
-    const send = (token?: string) => write.mutate({ method: "PUT", path: "/providers/order", body: { generation: overview.generation, order }, token }, { onError: (e) => { if (!confirm.ask(e, send)) setMoveError(explainError(e)); } });
+    const send = (token?: string) => write.mutate({ method: "PUT", path: "/providers/order", body: { generation: overview.generation, order }, token }, { onSuccess: saved, onError: (e) => { if (!confirm.ask(e, send)) setMoveError(explainError(e)); } });
     send();
   };
   const nextOrder = Math.max(0, ...overview.providers.map((p) => p.order ?? 0)) + 1;
@@ -611,7 +627,9 @@ export function SourcesPanel({
         orderNote={orderNote}
         announcement={announcement}
         rssProblems={rssProblemsOf(catalog.data?.definitions)}
+        keyless={new Set((catalog.data?.definitions ?? []).filter((d) => !d.settings.some(inCredential)).map((d) => d.id))}
         budgets={overview.budgets}
+        moveNote={moveNote}
       />
     </div>
   );
@@ -629,7 +647,7 @@ export function BudgetsView({ records, readOnly, onEdit, selected }: BudgetsView
   return (
     <div data-testid="budgets-list">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <p className="text-[13px] text-muted-foreground">Request budgets shared by the sources that name them; use is live from the gateway (this hour · today).</p>
+        <p className="text-[13px] text-muted-foreground">Request budgets shared by the sources that name them; use is live from the gateway (this hour · today). The gateway counts a period only when the budget caps it: “not counted” is not zero.</p>
         <Button size="sm" onClick={() => onEdit("new")} disabled={!!readOnly} data-testid="add">
           <Plus /> Add budget
         </Button>
@@ -663,8 +681,8 @@ export function BudgetsView({ records, readOnly, onEdit, selected }: BudgetsView
                   <TableCell className="max-sm:col-start-1 max-sm:flex max-sm:items-center max-sm:gap-1 sm:min-w-[140px]">
                     <span className="text-muted-foreground sm:hidden">Caps </span><CapBars hourly={c.hourly} daily={c.daily} usedHour={u?.used_hour} usedDay={u?.used_day} />
                   </TableCell>
-                  <TableCell className="tabular-nums max-sm:col-start-1 sm:text-right" data-col="hour"><span className="text-muted-foreground sm:hidden">This hour </span>{u ? fmtNumber(u.used_hour) : "—"}</TableCell>
-                  <TableCell className="tabular-nums max-sm:col-start-1 sm:text-right" data-col="day"><span className="text-muted-foreground sm:hidden">Today </span>{u ? fmtNumber(u.used_day) : "—"}</TableCell>
+                  <TableCell className="tabular-nums max-sm:col-start-1 sm:text-right" data-col="hour"><span className="text-muted-foreground sm:hidden">This hour </span><PeriodUse used={u?.used_hour} cap={c.hourly} per="hourly" /></TableCell>
+                  <TableCell className="tabular-nums max-sm:col-start-1 sm:text-right" data-col="day"><span className="text-muted-foreground sm:hidden">Today </span><PeriodUse used={u?.used_day} cap={c.daily} per="daily" /></TableCell>
                   <TableCell className="max-w-[16rem] text-[13px] text-muted-foreground max-sm:col-start-1 max-sm:max-w-none"><span className="text-muted-foreground sm:hidden">Used by </span>{(u?.used_by ?? []).map(usedByWord).join(", ") || "—"}</TableCell>
                   <TableCell className="text-right max-sm:col-start-2 max-sm:row-start-1">
                     <Button size="xs" variant="outline" onClick={() => onEdit(r)} data-testid="edit" aria-label={readOnly ? `View ${r.key}` : `Edit ${r.key}`}>
@@ -681,11 +699,21 @@ export function BudgetsView({ records, readOnly, onEdit, selected }: BudgetsView
   );
 }
 
+/** A budget's use in one period: the gateway counts only capped periods (gateway/snapshot.go), so an uncapped one is
+ * "not counted", never a 0 that reads as no requests. */
+export function PeriodUse({ used, cap, per }: { used?: number; cap?: number; per: "hourly" | "daily" }) {
+  if (!cap) return <span className="text-muted-foreground" title={`Not counted: this budget has no ${per} cap`} data-testid="use-untracked">not counted</span>;
+  return <>{used === undefined ? "—" : fmtNumber(used)}</>;
+}
+
 // What a budget is used by, from the gateway's class:key ("provider:ad", "indexer:prowlarr-tpb"): "Provider AD",
-// "Indexer prowlarr-tpb"; anything else as sent.
-const USER_CLASS: Record<string, string> = { provider: "Provider", indexer: "Indexer", metadata: "Metadata" };
+// "Indexer prowlarr-tpb", "Plex server"; anything else as sent.
+const USER_CLASS: Record<string, string> = { provider: "Provider", indexer: "Indexer", metadata: "Metadata", client: "Download client", webhook: "Notification" };
+// Components with one connection each: the key only repeats the component.
+const USER_COMPONENT: Record<string, string> = { plex: "Plex server", zurgapi: "Zurg API", zurglog: "Zurg log reader", rclonerc: "rclone remote control", decypharr: "Decypharr", egress: "VPN check" };
 export function usedByWord(target: string): string {
   const [cls, key] = target.split(/:(.*)/s);
+  if (key && USER_COMPONENT[cls]) return USER_COMPONENT[cls];
   if (!key || !USER_CLASS[cls]) return target;
   return `${USER_CLASS[cls]} ${cls === "provider" ? providerLabel(key) : key}`;
 }

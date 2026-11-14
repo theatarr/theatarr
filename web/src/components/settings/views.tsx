@@ -18,7 +18,8 @@ import { Card } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { VersionStatus } from "@/components/version-status";
-import { Sheet, SheetLayout } from "@/components/ui/sheet";
+import { Sheet, SheetCancel, SheetLayout } from "@/components/ui/sheet";
+import { changedPaths } from "./section-draft";
 import { type Explained, type SecretAction } from "@/lib/settings";
 import { useLibraryName } from "@/lib/library-names";
 import { useSettingsEditor } from "./use-settings-editor";
@@ -47,7 +48,7 @@ export function ViewsCard({ readOnly }: { readOnly: boolean }) {
     <Card className="mt-6" data-testid="settings-views">
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="text-lg font-semibold">Arr apps</h2>
-        {writable ? <Button className="ml-auto" size="xs" onClick={() => { setNotice(undefined); setOpen("new"); }}>Add view</Button> : null}
+        {writable ? <Button className="ml-auto" size="xs" onClick={() => { setNotice(undefined); setOpen("new"); }}>Add app</Button> : null}
       </div>
       <p className="mt-1 text-sm text-muted-foreground">
         Each app's libraries, profiles and API key. Changes apply without a restart.
@@ -55,7 +56,7 @@ export function ViewsCard({ readOnly }: { readOnly: boolean }) {
       {notice ? <p role="status" className="mt-3 text-sm">{notice}</p> : null}
       <ul className="mt-4 divide-y divide-[var(--line)]">
         {data.views.map((v) => (
-          <li key={v.key} className="flex flex-wrap items-center gap-3 py-2.5" data-view={v.key}>
+          <li key={v.key} className="flex flex-wrap items-start gap-3 py-2.5" data-view={v.key}>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2 font-medium">
                 {v.key}
@@ -176,26 +177,30 @@ export function ViewSheet({ view: opened, generation: openedAt, readOnly, onClos
     if (action === "clear") body.clear_api_key = true;
     void editor.save(
       { path: create ? "/settings/view-bindings" : `/settings/view-bindings/${encodeURIComponent(view.key)}`, method: create ? "POST" : "PUT", body },
-      () => onSaved(`View ${key} saved.`),
+      () => onSaved(`App ${key} saved.`),
     );
   };
   const remove = () => editor.save(
     { path: `/settings/view-bindings/${encodeURIComponent(key)}` + qs({ generation }), method: "DELETE" },
-    () => onSaved(`View ${key} deleted.`),
+    () => onSaved(`App ${key} deleted.`),
   );
   const off = readOnly || busy;
+  const start = useRef({ key: view?.key ?? "", flavour: view?.identity?.flavour ?? "radarr", path: view?.identity?.path ?? "", versions: view?.versions ?? [], profiles: view?.profiles ?? {}, action: create ? "replace" : "keep", apiKey: "" });
+  const changes = readOnly ? 0 : changedPaths({ key, flavour, path, versions, profiles, action, apiKey }, start.current).length;
+  const title = create ? "New app" : readOnly ? `App ${view.key}` : `Edit app ${view.key}`;
   return (
-    <Sheet label={create ? "New view" : `View ${view.key}`} onClose={onClose} initialFocus={heading} testid="view-sheet">
+    <Sheet label={title} onClose={onClose} initialFocus={heading} testid="view-sheet">
       <SheetLayout
-        title={create ? "New view" : `View ${view.key}`}
+        changes={changes}
+        title={title}
         subtitle="Applies without a restart."
         headingRef={heading}
         onClose={onClose}
         testid="view-editor"
         footer={readOnly ? <Button variant="outline" onClick={onClose}>Close</Button> : <>
           <Button onClick={() => void save()} disabled={busy}>Save</Button>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
-          {!create ? <Button className="ml-auto" variant="destructive" onClick={() => setDeleting(true)} disabled={busy}>Delete view</Button> : null}
+          <SheetCancel variant="outline" onClick={onClose}>Cancel</SheetCancel>
+          {!create ? <Button className="ml-auto" variant="destructive" onClick={() => setDeleting(true)} disabled={busy}>Delete app</Button> : null}
         </>}
       >
         {error ? <ExplainBox error={error} onReload={() => void reload(false)} onReloadKeep={() => void reload(true)} className="mb-4" /> : null}
@@ -206,7 +211,7 @@ export function ViewSheet({ view: opened, generation: openedAt, readOnly, onClos
         ) : null}
         {!seeded ? <p className="mb-4 text-sm text-muted-foreground">Path, flavour and key come from the policy files until Theatarr restarts once on this release.</p> : null}
         <div className="grid gap-4 sm:grid-cols-2">
-          {create ? <Field label="Key" help="A name for the view; it cannot be renamed later."><Input value={key} onChange={(e) => setKey(e.target.value)} disabled={off} /></Field> : null}
+          {create ? <Field label="Key" help="A name for the app; it cannot be renamed later."><Input value={key} onChange={(e) => setKey(e.target.value)} disabled={off} /></Field> : null}
           <Field label="Flavour">
             <select className={SELECT_CLASS} value={flavour} onChange={(e) => setFlavour(e.target.value)} disabled={off || !seeded}>
               <option value="radarr">radarr</option>
@@ -261,10 +266,10 @@ export function ViewSheet({ view: opened, generation: openedAt, readOnly, onClos
         <ConfirmDialog
           testid="view-delete"
           scope={{
-            title: `Delete view ${key}`,
-            does: [`${path || "The view"} stops answering arr clients at once; its stored API key is removed.`],
+            title: `Delete app ${key}`,
+            does: [`${path || "The app's address"} stops answering arr clients at once; its stored API key is removed.`],
             keeps: ["Libraries, links and library files stay as they are."],
-            confirm: "Delete view",
+            confirm: "Delete app",
           }}
           onClose={() => setDeleting(false)}
           onConfirm={() => { setDeleting(false); void remove(); }}

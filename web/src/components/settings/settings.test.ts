@@ -250,7 +250,7 @@ describe("the orphan confirmation", () => {
     const box = tag(html, "orphan-confirm");
     expect(box).toContain('type="checkbox"');
     expect(isChecked(box)).toBe(false);
-    expect(html).toContain("orphan_active_downloads");
+    expect(html).not.toContain("orphan_active_downloads");
     expect(html).toContain("provider removed by settings");
     expect(html).toMatch(/is refused; nothing changes/);
   });
@@ -324,10 +324,14 @@ describe("test and test-all", () => {
     expect(html).toMatch(/tested recently; try again in 1[78] s/);
   });
   it("shows budget use", () => {
-    const html = render(h(BudgetsView, { records: [budget], onEdit: noop }));
+    const capped = { ...budget, config: { ...budget.config, hourly: 100, daily: 1000 } };
+    const html = render(h(BudgetsView, { records: [capped], onEdit: noop }));
     expect(html).toContain("16 / min");
     expect(html).toMatch(/data-col="hour"><span[^>]*>This hour <\/span>12</);
     expect(html).toMatch(/data-col="day"><span[^>]*>Today <\/span>140</);
+    // Without caps the gateway counts nothing: no 0 (or stale number) that reads as a count.
+    const uncapped = render(h(BudgetsView, { records: [budget], onEdit: noop }));
+    expect(uncapped).toMatch(/data-col="hour"><span[^>]*>This hour <\/span><span[^>]*>not counted</);
   });
 });
 

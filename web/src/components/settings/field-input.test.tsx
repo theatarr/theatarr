@@ -39,7 +39,12 @@ describe("section field inputs", () => {
  it("offers duration presets on the scale of the field's default", () => {
   render(<Harness field={field("duration", { min: 60, default: "6m" })} />);
   const options = screen.getAllByRole("option").map((o) => o.textContent);
-  expect(options).toEqual(["Default (6 minutes)", "1 minute", "5 minutes", "10 minutes", "30 minutes", "1 hour", "Custom"]);
+  expect(options).toEqual(["Default (6 minutes)", "1 minute", "5 minutes", "6 minutes", "10 minutes", "30 minutes", "1 hour", "Custom"]);
+ });
+ it("shows a stored value equal to the default as that choice, not Custom", () => {
+  render(<Harness field={field("duration", { min: 60, default: "15m" })} initial="15m0s" />);
+  expect((screen.getByRole("combobox") as HTMLSelectElement).value).toBe("15m");
+  expect(screen.queryByLabelText("Option amount")).toBeNull();
  });
  it("keeps a saved preset of another scale selected, not Custom", () => {
   render(<Harness field={field("duration", { min: 60, default: "6m" })} initial="6h0m0s" />);
@@ -108,11 +113,11 @@ it.each(["10m", "24h"])("keeps explicit Off for a duration whose unset default i
  expect(value()).not.toHaveProperty("value");
 });
 
-it("shows a record field's key beside its label only when the key says something the label does not", async () => {
+it("shows a record field's label without its stored key", async () => {
  const { ConfigFields } = await import("./field-input");
  render(<ConfigFields fields={[{ name: "requests", label: "Requests", type: "integer", help: "Requests per period." }, { name: "key", label: "Name", type: "string", help: "Stable name." }]} values={{}} errors={{}} onChange={() => {}} />);
  expect(document.body.textContent).not.toMatch(/Requests\s*requests/);
- expect(document.body.textContent).toMatch(/Name\s*key/);
+ expect(document.body.textContent).not.toMatch(/Name\s*key/);
 });
 
 it("unfolds the named record a Find a setting link points at, and only that one", () => {
@@ -179,7 +184,8 @@ describe("plain units, stored values kept until edited", () => {
   render(<Harness field={field("bytes", { default: "25MB", unit: "bytes/s" })} initial={0} />);
   const input = screen.getByLabelText("Option") as HTMLInputElement;
   expect(input.value).toBe("");
-  expect(input.placeholder).toBe("25 MB/s");
+  // The unit beside it already says MB/s: the placeholder is the amount alone.
+  expect(input.placeholder).toBe("25");
   expect(value().value).toBe(0);
  });
  it("puts the rate on a speed's unit and no separate bytes/s line", () => {
@@ -218,11 +224,11 @@ describe("typing an amount keeps the unit and Custom as shown", () => {
   expect((screen.getByLabelText("Option amount") as HTMLInputElement).value).toBe("1.25");
   expect((screen.getByLabelText("Option unit") as HTMLSelectElement).value).toBe("hours");
  });
- it("keeps Custom while 15 is typed over a stored 6m0s, though 1 minute is a preset", () => {
-  render(<Harness field={field("duration", { min: 60, default: "6m" })} initial="6m0s" />);
+ it("keeps Custom while 15 is typed over a stored 7m0s, though 1 minute is a preset", () => {
+  render(<Harness field={field("duration", { min: 60, default: "6m" })} initial="7m0s" />);
   const amount = screen.getByLabelText("Option amount");
   fireEvent.change(amount, { target: { value: "" } });
-  expect(value().value).toBe("6m0s");
+  expect(value().value).toBe("7m0s");
   type(screen.getByLabelText("Option amount"), "15");
   expect(value().value).toBe("15m");
   expect((screen.getByRole("combobox", { name: "Option" }) as HTMLSelectElement).value).toBe("custom");
@@ -326,3 +332,17 @@ describe("Discard, Reset and Undo show the value they set", () => {
   expect(amount().value).toBe("2");
  });
 });
+
+it("boxes field groups only when a panel has several, and marks a seedbox client as not used yet", async () => {
+ const { SectionFields } = await import("./field-input");
+ const one = render(<SectionFields fields={[{ name: "a", label: "A", type: "string", help: "", group: "Plex" }]} config={{}} path="library" onChange={() => {}} />);
+ expect(one.container.querySelector('[data-group="Plex"]')!.className).not.toContain("border");
+ one.unmount();
+ const two = render(<SectionFields fields={[{ name: "a", label: "A", type: "string", help: "", group: "One" }, { name: "b", label: "B", type: "string", help: "", group: "Two" }]} config={{}} path="library" onChange={() => {}} />);
+ expect(two.container.querySelector('[data-group="One"]')!.className).toContain("border");
+ two.unmount();
+ render(<SectionFields fields={[{ name: "", label: "Clients", type: "keyed", help: "", fields: [{ name: "kind", label: "Kind", type: "string", help: "" }] }]} config={{ seedbox: { kind: "qbittorrent" }, decypharr: { kind: "decypharr" } }} path="clients" onChange={() => {}} />);
+ expect(screen.getAllByTestId("client-unused")).toHaveLength(1);
+ expect(screen.getByText("seedbox", { selector: "summary" }).textContent).toContain("not used yet");
+});
+

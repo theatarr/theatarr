@@ -55,7 +55,10 @@ describe("Custom formats page", () => {
     await user.type(await screen.findByRole("textbox", { name: "Filter formats" }), "zurg");
     expect(screen.getAllByText("DD+").length).toBeGreaterThan(0);
     expect(screen.queryByText("x265 (HD)")).toBeNull();
+    // The count says it is filtered: "N of M formats".
+    expect(screen.getByTestId("formats-count").textContent).toMatch(/^\d+ of \d+ formats/);
     await user.clear(screen.getByRole("textbox", { name: "Filter formats" }));
+    expect(screen.getByTestId("formats-count").textContent).toMatch(/^\d+ formats/);
     await user.click(screen.getByRole("button", { name: "Edit definition our-group" }));
     expect(await screen.findByRole("dialog")).toBeTruthy();
   });

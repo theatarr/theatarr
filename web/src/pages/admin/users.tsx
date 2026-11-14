@@ -21,6 +21,15 @@ import { fmtAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { readableCode } from "@/lib/code-words";
 
+// What each permission lets an account do (internal/auth/perms.go), in words; the stored names stay as they are.
+const PERMISSION_WORDS: Record<string, string> = {
+  browse: "browse the library", request: "request titles", auto_approve: "have requests apply at once", add: "add titles directly",
+  manage_requests: "approve and decline requests", see_files: "see files, sizes and releases", manage: "search and manage downloads",
+  own_keys: "make their own API keys", admin: "open the admin pages and settings", users: "manage users and every API key",
+};
+/** An account's permissions as a plain list: "browse the library, request titles". An unknown name as sent. */
+export const permissionWords = (perms: string[]) => perms.map((p) => PERMISSION_WORDS[p] ?? p).join(", ") || "nothing yet";
+
 const ROLES: { id: "admin" | "manager" | "user"; label: string; hint: string }[] = [
   { id: "user", label: "User", hint: "Browses and requests; sees availability only" },
   { id: "manager", label: "Manager", hint: "Runs the library: adds, approves requests, sees files" },
@@ -156,7 +165,7 @@ function UserCard({ u, page }: { u: User; page: UsersPage }) {
       {patch.error ? <p className="px-4 pb-3 text-xs text-[var(--bad-ink)]">{patch.error instanceof ApiError ? patch.error.message : String(patch.error)}</p> : null}
       {open ? (
         <div className="space-y-5 border-t border-[var(--line)] p-3 sm:p-4" data-testid="user-settings">
-          <p className="text-xs text-muted-foreground">{ROLES.find((r) => r.id === u.role)?.hint}. Permissions: {(u.permissions ?? []).join(", ")}.</p>
+          <p className="text-xs text-muted-foreground" data-testid="user-permissions">{ROLES.find((r) => r.id === u.role)?.hint}. Can: {permissionWords(u.permissions ?? [])}.</p>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="flex items-center justify-between gap-3 rounded-[5px] border border-[var(--line)] px-3 py-2.5">
               <div>
