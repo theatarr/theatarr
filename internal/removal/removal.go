@@ -172,12 +172,22 @@ func Run(ctx context.Context, d Deps, s Spec) (*Result, error) {
 				return err
 			}
 		}
-		// The files' fate: kept now, or with Unlink unknown until the links are done (below).
-		rm := journal.Removal{Files: journal.RemovalFilesKept}
-		if s.Unlink {
-			rm.Files = ""
-		}
+		// The files' fate: kept now, or with Unlink unknown until the links are done (below). A library that had no
+		// file records no file outcome.
 		for _, k := range out.Removed {
+			rm := journal.Removal{}
+			if !s.Unlink {
+				var files bool
+				if err := tx.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM link l JOIN link_version lv
+					ON lv.link_id = l.id JOIN version v ON v.id = lv.version_id WHERE v.title_id = ?1 AND v.policy_key = ?2
+					AND l.state IN ('active', 'dead')) OR EXISTS (SELECT 1 FROM version_file vf JOIN version v
+					ON v.id = vf.version_id WHERE v.title_id = ?1 AND v.policy_key = ?2)`, s.TitleID, k).Scan(&files); err != nil {
+					return err
+				}
+				if files {
+					rm.Files = journal.RemovalFilesKept
+				}
+			}
 			id, err := journal.RecordAction(ctx, tx, journal.Action{Action: s.Action, TitleID: s.TitleID, Version: k,
 				Target: s.Name, Detail: journal.RemovalDetail(rm), By: s.By, At: now})
 			if err != nil {

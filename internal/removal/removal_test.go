@@ -528,3 +528,20 @@ func TestRunLeftoverWithoutAnEarlierRemoval(t *testing.T) {
 			journal.ActRemoveVersion), res.Cleanup)
 	}
 }
+
+// With "Delete the files" off, a library that had no file records no file outcome; one with files says they were kept.
+func TestRunWithoutFilesOnALibraryWithNoFile(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	f.exec(`DELETE FROM link_version WHERE version_id = 2`)
+	if _, err := Run(context.Background(), f.deps(), Spec{TitleID: 1, Name: "Gone", Keys: []string{"movie-remux", "movie-web"},
+		View: "ui", Action: journal.ActRemoveTitle}); err != nil {
+		t.Fatal(err)
+	}
+	if rm := journal.ParseRemovalDetail(f.str(`SELECT detail FROM journal_action WHERE version_key = 'movie-remux'`)); rm.Files != "" {
+		t.Errorf("no file: %+v", rm)
+	}
+	if rm := journal.ParseRemovalDetail(f.str(`SELECT detail FROM journal_action WHERE version_key = 'movie-web'`)); rm.Files != journal.RemovalFilesKept {
+		t.Errorf("files: %+v", rm)
+	}
+}

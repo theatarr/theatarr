@@ -596,9 +596,9 @@ func TestRemoveCopiesAndTitle(t *testing.T) {
 	if strings.Join(kinds, " ") != "remove_version remove_title unlink_file" || acts[2].Target != "/lib/Beta/a.mkv" {
 		t.Errorf("actions %+v", acts)
 	}
-	// What became of each library's files: Alpha's web copy kept them (no unlink); Beta's symlink went, its hardlink
-	// and the arr's own file (version_file at /movies) stayed.
-	if rm := journal.ParseRemovalDetail(acts[0].Detail); rm.Files != journal.RemovalFilesKept || rm.Left != 0 {
+	// What became of each library's files: Alpha's web copy had none (no file outcome); Beta's symlink went, its
+	// hardlink and the arr's own file (version_file at /movies) stayed.
+	if rm := journal.ParseRemovalDetail(acts[0].Detail); rm.Files != "" || rm.Left != 0 {
 		t.Errorf("copy removal %q", acts[0].Detail)
 	}
 	if rm := journal.ParseRemovalDetail(acts[1].Detail); rm.Files != journal.RemovalFilesPartial || rm.Left != 2 ||
