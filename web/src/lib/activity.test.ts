@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { activityHref } from "./copies";
-import { downloadHref, failedLead, filterDownloads, fmtSpan, SHOWS, isWaiting, needsAttention, parseShow, showCounts, STAGE_MEANINGS, stageLabel, stageMeaning, timing } from "./activity";
+import { downloadHref, failedLead, filterDownloads, searchScope, fmtSpan, SHOWS, isWaiting, needsAttention, parseShow, showCounts, STAGE_MEANINGS, stageLabel, stageMeaning, timing } from "./activity";
 
 const NOW = Date.parse("2026-10-26T12:00:00Z");
 const ago = (ms: number) => new Date(NOW - ms).toISOString();
@@ -118,5 +118,15 @@ describe("failedLead", () => {
     expect(failedLead({ state: "failed", error: "provider status error" })).toMatch(/^The download failed\./);
     expect(failedLead({ state: "failed", not_started: true, error: "x" })).toBe("");
     expect(failedLead({ state: "downloading" })).toBe("");
+  });
+});
+
+describe("searchScope", () => {
+  const title = { id: 5, name: "Epsilon", kind: "series" as const, poster: "" };
+  it("searches one episode for a one-episode download, the season for several in one, else the title", () => {
+    expect(searchScope({ title, version: "tv", episodes: ["S02E03"], episode_ids: [73] })).toEqual({ titleId: 5, version: "tv", episode: { id: 73, code: "S02E03" } });
+    expect(searchScope({ title, version: "tv", episodes: ["S02E03", "S02E04"], episode_ids: [73, 74] })).toEqual({ titleId: 5, version: "tv", season: 2 });
+    expect(searchScope({ title, version: "tv", episodes: ["S01E09", "S02E01"], episode_ids: [9, 10] })).toEqual({ titleId: 5, version: "tv", season: undefined });
+    expect(searchScope({ title, version: "movie" })).toEqual({ titleId: 5, version: "movie", season: undefined });
   });
 });

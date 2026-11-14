@@ -151,6 +151,8 @@ type ActivityDownload struct {
 	NextRetry    *time.Time `json:"next_retry,omitempty"`
 
 	// Admin only.
+	// EpisodeIDs are the ids of Episodes, in the same order (interactive search for one episode).
+	EpisodeIDs   []int64            `json:"episode_ids,omitempty"`
 	Release      string             `json:"release,omitempty"`
 	Indexer      string             `json:"indexer,omitempty"`
 	Hash         string             `json:"info_hash,omitempty"`
@@ -556,6 +558,9 @@ func (w *Web) downloadViews(ctx context.Context, ds []activity.Download, admin b
 		for _, e := range d.Episodes {
 			if l := labels[e]; l != "" {
 				x.Episodes = append(x.Episodes, l)
+				if admin {
+					x.EpisodeIDs = append(x.EpisodeIDs, e)
+				}
 			}
 		}
 		if admin {

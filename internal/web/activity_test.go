@@ -1066,6 +1066,11 @@ func TestActivityQueueFailureRule(t *testing.T) {
 	if got, want := ids(a), []int64{15, 11, 8, 5, 4, 3}; !slices.Equal(got, want) {
 		t.Errorf("admin queue %v, want %v", got, want)
 	}
+	for _, d := range a.Now {
+		if d.ID == 11 && (!slices.Equal(d.EpisodeIDs, []int64{31, 32}) || !slices.Equal(d.Episodes, []string{"S01E01", "S01E02"})) {
+			t.Errorf("download 11 episodes: %v %v", d.EpisodeIDs, d.Episodes)
+		}
+	}
 	e.getKey(APIBase+"/activity?state=now&as=user", key, &u)
 	if got := ids(u); !slices.Equal(got, []int64{15}) {
 		t.Errorf("user view %v, want only the download in progress", got)

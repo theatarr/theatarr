@@ -23,7 +23,7 @@ import { ColumnPicker, OptionsDialog } from "@/components/ui/column-picker";
 import { Choice } from "@/components/ui/confirm-dialog";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
 import { fmtAgo, fmtBytes, fmtNumber, fmtTime, nameWithoutYear } from "@/lib/format";
-import { bulkWords, failedLead, filterDownloads, needsAttention, showCounts, SHOWS, STAGE_MEANINGS, stageLabel, stageMeaning, timing, type ActivityShow } from "@/lib/activity";
+import { bulkWords, failedLead, filterDownloads, searchScope, needsAttention, showCounts, SHOWS, STAGE_MEANINGS, stageLabel, stageMeaning, timing, type ActivityShow } from "@/lib/activity";
 import {
   isQueueSortColumn,
   nextQueueSort,
@@ -44,7 +44,7 @@ import { FAILED_WORDS } from "@/lib/request-timeline";
 import { ProviderTag } from "@/components/provider-pills";
 import { InfoHash } from "@/components/title/info-hash";
 import { attemptCodeWords, attemptMessageWords, attemptOutcomeWords, cacheSourceWords, cacheStateWords } from "@/lib/router-words";
-import { InteractiveSearchButton, type SearchScope } from "@/components/title/interactive-search";
+import { InteractiveSearchButton, useLiveLibraries } from "@/components/title/interactive-search";
 
 const WORD_TONE = {
   active: "text-[var(--accent-ink)]",
@@ -327,11 +327,13 @@ function queueColumns(now: number): { fixed: DataColumn<ActivityDownload>[]; opt
   };
 }
 
-/** The interactive search a failed download's panel offers: its library, and its season when all its episodes are
- *  in one. */
-function searchScope(d: ActivityDownload): SearchScope {
-  const seasons = new Set((d.episodes ?? []).map((e) => /^S(\d+)E/.exec(e)?.[1]).filter(Boolean).map(Number));
-  return { titleId: d.title.id, version: d.version, season: seasons.size === 1 ? [...seasons][0] : undefined };
+/** Interactive search for the failed download's own library only: when that library does not search the indexers
+ *  now (Watch only, removed), the panel says so instead of opening a search of another library. */
+function PanelSearch({ d }: { d: ActivityDownload }) {
+  const { libs, pending } = useLiveLibraries(d.title.id);
+  if (pending) return null;
+  if (!libs.some((v) => v.key === d.version)) return <span className="text-sm text-muted-foreground" data-testid="panel-search-off">Its library does not search the indexers now, so Interactive search is not offered.</span>;
+  return <InteractiveSearchButton {...searchScope(d)} size="sm" />;
 }
 
 /** The open row's panel: the steps, then the release, hash, message, provider attempts, cache evidence and journal.
@@ -345,7 +347,7 @@ function OpenPanel({ d }: { d: ActivityDownload }) {
       {lead ? (
         <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2" data-testid="failed-lead">
           <p className="min-w-0 max-w-2xl text-sm text-[var(--ink)]">{lead}</p>
-          {manage && d.title.id ? <InteractiveSearchButton {...searchScope(d)} size="sm" /> : null}
+          {manage && d.title.id ? <PanelSearch d={d} /> : null}
         </div>
       ) : null}
       <div className="max-w-xl">

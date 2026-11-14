@@ -2,6 +2,7 @@
 // Waiting, All; ?show= in the URL), the short stage name each row shows, and how long a download has waited. The
 // server sends waiting_since and next_retry when it knows them (internal/web/activity.go waitTimes).
 import type { ActivityDownload } from "@/api/activity";
+import type { SearchScope } from "@/components/title/interactive-search";
 
 export type ActivityShow = "attention" | "downloading" | "waiting" | "all";
 
@@ -145,6 +146,16 @@ export function failedLead(d: Pick<ActivityDownload, "state" | "error" | "import
   if (e.startsWith("stalled")) return `It stalled at the provider and was dropped. ${pick}`;
   if (e.startsWith("ready timeout")) return `It finished at the provider but was not linked in time. ${pick}`;
   return `The download failed. ${pick}`;
+}
+
+/** The interactive search a failed download's panel offers: its library, and its one episode, or its season when
+ *  its episodes are all in one, else the whole title. */
+export function searchScope(d: Pick<ActivityDownload, "title" | "version" | "episodes" | "episode_ids">): SearchScope {
+  const eps = d.episodes ?? [];
+  const ids = d.episode_ids ?? [];
+  if (eps.length === 1 && ids.length === 1) return { titleId: d.title.id, version: d.version, episode: { id: ids[0], code: eps[0] } };
+  const seasons = new Set(eps.map((e) => /^S(\d+)E/.exec(e)?.[1]).filter(Boolean).map(Number));
+  return { titleId: d.title.id, version: d.version, season: seasons.size === 1 ? [...seasons][0] : undefined };
 }
 
 /** A span of time: "45 s", "12 min", "8 h", "3 d". */

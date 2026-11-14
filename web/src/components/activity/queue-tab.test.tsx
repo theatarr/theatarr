@@ -201,11 +201,13 @@ it("opens a failed download with one sentence and Interactive search, its attemp
     { method: "GET", path: "/auth/me", reply: me },
     { method: "GET", path: "/activity", reply: { state: "now", admin: true, total: 1, now: [stalled] } },
     { method: "GET", path: "/activity/downloads/50/attempts", reply: { attempts: [{ provider: "rd", outcome: "deferred", code: "paced", message: "min_gap 20s since the last add", at: "2026-10-30T00:00:00Z" }] } },
+    { method: "GET", path: "/titles/5", reply: { id: 5, name: "Epsilon", kind: "series", versions: [{ key: "tv-2160p", label: "4K", control: { live_releases: true } }] } },
+    { method: "GET", path: "/titles/5/removal", reply: { copies: [{ key: "tv-2160p" }] } },
   ]);
   renderPage(<QueueTab admin show="all" onShow={() => {}} />, "/activity?open=50");
   const lead = await screen.findByTestId("failed-lead");
   expect(lead.textContent).toContain("It stalled at the provider and was dropped. Retry sends the same release again; Interactive search lets you choose another.");
-  expect(within(lead).getByTestId("interactive-search-open").textContent).toContain("Interactive search");
+  expect((await within(lead).findByTestId("interactive-search-open")).textContent).toContain("Interactive search");
   const details = screen.getByTestId("failed-details") as HTMLDetailsElement;
   expect(details.open).toBe(false);
   expect(await within(details).findByText("Waiting for the 20 s minimum gap between adds")).toBeTruthy();
@@ -218,4 +220,19 @@ it("colours only the chosen chip; Needs attention with rows shows a dot when not
   expect(attention.getAttribute("aria-pressed")).toBe("false");
   expect(attention.className).not.toContain("border-[var(--warn)]");
   expect(within(attention as HTMLElement).getByTestId("attention-dot")).toBeTruthy();
+});
+
+it("offers no Interactive search of another library when the failed download's library does not search now", async () => {
+  const stalled = { ...base, id: 51, title: { id: 6, name: "Zeta", kind: "movie", poster: "" }, version: "movie-web", state: "failed", words: "Failed", error: "stalled: not ready", release: "Zeta.2026.2160p", info_hash: "ff" };
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: me },
+    { method: "GET", path: "/activity", reply: { state: "now", admin: true, total: 1, now: [stalled] } },
+    { method: "GET", path: "/activity/downloads/51/attempts", reply: { attempts: [] } },
+    { method: "GET", path: "/titles/6", reply: { id: 6, name: "Zeta", kind: "movie", versions: [{ key: "movie-web", control: { live_releases: false } }, { key: "movie-remux", control: { live_releases: true } }] } },
+    { method: "GET", path: "/titles/6/removal", reply: { copies: [{ key: "movie-web" }, { key: "movie-remux" }] } },
+  ]);
+  renderPage(<QueueTab admin show="all" onShow={() => {}} />, "/activity?open=51");
+  const lead = await screen.findByTestId("failed-lead");
+  expect(await within(lead).findByTestId("panel-search-off")).toBeTruthy();
+  expect(within(lead).queryByTestId("interactive-search-open")).toBeNull();
 });
