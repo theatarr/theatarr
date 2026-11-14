@@ -18,7 +18,8 @@ import (
 // cannot disagree. It reads the journal's sources (not its entries: no decision, checks or verdicts per row), a page
 // at a time, the facts of a page's rows in a few batch queries.
 //
-//   - grabbed: a download added or reused at a provider or client (one that never started is no grab; the
+//   - grabbed: a download added or reused at a provider or client, dated when it got there (one that never started is
+//     no grab; the
 //     journal's grab/upgrade classification is not changed and read only when kinds are filtered);
 //   - imported: a download's import that linked (linked or partial), one row per import with the episodes its links
 //     hold, not one per link;
@@ -28,7 +29,8 @@ import (
 //   - missing: a link whose file is gone (dead);
 //   - failed: a failed or stalled download, or an import held for review whose download did not fail;
 //   - blocked: a release put on a version's blocklist;
-//   - copy_added, copy_not_cached: a copy to another provider ("Add to other providers") that ended so.
+//   - copy_added, copy_already, copy_not_cached: a copy to another provider ("Add to other providers") that was added,
+//     found already there, or not cached.
 //
 // Searches, dry runs, mount waits, repaired links and plans stay in the journal only. The release facts of library
 // rows are those recorded with the action (migration 00129); older rows fall back to a link row that still holds the
@@ -46,11 +48,12 @@ const (
 	EvBlocked       = "blocked"
 	EvCopyAdded     = "copy_added"
 	EvCopyNotCached = "copy_not_cached"
+	EvCopyAlready   = "copy_already"
 )
 
 // HistoryEvents lists every History event, for filters.
 var HistoryEvents = []string{EvGrabbed, EvImported, EvAdopted, EvDeleted, EvRemoved, EvMissing, EvFailed, EvBlocked,
-	EvCopyAdded, EvCopyNotCached}
+	EvCopyAdded, EvCopyAlready, EvCopyNotCached}
 
 // KindCopy is the kind of a provider copy's History row (copy:<provider_copy_event>); not a journal kind.
 const KindCopy = "copy"
@@ -65,6 +68,7 @@ type HistoryRow struct {
 	Kind    string
 	Event   string
 	Title   TitleRef
+	Anime   bool
 	Version string
 	// Release is the file the event is about: the grabbed, imported, failed or blocked release; the old file of a
 	// deleted or removed row; the adopted or missing file; the copied torrent. Nil when not known.
@@ -90,7 +94,7 @@ type HistoryPage struct {
 }
 
 // The title of a library action (alias la).
-const libTitleSQL = `COALESCE((SELECT title_id FROM download WHERE id = la.download_id),
+const libTitleSQL = `COALESCE(la.title_id, (SELECT title_id FROM download WHERE id = la.download_id),
 	(SELECT title_id FROM link WHERE id = la.link_id), (SELECT vf.title_id FROM version_file vf WHERE vf.path = la.path LIMIT 1), 0)`
 
 // The link row that still holds an action's file facts, when the action recorded none: a replaced file's unlinked row
@@ -133,7 +137,8 @@ func historyArms(kinds bool) []historyArm {
 		grabKind = grabKindSQL
 	}
 	return []historyArm{
-		{`SELECT 'dl:' || d.id AS id, d.created_at AS at, d.title_id AS title_id, d.version_key AS version_key,
+		{`SELECT 'dl:' || d.id AS id, COALESCE(d.added_at, (SELECT MIN(a.attempted_at) FROM download_attempt a
+			WHERE a.download_id = d.id AND a.outcome = 'accepted'), d.created_at) AS at, d.title_id AS title_id, d.version_key AS version_key,
 			` + grabKind + ` AS kind, 'grabbed' AS event FROM download d WHERE ` + grabbedWhere, []string{EvGrabbed}},
 		{`SELECT 'dl:' || d.id || ':fail' AS id, d.updated_at AS at, d.title_id AS title_id, d.version_key AS version_key,
 			CASE WHEN d.error LIKE 'stalled%' THEN 'stall' ELSE 'failure' END AS kind, 'failed' AS event
@@ -161,8 +166,8 @@ func historyArms(kinds bool) []historyArm {
 			b.version_key AS version_key, 'blocklist' AS kind, 'blocked' AS event FROM router_blocklist b`,
 			[]string{EvBlocked}},
 		{`SELECT 'copy:' || c.id AS id, c.at AS at, COALESCE(c.title_id, 0) AS title_id, '' AS version_key,
-			'copy' AS kind, CASE c.state WHEN 'added' THEN 'copy_added' ELSE 'copy_not_cached' END AS event
-			FROM provider_copy_event c`, []string{EvCopyAdded, EvCopyNotCached}},
+			'copy' AS kind, CASE c.state WHEN 'added' THEN 'copy_added' WHEN 'already' THEN 'copy_already'
+			ELSE 'copy_not_cached' END AS event FROM provider_copy_event c`, []string{EvCopyAdded, EvCopyAlready, EvCopyNotCached}},
 	}
 }
 
@@ -191,19 +196,23 @@ func (j *Journal) History(ctx context.Context, f Filter) (*HistoryPage, error) {
 	}
 	cur, _ := decodeCursor(f.Cursor)
 	where, wargs := historyWhere(f, titles, cur)
-	var qs []string
+	// Each source is a common table; the union reads at most a page of each, filtered.
+	var ctes, qs []string
 	var args []any
-	for _, a := range historyArms(len(f.Kinds) > 0) {
+	for i, a := range historyArms(len(f.Kinds) > 0) {
 		if len(f.Events) > 0 && !slices.ContainsFunc(a.events, func(ev string) bool { return slices.Contains(f.Events, ev) }) {
 			continue
 		}
-		qs = append(qs, `SELECT * FROM (SELECT * FROM (`+a.sql+`) WHERE `+where+` ORDER BY at DESC, id DESC LIMIT ?)`)
+		name := fmt.Sprintf("h%d", i)
+		ctes = append(ctes, name+` AS (`+a.sql+`)`)
+		qs = append(qs, `SELECT * FROM (SELECT * FROM `+name+` WHERE `+where+` ORDER BY at DESC, id DESC LIMIT ?)`)
 		args = append(append(args, wargs...), f.Limit+1)
 	}
 	if len(qs) == 0 {
 		return page, nil
 	}
-	rows, err := j.st.Reader().QueryContext(ctx, `SELECT id, at, title_id, COALESCE(version_key, ''), kind, event FROM (`+
+	rows, err := j.st.Reader().QueryContext(ctx, `WITH `+strings.Join(ctes, ",\n")+`
+		SELECT id, at, title_id, COALESCE(version_key, ''), kind, event FROM (`+
 		strings.Join(qs, "\nUNION ALL\n")+`) ORDER BY at DESC, id DESC LIMIT ?`, append(args, f.Limit+1)...)
 	if err != nil {
 		return nil, fmt.Errorf("journal: history: %w", err)
@@ -320,6 +329,7 @@ type histDownload struct {
 type libMember struct {
 	id, title, at, dl, link int64
 	version, rel, detail    string
+	eps                     sql.NullString // the episode ids recorded with the action (JSON)
 	quality                 sql.NullString
 	score                   sql.NullInt64
 }
@@ -338,13 +348,19 @@ func (l *historyLoader) query(q string, args []any, scan func(*sql.Rows) error) 
 	return rows.Err()
 }
 
-func anys[T any](xs []T) []any {
-	out := make([]any, len(xs))
-	for i, x := range xs {
+// anys are ids as query arguments, each once; ph their placeholders.
+func anys(ids []int64) []any {
+	u := slices.Clone(ids)
+	slices.Sort(u)
+	u = slices.Compact(u)
+	out := make([]any, len(u))
+	for i, x := range u {
 		out[i] = x
 	}
 	return out
 }
+
+func ph(ids []int64) string { return store.Placeholders(len(anys(ids))) }
 
 // members loads library actions (alias la) matching where, with the facts of linkSQL's fallback link.
 func (l *historyLoader) members(linkSQL, where string, args []any) ([]libMember, error) {
@@ -356,11 +372,11 @@ func (l *historyLoader) members(linkSQL, where string, args []any) ([]libMember,
 		CASE WHEN la.release_title IS NOT NULL OR la.quality IS NOT NULL THEN la.score
 			ELSE (SELECT score FROM link WHERE id = ` + linkSQL + `) END,
 		COALESCE(` + linkSQL + `, la.link_id, (SELECT id FROM link WHERE path = la.path ORDER BY id DESC LIMIT 1), 0),
-		la.detail FROM library_action la WHERE ` + where + ` ORDER BY la.id`
+		la.detail, la.episodes FROM library_action la WHERE ` + where + ` ORDER BY la.id`
 	err := l.query(q, args, func(r *sql.Rows) error {
 		var m libMember
 		if err := r.Scan(&m.id, &m.title, &m.at, &m.dl, &m.version, &m.rel, &m.quality, &m.score, &m.link,
-			&m.detail); err != nil {
+			&m.detail, &m.eps); err != nil {
 			return err
 		}
 		out = append(out, m)
@@ -410,7 +426,7 @@ func (l *historyLoader) load(hs []head, events []string) ([]*HistoryRow, error) 
 	single := func(m libMember) string { return strconv.FormatInt(m.id, 10) }
 	for ev, linkSQL := range map[string]string{EvRemoved: oldLinkSQL, EvMissing: deadLinkSQL} {
 		if ids := byEvent[ev]; len(ids) > 0 {
-			ms, err := l.members(linkSQL, `la.id IN (`+store.Placeholders(len(ids))+`)`, anys(ids))
+			ms, err := l.members(linkSQL, `la.id IN (`+ph(ids)+`)`, anys(ids))
 			if err != nil {
 				return nil, err
 			}
@@ -419,7 +435,7 @@ func (l *historyLoader) load(hs []head, events []string) ([]*HistoryRow, error) 
 	}
 	if ids := byEvent[EvDeleted]; len(ids) > 0 {
 		ms, err := l.members(oldLinkSQL, deletedWhere+` AND la.download_id IN (SELECT download_id FROM library_action
-			WHERE id IN (`+store.Placeholders(len(ids))+`))`, anys(ids))
+			WHERE id IN (`+ph(ids)+`))`, anys(ids))
 		if err != nil {
 			return nil, err
 		}
@@ -427,7 +443,7 @@ func (l *historyLoader) load(hs []head, events []string) ([]*HistoryRow, error) 
 	}
 	if ids := byEvent[EvAdopted]; len(ids) > 0 {
 		ms, err := l.members(adoptLinkSQL, adoptedWhere+` AND la.at / 86400000 IN (SELECT at / 86400000
-			FROM library_action WHERE id IN (`+store.Placeholders(len(ids))+`))`, anys(ids))
+			FROM library_action WHERE id IN (`+ph(ids)+`))`, anys(ids))
 		if err != nil {
 			return nil, err
 		}
@@ -438,6 +454,11 @@ func (l *historyLoader) load(hs []head, events []string) ([]*HistoryRow, error) 
 	var linkIDs []int64
 	for _, g := range groups {
 		for _, m := range g {
+			if m.eps.Valid {
+				var eps []int64
+				_ = json.Unmarshal([]byte(m.eps.String), &eps)
+				l.epIDs = append(l.epIDs, eps...)
+			}
 			if m.link > 0 {
 				linkIDs = append(linkIDs, m.link)
 			}
@@ -454,7 +475,7 @@ func (l *historyLoader) load(hs []head, events []string) ([]*HistoryRow, error) 
 	bls := map[int64]blRow{}
 	if len(blIDs) > 0 {
 		if err := l.query(`SELECT rowid, info_hash, release_title, reason, source, COALESCE(download_id, 0)
-			FROM router_blocklist WHERE rowid IN (`+store.Placeholders(len(blIDs))+`)`, anys(blIDs), func(r *sql.Rows) error {
+			FROM router_blocklist WHERE rowid IN (`+ph(blIDs)+`)`, anys(blIDs), func(r *sql.Rows) error {
 			var id int64
 			var b blRow
 			if err := r.Scan(&id, &b.hash, &b.release, &b.reason, &b.source, &b.dl); err != nil {
@@ -472,11 +493,11 @@ func (l *historyLoader) load(hs []head, events []string) ([]*HistoryRow, error) 
 
 	dls := map[int64]*histDownload{}
 	if len(dlIDs) > 0 {
-		ph := store.Placeholders(len(dlIDs))
+		in := ph(dlIDs)
 		if err := l.query(`SELECT d.id, d.title_id, d.version_key, d.info_hash, d.release_title, d.indexer, d.quality,
 			d.score, d.size_bytes, d.formats, d.episodes, COALESCE(d.provider, ''), COALESCE(d.error, ''), d.state,
 			COALESCE(li.state, ''), li.last_error
-			FROM download d LEFT JOIN library_import li ON li.download_id = d.id WHERE d.id IN (`+ph+`)`, anys(dlIDs),
+			FROM download d LEFT JOIN library_import li ON li.download_id = d.id WHERE d.id IN (`+in+`)`, anys(dlIDs),
 			func(r *sql.Rows) error {
 				var id int64
 				var d histDownload
@@ -492,17 +513,33 @@ func (l *historyLoader) load(hs []head, events []string) ([]*HistoryRow, error) 
 			}); err != nil {
 			return nil, err
 		}
-		// The episodes an import's links hold (one link per file it made).
-		if err := l.query(`SELECT a.download_id, le.episode_id FROM library_action a JOIN link_episode le
-			ON le.link_id = a.link_id WHERE a.kind = 'link' AND a.mode = 'applied' AND a.download_id IN (`+ph+`)`,
-			anys(dlIDs), func(r *sql.Rows) error {
-				var dl, ep int64
-				if err := r.Scan(&dl, &ep); err != nil {
+	}
+	// The episodes an import's links held: recorded with each link action (00129), else the link's current episodes.
+	var imports []int64
+	for _, h := range hs {
+		if strings.HasSuffix(h.id, ":import") {
+			imports = append(imports, idOf(h.id))
+		}
+	}
+	if len(imports) > 0 {
+		if err := l.query(`SELECT a.download_id, COALESCE(a.episodes, (SELECT json_group_array(le.episode_id)
+			FROM link_episode le WHERE le.link_id = a.link_id), '[]') FROM library_action a
+			WHERE a.kind = 'link' AND a.mode = 'applied' AND a.download_id IN (`+ph(imports)+`)`, anys(imports),
+			func(r *sql.Rows) error {
+				var dl int64
+				var js string
+				if err := r.Scan(&dl, &js); err != nil {
 					return err
 				}
-				if d := dls[dl]; d != nil && !slices.Contains(d.linked, ep) {
-					d.linked = append(d.linked, ep)
-					l.epIDs = append(l.epIDs, ep)
+				var eps []int64
+				_ = json.Unmarshal([]byte(js), &eps)
+				if d := dls[dl]; d != nil {
+					for _, ep := range eps {
+						if !slices.Contains(d.linked, ep) {
+							d.linked = append(d.linked, ep)
+							l.epIDs = append(l.epIDs, ep)
+						}
+					}
 				}
 				return nil
 			}); err != nil {
@@ -518,7 +555,7 @@ func (l *historyLoader) load(hs []head, events []string) ([]*HistoryRow, error) 
 	}
 	if len(failed) > 0 {
 		if err := l.query(`SELECT download_id, provider, outcome, code, attempted_at FROM download_attempt
-			WHERE download_id IN (`+store.Placeholders(len(failed))+`) ORDER BY id`, anys(failed), func(r *sql.Rows) error {
+			WHERE download_id IN (`+ph(failed)+`) ORDER BY id`, anys(failed), func(r *sql.Rows) error {
 			var dl, at int64
 			var a Attempt
 			if err := r.Scan(&dl, &a.Provider, &a.Outcome, &a.Code, &at); err != nil {
@@ -535,7 +572,7 @@ func (l *historyLoader) load(hs []head, events []string) ([]*HistoryRow, error) 
 	linkEps := map[int64][]int64{}
 	if len(linkIDs) > 0 {
 		if err := l.query(`SELECT link_id, episode_id FROM link_episode WHERE link_id IN (`+
-			store.Placeholders(len(linkIDs))+`)`, anys(linkIDs), func(r *sql.Rows) error {
+			ph(linkIDs)+`)`, anys(linkIDs), func(r *sql.Rows) error {
 			var lk, ep int64
 			if err := r.Scan(&lk, &ep); err != nil {
 				return err
@@ -556,7 +593,7 @@ func (l *historyLoader) load(hs []head, events []string) ([]*HistoryRow, error) 
 	copies := map[int64]copyRow{}
 	if len(copyIDs) > 0 {
 		if err := l.query(`SELECT id, info_hash, name, provider, message, quality, score FROM provider_copy_event
-			WHERE id IN (`+store.Placeholders(len(copyIDs))+`)`, anys(copyIDs), func(r *sql.Rows) error {
+			WHERE id IN (`+ph(copyIDs)+`)`, anys(copyIDs), func(r *sql.Rows) error {
 			var id int64
 			var c copyRow
 			if err := r.Scan(&id, &c.hash, &c.name, &c.provider, &c.message, &c.quality, &c.score); err != nil {
@@ -569,15 +606,19 @@ func (l *historyLoader) load(hs []head, events []string) ([]*HistoryRow, error) 
 		}
 	}
 
-	titles := map[int64]TitleRef{}
+	titles, animes := map[int64]TitleRef{}, map[int64]bool{}
 	if len(titleIDs) > 0 {
-		if err := l.query(`SELECT id, name, COALESCE(year, 0), kind FROM title WHERE id IN (`+
-			store.Placeholders(len(titleIDs))+`)`, anys(titleIDs), func(r *sql.Rows) error {
+		if err := l.query(`SELECT id, name, COALESCE(year, 0), kind, anime FROM title WHERE id IN (`+
+			ph(titleIDs)+`)`, anys(titleIDs), func(r *sql.Rows) error {
 			var t TitleRef
-			if err := r.Scan(&t.ID, &t.Name, &t.Year, &t.Kind); err != nil {
+			var anime bool
+			if err := r.Scan(&t.ID, &t.Name, &t.Year, &t.Kind, &anime); err != nil {
 				return err
 			}
 			titles[t.ID] = t
+			if anime {
+				animes[t.ID] = true
+			}
 			return nil
 		}); err != nil {
 			return nil, err
@@ -602,7 +643,7 @@ func (l *historyLoader) load(hs []head, events []string) ([]*HistoryRow, error) 
 	out := make([]*HistoryRow, 0, len(hs))
 	for i, h := range hs {
 		x := &HistoryRow{ID: h.id, At: store.FromMillis(h.at), Kind: h.kind, Event: events[i], Title: titles[h.titleID],
-			Version: h.version}
+			Version: h.version, Anime: animes[h.titleID]}
 		if x.Title.ID == 0 {
 			x.Title.ID = h.titleID
 		}
@@ -620,9 +661,8 @@ func (l *historyLoader) load(hs []head, events []string) ([]*HistoryRow, error) 
 				x.Reason, x.Attempts = cleanMessage(d.errText), attempts[id]
 			case strings.HasSuffix(h.id, ":import"):
 				x.Import = d.importSt
-				if len(d.linked) > 0 {
-					x.Episodes = l.labelsOf(d.linked)
-				}
+				// The episodes its links held, never the ones it asked for.
+				x.Episodes = l.labelsOf(d.linked)
 				if x.Event == EvFailed {
 					x.Reason = "Import held for review: " + cleanMessage(d.importErr.String)
 				}
@@ -680,7 +720,12 @@ func (l *historyLoader) libRow(x *HistoryRow, g []libMember, linkEps map[int64][
 	}
 	var eps []int64
 	for _, m := range g {
-		for _, ep := range linkEps[m.link] {
+		held := linkEps[m.link]
+		if m.eps.Valid {
+			held = nil
+			_ = json.Unmarshal([]byte(m.eps.String), &held)
+		}
+		for _, ep := range held {
 			if !slices.Contains(eps, ep) {
 				eps = append(eps, ep)
 			}
@@ -705,7 +750,7 @@ func (l *historyLoader) loadLabels() error {
 	if len(ids) == 0 {
 		return nil
 	}
-	return l.query(`SELECT id, season, number FROM episode WHERE id IN (`+store.Placeholders(len(ids))+`)`, anys(ids),
+	return l.query(`SELECT id, season, number FROM episode WHERE id IN (`+ph(ids)+`)`, anys(ids),
 		func(r *sql.Rows) error {
 			var id int64
 			var e epLabel

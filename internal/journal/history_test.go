@@ -206,3 +206,51 @@ func TestHistoryImportEpisodesAndNeverStarted(t *testing.T) {
 		t.Fatalf("page 2: %+v %v", p2, err)
 	}
 }
+
+// Facts recorded with the action outlive later changes: an import's episodes as its links held them (not the ones it
+// asked for, even when its links are gone), a removed link's title after its row was deleted. A grab is dated when it
+// reached the provider, and an add that found the torrent there already is its own copy event.
+func TestHistoryRecordedFacts(t *testing.T) {
+	e := newEnv(t)
+	at := testNow.Add(-48 * time.Hour)
+	// Download 50 asked for E01-E03, linked E01 only (recorded), its link since moved to E05.
+	e.dlEvent(50, "imported", at, 3, 3, "tv-2160p", hashA, "Gamma.S01.Pack", "WEBDL-2160p", 800, 1<<30,
+		[]int64{101, 102, 103}, "")
+	e.exec(`UPDATE download SET added_at = ? WHERE id = 50`, msOf(testNow.Add(-2*time.Hour)))
+	e.exec(`INSERT INTO library_import (download_id, state, mount_folder, plan, created_at, updated_at)
+		VALUES (50, 'linked', '/m/G', '{}', ?, ?)`, msOf(testNow.Add(-time.Hour)), msOf(testNow.Add(-time.Hour)))
+	e.exec(`INSERT INTO link (id, path, target, title_id, download_id, state, created_at, updated_at)
+		VALUES (90, '/tv/G/a.mkv', '/t', 3, 50, 'active', 0, 0)`)
+	e.exec(`INSERT INTO link_episode (link_id, episode_id) VALUES (90, 105)`)
+	e.exec(`INSERT INTO library_action (at, kind, mode, version_key, download_id, link_id, path, title_id, episodes)
+		VALUES (?, 'link', 'applied', 'tv-2160p', 50, 90, '/tv/G/a.mkv', 3, '[101]')`, msOf(testNow.Add(-time.Hour)))
+	// Download 51 (older rows): its links are gone, nothing recorded: no episodes, not the requested ones.
+	e.dlEvent(51, "imported", at, 3, 3, "tv-2160p", hashB, "Gamma.S02.Pack", "WEBDL-2160p", 800, 1<<30,
+		[]int64{201, 202}, "")
+	e.exec(`INSERT INTO library_import (download_id, state, mount_folder, plan, created_at, updated_at)
+		VALUES (51, 'linked', '/m/G2', '{}', ?, ?)`, msOf(at.Add(time.Hour)), msOf(at.Add(time.Hour)))
+	// A hand unlink whose link row is gone since: the recorded title and episodes keep it on Gamma's History.
+	e.exec(`INSERT INTO library_action (at, kind, mode, version_key, link_id, path, detail, title_id, episodes,
+		release_title) VALUES (?, 'replace', 'applied', 'tv-2160p', 999, '/tv/G/b.mkv',
+		'unlinked (replaced: link 7 now holds S01E04), moved aside to /trash/b', 3, '[104]', 'Gamma.S01E04.WEB')`,
+		msOf(testNow.Add(-30*time.Minute)))
+	got := e.history(Filter{Title: "3", Events: []string{EvImported, EvRemoved}})
+	want := []string{
+		"removed Gamma.S01E04.WEB  [S01E04] (replaced: link 7 now holds S01E04)",
+		"imported Gamma.S01.Pack WEBDL-2160p 800 [S01E01]",
+		"imported Gamma.S02.Pack WEBDL-2160p 800",
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("rows:\n got %q\nwant %q", got, want)
+	}
+	// Grabbed two days after it was queued: dated when the provider took it, so "since yesterday" keeps it.
+	got = e.history(Filter{Since: testNow.Add(-24 * time.Hour), Events: []string{EvGrabbed}})
+	if len(got) != 1 || !strings.Contains(got[0], "Gamma.S01.Pack") {
+		t.Errorf("grabs since yesterday: %q", got)
+	}
+	e.exec(`INSERT INTO provider_copy_event (at, info_hash, name, title_id, provider, state, message)
+		VALUES (?, ?, 'Gamma.S01.Pack', 3, 'ad', 'already', 'Already on AD')`, msOf(testNow), hashA)
+	if got := e.history(Filter{Events: []string{EvCopyAlready}}); len(got) != 1 || !strings.HasPrefix(got[0], "copy_already") {
+		t.Errorf("already: %q", got)
+	}
+}

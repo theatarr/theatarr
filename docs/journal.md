@@ -176,9 +176,9 @@ takes about a millisecond.
 ## History
 
 Activity › History and the title page's History tab are what happened to a title's files (`Journal.History`,
-`internal/journal/history.go`), worded like Radarr's: grabbed (a download that reached a provider or client; grab and
+`internal/journal/history.go`), worded like Radarr's: grabbed (a download that reached a provider or client, dated by `added_at` or its accepted attempt; grab and
 upgrade alike, classified only when `kinds` is filtered), imported (one row per import, with the episodes its links
-hold), adopted (adoption link actions grouped by library, release and day), deleted (an import's replace actions,
+held, as recorded on its link actions), adopted (adoption link actions grouped by library, release and day), deleted (an import's replace actions,
 grouped by old release; "Deleted (upgrade)" with what replaced it), removed (a replace without a download: an unlink
 by hand), missing (a dead link), failed, blocked, and the provider copies' outcomes (`copy:<provider_copy_event>`, not
 a journal entry). Searches, plans, dry runs, mount waits and repaired links are journal entries only.
@@ -188,7 +188,7 @@ since, events, cursor) is applied inside each source, which gives at most a page
 facts are read in batch (about a dozen queries a page whatever its size; building journal entries took ten or more a
 row: decision, attempts, cache evidence, what followed, failures, checks, verdict). History rows carry no suspect
 flags. The release facts of library rows are stored on `library_action` (`release_title`, `quality`, `score`,
-migration 00129) when the action happens, since a later file can take over a link row at the same path; older actions
+`title_id`, `episodes`, migration 00129) when the action happens, since a later file can take over a link row at the same path; older actions
 fall back to a link row that still holds the file (an unlinked row, an adopted one, a dead one) and are otherwise
 unknown. A copy asked for without a title (a Torrents row) is recorded for the one title whose active link or
 download holds its hash. Nothing is backfilled.
