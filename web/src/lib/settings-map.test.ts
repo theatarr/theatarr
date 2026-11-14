@@ -21,7 +21,9 @@ describe("settings map", () => {
 });
 
 it("links the wanted switches and Send notifications to their owners", () => {
- expect(settingHref("router", "wanted.missing")).toBe("/admin/settings/downloads/behaviour#searches");
+ // Automatic search sits with RSS under Indexers; its stored keys stay router.wanted.*.
+ expect(settingHref("router", "wanted.missing")).toBe("/admin/settings/indexers/rss#searches");
+ expect(settingHref("router", "cached_only")).toBe("/admin/settings/downloads/behaviour#grabbing");
  expect(settingHref("notify", "enabled")).toBe("/admin/settings/notifications#targets");
  // Send notifications is the first field of the notify Destinations panel.
  expect(SETTINGS_PANELS.find(p => p.id === "targets")?.keys[0]).toBe("enabled");
@@ -45,9 +47,9 @@ it("indexes every page name documented in the arr map", () => {
  }
 });
 
-it("sends Prowlarr's History to the Decision journal under Activity and finds Manual import under Wanted", () => {
+it("sends Prowlarr's History to the Decision journal under System and finds Manual import under Wanted", () => {
  const index = settingsIndex();
- expect(findSettings(index, "History").some(r => r.href === "/activity/journal" && r.label === "Activity › Decision journal")).toBe(true);
+ expect(findSettings(index, "History").some(r => r.href === "/admin/system/journal" && r.label === "System › Decision journal")).toBe(true);
  expect(findSettings(index, "manual import").some(r => r.href === "/wanted/manual-import" && r.label === "Wanted › Manual import")).toBe(true);
  expect([...findSettings(index, "History"), ...findSettings(index, "manual import")].some(r => /advanced\/(journal|manual-import)/.test(r.href))).toBe(false);
 });
@@ -65,9 +67,11 @@ it("sends quality sizes to the profiles' Size limits", () => {
 
 it("finds Settings › General's panels on their new pages", () => {
  const hrefs = findSettings(settingsIndex(), "general").map(r => r.href);
- expect(hrefs).toEqual(expect.arrayContaining(["/admin/settings/downloads#provider-sync", "/admin/settings/metadata#artwork-cache", "/admin/torrents#scan-roots"]));
+ expect(hrefs).toEqual(expect.arrayContaining(["/admin/settings/downloads#provider-sync", "/admin/settings/metadata#artwork-cache", "/admin/settings/downloads/torrents#scan-roots"]));
  expect(hrefs.some(h => h.startsWith("/admin/settings/general"))).toBe(false);
- expect(settingHref("torrents", "scan_roots")).toBe("/admin/torrents#scan-roots");
+ // The torrents section's two panels left Torrents and Backup for Download clients › Torrents.
+ expect(settingHref("torrents", "scan_roots")).toBe("/admin/settings/downloads/torrents#scan-roots");
+ expect(settingHref("torrents", "backup")).toBe("/admin/settings/downloads/torrents#torrent-backups");
  expect(settingHref("provider_sync", "interval")).toBe("/admin/settings/downloads#provider-sync");
  expect(settingHref("ui", "images")).toBe("/admin/settings/metadata#artwork-cache");
 });
@@ -95,4 +99,16 @@ it("lists rows with the whole typed phrase before rows with only its words", () 
   if (firstWordsOnly >= 0) expect(found.slice(firstWordsOnly).every(r => !r.terms.toLowerCase().includes(query)), query).toBe(true);
  }
  expect(findSettings(index, "interval check").length).toBeGreaterThan(0);
+});
+
+it("lists each destination once and finds the profile cutoff, Users & access and Import lists", () => {
+ const index = settingsIndex(schema as never);
+ for (const q of ["backup", "cutoff", "user", "general", "clients", "download clients", "import lists"]) {
+  const found = findSettings(index, q).map(r => `${r.href}|${r.field ?? ""}`);
+  expect(new Set(found).size, q).toBe(found.length);
+ }
+ expect(findSettings(index, "cutoff")[0].href).toBe("/admin/settings/profiles");
+ for (const q of ["user", "users", "household", "family"]) expect(findSettings(index, q)[0], q).toMatchObject({ href: "/admin/users", label: "Users & access" });
+ expect(findSettings(index, "import lists")[0]).toMatchObject({ href: "/admin/settings/import-lists", label: "Import lists" });
+ expect(findSettings(index, "log level")[0].href).toBe("/admin/system/logs#log-level");
 });

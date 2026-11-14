@@ -1,6 +1,4 @@
 import { Link } from "react-router";
-import { useQueryClient } from "@tanstack/react-query";
-import { qk } from "@/api/query-keys";
 import { useRef, useState, type ChangeEvent } from "react";
 import { backupURL, useTorrentActions, useTorrentBackups, useTorrentReport } from "@/api/torrents";
 import { toast } from "@/components/toaster";
@@ -12,12 +10,10 @@ import { ConfirmDialog, errText } from "@/components/ui/confirm-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { fmtBytes, fmtNumber, fmtTime } from "@/lib/format";
 import { restoreScope, type RestorePlan } from "@/lib/torrents";
-import { SectionPanel } from "@/components/settings/section-panel";
-import { SETTINGS_PANELS } from "@/lib/settings-map";
+import { settingHref } from "@/lib/settings-map";
 import { ProviderTag } from "@/components/provider-pills";
 
 export function TorrentBackups() {
-  const qc = useQueryClient();
   const q = useTorrentBackups();
   const report = useTorrentReport();
   const actions = useTorrentActions();
@@ -86,9 +82,11 @@ export function TorrentBackups() {
     >
       <p className="mb-2 text-sm text-muted-foreground">Saved lists of your debrid torrents. Restoring re-adds them to a provider; it does not touch Theatarr’s settings.</p>
       {q.data ? <p className="mb-2 text-sm text-muted-foreground">
-        {every > 0 ? `Scheduled every ${Math.round(every / 3600)} h` : "Scheduled backups are off"} · keeps the newest {q.data.keep} and every backup from the last week. A Debrid Media Manager backup imports with a provider chosen above.
+        <span data-testid="torrent-backup-schedule">{every > 0 ? `Scheduled every ${Math.round(every / 3600)} h` : "Scheduled backups are off"} · keeps the newest {q.data.keep} and every backup from the last week.</span>{" "}
+        {/* The schedule is a setting: read here, changed in Settings › Download clients › Torrents. */}
+        <Link className="text-primary hover:underline" to={settingHref("torrents", "backup") ?? "/admin/settings"} data-testid="torrent-backup-edit">Change the schedule</Link>.
+        {" "}A Debrid Media Manager backup imports with a provider chosen above.
       </p> : null}
-      <SectionPanel {...SETTINGS_PANELS.find(p => p.id === "torrent-backups")!} title="Schedule" onSaved={() => { void qc.invalidateQueries({ queryKey: qk.torrents.backups }); }} />
       {q.isPending ? <Loading /> : q.error ? <ErrorState error={q.error} /> : (q.data?.backups ?? []).length === 0 ? <Card><Empty>No backup yet.</Empty></Card> : (
         <Card className="p-0">
           <Table>

@@ -11,8 +11,8 @@ describe("Title journal", () => {
       { method: "GET", path: "/journal", reply: { items: [{ id: "dl:4", at: "2026-11-01T10:00:00Z", kind: "grab", title: { id: 70, name: "Juniper Signal" }, summary: "Grabbed" }] } },
     ]);
     renderPage(<TitleJournal id={70} />);
-    expect((await screen.findByRole("link", { name: "Grabbed" })).getAttribute("href")).toBe("/activity/journal/dl%3A4");
-    expect(screen.getByRole("link", { name: /Open in the journal/ }).getAttribute("href")).toBe("/activity/journal?title=70");
+    expect((await screen.findByRole("link", { name: "Grabbed" })).getAttribute("href")).toBe("/admin/system/journal/dl%3A4");
+    expect(screen.getByRole("link", { name: /Open in the journal/ }).getAttribute("href")).toBe("/admin/system/journal?title=70");
   });
 });
 

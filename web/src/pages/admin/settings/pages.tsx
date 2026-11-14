@@ -1,8 +1,8 @@
 import { PlexPlaylists } from "./plex-playlists";
 import { authority } from "@/lib/settings";
-import { Link, useLocation, useNavigate } from "react-router";
-import { useId } from "react";
-import { Select } from "@/components/ui/select";
+import { Link, useLocation } from "react-router";
+import { useQueryClient } from "@tanstack/react-query";
+import { qk } from "@/api/query-keys";
 import { usePolicy } from "@/api/hooks";
 import { useSettings, useSettingsSchema } from "@/api/settings";
 import { PageHeader, RouteTabs, Loading, ErrorState } from "@/components/page";
@@ -23,29 +23,17 @@ import { ProviderStatus, IndexerStatus } from "../sources";
 import { VpnStatus, RequestLimitsStatus } from "./network";
 import { PolicyFiles } from "../policy";
 import { LeaveGuard } from "@/components/settings/unsaved-bar";
+import { SettingsPicker } from "@/components/settings/settings-picker";
+export { SettingsPicker };
 const HELP: Record<string, string> = {
  libraries: "Each library is a folder Theatarr fills and the Plex library that shows it, for example Movies 4K and Movies 1080p. Each has its own quality profile, indexers and debrid providers.",
  downloads: "Debrid providers are tried in the order shown. Download clients take the grabs of a library set to send them there: a decypharr client adds to its own debrid account. A seedbox qBittorrent client is not supported yet: nothing sends grabs to it.",
  apps: "Sonarr- and Radarr-compatible addresses for Seerr and other apps. Each shows the libraries you choose.",
 };
-/** Phones (docs/design/ui.md "Settings"): the side list is hidden there, so one labelled select at the top of
- * Settings moves between the settings pages and their tabs (grouped by page), in place of a page picker and a
- * section picker. */
-export function SettingsPicker({ current, extra }: { current: string; extra?: { route: string; label: string } }) {
- const id = useId();
- const navigate = useNavigate();
- return <div className="mb-4 grid gap-1 md:hidden" data-testid="settings-picker">
-  <label htmlFor={id} className="text-xs font-medium text-[var(--ink-3)]">Settings page</label>
-  <Select id={id} className="h-10 text-[15px]" value={current} onChange={(e) => navigate(e.target.value)}>
-   {SETTINGS_PAGES.filter(p => !p.system).map(p => p.tabs.length > 1
-    ? <optgroup key={p.id} label={p.label}>{p.tabs.map(t => <option key={t.id} value={t.route}>{t.label === p.label ? p.label : `${p.label} › ${t.label}`}</option>)}</optgroup>
-    : <option key={p.id} value={p.route}>{p.label}</option>)}
-   {extra ? <option value={extra.route}>{extra.label}</option> : null}
-  </Select>
- </div>;
-}
 export function SettingsPage() {
  const { pathname } = useLocation();
+ // System › Backup reads the torrent-list schedule: a saved change shows there at once.
+ const qc = useQueryClient();
  const overview = useSettings(); const schema = useSettingsSchema(); const policy = usePolicy();
  const page = [...SETTINGS_PAGES, ...ADVANCED_SETTINGS_PAGES].find(p => pathname === p.route || pathname.startsWith(p.route + "/"));
  if (!page) return null;
@@ -73,7 +61,7 @@ export function SettingsPage() {
    {page.id === "indexers" && tab === "indexers" ? <><SourcesPanel entity="indexers" overview={o} ent={s.indexers} readOnly={authority(o).readOnly} versions={policy.data?.versions ?? []} /><IndexerStatus /></> : null}
    {page.id === "downloads" && tab === "providers" ? <><SourcesPanel entity="providers" overview={o} ent={s.providers} readOnly={authority(o).readOnly} versions={policy.data?.versions ?? []} /></> : null}
    {page.id === "indexers" && tab === "vpn" ? <VpnStatus /> : null}
-   {SETTINGS_PANELS.filter(p => p.page === page.id && p.tab === tab).map(p => <SectionPanel key={p.id} {...p} />)}
+   {SETTINGS_PANELS.filter(p => p.page === page.id && p.tab === tab).map(p => <SectionPanel key={p.id} {...p} onSaved={p.id === "torrent-backups" ? () => { void qc.invalidateQueries({ queryKey: qk.torrents.backups }); } : undefined} />)}
    {/* Provider status loads after the panels above, so a link to #provider-sync is not pushed away. */}
    {page.id === "downloads" && tab === "providers" ? <ProviderStatus /> : null}
    {page.id === "plex" ? <PlexPlaylists /> : null}

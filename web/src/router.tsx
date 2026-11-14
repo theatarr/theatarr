@@ -1,7 +1,7 @@
 import { SETTINGS_PAGES } from "./lib/settings-map";
 import { lazy, Suspense, useEffect, type ComponentType, type ReactNode } from "react";
 import { createBrowserRouter, Navigate, Outlet, useLocation, useSearchParams, type RouteObject } from "react-router";
-import { LEGACY_ROUTES, legacyTarget } from "./lib/legacy-routes";
+import { LEGACY_ROUTES, legacyTarget, movedAnchor } from "./lib/legacy-routes";
 import { useAuth } from "./api/auth";
 import { LibraryNamesProvider } from "./lib/library-names";
 import { noteLocation } from "./lib/last-list";
@@ -44,6 +44,7 @@ const TorrentsPage = lazyPage(() => import("./pages/admin/torrents").then((m) =>
 const AdvancedPage = lazyPage(() => import("./pages/admin/advanced").then((m) => m.AdvancedPage));
 const BackupPage = lazyPage(() => import("./pages/admin/backup").then((m) => m.BackupPage));
 const JournalEntryPage = lazyPage(() => import("./pages/admin/journal").then((m) => m.JournalEntryPage));
+const JournalPage = lazyPage(() => import("./pages/admin/journal").then((m) => m.JournalPage));
 const ReviewsPage = lazyPage(() => import("./pages/admin/reviews").then((m) => m.ReviewsPage));
 const MetadataFranchise = lazyPage(() => import("./pages/admin/anime-mappings").then((m) => m.MetadataFranchise));
 const Registry = lazyPage(() => import("./pages/admin/registry").then((m) => m.Registry));
@@ -93,12 +94,19 @@ function RequireAuth() {
       <LiveProvider enabled seeFiles={perms.seeFiles}>
         <SearchProvider>
           <AppShell perms={perms}>
-            <Outlet />
+            <MovedAnchor />
           </AppShell>
         </SearchProvider>
       </LiveProvider>
     </LibraryNamesProvider>
   );
+}
+
+/** The page, unless the address names a settings panel that moved to another page (lib/legacy-routes.ts movedAnchor). */
+function MovedAnchor() {
+  const loc = useLocation();
+  const to = movedAnchor(loc.pathname, loc.search, loc.hash);
+  return to ? <Navigate to={to} replace /> : <Outlet />;
 }
 
 /** The admin screens: the API refuses them to other accounts; the UI says so instead of showing errors. */
@@ -110,7 +118,7 @@ function RequireAdmin({ need = "admin" }: { need?: "admin" | "users" | "manage" 
 }
 
 /**
- * An admin page under Activity or Wanted: in "View as a user" (?as=user) it is not opened, as Activity's own
+ * An admin page under Wanted (Manual import): in "View as a user" (?as=user) it is not opened, as Activity's own
  * admin tabs are not; the admin goes to the parent page, still in that view.
  */
 function NotAsUser({ to, children }: { to: string; children: ReactNode }) {
@@ -164,7 +172,6 @@ export const routes: RouteObject[] = [
       { path: "/title/:id/releases", element: <TitleReleases /> },
       { path: "/calendar", element: <CalendarPage /> },
       { path: "/collections", element: <CollectionsPage /> },
-      { path: "/collections/lists", element: <ListsPage /> },
       { path: "/collections/:id", element: <CollectionPage /> },
       { path: "/activity", element: <ActivityPage /> },
       { path: "/activity/:tab", element: <ActivityPage /> },
@@ -183,19 +190,22 @@ export const routes: RouteObject[] = [
         children: [
           { path: "/wanted", element: <WantedPage /> },
           { path: "/wanted/cutoff", element: <WantedPage /> },
+          // A Settings page that managers open too (they have no other Settings).
+          { path: "/admin/settings/import-lists", element: <ListsPage /> },
         ],
       },
       {
         element: <RequireAdmin />,
         children: [
           { path: "/wanted/manual-import", element: <NotAsUser to="/wanted"><ManualImport /></NotAsUser> },
-          { path: "/activity/journal/:id", element: <NotAsUser to="/activity"><JournalEntryPage /></NotAsUser> },
+          { path: "/admin/system/journal", element: <JournalPage /> },
+          { path: "/admin/system/journal/:id", element: <JournalEntryPage /> },
           { path: "/admin/setup", element: <SetupPage /> },
           { path: "/admin/arr-import", element: <ArrImportPage /> },
           { path: "/admin/system/tasks", element: <JobsPage /> },
           { path: "/admin/system/errors", element: <ErrorsPage /> },
           { path: "/admin/settings", element: <SettingsHome /> },
-          ...SETTINGS_PAGES.filter(p => !p.system).flatMap(p => [...new Set([p.route, ...p.tabs.map(t => t.route)])].map(path => ({ path, element: <SettingsPage key={path} /> }))),
+          ...SETTINGS_PAGES.filter(p => !p.system && !p.own).flatMap(p => [...new Set([p.route, ...p.tabs.map(t => t.route)])].map(path => ({ path, element: <SettingsPage key={path} /> }))),
           { path: "/admin/settings/profiles/format_sets", element: <SettingsPage /> },
           ...["config", "config/sections", "config/import", "history", "limits"].map(path => ({ path: `/admin/advanced/${path}`, element: <AdvancedSettingsPage /> })),
           { path: "/admin/torrents", element: <TorrentsPage /> },

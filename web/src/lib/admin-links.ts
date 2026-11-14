@@ -12,12 +12,12 @@ export function torrentsLink(hash: string): string {
 }
 
 export function journalLink(id: string): string {
-  return `/activity/journal/${encodeURIComponent(id)}`;
+  return `/admin/system/journal/${encodeURIComponent(id)}`;
 }
 
-/** The journal list (Activity › Decision journal), with an optional filter query such as "?suspect=1". */
+/** The journal list (System › Decision journal), with an optional filter query such as "?suspect=1". */
 export function journalHome(query = ""): string {
-  return "/activity/journal" + query;
+  return "/admin/system/journal" + query;
 }
 
 /** The link for an admin; undefined for everyone else. */

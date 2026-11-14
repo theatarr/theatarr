@@ -30,7 +30,7 @@ it("shows read-only waits and handoffs, filters and pages on the server", async 
   expect(within(screen.getByTestId("wanted-row")).getByText("Now")).toBeTruthy();
   expect(screen.getByText(/3 results, none accepted/)).toBeTruthy();
   expect(await screen.findByRole("link", { name: "Decision" })).toBeTruthy();
-  expect(screen.getByRole("link", { name: "Decision" }).getAttribute("href")).toBe("/activity/journal/run%3A3");
+  expect(screen.getByRole("link", { name: "Decision" }).getAttribute("href")).toBe("/admin/system/journal/run%3A3");
   expect(screen.queryByRole("button", { name: /Downloading/ })).toBeNull();
   expect(screen.getByTestId("pager-range").textContent).toBe("1–50 of 51");
   // Missing counts items; Home's Missing counts titles, and the line says so with a link.
@@ -81,7 +81,7 @@ it("says the tab's switch is off, every row reads Not scheduled, and Search now 
   renderPage(<WantedPage />, "/wanted");
   const banner = await screen.findByTestId("wanted-switch-off");
   expect(banner.textContent).toBe("Theatarr is not searching for missing items by itself. Items here are searched when you ask, or after a failed download. New releases are still picked up from RSS feeds, and one that a search did not find is tried again sooner, until a week after its release. Automatic search settings");
-  expect(within(banner).getByRole("link", { name: "Automatic search settings" }).getAttribute("href")).toBe("/admin/settings/downloads/behaviour#searches");
+  expect(within(banner).getByRole("link", { name: "Automatic search settings" }).getAttribute("href")).toBe("/admin/settings/indexers/rss#searches");
   const r = screen.getByTestId("wanted-row");
   // Both switches off: no regular repeat and no retry rule is promised; the banner says new releases still come.
   expect(screen.getByTestId("wanted-pace").textContent).toBe("Up to 20 searches an hour (4 in the last hour).");
@@ -98,7 +98,7 @@ it("names upgrades on the cutoff tab's banner and links its switch", async () =>
   expect(banner.textContent).toContain("Theatarr is not searching for upgrades by itself.");
   expect(banner.textContent).toContain("Better releases are still picked up from RSS feeds.");
   expect(screen.getByText("No items waiting in this selection; Wanted lists Live libraries only.")).toBeTruthy();
-  expect(within(banner).getByRole("link", { name: "Automatic search settings" }).getAttribute("href")).toBe("/admin/settings/downloads/behaviour#searches");
+  expect(within(banner).getByRole("link", { name: "Automatic search settings" }).getAttribute("href")).toBe("/admin/settings/indexers/rss#searches");
   expect(screen.queryByRole("switch")).toBeNull();
   expect(screen.getByRole("tab", { name: "Missing" }).getAttribute("href")).toBe("/wanted?version=movie-web");
 });
@@ -209,7 +209,7 @@ it("confirms Search all with the count, the library and the time the hourly limi
   const estimate = within(dialog).getByTestId("search-now-estimate");
   expect(estimate.textContent).toContain("312 searches. They start as the hourly limit allows: up to 10 an hour (4 used this hour).");
   expect(estimate.textContent).not.toMatch(/round|takes about|start now|oldest/);
-  expect(within(estimate).getByRole("link", { name: "Settings › Download clients" }).getAttribute("href")).toBe("/admin/settings/downloads/behaviour#searches");
+  expect(within(estimate).getByRole("link", { name: "Settings › Download clients" }).getAttribute("href")).toBe("/admin/settings/indexers/rss#searches");
   expect(fetch.calls("POST", "/wanted/search")).toHaveLength(0);
   await user.click(within(dialog).getByRole("button", { name: "Queue 312 searches" }));
   await waitFor(() => expect(fetch.calls("POST", "/wanted/search")).toHaveLength(1));
@@ -367,7 +367,7 @@ it("keeps the retry sentence to Missing, names the unit, and puts Decision with 
   expect(screen.getByTestId("wanted-count").textContent).toBe("1,128 items (one per film or season in each Live library, not per episode).");
   const last = r.querySelector('[data-column="last"]')!;
   expect(last.textContent).toMatch(/Grabbed · Decision$/);
-  expect(within(last as HTMLElement).getByRole("link", { name: "Decision" }).getAttribute("href")).toBe("/activity/journal/run%3A3");
+  expect(within(last as HTMLElement).getByRole("link", { name: "Decision" }).getAttribute("href")).toBe("/admin/system/journal/run%3A3");
   expect(screen.getByRole("button", { name: "All (1,128)" })).toBeTruthy();
 });
 
@@ -386,7 +386,7 @@ it("keeps Decision as a row action when Last search is hidden", async () => {
   renderPage(<WantedPage />, "/wanted");
   const r = await screen.findByTestId("wanted-row");
   expect(r.querySelector('[data-column="last"]')).toBeNull();
-  expect(within(r).getByRole("link", { name: "Decision" }).getAttribute("href")).toBe("/activity/journal/run%3A3");
+  expect(within(r).getByRole("link", { name: "Decision" }).getAttribute("href")).toBe("/admin/system/journal/run%3A3");
   window.localStorage.clear();
 });
 

@@ -2,7 +2,9 @@ import { createElement, useSyncExternalStore } from "react";
 import { useLocation } from "react-router";
 import { Button } from "@/components/ui/button";
 import { useSettingsSchema, type SchemaField, type SettingsSchema } from "@/api/settings";
-export type SettingsPage = { id: string; system?: boolean; label: string; route: string; arr: string; description: string; tabs: { id: string; label: string; route: string }[] };
+/** A settings page. system: a page outside Settings (Backup, Torrents), listed by Find a setting.
+ *  own: a Settings page with its own screen instead of the settings panels (Import lists, which managers open too). */
+export type SettingsPage = { id: string; system?: boolean; own?: boolean; label: string; route: string; arr: string; description: string; tabs: { id: string; label: string; route: string }[] };
 export type SettingsPanel = { id: string; page: string; tab?: string; title: string; help?: string; section: string; keys: string[]; advanced?: boolean };
 export const SETTINGS_PAGES: SettingsPage[] = [
   { id: "backup", system: true, label: "Backup", route: "/admin/system/backup", arr: "System", description: "Theatarr backups and saved torrent lists.", tabs: [] },
@@ -71,7 +73,7 @@ export const SETTINGS_PAGES: SettingsPage[] = [
     "label": "Indexers",
     "route": "/admin/settings/indexers",
     "arr": "Prowlarr Indexers",
-    "description": "Search sources, VPN and feed checks.",
+    "description": "Search sources, VPN, automatic search and feed checks.",
     "tabs": [
       {
         "id": "indexers",
@@ -90,7 +92,7 @@ export const SETTINGS_PAGES: SettingsPage[] = [
       },
       {
         "id": "rss",
-        "label": "RSS",
+        "label": "Search & RSS",
         "route": "/admin/settings/indexers/rss"
       }
     ]
@@ -100,7 +102,7 @@ export const SETTINGS_PAGES: SettingsPage[] = [
     "label": "Download clients",
     "route": "/admin/settings/downloads",
     "arr": "Download Clients",
-    "description": "Debrid providers and other download clients.",
+    "description": "Debrid providers, other download clients and their torrents.",
     "tabs": [
       {
         "id": "providers",
@@ -116,9 +118,15 @@ export const SETTINGS_PAGES: SettingsPage[] = [
         "id": "behaviour",
         "label": "Behaviour",
         "route": "/admin/settings/downloads/behaviour"
+      },
+      {
+        "id": "torrents",
+        "label": "Torrents",
+        "route": "/admin/settings/downloads/torrents"
       }
     ]
   },
+  { id: "import-lists", own: true, label: "Import lists", route: "/admin/settings/import-lists", arr: "Import Lists", description: "TMDb lists and Radarr or Sonarr instances whose titles are added by themselves.", tabs: [] },
   {
     "id": "notifications",
     "label": "Notifications",
@@ -230,6 +238,16 @@ export const SETTINGS_PANELS: SettingsPanel[] = [
     "tab": "catalog"
   },
   {
+    "id": "searches",
+    "page": "indexers",
+    "title": "Automatic search",
+    "section": "router",
+    "keys": [
+      "wanted"
+    ],
+    "tab": "rss"
+  },
+  {
     "id": "rss",
     "page": "indexers",
     "title": "RSS feed checks",
@@ -259,16 +277,6 @@ export const SETTINGS_PANELS: SettingsPanel[] = [
       "cached_only",
       "alldebrid_delete_uncached",
       "copy_to_providers"
-    ],
-    "tab": "behaviour"
-  },
-  {
-    "id": "searches",
-    "page": "downloads",
-    "title": "Automatic search",
-    "section": "router",
-    "keys": [
-      "wanted"
     ],
     "tab": "behaviour"
   },
@@ -409,16 +417,19 @@ export const SETTINGS_PANELS: SettingsPanel[] = [
   },
   {
     "id": "torrent-backups",
-    "page": "backup",
+    "page": "downloads",
+    "tab": "torrents",
     "title": "Torrent-list backups",
     "section": "torrents",
     "keys": [
       "backup"
-    ]
+    ],
+    "help": "When the debrid accounts' torrent lists are saved (System › Backup lists them)."
   },
   {
     "id": "scan-roots",
-    "page": "torrents",
+    "page": "downloads",
+    "tab": "torrents",
     "title": "Other libraries\u2019 folders",
     "section": "torrents",
     "keys": [
@@ -471,7 +482,7 @@ export function ShowAdvancedToggle({ className }: { className?: string }) {
 
 export const SETTINGS_ALIASES: { terms: string[]; href: string; title?: string }[] = [
  { terms: ["root folder", "media management"], href: "/admin/settings/libraries" },
- { terms: ["quality profile"], href: "/admin/settings/profiles" },
+ { terms: ["quality profile", "cutoff", "quality cutoff", "upgrade until", "cutoff score", "upgrade score", "until score"], href: "/admin/settings/profiles" },
  { terms: ["recyclarr", "trash"], href: "/admin/settings/quality-sync" },
  { terms: ["prowlarr", "jackett", "torznab", "newznab"], href: "/admin/settings/indexers" },
  { terms: ["proxy", "vpn"], href: "/admin/settings/indexers/vpn" },
@@ -481,7 +492,7 @@ export const SETTINGS_ALIASES: { terms: string[]; href: string; title?: string }
  { terms: ["rclone"], href: "/admin/settings/libraries/files#mount" },
  { terms: ["seerr", "overseerr", "api key for seerr", "view bindings", "arr views", "applications"], href: "/admin/settings/apps" },
  { terms: ["backup", "restore", "theatarr backup"], href: "/admin/system/backup", title: "Theatarr backups and restore" },
- { terms: ["backup"], href: "/admin/system/backup#torrent-backups" },
+ { terms: ["backup", "torrent backup", "backup schedule"], href: "/admin/settings/downloads/torrents#torrent-backups" },
  // Page names from docs/arr-map.md, including routes with no separate settings editor.
  {"terms": ["series", "sonarr series"], "href": "/series", "title": "Library › Series"},
  {"terms": ["add new", "movies › add new", "prowlarr search", "radarr add new", "search", "series › add new", "sonarr add new"], "href": "/search", "title": "Search"},
@@ -494,14 +505,16 @@ export const SETTINGS_ALIASES: { terms: string[]; href: string; title?: string }
  {"terms": ["custom formats", "delete custom formats", "list custom formats / custom format groups", "radarr custom formats", "recyclarr delete custom formats", "recyclarr list custom formats / custom format groups", "settings › custom formats", "sonarr custom formats"], "href": "/admin/settings/formats", "title": "Admin › Settings › Custom formats"},
  {"terms": ["indexers", "indexers › stats", "prowlarr indexers", "prowlarr stats", "radarr indexers", "settings › indexers", "sonarr indexers", "stats"], "href": "/admin/settings/indexers", "title": "Admin › Settings › Indexers"},
  {"terms": ["download clients", "prowlarr download clients", "radarr download clients", "settings › download clients", "sonarr download clients"], "href": "/admin/settings/downloads", "title": "Admin › Settings › Download clients"},
- {"terms": ["import lists", "radarr import lists", "settings › import lists", "sonarr import lists", "lists", "tmdb list"], "href": "/collections/lists", "title": "Library › Collections › Lists"},
+ {"terms": ["import lists", "radarr import lists", "settings › import lists", "sonarr import lists", "lists", "tmdb list"], "href": "/admin/settings/import-lists"},
  {"terms": ["connect", "prowlarr connect", "radarr connect", "settings › connect", "sonarr connect"], "href": "/admin/settings/notifications", "title": "Admin › Settings › Notifications"},
- {"terms": ["metadata", "radarr metadata", "settings › metadata", "sonarr metadata"], "href": "/admin/settings", "title": "Metadata — no separate page"},
+ {"terms": ["radarr metadata", "settings › metadata", "sonarr metadata"], "href": "/admin/settings", "title": "Metadata — no separate page"},
  {"terms": ["prowlarr tags", "radarr tags", "settings › tags", "sonarr tags", "tags"], "href": "/admin/settings", "title": "Tags — no separate page"},
  // Settings › General's panels moved to their task pages (audit 14).
  {"terms": ["general", "prowlarr general", "radarr general", "settings › general", "sonarr general", "account sync"], "href": "/admin/settings/downloads#provider-sync", "title": "Download clients › Provider account sync (was General)"},
  {"terms": ["general", "settings › general", "artwork", "image cache"], "href": "/admin/settings/metadata#artwork-cache", "title": "Metadata & artwork › Artwork cache (was General)"},
- {"terms": ["general", "settings › general", "other libraries", "usage folders"], "href": "/admin/torrents#scan-roots", "title": "Torrents › Other libraries’ folders (was General)"},
+ {"terms": ["general", "settings › general", "other libraries", "usage folders", "unused torrents"], "href": "/admin/settings/downloads/torrents#scan-roots", "title": "Download clients › Torrents › Other libraries’ folders (was General)"},
+ {"terms": ["users", "user", "users & access", "household", "family", "accounts", "invite", "sign-in link", "roles", "permissions", "api keys"], "href": "/admin/users", "title": "Users & access"},
+ {"terms": ["log level", "service log level", "debug logging"], "href": "/admin/system/logs#log-level", "title": "System › Logs › Service log level"},
  {"terms": ["prowlarr ui", "radarr ui", "settings › ui", "sonarr ui", "ui"], "href": "/admin/settings", "title": "UI — no separate page"},
  {"terms": ["metadata source", "settings › metadata source", "sonarr metadata source"], "href": "/admin/settings/metadata", "title": "Admin › Settings › Metadata & artwork"},
  {"terms": ["prowlarr status", "radarr status", "sonarr status", "status", "system › status"], "href": "/admin", "title": "Admin › System › Status"},
@@ -519,7 +532,7 @@ export const SETTINGS_ALIASES: { terms: string[]; href: string; title?: string }
  {"terms": ["movies", "radarr movies"], "href": "/movies", "title": "Library › Movies"},
  {"terms": ["collections", "movies › collections", "radarr collections", "add collection"], "href": "/collections", "title": "Library › Collections"},
  {"terms": ["discover", "movies › discover", "radarr discover"], "href": "/", "title": "Home"},
- {"terms": ["history", "prowlarr history"], "href": "/activity/journal", "title": "Activity › Decision journal"},
+ {"terms": ["history", "prowlarr history", "decision journal"], "href": "/admin/system/journal", "title": "System › Decision journal"},
  {"terms": ["manual import"], "href": "/wanted/manual-import", "title": "Wanted › Manual import"},
  {"terms": ["indexers", "prowlarr indexers", "settings › indexers"], "href": "/admin/settings/indexers/vpn", "title": "Admin › Settings › Indexers › VPN"},
  {"terms": ["prowlarr apps", "settings › apps"], "href": "/admin/settings/apps"},

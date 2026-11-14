@@ -14,7 +14,7 @@ export type RestorePlan = Schemas["TorrentRestorePlan"];
 
 export const GROUPS = [
   { id: "", label: "All" },
-  { id: "unused", label: "Unused" },
+  { id: "unused", label: "Not used by Theatarr" },
   { id: "duplicate_hash", label: "Duplicate hash" },
   { id: "duplicate_title", label: "Duplicate title" },
   { id: "failed", label: "Failed" },

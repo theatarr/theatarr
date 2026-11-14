@@ -1,9 +1,10 @@
 // Admin › Torrents (docs/design/torrents.md): every debrid account's torrents with what uses them, like Debrid Media
 // Manager's library view. Provider tabs, group filters, sorting, multi-select and "Delete selected" (a preview, then a
 // confirmation bound to the exact set; a full backup is taken first) and the torrent journal.
-// Torrent-list backup controls live in components/backups/torrent-backups.tsx on System › Backup. Other libraries'
-// folders (torrents.scan_roots, which the usage check reads) are edited here, below the list (shown once the list has
-// loaded, so a #scan-roots link scrolls to where it stays).
+// Torrent-list backups are listed on System › Backup (components/backups/torrent-backups.tsx). Other libraries' folders
+// (torrents.scan_roots, which the usage check reads) and the backup schedule are settings: Settings › Download clients ›
+// Torrents; a line beside the filters says what "Not used" checks and links there. The provider, filter, text and sort
+// live in the URL (?provider=, ?group=, ?q=, ?sort=), so Back and a reload keep them.
 import { TorrentTabs } from "./torrent-tabs";
 import { useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router";
@@ -21,8 +22,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Choice, ConfirmDialog, errText } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
-import { SectionPanel } from "@/components/settings/section-panel";
-import { SETTINGS_PANELS } from "@/lib/settings-map";
+import { useSettingsSections } from "@/api/settings";
+import { settingHref } from "@/lib/settings-map";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { fmtAgo, fmtBytes, fmtNumber, fmtTime, plural } from "@/lib/format";
 import { TitleLinks, UsageBadge, UsageDetail } from "@/components/torrent-usage";
@@ -53,12 +54,25 @@ const SORTS: { id: SortKey; label: string }[] = [
 
 export function TorrentsPage() {
   const report = useTorrentReport();
-  const [provider, setProvider] = useState("");
-  const [group, setGroup] = useState<GroupID>("");
-  // ?q= fills the filter, so other pages can link to one torrent (a title's "Torrent" link: its hash's first 12).
-  const [params] = useSearchParams();
-  const [text, setText] = useState(() => params.get("q") ?? "");
-  const [sort, setSort] = useState<SortKey>("size");
+  // The tab, filter, text and sort are in the URL; ?q= also lets other pages link to one torrent (a title's
+  // "Torrent" link: its hash's first 12).
+  const [params, setParams] = useSearchParams();
+  const setParam = (key: string, value: string) => setParams((p) => {
+    const n = new URLSearchParams(p);
+    if (value) n.set(key, value);
+    else n.delete(key);
+    return n;
+  }, { replace: true });
+  const provider = params.get("provider") ?? "";
+  const setProvider = (v: string) => setParam("provider", v);
+  const asked = params.get("group") ?? "";
+  const group: GroupID = GROUPS.some((g) => g.id === asked) ? (asked as GroupID) : "";
+  const setGroup = (v: GroupID) => setParam("group", v);
+  const text = params.get("q") ?? "";
+  const setText = (v: string) => setParam("q", v);
+  const sortAsked = params.get("sort") ?? "";
+  const sort: SortKey = SORTS.some((x) => x.id === sortAsked) ? (sortAsked as SortKey) : "size";
+  const setSort = (v: SortKey) => setParam("sort", v === "size" ? "" : v);
   const [selected, setSelected] = useState<Record<string, Torrent>>({});
   const [plan, setPlan] = useState<DeletePlan | null>(null);
   const [overrides, setOverrides] = useState<Record<string, string>>({});
@@ -152,7 +166,7 @@ export function TorrentsPage() {
               </Button>
             ))}
           </div>
-          <div className="mb-3 flex flex-wrap items-center gap-1">
+          <div className="mb-1 flex flex-wrap items-center gap-1">
             {GROUPS.map((g) => (
               <Button key={g.id || "all"} size="xs" variant={g.id === group ? "secondary" : "ghost"} onClick={() => setGroup(g.id)} data-testid={`group-${g.id || "all"}`}>
                 {g.label}
@@ -163,6 +177,7 @@ export function TorrentsPage() {
               {SORTS.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
             </select>
           </div>
+          <UnusedSummary />
           <div className="mb-2 flex flex-wrap items-center gap-2 text-sm">
             <span className="text-muted-foreground">{fmtNumber(rows.length)} shown · {fmtNumber(chosen.length)} selected ({fmtBytes(chosen.reduce((n, t) => n + t.bytes, 0))})</span>
             <Button size="sm" variant="destructive" disabled={chosen.length === 0 || actions.deletePreview.isPending} onClick={openDelete} data-testid="delete-selected">
@@ -197,8 +212,6 @@ export function TorrentsPage() {
           )}
         </>
       ) : null}
-      {/* Below the list and only once it has loaded, so a #scan-roots link scrolls to where the panel stays. */}
-      {report.isPending ? null : <SectionPanel {...SETTINGS_PANELS.find((p) => p.id === "scan-roots")!} />}
       <JournalSection />
       {plan ? (
         <ConfirmDialog
@@ -245,6 +258,20 @@ export function TorrentsPage() {
   );
 }
 
+/** What "Not used by Theatarr" checks, beside the filters: Theatarr's libraries and the other libraries' folders
+ *  listed in Settings, linked there. Other apps that share an account are not seen. */
+function UnusedSummary() {
+  const sections = useSettingsSections();
+  const roots = sections.data?.sections.find((x) => x.key === "torrents")?.config?.scan_roots;
+  const n = Array.isArray(roots) ? roots.length : 0;
+  return (
+    <p className="mb-3 text-xs text-muted-foreground" data-testid="unused-summary">
+      Not used by Theatarr: no Theatarr library uses it, nor {sections.data && n ? `any of the ${plural(n, "folder")} of other libraries listed in settings` : sections.data ? "a folder of another library (none are listed)" : "the folders of other libraries listed in settings"}. Other apps on the same accounts are not seen.{" "}
+      <Link to={settingHref("torrents", "scan_roots") ?? "/admin/settings"} className="text-primary hover:underline" data-testid="scan-roots-link">Other libraries’ folders</Link>
+    </p>
+  );
+}
+
 /** One torrent; code is its account's cache code for the Provider column (All providers only). */
 function TorrentRow({ t, at, checked, onToggle, code }: { t: Torrent; at: string; checked: boolean; onToggle: () => void; code?: string }) {
   const [open, setOpen] = useState(false);
@@ -256,8 +283,9 @@ function TorrentRow({ t, at, checked, onToggle, code }: { t: Torrent; at: string
           <TableCell className="px-1 sm:px-3" title={t.provider} data-testid="torrent-provider"><ProviderPills codes={[code]} /></TableCell>
         )}
         <TableCell className="max-w-[32rem] text-[13px]">
-          <div className="[overflow-wrap:anywhere]" title={t.raw_name ? `The provider's name: ${t.raw_name}` : undefined}>{t.name}</div>
-          <div className="text-xs text-muted-foreground">
+          <div className="line-clamp-2 [overflow-wrap:anywhere]" title={t.raw_name ? `The provider's name: ${t.raw_name}` : t.name}>{t.name}</div>
+          {/* Two lines at most: a parsed list of 291 episodes would make the row a page tall; the whole is the tooltip. */}
+          <div className="line-clamp-2 text-xs text-muted-foreground [overflow-wrap:anywhere]" title={t.parsed || undefined} data-testid="torrent-second-line">
             {/* Below 640 px the size sits here, not in its column, so the table fits a phone. */}
             <span className="sm:hidden">{fmtBytes(t.bytes)} · </span>
             {t.parsed ? `${t.parsed}${t.quality ? ` · ${t.quality}` : ""} · ` : ""}<Link to={inventoryLink(t.hash)} className="font-mono text-[12.5px] text-primary hover:underline" title="See this torrent in Saved inventory" data-testid="torrent-hash">{t.hash.slice(0, 12)}</Link>

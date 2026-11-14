@@ -25,11 +25,12 @@ it("Enter opens the first setting result", async () => {
  expect(screen.getByTestId("location").textContent).toBe("/admin/settings/libraries/files#mount");
 });
 
-it("finds Theatarr backups and restore and keeps torrent backups", () => {
+it("finds Theatarr backups and restore and keeps torrent backups, each once", () => {
  for (const query of ["backup", "restore", "theatarr backup"]) {
   expect(findSettings(index, query)).toContainEqual(expect.objectContaining({ href: "/admin/system/backup", label: "Theatarr backups and restore" }));
  }
- expect(findSettings(index, "backup").some(r => r.href === "/admin/system/backup#torrent-backups")).toBe(true);
+ expect(findSettings(index, "backup").some(r => r.href === "/admin/settings/downloads/torrents#torrent-backups")).toBe(true);
+ expect(findSettings(index, "backup").filter(r => r.href === "/admin/system/backup")).toHaveLength(1);
 });
 
 it("counts each tile in the singular for one", async () => {

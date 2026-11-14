@@ -30,11 +30,14 @@ it("adds a list from a pasted address after looking it up", async () => {
     { method: "GET", path: "/lists/lookup", reply: { tmdb_id: 9, name: "Favourites", description: "The good ones", movies: 12, added: false } },
     { method: "POST", path: "/lists", reply: () => { lists = [mine]; return { status: 201, body: mine }; } },
   ]);
-  renderPage(<ListsPage />, "/collections/lists");
+  renderPage(<ListsPage />, "/admin/settings/import-lists");
   expect(await screen.findByText("No lists yet. Add a TMDb list by its id or address, or a Radarr or Sonarr instance by its address and API key.")).toBeTruthy();
   expect(screen.getByText("A list is a TMDb movie list, or the titles of a Radarr or Sonarr instance.")).toBeTruthy();
-  expect(screen.getByRole("tab", { name: "Lists" }).getAttribute("aria-selected")).toBe("true");
-  expect(screen.getByRole("tab", { name: "Collections" }).getAttribute("href")).toBe("/collections");
+  // A Settings page now: no Collections tabs; a manager gets no Settings breadcrumb or page picker.
+  expect(screen.getByRole("heading", { name: "Import lists" })).toBeTruthy();
+  expect(screen.queryByRole("tab")).toBeNull();
+  expect(screen.queryByRole("link", { name: "Settings" })).toBeNull();
+  expect(screen.queryByTestId("settings-picker")).toBeNull();
   await user.click(screen.getByRole("button", { name: "Add list" }));
   const dialog = within(screen.getByTestId("list-dialog"));
   expect(dialog.getByRole("button", { name: "Add" }).hasAttribute("disabled")).toBe(true);
@@ -65,7 +68,7 @@ it("edits, enables, syncs and deletes lists, and labels one an arr client made",
     { method: "POST", path: "/lists/1/sync", reply: { list: mine, added: 3, skipped: 9 } },
     { method: "DELETE", path: "/lists/1", reply: () => { lists = [arr]; return { status: 204 }; } },
   ]);
-  renderPage(<ListsPage />, "/collections/lists");
+  renderPage(<ListsPage />, "/admin/settings/import-lists");
   const row = () => within(screen.getByTestId("list-1"));
   const other = within(await screen.findByTestId("list-2"));
   expect(other.getByText("Created through the radarr-4k view")).toBeTruthy();
@@ -109,7 +112,7 @@ it("edits, enables, syncs and deletes lists, and labels one an arr client made",
 
 it("is not for plain users and does not ask for lists", async () => {
   const fetch = mockFetch([{ method: "GET", path: "/auth/me", reply: { ...manager, permissions: ["browse", "request"] } }]);
-  renderPage(<ListsPage />, "/collections/lists");
+  renderPage(<ListsPage />, "/admin/settings/import-lists");
   expect(await screen.findByTestId("forbidden")).toBeTruthy();
   expect(fetch.calls("GET", "/lists")).toHaveLength(0);
 });
@@ -127,7 +130,7 @@ it("adds a Radarr instance as a list after a check, previews it, and never shows
       titles: [...Array.from({ length: 12 }, (_, i) => ({ name: `Movie ${i}`, tmdb_id: 100 + i, change: "add_title" })),
         { name: "Gamma", year: 2021, tmdb_id: 13, change: "skipped" }] } },
   ]);
-  renderPage(<ListsPage />, "/collections/lists");
+  renderPage(<ListsPage />, "/admin/settings/import-lists");
   await user.click(await screen.findByRole("button", { name: "Add list" }));
   let dialog = within(screen.getByTestId("list-dialog"));
   await user.selectOptions(dialog.getByLabelText("Source"), "radarr");
@@ -179,7 +182,7 @@ it("labels a Sonarr list's series libraries by their names", async () => {
     { method: "GET", path: "/auth/me", reply: manager },
     { method: "GET", path: "/lists", reply: { lists: [sonarr], libraries, series_libraries: { "tv-2160p": "TV 4K", "anime-tv": "Anime TV" }, can_sync: true } },
   ]);
-  renderPage(<ListsPage />, "/collections/lists");
+  renderPage(<ListsPage />, "/admin/settings/import-lists");
   const row = within(await screen.findByTestId("list-4"));
   expect(row.getByText("TV 4K")).toBeTruthy();
   expect(row.getByText("Sonarr at http://10.0.0.7:8989")).toBeTruthy();
@@ -195,7 +198,7 @@ it("says next to Check why it is off when TMDb is not set up", async () => {
     { method: "GET", path: "/auth/me", reply: manager },
     { method: "GET", path: "/lists", reply: { lists: [], libraries, can_sync: false } },
   ]);
-  renderPage(<ListsPage />, "/collections/lists");
+  renderPage(<ListsPage />, "/admin/settings/import-lists");
   await user.click(await screen.findByRole("button", { name: "Add list" }));
   const dialog = within(screen.getByTestId("list-dialog"));
   await user.selectOptions(dialog.getByRole("combobox", { name: "Source" }), "radarr");

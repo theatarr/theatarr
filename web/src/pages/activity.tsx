@@ -1,11 +1,10 @@
 // Activity (docs/design/ui.md): Queue, every download in hand (components/activity/queue-tab.tsx); History, what
 // happened to downloads (components/activity/history-tab.tsx); Blocklist, the releases a version never routes again
-// (components/activity/blocklist-tab.tsx, accounts that see files); Decision journal, every grab decision with its
-// verdicts (accounts with the admin permission only, an entry at /activity/journal/:id; pages/admin/journal.tsx).
+// (components/activity/blocklist-tab.tsx, accounts that see files). The Decision journal is a page of System
+// (/admin/system/journal, pages/admin/journal.tsx); /activity/journal redirects there (lib/legacy-routes.ts).
 // Users see titles, versions and plain words; admins also see release names, providers, attempts and cache evidence.
 // Live: the download events refresh it (api/events.tsx).
 import { Eye } from "lucide-react";
-import { lazy, Suspense } from "react";
 import { Link, Navigate, useParams, useSearchParams } from "react-router";
 import { useAuth } from "@/api/auth";
 import { usePerms } from "@/api/library";
@@ -16,10 +15,6 @@ import { Empty, Loading, PageHeader, RouteTabs } from "@/components/page";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { parseShow, type ActivityShow } from "@/lib/activity";
-import { journalHome } from "@/lib/admin-links";
-
-// Loaded on first use: only admins open the journal.
-const JournalList = lazy(() => import("./admin/journal").then((m) => ({ default: m.JournalList })));
 
 export function ActivityPageView() {
   const { tab = "queue" } = useParams();
@@ -31,8 +26,6 @@ export function ActivityPageView() {
   const asUser = isAdmin && sp.get("as") === "user";
   const admin = isAdmin && !asUser;
   const suffix = asUser ? "?as=user" : "";
-  // The Decision journal needs the admin permission (its API does), not just "see files" as Blocklist does.
-  const journal = perms.admin && !asUser;
   const show = parseShow(sp.get("show"));
   const setShow = (v: ActivityShow) => {
     const next = new URLSearchParams(sp);
@@ -44,13 +37,12 @@ export function ActivityPageView() {
     { id: "queue", label: "Queue", to: `/activity${suffix}` },
     { id: "history", label: "History", to: `/activity/history${suffix}` },
     ...(isAdmin && !asUser ? [{ id: "blocklist", label: "Blocklist", to: "/activity/blocklist" }] : []),
-    ...(journal ? [{ id: "journal", label: "Decision journal", to: journalHome() }] : []),
   ];
   // Who is looking decides the table or the simple rows: wait for it rather than draw one and swap.
   if (me.isPending) return <Loading />;
   // The user view has Queue and History only.
-  if ((tab === "blocklist" || (tab === "journal" && perms.admin)) && asUser) return <Navigate to={`/activity${suffix}`} replace />;
-  if (!["queue", "history", "blocklist", "journal"].includes(tab) || (tab === "blocklist" && !isAdmin) || (tab === "journal" && !journal)) {
+  if (tab === "blocklist" && asUser) return <Navigate to={`/activity${suffix}`} replace />;
+  if (!["queue", "history", "blocklist"].includes(tab) || (tab === "blocklist" && !isAdmin)) {
     return (
       <div data-testid="activity-unknown-tab">
         <PageHeader title="Activity" description={`There is no Activity tab “${tab}”.`} />
@@ -93,7 +85,7 @@ export function ActivityPageView() {
         }
       />
       <RouteTabs tabs={tabs} active={tab} />
-      {tab === "journal" ? <Suspense fallback={<Loading />}><JournalList /></Suspense> : tab === "history" ? <HistoryTab admin={admin} as={asUser ? "user" : undefined} /> : tab === "blocklist" && admin ? <BlocklistTab /> : (
+      {tab === "history" ? <HistoryTab admin={admin} as={asUser ? "user" : undefined} /> : tab === "blocklist" && admin ? <BlocklistTab /> : (
         <QueueTab admin={admin} as={asUser ? "user" : undefined} show={show} onShow={setShow} />
       )}
     </div>

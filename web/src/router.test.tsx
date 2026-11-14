@@ -13,6 +13,7 @@ vi.mock("./components/shell/app-shell", () => ({ AppShell: ({ children }: { chil
 
 const ADMIN = ["browse", "request", "see_files", "manage", "admin", "users"];
 const MANAGER = ["browse", "request", "see_files", "manage"];
+const USER = ["browse", "request"];
 
 function open(path: string, permissions: string[]) {
   const fetch = mockFetch([
@@ -22,32 +23,34 @@ function open(path: string, permissions: string[]) {
     { method: "GET", path: "/status", reply: { versions: [] } },
     { method: "GET", path: "/policy", reply: { versions: [] } },
     { method: "GET", path: "/journal/dl%3A4", reply: { id: "dl:4", kind: "grab", summary: "Grabbed" } },
+    { method: "GET", path: "/journal", reply: { items: [] } },
+    { method: "GET", path: "/lists", reply: { lists: [], libraries: {}, can_sync: true } },
   ]);
   const router = createMemoryRouter(routes, { initialEntries: [path] });
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
   render(<QueryClientProvider client={client}><RouterProvider router={router} /></QueryClientProvider>);
-  const at = () => router.state.location.pathname + router.state.location.search;
+  const at = () => router.state.location.pathname + router.state.location.search + router.state.location.hash;
   return { fetch, at };
 }
 
-it("opens a journal entry and Manual import for an admin", async () => {
-  const entry = open("/activity/journal/dl%3A4", ADMIN);
+it("opens a journal entry under System for an admin, and sends its old Activity address there", async () => {
+  const entry = open("/activity/journal/dl%3A4?x=1", ADMIN);
   expect(await screen.findByTestId("journal-summary")).toBeTruthy();
+  expect(entry.at()).toBe("/admin/system/journal/dl%3A4?x=1");
   expect(entry.fetch.calls("GET", "/journal/dl%3A4")).toHaveLength(1);
+});
+
+it("opens the journal list under System and sends /activity/journal there with its filter", async () => {
+  const page = open("/activity/journal?suspect=1", ADMIN);
+  await waitFor(() => expect(page.at()).toBe("/admin/system/journal?suspect=1"));
+  expect(await screen.findByRole("heading", { name: "Decision journal" })).toBeTruthy();
+  await waitFor(() => expect(page.fetch.calls("GET", "/journal")[0]?.search).toContain("suspect=true"));
 });
 
 it("opens Manual import as a tab of Wanted for an admin", async () => {
   const page = open("/wanted/manual-import", ADMIN);
   expect((await screen.findByRole("tab", { name: "Manual import" })).getAttribute("aria-selected")).toBe("true");
   await waitFor(() => expect(page.fetch.calls("GET", "/policy")).toHaveLength(1));
-});
-
-it("sends an admin viewing as a user from a journal entry to Activity, in that view, without reading the journal", async () => {
-  const { fetch, at } = open("/activity/journal/dl%3A4?as=user", ADMIN);
-  await waitFor(() => expect(at()).toBe("/activity?as=user"));
-  expect(await screen.findByRole("button", { name: "Back to the admin view" })).toBeTruthy();
-  expect(screen.queryByRole("tab", { name: "Decision journal" })).toBeNull();
-  expect(fetch.requests.some((r) => r.path.startsWith("/journal") || r.path === "/status")).toBe(false);
 });
 
 it("sends an admin viewing as a user from Manual import to Wanted, in that view, without its tab or its requests", async () => {
@@ -59,11 +62,31 @@ it("sends an admin viewing as a user from Manual import to Wanted, in that view,
   expect(fetch.requests.some((r) => r.path === "/policy" || r.path.startsWith("/manualimport"))).toBe(false);
 });
 
-it.each(["/activity/journal/dl%3A4", "/wanted/manual-import", "/activity/journal/dl%3A4?as=user", "/wanted/manual-import?as=user"])("refuses %s to a manager without an admin request", async (path) => {
+it.each(["/admin/system/journal/dl%3A4", "/admin/system/journal", "/wanted/manual-import", "/wanted/manual-import?as=user"])("refuses %s to a manager without an admin request", async (path) => {
   const { fetch, at } = open(path, MANAGER);
   expect(await screen.findByText(/not for your account/i)).toBeTruthy();
   expect(at()).toBe(path);
   expect(fetch.requests.every((r) => r.path === "/auth/me")).toBe(true);
+});
+
+it.each([["/collections/lists", MANAGER], ["/collections/lists", ADMIN], ["/admin/settings/import-lists", MANAGER]])("opens Import lists in Settings from %s for a manager and an admin", async (path, permissions) => {
+  const page = open(path, permissions);
+  expect(await screen.findByRole("heading", { name: "Import lists" })).toBeTruthy();
+  expect(page.at()).toBe("/admin/settings/import-lists");
+  await waitFor(() => expect(page.fetch.calls("GET", "/lists")).toHaveLength(1));
+});
+
+it.each(["/admin/settings/import-lists", "/collections/lists", "/admin/system/journal"])("refuses %s to a household account", async (path) => {
+  const { fetch } = open(path, USER);
+  expect(await screen.findByText(/not for your account/i)).toBeTruthy();
+  expect(fetch.requests.every((r) => r.path === "/auth/me")).toBe(true);
+});
+
+it("sends an old anchor of a moved settings panel to its new page", async () => {
+  const page = open("/admin/torrents#scan-roots", MANAGER);
+  await waitFor(() => expect(page.at()).toBe("/admin/settings/downloads/torrents#scan-roots"));
+  // Still an admin page: a manager is refused there, as on the old one.
+  expect(await screen.findByText(/not for your account/i)).toBeTruthy();
 });
 
 it("opens Wanted for a manager, without the Manual import tab", async () => {

@@ -1,11 +1,15 @@
 // @vitest-environment jsdom
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { useLocation } from "react-router";
 import { describe, expect, it } from "vitest";
 import { expectNamedControls, mockFetch, renderPage } from "@/test/page";
 import { TorrentBackups } from "@/components/backups/torrent-backups";
 import schema from "@/components/settings/testdata/schema.json";
 import { TorrentsPage } from "./torrents";
+import { SettingsPage } from "./settings/pages";
+import { overview } from "@/components/settings/fixtures";
 
+function Where() { return <output data-testid="where">{useLocation().search}</output>; }
 const h1 = "1".repeat(40);
 const h2 = "2".repeat(40);
 const torrent = (id: string, hash: string, name: string, usage: string, extra = {}) => ({
@@ -171,20 +175,33 @@ describe("torrents page", () => {
     expect(fetch.calls("GET", "/torrents/report")).toHaveLength(1);
   }, 15000);
 
-  it("edits other libraries' folders (moved from Settings › General) below the list", async () => {
+  it("says beside the filters what Not used checks and links the folders' setting; the form is in Settings now", async () => {
     mockFetch([
       { method: "GET", path: "/torrents/report", reply: report },
       { method: "GET", path: "/torrents/journal", reply: { entries: [] } },
-      { method: "GET", path: "/settings/sections", reply: { source: "db", generation: 4, sections: [{ key: "torrents", config: { scan_roots: ["/other/movies"] }, secrets: [] }] } },
-      { method: "GET", path: "/settings/schema", reply: schema },
+      { method: "GET", path: "/settings/sections", reply: { source: "db", generation: 4, sections: [{ key: "torrents", config: { scan_roots: ["/other/movies", "/other/tv"] }, secrets: [] }] } },
     ]);
-    renderPage(<TorrentsPage />, "/admin/torrents#scan-roots");
-    const heading = await screen.findByRole("heading", { name: "Other libraries’ folders" });
-    expect(heading.closest("[id]")?.id).toBe("scan-roots");
-    expect(await screen.findByDisplayValue("/other/movies")).toBeTruthy();
-    // Below the list, and only once the list is there, so a #scan-roots link lands where the panel stays.
-    const list = await screen.findByRole("table");
-    expect(heading.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
+    renderPage(<TorrentsPage />, "/admin/torrents");
+    const line = await screen.findByTestId("unused-summary");
+    await waitFor(() => expect(line.textContent).toContain("any of the 2 folders of other libraries listed in settings"));
+    expect(screen.getByTestId("scan-roots-link").getAttribute("href")).toBe("/admin/settings/downloads/torrents#scan-roots");
+    expect(screen.getByTestId("group-unused").textContent).toBe("Not used by Theatarr");
+    expect(screen.queryByRole("heading", { name: "Other libraries’ folders" })).toBeNull();
+  });
+  it("keeps the provider, filter, text and sort in the URL", async () => {
+    mockFetch([
+      { method: "GET", path: "/torrents/report", reply: report },
+      { method: "GET", path: "/torrents/journal", reply: { entries: [] } },
+    ]);
+    renderPage(<><TorrentsPage /><Where /></>, "/admin/torrents?group=unused&sort=name");
+    expect(await screen.findByText("Unused.Movie")).toBeTruthy();
+    expect(screen.getAllByTestId("torrent-row")).toHaveLength(1);
+    expect((screen.getByLabelText("Sort") as HTMLSelectElement).value).toBe("name");
+    fireEvent.click(screen.getByTestId("group-all"));
+    expect(screen.getAllByTestId("torrent-row")).toHaveLength(2);
+    fireEvent.change(screen.getByLabelText("Filter torrents"), { target: { value: "used" } });
+    fireEvent.change(screen.getByLabelText("Sort"), { target: { value: "size" } });
+    expect(screen.getByTestId("where").textContent).toBe("?q=used");
   });
   it("filters by group, previews a delete, needs an override naming the references, and sends the confirmed token", async () => {
     const api = mockFetch([
@@ -261,20 +278,27 @@ describe("torrents page", () => {
   });
 });
 
-it("keeps Saved after the backup query refetches changed values", async () => {
+it("saving the schedule in Settings refreshes what System › Backup says, and keeps Saved", async () => {
  let every = 21600;
  const api = mockFetch([
+  { method: "GET", path: "/settings", reply: overview() },
   { method: "GET", path: "/settings/schema", reply: schema },
+  { method: "GET", path: "/policy", reply: { versions: [] } },
   { method: "GET", path: "/torrents/report", reply: report },
-  { method: "GET", path: "/torrents/journal", reply: { entries: [] } },
   { method: "GET", path: "/torrents/backups", reply: () => ({ backups: [], every_s: every, keep: 30 }) },
-  { method: "GET", path: "/settings/sections", reply: { source: "db", generation: 1, sections: [{ key: "torrents", config: { backup: { every: "6h0m0s", keep: 30 } }, secrets: [] }] } },
+  { method: "GET", path: "/settings/sections", reply: { source: "db", generation: 1, sections: [{ key: "torrents", config: { scan_roots: ["/other/movies"], backup: { every: "6h0m0s", keep: 30 } }, secrets: [] }] } },
   { method: "PUT", path: "/settings/sections/torrents", reply: () => { every = 86400; return {}; } },
  ]);
- renderPage(<TorrentBackups />);
+ renderPage(<><SettingsPage /><TorrentBackups /></>, "/admin/settings/downloads/torrents");
+ // Download clients › Torrents holds both panels of the torrents section.
+ expect(await screen.findByRole("heading", { name: "Other libraries’ folders" })).toBeTruthy();
+ expect(await screen.findByDisplayValue("/other/movies")).toBeTruthy();
  await waitFor(() => expect((screen.getByLabelText("Backup interval") as HTMLSelectElement).disabled).toBe(false));
+ expect(await screen.findByText(/Scheduled every 6 h/)).toBeTruthy();
  fireEvent.change(screen.getByLabelText("Backup interval"), { target: { value: "24h" } });
- fireEvent.click(screen.getByRole("button", { name: "Save" }));
+ const panel = screen.getByLabelText("Backup interval").closest("[id]") as HTMLElement;
+ expect(panel.id).toBe("torrent-backups");
+ fireEvent.click(within(panel).getByRole("button", { name: "Save" }));
  await screen.findByText(/Scheduled every 24 h/);
  expect(api.calls("GET", "/torrents/backups").length).toBeGreaterThan(1);
  expect(screen.getByText("Saved.")).toBeTruthy();

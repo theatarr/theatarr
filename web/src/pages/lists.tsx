@@ -1,5 +1,6 @@
-// /collections/lists: the import lists (docs/design/arrview.md, Lists), as Radarr's Settings › Import Lists: TMDb
-// movie lists, and Radarr or Sonarr instances whose titles are added. An enabled list adds its new titles to its
+// Settings › Import lists (/admin/settings/import-lists; /collections/lists redirects here): the import lists
+// (docs/design/arrview.md, Lists), as Radarr's Settings › Import Lists: TMDb movie lists, and Radarr or Sonarr instances
+// whose titles are added. Managers open it too: their Admin group links it, as they have no other Settings. An enabled list adds its new titles to its
 // libraries at each sync and on Sync now; search on add starts the usual add-time search, which the download router
 // gates. A list an arr client made is shown with its view and stays that client's. Managers and admins (GET/POST
 // /lists, POST /lists/check, PUT/DELETE /lists/{id}, POST /lists/{id}/sync and /preview).
@@ -10,7 +11,7 @@ import { useDebounced } from "@/api/add";
 import { permsOf } from "@/api/library";
 import { listIDFrom, normalListURL, useListCheck, useListLookup, useListMutations, useLists, type ListAdd, type ListPreview, type MovieList } from "@/api/lists";
 import { AVAILABILITY } from "@/components/collections/add-collection";
-import { CollectionsTabs } from "@/components/collections/collections-tabs";
+import { SettingsPicker } from "@/components/settings/settings-picker";
 import { Empty, ErrorState, Loading, PageHeader } from "@/components/page";
 import { Chip } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -205,7 +206,8 @@ function ListRow({ l, libraries, seriesLibraries, canSync, m, edit, remove, sync
       </div> : null}
       {m.preview.error && m.preview.variables === l.id ? <ErrorState error={m.preview.error} /> : null}
     </div>
-    <div className="flex flex-wrap items-center gap-2">
+    {/* On a phone the actions take their own row, so the name and address keep the width. */}
+    <div className="flex basis-full flex-wrap items-center gap-2 sm:basis-auto" data-testid={`list-actions-${l.id}`}>
       <Button variant="outline" size="sm" disabled={!canSync || previewing} title={canSync ? undefined : "TMDb is not set up"} onClick={() => m.preview.mutate(l.id)}>{previewing ? <Loader2 className="animate-spin" aria-hidden /> : null}Preview</Button>
       <Button variant="outline" size="sm" disabled={!canSync || busy} title={canSync ? undefined : "TMDb is not set up"} onClick={sync}>{syncing ? <Loader2 className="animate-spin" aria-hidden /> : null}Sync now</Button>
       <Button variant="outline" size="sm" onClick={edit}>Edit</Button>
@@ -223,13 +225,13 @@ export function ListsPage() {
   const [removing, setRemoving] = useState<MovieList | null>(null);
   const [done, setDone] = useState("");
   if (me.isPending) return <Loading />;
-  if (!perms.manage) return <Forbidden description="Lists are for managers and admins." />;
+  if (!perms.manage) return <Forbidden description="Import lists are for managers and admins." />;
   const d = q.data;
   const open = (v: MovieList | "add") => { m.add.reset(); m.set.reset(); setDialog(v); };
   return <div>
-    <PageHeader title="Lists" description="Lists add titles by themselves: every title on an enabled list is added to the list's libraries at each sync, or with Sync now. Search on add then searches for them through the download settings, so nothing downloads while downloads are off."
+    <PageHeader crumb={perms.admin ? [{ label: "Admin", to: "/admin" }, { label: "Settings", to: "/admin/settings" }] : undefined} title="Import lists" description="Lists add titles by themselves: every title on an enabled list is added to the list's libraries at each sync, or with Sync now. Search on add then searches for them through the download settings, so nothing downloads while downloads are off."
       actions={d ? <Button onClick={() => open("add")}><Plus aria-hidden />Add list</Button> : null} />
-    <CollectionsTabs active="lists" />
+    {perms.admin ? <SettingsPicker current="/admin/settings/import-lists" /> : null}
     {dialog && d ? <ListDialog key={dialog === "add" ? "add" : dialog.id} list={dialog === "add" ? undefined : dialog} libraries={d.libraries} seriesLibraries={d.series_libraries ?? {}} canSync={d.can_sync} m={m} onClose={() => setDialog(null)} /> : null}
     {removing ? <ConfirmDialog testid="list-delete" subject={removing.name} busy={m.remove.isPending} error={m.remove.error} onClose={() => setRemoving(null)}
       onConfirm={() => m.remove.mutate(removing.id, { onSuccess: () => setRemoving(null) })}

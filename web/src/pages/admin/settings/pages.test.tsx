@@ -54,7 +54,7 @@ it("links request limits to VPN status", async () => {
 
 it("redirects the old torrent schedule bookmark with its query and hash", () => {
  // Settings › General is gone; its bookmarks redirect through lib/legacy-routes.ts (tested there too).
- expect(legacyTarget("/admin/settings/general", "?x=1", "#torrent-backups")).toBe("/admin/system/backup?x=1#torrent-backups");
+ expect(legacyTarget("/admin/settings/general", "?x=1", "#torrent-backups")).toBe("/admin/settings/downloads/torrents?x=1#torrent-backups");
 });
 it("shows General's former panels on Download clients and Metadata & artwork", async () => {
  const routes = [
@@ -138,3 +138,23 @@ it("names the format set page for what it is, with a way back to the profiles", 
  expect(select.selectedOptions[0].textContent).toBe("Profiles › Format sets");
 });
 
+
+it("puts Automatic search with RSS under Indexers and leaves Behaviour to grabbing", async () => {
+ const routes = [
+  { method: "GET", path: "/settings", reply: overview() },
+  { method: "GET", path: "/settings/schema", reply: schema },
+  { method: "GET", path: "/settings/sections", reply: { source: "db", generation: 4, sections: [] } },
+  { method: "GET", path: "/policy", reply: { versions: [] } },
+ ];
+ mockFetch(routes);
+ const v = renderPage(<SettingsPage />, "/admin/settings/indexers/rss");
+ const search = await screen.findByRole("heading", { name: "Automatic search" });
+ const rss = screen.getByRole("heading", { name: "RSS feed checks" });
+ expect(search.compareDocumentPosition(rss) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+ expect(screen.getByRole("tab", { name: "Search & RSS" }).getAttribute("aria-selected")).toBe("true");
+ v.unmount();
+ mockFetch(routes);
+ renderPage(<SettingsPage />, "/admin/settings/downloads/behaviour");
+ await screen.findByRole("heading", { name: "What to grab" });
+ expect(screen.queryByRole("heading", { name: "Automatic search" })).toBeNull();
+});
