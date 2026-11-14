@@ -449,9 +449,17 @@ var sectionHelp = map[string]string{
 // goDuration matches a Go duration written in help text: "6h", "10m", "15s", "7d".
 var goDuration = regexp.MustCompile(`\b(\d+)([hmsd])\b`)
 
+// boolDefault matches a switch's default written as a Go value: "Default true", "(default false)".
+var boolDefault = regexp.MustCompile(`\b([Dd]efault) (true|false)\b`)
+
 // plainDurations writes the Go durations of a help text in words, as the form shows them: "Default 6h, minimum 10m"
 // reads "Default 6 hours, minimum 10 minutes"; whole days from two days up are days ("168h" is "7 days").
+// A switch's default reads as the form shows it: "Default on", not "Default true".
 func plainDurations(help string) string {
+	help = boolDefault.ReplaceAllStringFunc(help, func(m string) string {
+		sub := boolDefault.FindStringSubmatch(m)
+		return sub[1] + map[string]string{"true": " on", "false": " off"}[sub[2]]
+	})
 	return goDuration.ReplaceAllStringFunc(help, func(m string) string {
 		sub := goDuration.FindStringSubmatch(m)
 		n, _ := strconv.Atoi(sub[1])

@@ -383,7 +383,7 @@
                 "name": "forget_release_root",
                 "label": "Clear cached release root listing",
                 "type": "boolean",
-                "help": "This clears rclone's cache of the release root (vfs/forget; its subfolders and parent too) when zurg_api lists a torrent the mount does not show yet, at most every 3 seconds. Default false."
+                "help": "This clears rclone's cache of the release root (vfs/forget; its subfolders and parent too) when zurg_api lists a torrent the mount does not show yet, at most every 3 seconds. Default off."
               }
             ]
           }
@@ -427,7 +427,7 @@
             "default": "true",
             "label": "Check video resolution",
             "type": "boolean",
-            "help": "This rejects a file whose probed resolution is two or more steps under the release's (a 2160p release holding a 720p file). Default true.",
+            "help": "This rejects a file whose probed resolution is two or more steps under the release's (a 2160p release holding a 720p file). Default on.",
             "nullable": true
           },
           {
@@ -435,7 +435,7 @@
             "default": "true",
             "label": "Refuse mislabelled remuxes and 2160p",
             "type": "boolean",
-            "help": "This refuses a file whose probe plainly contradicts its Remux or 2160p label (an x264/x265 CRF encode named Remux, 1080-line video named 2160p). Default true.",
+            "help": "This refuses a file whose probe plainly contradicts its Remux or 2160p label (an x264/x265 CRF encode named Remux, 1080-line video named 2160p). Default on.",
             "nullable": true
           }
         ]
@@ -508,7 +508,7 @@
             "default": "true",
             "label": "Now playing",
             "type": "boolean",
-            "help": "This follows Plex's sessions for the Now playing page. It only reads, so it works while Theatarr is paused. Default true.",
+            "help": "This follows Plex's sessions for the Now playing page. It only reads, so it works while Theatarr is paused. Default on.",
             "nullable": true
           },
           {
@@ -516,7 +516,7 @@
             "default": "true",
             "label": "Preload next episode",
             "type": "boolean",
-            "help": "About a minute into an episode, this reads the start of the next episode of the show through the mount, and raises an error inbox item when that episode is missing or unreadable; past half of the episode it reads the next one whole so the mount's cache keeps it. Default true.",
+            "help": "About a minute into an episode, this reads the start of the next episode of the show through the mount, and raises an error inbox item when that episode is missing or unreadable; past half of the episode it reads the next one whole so the mount's cache keeps it. Default on.",
             "nullable": true
           },
           {
@@ -679,7 +679,7 @@
             "default": "true",
             "label": "Enabled",
             "type": "boolean",
-            "help": "This turns the refresh on; default true when a tvdb or tmdb source is configured.",
+            "help": "This turns the refresh on; default on when a tvdb or tmdb source is configured.",
             "nullable": true
           },
           {
@@ -730,7 +730,7 @@
             "default": "true",
             "label": "Build franchises automatically",
             "type": "boolean",
-            "help": "This builds franchises for anime series without one and rebuilds old ones (default true). Building only writes mappings; episodes whose mapping is not settled import through TVDB's numbering, and their conflicts show in Admin › Reviews.",
+            "help": "This builds franchises for anime series without one and rebuilds old ones (default on). Building only writes mappings; episodes whose mapping is not settled import through TVDB's numbering, and their conflicts show in Admin › Reviews.",
             "nullable": true
           },
           {
@@ -862,7 +862,7 @@
             "name": "warnings",
             "label": "Also send warnings",
             "type": "boolean",
-            "help": "This also sends health warnings, such as a mount that stopped answering, to this message target (format discord or ntfy). Errors are always sent; notices never are. Default false."
+            "help": "This also sends health warnings, such as a mount that stopped answering, to this message target (format discord or ntfy). Errors are always sent; notices never are. Default off."
           }
         ]
       },
@@ -879,7 +879,7 @@
         "name": "enabled",
         "label": "Enabled",
         "type": "boolean",
-        "help": "This allows playlist writes in Plex. They are also held while Theatarr is paused. Default false."
+        "help": "This allows playlist writes in Plex. They are also held while Theatarr is paused. Default off."
       },
       {
         "name": "orders",
@@ -897,14 +897,14 @@
         "default": "true",
         "label": "Create alternate route playlists",
         "type": "boolean",
-        "help": "This gives each alternate route of the watch order (Fate's routes) its own playlist. Default true.",
+        "help": "This gives each alternate route of the watch order (Fate's routes) its own playlist. Default on.",
         "nullable": true
       },
       {
         "name": "skip_optional",
         "label": "Skip optional",
         "type": "boolean",
-        "help": "This leaves out optional rows (recaps, side stories, shorts). Default false."
+        "help": "This leaves out optional rows (recaps, side stories, shorts). Default off."
       },
       {
         "name": "name",
@@ -1066,7 +1066,7 @@
             "default": "true",
             "label": "Search for missing items",
             "type": "boolean",
-            "help": "This searches items with no file by themselves (default true). Off: they are searched when you ask, or after a failed download.",
+            "help": "This searches items with no file by themselves (default on). Off: they are searched when you ask, or after a failed download.",
             "nullable": true
           },
           {
@@ -1110,7 +1110,7 @@
                 "default": "true",
                 "label": "Enabled",
                 "type": "boolean",
-                "help": "This turns it on. Default true; it does nothing without a TorBox provider whose key is set.",
+                "help": "This turns it on. Default on; it does nothing without a TorBox provider whose key is set.",
                 "nullable": true
               },
               {
@@ -1214,7 +1214,7 @@
             "name": "original",
             "label": "Allow original-size images",
             "type": "boolean",
-            "help": "This allows the \"original\" size (full-resolution files, often several MB). Default false."
+            "help": "This allows the \"original\" size (full-resolution files, often several MB). Default off."
           }
         ]
       }
@@ -1295,10 +1295,11 @@
       {
         "name": "page_cap",
         "type": "integer",
-        "help": "Pages per search; 0 means no cap."
+        "help": "Most results read per search, over as many pages as that takes. 0 or empty: the default, 200 for DMM and 1,000 for other Torznab feeds."
       },
       {
         "name": "min_seeders",
+        "default": "1",
         "type": "integer",
         "help": "Torrent minimum; default 1 (leave empty), 0 disables the check.",
         "nullable": true
@@ -1480,6 +1481,7 @@
       },
       {
         "name": "magnet_limit",
+        "default": "5000",
         "type": "integer",
         "kinds": [
           "alldebrid"

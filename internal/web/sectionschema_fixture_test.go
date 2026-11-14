@@ -153,6 +153,26 @@ func TestSectionHelpHasNoGoFieldNames(t *testing.T) {
 	}
 }
 
+// A switch's default is said as the form says it (On/Off), never as a Go value.
+func TestSectionHelpSwitchDefaultsInWords(t *testing.T) {
+	raw := regexp.MustCompile(`(?i)\bdefault (true|false)\b`)
+	var walk func(string, []SchemaField)
+	walk = func(path string, fields []SchemaField) {
+		for _, f := range fields {
+			if raw.MatchString(f.Help) {
+				t.Errorf("%s.%s help: %s", path, f.Name, f.Help)
+			}
+			walk(path+"."+f.Name, f.Fields)
+		}
+	}
+	for key, fields := range sectionSchemas() {
+		walk(key, fields)
+	}
+	if got := plainDurations("Default true. It reads (default false)."); got != "Default on. It reads (default off)." {
+		t.Fatal(got)
+	}
+}
+
 func TestSectionPlainLabels(t *testing.T) {
 	want := map[string]string{
 		"egress.vpn_ips": "VPN exit IPs", "egress.vpn_cidrs": "VPN address ranges",
