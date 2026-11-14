@@ -38,6 +38,13 @@ export function HistoryFilters({ tools }: { tools?: ReactNode } = {}) {
   const facets = useFacets();
   const [text, setText] = useState(f.title);
   const typed = useDebounced(text.trim(), 350);
+  // A change of ?title= that did not come from this box (the tab link drops it, Back) shows in the box, so it never
+  // holds a filter that is no longer applied; the box's own write (title equals the typed text) is left alone.
+  useEffect(() => {
+    if (f.title !== typed) setText(f.title);
+    // Only an outside change of the URL's title drives this.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [f.title]);
   useEffect(() => {
     if (typed !== f.title) setSp((cur) => withHistoryFilter(cur, "title", typed), { replace: true });
     // Only the typed text drives this; the URL's value is compared, not followed.

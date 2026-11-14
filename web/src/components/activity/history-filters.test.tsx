@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { Link } from "react-router";
 import { afterEach, expect, it, vi } from "vitest";
 import { mockFetch, renderPage } from "@/test/page";
 import { HistoryFilters } from "./history-filters";
@@ -29,4 +31,17 @@ it("names libraries without their keys, telling equal names apart by number", as
   await screen.findByRole("option", { name: "4K (2)" });
   expect([...select.options].map((o) => [o.textContent, o.value])).toEqual([["All libraries", ""], ["4K", "movie-4k"], ["4K (2)", "tv-4k"], ["WEB", "movie-web"]]);
   expect(select.textContent).not.toContain("movie-4k");
+});
+
+it("empties the title box when a link drops ?title=, and keeps what is typed", async () => {
+  mockFetch([{ method: "GET", path: "/titles/facets", reply: { versions: [] } }]);
+  renderPage(<><Link to="/activity/history">History</Link><HistoryFilters /></>, "/activity/history?title=Anora");
+  const box = (await screen.findByTestId("history-title")) as HTMLInputElement;
+  expect(box.value).toBe("Anora");
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("link", { name: "History" }));
+  await waitFor(() => expect(box.value).toBe(""));
+  await user.type(box, "Foundation");
+  await new Promise((r) => setTimeout(r, 450));
+  expect(box.value).toBe("Foundation");
 });
