@@ -20,6 +20,7 @@ describe("library status", () => {
     // No date at all, announced or still being made: Upcoming, date unknown; released without a date stays Missing.
     expect(libraryStatus(v({}), { ...movie, status: "Planned" }, DAY)).toMatchObject({ label: "Upcoming, date unknown", tone: "neutral" });
     expect(libraryStatus(v({}), { ...movie, status: "Released" }, DAY)).toMatchObject({ label: "Missing", tone: "negative" });
+    expect(libraryStatus(v({}), { ...movie, status: "announced", in_cinemas: "2020-01-01" }, DAY)).toMatchObject({ label: "Missing", tone: "negative" });
     const s = libraryStatus(v({ acquisition: downloading }), movie, DAY);
     expect(s).toMatchObject({ label: "Downloading · 37%", tone: "info" });
     expect(s.stage?.stage).toBe("downloading");

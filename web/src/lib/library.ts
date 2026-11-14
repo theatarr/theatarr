@@ -51,10 +51,12 @@ export function upcomingRelease(t: Pick<TitleRow, "kind" | "release_date" | "hom
  *  the arrs' announced and tba (internal/web/library.go undatedMovieSQL). */
 const UNDATED_STATUS = new Set(["rumored", "planned", "in production", "post production", "announced", "tba"]);
 
-/** A movie with no date at all that is announced or still being made: Upcoming, date unknown, not Missing (the
- *  server's rule for the status word). */
-export function undatedUpcoming(t: (Pick<TitleRow, "kind" | "release_date" | "home_release"> & Partial<Pick<TitleRow, "status">>) | undefined): boolean {
-  return !!t && t.kind === "movie" && !t.home_release && !t.release_date && UNDATED_STATUS.has((t.status ?? "").toLowerCase());
+/** A movie with no date of any kind that is announced or still being made: Upcoming, date unknown, not Missing (the
+ *  server's rule for the status word, undatedMovieSQL). Without dates the metadata job calls a movie announced, as
+ *  Radarr does; such a movie is far more often not made yet than released without a date. */
+export function undatedUpcoming(t: (Pick<TitleRow, "kind" | "release_date" | "home_release"> & Partial<Pick<TitleRow, "status" | "in_cinemas" | "digital_release" | "physical_release">>) | undefined): boolean {
+  return !!t && t.kind === "movie" && !t.home_release && !t.release_date && !t.in_cinemas && !t.digital_release && !t.physical_release &&
+    UNDATED_STATUS.has((t.status ?? "").toLowerCase());
 }
 
 /** The day a status shows (upcomingRelease's): "Mar 18, 2027", or "~Mar 18, 2027 (estimate)" when it is the home

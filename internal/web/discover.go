@@ -291,8 +291,7 @@ func (w *Web) missingPicks(ctx context.Context, db *sql.DB) ([]pick, error) {
 			CASE WHEN m.release_date <> '' THEN date(m.release_date, '+90 days') END,
 			CASE WHEN t.year IS NOT NULL THEN printf('%04d-12-31', t.year) END, '')`+titleFrom+`
 		JOIN version v ON v.title_id = t.id AND v.state = 'wanted' AND v.monitored = 1
-		WHERE t.kind = 'movie' AND t.monitored = 1 AND NOT (`+homeReleaseSQL+` IS NULL AND COALESCE(m.release_date, '') = ''
-			AND `+undatedMovieSQL+`) GROUP BY t.id`, nil, func(r *sql.Rows) error {
+		WHERE t.kind = 'movie' AND t.monitored = 1 AND NOT `+undatedMovieSQL+` GROUP BY t.id`, nil, func(r *sql.Rows) error {
 		var p pick
 		var keys string
 		if err := r.Scan(&p.id, &keys, &p.date); err != nil {
