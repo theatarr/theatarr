@@ -1323,7 +1323,15 @@ func TestSearchLibraryNames(t *testing.T) {
 	if len(s.Library) != 0 || !s.TMDb[0].InLibrary {
 		t.Errorf("a hit the name search finds is not repeated: %+v", s.Library)
 	}
+	// No year stored: "alpha 2020" does not find it by name (NULL is no match), so the tmdb request lifts it.
+	e.exec(`UPDATE title SET year = NULL WHERE id = 1`)
+	s = SearchAnswer{}
+	e.call("GET", APIBase+"/search?q=alpha+2020&scope=tmdb", nil, 200, &s)
+	if len(s.Library) != 1 || s.Library[0].ID != 1 {
+		t.Errorf("no stored year: %+v", s.Library)
+	}
 	e.exec(`UPDATE title SET name = 'Zeta', sort_name = 'zeta' WHERE id = 1`)
+	s = SearchAnswer{}
 	e.call("GET", APIBase+"/search?q=alpha&scope=tmdb", nil, 200, &s)
 	if s.LibraryTotal != 1 || len(s.Library) != 1 || s.Library[0].ID != 1 || !s.TMDb[0].InLibrary {
 		t.Errorf("an In library hit must reach the library group: total %d, %+v", s.LibraryTotal, s.Library)

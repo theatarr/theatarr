@@ -165,7 +165,7 @@ func (w *Web) liftInLibrary(ctx context.Context, out *SearchAnswer, q string) er
 	where := `t.id IN (` + store.Placeholders(len(ids)) + `)`
 	args := ids
 	if cond, a := titleTextWhere(q); cond != "" {
-		where += ` AND NOT (` + cond + `)`
+		where += ` AND NOT COALESCE((` + cond + `), 0)` // a NULL (no year stored) is no match
 		args = append(args, a...)
 	}
 	rows, err := w.titleRows(ctx, w.st.Reader(), `SELECT `+titleCols+titleFrom+` WHERE `+where+` ORDER BY `+nameExpr+`, t.id`, args)
