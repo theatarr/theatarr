@@ -26,6 +26,7 @@ export const EVENT_MEANINGS: { words: string; meaning: string }[] = [
   { words: "Adopted", meaning: "A file Sonarr or Radarr had was taken over into the library." },
   { words: "Deleted (upgrade)", meaning: "This file was moved out of the library because a better release replaced it." },
   { words: "Removed", meaning: "This file was taken out of the library by hand (or by Sonarr/Radarr deleting it)." },
+  { words: "Removed from library", meaning: "The title was removed from this library by hand; the reason says who removed it and whether its files were kept." },
   { words: "File missing", meaning: "The file behind a library link is gone and could not be found again." },
   { words: "Failed", meaning: "The download or its import did not complete; the reason says why." },
   { words: "Not started: …", meaning: "It never left the queue because downloads were off." },

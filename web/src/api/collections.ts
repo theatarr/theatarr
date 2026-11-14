@@ -56,6 +56,9 @@ export function useRefreshCollection() {
 export function refreshWords(r: CollectionRefreshed): string {
   const name = r.collection.name || `Collection ${r.collection.tmdb_id}`;
   const movies = (n: number) => `${n} ${n === 1 ? "movie" : "movies"}`;
-  const did = r.collection.monitored ? `${movies(r.added)} added, ${r.skipped} already in the library or excluded` : "not monitored, so no movies were added";
-  return `${name}: ${did}.${r.refresh_error ? ` ${r.refresh_error}` : ""}`;
+  // Removed films count among the skipped: Add missing movies now does not bring them back.
+  const removed = r.collection.monitored ? (r.collection.removed ?? 0) : 0;
+  const did = r.collection.monitored ? `${movies(r.added)} added, ${Math.max(0, r.skipped - removed)} already in the library or excluded` : "not monitored, so no movies were added";
+  const gone = removed ? ` ${removed} removed ${removed === 1 ? "film" : "films"} not added; add ${removed === 1 ? "it" : "them"} from ${removed === 1 ? "its page" : "their pages"}.` : "";
+  return `${name}: ${did}.${gone}${r.refresh_error ? ` ${r.refresh_error}` : ""}`;
 }

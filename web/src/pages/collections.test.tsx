@@ -164,3 +164,19 @@ it("keeps nameless empty collections off the list until named, and shows one whe
   await user.click(await screen.findByTestId("collection-hit-1802110"));
   expect(await screen.findByTestId("collection-1802110")).toBeTruthy();
 });
+
+it("counts removed films apart and says Add missing movies now leaves them out", async () => {
+  const user = userEvent.setup();
+  const removed = { ...alien, held: 1, removed: 1 };
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: manager },
+    { method: "GET", path: "/collections", reply: { ...page, collections: [removed] } },
+    { method: "POST", path: "/collections/8091/refresh", reply: { collection: removed, added: 0, skipped: 2 } },
+  ]);
+  renderPage(<CollectionsPage />, "/collections");
+  const row = within(await screen.findByTestId("collection-8091"));
+  expect(row.getByText("1 of 6 in the library (1 removed) · 1 available")).toBeTruthy();
+  await user.click(row.getByRole("button", { name: "Add missing movies now" }));
+  await waitFor(() => expect(screen.getByTestId("collections-done").textContent)
+    .toBe("Alien Collection: 0 movies added, 1 already in the library or excluded. 1 removed film not added; add it from its page."));
+});
