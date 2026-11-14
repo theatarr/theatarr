@@ -168,3 +168,22 @@ it("puts an In library TMDb hit the name search missed into the library group", 
   await waitFor(() => expect(screen.getByTestId("search-page-library").textContent).toContain("Spider-Man: Brand New Day"));
   expect(screen.queryByText(/No title in the library matches/)).toBeNull();
 });
+
+// Only the TMDb answer for this query merges: shortened to one letter (TMDb not asked), the lifted title goes.
+it("does not merge an earlier query's TMDb answer into the library group", async () => {
+  const user = (await import("@testing-library/user-event")).default.setup();
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: { id: 9, username: "someone", permissions: ["browse", "add"], csrf_token: "t" } },
+    { method: "GET", path: "/search", reply: (r: { search: string }) => r.search.includes("scope=library")
+      ? { library: [], library_total: 0 }
+      : { tmdb_state: "ok", tmdb: [{ tmdb_id: 99, media_type: "movie", kind: "movie", name: "Spider-Man", year: 2026, in_library: true, title_id: 4 }],
+        library: [{ id: 4, kind: "movie", name: "Spider-Man: Brand New Day", year: 2026, versions: [] }], library_total: 1 } },
+    { method: "GET", path: "/requests", reply: { items: [], total: 0 } },
+  ]);
+  renderPage(<SearchProvider><SearchPage /></SearchProvider>, "/search?q=spiderman");
+  await waitFor(() => expect(screen.getByTestId("search-page-library").textContent).toContain("Spider-Man: Brand New Day"));
+  const input = screen.getByTestId("search-page-input");
+  await user.clear(input);
+  await user.type(input, "s");
+  await waitFor(() => expect(screen.getByTestId("search-page-library").textContent).not.toContain("Spider-Man: Brand New Day"));
+});

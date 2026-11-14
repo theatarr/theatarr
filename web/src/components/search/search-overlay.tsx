@@ -45,8 +45,9 @@ export function SearchOverlay({ initial, onClose, onAdd }: { initial: string; on
     onAdd(t);
   };
   const query = dq.trim();
-  // TMDb hits marked In library that the name search missed join the library group, so the two never disagree.
-  const merged = withInLibrary(lib.data?.library ?? [], lib.data?.library_total, tm.data);
+  // TMDb hits marked In library that the name search missed join the library group, so the two never disagree; only
+  // the answer for this query and kind (an earlier query's, shown while the new one loads or is not asked, is not).
+  const merged = withInLibrary(lib.data?.library ?? [], lib.data?.library_total, tm.isPlaceholderData ? undefined : tm.data);
   const libItems = merged.items;
   const hits = tm.data?.tmdb ?? [];
   const note = tmdbNote(tm.data?.tmdb_state);

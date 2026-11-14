@@ -63,8 +63,9 @@ export function SearchPage() {
   const query = urlQ;
   const lib = useLibrarySearchPages(query, kind, LIBRARY_PAGE);
   const tm = useSearch(query, "tmdb", 40, kind);
-  // TMDb hits marked In library that the name search missed join the library group, so the two never disagree.
-  const { items: libItems, total: libTotal } = withInLibrary(lib.data?.pages.flatMap((p) => p.library) ?? [], lib.data?.pages[0]?.library_total, tm.data);
+  // TMDb hits marked In library that the name search missed join the library group, so the two never disagree; only
+  // the answer for this query and kind (an earlier query's, shown while the new one loads or is not asked, is not).
+  const { items: libItems, total: libTotal } = withInLibrary(lib.data?.pages.flatMap((p) => p.library) ?? [], lib.data?.pages[0]?.library_total, tm.isPlaceholderData ? undefined : tm.data);
   const hits = tm.data?.tmdb ?? [];
   const note = tmdbNote(tm.data?.tmdb_state);
   const perms = usePerms();
