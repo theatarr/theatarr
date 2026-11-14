@@ -175,6 +175,13 @@ describe("plain units, stored values kept until edited", () => {
   fireEvent.change(screen.getByLabelText("Option"), { target: { value: "3" } });
   expect(value().value).toBe(3 * 1073741824);
  });
+ it("shows a stored 0 size as the default's placeholder without rewriting it", () => {
+  render(<Harness field={field("bytes", { default: "25MB", unit: "bytes/s" })} initial={0} />);
+  const input = screen.getByLabelText("Option") as HTMLInputElement;
+  expect(input.value).toBe("");
+  expect(input.placeholder).toBe("25 MB/s");
+  expect(value().value).toBe(0);
+ });
  it("puts the rate on a speed's unit and no separate bytes/s line", () => {
   render(<Harness field={field("bytes", { default: "25MB", unit: "bytes/s" })} initial={25000000} />);
   expect((screen.getByLabelText("Option unit") as HTMLSelectElement).selectedOptions[0].textContent).toBe("MB/s");

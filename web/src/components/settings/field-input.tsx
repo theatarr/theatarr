@@ -160,14 +160,15 @@ export function FieldInput(p: FieldInputProps) {
       control = <><select aria-label={label} {...describe} className={SELECT_CLASS} disabled={disabled} value={selected} onChange={(e) => { setCustomDuration(e.target.value === "custom"); if (e.target.value !== "custom") onChange(e.target.value === "0s" && unsetIsOff ? undefined : e.target.value || undefined); }}><option value="">{`Default${f.default ? ` (${durationDefault(f)})` : ""}`}</option>{f.zero_allowed ? <option value="0s">Off</option> : null}{allowed.map(([s, n]) => <option key={s} value={s}>{durationWords(n)}</option>)}<option value="custom">Custom</option></select>{custom}</>; break;
     }
     case "bytes": {
-      // Stored byte counts and unit strings are displayed without rewriting them until edited; an edit writes bytes.
+      // Stored byte counts and unit strings are displayed without rewriting them until edited; an edit writes bytes. A
+      // stored 0 is the default to the server, so it shows the default's placeholder (and stays stored).
       const match = typeof value === "string" ? value.match(/^([\d.]+)\s*(B|KB|MB|GB|TB|KiB|MiB|GiB|TiB)?$/) : null;
       const bytes = typeof value === "number" ? value : match ? Number(match[1]) * BYTE_UNITS[match[2] || "B"] : undefined;
       const defaultMatch = f.default?.match(/^([\d.]+)\s*(KB|MB|GB|TB|KiB|MiB|GiB|TiB)$/);
       const byteUnit = chosenByteUnit ?? (match?.[2] && match[2] !== "B" ? match[2] : bytes ? bestByteUnit(bytes) : defaultMatch?.[2] ?? "MB");
       const per = BYTE_UNITS[byteUnit];
       const rate = f.unit === "bytes/s" ? "/s" : "";
-      control = <div className="flex gap-2"><Input aria-label={label} {...describe} type="number" min={f.min === undefined ? undefined : f.min / per} max={f.max === undefined ? undefined : f.max / per} step="any" placeholder={defaultMatch ? `${defaultMatch[1]} ${defaultMatch[2]}${rate}` : f.default} disabled={disabled} value={bytes === undefined ? "" : Number((bytes / per).toFixed(3))} onChange={(e) => onChange(e.target.value === "" ? undefined : Math.round(Number(e.target.value) * per))} /><select aria-label={`${label} unit`} className={SELECT_CLASS} disabled={disabled} value={byteUnit} onChange={(e) => setByteUnit(e.target.value)}>{Object.keys(BYTE_UNITS).map((u) => <option key={u} value={u}>{u}{rate}</option>)}</select></div>; break;
+      control = <div className="flex gap-2"><Input aria-label={label} {...describe} type="number" min={f.min === undefined ? undefined : f.min / per} max={f.max === undefined ? undefined : f.max / per} step="any" placeholder={defaultMatch ? `${defaultMatch[1]} ${defaultMatch[2]}${rate}` : f.default} disabled={disabled} value={bytes === undefined || bytes === 0 ? "" : Number((bytes / per).toFixed(3))} onChange={(e) => onChange(e.target.value === "" ? undefined : Math.round(Number(e.target.value) * per))} /><select aria-label={`${label} unit`} className={SELECT_CLASS} disabled={disabled} value={byteUnit} onChange={(e) => setByteUnit(e.target.value)}>{Object.keys(BYTE_UNITS).map((u) => <option key={u} value={u}>{u}{rate}</option>)}</select></div>; break;
     }
     // An object the saved settings did not have goes back to absent once its last key is undone, so Undo returns the
     // draft to the saved value (no stray {} to count or send).
