@@ -53,6 +53,7 @@ export function PosterCard({
   details,
   extraLabel,
   className,
+  onClick,
 }: {
   /** Poster URL on this origin (GET /titles poster); without one the card draws generated art. */
   image?: string;
@@ -79,6 +80,8 @@ export function PosterCard({
   /** Added to the link's accessible name (what the bars say). */
   extraLabel?: string;
   className?: string;
+  /** Without to or href: the card is a button (a collection's film not in the library opens Add). */
+  onClick?: () => void;
 }) {
   const body = (
     <div className="relative overflow-hidden rounded-xl bg-[var(--bg)] pb-[150%] shadow ring-1 ring-[var(--line)] transition duration-300 group-hover:scale-[1.04] group-hover:shadow-lg group-hover:ring-[var(--line-2)] group-focus-visible:ring-2 group-focus-visible:ring-[var(--line-focus)]">
@@ -144,6 +147,7 @@ export function PosterCard({
   );
   const cls = cn("group @container block w-full outline-none", className);
   if (to) return <Link to={to} className={cls} aria-label={label}>{inner}</Link>;
+  if (onClick && !href) return <button type="button" onClick={onClick} className={cn(cls, "text-left")} aria-label={label}>{inner}</button>;
   return (
     <a href={href} className={cls} aria-label={label}>
       {inner}

@@ -2,9 +2,15 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, it } from "vitest";
+import { useLocation } from "react-router";
 import { CollectionsPage } from "./collections";
 import { mockFetch, renderPage } from "@/test/page";
 import type { Schemas } from "@/api/client";
+
+function LocationProbe() {
+  const loc = useLocation();
+  return <span data-testid="location">{loc.pathname + loc.search}</span>;
+}
 
 const manager = { id: 2, username: "m", permissions: ["browse", "see_files", "manage"], csrf_token: "t" };
 const alien: Schemas["Collection"] = { tmdb_id: 8091, name: "Alien Collection", monitored: true, versions: ["movie-web"], search_on_add: true,
@@ -15,51 +21,36 @@ const page: Schemas["CollectionsPage"] = {
   can_add: true,
 };
 
-it("lists collections and saves monitoring, libraries and search on add", async () => {
+it("lists collections compactly, each opening its page, with the filter in the URL", async () => {
   const user = userEvent.setup();
-  const fetch = mockFetch([
+  mockFetch([
     { method: "GET", path: "/auth/me", reply: manager },
     { method: "GET", path: "/collections", reply: page },
-    { method: "PUT", path: "/collections/8091", reply: { ...alien, versions: ["movie-remux", "movie-web"] } },
-    { method: "PUT", path: "/collections/9100", reply: (r: { body: unknown }) =>
-      ({ ...page.collections[1], versions: ["movie-remux"], monitored: (r.body as { monitored?: boolean }).monitored ?? false }) },
   ]);
-  renderPage(<CollectionsPage />, "/collections");
+  renderPage(<><CollectionsPage /><LocationProbe /></>, "/collections?q=alien");
   const row = within(await screen.findByTestId("collection-8091"));
   // In the library and available (a file held) are counted apart.
   expect(row.getByText("2 of 6 in the library · 1 available")).toBeTruthy();
+  expect(row.getByText("Monitored")).toBeTruthy();
+  expect(row.getByRole("link", { name: /Alien Collection/ }).getAttribute("href")).toBe("/collections/8091");
+  // The settings live behind Edit on the collection's page, not on the list.
+  expect(row.queryByRole("switch")).toBeNull();
+  expect(row.queryByLabelText("Search on add")).toBeNull();
   expect(screen.getByText("2 collections, 1 monitored.", { exact: false })).toBeTruthy();
-  const other = () => within(screen.getByTestId("collection-9100"));
-  expect(other().getByText("Collection 9100")).toBeTruthy();
-  // No library yet: it cannot be monitored. A monitored collection keeps its last library.
-  expect(other().getByText("Choose a library to monitor this collection")).toBeTruthy();
-  expect(other().getByRole("switch", { name: "Monitor Collection 9100" }).getAttribute("aria-disabled")).toBe("true");
-  expect(row.getByRole("button", { name: "4K WEB" }).getAttribute("aria-pressed")).toBe("true");
-  expect(row.getByRole("button", { name: "4K WEB" }).hasAttribute("disabled")).toBe(true);
-
-  await user.click(screen.getByLabelText("Monitored only"));
-  expect(screen.queryByTestId("collection-9100")).toBeNull();
-  await user.click(screen.getByLabelText("Monitored only"));
-  await user.type(screen.getByLabelText("Filter collections"), "alien");
+  // The filter came from the URL.
+  expect((screen.getByLabelText("Filter collections") as HTMLInputElement).value).toBe("alien");
   expect(screen.queryByTestId("collection-9100")).toBeNull();
   await user.clear(screen.getByLabelText("Filter collections"));
+  const other = within(await screen.findByTestId("collection-9100"));
+  expect(other.getByText("Collection 9100")).toBeTruthy();
+  expect(other.getByText("Not monitored")).toBeTruthy();
+  expect(screen.getByTestId("location").textContent).toBe("/collections");
 
-  await user.click(row.getByRole("button", { name: "4K Remux" }));
-  await waitFor(() => expect(fetch.calls("PUT", "/collections/8091")).toHaveLength(1));
-  expect(fetch.calls("PUT", "/collections/8091")[0].body).toEqual({ versions: ["movie-web", "movie-remux"] });
-  await waitFor(() => expect(row.getByRole("button", { name: "4K Remux" }).getAttribute("aria-pressed")).toBe("true"));
-  expect(row.getByRole("button", { name: "4K WEB" }).hasAttribute("disabled")).toBe(false);
-
-  await user.click(other().getByRole("button", { name: "4K Remux" }));
-  await waitFor(() => expect(fetch.calls("PUT", "/collections/9100")[0]?.body).toEqual({ versions: ["movie-remux"] }));
-  await waitFor(() => expect(other().getByRole("switch", { name: "Monitor Collection 9100" }).getAttribute("aria-disabled")).toBeNull());
-  await user.click(other().getByRole("switch", { name: "Monitor Collection 9100" }));
-  await waitFor(() => expect(fetch.calls("PUT", "/collections/9100")[1]?.body).toEqual({ monitored: true }));
-  await waitFor(() => expect(other().getByRole("switch", { name: "Monitor Collection 9100" }).getAttribute("aria-checked")).toBe("true"));
-
-  await user.click(row.getByLabelText("Search on add"));
-  await waitFor(() => expect(fetch.calls("PUT", "/collections/8091").at(-1)?.body).toEqual({ search_on_add: false }));
-
+  await user.click(screen.getByLabelText("Monitored only"));
+  expect(screen.queryByTestId("collection-9100")).toBeNull();
+  expect(screen.getByTestId("location").textContent).toBe("/collections?monitored=1");
+  await user.type(screen.getByLabelText("Filter collections"), "al");
+  expect(screen.getByTestId("location").textContent).toBe("/collections?monitored=1&q=al");
 });
 
 const predator: Schemas["Collection"] = { tmdb_id: 399, name: "Predator Collection", monitored: true, versions: ["movie-remux"], search_on_add: true,

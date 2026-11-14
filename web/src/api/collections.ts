@@ -3,6 +3,8 @@ import { api, qs, type Schemas } from "./client";
 
 export type Collection = Schemas["Collection"];
 export type CollectionsPage = Schemas["CollectionsPage"];
+export type CollectionDetail = Schemas["CollectionDetail"];
+export type CollectionPart = Schemas["CollectionPart"];
 export type CollectionUpdate = Schemas["CollectionUpdate"];
 export type CollectionHit = Schemas["CollectionHit"];
 export type CollectionAdd = Schemas["CollectionAdd"];
@@ -14,12 +16,21 @@ const KEY = ["collections"] as const;
 export const useCollections = (enabled = true) =>
   useQuery({ queryKey: KEY, queryFn: ({ signal }) => api<CollectionsPage>("/collections", { signal }), enabled });
 
-/** PUT /collections/{id}: the stored collection replaces the listed one. */
+const detailKey = (id: number) => [...KEY, "detail", id] as const;
+
+/** GET /collections/{id}: one collection and its films as stored (no TMDb call). */
+export const useCollection = (id: number, enabled = true) =>
+  useQuery({ queryKey: detailKey(id), queryFn: ({ signal }) => api<CollectionDetail>(`/collections/${id}`, { signal }), enabled: enabled && id > 0 });
+
+/** PUT /collections/{id}: the stored collection replaces the listed one and the one its page shows. */
 export function useSetCollection() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, ...body }: CollectionUpdate & { id: number }) => api<Collection>(`/collections/${id}`, { method: "PUT", body }),
-    onSuccess: (c) => qc.setQueryData<CollectionsPage>(KEY, old => old && { ...old, collections: old.collections.map(x => x.tmdb_id === c.tmdb_id ? c : x) }),
+    onSuccess: (c) => {
+      qc.setQueryData<CollectionsPage>(KEY, old => old && { ...old, collections: old.collections.map(x => x.tmdb_id === c.tmdb_id ? c : x) });
+      qc.setQueryData<CollectionDetail>(detailKey(c.tmdb_id), old => old && { ...old, collection: c });
+    },
   });
 }
 
