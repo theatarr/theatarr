@@ -43,10 +43,6 @@ type DeleteSelection struct {
 	OverrideToken string `json:"override_token,omitempty"`
 	// AllowRecent deletes a torrent added in the last 24 hours or still downloading.
 	AllowRecent bool `json:"allow_recent,omitempty"`
-
-	// removal marks a removal clean-up's selection (DeleteForRemoval): the 24-hour guard is lifted, and the
-	// still-downloading guard only for an entry Theatarr itself added (owned).
-	removal, owned bool
 }
 
 // DeleteItem is one selection in a plan.
@@ -100,6 +96,13 @@ var ErrTooMany = fmt.Errorf("torrents: at most %d torrents per delete", MaxDelet
 
 // PlanDelete previews sel against fresh provider lists and a fresh usage check. It writes nothing.
 func (m *Manager) PlanDelete(ctx context.Context, sel []DeleteSelection) (*DeletePlan, error) {
+	return m.planDelete(ctx, sel, nil)
+}
+
+// planDelete is PlanDelete; with lists (every provider's, as just read) it plans from them and lists nothing, and
+// a provider missing from them is refused as unlisted.
+func (m *Manager) planDelete(ctx context.Context, sel []DeleteSelection, lists map[string][]provider.Torrent) (*DeletePlan,
+	error) {
 	if len(sel) == 0 {
 		return nil, errors.New("torrents: nothing selected")
 	}
@@ -120,10 +123,18 @@ func (m *Manager) PlanDelete(ctx context.Context, sel []DeleteSelection) (*Delet
 		it.Hash = strings.ToLower(strings.TrimSpace(s.Hash))
 		key := s.Provider + "\x00" + s.ID
 		if _, ok := byID[s.Provider]; !ok && listErr[s.Provider] == nil {
-			if m.Policy.Providers[s.Provider] == nil {
-				listErr[s.Provider] = fmt.Errorf("provider %q is not in the policy", s.Provider)
-			} else if list, err := m.list(ctx, s.Provider); err != nil {
-				listErr[s.Provider] = err
+			list, given := lists[s.Provider]
+			var lerr error
+			switch {
+			case m.Policy.Providers[s.Provider] == nil:
+				lerr = fmt.Errorf("provider %q is not in the policy", s.Provider)
+			case lists != nil && !given:
+				lerr = fmt.Errorf("provider %q was not listed", s.Provider)
+			case lists == nil:
+				list, lerr = m.list(ctx, s.Provider)
+			}
+			if lerr != nil {
+				listErr[s.Provider] = lerr
 			} else {
 				plan.lists[s.Provider] = list
 				byID[s.Provider] = map[string]provider.Torrent{}
@@ -165,9 +176,7 @@ func (m *Manager) PlanDelete(ctx context.Context, sel []DeleteSelection) (*Delet
 				it.NeedsOverride = true
 				it.Refusal = "the override does not name this torrent's references as they are now: " +
 					describe(it.Refs, it.Reasons)
-			case s.removal && busy && !s.owned:
-				it.Refusal = "still downloading, and not provably Theatarr's own add"
-			case !s.removal && (recent || busy) && !s.AllowRecent:
+			case (recent || busy) && !s.AllowRecent:
 				it.NeedsRecent = true
 				it.Refusal = "added in the last 24 hours (or the date is unknown)"
 				if busy {
@@ -242,6 +251,15 @@ func deleteToken(p *DeletePlan) (string, string) {
 	return digest, fmt.Sprintf("d1-%d-%d-%s", len(lines), p.Bytes, digest)
 }
 
+// BackupProviderError is a backup that failed for one provider (its list or a torrent's files could not be read).
+type BackupProviderError struct {
+	Provider string
+	Err      error
+}
+
+func (e *BackupProviderError) Error() string { return e.Err.Error() }
+func (e *BackupProviderError) Unwrap() error { return e.Err }
+
 // ErrBackupFailed: the backup before a delete failed, so nothing was deleted.
 var ErrBackupFailed = errors.New("torrents: the backup before the delete failed; nothing was deleted")
 
@@ -302,14 +320,14 @@ func (m *Manager) execute(ctx context.Context, plan *DeletePlan, by string, o ex
 	if err == nil && o.allProviders {
 		for _, p := range b.Providers {
 			if !p.OK && m.Providers[p.Provider] != nil {
-				err = fmt.Errorf("%s could not be listed: %s", p.Provider, p.Error)
+				err = &BackupProviderError{Provider: p.Provider, Err: errors.New("could not be listed: " + p.Error)}
 				break
 			}
 		}
 	}
 	if err != nil {
 		m.journal(ctx, JournalEntry{Action: "backup", Outcome: "failed", Detail: err.Error(), By: by})
-		return plan, fmt.Errorf("%w: %v", ErrBackupFailed, err)
+		return plan, fmt.Errorf("%w: %w", ErrBackupFailed, err)
 	}
 	plan.BackupID = b.ID
 	m.journal(ctx, JournalEntry{Action: "backup", BackupID: b.ID, Outcome: "ok", By: by,
@@ -540,7 +558,8 @@ func backupHolds(b *Backup, plan *DeletePlan) error {
 	}
 	for _, it := range plan.Items {
 		if it.Action == ActDelete && !have[it.Provider+"\x00"+it.ID+"\x00"+it.Hash] {
-			return fmt.Errorf("the backup does not hold %s %s with its file selection", it.Provider, it.ID)
+			return &BackupProviderError{Provider: it.Provider, Err: fmt.Errorf("the backup does not hold %s %s with its "+
+				"file selection", it.Provider, it.ID)}
 		}
 	}
 	return nil

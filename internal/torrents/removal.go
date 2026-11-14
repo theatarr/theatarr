@@ -8,9 +8,9 @@ import (
 	"slices"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/theatarr/theatarr/internal/indexer"
+	"github.com/theatarr/theatarr/internal/provider"
 	"github.com/theatarr/theatarr/internal/store"
 )
 
@@ -24,18 +24,10 @@ type RemovalCleanup struct {
 	By      string
 }
 
-// How long DeleteForRemoval waits for a copy to another provider that is adding or checking one of its hashes to
-// settle, and how often it looks.
-const (
-	removalSettleWait = 10 * time.Minute
-	removalSettlePoll = 5 * time.Second
-)
-
 // Reasons a removal clean-up keeps a torrent.
 const (
-	keptNotOurs    = "it was on the account before Theatarr added it"
-	keptRestored   = "restored before the clean-up ran"
-	keptStillAdded = "a copy to it is still being added"
+	keptUnproven = "Theatarr cannot tell that it added it"
+	keptRestored = "restored before the clean-up ran"
 )
 
 // RemovalOutcome is what DeleteForRemoval did. Abort, when set, says why nothing was deleted on any provider
@@ -83,21 +75,19 @@ func (o *RemovalOutcome) Words(hashes []string) string {
 	return w.words()
 }
 
-// DeleteForRemoval deletes the torrents a removal left unused (docs/design/torrents.md "Removal clean-up"). It is
-// conservative everywhere: keeping a torrent is always acceptable, deleting a wrong one never is.
-//   - It waits (at most removalSettleWait) for any copy to another provider adding or checking one of the hashes to
-//     settle, so a torrent that copy adds is listed below; one still unsettled then is kept.
-//   - A hash of a removed library that was restored meanwhile (an Add) is kept; this is checked after the wait and
-//     again right before each delete.
-//   - Every configured provider is listed now; if any listing fails, nothing is deleted anywhere.
-//   - Only an entry Theatarr itself added is taken (a download of ours that was not a reuse, or a copy of ours that
-//     was not on the account before: own-add evidence for that provider and torrent id). An entry Theatarr reused, one
-//     that was on the account before, or one whose ownership is unknown is kept.
-//   - Each is planned as the Torrents page's delete plans it (PlanDelete: fresh usage from the reference loader, so
-//     another title's or library's links, a download in hand, a kept file and the configured folders of other
-//     libraries keep it), with the 24-hour guard lifted, and the still-downloading guard lifted for our own add (the
-//     removal ended its download). A torrent whose usage is unknown only because the registry has not synced it yet
-//     (a fresh add) is taken too; any other unknown is kept.
+// DeleteForRemoval deletes the torrents a removal left unused (docs/design/torrents.md "Removal clean-up"), narrowed
+// to what is provably safe: keeping a torrent is always acceptable, deleting a wrong one never is.
+//   - A hash of a removed library restored meanwhile (an Add) is kept; this is checked first and again right before
+//     each delete, under the fence.
+//   - The accounts are read as Torrents › Refresh reads them (the provider sync writes the record and the registry,
+//     then the usage is worked out); if any provider's listing fails, nothing is deleted anywhere. Those lists are
+//     the only ones read: planning and the backup use them.
+//   - Only an entry Theatarr itself added is taken: own-add evidence (own_add = 1) on a download of ours with the
+//     same provider, torrent id and hash, in the current provider epoch. Anything else (reused, not proven, another
+//     hash under the id, another account epoch, a copy to another provider, whose rows carry no epoch) is kept.
+//   - Each is planned by the normal plan rules (PlanDelete: fresh usage; a torrent used by anything else, or whose
+//     usage is unknown, is kept); only the 24-hour and still-downloading guards are lifted (allow_recent), for our own
+//     adds only.
 //   - Then it runs as that delete runs: the full backup first, which must hold every provider's list (no backup, no
 //     delete), and each delete under the reference fence and the add lock after its last usage check.
 //
@@ -116,9 +106,9 @@ func (m *Manager) DeleteForRemoval(ctx context.Context, c RemovalCleanup) (*Remo
 	if len(hashes) == 0 {
 		return out, nil
 	}
-	unsettled, err := m.waitCopies(ctx, hashes)
-	if err != nil {
-		return nil, err
+	if m.Syncer == nil {
+		out.Abort = "torrents not cleaned up: " + ErrNoSync.Error()
+		return out, nil
 	}
 	opMu.Lock()
 	defer opMu.Unlock()
@@ -129,32 +119,48 @@ func (m *Manager) DeleteForRemoval(ctx context.Context, c RemovalCleanup) (*Remo
 	isRestored := func(h string) bool {
 		return slices.ContainsFunc(keysOf[h], func(k string) bool { return restored[k] })
 	}
-	owned, err := m.ownAdds(ctx)
+	// One read of every account, as Refresh does it.
+	res, err := m.Syncer.Refresh(ctx)
+	if res == nil {
+		return nil, err
+	}
+	for _, ps := range res.Providers {
+		if !ps.OK || ps.Discarded {
+			out.Abort = "torrents not cleaned up: could not read " + m.code(ps.Provider)
+			return out, nil
+		}
+	}
+	for _, k := range m.keys() {
+		if m.Providers[k] != nil && !slices.ContainsFunc(res.Providers, func(ps *provider.ProviderSummary) bool {
+			return ps.Provider == k
+		}) {
+			out.Abort = "torrents not cleaned up: could not read " + m.code(k)
+			return out, nil
+		}
+	}
+	if err := m.StoreUsage(ctx); err != nil {
+		return nil, err
+	}
+	lists, err := m.recordLists(ctx)
+	if err != nil {
+		return nil, err
+	}
+	owned, err := m.ownAdds(ctx, hashes)
 	if err != nil {
 		return nil, err
 	}
 	var sel []DeleteSelection
 	for _, k := range m.keys() {
-		if m.Providers[k] == nil {
-			continue
-		}
-		list, err := m.list(ctx, k)
-		if err != nil {
-			out.Abort = "torrents not cleaned up: could not read " + m.code(k)
-			return out, nil
-		}
-		for _, t := range list {
+		for _, t := range lists[k] {
 			h := indexer.NormalizeHash(t.Hash)
 			switch {
 			case !slices.Contains(hashes, h):
 			case isRestored(h):
 				out.add(h, "", "kept", keptRestored)
-			case unsettled[h+"\x00"+k]:
-				out.add(h, k, "kept", keptStillAdded)
-			case !owned[k+"\x00"+t.ID]:
-				out.add(h, k, "kept", keptNotOurs)
+			case owned[k+"\x00"+t.ID+"\x00"+h]:
+				sel = append(sel, DeleteSelection{Provider: k, ID: t.ID, Hash: h, AllowRecent: true})
 			default:
-				sel = append(sel, DeleteSelection{Provider: k, ID: t.ID, Hash: h, removal: true, owned: true})
+				out.add(h, k, "kept", keptUnproven)
 			}
 		}
 	}
@@ -168,24 +174,12 @@ func (m *Manager) DeleteForRemoval(ctx context.Context, c RemovalCleanup) (*Remo
 	if len(sel) == 0 {
 		return out, nil
 	}
-	plan, err := m.PlanDelete(ctx, sel)
+	plan, err := m.planDelete(ctx, sel, lists)
 	if err != nil {
 		return nil, err
 	}
-	// A fresh add the registry does not know yet is unknown for that reason alone: it is ours, so it goes.
-	again := false
-	for i, it := range plan.Items {
-		if it.NeedsOverride && it.Usage == Unknown && onlyNotInRegistry(it.Reasons) {
-			sel[i].Override, sel[i].OverrideToken = true, it.ExpectedOverride
-			again = true
-		}
-	}
-	if again {
-		if plan, err = m.PlanDelete(ctx, sel); err != nil {
-			return nil, err
-		}
-	}
 	if plan.Count > 0 {
+		plan.lists = lists // the backup holds every account, from the same read
 		veto := func(ctx context.Context, it *DeleteItem) string {
 			r, err := m.restoredKeys(ctx, c.TitleID, map[string][]string{it.Hash: keysOf[it.Hash]})
 			switch {
@@ -197,18 +191,15 @@ func (m *Manager) DeleteForRemoval(ctx context.Context, c RemovalCleanup) (*Remo
 			return ""
 		}
 		plan, err = m.execute(ctx, plan, c.By, executeOptions{allProviders: true, veto: veto})
-		if errors.Is(err, ErrBackupFailed) {
-			var ps []string
-			for _, it := range plan.Items {
-				if it.Action == ActDelete && !slices.Contains(ps, m.code(it.Provider)) {
-					ps = append(ps, m.code(it.Provider))
-				}
-			}
-			m.log().Warn("torrents: removal clean-up: backup failed", "err", err)
-			out.Abort = "torrents not cleaned up: backup failed (" + strings.Join(ps, ", ") + ")"
+		var pe *BackupProviderError
+		switch {
+		case errors.As(err, &pe):
+			out.Abort = "torrents not cleaned up: backup failed (" + m.code(pe.Provider) + ")"
 			return out, nil
-		}
-		if err != nil {
+		case errors.Is(err, ErrBackupFailed):
+			out.Abort = "torrents not cleaned up: backup failed"
+			return out, nil
+		case err != nil:
 			return nil, err
 		}
 	}
@@ -225,6 +216,39 @@ func (m *Manager) DeleteForRemoval(ctx context.Context, c RemovalCleanup) (*Remo
 		}
 	}
 	return out, nil
+}
+
+// recordLists are every account's torrents as the record holds them (provider_torrent), just written by the sync.
+func (m *Manager) recordLists(ctx context.Context) (map[string][]provider.Torrent, error) {
+	out := map[string][]provider.Torrent{}
+	for _, k := range m.keys() {
+		if m.Providers[k] != nil {
+			out[k] = []provider.Torrent{}
+		}
+	}
+	rows, err := m.Store.Reader().QueryContext(ctx, `SELECT provider, torrent_id, info_hash, name, original_name,
+		size_bytes, status, state, progress, added_at FROM provider_torrent ORDER BY provider, torrent_id`)
+	if err != nil {
+		return nil, fmt.Errorf("torrents: reading the record: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var k, state string
+		var t provider.Torrent
+		var added sql.NullInt64
+		if err := rows.Scan(&k, &t.ID, &t.Hash, &t.Name, &t.OriginalName, &t.Bytes, &t.Status, &state, &t.Progress,
+			&added); err != nil {
+			return nil, err
+		}
+		t.State = provider.State(state)
+		if added.Valid {
+			t.Added = store.FromMillis(added.Int64)
+		}
+		if _, ok := out[k]; ok {
+			out[k] = append(out[k], t)
+		}
+	}
+	return out, rows.Err()
 }
 
 // restoredKeys are the libraries (policy keys) among keysOf's of title that are in the library again: their version
@@ -260,66 +284,32 @@ func (m *Manager) restoredKeys(ctx context.Context, titleID int64, keysOf map[st
 	return out, rows.Err()
 }
 
-// ownAdds are the provider entries Theatarr itself added, as "provider\x00torrent id": a download of ours that was
-// not a reuse of an entry already on the account, and a copy to another provider that was not on the account before
-// (own_add).
-func (m *Manager) ownAdds(ctx context.Context) (map[string]bool, error) {
+// ownAdds are the entries among hashes Theatarr provably added itself: a download of ours marked own_add = 1 (the
+// router saw the hash absent from the account and a new id at the add), in the current provider epoch (the account
+// the id belongs to), as "provider\x00torrent id\x00hash": an id that holds another hash now matches nothing.
+func (m *Manager) ownAdds(ctx context.Context, hashes []string) (map[string]bool, error) {
 	out := map[string]bool{}
-	rows, err := m.Store.Reader().QueryContext(ctx, `SELECT provider, provider_torrent_id FROM download
-			WHERE reused = 0 AND COALESCE(provider, '') <> '' AND COALESCE(provider_torrent_id, '') <> ''
-		UNION SELECT provider, torrent_id FROM provider_copy WHERE own_add = 1 AND COALESCE(torrent_id, '') <> ''`)
+	args := make([]any, len(hashes))
+	for i, h := range hashes {
+		args[i] = h
+	}
+	rows, err := m.Store.Reader().QueryContext(ctx, `SELECT d.provider, d.provider_torrent_id, lower(d.info_hash)
+		FROM download d WHERE d.own_add = 1 AND lower(d.info_hash) IN (`+store.Placeholders(len(args))+`)
+		AND COALESCE(d.provider, '') <> '' AND COALESCE(d.provider_torrent_id, '') <> ''
+		AND d.provider_epoch IS NOT NULL AND d.provider_epoch = COALESCE((SELECT provider_epoch
+			FROM settings_runtime_state WHERE id = 1), 0)`, args...)
 	if err != nil {
 		return nil, fmt.Errorf("torrents: own adds: %w", err)
 	}
 	defer rows.Close()
 	for rows.Next() {
-		var p, id sql.NullString
-		if err := rows.Scan(&p, &id); err != nil {
+		var p, id, h string
+		if err := rows.Scan(&p, &id, &h); err != nil {
 			return nil, err
 		}
-		out[p.String+"\x00"+id.String] = true
+		out[p+"\x00"+id+"\x00"+h] = true
 	}
 	return out, rows.Err()
-}
-
-// waitCopies waits for the copies to other providers adding or checking one of hashes to settle (router/copy.go),
-// at most removalSettleWait; it returns those still unsettled then, as "hash\x00provider".
-func (m *Manager) waitCopies(ctx context.Context, hashes []string) (map[string]bool, error) {
-	args := make([]any, len(hashes))
-	for i, h := range hashes {
-		args[i] = h
-	}
-	deadline := m.now().Add(removalSettleWait)
-	for {
-		out := map[string]bool{}
-		rows, err := m.Store.Reader().QueryContext(ctx, `SELECT info_hash, provider FROM provider_copy
-			WHERE state IN ('adding', 'checking') AND info_hash IN (`+store.Placeholders(len(args))+`)`, args...)
-		if err != nil {
-			return nil, fmt.Errorf("torrents: copies being added: %w", err)
-		}
-		for rows.Next() {
-			var h, p string
-			if err := rows.Scan(&h, &p); err != nil {
-				rows.Close()
-				return nil, err
-			}
-			out[h+"\x00"+p] = true
-		}
-		rows.Close()
-		if err := rows.Err(); err != nil {
-			return nil, err
-		}
-		if len(out) == 0 || !m.now().Before(deadline) {
-			return out, nil
-		}
-		if err := m.sleep(ctx, removalSettlePoll); err != nil {
-			return nil, err
-		}
-	}
-}
-
-func onlyNotInRegistry(reasons []string) bool {
-	return len(reasons) > 0 && !slices.ContainsFunc(reasons, func(r string) bool { return r != reasonNotInRegistry })
 }
 
 // refusalWords says why a clean-up kept a torrent: the titles that use it, else the plan's refusal.

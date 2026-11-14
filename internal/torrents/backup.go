@@ -198,8 +198,8 @@ func (m *Manager) TakeBackup(ctx context.Context, o BackupOptions) (*Backup, Bac
 					case err == nil && full.Files != nil:
 						files, status = full.Files, full.Status
 					case need:
-						return nil, BackupInfo{}, fmt.Errorf("torrents: backup: reading the files of %s %s: %v", k,
-							t.ID, err)
+						return nil, BackupInfo{}, &BackupProviderError{Provider: k, Err: fmt.Errorf("torrents: backup: reading the files of %s %s: %v", k,
+							t.ID, err)}
 					}
 				}
 			}
