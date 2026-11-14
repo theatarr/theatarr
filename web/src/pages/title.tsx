@@ -150,7 +150,8 @@ function About({ d }: { d: TitleDetail }) {
             {/* The newest current file's time (when the title was added is under Details: Added to Theatarr). */}
             {perms.seeFiles && d.added_at ? <Fact label="Latest file">{fmtAgo(d.added_at)}</Fact> : null}
             {d.size_bytes ? <Fact label="On disk">{fmtBytes(d.size_bytes)}</Fact> : null}
-            {perms.seeFiles && !d.monitored ? <Fact label="Monitored">No</Fact> : null}
+            {/* A title in no library (every copy removed) is not "not monitored": it is not there. */}
+            {perms.seeFiles && !d.monitored && currentLibraries((d.versions ?? []) as Version[]).length > 0 ? <Fact label="Monitored">No</Fact> : null}
           </div>
         </div>
       </div>

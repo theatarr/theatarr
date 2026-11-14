@@ -77,6 +77,7 @@ describe("Title page", () => {
     expect(screen.queryByTestId("library-rows")).toBeNull();
     expect(screen.queryByRole("button", { name: /Rename files/ })).toBeNull();
     expect(screen.queryByText("Not monitored")).toBeNull();
+    expect(screen.getByTestId("title-facts").textContent).not.toContain("Monitored");
     // No episode list: About and History.
     expect(screen.queryByRole("tab", { name: "Episodes" })).toBeNull();
     expect(screen.getByRole("tab", { name: "History" })).toBeTruthy();
