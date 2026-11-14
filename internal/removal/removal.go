@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"slices"
 	"strings"
 	"time"
@@ -234,13 +235,15 @@ func Run(ctx context.Context, d Deps, s Spec) (*Result, error) {
 	slices.Sort(ids)
 	var hashes []string
 	for _, h := range cands.hashes() {
-		if !dropped[h] {
+		if dropped[h] == "" {
 			hashes = append(hashes, h)
 		}
 	}
 	switch {
 	case len(hashes) == 0 && len(dropped) == 0:
 		// No torrent on record: nothing to clean up, nothing to say.
+	case len(hashes) == 0 && !slices.Contains(slices.Collect(maps.Values(dropped)), droppedLink):
+		RecordCleanup(ctx, d.Store, d.Log, ids, "torrents kept: Sonarr's or Radarr's own files of it stay theirs")
 	case len(hashes) == 0:
 		RecordCleanup(ctx, d.Store, d.Log, ids, "torrents kept: their files stay in the library")
 	case d.StartCleanup == nil:
@@ -251,6 +254,13 @@ func Run(ctx context.Context, d Deps, s Spec) (*Result, error) {
 	}
 	return out, nil
 }
+
+// Why a hash is no clean-up candidate: a link of the removed copies that stays names it, or an arr file of theirs
+// (Sonarr's or Radarr's own file, at a path Theatarr did not unlink) does.
+const (
+	droppedLink    = "link"
+	droppedArrFile = "arr_file"
+)
 
 // fate is what became of one removed library's links.
 type fate struct {
@@ -267,10 +277,10 @@ type link struct {
 
 // unlink takes the removed copies' links out (step 3): it fills out, and returns each library's fate and the hashes
 // a link that stays still names (no clean-up candidates).
-func unlink(ctx context.Context, d Deps, s Spec, keys []string, c *cands, out *Result) (map[string]fate, map[string]bool,
-	error) {
+func unlink(ctx context.Context, d Deps, s Spec, keys []string, c *cands, out *Result) (map[string]fate,
+	map[string]string, error) {
 	fates := map[string]fate{}
-	dropped := map[string]bool{}
+	dropped := map[string]string{}
 	var links []link
 	err := scan(ctx, d.Store.Reader(), `SELECT l.id, l.path, l.kind, COALESCE(`+router.LinkStoredHashSQL+`, ''),
 		group_concat(DISTINCT v.policy_key),
@@ -302,7 +312,7 @@ func unlink(ctx context.Context, d Deps, s Spec, keys []string, c *cands, out *R
 			fates[k] = f
 		}
 		if !ok && x.hash != "" {
-			dropped[x.hash] = true
+			dropped[x.hash] = droppedLink
 		}
 	}
 	for _, x := range links {
@@ -364,8 +374,8 @@ func unlink(ctx context.Context, d Deps, s Spec, keys []string, c *cands, out *R
 		if err := r.Scan(&h); err != nil {
 			return err
 		}
-		if h = indexer.NormalizeHash(h); h != "" {
-			dropped[h] = true
+		if h = indexer.NormalizeHash(h); h != "" && dropped[h] == "" {
+			dropped[h] = droppedArrFile
 		}
 		return nil
 	})

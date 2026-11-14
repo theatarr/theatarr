@@ -315,6 +315,23 @@ func TestRunCleanupWords(t *testing.T) {
 	}
 }
 
+// Torrents only Sonarr's or Radarr's own files (arr file rows, no link of Theatarr's) name stay, and the event says
+// whose files they are.
+func TestRunKeepsTheArrsFiles(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	f.exec(`DELETE FROM link`)
+	f.exec(`DELETE FROM version_file WHERE path <> '/arr/Gone.mkv'`)
+	f.exec(`DELETE FROM download`)
+	if _, err := Run(context.Background(), f.deps(), webSpec(true)); err != nil {
+		t.Fatal(err)
+	}
+	if rm := journal.ParseRemovalDetail(f.str(`SELECT detail FROM journal_action WHERE action = ?`,
+		journal.ActRemoveVersion)); len(f.started) != 0 || rm.Cleanup != "torrents kept: Sonarr's or Radarr's own files of it stay theirs" {
+		t.Errorf("outcome %+v, started %v", rm, f.started)
+	}
+}
+
 // After a removal with the files the copy's rows stay, so an import-list or collection sync does not add it again
 // (catalog missingVersions: TestRadarrListAddsMissingMovies); a manual add restores it, without the old search
 // request.
