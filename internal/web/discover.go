@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/theatarr/theatarr/internal/activity"
 	"github.com/theatarr/theatarr/internal/availability"
 	"github.com/theatarr/theatarr/internal/store"
 )
@@ -23,8 +24,8 @@ import (
 // SPA's /discover/{row}, which reads this route: the same picks in the same order as the Home row, every kind.
 //
 //   - recent: titles by their newest current file.
-//   - upcoming: digital, physical and theatrical release dates (US or the arr's), and episode air dates, in the
-//     next upcomingDays days; the earliest per title.
+//   - upcoming: digital, physical and theatrical release dates (the release-date choice, activity.FirstReleaseSQL),
+//     and episode air dates, in the next upcomingDays days; the earliest per title.
 //   - missing: monitored titles with a monitored version that is wanted and out: a movie counts as out from its
 //     first digital or physical date, or 90 days after the TMDb release date when there is none, or after its year;
 //     a series has aired episodes (specials left out) that are monitored and wanted. Newest first.
@@ -53,7 +54,7 @@ func discoverMore(row string) string { return "/discover/" + row }
 // DiscoverItem is a title in a Home row, with what the row says about it.
 type DiscoverItem struct {
 	TitleRow
-	// Note is the row's line about the title: "Digital release", "S02E03 · Pilot", "Missing 4K Remux".
+	// Note is the row's line about the title: "Digital release", "S02E03 · Pilot", "4K Remux" (the libraries missing it).
 	Note string `json:"note,omitempty"`
 	// Date is the day the note is about (YYYY-MM-DD), if any.
 	Date string `json:"date,omitempty"`
@@ -211,9 +212,9 @@ func (w *Web) recentPicks(ctx context.Context, db *sql.DB) ([]pick, error) {
 }
 
 // upcomingPicks: the earliest release or air date per title in the next upcomingDays days; an episode is upcoming
-// while it is still to come (airClock). A movie counts only when
-// its first release of a type falls in the window: TMDb also lists later dates of the same type (a streaming service
-// picking up a 2015 film is a "digital" date in 2026), which are not upcoming releases.
+// while it is still to come (airClock). A movie's dates are the release-date choice the calendar and the lists use
+// (activity.FirstReleaseSQL): the first date of each type, so a later date of the same type (a streaming service
+// picking up a 2015 film is a "digital" date in 2026) is not an upcoming release.
 func (w *Web) upcomingPicks(ctx context.Context, db *sql.DB) ([]pick, error) {
 	now := w.now().UTC()
 	today := now.Format(time.DateOnly)
@@ -224,9 +225,7 @@ func (w *Web) upcomingPicks(ctx context.Context, db *sql.DB) ([]pick, error) {
 			first[p.id] = p
 		}
 	}
-	err := scanAll(ctx, db, `SELECT title_id, type, MIN(date) FROM title_release_date
-		WHERE type IN ('digital', 'physical', 'theatrical') AND country IN ('', 'US')
-		GROUP BY title_id, type HAVING MIN(date) >= ? AND MIN(date) <= ?`, []any{today, end}, func(r *sql.Rows) error {
+	err := scanAll(ctx, db, activity.FirstReleasesBetweenSQL, []any{today, end}, func(r *sql.Rows) error {
 		var p pick
 		var typ string
 		if err := r.Scan(&p.id, &typ, &p.date); err != nil {
@@ -304,7 +303,7 @@ func (w *Web) missingPicks(ctx context.Context, db *sql.DB) ([]pick, error) {
 			labels = append(labels, names[k])
 		}
 		sort.Strings(labels)
-		p.note = "Missing " + strings.Join(labels, " and ")
+		p.note = strings.Join(labels, " and ")
 		movies = append(movies, p)
 		ids = append(ids, p.id)
 		return nil

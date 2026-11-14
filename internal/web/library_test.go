@@ -525,7 +525,7 @@ func TestDiscover(t *testing.T) {
 	}{
 		"recent":   {d.Recent, "Beta||2026-10-25; Delta||2026-10-21; Alpha||2026-10-16"},
 		"upcoming": {d.Upcoming, "Delta|S02E01 · Return|2026-10-31; Beta|Digital release|2026-11-05"},
-		"missing":  {d.Missing, "Delta|1 episode missing|2026-01-15; Alpha|Missing 4K WEB|2020-08-01"},
+		"missing":  {d.Missing, "Delta|1 episode missing|2026-01-15; Alpha|4K WEB|2020-08-01"},
 		// Beta and Delta have files below their cutoff, and nothing better was found: not in the row.
 		"upgrades": {d.Upgrades, ""},
 	} {
@@ -565,7 +565,7 @@ func TestDiscover(t *testing.T) {
 	}
 	var page DiscoverRow
 	if code := e.getKey(APIBase+"/discover/missing?limit=1&offset=1", key, &page); code != 200 || page.Total != 2 ||
-		row(page) != "Alpha|Missing 4K WEB|2020-08-01" {
+		row(page) != "Alpha|4K WEB|2020-08-01" {
 		t.Errorf("discover/missing page 2: %d %+v", code, page)
 	}
 	if code := e.getKey(APIBase+"/discover/nope", key, nil); code != 404 {

@@ -178,6 +178,13 @@ func (w *Web) enrichTitle(ctx context.Context, d *TitleDetail) error {
 		if h := availability.HomeRelease(dates[d.ID]); !h.IsZero() {
 			d.HomeRelease = h.Format(time.DateOnly)
 		}
+		// The dates the About facts show: the release-date choice Home, the calendar and the lists use.
+		first, err := activity.FirstReleases(ctx, db, []any{d.ID})
+		if err != nil {
+			return err
+		}
+		fr := first[d.ID]
+		d.InCinemas, d.DigitalRelease, d.PhysicalRelease = fr["theatrical"], fr["digital"], fr["physical"]
 	}
 	if len(ids) > 0 {
 		aggs, provs, err := w.currentFiles(ctx, db, ids)

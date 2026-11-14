@@ -3,6 +3,7 @@ package activity
 import (
 	"context"
 	"database/sql"
+	"slices"
 	"sort"
 	"time"
 
@@ -38,32 +39,80 @@ type CalendarItem struct {
 // CalendarTypes are the movie release types the calendar shows, in the arrs' order.
 var CalendarTypes = []string{"theatrical", "digital", "physical"}
 
+// The release-date choice (docs/design/ui.md "Release dates"), one rule for Home's Upcoming row, the calendar, the
+// lists' Next release and its sort, and the title page's dates: per movie and release type (in cinemas, digital,
+// physical), the type's first date, from the canonical dates (country '', the successful TMDb refresh when there is
+// one, else the arrs' dates), else from TMDb's US dates while the title has no refresh. Later dates of a type (a
+// re-release, a streaming service picking an old film up) are never the type's date. Display only: what may be
+// fetched reads availability.Dates.
+
+// releaseTypesSQL is CalendarTypes as an SQL list.
+const releaseTypesSQL = `('theatrical', 'digital', 'physical')`
+
+// FirstReleaseSQL is the SQL value of the release-date choice for title title and release type typ (SQL
+// expressions, such as "d.title_id" and "d.type"): the type's first date, YYYY-MM-DD, or NULL.
+func FirstReleaseSQL(title, typ string) string {
+	refreshed := `EXISTS (SELECT 1 FROM title_meta fm WHERE fm.title_id = f.title_id AND fm.movie_dates_at IS NOT NULL)`
+	return `COALESCE((SELECT MIN(substr(f.date, 1, 10)) FROM title_release_date f WHERE f.title_id = ` + title + `
+			AND f.type = ` + typ + ` AND f.country = '' AND (f.source = 'tmdb-art' OR NOT ` + refreshed + `)),
+		(SELECT MIN(substr(f.date, 1, 10)) FROM title_release_date f WHERE f.title_id = ` + title + `
+			AND f.type = ` + typ + ` AND f.source = 'tmdb' AND f.country = 'US' AND NOT ` + refreshed + `))`
+}
+
+// FirstReleaseRowSQL is the condition that release date row d (title_release_date) is its title's chosen date of its
+// type (FirstReleaseSQL), one of CalendarTypes.
+var FirstReleaseRowSQL = `d.type IN ` + releaseTypesSQL + ` AND substr(d.date, 1, 10) = ` + FirstReleaseSQL("d.title_id", "d.type")
+
+// FirstReleasesBetweenSQL selects title_id, type and date of every chosen release date (FirstReleaseSQL) from the
+// first to the second argument (YYYY-MM-DD, both included).
+var FirstReleasesBetweenSQL = `SELECT d.title_id, d.type, substr(d.date, 1, 10) FROM title_release_date d
+	WHERE substr(d.date, 1, 10) >= ? AND substr(d.date, 1, 10) <= ? AND ` + FirstReleaseRowSQL + `
+	GROUP BY d.title_id, d.type`
+
+// FirstReleases reads the release-date choice (FirstReleaseSQL) of titles ids: by title id, release type to date.
+func FirstReleases(ctx context.Context, db *sql.DB, ids []any) (map[int64]map[string]string, error) {
+	out := map[int64]map[string]string{}
+	for chunk := range slices.Chunk(ids, 500) {
+		rows, err := db.QueryContext(ctx, `SELECT d.title_id, d.type, substr(d.date, 1, 10) FROM title_release_date d
+			WHERE d.title_id IN (`+store.Placeholders(len(chunk))+`) AND `+FirstReleaseRowSQL+` GROUP BY d.title_id, d.type`,
+			chunk...)
+		if err != nil {
+			return nil, err
+		}
+		for rows.Next() {
+			var id int64
+			var typ, date string
+			if err := rows.Scan(&id, &typ, &date); err != nil {
+				rows.Close()
+				return nil, err
+			}
+			if out[id] == nil {
+				out[id] = map[string]string{}
+			}
+			out[id][typ] = date
+		}
+		if err := rows.Close(); err != nil {
+			return nil, err
+		}
+	}
+	return out, nil
+}
+
 // Calendar lists the movie release dates and episode air dates from from to to (dates, both included), oldest
-// first. Movie dates prefer a successful TMDb date refresh, else the arrs' dates or TMDb's US dates. Episodes come
-// from the episode table (TVDB and the arrs). Only monitored titles (and monitored episodes) unless unmonitored.
+// first. Movie dates are the release-date choice (FirstReleaseSQL). Episodes come from the episode table (TVDB and
+// the arrs). Only monitored titles (and monitored episodes) unless unmonitored.
 func Calendar(ctx context.Context, db *sql.DB, from, to string, unmonitored bool) ([]CalendarItem, error) {
 	var out []CalendarItem
 	mon := ` AND t.monitored = 1 AND EXISTS (SELECT 1 FROM version v WHERE v.title_id = t.id AND v.monitored = 1)`
 	if unmonitored {
 		mon = ``
 	}
-	// Per title and type: canonical refreshed dates, else the arr's dates, else TMDb's earliest US date.
-	rows, err := db.QueryContext(ctx, `WITH d AS (
-		SELECT title_id, type, MIN(date) AS date, 0 AS pref FROM title_release_date d WHERE country = ''
-			AND (source = 'tmdb-art' OR NOT EXISTS (SELECT 1 FROM title_meta m
-				WHERE m.title_id = d.title_id AND m.movie_dates_at IS NOT NULL))
-			AND type IN ('theatrical', 'digital', 'physical') GROUP BY title_id, type
-		UNION ALL
-		SELECT title_id, type, MIN(date), 1 FROM title_release_date d WHERE source = 'tmdb' AND country = 'US'
-			AND NOT EXISTS (SELECT 1 FROM title_meta m WHERE m.title_id = d.title_id AND m.movie_dates_at IS NOT NULL)
-			AND type IN ('theatrical', 'digital', 'physical') GROUP BY title_id, type),
-	best AS (SELECT title_id, type, date FROM d d1 WHERE pref = (SELECT MIN(pref) FROM d d2
-		WHERE d2.title_id = d1.title_id AND d2.type = d1.type))
+	rows, err := db.QueryContext(ctx, `WITH best (title_id, type, date) AS (`+FirstReleasesBetweenSQL+`)
 	SELECT t.id, t.name, COALESCE(t.year, 0), t.anime, t.monitored, best.type, best.date,
 		EXISTS (SELECT 1 FROM version v WHERE v.title_id = t.id AND v.state IN ('filled', 'cutoff_met')
 			AND NOT EXISTS (SELECT 1 FROM arrview_removed_version r WHERE r.version_id = v.id))
 	FROM best JOIN title t ON t.id = best.title_id
-	WHERE t.kind = 'movie' AND best.date >= ? AND best.date <= ?`+mon, from, to)
+	WHERE t.kind = 'movie'`+mon, from, to)
 	if err != nil {
 		return nil, err
 	}

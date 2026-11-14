@@ -924,9 +924,15 @@ type CalendarEntry struct {
 	Number    *int          `json:"number,omitempty"`
 	Episode   string        `json:"episode,omitempty"`
 	Monitored bool          `json:"monitored"`
-	Available bool          `json:"available"`
-	// Acquiring: a download is in hand (as on the list rows) for the movie, or for this very episode.
-	Acquiring bool `json:"acquiring"`
+	// Available: a file is held. For a movie, the title's status words (titleAvailabilitySQL): available or partly
+	// available, and Partial for the latter (a monitored library has no file yet); for an episode, some library in the
+	// library holds it.
+	Available bool `json:"available"`
+	Partial   bool `json:"partial,omitempty"`
+	// Acquiring: a download is in hand (as on the list rows) for the movie, or for this very episode; Stage is the
+	// furthest of their stages (activity.Stages), for callers who see files.
+	Acquiring bool   `json:"acquiring"`
+	Stage     string `json:"stage,omitempty"`
 }
 
 // CalendarPage is GET /calendar.
@@ -994,15 +1000,33 @@ func (w *Web) apiCalendar(rw http.ResponseWriter, r *http.Request) {
 		w.internal(rw, err)
 		return
 	}
-	movieInHand, episodeInHand := map[int64]bool{}, map[int64]bool{}
+	// The furthest stage in hand, movies by title, episodes by episode ("" for a download already done).
+	movieStage, episodeStage := map[int64]string{}, map[int64]string{}
+	further := func(m map[int64]string, id int64, s string) {
+		if cur, ok := m[id]; !ok || stageRank(s) > stageRank(cur) {
+			m[id] = s
+		}
+	}
 	for _, ds := range hand.byVersion {
 		for _, d := range ds {
-			movieInHand[d.TitleID] = true
+			further(movieStage, d.TitleID, d.Stage())
 			for _, ep := range d.Episodes {
-				episodeInHand[ep] = true
+				further(episodeStage, ep, d.Stage())
 			}
 		}
 	}
+	var movieIDs []any
+	for _, it := range items {
+		if it.Kind == "movie" && !slices.Contains(movieIDs, any(it.TitleID)) {
+			movieIDs = append(movieIDs, it.TitleID)
+		}
+	}
+	avail, err := w.titleAvailability(r.Context(), w.st.Reader(), movieIDs)
+	if err != nil {
+		w.internal(rw, err)
+		return
+	}
+	seeFiles := w.permsOf(r).SeeFiles
 	page := CalendarPage{From: from.Format(time.DateOnly), To: to.Format(time.DateOnly), Items: []CalendarEntry{}}
 	for _, it := range items {
 		tk := "movie"
@@ -1018,12 +1042,19 @@ func (w *Web) apiCalendar(rw http.ResponseWriter, r *http.Request) {
 			t := it.At
 			x.At = &t
 		}
+		stage, inHand := "", false
 		if it.Kind == "episode" {
 			s, n := it.Season, it.Number
 			x.EpisodeID, x.Season, x.Number, x.Episode = it.EpisodeID, &s, &n, it.Episode
-			x.Acquiring = episodeInHand[it.EpisodeID]
+			stage, inHand = episodeStage[it.EpisodeID]
 		} else {
-			x.Acquiring = movieInHand[it.TitleID]
+			stage, inHand = movieStage[it.TitleID]
+			a := avail[it.TitleID]
+			x.Available, x.Partial = a == "available" || a == "partial", a == "partial"
+		}
+		x.Acquiring = inHand
+		if seeFiles {
+			x.Stage = stage
 		}
 		page.Items = append(page.Items, x)
 	}

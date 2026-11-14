@@ -61,6 +61,10 @@ func TestCalendar(t *testing.T) {
 	if !cal.Items[0].Available || cal.Items[2].Available != true {
 		t.Errorf("available: %+v", cal.Items)
 	}
+	// Alpha's movie-web copy has no file yet: partly available, as the lists say it; Beta's only copy has its file.
+	if !cal.Items[0].Partial || cal.Items[2].Partial {
+		t.Errorf("partly available: %+v", cal.Items)
+	}
 	e.getKey(APIBase+"/calendar?from=2026-11-01&to=2026-11-30&unmonitored=true", key, &cal)
 	if len(cal.Items) != 4 {
 		t.Errorf("with unmonitored: %d items", len(cal.Items))
@@ -118,6 +122,14 @@ func TestCalendar(t *testing.T) {
 	}
 	if want := map[string]bool{"Alpha 0": false, "Beta 0": true, "Gamma 1": true, "Gamma 2": false}; !maps.Equal(acq, want) {
 		t.Errorf("acquiring: got %v, want %v", acq, want)
+	}
+	// Each entry in hand names its stage (the calendar says it, not "Downloading" for everything).
+	stage := map[string]string{}
+	for _, it := range cal.Items {
+		stage[fmt.Sprintf("%s %d", it.Title.Name, it.EpisodeID)] = it.Stage
+	}
+	if want := map[string]string{"Alpha 0": "", "Beta 0": "downloading", "Gamma 1": "queued", "Gamma 2": ""}; !maps.Equal(stage, want) {
+		t.Errorf("stages: got %v, want %v", stage, want)
 	}
 	// A copy removed from its library does not make the date available: Alpha's only file is in movie-remux.
 	e.exec(`INSERT INTO arrview_removed_version (version_id, view, removed_at) VALUES (1, 'radarr_4k_debrid', ?)`, now)
@@ -848,5 +860,60 @@ func TestHistoryCopyWords(t *testing.T) {
 		if got, _ := historyWords(&journal.HistoryRow{Kind: journal.KindCopy, Event: ev, Provider: "ad"}); got != want {
 			t.Errorf("%s: %q, want %q", ev, got, want)
 		}
+	}
+}
+
+// TestReleaseDateChoice: Home's Upcoming row, the calendar, the lists' Next release (and its sort) and the title page
+// give a movie the same dates (activity.FirstReleaseSQL): the refreshed TMDb date over the arr's and TMDb's US ones,
+// and only the first date of a type (a later US re-release or a limited run is not the next release).
+func TestReleaseDateChoice(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	key := e.apiKey()
+	e.exec(`INSERT INTO title_meta (title_id, release_date, movie_dates_at, attempted_at, refresh_after) VALUES
+		(1, '1968-04-02', NULL, 1, 1), (2, '2026-11-20', 1, 1, 1)`)
+	e.exec(`INSERT INTO title_release_date (title_id, source, country, type, date) VALUES
+		(1, 'radarr_4k_debrid', '', 'theatrical', '1968-04-02'), (1, 'tmdb', 'US', 'theatrical_limited', '2026-11-16'),
+		(1, 'tmdb', 'US', 'theatrical', '2026-11-21'), (1, 'radarr_4k_debrid', '', 'digital', '2026-11-22'),
+		(2, 'radarr_4k_debrid', '', 'theatrical', '2026-11-18'), (2, 'tmdb-art', '', 'theatrical', '2026-11-20'),
+		(2, 'tmdb', 'US', 'theatrical', '2026-11-19'), (2, 'tmdb-art', '', 'digital', '2027-02-01')`)
+	want := "Beta theatrical 2026-11-20|Alpha digital 2026-11-22"
+
+	var d Discover
+	e.getKey(APIBase+"/discover", key, &d)
+	var home []string
+	for _, it := range d.Upcoming.Items {
+		home = append(home, it.Name+" "+it.Note+" "+it.Date)
+	}
+	if got := strings.Join(home, "|"); got != "Beta In cinemas 2026-11-20|Alpha Digital release 2026-11-22" {
+		t.Errorf("Home upcoming: %s", got)
+	}
+	var cal CalendarPage
+	e.getKey(APIBase+"/calendar?from=2026-11-01&to=2026-11-30&kind=movie&unmonitored=true", key, &cal)
+	var days []string
+	for _, it := range cal.Items {
+		days = append(days, it.Title.Name+" "+it.Type+" "+it.Date)
+	}
+	if got := strings.Join(days, "|"); got != want {
+		t.Errorf("calendar: %s, want %s", got, want)
+	}
+	var p TitlePage
+	e.getKey(APIBase+"/titles?kind=movie&sort=next", key, &p)
+	var next []string
+	for _, r := range p.Items {
+		if r.Next != nil {
+			next = append(next, r.Name+" "+r.Next.Type+" "+r.Next.Date)
+		}
+	}
+	if got := strings.Join(next, "|"); got != want {
+		t.Errorf("Next sort and cells: %s, want %s", got, want)
+	}
+	if b := rowOf(t, p, 2); b.InCinemas != "2026-11-20" || b.DigitalRelease != "2027-02-01" {
+		t.Errorf("Beta's list dates: %s, %s", b.InCinemas, b.DigitalRelease)
+	}
+	var td TitleDetail
+	e.getKey(APIBase+"/titles/1", key, &td)
+	if td.InCinemas != "1968-04-02" || td.DigitalRelease != "2026-11-22" {
+		t.Errorf("Alpha's title page dates: %s, %s", td.InCinemas, td.DigitalRelease)
 	}
 }

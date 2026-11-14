@@ -211,6 +211,21 @@ func TestCopySorts(t *testing.T) {
 	if got := order("sort=quality&sort_version=tv-2160p&order=desc"); got != "The Show,Alpha" {
 		t.Errorf("quality of tv-2160p (Alpha has none): %s", got)
 	}
+	// One Remux link beside The Show's two WEBDL-1080p files: its cell still shows WEBDL-1080p (most files), and the
+	// sort follows the cell, not the best file.
+	e.exec(`INSERT INTO link (id, path, target, title_id, quality, state, created_at, updated_at) VALUES
+		(40, '/media/tv/The Show/S01E03.mkv', '/zurg/__all__/Show/e3.mkv', 10, 'Bluray-2160p Remux', 'active', 1, 1)`)
+	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (40, 10)`)
+	var qp TitlePage
+	e.call("GET", APIBase+"/titles", nil, 200, &qp)
+	if q := copyOf(t, rowOf(t, qp, 10), "tv-2160p").Quality; q != "WEBDL-1080p" {
+		t.Errorf("The Show's cell: %s", q)
+	}
+	if got := order("sort=quality"); got != "Alpha,The Show" {
+		t.Errorf("quality by the cell's quality: %s", got)
+	}
+	e.exec(`DELETE FROM link_version WHERE link_id = 40`)
+	e.exec(`DELETE FROM link WHERE id = 40`)
 	// The Show's waiting download changed last; the imported Alpha download is not in hand.
 	if got := order("sort=activity"); got != "The Show,Alpha" {
 		t.Errorf("activity: %s", got)

@@ -73,6 +73,18 @@ type NextUp struct {
 	Type string `json:"type,omitempty"`
 }
 
+// nextRelease is a movie's coming release from its release-date choice (activity.FirstReleases' dates by type): the
+// earliest date today or later, in cinemas first on a shared day; nil without one. The Next sort orders by the same day.
+func nextRelease(first map[string]string, today string) *NextUp {
+	var n *NextUp
+	for _, typ := range activity.CalendarTypes {
+		if d := first[typ]; d >= today && (n == nil || d < n.Date) {
+			n = &NextUp{Date: d, Type: typ}
+		}
+	}
+	return n
+}
+
 // stageRank orders stages for the summary: further along wins, blocked (the last of activity.Stages) most of all.
 func stageRank(s string) int { return slices.Index(activity.Stages, s) }
 
@@ -309,8 +321,8 @@ func (w *Web) fillCopies(ctx context.Context, db *sql.DB, items []TitleRow) erro
 }
 
 // fillNext sets each row's next episode (series: the first still to come by the clock's rule) or coming release
-// (movies: the first release date today or later, else TMDb's release date when it is still to come), and each
-// movie's home release.
+// (movies: nextRelease, else TMDb's release date when it is still to come), each movie's home release and its first
+// dates in cinemas, digital and on disc (the release-date choice, activity.FirstReleaseSQL).
 func (w *Web) fillNext(ctx context.Context, db *sql.DB, items []TitleRow, tids, seriesIDs []any, clock airClock) error {
 	today := clock.today
 	idx := map[int64]*TitleRow{}
@@ -341,19 +353,8 @@ func (w *Web) fillNext(ctx context.Context, db *sql.DB, items []TitleRow, tids, 
 		}
 	}
 	if len(movieIDs) > 0 {
-		if err := scanAll(ctx, db, `SELECT title_id, date, type FROM title_release_date
-			WHERE date >= ? AND title_id IN (`+store.Placeholders(len(movieIDs))+`) ORDER BY title_id, date`,
-			append([]any{today}, movieIDs...), func(r *sql.Rows) error {
-				var tid int64
-				var date, typ string
-				if err := r.Scan(&tid, &date, &typ); err != nil {
-					return err
-				}
-				if it := idx[tid]; it != nil && it.Next == nil {
-					it.Next = &NextUp{Date: date[:min(len(date), 10)], Type: typ}
-				}
-				return nil
-			}); err != nil {
+		first, err := activity.FirstReleases(ctx, db, movieIDs)
+		if err != nil {
 			return err
 		}
 		dates, err := availability.DatesFor(ctx, db, movieIDs)
@@ -378,12 +379,13 @@ func (w *Web) fillNext(ctx context.Context, db *sql.DB, items []TitleRow, tids, 
 		}
 		for _, id := range movieIDs {
 			it := idx[id.(int64)]
+			fr := first[it.ID]
+			it.Next = nextRelease(fr, today)
 			if it.Next == nil && it.ReleaseDate >= today {
 				it.Next = &NextUp{Date: it.ReleaseDate}
 			}
-			ds := dates[it.ID]
-			it.HomeRelease = day(availability.HomeRelease(ds))
-			it.InCinemas, it.DigitalRelease, it.PhysicalRelease = day(ds["theatrical"]), day(ds["digital"]), day(ds["physical"])
+			it.HomeRelease = day(availability.HomeRelease(dates[it.ID]))
+			it.InCinemas, it.DigitalRelease, it.PhysicalRelease = fr["theatrical"], fr["digital"], fr["physical"]
 			for j := range it.Versions {
 				it.Versions[j].MinimumAvailability = rules[it.Versions[j].ID].Minimum
 			}
@@ -504,6 +506,18 @@ func qualityRank(col string) string {
 		` LIKE '%hdtv%' THEN 10 ELSE 0 END)`
 }
 
+// shownQualityRankSQL is the quality rank (qualityRank) of version v's quality as its list cell shows it
+// (briefFiles): of its current arr files and its active links, grouped by quality apart, the group with the most
+// files; arr files first, then the lower quality name, on a tie. NULL without a file with a quality.
+var shownQualityRankSQL = `(SELECT ` + qualityRank("x.q") + ` FROM (
+		SELECT vf.quality AS q, COUNT(*) AS n, 0 AS src FROM version_file vf
+			LEFT JOIN version_source vs ON vs.version_id = vf.version_id
+			WHERE vf.version_id = v.id AND ` + curFile + ` AND vf.quality <> '' GROUP BY vf.quality
+		UNION ALL
+		SELECT l.quality, COUNT(*), 1 FROM link_version lv JOIN link l ON l.id = lv.link_id
+			WHERE lv.version_id = v.id AND l.state = 'active' AND COALESCE(l.quality, '') <> '' GROUP BY l.quality) x
+	ORDER BY x.n DESC, x.src, x.q LIMIT 1)`
+
 // episodeHeld is true when episode e is held by version v: a current file or an active link.
 const episodeHeld = `(EXISTS (SELECT 1 FROM version_file_episode fe JOIN version_file vf ON vf.id = fe.version_file_id
 		LEFT JOIN version_source vs ON vs.version_id = vf.version_id
@@ -534,14 +548,13 @@ func copySortExpr(sort, key string, clock airClock) (string, []any) {
 				` + aired + ` OR ` + episodeHeld + ` THEN 1 ELSE 0 END), 0) FROM episode e WHERE e.title_id = t.id
 				AND e.season > 0) END) FROM version v WHERE v.title_id = t.id AND ` + liveVersion + versionCond + `)`, args
 	case "quality":
+		// The quality each library's cell shows (briefFiles: the quality most of its current files have, arr files
+		// before links on a tie), the best of the libraries.
 		if key != "" {
-			args = append(args, key, key)
+			args = append(args, key)
 		}
-		return `NULLIF(MAX(
-			COALESCE((SELECT MAX(` + qualityRank("vf.quality") + `) FROM version v JOIN version_file vf ON vf.version_id = v.id
-				LEFT JOIN version_source vs ON vs.version_id = v.id WHERE v.title_id = t.id AND ` + curFile + ` AND ` + liveVersion + versionCond + `), -1),
-			COALESCE((SELECT MAX(` + qualityRank("l.quality") + `) FROM link l JOIN link_version lv ON lv.link_id = l.id
-				JOIN version v ON v.id = lv.version_id WHERE l.title_id = t.id AND l.state = 'active' AND ` + liveVersion + versionCond + `), -1)), -1)`, args
+		return `(SELECT MAX(` + shownQualityRankSQL + `) FROM version v WHERE v.title_id = t.id AND ` + liveVersion +
+			versionCond + `)`, args
 	case "activity":
 		cond := ""
 		if key != "" {
@@ -550,10 +563,13 @@ func copySortExpr(sort, key string, clock airClock) (string, []any) {
 		return `(SELECT MAX(d.updated_at) FROM download d WHERE d.title_id = t.id AND d.state IN ('` +
 			strings.Join(activity.InHand, "', '") + `')` + cond + `)`, args
 	case "next":
+		// The day the Next column shows (fillNext): a series' next episode; a movie's first coming release of the
+		// release-date choice, else its TMDb release date while that is still to come.
 		coming, comingArgs := clock.comingSQL("e")
 		return `CASE WHEN t.kind = 'series' THEN (SELECT MIN(e.air_date) FROM episode e WHERE e.title_id = t.id
-			AND ` + coming + `) ELSE COALESCE((SELECT MIN(substr(rd.date, 1, 10)) FROM title_release_date rd
-			WHERE rd.title_id = t.id AND rd.date >= ?), CASE WHEN m.release_date >= ? THEN m.release_date END) END`,
+			AND ` + coming + `) ELSE COALESCE((SELECT MIN(substr(d.date, 1, 10)) FROM title_release_date d
+			WHERE d.title_id = t.id AND substr(d.date, 1, 10) >= ? AND ` + activity.FirstReleaseRowSQL + `),
+			CASE WHEN m.release_date >= ? THEN m.release_date END) END`,
 			append(comingArgs, today, today)
 	}
 	return "", nil
