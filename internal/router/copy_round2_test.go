@@ -80,6 +80,7 @@ func TestCopyRound2CompleteAtDeleteIsCachedEvidence(t *testing.T) {
 func TestCopyRound2PauseKeepsAdding(t *testing.T) {
 	t.Parallel()
 	e := newCopyEnv(t, provider.StateDownloaded, "rd")
+	e.wants(h("a"))
 	e.exec(`INSERT INTO provider_copy (info_hash, name, provider, own_add, state, created_at, updated_at)
 		VALUES (?, 'Movie.2024.2160p.WEB-GRP', 'rd', 1, 'adding', 0, 0)`, h("a"))
 	e.r.set.Enabled = false

@@ -270,12 +270,26 @@ func EndRemoved(ctx context.Context, tx *sql.Tx, titleID int64, keys []string, r
 	return n, nil
 }
 
+// copyWantedSQL is the condition that hash expression h is still wanted by a current copy of a title: a download of
+// it in hand, an active link of it of a version not removed, or an arr file of it of a version not removed.
+func copyWantedSQL(h string) string {
+	return `(EXISTS (SELECT 1 FROM download d WHERE lower(d.info_hash) = ` + h + `
+			AND d.state NOT IN ('failed', 'imported'))
+		OR EXISTS (SELECT 1 FROM link l JOIN link_version lv ON lv.link_id = l.id WHERE l.state = 'active'
+			AND NOT EXISTS (SELECT 1 FROM arrview_removed_version r WHERE r.version_id = lv.version_id)
+			AND ` + LinkStoredHashSQL + ` = ` + h + `)
+		OR EXISTS (SELECT 1 FROM version_file vf
+			WHERE NOT EXISTS (SELECT 1 FROM arrview_removed_version r WHERE r.version_id = vf.version_id)
+			AND (lower(vf.download_id) = ` + h + ` OR EXISTS (SELECT 1 FROM content c WHERE c.id = vf.content_id
+				AND lower(c.info_hash) = ` + h + `))))`
+}
+
 // StopRemovedCopies stops, in the removal's transaction, the queued copies to other providers (provider_copy) of
 // hashes a removal took from the library, so they are not started later or resumed at startup: each becomes
-// skipped with msg. A copy belongs to its hash and provider, not to a library, so one whose hash a current library
-// still links (an active link of a version not removed) or a download still in hand still wants is left as it is,
-// and so is a copy already adding or checking: it settles on its own (the removal's clean-up waits for it). It
-// returns how many copies it stopped.
+// skipped with msg. A copy belongs to its hash and provider, not to a library, so one whose hash a current copy of
+// any title still wants (copyWantedSQL: a download in hand, an active link or an arr file of a version not removed)
+// is left as it is, and so is a copy already adding or checking: it settles on its own (the removal's clean-up waits
+// for it, and recoverAdding does not queue it again once nothing wants it). It returns how many copies it stopped.
 func StopRemovedCopies(ctx context.Context, tx *sql.Tx, hashes []string, msg string, at int64) (int, error) {
 	var args []any
 	for _, h := range hashes {
@@ -288,11 +302,7 @@ func StopRemovedCopies(ctx context.Context, tx *sql.Tx, hashes []string, msg str
 	}
 	res, err := tx.ExecContext(ctx, `UPDATE provider_copy SET state = 'skipped', message = ?, updated_at = ?
 		WHERE state = 'queued' AND info_hash IN (`+store.Placeholders(len(args))+`)
-		AND NOT EXISTS (SELECT 1 FROM download d WHERE lower(d.info_hash) = provider_copy.info_hash
-			AND d.state NOT IN ('failed', 'imported'))
-		AND NOT EXISTS (SELECT 1 FROM link l JOIN link_version lv ON lv.link_id = l.id WHERE l.state = 'active'
-			AND NOT EXISTS (SELECT 1 FROM arrview_removed_version r WHERE r.version_id = lv.version_id)
-			AND `+LinkStoredHashSQL+` = provider_copy.info_hash)`, append([]any{msg, at}, args...)...)
+		AND NOT `+copyWantedSQL("provider_copy.info_hash"), append([]any{msg, at}, args...)...)
 	if err != nil {
 		return 0, fmt.Errorf("router: stopping removed copies: %w", err)
 	}

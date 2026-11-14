@@ -96,6 +96,16 @@ func newCopyEnv(t *testing.T, state provider.State, keys ...string) *copyEnv {
 	return e
 }
 
+// wants gives hash a current user: an active library link of title 1's first version (a copy is for a file the library
+// holds).
+func (e *copyEnv) wants(hash string) {
+	e.t.Helper()
+	e.exec(`INSERT INTO link (path, target, title_id, state, file_metadata, created_at, updated_at)
+		VALUES (?, '/mnt/x', 1, 'active', ?, 0, 0)`, "/lib/"+hash+".mkv", `{"InfoHash":"`+hash+`"}`)
+	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (last_insert_rowid(),
+		(SELECT MIN(id) FROM version WHERE title_id = 1))`)
+}
+
 // run works every ready job.
 func (e *copyEnv) run() {
 	e.t.Helper()
@@ -385,6 +395,7 @@ func TestCopyDedupe(t *testing.T) {
 func TestCopyRecoversAdding(t *testing.T) {
 	t.Parallel()
 	e := newCopyEnv(t, provider.StateDownloaded, "rd", "ad")
+	e.wants(h("a"))
 	e.pr["rd"].list = []provider.Torrent{{ID: "old", Hash: h("a")}}
 	e.pr["rd"].set("old", provider.Torrent{Hash: h("a"), State: provider.StateDownloading, Status: "downloading"})
 	for _, pk := range []string{"rd", "ad"} {
@@ -441,5 +452,22 @@ func TestCopyAfterImport(t *testing.T) {
 		if p, _ := loadPace(e.ctx, e.st.Writer(), pk); p.WindowAdds != 1 {
 			t.Fatalf("%s pacing %+v", pk, p)
 		}
+	}
+}
+
+// An interrupted add whose torrent never landed is not added again once nothing in the library wants its hash (its
+// title was removed): the copy is skipped, and nothing is sent.
+func TestCopyRecoveryDoesNotReaddARemovedTitle(t *testing.T) {
+	t.Parallel()
+	e := newCopyEnv(t, provider.StateDownloaded, "ad")
+	e.exec(`INSERT INTO provider_copy (info_hash, name, provider, own_add, state, created_at, updated_at)
+		VALUES (?, 'Movie.2024.2160p.WEB-GRP', 'ad', 1, 'adding', 0, ?)`, h("a"), e.clock.UnixMilli())
+	if _, err := e.r.ResumeCopies(e.ctx); err != nil {
+		t.Fatal(err)
+	}
+	e.clock = e.clock.Add(addSettle)
+	e.run()
+	if s, msg := e.copyState(h("a"), "ad"); s != CopySkipped || msg != CopyUnwanted || len(e.ad["ad"].adds) != 0 {
+		t.Fatalf("ad: %s %q, adds %v", s, msg, e.ad["ad"].adds)
 	}
 }
