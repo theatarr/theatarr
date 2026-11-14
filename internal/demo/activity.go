@@ -46,6 +46,13 @@ func (s *seeder) registry() {
 					"provider": p, "torrents": present + absent + 40 + k, "present": present, "absent": absent,
 					"new": k % 3, "requests": 1 + k%2}))
 		}
+	}
+}
+
+// record writes the record of the accounts (Admin › Torrents): every present torrent as of the provider's last good
+// sync. It runs after the downloads, which add registry rows too.
+func (s *seeder) record() {
+	for _, p := range []string{"rd", "ad", "tb"} {
 		// The record of the account (Admin › Torrents): its present torrents as of the last good sync.
 		s.exec(`INSERT INTO provider_torrent (provider, torrent_id, info_hash, name, size_bytes, status, state, progress,
 			added_at, files, links) SELECT cp.provider, cp.torrent_id, c.info_hash, cp.folder_name, COALESCE(cp.size_bytes, 0),

@@ -131,6 +131,7 @@ func Seed(ctx context.Context, st *store.Store, o Options) (*Result, error) {
 		s.registry()
 		s.downloads()
 		s.upgradesFound()
+		s.record()
 		s.system()
 		if s.err != nil {
 			return s.err
