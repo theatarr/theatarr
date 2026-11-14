@@ -37,10 +37,10 @@ it("lists each hash with the Torrents page's usage and links, the state in words
   // A hash not worked out yet reads as its entry does, with the reason as tooltip.
   expect(used).toEqual(["used291 links", "—", "not worked out"]);
   expect(screen.getAllByTestId("inventory-used")[2].firstElementChild?.getAttribute("title")).toMatch(/^its usage is worked out/);
-  expect(screen.getAllByText("Held, not tied to an import").map((e) => e.tagName)).toContain("SPAN");
+  expect(screen.getAllByText("Held, no import recorded").map((e) => e.tagName)).toContain("SPAN");
   expect(screen.queryByText("unreferenced")).toBeNull();
   expect(screen.queryByRole("columnheader", { name: "Libraries" })).toBeNull();
-  expect(screen.getByTestId("state-unreferenced").textContent).toBe("Held, not tied to an import");
+  expect(screen.getByTestId("state-unreferenced").textContent).toBe("Held, no import recorded");
   expect(screen.getByTestId("inventory-total").textContent).toBe("3 torrents (unique hashes)");
 });
 
@@ -67,7 +67,7 @@ it("shows a hash's usage with five references and how many more, the providers w
   expect(usage.querySelectorAll("[data-testid=usage-refs] li")).toHaveLength(5);
   expect(screen.getByTestId("usage-refs-more").textContent).toBe("and 286 more");
   expect(screen.getByTestId("torrent-titles").querySelector("a")?.getAttribute("href")).toBe("/title/7");
-  expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Provider", "Name", "Torrent id", "Held since"]);
+  expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Provider", "Name", "Torrent id", "First seen"]);
   const rows = screen.getAllByTestId("inventory-provider");
   expect(rows[0].textContent).toContain("TB");
   expect(rows[0].querySelector("[data-testid=provider-gone]")).toBeNull();
@@ -78,6 +78,29 @@ it("shows a hash's usage with five references and how many more, the providers w
   // The hash's copies are read when the entry opens.
   await waitFor(() => expect(screen.getByTestId("other-providers").textContent).toMatch(/^RD not cached/));
 });
+
+it("reads the entry again when a copy finishes as added, so Providers lists the new holder", async () => {
+  const hash = "f".repeat(40);
+  const entry = (providers: object[]) => ({ info_hash: hash, name: "Copied", state: "present", providers, files: [], versions: [], arr_files: [], links: [],
+    usage: { usage: "unused", linked_files: 0 } });
+  const tb = { provider: "tb", torrent_id: "77", folder_name: "Copied", seen_at: "2026-11-01T00:00:00Z", state: "present" };
+  const rd = { provider: "rd", torrent_id: "R1", folder_name: "Copied", seen_at: "2026-11-13T12:00:00Z", state: "present" };
+  let copied = false;
+  let reads = 0;
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["admin", "see_files"] } },
+    { method: "GET", path: "/status", reply: { versions: [] } },
+    { method: "GET", path: "/torrents/copies", reply: () => {
+      reads++;
+      if (reads > 1) copied = true;
+      return { copies: [{ provider: "rd", state: copied ? "added" : "checking", updated_at: "2026-11-13T12:00:00Z" }] };
+    } },
+    { method: "GET", path: `/registry/${hash}`, reply: () => entry(copied ? [tb, rd] : [tb]) },
+  ]);
+  renderPage(<Routes><Route path="/admin/torrents/inventory/:hash" element={<RegistryContent />} /></Routes>, `/admin/torrents/inventory/${hash}`);
+  expect(await screen.findAllByTestId("inventory-provider")).toHaveLength(1);
+  await waitFor(() => expect(screen.getAllByTestId("inventory-provider")).toHaveLength(2), { timeout: 9000 });
+}, 15000);
 
 it("says a hash no account holds has no usage worked out, not unused", async () => {
   const hash = "d".repeat(40);

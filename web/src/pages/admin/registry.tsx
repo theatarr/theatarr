@@ -3,7 +3,9 @@
 // (docs/design/torrents.md "Used, one answer"); the state is the inventory's own, said in words that do not claim usage.
 import { TorrentTabs } from "./torrent-tabs";
 import { Search } from "lucide-react";
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { qk } from "@/api/query-keys";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { useContent, useRegistry, useStatus } from "@/api/hooks";
 import { useCopyTorrent, useHashCopies } from "@/api/provider-copies";
@@ -25,18 +27,18 @@ import { TorrentLink } from "@/components/title/info-hash";
 import { ApiError } from "@/api/client";
 import { torrentsLink } from "@/lib/admin-links";
 
-/** The inventory's own states (content.state, docs/design/providers.md) in words. "Tied to an import" is the
- *  inventory's rule (a Theatarr import, an arr file or a link recorded with this content), not whether anything uses
- *  the torrent: that is the Used column. */
+/** The inventory's own states (content.state, docs/design/providers.md) in words that claim no more than the state
+ *  proves: "present" is also set by a copy, so it reads plain "Held"; "unreferenced" means no import, arr file or link
+ *  is recorded with it. Whether anything uses the torrent is the Used column. */
 const STATE_WORDS: Record<string, string> = {
-  present: "Held, tied to an import",
-  unreferenced: "Held, not tied to an import",
+  present: "Held",
+  unreferenced: "Held, no import recorded",
   absent: "On no account",
   gone: "Removed",
   unknown: "Not known yet",
 };
 const STATES = ["", "present", "unreferenced", "absent", "gone", "unknown"];
-const STATE_HELP = "The saved inventory's own state. Tied to an import: a Theatarr import, an arr file or a link recorded with this torrent. Whether anything uses it is the Used column.";
+const STATE_HELP = "The saved inventory's own state. No import recorded: no Theatarr import, arr file or link is recorded with this torrent. Whether anything uses it is the Used column.";
 const HASH = /^[0-9a-fA-F]{40}$/;
 
 function StateBadge({ s }: { s?: string }) {
@@ -165,7 +167,7 @@ export function RegistryContent() {
             <div className="space-y-1">
               <div className="flex flex-wrap items-baseline gap-2"><UsageBadge u={c.usage} />{c.usage.linked_files > 0 ? <span className="text-muted-foreground">{plural(c.usage.linked_files, "link")} into it</span> : null}</div>
               <div className="text-muted-foreground"><UsageDetail u={c.usage} /></div>
-              <p className="text-xs text-muted-foreground">As of the last read of the accounts (Torrents › Refresh reads them).</p>
+              <p className="text-xs text-muted-foreground">Used and unused are worked out again after each read of the accounts or Refresh (Torrents).</p>
             </div>
           ) : <p className="text-muted-foreground">No account holds it in the record, so its usage is not worked out.</p>}
         </Card>
@@ -187,7 +189,7 @@ export function RegistryContent() {
       <Section title="Providers">
         {(c.providers ?? []).length === 0 ? <Card><Empty>No provider lists it.</Empty></Card> : (
           <Card className="p-0"><Table>
-            <TableHeader><TableRow><TableHead>Provider</TableHead><TableHead>Name</TableHead><TableHead className="hidden sm:table-cell">Torrent id</TableHead><TableHead className="hidden md:table-cell">Held since</TableHead></TableRow></TableHeader>
+            <TableHeader><TableRow><TableHead>Provider</TableHead><TableHead>Name</TableHead><TableHead className="hidden sm:table-cell">Torrent id</TableHead><TableHead className="hidden md:table-cell">First seen</TableHead></TableRow></TableHeader>
             <TableBody>{(c.providers ?? []).map((p, i) => (
               <TableRow key={i} data-testid="inventory-provider">
                 <TableCell className="whitespace-nowrap"><ProviderTag account={p.provider ?? ""} className="font-medium" />{p.state === "absent" ? <Badge tone="negative" className="ml-2" data-testid="provider-gone">gone since {p.absent_at ? fmtDayYear(p.absent_at) : "?"}</Badge> : null}</TableCell>
@@ -229,6 +231,16 @@ function HeldCopies({ hash, provider, id }: { hash: string; provider: string; id
   const m = useCopyTorrent(hash, "inventory");
   const copies = useHashCopies(hash).data?.copies;
   const status = useStatus();
+  // A copy that finishes as added is a new holder: read the entry again so Providers lists it.
+  const qc = useQueryClient();
+  const added = (copies ?? []).filter((c) => c.state === "added").map((c) => c.provider).sort().join(",");
+  const seen = useRef<string | null>(null);
+  const loaded = copies !== undefined;
+  useEffect(() => {
+    if (!loaded) return;
+    if (seen.current !== null && seen.current !== added) void qc.invalidateQueries({ queryKey: qk.registry.content(hash) });
+    seen.current = added;
+  }, [loaded, added, hash, qc]);
   const paused = globalDownloadsOff((status.data?.versions ?? []).map((v) => v.grab_state));
   return (
     <div className="mt-2 space-y-1 text-[13px]" data-testid="inventory-copies">

@@ -342,12 +342,13 @@ below them.
 **Saved inventory** (`/admin/torrents/inventory`) lists known hashes by decoded name with **Used** (the Torrents page's
 answer from the record and the link count; "not worked out" from the row's `usage_reason` like the entry; "—" when
 no account holds the hash) and the inventory's own state in words
-that claim nothing about usage: Held, tied to an import (`present`); Held, not tied to an import (`unreferenced`); On no
+that claim nothing about usage: Held (`present`, also set by a copy); Held, no import recorded (`unreferenced`); On no
 account (`absent`); Removed (`gone`); Not known yet (`unknown`). The state filter uses the same words. The count says
 "N torrents (unique hashes)". A detail shows **Used** (badge, links, references: five, then "and N more"; titles
-linked; or that no account holds it), **Imports** only when Theatarr recorded any, **Providers** with a header row
-(Provider, Name, Torrent id, Held since), the RD/AD/TB tag and "gone since <date>" for an account that no longer holds
-it, **Add to other providers** from an account that holds it (the Torrents row's action), **Arr files** only when there
+linked; or that no account holds it; worked out again after each read or Refresh, as on Torrents), **Imports** only when Theatarr recorded any, **Providers** with a header row
+(Provider, Name, Torrent id, First seen), the RD/AD/TB tag and "gone since <date>" for an account that no longer holds
+it, **Add to other providers** from an account that holds it (the Torrents row's action) with the hash's copies read when the entry opens and polled while one is unfinished (a copy that ends added reads
+the entry again, so Providers lists the new holder), **Arr files** only when there
 are any, and files. **System › Backup** holds torrent-list backups: **Back up
 now**, import (Theatarr or DMM, to a chosen provider), the list with download (Theatarr or DMM format) and **Restore…**
 with its preview. A row's expanded area has **Add to other providers** (router.md "Copies to other providers":
