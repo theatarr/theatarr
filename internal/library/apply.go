@@ -391,7 +391,8 @@ func (l *Library) apply(ctx context.Context, d *importDownload, vn *VersionNamin
 			}
 			if err := l.record(ctx, tx, action{Kind: "link", Mode: mode, Version: v.Key, DownloadID: d.ID, LinkID: linkID,
 				Path: lk.Path, Target: lk.Target, Detail: detail, Rel: relFacts{Release: d.ReleaseTitle, Quality: lf.quality,
-					Score: sql.NullInt64{Int64: int64(lf.score), Valid: true}}}); err != nil {
+					Score: sql.NullInt64{Int64: int64(lf.score), Valid: true}, TitleID: v.Title.ID,
+					Episodes: lk.Episodes}}); err != nil {
 				return err
 			}
 		}

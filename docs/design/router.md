@@ -1235,8 +1235,10 @@ only: the existing library is not swept. Code: `internal/router/copy.go`; table 
 
 A copy is not a download: no `download` row, import, offer, blocklist or failure re-search. Its outcome is a History
 event: a copy that ends `added` or `not_cached` also writes a `provider_copy_event` row (migration 00129) with the
-release name and the quality and score of the file with that hash, which History shows as "Added to TB" / "Not cached
-on RD" (accounts that see files); the copy row itself is reused by the next request. One row per
+release name, the quality and score of the file with that hash and its title (the request's, else the one title whose
+active link or download holds the hash), which History shows as "Added to TB", "Already on AD" (the provider held it
+already) or "Not cached on RD" (accounts that see files); the copy row itself is reused by the next request. The
+migration seeds the events from the copies already finished. One row per
 hash and provider (`unique (info_hash, provider)`); a new request for a pair replaces a finished row and returns an
 unfinished one as it is (a double click, a season pack's episodes). Rows are made for the providers with a key whose
 registry row does not hold the hash complete ("Cached on"); one job (`router.copy`) works each row:

@@ -556,7 +556,7 @@ func (l *Library) recordAdopted(ctx context.Context, version string, vp *policy.
 		if err := recordImportedState(ctx, tx, v, episodes, state, false, now); err != nil {
 			return err
 		}
-		rel := relFacts{Release: f.scene, Quality: f.quality}
+		rel := relFacts{Release: f.scene, Quality: f.quality, TitleID: f.titleID, Episodes: episodes}
 		if meta.Score != nil {
 			rel.Score = sql.NullInt64{Int64: int64(*meta.Score), Valid: true}
 		}

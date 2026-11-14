@@ -449,7 +449,8 @@ var errCopyLost = errors.New("router: the copy changed under this worker")
 
 // setCopy moves the row from the state it is in to state with msg (and set, a further assignment with args).
 // errCopyLost when the row is no longer in that state.
-// A copy that ends added or not_cached is also written to provider_copy_event (migration 00129) for History, with
+// A copy that ends added (or found already there) or not_cached is also written to provider_copy_event (migration
+// 00129) for History, with
 // the release facts of the file it was asked for, since the row itself is reused by the next request.
 func (r *Router) setCopy(ctx context.Context, c *copyRow, state, msg string, set string, args ...any) error {
 	q := `UPDATE provider_copy SET state = ?, message = ?, updated_at = ?`
@@ -524,6 +525,10 @@ func copyEvent(ctx context.Context, tx *sql.Tx, c *copyRow, state, msg string, a
 		if len(ids) == 1 {
 			title = ids[0]
 		}
+	}
+	// An add that found the torrent already there is its own outcome in History: "Already on AD".
+	if state == CopyAdded && strings.HasPrefix(msg, "Already on ") {
+		state = "already"
 	}
 	_, err = tx.ExecContext(ctx, `INSERT INTO provider_copy_event (at, info_hash, name, title_id, provider, state,
 		message, quality, score) VALUES (?, ?, ?, ?, ?, ?, ?, NULLIF(?, ''), ?)`, at, c.hash, c.name, title, c.pk, state,

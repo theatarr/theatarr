@@ -359,6 +359,12 @@ func TestImportUpgradeMultiEpisode(t *testing.T) {
 				if got := e.one(`SELECT COUNT(*) FROM link_trash`); got != "2" {
 					t.Errorf("trash rows %s, want both single files", got)
 				}
+				// History's facts (00129): the title and the episodes each file held, the new one's and the old ones'.
+				if got := e.one(`SELECT group_concat(a.kind || ' ' || a.episodes || ' ' || (a.title_id = d.title_id), ', ')
+					FROM (SELECT * FROM library_action WHERE mode = 'applied' ORDER BY kind, episodes) a
+					JOIN download d ON d.id = 1`); got != "link [201,202] 1, replace [201] 1, replace [202] 1" {
+					t.Errorf("action facts %s", got)
+				}
 			} else if why := skipped(plan)[rel+".mkv"]; !strings.Contains(why, "Existing quality: Bluray-2160p Remux") {
 				t.Errorf("skipped %q", why)
 			}

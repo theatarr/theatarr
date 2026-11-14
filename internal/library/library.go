@@ -15,6 +15,7 @@ package library
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -278,22 +279,25 @@ func (l *Library) Stat(ctx context.Context, p string) (os.FileInfo, error) {
 	return l.mount.Stat(ctx, p)
 }
 
-// action is one library_action row. Rel is the release of the file it is about as it is now (migration 00129): a
-// link's new file, a replace's old one; History reads it, since the link row may later hold another file.
+// action is one library_action row. Rel is the file it is about as it is now (migration 00129): a link's new file, a
+// replace's old one; History reads it, since the link row may later hold another file, other episodes, or be gone.
 type action struct {
 	Kind, Mode, Version, Path, Target, Detail string
 	DownloadID, LinkID                        int64
 	Rel                                       relFacts
 }
 
-// relFacts are a file's release, quality and score (a NULL score when not scored).
+// relFacts are a file's release, quality and score (a NULL score when not scored), its title and the episode ids it
+// holds.
 type relFacts struct {
 	Release, Quality string
 	Score            sql.NullInt64
+	TitleID          int64
+	Episodes         []int64
 }
 
-// linkFacts reads the release facts of the link row id, else of the row at path, else of an arr's file at path;
-// none when there is no such row.
+// linkFacts reads the facts of the link row id, else of the row at path, else of an arr's file at path; none when
+// there is no such row.
 func linkFacts(ctx context.Context, tx *sql.Tx, id int64, path string) relFacts {
 	var f relFacts
 	var rel, q sql.NullString
@@ -301,25 +305,43 @@ func linkFacts(ctx context.Context, tx *sql.Tx, id int64, path string) relFacts 
 	if id == 0 {
 		where, arg = `path = ?`, path
 	}
-	err := tx.QueryRowContext(ctx, `SELECT release_title, quality, score FROM link WHERE `+where, arg).Scan(&rel, &q,
-		&f.Score)
+	epsSQL := `SELECT episode_id FROM link_episode WHERE link_id = ? ORDER BY episode_id`
+	err := tx.QueryRowContext(ctx, `SELECT id, release_title, quality, score, title_id FROM link WHERE `+where,
+		arg).Scan(&id, &rel, &q, &f.Score, &f.TitleID)
 	if errors.Is(err, sql.ErrNoRows) && path != "" {
-		err = tx.QueryRowContext(ctx, `SELECT COALESCE(NULLIF(scene_name, ''), release_title), quality,
-			custom_format_score FROM version_file WHERE path = ? ORDER BY id DESC LIMIT 1`, path).Scan(&rel, &q, &f.Score)
+		epsSQL = `SELECT episode_id FROM version_file_episode WHERE version_file_id = ? ORDER BY episode_id`
+		err = tx.QueryRowContext(ctx, `SELECT id, COALESCE(NULLIF(scene_name, ''), release_title), quality,
+			custom_format_score, title_id FROM version_file WHERE path = ? ORDER BY id DESC LIMIT 1`, path).Scan(&id, &rel,
+			&q, &f.Score, &f.TitleID)
 	}
 	if err != nil {
 		return relFacts{}
 	}
 	f.Release, f.Quality = rel.String, q.String
+	if rows, err := tx.QueryContext(ctx, epsSQL, id); err == nil {
+		for rows.Next() {
+			var ep int64
+			if rows.Scan(&ep) == nil {
+				f.Episodes = append(f.Episodes, ep)
+			}
+		}
+		rows.Close()
+	}
 	return f
 }
 
 func (l *Library) record(ctx context.Context, tx *sql.Tx, a action) error {
+	var eps any
+	if len(a.Rel.Episodes) > 0 {
+		b, _ := json.Marshal(a.Rel.Episodes)
+		eps = string(b)
+	}
 	q := `INSERT INTO library_action (at, kind, mode, version_key, download_id, link_id, path, target, detail,
-		release_title, quality, score)
-		VALUES (?, ?, ?, NULLIF(?, ''), NULLIF(?, 0), NULLIF(?, 0), NULLIF(?, ''), NULLIF(?, ''), ?, NULLIF(?, ''), NULLIF(?, ''), ?)`
+		release_title, quality, score, title_id, episodes)
+		VALUES (?, ?, ?, NULLIF(?, ''), NULLIF(?, 0), NULLIF(?, 0), NULLIF(?, ''), NULLIF(?, ''), ?, NULLIF(?, ''),
+		NULLIF(?, ''), ?, NULLIF(?, 0), ?)`
 	args := []any{store.Millis(l.now()), a.Kind, a.Mode, a.Version, a.DownloadID, a.LinkID, a.Path, a.Target, a.Detail,
-		a.Rel.Release, a.Rel.Quality, a.Rel.Score}
+		a.Rel.Release, a.Rel.Quality, a.Rel.Score, a.Rel.TitleID, eps}
 	if tx != nil {
 		_, err := tx.ExecContext(ctx, q, args...)
 		return err

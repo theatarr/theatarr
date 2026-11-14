@@ -7,14 +7,20 @@
 -- NULL on rows from before this migration and when unknown; History then shows what the link rows still tell, or
 -- nothing.
 --
--- provider_copy_event: one row per copy that ended added or not_cached ("Add to other providers", router copy.go),
--- with the release name, quality and score of the file it was asked for. Kept by design, like the journal: a few
--- rows per copied torrent.
+-- library_action.title_id, episodes: the title the action is about and the episode ids (JSON) its file held then, since
+-- a link row can be deleted (a change of episodes) or its episodes changed later. NULL on older rows and when unknown.
+--
+-- provider_copy_event: one row per copy that ended added, already (the provider held the torrent already) or
+-- not_cached ("Add to other providers", router copy.go), with the release name, quality and score of the file it was
+-- asked for. Kept by design, like the journal: a few rows per copied torrent. Seeded from the copies already finished,
+-- with what they kept (no quality or score).
 
 -- +goose Up
 ALTER TABLE library_action ADD COLUMN release_title TEXT;
 ALTER TABLE library_action ADD COLUMN quality TEXT;
 ALTER TABLE library_action ADD COLUMN score INTEGER;
+ALTER TABLE library_action ADD COLUMN title_id INTEGER;
+ALTER TABLE library_action ADD COLUMN episodes TEXT;
 
 CREATE TABLE provider_copy_event (
     id         INTEGER PRIMARY KEY,
@@ -23,15 +29,21 @@ CREATE TABLE provider_copy_event (
     name       TEXT    NOT NULL DEFAULT '',
     title_id   INTEGER REFERENCES title (id) ON DELETE SET NULL,
     provider   TEXT    NOT NULL,
-    state      TEXT    NOT NULL CHECK (state IN ('added', 'not_cached')),
+    state      TEXT    NOT NULL CHECK (state IN ('added', 'already', 'not_cached')),
     message    TEXT    NOT NULL DEFAULT '',
     quality    TEXT,
     score      INTEGER
 );
 CREATE INDEX provider_copy_event_at ON provider_copy_event (at);
+INSERT INTO provider_copy_event (at, info_hash, name, title_id, provider, state, message)
+SELECT updated_at, info_hash, name, title_id, provider,
+    CASE WHEN state = 'added' AND message LIKE 'Already on %' THEN 'already' ELSE state END, message
+FROM provider_copy WHERE state IN ('added', 'not_cached') ORDER BY updated_at, id;
 
 -- +goose Down
 DROP TABLE provider_copy_event;
+ALTER TABLE library_action DROP COLUMN episodes;
+ALTER TABLE library_action DROP COLUMN title_id;
 ALTER TABLE library_action DROP COLUMN score;
 ALTER TABLE library_action DROP COLUMN quality;
 ALTER TABLE library_action DROP COLUMN release_title;

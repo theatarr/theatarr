@@ -220,6 +220,10 @@ func TestCopyAllDebridList(t *testing.T) {
 	if s, msg := e.copyState(h("a"), "ad"); s != CopyAdded || msg != "Already on AD" {
 		t.Fatalf("on the list: %s %q", s, msg)
 	}
+	// History tells it apart from an add of ours: "Already on AD".
+	if n := e.count(`SELECT COUNT(*) FROM provider_copy_event WHERE provider = 'ad' AND state = 'already'`); n != 1 {
+		t.Fatalf("already events: %d", n)
+	}
 	if e.ad["ad"].writes() != 0 || e.del["ad"].deleted() != 0 {
 		t.Fatal("wrote to AllDebrid")
 	}
