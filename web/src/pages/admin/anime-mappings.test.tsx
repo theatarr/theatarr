@@ -258,3 +258,16 @@ it("asks to apply a held refresh, says it answers all its changes, and applies i
   await waitFor(() => expect(api.calls("POST", "/anime/review/7/accept")).toHaveLength(1));
   expect(api.calls("POST", "/anime/review/7/accept")[0].body).toEqual({});
 });
+
+// sol C01: a split proposal (a special and a season run) is not prefilled as one range; Use waits for the fields.
+it("does not prefill Edit season/offset… from a split proposal", async () => {
+  const split = { ...conflict, id: 5, kind: "heuristic", snippet: undefined, mapping: { ...conflict.mapping, winner: "heuristic", candidates: [] },
+    options: [{ ...conflict.options[0], source: "heuristic", episodes: [[0, 2], ...Array.from({ length: 12 }, (_, i) => [2, i + 1])], count: 13 }] };
+  mockFetch(lists([split]));
+  renderPage(<AnimeMappings />);
+  fireEvent.click(await screen.findByRole("button", { name: "Edit season/offset…" }));
+  expect((screen.getByLabelText("Season") as HTMLInputElement).value).toBe("");
+  expect(screen.getByTestId("anime-edit-split").textContent).toContain("Special 2; Season 2, episodes 1–12");
+  const form = screen.getByLabelText("Series").closest("div.rounded-lg") as HTMLElement;
+  expect((within(form).getByRole("button", { name: "Use this mapping" }) as HTMLButtonElement).disabled).toBe(true);
+});

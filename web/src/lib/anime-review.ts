@@ -31,6 +31,16 @@ export function rangeWords(eps: unknown[] | undefined): string {
   return out.join("; ");
 }
 
+/** The proposal's one run of episodes as the editor's fields, or null when it is not one run of one season (Special
+ *  2 and Season 2, episodes 1–12): the editor then starts empty rather than turn it into one range. No episodes: the
+ *  editor's defaults. */
+export function contiguousRun(eps: unknown[] | undefined): { season: number; first: number; count: number } | null | undefined {
+  const ps = [...pairs(eps)].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  if (ps.length === 0) return undefined;
+  for (let i = 1; i < ps.length; i++) if (ps[i][0] !== ps[0][0] || ps[i][1] !== ps[i - 1][1] + 1) return null;
+  return { season: ps[0][0], first: ps[0][1], count: ps.length };
+}
+
 /** "1 episode", "12 episodes". */
 export const episodes = (n: number) => `${n} ${n === 1 ? "episode" : "episodes"}`;
 

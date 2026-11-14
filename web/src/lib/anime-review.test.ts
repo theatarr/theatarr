@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { episodes, outcomeWords, rangeWords, reviewQuestion, type ReviewItem } from "./anime-review";
+import { contiguousRun, episodes, outcomeWords, rangeWords, reviewQuestion, type ReviewItem } from "./anime-review";
 
 describe("rangeWords", () => {
   it("says a season range, specials, one episode and two seasons", () => {
@@ -52,5 +52,18 @@ describe("a resolved item", () => {
     expect(reviewQuestion(it)).toBe("Is “Mushoku Tensei II Part 2” Mushoku Tensei Season 2, episodes 13–14? No mapping list covered it; Theatarr matched it by air date and title.");
     expect(outcomeWords(it)).toBe("Rejected: the match is not used; new files follow TVDB's numbering.");
     expect(outcomeWords({ ...it, state: "accepted", note: "checked" })).toBe("Accepted: the match or the mapping chosen is used. Note: checked");
+  });
+});
+
+describe("contiguousRun", () => {
+  it("gives one run of one season as the editor's fields", () => {
+    expect(contiguousRun([[2, 3], [2, 1], [2, 2]])).toEqual({ season: 2, first: 1, count: 3 });
+  });
+  it("gives none for a split proposal, so the editor does not turn it into one range", () => {
+    expect(contiguousRun([[0, 2], [2, 1], [2, 2]])).toBeNull();
+    expect(contiguousRun([[1, 1], [1, 3]])).toBeNull();
+  });
+  it("leaves an empty proposal to the defaults", () => {
+    expect(contiguousRun([])).toBeUndefined();
   });
 });

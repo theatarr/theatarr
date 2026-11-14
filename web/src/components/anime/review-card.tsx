@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
-  KIND_WORDS, entryName, episodes, isHeldRefresh, optionWords, outcomeWords, proposedOption, rangeWords, reviewQuestion, seriesName, sourceWords,
+  KIND_WORDS, contiguousRun, entryName, episodes, isHeldRefresh, optionWords, outcomeWords, proposedOption, rangeWords, reviewQuestion, seriesName, sourceWords,
   type ReviewItem, type ReviewOption,
 } from "@/lib/anime-review";
 import { fmtDay } from "@/lib/library";
@@ -134,13 +134,14 @@ function EditForm({ it, busy, onUse, onCancel }: { it: ReviewItem; busy: boolean
   const opts = it.options ?? [];
   const series = opts.map((o) => o.series).filter((s, i, a) => s?.tvdb && a.findIndex((x) => x?.tvdb === s.tvdb) === i);
   const p = proposedOption(it);
-  const first = (p?.episodes?.[0] ?? []) as number[];
+  // Prefilled only from a proposal that is one run; a split one (Special 2; Season 2, episodes 1–12) starts empty.
+  const run = contiguousRun(p?.episodes);
   const [tvdb, setTvdb] = useState(p?.series?.tvdb ?? series[0]?.tvdb ?? 0);
-  const [season, setSeason] = useState(String(first[0] ?? 1));
-  const [start, setStart] = useState(String(first[1] ?? 1));
-  const [count, setCount] = useState(String(it.entry?.episodes || p?.count || 1));
+  const [season, setSeason] = useState(run === null ? "" : String(run?.season ?? 1));
+  const [start, setStart] = useState(run === null ? "" : String(run?.first ?? 1));
+  const [count, setCount] = useState(run === null ? "" : String(it.entry?.episodes || p?.count || 1));
   const s = Number(season), f = Number(start), n = Number(count);
-  const valid = tvdb > 0 && Number.isInteger(s) && s >= 0 && Number.isInteger(f) && f >= 1 && Number.isInteger(n) && n >= 1;
+  const valid = season !== "" && start !== "" && count !== "" && tvdb > 0 && Number.isInteger(s) && s >= 0 && Number.isInteger(f) && f >= 1 && Number.isInteger(n) && n >= 1;
   const preview = valid ? `${seriesName(series.find((x) => x?.tvdb === tvdb) ?? { tvdb })} ${rangeWords(Array.from({ length: Math.min(n, 500) }, (_, i) => [s, f + i]))}` : "";
   const field = "flex flex-col gap-1 text-xs text-muted-foreground";
   return (
@@ -155,6 +156,7 @@ function EditForm({ it, busy, onUse, onCancel }: { it: ReviewItem; busy: boolean
         <label className={field}>First episode<Input className="h-8 w-20" inputMode="numeric" value={start} onChange={(e) => setStart(e.target.value)} /></label>
         <label className={field}>Episodes<Input className="h-8 w-20" inputMode="numeric" value={count} onChange={(e) => setCount(e.target.value)} /></label>
       </div>
+      {run === null ? <p className="mt-2 text-xs text-muted-foreground" data-testid="anime-edit-split">The proposal is not one run of episodes ({rangeWords(p?.episodes)}). Enter the season, first episode and count to use.</p> : null}
       {preview ? <p className="mt-2 text-sm">{preview}</p> : null}
       <div className="mt-2 flex gap-2">
         <Button size="sm" disabled={!valid || busy} onClick={() => onUse({ tvdb, season: s, first: f, count: n }, preview)}>Use this mapping</Button>
