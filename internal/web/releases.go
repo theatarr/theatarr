@@ -171,8 +171,7 @@ func (w *Web) writeReleases(ctx context.Context, rw http.ResponseWriter, out *Re
 }
 
 // heldFile is the file the title's film (episode 0, a movie) or episode holds in library key now; nil for a series
-// without an episode (a season or the whole series has no one file). An episode's file is episodeFile's; a film's
-// its newest active link, else its arr file.
+// without an episode (a season or the whole series has no one file).
 func (w *Web) heldFile(ctx context.Context, db *sql.DB, titleID int64, key string, episode int64) (*HeldFile, error) {
 	var vid int64
 	var kind string
@@ -184,25 +183,26 @@ func (w *Web) heldFile(ctx context.Context, db *sql.DB, titleID int64, key strin
 	if err != nil {
 		return nil, err
 	}
-	if episode > 0 {
-		f, err := w.episodeFile(ctx, db, vid, episode)
-		if err != nil || f == nil {
-			return &HeldFile{}, err
-		}
-		return &HeldFile{Held: true, Quality: f.Quality, Score: f.Score}, nil
-	}
-	if kind != "movie" {
+	if episode == 0 && kind != "movie" {
 		return nil, nil
+	}
+	// The newest active link, else the current arr file, as the title page and the episode window read them
+	// (episodeFile): of the version, or of its episode.
+	linkEp, fileEp, args := "", "", []any{vid}
+	if episode > 0 {
+		linkEp = ` JOIN link_episode le ON le.link_id = l.id AND le.episode_id = ?`
+		fileEp = ` JOIN version_file_episode fe ON fe.version_file_id = vf.id AND fe.episode_id = ?`
+		args = []any{episode, vid}
 	}
 	h := &HeldFile{Held: true}
 	var score sql.NullInt64
 	err = db.QueryRowContext(ctx, `SELECT COALESCE(l.quality, ''), `+linkScoreSQL+` FROM link l
-		JOIN link_version lv ON lv.link_id = l.id WHERE lv.version_id = ? AND l.state = 'active'
-		ORDER BY l.created_at DESC, l.id DESC LIMIT 1`, vid).Scan(&h.Quality, &score)
+		JOIN link_version lv ON lv.link_id = l.id`+linkEp+` WHERE lv.version_id = ? AND l.state = 'active'
+		ORDER BY l.created_at DESC, l.id DESC LIMIT 1`, args...).Scan(&h.Quality, &score)
 	if errors.Is(err, sql.ErrNoRows) {
-		err = db.QueryRowContext(ctx, `SELECT vf.quality, vf.custom_format_score FROM version_file vf
+		err = db.QueryRowContext(ctx, `SELECT vf.quality, vf.custom_format_score FROM version_file vf`+fileEp+`
 			LEFT JOIN version_source vs ON vs.version_id = vf.version_id WHERE vf.version_id = ? AND `+curFile+`
-			ORDER BY vf.added_at DESC, vf.id DESC LIMIT 1`, vid).Scan(&h.Quality, &score)
+			ORDER BY vf.added_at DESC, vf.id DESC LIMIT 1`, args...).Scan(&h.Quality, &score)
 		if errors.Is(err, sql.ErrNoRows) {
 			return &HeldFile{}, nil
 		}
