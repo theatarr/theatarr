@@ -81,6 +81,12 @@ export function airFact(m: { next_air_date?: string; last_air_date?: string } | 
   return m?.last_air_date ? { label: "Last aired", day: m.last_air_date } : undefined;
 }
 
+/** The release date's label: "First aired" / "Released", or "First airs" / "Releases" for a day still to come. */
+export function releasedLabel(series: boolean, date: string, day: string = today()): string {
+  const future = date.slice(0, 10) > day;
+  return series ? (future ? "First airs" : "First aired") : future ? "Releases" : "Released";
+}
+
 /**
  * The hero's status for accounts that see files: the title's status word as the posters and the lists say it
  * (posterStatus over the server's availability), "Available in 4K" with the best resolution a file has, and "Not in

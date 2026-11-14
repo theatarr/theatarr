@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Version } from "@/api/library";
-import { airFact, parseTitleID, readiness, resolveTab, titleReleaseAccess, titleStatus, titleTabs } from "./title-layout";
+import { airFact, parseTitleID, readiness, releasedLabel, resolveTab, titleReleaseAccess, titleStatus, titleTabs } from "./title-layout";
 
 const v = (o: Partial<Version>): Version => ({ id: 1, key: "movie-remux", label: "4K Remux", has_file: true, state: "filled", ...o }) as Version;
 
@@ -83,5 +83,14 @@ describe("air fact", () => {
     expect(airFact({ next_air_date: "2026-11-08" }, "2026-11-09")).toBeUndefined();
     expect(airFact({ last_air_date: "2026-11-01" }, "2026-11-09")).toEqual({ label: "Last aired", day: "2026-11-01" });
     expect(airFact(undefined, "2026-11-09")).toBeUndefined();
+  });
+});
+
+describe("releasedLabel", () => {
+  it("says Releases or First airs for a day still to come", () => {
+    expect(releasedLabel(false, "2027-06-18", "2026-11-13")).toBe("Releases");
+    expect(releasedLabel(false, "2024-10-14", "2026-11-13")).toBe("Released");
+    expect(releasedLabel(true, "2026-11-13", "2026-11-13")).toBe("First aired");
+    expect(releasedLabel(true, "2026-12-01", "2026-11-13")).toBe("First airs");
   });
 });

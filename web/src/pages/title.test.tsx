@@ -63,19 +63,28 @@ describe("Title page", () => {
     expect(search.getAttribute("title")).toBe("Paused: nothing is searched, downloaded or linked for any library.");
   });
 
-  it("offers a disabled In every library when every library that fits is on the title, other libraries aside", async () => {
+  it("offers no hero action when every library that fits is on the title, other libraries aside", async () => {
     const adder = { ...me, permissions: ["see_files", "manage", "add"] };
     const lib = { kind: "movie", mode: "active", enable: "", fits: true, default: true, on: true, searchable: true, label: "WEB" };
-    for (const [versions, want] of [[[{ ...lib, key: "movie-web" }, { ...lib, key: "movie-remux" }, { ...lib, key: "anime-movie", fits: false, default: false, on: false }], "In every library"], [[{ ...lib, key: "movie-web" }, { ...lib, key: "movie-2160", on: false }], "Add to another library"]] as const) {
+    for (const [versions, want] of [[[{ ...lib, key: "movie-web" }, { ...lib, key: "movie-remux" }, { ...lib, key: "anime-movie", fits: false, default: false, on: false }], null], [[{ ...lib, key: "movie-web" }, { ...lib, key: "movie-2160", on: false }], "Add to another library"]] as const) {
       document.body.innerHTML = "";
-      mockFetch([
+      const api = mockFetch([
         { method: "GET", path: "/auth/me", reply: adder },
         { method: "GET", path: "/titles/70", reply: { ...title, versions: [{ id: 5, key: "movie-web", label: "WEB", state: "wanted", monitored: true }] } },
         { method: "GET", path: "/add/options", reply: { kind: "movie", anime: false, title_id: 70, router_enabled: true, episodes_known: false, can_search: true, seasons: [], versions } },
       ]);
       renderPage(<SearchProvider><Routes><Route path="/title/:id" element={<TitlePage />} /></Routes></SearchProvider>, "/title/70");
-      await waitFor(() => expect(screen.getAllByTestId("hero-add")[0].textContent?.trim()).toBe(want));
-      expect(screen.getAllByTestId("hero-add")[0].hasAttribute("disabled")).toBe(want === "In every library");
+      if (want) {
+        await waitFor(() => expect(screen.getAllByTestId("hero-add")[0].textContent?.trim()).toBe(want));
+        expect(screen.getAllByTestId("hero-add")[0].hasAttribute("disabled")).toBe(false);
+      } else {
+        // Nothing in the hero, and no bar pinned over the phone's content.
+        await screen.findByTestId("title-hero");
+        await waitFor(() => expect(api.calls("GET", "/add/options").length).toBeGreaterThan(0));
+        await new Promise((r) => setTimeout(r, 20));
+        expect(screen.queryByTestId("hero-add")).toBeNull();
+        expect(screen.queryByTestId("title-sticky-action")).toBeNull();
+      }
     }
   });
 

@@ -66,9 +66,16 @@ const renameBar = (preview: object) => {
     { method: "GET", path: "/titles/7/rename", reply: preview },
     { method: "POST", path: "/titles/7/rename", reply: preview },
   ]);
-  renderPage(<SearchProvider><TitleToolbar titleId={7} name="Alpha" kind="movie" versions={[{ id: 1, key: "movie-web", label: "WEB", control: control(true) }] as never} /></SearchProvider>);
+  renderPage(<SearchProvider><TitleToolbar titleId={7} name="Alpha" kind="movie" versions={[{ id: 1, key: "movie-web", label: "WEB", has_file: true, control: control(true) }] as never} /></SearchProvider>);
   return api;
 };
+
+it("offers Rename files only with a file to rename", async () => {
+  mockFetch([{ method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["admin", "manage", "see_files"] } }, options([])]);
+  renderPage(<SearchProvider><TitleToolbar titleId={7} name="Alpha" kind="movie" versions={[{ id: 1, key: "movie-web", label: "WEB", has_file: false, control: control(true) }] as never} /></SearchProvider>);
+  expect(await screen.findByTestId("title-refresh")).toBeTruthy();
+  expect(screen.queryByTestId("title-rename")).toBeNull();
+});
 
 it("shows old and new names first and renames only on confirm", async () => {
   const api = renameBar({ files: [{ link_id: 4, version: "movie-web", existing_path: "/media/movies/Alpha/alpha.mkv", new_path: "/media/movies/Alpha (2020)/Alpha (2020) WEBDL-2160p.mkv" }], skipped: 1 });
@@ -149,15 +156,27 @@ it("shows Search now disabled with the reason when nothing would search, and non
   expect(screen.queryByTestId("title-search-now")).toBeNull();
 });
 
-it("says In every library, disabled, when every library that fits is on the title; one that does not fit does not count", async () => {
-  show([lib("movie-web", gates), lib("movie-remux", gates), { ...lib("anime-movie", gates), fits: false, on: false }]);
-  const add = await screen.findByTestId("title-add-versions");
-  await waitFor(() => expect(add.textContent).toBe("In every library"));
-  expect(add.hasAttribute("disabled")).toBe(true);
+it("offers no Add to another library when every library that fits is on the title; one that does not fit does not count", async () => {
+  const a = mockFetch([{ method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["admin", "manage", "add"] } }, options([lib("movie-web", gates), lib("movie-remux", gates), { ...lib("anime-movie", gates), fits: false, on: false }])]);
+  renderPage(<SearchProvider><TitleToolbar titleId={7} name="Alpha" kind="movie" versions={[]} page="releases" /></SearchProvider>);
+  await screen.findByTestId("title-search-now");
+  await waitFor(() => expect(a.calls("GET", "/add/options").length).toBeGreaterThan(0));
+  await new Promise((r) => setTimeout(r, 20));
+  expect(screen.queryByTestId("title-add-versions")).toBeNull();
   document.body.innerHTML = "";
   show([lib("movie-web", gates), { ...lib("movie-2160", gates), on: false }]);
   const open = await screen.findByTestId("title-add-versions");
-  await new Promise((r) => setTimeout(r, 20));
   expect(open.textContent?.trim()).toBe("Add to another library");
   expect(open.hasAttribute("disabled")).toBe(false);
+});
+
+it("shows Search now disabled while the add options load, and no Interactive search on the Last search page", async () => {
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["manage", "add"] } },
+    { method: "GET", path: "/add/options", reply: () => new Promise(() => {}) },
+  ]);
+  renderPage(<SearchProvider><TitleToolbar titleId={7} name="Alpha" kind="movie" versions={[{ id: 1, key: "movie-web", label: "WEB", control: control(true) }] as never} page="releases" /></SearchProvider>);
+  const search = await screen.findByTestId("title-search-now");
+  expect(search.hasAttribute("disabled")).toBe(true);
+  expect(screen.queryByTestId("interactive-search-open")).toBeNull();
 });

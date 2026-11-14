@@ -34,7 +34,7 @@ import { Card } from "@/components/ui/card";
 import { fmtAgo, fmtBytes, nameWithoutYear, plural, titleWithYear } from "@/lib/format";
 import { fmtDay, fmtRuntime } from "@/lib/library";
 import { currentLibraries } from "@/lib/library-rows";
-import { airFact, readiness, resolveTab, titleStatus, titleTabs, type TitleTab } from "@/lib/title-layout";
+import { airFact, readiness, releasedLabel, resolveTab, titleStatus, titleTabs, type TitleTab } from "@/lib/title-layout";
 import { cn } from "@/lib/utils";
 import { titleStatusWords } from "@/lib/tmdb-words";
 
@@ -83,29 +83,25 @@ function Synopsis({ text }: { text: string }) {
 
 type Target = AddTarget & { title_id: number };
 
-/** The primary action the role allows: Add to another library (add), else Request / View request (request). A title
- * already in every library the add options offer gets a disabled secondary "In every library" instead. */
-function PrimaryAction({ target, has, held = [], className }: { target: Target; has: boolean; held?: readonly string[]; className?: string }) {
+/** The primary action the role allows: Add to another library (add), else Request / View request (request); null
+ * when there is none. A title already in every library the add options offer gets none (the Libraries table under the
+ * hero has what is left to do), nor while those options load, so no disabled button sits in the hero or over the
+ * phone's content. */
+function usePrimaryAction({ target, has, held }: { target: Target; has: boolean; held: readonly string[] }): ((className?: string) => ReactNode) | null {
   const perms = usePerms();
   const { openAdd } = useSearchUI();
   // The toolbar's query (no tmdb_id), so one request serves both.
   const opts = useAddOptions(perms.add && has ? { kind: target.kind, name: target.name, title_id: target.title_id } : null, !!target.anime);
-  if (perms.add && has && inEveryLibrary(opts.data)) {
-    return (
-      // Opaque (no disabled fade), as the phone's bar floats over the page.
-      <Button variant="secondary" disabled className={cn(className, "text-[var(--ink-3)] disabled:opacity-100")} data-testid="hero-add">
-        In every library
-      </Button>
-    );
-  }
   if (perms.add) {
-    return (
+    if (has && (!opts.data || inEveryLibrary(opts.data))) return null;
+    const label = !has ? "Add" : monitorOnly(opts.data, held) ? "Monitor in another library" : "Add to another library";
+    return (className) => (
       <Button onClick={() => openAdd(target)} className={className} data-testid="hero-add">
-        <Plus /> {!has ? "Add" : monitorOnly(opts.data, held) ? "Monitor in another library" : "Add to another library"}
+        <Plus /> {label}
       </Button>
     );
   }
-  if (perms.request) return <TitleRequestButton target={target} className={className} />;
+  if (perms.request) return (className) => <TitleRequestButton target={target} className={className} />;
   return null;
 }
 
@@ -151,14 +147,15 @@ function About({ d }: { d: TitleDetail }) {
           <div className="overflow-hidden rounded-[8px] border border-[var(--line)] bg-card text-sm" data-testid="title-facts">
             {m?.status ? <Fact label="Status"><span title={m.status}>{titleStatusWords(m.status)}</span></Fact> : null}
             {series && perms.seeFiles && d.id && d.series_type ? <Fact label="Series type"><SeriesTypeControl titleId={d.id} value={d.series_type} anime={d.anime} versions={currentLibraries((d.versions ?? []) as Version[])} /></Fact> : null}
-            {d.release_date ? <Fact label={series ? "First aired" : "Released"}>{fmtDay(d.release_date)}</Fact> : null}
+            {d.release_date ? <Fact label={releasedLabel(series, d.release_date)}>{fmtDay(d.release_date)}</Fact> : null}
             {!series && digital ? <Fact label="Digital">{fmtDay(digital)}</Fact> : null}
             {air ? <Fact label={air.label}>{fmtDay(air.day)}</Fact> : null}
             {runtime ? <Fact label="Runtime">{runtime}</Fact> : null}
             {m?.network ? <Fact label={series ? "Network" : "Studio"}>{m.network}</Fact> : null}
             {m?.original_language ? <Fact label="Language">{languageName(m.original_language)}</Fact> : null}
             {d.rating ? <Fact label="TMDb rating">{d.rating.toFixed(1)} <span className="text-xs">({plural(m?.rating_votes ?? 0, "vote")})</span></Fact> : null}
-            {d.added_at ? <Fact label="Added">{fmtAgo(d.added_at)}</Fact> : null}
+            {/* The newest current file's time (when the title was added is under Details: Added to Theatarr). */}
+            {d.added_at ? <Fact label="Latest file">{fmtAgo(d.added_at)}</Fact> : null}
             {d.size_bytes ? <Fact label="On disk">{fmtBytes(d.size_bytes)}</Fact> : null}
             {perms.seeFiles && !d.monitored ? <Fact label="Monitored">No</Fact> : null}
           </div>
@@ -187,6 +184,10 @@ export function TitlePage() {
   const perms = usePerms();
   const [params, setParams] = useSearchParams();
   const d = q.data;
+  const target: Target = { kind: d?.kind === "series" ? "series" : "movie", name: d?.name ?? `Title ${id}`, year: d?.year ?? undefined, poster: d?.poster ?? undefined, title_id: Number(id), tmdb_id: d?.tmdb_id ?? undefined, anime: !!d?.anime };
+  const current = currentLibraries((d?.versions ?? []) as Version[]);
+  // A hook, so it runs before the early returns.
+  const action = usePrimaryAction({ target, has: current.length > 0, held: current.map((v) => v.key ?? "") });
   useEffect(() => {
     if (d?.name) document.title = `${titleWithYear(d.name, d.year)} · ${PRODUCT_NAME}`;
   }, [d?.name, d?.year]);
@@ -222,10 +223,6 @@ export function TitlePage() {
     lang ? <span key="l">{lang}</span> : null,
   ].filter(Boolean);
   const audio = [...new Set(versions.flatMap((v) => (v.has_file ? (v.current?.languages ?? []) : [])))];
-  const target: Target = { kind: series ? "series" : "movie", name: d.name ?? `Title ${id}`, year: d.year ?? undefined, poster: d.poster ?? undefined, title_id: Number(id), tmdb_id: d.tmdb_id ?? undefined, anime: !!d.anime };
-  const has = versions.length > 0;
-  const held = versions.map((v) => v.key ?? "");
-  const action = perms.add || perms.request;
 
   return (
     <div className={cn("relative isolate", action && "max-md:pb-16")}>
@@ -246,7 +243,7 @@ export function TitlePage() {
               {nameWithoutYear(d.name, d.year)}
               {d.year ? <span className="ml-2 text-base font-normal text-muted-foreground sm:text-2xl">({d.year})</span> : null}
             </h1>
-            <PrimaryAction target={target} has={has} held={held} className="max-md:hidden" />
+            {action?.("max-md:hidden")}
           </div>
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
             {attrs.map((a, i) => (
@@ -326,7 +323,7 @@ export function TitlePage() {
       {/* Phones: the primary action stays reachable above the bottom tabs. */}
       {action ? (
         <div className="fixed inset-x-0 bottom-[calc(3.75rem+env(safe-area-inset-bottom))] pointer-events-none z-30 flex justify-center px-4 pb-2 md:hidden" data-testid="title-sticky-action">
-          <PrimaryAction target={target} has={has} held={held} className="pointer-events-auto w-full max-w-md shadow-lg" />
+          {action("pointer-events-auto w-full max-w-md shadow-lg")}
         </div>
       ) : null}
     </div>

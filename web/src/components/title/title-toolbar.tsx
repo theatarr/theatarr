@@ -153,7 +153,9 @@ export function TitleToolbar({ titleId, name, year, kind, poster, anime, version
 
   const more: { id: string; label: string; icon: typeof Search; run: () => void; disabled?: boolean; tip?: string }[] = [];
   if (titlePage) {
-    if (perms.admin) more.push({ id: "title-rename", label: "Rename files", icon: PencilLine, run: () => setDialog("rename"), tip: "Show what would be renamed" });
+    // Only with a file to rename: a current library's, or a leftover link of a removed one.
+    const files = versions.some((v) => v.has_file) || removed.some((v) => (v.links ?? []).some((l) => l.state === "active"));
+    if (perms.admin && files) more.push({ id: "title-rename", label: "Rename files", icon: PencilLine, run: () => setDialog("rename"), tip: "Show what would be renamed" });
     if (perms.seeFiles && onHistory) more.push({ id: "title-history", label: "History", icon: HistoryIcon, run: onHistory });
     if (perms.manage) more.push({ id: "title-refresh", label: refresh.isSuccess ? "Queued" : "Refresh metadata", icon: RefreshCw, run: () => refresh.mutate(), disabled: refresh.isPending, tip: "Fetch the TMDb metadata and art again" });
     if (perms.manage && versions.length > 0) more.push({ id: "title-remove", label: "Remove title", icon: Trash2, run: () => setDialog("remove") });
@@ -162,19 +164,21 @@ export function TitleToolbar({ titleId, name, year, kind, poster, anime, version
   return (
     <div className="space-y-2" data-testid="title-toolbar">
       <div className="flex flex-wrap items-center gap-2">
-        {o && perms.manage ? (
-          <Button size="sm" variant="outline" className={cn("max-md:h-9", !searchable.length && "disabled:pointer-events-auto disabled:cursor-not-allowed")} onClick={runSearch} disabled={searchNow.isPending || !searchable.length} title={searchable.length ? searchTip : searchOff} data-testid="title-search-now">
+        {/* Shown disabled while the add options load, so the bar does not shift when they arrive. */}
+        {perms.manage && (o || opts.isPending) ? (
+          <Button size="sm" variant="outline" className={cn("max-md:h-9", o && !searchable.length && "disabled:pointer-events-auto disabled:cursor-not-allowed")} onClick={runSearch} disabled={!o || searchNow.isPending || !searchable.length} title={!o ? undefined : searchable.length ? searchTip : searchOff} data-testid="title-search-now">
             {searchNow.isPending ? <Loader2 className="animate-spin" /> : <Search />} Search now
           </Button>
         ) : null}
-        {live ? (
+        {/* The Last search page offers it per library, in the panel. */}
+        {live && titlePage ? (
           <Button size="sm" variant="outline" className="max-md:h-9" onClick={() => setDialog("interactive")} title="Search now and choose the release yourself" data-testid="interactive-search-open">
             <UserSearch /> Interactive search
           </Button>
         ) : null}
-        {!titlePage && perms.add ? (
-          <Button size="sm" variant="outline" onClick={() => openAdd(target)} disabled={inEveryLibrary(o)} data-testid="title-add-versions">
-            {inEveryLibrary(o) ? "In every library" : <><Plus /> Add to another library</>}
+        {!titlePage && perms.add && o && !inEveryLibrary(o) ? (
+          <Button size="sm" variant="outline" onClick={() => openAdd(target)} data-testid="title-add-versions">
+            <Plus /> Add to another library
           </Button>
         ) : null}
         {more.length && wide
