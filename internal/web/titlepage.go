@@ -4,7 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -13,6 +15,7 @@ import (
 	"github.com/theatarr/theatarr/internal/availability"
 	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/journal/snapshot"
+	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/router"
 	"github.com/theatarr/theatarr/internal/store"
 )
@@ -75,6 +78,9 @@ type HistoryEvent struct {
 	// Theatarr's grabbed and failed events: the provider, and a failure's short reason.
 	Provider string `json:"provider,omitempty"`
 	Reason   string `json:"reason,omitempty"`
+	// MissedOn (a failed event that was a miss on every provider): the cache codes (rd, ad, tb) of the providers the
+	// release was not cached on, as provider_cache holds them now.
+	MissedOn []string `json:"missed_on,omitempty"`
 	// Searched events: the search's results and accepted releases, what it grabbed in one line (searchSummary;
 	// InfoHash is then the first release it grabbed) and Latest when its results are the ones the releases view
 	// shows (the version's newest decision).
@@ -100,7 +106,8 @@ func downloadEvents(out []HistoryEvent, h HistoryEvent, state string, created, d
 		h.Source = "theatarr via " + h.Source
 	}
 	h.Trigger = grabWords(source, run)
-	h.Event, h.Date = "grabbed", ts(created)
+	missed := h.MissedOn
+	h.Event, h.Date, h.MissedOn = "grabbed", ts(created), nil
 	out = append(out, h)
 	switch state {
 	case "imported":
@@ -110,7 +117,7 @@ func downloadEvents(out []HistoryEvent, h HistoryEvent, state string, created, d
 		if r := activity.NotStarted(errText); notStarted && r != "" {
 			h.Event, h.Date, h.Reason = "not_started", ts(done), activity.NotStartedHistory(r)
 		} else {
-			h.Event, h.Date, h.Reason = "failed", ts(done), shortReason(errText, h.Provider)
+			h.Event, h.Date, h.Reason, h.MissedOn = "failed", ts(done), shortReason(errText, h.Provider), missed
 		}
 		out = append(out, h)
 	}
@@ -125,6 +132,10 @@ type EpisodeCounts struct {
 	// library (0 in one that is not monitored).
 	Have    int `json:"have"`
 	Missing int `json:"missing"`
+	// Monitored: the episodes of Total the library monitors (episode monitoring, whatever the library's);
+	// MonitoredHave: those of them with a file. For callers who see files.
+	Monitored     int `json:"monitored,omitempty"`
+	MonitoredHave int `json:"monitored_have,omitempty"`
 	// watchMissing is Missing whatever the library's monitoring: what a caller without "see files" gets (redactVersion).
 	watchMissing int
 }
@@ -248,7 +259,14 @@ func (w *Web) enrichTitle(ctx context.Context, d *TitleDetail) error {
 		if err := w.fillVersionAcquisition(ctx, db, d); err != nil {
 			return err
 		}
+		for i := range d.Versions {
+			v := &d.Versions[i]
+			if v.LastSearch, v.Searching, err = w.searchFacts(ctx, db, v.ID, d.ID, v.Key, nil); err != nil {
+				return err
+			}
+		}
 	}
+	d.AutoSearch = w.autoSearch()
 	return w.titleFranchises(ctx, db, d)
 }
 
@@ -348,16 +366,26 @@ func (w *Web) versionHistory(ctx context.Context, db *sql.DB, titleID int64, kin
 	}
 	runDLs := map[int64][]runDownload{}
 	err = scanAll(ctx, db, `SELECT version_id, state, created_at, COALESCE(imported_at, updated_at), release_title,
-		info_hash, COALESCE(provider, ''), quality, score, source, COALESCE(error, ''), `+notStartedCol+`
+		info_hash, COALESCE(provider, ''), quality, score, source, COALESCE(error, ''), `+notStartedCol+`,
+		CASE WHEN state = 'failed' AND COALESCE(error, '') GLOB 'miss on every provider*' THEN (SELECT
+			json_group_array(c.provider) FROM provider_cache c WHERE c.info_hash = lower(download.info_hash)
+			AND c.state = 'miss') END
 		FROM download WHERE title_id = ? ORDER BY created_at, id`,
 		[]any{titleID}, func(r *sql.Rows) error {
 			var vid, created, done, score int64
 			var state, source, errText string
 			var notStarted bool
+			var missed sql.NullString
 			var h HistoryEvent
 			if err := r.Scan(&vid, &state, &created, &done, &h.ReleaseTitle, &h.InfoHash, &h.Source, &h.Quality,
-				&score, &source, &errText, &notStarted); err != nil {
+				&score, &source, &errText, &notStarted, &missed); err != nil {
 				return err
+			}
+			if missed.Valid {
+				var provs []string
+				_ = json.Unmarshal([]byte(missed.String), &provs)
+				slices.Sort(provs)
+				h.MissedOn = w.cacheCodes(provs)
 			}
 			v := byID[vid]
 			if v == nil {
@@ -467,6 +495,80 @@ func (w *Web) versionHistory(ctx context.Context, db *sql.DB, titleID int64, kin
 	return nil
 }
 
+// LastSearch is a library's last targeted search (an acquire run: automatic, Search now, or after a failure; RSS reads
+// are not searches): when, what it found and the run's state. For callers who see files.
+type LastSearch struct {
+	At       time.Time `json:"at"`
+	RunID    int64     `json:"run_id"`
+	State    string    `json:"state"`
+	Results  int       `json:"results"`
+	Accepted int       `json:"accepted"`
+}
+
+// AutoSearch is whether Theatarr searches by itself (router.wanted): for missing items, for upgrades, and whether
+// anything is searched or grabbed at all (router.enabled: off while Pause is on). For callers who see files.
+type AutoSearch struct {
+	Missing  bool `json:"missing"`
+	Upgrades bool `json:"upgrades"`
+	Enabled  bool `json:"enabled"`
+}
+
+func (w *Web) autoSearch() *AutoSearch {
+	if w.pol == nil {
+		return nil
+	}
+	s := w.pol.WantedSettings()
+	return &AutoSearch{Missing: s.Missing, Upgrades: s.CutoffUnmet != policy.CutoffOff, Enabled: w.pol.RouterSettings().Enabled}
+}
+
+// searchFacts reads a library's last targeted search (nil: never) and whether a search of it is under way: "searching"
+// (a run is searching), "queued" (a run waits for its turn, or Search now made it due); "" for none. A run older than
+// an hour that never finished does not count, as acquire's busySet. season limits both to one season's searches (the
+// key Wanted and the schedule use; an episode window).
+func (w *Web) searchFacts(ctx context.Context, db *sql.DB, versionID, titleID int64, key string, season *int64) (*LastSearch,
+	string, error) {
+	cond, args := "", []any{versionID}
+	if season != nil {
+		cond, args = " AND COALESCE(season, -1) = ?", append(args, *season)
+	}
+	var l LastSearch
+	var at int64
+	err := db.QueryRowContext(ctx, `SELECT id, created_at, state, results, accepted FROM acquire_run WHERE version_id = ?`+
+		cond+` ORDER BY created_at DESC, id DESC LIMIT 1`, args...).Scan(&l.RunID, &at, &l.State, &l.Results, &l.Accepted)
+	var last *LastSearch
+	switch {
+	case err == nil:
+		l.At = ts(at)
+		last = &l
+	case !errors.Is(err, sql.ErrNoRows):
+		return nil, "", err
+	}
+	var state string
+	err = db.QueryRowContext(ctx, `SELECT state FROM acquire_run WHERE version_id = ?`+cond+`
+		AND state IN ('queued', 'searching') AND created_at > ? ORDER BY state = 'searching' DESC, id DESC LIMIT 1`,
+		append(args, store.Millis(w.now().Add(-time.Hour)))...).Scan(&state)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, "", err
+	}
+	if state == "" {
+		// Search now writes its row due now with why asked; the next round starts it.
+		sargs := []any{titleID, key, store.Millis(w.now())}
+		scond := ""
+		if season != nil {
+			scond, sargs = " AND season = ?", append(sargs, *season)
+		}
+		var n int
+		if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM search_request WHERE title_id = ? AND version_key = ?
+			AND why = 'asked' AND next_at <= ?`+scond, sargs...).Scan(&n); err != nil {
+			return nil, "", err
+		}
+		if n > 0 {
+			state = "queued"
+		}
+	}
+	return last, state, nil
+}
+
 func episodeCode(season, number int64) string {
 	return fmt.Sprintf("S%02dE%02d", season, number)
 }
@@ -477,13 +579,15 @@ func (w *Web) episodeCounts(ctx context.Context, db *sql.DB, ids []any, byID map
 	return scanAll(ctx, db, `SELECT s.version_id,
 		SUM(s.state IN ('filled', 'cutoff_met') OR `+aired+`),
 		SUM(s.state IN ('filled', 'cutoff_met')),
-		SUM(s.state = 'wanted' AND s.monitored = 1 AND `+aired+`)
+		SUM(s.state = 'wanted' AND s.monitored = 1 AND `+aired+`),
+		SUM(s.monitored = 1 AND (s.state IN ('filled', 'cutoff_met') OR `+aired+`)),
+		SUM(s.monitored = 1 AND s.state IN ('filled', 'cutoff_met'))
 		FROM episode_version_state s JOIN episode e ON e.id = s.episode_id
 		WHERE s.version_id IN (`+store.Placeholders(len(ids))+`) AND e.season > 0 GROUP BY s.version_id`,
-		append(append(airedArgs, airedArgs...), ids...), func(r *sql.Rows) error {
+		append(append(append(airedArgs, airedArgs...), airedArgs...), ids...), func(r *sql.Rows) error {
 			var vid int64
 			var c EpisodeCounts
-			if err := r.Scan(&vid, &c.Total, &c.Have, &c.Missing); err != nil {
+			if err := r.Scan(&vid, &c.Total, &c.Have, &c.Missing, &c.Monitored, &c.MonitoredHave); err != nil {
 				return err
 			}
 			if v := byID[vid]; v != nil {

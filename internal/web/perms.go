@@ -166,9 +166,11 @@ func redactVersion(v *Version) {
 	v.History = nil
 	v.Upgrade = nil
 	v.Acquisition = nil
+	v.LastSearch, v.Searching = nil, ""
 	// Watchability: an aired episode no library holds is missing whatever the library's monitoring.
 	if v.Episodes != nil {
 		v.Episodes.Missing = v.Episodes.watchMissing
+		v.Episodes.Monitored, v.Episodes.MonitoredHave = 0, 0
 	}
 	redactControl(v.Control)
 }
@@ -178,6 +180,7 @@ func redactTitle(d *TitleDetail) {
 	redactRowWith(&d.TitleRow, liveStates(d.Versions))
 	// On the title page added_at is the newest current file's time (enrichTitle), a file fact.
 	d.AddedAt = nil
+	d.AutoSearch = nil
 	d.Registry = []RegistryEntry{}
 	for i := range d.Versions {
 		redactVersion(&d.Versions[i])

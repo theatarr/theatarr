@@ -379,6 +379,10 @@ type Version struct {
 	// acquisition does not search, because the library's anime rule does not fit the series (its anime flag, or its
 	// type anime; acquire's targets).
 	AnimeSkip bool `json:"anime_skip,omitempty"`
+	// LastSearch and Searching (title page, see files): the library's last targeted search (absent: never) and a
+	// search under way, "queued" or "searching" (searchFacts).
+	LastSearch *LastSearch `json:"last_search,omitempty"`
+	Searching  string      `json:"searching,omitempty"`
 	// Removed (title page): the version was removed from the library (arrview_removed_version); its rows and links
 	// stay. It counts in none of the title's rollups (availability, size, added).
 	Removed bool `json:"removed,omitempty"`
@@ -430,6 +434,8 @@ type TitleDetail struct {
 	Franchises []FranchiseRef `json:"franchises,omitempty"`
 	// SeriesType is a series' type in force (store.SeriesType: standard, daily or anime); empty for a movie.
 	SeriesType string `json:"series_type,omitempty"`
+	// AutoSearch says whether Theatarr searches by itself (titlepage.go); for callers who see files.
+	AutoSearch *AutoSearch `json:"auto_search,omitempty"`
 }
 
 func (w *Web) getTitle(ctx context.Context, id int64) (*TitleDetail, error) {

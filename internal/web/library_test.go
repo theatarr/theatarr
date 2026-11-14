@@ -460,7 +460,7 @@ func TestAiredWithoutInstantOrDate(t *testing.T) {
 	e.exec(`DELETE FROM version_file_episode WHERE episode_id = 44`)
 	var d TitleDetail
 	if e.getKey(APIBase+"/titles/4", key, &d); d.Versions[0].Episodes == nil ||
-		*d.Versions[0].Episodes != (EpisodeCounts{Total: 4, Have: 2, Missing: 2}) {
+		*d.Versions[0].Episodes != (EpisodeCounts{Total: 4, Have: 2, Missing: 2, Monitored: 4, MonitoredHave: 2}) {
 		t.Errorf("title page counts: %+v", d.Versions[0].Episodes)
 	}
 	var page TitlePage
@@ -624,7 +624,7 @@ func TestTitlePage(t *testing.T) {
 		t.Errorf("web version: %+v; availability %q", d.Versions[1], d.Availability)
 	}
 	d = TitleDetail{}
-	if e.getKey(APIBase+"/titles/4", key, &d); d.Versions[0].Episodes == nil || *d.Versions[0].Episodes != (EpisodeCounts{Total: 3, Have: 2, Missing: 1}) {
+	if e.getKey(APIBase+"/titles/4", key, &d); d.Versions[0].Episodes == nil || *d.Versions[0].Episodes != (EpisodeCounts{Total: 3, Have: 2, Missing: 1, Monitored: 3, MonitoredHave: 2}) {
 		// S02E01 has not aired and is not held: "2 of 3 episodes ready", as the episode list counts.
 		t.Errorf("Delta episodes: %+v", d.Versions[0].Episodes)
 	}
@@ -634,6 +634,86 @@ func TestTitlePage(t *testing.T) {
 	d = TitleDetail{}
 	if e.getKey(APIBase+"/titles/9", key, &d); len(d.Franchises) != 1 || d.Franchises[0].Slug != "mushoku-tensei" {
 		t.Errorf("franchises: %+v", d.Franchises)
+	}
+}
+
+// The title page's facts for "why and what next" (J5): a failed miss names the providers it missed on, each library
+// carries its last targeted search (or none) and a search under way, the title whether Theatarr searches by itself,
+// and a series library its monitored counts; a caller without see_files gets none of them.
+func TestTitlePageSearchFacts(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	e.seedLibrary()
+	key := e.apiKey()
+	now := store.Millis(testNow)
+	miss := strings.Repeat("7", 40)
+	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, provider,
+		state, error, source, created_at, updated_at) VALUES (85, 1, 1, 'movie-remux', ?, 'Alpha.2020.Remux-NEW', 'dmm',
+		'rd', 'failed', 'miss on every provider', 'rss', ?, ?)`, strings.ToUpper(miss), now-300, now-200)
+	e.exec(`INSERT INTO download_attempt (download_id, provider, outcome, code, message, attempted_at) VALUES
+		(85, 'rd', 'refused', 'miss', 'not cached', ?)`, now-200)
+	e.exec(`INSERT INTO provider_cache (info_hash, provider, state, source, checked_at) VALUES (?, 'rd', 'miss', 'miss', ?)`,
+		miss, now-200)
+	e.exec(`INSERT INTO acquire_run (id, source, title_id, version_id, version_key, target, state, results, accepted,
+		message, created_at, updated_at) VALUES (51, 'wanted', 1, 2, 'movie-web', 'movie', 'nothing', 12, 0, '', ?, ?),
+		(52, 'command', 1, 2, 'movie-web', 'movie', 'queued', 0, 0, '', ?, ?)`, now-7200, now-7200, now-60, now-60)
+	var d TitleDetail
+	if code := e.getKey(APIBase+"/titles/1", key, &d); code != 200 {
+		t.Fatalf("title: %d", code)
+	}
+	var failed *HistoryEvent
+	for i, h := range d.Versions[0].History {
+		if h.Event == "failed" {
+			failed = &d.Versions[0].History[i]
+		}
+		if h.Event == "grabbed" && len(h.MissedOn) > 0 {
+			t.Errorf("a grabbed event carries missed_on: %+v", h)
+		}
+	}
+	if failed == nil || strings.Join(failed.MissedOn, ",") != "rd" {
+		t.Errorf("failed miss: %+v", failed)
+	}
+	if v := d.Versions[0]; v.LastSearch != nil || v.Searching != "" {
+		t.Errorf("remux was never searched: %+v %q", v.LastSearch, v.Searching)
+	}
+	if v := d.Versions[1]; v.LastSearch == nil || v.LastSearch.RunID != 52 || v.Searching != "queued" {
+		t.Errorf("web: %+v %q", v.LastSearch, v.Searching)
+	}
+	if a := d.AutoSearch; a == nil || !a.Missing {
+		t.Errorf("auto search: %+v", a)
+	}
+	// A run left queued for more than an hour is not under way; the last search is still the newest run.
+	e.exec(`UPDATE acquire_run SET created_at = ? WHERE id = 52`, now-2*3600*1000)
+	d = TitleDetail{}
+	if e.getKey(APIBase+"/titles/1", key, &d); d.Versions[1].Searching != "" || d.Versions[1].LastSearch.RunID != 51 {
+		t.Errorf("stale queued run: %+v %q", d.Versions[1].LastSearch, d.Versions[1].Searching)
+	}
+	// Search now's due row is a queued search.
+	e.exec(`INSERT INTO search_request (title_id, version_key, reason, season, created_at, next_at, tries, why) VALUES
+		(1, 'movie-remux', 'missing', -1, ?, ?, 0, 'asked')`, now-10, now-10)
+	d = TitleDetail{}
+	if e.getKey(APIBase+"/titles/1", key, &d); d.Versions[0].Searching != "queued" {
+		t.Errorf("asked row: %q", d.Versions[0].Searching)
+	}
+	// Episode monitoring: S01E03 unmonitored leaves 2 of 2 monitored held; Have and Missing keep their rules.
+	e.exec(`UPDATE episode_version_state SET monitored = 0 WHERE episode_id = 43`)
+	d = TitleDetail{}
+	if e.getKey(APIBase+"/titles/4", key, &d); *d.Versions[0].Episodes != (EpisodeCounts{Total: 3, Have: 2, Missing: 0,
+		Monitored: 2, MonitoredHave: 2}) {
+		t.Errorf("Delta counts: %+v", d.Versions[0].Episodes)
+	}
+
+	mux := e.userMux()
+	for _, p := range []string{"/titles/1", "/titles/4", "/titles/4/episodes/43"} {
+		r := httptest.NewRequest("GET", APIBase+p, nil)
+		r.Header.Set(auth.APIKeyHeader, key)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, r)
+		for _, f := range []string{`"last_search"`, `"searching"`, `"auto_search"`, `"missed_on"`, `"monitored_have"`} {
+			if strings.Contains(rec.Body.String(), f) {
+				t.Errorf("%s shows %s to a caller without see_files", p, f)
+			}
+		}
 	}
 }
 

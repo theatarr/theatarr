@@ -761,7 +761,10 @@ func (w *Web) searchScoped(rw http.ResponseWriter, r *http.Request, season *int)
 			return
 		}
 		sel.EpisodeIDs = req.EpisodeIDs
-		scope = fmt.Sprintf("%d episode(s)", len(req.EpisodeIDs))
+		scope = fmt.Sprintf("%d episodes", len(req.EpisodeIDs))
+		if len(req.EpisodeIDs) == 1 {
+			scope = "1 episode"
+		}
 	}
 	on, err := w.versionsOn(ctx, t.id)
 	if err != nil {
@@ -806,7 +809,7 @@ func (w *Web) searchScoped(rw http.ResponseWriter, r *http.Request, season *int)
 		if queued == 0 {
 			out.Message = "Nothing to search: no monitored episode in " + scope
 		} else {
-			out.Message = fmt.Sprintf("Searching %s (%d search(es)) for %s", scope, queued, strings.Join(active, ", "))
+			out.Message = fmt.Sprintf("Searching %s in %s", scope, w.labelList(active))
 		}
 		if len(skipped) > 0 {
 			out.Message += "; not searched: " + skipWords(skipped)
@@ -858,6 +861,10 @@ type EpisodeVersionDetail struct {
 	File    *EpisodeFile     `json:"file,omitempty"`
 	History []HistoryEvent   `json:"history,omitzero"`
 	Journal []*journal.Entry `json:"journal,omitempty"`
+	// LastSearch and Searching: the library's last targeted search of the episode's season (absent: never) and a
+	// search of it under way (searchFacts). For callers who see files.
+	LastSearch *LastSearch `json:"last_search,omitempty"`
+	Searching  string      `json:"searching,omitempty"`
 }
 
 // EpisodeDetail is the answer of GET titles/{id}/episodes/{eid}.
@@ -866,6 +873,8 @@ type EpisodeDetail struct {
 	TitleName string                 `json:"title_name"`
 	Episode   Episode                `json:"episode"`
 	Versions  []EpisodeVersionDetail `json:"versions"`
+	// AutoSearch says whether Theatarr searches by itself (titlepage.go); for callers who see files.
+	AutoSearch *AutoSearch `json:"auto_search,omitempty"`
 }
 
 // episodeJournalLimit caps the journal entries listed per version of an episode.
@@ -910,6 +919,9 @@ func (w *Web) apiEpisode(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	out := EpisodeDetail{TitleID: t.id, TitleName: t.name, Versions: []EpisodeVersionDetail{}}
+	if seeFiles {
+		out.AutoSearch = w.autoSearch()
+	}
 	for _, e := range list.Episodes {
 		if e.ID == eid {
 			out.Episode = e
@@ -960,6 +972,11 @@ func (w *Web) apiEpisode(rw http.ResponseWriter, r *http.Request) {
 		}
 		if seeFiles {
 			if d.History, err = w.episodeHistory(ctx, db, t.id, v.id, eid); err != nil {
+				w.internal(rw, err)
+				return
+			}
+			s := int64(season)
+			if d.LastSearch, d.Searching, err = w.searchFacts(ctx, db, v.id, t.id, v.key, &s); err != nil {
 				w.internal(rw, err)
 				return
 			}

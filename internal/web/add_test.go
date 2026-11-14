@@ -428,6 +428,11 @@ func TestAddNeverSearchesShadow(t *testing.T) {
 	if !res.Search.Started || len(res.Search.Skipped) != 1 || res.Search.Skipped[0].Version != "movie-remux" {
 		t.Errorf("active outcome: %+v", res.Search)
 	}
+	// The message names the libraries for people, without keys or "item(s)".
+	web, remux := e.web.versionLabel("movie-web"), e.web.versionLabel("movie-remux")
+	if want := "Searching " + web + "; not searched: " + remux; res.Search.Message != want {
+		t.Errorf("message %q, want %q", res.Search.Message, want)
+	}
 	// Search now on Alpha (movie-remux only, shadow): nothing; naming a version it lacks is refused.
 	e.call("POST", APIBase+"/titles/1/search", map[string]any{}, 200, &so)
 	if so.Started || len(searchCalls(e)) != 1 {
@@ -663,10 +668,23 @@ func TestAddOptions(t *testing.T) {
 		t.Errorf("in-library movie: %+v", o)
 	}
 	for _, v := range o.Versions {
-		if v.On != (v.Key == "movie-remux") {
+		if v.On != (v.Key == "movie-remux") || v.Held != v.On {
 			t.Errorf("on: %+v", v)
 		}
+		// What each library fetches: its profile and the cutoff it upgrades to.
+		if pr := e.web.pol.Profiles[e.web.pol.Versions[v.Key].Profile]; pr == nil || v.Profile == "" || v.Cutoff != pr.Cutoff {
+			t.Errorf("profile of %s: %+v", v.Key, v)
+		}
 	}
+	// A library the title is in but does not monitor is held, not on: the add monitors it again.
+	e.exec(`UPDATE version SET monitored = 0 WHERE id = 1`)
+	e.call("GET", APIBase+"/add/options?kind=movie&tmdb_id=101", nil, 200, &o)
+	for _, v := range o.Versions {
+		if v.On || v.Held != (v.Key == "movie-remux") {
+			t.Errorf("held: %+v", v)
+		}
+	}
+	e.exec(`UPDATE version SET monitored = 1 WHERE id = 1`)
 	e.call("GET", APIBase+"/add/options?title_id=10", nil, 200, &o)
 	if o.Kind != "series" || !o.EpisodesKnown || len(o.Seasons) != 3 || *o.Seasons[0].Monitored || !*o.Seasons[1].Monitored ||
 		o.CanSearch {

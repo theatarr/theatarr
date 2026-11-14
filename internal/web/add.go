@@ -96,8 +96,15 @@ type VersionOption struct {
 	// Fits: the version takes this title (kind and anime). Default: an add asks for it unless unticked.
 	Fits    bool `json:"fits"`
 	Default bool `json:"default"`
-	// On: the title already has the version, monitored.
-	On bool `json:"on"`
+	// On: the title already has the version, monitored. Held: the title has the version (not removed), monitored or
+	// not; Held without On is a library the add turns monitoring back on in.
+	On   bool `json:"on"`
+	Held bool `json:"held,omitempty"`
+	// What the library fetches: its profile's key, the cutoff quality it upgrades to (the preferred quality) and
+	// whether it upgrades at all.
+	Profile  string `json:"profile,omitempty"`
+	Cutoff   string `json:"cutoff,omitempty"`
+	Upgrades bool   `json:"upgrades,omitempty"`
 	// OpenSeasons (a series the title has with this version on): its seasons, specials aside, that the version does
 	// not fully monitor. A request can still ask for them ("Request more seasons").
 	OpenSeasons []int `json:"open_seasons,omitempty"`
@@ -180,18 +187,27 @@ func (w *Web) findTitle(ctx context.Context, id int64, kind policy.Kind, tmdbID 
 
 // versionsOn is the title's monitored versions that are not removed from the views.
 func (w *Web) versionsOn(ctx context.Context, titleID int64) ([]string, error) {
-	var out []string
-	err := scanAll(ctx, w.st.Reader(), `SELECT v.policy_key FROM version v WHERE v.title_id = ? AND v.monitored = 1
+	on, _, err := w.versionsHeld(ctx, titleID)
+	return on, err
+}
+
+// versionsHeld is versionsOn (on), and every version of the title not removed, monitored or not (held).
+func (w *Web) versionsHeld(ctx context.Context, titleID int64) (on, held []string, err error) {
+	err = scanAll(ctx, w.st.Reader(), `SELECT v.policy_key, v.monitored FROM version v WHERE v.title_id = ?
 		AND NOT EXISTS (SELECT 1 FROM arrview_removed_version r WHERE r.version_id = v.id) ORDER BY v.policy_key`,
 		[]any{titleID}, func(r *sql.Rows) error {
 			var k string
-			if err := r.Scan(&k); err != nil {
+			var m bool
+			if err := r.Scan(&k, &m); err != nil {
 				return err
 			}
-			out = append(out, k)
+			held = append(held, k)
+			if m {
+				on = append(on, k)
+			}
 			return nil
 		})
-	return out, err
+	return on, held, err
 }
 
 // GET /add/options?kind=&anime=&tmdb_id=&title_id=: the versions an add offers (fitting ones ticked), whether a
@@ -212,14 +228,14 @@ func (w *Web) apiAddOptions(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	anime, _ := strconv.ParseBool(q.Get("anime"))
-	var on []string
+	var on, held []string
 	if t != nil {
 		kind = t.kind
 		// A title every copy of which was removed is added like a new one: the anime choice the sheet sends decides.
 		if t.anime && (t.inLib || q.Get("anime") == "") {
 			anime = true
 		}
-		if on, err = w.versionsOn(ctx, t.id); err != nil {
+		if on, held, err = w.versionsHeld(ctx, t.id); err != nil {
 			w.internal(rw, err)
 			return
 		}
@@ -265,7 +281,10 @@ func (w *Web) apiAddOptions(rw http.ResponseWriter, r *http.Request) {
 		}
 		o := VersionOption{GrabState: versionGrabState(w.pol, k), OpenSeasons: open, Key: k, Kind: string(vp.Kind), Label: names[k], Anime: vp.Anime, Mode: string(vp.Mode),
 			Enable: vp.Enable,
-			Fits:   catalog.Fits(vp, kind, anime), On: slices.Contains(on, k)}
+			Fits:   catalog.Fits(vp, kind, anime), On: slices.Contains(on, k), Held: slices.Contains(held, k)}
+		if pr := w.pol.Profiles[vp.Profile]; pr != nil {
+			o.Profile, o.Cutoff, o.Upgrades = vp.Profile, pr.Cutoff, pr.Upgrades == nil || *pr.Upgrades
+		}
 		if o.Mode == "" {
 			o.Mode = string(policy.ModeShadow)
 		}
@@ -705,6 +724,19 @@ func (w *Web) addTitle(ctx context.Context, req AddRequest, source string) (*Add
 
 var errNoFit = errors.New("no library fits")
 
+// labelList names libraries for people: "4K Remux and 4K WEB", "4K, 4K WEB and Anime movies".
+func (w *Web) labelList(keys []string) string {
+	labels := w.keyLabels(keys)
+	names := make([]string, len(keys))
+	for i, k := range keys {
+		names[i] = labels[k]
+	}
+	if len(names) < 2 {
+		return strings.Join(names, "")
+	}
+	return strings.Join(names[:len(names)-1], ", ") + " and " + names[len(names)-1]
+}
+
 // What POST /titles takes for monitor.
 var addMonitors = []string{catalog.MonitorTypeAll, catalog.MonitorTypeFuture, catalog.MonitorTypeMissing,
 	catalog.MonitorTypeExisting, catalog.MonitorTypeFirstSeason, catalog.MonitorTypeLastSeason,
@@ -735,7 +767,7 @@ func (w *Web) searchNow(ctx context.Context, titleID int64, keys []string) (*Sea
 		}
 		var parts []string
 		for _, reason := range order {
-			parts = append(parts, reason+" ("+strings.Join(why[reason], ", ")+")")
+			parts = append(parts, reason+" ("+w.labelList(why[reason])+")")
 		}
 		out.Message = "Nothing searched: " + strings.Join(parts, "; ")
 		return out, nil
@@ -750,16 +782,16 @@ func (w *Web) searchNow(ctx context.Context, titleID int64, keys []string) (*Sea
 	}
 	out.Queued, out.Found, out.Started = queued, found, queued > 0
 	if queued == 0 {
-		out.Message = "Nothing to search: no monitored item of " + strings.Join(active, ", ")
+		out.Message = "Nothing to search: nothing monitored is wanted in " + w.labelList(active)
 	} else {
-		out.Message = fmt.Sprintf("Searching %d item(s) for %s", queued, strings.Join(active, ", "))
+		out.Message = "Searching " + w.labelList(active)
 	}
 	if len(skipped) > 0 {
 		var ks []string
 		for _, s := range skipped {
 			ks = append(ks, s.Version)
 		}
-		out.Message += "; not searched: " + strings.Join(ks, ", ")
+		out.Message += "; not searched: " + w.labelList(ks)
 	}
 	w.log.Info("search now", "title", titleID, "versions", strings.Join(active, ","), "queued", queued)
 	return out, nil
