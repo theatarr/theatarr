@@ -182,12 +182,6 @@ type MetadataOptions struct {
 	Now  func() time.Time
 }
 
-// liveTitle is the condition that title t is in the library: a version not removed (arrview_removed_version), or
-// none yet. The
-// metadata job does not fetch a title every copy of which was removed, so it is not counted.
-const liveTitle = `(NOT EXISTS (SELECT 1 FROM version v WHERE v.title_id = t.id) OR EXISTS (SELECT 1 FROM version v
-	WHERE v.title_id = t.id AND NOT EXISTS (SELECT 1 FROM arrview_removed_version r WHERE r.version_id = v.id)))`
-
 // Metadata checks title metadata freshness: titles with no TMDb row an hour after they were added, rows overdue for
 // refresh by more than a day, the share of failed tries in the last day, the newest good fetch, and the TVDB refresh's
 // last run.
@@ -204,11 +198,13 @@ func Metadata(st *store.Store, o MetadataOptions) Func {
 		var titles, missing, overdue, tried, failed int
 		var newest, worstDue sql.NullInt64
 		if err := db.QueryRowContext(ctx, `SELECT
-				(SELECT COUNT(*) FROM title t WHERE `+liveTitle+`),
-				(SELECT COUNT(*) FROM title t WHERE t.created_at < ?1 AND `+liveTitle+`
+				(SELECT COUNT(*) FROM title t WHERE `+store.TitleInLibrarySQL+`),
+				(SELECT COUNT(*) FROM title t WHERE t.created_at < ?1 AND `+store.TitleInLibrarySQL+`
 					AND NOT EXISTS (SELECT 1 FROM title_meta m WHERE m.title_id = t.id)),
-				(SELECT COUNT(*) FROM title_meta WHERE refresh_after < ?2),
-				(SELECT MIN(refresh_after) FROM title_meta WHERE refresh_after < ?2),
+				(SELECT COUNT(*) FROM title_meta m JOIN title t ON t.id = m.title_id WHERE m.refresh_after < ?2
+					AND `+store.TitleInLibrarySQL+`),
+				(SELECT MIN(m.refresh_after) FROM title_meta m JOIN title t ON t.id = m.title_id
+					WHERE m.refresh_after < ?2 AND `+store.TitleInLibrarySQL+`),
 				(SELECT COUNT(*) FROM title_meta WHERE attempted_at >= ?3),
 				(SELECT COUNT(*) FROM title_meta WHERE attempted_at >= ?3 AND error <> ''),
 				(SELECT MAX(refreshed_at) FROM title_meta)`,

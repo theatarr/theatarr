@@ -233,16 +233,11 @@ func (s *Service) enqueueBatch(ctx context.Context) error {
 	return err
 }
 
-// liveTitle is the condition that title t is in the library (a version not removed, or none yet): a title every
-// copy of which was removed is not fetched again; adding it again brings it back.
-const liveTitle = `(NOT EXISTS (SELECT 1 FROM version v WHERE v.title_id = t.id) OR EXISTS (SELECT 1 FROM version v
-	WHERE v.title_id = t.id AND NOT EXISTS (SELECT 1 FROM arrview_removed_version r WHERE r.version_id = v.id)))`
-
 // missing counts titles in the library with no title_meta row.
 func (s *Service) missing(ctx context.Context) (int, error) {
 	var n int
 	err := s.st.Reader().QueryRowContext(ctx, `SELECT COUNT(*) FROM title t
-		WHERE NOT EXISTS (SELECT 1 FROM title_meta m WHERE m.title_id = t.id) AND `+liveTitle).Scan(&n)
+		WHERE NOT EXISTS (SELECT 1 FROM title_meta m WHERE m.title_id = t.id) AND `+store.TitleInLibrarySQL).Scan(&n)
 	return n, err
 }
 
@@ -299,7 +294,7 @@ func (s *Service) RunBatch(ctx context.Context) (Summary, error) {
 // overdue first).
 func (s *Service) pick(ctx context.Context) ([]int64, error) {
 	rows, err := s.st.Reader().QueryContext(ctx, `SELECT t.id FROM title t LEFT JOIN title_meta m ON m.title_id = t.id
-		WHERE (m.title_id IS NULL OR m.refresh_after <= ?) AND `+liveTitle+`
+		WHERE (m.title_id IS NULL OR m.refresh_after <= ?) AND `+store.TitleInLibrarySQL+`
 		ORDER BY m.title_id IS NOT NULL, m.refresh_after, t.id LIMIT ?`, store.Millis(s.now()), s.set.PerRun)
 	if err != nil {
 		return nil, err

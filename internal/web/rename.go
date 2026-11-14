@@ -37,8 +37,8 @@ func toRenameResponse(p *library.RenamePreview) renameResponse {
 
 func (w *Web) mountRenameAPI(mux *http.ServeMux) {
 	b := APIBase
-	w.handle(mux, "GET "+b+"/titles/{id}/rename", SignedIn, auth.PermAdmin, w.inLibraryOnly(w.apiRenamePreview))
-	w.handle(mux, "POST "+b+"/titles/{id}/rename", SignedIn, auth.PermAdmin, w.inLibraryOnly(w.apiRenameApply))
+	w.handle(mux, "GET "+b+"/titles/{id}/rename", SignedIn, auth.PermAdmin, w.apiRenamePreview)
+	w.handle(mux, "POST "+b+"/titles/{id}/rename", SignedIn, auth.PermAdmin, w.apiRenameApply)
 }
 
 func (w *Web) renameSeason(r *http.Request) (*int, error) {
@@ -67,7 +67,9 @@ func (w *Web) apiRename(rw http.ResponseWriter, r *http.Request, apply bool) {
 		return
 	}
 	var exists int
-	if err := w.st.Reader().QueryRowContext(r.Context(), `SELECT 1 FROM title WHERE id = ?`, id).Scan(&exists); errors.Is(err, sql.ErrNoRows) {
+	// A title every copy of which was removed answers as one never added.
+	if err := w.st.Reader().QueryRowContext(r.Context(), `SELECT 1 FROM title t WHERE t.id = ? AND `+inLibrary,
+		id).Scan(&exists); errors.Is(err, sql.ErrNoRows) {
 		notFound(rw)
 		return
 	} else if err != nil {

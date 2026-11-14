@@ -134,8 +134,7 @@ func ReadMovieDates(ctx context.Context, db *sql.DB, ids []any) (map[int64]Movie
 func Calendar(ctx context.Context, db *sql.DB, from, to string, unmonitored bool) ([]CalendarItem, error) {
 	var out []CalendarItem
 	// Titles in the library only, with or without unmonitored: a title every copy of which was removed is gone.
-	live := ` AND (NOT EXISTS (SELECT 1 FROM version v WHERE v.title_id = t.id) OR EXISTS (SELECT 1 FROM version v
-		WHERE v.title_id = t.id AND NOT EXISTS (SELECT 1 FROM arrview_removed_version r WHERE r.version_id = v.id)))`
+	live := ` AND ` + store.TitleInLibrarySQL
 	mon := live + ` AND t.monitored = 1 AND EXISTS (SELECT 1 FROM version v WHERE v.title_id = t.id AND v.monitored = 1)`
 	if unmonitored {
 		mon = live

@@ -149,7 +149,8 @@ func TestMetadata(t *testing.T) {
 	if r.Type != Warning || !strings.Contains(r.Message, "3 of 3 TMDb refreshes") || !strings.Contains(r.Message, "TVDB") {
 		t.Errorf("failing: %+v", r)
 	}
-	// Overdue rows and no good fetch for days.
+	// Overdue rows and no good fetch for days; the removed title's old row is not refreshed again, so not counted.
+	exec(t, st, `INSERT INTO title_meta (title_id, attempted_at, refresh_after) VALUES (4, 0, 0)`)
 	exec(t, st, `UPDATE title_meta SET error = '', refresh_after = ?, refreshed_at = ?, attempted_at = ?`,
 		store.Millis(t0.Add(-30*time.Hour)), old, old)
 	r = Metadata(st, MetadataOptions{TMDb: true, Now: now})(ctx)

@@ -125,6 +125,16 @@ func (w *Web) apiTitleEpisodes(rw http.ResponseWriter, r *http.Request) {
 		}
 		season = n
 	}
+	// A title every copy of which was removed answers as one never added (its open requests still read the list).
+	in, err := w.titleInLibrary(r.Context(), id)
+	if err != nil {
+		w.internal(rw, err)
+		return
+	}
+	if !in {
+		notFound(rw)
+		return
+	}
 	out, err := w.titleEpisodes(r.Context(), id, season, w.permsOf(r).SeeFiles)
 	if errors.Is(err, errNotFound) {
 		notFound(rw)
