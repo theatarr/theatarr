@@ -155,7 +155,9 @@ const HISTORY_OPTIONAL: Record<HistoryColumnId, DataColumn<ActivityEvent>> = {
 
 function HistoryActions({ e }: { e: ActivityEvent }) {
   // The journal is an admin page; managers (see files) get the row without the link.
-  const journal = adminLink(usePerms().admin, journalLink(e.id));
+  // A copy to another provider is a History row only, with no journal entry.
+  const admin = usePerms().admin;
+  const journal = e.kind === "copy" ? undefined : adminLink(admin, journalLink(e.id));
   return (
     <span className="inline-flex items-center gap-1.5">
       <HistoryRetry e={e} />
