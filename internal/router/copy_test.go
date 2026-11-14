@@ -395,7 +395,6 @@ func TestCopyDedupe(t *testing.T) {
 func TestCopyRecoversAdding(t *testing.T) {
 	t.Parallel()
 	e := newCopyEnv(t, provider.StateDownloaded, "rd", "ad")
-	e.wants(h("a"))
 	e.pr["rd"].list = []provider.Torrent{{ID: "old", Hash: h("a")}}
 	e.pr["rd"].set("old", provider.Torrent{Hash: h("a"), State: provider.StateDownloading, Status: "downloading"})
 	for _, pk := range []string{"rd", "ad"} {
@@ -455,11 +454,16 @@ func TestCopyAfterImport(t *testing.T) {
 	}
 }
 
-// An interrupted add whose torrent never landed is not added again once nothing in the library wants its hash (its
-// title was removed): the copy is skipped, and nothing is sent.
+// An interrupted add whose torrent never landed is not added again once its hash belonged to a removed copy that
+// nothing in the library wants: the copy is skipped, and nothing is sent. A copy of an entry no library references
+// (asked from the Torrents page) is added again (TestCopyRound2PauseKeepsAdding, TestCopyRecoversAdding).
 func TestCopyRecoveryDoesNotReaddARemovedTitle(t *testing.T) {
 	t.Parallel()
 	e := newCopyEnv(t, provider.StateDownloaded, "ad")
+	// The hash's only file was a link of title 1's first library, which was removed.
+	e.wants(h("a"))
+	e.exec(`INSERT INTO arrview_removed_version (version_id, view, removed_at)
+		VALUES ((SELECT MIN(id) FROM version WHERE title_id = 1), 'ui', 0)`)
 	e.exec(`INSERT INTO provider_copy (info_hash, name, provider, own_add, state, created_at, updated_at)
 		VALUES (?, 'Movie.2024.2160p.WEB-GRP', 'ad', 1, 'adding', 0, ?)`, h("a"), e.clock.UnixMilli())
 	if _, err := e.r.ResumeCopies(e.ctx); err != nil {

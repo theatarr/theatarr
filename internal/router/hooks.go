@@ -284,6 +284,18 @@ func copyWantedSQL(h string) string {
 				AND lower(c.info_hash) = ` + h + `))))`
 }
 
+// copyOfRemovedSQL is the condition that hash expression h belonged to a copy of a title that was removed: a
+// download, a link or an arr file of a removed version holds it.
+func copyOfRemovedSQL(h string) string {
+	return `(EXISTS (SELECT 1 FROM download d JOIN arrview_removed_version r ON r.version_id = d.version_id
+			WHERE lower(d.info_hash) = ` + h + `)
+		OR EXISTS (SELECT 1 FROM link l JOIN link_version lv ON lv.link_id = l.id
+			JOIN arrview_removed_version r ON r.version_id = lv.version_id WHERE ` + LinkStoredHashSQL + ` = ` + h + `)
+		OR EXISTS (SELECT 1 FROM version_file vf JOIN arrview_removed_version r ON r.version_id = vf.version_id
+			WHERE lower(vf.download_id) = ` + h + ` OR EXISTS (SELECT 1 FROM content c WHERE c.id = vf.content_id
+				AND lower(c.info_hash) = ` + h + `)))`
+}
+
 // StopRemovedCopies stops, in the removal's transaction, the queued copies to other providers (provider_copy) of
 // hashes a removal took from the library, so they are not started later or resumed at startup: each becomes
 // skipped with msg. A copy belongs to its hash and provider, not to a library, so one whose hash a current copy of

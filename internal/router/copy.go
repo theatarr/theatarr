@@ -699,8 +699,8 @@ func (r *Router) startCopy(ctx context.Context, c *copyRow) error {
 	return r.addCopy(ctx, c, pv, ad, m)
 }
 
-// CopyUnwanted is the skip of an interrupted add whose hash nothing in the library wants any more (its title was
-// removed).
+// CopyUnwanted is the skip of an interrupted add whose hash belonged to a removed copy that nothing in the library
+// wants any more.
 const CopyUnwanted = "Skipped: nothing in the library uses it any more"
 
 // copyNearLimit is the skip of an account near its torrent limit.
@@ -1029,13 +1029,15 @@ func (r *Router) recoverAdding(ctx context.Context, c *copyRow) error {
 			return r.setCopy(ctx, c, CopyChecking, "", "torrent_id = ?, own_add = 0", t.ID)
 		}
 	}
-	// The add never landed. It is tried again only while a current copy of a title still wants the hash: a removed
-	// title's copy is not added again.
-	var wanted bool
-	if err := r.st.Writer().QueryRowContext(ctx, `SELECT `+copyWantedSQL("?1"), c.hash).Scan(&wanted); err != nil {
+	// The add never landed. A removed title's copy is not added again: the hash belonged to a removed copy and no
+	// current copy of any title wants it. Any other copy (one asked for a provider entry no library references
+	// included) is tried again.
+	var unwanted bool
+	if err := r.st.Writer().QueryRowContext(ctx, `SELECT `+copyOfRemovedSQL("?1")+` AND NOT `+copyWantedSQL("?1"),
+		c.hash).Scan(&unwanted); err != nil {
 		return fmt.Errorf("router: copy to %s: %w", c.pk, err)
 	}
-	if !wanted {
+	if unwanted {
 		return r.setCopy(ctx, c, CopySkipped, CopyUnwanted, "own_add = 0")
 	}
 	return r.setCopy(ctx, c, CopyQueued, "", "own_add = 0")
