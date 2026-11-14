@@ -460,7 +460,7 @@ func TestAiredWithoutInstantOrDate(t *testing.T) {
 	e.exec(`DELETE FROM version_file_episode WHERE episode_id = 44`)
 	var d TitleDetail
 	if e.getKey(APIBase+"/titles/4", key, &d); d.Versions[0].Episodes == nil ||
-		*d.Versions[0].Episodes != (EpisodeCounts{Total: 4, Have: 2, Missing: 2, Monitored: 4, MonitoredHave: 2}) {
+		!sameCounts(*d.Versions[0].Episodes, 4, 2, 2, 4, 2) {
 		t.Errorf("title page counts: %+v", d.Versions[0].Episodes)
 	}
 	var page TitlePage
@@ -624,7 +624,7 @@ func TestTitlePage(t *testing.T) {
 		t.Errorf("web version: %+v; availability %q", d.Versions[1], d.Availability)
 	}
 	d = TitleDetail{}
-	if e.getKey(APIBase+"/titles/4", key, &d); d.Versions[0].Episodes == nil || *d.Versions[0].Episodes != (EpisodeCounts{Total: 3, Have: 2, Missing: 1, Monitored: 3, MonitoredHave: 2}) {
+	if e.getKey(APIBase+"/titles/4", key, &d); d.Versions[0].Episodes == nil || !sameCounts(*d.Versions[0].Episodes, 3, 2, 1, 3, 2) {
 		// S02E01 has not aired and is not held: "2 of 3 episodes ready", as the episode list counts.
 		t.Errorf("Delta episodes: %+v", d.Versions[0].Episodes)
 	}
@@ -682,6 +682,18 @@ func TestTitlePageSearchFacts(t *testing.T) {
 	if a := d.AutoSearch; a == nil || !a.Missing {
 		t.Errorf("auto search: %+v", a)
 	}
+	if d.Collection != nil {
+		t.Errorf("no stored collection: %+v", d.Collection)
+	}
+	// The stored collection the film is part of, for its page.
+	e.exec(`INSERT INTO title_external_id (title_id, source, external_id) VALUES (1, 'tmdb_collection', '8091')`)
+	e.exec(`INSERT INTO movie_collection (tmdb_id, name, versions, movies, updated_at) VALUES (8091, 'Alpha Collection',
+		'[]', '[]', 0)`)
+	d = TitleDetail{}
+	if e.getKey(APIBase+"/titles/1", key, &d); d.Collection == nil || d.Collection.TmdbID != 8091 ||
+		d.Collection.Name != "Alpha Collection" {
+		t.Errorf("collection: %+v", d.Collection)
+	}
 	// A run left queued for more than an hour is not under way; the last search is still the newest run.
 	e.exec(`UPDATE acquire_run SET created_at = ? WHERE id = 52`, now-2*3600*1000)
 	d = TitleDetail{}
@@ -698,8 +710,7 @@ func TestTitlePageSearchFacts(t *testing.T) {
 	// Episode monitoring: S01E03 unmonitored leaves 2 of 2 monitored held; Have and Missing keep their rules.
 	e.exec(`UPDATE episode_version_state SET monitored = 0 WHERE episode_id = 43`)
 	d = TitleDetail{}
-	if e.getKey(APIBase+"/titles/4", key, &d); *d.Versions[0].Episodes != (EpisodeCounts{Total: 3, Have: 2, Missing: 0,
-		Monitored: 2, MonitoredHave: 2}) {
+	if e.getKey(APIBase+"/titles/4", key, &d); !sameCounts(*d.Versions[0].Episodes, 3, 2, 0, 2, 2) {
 		t.Errorf("Delta counts: %+v", d.Versions[0].Episodes)
 	}
 
@@ -709,12 +720,19 @@ func TestTitlePageSearchFacts(t *testing.T) {
 		r.Header.Set(auth.APIKeyHeader, key)
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, r)
-		for _, f := range []string{`"last_search"`, `"searching"`, `"auto_search"`, `"missed_on"`, `"monitored_have"`} {
+		for _, f := range []string{`"last_search"`, `"searching"`, `"auto_search"`, `"missed_on"`, `"monitored_have"`,
+			`"collection"`} {
 			if strings.Contains(rec.Body.String(), f) {
 				t.Errorf("%s shows %s to a caller without see_files", p, f)
 			}
 		}
 	}
+}
+
+// sameCounts compares a title page's episode counts, the monitored ones included.
+func sameCounts(c EpisodeCounts, total, have, missing, monitored, monitoredHave int) bool {
+	return c.Total == total && c.Have == have && c.Missing == missing && c.Monitored != nil && *c.Monitored == monitored &&
+		c.MonitoredHave != nil && *c.MonitoredHave == monitoredHave
 }
 
 // userMux serves the same store as e with a caller who may not see files.

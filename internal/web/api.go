@@ -201,6 +201,8 @@ func (w *Web) apiTitle(rw http.ResponseWriter, r *http.Request) {
 		for i := range d.Versions {
 			redactCeiling(d.Versions[i].Upgrade)
 		}
+		// The collection's page is for managers (GET /collections/{id}).
+		d.Collection = nil
 	}
 	if !w.permsOf(r).SeeFiles {
 		redactTitle(d)

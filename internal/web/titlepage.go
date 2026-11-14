@@ -134,8 +134,8 @@ type EpisodeCounts struct {
 	Missing int `json:"missing"`
 	// Monitored: the episodes of Total the library monitors (episode monitoring, whatever the library's);
 	// MonitoredHave: those of them with a file. For callers who see files.
-	Monitored     int `json:"monitored,omitempty"`
-	MonitoredHave int `json:"monitored_have,omitempty"`
+	Monitored     *int `json:"monitored,omitempty"`
+	MonitoredHave *int `json:"monitored_have,omitempty"`
 	// watchMissing is Missing whatever the library's monitoring: what a caller without "see files" gets (redactVersion).
 	watchMissing int
 }
@@ -267,6 +267,9 @@ func (w *Web) enrichTitle(ctx context.Context, d *TitleDetail) error {
 		}
 	}
 	d.AutoSearch = w.autoSearch()
+	if err := w.titleCollection(ctx, db, d); err != nil {
+		return err
+	}
 	return w.titleFranchises(ctx, db, d)
 }
 
@@ -587,9 +590,11 @@ func (w *Web) episodeCounts(ctx context.Context, db *sql.DB, ids []any, byID map
 		append(append(append(airedArgs, airedArgs...), airedArgs...), ids...), func(r *sql.Rows) error {
 			var vid int64
 			var c EpisodeCounts
-			if err := r.Scan(&vid, &c.Total, &c.Have, &c.Missing, &c.Monitored, &c.MonitoredHave); err != nil {
+			var mon, monHave int
+			if err := r.Scan(&vid, &c.Total, &c.Have, &c.Missing, &mon, &monHave); err != nil {
 				return err
 			}
+			c.Monitored, c.MonitoredHave = &mon, &monHave
 			if v := byID[vid]; v != nil {
 				c.watchMissing = c.Missing
 				if !v.Monitored {
@@ -599,6 +604,26 @@ func (w *Web) episodeCounts(ctx context.Context, db *sql.DB, ids []any, byID map
 			}
 			return nil
 		})
+}
+
+// titleCollection sets the stored collection a movie is part of (its TMDb collection id, title_external_id
+// tmdb_collection), when one is stored.
+func (w *Web) titleCollection(ctx context.Context, db *sql.DB, d *TitleDetail) error {
+	if d.Kind != "movie" {
+		return nil
+	}
+	var c CollectionRef
+	err := db.QueryRowContext(ctx, `SELECT c.tmdb_id, c.name FROM title_external_id x
+		JOIN movie_collection c ON c.tmdb_id = CAST(x.external_id AS INTEGER)
+		WHERE x.title_id = ? AND x.source = 'tmdb_collection' AND c.name <> '' LIMIT 1`, d.ID).Scan(&c.TmdbID, &c.Name)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	d.Collection = &c
+	return nil
 }
 
 // titleFranchises lists the anime franchises that map into the title: by TVDB series for a series, by TMDb movie

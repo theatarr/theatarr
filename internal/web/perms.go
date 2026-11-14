@@ -170,7 +170,7 @@ func redactVersion(v *Version) {
 	// Watchability: an aired episode no library holds is missing whatever the library's monitoring.
 	if v.Episodes != nil {
 		v.Episodes.Missing = v.Episodes.watchMissing
-		v.Episodes.Monitored, v.Episodes.MonitoredHave = 0, 0
+		v.Episodes.Monitored, v.Episodes.MonitoredHave = nil, nil
 	}
 	redactControl(v.Control)
 }

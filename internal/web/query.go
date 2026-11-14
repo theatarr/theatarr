@@ -436,6 +436,15 @@ type TitleDetail struct {
 	SeriesType string `json:"series_type,omitempty"`
 	// AutoSearch says whether Theatarr searches by itself (titlepage.go); for callers who see files.
 	AutoSearch *AutoSearch `json:"auto_search,omitempty"`
+	// Collection is the stored TMDb collection the movie is part of (its page is /collections/{tmdb_id}); for
+	// managers, absent when it is not stored.
+	Collection *CollectionRef `json:"collection,omitempty"`
+}
+
+// CollectionRef names a collection on the title page.
+type CollectionRef struct {
+	TmdbID int64  `json:"tmdb_id"`
+	Name   string `json:"name"`
 }
 
 func (w *Web) getTitle(ctx context.Context, id int64) (*TitleDetail, error) {

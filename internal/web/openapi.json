@@ -1174,7 +1174,8 @@
               "meta": { "oneOf": [{ "$ref": "#/components/schemas/TitleMeta" }, { "type": "null" }], "description": "Null before the meta.art job first tried the title" },
               "franchises": { "type": "array", "description": "Anime franchises that map into the title (GET /anime/franchises/{slug} has the orders)", "items": { "type": "object", "required": ["slug", "name"], "properties": { "slug": { "type": "string" }, "name": { "type": "string" } } } },
               "series_type": { "type": "string", "enum": ["standard", "daily", "anime"], "description": "Series: the type in force (the stored one, else anime for an anime title, else standard)" },
-              "auto_search": { "$ref": "#/components/schemas/AutoSearch" }
+              "auto_search": { "$ref": "#/components/schemas/AutoSearch" },
+              "collection": { "type": "object", "description": "Managers only: the stored TMDb collection the movie is part of (its page: GET /collections/{tmdb_id}); absent when none is stored", "required": ["tmdb_id", "name"], "properties": { "tmdb_id": { "type": "integer" }, "name": { "type": "string" } } }
             }
           }
         ]
