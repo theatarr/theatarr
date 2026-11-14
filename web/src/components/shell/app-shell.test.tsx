@@ -63,3 +63,30 @@ it("offers Skip to content as the first stop for Tab, moving focus to the page",
   expect(document.activeElement).toBe(document.getElementById("main"));
   expect(document.getElementById("main")?.textContent).toBe("Page");
 });
+
+it("phone: tabs Home, Browse, Activity, Requests, More; More opens System only on a tap; a household account gets no Admin", async () => {
+  mockFetch([]);
+  vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener: () => {}, removeEventListener: () => {} }));
+  window.localStorage.clear();
+  const admin = { ownKeys: true, admin: true, seeFiles: true, manage: true, add: true, request: true, manageRequests: true, users: true };
+  const first = renderPage(<AppShell perms={admin}><p>Page</p></AppShell>);
+  const tabs = screen.getByRole("navigation", { name: "Tabs" });
+  expect([...tabs.querySelectorAll("[data-tab]")].map((t) => t.textContent)).toEqual(["Home", "Browse", "Activity", "Requests", "More"]);
+  expect(tabs.querySelector('[data-tab="activity"]')?.getAttribute("href")).toBe("/activity");
+  const user = userEvent.setup();
+  await user.click(screen.getByTestId("more-tab"));
+  const system = await screen.findByRole("button", { name: /System/ });
+  expect(system.getAttribute("aria-expanded")).toBe("false");
+  expect(screen.queryByRole("link", { name: "Tasks" })).toBeNull();
+  expect(screen.getByRole("link", { name: "Wanted" })).toBeTruthy();
+  await user.click(system);
+  expect(screen.getByRole("link", { name: /Tasks/ }).getAttribute("href")).toBe("/admin/system/tasks");
+  expect(screen.getByRole("link", { name: "Decision journal" }).getAttribute("href")).toBe("/admin/system/journal");
+  first.unmount();
+  window.localStorage.clear();
+  const household = { ownKeys: false, admin: false, seeFiles: false, manage: false, add: false, request: true, manageRequests: false, users: false };
+  renderPage(<AppShell perms={household}><p>Page</p></AppShell>);
+  await user.click(screen.getByTestId("more-tab"));
+  const sheet = await screen.findByRole("dialog", { name: "More" });
+  expect([...sheet.querySelectorAll("a[href]")].map((a) => a.getAttribute("href")).filter((h) => h !== "/")).toEqual(["/now-playing", "/calendar"]);
+});
