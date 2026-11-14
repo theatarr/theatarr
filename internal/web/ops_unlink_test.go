@@ -1,6 +1,7 @@
 package web
 
 import (
+	"github.com/theatarr/theatarr/internal/journal"
 	"strings"
 	"syscall"
 	"testing"
@@ -28,8 +29,13 @@ func TestRemoveUnlinkFailureIsRetryable(t *testing.T) {
 		t.Fatalf("remove: %d %+v", code, got)
 	}
 	for _, a := range o.actions() {
-		if a.Action == "unlink_file" || strings.Contains(a.Detail, "unlinked") {
+		if a.Action == "unlink_file" {
 			t.Errorf("journal claims an unlink that did not happen: %+v", a)
+		}
+		// The removal says its file stayed, and why: not "files deleted".
+		if rm := journal.ParseRemovalDetail(a.Detail); a.Action == journal.ActRemoveTitle && (rm.Files != journal.RemovalFilesKept ||
+			rm.Left != 1 || !strings.Contains(rm.Reason, "space")) {
+			t.Errorf("removal outcome %q: %+v", a.Detail, rm)
 		}
 	}
 	var scope RemovalScope

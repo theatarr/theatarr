@@ -80,7 +80,8 @@ func (w *Web) apiReleases(rw http.ResponseWriter, r *http.Request) {
 		w.internal(rw, err)
 		return
 	}
-	if t == nil {
+	// A title every copy of which was removed answers as one never added.
+	if t == nil || !t.inLib {
 		notFound(rw)
 		return
 	}
@@ -89,7 +90,9 @@ func (w *Web) apiReleases(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var have []string
-	err = scanAll(ctx, w.st.Reader(), `SELECT policy_key FROM version WHERE title_id = ? ORDER BY policy_key`,
+	// The title's current libraries: one it was removed from is not offered (refuseRemovedCopy below).
+	err = scanAll(ctx, w.st.Reader(), `SELECT v.policy_key FROM version v WHERE v.title_id = ? AND `+liveVersion+`
+		ORDER BY v.policy_key`,
 		[]any{id}, func(r *sql.Rows) error {
 			var k string
 			if err := r.Scan(&k); err != nil {
@@ -113,6 +116,9 @@ func (w *Web) apiReleases(rw http.ResponseWriter, r *http.Request) {
 	vp := w.pol.Versions[key]
 	if vp == nil || vp.Kind != t.kind {
 		badRequest(rw, "unknown library "+strconv.Quote(key)+" for this title")
+		return
+	}
+	if w.refuseRemovedCopy(rw, r, id, key) {
 		return
 	}
 	out := Releases{GrabState: versionGrabState(w.pol, key), TitleID: id, Version: key, Versions: have, Mode: string(vp.Mode), Candidates: []snapshot.Candidate{},

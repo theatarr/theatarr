@@ -788,10 +788,17 @@ func removalWords(h *journal.HistoryRow) string {
 		out = append(out, "By "+h.By+".")
 	}
 	if rm := h.Removal; rm != nil {
-		if rm.Files == journal.RemovalFilesDeleted {
+		left := ""
+		if rm.Left > 0 {
+			left = fmt.Sprintf(" (%d left in place: %s)", rm.Left, strings.TrimSuffix(rm.Reason, "."))
+		}
+		switch rm.Files {
+		case journal.RemovalFilesKept:
+			out = append(out, "Files kept"+left+".")
+		case journal.RemovalFilesDeleted:
 			out = append(out, "Files deleted.")
-		} else {
-			out = append(out, "Files kept.")
+		case journal.RemovalFilesPartial:
+			out = append(out, "Files partly deleted"+left+".")
 		}
 		if rm.Cleanup != "" {
 			out = append(out, "Debrid: "+strings.TrimSuffix(rm.Cleanup, ".")+".")

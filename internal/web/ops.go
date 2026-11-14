@@ -246,6 +246,9 @@ func (w *Web) apiGrab(rw http.ResponseWriter, r *http.Request) {
 		writeJSON(rw, http.StatusConflict, apiError{Error: "Not grabbed: " + why})
 		return
 	}
+	if w.refuseRemovedCopy(rw, r, id, req.Version) {
+		return
+	}
 	rel, ok := w.live.get(id, req.Version, hash, w.now())
 	if !ok {
 		writeJSON(rw, http.StatusNotFound, apiError{Error: "the release is not in a live search of the last 30 minutes: search again"})
@@ -442,6 +445,9 @@ func (w *Web) apiAddRelease(rw http.ResponseWriter, r *http.Request) {
 		return
 	} else if err != nil {
 		w.internal(rw, err)
+		return
+	}
+	if w.refuseRemovedCopy(rw, r, id, req.Version) {
 		return
 	}
 	if why := w.searchBlock(req.Version); why != "" && why != "The acquirer is not running" {
@@ -898,6 +904,8 @@ func (w *Web) apiRemove(rw http.ResponseWriter, r *http.Request) {
 	out := RemoveResult{Title: scope.Title, Removed: []string{}, Unlinked: []string{}, Kept: []KeptLink{},
 		Failed: []KeptLink{}}
 	now := w.now()
+	// Each removed library's action, by key: its detail gets the files' actual outcome once unlinking is done.
+	actIDs := map[string]int64{}
 	err = w.st.WriteTx(ctx, func(tx *sql.Tx) error {
 		if len(keys) == 0 {
 			return nil // only the links of copies removed before (Leftover)
@@ -907,17 +915,19 @@ func (w *Web) apiRemove(rw http.ResponseWriter, r *http.Request) {
 			return err
 		}
 		// Each link moved to the trash gets its own unlink_file entry once it has moved; History reads the files'
-		// fate from the detail (journal.Removal).
+		// fate from the detail (journal.Removal): kept now, or with unlink unknown until the links are done (below).
 		rm := journal.Removal{Files: journal.RemovalFilesKept}
 		if req.Unlink {
-			rm.Files = journal.RemovalFilesDeleted
+			rm.Files = ""
 		}
 		detail := journal.RemovalDetail(rm)
 		for _, k := range out.Removed {
-			if _, err := journal.RecordAction(ctx, tx, journal.Action{Action: act, TitleID: id, Version: k,
-				Target: scope.Name, Detail: detail, By: by, At: now}); err != nil {
+			aid, err := journal.RecordAction(ctx, tx, journal.Action{Action: act, TitleID: id, Version: k,
+				Target: scope.Name, Detail: detail, By: by, At: now})
+			if err != nil {
 				return err
 			}
+			actIDs[k] = aid
 		}
 		// Downloads in hand of the removed copies end in our records, in the same transaction: an
 		// import running now cannot commit a link after it (it takes its links back), so the enumeration below
@@ -943,18 +953,23 @@ func (w *Web) apiRemove(rw http.ResponseWriter, r *http.Request) {
 		var links []struct {
 			id   int64
 			path string
+			keys []string
 		}
-		err = scanAll(ctx, w.st.Reader(), `SELECT DISTINCT l.id, l.path FROM link l JOIN link_version lv ON lv.link_id = l.id
-			JOIN version v ON v.id = lv.version_id WHERE v.title_id = ? AND v.policy_key IN (`+store.Placeholders(len(unlinkKeys))+`)
-			AND l.state = 'active' AND l.kind = 'symlink' ORDER BY l.path`, append([]any{id}, anySlice(unlinkKeys)...),
+		err = scanAll(ctx, w.st.Reader(), `SELECT l.id, l.path, group_concat(DISTINCT v.policy_key) FROM link l
+			JOIN link_version lv ON lv.link_id = l.id JOIN version v ON v.id = lv.version_id WHERE v.title_id = ?
+			AND v.policy_key IN (`+store.Placeholders(len(unlinkKeys))+`) AND l.state = 'active' AND l.kind = 'symlink'
+			GROUP BY l.id ORDER BY l.path`, append([]any{id}, anySlice(unlinkKeys)...),
 			func(r *sql.Rows) error {
 				var x struct {
 					id   int64
 					path string
+					keys []string
 				}
-				if err := r.Scan(&x.id, &x.path); err != nil {
+				var ks string
+				if err := r.Scan(&x.id, &x.path, &ks); err != nil {
 					return err
 				}
+				x.keys = strings.Split(ks, ",")
 				links = append(links, x)
 				return nil
 			})
@@ -962,12 +977,33 @@ func (w *Web) apiRemove(rw http.ResponseWriter, r *http.Request) {
 			w.internal(rw, err)
 			return
 		}
+		// Per removed library: files unlinked, and those left in place with the first reason.
+		type fate struct {
+			unlinked, left int
+			reason         string
+		}
+		fates := map[string]*fate{}
+		count := func(keys []string, ok bool, reason string) {
+			for _, k := range keys {
+				f := fates[k]
+				if f == nil {
+					f = &fate{}
+					fates[k] = f
+				}
+				if ok {
+					f.unlinked++
+				} else if f.left++; f.reason == "" {
+					f.reason = reason
+				}
+			}
+		}
 		for _, l := range links {
 			u, err := w.ops.UnlinkLink(ctx, l.id, "copy removed by "+orSomeone(by))
 			var ref refusedErr
 			switch {
 			case errors.As(err, &ref):
 				out.Kept = append(out.Kept, KeptLink{Path: l.path, Reason: ref.Error()})
+				count(l.keys, false, ref.Error())
 				continue
 			case err != nil:
 				// The copies are hidden already: report the link and go on; removing them again with unlink
@@ -975,11 +1011,50 @@ func (w *Web) apiRemove(rw http.ResponseWriter, r *http.Request) {
 				w.log.Warn("removal: moving a library link to the trash failed", "title", id, "link", l.id,
 					"path", l.path, "err", err)
 				out.Failed = append(out.Failed, KeptLink{Path: l.path, Reason: err.Error()})
+				count(l.keys, false, err.Error())
 				continue
 			}
+			count(l.keys, true, "")
 			out.Unlinked = append(out.Unlinked, u.Path)
 			w.record(ctx, journal.Action{Action: journal.ActUnlinkFile, TitleID: id, Version: strings.Join(u.Versions, ","),
 				Target: u.Path, Detail: "moved to " + orDash(u.Trash) + " when its library was removed", By: by})
+		}
+		// Each removed library's action now says what became of its files.
+		if len(actIDs) > 0 {
+			err := w.st.WriteTx(ctx, func(tx *sql.Tx) error {
+				for k, aid := range actIDs {
+					// What stays linked: refused or failed symlinks, and links that are not Theatarr's symlinks
+					// (never unlinked).
+					var other int
+					if err := tx.QueryRowContext(ctx, `SELECT COUNT(DISTINCT l.id) FROM link l JOIN link_version lv
+						ON lv.link_id = l.id JOIN version v ON v.id = lv.version_id WHERE v.title_id = ?
+						AND v.policy_key = ? AND l.state = 'active' AND l.kind <> 'symlink'`, id, k).Scan(&other); err != nil {
+						return err
+					}
+					f := fates[k]
+					if f == nil {
+						f = &fate{}
+					}
+					left := f.left + other
+					rm := journal.Removal{Files: journal.RemovalFilesDeleted}
+					if left > 0 {
+						rm.Files, rm.Left, rm.Reason = journal.RemovalFilesPartial, left, f.reason
+						if f.reason == "" {
+							rm.Reason = "not one of Theatarr's symlinks"
+						}
+						if f.unlinked == 0 {
+							rm.Files = journal.RemovalFilesKept
+						}
+					}
+					if err := journal.SetActionDetail(ctx, tx, aid, journal.RemovalDetail(rm)); err != nil {
+						return err
+					}
+				}
+				return nil
+			})
+			if err != nil {
+				w.log.Warn("removal: recording the files' outcome", "title", id, "err", err)
+			}
 		}
 	}
 	// The libraries by the names the title page shows (the scope's labels), and whether they had files to keep.

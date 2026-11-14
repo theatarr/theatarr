@@ -1,6 +1,7 @@
 package journal
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"errors"
@@ -161,11 +162,17 @@ func (b *builder) actionEntry(e *Entry, rest string) error {
 // Removal is what a title removal (remove_title, remove_version: one action per library) did, kept in the action's
 // detail (RemovalDetail) and read back for History (ParseRemovalDetail).
 type Removal struct {
-	// Files is what became of the library's files: RemovalFilesKept (they stay linked) or RemovalFilesDeleted (the
-	// links were taken out of the library).
-	Files string `json:"files"`
+	// Files is what became of the library's files: RemovalFilesKept (they stay linked), RemovalFilesDeleted (taken
+	// out of the library), RemovalFilesPartial (some left in place), or "" when the outcome is not known (a removal
+	// recorded before outcomes were, or one whose unlinking did not finish).
+	Files string `json:"files,omitempty"`
+	// Left is how many library files were left in place although the files were to be deleted, and Reason why (the
+	// first refusal or error).
+	Left   int    `json:"left,omitempty"`
+	Reason string `json:"reason,omitempty"`
 	// Cleanup is the debrid clean-up's outcome per provider, in words ("deleted on RD, TB; kept on AD: used by
-	// <title>", "AD: failed, <reason>"); empty when none ran. Written into the action after the removal, by its id.
+	// <title>", "AD: failed, <reason>"); empty when none ran. Written into the action after the removal, by its id
+	// (SetActionDetail).
 	Cleanup string `json:"cleanup,omitempty"`
 }
 
@@ -173,29 +180,50 @@ type Removal struct {
 const (
 	RemovalFilesKept    = "kept"
 	RemovalFilesDeleted = "deleted"
+	RemovalFilesPartial = "partial"
 )
 
-// removalCleanup separates a removal detail's files from its clean-up outcome.
-const removalCleanup = "; clean-up: "
+// The parts of a removal's detail after its files.
+const (
+	removalCleanup = "; clean-up: "
+	removalLeft    = "; left in place: "
+)
 
-// RemovalDetail is the action detail that records r: "files kept" or "files deleted", then "; clean-up: <outcome>"
-// when a clean-up ran.
+// RemovalDetail is the action detail that records r: "files kept|deleted|partial|unknown", then "; left in place: <n>:
+// <reason>" when files were left, then "; clean-up: <outcome>" when a clean-up ran.
 func RemovalDetail(r Removal) string {
-	d := "files " + r.Files
+	d := "files " + cmp.Or(r.Files, "unknown")
+	if r.Left > 0 {
+		d += removalLeft + strconv.Itoa(r.Left) + ": " + r.Reason
+	}
 	if r.Cleanup != "" {
 		d += removalCleanup + r.Cleanup
 	}
 	return d
 }
 
-// ParseRemovalDetail reads a removal action's detail (RemovalDetail), and the details of removals recorded before it:
-// "files left linked" (kept), "its library links go to the trash next ..." (deleted).
+// ParseRemovalDetail reads a removal action's detail (RemovalDetail). Removals recorded before it read "files left
+// linked" (kept) or "its library links go to the trash next ..." (outcome unknown).
 func ParseRemovalDetail(detail string) Removal {
-	files, cleanup, _ := strings.Cut(detail, removalCleanup)
-	r := Removal{Files: RemovalFilesKept, Cleanup: cleanup}
-	switch {
-	case files == "files "+RemovalFilesDeleted, strings.HasPrefix(files, "its library links go to the trash"):
-		r.Files = RemovalFilesDeleted
+	head, cleanup, _ := strings.Cut(detail, removalCleanup)
+	files, left, _ := strings.Cut(head, removalLeft)
+	r := Removal{Cleanup: cleanup}
+	switch files {
+	case "files left linked":
+		r.Files = RemovalFilesKept
+	case "files " + RemovalFilesKept, "files " + RemovalFilesDeleted, "files " + RemovalFilesPartial:
+		r.Files = strings.TrimPrefix(files, "files ")
+	}
+	if n, why, ok := strings.Cut(left, ": "); ok {
+		r.Left, _ = strconv.Atoi(n)
+		r.Reason = why
 	}
 	return r
+}
+
+// SetActionDetail replaces a recorded action's detail (a removal's outcome once known), inside the caller's
+// transaction.
+func SetActionDetail(ctx context.Context, tx *sql.Tx, id int64, detail string) error {
+	_, err := tx.ExecContext(ctx, `UPDATE journal_action SET detail = ? WHERE id = ?`, trimText(detail, 1000), id)
+	return err
 }
