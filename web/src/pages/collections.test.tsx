@@ -8,9 +8,9 @@ import type { Schemas } from "@/api/client";
 
 const manager = { id: 2, username: "m", permissions: ["browse", "see_files", "manage"], csrf_token: "t" };
 const alien: Schemas["Collection"] = { tmdb_id: 8091, name: "Alien Collection", monitored: true, versions: ["movie-web"], search_on_add: true,
-  minimum_availability: "released", poster: "/img/tmdb/w342/posterOne123.jpg", held: 2, total: 6 };
+  minimum_availability: "released", poster: "/img/tmdb/w342/posterOne123.jpg", held: 2, available: 1, total: 6 };
 const page: Schemas["CollectionsPage"] = {
-  collections: [alien, { tmdb_id: 9100, name: "", monitored: false, versions: [], search_on_add: false, minimum_availability: "released", held: 1, total: 1 }],
+  collections: [alien, { tmdb_id: 9100, name: "", monitored: false, versions: [], search_on_add: false, minimum_availability: "released", held: 1, available: 1, total: 1 }],
   libraries: { "movie-remux": "4K Remux", "movie-web": "4K WEB" },
   can_add: true,
 };
@@ -26,7 +26,8 @@ it("lists collections and saves monitoring, libraries and search on add", async 
   ]);
   renderPage(<CollectionsPage />, "/collections");
   const row = within(await screen.findByTestId("collection-8091"));
-  expect(row.getByText("2 of 6 movies in the library")).toBeTruthy();
+  // In the library and available (a file held) are counted apart.
+  expect(row.getByText("2 of 6 in the library · 1 available")).toBeTruthy();
   expect(screen.getByText("2 collections, 1 monitored.", { exact: false })).toBeTruthy();
   const other = () => within(screen.getByTestId("collection-9100"));
   expect(other().getByText("Collection 9100")).toBeTruthy();
@@ -62,7 +63,7 @@ it("lists collections and saves monitoring, libraries and search on add", async 
 });
 
 const predator: Schemas["Collection"] = { tmdb_id: 399, name: "Predator Collection", monitored: true, versions: ["movie-remux"], search_on_add: true,
-  minimum_availability: "released", held: 5, total: 5 };
+  minimum_availability: "released", held: 5, available: 5, total: 5 };
 
 it("adds a collection found on TMDb, and shows one that is already added instead", async () => {
   const user = userEvent.setup();

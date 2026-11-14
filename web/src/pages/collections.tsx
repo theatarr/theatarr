@@ -34,7 +34,8 @@ function CollectionRow({ c, libraries, save, busy, refresh }: { c: Collection; l
         <MonitorSwitch on={c.monitored} disabled={busy || (!c.monitored && c.versions.length === 0)}
           reason={!c.monitored && c.versions.length === 0 ? "Choose a library first" : undefined} label={`Monitor ${name}`} onChange={monitored => save({ monitored })} />
         <h2 className="min-w-0 font-semibold text-[var(--ink)] [overflow-wrap:anywhere]">{name}</h2>
-        <Chip tone={c.total > 0 && c.held >= c.total ? "ok" : "ghost"}>{c.held} of {c.total} movies in the library</Chip>
+        {/* In the library: the movie is in a library; available: it has a file there. */}
+        <Chip tone={c.total > 0 && c.available >= c.total ? "ok" : "ghost"}>{c.held} of {c.total} in the library · {c.available} available</Chip>
         {c.monitored && refresh ? <Button variant="outline" size="xs" disabled={busy} onClick={refresh}>Add missing movies now</Button> : null}
       </div>
       {!c.name ? <p className="text-xs text-muted-foreground">Name and movies arrive with the next list refresh.</p> : null}

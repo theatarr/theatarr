@@ -139,7 +139,8 @@ export function Overview() {
       key: `download-${d.id}`,
       tone: d.state === "failed" || d.steps?.some((s) => s.state === "failed") ? "bad" : "warn",
       title: <>{d.title.id ? <Link className="hover:underline" to={`/title/${d.title.id}`}>{d.title.name}</Link> : d.title.name} <span className="font-normal text-muted-foreground">· {stageLabel(d)}</span></>,
-      effect: `Not in the library yet${w.waited ? `; waiting ${w.waited}` : w.updated ? `; last update ${w.updated}` : ""}${w.retry ? `; next try ${w.retry}` : ""}.`,
+      // The download has brought no file yet; whether the title already has one (an upgrade) is not said here.
+      effect: `No file from this download yet${w.waited ? `; waiting ${w.waited}` : w.updated ? `; last update ${w.updated}` : ""}${w.retry ? `; next try ${w.retry}` : ""}.`,
       next: "Inspect the download",
       to: "/activity?show=attention",
       open: "Inspect",
@@ -199,7 +200,8 @@ export function Overview() {
         {now.error ? <ErrorState error={now.error} /> : (
           <Strip
             items={[
-              { label: "getting ready", value: fmtNumber(dl.all), testid: "dl-all" },
+              // In progress: every download in hand but those that need attention (failed or stuck count there).
+              { label: "in progress", value: fmtNumber(dl.all - dl.attention), testid: "dl-all" },
               { label: "downloading", value: fmtNumber(dl.downloading), testid: "dl-downloading" },
               { label: "waiting", value: fmtNumber(dl.waiting), testid: "dl-waiting" },
               { label: "need attention", value: fmtNumber(dl.attention), tone: dl.attention > 0 ? "warn" : undefined, testid: "dl-attention" },

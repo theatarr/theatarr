@@ -37,10 +37,12 @@ type Collection struct {
 	MinimumAvailability string   `json:"minimum_availability"`
 	// Poster is the first part's TMDb poster on this origin; absent before the first intake refresh.
 	Poster string `json:"poster,omitempty"`
-	// Held is the collection's TMDb movies the catalog has in a visible version (not removed from every view);
-	// Total its movies on TMDb, known after the first intake refresh.
-	Held  int `json:"held"`
-	Total int `json:"total"`
+	// Held is the collection's TMDb movies the catalog has in a visible version (not removed from every view): in
+	// the library; Available those of them with a file in such a version; Total its movies on TMDb, known after the
+	// first intake refresh.
+	Held      int `json:"held"`
+	Available int `json:"available"`
+	Total     int `json:"total"`
 }
 
 // CollectionsPage is GET /collections: every known collection, and the libraries a collection may target.
@@ -115,16 +117,16 @@ func (w *Web) collectionTargets() []string {
 	return w.pol.CollectionTargets()
 }
 
-// heldMovies are the TMDb ids of the catalog's movies with a visible version: a movie removed from every view is
-// not held.
+// heldMovies are the TMDb ids of the catalog's movies with a visible version (a movie removed from every view is
+// not held), each true when such a version has a file (available).
 func (w *Web) heldMovies(ctx context.Context) (map[int]bool, error) {
 	held := map[int]bool{}
-	err := scanAll(ctx, w.st.Reader(), `SELECT DISTINCT t.tmdb_id FROM title t JOIN version v ON v.title_id = t.id
-		WHERE t.kind = 'movie' AND t.tmdb_id > 0 AND NOT EXISTS (SELECT 1 FROM arrview_removed_version r
-		WHERE r.version_id = v.id)`, nil, func(rows *sql.Rows) error {
+	err := scanAll(ctx, w.st.Reader(), `SELECT t.tmdb_id, MAX(`+hasFileSQL+`) FROM title t JOIN version v ON v.title_id = t.id
+		WHERE t.kind = 'movie' AND t.tmdb_id > 0 AND `+liveVersion+` GROUP BY t.tmdb_id`, nil, func(rows *sql.Rows) error {
 		var m int
-		err := rows.Scan(&m)
-		held[m] = true
+		var file bool
+		err := rows.Scan(&m, &file)
+		held[m] = file
 		return err
 	})
 	return held, err
@@ -186,8 +188,11 @@ func scanCollection(row interface{ Scan(...any) error }, held map[int]bool, targ
 			continue
 		}
 		seen[p.ID] = true
-		if held[p.ID] {
+		if file, ok := held[p.ID]; ok {
 			c.Held++
+			if file {
+				c.Available++
+			}
 		}
 		if f := strings.TrimPrefix(p.PosterPath, "/"); c.Poster == "" && art.FileRE.MatchString(f) {
 			c.Poster = "/img/tmdb/" + tmdbPosterSize + "/" + f
