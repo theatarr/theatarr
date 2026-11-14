@@ -265,6 +265,12 @@ func (m *Manager) Delete(ctx context.Context, sel []DeleteSelection, token, by s
 	if plan.Count == 0 {
 		return plan, nil
 	}
+	return m.execute(ctx, plan, by)
+}
+
+// execute runs a plan's deletes (Delete's, and DeleteForRemoval's) under opMu: the full backup first (no backup, no
+// delete), then each delete under the fence and the add lock after its last usage check (fencedDelete), journaled.
+func (m *Manager) execute(ctx context.Context, plan *DeletePlan, by string) (*DeletePlan, error) {
 	need := map[string]map[string]bool{}
 	for _, it := range plan.Items {
 		if it.Action == ActDelete {

@@ -147,6 +147,9 @@ func torrentFolders(decy *library.DecypharrIndex, zurg *library.ZurgTorrents, ha
 	return names
 }
 
+// reasonNotInRegistry: a torrent whose hash the registry does not know yet (a fresh add).
+const reasonNotInRegistry = "not in the registry yet (added since the last provider sync)"
+
 // Reasons a delete's detail read leaves a torrent unknown (fixed strings: they are part of its override token).
 const (
 	reasonNoOriginal = "its original name could not be read from the provider, so the folder it is under is not known"
@@ -578,7 +581,7 @@ func (ix *refIndex) baseUsage(key string, t provider.Torrent) (Usage, map[string
 	if !ix.synced[key] {
 		reasons = append(reasons, "the registry has no complete sync of "+key+" yet")
 	} else if h != "" && !ix.registry[h] {
-		reasons = append(reasons, "not in the registry yet (added since the last provider sync)")
+		reasons = append(reasons, reasonNotInRegistry)
 	}
 	if ix.decyOn && ix.decy == nil {
 		reasons = append(reasons, "decypharr's list of torrents could not be read, so the folder it is under is not known")
