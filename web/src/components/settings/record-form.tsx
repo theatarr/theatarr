@@ -201,7 +201,7 @@ export function RecordFormView(p: RecordFormProps) {
   const formId = useId();
   // A new record's name and an edited address are checked as typed (the server's rules); Save waits for them.
   const problems: Record<string, string> = {};
-  if (!record && saved && st.key !== saved.key) { const k = keyProblem(st.key); if (k) problems.key = k; }
+  if (!record && saved && st.key !== saved.key) { const k = keyProblem(st.key.trim()); if (k) problems.key = k; }
   const url = typeof st.config.url === "string" ? st.config.url : "";
   if (fields.some((f) => f.name === "url") && url && url !== (saved?.config.url ?? "")) { const u = urlProblem(url); if (u) problems.url = u; }
   const blocked = Object.keys(problems).length > 0;

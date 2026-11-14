@@ -66,6 +66,12 @@ describe("View editor", () => {
     renderPage(<GeneralSettingsPage />);
     await user.click(await screen.findByRole("button", { name: "Add app" }));
     const sheet = await screen.findByTestId("view-editor");
+    // No app key yet: Save waits for one.
+    expect((within(sheet).getByRole("button", { name: "Save" }) as HTMLButtonElement).disabled).toBe(true);
+    await user.type(within(sheet).getByRole("textbox", { name: "Key" }), "radarr2");
+    await user.clear(within(sheet).getByRole("textbox", { name: "Key" }));
+    expect(within(sheet).getByText("Enter a name.")).toBeTruthy();
+    await user.type(within(sheet).getByRole("textbox", { name: "Key" }), "radarr2");
     await user.click(within(sheet).getByRole("button", { name: "Save" }));
     expect((await within(sheet).findByTestId("settings-error")).textContent).toContain("needs its API key");
     expect(fetch.calls("POST", "/settings/view-bindings")).toHaveLength(0);

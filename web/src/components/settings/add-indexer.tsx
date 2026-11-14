@@ -120,16 +120,9 @@ export function AddIndexer({
     swapped.current = true;
     setSetup(d);
   };
-  if (setup) return <SetupView def={setup} overview={overview} libraries={libraries} onBack={() => show(undefined)} onDone={onDone} headingRef={headingRef} />;
-  return <AddIndexerTabs tab={tab} setTab={setTab} show={show} kinds={kinds} overview={overview} libraries={libraries} onBuiltIn={onBuiltIn} onDone={onDone} headingRef={headingRef} />;
-}
-
-/** The add-indexer sheet's tabs; a tab change drops an unsaved Prowlarr address or key, so it asks first. */
-function AddIndexerTabs({ tab, setTab, show, kinds, overview, libraries, onBuiltIn, onDone, headingRef }: {
-  tab: Tab; setTab: (t: Tab) => void; show: (d: CardigannDefinition | undefined) => void; kinds: string[]; overview: SettingsOverview;
-  libraries: LibraryList; onBuiltIn: (kind: string) => void; onDone: (added?: string) => void; headingRef?: RefObject<HTMLHeadingElement | null>;
-}) {
+  // A tab change drops an unsaved Prowlarr address, key or selection, so it asks first.
   const request = useSheetClose();
+  if (setup) return <SetupView def={setup} overview={overview} libraries={libraries} onBack={() => show(undefined)} onDone={onDone} headingRef={headingRef} />;
   return (
     <SheetLayout
       testid="add-indexer"
@@ -139,7 +132,8 @@ function AddIndexerTabs({ tab, setTab, show, kinds, overview, libraries, onBuilt
       onClose={() => onDone()}
       footer={<SheetCancel size="sm" variant="outline" onClick={() => onDone()} data-testid="add-close">Close</SheetCancel>}
     >
-      <Tabs value={tab} onValueChange={(v) => request(() => setTab(v as Tab))}>
+      {/* Manual activation: focus coming back to a tab after the unsaved question must not ask again. */}
+      <Tabs value={tab} activationMode="manual" onValueChange={(v) => request(() => setTab(v as Tab))}>
         <TabsList className="flex w-full flex-wrap justify-start" aria-label="How to add an indexer">
           <TabsTrigger value="catalog" data-testid="tab-catalog">Catalog</TabsTrigger>
           <TabsTrigger value="builtin" data-testid="tab-builtin">Torznab &amp; built-in sources</TabsTrigger>
@@ -443,7 +437,7 @@ function SetupView({
           <Button type="button" size="sm" variant="outline" onClick={() => void onTest()} disabled={!!busy} data-testid="setup-test">
             {busy === "test" ? <Loader2 className="animate-spin" /> : <Zap />} Test search
           </Button>
-          <Button type="button" size="sm" onClick={() => void onAdd()} disabled={!!busy || !librariesReady(libraries) || (form.key !== first.key && !!keyProblem(form.key))} className="ml-auto" data-testid="setup-add">
+          <Button type="button" size="sm" onClick={() => void onAdd()} disabled={!!busy || !librariesReady(libraries) || (form.key !== first.key && !!keyProblem(form.key.trim()))} className="ml-auto" data-testid="setup-add">
             {busy === "add" ? <Loader2 className="animate-spin" /> : <Plus />} Add
           </Button>
         </>
@@ -469,7 +463,7 @@ function SetupView({
           <summary className="cursor-pointer text-sm font-medium">Advanced options</summary>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
           {settings.filter(s => !inCredential(s)).map((s) => <SettingField key={s.name} s={s} value={form.values[s.name]} error={errors[`setting.${s.name}`]} onChange={(v) => setValue(s.name, v)} />)}
-          <Field label="Key" error={errors.key ?? (form.key !== first.key ? keyProblem(form.key) : undefined)} help="The indexer's name in Theatarr; its budget gets the same key.">
+          <Field label="Key" error={errors.key ?? (form.key !== first.key ? keyProblem(form.key.trim()) : undefined)} help="The indexer's name in Theatarr; its budget gets the same key.">
             <Input value={form.key} onChange={(e) => set({ key: e.target.value })} aria-invalid={!!errors.key} data-testid="setup-key" />
           </Field>
           <Field label="Site address" error={errors.url}>

@@ -13,7 +13,7 @@ import { discardScope, useUnsavedChanges } from "@/lib/unsaved";
 /** A sheet's close with its unsaved edits in mind: SheetLayout (and any draft inside, useSheetChanges) reports its
  * change count, and Escape, the backdrop,
  * Close and SheetCancel ask before dropping them. */
-type Guard = { report: (id: symbol, changes: number) => void; request: (close: () => void) => void };
+type Guard = { add: (changes: number) => void; request: (close: () => void) => void };
 const SheetGuard = createContext<Guard | null>(null);
 
 /** Close the sheet, asking first while it holds unsaved edits (outside a sheet: close at once). */
@@ -26,11 +26,10 @@ export function useSheetClose(): (close: () => void) => void {
  * leaving). Outside a sheet only the page hears it. */
 export function useSheetChanges(changes: number) {
   const guard = useContext(SheetGuard);
-  const [id] = useState(() => Symbol("draft"));
   useEffect(() => {
-    guard?.report(id, changes);
-    return () => guard?.report(id, 0);
-  }, [guard, id, changes]);
+    guard?.add(changes);
+    return () => guard?.add(-changes);
+  }, [guard, changes]);
   useUnsavedChanges(changes);
 }
 
@@ -57,15 +56,15 @@ export function Sheet({
   returnFocus?: () => HTMLElement | null | undefined;
   testid?: string;
 }) {
-  const drafts = useRef(new Map<symbol, number>());
+  // The unsaved changes of every draft in the sheet, summed: each adds its count and takes it back when it changes.
+  const changes = useRef(0);
   const [asking, setAsking] = useState<{ close: () => void; changes: number } | null>(null);
-  const report = useCallback((id: symbol, n: number) => { if (n > 0) drafts.current.set(id, n); else drafts.current.delete(id); }, []);
+  const add = useCallback((n: number) => { changes.current += n; }, []);
   const request = useCallback((close: () => void) => {
-    const n = [...drafts.current.values()].reduce((a, b) => a + b, 0);
-    if (n > 0) setAsking({ close, changes: n });
+    if (changes.current > 0) setAsking({ close, changes: changes.current });
     else close();
   }, []);
-  const guard = useMemo(() => ({ report, request }), [report, request]);
+  const guard = useMemo(() => ({ add, request }), [add, request]);
   return (
     <SheetGuard.Provider value={guard}>
     <Modal

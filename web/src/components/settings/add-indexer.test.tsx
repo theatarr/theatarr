@@ -124,6 +124,24 @@ describe("add-indexer sheet", () => {
     expect(fetch.calls("POST", "/settings/indexers")[0].body).toMatchObject({ generation: 5, key: "thepiratebay", enabled: false, versions: ["movies", "anime"] });
   });
 
+  it("checks the key the save will send: trimmed, as the server's key rule reads it", async () => {
+    mockFetch([versionsRoute, { method: "GET", path: "/cardigann/definitions", reply: json(catalog) }]);
+    const user = userEvent.setup();
+    renderPage(indexers(), "/admin/settings/indexers");
+    await user.click(screen.getByRole("button", { name: "Add indexer" }));
+    await user.click(await screen.findByRole("button", { name: "Set up The Pirate Bay" }));
+    const setup = await screen.findByTestId("setup");
+    await user.click(within(setup).getByText("Advanced options"));
+    const key = within(setup).getByTestId("setup-key");
+    await user.clear(key);
+    await user.type(key, " my-site ");
+    expect((within(setup).getByTestId("setup-add") as HTMLButtonElement).disabled).toBe(false);
+    await user.clear(key);
+    await user.type(key, "My Site");
+    expect(within(setup).getByText("Use lower case letters, digits, - and _, starting with a letter or digit.")).toBeTruthy();
+    expect((within(setup).getByTestId("setup-add") as HTMLButtonElement).disabled).toBe(true);
+  });
+
   // The catalog off answers an empty list with the reason (not an error), so nothing retries or logs it.
   const catalogOff = { status: {}, total: 0, definitions: [], unavailable: "the definition catalog is off: turn it on under Settings › Indexers › Catalog (cardigann.definitions)" };
 

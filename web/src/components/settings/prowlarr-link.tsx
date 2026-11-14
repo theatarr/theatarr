@@ -22,14 +22,17 @@ import { useSheetChanges } from "@/components/ui/sheet";
 export function ProwlarrConnection({ configured, url, onSaved }: { configured: boolean; url?: string; onSaved?: () => void }) {
   const [editing, setEditing] = useState(false);
   const [address, setAddress] = useState(url ?? "");
+  // The address as last saved here: once Connect succeeds it is no longer a draft, before the feeds are read again.
+  const [savedAddress, setSavedAddress] = useState(url ?? "");
   const [key, setKey] = useState("");
   const [keyError, setKeyError] = useState("");
   const qc = useQueryClient();
   // A typed address or key is a draft: closing the sheet or changing its tab asks first.
   const open = !configured || editing;
-  useSheetChanges(open ? (address.trim() !== (url ?? "").trim() ? 1 : 0) + (key ? 1 : 0) : 0);
+  useSheetChanges(open ? (address.trim() !== savedAddress.trim() ? 1 : 0) + (key ? 1 : 0) : 0);
   const patch = useSectionPatch("cardigann", () => {
     setEditing(false);
+    setSavedAddress(address);
     setKey("");
     onSaved?.();
     void qc.invalidateQueries({ queryKey: prowlarrFeedsKey });
@@ -38,7 +41,7 @@ export function ProwlarrConnection({ configured, url, onSaved }: { configured: b
     return (
       <p className="flex flex-wrap items-center gap-2 text-sm" data-testid="prowlarr-connected">
         {url ? <span>Prowlarr at <code>{url}</code>.</span> : null}
-        <Button type="button" size="sm" variant="outline" onClick={() => { setAddress(url ?? ""); setEditing(true); }} data-testid="prowlarr-change">Change</Button>
+        <Button type="button" size="sm" variant="outline" onClick={() => { setAddress(url ?? ""); setSavedAddress(url ?? ""); setEditing(true); }} data-testid="prowlarr-change">Change</Button>
       </p>
     );
   }
@@ -101,6 +104,11 @@ export function LinkTab({ libraries }: { libraries: LibraryList }) {
   const versions = chosen ?? libs.map((v) => v.key);
   const list = feeds.data?.feeds ?? [];
   const ticked = list.filter((f) => f.status === "linkable" && (picked[f.id] ?? true));
+  // The feed and library choices are a draft until linked: closing the sheet or changing its tab asks first.
+  const [baseLibraries, setBaseLibraries] = useState<string[]>();
+  const sameSet = (a: string[], b: string[]) => [...a].sort().join() === [...b].sort().join();
+  useSheetChanges(Object.entries(picked).filter(([id, on]) => !on && list.some((f) => f.id === Number(id) && f.status === "linkable")).length
+    + (chosen && !sameSet(chosen, baseLibraries ?? libs.map((v) => v.key)) ? 1 : 0));
 
   const link = async () => {
     setError(undefined);
@@ -109,6 +117,7 @@ export function LinkTab({ libraries }: { libraries: LibraryList }) {
       const { generation } = await qc.fetchQuery({ queryKey: qk.settings.overview, queryFn: settingsOverview, staleTime: 0 });
       await write.mutateAsync({ method: "POST", path: "/prowlarr/feeds", body: { generation, ids: ticked.map((f) => f.id), versions } });
       setPicked({});
+      setBaseLibraries(versions);
       announce(`${ticked.length} feeds linked.`);
     } catch (e) {
       setError(explainError(e));

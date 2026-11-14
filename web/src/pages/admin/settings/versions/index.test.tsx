@@ -745,9 +745,8 @@ describe("Versions grouped by kind", () => {
     expect(profile.value).toBe("");
     expect(profile.querySelector('optgroup[label="Your profiles"]')).toBeNull();
     await user.selectOptions(profile, "preset:0537");
-    // Without a key there is nothing to name the profile after: nothing is created.
-    await user.click(within(form).getByRole("button", { name: "Save" }));
-    expect(await within(form).findByText(/Give the library a key first/)).toBeTruthy();
+    // Without a key there is nothing to name the profile after: Save waits for one, nothing is created.
+    expect((within(form).getByRole("button", { name: "Save" }) as HTMLButtonElement).disabled).toBe(true);
     expect(fetch.calls("POST", "/settings/presets/create")).toHaveLength(0);
     await user.type(within(form).getByRole("textbox", { name: "Key" }), "movies");
     await user.click(within(form).getByRole("button", { name: "Save" }));

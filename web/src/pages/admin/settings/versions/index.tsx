@@ -60,8 +60,9 @@ function Field({ label, children, changed, onUndo, name, error, help }: { label:
 }
 
 /** The library draft's edits against the stored record (key, settings and write roots). */
-/** A new library's typed key, checked as the server checks it (shown once it is typed). */
-const newKeyProblem = (session: Session) => session.create && session.record.key !== session.saved.key ? keyProblem(session.record.key) : undefined;
+/** A new library's key, checked as the server checks it (an empty one too): Save waits for it; the field says why once
+ * the key has been typed in. */
+const newKeyProblem = (session: Session) => session.create ? keyProblem(session.record.key) : undefined;
 
 export function libraryChanges(record: VersionRecord, saved: VersionRecord): number {
   const view = (r: VersionRecord) => ({ key: r.key, config: r.config, roots: r.roots ?? [] });
@@ -363,6 +364,7 @@ function Part({ title, help, children }: { title: string; help: string; children
 
 function VersionForm({ session, data, defaults, profiles, error, onChange }: { session: Session; data: VersionList; defaults: Record<string, string>; profiles: Map<string, ProfileSummary>; error?: unknown; onChange: (record: VersionRecord) => void }) {
   const { record, generation, saved } = session;
+  const [keyTouched, setKeyTouched] = useState(false);
   const config = record.config;
   const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
   // A field's changed mark and its Undo back to the stored value.
@@ -462,7 +464,7 @@ function VersionForm({ session, data, defaults, profiles, error, onChange }: { s
     {repeatsChoice(draftState, config.mode) ? null : <div className="flex flex-wrap items-center gap-2 text-sm"><span>Draft after saving:</span><VersionStatus words state={draftState} /></div>}
     <Part title="Where" help="What the library holds, where its folder lives and how files get there.">
       <Field label="Name" help="Optional. Shown in place of the guessed label, such as 4K WEB. Connected apps never see it." changed={(config.name ?? "") !== (saved.config.name ?? "")} onUndo={() => setName(saved.config.name ?? "")} error={fieldError("name")}><Input value={config.name ?? ""} maxLength={40} onChange={(event) => setName(event.target.value)} /></Field>
-      <Field label="Key" help="Used by connected apps and in settings; fixed once the library exists. Lower case letters, digits, - and _." changed={record.key !== saved.key} onUndo={() => onChange({ ...record, key: saved.key })} error={newKeyProblem(session) ?? fieldError("key")}><Input value={record.key} disabled={!session.create} onChange={(event) => onChange({ ...record, key: event.target.value })} /></Field>
+      <Field label="Key" help="Used by connected apps and in settings; fixed once the library exists. Lower case letters, digits, - and _." changed={record.key !== saved.key} onUndo={() => onChange({ ...record, key: saved.key })} error={(keyTouched || record.key !== saved.key ? newKeyProblem(session) : undefined) ?? fieldError("key")}><Input value={record.key} disabled={!session.create} onChange={(event) => { setKeyTouched(true); onChange({ ...record, key: event.target.value }); }} /></Field>
       <div className="flex flex-col gap-1 text-sm" data-changed={choiceChanged || undefined}>
         <span>State</span>
         <ChoicePick mode={config.mode} label="State" onChange={(choice) => onChange({ ...record, config: withChoice(config, choice) })} />

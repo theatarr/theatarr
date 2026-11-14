@@ -146,3 +146,34 @@ it("asks before a tab change or Close drops a typed Prowlarr address", async () 
   await user.click(within(await screen.findByTestId("discard-confirm")).getByRole("button", { name: "Close without saving" }));
   await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
 });
+
+it("treats a saved connection as saved at once, and asks before a tab change drops the feed and library choices", async () => {
+  let connected = false;
+  mockFetch([
+    { method: "GET", path: "/settings", reply: json(overview({ indexers: [dmm] })) },
+    { method: "GET", path: "/settings/versions", reply: json({ source: "db", generation: 4, versions: [lib("movies", "movie"), lib("tv", "series")] }) },
+    { method: "GET", path: "/cardigann/definitions", reply: json({ status: {}, total: 0, definitions: [], unavailable: "off" }) },
+    { method: "GET", path: "/settings/prowlarr/feeds", reply: () => json(connected ? { configured: true, url: "http://10.0.0.5:9696", feeds } : { configured: false }) },
+    { method: "GET", path: "/settings/sections", reply: json({ source: "db", generation: 4, sections: [{ key: "cardigann", live: true, config: null, yaml: "", secrets: [] }] }) },
+    { method: "PUT", path: "/settings/sections/cardigann", reply: () => { connected = true; return json({ generation: 5 }); } },
+  ]);
+  const user = userEvent.setup();
+  renderPage(<SettingsTabView tab="indexers" overview={overview({ indexers: [dmm] })} schema={schema} versions={[]} />, "/admin/settings/indexers");
+  await user.click(screen.getByRole("button", { name: "Add indexer" }));
+  await user.click(screen.getByRole("tab", { name: "Link Prowlarr" }));
+  const tab = await screen.findByTestId("link-tab");
+  await user.type(await within(tab).findByRole("textbox", { name: "Prowlarr address" }), "http://10.0.0.5:9696");
+  await user.type(within(tab).getByLabelText(/Prowlarr API key/), "invented-prowlarr-key");
+  await user.click(within(tab).getByRole("button", { name: "Connect" }));
+  await within(tab).findByTestId("prowlarr-connected");
+  // Untick a library: switching tabs now asks, and Cancel keeps the choice.
+  await user.click(within(await within(tab).findByRole("group", { name: "Libraries" })).getByRole("checkbox", { name: /^tv/ }));
+  await user.click(screen.getByRole("tab", { name: "Catalog" }));
+  await user.click(within(await screen.findByTestId("discard-confirm")).getByTestId("confirm-cancel"));
+  expect((within(screen.getByTestId("link-tab")).getByRole("checkbox", { name: /^tv/ }) as HTMLInputElement).checked).toBe(false);
+  // Ticked again: nothing left to ask about, the saved connection included.
+  await user.click(within(screen.getByTestId("link-tab")).getByRole("checkbox", { name: /^tv/ }));
+  await user.click(screen.getByRole("tab", { name: "Catalog" }));
+  expect(screen.queryByTestId("discard-confirm")).toBeNull();
+});
+

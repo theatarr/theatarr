@@ -11,7 +11,7 @@ export function clockProblem(v: string): string | undefined {
 // separators, by name or ending.
 const CREDENTIAL_NAMES = ["key", "auth", "pass", "pwd", "sig", "signature", "session", "sid", "cookie"];
 const CREDENTIAL_ENDS = ["apikey", "passkey", "authkey", "rsskey", "token", "secret", "password", "passwd"];
-export function credentialQueryName(name: string): boolean {
+function credentialQueryName(name: string): boolean {
   const n = name.toLowerCase().replace(/[^a-z0-9]/g, "");
   return !!n && (CREDENTIAL_NAMES.includes(n) || CREDENTIAL_ENDS.some((end) => n.endsWith(end)));
 }
