@@ -46,7 +46,14 @@ export function NowPlayingPage() {
         }
         actions={data?.updated_at ? <span className="text-sm text-muted-foreground">Updated {fmtAgo(data.updated_at)}</span> : null}
       />
-      {perms.admin ? <><RcloneConnection /><Link to={settingHref("library", "mount")!}>rclone remote control: Libraries › File management</Link></> : null}
+      {perms.admin ? (
+        <>
+          <RcloneConnection />
+          <p className="-mt-2 mb-4 text-sm">
+            <Link className="text-[var(--accent-ink)] hover:underline" to={settingHref("library", "mount")!}>rclone remote control settings</Link>
+          </p>
+        </>
+      ) : null}
       {q.isLoading ? <Loading /> : null}
       {q.error ? <ErrorState error={q.error} /> : null}
       {data && !data.enabled ? (
@@ -60,12 +67,13 @@ export function NowPlayingPage() {
       ) : null}
       {data?.enabled ? (
         <>
-          {strip.length ? <Strip items={strip} className="mb-5" /> : null}
+          {/* A Plex error is the answer: no zero counts or "Nothing is playing" beside it. */}
+          {strip.length && !data.error ? <Strip items={strip} className="mb-5" /> : null}
           {data.error ? (
             <Card className="mb-5 px-4 py-3 text-sm text-[var(--bad-ink)]">Plex: {data.error}</Card>
           ) : null}
           {data.sessions.length === 0 ? (
-            <Empty icon={MonitorPlay}>Nothing is playing.</Empty>
+            data.error ? null : <Empty icon={MonitorPlay}>Nothing is playing.</Empty>
           ) : (
             <div className="grid gap-4 lg:grid-cols-2">
               {data.sessions.map((s) => (

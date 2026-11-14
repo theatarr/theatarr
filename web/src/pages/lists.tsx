@@ -227,7 +227,7 @@ export function ListsPage() {
   const d = q.data;
   const open = (v: MovieList | "add") => { m.add.reset(); m.set.reset(); setDialog(v); };
   return <div>
-    <PageHeader title="Collections" description="Lists add titles by themselves: every title on an enabled list is added to the list's libraries at each sync, or with Sync now. Search on add then searches for them through the download settings, so nothing downloads while downloads are off."
+    <PageHeader title="Lists" description="Lists add titles by themselves: every title on an enabled list is added to the list's libraries at each sync, or with Sync now. Search on add then searches for them through the download settings, so nothing downloads while downloads are off."
       actions={d ? <Button onClick={() => open("add")}><Plus aria-hidden />Add list</Button> : null} />
     <CollectionsTabs active="lists" />
     {dialog && d ? <ListDialog key={dialog === "add" ? "add" : dialog.id} list={dialog === "add" ? undefined : dialog} libraries={d.libraries} seriesLibraries={d.series_libraries ?? {}} canSync={d.can_sync} m={m} onClose={() => setDialog(null)} /> : null}

@@ -73,3 +73,23 @@ it("keeps each copy's progress under a failed request's plain failure words", as
   expect(timeline.textContent).not.toContain("downloads are off");
   expect(within(timeline).getByText("Download failed")).toBeTruthy();
 });
+
+describe("the request queue", () => {
+  const manager = { username: "admin", permissions: ["admin", "manage_requests"], csrf_token: "fixture" };
+  const row = (id: number) => ({ id, kind: "movie", name: `Film ${id}`, anime: false, tmdb_id: id, status: "pending", mine: false, seasons: [], versions: [], created_at: "2026-10-30T12:00:00Z", updated_at: "2026-10-30T12:00:00Z" });
+  it("opens All with Open after To decide, and pages past the first 50", async () => {
+    const user = userEvent.setup();
+    const fetch = mockFetch([
+      { method: "GET", path: "/auth/me", reply: manager },
+      { method: "GET", path: "/requests", reply: (r: { search: string }) => ({ items: [row(new URLSearchParams(r.search).get("offset") === "50" ? 51 : 1)], total: 120, counts: { pending: 120 } }) },
+    ]);
+    renderPage(<Routes><Route path="/requests/:tab?" element={<RequestsPage />} /></Routes>, "/requests");
+    await screen.findAllByText("Film 1");
+    await user.click(screen.getByRole("tab", { name: "All" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: /^Open/ }).getAttribute("aria-pressed")).toBe("true"));
+    expect(screen.getByTestId("pager-range").textContent).toBe("1–50 of 120");
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    expect(await screen.findAllByText("Film 51")).not.toHaveLength(0);
+    expect(fetch.requests.some((r) => r.path === "/requests" && new URLSearchParams(r.search).get("offset") === "50")).toBe(true);
+  });
+});

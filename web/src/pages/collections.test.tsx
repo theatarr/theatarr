@@ -145,3 +145,17 @@ it("is not for plain users and does not ask for collections", async () => {
   expect(await screen.findByTestId("forbidden")).toBeTruthy();
   expect(fetch.calls("GET", "/collections")).toHaveLength(0);
 });
+
+it("keeps nameless empty collections off the list until named, and offers Add missing only when movies are missing", async () => {
+  const nameless = { tmdb_id: 1802110, name: "", monitored: false, versions: [], search_on_add: false, minimum_availability: "released" as const, held: 0, available: 0, total: 0 };
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: manager },
+    { method: "GET", path: "/collections", reply: { ...page, collections: [{ ...alien, held: 6, available: 6 }, nameless] } },
+  ]);
+  renderPage(<CollectionsPage />, "/collections");
+  const row = within(await screen.findByTestId("collection-8091"));
+  expect(row.queryByRole("button", { name: "Add missing movies now" })).toBeNull();
+  expect(screen.queryByTestId("collection-1802110")).toBeNull();
+  expect(screen.queryByText(/0 of 0/)).toBeNull();
+  expect(screen.getByText("1 collection, 1 monitored. 1 more collection gets its name with the next list refresh.", { exact: false })).toBeTruthy();
+});

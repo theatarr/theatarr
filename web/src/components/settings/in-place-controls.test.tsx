@@ -64,7 +64,7 @@ it("hides unset rclone when read-only and keeps the configured line read-only", 
  const view = renderPage(<RcloneConnectionForm section={library} readOnly />);
  expect(screen.queryByText("Connect rclone")).toBeNull();
  view.unmount(); renderPage(<RcloneConnectionForm section={savedRC} readOnly />);
- expect(screen.getByText(/rclone: connected/)).toBeTruthy();
+ expect(screen.getByText(/rclone remote control at/)).toBeTruthy();
  expect(screen.queryByRole("button", { name: "Edit" })).toBeNull();
 });
 it("schedule Off removes every and saved notice survives a parent render", async () => {

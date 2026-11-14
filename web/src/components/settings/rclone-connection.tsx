@@ -41,7 +41,7 @@ export function RcloneConnectionForm({ section, readOnly }: { section: SettingsS
   let host = "";
   try { host = new URL(storedURL).host; } catch { /* An unset connection has no host. */ }
   if (readOnly && !storedURL) return null;
-  if ((readOnly || !editing) && storedURL) return <p className="mb-4 text-sm">rclone: connected to {host}{!readOnly ? <> · <Button variant="ghost" size="xs" onClick={() => setEditing(true)}>Edit</Button></> : null}</p>;
+  if ((readOnly || !editing) && storedURL) return <p className="mb-4 text-sm">rclone remote control at {host}{!readOnly ? <> · <Button variant="ghost" size="xs" onClick={() => setEditing(true)}>Edit</Button></> : null}</p>;
   const disabled = readOnly || patch.busy || testing;
   return <Card className="mb-5 grid gap-3"><h2 className="font-semibold">Connect rclone</h2><p className="text-sm text-muted-foreground">Adds fetch speed and cache state of the playing file.</p>
     {readOnly ? <p>Read-only: these settings cannot be edited here.</p> : null}

@@ -23,3 +23,16 @@ describe("Now playing while it is off", () => {
     expect(screen.queryByRole("link", { name: "Plex & playback" })).toBeNull();
   });
 });
+
+describe("Now playing with a Plex error", () => {
+  it("shows the error alone: no zero counts and no Nothing is playing", async () => {
+    mockFetch([
+      { method: "GET", path: "/auth/me", reply: { id: 9, username: "someone", permissions: ["browse", "see_files", "manage"], csrf_token: "t" } },
+      { method: "GET", path: "/nowplaying", reply: { enabled: true, sessions: [], error: "connection refused" } },
+    ]);
+    renderPage(<NowPlayingPage />, "/now-playing");
+    expect(await screen.findByText("Plex: connection refused")).toBeTruthy();
+    expect(screen.queryByText("Nothing is playing.")).toBeNull();
+    expect(screen.queryByText("playbacks")).toBeNull();
+  });
+});

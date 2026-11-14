@@ -32,6 +32,7 @@ import { Input } from "@/components/ui/input";
 import { fmtAgo, fmtTime, nameWithoutYear } from "@/lib/format";
 import { approvalWords, requestTimeline } from "@/lib/request-timeline";
 import { cn } from "@/lib/utils";
+import { Pager } from "@/components/ui/pager";
 
 const FILTERS = [
   { id: "open", label: "Open" },
@@ -59,7 +60,8 @@ export function RequestsPage() {
   const legacyId = Number(params.get("request"));
   if (Number.isSafeInteger(legacyId) && legacyId > 0) return <Navigate to={`/requests/${legacyId}`} replace />;
   if (tab && /^\d+$/.test(tab)) return <RequestDetailPage id={Number(tab)} />;
-  return <RequestQueue />;
+  // A new component per tab: the status filter starts over on each (Pending on To decide, Open on All and Mine).
+  return <RequestQueue key={tab ?? "queue"} />;
 }
 
 function RequestDetailPage({ id }: { id: number }) {
@@ -117,14 +119,22 @@ function RequestTimeline({ r }: { r: RequestDetail }) {
   );
 }
 
+/** Requests per page of the queue. */
+const REQUEST_PAGE = 50;
+
 function RequestQueue() {
   const perms = usePerms();
   const { tab: rawTab } = useParams();
   const manager = perms.manageRequests;
   const tab = manager ? (rawTab === "all" || rawTab === "mine" ? rawTab : "queue") : "mine";
-  const [filter, setFilter] = useState(manager && tab === "queue" ? "pending" : "open");
+  const [filter, setFilterState] = useState(manager && tab === "queue" ? "pending" : "open");
+  const [offset, setOffset] = useState(0);
+  const setFilter = (f: string) => {
+    setFilterState(f);
+    setOffset(0);
+  };
   const status = tab === "queue" ? "pending" : filter;
-  const list = useRequests({ status, mine: tab === "mine", limit: 100 });
+  const list = useRequests({ status, mine: tab === "mine", offset, limit: REQUEST_PAGE });
   const counts = list.data?.counts ?? {};
   const items = list.data?.items ?? [];
   return (
@@ -180,13 +190,18 @@ function RequestQueue() {
           </Empty>
         </Card>
       ) : (
-        <ul className="space-y-3" data-testid="request-list">
-          {items.map((r) => (
-            <li key={r.id}>
-              <RequestRow r={r} manager={manager} />
-            </li>
-          ))}
-        </ul>
+        <>
+          <ul className="space-y-3" data-testid="request-list">
+            {items.map((r) => (
+              <li key={r.id}>
+                <RequestRow r={r} manager={manager} />
+              </li>
+            ))}
+          </ul>
+          <div className="mt-4">
+            <Pager offset={offset} limit={REQUEST_PAGE} total={list.data?.total ?? 0} onPage={setOffset} />
+          </div>
+        </>
       )}
     </div>
   );
