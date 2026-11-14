@@ -169,7 +169,7 @@ export function ImportView(p: ImportViewProps) {
         <Card className="space-y-2 text-[13px] text-muted-foreground">
           <p>
             The settings live in Theatarr's database, so the nightly database backup (System › Backup) holds them, credentials included; keep the policy
-            directory <Mono>{o.policy_dir}</Mono> as well. The cutover runbook is in <Mono>docs/design/settings.md</Mono>.
+            directory <Mono>{o.policy_dir}</Mono> as well.
           </p>
           <p>
             The export below is for review: credentials and <Mono>*_env</Mono> names are stripped, so it is not a credential backup and cannot be

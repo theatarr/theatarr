@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -57,6 +59,10 @@ func sectionFields(t reflect.Type, path string, docs map[string]map[string]strin
 		}
 		sf := sectionType(f.Type, full, name, docs)
 		sf.Help = docs[t.Name()][name]
+		if help, ok := sectionHelp[full]; ok {
+			sf.Help = help
+		}
+		sf.Help = plainDurations(sf.Help)
 		if strings.HasSuffix(name, "_env") && f.Type.Kind() == reflect.String {
 			secret := sf
 			secret.Name = strings.TrimSuffix(name, "_env")
@@ -200,7 +206,7 @@ var sectionAnnotations = map[string]SchemaField{
 	"egress.interval":                             durationBounds(10*time.Second, 0, "2m"),
 	"egress.max_age":                              durationBounds(0, 0, "3 × interval"),
 	"egress.timeout":                              durationBounds(0, 0, "10s"),
-	"library.probe.max_bytes":                     bounds(1<<20, policy.MaxLibraryProbeBytes, "16777216"),
+	"library.probe.max_bytes":                     {Min: floatPtr(1 << 20), Max: floatPtr(policy.MaxLibraryProbeBytes), Default: "16777216", Unit: "bytes"},
 	"library.sample.min_runtime_ratio":            bounds(0, 1, "0.5"),
 	"library.trash.keep_days":                     bounds(0, 0, "30"),
 	"library.versions.*.plex_section":             bounds(0, 0, "0"),
@@ -401,4 +407,61 @@ var sectionLabels = map[string]string{
 	"ui.images.dir":                               "Folder",
 	"ui.images.max_bytes":                         "Maximum size",
 	"ui.images.original":                          "Allow original-size images",
+}
+
+// sectionHelp replaces a field's help from the policy doc comments where that text is written for developers: it
+// names source files, design documents, job names or other fields' YAML keys, or is cut short. The meaning, the
+// defaults and the bounds stay those of the comment (checked against internal/policy).
+var sectionHelp = map[string]string{
+	"metadata.anime":                              "This schedules the automatic anime franchise builds.",
+	"metadata.art":                                "This schedules the artwork refresh.",
+	"metadata.series":                             "This schedules the series metadata refresh.",
+	"metadata.series.interval":                    "This is the time between sweeps for series that are due. Default 1h, minimum 10m. As in Sonarr, a continuing series is due every 12h and an ended one monthly.",
+	"metadata.anime.refresh_interval":             "This is how old a franchise's build may get before it is rebuilt. Default 7 days, minimum 24h. Rebuilds are spread over the interval; a franchise with a refresh held for review waits for the review.",
+	"library.relink_interval":                     "This is how often Theatarr looks for dangling links and repoints them. Default 1h, minimum 10m.",
+	"library.dangling.interval":                   "This is the time between reports (one at start). Default 6h, minimum 10m.",
+	"library.mount.rclone_rc":                     "This is the mount's rclone remote control (rclone rc): the Now playing page reads its transfer statistics, and \"Clear cached release root listing\" uses it to refresh one folder. Optional.",
+	"library.plex.now_playing":                    "This follows Plex's sessions for the Now playing page. It only reads, so it works while Theatarr is paused. Default true.",
+	"library.plex.prewarm":                        "About a minute into an episode, this reads the start of the next episode of the show through the mount, and raises an error inbox item when that episode is missing or unreadable; past half of the episode it reads the next one whole so the mount's cache keeps it. Default true.",
+	"router.copy_to_providers":                    "This adds each new download, after its import, to the other providers when it is cached there (\"Add to other providers\"). An add that is not cached is deleted again. New imports only; the existing library is not swept. Default off.",
+	"router.cached_grace":                         "This is how long the router waits before reading a fresh Real-Debrid or AllDebrid add again when the first read shows it still converting or downloading, before it calls the add uncached. Default 2s, 1s to 30s.",
+	"router.stalled_after":                        "This fails a download that was accepted but has fetched nothing this long after its add, as stalled: its release is blocklisted for the library, our own Real-Debrid add is deleted, and the title is searched again. Default 10m, 1m to 24h; Off turns it off. AllDebrid waits at least 25m.",
+	"router.downloading_timeout":                  "This fails a download whose provider progress has not risen for this long (a dead swarm, a magnet that never leaves the provider's queue): its release is blocklisted for the library, our own Real-Debrid add is deleted, and the title is searched again. Default 24h, 1h to 7 days; Off turns it off.",
+	"router.ready_timeout":                        "This fails a download the provider finished that is still not imported this long after, blocklists it and searches again. Default 6h, 1m to 7 days. No torrent is deleted on the provider.",
+	"router.cache_evidence.torbox_check.per_hour": "This caps TorBox cache checks in any hour. Default 60, 1 to 1000.",
+	"egress.vpn_ips":                              "These and the VPN address ranges are the expected exit addresses. At least one entry is required.",
+	"shadow.rss":                                  "This turns the RSS feed checks on or off. Default on.",
+	"shadow.rss_interval":                         "This is how often the RSS feeds of the Live libraries' indexers are read. Default 15m, the arrs' default RSS sync interval; minimum 10m.",
+	"playlists.enabled":                           "This allows playlist writes in Plex. They are also held while Theatarr is paused. Default false.",
+	"playlists.interval":                          "This is how often Theatarr syncs the playlists. Default 6h, minimum 1h.",
+	"torrents.backup":                             "This schedules backups of the provider torrent lists. Off until a backup interval is set.",
+	"torrents.backup.every":                       "This is the time between scheduled backups; Off (the default) turns them off. Minimum 1h.",
+	"torrents.scan_roots":                         "This lists library folders other tools manage. The usage check walks them for links into the debrid mount, reading only where the links point, never the mount itself, so a torrent such a library uses is not offered as unused.",
+	"clients.*.kind":                              "This selects decypharr (a debrid client: it calls a view back and takes the grabs of libraries set to send them to a download client) or qbittorrent (a seedbox client: accepted, but nothing sends grabs to it yet).",
+	"clients.*.category":                          "This is the download category Theatarr's adds go under; required when a library sends its grabs to this client. decypharr keys its Sonarr/Radarr settings on it: one client entry per kind of view.",
+	"clients.*.remote_path":                       "With the local path below, this maps the client's paths to Theatarr's (an arr's remote path mapping): a download under this path is read under the local one. Both or neither, absolute.",
+	"clients.*.local_path":                        "This is where Theatarr sees the client's remote path.",
+	"notify.targets.*.format":                     "This is the message format: empty for the Sonarr/Radarr and Theatarr JSON payloads, discord for a Discord channel webhook, or ntfy. For ntfy the URL is the server address followed by the topic, and an access token goes in the Authorization header.",
+	"notify.targets.*.views":                      "This lists the Sonarr/Radarr views (Connected apps) whose Sonarr- or Radarr-shaped messages this destination gets.",
+	"notify.targets.*.native":                     "This sends Theatarr's own events for each library (JSON, eventType theatarr.*).",
+}
+
+// goDuration matches a Go duration written in help text: "6h", "10m", "15s", "7d".
+var goDuration = regexp.MustCompile(`\b(\d+)([hmsd])\b`)
+
+// plainDurations writes the Go durations of a help text in words, as the form shows them: "Default 6h, minimum 10m"
+// reads "Default 6 hours, minimum 10 minutes"; whole days from two days up are days ("168h" is "7 days").
+func plainDurations(help string) string {
+	return goDuration.ReplaceAllStringFunc(help, func(m string) string {
+		sub := goDuration.FindStringSubmatch(m)
+		n, _ := strconv.Atoi(sub[1])
+		unit := map[string]string{"h": "hour", "m": "minute", "s": "second", "d": "day"}[sub[2]]
+		if unit == "hour" && n >= 48 && n%24 == 0 {
+			n, unit = n/24, "day"
+		}
+		if n != 1 {
+			unit += "s"
+		}
+		return strconv.Itoa(n) + " " + unit
+	})
 }

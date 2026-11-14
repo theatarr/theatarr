@@ -22,3 +22,13 @@ it("keeps settings keys out of the ordinary Download behaviour and Notifications
   const names = /\b(TorBox|AllDebrid|FlareSolverr|GitHub|YouTube)\b/g;
   for (const h of helps) expect(h.slice(h.indexOf(": ")).replace(names, ""), h).not.toMatch(/\b[a-z]+_[a-z_]+\b|\b[A-Z][a-z]+[A-Z][A-Za-z]*\b/);
 });
+
+// No help names a source file, a design document, a job name or another field's YAML path (verified D39).
+it("keeps source files, design documents, job names and YAML paths out of every settings help", () => {
+  const helps: string[] = [];
+  const walk = (fields: SchemaField[], path: string) => {
+    for (const f of fields) { helps.push(`${path}.${f.name}: ${f.help}`); walk(f.fields ?? [], `${path}.${f.name}`); }
+  };
+  for (const [key, fields] of Object.entries(schema.sections as Record<string, SchemaField[]>)) walk(fields, key);
+  for (const h of helps) expect(h.slice(h.indexOf(": ")), h).not.toMatch(/\.go\b|docs\/|shadow\.rss|meta\.art|library\.(enabled|mount)|backup\.every|ShouldRefreshSeries|theatarr serve|\b\d+[hms]\b/);
+});

@@ -121,12 +121,24 @@ func TestSectionHelpHasNoGoFieldNames(t *testing.T) {
 	var check func(string, []SchemaField)
 	check = func(path string, fields []SchemaField) {
 		for _, f := range fields {
-			for name, pattern := range patterns {
-				if pattern.MatchString(f.Help) {
-					t.Errorf("%s.%s help contains %s: %s", path, f.Name, name, f.Help)
+			full := path
+			if f.Name != "" {
+				full += "." + f.Name
+			}
+			children := full
+			if f.Type == "keyed" || f.Type == "object_list" {
+				children += ".*"
+			}
+			// The hand-written help in sectionHelp says Plex, RSS and URL as words; only text taken from the doc
+			// comments is checked.
+			if _, ok := sectionHelp[full]; !ok {
+				for name, pattern := range patterns {
+					if pattern.MatchString(f.Help) {
+						t.Errorf("%s help contains %s: %s", full, name, f.Help)
+					}
 				}
 			}
-			check(path+"."+f.Name, f.Fields)
+			check(children, f.Fields)
 		}
 	}
 	for key, fields := range sectionSchemas() {
