@@ -68,7 +68,8 @@ export function notAiredYet(t: Pick<TitleRow, "kind" | "versions" | "release_dat
   const vs = t?.versions ?? [];
   if (t?.kind !== "series" || !vs.length || !vs.every((v) => v.coverage !== undefined && v.coverage.total === 0)) return false;
   const first = t.release_date?.slice(0, 10);
-  return first ? first > day : !AIRED_STATUS.has(t.status ?? "");
+  // Episodes known and still to air (a premiere later today included) say it outright.
+  return vs.some((v) => (v.coverage?.upcoming ?? 0) > 0) || (first ? first > day : !AIRED_STATUS.has(t.status ?? ""));
 }
 
 /**

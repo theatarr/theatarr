@@ -86,6 +86,8 @@ export function Overview() {
   const downloads = now.data?.now ?? [];
   const stuck = downloads.filter((d) => needsAttention(d, t));
   const dl = showCounts(downloads, t);
+  // In hand: neither finished (linked, failed) nor never started.
+  const inHand = downloads.filter((d) => !d.not_started && d.state !== "failed" && d.state !== "imported").length;
 
   const items: Attention[] = [];
   for (const name of reviews.failures) items.push({ key: `reviews-${name}`, tone: "warn", title: `Reviews: couldn't load ${name}`, effect: "Waiting decisions are unknown.", next: "Open Reviews", to: "/admin/reviews" });
@@ -139,8 +141,9 @@ export function Overview() {
       key: `download-${d.id}`,
       tone: d.state === "failed" || d.steps?.some((s) => s.state === "failed") ? "bad" : "warn",
       title: <>{d.title.id ? <Link className="hover:underline" to={`/title/${d.title.id}`}>{d.title.name}</Link> : d.title.name} <span className="font-normal text-muted-foreground">· {stageLabel(d)}</span></>,
-      // The download has brought no file yet; whether the title already has one (an upgrade) is not said here.
-      effect: `No file from this download yet${w.waited ? `; waiting ${w.waited}` : w.updated ? `; last update ${w.updated}` : ""}${w.retry ? `; next try ${w.retry}` : ""}.`,
+      // Partly linked: some of its files are in; otherwise it has brought none yet (whether the title already has one,
+      // an upgrade, is not said here).
+      effect: `${d.import_state === "partial" ? "Some files linked" : "No file from this download yet"}${w.waited ? `; waiting ${w.waited}` : w.updated ? `; last update ${w.updated}` : ""}${w.retry ? `; next try ${w.retry}` : ""}.`,
       next: "Inspect the download",
       to: "/activity?show=attention",
       open: "Inspect",
@@ -200,8 +203,7 @@ export function Overview() {
         {now.error ? <ErrorState error={now.error} /> : (
           <Strip
             items={[
-              // In progress: every download in hand but those that need attention (failed or stuck count there).
-              { label: "in progress", value: fmtNumber(dl.all - dl.attention), testid: "dl-all" },
+              { label: "in progress", value: fmtNumber(inHand), testid: "dl-all" },
               { label: "downloading", value: fmtNumber(dl.downloading), testid: "dl-downloading" },
               { label: "waiting", value: fmtNumber(dl.waiting), testid: "dl-waiting" },
               { label: "need attention", value: fmtNumber(dl.attention), tone: dl.attention > 0 ? "warn" : undefined, testid: "dl-attention" },

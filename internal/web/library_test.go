@@ -1147,8 +1147,9 @@ func TestStatusWords(t *testing.T) {
 	}
 }
 
-// TestEpisodeScoreEvidence: an episode's score shows only when the link stored scoring evidence: a calculated score
-// (0 included) or formats; a link with neither shows none, in the Episodes list and the episode window.
+// TestEpisodeScoreEvidence: an episode's score shows only when the link stored scoring evidence: formats (an empty
+// list too, so a calculated 0 stays 0) or a non-zero score; a stored 0 without formats shows none, in the Episodes
+// list and the episode window.
 func TestEpisodeScoreEvidence(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t)
@@ -1159,8 +1160,8 @@ func TestEpisodeScoreEvidence(t *testing.T) {
 	e.exec(`INSERT INTO episode_version_state (version_id, episode_id, state, updated_at) VALUES (4, 45, 'filled', 0), (4, 46, 'filled', 0),
 		(4, 43, 'filled', 0) ON CONFLICT DO UPDATE SET state = 'filled'`)
 	e.exec(`INSERT INTO link (id, path, target, title_id, release_title, quality, score, file_metadata, state, created_at, updated_at) VALUES
-		(71, '/a/S01E03.mkv', '/m/3', 4, 'Delta.S01E03', 'WEBDL-1080p', 0, '{"Score":0}', 'active', 0, 0),
-		(72, '/a/S01E04.mkv', '/m/4', 4, 'Delta.S01E04', 'WEBDL-1080p', 0, '{"Size":5}', 'active', 0, 0),
+		(71, '/a/S01E03.mkv', '/m/3', 4, 'Delta.S01E03', 'WEBDL-1080p', 0, '{"Score":0,"Formats":[]}', 'active', 0, 0),
+		(72, '/a/S01E04.mkv', '/m/4', 4, 'Delta.S01E04', 'WEBDL-1080p', 0, '{"Score":0}', 'active', 0, 0),
 		(73, '/a/S01E05.mkv', '/m/5', 4, 'Delta.S01E05', 'WEBDL-1080p', 250, '{"Formats":[{"name":"x","score":250}]}', 'active', 0, 0)`)
 	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (71, 4), (72, 4), (73, 4)`)
 	e.exec(`INSERT INTO link_episode (link_id, episode_id) VALUES (71, 43), (72, 45), (73, 46)`)

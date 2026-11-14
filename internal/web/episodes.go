@@ -51,9 +51,6 @@ type SeasonCounts struct {
 	// episode.
 	NextSearchAt  *time.Time `json:"next_search_at,omitempty"`
 	NextSearchWhy string     `json:"next_search_why,omitempty"`
-	// watchMissing is Missing whatever the version's monitoring: what a caller without "see files" gets
-	// (redactEpisodes).
-	watchMissing int
 }
 
 // Season is one season in brief.
@@ -309,7 +306,8 @@ func (w *Web) titleEpisodes(ctx context.Context, id int64, season int, seeFiles 
 		}
 	}
 
-	// A gap in a library that is not monitored is not missing (titleAvailabilitySQL).
+	// A gap in a library that is not monitored is not missing (titleAvailabilitySQL), for those who see files; others
+	// keep watchability.
 	on := map[string]bool{}
 	for _, v := range out.Versions {
 		on[v.Key] = v.Monitored
@@ -336,11 +334,8 @@ func (w *Web) titleEpisodes(ctx context.Context, id int64, season int, seeFiles 
 			}
 			if c.HasFile {
 				sc.Have++
-			} else if aired && c.Monitored && c.State == "wanted" {
-				sc.watchMissing++
-				if on[k] {
-					sc.Missing++
-				}
+			} else if aired && c.Monitored && c.State == "wanted" && (!seeFiles || on[k]) {
+				sc.Missing++
 			}
 			s.Versions[k] = sc
 		}

@@ -128,8 +128,9 @@ func (w *Web) titleFacets(ctx context.Context, f TitleFilter, seeFiles bool) (Ti
 		return out, err
 	}
 	if seeFiles {
-		// The status words and the quality filters, by the conditions the list filters by (library.go), in one pass:
-		// each title's word, whether it has an upgrade found and whether it holds a file below its cutoff.
+		// The status words and the quality filters, by the conditions the list filters by (library.go): each title's
+		// word in one pass; a held title is Upgrade found when in the found set, else Best quality known when it holds
+		// a file below its cutoff, which is read only for those candidates.
 		found, err := w.upgradeFoundTitles(ctx, db)
 		if err != nil {
 			return out, err
@@ -138,25 +139,37 @@ func (w *Web) titleFacets(ctx context.Context, f TitleFilter, seeFiles bool) (Ti
 			out.Availability[a] = 0
 		}
 		out.Upgrades = map[string]int{"found": 0, "best_known": 0}
-		if err := scanAll(ctx, db, `SELECT `+titleAvailabilitySQL(newAirClock(w.now()))+`, `+upgradeFoundSQL+`, `+
-			heldBelowCutoffSQL+titleFrom+where, append([]any{found}, args...), func(r *sql.Rows) error {
-			var a string
-			var up, below bool
-			if err := r.Scan(&a, &up, &below); err != nil {
-				return err
-			}
-			out.Availability[a]++
-			if a == "available" || a == "partial" {
-				switch {
-				case up:
-					out.Upgrades["found"]++
-				case below:
-					out.Upgrades["best_known"]++
+		candidates := map[int64]bool{}
+		if err := scanAll(ctx, db, `SELECT t.id, `+titleAvailabilitySQL(newAirClock(w.now()))+titleFrom+where, args,
+			func(r *sql.Rows) error {
+				var id int64
+				var a string
+				if err := r.Scan(&id, &a); err != nil {
+					return err
 				}
-			}
-			return nil
-		}); err != nil {
+				out.Availability[a]++
+				switch {
+				case a != "available" && a != "partial":
+				case found[id]:
+					out.Upgrades["found"]++
+				default:
+					candidates[id] = true
+				}
+				return nil
+			}); err != nil {
 			return out, err
+		}
+		if len(candidates) > 0 {
+			ids, err := idsJSON(candidates)
+			if err != nil {
+				return out, err
+			}
+			var n int
+			if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM title t WHERE t.id IN (SELECT value FROM json_each(?)) AND `+
+				heldBelowCutoffSQL, ids).Scan(&n); err != nil {
+				return out, err
+			}
+			out.Upgrades["best_known"] = n
 		}
 	} else {
 		// Watchability (perms.go plainAvailability).

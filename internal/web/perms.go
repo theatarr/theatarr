@@ -202,8 +202,7 @@ func redactEpisodes(out *EpisodeList) {
 	}
 	for i := range out.Seasons {
 		for k, c := range out.Seasons[i].Versions {
-			// Watchability: missing whatever the version's monitoring (watchMissing).
-			out.Seasons[i].Versions[k] = SeasonCounts{Have: c.Have, Missing: c.watchMissing, Monitored: c.Monitored}
+			out.Seasons[i].Versions[k] = SeasonCounts{Have: c.Have, Missing: c.Missing, Monitored: c.Monitored}
 		}
 	}
 	for i := range out.Episodes {

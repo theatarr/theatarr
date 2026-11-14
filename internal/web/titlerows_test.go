@@ -120,20 +120,28 @@ func TestTitleCurrentFromLink(t *testing.T) {
 
 	// Adopted: a score its adoption calculated but no formats (adoption stores none): the score is evidence, and a
 	// calculated 0 stays 0.
-	for _, score := range []int{900, 0} {
-		e.exec(`UPDATE link SET download_id = NULL, file_metadata = json_object('Score', ?, 'Size', 1000), score = ? WHERE id = 1`,
-			score, score)
+	// Score evidence: a non-zero stored score, or stored formats (an empty list too, for a calculated 0).
+	for meta, score := range map[string]int{`{"Score":900,"Size":1000}`: 900, `{"Score":0,"Formats":[],"Size":1000}`: 0} {
+		e.exec(`UPDATE link SET download_id = NULL, file_metadata = ?, score = ? WHERE id = 1`, meta, score)
 		d = TitleDetail{}
 		e.call("GET", APIBase+"/titles/1", nil, 200, &d)
-		if c := d.Versions[0].Current; c == nil || c.Score == nil || *c.Score != int64(score) || c.Formats != nil {
+		if c := d.Versions[0].Current; c == nil || c.Score == nil || *c.Score != int64(score) || len(c.Formats) != 0 {
 			t.Errorf("adopted current, score %d: %+v", score, c)
 		}
 		if u := d.Versions[0].Upgrade; u == nil || u.Score == nil || *u.Score != int64(score) {
 			t.Errorf("adopted upgrade, score %d: want the score: %+v", score, u)
 		}
 	}
-	// A link that stored neither a score nor formats was never scored: no score, though the column holds 0.
-	e.exec(`UPDATE link SET file_metadata = '{"Size":1000}', score = 0 WHERE id = 1`)
+	// A link that stored neither formats nor a non-zero score shows none, though the column holds 0: a 0 backfilled
+	// without formats (migration 00038) is no evidence.
+	for _, meta := range []string{`{"Size":1000}`, `{"Score":0,"Size":1000}`} {
+		e.exec(`UPDATE link SET file_metadata = ?, score = 0 WHERE id = 1`, meta)
+		d = TitleDetail{}
+		e.call("GET", APIBase+"/titles/1", nil, 200, &d)
+		if c := d.Versions[0].Current; c == nil || c.Score != nil {
+			t.Errorf("unscored current %s: %+v", meta, c)
+		}
+	}
 	d = TitleDetail{}
 	e.call("GET", APIBase+"/titles/1", nil, 200, &d)
 	if c := d.Versions[0].Current; c == nil || c.Score != nil {

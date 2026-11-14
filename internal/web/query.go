@@ -174,8 +174,11 @@ func (w *Web) listTitles(ctx context.Context, f TitleFilter) (TitlePage, error) 
 	f.clock = newAirClock(w.now())
 	db := w.st.Reader()
 	if f.Upgrade != "" {
-		var err error
-		if f.upgradeFound, err = w.upgradeFoundTitles(ctx, db); err != nil {
+		found, err := w.upgradeFoundTitles(ctx, db)
+		if err != nil {
+			return page, err
+		}
+		if f.upgradeFound, err = idsJSON(found); err != nil {
 			return page, err
 		}
 	}

@@ -27,8 +27,8 @@ export type EpisodeFilter = "all" | "active" | "missing" | "upgrade";
  *  who see files only: everyone else keeps watchability (an aired episode no library holds is missing). */
 export type OffCopies = ReadonlySet<string>;
 
-export function offCopies(versions: readonly { key: string; monitored?: boolean }[]): OffCopies {
-  return new Set(versions.filter((v) => v.monitored === false).map((v) => v.key));
+export function offCopies(versions: readonly { key: string; monitored?: boolean }[], seeFiles: boolean): OffCopies {
+  return new Set(seeFiles ? versions.filter((v) => v.monitored === false).map((v) => v.key) : []);
 }
 
 /** The words for a status. */
@@ -136,7 +136,7 @@ export type SeasonSummary = {
  */
 export function seasonSummary(episodes: Episode[], copies: { key: string; label: string; monitored?: boolean }[], seeFiles: boolean, merged = false): SeasonSummary {
   // Library monitoring is a manager's notion: without "see files" the counts stay watchability.
-  const off = seeFiles ? offCopies(copies) : new Set<string>();
+  const off = offCopies(copies, seeFiles);
   if (merged && copies.length > 1) {
     const one = { key: "*", label: "" };
     const flat = episodes.map((e) => {

@@ -90,11 +90,13 @@ const linkContentSQL = `COALESCE((SELECT cf_c.content_id FROM content_file cf_c 
 		CASE WHEN json_valid(l.file_metadata) THEN NULLIF(json_extract(l.file_metadata, '$.InfoHash'), '') END,
 		CASE WHEN json_valid(l.adopted_source) THEN NULLIF(json_extract(l.adopted_source, '$.hash'), '') END))))`
 
-// linkScoreSQL is link l's format score when the link stored scoring evidence, else NULL: the score its import
-// decision or adoption calculated (file_metadata's Score, decide.ExistingFile; a real calculated 0 stays 0) or the
-// formats it matched. A link that stored neither was never scored by Theatarr, and shows no score.
-const linkScoreSQL = `CASE WHEN json_valid(l.file_metadata) AND (json_type(l.file_metadata, '$.Score') IN ('integer', 'real')
-	OR json_array_length(l.file_metadata, '$.Formats') > 0) THEN l.score END`
+// linkScoreSQL is link l's format score when the link stored scoring evidence, else NULL: the formats it matched
+// (file_metadata's Formats, decide.ExistingFile; an empty list too, so a calculated 0 stays 0), or a non-zero score
+// its import decision or adoption calculated. A stored 0 without formats is no evidence (migration 00038 backfilled
+// Score 0 from downloads that had only the default), and shows no score.
+const linkScoreSQL = `CASE WHEN json_valid(l.file_metadata) AND (json_type(l.file_metadata, '$.Formats') = 'array'
+	OR (json_type(l.file_metadata, '$.Score') IN ('integer', 'real') AND json_extract(l.file_metadata, '$.Score') <> 0))
+	THEN l.score END`
 
 // providerHolds is the condition on content_provider cp that the provider holds the content now, complete: listed
 // on the account (present) and downloaded there (progress 100; the provider sync stores every provider's progress
@@ -282,11 +284,11 @@ const upgradeFoundSQL = `t.id IN (SELECT value FROM json_each(?))`
 const heldBelowCutoffSQL = `EXISTS (SELECT 1 FROM version v WHERE v.title_id = t.id AND ` + liveVersion + ` AND ` +
 	hasFileSQL + ` AND ` + belowCutoffSQL + `)`
 
-// upgradeFoundTitles lists, as a JSON array, the titles with an upgrade found: some version in the library with a
+// upgradeFoundTitles is the set of titles with an upgrade found: some version in the library with a
 // file below its cutoff (a movie version filled; a series version with files) for which a better release was seen,
 // as markUpgradeSeen marks rows. Only a version with a stored decision that accepted a release can have one, so the
 // others are left out before the evidence is read.
-func (w *Web) upgradeFoundTitles(ctx context.Context, db *sql.DB) (string, error) {
+func (w *Web) upgradeFoundTitles(ctx context.Context, db *sql.DB) (map[int64]bool, error) {
 	// The (title, library) pairs with an accepted release, read once (as upgradePicks does).
 	maybe := map[titleKey]bool{}
 	err := scanAll(ctx, db, `SELECT DISTINCT title_id, version_key FROM journal_decision WHERE accepted > 0`, nil,
@@ -299,7 +301,7 @@ func (w *Web) upgradeFoundTitles(ctx context.Context, db *sql.DB) (string, error
 			return nil
 		})
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	var vs []upgradeVersion
 	if len(maybe) > 0 {
@@ -316,24 +318,32 @@ func (w *Web) upgradeFoundTitles(ctx context.Context, db *sql.DB) (string, error
 			return nil
 		})
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 	}
-	ids := []int64{}
+	found := map[int64]bool{}
 	if len(vs) > 0 {
 		s, err := w.loadUpgrades(ctx, db, vs, false)
 		if err != nil {
-			return "", fmt.Errorf("upgrade evidence: %w", err)
+			return nil, fmt.Errorf("upgrade evidence: %w", err)
 		}
-		seen := map[int64]bool{}
 		for _, v := range vs {
-			if !seen[v.titleID] && s.explain(v, 0).State == "upgrade_available" {
-				seen[v.titleID] = true
-				ids = append(ids, v.titleID)
+			if !found[v.titleID] && s.explain(v, 0).State == "upgrade_available" {
+				found[v.titleID] = true
 			}
 		}
 	}
-	b, err := json.Marshal(ids)
+	return found, nil
+}
+
+// idsJSON is a set of title ids as the JSON array upgradeFoundSQL takes.
+func idsJSON(ids map[int64]bool) (string, error) {
+	list := make([]int64, 0, len(ids))
+	for id := range ids {
+		list = append(list, id)
+	}
+	slices.Sort(list)
+	b, err := json.Marshal(list)
 	return string(b), err
 }
 

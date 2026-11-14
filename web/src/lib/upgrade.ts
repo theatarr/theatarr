@@ -5,7 +5,7 @@
 // resolution only, since the API leaves states, scores and releases out for them.
 import type { Cutoff, UpgradeInfo, VersionControl } from "@/api/manage";
 import { evidenceSourceWords, POSITIVE_ONLY_WORDS } from "./evidence-words";
-import { fmtAgo, fmtDay, fmtNumber } from "./format";
+import { fmtAgo, fmtDay, fmtNumber, localDay } from "./format";
 
 export type Tone = "positive" | "warning" | "negative" | "neutral" | "info";
 
@@ -232,22 +232,22 @@ export function whyOf(u: UpgradeInfo, now: Date = new Date(), by?: (id: number) 
     default:
       out.evidence = "No source evidence yet.";
   }
-  out.checked = `Checked ${fmtAgo(c.checked_at, now)}; next check ${fmtDay(c.next_check_at, now)}.`;
+  out.checked = `Checked ${fmtAgo(c.checked_at, now)}; next check ${fmtDay(localDay(c.next_check_at), now)}.`;
   for (const s of c.searches ?? []) {
     const ix = s.indexers.map((x) => x.indexer + (x.complete ? "" : " (partial or cached)")).join(", ");
-    out.coverage.push(`${fmtDay(s.searched_at, now)}: ${ix || "no successful indexer answers"}`);
+    out.coverage.push(`${fmtDay(localDay(s.searched_at), now)}: ${ix || "no successful indexer answers"}`);
   }
   for (const e of c.evidence ?? []) {
     out.sightings.push({
-      text: `${tierWords(e.tier)} · ${evidenceSourceWords(e.source)}${e.example ? `: ${e.example}` : ""} · last seen ${fmtDay(e.last_seen_at, now)}${e.positive_only ? ` · ${POSITIVE_ONLY_WORDS}` : ""}`,
+      text: `${tierWords(e.tier)} · ${evidenceSourceWords(e.source)}${e.example ? `: ${e.example}` : ""} · last seen ${fmtDay(localDay(e.last_seen_at), now)}${e.positive_only ? ` · ${POSITIVE_ONLY_WORDS}` : ""}`,
       source: e.source,
     });
   }
   const o = c.override;
   if (o) {
     const who = o.by !== undefined && o.by !== null ? (by?.(o.by) ?? `user #${o.by}`) : "someone";
-    const until = o.expires_at ? `; until ${fmtDay(o.expires_at, now)}` : "";
-    out.override = `Set to ${tierWords(o.tier)} by ${who} on ${fmtDay(o.at, now)}${until}${o.note ? `: “${o.note}”` : ""}.`;
+    const until = o.expires_at ? `; until ${fmtDay(localDay(o.expires_at), now)}` : "";
+    out.override = `Set to ${tierWords(o.tier)} by ${who} on ${fmtDay(localDay(o.at), now)}${until}${o.note ? `: “${o.note}”` : ""}.`;
   }
   return out;
 }

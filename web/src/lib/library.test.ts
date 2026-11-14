@@ -230,6 +230,8 @@ describe("a series with nothing aired yet", () => {
     expect(label("missing", true, { ...loading, release_date: "2009-04-01", status: "Ended" })).toBe("Not available");
     expect(label("missing", true, { ...loading, release_date: "2009-04-01" })).toBe("Not available");
     expect(label("missing", true, { ...loading, status: "Returning Series" })).toBe("Not available");
+    // A premiere later today: dated today, but its episode is known and still to come.
+    expect(label("missing", true, { kind: "series", release_date: "2000-01-01", status: "Returning Series", versions: [{ key: "tv", coverage: { have: 0, total: 0, aired: 0, upcoming: 1 } }] })).toBe("Upcoming");
     // A first air date still to come wins over the status (TMDb can call a series not premiered yet Returning).
     expect(label("missing", true, { ...loading, release_date: "2099-01-01", status: "Returning Series" })).toBe("Upcoming");
     expect(label("missing", true, { ...loading, status: "In Production" })).toBe("Upcoming");

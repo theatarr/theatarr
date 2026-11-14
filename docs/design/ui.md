@@ -181,7 +181,8 @@ to the list. An old saved `availability=upgrade` ("Preferred quality not met") o
 see files keep watchability: Not available, Some episodes, Available (Getting ready and Upcoming on posters).
 
 A score shows only with scoring evidence: a link's score is shown when its import decision or adoption stored a
-calculated score (0 included) or matched formats, and is blank otherwise (`linkScoreSQL`), in the Episodes table, the
+non-zero calculated score or matched formats (an empty list too, so a calculated 0 shows 0), and is blank otherwise,
+a stored 0 without formats included (`linkScoreSQL`), in the Episodes table, the
 episode window, cell tooltips, the Libraries table and Why?.
 
 ### Library and activity pages
