@@ -43,6 +43,9 @@ type Collection struct {
 	Held      int `json:"held"`
 	Available int `json:"available"`
 	Total     int `json:"total"`
+	// Removed is the collection's movies the catalog has only in removed versions (every copy removed): not held,
+	// and "Add missing movies now" does not add them back to those libraries; an Add from the movie's page does.
+	Removed int `json:"removed,omitempty"`
 }
 
 // CollectionsPage is GET /collections: every known collection, and the libraries a collection may target.
@@ -117,18 +120,22 @@ func (w *Web) collectionTargets() []string {
 	return w.pol.CollectionTargets()
 }
 
-// heldMovies are the TMDb ids of the catalog's movies with a visible version (a movie removed from every view is
-// not held), each true when such a version has a file (available).
-func (w *Web) heldMovies(ctx context.Context) (map[int]bool, error) {
-	held := map[int]bool{}
-	err := scanAll(ctx, w.st.Reader(), `SELECT t.tmdb_id, MAX(`+hasFileSQL+`) FROM title t JOIN version v ON v.title_id = t.id
-		WHERE t.kind = 'movie' AND t.tmdb_id > 0 AND `+liveVersion+` GROUP BY t.tmdb_id`, nil, func(rows *sql.Rows) error {
-		var m int
-		var file bool
-		err := rows.Scan(&m, &file)
-		held[m] = file
-		return err
-	})
+// heldMovie is how the catalog holds a movie: live, in a visible version (not removed); file, such a version has a
+// file (available). A movie with versions none of which is live was removed.
+type heldMovie struct{ live, file bool }
+
+// heldMovies are the catalog's movies with a version, by TMDb id.
+func (w *Web) heldMovies(ctx context.Context) (map[int]heldMovie, error) {
+	held := map[int]heldMovie{}
+	err := scanAll(ctx, w.st.Reader(), `SELECT t.tmdb_id, MAX(`+liveVersion+`), MAX(`+liveVersion+` AND `+hasFileSQL+`)
+		FROM title t JOIN version v ON v.title_id = t.id WHERE t.kind = 'movie' AND t.tmdb_id > 0 GROUP BY t.tmdb_id`, nil,
+		func(rows *sql.Rows) error {
+			var m int
+			var h heldMovie
+			err := rows.Scan(&m, &h.live, &h.file)
+			held[m] = h
+			return err
+		})
 	return held, err
 }
 
@@ -162,7 +169,7 @@ func (w *Web) apiCollections(rw http.ResponseWriter, r *http.Request) {
 	writeJSON(rw, http.StatusOK, out)
 }
 
-func scanCollection(row interface{ Scan(...any) error }, held map[int]bool, targets []string) (Collection, error) {
+func scanCollection(row interface{ Scan(...any) error }, held map[int]heldMovie, targets []string) (Collection, error) {
 	var c Collection
 	var versions, movies string
 	if err := row.Scan(&c.TmdbID, &c.Name, &c.Monitored, &versions, &c.SearchOnAdd, &c.MinimumAvailability,
@@ -188,11 +195,14 @@ func scanCollection(row interface{ Scan(...any) error }, held map[int]bool, targ
 			continue
 		}
 		seen[p.ID] = true
-		if file, ok := held[p.ID]; ok {
+		switch h, ok := held[p.ID]; {
+		case ok && h.live:
 			c.Held++
-			if file {
+			if h.file {
 				c.Available++
 			}
+		case ok:
+			c.Removed++
 		}
 		if f := strings.TrimPrefix(p.PosterPath, "/"); c.Poster == "" && art.FileRE.MatchString(f) {
 			c.Poster = "/img/tmdb/" + tmdbPosterSize + "/" + f

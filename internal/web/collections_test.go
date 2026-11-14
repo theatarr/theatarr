@@ -117,10 +117,10 @@ func TestCollectionsAPI(t *testing.T) {
 		t.Errorf("unknown collection %d", rec.Code)
 	}
 
-	// A movie removed from every view is no longer held.
+	// A movie removed from every view is no longer held: it counts as removed.
 	e.exec(`INSERT INTO arrview_removed_version (version_id, view, removed_at) VALUES (3, 'radarr', 0)`)
 	rec = e.putCollection("/collections/8", `{"search_on_add":false}`, key, "")
-	if rec.Code != 200 || json.Unmarshal(rec.Body.Bytes(), &c) != nil || c.Held != 0 || c.Total != 1 {
+	if rec.Code != 200 || json.Unmarshal(rec.Body.Bytes(), &c) != nil || c.Held != 0 || c.Total != 1 || c.Removed != 1 {
 		t.Errorf("removed movie held: %d %+v", rec.Code, c)
 	}
 
