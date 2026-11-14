@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import { describe, expect, it, afterEach } from "vitest";
-import { FieldInput, type SecretDraft } from "./field-input";
+import { FieldInput, SectionFields, type SecretDraft } from "./field-input";
 import type { SchemaField } from "@/api/settings";
 afterEach(cleanup);
 function Harness({ field, initial }: { field: SchemaField; initial?: unknown }) {
@@ -31,14 +31,15 @@ describe("section field inputs", () => {
  it("offers allowed duration presets and custom text", () => {
   render(<Harness field={field("duration", { min: 3600, max: 86400, zero_allowed: true })} />);
   expect(screen.queryByRole("option", { name: "7 days" })).toBeNull();
-  fireEvent.change(screen.getByRole("combobox"), { target: { value: "0s" } }); expect(value()).not.toHaveProperty("value");
-  fireEvent.change(screen.getByRole("combobox"), { target: { value: "custom" } });
-  fireEvent.change(screen.getByRole("textbox"), { target: { value: "36h" } }); expect(value().value).toBe("36h");
+  fireEvent.change(screen.getByRole("combobox", { name: "Option" }), { target: { value: "0s" } }); expect(value()).not.toHaveProperty("value");
+  fireEvent.change(screen.getByRole("combobox", { name: "Option" }), { target: { value: "custom" } });
+  fireEvent.change(screen.getByLabelText("Option unit"), { target: { value: "hours" } });
+  fireEvent.change(screen.getByLabelText("Option amount"), { target: { value: "36" } }); expect(value().value).toBe("36h");
  });
  it("offers duration presets on the scale of the field's default", () => {
   render(<Harness field={field("duration", { min: 60, default: "6m" })} />);
   const options = screen.getAllByRole("option").map((o) => o.textContent);
-  expect(options).toEqual(["Default (6m)", "1m", "5m", "10m", "30m", "1h", "Custom"]);
+  expect(options).toEqual(["Default (6 minutes)", "1 minute", "5 minutes", "10 minutes", "30 minutes", "1 hour", "Custom"]);
  });
  it("keeps a saved preset of another scale selected, not Custom", () => {
   render(<Harness field={field("duration", { min: 60, default: "6m" })} initial="6h0m0s" />);
@@ -123,4 +124,78 @@ it("unfolds the named record a Find a setting link points at, and only that one"
  } finally {
   window.history.pushState({}, "", "/");
  }
+});
+
+describe("plain units, stored values kept until edited", () => {
+ it("shows a stored custom duration in words and keeps it; an edit writes a Go duration", () => {
+  render(<Harness field={field("duration", { min: 3600, default: "24h" })} initial="6m0s" />);
+  expect((screen.getByRole("combobox", { name: "Option" }) as HTMLSelectElement).value).toBe("custom");
+  expect((screen.getByLabelText("Option amount") as HTMLInputElement).value).toBe("6");
+  expect((screen.getByLabelText("Option unit") as HTMLSelectElement).value).toBe("minutes");
+  expect(value().value).toBe("6m0s");
+  fireEvent.change(screen.getByLabelText("Option unit"), { target: { value: "days" } });
+  expect(value().value).toBe("6m0s");
+  fireEvent.change(screen.getByLabelText("Option amount"), { target: { value: "2" } });
+  expect(value().value).toBe("48h");
+ });
+ it("shows a stored 0 on a field without Off as the default, without rewriting it", () => {
+  render(<Harness field={field("duration", { min: 3600, default: "24h" })} initial="0s" />);
+  const select = screen.getByRole("combobox", { name: "Option" }) as HTMLSelectElement;
+  expect(select.value).toBe("");
+  expect(select.selectedOptions[0].textContent).toBe("Default (24 hours)");
+  expect(value().value).toBe("0s");
+  fireEvent.change(select, { target: { value: "6h" } });
+  expect(value().value).toBe("6h");
+ });
+ it("names presets in words and writes the preset's Go form", () => {
+  render(<Harness field={field("duration", { min: 3600, default: "168h" })} />);
+  expect(screen.getByRole("option", { name: "Default (7 days)" })).toBeTruthy();
+  fireEvent.change(screen.getByRole("combobox", { name: "Option" }), { target: { value: "12h" } });
+  expect(value().value).toBe("12h");
+ });
+ it("shows an unset switch's default in words and leaves it unset until clicked", () => {
+  render(<Harness field={field("boolean", { default: "true" })} />);
+  expect(screen.getByTestId("switch-state").textContent).toBe("On (default)");
+  expect(screen.getByRole("switch").getAttribute("aria-checked")).toBe("true");
+  expect(value()).not.toHaveProperty("value");
+  fireEvent.click(screen.getByRole("switch"));
+  expect(value().value).toBe(false);
+  expect(screen.getByTestId("switch-state").textContent).toBe("Off");
+ });
+ it("keeps a stored false switch as stored", () => {
+  render(<Harness field={field("boolean", { default: "true" })} initial={false} />);
+  expect(screen.getByTestId("switch-state").textContent).toBe("Off");
+  expect(value().value).toBe(false);
+ });
+ it("shows stored bytes in the unit that fits, keeps them, and writes bytes when edited", () => {
+  render(<Harness field={field("bytes", { default: "2GiB" })} initial={2147483648} />);
+  expect((screen.getByLabelText("Option") as HTMLInputElement).value).toBe("2");
+  expect((screen.getByLabelText("Option unit") as HTMLSelectElement).value).toBe("GiB");
+  expect(value().value).toBe(2147483648);
+  fireEvent.change(screen.getByLabelText("Option"), { target: { value: "3" } });
+  expect(value().value).toBe(3 * 1073741824);
+ });
+ it("puts the rate on a speed's unit and no separate bytes/s line", () => {
+  render(<Harness field={field("bytes", { default: "25MB", unit: "bytes/s" })} initial={25000000} />);
+  expect((screen.getByLabelText("Option unit") as HTMLSelectElement).selectedOptions[0].textContent).toBe("MB/s");
+  expect((screen.getByLabelText("Option") as HTMLInputElement).value).toBe("25");
+  expect(document.body.textContent).not.toContain("bytes/s");
+ });
+ it("names one item on an Add button", () => {
+  render(<Harness field={{ name: "scan_roots", label: "Folders to scan", type: "list", help: "" }} />);
+  fireEvent.click(screen.getByRole("button", { name: "Add folder" }));
+  expect(value().value).toEqual([""]);
+ });
+});
+
+it("marks a per-library row whose library is gone and removes it", () => {
+ function Rows() {
+  const [config, setConfig] = useState<Record<string, unknown>>({ versions: { "movie-mm": { plex_section: 1 }, "old-tv": { plex_section: 2 } } });
+  return <><SectionFields fields={[{ name: "versions", label: "Libraries", type: "keyed", help: "", fields: [{ name: "plex_section", label: "Plex library ID", type: "integer", help: "" }] }]} config={config} path="library" onChange={setConfig} libraryKeys={["movie-mm"]} /><output data-testid="config">{JSON.stringify(config)}</output></>;
+ }
+ render(<Rows />);
+ expect(document.querySelectorAll("[data-removed]")).toHaveLength(1);
+ expect(screen.getAllByText("library removed")).toHaveLength(1);
+ fireEvent.click(screen.getByRole("button", { name: "Remove old-tv" }));
+ expect(JSON.parse(screen.getByTestId("config").textContent!)).toEqual({ versions: { "movie-mm": { plex_section: 1 } } });
 });

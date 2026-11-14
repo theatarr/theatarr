@@ -59,7 +59,7 @@ it("object and keyed have no reset; leaf reset removes only its key", () => {
  expect(screen.queryByRole("button", { name: "Add Versions" })).toBeNull();
  fireEvent.click(screen.getAllByRole("button", { name: "Reset URL" })[0]);
  expect(body().config.mount).toEqual({ unknown: 7 });
- fireEvent.click(screen.getByText("main", { selector: "summary" }));
+ fireEvent.click(screen.getByText("main", { selector: "summary span" }));
  expect(screen.queryByLabelText("Rename main")).toBeNull();
  expect(screen.queryByRole("button", { name: "Remove main" })).toBeNull();
  fireEvent.change(screen.getAllByLabelText("URL")[1], { target: { value: "updated" } });

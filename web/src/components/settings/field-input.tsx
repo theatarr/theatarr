@@ -5,6 +5,10 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ChangedMark, Field, SecretField, SELECT_CLASS } from "./parts";
 import { NotifyTestButton } from "./notify-test";
+import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
+import { plural } from "@/lib/format";
+import { useLibraryName } from "@/lib/library-names";
 // A number weight keeps a typed lone "-" (a plain number input set it to 0 at once), so a negative can be typed.
 import { NumberInput } from "@/pages/admin/settings/quality/fields";
 const recordLabel = (f: SchemaField) => f.label || ({ url: "Service URL", budget: "Request budget", pacing: "Add limits", cooldown: "Pause after a refusal", min_gap: "Minimum request gap", stalled_after: "Stalled add timeout", backoff_max: "Maximum retry delay" }[f.name] ?? f.name.replaceAll("_", " ").replace(/^./, c => c.toUpperCase()));
@@ -76,6 +80,9 @@ type FieldInputProps = {
   tracked?: boolean; saved?: unknown;
   /** The panel's heading: an object field named the same (router.wanted under "Automatic search") is not headed twice. */
   panelTitle?: string;
+  /** The configured libraries' keys, for a per-library record (library.versions): a stored row for a key not among
+   *  them is marked "library removed" and can be removed. Undefined while they load. */
+  libraryKeys?: string[];
 };
 const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 /** The record's key beside its label only when it says something the label does not ("Requests", not "Requests requests"). */
@@ -87,6 +94,7 @@ export function FieldInput(p: FieldInputProps) {
   const [customDuration, setCustomDuration] = useState(false);
   const [newName, setNewName] = useState("");
   const [chosenByteUnit, setByteUnit] = useState<string>();
+  const [durationUnit, setDurationUnit] = useState<DurationUnit>();
   if (p.record) {
     const v = typeof value === "string" ? value : "";
     const changed = p.tracked && v !== (typeof p.saved === "string" ? p.saved : "");
@@ -126,26 +134,40 @@ export function FieldInput(p: FieldInputProps) {
       const draft = p.secretDraft ?? { actions: {}, values: {} };
       return <div data-field={path}><SecretField label={label} set={info?.set ?? false} hint={info?.env ? `Environment fallback: ${info.env}` : undefined} action={draft.actions[path] ?? "keep"} value={draft.values[path] ?? ""} onAction={(action) => p.onSecrets?.({ ...draft, actions: { ...draft.actions, [path]: action } })} onValue={(text) => p.onSecrets?.({ ...draft, values: { ...draft.values, [path]: text } })} disabled={disabled} />{p.errors?.[path] ? <p role="alert">{p.errors[path]}</p> : null}</div>;
     }
-    case "boolean": control = <Button type="button" variant="outline" role="switch" aria-label={label} {...describe} aria-checked={checked === true} disabled={disabled} className="w-fit" onClick={() => onChange(checked !== true)}>{value === true ? "On" : value === false ? "Off" : `Default${f.default ? ` (${f.default})` : ""}`}</Button>; break;
+    // A switch with its state in words; "(default)" while nothing is stored, so an untouched field stays unset.
+    case "boolean": control = <div className="flex items-center gap-2"><Switch aria-label={label} {...describe} checked={checked === true} disabled={disabled} onCheckedChange={(next) => onChange(next)} /><span className="text-sm" data-testid="switch-state">{checked === true ? "On" : "Off"}{value === undefined || value === null ? " (default)" : ""}</span></div>; break;
     case "integer": case "number": control = input("number"); break;
     case "enum": control = <select aria-label={label} {...describe} className={SELECT_CLASS} disabled={disabled} value={String(value ?? "")} onChange={(e) => onChange(e.target.value || undefined)}><option value="">Default{f.default ? ` (${f.default})` : ""}</option>{f.enum?.map((v) => <option key={v}>{v}</option>)}</select>; break;
     case "duration": {
-      const v = String(value ?? "");
-      const seconds = parseDuration(v);
+      const v = typeof value === "string" ? value : "";
+      const seconds = v ? parseDuration(v) : undefined;
       const allowed = durationPresets(f, seconds).filter(([, n]) => n >= (f.min ?? 0) && n <= (f.max ?? Infinity));
       const unsetIsOff = f.zero_allowed && (!f.default || parseDuration(f.default) === 0);
       const preset = allowed.find(([, n]) => n === seconds)?.[0];
-      const selected = customDuration ? "custom" : seconds === 0 && f.zero_allowed ? "0s" : preset ?? (v ? "custom" : unsetIsOff ? "0s" : "");
-      control = <><select aria-label={label} {...describe} className={SELECT_CLASS} disabled={disabled} value={selected} onChange={(e) => { setCustomDuration(e.target.value === "custom"); if (e.target.value !== "custom") onChange(e.target.value === "0s" && unsetIsOff ? undefined : e.target.value || undefined); }}><option value="">Default{f.default ? ` (${f.default})` : ""}</option>{f.zero_allowed ? <option value="0s">Off</option> : null}{allowed.map(([s]) => <option key={s} value={s}>{s === "168h" ? "7 days" : s}</option>)}<option value="custom">Custom</option></select>{selected === "custom" ? input() : null}</>; break;
+      // A stored 0 on a field without an Off means the default to the server: it shows as Default (and stays stored).
+      const zeroIsDefault = seconds === 0 && !f.zero_allowed;
+      const selected = customDuration ? "custom" : seconds === 0 && f.zero_allowed ? "0s" : zeroIsDefault ? "" : preset ?? (v ? "custom" : unsetIsOff ? "0s" : "");
+      const empty = f.nullable ? null : undefined;
+      let custom = null;
+      if (selected === "custom") {
+        if (v && seconds === undefined) custom = input();
+        else {
+          const unit = durationUnit ?? (seconds ? bestDurationUnit(seconds) : bestDurationUnit(parseDuration(f.default ?? "") || f.min || 60));
+          const per = DURATION_UNITS[unit];
+          custom = <div className="flex gap-2"><Input aria-label={`${label} amount`} {...describe} data-field={path} type="number" min={0} step="any" disabled={disabled} value={seconds === undefined ? "" : Number((seconds / per).toFixed(3))} onChange={(e) => onChange(e.target.value === "" ? empty : goDuration(Number(e.target.value), unit))} /><select aria-label={`${label} unit`} className={SELECT_CLASS} disabled={disabled} value={unit} onChange={(e) => setDurationUnit(e.target.value as DurationUnit)}>{Object.keys(DURATION_UNITS).map((u) => <option key={u} value={u}>{u}</option>)}</select></div>;
+        }
+      }
+      control = <><select aria-label={label} {...describe} className={SELECT_CLASS} disabled={disabled} value={selected} onChange={(e) => { setCustomDuration(e.target.value === "custom"); if (e.target.value !== "custom") onChange(e.target.value === "0s" && unsetIsOff ? undefined : e.target.value || undefined); }}><option value="">{`Default${f.default ? ` (${durationDefault(f)})` : ""}`}</option>{f.zero_allowed ? <option value="0s">Off</option> : null}{allowed.map(([s, n]) => <option key={s} value={s}>{durationWords(n)}</option>)}<option value="custom">Custom</option></select>{custom}</>; break;
     }
     case "bytes": {
-      const units: Record<string, number> = { B: 1, KB: 1e3, MB: 1e6, GB: 1e9 };
-      // Stored byte counts and unit strings are displayed without rewriting them until edited.
+      // Stored byte counts and unit strings are displayed without rewriting them until edited; an edit writes bytes.
       const match = typeof value === "string" ? value.match(/^([\d.]+)\s*(B|KB|MB|GB|TB|KiB|MiB|GiB|TiB)?$/) : null;
-      const multipliers: Record<string, number> = { B: 1, KB: 1e3, MB: 1e6, GB: 1e9, TB: 1e12, KiB: 1024, MiB: 1048576, GiB: 1073741824, TiB: 1099511627776 };
-      const bytes = typeof value === "number" ? value : match ? Number(match[1]) * (multipliers[match[2] || "B"]) : undefined;
-      const byteUnit = chosenByteUnit ?? (["GB", "MB", "KB"].find((unit) => bytes !== undefined && bytes > 0 && bytes % units[unit] === 0) || (bytes ? "B" : "MB"));
-      control = <div className="flex gap-2"><Input aria-label={label} {...describe} type="number" min={f.min === undefined ? undefined : f.min / units[byteUnit]} max={f.max === undefined ? undefined : f.max / units[byteUnit]} step="any" placeholder={f.default} disabled={disabled} value={bytes === undefined ? "" : bytes / units[byteUnit]} onChange={(e) => onChange(e.target.value === "" ? undefined : Number(e.target.value) * units[byteUnit])} /><select aria-label={`${label} unit`} className={SELECT_CLASS} disabled={disabled} value={byteUnit} onChange={(e) => setByteUnit(e.target.value)}><option>B</option><option>KB</option><option>MB</option><option>GB</option></select></div>; break;
+      const bytes = typeof value === "number" ? value : match ? Number(match[1]) * BYTE_UNITS[match[2] || "B"] : undefined;
+      const defaultMatch = f.default?.match(/^([\d.]+)\s*(KB|MB|GB|TB|KiB|MiB|GiB|TiB)$/);
+      const byteUnit = chosenByteUnit ?? (match?.[2] && match[2] !== "B" ? match[2] : bytes ? bestByteUnit(bytes) : defaultMatch?.[2] ?? "MB");
+      const per = BYTE_UNITS[byteUnit];
+      const rate = f.unit === "bytes/s" ? "/s" : "";
+      control = <div className="flex gap-2"><Input aria-label={label} {...describe} type="number" min={f.min === undefined ? undefined : f.min / per} max={f.max === undefined ? undefined : f.max / per} step="any" placeholder={defaultMatch ? `${defaultMatch[1]} ${defaultMatch[2]}${rate}` : f.default} disabled={disabled} value={bytes === undefined ? "" : Number((bytes / per).toFixed(3))} onChange={(e) => onChange(e.target.value === "" ? undefined : Math.round(Number(e.target.value) * per))} /><select aria-label={`${label} unit`} className={SELECT_CLASS} disabled={disabled} value={byteUnit} onChange={(e) => setByteUnit(e.target.value)}>{Object.keys(BYTE_UNITS).map((u) => <option key={u} value={u}>{u}{rate}</option>)}</select></div>; break;
     }
     // An object the saved settings did not have goes back to absent once its last key is undone, so Undo returns the
     // draft to the saved value (no stray {} to count or send).
@@ -153,7 +175,7 @@ export function FieldInput(p: FieldInputProps) {
     case "keyed": {
       const records = objectValue(value);
       const managed = path === "library.versions";
-      control = <div className="grid gap-3">{Object.entries(records).map(([key, record]) => <KeyedRecord key={key} {...p} name={key} records={records} managed={managed}>{children(objectValue(record), `${path}.${key}`, (v) => onChange({ ...records, [key]: v }), objectValue(p.saved)[key])}</KeyedRecord>)}{!managed ? <div className="flex gap-2"><Input aria-label={`New ${label} name`} placeholder="Name" value={newName} disabled={disabled} onChange={(e) => setNewName(e.target.value)} /><Button type="button" disabled={disabled || !newName.trim() || Object.hasOwn(records, newName.trim())} onClick={() => { onChange({ ...records, [newName.trim()]: {} }); setNewName(""); }}>Add {label}</Button>{newName && Object.hasOwn(records, newName.trim()) ? <p role="alert">That name already exists.</p> : null}</div> : null}</div>; break;
+      control = <div className="grid gap-3">{Object.entries(records).map(([key, record]) => <KeyedRecord key={key} {...p} name={key} records={records} managed={managed}>{children(objectValue(record), `${path}.${key}`, (v) => onChange({ ...records, [key]: v }), objectValue(p.saved)[key])}</KeyedRecord>)}{!managed ? <div className="flex gap-2"><Input aria-label={`New ${label} name`} placeholder="Name" value={newName} disabled={disabled} onChange={(e) => setNewName(e.target.value)} /><Button type="button" disabled={disabled || !newName.trim() || Object.hasOwn(records, newName.trim())} onClick={() => { onChange({ ...records, [newName.trim()]: {} }); setNewName(""); }}>{addLabel(f)}</Button>{newName && Object.hasOwn(records, newName.trim()) ? <p role="alert">That name already exists.</p> : null}</div> : null}</div>; break;
     }
     case "object_list": case "list": {
       const rows = Array.isArray(value) ? value : [];
@@ -164,17 +186,17 @@ export function FieldInput(p: FieldInputProps) {
         const rowError = p.errors?.[`${path}.${i}`];
         return { "aria-describedby": [rowError ? `${id}-${i}-error` : "", describe["aria-describedby"] ?? ""].filter(Boolean).join(" ") || undefined, "aria-invalid": rowError || error ? true : undefined };
       };
-      control = <div className="grid gap-2">{rows.map((row, i) => <div key={i} className="rounded border p-2">{f.type === "object_list" ? children(objectValue(row), `${path}.${i}`, (v) => update(i, v), Array.isArray(p.saved) ? p.saved[i] : undefined) : f.enum ? <select aria-label={`${label} ${i + 1}`} {...rowDescribe(i)} className={SELECT_CLASS} disabled={disabled} value={String(row)} onChange={(e) => update(i, e.target.value)}><option value="">Choose…</option>{f.enum.map((v) => <option key={v}>{v}</option>)}</select> : <Input aria-label={`${label} ${i + 1}`} {...rowDescribe(i)} value={String(row)} disabled={disabled} onChange={(e) => update(i, e.target.value)} />}{p.errors?.[`${path}.${i}`] ? <p id={`${id}-${i}-error`} role="alert">{p.errors[`${path}.${i}`]}</p> : null}<Button type="button" variant="ghost" disabled={disabled} onClick={() => onChange(rows.filter((_, n) => n !== i))}>Remove {i + 1}</Button>{f.type === "object_list" ? <><Button type="button" variant="ghost" disabled={disabled || i === 0} onClick={() => move(i, -1)}>Move up</Button><Button type="button" variant="ghost" disabled={disabled || i === rows.length - 1} onClick={() => move(i, 1)}>Move down</Button></> : null}</div>)}<Button type="button" variant="outline" disabled={disabled} onClick={() => onChange([...rows, f.type === "object_list" ? {} : ""])}>Add {label}</Button></div>; break;
+      control = <div className="grid gap-2">{rows.map((row, i) => <div key={i} className="rounded border p-2">{f.type === "object_list" ? children(objectValue(row), `${path}.${i}`, (v) => update(i, v), Array.isArray(p.saved) ? p.saved[i] : undefined) : f.enum ? <select aria-label={`${label} ${i + 1}`} {...rowDescribe(i)} className={SELECT_CLASS} disabled={disabled} value={String(row)} onChange={(e) => update(i, e.target.value)}><option value="">Choose…</option>{f.enum.map((v) => <option key={v}>{v}</option>)}</select> : <Input aria-label={`${label} ${i + 1}`} {...rowDescribe(i)} value={String(row)} disabled={disabled} onChange={(e) => update(i, e.target.value)} />}{p.errors?.[`${path}.${i}`] ? <p id={`${id}-${i}-error`} role="alert">{p.errors[`${path}.${i}`]}</p> : null}<Button type="button" variant="ghost" disabled={disabled} onClick={() => onChange(rows.filter((_, n) => n !== i))}>Remove {i + 1}</Button>{f.type === "object_list" ? <><Button type="button" variant="ghost" disabled={disabled || i === 0} onClick={() => move(i, -1)}>Move up</Button><Button type="button" variant="ghost" disabled={disabled || i === rows.length - 1} onClick={() => move(i, 1)}>Move down</Button></> : null}</div>)}<Button type="button" variant="outline" disabled={disabled} onClick={() => onChange([...rows, f.type === "object_list" ? {} : ""])}>{addLabel(f)}</Button></div>; break;
     }
     case "map": case "string_map": {
       const entries = objectValue(value);
-      control = <div className="grid gap-2">{Object.entries(entries).map(([key, v]) => <div key={key} className="flex gap-2"><Input aria-label={`${label} key ${key}`} defaultValue={key} disabled={disabled} onBlur={(e) => { const name = e.target.value; if (name !== key && !Object.hasOwn(entries, name)) onChange({ ...changeField(entries, key, undefined), [name]: v }); }} />{f.type === "map" ? <NumberInput aria-label={`${label} value ${key}`} value={String(v)} disabled={disabled} onChange={(n) => onChange({ ...entries, [key]: Number(n) })} /> : <Input aria-label={`${label} value ${key}`} value={String(v)} disabled={disabled} onChange={(e) => onChange({ ...entries, [key]: e.target.value })} />}<Button type="button" variant="ghost" disabled={disabled} onClick={() => onChange(changeField(entries, key, undefined))}>Remove {key}</Button></div>)}<Button type="button" variant="outline" disabled={disabled || Object.hasOwn(entries, "")} onClick={() => onChange({ ...entries, "": f.type === "map" ? 0 : "" })}>Add {label}</Button></div>; break;
+      control = <div className="grid gap-2">{Object.entries(entries).map(([key, v]) => <div key={key} className="flex gap-2"><Input aria-label={`${label} key ${key}`} defaultValue={key} disabled={disabled} onBlur={(e) => { const name = e.target.value; if (name !== key && !Object.hasOwn(entries, name)) onChange({ ...changeField(entries, key, undefined), [name]: v }); }} />{f.type === "map" ? <NumberInput aria-label={`${label} value ${key}`} value={String(v)} disabled={disabled} onChange={(n) => onChange({ ...entries, [key]: Number(n) })} /> : <Input aria-label={`${label} value ${key}`} value={String(v)} disabled={disabled} onChange={(e) => onChange({ ...entries, [key]: e.target.value })} />}<Button type="button" variant="ghost" disabled={disabled} onClick={() => onChange(changeField(entries, key, undefined))}>Remove {key}</Button></div>)}<Button type="button" variant="outline" disabled={disabled || Object.hasOwn(entries, "")} onClick={() => onChange({ ...entries, "": f.type === "map" ? 0 : "" })}>{addLabel(f)}</Button></div>; break;
     }
     default: control = input();
   }
   const leaf = !["object", "keyed"].includes(f.type);
   const changed = p.tracked && leaf && !same(value, p.saved);
-  return <div data-field={path} data-changed={changed || undefined} className="grid min-w-0 gap-1"><div className="flex items-start justify-between gap-x-2">{f.type === "object" && p.panelTitle === label ? null : <span className="min-w-0 text-sm font-medium [overflow-wrap:anywhere]">{label}</span>}{leaf && value !== undefined && value !== null ? <Button type="button" size="xs" variant="ghost" className="shrink-0" disabled={disabled} onClick={clear} aria-label={`Reset ${label}`} title={f.default ? `Back to the default (${f.default})` : "Back to the default"}>Reset</Button> : null}</div>{control}{f.unit ? <span className="text-xs">{f.unit}</span> : null}{error ? <p id={`${id}-error`} role="alert" className="text-sm text-destructive">{error}</p> : null}{f.help ? <p id={`${id}-help`} className="text-xs text-muted-foreground">{f.help}</p> : null}{changed ? <ChangedMark name={label} disabled={disabled} onUndo={() => onChange(structuredClone(p.saved))} /> : null}</div>;
+  return <div data-field={path} data-changed={changed || undefined} className="grid min-w-0 gap-1"><div className="flex items-start justify-between gap-x-2">{f.type === "object" && p.panelTitle === label ? null : <span className="min-w-0 text-sm font-medium [overflow-wrap:anywhere]">{label}</span>}{leaf && value !== undefined && value !== null ? <Button type="button" size="xs" variant="ghost" className="shrink-0" disabled={disabled} onClick={clear} aria-label={`Reset ${label}`} title={f.default ? `Back to the default (${f.default})` : "Back to the default"}>Reset</Button> : null}</div>{control}{f.unit && f.type !== "bytes" ? <span className="text-xs">{f.unit}</span> : null}{error ? <p id={`${id}-error`} role="alert" className="text-sm text-destructive">{error}</p> : null}{f.help ? <p id={`${id}-help`} className="text-xs text-muted-foreground">{f.help}</p> : null}{changed ? <ChangedMark name={label} disabled={disabled} onUndo={() => onChange(structuredClone(p.saved))} /> : null}</div>;
 }
 
 export function SectionFields(p: Omit<FieldInputProps, "field" | "value" | "onChange" | "saved" | "tracked"> & { fields: SchemaField[]; config: Config; onChange: (v: Config) => void; saved?: Config }) {
@@ -208,6 +230,7 @@ export function parseDuration(value: string): number | undefined {
 
 function KeyedRecord(p: FieldInputProps & { name: string; records: Config; managed: boolean; children: ReactNode }) {
   const { name, records, path, disabled } = p;
+  const libraryName = useLibraryName();
   const [nameDraft, setName] = useState(name);
   const [url, setURL] = useState("");
   // A Find a setting result for this record (?open=<path>.<name>) arrives with it unfolded.
@@ -234,10 +257,49 @@ function KeyedRecord(p: FieldInputProps & { name: string; records: Config; manag
     }
     p.onSecrets?.(next);
   };
-  return <details className="rounded border p-3" open={unfolded || undefined}><summary>{name}</summary>{!p.managed ? <>
+  const removed = p.managed && !!p.libraryKeys && !p.libraryKeys.includes(name);
+  return <details className="rounded border p-3" open={unfolded || undefined} data-removed={removed || undefined}><summary>{p.managed ? <><span>{libraryName(name)}</span>{libraryName(name) !== name ? <> <small className="font-mono text-muted-foreground">{name}</small></> : null}{removed ? <> <Badge tone="warning">library removed</Badge></> : null}</> : name}</summary>{removed ? <div className="my-2 flex flex-wrap items-center gap-2 text-sm"><span>No library has this key any more. Remove the row; Save writes the change.</span><Button type="button" variant="outline" size="sm" disabled={disabled} onClick={() => p.onChange(changeField(records, name, undefined))}>Remove {name}</Button></div> : null}{!p.managed ? <>
     <label>Rename<Input aria-label={`Rename ${name}`} value={nameDraft} disabled={disabled} onChange={(e) => setName(e.target.value)} /></label>
     {renaming && (stored.length > 0 || maskedURL) ? <div className="grid gap-2"><p>Renaming needs its credentials again</p>{credentials.map((s) => <label key={s.path}>{s.label}{draft.actions[s.path] === "clear" ? <span> — will be removed</span> : <Input aria-label={`Rename ${s.label}`} type="password" required value={draft.values[s.path] ?? ""} disabled={disabled} onChange={(e) => p.onSecrets?.({ actions: { ...draft.actions, [s.path]: "replace" }, values: { ...draft.values, [s.path]: e.target.value } })} />}</label>)}{maskedURL ? <label>Full URL<Input aria-label="Rename URL" required value={url} disabled={disabled} onChange={(e) => setURL(e.target.value)} /></label> : null}</div> : null}
     {invalid ? <p role="alert">{invalid}</p> : null}
     <Button type="button" variant="outline" disabled={disabled || !renaming || !!invalid || !ready} onClick={() => { moveDraft(`${path}.${nextName}.`); p.onChange({ ...changeField(records, name, undefined), [nextName]: maskedURL ? { ...record, url } : record }); }}>Rename {name}</Button>
   </> : null}{p.children}{path === "notify.targets" && !renaming ? <NotifyTestButton name={name} disabled={disabled} /> : null}{!p.managed ? <Button type="button" variant="outline" disabled={disabled} onClick={() => { moveDraft(); p.onChange(changeField(records, name, undefined)); }}>Remove {name}</Button> : null}</details>;
 }
+
+/** "Add folder", "Add destination": the add button names one of the things the list holds. */
+const ITEM: Record<string, string> = {
+  "": "download client", vpn_ips: "VPN exit IP", vpn_cidrs: "address range", require_vpn_for: "traffic type", roots: "folder",
+  scan_roots: "folder", sources: "metadata service", allow_hosts: "host", targets: "destination", views: "view", events: "event",
+  versions: "library", orders: "watch order", franchises: "franchise", trackers: "tracker",
+};
+export const addLabel = (f: SchemaField) => ITEM[f.name] ? `Add ${ITEM[f.name]}` : `Add ${f.label || f.name}`;
+
+// Durations in words: the select and the custom amount show "10 minutes"; what is written stays a Go duration ("10m";
+// days as hours, which Go reads). A stored value is never rewritten until it is edited.
+type DurationUnit = "seconds" | "minutes" | "hours" | "days";
+const DURATION_UNITS: Record<DurationUnit, number> = { seconds: 1, minutes: 60, hours: 3600, days: 86400 };
+// Days from two days up: 24h reads "24 hours", 168h "7 days".
+const bestDurationUnit = (seconds: number): DurationUnit => (["days", "hours", "minutes"] as const).find((u) => seconds % DURATION_UNITS[u] === 0 && (u !== "days" || seconds >= 172800)) ?? "seconds";
+const goDuration = (n: number, unit: DurationUnit) => unit === "days" ? `${n * 24}h` : `${n}${unit[0]}`;
+/** 600 → "10 minutes", 5400 → "1 hour 30 minutes", 86400 → "24 hours", 604800 → "7 days". */
+export function durationWords(seconds: number): string {
+  if (seconds === 0) return "0 seconds";
+  const parts: string[] = [];
+  let rest = seconds;
+  for (const [unit, per] of [["day", 86400], ["hour", 3600], ["minute", 60]] as const) {
+    const n = unit === "day" && seconds < 172800 ? 0 : Math.floor(rest / per);
+    if (n) { parts.push(plural(n, unit)); rest -= n * per; }
+  }
+  if (rest) parts.push(plural(Number(rest.toFixed(3)), "second"));
+  return parts.join(" ");
+}
+/** The default in words: "6 minutes"; a zero default of a field with Off is "off"; a non-duration ("3 × interval") as written. */
+function durationDefault(f: SchemaField): string {
+  const n = parseDuration(f.default ?? "");
+  return n === undefined ? f.default ?? "" : n === 0 && f.zero_allowed ? "off" : durationWords(n);
+}
+
+// Byte sizes: decimal and binary units, as policy.ByteSize reads them. A stored count shows in the unit that gives the
+// smallest whole number (2147483648 is 2 GiB, 25000000 is 25 MB).
+const BYTE_UNITS: Record<string, number> = { B: 1, KB: 1e3, MB: 1e6, GB: 1e9, TB: 1e12, KiB: 1024, MiB: 1048576, GiB: 1073741824, TiB: 1099511627776 };
+const bestByteUnit = (bytes: number) => Object.entries(BYTE_UNITS).filter(([, per]) => bytes % per === 0).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "B";
