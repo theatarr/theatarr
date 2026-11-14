@@ -66,8 +66,9 @@ type Spec struct {
 	Keys, Leftover []string
 	// View is who removes, for arrview_removed_version ("ui", or the arr view's key).
 	View string
-	// Unlink deletes the files: the links move to the trash and the torrents are cleaned up.
-	Unlink bool
+	// Unlink deletes the files: the links move to the trash and the torrents are cleaned up, unless KeepTorrents
+	// (the dialog's "Delete it from the debrid providers" cleared): the torrents then stay for Torrents › Unused.
+	Unlink, KeepTorrents bool
 	// Action is journal.ActRemoveTitle or ActRemoveVersion; By who removed; Reason the words on ended downloads and
 	// moved links.
 	Action, By, Reason string
@@ -311,6 +312,8 @@ func Run(ctx context.Context, d Deps, s Spec) (*Result, error) {
 			// No torrent on record: nothing to clean up, nothing to say.
 		case len(kept) == len(mine):
 			RecordCleanup(ctx, d.Store, d.Log, id, keptWords)
+		case s.KeepTorrents:
+			RecordCleanup(ctx, d.Store, d.Log, id, "debrid torrents kept, as asked (Torrents › Unused lists them)")
 		case d.StartCleanup == nil:
 			RecordCleanup(ctx, d.Store, d.Log, id, JoinWords("torrents not cleaned up: the torrent manager is not running",
 				keptWords))

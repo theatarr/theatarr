@@ -107,3 +107,37 @@ func journalTorrentDeletes(t *testing.T, o *opsEnv) []string {
 	}
 	return out
 }
+
+// "Delete the files" without "Delete it from the debrid providers": the links go, the torrents stay and the event
+// says so. The torrents cannot go without the files (400).
+func TestRemoveFilesKeepsTorrentsWhenAsked(t *testing.T) {
+	t.Parallel()
+	o := newOpsEnv(t)
+	const hb = "b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0"
+	now := store.Millis(testNow)
+	o.exec(`INSERT INTO link (id, path, target, kind, title_id, state, file_metadata, created_at, updated_at) VALUES
+		(5, '/movies/Beta (2021)/Beta.mkv', '/mnt/zurg/__all__/Beta/b.mkv', 'symlink', 2, 'active', ?, ?, ?)`,
+		`{"InfoHash":"`+hb+`"}`, now, now)
+	o.exec(`INSERT INTO link_version (link_id, version_id) VALUES (5, 3)`)
+	yes, no := true, false
+	if code := o.jsonCall("POST", APIBase+"/titles/2/remove", RemoveRequest{Debrid: &yes}, o.mc, o.mcsrf,
+		nil); code != 400 {
+		t.Errorf("torrents without the files: %d", code)
+	}
+	var got RemoveResult
+	if code := o.jsonCall("POST", APIBase+"/titles/2/remove", RemoveRequest{Unlink: true, Debrid: &no}, o.mc, o.mcsrf,
+		&got); code != 200 || got.Cleanup || len(got.Unlinked) != 1 ||
+		!strings.Contains(got.Message, "its debrid torrents stay") {
+		t.Fatalf("files only: %d %+v", code, got)
+	}
+	o.web.cleanups.Wait()
+	var detail string
+	if err := o.st.Reader().QueryRow(`SELECT detail FROM journal_action WHERE action = ?`,
+		journal.ActRemoveTitle).Scan(&detail); err != nil {
+		t.Fatal(err)
+	}
+	if rm := journal.ParseRemovalDetail(detail); rm.Files != journal.RemovalFilesDeleted ||
+		!strings.HasPrefix(rm.Cleanup, "debrid torrents kept, as asked") {
+		t.Errorf("event %+v", rm)
+	}
+}

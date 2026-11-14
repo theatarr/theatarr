@@ -826,8 +826,11 @@ func (w *Web) apiRemovalScope(rw http.ResponseWriter, r *http.Request) {
 type RemoveRequest struct {
 	// Versions are the copies to remove; empty removes the title (every copy).
 	Versions []string `json:"versions"`
-	// Unlink also moves the copies' library symlinks to the trash.
+	// Unlink also moves the copies' library symlinks to the trash (the dialog's "Delete the files").
 	Unlink bool `json:"unlink"`
+	// Debrid also deletes their debrid torrents nothing else in Theatarr uses (the dialog's "Delete it from the debrid
+	// providers"); it needs Unlink (deleting a torrent would break kept files). Omitted: as Unlink.
+	Debrid *bool `json:"debrid,omitempty"`
 }
 
 // KeptLink is a link a removal left in place, and why (or, in RemoveResult.Failed, the error that kept it).
@@ -873,6 +876,10 @@ func (w *Web) apiRemove(rw http.ResponseWriter, r *http.Request) {
 		badRequest(rw, "invalid JSON: "+err.Error())
 		return
 	}
+	if req.Debrid != nil && *req.Debrid && !req.Unlink {
+		badRequest(rw, "deleting the debrid torrents needs the files deleted too: a kept file would break")
+		return
+	}
 	if req.Unlink && w.noOps(rw) {
 		return
 	}
@@ -904,8 +911,9 @@ func (w *Web) apiRemove(rw http.ResponseWriter, r *http.Request) {
 	if scope.Title {
 		act = journal.ActRemoveTitle
 	}
-	spec := removal.Spec{TitleID: id, Name: scope.Name, Keys: keys, View: "ui", Unlink: req.Unlink, Action: act,
-		By: by, Reason: "copy removed by " + orSomeone(by)}
+	keep := req.Debrid != nil && !*req.Debrid
+	spec := removal.Spec{TitleID: id, Name: scope.Name, Keys: keys, View: "ui", Unlink: req.Unlink, KeepTorrents: keep,
+		Action: act, By: by, Reason: "copy removed by " + orSomeone(by)}
 	if req.Unlink {
 		for _, c := range scope.Leftover {
 			spec.Leftover = append(spec.Leftover, c.Key)
@@ -932,6 +940,9 @@ func (w *Web) apiRemove(rw http.ResponseWriter, r *http.Request) {
 		out.Failed = append(out.Failed, KeptLink{Path: k.Path, Reason: k.Reason})
 	}
 	out.Message = removeMessage(scope, req.Unlink, &out)
+	if req.Unlink && keep {
+		out.Message = strings.TrimSuffix(out.Message, ".") + "; its debrid torrents stay (Torrents › Unused lists them)."
+	}
 	w.log.Info("copies removed by hand", "title", id, "versions", strings.Join(out.Removed, ","), "title_removed",
 		out.Title, "downloads_ended", out.DownloadsEnded, "unlinked", len(out.Unlinked), "kept", len(out.Kept),
 		"failed", len(out.Failed), "cleanup", out.Cleanup, "by", by)
