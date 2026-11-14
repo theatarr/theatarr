@@ -14,7 +14,12 @@ describe("library status", () => {
   it("says what a movie without a file is waiting for", () => {
     expect(libraryStatus(v({}), movie, DAY)).toMatchObject({ label: "Missing", tone: "negative" });
     expect(libraryStatus(v({ monitored: false }), movie, DAY)).toMatchObject({ label: "Not monitored", tone: "neutral" });
-    expect(libraryStatus(v({}), { ...movie, home_release: "2026-12-31" }, DAY)).toMatchObject({ label: "Upcoming · Dec 31", tone: "neutral" });
+    expect(libraryStatus(v({}), { ...movie, home_release: "2026-12-31", digital_release: "2026-12-31" }, DAY)).toMatchObject({ label: "Upcoming · Dec 31", tone: "neutral" });
+    // No digital or disc date: the home release is the cinema date plus 90 days, an estimate.
+    expect(libraryStatus(v({}), { ...movie, home_release: "2027-03-18" }, DAY)).toMatchObject({ label: "Upcoming · ~Mar 18, 2027 (estimate)", tone: "neutral" });
+    // No date at all, announced or still being made: Upcoming, date unknown; released without a date stays Missing.
+    expect(libraryStatus(v({}), { ...movie, status: "Planned" }, DAY)).toMatchObject({ label: "Upcoming, date unknown", tone: "neutral" });
+    expect(libraryStatus(v({}), { ...movie, status: "Released" }, DAY)).toMatchObject({ label: "Missing", tone: "negative" });
     const s = libraryStatus(v({ acquisition: downloading }), movie, DAY);
     expect(s).toMatchObject({ label: "Downloading · 37%", tone: "info" });
     expect(s.stage?.stage).toBe("downloading");

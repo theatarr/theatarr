@@ -1060,7 +1060,16 @@ func TestStatusWords(t *testing.T) {
 		(922, 221, 22, 's', 922, '/t/22.mkv', 1, 'WEBDL-2160p')`)
 	e.exec(`INSERT INTO version_file_episode (version_file_id, episode_id) VALUES (920, 2001), (920, 2002), (921, 2101),
 		(922, 2201), (922, 2202)`)
+	// M Announced has no date at all and TMDb says Post Production: Upcoming, date unknown. M Undated has no date
+	// and no such status: Missing.
+	e.exec(`INSERT INTO title (id, kind, name, year, created_at, updated_at) VALUES (16, 'movie', 'M Announced', NULL, 0, 0),
+		(17, 'movie', 'M Undated', NULL, 0, 0)`)
+	e.exec(`INSERT INTO title_meta (title_id, release_date, status, attempted_at, refresh_after) VALUES
+		(16, '', 'Post Production', 0, 0), (17, '', 'Released', 0, 0)`)
+	e.exec(`INSERT INTO version (id, title_id, policy_key, state, monitored, created_at, updated_at) VALUES
+		(161, 16, 'movie-web', 'wanted', 1, 0, 0), (171, 17, 'movie-web', 'wanted', 1, 0, 0)`)
 	want := map[string]string{
+		"M Announced": "upcoming", "M Undated": "missing",
 		"M Partial": "partial", "M Off Gap": "available", "M Missing": "missing", "M Upcoming": "upcoming",
 		"M Digital": "upcoming", "M Unmonitored": "unmonitored", "S Full": "available", "S Gap": "partial",
 		"S Off Gap": "available", "S Not Aired": "upcoming", "S None": "none", "S Tonight": "upcoming",

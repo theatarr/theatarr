@@ -27,7 +27,8 @@ import (
 //   - upcoming: digital, physical and theatrical release dates (the release-date choice, activity.FirstReleasesSQL),
 //     and episode air dates, in the next upcomingDays days; the earliest per title.
 //   - missing: monitored titles with a monitored version that is wanted and out: a movie counts as out from its
-//     first digital or physical date, or 90 days after the TMDb release date when there is none, or after its year;
+//     first digital or physical date, or 90 days after the TMDb release date when there is none, or after its year
+//     (an undated movie announced or still being made is upcoming, not missing: undatedMovieSQL);
 //     a series has aired episodes (specials left out) that are monitored and wanted. Newest first.
 //   - upgrades: monitored titles with a version whose file is below its cutoff and that has an upgrade found (a
 //     better release seen), newest file first.
@@ -290,7 +291,8 @@ func (w *Web) missingPicks(ctx context.Context, db *sql.DB) ([]pick, error) {
 			CASE WHEN m.release_date <> '' THEN date(m.release_date, '+90 days') END,
 			CASE WHEN t.year IS NOT NULL THEN printf('%04d-12-31', t.year) END, '')`+titleFrom+`
 		JOIN version v ON v.title_id = t.id AND v.state = 'wanted' AND v.monitored = 1
-		WHERE t.kind = 'movie' AND t.monitored = 1 GROUP BY t.id`, nil, func(r *sql.Rows) error {
+		WHERE t.kind = 'movie' AND t.monitored = 1 AND NOT (`+homeReleaseSQL+` IS NULL AND COALESCE(m.release_date, '') = ''
+			AND `+undatedMovieSQL+`) GROUP BY t.id`, nil, func(r *sql.Rows) error {
 		var p pick
 		var keys string
 		if err := r.Scan(&p.id, &keys, &p.date); err != nil {

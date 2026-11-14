@@ -33,7 +33,7 @@ import {
   type IndexColumnId,
 } from "@/lib/index-columns";
 import { badgeTone, copyTone, copyWords, type CopyTone } from "@/lib/library-status";
-import { fmtDay, fmtRuntime, notAiredYet, POSTER_STATUS_LABEL, posterStatus, qualityWord, titleWatchWords, upcomingRelease, type PosterStatus } from "@/lib/library";
+import { fmtDay, fmtRuntime, notAiredYet, POSTER_STATUS_LABEL, posterStatus, qualityWord, statusDay, titleWatchWords, undatedUpcoming, upcomingRelease, type PosterStatus } from "@/lib/library";
 import { cn } from "@/lib/utils";
 import { StageLink, useMinWidth } from "./copy-bits";
 import { CopyDialog } from "./copy-dialog";
@@ -103,13 +103,15 @@ function StatusCell({ t, words = false }: { t: TitleRow; words?: boolean }) {
   const s = posterStatus(t.availability, false, t);
   if (a && !(s && HELD.has(s))) return <StageLink a={a.acquisition} className="text-[13px]" />;
   if (!s) return dash;
-  const day = s === "upcoming" ? (upcomingRelease(t) ?? (notAiredYet(t) ? t.next_up?.date : undefined)) : undefined;
+  const home = s === "upcoming" ? upcomingRelease(t) : undefined;
+  const day = s === "upcoming" ? (home ?? (notAiredYet(t) ? t.next_up?.date : undefined)) : undefined;
+  const undated = s === "upcoming" && !day && undatedUpcoming(t);
   const q = qualityWord(t);
   const word = (
     <span className="inline-flex min-w-0 flex-col">
       <span data-testid="status-cell" className={cn("text-[13px] font-medium", TONE_INK[badgeTone(s)])}>
         {POSTER_STATUS_LABEL[s]}
-        {day ? ` · ${fmtDay(day)}` : ""}
+        {day ? ` · ${home ? statusDay(t, home) : fmtDay(day)}` : undated ? ", date unknown" : ""}
       </span>
       {q ? <span data-testid="status-quality" className={cn("text-[11.5px]", QUALITY_INK[q.tone])}>{q.label}</span> : null}
     </span>

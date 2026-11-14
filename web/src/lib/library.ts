@@ -47,6 +47,23 @@ export function upcomingRelease(t: Pick<TitleRow, "kind" | "release_date" | "hom
   return d && d > day ? d : undefined;
 }
 
+/** The statuses of a movie announced or still being made: TMDb's Rumored, Planned, In Production, Post Production and
+ *  the arrs' announced and tba (internal/web/library.go undatedMovieSQL). */
+const UNDATED_STATUS = new Set(["rumored", "planned", "in production", "post production", "announced", "tba"]);
+
+/** A movie with no date at all that is announced or still being made: Upcoming, date unknown, not Missing (the
+ *  server's rule for the status word). */
+export function undatedUpcoming(t: (Pick<TitleRow, "kind" | "release_date" | "home_release"> & Partial<Pick<TitleRow, "status">>) | undefined): boolean {
+  return !!t && t.kind === "movie" && !t.home_release && !t.release_date && UNDATED_STATUS.has((t.status ?? "").toLowerCase());
+}
+
+/** The day a status shows (upcomingRelease's): "Mar 18, 2027", or "~Mar 18, 2027 (estimate)" when it is the home
+ *  release worked out as the cinema date plus 90 days (no digital or disc date known). */
+export function statusDay(t: Pick<TitleRow, "kind" | "home_release"> & Partial<Pick<TitleRow, "digital_release" | "physical_release">>, d: string): string {
+  const estimate = t.kind === "movie" && !!t.home_release && t.home_release.slice(0, 10) === d.slice(0, 10) && !t.digital_release && !t.physical_release;
+  return estimate ? `~${fmtDay(d)} (estimate)` : fmtDay(d);
+}
+
 export type CardKind = "movie" | "series" | "anime";
 
 export function kindOf(t: { anime?: boolean; kind?: string }): CardKind {
@@ -80,7 +97,7 @@ export function notAiredYet(t: Pick<TitleRow, "kind" | "versions" | "release_dat
  */
 export function posterStatus(a: Availability | undefined, plain = false, title?: Pick<TitleRow, "kind" | "versions" | "release_date" | "home_release" | "acquiring" | "status">): PosterStatus | undefined {
   if (plain) {
-    if (a === "missing") return title?.acquiring ? "getting_ready" : upcomingRelease(title) || notAiredYet(title) ? "upcoming" : "not_available";
+    if (a === "missing") return title?.acquiring ? "getting_ready" : upcomingRelease(title) || undatedUpcoming(title) || notAiredYet(title) ? "upcoming" : "not_available";
     if (a === "partial") return title?.kind === "movie" ? "available" : "some_episodes";
     return a === "available" ? "available" : undefined;
   }
@@ -141,11 +158,12 @@ export function watchWords(a: Availability | undefined, qualities: readonly (str
 /** A library title's one watchability line for accounts without "see files" (the table's cell, search results): a
  * missing title with a download in hand reads Getting ready, before Upcoming (a movie not out at home, with its day; a
  * series with nothing aired yet, with its first episode's day when known); else watchWords. */
-export function titleWatchWords(t: Pick<TitleRow, "kind" | "availability" | "acquiring" | "versions" | "release_date" | "home_release" | "next_up" | "status">): { label: string; tone: "positive" | "partial" | "neutral" } | null {
+export function titleWatchWords(t: Pick<TitleRow, "kind" | "availability" | "acquiring" | "versions" | "release_date" | "home_release" | "next_up" | "status"> & Partial<Pick<TitleRow, "digital_release" | "physical_release">>): { label: string; tone: "positive" | "partial" | "neutral" } | null {
   const missing = t.availability === "missing";
   const up = missing && !t.acquiring ? upcomingRelease(t) : undefined;
   if (missing && t.acquiring) return { label: "Getting ready", tone: "neutral" };
-  if (up) return { label: `Upcoming · ${fmtDay(up)}`, tone: "neutral" };
+  if (up) return { label: `Upcoming · ${statusDay(t, up)}`, tone: "neutral" };
+  if (missing && !t.acquiring && undatedUpcoming(t)) return { label: "Upcoming, date unknown", tone: "neutral" };
   if (missing && notAiredYet(t)) return { label: t.next_up?.date ? `Upcoming · ${fmtDay(t.next_up.date)}` : "Upcoming", tone: "neutral" };
   return watchWords(t.availability, (t.versions ?? []).map((v) => v.quality));
 }

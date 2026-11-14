@@ -159,12 +159,18 @@ func availStateSQL(c airClock) string {
 //     missing an aired, monitored episode);
 //   - unmonitored: no file, and no library is monitored;
 //   - upcoming: no file, monitored, and not out yet: a movie's home release (else its TMDb release date) is still to
-//     come; a series has no aired episode and an episode's air time is still to come (one airing later today
+//     come, or it has neither and its status says it is not made yet (undatedMovieSQL: Upcoming, date unknown); a series has no aired episode and an episode's air time is still to come (one airing later today
 //     included), or its first air date is still to come (without one, its TMDb status is not Returning Series, Ended
 //     or Canceled);
 //   - missing: no file, monitored and out.
 // A gap in a library that is not monitored is no gap. Quality is said apart from it (upgradeFilters). Display and
 // filters only: searching, grabbing and Wanted read the stored states.
+
+// undatedMovieSQL is true for a movie t without any date whose status (m, title_meta) says it is announced or still
+// being made: TMDb's Rumored, Planned, In Production and Post Production, and the arrs' announced and tba. It reads
+// Upcoming, date unknown, not Missing (web/src/lib/library.ts undatedUpcoming). Display only.
+const undatedMovieSQL = `lower(COALESCE(m.status, '')) IN ('rumored', 'planned', 'in production', 'post production',
+	'announced', 'tba')`
 
 // titleAvailabilities are the availability values a caller who sees files gets.
 var titleAvailabilities = []string{"available", "partial", "missing", "upcoming", "unmonitored", "none"}
@@ -193,7 +199,7 @@ func titleAvailabilitySQL(c airClock) string {
 	gap := `EXISTS (SELECT 1 ` + live + ` AND v.monitored = 1 AND CASE WHEN t.kind = 'movie' THEN NOT ` + hasFileSQL +
 		` ELSE ` + seriesGap + ` END)`
 	upcoming := `CASE WHEN t.kind = 'movie' THEN COALESCE(substr(COALESCE(` + homeReleaseSQL + `, NULLIF(m.release_date, '')), 1, 10)
-		> '` + c.today + `', 0)
+		> '` + c.today + `', ` + undatedMovieSQL + `)
 		ELSE NOT EXISTS (SELECT 1 FROM episode e WHERE e.title_id = t.id AND e.season > 0 AND ` + aired + `) AND
 			(EXISTS (SELECT 1 FROM episode e WHERE e.title_id = t.id AND e.season > 0 AND e.air_date_utc_at > ` +
 		fmt.Sprint(c.nowMs) + `) OR

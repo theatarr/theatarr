@@ -6,7 +6,7 @@ import type { Schemas } from "@/api/client";
 import type { Version } from "@/api/library";
 import { stageWords } from "./copies";
 import { fmtAgo } from "./format";
-import { fmtDay, upcomingRelease } from "./library";
+import { statusDay, undatedUpcoming, upcomingRelease } from "./library";
 import { copyTone, copyWords, TONE, type ToneTitle } from "./library-status";
 import type { ColumnDef } from "./prefs";
 import { upgradeBadge, type Tone } from "./upgrade";
@@ -114,7 +114,8 @@ export function libraryStatus(v: Version, t: ToneTitle, day?: string): LibrarySt
     if (a) return { label: stageWords(a), tone, stage: a };
     if (!v.monitored) return { label: "Not monitored", tone };
     const upcoming = upcomingRelease(t, day);
-    if (upcoming) return { label: `Upcoming · ${fmtDay(upcoming)}`, tone };
+    if (upcoming) return { label: `Upcoming · ${statusDay(t, upcoming)}`, tone };
+    if (undatedUpcoming(t)) return { label: "Upcoming, date unknown", tone };
     return { label: "Missing", tone };
   }
   const sub = a ? stageWords({ ...a, upgrade: true }) : undefined;

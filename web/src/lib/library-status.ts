@@ -4,7 +4,7 @@
 import type { Schemas } from "@/api/client";
 import type { TitleRow } from "@/api/library";
 import { chipWords, copyBar } from "@/lib/copies";
-import { notAiredYet, upcomingRelease, type PosterStatus } from "@/lib/library";
+import { notAiredYet, undatedUpcoming, upcomingRelease, type PosterStatus } from "@/lib/library";
 
 type VersionBrief = Schemas["VersionBrief"];
 
@@ -12,7 +12,7 @@ type VersionBrief = Schemas["VersionBrief"];
 export type CopyTone = "ok" | "bad" | "progress" | "warn" | "idle";
 
 /** The facts of the title the rule reads: its kind and, for a movie, its release days. */
-export type ToneTitle = Pick<TitleRow, "kind" | "release_date" | "home_release"> & Partial<Pick<TitleRow, "status">>;
+export type ToneTitle = Pick<TitleRow, "kind" | "release_date" | "home_release"> & Partial<Pick<TitleRow, "status" | "digital_release" | "physical_release">>;
 
 /** A download in hand for the library is blocked. A row summarises all of a library's downloads (the most advanced
  *  stage, blocked first), so for a series it does not say which episodes the blocked one covers: no counts are given
@@ -39,7 +39,7 @@ export function copyTone(v: VersionBrief, t: ToneTitle, day?: string): CopyTone 
   if (v.has_file) return "ok";
   if (blocked) return "warn";
   if (v.acquisition) return "progress";
-  if (v.monitored === false || upcomingRelease(t, day)) return "idle";
+  if (v.monitored === false || upcomingRelease(t, day) || undatedUpcoming(t)) return "idle";
   return "bad";
 }
 
@@ -84,6 +84,6 @@ export function copyWords(v: VersionBrief, t: ToneTitle, day?: string): string {
   if (blocked) return "download blocked";
   if (v.acquisition) return chipWords(v.acquisition).toLowerCase();
   if (v.monitored === false) return "not monitored";
-  if (upcomingRelease(t, day)) return "not released yet";
+  if (upcomingRelease(t, day) || undatedUpcoming(t)) return "not released yet";
   return "missing";
 }

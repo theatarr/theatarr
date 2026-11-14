@@ -2,7 +2,7 @@
 // readiness line in the hero. Kept out of the components so it is tested.
 import type { TitleRow, Version } from "@/api/library";
 import { fmtNumber } from "./format";
-import { POSTER_STATUS_LABEL, posterStatus, today } from "./library";
+import { POSTER_STATUS_LABEL, posterStatus, today, undatedUpcoming } from "./library";
 import { resolutionWords } from "./upgrade";
 
 export type TitleTab = "episodes" | "order" | "about" | "history";
@@ -100,5 +100,6 @@ export function titleStatus(t: Pick<TitleRow, "availability" | "kind" | "version
     return { label: r ? `Available in ${r}` : POSTER_STATUS_LABEL.available, tone: "positive" };
   }
   const tone = { partly_available: "warning", wanted: "negative" } as const;
+  if (s === "upcoming" && undatedUpcoming(t)) return { label: "Upcoming, date unknown", tone: "neutral" };
   return { label: POSTER_STATUS_LABEL[s], tone: tone[s as keyof typeof tone] ?? "neutral" };
 }
