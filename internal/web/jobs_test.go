@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/theatarr/theatarr/internal/auth"
+	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/store"
 )
 
@@ -177,11 +178,17 @@ func TestJobsRecurring(t *testing.T) {
 	now := store.Millis(testNow)
 	// The seed queues db.nightly an hour ahead (and has a failed one, never finished).
 	e.exec(`INSERT INTO job (id, kind, payload, state, run_at, created_at, updated_at, finished_at) VALUES
-		(10, 'shadow.rss', 'null', 'done', ?1, ?1, ?1, ?1), (11, 'shadow.rss', 'null', 'failed', ?1, ?1, ?1, ?1 - 60000),
+		(10, 'shadow.rss', 'null', 'failed', ?1, ?1, ?1, ?1 - 60000), (11, 'shadow.rss', 'null', 'done', ?1, ?1, ?1, ?1),
 		(12, 'provider.sync', '{}', 'done', ?1, ?1, ?1, ?1 - 3600000),
 		(13, 'provider.sync', '{"providers":["ad"],"retry":true}', 'failed', ?1, ?1, ?1, ?1),
 		(14, 'ceiling.compute', '{"title_id":4}', 'done', ?1, ?1, ?1, ?1),
-		(15, 'ceiling.compute', '{"title_id":5}', 'queued', ?1 + 60000, ?1, ?1, NULL)`, now)
+		(15, 'ceiling.compute', '{"title_id":5}', 'queued', ?1 + 60000, ?1, ?1, NULL),
+		(16, 'torrents.backup', '{"reason":"scheduled","by":"schedule"}', 'done', ?1, ?1, ?1, ?1 - 7200000),
+		(17, 'torrents.backup', '{"reason":"manual","by":"admin"}', 'failed', ?1, ?1, ?1, ?1)`, now)
+	if e.web.pol.Torrents == nil {
+		e.web.pol.Torrents = &policy.Torrents{}
+	}
+	e.web.pol.Torrents.Backup.Every = policy.Duration(24 * time.Hour)
 	var js JobSchedules
 	if code := e.getKey(APIBase+"/jobs/recurring", e.apiKey(), &js); code != 200 {
 		t.Fatalf("recurring: %d", code)
@@ -204,8 +211,15 @@ func TestJobsRecurring(t *testing.T) {
 		t.Errorf("nightly: %+v", s)
 	}
 	pol := e.web.pol
-	if s := by["acquire.wanted"]; s.EverySeconds != 900 || s.Paused != (len(pol.ActiveVersions()) == 0 || !pol.RouterSettings().Enabled) {
+	paused := len(pol.ActiveVersions()) == 0 || !pol.RouterSettings().Enabled
+	if s := by["acquire.wanted"]; s.EverySeconds != 900 || s.Paused != paused {
 		t.Errorf("search round: %+v", s)
+	}
+	if rss.Paused != paused {
+		t.Errorf("rss paused %v, want %v", rss.Paused, paused)
+	}
+	if s := by["torrents.backup"]; s.EverySeconds != 86400 || s.LastRun == nil || !s.LastRun.Equal(testNow.Add(-2*time.Hour)) || s.LastState != "done" {
+		t.Errorf("torrent backups take the scheduled run, not a manual one: %+v", s)
 	}
 	if _, ok := by["meta.art"]; ok != e.web.metadataSourceOn("tmdb") {
 		t.Errorf("meta.art listed %v with TMDb %v", ok, e.web.metadataSourceOn("tmdb"))

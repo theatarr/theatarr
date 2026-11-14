@@ -310,7 +310,7 @@ func (s *Service) Run(ctx context.Context) {
 			if _, _, err := s.q.Enqueue(ctx, sceneJob, Payload{}, jobs.EnqueueOptions{DedupeKey: sceneJob, MaxAttempts: 3}); err != nil {
 				s.log.Warn("scene refresh: enqueue", "err", err)
 			} else {
-				nextScene = now.Add(sceneAge)
+				nextScene = now.Add(SceneAge)
 			}
 		}
 		if now := s.now(); !now.Before(next) {

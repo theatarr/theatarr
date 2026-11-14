@@ -125,7 +125,7 @@ func TestPeriodicSceneRefresh(t *testing.T) {
 	if calls["/v1/scenemapping"] != 1 || calls["/map/all"] != 1 {
 		t.Fatal("three-hour response cache ignored")
 	}
-	clock = clock.Add(sceneAge)
+	clock = clock.Add(SceneAge)
 	emptyIDs = true
 	refresh()
 	check(31)
@@ -136,7 +136,7 @@ func TestPeriodicSceneRefresh(t *testing.T) {
 		t.Fatal("old alias retained")
 	}
 	// A failed read retains both aliases and numbers and retries without advancing freshness.
-	clock = clock.Add(sceneAge)
+	clock = clock.Add(SceneAge)
 	fail = true
 	if err := e.svc.RefreshScene(ctx); err == nil {
 		t.Fatal("failed providers succeeded")
@@ -156,7 +156,7 @@ func TestPeriodicSceneRefresh(t *testing.T) {
 	}
 	// Imported scene numbers are replaced by the next refresh; imported names are never deleted.
 	empty = false
-	clock = clock.Add(sceneAge)
+	clock = clock.Add(SceneAge)
 	if _, err := e.st.Writer().Exec(`INSERT INTO episode_number(episode_id,title_id,scheme,season,number,source) SELECT id,title_id,'scene',9,99,'sonarr_4k_debrid' FROM episode WHERE title_id=? AND season=1 AND number=1`, id); err != nil {
 		t.Fatal(err)
 	}
@@ -385,12 +385,12 @@ func TestSceneSchedule(t *testing.T) {
 	if _, err := e.st.Writer().Exec(`DELETE FROM job WHERE kind=?`, sceneJob); err != nil {
 		t.Fatal(err)
 	}
-	offset.Store(int64(sceneAge - time.Minute))
+	offset.Store(int64(SceneAge - time.Minute))
 	// A normal series poll does not queue scene reads before three hours have passed.
 	time.Sleep(25 * time.Millisecond)
 	if e.count(t, `SELECT COUNT(*) FROM job WHERE kind=?`, sceneJob) != 0 {
 		t.Fatal("scene refresh scheduled early")
 	}
-	offset.Store(int64(sceneAge))
+	offset.Store(int64(SceneAge))
 	wait()
 }

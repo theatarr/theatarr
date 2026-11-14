@@ -86,7 +86,7 @@ type HistoryEvent struct {
 
 // notStartedCol is a column of a query on the table download (unaliased): the download failed without ever being
 // tried, because downloads were off when its turn came (activity.NotStartedSQL, as Activity reads it).
-const notStartedCol = `(state = 'failed' AND ` + activity.NotStartedSQL + `)`
+var notStartedCol = `(state = 'failed' AND ` + activity.NotStartedSQL + `)`
 
 // downloadEvents appends a Theatarr download's events: grabbed, then imported or failed; a download that was never
 // tried (notStarted, notStartedCol) ends with not_started and Activity's words as the reason, not failed. h carries

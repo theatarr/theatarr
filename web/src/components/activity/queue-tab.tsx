@@ -327,27 +327,23 @@ function queueColumns(now: number): { fixed: DataColumn<ActivityDownload>[]; opt
   };
 }
 
-/** Interactive search for the failed download's own library only: when that library does not search the indexers
- *  now (Watch only, removed), the panel says so instead of opening a search of another library. */
-function PanelSearch({ d }: { d: ActivityDownload }) {
-  const { libs, pending } = useLiveLibraries(d.title.id);
-  if (pending) return null;
-  if (!libs.some((v) => v.key === d.version)) return <span className="text-sm text-muted-foreground" data-testid="panel-search-off">Its library does not search the indexers now, so Interactive search is not offered.</span>;
-  return <InteractiveSearchButton {...searchScope(d)} size="sm" />;
-}
-
 /** The open row's panel: the steps, then the release, hash, message, provider attempts, cache evidence and journal.
  *  A failed download leads with one sentence and Interactive search; its details are folded under Details. */
 function OpenPanel({ d }: { d: ActivityDownload }) {
-  const lead = failedLead(d);
   const manage = usePerms().manage;
+  const failed = failedLead(d) !== "";
+  // Interactive search for the failed download's own library only: when that library does not search the indexers
+  // now (Watch only, removed), no search of another library is offered and the sentence does not mention one.
+  const live = useLiveLibraries(d.title.id, failed && manage && !!d.title.id);
+  const search = manage && !!d.title.id && !live.pending && live.libs.some((v) => v.key === d.version);
+  const lead = failedLead(d, search);
   // contain: the panel takes the row's width without widening the table's columns (no reflow when it opens).
   return (
     <div data-testid="download-open" className="[contain:inline-size]">
       {lead ? (
         <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2" data-testid="failed-lead">
           <p className="min-w-0 max-w-2xl text-sm text-[var(--ink)]">{lead}</p>
-          {manage && d.title.id ? <PanelSearch d={d} /> : null}
+          {search ? <InteractiveSearchButton {...searchScope(d)} size="sm" /> : null}
         </div>
       ) : null}
       <div className="max-w-xl">

@@ -43,8 +43,6 @@ const (
 // RoundEvery is the time between full rounds (System › Tasks shows it).
 const RoundEvery = 15 * time.Minute
 
-const roundEvery = RoundEvery
-
 // noAnswerTries is how many times in a row a row that is not new is tried again an hour after no indexer answered.
 const noAnswerTries = 3
 
@@ -532,7 +530,7 @@ func (a *Acquirer) Round(ctx context.Context, scope []int64) (*WantedSummary, er
 	return sum, nil
 }
 
-// Run enqueues a full round every roundEvery until ctx ends; the first after delay. The serve worker runs it while
+// Run enqueues a full round every RoundEvery until ctx ends; the first after delay. The serve worker runs it while
 // a library is Live and Pause is off.
 func (a *Acquirer) Run(ctx context.Context, delay time.Duration) {
 	a.log.Info("search schedule", "per_hour", a.set.PerHour, "again_after", a.set.AgainAfter.String(),
@@ -547,7 +545,7 @@ func (a *Acquirer) Run(ctx context.Context, delay time.Duration) {
 			if _, _, err := a.q.Enqueue(ctx, JobWanted, struct{}{}, jobs.EnqueueOptions{DedupeKey: JobWanted, MaxAttempts: 1}); err != nil {
 				a.log.Warn("enqueue search round", "err", err)
 			}
-			t.Reset(roundEvery)
+			t.Reset(RoundEvery)
 		}
 	}
 }

@@ -173,9 +173,13 @@ type JobSchedules struct {
 	Items []JobSchedule `json:"items"`
 }
 
-// sweepKinds are the recurring kinds that also run for one item (a title, one provider's retry): their scheduled run
-// is the one with the empty payload {}, and only that one is the task's last or next run.
-var sweepKinds = map[string]bool{provider.JobKind: true, art.JobKind: true, tvrefresh.JobKind: true, ceiling.JobKind: true}
+// scheduledOnly picks a recurring kind's scheduled runs where the kind also runs for one item or by hand (a title, one
+// provider's retry, a manual backup): only those are the task's last or next run.
+var scheduledOnly = map[string]string{
+	provider.JobKind: ` AND payload = '{}'`, art.JobKind: ` AND payload = '{}'`, tvrefresh.JobKind: ` AND payload = '{}'`,
+	ceiling.JobKind:    ` AND payload = '{}'`,
+	torrents.JobBackup: ` AND json_extract(payload, '$.reason') = '` + torrents.ReasonScheduled + `'`,
+}
 
 // metadataSourceOn is whether metadata.sources.<name> has a URL and its key is set (cmd/theatarr builds the client then).
 func (w *Web) metadataSourceOn(name string) bool {
@@ -191,15 +195,14 @@ func (w *Web) metadataSourceOn(name string) bool {
 func (w *Web) recurringJobs() []JobSchedule {
 	day := int64(24 * time.Hour / time.Second)
 	sec := func(d time.Duration) int64 { return int64(d / time.Second) }
-	// The search round and the RSS read queue nothing without a Live library; the round also waits while paused
-	// (serveliveworkers.go wantedWorkerKey, rss eligible).
-	noLive := len(w.pol.ActiveVersions()) == 0
+	// The search round and the RSS read do nothing without a Live library or while Pause is on
+	// (serveliveworkers.go wantedWorkerKey; rss eligible and rssJob's paused).
+	paused := len(w.pol.ActiveVersions()) == 0 || !w.pol.RouterSettings().Enabled
 	var out []JobSchedule
 	if sh := w.pol.ShadowSettings(); sh.RSS {
-		out = append(out, JobSchedule{Kind: rss.KindRSS, EverySeconds: sec(sh.RSSInterval), Paused: noLive})
+		out = append(out, JobSchedule{Kind: rss.KindRSS, EverySeconds: sec(sh.RSSInterval), Paused: paused})
 	}
-	out = append(out, JobSchedule{Kind: acquire.JobWanted, EverySeconds: sec(acquire.RoundEvery),
-		Paused: noLive || !w.pol.RouterSettings().Enabled})
+	out = append(out, JobSchedule{Kind: acquire.JobWanted, EverySeconds: sec(acquire.RoundEvery), Paused: paused})
 	if len(w.pol.Providers) > 0 {
 		out = append(out, JobSchedule{Kind: provider.JobKind, EverySeconds: sec(w.pol.ProviderSyncInterval())})
 	}
@@ -223,7 +226,8 @@ func (w *Web) recurringJobs() []JobSchedule {
 }
 
 // GET /jobs/recurring: the recurring tasks with their interval, last run and next run (when one is queued). Two
-// lookups per listed kind, each narrowed to that kind by an index (job_resolve, job_ready).
+// lookups per listed kind answered by an index (job_resolve: kind, state, id; job_ready). The last run is the
+// newest finished job by id: one with a higher id that finished a moment earlier is not worth a sort.
 func (w *Web) apiJobsRecurring(rw http.ResponseWriter, r *http.Request) {
 	items := w.recurringJobs()
 	ctx := r.Context()
@@ -231,14 +235,11 @@ func (w *Web) apiJobsRecurring(rw http.ResponseWriter, r *http.Request) {
 	now := store.Millis(w.now())
 	for i := range items {
 		k := items[i].Kind
-		sweep := ""
-		if sweepKinds[k] {
-			sweep = ` AND payload = '{}'`
-		}
+		sweep := scheduledOnly[k]
 		var fin int64
 		var state string
 		err := db.QueryRowContext(ctx, `SELECT finished_at, state FROM job WHERE kind = ? AND state IN ('done', 'failed')
-			AND finished_at IS NOT NULL`+sweep+` ORDER BY finished_at DESC, id DESC LIMIT 1`, k).Scan(&fin, &state)
+			AND finished_at IS NOT NULL`+sweep+` ORDER BY id DESC LIMIT 1`, k).Scan(&fin, &state)
 		if err == nil {
 			t := ts(fin)
 			items[i].LastRun, items[i].LastState = &t, state

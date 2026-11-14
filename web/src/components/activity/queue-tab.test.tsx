@@ -206,8 +206,8 @@ it("opens a failed download with one sentence and Interactive search, its attemp
   ]);
   renderPage(<QueueTab admin show="all" onShow={() => {}} />, "/activity?open=50");
   const lead = await screen.findByTestId("failed-lead");
-  expect(lead.textContent).toContain("It stalled at the provider and was dropped. Retry sends the same release again; Interactive search lets you choose another.");
   expect((await within(lead).findByTestId("interactive-search-open")).textContent).toContain("Interactive search");
+  expect(lead.textContent).toContain("It stalled at the provider and was dropped. Retry sends the same release again; Interactive search lets you choose another.");
   const details = screen.getByTestId("failed-details") as HTMLDetailsElement;
   expect(details.open).toBe(false);
   expect(await within(details).findByText("Waiting for the 20 s minimum gap between adds")).toBeTruthy();
@@ -233,6 +233,8 @@ it("offers no Interactive search of another library when the failed download's l
   ]);
   renderPage(<QueueTab admin show="all" onShow={() => {}} />, "/activity?open=51");
   const lead = await screen.findByTestId("failed-lead");
-  expect(await within(lead).findByTestId("panel-search-off")).toBeTruthy();
+  // Once the libraries are known the sentence stays without Interactive search, and no button opens another library.
+  await new Promise((r) => setTimeout(r, 100));
+  expect(lead.textContent).toBe("It stalled at the provider and was dropped. Retry sends the same release again.");
   expect(within(lead).queryByTestId("interactive-search-open")).toBeNull();
 });

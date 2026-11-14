@@ -136,12 +136,14 @@ export function stageLabel(d: D): string {
 
 /** A failed download's Inspect panel opens with this sentence (admins): what happened and what helps, from its error
  *  text (internal/router: "stalled: …", "ready timeout: …", "library: …"). A miss on every provider never reaches the
- *  queue (activity.NativeQueueFailureSQL). "" for a row that did not fail. */
-export function failedLead(d: Pick<ActivityDownload, "state" | "error" | "import_state" | "not_started">): string {
+ *  queue (activity.NativeQueueFailureSQL). search: whether the panel offers Interactive search (its library searches
+ *  the indexers and the caller may grab); without it the sentence does not mention it. "" for a row that did not fail. */
+export function failedLead(d: Pick<ActivityDownload, "state" | "error" | "import_state" | "not_started">, search = true): string {
   const refused = d.import_state === "rejected" || d.import_state === "failed";
   if ((d.state !== "failed" || d.not_started) && !refused) return "";
   const e = d.error ?? "";
-  const pick = `${d.state === "failed" ? "Retry sends the same release again" : "Import now tries again"}; Interactive search lets you choose another.`;
+  const again = d.state === "failed" ? "Retry sends the same release again" : "Import now tries again";
+  const pick = search ? `${again}; Interactive search lets you choose another.` : `${again}.`;
   if (refused || e.startsWith("library:")) return `The library did not take its files. ${pick}`;
   if (e.startsWith("stalled")) return `It stalled at the provider and was dropped. ${pick}`;
   if (e.startsWith("ready timeout")) return `It finished at the provider but was not linked in time. ${pick}`;

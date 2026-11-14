@@ -183,10 +183,7 @@ const triedColumnSQL = "CASE WHEN d.state = 'failed' THEN EXISTS (SELECT 1 FROM 
 // NotStartedSQL selects, on the table download (unaliased), the downloads Download.NotStarted reads as not started
 // (with state = 'failed'): the same two prefixes and no attempt Tried counts. GLOB, not LIKE: it is case-sensitive,
 // as strings.CutPrefix is.
-// It stays a constant for the callers that build constants from it; notStartedSQL builds the same text for an alias
-// (TestNotStartedSQLOneText pins that they agree).
-const NotStartedSQL = "((COALESCE(error, '') GLOB 'route ended: router: *' OR COALESCE(error, '') GLOB 'route stopped: router: *')" +
-	" AND NOT EXISTS (SELECT 1 FROM download_attempt a WHERE a.download_id = download.id AND " + triedSQL + "))"
+var NotStartedSQL = notStartedSQL("download")
 
 // notStartedSQL is NotStartedSQL on the download table or alias t.
 func notStartedSQL(t string) string {

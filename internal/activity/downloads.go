@@ -29,17 +29,20 @@ const QueueFailureSQL = `d.state='failed' AND d.dismissed_at IS NULL AND d.updat
 // NativeQueueFailureSQL selects the failed downloads Activity's queue and System › Status still show (the arr queue
 // keeps QueueFailureSQL). The download alias is d; its one argument is the 7-day cutoff (ms). A miss on every
 // provider and a download never started (NotStarted) belong to History only. Any other failure (stalled, refused by
-// the library, not imported in time, a provider error) shows until a newer download of the same title and library is
-// imported whose links hold all of its episodes (what it really linked, not what it asked for; a movie has none, so
-// any newer import covers it), for at most 7 days. It only reads: stored attempts and ownership evidence are
-// untouched.
+// the library, not imported in time, a provider error) shows until each of its episodes (a movie: the title) holds an
+// active link in its title and library from an imported download newer than the failure (any of them: a pack, then
+// an upgrade of one episode, still covers it), for at most 7 days. It only reads: stored attempts and ownership
+// evidence are untouched.
 var NativeQueueFailureSQL = `d.state='failed' AND d.dismissed_at IS NULL AND d.updated_at > ?
  AND COALESCE(d.error, '') NOT GLOB 'miss on every provider*'
  AND NOT ` + notStartedSQL("d") + `
- AND NOT EXISTS (SELECT 1 FROM download newer WHERE newer.title_id=d.title_id
-  AND newer.version_key=d.version_key AND newer.id>d.id AND newer.state='imported'
-  AND NOT EXISTS (SELECT 1 FROM json_each(d.episodes) e WHERE e.value NOT IN
-   (SELECT le.episode_id FROM link l JOIN link_episode le ON le.link_id = l.id WHERE l.download_id = newer.id)))`
+ AND NOT (CASE WHEN json_array_length(d.episodes) = 0 THEN EXISTS (` + newerLinkSQL + `)
+  ELSE NOT EXISTS (SELECT 1 FROM json_each(d.episodes) e WHERE NOT EXISTS (` + newerLinkSQL + `
+   AND EXISTS (SELECT 1 FROM link_episode le WHERE le.link_id = l.id AND le.episode_id = e.value))) END)`
+
+// newerLinkSQL selects the active links of d's title and library that an imported download newer than d made.
+const newerLinkSQL = `SELECT 1 FROM link l JOIN download n ON n.id = l.download_id WHERE l.state = 'active'
+  AND n.title_id = d.title_id AND n.version_key = d.version_key AND n.id > d.id AND n.state = 'imported'`
 
 // Download is one download row with its title and its library import (migrations 00014, 00015).
 type Download struct {

@@ -2,7 +2,6 @@ package activity
 
 import (
 	"slices"
-	"strings"
 	"testing"
 	"time"
 )
@@ -138,12 +137,5 @@ func TestTried(t *testing.T) {
 		if Tried(c.outcome, c.code) != c.want {
 			t.Errorf("%s/%s: want %v", c.outcome, c.code, c.want)
 		}
-	}
-}
-
-// NotStartedSQL (a constant for its callers) and notStartedSQL (for an alias) are one text.
-func TestNotStartedSQLOneText(t *testing.T) {
-	if got := strings.ReplaceAll(notStartedSQL("download"), "download.error", "error"); got != NotStartedSQL {
-		t.Errorf("notStartedSQL(download) = %q\nNotStartedSQL = %q", got, NotStartedSQL)
 	}
 }

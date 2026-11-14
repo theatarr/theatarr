@@ -23,8 +23,6 @@ const sceneJob = "meta.scene"
 // SceneAge is how often the scene names are read again (meta.scene; System › Tasks shows it).
 const SceneAge = 3 * time.Hour
 
-const sceneAge = SceneAge
-
 type sceneName struct {
 	Title       string `json:"title"`
 	SearchTitle string `json:"searchTitle"`
@@ -59,7 +57,7 @@ func (s *Service) sceneGet(ctx context.Context, source, path string, out any) er
 	if err != nil && err != sql.ErrNoRows {
 		return err
 	}
-	if err == nil && at > store.Millis(s.now().Add(-sceneAge)) {
+	if err == nil && at > store.Millis(s.now().Add(-SceneAge)) {
 		return json.Unmarshal(data, out)
 	}
 	previous := data
