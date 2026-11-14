@@ -91,6 +91,9 @@ type Config struct {
 	Journal *journal.Journal
 	// Add serves search, add, search now and the releases panel (add.go); its parts may be nil.
 	Add AddConfig
+	// RSS says whether the RSS read picks up new releases for a library (acquire/rss Runner.Covers), for the title
+	// page's "still picked up from RSS"; nil says never.
+	RSS RSSCoverage
 	// Perms gives a caller's permissions (perms.go); nil is the account's own (its role, extra bits and auto-approve).
 	Perms PermsFunc
 	// Plex runs Plex sign-in (plexauth.Service); nil turns it off (the login page shows the local form only).
@@ -197,6 +200,7 @@ type Web struct {
 	art               ArtService
 	journal           *journal.Journal
 	add               AddConfig
+	rss               RSSCoverage
 	perms             PermsFunc
 	jobs              *jobs.Queue
 	plex              PlexLogin
@@ -262,7 +266,7 @@ func New(cfg Config) (*Web, error) {
 	}
 	return &Web{st: cfg.Store, jobs: cfg.Jobs, auth: cfg.Auth, pol: cfg.Policy, policyDir: cfg.PolicyDir, egress: cfg.Egress,
 		log: cfg.Logger.With("component", "web"), version: cfg.Version, now: cfg.Now, poll: cfg.PollInterval,
-		hub: newHub(), devices: cfg.Devices, art: cfg.Art, journal: cfg.Journal, ui: cfg.UI, logs: cfg.Logs, add: cfg.Add,
+		hub: newHub(), devices: cfg.Devices, art: cfg.Art, journal: cfg.Journal, ui: cfg.UI, logs: cfg.Logs, add: cfg.Add, rss: cfg.RSS,
 		perms: cfg.Perms, plex: cfg.Plex, health: cfg.Health, ops: cfg.Ops, onRequest: cfg.OnRequest,
 		logLevel: cfg.LogLevel, logDir: cfg.LogDir, reloadSettings: cfg.ReloadSettings,
 		captureRuntime: cfg.CaptureRuntime, settings: cfg.Settings, settingsTester: cfg.SettingsTester, qualitySync: cfg.QualitySync, trashRoot: cfg.TrashRoot,

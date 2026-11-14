@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"slices"
 	"sort"
 	"sync"
 	"time"
@@ -227,6 +228,18 @@ func (r *Runner) Schedule(ctx context.Context, rssDelay time.Duration) {
 // eligible is whether an RSS read has anything to do: RSS on, an indexer service, a Live version and a feed it lists.
 func (r *Runner) eligible(ctx context.Context) bool {
 	return r.set.RSS && r.idx != nil && len(r.rssVersions()) > 0 && r.hasRSSFeeds(ctx)
+}
+
+// Covers says whether the RSS read picks up new releases for a version: the read is on, the version is one whose RSS
+// picks are routed (rssVersions), and it lists an indexer whose feed the read reads (rssIndexers: a tb-only DMM path or
+// a catalog source without a feed does not count). The title page says so only then.
+func (r *Runner) Covers(ctx context.Context, version string) bool {
+	run, err := r.forOperation(ctx)
+	if err != nil || !run.set.RSS || run.idx == nil || !run.rssVersions()[version] {
+		return false
+	}
+	feeds, _ := run.rssIndexers(ctx)
+	return slices.ContainsFunc(run.pol.Versions[version].Indexers, func(ik string) bool { return slices.Contains(feeds, ik) })
 }
 
 // QueueRSS queues an RSS read now (the arr RssSync command), deduped with the scheduled one so two never overlap.

@@ -729,6 +729,28 @@ func TestTitlePageSearchFacts(t *testing.T) {
 			ups[h.DownloadID] = h.Upgrade
 		}
 	}
+	// An earlier import is no proof: the film's 4K WEB library holds no file now, so its failure is no upgrade.
+	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, state, error,
+		episodes, source, created_at, updated_at, imported_at) VALUES
+		(88, 1, 2, 'movie-web', ?, 'Alpha.WEB.Old', 'dmm', 'imported', NULL, '[]', 'rss', ?, ?, ?),
+		(89, 1, 2, 'movie-web', ?, 'Alpha.WEB.New', 'dmm', 'failed', 'stalled: no progress', '[]', 'rss', ?, ?, NULL)`,
+		strings.Repeat("4", 40), now-500, now-400, now-400, strings.Repeat("3", 40), now-60, now-50)
+	d1 := TitleDetail{}
+	e.getKey(APIBase+"/titles/1", key, &d1)
+	seen89 := false
+	for _, v := range d1.Versions {
+		for _, h := range v.History {
+			if h.Event == "failed" && h.DownloadID == 89 {
+				seen89 = true
+				if h.Upgrade {
+					t.Errorf("a failed download of an empty library reads as an upgrade: %+v", h)
+				}
+			}
+		}
+	}
+	if !seen89 {
+		t.Error("download 89's failure is not in the history")
+	}
 	if up, ok := ups[86]; !ok || up {
 		t.Errorf("first download of S01E03 reads as an upgrade: %v", ups)
 	}
@@ -778,28 +800,21 @@ func TestTitlePageSearchFacts(t *testing.T) {
 	}
 }
 
-// The RSS sentence follows the library: on only for a Live library listing an indexer whose feed the RSS read reads,
-// while the read is on.
+// The RSS sentence follows the RSS reader's own rule (acquire/rss Runner.Covers, tested there); without a reader
+// it is never said.
+type coversOnly map[string]bool
+
+func (c coversOnly) Covers(_ context.Context, v string) bool { return c[v] }
+
 func TestReadsRSS(t *testing.T) {
-	off := false
-	pol := &policy.Policy{
-		Versions: map[string]*policy.VersionPolicy{
-			"live-feed":  {Mode: policy.ModeActive, Indexers: []string{"tz"}},
-			"live-dmm":   {Mode: policy.ModeActive, Indexers: []string{"tio", "dmm"}},
-			"live-none":  {Mode: policy.ModeActive, Indexers: []string{"tio"}},
-			"watch-only": {Mode: policy.ModeShadow, Indexers: []string{"tz"}},
-		},
-		Indexers: map[string]*policy.Indexer{"tz": {Kind: "torznab"}, "dmm": {Kind: "dmm"}, "tio": {Kind: "torrentio"}},
+	ctx := context.Background()
+	w := &Web{}
+	if w.readsRSS(ctx, "movie-web") {
+		t.Error("no reader: RSS said")
 	}
-	w := &Web{pol: pol}
-	for key, want := range map[string]bool{"live-feed": true, "live-dmm": true, "live-none": false, "watch-only": false, "gone": false} {
-		if got := w.readsRSS(key); got != want {
-			t.Errorf("%s: %v, want %v", key, got, want)
-		}
-	}
-	pol.Shadow = &policy.Shadow{RSS: &off}
-	if w.readsRSS("live-feed") {
-		t.Error("RSS read off: still says RSS")
+	w.rss = coversOnly{"movie-web": true}
+	if !w.readsRSS(ctx, "movie-web") || w.readsRSS(ctx, "movie-remux") {
+		t.Error("readsRSS does not follow the reader")
 	}
 }
 

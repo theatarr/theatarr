@@ -42,7 +42,7 @@ export type LatestEvent = { event: "imported" | "failed"; date: string; words: s
 
 /**
  * A library's latest relevant event: its newest import (an upgrade counts) or failed download. "Imported today";
- * a failure of a download that was to replace a file held then or now (the server's upgrade flag, per movie or per
+ * a failure of a download that was to replace a file held now (the server's upgrade flag, per movie or per
  * episode) "Last upgrade attempt Nov 13: not cached on RD, AD and TB", any other "Last download failed Nov 13: …".
  * Nothing when the library has neither (searches and grabs in flight are said elsewhere).
  */

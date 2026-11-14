@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Version } from "@/api/library";
 import { copyTone, copyWords, TONE } from "./library-status";
-import { currentLibraries, fileName, renameSides, versionBrief, nextSearchWhy, libraryColumns, libraryStatus, nextSearch, nextSearchOf } from "./library-rows";
+import { currentLibraries, fileName, renameSides, versionBrief, nextSearchWhy, lastSearchAt, libraryColumns, libraryStatus, nextSearch, nextSearchOf } from "./library-rows";
 
 const v = (o: Partial<Version>): Version => ({ id: 1, key: "movie-web", label: "WEB", monitored: true, has_file: false, state: "wanted", ...o }) as Version;
 const downloading = { stage: "downloading" as const, words: "", progress: 37, download_id: 1, downloads: 1, updated_at: "2026-11-12T00:00:00Z" };
@@ -96,9 +96,11 @@ describe("row readers", () => {
   it("drops a library the title was removed from", () => {
     expect(currentLibraries([v({}), v({ id: 2, key: "gone", removed: true })]).map((x) => x.key)).toEqual(["movie-web"]);
   });
-  it("names the file", () => {
+  it("names the file and the last targeted search", () => {
     expect(fileName("/media/movies/Alpha (2020)/Alpha.2020.2160p.mkv")).toBe("Alpha.2020.2160p.mkv");
     expect(fileName(undefined)).toBe("");
+    expect(lastSearchAt({ last_search: { at: "2026-11-02T00:00:00Z", run_id: 4, state: "failed" } })).toBe("2026-11-02T00:00:00Z");
+    expect(lastSearchAt({})).toBeUndefined();
   });
   it("shows a rename's names, or the changed folders when the names are equal", () => {
     expect(renameSides("/media/tv/A/Season 1/a.mkv", "/media/tv/A/Season 1/b.mkv")).toEqual(["a.mkv", "b.mkv"]);

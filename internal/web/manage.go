@@ -957,7 +957,11 @@ func (w *Web) apiEpisode(rw http.ResponseWriter, r *http.Request) {
 	// The searches that covered this episode, per library, in one read for the title (see files).
 	var facts map[int64]*searchFact
 	if seeFiles {
-		if facts, err = w.searchFacts(ctx, db, t.id, &struct{ id, season int64 }{eid, int64(season)}); err != nil {
+		vids := make([]int64, len(mvs))
+		for i, v := range mvs {
+			vids[i] = v.id
+		}
+		if facts, err = w.searchFacts(ctx, db, t.id, vids, &struct{ id, season int64 }{eid, int64(season)}); err != nil {
 			w.internal(rw, err)
 			return
 		}
@@ -988,7 +992,7 @@ func (w *Web) apiEpisode(rw http.ResponseWriter, r *http.Request) {
 			if f := facts[v.id]; f != nil {
 				d.LastSearch, d.Searching = f.last, f.searching
 			}
-			d.RSS = w.readsRSS(v.key)
+			d.RSS = w.readsRSS(ctx, v.key)
 		}
 		if seeFiles && w.journal != nil {
 			page, err := w.journal.List(ctx, journal.Filter{Title: strconv.FormatInt(t.id, 10), Version: v.key, Limit: 200})

@@ -204,3 +204,22 @@ func TestRSSFailuresCountPerList(t *testing.T) {
 		})
 	}
 }
+
+// Covers (the title page's RSS sentence) follows the feeds the read reads: a version listing only the tb-only DMM path
+// is not covered.
+func TestRSSCovers(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, false)
+	e.build(nil)
+	e.seed(t)
+	if !e.r.Covers(e.ctx, "movie-remux") {
+		t.Error("movie-remux reads prowlarr and dmm: not covered")
+	}
+	e.pol.Versions["movie-remux"].Indexers = []string{"dmm-tb"}
+	if e.r.Covers(e.ctx, "movie-remux") {
+		t.Error("a tb-only DMM path is no feed")
+	}
+	if e.r.Covers(e.ctx, "no-such-version") {
+		t.Error("an unknown version is covered")
+	}
+}

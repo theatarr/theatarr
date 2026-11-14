@@ -103,11 +103,11 @@ function LibraryRow({ v, checked, disabled, onChange, note, admin }: {
 }
 
 /** What a library fetches, from its profile, by the profile's name: "Profile Remux 2160p: prefers Remux-2160p,
- *  upgrading until it has it", or "…: prefers WEBDL-1080p, no upgrades" (the profile's switch or the library's own). */
+ *  upgrades on", or "…: prefers WEBDL-1080p, no upgrades" (the profile's switch or the library's own). */
 export function fetchesWords(v: Pick<VersionOption, "cutoff" | "upgrades" | "profile">): string {
   if (!v.cutoff) return "";
   const name = v.profile ? `Profile ${readableCode(v.profile)}: prefers` : "Prefers";
-  return v.upgrades ? `${name} ${v.cutoff}, upgrading until it has it` : `${name} ${v.cutoff}, no upgrades`;
+  return `${name} ${v.cutoff}, ${v.upgrades ? "upgrades on" : "no upgrades"}`;
 }
 
 /** The note under a library already on the title: monitored ("Already in this library"), or held but not monitored. */

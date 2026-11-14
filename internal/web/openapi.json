@@ -1252,7 +1252,7 @@
           "summary": { "type": "string", "description": "A searched event: what it grabbed in one line (Grabbed #1 via rd → imported), or Nothing grabbed: why" },
           "latest": { "type": "boolean", "description": "A searched event whose results the releases view shows (the version's newest decision)" },
           "missed_on": { "type": "array", "items": { "type": "string" }, "description": "A failed event that was a miss on every provider: the cache codes (rd, ad, tb) of the providers the download's own attempts found the release not cached on; absent when no attempt says so" },
-          "upgrade": { "type": "boolean", "description": "A failed event: the download was to replace a file (its movie, or each of its episodes, in the library was held then or is held now)" }
+          "upgrade": { "type": "boolean", "description": "A failed event: the download was to replace a file (its movie, or each of its episodes, in the library holds a file now)" }
         }
       },
       "ReleaseOutcome": { "type": "object", "required": ["outcome"], "description": "What came of one release for the version: its newest download, and whether its file is the version's current one", "properties": { "outcome": { "type": "string", "enum": ["grabbed", "imported", "current", "failed", "replaced"] }, "provider": { "type": "string" }, "reason": { "type": "string", "description": "failed: the short reason" }, "replaced_by": { "type": "string", "description": "replaced: the release that replaced it, when the version has one current release" } } },

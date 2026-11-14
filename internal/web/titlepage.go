@@ -86,7 +86,7 @@ type HistoryEvent struct {
 	// reason stands alone.
 	MissedOn []string `json:"missed_on,omitempty"`
 	// Upgrade (a failed event): the download was to replace a file. What it was for (the movie in its library, or
-	// each of its episodes there) held a file then, from an earlier import, or holds one now (heldBeforeSQL).
+	// each of its episodes there) holds a file now (heldNowSQL).
 	Upgrade bool `json:"upgrade,omitempty"`
 	// Searched events: the search's results and accepted releases, what it grabbed in one line (searchSummary;
 	// InfoHash is then the first release it grabbed) and Latest when its results are the ones the releases view
@@ -101,17 +101,14 @@ type HistoryEvent struct {
 // cached there: a known miss, known uncached, and an uncached add of ours deleted or kept.
 const missCodes = `'miss', 'known_uncached', 'uncached_deleted', 'uncached_kept'`
 
-// heldBeforeSQL is true for a download (the table download, unaliased) whose movie, or each of whose episodes, in its
-// library was held when it was grabbed (an earlier imported download of the library covering it) or is held now. A
-// series download with no episodes listed is never one.
-const heldBeforeSQL = `(CASE WHEN json_array_length(COALESCE(download.episodes, '[]')) = 0 THEN
-	(SELECT t.kind = 'movie' FROM title t WHERE t.id = download.title_id) AND (EXISTS (SELECT 1 FROM version v
+// heldNowSQL is true for a download (the table download, unaliased) whose movie, or each of whose episodes, in its
+// library holds a file now: its failure was an upgrade attempt. A series download with no episodes listed is never
+// one.
+const heldNowSQL = `(CASE WHEN json_array_length(COALESCE(download.episodes, '[]')) = 0 THEN
+	(SELECT t.kind = 'movie' FROM title t WHERE t.id = download.title_id) AND EXISTS (SELECT 1 FROM version v
 		WHERE v.id = download.version_id AND v.state IN ('filled', 'cutoff_met'))
-	OR EXISTS (SELECT 1 FROM download o WHERE o.version_id = download.version_id AND o.state = 'imported' AND o.id < download.id))
 	ELSE NOT EXISTS (SELECT 1 FROM json_each(download.episodes) e WHERE NOT EXISTS (SELECT 1 FROM episode_version_state s
-		WHERE s.version_id = download.version_id AND s.episode_id = e.value AND s.state IN ('filled', 'cutoff_met'))
-	AND NOT EXISTS (SELECT 1 FROM download o, json_each(o.episodes) oe WHERE o.version_id = download.version_id
-		AND o.state = 'imported' AND o.id < download.id AND oe.value = e.value)) END)`
+		WHERE s.version_id = download.version_id AND s.episode_id = e.value AND s.state IN ('filled', 'cutoff_met'))) END)`
 
 // notStartedCol is a column of a query on the table download (unaliased): the download failed without ever being
 // tried, because downloads were off when its turn came (activity.NotStartedSQL, as Activity reads it).
@@ -282,12 +279,16 @@ func (w *Web) enrichTitle(ctx context.Context, d *TitleDetail) error {
 		if err := w.fillVersionAcquisition(ctx, db, d); err != nil {
 			return err
 		}
-		facts, err := w.searchFacts(ctx, db, d.ID, nil)
+		vids := make([]int64, len(d.Versions))
+		for i, v := range d.Versions {
+			vids[i] = v.ID
+		}
+		facts, err := w.searchFacts(ctx, db, d.ID, vids, nil)
 		if err != nil {
 			return err
 		}
 		for i := range d.Versions {
-			d.Versions[i].RSS = w.readsRSS(d.Versions[i].Key)
+			d.Versions[i].RSS = w.readsRSS(ctx, d.Versions[i].Key)
 			if f := facts[d.Versions[i].ID]; f != nil {
 				d.Versions[i].LastSearch, d.Versions[i].Searching = f.last, f.searching
 			}
@@ -397,7 +398,7 @@ func (w *Web) versionHistory(ctx context.Context, db *sql.DB, titleID int64, kin
 	runDLs := map[int64][]runDownload{}
 	err = scanAll(ctx, db, `SELECT id, version_id, state, created_at, COALESCE(imported_at, updated_at), release_title,
 		info_hash, COALESCE(provider, ''), quality, score, source, COALESCE(error, ''), `+notStartedCol+`,
-		CASE WHEN state = 'failed' THEN `+heldBeforeSQL+` ELSE 0 END,
+		CASE WHEN state = 'failed' THEN `+heldNowSQL+` ELSE 0 END,
 		CASE WHEN state = 'failed' AND COALESCE(error, '') GLOB 'miss on every provider*' THEN (SELECT json_group_array(DISTINCT a.provider) FROM download_attempt a
 			WHERE a.download_id = download.id AND a.code IN (`+missCodes+`)) END
 		FROM download WHERE title_id = ? ORDER BY created_at, id`,
@@ -547,22 +548,15 @@ type AutoSearch struct {
 	Enabled  bool `json:"enabled"`
 }
 
-// readsRSS says whether the RSS read covers a library: the read is on and the library lists an indexer whose feed
-// it reads (torznab, dmm, seadex, cardigann; acquire/rss rssIndexers). A feed that cannot be read now still counts.
-func (w *Web) readsRSS(key string) bool {
-	if w.pol == nil || !w.pol.ShadowSettings().RSS {
-		return false
-	}
-	vp := w.pol.Versions[key]
-	if vp == nil || vp.Mode != policy.ModeActive {
-		return false
-	}
-	for _, ik := range vp.Indexers {
-		if ix := w.pol.Indexers[ik]; ix != nil && (ix.Kind == "torznab" || ix.Kind == "dmm" || ix.Kind == "seadex" || ix.Kind == "cardigann") {
-			return true
-		}
-	}
-	return false
+// RSSCoverage is the RSS reader's rule for which libraries its read covers (acquire/rss Runner.Covers).
+type RSSCoverage interface {
+	Covers(ctx context.Context, version string) bool
+}
+
+// readsRSS says whether the RSS read picks up new releases for a library, by the reader's own rule; false without
+// one.
+func (w *Web) readsRSS(ctx context.Context, key string) bool {
+	return w.rss != nil && w.rss.Covers(ctx, key)
 }
 
 func (w *Web) autoSearch() *AutoSearch {
@@ -585,24 +579,33 @@ type searchFact struct {
 const coverSQL = `(EXISTS (SELECT 1 FROM json_each(r.episodes) j WHERE j.value = ?) OR (COALESCE(r.episodes, '[]') IN ('', '[]', 'null')
 	AND (r.season IS NULL OR r.season = ?)))`
 
-// searchFacts reads, in three queries for the whole title, each library's last targeted search and a search under
-// way, by version id. A run older than an hour that never finished is not under way (acquire's busySet). With ep set
-// (an episode window) only the runs that searched that episode count, and a Search now row of its season.
-func (w *Web) searchFacts(ctx context.Context, db *sql.DB, titleID int64, ep *struct{ id, season int64 }) (map[int64]*searchFact, error) {
+// searchFacts reads each library's (versionIDs) last targeted search and a search under way, by version id: one read
+// of their acquire runs (newest first, by the acquire_run_target index) and one of Search now's due rows. A run older
+// than an hour that never finished is not under way (acquire's busySet). With ep set (an episode window) only the runs
+// that searched that episode count, and a Search now row of its season.
+func (w *Web) searchFacts(ctx context.Context, db *sql.DB, titleID int64, versionIDs []int64, ep *struct{ id, season int64 }) (map[int64]*searchFact, error) {
 	out := map[int64]*searchFact{}
+	if len(versionIDs) == 0 {
+		return out, nil
+	}
 	fact := func(vid int64) *searchFact {
 		if out[vid] == nil {
 			out[vid] = &searchFact{}
 		}
 		return out[vid]
 	}
-	cond, args := "", []any{titleID}
+	args := make([]any, 0, len(versionIDs)+2)
+	for _, id := range versionIDs {
+		args = append(args, id)
+	}
+	cond := ""
 	if ep != nil {
 		cond, args = " AND "+coverSQL, append(args, ep.id, ep.season)
 	}
-	err := scanAll(ctx, db, `SELECT version_id, id, created_at, state, results, accepted, episodes FROM (SELECT r.*,
-		ROW_NUMBER() OVER (PARTITION BY r.version_id ORDER BY r.created_at DESC, r.id DESC) AS n FROM acquire_run r
-		WHERE r.title_id = ?`+cond+`) WHERE n = 1`, args, func(rows *sql.Rows) error {
+	stale := store.Millis(w.now().Add(-time.Hour))
+	err := scanAll(ctx, db, `SELECT r.version_id, r.id, r.created_at, r.state, r.results, r.accepted, r.episodes
+		FROM acquire_run r WHERE r.version_id IN (`+store.Placeholders(len(versionIDs))+`)`+cond+`
+		ORDER BY r.created_at DESC, r.id DESC`, args, func(rows *sql.Rows) error {
 		var vid, at int64
 		var l LastSearch
 		var results, accepted int
@@ -610,32 +613,22 @@ func (w *Web) searchFacts(ctx context.Context, db *sql.DB, titleID int64, ep *st
 		if err := rows.Scan(&vid, &l.RunID, &at, &l.State, &results, &accepted, &eps); err != nil {
 			return err
 		}
+		f := fact(vid)
+		if (l.State == "queued" || l.State == "searching") && at > stale && f.searching != "searching" {
+			f.searching = l.State
+		}
+		if f.last != nil {
+			return nil
+		}
 		l.At = ts(at)
 		var ids []int64
 		_ = json.Unmarshal([]byte(eps), &ids)
 		if ep == nil || (len(ids) == 1 && ids[0] == ep.id) {
 			l.Results, l.Accepted = &results, &accepted
 		}
-		fact(vid).last = &l
+		f.last = &l
 		return nil
 	})
-	if err != nil {
-		return nil, err
-	}
-	err = scanAll(ctx, db, `SELECT r.version_id, MAX(r.state = 'searching') FROM acquire_run r WHERE r.title_id = ?`+cond+`
-		AND r.state IN ('queued', 'searching') AND r.created_at > ? GROUP BY r.version_id`,
-		append(args, store.Millis(w.now().Add(-time.Hour))), func(rows *sql.Rows) error {
-			var vid int64
-			var running bool
-			if err := rows.Scan(&vid, &running); err != nil {
-				return err
-			}
-			fact(vid).searching = "queued"
-			if running {
-				fact(vid).searching = "searching"
-			}
-			return nil
-		})
 	if err != nil {
 		return nil, err
 	}

@@ -716,7 +716,7 @@ func runServe(args []string) error {
 	backupSvc := &serveBackups{st: st, dir: *backupDir, dbPath: *dbPath, source: *settingsSource,
 		keep: *backupKeep, hour: *backupHour, policyNow: backupPolicy, now: time.Now}
 	uiConfig := web.Config{Backups: backupSvc, Restart: stop, Store: st, Auth: au, Policy: pol, PolicyDir: *policyDir, Egress: serveEgressSource{manager: runtimeManager, fallback: gw}, Logger: log,
-		Version: version, Devices: av, Art: refresher, Journal: jr, Logs: logs, Add: add, Jobs: q, Plex: pl, Health: hc,
+		Version: version, Devices: av, Art: refresher, Journal: jr, Logs: logs, Add: add, RSS: rssRunner, Jobs: q, Plex: pl, Health: hc,
 		Ops: serveOps{av}, OnRequest: requestNotify, LogLevel: logLevel, LogDir: *logDir, ReloadSettings: runtimeManager.Reload,
 		CaptureRuntime: captureRuntime, SettingsTests: newSettingsTestLimits(), SettingsLookup: os.LookupEnv, TrashRoot: os.Getenv("THEATARR_TRASH"),
 		Torrents: torrentSvc, Background: ctx, ProviderCopies: func(ctx context.Context) web.Copier {
