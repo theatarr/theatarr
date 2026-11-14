@@ -76,7 +76,7 @@ The **id** names the source row. Ids are stable, so they work as keys in your no
 | `at`, `kind`, `source` | When it happened, and who decided or acted: `theatarr`, `router`, `library`, `journal` or `web` |
 | `title`, `version`, `mode` | `mode` is the version's mode in the running policy: `active` (Live) writes, `shadow` (Watch only) only plans |
 | `summary` | One line saying what happened |
-| `release` | Title, indexer, info hash, size, quality, score, formats, languages, episodes (`S01E02`), and `how` it was found (`Rss`, `Search`, `InteractiveSearch`; `acquire:<run>`, `rss`). A `link` entry for a link action carries the title and quality of its own download when it has one; a replace or a link without a download has none. Activity › History shows these facts as columns |
+| `release` | Title, indexer, info hash, size, quality, score, formats, languages, episodes (`S01E02`), and `how` it was found (`Rss`, `Search`, `InteractiveSearch`; `acquire:<run>`, `rss`). A `link` entry for a link action carries the title and quality of its own download when it has one; a replace or a link without a download has none. Activity › History reads the journal in its own way (below) |
 | `reasoning` | Why this release was chosen (next table) |
 | `download` | Theatarr's download: state, provider, cached, reused, error |
 | `attempts` | Every provider the router considered, with outcome, code and message |
@@ -172,3 +172,17 @@ The journal is mostly a reader, so its entries live as long as their source rows
 
 The source tables keep their own rules. Listing the whole journal takes seconds for thousands of entries; one entry
 takes about a millisecond.
+
+## History
+
+Activity › History and the title page's History tab are the journal read as what happened to a title's files
+(`Filter.History`, `internal/journal/history.go`), worded like Radarr's: grabbed (grab and upgrade entries alike),
+imported (the import entry stands for all of its link actions), adopted (adoption link actions grouped by library,
+release and day), deleted (an import's replace actions, grouped by old release; "Deleted (upgrade)" with what replaced
+it), removed (a replace without a download: an unlink by hand), missing (a dead link), failed, blocked, and the
+provider copies' outcomes (`copy:<provider_copy_event>`, not a journal entry). Searches, plans, dry runs, mount waits
+and repaired links are journal entries only. The release facts of library rows are stored on `library_action`
+(`release_title`, `quality`, `score`, migration 00129) when the action happens, since a later file can take over a
+link row at the same path; older actions fall back to a link row that still holds the file (an unlinked row, an
+adopted one) and are otherwise unknown. Nothing is backfilled.
+

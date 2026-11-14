@@ -246,6 +246,8 @@ type Entry struct {
 	// shadow entries. QueuedPolicyRev is set only when an acquire run was queued under a different revision.
 	PolicyRev       string `json:"policy_revision,omitempty"`
 	QueuedPolicyRev string `json:"queued_policy_revision,omitempty"`
+	// Hist is the entry as a History row (Filter.History only, history.go).
+	Hist *HistoryFacts `json:"-"`
 
 	f facts
 }
