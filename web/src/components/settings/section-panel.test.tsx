@@ -38,11 +38,12 @@ it("creates an unconfigured section with only changed keys", async () => {
 });
 it("hides advanced panels until the shared toggle is on", async () => {
  mockFetch([{ method: "GET", path: "/settings/schema", reply: schema }, { method: "GET", path: "/settings/sections", reply: { source: "db", sections: [] } }]);
- renderPage(<><ShowAdvancedToggle /><SectionPanel id="inspection" title="Media inspection" section="library" keys={["probe"]} advanced /></>);
+ renderPage(<><ShowAdvancedToggle /><SectionPanel id="inspection" title="Media inspection" section="library" keys={["probe"]} advanced /></>, "/admin/settings/libraries/files");
  expect(screen.queryByText("Media inspection")).toBeNull();
- fireEvent.click(screen.getByRole("button", { name: "Show advanced settings" }));
+ fireEvent.click(await screen.findByRole("button", { name: "Show advanced settings" }));
  await screen.findByRole("heading", { name: "Media inspection" });
  fireEvent.click(screen.getByRole("button", { name: "Show advanced settings" }));
+ expect(screen.queryByRole("heading", { name: "Media inspection" })).toBeNull();
 });
 it("shows the reload notice after a conflict without resubmitting", async () => {
  const fetch = setup("db", { cached_only: false }, 409);

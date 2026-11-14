@@ -24,9 +24,12 @@ it("composes the library file panels and shared advanced toggle", async () => {
  expect(screen.queryByRole("switch", { name: "Write library links" })).toBeNull();
  expect(screen.queryByTestId("switches-advanced")).toBeNull();
  expect(screen.getByRole("tab", { name: "Naming" }).getAttribute("href")).toBe("/admin/settings/libraries/naming");
- fireEvent.click(screen.getByRole("button", { name: "Show advanced settings" }));
+ // One toggle in the header from md up, one under the page picker on phones (CSS picks which shows).
+ const toggles = screen.getAllByRole("button", { name: "Show advanced settings" });
+ expect(toggles.map(t => t.className.includes("max-md:hidden") || t.className.includes("md:hidden"))).toEqual([true, true]);
+ fireEvent.click(toggles[0]);
  expect(screen.getByRole("heading", { name: "Media inspection" })).toBeTruthy();
- fireEvent.click(screen.getByRole("button", { name: "Show advanced settings" }));
+ fireEvent.click(toggles[0]);
 });
 it("keeps healthy authority details folded and fallback reload available", async () => {
  const v = renderPage(<SettingsAuthority overview={overview()} compact />);
@@ -83,8 +86,35 @@ it("offers a labelled settings page select for phones that moves between pages",
  expect(picker.className).toContain("md:hidden");
  const select = screen.getByRole("combobox", { name: "Settings page" }) as HTMLSelectElement;
  expect(select.value).toBe("/admin/settings/libraries");
- expect([...select.options].map(o => o.textContent)).toContain("Download clients");
+ // One select for pages and their tabs, grouped by page (no second "Section" select on a phone).
+ expect([...select.options].map(o => o.textContent)).toContain("Download clients › Debrid providers");
+ expect([...select.options].map(o => o.textContent)).toContain("Notifications");
  expect([...select.options].map(o => o.textContent)).not.toContain("Backup");
+ expect(select.querySelectorAll("optgroup").length).toBeGreaterThan(2);
  fireEvent.change(select, { target: { value: "/admin/settings/downloads" } });
  expect(screen.getByTestId("where").textContent).toBe("/admin/settings/downloads");
+});
+
+it("shows no advanced toggle and no repeated banner on a page without advanced settings", async () => {
+ mockFetch([
+  { method: "GET", path: "/settings", reply: overview() },
+  { method: "GET", path: "/settings/schema", reply: schema },
+  { method: "GET", path: "/settings/sections", reply: { source: "db", generation: 4, sections: [] } },
+  { method: "GET", path: "/policy", reply: { versions: [] } },
+ ]);
+ const v = renderPage(<SettingsPage />, "/admin/settings/indexers/rss");
+ await screen.findByRole("heading", { name: "RSS feed checks" });
+ expect(screen.queryByRole("button", { name: "Show advanced settings" })).toBeNull();
+ expect(screen.queryByText("Settings are saved in Theatarr and apply at once.")).toBeNull();
+ v.unmount();
+ renderPage(<SettingsPage />, "/admin/settings/downloads/clients");
+ await screen.findByRole("heading", { name: "Other download clients" });
+ // The page's help is its description, said once.
+ expect(screen.getAllByText(/Debrid providers are tried in the order shown/)).toHaveLength(1);
+});
+it("shows no advanced toggle on the Advanced pages", async () => {
+ mockFetch([{ method: "GET", path: "/settings", reply: overview() }, { method: "GET", path: "/settings/schema", reply: schema }, { method: "GET", path: "/settings/audit", reply: { items: [] } }]);
+ renderPage(<AdvancedSettingsPage />, "/admin/advanced/history");
+ await screen.findByRole("heading", { level: 1, name: "Settings history" });
+ expect(screen.queryByRole("button", { name: "Show advanced settings" })).toBeNull();
 });

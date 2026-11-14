@@ -1,5 +1,7 @@
 import { createElement, useSyncExternalStore } from "react";
+import { useLocation } from "react-router";
 import { Button } from "@/components/ui/button";
+import { useSettingsSchema, type SchemaField, type SettingsSchema } from "@/api/settings";
 export type SettingsPage = { id: string; system?: boolean; label: string; route: string; arr: string; description: string; tabs: { id: string; label: string; route: string }[] };
 export type SettingsPanel = { id: string; page: string; tab?: string; title: string; help?: string; section: string; keys: string[]; advanced?: boolean };
 export const SETTINGS_PAGES: SettingsPage[] = [
@@ -448,9 +450,23 @@ export function useShowAdvanced() {
  const value = useSyncExternalStore(subscribe, () => advanced);
  return [value, setAdvanced] as const;
 }
-export function ShowAdvancedToggle() {
+const anyAdvanced = (fields: SchemaField[]): boolean => fields.some(f => f.advanced || anyAdvanced(f.fields ?? []));
+/** Whether the settings screen at pathname has anything the advanced toggle shows: an advanced panel or field on the
+ * page's current tab. Settings home always does (Find a setting lists advanced fields only with it on). */
+export function hasAdvancedSettings(pathname: string, schema?: SettingsSchema): boolean {
+ if (pathname === "/admin/settings") return true;
+ const page = SETTINGS_PAGES.find(p => pathname === p.route || pathname.startsWith(p.route + "/"));
+ if (!page) return false;
+ const tab = page.tabs.find(t => t.route === pathname)?.id ?? page.tabs[0]?.id;
+ return SETTINGS_PANELS.some(p => p.page === page.id && p.tab === tab && (p.advanced || anyAdvanced((schema?.sections?.[p.section] ?? []).filter(f => p.keys.includes(f.name)))));
+}
+/** The advanced toggle, only on a screen that has advanced settings (none on Backup or the Advanced pages). */
+export function ShowAdvancedToggle({ className }: { className?: string }) {
  const [value, set] = useShowAdvanced();
- return createElement(Button, { variant: "outline", "aria-pressed": value, onClick: () => set(!value) }, "Show advanced settings");
+ const { pathname } = useLocation();
+ const schema = useSettingsSchema();
+ if (!hasAdvancedSettings(pathname, schema.data)) return null;
+ return createElement(Button, { variant: "outline", className, "aria-pressed": value, onClick: () => set(!value) }, "Show advanced settings");
 }
 
 export const SETTINGS_ALIASES: { terms: string[]; href: string; title?: string }[] = [

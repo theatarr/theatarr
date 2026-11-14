@@ -1,7 +1,7 @@
 import type { SchemaField, SettingsSchema, SettingsSections } from "@/api/settings";
 import { ADVANCED_SETTINGS_PAGES, SETTINGS_PAGES, SETTINGS_PANELS, SETTINGS_ALIASES, panelHref } from "./settings-map";
 import { wordMatcher } from "@/lib/words";
-export type SettingResult = { href: string; label: string; field?: string; path?: string; terms: string };
+export type SettingResult = { href: string; label: string; field?: string; path?: string; terms: string; /** An advanced field or panel: listed only with Show advanced settings on. */ advanced?: boolean };
 /** Every page, tab, panel and field, plus each named record the saved settings hold (a metadata source such as tmdb,
  * a client, a notification target) with its fields: "tmdb key" finds the tmdb source's API key. */
 export function settingsIndex(schema?: SettingsSchema, sections?: SettingsSections): SettingResult[] {
@@ -16,19 +16,20 @@ export function settingsIndex(schema?: SettingsSchema, sections?: SettingsSectio
   const label = [p.label, tab?.label, panel.title].filter((s, i, all) => s && all.indexOf(s) === i).join(" › ");
   const href = panelHref(panel);
   const terms = `${label} ${panel.help ?? ""} ${panel.section} ${panel.keys.join(" ")}`;
-  results.push({ href, label, terms });
-  const walk = (fields: SchemaField[], prefix: string, config: unknown) => {
+  results.push({ href, label, terms, advanced: panel.advanced });
+  const walk = (fields: SchemaField[], prefix: string, config: unknown, hidden = !!panel.advanced) => {
    for (const f of fields) {
     const path = f.name ? `${prefix}.${f.name}` : prefix;
     const value = f.name ? record(config)[f.name] : config;
-    results.push({ href, label, field: f.label ?? f.name, path, terms: `${terms} ${f.label ?? ""} ${f.help ?? ""} ${path}` });
+    const advanced = hidden || !!f.advanced;
+    results.push({ href, label, field: f.label ?? f.name, path, terms: `${terms} ${f.label ?? ""} ${f.help ?? ""} ${path}`, advanced: advanced || undefined });
     if (f.type === "keyed") for (const name of Object.keys(record(value))) {
      const children = (f.fields ?? []).map(c => `${name} ${c.label ?? c.name}${c.type === "secret" ? ` ${name} key` : ""}`).join(" ");
      // ?open= unfolds the record on arrival (field-input.tsx KeyedRecord).
      const [route, anchor] = href.split("#");
-     results.push({ href: `${route}?open=${encodeURIComponent(`${path}.${name}`)}#${anchor}`, label, field: `${f.label ?? f.name} › ${name}`, path: `${path}.${name}`, terms: `${terms} ${f.label ?? ""} ${name} ${children}` });
+     results.push({ href: `${route}?open=${encodeURIComponent(`${path}.${name}`)}#${anchor}`, label, field: `${f.label ?? f.name} › ${name}`, path: `${path}.${name}`, terms: `${terms} ${f.label ?? ""} ${name} ${children}`, advanced: advanced || undefined });
     }
-    if (f.fields) walk(f.fields, path, f.type === "keyed" ? undefined : value);
+    if (f.fields) walk(f.fields, path, f.type === "keyed" ? undefined : value, advanced);
    }
   };
   const config = sections?.sections.find(s => s.key === panel.section)?.config;

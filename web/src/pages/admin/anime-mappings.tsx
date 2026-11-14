@@ -1,11 +1,11 @@
-// Admin › Metadata review: the anime review queue (one plain-language card per item, components/anime/review-card.tsx), franchises and Plex playlists (GET /anime/*), and a franchise
+// Admin › Metadata review: the anime review queue (one plain-language card per item, components/anime/review-card.tsx), franchises (GET /anime/*), and a franchise
 // with its orders and mappings. Accept and reject go through POST /anime/review/{id}/accept|reject. Rebuild and Build
 // queue anime_build jobs (POST /anime/franchises/{slug}/build, POST /anime/build); "Anime series without a franchise"
 // is GET /anime/uncovered.
 import { useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 import { ApiError } from "@/api/client";
-import { useAnimeBuild, useFranchise, useFranchises, usePlaylists, useReview, useUncovered, type Uncovered } from "@/api/hooks";
+import { useAnimeBuild, useFranchise, useFranchises, useReview, useUncovered, type Uncovered } from "@/api/hooks";
 import { ReviewCard } from "@/components/anime/review-card";
 import { Empty, ErrorState, Loading, Mono, PageHeader, Section } from "@/components/page";
 import { Badge } from "@/components/ui/badge";
@@ -288,40 +288,6 @@ export function MetadataFranchise() {
         </Card>
       </Section>
     </div>
-  );
-}
-
-export function PlexPlaylists() {
-  const pl = usePlaylists();
-  return (
-      <Section title="Playlists Theatarr keeps">
-        {pl.isPending ? <Loading /> : pl.error ? <ErrorState error={pl.error} /> : (pl.data?.items ?? []).length === 0 ? (
-          <Card><Empty>No playlists yet.</Empty></Card>
-        ) : (
-          <Card className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Playlist</TableHead>
-                  <TableHead>Mode</TableHead>
-                  <TableHead className="text-right">Items</TableHead>
-                  <TableHead className="hidden md:table-cell">Synced</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {(pl.data?.items ?? []).map((p, i) => (
-                  <TableRow key={i}>
-                    <TableCell>{p.name}<div className="text-xs text-muted-foreground"><Mono>{p.franchise}</Mono> · {p.order}{p.route ? ` · ${p.route}` : ""}</div></TableCell>
-                    <TableCell><Badge tone={p.mode === "applied" ? "positive" : p.mode === "failed" ? "negative" : "neutral"}>{p.mode}</Badge></TableCell>
-                    <TableCell className="text-right tabular-nums">{p.items}</TableCell>
-                    <TableCell className="hidden md:table-cell">{fmtTime(p.synced_at)}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </Card>
-        )}
-      </Section>
   );
 }
 

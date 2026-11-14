@@ -40,3 +40,18 @@ it("counts each tile in the singular for one", async () => {
  expect(screen.getByText("0 indexers")).toBeTruthy();
  expect(screen.queryByText("1 libraries")).toBeNull();
 });
+
+it("names Profiles' Sonarr page, hides dotted paths and finds advanced fields only with the toggle on", async () => {
+ mockFetch([{ method: "GET", path: "/settings/schema", reply: schema }, { method: "GET", path: "/settings", reply: overview() }, { method: "GET", path: "/me", reply: { permissions: ["admin", "users"] } }]);
+ renderPage(<SettingsHome />, "/admin/settings");
+ expect(await screen.findByText("Sonarr: Profiles")).toBeTruthy();
+ const input = screen.getByRole("searchbox", { name: "Find a setting" });
+ fireEvent.change(input, { target: { value: "username environment variable" } });
+ const results = () => screen.getByRole("list", { name: "Settings results" });
+ expect(results().textContent).not.toContain("library.mount.rclone_rc.username_env");
+ expect(results().textContent).not.toMatch(/environment variable fallback/);
+ fireEvent.click(await screen.findByRole("button", { name: "Show advanced settings" }));
+ expect(results().textContent).toMatch(/environment variable fallback/);
+ expect(results().textContent).not.toContain("library.mount.rclone_rc.username_env");
+ fireEvent.click(screen.getByRole("button", { name: "Show advanced settings" }));
+});
