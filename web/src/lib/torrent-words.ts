@@ -24,7 +24,7 @@ const ACTIONS: Record<string, Record<string, string>> = {
   delete: { deleted: "Deleted", failed: "Delete failed", skipped: "Not deleted" },
   restore: {
     added: "Restored",
-    uncached: "Restored (downloading)",
+    uncached: "Not cached",
     incomplete: "Restored (incomplete)",
     failed: "Restore failed",
     skipped: "Not restored",

@@ -752,7 +752,7 @@ func entryWords(e *journal.Entry, notStarted string) (words, tone string) {
 func blockWords(source string) string {
 	switch source {
 	case "library":
-		return "Failed the library check (sample or runtime)"
+		return "Failed the library check"
 	case "stalled":
 		return "Stalled at the provider"
 	case "torrent_files":
@@ -767,7 +767,7 @@ func blockWords(source string) string {
 		// A refusal, a torrent that disappeared or one with no video: the stored reason says which.
 		return "Failed at the provider"
 	case "ready_timeout":
-		return "Never appeared on the mount"
+		return "Timed out before import"
 	}
 	// Taken over from a Sonarr or Radarr instance's blocklist: arr:<instance key>.
 	if inst, ok := strings.CutPrefix(source, "arr:"); ok {

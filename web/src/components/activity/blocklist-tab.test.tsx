@@ -14,7 +14,7 @@ const blocked = (i: number) => ({
   release: `Release.${i}.1080p`,
   reason: "sample",
   source: "library",
-  words: "Failed the library check (sample or runtime)",
+  words: "Failed the library check",
   created_at: "2026-11-10T10:00:00Z",
   quality: "WEBDL-1080p",
   indexer: "torrentio",

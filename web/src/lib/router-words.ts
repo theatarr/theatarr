@@ -17,7 +17,7 @@ const OUTCOMES: Record<string, string> = {
 export const attemptOutcomeWords = (o: string | null | undefined) => wordsFor(OUTCOMES, o);
 
 const CODES: Record<string, string> = {
-  added: "cached, added",
+  added: "added",
   add: "added",
   reused: "already on the account",
   paced: "waiting for the provider's pace",

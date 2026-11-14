@@ -117,24 +117,19 @@ export function nameWithoutYear(name: string | null | undefined, year?: number |
   return n.endsWith(tail) && n.length > tail.length ? n.slice(0, -tail.length) : n;
 }
 
-/** "Oct 27" for a YYYY-MM-DD this year, "Oct 27, 2024" otherwise. */
-export function fmtDay(d: string | undefined | null, now: Date = new Date()): string {
+/** "Oct 27" for a YYYY-MM-DD this year, "Oct 27, 2024" otherwise; with now null, always with the year. */
+export function fmtDay(d: string | undefined | null, now: Date | null = new Date()): string {
   if (!d) return "—";
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d);
   if (!m) return d;
   const y = Number(m[1]);
   const s = `${MONTHS[Number(m[2]) - 1]} ${Number(m[3])}`;
-  return y === now.getFullYear() ? s : `${s}, ${y}`;
+  return now && y === now.getFullYear() ? s : `${s}, ${y}`;
 }
 
 /** "Oct 27, 2025" for a YYYY-MM-DD (or the day part of a timestamp), always with the year: for a list whose dates
  *  span more than one year (dayFormatter). */
-export function fmtDayYear(d: string | null | undefined): string {
-  if (!d) return "—";
-  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d);
-  if (!m) return d;
-  return `${MONTHS[Number(m[2]) - 1]} ${Number(m[3])}, ${m[1]}`;
-}
+export const fmtDayYear = (d: string | null | undefined) => fmtDay(d, null);
 
 /** The day format for one list: "Oct 27" when every date is in the current year, else every date with its year, so
  *  "Jan 1" never follows "Dec 25, 2025". */

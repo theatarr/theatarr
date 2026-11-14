@@ -109,7 +109,7 @@ describe("torrent words", () => {
     expect(torrentJournalWords("delete", "failed")).toBe("Delete failed");
     expect(torrentJournalWords("delete", "deleted")).toBe("Deleted");
     expect(torrentJournalWords("restore", "added")).toBe("Restored");
-    expect(torrentJournalWords("restore", "uncached")).toBe("Restored (downloading)");
+    expect(torrentJournalWords("restore", "uncached")).toBe("Not cached");
     expect(torrentJournalWords("prune", "ok")).toBe("Prune");
     expect(torrentJournalWords("prune", "partial")).toBe("Prune partial");
     expect(torrentJournalBy("schedule")).toBe("Scheduled");

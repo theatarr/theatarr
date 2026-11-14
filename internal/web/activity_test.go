@@ -167,7 +167,7 @@ func TestActivityBlockedAndParams(t *testing.T) {
 		t.Fatalf("blocked: %d", code)
 	}
 	if p.Total != 1 || len(p.Blocked) != 1 || p.Blocked[0].Title.Name != "Alpha" ||
-		p.Blocked[0].Words != "Failed the library check (sample or runtime)" || p.Blocked[0].Researched != nil {
+		p.Blocked[0].Words != "Failed the library check" || p.Blocked[0].Researched != nil {
 		t.Errorf("blocked %+v", p)
 	}
 	var h ActivityPage
@@ -706,9 +706,9 @@ func TestActivityNotStartedDownload(t *testing.T) {
 
 func TestBlockWords(t *testing.T) {
 	for source, want := range map[string]string{
-		"library":            "Failed the library check (sample or runtime)",
+		"library":            "Failed the library check",
 		"provider":           "Failed at the provider",
-		"ready_timeout":      "Never appeared on the mount",
+		"ready_timeout":      "Timed out before import",
 		"arr:radarr_4k_zurg": "Imported from Radarr's blocklist",
 		"arr:sonarr_4k_zurg": "Imported from Sonarr's blocklist",
 		"arr:lidarr":         "Imported from a Sonarr/Radarr blocklist",
