@@ -56,7 +56,8 @@ export function CollectionPage() {
     {q.isLoading ? <Loading /> : q.error ? <ErrorState error={q.error} /> : d && c ? <div className="space-y-4">
       <p className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground" data-testid="collection-summary">
         <Chip tone={c.monitored ? "ok" : "ghost"}>{c.monitored ? "Monitored" : "Not monitored"}</Chip>
-        {c.monitored ? <span>Adds missing movies to {libs.join(", ")}{c.search_on_add ? " and searches for them" : ""}; minimum availability {availability}.</span>
+        {c.monitored && libs.length === 0 ? <span>No library is chosen, so no movies are added; choose one under Edit.</span>
+          : c.monitored ? <span>Adds missing movies to {libs.join(", ")}{c.search_on_add ? " and searches for them" : ""}; minimum availability {availability}.</span>
           : <span>Missing movies are not added by themselves.</span>}
       </p>
       {done ? <p role="status" className="text-sm text-[var(--ink)]" data-testid="collections-done">{done}</p> : null}

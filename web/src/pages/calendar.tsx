@@ -323,7 +323,7 @@ export function CalendarPageView() {
   const [reveal, setReveal] = useState(0);
   useEffect(() => {
     if (!reveal) return;
-    dayPanel.current?.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
+    dayPanel.current?.scrollIntoView?.({ block: "start", behavior: "smooth" });
     dayPanel.current?.focus({ preventScroll: true });
   }, [reveal]);
   const agendaTop = useRef<HTMLDivElement>(null);

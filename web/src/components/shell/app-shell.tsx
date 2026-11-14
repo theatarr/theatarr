@@ -358,7 +358,7 @@ export function AppShell({ children, perms }: { children: ReactNode; perms: Perm
           e.preventDefault();
           document.getElementById("main")?.focus();
         }}
-        className="sr-only z-[100] rounded-[5px] bg-[var(--surface)] px-3 py-2 text-sm font-medium text-[var(--ink)] shadow-[var(--shadow-2)] focus:not-sr-only focus:fixed focus:left-3 focus:top-3"
+        className="sr-only z-[100] rounded-[5px] border border-[var(--line-2)] bg-[var(--surface)] text-sm font-medium text-[var(--ink)] shadow-[var(--shadow-2)] focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:px-3 focus:py-2"
       >
         Skip to content
       </a>
