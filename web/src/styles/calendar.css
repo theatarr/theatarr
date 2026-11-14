@@ -134,11 +134,16 @@
   border-radius: 3px;
   box-shadow: inset 0 0 0 1px var(--line-2);
   color: var(--ink-2);
-  flex: none;
+  /* Shrinks with an ellipsis ("Digital + Physical" in a narrow day) so the tick beside it stays inside the cell. */
+  flex: 0 1 auto;
   font-family: var(--font-mono);
   font-size: 10.5px;
   font-weight: 500;
+  min-width: 0;
+  overflow: hidden;
   padding: 0 5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .theatarr-cal-event-time {
   color: var(--ink-3);

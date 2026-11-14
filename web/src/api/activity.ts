@@ -60,10 +60,11 @@ export const useContinue = (limit = 20) =>
     queryFn: () => api<ContinueRow>("/activity/continue" + qs({ limit })),
   });
 
-export const useCalendar = (from: string, to: string) =>
+/** GET /calendar; unmonitored also lists titles and episodes no library monitors (shown greyed). */
+export const useCalendar = (from: string, to: string, unmonitored = false) =>
   useQuery({
-    queryKey: [...activityKeys.calendar, from, to],
-    queryFn: () => api<CalendarPage>("/calendar" + qs({ from, to })),
+    queryKey: [...activityKeys.calendar, from, to, unmonitored],
+    queryFn: () => api<CalendarPage>("/calendar" + qs({ from, to, unmonitored: unmonitored ? 1 : undefined })),
     placeholderData: keepPreviousData,
   });
 

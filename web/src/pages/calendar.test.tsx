@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, beforeEach, expect, it } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { useLocation } from "react-router";
 import { CalendarPageView } from "./calendar";
 import { mockFetch, renderPage } from "@/test/page";
 import type { Schemas } from "@/api/client";
@@ -10,7 +11,7 @@ import { monthDays, ymd } from "@/lib/calendar";
 type Entry = Schemas["CalendarEntry"];
 
 const day = (n: number) => {
-  const d = new Date();
+  const d = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
   return ymd(new Date(d.getFullYear(), d.getMonth(), n));
 };
 const title = (id: number, name: string, kind: string) => ({ id, name, kind, anime: false, poster: "" }) as Entry["title"];
@@ -20,8 +21,21 @@ const items: Entry[] = [
   { date: day(1), kind: "movie", type: "digital", title: title(1, "Alpha", "movie"), monitored: true, available: true, acquiring: false },
 ];
 
-beforeEach(() => window.localStorage.setItem("theatarr.calendar.view", "agenda"));
-afterEach(() => window.localStorage.clear());
+// Today is the 1st of this month at noon unless a test says otherwise: the agenda of this month starts at today.
+const real = new Date();
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"], now: new Date(real.getFullYear(), real.getMonth(), 1, 12) });
+  window.localStorage.setItem("theatarr.calendar.view", "agenda");
+});
+afterEach(() => {
+  vi.useRealTimers();
+  window.localStorage.clear();
+});
+
+function LocationProbe() {
+  const loc = useLocation();
+  return <span data-testid="location">{loc.pathname + loc.search}</span>;
+}
 
 const routes = (permissions: string[]) => [
   { method: "GET", path: "/auth/me", reply: { id: 1, permissions } },
@@ -82,4 +96,90 @@ it("shows one movie's releases of a day as one entry, with its status words", as
   expect(rows).toHaveLength(1);
   expect(rows[0].textContent).toContain("Digital + Physical");
   expect(rows[0].textContent).toContain("Partly available");
+});
+
+const nov = (n: number) => `2026-11-${String(n).padStart(2, "0")}`;
+const ep = (id: number, date: string, name: string, kind = "series", monitored = true): Entry =>
+  ({ ...items[0], episode_id: id, date, monitored, title: title(id, name, kind) });
+
+it("starts this month's agenda at today, with Show earlier, and Today goes back there", async () => {
+  vi.setSystemTime(new Date(2026, 10, 14, 12));
+  const user = userEvent.setup();
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["see_files"] } },
+    { method: "GET", path: "/calendar", reply: { from: nov(1), to: nov(30), items: [ep(1, nov(3), "Early"), ep(2, nov(14), "Now"), ep(3, nov(20), "Later")] } },
+  ]);
+  renderPage(<CalendarPageView />, "/calendar");
+  expect(await screen.findByText("Now")).toBeTruthy();
+  expect(screen.getByText("Later")).toBeTruthy();
+  expect(screen.queryByText("Early")).toBeNull();
+  await user.click(screen.getByRole("button", { name: "Show earlier (1 day)" }));
+  expect(screen.getByText("Early")).toBeTruthy();
+  await user.click(screen.getByRole("button", { name: "Today" }));
+  expect(screen.queryByText("Early")).toBeNull();
+  // Another month is shown whole.
+  await user.click(screen.getByRole("button", { name: "Previous month" }));
+  expect(screen.queryByRole("button", { name: /Show earlier/ })).toBeNull();
+});
+
+it("keeps the month, the toggles and Monitored only in the URL, and shows titles not monitored greyed", async () => {
+  vi.setSystemTime(new Date(2026, 10, 14, 12));
+  const user = userEvent.setup();
+  const fetch = mockFetch([
+    { method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["see_files"] } },
+    { method: "GET", path: "/calendar", reply: { from: "2026-11-30", to: "2027-01-01", items: [
+      { ...items[1], date: "2026-12-05", title: title(1, "Alpha", "movie") },
+      { ...items[1], date: "2026-12-06", title: title(2, "Quiet", "movie"), monitored: false, available: false },
+      ep(5, "2026-12-07", "Gamma")] } },
+  ]);
+  renderPage(<><CalendarPageView /><LocationProbe /></>, "/calendar?month=2026-12&types=movie");
+  expect((await screen.findByTestId("cal-title")).textContent).toBe("December 2026");
+  expect(await screen.findByText("Alpha")).toBeTruthy();
+  // Titles no library monitors are asked for and shown greyed, as on Home's Upcoming row.
+  // (The app has the account before the page renders; here the first request may go before it arrives.)
+  await waitFor(() => expect(fetch.calls("GET", "/calendar").at(-1)?.search).toBe("?from=2026-11-30&to=2027-01-01&unmonitored=1"));
+  expect(screen.getByText("Quiet").closest("a")!.className).toContain("opacity-60");
+  expect(screen.queryByText("Gamma")).toBeNull();
+  expect(screen.getByRole("button", { name: /^Series/ }).getAttribute("aria-pressed")).toBe("false");
+  await user.click(screen.getByLabelText("Monitored only"));
+  expect(screen.queryByText("Quiet")).toBeNull();
+  expect(screen.getByTestId("location").textContent).toBe("/calendar?month=2026-12&types=movie&monitored=1");
+  await user.click(screen.getByRole("button", { name: /^Series/ }));
+  expect(screen.getByText("Gamma")).toBeTruthy();
+  expect(screen.getByTestId("location").textContent).toBe("/calendar?month=2026-12&types=movie%2Cseries&monitored=1");
+  await user.click(screen.getByRole("button", { name: "Next month" }));
+  expect(screen.getByTestId("location").textContent).toBe("/calendar?month=2027-01&types=movie%2Cseries&monitored=1");
+  await user.click(screen.getByRole("button", { name: "Today" }));
+  expect(screen.getByTestId("location").textContent).toBe("/calendar?types=movie%2Cseries&monitored=1");
+});
+
+it("says the filters hide this month's entries instead of claiming the month is empty", async () => {
+  vi.setSystemTime(new Date(2026, 10, 14, 12));
+  const user = userEvent.setup();
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: { id: 1, permissions: [] } },
+    { method: "GET", path: "/calendar", reply: { from: "2026-11-30", to: "2027-01-01", items: [{ ...items[1], date: "2026-12-05" }, ep(5, "2026-12-07", "Gamma")] } },
+  ]);
+  renderPage(<CalendarPageView />, "/calendar?month=2026-12&types=anime");
+  expect(await screen.findByText("No entries match these filters this month.", { exact: false })).toBeTruthy();
+  expect(screen.queryByText("Nothing is released or airs in this month.")).toBeNull();
+  // A household account gets no Monitored only (it sees monitored titles only, as before).
+  expect(screen.queryByLabelText("Monitored only")).toBeNull();
+  await user.click(screen.getByRole("button", { name: "Show all" }));
+  expect(screen.getByText("Gamma")).toBeTruthy();
+});
+
+it("brings a busy day's list into view and focus on +N more", async () => {
+  vi.setSystemTime(new Date(2026, 10, 14, 12));
+  window.localStorage.setItem("theatarr.calendar.view", "month");
+  const user = userEvent.setup();
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["see_files"] } },
+    { method: "GET", path: "/calendar", reply: { from: nov(1), to: nov(30), items: [1, 2, 3, 4].map((n) => ep(n, nov(17), `Show ${n}`)) } },
+  ]);
+  renderPage(<CalendarPageView />, "/calendar");
+  await user.click(await screen.findByRole("button", { name: "+1 more" }));
+  const panel = screen.getByTestId("cal-day-panel");
+  expect(document.activeElement).toBe(panel);
+  expect(screen.getAllByTestId("agenda-item")).toHaveLength(4);
 });

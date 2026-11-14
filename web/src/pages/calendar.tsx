@@ -3,16 +3,21 @@
 // apps/scryer-web/components/views/calendar-view.tsx @ 2ef7757c, GPL-3.0): the toolbar with facet toggles, title and
 // Today / Month-Agenda / prev-next buttons, day pills, event chips with a status edge (lib/calendar.ts calendarTone),
 // "+N more". Scryer renders with FullCalendar; this grid is our own (see styles/calendar.css). At phone width the grid
-// shows dots and the chosen day's list below it; the agenda is the default there.
+// shows dots and the chosen day's list below it; the agenda is the default there. The month, the media type toggles
+// and Monitored only live in the URL (?month=YYYY-MM, ?types=movie,series, ?monitored=1); the view is kept per
+// browser. Titles not monitored show greyed, as Home's Upcoming row lists them, unless Monitored only is on (accounts
+// that see files; household accounts get the monitored titles only, as before). The agenda of the current month
+// starts at today, with Show earlier.
 import { CalendarDays, Check, ChevronLeft, ChevronRight, List } from "lucide-react";
-import { useMemo, useState } from "react";
-import { Link } from "react-router";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Link, useSearchParams } from "react-router";
 import { useCalendar, type CalendarEntry } from "@/api/activity";
 import { usePerms } from "@/api/library";
 import { Empty, ErrorState, Loading, PageHeader } from "@/components/page";
 import { Chip } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { calendarHref, calendarLegend, calendarTone, episodeCode, joinReleases, monthDays, parseYmd, placeEntries, releaseLabel, shiftDay, ymd } from "@/lib/calendar";
 import { cn } from "@/lib/utils";
 import "@/styles/calendar.css";
@@ -24,6 +29,23 @@ const FACETS: { id: Facet; label: string }[] = [
   { id: "series", label: "Series" },
   { id: "anime", label: "Anime" },
 ];
+const ALL_FACETS = FACETS.map((f) => f.id);
+
+/** ?types=movie,series: the facets shown; absent or unreadable, all of them. */
+function readFacets(v: string | null): Facet[] {
+  const picked = (v ?? "").split(",").filter((x): x is Facet => ALL_FACETS.includes(x as Facet));
+  return picked.length > 0 ? ALL_FACETS.filter((f) => picked.includes(f)) : ALL_FACETS;
+}
+
+/** ?month=YYYY-MM: the month shown; absent or unreadable, this month. */
+function readMonth(v: string | null, now: Date): { y: number; m: number } {
+  const m = /^(\d{4})-(\d{2})$/.exec(v ?? "");
+  if (m && Number(m[2]) >= 1 && Number(m[2]) <= 12) return { y: Number(m[1]), m: Number(m[2]) - 1 };
+  return { y: now.getFullYear(), m: now.getMonth() };
+}
+
+const monthParam = (a: { y: number; m: number }) => `${a.y}-${String(a.m + 1).padStart(2, "0")}`;
+
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const VIEW_KEY = "theatarr.calendar.view";
 
@@ -89,7 +111,7 @@ function AgendaItem({ e, plain, now }: { e: Entry; plain: boolean; now: Date }) 
   const s = calendarTone(e, now, plain);
   return (
     <li>
-      <Link to={calendarHref(e)} data-tone={s.tone} className="flex items-center gap-3 px-3 py-2.5 hover:bg-[var(--hover)] sm:px-4" data-testid="agenda-item">
+      <Link to={calendarHref(e)} data-tone={s.tone} className={cn("flex items-center gap-3 px-3 py-2.5 hover:bg-[var(--hover)] sm:px-4", !plain && !e.monitored && "opacity-60")} data-testid="agenda-item">
         <img src={e.title.poster} alt="" loading="lazy" decoding="async" className="aspect-[2/3] w-9 shrink-0 rounded-[4px] object-cover ring-1 ring-[var(--line)]" />
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-medium text-[var(--ink)]">{e.title.name}</div>
@@ -124,18 +146,65 @@ function dayHeading(s: string, today: string): string {
   return s === today ? `Today · ${label}` : label;
 }
 
-function Agenda({ days, today, plain, now }: { days: [string, Entry[]][]; today: string; plain: boolean; now: Date }) {
-  if (days.length === 0) {
-    return (
-      <Card>
-        <Empty icon={CalendarDays}>Nothing is released or airs in this month.</Empty>
-      </Card>
-    );
-  }
+/** What the agenda says when it lists nothing: about the filters when they hide this month's entries. */
+function NothingHere({ filtered, onShowAll, children }: { filtered: boolean; onShowAll: () => void; children: string }) {
+  return (
+    <Card>
+      <Empty icon={CalendarDays}>
+        {filtered ? (
+          <>
+            No entries match these filters this month.{" "}
+            <button type="button" className="text-[var(--accent-ink)] hover:underline" onClick={onShowAll}>
+              Show all
+            </button>
+          </>
+        ) : (
+          children
+        )}
+      </Empty>
+    </Card>
+  );
+}
+
+function Agenda({
+  days,
+  today,
+  plain,
+  now,
+  startAtToday,
+  filtered,
+  onShowAll,
+  earlier,
+  onEarlier,
+}: {
+  days: [string, Entry[]][];
+  today: string;
+  plain: boolean;
+  now: Date;
+  /** The month shown is this one: the agenda starts at today, unless earlier. */
+  startAtToday: boolean;
+  /** The month has entries the toggles or Monitored only hide. */
+  filtered: boolean;
+  onShowAll: () => void;
+  earlier: boolean;
+  onEarlier: () => void;
+}) {
+  const hidden = startAtToday && !earlier ? days.filter(([d]) => d < today).length : 0;
+  const shown = hidden ? days.filter(([d]) => d >= today) : days;
   return (
     <div className="space-y-4">
-      {days.map(([day, items]) => (
-        <section key={day}>
+      {hidden ? (
+        <Button variant="outline" size="sm" onClick={onEarlier}>
+          Show earlier ({plural(hidden, "day")})
+        </Button>
+      ) : null}
+      {days.length === 0 ? (
+        <NothingHere filtered={filtered} onShowAll={onShowAll}>Nothing is released or airs in this month.</NothingHere>
+      ) : shown.length === 0 ? (
+        <NothingHere filtered={filtered} onShowAll={onShowAll}>Nothing more this month.</NothingHere>
+      ) : null}
+      {shown.map(([day, items]) => (
+        <section key={day} data-agenda-day={day}>
           <h3 className={cn("mb-2 text-[12px] font-semibold uppercase tracking-[0.14em]", day === today ? "text-[var(--accent-ink)]" : "text-[var(--ink-3)]", day < today && "opacity-70")}>
             {dayHeading(day, today)}
           </h3>
@@ -230,16 +299,43 @@ export function CalendarPageView() {
   const now = new Date();
   const today = ymd(now);
   const plain = !usePerms().seeFiles;
-  const [anchor, setAnchor] = useState({ y: now.getFullYear(), m: now.getMonth() });
+  const [params, setParams] = useSearchParams();
+  const monthKey = params.get("month");
+  const anchor = useMemo(() => readMonth(monthKey, new Date()), [monthKey]);
+  const facets = useMemo(() => readFacets(params.get("types")), [params]);
+  // Accounts that see files get every title, those not monitored greyed (as Home's Upcoming row); Monitored only hides them.
+  const monitoredOnly = !plain && params.get("monitored") === "1";
+  const setParam = (key: string, value: string | null) =>
+    setParams(
+      (p) => {
+        const next = new URLSearchParams(p);
+        if (value) next.set(key, value);
+        else next.delete(key);
+        return next;
+      },
+      { replace: true },
+    );
   const [view, setView] = useState<"month" | "agenda">(readView);
-  const [facets, setFacets] = useState<Facet[]>(["movie", "series", "anime"]);
   const [selected, setSelected] = useState<string | null>(null);
+  const [earlier, setEarlier] = useState(false);
+  // A day chosen in the grid scrolls its list into view (the list sits under the month).
+  const dayPanel = useRef<HTMLHeadingElement>(null);
+  const [reveal, setReveal] = useState(0);
+  useEffect(() => {
+    if (!reveal) return;
+    dayPanel.current?.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
+    dayPanel.current?.focus({ preventScroll: true });
+  }, [reveal]);
+  const agendaTop = useRef<HTMLDivElement>(null);
   const days = useMemo(() => monthDays(anchor.y, anchor.m), [anchor]);
   const from = view === "month" ? ymd(days[0]) : ymd(new Date(anchor.y, anchor.m, 1));
   const to = view === "month" ? ymd(days[days.length - 1]) : ymd(new Date(anchor.y, anchor.m + 1, 0));
   // One day wider on each side: an episode's air moment can fall on the day before or after the network's here.
-  const q = useCalendar(shiftDay(from, -1), shiftDay(to, 1));
-  const placed = useMemo(() => joinReleases(placeEntries(q.data?.items ?? [], from, to)), [q.data, from, to]);
+  const q = useCalendar(shiftDay(from, -1), shiftDay(to, 1), !plain);
+  const placed = useMemo(
+    () => joinReleases(placeEntries(q.data?.items ?? [], from, to)).filter(({ e }) => !monitoredOnly || e.monitored),
+    [q.data, from, to, monitoredOnly],
+  );
 
   const byDay = useMemo(() => {
     const m = new Map<string, Entry[]>();
@@ -259,13 +355,42 @@ export function CalendarPageView() {
     for (const { day, e } of placed) if (day >= first && day <= last) c[e.title.kind as Facet] = (c[e.title.kind as Facet] ?? 0) + 1;
     return c;
   }, [placed, anchor]);
+  // The month has entries that the toggles or Monitored only hide.
+  const hiddenByFilters = useMemo(() => {
+    const first = ymd(new Date(anchor.y, anchor.m, 1));
+    const last = ymd(new Date(anchor.y, anchor.m + 1, 0));
+    const all = joinReleases(placeEntries(q.data?.items ?? [], from, to)).filter(({ day }) => day >= first && day <= last);
+    const shown = all.filter(({ e }) => (!monitoredOnly || e.monitored) && facets.includes(e.title.kind as Facet));
+    return shown.length < all.length;
+  }, [q.data, from, to, anchor, monitoredOnly, facets]);
 
+  const goTo = (a: { y: number; m: number }) => {
+    const cur = { y: now.getFullYear(), m: now.getMonth() };
+    setParam("month", a.y === cur.y && a.m === cur.m ? null : monthParam(a));
+  };
   const move = (n: number) => {
     setSelected(null);
-    setAnchor((a) => {
-      const d = new Date(a.y, a.m + n, 1);
-      return { y: d.getFullYear(), m: d.getMonth() };
-    });
+    setEarlier(false);
+    const d = new Date(anchor.y, anchor.m + n, 1);
+    goTo({ y: d.getFullYear(), m: d.getMonth() });
+  };
+  const toggleFacet = (f: Facet, on: boolean) => {
+    const next = on ? (facets.length > 1 ? facets.filter((x) => x !== f) : facets) : ALL_FACETS.filter((x) => x === f || facets.includes(x));
+    setParam("types", next.length === ALL_FACETS.length ? null : next.join(","));
+  };
+  const showAll = () =>
+    setParams(
+      (p) => {
+        const next = new URLSearchParams(p);
+        next.delete("types");
+        next.delete("monitored");
+        return next;
+      },
+      { replace: true },
+    );
+  const pickDay = (d: string) => {
+    setSelected(d);
+    setReveal((n) => n + 1);
   };
   const pickView = (v: "month" | "agenda") => {
     setView(v);
@@ -275,6 +400,7 @@ export function CalendarPageView() {
       // not kept
     }
   };
+  const isThisMonth = anchor.y === now.getFullYear() && anchor.m === now.getMonth();
   const title = new Date(anchor.y, anchor.m, 1).toLocaleDateString(undefined, { month: "long", year: "numeric" });
   const agendaDays = [...byDay.entries()].filter(([d]) => d >= from && d <= to).sort(([a], [b]) => a.localeCompare(b));
   const selectedItems = selected ? byDay.get(selected) ?? [] : [];
@@ -292,7 +418,7 @@ export function CalendarPageView() {
                 key={f.id}
                 type="button"
                 aria-pressed={on}
-                onClick={() => setFacets((cur) => (on ? (cur.length > 1 ? cur.filter((x) => x !== f.id) : cur) : [...cur, f.id]))}
+                onClick={() => toggleFacet(f.id, on)}
                 className={cn(
                   "inline-flex h-8 items-center gap-1.5 rounded-[5px] border border-border px-2.5 text-[12.5px] font-medium transition",
                   on ? "bg-card text-foreground" : "text-muted-foreground opacity-70",
@@ -303,6 +429,12 @@ export function CalendarPageView() {
               </button>
             );
           })}
+          {!plain ? (
+            <label className="ml-1 inline-flex items-center gap-2 text-[12.5px] font-medium text-[var(--ink-2)]">
+              <Checkbox checked={monitoredOnly} onChange={(e) => setParam("monitored", e.target.checked ? "1" : null)} />
+              Monitored only
+            </label>
+          ) : null}
         </div>
         <h2 className="order-first text-center text-2xl font-bold tracking-tight text-[var(--ink)] lg:order-none" data-testid="cal-title">
           {title}
@@ -312,8 +444,11 @@ export function CalendarPageView() {
             variant="outline"
             size="sm"
             onClick={() => {
-              setAnchor({ y: now.getFullYear(), m: now.getMonth() });
+              goTo({ y: now.getFullYear(), m: now.getMonth() });
               setSelected(today);
+              setEarlier(false);
+              // The agenda starts at today again; bring its top into view.
+              if (view === "agenda") agendaTop.current?.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
             }}
           >
             Today
@@ -341,13 +476,16 @@ export function CalendarPageView() {
       ) : q.error ? (
         <ErrorState error={q.error} />
       ) : view === "agenda" ? (
-        <Agenda days={agendaDays} today={today} plain={plain} now={now} />
+        <div ref={agendaTop} className="scroll-mt-20">
+          <Agenda days={agendaDays} today={today} plain={plain} now={now} startAtToday={isThisMonth} filtered={hiddenByFilters} onShowAll={showAll}
+            earlier={earlier} onEarlier={() => setEarlier(true)} />
+        </div>
       ) : (
         <>
-          <MonthGrid days={days} byDay={byDay} month={anchor.m} today={today} selected={selected} onSelect={setSelected} plain={plain} now={now} />
+          <MonthGrid days={days} byDay={byDay} month={anchor.m} today={today} selected={selected} onSelect={pickDay} plain={plain} now={now} />
           {selected ? (
             <section className="mt-5">
-              <h3 className="mb-2 text-[12px] font-semibold uppercase tracking-[0.14em] text-[var(--ink-3)]">{dayHeading(selected, today)}</h3>
+              <h3 ref={dayPanel} tabIndex={-1} data-testid="cal-day-panel" className="mb-2 scroll-mt-20 text-[12px] font-semibold uppercase tracking-[0.14em] text-[var(--ink-3)] outline-none">{dayHeading(selected, today)}</h3>
               {selectedItems.length === 0 ? (
                 <Card>
                   <Empty icon={CalendarDays}>Nothing on this day.</Empty>
