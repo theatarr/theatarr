@@ -283,8 +283,8 @@ export function Catalog({ id }: { id: CatalogId }) {
               </button>
             ))}
           </div>
-          {/* A phone gives Sort a row of its own, so the chosen label shows whole. */}
-          <span className="flex min-w-0 items-center gap-1 max-sm:w-full">
+          {/* On a phone Sort takes the rest of its row (a new one if needed), so the chosen label shows whole. */}
+          <span className="flex min-w-0 items-center gap-1 max-sm:min-w-[14rem] max-sm:flex-1">
             <select aria-label="Sort by" className={cn(SELECT, "w-auto min-w-0 max-sm:flex-1")} value={sort} onChange={(e) => setSort(e.target.value)}>
               {offeredSorts(perms.seeFiles, id).map((s) => (
                 <option key={s.id} value={s.id}>{s.label}</option>

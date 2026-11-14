@@ -337,7 +337,7 @@ export function TitleTable({ titles, more, onMore, seeFiles, manage, columns, so
       sortable: !!columnSort(id),
       card: id === "status" ? "none" : id === "libraries" ? "full" : "line",
       headClassName: cn("whitespace-nowrap", id === "size" && "text-right"),
-      cellClassName: cn("text-sm", id === "libraries" ? "min-w-[9rem] max-w-[16rem]" : "whitespace-nowrap", id === "size" && "text-right", id === "provider" && "[&>span]:flex-nowrap", id === "network" && "max-w-[10rem] truncate"),
+      cellClassName: cn("text-sm", id === "libraries" ? "min-w-[9rem] max-w-[22rem]" : "whitespace-nowrap", id === "size" && "text-right", id === "provider" && "[&>span]:flex-nowrap", id === "network" && "max-w-[10rem] truncate"),
       cell: (t) => (id === "status" && !seeFiles ? <WatchCell t={t} /> : cell(id, t, () => setCopiesOf(t.id ?? null))),
     })),
   ];

@@ -136,6 +136,9 @@ it("keeps the Setup link until an install goes live or passes readiness, and nev
  expect(setupLinkShown({ first_run: false, missing: ["no debrid mount"] } as unknown as SetupState, true, true)).toBe(true);
 });
 
+it("gives every page item an icon (a More group draws its children's icons)", () => {
+ expect(flatItems(moreFor(ROLES.admin)).every(i => !!i.icon)).toBe(true);
+});
 it("the phone's More lists top-level pages; System, Settings and Advanced open on a tap and keep their badges", () => {
  const groups = moreFor(ROLES.admin);
  expect(groups.map(g => g.id)).toEqual(["more", "admin"]);

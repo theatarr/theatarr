@@ -82,6 +82,10 @@ it("phone: tabs Home, Browse, Activity, Requests, More; More opens System only o
   await user.click(system);
   expect(screen.getByRole("link", { name: /Tasks/ }).getAttribute("href")).toBe("/admin/system/tasks");
   expect(screen.getByRole("link", { name: "Decision journal" }).getAttribute("href")).toBe("/admin/system/journal");
+  // Every group opens and draws its pages with their icons.
+  for (const group of ["Settings", "Advanced"]) await user.click(screen.getByRole("button", { name: new RegExp(group) }));
+  expect(screen.getByRole("link", { name: "Import lists" }).getAttribute("href")).toBe("/admin/settings/import-lists");
+  expect(screen.getByRole("link", { name: "All settings" }).getAttribute("href")).toBe("/admin/settings");
   first.unmount();
   window.localStorage.clear();
   const household = { ownKeys: false, admin: false, seeFiles: false, manage: false, add: false, request: true, manageRequests: false, users: false };

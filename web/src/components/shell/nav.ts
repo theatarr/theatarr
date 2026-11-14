@@ -75,8 +75,8 @@ const ACTIVITY: NavItem = { to: "/activity", label: "Activity", icon: Activity }
 const CALENDAR: NavItem = { to: "/calendar", label: "Calendar", icon: CalendarDays };
 const NOW_PLAYING: NavItem = { to: "/now-playing", label: "Now playing", icon: MonitorPlay };
 
-const SETTINGS_ICONS: Record<string, LucideIcon> = { libraries: HardDrive, profiles: SlidersHorizontal, formats: ListChecks, "quality-sync": GitCompareArrows, indexers: Radar, downloads: Import, notifications: Bell, plex: MonitorPlay, metadata: Database, apps: Boxes };
-export const SETTINGS: NavItem[] = SETTINGS_PAGES.filter(p => !p.system).map(p => ({ to: p.route, label: p.label, icon: SETTINGS_ICONS[p.id], need: "admin" }));
+const SETTINGS_ICONS: Record<string, LucideIcon> = { libraries: HardDrive, profiles: SlidersHorizontal, formats: ListChecks, "quality-sync": GitCompareArrows, indexers: Radar, downloads: Import, notifications: Bell, plex: MonitorPlay, metadata: Database, apps: Boxes, "import-lists": ListVideo };
+export const SETTINGS: NavItem[] = SETTINGS_PAGES.filter(p => !p.system).map(p => ({ to: p.route, label: p.label, icon: SETTINGS_ICONS[p.id] ?? SlidersHorizontal, need: "admin" }));
 
 export const ADVANCED: NavItem[] = [
   ...["config", "history", "limits"].map(id => { const page = ADVANCED_SETTINGS_PAGES.find(p => p.id === id)!; return { to: page.route, label: page.label, icon: FileText, need: "admin" as const }; }),
