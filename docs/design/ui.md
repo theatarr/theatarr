@@ -139,6 +139,51 @@ Released, sent as `minimum_availability` and stored as the explicit choice (`ava
 `v/<key>` row) of each library the add adds the movie to, new or restored, whether or not that library has a
 default; a library the movie already had keeps its rule.
 
+### Status words
+
+One vocabulary for what a title, a library copy or an episode holds, worked out in one place on each side: the
+server's `titleAvailabilitySQL` (`internal/web/library.go`: list rows, `availability=` filters, facet counts, the title
+page) and the SPA's `posterStatus` / `qualityWord` (`web/src/lib/library.ts`), `upgradeBadge` (`lib/upgrade.ts`) and
+`cellStatus` (`lib/seasons.ts`). The same state says the same word on posters, the table's Status, the filters and
+their counts, Home, the title page's status chip and Libraries table, season headers, episode cells and the episode
+window. **In the library** means the title is in a library; **Available** means a file is held.
+
+The status word (one per title, copy or episode):
+
+| State | Word | Colour | Where |
+|---|---|---|---|
+| a file is held, and no monitored library has a gap (a series: every aired, monitored episode of every monitored library has a file), whatever its quality against the cutoff | **Available** (title page: "Available in 4K") | green `--ok` | posters, table Status, filter, title page, library rows, episode cells and window |
+| a file is held, and a monitored library has a gap (a movie library with no file; a series library missing an aired, monitored episode) | **Partly available** | amber `--warn` | posters, table Status, filter, title page |
+| no file, monitored, out (a movie past its home release; a series with an aired episode); an episode aired, monitored, no file | **Missing** | red `--bad` | posters, table Status, filter, title page, library rows, episode cells and window |
+| no file, and no library monitors it; an episode with no file whose episode or library is not monitored | **Not monitored** | grey `--ink-4` | posters, table Status, filter, title page, library rows, episode cells and window |
+| no file, monitored, not out yet (a movie's home release, else its TMDb release date, still to come; a series with nothing aired); an episode still to air | **Upcoming** (with the day), episodes **Not aired** | grey `--ink-3` | posters, table Status, filter, title page, library rows, season header, episode cells |
+| in no library | none ("Not in the library yet" on the title page) | — | title page |
+
+A gap in a library that is not monitored is no gap: it reads Not monitored and counts in no missing number (season
+headers, library rows, coverage), for a series as for a movie. Wanted and searching are unchanged.
+
+The quality word, beside the status word of something with a file and never in its place (those who see files):
+
+| State (`UpgradeInfo.state`) | Word | Colour | Where |
+|---|---|---|---|
+| a better release was found (`upgrade_available`) | **Upgrade found** | accent | posters' year line, table Status (second line), library rows, season headers, episode cells, episode window, quality filter, Home's row |
+| a file below its preferred quality, nothing better found (`below_cutoff`, `best_available`, `best_source_seen`, `higher_source_exists`) | **Best quality known** | neutral | table Status (second line), library rows, season headers, episode window, quality filter |
+| every file at its preferred quality (`cutoff_met`) | **Preferred quality met** | green | table Status (second line), library rows, season headers, episode window |
+
+**Why?** is headed by the quality word that opened it; the state's longer wording (`UPGRADE_WORDS`, such as "Best
+source seen so far") is the line under the heading, and the Scores box says which part falls short (quality,
+profile score) for every state short of the preferred quality.
+
+Filters on Movies, Series and Anime (those who see files): **Available**, **Partly available**, **Missing**, **Not
+monitored**, **Upcoming** (`availability=`), and apart from them **Upgrade found** and **Best quality known**
+(`upgrade=found|best_known`), each with the facet count of exactly the titles it lists; the five status counts add up
+to the list. An old saved `availability=upgrade` ("Preferred quality not met") opens as Available. Accounts without
+see files keep watchability: Not available, Some episodes, Available (Getting ready and Upcoming on posters).
+
+A score shows only with scoring evidence: a link's score is shown when its import decision or adoption stored a
+calculated score (0 included) or matched formats, and is blank otherwise (`linkScoreSQL`), in the Episodes table, the
+episode window, cell tooltips, the Libraries table and Why?.
+
 ### Library and activity pages
 
 - **Library lists** use the full width, with the poster and table views (see **Library views** below). The table has
@@ -161,7 +206,9 @@ default; a library the movie already had keeps its rule.
   Home rows and in the title page's readiness chip, before Upcoming; a failed download is not in
   hand, so it stays Not available;
   accounts that see files keep their stage chips.
-- **Title page**: Newsreader title, the readiness chip, small-caps fact rows; the action bar and the **Libraries**
+- **Title page**: Newsreader title, the status chip (for those who see files the title's status word, "Available in
+  4K"; for everyone else its watchability: "Ready to watch in 4K", "Some episodes ready", "Not available yet" in a
+  library without a file, "Not in the library yet" in none), small-caps fact rows; the action bar and the **Libraries**
   table sit under the hero. A Watch-only library says **Watch only** once (its tag); the row does not repeat the
   verdict. Pause is said once for the page, under the action bar, and the Episodes tab leaves it to that notice.
 - **Activity**: for accounts that see files, Queue, History and Blocklist are tables (shared `DataTable`) whose rows
@@ -303,7 +350,8 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   go once nothing is being added.
   **Status:** a download in hand and no file reads its stage ("Downloading · 37%", "Waiting for mount", "Blocked"),
   linked to Activity; a movie without a file "Not monitored", "Upcoming · Jan 14" (not out at home yet, the posters'
-  rule) or "Missing"; a held movie the upgrade badge, with Why? unless it is plainly Available without a manual ceiling (Available, Upgrade found, Best quality known), with
+  rule) or "Missing"; a held movie "Available" with the quality word beside it (Upgrade found, Best quality known or
+  Preferred quality met; Why? unless it is plainly at its preferred quality without a manual ceiling; Status words), with
   "Upgrade downloading · 37%" under it while one is in hand; a series "42 / 48 episodes" (green when complete, red
   when none, amber between; "Nothing aired yet" before any episode), with "6 missing" under it.
   **Row actions:** **Search now** (icon, managers; disabled with the reason; when other Live libraries want the
@@ -416,18 +464,20 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   - **Restrictions once:** read-only monitoring and disabled search are one note above the seasons, a line per
     distinct reason, naming the libraries only when not all share it. The controls stay disabled with the reason as
     their title.
-  - **Filters per season:** All / In progress / Missing / Upgrade found (the last for "see files"), with counts; they
+  - **Filters per season:** All / In progress / Missing / Upgrade found (the last for "see files"), with counts, a
+    chip only when it would show something (All and the chosen one always); they
     match an episode when any library in view does. The season checkbox selects the episodes shown, so "Missing,
     select all, Search" works. The bulk bar shows only while something is selected: "3 selected · 4K" (the libraries
     in view), **Monitor**, **Unmonitor**, **Search** and clear. Another library view clears the selection.
   - **One library in view, 768 px and up:** Sonarr's table: checkbox, monitor switch, number, title, the chosen
     columns and the actions (Search and Interactive search icons). **Columns** ("The number, title, monitor switch and
-    search buttons always show."; `theatarr.library.episode-columns.<user>`): Air date, Status (Available, Upgrade
-    found, Missing, Not aired, Not monitored; the download under it), Quality, Size and **Cached on** (with the admins'
+    search buttons always show."; `theatarr.library.episode-columns.<user>`): Air date, Status (Available, with
+    Upgrade found beside it; Missing, Not aired, Not monitored, which a gap in a library that is not monitored reads
+    too; the download under it), Quality, Size and **Cached on** (with the admins'
     **Torrent** link, as the episode window) by default;
     Score, Release group, Release, File and Runtime on offer.
-  - **All libraries:** a column per library (the matrix), each cell a word, Available / Missing / Not aired /
-    Upgrade found / Not monitored, with the quality beside it and the monitored mark; each row ends in the Search and
+  - **All libraries:** a column per library (the matrix), each cell a word, Available (Upgrade found beside it) /
+    Missing / Not aired / Not monitored, with the quality beside it and the monitored mark; each row ends in the Search and
     Interactive search icons. No Columns button.
   - **Phones:** one row per episode for the library in view: name, number and air date, and the state in words on
     the right (the quality under it). Never a bare icon.
@@ -580,13 +630,12 @@ including "Imported from Radarr's blocklist" for `arr:<instance>`) and the healt
   are cards: thumbnail, title and Status, then the pills, then each chosen column as a line. Without See files the
   Libraries, Quality, Quality profile, Size, Latest file, Minimum availability, Provider and Folder columns are not
   offered and Status is headed **Availability** with the watchability words.
-- **Posters:** one availability badge, top right, in precedence order: Missing (Upcoming for a movie not out at home
-  yet or a series with nothing aired yet), Some episodes, Partly available, Upgrade found, Best quality known or
-  Available (docs/design/manage.md, Words). Some episodes means a monitored, aired episode is missing. **Partly
-  available** (amber) is a movie that one library holds while another, monitored library has no file (the server's
-  `partial`, the Partly filter); an unmonitored empty library does not count, so such a movie reads as its held
-  copies do. Family accounts get the server's watchability as is, so that movie reads Available for them; never
-  Missing. Source-ceiling evidence stays in **Why?**. Top left a small eye-off chip when the title is
+- **Posters:** one status badge, top right: the server's status word (Status words: Available, Partly available,
+  Missing, Not monitored, Upcoming), and "Upgrade found" on the year line when a better release was found. **Partly
+  available** (amber) is a title that one library holds while another, monitored library lacks a file or an aired
+  episode (the server's `partial`, the Partly available filter); a library that is not monitored does not count, so
+  such a title reads Available. Family accounts get the server's watchability as is, so that movie reads Available
+  for them; never Missing. Source-ceiling evidence stays in **Why?**. Top left a small eye-off chip when the title is
   not monitored; the Movie / Series / Anime pill is not shown on these pages. Between the art and the title, for
   accounts that see files: a movie in one library has one thin bar; a movie in several has one bar in the badge's
   tone and a line of pills, one per library (dot and label); a series in one library has one bar with its count

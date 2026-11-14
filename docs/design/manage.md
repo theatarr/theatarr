@@ -10,32 +10,35 @@ manage single seasons and episodes as in Sonarr and Radarr.
 
 ## Words
 
-One vocabulary for managers on the grid, the title page, season headers and episodes (`web/src/lib/upgrade.ts`
-`UPGRADE_WORDS`). "Below cutoff" is not shown to anyone: it stays the API state
-`below_cutoff` and the availability key `upgrade` (saved grid URLs keep working).
+One vocabulary for managers on the grid, the title page, season headers and episodes (`web/src/lib/upgrade.ts`).
+"Below cutoff" is not shown to anyone: it stays the API state `below_cutoff`. The quality word is said beside the
+status word (Available, Partly available: docs/design/ui.md, Status words), never in its place.
 
-| State | Wording (Why?) | Short label (poster, badge, row) |
+| State | Wording (the line under Why?'s heading) | Quality word (badge, Why? heading, row) |
 |---|---|---|
-| preferred target reached (`cutoff_met`) | Preferred quality met | Available |
+| preferred target reached (`cutoff_met`) | Preferred quality met | Preferred quality met |
 | known or manual source ceiling reached (`best_available`) | Best available | Best quality known |
 | provisional ceiling reached (`best_source_seen`) | Best source seen so far | Best quality known |
-| higher source known, no accepted replacement (`higher_source_exists`) | No suitable release found; a better source is known to exist | Best quality known |
+| higher source known, no accepted replacement (`higher_source_exists`) | No suitable release found yet, though a better source exists | Best quality known |
 | accepted replacement found (`upgrade_available`) | Upgrade found | Upgrade found |
 | target unmet, no replacement found (`below_cutoff`) | Preferred quality not met; no better copy found | Best quality known |
 
-- The short label (`upgradeBadge`, `POSTER_STATUS_LABEL`) says what a person can act on. **Upgrade found** only when
-  a better release was actually found. **Best quality known**: the copy holds a file and nothing better has been
+- The quality word (`upgradeBadge`, `qualityWord`) says what a person can act on. **Upgrade found** only when a
+  better release was actually found. **Best quality known**: the copy holds a file and nothing better has been
   found for its profile (a movie with Remux-1080p whose profile prefers WEBDL-2160p, after a search that found
-  nothing better); it is neutral or positive, never a warning. **Available** at the preferred quality. The longer
-  wording stays in Why?.
-
-- The status opens **Why?** (docs/design/ceilings.md): the cutoff line ("WEBDL-2160p · profile score 2,244 / 2,000 ·
-  cutoff Remux-2160p"), what falls short, what Theatarr would take next, and the source-ceiling evidence.
-- Poster badges word the row's `upgrade_state`; the grid filter is "Preferred quality not met"; the Home row
-  **Upgrade found** (`discover` `upgrades`, and its "See all" page) lists only titles with an upgrade found: a
-  monitored copy below its preferred quality for which a better release was seen (a series copy that still misses
-  episodes counts by the files it has);
-  season headers count "N under preferred quality · M upgrades found".
+  nothing better); it is neutral or positive, never a warning. **Preferred quality met** at the preferred quality.
+- The quality word opens **Why?** (docs/design/ceilings.md), headed by that same word with the state's wording under
+  it: the cutoff line ("WEBDL-2160p · profile score 2,244 / 2,000 · cutoff Remux-2160p"), what falls short (for
+  every state short of the preferred quality, so "Best source seen so far" with current and preferred quality equal
+  says the profile score is short), what Theatarr would take next, and the source-ceiling evidence.
+- List rows carry `upgrade_state` for a title with a file; posters show "Upgrade found" on the year line, the table's
+  Status the quality word under the status word. The grid's quality filters are **Upgrade found** and **Best quality
+  known** (`upgrade=found|best_known`); the status filter **Available** means a file is held whatever the cutoff
+  (owner decision O1, 2026-11-13; "Preferred quality not met" is gone from the grid, and Wanted › Cutoff unmet is
+  unchanged). The Home row **Upgrade found** (`discover` `upgrades`, and its "See all" page) lists only titles with
+  an upgrade found: a monitored copy below its preferred quality for which a better release was seen (a series copy
+  that still misses episodes counts by the files it has), captioned with the libraries; season headers count "N
+  under preferred quality · M upgrades found", the count left out beside an Upgrade found badge.
 - Users without "see files" get availability and resolution only.
 
 ## The upgrade-evidence rule (`upgrade.go`)

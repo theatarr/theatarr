@@ -86,9 +86,9 @@ it. Both require `auth.PermManage` and normal session CSRF protection. Movies om
 season, including zero for specials. A tier is `tv`, `dvd`, `web_1080`, `bd`, `web_2160` or `uhd_bd`; expiry is an ISO
 timestamp and the optional note is limited to 2,000 bytes. Both operations return `{ok: true}` and recompute locally,
 without queuing any search. Managers can set/clear overrides from the title and season views, with a manual link to
-blu-ray.com. The library filter `availability=upgrade` ("Preferred quality not met") keeps its profile semantics: a best
-available title is still in it, and its badge says "Best quality known". Home's row "Upgrade found" lists only
-titles with an upgrade found (docs/design/manage.md, Words).
+blu-ray.com. A best available title holding its file reads **Available**, with the quality word "Best quality known"
+beside it and under the library filter `upgrade=best_known`. Home's row "Upgrade found" lists only titles with an
+upgrade found (docs/design/manage.md, Words).
 
 The demo includes movie and anime-season examples of known, likely, higher-source and unknown ceilings. `schema.ts`
 is generated from `internal/web/openapi.json` during the UI build and is not checked in.

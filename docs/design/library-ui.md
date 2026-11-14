@@ -16,12 +16,15 @@ catalog,title}.tsx`, `web/src/components/{library,title}/`.
   file complete now), and, see files only, `profile`, `minimum_availability` (movies) and `folder`. A copy removed
   from the library is in no row, filter, sort or facet. A current file is the owning instance's, or any file when no instance
   owns the version; active links count too.
-- **`availability`:** missing (every version wanted, no files); partial (a version has no file, or a wanted version
-  has some, i.e. a series part-way; for a movie only a monitored version without a file counts, so an unmonitored
-  empty one leaves it as its held copies read); upgrade (the rest have files, some below cutoff); available; none
-  (no versions). The row, the `availability=` filter and the facet counts share this rule; the UI words a movie's
-  partial **Partly available**.
-- **`GET titles/facets?kind=&anime=`** counts per availability, monitoring, version key, quality, genre,
+- **`availability`:** the title's status word (docs/design/ui.md, Status words; `titleAvailabilitySQL`): available (a
+  file is held and no monitored library has a gap, whatever the cutoff), partial (a file is held and a monitored
+  library lacks one, or an aired monitored episode), missing (no file, monitored, out), upcoming (no file, monitored,
+  not out yet), unmonitored (no file, no library monitored), none (no versions). A gap in a library that is not
+  monitored is no gap, for a series as for a movie. The row, the `availability=` filter, the facet counts and the
+  title page share this one SQL rule. `upgrade=found|best_known` filters by the quality word (an upgrade found; a file
+  below its cutoff with nothing better found).
+- **`GET titles/facets?kind=&anime=`** counts per availability (adding up to the grid), quality filter (`upgrades`,
+  see files), monitoring, version key, quality, genre,
   certification and (see files) provider cache code, over one grid; the grid's other filters are ignored.
 - **`GET titles/{id}`** adds per version `label`, `current` (the current file in brief, with `formats`), `providers`,
   `cached_on` (cache codes), `removed` (a copy removed from the library, counted in none of the rollups), `episodes`
