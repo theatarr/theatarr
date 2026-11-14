@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { mediaLine } from "./media";
 import { availabilityFilters, posterStatus } from "./library";
-import { UPGRADE_WORDS, availableIn, belowCount, cutoffLine, nextLine, plainUpgrade, resolutionWords, shortfall, sourceWords, tierWords, upgradeBadge, whyOf } from "./upgrade";
+import { UPGRADE_WORDS, availableIn, belowCount, cutoffLine, nextLine, plainUpgrade, resolutionWords, reasonWords, shortfall, sourceWords, tierWords, upgradeBadge, whyOf } from "./upgrade";
 
 const cutoff = { quality: "Remux-2160p", score: 10000, upgrades: true };
 
@@ -129,7 +129,9 @@ describe("upgrade words", () => {
       state: "upgrade_available",
       next: { release: "X.S01.Remux", quality: "Bluray-1080p Remux", score: 5000, reason: "better format score: 5000 over 1400", source: "rss", seen_at: "2026-10-26T10:00:00Z" },
     }, now);
-    expect(line).toBe("Would take X.S01.Remux (Bluray-1080p Remux · 5,000): better format score: 5000 over 1400. Seen 2 h ago by Theatarr's RSS.");
+    expect(line).toBe("Would take X.S01.Remux (Bluray-1080p Remux · 5,000); reason at that search: better format score: 5,000 over 1,400. Seen 2 h ago by Theatarr's RSS.");
+    expect(reasonWords("fills 2 episode(s) with no file")).toBe("fills 2 episodes with no file");
+    expect(reasonWords("fills 1 episode(s) with no file")).toBe("fills 1 episode with no file");
     expect(nextLine({ state: "cutoff_met" }, now)).toBe("");
   });
   it("keeps users to plain words", () => {

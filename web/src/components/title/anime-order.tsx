@@ -35,7 +35,7 @@ function Franchise({ slug, admin }: { slug: string; admin: boolean }) {
       {orders.length === 0 ? (
         <p className="p-4 text-sm text-muted-foreground">No order is built for this franchise yet.</p>
       ) : (
-        <Tabs defaultValue={orders[0].kind} className="p-3">
+        <Tabs defaultValue={(orders.find((o) => o.kind === "watch") ?? orders[0]).kind} className="p-3">
           <TabsList className="flex-wrap">
             {orders.map((o) => (
               <TabsTrigger key={o.kind} value={o.kind ?? ""}>{orderWords(o.kind)}</TabsTrigger>

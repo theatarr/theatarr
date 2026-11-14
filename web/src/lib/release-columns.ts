@@ -49,9 +49,13 @@ export type ReleaseSortKey = "rank" | "age" | "title" | "indexer" | "size" | "pe
 export type ReleaseSort = { key: ReleaseSortKey; dir: "asc" | "desc" };
 export type ReleaseColumnPrefs = { order: ReleaseColumnId[]; shown: ReleaseColumnId[]; sort: ReleaseSort };
 
+/** The default order: the verdict and the deciding numbers first (status, quality, score), so they are in view at
+ *  1440 px without scrolling sideways; Source (mostly one kind) is offered but hidden until chosen. */
+const DEFAULT_ORDER: ReleaseColumnId[] = ["age", "status", "quality", "score", "size", "cached", "indexer", "history", "peers", "episodes", "language", "formats", "flags", "source"];
+
 export const DEFAULT_RELEASE_COLUMNS: ReleaseColumnPrefs = {
-  order: RELEASE_COLUMNS.map((c) => c.id),
-  shown: RELEASE_COLUMNS.map((c) => c.id).filter((id) => id !== "formats"),
+  order: DEFAULT_ORDER,
+  shown: DEFAULT_ORDER.filter((id) => id !== "formats" && id !== "source"),
   sort: { key: "rank", dir: "asc" },
 };
 

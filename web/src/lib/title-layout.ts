@@ -31,7 +31,7 @@ export function titleReleaseAccess(raw: string, manage: boolean):
 export function titleTabs(o: { series: boolean; franchise: boolean; seeFiles: boolean }): { id: TitleTab; label: string }[] {
   const tabs: { id: TitleTab; label: string }[] = [];
   if (o.series) tabs.push({ id: "episodes", label: "Episodes" });
-  if (o.franchise) tabs.push({ id: "order", label: "Watch order" });
+  if (o.franchise) tabs.push({ id: "order", label: "Order" });
   tabs.push({ id: "about", label: "About" });
   if (o.seeFiles) tabs.push({ id: "history", label: "History" });
   return tabs;

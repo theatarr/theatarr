@@ -1322,7 +1322,7 @@ func (w *Web) storedEpisodeReleases(ctx context.Context, out *Releases, it evIte
 	}
 	if best == nil {
 		if out.Message == "" {
-			out.Message = "No stored decision covers " + it.code() + " in this library yet"
+			out.Message = "Never searched for " + it.code() + " in this library"
 		}
 		return nil
 	}

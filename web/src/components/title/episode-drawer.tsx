@@ -331,7 +331,7 @@ export function EpisodeOverview({
       onClose={onClose}
       testid="episode-drawer"
       panelTestid="episode-overview"
-      className="z-[70] flex items-end justify-center sm:items-center sm:p-6"
+      className="z-[70] flex items-end justify-center sm:items-start sm:p-6 sm:pt-[8vh]"
       backdropClassName="absolute inset-0 bg-[var(--scrim)] backdrop-blur-sm animate-in fade-in-0"
       panelClassName="relative flex max-h-[90dvh] w-full flex-col rounded-t-[8px] border border-[var(--line)] bg-[var(--surface)] shadow-[var(--shadow-2)] animate-in fade-in-0 slide-in-from-bottom-6 sm:max-w-2xl sm:rounded-[8px]"
     >

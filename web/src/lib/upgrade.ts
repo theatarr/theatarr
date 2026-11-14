@@ -83,13 +83,22 @@ export function shortfall(score: number | undefined | null, cutoff: Cutoff | und
   return `Score ${fmtNumber(score)} of ${fmtNumber(cutoff.score)}.`;
 }
 
+/** The decision engine's reason in readable numbers and plurals: "better format score: 6,200 over 4,500",
+ *  "fills 1 episode with no file". */
+export function reasonWords(r: string): string {
+  return r
+    .replace(/\b\d{4,}\b/g, (n) => fmtNumber(Number(n)))
+    .replace(/\b(\d+) (\w+)\(s\)/g, (_, n: string, w: string) => `${n} ${n === "1" ? w : `${w}s`}`);
+}
+
 /** What Theatarr would take next and why, or why there is nothing to take. */
 export function nextLine(u: UpgradeInfo | undefined | null, now: Date = new Date()): string {
   if (!u || (u.state !== "below_cutoff" && u.state !== "upgrade_available")) return "";
   const n = u.next;
   if (n) {
     const q = [n.quality, fmtNumber(n.score)].filter(Boolean).join(" · ");
-    const why = n.reason ? `: ${n.reason}` : "";
+    // The engine's reason is from the search that saw the release, not now: said so.
+    const why = n.reason ? `; reason at that search: ${reasonWords(n.reason)}` : "";
     return `Would take ${n.release} (${q})${why}. Seen ${fmtAgo(n.seen_at, now)} by ${SOURCE[n.source] ?? n.source}.`;
   }
   if (u.seen && u.seen > 0) return `A better release was seen for ${fmtNumber(u.seen)} of ${fmtNumber(u.below)} episodes.`;

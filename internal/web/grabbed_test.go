@@ -445,7 +445,7 @@ func TestEpisodeOutcomeFromLinks(t *testing.T) {
 		h1, now-4900, now-4900)
 	r = Releases{}
 	e.call("GET", APIBase+"/titles/10/episodes/102/releases", nil, 200, &r)
-	if r.Grabbed != "Nothing grabbed for this episode" {
+	if r.Grabbed != "No new grab for this episode from this search" {
 		t.Errorf("E02 after a season search that routed E01 only: %q", r.Grabbed)
 	}
 }

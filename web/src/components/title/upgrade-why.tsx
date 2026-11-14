@@ -167,14 +167,14 @@ function WhyDialog({
         </dl>
         {why.coverage.length > 0 ? (
           <details className="text-sm">
-            <summary className="cursor-pointer font-medium">Search coverage ({why.coverage.length})</summary>
-            <ul className="mt-2 space-y-1 text-xs text-muted-foreground">{why.coverage.map((c, i) => <li key={i}>{c}</li>)}</ul>
+            <summary className="cursor-pointer font-medium">Search coverage ({[...new Set(why.coverage)].length})</summary>
+            <ul className="mt-2 space-y-1 text-xs text-muted-foreground">{[...new Set(why.coverage)].map((c) => <li key={c}>{c}</li>)}</ul>
           </details>
         ) : null}
         {why.sightings.length > 0 ? (
           <details className="text-sm">
             <summary className="cursor-pointer font-medium">Sources seen ({why.sightings.length})</summary>
-            <ul className="mt-2 space-y-1 break-all text-xs text-muted-foreground">{why.sightings.map((c, i) => <li key={i} title={c.source}>{c.text}</li>)}</ul>
+            <ul className="mt-2 space-y-1 text-xs text-muted-foreground [overflow-wrap:anywhere]">{why.sightings.map((c, i) => <li key={i} title={c.source}>{c.text}</li>)}</ul>
           </details>
         ) : null}
         <div className="rounded-[5px] border border-[var(--line)] bg-[var(--surface)] px-3 py-2.5 text-xs" data-testid="why-scores">

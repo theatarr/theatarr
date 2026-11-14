@@ -29,7 +29,9 @@ describe("normalizeReleaseColumns", () => {
     expect(scopeTarget(2)).toBe("s02");
     expect(scopeTarget(undefined, "S02E05")).toBe("s02e05");
     expect(searchTargetWords("s01")).toBe("a search for S01");
-    expect(DEFAULT_RELEASE_COLUMNS.order.slice(0, 3)).toEqual(["source", "age", "status"]);
+    // Age leads; the verdict, quality and score follow Title; Source is offered but hidden.
+    expect(DEFAULT_RELEASE_COLUMNS.order.slice(0, 4)).toEqual(["age", "status", "quality", "score"]);
+    expect(DEFAULT_RELEASE_COLUMNS.shown).not.toContain("source");
     expect(p.shown).toEqual(["age", "size"]);
     expect(p.sort).toEqual({ key: "rank", dir: "asc" });
     expect(normalizeReleaseColumns({ order: [], shown: [], sort: { key: "score", dir: "desc" } }).sort).toEqual({ key: "score", dir: "desc" });

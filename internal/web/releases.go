@@ -323,7 +323,7 @@ func (w *Web) storedReleases(ctx context.Context, out *Releases) error {
 			return err
 		}
 	} else if out.Message == "" {
-		out.Message = "No stored decision for this library yet"
+		out.Message = "Never searched in this library"
 	}
 	if out.Candidates == nil {
 		out.Candidates = []snapshot.Candidate{}
@@ -396,7 +396,7 @@ func (w *Web) storedGrabbed(ctx context.Context, out *Releases, run sql.NullInt6
 		// The episode's own downloads say what the search did for it, not the run's state.
 		if len(dls) == 0 {
 			if state == "routed" {
-				out.Grabbed = "Nothing grabbed for this episode"
+				out.Grabbed = "No new grab for this episode from this search"
 				return nil
 			}
 		} else {
