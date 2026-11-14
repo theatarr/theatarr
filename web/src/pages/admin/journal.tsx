@@ -44,7 +44,7 @@ function Flags({ e }: { e: JournalEntry }) {
   );
 }
 
-const verdictWords = (v: string) => (v === "ok" ? "Judged ok" : v === "wrong" ? "Judged wrong" : v);
+const verdictWords = (v?: string) => (v === "ok" ? "Judged ok" : v === "wrong" ? "Judged wrong" : v ?? "");
 
 /** An entry's kind as a badge, the code as its tooltip. */
 function KindBadge({ kind, className }: { kind?: string; className?: string }) {
