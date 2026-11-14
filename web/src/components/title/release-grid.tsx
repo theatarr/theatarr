@@ -288,13 +288,17 @@ export function ReleaseGrid({
   while (lead < shown.length && (shown[lead] === "source" || shown[lead] === "age")) lead++;
   const before = shown.slice(0, lead);
   const after = shown.slice(lead);
-  const rows = useMemo(() => sortReleases(filterReleases(items, { ...filter, reason }), prefs.sort), [items, filter, reason, prefs.sort]);
+  // The stored preferences are read afresh each render (a new object): depend on the sort's values.
+  const { key: sortKey, dir: sortDir } = prefs.sort;
+  const rows = useMemo(() => sortReleases(filterReleases(items, { ...filter, reason }), { key: sortKey, dir: sortDir }), [items, filter, reason, sortKey, sortDir]);
   const picked = (c: Candidate) => !!focus && !!c.info_hash && c.info_hash.toLowerCase() === focus.toLowerCase();
-  // The first RELEASE_PAGE rows, more with each Show more; a new list (filter, sort, library) starts again. A focused
-  // release further down is shown with the rows above it.
-  const [more, setMore] = useState<{ rows: Candidate[]; n: number }>({ rows, n: RELEASE_PAGE });
+  // The first RELEASE_PAGE rows, more with each Show more; a change of filter or sort starts again (the window keys
+  // the grid on the library). A focused release further down is shown with the rows above it.
+  const view = JSON.stringify([filter, reason ?? "", sortKey, sortDir]);
+  const [more, setMore] = useState({ view, n: RELEASE_PAGE });
+  if (more.view !== view) setMore({ view, n: RELEASE_PAGE }); // React's "adjust state on a prop change" pattern
   const focusAt = focus ? rows.findIndex(picked) : -1;
-  const limit = Math.max(more.rows === rows ? more.n : RELEASE_PAGE, focusAt + 1);
+  const limit = Math.max(more.view === view ? more.n : RELEASE_PAGE, focusAt + 1);
   const visible = rows.length > limit ? rows.slice(0, limit) : rows;
   const filtered = rows.length !== items.length;
   useEffect(() => {
@@ -424,7 +428,7 @@ export function ReleaseGrid({
           </ul>
           {visible.length < rows.length ? (
             <div className="flex justify-center">
-              <Button size="sm" variant="outline" onClick={() => setMore({ rows, n: limit + RELEASE_PAGE })} data-testid="release-more">
+              <Button size="sm" variant="outline" onClick={() => setMore({ view, n: limit + RELEASE_PAGE })} data-testid="release-more">
                 Show more ({rows.length - visible.length} left)
               </Button>
             </div>

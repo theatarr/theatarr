@@ -304,3 +304,20 @@ it("says the requested item's own file, as the server reads it", async () => {
   open();
   expect((await screen.findByTestId("interactive-current")).textContent).toBe("Current file: WEBDL-1080p, score 1775");
 });
+
+// A sort chosen earlier is read from the saved preferences on reopening: Show more still adds rows.
+it("shows more after a saved sort, reopened", async () => {
+  const many = Array.from({ length: 120 }, (_, i) => ({ ...rejected, rank: i + 2, info_hash: `h${i}`, release: `Alpha.2020.720p.R${i}`, score: i }));
+  mockFetch([ME, TITLE, CURRENT, CURRENT, CURRENT, CURRENT, { method: "GET", path: "/titles/7/releases",
+    reply: answer("movie-web", { results: 121, candidates: [accepted, ...many], rejections: { quality: 120 } }) }]);
+  renderPage(<InteractiveSearchButton titleId={7} version="movie-web" />);
+  open();
+  const rows = async () => within(await table()).getAllByRole("row").length - 1;
+  expect(await rows()).toBe(50);
+  fireEvent.click(within(await table()).getByRole("button", { name: /Score/ }));
+  fireEvent.click(screen.getByTestId("interactive-close"));
+  open();
+  expect(await rows()).toBe(50);
+  fireEvent.click(screen.getByTestId("release-more"));
+  expect(await rows()).toBe(100);
+});
