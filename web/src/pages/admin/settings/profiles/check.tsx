@@ -14,6 +14,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { fmtBytes } from "@/lib/format";
+import { useLibraryName } from "@/lib/library-names";
 
 type Decision = Schemas["Decision"];
 type DecideRequest = Schemas["DecideRequest"];
@@ -105,6 +106,7 @@ function Result({ d, sent }: { d: Decision; sent: DecideRequest }) {
 }
 
 export function ReleaseCheck() {
+  const nameOf = useLibraryName();
   const [q, setQ] = useState("");
   const dq = useDebounced(q, 250);
   const search = useSearch(dq, "library", 12);
@@ -151,7 +153,7 @@ export function ReleaseCheck() {
         <label className="flex min-w-0 flex-col gap-1 text-sm">Library
           <select className={SELECT_CLASS} value={version} disabled={!title} onChange={(e) => { setVersion(e.target.value); check.reset(); }}>
             <option value="">{title && !title.versions?.length ? "This title is in no library" : "Choose a library"}</option>
-            {(title?.versions ?? []).map((v) => <option key={v.key} value={v.key}>{v.label ? `${v.label} (${v.key})` : v.key}{v.has_file ? "" : " · no file"}</option>)}
+            {(title?.versions ?? []).map((v) => <option key={v.key} value={v.key}>{v.label || nameOf(v.key ?? "")}{v.has_file ? "" : " · no file"}</option>)}
           </select>
         </label>
         <div className="flex min-w-0 flex-col gap-1 text-sm"><label className="flex min-w-0 flex-col gap-1">Size in GiB (optional)

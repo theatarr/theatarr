@@ -69,27 +69,18 @@ describe("distinct labels", () => {
     ]);
   });
 
-  it("names colliding labels by key", () => {
+  it("numbers colliding labels, never by key", () => {
     const n = distinctLabels([{ key: "tv-2160p", label: "4K" }, { key: "tv-2160p-theatarr", label: "4K" }, { key: "tv-web", label: "WEB" }]);
-    expect([...n.values()]).toEqual(["4K · tv-2160p", "4K · tv-2160p-theatarr", "WEB"]);
-  });
-
-  it("names every colliding label by key", () => {
-    expect([...distinctLabels([{ key: "anime-tv", label: "Anime" }, { key: "anime-tv-theatarr", label: "Anime" }]).values()]).toEqual([
-      "Anime · anime-tv",
-      "Anime · anime-tv-theatarr",
-    ]);
-    expect([...distinctLabels([{ key: "a", label: "4K" }, { key: "b", label: "4K" }]).values()]).toEqual(["4K · a", "4K · b"]);
-    // Three of a name: each needs its key.
+    expect([...n.values()]).toEqual(["4K", "4K (2)", "WEB"]);
     expect([...distinctLabels([{ key: "a", label: "4K" }, { key: "b", label: "4K" }, { key: "c", label: "4K" }]).values()]).toEqual([
-      "4K · a",
-      "4K · b",
-      "4K · c",
+      "4K",
+      "4K (2)",
+      "4K (3)",
     ]);
   });
 
   it("normalizes server suffixes before detecting collisions", () => {
-    expect([...distinctLabels([{ key: "a", label: "Anime · followed" }, { key: "b", label: "Anime · Theatarr" }, { key: "c", label: "WEB · c" }]).values()]).toEqual(["Anime · a", "Anime · b", "WEB"]);
+    expect([...distinctLabels([{ key: "a", label: "Anime · followed" }, { key: "b", label: "Anime · Theatarr" }, { key: "c", label: "WEB · c" }]).values()]).toEqual(["Anime", "Anime (2)", "WEB"]);
   });
 
   it("names each key once, an empty label by its key", () => {
@@ -99,9 +90,9 @@ describe("distinct labels", () => {
 
   it("relabels a title's copies, and anything keyed from a map", () => {
     const vs = withDistinctLabels([{ key: "anime-tv", label: "Anime", control }, { key: "anime-tv-theatarr", label: "Anime", control }]);
-    expect(vs.map((v) => v.label)).toEqual(["Anime · anime-tv", "Anime · anime-tv-theatarr"]);
+    expect(vs.map((v) => v.label)).toEqual(["Anime", "Anime (2)"]);
     // A caller without control (users) gets the same.
-    expect(withDistinctLabels([{ key: "anime-tv", label: "Anime" }, { key: "anime-tv-theatarr", label: "Anime" }]).map((v) => v.label)).toEqual(["Anime · anime-tv", "Anime · anime-tv-theatarr"]);
+    expect(withDistinctLabels([{ key: "anime-tv", label: "Anime" }, { key: "anime-tv-theatarr", label: "Anime" }]).map((v) => v.label)).toEqual(["Anime", "Anime (2)"]);
     const same = [{ key: "x", label: "X" }];
     expect(relabel(same, new Map([["x", "X"]]))[0]).toBe(same[0]);
     expect(relabel([{ key: "x", label: "X", titles: 3 }], new Map([["x", "X · x"]]))).toEqual([{ key: "x", label: "X · x", titles: 3 }]);
@@ -172,8 +163,8 @@ describe("bulk expect", () => {
 
 describe("library labels on the title page", () => {
   const vs = [{ key: "tv-2160p", label: "4K" }, { key: "tv-2160p-theatarr", label: "4K" }];
-  it("tells same-named libraries apart by key for See files, by number for everyone else", () => {
-    expect(withDistinctLabels(vs).map((v) => v.label)).toEqual(["4K · tv-2160p", "4K · tv-2160p-theatarr"]);
+  it("tells same-named libraries apart by number, never by key, for every account", () => {
+    expect(withDistinctLabels(vs).map((v) => v.label)).toEqual(["4K", "4K (2)"]);
     expect(withDistinctLabels(vs, true).map((v) => v.label)).toEqual(["4K", "4K (2)"]);
   });
   it("leaves a library alone once the other was removed", () => {

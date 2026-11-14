@@ -4,6 +4,7 @@
 // lib/poster-options.ts and lib/prefs.ts and are re-exported here.
 import type { Schemas } from "@/api/client";
 import { fmtDay } from "@/lib/library";
+import { libraryLabel as defaultName } from "./library-label";
 
 type VersionBrief = Schemas["VersionBrief"];
 type Acquisition = Schemas["Acquisition"];
@@ -78,16 +79,20 @@ export function activityHref(stage: Stage | undefined): string {
 
 /** Strip old server disambiguators before applying the labels for the current group. */
 export function libraryLabel(key: string, label?: string): string {
-  const plain = (label || key).replace(/ · (?:followed|Theatarr)$/, "");
+  const plain = (label || defaultName(key)).replace(/ · (?:followed|Theatarr)$/, "");
   return plain.endsWith(` · ${key}`) ? plain.slice(0, -key.length - 3) : plain;
 }
 
-/** Unique labels stay plain; collisions use keys. */
+/** Unique labels stay plain; a label already taken gets a number ("4K", "4K (2)"), never the key. The server's names
+ * are already distinct for current libraries (internal/web/library.go libraryNames); this covers a removed one. */
 export function distinctLabels(copies: readonly { key?: string; label?: string }[]): Map<string, string> {
   const names = new Map(copies.filter(c => c.key).map(c => [c.key!, libraryLabel(c.key!, c.label)]));
-  const counts = new Map<string, number>();
-  for (const label of names.values()) counts.set(label, (counts.get(label) ?? 0) + 1);
-  return new Map([...names].map(([key, label]) => [key, counts.get(label)! > 1 ? `${label} · ${key}` : label]));
+  const seen = new Map<string, number>();
+  return new Map([...names].map(([key, label]) => {
+    const n = (seen.get(label) ?? 0) + 1;
+    seen.set(label, n);
+    return [key, n > 1 ? `${label} (${n})` : label];
+  }));
 }
 
 /** Library names without their keys, for accounts that do not see files: the plain label, and "(2)", "(3)" after a
@@ -102,8 +107,8 @@ export function plainLabels<T extends { key?: string; label?: string }>(vs: read
   });
 }
 
-/** The copies of one title with their labels made distinct among the libraries it is in now: by key (distinctLabels)
- * for accounts that see files, by number (plainLabels) for the others, who never see keys. A library the title was
+/** The copies of one title with their labels made distinct among the libraries it is in now, by number
+ * (distinctLabels, plainLabels): no account sees keys in them. A library the title was
  * removed from takes part in no collision and keeps its plain name. */
 export function withDistinctLabels<T extends { key?: string; label?: string; removed?: boolean }>(vs: readonly T[], plain = false): T[] {
   const current = vs.filter((v) => !v.removed);

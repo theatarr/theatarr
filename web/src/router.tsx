@@ -3,6 +3,7 @@ import { lazy, Suspense, type ComponentType, type ReactNode } from "react";
 import { createBrowserRouter, Navigate, Outlet, useLocation, useSearchParams, type RouteObject } from "react-router";
 import { LEGACY_ROUTES, legacyTarget } from "./lib/legacy-routes";
 import { useAuth } from "./api/auth";
+import { LibraryNamesProvider } from "./lib/library-names";
 import { ApiError } from "./api/client";
 import { LiveProvider } from "./api/events";
 import { SearchProvider } from "./components/search/search-context";
@@ -84,13 +85,15 @@ function RequireAuth() {
   if (me.data?.kind !== "session") return <Navigate to="/login" replace />;
   const perms = permsOf(me.data?.permissions);
   return (
-    <LiveProvider enabled seeFiles={perms.seeFiles}>
-      <SearchProvider>
-        <AppShell perms={perms}>
-          <Outlet />
-        </AppShell>
-      </SearchProvider>
-    </LiveProvider>
+    <LibraryNamesProvider libraries={me.data.libraries} keys={perms.seeFiles}>
+      <LiveProvider enabled seeFiles={perms.seeFiles}>
+        <SearchProvider>
+          <AppShell perms={perms}>
+            <Outlet />
+          </AppShell>
+        </SearchProvider>
+      </LiveProvider>
+    </LibraryNamesProvider>
   );
 }
 

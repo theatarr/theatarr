@@ -20,11 +20,14 @@ import { Input } from "@/components/ui/input";
 import { VersionStatus } from "@/components/version-status";
 import { Sheet, SheetLayout } from "@/components/ui/sheet";
 import { type Explained, type SecretAction } from "@/lib/settings";
+import { useLibraryName } from "@/lib/library-names";
 import { useSettingsEditor } from "./use-settings-editor";
 import { ExplainBox, Field, NamedChoices, SecretField, SELECT_CLASS } from "./parts";
 
 /** The library choices: every library in the settings, or (before they load) just the saved ones. */
-const libraryOptions = (data: VersionList | undefined, saved: string[]) => (data ? data.versions.map((v) => v.key) : saved).map((key) => ({ key }));
+/** The libraries to tick, by name with the key the app sees beside it. */
+const libraryOptions = (data: VersionList | undefined, saved: string[], nameOf: (key: string) => string) =>
+  (data ? data.versions.map((v) => v.key) : saved).map((key) => ({ key, label: <>{nameOf(key)} <span className="font-mono text-[12px] text-muted-foreground">{key}</span></> }));
 
 /** A library's state for the list; the same fallback as the Libraries page when the switches lack it. */
 const stateOf = (data: VersionList, key: string) => data.switches.versions.find((v) => v.key === key)?.grab_state ?? { mode: "off", paused: data.switches.paused, pause_forced: data.switches.pause_forced };
@@ -32,6 +35,7 @@ const stateOf = (data: VersionList, key: string) => data.switches.versions.find(
 export function ViewsCard({ readOnly }: { readOnly: boolean }) {
   const views = useSettingsViews();
   const libraries = useVersions();
+  const nameOf = useLibraryName();
   const [open, setOpen] = useState<string | "new">();
   const [notice, setNotice] = useState<string>();
   if (views.isPending) return <Loading />;
@@ -62,7 +66,7 @@ export function ViewsCard({ readOnly }: { readOnly: boolean }) {
                 <ul className="mt-1 flex flex-col gap-1">
                   {v.versions.map((key) => (
                     <li key={key} className="flex flex-wrap items-center gap-2 text-[12.5px]">
-                      <span className="font-mono [overflow-wrap:anywhere]">{key}</span>
+                      <span className="[overflow-wrap:anywhere]">{nameOf(key)}</span><span className="font-mono text-muted-foreground [overflow-wrap:anywhere]">{key}</span>
                       {libraries.data?.versions.some((l) => l.key === key) ? <VersionStatus showMode why={false} state={stateOf(libraries.data, key)} /> : null}
                     </li>
                   ))}
@@ -139,6 +143,7 @@ export function ViewSheet({ view: opened, generation: openedAt, readOnly, onClos
   const [profiles, setProfiles] = useState<Record<string, string[]>>(view?.profiles ?? {});
   const [newProfile, setNewProfile] = useState("");
   const libraries = useVersions();
+  const nameOf = useLibraryName();
   const [action, setAction] = useState<SecretAction>(create ? "replace" : "keep");
   const [apiKey, setApiKey] = useState("");
   const [deleting, setDeleting] = useState(false);
@@ -153,7 +158,7 @@ export function ViewSheet({ view: opened, generation: openedAt, readOnly, onClos
     const n = Object.values(profiles).filter((keys) => keys.includes(swapOld)).length;
     setVersions(swap(versions));
     setProfiles(Object.fromEntries(Object.entries(profiles).map(([name, keys]) => [name, swap(keys)])));
-    setSwapped(`${swapOld} replaced by ${swapNew} in the libraries and ${n} profiles.`);
+    setSwapped(`${nameOf(swapOld)} replaced by ${nameOf(swapNew)} in the libraries and ${n} profiles.`);
     setSwapOld("");
     setSwapNew("");
   };
@@ -208,18 +213,18 @@ export function ViewSheet({ view: opened, generation: openedAt, readOnly, onClos
           </Field>
           <Field label="Path" help="Where the view answers, e.g. /radarr."><Input value={path} onChange={(e) => setPath(e.target.value)} disabled={off || !seeded} /></Field>
           <NamedChoices legend="Libraries" help="What the app sees, in the order ticked." testid="view-libraries"
-            options={libraryOptions(libraries.data, versions)} value={versions} onChange={setVersions} disabled={off} />
+            options={libraryOptions(libraries.data, versions, nameOf)} value={versions} onChange={setVersions} disabled={off} />
           {off ? null : (
             <div className="flex min-w-0 flex-col gap-2 sm:col-span-2" data-testid="view-replace">
               <p className="text-sm font-medium text-[var(--ink)]">Replace a library</p>
               <div className="flex flex-wrap items-end gap-2">
                 <select className={SELECT_CLASS} aria-label="Library to replace" value={swapOld} onChange={(e) => { setSwapOld(e.target.value); setSwapNew(""); }}>
                   <option value="">Old library</option>
-                  {versions.map((k) => <option key={k} value={k}>{k}</option>)}
+                  {versions.map((k) => <option key={k} value={k}>{nameOf(k)}</option>)}
                 </select>
                 <select className={SELECT_CLASS} aria-label="New library" value={swapNew} onChange={(e) => setSwapNew(e.target.value)}>
                   <option value="">New library</option>
-                  {swapTargets.map((k) => <option key={k} value={k}>{k}</option>)}
+                  {swapTargets.map((k) => <option key={k} value={k}>{nameOf(k)}</option>)}
                 </select>
                 <Button type="button" variant="outline" disabled={!swapOld || !swapNew} onClick={replaceLibrary}>Replace</Button>
               </div>
@@ -231,7 +236,7 @@ export function ViewSheet({ view: opened, generation: openedAt, readOnly, onClos
             <p className="text-sm font-medium text-[var(--ink)]">Profiles <span className="font-normal text-muted-foreground">(clients see them as quality profiles)</span></p>
             {Object.entries(profiles).map(([name, keys]) => (
               <NamedChoices key={name} legend={`Profile: ${name}`} testid={`view-profile-${name}`}
-                options={libraryOptions(libraries.data, keys)} value={keys} onChange={(next) => setProfiles({ ...profiles, [name]: next })} disabled={off}>
+                options={libraryOptions(libraries.data, keys, nameOf)} value={keys} onChange={(next) => setProfiles({ ...profiles, [name]: next })} disabled={off}>
                 {off ? null : <Button type="button" variant="ghost" size="xs" className="self-start" onClick={() => { const next = { ...profiles }; delete next[name]; setProfiles(next); }}>Remove profile <span className="sr-only">{name}</span></Button>}
               </NamedChoices>
             ))}

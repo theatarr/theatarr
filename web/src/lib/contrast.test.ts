@@ -130,8 +130,8 @@ describe("bordered controls (3:1 border, 4.5:1 text)", () => {
   });
 });
 
-describe("library key colours (marks, 3:1 on the surface and the paper)", () => {
-  const at = css.indexOf("/* One fixed colour per version key");
+describe("library colour marks (3:1 on the surface and the paper)", () => {
+  const at = css.indexOf("/* The library colour marks");
   const keys = (sel: string) => {
     const start = css.indexOf(sel + " {", at);
     return [...css.slice(start, css.indexOf("\n}", start)).matchAll(/(--v-[\w-]+):\s*(#[0-9a-f]{6});/gi)].map((m) => [m[1], m[2]] as const);
@@ -143,6 +143,6 @@ describe("library key colours (marks, 3:1 on the surface and the paper)", () => 
       pairs.push([`${name} ${k} on the paper`, rgb(hex), paper(theme)]);
     }
   }
-  it("has a colour per key, the -theatarr copies included, in both themes", () => expect(pairs).toHaveLength(40));
+  it("has ten marks in both themes", () => expect(pairs).toHaveLength(40));
   it.each(pairs)("%s", (_name, fg, bg) => expect(contrast(fg, bg)).toBeGreaterThanOrEqual(3));
 });

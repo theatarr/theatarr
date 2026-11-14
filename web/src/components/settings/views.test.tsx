@@ -41,12 +41,12 @@ describe("View editor", () => {
     await user.click(within(sheet).getByRole("textbox", { name: /^Path/ }));
     await user.paste("/radarr2");
     const libraries = within(sheet).getByRole("group", { name: "Libraries" });
-    await user.click(within(libraries).getByRole("checkbox", { name: "movie-web" }));
-    await user.click(within(libraries).getByRole("checkbox", { name: "movie-remux" }));
+    await user.click(within(libraries).getByRole("checkbox", { name: /movie-web$/ }));
+    await user.click(within(libraries).getByRole("checkbox", { name: /movie-remux$/ }));
     await user.click(within(sheet).getByRole("textbox", { name: /^New profile name/ }));
     await user.paste("Rules default");
     await user.click(within(sheet).getByRole("button", { name: "Add profile" }));
-    await user.click(within(within(sheet).getByRole("group", { name: "Profile: Rules default" })).getByRole("checkbox", { name: "movie-web" }));
+    await user.click(within(within(sheet).getByRole("group", { name: "Profile: Rules default" })).getByRole("checkbox", { name: /movie-web$/ }));
     await user.click(within(sheet).getByTestId("secret-input"));
     await user.paste("view-key-value");
     await user.click(within(sheet).getByRole("button", { name: "Save" }));
@@ -109,7 +109,7 @@ describe("View editor", () => {
     gen = 8;
     act(() => { focusManager.setFocused(false); focusManager.setFocused(true); });
     await waitFor(() => expect(fetch.calls("GET", "/settings/view-bindings").length).toBeGreaterThan(1));
-    const remux = within(within(sheet).getByRole("group", { name: "Libraries" })).getByRole("checkbox", { name: "movie-remux" }) as HTMLInputElement;
+    const remux = within(within(sheet).getByRole("group", { name: "Libraries" })).getByRole("checkbox", { name: /movie-remux$/ }) as HTMLInputElement;
     expect(remux.checked).toBe(false);
     await user.click(within(sheet).getByRole("button", { name: "Save" }));
     expect((await within(sheet).findByTestId("settings-error")).getAttribute("data-kind")).toBe("stale");
@@ -172,10 +172,10 @@ describe("View editor", () => {
     await user.selectOptions(within(replace).getByRole("combobox", { name: "Library to replace" }), "movie-web");
     const target = within(replace).getByRole("combobox", { name: "New library" });
     // Only libraries of the view's kind other than the old one.
-    expect(within(target).getAllByRole("option").map((o) => o.textContent)).toEqual(["New library", "movie-remux"]);
+    expect(within(target).getAllByRole("option").map((o) => o.textContent)).toEqual(["New library", "Remux"]);
     await user.selectOptions(target, "movie-remux");
     await user.click(within(replace).getByRole("button", { name: "Replace" }));
-    expect(within(replace).getByRole("status").textContent).toBe("movie-web replaced by movie-remux in the libraries and 2 profiles.");
+    expect(within(replace).getByRole("status").textContent).toBe("WEB replaced by Remux in the libraries and 2 profiles.");
     expect(fetch.calls("PUT", "/settings/view-bindings/radarr")).toHaveLength(0);
     await user.click(within(sheet).getByRole("button", { name: "Save" }));
     await waitFor(() => expect(fetch.calls("PUT", "/settings/view-bindings/radarr")).toHaveLength(1));
@@ -223,7 +223,7 @@ describe("Connected apps bindings (moved from Settings › Libraries)", () => {
     await user.click(within(row).getByRole("button", { name: /Edit/ }));
     const sheet = await screen.findByTestId("view-editor");
     expect(within(sheet).getByRole("link", { name: "Users & access" }).getAttribute("href")).toBe("/admin/users");
-    expect((within(within(sheet).getByRole("group", { name: "Profile: WEB only" })).getByRole("checkbox", { name: "movie-web" }) as HTMLInputElement).checked).toBe(true);
+    expect((within(within(sheet).getByRole("group", { name: "Profile: WEB only" })).getByRole("checkbox", { name: /movie-web$/ }) as HTMLInputElement).checked).toBe(true);
   });
 
   it("keeps a saved library no longer in the settings, ticked and marked", async () => {
@@ -234,7 +234,7 @@ describe("Connected apps bindings (moved from Settings › Libraries)", () => {
     const sheet = await screen.findByTestId("view-editor");
     const libraries = within(sheet).getByRole("group", { name: "Libraries" });
     expect((within(libraries).getByRole("checkbox", { name: /gone-lib \(not found\)/ }) as HTMLInputElement).checked).toBe(true);
-    await user.click(within(libraries).getByRole("checkbox", { name: "tv-web" }));
+    await user.click(within(libraries).getByRole("checkbox", { name: /tv-web$/ }));
     await user.click(within(sheet).getByRole("button", { name: "Save" }));
     await waitFor(() => expect(fetch.calls("PUT", "/settings/view-bindings/radarr")).toHaveLength(1));
     expect(fetch.calls("PUT", "/settings/view-bindings/radarr")[0].body).toMatchObject({ versions: ["movie-web", "gone-lib", "tv-web"] });
@@ -256,13 +256,13 @@ describe("Connected apps bindings (moved from Settings › Libraries)", () => {
     renderPage(<GeneralSettingsPage />);
     await user.click(await screen.findByRole("button", { name: /Edit/ }));
     const sheet = await screen.findByTestId("view-editor");
-    await user.click(within(within(sheet).getByRole("group", { name: "Libraries" })).getByRole("checkbox", { name: "tv-web" }));
+    await user.click(within(within(sheet).getByRole("group", { name: "Libraries" })).getByRole("checkbox", { name: /tv-web$/ }));
     await user.click(within(sheet).getByRole("button", { name: "Save" }));
     await within(sheet).findByTestId("settings-error");
     expect(fetch.calls("PUT", "/settings/view-bindings/radarr")[0].body).toMatchObject({ generation: 4, versions: ["movie-web", "tv-web"] });
     await user.click(within(sheet).getByRole("button", { name: "Reload, keep my changes" }));
     await within(sheet).findByTestId("draft-kept");
-    expect((within(within(sheet).getByRole("group", { name: "Libraries" })).getByRole("checkbox", { name: "tv-web" }) as HTMLInputElement).checked).toBe(true);
+    expect((within(within(sheet).getByRole("group", { name: "Libraries" })).getByRole("checkbox", { name: /tv-web$/ }) as HTMLInputElement).checked).toBe(true);
     await user.click(within(sheet).getByRole("button", { name: "Save" }));
     await waitFor(() => expect(fetch.calls("PUT", "/settings/view-bindings/radarr")).toHaveLength(2));
     expect(fetch.calls("PUT", "/settings/view-bindings/radarr")[1].body).toMatchObject({ generation: 5, versions: ["movie-web", "tv-web"] });

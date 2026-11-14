@@ -189,7 +189,7 @@ describe("quality editors", () => {
     mockFetch([...baseRoutes("naming", [{ id: 2, key: "movie-remux-mm", config: { colon: "dash" } }]), { method: "POST", path: "/settings/naming/preview", reply: json({ folder: "f", file: "f.mkv" }) }]);
     const user = userEvent.setup();
     renderPage(<QualityPanel entity="naming" />);
-    await user.click(await screen.findByRole("button", { name: "Edit movie-remux-mm" }));
+    await user.click(await screen.findByRole("button", { name: "Edit Remux" }));
     expect(await screen.findByRole("textbox", { name: "File name" })).toBeTruthy();
     expect(screen.queryByRole("textbox", { name: "Naming from arr" })).toBeNull();
     expect(screen.queryByRole("textbox", { name: "Naming from library" })).toBeNull();

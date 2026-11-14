@@ -11,6 +11,7 @@ import { useRemoveDownload, useRetryDownload, useUnblock } from "@/api/ops";
 import { Button } from "@/components/ui/button";
 import { Choice, ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { failedDownloadId, removeDownloadScope, retryKind, retryScope, unblockScope, type RemoveMode } from "@/lib/ops";
+import { useLibraryName } from "@/lib/library-names";
 
 type Open = "remove" | "retry" | null;
 
@@ -21,6 +22,7 @@ export function DownloadActions({ d }: { d: ActivityDownload }) {
   const [block, setBlock] = useState(false);
   const remove = useRemoveDownload();
   const retry = useRetryDownload();
+  const nameOf = useLibraryName();
   if (!perms.manage) return null;
   const close = () => {
     setOpen(null);
@@ -43,7 +45,7 @@ export function DownloadActions({ d }: { d: ActivityDownload }) {
       </Button>
       {open === "remove" ? (
         <ConfirmDialog
-          scope={removeDownloadScope(d, mode, d.version)}
+          scope={removeDownloadScope(d, mode, nameOf(d.version))}
           subject={subject}
           busy={remove.isPending}
           error={remove.error}
@@ -61,7 +63,7 @@ export function DownloadActions({ d }: { d: ActivityDownload }) {
       ) : null}
       {open === "retry" ? (
         <ConfirmDialog
-          scope={retryScope(d.state, d.version)}
+          scope={retryScope(d.state, nameOf(d.version))}
           subject={subject}
           danger={false}
           busy={retry.isPending}
@@ -88,8 +90,9 @@ export function HistoryRetry({ e }: { e: ActivityEvent }) {
   const [open, setOpen] = useState(false);
   const retry = useRetryDownload();
   const id = failedDownloadId(e.id);
+  const nameOf = useLibraryName();
   if (!perms.manage || !id) return null;
-  const copy = e.version ?? "this";
+  const copy = e.version ? nameOf(e.version) : "this";
   return (
     <>
       <Button size="xs" variant="ghost" onClick={() => setOpen(true)} data-testid="history-retry">
@@ -122,6 +125,7 @@ export function UnblockAction({ b }: { b: ActivityBlocked }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState(false);
   const unblock = useUnblock();
+  const nameOf = useLibraryName();
   if (!perms.manage) return null;
   return (
     <>
@@ -130,7 +134,7 @@ export function UnblockAction({ b }: { b: ActivityBlocked }) {
       </Button>
       {open ? (
         <ConfirmDialog
-          scope={unblockScope(b.release, b.version, search)}
+          scope={unblockScope(b.release, nameOf(b.version), search)}
           subject={<span className="font-mono">{b.release}</span>}
           danger={false}
           busy={unblock.isPending}
@@ -146,7 +150,7 @@ export function UnblockAction({ b }: { b: ActivityBlocked }) {
         >
           {unblock.data ? null : (
             <Choice checked={search} onChange={setSearch} testid="unblock-search">
-              Search for the {b.version} library again now
+              Search for the {nameOf(b.version)} library again now
             </Choice>
           )}
         </ConfirmDialog>

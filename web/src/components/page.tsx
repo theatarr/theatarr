@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Select } from "@/components/ui/select";
+import { useLibraryKeyTip, useLibraryName } from "@/lib/library-names";
 import { cn } from "@/lib/utils";
 
 export function PageHeader({
@@ -117,18 +118,23 @@ export function Empty({ children, icon }: { children: ReactNode; icon?: typeof I
   return <EmptyState icon={icon}>{children}</EmptyState>;
 }
 
-/** A version key as an outlined mono tag, with its fixed colour as a small mark. */
-export function VersionTag({ k, className }: { k: string; className?: string }) {
+/** A library as an outlined tag: its name (lib/library-names) with its colour mark; the key is the tooltip and
+ * data-vkey (the tooltip only for accounts that see files). label overrides the name (a caller that already holds the response's label). */
+export function VersionTag({ k, label, className }: { k: string; label?: string; className?: string }) {
+  const nameOf = useLibraryName();
+  const tip = useLibraryKeyTip();
+  const name = label || nameOf(k);
   return (
     <span
       data-vkey={k}
+      title={name === k ? undefined : tip(k)}
       className={cn(
-        "inline-flex h-5 items-center gap-1.5 whitespace-nowrap rounded-[3px] px-1.5 font-mono text-[11.5px] font-medium leading-none text-[var(--ink-2)] shadow-[inset_0_0_0_1px_var(--line-2)]",
+        "inline-flex h-5 items-center gap-1.5 whitespace-nowrap rounded-[3px] px-1.5 text-[11.5px] font-medium leading-none text-[var(--ink-2)] shadow-[inset_0_0_0_1px_var(--line-2)]",
         className,
       )}
     >
       <span className="size-2 rounded-[2px] bg-[var(--vc)]" />
-      {k}
+      {name}
     </span>
   );
 }

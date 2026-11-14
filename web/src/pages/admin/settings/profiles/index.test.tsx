@@ -65,7 +65,7 @@ describe("Quality profiles page", () => {
     expect(within(row).getAllByText("TRaSH WEB 2160p + 1080p fallbacks").length).toBeGreaterThan(0);
     expect(within(row).getAllByText("closest").length).toBeGreaterThan(0);
     expect(within(row).getAllByText("DD+ +2500 (not in the preset)").length).toBeGreaterThan(0);
-    expect(within(row).getAllByText("movie-web · Live").length).toBeGreaterThan(0);
+    expect(within(row).getAllByText("WEB · Live").length).toBeGreaterThan(0);
     const unused = screen.getAllByText("web-2160p")[0].closest("tr")!;
     expect(within(unused).getAllByText("unused").length).toBeGreaterThan(0);
     expect(within(unused).getAllByText("Our own").length).toBeGreaterThan(0);
@@ -214,7 +214,7 @@ describe("Quality profiles page", () => {
     renderPage(<ProfilesPage />);
     await user.click(await screen.findByRole("button", { name: "Edit radarr-4k-web" }));
     const sheet = await screen.findByTestId("profile-sheet");
-    expect(within(sheet).getByTestId("profile-affects").textContent).toContain("movie-web (Live)");
+    expect(within(sheet).getByTestId("profile-affects").textContent).toContain("WEB (Live)");
     // Compare with TRaSH lists our edits against the preset.
     await user.click(within(sheet).getByRole("button", { name: "Compare with TRaSH" }));
     expect(within(within(sheet).getByTestId("origin-diff")).getByText("Bluray-1080p")).toBeTruthy();

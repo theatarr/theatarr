@@ -662,12 +662,12 @@ describe("Same-named copies", () => {
     mockFetch(twinRoutes);
     renderPage(<Catalog id="series" />, "/series");
     await screen.findAllByText("Brindlewood Bakers");
-    expect(screen.getAllByTestId("library-pill").map((p) => p.textContent)).toEqual(["4K · tv-2160p · 24/24", "4K · tv-2160p-theatarr · 12/24"]);
+    expect(screen.getAllByTestId("library-pill").map((p) => p.textContent)).toEqual(["4K · 24/24", "4K (2) · 12/24"]);
     await userEvent.setup().click(screen.getByTestId("filters-button"));
     const panel = await screen.findByTestId("filters-panel");
-    expect(await within(panel).findByText("4K · tv-2160p")).toBeTruthy();
-    expect(within(panel).getByText("4K · tv-2160p-theatarr")).toBeTruthy();
-    expect(within(panel).queryByText("4K")).toBeNull();
+    expect(await within(panel).findByText("4K")).toBeTruthy();
+    expect(within(panel).getByText("4K (2)")).toBeTruthy();
+    expect(within(panel).queryByText(/tv-2160p/)).toBeNull();
   });
 
   it("names them apart on posters", async () => {
@@ -675,11 +675,11 @@ describe("Same-named copies", () => {
     renderPage(<Catalog id="series" />, "/series");
     await screen.findAllByText("Brindlewood Bakers");
     const lines = screen.getAllByTestId("library-line");
-    expect(within(lines[0]).getByText("4K · tv-2160p")).toBeTruthy();
-    expect(within(lines[1]).getByText("4K · tv-2160p-theatarr")).toBeTruthy();
+    expect(within(lines[0]).getByText("4K")).toBeTruthy();
+    expect(within(lines[1]).getByText("4K (2)")).toBeTruthy();
     expect(within(screen.getByTestId("poster-grid")).getAllByTestId("status-bar").map((e) => e.getAttribute("aria-label"))).toEqual([
-      "4K · tv-2160p: 24 of 24 episodes linked",
-      "4K · tv-2160p-theatarr: 12 of 24 episodes linked",
+      "4K: 24 of 24 episodes linked",
+      "4K (2): 12 of 24 episodes linked",
     ]);
   });
 });

@@ -10,6 +10,7 @@ import { ApiError } from "@/api/client";
 import { startSetup, usePreflight, type LastPreflight, type PreflightItem, type PreflightReport, type SetupStartBody, type SetupState } from "@/api/setup";
 import { useSetupProgress } from "@/api/useSetupProgress";
 import { libraryLabel } from "@/lib/library-label";
+import { useLibraryName } from "@/lib/library-names";
 import { settingHref } from "@/lib/settings-map";
 import { createFromPreset, usePresets } from "@/api/settings-profiles";
 import { checkRoot, confirmVersion, saveVersion, useVersions, type Confirmation, type VersionBody, type VersionConfig, type VersionList } from "@/api/settings-versions";
@@ -92,10 +93,10 @@ export function SetupPage() {
 
         {s.versions > 0
           ? <p>{s.versions} {s.versions === 1 ? "library" : "libraries"}, {s.versions_with_roots} with a library root. Edit them under <Link className="underline" to="/admin/settings/libraries">Libraries</Link>.</p>
-          : <FirstVersion state={s} onDone={(forced) => { setForcedOff(forced ?? []); refresh(); void qc.invalidateQueries({ queryKey: qk.settings.overview }); }} />}
+          : <FirstVersion state={s} onDone={(forced) => { setForcedOff(forced ?? []); refresh(); void qc.invalidateQueries({ queryKey: qk.settings.overview }); void qc.invalidateQueries({ queryKey: qk.me }); }} />}
         {forcedOff.length ? <p role="status" data-testid="start-forced-off">The library was created and Pause is saved as off, but THEATARR_FORCE_OFF keeps Pause on: nothing is searched, downloaded or linked until that override is removed and the service restarted.</p> : null}
         <DownloadsOffNotice off={globalDownloadsOff((s.version_states ?? []).map((v) => v.grab_state))} canManage />
-        <div className="space-y-1">{(s.version_states ?? []).map((v) => <div key={v.key} className="flex flex-wrap items-start gap-2"><span className="font-mono text-[13px]">{v.key}</span><VersionStatus state={v.grab_state} showMode settingsKey={v.key} canManage /></div>)}</div>
+        <div className="space-y-1">{(s.version_states ?? []).map((v) => <div key={v.key} className="flex flex-wrap items-start gap-2"><span className="text-[13px] font-medium" title={v.key}>{v.label || v.key}</span><VersionStatus state={v.grab_state} showMode settingsKey={v.key} canManage /></div>)}</div>
       </Step>
       <Step n={5} title="Check readiness" done={progress.steps[4]}>
         <Preflight generation={progress.versions.data?.generation} report={progress.report} last={progress.last} />
@@ -127,15 +128,16 @@ function SourceStates({ entity, ready }: { entity: "indexers" | "providers"; rea
 }
 
 function Activation({ data }: { data: VersionList }) {
+ const nameOf = useLibraryName();
  return <div className="space-y-3 [overflow-wrap:anywhere]">
   {data.versions.length ? data.versions.map(v => {
    const running = data.switches.versions.find(s => s.key === v.key)?.grab_state;
    return <div key={v.key} className="rounded border p-3">
-   <h3 className="font-medium"><span className="font-mono">{v.key}</span> <span className="text-sm font-normal text-muted-foreground">{libraryLabel(v.key, v.config.profile, v.config.name)}</span></h3><p>Root: {v.config.library || (v.roots ?? []).join(", ") || "Not set"}</p>
+   <h3 className="font-medium">{nameOf(v.key, libraryLabel(v.key, v.config.profile, v.config.name, v.config.kind))} <span className="font-mono text-sm font-normal text-muted-foreground">{v.key}</span></h3><p>Root: {v.config.library || (v.roots ?? []).join(", ") || "Not set"}</p>
    {running ? <VersionStatus state={running} showMode settingsKey={v.key} canManage /> : <p>State: Unknown</p>}
    {running && v.config.mode !== running.mode ? <p className="text-xs text-muted-foreground">Mode saved: {v.config.mode}, running: {running.mode}</p> : null}
    <p>Indexers: {(v.config.indexers ?? []).join(", ") || "None"} · Providers: {(v.config.providers ?? []).join(", ") || "None"}</p>
-   <Link className="underline" to={`/admin/settings/libraries?edit=${encodeURIComponent(v.key)}`}>Edit {v.key}</Link>
+   <Link className="underline" to={`/admin/settings/libraries?edit=${encodeURIComponent(v.key)}`}>Edit {nameOf(v.key)}</Link>
   </div>; }) : <p>No libraries yet.</p>}
   <p>Pause: <strong>{data.switches.paused ? "On" : "Off"}</strong>{data.switches.pause_forced ? " (forced by THEATARR_FORCE_OFF)" : " · change it at the top of the page"}</p>
  </div>;

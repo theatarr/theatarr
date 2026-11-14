@@ -80,7 +80,7 @@ it("shows running fallback gates, saved differences and a library display label"
  mockFetch([{ method: "GET", path: "/setup", reply: state }, { method: "GET", path: "/settings/versions", reply: fallback }]);
  renderPage(<SetupPage />);
  await screen.findByText("Mode saved: active, running: shadow");
- const card = screen.getByRole("heading", { name: "movie-web 4K WEB" }).parentElement!;
+ const card = screen.getByRole("heading", { name: "4K WEB movie-web" }).parentElement!;
  expect(within(card).getByText("movie-web")).toBeTruthy();
  // The state comes from the running gates: Watch only, so nothing is downloaded.
  expect(within(card).getAllByText("Watch only")).toHaveLength(1);
@@ -91,22 +91,22 @@ it("shows running fallback gates, saved differences and a library display label"
  expect(within(step).getByText("Not yet")).toBeTruthy();
 });
 
-it("heads the activation card with its key, the display label beside it", async () => {
+it("heads the activation card with the library's name, its key beside it", async () => {
  const labelled = { ...versions, versions: [{ ...versions.versions[0], key: "movie-web", config: { ...versions.versions[0].config, profile: "web-2160p" } }] };
  mockFetch([{ method: "GET", path: "/setup", reply: state }, { method: "GET", path: "/settings/versions", reply: labelled }]);
  renderPage(<SetupPage />);
- expect(await screen.findByRole("heading", { name: "movie-web 4K WEB" })).toBeTruthy();
+ expect(await screen.findByRole("heading", { name: "4K WEB movie-web" })).toBeTruthy();
  expect(screen.getByText("movie-web")).toBeTruthy();
 });
 
-it("heads activation cards that share a display label with their distinct keys", async () => {
+it("heads activation cards that share a display label with their distinct keys beside it", async () => {
  const twins = { ...versions, versions: ["movie-web", "movie-web-theatarr"].map(key => ({ ...versions.versions[0], key, config: { ...versions.versions[0].config, profile: "web-2160p" } })) };
  mockFetch([{ method: "GET", path: "/setup", reply: state }, { method: "GET", path: "/settings/versions", reply: twins }]);
  renderPage(<SetupPage />);
  for (const key of ["movie-web", "movie-web-theatarr"]) {
-  const heading = await screen.findByRole("heading", { name: `${key} 4K WEB` });
+  const heading = await screen.findByRole("heading", { name: `4K WEB ${key}` });
   expect(heading.firstElementChild?.textContent).toBe(key);
-  expect(within(heading).getByText("4K WEB").className).toContain("text-muted-foreground");
+  expect(within(heading).getByText(key).className).toContain("text-muted-foreground");
  }
 });
 

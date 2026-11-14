@@ -30,6 +30,7 @@ import { ProviderPills } from "@/components/provider-pills";
 import { TorrentLink } from "@/components/title/info-hash";
 import { AddToProviders, OtherProviders } from "@/components/title/provider-copies";
 import { useCopyFile } from "@/api/provider-copies";
+import { useLibraryName } from "@/lib/library-names";
 import { otherProvidersLine } from "@/lib/provider-copies";
 import { globalDownloadsOff } from "@/lib/version-grab";
 import { Badge } from "@/components/ui/badge";
@@ -145,7 +146,7 @@ type Tab = "details" | "history" | "releases";
 function CopyBlock({ d, single, children, testid }: { d: EpisodeVersionDetail; single: boolean; children: ReactNode; testid?: string }) {
   return (
     <section className={cn("space-y-3", !single && "rounded-xl border border-[var(--line)] p-3")} data-episode-version={d.key} data-testid={testid}>
-      {single ? null : <VersionTag k={d.key} />}
+      {single ? null : <VersionTag k={d.key} label={d.label} />}
       {children}
     </section>
   );
@@ -155,6 +156,7 @@ function CopyBlock({ d, single, children, testid }: { d: EpisodeVersionDetail; s
 function DetailsPart({ titleId, eid, epCode, d, aired, manage, admin, single, acquisition, onReleases }: { titleId: number; eid: number; epCode: string; d: EpisodeVersionDetail; aired: boolean; manage: boolean; admin: boolean; single: boolean; acquisition?: Acquisition; onReleases: () => void }) {
   const monitor = useMonitor(titleId);
   const search = useScopedSearch(titleId);
+  const nameOf = useLibraryName();
   const [msg, setMsg] = useState("");
   const c = d.control;
   const badge = stateBadge(d, aired);
@@ -163,7 +165,7 @@ function DetailsPart({ titleId, eid, epCode, d, aired, manage, admin, single, ac
   return (
     <section className={cn("space-y-3", !single && "rounded-xl border border-[var(--line)] p-3")} data-episode-version={d.key}>
       <div className="flex flex-wrap items-center gap-2">
-        <VersionTag k={d.key} />
+        <VersionTag k={d.key} label={d.label} />
         {c?.grab_state ? <VersionStatus state={c.grab_state} showMode settingsKey={d.key} canManage={admin} /> : null}
         <Badge tone={badge.tone}>{badge.label}</Badge>
       </div>
@@ -175,7 +177,7 @@ function DetailsPart({ titleId, eid, epCode, d, aired, manage, admin, single, ac
               on={d.monitored}
               disabled={!c.can_edit || monitor.isPending}
               reason={c.edit_reason}
-              label={`${d.monitored ? "Unmonitor" : "Monitor"} this episode in ${d.key}`}
+              label={`${d.monitored ? "Unmonitor" : "Monitor"} this episode in ${d.label || nameOf(d.key)}`}
               onChange={(m) => monitor.mutate({ episode_ids: [eid], versions: [d.key], monitored: m }, { onSuccess: (o: ManageOutcome) => setMsg(o.message), onError: (e) => setMsg((e as Error).message) })}
               testid={`episode-monitor-${d.key}`}
             />
@@ -197,14 +199,14 @@ function DetailsPart({ titleId, eid, epCode, d, aired, manage, admin, single, ac
       ) : null}
       {manage ? <ControlNote c={c} kind="both" /> : null}
       {msg ? <p className="text-xs text-[var(--accent-ink)]">{msg}</p> : null}
-      <UpgradeBlock u={d.upgrade} seeFiles releases={onReleases} titleId={titleId} what={`This episode · ${d.label ?? d.key}`} />
+      <UpgradeBlock u={d.upgrade} seeFiles releases={onReleases} titleId={titleId} what={`This episode · ${d.label || nameOf(d.key)}`} />
       {rows.length > 0 ? (
         <div className="rounded-[5px] border border-[var(--line)] p-3" data-testid="episode-file">
           <KV items={rows} />
           {manage && d.file ? <div className="mt-3"><EpisodeAddToProviders titleId={titleId} eid={eid} d={d} /></div> : null}
           {admin && d.file?.link_id ? (
             <div className="mt-3">
-              <ChangeEpisodes titleId={titleId} linkId={d.file.link_id} path={d.file.path ?? ""} copy={d.label || d.key} held={d.file.episodes ?? []} />
+              <ChangeEpisodes titleId={titleId} linkId={d.file.link_id} path={d.file.path ?? ""} copy={d.label || nameOf(d.key)} held={d.file.episodes ?? []} />
             </div>
           ) : null}
         </div>

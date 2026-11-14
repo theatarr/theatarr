@@ -3,6 +3,7 @@ import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, expect, it } from "vitest";
 import { mockFetch, renderPage, type Route } from "@/test/page";
 import { InteractiveSearchButton } from "./interactive-search";
+import { LibraryNamesProvider } from "@/lib/library-names";
 
 const ME: Route = { method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["browse", "see_files", "manage"] } };
 const control = (live: boolean) => ({ mode: live ? "active" : "shadow", can_edit: true, can_search: live, live_releases: live });
@@ -227,7 +228,7 @@ it("leaves a removed copy out: no tab, and a search asked for it opens on a curr
 
 it("names each library tab, with the settings key as tooltip", async () => {
   mockFetch([ME, TITLE, CURRENT, { method: "GET", path: "/titles/7/releases", reply: answer() }]);
-  renderPage(<InteractiveSearchButton titleId={7} version="movie-web" />);
+  renderPage(<LibraryNamesProvider keys><InteractiveSearchButton titleId={7} version="movie-web" /></LibraryNamesProvider>);
   open();
   await table();
   const tabs = screen.getAllByRole("tab");

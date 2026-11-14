@@ -107,12 +107,12 @@ describe("Series page copies", () => {
     mockFetch([routes[0], { method: "GET", path: "/titles/1/episodes", reply: same }]);
     renderPage(<Seasons id="1" anime />, "/title/1");
     const bars = await screen.findByTestId("season-header");
-    expect(within(bars).getByText("Anime · anime-tv")).toBeTruthy();
-    expect(within(bars).getByText("Anime · anime-web")).toBeTruthy();
-    expect(screen.queryByText("Anime")).toBeNull();
-    expect(screen.getByText(/2 missing in Anime · anime-tv/)).toBeTruthy();
-    expect(screen.getByText(/Monitoring is read-only \(Anime · anime-tv\)/)).toBeTruthy();
-    expect(screen.getAllByText("Anime · anime-web").length).toBeGreaterThan(1);
+    expect(within(bars).getByText("Anime")).toBeTruthy();
+    expect(within(bars).getByText("Anime (2)")).toBeTruthy();
+    expect(screen.queryByText(/anime-tv|anime-web/)).toBeNull();
+    expect(screen.getByText(/2 missing in Anime\b(?! \(2\))/)).toBeTruthy();
+    expect(screen.getByText(/Monitoring is read-only \(Anime\)/)).toBeTruthy();
+    expect(screen.getAllByText("Anime (2)").length).toBeGreaterThan(1);
   });
 
   it("puts the copy's acquisition and an Activity link in the episode overview", async () => {
@@ -161,11 +161,11 @@ it("names phone library radios distinctly", async () => {
   vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
   mockFetch([routes[0], { method: "GET", path: "/titles/1/episodes", reply: { ...episodes, versions: episodes.versions.map(v => ({ ...v, label: "Anime" })) } }]);
   renderPage(<Seasons id="1" anime />, "/title/1");
-  expect(await screen.findByRole("radio", { name: "Anime · anime-tv" })).toBeTruthy();
-  expect(screen.getByRole("radio", { name: "Anime · anime-web" })).toBeTruthy();
+  expect(await screen.findByRole("radio", { name: "Anime" })).toBeTruthy();
+  expect(screen.getByRole("radio", { name: "Anime (2)" })).toBeTruthy();
   // Phones have no All: the first library is in view.
   expect(screen.queryByRole("radio", { name: "All libraries" })).toBeNull();
-  expect(screen.getByRole("radio", { name: "Anime · anime-tv" }).getAttribute("aria-checked")).toBe("true");
+  expect(screen.getByRole("radio", { name: "Anime" }).getAttribute("aria-checked")).toBe("true");
 });
 
 it("leaves season settings destinations as text for non-admin managers", async () => {

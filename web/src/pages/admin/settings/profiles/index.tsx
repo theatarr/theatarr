@@ -23,6 +23,7 @@ import { QualityPanel, type QualityRecord } from "../quality";
 import { TrashDefaults } from "./defaults";
 import { QualityChips } from "./parts";
 import { ProfileSheet, type ProfileSession } from "./sheet";
+import { useLibraryName } from "@/lib/library-names";
 
 const CATEGORIES: Category[] = ["movie", "series", "anime_movie", "anime_series"];
 
@@ -36,8 +37,9 @@ function OriginCell({ p }: { p: ProfileSummary }) {
 }
 
 function UsedBy({ p }: { p: ProfileSummary }) {
+  const nameOf = useLibraryName();
   if (!p.used_by.length) return <Badge tone="warning" title="No library uses this profile. It is kept; delete it from its editor if you no longer need it.">unused</Badge>;
-  return <ul className="flex flex-wrap gap-1">{p.used_by.map((u) => <li key={u.key}><Badge tone={u.active ? "positive" : "outline"}>{u.key}{u.active ? " · Live" : ""}</Badge></li>)}</ul>;
+  return <ul className="flex flex-wrap gap-1">{p.used_by.map((u) => <li key={u.key}><Badge tone={u.active ? "positive" : "outline"} title={u.key}>{nameOf(u.key)}{u.active ? " · Live" : ""}</Badge></li>)}</ul>;
 }
 
 function Defaults({ profiles, defaults, readOnly, onSaved }: { profiles: string[]; defaults: Record<string, string>; readOnly: boolean; onSaved: (text: string) => void }) {

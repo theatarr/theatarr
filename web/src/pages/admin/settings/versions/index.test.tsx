@@ -64,7 +64,7 @@ describe("Versions page", () => {
     const edit = await screen.findByRole("button", { name: "Edit" });
     const row = edit.closest("tr")!;
     // The control shows the stored library (Live); the words beside it the running one (Watch only after a fallback).
-    expect((within(row).getByRole("combobox", { name: "State of movie-web" }) as HTMLSelectElement).value).toBe("live");
+    expect((within(row).getByRole("combobox", { name: "State of WEB" }) as HTMLSelectElement).value).toBe("live");
     expect(within(row).getByTestId("state-words").textContent).toBe("Watch only");
     await user.click(within(row).getByRole("button", { name: "Why?" }));
     expect([...within(row).getByTestId("state-why").querySelectorAll("li")].map((li) => li.textContent?.split(" · ")[0])).toEqual([
@@ -510,7 +510,7 @@ describe("Versions page", () => {
     await user.click(screen.getByRole("button", { name: "Save" }));
     await screen.findByRole("alert");
     await user.click(screen.getByRole("button", { name: "Reload, keep my changes" }));
-    await waitFor(() => expect(screen.getByRole("heading", { name: /Edit library movie-web/ })).toBeTruthy());
+    await waitFor(() => expect(screen.getByRole("heading", { name: /Edit library WEB/ })).toBeTruthy());
     expect((screen.getByRole("textbox", { name: "Root" }) as HTMLInputElement).value).toBe("/library/local-edit");
     expect(fetch.calls("GET", "/settings/versions")).toHaveLength(2);
   });
@@ -532,7 +532,7 @@ describe("Versions page", () => {
     await screen.findByRole("alert");
     await user.click(screen.getByRole("button", { name: "Reload, discard my changes" }));
     await waitFor(() => expect((screen.getByRole("textbox", { name: "Root" }) as HTMLInputElement).value).toBe("/library/remote"));
-    expect(screen.getByRole("heading", { name: /Edit library movie-web/ })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: /Edit library WEB/ })).toBeTruthy();
   });
 
   it("keeps database libraries editable without a read-only note", async () => {
@@ -910,7 +910,7 @@ describe("Watch only / Live control", () => {
     mockFetch(withConfig(config, switches));
     renderPage(<VersionsPage />);
     const r = await row();
-    expect((within(r).getByRole("combobox", { name: "State of movie-web" }) as HTMLSelectElement).value).toBe(choice);
+    expect((within(r).getByRole("combobox", { name: "State of WEB" }) as HTMLSelectElement).value).toBe(choice);
     // Words that only repeat the control are left out.
     expect(within(r).queryByTestId("state-words")?.textContent ?? null).toBe(words);
   });
@@ -921,7 +921,7 @@ describe("Watch only / Live control", () => {
       { method: "POST", path: "/settings/versions/confirm", reply: json({ generation: 4, token: "proof", effects }) }, put()]);
     const user = userEvent.setup();
     renderPage(<VersionsPage />);
-    await user.selectOptions(within(await row()).getByRole("combobox", { name: "State of movie-web" }), "live");
+    await user.selectOptions(within(await row()).getByRole("combobox", { name: "State of WEB" }), "live");
     await screen.findByRole("dialog", { name: "Confirm library change" });
     const expected = { generation: 4, key: "movie-web", config: { ...version().config, mode: "active" }, roots: version().roots };
     expect(fetch.calls("PUT", "/settings/versions/movie-web")[0].body).toEqual(expected);
@@ -935,7 +935,7 @@ describe("Watch only / Live control", () => {
     const fetch = mockFetch([...withConfig({ mode: "active" }), put()]);
     const user = userEvent.setup();
     renderPage(<VersionsPage />);
-    await user.selectOptions(within(await row()).getByRole("combobox", { name: "State of movie-web" }), "watch");
+    await user.selectOptions(within(await row()).getByRole("combobox", { name: "State of WEB" }), "watch");
     await waitFor(() => expect(fetch.calls("PUT", "/settings/versions/movie-web")).toHaveLength(1));
     expect(fetch.calls("PUT", "/settings/versions/movie-web")[0].body).toEqual({ generation: 4, key: "movie-web", config: { ...version().config, mode: "shadow" }, roots: version().roots });
   });
@@ -946,7 +946,7 @@ describe("Watch only / Live control", () => {
     renderPage(<><VersionsPage /><OverviewReader /></>);
     const r = await row();
     await waitFor(() => expect(fetch.calls("GET", "/settings")).toHaveLength(1));
-    await user.selectOptions(within(r).getByRole("combobox", { name: "State of movie-web" }), "watch");
+    await user.selectOptions(within(r).getByRole("combobox", { name: "State of WEB" }), "watch");
     await waitFor(() => expect(fetch.calls("GET", "/settings")).toHaveLength(2));
   });
 
@@ -961,7 +961,7 @@ describe("Watch only / Live control", () => {
     mockFetch([...withConfig({}), put(json({ error: "settings refused: versions[movie-web].mode: no", fields: [{ path: "versions[movie-web].mode", message: "no" }] }, 422))]);
     const user = userEvent.setup();
     renderPage(<VersionsPage />);
-    await user.selectOptions(within(await row()).getByRole("combobox", { name: "State of movie-web" }), "live");
+    await user.selectOptions(within(await row()).getByRole("combobox", { name: "State of WEB" }), "live");
     expect(await screen.findByTestId("row-error")).toBeTruthy();
   });
 
@@ -999,6 +999,6 @@ describe("Watch only / Live control", () => {
     mockFetch(getRoutes(versions(4, "/library/movies", "yaml")));
     renderPage(<VersionsPage />);
     const r = (await screen.findByRole("button", { name: "View" })).closest("tr")!;
-    expect((within(r).getByRole("combobox", { name: "State of movie-web" }) as HTMLSelectElement).disabled).toBe(true);
+    expect((within(r).getByRole("combobox", { name: "State of WEB" }) as HTMLSelectElement).disabled).toBe(true);
   });
 });

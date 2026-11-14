@@ -2,6 +2,7 @@ import { Columns3 } from "lucide-react";
 import { useState } from "react";
 import { Link, useLocation, useSearchParams } from "react-router";
 import { useStatus } from "@/api/hooks";
+import { useLibraryName } from "@/lib/library-names";
 import { usePerms } from "@/api/library";
 import { useClearWantedSearch, useWanted, useWantedSearch, type WantedRow, type WantedSearchBody, type WantedSearchResult } from "@/api/wanted";
 import { Empty, ErrorState, Loading, PageHeader, VersionTag } from "@/components/page";
@@ -136,7 +137,8 @@ export function WantedPage() {
     if (to > 0) next.set("offset", String(to)); else next.delete("offset");
     setSp(next);
   };
-  const label = (key: string) => q.data?.libraries[key] || key;
+  const nameOf = useLibraryName();
+  const label = (key: string) => q.data?.libraries[key] || nameOf(key);
   const d = q.data;
   const search = useWantedSearch();
   const clear = useClearWantedSearch();
@@ -164,7 +166,7 @@ export function WantedPage() {
   const name = (row: WantedRow) => d?.titles[row.title_id] || `Title ${row.title_id}`;
   const titleLink = (row: WantedRow) => <Link className="font-semibold text-[var(--ink)] hover:text-[var(--accent-ink)] [overflow-wrap:anywhere]" to={`/title/${row.title_id}`}>{name(row)}</Link>;
   const cells: Record<Column, DataColumn<WantedRow>> = {
-    library: { id: "library", label: "Library", cell: row => <div className="min-w-0">{label(row.version)}<div className="mt-0.5"><VersionTag k={row.version} /></div></div> },
+    library: { id: "library", label: "Library", cell: row => <VersionTag k={row.version} label={d?.libraries[row.version]} /> },
     what: { id: "what", label: "What", cell: row => targetWords(row.targets) },
     next: { id: "next", label: "Next search", cell: row => <NextSearch row={row} state={states.get(row.version)} off={off} admin={perms.admin} /> },
     last: { id: "last", label: "Last search", cell: row => <>{row.last_run ? <span title={fmtTime(row.last_run.at)}>{fmtAgo(row.last_run.at)} · </span> : null}{searchResult(row.last_run)}</> },
@@ -192,7 +194,7 @@ export function WantedPage() {
       <label className="flex items-center gap-2 text-sm text-[var(--ink-3)]">Library
         <Select aria-label="Library" className="w-auto max-w-full" value={version ?? ""} onChange={e => change("version", e.target.value)}>
           <option value="">All libraries</option>
-          {Object.entries(d.libraries).map(([key, lib]) => <option key={key} value={key}>{lib} · {key}</option>)}
+          {Object.entries(d.libraries).map(([key, lib]) => <option key={key} value={key}>{lib}</option>)}
         </Select>
       </label>
       <div className="flex flex-wrap gap-2" aria-label="Waiting filters">{waits.map(([key, word]) => {

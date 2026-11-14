@@ -5,7 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
 import { Link } from "react-router";
 import { arrImportKey, startArrImport, useArrImportCheck, useArrImportRun, type ArrImportCheck, type ArrImportReport, type ArrImportRequest, type ArrImportRun } from "@/api/arr-import";
-import { useVersions, type VersionRecord } from "@/api/settings-versions";
+import { useVersions } from "@/api/settings-versions";
 import { ErrorState, Fold, PageHeader } from "@/components/page";
 import { Field, SELECT_CLASS } from "@/components/settings/parts";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { fmtNumber } from "@/lib/format";
 import { libraryLabel } from "@/lib/library-label";
+import { useLibraryName } from "@/lib/library-names";
 
 type Flavour = "radarr" | "sonarr";
 
@@ -29,14 +30,15 @@ function choiceKey(c: { flavour: string; url: string; library: string; profiles:
   return JSON.stringify([c.flavour, c.url.trim(), c.library, [...c.profiles].sort((a, b) => a - b), paths]);
 }
 
-function libraryName(versions: VersionRecord[] | undefined, key: string) {
-  const v = versions?.find((r) => r.key === key);
-  return v ? libraryLabel(v.key, v.config.profile, v.config.name) : key;
-}
 
 export function ArrImportPage() {
   const qc = useQueryClient();
+  const nameOf = useLibraryName();
   const versions = useVersions();
+  const libraryName = (key: string) => {
+    const v = versions.data?.versions.find((r) => r.key === key);
+    return nameOf(key, v && libraryLabel(v.key, v.config.profile, v.config.name, v.config.kind));
+  };
   const runQuery = useArrImportRun();
   const check = useArrImportCheck();
   const [flavour, setFlavour] = useState<Flavour>("radarr");
@@ -111,7 +113,7 @@ export function ArrImportPage() {
           : <Field label="Library" help="The library keeps its own quality profile and naming. Its folder must be separate from the instance's folders.">
             <select className={SELECT_CLASS} value={chosen} disabled={running} onChange={(e) => setLibrary(e.target.value)}>
               {options.length > 1 ? <option value="" disabled>Choose a library</option> : null}
-              {options.map((v) => { const label = libraryLabel(v.key, v.config.profile, v.config.name); return <option key={v.key} value={v.key}>{label === v.key ? v.key : `${label} (${v.key})`}</option>; })}
+              {options.map((v) => <option key={v.key} value={v.key}>{nameOf(v.key, libraryLabel(v.key, v.config.profile, v.config.name, v.config.kind))}</option>)}
             </select>
           </Field>}
     </Card>
@@ -154,7 +156,7 @@ export function ArrImportPage() {
     </div>
     {startError ? <p role="alert" className="text-sm text-[var(--bad-ink)]">{message(startError)}</p> : null}
 
-    {runQuery.error ? <ErrorState error={runQuery.error} /> : run ? <RunView run={run} libraryName={libraryName(versions.data?.versions, run.library)} /> : null}
+    {runQuery.error ? <ErrorState error={runQuery.error} /> : run ? <RunView run={run} libraryName={libraryName(run.library)} /> : null}
   </div>;
 }
 

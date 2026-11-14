@@ -220,7 +220,7 @@ export function Overview() {
 
       <Section title="Libraries">
         <DownloadsOffNotice off={globalDownloadsOff((st.data?.versions ?? []).map((v) => v.grab_state))} canManage className="mb-2" />
-        <Card><div className="space-y-2">{(st.data?.versions ?? []).map((v) => <div key={v.key} className="flex flex-wrap items-start gap-2"><Link className="text-sm font-medium hover:underline" to={`/admin/settings/libraries?edit=${encodeURIComponent(v.key)}`}>{v.key}</Link><VersionStatus state={v.grab_state} showMode settingsKey={v.key} canManage /></div>)}</div></Card>
+        <Card><div className="space-y-2">{(st.data?.versions ?? []).map((v) => <div key={v.key} className="flex flex-wrap items-start gap-2"><Link className="text-sm font-medium hover:underline" to={`/admin/settings/libraries?edit=${encodeURIComponent(v.key)}`} title={v.key}>{v.label || v.key}</Link><VersionStatus state={v.grab_state} showMode settingsKey={v.key} canManage /></div>)}</div></Card>
       </Section>
 
       {!setupUnfinished(setup.data) ? <p className="mt-6"><Link className="text-primary underline" to="/admin/setup">Setup checklist</Link></p> : null}

@@ -581,48 +581,39 @@ body {
 
 /* ---- Theatarr additions ---- */
 
-/* One fixed colour per version key (docs/design/ui.md), muted to sit with the paper and charcoal themes (marks only,
- * never text); Theatarr's own copies (the -theatarr keys of docs/parallel.md) get their own; unknown keys fall back to the
- * accent. */
+/* The library colour marks (docs/design/ui.md), muted to sit with the paper and charcoal themes (marks only, never
+ * text): one per configured library by position (lib/library-names); unknown keys fall back to the accent. */
 :root {
-  --v-movie-remux: #6a4c93;
-  --v-movie-web: #2b7a78;
-  --v-anime-movie: #9c4668;
-  --v-tv-2160p: #66682a;
-  --v-anime-tv: #7d5a3c;
-  --v-movie-remux-theatarr: #4a5aa0;
-  --v-movie-web-theatarr: #4d7a2e;
-  --v-anime-movie-theatarr: #5d6470;
-  --v-tv-2160p-theatarr: #8a3f8f;
-  --v-anime-tv-theatarr: #a0522d;
+  --v-0: #6a4c93;
+  --v-1: #2b7a78;
+  --v-2: #9c4668;
+  --v-3: #66682a;
+  --v-4: #7d5a3c;
+  --v-5: #4a5aa0;
+  --v-6: #4d7a2e;
+  --v-7: #5d6470;
+  --v-8: #8a3f8f;
+  --v-9: #a0522d;
   /* Overlays on artwork (poster badges, hover overview, in-flight chips): art is not themed, so one dark scrim with
    * white text in both themes; marks on it use the dark theme's tokens (class "dark" on the overlay). */
   --art-scrim: rgba(14, 15, 17, 0.74);
   --art-scrim-strong: rgba(14, 15, 17, 0.92);
 }
 .dark {
-  --v-movie-remux: #b39ddb;
-  --v-movie-web: #6fbdb8;
-  --v-anime-movie: #d68aa8;
-  --v-tv-2160p: #c3c27c;
-  --v-anime-tv: #c4a07c;
-  --v-movie-remux-theatarr: #a3aee6;
-  --v-movie-web-theatarr: #9ccc7a;
-  --v-anime-movie-theatarr: #a9b0bb;
-  --v-tv-2160p-theatarr: #cf8fd3;
-  --v-anime-tv-theatarr: #e09a72;
+  --v-0: #b39ddb;
+  --v-1: #6fbdb8;
+  --v-2: #d68aa8;
+  --v-3: #c3c27c;
+  --v-4: #c4a07c;
+  --v-5: #a3aee6;
+  --v-6: #9ccc7a;
+  --v-7: #a9b0bb;
+  --v-8: #cf8fd3;
+  --v-9: #e09a72;
 }
+/* Library colour marks: lib/library-names markRules gives each configured library one of --v-0 … --v-9 by its
+   position in key order; a key no longer configured keeps the accent. */
 [data-vkey] { --vc: var(--accent); }
-[data-vkey="movie-remux"] { --vc: var(--v-movie-remux); }
-[data-vkey="movie-web"] { --vc: var(--v-movie-web); }
-[data-vkey="anime-movie"] { --vc: var(--v-anime-movie); }
-[data-vkey="tv-2160p"] { --vc: var(--v-tv-2160p); }
-[data-vkey="anime-tv"] { --vc: var(--v-anime-tv); }
-[data-vkey="movie-remux-theatarr"] { --vc: var(--v-movie-remux-theatarr); }
-[data-vkey="movie-web-theatarr"] { --vc: var(--v-movie-web-theatarr); }
-[data-vkey="anime-movie-theatarr"] { --vc: var(--v-anime-movie-theatarr); }
-[data-vkey="tv-2160p-theatarr"] { --vc: var(--v-tv-2160p-theatarr); }
-[data-vkey="anime-tv-theatarr"] { --vc: var(--v-anime-tv-theatarr); }
 
 /* Generated poster art for titles without artwork yet. */
 [data-art] { background: linear-gradient(160deg, #3b4a8f, #141b38); }

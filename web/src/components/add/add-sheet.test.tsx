@@ -36,7 +36,9 @@ it("lists every library with its state, counts the Live ones and sends the same 
   expect(within(list).getAllByRole("checkbox")).toHaveLength(7);
   const web = screen.getByTestId("add-version-movie-web");
   expect(within(web).getByText(long)).toBeTruthy();
-  expect(within(web).getByText("movie-web")).toBeTruthy();
+  // The key is no text of its own: an admin finds it as the name's tooltip.
+  expect(within(web).queryByText("movie-web")).toBeNull();
+  expect(within(web).getByText(long).getAttribute("title")).toBe("movie-web");
   expect(within(web).getByText("Downloads on")).toBeTruthy();
   expect(within(screen.getByTestId("add-version-movie-remux")).getByText("Downloads off")).toBeTruthy();
   expect(within(screen.getByTestId("add-version-movie-1080")).getByText("Watch only")).toBeTruthy();

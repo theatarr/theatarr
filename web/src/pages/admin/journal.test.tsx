@@ -28,7 +28,9 @@ it("keeps the decision kind and library inline under the title for when the colu
   renderPage(<JournalList />, "/activity/journal");
   const inline = await screen.findByTestId("journal-inline");
   expect(within(inline).getByText("search")).toBeTruthy();
-  expect(within(inline).getByText("tv-2160p")).toBeTruthy();
+  // The library by its name, the key as its mark's data-vkey.
+  expect(within(inline).getByText("4K").closest("[data-vkey]")?.getAttribute("data-vkey")).toBe("tv-2160p");
+  expect(within(inline).queryByText("tv-2160p")).toBeNull();
 });
 
 it("wraps a long release name in the summary so a phone page doesn't widen", async () => {

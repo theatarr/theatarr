@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { fmtBytes } from "@/lib/format";
+import { useLibraryName } from "@/lib/library-names";
 
 type Candidate = Schemas["ManualImportCandidate"];
 type Choice = Schemas["ManualImportChoice"];
@@ -68,6 +69,7 @@ export function listedWords(files: number, kind: string): string {
 }
 
 export function ManualImportPage() {
+  const nameOf = useLibraryName();
   const policy = usePolicy();
   const [version, setVersion] = useState("");
   const [source, setSource] = useState("");
@@ -110,7 +112,7 @@ export function ManualImportPage() {
     <div ref={errorRef} tabIndex={-1} role={problem ? "alert" : undefined}>{problem}</div>
     <div role="status" aria-live="polite">{busy ? "Working…" : result}</div>
     <form onSubmit={list} className="my-4 flex flex-wrap items-end gap-3">
-      <label>Library<select required disabled={busy} className="block" value={version} onChange={(e) => { setVersion(e.target.value); setRows([]); setResult(""); }}><option value="">Choose a library</option>{(policy.data?.versions ?? []).map((v) => <option key={v.key} value={v.key}>{v.key}</option>)}</select></label>
+      <label>Library<select required disabled={busy} className="block" value={version} onChange={(e) => { setVersion(e.target.value); setRows([]); setResult(""); }}><option value="">Choose a library</option>{(policy.data?.versions ?? []).map((v) => <option key={v.key} value={v.key}>{nameOf(v.key)}</option>)}</select></label>
       <label>Source<select disabled={busy} className="block" value={kind} onChange={(e) => setKind(e.target.value)}><option value="folder">Mount folder</option><option value="downloadId">Download hash</option></select></label>
       <label className="min-w-64 flex-1">{kind === "folder" ? "Folder under the mount" : "Download hash"}<Input required disabled={busy} value={source} onChange={(e) => setSource(e.target.value)} /></label>
       <Button disabled={busy || !version || !source.trim() || !options.data} type="submit">List files</Button>

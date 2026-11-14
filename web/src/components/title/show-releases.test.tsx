@@ -4,6 +4,7 @@ import { expect, it, vi } from "vitest";
 import { mockFetch, renderPage } from "@/test/page";
 import { ReleaseGrid } from "./release-grid";
 import { ShowReleases } from "./show-releases";
+import { LibraryNamesProvider } from "@/lib/library-names";
 
 const cand = (rank: number, hash: string, accepted = true) => ({ rank, release: `Alpha.2020.2160p.WEB-${rank}`, info_hash: hash, accepted, score: 100 - rank, quality: "WEBDL-2160p" });
 
@@ -36,7 +37,7 @@ it("says what the shown search did and picks out the followed release", async ()
       grabbed: "Grabbed #2 via rd → imported (the current file)", grab: false,
     } },
   ]);
-  renderPage(<ShowReleases titleId={7} defaultOpen initialVersion="movie-web" focus="BBB" labels={{ "movie-web": "Movies WEB" }} />);
+  renderPage(<LibraryNamesProvider keys><ShowReleases titleId={7} defaultOpen initialVersion="movie-web" focus="BBB" labels={{ "movie-web": "Movies WEB" }} /></LibraryNamesProvider>);
   expect((await screen.findByTestId("releases-grabbed")).textContent).toBe("Grabbed #2 via rd → imported (the current file)");
   const tab = screen.getByRole("tab", { name: "Movies WEB" });
   expect(tab.querySelector("[data-vkey]")?.getAttribute("title")).toBe("movie-web");

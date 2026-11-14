@@ -49,7 +49,7 @@ export function PolicyFiles() {
                 <TableHead>Library</TableHead>
                 <TableHead>State</TableHead>
                 <TableHead className="hidden sm:table-cell">Profile</TableHead>
-                <TableHead className="hidden lg:table-cell">Library</TableHead>
+                <TableHead className="hidden lg:table-cell">Root</TableHead>
                 <TableHead className="hidden md:table-cell">Indexers</TableHead>
                 <TableHead className="hidden md:table-cell">Providers</TableHead>
               </TableRow>
@@ -57,7 +57,7 @@ export function PolicyFiles() {
             <TableBody>
               {p.versions.map((v) => (
                 <TableRow key={v.key}>
-                  <TableCell><VersionTag k={v.key} /><div className="mt-1 text-xs text-muted-foreground">{v.kind} · {v.storage}</div></TableCell>
+                  <TableCell><VersionTag k={v.key} /><div className="mt-1 font-mono text-xs text-muted-foreground">{v.key}</div><div className="text-xs text-muted-foreground">{v.kind} · {v.storage}</div></TableCell>
                   <TableCell><VersionStatus state={v.grab_state} showMode settingsKey={v.key} canManage /></TableCell>
                   <TableCell className="hidden sm:table-cell"><Mono>{v.profile}</Mono></TableCell>
                   <TableCell className="hidden break-all lg:table-cell"><Mono>{v.library}</Mono></TableCell>

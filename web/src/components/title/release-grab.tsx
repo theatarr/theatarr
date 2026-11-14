@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { ConfirmDialog, errText } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { grabConfirmScope, needsConfirm } from "@/lib/release-columns";
+import { useLibraryName } from "@/lib/library-names";
 
 /** Where a grab goes: the title, the library (its key) and the library's name for the words. */
 export type GrabTarget = { titleId: number; version: string; label?: string };
@@ -75,7 +76,8 @@ export function magnetName(m: string): string {
 
 /** "Add by magnet or hash" for one library of a title (admins): the link or hash, the release name (taken from the
  *  magnet's dn until typed), and Add. A rejection lists the reasons and offers "Add anyway". */
-export function AddByHash({ titleId, version }: { titleId: number; version: string }) {
+export function AddByHash({ titleId, version, label }: { titleId: number; version: string; label?: string }) {
+  const nameOf = useLibraryName();
   const add = useAddRelease(titleId);
   const [link, setLink] = useState("");
   const [name, setName] = useState("");
@@ -105,7 +107,7 @@ export function AddByHash({ titleId, version }: { titleId: number; version: stri
   return (
     <form onSubmit={submit} className="space-y-2 border-t border-[var(--line)] pt-4" data-testid="add-by-hash">
       <div className="flex flex-wrap items-center gap-2 text-sm font-medium">
-        Add by magnet or hash <VersionTag k={version} />
+        Add by magnet or hash <VersionTag k={version} label={label} />
       </div>
       <p className="text-xs text-[var(--ink-3)]">
         For a release the search does not find. It is judged by its name like any release and goes to the router like a grab; its size and seeders are not known.
@@ -125,7 +127,7 @@ export function AddByHash({ titleId, version }: { titleId: number; version: stri
       </div>
       {rejected ? (
         <div className="space-y-1.5 text-xs" role="alert" data-testid="add-by-hash-rejected">
-          <p className="text-[var(--bad-ink)]">Theatarr rejects this release for {version}:</p>
+          <p className="text-[var(--bad-ink)]">Theatarr rejects this release for {label || nameOf(version)}:</p>
           <ul className="list-disc pl-5 text-[var(--bad-ink)]">{rejected.map((r, i) => <li key={i}>{r}</li>)}</ul>
           <Button type="button" size="sm" variant="danger" disabled={add.isPending} onClick={() => send(true)} data-testid="add-by-hash-anyway">Add anyway</Button>
         </div>

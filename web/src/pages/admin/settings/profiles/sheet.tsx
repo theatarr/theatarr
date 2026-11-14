@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 import { FormGrid, NumberInput, PROPERS, PROPERS_LABELS, Select, TextField, Toggle, object, type Config } from "../quality/fields";
 import { DiffLists, QualityLadder, StateTag } from "./parts";
 import { profileFlavours, SizeLimits } from "./sizes";
+import { useLibraryName } from "@/lib/library-names";
 
 export type ProfileSession =
   | { mode: "edit"; key: string; id?: number; generation: number; config: Config; summary: ProfileSummary }
@@ -138,6 +139,7 @@ function PresetPicker({ flavour, setFlavour, onBuilt, onCancel }: { flavour: str
 }
 
 export function ProfileSheet({ session: initial, readOnly, onClose, onSaved, onReload }: { session: ProfileSession; readOnly: boolean; onClose: () => void; onSaved: (message: string, deleted?: boolean) => void; onReload: () => Promise<ProfileSession | undefined> }) {
+  const nameOf = useLibraryName();
   const editor = useSettingsEditor({
     initial,
     rebase: () => onReload(),
@@ -218,7 +220,7 @@ export function ProfileSheet({ session: initial, readOnly, onClose, onSaved, onR
         <div ref={errorBox}>{error ? <ExplainBox error={error} onReload={edit ? () => void reload(false) : undefined} onReloadKeep={edit ? () => void reload(true) : undefined} /> : null}{failure instanceof ApiError && object(failure.body).uses ? <p className="text-sm">In use by: {String(object((failure as ApiError).body).uses)}</p> : null}</div>
         {/* Who a save affects. */}
         <div data-testid="profile-affects" className={cn("rounded-lg border px-3 py-2 text-[13px]", active.length ? "border-[var(--th-warning-border)] bg-[var(--warn-soft)] text-[var(--warn-ink)]" : "border-[var(--line)] text-muted-foreground")}>
-          {create ? "A new profile: no library uses it until you pick it for one." : used.length === 0 ? "No library uses this profile: saving changes no decision." : <>Used by {used.map((u) => `${u.key}${u.active ? " (Live)" : " (Watch only)"}`).join(", ")}. {active.length ? "Live libraries grab with it: a change applies to their next searches and upgrades." : "Watch only libraries alone: nothing is grabbed with it."}</>}
+          {create ? "A new profile: no library uses it until you pick it for one." : used.length === 0 ? "No library uses this profile: saving changes no decision." : <>Used by {used.map((u) => `${nameOf(u.key)}${u.active ? " (Live)" : " (Watch only)"}`).join(", ")}. {active.length ? "Live libraries grab with it: a change applies to their next searches and upgrades." : "Watch only libraries alone: nothing is grabbed with it."}</>}
         </div>
         {/* Where it started. */}
         <section className="space-y-2" aria-label="Started from">

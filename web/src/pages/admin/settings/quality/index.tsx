@@ -15,6 +15,7 @@ import { explainError } from "@/lib/settings";
 import { qk } from "@/api/query-keys";
 import { FormatFields, FormGrid, JSONField, ProfileFields, Select, TextField, Toggle, object, pretty, text, type Config, type FormatJSON, type Implementation } from "./fields";
 import { SyncSources } from "./sync";
+import { useLibraryName } from "@/lib/library-names";
 
 export const QUALITY_TABS = ["profiles", "formats", "format_sets", "naming", "sync_sources"] as const;
 export type QualityEntity = typeof QUALITY_TABS[number];
@@ -59,6 +60,7 @@ const draftRecord = (record: QualityRecord): QualityRecord => {
  * this editor through ?edit=; a stored definition its merged list does not show keeps its row here). match: only
  * records it accepts are listed (Custom formats' filter). */
 export function QualityPanel({ entity, compact = false, skip = [], match }: { entity: QualityEntity; compact?: boolean; skip?: readonly string[]; match?: (r: QualityRecord) => boolean }) {
+  const nameOf = useLibraryName();
   const overview = useSettings();
   const qc = useQueryClient();
   const records = useQuery({ queryKey: [...qk.settings.all, "quality", entity], queryFn: () => api<{ generation: number; records: QualityRecord[] }>(`/settings/${entity}`), enabled: overview.data?.source === "db" });
@@ -134,9 +136,9 @@ export function QualityPanel({ entity, compact = false, skip = [], match }: { en
     <Announcer announcement={announcement} testid="quality-announcer" />
     {records.error ? <ErrorState error={records.error} /> : null}
     <Button ref={addButton} disabled={readOnly} onClick={() => open()} data-testid="add">Add {entity === "naming" ? "library naming" : entity.replaceAll("_", " ")}</Button>
-    {(records.data?.records ?? []).filter((r) => !skip.includes(r.key) && (!match || match(r))).map((r) => <Card key={r.id} data-record={r.key} data-selected={session?.id === r.id ? "true" : undefined} className="flex flex-wrap items-center justify-between gap-2 p-3"><span className="min-w-0 font-mono text-[13.5px] [overflow-wrap:anywhere]">{r.key}</span><div className="flex flex-wrap items-center gap-2">
+    {(records.data?.records ?? []).filter((r) => !skip.includes(r.key) && (!match || match(r))).map((r) => <Card key={r.id} data-record={r.key} data-selected={session?.id === r.id ? "true" : undefined} className="flex flex-wrap items-center justify-between gap-2 p-3">{entity === "naming" ? <span className="min-w-0 [overflow-wrap:anywhere]"><span className="text-[13.5px] font-medium">{nameOf(r.key)}</span> <span className="font-mono text-[12px] text-muted-foreground">{r.key}</span></span> : <span className="min-w-0 font-mono text-[13.5px] [overflow-wrap:anywhere]">{r.key}</span>}<div className="flex flex-wrap items-center gap-2">
       {entity === "formats" ? <a className="text-sm text-[var(--accent-ink)] underline" href={`${API_BASE}/settings/formats/${r.id}/export`} download={`${r.key}.json`}>Export arr JSON</a> : null}
-      <Button variant="outline" size="sm" disabled={readOnly} onClick={() => open(r)} data-testid="edit">Edit {r.key}</Button>
+      <Button variant="outline" size="sm" disabled={readOnly} onClick={() => open(r)} data-testid="edit">Edit {entity === "naming" ? nameOf(r.key) : r.key}</Button>
     </div></Card>)}
     {session ? <Sheet label={`${session.id ? "Edit" : "Add"} ${NOUN[entity]}${session.id ? ` ${session.draft.key}` : ""}`} onClose={close} initialFocus={heading} returnFocus={() => (deleted.current ? addButton.current ?? panel.current : undefined)}>
       <SheetLayout testid="quality-form" headingRef={heading} onClose={close}

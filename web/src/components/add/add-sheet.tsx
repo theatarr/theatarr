@@ -24,6 +24,7 @@ import { addRequest, libraryTitleId, type AddChoice } from "./add-request";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useLibraryName } from "@/lib/library-names";
 
 function CheckRow({
   checked,
@@ -81,14 +82,13 @@ function LibraryRow({ v, checked, disabled, onChange, note, admin }: {
   admin: boolean;
 }) {
   const id = useId();
+  const nameOf = useLibraryName();
   return (
     <div data-testid={`add-version-${v.key}`} data-checked={checked || undefined} className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 border-b border-[var(--line)] py-2.5 last:border-b-0">
       <Checkbox id={id} checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} aria-describedby={`${id}-state`} className="mt-0.5" />
       <div className="min-w-0 space-y-1">
         <label htmlFor={id} className={cn("flex flex-wrap items-baseline gap-x-2 gap-y-0.5", !disabled && "cursor-pointer")}>
-          <span className="text-sm font-medium text-[var(--ink)] [overflow-wrap:anywhere]">{v.label || v.key}</span>
-          <span className="font-mono text-[11.5px] text-[var(--ink-3)] [overflow-wrap:anywhere]">{v.key}</span>
-          <span className="text-xs text-[var(--ink-3)]">{v.kind}{v.anime === true ? " · anime" : ""}</span>
+          <span className="text-sm font-medium text-[var(--ink)] [overflow-wrap:anywhere]" title={admin ? v.key : undefined}>{v.label || nameOf(v.key)}</span>
         </label>
         {note ? <p className="text-xs text-[var(--ink-3)]">{note}</p> : null}
         <div id={`${id}-state`}><VersionStatus state={v.grab_state} showMode settingsKey={v.key} canManage={admin} /></div>
