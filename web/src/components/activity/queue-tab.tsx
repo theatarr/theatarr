@@ -23,7 +23,7 @@ import { ColumnPicker, OptionsDialog } from "@/components/ui/column-picker";
 import { Choice } from "@/components/ui/confirm-dialog";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
 import { fmtAgo, fmtBytes, fmtNumber, fmtTime, nameWithoutYear } from "@/lib/format";
-import { bulkWords, filterDownloads, needsAttention, showCounts, SHOWS, STAGE_MEANINGS, stageLabel, stageMeaning, timing, type ActivityShow } from "@/lib/activity";
+import { bulkWords, failedLead, filterDownloads, needsAttention, showCounts, SHOWS, STAGE_MEANINGS, stageLabel, stageMeaning, timing, type ActivityShow } from "@/lib/activity";
 import {
   isQueueSortColumn,
   nextQueueSort,
@@ -43,7 +43,8 @@ import { adminLink, journalLink } from "@/lib/admin-links";
 import { FAILED_WORDS } from "@/lib/request-timeline";
 import { ProviderTag } from "@/components/provider-pills";
 import { InfoHash } from "@/components/title/info-hash";
-import { attemptCodeWords, attemptOutcomeWords, cacheSourceWords, cacheStateWords } from "@/lib/router-words";
+import { attemptCodeWords, attemptMessageWords, attemptOutcomeWords, cacheSourceWords, cacheStateWords } from "@/lib/router-words";
+import { InteractiveSearchButton, type SearchScope } from "@/components/title/interactive-search";
 
 const WORD_TONE = {
   active: "text-[var(--accent-ink)]",
@@ -103,7 +104,7 @@ function DownloadDetails({ d }: { d: ActivityDownload }) {
                     {a.code && attemptCodeWords(a.code).toLowerCase() !== attemptOutcomeWords(a.outcome).toLowerCase() ? ` · ${attemptCodeWords(a.code)}` : ""}
                   </Badge>
                   <span className="text-xs text-muted-foreground">{fmtTime(a.at)}</span>
-                  {a.message ? <span className="w-full break-words text-xs text-muted-foreground">{a.message}</span> : null}
+                  {a.message ? <span className="w-full break-words text-xs text-muted-foreground" title={a.message}>{attemptMessageWords(a.message)}</span> : null}
                 </li>
               ))}
             </ul>
@@ -326,14 +327,35 @@ function queueColumns(now: number): { fixed: DataColumn<ActivityDownload>[]; opt
   };
 }
 
-/** The open row's panel: the steps, then the release, hash, message, provider attempts, cache evidence and journal. */
+/** The interactive search a failed download's panel offers: its library, and its season when all its episodes are
+ *  in one. */
+function searchScope(d: ActivityDownload): SearchScope {
+  const seasons = new Set((d.episodes ?? []).map((e) => /^S(\d+)E/.exec(e)?.[1]).filter(Boolean).map(Number));
+  return { titleId: d.title.id, version: d.version, season: seasons.size === 1 ? [...seasons][0] : undefined };
+}
+
+/** The open row's panel: the steps, then the release, hash, message, provider attempts, cache evidence and journal.
+ *  A failed download leads with one sentence and Interactive search; its details are folded under Details. */
 function OpenPanel({ d }: { d: ActivityDownload }) {
+  const lead = failedLead(d);
+  const manage = usePerms().manage;
   return (
     <div data-testid="download-open">
+      {lead ? (
+        <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2" data-testid="failed-lead">
+          <p className="min-w-0 max-w-2xl text-sm text-[var(--ink)]">{lead}</p>
+          {manage && d.title.id ? <InteractiveSearchButton {...searchScope(d)} size="sm" /> : null}
+        </div>
+      ) : null}
       <div className="max-w-xl">
         <StepTrack steps={d.steps} />
       </div>
-      <DownloadDetails d={d} />
+      {lead ? (
+        <details className="mt-3" data-testid="failed-details">
+          <summary className="cursor-pointer text-sm text-primary">Details</summary>
+          <DownloadDetails d={d} />
+        </details>
+      ) : <DownloadDetails d={d} />}
     </div>
   );
 }

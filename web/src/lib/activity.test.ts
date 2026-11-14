@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { activityHref } from "./copies";
-import { downloadHref, filterDownloads, fmtSpan, SHOWS, isWaiting, needsAttention, parseShow, showCounts, STAGE_MEANINGS, stageLabel, stageMeaning, timing } from "./activity";
+import { downloadHref, failedLead, filterDownloads, fmtSpan, SHOWS, isWaiting, needsAttention, parseShow, showCounts, STAGE_MEANINGS, stageLabel, stageMeaning, timing } from "./activity";
 
 const NOW = Date.parse("2026-10-26T12:00:00Z");
 const ago = (ms: number) => new Date(NOW - ms).toISOString();
@@ -107,5 +107,17 @@ describe("household words and links", () => {
   it("calls the attention filter 'Needs a look' for a household account and links one download", () => {
     expect(SHOWS.find((s) => s.id === "attention")?.userLabel).toBe("Needs a look");
     expect(downloadHref(42)).toBe("/activity?open=42");
+  });
+});
+
+describe("failedLead", () => {
+  it("leads a failure with what happened and what helps", () => {
+    expect(failedLead({ state: "failed", error: "stalled: not ready" })).toMatch(/^It stalled at the provider/);
+    expect(failedLead({ state: "failed", error: "ready timeout: not imported after 6h0m0s" })).toMatch(/^It finished at the provider but was not linked in time/);
+    expect(failedLead({ state: "failed", error: "miss on every provider" })).toMatch(/^No provider has this release cached/);
+    expect(failedLead({ state: "ready", import_state: "rejected" })).toBe("The library did not take its files. Import now tries again; Interactive search lets you choose another.");
+    expect(failedLead({ state: "failed", error: "provider status error" })).toMatch(/^The download failed\./);
+    expect(failedLead({ state: "failed", not_started: true, error: "x" })).toBe("");
+    expect(failedLead({ state: "downloading" })).toBe("");
   });
 });

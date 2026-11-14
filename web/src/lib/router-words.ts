@@ -1,6 +1,7 @@
 // The router's codes in words (internal/router, internal/provider/adder): what each provider attempt came to, its
 // step code, and the cache evidence a hash has. Unknown codes are made readable; the raw code stays in the title.
 import { wordsFor } from "./code-words";
+import { fmtGoDuration } from "./format";
 
 const OUTCOMES: Record<string, string> = {
   accepted: "Added",
@@ -115,4 +116,18 @@ export function backoffWords(subject: string | null | undefined): string {
   const i = s.indexOf(":");
   const kind = i < 0 ? "" : BACKOFF_KINDS[s.slice(0, i)];
   return kind ? `${kind} ${s.slice(i + 1)} is backed off` : `${s || "A source"} is backed off`;
+}
+
+/** The provider attempts' messages that name a setting by its key (internal/router pacing.go blocked, router.go),
+ *  in words: "min_gap 20s since the last add" → "Waiting for the 20 s minimum gap between adds". Any other message
+ *  is returned as it is. */
+export function attemptMessageWords(m: string | null | undefined): string {
+  if (!m) return "";
+  let x: RegExpExecArray | null;
+  if ((x = /^min_gap (\S+) since the last add$/.exec(m))) return `Waiting for the ${fmtGoDuration(x[1])} minimum gap between adds`;
+  if ((x = /^adds_per_minute (\d+) used$/.exec(m))) return `All ${x[1]} adds a minute are used; waiting for the next minute`;
+  if ((x = /^uncached_adds_per_hour (\d+) used$/.exec(m))) return `All ${x[1]} uncached adds an hour are used; waiting for the next hour`;
+  if (m === "known uncached here and cached_only is on") return "Skipped: known not cached here, and Only add cached releases is on";
+  if (m === "missed on every provider, or refused here with a 451, within miss_ttl") return "Skipped: it missed on every provider (or was refused here) within the time uncached results are remembered";
+  return m;
 }

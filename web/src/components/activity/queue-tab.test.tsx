@@ -194,3 +194,19 @@ it("keeps a not-started row's own words, with no reason or release line", async 
   expect(within(row).getByTestId("words").textContent).toBe("Downloads were off when it was due to start");
   expect(within(row).queryByTestId("failed-release")).toBeNull();
 });
+
+it("opens a failed download with one sentence and Interactive search, its attempts folded under Details in words", async () => {
+  const stalled = { ...base, id: 50, title: { id: 5, name: "Epsilon", kind: "series", poster: "" }, version: "tv-2160p", state: "failed", words: "Failed", error: "stalled: not ready 10m0s after the add", release: "Epsilon.S02E03.2160p", info_hash: "ee", episodes: ["S02E03", "S02E04"] };
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: me },
+    { method: "GET", path: "/activity", reply: { state: "now", admin: true, total: 1, now: [stalled] } },
+    { method: "GET", path: "/activity/downloads/50/attempts", reply: { attempts: [{ provider: "rd", outcome: "deferred", code: "paced", message: "min_gap 20s since the last add", at: "2026-10-30T00:00:00Z" }] } },
+  ]);
+  renderPage(<QueueTab admin show="all" onShow={() => {}} />, "/activity?open=50");
+  const lead = await screen.findByTestId("failed-lead");
+  expect(lead.textContent).toContain("It stalled at the provider and was dropped. Retry sends the same release again; Interactive search lets you choose another.");
+  expect(within(lead).getByTestId("interactive-search-open").textContent).toContain("Interactive search");
+  const details = screen.getByTestId("failed-details") as HTMLDetailsElement;
+  expect(details.open).toBe(false);
+  expect(await within(details).findByText("Waiting for the 20 s minimum gap between adds")).toBeTruthy();
+});
