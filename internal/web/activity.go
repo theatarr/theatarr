@@ -626,10 +626,15 @@ func waitTimes(d *activity.Download, now time.Time) (since, retry *time.Time) {
 	return since, retry
 }
 
-// nowDownloads are running downloads and undismissed failures, newest first.
+// nowDownloads are running downloads, newest first; for callers who see files (admin) also the failures that
+// still need a look (activity.NativeQueueFailureSQL). Household accounts and "View as a user" see downloads in
+// progress only.
 func (w *Web) nowDownloads(ctx context.Context, admin bool, kind string, titleID int64,
 	scope requestScope) ([]ActivityDownload, error) {
-	f := activity.Filter{States: append(slices.Clone(activity.InHand), "failed"), Undismissed: true}
+	f := activity.Filter{States: activity.InHand, Undismissed: true}
+	if admin {
+		f.States, f.QueueAt = nil, w.now()
+	}
 	if titleID > 0 {
 		f.TitleIDs = []int64{titleID}
 	}

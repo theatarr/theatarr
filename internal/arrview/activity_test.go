@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/theatarr/theatarr/internal/web"
 )
@@ -51,7 +52,7 @@ func TestActivityMatchesQueue(t *testing.T) {
 	e.exec(`INSERT INTO library_import (download_id, state, created_at, updated_at) VALUES (5, 'waiting_mount', ?, ?)`,
 		created, created)
 
-	w, err := web.New(web.Config{Store: e.st, Auth: e.au, Policy: e.pol,
+	w, err := web.New(web.Config{Store: e.st, Auth: e.au, Policy: e.pol, Now: func() time.Time { return testNow },
 		Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
 	if err != nil {
 		t.Fatal(err)
@@ -88,10 +89,11 @@ func TestActivityMatchesQueue(t *testing.T) {
 	if pending != 1 {
 		t.Errorf("stalled download missing its failedPending state: %+v", radarr.Records)
 	}
-	if sonarr.TotalRecords != 2 || episodes != 3 {
+	// The miss on every provider (download 10) is History only, in both queues.
+	if sonarr.TotalRecords != 2 || episodes != 2 {
 		t.Errorf("activity now has %d episodes, the Sonarr queue %d (want 2)", episodes, sonarr.TotalRecords)
 	}
-	if now.Counts["total"] != 9 || now.Total != 9 {
+	if now.Counts["total"] != 8 || now.Total != 8 {
 		t.Errorf("counts %v total %d", now.Counts, now.Total)
 	}
 	for _, s := range []string{"queued", "adding", "added", "downloading", "ready", "importing"} {

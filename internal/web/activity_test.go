@@ -668,8 +668,8 @@ func TestNotStartedMirrorsRouterGate(t *testing.T) {
 	}
 }
 
-// A queued download ended because downloads were off reads as not started, not as a failure: in Activity (words, no
-// failed step, the admin's plain message) and in History.
+// A queued download ended because downloads were off reads as not started, not as a failure: History only (not the
+// queue), and where a view shows it (words, no failed step, the admin's plain message).
 func TestActivityNotStartedDownload(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t)
@@ -679,10 +679,18 @@ func TestActivityNotStartedDownload(t *testing.T) {
 		hashA, "route ended: "+router.ErrDisabled.Error(), now, now)
 	key := e.apiKey()
 	var p ActivityPage
-	if code := e.getKey(APIBase+"/activity", key, &p); code != 200 || len(p.Now) != 1 {
+	if code := e.getKey(APIBase+"/activity", key, &p); code != 200 || len(p.Now) != 0 {
 		t.Fatalf("activity: %d %+v", code, p)
 	}
-	d := p.Now[0]
+	ds, err := activity.Downloads(context.Background(), e.st.Reader(), activity.Filter{IDs: []int64{1}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	views, err := e.web.downloadViews(context.Background(), ds, true)
+	if err != nil || len(views) != 1 {
+		t.Fatalf("views: %+v, %v", views, err)
+	}
+	d := views[0]
 	if !d.NotStarted || d.Words != "Downloads were off when it was due to start" ||
 		d.Error != "Nothing was added to a provider. Use Retry once downloads are on again." {
 		t.Errorf("not started: %+v", d)
@@ -704,13 +712,9 @@ func TestActivityNotStartedDownload(t *testing.T) {
 	e.exec(`INSERT INTO download_attempt (download_id, provider, outcome, code, retry_at, attempted_at)
 		VALUES (2, 'rd', 'refused', 'too_many_active', ?, ?), (1, 'rd', 'deferred', 'paced', ?, ?)`, now, now, now, now)
 	p = ActivityPage{}
-	if code := e.getKey(APIBase+"/activity", key, &p); code != 200 || len(p.Now) != 2 {
+	if code := e.getKey(APIBase+"/activity", key, &p); code != 200 || len(p.Now) != 1 || p.Now[0].ID != 2 ||
+		p.Now[0].NotStarted || p.Now[0].Words != "Download failed" {
 		t.Fatalf("activity: %d %+v", code, p)
-	}
-	for _, d := range p.Now {
-		if want := d.ID == 1; d.NotStarted != want || (d.Words == "Download failed") == want {
-			t.Errorf("download %d: not started %v, words %q", d.ID, d.NotStarted, d.Words)
-		}
 	}
 	// The requests' SQL selects exactly the rows the Go check reads as not started.
 	for _, text := range []string{"route ended: " + router.ErrShadow.Error(), "route stopped: router: the version's grab switch is off; nothing is written for it",
@@ -973,5 +977,119 @@ func TestReleaseDateChoice(t *testing.T) {
 	e.getKey(APIBase+"/titles?kind=movie&sort=release&order=asc", key, &p)
 	if len(p.Items) < 2 || p.Items[0].ID != 1 || p.Items[1].ID != 2 {
 		t.Errorf("release sort by the first cinema date: %+v", p.Items)
+	}
+}
+
+// The queue (Activity › Queue, System › Status) is a reader rule over failed downloads (activity.NativeQueueFailureSQL):
+// a miss on every provider and a download never started go to History only; any other failure stays until a newer
+// imported download of the same title and library covers all of its episodes, or for 7 days. Household accounts and
+// "View as a user" see downloads in progress only. Reading it changes no row, and History keeps every failure.
+func TestActivityQueueFailureRule(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	key := e.apiKey()
+	now := store.Millis(testNow)
+	old := store.Millis(testNow.Add(-8 * 24 * time.Hour))
+	e.exec(`INSERT INTO version (id, title_id, policy_key, state, created_at, updated_at) VALUES (9, 3, 'tv-2160p', 'wanted', ?, ?)`,
+		now, now)
+	e.exec(`INSERT INTO episode (id, title_id, season, number, created_at, updated_at) VALUES (31, 3, 1, 1, ?, ?),
+		(32, 3, 1, 2, ?, ?), (33, 3, 1, 3, ?, ?)`, now, now, now, now, now, now)
+	type row struct {
+		id, title, version int
+		key, state, eps    string
+		err                any
+		updated            int64
+	}
+	for _, r := range []row{
+		{1, 1, 2, "movie-web", "failed", "[]", "miss on every provider", now},
+		{2, 1, 2, "movie-web", "failed", "[]", "route ended: " + router.ErrDisabled.Error(), now},
+		{3, 1, 2, "movie-web", "failed", "[]", "stalled: not ready 10m0s after the add", now},
+		{4, 1, 2, "movie-web", "failed", "[]", "ready timeout: not imported after 6h0m0s", now},
+		{5, 1, 2, "movie-web", "failed", "[]", "provider status error: 503", now},
+		{6, 1, 1, "movie-remux", "failed", "[]", "stalled: not ready", now},
+		{7, 1, 1, "movie-remux", "imported", "[]", nil, now},
+		{8, 1, 1, "movie-remux", "failed", "[]", "stalled: not ready", now},
+		{9, 2, 3, "movie-web", "failed", "[]", "stalled: not ready", old},
+		{11, 3, 9, "tv-2160p", "failed", "[31,32]", "stalled: not ready", now},
+		{12, 3, 9, "tv-2160p", "imported", "[31]", nil, now},
+		{13, 3, 9, "tv-2160p", "failed", "[33]", "stalled: not ready", now},
+		{14, 3, 9, "tv-2160p", "imported", "[32,33]", nil, now},
+		{15, 2, 3, "movie-web", "downloading", "[]", nil, now},
+	} {
+		e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, episodes,
+			state, error, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 'dmm', ?, ?, ?, ?, ?)`,
+			r.id, r.title, r.version, r.key, fmt.Sprintf("%040x", r.id), fmt.Sprintf("Release.%d", r.id), r.eps,
+			r.state, r.err, r.updated, r.updated)
+	}
+	e.exec(`INSERT INTO download_attempt (download_id, provider, outcome, code, attempted_at) VALUES
+		(1, 'rd', 'skipped', 'uncached', ?), (3, 'rd', 'accepted', '', ?)`, now, now)
+	snapshot := func() string {
+		var b strings.Builder
+		for _, table := range []string{"download", "download_attempt", "library_import", "router_blocklist"} {
+			rows, err := e.st.Reader().Query(`SELECT * FROM ` + table + ` ORDER BY rowid`)
+			if err != nil {
+				t.Fatal(err)
+			}
+			cols, _ := rows.Columns()
+			for rows.Next() {
+				vals := make([]any, len(cols))
+				ptrs := make([]any, len(cols))
+				for i := range vals {
+					ptrs[i] = &vals[i]
+				}
+				if err := rows.Scan(ptrs...); err != nil {
+					t.Fatal(err)
+				}
+				fmt.Fprintf(&b, "%s %v\n", table, vals)
+			}
+			rows.Close()
+		}
+		return b.String()
+	}
+	before := snapshot()
+	ids := func(p ActivityPage) []int64 {
+		var out []int64
+		for _, d := range p.Now {
+			out = append(out, d.ID)
+		}
+		return out
+	}
+	var a, u ActivityPage
+	e.getKey(APIBase+"/activity?state=now", key, &a)
+	if got, want := ids(a), []int64{15, 11, 8, 5, 4, 3}; !slices.Equal(got, want) {
+		t.Errorf("admin queue %v, want %v", got, want)
+	}
+	e.getKey(APIBase+"/activity?state=now&as=user", key, &u)
+	if got := ids(u); !slices.Equal(got, []int64{15}) {
+		t.Errorf("user view %v, want only the download in progress", got)
+	}
+	// A household account (no "see files") sees in-progress downloads only, whatever its requests cover.
+	uid := e.account("ann", auth.RoleUser, auth.StatusActive, true)
+	e.exec(`INSERT INTO request (user_id, kind, tmdb_id, title_id, name, versions, status, created_at, updated_at)
+		VALUES (?, 'movie', 101, 1, 'Alpha', '["movie-web"]', 'approved', ?, ?), (?, 'movie', 102, 2, 'Beta', '["movie-web"]',
+		'approved', ?, ?)`, uid, now, now, uid, now, now)
+	ukey, _, err := e.auth.CreateKey(context.Background(), "k-ann", uid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var h ActivityPage
+	e.getKey(APIBase+"/activity?state=now", ukey, &h)
+	if got := ids(h); !slices.Equal(got, []int64{15}) {
+		t.Errorf("household queue %v, want only the download in progress", got)
+	}
+	if after := snapshot(); after != before {
+		t.Errorf("reading the queue changed rows:\nbefore %s\nafter %s", before, after)
+	}
+	// History still lists the failures the queue leaves out.
+	var hist ActivityPage
+	e.getKey(APIBase+"/activity?state=history&title_id=1&limit=200", key, &hist)
+	seen := map[string]bool{}
+	for _, x := range hist.History {
+		seen[x.ID] = true
+	}
+	for _, id := range []string{"dl:1:fail", "dl:2:fail", "dl:6:fail"} {
+		if !seen[id] {
+			t.Errorf("history lacks %s: %v", id, seen)
+		}
 	}
 }

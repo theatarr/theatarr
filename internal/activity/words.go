@@ -186,6 +186,10 @@ const triedColumnSQL = "CASE WHEN d.state = 'failed' THEN EXISTS (SELECT 1 FROM 
 const NotStartedSQL = "((COALESCE(error, '') GLOB 'route ended: router: *' OR COALESCE(error, '') GLOB 'route stopped: router: *')" +
 	" AND NOT EXISTS (SELECT 1 FROM download_attempt a WHERE a.download_id = download.id AND " + triedSQL + "))"
 
+// notStartedAliasSQL is NotStartedSQL on the download alias d.
+const notStartedAliasSQL = "((COALESCE(d.error, '') GLOB 'route ended: router: *' OR COALESCE(d.error, '') GLOB 'route stopped: router: *')" +
+	" AND NOT EXISTS (SELECT 1 FROM download_attempt a WHERE a.download_id = d.id AND " + triedSQL + "))"
+
 // Tried says whether a provider attempt (download_attempt's outcome and code) is evidence that the download was tried
 // at a provider or client: an add that was sent, or a client add. Pacing waits and skips are not.
 func Tried(outcome, code string) bool {
