@@ -17,24 +17,27 @@ const ROLES = {
 };
 
 const paths = (groups: NavGroup[]) => flatItems(groups).map((i) => i.to);
-const ADMIN_PAGES = ["/admin", "/admin", ...["tasks", "backup", "errors", "logs"].map(p => `/admin/system/${p}`), "/admin/reviews", "/admin/torrents", "/admin/settings",
- ...["libraries", "profiles", "formats", "quality-sync", "indexers", "downloads", "notifications", "plex", "metadata", "apps"].map(p => `/admin/settings/${p}`),
+const ADMIN_PAGES = ["/admin", "/admin", ...["tasks", "backup", "errors", "logs", "journal"].map(p => `/admin/system/${p}`), "/admin/reviews", "/admin/torrents", "/admin/settings",
+ ...["libraries", "profiles", "formats", "quality-sync", "indexers", "downloads", "import-lists", "notifications", "plex", "metadata", "apps"].map(p => `/admin/settings/${p}`),
  "/admin/users", "/admin/advanced", ...["config", "history", "limits"].map(p => `/admin/advanced/${p}`)];
 const MAIN = ["/", "/movies", "/series", "/anime", "/requests", "/activity", "/now-playing", "/calendar"];
 // Managers and admins also have Collections in Library.
 const MAIN_MANAGE = MAIN.flatMap(p => p === "/anime" ? [p, "/collections"] : [p]);
-const MORE = ["/activity", "/now-playing", "/calendar"];
+// Activity is a phone tab, so More starts with Wanted (managers), Now playing and Calendar.
+const MORE = ["/now-playing", "/calendar"];
 
 describe("navigation by role", () => {
-  it("users and managers see the main entries and no Admin; managers also Wanted", () => {
+  it("users see the main entries and no Admin; managers also Wanted, and Import lists in Admin", () => {
     // Managers also have Wanted, after Activity.
     const withWanted = (l: string[]) => l.flatMap(p => p === "/activity" ? [p, "/wanted"] : [p]);
-    for (const [p, main, more] of [[ROLES.user, MAIN, MORE], [ROLES.manager, withWanted(MAIN_MANAGE), withWanted(MORE)]] as const) {
-      const g = navFor(p);
-      expect(g.map((x) => x.id)).toEqual(["main"]);
-      expect(paths(g)).toEqual(main);
-      expect(paths(moreFor(p))).toEqual(more);
-    }
+    const user = navFor(ROLES.user);
+    expect(user.map((x) => x.id)).toEqual(["main"]);
+    expect(paths(user)).toEqual(MAIN);
+    expect(paths(moreFor(ROLES.user))).toEqual(MORE);
+    const manager = navFor(ROLES.manager);
+    expect(manager.map((x) => x.id)).toEqual(["main", "admin"]);
+    expect(paths(manager)).toEqual([...withWanted(MAIN_MANAGE), "/admin/settings/import-lists"]);
+    expect(paths(moreFor(ROLES.manager))).toEqual(["/wanted", ...MORE, "/admin/settings/import-lists"]);
   });
   it("admins see the main entries, then Admin with every page", () => {
     const g = navFor(ROLES.admin);
@@ -42,14 +45,16 @@ describe("navigation by role", () => {
     expect(g[0].items.map((i) => i.label)).toEqual(["Home", "Library", "Requests", "Activity", "Wanted", "Now playing", "Calendar"]);
     expect(g[1].items.map((i) => i.label)).toEqual(["System", "Reviews", "Torrents", "Settings", "Users & access", "Advanced"]);
     expect(paths(g)).toEqual([...MAIN_MANAGE.flatMap(p => p === "/activity" ? [p, "/wanted"] : [p]), ...ADMIN_PAGES]);
-    expect(paths(moreFor(ROLES.admin)).sort()).toEqual(["/activity", "/wanted", "/now-playing", "/calendar", ...ADMIN_PAGES.slice(1)].sort());
+    // Admins reach Import lists under Settings only.
+    expect(paths(g).filter(p => p === "/admin/settings/import-lists")).toHaveLength(1);
+    expect(paths(moreFor(ROLES.admin)).sort()).toEqual(["/wanted", "/now-playing", "/calendar", ...ADMIN_PAGES.slice(1)].sort());
   });
   it("an account with only the users bit sees Users & access alone", () => {
     expect(paths(navFor(ROLES.usersOnly))).toEqual([...MAIN, "/admin/users"]);
     expect(paths(moreFor(ROLES.usersOnly))).toEqual([...MORE, "/admin/users"]);
   });
-  it("phone tabs are the same for everyone", () => {
-    expect(TABS.map((t) => t.label)).toEqual(["Home", "Browse", "Search", "Requests", "More"]);
+  it("phone tabs are the same for everyone: Activity in the bar, search in the header", () => {
+    expect(TABS.map((t) => t.label)).toEqual(["Home", "Browse", "Activity", "Requests", "More"]);
   });
 });
 
@@ -62,11 +67,13 @@ describe("active entries", () => {
     expect(tabFor("/title/515")).toBe("browse");
     expect(tabFor("/title/515/releases")).toBe("browse");
     expect(tabFor("/discover/missing")).toBe("browse");
-    expect(tabFor("/search")).toBe("search");
+    expect(tabFor("/search")).toBe("browse");
     expect(tabFor("/requests/all")).toBe("requests");
     expect(tabFor("/wanted/cutoff")).toBe("more");
-    expect(tabFor("/activity/history")).toBe("more");
-    expect(tabFor("/activity/journal/dl:3")).toBe("more");
+    expect(tabFor("/activity")).toBe("activity");
+    expect(tabFor("/activity/history")).toBe("activity");
+    expect(tabFor("/admin/system/journal/dl:3")).toBe("more");
+    expect(tabFor("/admin/settings/import-lists")).toBe("more");
     expect(tabFor("/wanted/manual-import")).toBe("more");
     expect(tabFor("/now-playing")).toBe("more");
     expect(tabFor("/admin/system/logs")).toBe("more");
@@ -75,7 +82,8 @@ describe("active entries", () => {
   it("finds the deepest item; Status only on /admin itself", () => {
     expect(itemFor("/admin")?.label).toBe("Status");
     expect(itemFor("/admin/system/tasks")?.label).toBe("Tasks");
-    expect(itemFor("/activity/journal/dl:3")?.label).toBe("Activity");
+    expect(itemFor("/admin/system/journal/dl:3")?.label).toBe("Decision journal");
+    expect(itemFor("/admin/settings/import-lists")?.label).toBe("Import lists");
     expect(itemFor("/wanted/manual-import")?.label).toBe("Wanted");
     expect(itemFor("/admin/advanced")?.label).toBe("Advanced");
     expect(itemFor("/movies")?.label).toBe("Movies");
@@ -128,13 +136,22 @@ it("keeps the Setup link until an install goes live or passes readiness, and nev
  expect(setupLinkShown({ first_run: false, missing: ["no debrid mount"] } as unknown as SetupState, true, true)).toBe(true);
 });
 
-it("phone sections keep all children visible as vertical lists and preserve badges", () => {
+it("the phone's More lists top-level pages; System, Settings and Advanced open on a tap and keep their badges", () => {
  const groups = moreFor(ROLES.admin);
- expect(groups.filter(g => g.id !== "more" && g.id !== "admin").map(g => g.label)).toEqual(["System", "Settings", "Users & access", "Advanced"]);
+ expect(groups.map(g => g.id)).toEqual(["more", "admin"]);
+ const admin = groups[1].items;
+ expect(admin.map(i => i.label)).toEqual(["System", "Reviews", "Torrents", "Settings", "Users & access", "Advanced"]);
  expect(new Set(paths(groups)).size).toBe(paths(groups).length);
- expect(groups.find(g => g.label === "System")?.items.find(i => i.label === "Status")?.badge).toBe("system");
- expect(groups.flatMap(g => g.items).every(i => !i.children && !i.childrenWhenActive)).toBe(true);
- expect(groups.find(g => g.label === "System")?.items.find(i => i.label === "Tasks")?.badge).toBe("jobs");
- expect(groups.find(g => g.label === "System")?.items.find(i => i.label === "Errors")?.badge).toBe("errors");
- expect(groups.find(g => g.id === "admin")?.items.find(i => i.label === "Reviews")?.badge).toBe("reviews");
+ const system = admin.find(i => i.label === "System")!;
+ // A group: no page of its own (a tap opens it), closed at first, with its pages inside.
+ expect(system.to).toBeUndefined();
+ expect(system.startCollapsed).toBe(true);
+ expect(system.badge).toBe("system");
+ expect(system.children?.find(i => i.label === "Status")?.badge).toBe("system");
+ expect(system.children?.find(i => i.label === "Tasks")?.badge).toBe("jobs");
+ expect(system.children?.find(i => i.label === "Errors")?.badge).toBe("errors");
+ expect(admin.find(i => i.label === "Settings")?.children?.[0]).toMatchObject({ to: "/admin/settings", label: "All settings" });
+ expect(admin.find(i => i.label === "Advanced")?.children?.[0]).toMatchObject({ to: "/admin/advanced", label: "Advanced overview" });
+ expect(admin.find(i => i.label === "Reviews")?.badge).toBe("reviews");
+ expect(admin.filter(i => i.label !== "System" && i.label !== "Settings" && i.label !== "Advanced").every(i => !i.children?.length)).toBe(true);
 });

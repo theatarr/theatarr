@@ -1,10 +1,12 @@
 import { ADVANCED_SETTINGS_PAGES, SETTINGS_PAGES } from "@/lib/settings-map";
-// The navigation (docs/design/ui.md). Desktop: Home, Library (Movies, Series, Anime; Collections for managers), Requests, Activity, Now playing,
-// System, Settings and Advanced reveal their children only while open. The Decision journal is a tab of Activity and
-// Manual import a tab of Wanted (both admin only), so neither has an entry of its own.
-// Calendar, then Admin as its own group for accounts with admin pages (Users & access needs the users permission, the
-// rest admin). Phone: bottom tabs Home, Browse (Movies, Series, Anime), Search, Requests, More; More holds Activity,
-// Now playing, Calendar and the admin pages the account may open. The server enforces the permissions; this only hides what would fail.
+// The navigation (docs/design/ui.md). Desktop: Home, Library (Movies, Series, Anime; Collections for managers), Requests,
+// Activity, Wanted (managers), Now playing, Calendar, then Admin as its own group for accounts with admin pages (Users &
+// access needs the users permission, the rest admin). System, Settings and Advanced reveal their children only while
+// open. The Decision journal is a page of System; Manual import a tab of Wanted (admin only). Import lists are a
+// Settings page; a manager, who has no Settings, finds them in Admin. Phone: bottom tabs Home, Browse (Movies, Series,
+// Anime), Activity, Requests, More (search stays in the header); More lists Wanted, Now playing, Calendar and the admin
+// pages the account may open, top level only: System, Settings and Advanced open their pages on a tap. The server
+// enforces the permissions; this only hides what would fail.
 import {
   Activity,
   Bell,
@@ -24,6 +26,7 @@ import {
   Import,
   Inbox,
   KeyRound,
+  ListVideo,
   Library,
   LayoutGrid,
   ListChecks,
@@ -54,6 +57,10 @@ export type NavItem = {
   children?: NavItem[];
   /** Show the children only while the parent’s pages are open (Settings and Advanced). */
   childrenWhenActive?: boolean;
+  /** Not for admins: they reach the page elsewhere (a manager's Import lists; admins have them under Settings). */
+  unlessAdmin?: boolean;
+  /** A group of the phone's More sheet: its children show once tapped open. */
+  startCollapsed?: boolean;
 };
 export type NavGroup = { id: string; label?: string; items: NavItem[] };
 
@@ -86,11 +93,13 @@ const ADMIN: NavGroup = {
       { to: "/admin/system/backup", label: "Backup", icon: Database },
       { to: "/admin/system/errors", label: "Errors", icon: Bug, badge: "errors" },
       { to: "/admin/system/logs", label: "Logs", icon: ScrollText },
+      { to: "/admin/system/journal", label: "Decision journal", icon: BookOpen },
     ] },
     { to: "/admin/reviews", label: "Reviews", icon: ListChecks, need: "admin", badge: "reviews" },
     { to: "/admin/torrents", label: "Torrents", icon: HardDrive, need: "admin" },
     { to: "/admin/settings", label: "Settings", icon: SlidersHorizontal, need: "admin", children: SETTINGS, childrenWhenActive: true },
     { to: "/admin/users", label: "Users & access", icon: KeyRound, need: "users" },
+    { to: "/admin/settings/import-lists", label: "Import lists", icon: ListVideo, need: "manage", unlessAdmin: true },
     { to: "/admin/advanced", label: "Advanced", icon: Wrench, need: "admin", children: ADVANCED, childrenWhenActive: true },
   ],
 };
@@ -120,6 +129,7 @@ export function allowed(items: NavItem[], can: Can): NavItem[] {
   for (const it of items) {
     if (it.need && !can[it.need]) continue;
     if (it.setupOnly && !can.setupUnfinished) continue;
+    if (it.unlessAdmin && can.admin) continue;
     if (it.children) {
       const children = allowed(it.children, can);
       if (children.length === 0 && !it.to) continue;
@@ -140,35 +150,41 @@ export function navFor(can: Can): NavGroup[] {
   return groupsFor(NAV, can);
 }
 
-/** The phone tabs; Browse and More open sheets. */
-export type Tab = { id: "home" | "browse" | "search" | "requests" | "more"; label: string; icon: LucideIcon; to?: string; badge?: NavBadge };
+/** The phone tabs; Browse and More open sheets. Search is the header's. */
+export type Tab = { id: "home" | "browse" | "activity" | "requests" | "more"; label: string; icon: LucideIcon; to?: string; badge?: NavBadge };
 export const TABS: Tab[] = [
   { id: "home", label: "Home", icon: Home, to: "/" },
   { id: "browse", label: "Browse", icon: BookOpen },
-  { id: "search", label: "Search", icon: Search, to: "/search" },
+  { id: "activity", label: "Activity", icon: Activity, to: "/activity" },
   { id: "requests", label: "Requests", icon: Inbox, to: "/requests", badge: "requests" },
   { id: "more", label: "More", icon: SlidersHorizontal },
 ];
 
-/** What the phone's More sheet holds: Activity, Now playing and Calendar, then the admin pages the account may open. */
+/** The label of a group's own page inside its More group (System's is its Status child). */
+const OWN_PAGE: Record<string, string> = { Settings: "All settings", Advanced: "Advanced overview" };
+
+/** What the phone's More sheet holds: Wanted, Now playing and Calendar, then the admin pages the account may open, top
+ *  level only. System, Settings and Advanced are groups that open on a tap, their own page first. */
 export function moreFor(can: Can): NavGroup[] {
-  const admin = allowed(ADMIN.items, can);
-  const standalone = admin.filter(it => !it.children && it.label !== "Users & access");
-  const sections = admin.filter(it => it.children || it.label === "Users & access").map(it => ({
-    id: it.label.toLowerCase().replaceAll(" ", "-"), label: it.label,
-    items: it.label === "System" ? (it.children ?? []).map(child => child.to === it.to ? { ...child, badge: it.badge } : child) : [{ ...it, children: undefined, childrenWhenActive: false }, ...(it.children ?? [])],
-  }));
-  return [{ id: "more", items: allowed([ACTIVITY, WANTED, NOW_PLAYING, CALENDAR], can) }, ...(standalone.length ? [{ id: "admin", label: "Admin", items: standalone }] : []), ...sections];
+  const admin = allowed(ADMIN.items, can).map((it): NavItem => {
+    if (!it.to || !it.children?.length) return it;
+    const own = it.children.some((c) => c.to === it.to) ? [] : [{ to: it.to, label: OWN_PAGE[it.label] ?? it.label, icon: it.icon, need: it.need }];
+    return {
+      label: it.label, icon: it.icon, badge: it.badge, startCollapsed: true,
+      children: [...own, ...it.children].map((c) => (c.to === it.to && it.badge ? { ...c, badge: it.badge } : c)),
+    };
+  });
+  return [{ id: "more", items: allowed([WANTED, NOW_PLAYING, CALENDAR], can) }, ...(admin.length ? [{ id: "admin", label: "Admin", items: admin }] : [])];
 }
 
 /** The tab a path belongs to on the phone (More for everything the tabs do not hold). */
 export function tabFor(pathname: string): Tab["id"] {
   if (pathname === "/") return "home";
-  // A title page or a Home "See all" list belongs to the library the user browses.
-  if (LIBRARY.some((i) => isActive(pathname, i.to!)) || isActive(pathname, "/title") || isActive(pathname, "/discover")) return "browse";
-  if (isActive(pathname, "/search")) return "search";
+  // A title page, a Home "See all" list or the search page belongs to the library the user browses.
+  if (LIBRARY.some((i) => isActive(pathname, i.to!)) || isActive(pathname, "/title") || isActive(pathname, "/discover") || isActive(pathname, "/search")) return "browse";
+  if (isActive(pathname, "/activity")) return "activity";
   if (isActive(pathname, "/requests")) return "requests";
-  if (isActive(pathname, "/wanted") || isActive(pathname, "/activity") || isActive(pathname, "/now-playing") || isActive(pathname, "/calendar") || isActive(pathname, "/admin")) return "more";
+  if (isActive(pathname, "/wanted") || isActive(pathname, "/now-playing") || isActive(pathname, "/calendar") || isActive(pathname, "/admin")) return "more";
   return "home";
 }
 

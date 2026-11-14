@@ -1,5 +1,5 @@
 // The app shell: sidebar (Home, Library, Requests, Activity, Calendar; then Admin), top bar (search, the system
-// signals, account), bottom tabs at phone width (Home, Browse, Search, Requests, More) with Browse and More as sheets
+// signals, account), bottom tabs at phone width (Home, Browse, Activity, Requests, More) with Browse and More as sheets
 // (components/shell/nav.ts holds what each account sees). The look: a
 // sidebar on the paper with a hairline, the current page a sheet with a 3 px accent rule, counts as plain mono
 // figures (amber when they ask for you), the current section's pages under it as in Sonarr v5's PageSidebar; the
@@ -136,7 +136,8 @@ function NavEntry({ it, pathname, onNavigate, collapsed, toggle, depth = 0, sub 
 }) {
   const kids = it.children ?? [];
   const key = `item:${it.label}`;
-  const open = it.childrenWhenActive ? itemActive(pathname, it) : !collapsed.includes(key);
+  // A More group (startCollapsed) is closed until tapped; the stored list then holds it as opened.
+  const open = it.childrenWhenActive ? itemActive(pathname, it) : it.startCollapsed ? collapsed.includes(key) : !collapsed.includes(key);
   const inner = (
     <>
       {sub ? null : <it.icon className="size-4 shrink-0" />}
