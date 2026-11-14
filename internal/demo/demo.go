@@ -177,6 +177,8 @@ type seeder struct {
 	content map[string]int64 // info hash -> content id
 	// arr ids given so far per instance
 	arrTitles, arrFileIDs map[string]int64
+	// historyShown: one imported movie already shows an upgrade's deleted file and its copies (historyExtras).
+	historyShown bool
 }
 
 // exec runs one statement in the transaction and keeps the first error.

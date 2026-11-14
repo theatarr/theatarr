@@ -172,15 +172,21 @@ type ActivityDownload struct {
 	Formats []decide.FormatScore `json:"formats,omitempty"`
 }
 
-// ActivityEvent is one history entry: a journal entry in plain words.
+// ActivityEvent is one History row (journal history.go) in plain words, worded like Radarr's.
 type ActivityEvent struct {
-	ID      string        `json:"id"`
-	At      time.Time     `json:"at"`
-	Kind    string        `json:"kind"`
+	ID   string    `json:"id"`
+	At   time.Time `json:"at"`
+	Kind string    `json:"kind"`
+	// Event is the History event: grabbed, imported, adopted, deleted (for an upgrade), removed (by hand), missing,
+	// failed, blocked, copy_added, copy_not_cached (journal.HistoryEvents).
+	Event   string        `json:"event"`
 	Title   ActivityTitle `json:"title"`
 	Version string        `json:"version,omitempty"`
 	Words   string        `json:"words"`
 	Tone    string        `json:"tone"` // ok, info, warn, bad
+	// Episodes are the row's episodes (S01E02); Files the files a grouped row stands for (adopted, deleted).
+	Episodes []string `json:"episodes,omitempty"`
+	Files    int      `json:"files,omitempty"`
 
 	// Admin only.
 	Summary  string `json:"summary,omitempty"`
@@ -188,15 +194,25 @@ type ActivityEvent struct {
 	Release  string `json:"release,omitempty"`
 	Provider string `json:"provider,omitempty"`
 	Suspect  bool   `json:"suspect,omitempty"`
-	// The release's facts as the journal entry keeps them: a grab's from its download; a link's release title and
-	// quality from the link's download when it has one; a blocklist entry's from the blocked download. Score is
-	// left out when the entry has none.
-	Quality  string               `json:"quality,omitempty"`
-	Score    *int                 `json:"score,omitempty"`
-	Indexer  string               `json:"indexer,omitempty"`
-	Size     int64                `json:"size,omitempty"`
-	Formats  []decide.FormatScore `json:"formats,omitempty"`
-	Episodes []string             `json:"episodes,omitempty"`
+	// The release the row is about (journal.HistoryFacts.Release): a grab's, an import's, a failure's or a block's
+	// download; a deleted or removed row's old file; an adopted file; a copied torrent. Release and Quality are empty
+	// and Score left out when not known (rows from before these facts were recorded).
+	Quality string               `json:"quality,omitempty"`
+	Score   *int                 `json:"score,omitempty"`
+	Indexer string               `json:"indexer,omitempty"`
+	Size    int64                `json:"size,omitempty"`
+	Formats []decide.FormatScore `json:"formats,omitempty"`
+	// Reason: a failure's or a block's reason, a removal's, a partial import's, a copy's message.
+	Reason string `json:"reason,omitempty"`
+	// ReplacedBy is what replaced a deleted row's file.
+	ReplacedBy *HistoryRelease `json:"replaced_by,omitempty"`
+}
+
+// HistoryRelease is a release named on a History row.
+type HistoryRelease struct {
+	Release string `json:"release"`
+	Quality string `json:"quality,omitempty"`
+	Score   *int   `json:"score,omitempty"`
 }
 
 // ActivityBlocked is a release a version never routes again (admin).
@@ -229,9 +245,14 @@ type ActivityPage struct {
 	NextCursor string             `json:"next_cursor,omitempty"`
 }
 
-// historyKinds are the journal kinds the history lists: what happened to downloads, not shadow decisions or plans.
+// historyKinds are the journal kinds History's rows have (the kinds parameter; events is the finer filter).
 var historyKinds = []string{journal.KindGrab, journal.KindUpgrade, journal.KindImport, journal.KindLink,
-	journal.KindFailure, journal.KindStall, journal.KindBlocklist, journal.KindResearch}
+	journal.KindFailure, journal.KindStall, journal.KindBlocklist}
+
+// userHistoryEvents are the History events a caller without "see files" gets: not the provider copies.
+var userHistoryEvents = slices.DeleteFunc(slices.Clone(journal.HistoryEvents), func(ev string) bool {
+	return ev == journal.EvCopyAdded || ev == journal.EvCopyNotCached
+})
 
 var activityKinds = map[string]bool{"": true, "movie": true, "series": true, "anime": true}
 
@@ -282,7 +303,7 @@ func (w *Web) apiActivity(rw http.ResponseWriter, r *http.Request) {
 			page.Counts[d.State]++
 		}
 	case "history":
-		f := journal.Filter{Kinds: historyKinds, Cursor: q.Get("cursor"), Limit: limit,
+		f := journal.Filter{History: true, Cursor: q.Get("cursor"), Limit: limit,
 			Title: strings.TrimSpace(q.Get("title")), Version: strings.TrimSpace(q.Get("version"))}
 		if titleID > 0 {
 			f.Title = strconv.FormatInt(titleID, 10)
@@ -321,7 +342,6 @@ func (w *Web) apiActivity(rw http.ResponseWriter, r *http.Request) {
 			f.Since = t
 		}
 		if v := q.Get("kinds"); v != "" {
-			f.Kinds = nil
 			for _, k := range strings.Split(v, ",") {
 				if k = strings.TrimSpace(k); slices.Contains(historyKinds, k) {
 					f.Kinds = append(f.Kinds, k)
@@ -331,6 +351,23 @@ func (w *Web) apiActivity(rw http.ResponseWriter, r *http.Request) {
 				badRequest(rw, "kinds must be among "+strings.Join(historyKinds, ", "))
 				return
 			}
+		}
+		allowed := journal.HistoryEvents
+		if !admin {
+			allowed = userHistoryEvents
+		}
+		if v := q.Get("events"); v != "" {
+			for _, ev := range strings.Split(v, ",") {
+				if ev = strings.TrimSpace(ev); slices.Contains(allowed, ev) {
+					f.Events = append(f.Events, ev)
+				}
+			}
+			if len(f.Events) == 0 {
+				badRequest(rw, "events must be among "+strings.Join(allowed, ", "))
+				return
+			}
+		} else if !admin {
+			f.Events = allowed
 		}
 		jp, err := w.journal.List(ctx, f)
 		if errors.Is(err, journal.ErrBadFilter) {
@@ -605,7 +642,7 @@ func (w *Web) nowDownloads(ctx context.Context, admin bool, kind string, titleID
 	return w.downloadViews(ctx, ds, admin)
 }
 
-// historyEvents turns journal entries into plain-words history rows.
+// historyEvents turns History's entries (journal.Filter.History) into plain-words rows.
 func (w *Web) historyEvents(ctx context.Context, es []*journal.Entry, admin bool) ([]ActivityEvent, error) {
 	ids := make([]int64, 0, len(es))
 	for _, e := range es {
@@ -623,28 +660,77 @@ func (w *Web) historyEvents(ctx context.Context, es []*journal.Entry, admin bool
 	for _, e := range es {
 		t := activityTitle(e.Title.ID, e.Title.Name, e.Title.Year, e.Title.Kind, anime[e.Title.ID], posters)
 		notStarted := historyNotStarted(e)
-		words, tone := entryWords(e, notStarted)
-		x := ActivityEvent{ID: e.ID, At: e.At, Kind: e.Kind, Title: t, Version: e.Version, Words: words, Tone: tone}
+		h := historyFacts(e)
+		words, tone := entryWords(e, h, notStarted, w.providerTag)
+		x := ActivityEvent{ID: e.ID, At: e.At, Kind: e.Kind, Event: h.Event, Title: t, Version: e.Version, Words: words,
+			Tone: tone, Episodes: h.Episodes, Files: h.Files}
 		if !admin {
 			// Journal ids name their source rows; users get an opaque one.
 			x.ID = opaqueID(e.ID)
 		}
 		if admin {
-			x.Summary, x.Source, x.Suspect = e.Summary, e.Source, e.Suspect
+			x.Summary, x.Source, x.Suspect, x.Provider = e.Summary, e.Source, e.Suspect, h.Provider
+			x.Reason = historyReason(e, h, notStarted, w.providerTag)
 			if notStarted != "" {
 				x.Summary = activity.NotStartedMessage(notStarted) // the journal entry keeps its own text
 			}
-			if r := e.Release; r != nil {
-				x.Release, x.Quality, x.Score, x.Indexer, x.Size = r.Title, r.Quality, r.Score, r.Indexer, r.Size
-				x.Formats, x.Episodes = r.Formats, r.Episodes
+			if r := h.Release; r != nil {
+				x.Release, x.Quality, x.Score, x.Indexer, x.Size, x.Formats = r.Title, r.Quality, r.Score, r.Indexer,
+					r.Size, r.Formats
 			}
-			if e.Download != nil {
-				x.Provider = e.Download.Provider
+			if r := h.ReplacedBy; r != nil {
+				x.ReplacedBy = &HistoryRelease{Release: r.Title, Quality: r.Quality, Score: r.Score}
 			}
 		}
 		out = append(out, x)
 	}
 	return out, nil
+}
+
+// historyFacts are an entry's History facts: the ones History's listing set, else (an entry read without it) its
+// event from its kind, with the entry's own release.
+func historyFacts(e *journal.Entry) *journal.HistoryFacts {
+	if e.Hist != nil {
+		return e.Hist
+	}
+	h := &journal.HistoryFacts{Release: e.Release}
+	if e.Release != nil {
+		h.Episodes = e.Release.Episodes
+	}
+	if e.Download != nil {
+		h.Provider, h.Reason = e.Download.Provider, e.Download.Error
+	}
+	switch e.Kind {
+	case journal.KindGrab, journal.KindUpgrade:
+		h.Event = journal.EvGrabbed
+	case journal.KindImport:
+		h.Event = journal.EvImported
+		if e.Import != nil && (e.Import.State == "rejected" || e.Import.State == "failed") {
+			h.Event = journal.EvFailed
+		}
+	case journal.KindLink:
+		h.Event = journal.EvAdopted
+		if e.Import != nil && len(e.Import.Links) > 0 {
+			switch e.Import.Links[0].Kind {
+			case "replace":
+				h.Event = journal.EvRemoved
+				if len(e.Related) > 0 {
+					h.Event = journal.EvDeleted
+				}
+			case "dead":
+				h.Event = journal.EvMissing
+			case "link":
+				if len(e.Related) > 0 {
+					h.Event = journal.EvImported
+				}
+			}
+		}
+	case journal.KindFailure, journal.KindStall:
+		h.Event = journal.EvFailed
+	case journal.KindBlocklist:
+		h.Event = journal.EvBlocked
+	}
+	return h
 }
 
 func animeTitles(ctx context.Context, db *sql.DB, ids []int64) (map[int64]bool, error) {
@@ -690,66 +776,73 @@ func historyNotStarted(e *journal.Entry) string {
 	return r
 }
 
-// historyWords says what a journal entry means, without release names or providers.
-func historyWords(e *journal.Entry) (words, tone string) { return entryWords(e, historyNotStarted(e)) }
+// historyWords says what a History entry means, without release names; providers by their tag (RD, AD, TB).
+func historyWords(e *journal.Entry) (words, tone string) {
+	return entryWords(e, historyFacts(e), historyNotStarted(e), strings.ToUpper)
+}
 
-// entryWords is historyWords with the entry's historyNotStarted reason already known.
-func entryWords(e *journal.Entry, notStarted string) (words, tone string) {
-	switch e.Kind {
-	case journal.KindGrab:
-		return "Found a release", "info"
-	case journal.KindUpgrade:
-		return "Found a better release", "info"
-	case journal.KindImport:
-		state := ""
-		if e.Import != nil {
-			state = e.Import.State
-		}
-		switch state {
-		case "linked":
-			return "Linked into the library", "ok"
-		case "partial":
-			return "Partly imported (retrying)", "warn"
-		case "rejected":
-			return "Rejected by the library check", "bad"
-		case "dry_run":
-			return "Would be linked (the library is in dry-run mode)", "info"
-		case "waiting_mount":
-			return "Waiting for the mount", "warn"
-		case "failed":
-			return "Linking failed", "bad"
+// entryWords is a History row's words, like Radarr's: Grabbed, Imported, Adopted, Deleted (upgrade), Removed,
+// Failed, Blocked, Added to <provider>, Not cached on <provider>. notStarted is the entry's historyNotStarted reason;
+// tag names a provider account.
+func entryWords(e *journal.Entry, h *journal.HistoryFacts, notStarted string, tag func(string) string) (words,
+	tone string) {
+	switch h.Event {
+	case journal.EvGrabbed:
+		return "Grabbed", "info"
+	case journal.EvImported:
+		if e.Import != nil && e.Import.State == "partial" {
+			return "Imported", "warn"
 		}
 		return "Imported", "ok"
-	case journal.KindLink:
-		if e.Import != nil && e.Import.State == "dry_run" {
-			return "Would be linked (the library is in dry-run mode)", "info"
-		}
-		k := ""
-		if e.Import != nil && len(e.Import.Links) > 0 {
-			k = e.Import.Links[0].Kind
-		}
-		switch k {
-		case "replace":
-			return "Replaced by an upgrade", "info"
-		case "relink":
-			return "Link repaired", "ok"
-		case "dead":
-			return "A link broke and could not be repaired", "bad"
-		}
-		return "Linked into the library", "ok"
-	case journal.KindFailure:
+	case journal.EvAdopted:
+		return "Adopted", "ok"
+	case journal.EvDeleted:
+		return "Deleted (upgrade)", "info"
+	case journal.EvRemoved:
+		return "Removed", "info"
+	case journal.EvMissing:
+		return "File missing", "bad"
+	case journal.EvFailed:
 		if notStarted != "" {
 			return activity.NotStartedHistory(notStarted), "info"
 		}
-		return "Download failed", "bad"
-	case journal.KindStall:
-		return "Download stalled and was dropped", "bad"
-	case journal.KindBlocklist:
-		return "Release blocked; it won't be tried again", "warn"
-	case journal.KindResearch:
-		return "Searching again after a failure", "info"
+		return "Failed", "bad"
+	case journal.EvBlocked:
+		return "Blocked", "warn"
+	case journal.EvCopyAdded:
+		return "Added to " + tag(h.Provider), "ok"
+	case journal.EvCopyNotCached:
+		return "Not cached on " + tag(h.Provider), "info"
 	}
 	return e.Kind, "info"
+}
+
+// historyReason is a History row's reason in plain words: why a download failed or stalled, why a release was blocked,
+// why a file was removed, what is left of a partial import, a copy's message when it says more than the words.
+func historyReason(e *journal.Entry, h *journal.HistoryFacts, notStarted string, tag func(string) string) string {
+	switch h.Event {
+	case journal.EvFailed:
+		if notStarted != "" || h.Reason == "" {
+			return ""
+		}
+		return strings.ToUpper(h.Reason[:1]) + h.Reason[1:]
+	case journal.EvBlocked:
+		if h.Reason == "" {
+			return blockWords(h.Source)
+		}
+		return blockWords(h.Source) + ": " + h.Reason
+	case journal.EvImported:
+		if e.Import != nil && e.Import.State == "partial" {
+			return "Partly imported; the rest is tried again"
+		}
+	case journal.EvRemoved:
+		return h.Reason
+	case journal.EvCopyAdded, journal.EvCopyNotCached:
+		if w, _ := entryWords(e, h, "", tag); !strings.EqualFold(h.Reason, w) {
+			return h.Reason
+		}
+	}
+	return ""
 }
 
 // blockWords says why a release is blocked, by the blocklist's source.

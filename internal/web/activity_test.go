@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -240,8 +241,9 @@ func TestActivityBlockedAndParams(t *testing.T) {
 }
 
 // TestActivityReleaseFacts: a grab's history row carries the release's quality, score, indexer, size, formats and
-// episodes for an admin and none of them in the user view; a "Linked into the library" row the release title and
-// quality of the link's download, and no score; a queue row its formats for an admin only.
+// episodes for an admin and none of them in the user view; the import's link actions are no rows of their own; an
+// upgrade's replace is "Deleted (upgrade)" naming what replaced it, its old release unknown when the link row was
+// taken over before the facts were recorded; a queue row its formats for an admin only.
 func TestActivityReleaseFacts(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t)
@@ -274,26 +276,18 @@ func TestActivityReleaseFacts(t *testing.T) {
 		g.Size != 18400000000 || len(g.Formats) != 1 || g.Formats[0].Name != "DV HDR10" || g.Formats[0].Score != 1500 {
 		t.Errorf("grab row: %+v", g)
 	}
-	var link, bare, replace ActivityEvent
+	var replace ActivityEvent
+	links := 0
 	for _, x := range h.History {
-		switch {
-		case x.Kind == "link" && x.Words == "Replaced by an upgrade":
+		if x.Kind == "link" {
+			links++
 			replace = x
-		case x.Kind == "link" && x.Release != "":
-			link = x
-		case x.Kind == "link":
-			bare = x
 		}
 	}
-	if replace.ID == "" || replace.Release != "" || replace.Quality != "" || replace.Score != nil {
-		t.Errorf("replace row: %+v", replace)
-	}
-	if link.Words != "Linked into the library" || link.Release != "Alpha.2020.2160p.WEB" || link.Quality != "WEBDL-2160p" ||
-		link.Score != nil {
-		t.Errorf("link row: %+v", link)
-	}
-	if bare.ID == "" || bare.Words != "Linked into the library" || bare.Release != "" || bare.Quality != "" || bare.Score != nil {
-		t.Errorf("link row without a download: %+v", bare)
+	if links != 1 || replace.Event != "deleted" || replace.Words != "Deleted (upgrade)" || replace.Release != "" ||
+		replace.Quality != "" || replace.Score != nil || replace.ReplacedBy == nil ||
+		replace.ReplacedBy.Release != "Alpha.2020.2160p.WEB" {
+		t.Errorf("replace row (%d link rows): %+v", links, replace)
 	}
 
 	var u ActivityPage
@@ -302,7 +296,8 @@ func TestActivityReleaseFacts(t *testing.T) {
 		t.Fatalf("user history: %+v", u.History)
 	}
 	for _, x := range u.History {
-		if x.Quality != "" || x.Score != nil || x.Indexer != "" || x.Size != 0 || x.Formats != nil || x.Episodes != nil {
+		if x.Quality != "" || x.Score != nil || x.Indexer != "" || x.Size != 0 || x.Formats != nil || x.Episodes != nil ||
+			x.ReplacedBy != nil || x.Release != "" {
 			t.Errorf("user history row has release facts: %+v", x)
 		}
 	}
@@ -369,18 +364,22 @@ func TestPartialImportActivity(t *testing.T) {
 	}
 
 	words, tone := historyWords(&journal.Entry{Kind: journal.KindImport, Import: &journal.Import{State: "partial"}})
-	if words != "Partly imported (retrying)" || tone != "warn" {
+	if words != "Imported" || tone != "warn" {
 		t.Errorf("partial history: %q, %q", words, tone)
 	}
 }
 
-func TestDryRunLinkHistoryWords(t *testing.T) {
+// Dry runs stay in the journal: a dry-run link or replace is no History row.
+func TestDryRunLinkNotInHistory(t *testing.T) {
 	t.Parallel()
-	words, tone := historyWords(&journal.Entry{Kind: journal.KindLink, Import: &journal.Import{
-		State: "dry_run", Links: []journal.Link{{Kind: "link", Path: "/library/Alpha.mkv"}},
-	}})
-	if words != "Would be linked (the library is in dry-run mode)" || tone != "info" {
-		t.Fatalf("dry-run link history: %q, %q", words, tone)
+	e := newEnv(t)
+	now := store.Millis(testNow)
+	e.exec(`INSERT INTO library_action (at, kind, mode, version_key, path, detail) VALUES
+		(?, 'link', 'dry_run', 'movie-web', '/library/Alpha.mkv', 'adopted from radarr /arr/a.mkv'),
+		(?, 'replace', 'dry_run', 'movie-web', '/library/Alpha.old.mkv', 'unlink (x): dry run')`, now, now)
+	var h ActivityPage
+	if code := e.getKey(APIBase+"/activity?state=history", e.apiKey(), &h); code != 200 || len(h.History) != 0 {
+		t.Fatalf("history: %d %+v", code, h.History)
 	}
 }
 
@@ -688,7 +687,7 @@ func TestActivityNotStartedDownload(t *testing.T) {
 	}
 	tried := []journal.Attempt{{Provider: "rd", Outcome: "refused", Code: "too_many_active"}}
 	if words, _ := historyWords(&journal.Entry{Kind: journal.KindFailure, Attempts: tried,
-		Download: &journal.Download{State: "failed", Error: "route ended: " + router.ErrDisabled.Error()}}); words != "Download failed" {
+		Download: &journal.Download{State: "failed", Error: "route ended: " + router.ErrDisabled.Error()}}); words != "Failed" {
 		t.Errorf("tried history: %q", words)
 	}
 	// The admin's History summary of a not-started row is the plain message; the journal keeps its own text.
@@ -699,7 +698,7 @@ func TestActivityNotStartedDownload(t *testing.T) {
 		t.Errorf("history summary: %+v, %v", h, err)
 	}
 	if words, tone = historyWords(&journal.Entry{Kind: journal.KindFailure,
-		Download: &journal.Download{State: "failed", Error: "download failed: x"}}); words != "Download failed" || tone != "bad" {
+		Download: &journal.Download{State: "failed", Error: "download failed: x"}}); words != "Failed" || tone != "bad" {
 		t.Errorf("real failure history: %q, %q", words, tone)
 	}
 }
@@ -744,5 +743,60 @@ func TestQueueScoreEvidence(t *testing.T) {
 	}
 	if want := map[int64]string{1: "none", 2: "0", 3: "900"}; !maps.Equal(got, want) {
 		t.Errorf("queue scores %v, want %v", got, want)
+	}
+}
+
+// Activity › History and the title page's History tab read one builder (GET /activity?state=history, the tab with
+// title_id): the title's rows are the same in both. Copies to other providers are rows for those who see files, with
+// words naming the provider, and none in the user view.
+func TestHistorySameForTitle(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	key := e.apiKey()
+	now := store.Millis(testNow)
+	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, quality,
+		score, episodes, state, created_at, updated_at, imported_at) VALUES
+		(1, 1, 2, 'movie-web', 'f1', 'Alpha.2020.2160p.WEB', 'dmm', 'WEBDL-2160p', 1500, '[]', 'imported', ?, ?, ?),
+		(2, 2, 3, 'movie-web', 'f2', 'Beta.2021.2160p.WEB', 'dmm', 'WEBDL-2160p', 900, '[]', 'imported', ?, ?, ?)`,
+		now, now, now+5, now+1, now+1, now+6)
+	e.exec(`INSERT INTO library_import (download_id, state, mount_folder, plan, created_at, updated_at) VALUES
+		(1, 'linked', '/m/a', '{}', ?, ?), (2, 'linked', '/m/b', '{}', ?, ?)`, now+5, now+5, now+6, now+6)
+	e.exec(`INSERT INTO provider_copy_event (at, info_hash, name, title_id, provider, state, message, quality, score)
+		VALUES (?, 'f1', 'Alpha.2020.2160p.WEB', 1, 'rd', 'not_cached', 'Not cached on RD', 'WEBDL-2160p', 1500)`, now+9)
+
+	var all, one ActivityPage
+	if code := e.getKey(APIBase+"/activity?state=history", key, &all); code != 200 {
+		t.Fatalf("history: %d", code)
+	}
+	if code := e.getKey(APIBase+"/activity?state=history&title_id=1", key, &one); code != 200 {
+		t.Fatalf("title history: %d", code)
+	}
+	var want []ActivityEvent
+	for _, x := range all.History {
+		if x.Title.ID == 1 {
+			want = append(want, x)
+		}
+	}
+	if !reflect.DeepEqual(one.History, want) || len(want) != 3 {
+		t.Fatalf("title history:\n%+v\nwant\n%+v", one.History, want)
+	}
+	var words []string
+	for _, x := range one.History {
+		words = append(words, x.Words)
+	}
+	if !slices.Equal(words, []string{"Not cached on RD", "Imported", "Grabbed"}) {
+		t.Errorf("words: %q", words)
+	}
+	if c := one.History[0]; c.Event != "copy_not_cached" || c.Release != "Alpha.2020.2160p.WEB" || c.Reason != "" ||
+		c.Quality != "WEBDL-2160p" || c.Score == nil || *c.Score != 1500 {
+		t.Errorf("copy row: %+v", c)
+	}
+	var u ActivityPage
+	e.getKey(APIBase+"/activity?state=history&title_id=1&as=user", key, &u)
+	if len(u.History) != 2 || u.History[0].Event != "imported" {
+		t.Errorf("user history: %+v", u.History)
+	}
+	if code := e.getKey(APIBase+"/activity?state=history&events=copy_added&as=user", key, nil); code != 400 {
+		t.Errorf("user copy filter: %d", code)
 	}
 }

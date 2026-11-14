@@ -397,6 +397,10 @@ func (s *seeder) download(d dl) int64 {
 			VALUES (?, ?, ?, 'router', ?, ?) ON CONFLICT DO NOTHING`, s.content[rel.hash], v.id, rel.name, ms(created),
 			ms(created.Add(5*time.Minute)))
 		s.exec(`INSERT INTO notify_event (kind, ref, created_at) VALUES ('download', ?, ?)`, id, ms(created.Add(5*time.Minute)))
+		if t.kind == "movie" && !s.historyShown {
+			s.historyShown = true
+			s.historyExtras(t, v, rel, id, created.Add(5*time.Minute))
+		}
 	case d.imp == "rejected":
 		s.exec(`INSERT INTO library_action (at, kind, mode, version_key, download_id, path, detail) VALUES (?, 'reject',
 			'applied', ?, ?, ?, ?)`, ms(created.Add(3*time.Minute)), v.key, id, rel.files[0].name,
@@ -698,5 +702,23 @@ func (s *seeder) verdicts(wrongYear int64) {
 		s.exec(`INSERT INTO journal_verdict (entry_id, verdict, reason, acked, title_id, version_key, action, by, created_at)
 			VALUES (?, 'ok', 'the old copy was removed on purpose; the current file is fine', '["dead_link"]', ?, ?,
 			'recorded', ?, ?)`, fmt.Sprintf("lib:%d", actionID), titleID, key, Username, ms(s.ago(days(1))))
+	}
+}
+
+// historyExtras gives one imported movie the rest of History's events: the file its import replaced ("Deleted
+// (upgrade)", with the old release as recorded) and the release's copies to the other providers, one added and one
+// not cached (provider_copy and its provider_copy_event).
+func (s *seeder) historyExtras(t *title, v *version, rel *release, id int64, at time.Time) {
+	old := fmt.Sprintf("%s.%d.1080p.WEB-DL.DDP5.1.H.264-OLD", strings.ReplaceAll(t.name, " ", "."), t.year)
+	s.exec(`INSERT INTO library_action (at, kind, mode, version_key, download_id, path, detail, release_title, quality,
+		score) VALUES (?, 'replace', 'applied', ?, ?, ?, 'moved aside to the trash', ?, 'WEBDL-1080p', 400)`,
+		ms(at.Add(time.Second)), v.key, id, path.Join(v.vp.Library, s.folder(t), old+".mkv"), old)
+	for i, c := range []struct{ pk, state, msg string }{{"tb", "added", "Added to TB"}, {"ad", "not_cached",
+		"Not cached on AD; our add was deleted"}} {
+		at := at.Add(time.Duration(10+i) * time.Minute)
+		s.exec(`INSERT INTO provider_copy (info_hash, name, title_id, provider, state, message, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, rel.hash, rel.name, t.id, c.pk, c.state, c.msg, ms(at), ms(at))
+		s.exec(`INSERT INTO provider_copy_event (at, info_hash, name, title_id, provider, state, message, quality, score)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, ms(at), rel.hash, rel.name, t.id, c.pk, c.state, c.msg, rel.quality, rel.score)
 	}
 }
