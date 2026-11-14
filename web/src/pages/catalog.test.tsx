@@ -450,8 +450,8 @@ describe("Library posters", () => {
     await user.click(screen.getByRole("button", { name: "Poster options" }));
     const dialog = await screen.findByRole("dialog", { name: "Poster options" });
     await user.click(within(dialog).getByRole("button", { name: "Small" }));
-    await user.click(within(dialog).getByRole("checkbox", { name: "Network / studio" }));
-    await user.click(within(dialog).getByRole("checkbox", { name: "Next episode / release" }));
+    await user.click(within(dialog).getByRole("checkbox", { name: "Network" }));
+    await user.click(within(dialog).getByRole("checkbox", { name: "Next airing" }));
     await user.click(within(dialog).getByRole("checkbox", { name: "Quality" }));
     await user.click(within(dialog).getByRole("button", { name: "Done" }));
     expect(screen.getByText("Northstar Network")).toBeTruthy();

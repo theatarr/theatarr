@@ -351,9 +351,10 @@ export function TitleTable({ titles, more, onMore, seeFiles, manage, columns, so
         rowProps={() => ({ className: "cv-auto-row-sm" })}
         actions={manage ? (t) => <RowActions t={t} wide={wide} /> : undefined}
         cardHead={(t) => (
-          <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-2 gap-y-0.5">
+          // The status on its own line under the title, the same on every card.
+          <div className="grid min-w-0 justify-items-start gap-0.5">
             <TitleCell t={t} seeFiles={seeFiles} />
-            {showStatus ? <span className="shrink-0">{seeFiles ? <StatusCell t={t} words /> : <WatchCell t={t} />}</span> : null}
+            {showStatus ? <span>{seeFiles ? <StatusCell t={t} words /> : <WatchCell t={t} />}</span> : null}
           </div>
         )}
       />

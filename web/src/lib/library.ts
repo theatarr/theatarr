@@ -241,9 +241,23 @@ export const SORTS = [
 /** The filter keys the URL carries (the grid's own; kind and anime come from the catalog). */
 export const FILTER_KEYS = ["q", "with", "without", "state", "availability", "upgrade", "genre", "quality", "provider", "year_from", "year_to", "monitored"] as const;
 
-/** The sorts the Sort menu offers this account. */
-export function offeredSorts(seeFiles: boolean) {
-  return SORTS.filter((s) => !("seeFiles" in s) || seeFiles);
+/** The words a list uses for the sorts and poster details whose meaning follows the kind: Movies have studios and
+ *  releases, Series networks and airings; Anime mixes both. */
+const KIND_LABELS: Record<CatalogId, Partial<Record<string, string>>> = {
+  movies: { next: "Next release", network: "Studio" },
+  series: { next: "Next airing", network: "Network", release: "First aired" },
+  anime: {},
+};
+
+/** A sort's or poster detail's label on a catalog (KIND_LABELS), else its own. */
+export function kindLabel(c: CatalogId | undefined, id: string, label: string): string {
+  return (c && KIND_LABELS[c][id]) || label;
+}
+
+/** The sorts the Sort menu offers this account on a catalog, with the catalog's words. Movies leave Completion out: a
+ *  movie's library holds its file or not, so it only splits the held from the rest. */
+export function offeredSorts(seeFiles: boolean, c?: CatalogId) {
+  return SORTS.filter((s) => (!("seeFiles" in s) || seeFiles) && !(c === "movies" && s.id === "completion")).map((s) => ({ id: s.id, label: kindLabel(c, s.id, s.label) }));
 }
 
 /** The grid's query from the address. A sort the account is not offered (an old link, Latest file without "see files")
@@ -252,7 +266,7 @@ export function offeredSorts(seeFiles: boolean) {
 export function gridQuery(c: CatalogId, p: URLSearchParams, seeFiles: boolean): GridQuery {
   const cat = CATALOGS[c];
   const asked = p.get("sort") || "name";
-  const sortOK = offeredSorts(seeFiles).some((s) => s.id === asked);
+  const sortOK = offeredSorts(seeFiles, c).some((s) => s.id === asked);
   const num = (k: string) => {
     const v = Number(p.get(k));
     return Number.isFinite(v) && v > 0 ? v : undefined;

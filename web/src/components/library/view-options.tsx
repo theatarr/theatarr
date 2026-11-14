@@ -4,13 +4,14 @@
 import { Checkbox } from "@/components/ui/checkbox";
 import { ColumnPicker, OptionsDialog } from "@/components/ui/column-picker";
 import { POSTER_DETAILS, type PosterPrefs, type PosterSize } from "@/lib/poster-options";
+import { kindLabel, type CatalogId } from "@/lib/library";
 import { cn } from "@/lib/utils";
 
 export { ColumnPicker, OptionsDialog };
 
 const SIZES: PosterSize[] = ["small", "medium", "large"];
 
-export function PosterOptions({ prefs, seeFiles, onChange, onClose }: { prefs: PosterPrefs; seeFiles: boolean; onChange: (p: PosterPrefs) => void; onClose: () => void }) {
+export function PosterOptions({ catalog, prefs, seeFiles, onChange, onClose }: { catalog?: CatalogId; prefs: PosterPrefs; seeFiles: boolean; onChange: (p: PosterPrefs) => void; onClose: () => void }) {
   return (
     <OptionsDialog label="Poster options" note="Choose the size and what shows under each poster. The status bar and the library lines always show." onClose={onClose}>
       <div>
@@ -40,7 +41,7 @@ export function PosterOptions({ prefs, seeFiles, onChange, onClose }: { prefs: P
               checked={prefs.details.includes(d.id)}
               onChange={(e) => onChange({ ...prefs, details: e.target.checked ? [...prefs.details, d.id] : prefs.details.filter((x) => x !== d.id) })}
             />
-            {d.label}
+            {kindLabel(catalog, d.id, d.label)}
           </label>
         ))}
       </div>

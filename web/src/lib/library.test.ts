@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { availabilityFilters, filterChips, gridQuery, isFamily, POSTER_STATUS_LABEL, posterStatus, qualityWord, relDay, titleWatchWords, UPGRADE_FILTERS, upcomingRelease, utcToday, watchWords, withoutChip } from "./library";
+import { availabilityFilters, filterChips, gridQuery, isFamily, offeredSorts, POSTER_STATUS_LABEL, posterStatus, qualityWord, relDay, titleWatchWords, UPGRADE_FILTERS, upcomingRelease, utcToday, watchWords, withoutChip } from "./library";
 import { badgeTone, copyTone } from "./library-status";
 
 const label = (...a: Parameters<typeof posterStatus>) => {
@@ -289,5 +289,16 @@ describe("filter chips", () => {
     const years = filterChips(new URLSearchParams("year_from=2019&year_to=2024"), { seeFiles: true });
     expect(years.map((c) => c.label)).toEqual(["2019–2024"]);
     expect(withoutChip(new URLSearchParams("year_from=2019&year_to=2024&q=x"), years[0]).toString()).toBe("q=x");
+  });
+});
+
+describe("offeredSorts", () => {
+  const label = (c: Parameters<typeof offeredSorts>[1], id: string) => offeredSorts(true, c).find((s) => s.id === id)?.label;
+  it("words the kind-bound sorts per catalog and leaves Completion off Movies", () => {
+    expect([label("movies", "next"), label("movies", "network"), label("movies", "completion")]).toEqual(["Next release", "Studio", undefined]);
+    expect([label("series", "next"), label("series", "network"), label("series", "release"), label("series", "completion")]).toEqual(["Next airing", "Network", "First aired", "Completion"]);
+    expect([label("anime", "next"), label("anime", "network")]).toEqual(["Next episode / release", "Network / studio"]);
+    // An old Movies link sorted by Completion falls back to Title.
+    expect(gridQuery("movies", new URLSearchParams("sort=completion"), true).sort).toBe("name");
   });
 });

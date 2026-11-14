@@ -258,7 +258,7 @@ export function Catalog({ id }: { id: CatalogId }) {
           </div>
           <span className="flex min-w-0 items-center gap-1">
             <select aria-label="Sort by" className={cn(SELECT, "w-auto min-w-0 max-w-[6rem] sm:max-w-none")} value={sort} onChange={(e) => setSort(e.target.value)}>
-              {offeredSorts(perms.seeFiles).map((s) => (
+              {offeredSorts(perms.seeFiles, id).map((s) => (
                 <option key={s.id} value={s.id}>{s.label}</option>
               ))}
             </select>
@@ -362,7 +362,7 @@ export function Catalog({ id }: { id: CatalogId }) {
       {grid.isFetchingNextPage ? <Loading label="Loading more" /> : null}
       {selecting ? <BulkBar titles={chosenTitles} columns={libraries} onClear={() => setChosen(new Set())} /> : null}
       {dialog === "columns" ? <ColumnPicker label="Columns" note="Title always stays. On a phone the chosen columns show as lines under each title." columns={offered} prefs={columnsPref} onChange={saveColumns} onClose={() => setDialog(null)} /> : null}
-      {dialog === "posters" ? <PosterOptions prefs={postersPref} seeFiles={perms.seeFiles} onChange={savePosters} onClose={() => setDialog(null)} /> : null}
+      {dialog === "posters" ? <PosterOptions catalog={id} prefs={postersPref} seeFiles={perms.seeFiles} onChange={savePosters} onClose={() => setDialog(null)} /> : null}
       <FilterSheet open={sheet} onClose={() => setSheet(false)}>
         <FiltersPanel values={values} set={set} clear={clear} facets={facetsShown} seeFiles={perms.seeFiles} kind={cat.kind} onClose={() => setSheet(false)} />
       </FilterSheet>
