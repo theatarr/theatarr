@@ -30,3 +30,15 @@ it("closes the overlay when an admin follows the TMDb key link", async () => {
   await waitFor(() => expect(screen.queryByTestId("search-overlay")).toBeNull());
   expect(screen.getByTestId("where").textContent).toBe("/admin/settings/metadata#sources");
 });
+
+it("puts an In library TMDb hit the name search missed into the library group", async () => {
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: { id: 1, username: "admin", permissions: ["browse", "add", "admin"], csrf_token: "t" } },
+    { method: "GET", path: "/search", reply: (r: { search: string }) => (r.search.includes("scope=library") ? { library: [], library_total: 0 }
+      : { tmdb_state: "ok", tmdb: [{ tmdb_id: 99, media_type: "movie", kind: "movie", name: "Signal", year: 2026, in_library: true, title_id: 4 }],
+        library: [{ id: 4, kind: "movie", name: "Juniper Signal", year: 2026, versions: [] }], library_total: 1 }) },
+    { method: "GET", path: "/requests", reply: { items: [], total: 0 } },
+  ]);
+  renderPage(<SearchProvider><Opener /></SearchProvider>, "/");
+  await waitFor(() => expect(screen.getByTestId("search-group-library").textContent).toContain("Juniper Signal"));
+});

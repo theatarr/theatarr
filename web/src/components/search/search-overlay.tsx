@@ -7,7 +7,7 @@
 import { ArrowRight, Eraser, Search, X } from "lucide-react";
 import { useRef, useState } from "react";
 import { useNavigate } from "react-router";
-import { useDebounced, useSearch, type AddTarget } from "@/api/add";
+import { useDebounced, useSearch, withInLibrary, type AddTarget } from "@/api/add";
 import { usePerms } from "@/api/library";
 import { buttonVariants } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
@@ -45,7 +45,9 @@ export function SearchOverlay({ initial, onClose, onAdd }: { initial: string; on
     onAdd(t);
   };
   const query = dq.trim();
-  const libItems = lib.data?.library ?? [];
+  // TMDb hits marked In library that the name search missed join the library group, so the two never disagree.
+  const merged = withInLibrary(lib.data?.library ?? [], lib.data?.library_total, tm.data);
+  const libItems = merged.items;
   const hits = tm.data?.tmdb ?? [];
   const note = tmdbNote(tm.data?.tmdb_state);
   const perms = usePerms();
@@ -115,7 +117,7 @@ export function SearchOverlay({ initial, onClose, onAdd }: { initial: string; on
           ) : (
             <div className="space-y-6">
               <section data-testid="search-group-library">
-                <GroupHeader title="In your library" note="already in the collection" count={lib.data && !libProblem ? lib.data.library_total : undefined} />
+                <GroupHeader title="In your library" note="already in the collection" count={lib.data && !libProblem ? merged.total : undefined} />
                 {libProblem ? (
                   <SectionError problem={libProblem} onRetry={() => void lib.refetch()} retrying={lib.isFetching} testid="search-library-error" />
                 ) : lib.isPending ? (

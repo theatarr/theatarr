@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { SearchPage } from "./search";
 import { SearchProvider } from "@/components/search/search-context";
@@ -151,4 +151,20 @@ describe("Search page when TMDb does not answer", () => {
     expect((await screen.findByTestId("tmdb-next")).textContent).toContain("An administrator can check the key.");
     expect(screen.queryByRole("link", { name: "Check the TMDb key and address" })).toBeNull();
   });
+});
+
+// A TMDb hit marked In library whose title the name search misses (the tmdb request answers it as its library part)
+// joins the library group and its count: the two halves never disagree.
+it("puts an In library TMDb hit the name search missed into the library group", async () => {
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: { id: 9, username: "someone", permissions: ["browse", "add"], csrf_token: "t" } },
+    { method: "GET", path: "/search", reply: (r: { search: string }) => r.search.includes("scope=library")
+      ? { library: [], library_total: 0 }
+      : { tmdb_state: "ok", tmdb: [{ tmdb_id: 99, media_type: "movie", kind: "movie", name: "Spider-Man", year: 2026, in_library: true, title_id: 4 }],
+        library: [{ id: 4, kind: "movie", name: "Spider-Man: Brand New Day", year: 2026, versions: [] }], library_total: 1 } },
+    { method: "GET", path: "/requests", reply: { items: [], total: 0 } },
+  ]);
+  renderPage(<SearchProvider><SearchPage /></SearchProvider>, "/search?q=spiderman");
+  await waitFor(() => expect(screen.getByTestId("search-page-library").textContent).toContain("Spider-Man: Brand New Day"));
+  expect(screen.queryByText(/No title in the library matches/)).toBeNull();
 });

@@ -579,7 +579,9 @@ func TestSearchEndpoint(t *testing.T) {
 	// The title_meta TMDb id marks a series stored with its TVDB id only.
 	e.exec(`INSERT INTO title_meta (title_id, tmdb_id, attempted_at, refresh_after) VALUES (10, 777, 0, 0)`)
 	e.call("GET", APIBase+"/search?q=alpha&kind=series&scope=tmdb", nil, 200, &s)
-	if len(s.TMDb) != 1 || !s.TMDb[0].InLibrary || *s.TMDb[0].TitleID != 10 || len(s.Library) != 0 {
+	// The In library hit's title is not found by the name "alpha": scope tmdb answers it as the library part.
+	if len(s.TMDb) != 1 || !s.TMDb[0].InLibrary || *s.TMDb[0].TitleID != 10 || len(s.Library) != 1 || s.Library[0].ID != 10 ||
+		s.LibraryTotal != 1 {
 		t.Errorf("series via title_meta: %+v", s)
 	}
 	e.call("GET", APIBase+"/search?q=a", nil, 200, &s)
@@ -1284,11 +1286,16 @@ func TestSearchLibraryNames(t *testing.T) {
 			t.Errorf("%q: %v, want %v", q, got, want)
 		}
 	}
-	// TMDb's "alpha" hit 0 is title 1: renamed so the name search misses it, it is still in the library group.
-	e.exec(`UPDATE title SET name = 'Zeta', sort_name = 'zeta' WHERE id = 1`)
+	// TMDb's "alpha" hit 0 is title 1. Found by name, the screens' tmdb request does not repeat it; renamed so the
+	// name search misses it, the tmdb request answers it as its library part (the screens merge it into the group).
 	var s SearchAnswer
-	e.call("GET", APIBase+"/search?q=alpha", nil, 200, &s)
+	e.call("GET", APIBase+"/search?q=alpha&scope=tmdb", nil, 200, &s)
+	if len(s.Library) != 0 || !s.TMDb[0].InLibrary {
+		t.Errorf("a hit the name search finds is not repeated: %+v", s.Library)
+	}
+	e.exec(`UPDATE title SET name = 'Zeta', sort_name = 'zeta' WHERE id = 1`)
+	e.call("GET", APIBase+"/search?q=alpha&scope=tmdb", nil, 200, &s)
 	if s.LibraryTotal != 1 || len(s.Library) != 1 || s.Library[0].ID != 1 || !s.TMDb[0].InLibrary {
-		t.Errorf("an In library hit must be in the library group: total %d, %+v", s.LibraryTotal, s.Library)
+		t.Errorf("an In library hit must reach the library group: total %d, %+v", s.LibraryTotal, s.Library)
 	}
 }

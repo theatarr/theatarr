@@ -122,9 +122,11 @@ func (w *Web) apiSearch(rw http.ResponseWriter, r *http.Request) {
 				out.TMDbState, out.TMDbError = "error", "TMDb search failed; try again in a moment"
 			} else {
 				out.TMDb, out.TMDbState = hits, "ok"
-				if scope == "all" {
+				// The In library hits the name search misses join the library group (scope all), or are the
+				// answer's library part (scope tmdb, which the screens merge into their library group).
+				{
 					n := len(out.Library)
-					if err := w.liftInLibrary(ctx, &out); err != nil {
+					if err := w.liftInLibrary(ctx, &out, q); err != nil {
 						w.internal(rw, err)
 						return
 					}
@@ -145,25 +147,28 @@ func (w *Web) apiSearch(rw http.ResponseWriter, r *http.Request) {
 	writeJSON(rw, http.StatusOK, out)
 }
 
-// liftInLibrary adds to the library group the titles a TMDb hit is marked In library for that the name search did not
-// find (a name the title does not carry), so the two halves of one answer never disagree.
-func (w *Web) liftInLibrary(ctx context.Context, out *SearchAnswer) error {
-	have := map[int64]bool{}
-	for _, t := range out.Library {
-		have[t.ID] = true
-	}
+// liftInLibrary adds to out.Library (and LibraryTotal) the titles a TMDb hit is marked In library for that the
+// library's name search does not find (a name the title does not carry), so the two halves of one answer never
+// disagree. Those the name search finds are in the library group already, on this page or a later one.
+func (w *Web) liftInLibrary(ctx context.Context, out *SearchAnswer, q string) error {
+	seen := map[int64]bool{}
 	var ids []any
 	for _, h := range out.TMDb {
-		if h.InLibrary && h.TitleID != nil && !have[*h.TitleID] {
-			have[*h.TitleID] = true
+		if h.InLibrary && h.TitleID != nil && !seen[*h.TitleID] {
+			seen[*h.TitleID] = true
 			ids = append(ids, *h.TitleID)
 		}
 	}
 	if len(ids) == 0 {
 		return nil
 	}
-	rows, err := w.titleRows(ctx, w.st.Reader(), `SELECT `+titleCols+titleFrom+` WHERE t.id IN (`+
-		store.Placeholders(len(ids))+`) ORDER BY `+nameExpr+`, t.id`, ids)
+	where := `t.id IN (` + store.Placeholders(len(ids)) + `)`
+	args := ids
+	if cond, a := titleTextWhere(q); cond != "" {
+		where += ` AND NOT (` + cond + `)`
+		args = append(args, a...)
+	}
+	rows, err := w.titleRows(ctx, w.st.Reader(), `SELECT `+titleCols+titleFrom+` WHERE `+where+` ORDER BY `+nameExpr+`, t.id`, args)
 	if err != nil {
 		return err
 	}

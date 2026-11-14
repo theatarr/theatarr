@@ -6,7 +6,7 @@
 import { Loader2, Search } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
-import { useDebounced, useLibrarySearchPages, useSearch, type SearchKind } from "@/api/add";
+import { useDebounced, useLibrarySearchPages, useSearch, withInLibrary, type SearchKind } from "@/api/add";
 import { usePerms } from "@/api/library";
 import { PageHeader } from "@/components/page";
 import { useSearchUI } from "@/components/search/search-context";
@@ -63,8 +63,8 @@ export function SearchPage() {
   const query = urlQ;
   const lib = useLibrarySearchPages(query, kind, LIBRARY_PAGE);
   const tm = useSearch(query, "tmdb", 40, kind);
-  const libItems = lib.data?.pages.flatMap((p) => p.library) ?? [];
-  const libTotal = lib.data?.pages[0]?.library_total;
+  // TMDb hits marked In library that the name search missed join the library group, so the two never disagree.
+  const { items: libItems, total: libTotal } = withInLibrary(lib.data?.pages.flatMap((p) => p.library) ?? [], lib.data?.pages[0]?.library_total, tm.data);
   const hits = tm.data?.tmdb ?? [];
   const note = tmdbNote(tm.data?.tmdb_state);
   const perms = usePerms();
