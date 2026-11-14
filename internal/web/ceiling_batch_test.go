@@ -197,17 +197,29 @@ func TestRowUpgradeStateBatch(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		availability := "upgrade"
-		if !seeFiles {
-			availability = "available"
-		}
-		if facets.Availability[availability] != 60 {
+		// Every title holds its file: available, whatever its quality against the cutoff.
+		if facets.Availability["available"] != 60 {
 			t.Errorf("see_files=%t facets: %v", seeFiles, facets.Availability)
 		}
+		if seeFiles && (facets.Upgrades["found"] != states["upgrade_available"] || facets.Upgrades["best_known"] != 60-states["upgrade_available"]) {
+			t.Errorf("upgrade facets %v, grid %v", facets.Upgrades, states)
+		}
 	}
-	filtered, err := w.listTitles(ctx, TitleFilter{Limit: 60, TitleGridFilter: TitleGridFilter{Availability: "upgrade"}})
+	filtered, err := w.listTitles(ctx, TitleFilter{Limit: 60, TitleGridFilter: TitleGridFilter{Availability: "available"}})
 	if err != nil || len(filtered.Items) != 60 {
-		t.Fatalf("upgrade filter: %d rows: %v", len(filtered.Items), err)
+		t.Fatalf("available filter: %d rows: %v", len(filtered.Items), err)
+	}
+	// The quality filters split them as the rows' words do: Upgrade found, else Best quality known.
+	for up, want := range map[string]int{"found": states["upgrade_available"], "best_known": 60 - states["upgrade_available"]} {
+		f, err := w.listTitles(ctx, TitleFilter{Limit: 60, TitleGridFilter: TitleGridFilter{Upgrade: up}})
+		if err != nil || f.Total != want {
+			t.Fatalf("upgrade=%s: %d rows, want %d: %v", up, f.Total, want, err)
+		}
+		for _, row := range f.Items {
+			if (row.UpgradeState == "upgrade_available") != (up == "found") {
+				t.Errorf("upgrade=%s lists title %d (%s)", up, row.ID, row.UpgradeState)
+			}
+		}
 	}
 	picks, err := w.upgradePicks(ctx, w.st.Reader())
 	if err != nil {

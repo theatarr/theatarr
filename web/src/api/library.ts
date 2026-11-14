@@ -30,6 +30,8 @@ export type GridQuery = {
   without?: string;
   state?: string;
   availability?: string;
+  /** The quality filter: found (Upgrade found) or best_known. */
+  upgrade?: string;
   genre?: string;
   quality?: string;
   provider?: string;

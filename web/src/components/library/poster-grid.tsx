@@ -11,7 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { activityHref, chipWords, copyBar, nextWords, titleAcquisition, type PosterPrefs } from "@/lib/copies";
 import { badgeTone, copyTone, copyWords, hasBlocked } from "@/lib/library-status";
 import { fmtAgo, fmtBytes } from "@/lib/format";
-import { kindOf, posterStatus, utcToday, type PosterStatus } from "@/lib/library";
+import { kindOf, posterStatus, qualityWord, utcToday, type PosterStatus } from "@/lib/library";
 import { cn } from "@/lib/utils";
 import { LibraryPill, StatusBar } from "./library-pill";
 import type { Selection } from "./title-table";
@@ -99,6 +99,12 @@ function statusLines(t: TitleRow, badge: PosterStatus | undefined, day: string, 
   return { lines, words: named.join("; ") };
 }
 
+/** The quality word a poster shows: Upgrade found only (the other quality words are said on the title page). */
+function foundWord(t: TitleRow): string | undefined {
+  const q = qualityWord(t);
+  return q?.found ? q.label : undefined;
+}
+
 export function PosterGrid<T extends TitleRow>({
   titles,
   more,
@@ -129,7 +135,7 @@ export function PosterGrid<T extends TitleRow>({
                   title={t.name ?? "?"}
                   year={t.year}
                   kind={kindOf(t)}
-                  status={posterStatus(t.availability, t.upgrade_seen, !perms.seeFiles, t.upgrade_state, t)}
+                  status={posterStatus(t.availability, !perms.seeFiles, t)}
                   image={t.poster}
                   overview={t.overview}
                   caption={caption?.(t)}
@@ -139,7 +145,7 @@ export function PosterGrid<T extends TitleRow>({
           }
           const small = library.prefs.size === "small";
           // Without "See files" the badge's watchability is the whole story: no bars, no pills.
-          const badge = posterStatus(t.availability, t.upgrade_seen, !perms.seeFiles, t.upgrade_state, t);
+          const badge = posterStatus(t.availability, !perms.seeFiles, t);
           const status = perms.seeFiles ? statusLines(t, badge, day, small) : undefined;
           const flight = titleAcquisition(t);
           const sel = library.select;
@@ -152,6 +158,7 @@ export function PosterGrid<T extends TitleRow>({
                 year={library.prefs.details.includes("year") ? t.year : undefined}
                 unmonitored={perms.seeFiles && t.monitored === false}
                 status={badge}
+                quality={perms.seeFiles ? foundWord(t) : undefined}
                 image={t.poster}
                 overview={t.overview}
                 extraLabel={status?.words}

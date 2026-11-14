@@ -30,8 +30,8 @@ type CopyCoverage struct {
 	Total    int `json:"total"`
 	Aired    int `json:"aired"`
 	Upcoming int `json:"upcoming"`
-	// Missing: aired, monitored in the copy, not held; Monitored: episodes the copy monitors; InFlight: episodes with
-	// a download in hand for the copy. For callers who see files.
+	// Missing: aired, monitored in the copy, not held, and the copy is monitored (titleAvailabilitySQL); Monitored:
+	// episodes the copy monitors; InFlight: episodes with a download in hand for the copy. For callers who see files.
 	Missing   int `json:"missing,omitempty"`
 	Monitored int `json:"monitored,omitempty"`
 	InFlight  int `json:"in_flight,omitempty"`
@@ -274,7 +274,7 @@ func (w *Web) fillCopies(ctx context.Context, db *sql.DB, items []TitleRow) erro
 						c.Total++
 					case e.aired:
 						c.Total++
-						if mon[k] {
+						if mon[k] && v.Monitored {
 							c.Missing++
 						}
 					default:

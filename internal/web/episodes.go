@@ -28,7 +28,7 @@ type EpisodeVersion struct {
 type SeasonCounts struct {
 	Upgrade *UpgradeInfo `json:"upgrade,omitempty"`
 	Have    int          `json:"have"`    // episodes with a file
-	Missing int          `json:"missing"` // aired, monitored, no file
+	Missing int          `json:"missing"` // aired, monitored, no file, in a monitored version
 	// Total: episodes aired or held in the version, what Have is of (as EpisodeCounts.Total on the title page).
 	Total int `json:"total"`
 	// BelowCutoff: episodes whose file is below the cutoff; UpgradeSeen: of them, with a better release seen;
@@ -260,7 +260,7 @@ func (w *Web) titleEpisodes(ctx context.Context, id int64, season int, seeFiles 
 	// content now.
 	linkMeta := `CASE WHEN json_valid(l.file_metadata) THEN json_extract(l.file_metadata, '$.ReleaseGroup') END`
 	if err := scanAll(ctx, db, cte+`SELECT le.episode_id, lv.version_id, COALESCE(l.quality, ''), `+
-		linkSizeSQL+`, l.score, COALESCE(`+linkMeta+`, ''), COALESCE(l.release_title, ''), l.path, `+linkHash+`
+		linkSizeSQL+`, `+linkScoreSQL+`, COALESCE(`+linkMeta+`, ''), COALESCE(l.release_title, ''), l.path, `+linkHash+`
 		FROM link l JOIN link_episode le ON le.link_id = l.id JOIN link_version lv ON lv.link_id = l.id
 		LEFT JOIN content_file cf ON cf.id = l.content_file_id`+linkJoin+`WHERE l.title_id = ? AND l.state = 'active'`,
 		args, func(r *sql.Rows) error {
@@ -306,6 +306,11 @@ func (w *Web) titleEpisodes(ctx context.Context, id int64, season int, seeFiles 
 		}
 	}
 
+	// A gap in a library that is not monitored is not missing (titleAvailabilitySQL).
+	on := map[string]bool{}
+	for _, v := range out.Versions {
+		on[v.Key] = v.Monitored
+	}
 	seasons := map[int64]*Season{}
 	for _, e := range all {
 		s := seasons[e.Season]
@@ -328,7 +333,7 @@ func (w *Web) titleEpisodes(ctx context.Context, id int64, season int, seeFiles 
 			}
 			if c.HasFile {
 				sc.Have++
-			} else if aired && c.Monitored && c.State == "wanted" {
+			} else if aired && c.Monitored && c.State == "wanted" && on[k] {
 				sc.Missing++
 			}
 			s.Versions[k] = sc

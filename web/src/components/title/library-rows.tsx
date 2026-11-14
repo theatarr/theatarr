@@ -75,7 +75,10 @@ function StatusCell({ v, title, kind }: { v: Version; title: TitleDetail; kind: 
       {s.stage ? (
         <StageLink a={s.stage} />
       ) : s.upgrade ? (
-        <UpgradeStatus u={v.upgrade} what={nameOf(v)} titleId={titleId} releases={releasesHref(titleId, v.key ?? "")} ceilingControl={kind === "movie"} />
+        <span className="inline-flex flex-wrap items-center gap-1.5">
+          <Badge tone={s.tone}>{s.label}</Badge>
+          <UpgradeStatus u={v.upgrade} what={nameOf(v)} titleId={titleId} releases={releasesHref(titleId, v.key ?? "")} ceilingControl={kind === "movie"} />
+        </span>
       ) : (
         <Badge tone={s.tone}>{s.label}</Badge>
       )}
@@ -98,9 +101,10 @@ function cellOf(id: LibraryColumn, v: Version, kind: Kind, title: TitleDetail): 
     case "quality":
       return held && c?.quality ? <span className="whitespace-nowrap">{c.quality}</span> : blank;
     case "score":
-      // A score without its formats (files kept from a former Sonarr/Radarr, adopted links) stays blank, as Formats does.
-      return held && c?.score != null && c.formats?.length ? (
-        <span className="tabular-nums" title={c.formats.map((f) => `${f.name} ${f.score >= 0 ? "+" : ""}${fmtNumber(f.score)}`).join(", ")}>{fmtNumber(c.score)}</span>
+      // A score only with scoring evidence: the server leaves it out for a link Theatarr never scored; a calculated 0
+      // stays (internal/web linkScoreSQL).
+      return held && c?.score != null ? (
+        <span className="tabular-nums" title={c.formats?.length ? c.formats.map((f) => `${f.name} ${f.score >= 0 ? "+" : ""}${fmtNumber(f.score)}`).join(", ") : undefined}>{fmtNumber(c.score)}</span>
       ) : blank;
     case "size":
       return held && c?.size_bytes ? <span className="whitespace-nowrap tabular-nums">{fmtBytes(c.size_bytes)}</span> : blank;

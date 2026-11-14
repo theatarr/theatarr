@@ -37,7 +37,7 @@ describe("copyTone", () => {
     // A digital release still to come wins over a past cinema date, for the badge and the bar alike.
     const home = { kind: "movie" as const, release_date: "2026-10-01", home_release: "2026-12-01" };
     expect(copyTone(v, home, day)).toBe("idle");
-    expect(posterStatus("missing", false, false, undefined, { ...home, versions: [v] })).toBe("upcoming");
+    expect(posterStatus("missing", true, { ...home, versions: [v] })).toBe("upcoming");
   });
 
   it("colours a series library by its episodes", () => {
@@ -56,9 +56,7 @@ describe("copyTone", () => {
 
   it("gives a whole-title bar the badge's own tone", () => {
     expect(badgeTone("available")).toBe("ok");
-    expect(badgeTone("best_known")).toBe("ok");
-    // The Upgrade found badge is amber, so its bar is too.
-    expect(badgeTone("upgrade")).toBe("warn");
+    expect(badgeTone("unmonitored")).toBe("idle");
     // Partly available (a movie a monitored library lacks) is amber too.
     expect(badgeTone("partly_available")).toBe("warn");
     expect(badgeTone("wanted")).toBe("bad");
@@ -99,10 +97,10 @@ describe("a series library with no episodes known", () => {
   it("says nothing aired yet only when the badge reads Upcoming, else that the episodes are not known yet", () => {
     const coming = { kind: "series" as const, release_date: "2099-01-01", status: "Returning Series" };
     expect(copyWords(v, coming, day)).toBe("nothing aired yet");
-    expect(posterStatus("missing", false, false, undefined, { ...coming, versions: [v] })).toBe("upcoming");
+    expect(posterStatus("missing", true, { ...coming, versions: [v] })).toBe("upcoming");
     const old = { kind: "series" as const, release_date: "2009-04-01", status: "Ended" };
     expect(copyWords(v, old, day)).toBe("no episode information yet");
-    expect(posterStatus("missing", false, false, undefined, { ...old, versions: [v] })).toBe("wanted");
+    expect(posterStatus("missing", true, { ...old, versions: [v] })).toBe("not_available");
     expect(copyTone(v, old, day)).toBe("idle");
   });
 });

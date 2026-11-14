@@ -35,7 +35,10 @@ type TitleFacets struct {
 	Total        int            `json:"total"`
 	Monitored    int            `json:"monitored"`
 	Unmonitored  int            `json:"unmonitored"`
+	// Availability counts titles per status word (titleAvailabilitySQL); without see files, per watchability.
 	Availability map[string]int `json:"availability"`
+	// Upgrades counts titles per quality filter (upgradeFilters: found, best_known); see files only.
+	Upgrades map[string]int `json:"upgrades,omitempty"`
 	Versions     []VersionFacet `json:"versions"`
 	Qualities    []FacetCount   `json:"qualities"`
 	Genres       []FacetCount   `json:"genres"`
@@ -72,8 +75,7 @@ func (w *Web) apiTitleFacets(rw http.ResponseWriter, r *http.Request) {
 func (w *Web) titleFacets(ctx context.Context, f TitleFilter, seeFiles bool) (TitleFacets, error) {
 	db := w.st.Reader()
 	where, args := f.where()
-	out := TitleFacets{Availability: map[string]int{"missing": 0, "partial": 0, "upgrade": 0, "available": 0, "none": 0},
-		Versions: []VersionFacet{}, Qualities: []FacetCount{}, Genres: []FacetCount{}, Certifications: []FacetCount{}}
+	out := TitleFacets{Availability: map[string]int{}, Versions: []VersionFacet{}, Qualities: []FacetCount{}, Genres: []FacetCount{}, Certifications: []FacetCount{}}
 	var ymin, ymax sql.NullInt64
 	if err := db.QueryRowContext(ctx, `SELECT COUNT(*), COALESCE(SUM(t.monitored), 0), MIN(t.year), MAX(t.year)`+
 		titleFrom+where, args...).Scan(&out.Total, &out.Monitored, &ymin, &ymax); err != nil {
@@ -119,17 +121,42 @@ func (w *Web) titleFacets(ctx context.Context, f TitleFilter, seeFiles bool) (Ti
 	if err != nil {
 		return out, err
 	}
-	for tid, s := range states {
-		a := availabilityOf(kinds[tid], s)
-		if !seeFiles {
-			a = plainAvailability(kinds[tid], s)
+	if seeFiles {
+		// The status words and the quality filters, by the conditions the list filters by (library.go).
+		clock := newAirClock(w.now())
+		for _, a := range titleAvailabilities {
+			out.Availability[a] = 0
 		}
-		out.Availability[a]++
-	}
-	out.Availability["none"] = out.Total - len(states)
-	if !seeFiles {
-		// Below cutoff is file detail: those titles count as available (perms.go).
-		delete(out.Availability, "upgrade")
+		if err := scanAll(ctx, db, `SELECT `+titleAvailabilitySQL(clock)+`, COUNT(*)`+titleFrom+where+` GROUP BY 1`, args,
+			func(r *sql.Rows) error {
+				var a string
+				var n int
+				if err := r.Scan(&a, &n); err != nil {
+					return err
+				}
+				out.Availability[a] = n
+				return nil
+			}); err != nil {
+			return out, err
+		}
+		found, err := w.upgradeFoundTitles(ctx, db)
+		if err != nil {
+			return out, err
+		}
+		up := upgradeConds(clock)
+		var nFound, nBest int
+		if err := db.QueryRowContext(ctx, `SELECT COALESCE(SUM(`+up["found"]+`), 0), COALESCE(SUM(`+up["best_known"]+`), 0)`+
+			titleFrom+where, append([]any{found, found}, args...)...).Scan(&nFound, &nBest); err != nil {
+			return out, err
+		}
+		out.Upgrades = map[string]int{"found": nFound, "best_known": nBest}
+	} else {
+		// Watchability (perms.go plainAvailability).
+		out.Availability = map[string]int{"missing": 0, "partial": 0, "available": 0}
+		for tid, s := range states {
+			out.Availability[plainAvailability(kinds[tid], s)]++
+		}
+		out.Availability["none"] = out.Total - len(states)
 	}
 	for _, k := range sortedKeys(keys) {
 		vf := *keys[k]

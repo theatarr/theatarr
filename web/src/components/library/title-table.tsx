@@ -33,7 +33,7 @@ import {
   type IndexColumnId,
 } from "@/lib/index-columns";
 import { badgeTone, copyTone, copyWords, type CopyTone } from "@/lib/library-status";
-import { fmtDay, fmtRuntime, notAiredYet, POSTER_STATUS_LABEL, posterStatus, titleWatchWords, upcomingRelease, type PosterStatus } from "@/lib/library";
+import { fmtDay, fmtRuntime, notAiredYet, POSTER_STATUS_LABEL, posterStatus, qualityWord, titleWatchWords, upcomingRelease, type PosterStatus } from "@/lib/library";
 import { cn } from "@/lib/utils";
 import { StageLink, useMinWidth } from "./copy-bits";
 import { CopyDialog } from "./copy-dialog";
@@ -76,8 +76,10 @@ const dash = <span className="text-[var(--ink-3)]">—</span>;
 const or = (s: string | number | undefined | null, cls?: string): ReactNode => (s || s === 0 ? <span className={cls}>{s}</span> : dash);
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
-/** The badge words of a title that already has a file somewhere. */
-const HELD: ReadonlySet<PosterStatus> = new Set(["available", "partly_available", "upgrade", "best_known", "some_episodes"]);
+/** The status words of a title that already has a file somewhere. */
+const HELD: ReadonlySet<PosterStatus> = new Set(["available", "partly_available", "some_episodes"]);
+
+const QUALITY_INK = { info: "text-[var(--accent-ink)]", positive: "text-[var(--ok-ink)]", warning: "text-[var(--warn-ink)]", negative: "text-[var(--bad-ink)]", neutral: "text-[var(--ink-3)]" } as const;
 
 /** A download's stage beside the badge word, short so the Status column stays narrow: the percent while downloading,
  *  else a download icon; the stage's words are its tooltip and name. Linked to Activity, as StageLink. */
@@ -91,20 +93,25 @@ function CompactStage({ a }: { a: Acquisition }) {
   );
 }
 
-/** Status for an account that sees files: the poster badge's word (the day for Upcoming), and a download in hand's
- *  short stage after it ("Partly available · 64%", CompactStage); a title with no file yet shows the download's stage
+/** Status for an account that sees files: the poster badge's word (the day for Upcoming), with the quality word under
+ *  it for a title with a file ("Best quality known", "Upgrade found": qualityWord), and a download in hand's short
+ *  stage after it ("Partly available · 64%", CompactStage); a title with no file yet shows the download's stage
  *  alone, in words. words: a phone card's head (no hover), which shows the stage in words after the badge word and
  *  wraps the status under the title when both do not fit. */
 function StatusCell({ t, words = false }: { t: TitleRow; words?: boolean }) {
   const a = titleAcquisition(t);
-  const s = posterStatus(t.availability, t.upgrade_seen, false, t.upgrade_state, t);
+  const s = posterStatus(t.availability, false, t);
   if (a && !(s && HELD.has(s))) return <StageLink a={a.acquisition} className="text-[13px]" />;
   if (!s) return dash;
   const day = s === "upcoming" ? (upcomingRelease(t) ?? (notAiredYet(t) ? t.next_up?.date : undefined)) : undefined;
+  const q = qualityWord(t);
   const word = (
-    <span data-testid="status-cell" className={cn("text-[13px] font-medium", TONE_INK[badgeTone(s)])}>
-      {POSTER_STATUS_LABEL[s]}
-      {day ? ` · ${fmtDay(day)}` : ""}
+    <span className="inline-flex min-w-0 flex-col">
+      <span data-testid="status-cell" className={cn("text-[13px] font-medium", TONE_INK[badgeTone(s)])}>
+        {POSTER_STATUS_LABEL[s]}
+        {day ? ` · ${fmtDay(day)}` : ""}
+      </span>
+      {q ? <span data-testid="status-quality" className={cn("text-[11.5px]", QUALITY_INK[q.tone])}>{q.label}</span> : null}
     </span>
   );
   if (!a) return word;

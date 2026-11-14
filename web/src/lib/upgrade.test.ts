@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { mediaLine } from "./media";
-import { availabilityFilters, posterStatus, stateWords } from "./library";
+import { availabilityFilters, posterStatus } from "./library";
 import { UPGRADE_WORDS, availableIn, belowCount, cutoffLine, nextLine, plainUpgrade, resolutionWords, shortfall, sourceWords, tierWords, upgradeBadge, whyOf } from "./upgrade";
 
 const cutoff = { quality: "Remux-2160p", score: 10000, upgrades: true };
@@ -11,14 +11,15 @@ describe("upgrade words", () => {
       ["cutoff_met", "Preferred quality met"],
       ["best_available", "Best available"],
       ["best_source_seen", "Best source seen so far"],
-      ["higher_source_exists", "No suitable release found; a better source is known to exist"],
+      ["higher_source_exists", "No suitable release found yet, though a better source exists"],
       ["upgrade_available", "Upgrade found"],
       ["below_cutoff", "Preferred quality not met; no better copy found"],
     ];
     for (const [state, label] of table) {
       expect(UPGRADE_WORDS[state as keyof typeof UPGRADE_WORDS].label).toBe(label);
       const badge = upgradeBadge({ state: state as keyof typeof UPGRADE_WORDS });
-      expect(badge?.label).toBe(state === "upgrade_available" ? "Upgrade found" : state === "cutoff_met" ? "Available" : "Best quality known");
+      // The quality word, never the status word Available.
+      expect(badge?.label).toBe(state === "upgrade_available" ? "Upgrade found" : state === "cutoff_met" ? "Preferred quality met" : "Best quality known");
       expect(badge?.short).toBe(badge?.label);
       // Best quality known is never a warning.
       if (badge?.label === "Best quality known") expect(["neutral", "positive"]).toContain(badge.tone);
@@ -34,29 +35,18 @@ describe("upgrade words", () => {
     const words = [
       ...Object.values(UPGRADE_WORDS).flatMap((w) => [w.label, w.short]),
       ...availabilityFilters(true).flatMap((a) => [a.label, a.hint]),
-      stateWords("filled", true).label,
       belowCount({ state: "below_cutoff", below: 3, seen: 1 }),
       plainUpgrade({ state: "below_cutoff", cutoff: { quality: "Remux-2160p", upgrades: true } }),
     ];
     for (const w of words) expect(w).not.toMatch(/below cutoff|at cutoff/i);
-    expect(availabilityFilters(true).find((a) => a.id === "upgrade")?.label).toBe("Preferred quality not met");
+    // No status filter is about quality: Preferred quality not met is gone (O1).
+    expect(availabilityFilters(true).map((a) => a.label)).not.toContain("Preferred quality not met");
   });
-  it("puts a row's upgrade state on its poster", () => {
-    expect(posterStatus("upgrade", false, false, "best_available")).toBe("best_known");
-    expect(posterStatus("upgrade", false, false, "best_source_seen")).toBe("best_known");
-    expect(posterStatus("upgrade", false, false, "higher_source_exists")).toBe("best_known");
-    expect(posterStatus("upgrade", true, false, "upgrade_available")).toBe("upgrade");
-    expect(posterStatus("upgrade", false, false, "upgrade_available")).toBe("upgrade");
-    expect(posterStatus("upgrade", false, false, "below_cutoff")).toBe("best_known");
-    expect(posterStatus("upgrade", false, false, "cutoff_met")).toBe("available");
-    // An older server without upgrade_state.
-    expect(posterStatus("upgrade", true)).toBe("upgrade");
-    expect(posterStatus("upgrade", false)).toBe("best_known");
-    expect(posterStatus("available", false, false, "best_available")).toBe("best_known");
-    expect(posterStatus("available", false, false, "cutoff_met")).toBe("available");
-    expect(posterStatus("available", false)).toBe("available");
-    // A family account never sees an upgrade state.
-    expect(posterStatus("upgrade", false, true, "best_available")).toBe("available");
+  it("keeps the poster's status word whatever the upgrade state", () => {
+    expect(posterStatus("available")).toBe("available");
+    expect(posterStatus("partial")).toBe("partly_available");
+    // A family account reads watchability.
+    expect(posterStatus("available", true)).toBe("available");
   });
   it("says sources in words", () => {
     expect(sourceWords("WEBDL-2160p")).toBe("4K WEB");
@@ -83,7 +73,9 @@ describe("upgrade words", () => {
       searches: [{ searched_at: "2026-09-01T12:00:00Z", source: "search", best_tier: "web_2160", indexers: [{ indexer: "disc-feed", source_kind: "torznab", season: -1, complete: true }, { indexer: "dmm", source_kind: "dmm", season: -1, complete: false }] }],
     };
     const known = whyOf({ ...base, state: "best_available", ceiling: { ...ceiling, status: "known" } }, now);
-    expect(known.headline).toBe("Best available");
+    // The heading is the badge's quality word; the state's longer wording is the line under it.
+    expect(known.headline).toBe("Best quality known");
+    expect(known.detail).toBe("Best available");
     expect(known.current).toBe("4K WEB");
     expect(known.preferred).toBe("4K Remux");
     expect(known.reachable).toBe("4K WEB");
@@ -93,7 +85,12 @@ describe("upgrade words", () => {
     expect(known.sightings[0]).toContain("Alpha.2160p.WEB-DL");
     expect(known.override).toBeUndefined();
     const likely = whyOf({ ...base, state: "best_source_seen", ceiling: { ...ceiling, status: "likely" } }, now);
-    expect(likely.headline).toBe("Best source seen so far");
+    expect(likely.headline).toBe("Best quality known");
+    expect(likely.detail).toBe("Best source seen so far");
+    // A better source known: the heading never contradicts the badge that opened it.
+    const higher = whyOf({ ...base, state: "higher_source_exists", ceiling: { ...ceiling, status: "known" } }, now);
+    expect([higher.headline, higher.detail]).toEqual(["Best quality known", "No suitable release found yet, though a better source exists"]);
+    expect(whyOf({ ...base, state: "upgrade_available" }, now)).toMatchObject({ headline: "Upgrade found", detail: undefined });
     expect(likely.evidence).toMatch(/^Provisional/);
     const manual = whyOf(
       { ...base, state: "best_available", ceiling: { ...ceiling, status: "override", override: { tier: "web_2160", note: "No disc exists", by: 3, at: "2026-10-20T12:00:00Z" } } },
@@ -104,7 +101,8 @@ describe("upgrade words", () => {
     expect(manual.override).toBe("Set to 4K WEB by Nick on 2026-10-20: “No disc exists”.");
     // No ceiling: only current against preferred.
     const plain = whyOf({ ...base, state: "below_cutoff" }, now);
-    expect(plain.headline).toBe("Preferred quality not met; no better copy found");
+    expect(plain.headline).toBe("Best quality known");
+    expect(plain.detail).toBe("Preferred quality not met; no better copy found");
     expect(plain.evidence).toBeUndefined();
     expect(plain.coverage).toEqual([]);
   });
@@ -159,10 +157,7 @@ describe("plain words for accounts without see files", () => {
     expect(resolutionWords("DVD")).toBe("");
   });
   it("leaves the cutoff out", () => {
-    expect(stateWords("filled", true, true)).toEqual({ label: "Available", tone: "positive" });
-    expect(stateWords("filled", true).label).toBe("Available · preferred quality not met");
     expect(availabilityFilters(false).map((a) => a.id)).toEqual(["missing", "partial", "available"]);
     expect(availabilityFilters(false).some((a) => /cutoff/i.test(a.label + a.hint))).toBe(false);
-    expect(availabilityFilters(true).map((a) => a.id)).toContain("upgrade");
   });
 });

@@ -40,8 +40,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { fmtAgo, fmtBytes, fmtTime } from "@/lib/format";
 import { fmtDay, fmtRuntime } from "@/lib/library";
 import { mediaLine } from "@/lib/media";
-import { episodeNumber, mergedStatus, plainAvailable, statusWords } from "@/lib/seasons";
-import { UPGRADE_WORDS, upgradeBadge } from "@/lib/upgrade";
+import { cellStatus, episodeNumber, mergedStatus, plainAvailable, statusWords } from "@/lib/seasons";
 import { activityHref, stageTone, stageWords } from "@/lib/copies";
 import { cn } from "@/lib/utils";
 
@@ -51,15 +50,10 @@ function code(season: number, number: number) {
   return `S${String(season).padStart(2, "0")}E${String(number).padStart(2, "0")}`;
 }
 
-/** A copy's state for a caller who sees files, in the upgrade vocabulary once it has a file. */
+/** A copy's status word for a caller who sees files: the Episodes table's (cellStatus), so the row and the window say
+ *  the same; the quality word with Why? follows in the upgrade block. */
 function stateBadge(d: EpisodeVersionDetail, aired: boolean): { label: string; tone: "positive" | "warning" | "negative" | "neutral" | "info" } {
-  if (d.has_file) {
-    const badge = upgradeBadge(d.upgrade); if (badge) return badge;
-    return d.state === "filled" ? UPGRADE_WORDS.below_cutoff : UPGRADE_WORDS.cutoff_met;
-  }
-  if (!aired) return { label: "Not aired", tone: "neutral" };
-  if (!d.monitored) return { label: "Not monitored", tone: "neutral" };
-  return { label: "Missing", tone: "negative" };
+  return statusWords(cellStatus(d, aired, d.library_monitored === false), true);
 }
 
 /** The last search Theatarr decided for this episode in one library, read-only (Interactive search searches now). */
@@ -279,7 +273,7 @@ function CopyTabs({ titleId, d, aired, manage, admin, acquisitions }: { titleId:
 /** For accounts without "see files": one availability line across copies (copies are a household detail). */
 function PlainAvailability({ e }: { e: EpisodeDetail["episode"] }) {
   const keys = Object.keys(e.versions);
-  const s = mergedStatus(e, keys, false);
+  const s = mergedStatus(e, keys);
   const w = statusWords(s, false);
   const label = s === "available" ? plainAvailable(e, keys) : w.label;
   return (

@@ -19,10 +19,11 @@ describe("library status", () => {
     expect(s).toMatchObject({ label: "Downloading · 37%", tone: "info" });
     expect(s.stage?.stage).toBe("downloading");
   });
-  it("uses the poster badge words for a held movie, with an upgrade in hand under them", () => {
-    expect(libraryStatus(v({ has_file: true, upgrade: { state: "cutoff_met" } }), movie, DAY)).toMatchObject({ label: "Available", upgrade: true });
-    expect(libraryStatus(v({ has_file: true, upgrade: { state: "upgrade_available" } }), movie, DAY).label).toBe("Upgrade found");
-    expect(libraryStatus(v({ has_file: true, upgrade: { state: "below_cutoff" } }), movie, DAY).label).toBe("Best quality known");
+  it("says Available for a held movie, the quality word beside it, with an upgrade in hand under them", () => {
+    // The status word is Available whatever the quality; the quality word (with Why?) follows it (upgrade).
+    for (const state of ["cutoff_met", "upgrade_available", "below_cutoff", "best_source_seen"] as const) {
+      expect(libraryStatus(v({ has_file: true, upgrade: { state } }), movie, DAY)).toMatchObject({ label: "Available", tone: "positive", upgrade: true });
+    }
     expect(libraryStatus(v({ has_file: true, upgrade: { state: "cutoff_met" }, acquisition: downloading }), movie, DAY).sub).toBe("Upgrade downloading · 37%");
     expect(libraryStatus(v({ has_file: true }), movie, DAY)).toMatchObject({ label: "Available", tone: "positive" });
   });

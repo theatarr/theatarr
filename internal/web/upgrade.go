@@ -319,7 +319,7 @@ func loadItemFiles(ctx context.Context, db *sql.DB, versionIDs []any) (map[int64
 	if err != nil {
 		return nil, err
 	}
-	err = scanAll(ctx, db, `SELECT l.id, lv.version_id, COALESCE(le.episode_id, 0), COALESCE(l.quality, ''), l.score,
+	err = scanAll(ctx, db, `SELECT l.id, lv.version_id, COALESCE(le.episode_id, 0), COALESCE(l.quality, ''), `+linkScoreSQL+`,
 		COALESCE(`+linkSizeSQL+`, 0), l.created_at FROM link l JOIN link_version lv ON lv.link_id = l.id
 		LEFT JOIN link_episode le ON le.link_id = l.id LEFT JOIN content_file cf ON cf.id = l.content_file_id
 		WHERE lv.version_id IN (`+in+`) AND l.state = 'active'`, versionIDs, func(r *sql.Rows) error {
@@ -586,8 +586,8 @@ var rowUpgradeRank = map[string]int{"cutoff_met": 1, "best_available": 2, "best_
 	"higher_source_exists": 5, "upgrade_available": 6}
 
 // markUpgradeSeen sets upgrade_seen on list rows: on each version below cutoff with a better release seen, and on
-// the row when any version has one. A row whose availability is upgrade also gets upgrade_state, with its source
-// ceilings applied as on the title page.
+// the row when any version has one. A row with a file held (available or partial) also gets upgrade_state, with its
+// source ceilings applied as on the title page.
 func (w *Web) markUpgradeSeen(ctx context.Context, db *sql.DB, items []TitleRow) error {
 	var vs []upgradeVersion
 	where := map[int64][2]int{}
@@ -617,7 +617,8 @@ func (w *Web) markUpgradeSeen(ctx context.Context, db *sql.DB, items []TitleRow)
 			row.Versions[p[1]].UpgradeSeen = true
 			row.UpgradeSeen = true
 		}
-		if row.Availability == "upgrade" && rowUpgradeRank[u.State] > rowUpgradeRank[row.UpgradeState] {
+		if (row.Availability == "available" || row.Availability == "partial") &&
+			rowUpgradeRank[u.State] > rowUpgradeRank[row.UpgradeState] {
 			row.UpgradeState = u.State
 		}
 	}

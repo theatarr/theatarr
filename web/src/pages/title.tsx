@@ -34,7 +34,7 @@ import { Card } from "@/components/ui/card";
 import { fmtAgo, fmtBytes, nameWithoutYear, plural, titleWithYear } from "@/lib/format";
 import { fmtDay, fmtRuntime } from "@/lib/library";
 import { currentLibraries } from "@/lib/library-rows";
-import { airFact, readiness, resolveTab, titleTabs, type TitleTab } from "@/lib/title-layout";
+import { airFact, readiness, resolveTab, titleStatus, titleTabs, type TitleTab } from "@/lib/title-layout";
 import { cn } from "@/lib/utils";
 import { titleStatusWords } from "@/lib/tmdb-words";
 
@@ -213,7 +213,9 @@ export function TitlePage() {
   const franchises = d.franchises ?? [];
   const tabs = titleTabs({ series, franchise: franchises.length > 0, seeFiles: perms.seeFiles });
   const tab: TitleTab = resolveTab(params.get("tab"), tabs);
-  const ready = readiness(d.kind, versions, !perms.seeFiles && !!d.acquiring);
+  // Those who see files get the status word the posters and lists use; everyone else watchability.
+  const watch = readiness(d.kind, versions, !perms.seeFiles && !!d.acquiring);
+  const ready = perms.seeFiles ? titleStatus(d, versions) : watch;
   const runtime = fmtRuntime(d.runtime_minutes ?? m?.runtime_minutes);
   const lang = languageName(m?.original_language);
   const attrs = [
@@ -264,11 +266,11 @@ export function TitlePage() {
             ) : null}
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-2">
-            <Chip data-testid="title-readiness" tone={ready.tone === "positive" ? "ok" : ready.tone === "partial" ? "info" : "ghost"} data-tone={ready.tone}>
+            <Chip data-testid="title-readiness" tone={ready.tone === "positive" ? "ok" : ready.tone === "partial" ? "info" : ready.tone === "warning" ? "warn" : ready.tone === "negative" ? "bad" : "ghost"} data-tone={ready.tone}>
               {ready.label}
             </Chip>
             {audio.length > 0 ? <span className="text-xs text-muted-foreground">Audio: {audio.join(", ")}</span> : null}
-            {perms.seeFiles && !d.monitored ? <Chip tone="ghost">Not monitored</Chip> : null}
+            {perms.seeFiles && !d.monitored && d.availability !== "unmonitored" ? <Chip tone="ghost">Not monitored</Chip> : null}
           </div>
         </div>
         <div className="col-span-2 max-w-3xl sm:col-span-1 sm:col-start-2">
@@ -279,7 +281,7 @@ export function TitlePage() {
       {/* Requests (accounts that request rather than add): their status for this title. */}
       {!perms.add && perms.request ? (
         <div className="mt-5">
-          <TitleRequest target={target} versions={versions} heroTone={ready.tone} />
+          <TitleRequest target={target} versions={versions} heroTone={watch.tone} />
         </div>
       ) : null}
 

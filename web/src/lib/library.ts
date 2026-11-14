@@ -2,19 +2,24 @@
 // grid's URL parameters.
 import type { Availability, GridQuery, TitleRow } from "@/api/library";
 import { fmtDay } from "@/lib/format";
-import { availableIn, BEST_KNOWN } from "@/lib/upgrade";
+import { availableIn, upgradeBadge, type Tone } from "@/lib/upgrade";
 
-/** A poster card's availability badge. */
-export type PosterStatus = "available" | "partly_available" | "wanted" | "upgrade" | "best_known" | "some_episodes" | "upcoming" | "getting_ready" | "not_available";
+/**
+ * A title's status word (docs/design/ui.md "Status words"): the poster badge, the table's Status, the title page's
+ * status and the filters say the same word for the same state. For those who see files it is the server's
+ * availability as it is (one rule, internal/web titleAvailabilitySQL): Available (a file is held), Partly available (a
+ * monitored library still lacks one), Missing, Not monitored, Upcoming. Without "see files" it is watchability:
+ * Available, Some episodes, Not available, Getting ready, Upcoming. Quality is said apart from it (qualityWord).
+ */
+export type PosterStatus = "available" | "partly_available" | "wanted" | "unmonitored" | "upcoming" | "some_episodes" | "getting_ready" | "not_available";
 
 export const POSTER_STATUS_LABEL: Record<PosterStatus, string> = {
   available: "Available",
   partly_available: "Partly available",
   wanted: "Missing",
-  upgrade: "Upgrade found",
-  best_known: BEST_KNOWN,
-  some_episodes: "Some episodes",
+  unmonitored: "Not monitored",
   upcoming: "Upcoming",
+  some_episodes: "Some episodes",
   getting_ready: "Getting ready",
   not_available: "Not available",
 };
@@ -66,25 +71,44 @@ export function notAiredYet(t: Pick<TitleRow, "kind" | "versions" | "release_dat
   return first ? first > day : !AIRED_STATUS.has(t.status ?? "");
 }
 
-/** Missing takes priority (Getting ready without "see files" while a download is in hand, else Upcoming for a movie
- * not out at home yet, upcomingRelease, or a series with nothing aired yet, notAiredYet; else Missing, which reads Not
- * available without "see files" as in the table),
- * then episode gaps, then a movie a monitored library still lacks (partial: Partly available; without "see files" it
- * reads Available), then an upgrade found (a better release was seen), then best quality known (a copy below its
- * preferred quality with nothing better found), then available. */
-export function posterStatus(a: Availability | undefined, upgradeSeen?: boolean, plain = false, upgradeState?: string, title?: Pick<TitleRow, "kind" | "versions" | "release_date" | "home_release" | "next_up" | "acquiring" | "status">): PosterStatus | undefined {
-  if (a === "missing") return plain && title?.acquiring ? "getting_ready" : upcomingRelease(title) || notAiredYet(title) ? "upcoming" : plain ? "not_available" : "wanted";
-  if (plain) return a === "partial" && title?.kind !== "movie" ? "some_episodes" : a === "available" || a === "upgrade" || a === "partial" ? "available" : undefined;
-  const episodes = title?.kind === "series" && title.versions?.some(v => (v.coverage?.missing ?? 0) > 0);
-  if (episodes && title?.versions?.some(v => (v.coverage?.have ?? 0) > 0)) return "some_episodes";
-  if (a === "partial") {
-    if (title?.kind === "movie") return "partly_available";
-    return upgradeSeen ? "upgrade" : title?.versions?.some(v => v.state === "filled") ? "best_known" : "available";
+/**
+ * The status word of a title (PosterStatus). Those who see files get the server's availability word for word. plain
+ * (accounts without "see files"): a title with nothing to watch reads Getting ready while a download is in hand, else
+ * Upcoming for a movie not out at home yet (upcomingRelease) or a series with nothing aired yet (notAiredYet), else Not
+ * available; a series with some episodes reads Some episodes; the rest Available.
+ */
+export function posterStatus(a: Availability | undefined, plain = false, title?: Pick<TitleRow, "kind" | "versions" | "release_date" | "home_release" | "acquiring" | "status">): PosterStatus | undefined {
+  if (plain) {
+    if (a === "missing") return title?.acquiring ? "getting_ready" : upcomingRelease(title) || notAiredYet(title) ? "upcoming" : "not_available";
+    if (a === "partial") return title?.kind === "movie" ? "available" : "some_episodes";
+    return a === "available" ? "available" : undefined;
   }
-  const found = upgradeSeen || upgradeState === "upgrade_available";
-  if (a === "upgrade") return upgradeState === "cutoff_met" ? "available" : found ? "upgrade" : "best_known";
-  if (a === "available") return found ? "upgrade" : upgradeState && upgradeState !== "cutoff_met" ? "best_known" : "available";
+  switch (a) {
+    case "available":
+      return "available";
+    case "partial":
+      return "partly_available";
+    case "missing":
+      return "wanted";
+    case "unmonitored":
+      return "unmonitored";
+    case "upcoming":
+      return "upcoming";
+  }
   return undefined;
+}
+
+/**
+ * The quality word beside a held title's status (those who see files): Upgrade found once a better release was found,
+ * Best quality known while a file is below its preferred quality with nothing better found, Preferred quality met when
+ * every file is at it (upgradeBadge, the word the title page's libraries, season headers and episodes use). Undefined
+ * without a file.
+ */
+export function qualityWord(t: Pick<TitleRow, "availability" | "upgrade_seen" | "upgrade_state">): { label: string; tone: Tone; found: boolean } | undefined {
+  if (t.availability !== "available" && t.availability !== "partial") return undefined;
+  const found = !!t.upgrade_seen || t.upgrade_state === "upgrade_available";
+  const b = upgradeBadge({ state: found ? "upgrade_available" : t.upgrade_state || "cutoff_met" });
+  return b ? { label: b.label, tone: b.tone, found } : undefined;
 }
 
 /** A family account: no file detail and no request queue. Home shows it requests, what is available and browsing. */
@@ -99,8 +123,7 @@ export function isFamily(p: { seeFiles: boolean; manageRequests: boolean }): boo
  */
 export function watchWords(a: Availability | undefined, qualities: readonly (string | undefined | null)[]): { label: string; tone: "positive" | "partial" | "neutral" } | null {
   switch (a) {
-    case "available":
-    case "upgrade": {
+    case "available": {
       const best = qualities
         .map((q) => Number(q?.match(/(2160|1080|720|576|480)p?/i)?.[1] ?? 0))
         .reduce((m, n) => Math.max(m, n), 0);
@@ -127,14 +150,21 @@ export function titleWatchWords(t: Pick<TitleRow, "kind" | "availability" | "acq
 }
 
 /**
- * The availability filters. The key "upgrade" stays (saved URLs); it reads "Preferred quality not met". Accounts
- * without "see files" do not get it (the API counts those titles as available).
+ * The status filters (availability=), each counting the titles whose status word it is. An old saved link's
+ * availability=upgrade (the former "Preferred quality not met") reads as Available (gridQuery).
  */
 export const AVAILABILITY: { id: Availability; label: string; hint: string }[] = [
-  { id: "missing", label: "Missing", hint: "No library has a file" },
-  { id: "partial", label: "Partly", hint: "Some libraries have no file" },
-  { id: "upgrade", label: "Preferred quality not met", hint: "Every library has a file; some file is below its preferred quality (including best available ones)" },
-  { id: "available", label: "Available", hint: "Every library has a file at its preferred quality" },
+  { id: "available", label: "Available", hint: "A file is held, and every monitored library has its files" },
+  { id: "partial", label: "Partly available", hint: "A file is held; a monitored library still lacks one (a movie) or an aired episode (a series)" },
+  { id: "missing", label: "Missing", hint: "Monitored, out, and no file" },
+  { id: "unmonitored", label: "Not monitored", hint: "No file, and no library monitors it" },
+  { id: "upcoming", label: "Upcoming", hint: "Monitored, no file, and not out yet" },
+];
+
+/** The quality filters (upgrade=), for those who see files: among titles with a file. */
+export const UPGRADE_FILTERS: { id: "found" | "best_known"; label: string; hint: string }[] = [
+  { id: "found", label: "Upgrade found", hint: "A better release than a held file has been found" },
+  { id: "best_known", label: "Best quality known", hint: "A file is below its preferred quality and nothing better has been found" },
 ];
 
 /** Without "see files" the filters are watchability, as the server applies them (perms.go plainAvailability). */
@@ -149,22 +179,6 @@ const PLAIN_AVAILABILITY: { id: Availability; label: string; hint: string }[] = 
 export function availabilityFilters(seeFiles: boolean, kind?: string): { id: Availability; label: string; hint: string }[] {
   if (seeFiles) return AVAILABILITY;
   return kind === "movie" ? PLAIN_AVAILABILITY.filter((a) => a.id !== "partial") : PLAIN_AVAILABILITY;
-}
-
-/**
- * A version's state in plain words. plain (accounts without "see files") leaves the preferred quality out: filled is
- * "Available" (the API sends them cutoff_met as filled).
- */
-export function stateWords(state: string | undefined, hasFile?: boolean, plain = false): { label: string; tone: "positive" | "warning" | "negative" | "neutral" } {
-  switch (state) {
-    case "cutoff_met":
-      return { label: "Available", tone: "positive" };
-    case "filled":
-      return plain ? { label: "Available", tone: "positive" } : { label: "Available · preferred quality not met", tone: "warning" };
-    case "wanted":
-      return hasFile ? { label: "Partly available", tone: "warning" } : { label: "Missing", tone: "negative" };
-  }
-  return { label: state ?? "—", tone: "neutral" };
 }
 
 export function fmtRuntime(min: number | undefined | null): string | undefined {
@@ -224,7 +238,7 @@ export const SORTS = [
 ] as const;
 
 /** The filter keys the URL carries (the grid's own; kind and anime come from the catalog). */
-export const FILTER_KEYS = ["q", "with", "without", "state", "availability", "genre", "quality", "provider", "year_from", "year_to", "monitored"] as const;
+export const FILTER_KEYS = ["q", "with", "without", "state", "availability", "upgrade", "genre", "quality", "provider", "year_from", "year_to", "monitored"] as const;
 
 /** The sorts the Sort menu offers this account. */
 export function offeredSorts(seeFiles: boolean) {
@@ -251,7 +265,9 @@ export function gridQuery(c: CatalogId, p: URLSearchParams, seeFiles: boolean): 
     with: str("with"),
     without: str("without"),
     state: str("state"),
-    availability: str("availability"),
+    // The former "Preferred quality not met" (availability=upgrade) held titles with a file: Available now.
+    availability: p.get("availability") === "upgrade" ? "available" : str("availability"),
+    upgrade: seeFiles ? str("upgrade") : undefined,
     genre: str("genre"),
     quality: str("quality"),
     provider: str("provider"),
@@ -289,7 +305,9 @@ export function filterChips(
   if (mon === "true") out.push({ key: "monitored", label: "Monitored" });
   if (mon === "false") out.push({ key: "monitored", label: "Not monitored" });
   const av = get("availability");
-  if (av) out.push({ key: "availability", label: availabilityFilters(o.seeFiles, o.kind).find((a) => a.id === av)?.label ?? AVAILABILITY.find((a) => a.id === av)?.label ?? av });
+  if (av) out.push({ key: "availability", label: availabilityFilters(o.seeFiles, o.kind).find((a) => a.id === (av === "upgrade" ? "available" : av))?.label ?? AVAILABILITY.find((a) => a.id === av)?.label ?? av });
+  const up = o.seeFiles && get("upgrade");
+  if (up) out.push({ key: "upgrade", label: UPGRADE_FILTERS.find((u) => u.id === up)?.label ?? up });
   // Libraries, providers and copy states are file detail: no chip for them without "see files".
   const files = o.seeFiles;
   const lib = (k: string) => o.names?.get(k) ?? k;

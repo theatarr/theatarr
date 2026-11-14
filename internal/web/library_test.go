@@ -119,10 +119,11 @@ func TestTitlesSortAndFilters(t *testing.T) {
 		"q=alp+zzz":                     "",
 		// Delta's copy is stored filled, but its aired S01E03 is missing: partial (availStateSQL).
 		"availability=partial":         "Alpha,Delta",
-		"availability=upgrade":         "Beta",
+		"availability=available":       "Beta",
 		"availability=none":            "Gamma",
 		"availability=missing":         "",
-		"availability=available":       "",
+		"availability=upcoming":        "",
+		"availability=unmonitored":     "",
 		"sort=added&limit=2&offset=1":  "Delta,Alpha",
 		"without=movie-web&sort=added": "Delta,Alpha,Gamma",
 	} {
@@ -139,7 +140,8 @@ func TestTitlesSortAndFilters(t *testing.T) {
 			t.Errorf("%s: total %d, want %d", q, p.Total, n)
 		}
 	}
-	for _, bad := range []string{"sort=x", "order=up", "availability=x", "anime=maybe", "year_from=-1"} {
+	for _, bad := range []string{"sort=x", "order=up", "availability=x", "availability=upgrade", "upgrade=x", "anime=maybe",
+		"year_from=-1"} {
 		if code := e.getKey(APIBase+"/titles?"+bad, key, nil); code != 400 {
 			t.Errorf("%s: %d, want 400", bad, code)
 		}
@@ -161,36 +163,6 @@ func TestTitlesSortAndFilters(t *testing.T) {
 	e.getKey(APIBase+"/titles?q=Delta", key, &p)
 	if v := p.Items[0].Versions[0]; v.Label != "Anime series" || v.Files != 2 || v.Quality != "Bluray-1080p" {
 		t.Errorf("Delta version: %+v", v)
-	}
-}
-
-func TestAvailabilityOf(t *testing.T) {
-	t.Parallel()
-	w, f := versionState{"wanted", false, true}, versionState{"filled", true, true}
-	part, done := versionState{"wanted", true, true}, versionState{"cutoff_met", true, true}
-	for _, kind := range []string{"movie", "series"} {
-		for want, vs := range map[string][]versionState{
-			"none": nil, "missing": {w, w}, "partial": {w, done}, "upgrade": {f, done}, "available": {done, done},
-		} {
-			if got := availabilityOf(kind, vs); got != want {
-				t.Errorf("%s %v: %s, want %s", kind, vs, got, want)
-			}
-		}
-	}
-	// A series part-way: wanted, with some episode files.
-	if got := availabilityOf("series", []versionState{part}); got != "partial" {
-		t.Errorf("series part-way: %s", got)
-	}
-	// A movie's unmonitored empty library is not a gap: the held file decides; with no file anywhere it is missing.
-	off := versionState{"wanted", false, false}
-	for want, vs := range map[string][]versionState{"available": {done, off}, "upgrade": {f, off}, "missing": {off, w}} {
-		if got := availabilityOf("movie", vs); got != want {
-			t.Errorf("movie %v: %s, want %s", vs, got, want)
-		}
-	}
-	// A series keeps its own rule: an unmonitored empty copy still reads partial.
-	if got := availabilityOf("series", []versionState{done, off}); got != "partial" {
-		t.Errorf("series with an unmonitored empty copy: %s", got)
 	}
 }
 
@@ -226,7 +198,7 @@ func TestTitleFacets(t *testing.T) {
 	if code := e.getKey(APIBase+"/titles/facets?kind=movie", key, &f); code != 200 {
 		t.Fatalf("facets: %d", code)
 	}
-	if f.Total != 2 || f.Monitored != 2 || f.Availability["partial"] != 1 || f.Availability["upgrade"] != 1 ||
+	if f.Total != 2 || f.Monitored != 2 || f.Availability["partial"] != 1 || f.Availability["available"] != 1 ||
 		f.Availability["none"] != 0 || *f.YearMin != 2020 || *f.YearMax != 2021 {
 		t.Errorf("movie facets: %+v", f)
 	}
@@ -284,11 +256,24 @@ func TestTitleFacets(t *testing.T) {
 	// Every grid's facet counts agree with the titles they would filter.
 	for _, scope := range []string{"", "kind=movie", "kind=series&anime=false", "anime=true"} {
 		e.getKey(APIBase+"/titles/facets?"+scope, key, &f)
+		sum := 0
 		for av, n := range f.Availability {
 			var p TitlePage
 			e.getKey(APIBase+"/titles?availability="+av+"&"+scope, key, &p)
 			if p.Total != n {
 				t.Errorf("%s availability=%s: facet %d, titles %d", scope, av, n, p.Total)
+			}
+			sum += n
+		}
+		// Every title has one status word.
+		if sum != f.Total {
+			t.Errorf("%s: availability facets add up to %d of %d titles", scope, sum, f.Total)
+		}
+		for up, n := range f.Upgrades {
+			var p TitlePage
+			e.getKey(APIBase+"/titles?upgrade="+up+"&"+scope, key, &p)
+			if p.Total != n {
+				t.Errorf("%s upgrade=%s: facet %d, titles %d", scope, up, n, p.Total)
 			}
 		}
 		for _, g := range f.Genres {
@@ -1022,5 +1007,160 @@ func TestEpisodeCellInfoHash(t *testing.T) {
 	e.userMux().ServeHTTP(rec, r)
 	if rec.Code != 200 || strings.Contains(rec.Body.String(), `"info_hash"`) {
 		t.Errorf("a caller without see_files: %d %s", rec.Code, rec.Body.String())
+	}
+}
+
+// TestStatusWords: one rule for a title's status word (titleAvailabilitySQL), the same in the rows, the filters, the
+// facets and the title page. Available means a file is held, whatever its quality against the cutoff; a gap in a
+// library that is not monitored is no gap, for a series as for a movie.
+func TestStatusWords(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	key := e.apiKey()
+	e.exec(`INSERT INTO title (id, kind, name, year, created_at, updated_at) VALUES
+		(10, 'movie', 'M Partial', 2020, 0, 0), (11, 'movie', 'M Off Gap', 2020, 0, 0), (12, 'movie', 'M Missing', 2020, 0, 0),
+		(13, 'movie', 'M Upcoming', 2027, 0, 0), (14, 'movie', 'M Digital', 2026, 0, 0), (15, 'movie', 'M Unmonitored', 2020, 0, 0),
+		(20, 'series', 'S Full', 2020, 0, 0), (21, 'series', 'S Gap', 2020, 0, 0), (22, 'series', 'S Off Gap', 2020, 0, 0),
+		(23, 'series', 'S Not Aired', 2027, 0, 0), (24, 'series', 'S None', 2020, 0, 0)`)
+	e.exec(`INSERT INTO title_meta (title_id, release_date, status, attempted_at, refresh_after) VALUES
+		(12, '2020-01-01', '', 0, 0), (13, '2027-01-01', '', 0, 0), (14, '2026-01-01', '', 0, 0),
+		(23, '2027-02-01', 'In Production', 0, 0)`)
+	// M Digital: TMDb's cinema release has passed, its canonical digital release is still to come.
+	e.exec(`INSERT INTO title_release_date (title_id, source, country, type, date) VALUES (14, 'tmdb-art', '', 'digital', '2026-12-01')`)
+	e.exec(`INSERT INTO version (id, title_id, policy_key, state, monitored, created_at, updated_at) VALUES
+		(101, 10, 'movie-remux', 'filled', 1, 0, 0), (102, 10, 'movie-web', 'wanted', 1, 0, 0),
+		(111, 11, 'movie-remux', 'filled', 1, 0, 0), (112, 11, 'movie-web', 'wanted', 0, 0, 0),
+		(121, 12, 'movie-web', 'wanted', 1, 0, 0), (131, 13, 'movie-web', 'wanted', 1, 0, 0),
+		(141, 14, 'movie-web', 'wanted', 1, 0, 0), (151, 15, 'movie-web', 'wanted', 0, 0, 0),
+		(201, 20, 'tv-2160p', 'filled', 1, 0, 0), (211, 21, 'tv-2160p', 'wanted', 1, 0, 0),
+		(221, 22, 'tv-2160p', 'filled', 1, 0, 0), (222, 22, 'anime-tv', 'wanted', 0, 0, 0),
+		(231, 23, 'tv-2160p', 'wanted', 1, 0, 0)`)
+	e.exec(`INSERT INTO version_file (id, version_id, title_id, instance, arr_file_id, path, size_bytes, quality) VALUES
+		(901, 101, 10, 'r', 901, '/m/10.mkv', 1, 'WEBDL-1080p'), (902, 111, 11, 'r', 902, '/m/11.mkv', 1, 'WEBDL-1080p')`)
+	// Episodes: two aired and one to come for each series; Not Aired has only one to come.
+	e.exec(`INSERT INTO episode (id, title_id, season, number, name, air_date, created_at, updated_at) VALUES
+		(2001, 20, 1, 1, 'a', '2026-01-01', 0, 0), (2002, 20, 1, 2, 'b', '2026-01-08', 0, 0), (2003, 20, 1, 3, 'c', '2026-12-01', 0, 0),
+		(2101, 21, 1, 1, 'a', '2026-01-01', 0, 0), (2102, 21, 1, 2, 'b', '2026-01-08', 0, 0),
+		(2201, 22, 1, 1, 'a', '2026-01-01', 0, 0), (2202, 22, 1, 2, 'b', '2026-01-08', 0, 0),
+		(2301, 23, 1, 1, 'a', '2027-02-01', 0, 0)`)
+	airAtMidnight(e.exec)
+	e.exec(`INSERT INTO episode_version_state (version_id, episode_id, state, updated_at) VALUES
+		(201, 2001, 'filled', 0), (201, 2002, 'filled', 0), (201, 2003, 'wanted', 0),
+		(211, 2101, 'filled', 0), (211, 2102, 'wanted', 0),
+		(221, 2201, 'filled', 0), (221, 2202, 'filled', 0), (222, 2201, 'wanted', 0), (222, 2202, 'wanted', 0),
+		(231, 2301, 'wanted', 0)`)
+	e.exec(`INSERT INTO version_file (id, version_id, title_id, instance, arr_file_id, path, size_bytes, quality) VALUES
+		(920, 201, 20, 's', 920, '/t/20.mkv', 1, 'WEBDL-2160p'), (921, 211, 21, 's', 921, '/t/21.mkv', 1, 'WEBDL-2160p'),
+		(922, 221, 22, 's', 922, '/t/22.mkv', 1, 'WEBDL-2160p')`)
+	e.exec(`INSERT INTO version_file_episode (version_file_id, episode_id) VALUES (920, 2001), (920, 2002), (921, 2101),
+		(922, 2201), (922, 2202)`)
+	want := map[string]string{
+		"M Partial": "partial", "M Off Gap": "available", "M Missing": "missing", "M Upcoming": "upcoming",
+		"M Digital": "upcoming", "M Unmonitored": "unmonitored", "S Full": "available", "S Gap": "partial",
+		"S Off Gap": "available", "S Not Aired": "upcoming", "S None": "none",
+		// newEnv's: Alpha held in one library and wanted in another, Beta below its cutoff, Gamma in none.
+		"Alpha": "partial", "Beta": "available", "Gamma": "none",
+	}
+	var p TitlePage
+	e.getKey(APIBase+"/titles?limit=500", key, &p)
+	for _, it := range p.Items {
+		if it.Availability != want[it.Name] {
+			t.Errorf("%s: row %q, want %q", it.Name, it.Availability, want[it.Name])
+		}
+		var d TitleDetail
+		e.getKey(APIBase+"/titles/"+itoa(it.ID), key, &d)
+		if d.Availability != it.Availability {
+			t.Errorf("%s: title page %q, row %q", it.Name, d.Availability, it.Availability)
+		}
+		// S Off Gap's unmonitored copy counts no missing episode, on the row's coverage and the title page.
+		if it.Name == "S Off Gap" {
+			for _, v := range it.Versions {
+				if v.Coverage == nil || v.Coverage.Missing != 0 {
+					t.Errorf("S Off Gap %s coverage: %+v", v.Key, v.Coverage)
+				}
+			}
+			for _, v := range d.Versions {
+				if v.Episodes == nil || v.Episodes.Missing != 0 {
+					t.Errorf("S Off Gap %s episodes: %+v", v.Key, v.Episodes)
+				}
+			}
+			var l EpisodeList
+			e.getKey(APIBase+"/titles/22/episodes", key, &l)
+			for _, s := range l.Seasons {
+				if c := s.Versions["anime-tv"]; c.Missing != 0 {
+					t.Errorf("S Off Gap season %d unmonitored copy: %+v", s.Season, c)
+				}
+			}
+		}
+	}
+	if len(p.Items) != len(want) {
+		t.Fatalf("%d rows, want %d", len(p.Items), len(want))
+	}
+	// Each filter lists exactly the titles with that word, and its facet counts them; the facets add up.
+	for _, scope := range []string{"kind=movie", "kind=series"} {
+		var f TitleFacets
+		e.getKey(APIBase+"/titles/facets?"+scope, key, &f)
+		sum := 0
+		for _, av := range titleAvailabilities {
+			var p TitlePage
+			e.getKey(APIBase+"/titles?availability="+av+"&limit=500&"+scope, key, &p)
+			for _, it := range p.Items {
+				if want[it.Name] != av {
+					t.Errorf("%s availability=%s lists %s (%s)", scope, av, it.Name, want[it.Name])
+				}
+			}
+			if p.Total != f.Availability[av] {
+				t.Errorf("%s availability=%s: %d titles, facet %d", scope, av, p.Total, f.Availability[av])
+			}
+			sum += f.Availability[av]
+		}
+		if sum != f.Total {
+			t.Errorf("%s: facets add up to %d of %d", scope, sum, f.Total)
+		}
+	}
+}
+
+// TestEpisodeScoreEvidence: an episode's score shows only when the link stored scoring evidence: a calculated score
+// (0 included) or formats; a link with neither shows none, in the Episodes list and the episode window.
+func TestEpisodeScoreEvidence(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	e.seedLibrary()
+	key := e.apiKey()
+	e.exec(`INSERT INTO episode (id, title_id, season, number, name, air_date, created_at, updated_at) VALUES
+		(45, 4, 1, 4, 'Four', '2026-01-22', 0, 0), (46, 4, 1, 5, 'Five', '2026-01-29', 0, 0)`)
+	e.exec(`INSERT INTO episode_version_state (version_id, episode_id, state, updated_at) VALUES (4, 45, 'filled', 0), (4, 46, 'filled', 0),
+		(4, 43, 'filled', 0) ON CONFLICT DO UPDATE SET state = 'filled'`)
+	e.exec(`INSERT INTO link (id, path, target, title_id, release_title, quality, score, file_metadata, state, created_at, updated_at) VALUES
+		(71, '/a/S01E03.mkv', '/m/3', 4, 'Delta.S01E03', 'WEBDL-1080p', 0, '{"Score":0}', 'active', 0, 0),
+		(72, '/a/S01E04.mkv', '/m/4', 4, 'Delta.S01E04', 'WEBDL-1080p', 0, '{"Size":5}', 'active', 0, 0),
+		(73, '/a/S01E05.mkv', '/m/5', 4, 'Delta.S01E05', 'WEBDL-1080p', 250, '{"Formats":[{"name":"x","score":250}]}', 'active', 0, 0)`)
+	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (71, 4), (72, 4), (73, 4)`)
+	e.exec(`INSERT INTO link_episode (link_id, episode_id) VALUES (71, 43), (72, 45), (73, 46)`)
+	want := map[int64]string{43: "0", 45: "none", 46: "250"}
+	score := func(s *int64) string {
+		if s == nil {
+			return "none"
+		}
+		return itoa(*s)
+	}
+	var l EpisodeList
+	e.getKey(APIBase+"/titles/4/episodes", key, &l)
+	for _, ep := range l.Episodes {
+		w, ok := want[ep.ID]
+		if !ok {
+			continue
+		}
+		if got := score(ep.Versions["anime-tv"].Score); got != w {
+			t.Errorf("episode %d list score %s, want %s", ep.ID, got, w)
+		}
+		var d EpisodeDetail
+		e.getKey(APIBase+"/titles/4/episodes/"+itoa(ep.ID), key, &d)
+		if len(d.Versions) != 1 || d.Versions[0].File == nil || score(d.Versions[0].File.Score) != w {
+			t.Errorf("episode %d window: %+v", ep.ID, d.Versions)
+		}
+		if !d.Versions[0].LibraryMonitored {
+			t.Errorf("episode %d window: library monitored false", ep.ID)
+		}
 	}
 }

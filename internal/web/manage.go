@@ -247,10 +247,11 @@ func linkMedia(probeRaw, adoptedMedia sql.NullString, adopted bool, scene string
 }
 
 // linkFacts fills a movie's current file from its link's stored file metadata (decide.ExistingFile): release group,
-// languages, edition and matched formats where the link has them. A link with no formats (an adopted one: adoption
-// stores none) shows no score either, so a score never stands beside empty formats.
+// languages, edition and matched formats where the link has them. A link that stored no scoring evidence (no
+// calculated score and no formats: linkScoreSQL) shows no score; a calculated score stays, 0 included.
 func linkFacts(c *CurrentFile, meta string) {
 	var m struct {
+		Score        *int
 		Formats      []decide.FormatScore
 		ReleaseGroup string
 		Edition      string
@@ -269,7 +270,7 @@ func linkFacts(c *CurrentFile, meta string) {
 		c.Languages = m.Languages
 	}
 	c.Formats = m.Formats
-	if len(c.Formats) == 0 {
+	if len(c.Formats) == 0 && m.Score == nil {
 		c.Score = nil
 	}
 }
@@ -311,8 +312,8 @@ func (w *Web) enrichManage(ctx context.Context, db *sql.DB, d *TitleDetail) erro
 			if err == nil {
 				c.Media = linkMedia(pr, am, adopted, scene, false)
 				linkFacts(c, meta.String)
-				if len(c.Formats) == 0 && v.Upgrade != nil {
-					v.Upgrade.Score = nil // as current.score: never a score beside empty formats
+				if c.Score == nil && v.Upgrade != nil {
+					v.Upgrade.Score = nil // as current.score: no score without scoring evidence
 				}
 				continue
 			}
@@ -851,13 +852,15 @@ type EpisodeFile struct {
 
 // EpisodeVersionDetail is one version of an episode.
 type EpisodeVersionDetail struct {
-	Key       string          `json:"key"`
-	Label     string          `json:"label"`
-	State     string          `json:"state"`
-	Monitored bool            `json:"monitored"`
-	HasFile   bool            `json:"has_file"`
-	Upgrade   *UpgradeInfo    `json:"upgrade,omitempty"`
-	Control   *VersionControl `json:"control"`
+	Key       string `json:"key"`
+	Label     string `json:"label"`
+	State     string `json:"state"`
+	Monitored bool   `json:"monitored"`
+	// LibraryMonitored: the library (version) is monitored; a gap in one that is not reads Not monitored.
+	LibraryMonitored bool            `json:"library_monitored"`
+	HasFile          bool            `json:"has_file"`
+	Upgrade          *UpgradeInfo    `json:"upgrade,omitempty"`
+	Control          *VersionControl `json:"control"`
 	// For callers who see files: the file, and the journal's entries about the episode (newest first).
 	File    *EpisodeFile     `json:"file,omitempty"`
 	History []HistoryEvent   `json:"history,omitzero"`
@@ -940,10 +943,14 @@ func (w *Web) apiEpisode(rw http.ResponseWriter, r *http.Request) {
 		named[i] = copyName{key: v.key, label: w.versionLabel(v.key)}
 	}
 	labels := distinctLabels(named)
+	on := map[string]bool{}
+	for _, v := range list.Versions {
+		on[v.Key] = v.Monitored
+	}
 	for i, v := range mvs {
 		c := out.Episode.Versions[v.key]
 		d := EpisodeVersionDetail{Key: v.key, Label: labels[v.key], State: c.State, Monitored: c.Monitored,
-			HasFile: c.HasFile, Upgrade: us.explain(vs[i], eid), Control: w.control(v.key),
+			LibraryMonitored: on[v.key], HasFile: c.HasFile, Upgrade: us.explain(vs[i], eid), Control: w.control(v.key),
 			History: []HistoryEvent{}}
 		if d.State == "" {
 			d.State = "wanted"
@@ -1009,7 +1016,7 @@ func (w *Web) episodeFile(ctx context.Context, db *sql.DB, versionID, eid int64)
 	var adopted bool
 	// The hash as the title page reads it (linkHashSQL, fileHashSQL), so both screens agree.
 	versions := fmt.Sprintf("[%d]", versionID)
-	err := db.QueryRowContext(ctx, uniqueLinkedTargetHash+`SELECT l.id, COALESCE(l.quality, ''), l.score, `+linkSizeSQL+`, COALESCE(l.release_title, ''),
+	err := db.QueryRowContext(ctx, uniqueLinkedTargetHash+`SELECT l.id, COALESCE(l.quality, ''), `+linkScoreSQL+`, `+linkSizeSQL+`, COALESCE(l.release_title, ''),
 		l.path, l.created_at, cf.probe, l.adopted_media, l.download_id IS NULL, `+linkHashSQL+` FROM link l
 		JOIN link_version lv ON lv.link_id = l.id JOIN link_episode le ON le.link_id = l.id
 		LEFT JOIN content_file cf ON cf.id = l.content_file_id`+linkHashJoin+`WHERE lv.version_id = ? AND le.episode_id = ?

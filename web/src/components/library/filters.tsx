@@ -26,14 +26,14 @@ import { providerLabel } from "@/components/provider-pills";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SELECT_CLASS } from "@/components/ui/select";
-import { availabilityFilters } from "@/lib/library";
+import { availabilityFilters, UPGRADE_FILTERS } from "@/lib/library";
 
-/** The availability filters in rows of two; "Preferred quality not met" is too long to share a row. */
+/** The status filters in rows of two. */
 function availabilityRows(seeFiles: boolean, kind?: string) {
   const f = availabilityFilters(seeFiles, kind);
-  const wide = f.filter((a) => a.id === "upgrade");
-  const rest = f.filter((a) => a.id !== "upgrade");
-  return [rest.slice(0, 2), rest.slice(2), wide].filter((r) => r.length > 0);
+  const rows = [];
+  for (let i = 0; i < f.length; i += 2) rows.push(f.slice(i, i + 2));
+  return rows;
 }
 import { resolutionWords } from "@/lib/upgrade";
 import { cn } from "@/lib/utils";
@@ -193,8 +193,9 @@ export function FiltersPanel({
   const years: number[] = [];
   if (facets?.year_min && facets?.year_max) for (let y = facets.year_max; y >= facets.year_min; y--) years.push(y);
   const av = facets?.availability ?? {};
-  const icons = { missing: <PackageX />, partial: <PackageOpen />, upgrade: <Sparkle />, available: <PackageCheck /> } as const;
-  const tones = { missing: "danger", partial: "neutral", upgrade: "warning", available: "success" } as const;
+  const icons = { missing: <PackageX />, partial: <PackageOpen />, available: <PackageCheck />, unmonitored: <EyeOff />, upcoming: <CalendarDays /> } as const;
+  const tones = { missing: "danger", partial: "warning", available: "success", unmonitored: "neutral", upcoming: "neutral" } as const;
+  const up = facets?.upgrades ?? {};
 
   return (
     <aside data-testid="filters-panel" className={cn("flex min-h-0 flex-col bg-[var(--surface)] px-[18px] py-4", className)}>
@@ -228,7 +229,7 @@ export function FiltersPanel({
           <FilterButton selected={values.monitored === "false"} onClick={() => toggle("monitored", "false")} icon={<EyeOff />} label="Not monitored" count={facets?.unmonitored} tone="danger" className={segment(values.monitored === "false", true)} />
         </div>
         {availabilityRows(seeFiles, kind).map((pair, i) => (
-          <div key={i} role="group" aria-label={i === 0 ? "Incomplete" : "Complete"} className={SPLIT_GROUP}>
+          <div key={i} role="group" aria-label="Status" className={SPLIT_GROUP}>
             {pair.map((a, j) => (
               <FilterButton
                 key={a.id}
@@ -244,6 +245,24 @@ export function FiltersPanel({
             ))}
           </div>
         ))}
+        {/* Quality, apart from the status: among titles with a file (file detail). */}
+        {seeFiles ? (
+          <div role="group" aria-label="Quality" className={SPLIT_GROUP}>
+            {UPGRADE_FILTERS.map((u, j) => (
+              <FilterButton
+                key={u.id}
+                selected={values.upgrade === u.id}
+                onClick={() => toggle("upgrade", u.id)}
+                icon={u.id === "found" ? <Sparkle /> : <PackageCheck />}
+                label={u.label}
+                title={u.hint}
+                count={up[u.id]}
+                tone={u.id === "found" ? "warning" : "neutral"}
+                className={segment(values.upgrade === u.id, j > 0)}
+              />
+            ))}
+          </div>
+        ) : null}
       </div>
 
       {/* Has/lacks per library is copy detail: accounts without "see files" filter by availability only. */}

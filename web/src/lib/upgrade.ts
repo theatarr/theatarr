@@ -12,8 +12,8 @@ export type Tone = "positive" | "warning" | "negative" | "neutral" | "info";
 export type UpgradeState = UpgradeInfo["state"];
 
 /**
- * The vocabulary, for the title page's Why? explanation (posters and badges say Available, Upgrade found or Best
- * quality known, upgradeBadge).
+ * The longer wording of each state, the line under the Why? explanation's heading (badges and the heading say the
+ * quality word, upgradeBadge: Upgrade found, Best quality known or Preferred quality met).
  * label is the wording; short is its main clause; why marks the states a Why? explanation backs with source-ceiling evidence.
  */
 export const UPGRADE_WORDS: Record<Exclude<UpgradeState, "none">, { label: string; short: string; tone: Tone; why: boolean }> = {
@@ -24,7 +24,7 @@ export const UPGRADE_WORDS: Record<Exclude<UpgradeState, "none">, { label: strin
   // A provisional (likely) ceiling is reached.
   best_source_seen: { label: "Best source seen so far", short: "Best source seen so far", tone: "neutral", why: true },
   // A higher source is known, and no accepted replacement was found.
-  higher_source_exists: { label: "No suitable release found; a better source is known to exist", short: "No suitable release found", tone: "info", why: true },
+  higher_source_exists: { label: "No suitable release found yet, though a better source exists", short: "No suitable release found", tone: "info", why: true },
   // An accepted replacement was found.
   upgrade_available: { label: "Upgrade found", short: "Upgrade found", tone: "info", why: false },
   // Below the target, no replacement found.
@@ -34,17 +34,22 @@ export const UPGRADE_WORDS: Record<Exclude<UpgradeState, "none">, { label: strin
 /** The short label of a copy that holds a file when nothing better has been found for its profile. */
 export const BEST_KNOWN = "Best quality known";
 
+/** The quality word of a copy at its preferred quality. */
+export const PREFERRED_MET = "Preferred quality met";
+
 /**
- * The badge for an upgrade state; null for none or no state. Three short labels: "Upgrade found" once a better release
- * was actually found, "Available" at the preferred quality, and "Best quality known" (never a warning) for every other
- * copy with a file: nothing better has been found for its profile. The longer wording stays in Why? (UPGRADE_WORDS).
+ * The quality word for an upgrade state (docs/design/ui.md "Status words"), said beside the status (Available, Partly
+ * available) and never in its place; null for none or no state. Three words: "Upgrade found" once a better release
+ * was actually found, "Preferred quality met" at the preferred quality, and "Best quality known" (never a warning) for
+ * every other copy with a file: nothing better has been found for its profile. The longer wording is the line under
+ * Why?'s heading (UPGRADE_WORDS).
  */
 export function upgradeBadge(u: Pick<UpgradeInfo, "state"> | undefined | null): { label: string; short: string; tone: Tone; why: boolean } | null {
   if (!u?.state || u.state === "none") return null;
   const words = UPGRADE_WORDS[u.state];
   if (!words) return null;
   if (u.state === "upgrade_available") return { ...words, label: "Upgrade found", short: "Upgrade found" };
-  if (u.state === "cutoff_met") return { ...words, label: "Available", short: "Available" };
+  if (u.state === "cutoff_met") return { ...words, label: PREFERRED_MET, short: PREFERRED_MET };
   return { ...words, label: BEST_KNOWN, short: BEST_KNOWN, tone: words.tone === "positive" ? "positive" : "neutral" };
 }
 
@@ -67,7 +72,7 @@ const SOURCE: Record<string, string> = {
   rss: "Theatarr's RSS",
 };
 
-/** Why the item misses its preferred quality, in words: which part falls short. */
+/** Why the item misses its preferred quality, in words: which part falls short ("" when neither does). */
 export function shortfall(quality: string | undefined, score: number | undefined | null, cutoff: Cutoff | undefined | null): string {
   if (!cutoff) return "";
   const parts: string[] = [];
@@ -177,7 +182,10 @@ export function tierWords(tier: string | undefined | null): string {
 
 /** What the Why? explanation says, as lines (lib so it is tested; upgrade-why.tsx lays it out). */
 export type Why = {
+  /** The quality word, as the badge that opened Why? says it (upgradeBadge). */
   headline: string;
+  /** The state's longer wording (UPGRADE_WORDS), when it says more than the headline. */
+  detail?: string;
   current: string;
   preferred: string;
   /** With a source ceiling: the best the profile can reach under it. */
@@ -196,9 +204,11 @@ export type Why = {
  */
 export function whyOf(u: UpgradeInfo, now: Date = new Date(), by?: (id: number) => string): Why {
   const w = u.state === "none" ? undefined : UPGRADE_WORDS[u.state];
+  const b = upgradeBadge(u);
   const c = u.ceiling;
   const out: Why = {
-    headline: w?.label ?? "",
+    headline: b?.label ?? "",
+    detail: w && w.label !== b?.label ? w.label : undefined,
     current: sourceWords(u.quality) || "No file",
     preferred: sourceWords(u.cutoff?.quality) || "Not set",
     coverage: [],

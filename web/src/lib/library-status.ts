@@ -52,9 +52,7 @@ export const TONE: Record<CopyTone, "positive" | "negative" | "info" | "warning"
 export function badgeTone(s: PosterStatus | undefined): CopyTone {
   switch (s) {
     case "available":
-    case "best_known":
       return "ok";
-    case "upgrade":
     case "partly_available":
       return "warn";
     case "wanted":

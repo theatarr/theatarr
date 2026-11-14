@@ -205,9 +205,14 @@ describe("fix round 1", () => {
     await waitFor(() => expect(within(rowOf("movie-web")).getByTestId("upgrade-why")).toBeTruthy());
   });
 
-  it("leaves a score without its formats blank", async () => {
+  it("shows the score the server sends, formats or not, and leaves a missing one blank", async () => {
+    // The server leaves out a score with no scoring evidence (linkScoreSQL); an adopted file's calculated score, with no
+    // formats stored, stays.
     manager();
-    renderPage(<LibraryRows title={title as never} versions={[{ ...web, current: { ...web.current, formats: undefined } }] as never} />);
+    const page = renderPage(<LibraryRows title={title as never} versions={[{ ...web, current: { ...web.current, formats: undefined } }] as never} />);
+    await waitFor(() => expect(rowOf("movie-web").querySelector('[data-column="score"]')?.textContent).toBe("1,500"));
+    page.unmount();
+    renderPage(<LibraryRows title={title as never} versions={[{ ...web, current: { ...web.current, formats: undefined, score: undefined } }] as never} />);
     await waitFor(() => expect(rowOf("movie-web").querySelector('[data-column="score"]')?.textContent).toBe(""));
   });
 

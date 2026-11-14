@@ -21,9 +21,8 @@ const DOT: Record<PosterStatus, string> = {
   available: "bg-[var(--ok)]",
   partly_available: "bg-[var(--warn)]",
   some_episodes: "bg-[var(--accent)]",
-  upgrade: "bg-[var(--warn)]",
-  best_known: "bg-[var(--ok)]",
   wanted: "bg-[var(--bad)]",
+  unmonitored: "bg-[var(--ink-4)]",
   upcoming: "bg-[var(--ink-3)]",
   getting_ready: "bg-[var(--accent)]",
   not_available: "bg-[var(--ink-3)]",
@@ -46,6 +45,7 @@ export function PosterCard({
   kind,
   unmonitored,
   status,
+  quality,
   image,
   overview,
   caption,
@@ -65,6 +65,9 @@ export function PosterCard({
   /** A small eye-off chip top left (named "Not monitored"). */
   unmonitored?: boolean;
   status?: PosterStatus;
+  /** The quality word beside the status when it says something to act on ("Upgrade found", lib/library.ts
+   *  qualityWord): on the year line, after the status. */
+  quality?: string;
   /** Shown in the hover overlay. */
   overview?: string;
   /** A line or two under the title and year. */
@@ -119,18 +122,19 @@ export function PosterCard({
     </div>
   );
   const name = nameWithoutYear(title, year);
-  const label = [titleWithYear(title, year), status ? POSTER_STATUS_LABEL[status] : "", unmonitored ? "not monitored" : "", extraLabel ?? ""].filter(Boolean).join(", ");
+  const label = [titleWithYear(title, year), status ? POSTER_STATUS_LABEL[status] : "", quality ?? "", unmonitored && status !== "unmonitored" ? "not monitored" : "", extraLabel ?? ""].filter(Boolean).join(", ");
   const inner = (
     <>
       {body}
       {bars ? <div className="mt-2 grid gap-1 px-0.5" data-testid="poster-bars">{bars}</div> : null}
       <div className="mt-2 px-0.5" data-testid="poster-caption">
         <div className="line-clamp-2 text-[13px] font-semibold leading-snug text-[var(--ink)] [overflow-wrap:anywhere]">{name}</div>
-        {year || status ? (
+        {year || status || quality ? (
           <div className="truncate text-[11.5px] text-[var(--ink-3)]">
             {year}
             {/* A narrow card's badge is a dot only (two pills do not fit 132 px), so its word is here. */}
             {status ? <span className="@min-[160px]:hidden">{year ? " · " : ""}{POSTER_STATUS_LABEL[status]}</span> : null}
+            {quality ? <span className="text-[var(--accent-ink)]" data-testid="poster-quality">{year || status ? " · " : ""}{quality}</span> : null}
           </div>
         ) : null}
         {caption ? <div className="mt-0.5 line-clamp-2 text-[12px] leading-snug text-muted-foreground">{caption}</div> : null}

@@ -438,3 +438,70 @@ describe("Episode window", () => {
     expect(within(dialog).queryByTestId("episode-file")).toBeNull();
   });
 });
+
+describe("One status vocabulary", () => {
+  // Episode 101 held below its preferred quality with nothing better found; 102 held with an upgrade found; 103 an
+  // aired gap in a library that is not monitored.
+  const below = { state: "below_cutoff", quality: "WEBDL-1080p", score: 1500, cutoff: { quality: "WEBDL-1080p", score: 10000, upgrades: true } };
+  const words = {
+    title_id: 1,
+    versions: [
+      { id: 2, key: "anime-web", label: "Anime WEB", monitored: true, control: managed },
+      { id: 3, key: "anime-off", label: "Anime old", monitored: false, control: managed },
+    ],
+    seasons: [{
+      season: 1, episodes: 3, aired: 3,
+      versions: {
+        "anime-web": { have: 3, missing: 0, below_cutoff: 3, upgrade_seen: 1, monitored: 3, upgrade: below },
+        "anime-off": { have: 0, missing: 0, below_cutoff: 0, upgrade_seen: 0, monitored: 3 },
+      },
+    }],
+    episodes: [
+      { id: 101, season: 1, number: 1, name: "One", air_date: "2026-10-01", aired: true, monitored: true, versions: { "anime-web": cell(true, { state: "filled" }), "anime-off": cell(false) } },
+      { id: 102, season: 1, number: 2, name: "Two", air_date: "2026-10-08", aired: true, monitored: true, versions: { "anime-web": cell(true, { state: "filled", upgrade_seen: true }), "anime-off": cell(false) } },
+      { id: 103, season: 1, number: 3, name: "Three", air_date: "2026-10-15", aired: true, monitored: true, versions: { "anime-web": cell(true, { state: "filled" }), "anime-off": cell(false) } },
+    ],
+  };
+  const window101 = {
+    title_id: 1, title_name: "Tsukikage Signal", episode: words.episodes[0],
+    versions: [
+      { key: "anime-web", label: "Anime WEB", state: "filled", monitored: true, library_monitored: true, has_file: true, control: managed, upgrade: below },
+      { key: "anime-off", label: "Anime old", state: "wanted", monitored: true, library_monitored: false, has_file: false, control: managed },
+    ],
+  };
+  it("says the same words in the season header, the episode cells and the episode window", async () => {
+    mockFetch([routes[0], { method: "GET", path: "/titles/1/episodes", reply: words }, { method: "GET", path: "/titles/1/episodes/101", reply: window101 }]);
+    const user = userEvent.setup();
+    renderPage(<Seasons id="1" />, "/title/1");
+    await screen.findByText("One");
+    // The matrix: Available in the held library (Upgrade found beside it for E02), Not monitored, never Missing, in the
+    // library that is not monitored.
+    const row = (n: number) => screen.getByRole("button", { name: new RegExp(`^Episode ${n}:`) });
+    expect(within(row(1)).getAllByText("Available")).toHaveLength(1);
+    expect(within(row(1)).getByText("Not monitored")).toBeTruthy();
+    expect(within(row(2)).getByTestId("cell-upgrade").textContent).toBe("Upgrade found");
+    expect(screen.queryByText("Missing")).toBeNull();
+    expect(screen.queryByText("Best quality known")).toBeNull();
+    expect(within(screen.getByTestId("season-header")).getByTestId("season-summary").textContent).toBe("3 of 3 available · 1 upgrade found");
+    // One library in view: the season header's quality word, and its Why? headed by the same word.
+    await user.click(screen.getByRole("radio", { name: "Anime WEB" }));
+    const header = screen.getByTestId("season-header");
+    expect(within(header).getByTestId("upgrade-status").textContent).toContain("Best quality known");
+    expect(within(header).getByTestId("season-facts").textContent).toContain("1 upgrade found");
+    await user.click(within(header).getByTestId("upgrade-why"));
+    const why = await screen.findByTestId("upgrade-why-dialog");
+    expect(within(why).getByRole("heading").textContent).toBe("Best quality known");
+    // Current and preferred quality are equal: Why? says the profile score falls short.
+    expect(why.textContent).toContain("Short of the preferred quality because the profile score is 8,500 short.");
+    await user.click(within(why).getByRole("button", { name: "Close" }));
+    // The episode window says what the row says: Available, then the quality word with Why?; Not monitored for the
+    // library that is not monitored.
+    await user.click(screen.getByRole("button", { name: /^Episode 1:/ }));
+    const dialog = await screen.findByRole("dialog");
+    const web = await within(dialog).findByText("Available");
+    expect(web).toBeTruthy();
+    expect(within(dialog).getByTestId("upgrade-status").textContent).toContain("Best quality known");
+    expect(within(dialog).getByText("Not monitored")).toBeTruthy();
+    expect(within(dialog).queryByText("Missing")).toBeNull();
+  });
+});

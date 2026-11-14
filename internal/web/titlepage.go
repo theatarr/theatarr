@@ -33,8 +33,8 @@ type CurrentFile struct {
 	Languages []string   `json:"languages,omitempty"`
 	Edition   string     `json:"edition,omitempty"`
 	// Formats are the custom formats a movie's single file matched, with their scores (see files only). A Theatarr
-	// link keeps them from its import (link.file_metadata); an adopted link keeps none, and then Score is left out
-	// too, so a score never shows beside empty formats (enrichManage).
+	// link keeps them from its import (link.file_metadata); an adopted link keeps none. Score is left out for a link
+	// that stored no scoring evidence (linkFacts).
 	Formats []decide.FormatScore `json:"formats,omitempty"`
 	// CutoffMet is true when the version's state is cutoff_met: no upgrade wanted.
 	CutoffMet bool `json:"cutoff_met,omitempty"`
@@ -121,7 +121,8 @@ func downloadEvents(out []HistoryEvent, h HistoryEvent, state string, created, d
 type EpisodeCounts struct {
 	// Total: episodes aired or held, what "of N" counts (an episode still to air is not one to be ready).
 	Total int `json:"total"`
-	// Have: episodes with a file (filled or cutoff_met). Missing: aired, monitored and wanted.
+	// Have: episodes with a file (filled or cutoff_met). Missing: aired, monitored and wanted, in a monitored
+	// library (0 in one that is not monitored).
 	Have    int `json:"have"`
 	Missing int `json:"missing"`
 }
@@ -162,7 +163,11 @@ func (w *Web) enrichTitle(ctx context.Context, d *TitleDetail) error {
 			return err
 		}
 	}
-	d.Availability = availabilityOf(d.Kind, liveStates(d.Versions))
+	avail, err := w.titleAvailability(ctx, db, []any{d.ID})
+	if err != nil {
+		return err
+	}
+	d.Availability = avail[d.ID]
 	if d.Kind == "movie" {
 		dates, err := availability.DatesFor(ctx, db, []any{d.ID})
 		if err != nil {
@@ -242,7 +247,7 @@ func (w *Web) enrichTitle(ctx context.Context, d *TitleDetail) error {
 	return w.titleFranchises(ctx, db, d)
 }
 
-// liveStates is what availabilityOf needs of the versions still in the library (not Removed).
+// liveStates is what plainAvailability needs of the versions still in the library (not Removed).
 func liveStates(vs []Version) []versionState {
 	var out []versionState
 	for _, v := range vs {
@@ -438,6 +443,9 @@ func (w *Web) episodeCounts(ctx context.Context, db *sql.DB, ids []any, byID map
 				return err
 			}
 			if v := byID[vid]; v != nil {
+				if !v.Monitored {
+					c.Missing = 0 // a gap in a library that is not monitored is not missing (titleAvailabilitySQL)
+				}
 				v.Episodes = &c
 			}
 			return nil

@@ -80,7 +80,7 @@ func plainState(s string) string {
 // every version the household keeps is there. A movie with a file in any version is
 // available; a series is available when some version is complete (filled or at its cutoff), partial ("some
 // episodes available") when versions have files but none is complete, and missing when no version has a file.
-// Below cutoff is available. The SQL twins are availabilitySQL's watch_* conditions.
+// Below cutoff is available. The SQL twins are watchConds.
 func plainAvailability(kind string, vs []versionState) string {
 	if len(vs) == 0 {
 		return "none"
@@ -218,9 +218,12 @@ func (f *TitleFilter) plainFilter() string {
 	case "filled":
 		f.plainState = true
 	}
+	if f.Upgrade != "" {
+		return "filtering by upgrades needs the see-files permission"
+	}
 	switch f.Availability {
-	case "upgrade":
-		return "filtering by cutoff needs the see-files permission"
+	case "upcoming", "unmonitored":
+		return "filtering by release or monitoring needs the see-files permission"
 	case "available", "partial", "missing":
 		// Watchability, as redactRow shows it (plainAvailability).
 		f.Availability = "watch_" + f.Availability

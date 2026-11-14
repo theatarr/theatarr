@@ -67,7 +67,7 @@ function Row({
                 title={t.name ?? "?"}
                 year={t.year}
                 kind={kindOf(t)}
-                status={posterStatus(t.availability, t.upgrade_seen, !perms.seeFiles, t.upgrade_state, t)}
+                status={posterStatus(t.availability, !perms.seeFiles, t)}
                 image={t.poster}
                 overview={t.overview}
                 caption={caption(t)}
@@ -193,7 +193,7 @@ export function Home() {
           {perms.seeFiles ? (
             <>
               <Row id="missing" title="Missing" row={d.data.missing} empty="Nothing released is missing." caption={(t) => t.note} />
-              <Row id="upgrades" title="Upgrade found" row={d.data.upgrades} empty="No upgrades found." caption={() => null} />
+              <Row id="upgrades" title="Upgrade found" row={d.data.upgrades} empty="No upgrades found." caption={(t) => t.note} />
             </>
           ) : null}
         </>

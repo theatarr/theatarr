@@ -12,19 +12,29 @@ import { availableIn } from "./upgrade";
 
 export type Cell = Episode["versions"][string];
 
-/** An episode's state in one copy, or across copies. */
-export type Status = "available" | "upgrade" | "missing" | "not_aired" | "unmonitored" | "none";
+/**
+ * An episode's status word in one copy, or across copies (docs/design/ui.md "Status words"): Available (a file is
+ * held), Missing (aired, monitored, no file), Not aired, Not monitored (aired, no file, and the episode or its whole
+ * library is not monitored: a gap there is not missing), or none (not in this library). Quality is said apart from it:
+ * Upgrade found beside Available (cellUpgrade).
+ */
+export type Status = "available" | "missing" | "not_aired" | "unmonitored" | "none";
 
 /** The season filters; active is an episode with a download in hand for a copy in view (accounts that see files). */
 export type EpisodeFilter = "all" | "active" | "missing" | "upgrade";
 
-/** The words for a status. Accounts without "see files" never get "upgrade" (the API sends no upgrade flags). */
+/** The keys of the libraries that are not monitored (EpisodeList versions), whose gaps read Not monitored. */
+export type OffCopies = ReadonlySet<string>;
+
+export function offCopies(versions: readonly { key: string; monitored?: boolean }[]): OffCopies {
+  return new Set(versions.filter((v) => v.monitored === false).map((v) => v.key));
+}
+
+/** The words for a status. */
 export function statusWords(s: Status, seeFiles: boolean): { label: string; tone: "positive" | "info" | "negative" | "neutral" } {
   switch (s) {
     case "available":
       return { label: "Available", tone: "positive" };
-    case "upgrade":
-      return { label: "Upgrade found", tone: "info" };
     case "missing":
       return { label: "Missing", tone: "negative" };
     case "not_aired":
@@ -37,30 +47,43 @@ export function statusWords(s: Status, seeFiles: boolean): { label: string; tone
   }
 }
 
+/** The quality word beside an Available episode, for those who see files. */
+export const UPGRADE_FOUND = "Upgrade found";
+
 /** Whether an episode has aired: the server's flag (its air instant has passed; the day of air_date only when it has no instant), never worked out here. */
 export function aired(e: Pick<Episode, "aired">): boolean {
   return !!e.aired;
 }
 
-/** One copy's state for an episode. */
-export function cellStatus(c: Cell | undefined, isAired: boolean, seeFiles: boolean): Status {
+/** One copy's state for an episode; off: the copy (library) is not monitored. */
+export function cellStatus(c: Cell | undefined, isAired: boolean, off = false): Status {
   if (!c) return "none";
-  if (c.has_file) return seeFiles && c.upgrade_seen ? "upgrade" : "available";
+  if (c.has_file) return "available";
   if (!isAired) return "not_aired";
-  return c.monitored ? "missing" : "unmonitored";
+  return c.monitored && !off ? "missing" : "unmonitored";
+}
+
+/** Whether a copy's file of the episode has a better release found (those who see files). */
+export function cellUpgrade(c: Cell | undefined, seeFiles: boolean): boolean {
+  return seeFiles && !!c?.has_file && !!c.upgrade_seen;
 }
 
 /**
- * An episode across the given copies: watchability first (a file in any copy is Available, Upgrade found when one of
- * those files has a better release seen), then Not aired, Missing (some copy wants it) and Not monitored.
+ * An episode across the given copies: watchability first (a file in any copy is Available), then Not aired, Missing
+ * (some monitored copy wants it) and Not monitored.
  */
-export function mergedStatus(e: Episode, keys: string[], seeFiles: boolean): Status {
+export function mergedStatus(e: Episode, keys: string[], off: OffCopies = new Set()): Status {
   const isAired = aired(e);
-  const all = keys.map((k) => cellStatus(e.versions[k], isAired, seeFiles));
-  for (const s of ["upgrade", "available", "not_aired", "missing", "unmonitored"] as const) {
+  const all = keys.map((k) => cellStatus(e.versions[k], isAired, off.has(k)));
+  for (const s of ["available", "not_aired", "missing", "unmonitored"] as const) {
     if (all.includes(s)) return s;
   }
   return "none";
+}
+
+/** Whether some copy in view holds the episode with an upgrade found. */
+export function mergedUpgrade(e: Episode, keys: string[], seeFiles: boolean): boolean {
+  return keys.some((k) => cellUpgrade(e.versions[k], seeFiles));
 }
 
 /** "Available in 4K" for accounts without "see files": the best resolution any copy holds, else "Available". */
@@ -80,15 +103,15 @@ export function plainAvailable(e: Episode, keys: string[]): string {
 
 /**
  * Whether an episode belongs under a filter: Missing and Upgrade found match when any of the copies in view is. With
- * merged (one availability column) they match the episode across copies: Missing only when no copy holds it.
+ * merged (one availability column) Missing matches the episode across copies: only when no copy holds it.
  */
-export function matchesFilter(e: Episode, f: EpisodeFilter, keys: string[], seeFiles: boolean, merged = false): boolean {
+export function matchesFilter(e: Episode, f: EpisodeFilter, keys: string[], seeFiles: boolean, merged = false, off: OffCopies = new Set()): boolean {
   if (f === "all") return true;
   if (f === "active") return keys.some((k) => !!e.versions[k]?.acquisition);
-  const want: Status = f === "missing" ? "missing" : "upgrade";
-  if (merged) return mergedStatus(e, keys, seeFiles) === want;
+  if (f === "upgrade") return mergedUpgrade(e, keys, seeFiles);
+  if (merged) return mergedStatus(e, keys, off) === "missing";
   const isAired = aired(e);
-  return keys.some((k) => cellStatus(e.versions[k], isAired, seeFiles) === want);
+  return keys.some((k) => cellStatus(e.versions[k], isAired, off.has(k)) === "missing");
 }
 
 export type SeasonSummary = {
@@ -107,14 +130,17 @@ export type SeasonSummary = {
 /**
  * A season's completion for the copies in view (one copy on a phone, every copy on the desktop matrix). With several
  * copies a missing count names its copy: "2 missing in 4K". merged (accounts without "see files") counts across
- * copies as one, naming none: an episode is missing only when no copy holds it.
+ * copies as one, naming none: an episode is missing only when no copy holds it. A copy that is not monitored has no
+ * missing episodes (off).
  */
-export function seasonSummary(episodes: Episode[], copies: { key: string; label: string }[], seeFiles: boolean, merged = false): SeasonSummary {
+export function seasonSummary(episodes: Episode[], copies: { key: string; label: string; monitored?: boolean }[], seeFiles: boolean, merged = false): SeasonSummary {
+  const off = offCopies(copies);
   if (merged && copies.length > 1) {
     const one = { key: "*", label: "" };
     const flat = episodes.map((e) => {
-      const s = mergedStatus(e, copies.map((c) => c.key), seeFiles);
-      const cell = { state: "wanted", monitored: s !== "unmonitored", has_file: s === "available" || s === "upgrade", upgrade_seen: s === "upgrade" } as Cell;
+      const keys = copies.map((c) => c.key);
+      const s = mergedStatus(e, keys, off);
+      const cell = { state: "wanted", monitored: s !== "unmonitored", has_file: s === "available", upgrade_seen: mergedUpgrade(e, keys, seeFiles) } as Cell;
       const versions: Record<string, Cell> = s === "none" ? {} : { "*": cell };
       return { ...e, versions };
     });
@@ -129,12 +155,12 @@ export function seasonSummary(episodes: Episode[], copies: { key: string; label:
   const by = new Map<string, number>();
   for (const e of episodes) {
     const isAired = aired(e);
-    const states = keys.map((k) => cellStatus(e.versions[k], isAired, seeFiles));
-    const held = states.some((s) => s === "available" || s === "upgrade");
+    const states = keys.map((k) => cellStatus(e.versions[k], isAired, off.has(k)));
+    const held = states.includes("available");
     if (held) available++;
     if (isAired || held) total++;
     else notAired++;
-    if (states.includes("upgrade")) upgrades++;
+    if (mergedUpgrade(e, keys, seeFiles)) upgrades++;
     if (states.includes("missing")) missing++;
     keys.forEach((k, i) => {
       if (states[i] === "missing") by.set(k, (by.get(k) ?? 0) + 1);
@@ -230,8 +256,10 @@ export function copiesInView(l: Layout, versions: EpisodeList["versions"], picke
  * A library's badge on a season header: "8 / 10" held of aired-or-held (the whole season while none has aired or is
  * held); bad when something is missing, ok when nothing is, neutral while there is nothing to hold yet.
  */
-export function seasonBadge(c: { have: number; missing: number; total?: number } | undefined, season: { episodes: number }): { text: string; tone: "ok" | "bad" | "neutral" } {
+export function seasonBadge(c: { have: number; missing: number; total?: number } | undefined, season: { episodes: number; aired?: number }): { text: string; tone: "ok" | "bad" | "neutral" } {
   const have = c?.have ?? 0;
+  // A season with nothing aired and nothing held says so, rather than "0 / 1".
+  if (season.aired === 0 && have === 0) return { text: "Not aired", tone: "neutral" };
   const total = c?.total || season.episodes;
   const tone = (c?.missing ?? 0) > 0 ? "bad" : have > 0 ? "ok" : "neutral";
   return { text: `${fmtNumber(have)} / ${fmtNumber(total)}`, tone };

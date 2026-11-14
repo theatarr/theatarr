@@ -10,7 +10,7 @@ afterEach(() => vi.unstubAllGlobals());
 describe("Discover › Upcoming", () => {
   it("says Upcoming only for a movie not out yet; one already released reads Missing", async () => {
     const items = [
-      { id: 1, kind: "movie", name: "Not Out Yet", availability: "missing", release_date: "2999-01-01", date: "2999-01-01", note: "In cinemas" },
+      { id: 1, kind: "movie", name: "Not Out Yet", availability: "upcoming", release_date: "2999-01-01", date: "2999-01-01", note: "In cinemas" },
       { id: 2, kind: "movie", name: "Out In Cinemas", availability: "missing", release_date: "2001-01-01", next_up: { type: "physical", date: "2999-02-01" }, date: "2999-02-01", note: "Physical release" },
     ];
     mockFetch([

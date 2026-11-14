@@ -1,4 +1,4 @@
-// The upgrade status in the one vocabulary (lib/upgrade.ts UPGRADE_WORDS) with its Why? explanation in the shared
+// The quality word (lib/upgrade.ts upgradeBadge) with its Why? explanation in the shared
 // Modal: current against preferred source, the source ceiling's evidence kind and date, search coverage, sightings
 // and any manual override (who, when, note), then the scores and cutoff arithmetic. Managers reach the source
 // ceiling control (ceiling-control.tsx) from there. Used by the copy cards, season headers and the episode overview.
@@ -19,7 +19,7 @@ import { cn } from "@/lib/utils";
 
 /**
  * The status badge, and a Why? button when the caller sees files and there is something to explain: not on a plain
- * Available copy (the preferred quality is met), unless it carries a manual ceiling that Why? lets a manager clear.
+ * Preferred quality met copy, unless it carries a manual ceiling that Why? lets a manager clear.
  */
 export function UpgradeStatus({
   u,
@@ -120,7 +120,9 @@ function WhyDialog({
   const sc = score !== undefined ? score : u.score;
   const co = cutoff ?? u.cutoff;
   const line = cutoffLine(u.quality, sc, co);
-  const short = u.state === "below_cutoff" || u.state === "upgrade_available" || u.state === "higher_source_exists" ? shortfall(u.quality, sc, co) : "";
+  // Every state short of the preferred quality says which part falls short, Best source seen so far and Best
+  // available included (the quality can match while the score does not).
+  const short = u.state !== "cutoff_met" && u.state !== "none" ? shortfall(u.quality, sc, co) : "";
   const next = nextLine(u);
   return (
     <Modal
@@ -134,6 +136,7 @@ function WhyDialog({
       <div className="relative border-b border-[var(--line)] p-4 pr-12">
         <div className="text-xs font-medium text-[var(--ink-3)]">{what}</div>
         <h2 className="mt-0.5 text-lg font-semibold text-[var(--ink)]">{why.headline}</h2>
+        {why.detail ? <p className="mt-0.5 text-sm text-[var(--ink-2)]" data-testid="why-detail">{why.detail}</p> : null}
         <button type="button" onClick={onClose} aria-label="Close" className="absolute right-3 top-3 grid size-8 place-items-center rounded-lg text-[var(--ink-3)] hover:bg-[var(--hover)]">
           <X className="size-4" />
         </button>

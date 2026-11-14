@@ -40,6 +40,7 @@ import { InteractiveSearchButton } from "@/components/title/interactive-search";
 import { MonitorSwitch } from "@/components/title/manage-bits";
 import { ProgressBar } from "@/components/activity-bits";
 import { UpgradeStatus } from "@/components/title/upgrade-why";
+import { BEST_KNOWN } from "@/lib/upgrade";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -58,13 +59,17 @@ import {
   copiesInView,
   episodeLayout,
   episodeNumber,
+  cellUpgrade,
   matchesFilter,
   mergedStatus,
+  mergedUpgrade,
+  offCopies,
   plainAvailable,
   restrictions,
   seasonBadge,
   seasonSummary,
   statusWords,
+  UPGRADE_FOUND,
   type Cell,
   type EpisodeFilter,
   type Layout,
@@ -96,7 +101,6 @@ function useWide(): boolean {
 
 const TONE: Record<Status, { text: string; dot: string }> = {
   available: { text: "text-foreground", dot: "bg-[var(--ok-ink)]" },
-  upgrade: { text: "text-[var(--accent-ink)]", dot: "bg-[var(--accent-ink)]" },
   missing: { text: "text-[var(--bad-ink)]", dot: "bg-[var(--bad-ink)]" },
   not_aired: { text: "text-[var(--ink-3)]", dot: "bg-[var(--line)]" },
   unmonitored: { text: "text-[var(--ink-3)]", dot: "bg-[var(--line)]" },
@@ -107,24 +111,31 @@ const TONE: Record<Status, { text: string; dot: string }> = {
 const PHONE_ICON = "max-md:size-9";
 const PHONE_ICON_WRAP = "contents max-md:[&_button]:size-9";
 
-/** What one place (a copy's cell, or the merged column) says about an episode: the word, and the quality for managers. */
-function statusOf(e: Episode, keys: string[], merged: boolean, seeFiles: boolean): { s: Status; label: string; quality?: string; cell?: Cell } {
+type StatusOf = { s: Status; label: string; quality?: string; cell?: Cell; upgrade?: boolean };
+
+/** What one place (a copy's cell, or the merged column) says about an episode: the status word, Upgrade found beside
+ *  it, and the quality for managers. A gap in a library that is not monitored reads Not monitored. */
+function statusOf(e: Episode, copies: { key: string; monitored?: boolean }[], merged: boolean, seeFiles: boolean): StatusOf {
+  const keys = copies.map((v) => v.key);
+  const off = offCopies(copies);
   if (merged) {
-    const s = mergedStatus(e, keys, seeFiles);
-    return { s, label: s === "available" && !seeFiles ? plainAvailable(e, keys) : statusWords(s, seeFiles).label };
+    const s = mergedStatus(e, keys, off);
+    return { s, label: s === "available" && !seeFiles ? plainAvailable(e, keys) : statusWords(s, seeFiles).label, upgrade: mergedUpgrade(e, keys, seeFiles) };
   }
   const c = e.versions[keys[0]];
-  const s = cellStatus(c, aired(e), seeFiles);
-  return { s, label: statusWords(s, seeFiles).label, quality: seeFiles && c?.has_file ? c.quality : undefined, cell: c };
+  const s = cellStatus(c, aired(e), off.has(keys[0]));
+  return { s, label: statusWords(s, seeFiles).label, quality: seeFiles && c?.has_file ? c.quality : undefined, cell: c, upgrade: cellUpgrade(c, seeFiles) };
 }
 
+/** A cell's tooltip: the quality word, release group, size, score (when scored) and monitoring. */
 function cellTitle(c: Cell | undefined): string | undefined {
   if (!c) return undefined;
-  const parts = [c.has_file && c.state === "filled" ? "Preferred quality not met" : undefined, c.release_group, c.size_bytes ? fmtBytes(c.size_bytes) : undefined, c.score != null ? `profile score ${fmtNumber(c.score)}` : undefined, c.monitored ? "monitored" : "not monitored"];
+  const quality = c.has_file ? (c.upgrade_seen ? UPGRADE_FOUND : c.state === "filled" ? BEST_KNOWN : undefined) : undefined;
+  const parts = [quality, c.release_group, c.size_bytes ? fmtBytes(c.size_bytes) : undefined, c.score != null ? `profile score ${fmtNumber(c.score)}` : undefined, c.monitored ? "monitored" : "not monitored"];
   return parts.filter(Boolean).join(" · ") || undefined;
 }
 
-function StatusText({ st, manage, className }: { st: ReturnType<typeof statusOf>; manage: boolean; className?: string }) {
+function StatusText({ st, manage, className }: { st: StatusOf; manage: boolean; className?: string }) {
   const t = TONE[st.s];
   return (
     <span className={cn("inline-flex max-w-full items-center gap-1.5 text-[12.5px]", className)} data-status={st.s}>
@@ -133,6 +144,7 @@ function StatusText({ st, manage, className }: { st: ReturnType<typeof statusOf>
       ) : null}
       <span className={cn("size-2 shrink-0 rounded-full", t.dot)} aria-hidden />
       <span className={cn("whitespace-nowrap font-medium", t.text)}>{st.label}</span>
+      {st.upgrade ? <span className="whitespace-nowrap text-[11.5px] font-medium text-[var(--accent-ink)]" data-testid="cell-upgrade">{UPGRADE_FOUND}</span> : null}
       {st.quality ? <span className="truncate text-[11.5px] text-muted-foreground">{st.quality}</span> : null}
     </span>
   );
@@ -299,17 +311,17 @@ const COLUMN_HEAD: Record<EpisodeColumnId, { label: string; className?: string }
 };
 
 /** A chosen column's cell for the library in view. Blank, never "0" or "None", for a fact the file lacks. */
-function ColumnCell({ id, e, c, seeFiles, day }: { id: EpisodeColumnId; e: Episode; c: Cell | undefined; seeFiles: boolean; day: (d: string) => string }) {
+function ColumnCell({ id, e, c, seeFiles, day, off = false }: { id: EpisodeColumnId; e: Episode; c: Cell | undefined; seeFiles: boolean; day: (d: string) => string; off?: boolean }) {
   const file = c?.has_file ? c : undefined;
   const long = (v: string | undefined) => (v ? <span className="block max-w-[22rem] truncate" title={v}><Mono className="text-[11.5px]">{v}</Mono></span> : null);
   switch (id) {
     case "air":
       return <TableCell className="whitespace-nowrap text-muted-foreground">{e.air_date ? day(e.air_date) : "—"}</TableCell>;
     case "status": {
-      const s = cellStatus(c, aired(e), seeFiles);
+      const s = cellStatus(c, aired(e), off);
       return (
         <TableCell title={cellTitle(c)} data-col="status">
-          <StatusText st={{ s, label: statusWords(s, seeFiles).label }} manage={false} />
+          <StatusText st={{ s, label: statusWords(s, seeFiles).label, upgrade: cellUpgrade(c, seeFiles) }} manage={false} />
           <CellStage cell={c} />
         </TableCell>
       );
@@ -358,7 +370,7 @@ function LibraryTable({ episodes, copies, anime, manage, seeFiles, selected, onS
       <TableBody>
         {episodes.map((e) => {
           const c = v ? e.versions[v.key] : undefined;
-          const st = statusOf(e, v ? [v.key] : [], false, seeFiles);
+          const st = statusOf(e, v ? [v] : [], false, seeFiles);
           const on = !!c?.monitored;
           const what = `${on ? "Stop monitoring" : "Monitor"} ${epCode(e)} in ${act?.scope.name}`;
           return (
@@ -401,7 +413,7 @@ function LibraryTable({ episodes, copies, anime, manage, seeFiles, selected, onS
                 <div className={cn("font-medium", manage && !on && "text-muted-foreground")}>{e.name || `Episode ${e.number}`}</div>
               </TableCell>
               {columns.map((id) => (
-                <ColumnCell key={id} id={id} e={e} c={c} seeFiles={seeFiles} day={day} />
+                <ColumnCell key={id} id={id} e={e} c={c} seeFiles={seeFiles} day={day} off={v?.monitored === false} />
               ))}
               {act || live ? (
                 <TableCell className="pl-0 text-right">
@@ -420,7 +432,6 @@ function LibraryTable({ episodes, copies, anime, manage, seeFiles, selected, onS
 function MatrixTable({ episodes, copies, merged, anime, manage, seeFiles, selected, onSelect, onOpen, live, act }: ListProps) {
   const day = dayFormatter(episodes.map((e) => e.air_date));
   const ids = episodes.map((e) => e.id);
-  const keys = copies.map((v) => v.key);
   return (
     <Table density="dense" data-testid="episode-table">
       <TableHeader>
@@ -471,11 +482,11 @@ function MatrixTable({ episodes, copies, merged, anime, manage, seeFiles, select
             <TableCell className="whitespace-nowrap text-muted-foreground">{e.air_date ? day(e.air_date) : "—"}</TableCell>
             {merged ? (
               <TableCell>
-                <StatusText st={statusOf(e, keys, true, seeFiles)} manage={false} />
+                <StatusText st={statusOf(e, copies, true, seeFiles)} manage={false} />
               </TableCell>
             ) : (
               copies.map((v) => {
-                const st = statusOf(e, [v.key], false, seeFiles);
+                const st = statusOf(e, [v], false, seeFiles);
                 return (
                   <TableCell key={v.key} title={cellTitle(st.cell)} data-state={st.s}>
                     <StatusText st={st} manage={manage} />
@@ -499,7 +510,6 @@ function MatrixTable({ episodes, copies, merged, anime, manage, seeFiles, select
 /** Phones: one row per episode for the library in view (or across copies), with its state in words. */
 function EpisodeRows({ episodes, copies, merged, anime, manage, seeFiles, selected, onSelect, onOpen, live, act }: ListProps) {
   const day = dayFormatter(episodes.map((e) => e.air_date));
-  const keys = copies.map((v) => v.key);
   const ids = episodes.map((e) => e.id);
   const nSel = ids.filter((i) => selected.has(i)).length;
   return (
@@ -512,7 +522,7 @@ function EpisodeRows({ episodes, copies, merged, anime, manage, seeFiles, select
       ) : null}
       <ul className="divide-y divide-[var(--line)]">
         {episodes.map((e) => {
-          const st = statusOf(e, keys, merged, seeFiles);
+          const st = statusOf(e, copies, merged, seeFiles);
           return (
             <li
               key={e.id}
@@ -550,12 +560,14 @@ function EpisodeRows({ episodes, copies, merged, anime, manage, seeFiles, select
 }
 
 function FilterChips({ value, onChange, counts, seeFiles }: { value: EpisodeFilter; onChange: (f: EpisodeFilter) => void; counts: Record<EpisodeFilter, number>; seeFiles: boolean }) {
-  const opts: { id: EpisodeFilter; label: string }[] = [
+  const all: { id: EpisodeFilter; label: string }[] = [
     { id: "all", label: "All" },
     ...(seeFiles ? [{ id: "active" as const, label: "In progress" }] : []),
     { id: "missing", label: "Missing" },
     ...(seeFiles ? [{ id: "upgrade" as const, label: "Upgrade found" }] : []),
   ];
+  const opts = all.filter((o) => o.id === "all" || o.id === value || counts[o.id] > 0); // no chip that would show nothing
+  if (opts.length < 2) return null;
   return (
     <div className="flex flex-wrap gap-1.5 px-3 py-2" role="group" aria-label="Show episodes" data-testid="season-filters">
       {opts.map((o) => (
@@ -605,9 +617,11 @@ function LibraryBadge({ v, season }: { v: VersionT; season: SeasonT }) {
 function OneLibraryFacts({ titleId, season, v, seeFiles }: { titleId: number; season: SeasonT; v: VersionT; seeFiles: boolean }) {
   const c = season.versions[v.key];
   const b = seasonBadge(c, season);
+  // The quality word with Why? (UpgradeStatus) says Upgrade found once; the count is said only without it.
+  const quality = seeFiles && !!c && c.have > 0 && !!c.upgrade;
   const facts = [
     c?.missing ? `${fmtNumber(c.missing)} missing` : "",
-    seeFiles && c?.upgrade_seen ? `${fmtNumber(c.upgrade_seen)} upgrade${c.upgrade_seen === 1 ? "" : "s"} found` : "",
+    seeFiles && c?.upgrade_seen && !(quality && c.upgrade?.state === "upgrade_available") ? `${fmtNumber(c.upgrade_seen)} upgrade${c.upgrade_seen === 1 ? "" : "s"} found` : "",
     seeFiles ? stageCounts(c?.stages) : "",
     c?.size_bytes ? fmtBytes(c.size_bytes) : "",
     nextSearchText(c),
@@ -618,7 +632,7 @@ function OneLibraryFacts({ titleId, season, v, seeFiles }: { titleId: number; se
         {b.text}
       </Badge>
       {facts.length ? <span className="min-w-0 truncate text-xs text-muted-foreground" data-testid="season-facts">{facts.join(" · ")}</span> : null}
-      {seeFiles && c && c.have > 0 && c.upgrade ? (
+      {quality && c ? (
         <span onClick={(e) => e.stopPropagation()} className="contents">
           <UpgradeStatus u={c.upgrade} what={`Season ${season.season} · ${v.label}`} titleId={titleId} season={season.season} score={c.score} cutoff={v.cutoff} />
         </span>
@@ -670,17 +684,18 @@ function SeasonBlock({
 }) {
   const actions = useSeasonActions(titleId, scope);
   const keys = copies.map((v) => v.key);
+  const off = offCopies(copies);
   const all = list.episodes.filter((e) => e.season === season.season);
   const merged = layout.columns === "merged";
   const one = layout.columns === "selected" ? copies[0] : undefined;
   const sum = seasonSummary(all, copies, seeFiles, merged);
   const counts: Record<EpisodeFilter, number> = {
     all: all.length,
-    active: all.filter((e) => matchesFilter(e, "active", keys, seeFiles, merged)).length,
-    missing: all.filter((e) => matchesFilter(e, "missing", keys, seeFiles, merged)).length,
-    upgrade: all.filter((e) => matchesFilter(e, "upgrade", keys, seeFiles, merged)).length,
+    active: all.filter((e) => matchesFilter(e, "active", keys, seeFiles, merged, off)).length,
+    missing: all.filter((e) => matchesFilter(e, "missing", keys, seeFiles, merged, off)).length,
+    upgrade: all.filter((e) => matchesFilter(e, "upgrade", keys, seeFiles, merged, off)).length,
   };
-  const shown = all.filter((e) => matchesFilter(e, filter, keys, seeFiles, merged));
+  const shown = all.filter((e) => matchesFilter(e, filter, keys, seeFiles, merged, off));
   const Chevron = open ? ChevronDown : ChevronRight;
   const name = season.season === 0 ? "Specials" : `Season ${season.season}`;
   const act = manage && copies.length > 0 ? { scope, actions } : undefined;
@@ -877,7 +892,8 @@ export function Seasons({ id, anime, franchises = [] }: { id: string; anime: boo
   const merged = layout.columns === "merged";
   const keys = copies.map((v) => v.key);
   // A collapsed season shows none of its episodes, so it counts as hidden too.
-  const shown = (e: Episode) => opened.includes(e.season) && matchesFilter(e, filters[e.season] ?? "all", keys, seeFiles, merged);
+  const off = offCopies(copies);
+  const shown = (e: Episode) => opened.includes(e.season) && matchesFilter(e, filters[e.season] ?? "all", keys, seeFiles, merged, off);
   const hidden = new Set(l.episodes.filter((e) => !shown(e)).map((e) => e.id));
   if (ticked.view !== view) setTicked({ view, ids: new Set() });
   else if ([...ticked.ids].some((id) => hidden.has(id))) setTicked({ view, ids: new Set([...ticked.ids].filter((id) => !hidden.has(id))) });

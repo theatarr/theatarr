@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -40,8 +41,9 @@ type TitleGridFilter struct {
 	Provider  string   // some current file is held by this debrid provider: a cache code (rd) or a provider key (see files only)
 	YearFrom  int
 	YearTo    int
-	// Availability is the poster badge (availabilityOf): missing, partial, upgrade, available or none.
-	Availability string
+	// Availability is the title's availability (titleAvailabilitySQL): available, partial, missing, upcoming,
+	// unmonitored or none; Upgrade a quality filter (upgradeFilters): found or best_known.
+	Availability, Upgrade string
 	// Sort is added (newest current file), created (when the title was added), name, year, release (TMDb release or
 	// first air date), rating, runtime, certification, network or size (current files); Order is asc or desc
 	// (default: asc for name, certification, network and next, desc for the rest). Titles with no
@@ -54,6 +56,8 @@ type TitleGridFilter struct {
 	// clock is what the completion and next sorts count aired and coming episodes (and coming releases, by its day)
 	// against; listTitles sets it.
 	clock airClock
+	// upgradeFound is upgradeFoundTitles' list, which the Upgrade filter reads; listTitles sets it.
+	upgradeFound string
 	// providerKeys are the provider keys Provider stands for (providerKeys: a cache code's keys); listTitles sets
 	// them. Empty: Provider itself.
 	providerKeys []string
@@ -65,7 +69,8 @@ var (
 		"certification": true, "network": true}
 	// versionKeyRE is what a sort_version may look like (a policy version key).
 	versionKeyRE   = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,63}$`)
-	availabilities = map[string]bool{"": true, "missing": true, "partial": true, "upgrade": true, "available": true, "none": true}
+	availabilities = map[string]bool{"": true, "available": true, "partial": true, "missing": true, "upcoming": true,
+		"unmonitored": true, "none": true}
 )
 
 // curFile is true when version_file vf is a current file of its version: the owning instance's, or any file of a
@@ -84,6 +89,12 @@ const linkContentSQL = `COALESCE((SELECT cf_c.content_id FROM content_file cf_c 
 		(SELECT NULLIF(d_l.info_hash, '') FROM download d_l WHERE d_l.id = l.download_id),
 		CASE WHEN json_valid(l.file_metadata) THEN NULLIF(json_extract(l.file_metadata, '$.InfoHash'), '') END,
 		CASE WHEN json_valid(l.adopted_source) THEN NULLIF(json_extract(l.adopted_source, '$.hash'), '') END))))`
+
+// linkScoreSQL is link l's format score when the link stored scoring evidence, else NULL: the score its import
+// decision or adoption calculated (file_metadata's Score, decide.ExistingFile; a real calculated 0 stays 0) or the
+// formats it matched. A link that stored neither was never scored by Theatarr, and shows no score.
+const linkScoreSQL = `CASE WHEN json_valid(l.file_metadata) AND (json_type(l.file_metadata, '$.Score') IN ('integer', 'real')
+	OR json_array_length(l.file_metadata, '$.Formats') > 0) THEN l.score END`
 
 // providerHolds is the condition on content_provider cp that the provider holds the content now, complete: listed
 // on the account (present) and downloaded there (progress 100; the provider sync stores every provider's progress
@@ -136,31 +147,76 @@ func availStateSQL(c airClock) string {
 		ELSE v.state END)`
 }
 
-// availabilityConds is the condition for each availability, matching availabilityOf over the versions in the
-// library (liveVersion) and their availStateSQL, as the list's rows show them.
-func availabilityConds(c airClock) map[string]string {
+// The status words (docs/design/ui.md "Status words"): one rule for what a title says about its files, the same on
+// the posters, the table, the filters and their counts, Home and the title page. A title's availability is:
+//   - none: in no library;
+//   - available: a file is held, and no monitored library has a gap (for a series: every aired, monitored episode
+//     of every monitored library has a file), whatever the files' quality against the profile's cutoff;
+//   - partial: a file is held, and some monitored library has a gap (a movie library with no file; a series library
+//     missing an aired, monitored episode);
+//   - unmonitored: no file, and no library is monitored;
+//   - upcoming: no file, monitored, and not out yet: a movie's home release (else its TMDb release date) is still to
+//     come; a series has no aired episode and its first air date is still to come (without one, its TMDb status is not
+//     Returning Series, Ended or Canceled);
+//   - missing: no file, monitored and out.
+// A gap in a library that is not monitored is no gap. Quality is said apart from it (upgradeFilters). Display and
+// filters only: searching, grabbing and Wanted read the stored states.
+
+// titleAvailabilities are the availability values a caller who sees files gets.
+var titleAvailabilities = []string{"available", "partial", "missing", "upcoming", "unmonitored", "none"}
+
+// canonicalDate picks the canonical rows of title_release_date d, as availability.DatesFor does (its canonical).
+const canonicalDate = `d.country = '' AND (d.source = 'tmdb-art' OR NOT EXISTS
+	(SELECT 1 FROM title_meta m_d WHERE m_d.title_id = d.title_id AND m_d.movie_dates_at IS NOT NULL))`
+
+// homeReleaseSQL is title t's home release day (availability.HomeRelease over the canonical dates, as list rows'
+// home_release): the earlier of its digital and physical dates, else its cinema date plus 90 days; NULL without.
+const homeReleaseSQL = `COALESCE((SELECT MIN(d.date) FROM title_release_date d WHERE d.title_id = t.id
+	AND d.type IN ('digital', 'physical') AND ` + canonicalDate + `),
+	(SELECT date(MIN(d.date), '+90 days') FROM title_release_date d WHERE d.title_id = t.id AND d.type = 'theatrical'
+	AND ` + canonicalDate + `))`
+
+// heldEpisodeSQL is true when version v holds episode e: a current arr file or an active link (heldEpisodes).
+const heldEpisodeSQL = `(EXISTS (SELECT 1 FROM version_file vf JOIN version_file_episode fe ON fe.version_file_id = vf.id
+		LEFT JOIN version_source vs ON vs.version_id = vf.version_id WHERE vf.version_id = v.id AND fe.episode_id = e.id
+		AND ` + curFile + `)
+	OR EXISTS (SELECT 1 FROM link_version lv JOIN link l ON l.id = lv.link_id JOIN link_episode le ON le.link_id = l.id
+		WHERE lv.version_id = v.id AND le.episode_id = e.id AND l.state = 'active'))`
+
+// titleAvailabilitySQL is title t's availability (see above) as an SQL value; m is t's title_meta row (titleFrom).
+// The clock's values are written into the SQL. A series library's gap is what its coverage counts as missing (an
+// aired episode, specials left out, monitored in the library, that it does not hold), so the badge and the library
+// bars agree.
+func titleAvailabilitySQL(c airClock) string {
+	aired := fmt.Sprintf(`(CASE WHEN e.air_date_utc_at IS NOT NULL THEN e.air_date_utc_at <= %d
+		ELSE e.air_date IS NOT NULL AND e.air_date <= '%s' END)`, c.nowMs, c.today)
+	live := `FROM version v WHERE v.title_id = t.id AND ` + liveVersion
+	seriesGap := `EXISTS (SELECT 1 FROM episode_version_state s JOIN episode e ON e.id = s.episode_id
+		WHERE s.version_id = v.id AND s.monitored = 1 AND e.season > 0 AND ` + aired + ` AND NOT ` + heldEpisodeSQL + `)`
+	gap := `EXISTS (SELECT 1 ` + live + ` AND v.monitored = 1 AND CASE WHEN t.kind = 'movie' THEN NOT ` + hasFileSQL +
+		` ELSE ` + seriesGap + ` END)`
+	upcoming := `CASE WHEN t.kind = 'movie' THEN COALESCE(substr(COALESCE(` + homeReleaseSQL + `, NULLIF(m.release_date, '')), 1, 10)
+		> '` + c.today + `', 0)
+		ELSE NOT EXISTS (SELECT 1 FROM episode e WHERE e.title_id = t.id AND e.season > 0 AND ` + aired + `) AND
+			CASE WHEN COALESCE(m.release_date, '') <> '' THEN substr(m.release_date, 1, 10) > '` + c.today + `'
+			ELSE COALESCE(m.status, '') NOT IN ('Returning Series', 'Ended', 'Canceled') END END`
+	return `(CASE WHEN NOT EXISTS (SELECT 1 ` + live + `) THEN 'none'
+		WHEN EXISTS (SELECT 1 ` + live + ` AND ` + hasFileSQL + `) THEN CASE WHEN ` + gap + ` THEN 'partial' ELSE 'available' END
+		WHEN NOT EXISTS (SELECT 1 ` + live + ` AND v.monitored = 1) THEN 'unmonitored'
+		WHEN ` + upcoming + ` THEN 'upcoming'
+		ELSE 'missing' END)`
+}
+
+// watchConds are the watchable availabilities, what available, partial and missing mean to a caller without "see
+// files" (plainFilter), matching plainAvailability over the versions in the library and their availStateSQL.
+func watchConds(c airClock) map[string]string {
 	st := availStateSQL(c)
 	live := `FROM version v WHERE v.title_id = t.id AND ` + liveVersion
 	nVersions := `(SELECT COUNT(*) ` + live + `)`
-	// nMissing: wanted versions with no file; nGap: those that make the title partial (a movie's only when
-	// monitored); nWantedFile: wanted versions that have some (a series part-way).
-	nMissing := `(SELECT COUNT(*) ` + live + ` AND ` + st + ` = 'wanted' AND NOT ` + hasFileSQL + `)`
-	nGap := `(SELECT COUNT(*) ` + live + ` AND ` + st + ` = 'wanted' AND NOT ` + hasFileSQL +
-		` AND (t.kind <> 'movie' OR v.monitored = 1))`
-	nWantedFile := `(SELECT COUNT(*) ` + live + ` AND ` + st + ` = 'wanted' AND ` + hasFileSQL + `)`
-	nFilled := `(SELECT COUNT(*) ` + live + ` AND ` + st + ` = 'filled')`
 	// anyFile: some version has a file; completeVersion: some version is complete (filled or at cutoff).
 	anyFile := `EXISTS (SELECT 1 ` + live + ` AND ` + hasFileSQL + `)`
 	completeVersion := `EXISTS (SELECT 1 ` + live + ` AND ` + st + ` IN ('filled', 'cutoff_met'))`
 	return map[string]string{
-		"missing": nVersions + ` > 0 AND ` + nMissing + ` = ` + nVersions,
-		"partial": `(` + nGap + ` > 0 AND ` + nMissing + ` < ` + nVersions + `) OR ` + nWantedFile + ` > 0`,
-		"upgrade": nGap + ` = 0 AND ` + nWantedFile + ` = 0 AND ` + nFilled + ` > 0`,
-		"available": nVersions + ` > 0 AND ` + nMissing + ` < ` + nVersions + ` AND ` + nGap + ` = 0 AND ` +
-			nWantedFile + ` = 0 AND ` + nFilled + ` = 0`,
-		"none": nVersions + ` = 0`,
-		// The watchable availabilities, what available, partial and missing mean to a caller without "see files"
-		// (plainFilter), matching plainAvailability.
 		"watch_available": nVersions + ` > 0 AND ((t.kind = 'movie' AND ` + anyFile + `) OR (t.kind <> 'movie' AND ` +
 			completeVersion + `))`,
 		"watch_partial": `t.kind <> 'movie' AND NOT ` + completeVersion + ` AND ` + anyFile,
@@ -176,44 +232,91 @@ func availOr(avail, state string) string {
 	return state
 }
 
-// versionState is what availabilityOf needs of a version.
+// versionState is what plainAvailability needs of a version.
 type versionState struct {
 	state     string
 	hasFile   bool
 	monitored bool
 }
 
-// availabilityOf is a title's poster badge from its versions: missing when no version has a file and all are
-// wanted; partial when some are missing (for a movie, some monitored version: an unmonitored empty one is left
-// out), or a wanted version has some files (a series part-way); upgrade when the rest have files and some are below
-// cutoff; available when they are at cutoff.
-func availabilityOf(kind string, vs []versionState) string {
-	if len(vs) == 0 {
-		return "none"
+// titleAvailability reads titleAvailabilitySQL for titles ids, by id.
+func (w *Web) titleAvailability(ctx context.Context, db *sql.DB, ids []any) (map[int64]string, error) {
+	out := map[int64]string{}
+	if len(ids) == 0 {
+		return out, nil
 	}
-	missing, gap, wantedFile, filled := 0, 0, 0, 0
-	for _, v := range vs {
-		switch {
-		case v.state == "wanted" && !v.hasFile:
-			missing++
-			if kind != "movie" || v.monitored {
-				gap++
+	err := scanAll(ctx, db, `SELECT t.id, `+titleAvailabilitySQL(newAirClock(w.now()))+titleFrom+` WHERE t.id IN (`+
+		store.Placeholders(len(ids))+`)`, ids, func(r *sql.Rows) error {
+		var id int64
+		var a string
+		if err := r.Scan(&id, &a); err != nil {
+			return err
+		}
+		out[id] = a
+		return nil
+	})
+	return out, err
+}
+
+// The quality filters (upgrade=): found, some library's file has a better release found (upgrade_available, as
+// markUpgradeSeen marks rows: the posters' and the table's "Upgrade found"); best_known, a file is held, none has
+// an upgrade found, and some file is below its profile's cutoff (Best quality known). A title whose files are all at
+// their cutoff is in neither (Preferred quality met).
+var upgradeFilters = map[string]bool{"found": true, "best_known": true}
+
+// belowCutoffSQL is true when version v of title t has a file below its cutoff, as the upgrade explanation counts
+// them: a movie version filled, or a series episode held in a filled state.
+const belowCutoffSQL = `(CASE WHEN t.kind = 'movie' THEN v.state = 'filled' ELSE EXISTS (SELECT 1 FROM episode_version_state s
+	JOIN episode e ON e.id = s.episode_id WHERE s.version_id = v.id AND s.state = 'filled' AND ` + heldEpisodeSQL + `) END)`
+
+// upgradeConds are the quality filters' conditions on title t; each takes the found title ids (upgradeFoundTitles)
+// as one JSON array argument.
+func upgradeConds(c airClock) map[string]string {
+	held := titleAvailabilitySQL(c) + ` IN ('available', 'partial')`
+	found := `t.id IN (SELECT value FROM json_each(?))`
+	return map[string]string{
+		"found": held + ` AND ` + found,
+		"best_known": held + ` AND NOT ` + found + ` AND EXISTS (SELECT 1 FROM version v WHERE v.title_id = t.id AND ` +
+			liveVersion + ` AND ` + hasFileSQL + ` AND ` + belowCutoffSQL + `)`,
+	}
+}
+
+// upgradeFoundTitles lists, as a JSON array, the titles with an upgrade found: some version in the library with a
+// file below its cutoff (a movie version filled; a series version with files) for which a better release was seen,
+// as markUpgradeSeen marks rows. Only a version with a stored decision that accepted a release can have one, so the
+// others are left out before the evidence is read.
+func (w *Web) upgradeFoundTitles(ctx context.Context, db *sql.DB) (string, error) {
+	var vs []upgradeVersion
+	err := scanAll(ctx, db, `SELECT v.id, v.title_id, v.policy_key, t.kind, v.state FROM version v JOIN title t ON t.id = v.title_id
+		WHERE `+liveVersion+` AND (v.state = 'filled' OR (t.kind = 'series' AND `+hasFileSQL+`))
+		AND EXISTS (SELECT 1 FROM journal_decision j WHERE j.title_id = v.title_id AND j.version_key = v.policy_key
+			AND j.accepted > 0)`, nil, func(r *sql.Rows) error {
+		var v upgradeVersion
+		if err := r.Scan(&v.id, &v.titleID, &v.key, &v.kind, &v.state); err != nil {
+			return err
+		}
+		vs = append(vs, v)
+		return nil
+	})
+	if err != nil {
+		return "", err
+	}
+	ids := []int64{}
+	if len(vs) > 0 {
+		s, err := w.loadUpgrades(ctx, db, vs, false)
+		if err != nil {
+			return "", fmt.Errorf("upgrade evidence: %w", err)
+		}
+		seen := map[int64]bool{}
+		for _, v := range vs {
+			if !seen[v.titleID] && s.explain(v, 0).State == "upgrade_available" {
+				seen[v.titleID] = true
+				ids = append(ids, v.titleID)
 			}
-		case v.state == "wanted":
-			wantedFile++
-		case v.state == "filled":
-			filled++
 		}
 	}
-	switch {
-	case missing == len(vs):
-		return "missing"
-	case gap > 0 || wantedFile > 0:
-		return "partial"
-	case filled > 0:
-		return "upgrade"
-	}
-	return "available"
+	b, err := json.Marshal(ids)
+	return string(b), err
 }
 
 // hasQuality is a condition on title t: some current file (arr file or active link) of a copy in the library has the
@@ -292,8 +395,15 @@ func (g TitleGridFilter) where(conds []string, args []any) ([]string, []any) {
 		conds = append(conds, "t.year <= ?")
 		args = append(args, g.YearTo)
 	}
-	if c, ok := availabilityConds(g.clock)[g.Availability]; ok {
+	if c, ok := watchConds(g.clock)[g.Availability]; ok {
 		conds = append(conds, "("+c+")")
+	} else if g.Availability != "" {
+		conds = append(conds, titleAvailabilitySQL(g.clock)+" = ?")
+		args = append(args, g.Availability)
+	}
+	if c, ok := upgradeConds(g.clock)[g.Upgrade]; ok {
+		conds = append(conds, "("+c+")")
+		args = append(args, g.upgradeFound)
 	}
 	return conds, args
 }
@@ -352,7 +462,7 @@ func boolParam(r *http.Request, name string) (*bool, error) {
 func gridFilter(r *http.Request) (TitleGridFilter, error) {
 	q := r.URL.Query()
 	g := TitleGridFilter{Quality: q.Get("quality"), Provider: q.Get("provider"), Availability: q.Get("availability"),
-		Sort: q.Get("sort"), Order: q.Get("order")}
+		Upgrade: q.Get("upgrade"), Sort: q.Get("sort"), Order: q.Get("order")}
 	var err error
 	if g.Anime, err = boolParam(r, "anime"); err != nil {
 		return g, err
@@ -385,7 +495,10 @@ func gridFilter(r *http.Request) (TitleGridFilter, error) {
 		return g, errors.New("order must be asc or desc")
 	}
 	if !availabilities[g.Availability] {
-		return g, errors.New("availability must be missing, partial, upgrade, available or none")
+		return g, errors.New("availability must be available, partial, missing, upcoming, unmonitored or none")
+	}
+	if g.Upgrade != "" && !upgradeFilters[g.Upgrade] {
+		return g, errors.New("upgrade must be found or best_known")
 	}
 	return g, nil
 }
@@ -398,15 +511,14 @@ type TitleFacts struct {
 	RuntimeMinutes *int     `json:"runtime_minutes,omitempty"`
 	// ReleaseDate is the TMDb release date (movies) or first air date (series), YYYY-MM-DD.
 	ReleaseDate string `json:"release_date,omitempty"`
-	// Availability is the poster badge: missing, partial, upgrade, available or none (see TitleGridFilter). upgrade
-	// means below cutoff: every version has a file and some file is below its profile's cutoff; the UI says
-	// "Below cutoff", and "Upgrade available" only with UpgradeSeen.
+	// Availability is the title's status word (titleAvailabilitySQL): available, partial, missing, upcoming,
+	// unmonitored or none; without "see files", watchability (plainAvailability).
 	Availability string `json:"availability"`
-	// UpgradeSeen: some version below cutoff has a better release seen (upgrade.go).
+	// UpgradeSeen: some version below cutoff has a better release seen (upgrade.go): "Upgrade found".
 	UpgradeSeen bool `json:"upgrade_seen,omitempty"`
-	// UpgradeState, with availability upgrade only: the most pressing upgrade state among the title's versions
-	// (upgrade_available, higher_source_exists, below_cutoff, best_source_seen, best_available), so the poster badge
-	// says what the title page says. The source-ceiling states need manage (redactRowCeiling).
+	// UpgradeState, with a file held (available or partial): the most pressing upgrade state among the title's
+	// versions (upgrade_available, higher_source_exists, below_cutoff, best_source_seen, best_available, cutoff_met),
+	// the quality word beside the status. The source-ceiling states need manage (redactRowCeiling).
 	UpgradeState string `json:"upgrade_state,omitempty"`
 	// AddedAt is the newest current file's time.
 	AddedAt *time.Time `json:"added_at,omitempty"`
@@ -657,12 +769,18 @@ func (w *Web) fillVersionFiles(ctx context.Context, db *sql.DB, items []TitleRow
 			}
 		}
 	}
+	tids := make([]any, len(items))
+	for i := range items {
+		tids[i] = items[i].ID
+	}
+	avail, err := w.titleAvailability(ctx, db, tids)
+	if err != nil {
+		return err
+	}
 	for i := range items {
 		it := &items[i]
-		states := make([]versionState, len(it.Versions))
 		var size, added int64
-		for j, v := range it.Versions {
-			states[j] = versionState{availOr(v.availState, v.State), v.HasFile, v.Monitored}
+		for _, v := range it.Versions {
 			if v.SizeBytes != nil {
 				size += *v.SizeBytes
 			}
@@ -670,7 +788,7 @@ func (w *Web) fillVersionFiles(ctx context.Context, db *sql.DB, items []TitleRow
 				added = max(added, v.AddedAt.UnixMilli())
 			}
 		}
-		it.Availability = availabilityOf(it.Kind, states)
+		it.Availability = avail[it.ID]
 		if size > 0 {
 			it.SizeBytes = &size
 		}

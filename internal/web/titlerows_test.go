@@ -118,15 +118,29 @@ func TestTitleCurrentFromLink(t *testing.T) {
 		t.Errorf("user title page: want languages and edition: %s", body)
 	}
 
-	// Adopted: a stored score but no formats.
-	e.exec(`UPDATE link SET download_id = NULL, file_metadata = '{"Score":900,"Size":1000}', score = 900 WHERE id = 1`)
+	// Adopted: a score its adoption calculated but no formats (adoption stores none): the score is evidence, and a
+	// calculated 0 stays 0.
+	for _, score := range []int{900, 0} {
+		e.exec(`UPDATE link SET download_id = NULL, file_metadata = json_object('Score', ?, 'Size', 1000), score = ? WHERE id = 1`,
+			score, score)
+		d = TitleDetail{}
+		e.call("GET", APIBase+"/titles/1", nil, 200, &d)
+		if c := d.Versions[0].Current; c == nil || c.Score == nil || *c.Score != int64(score) || c.Formats != nil {
+			t.Errorf("adopted current, score %d: %+v", score, c)
+		}
+		if u := d.Versions[0].Upgrade; u == nil || u.Score == nil || *u.Score != int64(score) {
+			t.Errorf("adopted upgrade, score %d: want the score: %+v", score, u)
+		}
+	}
+	// A link that stored neither a score nor formats was never scored: no score, though the column holds 0.
+	e.exec(`UPDATE link SET file_metadata = '{"Size":1000}', score = 0 WHERE id = 1`)
 	d = TitleDetail{}
 	e.call("GET", APIBase+"/titles/1", nil, 200, &d)
-	if c := d.Versions[0].Current; c == nil || c.Score != nil || c.Formats != nil {
-		t.Errorf("adopted current: %+v", c)
+	if c := d.Versions[0].Current; c == nil || c.Score != nil {
+		t.Errorf("unscored current: %+v", c)
 	}
 	if u := d.Versions[0].Upgrade; u == nil || u.Score != nil {
-		t.Errorf("adopted upgrade: want no score: %+v", u)
+		t.Errorf("unscored upgrade: want no score: %+v", u)
 	}
 }
 
@@ -156,7 +170,7 @@ func TestTitleRemovedCopy(t *testing.T) {
 	if !byKey["movie-web"].Removed || byKey["movie-remux"].Removed {
 		t.Errorf("removed marks: %+v", d.Versions)
 	}
-	if d.Availability != "upgrade" || d.SizeBytes == nil || *d.SizeBytes != 9000000000 || d.AddedAt == nil ||
+	if d.Availability != "available" || d.SizeBytes == nil || *d.SizeBytes != 9000000000 || d.AddedAt == nil ||
 		d.AddedAt.UnixMilli() == 99999999999999 {
 		t.Errorf("title rollups: availability %q size %v added %v", d.Availability, d.SizeBytes, d.AddedAt)
 	}
@@ -167,10 +181,10 @@ func TestTitleRemovedCopy(t *testing.T) {
 	var p TitlePage
 	e.call("GET", APIBase+"/titles?kind=movie&q=Alpha", nil, 200, &p)
 	if len(p.Items) != 1 || len(p.Items[0].Versions) != 1 || p.Items[0].Versions[0].Key != "movie-remux" ||
-		p.Items[0].Availability != "upgrade" || *p.Items[0].SizeBytes != 9000000000 {
+		p.Items[0].Availability != "available" || *p.Items[0].SizeBytes != 9000000000 {
 		t.Errorf("list row: %+v", p.Items)
 	}
-	for q, want := range map[string]int{"availability=upgrade": 1, "availability=partial": 0, "provider=rd": 0} {
+	for q, want := range map[string]int{"availability=available": 1, "availability=partial": 0, "provider=rd": 0} {
 		p = TitlePage{}
 		e.call("GET", APIBase+"/titles?kind=movie&"+q, nil, 200, &p)
 		if p.Total != want {
@@ -179,7 +193,7 @@ func TestTitleRemovedCopy(t *testing.T) {
 	}
 	var f TitleFacets
 	e.call("GET", APIBase+"/titles/facets?kind=movie", nil, 200, &f)
-	if len(f.Providers) != 0 || f.Availability["upgrade"] != 1 || f.Availability["partial"] != 0 {
+	if len(f.Providers) != 0 || f.Availability["available"] != 1 || f.Availability["partial"] != 0 {
 		t.Errorf("facets: providers %+v availability %v", f.Providers, f.Availability)
 	}
 
@@ -507,7 +521,7 @@ func TestStaleCompleteSeriesIsPartial(t *testing.T) {
 
 // TestMoviePartlyAvailable: a movie held in one library and missing in a second, monitored library is partial in the
 // row, the filters, the facets and the title page. Unmonitored, or removed, the empty library does not count and the
-// held file decides (Alpha's is below cutoff: upgrade). A caller without "see files" reads available throughout.
+// held file decides: available (whatever its quality). A caller without "see files" reads available throughout.
 func TestMoviePartlyAvailable(t *testing.T) {
 	t.Parallel()
 	e := newManageEnv(t, nil)
@@ -520,7 +534,7 @@ func TestMoviePartlyAvailable(t *testing.T) {
 		if len(p.Items) != 1 || p.Items[0].Availability != want {
 			t.Errorf("%s: row %+v, want %s", name, p.Items, want)
 		}
-		for _, a := range []string{"partial", "upgrade"} {
+		for _, a := range []string{"partial", "available"} {
 			p = TitlePage{}
 			e.call("GET", APIBase+"/titles?kind=movie&q=Alpha&availability="+a, nil, 200, &p)
 			if (p.Total == 1) != (a == want) {
@@ -529,7 +543,7 @@ func TestMoviePartlyAvailable(t *testing.T) {
 		}
 		var f TitleFacets
 		e.call("GET", APIBase+"/titles/facets?kind=movie&q=Alpha", nil, 200, &f)
-		if f.Availability[want] != 1 || f.Availability["partial"]+f.Availability["upgrade"] != 1 {
+		if f.Availability[want] != 1 || f.Availability["partial"]+f.Availability["available"] != 1 {
 			t.Errorf("%s: facets %v", name, f.Availability)
 		}
 		var d TitleDetail
@@ -549,10 +563,10 @@ func TestMoviePartlyAvailable(t *testing.T) {
 	}
 	check("monitored", "partial")
 	e.exec(`UPDATE version SET monitored = 0 WHERE id = 2`)
-	check("unmonitored", "upgrade")
+	check("unmonitored", "available")
 	e.exec(`UPDATE version SET monitored = 1 WHERE id = 2`)
 	e.exec(`INSERT INTO arrview_removed_version (version_id, view, removed_at) VALUES (2, 'web', 0)`)
-	check("removed", "upgrade")
+	check("removed", "available")
 }
 
 // Titles with the same sort name order by their full name: "Alien" before "Alien³" whatever their ids.

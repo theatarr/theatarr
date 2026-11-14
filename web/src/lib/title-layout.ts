@@ -1,8 +1,8 @@
 // The title page's layout logic (docs/design/ui.md, Title page): which tabs a caller gets and which opens first, and the
 // readiness line in the hero. Kept out of the components so it is tested.
-import type { Version } from "@/api/library";
+import type { TitleRow, Version } from "@/api/library";
 import { fmtNumber } from "./format";
-import { today } from "./library";
+import { POSTER_STATUS_LABEL, posterStatus, today } from "./library";
 import { resolutionWords } from "./upgrade";
 
 export type TitleTab = "episodes" | "order" | "about" | "history";
@@ -54,15 +54,15 @@ function bestResolution(qualities: (string | undefined | null)[]): string {
 }
 
 /**
- * Whether the title can be watched, for everyone (the hero): "Ready to watch in 4K" (the best resolution a usable
- * copy has), "Some episodes ready" (a series with no complete copy), or "Not in the library yet". A movie missing one of
- * its copies is still ready: watchability, not the household's copy policy. gettingReady (an account without See
- * files, the title's acquiring: a download in hand) reads "Getting ready" for a title with nothing held, as the
- * posters do; a failed download is not in hand.
+ * Whether the title can be watched (the hero, for accounts without "see files"; request states): "Ready to watch in
+ * 4K" (the best resolution a usable copy has), "Some episodes ready" (a series with no complete copy), "Not available
+ * yet" (in a library, no file) or "Not in the library yet" (in none). A movie missing one of its copies is still
+ * ready: watchability, not the household's copy policy. gettingReady (the title's acquiring: a download in hand)
+ * reads "Getting ready" for a title with nothing held, as the posters do; a failed download is not in hand.
  */
 export function readiness(kind: string | undefined, versions: Version[], gettingReady = false): { label: string; tone: "positive" | "partial" | "neutral" } {
   const held = versions.filter((v) => v.has_file);
-  if (held.length === 0) return { label: gettingReady ? "Getting ready" : "Not in the library yet", tone: "neutral" };
+  if (held.length === 0) return { label: gettingReady ? "Getting ready" : versions.length > 0 ? "Not available yet" : "Not in the library yet", tone: "neutral" };
   const complete = kind === "series" ? held.filter((v) => !v.episodes || (v.episodes.have > 0 && v.episodes.missing === 0)) : held;
   if (complete.length === 0) {
     const best = held.map((v) => v.episodes).filter((e) => !!e).sort((a, b) => b.have - a.have)[0];
@@ -79,4 +79,20 @@ export function readiness(kind: string | undefined, versions: Version[], getting
 export function airFact(m: { next_air_date?: string; last_air_date?: string } | undefined | null, day: string = today()): { label: string; day: string } | undefined {
   if (m?.next_air_date && m.next_air_date.slice(0, 10) >= day) return { label: "Next episode", day: m.next_air_date };
   return m?.last_air_date ? { label: "Last aired", day: m.last_air_date } : undefined;
+}
+
+/**
+ * The hero's status for accounts that see files: the title's status word as the posters and the lists say it
+ * (posterStatus over the server's availability), "Available in 4K" with the best resolution a file has, and "Not in
+ * the library yet" only for a title in no library.
+ */
+export function titleStatus(t: Pick<TitleRow, "availability" | "kind" | "versions" | "release_date" | "home_release" | "acquiring" | "status">, versions: Version[]): { label: string; tone: "positive" | "partial" | "warning" | "negative" | "neutral" } {
+  const s = posterStatus(t.availability, false, t);
+  if (!s) return { label: "Not in the library yet", tone: "neutral" };
+  if (s === "available") {
+    const r = bestResolution(versions.filter((v) => v.has_file).map((v) => v.current?.quality ?? v.upgrade?.quality));
+    return { label: r ? `Available in ${r}` : POSTER_STATUS_LABEL.available, tone: "positive" };
+  }
+  const tone = { partly_available: "warning", wanted: "negative" } as const;
+  return { label: POSTER_STATUS_LABEL[s], tone: tone[s as keyof typeof tone] ?? "neutral" };
 }

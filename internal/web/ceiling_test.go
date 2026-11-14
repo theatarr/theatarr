@@ -255,7 +255,7 @@ func TestRowUpgradeState(t *testing.T) {
 			got = it
 		}
 	}
-	if got.Availability != "upgrade" || got.UpgradeState != "best_source_seen" {
+	if got.Availability != "available" || got.UpgradeState != "best_source_seen" {
 		t.Fatalf("manager row: %+v", got.TitleFacts)
 	}
 	viewer, err := New(Config{Store: e.st, Auth: e.au, Policy: e.pol, Perms: func(*auth.Identity) Perms { return PermsOf(auth.PermBrowse | auth.PermSeeFiles) }})

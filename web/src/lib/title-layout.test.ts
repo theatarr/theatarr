@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Version } from "@/api/library";
-import { airFact, parseTitleID, readiness, resolveTab, titleReleaseAccess, titleTabs } from "./title-layout";
+import { airFact, parseTitleID, readiness, resolveTab, titleReleaseAccess, titleStatus, titleTabs } from "./title-layout";
 
 const v = (o: Partial<Version>): Version => ({ id: 1, key: "movie-remux", label: "4K Remux", has_file: true, state: "filled", ...o }) as Version;
 
@@ -40,11 +40,26 @@ describe("title tabs", () => {
   });
 });
 
+describe("the title's status for those who see files", () => {
+  it("says the posters' word, with the best resolution when available", () => {
+    const held = [v({ current: { quality: "WEBDL-2160p" }, upgrade: { state: "below_cutoff" } })];
+    expect(titleStatus({ availability: "available", kind: "movie" }, held)).toEqual({ label: "Available in 4K", tone: "positive" });
+    expect(titleStatus({ availability: "partial", kind: "movie" }, held)).toEqual({ label: "Partly available", tone: "warning" });
+    expect(titleStatus({ availability: "missing", kind: "movie" }, [])).toEqual({ label: "Missing", tone: "negative" });
+    expect(titleStatus({ availability: "unmonitored", kind: "movie" }, [])).toEqual({ label: "Not monitored", tone: "neutral" });
+    expect(titleStatus({ availability: "upcoming", kind: "movie" }, [])).toEqual({ label: "Upcoming", tone: "neutral" });
+    // Only a title in no library is "Not in the library yet".
+    expect(titleStatus({ availability: "none", kind: "movie" }, [])).toEqual({ label: "Not in the library yet", tone: "neutral" });
+  });
+});
+
 describe("readiness", () => {
   it("says a movie is ready in its best resolution, whichever copy has it", () => {
     expect(readiness("movie", [v({ current: { quality: "WEBDL-2160p" } }), v({ id: 2, key: "movie-web", has_file: false, state: "wanted" })]).label).toBe("Ready to watch in 4K");
     expect(readiness("movie", [v({ current: { quality: "1080p" } })]).label).toBe("Ready to watch in 1080p");
-    expect(readiness("movie", [v({ has_file: false, state: "wanted" })])).toEqual({ label: "Not in the library yet", tone: "neutral" });
+    // In a library without a file is not "not in the library".
+    expect(readiness("movie", [v({ has_file: false, state: "wanted" })])).toEqual({ label: "Not available yet", tone: "neutral" });
+    expect(readiness("movie", [])).toEqual({ label: "Not in the library yet", tone: "neutral" });
     // Without See files a missing title with a download in hand is getting ready, as on the posters.
     expect(readiness("movie", [v({ has_file: false, state: "wanted" })], true)).toEqual({ label: "Getting ready", tone: "neutral" });
     expect(readiness("movie", [v({ current: { quality: "1080p" } })], true).label).toBe("Ready to watch in 1080p");

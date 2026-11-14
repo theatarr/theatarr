@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Episode, EpisodeList } from "@/api/library";
-import { cellStatus, copiesInView, episodeLayout, episodeNumber, matchesFilter, mergedStatus, plainAvailable, restrictions, seasonBadge, seasonSummary, statusWords, type Cell } from "./seasons";
+import { cellStatus, cellUpgrade, copiesInView, episodeLayout, episodeNumber, matchesFilter, mergedStatus, mergedUpgrade, plainAvailable, restrictions, seasonBadge, seasonSummary, statusWords, type Cell } from "./seasons";
 
 const today = "2026-10-26";
 const cell = (o: Partial<Cell>): Cell => ({ state: "wanted", monitored: true, has_file: false, ...o }) as Cell;
@@ -23,37 +23,46 @@ const season: Episode[] = [
 ];
 
 describe("episode status", () => {
-  it("says what a copy has in words", () => {
-    expect(cellStatus(undefined, true, true)).toBe("none");
-    expect(cellStatus(cell({ has_file: true }), true, true)).toBe("available");
-    expect(cellStatus(cell({ has_file: true, upgrade_seen: true }), true, true)).toBe("upgrade");
+  it("says what a copy has in words, the quality word apart", () => {
+    expect(cellStatus(undefined, true)).toBe("none");
+    expect(cellStatus(cell({ has_file: true }), true)).toBe("available");
+    // An upgrade found is said beside Available, never instead of it.
+    expect(cellStatus(cell({ has_file: true, upgrade_seen: true }), true)).toBe("available");
+    expect(cellUpgrade(cell({ has_file: true, upgrade_seen: true }), true)).toBe(true);
     // Without "see files" an upgrade is never mentioned (and the API sends no flag anyway).
-    expect(cellStatus(cell({ has_file: true, upgrade_seen: true }), true, false)).toBe("available");
-    expect(cellStatus(cell({}), false, true)).toBe("not_aired");
-    expect(cellStatus(cell({}), true, true)).toBe("missing");
-    expect(cellStatus(cell({ monitored: false }), true, true)).toBe("unmonitored");
+    expect(cellUpgrade(cell({ has_file: true, upgrade_seen: true }), false)).toBe(false);
+    expect(cellStatus(cell({}), false)).toBe("not_aired");
+    expect(cellStatus(cell({}), true)).toBe("missing");
+    expect(cellStatus(cell({ monitored: false }), true)).toBe("unmonitored");
+    // A gap in a library that is not monitored is not missing.
+    expect(cellStatus(cell({}), true, true)).toBe("unmonitored");
+    expect(cellStatus(cell({ has_file: true }), true, true)).toBe("available");
     expect(statusWords("unmonitored", true).label).toBe("Not monitored");
     expect(statusWords("unmonitored", false).label).toBe("Not available");
-    expect(["available", "upgrade", "missing", "not_aired"].map((s) => statusWords(s as "available", true).label)).toEqual(["Available", "Upgrade found", "Missing", "Not aired"]);
+    expect((["available", "missing", "not_aired"] as const).map((s) => statusWords(s, true).label)).toEqual(["Available", "Missing", "Not aired"]);
   });
   it("takes aired from the server's flag, not from the day of the air date", () => {
     // Dated today, airs tonight: not aired. Dated tomorrow in the network's zone, already aired: missing.
     const tonight = { ...ep(8, today, { "tv-2160p": cell({}) }), aired: false };
     const overnight = { ...ep(9, "2026-10-27", { "tv-2160p": cell({}) }), aired: true };
-    expect(mergedStatus(tonight, [k4.key], true)).toBe("not_aired");
-    expect(mergedStatus(overnight, [k4.key], true)).toBe("missing");
+    expect(mergedStatus(tonight, [k4.key])).toBe("not_aired");
+    expect(mergedStatus(overnight, [k4.key])).toBe("missing");
     expect(matchesFilter(tonight, "missing", [k4.key], true)).toBe(false);
     expect(matchesFilter(overnight, "missing", [k4.key], true)).toBe(true);
     expect(seasonSummary([tonight, overnight], [k4], true).text).toBe("0 of 1 available · 1 missing · 1 not aired");
   });
   it("merges copies by watchability", () => {
     const keys = [k4.key, k1.key];
-    expect(mergedStatus(season[3], keys, true)).toBe("available");
-    expect(mergedStatus(season[1], keys, true)).toBe("upgrade");
-    expect(mergedStatus(season[1], keys, false)).toBe("available");
-    expect(mergedStatus(season[4], keys, true)).toBe("missing");
-    expect(mergedStatus(season[6], keys, true)).toBe("not_aired");
-    expect(mergedStatus(season[5], keys, false)).toBe("unmonitored");
+    expect(mergedStatus(season[3], keys)).toBe("available");
+    expect(mergedStatus(season[1], keys)).toBe("available");
+    expect(mergedUpgrade(season[1], keys, true)).toBe(true);
+    expect(mergedUpgrade(season[1], keys, false)).toBe(false);
+    expect(mergedStatus(season[4], keys)).toBe("missing");
+    expect(mergedStatus(season[6], keys)).toBe("not_aired");
+    expect(mergedStatus(season[5], keys)).toBe("unmonitored");
+    // The 4K library not monitored: its gap at E4 is no gap, and E5 is missing only in 1080p.
+    expect(mergedStatus(season[4], [k4.key], new Set([k4.key]))).toBe("unmonitored");
+    expect(mergedStatus(season[4], keys, new Set([k4.key]))).toBe("missing");
   });
   it("names the best resolution for accounts without see files", () => {
     const e = ep(1, "2026-09-01", { a: cell({ has_file: true, quality: "1080p" }), b: cell({ has_file: true, quality: "2160p" }) });
@@ -74,6 +83,10 @@ describe("season summary", () => {
   it("counts across copies as one for accounts without see files, naming no copy and no upgrade", () => {
     expect(seasonSummary(season, [k4, k1], false, true).text).toBe("4 of 6 available · 1 missing · 1 not aired");
     expect(seasonSummary(season, [k4, k1], false).text).toBe("4 of 6 available · 2 missing in 4K · 1 missing in 1080p · 1 not aired");
+  });
+  it("counts no missing episode in a library that is not monitored", () => {
+    expect(seasonSummary(season, [{ ...k4, monitored: false }], true).text).toBe("3 of 6 available · 1 upgrade found · 1 not aired");
+    expect(seasonSummary(season, [{ ...k4, monitored: false }, k1], true).text).toBe("4 of 6 available · 1 missing in 1080p · 1 upgrade found · 1 not aired");
   });
   it("says when nothing has aired", () => {
     expect(seasonSummary([season[6]], [k4], true).text).toBe("1 episode, none aired yet");
@@ -159,5 +172,7 @@ describe("layout", () => {
     expect(seasonBadge({ have: 10, missing: 0, total: 10 }, { episodes: 10 })).toEqual({ text: "10 / 10", tone: "ok" });
     expect(seasonBadge({ have: 0, missing: 0, total: 0 }, { episodes: 6 })).toEqual({ text: "0 / 6", tone: "neutral" });
     expect(seasonBadge(undefined, { episodes: 6 })).toEqual({ text: "0 / 6", tone: "neutral" });
+    // A season with nothing aired says so.
+    expect(seasonBadge({ have: 0, missing: 0, total: 0 }, { episodes: 1, aired: 0 })).toEqual({ text: "Not aired", tone: "neutral" });
   });
 });

@@ -172,8 +172,14 @@ func (w *Web) listTitles(ctx context.Context, f TitleFilter) (TitlePage, error) 
 		f.providerKeys = w.providerKeys(f.Provider)
 	}
 	f.clock = newAirClock(w.now())
-	where, args := f.where()
 	db := w.st.Reader()
+	if f.Upgrade != "" {
+		var err error
+		if f.upgradeFound, err = w.upgradeFoundTitles(ctx, db); err != nil {
+			return page, err
+		}
+	}
+	where, args := f.where()
 	if err := db.QueryRowContext(ctx, "SELECT COUNT(*)"+titleFrom+where, args...).Scan(&page.Total); err != nil {
 		return page, err
 	}

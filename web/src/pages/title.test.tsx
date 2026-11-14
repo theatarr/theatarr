@@ -82,7 +82,8 @@ describe("Title page", () => {
   it("reads Getting ready to a household account for a missing title with a download in hand", async () => {
     const household = { id: 8, username: "demo-limited", permissions: ["browse", "request"], csrf_token: "t" };
     const missing = { ...title, availability: "missing", versions: [{ id: 5, key: "movie-remux", label: "4K Remux", state: "wanted", monitored: true, has_file: false }] };
-    for (const [acquiring, want] of [[true, "Getting ready"], [false, "Not in the library yet"]] as const) {
+    // In a library without a file: "Not available yet", never "Not in the library yet".
+    for (const [acquiring, want] of [[true, "Getting ready"], [false, "Not available yet"]] as const) {
       mockFetch([
         { method: "GET", path: "/auth/me", reply: household },
         { method: "GET", path: "/titles/70", reply: { ...missing, acquiring } },

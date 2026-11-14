@@ -1,7 +1,7 @@
 // The title page's Libraries table (docs/design/ui.md, Title page): one row per library the title is in, with columns
 // the user chooses (lib/prefs.ts). This file holds the column list, the status words of a row and the small readers
 // the table needs, kept out of the component so they are tested. Status words are the poster badge words
-// (lib/library.ts, lib/upgrade.ts): Missing, Upcoming, Available, Upgrade found, Best quality known.
+// (lib/library.ts): Missing, Upcoming, Not monitored, Available; the quality word beside them (lib/upgrade.ts).
 import type { Schemas } from "@/api/client";
 import type { Version } from "@/api/library";
 import { stageWords } from "./copies";
@@ -37,7 +37,7 @@ type Kind = "movie" | "series";
 
 /** Every optional column, in the default order, with the kinds it is offered for. */
 export const LIBRARY_COLUMNS: readonly (ColumnDef<LibraryColumn> & { kinds: readonly Kind[] })[] = [
-  { id: "status", label: "Status", hint: "Missing, downloading, or what the library holds", kinds: ["movie", "series"] },
+  { id: "status", label: "Status", hint: "Missing, downloading, or what the library holds, and its quality", kinds: ["movie", "series"] },
   { id: "quality", label: "Quality", hint: "Quality", kinds: ["movie", "series"] },
   { id: "score", label: "Score", hint: "Score", kinds: ["movie"] },
   { id: "size", label: "Size", hint: "Size", kinds: ["movie", "series"] },
@@ -77,7 +77,7 @@ export type LibraryStatus = {
   tone: Tone;
   /** The download in hand: the words link to Activity. */
   stage?: Acquisition;
-  /** A held movie: the upgrade badge with Why? stands for the words. */
+  /** A held movie: the quality word with Why? follows the words. */
   upgrade?: boolean;
   /** A second, smaller line: "6 missing", "Upgrade downloading · 37%". */
   sub?: string;
@@ -97,8 +97,9 @@ export function versionBrief(v: Version): VersionBrief {
  * The status of a library row, in the index's colours (copyTone) for every row. A series: the index's words
  * (copyWords: "20 of 24 episodes linked", "nothing aired yet" or "no episode information yet"), with "6 missing" under
  * them. A movie without a file: the stage words ("Downloading · 37%"), else "Not monitored", else "Upcoming · Jan 14"
- * when not out at home yet, else "Missing" (the poster badge words). A held movie: the upgrade badge ("Available",
- * "Upgrade found", "Best quality known"), with "Upgrade downloading · 37%" under it when one is in hand.
+ * when not out at home yet, else "Missing" (the poster badge words). A held movie: "Available", with the quality word
+ * beside it (upgrade: "Upgrade found", "Best quality known" or "Preferred quality met", with Why?) and "Upgrade
+ * downloading · 37%" under it when one is in hand.
  */
 export function libraryStatus(v: Version, t: ToneTitle, day?: string): LibraryStatus {
   const a = v.acquisition;
@@ -116,10 +117,8 @@ export function libraryStatus(v: Version, t: ToneTitle, day?: string): LibrarySt
     if (upcoming) return { label: `Upcoming · ${fmtDay(upcoming)}`, tone };
     return { label: "Missing", tone };
   }
-  const badge = upgradeBadge(v.upgrade);
   const sub = a ? stageWords({ ...a, upgrade: true }) : undefined;
-  if (!badge) return { label: "Available", tone, sub };
-  return { label: badge.label, tone: badge.tone, upgrade: true, sub };
+  return { label: "Available", tone: "positive", upgrade: !!upgradeBadge(v.upgrade), sub };
 }
 
 /** A rename's two sides as shown: the file names, or, when only folders change (equal names), each path from the first

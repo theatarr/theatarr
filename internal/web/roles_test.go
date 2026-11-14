@@ -268,7 +268,8 @@ func TestUserSeesAvailabilityOnly(t *testing.T) {
 		}
 	}
 	// Source qualities and cutoff filters are refused.
-	for _, path := range []string{b + "/titles?quality=Bluray-1080p", b + "/titles?availability=upgrade",
+	for _, path := range []string{b + "/titles?quality=Bluray-1080p", b + "/titles?upgrade=found",
+		b + "/titles?upgrade=best_known", b + "/titles?availability=upcoming", b + "/titles?availability=unmonitored",
 		b + "/titles?state=cutoff_met", b + "/versions?state=cutoff_met"} {
 		if code, _ := get(path, ukey); code != http.StatusForbidden {
 			t.Errorf("GET %s as user: %d, want 403", path, code)
@@ -360,8 +361,8 @@ func TestUserAvailabilityIsWatchability(t *testing.T) {
 		"Epsilon": "missing", "Gamma": "none"}; !maps.Equal(got, want) {
 		t.Errorf("user badges %v, want %v", got, want)
 	}
-	if got := badge(akey); got["Alpha"] != "partial" || got["Beta"] != "upgrade" {
-		t.Errorf("admin badges %v: Alpha partial and Beta upgrade expected", got)
+	if got := badge(akey); got["Alpha"] != "partial" || got["Beta"] != "available" {
+		t.Errorf("admin badges %v: Alpha partial and Beta available expected", got)
 	}
 	// Epsilon downloading: still missing, and acquiring for both (the one flag a user gets of it).
 	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, quality,
@@ -501,10 +502,10 @@ func TestManagerSeesFileDetail(t *testing.T) {
 	b := APIBase
 	for path, want := range map[string][]string{
 		b + "/titles/1":                    {"Remux-2160p", `"history":[`, `"files":1`, `"event":"imported"`},
-		b + "/titles?kind=series":          {"Bluray-1080p", `"files":2`, `"availability":"upgrade"`},
+		b + "/titles?kind=series":          {"Bluray-1080p", `"files":2`, `"upgrade_state":`},
 		b + "/titles/4/episodes":           {`"state":"cutoff_met"`, "Bluray-1080p"},
 		b + "/titles/4/episodes/41":        {`"history":`, `"state":"cutoff_met"`},
-		b + "/titles/facets?kind=series":   {`{"value":"Bluray-1080p","count":1}`, `"upgrade":`},
+		b + "/titles/facets?kind=series":   {`{"value":"Bluray-1080p","count":1}`, `"upgrades":`},
 		b + "/activity?state=now":          {`"quality":"WEBDL-2160p"`},
 		b + "/requests/1":                  {`"others":1`},
 		b + "/titles?quality=Bluray-1080p": {`"name":"Delta"`},
