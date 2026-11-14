@@ -12,6 +12,7 @@ import (
 	"maps"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"path/filepath"
 	"reflect"
 	"slices"
@@ -1243,5 +1244,51 @@ func TestAddSeriesTypeLibraries(t *testing.T) {
 		if got := skips(10); got != c.want {
 			t.Errorf("type %s: skipped %q, want %q", c.typ, got, c.want)
 		}
+	}
+}
+
+// TestSearchLibraryNames: the library's name search ignores punctuation, reads the title's other names and the year,
+// ranks exact over prefix over word matches, and a TMDb hit marked In library is in the library group too.
+func TestSearchLibraryNames(t *testing.T) {
+	t.Parallel()
+	e := newAddEnv(t, nil)
+	now := store.Millis(addNow)
+	for i, n := range []struct {
+		name string
+		year int
+	}{{"Spider-Man: Brand New Day", 2026}, {"The Alien Hunter", 2005}, {"Aliens", 1986}, {"Alien", 1979},
+		{"Alien: Romulus", 2024}, {"Attack on Titan", 2013}} {
+		e.exec(`INSERT INTO title (id, kind, name, sort_name, year, anime, created_at, updated_at) VALUES (?, 'movie', ?, ?, ?, 0,
+			?, ?)`, 50+i, n.name, strings.ToLower(n.name), n.year, now, now)
+	}
+	e.exec(`INSERT INTO title_alias (title_id, source, kind, name) VALUES (55, 'tmdb-original', 'alternative', '進撃の巨人'),
+		(55, 'tmdb', 'alternative', 'Shingeki no Kyojin')`)
+	names := func(q string) []string {
+		var s SearchAnswer
+		e.call("GET", APIBase+"/search?scope=library&kind=movie&q="+url.QueryEscape(q), nil, 200, &s)
+		out := []string{}
+		for _, r := range s.Library {
+			out = append(out, r.Name)
+		}
+		return out
+	}
+	for q, want := range map[string][]string{
+		"spiderman":          {"Spider-Man: Brand New Day"},
+		"spider man":         {"Spider-Man: Brand New Day"},
+		"alien 1979":         {"Alien"},
+		"alien":              {"Alien", "Alien: Romulus", "Aliens", "The Alien Hunter"},
+		"shingeki no kyojin": {"Attack on Titan"},
+		"進撃の巨人":              {"Attack on Titan"},
+	} {
+		if got := names(q); !slices.Equal(got, want) {
+			t.Errorf("%q: %v, want %v", q, got, want)
+		}
+	}
+	// TMDb's "alpha" hit 0 is title 1: renamed so the name search misses it, it is still in the library group.
+	e.exec(`UPDATE title SET name = 'Zeta', sort_name = 'zeta' WHERE id = 1`)
+	var s SearchAnswer
+	e.call("GET", APIBase+"/search?q=alpha", nil, 200, &s)
+	if s.LibraryTotal != 1 || len(s.Library) != 1 || s.Library[0].ID != 1 || !s.TMDb[0].InLibrary {
+		t.Errorf("an In library hit must be in the library group: total %d, %+v", s.LibraryTotal, s.Library)
 	}
 }

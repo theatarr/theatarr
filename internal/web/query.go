@@ -39,7 +39,7 @@ func nullTS(n sql.NullInt64) *time.Time {
 // TitleFilter selects titles.
 type TitleFilter struct {
 	Kind string // movie or series
-	Q    string // substring of the name
+	Q    string // words of the name, another name or the year (titlesearch.go)
 	// With: the title has a file for this version key. Without: it has no file for it (no version, or a version
 	// that is wanted). These give "no WEB version" and friends.
 	With, Without string
@@ -133,7 +133,7 @@ func (f TitleFilter) where() (string, []any) {
 		conds = append(conds, "t.kind = ?")
 		args = append(args, f.Kind)
 	}
-	if cond, a := textsearch.Where(f.Q, "t.name"); cond != "" {
+	if cond, a := titleTextWhere(f.Q); cond != "" {
 		conds = append(conds, cond)
 		args = append(args, a...)
 	}
@@ -189,6 +189,11 @@ func (w *Web) listTitles(ctx context.Context, f TitleFilter) (TitlePage, error) 
 		return page, err
 	}
 	order, orderArgs := f.orderBy()
+	if rank, rankArgs := titleTextRank(f.Q); rank != "" && f.Sort == "" {
+		// A name search without a chosen sort: the best matches first, then the usual name order.
+		order = " ORDER BY (" + rank + "), " + strings.TrimPrefix(order, " ORDER BY ")
+		orderArgs = append(rankArgs, orderArgs...)
+	}
 	items, err := w.titleRows(ctx, db, `SELECT `+titleCols+titleFrom+where+order+` LIMIT ? OFFSET ?`,
 		append(append(args, orderArgs...), f.Limit, f.Offset))
 	if err != nil {

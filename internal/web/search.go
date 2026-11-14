@@ -122,6 +122,16 @@ func (w *Web) apiSearch(rw http.ResponseWriter, r *http.Request) {
 				out.TMDbState, out.TMDbError = "error", "TMDb search failed; try again in a moment"
 			} else {
 				out.TMDb, out.TMDbState = hits, "ok"
+				if scope == "all" {
+					n := len(out.Library)
+					if err := w.liftInLibrary(ctx, &out); err != nil {
+						w.internal(rw, err)
+						return
+					}
+					for i := n; i < len(out.Library); i++ {
+						redactRowFor(w.permsOf(r), &out.Library[i])
+					}
+				}
 				if !w.permsOf(r).SeeFiles {
 					for i := range hits {
 						for j := range hits[i].Versions {
@@ -133,6 +143,33 @@ func (w *Web) apiSearch(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 	writeJSON(rw, http.StatusOK, out)
+}
+
+// liftInLibrary adds to the library group the titles a TMDb hit is marked In library for that the name search did not
+// find (a name the title does not carry), so the two halves of one answer never disagree.
+func (w *Web) liftInLibrary(ctx context.Context, out *SearchAnswer) error {
+	have := map[int64]bool{}
+	for _, t := range out.Library {
+		have[t.ID] = true
+	}
+	var ids []any
+	for _, h := range out.TMDb {
+		if h.InLibrary && h.TitleID != nil && !have[*h.TitleID] {
+			have[*h.TitleID] = true
+			ids = append(ids, *h.TitleID)
+		}
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	rows, err := w.titleRows(ctx, w.st.Reader(), `SELECT `+titleCols+titleFrom+` WHERE t.id IN (`+
+		store.Placeholders(len(ids))+`) ORDER BY `+nameExpr+`, t.id`, ids)
+	if err != nil {
+		return err
+	}
+	out.Library = append(out.Library, rows...)
+	out.LibraryTotal += len(rows)
+	return nil
 }
 
 func (w *Web) tmdbSearch(ctx context.Context, q, kind string, limit int) ([]SearchHit, error) {
