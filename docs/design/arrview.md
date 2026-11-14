@@ -29,9 +29,12 @@ and gates `searchOnAdd`; future movies still enter the catalog. Collection intak
 ### Collections
 
 The same `movie_collection` rows back the native **Collections** page (Library › Collections, `/collections`, managers
-and admins; `GET /collections`, `PUT /collections/{id}`): name and poster after the first refresh, movies in the
-library out of the collection's total, the monitored switch, target libraries, search on add and minimum
-availability. Monitoring a collection adds its missing movies at the next refresh. Search on add starts the usual
+and admins; `GET /collections`, `PUT /collections/{id}`): a compact list (name and poster after the first refresh,
+movies in the library out of the collection's total, monitored or not; `?q=` and `?monitored=1` keep the filter in
+the URL). A row opens the collection's page, `/collections/{id}` (`GET /collections/{id}`): its films as the last
+refresh stored them (no TMDb call), each linked to its title with its status, or offering Add when it is not in the
+library; **Edit** there holds the monitored switch, target libraries, search on add and minimum availability, each
+saved at once, and **Add missing movies now** sits beside it. Monitoring a collection adds its missing movies at the next refresh. Search on add starts the usual
 search through the acquirer and router, so nothing grabs while `router.enabled` is off: at once when a person adds or
 refreshes the collection, on the search schedule (`per_hour`) for the timed refresh and every list sync
 (router.md, Adds by lists).
