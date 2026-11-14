@@ -157,3 +157,45 @@ func (b *builder) actionEntry(e *Entry, rest string) error {
 	}
 	return nil
 }
+
+// Removal is what a title removal (remove_title, remove_version: one action per library) did, kept in the action's
+// detail (RemovalDetail) and read back for History (ParseRemovalDetail).
+type Removal struct {
+	// Files is what became of the library's files: RemovalFilesKept (they stay linked) or RemovalFilesDeleted (the
+	// links were taken out of the library).
+	Files string `json:"files"`
+	// Cleanup is the debrid clean-up's outcome per provider, in words ("deleted on RD, TB; kept on AD: used by
+	// <title>", "AD: failed, <reason>"); empty when none ran. Written into the action after the removal, by its id.
+	Cleanup string `json:"cleanup,omitempty"`
+}
+
+// Removal files.
+const (
+	RemovalFilesKept    = "kept"
+	RemovalFilesDeleted = "deleted"
+)
+
+// removalCleanup separates a removal detail's files from its clean-up outcome.
+const removalCleanup = "; clean-up: "
+
+// RemovalDetail is the action detail that records r: "files kept" or "files deleted", then "; clean-up: <outcome>"
+// when a clean-up ran.
+func RemovalDetail(r Removal) string {
+	d := "files " + r.Files
+	if r.Cleanup != "" {
+		d += removalCleanup + r.Cleanup
+	}
+	return d
+}
+
+// ParseRemovalDetail reads a removal action's detail (RemovalDetail), and the details of removals recorded before it:
+// "files left linked" (kept), "its library links go to the trash next ..." (deleted).
+func ParseRemovalDetail(detail string) Removal {
+	files, cleanup, _ := strings.Cut(detail, removalCleanup)
+	r := Removal{Files: RemovalFilesKept, Cleanup: cleanup}
+	switch {
+	case files == "files "+RemovalFilesDeleted, strings.HasPrefix(files, "its library links go to the trash"):
+		r.Files = RemovalFilesDeleted
+	}
+	return r
+}

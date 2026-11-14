@@ -30,7 +30,9 @@ import (
 //   - failed: a failed or stalled download, or an import held for review whose download did not fail;
 //   - blocked: a release put on a version's blocklist;
 //   - copy_added, copy_already, copy_not_cached: a copy to another provider ("Add to other providers") that was added,
-//     found already there, or not cached.
+//     found already there, or not cached;
+//   - title_removed: a title taken out of a library (Remove title, Remove copy: the remove_title and remove_version
+//     actions), one row per library, with who removed it and what became of its files (Removal).
 //
 // Searches, dry runs, mount waits, repaired links and plans stay in the journal only. The release facts of library
 // rows are those recorded with the action (migration 00129); older rows fall back to a link row that still holds the
@@ -49,11 +51,12 @@ const (
 	EvCopyAdded     = "copy_added"
 	EvCopyNotCached = "copy_not_cached"
 	EvCopyAlready   = "copy_already"
+	EvTitleRemoved  = "title_removed"
 )
 
 // HistoryEvents lists every History event, for filters.
 var HistoryEvents = []string{EvGrabbed, EvImported, EvAdopted, EvDeleted, EvRemoved, EvMissing, EvFailed, EvBlocked,
-	EvCopyAdded, EvCopyAlready, EvCopyNotCached}
+	EvCopyAdded, EvCopyAlready, EvCopyNotCached, EvTitleRemoved}
 
 // KindCopy is the kind of a provider copy's History row (copy:<provider_copy_event>); not a journal kind.
 const KindCopy = "copy"
@@ -61,7 +64,7 @@ const KindCopy = "copy"
 // HistoryRow is one History row.
 type HistoryRow struct {
 	// ID is the journal id of the row's source (dl:<id>, dl:<id>:fail, dl:<id>:import, lib:<id> (a group's first
-	// action), bl:<rowid>), or copy:<provider_copy_event>, which has no journal entry.
+	// action), bl:<rowid>, act:<id> (a removal)), or copy:<provider_copy_event>, which has no journal entry.
 	ID string
 	At time.Time
 	// Kind is the journal kind (grab for every grab unless kinds are filtered; copy for a copy).
@@ -85,6 +88,9 @@ type HistoryRow struct {
 	Source   string
 	Import   string
 	Attempts []Attempt
+	// By is who did it: a title_removed row's remover. Removal is what a title_removed row did with its files.
+	By      string
+	Removal *Removal
 }
 
 // HistoryPage is one page of History, newest first.
@@ -169,6 +175,9 @@ func historyArms(kinds bool) []historyArm {
 		{`SELECT 'bl:' || b.rowid AS id, b.created_at AS at, COALESCE(b.title_id, 0) AS title_id,
 			b.version_key AS version_key, 'blocklist' AS kind, 'blocked' AS event FROM router_blocklist b`,
 			[]string{EvBlocked}},
+		{`SELECT 'act:' || a.id AS id, a.created_at AS at, COALESCE(a.title_id, 0) AS title_id,
+			COALESCE(a.version_key, '') AS version_key, '` + KindAction + `' AS kind, 'title_removed' AS event FROM journal_action a
+			WHERE a.action IN ('` + ActRemoveTitle + `', '` + ActRemoveVersion + `')`, []string{EvTitleRemoved}},
 		{`SELECT 'copy:' || c.id AS id, c.at AS at, COALESCE(c.title_id, 0) AS title_id, '' AS version_key,
 			'copy' AS kind, CASE c.state WHEN 'added' THEN 'copy_added' WHEN 'already' THEN 'copy_already'
 			ELSE 'copy_not_cached' END AS event FROM provider_copy_event c`, []string{EvCopyAdded, EvCopyAlready, EvCopyNotCached}},
@@ -398,7 +407,7 @@ func idOf(id string) int64 {
 
 func (l *historyLoader) load(hs []head, events []string) ([]*HistoryRow, error) {
 	byEvent := map[string][]int64{}
-	var titleIDs, dlIDs, blIDs, copyIDs []int64
+	var titleIDs, dlIDs, blIDs, copyIDs, actIDs []int64
 	for i, h := range hs {
 		titleIDs = append(titleIDs, h.titleID)
 		id := idOf(h.id)
@@ -409,6 +418,8 @@ func (l *historyLoader) load(hs []head, events []string) ([]*HistoryRow, error) 
 			blIDs = append(blIDs, id)
 		case strings.HasPrefix(h.id, "copy:"):
 			copyIDs = append(copyIDs, id)
+		case strings.HasPrefix(h.id, "act:"):
+			actIDs = append(actIDs, id)
 		default:
 			byEvent[events[i]] = append(byEvent[events[i]], id)
 		}
@@ -610,6 +621,23 @@ func (l *historyLoader) load(hs []head, events []string) ([]*HistoryRow, error) 
 		}
 	}
 
+	type actRow struct{ by, detail string }
+	acts := map[int64]actRow{}
+	if len(actIDs) > 0 {
+		if err := l.query(`SELECT id, by, detail FROM journal_action WHERE id IN (`+ph(actIDs)+`)`, anys(actIDs),
+			func(r *sql.Rows) error {
+				var id int64
+				var a actRow
+				if err := r.Scan(&id, &a.by, &a.detail); err != nil {
+					return err
+				}
+				acts[id] = a
+				return nil
+			}); err != nil {
+			return nil, err
+		}
+	}
+
 	titles, animes := map[int64]TitleRef{}, map[int64]bool{}
 	if len(titleIDs) > 0 {
 		if err := l.query(`SELECT id, name, COALESCE(year, 0), kind, anime FROM title WHERE id IN (`+
@@ -693,6 +721,13 @@ func (l *historyLoader) load(hs []head, events []string) ([]*HistoryRow, error) 
 				x.Release.Score = &s
 			}
 			x.Provider, x.Reason = c.provider, cleanMessage(c.message)
+		case strings.HasPrefix(h.id, "act:"):
+			a, ok := acts[id]
+			if !ok {
+				continue
+			}
+			rm := ParseRemovalDetail(a.detail)
+			x.By, x.Removal = a.by, &rm
 		default:
 			g := groups[id]
 			if len(g) == 0 {

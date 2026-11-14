@@ -177,8 +177,9 @@ type ActivityEvent struct {
 	ID   string    `json:"id"`
 	At   time.Time `json:"at"`
 	Kind string    `json:"kind"`
-	// Event is the History event: grabbed, imported, adopted, deleted (for an upgrade), removed (by hand), missing,
-	// failed, blocked, copy_added, copy_not_cached (journal.HistoryEvents).
+	// Event is the History event: grabbed, imported, adopted, deleted (for an upgrade), removed (a file, by hand),
+	// missing, failed, blocked, copy_added, copy_not_cached, title_removed (the title left a library: Remove title or
+	// Remove copy) (journal.HistoryEvents).
 	Event   string        `json:"event"`
 	Title   ActivityTitle `json:"title"`
 	Version string        `json:"version,omitempty"`
@@ -206,6 +207,10 @@ type ActivityEvent struct {
 	Reason string `json:"reason,omitempty"`
 	// ReplacedBy is what replaced a deleted row's file.
 	ReplacedBy *HistoryRelease `json:"replaced_by,omitempty"`
+	// A title_removed row: who removed the title from the library (Version), and what became of its files and,
+	// once the debrid clean-up ran, its torrents (journal.Removal).
+	By      string           `json:"by,omitempty"`
+	Removal *journal.Removal `json:"removal,omitempty"`
 }
 
 // HistoryRelease is a release named on a History row.
@@ -247,7 +252,7 @@ type ActivityPage struct {
 
 // historyKinds are the journal kinds History's rows have (the kinds parameter; events is the finer filter).
 var historyKinds = []string{journal.KindGrab, journal.KindUpgrade, journal.KindImport, journal.KindLink,
-	journal.KindFailure, journal.KindStall, journal.KindBlocklist}
+	journal.KindFailure, journal.KindStall, journal.KindBlocklist, journal.KindAction}
 
 // userHistoryEvents are the History events a caller without "see files" gets: not the provider copies.
 var userHistoryEvents = slices.DeleteFunc(slices.Clone(journal.HistoryEvents), func(ev string) bool {
@@ -676,6 +681,7 @@ func (w *Web) historyEvents(ctx context.Context, hs []*journal.HistoryRow, admin
 			if r := h.ReplacedBy; r != nil {
 				x.ReplacedBy = &HistoryRelease{Release: r.Title, Quality: r.Quality, Score: r.Score}
 			}
+			x.By, x.Removal = h.By, h.Removal
 		}
 		out = append(out, x)
 	}
@@ -738,6 +744,8 @@ func entryWords(h *journal.HistoryRow, notStarted string, tag func(string) strin
 		return "Already on " + tag(h.Provider), "ok"
 	case journal.EvCopyNotCached:
 		return "Not cached on " + tag(h.Provider), "info"
+	case journal.EvTitleRemoved:
+		return "Removed from library", "info"
 	}
 	return h.Event, "info"
 }
@@ -762,12 +770,34 @@ func historyReason(h *journal.HistoryRow, notStarted string, tag func(string) st
 		}
 	case journal.EvRemoved:
 		return h.Reason
+	case journal.EvTitleRemoved:
+		return removalWords(h)
 	case journal.EvCopyAdded, journal.EvCopyAlready, journal.EvCopyNotCached:
 		if w, _ := entryWords(h, "", tag); !strings.EqualFold(h.Reason, w) {
 			return h.Reason
 		}
 	}
 	return ""
+}
+
+// removalWords is a title_removed row's reason: who removed it, what became of the files, and the debrid
+// clean-up's outcome once it ran ("By ann. Files kept.", "By ann. Files deleted. Debrid: deleted on RD.").
+func removalWords(h *journal.HistoryRow) string {
+	var out []string
+	if h.By != "" {
+		out = append(out, "By "+h.By+".")
+	}
+	if rm := h.Removal; rm != nil {
+		if rm.Files == journal.RemovalFilesDeleted {
+			out = append(out, "Files deleted.")
+		} else {
+			out = append(out, "Files kept.")
+		}
+		if rm.Cleanup != "" {
+			out = append(out, "Debrid: "+strings.TrimSuffix(rm.Cleanup, ".")+".")
+		}
+	}
+	return strings.Join(out, " ")
 }
 
 // blockWords says why a release is blocked, by the blocklist's source.
