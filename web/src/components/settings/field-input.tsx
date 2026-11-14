@@ -91,16 +91,17 @@ const keyHint = (f: SchemaField) => recordLabel(f).toLowerCase().replace(/\s+/g,
 /** Shared recursive inputs use YAML-shaped values; untouched keys never pass through a coercion. */
 export function FieldInput(p: FieldInputProps) {
   const { field: f, value, onChange, path, disabled } = p;
-  const [customDuration, setCustomDuration] = useState(false);
   const [newName, setNewName] = useState("");
-  const [chosenByteUnit, setByteUnit] = useState<string>();
-  const [durationUnit, setDurationUnit] = useState<DurationUnit>();
+  // Reset and Undo start the duration and size controls afresh from the value they set.
+  const [resets, setResets] = useState(0);
   if (p.record) {
     const v = typeof value === "string" ? value : "";
     const changed = p.tracked && v !== (typeof p.saved === "string" ? p.saved : "");
     return (
-          <Field changed={changed} onUndo={() => onChange(p.saved ?? "")} disabled={disabled} name={recordLabel(f)} label={<>{recordLabel(f)}{keyHint(f) ? <> <small className="font-normal text-muted-foreground">{f.name}</small></> : null}{f.required ? <span className="text-[var(--bad-ink)]"> *</span> : null}</>} help={recordHelp(f)} error={p.errors?.[path]} wide={f.name === "url" || f.type === "list" || f.type === "map" || f.type === "string_map"}>
-            {f.type === "enum" ? (
+          <Field changed={changed} onUndo={() => { setResets((n) => n + 1); onChange(p.saved ?? ""); }} disabled={disabled} name={recordLabel(f)} label={<>{recordLabel(f)}{keyHint(f) ? <> <small className="font-normal text-muted-foreground">{f.name}</small></> : null}{f.required ? <span className="text-[var(--bad-ink)]"> *</span> : null}</>} help={recordHelp(f)} error={p.errors?.[path]} wide={f.name === "url" || f.type === "list" || f.type === "map" || f.type === "string_map"}>
+            {f.type === "duration" ? (
+              <DurationControl key={resets} f={f} label={recordLabel(f)} path={path} disabled={disabled} value={v} onChange={(x) => onChange(typeof x === "string" ? x : "")} raw={() => <Input className="h-9" aria-label={`${recordLabel(f)} text`} value={v} disabled={disabled} onChange={(e) => onChange(e.target.value)} data-field={path} />} />
+            ) : f.type === "enum" ? (
               <select className={SELECT_CLASS} value={v} disabled={disabled} onChange={(e) => onChange(e.target.value)} data-field={path}>
                 {f.required ? null : <option value="">(unset)</option>}
                 {(f.enum ?? []).map((o) => <option key={o} value={o}>{o}</option>)}
@@ -120,7 +121,7 @@ export function FieldInput(p: FieldInputProps) {
     );
   }
   const label = f.label || f.name;
-  const clear = () => onChange(undefined);
+  const clear = () => { setResets((n) => n + 1); onChange(undefined); };
   const id = `field-${path.replaceAll(".", "-")}`;
   const error = p.errors?.[path];
   const describe = { "aria-describedby": [error ? `${id}-error` : "", f.help ? `${id}-help` : ""].filter(Boolean).join(" ") || undefined, "aria-invalid": error ? true : undefined };
@@ -138,38 +139,8 @@ export function FieldInput(p: FieldInputProps) {
     case "boolean": control = <div className="flex items-center gap-2"><Switch aria-label={label} {...describe} checked={checked === true} disabled={disabled} onCheckedChange={(next) => onChange(next)} /><span className="text-sm" data-testid="switch-state">{checked === true ? "On" : "Off"}{value === undefined || value === null ? " (default)" : ""}</span></div>; break;
     case "integer": case "number": control = input("number"); break;
     case "enum": control = <select aria-label={label} {...describe} className={SELECT_CLASS} disabled={disabled} value={String(value ?? "")} onChange={(e) => onChange(e.target.value || undefined)}><option value="">Default{f.default ? ` (${f.default})` : ""}</option>{f.enum?.map((v) => <option key={v}>{v}</option>)}</select>; break;
-    case "duration": {
-      const v = typeof value === "string" ? value : "";
-      const seconds = v ? parseDuration(v) : undefined;
-      const allowed = durationPresets(f, seconds).filter(([, n]) => n >= (f.min ?? 0) && n <= (f.max ?? Infinity));
-      const unsetIsOff = f.zero_allowed && (!f.default || parseDuration(f.default) === 0);
-      const preset = allowed.find(([, n]) => n === seconds)?.[0];
-      // A stored 0 on a field without an Off means the default to the server: it shows as Default (and stays stored).
-      const zeroIsDefault = seconds === 0 && !f.zero_allowed;
-      const selected = customDuration ? "custom" : seconds === 0 && f.zero_allowed ? "0s" : zeroIsDefault ? "" : preset ?? (v ? "custom" : unsetIsOff ? "0s" : "");
-      const empty = f.nullable ? null : undefined;
-      let custom = null;
-      if (selected === "custom") {
-        if (v && seconds === undefined) custom = input();
-        else {
-          const unit = durationUnit ?? (seconds ? bestDurationUnit(seconds) : bestDurationUnit(parseDuration(f.default ?? "") || f.min || 60));
-          const per = DURATION_UNITS[unit];
-          custom = <div className="flex gap-2"><Input aria-label={`${label} amount`} {...describe} data-field={path} type="number" min={0} step="any" disabled={disabled} value={seconds === undefined ? "" : Number((seconds / per).toFixed(3))} onChange={(e) => onChange(e.target.value === "" ? empty : goDuration(Number(e.target.value), unit))} /><select aria-label={`${label} unit`} className={SELECT_CLASS} disabled={disabled} value={unit} onChange={(e) => setDurationUnit(e.target.value as DurationUnit)}>{Object.keys(DURATION_UNITS).map((u) => <option key={u} value={u}>{u}</option>)}</select></div>;
-        }
-      }
-      control = <><select aria-label={label} {...describe} className={SELECT_CLASS} disabled={disabled} value={selected} onChange={(e) => { setCustomDuration(e.target.value === "custom"); if (e.target.value !== "custom") onChange(e.target.value === "0s" && unsetIsOff ? undefined : e.target.value || undefined); }}><option value="">{`Default${f.default ? ` (${durationDefault(f)})` : ""}`}</option>{f.zero_allowed ? <option value="0s">Off</option> : null}{allowed.map(([s, n]) => <option key={s} value={s}>{durationWords(n)}</option>)}<option value="custom">Custom</option></select>{custom}</>; break;
-    }
-    case "bytes": {
-      // Stored byte counts and unit strings are displayed without rewriting them until edited; an edit writes bytes. A
-      // stored 0 is the default to the server, so it shows the default's placeholder (and stays stored).
-      const match = typeof value === "string" ? value.match(/^([\d.]+)\s*(B|KB|MB|GB|TB|KiB|MiB|GiB|TiB)?$/) : null;
-      const bytes = typeof value === "number" ? value : match ? Number(match[1]) * BYTE_UNITS[match[2] || "B"] : undefined;
-      const defaultMatch = f.default?.match(/^([\d.]+)\s*(KB|MB|GB|TB|KiB|MiB|GiB|TiB)$/);
-      const byteUnit = chosenByteUnit ?? (match?.[2] && match[2] !== "B" ? match[2] : bytes ? bestByteUnit(bytes) : defaultMatch?.[2] ?? "MB");
-      const per = BYTE_UNITS[byteUnit];
-      const rate = f.unit === "bytes/s" ? "/s" : "";
-      control = <div className="flex gap-2"><Input aria-label={label} {...describe} type="number" min={f.min === undefined ? undefined : f.min / per} max={f.max === undefined ? undefined : f.max / per} step="any" placeholder={defaultMatch ? `${defaultMatch[1]} ${defaultMatch[2]}${rate}` : f.default} disabled={disabled} value={bytes === undefined || bytes === 0 ? "" : Number((bytes / per).toFixed(3))} onChange={(e) => onChange(e.target.value === "" ? undefined : Math.round(Number(e.target.value) * per))} /><select aria-label={`${label} unit`} className={SELECT_CLASS} disabled={disabled} value={byteUnit} onChange={(e) => setByteUnit(e.target.value)}>{Object.keys(BYTE_UNITS).map((u) => <option key={u} value={u}>{u}{rate}</option>)}</select></div>; break;
-    }
+    case "duration": control = <DurationControl key={resets} f={f} label={label} describe={describe} path={path} disabled={disabled} value={value} onChange={onChange} raw={input} />; break;
+    case "bytes": control = <BytesControl key={resets} f={f} label={label} describe={describe} disabled={disabled} value={value} onChange={onChange} />; break;
     // An object the saved settings did not have goes back to absent once its last key is undone, so Undo returns the
     // draft to the saved value (no stray {} to count or send).
     case "object": control = <fieldset className="grid gap-4 rounded border p-3">{children(objectValue(value), path, (v) => onChange(p.tracked && p.saved == null && !Object.keys(objectValue(v)).length ? undefined : v), p.saved)}</fieldset>; break;
@@ -197,7 +168,7 @@ export function FieldInput(p: FieldInputProps) {
   }
   const leaf = !["object", "keyed"].includes(f.type);
   const changed = p.tracked && leaf && !same(value, p.saved);
-  return <div data-field={path} data-changed={changed || undefined} className="grid min-w-0 gap-1"><div className="flex items-start justify-between gap-x-2">{f.type === "object" && p.panelTitle === label ? null : <span className="min-w-0 text-sm font-medium [overflow-wrap:anywhere]">{label}</span>}{leaf && value !== undefined && value !== null ? <Button type="button" size="xs" variant="ghost" className="shrink-0" disabled={disabled} onClick={clear} aria-label={`Reset ${label}`} title={f.default ? `Back to the default (${f.default})` : "Back to the default"}>Reset</Button> : null}</div>{control}{f.unit && f.type !== "bytes" ? <span className="text-xs">{f.unit}</span> : null}{error ? <p id={`${id}-error`} role="alert" className="text-sm text-destructive">{error}</p> : null}{f.help ? <p id={`${id}-help`} className="text-xs text-muted-foreground">{f.help}</p> : null}{changed ? <ChangedMark name={label} disabled={disabled} onUndo={() => onChange(structuredClone(p.saved))} /> : null}</div>;
+  return <div data-field={path} data-changed={changed || undefined} className="grid min-w-0 gap-1"><div className="flex items-start justify-between gap-x-2">{f.type === "object" && p.panelTitle === label ? null : <span className="min-w-0 text-sm font-medium [overflow-wrap:anywhere]">{label}</span>}{leaf && value !== undefined && value !== null ? <Button type="button" size="xs" variant="ghost" className="shrink-0" disabled={disabled} onClick={clear} aria-label={`Reset ${label}`} title={f.default ? `Back to the default (${f.default})` : "Back to the default"}>Reset</Button> : null}</div>{control}{f.unit && f.type !== "bytes" ? <span className="text-xs">{f.unit}</span> : null}{error ? <p id={`${id}-error`} role="alert" className="text-sm text-destructive">{error}</p> : null}{f.help ? <p id={`${id}-help`} className="text-xs text-muted-foreground">{f.help}</p> : null}{changed ? <ChangedMark name={label} disabled={disabled} onUndo={() => { setResets((n) => n + 1); onChange(structuredClone(p.saved)); }} /> : null}</div>;
 }
 
 export function SectionFields(p: Omit<FieldInputProps, "field" | "value" | "onChange" | "saved" | "tracked"> & { fields: SchemaField[]; config: Config; onChange: (v: Config) => void; saved?: Config }) {
@@ -281,7 +252,67 @@ type DurationUnit = "seconds" | "minutes" | "hours" | "days";
 const DURATION_UNITS: Record<DurationUnit, number> = { seconds: 1, minutes: 60, hours: 3600, days: 86400 };
 // Days from two days up: 24h reads "24 hours", 168h "7 days".
 const bestDurationUnit = (seconds: number): DurationUnit => (["days", "hours", "minutes"] as const).find((u) => seconds % DURATION_UNITS[u] === 0 && (u !== "days" || seconds >= 172800)) ?? "seconds";
-const goDuration = (n: number, unit: DurationUnit) => unit === "days" ? `${n * 24}h` : `${n}${unit[0]}`;
+/** The exact Go duration of an amount in a unit: 1.25 hours is "1h15m", 2 days "48h", 1.5 seconds "1.5s". */
+export function goDuration(n: number, unit: DurationUnit): string {
+  let rest = Math.round(n * DURATION_UNITS[unit] * 1000) / 1000;
+  const h = Math.floor(rest / 3600); rest -= h * 3600;
+  const m = Math.floor(rest / 60); rest = Math.round((rest - m * 60) * 1000) / 1000;
+  return `${h ? `${h}h` : ""}${m ? `${m}m` : ""}${rest || (!h && !m) ? `${rest}s` : ""}`;
+}
+/** A typed amount: a number of at least 0, else undefined (nothing is written while it is empty or half typed). */
+const amountOf = (text: string): number | undefined => {
+  const t = text.trim();
+  if (!/^\d*\.?\d+$|^\d+\.$/.test(t)) return undefined;
+  const n = Number(t);
+  return Number.isFinite(n) ? n : undefined;
+};
+const shown = (n: number) => String(Number(n.toFixed(3)));
+
+type Describe = { "aria-describedby"?: string; "aria-invalid"?: boolean };
+/** A duration: Default, Off (when allowed), presets in words, or Custom as an amount and a unit. While the amount is
+ * edited, Custom and the unit stay as shown; the amount is the typed text, and only a valid amount writes (the exact Go
+ * duration of amount × unit). The unit changes only through its selector (the amount is rescaled, nothing written), and
+ * Custom is left only through the preset selector. */
+function DurationControl({ f, label, describe, path, disabled, value, onChange, raw }: { f: SchemaField; label: string; describe?: Describe; path: string; disabled?: boolean; value: unknown; onChange: (v: unknown) => void; raw: () => ReactNode }) {
+  const v = typeof value === "string" ? value : "";
+  const seconds = v ? parseDuration(v) : undefined;
+  const allowed = durationPresets(f, seconds).filter(([, n]) => n >= (f.min ?? 0) && n <= (f.max ?? Infinity));
+  const unsetIsOff = f.zero_allowed && (!f.default || parseDuration(f.default) === 0);
+  const preset = allowed.find(([, n]) => n === seconds)?.[0];
+  // A stored 0 on a field without an Off means the default to the server: it shows as Default (and stays stored).
+  const zeroIsDefault = seconds === 0 && !f.zero_allowed;
+  const [custom, setCustom] = useState(false);
+  const [unit, setUnit] = useState<DurationUnit>(() => bestDurationUnit(seconds || parseDuration(f.default ?? "") || f.min || 60));
+  const [text, setText] = useState(() => seconds === undefined ? "" : shown(seconds / DURATION_UNITS[unit]));
+  const selected = custom ? "custom" : seconds === 0 && f.zero_allowed ? "0s" : zeroIsDefault ? "" : preset ?? (v ? "custom" : unsetIsOff ? "0s" : "");
+  const editor = selected !== "custom" ? null : v && seconds === undefined ? raw() : <div className="flex gap-2">
+    <Input aria-label={`${label} amount`} {...describe} data-field={path} inputMode="decimal" disabled={disabled} value={text} onChange={(e) => { setText(e.target.value); setCustom(true); const n = amountOf(e.target.value); if (n !== undefined) onChange(goDuration(n, unit)); }} />
+    <select aria-label={`${label} unit`} className={SELECT_CLASS} disabled={disabled} value={unit} onChange={(e) => { const next = e.target.value as DurationUnit; setUnit(next); setCustom(true); if (seconds !== undefined) setText(shown(seconds / DURATION_UNITS[next])); }}>{Object.keys(DURATION_UNITS).map((u) => <option key={u} value={u}>{u}</option>)}</select>
+  </div>;
+  return <><select aria-label={label} {...describe} className={SELECT_CLASS} disabled={disabled} value={selected} onChange={(e) => {
+    const choice = e.target.value;
+    setCustom(choice === "custom");
+    if (choice === "custom") { setText(seconds === undefined ? "" : shown(seconds / DURATION_UNITS[unit])); return; }
+    onChange(choice === "0s" && unsetIsOff ? undefined : choice || undefined);
+  }}><option value="">{`Default${f.default ? ` (${durationDefault(f)})` : ""}`}</option>{f.zero_allowed ? <option value="0s">Off</option> : null}{allowed.map(([s, n]) => <option key={s} value={s}>{durationWords(n)}</option>)}<option value="custom">Custom</option></select>{editor}</>;
+}
+
+/** A byte size as an amount and a unit. Stored values show without being rewritten; while the amount is edited the unit
+ * stays as shown and only a valid amount writes (amount × unit, in bytes). A stored 0 is the default to the server, so
+ * it shows the default's placeholder (and stays stored). */
+function BytesControl({ f, label, describe, disabled, value, onChange }: { f: SchemaField; label: string; describe?: Describe; disabled?: boolean; value: unknown; onChange: (v: unknown) => void }) {
+  const match = typeof value === "string" ? value.match(/^([\d.]+)\s*(B|KB|MB|GB|TB|KiB|MiB|GiB|TiB)?$/) : null;
+  const bytes = typeof value === "number" ? value : match ? Number(match[1]) * BYTE_UNITS[match[2] || "B"] : undefined;
+  const defaultMatch = f.default?.match(/^([\d.]+)\s*(KB|MB|GB|TB|KiB|MiB|GiB|TiB)$/);
+  const [unit, setUnit] = useState(() => match?.[2] && match[2] !== "B" ? match[2] : bytes ? bestByteUnit(bytes) : defaultMatch?.[2] ?? "MB");
+  const [text, setText] = useState(() => bytes === undefined || bytes === 0 ? "" : shown(bytes / BYTE_UNITS[unit]));
+  const per = BYTE_UNITS[unit];
+  const rate = f.unit === "bytes/s" ? "/s" : "";
+  return <div className="flex gap-2">
+    <Input aria-label={label} {...describe} inputMode="decimal" placeholder={defaultMatch ? `${defaultMatch[1]} ${defaultMatch[2]}${rate}` : f.default} disabled={disabled} value={text} onChange={(e) => { setText(e.target.value); const n = amountOf(e.target.value); if (n !== undefined) onChange(Math.round(n * per)); }} />
+    <select aria-label={`${label} unit`} className={SELECT_CLASS} disabled={disabled} value={unit} onChange={(e) => { setUnit(e.target.value); if (bytes) setText(shown(bytes / BYTE_UNITS[e.target.value])); }}>{Object.keys(BYTE_UNITS).map((u) => <option key={u} value={u}>{u}{rate}</option>)}</select>
+  </div>;
+}
 /** 600 → "10 minutes", 5400 → "1 hour 30 minutes", 86400 → "24 hours", 604800 → "7 days". */
 export function durationWords(seconds: number): string {
   if (seconds === 0) return "0 seconds";

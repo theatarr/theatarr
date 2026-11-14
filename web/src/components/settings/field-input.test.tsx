@@ -206,3 +206,62 @@ it("marks a per-library row whose library is gone and removes it", () => {
  fireEvent.click(screen.getByRole("button", { name: "Remove old-tv" }));
  expect(JSON.parse(screen.getByTestId("config").textContent!)).toEqual({ versions: { "movie-mm": { plex_section: 1 } } });
 });
+
+describe("typing an amount keeps the unit and Custom as shown", () => {
+ const type = (el: HTMLElement, text: string) => { let t = ""; for (const c of text) { t += c; fireEvent.change(el, { target: { value: t } }); } };
+ it("writes 1.25 hours as the exact Go duration", () => {
+  render(<Harness field={field("duration", { min: 3600, default: "24h" })} />);
+  fireEvent.change(screen.getByRole("combobox", { name: "Option" }), { target: { value: "custom" } });
+  fireEvent.change(screen.getByLabelText("Option unit"), { target: { value: "hours" } });
+  type(screen.getByLabelText("Option amount"), "1.25");
+  expect(value().value).toBe("1h15m");
+  expect((screen.getByLabelText("Option amount") as HTMLInputElement).value).toBe("1.25");
+  expect((screen.getByLabelText("Option unit") as HTMLSelectElement).value).toBe("hours");
+ });
+ it("keeps Custom while 15 is typed over a stored 6m0s, though 1 minute is a preset", () => {
+  render(<Harness field={field("duration", { min: 60, default: "6m" })} initial="6m0s" />);
+  const amount = screen.getByLabelText("Option amount");
+  fireEvent.change(amount, { target: { value: "" } });
+  expect(value().value).toBe("6m0s");
+  type(screen.getByLabelText("Option amount"), "15");
+  expect(value().value).toBe("15m");
+  expect((screen.getByRole("combobox", { name: "Option" }) as HTMLSelectElement).value).toBe("custom");
+  expect((screen.getByLabelText("Option amount") as HTMLInputElement).value).toBe("15");
+ });
+ it("keeps the unit when the amount is cleared and typed again", () => {
+  render(<Harness field={field("duration", { min: 60, default: "6m" })} initial="3h0m0s" />);
+  const amount = screen.getByLabelText("Option amount");
+  expect((screen.getByLabelText("Option unit") as HTMLSelectElement).value).toBe("hours");
+  fireEvent.change(amount, { target: { value: "" } });
+  type(amount, "2");
+  expect(value().value).toBe("2h");
+  expect((screen.getByLabelText("Option unit") as HTMLSelectElement).value).toBe("hours");
+ });
+ it("writes 1.25 GB as 1250000000 bytes, typed character by character", () => {
+  render(<Harness field={field("bytes", { default: "20GB" })} />);
+  expect((screen.getByLabelText("Option unit") as HTMLSelectElement).value).toBe("GB");
+  type(screen.getByLabelText("Option"), "1.25");
+  expect(value().value).toBe(1250000000);
+  expect((screen.getByLabelText("Option") as HTMLInputElement).value).toBe("1.25");
+ });
+ it("writes nothing while the size amount is empty", () => {
+  render(<Harness field={field("bytes", { default: "20GB" })} initial={2e9} />);
+  fireEvent.change(screen.getByLabelText("Option"), { target: { value: "" } });
+  expect(value().value).toBe(2e9);
+ });
+});
+
+it("gives a record editor's duration the same control, and keeps an untouched value", async () => {
+ const { ConfigFields } = await import("./field-input");
+ function Rec() {
+  const [values, setValues] = useState<Record<string, unknown>>({ cooldown: "1m0s" });
+  return <><ConfigFields fields={[{ name: "cooldown", type: "duration", help: "" }]} values={values as never} errors={{}} onChange={setValues as never} /><output data-testid="rec">{JSON.stringify(values)}</output></>;
+ }
+ render(<Rec />);
+ const select = screen.getByRole("combobox", { name: "Pause after a refusal" }) as HTMLSelectElement;
+ expect(select.selectedOptions[0].textContent).toBe("1 minute");
+ expect(JSON.parse(screen.getByTestId("rec").textContent!)).toEqual({ cooldown: "1m0s" });
+ fireEvent.change(select, { target: { value: "custom" } });
+ fireEvent.change(screen.getByLabelText("Pause after a refusal amount"), { target: { value: "90" } });
+ expect(JSON.parse(screen.getByTestId("rec").textContent!)).toEqual({ cooldown: "1h30m" });
+});
