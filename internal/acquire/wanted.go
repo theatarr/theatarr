@@ -50,9 +50,10 @@ type WantedRun struct {
 	Results    int       `json:"results"`
 	Accepted   int       `json:"accepted"`
 	Downloaded bool      `json:"downloaded"`
-	// DownloadID is the newest download the run started (with Downloaded).
-	DownloadID *int64 `json:"download_id,omitempty"`
-	Message    string `json:"message"`
+	// DownloadID and DownloadState are the newest download the run started and its state (with Downloaded).
+	DownloadID    *int64 `json:"download_id,omitempty"`
+	DownloadState string `json:"download_state,omitempty"`
+	Message       string `json:"message"`
 }
 
 // Waiting states of a Wanted row.
@@ -616,7 +617,8 @@ func (a *Acquirer) wantedRuns(ctx context.Context, items []WantedRow) error {
  ROW_NUMBER() OVER (PARTITION BY p.idx ORDER BY r.created_at DESC, r.id DESC) AS rank
  FROM page p JOIN version v ON v.title_id = p.title AND v.policy_key = p.key
  JOIN acquire_run r ON r.version_id = v.id AND COALESCE(r.season, -1) = p.season)
- SELECT idx,id,created_at,state,results,accepted,message,downloaded FROM ranked WHERE rank = 1`, args...)
+ SELECT idx,id,created_at,state,results,accepted,message,downloaded,
+ COALESCE((SELECT state FROM download WHERE download.id = downloaded), '') FROM ranked WHERE rank = 1`, args...)
 	if err != nil {
 		return err
 	}
@@ -626,12 +628,14 @@ func (a *Acquirer) wantedRuns(ctx context.Context, items []WantedRow) error {
 		var at int64
 		var download sql.NullInt64
 		run := &WantedRun{}
-		if err := rows.Scan(&i, &run.ID, &at, &run.State, &run.Results, &run.Accepted, &run.Message, &download); err != nil {
+		var downloadState string
+		if err := rows.Scan(&i, &run.ID, &at, &run.State, &run.Results, &run.Accepted, &run.Message, &download,
+			&downloadState); err != nil {
 			rows.Close()
 			return err
 		}
 		if download.Valid {
-			run.Downloaded, run.DownloadID = true, &download.Int64
+			run.Downloaded, run.DownloadID, run.DownloadState = true, &download.Int64, downloadState
 		}
 		run.At = time.UnixMilli(at).UTC()
 		items[i].LastRun = run

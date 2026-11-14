@@ -115,10 +115,10 @@ it("formats search outcomes and targets", () => {
   expect(whatWords({ targets: ["s20"], episodes: 139 })).toBe("S20, 139 episodes");
   expect(whatWords({ targets: ["s01e02", "s01e03"], episodes: 2 })).toBe("S01E02-E03");
   expect(whatWords({ targets: ["movie"] })).toBe("Movie");
-  // A grabbed download for a row still listed was not imported; while downloading or paused it is just Grabbed.
-  expect(searchResult({ ...run, state: "routed", downloaded: true }, "scheduled")).toBe("Grabbed, not imported");
-  expect(searchResult({ ...run, state: "routed", downloaded: true }, "in_flight")).toBe("Grabbed");
-  expect(searchResult({ ...run, state: "routed", downloaded: true }, "downloads_off")).toBe("Grabbed");
+  // A grabbed run says what became of its download, from the download's own state.
+  expect(searchResult({ ...run, state: "routed", downloaded: true, download_state: "failed" })).toBe("Grabbed, not imported");
+  expect(searchResult({ ...run, state: "routed", downloaded: true, download_state: "imported" })).toBe("Grabbed");
+  expect(searchResult({ ...run, state: "routed", downloaded: true, download_state: "downloading" })).toBe("Grabbed · Downloading");
 });
 
 const gates = { mode: "active", paused: false, pause_forced: false, will_grab: true };
@@ -365,12 +365,12 @@ it("keeps the retry sentence to Missing, names the unit, and puts Decision with 
   expect(screen.getByTestId("wanted-pace").textContent).toBe("Up to 20 searches an hour (4 in the last hour). Items are searched again every 24 h.");
   expect(screen.getByTestId("wanted-count").textContent).toBe("1,128 items (one per film or season in each library, not per episode).");
   const last = r.querySelector('[data-column="last"]')!;
-  expect(last.textContent).toMatch(/Grabbed, not imported · Decision$/);
+  expect(last.textContent).toMatch(/Grabbed · Decision$/);
   expect(within(last as HTMLElement).getByRole("link", { name: "Decision" }).getAttribute("href")).toBe("/activity/journal/run%3A3");
   expect(screen.getByRole("button", { name: "All (1,128)" })).toBeTruthy();
 });
 
-it("says only Grabbed while paused, where a download in flight cannot be told apart", async () => {
+it("says Grabbed while paused when the download's state is not known", async () => {
   const run = { ...row.last_run!, state: "routed", downloaded: true };
   const items: Row[] = [{ ...row, waiting: "downloads_off", next_at: null, search_blocked: "downloads_off", last_run: run }];
   mockFetch([admin, { method: "GET", path: "/wanted", reply: { ...page, items, total: 1 } }, status]);
@@ -404,7 +404,7 @@ it("shows no Missing rows under Cutoff unmet while its rows load", async () => {
 it("sorts on the server from the headers and the sort picker, and filters to one title with a removable chip", async () => {
   const user = userEvent.setup();
   const grabbed = { ...row, title_id: 2, waiting: "scheduled" as const, next_at: inHours(2), date: "2026-03-18T00:00:00Z",
-    last_run: { ...row.last_run!, state: "routed", downloaded: true, download_id: 40 } };
+    last_run: { ...row.last_run!, state: "routed", downloaded: true, download_id: 40, download_state: "failed" as const } };
   const season = { ...row, title_id: 3, version: "tv-web", targets: ["s20"], season: 20, episodes: 139 };
   const fetch = mockFetch([admin, status, { method: "GET", path: "/wanted", reply: { ...page, items: [grabbed, season], titles: { "2": "Beta", "3": "Pokémon" }, total: 2 } }]);
   renderPage(<WantedPage />, "/wanted?title=2&version=movie-web");

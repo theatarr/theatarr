@@ -35,14 +35,22 @@ const PAGE = 50;
 type GlobalOff = ReturnType<typeof globalDownloadsOff> | "unknown";
 const OFF_WORD = { locked: "Paused (locked)", off: "Paused", unknown: "Paused" } as const;
 
-/** The Last search cell's words; a run that grabbed a download for a row still listed (not downloading, not paused)
- *  says the download was not imported (lastSearch links it to Activity). */
-export function searchResult(run: WantedRow["last_run"], waiting?: WantedRow["waiting"]): string {
+/** A grabbed download still on its way, in Activity's stage words (lib/activity.ts stageLabel). */
+const IN_FLIGHT: Record<string, string> = {
+  queued: "Queued", adding: "Starting", added: "Waiting to start", downloading: "Downloading", ready: "Download complete", importing: "Linking",
+};
+
+/** The Last search cell's words. A grabbed run says what became of its download: Grabbed once imported, the stage
+ *  while it is on its way, "Grabbed, not imported" when it failed (the cell links those two to Activity). */
+export function searchResult(run: WantedRow["last_run"]): string {
   if (!run) return "Never searched";
   if (run.state === "failed") return `Failed: ${run.message}`;
   if (run.state === "queued") return "Queued";
   if (run.state === "searching") return "Searching";
-  if (run.downloaded) return waiting && waiting !== "in_flight" && waiting !== "downloads_off" ? "Grabbed, not imported" : "Grabbed";
+  if (run.downloaded) {
+    const stage = IN_FLIGHT[run.download_state ?? ""];
+    return stage ? `Grabbed · ${stage}` : run.download_state === "failed" ? "Grabbed, not imported" : "Grabbed";
+  }
   if (run.state === "routed") return "Sent to download";
   return run.results ? `${plural(run.results, "result")}, none accepted` : "Nothing found";
 }
@@ -204,8 +212,8 @@ export function WantedPage() {
     next: { id: "next", label: "Next search", cell: row => <NextSearch row={row} state={states.get(row.version)} off={off} admin={perms.admin} /> },
     // The decision behind the last search sits with it, so the row's actions keep their place.
     last: { id: "last", label: "Last search", sortable: true, cell: row => {
-      const result = searchResult(row.last_run, row.waiting);
-      const grabbed = result === "Grabbed, not imported" && row.last_run?.download_id;
+      const result = searchResult(row.last_run);
+      const grabbed = result !== "Grabbed" && result.startsWith("Grabbed") && row.last_run?.download_id;
       return <>{row.last_run ? <span title={fmtTime(row.last_run.at)}>{fmtAgo(row.last_run.at)} · </span> : null}{result}{grabbed ? <> · <Link className="text-primary hover:underline" to={downloadHref(row.last_run!.download_id!)}>See in Activity</Link></> : null}{row.decision_id && perms.admin ? <> · <DecisionLink row={row} /></> : null}</>;
     } },
   };

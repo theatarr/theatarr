@@ -544,7 +544,7 @@ func TestWantedTitleFilterSortAndDates(t *testing.T) {
 			t.Errorf("season 1: %d episodes, want 2", r.Episodes)
 		case r.TitleID != 10 && r.Episodes != 0:
 			t.Errorf("film with episodes %+v", r)
-		case r.TitleID == 1 && (r.LastRun == nil || !r.LastRun.Downloaded || r.LastRun.DownloadID == nil || *r.LastRun.DownloadID != 40):
+		case r.TitleID == 1 && (r.LastRun == nil || !r.LastRun.Downloaded || r.LastRun.DownloadID == nil || *r.LastRun.DownloadID != 40 || r.LastRun.DownloadState != "failed"):
 			t.Errorf("grabbed run %+v", r.LastRun)
 		}
 	}
