@@ -204,6 +204,17 @@ it("counts only the libraries this click adds for a film already in two", async 
   expect(screen.getByTestId("add-submit").textContent).toBe("Add libraries");
 });
 
+it("reads a film every copy of which was removed as a new add, restored by its title id", async () => {
+  const fetch = mockFetch(routes({ ...options, title_id: 5, in_library: false }));
+  const user = userEvent.setup();
+  renderPage(<AddSheet target={{ kind: "movie", name: "Alpha", title_id: 5 }} onClose={() => {}} />);
+  await screen.findByTestId("add-versions");
+  expect(screen.queryByText("In library")).toBeNull();
+  expect(screen.getByTestId("add-submit").textContent).toBe("Add");
+  await user.click(screen.getByTestId("add-submit"));
+  expect(((await bodyOf(fetch)) as { title_id?: number }).title_id).toBe(5);
+});
+
 it("sends a new series' type only when it differs from the one the series would get", async () => {
   const fetch = mockFetch(routes(seriesOptions));
   const user = userEvent.setup();

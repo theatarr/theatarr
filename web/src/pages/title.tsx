@@ -6,6 +6,8 @@
 // series alike, the one place libraries are managed. Then tabs (lib/title-layout.ts): Episodes (series, the default),
 // Watch order (anime with a franchise), About (overview, the fact table, links; admins also the technical details)
 // and History.
+// A title in no library (every copy removed) reads as a search result: "Not in the library", Add, About and History,
+// and the files kept from before its removal with Delete them; no action bar, Libraries table or episode list.
 // Family accounts (no "see files") get readiness, languages and their requests, no copy management. The backdrop
 // fading into the theme's background and the poster/title arrangement are adapted from Seerr
 // (github.com/seerr-team/seerr) src/components/MovieDetails/index.tsx and src/styles/globals.css (.media-page,
@@ -24,6 +26,7 @@ import { AnimeOrder } from "@/components/title/anime-order";
 import { Details, TitleJournal, outsideLinks } from "@/components/title/details";
 import { Seasons } from "@/components/title/seasons";
 import { LibraryRows } from "@/components/title/library-rows";
+import { KeptFiles } from "@/components/title/copy-actions";
 import { TitleToolbar, inEveryLibrary, monitorOnly } from "@/components/title/title-toolbar";
 import { RequestMoreSeasons, TitleRequest, TitleRequestButton } from "@/components/title/title-request";
 import { SeriesTypeControl } from "@/components/title/title-choices";
@@ -196,14 +199,17 @@ export function TitlePage() {
   // named under the Libraries table).
   const all = (d.versions ?? []) as Version[];
   const versions = currentLibraries(all);
+  // Every copy removed: the title is in no library, and the page is a search result's, with Add; no library actions,
+  // no episode list, and the files kept from before the removal.
+  const gone = versions.length === 0 && all.some((v) => v.removed);
   const m = d.meta;
   const series = d.kind === "series";
   const franchises = d.franchises ?? [];
-  const tabs = titleTabs({ series, franchise: franchises.length > 0, seeFiles: perms.seeFiles });
+  const tabs = titleTabs({ series: series && !gone, franchise: franchises.length > 0, seeFiles: perms.seeFiles });
   const tab: TitleTab = resolveTab(params.get("tab"), tabs);
   // Those who see files get the status word the posters and lists use; everyone else watchability.
   const watch = readiness(d.kind, versions, !perms.seeFiles && !!d.acquiring, undatedUpcoming(d));
-  const ready = perms.seeFiles ? titleStatus(d, versions) : watch;
+  const ready = gone ? { label: "Not in the library", tone: "neutral" as const } : perms.seeFiles ? titleStatus(d, versions) : watch;
   const runtime = fmtRuntime(d.runtime_minutes ?? m?.runtime_minutes);
   const lang = languageName(m?.original_language);
   const attrs = [
@@ -255,7 +261,7 @@ export function TitlePage() {
               {ready.label}
             </Chip>
             {audio.length > 0 ? <span className="text-xs text-muted-foreground">Audio: {audio.join(", ")}</span> : null}
-            {perms.seeFiles && !d.monitored && d.availability !== "unmonitored" ? <Chip tone="ghost">Not monitored</Chip> : null}
+            {perms.seeFiles && !gone && !d.monitored && d.availability !== "unmonitored" ? <Chip tone="ghost">Not monitored</Chip> : null}
           </div>
         </div>
         <div className="col-span-2 max-w-3xl sm:col-span-1 sm:col-start-2">
@@ -271,7 +277,11 @@ export function TitlePage() {
       ) : null}
 
       {/* The action bar and the Libraries table right under the hero, for a movie and a series alike. */}
-      {perms.seeFiles ? (
+      {perms.seeFiles && gone ? (
+        <div className="mt-6">
+          <KeptFiles titleId={Number(id)} versions={all} manage={perms.manage} />
+        </div>
+      ) : perms.seeFiles ? (
         <div className="mt-6 space-y-4">
           <TitleToolbar titleId={Number(id)} name={target.name} year={target.year} kind={target.kind} poster={target.poster} anime={!!d.anime} versions={versions}
             removed={all.filter((v) => v.removed)} onHistory={() => setParams({ tab: "history" }, { replace: true })} />
@@ -296,7 +306,7 @@ export function TitlePage() {
           </button>
         ))}
       </div>
-      {tab === "episodes" ? (
+      {tab === "episodes" && !gone ? (
         <>
           {!perms.add && perms.request ? (
             <div className="mb-3">

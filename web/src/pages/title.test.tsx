@@ -57,6 +57,32 @@ describe("Title page", () => {
     expect((await screen.findByTestId("title-facts")).textContent).toContain("Releases");
   });
 
+  it("reads a title every copy of which was removed as one not in the library, with Add and its kept files", async () => {
+    const links = [{ id: 1, path: "/movies/Juniper Signal (2021)/a.mkv", kind: "symlink", state: "active" }, { id: 2, path: "/movies/Juniper Signal (2021)/b.mkv", kind: "symlink", state: "active" }];
+    mockFetch([
+      { method: "GET", path: "/auth/me", reply: { ...me, permissions: [...me.permissions, "add"] } },
+      { method: "GET", path: "/titles/70", reply: { ...title, kind: "series", monitored: false, versions: [{ id: 5, key: "tv-2160p", state: "filled", monitored: false, removed: true, links }] } },
+      { method: "GET", path: "/add/options", reply: { kind: "series", anime: false, title_id: 70, in_library: false, router_enabled: true, episodes_known: false, can_search: false, seasons: [], versions: [] } },
+    ]);
+    renderPage(
+      <SearchProvider>
+        <Routes>
+          <Route path="/title/:id" element={<TitlePage />} />
+        </Routes>
+      </SearchProvider>,
+      "/title/70",
+    );
+    expect((await screen.findByTestId("title-readiness")).textContent).toBe("Not in the library");
+    expect((await screen.findByTestId("kept-files")).textContent).toBe("2 files kept from before it was removed: Delete them");
+    expect(screen.queryByTestId("library-rows")).toBeNull();
+    expect(screen.queryByRole("button", { name: /Rename files/ })).toBeNull();
+    expect(screen.queryByText("Not monitored")).toBeNull();
+    // No episode list: About and History.
+    expect(screen.queryByRole("tab", { name: "Episodes" })).toBeNull();
+    expect(screen.getByRole("tab", { name: "History" })).toBeTruthy();
+    expect((await screen.findAllByTestId("hero-add"))[0].textContent).toContain("Add");
+  });
+
   it("says Pause once above the Libraries table", async () => {
     const grab_state = { mode: "active", paused: true, pause_forced: false, will_grab: false };
     const fetch = mockFetch([

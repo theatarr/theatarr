@@ -134,6 +134,8 @@ export function AddSheet({ target, onClose }: { target: AddTarget; onClose: () =
   // the Anime mark or the type picked here.
   const opts = useAddOptions(target, anime || seriesType === "anime");
   const inLibrary = libraryTitleId(target, opts.data) !== undefined;
+  // A title every copy of which was removed is added by its title id (which restores it), but reads as a new add.
+  const current = inLibrary && opts.data?.in_library !== false;
   const add = useAddTitle();
   const [picked, setPicked] = useState<Record<string, boolean>>({});
   const [seasons, setSeasons] = useState<Record<number, boolean>>({});
@@ -201,7 +203,7 @@ export function AddSheet({ target, onClose }: { target: AddTarget; onClose: () =
           <div className="min-w-0">
             <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
               <FacetPill facet={facet} />
-              {inLibrary ? <Badge tone="positive">In library</Badge> : null}
+              {current ? <Badge tone="positive">In library</Badge> : null}
             </div>
             <h2 className="text-lg font-semibold leading-tight text-[var(--ink)] [overflow-wrap:anywhere]">
               {nameWithoutYear(target.name, target.year)}
@@ -346,12 +348,12 @@ export function AddSheet({ target, onClose }: { target: AddTarget; onClose: () =
                 <Button variant="ghost" onClick={onClose}>Cancel</Button>
                 <Button variant={searchOffered ? "outline" : "default"} onClick={() => submit(false)} disabled={!o || (chosen.length === 0 && !seasonsChanged) || add.isPending} data-testid="add-submit">
                   {add.isPending && !add.variables?.search ? <Loader2 className="animate-spin" /> : <Plus />}
-                  {!inLibrary ? "Add" : chosen.length > 0 || o?.kind !== "series" ? "Add libraries" : "Save seasons"}
+                  {!current ? "Add" : chosen.length > 0 || o?.kind !== "series" ? "Add libraries" : "Save seasons"}
                 </Button>
                 {searchOffered ? (
                   <Button onClick={() => submit(true)} disabled={add.isPending} data-testid="add-submit-search">
                     {add.isPending && add.variables?.search ? <Loader2 className="animate-spin" /> : <Search />}
-                    {inLibrary ? "Add libraries and search" : "Add and search"}
+                    {current ? "Add libraries and search" : "Add and search"}
                   </Button>
                 ) : null}
               </div>
