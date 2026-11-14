@@ -128,24 +128,31 @@ export function removalLinks(s: RemovalScopeLike): number {
   return [...s.copies, ...(s.leftover ?? [])].reduce((n, c) => n + c.links, 0);
 }
 
-/** The torrent clean-up a removal with the files does, and its guard. */
-export const REMOVAL_CLEANUP = "The debrid torrents Theatarr itself added for it are deleted from the providers after a backup, when nothing else uses them";
-export const REMOVAL_ACCOUNT_TORRENTS = "Torrents that were already on the account stay; Admin › Torrents lists them under Unused";
+/** The torrent clean-up a removal does with "Delete it from the debrid providers", and its guard. */
+export const REMOVAL_CLEANUP = "Its debrid torrents are deleted from the providers, after a backup, unless another title or library in Theatarr uses them";
 export const REMOVAL_LISTS = "Import lists will not restore the removed libraries; add it yourself to bring it back";
+/** Why "Delete it from the debrid providers" is off while the files are kept. */
+export const REMOVAL_DEBRID_NEEDS_FILES = "Deleting the torrents needs the files deleted too: kept files would stop playing";
 
-/** The removal dialog's scope. files: "Also delete the files and clean up the debrid torrents" (the dialog's box). */
-export function removalScope(s: RemovalScopeLike, files: boolean): Scope {
+/** The removal dialog's scope. files: "Delete the files"; debrid: "Delete it from the debrid providers" (only with
+ *  files). */
+export function removalScope(s: RemovalScopeLike, files: boolean, debrid = files): Scope {
+  debrid = files && debrid;
   const leftover = (s.leftover ?? []).reduce((n, c) => n + c.links, 0);
+  const torrents = debrid ? [] : ["Its debrid torrents stay"];
   if (s.copies.length === 0 && leftover > 0) {
-    // Only the files libraries removed before kept: deleting them takes their torrents along, with the same guard.
+    // Only the files libraries removed before kept: deleting them takes their torrents along when asked, with the
+    // same guard.
     return {
       title: `Delete the files kept from ${s.name}`,
       does: [
         `${plural(leftover, "library file")} of removed libraries ${leftover === 1 ? "is" : "are"} deleted from the library (moved to Theatarr's trash)`,
-        REMOVAL_CLEANUP,
+        ...(debrid ? [REMOVAL_CLEANUP] : []),
       ],
-      keeps: ["A file another library of the title uses stays", REMOVAL_ACCOUNT_TORRENTS, "The libraries stay removed; its history stays"],
+      keeps: ["A file another library of the title uses stays", ...torrents, "The libraries stay removed; its history stays"],
       confirm: "Delete files",
+      cleanup: debrid ? undefined : UNUSED_TORRENTS,
+      blocked: files ? undefined : "Nothing to do: the files are kept",
     };
   }
   const links = s.copies.reduce((n, c) => n + c.links, 0) + (files ? leftover : 0);
@@ -157,14 +164,12 @@ export function removalScope(s: RemovalScopeLike, files: boolean): Scope {
   does.push(`${s.title ? "It is" : s.copies.length === 1 ? "It is" : "They are"} hidden from Seerr and the other arr clients`);
   if (downloads > 0) does.push(`Theatarr stops following ${plural(downloads, "download")} in progress`);
   if (files && links > 0) does.push(`${plural(links, "library file")} ${links === 1 ? "is" : "are"} deleted from the library (moved to Theatarr's trash), with the folders left empty`);
-  if (files) does.push(REMOVAL_CLEANUP);
+  if (debrid) does.push(REMOVAL_CLEANUP);
   const keeps = [
     ...(files
-      ? ["A file another library of the title uses stays", REMOVAL_ACCOUNT_TORRENTS]
-      : [
-          ...(links === 0 ? [] : [`${plural(links, "library file")} ${links === 1 ? "stays" : "stay"} linked and playable`]),
-          "Its debrid torrents stay",
-        ]),
+      ? ["A file another library of the title uses stays"]
+      : links === 0 ? [] : [`${plural(links, "library file")} ${links === 1 ? "stays" : "stay"} linked and playable`]),
+    ...torrents,
     "Its history stays",
     REMOVAL_LISTS,
   ];
@@ -173,7 +178,7 @@ export function removalScope(s: RemovalScopeLike, files: boolean): Scope {
     does,
     keeps,
     confirm: s.title ? "Remove title" : s.copies.length === 1 ? "Remove from this library" : "Remove from these libraries",
-    cleanup: files ? undefined : UNUSED_TORRENTS,
+    cleanup: debrid ? undefined : UNUSED_TORRENTS,
     blocked: s.copies.length === 0 ? "Nothing to remove" : undefined,
   };
 }

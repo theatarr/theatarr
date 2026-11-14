@@ -62,7 +62,7 @@ describe("recovery scopes", () => {
     expect(unblockScope("x", "4K", false).confirm).toBe("Unblock");
   });
 
-  it("scopes a copy removal with its links and downloads, with and without the files", () => {
+  it("scopes a copy removal with its links and downloads, with and without the files and the torrents", () => {
     const one = { name: "Dune", title: false, copies: [{ key: "movie-web", label: "4K WEB", links: 2, downloads: 1 }] };
     const keep = removalScope(one, false);
     expect(keep.title).toBe("Remove from 4K WEB");
@@ -78,17 +78,23 @@ describe("recovery scopes", () => {
       "Import lists will not restore the removed libraries; add it yourself to bring it back",
     ]);
     expect(keep.cleanup).toEqual({ text: "To free space at the provider, delete torrents nothing uses any more under", label: "Admin › Torrents (the Unused filter)", to: "/admin/torrents", admin: true });
-    const files = removalScope(one, true);
-    expect(files.does).toContain("2 library files are deleted from the library (moved to Theatarr's trash), with the folders left empty");
-    expect(files.does).toContain("The debrid torrents Theatarr itself added for it are deleted from the providers after a backup, when nothing else uses them");
-    expect(files.keeps).toEqual([
+    // The torrents cannot go while the files are kept.
+    expect(removalScope(one, false, true).does).toEqual(keep.does);
+    const both = removalScope(one, true, true);
+    expect(both.does).toContain("2 library files are deleted from the library (moved to Theatarr's trash), with the folders left empty");
+    expect(both.does).toContain("Its debrid torrents are deleted from the providers, after a backup, unless another title or library in Theatarr uses them");
+    expect(both.keeps).toEqual([
       "A file another library of the title uses stays",
-      "Torrents that were already on the account stay; Admin › Torrents lists them under Unused",
       "Its history stays",
       "Import lists will not restore the removed libraries; add it yourself to bring it back",
     ]);
-    expect(files.cleanup).toBeUndefined();
-    expect(files.confirm).toBe("Remove from this library");
+    expect(both.cleanup).toBeUndefined();
+    expect(both.confirm).toBe("Remove from this library");
+    // Files deleted, torrents kept: they stay, and the Unused filter is named.
+    const filesOnly = removalScope(one, true, false);
+    expect(filesOnly.does).not.toContain(both.does.at(-1));
+    expect(filesOnly.keeps).toContain("Its debrid torrents stay");
+    expect(filesOnly.cleanup).toBeDefined();
   });
 
   it("scopes a title removal", () => {
@@ -108,15 +114,17 @@ describe("recovery scopes", () => {
     expect(removalScope({ name: "X", title: false, copies: [] }, false).blocked).toBe("Nothing to remove");
   });
 
-  it("offers to delete the files removed libraries kept, with their torrents", () => {
+  it("offers to delete the files removed libraries kept, with or without their torrents", () => {
     const left = { key: "movie-web", label: "4K WEB", links: 2, downloads: 0 };
     const s = removalScope({ name: "Dune", title: false, copies: [], leftover: [left] }, true);
     expect(s.blocked).toBeUndefined();
     expect(s.confirm).toBe("Delete files");
     expect(s.does).toEqual([
       "2 library files of removed libraries are deleted from the library (moved to Theatarr's trash)",
-      "The debrid torrents Theatarr itself added for it are deleted from the providers after a backup, when nothing else uses them",
+      "Its debrid torrents are deleted from the providers, after a backup, unless another title or library in Theatarr uses them",
     ]);
+    expect(removalScope({ name: "Dune", title: false, copies: [], leftover: [left] }, true, false).keeps).toContain("Its debrid torrents stay");
+    expect(removalScope({ name: "Dune", title: false, copies: [], leftover: [left] }, false).blocked).toBe("Nothing to do: the files are kept");
     const one = { name: "Dune", title: true, copies: [{ key: "movie-remux", label: "4K Remux", links: 1, downloads: 0 }], leftover: [left] };
     expect(removalLinks(one)).toBe(3);
     expect(removalScope(one, true).does).toContain("3 library files are deleted from the library (moved to Theatarr's trash), with the folders left empty");

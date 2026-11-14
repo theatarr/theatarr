@@ -301,12 +301,14 @@ or an admin's API key, which confirms like a session, as with settings; the toke
 
 ### Removal clean-up
 
-A title removal with its files deleted (the web UI's Remove title / Remove from this library with "Also delete the
-files and clean up the debrid torrents", on by default; the arr views' `DELETE movie|series?deleteFiles=true`; the
-"Delete them" of files a removal kept) hands the removed copies' torrents to `Manager.DeleteForRemoval`
+A title removal with "Delete the files" and "Delete it from the debrid providers" (both on by default in the web UI's
+Remove title / Remove from this library and in "Delete files" for a removed title's kept files; the arr views'
+`DELETE movie|series?deleteFiles=true` means both) hands the removed copies' torrents to `Manager.DeleteForRemoval`
 (`internal/torrents/removal.go`; the removal itself is `internal/removal`, arrview.md "DELETE movie|series"). It runs
-after the answer, on the service's context (`web.StartCleanup`), managers included, and is the same delete with these
-differences only:
+after the answer, on the service's context (`web.StartCleanup`), managers included. The removal is the person's
+explicit request (owner, after looking at how DMM and zurg delete), so every entry of a candidate hash on every
+provider is taken, whoever added it; the guard is Theatarr's own usage only. It is the same delete with these
+differences:
 
 - **The candidates** are the hashes of the removed copies' links (active or dead), their arr files and their
   downloads not failed, read before the removal, each with the removed libraries it belongs to. A hash a link that
@@ -319,22 +321,20 @@ differences only:
 - **One read, as Torrents › Refresh does it:** the provider sync lists every account and writes the record and the
   registry, then the usage is worked out. If any provider's listing fails, nothing is deleted anywhere ("torrents
   not cleaned up: could not read RD"). Planning and the backup use those lists; nothing is listed again.
-- **Only Theatarr's own adds go:** an entry is taken only with a positive own-add mark (`download.own_add = 1`: the
-  router saw the hash absent and a new id at the add) for the same provider, torrent id and hash, in the current
-  provider epoch (the account the id belongs to). Anything else is kept ("Theatarr cannot tell that it added it"): a
-  reuse, AllDebrid handing back an existing magnet, a reconciled entry, an id that holds another hash now, another
-  account epoch, and a copy to another provider (its rows carry no epoch). Torrents › Unused can still delete them.
+- **Every entry of a candidate hash** on every provider is a candidate (a copy on another provider, an entry reused
+  or already on the account included).
 - **Usage:** the normal plan rules (step 3, fresh): a torrent another title or library links, a download in hand, a
   file of the removed title that was kept or a configured other library's folder (`torrents.scan_roots`) uses is
   kept, and so is any torrent whose usage is unknown. No override is given.
-- **Recent or busy** (step 4): `allow_recent` lifts both guards, and only our own adds are selected.
+- **Recent or busy** (step 4): `allow_recent` lifts both guards for these torrents (the removal ended its download);
+  the Torrents page's own delete is unchanged.
 - Steps 6 to 9 run unchanged, except that the backup must hold every provider's complete list (no backup, no delete:
   "torrents not cleaned up: backup failed (TB)", naming the provider whose backup failed).
 - At most 200 torrents go per removal; the rest are kept and said so ("see Torrents › Unused").
 - **The outcome** of each removed library's own torrents ("deleted on RD"; "kept on AD: used by <title>"; "TB:
   failed, <reason>"; "torrents of the files that stay kept") goes into that library's Removed event
   (`journal.Removal.Cleanup`), which History shows. Nothing is retried (`TestDeleteForRemoval`,
-  `TestDeleteForRemovalNeedsProvenOwnership`, `TestDeleteForRemovalBackupFails`, `TestDeleteForRemovalProviderErrors`,
+`TestDeleteForRemovalBackupFails`, `TestDeleteForRemovalProviderErrors`,
   `TestDeleteForRemovalKeepsARestoredLibrary`, `TestDeleteForRemovalSaysWhatItLeftOver`).
 
 A removal also stops queued copies to other providers that no current copy of any title wants (a download in hand,

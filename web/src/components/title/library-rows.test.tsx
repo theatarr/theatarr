@@ -185,10 +185,11 @@ describe("fix round 1", () => {
     await user.click(screen.getByTestId("copy-remove-movie-web"));
     const box = (await screen.findByTestId("remove-files")) as HTMLInputElement;
     expect(box.checked).toBe(true);
+    expect((screen.getByTestId("remove-debrid") as HTMLInputElement).checked).toBe(true);
     expect(screen.getByTestId("remove-dialog").textContent).toContain("Import lists will not restore the removed libraries; add it yourself to bring it back");
     await user.click(screen.getByTestId("confirm-ok"));
     await waitFor(() => expect(fetch.calls("POST", "/titles/7/remove")).toHaveLength(1));
-    expect(fetch.calls("POST", "/titles/7/remove")[0].body).toEqual({ versions: ["movie-web"], unlink: true });
+    expect(fetch.calls("POST", "/titles/7/remove")[0].body).toEqual({ versions: ["movie-web"], unlink: true, debrid: true });
     // The title data comes back without the row: no error, and the scope is not read again (it would answer 400).
     act(() => setVersions([{ ...web, removed: true }, { ...remux, removed: true, links }]));
     expect(screen.queryAllByTestId("library-row")).toHaveLength(0);
@@ -219,9 +220,14 @@ describe("fix round 1", () => {
     await user.click(screen.getByTestId("copy-remove-movie-web"));
     await user.click(await screen.findByTestId("remove-files"));
     expect(screen.getByTestId("confirm-keeps").textContent).toContain("Its debrid torrents stay");
+    // The torrents cannot go while the files stay: the second box is off and says why.
+    const debrid = screen.getByTestId("remove-debrid") as HTMLInputElement;
+    expect(debrid.checked).toBe(false);
+    expect(debrid.disabled).toBe(true);
+    expect(screen.getByTestId("remove-debrid-why").textContent).toContain("kept files would stop playing");
     await user.click(screen.getByTestId("confirm-ok"));
     await waitFor(() => expect(fetch.calls("POST", "/titles/7/remove")).toHaveLength(1));
-    expect(fetch.calls("POST", "/titles/7/remove")[0].body).toEqual({ versions: ["movie-web"], unlink: false });
+    expect(fetch.calls("POST", "/titles/7/remove")[0].body).toEqual({ versions: ["movie-web"], unlink: false, debrid: false });
     await waitFor(() => expect(screen.queryByTestId("remove-dialog")).toBeNull());
     expect(screen.getByTestId("where").textContent).toBe("/title/7");
     expect(screen.getAllByTestId("toast").at(-1)?.textContent).toContain("its debrid torrents stay");

@@ -2,9 +2,9 @@
 // library row's Details), Unlink one of its library files, Delete the files a library the title was removed from kept
 // (the line under the Libraries table, and the kept-files line of a title in no library), and Remove the whole title
 // (the action bar). Each confirmation spells out the scope the server reports (copies, links, downloads in progress)
-// and what stays. The removal's one choice, "Also delete the files and clean up the debrid torrents", is on by default:
-// Theatarr's own symlinks go to its trash, and the torrents nothing else uses are deleted from the providers after a
-// backup. An unlink moves only Theatarr's own symlink to the trash.
+// and what stays. The removal's two choices are on by default: "Delete the files" (Theatarr's own symlinks go to its
+// trash) and "Delete it from the debrid providers" (after a backup, the torrents no other title or library in
+// Theatarr uses; only with the files deleted). An unlink moves only Theatarr's own symlink to the trash.
 import { FileX2, Loader2, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router";
@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Choice, ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Modal } from "@/components/ui/modal";
 import { listToReturnTo } from "@/lib/last-list";
-import { removalScope, unlinkable, unlinkScope } from "@/lib/ops";
+import { REMOVAL_DEBRID_NEEDS_FILES, removalScope, unlinkable, unlinkScope } from "@/lib/ops";
 
 /** The removal confirmation: the server's scope for versions (none: the whole title), with the files choice. Once
  *  done, the outcome is a notice that opens the title's History (the Removed event, with the debrid clean-up's outcome
@@ -31,6 +31,7 @@ export function RemoveDialog({ titleId, versions, onClose, kind, anime }: { titl
   const [started, setStarted] = useState(false);
   const q = useRemovalScope(titleId, versions, !started);
   const [files, setFiles] = useState(true);
+  const [debrid, setDebrid] = useState(true);
   if (!q.data) {
     return (
       <Modal label="Remove" onClose={onClose} testid="remove-dialog" className="z-[85] flex items-center justify-center p-6"
@@ -42,11 +43,9 @@ export function RemoveDialog({ titleId, versions, onClose, kind, anime }: { titl
     );
   }
   const s = q.data;
-  // Nothing left to hide: only the files of libraries removed before, which a removal with the files deletes.
-  const leftoverOnly = s.copies.length === 0;
   return (
     <ConfirmDialog
-      scope={removalScope(s, files || leftoverOnly)}
+      scope={removalScope(s, files, debrid)}
       subject={s.name}
       busy={remove.isPending}
       error={remove.error}
@@ -58,7 +57,8 @@ export function RemoveDialog({ titleId, versions, onClose, kind, anime }: { titl
             // A removal asked for named libraries (a row, a leftover line) stays scoped to them even when they are the
             // title's last; none (the action bar) is the whole title, with the files of libraries removed earlier.
             versions: versions ?? [],
-            unlink: files || leftoverOnly,
+            unlink: files,
+            debrid: files && debrid,
           },
           {
             onSuccess: (r) => {
@@ -78,11 +78,13 @@ export function RemoveDialog({ titleId, versions, onClose, kind, anime }: { titl
       }}
       testid="remove-dialog"
     >
-      {!leftoverOnly ? (
-        <Choice checked={files} onChange={setFiles} testid="remove-files">
-          Also delete the files and clean up the debrid torrents
-        </Choice>
-      ) : null}
+      <Choice checked={files} onChange={setFiles} testid="remove-files">
+        Delete the files
+      </Choice>
+      <Choice checked={files && debrid} onChange={setDebrid} disabled={!files} testid="remove-debrid">
+        Delete it from the debrid providers
+      </Choice>
+      {!files ? <p className="pl-6 text-xs text-[var(--ink-3)]" data-testid="remove-debrid-why">{REMOVAL_DEBRID_NEEDS_FILES}.</p> : null}
     </ConfirmDialog>
   );
 }
