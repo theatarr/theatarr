@@ -377,6 +377,18 @@ func (w *Web) apiPatchUser(rw http.ResponseWriter, r *http.Request) {
 		badRequest(rw, "you cannot disable your own account")
 		return
 	}
+	// Nor change your own role: one slip would demote you. Sending your current role is fine.
+	if req.Role != nil && id == auth.FromContext(r.Context()).UserID {
+		cur, err := w.auth.GetUser(r.Context(), id)
+		if err != nil {
+			w.internal(rw, err)
+			return
+		}
+		if cur.Role != *req.Role {
+			badRequest(rw, "you cannot change your own role")
+			return
+		}
+	}
 	err := w.auth.UpdateUser(r.Context(), id, p)
 	switch {
 	case errors.Is(err, auth.ErrUserNotFound):

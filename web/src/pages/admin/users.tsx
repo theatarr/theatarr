@@ -5,7 +5,7 @@ import { settingHref } from "@/lib/settings-map";
 // github.com/seerr-team/seerr src/components/UserList and UserProfile/UserSettings @ c167958): avatar, name, role
 // and status per row, permissions behind an edit panel.
 import { ChevronDown, LogOut, ShieldCheck, UserCheck, UserX } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ApiError } from "@/api/client";
 import { useAuth } from "@/api/auth";
 import { useEndSessions, usePatchUser, useSetUserSettings, useUsers, type User, type UserPatch, type UsersPage } from "@/api/users";
@@ -83,6 +83,7 @@ export function UsersAdmin() {
               />
             </div>
           </Card>
+          <SignInLink approval={data.settings.plex_new_users === "pending"} plex={data.settings.plex_enabled} />
           {pending.length > 0 ? (
             <Section title={`Waiting for approval (${pending.length})`}>
               <div className="space-y-3" data-testid="pending-users">
@@ -102,6 +103,41 @@ export function UsersAdmin() {
         </>
       ) : null}
     </div>
+  );
+}
+
+/** The address to send a family member, copyable, with what happens next: approval (or none) and what each role does.
+ *  No invite system: the first Plex sign-in creates the account. */
+function SignInLink({ approval, plex }: { approval: boolean; plex: boolean }) {
+  const url = `${window.location.origin}/login`;
+  const field = useRef<HTMLInputElement>(null);
+  const [copy, setCopy] = useState<"idle" | "copied" | "failed">("idle");
+  const copyURL = async () => {
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error("no clipboard");
+      await navigator.clipboard.writeText(url);
+      setCopy("copied");
+    } catch {
+      setCopy("failed");
+      field.current?.focus();
+      field.current?.select();
+    }
+  };
+  return (
+    <Card className="mt-3" data-testid="sign-in-link">
+      <div className="font-medium">Give someone access</div>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <Input ref={field} readOnly value={url} aria-label="Sign-in link" className="h-8 max-w-sm font-mono text-[13px]" onFocus={(e) => e.target.select()} />
+        <Button size="sm" variant="outline" onClick={() => void copyURL()}>Copy link</Button>
+        {copy === "copied" ? <span role="status" className="text-xs text-muted-foreground">Copied.</span> : copy === "failed" ? <span role="status" className="text-xs text-muted-foreground">Could not copy here: the link is selected, copy it yourself.</span> : null}
+      </div>
+      <p className="mt-2 text-sm text-muted-foreground" data-testid="sign-in-approval">
+        {!plex ? "Plex sign-in is off, so only local accounts can sign in for now." : approval
+          ? "They sign in with Plex there. A first sign-in waits for approval: it shows under Waiting for approval on this page, where Let in opens it as a User."
+          : "They sign in with Plex there. A first sign-in is let in at once as a User."}
+      </p>
+      <p className="mt-1 text-sm text-muted-foreground" data-testid="sign-in-roles">{ROLES.map((r) => `${r.label}: ${r.hint.charAt(0).toLowerCase()}${r.hint.slice(1)}`).join(". ")}.</p>
+    </Card>
   );
 }
 
@@ -148,7 +184,8 @@ function UserCard({ u, page }: { u: User; page: UsersPage }) {
               <span className="sr-only">Role</span>
               <Select
                 value={u.role}
-                disabled={patch.isPending}
+                disabled={patch.isPending || self}
+                title={self ? "You cannot change your own role" : undefined}
                 onChange={(e) => set({ role: e.target.value as User["role"] })}
                 data-testid="user-role"
                 className="w-auto"

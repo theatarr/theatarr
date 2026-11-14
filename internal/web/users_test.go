@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -263,12 +264,24 @@ func TestUsersAdmin(t *testing.T) {
 			t.Errorf("patch %v: %d", bad, code)
 		}
 	}
-	// The last admin keeps the role.
-	if code := e.jsonCall("PATCH", APIBase+"/users/1", map[string]any{"role": "user"}, c, csrf, nil); code != 409 {
-		t.Errorf("demote the last admin: %d", code)
+	// The last admin keeps the role: the API refuses any change of your own role first (400), and the store refuses
+	// demoting the last admin whoever asks.
+	if code := e.jsonCall("PATCH", APIBase+"/users/1", map[string]any{"role": "user"}, c, csrf, nil); code != 400 {
+		t.Errorf("demote the last admin, yourself: %d", code)
+	}
+	lastRole := auth.RoleUser
+	if err := e.auth.UpdateUser(ctx, 1, auth.UserPatch{Role: &lastRole}); !errors.Is(err, auth.ErrLastAdmin) {
+		t.Errorf("demote the last admin in the store: %v", err)
 	}
 	if code := e.jsonCall("PATCH", APIBase+"/users/1", map[string]any{"status": "disabled"}, c, csrf, nil); code != 400 {
 		t.Errorf("disable yourself: %d", code)
+	}
+	// Nor change your own role (another admin can); sending the same role is a no-op.
+	if code := e.jsonCall("PATCH", APIBase+"/users/1", map[string]any{"role": "manager"}, c, csrf, nil); code != 400 {
+		t.Errorf("demote yourself: %d", code)
+	}
+	if code := e.jsonCall("PATCH", APIBase+"/users/1", map[string]any{"role": "admin"}, c, csrf, nil); code != 200 {
+		t.Errorf("your own role, unchanged: %d", code)
 	}
 	// Keys: the admin makes one for Ann; Ann (own_keys) sees hers only and cannot touch the admin's.
 	var made struct {
