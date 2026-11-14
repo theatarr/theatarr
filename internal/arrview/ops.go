@@ -340,6 +340,17 @@ type Unlinked struct {
 // of ours: a regular file or hardlink is refused, and so is a link the gate will not let change (library disabled,
 // version in shadow), with the gate's reason and nothing changed.
 func (s *Service) UnlinkLink(ctx context.Context, linkID int64, reason string) (*Unlinked, error) {
+	return s.unlinkLink(ctx, linkID, reason, false)
+}
+
+// UnlinkRemoved is UnlinkLink for a removal that deletes the files (the shared removal, internal/removal): a dead
+// symlink (its target gone) is moved aside too, and the folders the link leaves empty go, strictly below the library
+// root (library.RemoveEmptyDirs). The caller decides which links are the removed copies' own.
+func (s *Service) UnlinkRemoved(ctx context.Context, linkID int64, reason string) (*Unlinked, error) {
+	return s.unlinkLink(ctx, linkID, reason, true)
+}
+
+func (s *Service) unlinkLink(ctx context.Context, linkID int64, reason string, removal bool) (*Unlinked, error) {
 	if s.library == nil {
 		return nil, refused("the library is not available")
 	}
@@ -354,7 +365,7 @@ func (s *Service) UnlinkLink(ctx context.Context, linkID int64, reason string) (
 	if kind != "symlink" {
 		return out, refused("only Theatarr's own symlinks are unlinked; this entry is a %s and stays", kind)
 	}
-	if state != "active" {
+	if state != "active" && (!removal || state != "dead") {
 		return out, refused("the link is %s already", state)
 	}
 	type lv struct {
@@ -411,6 +422,11 @@ func (s *Service) UnlinkLink(ctx context.Context, linkID int64, reason string) (
 			return out, err
 		}
 		out.Versions = append(out.Versions, x.key)
+	}
+	if removal {
+		for _, x := range vs {
+			s.library.RemoveEmptyDirs(x.key, out.Path)
+		}
 	}
 	s.log.Info("link unlinked by hand", "link", linkID, "path", out.Path, "versions", strings.Join(out.Versions, ","),
 		"trash", out.Trash)

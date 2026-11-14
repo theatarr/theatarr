@@ -65,6 +65,7 @@ func (r *recorder) TestNotification(_ context.Context, view string, n json.RawMe
 type fakeLibrary struct {
 	gate     *library.Gate
 	unlinks  []string
+	rmdirs   []string // RemoveEmptyDirs calls
 	imports  []string
 	onUnlink func(int64)
 	onCheck  func() // runs in each CheckUnlink
@@ -95,6 +96,11 @@ func (f *fakeLibrary) Unlink(_ context.Context, version, p string, linkID int64,
 		f.onUnlink(linkID)
 	}
 	return res, nil
+}
+
+func (f *fakeLibrary) RemoveEmptyDirs(version, p string) []string {
+	f.rmdirs = append(f.rmdirs, version+" "+p)
+	return nil
 }
 
 func (f *fakeLibrary) Import(_ context.Context, id int64, dry bool) (*library.Plan, error) {

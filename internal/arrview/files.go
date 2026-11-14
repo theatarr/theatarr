@@ -28,6 +28,8 @@ const LinkFileBase = 1_000_000_000
 type Library interface {
 	CheckUnlink(version, path string) error
 	Unlink(ctx context.Context, version, path string, linkID int64, reason string) (*library.UnlinkResult, error)
+	// RemoveEmptyDirs removes the folders an unlinked path leaves empty, strictly below its root.
+	RemoveEmptyDirs(version, path string) []string
 	Import(ctx context.Context, id int64, dryRun bool) (*library.Plan, error)
 	// PlanNew is a dry run of an import that writes no download row.
 	PlanNew(ctx context.Context, n library.NewImport) (*library.Plan, error)

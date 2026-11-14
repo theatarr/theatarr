@@ -13,10 +13,11 @@ import (
 	"time"
 
 	"github.com/theatarr/theatarr/internal/catalog"
+	"github.com/theatarr/theatarr/internal/journal"
 	"github.com/theatarr/theatarr/internal/library"
 	"github.com/theatarr/theatarr/internal/metadata/tmdb"
 	"github.com/theatarr/theatarr/internal/notify"
-	"github.com/theatarr/theatarr/internal/router"
+	"github.com/theatarr/theatarr/internal/removal"
 	"github.com/theatarr/theatarr/internal/store"
 )
 
@@ -1039,137 +1040,104 @@ func (s *Service) deleteTitle(w http.ResponseWriter, r *request) {
 	}
 	// Radarr's addImportExclusion=true: the movie also goes on the exclusion list, with the remove.
 	exclude := r.v.Flavour == Radarr && e.kind == "movie" && e.tmdb > 0 && r.queryBool("addImportExclusion", false)
-	ended := 0
-	err = s.st.WriteTx(ctx, func(tx *sqlTx) error {
-		now := store.Millis(s.now())
-		for _, x := range e.versions {
-			if _, err := tx.ExecContext(ctx, `INSERT INTO arrview_removed_version (version_id, view, removed_at)
-				VALUES (?, ?, ?) ON CONFLICT (version_id) DO NOTHING`, x.id, r.v.Key, now); err != nil {
-				return err
-			}
-			if _, err := tx.ExecContext(ctx, `UPDATE version SET monitored = 0, updated_at = ? WHERE id = ?`, now,
-				x.id); err != nil {
-				return err
-			}
-		}
-		if _, err := tx.ExecContext(ctx, `DELETE FROM arrview_title WHERE view = ? AND title_id = ?`, r.v.Key,
-			e.id); err != nil {
-			return err
-		}
-		// The removed copies' minimum availability choices go with them, so a later add takes the library's rule
-		// again; whatever else a library's own row holds stays.
-		for _, x := range e.versions {
-			if _, err := tx.ExecContext(ctx, `UPDATE arrview_title SET minimum_availability = '' WHERE view = ?
-				AND title_id = ?`, "v/"+x.key, e.id); err != nil {
-				return err
-			}
-		}
-		if err := syncTitleMonitored(ctx, tx, e.id, now); err != nil {
-			return err
-		}
-		if exclude {
-			// The statement of the exclusions POST (lists.go): lists and collections skip the movie from now on.
-			if _, err := tx.ExecContext(ctx, `INSERT INTO movie_exclusion(tmdb_id,created_at) VALUES(?,?)
-				ON CONFLICT DO NOTHING`, e.tmdb, now); err != nil {
-				return err
-			}
-		}
-		// Downloads in hand of the removed versions end in our records with the hide, so they are not imported
-		// back and the remove never half-succeeds; the provider keeps its torrents.
-		ended, err = router.EndRemoved(ctx, tx, e.id, e.versionKeys(), reason, now)
-		return err
-	})
-	if err != nil {
+	deleteFiles := r.queryBool("deleteFiles", false)
+	keys := e.versionKeys()
+	// The whole title when no other library of it stays current.
+	var others int
+	if err := s.st.Reader().QueryRowContext(ctx, `SELECT COUNT(*) FROM version v WHERE v.title_id = ?
+		AND v.policy_key NOT IN (`+store.Placeholders(len(keys))+`)
+		AND NOT EXISTS (SELECT 1 FROM arrview_removed_version r WHERE r.version_id = v.id)`,
+		append([]any{e.id}, anyKeys(keys)...)...).Scan(&others); err != nil {
 		s.internal(w, r, err)
 		return
 	}
-	// The title's requests follow the removal, as after the web UI's (SetOnRemoved).
-	if s.onRemoved != nil {
-		s.onRemoved(ctx, e.id)
+	act := journal.ActRemoveVersion
+	if others == 0 {
+		act = journal.ActRemoveTitle
 	}
-	if r.queryBool("deleteFiles", false) {
-		// After the fence: every link the versions have, including any an import committed before the hide.
-		kept, failed, err := s.unlinkRemoved(ctx, e, reason)
-		if err != nil {
-			s.internal(w, r, err)
-			return
-		}
-		if len(failed) > 0 {
-			s.log.Warn("versions removed; moving files to trash failed", "view", r.v.Key, "title", e.id,
-				"failed", strings.Join(failed, "; "))
-			writeJSON(w, http.StatusInternalServerError, errorBody{Message: "versions removed; moving some files to " +
-				"trash failed (Theatarr's title page moves the links left)", Description: strings.Join(failed, "; ")})
-			return
-		}
-		if len(kept) > 0 {
-			writeJSON(w, http.StatusConflict, errorBody{Message: "versions removed; some files were kept",
-				Description: strings.Join(kept, "; ")})
-			return
-		}
+	// The shared removal (internal/removal), as the web UI's: the hide, the downloads ended, requests and offers,
+	// the Removed actions, and with deleteFiles the links and the debrid clean-up. The view's own rows go in its
+	// transaction.
+	res, err := removal.Run(ctx, removal.Deps{Store: s.st, Unlinker: removalUnlinker{s}, AfterRemove: s.onRemoved,
+		StartCleanup: s.cleanup, Now: s.now, Log: s.log}, removal.Spec{TitleID: e.id, Name: e.name, Keys: keys,
+		View: r.v.Key, Unlink: deleteFiles, Action: act, By: "key:" + r.client, Reason: reason, OwnViewRecords: true,
+		Extra: func(ctx context.Context, tx *sqlTx) error {
+			now := store.Millis(s.now())
+			if _, err := tx.ExecContext(ctx, `DELETE FROM arrview_title WHERE view = ? AND title_id = ?`, r.v.Key,
+				e.id); err != nil {
+				return err
+			}
+			// The removed copies' minimum availability choices go with them, so a later add takes the library's
+			// rule again; whatever else a library's own row holds stays.
+			for _, x := range e.versions {
+				if _, err := tx.ExecContext(ctx, `UPDATE arrview_title SET minimum_availability = '' WHERE view = ?
+					AND title_id = ?`, "v/"+x.key, e.id); err != nil {
+					return err
+				}
+			}
+			if exclude {
+				// The statement of the exclusions POST (lists.go): lists and collections skip the movie from now on.
+				if _, err := tx.ExecContext(ctx, `INSERT INTO movie_exclusion(tmdb_id,created_at) VALUES(?,?)
+					ON CONFLICT DO NOTHING`, e.tmdb, now); err != nil {
+					return err
+				}
+			}
+			return nil
+		}})
+	if res == nil {
+		s.internal(w, r, err)
+		return
 	}
-	s.log.Info("versions removed", "view", r.v.Key, "title", e.id, "versions", strings.Join(e.versionKeys(), ","),
-		"delete_files", r.queryBool("deleteFiles", false), "downloads_ended", ended)
+	if err != nil {
+		s.log.Warn("versions removed; reading their links failed", "view", r.v.Key, "title", e.id, "err", err)
+		writeJSON(w, http.StatusInternalServerError, errorBody{Message: "versions removed; reading their files " +
+			"failed (Theatarr's title page deletes the files left)", Description: err.Error()})
+		return
+	}
+	if len(res.Failed) > 0 {
+		failed := lefts(res.Failed)
+		s.log.Warn("versions removed; moving files to trash failed", "view", r.v.Key, "title", e.id,
+			"failed", failed)
+		writeJSON(w, http.StatusInternalServerError, errorBody{Message: "versions removed; moving some files to " +
+			"trash failed (Theatarr's title page moves the links left)", Description: failed})
+		return
+	}
+	if len(res.Kept) > 0 {
+		writeJSON(w, http.StatusConflict, errorBody{Message: "versions removed; some files were kept",
+			Description: lefts(res.Kept)})
+		return
+	}
+	s.log.Info("versions removed", "view", r.v.Key, "title", e.id, "versions", strings.Join(keys, ","),
+		"delete_files", deleteFiles, "downloads_ended", res.DownloadsEnded, "unlinked", len(res.Unlinked),
+		"shared_kept", len(res.Shared), "cleanup", res.Cleanup != nil)
 	w.WriteHeader(http.StatusOK)
 }
 
-// unlinkRemoved moves to trash the links still active for e's versions after they were removed (deleteTitle's
-// enumeration after the hide). It returns the links it kept (refused), and the ones whose move failed, with why; a
-// failing link does not stop the others. err is a failure to read the links.
-func (s *Service) unlinkRemoved(ctx context.Context, e *entry, reason string) (kept, failed []string, err error) {
-	if len(e.versions) == 0 {
-		return nil, nil, nil
+func lefts(ls []removal.Left) string {
+	out := make([]string, len(ls))
+	for i, l := range ls {
+		out[i] = l.Path + ": " + l.Reason
 	}
-	ids := make([]any, len(e.versions))
-	for i, x := range e.versions {
-		ids[i] = x.id
+	return strings.Join(out, "; ")
+}
+
+func anyKeys(ks []string) []any {
+	out := make([]any, len(ks))
+	for i, k := range ks {
+		out[i] = k
 	}
-	type left struct {
-		id            int64
-		version, path string
+	return out
+}
+
+// removalUnlinker is the shared removal's Unlinker: UnlinkRemoved, with the trash path.
+type removalUnlinker struct{ s *Service }
+
+func (u removalUnlinker) UnlinkRemoved(ctx context.Context, linkID int64, reason string) (string, error) {
+	l, err := u.s.UnlinkRemoved(ctx, linkID, reason)
+	if err != nil || l == nil {
+		return "", err
 	}
-	var links []left
-	rows, err := s.st.Reader().QueryContext(ctx, `SELECT l.id, v.policy_key, l.path FROM link l
-		JOIN link_version lv ON lv.link_id = l.id JOIN version v ON v.id = lv.version_id
-		WHERE lv.version_id IN (`+store.Placeholders(len(ids))+`) AND l.state = 'active' ORDER BY l.id, v.id`, ids...)
-	if err != nil {
-		return nil, nil, err
-	}
-	for rows.Next() {
-		var x left
-		if err := rows.Scan(&x.id, &x.version, &x.path); err != nil {
-			rows.Close()
-			return nil, nil, err
-		}
-		links = append(links, x)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, nil, err
-	}
-	for _, x := range links {
-		if s.library == nil {
-			kept = append(kept, x.path+": library is unavailable")
-			continue
-		}
-		if err := s.library.CheckUnlink(x.version, x.path); err != nil {
-			if errors.Is(err, library.ErrRefused) {
-				kept = append(kept, x.path+": "+err.Error())
-			} else {
-				failed = append(failed, x.path+": "+err.Error())
-			}
-			continue
-		}
-		res, err := s.library.Unlink(ctx, x.version, x.path, x.id, reason)
-		switch {
-		case err != nil:
-			failed = append(failed, x.path+": "+err.Error())
-		case res.DryRun:
-			kept = append(kept, x.path+": dry run: "+res.Refused)
-		}
-	}
-	return kept, failed, nil
+	return l.Trash, nil
 }
 
 // PUT episode/monitor {episodeIds, monitored} (EpisodeController.SetEpisodesMonitored): per-version monitoring of

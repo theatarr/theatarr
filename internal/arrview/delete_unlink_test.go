@@ -2,9 +2,13 @@ package arrview
 
 import (
 	"context"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/theatarr/theatarr/internal/journal"
+	"github.com/theatarr/theatarr/internal/removal"
 
 	"github.com/theatarr/theatarr/internal/library"
 	"github.com/theatarr/theatarr/internal/policy"
@@ -101,5 +105,41 @@ func TestDeleteTellsTheRemoval(t *testing.T) {
 	}
 	if len(told) != 1 || told[0] != 1 {
 		t.Errorf("told %v, want title 1", told)
+	}
+}
+
+// The arr-compatible DELETE runs the shared removal with the client's own flag: deleteFiles omitted keeps the files
+// and the torrents (as Radarr and Sonarr default), deleteFiles=true deletes the links and hands the torrents to the
+// clean-up, as the web UI's dialog with its box ticked (Seerr sends true). Both record the Removed event.
+func TestDeleteKeepsTheClientsFlag(t *testing.T) {
+	t.Parallel()
+	const h = "abababababababababababababababababababab"
+	for _, deleteFiles := range []bool{false, true} {
+		e := removeEnv(t)
+		e.exec(`UPDATE link SET file_metadata = ? WHERE id = 8`, `{"InfoHash":"`+h+`"}`)
+		var started []removal.Cleanup
+		e.svc.SetCleanup(func(c removal.Cleanup) { started = append(started, c) })
+		path := "/v/movie-web/radarr/api/v3/movie/" + strconv.Itoa(IDBase+1)
+		if deleteFiles {
+			path += "?deleteFiles=true"
+		}
+		if rec := e.do("DELETE", path, e.key, nil); rec.Code != 200 {
+			t.Fatalf("DELETE %v: %d %s", deleteFiles, rec.Code, rec.Body.String())
+		}
+		state := e.str(`SELECT state FROM link WHERE id = 8`)
+		detail := e.str(`SELECT detail FROM journal_action WHERE action IN ('remove_version', 'remove_title')
+			AND version_key = 'movie-web'`)
+		rm := journal.ParseRemovalDetail(detail)
+		switch {
+		case !deleteFiles && (state != "active" || len(e.lib.unlinks) != 0 || len(started) != 0 ||
+			rm.Files != journal.RemovalFilesKept):
+			t.Errorf("without deleteFiles: link %v, unlinks %v, clean-ups %v, %+v", state, e.lib.unlinks, started, rm)
+		case deleteFiles && (state != "unlinked" || len(started) != 1 || !slices.Contains(started[0].Hashes, h) ||
+			rm.Files != journal.RemovalFilesDeleted):
+			t.Errorf("with deleteFiles: link %v, clean-ups %+v, %+v", state, started, rm)
+		}
+		if deleteFiles && (len(e.lib.rmdirs) == 0 || !strings.HasPrefix(e.lib.rmdirs[0], "movie-web /media/movies-web/")) {
+			t.Errorf("empty folders not cleared: %v", e.lib.rmdirs)
+		}
 	}
 }

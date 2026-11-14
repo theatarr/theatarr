@@ -22,6 +22,7 @@ import (
 	"github.com/theatarr/theatarr/internal/metadata/tvrefresh"
 	"github.com/theatarr/theatarr/internal/notify"
 	"github.com/theatarr/theatarr/internal/policy"
+	"github.com/theatarr/theatarr/internal/removal"
 	"github.com/theatarr/theatarr/internal/router"
 	"github.com/theatarr/theatarr/internal/store"
 )
@@ -155,6 +156,7 @@ type Service struct {
 	releases       *ReleaseCache
 	keys           map[string]string // view key -> its own API key, when set
 	onRemoved      func(ctx context.Context, titleID int64)
+	cleanup        func(removal.Cleanup)
 }
 
 // New builds the views from the policy and gives their profiles ids (stored, so they stay the same across restarts).
@@ -229,6 +231,10 @@ func (s *Service) SetHealth(h HealthSource) { s.health = h }
 // SetOnRemoved sets what runs after a DELETE movie|series removed versions of a title (web.TitleRemoved: its requests
 // follow the removal).
 func (s *Service) SetOnRemoved(f func(ctx context.Context, titleID int64)) { s.onRemoved = f }
+
+// SetCleanup sets who runs a DELETE movie|series?deleteFiles=true's debrid clean-up after the answer
+// (web.StartCleanup, on the service's context); unset, none runs and the Removed event says so.
+func (s *Service) SetCleanup(f func(removal.Cleanup)) { s.cleanup = f }
 
 // Views lists the views served.
 func (s *Service) Views() []*View { return s.views }
