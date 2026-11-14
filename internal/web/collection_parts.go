@@ -35,9 +35,12 @@ type CollectionPart struct {
 	TitleID int64 `json:"title_id,omitempty"`
 	// Availability is the film's status word, as the lists say it; absent when it is not in the library.
 	Availability string `json:"availability,omitempty"`
+	// Removed: the film was removed from every library (Collection.Removed counts it); an Add brings it back.
+	Removed bool `json:"removed,omitempty"`
 }
 
-// GET /collections/{id}: one stored collection and its films.
+// GET /collections/{id}: one stored collection and its films. Reads the collection's row once and only its own
+// films' titles.
 func (w *Web) apiCollection(rw http.ResponseWriter, r *http.Request) {
 	id, ok := pathID(r)
 	if !ok {
@@ -45,17 +48,16 @@ func (w *Web) apiCollection(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ctx := r.Context()
-	c, err := w.collection(ctx, id)
+	c := Collection{TmdbID: id}
+	var versions, movies string
+	err := w.st.Reader().QueryRowContext(ctx, `SELECT name, monitored, versions, search_on_add, minimum_availability,
+		movies FROM movie_collection WHERE tmdb_id = ?`, id).Scan(&c.Name, &c.Monitored, &versions, &c.SearchOnAdd,
+		&c.MinimumAvailability, &movies)
 	if errors.Is(err, sql.ErrNoRows) {
 		notFound(rw)
 		return
 	}
 	if err != nil {
-		w.internal(rw, err)
-		return
-	}
-	var movies string
-	if err := w.st.Reader().QueryRowContext(ctx, `SELECT movies FROM movie_collection WHERE tmdb_id = ?`, id).Scan(&movies); err != nil {
 		w.internal(rw, err)
 		return
 	}
@@ -67,8 +69,8 @@ func (w *Web) apiCollection(rw http.ResponseWriter, r *http.Request) {
 	slices.SortStableFunc(stored, func(a, b tmdb.MovieSummary) int {
 		return strings.Compare(cmpDate(a.ReleaseDate), cmpDate(b.ReleaseDate))
 	})
-	out := CollectionDetail{Collection: c, Parts: []CollectionPart{}, Libraries: w.keyLabels(w.collectionTargets()),
-		CanAdd: w.add.Collections != nil}
+	targets := w.collectionTargets()
+	out := CollectionDetail{Parts: []CollectionPart{}, Libraries: w.keyLabels(targets), CanAdd: w.add.Collections != nil}
 	seen := map[int]bool{}
 	tmdbIDs := []any{}
 	for _, p := range stored {
@@ -86,21 +88,30 @@ func (w *Web) apiCollection(rw http.ResponseWriter, r *http.Request) {
 		}
 		out.Parts = append(out.Parts, part)
 	}
-	// The films in the library: a movie title with a visible version, as heldMovies counts them.
-	titles := map[int64]int64{}
+	// How the catalog holds these films (as heldMovies, for this collection's films only), and their titles.
+	held, titles := map[int]heldMovie{}, map[int64]int64{}
 	if len(tmdbIDs) > 0 {
-		err = scanAll(ctx, w.st.Reader(), `SELECT t.tmdb_id, MIN(t.id) FROM title t JOIN version v ON v.title_id = t.id
-			WHERE t.kind = 'movie' AND t.tmdb_id IN (`+store.Placeholders(len(tmdbIDs))+`) AND `+liveVersion+`
-			GROUP BY t.tmdb_id`, tmdbIDs, func(rows *sql.Rows) error {
-			var m, tid int64
-			err := rows.Scan(&m, &tid)
-			titles[m] = tid
-			return err
-		})
+		err = scanAll(ctx, w.st.Reader(), `SELECT t.tmdb_id, MIN(t.id), MAX(`+liveVersion+`), MAX(`+liveVersion+` AND `+
+			hasFileSQL+`) FROM title t JOIN version v ON v.title_id = t.id
+			WHERE t.kind = 'movie' AND t.tmdb_id IN (`+store.Placeholders(len(tmdbIDs))+`) GROUP BY t.tmdb_id`, tmdbIDs,
+			func(rows *sql.Rows) error {
+				var m, tid int64
+				var h heldMovie
+				err := rows.Scan(&m, &tid, &h.live, &h.file)
+				held[int(m)] = h
+				if h.live {
+					titles[m] = tid
+				}
+				return err
+			})
 		if err != nil {
 			w.internal(rw, err)
 			return
 		}
+	}
+	if out.Collection, err = buildCollection(c, versions, movies, held, targets); err != nil {
+		w.internal(rw, err)
+		return
 	}
 	ids := []any{}
 	for _, tid := range titles {
@@ -112,8 +123,11 @@ func (w *Web) apiCollection(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	for i := range out.Parts {
-		if tid, ok := titles[out.Parts[i].TmdbID]; ok {
-			out.Parts[i].TitleID, out.Parts[i].Availability = tid, avail[tid]
+		p := &out.Parts[i]
+		if tid, ok := titles[p.TmdbID]; ok {
+			p.TitleID, p.Availability = tid, avail[tid]
+		} else if _, ok := held[int(p.TmdbID)]; ok {
+			p.Removed = true
 		}
 	}
 	writeJSON(rw, http.StatusOK, out)

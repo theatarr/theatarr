@@ -37,7 +37,7 @@ export function CollectionSettings({ c, libraries, onClose }: { c: Collection; l
       <div className="flex items-center gap-3">
         <MonitorSwitch on={c.monitored} disabled={busy || (!c.monitored && c.versions.length === 0)}
           reason={!c.monitored && c.versions.length === 0 ? "Choose a library first" : undefined} label={`Monitor ${name}`} onChange={monitored => save({ monitored })} />
-        <span className="text-[var(--ink)]">Monitor: add its missing movies to the libraries below, now and at each list refresh</span>
+        <span className="text-[var(--ink)]">Monitor: add its missing movies to the libraries below at each list refresh, or at once with Add missing movies now</span>
       </div>
       <fieldset className="flex flex-wrap items-center gap-1.5" disabled={busy}>
         <legend className="mb-1.5 font-medium text-[var(--ink)]">Libraries</legend>

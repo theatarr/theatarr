@@ -339,8 +339,12 @@ func TestCollectionDetailAPI(t *testing.T) {
 	// A film removed from every view is not in the library.
 	e.exec(`INSERT INTO arrview_removed_version (version_id, view, removed_at) VALUES (4, 'radarr', 0)`)
 	d = CollectionDetail{}
-	if code := e.getKey(APIBase+"/collections/7", key, &d); code != 200 || d.Parts[1].TitleID != 0 || d.Parts[1].Availability != "" {
-		t.Errorf("removed part %d %+v", code, d.Parts[1])
+	if code := e.getKey(APIBase+"/collections/7", key, &d); code != 200 || d.Parts[1].TitleID != 0 || d.Parts[1].Availability != "" ||
+		!d.Parts[1].Removed || d.Parts[0].Removed || d.Parts[2].Removed {
+		t.Errorf("removed part %d %+v", code, d.Parts)
+	}
+	if d.Collection.Held != 1 || d.Collection.Removed != 1 || d.Collection.Total != 3 {
+		t.Errorf("counts with a removed part %+v", d.Collection)
 	}
 	if code := e.getKey(APIBase+"/collections/99", key, &d); code != 404 {
 		t.Errorf("unknown collection %d", code)

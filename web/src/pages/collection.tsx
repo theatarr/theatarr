@@ -25,9 +25,11 @@ function PartCard({ p }: { p: CollectionPart }) {
     status={posterStatus(p.availability)} />;
   const action = canAdd ? "Add" : canRequest ? "Request" : "";
   const open = action ? () => openAdd({ kind: "movie", name: p.title, year: p.year || undefined, poster: p.poster, overview: p.overview, tmdb_id: p.tmdb_id }) : undefined;
+  // A film removed from every library is added back from here like any other (Add missing movies now skips it).
+  const where = p.removed ? "Removed from the library" : "Not in the library";
   return <PosterCard onClick={open} title={p.title} year={p.year || undefined} image={p.poster} overview={p.overview}
-    extraLabel={`not in the library${action ? `, ${action.toLowerCase()}` : ""}`}
-    caption={<span data-testid="part-not-held">Not in the library{action ? <> · <span className="text-[var(--accent-ink)]">{action}</span></> : null}</span>} />;
+    extraLabel={`${where.toLowerCase()}${action ? `, ${action.toLowerCase()}` : ""}`}
+    caption={<span data-testid="part-not-held">{where}{action ? <> · <span className="text-[var(--accent-ink)]">{action}</span></> : null}</span>} />;
 }
 
 export function CollectionPage() {

@@ -177,6 +177,11 @@ func scanCollection(row interface{ Scan(...any) error }, held map[int]heldMovie,
 		&movies); err != nil {
 		return c, err
 	}
+	return buildCollection(c, versions, movies, held, targets)
+}
+
+// buildCollection completes c from its stored versions and movies (JSON) and how the catalog holds them.
+func buildCollection(c Collection, versions, movies string, held map[int]heldMovie, targets []string) (Collection, error) {
 	var stored []string
 	if err := json.Unmarshal([]byte(versions), &stored); err != nil {
 		return c, err

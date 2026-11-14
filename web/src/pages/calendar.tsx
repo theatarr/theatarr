@@ -147,13 +147,13 @@ function dayHeading(s: string, today: string): string {
 }
 
 /** What the agenda says when it lists nothing: about the filters when they hide this month's entries. */
-function NothingHere({ filtered, onShowAll, children }: { filtered: boolean; onShowAll: () => void; children: string }) {
+function NothingHere({ filtered, onShowAll, children }: { filtered: string; onShowAll: () => void; children: string }) {
   return (
     <Card>
       <Empty icon={CalendarDays}>
         {filtered ? (
           <>
-            No entries match these filters this month.{" "}
+            {filtered}{" "}
             <button type="button" className="text-[var(--accent-ink)] hover:underline" onClick={onShowAll}>
               Show all
             </button>
@@ -172,7 +172,7 @@ function Agenda({
   plain,
   now,
   startAtToday,
-  filtered,
+  hiddenSince,
   onShowAll,
   earlier,
   onEarlier,
@@ -183,8 +183,8 @@ function Agenda({
   now: Date;
   /** The month shown is this one: the agenda starts at today, unless earlier. */
   startAtToday: boolean;
-  /** The month has entries the toggles or Monitored only hide. */
-  filtered: boolean;
+  /** The month has entries from this day (YYYY-MM-DD; "" for the whole month) that the toggles or Monitored only hide. */
+  hiddenSince: (day: string) => boolean;
   onShowAll: () => void;
   earlier: boolean;
   onEarlier: () => void;
@@ -199,9 +199,13 @@ function Agenda({
         </Button>
       ) : null}
       {days.length === 0 ? (
-        <NothingHere filtered={filtered} onShowAll={onShowAll}>Nothing is released or airs in this month.</NothingHere>
+        <NothingHere filtered={hiddenSince("") ? "No entries match these filters this month." : ""} onShowAll={onShowAll}>
+          Nothing is released or airs in this month.
+        </NothingHere>
       ) : shown.length === 0 ? (
-        <NothingHere filtered={filtered} onShowAll={onShowAll}>Nothing more this month.</NothingHere>
+        <NothingHere filtered={hiddenSince(today) ? "No more entries this month match these filters." : ""} onShowAll={onShowAll}>
+          Nothing more this month.
+        </NothingHere>
       ) : null}
       {shown.map(([day, items]) => (
         <section key={day} data-agenda-day={day}>
@@ -332,10 +336,8 @@ export function CalendarPageView() {
   const to = view === "month" ? ymd(days[days.length - 1]) : ymd(new Date(anchor.y, anchor.m + 1, 0));
   // One day wider on each side: an episode's air moment can fall on the day before or after the network's here.
   const q = useCalendar(shiftDay(from, -1), shiftDay(to, 1), !plain);
-  const placed = useMemo(
-    () => joinReleases(placeEntries(q.data?.items ?? [], from, to)).filter(({ e }) => !monitoredOnly || e.monitored),
-    [q.data, from, to, monitoredOnly],
-  );
+  const all = useMemo(() => joinReleases(placeEntries(q.data?.items ?? [], from, to)), [q.data, from, to]);
+  const placed = useMemo(() => all.filter(({ e }) => !monitoredOnly || e.monitored), [all, monitoredOnly]);
 
   const byDay = useMemo(() => {
     const m = new Map<string, Entry[]>();
@@ -355,14 +357,12 @@ export function CalendarPageView() {
     for (const { day, e } of placed) if (day >= first && day <= last) c[e.title.kind as Facet] = (c[e.title.kind as Facet] ?? 0) + 1;
     return c;
   }, [placed, anchor]);
-  // The month has entries that the toggles or Monitored only hide.
-  const hiddenByFilters = useMemo(() => {
+  // The month has entries from day on (the whole month for "") that the toggles or Monitored only hide.
+  const hiddenSince = (day: string) => {
     const first = ymd(new Date(anchor.y, anchor.m, 1));
     const last = ymd(new Date(anchor.y, anchor.m + 1, 0));
-    const all = joinReleases(placeEntries(q.data?.items ?? [], from, to)).filter(({ day }) => day >= first && day <= last);
-    const shown = all.filter(({ e }) => (!monitoredOnly || e.monitored) && facets.includes(e.title.kind as Facet));
-    return shown.length < all.length;
-  }, [q.data, from, to, anchor, monitoredOnly, facets]);
+    return all.some(({ day: d, e }) => d >= first && d <= last && d >= day && ((monitoredOnly && !e.monitored) || !facets.includes(e.title.kind as Facet)));
+  };
 
   const goTo = (a: { y: number; m: number }) => {
     const cur = { y: now.getFullYear(), m: now.getMonth() };
@@ -477,7 +477,7 @@ export function CalendarPageView() {
         <ErrorState error={q.error} />
       ) : view === "agenda" ? (
         <div ref={agendaTop} className="scroll-mt-20">
-          <Agenda days={agendaDays} today={today} plain={plain} now={now} startAtToday={isThisMonth} filtered={hiddenByFilters} onShowAll={showAll}
+          <Agenda days={agendaDays} today={today} plain={plain} now={now} startAtToday={isThisMonth} hiddenSince={hiddenSince} onShowAll={showAll}
             earlier={earlier} onEarlier={() => setEarlier(true)} />
         </div>
       ) : (

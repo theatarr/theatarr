@@ -837,7 +837,8 @@
           "poster": { "type": "string", "description": "TMDb poster on this origin" },
           "overview": { "type": "string" },
           "title_id": { "type": "integer", "description": "The film's title in the library; absent when it is not in the library" },
-          "availability": { "$ref": "#/components/schemas/Availability" }
+          "availability": { "$ref": "#/components/schemas/Availability" },
+          "removed": { "type": "boolean", "description": "Removed from every library (counted in the collection's removed); an Add brings it back" }
         }
       },
       "CollectionsPage": {"type": "object", "required": ["collections", "libraries", "can_add"], "properties": {"collections": {"type": "array", "items": {"$ref": "#/components/schemas/Collection"}}, "libraries": {"type": "object", "additionalProperties": {"type": "string"}, "description": "Movie library key to label"}, "can_add": {"type": "boolean", "description": "TMDb is set up: collections can be searched, added and refreshed now"}}},

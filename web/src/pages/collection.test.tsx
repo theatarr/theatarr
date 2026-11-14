@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { expect, it } from "vitest";
 import { Route, Routes } from "react-router";
 import { CollectionPage } from "./collection";
-import { mockFetch, renderPage } from "@/test/page";
+import { json, mockFetch, renderPage } from "@/test/page";
 import { SearchProvider } from "@/components/search/search-context";
 import type { Schemas } from "@/api/client";
 
@@ -45,7 +45,7 @@ it("shows a collection's films with their status and offers Add for one not in t
   const missing = within(screen.getByTestId("part-8077"));
   expect(missing.getByTestId("part-not-held").textContent).toBe("Not in the library · Add");
   await user.click(missing.getByRole("button", { name: "Alien 3 (1992), not in the library, add" }));
-  await waitFor(() => expect(fetch.calls("GET", "/add/options")[0]?.search).toBe("?kind=movie&tmdb_id=8077"));
+  await waitFor(() => expect(fetch.calls("GET", "/add/options")[0]?.search).toContain("?kind=movie&tmdb_id=8077"));
   // No TMDb call on open: only the stored collection was read.
   expect(fetch.calls("POST", "/collections/8091/refresh")).toHaveLength(0);
 });
@@ -116,4 +116,31 @@ it("monitors a collection only once it has a library", async () => {
   await user.click(dialog().getByRole("switch", { name: "Monitor Collection 9100" }));
   await waitFor(() => expect(fetch.calls("PUT", "/collections/9100")[1]?.body).toEqual({ monitored: true }));
   await waitFor(() => expect(dialog().getByRole("switch", { name: "Monitor Collection 9100" }).getAttribute("aria-checked")).toBe("true"));
+});
+
+it("marks a film removed from every library, offers Add for it, and refreshes the films after an add", async () => {
+  const user = userEvent.setup();
+  const gates = { paused: false, pause_forced: false, library_writes: true, mode: "active", will_grab: true };
+  const options = { kind: "movie", anime: false, router_enabled: true, episodes_known: false, can_search: true, seasons: [],
+    versions: [{ key: "movie-web", label: "4K WEB", mode: "active", grab_state: gates, kind: "movie", enable: "", fits: true, default: true, on: false, searchable: true }] };
+  const removedFirst = { ...detail({ ...alien, held: 1, removed: 1 }), parts: [detail(alien).parts[0], { tmdb_id: 679, title: "Aliens", year: 1986, removed: true }] };
+  let added = false;
+  const fetch = mockFetch([
+    { method: "GET", path: "/auth/me", reply: manager },
+    { method: "GET", path: "/collections/8091", reply: () => added
+      ? { ...removedFirst, collection: { ...alien, held: 2, removed: 0 }, parts: [removedFirst.parts[0], { tmdb_id: 679, title: "Aliens", year: 1986, title_id: 218, availability: "missing" }] }
+      : removedFirst },
+    { method: "GET", path: "/add/options", reply: options },
+    { method: "POST", path: "/titles", reply: () => { added = true; return json({ created: true, new: ["movie-web"], title: { id: 218, name: "Aliens", versions: [] } }); } },
+  ]);
+  show("/collections/8091");
+  expect(await screen.findByText("1 of 3 in the library (1 removed) · 1 available")).toBeTruthy();
+  const aliens = within(screen.getByTestId("part-679"));
+  expect(aliens.getByTestId("part-not-held").textContent).toBe("Removed from the library · Add");
+  await user.click(aliens.getByRole("button", { name: "Aliens (1986), removed from the library, add" }));
+  await user.click(await screen.findByTestId("add-submit"));
+  await waitFor(() => expect(fetch.calls("POST", "/titles")).toHaveLength(1));
+  // The page reads the collection again: the film now links to its title.
+  await waitFor(() => expect(within(screen.getByTestId("part-679")).getByRole("link").getAttribute("href")).toBe("/title/218"));
+  expect(screen.getByText("2 of 3 in the library · 1 available")).toBeTruthy();
 });

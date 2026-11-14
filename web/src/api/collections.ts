@@ -11,6 +11,8 @@ export type CollectionAdd = Schemas["CollectionAdd"];
 export type CollectionRefreshed = Schemas["CollectionRefreshed"];
 
 const KEY = ["collections"] as const;
+/** Every collections query: an added title changes their counts and parts. */
+export const collectionsKey = KEY;
 
 /** GET /collections: every collection movie intake knows, and the movie libraries one may target. */
 export const useCollections = (enabled = true) =>

@@ -183,3 +183,24 @@ it("brings a busy day's list into view and focus on +N more", async () => {
   expect(document.activeElement).toBe(panel);
   expect(screen.getAllByTestId("agenda-item")).toHaveLength(4);
 });
+
+it("does not say no entries match while earlier ones of the month are behind Show earlier", async () => {
+  vi.setSystemTime(new Date(2026, 10, 14, 12));
+  const movie = { ...items[1], date: nov(3), title: title(1, "Alpha", "movie") };
+  const routes = (later: Entry[]) => [
+    { method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["see_files"] } },
+    { method: "GET", path: "/calendar", reply: { from: nov(1), to: nov(30), items: [movie, ...later] } },
+  ];
+  // Nothing later this month at all.
+  mockFetch(routes([]));
+  const first = renderPage(<CalendarPageView />, "/calendar?types=movie");
+  expect(await screen.findByText("Nothing more this month.")).toBeTruthy();
+  expect(screen.queryByText(/No entries match/)).toBeNull();
+  expect(screen.getByRole("button", { name: "Show earlier (1 day)" })).toBeTruthy();
+  first.unmount();
+  // A later entry the toggles hide.
+  mockFetch(routes([ep(9, nov(20), "Later")]));
+  renderPage(<CalendarPageView />, "/calendar?types=movie");
+  expect(await screen.findByText("No more entries this month match these filters.", { exact: false })).toBeTruthy();
+  expect(screen.queryByText(/No entries match/)).toBeNull();
+});

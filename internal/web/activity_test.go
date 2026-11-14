@@ -81,12 +81,30 @@ func TestCalendar(t *testing.T) {
 	e.exec(`UPDATE version SET monitored = 0 WHERE id = 3`)
 	cal = CalendarPage{}
 	e.getKey(APIBase+"/calendar?from=2026-11-01&to=2026-11-30&unmonitored=true", key, &cal)
-	for _, it := range cal.Items {
-		if it.Title.Name == "Beta" && it.Monitored || it.Title.Name == "Alpha" && !it.Monitored {
-			t.Errorf("monitored: %+v", it)
+	movieMonitored := func() map[string]bool {
+		cal = CalendarPage{}
+		e.getKey(APIBase+"/calendar?from=2026-11-01&to=2026-11-30&unmonitored=true", key, &cal)
+		got := map[string]bool{}
+		for _, it := range cal.Items {
+			if it.Kind == "movie" {
+				got[it.Title.Name] = it.Monitored
+			}
 		}
+		return got
+	}
+	if got := movieMonitored(); !maps.Equal(got, map[string]bool{"Alpha": true, "Beta": false}) {
+		t.Errorf("monitored movies: %v", got)
 	}
 	e.exec(`UPDATE version SET monitored = 1 WHERE id = 3`)
+	// A removed library's monitoring does not count; a title removed from every library is not listed, even with
+	// unmonitored. Alpha keeps its unmonitored movie-web copy; Beta's only copy is removed.
+	e.exec(`UPDATE version SET monitored = 0 WHERE id = 2`)
+	e.exec(`INSERT INTO arrview_removed_version (version_id, view, removed_at) VALUES (1, 'radarr', 0), (3, 'radarr', 0)`)
+	if got := movieMonitored(); !maps.Equal(got, map[string]bool{"Alpha": false}) {
+		t.Errorf("monitored movies after removal: %v", got)
+	}
+	e.exec(`DELETE FROM arrview_removed_version`)
+	e.exec(`UPDATE version SET monitored = 1 WHERE id = 2`)
 	// An imported series: no air time in series_meta (or no row at all), yet its episode has a real evening instant.
 	// The entry keeps the moment.
 	evening := time.Date(2026, 11, 5, 2, 0, 0, 0, time.UTC)
