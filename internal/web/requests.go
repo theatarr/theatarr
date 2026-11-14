@@ -1345,14 +1345,15 @@ const RequestRemovedReason = "removed from the library"
 // available when every requested version has its file, processing while a download for one is in hand, failed when
 // the latest download of a missing version failed and none is in hand, else approved.
 func (w *Web) syncRequests(ctx context.Context, ids ...int64) error {
-	return w.syncRequestsAfter(ctx, false, ids...)
+	return w.syncRequestsAfter(ctx, nil, ids...)
 }
 
-// syncRequestsAfter is syncRequests; removal: it follows a removal (syncTitleRequests). The libraries the title was
-// removed from leave each request's versions for good (a later Add does not bring them back into it); a request left
-// with none is canceled by the removal (RequestRemovedReason, now, nobody's decision). No file arrived, so nothing is
-// announced: the event's change is "removed" (no toast, no webhook).
-func (w *Web) syncRequestsAfter(ctx context.Context, removal bool, ids ...int64) error {
+// syncRequestsAfter is syncRequests; gone (non-nil after a removal, syncTitleRequests) are the libraries the title was
+// removed from: they leave each request's versions for good (a later Add does not bring them back into it), and a
+// request left with none is canceled by the removal (RequestRemovedReason, now, nobody's decision). No file arrived, so
+// nothing is announced: the event's change is "removed" (no toast, no webhook).
+func (w *Web) syncRequestsAfter(ctx context.Context, gone map[string]bool, ids ...int64) error {
+	removal := gone != nil
 	q := requestSelect + ` WHERE r.status IN ('approved', 'processing', 'failed', 'available') AND r.title_id IS NOT NULL`
 	var args []any
 	if len(ids) > 0 {
@@ -1377,7 +1378,7 @@ func (w *Web) syncRequestsAfter(ctx context.Context, removal bool, ids ...int64)
 	}
 	for _, r := range reqs {
 		if removal {
-			left, err := w.dropRemovedVersions(ctx, &r)
+			left, err := w.dropRemovedVersions(ctx, &r, gone)
 			if err != nil {
 				return err
 			}
@@ -1412,20 +1413,9 @@ func (w *Web) syncRequestsAfter(ctx context.Context, removal bool, ids ...int64)
 	return nil
 }
 
-// dropRemovedVersions takes the libraries the title was removed from out of request r's versions, stored. With none
-// left the request is canceled by the removal (its event sent) and false is returned.
-func (w *Web) dropRemovedVersions(ctx context.Context, r *Request) (bool, error) {
-	gone := map[string]bool{}
-	err := scanAll(ctx, w.st.Reader(), `SELECT v.policy_key FROM version v WHERE v.title_id = ? AND NOT `+liveVersion,
-		[]any{*r.TitleID}, func(rows *sql.Rows) error {
-			var k string
-			err := rows.Scan(&k)
-			gone[k] = true
-			return err
-		})
-	if err != nil {
-		return false, err
-	}
+// dropRemovedVersions takes the libraries the title was removed from (gone) out of request r's versions, stored. With
+// none left the request is canceled by the removal (its event sent) and false is returned.
+func (w *Web) dropRemovedVersions(ctx context.Context, r *Request, gone map[string]bool) (bool, error) {
 	keys := slices.DeleteFunc(slices.Clone(r.keys), func(k string) bool { return gone[k] })
 	if len(keys) == len(r.keys) {
 		return true, nil
@@ -1453,6 +1443,14 @@ func (w *Web) dropRemovedVersions(ctx context.Context, r *Request) (bool, error)
 	return true, nil
 }
 
+// TitleRemoved is what runs after the arr views' DELETE movie|series removed versions of a title (arrview
+// SetOnRemoved): its requests follow the removal as after the web UI's (syncTitleRequests).
+func (w *Web) TitleRemoved(ctx context.Context, titleID int64) {
+	if err := w.syncTitleRequests(ctx, titleID); err != nil {
+		w.log.Warn("arr view removal: requests", "title", titleID, "err", err)
+	}
+}
+
 // syncTitleRequests moves the requests of one title along now, after a removal (syncRequestsAfter); nothing when it
 // has none.
 func (w *Web) syncTitleRequests(ctx context.Context, titleID int64) error {
@@ -1467,7 +1465,18 @@ func (w *Web) syncTitleRequests(ctx context.Context, titleID int64) error {
 	if err != nil || len(ids) == 0 {
 		return err
 	}
-	return w.syncRequestsAfter(ctx, true, ids...)
+	gone := map[string]bool{}
+	err = scanAll(ctx, w.st.Reader(), `SELECT v.policy_key FROM version v WHERE v.title_id = ? AND NOT `+liveVersion,
+		[]any{titleID}, func(rows *sql.Rows) error {
+			var k string
+			err := rows.Scan(&k)
+			gone[k] = true
+			return err
+		})
+	if err != nil {
+		return err
+	}
+	return w.syncRequestsAfter(ctx, gone, ids...)
 }
 
 // requestStatus is where an approved request stands now.

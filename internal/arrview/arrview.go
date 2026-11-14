@@ -154,6 +154,7 @@ type Service struct {
 	health         HealthSource
 	releases       *ReleaseCache
 	keys           map[string]string // view key -> its own API key, when set
+	onRemoved      func(ctx context.Context, titleID int64)
 }
 
 // New builds the views from the policy and gives their profiles ids (stored, so they stay the same across restarts).
@@ -224,6 +225,10 @@ type HealthSource interface {
 
 // SetHealth adds the service-wide health checks to every view's GET health and to the Health webhook.
 func (s *Service) SetHealth(h HealthSource) { s.health = h }
+
+// SetOnRemoved sets what runs after a DELETE movie|series removed versions of a title (web.TitleRemoved: its requests
+// follow the removal).
+func (s *Service) SetOnRemoved(f func(ctx context.Context, titleID int64)) { s.onRemoved = f }
 
 // Views lists the views served.
 func (s *Service) Views() []*View { return s.views }

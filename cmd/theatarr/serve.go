@@ -751,6 +751,7 @@ func runServe(args []string) error {
 	if err != nil {
 		return err
 	}
+	av.SetOnRemoved(ui.TitleRemoved)
 	httpServices := &serveHTTPServices{ctx: ctx}
 	defer httpServices.Close()
 	initialMux := http.NewServeMux()

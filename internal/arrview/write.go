@@ -1083,6 +1083,10 @@ func (s *Service) deleteTitle(w http.ResponseWriter, r *request) {
 		s.internal(w, r, err)
 		return
 	}
+	// The title's requests follow the removal, as after the web UI's (SetOnRemoved).
+	if s.onRemoved != nil {
+		s.onRemoved(ctx, e.id)
+	}
 	if r.queryBool("deleteFiles", false) {
 		// After the fence: every link the versions have, including any an import committed before the hide.
 		kept, failed, err := s.unlinkRemoved(ctx, e, reason)

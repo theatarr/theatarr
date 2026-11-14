@@ -1,6 +1,7 @@
 package arrview
 
 import (
+	"context"
 	"strconv"
 	"strings"
 	"testing"
@@ -84,5 +85,21 @@ func TestDeleteEndsDownloadsWithTheHide(t *testing.T) {
 	}
 	if state != "failed" || !strings.Contains(reason, "deleted through") {
 		t.Fatalf("download 71 %s %q", state, reason)
+	}
+}
+
+// A DELETE that removed versions tells the web UI (SetOnRemoved), so the title's requests follow the removal; one that
+// failed does not.
+func TestDeleteTellsTheRemoval(t *testing.T) {
+	t.Parallel()
+	e := removeEnv(t)
+	var told []int64
+	e.svc.SetOnRemoved(func(_ context.Context, id int64) { told = append(told, id) })
+	alpha := strconv.Itoa(IDBase + 1)
+	if rec := e.do("DELETE", "/v/movie-web/radarr/api/v3/movie/"+alpha, e.key, nil); rec.Code != 200 {
+		t.Fatalf("DELETE: %d %s", rec.Code, rec.Body.String())
+	}
+	if len(told) != 1 || told[0] != 1 {
+		t.Errorf("told %v, want title 1", told)
 	}
 }

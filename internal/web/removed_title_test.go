@@ -346,3 +346,19 @@ func TestRemovalCountsBrokenLinkAsLeft(t *testing.T) {
 		t.Errorf("outcome %q", acts[0].Detail)
 	}
 }
+
+// The arr views' DELETE tells TitleRemoved: the title's requests follow as after the web UI's removal.
+func TestTitleRemovedFollowsArrDelete(t *testing.T) {
+	t.Parallel()
+	o := newOpsEnv(t)
+	now := store.Millis(testNow)
+	o.exec(`INSERT INTO request (id, user_id, kind, title_id, name, versions, status, decided_at, created_at, updated_at)
+		VALUES (301, 1, 'movie', 2, 'Beta', '["movie-web"]', 'available', ?, ?, ?)`, now, now, now)
+	o.exec(`INSERT INTO arrview_removed_version (version_id, view, removed_at) VALUES (3, 'radarr', 0)`)
+	o.web.TitleRemoved(context.Background(), 2)
+	var s, reason string
+	if err := o.st.Reader().QueryRow(`SELECT status, reason FROM request WHERE id = 301`).Scan(&s, &reason); err != nil ||
+		s != ReqCanceled || reason != RequestRemovedReason {
+		t.Errorf("request after an arr delete: %s %q %v", s, reason, err)
+	}
+}
