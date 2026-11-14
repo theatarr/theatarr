@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { act, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { expect, it, vi } from "vitest";
 import { mockFetch, renderPage } from "@/test/page";
 import { AppShell } from "./app-shell";
@@ -48,4 +49,17 @@ it("shows Pause to an admin in the header, disabled while settings are read-only
   mockFetch([versions, { method: "GET", path: "/settings", reply: { ...o, writable: false } }]);
   renderPage(<AppShell perms={admin}><p>Page</p></AppShell>);
   expect((await screen.findByRole("switch", { name: "Pause" }) as HTMLInputElement).disabled).toBe(true);
+});
+
+it("offers Skip to content as the first stop for Tab, moving focus to the page", async () => {
+  mockFetch([]);
+  vi.stubGlobal("matchMedia", () => ({ matches: true, addEventListener: () => {}, removeEventListener: () => {} }));
+  renderPage(<AppShell perms={{ ownKeys: false, admin: false, seeFiles: false, manage: false, add: false, request: false, manageRequests: false, users: false }}><p>Page</p></AppShell>);
+  const user = userEvent.setup();
+  await user.tab();
+  const skip = screen.getByRole("link", { name: "Skip to content" });
+  expect(document.activeElement).toBe(skip);
+  await user.click(skip);
+  expect(document.activeElement).toBe(document.getElementById("main"));
+  expect(document.getElementById("main")?.textContent).toBe("Page");
 });

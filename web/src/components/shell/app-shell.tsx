@@ -351,6 +351,17 @@ export function AppShell({ children, perms }: { children: ReactNode; perms: Perm
   useEffect(() => setSheet(null), [pathname]);
   return (
     <div data-slot="root-app-frame" className="flex min-h-dvh">
+      {/* The first stop for Tab: past the navigation to the page itself. */}
+      <a
+        href="#main"
+        onClick={(e) => {
+          e.preventDefault();
+          document.getElementById("main")?.focus();
+        }}
+        className="sr-only z-[100] rounded-[5px] bg-[var(--surface)] px-3 py-2 text-sm font-medium text-[var(--ink)] shadow-[var(--shadow-2)] focus:not-sr-only focus:fixed focus:left-3 focus:top-3"
+      >
+        Skip to content
+      </a>
       {desktop ? <aside
         data-slot="sidebar"
         className="sticky top-0 hidden h-dvh w-[var(--side)] shrink-0 border-r border-[var(--line)] md:block"
@@ -373,7 +384,7 @@ export function AppShell({ children, perms }: { children: ReactNode; perms: Perm
             </div>
           </div>
         </header>
-        <main data-slot="root-main-scroll" className="min-w-0 flex-1 px-4 pb-28 pt-6 sm:px-6 md:pb-12 lg:px-8">
+        <main id="main" tabIndex={-1} data-slot="root-main-scroll" className="min-w-0 flex-1 scroll-mt-[var(--top)] outline-none px-4 pb-28 pt-6 sm:px-6 md:pb-12 lg:px-8">
           {children}
         </main>
       </div>

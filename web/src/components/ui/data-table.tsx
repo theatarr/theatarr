@@ -137,7 +137,8 @@ export function DataTable<T, K extends string | number>({
               <li key={k} {...attrs} className={className}>
                 <Card className={cn("space-y-2 p-3", select?.chosen.has(k) && "ring-2 ring-[var(--accent)]")}>
                   <div className="flex min-w-0 items-start gap-2">
-                    {select ? <span className="mt-0.5 flex">{rowBox(r)}</span> : null}
+                    {/* The box stays small; the label around it is a 40 px touch target (taps toggle the box, not the card). */}
+                    {select ? <label className="-mx-3 -mb-3 -mt-2.5 flex shrink-0 cursor-pointer p-3" data-testid="row-select-target">{rowBox(r)}</label> : null}
                     <div className="min-w-0 flex-1 space-y-1.5">
                       {cardHead?.(r)}
                       {lines.length ? (

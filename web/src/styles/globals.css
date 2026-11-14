@@ -327,6 +327,8 @@
 
 html {
   min-height: 100%;
+  /* The scrollbar's room is always kept, so pages do not shift sideways as they grow past the window. */
+  scrollbar-gutter: stable;
 }
 
 body {

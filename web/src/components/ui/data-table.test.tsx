@@ -105,6 +105,31 @@ it("pages: Next asks for the next offset and the range follows", async () => {
   expect(screen.getByRole("button", { name: "Next" })).toHaveProperty("disabled", true);
 });
 
+it("pages: a page change returns to the top of the page", async () => {
+  const scrollTo = vi.fn();
+  vi.stubGlobal("scrollTo", scrollTo);
+  vi.stubGlobal("scrollY", 8132);
+  const onPage = vi.fn();
+  render(<Pager offset={50} limit={50} total={312} onPage={onPage} />);
+  await userEvent.setup().click(screen.getByRole("button", { name: "Next" }));
+  expect(onPage).toHaveBeenCalledWith(100);
+  expect(scrollTo).toHaveBeenCalledWith({ top: 0 });
+  await userEvent.setup().click(screen.getByRole("button", { name: "Previous" }));
+  expect(scrollTo).toHaveBeenCalledTimes(2);
+});
+
+it("gives a phone card's row box a large touch target that toggles it", async () => {
+  phone();
+  const toggle = vi.fn();
+  render(<DataTable rows={rows} rowKey={(r) => r.id} columns={columns} cardHead={(r) => <strong>{r.name}</strong>}
+    select={{ chosen: new Set<number>(), toggle, all: () => {} }} rowLabel={(r) => r.name} />);
+  const target = screen.getAllByTestId("row-select-target")[0];
+  expect(target.tagName).toBe("LABEL");
+  expect(target.className).toContain("p-3");
+  await userEvent.setup().click(target);
+  expect(toggle).toHaveBeenCalledWith(1, true);
+});
+
 it("pages: a list that fits one page has its count and no buttons", () => {
   render(<Pager offset={0} limit={50} total={48} onPage={() => {}} />);
   expect(screen.getByTestId("pager-count").textContent).toBe("All 48 shown");
