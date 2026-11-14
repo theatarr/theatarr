@@ -21,7 +21,7 @@ describe("source editors", () => {
     renderPage(<RecordEditor entity="indexers" ent={indexerSchema} session={{ entity: "indexers", generation: 4, kind: "torznab" }} nextOrder={1} onDone={onDone} />);
     const form = within(screen.getByTestId("record-form"));
     // Paste complete values: per-character typing repeatedly renders the whole editor.
-    await user.click(form.getByText("Show advanced"));
+    await user.click(form.getByText("Advanced options"));
     await user.clear(form.getByRole("textbox", { name: /^Name/ }));
     await user.click(form.getByRole("textbox", { name: /^Name/ }));
     await user.paste("new-indexer");
@@ -49,7 +49,7 @@ describe("source editors", () => {
     renderPage(<SettingsTabView tab="providers" overview={overview()} schema={schema} versions={[]} />, "/admin/settings/downloads");
     await user.click(screen.getByRole("button", { name: "Add provider" }));
     expectNamedControls();
-    await user.click(screen.getByText("Show advanced"));
+    await user.click(screen.getByText("Advanced options"));
     await user.clear(screen.getByRole("textbox", { name: /^Name/ }));
     await user.type(screen.getByRole("textbox", { name: /^Name/ }), "new-provider");
     await user.clear(screen.getByRole("textbox", { name: /^Service URL/i }));
@@ -71,7 +71,7 @@ describe("source editors", () => {
     const user = userEvent.setup();
     renderPage(<SettingsTabView tab="providers" overview={overview()} schema={schema} versions={[]} />, "/admin/settings/downloads");
     await user.click(screen.getByRole("button", { name: "Add provider" }));
-    await user.click(screen.getByText("Show advanced"));
+    await user.click(screen.getByText("Advanced options"));
     await user.clear(screen.getByRole("textbox", { name: /^Name/ }));
     await user.type(screen.getByRole("textbox", { name: /^Name/ }), "new-provider");
     await user.clear(screen.getByRole("textbox", { name: /^Service URL/i }));

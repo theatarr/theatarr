@@ -23,7 +23,8 @@ import { Choice, ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { SheetLayout } from "@/components/ui/sheet";
+import { SheetCancel, SheetLayout } from "@/components/ui/sheet";
+import { keyProblem, urlProblem } from "@/lib/field-checks";
 import type { Scope } from "@/lib/ops";
 import {
   PROVIDER_SERVICES,
@@ -54,6 +55,10 @@ import { changeCount } from "./unsaved-bar";
 import { Announcer, ChangedMark, ExplainBox, Field, NamedChoices, SecretField, SELECT_CLASS, TestResult, useAnnouncement, type Announcement } from "./parts";
 
 export const NOUN: Record<Entity, string> = { indexers: "indexer", providers: "provider", budgets: "budget" };
+
+const ADAPTER: Record<string, string> = { torznab: "Torznab", dmm: "DMM", torrentio: "Torrentio", zilean: "Zilean", seadex: "SeaDex", cardigann: "Catalog" };
+/** An indexer's adapter in words ("cardigann" is Catalog), as the configuration names it. */
+export const adapterWord = (kind: string) => ADAPTER[kind] ?? kind;
 
 function fieldErrors(error: unknown): Record<string, string> {
   const body = error instanceof Error && "body" in error ? (error as { body?: unknown }).body : undefined;
@@ -123,7 +128,7 @@ export function OrphanChoice({ checked, onChange, disabled, children }: { checke
   return (
     <div className="rounded-lg border border-[var(--th-warning-border)] bg-[var(--warn-soft)] p-3 text-[13px] sm:col-span-2" data-testid="orphan-box">
       <Choice checked={checked} onChange={onChange} disabled={disabled} testid="orphan-confirm">
-        <span className="font-medium text-[var(--ink)]">Fail its active downloads</span> (orphan_active_downloads)
+        <span className="font-medium text-[var(--ink)]">Fail its active downloads</span>
       </Choice>
       <p className="mt-1.5 pl-6 text-muted-foreground">
         {children ??
@@ -194,13 +199,20 @@ export function RecordFormView(p: RecordFormProps) {
   const changes = saved ? recordChanges(st, saved) : 0;
   const headingId = useId();
   const formId = useId();
+  // A new record's name and an edited address are checked as typed (the server's rules); Save waits for them.
+  const problems: Record<string, string> = {};
+  if (!record && saved && st.key !== saved.key) { const k = keyProblem(st.key); if (k) problems.key = k; }
+  const url = typeof st.config.url === "string" ? st.config.url : "";
+  if (fields.some((f) => f.name === "url") && url && url !== (saved?.config.url ?? "")) { const u = urlProblem(url); if (u) problems.url = u; }
+  const blocked = Object.keys(problems).length > 0;
+  const shownErrors = { ...problems, ...errors };
   // Save and Enable and save share the form's own check.
   const submit = (save: () => void) => {
     if (allowlist && onlyProviders && !chosenProviders.length) { setAllowlistError("Tick at least one provider, or choose Any."); return; }
-    if (!disabled && !waiting) save();
+    if (!disabled && !waiting && !blocked) save();
   };
   const nameField = record ? null : (
-    <Field changed={!!saved && st.key !== saved.key} onUndo={() => { if (saved) { keyEdited.current = false; set({ key: saved.key }); } }} disabled={disabled} name="Name" label={<>Name <small className="font-normal text-muted-foreground">key</small> <span className="text-[var(--bad-ink)]">*</span></>} help="Stable name the libraries and budgets refer to; cannot be renamed later." error={errors.key}>
+    <Field changed={!!saved && st.key !== saved.key} onUndo={() => { if (saved) { keyEdited.current = false; set({ key: saved.key }); } }} disabled={disabled} name="Name" label={<>Name <span className="text-[var(--bad-ink)]">*</span></>} help="Stable name the libraries and budgets refer to; cannot be renamed later. Lower case letters, digits, - and _." error={shownErrors.key}>
       <Input className="h-9" value={st.key} disabled={disabled} onChange={(e) => { keyEdited.current = true; set({ key: e.target.value }); }} data-field="key" />
     </Field>
   );
@@ -212,19 +224,21 @@ export function RecordFormView(p: RecordFormProps) {
       headingId={headingId}
       headingRef={p.headingRef}
       title={record ? <>Edit {NOUN[entity]} <span className="font-mono text-[15px]">{record.key}</span></> : `Add ${NOUN[entity]}`}
-      subtitle={record ? [record.kind, record.updated_at ? `changed ${record.updated_at.slice(0, 16).replace("T", " ")} UTC` : ""].filter(Boolean).join(" · ") : entity === "budgets" ? undefined : entity === "indexers" ? "Fill in and save. Test checks the values without saving." : "Fill in, press Test, then Enable and save."}
+      subtitle={record ? [record.kind ? (PROVIDER_SERVICES[record.kind]?.label ?? adapterWord(record.kind)) : "", record.updated_at ? `changed ${record.updated_at.slice(0, 16).replace("T", " ")} UTC` : ""].filter(Boolean).join(" · ") : entity === "budgets" ? undefined : entity === "indexers" ? "Fill in and save. Test checks the values without saving." : "Fill in, press Test, then Enable and save."}
       onClose={p.onCancel}
+      changes={changes}
       footer={
         <>
-          <Button type="submit" form={formId} size="sm" disabled={disabled || waiting} data-testid="record-save">
+          <Button type="submit" form={formId} size="sm" disabled={disabled || waiting || blocked} data-testid="record-save">
             {p.saving ? <Loader2 className="animate-spin" /> : <Save />} Save
           </Button>
           {p.onTest ? (
             <Button type="button" size="sm" variant="outline" disabled={disabled || p.testing || needsAgain} onClick={p.onTest} data-testid="record-test">
-              {p.testing ? <Loader2 className="animate-spin" /> : <Zap />} Test these values
+              {p.testing ? <Loader2 className="animate-spin" /> : <Zap />} <span>Test{" "}<span className="max-[419px]:hidden">these values</span></span>
             </Button>
           ) : null}
-          <Button type="button" size="sm" variant="outline" onClick={p.onCancel} data-testid="record-cancel">Cancel</Button>
+          <SheetCancel size="sm" variant="outline" onClick={p.onCancel} data-testid="record-cancel">Cancel</SheetCancel>
+          {blocked ? <span className="basis-full text-[12.5px] text-[var(--bad-ink)] sm:order-last" data-testid="save-blocked">Fix the marked field to save.</span> : null}
           {changes ? (
             <>
               <span className="text-[13px] font-medium text-[var(--ink)]" data-testid="unsaved-count" aria-live="polite">{changeCount(changes)}</span>
@@ -256,7 +270,7 @@ export function RecordFormView(p: RecordFormProps) {
               set({ kind, ...(!record ? { key: keyEdited.current ? st.key : nextRecordKey(kind, p.records), config: { ...st.config, url: urlEdited.current ? st.config.url : serviceURL(entity, kind) },
                 ...(entity === "indexers" && p.libraries?.versions ? { libraries: matchingLibraries({ kind }, p.libraries.versions) } : {}) } : {}) });
             }} data-field="kind">
-              {(ent.kinds ?? []).map((k) => <option key={k} value={k}>{PROVIDER_SERVICES[k]?.label ?? k}</option>)}
+              {(ent.kinds ?? []).map((k) => <option key={k} value={k}>{PROVIDER_SERVICES[k]?.label ?? adapterWord(k)}</option>)}
             </select>
           </Field>
         ) : null}
@@ -282,7 +296,7 @@ export function RecordFormView(p: RecordFormProps) {
           />
         ) : null}
         {upFront ? nameField : null}
-        {required.length ? <ConfigFields fields={required} values={st.config} saved={saved?.config} errors={errors} onChange={configChange} disabled={disabled} /> : null}
+        {required.length ? <ConfigFields fields={required} values={st.config} saved={saved?.config} errors={shownErrors} onChange={configChange} disabled={disabled} /> : null}
         {!record && entity === "indexers" && st.kind === "dmm" ? (
           <p className="text-[12.5px] text-muted-foreground sm:col-span-2" data-testid="dmm-url-hint">
             DMM has no prefilled address: its Service URL is DMM’s Torznab feed, <code>https://debridmediamanager.com/api/torznab/cached</code>, or with <code>rd</code>, <code>ad</code> or <code>tb</code> before <code>/cached</code> for one provider’s cache. It needs your DMM API key; DMM gives keys only to paying GitHub sponsors.
@@ -292,11 +306,11 @@ export function RecordFormView(p: RecordFormProps) {
           <IndexerLibraries libraries={p.libraries} value={st.libraries} onChange={(libraries) => set({ libraries })} disabled={disabled} />
         ) : null}
         <details className="sm:col-span-2" open={entity === "budgets" || (!!record && hasAdvancedValues(entity, ent, record)) || Object.keys(errors).some(k => k !== "secret" && k !== "kind") || !!allowlistError || undefined}>
-          <summary className="cursor-pointer text-sm font-medium">Show advanced</summary>
+          <summary className="cursor-pointer text-sm font-medium">Advanced options</summary>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             {upFront ? null : nameField}
             {entity === "indexers" ? (
-              <Field changed={!!saved && st.priority !== saved.priority} onUndo={() => saved && set({ priority: saved.priority })} disabled={disabled} name="Search priority" label={<>Search priority <small className="font-normal text-muted-foreground">priority</small></>} help="Search order; lower numbers are searched first." error={errors.priority}>
+              <Field changed={!!saved && st.priority !== saved.priority} onUndo={() => saved && set({ priority: saved.priority })} disabled={disabled} name="Search priority" label="Search priority" help="Search order; lower numbers are searched first." error={errors.priority}>
                 <Input className="h-9" inputMode="numeric" value={st.priority} disabled={disabled} onChange={(e) => set({ priority: e.target.value })} data-field="priority" />
               </Field>
             ) : null}
@@ -305,7 +319,7 @@ export function RecordFormView(p: RecordFormProps) {
                 Fallback order {record?.order ?? "last"}: change it with the arrows in the list; it must agree with every library’s provider list.
               </p>
             ) : null}
-            <ConfigFields fields={tuning} values={st.config} saved={saved?.config} errors={errors} onChange={configChange} disabled={disabled} />
+            <ConfigFields fields={tuning} values={st.config} saved={saved?.config} errors={shownErrors} onChange={configChange} disabled={disabled} />
             {allowlist ? (
               <ProviderAllowlist value={String(st.config.providers ?? "")} saved={saved ? String(saved.config.providers ?? "") : undefined} providers={p.providerKeys ?? []}
                 only={onlyProviders} setOnly={(v) => { setOnlyChoice(v); setAllowlistError(""); }}

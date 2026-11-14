@@ -207,3 +207,56 @@ it("heads the Automatic search panel once, not again over its one object field",
  expect(screen.getAllByText("Automatic search")).toHaveLength(1);
  expect(screen.getByText("Searches per hour")).toBeTruthy();
 });
+
+// Inline checks (docs/design/ui.md "Settings forms"): a value the server would refuse is said under its field and holds
+// Save, before any request.
+it("says a wrong digest time under the field and holds Save until it is a time", async () => {
+ const fetch = mockFetch([
+  { method: "GET", path: "/settings/schema", reply: schema },
+  { method: "GET", path: "/settings", reply: { switches: {} } },
+  { method: "GET", path: "/settings/sections", reply: { source: "db", generation: 4, sections: [{ key: "notify", config: { digest_at: "09:00" }, secrets: [] }] } },
+  { method: "PUT", path: "/settings/sections/notify", reply: {} },
+ ]);
+ renderPage(<SectionPanel id="digest" title="Daily digest" section="notify" keys={["digest_at"]} />);
+ const input = await screen.findByRole("textbox", { name: "Daily digest time" });
+ fireEvent.change(input, { target: { value: "25:99" } });
+ expect(screen.getByRole("alert").textContent).toBe("Enter a time as HH:MM, from 00:00 to 23:59.");
+ expect(input.getAttribute("aria-invalid")).toBe("true");
+ expect((screen.getByRole("button", { name: "Save" }) as HTMLButtonElement).disabled).toBe(true);
+ expect(screen.getByTestId("save-blocked").textContent).toBe("Fix the marked field to save.");
+ fireEvent.change(input, { target: { value: "7:30" } });
+ expect(screen.queryByRole("alert")).toBeNull();
+ fireEvent.click(screen.getByRole("button", { name: "Save" }));
+ await waitFor(() => expect(fetch.calls("PUT", "/settings/sections/notify")).toHaveLength(1));
+});
+
+it("asks before leaving the page with unsaved changes, and leaves once confirmed", async () => {
+ const { createMemoryRouter, RouterProvider, Link } = await import("react-router");
+ const { QueryClient, QueryClientProvider } = await import("@tanstack/react-query");
+ const { render } = await import("@testing-library/react");
+ const { LeaveGuard } = await import("./unsaved-bar");
+ mockFetch([
+  { method: "GET", path: "/settings/schema", reply: schema },
+  { method: "GET", path: "/settings/sections", reply: { source: "db", generation: 4, sections: [{ key: "router", config: { cached_only: false }, secrets: [] }] } },
+ ]);
+ const router = createMemoryRouter([
+  { path: "/admin/settings/downloads", element: <><LeaveGuard /><SectionPanel id="grabbing" title="What to grab" section="router" keys={["cached_only"]} /><Link to="/admin/settings/profiles">Profiles</Link><Link to="/admin/settings/downloads#grabbing">Anchor</Link></> },
+  { path: "/admin/settings/profiles", element: <p>Profiles page</p> },
+ ], { initialEntries: ["/admin/settings/downloads"] });
+ const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+ render(<QueryClientProvider client={client}><RouterProvider router={router} /></QueryClientProvider>);
+ fireEvent.click(await screen.findByRole("switch"));
+ // The same page (an anchor) is not leaving it.
+ fireEvent.click(screen.getByRole("link", { name: "Anchor" }));
+ expect(screen.queryByTestId("leave-confirm")).toBeNull();
+ fireEvent.click(screen.getByRole("link", { name: "Profiles" }));
+ const ask = await screen.findByTestId("leave-confirm");
+ expect(ask.textContent).toContain("Drop 1 unsaved change.");
+ fireEvent.click(screen.getByTestId("confirm-cancel"));
+ await waitFor(() => expect(screen.queryByTestId("leave-confirm")).toBeNull());
+ expect(router.state.location.pathname).toBe("/admin/settings/downloads");
+ expect((screen.getByRole("switch") as HTMLInputElement).getAttribute("aria-checked")).toBe("true");
+ fireEvent.click(screen.getByRole("link", { name: "Profiles" }));
+ fireEvent.click(await screen.findByRole("button", { name: "Leave without saving" }));
+ await screen.findByText("Profiles page");
+});

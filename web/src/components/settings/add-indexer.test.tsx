@@ -171,7 +171,7 @@ describe("add-indexer sheet", () => {
     const form = within(await screen.findByTestId("record-form"));
     expectNamedControls();
     // Paste whole values: typing per character re-renders the whole editor each time.
-    await user.click(form.getByText("Show advanced"));
+    await user.click(form.getByText("Advanced options"));
     await user.clear(form.getByRole("textbox", { name: /^Name/ }));
     await user.click(form.getByRole("textbox", { name: /^Name/ }));
     await user.paste("new-indexer");

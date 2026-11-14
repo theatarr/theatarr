@@ -12,7 +12,7 @@ import { ErrorState, Loading, Mono } from "@/components/page";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Sheet, SheetLayout } from "@/components/ui/sheet";
+import { Sheet, SheetCancel, SheetLayout } from "@/components/ui/sheet";
 import { type Explained, type SecretAction } from "@/lib/settings";
 import { useSettingsEditor } from "./use-settings-editor";
 import { ExplainBox, SecretField } from "./parts";
@@ -151,9 +151,10 @@ export function SectionSheet({ section: opened, generation: openedAt, readOnly, 
         onClose={onClose}
         testid="section-editor"
         data-section={section.key}
+        changes={readOnly ? 0 : (text !== opened.yaml ? 1 : 0) + Object.values(actions).filter((a) => a !== "keep").length}
         footer={readOnly ? <Button variant="outline" onClick={onClose}>Close</Button> : <>
           <Button onClick={() => void save()} disabled={busy}>Save</Button>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <SheetCancel variant="outline" onClick={onClose}>Cancel</SheetCancel>
         </>}
       >
         {error ? <ExplainBox error={error} onReload={() => void reload(false)} onReloadKeep={() => void reload(true)} className="mb-4" /> : null}

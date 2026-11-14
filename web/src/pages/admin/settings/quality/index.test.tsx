@@ -112,19 +112,21 @@ describe("quality editors", () => {
     await user.click(screen.getByRole("button", { name: "Edit web-format" }));
     expectNamedControls();
 
-    expect(screen.getByRole("textbox", { name: "value" })).toBeTruthy();
-    const implementation = screen.getByRole("combobox", { name: "Implementation" });
+    // Conditions in words: the type and its fields, not class and field names.
+    expect(screen.getByRole("textbox", { name: "Pattern (regular expression)" })).toBeTruthy();
+    const implementation = screen.getByRole("combobox", { name: "Condition type" });
+    expect(within(implementation).getByRole("option", { name: "Release title" })).toBeTruthy();
     await user.selectOptions(implementation, "IndexerFlagSpecification");
-    expect(screen.getByRole("spinbutton", { name: "flag" })).toBeTruthy();
-    expect(screen.getByRole("checkbox", { name: "sceneOnly" })).toBeTruthy();
-    expect(screen.queryByRole("spinbutton", { name: "season" })).toBeNull();
+    expect(screen.getByRole("spinbutton", { name: "Flag" })).toBeTruthy();
+    expect(screen.getByRole("checkbox", { name: "Scene only" })).toBeTruthy();
+    expect(screen.queryByRole("spinbutton", { name: "Season" })).toBeNull();
     await user.click(screen.getByRole("checkbox", { name: "Negate" }));
     await user.click(screen.getByRole("checkbox", { name: "Required" }));
     expect((screen.getByRole("checkbox", { name: "Negate" }) as HTMLInputElement).checked).toBe(true);
     expect((screen.getByRole("checkbox", { name: "Required" }) as HTMLInputElement).checked).toBe(true);
-    await user.click(screen.getByRole("button", { name: "Add specification" }));
-    const second = screen.getByRole("group", { name: "Specification 2" });
-    await user.click(within(second).getByRole("button", { name: "Remove specification" }));
+    await user.click(screen.getByRole("button", { name: "Add condition" }));
+    const second = screen.getByRole("group", { name: "Condition 2" });
+    await user.click(within(second).getByRole("button", { name: "Remove condition" }));
 
     fireEvent.change(screen.getByRole("textbox", { name: "Import arr custom format JSON (replaces this draft)" }), { target: { value: JSON.stringify(imported) } });
     expect((screen.getByRole("textbox", { name: "Format name" }) as HTMLInputElement).value).toBe("Imported format");
@@ -194,6 +196,11 @@ describe("quality editors", () => {
     expect(screen.queryByRole("textbox", { name: "Naming from arr" })).toBeNull();
     expect(screen.queryByRole("textbox", { name: "Naming from library" })).toBeNull();
     expect(screen.queryByTestId("copy-naming")).toBeNull();
+    // The choices in the arrs' words with an example; the stored value stays the key.
+    const colon = screen.getByRole("combobox", { name: "Colon replacement" }) as HTMLSelectElement;
+    expect(colon.selectedOptions[0].textContent).toBe("Replace with a dash (Title- Sub)");
+    expect(colon.value).toBe("dash");
+    expect([...(screen.getByRole("combobox", { name: "Multi-episode style" }) as HTMLSelectElement).options].map((o) => o.textContent)).toContain("Prefixed range (S01E01-E03)");
   });
 
   it("shows a naming preview refusal in the editor", async () => {

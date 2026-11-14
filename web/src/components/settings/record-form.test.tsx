@@ -18,7 +18,7 @@ it("starts with service, write-only API key and Enabled; advanced values preserv
   await user.selectOptions(screen.getByRole("combobox", { name: "Service" }), "torbox");
   await user.click(screen.getByRole("button", { name: "Set" }));
   await user.type(screen.getByLabelText("New credential"), "fixture-token");
-  await user.click(screen.getByText("Show advanced"));
+  await user.click(screen.getByText("Advanced options"));
   expect((screen.getByRole("textbox", { name: /^Name/ }) as HTMLInputElement).value).toBe("torbox");
   expect((screen.getByRole("textbox", { name: /Service URL/ }) as HTMLInputElement).value).toBe("https://api.torbox.app/v1");
   await user.type(screen.getByRole("textbox", { name: /Adds per minute/ }), "3");
@@ -35,7 +35,7 @@ it.each(["providers", "indexers"] as const)("keeps a typed URL when changing %s 
   mockFetch([]);
   const user = userEvent.setup();
   renderPage(<RecordEditor entity={entity} ent={entity === "providers" ? providerSchema : indexerSchema} session={{ entity, generation: 4 }} nextOrder={1} onDone={vi.fn()} />);
-  await user.click(screen.getByText("Show advanced"));
+  await user.click(screen.getByText("Advanced options"));
   const url = screen.getByRole("textbox", { name: /Service URL/ });
   await user.clear(url);
   await user.type(url, "http://127.0.0.1/custom");
@@ -106,7 +106,7 @@ it("suggests the next free key for a new indexer and service changes", async () 
   mockFetch([]);
   const user = userEvent.setup();
   renderPage(<RecordEditor entity="indexers" ent={indexerSchema} session={{ entity: "indexers", generation: 4 }} records={[{ ...dmm, key: "torznab" }, { ...dmm, key: "torznab-2" }, dmm]} nextOrder={1} onDone={vi.fn()} />);
-  await user.click(screen.getByText("Show advanced"));
+  await user.click(screen.getByText("Advanced options"));
   expect((screen.getByRole("textbox", { name: /^Name/ }) as HTMLInputElement).value).toBe("torznab-3");
   await user.selectOptions(screen.getByRole("combobox", { name: "Service" }), "dmm");
   expect((screen.getByRole("textbox", { name: /^Name/ }) as HTMLInputElement).value).toBe("dmm-2");
@@ -117,12 +117,12 @@ it("preserves an edited key when changing a new indexer's service and saving", a
   const fetch = mockFetch([{ method: "POST", path: "/settings/indexers", reply: { generation: 5 } }]);
   const user = userEvent.setup();
   renderPage(<RecordEditor entity="indexers" ent={indexerSchema} session={{ entity: "indexers", generation: 4 }} nextOrder={1} onDone={vi.fn()} />);
-  await user.click(screen.getByText("Show advanced"));
+  await user.click(screen.getByText("Advanced options"));
   const key = screen.getByRole("textbox", { name: /^Name/ });
   await user.clear(key);
   await user.type(key, "my-custom-key");
   await user.type(screen.getByRole("textbox", { name: /Service URL/ }), "http://127.0.0.1/torznab");
-  await user.click(screen.getByText("Show advanced"));
+  await user.click(screen.getByText("Advanced options"));
   await user.selectOptions(screen.getByRole("combobox", { name: "Service" }), "dmm");
   await user.click(screen.getByRole("button", { name: "Save" }));
   await waitFor(() => expect(fetch.calls("POST", "/settings/indexers")).toHaveLength(1));
@@ -158,7 +158,7 @@ it.each([
   mockFetch([]);
   renderPage(<RecordEditor entity={entity} ent={entity === "providers" ? providerSchema : indexerSchema} session={{ entity, record, generation: 4 }} nextOrder={1} onDone={vi.fn()} />);
   expect(screen.getByRole("combobox", { name: "Service" })).toBeTruthy();
-  expect((screen.getByText("Show advanced").closest("details") as HTMLDetailsElement).open).toBe(open);
+  expect((screen.getByText("Advanced options").closest("details") as HTMLDetailsElement).open).toBe(open);
 });
 
 it("shows a new indexer's name and required URL before Show advanced", async () => {
@@ -166,7 +166,7 @@ it("shows a new indexer's name and required URL before Show advanced", async () 
   renderPage(<RecordEditor entity="indexers" ent={indexerSchema} session={{ entity: "indexers", generation: 4, kind: "torznab" }} nextOrder={1} onDone={vi.fn()} />);
   expect(screen.getByRole("textbox", { name: /^Name/ }).closest("details")).toBeNull();
   expect(screen.getByRole("textbox", { name: /Service URL/ }).closest("details")).toBeNull();
-  expect(screen.getByRole("textbox", { name: /Page cap/ }).closest("details")?.open).toBe(false);
+  expect(screen.getByRole("textbox", { name: /Results per search/ }).closest("details")?.open).toBe(false);
 });
 
 const allowlistSchema = { ...indexerSchema, config: [...indexerSchema.config, { name: "providers", type: "list" as const, help: "Where its releases may go." }] };
@@ -294,4 +294,37 @@ it("offers no Enable and save on a source that is already enabled", async () => 
   await user.click(screen.getByRole("button", { name: "Test these values" }));
   expect((await screen.findByTestId("test-result")).getAttribute("data-status")).toBe("ok");
   expect(screen.queryByTestId("record-enable-save")).toBeNull();
+});
+
+it("checks a new indexer's name and an edited address as typed, holding Save with the reason under the field", async () => {
+  const fetch = mockFetch([{ method: "POST", path: "/settings/indexers", reply: { generation: 5 } }]);
+  const user = userEvent.setup();
+  renderPage(<RecordEditor entity="indexers" ent={indexerSchema} session={{ entity: "indexers", generation: 4, kind: "torznab" }} nextOrder={1} onDone={vi.fn()} />);
+  const name = screen.getByRole("textbox", { name: /^Name/ });
+  await user.clear(name);
+  await user.type(name, "My Jackett!!");
+  const url = screen.getByRole("textbox", { name: /Service URL/ });
+  await user.clear(url);
+  await user.type(url, "not a url");
+  expect(screen.getByText("Use lower case letters, digits, - and _, starting with a letter or digit.")).toBeTruthy();
+  expect(screen.getByText("Enter a full address that starts with http:// or https://.")).toBeTruthy();
+  expect(name.getAttribute("aria-invalid")).toBe("true");
+  const save = screen.getByTestId("record-save") as HTMLButtonElement;
+  expect(save.disabled).toBe(true);
+  expect(screen.getByTestId("save-blocked").textContent).toBe("Fix the marked field to save.");
+  await user.clear(name);
+  await user.type(name, "my-jackett");
+  await user.clear(url);
+  await user.type(url, "http://jackett:9117/api/v2.0/indexers/all/results/torznab");
+  expect(screen.queryByTestId("save-blocked")).toBeNull();
+  await user.click(save);
+  await waitFor(() => expect(fetch.calls("POST", "/settings/indexers")).toHaveLength(1));
+  expect(fetch.calls("POST", "/settings/indexers")[0].body).toMatchObject({ key: "my-jackett" });
+});
+
+it("shows a field's default as its placeholder, not a 0 that reads as the value", async () => {
+  mockFetch([]);
+  const ent = { ...providerSchema, config: [...providerSchema.config, { name: "magnet_limit", type: "integer" as const, nullable: true, default: "5000", help: "Report only." }] };
+  renderPage(<RecordEditor entity="providers" ent={ent} session={{ entity: "providers", generation: 4, record: rd }} nextOrder={1} onDone={vi.fn()} />);
+  expect((screen.getByRole("textbox", { name: /Magnet limit/ }) as HTMLInputElement).placeholder).toBe("5000 (default)");
 });

@@ -80,6 +80,16 @@ describe("Versions page", () => {
     expect(screen.queryByText("Downloads on")).toBeNull();
   });
 
+  it("lines the kinds' tables up with fixed column widths, and labels the stacked values on a phone", async () => {
+    mockFetch(getRoutes());
+    renderPage(<VersionsPage />);
+    const row = (await screen.findByRole("button", { name: "Edit" })).closest("tr")!;
+    const table = screen.getAllByTestId("library-table")[0];
+    expect(table.className).toContain("md:table-fixed");
+    expect(table.querySelector("thead")!.className).toContain("max-md:hidden");
+    for (const label of ["Where", "Profile", "Sources"]) expect(within(row.cells[0]).getByText(label)).toBeTruthy();
+  });
+
   it("shows a plainly Live library with the control alone, and Live, paused while Pause is on", async () => {
     const active = versions();
     active.versions = [{ ...version(), config: { ...version().config, mode: "active" } }];

@@ -10,15 +10,17 @@ import { useShowAdvanced } from "@/lib/settings-map";
 import { SectionFields, objectValue, type Config } from "./field-input";
 import { changedPaths, emptySecrets, sectionSecrets, sectionErrors, withSecretParents } from "./section-draft";
 import { UnsavedBar } from "./unsaved-bar";
+import { useUnsavedChanges } from "@/lib/unsaved";
+import { sectionProblems } from "@/lib/field-checks";
 import { useSectionPatch } from "./use-section-patch";
 
 const plainFields = (fields: import("@/api/settings").SchemaField[], prefix: string, notifyForced = false): import("@/api/settings").SchemaField[] => fields.map(field => {
  const path = `${prefix}.${field.name}`;
  const wording: Record<string, { label?: string; help: string }> = {
   "library.versions": { label: "Libraries", help: "Choose the Plex library that shows each Theatarr library." },
-  "library.versions.plex_section": { help: "The Plex library ID that shows this library’s folder. 0: no scans." },
+  "library.versions.plex_section": { help: "The Plex library ID that shows this library’s folder: open that library in Plex Web, and it is the number after source= in the address. 0: no scans." },
   "notify.enabled": { label: "Send notifications", help: "Off: events are recorded, nothing is sent." + (notifyForced ? " Locked off by THEATARR_FORCE_OFF. Remove it and restart to send notifications." : "") },
-  "notify.targets": { help: "Webhook destinations, by name." },
+  "notify.targets": { help: "Where events go, by name: a webhook, a Discord channel webhook or an ntfy topic (its Format says which)." },
   "notify.targets.versions": { label: "Libraries", help: "Send events only for these libraries, by key. Empty: every library." },
   "cardigann.definitions": { help: "Where the catalog's indexer definitions come from. Empty repository and branch: prowlarr/indexers, master." },
  };
@@ -57,6 +59,8 @@ function PanelEditor({ id, title, help, section: key, keys, onSaved }: Props) {
  const libraries = useVersions(perLibrary);
  // THEATARR_FORCE_OFF=notify keeps notifications off whatever the stored tick says; the tick stays editable.
  const notifyForced = useSettings(key === "notify").data?.switches.notify_forced === true;
+ const [changeCount, setChangeCount] = useState(0);
+ useUnsavedChanges(changeCount);
  const editor = useSectionPatch(key, () => {
   setSaved(true); setDraft(undefined); setSecrets(emptySecrets());
   onSaved?.();
@@ -82,6 +86,10 @@ function PanelEditor({ id, title, help, section: key, keys, onSaved }: Props) {
  const value = draft ?? loaded;
  const changes = changedPaths(value, loaded).length + Object.values(secrets.actions).filter(a => a !== "keep").length;
  const dirty = changes > 0;
+ if (changes !== changeCount) setChangeCount(changes);
+ // Values the server would refuse (a time, an address) are said under their field before Save.
+ const problems = sectionProblems(value, loaded, key);
+ const blocked = Object.keys(problems).length > 0;
  const readOnly = sections.data.source !== "db";
  const missingSecret = Object.entries(secrets.actions).some(([path, action]) => action === "replace" && !secrets.values[path]);
  const reset = () => { setDraft(undefined); setSecrets(emptySecrets()); setSaved(false); };
@@ -103,11 +111,12 @@ function PanelEditor({ id, title, help, section: key, keys, onSaved }: Props) {
   {readOnly ? <p>Read-only: these settings cannot be edited here.</p> : null}
   {plexMissing ? <p className="mb-4 text-sm" data-testid="plex-server-first">Set the Plex address and token above first.</p> : null}
   {key === "cardigann" && keys.includes("definitions") ? <CatalogState saved={loaded.definitions} draft={value.definitions} disabled={readOnly || editor.busy} onTurnOn={() => { setDraft({ ...value, definitions: { repo: CATALOG_REPO } }); setSaved(false); }} /> : null}
-  <SectionFields panelTitle={title} fields={plainFields((schema.data.sections?.[key] ?? []).filter(f => keys.includes(f.name)), key, notifyForced)} config={value} saved={loaded} path={key} advanced={advanced} disabled={readOnly || editor.busy || plexMissing} onChange={v => { setDraft(v); setSaved(false); }} secrets={(section?.secrets ?? []).map(s => ({ ...s, path: `${key}.${s.path}` }))} secretDraft={secrets} onSecrets={v => { setSecrets(v); setSaved(false); }} errors={sectionErrors(editor.failure)} libraryKeys={perLibrary && libraries.data ? libraryKeys : undefined} />
+  <SectionFields panelTitle={title} fields={plainFields((schema.data.sections?.[key] ?? []).filter(f => keys.includes(f.name)), key, notifyForced)} config={value} saved={loaded} path={key} advanced={advanced} disabled={readOnly || editor.busy || plexMissing} onChange={v => { setDraft(v); setSaved(false); }} secrets={(section?.secrets ?? []).map(s => ({ ...s, path: `${key}.${s.path}` }))} secretDraft={secrets} onSecrets={v => { setSecrets(v); setSaved(false); }} errors={{ ...problems, ...sectionErrors(editor.failure) }} libraryKeys={perLibrary && libraries.data ? libraryKeys : undefined} />
   {perLibrary && libraries.data && !Object.keys(objectValue(value.versions)).length ? <p className="text-sm" data-testid="plex-libraries-empty">No libraries yet. Create one under <Link className="underline" to="/admin/settings/libraries">Settings › Libraries</Link>; each library then gets a row here for the ID of the Plex library that shows its folder.</p> : null}
   <UnsavedBar changes={changes} label={title}>
    <Button variant="outline" disabled={readOnly || editor.busy || !dirty} onClick={reset}>Discard</Button>
-   <Button disabled={readOnly || editor.busy || !dirty || missingSecret} onClick={save}>Save</Button>
+   {blocked ? <span className="text-[12.5px] text-[var(--bad-ink)]" data-testid="save-blocked">Fix the marked field to save.</span> : null}
+   <Button disabled={readOnly || editor.busy || !dirty || missingSecret || blocked} onClick={save}>Save</Button>
   </UnsavedBar>
   {saved ? <p role="status">Saved.</p> : null}
   {editor.feedback}

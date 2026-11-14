@@ -59,6 +59,8 @@ import { IndexerLibraries, librariesReady, type LibraryList } from "./indexer-li
 import { Announcer, ExplainBox, Field, SELECT_CLASS, TestResult, useAnnouncement } from "./parts";
 import { LinkTab, ProwlarrConnection } from "./prowlarr-link";
 import { useSectionPatch } from "./use-section-patch";
+import { changedPaths } from "./section-draft";
+import { languageName } from "@/lib/cardigann";
 
 const STATUS: Record<string, { label: string; tone: "positive" | "info" | "warning" | "negative" }> = {
   runs: { label: "runs", tone: "positive" },
@@ -263,7 +265,7 @@ function CatalogTab({ onSetUp }: { onSetUp: (d: CardigannDefinition) => void }) 
         </select>
         <select className={cn(SELECT_CLASS, "sm:w-auto")} aria-label="Language" value={f.language} onChange={(e) => set({ language: e.target.value })} data-testid="catalog-language">
           <option value="">Any language</option>
-          {languages.map((l) => <option key={l} value={l}>{l}</option>)}
+          {languages.map((l) => <option key={l} value={l}>{languageName(l)}</option>)}
         </select>
         <select className={cn(SELECT_CLASS, "sm:w-auto")} aria-label="Support" value={f.runsHere ? "runs" : "all"} onChange={(e) => set({ runsHere: e.target.value === "runs" })} data-testid="catalog-runs">
           <option value="runs">Runs here</option>
@@ -295,7 +297,7 @@ function CatalogTab({ onSetUp }: { onSetUp: (d: CardigannDefinition) => void }) 
                   </div>
                 </TableCell>
                 <TableCell className="hidden sm:table-cell"><PrivacyBadge privacy={d.privacy} /></TableCell>
-                <TableCell className="hidden text-[12.5px] md:table-cell">{d.language} · {contentLabel(d.categories)}</TableCell>
+                <TableCell className="hidden text-[12.5px] md:table-cell">{languageName(d.language)} · {contentLabel(d.categories)}</TableCell>
                 <TableCell className="hidden sm:table-cell"><Badge tone={s.tone}>{s.label}</Badge></TableCell>
                 <TableCell className="text-right">
                   {d.status === "unsupported" ? null : (
@@ -346,7 +348,8 @@ function SetupView({
   headingRef?: RefObject<HTMLHeadingElement | null>;
 }) {
   const taken = { indexers: overview.indexers.map((i) => i.key), budgets: overview.budgets.map((b) => b.key) };
-  const [form, setForm] = useState<SetupForm>(() => setupForm(def, taken.indexers));
+  const [first] = useState<SetupForm>(() => setupForm(def, taken.indexers));
+  const [form, setForm] = useState<SetupForm>(first);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<Explained>();
   const [test, setTest] = useState<SettingsTestResult>();
@@ -422,6 +425,7 @@ function SetupView({
       title={`Set up ${def.name}`}
       subtitle={`definition ${def.id}`}
       onClose={() => onDone()}
+      changes={changedPaths(form, first).length + (enabled ? 0 : 1) + (chosen ? 1 : 0)}
       footer={
         <>
           <Button type="button" size="sm" variant="outline" onClick={onBack} data-testid="setup-back"><ArrowLeft /> Catalog</Button>
@@ -439,7 +443,7 @@ function SetupView({
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <span className="font-semibold">{def.name}</span>
           <PrivacyBadge privacy={def.privacy} />
-          <span className="text-muted-foreground">{def.language} · {contentLabel(def.categories)}</span>
+          <span className="text-muted-foreground">{languageName(def.language)} · {contentLabel(def.categories)}</span>
           <Badge tone={STATUS[def.status]?.tone ?? "info"}>{STATUS[def.status]?.label ?? def.status}</Badge>
         </div>
         {error ? <ExplainBox error={error} /> : null}
@@ -451,7 +455,7 @@ function SetupView({
           <IndexerLibraries libraries={libraries} value={versions} onChange={setChosen} disabled={!!busy} />
         </div>
         <details open={Object.keys(errors).length > 0 || undefined}>
-          <summary className="cursor-pointer text-sm font-medium">Show advanced</summary>
+          <summary className="cursor-pointer text-sm font-medium">Advanced options</summary>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
           {settings.filter(s => !inCredential(s)).map((s) => <SettingField key={s.name} s={s} value={form.values[s.name]} error={errors[`setting.${s.name}`]} onChange={(v) => setValue(s.name, v)} />)}
           <Field label="Key" error={errors.key} help="The indexer's name in Theatarr; its budget gets the same key.">

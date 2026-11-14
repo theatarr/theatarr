@@ -852,7 +852,14 @@ who uses it by name ("Provider AD", "Indexer prowlarr-tpb"), its use read from t
 beside the field and are tied to its control with `aria-describedby` (`aria-invalid` on an error). A panel with
 changes shows a sticky bar (above the phone tab bar) with the change count, **Discard** and **Save**; a record sheet
 shows the count and Discard in its footer, and Discard keeps the sheet open and clears the discarded draft's
-validation. A new provider or indexer is tracked against its first draft, its name included. Fields that generate other
+validation. Leaving a page with unsaved changes (another page, Back) asks first ("Leave without saving?"), and so
+does closing a sheet with them (Escape, the backdrop, Close, Cancel: "Close without saving?"); a reload or closed tab
+gets the browser's own question; tabs, anchors and `?edit=` on the same page are not leaving it (`lib/unsaved.ts`,
+`LeaveGuard` in `unsaved-bar.tsx`, the sheet's guard in `ui/sheet.tsx`). A few values the server would refuse are
+checked as typed (`lib/field-checks.ts`: a daily time as HH:MM, the http(s) addresses, a new record's stable name):
+the reason sits under the field and Save waits, with "Fix the marked field to save." beside it; the server stays the
+authority. Indexer and provider order arrows save at once and say so ("Saved: dmm moved up."). A new provider or
+indexer is tracked against its first draft, its name included. Fields that generate other
 values have a Changed mark but no Undo (a record's Service, which fills a new record's name and URL; a library's
 Root and Write roots); Discard resets the whole draft. Undo under an object the saved settings
 did not have leaves it absent, so the draft equals the saved value again. The Libraries editor has the same marks (a new

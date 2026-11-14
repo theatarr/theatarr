@@ -3,10 +3,29 @@
 // and focus return; the sheet adds the layout: a header with the focusable heading, a scrolling body and a footer
 // for Save, Cancel and Delete. Confirmations open as dialogs on top of it (ConfirmDialog stacks above, z-[85]).
 import { X } from "lucide-react";
-import { useEffect, useId, useLayoutEffect, useRef, type ReactNode, type RefObject } from "react";
+import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type ReactNode, type RefObject } from "react";
 import { useSearchParams } from "react-router";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Modal } from "@/components/ui/modal";
+import { discardScope, useUnsavedChanges } from "@/lib/unsaved";
+
+/** A sheet's close with its unsaved edits in mind: SheetLayout reports its change count, and Escape, the backdrop,
+ * Close and SheetCancel ask before dropping them. */
+type Guard = { report: (changes: number) => void; request: (close: () => void) => void };
+const SheetGuard = createContext<Guard | null>(null);
+
+/** Close the sheet, asking first while it holds unsaved edits (outside a sheet: close at once). */
+export function useSheetClose(): (close: () => void) => void {
+  const guard = useContext(SheetGuard);
+  return guard ? guard.request : (close) => close();
+}
+
+/** A footer's Cancel: asks before dropping the sheet's unsaved edits. */
+export function SheetCancel({ onClick, ...rest }: Omit<ComponentProps<typeof Button>, "onClick"> & { onClick: () => void }) {
+  const request = useSheetClose();
+  return <Button type="button" {...rest} onClick={() => request(onClick)} />;
+}
 
 export function Sheet({
   label,
@@ -25,10 +44,19 @@ export function Sheet({
   returnFocus?: () => HTMLElement | null | undefined;
   testid?: string;
 }) {
+  const changes = useRef(0);
+  const [asking, setAsking] = useState<{ close: () => void; changes: number } | null>(null);
+  const report = useCallback((n: number) => { changes.current = n; }, []);
+  const request = useCallback((close: () => void) => {
+    if (changes.current > 0) setAsking({ close, changes: changes.current });
+    else close();
+  }, []);
+  const guard = useMemo(() => ({ report, request }), [report, request]);
   return (
+    <SheetGuard.Provider value={guard}>
     <Modal
       label={label}
-      onClose={onClose}
+      onClose={() => request(onClose)}
       initialFocus={initialFocus}
       returnFocus={returnFocus}
       testid={testid}
@@ -39,6 +67,8 @@ export function Sheet({
     >
       {children}
     </Modal>
+    {asking ? <ConfirmDialog testid="discard-confirm" scope={discardScope(asking.changes, false)} onClose={() => setAsking(null)} onConfirm={() => { setAsking(null); asking.close(); }} /> : null}
+    </SheetGuard.Provider>
   );
 }
 
@@ -52,8 +82,11 @@ export function SheetLayout({
   footer,
   children,
   testid,
+  changes = 0,
   ...rest
 }: {
+  /** The form's unsaved edits: closing asks first while there are any. */
+  changes?: number;
   title: ReactNode;
   subtitle?: ReactNode;
   headingRef?: RefObject<HTMLHeadingElement | null>;
@@ -65,20 +98,24 @@ export function SheetLayout({
 } & Record<`data-${string}`, string | undefined>) {
   const own = useId();
   const id = headingId ?? own;
+  const guard = useContext(SheetGuard);
+  useEffect(() => { guard?.report(changes); }, [guard, changes]);
+  useEffect(() => () => guard?.report(0), [guard]);
+  useUnsavedChanges(changes);
   return (
     <section className="flex min-h-0 flex-1 flex-col" aria-labelledby={id} data-testid={testid} {...rest}>
       <header className="flex items-start justify-between gap-3 border-b border-[var(--line)] px-4 py-3.5 sm:px-5">
         <div className="min-w-0">
-          <h2 ref={headingRef} id={id} tabIndex={-1} className="rounded-sm font-heading text-[22px] font-medium leading-tight text-[var(--ink)] outline-none [overflow-wrap:anywhere] focus-visible:ring-2 focus-visible:ring-[var(--line-focus)]" data-testid={testid ? `${testid}-heading` : undefined}>
+          <h2 ref={headingRef} id={id} tabIndex={-1} className="rounded-sm font-heading text-[22px] font-medium leading-tight text-[var(--ink)] outline-none [overflow-wrap:anywhere]" data-testid={testid ? `${testid}-heading` : undefined}>
             {title}
           </h2>
           {subtitle ? <div className="mt-0.5 text-[12.5px] text-muted-foreground [overflow-wrap:anywhere]">{subtitle}</div> : null}
         </div>
-        <Button type="button" size="icon-sm" variant="ghost" onClick={onClose} aria-label="Close" data-testid="sheet-close">
+        <Button type="button" size="icon-sm" variant="ghost" onClick={() => (guard ? guard.request(onClose) : onClose())} aria-label="Close" data-testid="sheet-close">
           <X />
         </Button>
       </header>
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">{children}</div>
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6 pt-4 sm:px-5">{children}</div>
       {footer ? (
         <footer className="flex flex-wrap items-center gap-2 border-t border-[var(--line)] bg-[var(--bg)] px-4 py-3 sm:px-5" data-testid="sheet-footer">
           {footer}

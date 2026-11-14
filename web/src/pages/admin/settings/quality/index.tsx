@@ -10,7 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
-import { Sheet, SheetLayout, useEditParam } from "@/components/ui/sheet";
+import { Sheet, SheetCancel, SheetLayout, useEditParam } from "@/components/ui/sheet";
+import { changedPaths } from "@/components/settings/section-draft";
 import { explainError } from "@/lib/settings";
 import { qk } from "@/api/query-keys";
 import { FormatFields, FormGrid, JSONField, ProfileFields, Select, TextField, Toggle, object, pretty, text, type Config, type FormatJSON, type Implementation } from "./fields";
@@ -30,8 +31,18 @@ const NAMING_LABELS: Record<string, string> = {
   anime: "Anime episode file name",
 };
 
+/** Naming choices in the arrs' words with what they make of "Title: Sub" and episodes 1 to 3; the stored values stay
+ * the keys. */
+export const COLON_LABELS: Record<string, string> = {
+  "": "Default", delete: "Delete (Title Sub)", dash: "Replace with a dash (Title- Sub)", space_dash: "Replace with space dash (Title - Sub)",
+  space_dash_space: "Replace with space dash space (Title -  Sub)", smart: "Smart replace (a dash or space dash, as fits)",
+};
+export const MULTI_EPISODE_LABELS: Record<string, string> = {
+  "": "Default", extend: "Extend (S01E01-02-03)", duplicate: "Duplicate (S01E01.S01E02.S01E03)", repeat: "Repeat (S01E01E02E03)",
+  scene: "Scene (S01E01-E02-E03)", range: "Range (S01E01-03)", prefixed_range: "Prefixed range (S01E01-E03)",
+};
 const NOUN: Record<QualityEntity, string> = { profiles: "profile", formats: "format", format_sets: "format set", naming: "library naming", sync_sources: "sync source" };
-type Session = { entity: QualityEntity; id?: number; generation: number; draft: QualityRecord };
+type Session = { entity: QualityEntity; id?: number; generation: number; draft: QualityRecord; start: QualityRecord };
 const blankFormat = (): FormatJSON => ({ name: "", includeCustomFormatWhenRenaming: false, specifications: [] });
 const defaults = (entity: QualityEntity): Config => entity === "profiles" ? { qualities: ["WEBDL-1080p"], cutoff: "WEBDL-1080p", formats: {}, min_score: 0, cutoff_score: 0, min_upgrade_step: 1, upgrades: true } : entity === "format_sets" ? { flavour: "radarr", formats: {} } : entity === "sync_sources" ? { kind: "trash", flavour: "radarr", schedule: "24h", enabled: false, trash_ids: [], profiles: {} } : {};
 // Tracking a branch defaults to a weekly run; a pinned archive does not apply to it.
@@ -92,7 +103,8 @@ export function QualityPanel({ entity, compact = false, skip = [], match }: { en
   const start = (record?: QualityRecord) => {
     deleted.current = false;
     setError(undefined); setConfirmDelete(false); setFormRevision((n) => n + 1);
-    setSession({ entity, id: record?.id, generation: records.data?.generation ?? overview.data?.generation ?? 0, draft: record ? draftRecord(record) : { id: 0, key: "", config: defaults(entity), ...(entity === "formats" ? { specification: blankFormat() } : {}) } });
+    const draft: QualityRecord = record ? draftRecord(record) : { id: 0, key: "", config: defaults(entity), ...(entity === "formats" ? { specification: blankFormat() } : {}) };
+    setSession({ entity, id: record?.id, generation: records.data?.generation ?? overview.data?.generation ?? 0, draft, start: clone(draft) });
   };
   const setEdit = useEditParam(!!records.data, !!session, (key) => {
     const record = records.data?.records.find((r) => r.key === key);
@@ -111,7 +123,8 @@ export function QualityPanel({ entity, compact = false, skip = [], match }: { en
     if (!session || !current.data) return;
     const saved = current.data.records.find((r) => r.id === session.id);
     if (session.id && !saved) { setError(new Error("This record was deleted. Close this editor and create a new record.")); return; }
-    setSession({ ...session, generation: current.data.generation, draft: keep ? session.draft : draftRecord(saved ?? { id: 0, key: "", config: defaults(entity), ...(entity === "formats" ? { specification: blankFormat() } : {}) }) }); setError(undefined);
+    const fresh = draftRecord(saved ?? { id: 0, key: "", config: defaults(entity), ...(entity === "formats" ? { specification: blankFormat() } : {}) });
+    setSession({ ...session, generation: current.data.generation, draft: keep ? session.draft : fresh, start: keep ? session.start : clone(fresh) }); setError(undefined);
     if (!keep) setFormRevision((n) => n + 1);
   };
   const write = async (remove = false, token?: string) => {
@@ -141,10 +154,10 @@ export function QualityPanel({ entity, compact = false, skip = [], match }: { en
       <Button variant="outline" size="sm" disabled={readOnly} onClick={() => open(r)} data-testid="edit">Edit {entity === "naming" ? nameOf(r.key) : r.key}</Button>
     </div></Card>)}
     {session ? <Sheet label={`${session.id ? "Edit" : "Add"} ${NOUN[entity]}${session.id ? ` ${session.draft.key}` : ""}`} onClose={close} initialFocus={heading} returnFocus={() => (deleted.current ? addButton.current ?? panel.current : undefined)}>
-      <SheetLayout testid="quality-form" headingRef={heading} onClose={close}
+      <SheetLayout testid="quality-form" headingRef={heading} onClose={close} changes={readOnly ? 0 : changedPaths(session.draft, session.start).length}
         title={`${session.id ? "Edit" : "Add"} ${entity.replaceAll("_", " ")}`}
         subtitle={session.id ? session.draft.key : undefined}
-        footer={<><Button type="submit" form={formId} disabled={busy || readOnly}>{busy ? "Saving…" : "Save"}</Button><Button type="button" variant="outline" onClick={close}>Cancel</Button>{session.id ? <Button type="button" variant="destructive" className="ml-auto" disabled={busy || readOnly} onClick={() => setConfirmDelete(true)}>Delete</Button> : null}</>}>
+        footer={<><Button type="submit" form={formId} disabled={busy || readOnly}>{busy ? "Saving…" : "Save"}</Button><SheetCancel variant="outline" onClick={close}>Cancel</SheetCancel>{session.id ? <Button type="button" variant="destructive" className="ml-auto" disabled={busy || readOnly} onClick={() => setConfirmDelete(true)}>Delete</Button> : null}</>}>
       <div ref={errorBox}>{error ? <div className="mb-4"><ExplainBox error={explainError(error)} onReload={() => { void rebase(false); }} onReloadKeep={() => { void rebase(true); }} />{error instanceof ApiError && object(error.body).uses ? <pre className="whitespace-pre-wrap text-sm">{pretty(object(error.body).uses)}</pre> : null}</div> : null}</div>
       <form id={formId} key={formRevision} className="space-y-4" onSubmit={(e) => { e.preventDefault(); void write(); }}>
         <fieldset disabled={busy || readOnly} className="space-y-4">
@@ -152,7 +165,7 @@ export function QualityPanel({ entity, compact = false, skip = [], match }: { en
           {entity === "profiles" ? <ProfileFields config={c} onChange={(config) => patch({ config })} /> : null}
           {entity === "formats" ? <><Select label="Flavour" value={text(c.flavour)} values={["", "radarr", "sonarr"]} onChange={(v) => set("flavour", v)} />{schema.isPending ? <Loading /> : schema.error ? <ErrorState error={schema.error} /> : <FormatFields spec={session.draft.specification ?? blankFormat()} schema={schema.data} flavour={text(c.flavour)} onChange={(specification) => patch({ specification, config: { ...c, trash_id: specification.trash_id ?? "", include_when_renaming: specification.includeCustomFormatWhenRenaming } })} />}</> : null}
           {entity === "format_sets" ? <><Select label="Flavour" value={text(c.flavour)} values={["radarr", "sonarr"]} onChange={(v) => set("flavour", v)} /><JSONField label={'Formats by display name: {"WEB Tier 01": {"ref": "global-key"}}; inline entries use trash_id and a specification below'} value={c.formats ?? {}} onChange={(v) => set("formats", v)} /><JSONField label="Full inline arr JSON by display name" value={session.draft.specifications ?? {}} onChange={(v) => patch({ specifications: v as Record<string, FormatJSON> })} /></> : null}
-          {entity === "naming" ? <><FormGrid>{Object.entries(NAMING_LABELS).map(([key, label]) => <TextField key={key} label={label} value={c[key]} onChange={(v) => set(key, v)} />)}<Select label="Colon replacement" value={text(c.colon)} values={["", "delete", "dash", "space_dash", "space_dash_space", "smart"]} onChange={(v) => set("colon", v)} /><Select label="Multi episode style" value={text(c.multi_episode)} values={["", "extend", "duplicate", "repeat", "scene", "range", "prefixed_range"]} onChange={(v) => set("multi_episode", v)} /></FormGrid><p className="text-sm">Changes name new imports. Use the explicit rename preview to rename existing links.</p><div role="status" aria-live="polite">{preview ? <><p>Folder: {preview.folder}</p><p>File: {preview.file}</p></> : "Naming preview pending"}</div></> : null}
+          {entity === "naming" ? <><FormGrid>{Object.entries(NAMING_LABELS).map(([key, label]) => <TextField key={key} label={label} value={c[key]} onChange={(v) => set(key, v)} />)}<Select label="Colon replacement" value={text(c.colon)} values={["", "delete", "dash", "space_dash", "space_dash_space", "smart"]} labels={COLON_LABELS} onChange={(v) => set("colon", v)} /><Select label="Multi-episode style" value={text(c.multi_episode)} values={["", "extend", "duplicate", "repeat", "scene", "range", "prefixed_range"]} labels={MULTI_EPISODE_LABELS} onChange={(v) => set("multi_episode", v)} /></FormGrid><p className="text-sm">Changes name new imports. Use the explicit rename preview to rename existing links.</p><div role="status" aria-live="polite">{preview ? <><p>Folder: {preview.folder}</p><p>File: {preview.file}</p></> : "Naming preview pending"}</div></> : null}
           {entity === "sync_sources" ? <><FormGrid><Select label="Source" value={text(c.kind)} values={["trash", "recyclarr"]} onChange={(v) => set("kind", v)} /><Select label="Flavour" value={text(c.flavour)} values={["radarr", "sonarr"]} onChange={(v) => set("flavour", v)} /><Select label="TRaSH origin (Default: local TRaSH or a pinned archive; github: track a branch)" value={text(c.origin)} values={["", "github"]} onChange={(v) => patch({ config: trackOrigin(c, v) })} /><TextField label={c.origin === "github" ? "Schedule (default 168h, weekly)" : "Schedule (default 24h)"} value={c.schedule} onChange={(v) => set("schedule", v)} />{c.origin === "github" ? <><TextField label="Tracked repository (default TRaSH-Guides/Guides)" value={c.repo} onChange={(v) => set("repo", v)} /><TextField label="Tracked branch (default master)" value={c.branch} onChange={(v) => set("branch", v)} /></> : <><TextField label="Pinned git archive URL (empty uses local TRaSH)" value={c.archive_url} onChange={(v) => set("archive_url", v)} /><TextField label="Archive commit (full 40 hex digits)" value={c.commit} onChange={(v) => set("commit", v)} /></>}<Toggle label="Scheduled sync enabled" checked={c.enabled === true} onChange={(v) => set("enabled", v)} /></FormGrid><JSONField label="TRaSH IDs to add" value={c.trash_ids ?? []} onChange={(v) => set("trash_ids", v)} /><JSONField label="Local profile key to TRaSH score set" value={c.profiles ?? {}} onChange={(v) => set("profiles", v)} />{c.kind === "recyclarr" ? <Toggle label="Apply quality sizes from quality_definition (TRaSH sizes; off lists it as skipped)" checked={c.quality_sizes !== false} onChange={(v) => set("quality_sizes", v)} /> : null}{c.kind === "recyclarr" ? <label className="flex flex-col gap-1">Recyclarr YAML<textarea className="min-h-48 rounded border p-2 font-mono text-xs" value={text(c.recyclarr)} onChange={(e) => set("recyclarr", e.target.value)} /></label> : null}</> : null}
         </fieldset>
       </form>

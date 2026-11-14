@@ -15,7 +15,7 @@ import { changeCount } from "@/components/settings/unsaved-bar";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Sheet, SheetLayout, useEditParam } from "@/components/ui/sheet";
+import { Sheet, SheetCancel, SheetLayout, useEditParam } from "@/components/ui/sheet";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { explainError } from "@/lib/settings";
@@ -116,13 +116,15 @@ function VersionGroup({ title, versions, switches, selected, readOnly, busy, onO
   return <section className="space-y-2" aria-label={title}>
     <h2 className="text-base font-semibold">{title}</h2>
     <Card className="p-0">
-      <Table>
-        <TableHeader><TableRow>
-          <TableHead>Library</TableHead>
-          <TableHead className="hidden md:table-cell">Where</TableHead>
-          <TableHead className="hidden md:table-cell">Profile</TableHead>
-          <TableHead className="hidden lg:table-cell">Sources</TableHead>
-          <TableHead><span className="sr-only">Actions</span></TableHead>
+      {/* Fixed column widths, so the tables of the kinds line up under each other; below md each library stacks with
+          its values labelled and no header. */}
+      <Table className="md:table-fixed" data-testid="library-table">
+        <TableHeader className="max-md:hidden"><TableRow>
+          <TableHead className="md:w-[34%] lg:w-[28%]">Library</TableHead>
+          <TableHead className="hidden md:table-cell md:w-[30%] lg:w-[25%]">Where</TableHead>
+          <TableHead className="hidden md:table-cell md:w-[22%] lg:w-[18%]">Profile</TableHead>
+          <TableHead className="hidden lg:table-cell lg:w-[20%]">Sources</TableHead>
+          <TableHead className="md:w-[14%] lg:w-[9%]"><span className="sr-only">Actions</span></TableHead>
         </TableRow></TableHeader>
         <TableBody>{versions.map((record) => {
           const c = record.config;
@@ -134,12 +136,12 @@ function VersionGroup({ title, versions, switches, selected, readOnly, busy, onO
               <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5"><span className="text-[13.5px] font-medium [overflow-wrap:anywhere]" data-testid="library-name">{nameOf(record.key, libraryLabel(record.key, c.profile, c.name, c.kind))}</span><span className="font-mono text-[12px] text-muted-foreground [overflow-wrap:anywhere]" data-testid="library-key">{record.key}</span></div>
               <div className="mt-1 flex flex-wrap items-center gap-1.5" data-testid="library-state-row"><ChoicePick mode={c.mode} label={`State of ${nameOf(record.key, libraryLabel(record.key, c.profile, c.name, c.kind))}`} disabled={readOnly || busy} onChange={(choice) => onChoose(record, choice)} /><VersionStatus words beside={c.mode} settingsKey={record.key} canManage state={switches.versions.find((v) => v.key === record.key)?.grab_state ?? { mode: "off", paused: switches.paused, pause_forced: switches.pause_forced }} /></div>
               <div className="text-xs text-muted-foreground">{c.anime === null ? "anime and regular" : ""}</div>
-              <div className="mt-1.5 space-y-1.5 md:hidden">{where}{profile}</div>
-              <div className="mt-1.5 lg:hidden">{sources}</div>
+              <div className="mt-1.5 space-y-1.5 md:hidden"><div><div className="text-[11px] text-muted-foreground">Where</div>{where}</div><div><div className="text-[11px] text-muted-foreground">Profile</div>{profile}</div></div>
+              <div className="mt-1.5 lg:hidden"><div className="text-[11px] text-muted-foreground">Sources</div>{sources}</div>
             </TableCell>
-            <TableCell className="hidden max-w-[16rem] align-top md:table-cell">{where}</TableCell>
-            <TableCell className="hidden max-w-[16rem] align-top md:table-cell">{profile}</TableCell>
-            <TableCell className="hidden max-w-[16rem] align-top lg:table-cell">{sources}</TableCell>
+            <TableCell className="hidden align-top md:table-cell">{where}</TableCell>
+            <TableCell className="hidden align-top md:table-cell">{profile}</TableCell>
+            <TableCell className="hidden align-top lg:table-cell">{sources}</TableCell>
             <TableCell className="align-top text-right"><Button variant="outline" size="sm" onClick={() => onOpen(record)} data-testid="edit">{readOnly ? "View" : "Edit"}</Button></TableCell>
           </TableRow>;
         })}</TableBody>
@@ -329,10 +331,10 @@ export function VersionsPage({ embedded = false }: { embedded?: boolean }) {
         return list.length ? <VersionGroup key={group} title={CATEGORY_LABEL[group]} versions={list} busy={busy} onChoose={choose} switches={data.switches} selected={session && !session.create ? session.record.key : undefined} readOnly={readOnly} onOpen={open} /> : null;
       })}
       {session ? <Sheet label={session.create ? "New library" : `Edit library ${nameOf(session.record.key, libraryLabel(session.record.key, session.saved.config.profile, session.saved.config.name, session.saved.config.kind))}`} onClose={close} initialFocus={heading} returnFocus={() => (stopped.current ? addButton.current : undefined)}>
-        <SheetLayout key={session.draftID} testid="version-form" headingRef={heading} onClose={close}
+        <SheetLayout key={session.draftID} testid="version-form" headingRef={heading} onClose={close} changes={readOnly ? 0 : libraryChanges(session.record, session.saved)}
           title={`${session.create ? "New library" : `Edit library ${nameOf(session.record.key, libraryLabel(session.record.key, session.saved.config.profile, session.saved.config.name, session.saved.config.kind))}`}`}
           subtitle={session.create ? "Starts as Watch only unless you choose otherwise." : `${KIND_WORD[session.record.config.kind] ?? session.record.config.kind}${session.record.config.anime ? " · anime" : ""} · ${CHOICE_LABEL[choiceOf(session.record.config.mode) ?? "watch"]}`}
-          footer={<><Button onClick={() => void review()} disabled={readOnly || busy}>Save</Button><Button variant="outline" onClick={close}>Cancel</Button>{libraryChanges(session.record, session.saved) ? <><span className="text-[13px] font-medium text-[var(--ink)]" data-testid="unsaved-count" aria-live="polite">{changeCount(libraryChanges(session.record, session.saved))}</span><Button variant="ghost" size="sm" disabled={busy} data-testid="version-discard" onClick={() => { setSession({ ...session, record: copy(session.saved) }); setError(undefined); setPending(undefined); setDiscards(discards + 1); }}>Discard</Button></> : null}<Link className="text-sm text-[var(--accent-ink)] underline" to="/admin/settings/libraries/naming">Edit naming</Link>{!session.create ? <Button className="ml-auto" variant="destructive" onClick={() => void review(true)} disabled={readOnly || busy}>Stop managing library</Button> : null}</>}>
+          footer={<><Button onClick={() => void review()} disabled={readOnly || busy}>Save</Button><SheetCancel variant="outline" onClick={close}>Cancel</SheetCancel>{libraryChanges(session.record, session.saved) ? <><span className="text-[13px] font-medium text-[var(--ink)]" data-testid="unsaved-count" aria-live="polite">{changeCount(libraryChanges(session.record, session.saved))}</span><Button variant="ghost" size="sm" disabled={busy} data-testid="version-discard" onClick={() => { setSession({ ...session, record: copy(session.saved) }); setError(undefined); setPending(undefined); setDiscards(discards + 1); }}>Discard</Button></> : null}<Link className="text-sm text-[var(--accent-ink)] underline" to="/admin/settings/libraries/naming">Edit naming</Link>{!session.create ? <Button className="ml-auto" variant="destructive" onClick={() => void review(true)} disabled={readOnly || busy}>Stop managing library</Button> : null}</>}>
           {made ? <p className="mb-4 rounded-md border border-[var(--line)] px-3 py-2 text-[13px]" role="status" data-testid="preset-profile-made">The profile <span className="font-mono">{made.key}</span> was created from the TRaSH default {made.name} and is selected. The library itself is saved when Save succeeds; the profile stays either way.</p> : null}
           {error ? <div ref={errorBox} tabIndex={-1} className="mb-4"><ExplainBox error={explainError(error)} onReload={() => void reload(false)} onReloadKeep={() => void reload(true)} /></div> : null}
           <fieldset disabled={readOnly || busy}>
