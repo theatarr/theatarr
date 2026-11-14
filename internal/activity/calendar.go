@@ -129,12 +129,16 @@ func ReadMovieDates(ctx context.Context, db *sql.DB, ids []any) (map[int64]Movie
 
 // Calendar lists the movie release dates and episode air dates from from to to (dates, both included), oldest
 // first. Movie dates are the release-date choice (FirstReleasesSQL). Episodes come from the episode table (TVDB and
-// the arrs). Only monitored titles (and monitored episodes) unless unmonitored.
+// the arrs). Only monitored titles (and monitored episodes) unless unmonitored; never a title with no library copy
+// left (every version removed).
 func Calendar(ctx context.Context, db *sql.DB, from, to string, unmonitored bool) ([]CalendarItem, error) {
 	var out []CalendarItem
-	mon := ` AND t.monitored = 1 AND EXISTS (SELECT 1 FROM version v WHERE v.title_id = t.id AND v.monitored = 1)`
+	// Titles in the library only, with or without unmonitored: a title every copy of which was removed is gone.
+	live := ` AND (NOT EXISTS (SELECT 1 FROM version v WHERE v.title_id = t.id) OR EXISTS (SELECT 1 FROM version v
+		WHERE v.title_id = t.id AND NOT EXISTS (SELECT 1 FROM arrview_removed_version r WHERE r.version_id = v.id)))`
+	mon := live + ` AND t.monitored = 1 AND EXISTS (SELECT 1 FROM version v WHERE v.title_id = t.id AND v.monitored = 1)`
 	if unmonitored {
-		mon = ``
+		mon = live
 	}
 	rows, err := db.QueryContext(ctx, `WITH best (title_id, type, date) AS (`+FirstReleasesBetweenSQL+`)
 	SELECT t.id, t.name, COALESCE(t.year, 0), t.anime, t.monitored, best.type, best.date,
@@ -160,7 +164,7 @@ func Calendar(ctx context.Context, db *sql.DB, from, to string, unmonitored bool
 
 	epMon := mon + ` AND e.monitored = 1`
 	if unmonitored {
-		epMon = ``
+		epMon = live
 	}
 	// An episode is monitored when a library that was not removed monitors it (its version and its episode row).
 	rows, err = db.QueryContext(ctx, `SELECT t.id, t.name, COALESCE(t.year, 0), t.anime, t.monitored AND e.monitored

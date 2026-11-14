@@ -239,7 +239,8 @@ func (w *Web) markRequested(ctx context.Context, hits []SearchHit) error {
 	})
 }
 
-// markInLibrary marks the hits the library has: by the title's TMDb id, or the TMDb id the art job found for it.
+// markInLibrary marks the hits the library has: by the title's TMDb id, or the TMDb id the art job found for it. A
+// title with no current copy (inLibrary) is not marked: its hit offers Add.
 func (w *Web) markInLibrary(ctx context.Context, hits []SearchHit) error {
 	if len(hits) == 0 {
 		return nil
@@ -261,7 +262,7 @@ func (w *Web) markInLibrary(ctx context.Context, hits []SearchHit) error {
 	byTitle := map[int64][]int{}
 	var ids []any
 	err := scanAll(ctx, w.st.Reader(), `SELECT t.id, t.kind, COALESCE(t.tmdb_id, m.tmdb_id) FROM title t
-		LEFT JOIN title_meta m ON m.title_id = t.id WHERE t.tmdb_id IN (`+ph+`) OR m.tmdb_id IN (`+ph+`)`,
+		LEFT JOIN title_meta m ON m.title_id = t.id WHERE (t.tmdb_id IN (`+ph+`) OR m.tmdb_id IN (`+ph+`)) AND `+inLibrary,
 		append(append([]any{}, args...), args...), func(r *sql.Rows) error {
 			var id, tm int64
 			var k string

@@ -195,6 +195,25 @@ func TestAnimeReviewCard(t *testing.T) {
 	if epID <= 0 || p.Samples[0].ID != epID {
 		t.Errorf("sample episode id %d, want %d", p.Samples[0].ID, epID)
 	}
+	// Every copy of the series removed: the card names no library title.
+	e.exec(`INSERT INTO version (id, title_id, policy_key, created_at, updated_at) VALUES (90, 9, 'anime-tv', 0, 0)`)
+	e.exec(`INSERT INTO arrview_removed_version (version_id, view, removed_at) VALUES (90, 'ui', 0)`)
+	var gone struct {
+		Items []AnimeReviewItem `json:"items"`
+	}
+	e.getKey(APIBase+"/anime/review", key, &gone)
+	seen := false
+	for _, g := range gone.Items {
+		if g.ID == id {
+			seen = true
+			if len(g.Options) == 0 || g.Options[0].Series.TitleID != 0 {
+				t.Errorf("removed series on the card: %+v", g.Options)
+			}
+		}
+	}
+	if !seen {
+		t.Error("no conflict item after the removal")
+	}
 	for _, o := range it.Options[1:] {
 		if o.Proposed || o.Candidate == nil || *o.Candidate >= len(it.Mapping.Candidates) ||
 			it.Mapping.Candidates[*o.Candidate].Source != o.Source {

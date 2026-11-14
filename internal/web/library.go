@@ -28,7 +28,7 @@ import (
 func (w *Web) mountLibraryAPI(mux *http.ServeMux) {
 	b := APIBase
 	w.handle(mux, "GET "+b+"/titles/facets", SignedIn, auth.PermBrowse, w.apiTitleFacets)
-	w.handle(mux, "GET "+b+"/titles/{id}/episodes", SignedIn, auth.PermBrowse, w.apiTitleEpisodes)
+	w.handle(mux, "GET "+b+"/titles/{id}/episodes", SignedIn, auth.PermBrowse, w.inLibraryOnly(w.apiTitleEpisodes))
 	w.handle(mux, "GET "+b+"/discover", SignedIn, auth.PermBrowse, w.apiDiscover)
 	w.handle(mux, "GET "+b+"/discover/{row}", SignedIn, auth.PermBrowse, w.apiDiscoverRow)
 }
@@ -107,6 +107,40 @@ const providerHolds = `cp.state = 'present' AND cp.progress >= 100`
 // liveVersion is the condition that version v is in the library: not removed (catalog.Remove lists removed versions
 // in arrview_removed_version and keeps their rows).
 const liveVersion = `NOT EXISTS (SELECT 1 FROM arrview_removed_version rv WHERE rv.version_id = v.id)`
+
+// inLibrary is the condition that title t is in the library: it has a current library copy (a liveVersion), or no
+// version at all yet. A title every copy of which was removed is not in the library anywhere (lists, counts,
+// search), as if never added; its row, history and kept files stay, and adding it again restores it.
+const inLibrary = `(NOT EXISTS (SELECT 1 FROM version v WHERE v.title_id = t.id)
+	OR EXISTS (SELECT 1 FROM version v WHERE v.title_id = t.id AND ` + liveVersion + `))`
+
+// titleInLibrary reports whether title id has a current library copy (inLibrary).
+func (w *Web) titleInLibrary(ctx context.Context, id int64) (bool, error) {
+	var in bool
+	err := w.st.Reader().QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM title t WHERE t.id = ? AND `+inLibrary+`)`,
+		id).Scan(&in)
+	return in, err
+}
+
+// inLibraryOnly serves h only for a title with a current library copy (titleInLibrary); a title every copy of which
+// was removed answers 404, as one never added: Search now, interactive search, rename and the episode list. The title
+// itself (GET /titles/{id}), its removal routes and its history keep answering, for its page and its kept files.
+func (w *Web) inLibraryOnly(h http.HandlerFunc) http.HandlerFunc {
+	return func(rw http.ResponseWriter, r *http.Request) {
+		if id, ok := pathID(r); ok {
+			in, err := w.titleInLibrary(r.Context(), id)
+			if err != nil {
+				w.internal(rw, err)
+				return
+			}
+			if !in {
+				notFound(rw)
+				return
+			}
+		}
+		h(rw, r)
+	}
+}
 
 // liveLink is the condition that link l files into some version in the library (liveVersion): the links whose
 // providers the list rows show.

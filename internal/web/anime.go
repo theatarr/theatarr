@@ -766,8 +766,9 @@ func (en *reviewEnricher) seriesOf(ctx context.Context, tvdb int) (AnimeReviewSe
 		return s, nil
 	}
 	s := AnimeReviewSeries{TVDB: tvdb}
-	err := en.db.QueryRowContext(ctx, `SELECT id, name FROM title WHERE kind = 'series' AND tvdb_id = ? ORDER BY id LIMIT 1`,
-		tvdb).Scan(&s.TitleID, &s.Name)
+	// A series with no library copy left (every version removed) is not the library's: the card names no title.
+	err := en.db.QueryRowContext(ctx, `SELECT t.id, t.name FROM title t WHERE t.kind = 'series' AND t.tvdb_id = ?
+		AND `+inLibrary+` ORDER BY t.id LIMIT 1`, tvdb).Scan(&s.TitleID, &s.Name)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return s, err
 	}

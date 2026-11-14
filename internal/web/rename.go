@@ -37,8 +37,8 @@ func toRenameResponse(p *library.RenamePreview) renameResponse {
 
 func (w *Web) mountRenameAPI(mux *http.ServeMux) {
 	b := APIBase
-	w.handle(mux, "GET "+b+"/titles/{id}/rename", SignedIn, auth.PermAdmin, w.apiRenamePreview)
-	w.handle(mux, "POST "+b+"/titles/{id}/rename", SignedIn, auth.PermAdmin, w.apiRenameApply)
+	w.handle(mux, "GET "+b+"/titles/{id}/rename", SignedIn, auth.PermAdmin, w.inLibraryOnly(w.apiRenamePreview))
+	w.handle(mux, "POST "+b+"/titles/{id}/rename", SignedIn, auth.PermAdmin, w.inLibraryOnly(w.apiRenameApply))
 }
 
 func (w *Web) renameSeason(r *http.Request) (*int, error) {

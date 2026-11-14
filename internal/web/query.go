@@ -127,7 +127,8 @@ const hasFileSQL = `(EXISTS (SELECT 1 FROM version_file vf WHERE vf.version_id =
 	OR EXISTS (SELECT 1 FROM link_version lv JOIN link l ON l.id = lv.link_id WHERE lv.version_id = v.id AND l.state = 'active'))`
 
 func (f TitleFilter) where() (string, []any) {
-	var conds []string
+	// Only titles in the library (a current copy): a removed title is in no list, total or facet.
+	conds := []string{inLibrary}
 	var args []any
 	if f.Kind != "" {
 		conds = append(conds, "t.kind = ?")
@@ -1132,7 +1133,12 @@ func (w *Web) status(ctx context.Context) (Status, error) {
 	}
 	for _, t := range []string{"title", "version", "version_file", "content", "link", "job"} {
 		var n int
-		if err := w.st.Reader().QueryRowContext(ctx, "SELECT COUNT(*) FROM "+t).Scan(&n); err != nil {
+		q := "SELECT COUNT(*) FROM " + t
+		if t == "title" {
+			// The titles in the library (Home's count): a removed title is not one.
+			q += " t WHERE " + inLibrary
+		}
+		if err := w.st.Reader().QueryRowContext(ctx, q).Scan(&n); err != nil {
 			return s, fmt.Errorf("count %s: %w", t, err)
 		}
 		s.Counts[t] = n

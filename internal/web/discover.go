@@ -226,7 +226,9 @@ func (w *Web) upcomingPicks(ctx context.Context, db *sql.DB) ([]pick, error) {
 			first[p.id] = p
 		}
 	}
-	err := scanAll(ctx, db, activity.FirstReleasesBetweenSQL, []any{today, end}, func(r *sql.Rows) error {
+	// Titles in the library only (inLibrary): a removed title has no upcoming release here.
+	err := scanAll(ctx, db, `SELECT b.title_id, b.type, b.date FROM (`+activity.FirstReleasesBetweenSQL+`) b
+		JOIN title t ON t.id = b.title_id WHERE `+inLibrary, []any{today, end}, func(r *sql.Rows) error {
 		var p pick
 		var typ string
 		if err := r.Scan(&p.id, &typ, &p.date); err != nil {
@@ -244,7 +246,8 @@ func (w *Web) upcomingPicks(ctx context.Context, db *sql.DB) ([]pick, error) {
 	err = scanAll(ctx, db, `SELECT title_id, season, number, name, air_date FROM (
 		SELECT e.title_id, e.season, e.number, e.name, e.air_date, ROW_NUMBER() OVER (PARTITION BY e.title_id
 			ORDER BY e.air_date, e.season, e.number) AS rn
-		FROM episode e WHERE e.season > 0 AND `+coming+` AND e.air_date <= ?) WHERE rn = 1`,
+		FROM episode e JOIN title t ON t.id = e.title_id WHERE e.season > 0 AND `+coming+` AND e.air_date <= ?
+			AND `+inLibrary+`) WHERE rn = 1`,
 		append(comingArgs, end), func(r *sql.Rows) error {
 			var p pick
 			var season, number int64

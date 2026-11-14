@@ -78,8 +78,8 @@ func (w *Web) mountAddAPI(mux *http.ServeMux) {
 	w.handle(mux, "GET "+b+"/add/options", SignedIn, auth.PermBrowse, w.apiAddOptions)
 	w.handle(mux, "POST "+b+"/titles", SignedIn, auth.PermAdd, w.apiAddTitle)
 	w.handle(mux, "PUT "+b+"/titles/{id}/versions/{key}", SignedIn, auth.PermAdd, w.apiSetVersion)
-	w.handle(mux, "POST "+b+"/titles/{id}/search", SignedIn, auth.PermManage, w.apiSearchNow)
-	w.handle(mux, "GET "+b+"/titles/{id}/releases", SignedIn, auth.PermManage, w.apiReleases)
+	w.handle(mux, "POST "+b+"/titles/{id}/search", SignedIn, auth.PermManage, w.inLibraryOnly(w.apiSearchNow))
+	w.handle(mux, "GET "+b+"/titles/{id}/releases", SignedIn, auth.PermManage, w.inLibraryOnly(w.apiReleases))
 }
 
 // VersionOption is one version an add sheet offers.
@@ -119,6 +119,9 @@ type AddOptions struct {
 	Kind    string `json:"kind"`
 	Anime   bool   `json:"anime"`
 	TitleID *int64 `json:"title_id,omitempty"`
+	// InLibrary: the title (TitleID) has a current library copy; false for a new title and for one every copy of
+	// which was removed (the add restores it, by its title id).
+	InLibrary bool `json:"in_library"`
 	// RouterEnabled is router.enabled: false while Pause is on, when nothing is searched or grabbed.
 	RouterEnabled bool            `json:"router_enabled"`
 	Versions      []VersionOption `json:"versions"`
@@ -233,6 +236,10 @@ func (w *Web) apiAddOptions(rw http.ResponseWriter, r *http.Request) {
 		Versions: []VersionOption{}, Seasons: []SeasonOption{}}
 	if t != nil {
 		out.TitleID = &t.id
+		if out.InLibrary, err = w.titleInLibrary(ctx, t.id); err != nil {
+			w.internal(rw, err)
+			return
+		}
 	}
 	keys := make([]string, 0, len(w.pol.Versions))
 	for k, vp := range w.pol.Versions {
