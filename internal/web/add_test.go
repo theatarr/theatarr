@@ -699,6 +699,12 @@ func TestReleasesShadowNoLive(t *testing.T) {
 		!strings.Contains(r.Message, "Watch only: no live search") {
 		t.Fatalf("journal: %+v", r)
 	}
+	// Without live the stored decision names what it came from, once.
+	r = Releases{}
+	e.call("GET", APIBase+"/titles/1/releases?version=movie-remux", nil, 200, &r)
+	if r.Message != "From RSS" {
+		t.Errorf("stored message %q", r.Message)
+	}
 	if _, i := e.acq.counts(); i != 0 {
 		t.Fatalf("a shadow version searched indexers %d times", i)
 	}

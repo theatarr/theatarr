@@ -1293,7 +1293,10 @@ func (w *Web) storedEpisodeReleases(ctx context.Context, out *Releases, it evIte
 		out.Rejections = best.rejections
 	}
 	if out.Message == "" {
-		out.Message = "The last search Theatarr decided that covered " + it.code() + " (" + sourceWord(best.target) + ")"
+		out.Message = "From " + sourceWord(best.target)
+		if !strings.EqualFold(best.target, it.code()) {
+			out.Message += ", which covered " + it.code()
+		}
 	}
 	return w.storedGrabbed(ctx, out, best.run, best.decided, best.at, it.episodeID)
 }

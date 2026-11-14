@@ -338,6 +338,8 @@ type Link struct {
 	Score        *int64 `json:"score,omitempty"`
 	TitleID      int64  `json:"title_id"`
 	InfoHash     string `json:"info_hash,omitempty"`
+	// SizeBytes is the linked file's size where it is known (a title's versions only).
+	SizeBytes *int64 `json:"size_bytes,omitempty"`
 }
 
 // Version is a version with its files.
@@ -600,17 +602,18 @@ func (w *Web) versions(ctx context.Context, cond string, args []any, limit, offs
 		}
 	}
 	err = scanAll(ctx, db, uniqueLinkedTargetHash+`SELECT lv.version_id, l.id, l.path, l.target, l.kind, l.state, COALESCE(l.release_title, ''),
-		COALESCE(l.quality, ''), `+linkScoreSQL+`, l.title_id, `+linkHashSQL+`
-		FROM link_version lv JOIN link l ON l.id = lv.link_id`+linkHashJoin+`
+		COALESCE(l.quality, ''), `+linkScoreSQL+`, l.title_id, `+linkHashSQL+`, `+linkSizeSQL+`
+		FROM link_version lv JOIN link l ON l.id = lv.link_id
+		LEFT JOIN content_file cf ON cf.id = l.content_file_id`+linkHashJoin+`
 		WHERE lv.version_id IN (`+in+`) ORDER BY l.path`, targetArgs, func(r *sql.Rows) error {
 		var vid int64
 		var l Link
-		var score sql.NullInt64
+		var score, size sql.NullInt64
 		if err := r.Scan(&vid, &l.ID, &l.Path, &l.Target, &l.Kind, &l.State, &l.ReleaseTitle, &l.Quality, &score,
-			&l.TitleID, &l.InfoHash); err != nil {
+			&l.TitleID, &l.InfoHash, &size); err != nil {
 			return err
 		}
-		l.Score = nullInt(score)
+		l.Score, l.SizeBytes = nullInt(score), nullInt(size)
 		v := &out[idx[vid]]
 		v.Links = append(v.Links, l)
 		return nil

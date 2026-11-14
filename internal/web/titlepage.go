@@ -184,19 +184,22 @@ func (w *Web) enrichTitle(ctx context.Context, d *TitleDetail) error {
 		if err != nil {
 			return err
 		}
-		var size, added int64
+		var added int64
+		var current []any
 		for id, v := range byID {
 			v.Providers = provs[id]
 			v.CachedOn = w.cacheCodes(provs[id])
 			v.Current = currentOf(v, briefFiles(v.Label, aggs[id], nil))
 			if v.Current != nil && !v.Removed {
-				if v.Current.SizeBytes != nil {
-					size += *v.Current.SizeBytes
-				}
+				current = append(current, id)
 				if v.Current.AddedAt != nil {
 					added = max(added, v.Current.AddedAt.UnixMilli())
 				}
 			}
+		}
+		size, err := onDisk(ctx, db, current)
+		if err != nil {
+			return err
 		}
 		// The current file's copies, and for a single current file Cached on too, follow the file's own hash, the one
 		// the Torrent link and "Add to other providers" use (linkHashSQL, fileHashSQL).
@@ -261,6 +264,24 @@ func liveStates(vs []Version) []versionState {
 }
 
 // currentOf builds the current-file brief: the single current file's details when there is one.
+// onDisk is the size of the current files of versions ids, each file counted once: two libraries that link the same
+// file (one target) or list the same arr file (one path) hold it once on disk.
+func onDisk(ctx context.Context, db *sql.DB, ids []any) (int64, error) {
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	in := store.Placeholders(len(ids))
+	var size int64
+	err := db.QueryRowContext(ctx, `SELECT COALESCE(SUM(size), 0) FROM (
+		SELECT MAX(COALESCE(`+linkSizeSQL+`, 0)) AS size FROM link_version lv JOIN link l ON l.id = lv.link_id
+			LEFT JOIN content_file cf ON cf.id = l.content_file_id
+			WHERE lv.version_id IN (`+in+`) AND l.state = 'active' GROUP BY l.target
+		UNION ALL
+		SELECT MAX(COALESCE(vf.size_bytes, 0)) FROM version_file vf LEFT JOIN version_source vs ON vs.version_id = vf.version_id
+			WHERE vf.version_id IN (`+in+`) AND `+curFile+` GROUP BY vf.path)`, append(append([]any{}, ids...), ids...)...).Scan(&size)
+	return size, err
+}
+
 func currentOf(v *Version, files VersionFiles) *CurrentFile {
 	if files.Files == 0 {
 		return nil

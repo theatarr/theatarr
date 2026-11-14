@@ -589,3 +589,29 @@ func TestNameSortTieBreak(t *testing.T) {
 		t.Errorf("name order: %s", got)
 	}
 }
+
+// TestTitleOnDiskCountsSharedFileOnce: two libraries linking the same file (one target) add it to On disk once, and
+// each link carries its size for the admin's Files table.
+func TestTitleOnDiskCountsSharedFileOnce(t *testing.T) {
+	t.Parallel()
+	e := newManageEnv(t, nil)
+	e.exec(`DELETE FROM version_file WHERE title_id = 1`)
+	e.exec(`INSERT INTO version (id, title_id, policy_key, state, created_at, updated_at) VALUES (98, 1, 'movie-web', 'filled', 0, 0)`)
+	e.exec(`INSERT INTO link (id, path, target, title_id, quality, file_metadata, state, created_at, updated_at) VALUES
+		(1, '/remux/Alpha.mkv', '/mount/Alpha.mkv', 1, 'Remux-2160p', '{"Size":1000}', 'active', 0, 0),
+		(2, '/web/Alpha.mkv', '/mount/Alpha.mkv', 1, 'Remux-2160p', '{"Size":1000}', 'active', 0, 0)`)
+	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (1, 1), (2, 98)`)
+
+	var d TitleDetail
+	e.call("GET", APIBase+"/titles/1", nil, 200, &d)
+	if d.SizeBytes == nil || *d.SizeBytes != 1000 {
+		t.Errorf("on disk %v, want 1000", d.SizeBytes)
+	}
+	for _, v := range d.Versions {
+		for _, l := range v.Links {
+			if l.SizeBytes == nil || *l.SizeBytes != 1000 {
+				t.Errorf("%s link %d size %v, want 1000", v.Key, l.ID, l.SizeBytes)
+			}
+		}
+	}
+}

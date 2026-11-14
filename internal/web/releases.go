@@ -238,7 +238,7 @@ func (w *Web) storedReleases(ctx context.Context, out *Releases) error {
 		_ = json.Unmarshal([]byte(cj), &out.Candidates)
 		_ = json.Unmarshal([]byte(rj), &out.Rejections)
 		if out.Message == "" {
-			out.Message = "The last search Theatarr decided for this library (" + sourceWord(target) + ")"
+			out.Message = "From " + sourceWord(target)
 		}
 		if err := w.storedGrabbed(ctx, out, run, jSource, jAt, 0); err != nil {
 			return err
@@ -344,12 +344,13 @@ func scanRunDownload(r *sql.Rows, d *runDownload) error {
 	return r.Scan(&d.id, &d.hash, &d.release, &d.provider, &d.state, &d.err)
 }
 
+// sourceWord names what a stored decision came from, after "From": "RSS", "a search", "a search for S01".
 func sourceWord(target string) string {
 	switch {
 	case target == "rss":
 		return "RSS"
 	case target == "" || target == "movie":
-		return "search"
+		return "a search"
 	}
-	return "search " + target
+	return "a search for " + strings.ToUpper(target)
 }
