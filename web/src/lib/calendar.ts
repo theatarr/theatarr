@@ -88,7 +88,8 @@ export function calendarTone(e: Toned, now: Date, plain = false): { tone: Calend
   const notAvailable = watchWords("missing", [])?.label ?? "Not available";
   if (e.available) return { tone: "ok", label: !plain && e.partial ? "Partly available" : "Available" };
   if (e.acquiring) return plain ? { tone: "neutral", label: "Getting ready" } : { tone: "progress", label: e.stage ? stageWords({ stage: e.stage }) : "Getting ready" };
-  if (!e.monitored) return plain ? { tone: "neutral", label: notAvailable } : { tone: "idle", label: "Not monitored" };
+  // Household accounts are not told about monitoring: an unmonitored entry still reads Upcoming before its date.
+  if (!e.monitored && !plain) return { tone: "idle", label: "Not monitored" };
   const ahead = e.at && !Number.isNaN(new Date(e.at).getTime()) ? new Date(e.at) > now : e.date > utcToday(now);
   if (ahead) return { tone: "neutral", label: "Upcoming" };
   if (plain) return { tone: "neutral", label: notAvailable };

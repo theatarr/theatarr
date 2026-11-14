@@ -84,6 +84,12 @@ describe("calendarTone", () => {
     expect(tone(ep)).toEqual({ tone: "bad", label: "Missing" });
   });
 
+  it("gives a household account Upcoming for a future entry no library monitors, as the title page does", () => {
+    expect(tone({ ...ep, monitored: false, date: "2026-12-01" }, true)).toEqual({ tone: "neutral", label: "Upcoming" });
+    expect(tone({ ...ep, monitored: false }, true)).toEqual({ tone: "neutral", label: "Not available" });
+    expect(tone({ ...ep, monitored: false, date: "2026-12-01" })).toEqual({ tone: "idle", label: "Not monitored" });
+  });
+
   it("uses the air time when known, else the day against today's UTC day, as the title page and lists do", () => {
     expect(tone({ ...ep, date: "2026-11-13", at: new Date(2026, 10, 13, 11, 0).toISOString() }).tone).toBe("bad");
     expect(tone({ ...ep, date: "2026-11-13", at: new Date(2026, 10, 13, 21, 0).toISOString() }).tone).toBe("neutral");
