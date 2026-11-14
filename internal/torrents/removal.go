@@ -24,11 +24,8 @@ type RemovalCleanup struct {
 	By      string
 }
 
-// Reasons a removal clean-up keeps a torrent.
-const (
-	keptUnproven = "Theatarr cannot tell that it added it"
-	keptRestored = "restored before the clean-up ran"
-)
+// keptRestored is why a removal clean-up keeps the torrents of a library restored meanwhile.
+const keptRestored = "restored before the clean-up ran"
 
 // RemovalOutcome is what DeleteForRemoval did. Abort, when set, says why nothing was deleted on any provider
 // ("torrents not cleaned up: ..."); otherwise each hash has its results per provider (Words).
@@ -75,19 +72,17 @@ func (o *RemovalOutcome) Words(hashes []string) string {
 	return w.words()
 }
 
-// DeleteForRemoval deletes the torrents a removal left unused (docs/design/torrents.md "Removal clean-up"), narrowed
-// to what is provably safe: keeping a torrent is always acceptable, deleting a wrong one never is.
-//   - A hash of a removed library restored meanwhile (an Add) is kept; this is checked first and again right before
-//     each delete, under the fence.
+// DeleteForRemoval deletes the torrents a removal left unused (docs/design/torrents.md "Removal clean-up"). The
+// removal with the files deleted is the person's explicit request, so every entry on every provider that holds a
+// candidate hash is taken, whoever added it; the guard is Theatarr's own usage only.
+//   - A hash of a removed library restored meanwhile (an Add) is kept; this is checked after the read and again right
+//     before each delete, under the fence.
 //   - The accounts are read as Torrents › Refresh reads them (the provider sync writes the record and the registry,
 //     then the usage is worked out); if any provider's listing fails, nothing is deleted anywhere. Those lists are
 //     the only ones read: planning and the backup use them.
-//   - Only an entry Theatarr itself added is taken: own-add evidence (own_add = 1) on a download of ours with the
-//     same provider, torrent id and hash, in the current provider epoch. Anything else (reused, not proven, another
-//     hash under the id, another account epoch, a copy to another provider, whose rows carry no epoch) is kept.
-//   - Each is planned by the normal plan rules (PlanDelete: fresh usage; a torrent used by anything else, or whose
-//     usage is unknown, is kept); only the 24-hour and still-downloading guards are lifted (allow_recent), for our own
-//     adds only.
+//   - Each entry is planned by the normal plan rules (PlanDelete: fresh usage; a torrent another title or library,
+//     a download in hand, a kept file or a configured other library's folder uses is kept, and so is one whose usage
+//     is unknown); the 24-hour and still-downloading guards are lifted (allow_recent): the removal ended its download.
 //   - Then it runs as that delete runs: the full backup first, which must hold every provider's list (no backup, no
 //     delete), and each delete under the reference fence and the add lock after its last usage check.
 //
@@ -145,10 +140,6 @@ func (m *Manager) DeleteForRemoval(ctx context.Context, c RemovalCleanup) (*Remo
 	if err != nil {
 		return nil, err
 	}
-	owned, err := m.ownAdds(ctx, hashes)
-	if err != nil {
-		return nil, err
-	}
 	var sel []DeleteSelection
 	for _, k := range m.keys() {
 		for _, t := range lists[k] {
@@ -157,10 +148,8 @@ func (m *Manager) DeleteForRemoval(ctx context.Context, c RemovalCleanup) (*Remo
 			case !slices.Contains(hashes, h):
 			case isRestored(h):
 				out.add(h, "", "kept", keptRestored)
-			case owned[k+"\x00"+t.ID+"\x00"+h]:
-				sel = append(sel, DeleteSelection{Provider: k, ID: t.ID, Hash: h, AllowRecent: true})
 			default:
-				out.add(h, k, "kept", keptUnproven)
+				sel = append(sel, DeleteSelection{Provider: k, ID: t.ID, Hash: h, AllowRecent: true})
 			}
 		}
 	}
@@ -280,34 +269,6 @@ func (m *Manager) restoredKeys(ctx context.Context, titleID int64, keysOf map[st
 			return nil, err
 		}
 		out[k] = true
-	}
-	return out, rows.Err()
-}
-
-// ownAdds are the entries among hashes Theatarr provably added itself: a download of ours marked own_add = 1 (the
-// router saw the hash absent from the account and a new id at the add), in the current provider epoch (the account
-// the id belongs to), as "provider\x00torrent id\x00hash": an id that holds another hash now matches nothing.
-func (m *Manager) ownAdds(ctx context.Context, hashes []string) (map[string]bool, error) {
-	out := map[string]bool{}
-	args := make([]any, len(hashes))
-	for i, h := range hashes {
-		args[i] = h
-	}
-	rows, err := m.Store.Reader().QueryContext(ctx, `SELECT d.provider, d.provider_torrent_id, lower(d.info_hash)
-		FROM download d WHERE d.own_add = 1 AND lower(d.info_hash) IN (`+store.Placeholders(len(args))+`)
-		AND COALESCE(d.provider, '') <> '' AND COALESCE(d.provider_torrent_id, '') <> ''
-		AND d.provider_epoch IS NOT NULL AND d.provider_epoch = COALESCE((SELECT provider_epoch
-			FROM settings_runtime_state WHERE id = 1), 0)`, args...)
-	if err != nil {
-		return nil, fmt.Errorf("torrents: own adds: %w", err)
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var p, id, h string
-		if err := rows.Scan(&p, &id, &h); err != nil {
-			return nil, err
-		}
-		out[p+"\x00"+id+"\x00"+h] = true
 	}
 	return out, rows.Err()
 }

@@ -19,15 +19,13 @@ import (
 
 // removalFixture: title 1 (M) had two libraries, v (version 1) and w (version 3), both removed with their files;
 // title 2 (Other) is in the library. The accounts are read through the provider sync, as Refresh does. Candidates:
-//   - hA: rd 1, our own add (own_add) of five minutes ago, still downloading: deleted (the 24 h and downloading
-//     guards lifted for our own add);
-//   - hB: rd 2, ours, linked by Other: kept, used by Other;
-//   - hC: rd 3, ours, a download of Other in flight: kept;
-//   - hD (library w): rd 4, ours, unused: deleted; tb 90, a copy of ours to the other provider: kept (a copy row
-//     carries no account epoch, so Theatarr cannot tell);
-//   - hE: rd 5, ours, a file of the removed title that was kept (its link stays active): kept;
-//   - hF: rd 6, ours, linked from a configured other library's folder (scan root): kept;
-//   - hG: rd 7, an entry Theatarr reused: kept, not provably ours.
+//   - hA: rd 1, added five minutes ago, still downloading: deleted (the 24 h and downloading guards lifted);
+//   - hB: rd 2, linked by Other: kept, used by Other;
+//   - hC: rd 3, a download of Other in flight: kept;
+//   - hD (library w): rd 4, unused: deleted; tb 90, a copy on the other provider: deleted too;
+//   - hE: rd 5, a file of the removed title that was kept (its link stays active): kept;
+//   - hF: rd 6, linked from a configured other library's folder (scan root): kept;
+//   - hG: rd 7, an entry that was on the account before Theatarr reused it, unused: deleted (whoever added it).
 //
 // hH (rd 8) is not a candidate and is never touched.
 func removalFixture(t *testing.T) *env {
@@ -58,10 +56,10 @@ func removalFixture(t *testing.T) *env {
 		VALUES ('/lib/M/E.mkv', '/elsewhere/E.mkv', 1, 'active', ?, 0, 0)`, `{"InfoHash":"`+hE+`"}`)
 	e.exec(`INSERT INTO link (path, target, title_id, state, file_metadata, created_at, updated_at)
 		VALUES ('/lib/M/D.mkv', '/elsewhere/D.mkv', 1, 'unlinked', ?, 0, 0)`, `{"InfoHash":"`+hD+`"}`)
-	// Our own adds (own_add, epoch 0 as the stored epoch with no settings row): hA's download ended with the removal,
-	// the others were imported; hG's was a reuse of an entry already on the account; hD's copy to tb was our add.
+	// The removed title's downloads: hA's ended with the removal, the others were imported; hG's was a reuse of an
+	// entry already on the account; hD's copy to tb was ours.
 	for id, h := range map[string]string{"1": hA, "2": hB, "3": hC, "4": hD, "5": hE, "6": hF} {
-		e.own("rd", id, h)
+		e.imported("rd", id, h)
 	}
 	e.exec(`INSERT INTO download (title_id, version_id, version_key, info_hash, release_title, indexer, state,
 		provider, provider_torrent_id, reused, provider_epoch, created_at, updated_at) VALUES
@@ -76,12 +74,12 @@ func removalFixture(t *testing.T) *env {
 	return e
 }
 
-// own records a download of title 1 that Theatarr provably added (own_add = 1) as torrent id on prov, epoch 0.
-func (e *env) own(prov, id, hash string) {
+// imported records an imported download of title 1 as torrent id on prov.
+func (e *env) imported(prov, id, hash string) {
 	e.t.Helper()
 	e.exec(`INSERT INTO download (title_id, version_id, version_key, info_hash, release_title, indexer, state,
-		provider, provider_torrent_id, own_add, provider_epoch, created_at, updated_at) VALUES (1, 1, 'v', ?, 'x',
-		'pub', 'imported', ?, ?, 1, 0, 0, 0)`, hash, prov, id)
+		provider, provider_torrent_id, created_at, updated_at) VALUES (1, 1, 'v', ?, 'x', 'pub', 'imported', ?, ?, 0,
+		0)`, hash, prov, id)
 }
 
 // cleanup is a removal clean-up of title 1 for hashes, hD in library w and the others in v.
@@ -127,18 +125,18 @@ func TestDeleteForRemoval(t *testing.T) {
 	}
 	words := out.Words(removalCandidates)
 	t.Logf("clean-up: %s", words)
-	if got, want := e.deletedIDs(), []string{"rd/1", "rd/4"}; !slices.Equal(got, want) {
+	if got, want := e.deletedIDs(), []string{"rd/1", "rd/4", "rd/7", "tb/90"}; !slices.Equal(got, want) {
 		t.Errorf("deleted %v, want %v (%s)", got, want, words)
 	}
-	if e.ard.deleted != 2 || e.atb.deleted != 0 {
+	if e.ard.deleted != 3 || e.atb.deleted != 1 {
 		t.Errorf("adders deleted rd %d, tb %d", e.ard.deleted, e.atb.deleted)
 	}
 	// Each library's own outcome.
 	for h, want := range map[string]string{
-		hD: "deleted on RD; kept on TB: Theatarr cannot tell that it added it",
+		hD: "deleted on RD, TB",
 		hB: "kept on RD: used by Other",
 		hE: "kept on RD: used by M",
-		hG: "kept on RD: Theatarr cannot tell that it added it",
+		hG: "deleted on RD",
 	} {
 		if w := out.Words([]string{h}); w != want {
 			t.Errorf("%s: %q, want %q", h[:1], w, want)
@@ -157,34 +155,6 @@ func TestDeleteForRemoval(t *testing.T) {
 	}
 }
 
-// Ownership is only a positive own-add mark with the same provider, id and hash in the current epoch: AllDebrid
-// handing back an existing magnet or a reconciled entry (own_add unknown), an id of ours that holds another hash now,
-// and an id from another account epoch are kept, even unused and still downloading.
-func TestDeleteForRemovalNeedsProvenOwnership(t *testing.T) {
-	t.Parallel()
-	for name, set := range map[string]func(e *env){
-		"existing magnet or reconciled": func(e *env) {
-			e.exec(`UPDATE download SET own_add = NULL WHERE provider_torrent_id IN ('1', '4')`)
-		},
-		"id of ours with another hash now": func(e *env) {
-			e.exec(`UPDATE download SET info_hash = ? WHERE provider_torrent_id IN ('1', '4')`, hH)
-		},
-		"another account epoch": func(e *env) {
-			e.exec(`INSERT INTO settings_runtime_state (id, last_published_generation, provider_epoch) VALUES (1, 1, 1)`)
-		},
-	} {
-		e := removalFixture(t)
-		set(e)
-		out, err := e.m.DeleteForRemoval(context.Background(), cleanup(hA, hD))
-		if err != nil {
-			t.Fatal(err)
-		}
-		if got := e.deletedIDs(); len(got) != 0 || out.Words([]string{hA}) != "kept on RD: Theatarr cannot tell that it added it" {
-			t.Errorf("%s: deleted %v, %q", name, got, out.Words([]string{hA}))
-		}
-	}
-}
-
 // No backup, no delete: the clean-up deletes nothing and names the provider whose backup failed.
 func TestDeleteForRemovalBackupFails(t *testing.T) {
 	t.Parallel()
@@ -200,7 +170,6 @@ func TestDeleteForRemovalBackupFails(t *testing.T) {
 	}
 	// A provider whose files cannot be read for the backup: named, nothing deleted anywhere.
 	e2 := removalFixture(t)
-	e2.own("tb", "90", hD)
 	reads := 0
 	e2.tb.onDetail = func() {
 		if reads++; reads > 1 { // the plan's read passes, the backup's fails
@@ -221,7 +190,6 @@ func TestDeleteForRemovalBackupFails(t *testing.T) {
 func TestDeleteForRemovalProviderErrors(t *testing.T) {
 	t.Parallel()
 	e := removalFixture(t)
-	e.own("tb", "90", hD)
 	e.atb.deleteErr = errors.New("tb is down")
 	out, err := e.m.DeleteForRemoval(context.Background(), cleanup(hD))
 	if err != nil {
@@ -289,7 +257,7 @@ func TestDeleteForRemovalSaysWhatItLeftOver(t *testing.T) {
 		id := fmt.Sprint(i + 1)
 		hashes = append(hashes, h)
 		e.rd.list = append(e.rd.list, tor(id, h, "T."+id, 1, old, provider.StateDownloaded))
-		e.own("rd", id, h)
+		e.imported("rd", id, h)
 	}
 	out, err := e.m.DeleteForRemoval(context.Background(), cleanup(hashes...))
 	if err != nil {
