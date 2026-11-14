@@ -72,7 +72,7 @@ folder.
 **Fix:**
 
 - To see how it judges a release, paste a release name into **Settings › Profiles › Check a release**. Decisions it
-  has recorded are in **Activity › Decision journal** and on the title's **Last search** page; a title added a
+  has recorded are in **System › Decision journal** and on the title's **Last search** page; a title added a
   moment ago may have none yet. To search the indexers for one title now, run
   `docker compose exec theatarr theatarr decide -tmdb <id> -library <library> -search` (it records nothing).
 - To start downloading, follow [quickstart.md](quickstart.md#9-go-live-deliberately): set the library to
@@ -90,7 +90,7 @@ returned and why each release was accepted or rejected) and **System › Status*
 - **The title has not been searched yet.** The add dialog's **Add** does not search; **Add and search**
   does. A title added with **Add**
   waits for the automatic search: a round every 15 minutes, at most 10 searches an hour, and an older item again
-  only after 24 hours (**Settings › Download clients › Behaviour**, **Automatic search**). The **Wanted** page's
+  only after 24 hours (**Settings › Indexers › Search & RSS**, **Automatic search**). The **Wanted** page's
   **Next search** column says when each item may be searched; **Not scheduled** means **Search for missing items**
   (or **Search for upgrades**) is off, so it is searched only when you ask or after a failed download. **Search
   now** on the title page, or at the end of the title's row in a list's table view, searches it at once. **Search

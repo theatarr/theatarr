@@ -104,7 +104,7 @@ once. `section-panel.test.tsx` exercises partial writes, credentials, 422, 409, 
 | Indexers › RSS | RSS feed checks (`#rss`) | `shadow` | `rss`, `rss_interval` |  |
 | Download clients › Other clients | Other download clients (`#clients`) | `clients` | `"" (root keyed object)` |  |
 | Download clients › Behaviour | What to grab (`#grabbing`) | `router` | `cached_only`, `alldebrid_delete_uncached`, `copy_to_providers` |  |
-| Download clients › Behaviour | Automatic search (`#searches`) | `router` | `wanted` |  |
+| Indexers › Search & RSS | Automatic search (`#searches`) | `router` | `wanted` |  |
 | Download clients › Behaviour | Cache checks (`#cache-checks`) | `router` | `cache_evidence` |  |
 | Download clients › Behaviour | Retries and timing (`#timing`) | `router` | `cached_grace`, `stalled_after`, `downloading_timeout`, `ready_timeout`, `miss_ttl`, `poll_interval`, `max_candidates`, `trackers` | Yes |
 | Notifications | Destinations (`#targets`) | `notify` | `targets`, `digest_at` |  |
@@ -117,8 +117,8 @@ once. `section-panel.test.tsx` exercises partial writes, credentials, 422, 409, 
 | Metadata | Overrides folder (`#overrides`) | `metadata` | `overrides_dir` | Yes |
 | Download clients › Debrid providers | Provider account sync (`#provider-sync`) | `provider_sync` | `interval` |  |
 | Metadata & artwork | Artwork cache (`#artwork-cache`) | `ui` | `images` |  |
-| System › Backup | Torrent-list backups (`#torrent-backups`) | `torrents` | `backup` |  |
-| Torrents (Admin › Torrents) | Other libraries’ folders (`#scan-roots`) | `torrents` | `scan_roots` |  |
+| Download clients › Torrents | Torrent-list backups (`#torrent-backups`; System › Backup shows it as text) | `torrents` | `backup` |  |
+| Download clients › Torrents | Other libraries’ folders (`#scan-roots`; Torrents links it beside its filters) | `torrents` | `scan_roots` |  |
 
 ### Form details
 

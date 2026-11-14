@@ -81,7 +81,7 @@ Known limits, kept as they are:
 ### Lists
 
 The same `import_list` rows (`movie_import_list` until migration 00116) back the **Lists** tab of the Collections page
-(`/collections/lists`, managers and admins). A list is a TMDb movie list, or the titles of a Radarr or Sonarr instance
+(Settings › Import lists, `/admin/settings/import-lists`, managers and admins). A list is a TMDb movie list, or the titles of a Radarr or Sonarr instance
 (below); other providers are not supported. `GET /lists` shows every row, of
 any view; `GET /lists/lookup?tmdb_id=` reads a list's name, description and movie count from TMDb so the form can
 confirm it (the form takes the id or a pasted themoviedb.org list address); `POST /lists`, `PUT /lists/{id}` and

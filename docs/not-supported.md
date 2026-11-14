@@ -77,7 +77,7 @@ The Radarr- and Sonarr-compatible views do not answer every call of the arr APIs
   been tested on real hardware (an ARM VPS, Raspberry Pi, ARM NAS), and neither has a build from source on an
   arm64 host. Reports are welcome. 32-bit ARM is not built.
 - **No update notice.** Theatarr does not check for new versions; `theatarr version` prints the build you run.
-- **Import lists.** Only TMDb movie lists (**Collections › Lists**, or the Radarr-compatible API). There are no
+- **Import lists.** Only TMDb movie lists (**Settings › Import lists**, or the Radarr-compatible API). There are no
   series lists and no other list providers yet.
 - **Tags.** There is no tag-based routing; each library lists its indexers and providers instead
   ([arr-map.md](arr-map.md)).

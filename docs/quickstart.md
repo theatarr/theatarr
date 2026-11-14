@@ -433,7 +433,7 @@ Setup (`/admin/setup`) has six steps:
 4. **Connect your library:** configure the mount under **Settings › Libraries › File management** and Plex under
    **Settings › Plex & playback**, then create your first library: started at once, or as Watch only
    ([above](#6-a-first-library)).
-5. **Check readiness:** run preflight and look at **Activity › Decision journal** (**Open the decision journal**).
+5. **Check readiness:** run preflight and look at **System › Decision journal** (**Open the decision journal**).
 6. **Review activation:** one card per library (its key, label, root, state, indexers and providers, and **Why?**
    listing every closed gate), then Pause. This review is read-only; each item links to its
    editor.

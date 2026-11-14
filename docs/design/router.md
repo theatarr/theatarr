@@ -1704,7 +1704,7 @@ own debrid account, so `router.cached_only`, the providers' pacing and `stalled_
 ## Turning the router on
 
   1. Run `theatarr router dry-run` for a few titles.
-  2. Check `theatarr router status`, and the router plans in **Activity › Decision journal** (`plan` entries).
+  2. Check `theatarr router status`, and the router plans in **System › Decision journal** (`plan` entries).
   3. Set one library Live and turn **Pause** off. The search schedule then starts at its default pace (10 searches
      an hour).
   4. Watch the log line and the first adds.

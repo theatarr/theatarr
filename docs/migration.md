@@ -53,7 +53,7 @@ Running it again adds only titles that are new and links files that are still mi
 already in the library or monitoring you set in Theatarr, with one exception: a series whose episode list the run
 switches from TMDb to TVDB numbering takes Sonarr's season and episode monitoring. So after adding a TVDB key,
 running it again brings series' monitoring and files over. To keep adding titles that are added to the instance
-later, add it as a list under **Collections › Lists** ([arrview.md](design/arrview.md#lists)).
+later, add it as a list under **Settings › Import lists** ([arrview.md](design/arrview.md#lists)).
 
 If the instance keeps running and upgrades a file after the import, Theatarr's link to the old file stops working
 and Theatarr looks for that title again.
@@ -78,7 +78,7 @@ can be undone.
    `theatarr router reconcile -apply` settles the automatic rows; manual rows need a new selection. Work in flight
    is left alone ([router.md (internals)](design/router.md)).
 5. **Start conservatively.** Write down the settings and the success criteria below before you turn anything on.
-   In **Settings › Download clients › Behaviour**, keep cached-only adds on, turn **Search for missing items** and
+   In **Settings › Download clients › Behaviour**, keep cached-only adds on; in **Settings › Indexers › Search & RSS**, turn **Search for missing items** and
    **Search for upgrades** off (**Automatic search**), and use a low searches-per-hour limit. Set the providers'
    pacing to what their API limits allow. Don't cap Real-Debrid or AllDebrid with an uncached-adds-per-hour limit:
    on those providers the

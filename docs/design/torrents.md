@@ -388,9 +388,11 @@ tooltip), one
 table at every width (below 640 px Added, Status and the Size column hide; the size leads the name's second line),
 multi-select and **Delete selected**: the preview opens a
 confirmation with the count, size and the backup it takes first; refused torrents are
-listed with why, and used or unknown ones with a checkbox naming their references to override. **Other libraries'
-folders** (`torrents.scan_roots`, `#scan-roots`) sit below the list, shown once it has loaded, and the torrent journal
-below them.
+listed with why, and used or unknown ones with a checkbox naming their references to override. The filter
+**Not used by Theatarr** (the unused group) has a line beside the filters: it checks Theatarr's libraries and the
+**Other libraries' folders** (`torrents.scan_roots`), which are edited in Settings › Download clients › Torrents
+(`#scan-roots`, linked there); other apps on the same accounts are not seen. The provider tab, filter, text and sort
+are in the URL. The torrent journal is below the list.
 
 **Saved inventory** (`/admin/torrents/inventory`) lists known hashes by decoded name with **Used** (the Torrents page's
 answer from the record and the link count; "not worked out" from the row's `usage_reason` like the entry; "—" when
@@ -416,9 +418,10 @@ Automatic cleanup; changes to the router's two delete paths; anything in the rou
 
 ## Scheduled backups control
 
-System › Backup has a **Schedule** panel beside the torrent-list backups. The shared settings form offers
+System › Backup says the schedule in a line beside the torrent-list backups, with **Change the schedule**: the
+**Torrent-list backups** panel of Settings › Download clients › Torrents (`#torrent-backups`). The shared settings form offers
 backup interval presets or a custom duration (at least one hour), and **Backups to keep** (1–1000, default 30).
 Off removes `backup.every`. Saving reads fresh settings and replaces only the `backup` field, preserving
-other torrent settings and unknown fields in the draft. The summary refreshes after a successful save, with
-its Saved notice retained. Conflicts require reloading; changes needing confirmation
+other torrent settings and unknown fields in the draft. System › Backup's line refreshes after a successful save, and
+the panel keeps its Saved notice. Conflicts require reloading; changes needing confirmation
 use the same confirmation dialog. Retention also keeps backups from the last week.
