@@ -118,13 +118,15 @@ function SourceStates({ entity, ready }: { entity: "indexers" | "providers"; rea
   const page = entity === "indexers" ? "/admin/settings/indexers" : "/admin/settings/downloads";
   const rows = (settings.data?.[entity] ?? []).filter((r) => ready.includes(r.key));
   if (!rows.length) return null;
-  return <ul className="space-y-1" data-testid={`source-states-${entity}`}>{rows.map((r) => {
+  // The sentence about untested sources is said once under the list, not once per source.
+  const untested = rows.some((r) => !r.last_test);
+  return <div data-testid={`source-states-${entity}`}><ul className="space-y-1">{rows.map((r) => {
     const backoff = r.backoff as { active?: boolean; until?: string } | undefined;
     return <li key={r.key} className="flex flex-wrap items-center gap-2"><Link className="font-mono text-[13px] underline" to={`${page}?edit=${encodeURIComponent(r.key)}`}>{r.key}</Link>
-      {r.last_test ? <><span>last test of the saved source{r.last_test.tested_at ? ` (${fmtAgo(r.last_test.tested_at)})` : ""}:</span><TestResult result={r.last_test} /></> : <span className="text-muted-foreground">the saved source has not been tested since Theatarr started. Test in its row of the {entity === "indexers" ? "indexer" : "download client"} list records one; a test of unsaved values in the editor is not recorded.</span>}
+      {r.last_test ? <><span>last test of the saved source{r.last_test.tested_at ? ` (${fmtAgo(r.last_test.tested_at)})` : ""}:</span><TestResult result={r.last_test} /></> : <span className="text-muted-foreground">not tested yet</span>}
       {backoff?.active ? <Badge tone="warning">backing off{backoff.until ? ` until ${new Date(backoff.until).toLocaleTimeString()}` : ""}</Badge> : null}
     </li>;
-  })}</ul>;
+  })}</ul>{untested ? <p className="mt-1 text-[13px] text-muted-foreground">Not tested yet: the saved source has not been tested since Theatarr started. Test in its row of the {entity === "indexers" ? "indexer" : "download client"} list records one; a test of unsaved values in the editor is not recorded.</p> : null}</div>;
 }
 
 function Activation({ data }: { data: VersionList }) {

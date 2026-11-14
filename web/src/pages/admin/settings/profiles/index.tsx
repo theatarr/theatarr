@@ -126,7 +126,7 @@ export function ProfilesPage({ compact = false }: { compact?: boolean }) {
           {o.profiles.map((p) => <TableRow key={p.key} data-profile={p.key} data-selected={session?.mode === "edit" && session.key === p.key ? "true" : undefined}>
             <TableCell className="align-top">
               <div className="font-mono text-[13px] [overflow-wrap:anywhere]">{p.key}</div>
-              <div className="text-xs text-muted-foreground">{p.flavour || "no flavour"}</div>
+              <div className="text-xs text-muted-foreground">{p.flavour || "flavour unknown"}</div>
               <div className="mt-1.5 space-y-1.5 md:hidden"><QualityChips qualities={p.qualities} cutoff={p.cutoff} /></div>
               <div className="mt-1.5 space-y-1.5 sm:hidden"><OriginCell p={p} /><UsedBy p={p} /></div>
             </TableCell>

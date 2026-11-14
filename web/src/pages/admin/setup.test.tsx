@@ -177,7 +177,8 @@ describe("setup", () => {
     expect(indexers.querySelector("a")?.getAttribute("href")).toBe("/admin/settings/indexers?edit=feed");
     expect(indexers.textContent).toMatch(/last test of the saved source \(.+ ago\):/);
     const untested = screen.getByTestId("source-states-providers").textContent;
-    expect(untested).toContain("the saved source has not been tested since Theatarr started");
+    expect(untested).toContain("not tested yet");
+    expect(untested?.match(/the saved source has not been tested since Theatarr started/g)).toHaveLength(1);
     expect(untested).toContain("a test of unsaved values in the editor is not recorded");
     expect(fetch.requests.every((r) => r.method === "GET")).toBe(true);
   });

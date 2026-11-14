@@ -91,7 +91,7 @@ describe("TRaSH sync", () => {
     expect(line.textContent).toContain("trash · tracks TRaSH-Guides/Guides master · last commit");
     expect(line.textContent).toContain("last run failed: could not read the newest commit");
 
-    await user.click(screen.getByRole("button", { name: "Add sync sources" }));
+    await user.click(screen.getByRole("button", { name: "Add sync source" }));
     await user.type(screen.getByLabelText("Key"), "weekly");
     await user.selectOptions(screen.getByLabelText(/TRaSH origin/), "github");
     expect(screen.queryByLabelText("Sync mode")).toBeNull();
@@ -116,7 +116,7 @@ describe("TRaSH sync", () => {
     ]);
     const user = userEvent.setup();
     renderPage(<QualityPanel entity="sync_sources" />);
-    await user.click(await screen.findByRole("button", { name: "Add sync sources" }));
+    await user.click(await screen.findByRole("button", { name: "Add sync source" }));
     expect(screen.queryByLabelText(/Apply quality sizes/)).toBeNull();
     await user.selectOptions(screen.getByLabelText("Source"), "recyclarr");
     expect((screen.getByLabelText(/Apply quality sizes/) as HTMLInputElement).checked).toBe(true);

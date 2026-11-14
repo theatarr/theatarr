@@ -2,7 +2,7 @@
 // test and test-all with per-source results, indexer priority and provider fallback order, and the editor.
 // SourcesView and BudgetsView are plain views over their props; SourcesPanel and BudgetsPanel hold the state, open
 // the editor in a side sheet beside the list (the row stays marked) and announce finished tests.
-import { ArrowDown, ArrowUp, Loader2, Pencil, Plus, Zap } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Loader2, Pencil, Plus, Zap } from "lucide-react";
 import { useEffect, useReducer, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { qk } from "@/api/query-keys";
@@ -25,7 +25,9 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Choice } from "@/components/ui/confirm-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { fmtAgo, fmtGoDuration, fmtNumber, fmtTime } from "@/lib/format";
+import { fmtAgo, fmtGoDuration, fmtNumber, fmtRate, fmtTime } from "@/lib/format";
+import { cn } from "@/lib/utils";
+import { providerLabel } from "@/components/provider-pills";
 import {
   editorKey,
   editorReturn,
@@ -140,7 +142,7 @@ function LastTest({ r, tests, now }: { r: SettingsRecord; tests: TestState; now?
   const res = tests.results[key] ?? r.last_test;
   // Only a test of the source as saved is kept (this row's Test, Test all, a full preflight): the editor's test of
   // unsaved values is not recorded, so a source tested before its save still reads as untested here.
-  if (!res) return <span className="text-[13px] text-muted-foreground" data-testid="test-none">saved source not tested since Theatarr started; a test of unsaved values is not recorded</span>;
+  if (!res) return <span className="text-[13px] text-muted-foreground" data-testid="test-none" title="The saved source has not been tested since Theatarr started; a test of unsaved values in the editor is not recorded.">Not tested yet</span>;
   return (
     <div>
       <TestResult result={res} now={now} />
@@ -208,15 +210,16 @@ function TestAllBar(p: SourcesViewProps) {
   );
 }
 
-function MoveButtons({ p, r, i, count, label }: { p: SourcesViewProps; r: SettingsRecord; i: number; count: number; label?: string }) {
+/** Up and down in a list; on the provider cards, laid out side by side from md up, left and right (earlier, later). */
+function MoveButtons({ p, r, i, count, label, sideways }: { p: SourcesViewProps; r: SettingsRecord; i: number; count: number; label?: string; sideways?: boolean }) {
   const ro = !!p.readOnly || p.filtered;
   return (
     <span className="inline-flex items-center gap-0.5">
-      <Button size="icon-sm" variant="ghost" aria-label={`Move ${r.key} up${label ?? ""}`} disabled={ro || p.moving || i === 0} onClick={() => p.onMove(r, -1)} data-testid="move-up">
-        <ArrowUp />
+      <Button size="icon-sm" variant="ghost" aria-label={`Move ${r.key} ${sideways ? "earlier" : "up"}${label ?? ""}`} disabled={ro || p.moving || i === 0} onClick={() => p.onMove(r, -1)} data-testid="move-up">
+        <ArrowUp className={sideways ? "md:hidden" : undefined} />{sideways ? <ArrowLeft className="max-md:hidden" /> : null}
       </Button>
-      <Button size="icon-sm" variant="ghost" aria-label={`Move ${r.key} down${label ?? ""}`} disabled={ro || p.moving || i === count - 1} onClick={() => p.onMove(r, 1)} data-testid="move-down">
-        <ArrowDown />
+      <Button size="icon-sm" variant="ghost" aria-label={`Move ${r.key} ${sideways ? "later" : "down"}${label ?? ""}`} disabled={ro || p.moving || i === count - 1} onClick={() => p.onMove(r, 1)} data-testid="move-down">
+        <ArrowDown className={sideways ? "md:hidden" : undefined} />{sideways ? <ArrowRight className="max-md:hidden" /> : null}
       </Button>
     </span>
   );
@@ -309,7 +312,7 @@ export function SourcesView(p: SourcesViewProps) {
         <p className="min-w-0 flex-1 basis-64 text-[13px] text-muted-foreground">
           {entity === "indexers"
             ? "Searched in priority order (lower first); the arrows swap neighbours. Requests use the gateway with the configured VPN requirements. Privacy is a label: the libraries that list an indexer decide where its releases go."
-            : "Tried in this fallback order; the arrows move one place. Libraries list their providers in Settings, and the order here must agree."}
+            : "Tried in this fallback order; the arrows move one place earlier or later. Libraries list their providers in Settings, and the order here must agree."}
         </p>
         <div className="flex flex-wrap items-center gap-2">
           {entity === "indexers" ? (
@@ -401,7 +404,7 @@ export function SourcesView(p: SourcesViewProps) {
                       <Badge tone={r.secret_set ? "positive" : "negative"} data-testid="row-secret">credential {r.secret_set ? "set" : "not set"}</Badge>
                     </div>
                   </div>
-                  <MoveButtons p={view} r={r} i={i} count={records.length} />
+                  <MoveButtons p={view} r={r} i={i} count={records.length} sideways />
                 </div>
                 <dl className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-4 gap-y-1.5 text-[13px]">
                   <dt className="text-muted-foreground">Budget</dt>
@@ -655,13 +658,13 @@ export function BudgetsView({ records, readOnly, onEdit, selected }: BudgetsView
                     {u?.backoff?.active ? <Badge tone="warning" className="ml-2 max-sm:ml-0 max-sm:mt-1 max-sm:flex max-sm:w-fit">backed off</Badge> : null}
                     {u?.hour_capped || u?.day_capped ? <Badge tone="negative" className="ml-2 max-sm:ml-0 max-sm:mt-1 max-sm:flex max-sm:w-fit">cap reached</Badge> : null}
                   </TableCell>
-                  <TableCell className="max-sm:col-start-1 sm:whitespace-nowrap"><span className="text-muted-foreground sm:hidden">Rate </span>{c.requests ?? "?"}/{c.per ?? "?"}{c.burst ? ` · burst ${c.burst}` : ""}</TableCell>
-                  <TableCell className="max-sm:col-start-1 sm:whitespace-nowrap">
-                    <span className="text-muted-foreground sm:hidden">Caps </span>{[c.hourly ? `${fmtNumber(c.hourly)}/h` : "", c.daily ? `${fmtNumber(c.daily)}/day` : ""].filter(Boolean).join(" · ") || <span className="text-muted-foreground">rate only</span>}
+                  <TableCell className="max-sm:col-start-1 sm:whitespace-nowrap"><span className="text-muted-foreground sm:hidden">Rate </span>{fmtRate(c.requests, c.per)}{c.burst ? ` · burst ${c.burst}` : ""}</TableCell>
+                  <TableCell className="max-sm:col-start-1 max-sm:flex max-sm:items-center max-sm:gap-1 sm:min-w-[140px]">
+                    <span className="text-muted-foreground sm:hidden">Caps </span><CapBars hourly={c.hourly} daily={c.daily} usedHour={u?.used_hour} usedDay={u?.used_day} />
                   </TableCell>
                   <TableCell className="tabular-nums max-sm:col-start-1 sm:text-right" data-col="hour"><span className="text-muted-foreground sm:hidden">This hour </span>{u ? fmtNumber(u.used_hour) : "—"}</TableCell>
                   <TableCell className="tabular-nums max-sm:col-start-1 sm:text-right" data-col="day"><span className="text-muted-foreground sm:hidden">Today </span>{u ? fmtNumber(u.used_day) : "—"}</TableCell>
-                  <TableCell className="max-w-[16rem] text-[13px] text-muted-foreground max-sm:col-start-1 max-sm:max-w-none"><span className="text-muted-foreground sm:hidden">Used by </span>{(u?.used_by ?? []).join(", ") || "—"}</TableCell>
+                  <TableCell className="max-w-[16rem] text-[13px] text-muted-foreground max-sm:col-start-1 max-sm:max-w-none"><span className="text-muted-foreground sm:hidden">Used by </span>{(u?.used_by ?? []).map(usedByWord).join(", ") || "—"}</TableCell>
                   <TableCell className="text-right max-sm:col-start-2 max-sm:row-start-1">
                     <Button size="xs" variant="outline" onClick={() => onEdit(r)} data-testid="edit" aria-label={readOnly ? `View ${r.key}` : `Edit ${r.key}`}>
                       <Pencil /> {readOnly ? "View" : "Edit"}
@@ -675,6 +678,32 @@ export function BudgetsView({ records, readOnly, onEdit, selected }: BudgetsView
       </Card>
     </div>
   );
+}
+
+// What a budget is used by, from the gateway's class:key ("provider:ad", "indexer:prowlarr-tpb"): "Provider AD",
+// "Indexer prowlarr-tpb"; anything else as sent.
+const USER_CLASS: Record<string, string> = { provider: "Provider", indexer: "Indexer", metadata: "Metadata" };
+export function usedByWord(target: string): string {
+  const [cls, key] = target.split(/:(.*)/s);
+  if (!key || !USER_CLASS[cls]) return target;
+  return `${USER_CLASS[cls]} ${cls === "provider" ? providerLabel(key) : key}`;
+}
+
+// Bar widths in 5% steps as classes: the CSP forbids style attributes in markup, and Tailwind needs literal names.
+const BAR_W = ["w-[2%]", "w-[5%]", "w-[10%]", "w-[15%]", "w-[20%]", "w-[25%]", "w-[30%]", "w-[35%]", "w-[40%]", "w-[45%]", "w-[50%]", "w-[55%]", "w-[60%]", "w-[65%]", "w-[70%]", "w-[75%]", "w-[80%]", "w-[85%]", "w-[90%]", "w-[95%]", "w-full"];
+/** A budget's caps, each with a bar of what it used (the hour's first); "rate only" without a cap. */
+function CapBars({ hourly, daily, usedHour, usedDay }: { hourly?: number; daily?: number; usedHour?: number; usedDay?: number }) {
+  const caps = [hourly ? { used: usedHour ?? 0, of: hourly, per: "hour" } : null, daily ? { used: usedDay ?? 0, of: daily, per: "day" } : null].filter((c) => c !== null);
+  if (!caps.length) return <span className="text-xs text-muted-foreground">rate only</span>;
+  return <div className="grid gap-1 max-sm:flex-1">{caps.map((cap) => {
+    const pct = Math.min(100, Math.round((cap.used / cap.of) * 100));
+    return <div key={cap.per} className="flex items-center gap-2" data-cap={cap.per}>
+      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[var(--bg)]">
+        <div className={cn("h-full rounded-full", pct >= 100 ? "bg-[var(--bad)]" : pct > 75 ? "bg-[var(--warn)]" : "bg-primary", BAR_W[Math.round(pct / 5)])} />
+      </div>
+      <span className="whitespace-nowrap text-xs text-muted-foreground">{fmtNumber(cap.of)}/{cap.per}</span>
+    </div>;
+  })}</div>;
 }
 
 export function BudgetsPanel({ overview, ent, readOnly }: { overview: SettingsOverview; ent: SchemaEntity; readOnly?: string }) {

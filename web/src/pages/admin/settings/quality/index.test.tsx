@@ -169,7 +169,7 @@ describe("quality editors", () => {
       } },
     ]);
     renderPage(<QualityPanel entity="naming" />);
-    const add = await screen.findByRole("button", { name: "Add library naming" });
+    const add = await screen.findByRole("button", { name: "Add naming for a library" });
     vi.useFakeTimers();
     fireEvent.click(add);
     fireEvent.change(screen.getByRole("textbox", { name: "Library key" }), { target: { value: "movie-web" } });
@@ -202,7 +202,7 @@ describe("quality editors", () => {
       { method: "POST", path: "/settings/naming/preview", reply: json({ error: "naming preview unavailable" }, 503) },
     ]);
     renderPage(<QualityPanel entity="naming" />);
-    const add = await screen.findByRole("button", { name: "Add library naming" });
+    const add = await screen.findByRole("button", { name: "Add naming for a library" });
     vi.useFakeTimers();
     fireEvent.click(add);
     fireEvent.change(screen.getByRole("textbox", { name: "Library key" }), { target: { value: "movie-web" } });

@@ -32,7 +32,7 @@ it("shows every budget value on a phone, each with its label", () => {
   expect(usedByEverywhere(row)).toBe(true);
 });
 
-it("shows every back-off and gateway budget value on a phone, the reason included", async () => {
+it("shows every back-off value on a phone, the reason included; the budgets are listed once, in the editable table", async () => {
   mockFetch([{
     method: "GET", path: "/gateway", reply: {
       egress: { vpn_ok: true },
@@ -45,20 +45,18 @@ it("shows every back-off and gateway budget value on a phone, the reason include
   const backoff = reason.closest("tr") as HTMLElement;
   expect(shownOnPhones(backoff)).toBe(true);
   expect(within(backoff).getByText("Reason")).toBeTruthy();
-  const budget = document.querySelector<HTMLElement>('[data-budget="ad-api"]')!;
-  expect(shownOnPhones(budget)).toBe(true);
-  expect(budget.textContent).toContain("torrentio");
-  expect(budget.textContent).toContain("5,000/day");
-  expect(usedByEverywhere(budget)).toBe(true);
-  // The cap has the same visible label as the other stacked values, in the cell that holds the bar.
-  expect(within(budget).getByText("Caps").closest("td")?.textContent).toContain("5,000/day");
+  expect(document.querySelector('[data-budget="ad-api"]')).toBeNull();
 });
 
-it("shows both caps of a budget that has an hourly and a daily one", async () => {
-  mockFetch([{ method: "GET", path: "/gateway", reply: { egress: { vpn_ok: true }, backoffs: [],
-    budgets: [{ key: "tmdb", requests: 40, per: "10s", hourly: 1000, daily: 20000, used_hour: 500, used_day: 900, used_by: ["metadata"] }] } }]);
-  renderPage(<RequestLimitsStatus />, "/admin/advanced/limits");
-  await screen.findByText("metadata");
-  const budget = document.querySelector<HTMLElement>('[data-budget="tmdb"]')!;
-  expect([...budget.querySelectorAll("[data-cap]")].map((c) => c.textContent)).toEqual(["1,000/hour", "20,000/day"]);
+it("shows both caps of a budget with their bars, its rate in words and who uses it by name", () => {
+  const rec = {
+    key: "tmdb", config: { requests: 40, per: "1m0s", hourly: 1000, daily: 20000 },
+    usage: { used_hour: 500, used_day: 900, used_by: ["provider:ad", "indexer:prowlarr-tpb", "metadata:tmdb"] },
+  } as unknown as SettingsRecord;
+  render(<BudgetsView records={[rec]} onEdit={() => {}} />);
+  const row = document.querySelector<HTMLElement>('[data-record="tmdb"]')!;
+  expect([...row.querySelectorAll("[data-cap]")].map((c) => c.textContent)).toEqual(["1,000/hour", "20,000/day"]);
+  expect(within(row).getByText("Caps").closest("td")?.textContent).toContain("20,000/day");
+  expect(row.textContent).toContain("40 / min");
+  expect(row.textContent).toContain("Provider AD, Indexer prowlarr-tpb, Metadata tmdb");
 });

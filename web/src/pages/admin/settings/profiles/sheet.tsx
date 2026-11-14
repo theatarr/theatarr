@@ -59,7 +59,7 @@ function ScoreGroups({ rows, readOnly, onScore }: { rows: Row[]; readOnly: boole
         <summary className="cursor-pointer select-none px-3 py-2 text-sm font-medium [overflow-wrap:anywhere]">{group} <span className="font-normal text-muted-foreground">· {list.length} {list.length === 1 ? "format" : "formats"}{ours ? ` · ${ours} not following TRaSH` : ""}</span></summary>
         <ul className="divide-y divide-[var(--line)] border-t border-[var(--line)]">
           {list.map((r) => <li key={r.format} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-1.5" data-format={r.format}>
-            <Link className="min-w-0 flex-1 basis-40 text-sm underline decoration-[var(--line)] [overflow-wrap:anywhere]" to={`/admin/settings/formats?filter=${encodeURIComponent(r.format)}`} title={`The definition of ${r.format}`}>{r.format}</Link>
+            <Link className="min-w-0 flex-1 basis-40 text-sm underline decoration-[var(--line)] [overflow-wrap:anywhere]" to={`/admin/settings/formats?filter=${encodeURIComponent(r.format)}`} title={`The definition of ${r.format}`}>{/^[0-9a-f]{32}$/.test(r.format) ? `Unknown TRaSH format (${r.format.slice(0, 8)}…)` : r.format}</Link>
             <span className="flex flex-wrap items-center gap-1.5">
               <StateTag state={r.state} />
               {r.saved !== undefined && r.saved !== r.score ? <Badge tone="warning">edited</Badge> : null}

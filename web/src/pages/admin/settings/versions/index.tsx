@@ -29,6 +29,7 @@ type Session = { record: VersionRecord; saved: VersionRecord; generation: number
  * without one). */
 type Pending = { body: VersionBody; effects: Confirmation["effects"]; proof?: Confirmation; create: boolean; inSheet: boolean };
 /** The arr flavour whose TRaSH defaults fit a library kind. */
+const KIND_WORD: Record<string, string> = { movie: "Movies", series: "Series" };
 const flavourOf = (kind: string) => kind === "series" ? "sonarr" : "radarr";
 const split = (text: string) => text.split(",").map((part) => part.trim()).filter(Boolean);
 const copy = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
@@ -125,7 +126,7 @@ function VersionGroup({ title, versions, switches, selected, readOnly, busy, onO
         </TableRow></TableHeader>
         <TableBody>{versions.map((record) => {
           const c = record.config;
-          const where = <><div className="break-all font-mono text-[12.5px]">{c.library || "no root"}</div><div className="text-xs text-muted-foreground" data-testid="library-where">{[c.storage, c.client, c.import].filter(Boolean).join(" · ")}</div></>;
+          const where = <><div className="font-mono text-[12.5px] [overflow-wrap:anywhere]">{c.library || "no root"}</div><div className="text-xs text-muted-foreground" data-testid="library-where">{[c.storage, c.client, c.import].filter(Boolean).join(" · ")}</div></>;
           const profile = <><div className="font-mono text-[12.5px] [overflow-wrap:anywhere]">{c.profile}</div></>;
           const sources = <div className="text-xs [overflow-wrap:anywhere]"><div>{(c.indexers ?? []).length ? (c.indexers ?? []).join(", ") : "no indexers"}</div><div className="text-muted-foreground">{c.add_via === "client" ? `via client ${c.client || "(none)"}` : (c.providers ?? []).length ? (c.providers ?? []).join(" › ") : "no providers"}</div></div>;
           return <TableRow key={record.key} data-record={record.key} data-selected={selected === record.key ? "true" : undefined}>
@@ -330,7 +331,7 @@ export function VersionsPage({ embedded = false }: { embedded?: boolean }) {
       {session ? <Sheet label={session.create ? "New library" : `Edit library ${nameOf(session.record.key, libraryLabel(session.record.key, session.saved.config.profile, session.saved.config.name, session.saved.config.kind))}`} onClose={close} initialFocus={heading} returnFocus={() => (stopped.current ? addButton.current : undefined)}>
         <SheetLayout key={session.draftID} testid="version-form" headingRef={heading} onClose={close}
           title={`${session.create ? "New library" : `Edit library ${nameOf(session.record.key, libraryLabel(session.record.key, session.saved.config.profile, session.saved.config.name, session.saved.config.kind))}`}`}
-          subtitle={session.create ? "Starts as Watch only unless you choose otherwise." : `${session.record.config.kind}${session.record.config.anime ? " · anime" : ""} · ${CHOICE_LABEL[choiceOf(session.record.config.mode) ?? "watch"]}`}
+          subtitle={session.create ? "Starts as Watch only unless you choose otherwise." : `${KIND_WORD[session.record.config.kind] ?? session.record.config.kind}${session.record.config.anime ? " · anime" : ""} · ${CHOICE_LABEL[choiceOf(session.record.config.mode) ?? "watch"]}`}
           footer={<><Button onClick={() => void review()} disabled={readOnly || busy}>Save</Button><Button variant="outline" onClick={close}>Cancel</Button>{libraryChanges(session.record, session.saved) ? <><span className="text-[13px] font-medium text-[var(--ink)]" data-testid="unsaved-count" aria-live="polite">{changeCount(libraryChanges(session.record, session.saved))}</span><Button variant="ghost" size="sm" disabled={busy} data-testid="version-discard" onClick={() => { setSession({ ...session, record: copy(session.saved) }); setError(undefined); setPending(undefined); setDiscards(discards + 1); }}>Discard</Button></> : null}<Link className="text-sm text-[var(--accent-ink)] underline" to="/admin/settings/libraries/naming">Edit naming</Link>{!session.create ? <Button className="ml-auto" variant="destructive" onClick={() => void review(true)} disabled={readOnly || busy}>Stop managing library</Button> : null}</>}>
           {made ? <p className="mb-4 rounded-md border border-[var(--line)] px-3 py-2 text-[13px]" role="status" data-testid="preset-profile-made">The profile <span className="font-mono">{made.key}</span> was created from the TRaSH default {made.name} and is selected. The library itself is saved when Save succeeds; the profile stays either way.</p> : null}
           {error ? <div ref={errorBox} tabIndex={-1} className="mb-4"><ExplainBox error={explainError(error)} onReload={() => void reload(false)} onReloadKeep={() => void reload(true)} /></div> : null}
@@ -464,7 +465,7 @@ function VersionForm({ session, data, defaults, profiles, error, onChange }: { s
       </div>
       <Field label="Kind" {...mark("kind")}><Pick value={config.kind} options={["movie", "series"]} onChange={(value) => recategorize({ ...config, kind: value as VersionConfig["kind"] })} /></Field>
       <Field label="Anime" {...mark("anime")}><Pick value={config.anime === null ? "both" : String(config.anime)} options={["false", "true", "both"]} labels={{ false: "Not anime", true: "Anime only", both: "Anime and not" }} onChange={(value) => recategorize({ ...config, anime: value === "both" ? null : value === "true" })} /></Field>
-      <Field label="Root" changed={!same(config.library, saved.config.library)} error={fieldError("library")}><Input value={config.library} onChange={(event) => { const root = event.target.value; const roots = record.roots?.length && record.roots.length > 1 ? record.roots.map((value) => value === config.library ? root : value) : [root]; setRootsText(roots.join(", ")); onChange({ ...record, config: { ...config, library: root }, roots }); }} /><span role="status" className="break-all text-xs">{rootStatus}</span></Field>
+      <Field label="Root" changed={!same(config.library, saved.config.library)} error={fieldError("library")}><Input value={config.library} onChange={(event) => { const root = event.target.value; const roots = record.roots?.length && record.roots.length > 1 ? record.roots.map((value) => value === config.library ? root : value) : [root]; setRootsText(roots.join(", ")); onChange({ ...record, config: { ...config, library: root }, roots }); }} /><span role="status" className="text-xs [overflow-wrap:anywhere]">{rootStatus}</span></Field>
       <details className="md:col-span-2" open={advanced} data-testid="library-advanced">
         {/* The click is handled here, so the open state has one owner. */}
         <summary className="cursor-pointer text-sm font-medium" onClick={(event) => { event.preventDefault(); setAdvanced(!opened); }}>Advanced</summary>

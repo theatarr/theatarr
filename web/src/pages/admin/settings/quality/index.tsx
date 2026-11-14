@@ -135,7 +135,7 @@ export function QualityPanel({ entity, compact = false, skip = [], match }: { en
     {confirm.dialog}
     <Announcer announcement={announcement} testid="quality-announcer" />
     {records.error ? <ErrorState error={records.error} /> : null}
-    <Button ref={addButton} disabled={readOnly} onClick={() => open()} data-testid="add">Add {entity === "naming" ? "library naming" : entity.replaceAll("_", " ")}</Button>
+    <Button ref={addButton} disabled={readOnly} onClick={() => open()} data-testid="add">Add {entity === "naming" ? "naming for a library" : NOUN[entity]}</Button>
     {(records.data?.records ?? []).filter((r) => !skip.includes(r.key) && (!match || match(r))).map((r) => <Card key={r.id} data-record={r.key} data-selected={session?.id === r.id ? "true" : undefined} className="flex flex-wrap items-center justify-between gap-2 p-3">{entity === "naming" ? <span className="min-w-0 [overflow-wrap:anywhere]"><span className="text-[13.5px] font-medium">{nameOf(r.key)}</span> <span className="font-mono text-[12px] text-muted-foreground">{r.key}</span></span> : <span className="min-w-0 font-mono text-[13.5px] [overflow-wrap:anywhere]">{r.key}</span>}<div className="flex flex-wrap items-center gap-2">
       {entity === "formats" ? <a className="text-sm text-[var(--accent-ink)] underline" href={`${API_BASE}/settings/formats/${r.id}/export`} download={`${r.key}.json`}>Export arr JSON</a> : null}
       <Button variant="outline" size="sm" disabled={readOnly} onClick={() => open(r)} data-testid="edit">Edit {entity === "naming" ? nameOf(r.key) : r.key}</Button>

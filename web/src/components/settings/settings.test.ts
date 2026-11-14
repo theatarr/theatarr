@@ -309,7 +309,8 @@ describe("test and test-all", () => {
   it("shows the saved last test and back-off when nothing ran on this page", () => {
     const html = render(h(SourcesView, sourcesProps()));
     expect(tag(html, "test-result")).toContain('data-key="dmm"');
-    expect(html).toContain("saved source not tested since Theatarr started; a test of unsaved values is not recorded");
+    // Short on the row; the reason is the tooltip.
+    expect(html).toMatch(/data-testid="test-none" title="The saved source has not been tested since Theatarr started[^"]*">Not tested yet</);
     expect(html).toMatch(/data-testid="test-of-saved"[^>]*>saved source/);
     expect(html).toContain("backed off until");
   });
@@ -324,7 +325,7 @@ describe("test and test-all", () => {
   });
   it("shows budget use", () => {
     const html = render(h(BudgetsView, { records: [budget], onEdit: noop }));
-    expect(html).toContain("16/1m0s");
+    expect(html).toContain("16 / min");
     expect(html).toMatch(/data-col="hour"><span[^>]*>This hour <\/span>12</);
     expect(html).toMatch(/data-col="day"><span[^>]*>Today <\/span>140</);
   });

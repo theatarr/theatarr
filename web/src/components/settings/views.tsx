@@ -59,7 +59,9 @@ export function ViewsCard({ readOnly }: { readOnly: boolean }) {
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2 font-medium">
                 {v.key}
-                {v.identity ? <><Mono>{v.identity.path}</Mono><Badge tone="outline">{v.identity.flavour}</Badge></> : null}
+                {/* The address and flavour only when they say more than the name ("radarr", not "radarr /radarr radarr"). */}
+                {v.identity && v.identity.path !== `/${v.key}` ? <Mono>{v.identity.path}</Mono> : null}
+                {v.identity && v.identity.flavour !== v.key ? <Badge tone="outline">{v.identity.flavour === "sonarr" ? "Sonarr" : v.identity.flavour === "radarr" ? "Radarr" : v.identity.flavour}</Badge> : null}
                 {data.source === "db" ? <Badge tone={v.secret_set ? "positive" : "neutral"}>{v.secret_set ? "API key set" : "no API key"}</Badge> : null}
               </div>
               {v.versions.length ? (
