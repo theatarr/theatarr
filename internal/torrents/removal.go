@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/theatarr/theatarr/internal/indexer"
 	"github.com/theatarr/theatarr/internal/provider"
@@ -104,6 +106,23 @@ func (m *Manager) DeleteForRemoval(ctx context.Context, c RemovalCleanup) (*Remo
 		out.Abort = "torrents not cleaned up: " + ErrNoSync.Error()
 		return out, nil
 	}
+	// Every configured provider must be read: one without a client (its key missing) cannot be, so nothing goes.
+	for _, k := range m.keys() {
+		if m.Providers[k] == nil {
+			out.Abort = "torrents not cleaned up: could not read " + m.code(k)
+			return out, nil
+		}
+	}
+	// A copy to another provider still adding or checking one of the hashes is waited for (bounded), so the torrent
+	// it adds is in the read below; one still unsettled then is not cleaned up, and said so.
+	unsettled, err := m.waitCopies(ctx, hashes)
+	if err != nil {
+		return nil, err
+	}
+	for _, hk := range slices.Sorted(maps.Keys(unsettled)) {
+		h, k, _ := strings.Cut(hk, "\x00")
+		out.add(h, k, "kept", "a copy to "+m.code(k)+" was still being added; see Torrents › Unused")
+	}
 	opMu.Lock()
 	defer opMu.Unlock()
 	restored, err := m.restoredKeys(ctx, c.TitleID, keysOf)
@@ -125,9 +144,7 @@ func (m *Manager) DeleteForRemoval(ctx context.Context, c RemovalCleanup) (*Remo
 		}
 	}
 	for _, k := range m.keys() {
-		if m.Providers[k] != nil && !slices.ContainsFunc(res.Providers, func(ps *provider.ProviderSummary) bool {
-			return ps.Provider == k
-		}) {
+		if !slices.ContainsFunc(res.Providers, func(ps *provider.ProviderSummary) bool { return ps.Provider == k }) {
 			out.Abort = "torrents not cleaned up: could not read " + m.code(k)
 			return out, nil
 		}
@@ -150,6 +167,7 @@ func (m *Manager) DeleteForRemoval(ctx context.Context, c RemovalCleanup) (*Remo
 			case !slices.Contains(hashes, h):
 			case isRestored(h):
 				out.add(h, "", "kept", keptRestored)
+			case unsettled[h+"\x00"+k]:
 			default:
 				sel = append(sel, DeleteSelection{Provider: k, ID: t.ID, Hash: h, AllowRecent: true})
 			}
@@ -207,6 +225,49 @@ func (m *Manager) DeleteForRemoval(ctx context.Context, c RemovalCleanup) (*Remo
 		}
 	}
 	return out, nil
+}
+
+// How long DeleteForRemoval waits for a copy to another provider that is adding or checking one of its hashes to
+// settle, and how often it looks.
+const (
+	removalSettleWait = 10 * time.Minute
+	removalSettlePoll = 5 * time.Second
+)
+
+// waitCopies waits for the copies to other providers adding or checking one of hashes to settle (router/copy.go),
+// at most removalSettleWait; it returns those still unsettled then, as "hash\x00provider".
+func (m *Manager) waitCopies(ctx context.Context, hashes []string) (map[string]bool, error) {
+	args := make([]any, len(hashes))
+	for i, h := range hashes {
+		args[i] = h
+	}
+	deadline := m.now().Add(removalSettleWait)
+	for {
+		out := map[string]bool{}
+		rows, err := m.Store.Reader().QueryContext(ctx, `SELECT info_hash, provider FROM provider_copy
+			WHERE state IN ('adding', 'checking') AND info_hash IN (`+store.Placeholders(len(args))+`)`, args...)
+		if err != nil {
+			return nil, fmt.Errorf("torrents: copies being added: %w", err)
+		}
+		for rows.Next() {
+			var h, p string
+			if err := rows.Scan(&h, &p); err != nil {
+				rows.Close()
+				return nil, err
+			}
+			out[h+"\x00"+p] = true
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return nil, err
+		}
+		if len(out) == 0 || !m.now().Before(deadline) {
+			return out, nil
+		}
+		if err := m.sleep(ctx, removalSettlePoll); err != nil {
+			return nil, err
+		}
+	}
 }
 
 // restoredKeys are the libraries (policy keys) among keysOf's of title that are in the library again: their version

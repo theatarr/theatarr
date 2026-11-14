@@ -319,7 +319,7 @@ func (m *Manager) execute(ctx context.Context, plan *DeletePlan, by string, o ex
 	}
 	if err == nil && o.allProviders {
 		for _, p := range b.Providers {
-			if !p.OK && m.Providers[p.Provider] != nil {
+			if !p.OK {
 				err = &BackupProviderError{Provider: p.Provider, Err: errors.New("could not be listed: " + p.Error)}
 				break
 			}

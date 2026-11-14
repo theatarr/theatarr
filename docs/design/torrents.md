@@ -318,6 +318,11 @@ differences:
 - **A removed library restored** (an Add) since keeps its torrents ("restored before the clean-up ran"): checked
   first, and again right before each delete under the fence (the deletes are paced, so a restore can land between
   them).
+- **Every configured provider must be read:** one without a client (its key missing) stops the clean-up ("torrents not
+  cleaned up: could not read TB"), and so does a backup that does not hold every provider's list.
+- **A copy still being added** (to another provider, adding or checking one of the hashes) is waited for first, at
+  most 10 minutes, so its torrent is in the read; one still unsettled then is not cleaned up ("a copy to AD was still
+  being added; see Torrents › Unused").
 - **One read, as Torrents › Refresh does it:** the provider sync lists every account and writes the record and the
   registry; the stored usage is left to the usage worker, and the plan is the clean-up's one reference pass. If any
   provider's listing fails, nothing is deleted anywhere ("torrents not cleaned up: could not read RD"). Planning and
