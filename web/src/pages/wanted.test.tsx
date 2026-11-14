@@ -35,7 +35,7 @@ it("shows read-only waits and handoffs, filters and pages on the server", async 
   expect(screen.getByTestId("pager-range").textContent).toBe("1–50 of 51");
   // Missing counts items; Home's Missing counts titles, and the line says so with a link.
   const count = screen.getByTestId("wanted-count");
-  expect(count.textContent).toBe("51 items (one per film or season in each library, not per episode); Home's Missing counts titles.");
+  expect(count.textContent).toBe("51 items (one per film or season in each Live library, not per episode); Home's Missing counts titles, Watch-only libraries too.");
   expect(within(count).getByRole("link", { name: "Missing" }).getAttribute("href")).toBe("/discover/missing");
   await user.click(screen.getByRole("button", { name: "Next" }));
   await waitFor(() => expect(new URLSearchParams(fetch.calls("GET", "/wanted").at(-1)?.search).get("offset")).toBe("50"));
@@ -97,6 +97,7 @@ it("names upgrades on the cutoff tab's banner and links its switch", async () =>
   const banner = await screen.findByTestId("wanted-switch-off");
   expect(banner.textContent).toContain("Theatarr is not searching for upgrades by itself.");
   expect(banner.textContent).toContain("Better releases are still picked up from RSS feeds.");
+  expect(screen.getByText("No items waiting in this selection; Wanted lists Live libraries only.")).toBeTruthy();
   expect(within(banner).getByRole("link", { name: "Automatic search settings" }).getAttribute("href")).toBe("/admin/settings/downloads/behaviour#searches");
   expect(screen.queryByRole("switch")).toBeNull();
   expect(screen.getByRole("tab", { name: "Missing" }).getAttribute("href")).toBe("/wanted?version=movie-web");
@@ -363,7 +364,7 @@ it("keeps the retry sentence to Missing, names the unit, and puts Decision with 
   renderPage(<WantedPage />, "/wanted/cutoff");
   const r = await screen.findByTestId("wanted-row");
   expect(screen.getByTestId("wanted-pace").textContent).toBe("Up to 20 searches an hour (4 in the last hour). Items are searched again every 24 h.");
-  expect(screen.getByTestId("wanted-count").textContent).toBe("1,128 items (one per film or season in each library, not per episode).");
+  expect(screen.getByTestId("wanted-count").textContent).toBe("1,128 items (one per film or season in each Live library, not per episode).");
   const last = r.querySelector('[data-column="last"]')!;
   expect(last.textContent).toMatch(/Grabbed · Decision$/);
   expect(within(last as HTMLElement).getByRole("link", { name: "Decision" }).getAttribute("href")).toBe("/activity/journal/run%3A3");
@@ -403,7 +404,7 @@ it("shows no Missing rows under Cutoff unmet while its rows load", async () => {
 
 it("sorts on the server from the headers and the sort picker, and filters to one title with a removable chip", async () => {
   const user = userEvent.setup();
-  const grabbed = { ...row, title_id: 2, waiting: "scheduled" as const, next_at: inHours(2), date: "2026-03-18T00:00:00Z",
+  const grabbed = { ...row, title_id: 2, waiting: "scheduled" as const, next_at: inHours(2), date: "2026-03-18",
     last_run: { ...row.last_run!, state: "routed", downloaded: true, download_id: 40, download_state: "failed" as const } };
   const season = { ...row, title_id: 3, version: "tv-web", targets: ["s20"], season: 20, episodes: 139 };
   const fetch = mockFetch([admin, status, { method: "GET", path: "/wanted", reply: { ...page, items: [grabbed, season], titles: { "2": "Beta", "3": "Pokémon" }, total: 2 } }]);
