@@ -242,6 +242,9 @@ func (s *Syncer) syncOne(ctx context.Context, key string, p Provider, dry bool, 
 		if err := recompute(ctx, tx, s.Configured, key, created, localTr); err != nil {
 			return err
 		}
+		if err := WriteRecord(ctx, tx, key, list, now); err != nil {
+			return err
+		}
 		sum.RowsUnchanged = sum.NewContents+sum.NamesFilled+sum.NowPresent+sum.Updated+sum.NowAbsent == 0 &&
 			len(localTr) == 0
 		id, err := insertRun(ctx, tx, sum, started, s.now())
@@ -439,6 +442,53 @@ func applyList(ctx context.Context, tx *sql.Tx, key string, list []Torrent, cont
 		sum.NowAbsent++
 	}
 	return created, nil
+}
+
+// WriteRecord replaces provider key's rows of the record (provider_torrent, migration 00129) with its complete list,
+// every torrent as listed (two of one hash are two rows), and sets the time of that read. It runs in the sync's
+// transaction, so a failed listing or a failed registry update leaves the previous record and its time.
+func WriteRecord(ctx context.Context, tx *sql.Tx, key string, list []Torrent, now int64) error {
+	if _, err := tx.ExecContext(ctx, `DELETE FROM provider_torrent WHERE provider = ?`, key); err != nil {
+		return err
+	}
+	ins, err := tx.PrepareContext(ctx, `INSERT INTO provider_torrent (provider, torrent_id, info_hash, name,
+		original_name, size_bytes, status, state, progress, added_at, files, links)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT (provider, torrent_id) DO UPDATE SET info_hash = excluded.info_hash, name = excluded.name,
+			original_name = excluded.original_name, size_bytes = excluded.size_bytes, status = excluded.status,
+			state = excluded.state, progress = excluded.progress, added_at = excluded.added_at,
+			files = excluded.files, links = excluded.links`)
+	if err != nil {
+		return err
+	}
+	defer ins.Close()
+	for _, t := range list {
+		var added any
+		if !t.Added.IsZero() {
+			added = store.Millis(t.Added)
+		}
+		files := -1
+		if t.Files != nil {
+			files = 0
+			for _, f := range t.Files {
+				if f.Selected {
+					files++
+				}
+			}
+		}
+		orig := t.OriginalName
+		if orig == "" {
+			orig = OriginalName(t.Files, t.Name)
+		}
+		if _, err := ins.ExecContext(ctx, key, t.ID, strings.ToLower(t.Hash), t.Name, orig, t.Bytes, t.Status,
+			string(t.State), t.Progress, added, files, t.Links); err != nil {
+			return err
+		}
+	}
+	_, err = tx.ExecContext(ctx, `INSERT INTO provider_torrent_read (provider, read_at, torrents) VALUES (?, ?, ?)
+		ON CONFLICT (provider) DO UPDATE SET read_at = excluded.read_at, torrents = excluded.torrents`,
+		key, now, len(list))
+	return err
 }
 
 func eqNullInt(n sql.NullInt64, v any) bool {
@@ -737,6 +787,23 @@ func (s *Syncer) Handle(ctx context.Context, j *jobs.Job) error {
 		s.log().Warn("provider sync partly failed", "synced", synced, "failed", len(res.Providers)-synced, "err", runErr)
 	}
 	return nil
+}
+
+// Refresh lists every provider the Syncer has now, back-off or not (the Torrents page's Refresh), and waits for it:
+// the same sync as a job, each provider in its own transaction, and a provider whose list fails gets its retry job
+// as in Handle. The returned error joins the providers' failures.
+func (s *Syncer) Refresh(ctx context.Context) (*SyncResult, error) {
+	res, runErr := s.Run(ctx, SyncOptions{})
+	var errs []error
+	for _, ps := range res.Providers {
+		if ps.OK || ps.Discarded {
+			continue
+		}
+		if err := s.scheduleRetry(ctx, ps.Provider); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return res, errors.Join(append(errs, runErr)...)
 }
 
 // RegisterJobs registers the sync handler on a worker.

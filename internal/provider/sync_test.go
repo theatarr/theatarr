@@ -563,3 +563,78 @@ func TestSyncEmptySuccessfulInventory(t *testing.T) {
 		t.Fatalf("complete empty inventory: %+v", res.Providers[0])
 	}
 }
+
+// The record (provider_torrent): a successful sync replaces the provider's rows with its whole list, two torrents of
+// one hash on one account as two rows, and sets the read time; a failed listing leaves the rows and the time alone.
+func TestSyncWritesRecord(t *testing.T) {
+	t.Parallel()
+	e := newSyncEnv(t)
+	ctx := context.Background()
+	dup := tor("R2", h("a"), "X.2020.1080p", StateDownloaded)
+	dup.Files = []File{{Path: "X/x.mkv", Selected: true}, {Path: "X/x.nfo"}}
+	e.rd.list = []Torrent{tor("R1", h("a"), "X.2020.1080p", StateDownloaded), dup,
+		tor("R3", h("b"), "Y.2021.1080p", StateDownloading)}
+	e.ad.list = []Torrent{}
+	if _, err := e.s.Run(ctx, SyncOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	record := func() string {
+		t.Helper()
+		var out string
+		if err := e.st.Reader().QueryRow(`SELECT COALESCE(group_concat(provider || ':' || torrent_id || ':' ||
+			substr(info_hash, 1, 1) || ':' || files || ':' || original_name, ' '), '') FROM (SELECT * FROM provider_torrent
+			ORDER BY provider, torrent_id)`).Scan(&out); err != nil {
+			t.Fatal(err)
+		}
+		return out
+	}
+	readAt := func(p string) (int64, int) {
+		t.Helper()
+		var at int64
+		var n int
+		if err := e.st.Reader().QueryRow(`SELECT read_at, torrents FROM provider_torrent_read WHERE provider = ?`, p).
+			Scan(&at, &n); err != nil {
+			t.Fatalf("%s read: %v", p, err)
+		}
+		return at, n
+	}
+	if got, want := record(), "rd:R1:a:-1: rd:R2:a:1:X rd:R3:b:-1:"; got != want {
+		t.Fatalf("record %q, want %q", got, want)
+	}
+	if at, n := readAt("rd"); at != store.Millis(e.now) || n != 3 {
+		t.Fatalf("rd read %d %d", at, n)
+	}
+	if at, n := readAt("ad"); at != store.Millis(e.now) || n != 0 {
+		t.Fatalf("an empty account is read: %d %d", at, n)
+	}
+	var cp int
+	if err := e.st.Reader().QueryRow(`SELECT count(*) FROM content_provider WHERE provider = 'rd'`).Scan(&cp); err != nil || cp != 2 {
+		t.Fatalf("the registry keeps one row per hash: %d %v", cp, err)
+	}
+
+	first := e.now
+	e.now = e.now.Add(time.Hour)
+	e.rd.err = errors.New("rd: HTTP 503")
+	e.rd.list = nil
+	if _, err := e.s.Run(ctx, SyncOptions{}); err == nil {
+		t.Fatal("rd failed")
+	}
+	if got := record(); got != "rd:R1:a:-1: rd:R2:a:1:X rd:R3:b:-1:" {
+		t.Fatalf("a failed read keeps the record: %q", got)
+	}
+	if at, _ := readAt("rd"); at != store.Millis(first) {
+		t.Fatalf("a failed read keeps the time: %d", at)
+	}
+	if at, _ := readAt("ad"); at != store.Millis(e.now) {
+		t.Fatalf("ad read again: %d", at)
+	}
+
+	e.rd.err = nil
+	e.rd.list = []Torrent{tor("R3", h("b"), "Y.2021.1080p", StateDownloaded)}
+	if _, err := e.s.Refresh(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got := record(); got != "rd:R3:b:-1:" {
+		t.Fatalf("a successful read replaces the rows: %q", got)
+	}
+}
