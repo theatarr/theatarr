@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { activityHref } from "./copies";
-import { filterDownloads, fmtSpan, isWaiting, needsAttention, parseShow, showCounts, STAGE_MEANINGS, stageLabel, stageMeaning, timing } from "./activity";
+import { downloadHref, filterDownloads, fmtSpan, SHOWS, isWaiting, needsAttention, parseShow, showCounts, STAGE_MEANINGS, stageLabel, stageMeaning, timing } from "./activity";
 
 const NOW = Date.parse("2026-10-26T12:00:00Z");
 const ago = (ms: number) => new Date(NOW - ms).toISOString();
@@ -100,5 +100,12 @@ describe("status meanings", () => {
     }
     for (const l of labels) expect(stageMeaning(l), l).not.toBe("");
     expect(STAGE_MEANINGS.map((m) => m.label).sort()).toEqual([...labels].sort());
+  });
+});
+
+describe("household words and links", () => {
+  it("calls the attention filter 'Needs a look' for a household account and links one download", () => {
+    expect(SHOWS.find((s) => s.id === "attention")?.userLabel).toBe("Needs a look");
+    expect(downloadHref(42)).toBe("/activity?open=42");
   });
 });

@@ -11,11 +11,11 @@ const me = { id: 9, username: "manager", permissions: ["browse", "see_files", "m
 const base = { title: { id: 1, name: "Alpha", kind: "movie", poster: "" }, version: "movie-web", step: "downloading", steps: [], progress: 40, created_at: "2026-10-30T00:00:00Z", updated_at: "2026-10-30T00:00:00Z" };
 const rows = [
   { ...base, id: 7, state: "downloading", words: "Downloading (40%)", release: "Alpha.2026.2160p.WEB-DL", info_hash: "aa", provider_name: "Real-Debrid", cached: true, size: 2_000_000_000, quality: "WEBDL-2160p" },
-  { ...base, id: 8, title: { id: 2, name: "Beta", kind: "movie", poster: "" }, state: "failed", words: "Failed", release: "Beta.2026.1080p", info_hash: "bb" },
+  { ...base, id: 8, title: { id: 2, name: "Beta", kind: "movie", poster: "" }, state: "failed", words: "Failed", detail: "Download failed", error: "miss on every provider", release: "Beta.2026.1080p", info_hash: "bb" },
   { ...base, id: 9, title: { id: 3, name: "Gamma", kind: "movie", poster: "" }, state: "failed", words: "Failed", release: "Gamma.2026.1080p", info_hash: "cc" },
 ];
 
-function show(extra: { method: string; path: string; reply: unknown }[] = []) {
+function show(extra: { method: string; path: string; reply: unknown }[] = [], path = "/activity") {
   const fetch = mockFetch([
     { method: "GET", path: "/auth/me", reply: me },
     { method: "GET", path: "/activity", reply: { state: "now", admin: true, total: rows.length, now: rows } },
@@ -26,7 +26,7 @@ function show(extra: { method: string; path: string; reply: unknown }[] = []) {
       <QueueTab admin show="all" onShow={() => {}} />
       <Toaster />
     </>,
-    "/activity",
+    path,
   );
   return fetch;
 }
@@ -152,4 +152,33 @@ it("keeps the bulk result in a toast when the removal empties the list, with the
   expect(await screen.findByText("Removed 2 downloads. Nothing searched: Pause is on (movie-web)")).toBeTruthy();
   expect(await screen.findByText("Nothing is downloading right now.")).toBeTruthy();
   expect(fetch.calls("POST", "/activity/downloads/31/remove")[0].body).toEqual({ blocklist: true, search: true });
+});
+
+it("names a failed download's reason and release, and says no provider took it", async () => {
+  show();
+  const row = (await screen.findAllByTestId("download")).find((r) => r.textContent?.includes("Beta"))!;
+  expect(within(row).getByTestId("stage").textContent).toBe("Failed");
+  expect(within(row).getByTestId("words").textContent).toBe("miss on every provider");
+  expect(within(row).queryByText("Download failed")).toBeNull();
+  expect(within(row).getByTestId("failed-release").textContent).toBe("Beta.2026.1080p");
+  expect(row.querySelector('[data-column="provider"]')?.textContent).toBe("None took it");
+  // A download in progress keeps its own words and shows no release line under the title.
+  const alpha = (await screen.findAllByTestId("download")).find((r) => r.textContent?.includes("Alpha"))!;
+  expect(within(alpha).queryByTestId("failed-release")).toBeNull();
+});
+
+it("opens the download ?open= names, and closing it drops the parameter", async () => {
+  show([{ method: "GET", path: "/activity/downloads/8/attempts", reply: { attempts: [] } }], "/activity?open=8");
+  const panel = await screen.findByTestId("download-open");
+  expect(within(panel).getByText("Beta.2026.1080p")).toBeTruthy();
+  expect(screen.getAllByTestId("download-open")).toHaveLength(1);
+  const user = userEvent.setup();
+  const row = screen.getAllByTestId("download").find((r) => r.textContent?.includes("Beta"))!;
+  await user.click(within(row).getByTestId("download-details"));
+  await waitFor(() => expect(screen.queryByTestId("download-open")).toBeNull());
+});
+
+it("says when the download ?open= names has left the queue", async () => {
+  show([], "/activity?open=99");
+  expect((await screen.findByTestId("open-missing")).textContent).toContain("Download 99 is no longer in the queue");
 });

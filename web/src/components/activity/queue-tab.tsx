@@ -7,7 +7,7 @@
 // GPL-3.0: the status pill, title and release lines, and the details panel's small uppercase labels).
 import { ChevronDown, ChevronUp, Columns3, HelpCircle, Inbox, NotebookPen } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Link } from "react-router";
+import { Link, useSearchParams } from "react-router";
 import { removeDownload, useActivityAttempts, useActivityNow, type ActivityDownload } from "@/api/activity";
 import { useAuth } from "@/api/auth";
 import { usePerms } from "@/api/library";
@@ -133,16 +133,28 @@ function DownloadDetails({ d }: { d: ActivityDownload }) {
   );
 }
 
+/** Whether the row's message (its error) is its reason: a failed download, or a link the library refused or that
+ * failed. */
+const failedWhy = (d: ActivityDownload) => d.state === "failed" || d.import_state === "rejected" || d.import_state === "failed";
+
 function Stage({ d, admin, attention }: { d: ActivityDownload; admin: boolean; attention: boolean }) {
   const label = stageLabel(d);
   const tone = attention && toneOf(d) !== "bad" ? "warn" : toneOf(d);
-  const words = admin && d.detail ? d.detail : d.words;
+  // A failure names its reason ("miss on every provider"), not "Download failed" again.
+  const reason = admin && d.error && failedWhy(d) ? d.error : "";
+  const words = reason || (admin && d.detail ? d.detail : d.words);
   return (
     <div className="min-w-0">
       <p className={cn("text-sm font-medium", WORD_TONE[tone])} data-testid="stage" title={stageMeaning(label) || undefined}>{label}</p>
-      {words && words !== label ? <p className="truncate text-xs text-muted-foreground" data-testid="words" title={words}>{words}</p> : null}
+      {words && words !== label ? <p className={cn("text-xs text-muted-foreground", reason ? "line-clamp-2 break-words" : "truncate")} data-testid="words" title={words}>{words}</p> : null}
     </div>
   );
+}
+
+/** A failed download's release name, under its title, so repeated failures for one item tell apart (admins). */
+function FailedRelease({ d }: { d: ActivityDownload }) {
+  if (!d.release || !failedWhy(d)) return null;
+  return <p className="truncate font-mono text-[11.5px] text-muted-foreground" data-testid="failed-release" title={d.release}>{d.release}</p>;
 }
 
 /** Whether the row shows a progress bar: while it is with the provider or being linked. */
@@ -254,7 +266,8 @@ function TableTitle({ t }: { t: ActivityDownload["title"] }) {
 
 /** The provider (or download client) and whether it was cached or reused. */
 function ProviderCell({ d }: { d: ActivityDownload }) {
-  if (!d.provider_name && !d.client) return <Dash />;
+  // A failed download no provider accepted: say so rather than a bare dash.
+  if (!d.provider_name && !d.client) return d.state === "failed" && !d.not_started ? <span className="whitespace-nowrap text-muted-foreground" data-testid="no-provider">None took it</span> : <Dash />;
   return (
     <span className="block whitespace-nowrap">
       {d.provider_name ? <span className="block">{d.provider_name}</span> : <span className="block">client {d.client}</span>}
@@ -282,11 +295,12 @@ function queueColumns(now: number): { fixed: DataColumn<ActivityDownload>[]; opt
         id: "title",
         label: "Title",
         card: "none",
-        cellClassName: "max-w-[10rem]",
+        cellClassName: "max-w-[16rem]",
         cell: (d) => (
           <div className="min-w-0">
             <TableTitle t={d.title} />
             {d.episodes?.length ? <p className="truncate text-xs text-muted-foreground" title={d.episodes.join(" ")}>{episodesWords(d.episodes)}</p> : null}
+            <FailedRelease d={d} />
           </div>
         ),
       },
@@ -326,7 +340,15 @@ function OpenPanel({ d }: { d: ActivityDownload }) {
 
 /** The Queue as a table, for accounts that see files. */
 function QueueTable({ items, now, prefs, sort, onSort }: { items: ActivityDownload[]; now: number; prefs: { order: QueueColumnId[]; shown: QueueColumnId[] }; sort: QueueSort; onSort: (c: string) => void }) {
-  const [open, setOpen] = useState<ReadonlySet<number>>(new Set());
+  const [opened, setOpen] = useState<ReadonlySet<number>>(new Set());
+  // ?open=<id> (downloadHref, e.g. System › Status's Inspect) opens that download's panel; closing it drops the
+  // parameter, so the URL and the open row agree.
+  const [sp, setSp] = useSearchParams();
+  const deep = openParam(sp);
+  const open = useMemo(() => (deep ? new Set([...opened, deep]) : opened), [opened, deep]);
+  useEffect(() => {
+    if (deep) document.querySelector(`[data-download-id="${deep}"]`)?.scrollIntoView?.({ block: "center" });
+  }, [deep]);
   const rows = useMemo(() => sortDownloads(items, sort), [items, sort]);
   const manage = usePerms().manage;
   const select = useChosen(rows.map((d) => d.id));
@@ -334,13 +356,25 @@ function QueueTable({ items, now, prefs, sort, onSort }: { items: ActivityDownlo
   const [block, setBlock] = useState(false);
   const { fixed, optional } = queueColumns(now);
   const columns = tight([...fixed, ...prefs.order.filter((id) => prefs.shown.includes(id)).map((id) => optional[id])]);
-  const toggle = (id: number) =>
+  const toggle = (id: number) => {
+    if (id === deep) {
+      const next = new URLSearchParams(sp);
+      next.delete("open");
+      setSp(next, { replace: true });
+      setOpen((s) => {
+        const n = new Set(s);
+        n.delete(id);
+        return n;
+      });
+      return;
+    }
     setOpen((s) => {
       const n = new Set(s);
       if (n.has(id)) n.delete(id);
       else n.add(id);
       return n;
     });
+  };
   return (
     <>
       <SelectionLine count={select.count} action="Remove selected…" onAct={() => setRemoving(true)} onClear={select.clear} />
@@ -356,6 +390,7 @@ function QueueTable({ items, now, prefs, sort, onSort }: { items: ActivityDownlo
         testid="queue-table"
         rowProps={(d) => ({
           "data-testid": "download",
+          "data-download-id": d.id,
           "data-state": d.state,
           "data-attention": needsAttention(d, now) || undefined,
           className: open.has(d.id) ? "bg-[var(--sunken)]" : undefined,
@@ -368,6 +403,7 @@ function QueueTable({ items, now, prefs, sort, onSort }: { items: ActivityDownlo
               {d.quality ? <Badge tone="outline">{d.quality}</Badge> : null}
               {d.episodes?.length ? <span>{episodesWords(d.episodes)}</span> : null}
             </div>
+            <FailedRelease d={d} />
             <Stage d={d} admin attention={needsAttention(d, now)} />
             <QueueProgress d={d} now={now} empty={null} />
           </>
@@ -403,6 +439,9 @@ function QueueTable({ items, now, prefs, sort, onSort }: { items: ActivityDownlo
     </>
   );
 }
+
+/** The download ?open= names, or 0. */
+const openParam = (sp: URLSearchParams) => Math.max(0, Math.trunc(Number(sp.get("open")) || 0));
 
 const downloads = (n: number) => `${n} ${n === 1 ? "download" : "downloads"}`;
 
@@ -456,11 +495,14 @@ export function QueueTab({ admin, as, show, onShow }: { admin: boolean; as?: "us
   const [prefs, savePrefs] = useColumnPrefs("activity-queue", QUEUE_COLUMNS, QUEUE_DEFAULT);
   const [sort, onSort] = useQueueSort();
   const [dialog, setDialog] = useState<"columns" | "meanings" | null>(null);
+  const [sp] = useSearchParams();
   if (q.isPending) return <Loading />;
   if (q.error) return <ErrorState error={q.error} />;
   const all = q.data.now ?? [];
   const counts = showCounts(all, now);
   const items = filterDownloads(all, show, now);
+  const deep = admin ? openParam(sp) : 0;
+  const deepWhere = !deep || items.some((d) => d.id === deep) ? "" : all.some((d) => d.id === deep) ? "hidden" : "gone";
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-center gap-2">
@@ -498,6 +540,21 @@ export function QueueTab({ admin, as, show, onShow }: { admin: boolean; as?: "us
           </>
         ) : null}
       </div>
+      {deepWhere ? (
+        <p role="status" className="mb-3 text-sm text-muted-foreground" data-testid="open-missing">
+          {deepWhere === "hidden" ? (
+            <>
+              Download {deep} is not under this filter.{" "}
+              <button type="button" className="text-primary hover:underline" onClick={() => onShow("all")}>Show all</button>
+            </>
+          ) : (
+            <>
+              Download {deep} is no longer in the queue: it was linked, removed or dismissed.{" "}
+              <Link className="text-primary hover:underline" to="/activity/history">See History</Link>
+            </>
+          )}
+        </p>
+      ) : null}
       {items.length === 0 ? (
         <Card>
           <Empty icon={Inbox}>
@@ -511,7 +568,7 @@ export function QueueTab({ admin, as, show, onShow }: { admin: boolean; as?: "us
         <Card className="p-0">
           <div className="hidden border-b border-[var(--line)] bg-[var(--sunken)] px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--ink-3)] md:grid md:grid-cols-[1.75rem_minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1fr)_5.5rem] md:gap-4">
             <span />
-            <span>Title and library</span>
+            <span>Title</span>
             <span>Stage</span>
             <span>Progress</span>
             <span className="sr-only">Action</span>

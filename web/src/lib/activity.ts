@@ -6,11 +6,14 @@ import type { ActivityDownload } from "@/api/activity";
 export type ActivityShow = "attention" | "downloading" | "waiting" | "all";
 
 export const SHOWS: { id: ActivityShow; label: string; userLabel?: string }[] = [
-  { id: "attention", label: "Needs attention", userLabel: "Delayed" },
+  { id: "attention", label: "Needs attention", userLabel: "Needs a look" },
   { id: "downloading", label: "Downloading" },
   { id: "waiting", label: "Waiting" },
   { id: "all", label: "All" },
 ];
+
+/** The Queue with one download's panel open (Inspect from elsewhere opens that download, not the whole list). */
+export const downloadHref = (id: number) => `/activity?open=${id}`;
 
 /** The filter a ?show= value names; All for anything else. */
 export function parseShow(v: string | null | undefined): ActivityShow {
