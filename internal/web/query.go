@@ -832,16 +832,17 @@ func (w *Web) getContent(ctx context.Context, hash string) (*Content, error) {
 	return c, nil
 }
 
-// ContentRow is a registry list row. Usage and LinkedFiles (links: library links and scanned symlinks) are the
-// Torrents page's answer for the hash from the record; absent when no account holds it there.
+// ContentRow is a registry list row. Usage, LinkedFiles (links: library links and scanned symlinks) and UsageReason
+// (the first reason of an unknown usage, such as not worked out yet) are the Torrents page's answer for the hash from
+// the record; absent when no account holds it there.
 type ContentRow struct {
 	InfoHash    string         `json:"info_hash"`
 	Name        string         `json:"name"`
 	State       string         `json:"state"`
-	Versions    int            `json:"versions"`
 	LastSeenAt  time.Time      `json:"last_seen_at"`
 	Usage       torrents.Usage `json:"usage,omitempty"`
 	LinkedFiles int            `json:"linked_files,omitempty"`
+	UsageReason string         `json:"usage_reason,omitempty"`
 }
 
 // listContent lists registry contents, newest first; each word of q matches a name substring or a hash prefix.
@@ -865,13 +866,12 @@ func (w *Web) listContent(ctx context.Context, q, state string, limit, offset in
 		return nil, 0, err
 	}
 	out := []ContentRow{}
-	err := scanAll(ctx, w.st.Reader(), `SELECT c.info_hash, c.name, c.state,
-		(SELECT COUNT(*) FROM content_version cv WHERE cv.content_id = c.id), c.last_seen_at FROM content c`+where+`
+	err := scanAll(ctx, w.st.Reader(), `SELECT c.info_hash, c.name, c.state, c.last_seen_at FROM content c`+where+`
 		ORDER BY c.last_seen_at DESC, c.id DESC LIMIT ? OFFSET ?`, append(args, limit, max(offset, 0)),
 		func(r *sql.Rows) error {
 			var c ContentRow
 			var last int64
-			if err := r.Scan(&c.InfoHash, &c.Name, &c.State, &c.Versions, &last); err != nil {
+			if err := r.Scan(&c.InfoHash, &c.Name, &c.State, &last); err != nil {
 				return err
 			}
 			c.LastSeenAt = ts(last)
@@ -890,6 +890,9 @@ func (w *Web) listContent(ctx context.Context, q, state string, limit, offset in
 	for i := range out {
 		if hu, ok := us[hashes[i]]; ok {
 			out[i].Usage, out[i].LinkedFiles = hu.Usage, hu.LinkedFiles
+			if hu.Usage == torrents.Unknown && len(hu.Reasons) > 0 {
+				out[i].UsageReason = hu.Reasons[0]
+			}
 		}
 	}
 	return out, total, err

@@ -117,6 +117,16 @@ func TestTorrentsAPI(t *testing.T) {
 	if code := e.getKey(APIBase+"/registry/"+h1, key, &c); code != 200 || c.Usage == nil || c.Usage.Usage != torrents.Unused {
 		t.Errorf("inventory entry: %d %+v", code, c.Usage)
 	}
+	// A hash whose usage is not worked out yet says why in the list, as its entry does.
+	e.exec(`DELETE FROM provider_hash_usage WHERE info_hash = ?`, h2)
+	if code := e.getKey(APIBase+"/registry", key, &inv); code != 200 {
+		t.Fatalf("inventory: %d", code)
+	}
+	for _, it := range inv.Items {
+		if pending := it.InfoHash == h2; (it.UsageReason != "") != pending || pending && it.Usage != torrents.Unknown {
+			t.Errorf("inventory %s: %q %q", it.InfoHash, it.Usage, it.UsageReason)
+		}
+	}
 	if prov.lists != 0 {
 		t.Errorf("sources and inventory call no provider: %d", prov.lists)
 	}

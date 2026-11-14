@@ -514,7 +514,7 @@ func TestAPIOther(t *testing.T) {
 		Total int
 		Items []ContentRow
 	}
-	if code := e.getKey(APIBase+"/registry?q=aaaa", key, &rl); code != 200 || rl.Total != 1 || rl.Items[0].Versions != 1 {
+	if code := e.getKey(APIBase+"/registry?q=aaaa", key, &rl); code != 200 || rl.Total != 1 {
 		t.Errorf("registry list: %d %+v", code, rl)
 	}
 	// Every word: in the name, or a hash prefix.

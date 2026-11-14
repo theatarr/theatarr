@@ -46,8 +46,9 @@ and after an account change in Settings, by one background worker of `theatarr s
 pending signal, so a burst of syncs gives one run, and one run at a time), and by Refresh itself before it answers, from the reference index (library links, arr files, downloads in flight, the scan roots' symlinks, the
 mount's listing; `loadRefs`, `StoreUsage`), and stored with the record: per account torrent (`usage`,
 `linked_files`, and the shown file count, references, titles and reasons in `detail`) and per hash
-(`provider_hash_usage`). So "used" is as of the same time as the record: a library link made since shows at the
-next sync or Refresh. The Torrents page, Sources and Saved inventory read that stored answer with plain indexed
+(`provider_hash_usage`). So "used" is as of the newest sync or Refresh (not always an account's `as_of`, which is when
+its list was read: a later sync of another account works out the usage of all): a library link made since shows at
+the next sync or Refresh. The Torrents page, Sources and Saved inventory read that stored answer with plain indexed
 queries; a page open walks no scan root, reads no mount listing and calls no provider (`TestRecordReadsNothingLive`:
 about 30 ms for a report of 2,750 torrents in the test). `theatarr serve` also works it out once at start when the
 record has rows or hashes without it (a demo seed, or a sync run by `theatarr providers sync`); until then such a
@@ -318,7 +319,8 @@ Admin › Torrents opens from the record: one line per account with its counts i
 938 unique hashes", "of" the limit on AllDebrid), size, unused and unknown, and "as of" the record's time; an account
 never read says "Not read yet — Refresh reads it" (not an empty account), and one whose last read failed says so with
 the record it still shows ("Could not read RD just now: <why>. Showing the record as of <time>."). One line says that
-used and unused are as of the same time. A torrent whose stored usage is not there yet reads **not worked out** with
+each time is when that account's list was read and that used and unused are worked out again after each read or
+Refresh. A torrent whose stored usage is not there yet reads **not worked out** with
 its reason (never unused, never in the Unused group); other unknown torrents show their first reason under the badge.
 **Refresh** says "Reading the accounts…" while it runs, then what it read per account ("Read the accounts: RD 981
 account torrents · TB could not be read.", with `refresh_error`) and the list from the new record. Provider tabs,
@@ -338,7 +340,8 @@ folders** (`torrents.scan_roots`, `#scan-roots`) sit below the list, shown once 
 below them.
 
 **Saved inventory** (`/admin/torrents/inventory`) lists known hashes by decoded name with **Used** (the Torrents page's
-answer from the record and the link count; "—" when no account holds the hash) and the inventory's own state in words
+answer from the record and the link count; "not worked out" from the row's `usage_reason` like the entry; "—" when
+no account holds the hash) and the inventory's own state in words
 that claim nothing about usage: Held, tied to an import (`present`); Held, not tied to an import (`unreferenced`); On no
 account (`absent`); Removed (`gone`); Not known yet (`unknown`). The state filter uses the same words. The count says
 "N torrents (unique hashes)". A detail shows **Used** (badge, links, references: five, then "and N more"; titles
