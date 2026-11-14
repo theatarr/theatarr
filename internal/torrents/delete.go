@@ -43,6 +43,10 @@ type DeleteSelection struct {
 	OverrideToken string `json:"override_token,omitempty"`
 	// AllowRecent deletes a torrent added in the last 24 hours or still downloading.
 	AllowRecent bool `json:"allow_recent,omitempty"`
+
+	// removal marks a removal clean-up's selection (DeleteForRemoval): the 24-hour guard is lifted, and the
+	// still-downloading guard only for an entry Theatarr itself added (owned).
+	removal, owned bool
 }
 
 // DeleteItem is one selection in a plan.
@@ -161,7 +165,9 @@ func (m *Manager) PlanDelete(ctx context.Context, sel []DeleteSelection) (*Delet
 				it.NeedsOverride = true
 				it.Refusal = "the override does not name this torrent's references as they are now: " +
 					describe(it.Refs, it.Reasons)
-			case (recent || busy) && !s.AllowRecent:
+			case s.removal && busy && !s.owned:
+				it.Refusal = "still downloading, and not provably Theatarr's own add"
+			case !s.removal && (recent || busy) && !s.AllowRecent:
 				it.NeedsRecent = true
 				it.Refusal = "added in the last 24 hours (or the date is unknown)"
 				if busy {
@@ -265,12 +271,21 @@ func (m *Manager) Delete(ctx context.Context, sel []DeleteSelection, token, by s
 	if plan.Count == 0 {
 		return plan, nil
 	}
-	return m.execute(ctx, plan, by)
+	return m.execute(ctx, plan, by, executeOptions{})
+}
+
+// executeOptions are what DeleteForRemoval adds to a delete's run.
+type executeOptions struct {
+	// allProviders: the backup must hold every provider's complete list, or nothing is deleted.
+	allProviders bool
+	// veto, when set, runs right before each delete, after its last usage check under the fence and the add lock:
+	// a non-empty answer skips the delete with that reason.
+	veto func(ctx context.Context, it *DeleteItem) string
 }
 
 // execute runs a plan's deletes (Delete's, and DeleteForRemoval's) under opMu: the full backup first (no backup, no
 // delete), then each delete under the fence and the add lock after its last usage check (fencedDelete), journaled.
-func (m *Manager) execute(ctx context.Context, plan *DeletePlan, by string) (*DeletePlan, error) {
+func (m *Manager) execute(ctx context.Context, plan *DeletePlan, by string, o executeOptions) (*DeletePlan, error) {
 	need := map[string]map[string]bool{}
 	for _, it := range plan.Items {
 		if it.Action == ActDelete {
@@ -283,6 +298,14 @@ func (m *Manager) execute(ctx context.Context, plan *DeletePlan, by string) (*De
 	b, _, err := m.TakeBackup(ctx, BackupOptions{Reason: ReasonPreDelete, By: by, Lists: plan.lists, Need: need})
 	if err == nil {
 		err = backupHolds(b, plan)
+	}
+	if err == nil && o.allProviders {
+		for _, p := range b.Providers {
+			if !p.OK && m.Providers[p.Provider] != nil {
+				err = fmt.Errorf("%s could not be listed: %s", p.Provider, p.Error)
+				break
+			}
+		}
 	}
 	if err != nil {
 		m.journal(ctx, JournalEntry{Action: "backup", Outcome: "failed", Detail: err.Error(), By: by})
@@ -314,7 +337,7 @@ func (m *Manager) execute(ctx context.Context, plan *DeletePlan, by string) (*De
 				continue
 			}
 		}
-		sent, err := m.fencedDelete(ctx, plan, it, scan, b.ID)
+		sent, err := m.fencedDelete(ctx, plan, it, scan, b.ID, o.veto)
 		if sent {
 			last[it.Provider] = true
 		}
@@ -345,7 +368,7 @@ const deleteBound = reffence.LeaseFor - time.Minute
 // usage once more.
 // sent says whether the provider was asked, and err is its answer; when not, it is skipped and says why.
 func (m *Manager) fencedDelete(ctx context.Context, plan *DeletePlan, it *DeleteItem, scan *refIndex,
-	backup string) (bool, error) {
+	backup string, veto func(context.Context, *DeleteItem) string) (bool, error) {
 	release, err := reffence.Hold(ctx, m.Store, m.now())
 	if err != nil {
 		it.Outcome, it.Error = OutSkipped, "not deleted: "+err.Error()
@@ -367,6 +390,12 @@ func (m *Manager) fencedDelete(ctx context.Context, plan *DeletePlan, it *Delete
 	if why != "" {
 		it.Outcome, it.Error = OutSkipped, why
 		return false, nil
+	}
+	if veto != nil {
+		if why := veto(dctx, it); why != "" {
+			it.Outcome, it.Error = OutSkipped, why
+			return false, nil
+		}
 	}
 	return true, m.deleteOne(dctx, it, backup, plan.Digest)
 }

@@ -40,8 +40,10 @@ type fakeProvider struct {
 	detail    map[string]*provider.Torrent
 	detailErr error
 	reads     int
-	lists     int    // list calls
-	onDetail  func() // runs on each detail read
+	lists     int // list calls
+	// listErrAfter, when set, fails every list call after that many.
+	listErrAfter int
+	onDetail     func() // runs on each detail read
 }
 
 func (f *fakeProvider) Key() string  { return f.key }
@@ -52,6 +54,9 @@ func (f *fakeProvider) Account(context.Context) (*provider.Account, error) {
 
 func (f *fakeProvider) Torrents(context.Context) ([]provider.Torrent, error) {
 	f.lists++
+	if f.listErrAfter > 0 && f.lists > f.listErrAfter {
+		return nil, errors.New(f.key + " stopped answering")
+	}
 	if f.listErr != nil {
 		return nil, f.listErr
 	}
