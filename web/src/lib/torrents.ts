@@ -3,7 +3,6 @@
 import type { Schemas } from "@/api/client";
 import type { Scope } from "@/lib/ops";
 import { fmtBytes, fmtNumber, fmtTime } from "@/lib/format";
-import { PROVIDER_SERVICES } from "@/lib/settings";
 import { wordMatcher } from "@/lib/words";
 
 export type Torrent = Schemas["Torrent"];
@@ -169,14 +168,13 @@ export function restoreScope(p: RestorePlan): Scope {
   };
 }
 
-/** An account the report could not read, in plain words (docs/design/ui.md, Admin table, Torrents): the provider's name, one sentence
- * on why, the next try in local time when the gateway gave one, and the raw error for the details toggle. */
-export function providerProblem(p: { provider: string; kind?: string; error?: string }, now: Date = new Date()): { name: string; message: string; raw: string } {
-  const label = PROVIDER_SERVICES[p.kind ?? ""]?.label;
-  const name = label && label.toLowerCase() !== p.provider.toLowerCase() ? `${label} (${p.provider})` : p.provider;
+/** An account whose last read failed, in plain words (docs/design/ui.md, Admin table, Torrents): one sentence naming
+ * the account by its label (RD) and why, the next try in local time when the gateway gave one, then which record the
+ * page still shows ("Showing the record as of …") when there is an earlier one; the raw error for the details toggle. */
+export function providerProblem(p: { provider: string; error?: string; as_of?: string }, label: string, now: Date = new Date()): { message: string; raw: string } {
   const raw = p.error ?? "";
   let text = raw;
-  // The provider client's own "rd: " prefix, which the line's name already says.
+  // The provider client's own "rd: " prefix, which the sentence's label already says.
   while (text.startsWith(`${p.provider}: `)) text = text.slice(p.provider.length + 2);
   const retry = /\(retry at ([^)]+)\)/.exec(text)?.[1];
   const again = retry && !Number.isNaN(Date.parse(retry)) ? ` Next try ${fmtTime(retry, now)}.` : "";
@@ -185,17 +183,28 @@ export function providerProblem(p: { provider: string; kind?: string; error?: st
   // The gateway's rate-limit back-off: a 429, or a 503 with Retry-After (a counted streak of 503s is a failure).
   const limited = /HTTP (429|503), Retry-After|HTTP (429)\b/.exec(text);
   if (text.startsWith("gateway: backing off") && failures) {
-    message = `Not asked for now: paused after ${failures[1]} failed requests in a row${failures[2] ? ` (last: ${failures[2].trim()})` : ""}.${again}`;
+    message = `${label} is not asked for now: paused after ${failures[1]} failed requests in a row${failures[2] ? ` (last: ${failures[2].trim()})` : ""}.${again}`;
   } else if (text.startsWith("gateway: backing off") && limited) {
-    message = `Not asked for now: the provider asked to slow down (HTTP ${limited[1] ?? limited[2]}).${again}`;
+    message = `${label} is not asked for now: the provider asked to slow down (HTTP ${limited[1] ?? limited[2]}).${again}`;
   } else if (text.startsWith("gateway: backing off")) {
-    message = `Paused for now.${again}`;
+    message = `${label} is paused for now.${again}`;
   } else if (text.startsWith("gateway: budget exhausted")) {
-    message = `Not asked for now: its request limit is used up.${again}`;
+    message = `${label} is not asked for now: its request limit is used up.${again}`;
   } else if (text.startsWith("gateway: egress is not confirmed through the VPN")) {
-    message = "Not asked: the VPN is not confirmed.";
+    message = `${label} is not asked: the VPN is not confirmed.`;
   } else {
-    message = `Its torrent list could not be read: ${text.replace(/\s*\(retry at [^)]+\)/, "")}.${again}`;
+    message = `Could not read ${label} just now: ${text.replace(/\s*\(retry at [^)]+\)/, "")}.${again}`;
   }
-  return { name, message, raw };
+  if (p.as_of) message += ` Showing the record as of ${fmtTime(p.as_of, now)}.`;
+  return { message, raw };
+}
+
+/** The reason of a torrent or hash whose usage was not worked out yet (internal/torrents record.go reasonNotWorkedOut). */
+const NOT_WORKED_OUT = "its usage is worked out after the next provider sync";
+
+/** A usage in words: "used", "unused", "not worked out" (no stored answer yet: Refresh works it out) or "unknown"
+ *  (Theatarr lacks the data; the reasons say which). */
+export function usageWord(u?: string, reasons?: readonly string[]): string {
+  if (u === "unknown" && (reasons ?? []).some((r) => r.startsWith(NOT_WORKED_OUT))) return "not worked out";
+  return u ?? "—";
 }

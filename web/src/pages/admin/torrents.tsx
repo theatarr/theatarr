@@ -2,7 +2,8 @@
 // Manager's library view. Provider tabs, group filters, sorting, multi-select and "Delete selected" (a preview, then a
 // confirmation bound to the exact set; a full backup is taken first) and the torrent journal.
 // Torrent-list backup controls live in components/backups/torrent-backups.tsx on System › Backup. Other libraries'
-// folders (torrents.scan_roots, which the usage check reads) are edited here, below the list.
+// folders (torrents.scan_roots, which the usage check reads) are edited here, below the list (shown once the list has
+// loaded, so a #scan-roots link scrolls to where it stays).
 import { TorrentTabs } from "./torrent-tabs";
 import { useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router";
@@ -12,7 +13,7 @@ import { useStatus } from "@/api/hooks";
 import { AddToProviders, OtherProviders } from "@/components/title/provider-copies";
 import { otherProvidersLine } from "@/lib/provider-copies";
 import { globalDownloadsOff } from "@/lib/version-grab";
-import { Empty, ErrorState, Loading, PageHeader, Section, Strip } from "@/components/page";
+import { Empty, ErrorState, Loading, PageHeader, Section } from "@/components/page";
 import { ProviderPills, ProviderTag, providerLabel } from "@/components/provider-pills";
 import { inventoryLink } from "@/lib/admin-links";
 import { Badge } from "@/components/ui/badge";
@@ -23,10 +24,10 @@ import { Input } from "@/components/ui/input";
 import { SectionPanel } from "@/components/settings/section-panel";
 import { SETTINGS_PANELS } from "@/lib/settings-map";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { fmtAgo, fmtBytes, fmtNumber, fmtTime } from "@/lib/format";
+import { fmtAgo, fmtBytes, fmtNumber, fmtTime, plural } from "@/lib/format";
+import { TitleLinks, UsageBadge, UsageDetail } from "@/components/torrent-usage";
 import {
   GROUPS,
-  REF_LABEL,
   deleteScope,
   deleteSelection,
   filterTorrents,
@@ -36,11 +37,11 @@ import {
   refSummary,
   sortTorrents,
   usageDetail,
-  usageTone,
   type DeletePlan,
   type GroupID,
   type SortKey,
   type Torrent,
+  type TorrentReport,
 } from "@/lib/torrents";
 import { torrentJournalBy, torrentJournalWords, torrentStateWords } from "@/lib/torrent-words";
 
@@ -126,45 +127,21 @@ export function TorrentsPage() {
         title="Torrents"
         description="Every debrid account's torrents and what uses them, as Theatarr last read them. Refresh reads the accounts again."
         actions={
-          <Button size="sm" variant="outline" onClick={() => actions.refreshRecord.mutate()} disabled={actions.refreshRecord.isPending || report.isFetching}>
+          <Button size="sm" variant="outline" onClick={() => actions.refreshRecord.mutate()} disabled={actions.refreshRecord.isPending || report.isFetching} aria-busy={actions.refreshRecord.isPending} data-testid="refresh-record">
             {actions.refreshRecord.isPending ? "Reading the accounts…" : "Refresh"}
           </Button>
         }
       />
       <TorrentTabs />
-      {/* Before the list, which loads later: a link to #scan-roots scrolls here before the list would push it away. */}
-      <SectionPanel {...SETTINGS_PANELS.find((p) => p.id === "scan-roots")!} />
       {report.isPending ? (
         <Loading />
       ) : report.error ? (
         <ErrorState error={report.error} />
       ) : r ? (
         <>
-          <Strip
-            className="mb-3"
-            items={r.providers.map((p) => ({
-              label: providerLabel(codes[p.provider] ?? p.provider),
-              value: p.ok ? `${fmtNumber(p.account_torrents)}${p.limit ? ` of ${fmtNumber(p.limit)}` : ""} · ${fmtBytes(p.bytes)} · ${fmtNumber(p.usage.unused)} unused (${fmtBytes(p.usage.unused_bytes)})` : p.never_read ? "never read" : "unreadable",
-              tone: p.error ? "bad" : !p.ok ? "warn" : p.near_limit ? "warn" : undefined,
-              testid: `provider-count-${p.provider}`,
-            }))}
-          />
-          <p className="mb-2 text-xs text-muted-foreground" data-testid="record-as-of">
-            {r.providers.map((p) => `${providerLabel(codes[p.provider] ?? p.provider)} ${p.as_of ? `as of ${fmtTime(p.as_of)}` : "never read"}`).join(" · ")}
-          </p>
-          {r.providers.filter((p) => p.ok && p.near_limit).map((p) => (
-            <p key={`limit-${p.provider}`} className="mb-2 text-sm text-[var(--warn-ink)]" data-testid="near-limit">
-              {providerLabel(codes[p.provider] ?? p.provider)} holds {fmtNumber(p.account_torrents)} of its {fmtNumber(p.limit ?? 0)} torrent limit (magnet_limit). Nothing is removed automatically.
-            </p>
-          ))}
-          {r.providers.filter((p) => p.error).map((p) => {
-            const problem = providerProblem(p);
-            return <div key={p.provider} className="mb-2 text-sm" data-testid={`provider-problem-${p.provider}`}>
-              <p className="text-[var(--bad-ink)] [overflow-wrap:anywhere]"><span className="font-medium">{problem.name}:</span> {problem.message}</p>
-              <details className="text-xs text-muted-foreground"><summary className="cursor-pointer">Details</summary><p className="font-mono [overflow-wrap:anywhere]">{problem.raw}</p></details>
-            </div>;
-          })}
-          {actions.refreshRecord.error ? <p className="mb-2 text-sm text-[var(--bad-ink)]">Refresh failed: {errText(actions.refreshRecord.error)}</p> : null}
+          <RecordSummary r={r} codes={codes} />
+          {actions.refreshRecord.error ? <p className="mb-2 text-sm text-[var(--bad-ink)]" data-testid="refresh-result">Refresh failed: {errText(actions.refreshRecord.error)}. The page shows the record as it was.</p> : null}
+          {actions.refreshRecord.data ? <RefreshResult r={actions.refreshRecord.data} codes={codes} /> : null}
           {(r.unknown ?? []).map((u, i) => (
             <p key={i} className="mb-2 text-sm text-[var(--warn-ink)]">Unknown for every unreferenced torrent: {u}</p>
           ))}
@@ -220,6 +197,8 @@ export function TorrentsPage() {
           )}
         </>
       ) : null}
+      {/* Below the list and only once it has loaded, so a #scan-roots link scrolls to where the panel stays. */}
+      {report.isPending ? null : <SectionPanel {...SETTINGS_PANELS.find((p) => p.id === "scan-roots")!} />}
       <JournalSection />
       {plan ? (
         <ConfirmDialog
@@ -277,7 +256,7 @@ function TorrentRow({ t, at, checked, onToggle, code }: { t: Torrent; at: string
           <TableCell className="px-1 sm:px-3" title={t.provider} data-testid="torrent-provider"><ProviderPills codes={[code]} /></TableCell>
         )}
         <TableCell className="max-w-[32rem] text-[13px]">
-          <div className="[overflow-wrap:anywhere]">{t.name}</div>
+          <div className="[overflow-wrap:anywhere]" title={t.raw_name ? `The provider's name: ${t.raw_name}` : undefined}>{t.name}</div>
           <div className="text-xs text-muted-foreground">
             {/* Below 640 px the size sits here, not in its column, so the table fits a phone. */}
             <span className="sm:hidden">{fmtBytes(t.bytes)} · </span>
@@ -291,8 +270,9 @@ function TorrentRow({ t, at, checked, onToggle, code }: { t: Torrent; at: string
         <TableCell className="hidden md:table-cell" title={t.status ? `The provider says: ${t.status}` : undefined}>{torrentStateWords(t.state, t.progress)}</TableCell>
         <TableCell>
           <button type="button" onClick={() => setOpen((o) => !o)} title={usageDetail(t)} aria-expanded={open} className="text-left">
-            <Badge tone={usageTone(t.usage)}>{t.usage}</Badge>
+            <UsageBadge u={t} />
             {t.usage === "used" ? <div className="text-xs text-muted-foreground">{refSummary(t.refs)}</div> : null}
+            {t.usage === "unknown" && (t.reasons ?? []).length > 0 ? <div className="max-w-[16rem] text-xs text-muted-foreground [overflow-wrap:anywhere]" data-testid="torrent-row-reason">{(t.reasons ?? [])[0]}</div> : null}
           </button>
           {t.usage === "used" && (t.titles ?? []).length > 0 ? <TitleLinks titles={t.titles ?? []} max={3} className="block text-xs [overflow-wrap:anywhere]" testid="torrent-row-titles" /> : null}
         </TableCell>
@@ -301,7 +281,7 @@ function TorrentRow({ t, at, checked, onToggle, code }: { t: Torrent; at: string
         <TableRow>
           <TableCell />
           <TableCell colSpan={code === undefined ? 5 : 6} className="text-xs text-muted-foreground [overflow-wrap:anywhere]" data-testid="torrent-refs">
-            {t.usage === "used" ? <RefDetail t={t} /> : <span className="whitespace-pre-wrap">{usageDetail(t)}</span>}
+            <UsageDetail u={t} />
             <TorrentCopies t={t} at={at} />
           </TableCell>
         </TableRow>
@@ -324,41 +304,63 @@ function TorrentCopies({ t, at }: { t: Torrent; at: string }) {
   );
 }
 
-/** The expanded references of a used torrent: the count, the titles they belong to (all of them, not only the listed
- *  references) as links to the title page, and the listed references, each with its title. */
-function RefDetail({ t }: { t: Torrent }) {
-  const titles = t.titles ?? [];
+/** Each account's part of the record: its counts with their units and the time it was read ("as of"), "Not read yet"
+ *  for an account never read (not an empty one), and a failed read in words with the earlier record still shown. */
+function RecordSummary({ r, codes }: { r: TorrentReport; codes: Record<string, string> }) {
   return (
-    <div className="space-y-1">
-      <div>{refSummary(t.refs)}</div>
-      {titles.length > 0 ? (
-        <div data-testid="torrent-titles">
-          {titles.length === 1 ? "Title: " : "Titles: "}
-          <TitleLinks titles={titles} />
-        </div>
+    <Card className="mb-3 divide-y divide-[var(--line)] p-0" data-testid="record">
+      {r.providers.map((p) => {
+        const label = providerLabel(codes[p.provider] ?? p.provider);
+        const problem = p.error ? providerProblem(p, label) : null;
+        return (
+          <div key={p.provider} className="px-4 py-2 text-[13px]">
+            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
+              <span className="min-w-8 font-medium" title={p.provider}>{label}</span>
+              {p.as_of ? (
+                <>
+                  <span className={p.near_limit ? "tabular-nums text-[var(--warn-ink)]" : "tabular-nums"} data-testid={`provider-count-${p.provider}`}>
+                    {fmtNumber(p.account_torrents)}{p.limit ? ` of ${fmtNumber(p.limit)}` : ""} account {p.account_torrents === 1 && !p.limit ? "torrent" : "torrents"} · {plural(p.unique_hashes, "unique hash", "unique hashes")} · {fmtBytes(p.bytes)} · {fmtNumber(p.usage.unused)} unused ({fmtBytes(p.usage.unused_bytes)}){p.usage.unknown > 0 ? ` · ${fmtNumber(p.usage.unknown)} unknown` : ""}
+                  </span>
+                  <span className="text-muted-foreground" data-testid={`provider-as-of-${p.provider}`}>as of {fmtTime(p.as_of)}</span>
+                </>
+              ) : (
+                <span className="text-[var(--warn-ink)]" data-testid={`provider-count-${p.provider}`}>Not read yet — Refresh reads it</span>
+              )}
+            </div>
+            {p.near_limit ? (
+              <p className="mt-0.5 text-[var(--warn-ink)]" data-testid="near-limit">
+                {label} holds {fmtNumber(p.account_torrents)} of its {fmtNumber(p.limit ?? 0)} torrent limit (magnet_limit). Nothing is removed automatically.
+              </p>
+            ) : null}
+            {problem ? (
+              <div className="mt-0.5" data-testid={`provider-problem-${p.provider}`}>
+                <p className="text-[var(--bad-ink)] [overflow-wrap:anywhere]">{problem.message}</p>
+                <details className="text-xs text-muted-foreground"><summary className="cursor-pointer">Details</summary><p className="font-mono [overflow-wrap:anywhere]">{problem.raw}</p></details>
+              </div>
+            ) : null}
+          </div>
+        );
+      })}
+      {r.providers.some((p) => p.as_of) ? (
+        <p className="px-4 py-2 text-xs text-muted-foreground" data-testid="usage-as-of">
+          Used and unused are worked out with each read, so they are as of the same time: a library link made since shows after the next read.
+        </p>
       ) : null}
-      <ul className="space-y-0.5">
-        {(t.ref_list ?? []).map((x, i) => (
-          <li key={i}>
-            {REF_LABEL[x.kind] ?? x.kind}: {x.detail}
-            {x.title_id ? <> · <Link to={`/title/${x.title_id}`} className="text-primary hover:underline">{x.title || `title ${x.title_id}`}</Link></> : null}
-          </li>
-        ))}
-      </ul>
-    </div>
+    </Card>
   );
 }
 
-/** The titles a used torrent belongs to, as links to their title pages; max cuts the list ("and 2 more"). */
-function TitleLinks({ titles, max, testid, className }: { titles: readonly { id: number; name: string }[]; max?: number; testid?: string; className?: string }) {
-  const shown = max ? titles.slice(0, max) : titles;
+/** What the last Refresh read, per account. */
+function RefreshResult({ r, codes }: { r: TorrentReport; codes: Record<string, string> }) {
+  const parts = r.providers.map((p) => {
+    const label = providerLabel(codes[p.provider] ?? p.provider);
+    if (p.error) return `${label} could not be read`;
+    return p.as_of ? `${label} ${plural(p.account_torrents, "account torrent")}` : `${label} not read`;
+  });
   return (
-    <span className={className} data-testid={testid}>
-      {shown.map((x, i) => (
-        <span key={x.id}>{i > 0 ? ", " : ""}<Link to={`/title/${x.id}`} className="text-primary hover:underline">{x.name}</Link></span>
-      ))}
-      {titles.length > shown.length ? ` and ${titles.length - shown.length} more` : null}
-    </span>
+    <p className="mb-2 text-sm" data-testid="refresh-result">
+      Read the accounts: {parts.join(" · ")}.{r.refresh_error ? ` Not every account was read: ${r.refresh_error}.` : ""}
+    </p>
   );
 }
 
