@@ -51,6 +51,24 @@ func (l *Library) unlinkRoot(version, path string) string {
 	return ""
 }
 
+// RemoveEmptyDirs removes the folders an unlinked path leaves empty (a removed title's season and title folders):
+// its folder, then each parent while empty, strictly below the version's root that holds it. The root itself, a
+// path under no root of the version, symlinked folders, Theatarr's own folders and the trash are never touched
+// (writer.removeEmptyDirsBelow), and nothing happens while the gate refuses the version. It returns the folders
+// removed.
+func (l *Library) RemoveEmptyDirs(version, path string) []string {
+	if l.gate.CheckVersion(version) != nil {
+		return nil
+	}
+	for _, r := range l.gate.Roots(version) {
+		r = filepath.Clean(r)
+		if rel, err := filepath.Rel(r, path); err == nil && rel != "." && !escapes(rel) {
+			return l.w.removeEmptyDirsBelow(version, r, filepath.Dir(path))
+		}
+	}
+	return nil
+}
+
 // Unlink takes one library link of a version out of its root (an arr client deleted the movie or episode file):
 // the symlink is recreated in the trash, then removed, as an upgrade moves an old file aside. Only the link goes;
 // what it points at (debrid content on the read-only mount) is never touched, and a regular file is refused. It

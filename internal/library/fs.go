@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -140,6 +141,49 @@ func (w *writer) removeEmptyDir(version, dir string) error {
 		return err
 	}
 	return os.Remove(dir)
+}
+
+// removeEmptyDirsBelow removes dir, then each parent in turn, while it is empty, strictly below root (a removed
+// title's season and title folders): never root itself or anything outside it, never a symlink (nothing is followed),
+// never one of Theatarr's own folders (.theatarr*) or the trash, and only an empty directory (os.Remove refuses any
+// other). It stops at the first folder it leaves, and returns the folders removed.
+func (w *writer) removeEmptyDirsBelow(version, root, dir string) []string {
+	root = filepath.Clean(root)
+	if root == "" || root == "." || root == string(filepath.Separator) {
+		return nil
+	}
+	var removed []string
+	for dir = filepath.Clean(dir); ; dir = filepath.Dir(dir) {
+		rel, err := filepath.Rel(root, dir)
+		if err != nil || rel == "." || escapes(rel) || !filepath.IsAbs(dir) {
+			break
+		}
+		own := false
+		for _, part := range strings.Split(rel, string(filepath.Separator)) {
+			own = own || strings.HasPrefix(part, ".theatarr")
+		}
+		if own {
+			break
+		}
+		if t := filepath.Clean(w.gate.trash); w.gate.trash != "" {
+			if r, err := filepath.Rel(t, dir); err == nil && !escapes(r) {
+				break
+			}
+		}
+		fi, err := os.Lstat(dir)
+		if err != nil || fi.Mode()&os.ModeSymlink != 0 || !fi.IsDir() {
+			break
+		}
+		if err := w.gate.CheckPath(version, filepath.Join(dir, ".probe")); err != nil {
+			break
+		}
+		if err := os.Remove(dir); err != nil {
+			break
+		}
+		w.done("rmdir", dir)
+		removed = append(removed, dir)
+	}
+	return removed
 }
 
 // purgeTrash removes a trashed symlink after keep_days.

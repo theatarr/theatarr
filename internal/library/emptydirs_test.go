@@ -1,0 +1,100 @@
+package library
+
+import (
+	"os"
+	"path/filepath"
+	"slices"
+	"testing"
+
+	"github.com/theatarr/theatarr/internal/policy"
+)
+
+// A removed title's links leave its season and title folders empty: RemoveEmptyDirs takes them out, strictly below
+// the library root (the root stays even when the title was its last), never through a symlinked folder, never a
+// folder that still holds something, never one outside the version's roots, and nothing while the gate refuses.
+// A dead symlink (its target gone) is unlinked like a live one.
+func TestRemoveEmptyDirsStopsBelowTheRoot(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true, policy.ModeActive)
+	mk := func(p string) {
+		t.Helper()
+		if err := os.MkdirAll(p, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// The show's only file: a dead symlink (its target is gone) in Season 01 under the show's folder.
+	show := filepath.Join(e.shows, "Show (2020)")
+	season := filepath.Join(show, "Season 01")
+	mk(season)
+	p := filepath.Join(season, "Show (2020) - S01E01.mkv")
+	if err := os.Symlink(filepath.Join(e.mount, "__all__", "Gone", "e1.mkv"), p); err != nil {
+		t.Fatal(err)
+	}
+	e.exec(`INSERT INTO link (id, path, target, title_id, state, created_at, updated_at)
+		VALUES (1, ?, ?, 2, 'dead', 0, 0)`, p, filepath.Join(e.mount, "__all__", "Gone", "e1.mkv"))
+	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (1, 20)`)
+	if res, err := e.lib.Unlink(e.ctx, "tv", p, 1, "removed"); err != nil || res.DryRun || res.TrashPath == "" {
+		t.Fatalf("unlink of a dead link: %+v %v", res, err)
+	}
+	if got := e.one(`SELECT state FROM link WHERE id = 1`); got != "unlinked" {
+		t.Errorf("dead link row: %s", got)
+	}
+	got := e.lib.RemoveEmptyDirs("tv", p)
+	if !slices.Equal(got, []string{season, show}) {
+		t.Errorf("removed %v", got)
+	}
+	if _, err := os.Stat(e.shows); err != nil {
+		t.Errorf("the library root went: %v", err)
+	}
+	// The root itself is never removed, even empty and named directly.
+	if got := e.lib.RemoveEmptyDirs("tv", filepath.Join(e.shows, "x.mkv")); len(got) != 0 {
+		t.Errorf("removed at the root: %v", got)
+	}
+	// A folder that still holds a file stays, and so do its parents.
+	keep := filepath.Join(e.movies, "Movie (2001)")
+	mk(filepath.Join(keep, "Extras"))
+	if err := os.WriteFile(filepath.Join(keep, "poster.jpg"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := e.lib.RemoveEmptyDirs("movie-remux", filepath.Join(keep, "Extras", "a.mkv")); !slices.Equal(got,
+		[]string{filepath.Join(keep, "Extras")}) {
+		t.Errorf("removed %v", got)
+	}
+	if _, err := os.Stat(keep); err != nil {
+		t.Errorf("a folder with a file went: %v", err)
+	}
+	// A symlinked folder is not followed or removed; neither is what it points at.
+	elsewhere := filepath.Join(e.outside, "empty")
+	mk(elsewhere)
+	link := filepath.Join(e.movies, "Linked (2002)")
+	if err := os.Symlink(elsewhere, link); err != nil {
+		t.Fatal(err)
+	}
+	if got := e.lib.RemoveEmptyDirs("movie-remux", filepath.Join(link, "a.mkv")); len(got) != 0 {
+		t.Errorf("removed through a symlink: %v", got)
+	}
+	for _, d := range []string{link, elsewhere} {
+		if _, err := os.Lstat(d); err != nil {
+			t.Errorf("%s went: %v", d, err)
+		}
+	}
+	// Theatarr's own folders stay.
+	own := filepath.Join(e.movies, ".theatarr-x", "sub")
+	mk(own)
+	if got := e.lib.RemoveEmptyDirs("movie-remux", filepath.Join(own, "a.mkv")); len(got) != 0 {
+		t.Errorf("removed Theatarr's own folder: %v", got)
+	}
+	// Outside the version's roots: nothing.
+	out := filepath.Join(e.outside, "Title", "Season 01")
+	mk(out)
+	if got := e.lib.RemoveEmptyDirs("movie-remux", filepath.Join(out, "a.mkv")); len(got) != 0 {
+		t.Errorf("removed outside the roots: %v", got)
+	}
+	// The gate refusing the version: nothing.
+	off := newEnv(t, false, policy.ModeActive)
+	dir := filepath.Join(off.movies, "Off (2003)")
+	mk(dir)
+	if got := off.lib.RemoveEmptyDirs("movie-remux", filepath.Join(dir, "a.mkv")); len(got) != 0 {
+		t.Errorf("removed with the library off: %v", got)
+	}
+}
