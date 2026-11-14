@@ -85,7 +85,7 @@ type Target = AddTarget & { title_id: number };
 
 /** The primary action the role allows: Add to another library (add), else Request / View request (request). A title
  * already in every library the add options offer gets a disabled secondary "In every library" instead. */
-function PrimaryAction({ target, has, className }: { target: Target; has: boolean; className?: string }) {
+function PrimaryAction({ target, has, held = [], className }: { target: Target; has: boolean; held?: readonly string[]; className?: string }) {
   const perms = usePerms();
   const { openAdd } = useSearchUI();
   // The toolbar's query (no tmdb_id), so one request serves both.
@@ -101,12 +101,19 @@ function PrimaryAction({ target, has, className }: { target: Target; has: boolea
   if (perms.add) {
     return (
       <Button onClick={() => openAdd(target)} className={className} data-testid="hero-add">
-        <Plus /> {has ? "Add to another library" : "Add"}
+        <Plus /> {!has ? "Add" : monitorOnly(opts.data, held) ? "Monitor in another library" : "Add to another library"}
       </Button>
     );
   }
   if (perms.request) return <TitleRequestButton target={target} className={className} />;
   return null;
+}
+
+/** Every library that fits the title already has it, some not monitored: the add sheet can only monitor them again,
+ *  so the hero says so rather than "Add to another library" (held: the libraries the title is in). */
+function monitorOnly(o: Parameters<typeof inEveryLibrary>[0], held: readonly string[]): boolean {
+  const fitting = (o?.versions ?? []).filter((v) => v.fits || v.on);
+  return fitting.length > 0 && fitting.every((v) => held.includes(v.key ?? ""));
 }
 
 function About({ d }: { d: TitleDetail }) {
@@ -227,6 +234,7 @@ export function TitlePage() {
   const audio = [...new Set(versions.flatMap((v) => (v.has_file ? (v.current?.languages ?? []) : [])))];
   const target: Target = { kind: series ? "series" : "movie", name: d.name ?? `Title ${id}`, year: d.year ?? undefined, poster: d.poster ?? undefined, title_id: Number(id), tmdb_id: d.tmdb_id ?? undefined, anime: !!d.anime };
   const has = versions.length > 0;
+  const held = versions.map((v) => v.key ?? "");
   const action = perms.add || perms.request;
 
   return (
@@ -248,7 +256,7 @@ export function TitlePage() {
               {nameWithoutYear(d.name, d.year)}
               {d.year ? <span className="ml-2 text-base font-normal text-muted-foreground sm:text-2xl">({d.year})</span> : null}
             </h1>
-            <PrimaryAction target={target} has={has} className="max-md:hidden" />
+            <PrimaryAction target={target} has={has} held={held} className="max-md:hidden" />
           </div>
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
             {attrs.map((a, i) => (
@@ -328,7 +336,7 @@ export function TitlePage() {
       {/* Phones: the primary action stays reachable above the bottom tabs. */}
       {action ? (
         <div className="fixed inset-x-0 bottom-[calc(3.75rem+env(safe-area-inset-bottom))] pointer-events-none z-30 flex justify-center px-4 pb-2 md:hidden" data-testid="title-sticky-action">
-          <PrimaryAction target={target} has={has} className="pointer-events-auto w-full max-w-md shadow-lg" />
+          <PrimaryAction target={target} has={has} held={held} className="pointer-events-auto w-full max-w-md shadow-lg" />
         </div>
       ) : null}
     </div>

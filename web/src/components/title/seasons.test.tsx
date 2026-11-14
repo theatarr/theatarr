@@ -472,7 +472,7 @@ describe("One status vocabulary", () => {
   it("says the same words in the season header, the episode cells and the episode window", async () => {
     mockFetch([routes[0], { method: "GET", path: "/titles/1/episodes", reply: words }, { method: "GET", path: "/titles/1/episodes/101", reply: window101 }]);
     const user = userEvent.setup();
-    renderPage(<Seasons id="1" />, "/title/1");
+    renderPage(<Seasons id="1" anime={false} />, "/title/1");
     await screen.findByText("One");
     // The matrix: Available in the held library (Upgrade found beside it for E02), Not monitored, never Missing, in the
     // library that is not monitored.

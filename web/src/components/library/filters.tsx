@@ -228,8 +228,10 @@ export function FiltersPanel({
           <FilterButton selected={values.monitored === "true"} onClick={() => toggle("monitored", "true")} icon={<Eye />} label="Monitored" count={facets?.monitored} tone="success" className={segment(values.monitored === "true")} />
           <FilterButton selected={values.monitored === "false"} onClick={() => toggle("monitored", "false")} icon={<EyeOff />} label="Not monitored" count={facets?.unmonitored} tone="danger" className={segment(values.monitored === "false", true)} />
         </div>
+        {/* Status and upgrade groups are named: "Not monitored" with no file is a status, apart from monitoring above. */}
+        {seeFiles ? <div className="pt-2"><FilterLabel>Status</FilterLabel></div> : null}
         {availabilityRows(seeFiles, kind).map((pair, i) => (
-          <div key={i} role="group" aria-label="Status" className={SPLIT_GROUP}>
+          <div key={i} role="group" aria-label={seeFiles ? "Status" : "Availability"} className={SPLIT_GROUP}>
             {pair.map((a, j) => (
               <FilterButton
                 key={a.id}
@@ -246,8 +248,9 @@ export function FiltersPanel({
           </div>
         ))}
         {/* Quality, apart from the status: among titles with a file (file detail). */}
+        {seeFiles ? <div className="pt-2"><FilterLabel>Upgrades</FilterLabel></div> : null}
         {seeFiles ? (
-          <div role="group" aria-label="Quality" className={SPLIT_GROUP}>
+          <div role="group" aria-label="Upgrades" className={SPLIT_GROUP}>
             {UPGRADE_FILTERS.map((u, j) => (
               <FilterButton
                 key={u.id}

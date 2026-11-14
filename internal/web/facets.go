@@ -32,16 +32,16 @@ type VersionFacet struct {
 
 // TitleFacets is the facet counts of one grid.
 type TitleFacets struct {
-	Total        int            `json:"total"`
-	Monitored    int            `json:"monitored"`
-	Unmonitored  int            `json:"unmonitored"`
+	Total       int `json:"total"`
+	Monitored   int `json:"monitored"`
+	Unmonitored int `json:"unmonitored"`
 	// Availability counts titles per status word (titleAvailabilitySQL); without see files, per watchability.
 	Availability map[string]int `json:"availability"`
 	// Upgrades counts titles per quality filter (upgradeFilters: found, best_known); see files only.
-	Upgrades map[string]int `json:"upgrades,omitempty"`
-	Versions     []VersionFacet `json:"versions"`
-	Qualities    []FacetCount   `json:"qualities"`
-	Genres       []FacetCount   `json:"genres"`
+	Upgrades  map[string]int `json:"upgrades,omitempty"`
+	Versions  []VersionFacet `json:"versions"`
+	Qualities []FacetCount   `json:"qualities"`
+	Genres    []FacetCount   `json:"genres"`
 	// Certifications are US ratings (title_meta).
 	Certifications []FacetCount `json:"certifications"`
 	// Providers is for callers who see files; absent otherwise. Values are cache codes (rd, ad, tb), as list rows
