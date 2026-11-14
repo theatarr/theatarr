@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  endedByRemoval,
   failedDownloadId,
   grabScope,
   leftoverLinks,
@@ -55,6 +56,15 @@ describe("recovery scopes", () => {
     expect(failedDownloadId("dl:12:import")).toBe(0);
     expect(failedDownloadId("e3b0c442")).toBe(0);
     expect(failedDownloadId(undefined)).toBe(0);
+  });
+
+  it("knows a failure a removal ended", () => {
+    expect(endedByRemoval("copy removed by admin")).toBe(true);
+    expect(endedByRemoval("Copy removed by someone")).toBe(true);
+    expect(endedByRemoval("deleted through sonarr-main by Sonarr")).toBe(true);
+    expect(endedByRemoval("removed in Activity by admin")).toBe(false);
+    expect(endedByRemoval("stalled: not ready")).toBe(false);
+    expect(endedByRemoval(undefined)).toBe(false);
   });
 
   it("names the copy an unblock frees", () => {

@@ -982,7 +982,7 @@ func TestReleaseDateChoice(t *testing.T) {
 }
 
 // The queue (Activity › Queue, System › Status) is a reader rule over failed downloads (activity.NativeQueueFailureSQL):
-// a miss on every provider and a download never started go to History only; any other failure stays until a newer
+// a miss on every provider, a download never started and one a removal ended go to History only; any other failure stays until a newer
 // imported download of the same title and library covers all of its episodes, or for 7 days. Household accounts and
 // "View as a user" see downloads in progress only. Reading it changes no row, and History keeps every failure.
 func TestActivityQueueFailureRule(t *testing.T) {
@@ -1031,6 +1031,9 @@ func TestActivityQueueFailureRule(t *testing.T) {
 		{21, 3, 9, "tv-2160p", "failed", "[]", "library: no file matched", now},
 		{22, 3, 9, "tv-2160p", "failed", "[]", "stalled: not ready", now},
 		{23, 3, 9, "tv-2160p", "imported", "[38]", nil, now},
+		// Downloads a removal ended (router.EndRemoved: the web UI's reason, an arr view's) go to History only.
+		{24, 1, 2, "movie-web", "failed", "[]", "copy removed by admin", now},
+		{25, 1, 2, "movie-web", "failed", "[]", "deleted through sonarr-main by Sonarr", now},
 	} {
 		e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, episodes,
 			state, error, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 'dmm', ?, ?, ?, ?, ?)`,
@@ -1114,7 +1117,7 @@ func TestActivityQueueFailureRule(t *testing.T) {
 	for _, x := range hist.History {
 		seen[x.ID] = true
 	}
-	for _, id := range []string{"dl:1:fail", "dl:2:fail", "dl:6:fail"} {
+	for _, id := range []string{"dl:1:fail", "dl:2:fail", "dl:6:fail", "dl:24:fail", "dl:25:fail"} {
 		if !seen[id] {
 			t.Errorf("history lacks %s: %v", id, seen)
 		}

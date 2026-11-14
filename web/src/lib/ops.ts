@@ -102,6 +102,12 @@ export function failedDownloadId(eventId: string | undefined): number {
   return m ? Number(m[1]) : 0;
 }
 
+/** Whether a failure's reason says a removal ended the download (router.EndRemoved: the web UI's "copy removed by …",
+ *  an arr view's "deleted through … by …"; internal/activity endedByRemovalSQL). The copy is gone: History offers no Retry. */
+export function endedByRemoval(reason: string | undefined): boolean {
+  return /^(copy removed by |deleted through .+ by )/i.test(reason ?? "");
+}
+
 // ---- Blocklist ----
 
 export function unblockScope(release: string, copy: string, search: boolean): Scope {

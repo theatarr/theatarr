@@ -10,7 +10,7 @@ import { usePerms } from "@/api/library";
 import { useRemoveDownload, useRetryDownload, useUnblock } from "@/api/ops";
 import { Button } from "@/components/ui/button";
 import { Choice, ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { failedDownloadId, removeDownloadScope, retryKind, retryScope, unblockScope, type RemoveMode } from "@/lib/ops";
+import { endedByRemoval, failedDownloadId, removeDownloadScope, retryKind, retryScope, unblockScope, type RemoveMode } from "@/lib/ops";
 import { useLibraryName } from "@/lib/library-names";
 
 type Open = "remove" | "retry" | null;
@@ -84,14 +84,14 @@ function importFellShort(outcome?: string): boolean {
   return !!outcome && outcome !== "imported";
 }
 
-/** Retry on a history row about a failed download (journal id dl:<id>:fail). */
+/** Retry on a history row about a failed download (journal id dl:<id>:fail); none when a removal ended it. */
 export function HistoryRetry({ e }: { e: ActivityEvent }) {
   const perms = usePerms();
   const [open, setOpen] = useState(false);
   const retry = useRetryDownload();
   const id = failedDownloadId(e.id);
   const nameOf = useLibraryName();
-  if (!perms.manage || !id) return null;
+  if (!perms.manage || !id || endedByRemoval(e.reason)) return null;
   const copy = e.version ? nameOf(e.version) : "this";
   return (
     <>

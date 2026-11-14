@@ -28,7 +28,8 @@ const QueueFailureSQL = `d.state='failed' AND d.dismissed_at IS NULL AND d.updat
 
 // NativeQueueFailureSQL selects the failed downloads Activity's queue and System › Status still show (the arr queue
 // keeps QueueFailureSQL). The download alias is d and its title t (Downloads joins it); its one argument is the 7-day
-// cutoff (ms). A miss on every provider and a download never started (NotStarted) belong to History only. Any other
+// cutoff (ms). A miss on every provider, a download never started (NotStarted) and one a removal ended (endedByRemovalSQL)
+// belong to History only. Any other
 // failure (stalled, refused by the library, not imported in time, a provider error) shows until it is covered, for at
 // most 7 days: a movie when its title and library hold an active link from an imported download newer than the
 // failure; a series download when each of its episodes (download.episodes, and a manual import's download_file
@@ -38,10 +39,16 @@ const QueueFailureSQL = `d.state='failed' AND d.dismissed_at IS NULL AND d.updat
 var NativeQueueFailureSQL = `d.state='failed' AND d.dismissed_at IS NULL AND d.updated_at > ?
  AND COALESCE(d.error, '') NOT GLOB 'miss on every provider*'
  AND NOT ` + notStartedSQL("d") + `
+ AND NOT ` + endedByRemovalSQL + `
  AND ((t.kind = 'movie' AND NOT EXISTS (` + newerLinkSQL + `))
   OR (COALESCE(t.kind, '') <> 'movie' AND (NOT EXISTS (` + scopeEpisodesSQL + `)
    OR EXISTS (SELECT 1 FROM (` + scopeEpisodesSQL + `) e WHERE NOT EXISTS (` + newerLinkSQL + `
     AND EXISTS (SELECT 1 FROM link_episode le WHERE le.link_id = l.id AND le.episode_id = e.value))))))`
+
+// endedByRemovalSQL is a download a removal ended (router.EndRemoved), by its reason: the web UI's "copy removed by
+// …" (internal/web ops.go) or an arr view's "deleted through … by …" (internal/arrview write.go). The copy is gone,
+// so there is nothing to retry: History says what happened.
+const endedByRemovalSQL = `(COALESCE(d.error, '') GLOB 'copy removed by *' OR COALESCE(d.error, '') GLOB 'deleted through * by *')`
 
 // newerLinkSQL selects the active links of d's title and library that an imported download newer than d made.
 const newerLinkSQL = `SELECT 1 FROM link l JOIN download n ON n.id = l.download_id WHERE l.state = 'active'
