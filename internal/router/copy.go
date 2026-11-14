@@ -652,8 +652,24 @@ func (r *Router) copyRefusedName(ctx context.Context, hash string, names ...stri
 	return "", nil
 }
 
+// removedUnwanted says whether c's hash belonged to a removed copy of a title and no current copy of any title wants
+// it: such a copy is not started, requeued or added again.
+func (r *Router) removedUnwanted(ctx context.Context, c *copyRow) (bool, error) {
+	var unwanted bool
+	if err := r.st.Writer().QueryRowContext(ctx, `SELECT `+copyOfRemovedSQL("?1")+` AND NOT `+copyWantedSQL("?1"),
+		c.hash).Scan(&unwanted); err != nil {
+		return false, fmt.Errorf("router: copy to %s: %w", c.pk, err)
+	}
+	return unwanted, nil
+}
+
 // startCopy is steps 1 and 2 (stop early, read-only evidence), then the add.
 func (r *Router) startCopy(ctx context.Context, c *copyRow) error {
+	if unwanted, err := r.removedUnwanted(ctx, c); err != nil {
+		return err
+	} else if unwanted {
+		return r.setCopy(ctx, c, CopySkipped, CopyUnwanted, "")
+	}
 	pv := r.pol.Providers[c.pk]
 	code := copyCode(pv, c.pk)
 	ad := r.adders[c.pk]
@@ -960,7 +976,13 @@ func (r *Router) addCopy(ctx context.Context, c *copyRow, pv *policy.Provider, a
 	switch {
 	case aerr == nil:
 	case unsent:
-		// The gateway never sent it: queued again, run when it lets requests through.
+		// The gateway never sent it: queued again, run when it lets requests through; a removed title's copy that
+		// nothing wants any more ends here instead.
+		if unwanted, err := r.removedUnwanted(rctx, c); err != nil {
+			return err
+		} else if unwanted {
+			return r.setCopy(rctx, c, CopySkipped, CopyUnwanted, "own_add = 0")
+		}
 		if err := r.setCopy(rctx, c, CopyQueued, "", "own_add = 0"); err != nil {
 			return err
 		}
@@ -1029,15 +1051,11 @@ func (r *Router) recoverAdding(ctx context.Context, c *copyRow) error {
 			return r.setCopy(ctx, c, CopyChecking, "", "torrent_id = ?, own_add = 0", t.ID)
 		}
 	}
-	// The add never landed. A removed title's copy is not added again: the hash belonged to a removed copy and no
-	// current copy of any title wants it. Any other copy (one asked for a provider entry no library references
-	// included) is tried again.
-	var unwanted bool
-	if err := r.st.Writer().QueryRowContext(ctx, `SELECT `+copyOfRemovedSQL("?1")+` AND NOT `+copyWantedSQL("?1"),
-		c.hash).Scan(&unwanted); err != nil {
-		return fmt.Errorf("router: copy to %s: %w", c.pk, err)
-	}
-	if unwanted {
+	// The add never landed. A removed title's copy is not added again (removedUnwanted); any other copy (one asked
+	// for a provider entry no library references included) is tried again.
+	if unwanted, err := r.removedUnwanted(ctx, c); err != nil {
+		return err
+	} else if unwanted {
 		return r.setCopy(ctx, c, CopySkipped, CopyUnwanted, "own_add = 0")
 	}
 	return r.setCopy(ctx, c, CopyQueued, "", "own_add = 0")

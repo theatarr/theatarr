@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/theatarr/theatarr/internal/gateway"
 	"github.com/theatarr/theatarr/internal/jobs"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/provider"
@@ -473,5 +474,41 @@ func TestCopyRecoveryDoesNotReaddARemovedTitle(t *testing.T) {
 	e.run()
 	if s, msg := e.copyState(h("a"), "ad"); s != CopySkipped || msg != CopyUnwanted || len(e.ad["ad"].adds) != 0 {
 		t.Fatalf("ad: %s %q, adds %v", s, msg, e.ad["ad"].adds)
+	}
+}
+
+// A removed title's copy that nothing current wants is not started from the queue, and one the gateway refused to
+// send is not queued again; any other copy the gateway refused is queued again.
+func TestCopyOfARemovedTitleIsNotStartedOrRequeued(t *testing.T) {
+	t.Parallel()
+	removeLib := func(e *copyEnv) {
+		e.exec(`INSERT INTO arrview_removed_version (version_id, view, removed_at)
+			VALUES ((SELECT MIN(id) FROM version WHERE title_id = 1), 'ui', 0)`)
+	}
+	// Queued, then the title was removed before the copy ran.
+	e := newCopyEnv(t, provider.StateDownloaded, "ad")
+	e.wants(h("a"))
+	e.queue(h("a"), "Movie.2024.2160p.WEB-GRP")
+	removeLib(e)
+	e.run()
+	if s, msg := e.copyState(h("a"), "ad"); s != CopySkipped || msg != CopyUnwanted || len(e.ad["ad"].adds) != 0 {
+		t.Fatalf("queued: %s %q, adds %v", s, msg, e.ad["ad"].adds)
+	}
+	// The gateway refused the add (never sent) while the title was being removed: not queued again.
+	for _, removed := range []bool{true, false} {
+		e := newCopyEnv(t, provider.StateDownloaded, "ad")
+		e.wants(h("a"))
+		e.ad["ad"].add = func(adder.Magnet, adder.AddOptions) (*adder.Added, error) {
+			if removed {
+				removeLib(e)
+			}
+			return nil, &gateway.Refused{Reason: gateway.ReasonBackoff, Target: "provider:ad"}
+		}
+		e.queue(h("a"), "Movie.2024.2160p.WEB-GRP")
+		e.run()
+		s, _ := e.copyState(h("a"), "ad")
+		if removed && s != CopySkipped || !removed && s != CopyQueued {
+			t.Errorf("refused unsent, removed %v: %s", removed, s)
+		}
 	}
 }
