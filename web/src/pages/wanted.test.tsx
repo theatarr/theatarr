@@ -379,7 +379,7 @@ it("keeps Decision as a row action when Last search is hidden", async () => {
 // Switching tab never leaves Missing's rows under Cutoff unmet's actions while the cutoff rows load.
 it("shows no Missing rows under Cutoff unmet while its rows load", async () => {
   const user = userEvent.setup();
-  mockFetch([admin, status, { method: "GET", path: "/wanted", reply: (r) => r.search.includes("only=cutoff") ? new Promise(() => {}) : page }]);
+  mockFetch([admin, status, { method: "GET", path: "/wanted", reply: (r: { search: string }) => r.search.includes("only=cutoff") ? new Promise(() => {}) : page }]);
   renderPage(<WantedPage />, "/wanted");
   expect(await screen.findByRole("button", { name: "Search all 51 missing" })).toBeTruthy();
   await user.click(screen.getByRole("tab", { name: "Cutoff unmet" }));
