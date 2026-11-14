@@ -189,8 +189,9 @@ func (w *Web) listTitles(ctx context.Context, f TitleFilter) (TitlePage, error) 
 		return page, err
 	}
 	order, orderArgs := f.orderBy()
-	if rank, rankArgs := titleTextRank(f.Q); rank != "" && f.Sort == "" {
-		// A name search without a chosen sort: the best matches first, then the usual name order.
+	if rank, rankArgs := titleTextRank(f.Q); rank != "" && (f.Sort == "" || f.Sort == "name") && f.Order == "" {
+		// A name search in the default order (the lists send sort=name without an order): the best matches first,
+		// then the usual name order. A chosen sort or order stays as chosen.
 		order = " ORDER BY (" + rank + "), " + strings.TrimPrefix(order, " ORDER BY ")
 		orderArgs = append(rankArgs, orderArgs...)
 	}

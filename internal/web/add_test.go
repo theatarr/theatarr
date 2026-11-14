@@ -1300,6 +1300,22 @@ func TestSearchLibraryNames(t *testing.T) {
 			t.Errorf("%q: %v, want %v", q, got, want)
 		}
 	}
+	// The lists send sort=name without an order: ranked the same; a chosen order stays as chosen.
+	list := func(q string) string {
+		var p TitlePage
+		e.call("GET", APIBase+"/titles?kind=movie&"+q, nil, 200, &p)
+		var out []string
+		for _, r := range p.Items {
+			out = append(out, r.Name)
+		}
+		return strings.Join(out, ",")
+	}
+	if got := list("q=alien&sort=name"); got != "Alien,Alien: Romulus,Aliens,The Alien Hunter" {
+		t.Errorf("list, default sort: %s", got)
+	}
+	if got := list("q=alien&sort=name&order=desc"); got != "The Alien Hunter,Aliens,Alien: Romulus,Alien" {
+		t.Errorf("list, chosen order: %s", got)
+	}
 	// TMDb's "alpha" hit 0 is title 1. Found by name, the screens' tmdb request does not repeat it; renamed so the
 	// name search misses it, the tmdb request answers it as its library part (the screens merge it into the group).
 	var s SearchAnswer
