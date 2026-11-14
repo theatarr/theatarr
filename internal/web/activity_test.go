@@ -893,9 +893,10 @@ func TestHistorySeriesRedaction(t *testing.T) {
 	if len(u.History) != 2 {
 		t.Fatalf("user series history: %+v", u.History)
 	}
+	// Household rows carry the episode labels (S01E01), not file details.
 	for _, x := range u.History {
-		if x.Episodes != nil || x.Files != 0 || x.Release != "" || x.Quality != "" || x.Provider != "" {
-			t.Errorf("user row has file details: %+v", x)
+		if !slices.Equal(x.Episodes, []string{"S01E01", "S01E02"}) || x.Files != 0 || x.Release != "" || x.Quality != "" || x.Provider != "" {
+			t.Errorf("user row: %+v", x)
 		}
 	}
 }

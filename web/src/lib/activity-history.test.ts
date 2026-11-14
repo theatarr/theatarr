@@ -35,7 +35,8 @@ describe("activity history filters", () => {
   it("turns the filters into API parameters", () => {
     expect(historyParams(NO_HISTORY_FILTERS)).toEqual({ title: undefined, version: undefined, events: undefined, since: undefined });
     const p = historyParams({ title: "Alpha", copy: "movie-web", event: "imported", since: "2026-10-01" });
-    expect(p).toMatchObject({ title: "Alpha", version: "movie-web", events: "imported,adopted" });
+    expect(p).toMatchObject({ title: "Alpha", version: "movie-web", events: "imported" });
+    expect(historyParams({ title: "", copy: "", event: "adopted", since: "" }).events).toBe("adopted");
     expect(historyParams({ ...NO_HISTORY_FILTERS, event: "deleted" }).events).toBe("deleted,removed,missing,title_removed");
     // Other providers is for accounts that see files: the user view asks for every event.
     expect(historyFiltersFor({ ...NO_HISTORY_FILTERS, event: "copies" }, false).event).toBe("all");

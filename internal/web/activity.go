@@ -185,7 +185,8 @@ type ActivityEvent struct {
 	Version string        `json:"version,omitempty"`
 	Words   string        `json:"words"`
 	Tone    string        `json:"tone"` // ok, info, warn, bad
-	// Admin: the row's episodes (S01E02; an import's, those its links hold) and the files a library row stands for.
+	// Episodes are the row's episodes (S01E02; an import's, those its links hold), for every account. Files (admin)
+	// is how many files a library row stands for.
 	Episodes []string `json:"episodes,omitempty"`
 	Files    int      `json:"files,omitempty"`
 
@@ -668,13 +669,13 @@ func (w *Web) historyEvents(ctx context.Context, hs []*journal.HistoryRow, admin
 		notStarted := historyNotStarted(h)
 		words, tone := entryWords(h, notStarted, w.providerTag)
 		x := ActivityEvent{ID: h.ID, At: h.At, Kind: h.Kind, Event: h.Event, Title: t, Version: h.Version, Words: words,
-			Tone: tone}
+			Tone: tone, Episodes: h.Episodes}
 		if !admin {
 			// Journal ids name their source rows; users get an opaque one.
 			x.ID = opaqueID(h.ID)
 		}
 		if admin {
-			x.Episodes, x.Files, x.Provider = h.Episodes, h.Files, h.Provider
+			x.Files, x.Provider = h.Files, h.Provider
 			x.Reason = historyReason(h, notStarted, w.providerTag)
 			if notStarted != "" {
 				x.Summary = activity.NotStartedMessage(notStarted)

@@ -1,15 +1,17 @@
-// Activity › History filters (docs/design/ui.md, Activity): title, copy, event type and a since date, kept in the URL
+// Activity › History filters (docs/design/ui.md, Activity): title, copy, event type and a since date (Today sets it
+// to today), kept in the URL
 // (?title=, ?copy=, ?event=, ?since=) so a filtered history can be bookmarked and shared. The server filters History's
 // rows (GET /activity?state=history&title=&version=&events=&since=), so paging stays right.
 
-export type HistoryEventId = "all" | "grabbed" | "imported" | "deleted" | "failed" | "copies";
+export type HistoryEventId = "all" | "grabbed" | "imported" | "adopted" | "deleted" | "failed" | "copies";
 
 /** The event types, in the words the history rows use, and the History events behind each. admin: only for accounts
  *  that see files (the copies to other providers are theirs only). */
 export const HISTORY_EVENTS: { id: HistoryEventId; label: string; events: string[]; admin?: boolean }[] = [
   { id: "all", label: "All events", events: [] },
   { id: "grabbed", label: "Grabbed", events: ["grabbed"] },
-  { id: "imported", label: "Imported and adopted", events: ["imported", "adopted"] },
+  { id: "imported", label: "Imported", events: ["imported"] },
+  { id: "adopted", label: "Adopted (files found in the library)", events: ["adopted"] },
   { id: "deleted", label: "Deleted and removed", events: ["deleted", "removed", "missing", "title_removed"] },
   { id: "failed", label: "Failed and blocked", events: ["failed", "blocked"] },
   { id: "copies", label: "Other providers", events: ["copy_added", "copy_already", "copy_not_cached"], admin: true },

@@ -1,4 +1,4 @@
-// Activity › History filters (lib/activity-history.ts): a title search, the copy, the event type and a since date,
+// Activity › History filters (lib/activity-history.ts): a title search, the copy, the event type, Today and a since date,
 // in one wrapping row; at phone width they stack, one per line, the date input full width. Every change goes to the URL, so a filtered history survives a reload
 // and can be shared; the title search waits for typing to pause.
 import { Search, X } from "lucide-react";
@@ -20,6 +20,7 @@ import {
 import { distinctLabels, relabel } from "@/lib/copies";
 import { useLibraryKnown, useLibraryName } from "@/lib/library-names";
 import { today } from "@/lib/library";
+import { cn } from "@/lib/utils";
 
 const FIELD = "h-8 rounded-[5px] border border-input bg-field px-2 text-[13.5px]";
 
@@ -55,6 +56,7 @@ export function HistoryFilters({ tools, admin = false }: { tools?: ReactNode; ad
   const all = facets.data?.versions ?? [];
   const copies = relabel(all, distinctLabels(all));
   const count = historyFilterCount(f);
+  const isToday = !!f.since && f.since === today();
   return (
     <div className="mb-4 grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-center" data-testid="history-filters">
       <div className="relative min-w-0 sm:max-w-64 sm:flex-1">
@@ -73,6 +75,16 @@ export function HistoryFilters({ tools, admin = false }: { tools?: ReactNode; ad
           <option key={e.id} value={e.id}>{e.label}</option>
         ))}
       </Select>
+      <Button
+        variant="outline"
+        size="sm"
+        className={cn("justify-self-start", isToday && "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent-ink)]")}
+        aria-pressed={isToday}
+        onClick={() => set("since", isToday ? "" : today())}
+        data-testid="history-today"
+      >
+        Today
+      </Button>
       <label className="flex min-w-0 items-center gap-1.5 text-sm text-[var(--ink-3)]">
         Since
         <input type="date" aria-label="Since" value={f.since} max={today()} onChange={(e) => set("since", e.target.value)} className={`${FIELD} w-full min-w-0 flex-1 text-foreground sm:w-auto`} data-testid="history-since" />

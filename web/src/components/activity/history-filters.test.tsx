@@ -45,3 +45,20 @@ it("empties the title box when a link drops ?title=, and keeps what is typed", a
   await new Promise((r) => setTimeout(r, 450));
   expect(box.value).toBe("Foundation");
 });
+
+it("Today sets Since to today and clears it again; adoption is its own event", async () => {
+  mockFetch([{ method: "GET", path: "/titles/facets", reply: { versions: [] } }]);
+  renderPage(<HistoryFilters />, "/activity/history");
+  const todayButton = await screen.findByTestId("history-today");
+  const since = screen.getByTestId("history-since") as HTMLInputElement;
+  expect(todayButton.getAttribute("aria-pressed")).toBe("false");
+  const user = userEvent.setup();
+  await user.click(todayButton);
+  await waitFor(() => expect(since.value).toBe(since.max));
+  expect(todayButton.getAttribute("aria-pressed")).toBe("true");
+  await user.click(todayButton);
+  await waitFor(() => expect(since.value).toBe(""));
+  const events = [...(screen.getByTestId("history-event") as HTMLSelectElement).options].map((o) => o.textContent);
+  expect(events).toContain("Imported");
+  expect(events).toContain("Adopted (files found in the library)");
+});
