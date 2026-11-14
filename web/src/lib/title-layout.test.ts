@@ -49,6 +49,8 @@ describe("the title's status for those who see files", () => {
     expect(titleStatus({ availability: "unmonitored", kind: "movie" }, [])).toEqual({ label: "Not monitored", tone: "neutral" });
     expect(titleStatus({ availability: "upcoming", kind: "movie", status: "In Production" }, [])).toEqual({ label: "Upcoming, date unknown", tone: "neutral" });
     expect(titleStatus({ availability: "upcoming", kind: "movie", release_date: "2099-01-01" }, [])).toEqual({ label: "Upcoming", tone: "neutral" });
+    // No date and no status yet (just added): Upcoming, date unknown.
+    expect(titleStatus({ availability: "upcoming", kind: "movie" }, [])).toEqual({ label: "Upcoming, date unknown", tone: "neutral" });
     // Only a title in no library is "Not in the library yet".
     expect(titleStatus({ availability: "none", kind: "movie" }, [])).toEqual({ label: "Not in the library yet", tone: "neutral" });
   });
@@ -61,6 +63,7 @@ describe("readiness", () => {
     // In a library without a file is not "not in the library".
     expect(readiness("movie", [v({ has_file: false, state: "wanted" })])).toEqual({ label: "Not available yet", tone: "neutral" });
     expect(readiness("movie", [])).toEqual({ label: "Not in the library yet", tone: "neutral" });
+    expect(readiness("movie", [v({ has_file: false, state: "wanted" })], false, true)).toEqual({ label: "Upcoming, date unknown", tone: "neutral" });
     // Without See files a missing title with a download in hand is getting ready, as on the posters.
     expect(readiness("movie", [v({ has_file: false, state: "wanted" })], true)).toEqual({ label: "Getting ready", tone: "neutral" });
     expect(readiness("movie", [v({ current: { quality: "1080p" } })], true).label).toBe("Ready to watch in 1080p");

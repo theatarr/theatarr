@@ -258,21 +258,19 @@ export function ReleaseGrid({
   focus,
   capped,
   reason,
-  sentState,
 }: {
   items: Candidate[];
   outcomes?: Releases["outcomes"];
   kind: "movie" | "series";
-  /** Grab for each row (interactive search, managers); none: no Grab column. */
-  grab?: GrabTarget;
+  /** Grab for each row (interactive search, managers); none: no Grab column. sent holds the hashes (lower case)
+   *  already sent for this library, kept by the dialog so they survive a library switch; onSent adds one. */
+  grab?: GrabTarget & { sent: ReadonlySet<string>; onSent: (hash: string) => void };
   /** A hash to pick out and scroll to. */
   focus?: string;
   /** The search's result count, when the answer holds only the best of them. */
   capped?: number;
   /** A rejection reason picked outside the grid (interactive search's summary chips): only those rows. */
   reason?: string;
-  /** The grabs sent, kept by the caller when the grid may unmount between libraries (interactive search). */
-  sentState?: [ReadonlySet<string>, (update: (s: ReadonlySet<string>) => ReadonlySet<string>) => void];
 }) {
   const uid = useAuth().data?.id;
   const [saved, setSaved] = useState<ReleaseColumnPrefs | null>(null);
@@ -283,8 +281,6 @@ export function ReleaseGrid({
   };
   const [filter, setFilter] = useState<ReleaseFilter>(NO_FILTER);
   const [picker, setPicker] = useState(false);
-  const own = useState<ReadonlySet<string>>(new Set());
-  const [sent, setSent] = sentState ?? own;
   const columns = releaseColumnsFor(kind);
   const shown = prefs.order.filter((id) => prefs.shown.includes(id) && columns.some((c) => c.id === id));
   // Title follows the leading Source and Age columns, as in Radarr; the rest come after it.
@@ -312,10 +308,8 @@ export function ReleaseGrid({
   }, [focus, items]);
   const sortBy = (key: ReleaseSortKey) =>
     save({ ...prefs, sort: prefs.sort.key === key ? { key, dir: prefs.sort.dir === "asc" ? "desc" : "asc" } : { key, dir: naturalDir(key) } });
-  // Sent is per title, library and hash (interactive search keeps it while the grid unmounts between libraries).
-  const sentKey = (c: Candidate) => `${grab?.titleId}:${grab?.version}:${(c.info_hash ?? "").toLowerCase()}`;
-  const markSent = (c: Candidate) => () => setSent((s) => new Set(s).add(sentKey(c)));
-  const isSent = (c: Candidate) => !!c.info_hash && sent.has(sentKey(c));
+  const markSent = (c: Candidate) => () => grab?.onSent((c.info_hash ?? "").toLowerCase());
+  const isSent = (c: Candidate) => !!c.info_hash && !!grab?.sent.has(c.info_hash.toLowerCase());
   const label = (id: ReleaseColumnId | "title") => (id === "title" ? "Title" : columns.find((c) => c.id === id)?.label ?? id);
   const head = (id: ReleaseColumnId | "title") => {
     const key = columnSortKey(id);

@@ -60,9 +60,10 @@ function bestResolution(qualities: (string | undefined | null)[]): string {
  * ready: watchability, not the household's copy policy. gettingReady (the title's acquiring: a download in hand)
  * reads "Getting ready" for a title with nothing held, as the posters do; a failed download is not in hand.
  */
-export function readiness(kind: string | undefined, versions: Version[], gettingReady = false): { label: string; tone: "positive" | "partial" | "neutral" } {
+export function readiness(kind: string | undefined, versions: Version[], gettingReady = false, undated = false): { label: string; tone: "positive" | "partial" | "neutral" } {
   const held = versions.filter((v) => v.has_file);
-  if (held.length === 0) return { label: gettingReady ? "Getting ready" : versions.length > 0 ? "Not available yet" : "Not in the library yet", tone: "neutral" };
+  // undated: a movie with no date of any kind (undatedUpcoming) reads as the posters do.
+  if (held.length === 0) return { label: gettingReady ? "Getting ready" : versions.length > 0 ? (undated ? "Upcoming, date unknown" : "Not available yet") : "Not in the library yet", tone: "neutral" };
   const complete = kind === "series" ? held.filter((v) => !v.episodes || (v.episodes.have > 0 && v.episodes.missing === 0)) : held;
   if (complete.length === 0) {
     const best = held.map((v) => v.episodes).filter((e) => !!e).sort((a, b) => b.have - a.have)[0];

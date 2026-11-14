@@ -324,3 +324,17 @@ it("shows more after a saved sort, reopened", async () => {
   fireEvent.click(screen.getByTestId("release-more"));
   expect(await rows()).toBe(100);
 });
+
+// Each library tab has its own grid: a filter typed in one is not applied to the other.
+it("does not carry a filter typed in one library tab to the other", async () => {
+  mockFetch([ME, TITLE, CURRENT,
+    { method: "GET", path: "/titles/7/releases", reply: (r: { search: string }) => answer(new URLSearchParams(r.search).get("version") ?? "") }]);
+  renderPage(<InteractiveSearchButton titleId={7} version="movie-web" />);
+  open();
+  await table();
+  fireEvent.change(screen.getByTestId("release-filter"), { target: { value: "720p" } });
+  await waitFor(async () => expect(within(await table()).getAllByRole("row")).toHaveLength(2));
+  fireEvent.click(screen.getByRole("tab", { name: "Remux" }));
+  await waitFor(async () => expect(within(await table()).getAllByRole("row")).toHaveLength(3));
+  expect((screen.getByTestId("release-filter") as HTMLInputElement).value).toBe("");
+});

@@ -45,12 +45,14 @@ export function SearchOverlay({ initial, onClose, onAdd }: { initial: string; on
     onAdd(t);
   };
   const query = dq.trim();
-  // TMDb hits marked In library that the name search missed join the library group, so the two never disagree; only
-  // the answer for this query and kind (an earlier query's, shown while the new one loads or is not asked, is not).
-  const merged = withInLibrary(lib.data?.library ?? [], lib.data?.library_total, tm.isPlaceholderData ? undefined : tm.data);
+  // Only the TMDb answer for this query and kind counts: an earlier query's (kept while the new one loads or is not
+  // asked) shows no cards and joins nothing, so an "In library" card never sits beside a library group of 0.
+  const tmNow = tm.isPlaceholderData ? undefined : tm.data;
+  // TMDb hits marked In library that the name search missed join the library group, so the two never disagree.
+  const merged = withInLibrary(lib.data?.library ?? [], lib.data?.library_total, tmNow);
   const libItems = merged.items;
-  const hits = tm.data?.tmdb ?? [];
-  const note = tmdbNote(tm.data?.tmdb_state);
+  const hits = tmNow?.tmdb ?? [];
+  const note = tmdbNote(tmNow?.tmdb_state);
   const perms = usePerms();
   const libProblem = searchProblem(lib.error);
   const tmProblem = searchProblem(tm.error, tm.data, "tmdb");
@@ -134,15 +136,15 @@ export function SearchOverlay({ initial, onClose, onAdd }: { initial: string; on
                 )}
               </section>
               <section data-testid="search-group-tmdb">
-                <GroupHeader title={words.tmdb} note="movies and series" count={tm.data?.tmdb_state === "ok" ? hits.length : undefined} />
+                <GroupHeader title={words.tmdb} note="movies and series" count={tmNow?.tmdb_state === "ok" ? hits.length : undefined} />
                 {query.length < 2 ? (
                   <SectionNote>Type at least two characters to search TMDb.</SectionNote>
                 ) : tmProblem ? (
                   <SectionError problem={tmProblem} onRetry={() => void tm.refetch()} retrying={tm.isFetching} testid="search-tmdb-error" admin={perms.admin} onOpen={onClose} />
-                ) : tm.isPending ? (
+                ) : tm.isPending || tm.isPlaceholderData ? (
                   <SectionLoading label="Searching TMDb" />
                 ) : note ? (
-                  <TmdbNote state={tm.data?.tmdb_state} admin={perms.admin} onOpen={onClose} />
+                  <TmdbNote state={tmNow?.tmdb_state} admin={perms.admin} onOpen={onClose} />
                 ) : hits.length === 0 ? (
                   <SectionNote>TMDb has nothing for “{query}”.</SectionNote>
                 ) : (

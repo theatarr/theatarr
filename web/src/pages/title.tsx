@@ -32,7 +32,7 @@ import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { fmtAgo, fmtBytes, nameWithoutYear, plural, titleWithYear } from "@/lib/format";
-import { fmtDay, fmtRuntime } from "@/lib/library";
+import { fmtDay, fmtRuntime, undatedUpcoming } from "@/lib/library";
 import { currentLibraries } from "@/lib/library-rows";
 import { airFact, readiness, releasedLabel, resolveTab, titleStatus, titleTabs, type TitleTab } from "@/lib/title-layout";
 import { cn } from "@/lib/utils";
@@ -202,7 +202,7 @@ export function TitlePage() {
   const tabs = titleTabs({ series, franchise: franchises.length > 0, seeFiles: perms.seeFiles });
   const tab: TitleTab = resolveTab(params.get("tab"), tabs);
   // Those who see files get the status word the posters and lists use; everyone else watchability.
-  const watch = readiness(d.kind, versions, !perms.seeFiles && !!d.acquiring);
+  const watch = readiness(d.kind, versions, !perms.seeFiles && !!d.acquiring, undatedUpcoming(d));
   const ready = perms.seeFiles ? titleStatus(d, versions) : watch;
   const runtime = fmtRuntime(d.runtime_minutes ?? m?.runtime_minutes);
   const lang = languageName(m?.original_language);

@@ -187,3 +187,24 @@ it("does not merge an earlier query's TMDb answer into the library group", async
   await user.type(input, "s");
   await waitFor(() => expect(screen.getByTestId("search-page-library").textContent).not.toContain("Spider-Man: Brand New Day"));
 });
+
+// While the TMDb answer for a changed query loads, the earlier query's cards and count are not shown.
+it("hides an earlier query's TMDb cards while the new query's answer loads", async () => {
+  const user = (await import("@testing-library/user-event")).default.setup();
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: { id: 9, username: "someone", permissions: ["browse", "add"], csrf_token: "t" } },
+    { method: "GET", path: "/search", reply: (r: { search: string }) => r.search.includes("scope=library")
+      ? { library: [], library_total: 0 }
+      : r.search.includes("q=spiderman") ? { tmdb_state: "ok", tmdb: [{ tmdb_id: 99, media_type: "movie", kind: "movie", name: "Webslinger", year: 2026, in_library: true, title_id: 4 }],
+        library: [{ id: 4, kind: "movie", name: "Spider-Man: Brand New Day", year: 2026, versions: [] }], library_total: 1 } : new Promise(() => {}) },
+    { method: "GET", path: "/requests", reply: { items: [], total: 0 } },
+  ]);
+  renderPage(<SearchProvider><SearchPage /></SearchProvider>, "/search?q=spiderman");
+  await waitFor(() => expect(screen.getByTestId("search-page-tmdb").textContent).toContain("Webslinger"));
+  const input = screen.getByTestId("search-page-input");
+  await user.clear(input);
+  await user.type(input, "spi");
+  await waitFor(() => expect(screen.getByTestId("search-page-tmdb").textContent).not.toContain("Webslinger"));
+  expect(screen.getByTestId("search-page-tmdb").textContent).toContain("Searching TMDb");
+  expect(screen.getByTestId("search-page-library").textContent).not.toContain("Spider-Man: Brand New Day");
+});
