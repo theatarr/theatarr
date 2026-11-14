@@ -271,18 +271,20 @@ func (m *Manager) loadDBRefsFor(ctx context.Context, sc *refScope) (*refIndex, e
 		ix.decyOn, ix.decy = m.decypharrIndex(ctx)
 	}
 
-	// Library links: by the content's hash, the download's, the recorded file metadata's, and the mount folder of the
-	// target. A link with none of them in a configured mount cannot be tied to a torrent.
+	// Library links: by the content's hash, the download's, the recorded file metadata's, the adopted source's (an
+	// adopted link), and the mount folder of the target. A link with none of them in a configured mount cannot be tied
+	// to a torrent. A hash stored in another form (base32) is normalised below.
 	q := `SELECT path, target, state, h, tid, tname FROM (SELECT l.id, l.path, l.target, l.state,
 		lower(COALESCE(NULLIF(c.info_hash, ''), NULLIF(d.info_hash, ''), CASE WHEN json_valid(l.file_metadata)
-		THEN NULLIF(json_extract(l.file_metadata, '$.InfoHash'), '') END, '')) AS h,
+		THEN NULLIF(json_extract(l.file_metadata, '$.InfoHash'), '') END, CASE WHEN json_valid(l.adopted_source)
+		THEN NULLIF(json_extract(l.adopted_source, '$.hash'), '') END, '')) AS h,
 		l.title_id AS tid, COALESCE(t.name, '') AS tname
 		FROM link l LEFT JOIN content_file cf ON cf.id = l.content_file_id LEFT JOIN content c ON c.id = cf.content_id
 		LEFT JOIN download d ON d.id = l.download_id LEFT JOIN title t ON t.id = l.title_id
 		WHERE l.state != 'unlinked')`
 	var args []any
 	if sc != nil {
-		q += ` WHERE h = ? OR h = ''`
+		q += ` WHERE h = ? OR h = '' OR length(h) <> 40`
 		args = append(args, sc.hash)
 		for _, f := range sc.folders {
 			q += ` OR instr(target, ?) > 0`
@@ -301,6 +303,7 @@ func (m *Manager) loadDBRefsFor(ctx context.Context, sc *refScope) (*refIndex, e
 			rows.Close()
 			return nil, err
 		}
+		hash = indexer.NormalizeHash(hash)
 		r := Ref{Kind: RefLink, Detail: path, TitleID: tid, Title: tname}
 		if state != "active" {
 			r.Detail += " (" + state + ")"
