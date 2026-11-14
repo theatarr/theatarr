@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { screen, within } from "@testing-library/react";
-import { Route, Routes } from "react-router";
+import userEvent from "@testing-library/user-event";
+import { Link, Route, Routes } from "react-router";
 import { expect, it } from "vitest";
 import { mockFetch, renderPage } from "@/test/page";
 import { JournalList, JournalEntryPage } from "./journal";
@@ -27,7 +28,7 @@ it("keeps the decision kind and library inline under the title for when the colu
   ]);
   renderPage(<JournalList />, "/activity/journal");
   const inline = await screen.findByTestId("journal-inline");
-  expect(within(inline).getByText("search")).toBeTruthy();
+  expect(within(inline).getByText("Search")).toBeTruthy();
   // The library by its name, the key as its mark's data-vkey.
   expect(within(inline).getByText("4K").closest("[data-vkey]")?.getAttribute("data-vkey")).toBe("tv-2160p");
   expect(within(inline).queryByText("tv-2160p")).toBeNull();
@@ -64,4 +65,32 @@ it("says how entries appear when the journal is empty, and keeps the short text 
   first.unmount();
   renderPage(<JournalList />, "/activity/journal?kind=grab");
   expect(await screen.findByText("No entries.")).toBeTruthy();
+});
+
+it("words kinds, sources and flags, keeping the codes as tooltips", async () => {
+  mockFetch([
+    { method: "GET", path: "/journal", reply: { items: [{ id: "lnk:4", kind: "research", source: "theatarr", at: "2026-11-07T10:00:00Z", title: { id: 3, name: "Ferrous Bay" }, summary: "s", flags: [{ code: "dead_link", severity: "warn", reason: "gone" }] }] } },
+    { method: "GET", path: "/status", reply: {} },
+  ]);
+  renderPage(<JournalList />, "/activity/journal");
+  const row = await screen.findByTestId("journal-row");
+  expect(within(row).getAllByText("Search after a failure")[0].getAttribute("title")).toBe("research");
+  expect(within(row).getByText("Theatarr's search").getAttribute("title")).toBe("theatarr");
+  expect(within(row).getAllByText("Dead link")[0].getAttribute("title")).toBe("dead_link");
+  expect(within(row).queryByText("dead_link")).toBeNull();
+  expect(screen.getByRole("option", { name: "All kinds" })).toBeTruthy();
+});
+
+it("keeps the title box in step with the URL when a link drops the filter", async () => {
+  const fetch = mockFetch([
+    { method: "GET", path: "/journal", reply: { items: [] } },
+    { method: "GET", path: "/status", reply: {} },
+  ]);
+  renderPage(<><Link to="/activity/journal">Decision journal</Link><JournalList /></>, "/activity/journal?title=Anora");
+  const box = (await screen.findByLabelText("Title")) as HTMLInputElement;
+  expect(box.value).toBe("Anora");
+  await userEvent.setup().click(screen.getByRole("link", { name: "Decision journal" }));
+  await screen.findByText(/No entries yet/);
+  expect(box.value).toBe("");
+  expect(fetch.calls("GET", "/journal").at(-1)!.search).not.toContain("title=");
 });

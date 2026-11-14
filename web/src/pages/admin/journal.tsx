@@ -1,5 +1,5 @@
 // Activity › Decision journal (admins; the list is a tab of Activity, pages/activity.tsx): the grab journal (GET /journal, /journal/{id}) with ok/wrong verdicts (POST /journal/{id}/verdict).
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 import { useJournal, useJournalEntry, useJournalVerdict, useStatus, type JournalEntry } from "@/api/hooks";
 import { TitleThumb } from "@/components/poster-card";
@@ -13,8 +13,9 @@ import { fmtBytes, fmtNumber, fmtTime, nameWithoutYear, plural } from "@/lib/for
 import { journalHome, journalLink } from "@/lib/admin-links";
 import { ProviderTag } from "@/components/provider-pills";
 import { InfoHash } from "@/components/title/info-hash";
-
-const KINDS = ["grab", "upgrade", "plan", "search", "research", "failure", "stall", "blocklist", "import", "link", "verdict"];
+import { Select } from "@/components/ui/select";
+import { attemptCodeWords, attemptOutcomeWords } from "@/lib/router-words";
+import { JOURNAL_KINDS, journalFlagWords, journalKindWords, journalSourceWords } from "@/lib/journal-words";
 
 type Tone = "neutral" | "positive" | "warning" | "negative" | "info";
 const sevTone = (s?: string): Tone => (s === "error" ? "negative" : s === "warn" ? "warning" : s === "info" ? "info" : "neutral");
@@ -37,10 +38,17 @@ function Flags({ e }: { e: JournalEntry }) {
   const open = (e.flags ?? []).filter((f) => !f.acked);
   return (
     <span className="flex flex-wrap gap-1">
-      {open.map((f) => <Badge key={f.code} tone={sevTone(f.severity)}>{f.code}</Badge>)}
-      {e.verdict ? <Badge tone={e.verdict.verdict === "ok" ? "positive" : "negative"}>{e.verdict.verdict}</Badge> : null}
+      {open.map((f) => <Badge key={f.code} tone={sevTone(f.severity)} title={f.code}>{journalFlagWords(f.code)}</Badge>)}
+      {e.verdict ? <Badge tone={e.verdict.verdict === "ok" ? "positive" : "negative"}>{verdictWords(e.verdict.verdict)}</Badge> : null}
     </span>
   );
+}
+
+const verdictWords = (v: string) => (v === "ok" ? "Judged ok" : v === "wrong" ? "Judged wrong" : v);
+
+/** An entry's kind as a badge, the code as its tooltip. */
+function KindBadge({ kind, className }: { kind?: string; className?: string }) {
+  return <Badge tone="outline" className={className} title={kind}>{journalKindWords(kind)}</Badge>;
 }
 
 function TitleCell({ e }: { e: JournalEntry }) {
@@ -54,7 +62,7 @@ function TitleCell({ e }: { e: JournalEntry }) {
         {/* Phones and tablets: the columns that hide (when, kind, library, flags) stay inline under the title. */}
         <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground md:hidden" data-testid="journal-inline">
           <span className="sm:hidden">{fmtTime(e.at)}</span>
-          <Badge tone="outline" className="sm:hidden">{e.kind}</Badge>
+          <KindBadge kind={e.kind} className="sm:hidden" />
           {e.version ? <VersionTag k={e.version} /> : null}
           <Flags e={e} />
         </div>
@@ -68,21 +76,27 @@ export function JournalList() {
   const [params, setParams] = useSearchParams();
   const suspect = params.get("suspect") === "1";
   const kind = params.get("kind") ?? "";
-  const [title, setTitle] = useState(params.get("title") ?? "");
-  // Cursor pagination: the cursors of the pages before this one, so Newer can go back.
-  const [cursors, setCursors] = useState<string[]>([]);
+  const urlTitle = params.get("title") ?? "";
+  const [title, setTitle] = useState(urlTitle);
+  // The box follows the URL: a link or Back that changes ?title= (the tab link drops it) shows what is applied.
+  useEffect(() => setTitle(urlTitle), [urlTitle]);
+  // Cursor pagination: the cursors of the pages before this one, so Newer can go back. They belong to one filter: any
+  // change of the URL's filters, by the controls or a link, starts at the newest page.
+  const filterKey = `${suspect}|${kind}|${urlTitle}`;
+  const [paging, setPaging] = useState<{ key: string; cursors: string[] }>({ key: filterKey, cursors: [] });
+  const cursors = paging.key === filterKey ? paging.cursors : [];
+  const setCursors = (c: string[]) => setPaging({ key: filterKey, cursors: c });
   const cursor = cursors[cursors.length - 1];
-  const q = useJournal({ suspect, kind: kind || undefined, title: params.get("title") || undefined, cursor });
+  const q = useJournal({ suspect, kind: kind || undefined, title: urlTitle || undefined, cursor });
   const set = (k: string, v?: string) => {
     const n = new URLSearchParams(params);
     if (v) n.set(k, v);
     else n.delete(k);
     setParams(n);
-    setCursors([]);
   };
   const items = q.data?.items ?? [];
   // An empty list under a filter or on a later page is not an empty journal.
-  const filtered = !!kind || !!params.get("title") || cursors.length > 0;
+  const filtered = !!kind || !!urlTitle || cursors.length > 0;
   return (
     <div>
       <p className="mb-4 text-sm text-muted-foreground">Every grab decision and what followed it, newest first. Judge suspect entries ok or wrong.</p>
@@ -91,22 +105,17 @@ export function JournalList() {
           <Button size="xs" variant={suspect ? "ghost" : "secondary"} onClick={() => set("suspect")}>All</Button>
           <Button size="xs" variant={suspect ? "secondary" : "ghost"} onClick={() => set("suspect", "1")} data-testid="journal-suspect">Suspect</Button>
         </div>
-        <select
-          aria-label="Kind"
-          value={kind}
-          onChange={(e) => set("kind", e.target.value)}
-          className="h-8 rounded-md border border-input bg-field px-2 text-sm"
-        >
-          <option value="">all kinds</option>
-          {KINDS.map((k) => <option key={k} value={k}>{k}</option>)}
-        </select>
+        <Select aria-label="Kind" value={kind} onChange={(e) => set("kind", e.target.value)} className="w-auto">
+          <option value="">All kinds</option>
+          {JOURNAL_KINDS.map((k) => <option key={k} value={k}>{journalKindWords(k)}</option>)}
+        </Select>
         <form className="flex gap-2" onSubmit={(ev) => { ev.preventDefault(); set("title", title.trim()); }}>
           <Input aria-label="Title" placeholder="Title or id" value={title} onChange={(e) => setTitle(e.target.value)} className="h-8 w-48" />
           <Button size="xs" variant="outline" type="submit">Filter</Button>
         </form>
       </div>
       {q.isPending ? <Loading /> : q.error ? <ErrorState error={q.error} /> : items.length === 0 && !q.data?.next_cursor ? (
-        <Card><Empty>{suspect ? "Nothing suspect." : filtered ? "No entries." : "No entries yet. One appears each time a Live library judges a release, when it searches or grabs.. A title added a moment ago may show nothing yet."}</Empty></Card>
+        <Card><Empty>{suspect ? "Nothing suspect." : filtered ? "No entries." : "No entries yet. One appears each time a Live library judges a release, when it searches or grabs. A title added a moment ago may show nothing yet."}</Empty></Card>
       ) : (
         <Card className="p-0">
           <Table>
@@ -126,7 +135,7 @@ export function JournalList() {
                 <TableRow key={e.id} data-testid="journal-row">
                   <TableCell className="hidden whitespace-nowrap text-[13px] sm:table-cell">{fmtTime(e.at)}</TableCell>
                   <TableCell><TitleCell e={e} /></TableCell>
-                  <TableCell className="hidden sm:table-cell"><Badge tone="outline">{e.kind}</Badge><div className="mt-1 text-xs text-muted-foreground"><Mono>{e.source}</Mono></div></TableCell>
+                  <TableCell className="hidden sm:table-cell"><KindBadge kind={e.kind} /><div className="mt-1 text-xs text-muted-foreground" title={e.source}>{journalSourceWords(e.source)}</div></TableCell>
                   <TableCell className="hidden md:table-cell">{e.version ? <VersionTag k={e.version} /> : null}</TableCell>
                   <TableCell className="hidden md:table-cell"><Flags e={e} /></TableCell>
                 </TableRow>
@@ -161,18 +170,18 @@ export function JournalEntryPage() {
         crumb={crumb}
         docTitle="Decision journal"
         title={<span className="flex items-center gap-4"><TitleThumb id={e.title?.id} className="w-12" /><span>{e.title?.name ? nameWithoutYear(e.title.name, e.title.year) : id}{e.title?.year ? <span className="text-muted-foreground"> ({e.title.year})</span> : null}</span></span>}
-        description={<span className="flex flex-wrap items-center gap-2"><Badge tone="outline">{e.kind}</Badge>{e.version ? <VersionTag k={e.version} /> : null}<Mono>{e.source}</Mono><span>{fmtTime(e.at)}</span><PolicyRev e={e} current={status.data?.policy_revision} /></span>}
+        description={<span className="flex flex-wrap items-center gap-2"><KindBadge kind={e.kind} />{e.version ? <VersionTag k={e.version} /> : null}<span title={e.source}>{journalSourceWords(e.source)}</span><span>{fmtTime(e.at)}</span><PolicyRev e={e} current={status.data?.policy_revision} /></span>}
         actions={e.title?.id ? <Button asChild variant="outline" size="sm"><a href={`/title/${e.title.id}`}>Title page</a></Button> : undefined}
       />
       {e.summary ? <Card className="text-sm leading-relaxed [overflow-wrap:anywhere]" data-testid="journal-summary">{e.summary}</Card> : null}
 
-      <Section title="Verdict" aside={e.verdict ? `${e.verdict.verdict} by ${e.verdict.by ?? "?"} · ${fmtTime(e.verdict.at)}` : undefined}>
+      <Section title="Verdict" aside={e.verdict ? `${verdictWords(e.verdict.verdict)} by ${e.verdict.by ?? "?"} · ${fmtTime(e.verdict.at)}` : undefined}>
         <Card>
           {(e.flags ?? []).length > 0 ? (
             <ul className="mb-4 space-y-2 text-sm">
               {(e.flags ?? []).map((f) => (
                 <li key={f.code} className="flex flex-wrap items-baseline gap-2">
-                  <Badge tone={f.acked ? "neutral" : sevTone(f.severity)}>{f.code}</Badge>
+                  <Badge tone={f.acked ? "neutral" : sevTone(f.severity)} title={f.code}>{journalFlagWords(f.code)}</Badge>
                   <span className={f.acked ? "text-muted-foreground line-through" : ""}>{f.reason}</span>
                 </li>
               ))}
@@ -196,7 +205,7 @@ export function JournalEntryPage() {
             <KV items={[
               ["Release", <span key="r" className="break-words">{e.release.title || "—"}</span>],
               ["Quality", e.release.quality || "—"],
-              ["Score", e.release.score ?? "—"],
+              ["Score", e.release.score !== undefined && e.release.score !== null ? fmtNumber(e.release.score) : "—"],
               ["Size", fmtBytes(e.release.size)],
               ["Indexer", <Mono key="i">{e.release.indexer || "—"}</Mono>],
               ["Hash", e.release.info_hash ? <InfoHash key="h" hash={e.release.info_hash} admin /> : "—"],
@@ -228,8 +237,8 @@ export function JournalEntryPage() {
                   <TableRow key={i}>
                     <TableCell className="whitespace-nowrap text-[13px]">{fmtTime(a.at)}</TableCell>
                     <TableCell>{a.provider ? <ProviderTag account={a.provider} className="font-medium" /> : null}</TableCell>
-                    <TableCell><Badge tone={a.outcome === "accepted" ? "positive" : "warning"}>{a.outcome}</Badge></TableCell>
-                    <TableCell className="hidden break-words text-[13px] text-muted-foreground sm:table-cell">{a.message || a.code}</TableCell>
+                    <TableCell><Badge tone={a.outcome === "accepted" ? "positive" : "warning"} title={[a.outcome, a.code].filter(Boolean).join(" · ")}>{attemptOutcomeWords(a.outcome)}</Badge></TableCell>
+                    <TableCell className="hidden break-words text-[13px] text-muted-foreground sm:table-cell">{a.message || attemptCodeWords(a.code)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -245,7 +254,7 @@ export function JournalEntryPage() {
               {(e.after ?? []).map((a, i) => (
                 <li key={i} className="flex flex-wrap items-baseline gap-2 px-4 py-2">
                   <span className="whitespace-nowrap text-[13px] text-muted-foreground">{fmtTime(a.at)}</span>
-                  <Badge tone="outline">{a.kind}</Badge>
+                  <KindBadge kind={a.kind} />
                   {a.ref ? <Link className="hover:text-primary" to={journalLink(a.ref)}>{a.text}</Link> : <span>{a.text}</span>}
                 </li>
               ))}
