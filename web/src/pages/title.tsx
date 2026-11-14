@@ -39,6 +39,7 @@ import { fmtDay, fmtRuntime, undatedUpcoming } from "@/lib/library";
 import { currentLibraries } from "@/lib/library-rows";
 import { airFact, readiness, releasedLabel, resolveTab, titleStatus, titleTabs, type TitleTab } from "@/lib/title-layout";
 import { acquiringStatus, latestEvent } from "@/lib/title-facts";
+import { AttemptDialog } from "@/components/title/attempt-dialog";
 import { cn } from "@/lib/utils";
 import { titleStatusWords } from "@/lib/tmdb-words";
 
@@ -184,6 +185,8 @@ export function TitlePage() {
   // A hook, so it runs before the early returns.
   const action = usePrimaryAction({ target, has: current.length > 0, held: current.map((v) => v.key ?? ""), monitoring: current.some((v) => v.monitored) });
   const tabsRef = useRef<HTMLDivElement>(null);
+  // The failed download the hero's Details opened.
+  const [attempt, setAttempt] = useState<{ id: number; library: string; words: string } | null>(null);
   useEffect(() => {
     if (d?.name) document.title = `${titleWithYear(d.name, d.year)} · ${PRODUCT_NAME}`;
   }, [d?.name, d?.year]);
@@ -212,9 +215,12 @@ export function TitlePage() {
   const tab: TitleTab = resolveTab(params.get("tab"), tabs);
   // Those who see files get the status word the posters and lists use; everyone else watchability.
   const watch = readiness(d.kind, versions, !perms.seeFiles && !!d.acquiring, undatedUpcoming(d));
-  // While a library gets its first file the hero says the download's stage (or the search under way), not Missing.
+  // A library getting its first file: its download's stage (or the search under way). With nothing held it is the
+  // status, not Missing; beside a held library's Available it follows the status.
   const acquiring = perms.seeFiles && !gone ? acquiringStatus(versions) : undefined;
-  const ready = gone ? { label: "Not in the library", tone: "neutral" as const } : acquiring ? { label: acquiring, tone: "partial" as const } : perms.seeFiles ? titleStatus(d, versions) : watch;
+  const anyHeld = versions.some((v) => v.has_file);
+  const ready = gone ? { label: "Not in the library", tone: "neutral" as const } : acquiring && !anyHeld ? { label: acquiring, tone: "partial" as const } : perms.seeFiles ? titleStatus(d, versions) : watch;
+  const stageBeside = acquiring && anyHeld ? acquiring : undefined;
   // Each library's latest relevant event, under the status (see files).
   const events = perms.seeFiles && !gone ? versions.flatMap((v) => {
     const e = latestEvent(v);
@@ -274,6 +280,7 @@ export function TitlePage() {
             <Chip data-testid="title-readiness" tone={ready.tone === "positive" ? "ok" : ready.tone === "partial" ? "info" : ready.tone === "warning" ? "warn" : ready.tone === "negative" ? "bad" : "ghost"} data-tone={ready.tone}>
               {ready.label}
             </Chip>
+            {stageBeside ? <Chip tone="info" data-testid="title-stage">{stageBeside}</Chip> : null}
             {audio.length > 0 ? <span className="text-xs text-muted-foreground">Audio: {audio.join(", ")}</span> : null}
             {perms.seeFiles && !gone && !d.monitored && d.availability !== "unmonitored" ? <Chip tone="ghost">Not monitored</Chip> : null}
           </div>
@@ -283,7 +290,7 @@ export function TitlePage() {
                 <li key={e.key} data-event={e.event} className="[overflow-wrap:anywhere]">
                   {events.length > 1 || versions.length > 1 ? <span className="font-medium text-[var(--ink)]">{e.label}: </span> : null}
                   <span className={e.tone === "warning" ? "text-[var(--warn-ink)]" : undefined}>{e.words}</span>
-                  {e.event === "failed" ? <> · <button type="button" className="text-[var(--accent-ink)] hover:underline" onClick={showHistory}>Details</button></> : null}
+                  {e.event === "failed" && e.downloadId ? <> · <button type="button" className="text-[var(--accent-ink)] hover:underline" onClick={() => setAttempt({ id: e.downloadId!, library: e.label, words: e.words })} data-testid="title-event-details">Details</button></> : null}
                 </li>
               ))}
             </ul>
@@ -345,6 +352,7 @@ export function TitlePage() {
       {tab === "about" ? <About d={d} /> : null}
       {tab === "history" ? <TitleHistory d={d} /> : null}
 
+      {attempt ? <AttemptDialog downloadId={attempt.id} library={attempt.library} words={attempt.words} onClose={() => setAttempt(null)} /> : null}
       {/* Phones: the primary action stays reachable above the bottom tabs. */}
       {action ? (
         <div className="fixed inset-x-0 bottom-[calc(3.75rem+env(safe-area-inset-bottom))] pointer-events-none z-30 flex justify-center px-4 pb-2 md:hidden" data-testid="title-sticky-action">

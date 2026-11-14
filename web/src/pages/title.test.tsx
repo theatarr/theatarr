@@ -203,6 +203,7 @@ describe("Title page facts (J5)", () => {
       { method: "GET", path: "/auth/me", reply: me },
       { method: "GET", path: "/titles/70", reply: { ...title, ...t } },
       { method: "GET", path: "/add/options", reply: { kind: "movie", anime: false, title_id: 70, router_enabled: true, episodes_known: false, can_search: true, seasons: [], versions: [] } },
+      { method: "GET", path: "/activity/downloads/41/attempts", reply: { attempts: [{ provider: "rd", outcome: "skipped", code: "miss", message: "not cached", at: "2026-11-14T10:00:00Z" }] } },
     ]);
     renderPage(<SearchProvider><Routes><Route path="/title/:id" element={<TitlePage />} /></Routes></SearchProvider>, path);
   };
@@ -216,7 +217,7 @@ describe("Title page facts (J5)", () => {
   it("names each library's latest event under the status, a failed attempt beside Upgrade found", async () => {
     const recent = new Date(Date.now() - 3600_000).toISOString();
     show({ availability: "available", versions: [
-      { ...lib, has_file: true, state: "filled", current: { quality: "WEBDL-2160p", files: 1 }, upgrade: { state: "upgrade_available" }, history: [{ event: "failed", date: recent, reason: "miss on every provider", missed_on: ["rd", "tb"] }] },
+      { ...lib, has_file: true, state: "filled", current: { quality: "WEBDL-2160p", files: 1 }, upgrade: { state: "upgrade_available" }, history: [{ event: "failed", date: recent, reason: "miss on every provider", missed_on: ["rd", "tb"], upgrade: true, download_id: 41 }] },
       { ...lib, id: 6, key: "movie-remux", label: "4K Remux", has_file: true, state: "cutoff_met", current: { quality: "Remux-2160p", files: 1 }, history: [{ event: "imported", date: recent }] },
     ] });
     const events = await screen.findByTestId("title-events");
@@ -225,10 +226,23 @@ describe("Title page facts (J5)", () => {
     // The row keeps Upgrade found and shows the attempt beside it.
     const row = (await screen.findAllByTestId("library-failed"))[0];
     expect(row.textContent).toBe("Last upgrade attempt today: not cached on RD and TB");
+    // Details opens that attempt: its provider attempts.
+    await userEvent.setup().click(screen.getByTestId("title-event-details"));
+    const dialog = await screen.findByTestId("attempt-dialog");
+    expect((await within(dialog).findByTestId("attempt-list")).textContent).toContain("RD");
+  });
+
+  it("says a library's first download beside another library's Available", async () => {
+    show({ availability: "available", versions: [
+      { ...lib, key: "movie-remux", label: "4K Remux", has_file: true, state: "cutoff_met", current: { quality: "Remux-2160p", files: 1 } },
+      { ...lib, acquisition: { stage: "downloading", progress: 40, words: "", download_id: 1, downloads: 1, updated_at: "2026-11-14T10:00:00Z" } },
+    ] });
+    expect((await screen.findByTestId("title-readiness")).textContent).toBe("Available in 4K");
+    expect(screen.getByTestId("title-stage").textContent).toBe("4K WEB: Downloading · 40%");
   });
 
   it("says why a missing film is missing and what next", async () => {
-    show({ availability: "missing", release_date: "2020-01-01", auto_search: { missing: false, upgrades: true, enabled: true }, versions: [lib] });
+    show({ availability: "missing", release_date: "2020-01-01", auto_search: { missing: false, upgrades: true, enabled: true }, versions: [{ ...lib, rss: true }] });
     expect((await screen.findAllByTestId("library-why"))[0].textContent).toBe("Never searched. Automatic search for missing items is off; new releases are still picked up from RSS.");
   });
 

@@ -540,3 +540,16 @@ describe("Seasons order and kept monitoring (J5)", () => {
     expect(window.location.search).not.toContain("episode=");
   });
 });
+
+describe("Episode window status (J5)", () => {
+  it("reads Not monitored, not Missing, for an episode whose only library is not monitored", async () => {
+    const one = { ...episodes, versions: [{ ...episodes.versions[1], monitored: false }] };
+    const missing = { ...episodes.episodes[2], versions: { "anime-web": cell(false) } };
+    const win = { ...detail, episode: missing, versions: [{ key: "anime-web", label: "Anime WEB", state: "wanted", monitored: true, library_monitored: false, has_file: false, control: managed }] };
+    mockFetch([routes[0], { method: "GET", path: "/titles/1/episodes", reply: { ...one, episodes: [missing] } }, { method: "GET", path: "/titles/1/episodes/103", reply: win }]);
+    renderPage(<Seasons id="1" anime />, "/title/1?episode=103");
+    const status = await screen.findByTestId("episode-status");
+    expect(status.getAttribute("data-status")).toBe("unmonitored");
+    expect(within(await screen.findByTestId("episode-meta")).getByText(/Aired/)).toBeTruthy();
+  });
+});

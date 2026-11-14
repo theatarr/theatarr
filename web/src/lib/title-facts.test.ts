@@ -6,13 +6,13 @@ const ev = (event: string, date: string, extra: object = {}) => ({ event, date, 
 
 describe("latestEvent", () => {
   it("says the newest import, or a failed attempt with the providers it missed on", () => {
-    expect(latestEvent({ has_file: true, history: [ev("grabbed", "2026-11-14T09:00:00Z"), ev("imported", "2026-11-14T10:00:00Z")] }, now)?.words).toBe("Imported today");
-    const failed = latestEvent({ has_file: true, history: [ev("imported", "2026-11-01T10:00:00Z"), ev("failed", "2026-11-13T20:07:00Z", { reason: "miss on every provider", missed_on: ["rd", "ad", "tb"] })] }, now);
-    expect(failed).toMatchObject({ event: "failed", tone: "warning", words: "Last upgrade attempt yesterday: not cached on RD, AD and TB" });
-    // Without a file it is the download that failed; the server's reason when the providers are not known.
-    expect(latestEvent({ has_file: false, history: [ev("failed", "2026-11-10T10:00:00Z", { reason: "Stalled" })] }, now)?.words).toBe("Last download failed Nov 10: stalled");
+    expect(latestEvent({ history: [ev("grabbed", "2026-11-14T09:00:00Z"), ev("imported", "2026-11-14T10:00:00Z")] }, now)?.words).toBe("Imported today");
+    const failed = latestEvent({ history: [ev("imported", "2026-11-01T10:00:00Z"), ev("failed", "2026-11-13T20:07:00Z", { reason: "miss on every provider", missed_on: ["rd", "ad", "tb"], upgrade: true, download_id: 9 })] }, now);
+    expect(failed).toMatchObject({ event: "failed", tone: "warning", words: "Last upgrade attempt yesterday: not cached on RD, AD and TB", downloadId: 9 });
+    // Not an upgrade (nothing it was for was held): the download failed; the server's reason without known providers.
+    expect(latestEvent({ history: [ev("failed", "2026-11-10T10:00:00Z", { reason: "Stalled" })] }, now)?.words).toBe("Last download failed Nov 10: stalled");
     // Searches and grabs alone are no event here.
-    expect(latestEvent({ has_file: false, history: [ev("searched", "2026-11-14T10:00:00Z"), ev("grabbed", "2026-11-14T10:00:00Z")] }, now)).toBeUndefined();
+    expect(latestEvent({ history: [ev("searched", "2026-11-14T10:00:00Z"), ev("grabbed", "2026-11-14T10:00:00Z")] }, now)).toBeUndefined();
   });
 
   it("names days plainly", () => {
@@ -24,23 +24,33 @@ describe("latestEvent", () => {
 
 describe("missingLine", () => {
   const auto = { missing: false, upgrades: true, enabled: true };
-  it("says the last targeted search or never, and whether Theatarr searches by itself", () => {
-    expect(missingLine({}, auto, now)).toBe("Never searched. Automatic search for missing items is off; new releases are still picked up from RSS.");
-    expect(missingLine({ last_search: { at: "2026-11-12T10:00:00Z", run_id: 1, state: "nothing", results: 12, accepted: 0 } }, { ...auto, missing: true }, now))
-      .toBe("Last searched Nov 12: 12 results, none accepted. Theatarr searches for it automatically.");
+  const run = (state: string, results?: number, accepted?: number) => ({ at: "2026-11-12T10:00:00Z", run_id: 1, state, results, accepted }) as never;
+  it("says the last targeted search by its state, and whether Theatarr searches by itself", () => {
+    expect(missingLine({ rss: true }, auto, now)).toBe("Never searched. Automatic search for missing items is off; new releases are still picked up from RSS.");
+    // No RSS feed covers the library: the RSS sentence is left out.
+    expect(missingLine({}, auto, now)).toBe("Never searched. Automatic search for missing items is off.");
+    expect(missingLine({ last_search: run("nothing", 12, 0) }, { ...auto, missing: true }, now)).toBe("Last searched Nov 12: 12 results, none accepted. Theatarr searches for it automatically.");
+    expect(missingLine({ last_search: run("nothing", 0, 0) }, null, now)).toBe("Last searched Nov 12: nothing found");
+    // A failed or skipped search found nothing because it did not search: said so.
+    expect(missingLine({ last_search: run("failed", 0, 0) }, null, now)).toBe("Last search Nov 12 failed");
+    expect(missingLine({ last_search: run("skipped", 0, 0) }, null, now)).toBe("Last search Nov 12 was skipped");
+    // An episode covered by a season's search: when only, no counts.
+    expect(missingLine({ last_search: run("routed") }, null, now)).toBe("Last searched Nov 12");
     expect(missingLine({ searching: "queued" }, { ...auto, enabled: false }, now)).toBe("Search queued. Paused: nothing is searched or downloaded.");
   });
 });
 
 describe("acquiringStatus", () => {
-  it("is the most advanced download's stage while nothing is held, else a search under way", () => {
-    const a = (stage: string, progress?: number) => ({ stage, progress, words: "", download_id: 1, downloads: 1, updated_at: "" }) as never;
-    expect(acquiringStatus([{ has_file: false, monitored: true, acquisition: a("queued") }, { has_file: false, monitored: true, acquisition: a("downloading", 37) }])).toBe("Downloading · 37%");
-    expect(acquiringStatus([{ has_file: false, monitored: true, acquisition: a("waiting_mount") }])).toBe("Importing");
-    // A held file stays Available during an upgrade.
-    expect(acquiringStatus([{ has_file: true, monitored: true, acquisition: a("downloading", 10) }, { has_file: false, monitored: true }])).toBeUndefined();
-    expect(acquiringStatus([{ has_file: false, monitored: true, searching: "searching" }])).toBe("Searching");
-    expect(acquiringStatus([{ has_file: false, monitored: true, acquisition: a("blocked") }])).toBeUndefined();
+  const a = (stage: string, progress?: number) => ({ stage, progress, words: "", download_id: 1, downloads: 1, updated_at: "" }) as never;
+  it("is the most advanced download's stage among libraries without a file, else a search under way", () => {
+    expect(acquiringStatus([{ key: "r", has_file: false, monitored: true, acquisition: a("queued") }])).toBe("Waiting to start");
+    expect(acquiringStatus([{ key: "r", label: "4K Remux", has_file: false, monitored: true, acquisition: a("queued") }, { key: "w", label: "4K WEB", has_file: false, monitored: true, acquisition: a("downloading", 37) }])).toBe("4K WEB: Downloading · 37%");
+    expect(acquiringStatus([{ key: "r", has_file: false, monitored: true, acquisition: a("waiting_mount") }])).toBe("Importing");
+    // A held library's upgrade does not count; another library's first download does.
+    expect(acquiringStatus([{ key: "r", label: "4K Remux", has_file: true, monitored: true, acquisition: a("downloading", 10) }])).toBeUndefined();
+    expect(acquiringStatus([{ key: "r", label: "4K Remux", has_file: true, monitored: true }, { key: "w", label: "4K WEB", has_file: false, monitored: true, acquisition: a("downloading", 40) }])).toBe("4K WEB: Downloading · 40%");
+    expect(acquiringStatus([{ key: "r", has_file: false, monitored: true, searching: "searching" }])).toBe("Searching");
+    expect(acquiringStatus([{ key: "r", has_file: false, monitored: true, acquisition: a("blocked") }])).toBeUndefined();
   });
 });
 

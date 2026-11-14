@@ -38,14 +38,15 @@ export function failureWords(h: Pick<HistoryEvent, "missed_on" | "reason">): str
   return r ? r.charAt(0).toLowerCase() + r.slice(1) : "";
 }
 
-export type LatestEvent = { event: "imported" | "failed"; date: string; words: string; tone: "positive" | "warning" };
+export type LatestEvent = { event: "imported" | "failed"; date: string; words: string; tone: "positive" | "warning"; downloadId?: number };
 
 /**
  * A library's latest relevant event: its newest import (an upgrade counts) or failed download. "Imported today";
- * a failure with a file held "Last upgrade attempt Nov 13: not cached on RD, AD and TB", without one "Last download
- * failed Nov 13: …". Nothing when the library has neither (searches and grabs in flight are said elsewhere).
+ * a failure of a download that was to replace a file held then or now (the server's upgrade flag, per movie or per
+ * episode) "Last upgrade attempt Nov 13: not cached on RD, AD and TB", any other "Last download failed Nov 13: …".
+ * Nothing when the library has neither (searches and grabs in flight are said elsewhere).
  */
-export function latestEvent(v: Pick<Version, "history" | "has_file">, now: Date = new Date()): LatestEvent | undefined {
+export function latestEvent(v: Pick<Version, "history">, now: Date = new Date()): LatestEvent | undefined {
   let top: HistoryEvent | undefined;
   for (const h of v.history ?? []) {
     if (h.event !== "imported" && h.event !== "upgraded" && h.event !== "failed") continue;
@@ -55,15 +56,26 @@ export function latestEvent(v: Pick<Version, "history" | "has_file">, now: Date 
   const day = dayWords(top.date, now);
   if (top.event !== "failed") return { event: "imported", date: top.date, words: `Imported ${day}`, tone: "positive" };
   const why = failureWords(top);
-  const what = v.has_file ? "Last upgrade attempt" : "Last download failed";
-  return { event: "failed", date: top.date, words: `${what} ${day}${why ? `: ${why}` : ""}`, tone: "warning" };
+  const what = top.upgrade ? "Last upgrade attempt" : "Last download failed";
+  return { event: "failed", date: top.date, words: `${what} ${day}${why ? `: ${why}` : ""}`, tone: "warning", downloadId: top.download_id };
 }
 
-/** "Never searched" or "Last searched Nov 12: 12 results, none accepted". */
+/**
+ * The last targeted search by its state: "Never searched"; "Last search Nov 12 failed" (no indexer answered, or the
+ * search errored) and "Last search Nov 12 was skipped" (paused, Watch only, a download in flight) say no results; a
+ * completed one "Last searched Nov 12: nothing found" or "…: 12 results, none accepted". Without counts (an episode
+ * covered by a season's search) only when.
+ */
 export function lastSearchWords(l: LastSearch | undefined | null, now: Date = new Date()): string {
   if (!l) return "Never searched";
-  const found = l.results === 0 ? "nothing found" : `${fmtNumber(l.results)} ${l.results === 1 ? "result" : "results"}, ${l.accepted === 0 ? "none" : fmtNumber(l.accepted)} accepted`;
-  return `Last searched ${dayWords(l.at, now)}: ${found}`;
+  const day = dayWords(l.at, now);
+  if (l.state === "failed") return `Last search ${day} failed`;
+  if (l.state === "skipped") return `Last search ${day} was skipped`;
+  if (l.state === "queued" || l.state === "searching") return `Searching since ${day}`;
+  if (l.results == null) return `Last searched ${day}`;
+  const accepted = l.accepted ?? 0;
+  const found = l.results === 0 ? "nothing found" : `${fmtNumber(l.results)} ${l.results === 1 ? "result" : "results"}, ${accepted === 0 ? "none" : fmtNumber(accepted)} accepted`;
+  return `Last searched ${day}: ${found}`;
 }
 
 /** A search under way, in words: "Searching now", "Search queued"; "" for none. */
@@ -76,11 +88,12 @@ export function searchingWords(s: string | undefined | null): string {
  * targeted search or "Never searched", then whether Theatarr searches for missing items by itself. With it off, RSS
  * still picks up new releases, and the line says so. Search now sits beside the line (the caller's button).
  */
-export function missingLine(f: { last_search?: LastSearch | null; searching?: string | null }, auto: AutoSearch | undefined | null, now: Date = new Date()): string {
+export function missingLine(f: { last_search?: LastSearch | null; searching?: string | null; rss?: boolean }, auto: AutoSearch | undefined | null, now: Date = new Date()): string {
   const first = searchingWords(f.searching) || lastSearchWords(f.last_search, now);
   if (!auto) return first;
   if (!auto.enabled) return `${first}. Paused: nothing is searched or downloaded.`;
-  if (!auto.missing) return `${first}. Automatic search for missing items is off; new releases are still picked up from RSS.`;
+  // RSS only where the library's RSS read covers it (the server's rss).
+  if (!auto.missing) return `${first}. Automatic search for missing items is off${f.rss ? "; new releases are still picked up from RSS" : ""}.`;
   return `${first}. Theatarr searches for it automatically.`;
 }
 
@@ -102,23 +115,23 @@ export function heroStageWords(a: Pick<Acquisition, "stage" | "progress">): stri
 const STAGE_ORDER: Acquisition["stage"][] = ["queued", "starting", "downloading", "complete", "waiting_mount", "linking"];
 
 /**
- * The hero's status while a library is getting its first file: the most advanced download in hand (not blocked) of a
- * library that holds no file, else "Searching" / "Search queued" when the server says a search of such a library is
- * under way; undefined when neither (the title's status stands). A held file stays Available during an upgrade, so a
- * title with any file held gets none.
+ * What the libraries without a file are getting, for the hero: the most advanced download in hand (not blocked)
+ * among them, "Searching" / "Search queued" when the server says a search of such a library is under way, else
+ * undefined. A held library stays Available during an upgrade (its download is not counted); with several libraries
+ * the words name the library ("4K WEB: Downloading · 40%").
  */
-export function acquiringStatus(versions: readonly Pick<Version, "has_file" | "acquisition" | "searching" | "monitored">[]): string | undefined {
-  if (versions.some((v) => v.has_file)) return undefined;
-  let best: Acquisition | undefined;
-  for (const v of versions) {
+export function acquiringStatus(versions: readonly Pick<Version, "has_file" | "acquisition" | "searching" | "monitored" | "label" | "key">[]): string | undefined {
+  const empty = versions.filter((v) => !v.has_file);
+  const named = (v: (typeof versions)[number], words: string) => (versions.length > 1 ? `${v.label || v.key}: ${words}` : words);
+  let best: (typeof versions)[number] | undefined;
+  for (const v of empty) {
     const a = v.acquisition;
     if (!a || a.stage === "blocked") continue;
-    if (!best || STAGE_ORDER.indexOf(a.stage) > STAGE_ORDER.indexOf(best.stage)) best = a;
+    if (!best || STAGE_ORDER.indexOf(a.stage) > STAGE_ORDER.indexOf(best.acquisition!.stage)) best = v;
   }
-  if (best) return heroStageWords(best);
-  if (versions.some((v) => v.monitored && v.searching === "searching")) return "Searching";
-  if (versions.some((v) => v.monitored && v.searching === "queued")) return "Search queued";
-  return undefined;
+  if (best) return named(best, heroStageWords(best.acquisition!));
+  const searching = empty.find((v) => v.monitored && v.searching === "searching") ?? empty.find((v) => v.monitored && v.searching === "queued");
+  return searching ? named(searching, searching.searching === "searching" ? "Searching" : "Search queued") : undefined;
 }
 
 /**

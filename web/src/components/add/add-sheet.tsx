@@ -28,6 +28,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useLibraryName } from "@/lib/library-names";
 import { nameWithoutYear } from "@/lib/format";
+import { readableCode } from "@/lib/code-words";
 
 function CheckRow({
   checked,
@@ -93,7 +94,7 @@ function LibraryRow({ v, checked, disabled, onChange, note, admin }: {
         <label htmlFor={id} className={cn("flex flex-wrap items-baseline gap-x-2 gap-y-0.5", !disabled && "cursor-pointer")}>
           <span className="text-sm font-medium text-[var(--ink)] [overflow-wrap:anywhere]" title={admin ? v.key : undefined}>{v.label || nameOf(v.key)}</span>
         </label>
-        {fetchesWords(v) ? <p className="text-xs text-[var(--ink-2)]" title={admin && v.profile ? `Profile ${v.profile}` : undefined} data-testid="add-fetches">{fetchesWords(v)}</p> : null}
+        {fetchesWords(v) ? <p className="text-xs text-[var(--ink-2)]" title={admin && v.profile ? `Profile key ${v.profile}` : undefined} data-testid="add-fetches">{fetchesWords(v)}</p> : null}
         {note ? <p className="text-xs text-[var(--ink-3)]">{note}</p> : null}
         <div id={`${id}-state`}><VersionStatus state={v.grab_state} showMode settingsKey={v.key} canManage={admin} /></div>
       </div>
@@ -101,11 +102,12 @@ function LibraryRow({ v, checked, disabled, onChange, note, admin }: {
   );
 }
 
-/** What a library fetches, from its profile: "Fetches Remux-2160p, upgrading until it has it" or "Fetches up to
- *  WEBDL-1080p, no upgrades". */
-export function fetchesWords(v: Pick<VersionOption, "cutoff" | "upgrades">): string {
+/** What a library fetches, from its profile, by the profile's name: "Profile Remux 2160p: prefers Remux-2160p,
+ *  upgrading until it has it", or "…: prefers WEBDL-1080p, no upgrades" (the profile's switch or the library's own). */
+export function fetchesWords(v: Pick<VersionOption, "cutoff" | "upgrades" | "profile">): string {
   if (!v.cutoff) return "";
-  return v.upgrades ? `Prefers ${v.cutoff}; upgrades until it has it` : `Prefers ${v.cutoff}; no upgrades`;
+  const name = v.profile ? `Profile ${readableCode(v.profile)}: prefers` : "Prefers";
+  return v.upgrades ? `${name} ${v.cutoff}, upgrading until it has it` : `${name} ${v.cutoff}, no upgrades`;
 }
 
 /** The note under a library already on the title: monitored ("Already in this library"), or held but not monitored. */

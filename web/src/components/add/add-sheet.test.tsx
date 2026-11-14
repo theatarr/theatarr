@@ -319,9 +319,9 @@ it("says what each library fetches, offers Monitor for one held unmonitored, and
   const closed = vi.fn();
   renderPage(<AddSheet target={{ kind: "movie", name: "Alpha", title_id: 9 }} onClose={closed} />, "/search");
   const web = await screen.findByTestId("add-version-movie-web");
-  expect(within(web).getByTestId("add-fetches").textContent).toBe("Prefers WEBDL-2160p; upgrades until it has it");
+  expect(within(web).getByTestId("add-fetches").textContent).toBe("Profile Web 2160p: prefers WEBDL-2160p, upgrading until it has it");
   expect(within(web).getByText("Already here, not monitored: ticked, it is monitored again")).toBeTruthy();
-  expect(within(screen.getByTestId("add-version-movie-4k")).getByTestId("add-fetches").textContent).toBe("Prefers Remux-2160p; no upgrades");
+  expect(within(screen.getByTestId("add-version-movie-4k")).getByTestId("add-fetches").textContent).toBe("Prefers Remux-2160p, no upgrades");
   expect(screen.getByTestId("add-submit").textContent).toContain("Monitor");
   await user.click(screen.getByTestId("add-submit-search"));
   await waitFor(() => expect(fetch.calls("POST", "/titles")).toHaveLength(1));

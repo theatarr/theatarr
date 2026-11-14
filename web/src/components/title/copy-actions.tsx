@@ -113,7 +113,7 @@ export function CopyActions({ v, label, onRemove }: { v: Version; label: string;
   return (
     <div className="space-y-2" data-testid="copy-actions">
       {links.length > 0 ? (
-        // Folded, by folder (a series' season), file names first and the full path as each name's tooltip.
+        // Folded, by folder (a series' season): each file's name, then its full path, selectable.
         <details className="group" data-testid="library-files">
           <summary className="cursor-pointer text-xs font-bold uppercase tracking-[0.05em] text-[var(--ink-3)]">Library files ({links.length})</summary>
           <div className="mt-2 space-y-2">
@@ -123,7 +123,10 @@ export function CopyActions({ v, label, onRemove }: { v: Version; label: string;
                 <ul className="space-y-1">
                   {g.links.map((l) => (
                     <li key={l.id} className="flex items-start gap-2">
-                      <Mono className="min-w-0 flex-1 text-muted-foreground [overflow-wrap:anywhere]"><span title={l.path}>{(l.path ?? "").split("/").pop()}</span></Mono>
+                      <span className="min-w-0 flex-1">
+                        <Mono className="block text-[var(--ink)] [overflow-wrap:anywhere]">{(l.path ?? "").split("/").pop()}</Mono>
+                        <span className="block select-text" data-testid="library-file-path"><Mono className="text-[11.5px] text-muted-foreground [overflow-wrap:anywhere]">{l.path}</Mono></span>
+                      </span>
                       <Button size="xs" variant="ghost" onClick={() => setPath({ id: l.id ?? 0, path: l.path ?? "" })} data-testid="link-unlink">
                         <FileX2 /> Unlink
                       </Button>

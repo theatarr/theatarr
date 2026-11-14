@@ -30,8 +30,8 @@ import { Card } from "@/components/ui/card";
 import { ColumnPicker } from "@/components/ui/column-picker";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
 import { fmtAgo, fmtBytes, fmtNumber, fmtTime } from "@/lib/format";
-import { currentLibraries, DEFAULT_LIBRARY_COLUMNS, fileName, LIBRARY_COLUMNS, lastSearch, libraryColumns, libraryStatus, nextSearch, nextSearchOf, type LibraryColumn } from "@/lib/library-rows";
-import { leftoverLinks } from "@/lib/ops";
+import { currentLibraries, DEFAULT_LIBRARY_COLUMNS, fileName, LIBRARY_COLUMNS, libraryColumns, libraryStatus, nextSearch, nextSearchOf, type LibraryColumn } from "@/lib/library-rows";
+import { leftoverLinks, unlinkable } from "@/lib/ops";
 import { useColumnPrefs } from "@/lib/prefs";
 import { belowCount, nextLine } from "@/lib/upgrade";
 import { cn } from "@/lib/utils";
@@ -156,7 +156,8 @@ function cellOf(id: LibraryColumn, v: Version, kind: Kind, title: TitleDetail): 
     case "added":
       return held && c?.added_at ? <span className="whitespace-nowrap" title={fmtTime(c.added_at)}>{fmtAgo(c.added_at)}</span> : blank;
     case "last_search": {
-      const at = lastSearch(v);
+      // The last targeted search (the server's last_search: every run, not only the history's newest ten).
+      const at = v.last_search?.at;
       return at ? <span className="whitespace-nowrap" title={fmtTime(at)}>{fmtAgo(at)}</span> : blank;
     }
     case "next_search": {

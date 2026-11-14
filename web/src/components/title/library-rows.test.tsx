@@ -311,3 +311,22 @@ describe("fix round 1", () => {
   });
 });
 
+
+describe("Library files (J5)", () => {
+  it("folds the linked files by folder, each name with its full path visible once", async () => {
+    manager();
+    const user = userEvent.setup();
+    const links = [
+      { id: 1, kind: "symlink", path: "/media/tv/Delta/Season 01/Delta.S01E01.mkv", state: "active" },
+      { id: 2, kind: "symlink", path: "/media/tv/Delta/Season 02/Delta.S02E01.mkv", state: "active" },
+    ];
+    renderPage(<LibraryRows title={title as never} versions={[{ ...web, links, current: { ...web.current, path: "/media/tv/Delta/Season 01/Delta.S01E01.mkv" } } as never]} />);
+    await user.click(await screen.findByTestId("copy-details-movie-web"));
+    const files = await screen.findByTestId("library-files");
+    expect(within(files).getByText("Library files (2)")).toBeTruthy();
+    expect(within(files).getByText("Season 01")).toBeTruthy();
+    expect(within(files).getAllByTestId("library-file-path").map((p) => p.textContent)).toEqual(links.map((l) => l.path));
+    // The row details no longer repeat it.
+    expect(within(screen.getByTestId("library-row-details-movie-web")).queryByText("Path")).toBeNull();
+  });
+});

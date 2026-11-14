@@ -40,7 +40,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { fmtAgo, fmtBytes, fmtNumber, fmtTime } from "@/lib/format";
 import { fmtDay, fmtRuntime } from "@/lib/library";
 import { mediaLine, subsList } from "@/lib/media";
-import { cellStatus, episodeNumber, mergedStatus, plainAvailable, statusWords } from "@/lib/seasons";
+import { cellStatus, episodeNumber, mergedStatus, offCopies, plainAvailable, statusWords } from "@/lib/seasons";
 import { activityHref, stageTone, stageWords } from "@/lib/copies";
 import { cn } from "@/lib/utils";
 import { missingLine } from "@/lib/title-facts";
@@ -289,16 +289,16 @@ function PlainAvailability({ e }: { e: EpisodeDetail["episode"] }) {
   );
 }
 
-/** The episode's one status line under its name, across its libraries: "Missing since Apr 26", "Available",
- *  "Not aired yet". Per library the Details tab says more. */
-function EpisodeStatusLine({ e }: { e: EpisodeDetail["episode"] }) {
+/** The episode's one status line under its name, across its libraries as the Episodes table merges them, a library
+ *  that is not monitored reading Not monitored, never Missing: "Missing", "Available", "Not aired". The air date stays
+ *  the meta line's ("Aired Apr 26"); per library the Details tab says more. */
+function EpisodeStatusLine({ e, versions }: { e: EpisodeDetail["episode"]; versions: EpisodeVersionDetail[] }) {
   const keys = Object.keys(e.versions);
-  const s = mergedStatus(e, keys);
+  const s = mergedStatus(e, keys, offCopies(versions.map((v) => ({ key: v.key, monitored: v.library_monitored })), true));
   const w = statusWords(s, true);
-  const since = s === "missing" && e.air_date ? ` since ${fmtDay(e.air_date)}` : "";
   return (
     <p className="mt-1 text-sm" data-testid="episode-status" data-status={s}>
-      <Badge tone={w.tone}>{w.label}{since}</Badge>
+      <Badge tone={w.tone}>{w.label}</Badge>
     </p>
   );
 }
@@ -347,7 +347,7 @@ export function EpisodeOverview({
             "Episode"
           )}
         </h2>
-        {e && d && perms.seeFiles && d.versions.length > 0 ? <EpisodeStatusLine e={e} /> : null}
+        {e && d && perms.seeFiles && d.versions.length > 0 ? <EpisodeStatusLine e={e} versions={d.versions} /> : null}
         {e ? (
           <p className="mt-1 text-xs text-muted-foreground" data-testid="episode-meta">
             {[e.air_date ? `${aired ? "Aired" : "Airs"} ${fmtDay(e.air_date)}` : "No air date", runtime, anime && e.absolute ? episodeNumber(e, true) : ""].filter(Boolean).join(" · ")}

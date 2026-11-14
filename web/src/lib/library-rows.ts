@@ -152,13 +152,6 @@ export function fileName(path: string | undefined | null): string {
   return path.split("/").filter(Boolean).pop() ?? "";
 }
 
-/** When the library was last searched: the newest search in its history. */
-export function lastSearch(v: Pick<Version, "history">): string | undefined {
-  let newest: string | undefined;
-  for (const h of v.history ?? []) if (h.event === "searched" && h.date && (!newest || h.date > newest)) newest = h.date;
-  return newest;
-}
-
 /** The next automatic search (phase E): on the copy's control object, read defensively since older servers do not
  *  send it. */
 type NextSearchFields = { next_search_at?: unknown; next_search_why?: unknown };
