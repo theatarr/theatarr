@@ -38,9 +38,9 @@ import (
 //     is told to the ranking through seeders: 1000 for a preferred Nyaa entry, 10 for the others (the arrs compare
 //     seeders on a log scale after quality and score). The recent feed prefers best entries, as seadexerr's does.
 //   - Every entry carries seadexerr's rare indexer flag combination (download factor 0.75, upload factor 2,
-//     internal, scene), as in the arrs. Deliberate deviation: the decider builds an arr-style "Seadex" format
-//     requiring all four (the one the arr profiles score +5000) as SeaDex best (format.SeaDexBestForSeaDexerr), so
-//     it scores SeaDex's best torrent wherever it was found, and not alternatives.
+//     internal, scene), as in the arrs. Deliberate deviation for a version with Prefer SeaDex: the decider evaluates
+//     an arr-style "Seadex" format requiring all four (the one the arr profiles score +5000) as SeaDex best
+//     (format.SeaDexBestForSeaDexerr), so it scores SeaDex's best torrent wherever it was found, and not alternatives.
 //   - The AniList id comes from the query, else from the service's resolver (TVDB id and season, or TMDb/IMDb id
 //     for a movie), as seadexerr maps them through anibridge.
 //   - Titles retain seadexerr's mapped identity and record id, but use the feature filenames' actual quality
@@ -87,8 +87,49 @@ func JoinSeaDexEntries(ids []int) string {
 	return strings.Join(out, ",")
 }
 
+// ExtraSeaDexNumbered is N when the torrent's episode files are numbered exactly 1..N (seadexNumbered): the evidence
+// that lets a batch listed under several cours take its season's numbering (decide/anime.go).
+const ExtraSeaDexNumbered = "seadex_numbered"
+
+// seadexExtraRE names extras that are not regular episodes: OVAs, specials, creditless openings and endings.
+var seadexExtraRE = regexp.MustCompile(`(?i)\b(?:OVA|OAD|ONA|specials?|SP\d*|NC ?(?:OP|ED)\d*)\b`)
+
+// seadexNumbered is N when the feature files (extras excluded) are numbered exactly 1..N, each once, read as the
+// import reads a file (sonarr.ParsePath: one absolute number, a vN suffix allowed); 0 in any other shape. Files named
+// as extras (seadexExtraRE) are left out.
+func seadexNumbered(t *sdTorrent, largest int64) int {
+	seen := map[int]bool{}
+	for _, f := range t.Files {
+		if f.Length <= 0 || f.Length < largest/2 {
+			continue
+		}
+		name := strings.ReplaceAll(f.Name, `\`, "/")
+		if seadexExtraRE.MatchString(path.Base(name)) {
+			continue
+		}
+		p := sonarr.ParsePath(name)
+		if p == nil || p.Special || len(p.EpisodeNumbers) > 0 || len(p.AbsoluteEpisodeNumbers) != 1 {
+			return 0
+		}
+		n := p.AbsoluteEpisodeNumbers[0]
+		if n < 1 || seen[n] {
+			return 0
+		}
+		seen[n] = true
+	}
+	for n := 1; n <= len(seen); n++ {
+		if !seen[n] {
+			return 0
+		}
+	}
+	return len(seen)
+}
+
 // SeaDexEntries reads an ExtraSeaDexEntries value.
 func SeaDexEntries(v string) []int {
+	if v == "" {
+		return nil
+	}
 	var ids []int
 	for _, x := range strings.Split(v, ",") {
 		if id, err := strconv.Atoi(strings.TrimSpace(x)); err == nil && id > 0 {
@@ -629,6 +670,9 @@ func seadexRelease(t *sdTorrent, alID int, typ QueryType) (Release, int) {
 	r.setExtra("tracker", t.Tracker)
 	r.setExtra("group", t.ReleaseGroup)
 	r.setExtra("features", strconv.Itoa(features))
+	if n := seadexNumbered(t, largest); n > 0 {
+		r.setExtra(ExtraSeaDexNumbered, strconv.Itoa(n))
+	}
 	r.setExtra("tags", strings.Join(t.Tags, ","))
 	if t.DualAudio {
 		r.setExtra("dual_audio", "true")

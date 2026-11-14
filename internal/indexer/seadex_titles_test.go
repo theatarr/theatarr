@@ -133,8 +133,15 @@ func TestSeadexBatchCarriesEveryEntry(t *testing.T) {
 	const batch = "5bf61ad8aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	files := make([]string, 37)
 	for i := range files {
-		files[i] = fmt.Sprintf(`{"length":3000000000,"name":"[sam] Dr. STONE - Science Future - %02d (BD 1080p).mkv"}`, i+1)
+		v := ""
+		if i%10 == 4 {
+			v = "v2"
+		}
+		files[i] = fmt.Sprintf(`{"length":3000000000,"name":"[sam] Dr. STONE - Science Future - %02d%s (BD 1080p).mkv"}`, i+1, v)
 	}
+	// Extras beside 1..37: a creditless opening and a full-length OVA.
+	files = append(files, `{"length":100000000,"name":"Extras/[sam] Dr. STONE - NCOP1 (BD 1080p).mkv"}`,
+		`{"length":3000000000,"name":"[sam] Dr. STONE - OVA (BD 1080p).mkv"}`)
 	tor := func(id, hash string) string {
 		return `{"id":"` + id + `","url":"https://nyaa.si/view/1","infoHash":"` + hash + `","isBest":true,"tags":[],` +
 			`"tracker":"Nyaa","releaseGroup":"sam","files":[` + strings.Join(files, ",") + `]}`
@@ -170,8 +177,45 @@ func TestSeadexBatchCarriesEveryEntry(t *testing.T) {
 		if r.InfoHash == batch {
 			want = "172019,189117,199221"
 		}
-		if r.Extras[ExtraSeaDexEntries] != want || r.Extras["anilist"] == "" {
+		if r.Extras[ExtraSeaDexEntries] != want || r.Extras["anilist"] == "" || r.Extras[ExtraSeaDexNumbered] != "37" {
 			t.Errorf("%s: extras %v", r.InfoHash, r.Extras)
+		}
+	}
+}
+
+// The 1..N evidence: feature files numbered exactly 1..N, extras left out; any other shape gives none.
+func TestSeadexNumbered(t *testing.T) {
+	files := func(names ...string) *sdTorrent {
+		t := &sdTorrent{}
+		for _, n := range names {
+			t.Files = append(t.Files, struct {
+				Length int64  `json:"length"`
+				Name   string `json:"name"`
+			}{1000, n})
+		}
+		return t
+	}
+	seq := func(format string, from, to int) []string {
+		var out []string
+		for n := from; n <= to; n++ {
+			out = append(out, fmt.Sprintf(format, n))
+		}
+		return out
+	}
+	cases := map[string]struct {
+		names []string
+		want  int
+	}{
+		"1..24":              {seq("[sam] Dr. STONE - %02d (BD 1080p).mkv", 1, 24), 24},
+		"series-wide 13..36": {seq("[sam] Dr. STONE - %02d (BD 1080p).mkv", 13, 36), 0},
+		"01 in each folder":  {append(seq("Part 1/%02d.mkv", 1, 12), seq("Part 2/%02d.mkv", 1, 12)...), 0},
+		"a gap":              {append(seq("[sam] Show - %02d.mkv", 1, 5), "[sam] Show - 07.mkv"), 0},
+		"unreadable":         {append(seq("[sam] Show - %02d.mkv", 1, 3), "bonus.mkv"), 0},
+		"with specials":      {append(seq("[sam] Show - %02d.mkv", 1, 3), "[sam] Show - SP1.mkv", "[sam] Show - NCED.mkv"), 3},
+	}
+	for name, c := range cases {
+		if got := seadexNumbered(files(c.names...), 1000); got != c.want {
+			t.Errorf("%s: %d, want %d", name, got, c.want)
 		}
 	}
 }

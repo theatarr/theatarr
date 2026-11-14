@@ -156,7 +156,8 @@ func (s *series) applyAnimeMap(d *Decision, p *sonarr.ParsedEpisodeInfo, rel Rel
 	// Sxx title cannot claim episodes outside the entry's mapping, or outside the union of the entries SeaDex lists
 	// the same torrent under (a whole-season batch listed under each cour).
 	if rel.Kind == "seadex" && p.FullSeason {
-		union, unionErr := s.seadexSeason(rel.Extras[indexer.ExtraSeaDexEntries], p.SeasonNumber, am)
+		numbered, _ := strconv.Atoi(rel.Extras[indexer.ExtraSeaDexNumbered])
+		union, unionErr := s.seadexSeason(rel.Extras[indexer.ExtraSeaDexEntries], numbered, p.SeasonNumber, am)
 		if unionErr != nil {
 			return nil, unionErr
 		}
@@ -244,8 +245,10 @@ func (s *series) seadexCour(id string, season int, am *animemap.Series) (eps []*
 }
 
 // seadexSeason is the union of the regular episodes in season of the entries ids (ExtraSeaDexEntries) lists, when at
-// least two of them are mapped, importable and hold episodes of that season; nil otherwise (one entry's cour applies).
-func (s *series) seadexSeason(ids string, season int, am *animemap.Series) ([]*Episode, error) {
+// least two of them are mapped, importable and hold episodes of that season, the union is exactly the season's
+// episodes 1..N and the torrent's episode files are numbered 1..N (numbered, ExtraSeaDexNumbered), so each file's
+// number is its episode in the season. nil otherwise: one entry's cour applies, as for a hash listed under one entry.
+func (s *series) seadexSeason(ids string, numbered, season int, am *animemap.Series) ([]*Episode, error) {
 	var eps []*Episode
 	seen := map[int64]bool{}
 	cours := 0
@@ -265,10 +268,15 @@ func (s *series) seadexSeason(ids string, season int, am *animemap.Series) ([]*E
 			}
 		}
 	}
-	if cours < 2 {
+	if cours < 2 || len(eps) != numbered {
 		return nil, nil
 	}
 	slices.SortFunc(eps, func(a, b *Episode) int { return cmp.Compare(a.Number, b.Number) })
+	for i, ep := range eps {
+		if ep.Number != i+1 {
+			return nil, nil
+		}
+	}
 	return eps, nil
 }
 

@@ -188,6 +188,21 @@ func (s *series) fileFranchise(p *sonarr.ParsedEpisodeInfo, in FileInput, am *an
 		p.IsSeasonExtra || len(p.SpecialAbsoluteEpisodeNumbers) > 0 || fileSpecialRE.MatchString(fileTitle(in.Path)) {
 		return nil, "", false, nil
 	}
+	if m := in.Mapping; m != nil && len(p.AbsoluteEpisodeNumbers) > 0 {
+		if season, isSeason := strings.CutPrefix(m.How, AnimeMapSeason+":"); isSeason {
+			// A SeaDex pack of several cours whose files are numbered 1..N for the season (decided from its file
+			// list): the file's number is its episode in that TVDB season, before any entry its name matches.
+			n, _ := strconv.Atoi(season)
+			for _, x := range p.AbsoluteEpisodeNumbers {
+				e, err := s.find(n, x)
+				if err != nil || e == nil {
+					return nil, "", false, err
+				}
+				eps = append(eps, e)
+			}
+			return eps, m.How, true, nil
+		}
+	}
 	name := fileTitle(in.Path)
 	for _, title := range []string{name, in.Release} {
 		if title == "" {
@@ -231,18 +246,6 @@ func (s *series) fileFranchise(p *sonarr.ParsedEpisodeInfo, in FileInput, am *an
 			return eps, m.How, true, nil
 		}
 		return nil, m.How, true, nil
-	}
-	if season, isSeason := strings.CutPrefix(m.How, AnimeMapSeason+":"); isSeason {
-		// A SeaDex pack of several cours: the file's number is its episode in that TVDB season.
-		n, _ := strconv.Atoi(season)
-		for _, x := range nums {
-			e, err := s.find(n, x)
-			if err != nil || e == nil {
-				return nil, "", false, err
-			}
-			eps = append(eps, e)
-		}
-		return eps, m.How, true, nil
 	}
 	if m.How != AnimeMapFranchise {
 		return nil, "", false, nil
