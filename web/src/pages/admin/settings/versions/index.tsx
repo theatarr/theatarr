@@ -1,3 +1,4 @@
+import { cn } from "@/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
 import { setupKey } from "@/api/setup";
 import { qk } from "@/api/query-keys";
@@ -105,7 +106,7 @@ function profileOrigin(p: ProfileSummary | undefined): string {
 function ChoicePick({ mode, onChange, disabled, label }: { mode: string; onChange: (choice: LibraryChoice) => void; disabled?: boolean; label: string }) {
   const choice = choiceOf(mode);
   if (!choice) return <span className="text-sm" data-testid="choice-readonly">{mode}</span>;
-  return <select aria-label={label} className={SELECT_CLASS} value={choice} disabled={disabled} data-testid="library-choice" onChange={(event) => onChange(event.target.value as LibraryChoice)}>
+  return <select aria-label={label} className={cn(SELECT_CLASS, "w-auto")} value={choice} disabled={disabled} data-testid="library-choice" onChange={(event) => onChange(event.target.value as LibraryChoice)}>
     <option value="watch">{CHOICE_LABEL.watch}</option>
     <option value="live">{CHOICE_LABEL.live}</option>
   </select>;
