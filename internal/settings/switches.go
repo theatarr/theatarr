@@ -123,10 +123,12 @@ func globalSwitchEffects(previous, next *Snapshot) []ConfirmationEffect {
 	if !wasPaused {
 		return nil
 	}
+	// The libraries by the names the UI gives them (policy.LibraryNames), never by key.
+	names := policy.LibraryNames(next.Policy)
 	var versions []string
 	for _, key := range sortedPolicyKeys(next.Policy.Versions) {
 		if next.Policy.Versions[key].Mode == policy.ModeActive {
-			versions = append(versions, key)
+			versions = append(versions, names[key])
 		}
 	}
 	effect := "Turn Pause off: Live libraries search, download and link again: " + switchList(versions) +

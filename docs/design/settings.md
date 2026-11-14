@@ -178,7 +178,7 @@ Notifications are not part of it: `notify.enabled` is a field of the `notify` se
 `PUT /settings/switches` takes `{generation, paused}`. The removed fields `router_enabled`, `library_enabled` and
 `notify_enabled` are refused with 400 ("use paused"). Pause on needs no confirmation. Pause off answers with the 422
 confirmation flow, or `POST /settings/switches/confirm` previews it: "Turn Pause off: Live libraries search, download
-and link again: A, B. Waiting downloads are imported." The token binds the entire candidate and next generation.
+and link again: 4K WEB; Anime series. Waiting downloads are imported.", the libraries by their names (`policy.LibraryNames`), never by key. The token binds the entire candidate and next generation.
 Turning Pause off under an environment override still needs confirmation. Whole-policy imports and clients omitting
 the record preserve it; YAML imports never turn Pause off.
 

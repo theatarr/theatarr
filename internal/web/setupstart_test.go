@@ -113,7 +113,7 @@ func TestSetupStart(t *testing.T) {
 		t.Fatalf("unconfirmed start: %v", refused)
 	}
 	// Each thing the save turns on is its own line.
-	for _, want := range []string{"Library films becomes Live: it searches, downloads to", "Turn Pause off: Live libraries search, download and link again: films."} {
+	for _, want := range []string{"Library films becomes Live: it searches, downloads to", "Turn Pause off: Live libraries search, download and link again: 4K WEB."} {
 		confirmRefusal(t, refused, want)
 	}
 	if text := fmt.Sprint(refused["effects"]); strings.Contains(text, "notif") {

@@ -220,7 +220,7 @@ func TestGlobalSwitchEffectsNameLiveLibraries(t *testing.T) {
 	for _, effect := range proof.Effects {
 		text += effect.Effect
 	}
-	for _, expected := range []string{"Turn Pause off: Live libraries search, download and link again: movie-web.", "Waiting downloads are imported."} {
+	for _, expected := range []string{"Turn Pause off: Live libraries search, download and link again: 4K WEB.", "Waiting downloads are imported."} {
 		if !strings.Contains(text, expected) {
 			t.Fatalf("effect lacks %s: %s", expected, text)
 		}

@@ -587,7 +587,7 @@ movie copy is held or not), and its **acquisition** is one summary of the downlo
 Queued, Starting, Downloading N %, Download complete, Waiting for mount, Linking, Blocked ("Upgrade …" when the
 copy keeps a file meanwhile). Every stage links to Activity (`?show=downloading`, `waiting`, `attention` for Blocked).
 
-**Library names**: one rule, on the server (`internal/web/library.go` `libraryNames`), for every account and screen. A
+**Library names**: one rule, on the server (`internal/policy/names.go` `LibraryNames`), for every account and screen. A
 library's name is its **Name** when an admin set one (Settings › Libraries, the editor's optional Name, at most 40
 characters; connected apps never see it), else a default from its key, profile and kind ("4K WEB", "4K Remux",
 "Anime movies", "Anime series"). Libraries that would share a name are told apart by words, never by key: by kind
