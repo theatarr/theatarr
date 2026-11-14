@@ -309,14 +309,19 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   episodes ready"; "Not available yet", or "Getting ready" without See files while a download is in hand; a movie
   missing one of its copies is still ready), audio languages, a
   synopsis cut to three lines with More, and the primary action beside the title: **Add to another library** (add;
-  a disabled secondary **In every library** when the add options offer no library the title is not in yet), else
-  **Request** / **View request** (request). On phones that action also sticks above the bottom tabs.
+  **Monitor in another library** when every library that fits has the title, some not monitored; no action at all
+  when every library that fits has it monitored, nor while the add options load), else **Request** / **View
+  request** (request). On phones that action also sticks above the bottom tabs; with no action nothing is pinned
+  there.
 - **Action bar** (callers with "see files", `components/title/title-toolbar.tsx`), under the hero: **Search now**
   (managers: "Search every monitored Live library now"; a series "Search every monitored episode now, in every Live
   library (missing episodes and upgrades)"; when nothing can be searched it stays, disabled, with the reason as its
   tooltip, shared with the list rows: Pause, "No library of this title is Live.", "No library is monitored.", else
-  each monitored library's verdict), **Interactive search** (managers, a
-  movie with a Live library: the whole movie), **Rename files** (admins), **History** (opens the History tab),
+  each monitored library's verdict; disabled, without a tooltip, while the add options load, so the bar does not
+  shift), **Interactive search** (managers, a
+  movie with a Live library: the whole movie; not on the Last search page, whose panel has it per library),
+  **Rename files** (admins, only when a library holds a file or a removed library still has links),
+  **History** (opens the History tab),
   **Refresh metadata** (managers) and **Remove title** (managers). Below 768 px Search now and Interactive search keep
   their words and the rest sit under **More**. Under the bar: Pause once for the page, "Interactive search needs a
   Live library. This film's libraries are Watch only." (admins also get **Library settings**, the one Watch-only
@@ -385,7 +390,12 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   long, the fact table, outside links; admins also identifiers, release dates, files and registry) / History ("see
   files": the title's rows of Activity › History, the same builder and the same table without filters or a Title
   column, the episodes under each event; admins also the title's journal). There is no Libraries tab: the table is under
-  the hero. About's Files inventory includes old-manager files and active native library links, deduplicated by path.
+  the hero. About's facts say **Released** (a series **First aired**), or **Releases** / **First airs** for a day still
+  to come, and **Latest file** (when the newest current file came; when the title was added is under Details, "Added
+  to Theatarr"); **On disk** counts a file two libraries share once. About's Files inventory includes old-manager
+  files (with their instance) and active native library links (with their size, no instance word), deduplicated by
+  path. Release dates show the canonical rows (country empty: the theatrical, digital and physical dates the calendar
+  and Home use) with **Show all (N)** for every stored row; type and source in words, the raw value as tooltip.
   Old `?tab=seasons|details` links open Episodes and About; `?tab=versions|copies` open the first tab.
 - **Minimum availability and series type.** A movie's Libraries table shows **Minimum availability** (a column, or
   the row's Details when the column is hidden), the value in
@@ -424,7 +434,13 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   an episode it held. Above the table one line says what the shown stored search did
   (`Releases.grabbed`, for an episode its downloads of that episode): "Grabbed #1 via rd → imported" or "Nothing
   grabbed: <reason>" ("Nothing grabbed for this episode" when a season search routed only others); it describes
-  the downloads that search opened. A live search no indexer answered is a failed search ("Live search failed",
+  the downloads that search opened. The source badge, the age and "12 results, 2 accepted" sit in one line; under it
+  the message says what the stored search came from ("From RSS", "From a search", "From a search for S01"; an
+  episode adds ", which covered S01E05"). A library that may not search live says why: "The acquirer is not running"
+  for a Live library, else "Watch only: no live indexer search". The page's header explains the page once: the card
+  repeats no hint and the action bar has no Interactive search. The grid's filter box reads "Filter releases" (what it
+  matches in its tooltip); an indexer is shown without the "prowlarr-" prefix of a linked Prowlarr indexer's key, the
+  key as tooltip. A live search no indexer answered is a failed search ("Live search failed",
   the stored list shown), and a live search is never retried on its own. `?hash=` picks out the followed release's row, or says it is not in the list.
 - **Interactive search** (`components/title/interactive-search.tsx`, the grid `release-grid.tsx`, columns
   `lib/release-columns.ts`): a wide window (a full-height sheet on phones) that searches the indexers the moment it
@@ -476,7 +492,7 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
     search buttons always show."; `theatarr.library.episode-columns.<user>`): Air date, Status (Available, with
     Upgrade found beside it; Missing, Not aired, Not monitored, which a gap in a library that is not monitored reads
     too; the download under it), Quality, Size and **Cached on** (with the admins'
-    **Torrent** link, as the episode window) by default;
+    **Torrent** link, as the episode window, on one line) by default;
     Score, Release group, Release, File and Runtime on offer.
   - **All libraries:** a column per library (the matrix), each cell a word, Available (Upgrade found beside it) /
     Missing / Not aired / Not monitored, with the quality beside it and the monitored mark; each row ends in the Search and
@@ -490,7 +506,8 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
     upgrade vocabulary, monitor switch and Search now (managers), Interactive search for that episode in that library
     (managers, a library that searches live), the download in hand, the upgrade block with Why?, and the file's facts
     (release, quality, score, size, group, **Cached on** with the admins' **Torrent** link, **Other providers**,
-    languages, media, added, path), shown openly, with **Add to other providers** for the episode's file (managers). **History**:
+    languages, media with at most four subtitle languages and "+N" (all of them as tooltip), added, "From" the arr
+    instance for an arr's file (none for Theatarr's own link), path), shown openly, with **Add to other providers** for the episode's file (managers). **History**:
     each library's history with the episode's journal entries. **Last search**: the stored decision for the episode,
     read-only.
   - **Family accounts** (no "see files"): one availability column across libraries at every width (an episode is

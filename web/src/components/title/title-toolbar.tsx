@@ -1,8 +1,8 @@
 // The title page's action bar (docs/design/ui.md, Title page), also the header of the Last search page: Search now
-// (every monitored library that can search), Interactive search (a movie, managers, when a library of it is Live; a
-// series has it per season and per episode only, as Sonarr does), then on the title page Rename files (admins: a
-// preview first), History, Refresh metadata and Remove title; the Last search page has Add to another library
-// instead. Below 768 px the title page's other actions sit under More. The notices under the bar: Pause once for the
+// (every monitored library that can search), Interactive search (the title page only, a movie, managers, when a
+// library of it is Live; a series has it per season and per episode only, as Sonarr does), then on the title page
+// Rename files (admins, with a file to rename: a preview first), History, Refresh metadata and Remove title; the Last
+// search page has Add to another library instead, while a library is left to add. Below 768 px the title page's other actions sit under More. The notices under the bar: Pause once for the
 // page, why a movie has no Interactive search, the Search now outcome or failure with Retry, and why nothing is
 // searched. Search now runs only when it would search: a monitored library in mode active while router.enabled is
 // true (the add options say which); otherwise managers see it disabled with the reason as its tooltip. A Watch-only
