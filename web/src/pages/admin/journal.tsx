@@ -1,4 +1,6 @@
-// Activity › Decision journal (admins; the list is a tab of Activity, pages/activity.tsx): the grab journal (GET /journal, /journal/{id}) with ok/wrong verdicts (POST /journal/{id}/verdict).
+// System › Decision journal (admins; /admin/system/journal, an entry at /admin/system/journal/:id): the grab journal
+// (GET /journal, /journal/{id}) with ok/wrong verdicts (POST /journal/{id}/verdict). An entry shows what was decided and
+// what followed first, then the verdict with what each choice does.
 import { useEffect, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 import { useJournal, useJournalEntry, useJournalVerdict, useStatus, type JournalEntry } from "@/api/hooks";
@@ -14,6 +16,7 @@ import { journalHome, journalLink } from "@/lib/admin-links";
 import { ProviderTag } from "@/components/provider-pills";
 import { InfoHash } from "@/components/title/info-hash";
 import { Select } from "@/components/ui/select";
+import { toTop } from "@/components/ui/pager";
 import { attemptCodeWords, attemptOutcomeWords } from "@/lib/router-words";
 import { JOURNAL_KINDS, journalFlagWords, journalKindWords, journalSourceWords } from "@/lib/journal-words";
 
@@ -71,7 +74,17 @@ function TitleCell({ e }: { e: JournalEntry }) {
   );
 }
 
-/** The journal list: the body of Activity › Decision journal, under Activity's header and tabs. */
+/** System › Decision journal: the list under its header. */
+export function JournalPage() {
+  return (
+    <div>
+      <PageHeader crumb={[{ label: "System", to: "/admin" }]} title="Decision journal" />
+      <JournalList />
+    </div>
+  );
+}
+
+/** The journal list. */
 export function JournalList() {
   const [params, setParams] = useSearchParams();
   const suspect = params.get("suspect") === "1";
@@ -87,7 +100,8 @@ export function JournalList() {
   // A new filter key drops the stored cursors, so going back to an earlier filter starts at its newest page too.
   if (paging.key !== filterKey) setPaging({ key: filterKey, cursors: [] });
   const cursors = paging.key === filterKey ? paging.cursors : [];
-  const setCursors = (c: string[]) => setPaging({ key: filterKey, cursors: c });
+  // Newer and Older return to the top, as the shared pager does, so the new page is read from its first row.
+  const setCursors = (c: string[]) => { setPaging({ key: filterKey, cursors: c }); toTop(); };
   const cursor = cursors[cursors.length - 1];
   const q = useJournal({ suspect, kind: kind || undefined, title: urlTitle || undefined, cursor });
   const set = (k: string, v?: string) => {
@@ -160,7 +174,7 @@ export function JournalEntryPage() {
   const status = useStatus();
   const verdict = useJournalVerdict();
   const [reason, setReason] = useState("");
-  const crumb = [{ label: "Activity", to: "/activity" }, { label: "Decision journal", to: journalHome() }];
+  const crumb = [{ label: "System", to: "/admin" }, { label: "Decision journal", to: journalHome() }];
   if (q.isPending) return <Loading />;
   if (q.error) return (<div><PageHeader crumb={crumb} title={id} docTitle="Decision journal" /><ErrorState error={q.error} /></div>);
   const e = q.data;
@@ -177,10 +191,10 @@ export function JournalEntryPage() {
       />
       {e.summary ? <Card className="text-sm leading-relaxed [overflow-wrap:anywhere]" data-testid="journal-summary">{e.summary}</Card> : null}
 
-      <Section title="Verdict" aside={e.verdict ? `${verdictWords(e.verdict.verdict)} by ${e.verdict.by ?? "?"} · ${fmtTime(e.verdict.at)}` : undefined}>
-        <Card>
-          {(e.flags ?? []).length > 0 ? (
-            <ul className="mb-4 space-y-2 text-sm">
+      {(e.flags ?? []).length > 0 ? (
+        <Section title="Flags">
+          <Card>
+            <ul className="space-y-2 text-sm">
               {(e.flags ?? []).map((f) => (
                 <li key={f.code} className="flex flex-wrap items-baseline gap-2">
                   <Badge tone={f.acked ? "neutral" : sevTone(f.severity)} title={f.code}>{journalFlagWords(f.code)}</Badge>
@@ -188,18 +202,9 @@ export function JournalEntryPage() {
                 </li>
               ))}
             </ul>
-          ) : <p className="mb-4 text-sm text-muted-foreground">No flags.</p>}
-          {e.verdict?.reason ? <p className="mb-3 text-sm">“{e.verdict.reason}”{e.verdict.action_note ? <span className="text-muted-foreground"> · {e.verdict.action_note}</span> : null}</p> : null}
-          <div className="flex flex-wrap items-center gap-2">
-            <Input aria-label="Reason" placeholder="Reason (optional)" value={reason} onChange={(ev) => setReason(ev.target.value)} className="h-8 max-w-sm" />
-            <Button size="sm" variant="outline" disabled={verdict.isPending} onClick={() => judge("ok")} data-testid="verdict-ok">Ok</Button>
-            <Button size="sm" variant="destructive" disabled={verdict.isPending} onClick={() => judge("wrong")} data-testid="verdict-wrong">Wrong</Button>
-          </div>
-          <p className="mt-2 text-xs text-muted-foreground">{e.id?.startsWith("run:") ? "Records your verdict only. To block the release, use its download in Activity." : "Both acknowledge the flags. Wrong on a Live library with the router on also blocklists the release and queues a re-search."}</p>
-          {e.id?.startsWith("run:") ? (e.related ?? []).filter(id => id.startsWith("dl:")).map(id => <Link key={id} className="text-sm text-primary hover:underline" to={journalLink(id)}>View download</Link>) : null}
-          {verdict.error ? <div className="mt-2"><ErrorState error={verdict.error} /></div> : null}
-        </Card>
-      </Section>
+          </Card>
+        </Section>
+      ) : null}
 
       {e.release ? (
         <Section title="Release">
@@ -264,6 +269,21 @@ export function JournalEntryPage() {
           </Card>
         </Section>
       ) : null}
+
+      <Section title="Verdict" aside={e.verdict ? `${verdictWords(e.verdict.verdict)} by ${e.verdict.by ?? "?"} · ${fmtTime(e.verdict.at)}` : undefined}>
+        <Card>
+          {(e.flags ?? []).length === 0 ? <p className="mb-4 text-sm text-muted-foreground">No flags.</p> : null}
+          {e.verdict?.reason ? <p className="mb-3 text-sm">“{e.verdict.reason}”{e.verdict.action_note ? <span className="text-muted-foreground"> · {e.verdict.action_note}</span> : null}</p> : null}
+          <div className="flex flex-wrap items-center gap-2">
+            <Input aria-label="Reason" placeholder="Reason (optional)" value={reason} onChange={(ev) => setReason(ev.target.value)} className="h-8 max-w-sm" />
+            <Button size="sm" variant="outline" disabled={verdict.isPending} onClick={() => judge("ok")} data-testid="verdict-ok">Ok</Button>
+            <Button size="sm" variant="destructive" disabled={verdict.isPending} onClick={() => judge("wrong")} data-testid="verdict-wrong">Wrong</Button>
+          </div>
+          <p className="mt-2 text-xs text-muted-foreground">{e.id?.startsWith("run:") ? "Records your verdict only. To block the release, use its download in Activity." : "Ok and Wrong both acknowledge the flags (Ok on Reviews is the same Ok). Wrong on a Live library with the router on also blocklists the release and queues a re-search."}</p>
+          {e.id?.startsWith("run:") ? (e.related ?? []).filter(id => id.startsWith("dl:")).map(id => <Link key={id} className="text-sm text-primary hover:underline" to={journalLink(id)}>View download</Link>) : null}
+          {verdict.error ? <div className="mt-2"><ErrorState error={verdict.error} /></div> : null}
+        </Card>
+      </Section>
     </div>
   );
 }

@@ -4,8 +4,8 @@
 import { Button } from "@/components/ui/button";
 import { fmtNumber } from "@/lib/format";
 
-/** Back to the top of the page, where the list starts. */
-function toTop() {
+/** Back to the top of the page, where the list starts (also for lists with their own Newer/Older paging). */
+export function toTop() {
   if (window.scrollY > 0) window.scrollTo({ top: 0 });
 }
 

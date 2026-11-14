@@ -122,13 +122,15 @@ it("names each flagged item and its reason, and acknowledges settled dead-link f
  expect(within(rows[1]).getByRole("link", { name: "Gamma S01E03" })).toBeTruthy();
  expect(within(rows[1]).getByText("Gamma.S01E03.2160p.WEB-DL")).toBeTruthy();
  expect(within(rows[1]).getByText("4 failures for this title and library in 30 days")).toBeTruthy();
- // Every row has its own Acknowledge, which records the plain OK verdict.
- expect(within(rows[0]).getByRole("button", { name: "Acknowledge" })).toBeTruthy();
- fireEvent.click(within(rows[1]).getByRole("button", { name: "Acknowledge" }));
+ // Every row has its own Ok, the journal entry's Ok verdict; the list opens filtered in System › Decision journal.
+ expect(within(rows[0]).getByRole("button", { name: "Ok" })).toBeTruthy();
+ expect(screen.getByTestId("flagged-journal").getAttribute("href")).toBe("/admin/system/journal?suspect=1");
+ expect(within(rows[1]).getByRole("link", { name: "Gamma S01E03" }).getAttribute("href")).toBe("/admin/system/journal/dl%3A9%3Afail");
+ fireEvent.click(within(rows[1]).getByRole("button", { name: "Ok" }));
  await waitFor(() => expect(fetch.calls("POST", "/journal/dl%3A9%3Afail/verdict")[0]?.body).toEqual({ verdict: "ok", reason: "Acknowledged on Reviews" }));
  const bar = await screen.findByTestId("resolved-flags");
  expect(bar.textContent).toContain("2 dead-link flags are settled");
- fireEvent.click(within(bar).getByRole("button", { name: "Acknowledge 2 settled flags" }));
+ fireEvent.click(within(bar).getByRole("button", { name: "Mark 2 settled flags Ok" }));
  await waitFor(() => expect(fetch.calls("POST", "/journal/resolved/acknowledge")).toHaveLength(1));
  await waitFor(() => expect(screen.queryByTestId("resolved-flags")).toBeNull());
 });

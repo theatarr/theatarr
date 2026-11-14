@@ -16,7 +16,7 @@ import { AnimeMappings } from "./anime-mappings";
 const KINDS = [
   { id: "anime", label: "Anime mappings", help: "Episode numbering Theatarr could not match on its own. Accept or reject the proposed match." },
   { id: "indexers", label: "Indexer definitions", help: "Updated indexer definitions from the catalog. Approve to use the new version." },
-  { id: "decisions", label: "Flagged decisions", help: "Wrong blocks the release and searches again only when Pause is off, the decision was for an active library and the release is known; otherwise it records the verdict." },
+  { id: "decisions", label: "Flagged decisions", help: "Ok says a flagged decision was right and clears its flags. To judge one Wrong, open its entry: Wrong blocks the release and searches again only when Pause is off, the decision was for an active library and the release is known; otherwise it records the verdict." },
 ] as const;
 const TABS = [{ id: "waiting", label: "Waiting", to: "/admin/reviews" }, ...KINDS.map(k => ({ ...k, to: `/admin/reviews/${k.id}` }))];
 
@@ -45,7 +45,7 @@ export function Waiting() {
 function FlaggedDecisions() {
   const q = useFlaggedDecisions();
   return <>
-    <p className="mb-3 text-[13px]"><Link className="text-[var(--accent-ink)] underline-offset-2 hover:underline" to={journalHome()}>See the full journal</Link></p>
+    <p className="mb-3 text-[13px] text-[var(--ink-2)]">{KINDS[2].help} <Link className="text-[var(--accent-ink)] underline-offset-2 hover:underline" to={journalHome("?suspect=1")} data-testid="flagged-journal">Open them in the Decision journal</Link></p>
     <ResolvedFlags />
     {q.isPending ? <Loading /> : q.error ? <ErrorState error={q.error} /> : !q.data?.items?.length ? <Empty>{q.data?.next_cursor ? "None in the newest entries." : "No flagged decisions."}</Empty> : <ul className="divide-y divide-[var(--line)] rounded-[8px] border border-[var(--line)] bg-[var(--surface)]">{q.data.items.map(e => {
       // The item: the title (or the link's folder) with its episodes; a link entry also names its file.
@@ -65,12 +65,13 @@ function FlaggedDecisions() {
   </>;
 }
 
-/** The OK verdict on one entry: it acknowledges the entry's flags; the record stays. */
+/** The Ok verdict on one entry, as the journal entry's Ok: it acknowledges the entry's flags; the record stays. Wrong
+ *  is on the entry, which the row's name opens. */
 function AcknowledgeOne({ id }: { id: string }) {
   const v = useJournalVerdict();
-  return <Button size="xs" variant="outline" disabled={v.isPending} onClick={() => v.mutate({ id, verdict: "ok", reason: "Acknowledged on Reviews" }, {
-    onError: (err: Error) => toast({ tone: "bad", title: "Acknowledge failed", body: err.message }),
-  })}>Acknowledge</Button>;
+  return <Button size="xs" variant="outline" disabled={v.isPending} title="The decision was right: clear its flags" onClick={() => v.mutate({ id, verdict: "ok", reason: "Acknowledged on Reviews" }, {
+    onError: (err: Error) => toast({ tone: "bad", title: "Ok failed", body: err.message }),
+  })}>Ok</Button>;
 }
 
 /** Dead-link flags the action log proves settled (repaired since, or a newer flag for the same link exists),
@@ -82,7 +83,7 @@ function ResolvedFlags() {
   const n = q.data?.count ?? 0;
   if (n === 0) return null;
   return <Card className="mb-3 flex flex-wrap items-center gap-3" data-testid="resolved-flags">
-    <p className="min-w-0 flex-1 text-[13px] text-[var(--ink-2)]">{plural(n, "dead-link flag")} {n === 1 ? "is" : "are"} settled: the link was repaired since, or a newer flag for the same link exists. Acknowledging keeps the entries in the journal.</p>
-    <Button size="sm" variant="outline" disabled={ack.isPending} onClick={() => ack.mutate()}>Acknowledge {plural(n, "settled flag")}</Button>
+    <p className="min-w-0 flex-1 text-[13px] text-[var(--ink-2)]">{plural(n, "dead-link flag")} {n === 1 ? "is" : "are"} settled: the link was repaired since, or a newer flag for the same link exists. Marking them Ok keeps the entries in the journal.</p>
+    <Button size="sm" variant="outline" disabled={ack.isPending} onClick={() => ack.mutate()}>Mark {plural(n, "settled flag")} Ok</Button>
   </Card>;
 }
