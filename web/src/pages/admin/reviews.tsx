@@ -6,6 +6,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Card } from "@/components/ui/card";
 import { DefinitionHolds } from "@/components/settings/add-indexer";
 import { fmtTime, plural } from "@/lib/format";
+import { useJournalVerdict } from "@/api/hooks";
+import { toast } from "@/components/toaster";
 import { episodesWords } from "@/components/activity/row-bits";
 import { journalHome, journalLink } from "@/lib/admin-links";
 import { AnimeMappings } from "./anime-mappings";
@@ -41,6 +43,8 @@ export function Waiting() {
 }
 function FlaggedDecisions() {
   const q = useFlaggedDecisions();
+  const resolved = useResolvedFlags();
+  const settled = new Set((resolved.data?.items ?? []).map(r => r.entry));
   return <>
     <p className="mb-3 text-[13px]"><Link className="text-[var(--accent-ink)] underline-offset-2 hover:underline" to={journalHome()}>See the full journal</Link></p>
     <ResolvedFlags />
@@ -52,11 +56,23 @@ function FlaggedDecisions() {
         <Link className="font-medium text-[var(--accent-ink)] [overflow-wrap:anywhere] hover:underline" to={journalLink(e.id ?? "")}>{e.title?.name ?? e.summary ?? "Decision"}{eps ? ` ${eps}` : ""}</Link>
         <p className="flex flex-wrap items-center gap-2 text-[12.5px] text-[var(--ink-3)]">{e.version ? <VersionTag k={e.version} /> : null}<span>{fmtTime(e.at)}</span></p>
         {e.release?.title ? <p className="text-[12.5px] text-[var(--ink-3)] [overflow-wrap:anywhere]">{e.release.title}</p> : path ? <p className="font-mono text-[11.5px] text-[var(--ink-3)] [overflow-wrap:anywhere]">{path}</p> : null}
-        <p className="text-[13px] text-[var(--ink-2)] [overflow-wrap:anywhere]">{e.flags?.filter(f => !f.acked).map(f => f.reason || f.code).join("; ") || e.summary}</p>
+        <div className="flex flex-wrap items-start gap-2">
+          <p className="min-w-0 flex-1 text-[13px] text-[var(--ink-2)] [overflow-wrap:anywhere]">{e.flags?.filter(f => !f.acked).map(f => f.reason || f.code).join("; ") || e.summary}</p>
+          {/* A dead link that is still broken is not acknowledged from here: it needs a new grab. */}
+          {e.id && (!e.flags?.some(f => !f.acked && f.code === "dead_link") || settled.has(e.id)) ? <AcknowledgeOne id={e.id} /> : null}
+        </div>
       </li>;
     })}</ul>}
     {q.data?.next_cursor ? <p className="mt-3 text-[13px]"><Link className="text-[var(--accent-ink)] underline-offset-2 hover:underline" to={journalHome("?suspect=1")}>See all flagged decisions</Link></p> : null}
   </>;
+}
+
+/** The OK verdict on one entry: it acknowledges the entry's flags; the record stays. */
+function AcknowledgeOne({ id }: { id: string }) {
+  const v = useJournalVerdict();
+  return <Button size="xs" variant="outline" disabled={v.isPending} onClick={() => v.mutate({ id, verdict: "ok", reason: "Acknowledged on Reviews" }, {
+    onError: (err: Error) => toast({ tone: "bad", title: "Acknowledge failed", body: err.message }),
+  })}>Acknowledge</Button>;
 }
 
 /** Dead-link flags that are settled (the link is gone, repaired or works again, or a newer flag for it exists),

@@ -734,8 +734,9 @@ folder and, without manual files, only the files under the path. A path anywhere
   dead links of the title (or of the episodes it links) aside like the active files it replaces. **A gated version** (library disabled, version not `mode: active`) is swept read-only: what it
   would mark dead, revive or repoint is recorded as `dry_run` actions, and no link or title state changes
   (`TestRelinkDeadWhileGated`).
-  Every sweep records its dead links again, so the journal's `dead_link` review flag is raised once per finding (the
-  link, its target and the mode), not once per sweep: a repeat carries no flag, and settled flags (link gone,
+  Every sweep records its dead links again, so the journal's `dead_link` review flag is raised once per finding (an
+  unbroken run of dead observations of the link; it ends when the link is seen working again), not once per sweep: a
+  repeat carries no flag, and settled flags (link gone,
   repaired, working again, or superseded) can be acknowledged in bulk on Reviews (docs/journal.md "dead_link";
   `TestDeadLinkFlagsOncePerFinding`). The sweep itself, what it records and what it repairs or searches are unchanged.
 - **An implausible listing is a mount that is down** (`Mount.checkListing`). `Healthy` only stats

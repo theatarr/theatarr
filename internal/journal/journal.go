@@ -36,6 +36,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -259,7 +260,7 @@ FROM library_import li JOIN download d ON d.id = li.download_id`},
 	COALESCE((SELECT title_id FROM download WHERE id = la.download_id), (SELECT title_id FROM link WHERE id = la.link_id),
 		(SELECT vf.title_id FROM version_file vf WHERE vf.path = la.path LIMIT 1), 0),
 	COALESCE(la.version_key, ''), 'link'
-FROM library_action la WHERE la.kind IN ('link', 'replace', 'relink', 'dead')`},
+FROM library_action la ` + libKinds},
 	{"bl", `SELECT 'bl:' || b.rowid, b.created_at, COALESCE(b.title_id, 0), b.version_key, 'blocklist' FROM router_blocklist b`},
 	{"run", runHeadSQL + ` WHERE ` + failureRunSQL + ` OR r.state IN ('nothing', 'failed')`},
 	{"plan", `SELECT 'plan:' || p.id, p.created_at, p.title_id, p.version_key, 'plan' FROM router_plan p`},
@@ -267,6 +268,12 @@ FROM library_action la WHERE la.kind IN ('link', 'replace', 'relink', 'dead')`},
 
 // headSQL is the union of every part.
 var headSQL = unionOf(func(string) bool { return true })
+
+// libKinds is the library part's own filter; filteredHeadSQL replaces it with the list of flagged dead actions
+// (rowid lookups, one JSON argument).
+const libKinds = `WHERE la.kind IN ('link', 'replace', 'relink', 'dead')`
+
+var filteredHeadSQL = strings.Replace(headSQL, libKinds, `WHERE la.id IN (SELECT value FROM json_each(?))`, 1)
 
 // unionOf is the union of the parts keep selects. Its first member only names the columns.
 func unionOf(keep func(prefix string) bool) string {
@@ -284,8 +291,15 @@ UNION ALL
 SELECT 'v:' || jv.id, jv.created_at, COALESCE(jv.title_id, 0), jv.version_key, 'verdict' FROM journal_verdict jv`
 
 // heads returns up to n entries' places, newest first, after cur.
-func (j *Journal) heads(ctx context.Context, f Filter, titles []int64, cur *cursor, n int) ([]head, error) {
+// firsts, for a filtered listing, are the dead-link findings' first actions as a JSON array of library_action ids:
+// a link entry's only flag is dead_link and only those carry it, so the other link entries are not listed at all.
+func (j *Journal) heads(ctx context.Context, f Filter, titles []int64, cur *cursor, n int, firsts []byte) ([]head, error) {
 	q := headSQL
+	var args []any
+	if firsts != nil {
+		q = filteredHeadSQL
+		args = append(args, string(firsts))
+	}
 	if j.hasOwnTables(ctx) {
 		q += verdictHeadSQL
 	}
@@ -293,7 +307,6 @@ func (j *Journal) heads(ctx context.Context, f Filter, titles []int64, cur *curs
 		q += actionHeadSQL
 	}
 	q = `SELECT id, at, title_id, version_key, kind FROM (` + q + `) WHERE 1 = 1`
-	var args []any
 	if !f.Since.IsZero() {
 		q += ` AND at >= ?`
 		args = append(args, store.Millis(f.Since))
@@ -342,11 +355,6 @@ func (j *Journal) heads(ctx context.Context, f Filter, titles []int64, cur *curs
 		for _, k := range f.Kinds {
 			args = append(args, k)
 		}
-	}
-	if f.Suspect || f.Severity != "" {
-		// A link entry's only flag is dead_link, and only a finding's first dead action carries it (deadlink.go):
-		// the repeats are skipped before they are built.
-		q += ` AND (kind <> 'link' OR id IN (` + firstDeadSQL + `))`
 	}
 	if cur != nil {
 		q += ` AND (at < ? OR (at = ? AND id < ?))`
@@ -417,13 +425,25 @@ func (j *Journal) List(ctx context.Context, f Filter) (*Page, error) {
 	}
 	filtered := f.Suspect || f.Severity != ""
 	b := j.newBuilder(ctx)
+	var firsts []byte
+	if filtered {
+		// Every dead-link finding's first action, read once for the whole listing.
+		if b.firsts, err = j.deadFirsts(ctx, b.db); err != nil {
+			return nil, err
+		}
+		ids := make([]int64, 0, len(b.firsts))
+		for id := range b.firsts {
+			ids = append(ids, id)
+		}
+		firsts, _ = json.Marshal(ids)
+	}
 	page := &Page{Items: []*Entry{}}
 	batch := f.Limit + 1
 	if filtered {
 		batch = 200
 	}
 	for {
-		hs, err := j.heads(ctx, f, titles, cur, batch)
+		hs, err := j.heads(ctx, f, titles, cur, batch, firsts)
 		if err != nil {
 			return nil, err
 		}

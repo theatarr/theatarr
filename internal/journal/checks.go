@@ -87,7 +87,7 @@ func (b *builder) check(e *Entry) error {
 	case KindLink:
 		if strings.HasPrefix(e.Summary, "dead (applied)") || strings.HasPrefix(e.Summary, "dead (dry_run)") {
 			// One flag per finding: a later scan that finds the same link dead again is a repeat (deadlink.go).
-			first, err := b.firstDead(e.ID)
+			first, err := b.firstDead(e)
 			if err != nil {
 				return err
 			}

@@ -119,7 +119,7 @@ GUIDs and download links are never read. Don't try to find them.
 | `upgrade_lower_quality` | An upgrade to a lower quality than the file it replaced | warn. info for a hand grab | Usually wrong, unless the old file was gone |
 | `repeated_failures` | 3 or more failures (5 or more is an error) for the title and library in 30 days. Only the latest failure of a run is flagged. | warn, error | Look at the failure messages and the cache evidence. Often the only releases are uncached or dead. |
 | `download_stuck` | A grab still queued, added or downloading after 24 h, or an import still waiting for the mount after 6 h | warn | Check the provider and the mount |
-| `dead_link` | The library found a link whose target is gone, and no provider folder holds the file. Flagged once per finding (the link, its target and whether the sweep only previewed or applied): a later scan that finds the same link dead again is a repeat and is not flagged, so a dry-run sweep does not raise a new flag every scan | warn | The relink sweep could not fix it. It needs a new grab. Settled flags can be acknowledged in bulk (below). |
+| `dead_link` | The library found a link whose target is gone, and no provider folder holds the file. Flagged once per finding, an unbroken run of dead observations of the link: a later scan that finds the same link dead again is a repeat and is not flagged, so a dry-run sweep does not raise a new flag every scan. The first dead action after the link was seen working again (another target, an applied link/relink/replace or a gated revive at its path, or a bulk acknowledgement that found it working) starts a new finding with its own flag | warn | The relink sweep could not fix it. It needs a new grab. Settled flags can be acknowledged in bulk (below). |
 | `library_guard` | The library's sample, runtime or mislabel guard rejected a file, or the mislabel guard noted one it kept | info | The reason says what the import did: blocklisted (a failed import; the re-search runs later and only while grabbing is on), the rest of the release linked (for a series the refused episodes stay wanted), a dry run (nothing happened), or neither (held for review). A file skipped as not an upgrade is no guard refusal. A note refused nothing |
 | `unparseable` | The parser can't read the release name | info | — |
 
@@ -138,11 +138,12 @@ Content-Type: application/json
   in `after`.
 - **`ok`** records that the decision was fine. That is all it does.
 - **Settled dead-link flags in bulk.** `GET /journal/resolved` lists the open `dead_link` flags whose finding is
-  settled: the link is gone (no row, or unlinked), was repaired (it points elsewhere now), works again (active with
-  the same target and absent from a dangling-link report taken after the flag), or is superseded (a newer flag for
-  the same link exists). A link still marked dead with the same target, or still dangling, is a current problem and
-  is not listed. `POST /journal/resolved/acknowledge` records an `ok` verdict on each (reason "Acknowledged in bulk:
-  …"); the entries stay, and nothing is blocklisted, searched or changed in the library. Reviews › Flagged decisions
+  settled: superseded (a newer finding for the same link has its own flag), or, only while the link is not marked
+  dead and not in the latest dangling-link report: gone (no row, or unlinked), repaired (an applied link, relink or
+  replace, or a gated revive, at its path after the finding's latest dead action), or works again (active, and the
+  latest report, taken after that dead action, walked its root without an error). Anything else is a current
+  problem and is not listed. `POST /journal/resolved/acknowledge` records an `ok` verdict on each (reason "Acknowledged in bulk:
+  …", action note "settled: …" except for superseded ones); the entries stay, and nothing is blocklisted, searched or changed in the library. Reviews › Flagged decisions
   offers it as **Acknowledge N settled flags**.
 - **`wrong`** always records. When the entry has a release hash, its library is Live and Pause is
   off, it also does two things in the same transaction:
