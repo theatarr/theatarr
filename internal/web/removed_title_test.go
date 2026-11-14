@@ -2,6 +2,8 @@ package web
 
 import (
 	"context"
+	"database/sql"
+	"strings"
 	"testing"
 
 	"github.com/theatarr/theatarr/internal/auth"
@@ -66,6 +68,13 @@ func TestRemovedTitleIsGone(t *testing.T) {
 	if hits[0].InLibrary || hits[0].TitleID != nil || !hits[1].InLibrary {
 		t.Errorf("TMDb hits: removed %+v, kept %+v", hits[0], hits[1])
 	}
+	var vl struct {
+		Items []Version `json:"items"`
+	}
+	o.jsonCall("GET", APIBase+"/versions?key=movie-web", nil, o.mc, "", &vl)
+	if len(vl.Items) != 1 || vl.Items[0].TitleID != 1 {
+		t.Errorf("versions list: %+v", vl.Items)
+	}
 	var opts AddOptions
 	o.jsonCall("GET", APIBase+"/add/options?title_id=2", nil, o.mc, "", &opts)
 	if opts.TitleID == nil || *opts.TitleID != 2 || opts.InLibrary {
@@ -121,8 +130,12 @@ func TestRemovalDetail(t *testing.T) {
 		journal.RemovalDetail(journal.Removal{Files: journal.RemovalFilesKept}): {Files: journal.RemovalFilesKept},
 		journal.RemovalDetail(journal.Removal{Files: journal.RemovalFilesDeleted, Cleanup: "deleted on RD; kept on AD: used by X"}): {
 			Files: journal.RemovalFilesDeleted, Cleanup: "deleted on RD; kept on AD: used by X"},
-		"files left linked": {Files: journal.RemovalFilesKept},
-		"its library links go to the trash next (one unlink_file entry each)": {Files: journal.RemovalFilesDeleted},
+		journal.RemovalDetail(journal.Removal{Files: journal.RemovalFilesPartial, Left: 2, Reason: "a hardlink: stays"}): {
+			Files: journal.RemovalFilesPartial, Left: 2, Reason: "a hardlink: stays"},
+		journal.RemovalDetail(journal.Removal{}): {},
+		"files left linked":                      {Files: journal.RemovalFilesKept},
+		// Recorded before outcomes were: whether the links went is not known.
+		"its library links go to the trash next (one unlink_file entry each)": {},
 	} {
 		if got := journal.ParseRemovalDetail(detail); got != want {
 			t.Errorf("%q: %+v, want %+v", detail, got, want)
@@ -131,6 +144,10 @@ func TestRemovalDetail(t *testing.T) {
 	h := &journal.HistoryRow{Event: journal.EvTitleRemoved, By: "ann",
 		Removal: &journal.Removal{Files: journal.RemovalFilesDeleted, Cleanup: "deleted on RD"}}
 	if got := removalWords(h); got != "By ann. Files deleted. Debrid: deleted on RD." {
+		t.Errorf("words %q", got)
+	}
+	h.Removal = &journal.Removal{Files: journal.RemovalFilesPartial, Left: 1, Reason: "no space left on device"}
+	if got := removalWords(h); got != "By ann. Files partly deleted (1 left in place: no space left on device)." {
 		t.Errorf("words %q", got)
 	}
 }
@@ -146,9 +163,26 @@ func TestRemovalCancelsRequests(t *testing.T) {
 		VALUES (201, 1, 'movie', 1, 'Alpha', '["movie-web"]', 'approved', ?, ?, ?),
 		(202, 1, 'movie', 1, 'Alpha', '["movie-remux","movie-web"]', 'approved', ?, ?, ?),
 		(203, 1, 'movie', 1, 'Alpha', '["movie-web"]', 'pending', NULL, ?, ?)`, now, now, now, now, now, now, now, now)
+	var events []RequestEvent
+	o.web.onRequest = func(ev RequestEvent) { events = append(events, ev) }
 	if code := o.jsonCall("POST", APIBase+"/titles/1/remove", RemoveRequest{Versions: []string{"movie-web"}}, o.mc,
 		o.mcsrf, nil); code != 200 {
 		t.Fatalf("remove: %d", code)
+	}
+	// Both moves are the removal's: no file arrived, so nothing says Now available (no toast, no webhook).
+	for _, ev := range events {
+		if ev.Change != "removed" || ev.Notification != nil {
+			t.Errorf("event %+v", ev)
+		}
+	}
+	if len(events) != 2 {
+		t.Errorf("events %+v", events)
+	}
+	var by sql.NullInt64
+	var at int64
+	if err := o.st.Reader().QueryRow(`SELECT decided_by, decided_at FROM request WHERE id = 201`).Scan(&by, &at); err != nil ||
+		by.Valid || at != store.Millis(testNow) {
+		t.Errorf("cancel attributed to %v at %d (%v), want the removal", by, at, err)
 	}
 	status := func(id int) (s, reason string) {
 		if err := o.st.Reader().QueryRow(`SELECT status, reason FROM request WHERE id = ?`, id).Scan(&s, &reason); err != nil {
@@ -172,11 +206,83 @@ func TestRemovalCancelsRequests(t *testing.T) {
 	if len(rs.Items) != 1 || rs.Items[0].ID != 202 {
 		t.Fatalf("available requests: %+v", rs.Items)
 	}
-	for _, r := range rs.Items {
-		for _, v := range r.Versions {
-			if v.Key == "movie-web" && (v.State != "" || v.Available) {
-				t.Errorf("request %d, removed library: %+v", r.ID, v)
-			}
+	// The removed library is no longer part of the request that remains.
+	if vs := rs.Items[0].Versions; len(vs) != 1 || vs[0].Key != "movie-remux" || !vs[0].Available {
+		t.Errorf("request 202 libraries: %+v", vs)
+	}
+	// Asking for the removed library again is a new request, not one absorbed by 202.
+	o.exec(`DELETE FROM request WHERE id = 203`)
+	var cr CreateResult
+	if code := o.jsonCall("POST", APIBase+"/requests", CreateRequest{Kind: "movie", TitleID: 1,
+		Versions: []string{"movie-web"}}, o.mc, o.mcsrf, &cr); code != 200 && code != 201 {
+		t.Fatalf("request again: %d", code)
+	}
+	if cr.Request.ID == 202 || cr.Request.ID == 201 {
+		t.Errorf("merged into %d", cr.Request.ID)
+	}
+}
+
+// A title every copy of which was removed is added like a new one: the new title's choices (series type, monitoring,
+// anime) are taken, not refused, and the add restores it by its title id. A title in the library still refuses them.
+func TestReAddRemovedTitleTakesNewTitleChoices(t *testing.T) {
+	t.Parallel()
+	o := newOpsEnv(t)
+	aid := o.account("admin-readd", auth.RoleAdmin, auth.StatusActive, false)
+	ac, acsrf := o.session(aid)
+	o.exec(`INSERT INTO version (id, title_id, policy_key, monitored, state, created_at, updated_at) VALUES
+		(9, 3, 'tv-2160p', 0, 'wanted', 0, 0)`)
+	o.exec(`INSERT INTO arrview_removed_version (version_id, view, removed_at) VALUES (9, 'ui', 0)`)
+	body := map[string]any{"title_id": 3, "kind": "series", "versions": []string{"tv-2160p"}, "series_type": "daily",
+		"monitor": "all", "anime": false}
+	if code := o.jsonCall("POST", APIBase+"/titles", body, ac, acsrf, nil); code != 200 && code != 201 {
+		t.Fatalf("re-add: %d", code)
+	}
+	var typ string
+	if err := o.st.Reader().QueryRow(`SELECT COALESCE(series_type, '') FROM title WHERE id = 3`).Scan(&typ); err != nil ||
+		typ != "daily" {
+		t.Errorf("series type %q %v", typ, err)
+	}
+	if n := o.count(`SELECT COUNT(*) FROM arrview_removed_version WHERE version_id = 9`); n != 0 {
+		t.Errorf("still removed")
+	}
+	// Now in the library: a monitor preset would rewrite its copies' monitoring.
+	if code := o.jsonCall("POST", APIBase+"/titles", body, ac, acsrf, nil); code != 400 {
+		t.Errorf("add to a title in the library with monitor: %d", code)
+	}
+}
+
+// A copy removed from a title that stays in another library is not offered, searched, grabbed or added to: the
+// releases picker lists the current copies, and naming the removed one is refused.
+func TestRemovedCopyIsNotActionable(t *testing.T) {
+	t.Parallel()
+	o := newOpsEnv(t)
+	aid := o.account("admin-copy", auth.RoleAdmin, auth.StatusActive, false)
+	ac, acsrf := o.session(aid)
+	o.activate("movie-web")
+	if code := o.jsonCall("POST", APIBase+"/titles/1/remove", RemoveRequest{Versions: []string{"movie-web"}}, o.mc,
+		o.mcsrf, nil); code != 200 {
+		t.Fatalf("remove copy: %d", code)
+	}
+	var rel Releases
+	if code := o.jsonCall("GET", APIBase+"/titles/1/releases", nil, o.mc, "", &rel); code != 200 ||
+		strings.Join(rel.Versions, ",") != "movie-remux" {
+		t.Errorf("picker: %d %v", code, rel.Versions)
+	}
+	hash := strings.Repeat("a", 40)
+	for _, c := range []struct {
+		method, path string
+		body         any
+	}{
+		{"GET", "/titles/1/releases?version=movie-web&live=1", nil},
+		{"POST", "/titles/1/releases/grab", GrabRequest{Version: "movie-web", InfoHash: hash}},
+		{"POST", "/titles/1/releases/add", AddReleaseRequest{Version: "movie-web", InfoHash: hash, Name: "Alpha.2020.WEB"}},
+		{"POST", "/titles/1/search", map[string]any{"versions": []string{"movie-web"}}},
+	} {
+		if code := o.jsonCall(c.method, APIBase+c.path, c.body, ac, acsrf, nil); code != 400 {
+			t.Errorf("%s %s: %d, want 400", c.method, c.path, code)
 		}
+	}
+	if len(o.ops.grabs) != 0 {
+		t.Errorf("grabbed %+v", o.ops.grabs)
 	}
 }
