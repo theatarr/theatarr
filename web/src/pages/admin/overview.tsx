@@ -193,8 +193,7 @@ export function Overview() {
   return (
     <div>
       {header}
-      <Readiness />
-      <Section title={`Needs attention${items.length > 0 ? ` (${items.length})` : ""}`}>
+      <Section className="mt-0" title={`Needs attention${items.length > 0 ? ` (${items.length})` : ""}`}>
         <Card className="p-0">
           {items.length === 0 && checking ? (
             <Loading />
@@ -221,6 +220,34 @@ export function Overview() {
         </Card>
       </Section>
 
+      <Section title="Checks" aside={checks.length > 0 ? `checked ${fmtAgo(checks[0].checked_at)}` : undefined}>
+        <Card className="p-0">
+          {hc.error ? (
+            <div className="p-4"><ErrorState error={hc.error} /></div>
+          ) : checks.length === 0 ? (
+            <Empty>{hc.isPending ? "Checking…" : "No health checks."}</Empty>
+          ) : (
+            <Table density="dense">
+              <TableBody>
+                {checks.map((c) => (
+                  <TableRow key={c.source} data-testid={`check-${c.source}`}>
+                    <TableCell className="w-0 whitespace-nowrap"><Badge tone={healthBadgeTone(c.type)}>{c.type}</Badge></TableCell>
+                    <TableCell className="font-medium sm:whitespace-nowrap">{c.name}</TableCell>
+                    <TableCell className="text-[13px] text-muted-foreground [overflow-wrap:anywhere]">
+                      {c.message}
+                      {c.source === "DanglingLinksCheck" ? <BrokenLinks count={Number((c.detail as { dangling?: number } | undefined)?.dangling ?? 0)} /> : null}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </Card>
+      </Section>
+      {/* The rest repeats other pages or is for diagnosis: folded, so the verdict comes first. */}
+      <details className="group mt-8" data-testid="status-details">
+        <summary className="cursor-pointer select-none text-[15px] font-semibold text-[var(--ink)]">Details: readiness, downloads, tasks, libraries, diagnostics</summary>
+      <Readiness />
       <Section title="Downloads" aside={<Link to="/activity" className="text-primary hover:underline">Open queue</Link>}>
         {now.error ? <ErrorState error={now.error} /> : now.isPending ? <Loading /> : (
           <Strip
@@ -262,30 +289,7 @@ export function Overview() {
         {r.error ? <div className="mt-4"><ErrorState error={r.error} /></div> : null}
       </Section>
 
-      <Section title="Checks" aside={checks.length > 0 ? `checked ${fmtAgo(checks[0].checked_at)}` : undefined}>
-        <Card className="p-0">
-          {hc.error ? (
-            <div className="p-4"><ErrorState error={hc.error} /></div>
-          ) : checks.length === 0 ? (
-            <Empty>{hc.isPending ? "Checking…" : "No health checks."}</Empty>
-          ) : (
-            <Table density="dense">
-              <TableBody>
-                {checks.map((c) => (
-                  <TableRow key={c.source} data-testid={`check-${c.source}`}>
-                    <TableCell className="w-0 whitespace-nowrap"><Badge tone={healthBadgeTone(c.type)}>{c.type}</Badge></TableCell>
-                    <TableCell className="font-medium sm:whitespace-nowrap">{c.name}</TableCell>
-                    <TableCell className="text-[13px] text-muted-foreground [overflow-wrap:anywhere]">
-                      {c.message}
-                      {c.source === "DanglingLinksCheck" ? <BrokenLinks count={Number((c.detail as { dangling?: number } | undefined)?.dangling ?? 0)} /> : null}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </Card>
-      </Section>
+      </details>
     </div>
   );
 }
@@ -343,7 +347,7 @@ export function Readiness() {
   // Loading or an error reads as such, never as "Unknown" or OFF.
   const word = (on: boolean | undefined, pending: boolean, error: unknown) => error ? "Could not load" : pending ? "Loading…" : on === undefined ? "Unknown" : on ? "ON" : "OFF";
   const latest = [...(backups.data?.sets ?? [])].filter(b => b.complete).sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
-  return <Section title="Readiness" className="mt-0"><div className="grid gap-3 sm:grid-cols-3">
+  return <Section title="Readiness" className="mt-4"><div className="grid gap-3 sm:grid-cols-3">
     {([
       ["Pause", "libraries", word(switches?.paused, settings.isPending, settings.error)],
       ["Notifications", "notifications", word(notify, sectionsQ.isPending, sectionsQ.error)],

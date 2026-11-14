@@ -306,3 +306,23 @@ it("lists the recurring tasks with how often they run, and folds identical finis
  expect(group.getAttribute("data-job")).toBe("2");
  expect(screen.getAllByTestId("job-name").map((n) => n.textContent)).toContain("Ask Plex to scan");
 });
+
+it("leads with Needs attention and Checks; readiness, strips, libraries and diagnostics fold under Details", async () => {
+ mockFetch([...reviewRoutes,
+  { method: "GET", path: "/readyz", reply: { status: "ok" } },
+  { method: "GET", path: "/status", reply: status },
+  { method: "GET", path: "/jobs", reply: { items: [] } },
+  { method: "GET", path: "/gateway", reply: { egress: { vpn_ok: true }, backoffs: [] } },
+  { method: "GET", path: "/health", reply: { checks: [] } },
+  { method: "GET", path: "/activity", reply: { state: "now", admin: true, total: 0, now: [] } },
+ ]);
+ renderPage(<Overview />);
+ await screen.findByText("Diagnostics");
+ const h2 = screen.getAllByRole("heading", { level: 2 }).map(h => h.textContent ?? "");
+ expect(h2.findIndex(t => t.startsWith("Needs attention"))).toBe(0);
+ expect(h2[1]).toBe("Checks");
+ const details = screen.getByTestId("status-details") as HTMLDetailsElement;
+ expect(details.open).toBe(false);
+ for (const name of ["Readiness", "Downloads", "Tasks", "Libraries", "Diagnostics"]) expect(details.contains(screen.getByRole("heading", { name }))).toBe(true);
+ expect(details.contains(screen.getByRole("heading", { name: "Checks" }))).toBe(false);
+});
