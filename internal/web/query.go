@@ -16,6 +16,7 @@ import (
 	"github.com/theatarr/theatarr/internal/health"
 	"github.com/theatarr/theatarr/internal/jobs"
 	"github.com/theatarr/theatarr/internal/policy"
+	"github.com/theatarr/theatarr/internal/router"
 	"github.com/theatarr/theatarr/internal/store"
 	"github.com/theatarr/theatarr/internal/textsearch"
 	"github.com/theatarr/theatarr/internal/torrents"
@@ -288,13 +289,7 @@ requested_targets AS (
 // both, else the unique hash of the symlink target they share (uniqueLinkedTargetHash). linkHashJoin / fileHashJoin
 // bring in uth for link l / version file vf.
 const (
-	linkHashSQL = `COALESCE(lower(COALESCE(
-		(SELECT NULLIF(c_h.info_hash, '') FROM content_file cf_h JOIN content c_h ON c_h.id = cf_h.content_id
-			WHERE cf_h.id = l.content_file_id),
-		(SELECT NULLIF(d_h.info_hash, '') FROM download d_h WHERE d_h.id = l.download_id),
-		CASE WHEN json_valid(l.file_metadata) THEN NULLIF(json_extract(l.file_metadata, '$.InfoHash'), '') END,
-		CASE WHEN json_valid(l.adopted_source) THEN NULLIF(json_extract(l.adopted_source, '$.hash'), '') END)),
-		uth.info_hash, '')`
+	linkHashSQL  = `COALESCE(` + router.LinkStoredHashSQL + `, uth.info_hash, '')`
 	linkHashJoin = ` LEFT JOIN unique_target_hash uth ON uth.target = l.target AND l.state = 'active' AND l.kind = 'symlink' `
 	fileHashSQL  = `COALESCE((SELECT c_h.info_hash FROM content c_h WHERE c_h.id = vf.content_id),
 		CASE WHEN length(vf.download_id) = 40 AND lower(vf.download_id) NOT GLOB '*[^0-9a-f]*'

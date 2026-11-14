@@ -3,6 +3,7 @@ package router
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 	"sync"
@@ -183,6 +184,30 @@ func TestCopyEventFindsTitle(t *testing.T) {
 	if got := e.count(`SELECT COUNT(*) FROM provider_copy_event WHERE title_id = 1 AND quality = 'WEBDL-2160p'
 		AND score = 900`); got != 1 {
 		t.Fatalf("events with the title: %d", got)
+	}
+}
+
+// An adopted link without a download records its hash only in adopted_source: a copy from the title page and one
+// from a Torrents row (no title) both record its quality and score, and the Torrents one finds the title.
+func TestCopyEventAdoptedLink(t *testing.T) {
+	t.Parallel()
+	e := newCopyEnv(t, provider.StateDownloaded, "tb")
+	e.pr["tb"].cache = map[string]bool{h("d"): true, h("e"): true}
+	for i, hash := range []string{h("d"), h("e")} {
+		e.exec(`INSERT INTO link (id, title_id, path, target, quality, score, adopted_source, state, created_at,
+			updated_at) VALUES (?, 1, ?, '/mnt/x/a.mkv', 'Bluray-2160p', 800, ?, 'active', 0, 0)`, 60+i,
+			fmt.Sprintf("/movies/A/a%d.mkv", i), `{"from":"radarr:1","hash":"`+strings.ToUpper(hash)+`"}`)
+	}
+	for _, req := range []CopyRequest{{Hash: h("d"), Names: []string{"A.2160p"}, TitleID: 1},
+		{Hash: h("e"), Names: []string{"A.2160p"}}} {
+		if _, err := e.r.QueueCopies(e.ctx, req); err != nil {
+			t.Fatal(err)
+		}
+	}
+	e.run()
+	if got := e.count(`SELECT COUNT(*) FROM provider_copy_event WHERE title_id = 1 AND quality = 'Bluray-2160p'
+		AND score = 800`); got != 2 {
+		t.Fatalf("events with the title and quality: %d", got)
 	}
 }
 

@@ -484,14 +484,24 @@ func (r *Router) setCopy(ctx context.Context, c *copyRow, state, msg string, set
 	return nil
 }
 
+// LinkStoredHashSQL is the torrent hash a link l records, lower case, or NULL: its content file's content, else its
+// download's, the file metadata's InfoHash, the adopted source's (an adopted link). The web's linkHashSQL adds the
+// shared-target fallback.
+const LinkStoredHashSQL = `lower(COALESCE(
+		(SELECT NULLIF(c_h.info_hash, '') FROM content_file cf_h JOIN content c_h ON c_h.id = cf_h.content_id
+			WHERE cf_h.id = l.content_file_id),
+		(SELECT NULLIF(d_h.info_hash, '') FROM download d_h WHERE d_h.id = l.download_id),
+		CASE WHEN json_valid(l.file_metadata) THEN NULLIF(json_extract(l.file_metadata, '$.InfoHash'), '') END,
+		CASE WHEN json_valid(l.adopted_source) THEN NULLIF(json_extract(l.adopted_source, '$.hash'), '') END))`
+
 // copyEvent writes History's row of a finished copy: the quality and score of the newest file with the copy's hash
-// (an active link from it, else a download of it); none when neither is known.
+// (an active link that records it, LinkStoredHashSQL, else a download of it); none when neither is known.
 func copyEvent(ctx context.Context, tx *sql.Tx, c *copyRow, state, msg string, at int64) error {
 	var quality sql.NullString
 	var score sql.NullInt64
 	err := tx.QueryRowContext(ctx, `SELECT quality, score FROM (
-			SELECT 0 AS o, l.id AS id, l.quality, l.score FROM link l JOIN content_file cf ON cf.id = l.content_file_id
-				JOIN content ct ON ct.id = cf.content_id WHERE ct.info_hash = ?1 AND l.state = 'active'
+			SELECT 0 AS o, l.id AS id, l.quality, l.score FROM link l
+				WHERE l.state = 'active' AND `+LinkStoredHashSQL+` = ?1
 			UNION ALL SELECT 1, d.id, d.quality, d.score FROM download d WHERE d.info_hash = ?1)
 		ORDER BY o, id DESC LIMIT 1`, c.hash).Scan(&quality, &score)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
@@ -504,8 +514,8 @@ func copyEvent(ctx context.Context, tx *sql.Tx, c *copyRow, state, msg string, a
 		title = c.titleID
 	} else {
 		var ids []int64
-		rows, err := tx.QueryContext(ctx, `SELECT l.title_id FROM link l JOIN content_file cf ON cf.id = l.content_file_id
-			JOIN content ct ON ct.id = cf.content_id WHERE ct.info_hash = ?1 AND l.state = 'active'
+		rows, err := tx.QueryContext(ctx, `SELECT l.title_id FROM link l
+			WHERE l.state = 'active' AND `+LinkStoredHashSQL+` = ?1
 			UNION SELECT d.title_id FROM download d WHERE d.info_hash = ?1`, c.hash)
 		if err != nil {
 			return err
