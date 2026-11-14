@@ -2,7 +2,8 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import { api, qs, type Schemas } from "./client";
 
 export type WantedRow = Schemas["WantedRow"];
-export type WantedQuery = { only: "missing" | "cutoff"; version?: string; waiting?: string; limit: number; offset: number };
+export type WantedSort = "title" | "-title" | "date" | "-date" | "last" | "-last";
+export type WantedQuery = { only: "missing" | "cutoff"; version?: string; waiting?: string; title?: number; sort?: WantedSort; limit: number; offset: number };
 export const useWanted = (q: WantedQuery) => useQuery({
   queryKey: ["wanted", q],
   queryFn: ({ signal }) => api<Schemas["WantedPage"]>("/wanted" + qs(q), { signal }),

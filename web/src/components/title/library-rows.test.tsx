@@ -116,8 +116,8 @@ describe("row details", () => {
     await user.selectOptions(select, "announced");
     await waitFor(() => expect(fetch.calls("POST", "/titles/minimum-availability")).toHaveLength(1));
     expect(fetch.calls("POST", "/titles/minimum-availability")[0].body).toEqual({ title_ids: [7], versions: ["movie-1080"], minimum_availability: "announced" });
-    expect(within(panel).getByRole("link", { name: "See in Wanted" }).getAttribute("href")).toBe("/wanted?version=movie-1080");
-    expect(within(screen.getByTestId("library-row-details-movie-web")).getByRole("link", { name: "See in Cutoff unmet" }).getAttribute("href")).toBe("/wanted/cutoff?version=movie-web");
+    expect(within(panel).getByRole("link", { name: "See in Wanted" }).getAttribute("href")).toBe("/wanted?version=movie-1080&title=7");
+    expect(within(screen.getByTestId("library-row-details-movie-web")).getByRole("link", { name: "See in Cutoff unmet" }).getAttribute("href")).toBe("/wanted/cutoff?version=movie-web&title=7");
     expect(within(panel).getByTestId("copy-remove-movie-1080").textContent).toContain("Remove from this library");
   });
 });

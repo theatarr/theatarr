@@ -1,10 +1,10 @@
-import { Columns3 } from "lucide-react";
+import { Columns3, X } from "lucide-react";
 import { useState } from "react";
 import { Link, useLocation, useSearchParams } from "react-router";
 import { useStatus } from "@/api/hooks";
 import { useLibraryName } from "@/lib/library-names";
 import { usePerms } from "@/api/library";
-import { useClearWantedSearch, useWanted, useWantedSearch, type WantedRow, type WantedSearchBody, type WantedSearchResult } from "@/api/wanted";
+import { useClearWantedSearch, useWanted, useWantedSearch, type WantedRow, type WantedSearchBody, type WantedSearchResult, type WantedSort } from "@/api/wanted";
 import { Empty, ErrorState, Loading, PageHeader, VersionTag } from "@/components/page";
 import { InteractiveSearchButton } from "@/components/title/interactive-search";
 import { WantedTabs } from "@/components/wanted-tabs";
@@ -17,7 +17,8 @@ import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog, errText } from "@/components/ui/confirm-dialog";
 import { DownloadsOffNotice, VersionStatus } from "@/components/version-status";
-import { fmtAgo, fmtGoDuration, fmtNumber, fmtTime, plural } from "@/lib/format";
+import { downloadHref } from "@/lib/activity";
+import { fmtAgo, fmtDay, fmtGoDuration, fmtNumber, fmtTime, plural } from "@/lib/format";
 import { nextSearchWhy } from "@/lib/library-rows";
 import { useColumnPrefs, type ColumnDef } from "@/lib/prefs";
 import { settingHref } from "@/lib/settings-map";
@@ -34,14 +35,22 @@ const PAGE = 50;
 type GlobalOff = ReturnType<typeof globalDownloadsOff> | "unknown";
 const OFF_WORD = { locked: "Paused (locked)", off: "Paused", unknown: "Paused" } as const;
 
-export function searchResult(run: WantedRow["last_run"]): string {
+/** The Last search cell's words; a run that grabbed a download for a row still listed (not downloading, not paused)
+ *  says the download was not imported (lastSearch links it to Activity). */
+export function searchResult(run: WantedRow["last_run"], waiting?: WantedRow["waiting"]): string {
   if (!run) return "Never searched";
   if (run.state === "failed") return `Failed: ${run.message}`;
   if (run.state === "queued") return "Queued";
   if (run.state === "searching") return "Searching";
-  if (run.downloaded) return "Grabbed";
+  if (run.downloaded) return waiting && waiting !== "in_flight" && waiting !== "downloads_off" ? "Grabbed, not imported" : "Grabbed";
   if (run.state === "routed") return "Sent to download";
   return run.results ? `${plural(run.results, "result")}, none accepted` : "Nothing found";
+}
+
+/** The What cell: the targets in words, with a whole season's episode count ("S20, 139 episodes"). */
+export function whatWords(row: Pick<WantedRow, "targets" | "episodes">): string {
+  const words = targetWords(row.targets);
+  return row.episodes && row.targets.some((t) => /^s\d+$/.test(t)) ? `${words}, ${plural(row.episodes, "episode")}` : words;
 }
 
 export function targetWords(targets: string[]) {
@@ -109,10 +118,11 @@ export function searchNowWords(r: WantedSearchResult): string {
   return parts.join(". ") + ".";
 }
 
-type Column = "library" | "what" | "next" | "last";
+type Column = "library" | "what" | "date" | "next" | "last";
 const COLUMNS: ColumnDef<Column>[] = [
   { id: "library", label: "Library", hint: "The library the item is wanted in" },
   { id: "what", label: "What", hint: "The film, or the season's episodes" },
+  { id: "date", label: "Released", hint: "The film's home release, or the newest air date of the season's episodes" },
   { id: "next", label: "Next search", hint: "When the item is searched next" },
   { id: "last", label: "Last search", hint: "When it was last searched, and what that found" },
 ];
@@ -120,13 +130,25 @@ const ALL_COLUMNS = COLUMNS.map(c => c.id);
 
 type Ask = { body: WantedSearchBody; count: number; title: string };
 
+/** The sorts, for the phone's sort picker (the table's headers sort too). */
+const SORTS: [WantedSort | "", string][] = [
+  ["", "Search order"], ["title", "Title A–Z"], ["-title", "Title Z–A"], ["-date", "Newest release first"],
+  ["date", "Oldest release first"], ["-last", "Searched most recently"], ["last", "Searched longest ago"],
+];
+const isSort = (v: string | null): v is WantedSort => SORTS.some(([k]) => k && k === v);
+/** A header's first click: titles A–Z, dates and searches newest first. */
+const FIRST: Record<"title" | "date" | "last", WantedSort> = { title: "title", date: "-date", last: "-last" };
+
 export function WantedPage() {
   const only = useLocation().pathname === "/wanted/cutoff" ? "cutoff" : "missing";
   const [sp, setSp] = useSearchParams();
   const version = sp.get("version") || undefined;
   const waiting = sp.get("waiting") || undefined;
   const offset = Math.max(0, Number(sp.get("offset")) || 0);
-  const q = useWanted({ only, version, waiting, limit: PAGE, offset });
+  const title = Math.max(0, Math.trunc(Number(sp.get("title")) || 0)) || undefined;
+  const rawSort = sp.get("sort");
+  const sort = isSort(rawSort) ? rawSort : undefined;
+  const q = useWanted({ only, version, waiting, title, sort, limit: PAGE, offset });
   const perms = usePerms();
   const status = useStatus(perms.admin); // /status is admin-only: managers word rows from the wanted list alone
   const states = new Map((status.data?.versions ?? []).map((v) => [v.key, v.grab_state]));
@@ -164,21 +186,31 @@ export function WantedPage() {
     if (confirm) setAsk(a); else send(a.body);
   };
   const what = only === "cutoff" ? "cutoff unmet" : "missing";
-  const tabQuery = version ? `?version=${encodeURIComponent(version)}` : "";
+  const tabQuery = version || title ? `?${new URLSearchParams({ ...(version ? { version } : {}), ...(title ? { title: String(title) } : {}) })}` : "";
   const switchOff = d ? (only === "missing" ? !d.missing : d.cutoff_unmet === "off") : false;
   // The regular repeat runs only while a backlog switch is on.
   const backlogOn = d ? d.missing || d.cutoff_unmet !== "off" : false;
   const name = (row: WantedRow) => d?.titles[row.title_id] || `Title ${row.title_id}`;
+  const titleName = title ? d?.titles[title] || `Title ${title}` : "";
+  const sortBy = (column: string) => {
+    const c = column as keyof typeof FIRST;
+    change("sort", sort === FIRST[c] ? (FIRST[c].startsWith("-") ? c : `-${c}`) : FIRST[c]);
+  };
   const titleLink = (row: WantedRow) => <Link className="font-semibold text-[var(--ink)] hover:text-[var(--accent-ink)] [overflow-wrap:anywhere]" to={`/title/${row.title_id}`}>{name(row)}</Link>;
   const cells: Record<Column, DataColumn<WantedRow>> = {
     library: { id: "library", label: "Library", cell: row => <VersionTag k={row.version} label={d?.libraries[row.version]} /> },
-    what: { id: "what", label: "What", cell: row => targetWords(row.targets) },
+    what: { id: "what", label: "What", cell: row => whatWords(row) },
+    date: { id: "date", label: "Released", sortable: true, cell: row => row.date ? fmtDay(row.date) : "—" },
     next: { id: "next", label: "Next search", cell: row => <NextSearch row={row} state={states.get(row.version)} off={off} admin={perms.admin} /> },
     // The decision behind the last search sits with it, so the row's actions keep their place.
-    last: { id: "last", label: "Last search", cell: row => <>{row.last_run ? <span title={fmtTime(row.last_run.at)}>{fmtAgo(row.last_run.at)} · </span> : null}{searchResult(row.last_run)}{row.decision_id && perms.admin ? <> · <DecisionLink row={row} /></> : null}</> },
+    last: { id: "last", label: "Last search", sortable: true, cell: row => {
+      const result = searchResult(row.last_run, row.waiting);
+      const grabbed = result === "Grabbed, not imported" && row.last_run?.download_id;
+      return <>{row.last_run ? <span title={fmtTime(row.last_run.at)}>{fmtAgo(row.last_run.at)} · </span> : null}{result}{grabbed ? <> · <Link className="text-primary hover:underline" to={downloadHref(row.last_run!.download_id!)}>See in Activity</Link></> : null}{row.decision_id && perms.admin ? <> · <DecisionLink row={row} /></> : null}</>;
+    } },
   };
   const columns: DataColumn<WantedRow>[] = [
-    { id: "title", label: "Title", cell: titleLink, card: "none", cellClassName: "min-w-[10rem]" },
+    { id: "title", label: "Title", sortable: true, cell: titleLink, card: "none", cellClassName: "min-w-[10rem]" },
     ...prefs.order.filter(id => prefs.shown.includes(id)).map(id => cells[id]),
   ];
   const actions = (row: WantedRow) => {
@@ -198,12 +230,23 @@ export function WantedPage() {
       <p className="text-sm text-muted-foreground" data-testid="wanted-pace">Up to {fmtNumber(d.per_hour)} searches an hour ({fmtNumber(d.searched_last_hour)} in the last hour).{backlogOn ? ` Items are searched again every ${fmtGoDuration(d.again_after)}.` : ""}{only === "missing" && d.missing ? ` A missing new release is tried again sooner: the wait starts at 1 hour and doubles each time, up to ${fmtGoDuration(d.again_after)}, until a week after its release.` : ""}</p>
       {switchOff ? <p role="status" data-testid="wanted-switch-off" className="rounded-[5px] border border-[var(--line)] bg-[var(--sunken)] px-3 py-2 text-[13px] text-[var(--ink-2)]">Theatarr is not searching for {only === "cutoff" ? "upgrades" : "missing items"} by itself. Items here are searched when you ask, or after a failed download.{only === "missing" ? " New releases are still picked up from RSS feeds, and one that a search did not find is tried again sooner, until a week after its release." : " Better releases are still picked up from RSS feeds."}{perms.admin ? <> <Link className="text-primary hover:underline" to={settingHref("router", only === "cutoff" ? "wanted.cutoff_unmet" : "wanted.missing") ?? "/admin/settings/downloads"}>Automatic search settings</Link></> : null}</p> : null}
       <DownloadsOffNotice off={off} canManage={perms.admin} />
-      <label className="flex items-center gap-2 text-sm text-[var(--ink-3)]">Library
-        <Select aria-label="Library" className="w-auto max-w-full" value={version ?? ""} onChange={e => change("version", e.target.value)}>
-          <option value="">All libraries</option>
-          {Object.entries(d.libraries).map(([key, lib]) => <option key={key} value={key}>{lib}</option>)}
-        </Select>
-      </label>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <label className="flex items-center gap-2 text-sm text-[var(--ink-3)]">Library
+          <Select aria-label="Library" className="w-auto max-w-full" value={version ?? ""} onChange={e => change("version", e.target.value)}>
+            <option value="">All libraries</option>
+            {Object.entries(d.libraries).map(([key, lib]) => <option key={key} value={key}>{lib}</option>)}
+          </Select>
+        </label>
+        <label className="flex items-center gap-2 text-sm text-[var(--ink-3)]">Sort
+          <Select aria-label="Sort" className="w-auto max-w-full" value={sort ?? ""} onChange={e => change("sort", e.target.value)}>
+            {SORTS.map(([key, word]) => <option key={key} value={key}>{word}</option>)}
+          </Select>
+        </label>
+        {title ? <span data-testid="wanted-title-filter" className="inline-flex items-center gap-1 rounded-full border border-[var(--line)] bg-[var(--sunken)] py-0.5 pl-3 pr-1 text-sm">
+          {titleName}
+          <button type="button" aria-label={`Show every title, not only ${titleName}`} className="grid size-6 place-items-center rounded-full text-[var(--ink-3)] hover:bg-[var(--hover)]" onClick={() => change("title", "")}><X className="size-3.5" /></button>
+        </span> : null}
+      </div>
       <div className="flex flex-wrap gap-2" aria-label="Waiting filters">{waits.map(([key, word]) => {
         const count = key ? d.counts[key] ?? 0 : Object.values(d.counts).reduce((a, b) => a + b, 0);
         const shown = key === "downloads_off" && off ? OFF_WORD[off] : word;
@@ -215,7 +258,7 @@ export function WantedPage() {
       </p> : null}
       <div className="flex flex-wrap items-center gap-2" aria-label="Search now">
         <Button variant="outline" size="sm" disabled={!chosen.length || search.isPending} onClick={() => request({ body: { only, items: chosen.map(rowItem) }, count: chosen.length, title: `Search ${fmtNumber(chosen.length)} selected` }, chosen.length > left)}>Search selected ({fmtNumber(chosen.length)})</Button>
-        <Button variant="outline" size="sm" disabled={!d.searchable || !d.downloads_enabled || search.isPending} title={!d.downloads_enabled ? "Paused" : !d.searchable ? "Nothing in this list can be searched now" : undefined} onClick={() => request({ body: { only, all: { ...(version ? { version } : {}), ...(waiting ? { waiting: waiting as NonNullable<WantedSearchBody["all"]>["waiting"] } : {}) } }, count: d.searchable, title: `Search all ${fmtNumber(d.searchable)} ${what}${version ? ` in ${label(version)}` : ""}` }, true)}>Search all {d.searchable > 0 ? `${fmtNumber(d.searchable)} ` : ""}{what}{version ? ` in ${label(version)}` : ""}</Button>
+        <Button variant="outline" size="sm" disabled={!d.searchable || !d.downloads_enabled || search.isPending} title={!d.downloads_enabled ? "Paused" : !d.searchable ? "Nothing in this list can be searched now" : undefined} onClick={() => request({ body: { only, all: { ...(version ? { version } : {}), ...(waiting ? { waiting: waiting as NonNullable<WantedSearchBody["all"]>["waiting"] } : {}), ...(title ? { title_id: title } : {}) } }, count: d.searchable, title: `Search all ${fmtNumber(d.searchable)} ${what}${title ? ` of ${titleName}` : ""}${version ? ` in ${label(version)}` : ""}` }, true)}>Search all {d.searchable > 0 ? `${fmtNumber(d.searchable)} ` : ""}{what}{title ? ` of ${titleName}` : ""}{version ? ` in ${label(version)}` : ""}</Button>
         <Button variant="outline" size="sm" className="ml-auto" aria-label="Columns" onClick={() => setPicker(true)}><Columns3 /><span className="hidden sm:inline">Columns</span></Button>
         {search.data && !ask ? <span role="status" className="basis-full text-[13px] text-[var(--ink-2)]" data-testid="search-now-result">{searchNowWords(search.data)}</span> : null}
         {(search.error && !ask) || clear.error ? <span role="alert" className="basis-full text-[13px] text-[var(--bad-ink)]">{errText(search.error ?? clear.error)}</span> : null}
@@ -237,6 +280,8 @@ export function WantedPage() {
         } : undefined}
         selectAllLabel="Select all on this page"
         rowLabel={row => `${name(row)}, ${targetWords(row.targets)}, ${label(row.version)}`}
+        sort={sort ? { column: sort.replace("-", ""), dir: sort.startsWith("-") ? "desc" : "asc" } : undefined}
+        onSort={sortBy}
         actions={actions}
         cardHead={titleLink}
         rowProps={() => ({ "data-testid": "wanted-row" })}

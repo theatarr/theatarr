@@ -182,8 +182,8 @@ function RowDetails({ v, kind, minimumShown, statusShown, onRemove }: { v: Versi
       <KV items={rows} />
       <ControlNote c={v.control} kind="both" globalSaid verdictSaid={!!v.control?.grab_state} />
       <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
-        {active && (v.state === "wanted" || !!v.episodes?.missing) ? <Link className="text-primary hover:underline" to={`/wanted?version=${encodeURIComponent(key)}`}>See in Wanted</Link> : null}
-        {active && (v.state === "filled" || !!v.upgrade?.below) ? <Link className="text-primary hover:underline" to={`/wanted/cutoff?version=${encodeURIComponent(key)}`}>See in Cutoff unmet</Link> : null}
+        {active && (v.state === "wanted" || !!v.episodes?.missing) ? <Link className="text-primary hover:underline" to={`/wanted?version=${encodeURIComponent(key)}${titleId ? `&title=${titleId}` : ""}`}>See in Wanted</Link> : null}
+        {active && (v.state === "filled" || !!v.upgrade?.below) ? <Link className="text-primary hover:underline" to={`/wanted/cutoff?version=${encodeURIComponent(key)}${titleId ? `&title=${titleId}` : ""}`}>See in Cutoff unmet</Link> : null}
         {perms.manage && titleId ? <Link className="text-primary hover:underline" to={releasesHref(titleId, key)}>Last search results</Link> : null}
       </div>
       {perms.manage && kind === "movie" && v.has_file ? <AddToProvidersFor v={v} /> : null}

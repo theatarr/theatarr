@@ -2,7 +2,7 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, it } from "vitest";
-import { WantedPage, searchNowWords, searchResult, targetWords } from "./wanted";
+import { WantedPage, searchNowWords, searchResult, targetWords, whatWords } from "./wanted";
 import { mockFetch, renderPage } from "@/test/page";
 import type { Schemas } from "@/api/client";
 
@@ -26,7 +26,7 @@ it("shows read-only waits and handoffs, filters and pages on the server", async 
   expect(screen.getByText("What is waiting for a search and when each item is searched next. Search now starts a search under the hourly limit.")).toBeTruthy();
   expect(screen.getByTestId("wanted-pace").textContent).toBe("Up to 20 searches an hour (4 in the last hour). Items are searched again every 24 h. A missing new release is tried again sooner: the wait starts at 1 hour and doubles each time, up to 24 h, until a week after its release.");
   expect(screen.queryByTestId("wanted-switch-off")).toBeNull();
-  expect(screen.getAllByRole("columnheader").map(h => h.textContent)).toEqual(["", "Title", "Library", "What", "Next search", "Last search", "Actions"]);
+  expect(screen.getAllByRole("columnheader").map(h => h.textContent)).toEqual(["", "Title", "Library", "What", "Released", "Next search", "Last search", "Actions"]);
   expect(within(screen.getByTestId("wanted-row")).getByText("Now")).toBeTruthy();
   expect(screen.getByText(/3 results, none accepted/)).toBeTruthy();
   expect(await screen.findByRole("link", { name: "Decision" })).toBeTruthy();
@@ -111,6 +111,14 @@ it("formats search outcomes and targets", () => {
   expect(searchResult({ ...run, state: "routed", downloaded: true })).toBe("Grabbed");
   expect(targetWords(["s01", "s02e03"])).toBe("S01, S02E03");
   expect(targetWords(["s01e04", "s01e02", "s01e03", "s01e06"])).toBe("S01E02-E04, S01E06");
+  // A whole season says how many episodes it stands for; single episodes and films do not.
+  expect(whatWords({ targets: ["s20"], episodes: 139 })).toBe("S20, 139 episodes");
+  expect(whatWords({ targets: ["s01e02", "s01e03"], episodes: 2 })).toBe("S01E02-E03");
+  expect(whatWords({ targets: ["movie"] })).toBe("Movie");
+  // A grabbed download for a row still listed was not imported; while downloading or paused it is just Grabbed.
+  expect(searchResult({ ...run, state: "routed", downloaded: true }, "scheduled")).toBe("Grabbed, not imported");
+  expect(searchResult({ ...run, state: "routed", downloaded: true }, "in_flight")).toBe("Grabbed");
+  expect(searchResult({ ...run, state: "routed", downloaded: true }, "downloads_off")).toBe("Grabbed");
 });
 
 const gates = { mode: "active", paused: false, pause_forced: false, will_grab: true };
@@ -357,7 +365,7 @@ it("keeps the retry sentence to Missing, names the unit, and puts Decision with 
   expect(screen.getByTestId("wanted-pace").textContent).toBe("Up to 20 searches an hour (4 in the last hour). Items are searched again every 24 h.");
   expect(screen.getByTestId("wanted-count").textContent).toBe("1,128 items (one per film or season in each library, not per episode).");
   const last = r.querySelector('[data-column="last"]')!;
-  expect(last.textContent).toMatch(/Grabbed · Decision$/);
+  expect(last.textContent).toMatch(/Grabbed, not imported · Decision$/);
   expect(within(last as HTMLElement).getByRole("link", { name: "Decision" }).getAttribute("href")).toBe("/activity/journal/run%3A3");
   expect(screen.getByRole("button", { name: "All (1,128)" })).toBeTruthy();
 });
@@ -391,4 +399,46 @@ it("shows no Missing rows under Cutoff unmet while its rows load", async () => {
   await waitFor(() => expect(screen.queryByRole("button", { name: "Search all 51 missing" })).toBeNull());
   expect(screen.queryByRole("button", { name: /Search all 51 cutoff unmet/ })).toBeNull();
   expect(screen.queryByRole("checkbox", { name: "Select Alpha, Movie, 4K WEB" })).toBeNull();
+});
+
+it("sorts on the server from the headers and the sort picker, and filters to one title with a removable chip", async () => {
+  const user = userEvent.setup();
+  const grabbed = { ...row, title_id: 2, waiting: "scheduled" as const, next_at: inHours(2), date: "2026-03-18T00:00:00Z",
+    last_run: { ...row.last_run!, state: "routed", downloaded: true, download_id: 40 } };
+  const season = { ...row, title_id: 3, version: "tv-web", targets: ["s20"], season: 20, episodes: 139 };
+  const fetch = mockFetch([admin, status, { method: "GET", path: "/wanted", reply: { ...page, items: [grabbed, season], titles: { "2": "Beta", "3": "Pokémon" }, total: 2 } }]);
+  renderPage(<WantedPage />, "/wanted?title=2&version=movie-web");
+  const rows = await screen.findAllByTestId("wanted-row");
+  const last = () => new URLSearchParams(fetch.calls("GET", "/wanted").at(-1)?.search);
+  expect(last().get("title")).toBe("2");
+  expect(rows[0].querySelector('[data-column="date"]')?.textContent).toBe("Mar 18");
+  expect(within(rows[0]).getByRole("link", { name: "See in Activity" }).getAttribute("href")).toBe("/activity?open=40");
+  expect(rows[1].querySelector('[data-column="what"]')?.textContent).toBe("S20, 139 episodes");
+  // The title filter shows as a chip, carries over to the other tab and into Search all.
+  expect(screen.getByTestId("wanted-title-filter").textContent).toBe("Beta");
+  expect(screen.getByRole("tab", { name: "Cutoff unmet" }).getAttribute("href")).toBe("/wanted/cutoff?version=movie-web&title=2");
+  expect(screen.getByRole("button", { name: "Search all 51 missing of Beta in 4K WEB" })).toBeTruthy();
+  // Headers: Title A–Z first, then Z–A; Released newest first.
+  await user.click(screen.getByRole("button", { name: "Sort by title" }));
+  await waitFor(() => expect(last().get("sort")).toBe("title"));
+  await user.click(screen.getByRole("button", { name: "Sort by title" }));
+  await waitFor(() => expect(last().get("sort")).toBe("-title"));
+  await user.click(screen.getByRole("button", { name: "Sort by released" }));
+  await waitFor(() => expect(last().get("sort")).toBe("-date"));
+  await user.selectOptions(screen.getByLabelText("Sort"), "last");
+  await waitFor(() => expect(last().get("sort")).toBe("last"));
+  await user.click(screen.getByRole("button", { name: "Show every title, not only Beta" }));
+  await waitFor(() => expect(last().get("title")).toBeNull());
+  expect(last().get("sort")).toBe("last");
+});
+
+it("searches only the filtered title with Search all", async () => {
+  const user = userEvent.setup();
+  const fetch = mockFetch([admin, status, { method: "GET", path: "/wanted", reply: { ...page, titles: { "1": "Alpha" } } },
+    { method: "POST", path: "/wanted/search", reply: { queued: 1, started: 1, pending: 0, skipped: [] } }]);
+  renderPage(<WantedPage />, "/wanted/cutoff?title=1");
+  await user.click(await screen.findByRole("button", { name: "Search all 51 cutoff unmet of Alpha" }));
+  await user.click(within(await screen.findByTestId("search-now-confirm")).getByRole("button", { name: "Queue 51 searches" }));
+  await waitFor(() => expect(fetch.calls("POST", "/wanted/search")).toHaveLength(1));
+  expect(fetch.calls("POST", "/wanted/search")[0].body).toEqual({ only: "cutoff", all: { title_id: 1 } });
 });
