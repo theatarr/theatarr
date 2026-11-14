@@ -267,3 +267,65 @@ func TestDeleteForRemovalSaysWhatItLeftOver(t *testing.T) {
 		t.Errorf("deleted %d, %q", e.ard.deleted, out.Words(hashes))
 	}
 }
+
+// A torrent another title holds only through an adopted link (its hash in adopted_source, its mount folder named
+// otherwise) is used: kept by the clean-up, and used on the Torrents page.
+func TestDeleteForRemovalKeepsAnAdoptedLinksTorrent(t *testing.T) {
+	t.Parallel()
+	e := removalFixture(t)
+	const hI = "3333333333333333333333333333333333333333"
+	e.rd.list = append(e.rd.list, tor("9", hI, "Movie.I.2013.1080p.WEB-DL", 900, e.now.Add(-72*time.Hour),
+		provider.StateDownloaded))
+	e.imported("rd", "9", hI)
+	e.exec(`INSERT INTO link (path, target, title_id, state, adopted_source, created_at, updated_at)
+		VALUES ('/lib/Other/I.mkv', ?, 2, 'active', ?, 0, 0)`, mountPath+"/__all__/Some Other Name/I.mkv",
+		`{"hash":"`+strings.ToUpper(hI)+`"}`)
+	out, err := e.m.DeleteForRemoval(context.Background(), cleanup(hI))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := e.deletedIDs(); len(got) != 0 || out.Words([]string{hI}) != "kept on RD: used by Other" {
+		t.Errorf("deleted %v, %q", got, out.Words([]string{hI}))
+	}
+	if err := e.m.StoreUsage(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	r, err := e.m.Report(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := find(r, "rd", "9"); got == nil || got.Usage != Used {
+		t.Errorf("report: %+v", got)
+	}
+}
+
+// The backup is taken from the clean-up's one read, with the files the listing gave: nothing is listed again, and a
+// torrent whose files the list carried needs no detail read.
+func TestDeleteForRemovalBacksUpTheReadWithItsFiles(t *testing.T) {
+	t.Parallel()
+	e := removalFixture(t)
+	for i := range e.rd.list {
+		e.rd.list[i].Files = []provider.File{{ID: "1", Path: "/" + e.rd.list[i].Name + "/a.mkv", Bytes: 1, Selected: true}}
+	}
+	if _, err := e.m.DeleteForRemoval(context.Background(), cleanup(hD)); err != nil {
+		t.Fatal(err)
+	}
+	bs, err := e.m.Backups()
+	if err != nil || len(bs) != 1 {
+		t.Fatalf("backups %+v %v", bs, err)
+	}
+	b, err := e.m.ReadBackup(bs[0].ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range b.Providers {
+		for _, bt := range p.Torrents {
+			if p.Provider == "rd" && (!bt.FilesKnown || len(bt.Files) != 1) {
+				t.Errorf("rd %s: files %+v", bt.ID, bt.Files)
+			}
+		}
+	}
+	if e.rd.lists != 1 || e.tb.lists != 1 {
+		t.Errorf("listed rd %d, tb %d", e.rd.lists, e.tb.lists)
+	}
+}

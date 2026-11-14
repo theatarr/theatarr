@@ -2,7 +2,6 @@ package torrents
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"slices"
@@ -133,12 +132,15 @@ func (m *Manager) DeleteForRemoval(ctx context.Context, c RemovalCleanup) (*Remo
 			return out, nil
 		}
 	}
-	if err := m.StoreUsage(ctx); err != nil {
-		return nil, err
+	// The listings as the sync read them (files included where the provider gives them): planning and the backup use
+	// them, so the backup is as complete as the Torrents page delete's. The stored usage is worked out again by the
+	// usage worker; the plan below is the clean-up's one reference pass.
+	lists := map[string][]provider.Torrent{}
+	for _, ps := range res.Providers {
+		lists[ps.Provider] = ps.List
 	}
-	lists, err := m.recordLists(ctx)
-	if err != nil {
-		return nil, err
+	if m.UsageStale != nil {
+		m.UsageStale()
 	}
 	var sel []DeleteSelection
 	for _, k := range m.keys() {
@@ -205,39 +207,6 @@ func (m *Manager) DeleteForRemoval(ctx context.Context, c RemovalCleanup) (*Remo
 		}
 	}
 	return out, nil
-}
-
-// recordLists are every account's torrents as the record holds them (provider_torrent), just written by the sync.
-func (m *Manager) recordLists(ctx context.Context) (map[string][]provider.Torrent, error) {
-	out := map[string][]provider.Torrent{}
-	for _, k := range m.keys() {
-		if m.Providers[k] != nil {
-			out[k] = []provider.Torrent{}
-		}
-	}
-	rows, err := m.Store.Reader().QueryContext(ctx, `SELECT provider, torrent_id, info_hash, name, original_name,
-		size_bytes, status, state, progress, added_at FROM provider_torrent ORDER BY provider, torrent_id`)
-	if err != nil {
-		return nil, fmt.Errorf("torrents: reading the record: %w", err)
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var k, state string
-		var t provider.Torrent
-		var added sql.NullInt64
-		if err := rows.Scan(&k, &t.ID, &t.Hash, &t.Name, &t.OriginalName, &t.Bytes, &t.Status, &state, &t.Progress,
-			&added); err != nil {
-			return nil, err
-		}
-		t.State = provider.State(state)
-		if added.Valid {
-			t.Added = store.FromMillis(added.Int64)
-		}
-		if _, ok := out[k]; ok {
-			out[k] = append(out[k], t)
-		}
-	}
-	return out, rows.Err()
 }
 
 // restoredKeys are the libraries (policy keys) among keysOf's of title that are in the library again: their version

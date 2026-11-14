@@ -87,6 +87,9 @@ type SyncOptions struct {
 // ProviderSummary is one provider's part of a sync. It is stored as provider_sync_run.summary.
 type ProviderSummary struct {
 	Provider string `json:"provider"`
+	// List is the complete listing the sync read (as the provider answered it, files included when it gives them),
+	// for a caller that acts on the same read (a removal's clean-up); nil when the listing failed.
+	List []Torrent `json:"-"`
 	OK       bool   `json:"ok"`
 	Error    string `json:"error,omitempty"`
 	RunID    int64  `json:"run_id,omitempty"`
@@ -200,6 +203,9 @@ func (s *Syncer) syncOne(ctx context.Context, key string, p Provider, dry bool, 
 	sum := &ProviderSummary{Provider: key, ByState: map[State]int{}}
 	list, err := p.Torrents(ctx)
 	sum.ListMS = s.now().Sub(started).Milliseconds()
+	if err == nil {
+		sum.List = list
+	}
 	if err != nil {
 		sum.Error = err.Error()
 		log.Warn("provider list failed; registry unchanged for this provider", "err", err)
@@ -229,7 +235,7 @@ func (s *Syncer) syncOne(ctx context.Context, key string, p Provider, dry bool, 
 	localTr := map[string]int{}
 	err = s.Store.WriteTx(ctx, func(tx *sql.Tx) error {
 		// WriteTx may retry: start from clean counters each time.
-		*sum = ProviderSummary{Provider: key, OK: true, ListMS: sum.ListMS, ByState: map[State]int{}}
+		*sum = ProviderSummary{Provider: key, OK: true, ListMS: sum.ListMS, ByState: map[State]int{}, List: list}
 		clear(localTr)
 		if err := s.checkEpoch(ctx, tx); err != nil {
 			return err
