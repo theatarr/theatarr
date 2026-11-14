@@ -80,6 +80,17 @@ func (g *Gate) Active(version string) bool {
 // Roots returns a version's roots.
 func (g *Gate) Roots(version string) []string { return g.versions[version].roots }
 
+// allRoots are every version's roots, cleaned.
+func (g *Gate) allRoots() []string {
+	var out []string
+	for _, v := range g.versions {
+		for _, r := range v.roots {
+			out = append(out, filepath.Clean(r))
+		}
+	}
+	return out
+}
+
 // Versions returns the versions listed under library.versions, sorted.
 func (g *Gate) Versions() []string {
 	var ks []string

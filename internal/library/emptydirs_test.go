@@ -119,3 +119,41 @@ func TestRemoveEmptyDirsStopsBelowTheRoot(t *testing.T) {
 		t.Errorf("removed with the library off: %v", got)
 	}
 }
+
+// Folder removal stops at every library root, a root nested below another root of the library included (the gate
+// refuses roots of different libraries that overlap), and touches nothing reached through a symlink anywhere below
+// the root (not only the last folder).
+func TestRemoveEmptyDirsStopsAtNestedRootsAndSymlinks(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true, policy.ModeActive)
+	nested := filepath.Join(e.shows, "Kids")
+	e.pol.Library.Versions["tv"].Roots = []string{e.shows, nested}
+	g := NewGate(e.pol)
+	e.lib.gate, e.lib.w.gate = g, g
+	season := filepath.Join(nested, "Show (2020)", "Season 01")
+	if err := os.MkdirAll(season, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	got := e.lib.RemoveEmptyDirs("tv", filepath.Join(season, "e1.mkv"))
+	if !slices.Equal(got, []string{season, filepath.Dir(season)}) {
+		t.Errorf("removed %v", got)
+	}
+	if _, err := os.Stat(nested); err != nil {
+		t.Errorf("the nested root went: %v", err)
+	}
+	// A symlinked folder in the middle of the path: nothing goes, not even the real empty folder behind it.
+	real := filepath.Join(e.movies, "Real")
+	sub := filepath.Join(real, "Sub")
+	if err := os.MkdirAll(sub, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(real, filepath.Join(e.movies, "Link")); err != nil {
+		t.Fatal(err)
+	}
+	if got := e.lib.RemoveEmptyDirs("movie-remux", filepath.Join(e.movies, "Link", "Sub", "a.mkv")); len(got) != 0 {
+		t.Errorf("removed through a symlink: %v", got)
+	}
+	if _, err := os.Stat(sub); err != nil {
+		t.Errorf("the folder behind the symlink went: %v", err)
+	}
+}

@@ -60,13 +60,18 @@ func (l *Library) RemoveEmptyDirs(version, path string) []string {
 	if l.gate.CheckVersion(version) != nil {
 		return nil
 	}
+	// The nearest root holding the path: another version's root nested below this version's is a stop too.
+	root := ""
 	for _, r := range l.gate.Roots(version) {
 		r = filepath.Clean(r)
-		if rel, err := filepath.Rel(r, path); err == nil && rel != "." && !escapes(rel) {
-			return l.w.removeEmptyDirsBelow(version, r, filepath.Dir(path))
+		if rel, err := filepath.Rel(r, path); err == nil && rel != "." && !escapes(rel) && len(r) > len(root) {
+			root = r
 		}
 	}
-	return nil
+	if root == "" {
+		return nil
+	}
+	return l.w.removeEmptyDirsBelow(version, root, filepath.Dir(path))
 }
 
 // Unlink takes one library link of a version out of its root (an arr client deleted the movie or episode file):

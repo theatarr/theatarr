@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 )
@@ -144,35 +145,41 @@ func (w *writer) removeEmptyDir(version, dir string) error {
 }
 
 // removeEmptyDirsBelow removes dir, then each parent in turn, while it is empty, strictly below root (a removed
-// title's season and title folders): never root itself or anything outside it, never a symlink (nothing is followed),
-// never one of Theatarr's own folders (.theatarr*) or the trash, and only an empty directory (os.Remove refuses any
-// other). It stops at the first folder it leaves, and returns the folders removed.
+// title's season and title folders): never root itself or anything outside it, and never any library root (another
+// version's root nested below this one included), never a folder reached through a symlink (any component below
+// root: nothing is followed), never one of Theatarr's own folders (.theatarr*) or the trash, and only an empty
+// directory (os.Remove refuses any other). It stops at the first folder it leaves, and returns the folders removed.
 func (w *writer) removeEmptyDirsBelow(version, root, dir string) []string {
-	root = filepath.Clean(root)
-	if root == "" || root == "." || root == string(filepath.Separator) {
+	root, dir = filepath.Clean(root), filepath.Clean(dir)
+	if root == "" || root == "." || root == string(filepath.Separator) || !filepath.IsAbs(dir) {
 		return nil
 	}
+	rel, err := filepath.Rel(root, dir)
+	if err != nil || rel == "." || escapes(rel) {
+		return nil
+	}
+	// No component below root may be a symlink, nor one of Theatarr's own folders.
+	at := root
+	for _, part := range strings.Split(rel, string(filepath.Separator)) {
+		if strings.HasPrefix(part, ".theatarr") {
+			return nil
+		}
+		at = filepath.Join(at, part)
+		fi, err := os.Lstat(at)
+		if err != nil || fi.Mode()&os.ModeSymlink != 0 || !fi.IsDir() {
+			return nil
+		}
+	}
+	roots := w.gate.allRoots()
 	var removed []string
-	for dir = filepath.Clean(dir); ; dir = filepath.Dir(dir) {
-		rel, err := filepath.Rel(root, dir)
-		if err != nil || rel == "." || escapes(rel) || !filepath.IsAbs(dir) {
-			break
-		}
-		own := false
-		for _, part := range strings.Split(rel, string(filepath.Separator)) {
-			own = own || strings.HasPrefix(part, ".theatarr")
-		}
-		if own {
+	for ; dir != root; dir = filepath.Dir(dir) {
+		if slices.Contains(roots, dir) {
 			break
 		}
 		if t := filepath.Clean(w.gate.trash); w.gate.trash != "" {
 			if r, err := filepath.Rel(t, dir); err == nil && !escapes(r) {
 				break
 			}
-		}
-		fi, err := os.Lstat(dir)
-		if err != nil || fi.Mode()&os.ModeSymlink != 0 || !fi.IsDir() {
-			break
 		}
 		if err := w.gate.CheckPath(version, filepath.Join(dir, ".probe")); err != nil {
 			break
