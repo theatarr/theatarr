@@ -89,16 +89,22 @@ func (w *Web) apiReleases(rw http.ResponseWriter, r *http.Request) {
 		writeJSON(rw, http.StatusServiceUnavailable, apiError{Error: "no policy loaded"})
 		return
 	}
+	// The title's current libraries; one it was removed from is not offered, and naming it is refused (below).
 	var have []string
-	// The title's current libraries: one it was removed from is not offered (refuseRemovedCopy below).
-	err = scanAll(ctx, w.st.Reader(), `SELECT v.policy_key FROM version v WHERE v.title_id = ? AND `+liveVersion+`
+	removed := map[string]bool{}
+	err = scanAll(ctx, w.st.Reader(), `SELECT v.policy_key, NOT `+liveVersion+` FROM version v WHERE v.title_id = ?
 		ORDER BY v.policy_key`,
 		[]any{id}, func(r *sql.Rows) error {
 			var k string
-			if err := r.Scan(&k); err != nil {
+			var gone bool
+			if err := r.Scan(&k, &gone); err != nil {
 				return err
 			}
-			have = append(have, k)
+			if gone {
+				removed[k] = true
+			} else {
+				have = append(have, k)
+			}
 			return nil
 		})
 	if err != nil {
@@ -118,7 +124,8 @@ func (w *Web) apiReleases(rw http.ResponseWriter, r *http.Request) {
 		badRequest(rw, "unknown library "+strconv.Quote(key)+" for this title")
 		return
 	}
-	if w.refuseRemovedCopy(rw, r, id, key) {
+	if removed[key] {
+		badRequest(rw, "the title was removed from library "+strconv.Quote(key)+": add it there again first")
 		return
 	}
 	out := Releases{GrabState: versionGrabState(w.pol, key), TitleID: id, Version: key, Versions: have, Mode: string(vp.Mode), Candidates: []snapshot.Candidate{},

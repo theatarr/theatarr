@@ -1019,39 +1019,55 @@ func (w *Web) apiRemove(rw http.ResponseWriter, r *http.Request) {
 			w.record(ctx, journal.Action{Action: journal.ActUnlinkFile, TitleID: id, Version: strings.Join(u.Versions, ","),
 				Target: u.Path, Detail: "moved to " + orDash(u.Trash) + " when its library was removed", By: by})
 		}
-		// Each removed library's action now says what became of its files.
+		// Each removed library's action now says what became of its files. What stays linked: refused or failed
+		// symlinks, links that are not Theatarr's symlinks (never unlinked), and broken symlinks (not unlinked yet).
 		if len(actIDs) > 0 {
-			err := w.st.WriteTx(ctx, func(tx *sql.Tx) error {
-				for k, aid := range actIDs {
-					// What stays linked: refused or failed symlinks, and links that are not Theatarr's symlinks
-					// (never unlinked).
-					var other int
-					if err := tx.QueryRowContext(ctx, `SELECT COUNT(DISTINCT l.id) FROM link l JOIN link_version lv
-						ON lv.link_id = l.id JOIN version v ON v.id = lv.version_id WHERE v.title_id = ?
-						AND v.policy_key = ? AND l.state = 'active' AND l.kind <> 'symlink'`, id, k).Scan(&other); err != nil {
-						return err
-					}
-					f := fates[k]
-					if f == nil {
-						f = &fate{}
-					}
-					left := f.left + other
-					rm := journal.Removal{Files: journal.RemovalFilesDeleted}
-					if left > 0 {
-						rm.Files, rm.Left, rm.Reason = journal.RemovalFilesPartial, left, f.reason
-						if f.reason == "" {
-							rm.Reason = "not one of Theatarr's symlinks"
-						}
-						if f.unlinked == 0 {
-							rm.Files = journal.RemovalFilesKept
-						}
-					}
-					if err := journal.SetActionDetail(ctx, tx, aid, journal.RemovalDetail(rm)); err != nil {
-						return err
-					}
-				}
-				return nil
+			type stays struct{ other, dead int }
+			stay := map[string]stays{}
+			ks := make([]any, 0, len(actIDs))
+			for k := range actIDs {
+				ks = append(ks, k)
+			}
+			err := scanAll(ctx, w.st.Reader(), `SELECT v.policy_key,
+				COALESCE(SUM(l.state = 'active' AND l.kind <> 'symlink'), 0), COALESCE(SUM(l.state = 'dead'), 0) FROM link l JOIN link_version lv ON lv.link_id = l.id
+				JOIN version v ON v.id = lv.version_id WHERE v.title_id = ? AND v.policy_key IN (`+store.Placeholders(len(ks))+`)
+				GROUP BY v.policy_key`, append([]any{id}, ks...), func(r *sql.Rows) error {
+				var k string
+				var x stays
+				err := r.Scan(&k, &x.other, &x.dead)
+				stay[k] = x
+				return err
 			})
+			if err == nil {
+				err = w.st.WriteTx(ctx, func(tx *sql.Tx) error {
+					for k, aid := range actIDs {
+						f := fates[k]
+						if f == nil {
+							f = &fate{}
+						}
+						x := stay[k]
+						left := f.left + x.other + x.dead
+						rm := journal.Removal{Files: journal.RemovalFilesDeleted}
+						if left > 0 {
+							rm.Files, rm.Left, rm.Reason = journal.RemovalFilesPartial, left, f.reason
+							switch {
+							case f.reason != "":
+							case x.dead > 0:
+								rm.Reason = "broken link"
+							default:
+								rm.Reason = "not one of Theatarr's symlinks"
+							}
+							if f.unlinked == 0 {
+								rm.Files = journal.RemovalFilesKept
+							}
+						}
+						if err := journal.SetActionDetail(ctx, tx, aid, journal.RemovalDetail(rm)); err != nil {
+							return err
+						}
+					}
+					return nil
+				})
+			}
 			if err != nil {
 				w.log.Warn("removal: recording the files' outcome", "title", id, "err", err)
 			}
