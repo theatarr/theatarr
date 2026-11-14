@@ -31,6 +31,8 @@ type serveTorrents struct {
 	lib *serveLibrary
 	// addLock is the router's add lock, shared by every settings generation: restores add under it.
 	addLock sync.Locker
+	// usage works out the record's usage again after a delete (Manager.UsageStale); nil does nothing.
+	usage *torrentUsageWorker
 }
 
 func (s *serveTorrents) Manager(ctx context.Context) (*torrents.Manager, error) {
@@ -62,7 +64,7 @@ func (s *serveTorrents) Manager(ctx context.Context) (*torrents.Manager, error) 
 	}
 	adders, _ := router.BuildAddersWithKeys(pol, gw, keys, s.log)
 	m := &torrents.Manager{Store: s.st, Policy: pol, Providers: provs, Adders: adders, Dir: s.dir, Queue: s.q,
-		Log: s.log, AddLock: s.addLock, Syncer: syncer}
+		Log: s.log, AddLock: s.addLock, Syncer: syncer, UsageStale: s.usage.Signal}
 	if lib != nil && lib.lib != nil {
 		// The library's own decypharr client (library.mount.decypharr), so its index is read once for both.
 		m.Decypharr = lib.lib.Decypharr()
@@ -71,8 +73,49 @@ func (s *serveTorrents) Manager(ctx context.Context) (*torrents.Manager, error) 
 	return m, nil
 }
 
-// storeTorrentUsage works out and stores the usage of the record of the debrid accounts (torrents.Manager.StoreUsage)
-// after a provider sync; a failure is logged, and the screens keep the usage of the last time it worked.
+// torrentUsageWorker works out the usage of the record of the debrid accounts (torrents.Manager.StoreUsage) outside
+// the job queue: after a provider sync job, a delete or an account change. Signal marks a run pending (one slot, so
+// bursts coalesce); run does one at a time until serve's context ends.
+type torrentUsageWorker struct{ pending chan struct{} }
+
+func newTorrentUsageWorker() *torrentUsageWorker {
+	return &torrentUsageWorker{pending: make(chan struct{}, 1)}
+}
+
+// Signal asks for a run; nil does nothing.
+func (u *torrentUsageWorker) Signal() {
+	if u == nil {
+		return
+	}
+	select {
+	case u.pending <- struct{}{}:
+	default:
+	}
+}
+
+func (u *torrentUsageWorker) run(ctx context.Context, s *serveTorrents, capture func(context.Context) context.Context,
+	log *slog.Logger) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-u.pending:
+			storeTorrentUsage(capture(ctx), s, log)
+		}
+	}
+}
+
+// torrentUsageMissing: some recorded torrent, or some v1 hash an account holds, has no usage worked out.
+func torrentUsageMissing(ctx context.Context, st *store.Store) bool {
+	var missing bool
+	err := st.Reader().QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM provider_torrent WHERE usage = '')
+		OR EXISTS (SELECT 1 FROM provider_torrent pt WHERE length(pt.info_hash) = 40
+			AND NOT EXISTS (SELECT 1 FROM provider_hash_usage hu WHERE hu.info_hash = pt.info_hash))`).Scan(&missing)
+	return err == nil && missing
+}
+
+// storeTorrentUsage works out and stores the record's usage; a failure is logged, and the screens keep the usage of
+// the last time it worked.
 func storeTorrentUsage(ctx context.Context, s *serveTorrents, log *slog.Logger) {
 	if s == nil {
 		return

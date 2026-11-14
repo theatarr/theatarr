@@ -51,6 +51,9 @@ type serveRuntime struct {
 	Anime *autobuild.Service
 	// Workers restarts the long-running loops whose settings this generation changed (serveliveworkers.go).
 	Workers *serveWorkers
+	// TorrentUsage works out the record's usage again after an account change cleared part of it (shared by every
+	// generation; nil does nothing).
+	TorrentUsage *torrentUsageWorker
 }
 
 type serveEgressSource struct {

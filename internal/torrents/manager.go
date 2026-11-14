@@ -50,6 +50,9 @@ type Manager struct {
 	AddLock sync.Locker
 	// Syncer is the provider sync of this settings generation: Refresh runs it. nil (the CLI): no Refresh.
 	Syncer *provider.Syncer
+	// UsageStale asks for the record's usage to be worked out again (serve's usage worker) after a delete dropped a
+	// hash's stored usage; nil does nothing.
+	UsageStale func()
 }
 
 // opMu keeps restores and deletes from running at the same time in this process: each reads a provider's list and

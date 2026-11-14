@@ -638,3 +638,27 @@ func TestSyncWritesRecord(t *testing.T) {
 		t.Fatalf("a successful read replaces the rows: %q", got)
 	}
 }
+
+// An account change clears the account's record and read time, and the stored usage of its hashes, also of one
+// another account still holds (it is worked out again); the other account's rows stay.
+func TestClearRecord(t *testing.T) {
+	t.Parallel()
+	e := newSyncEnv(t)
+	ctx := context.Background()
+	e.exec(`INSERT INTO provider_torrent (provider, torrent_id, info_hash) VALUES ('rd', '1', ?), ('ad', '2', ?),
+		('ad', '3', ?)`, h("a"), h("a"), h("b"))
+	e.exec(`INSERT INTO provider_torrent_read (provider, read_at) VALUES ('rd', 1), ('ad', 1)`)
+	e.exec(`INSERT INTO provider_hash_usage (info_hash, usage) VALUES (?, 'used'), (?, 'unused')`, h("a"), h("b"))
+	if err := e.st.WriteTx(ctx, func(tx *sql.Tx) error { return ClearRecord(ctx, tx, "rd") }); err != nil {
+		t.Fatal(err)
+	}
+	var got string
+	if err := e.st.Reader().QueryRow(`SELECT (SELECT group_concat(provider || torrent_id) FROM provider_torrent) || ' ' ||
+		(SELECT group_concat(provider) FROM provider_torrent_read) || ' ' ||
+		(SELECT group_concat(substr(info_hash, 1, 1)) FROM provider_hash_usage)`).Scan(&got); err != nil {
+		t.Fatal(err)
+	}
+	if got != "ad2,ad3 ad b" {
+		t.Fatalf("after clearing rd: %q", got)
+	}
+}

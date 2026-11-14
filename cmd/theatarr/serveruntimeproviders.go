@@ -116,6 +116,7 @@ func (r *serveRuntime) CommitSettings(ctx context.Context, tx *sql.Tx) error {
 		if err := provider.ClearRecord(ctx, tx, key); err != nil {
 			return err
 		}
+		r.TorrentUsage.Signal()
 	}
 	if c.advancesEpoch() {
 		if err := settings.IncrementProviderEpoch(ctx, tx); err != nil {

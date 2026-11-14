@@ -200,9 +200,9 @@ recheck empty fields in SQL so a stale preload never replaces another writer's n
 
 The same transaction writes the record of the account (migration `00130_provider_torrent.sql`, torrents.md "The
 record"): `provider_torrent` gets the complete list, one row per torrent (same-hash duplicates included), and
-`provider_torrent_read` the time. A failed listing leaves both alone. In `theatarr serve` the sync job then works
-out the record's usage (`torrents.Manager.StoreUsage`); a changed or removed account loses its record
-(`provider.ClearRecord`). `Syncer.Refresh` (the Torrents page's Refresh)
+`provider_torrent_read` the time. A failed listing leaves both alone. In `theatarr serve` the sync job then signals the usage
+worker, which works out the record's usage outside the job queue (`torrents.Manager.StoreUsage`); a changed or
+removed account loses its record and its hashes' stored usage (`provider.ClearRecord`). `Syncer.Refresh` (the Torrents page's Refresh)
 runs `Run` for every provider with a key, back-off or not, and schedules the failed ones' retry jobs as `Handle` does.
 
 **Content states:**

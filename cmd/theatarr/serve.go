@@ -354,6 +354,8 @@ func runServe(args []string) error {
 		default:
 		}
 	}
+	// Works out the record's usage of the debrid accounts after syncs and deletes, one run at a time.
+	torrentUsage := newTorrentUsageWorker()
 	settingsSnapshot, prepared, usedFallback, prepareErr := loaded.prepareStartup(ctx, settingsSnapshot, log,
 		func(ctx context.Context, snap *settings.Snapshot) (any, error) {
 			return prepareServeRuntime(ctx, snap, nil, st, q, reg, log)
@@ -363,6 +365,7 @@ func runServe(args []string) error {
 	}
 	serveSnapshot, _ = prepared.(*serveRuntime)
 	serveSnapshot.EgressChecks = egressChecks
+	serveSnapshot.TorrentUsage = torrentUsage
 	pol = settingsSnapshot.Policy
 	runtimeManager, err = loaded.coordinator(settingsSnapshot, serveSnapshot,
 		func(ctx context.Context, snap *settings.Snapshot, previous *settings.Runtime) (any, error) {
@@ -376,6 +379,7 @@ func runServe(args []string) error {
 			next, err := prepareServeRuntime(ctx, snap, old, st, q, nil, log)
 			if err == nil {
 				next.Workers = liveWorkers
+				next.TorrentUsage = torrentUsage
 				next.Router.SetCurrentRuntime(func() *router.Router {
 					return currentServeRouter(runtimeManager)
 				})
@@ -418,29 +422,6 @@ func runServe(args []string) error {
 		}
 		return active.Providers
 	}
-	// The torrent manager (set below): after each sync job it works out the record's usage (docs/design/torrents.md
-	// "The record").
-	var torrentSvc *serveTorrents
-	w.Handle(provider.JobKind, func(ctx context.Context, j *jobs.Job) error {
-		var payload provider.SyncPayload
-		if len(j.Payload) > 0 {
-			if err := j.Decode(&payload); err != nil {
-				return jobs.Permanent(err)
-			}
-		}
-		ctx = runtimeManager.Capture(ctx)
-		runtime := settings.ContextRuntime(ctx)
-		if runtime == nil {
-			runtime = runtimeManager.Current()
-		}
-		active, ok := runtime.Components.(*serveRuntime)
-		if !ok || active == nil || active.Providers == nil {
-			return errors.New("provider sync: active settings runtime is unavailable")
-		}
-		err := active.Providers.syncer.Handle(ctx, j)
-		storeTorrentUsage(ctx, torrentSvc, log)
-		return err
-	})
 
 	// The download router: provider writes only for active versions while router.enabled is true (docs/design/router.md).
 	rt := serveSnapshot.Router
@@ -467,12 +448,34 @@ func runServe(args []string) error {
 
 	ceiling.RegisterJobs(w, st, pol)
 	// The torrent manager (docs/design/torrents.md): backups and restores run as jobs; deletes only on request.
-	torrentSvc = &serveTorrents{manager: runtimeManager, st: st, q: q, dir: torrentBackupDir(*dbPath), log: log,
-		pol: pol, gw: gw, ps: ps, addLock: rt.AddLock()}
+	torrentSvc := &serveTorrents{manager: runtimeManager, st: st, q: q, dir: torrentBackupDir(*dbPath), log: log,
+		pol: pol, gw: gw, ps: ps, addLock: rt.AddLock(), usage: torrentUsage}
 	torrentManager := func(ctx context.Context) (*torrents.Manager, error) {
 		return torrentSvc.Manager(captureRuntime(ctx))
 	}
 	torrents.RegisterJobs(w, torrentManager)
+	// The provider sync job; after each one the usage worker works out the record's usage outside the job queue
+	// (docs/design/torrents.md "The record").
+	w.Handle(provider.JobKind, func(ctx context.Context, j *jobs.Job) error {
+		var payload provider.SyncPayload
+		if len(j.Payload) > 0 {
+			if err := j.Decode(&payload); err != nil {
+				return jobs.Permanent(err)
+			}
+		}
+		ctx = runtimeManager.Capture(ctx)
+		runtime := settings.ContextRuntime(ctx)
+		if runtime == nil {
+			runtime = runtimeManager.Current()
+		}
+		active, ok := runtime.Components.(*serveRuntime)
+		if !ok || active == nil || active.Providers == nil {
+			return errors.New("provider sync: active settings runtime is unavailable")
+		}
+		err := active.Providers.syncer.Handle(ctx, j)
+		torrentUsage.Signal()
+		return err
+	})
 
 	// The library: imports of ready downloads, relinks and Plex scans, written only through its gate
 	// (docs/design/library.md).
@@ -835,14 +838,11 @@ func runServe(args []string) error {
 		defer wg.Done()
 		w.Run(ctx)
 	})()
-	// A record whose usage was never worked out (seeded, or synced by the CLI) gets it once at start.
-	go errinbox.Go("torrent-usage", func() {
-		var n int
-		if err := st.Reader().QueryRowContext(ctx, `SELECT count(*) FROM provider_torrent WHERE usage = ''`).
-			Scan(&n); err == nil && n > 0 {
-			storeTorrentUsage(captureRuntime(ctx), torrentSvc, log)
-		}
-	})()
+	// The usage worker; a record whose usage is not worked out (seeded, synced by the CLI) gets it at start.
+	if torrentUsageMissing(ctx, st) {
+		torrentUsage.Signal()
+	}
+	go errinbox.Go("torrent-usage", func() { torrentUsage.run(ctx, torrentSvc, captureRuntime, log) })()
 	go errinbox.Go("http", func() {
 		defer wg.Done()
 		httpServices.Start(initialHTTP)

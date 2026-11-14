@@ -73,7 +73,7 @@ func readInfo(ctx context.Context, db *sql.DB, k string) (*recorded, error) {
 	var errText sql.NullString
 	var fin int64
 	err = db.QueryRowContext(ctx, `SELECT ok, error, finished_at FROM provider_sync_run WHERE provider = ?
-		ORDER BY id DESC LIMIT 1`, k).Scan(&ok, &errText, &fin)
+		ORDER BY finished_at DESC, id DESC LIMIT 1`, k).Scan(&ok, &errText, &fin)
 	switch {
 	case err == nil:
 		if ok == 0 && (!rc.read || fin >= at) {
@@ -253,15 +253,14 @@ func (m *Manager) StoreUsage(ctx context.Context) error {
 		return err
 	}
 	return m.Store.WriteTx(ctx, func(tx *sql.Tx) error {
-		up, err := tx.PrepareContext(ctx, `UPDATE provider_torrent SET usage = ?, linked_files = ?, detail = ?,
-			usage_at = ? WHERE provider = ? AND torrent_id = ? AND info_hash = ?`)
+		up, err := tx.PrepareContext(ctx, `UPDATE provider_torrent SET usage = ?, linked_files = ?, detail = ?
+			WHERE provider = ? AND torrent_id = ? AND info_hash = ?`)
 		if err != nil {
 			return err
 		}
 		defer up.Close()
-		at := store.Millis(now)
 		for _, u := range ups {
-			if _, err := up.ExecContext(ctx, u.usage, u.linked, u.detail, at, u.key, u.id, u.hash); err != nil {
+			if _, err := up.ExecContext(ctx, u.usage, u.linked, u.detail, u.key, u.id, u.hash); err != nil {
 				return err
 			}
 		}
@@ -305,19 +304,23 @@ func (m *Manager) Refresh(ctx context.Context) error {
 // ErrNoSync: no provider sync runs in this process (Refresh is unavailable).
 var ErrNoSync = errors.New("torrents: the provider sync is not running")
 
-// forget removes a deleted torrent from the record (and its hash's usage when no account holds the hash any more).
+// forget removes a deleted torrent from the record and its hash's stored usage (another account may still hold the
+// hash: it reads as not worked out yet), and asks for the usage to be worked out again (UsageStale).
 func (m *Manager) forget(ctx context.Context, prov, id, hash string) {
 	err := m.Store.WriteTx(ctx, func(tx *sql.Tx) error {
 		if _, err := tx.ExecContext(ctx, `DELETE FROM provider_torrent WHERE provider = ? AND torrent_id = ?`,
 			prov, id); err != nil {
 			return err
 		}
-		_, err := tx.ExecContext(ctx, `DELETE FROM provider_hash_usage WHERE info_hash = ?
-			AND NOT EXISTS (SELECT 1 FROM provider_torrent WHERE info_hash = ?)`, hash, hash)
+		_, err := tx.ExecContext(ctx, `DELETE FROM provider_hash_usage WHERE info_hash = ?`, hash)
 		return err
 	})
 	if err != nil {
 		m.log().Error("torrents: removing a deleted torrent from the record", "provider", prov, "id", id, "err", err)
+		return
+	}
+	if m.UsageStale != nil {
+		m.UsageStale()
 	}
 }
 
@@ -369,7 +372,7 @@ type HashUsage struct {
 }
 
 // HashUsages reads the stored usage of hashes (normalized v1, lower case) for Saved inventory; a hash no account
-// holds in the record is absent.
+// holds in the record is absent, and one an account holds whose usage is not worked out (yet, or again) is unknown.
 func HashUsages(ctx context.Context, db *sql.DB, hashes []string) (map[string]HashUsage, error) {
 	out := map[string]HashUsage{}
 	if len(hashes) == 0 {
@@ -396,7 +399,26 @@ func HashUsages(ctx context.Context, db *sql.DB, hashes []string) (map[string]Ha
 		hu.Usage, hu.Refs, hu.RefList, hu.Titles, hu.Reasons = Usage(u), s.Refs, s.RefList, s.Titles, s.Reasons
 		out[h] = hu
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	rows.Close()
+	held, err := db.QueryContext(ctx, `SELECT DISTINCT info_hash FROM provider_torrent
+		WHERE info_hash IN (SELECT value FROM json_each(?))`, string(b))
+	if err != nil {
+		return nil, err
+	}
+	defer held.Close()
+	for held.Next() {
+		var h string
+		if err := held.Scan(&h); err != nil {
+			return nil, err
+		}
+		if _, ok := out[h]; !ok {
+			out[h] = HashUsage{Usage: Unknown, Reasons: []string{reasonNotWorkedOut}}
+		}
+	}
+	return out, held.Err()
 }
 
 // pctEscape is a percent-encoded byte.

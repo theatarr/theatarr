@@ -491,17 +491,18 @@ func WriteRecord(ctx context.Context, tx *sql.Tx, key string, list []Torrent, no
 }
 
 // ClearRecord removes provider key's record and its read time (an account changed or removed by settings): the
-// account reads "never read" until a sync lists it. Hash usages no account holds any more go too.
+// account reads "never read" until a sync lists it. The stored usage of its hashes goes too: another account still
+// holding one reads it as not worked out until the usage is worked out again.
 func ClearRecord(ctx context.Context, tx *sql.Tx, key string) error {
-	for _, q := range []string{`DELETE FROM provider_torrent WHERE provider = ?`,
+	for _, q := range []string{
+		`DELETE FROM provider_hash_usage WHERE info_hash IN (SELECT info_hash FROM provider_torrent WHERE provider = ?)`,
+		`DELETE FROM provider_torrent WHERE provider = ?`,
 		`DELETE FROM provider_torrent_read WHERE provider = ?`} {
 		if _, err := tx.ExecContext(ctx, q, key); err != nil {
 			return err
 		}
 	}
-	_, err := tx.ExecContext(ctx, `DELETE FROM provider_hash_usage
-		WHERE info_hash NOT IN (SELECT info_hash FROM provider_torrent)`)
-	return err
+	return nil
 }
 
 func eqNullInt(n sql.NullInt64, v any) bool {

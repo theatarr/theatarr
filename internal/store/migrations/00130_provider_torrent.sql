@@ -8,8 +8,9 @@
 -- none; links the provider's download links, -1 when it does not say; added_at in ms, NULL when unknown.
 -- The usage the screens show is worked out once after each sync (and Refresh) and stored with the rows: usage
 -- (used, unused, unknown; '' not worked out yet), linked_files (links into it), detail (JSON: the shown file count,
--- reference counts, the first references, titles, reasons, added by Theatarr, parsed title, quality, title key),
--- usage_at. provider_hash_usage is the same answer per hash (references united across the hash's torrents).
+-- reference counts, the first references, titles, reasons, added by Theatarr, parsed title, quality, title key).
+-- provider_hash_usage is the same answer per hash (references united across the hash's torrents); a hash an account
+-- holds without a row there is not worked out yet.
 -- provider_torrent_read holds when that listing ended (read_at, ms) and the reasons every unreferenced torrent's
 -- usage was unknown then (unknown, JSON): a provider with no row was never read, which is not an empty account.
 -- Nothing else is changed: content_provider and content.state stay as they are.
@@ -30,7 +31,6 @@ CREATE TABLE provider_torrent (
     usage         TEXT    NOT NULL DEFAULT '',
     linked_files  INTEGER NOT NULL DEFAULT 0,
     detail        TEXT    NOT NULL DEFAULT '{}',
-    usage_at      INTEGER,
     PRIMARY KEY (provider, torrent_id)
 );
 CREATE INDEX provider_torrent_hash ON provider_torrent (info_hash);

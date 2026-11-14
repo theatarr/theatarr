@@ -693,6 +693,11 @@ func TestDelete(t *testing.T) {
 	// The record holds rd 99 too: a delete lists the provider again, the record is not its authority.
 	e.record()
 	e.exec(`INSERT INTO provider_torrent (provider, torrent_id, info_hash, name) VALUES ('rd', '99', ?, 'Gone')`, hB)
+	if err := e.m.StoreUsage(ctx); err != nil {
+		t.Fatal(err)
+	}
+	stale := 0
+	e.m.UsageStale = func() { stale++ }
 	e.rd.lists = 0
 	plan, err := e.m.PlanDelete(ctx, sel)
 	if err != nil {
@@ -747,6 +752,12 @@ func TestDelete(t *testing.T) {
 		WHERE provider = 'rd' ORDER BY torrent_id)`).Scan(&left); err != nil || strings.Contains(" "+left+" ", " 6 ") ||
 		!strings.Contains(left, "1") {
 		t.Errorf("the deleted torrent left the record, the refused ones stay: %q %v", left, err)
+	}
+	// tb 90 still holds hF: its stored usage went with the delete and is worked out again.
+	us, err := HashUsages(ctx, e.st.Reader(), []string{hF})
+	if err != nil || us[hF].Usage != Unknown || len(us[hF].Reasons) != 1 || us[hF].Reasons[0] != reasonNotWorkedOut ||
+		stale != 1 {
+		t.Errorf("hF not worked out after the delete (stale %d): %+v %v", stale, us[hF], err)
 	}
 }
 

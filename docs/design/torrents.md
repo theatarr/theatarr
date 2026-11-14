@@ -41,16 +41,19 @@ Sources (Admin › Connections) and Saved inventory read it instead of the provi
 
 ### "Used", one answer
 
-The usage (below) is worked out once right after each provider sync (the scheduled job and its retries) and after
-Refresh, from the reference index (library links, arr files, downloads in flight, the scan roots' symlinks, the
+The usage (below) is worked out once after each provider sync (the scheduled job and its retries), after a delete
+and after an account change in Settings, by one background worker of `theatarr serve` outside the job queue (a
+pending signal, so a burst of syncs gives one run, and one run at a time), and by Refresh itself before it answers, from the reference index (library links, arr files, downloads in flight, the scan roots' symlinks, the
 mount's listing; `loadRefs`, `StoreUsage`), and stored with the record: per account torrent (`usage`,
 `linked_files`, and the shown file count, references, titles and reasons in `detail`) and per hash
 (`provider_hash_usage`). So "used" is as of the same time as the record: a library link made since shows at the
 next sync or Refresh. The Torrents page, Sources and Saved inventory read that stored answer with plain indexed
 queries; a page open walks no scan root, reads no mount listing and calls no provider (`TestRecordReadsNothingLive`:
 about 30 ms for a report of 2,750 torrents in the test). `theatarr serve` also works it out once at start when the
-record has rows without it (a demo seed, or a sync run by `theatarr providers sync`); until then such a torrent is
-unknown. No backfill and no other stored state changes (`content.state` stays the registry's own rule,
+record has rows or hashes without it (a demo seed, or a sync run by `theatarr providers sync`); until then such a
+torrent or hash is unknown ("worked out after the next provider sync"). A delete and an account change drop the
+stored usage of the hashes they touch in the same transaction (another account may still hold one), so those read as
+not worked out until the worker has run. No backfill and no other stored state changes (`content.state` stays the registry's own rule,
 providers.md). A hash's usage (Saved inventory) is used when any account torrent of it is used, with the references
 of all of them united and counted once; else unknown when any is unknown; else unused. A hash no account holds in
 the record has none. Deletes never read the stored usage: they list the provider and check usage live.
