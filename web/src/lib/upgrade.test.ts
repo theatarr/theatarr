@@ -114,7 +114,9 @@ describe("upgrade words", () => {
     expect(cutoffLine("WEBDL-2160p", 1500, { ...cutoff, upgrades: false })).toContain("upgrades off");
   });
   it("says what falls short", () => {
-    expect(shortfall("Bluray-1080p", 6302, cutoff)).toBe("the quality is not Remux-2160p yet and the profile score is 3,698 short");
+    expect(shortfall("Bluray-1080p", 6302, cutoff)).toBe("Quality Bluray-1080p, short of the preferred Remux-2160p; score 6,302 of 10,000.");
+    expect(shortfall("Remux-2160p", 8550, cutoff)).toBe("Score 8,550 of 10,000; the quality is already the preferred one (Remux-2160p).");
+    expect(shortfall("Bluray-1080p", undefined, { quality: "Remux-2160p", upgrades: true })).toBe("Quality Bluray-1080p, short of the preferred Remux-2160p.");
     expect(shortfall("Remux-2160p", 12000, cutoff)).toBe("");
   });
   it("says what Theatarr would take next, or that nothing was seen", () => {

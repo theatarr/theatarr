@@ -73,15 +73,21 @@ const SOURCE: Record<string, string> = {
   rss: "Theatarr's RSS",
 };
 
-/** Why the item misses its preferred quality, in words: which part falls short ("" when neither does). */
+/**
+ * Why?'s first line: the condition that falls short, with its numbers. "Score 8,550 of 10,000; the quality is already
+ * the preferred one (Remux-2160p)." or "Quality Bluray-1080p, short of the preferred Remux-2160p; score 6,302 of
+ * 10,000." "" when neither part falls short or nothing is known.
+ */
 export function shortfall(quality: string | undefined, score: number | undefined | null, cutoff: Cutoff | undefined | null): string {
   if (!cutoff) return "";
-  const parts: string[] = [];
-  if (cutoff.quality && quality && quality !== cutoff.quality) parts.push(`the quality is not ${cutoff.quality} yet`);
-  if (score !== undefined && score !== null && cutoff.score !== undefined && cutoff.score !== null && score < cutoff.score) {
-    parts.push(`the profile score is ${fmtNumber(cutoff.score - score)} short`);
-  }
-  return parts.join(" and ");
+  const qualityShort = !!(cutoff.quality && quality && quality !== cutoff.quality);
+  const scored = score !== undefined && score !== null && cutoff.score !== undefined && cutoff.score !== null && cutoff.score > 0;
+  const scoreShort = scored && score < (cutoff.score ?? 0);
+  if (!qualityShort && !scoreShort) return "";
+  const numbers = scored ? `${fmtNumber(score)} of ${fmtNumber(cutoff.score ?? 0)}` : "";
+  if (qualityShort) return `Quality ${quality}, short of the preferred ${cutoff.quality}${numbers ? `; score ${numbers}` : ""}.`;
+  const met = quality ? `; the quality is already the preferred one${cutoff.quality ? ` (${cutoff.quality})` : ""}` : "";
+  return `Score ${numbers}${met}.`;
 }
 
 /** What Theatarr would take next and why, or why there is nothing to take. */

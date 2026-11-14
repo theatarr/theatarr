@@ -1,5 +1,6 @@
 // The quality word (lib/upgrade.ts upgradeBadge) with its Why? explanation in the shared
-// Modal: current against preferred source, the source ceiling's evidence kind and date, search coverage, sightings
+// Modal: what falls short with its numbers first, then current against preferred source (folded when they are the
+// same source), the source ceiling's evidence kind and date, search coverage, sightings
 // and any manual override (who, when, note), then the scores and cutoff arithmetic. Managers reach the source
 // ceiling control (ceiling-control.tsx) from there. Used by the copy cards, season headers and the episode overview.
 import { useQuery } from "@tanstack/react-query";
@@ -120,9 +121,18 @@ function WhyDialog({
   const sc = score !== undefined ? score : u.score;
   const co = cutoff ?? u.cutoff;
   const line = cutoffLine(u.quality, sc, co);
-  // Every state short of the preferred quality says which part falls short, Best source seen so far and Best
-  // available included (the quality can match while the score does not).
+  // Every state short of the preferred quality leads with the part that falls short and its numbers, Best source seen
+  // so far and Best available included (the quality can match while the score does not).
   const short = u.state !== "cutoff_met" && u.state !== "none" ? shortfall(u.quality, sc, co) : "";
+  // The source lines say one thing when current, preferred and reachable are the same source: folded.
+  const sameSource = why.current === why.preferred && (!why.reachable || why.reachable === why.current);
+  const sources = (
+    <>
+      <Row label="Current source">{why.current}</Row>
+      <Row label="Preferred quality">{why.preferred}{co && !co.upgrades ? " · upgrades off" : ""}</Row>
+      {why.reachable ? <Row label="Reachable now">{why.reachable}</Row> : null}
+    </>
+  );
   const next = nextLine(u);
   return (
     <Modal
@@ -136,16 +146,21 @@ function WhyDialog({
       <div className="relative border-b border-[var(--line)] p-4 pr-12">
         <div className="text-xs font-medium text-[var(--ink-3)]">{what}</div>
         <h2 className="mt-0.5 text-lg font-semibold text-[var(--ink)]">{why.headline}</h2>
+        {short ? <p className="mt-0.5 text-sm font-medium tabular-nums text-[var(--ink)]" data-testid="why-short">{short}</p> : null}
         {why.detail ? <p className="mt-0.5 text-sm text-[var(--ink-2)]" data-testid="why-detail">{why.detail}</p> : null}
         <button type="button" onClick={onClose} aria-label="Close" className="absolute right-3 top-3 grid size-8 place-items-center rounded-lg text-[var(--ink-3)] hover:bg-[var(--hover)]">
           <X className="size-4" />
         </button>
       </div>
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
+        {sameSource ? (
+          <details className="text-sm" data-testid="why-sources">
+            <summary className="cursor-pointer font-medium">Source: {why.current}, the preferred one</summary>
+            <dl className="mt-1 divide-y divide-[var(--line)]">{sources}</dl>
+          </details>
+        ) : null}
         <dl className="divide-y divide-[var(--line)]">
-          <Row label="Current source">{why.current}</Row>
-          <Row label="Preferred quality">{why.preferred}{co && !co.upgrades ? " · upgrades off" : ""}</Row>
-          {why.reachable ? <Row label="Reachable now">{why.reachable}</Row> : null}
+          {sameSource ? null : sources}
           {why.evidence ? <Row label="Evidence">{why.evidence}</Row> : null}
           {why.checked ? <Row label="Checked">{why.checked}</Row> : null}
           {why.override ? <Row label="Manual ceiling">{why.override}</Row> : null}
@@ -165,7 +180,6 @@ function WhyDialog({
         <div className="rounded-[5px] border border-[var(--line)] bg-[var(--surface)] px-3 py-2.5 text-xs" data-testid="why-scores">
           <div className="mb-1 font-bold uppercase tracking-[0.05em] text-[var(--ink-3)]">Scores</div>
           {line ? <p className="font-medium tabular-nums text-[var(--ink)]" data-testid="cutoff-line">{line}</p> : null}
-          {short ? <p className="mt-1 text-[var(--ink-3)]">Short of the preferred quality because {short}.</p> : null}
           {next ? <p className="mt-1 text-[var(--ink-3)] [overflow-wrap:anywhere]">{next}</p> : null}
           {releases ? (
             <Link to={releases} className="mt-1 inline-block font-medium text-primary hover:underline" data-testid="show-releases-link">

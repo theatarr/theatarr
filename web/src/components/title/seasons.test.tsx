@@ -494,8 +494,10 @@ describe("One status vocabulary", () => {
     await user.click(within(header).getByTestId("upgrade-why"));
     const why = await screen.findByTestId("upgrade-why-dialog");
     expect(within(why).getByRole("heading").textContent).toBe("Best quality known");
-    // Current and preferred quality are equal: Why? says the profile score falls short.
-    expect(why.textContent).toContain("Short of the preferred quality because the profile score is 8,500 short.");
+    // Current and preferred quality are equal: Why? leads with the score that falls short, and the equal source
+    // lines are folded.
+    expect(within(why).getByTestId("why-short").textContent).toMatch(/^Score 1,500 of 10,000; the quality is already the preferred one/);
+    expect(within(why).getByTestId("why-sources").hasAttribute("open")).toBe(false);
     await user.click(within(why).getByRole("button", { name: "Close" }));
     // The episode window says what the row says: Available, then the quality word with Why?; Not monitored for the
     // library that is not monitored.

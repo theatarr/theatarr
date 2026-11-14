@@ -167,12 +167,16 @@ The quality word, beside the status word of something with a file and never in i
 | State (`UpgradeInfo.state`) | Word | Colour | Where |
 |---|---|---|---|
 | a better release was found (`upgrade_available`) | **Upgrade found** | accent | posters' year line, table Status (second line), library rows, season headers, episode cells, episode window, quality filter, Home's row |
-| a file below its preferred quality, nothing better found (`below_cutoff`, `best_available`, `best_source_seen`, `higher_source_exists`) | **Best quality known** | neutral | table Status (second line), library rows, season headers, episode window, quality filter |
-| every file at its preferred quality (`cutoff_met`) | **Preferred quality met** | green | table Status (second line), library rows, season headers, episode window |
+| a file below its preferred quality, nothing better found (`below_cutoff`, `best_available`, `best_source_seen`, `higher_source_exists`) | **Best quality known** | neutral | title page: library rows, season headers, episode window; quality filter |
+| every file at its preferred quality (`cutoff_met`) | **Preferred quality met** | green | title page: library rows, season headers, episode window |
 
-**Why?** is headed by the quality word that opened it; the state's longer wording (`UPGRADE_WORDS`, such as "Best
-source seen so far") is the line under the heading, and the Scores box says which part falls short (quality,
-profile score) for every state short of the preferred quality.
+List rows and posters say only **Upgrade found**; the other two words are the title page's.
+
+**Why?** is headed by the quality word that opened it. For every state short of the preferred quality the first line
+under the heading is the part that falls short, with its numbers ("Score 8,550 of 10,000; the quality is already the
+preferred one (Remux-2160p)."; "Quality Bluray-1080p, short of the preferred Remux-2160p; score 6,302 of 10,000.");
+the state's longer wording (`UPGRADE_WORDS`, such as "Best source seen so far") follows. When current, preferred and
+reachable source are the same, those three lines are folded under "Source: 4K Remux, the preferred one".
 
 Filters on Movies, Series and Anime (those who see files): **Available**, **Partly available**, **Missing**, **Not
 monitored**, **Upcoming** (`availability=`), and apart from them **Upgrade found** and **Best quality known**
