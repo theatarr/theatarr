@@ -357,6 +357,9 @@ func (b *builder) format(key string, ref *policy.FormatRef, fl format.Flavour) (
 		return nil, j, err
 	}
 	f.Name = key
+	// The arr-style "Seadex" format (seadexerr's flag combination) is scored as SeaDex best: one bonus rule for the
+	// seadex listing, the same torrent found elsewhere and held files. The stored definition stays as synced.
+	format.SeaDexBestForSeaDexerr(f)
 	if ref.IncludeWhenRenaming != nil {
 		f.IncludeWhenRenaming = *ref.IncludeWhenRenaming
 	}

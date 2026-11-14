@@ -238,6 +238,12 @@ Migration `00009` adds `title.secondary_year` and `title_alias`:
   - How standing and `prefer_seadex` order releases: [SeaDex standing](#seadex-standing).
   - `fields.value`: `best` matches a release SeaDex marks best; `alt` one it lists but not as best; `any` either.
     Negate as usual (a negated `any` matches releases SeaDex does not list). Anything else is a build error.
+  - One bonus rule: the arr-style "Seadex" format synced from the arrs (exactly seadexerr's four required
+    indexer-flag conditions: Internal, Scene, Freeleech25, DoubleUpload) is built as `SeaDexSpecification` `best`
+    with its configured points (`format.SeaDexBestForSeaDexerr`, called where the builder loads formats; the stored
+    definition stays as synced). So SeaDex's best torrent gets it wherever it was found (the seadex listing, the
+    same hash from another indexer, a held file with best standing), and an alternative no longer does
+    (`TestSeaDexerrFormatScoresSeaDexBest`).
   - The release's standing (`format.Input.SeaDex`) comes from its flags: `seadex-best` is best, `seadex` alone an
     alternative (`decide.SeaDexRank`). The seadex indexer sets them; `indexer.MarkSeaDex` copies them by info hash
     to the same torrent found through another indexer (`theatarr decide -search` calls it on the merged results).

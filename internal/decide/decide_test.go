@@ -2,9 +2,11 @@ package decide
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -572,5 +574,69 @@ func TestProfileRank(t *testing.T) {
 				t.Errorf("existing %+v, want rank %d", d.Existing, c.cur)
 			}
 		})
+	}
+}
+
+// The arr-style "Seadex" format synced from the arrs (seadexerr's four indexer-flag conditions) scores as SeaDex best:
+// the same for the seadex listing, the same hash found on another indexer and a held file with best standing, and not
+// for an alternative. A format with any other flag set still matches on the flags.
+func TestSeaDexerrFormatScoresSeaDexBest(t *testing.T) {
+	t.Parallel()
+	pol, err := policy.Load("testdata/policy")
+	if err != nil {
+		t.Fatal(err)
+	}
+	flag := func(name string, v int) string {
+		return `{"name":"` + name + `","implementation":"IndexerFlagSpecification","negate":false,"required":true,"fields":{"value":` +
+			strconv.Itoa(v) + `}}`
+	}
+	// Radarr's values: G_Freeleech25 512, G_DoubleUpload 4, G_Internal 32, G_Scene 128.
+	seadexerr := `{"name":"Seadex","specifications":[` + flag("Freeleech25", 512) + `,` + flag("DoubleUpload", 4) + `,` +
+		flag("Internal", 32) + `,` + flag("Scene", 128) + `]}`
+	other := `{"name":"Flags","specifications":[` + flag("Internal", 32) + `,` + flag("Scene", 128) + `]}`
+	pol.Formats = map[string]*policy.FormatRef{"Seadex": {Specification: json.RawMessage(seadexerr)},
+		"Flags": {Specification: json.RawMessage(other)}}
+	for _, p := range pol.Profiles {
+		p.Formats = nil
+	}
+	pol.Profiles["remux-2160p"].Formats = map[string]int{"Seadex": 5000, "Flags": 10}
+	e, err := New(pol, Options{Now: func() time.Time { return time.Date(2026, 10, 26, 0, 0, 0, 0, time.UTC) }})
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+	const hash, alt = "0123456789abcdef0123456789abcdef01234567", "1123456789abcdef0123456789abcdef01234567"
+	seadexerrFlags := map[string]string{"downloadvolumefactor": "0.75", "uploadvolumefactor": "2"}
+	rels := []indexer.Release{
+		{Indexer: "public", Kind: "torznab", Title: "Dune.Part.Two.2024.2160p.BluRay.REMUX.HEVC-GRP", Size: 60 * gb,
+			Seeders: 10, Peers: 10, Privacy: policy.PrivacyPublic, InfoHash: hash},
+		{Indexer: "seadex", Kind: "seadex", Title: "Dune Part Two (2024) Bluray 2160p Remux (rec1)", Size: 60 * gb, InfoHash: hash,
+			Flags: []string{indexer.FlagSeaDex, "internal", "scene", indexer.FlagSeaDexBest}, Extras: seadexerrFlags},
+		{Indexer: "seadex", Kind: "seadex", Title: "Dune Part Two (2024) Bluray 2160p Remux (rec2)", Size: 60 * gb, InfoHash: alt,
+			Flags: []string{indexer.FlagSeaDex, "internal", "scene"}, Extras: seadexerrFlags},
+		{Indexer: "public", Kind: "torznab", Title: "Dune.Part.Two.2024.2160p.BluRay.REMUX.HEVC-OTHER", Size: 60 * gb,
+			Seeders: 10, Peers: 10, Privacy: policy.PrivacyPublic, InfoHash: "2123456789abcdef0123456789abcdef01234567"},
+	}
+	indexer.MarkSeaDex(rels)
+	ctx := context.Background()
+	v := Version{Key: "movie-remux"}
+	for i, want := range []int{5000, 5010, 10, 0} {
+		d, err := e.Decide(ctx, Release{Release: rels[i]}, dune, v, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if d.Score != want {
+			t.Errorf("%s: score %d, want %d (%v)", rels[i].Title, d.Score, want, d.Formats)
+		}
+	}
+	for rank, want := range map[format.SeaDexRank]int{format.SeaDexBest: 5000, format.SeaDexAlt: 0} {
+		held := &ExistingFile{Quality: "Remux-2160p", Revision: 1, SceneName: "Dune.Part.Two.2024.2160p.BluRay.REMUX-HELD",
+			Size: 60 * gb, InfoHash: "3123456789abcdef0123456789abcdef01234567", SeaDex: rank}
+		d, err := e.Decide(ctx, Release{Release: rels[3]}, dune, v, held)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if d.Existing == nil || d.Existing.Score != want {
+			t.Errorf("held file %v: existing %+v, want score %d", rank, d.Existing, want)
+		}
 	}
 }

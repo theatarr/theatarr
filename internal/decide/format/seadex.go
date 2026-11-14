@@ -64,3 +64,34 @@ func (c *SeaDex) satisfied(in *Input) (bool, error) {
 	}
 	return false, nil
 }
+
+// SeaDexBestForSeaDexerr turns the arr-style "Seadex" format (exactly seadexerr's four required indexer-flag
+// conditions: Internal, Scene, Freeleech25, DoubleUpload) into the native condition SeaDex best, so it scores
+// SeaDex's best torrent wherever it was found and a held file with best standing, and no longer SeaDex alternatives.
+// Any other format is left as it is. It reports whether f was changed.
+func SeaDexBestForSeaDexerr(f *Format) bool {
+	names := []string{"Internal", "Scene", "Freeleech25", "DoubleUpload"}
+	if f.Flavour == Radarr {
+		names = []string{"G_Internal", "G_Scene", "G_Freeleech25", "G_DoubleUpload"}
+	}
+	want := map[int]bool{}
+	for _, n := range names {
+		v, ok := f.Flavour.IndexerFlagsValue(n)
+		if !ok {
+			return false
+		}
+		want[v] = true
+	}
+	if len(f.Specs) != len(want) {
+		return false
+	}
+	for _, s := range f.Specs {
+		c, ok := s.Condition.(*IndexerFlag)
+		if !ok || s.Negate || !s.Required || !want[c.Value] {
+			return false
+		}
+		delete(want, c.Value)
+	}
+	f.Specs = []*Spec{{Name: "SeaDex best", Required: true, Condition: &SeaDex{Value: SeaDexValueBest}}}
+	return true
+}
