@@ -638,7 +638,8 @@ type VersionFilter struct {
 }
 
 func (w *Web) listVersions(ctx context.Context, f VersionFilter) ([]Version, error) {
-	conds := []string{"1=1"}
+	// The library's copies only: one removed from its library is not listed (liveVersion).
+	conds := []string{liveVersion}
 	var args []any
 	if f.Key != "" {
 		conds = append(conds, "v.policy_key = ?")

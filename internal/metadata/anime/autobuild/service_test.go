@@ -506,3 +506,20 @@ func TestRefreshSkipsRecentlyFailedFranchise(t *testing.T) {
 	c.add(failedRetry + time.Minute)
 	pass("broken")
 }
+
+// The uncovered list leaves out a series every copy of which was removed; one with no version yet stays.
+func TestListUncoveredSkipsRemovedSeries(t *testing.T) {
+	ctx := context.Background()
+	st := openStore(t)
+	exec(t, st, `INSERT INTO title (id, kind, name, tvdb_id, anime, created_at, updated_at) VALUES
+		(1, 'series', 'Kept', 500, 1, 0, 0), (2, 'series', 'Removed', 600, 1, 0, 0)`)
+	exec(t, st, `INSERT INTO version (id, title_id, policy_key, created_at, updated_at) VALUES (2, 2, 'anime-tv', 0, 0)`)
+	exec(t, st, `INSERT INTO arrview_removed_version (version_id, view, removed_at) VALUES (2, 'ui', 0)`)
+	got, err := ListUncovered(ctx, st, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].TitleID != 1 {
+		t.Errorf("uncovered %+v", got)
+	}
+}
