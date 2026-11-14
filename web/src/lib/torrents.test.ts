@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { fmtTime } from "./format";
-import { deleteScope, providerProblem, deleteSelection, filterTorrents, groupKeys, refSummary, restoreScope, sortTorrents, usageDetail, type DeletePlan, type Torrent, type TorrentReport } from "./torrents";
+import { deleteScope, providerProblem, usageWord, deleteSelection, filterTorrents, groupKeys, refSummary, restoreScope, sortTorrents, usageDetail, type DeletePlan, type Torrent, type TorrentReport } from "./torrents";
 
 const t = (provider: string, id: string, name: string, bytes: number, added: string, extra: Partial<Torrent> = {}): Torrent => ({
   provider,
@@ -98,9 +98,8 @@ describe("an unreadable provider account", () => {
   const now = new Date("2026-11-08T09:00:00Z");
   it("names the provider once, says why in one sentence and gives the next try in local time", () => {
     const raw = "rd: gateway: backing off: provider:rd: backing off: 8 failures in a row, last: transport error (retry at 2026-11-08T09:59:37Z)";
-    const p = providerProblem({ provider: "rd", kind: "realdebrid", error: raw }, now);
-    expect(p.name).toBe("Real-Debrid (rd)");
-    expect(p.message).toBe(`Not asked for now: paused after 8 failed requests in a row (last: transport error). Next try ${fmtTime("2026-11-08T09:59:37Z", now)}.`);
+    const p = providerProblem({ provider: "rd", error: raw }, "RD", now);
+    expect(p.message).toBe(`RD is not asked for now: paused after 8 failed requests in a row (last: transport error). Next try ${fmtTime("2026-11-08T09:59:37Z", now)}.`);
     expect(p.message).not.toMatch(/rd:|gateway|T09:59:37Z/);
     expect(p.raw).toBe(raw);
   });
@@ -110,20 +109,32 @@ describe("an unreadable provider account", () => {
       "rd: gateway: backing off: provider:rd: backing off: HTTP 429, Retry-After 5m0s (retry at 2026-11-08T09:05:00Z)",
       "rd: gateway: backing off: provider:rd: budget rd backing off: HTTP 429, Retry-After 5m0s (retry at 2026-11-08T09:05:00Z)",
     ]) {
-      const message = providerProblem({ provider: "rd", kind: "realdebrid", error: raw }, now).message;
-      expect(message).toBe(`Not asked for now: the provider asked to slow down (HTTP 429). Next try ${fmtTime("2026-11-08T09:05:00Z", now)}.`);
+      const message = providerProblem({ provider: "rd", error: raw }, "RD", now).message;
+      expect(message).toBe(`RD is not asked for now: the provider asked to slow down (HTTP 429). Next try ${fmtTime("2026-11-08T09:05:00Z", now)}.`);
     }
-    expect(providerProblem({ provider: "rd", error: "rd: gateway: backing off: provider:rd: backing off: HTTP 503, Retry-After 1m0s" }, now).message).toBe("Not asked for now: the provider asked to slow down (HTTP 503).");
-    expect(providerProblem({ provider: "rd", error: "rd: gateway: backing off: provider:rd: backing off: HTTP 429 (retry at 2026-11-08T09:05:00Z)" }, now).message).toMatch(/^Not asked for now: the provider asked to slow down \(HTTP 429\)\. Next try /);
+    expect(providerProblem({ provider: "rd", error: "rd: gateway: backing off: provider:rd: backing off: HTTP 503, Retry-After 1m0s" }, "RD", now).message).toBe("RD is not asked for now: the provider asked to slow down (HTTP 503).");
+    expect(providerProblem({ provider: "rd", error: "rd: gateway: backing off: provider:rd: backing off: HTTP 429 (retry at 2026-11-08T09:05:00Z)" }, "RD", now).message).toMatch(/^RD is not asked for now: the provider asked to slow down \(HTTP 429\)\. Next try /);
   });
   it("keeps a counted streak of 503s as failures and says only paused for an unknown back-off", () => {
-    expect(providerProblem({ provider: "rd", error: "rd: gateway: backing off: provider:rd: backing off: 3 failures in a row, last: HTTP 503 (retry at 2026-11-08T09:05:00Z)" }, now).message)
-      .toBe(`Not asked for now: paused after 3 failed requests in a row (last: HTTP 503). Next try ${fmtTime("2026-11-08T09:05:00Z", now)}.`);
-    expect(providerProblem({ provider: "rd", error: "rd: gateway: backing off: provider:rd: backing off: manual (retry at 2026-11-08T09:05:00Z)" }, now).message)
-      .toBe(`Paused for now. Next try ${fmtTime("2026-11-08T09:05:00Z", now)}.`);
+    expect(providerProblem({ provider: "rd", error: "rd: gateway: backing off: provider:rd: backing off: 3 failures in a row, last: HTTP 503 (retry at 2026-11-08T09:05:00Z)" }, "RD", now).message)
+      .toBe(`RD is not asked for now: paused after 3 failed requests in a row (last: HTTP 503). Next try ${fmtTime("2026-11-08T09:05:00Z", now)}.`);
+    expect(providerProblem({ provider: "rd", error: "rd: gateway: backing off: provider:rd: backing off: manual (retry at 2026-11-08T09:05:00Z)" }, "RD", now).message)
+      .toBe(`RD is paused for now. Next try ${fmtTime("2026-11-08T09:05:00Z", now)}.`);
   });
   it("keeps other errors' text, without the provider's own prefix", () => {
-    expect(providerProblem({ provider: "ad", kind: "alldebrid", error: "ad: 401 unauthorized" }, now).message).toBe("Its torrent list could not be read: 401 unauthorized.");
-    expect(providerProblem({ provider: "tb", kind: "torbox", error: "tb: gateway: budget exhausted: provider:tb: daily cap reached (retry at 2026-11-09T00:00:00Z)" }, now).message).toMatch(/^Not asked for now: its request limit is used up\. Next try /);
+    expect(providerProblem({ provider: "ad", error: "ad: 401 unauthorized" }, "AD", now).message).toBe("Could not read AD just now: 401 unauthorized.");
+    expect(providerProblem({ provider: "tb", error: "tb: gateway: budget exhausted: provider:tb: daily cap reached (retry at 2026-11-09T00:00:00Z)" }, "TB", now).message).toMatch(/^TB is not asked for now: its request limit is used up\. Next try /);
+  });
+  it("says the earlier record is still shown, with its time", () => {
+    expect(providerProblem({ provider: "rd", error: "rd: HTTP 500", as_of: "2026-11-08T08:00:00Z" }, "RD", now).message)
+      .toBe(`Could not read RD just now: HTTP 500. Showing the record as of ${fmtTime("2026-11-08T08:00:00Z", now)}.`);
+  });
+});
+
+describe("usage words", () => {
+  it("says not worked out for a torrent without a stored answer, unknown for missing data", () => {
+    expect(usageWord("unknown", ["its usage is worked out after the next provider sync; Refresh works it out now"])).toBe("not worked out");
+    expect(usageWord("unknown", ["not in the registry yet"])).toBe("unknown");
+    expect(usageWord("unused")).toBe("unused");
   });
 });

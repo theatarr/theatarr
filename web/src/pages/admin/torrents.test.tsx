@@ -59,8 +59,94 @@ describe("torrents page", () => {
       { method: "GET", path: "/status", reply: { versions: [] } },
     ]);
     renderPage(<TorrentsPage />);
-    expect((await screen.findByTestId("provider-count-tb")).textContent).toContain("never read");
-    expect(screen.getByTestId("record-as-of").textContent).toMatch(/RD as of .+ · TB never read/);
+    expect((await screen.findByTestId("provider-count-tb")).textContent).toBe("Not read yet — Refresh reads it");
+    expect(screen.queryByTestId("provider-as-of-tb")).toBeNull();
+    expect(screen.getByTestId("provider-count-rd").textContent).toBe("2 account torrents · 2 unique hashes · 2.0 KiB · 1 unused (1.0 KiB)");
+    expect(screen.getByTestId("provider-as-of-rd").textContent).toMatch(/^as of /);
+    // Said once, near the times: usage is as of the record.
+    expect(screen.getAllByTestId("usage-as-of")).toHaveLength(1);
+  });
+
+  it("keeps showing the earlier record of an account whose read failed, and says so", async () => {
+    const failed = { ...report.providers[0], error: "rd: HTTP 500", error_at: "2026-10-29T11:30:00Z" };
+    mockFetch([
+      { method: "GET", path: "/torrents/report", reply: { ...report, providers: [failed] } },
+      { method: "GET", path: "/torrents/journal", reply: { entries: [] } },
+      { method: "GET", path: "/status", reply: { versions: [] } },
+    ]);
+    renderPage(<TorrentsPage />);
+    const problem = await screen.findByTestId("provider-problem-rd");
+    expect(problem.textContent).toMatch(/^Could not read RD just now: HTTP 500\. Showing the record as of .+\./);
+    expect(problem.textContent).not.toContain("could not be read");
+    expect(screen.getByTestId("provider-count-rd").textContent).toContain("2 account torrents");
+    expect(screen.getAllByTestId("torrent-row")).toHaveLength(2);
+  });
+
+  it("Refresh: busy while it reads, then the result per account and the list from the new record; a failure says so", async () => {
+    let release: () => void = () => {};
+    const after = { ...report, generated_at: "2026-10-29T13:00:00Z", providers: [{ ...report.providers[0], as_of: "2026-10-29T13:00:00Z", account_torrents: 1, unique_hashes: 1,
+      torrents: [torrent("3", "3".repeat(40), "New.Movie", "unused")] }, { provider: "tb", kind: "torbox", ok: false, never_read: true, error: "tb: HTTP 401", account_torrents: 0, unique_hashes: 0, bytes: 0,
+      usage: { used: 0, unused: 0, unknown: 0, unused_bytes: 0, unknown_bytes: 0 }, torrents: [] }], refresh_error: "tb: HTTP 401" };
+    let fail = false;
+    let n = 0;
+    mockFetch([
+      { method: "GET", path: "/torrents/report", reply: () => (n++ === 0 ? report : after) },
+      { method: "POST", path: "/torrents/refresh", reply: () => (fail ? { status: 502, body: { error: "sync failed" } } : new Promise((r) => { release = () => r(after); })) },
+      { method: "GET", path: "/torrents/journal", reply: { entries: [] } },
+      { method: "GET", path: "/status", reply: { versions: [] } },
+    ]);
+    renderPage(<TorrentsPage />);
+    await screen.findByText("Used.Movie");
+    fireEvent.click(screen.getByTestId("refresh-record"));
+    const busy = await screen.findByRole("button", { name: "Reading the accounts…" });
+    expect((busy as HTMLButtonElement).disabled).toBe(true);
+    release();
+    const result = await screen.findByTestId("refresh-result");
+    expect(result.textContent).toBe("Read the accounts: RD 1 account torrent · TB could not be read. Not every account was read: tb: HTTP 401.");
+    expect(await screen.findByText("New.Movie")).toBeTruthy();
+    expect(screen.queryByText("Used.Movie")).toBeNull();
+    expect(screen.getByTestId("provider-problem-tb").textContent).toMatch(/^Could not read TB just now: HTTP 401\./);
+    fail = true;
+    await waitFor(() => expect((screen.getByTestId("refresh-record") as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(screen.getByTestId("refresh-record"));
+    await waitFor(() => expect(screen.getByTestId("refresh-result").textContent).toMatch(/^Refresh failed: .*The page shows the record as it was\./));
+  });
+
+  it("shows a torrent whose usage is not worked out with its reason, outside Unused; decoded names with the provider's own as tooltip", async () => {
+    const why = "its usage is worked out after the next provider sync; Refresh works it out now";
+    const rep = { ...report, providers: [{ ...report.providers[0], torrents: [report.providers[0].torrents[0],
+      torrent("5", "5".repeat(40), "[SoM] Dragon Ball Z", "unknown", { reasons: [why], raw_name: "[SoM]%20Dragon%20Ball%20Z" })] }] };
+    mockFetch([
+      { method: "GET", path: "/torrents/report", reply: rep },
+      { method: "GET", path: "/torrents/journal", reply: { entries: [] } },
+      { method: "GET", path: "/status", reply: { versions: [] } },
+    ]);
+    renderPage(<TorrentsPage />);
+    const name = await screen.findByText("[SoM] Dragon Ball Z");
+    expect(name.getAttribute("title")).toBe("The provider's name: [SoM]%20Dragon%20Ball%20Z");
+    expect(screen.queryByText(/%20/)).toBeNull();
+    expect(screen.getByText("not worked out")).toBeTruthy();
+    expect(screen.getByTestId("torrent-row-reason").textContent).toBe(why);
+    fireEvent.click(screen.getByTestId("group-unused"));
+    expect(screen.getAllByTestId("torrent-row")).toHaveLength(1);
+    fireEvent.click(screen.getByLabelText("Select all shown"));
+    expect(screen.queryByLabelText("Select [SoM] Dragon Ball Z")).toBeNull();
+    expect((screen.getByLabelText("Select Unused.Movie") as HTMLInputElement).checked).toBe(true);
+  });
+
+  it("lists the first five references of a used torrent and how many more", async () => {
+    const list = Array.from({ length: 20 }, (_, i) => ({ kind: "link", detail: `/lib/E${i + 1}.mkv` }));
+    const rep = { ...report, providers: [{ ...report.providers[0], torrents: [torrent("2", h2, "Used.Movie", "used", { refs: { link: 291 }, ref_list: list })] }] };
+    mockFetch([
+      { method: "GET", path: "/torrents/report", reply: rep },
+      { method: "GET", path: "/torrents/journal", reply: { entries: [] } },
+      { method: "GET", path: "/status", reply: { versions: [] } },
+    ]);
+    renderPage(<TorrentsPage />);
+    await screen.findByText("Used.Movie");
+    fireEvent.click(screen.getByRole("button", { expanded: false }));
+    expect(screen.getByTestId("usage-refs").querySelectorAll("li")).toHaveLength(5);
+    expect(screen.getByTestId("usage-refs-more").textContent).toBe("and 286 more");
   });
 
   it("adds a row's torrent to the other providers and polls only that torrent's copies, not the report", async () => {
@@ -84,7 +170,7 @@ describe("torrents page", () => {
     expect(fetch.calls("GET", "/torrents/report")).toHaveLength(1);
   }, 15000);
 
-  it("edits other libraries' folders (moved from Settings › General) above the list", async () => {
+  it("edits other libraries' folders (moved from Settings › General) below the list", async () => {
     mockFetch([
       { method: "GET", path: "/torrents/report", reply: report },
       { method: "GET", path: "/torrents/journal", reply: { entries: [] } },
@@ -95,9 +181,9 @@ describe("torrents page", () => {
     const heading = await screen.findByRole("heading", { name: "Other libraries’ folders" });
     expect(heading.closest("[id]")?.id).toBe("scan-roots");
     expect(await screen.findByDisplayValue("/other/movies")).toBeTruthy();
-    // Before the list, which loads later and would push a #scan-roots target away.
+    // Below the list, and only once the list is there, so a #scan-roots link lands where the panel stays.
     const list = await screen.findByRole("table");
-    expect(heading.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(heading.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
   });
   it("filters by group, previews a delete, needs an override naming the references, and sends the confirmed token", async () => {
     const api = mockFetch([
