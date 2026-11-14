@@ -274,12 +274,12 @@ describe("filter chips", () => {
   it("words each active filter", () => {
     expect(filterChips(p, { seeFiles: true, names, provider: (v) => v.toUpperCase() }).map((c) => c.label)).toEqual([
       // An old saved link's availability=upgrade (Preferred quality not met) reads as Available.
-      "Title: “dune”", "Not monitored", "Available", "Has 4K", "Lacks WEB", "Quality: WEBDL-2160p", "Provider: RD", "From 2019", "Drama", "Crime", "State: wanted",
+      "Title: “dune”", "Monitoring: off", "Available", "Has 4K", "Lacks WEB", "Quality: WEBDL-2160p", "Provider: RD", "From 2019", "Drama", "Crime", "State: wanted",
     ]);
     expect(filterChips(new URLSearchParams("year_to=2024"), { seeFiles: true }).map((c) => c.label)).toEqual(["Up to 2024"]);
     // Libraries, providers and copy states are file detail: no chip without see files.
     expect(filterChips(p, { seeFiles: false, names }).map((c) => c.label)).toEqual([
-      "Title: “dune”", "Not monitored", "Available", "Quality: WEBDL-2160p", "From 2019", "Drama", "Crime",
+      "Title: “dune”", "Monitoring: off", "Available", "Quality: WEBDL-2160p", "From 2019", "Drama", "Crime",
     ]);
     expect(filterChips(new URLSearchParams("availability=missing"), { seeFiles: false, kind: "movie" }).map((c) => c.label)).toEqual(["Not available"]);
   });

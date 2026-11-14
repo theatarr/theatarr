@@ -54,7 +54,7 @@ describe("Library table", () => {
     mockFetch(routes());
     renderPage(<Catalog id="movies" />, "/movies?sort=next");
     await screen.findAllByRole("columnheader");
-    await waitFor(() => expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Title", "Next release", "Status", "Libraries", "Studio", "Size", "Added", "Actions"]));
+    await waitFor(() => expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Title", "Next release", "Status", "Libraries", "Size", "Added", "Actions"]));
   });
 
   // The frame is 800 px wide; the table as wide as its columns make it.
@@ -176,7 +176,7 @@ describe("Library table", () => {
     mockFetch(routes().map((r) => (r.path === "/titles" ? { ...r, reply: { items: movies, total: 4, offset: 0 } } : r)));
     renderPage(<Catalog id="movies" />, "/movies");
     await screen.findAllByText("Copper Sky");
-    expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Title", "Status", "Libraries", "Studio", "Size", "Added", "Actions"]);
+    expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Title", "Status", "Libraries", "Size", "Added", "Actions"]);
     const row = screen.getByRole("link", { name: "Copper Sky" }).closest("tr") as HTMLElement;
     expect(within(row).getByTestId("status-cell").textContent).toBe("Partly available");
     expect(within(row).queryByText(/preferred quality not met/)).toBeNull();
@@ -868,5 +868,54 @@ describe("Add button", () => {
     expect(buttons).toHaveLength(2);
     await user.click(buttons[1]);
     expect(search.openOverlay).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("list shortcuts and names (phase J)", () => {
+  it("Anime has All, Movies and Series: the list and its counts follow the kind, which the URL keeps", async () => {
+    const fetch = mockFetch(routes());
+    renderPage(<Catalog id="anime" />, "/anime");
+    const kinds = within(await screen.findByTestId("anime-kind"));
+    expect(kinds.getAllByRole("radio").map((r) => r.textContent)).toEqual(["All", "Movies", "Series"]);
+    expect(kinds.getByRole("radio", { name: "All" }).getAttribute("aria-checked")).toBe("true");
+    await waitFor(() => expect(fetch.calls("GET", "/titles")[0]?.search).not.toContain("kind="));
+    await userEvent.setup().click(kinds.getByRole("radio", { name: "Movies" }));
+    await waitFor(() => expect(fetch.calls("GET", "/titles").some((c) => c.search.includes("kind=movie") && c.search.includes("anime=true"))).toBe(true));
+    await waitFor(() => expect(fetch.calls("GET", "/titles/facets").some((c) => c.search.includes("kind=movie"))).toBe(true));
+    expect(kinds.getByRole("radio", { name: "Movies" }).getAttribute("aria-checked")).toBe("true");
+  });
+
+  it("Series has a visible Monitored shortcut; Movies has none; nothing is filtered by default", async () => {
+    const fetch = mockFetch(routes());
+    const v = renderPage(<Catalog id="series" />, "/series");
+    const shortcut = await screen.findByTestId("monitored-shortcut");
+    expect(shortcut.getAttribute("aria-pressed")).toBe("false");
+    await waitFor(() => expect(fetch.calls("GET", "/titles")[0]?.search).not.toContain("monitored"));
+    await userEvent.setup().click(shortcut);
+    await waitFor(() => expect(fetch.calls("GET", "/titles").some((c) => c.search.includes("monitored=true"))).toBe(true));
+    expect((await screen.findByRole("button", { name: "Remove filter: Monitoring: on" }))).toBeTruthy();
+    v.unmount();
+    mockFetch(routes());
+    renderPage(<Catalog id="movies" />, "/movies");
+    await screen.findByTestId("catalog-toolbar");
+    expect(screen.queryByTestId("monitored-shortcut")).toBeNull();
+    expect(screen.queryByTestId("anime-kind")).toBeNull();
+  });
+
+  it("names the Monitoring choices apart from the status Not monitored", async () => {
+    mockFetch(routes());
+    renderPage(<Catalog id="series" />, "/series");
+    await userEvent.setup().click(await screen.findByTestId("filters-button"));
+    const panel = within(await screen.findByTestId("filters-panel"));
+    expect(panel.getByText("Monitoring")).toBeTruthy();
+    expect(within(panel.getByRole("group", { name: "Monitoring" })).getAllByRole("button").map((b) => b.textContent?.replace(/\d/g, ""))).toEqual(["On", "Off"]);
+    expect(panel.getAllByRole("button", { name: /Not monitored/ })).toHaveLength(1);
+  });
+
+  it("shows the year beside the title in the table", async () => {
+    window.localStorage.setItem("theatarr.catalog.view", "table");
+    mockFetch(routes());
+    renderPage(<Catalog id="series" />, "/series");
+    expect((await screen.findByRole("link", { name: "The Pellbrook Inquiries" })).parentElement?.textContent).toBe("The Pellbrook Inquiries(2017)");
   });
 });

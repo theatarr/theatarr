@@ -3,7 +3,8 @@
 // the right. Filters open in a sheet at every width and show as removable chips under the toolbar. Filters and sort live
 // in the URL, so links such as /movies?availability=missing open a filtered list; the view, the table's columns and the
 // poster options are kept per list and per user in this browser (lib/prefs.ts). Select (managers) feeds the bulk bar.
-import { ArrowDownWideNarrow, ArrowUpNarrowWide, CheckSquare, Columns3, LayoutGrid, Plus, Rows3, Settings2, SlidersHorizontal, X } from "lucide-react";
+// Anime has All / Movies / Series (?kind=); Series and Anime have a Monitored shortcut (?monitored=true) in the toolbar.
+import { ArrowDownWideNarrow, ArrowUpNarrowWide, CheckSquare, Columns3, Eye, LayoutGrid, Plus, Rows3, Settings2, SlidersHorizontal, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router";
 import { useAuth } from "@/api/auth";
@@ -22,7 +23,7 @@ import { Modal } from "@/components/ui/modal";
 import { copyColumns, distinctLabels, relabel } from "@/lib/copies";
 import { fmtBytes, plural, pluralWord } from "@/lib/format";
 import { defaultColumns, defaultDesc, indexColumns, listColumns, sortColumn, visibleIndexColumns } from "@/lib/index-columns";
-import { activeFilters, CATALOGS, FILTER_KEYS, filterChips, gridQuery, offeredSorts, withoutChip, type CatalogId } from "@/lib/library";
+import { activeFilters, CATALOGS, catalogKind, FILTER_KEYS, filterChips, gridQuery, offeredSorts, withoutChip, type CatalogId } from "@/lib/library";
 import { normalizePosters, type PosterPrefs } from "@/lib/poster-options";
 import { prefKey, readPref, useColumnPrefs, writePref } from "@/lib/prefs";
 import { resolutionWords } from "@/lib/upgrade";
@@ -95,7 +96,9 @@ export function Catalog({ id }: { id: CatalogId }) {
   const { openOverlay } = useSearchUI();
   const query = useMemo(() => gridQuery(id, params, perms.seeFiles), [id, params, perms.seeFiles]);
   const grid = useTitleGrid(query);
-  const facets = useFacets(cat.kind, cat.anime);
+  // Anime's All / Movies / Series (?kind=): the list, its counts and its filters follow the kind shown.
+  const kind = catalogKind(id, params);
+  const facets = useFacets(kind, cat.anime);
   const [sheet, setSheet] = useState(false);
   const uid = useAuth().data?.id;
   const [view, setView] = useListPref<View>(`view.${id}`, uid, () => readView(id, uid));
@@ -191,7 +194,7 @@ export function Catalog({ id }: { id: CatalogId }) {
   const n = activeFilters(params);
   const chips = filterChips(params, {
     seeFiles: perms.seeFiles,
-    kind: cat.kind,
+    kind,
     names,
     quality: perms.seeFiles ? undefined : resolutionWords,
     provider: providerLabel,
@@ -212,7 +215,8 @@ export function Catalog({ id }: { id: CatalogId }) {
         description={
           total !== undefined
             ? `${plural(total, "title")}${n ? ` ${pluralWord(total, "matches", "match")} the filters` : ""}${perms.seeFiles && size && !grid.hasNextPage ? ` · ${fmtBytes(size)}` : ""}`
-            : " "
+            : // A no-break space keeps the line's height while the count loads, so the toolbar does not move.
+              "\u00a0"
         }
         actions={addButton}
       />
@@ -231,6 +235,24 @@ export function Catalog({ id }: { id: CatalogId }) {
           >
             <CheckSquare />
             <span className="hidden sm:inline">{selecting ? "Done" : "Select"}</span>
+          </Button>
+        ) : null}
+        {cat.anime ? (
+          <div role="radiogroup" aria-label="Kind" className="flex rounded-lg border border-[var(--line)] p-0.5" data-testid="anime-kind">
+            {([[undefined, "All"], ["movie", "Movies"], ["series", "Series"]] as const).map(([k, label]) => (
+              <button key={label} type="button" role="radio" aria-checked={kind === k} onClick={() => set("kind", k)}
+                className={cn("h-8 rounded-md px-2.5 text-[13px] font-medium text-[var(--ink-3)] transition", kind === k && "bg-[color-mix(in_srgb,var(--accent)_22%,transparent)] text-[var(--accent-ink)]")}>
+                {label}
+              </button>
+            ))}
+          </div>
+        ) : null}
+        {/* Series and Anime: a visible shortcut to the monitored titles (nothing is hidden by default). */}
+        {id !== "movies" ? (
+          <Button variant={values.monitored === "true" ? "default" : "outline"} size="sm" aria-pressed={values.monitored === "true"}
+            onClick={() => set("monitored", values.monitored === "true" ? undefined : "true")} data-testid="monitored-shortcut">
+            <Eye />
+            Monitored
           </Button>
         ) : null}
         {/* On a phone the right-hand controls join Select's row and wrap one by one; from sm they sit at the right. */}
@@ -261,8 +283,9 @@ export function Catalog({ id }: { id: CatalogId }) {
               </button>
             ))}
           </div>
-          <span className="flex min-w-0 items-center gap-1">
-            <select aria-label="Sort by" className={cn(SELECT, "w-auto min-w-0 max-w-[6rem] sm:max-w-none")} value={sort} onChange={(e) => setSort(e.target.value)}>
+          {/* A phone gives Sort a row of its own, so the chosen label shows whole. */}
+          <span className="flex min-w-0 items-center gap-1 max-sm:w-full">
+            <select aria-label="Sort by" className={cn(SELECT, "w-auto min-w-0 max-sm:flex-1")} value={sort} onChange={(e) => setSort(e.target.value)}>
               {offeredSorts(perms.seeFiles, id).map((s) => (
                 <option key={s.id} value={s.id}>{s.label}</option>
               ))}
@@ -291,7 +314,7 @@ export function Catalog({ id }: { id: CatalogId }) {
               {desc ? <ArrowDownWideNarrow /> : <ArrowUpNarrowWide />}
             </Button>
           </span>
-          <Button variant="outline" size="sm" aria-label={n ? `Filter, ${n} active` : "Filter"} onClick={() => setSheet(true)} data-testid="filters-button">
+          <Button variant="outline" size="sm" className="sm:min-w-[6.5rem]" aria-label={n ? `Filter, ${n} active` : "Filter"} onClick={() => setSheet(true)} data-testid="filters-button">
             <SlidersHorizontal />
             <span className="hidden sm:inline">Filter</span>
             {n ? <span className="rounded-md bg-[color-mix(in_srgb,var(--accent)_20%,transparent)] px-1.5 text-xs text-[var(--accent-ink)]">{n}</span> : null}
@@ -369,7 +392,7 @@ export function Catalog({ id }: { id: CatalogId }) {
       {dialog === "columns" ? <ColumnPicker label="Columns" note="Title always stays. On a phone the chosen columns show as lines under each title." columns={offered} prefs={columnsPref} onChange={saveColumns} onClose={() => setDialog(null)} /> : null}
       {dialog === "posters" ? <PosterOptions catalog={id} prefs={postersPref} seeFiles={perms.seeFiles} onChange={savePosters} onClose={() => setDialog(null)} /> : null}
       <FilterSheet open={sheet} onClose={() => setSheet(false)}>
-        <FiltersPanel values={values} set={set} clear={clear} facets={facetsShown} seeFiles={perms.seeFiles} kind={cat.kind} onClose={() => setSheet(false)} />
+        <FiltersPanel values={values} set={set} clear={clear} facets={facetsShown} seeFiles={perms.seeFiles} kind={kind} onClose={() => setSheet(false)} />
       </FilterSheet>
     </div>
   );

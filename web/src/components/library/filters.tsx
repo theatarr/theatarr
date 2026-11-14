@@ -67,7 +67,7 @@ function FilterButton({
       title={title}
       onClick={onClick}
       className={cn(
-        "relative inline-flex h-10 shrink-0 items-center gap-2 px-3 py-2.5 text-[13px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--line-focus)]",
+        "relative inline-flex min-h-10 shrink-0 items-center gap-2 px-3 py-1.5 text-[13px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--line-focus)]",
         selected ? "text-foreground" : "text-[var(--ink-3)] hover:text-[var(--ink)]",
         className,
       )}
@@ -90,7 +90,8 @@ function FilterButton({
           {icon}
         </span>
       ) : null}
-      <span className="whitespace-nowrap">{label}</span>
+      {/* A long label wraps inside its half of a split group on a phone instead of pushing its count out. */}
+      <span className="min-w-0 text-left leading-tight">{label}</span>
       {typeof count === "number" ? (
         <span
           className={cn(
@@ -110,7 +111,7 @@ const SPLIT_GROUP = "flex w-full overflow-hidden rounded-[5px] border border-[co
 
 function segment(selected: boolean, divider = false): string {
   return cn(
-    "h-10 min-w-0 flex-1 justify-center rounded-none border-0 px-2",
+    "min-h-10 min-w-0 flex-1 justify-center rounded-none border-0 px-2",
     divider && "border-l border-l-[color-mix(in_srgb,var(--accent)_35%,transparent)]",
     selected ? "bg-[color-mix(in_srgb,var(--accent)_32%,transparent)]" : "bg-[var(--sunken)] hover:bg-[var(--hover)]",
   );
@@ -224,11 +225,13 @@ export function FiltersPanel({
       <p className="mb-4 text-xs text-[var(--ink-3)]">Counts are for the whole list, before other filters.</p>
 
       <div className="mb-4 space-y-1.5 border-b border-[var(--line)] pb-4">
+        <FilterLabel>Monitoring</FilterLabel>
         <div role="group" aria-label="Monitoring" className={SPLIT_GROUP}>
-          <FilterButton selected={values.monitored === "true"} onClick={() => toggle("monitored", "true")} icon={<Eye />} label="Monitored" count={facets?.monitored} tone="success" className={segment(values.monitored === "true")} />
-          <FilterButton selected={values.monitored === "false"} onClick={() => toggle("monitored", "false")} icon={<EyeOff />} label="Not monitored" count={facets?.unmonitored} tone="danger" className={segment(values.monitored === "false", true)} />
+          <FilterButton selected={values.monitored === "true"} onClick={() => toggle("monitored", "true")} icon={<Eye />} label="On" title="A library monitors it" count={facets?.monitored} tone="success" className={segment(values.monitored === "true")} />
+          <FilterButton selected={values.monitored === "false"} onClick={() => toggle("monitored", "false")} icon={<EyeOff />} label="Off" title="No library monitors it, with or without a file" count={facets?.unmonitored} tone="danger" className={segment(values.monitored === "false", true)} />
         </div>
-        {/* Status and upgrade groups are named: "Not monitored" with no file is a status, apart from monitoring above. */}
+        {/* Each group is named: Monitoring Off is every title no library monitors; the status Not monitored is such a
+            title without a file. */}
         {seeFiles ? <div className="pt-2"><FilterLabel>Status</FilterLabel></div> : null}
         {availabilityRows(seeFiles, kind).map((pair, i) => (
           <div key={i} role="group" aria-label={seeFiles ? "Status" : "Availability"} className={SPLIT_GROUP}>

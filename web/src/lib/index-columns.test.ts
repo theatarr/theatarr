@@ -50,7 +50,8 @@ describe("the lists' columns", () => {
   });
 
   it("starts each list with its default columns", () => {
-    expect(defaultColumns("movies")).toEqual(["status", "libraries", "network", "size", "added"]);
+    // Movies: the title carries its year; Studio is offered, not on by default.
+    expect(defaultColumns("movies")).toEqual(["status", "libraries", "size", "added"]);
     expect(defaultColumns("series")).toEqual(["status", "libraries", "network", "next", "seasons", "size"]);
     expect(defaultColumns("anime")).toEqual(defaultColumns("series"));
     // Nothing stored: the defaults; the old shared five-column choice is a different key and never read.

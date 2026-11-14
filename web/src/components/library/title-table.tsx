@@ -22,7 +22,7 @@ import { NO_LIVE_LIBRARY, searchOffWords } from "@/components/version-status";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
 import type { RowSelection } from "@/components/ui/row-select";
 import { activityHref, copyBar, nextWords, stageTone, stageWords, titleAcquisition } from "@/lib/copies";
-import { fmtAgo, fmtBytes, localDay } from "@/lib/format";
+import { fmtAgo, fmtBytes, localDay, nameWithoutYear } from "@/lib/format";
 import {
   columnSort,
   languageWords,
@@ -242,9 +242,13 @@ function TitleCell({ t, seeFiles }: { t: TitleRow; seeFiles: boolean }) {
   return (
     <span className="flex min-w-0 items-center gap-2.5">
       <TitleThumb id={t.id} className="w-6" />
-      <Link to={`/title/${t.id}`} className="min-w-0 truncate font-medium hover:text-primary" title={t.name}>
-        {t.name}
-      </Link>
+      {/* The year beside the name tells remakes apart (Aladdin 1992 and 2019) without a Year column. */}
+      <span className="flex min-w-0 items-baseline gap-1">
+        <Link to={`/title/${t.id}`} className="min-w-0 truncate font-medium hover:text-primary" title={t.name}>
+          {nameWithoutYear(t.name, t.year)}
+        </Link>
+        {t.year ? <span className="shrink-0 text-[var(--ink-3)]" data-testid="title-year">({t.year})</span> : null}
+      </span>
       {seeFiles && t.monitored === false ? (
         <span className="shrink-0 text-[var(--ink-3)]" title="Not monitored">
           <EyeOff aria-hidden className="size-3.5" />
@@ -322,7 +326,8 @@ export function TitleTable({ titles, more, onMore, seeFiles, manage, columns, so
       label: "Title",
       sortable: true,
       card: "none",
-      headClassName: "min-w-[11rem]",
+      // The name is what identifies a row: it keeps room before the other columns do (library pills wrap first).
+      headClassName: "min-w-[15rem]",
       cellClassName: "w-full max-w-0",
       cell: (t) => <TitleCell t={t} seeFiles={seeFiles} />,
     },
@@ -332,7 +337,7 @@ export function TitleTable({ titles, more, onMore, seeFiles, manage, columns, so
       sortable: !!columnSort(id),
       card: id === "status" ? "none" : id === "libraries" ? "full" : "line",
       headClassName: cn("whitespace-nowrap", id === "size" && "text-right"),
-      cellClassName: cn("whitespace-nowrap text-sm", id === "size" && "text-right", (id === "libraries" || id === "provider") && "[&>span]:flex-nowrap"),
+      cellClassName: cn("text-sm", id === "libraries" ? "min-w-[9rem] max-w-[16rem]" : "whitespace-nowrap", id === "size" && "text-right", id === "provider" && "[&>span]:flex-nowrap", id === "network" && "max-w-[10rem] truncate"),
       cell: (t) => (id === "status" && !seeFiles ? <WatchCell t={t} /> : cell(id, t, () => setCopiesOf(t.id ?? null))),
     })),
   ];

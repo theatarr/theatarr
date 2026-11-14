@@ -56,7 +56,7 @@ const both = (label: string) => ({ movie: label, series: label });
 const DEFS: Def[] = [
   { id: "status", ...both("Status"), hint: "The poster badge's word; a download in hand, its stage", on: "ms" },
   { id: "libraries", ...both("Libraries"), hint: "One pill per library: its quality, or what it lacks", seeFiles: true, on: "ms" },
-  { id: "network", movie: "Studio", series: "Network", anime: "Network / studio", hint: "From the title's metadata", sort: "network", on: "ms" },
+  { id: "network", movie: "Studio", series: "Network", anime: "Network / studio", hint: "From the title's metadata", sort: "network", on: "s" },
   { id: "next", movie: "Next release", series: "Next airing", anime: "Next episode / release", hint: "The next episode or coming release", sort: "next", on: "s" },
   { id: "seasons", series: "Seasons", hint: "Seasons with episodes, specials left out", on: "s" },
   { id: "size", ...both("Size"), hint: "The title's current files in total", sort: "size", seeFiles: true, on: "ms" },
@@ -98,7 +98,8 @@ export function indexColumns(list: ListId, seeFiles: boolean): ColumnDef<IndexCo
   }));
 }
 
-/** The columns a list shows before anything is chosen. Movies: Status, Libraries, Studio, Added, Size. Series and
+/** The columns a list shows before anything is chosen (the Title column carries the year). Movies: Status, Libraries,
+ *  Size, Added. Series and
  *  Anime: Status, Libraries, Network, Next airing, Seasons, Size. */
 export function defaultColumns(list: ListId): IndexColumnId[] {
   const k = list === "movies" ? "m" : "s";

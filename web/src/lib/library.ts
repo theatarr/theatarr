@@ -177,7 +177,7 @@ export const AVAILABILITY: { id: Availability; label: string; hint: string }[] =
   { id: "available", label: "Available", hint: "A file is held, and every monitored library has its files" },
   { id: "partial", label: "Partly available", hint: "A file is held; a monitored library still lacks one (a movie) or an aired episode (a series)" },
   { id: "missing", label: "Missing", hint: "Monitored, out, and no file" },
-  { id: "unmonitored", label: "Not monitored", hint: "No file, and no library monitors it" },
+  { id: "unmonitored", label: "Not monitored", hint: "No file, and no library monitors it (Monitoring: Off counts every title no library monitors)" },
   { id: "upcoming", label: "Upcoming", hint: "Monitored, no file, and not out yet" },
 ];
 
@@ -281,6 +281,14 @@ export function offeredSorts(seeFiles: boolean, c?: CatalogId) {
 /** The grid's query from the address. A sort the account is not offered (an old link, Latest file without "see files")
  *  falls back to the default, Title, with its library and order dropped, so the request and the menu agree. The
  *  account is signed in before a list opens, so seeFiles is known. */
+/** The kind a list shows: Movies and Series their own; Anime both, or one with ?kind=movie or ?kind=series. */
+export function catalogKind(c: CatalogId, p: URLSearchParams): "movie" | "series" | undefined {
+  const cat = CATALOGS[c];
+  if (!cat.anime) return cat.kind;
+  const k = p.get("kind");
+  return k === "movie" || k === "series" ? k : undefined;
+}
+
 export function gridQuery(c: CatalogId, p: URLSearchParams, seeFiles: boolean): GridQuery {
   const cat = CATALOGS[c];
   const asked = p.get("sort") || "name";
@@ -292,7 +300,7 @@ export function gridQuery(c: CatalogId, p: URLSearchParams, seeFiles: boolean): 
   const str = (k: string) => p.get(k) || undefined;
   const mon = p.get("monitored");
   return {
-    kind: cat.kind,
+    kind: catalogKind(c, p),
     anime: cat.anime,
     q: str("q"),
     with: str("with"),
@@ -335,8 +343,9 @@ export function filterChips(
   const q = get("q");
   if (q) out.push({ key: "q", label: `Title: “${q}”` });
   const mon = get("monitored");
-  if (mon === "true") out.push({ key: "monitored", label: "Monitored" });
-  if (mon === "false") out.push({ key: "monitored", label: "Not monitored" });
+  // Monitoring is its own axis, named so its chip is not the status "Not monitored" (no file, nothing monitors it).
+  if (mon === "true") out.push({ key: "monitored", label: "Monitoring: on" });
+  if (mon === "false") out.push({ key: "monitored", label: "Monitoring: off" });
   const av = get("availability");
   if (av) out.push({ key: "availability", label: availabilityFilters(o.seeFiles, o.kind).find((a) => a.id === (av === "upgrade" ? "available" : av))?.label ?? AVAILABILITY.find((a) => a.id === av)?.label ?? av });
   const up = o.seeFiles && get("upgrade");
