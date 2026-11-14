@@ -52,6 +52,14 @@ func (o serveOps) UnlinkLink(ctx context.Context, linkID int64, reason string) (
 	return &web.UnlinkedLink{TitleID: u.TitleID, Path: u.Path, Versions: u.Versions, Trash: u.Trash}, err
 }
 
+func (o serveOps) UnlinkRemoved(ctx context.Context, linkID int64, reason string) (*web.UnlinkedLink, error) {
+	u, err := o.av.UnlinkRemoved(ctx, linkID, reason)
+	if u == nil {
+		return nil, err
+	}
+	return &web.UnlinkedLink{TitleID: u.TitleID, Path: u.Path, Versions: u.Versions, Trash: u.Trash}, err
+}
+
 // PreviewRename and ApplyRename give the title page's rename (internal/web/rename.go) the library's rename through
 // the arr views' service. Apply writes only through the library gate (library.enabled, mode: active, the version's
 // roots), moves each link as a compare-and-swap, and queues Plex scans of the folders it moved links in and out of.

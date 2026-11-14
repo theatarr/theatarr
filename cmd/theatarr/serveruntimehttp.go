@@ -34,6 +34,7 @@ func newServeHTTPRuntime(ctx context.Context, avConfig arrview.Config, uiConfig 
 		return nil, err
 	}
 	av.SetOnRemoved(ui.TitleRemoved)
+	av.SetCleanup(ui.StartCleanup)
 	mux := http.NewServeMux()
 	ui.Mount(mux)
 	av.Mount(mux)

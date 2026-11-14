@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"database/sql"
+	"slices"
 	"strings"
 	"testing"
 
@@ -325,8 +326,8 @@ func TestRemovedCopyIsNotActionable(t *testing.T) {
 	}
 }
 
-// A broken symlink is not unlinked (yet): a removal that deleted the copy's other file says one was left in place.
-func TestRemovalCountsBrokenLinkAsLeft(t *testing.T) {
+// A broken symlink of a removed copy is deleted with the others (J4b): the removal that deletes the files leaves none.
+func TestRemovalDeletesBrokenLinks(t *testing.T) {
 	t.Parallel()
 	o := newOpsEnv(t)
 	now := store.Millis(testNow)
@@ -337,13 +338,16 @@ func TestRemovalCountsBrokenLinkAsLeft(t *testing.T) {
 	if code := o.jsonCall("POST", APIBase+"/titles/2/remove", RemoveRequest{Unlink: true}, o.mc, o.mcsrf, nil); code != 200 {
 		t.Fatalf("remove: %d", code)
 	}
+	o.web.cleanups.Wait()
 	acts := o.actions()
 	if len(acts) == 0 || acts[0].Action != journal.ActRemoveTitle {
 		t.Fatalf("actions %+v", acts)
 	}
-	if rm := journal.ParseRemovalDetail(acts[0].Detail); rm.Files != journal.RemovalFilesPartial || rm.Left != 1 ||
-		rm.Reason != "broken link" {
+	if rm := journal.ParseRemovalDetail(acts[0].Detail); rm.Files != journal.RemovalFilesDeleted || rm.Left != 0 {
 		t.Errorf("outcome %q", acts[0].Detail)
+	}
+	if !slices.Equal(o.ops.unlinks, []int64{5, 7}) {
+		t.Errorf("unlinked %v", o.ops.unlinks)
 	}
 }
 

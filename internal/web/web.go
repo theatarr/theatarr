@@ -136,6 +136,9 @@ type Config struct {
 	SettingsLookup settings.LookupSecret
 	// Torrents is the provider torrent manager (docs/design/torrents.md); nil answers 503.
 	Torrents TorrentsSource
+	// Background is the service's context (theatarr serve's): work a request starts and leaves running after its
+	// answer (a removal's debrid clean-up, StartCleanup) runs on it. nil uses context.Background().
+	Background context.Context
 	// ProviderCopies is the request's router for "Add to other providers" (providercopies.go); nil, or a nil answer,
 	// answers 503.
 	ProviderCopies func(context.Context) Copier
@@ -202,6 +205,8 @@ type Web struct {
 	live              liveCache
 	onRequest         func(RequestEvent)
 	torrents          TorrentsSource
+	background        context.Context
+	cleanups          sync.WaitGroup // removals' debrid clean-ups still running (StartCleanup)
 	copies            func(context.Context) Copier
 	nowPlaying        NowPlayingSource
 	rcloneTestGateway RcloneTestGateway
@@ -252,6 +257,9 @@ func New(cfg Config) (*Web, error) {
 		cfg.SettingsTests = &SettingsTestLimits{}
 	}
 	cfg.SettingsTests.init()
+	if cfg.Background == nil {
+		cfg.Background = context.Background()
+	}
 	return &Web{st: cfg.Store, jobs: cfg.Jobs, auth: cfg.Auth, pol: cfg.Policy, policyDir: cfg.PolicyDir, egress: cfg.Egress,
 		log: cfg.Logger.With("component", "web"), version: cfg.Version, now: cfg.Now, poll: cfg.PollInterval,
 		hub: newHub(), devices: cfg.Devices, art: cfg.Art, journal: cfg.Journal, ui: cfg.UI, logs: cfg.Logs, add: cfg.Add,
@@ -259,7 +267,7 @@ func New(cfg Config) (*Web, error) {
 		logLevel: cfg.LogLevel, logDir: cfg.LogDir, reloadSettings: cfg.ReloadSettings,
 		captureRuntime: cfg.CaptureRuntime, settings: cfg.Settings, settingsTester: cfg.SettingsTester, qualitySync: cfg.QualitySync, trashRoot: cfg.TrashRoot,
 		settingsTests: cfg.SettingsTests, settingsLookup: cfg.SettingsLookup, cardigann: cfg.Cardigann, preflight: cfg.Preflight,
-		backups: cfg.Backups, restart: cfg.Restart, torrents: cfg.Torrents, copies: cfg.ProviderCopies, nowPlaying: cfg.NowPlaying, rcloneTestGateway: cfg.RcloneTestGateway, animeBuilds: cfg.AnimeBuilds,
+		backups: cfg.Backups, restart: cfg.Restart, torrents: cfg.Torrents, background: cfg.Background, copies: cfg.ProviderCopies, nowPlaying: cfg.NowPlaying, rcloneTestGateway: cfg.RcloneTestGateway, animeBuilds: cfg.AnimeBuilds,
 		notifyTest: cfg.NotifyTest, arrImport: cfg.ArrImport}, nil
 }
 

@@ -719,7 +719,7 @@ func runServe(args []string) error {
 		Version: version, Devices: av, Art: refresher, Journal: jr, Logs: logs, Add: add, Jobs: q, Plex: pl, Health: hc,
 		Ops: serveOps{av}, OnRequest: requestNotify, LogLevel: logLevel, LogDir: *logDir, ReloadSettings: runtimeManager.Reload,
 		CaptureRuntime: captureRuntime, SettingsTests: newSettingsTestLimits(), SettingsLookup: os.LookupEnv, TrashRoot: os.Getenv("THEATARR_TRASH"),
-		Torrents: torrentSvc, ProviderCopies: func(ctx context.Context) web.Copier {
+		Torrents: torrentSvc, Background: ctx, ProviderCopies: func(ctx context.Context) web.Copier {
 			if _, active := routeService.forOperation(ctx); active != nil {
 				return active
 			}
@@ -752,6 +752,7 @@ func runServe(args []string) error {
 		return err
 	}
 	av.SetOnRemoved(ui.TitleRemoved)
+	av.SetCleanup(ui.StartCleanup)
 	httpServices := &serveHTTPServices{ctx: ctx}
 	defer httpServices.Close()
 	initialMux := http.NewServeMux()

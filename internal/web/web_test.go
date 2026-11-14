@@ -120,6 +120,8 @@ func newEnvAccount(t *testing.T, cfg func(*Config), withAdmin bool) *env {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// A removal's background clean-up ends before the store closes.
+	t.Cleanup(w.cleanups.Wait)
 	mux := http.NewServeMux()
 	w.Mount(mux)
 	e := &env{t: t, st: st, auth: au, web: w, eg: eg, mux: mux, pw: pw, policy: dir}

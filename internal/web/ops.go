@@ -18,6 +18,7 @@ import (
 	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/indexer"
 	"github.com/theatarr/theatarr/internal/journal"
+	"github.com/theatarr/theatarr/internal/removal"
 	"github.com/theatarr/theatarr/internal/router"
 	"github.com/theatarr/theatarr/internal/store"
 )
@@ -41,6 +42,9 @@ type Ops interface {
 		source string) (*GrabbedRelease, error)
 	RetryDownload(ctx context.Context, id int64, source string) (*RetriedDownload, error)
 	UnlinkLink(ctx context.Context, linkID int64, reason string) (*UnlinkedLink, error)
+	// UnlinkRemoved is UnlinkLink for a removal that deletes the files: a dead symlink too, and the folders the link
+	// leaves empty go, strictly below the library root.
+	UnlinkRemoved(ctx context.Context, linkID int64, reason string) (*UnlinkedLink, error)
 }
 
 // GrabbedRelease is what Ops.GrabRelease did: the release decided again now, whether it was grabbed although
@@ -841,17 +845,22 @@ type RemoveResult struct {
 	Kept           []KeptLink `json:"kept"`
 	// Failed are links whose move to the trash failed (a full disk, an I/O error): they stay active, and removing
 	// the copies again with unlink retries them (Leftover).
-	Failed  []KeptLink `json:"failed"`
-	Message string     `json:"message"`
+	Failed []KeptLink `json:"failed"`
+	// Cleanup: the debrid clean-up of the removed copies' torrents runs now, after the answer; the Removed event in
+	// History gets its outcome.
+	Cleanup bool   `json:"cleanup"`
+	Message string `json:"message"`
 }
 
 // POST /titles/{id}/remove {versions, unlink}: take copies (or, without versions, the whole title) out of the
-// library, as the arr views' DELETE movie|series does (catalog.Remove): each copy is unmonitored and hidden from
-// every view, its rows and history stay, and adding it again restores it. Its downloads in hand end in Theatarr's records
-// (never at the provider). With unlink, its library symlinks move to the trash through the library's gate (a link
-// the gate refuses stays, with the reason); without, the files stay in the library. A link whose move fails
-// otherwise stays too (Failed): the copies are hidden by then, and a removal with unlink of the same scope moves what
-// is left (RemovalScope.Leftover).
+// library through the shared removal (internal/removal, as the arr views' DELETE movie|series): each copy is
+// unmonitored and hidden from every view, its rows and history stay, and adding it again restores it. Its downloads
+// in hand end, its search requests and pending offers go. With unlink (the dialog's "Also delete the files and clean
+// up the debrid torrents") its library links go to the trash through the library's gate and, after the answer, its
+// torrents nothing else uses are deleted from the providers (StartCleanup); without, files and torrents stay. A link
+// the gate refuses, or another current library uses, stays (Kept); one whose move fails stays too (Failed), and a
+// removal with unlink of the same scope moves what is left (RemovalScope.Leftover). Managers may remove, clean-up
+// included.
 func (w *Web) apiRemove(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	id, ok := pathID(r)
@@ -886,194 +895,60 @@ func (w *Web) apiRemove(rw http.ResponseWriter, r *http.Request) {
 		writeJSON(rw, http.StatusConflict, apiError{Error: msg})
 		return
 	}
-	var keys, unlinkKeys []string
+	var keys []string
 	for _, c := range scope.Copies {
 		keys = append(keys, c.Key)
-	}
-	unlinkKeys = append(unlinkKeys, keys...)
-	if req.Unlink {
-		for _, c := range scope.Leftover {
-			unlinkKeys = append(unlinkKeys, c.Key)
-		}
 	}
 	by := actor(r)
 	act := journal.ActRemoveVersion
 	if scope.Title {
 		act = journal.ActRemoveTitle
 	}
-	out := RemoveResult{Title: scope.Title, Removed: []string{}, Unlinked: []string{}, Kept: []KeptLink{},
-		Failed: []KeptLink{}}
-	now := w.now()
-	// Each removed library's action, by key: its detail gets the files' actual outcome once unlinking is done.
-	actIDs := map[string]int64{}
-	err = w.st.WriteTx(ctx, func(tx *sql.Tx) error {
-		if len(keys) == 0 {
-			return nil // only the links of copies removed before (Leftover)
+	spec := removal.Spec{TitleID: id, Name: scope.Name, Keys: keys, View: "ui", Unlink: req.Unlink, Action: act,
+		By: by, Reason: "copy removed by " + orSomeone(by)}
+	if req.Unlink {
+		for _, c := range scope.Leftover {
+			spec.Leftover = append(spec.Leftover, c.Key)
 		}
-		var err error
-		if out.Removed, err = catalog.Remove(ctx, tx, id, keys, "ui", now); err != nil {
-			return err
-		}
-		// Each link moved to the trash gets its own unlink_file entry once it has moved; History reads the files'
-		// fate from the detail (journal.Removal): kept now, or with unlink unknown until the links are done (below).
-		rm := journal.Removal{Files: journal.RemovalFilesKept}
-		if req.Unlink {
-			rm.Files = ""
-		}
-		detail := journal.RemovalDetail(rm)
-		for _, k := range out.Removed {
-			aid, err := journal.RecordAction(ctx, tx, journal.Action{Action: act, TitleID: id, Version: k,
-				Target: scope.Name, Detail: detail, By: by, At: now})
-			if err != nil {
-				return err
-			}
-			actIDs[k] = aid
-		}
-		// Downloads in hand of the removed copies end in our records, in the same transaction: an
-		// import running now cannot commit a link after it (it takes its links back), so the enumeration below
-		// sees every link the copies have. The provider keeps its torrents.
-		out.DownloadsEnded, err = router.EndRemoved(ctx, tx, id, keys, "copy removed by "+orSomeone(by),
-			store.Millis(now))
-		return err
-	})
-	if err != nil {
+	}
+	res, err := removal.Run(ctx, w.removalDeps(), spec)
+	if err != nil && res == nil {
 		w.internal(rw, err)
 		return
 	}
-	if out.Removed == nil {
-		out.Removed = []string{}
+	if err != nil {
+		// The copies are removed; their links could not be read: removing again with the files retries them.
+		w.log.Warn("removal: links", "title", id, "err", err)
 	}
-	// Requests follow now: one whose libraries were all removed is canceled, the others stand by what remains.
-	if len(out.Removed) > 0 {
-		if err := w.syncTitleRequests(ctx, id); err != nil {
-			w.log.Warn("remove: requests", "title", id, "err", err)
-		}
+	out := RemoveResult{Title: scope.Title, Removed: res.Removed, DownloadsEnded: res.DownloadsEnded,
+		Unlinked: []string{}, Kept: []KeptLink{}, Failed: []KeptLink{}, Cleanup: res.Cleanup != nil}
+	for _, u := range res.Unlinked {
+		out.Unlinked = append(out.Unlinked, u.Path)
 	}
-	if req.Unlink {
-		var links []struct {
-			id   int64
-			path string
-			keys []string
-		}
-		err = scanAll(ctx, w.st.Reader(), `SELECT l.id, l.path, group_concat(DISTINCT v.policy_key) FROM link l
-			JOIN link_version lv ON lv.link_id = l.id JOIN version v ON v.id = lv.version_id WHERE v.title_id = ?
-			AND v.policy_key IN (`+store.Placeholders(len(unlinkKeys))+`) AND l.state = 'active' AND l.kind = 'symlink'
-			GROUP BY l.id ORDER BY l.path`, append([]any{id}, anySlice(unlinkKeys)...),
-			func(r *sql.Rows) error {
-				var x struct {
-					id   int64
-					path string
-					keys []string
-				}
-				var ks string
-				if err := r.Scan(&x.id, &x.path, &ks); err != nil {
-					return err
-				}
-				x.keys = strings.Split(ks, ",")
-				links = append(links, x)
-				return nil
-			})
-		if err != nil {
-			w.internal(rw, err)
-			return
-		}
-		// Per removed library: files unlinked, and those left in place with the first reason.
-		type fate struct {
-			unlinked, left int
-			reason         string
-		}
-		fates := map[string]*fate{}
-		count := func(keys []string, ok bool, reason string) {
-			for _, k := range keys {
-				f := fates[k]
-				if f == nil {
-					f = &fate{}
-					fates[k] = f
-				}
-				if ok {
-					f.unlinked++
-				} else if f.left++; f.reason == "" {
-					f.reason = reason
-				}
-			}
-		}
-		for _, l := range links {
-			u, err := w.ops.UnlinkLink(ctx, l.id, "copy removed by "+orSomeone(by))
-			var ref refusedErr
-			switch {
-			case errors.As(err, &ref):
-				out.Kept = append(out.Kept, KeptLink{Path: l.path, Reason: ref.Error()})
-				count(l.keys, false, ref.Error())
-				continue
-			case err != nil:
-				// The copies are hidden already: report the link and go on; removing them again with unlink
-				// retries it.
-				w.log.Warn("removal: moving a library link to the trash failed", "title", id, "link", l.id,
-					"path", l.path, "err", err)
-				out.Failed = append(out.Failed, KeptLink{Path: l.path, Reason: err.Error()})
-				count(l.keys, false, err.Error())
-				continue
-			}
-			count(l.keys, true, "")
-			out.Unlinked = append(out.Unlinked, u.Path)
-			w.record(ctx, journal.Action{Action: journal.ActUnlinkFile, TitleID: id, Version: strings.Join(u.Versions, ","),
-				Target: u.Path, Detail: "moved to " + orDash(u.Trash) + " when its library was removed", By: by})
-		}
-		// Each removed library's action now says what became of its files. What stays linked: refused or failed
-		// symlinks, links that are not Theatarr's symlinks (never unlinked), and broken symlinks (not unlinked yet).
-		if len(actIDs) > 0 {
-			type stays struct{ other, dead int }
-			stay := map[string]stays{}
-			ks := make([]any, 0, len(actIDs))
-			for k := range actIDs {
-				ks = append(ks, k)
-			}
-			err := scanAll(ctx, w.st.Reader(), `SELECT v.policy_key,
-				COALESCE(SUM(l.state = 'active' AND l.kind <> 'symlink'), 0), COALESCE(SUM(l.state = 'dead'), 0) FROM link l JOIN link_version lv ON lv.link_id = l.id
-				JOIN version v ON v.id = lv.version_id WHERE v.title_id = ? AND v.policy_key IN (`+store.Placeholders(len(ks))+`)
-				GROUP BY v.policy_key`, append([]any{id}, ks...), func(r *sql.Rows) error {
-				var k string
-				var x stays
-				err := r.Scan(&k, &x.other, &x.dead)
-				stay[k] = x
-				return err
-			})
-			if err == nil {
-				err = w.st.WriteTx(ctx, func(tx *sql.Tx) error {
-					for k, aid := range actIDs {
-						f := fates[k]
-						if f == nil {
-							f = &fate{}
-						}
-						x := stay[k]
-						left := f.left + x.other + x.dead
-						rm := journal.Removal{Files: journal.RemovalFilesDeleted}
-						if left > 0 {
-							rm.Files, rm.Left, rm.Reason = journal.RemovalFilesPartial, left, f.reason
-							switch {
-							case f.reason != "":
-							case x.dead > 0:
-								rm.Reason = "broken link"
-							default:
-								rm.Reason = "not one of Theatarr's symlinks"
-							}
-							if f.unlinked == 0 {
-								rm.Files = journal.RemovalFilesKept
-							}
-						}
-						if err := journal.SetActionDetail(ctx, tx, aid, journal.RemovalDetail(rm)); err != nil {
-							return err
-						}
-					}
-					return nil
-				})
-			}
-			if err != nil {
-				w.log.Warn("removal: recording the files' outcome", "title", id, "err", err)
-			}
-		}
+	for _, k := range append(slices.Clone(res.Shared), res.Kept...) {
+		out.Kept = append(out.Kept, KeptLink{Path: k.Path, Reason: k.Reason})
 	}
-	// The libraries by the names the title page shows (the scope's labels), and whether they had files to keep.
+	for _, k := range res.Failed {
+		out.Failed = append(out.Failed, KeptLink{Path: k.Path, Reason: k.Reason})
+	}
+	out.Message = removeMessage(scope, req.Unlink, &out)
+	w.log.Info("copies removed by hand", "title", id, "versions", strings.Join(out.Removed, ","), "title_removed",
+		out.Title, "downloads_ended", out.DownloadsEnded, "unlinked", len(out.Unlinked), "kept", len(out.Kept),
+		"failed", len(out.Failed), "cleanup", out.Cleanup, "by", by)
+	writeJSON(rw, http.StatusOK, out)
+}
+
+func libraryFiles(n int) string {
+	if n == 1 {
+		return "1 library file"
+	}
+	return strconv.Itoa(n) + " library files"
+}
+
+// removeMessage is a removal's outcome in one line, for the notice: what left the library, what became of its files,
+// and whether the debrid clean-up runs.
+func removeMessage(scope *RemovalScope, unlink bool, out *RemoveResult) string {
+	// The libraries by the names the title page shows (the scope's labels), and whether they had files.
 	names := make([]string, 0, len(out.Removed))
 	links := 0
 	for _, k := range out.Removed {
@@ -1088,31 +963,30 @@ func (w *Web) apiRemove(rw http.ResponseWriter, r *http.Request) {
 		}
 		names = append(names, name)
 	}
-	what := "Removed " + strings.Join(names, ", ")
+	what := "Removed " + scope.Name + " from " + strings.Join(names, ", ")
 	switch {
 	case out.Title:
 		what = "Removed " + scope.Name + " from the library"
 	case len(out.Removed) == 0:
 		what = "The libraries were removed before"
 	}
+	left := len(out.Kept) + len(out.Failed)
 	switch {
-	case !req.Unlink:
-		if links > 0 {
-			what += "; its files stay in the library"
-		}
-	case len(out.Kept) > 0 || len(out.Failed) > 0:
-		what += fmt.Sprintf("; %d file(s) unlinked, %d left in place", len(out.Unlinked), len(out.Kept)+len(out.Failed))
+	case !unlink && links > 0:
+		what += "; its files stay linked and its debrid torrents stay"
+	case !unlink:
+	case left > 0:
+		what += fmt.Sprintf("; %s deleted, %d left in place", libraryFiles(len(out.Unlinked)), left)
 	case len(out.Unlinked) > 0:
-		what += fmt.Sprintf("; %d file(s) unlinked", len(out.Unlinked))
+		what += fmt.Sprintf("; %s deleted", libraryFiles(len(out.Unlinked)))
 	}
 	if len(out.Failed) > 0 {
-		what += fmt.Sprintf("; moving %d to the trash failed: remove again with unlink to retry", len(out.Failed))
+		what += fmt.Sprintf("; moving %d to the trash failed: remove again with the files to retry", len(out.Failed))
 	}
-	out.Message = what + "."
-	w.log.Info("copies removed by hand", "title", id, "versions", strings.Join(out.Removed, ","), "title_removed",
-		out.Title, "downloads_ended", out.DownloadsEnded, "unlinked", len(out.Unlinked), "kept", len(out.Kept),
-		"failed", len(out.Failed), "by", by)
-	writeJSON(rw, http.StatusOK, out)
+	if out.Cleanup {
+		what += "; its debrid torrents are being cleaned up (History shows the outcome)"
+	}
+	return what + "."
 }
 
 func anySlice(ss []string) []any {

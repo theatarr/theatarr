@@ -42,6 +42,10 @@ func (o viewOps) UnlinkLink(context.Context, int64, string) (*web.UnlinkedLink, 
 	return nil, fmt.Errorf("e2e: unlink is not wired")
 }
 
+func (o viewOps) UnlinkRemoved(context.Context, int64, string) (*web.UnlinkedLink, error) {
+	return nil, fmt.Errorf("e2e: unlink is not wired")
+}
+
 // TestManualAddByHash: a release handed over by its hash (POST /titles/{id}/releases/add), which no search found
 // and which has no indexer (it carries "manual add"), goes the whole way: decided and accepted without override, added once at the provider,
 // found ready, linked into the library, the title filled, and the arr history and the activity show the grab and

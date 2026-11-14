@@ -35,6 +35,8 @@ type fakeOps struct {
 	retried *RetriedDownload
 	// unlinkErr, when set, is the next UnlinkLink's error.
 	unlinkErr error
+	// onUnlinkRemoved runs after each UnlinkRemoved that went through.
+	onUnlinkRemoved func(id int64)
 }
 
 func (f *fakeOps) PreviewRename(context.Context, int64, *int) (*library.RenamePreview, error) {
@@ -126,6 +128,16 @@ func (f *fakeOps) UnlinkLink(_ context.Context, id int64, _ string) (*UnlinkedLi
 	f.unlinks = append(f.unlinks, id)
 	return &UnlinkedLink{TitleID: 2, Path: "/lib/Beta/" + strings.Repeat("x", int(id)), Versions: []string{"movie-web"},
 		Trash: "/lib/.trash/x"}, nil
+}
+
+// UnlinkRemoved is UnlinkLink for a removal; with onUnlinkRemoved set it runs first (a test marks the row unlinked
+// there, as the library does).
+func (f *fakeOps) UnlinkRemoved(ctx context.Context, id int64, reason string) (*UnlinkedLink, error) {
+	u, err := f.UnlinkLink(ctx, id, reason)
+	if err == nil && f.onUnlinkRemoved != nil {
+		f.onUnlinkRemoved(id)
+	}
+	return u, err
 }
 
 // opsAcquirer answers live searches with releases that carry hashes (fakeAcquirer's have none).
@@ -546,7 +558,7 @@ func TestRemoveCopiesAndTitle(t *testing.T) {
 		t.Fatalf("remove copy: %d %+v", code, got)
 	}
 	// Named as the title page names it; it had no files there, so none are said to stay.
-	if got.Message != "Removed "+webLabel+"." {
+	if got.Message != "Removed Alpha from "+webLabel+"." {
 		t.Errorf("message %q", got.Message)
 	}
 	if n := o.count(`SELECT COUNT(*) FROM arrview_removed_version WHERE version_id = 2 AND view = 'ui'`); n != 1 {
@@ -575,12 +587,13 @@ func TestRemoveCopiesAndTitle(t *testing.T) {
 	if code := o.jsonCall("POST", APIBase+"/titles/2/remove", RemoveRequest{}, o.mc, o.mcsrf, nil); code != 409 {
 		t.Errorf("remove again: %d", code)
 	}
+	o.web.cleanups.Wait()
 	acts := o.actions()
 	kinds := []string{}
 	for _, a := range acts {
 		kinds = append(kinds, a.Action)
 	}
-	if strings.Join(kinds, " ") != "remove_version remove_title unlink_file" || acts[2].Target != "/lib/Beta/xxxxx" {
+	if strings.Join(kinds, " ") != "remove_version remove_title unlink_file" || acts[2].Target != "/lib/Beta/a.mkv" {
 		t.Errorf("actions %+v", acts)
 	}
 	// What became of each library's files: Alpha's web copy kept them (no unlink); Beta's symlink went, its hardlink
