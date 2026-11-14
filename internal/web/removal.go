@@ -54,7 +54,7 @@ func (w *Web) StartCleanup(c removal.Cleanup) {
 		defer cancel()
 		words := w.cleanup(ctx, c)
 		for k, id := range c.Actions {
-			ws := words(c.HashesOf(k))
+			ws := removal.JoinWords(words(c.HashesOf(k)), c.Kept[k])
 			w.log.Info("removal: debrid clean-up", "title", c.TitleID, "version", k, "outcome", ws)
 			removal.RecordCleanup(context.WithoutCancel(ctx), w.st, w.log, id, ws)
 		}

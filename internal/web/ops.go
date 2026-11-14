@@ -991,14 +991,6 @@ func removeMessage(scope *RemovalScope, unlink bool, out *RemoveResult) string {
 	return what + "."
 }
 
-func anySlice(ss []string) []any {
-	out := make([]any, len(ss))
-	for i, s := range ss {
-		out[i] = s
-	}
-	return out
-}
-
 func orDash(s string) string {
 	if s == "" {
 		return "—"

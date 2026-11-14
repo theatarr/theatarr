@@ -34,12 +34,13 @@ func TestRemoveRunsTheCleanupAfterTheAnswer(t *testing.T) {
 		m := &torrents.Manager{Policy: pol, Providers: map[string]provider.Provider{"rd": prov},
 			Dir: filepath.Join(t.TempDir(), "torrent-backups"), Log: slog.New(slog.NewTextHandler(io.Discard, nil)),
 			Now: func() time.Time { return testNow }}
+		m.Syncer = &provider.Syncer{Providers: m.Providers, Configured: []string{"rd"}, Now: m.Now, Log: m.Log}
 		bg, cancel := context.WithCancel(context.Background())
 		o := &opsEnv{ops: &fakeOps{}, acq: &opsAcquirer{}}
 		o.env = newEnvWith(t, func(c *Config) {
 			c.Ops, c.Add, c.Torrents, c.Background = o.ops, AddConfig{Acquirer: o.acq}, torrentSource{m}, bg
 		})
-		m.Store = o.st
+		m.Store, m.Syncer.Store = o.st, o.st
 		o.mc, o.mcsrf = o.session(o.account("mgr", auth.RoleManager, auth.StatusActive, false))
 		o.ops.onUnlinkRemoved = func(id int64) { o.exec(`UPDATE link SET state = 'unlinked' WHERE id = ?`, id) }
 		now := store.Millis(testNow)
@@ -49,10 +50,10 @@ func TestRemoveRunsTheCleanupAfterTheAnswer(t *testing.T) {
 			(5, '/movies/Beta (2021)/Beta.mkv', '/mnt/zurg/__all__/Beta.2021.2160p.WEB/b.mkv', 'symlink', 2, 'active', ?,
 			?, ?)`, `{"InfoHash":"`+hb+`"}`, now, now)
 		o.exec(`INSERT INTO link_version (link_id, version_id) VALUES (5, 3)`)
-		// Theatarr's own add of it (not a reuse): the clean-up may take it.
+		// Theatarr's own add of it (own_add, this account epoch): the clean-up may take it.
 		o.exec(`INSERT INTO download (title_id, version_id, version_key, info_hash, release_title, indexer, state,
-			provider, provider_torrent_id, created_at, updated_at) VALUES (2, 3, 'movie-web', ?, 'Beta', 'idx',
-			'imported', 'rd', '20', ?, ?)`, hb, now, now)
+			provider, provider_torrent_id, own_add, provider_epoch, created_at, updated_at) VALUES (2, 3, 'movie-web', ?,
+			'Beta', 'idx', 'imported', 'rd', '20', 1, 0, ?, ?)`, hb, now, now)
 
 		var got RemoveResult
 		if code := o.jsonCall("POST", APIBase+"/titles/2/remove", RemoveRequest{Unlink: unlink}, o.mc, o.mcsrf,

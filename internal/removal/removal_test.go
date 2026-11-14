@@ -305,7 +305,7 @@ func TestRunCleanupWords(t *testing.T) {
 		t.Fatal(err)
 	}
 	if rm := journal.ParseRemovalDetail(f.str(`SELECT detail FROM journal_action WHERE action = ?`,
-		journal.ActRemoveVersion)); rm.Cleanup != "torrents not cleaned up: the torrent manager is not running" {
+		journal.ActRemoveVersion)); rm.Cleanup != "torrents not cleaned up: the torrent manager is not running; torrents of the files that stay kept" {
 		t.Errorf("outcome %+v", rm)
 	}
 	g := newFixture(t)
@@ -316,7 +316,7 @@ func TestRunCleanupWords(t *testing.T) {
 		t.Fatal(err)
 	}
 	if rm := journal.ParseRemovalDetail(g.str(`SELECT detail FROM journal_action WHERE action = ?`,
-		journal.ActRemoveVersion)); len(g.started) != 0 || rm.Cleanup != "torrents kept: their files stay in the library" {
+		journal.ActRemoveVersion)); len(g.started) != 0 || rm.Cleanup != "torrents of the files that stay kept" {
 		t.Errorf("outcome %+v, started %v", rm, g.started)
 	}
 }
@@ -333,7 +333,7 @@ func TestRunKeepsTheArrsFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 	if rm := journal.ParseRemovalDetail(f.str(`SELECT detail FROM journal_action WHERE action = ?`,
-		journal.ActRemoveVersion)); len(f.started) != 0 || rm.Cleanup != "torrents kept: Sonarr's or Radarr's own files of it stay theirs" ||
+		journal.ActRemoveVersion)); len(f.started) != 0 || rm.Cleanup != "torrents of Sonarr's or Radarr's own files kept" ||
 		rm.Files != journal.RemovalFilesKept || rm.Reason != "Sonarr's or Radarr's own file stays" {
 		t.Errorf("outcome %+v, started %v", rm, f.started)
 	}
@@ -418,7 +418,7 @@ func TestRunKeepsTheTorrentsOfUntiedLinks(t *testing.T) {
 		t.Fatal(err)
 	}
 	rm := journal.ParseRemovalDetail(f.str(`SELECT detail FROM journal_action WHERE action = ?`, journal.ActRemoveVersion))
-	if len(f.started) != 0 || rm.Cleanup != "torrents kept: their files stay in the library" {
+	if len(f.started) != 0 || rm.Cleanup != "torrents of the files that stay kept" {
 		t.Errorf("clean-ups %+v, outcome %+v", f.started, rm)
 	}
 
@@ -466,5 +466,65 @@ func TestRunKeepsCopiesAnArrFileWants(t *testing.T) {
 	}
 	if got := f.str(`SELECT state FROM provider_copy WHERE info_hash = ? AND provider = 'tb'`, hH); got != "queued" {
 		t.Errorf("the copy Other's arr file wants: %s", got)
+	}
+}
+
+// An arr file that stays with no hash keeps every candidate of its library, as an untied link does.
+func TestRunKeepsTheTorrentsOfAHashlessArrFile(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	f.exec(`UPDATE version_file SET download_id = '' WHERE path = '/arr/Gone.mkv'`)
+	if _, err := Run(context.Background(), f.deps(), webSpec(true)); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.started) != 0 {
+		t.Errorf("clean-ups %+v", f.started)
+	}
+}
+
+// Kept files are counted by path: a kept link and the arr file row at the same path are one file; a library with no
+// file says nothing about files; the torrents its kept files keep are named with the clean-up's outcome.
+func TestRunCountsFilesByPath(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	f.exec(`UPDATE version_file SET path = '/lib/web/Gone/d.mkv' WHERE path = '/arr/Gone.mkv'`) // the refused link's
+	res, err := Run(context.Background(), f.deps(), webSpec(true))
+	if err != nil {
+		t.Fatal(err)
+	}
+	rm := journal.ParseRemovalDetail(f.str(`SELECT detail FROM journal_action WHERE action = ?`, journal.ActRemoveVersion))
+	if rm.Left != 4 {
+		t.Errorf("left %d (c, d, e, f), %+v", rm.Left, rm)
+	}
+	if res.Cleanup == nil || res.Cleanup.Kept["movie-web"] != "torrents of the files that stay kept" {
+		t.Errorf("clean-up %+v", res.Cleanup)
+	}
+
+	g := newFixture(t)
+	g.exec(`DELETE FROM link_version WHERE version_id = 2`)
+	if _, err := Run(context.Background(), g.deps(), Spec{TitleID: 1, Name: "Gone", Keys: []string{"movie-remux"},
+		View: "ui", Unlink: true, Action: journal.ActRemoveVersion}); err != nil {
+		t.Fatal(err)
+	}
+	if rm := journal.ParseRemovalDetail(g.str(`SELECT detail FROM journal_action WHERE version_key = 'movie-remux'`)); rm.Files != "" {
+		t.Errorf("a library with no file: %+v", rm)
+	}
+}
+
+// "Delete them" for a library removed before removals were recorded (an older arr-compatible delete): the removal is
+// recorded now, and its torrents are cleaned up.
+func TestRunLeftoverWithoutAnEarlierRemoval(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	f.exec(`INSERT INTO arrview_removed_version (version_id, view, removed_at) VALUES (1, 'radarr', 0)`)
+	res, err := Run(context.Background(), f.deps(), Spec{TitleID: 1, Name: "Gone", Leftover: []string{"movie-web"},
+		View: "ui", Unlink: true, Action: journal.ActRemoveVersion, By: "mgr"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f.str(`SELECT COUNT(*) FROM journal_action WHERE action = ?`, journal.ActRemoveVersion) != "1" ||
+		res.Cleanup == nil || res.Cleanup.Actions["movie-web"] == 0 {
+		t.Errorf("recorded %s, clean-up %+v", f.str(`SELECT COUNT(*) FROM journal_action WHERE action = ?`,
+			journal.ActRemoveVersion), res.Cleanup)
 	}
 }

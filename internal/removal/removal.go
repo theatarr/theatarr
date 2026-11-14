@@ -108,7 +108,15 @@ type Cleanup struct {
 	TitleID int64
 	Hashes  map[string][]string
 	Actions map[string]int64
-	By      string
+	// Kept says, per library, which of its torrents the removal kept because their files stay; it is added to that
+	// library's outcome (JoinWords).
+	Kept map[string]string
+	By   string
+}
+
+// JoinWords joins outcome parts with "; ", leaving out empty ones.
+func JoinWords(parts ...string) string {
+	return strings.Join(slices.DeleteFunc(parts, func(p string) bool { return p == "" }), "; ")
 }
 
 // HashesOf are the candidate hashes of library key.
@@ -212,9 +220,22 @@ func Run(ctx context.Context, d Deps, s Spec) (*Result, error) {
 		err := d.Store.Reader().QueryRowContext(ctx, `SELECT id FROM journal_action WHERE title_id = ? AND version_key = ?
 			AND action IN (?, ?) ORDER BY id DESC LIMIT 1`, s.TitleID, k, journal.ActRemoveTitle,
 			journal.ActRemoveVersion).Scan(&id)
-		if err == nil {
+		switch {
+		case err == nil:
 			actIDs[k] = id
-		} else if !errors.Is(err, sql.ErrNoRows) {
+		case errors.Is(err, sql.ErrNoRows):
+			// Removed before removals were recorded (an older arr-compatible delete): this one is recorded now.
+			err = d.Store.WriteTx(ctx, func(tx *sql.Tx) error {
+				id, err = journal.RecordAction(ctx, tx, journal.Action{Action: s.Action, TitleID: s.TitleID, Version: k,
+					Target: s.Name, Detail: journal.RemovalDetail(journal.Removal{}), By: s.By, At: d.Now()})
+				return err
+			})
+			if err == nil {
+				actIDs[k] = id
+			} else {
+				d.Log.Warn("removal: recording the removal", "title", s.TitleID, "version", k, "err", err)
+			}
+		default:
 			d.Log.Warn("removal: reading an earlier removal", "title", s.TitleID, "version", k, "err", err)
 		}
 	}
@@ -224,33 +245,32 @@ func Run(ctx context.Context, d Deps, s Spec) (*Result, error) {
 	}
 	// Sonarr's or Radarr's own files the removal left (arr file rows whose path was not unlinked) stay: they count as
 	// left in place.
-	err = scan(ctx, d.Store.Reader(), `SELECT v.policy_key, COUNT(*) FROM version_file vf JOIN version v
-		ON v.id = vf.version_id WHERE v.title_id = ? AND v.policy_key IN (`+store.Placeholders(len(all))+`)
-		GROUP BY v.policy_key`, append([]any{s.TitleID}, anyOf(all)...), func(r *sql.Rows) error {
-		var k string
-		var n int
-		if err := r.Scan(&k, &n); err != nil {
-			return err
-		}
-		f := fates[k]
-		if f.left += n; f.reason == "" {
-			f.reason = "Sonarr's or Radarr's own file stays"
-		}
-		fates[k] = f
-		return nil
-	})
+	err = scan(ctx, d.Store.Reader(), `SELECT DISTINCT v.policy_key, vf.path FROM version_file vf JOIN version v
+		ON v.id = vf.version_id WHERE v.title_id = ? AND v.policy_key IN (`+store.Placeholders(len(all))+`)`,
+		append([]any{s.TitleID}, anyOf(all)...), func(r *sql.Rows) error {
+			var k, path string
+			if err := r.Scan(&k, &path); err != nil {
+				return err
+			}
+			fates[k] = fates[k].leave(path, "Sonarr's or Radarr's own file stays")
+			return nil
+		})
 	if err != nil {
 		d.Log.Warn("removal: reading the arr files left", "title", s.TitleID, "err", err)
 	}
 	if err := d.Store.WriteTx(ctx, func(tx *sql.Tx) error {
 		for k, id := range actIDs {
 			f := fates[k]
-			rm := journal.Removal{Files: journal.RemovalFilesDeleted}
-			if f.left > 0 {
-				rm.Files, rm.Left, rm.Reason = journal.RemovalFilesPartial, f.left, f.reason
-				if f.unlinked == 0 {
-					rm.Files = journal.RemovalFilesKept
-				}
+			left := len(f.left)
+			// A library that had no file says nothing about files ("" reads as no outcome).
+			rm := journal.Removal{}
+			switch {
+			case left > 0 && f.unlinked == 0:
+				rm.Files, rm.Left, rm.Reason = journal.RemovalFilesKept, left, f.reason
+			case left > 0:
+				rm.Files, rm.Left, rm.Reason = journal.RemovalFilesPartial, left, f.reason
+			case f.unlinked > 0:
+				rm.Files = journal.RemovalFilesDeleted
 			}
 			if err := journal.SetActionDetail(ctx, tx, id, journal.RemovalDetail(rm)); err != nil {
 				return err
@@ -261,7 +281,8 @@ func Run(ctx context.Context, d Deps, s Spec) (*Result, error) {
 		d.Log.Warn("removal: recording the files' outcome", "title", s.TitleID, "err", err)
 	}
 	// The clean-up, library by library: each Removed action gets its own torrents' outcome.
-	clean := &Cleanup{TitleID: s.TitleID, Hashes: map[string][]string{}, Actions: map[string]int64{}, By: s.By}
+	clean := &Cleanup{TitleID: s.TitleID, Hashes: map[string][]string{}, Actions: map[string]int64{},
+		Kept: map[string]string{}, By: s.By}
 	for _, h := range cands.hashes() {
 		if dropped[h] == "" {
 			clean.Hashes[h] = cands.keysOf(h)
@@ -277,17 +298,27 @@ func Run(ctx context.Context, d Deps, s Spec) (*Result, error) {
 				}
 			}
 		}
+		// What its kept files keep, said with the clean-up's outcome.
+		keptWords := ""
+		switch {
+		case slices.Contains(kept, droppedLink):
+			keptWords = "torrents of the files that stay kept"
+		case len(kept) > 0:
+			keptWords = "torrents of Sonarr's or Radarr's own files kept"
+		}
 		switch {
 		case len(mine) == 0:
 			// No torrent on record: nothing to clean up, nothing to say.
-		case len(kept) == len(mine) && !slices.Contains(kept, droppedLink):
-			RecordCleanup(ctx, d.Store, d.Log, id, "torrents kept: Sonarr's or Radarr's own files of it stay theirs")
 		case len(kept) == len(mine):
-			RecordCleanup(ctx, d.Store, d.Log, id, "torrents kept: their files stay in the library")
+			RecordCleanup(ctx, d.Store, d.Log, id, keptWords)
 		case d.StartCleanup == nil:
-			RecordCleanup(ctx, d.Store, d.Log, id, "torrents not cleaned up: the torrent manager is not running")
+			RecordCleanup(ctx, d.Store, d.Log, id, JoinWords("torrents not cleaned up: the torrent manager is not running",
+				keptWords))
 		default:
 			clean.Actions[k] = id
+			if keptWords != "" {
+				clean.Kept[k] = keptWords
+			}
 		}
 	}
 	if len(clean.Actions) > 0 {
@@ -304,10 +335,23 @@ const (
 	droppedArrFile = "arr_file"
 )
 
-// fate is what became of one removed library's links.
+// fate is what became of one removed library's files: how many links were unlinked, and the distinct paths left in
+// place (links and arr files) with the first reason.
 type fate struct {
-	unlinked, left int
-	reason         string
+	unlinked int
+	left     map[string]bool
+	reason   string
+}
+
+func (f fate) leave(path, why string) fate {
+	if f.left == nil {
+		f.left = map[string]bool{}
+	}
+	f.left[path] = true
+	if f.reason == "" {
+		f.reason = why
+	}
+	return f
 }
 
 type link struct {
@@ -348,13 +392,13 @@ func unlink(ctx context.Context, d Deps, s Spec, keys []string, c *cands, out *R
 	var untied, stayTargets []string
 	count := func(x link, ok bool, why string) {
 		for _, k := range x.keys {
-			f := fates[k]
 			if ok {
+				f := fates[k]
 				f.unlinked++
-			} else if f.left++; f.reason == "" {
-				f.reason = why
+				fates[k] = f
+			} else {
+				fates[k] = fates[k].leave(x.path, why)
 			}
-			fates[k] = f
 		}
 		if !ok && x.hash != "" {
 			dropped[x.hash] = droppedLink
@@ -429,15 +473,19 @@ func unlink(ctx context.Context, d Deps, s Spec, keys []string, c *cands, out *R
 		}
 	}
 	// A kept link's hash stays wanted; so does a hash an arr file row of a removed copy still holds (its path was
-	// not one of the links unlinked).
-	err = scan(ctx, d.Store.Reader(), `SELECT DISTINCT `+fileHashSQL+` FROM version_file vf
+	// not one of the links unlinked). An arr file left with no hash keeps every candidate of its library, as an
+	// untied link does.
+	err = scan(ctx, d.Store.Reader(), `SELECT DISTINCT `+fileHashSQL+`, v.policy_key FROM version_file vf
 		JOIN version v ON v.id = vf.version_id WHERE v.title_id = ? AND v.policy_key IN (`+
 		store.Placeholders(len(keys))+`)`, append([]any{s.TitleID}, anyOf(keys)...), func(r *sql.Rows) error {
-		var h string
-		if err := r.Scan(&h); err != nil {
+		var h, k string
+		if err := r.Scan(&h, &k); err != nil {
 			return err
 		}
-		if h = indexer.NormalizeHash(h); h != "" && dropped[h] == "" {
+		switch h = indexer.NormalizeHash(h); {
+		case h == "":
+			untied = append(untied, k)
+		case dropped[h] == "":
 			dropped[h] = droppedArrFile
 		}
 		return nil
