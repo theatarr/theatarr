@@ -24,7 +24,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"maps"
 	"slices"
 	"strings"
 	"time"
@@ -102,13 +101,26 @@ type Result struct {
 	Cleanup *Cleanup
 }
 
-// Cleanup is the debrid clean-up of one removal: its candidate hashes, and the Removed actions whose detail gets the
-// outcome (RecordCleanup).
+// Cleanup is the debrid clean-up of one removal: its title, its candidate hashes each with the removed libraries
+// (policy keys) it belongs to, and the Removed action of each library, whose detail gets that library's own outcome
+// (RecordCleanup).
 type Cleanup struct {
 	TitleID int64
-	Hashes  []string
-	Actions []int64
+	Hashes  map[string][]string
+	Actions map[string]int64
 	By      string
+}
+
+// HashesOf are the candidate hashes of library key.
+func (c Cleanup) HashesOf(key string) []string {
+	var out []string
+	for h, ks := range c.Hashes {
+		if slices.Contains(ks, key) {
+			out = append(out, h)
+		}
+	}
+	slices.Sort(out)
+	return out
 }
 
 // SkippedRemoved is the message of a queued copy to another provider that a removal stopped.
@@ -210,6 +222,26 @@ func Run(ctx context.Context, d Deps, s Spec) (*Result, error) {
 	if err != nil {
 		return out, err
 	}
+	// Sonarr's or Radarr's own files the removal left (arr file rows whose path was not unlinked) stay: they count as
+	// left in place.
+	err = scan(ctx, d.Store.Reader(), `SELECT v.policy_key, COUNT(*) FROM version_file vf JOIN version v
+		ON v.id = vf.version_id WHERE v.title_id = ? AND v.policy_key IN (`+store.Placeholders(len(all))+`)
+		GROUP BY v.policy_key`, append([]any{s.TitleID}, anyOf(all)...), func(r *sql.Rows) error {
+		var k string
+		var n int
+		if err := r.Scan(&k, &n); err != nil {
+			return err
+		}
+		f := fates[k]
+		if f.left += n; f.reason == "" {
+			f.reason = "Sonarr's or Radarr's own file stays"
+		}
+		fates[k] = f
+		return nil
+	})
+	if err != nil {
+		d.Log.Warn("removal: reading the arr files left", "title", s.TitleID, "err", err)
+	}
 	if err := d.Store.WriteTx(ctx, func(tx *sql.Tx) error {
 		for k, id := range actIDs {
 			f := fates[k]
@@ -228,29 +260,39 @@ func Run(ctx context.Context, d Deps, s Spec) (*Result, error) {
 	}); err != nil {
 		d.Log.Warn("removal: recording the files' outcome", "title", s.TitleID, "err", err)
 	}
-	ids := make([]int64, 0, len(actIDs))
-	for _, id := range actIDs {
-		ids = append(ids, id)
-	}
-	slices.Sort(ids)
-	var hashes []string
+	// The clean-up, library by library: each Removed action gets its own torrents' outcome.
+	clean := &Cleanup{TitleID: s.TitleID, Hashes: map[string][]string{}, Actions: map[string]int64{}, By: s.By}
 	for _, h := range cands.hashes() {
 		if dropped[h] == "" {
-			hashes = append(hashes, h)
+			clean.Hashes[h] = cands.keysOf(h)
 		}
 	}
-	switch {
-	case len(hashes) == 0 && len(dropped) == 0:
-		// No torrent on record: nothing to clean up, nothing to say.
-	case len(hashes) == 0 && !slices.Contains(slices.Collect(maps.Values(dropped)), droppedLink):
-		RecordCleanup(ctx, d.Store, d.Log, ids, "torrents kept: Sonarr's or Radarr's own files of it stay theirs")
-	case len(hashes) == 0:
-		RecordCleanup(ctx, d.Store, d.Log, ids, "torrents kept: their files stay in the library")
-	case d.StartCleanup == nil:
-		RecordCleanup(ctx, d.Store, d.Log, ids, "torrents not cleaned up: the torrent manager is not running")
-	default:
-		out.Cleanup = &Cleanup{TitleID: s.TitleID, Hashes: hashes, Actions: ids, By: s.By}
-		d.StartCleanup(*out.Cleanup)
+	for k, id := range actIDs {
+		var mine, kept []string
+		for _, h := range cands.hashes() {
+			if slices.Contains(cands.keysOf(h), k) {
+				mine = append(mine, h)
+				if dropped[h] != "" {
+					kept = append(kept, dropped[h])
+				}
+			}
+		}
+		switch {
+		case len(mine) == 0:
+			// No torrent on record: nothing to clean up, nothing to say.
+		case len(kept) == len(mine) && !slices.Contains(kept, droppedLink):
+			RecordCleanup(ctx, d.Store, d.Log, id, "torrents kept: Sonarr's or Radarr's own files of it stay theirs")
+		case len(kept) == len(mine):
+			RecordCleanup(ctx, d.Store, d.Log, id, "torrents kept: their files stay in the library")
+		case d.StartCleanup == nil:
+			RecordCleanup(ctx, d.Store, d.Log, id, "torrents not cleaned up: the torrent manager is not running")
+		default:
+			clean.Actions[k] = id
+		}
+	}
+	if len(clean.Actions) > 0 {
+		out.Cleanup = clean
+		d.StartCleanup(*clean)
 	}
 	return out, nil
 }
@@ -269,10 +311,10 @@ type fate struct {
 }
 
 type link struct {
-	id               int64
-	path, kind, hash string
-	keys             []string
-	shared           bool
+	id                       int64
+	path, kind, hash, target string
+	keys                     []string
+	shared                   bool
 }
 
 // unlink takes the removed copies' links out (step 3): it fills out, and returns each library's fate and the hashes
@@ -282,7 +324,7 @@ func unlink(ctx context.Context, d Deps, s Spec, keys []string, c *cands, out *R
 	fates := map[string]fate{}
 	dropped := map[string]string{}
 	var links []link
-	err := scan(ctx, d.Store.Reader(), `SELECT l.id, l.path, l.kind, COALESCE(`+router.LinkStoredHashSQL+`, ''),
+	err := scan(ctx, d.Store.Reader(), `SELECT l.id, l.path, l.kind, COALESCE(`+router.LinkStoredHashSQL+`, ''), l.target,
 		group_concat(DISTINCT v.policy_key),
 		EXISTS (SELECT 1 FROM link_version lv2 WHERE lv2.link_id = l.id
 			AND NOT EXISTS (SELECT 1 FROM arrview_removed_version r WHERE r.version_id = lv2.version_id))
@@ -291,7 +333,7 @@ func unlink(ctx context.Context, d Deps, s Spec, keys []string, c *cands, out *R
 		GROUP BY l.id ORDER BY l.path`, append([]any{s.TitleID}, anyOf(keys)...), func(r *sql.Rows) error {
 		var x link
 		var ks string
-		if err := r.Scan(&x.id, &x.path, &x.kind, &x.hash, &ks, &x.shared); err != nil {
+		if err := r.Scan(&x.id, &x.path, &x.kind, &x.hash, &x.target, &ks, &x.shared); err != nil {
 			return err
 		}
 		x.keys = strings.Split(ks, ",")
@@ -301,6 +343,9 @@ func unlink(ctx context.Context, d Deps, s Spec, keys []string, c *cands, out *R
 	if err != nil {
 		return nil, nil, fmt.Errorf("removal: reading the links: %w", err)
 	}
+	// A link that stays and cannot be tied to its torrent by a hash keeps every candidate of its libraries; one that
+	// stays keeps the hashes of every link sharing its target.
+	var untied, stayTargets []string
 	count := func(x link, ok bool, why string) {
 		for _, k := range x.keys {
 			f := fates[k]
@@ -314,8 +359,26 @@ func unlink(ctx context.Context, d Deps, s Spec, keys []string, c *cands, out *R
 		if !ok && x.hash != "" {
 			dropped[x.hash] = droppedLink
 		}
+		if !ok && x.hash == "" {
+			untied = append(untied, x.keys...)
+		}
+		if !ok && x.target != "" {
+			stayTargets = append(stayTargets, x.target)
+		}
 	}
 	for _, x := range links {
+		// The shared check again, right before the unlink: a library restored (an Add) since the links were read
+		// uses the link now.
+		if !x.shared && x.kind == "symlink" {
+			err := d.Store.Reader().QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM link_version lv
+				WHERE lv.link_id = ? AND NOT EXISTS (SELECT 1 FROM arrview_removed_version r
+				WHERE r.version_id = lv.version_id))`, x.id).Scan(&x.shared)
+			if err != nil {
+				out.Failed = append(out.Failed, Left{Path: x.path, Reason: err.Error()})
+				count(x, false, err.Error())
+				continue
+			}
+		}
 		if x.shared {
 			why := "another library still uses it"
 			out.Shared = append(out.Shared, Left{Path: x.path, Reason: why})
@@ -382,6 +445,16 @@ func unlink(ctx context.Context, d Deps, s Spec, keys []string, c *cands, out *R
 	if err != nil {
 		return nil, nil, fmt.Errorf("removal: reading the arr files: %w", err)
 	}
+	for _, x := range links {
+		if x.hash != "" && slices.Contains(stayTargets, x.target) {
+			dropped[x.hash] = droppedLink
+		}
+	}
+	for _, h := range c.hashes() {
+		if slices.ContainsFunc(c.keysOf(h), func(k string) bool { return slices.Contains(untied, k) }) {
+			dropped[h] = droppedLink
+		}
+	}
 	for h := range dropped {
 		if !c.has(h) {
 			delete(dropped, h)
@@ -394,18 +467,33 @@ func unlink(ctx context.Context, d Deps, s Spec, keys []string, c *cands, out *R
 const fileHashSQL = `COALESCE((SELECT c.info_hash FROM content c WHERE c.id = vf.content_id),
 	CASE WHEN length(vf.download_id) = 40 THEN vf.download_id END, '')`
 
-// cands are a removal's clean-up candidates: hashes in the order found.
-type cands struct{ list []string }
+// cands are a removal's clean-up candidates: hashes in the order found, each with the removed libraries (policy keys)
+// it belongs to.
+type cands struct {
+	list []string
+	keys map[string][]string
+}
 
-func (c *cands) add(h string) {
-	if h = indexer.NormalizeHash(h); h != "" && !slices.Contains(c.list, h) {
+func (c *cands) add(h, key string) {
+	if h = indexer.NormalizeHash(h); h == "" {
+		return
+	}
+	if c.keys == nil {
+		c.keys = map[string][]string{}
+	}
+	if !slices.Contains(c.list, h) {
 		c.list = append(c.list, h)
+	}
+	if !slices.Contains(c.keys[h], key) {
+		c.keys[h] = append(c.keys[h], key)
 	}
 }
 
 func (c *cands) has(h string) bool { return slices.Contains(c.list, h) }
 
 func (c *cands) hashes() []string { return c.list }
+
+func (c *cands) keysOf(h string) []string { return c.keys[h] }
 
 // candidates are the hashes of keys' copies of the title (step 1): their links not unlinked, their arr files, and
 // their downloads that did not fail (a failed grab attempt may name a torrent that was never ours to delete).
@@ -417,18 +505,19 @@ func candidates(ctx context.Context, db *sql.DB, titleID int64, keys []string) (
 	args := append([]any{titleID}, anyOf(keys)...)
 	in := `v.title_id = ? AND v.policy_key IN (` + store.Placeholders(len(keys)) + `)`
 	for _, q := range []string{
-		`SELECT ` + router.LinkStoredHashSQL + ` FROM link l JOIN link_version lv ON lv.link_id = l.id
+		`SELECT ` + router.LinkStoredHashSQL + `, v.policy_key FROM link l JOIN link_version lv ON lv.link_id = l.id
 			JOIN version v ON v.id = lv.version_id WHERE ` + in + ` AND l.state IN ('active', 'dead')`,
-		`SELECT ` + fileHashSQL + ` FROM version_file vf JOIN version v ON v.id = vf.version_id WHERE ` + in,
-		`SELECT d.info_hash FROM download d JOIN version v ON v.id = d.version_id WHERE ` + in +
+		`SELECT ` + fileHashSQL + `, v.policy_key FROM version_file vf JOIN version v ON v.id = vf.version_id WHERE ` + in,
+		`SELECT d.info_hash, v.policy_key FROM download d JOIN version v ON v.id = d.version_id WHERE ` + in +
 			` AND d.state <> 'failed'`,
 	} {
 		err := scan(ctx, db, q, args, func(r *sql.Rows) error {
 			var h sql.NullString
-			if err := r.Scan(&h); err != nil {
+			var k string
+			if err := r.Scan(&h, &k); err != nil {
 				return err
 			}
-			c.add(h.String)
+			c.add(h.String, k)
 			return nil
 		})
 		if err != nil {
@@ -438,26 +527,21 @@ func candidates(ctx context.Context, db *sql.DB, titleID int64, keys []string) (
 	return c, nil
 }
 
-// RecordCleanup writes a clean-up's outcome into each Removed action's detail (journal.Removal.Cleanup), keeping the
-// files' outcome there. A failure is logged: the removal itself is done.
-func RecordCleanup(ctx context.Context, st *store.Store, log *slog.Logger, actions []int64, words string) {
+// RecordCleanup writes a library's clean-up outcome into its Removed action's detail (journal.Removal.Cleanup),
+// keeping the files' outcome there. A failure is logged: the removal itself is done.
+func RecordCleanup(ctx context.Context, st *store.Store, log *slog.Logger, action int64, words string) {
 	err := st.WriteTx(ctx, func(tx *sql.Tx) error {
-		for _, id := range actions {
-			var detail string
-			if err := tx.QueryRowContext(ctx, `SELECT detail FROM journal_action WHERE id = ?`, id).Scan(
-				&detail); err != nil {
-				return err
-			}
-			rm := journal.ParseRemovalDetail(detail)
-			rm.Cleanup = words
-			if err := journal.SetActionDetail(ctx, tx, id, journal.RemovalDetail(rm)); err != nil {
-				return err
-			}
+		var detail string
+		if err := tx.QueryRowContext(ctx, `SELECT detail FROM journal_action WHERE id = ?`, action).Scan(
+			&detail); err != nil {
+			return err
 		}
-		return nil
+		rm := journal.ParseRemovalDetail(detail)
+		rm.Cleanup = words
+		return journal.SetActionDetail(ctx, tx, action, journal.RemovalDetail(rm))
 	})
 	if err != nil && log != nil {
-		log.Warn("removal: recording the clean-up", "actions", actions, "err", err)
+		log.Warn("removal: recording the clean-up", "action", action, "err", err)
 	}
 }
 

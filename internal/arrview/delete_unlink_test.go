@@ -2,7 +2,6 @@ package arrview
 
 import (
 	"context"
-	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -134,7 +133,7 @@ func TestDeleteKeepsTheClientsFlag(t *testing.T) {
 		case !deleteFiles && (state != "active" || len(e.lib.unlinks) != 0 || len(started) != 0 ||
 			rm.Files != journal.RemovalFilesKept):
 			t.Errorf("without deleteFiles: link %v, unlinks %v, clean-ups %v, %+v", state, e.lib.unlinks, started, rm)
-		case deleteFiles && (state != "unlinked" || len(started) != 1 || !slices.Contains(started[0].Hashes, h) ||
+		case deleteFiles && (state != "unlinked" || len(started) != 1 || !hasKey(started[0].Hashes, h) ||
 			rm.Files != journal.RemovalFilesDeleted):
 			t.Errorf("with deleteFiles: link %v, clean-ups %+v, %+v", state, started, rm)
 		}
@@ -142,4 +141,9 @@ func TestDeleteKeepsTheClientsFlag(t *testing.T) {
 			t.Errorf("empty folders not cleared: %v", e.lib.rmdirs)
 		}
 	}
+}
+
+func hasKey(m map[string][]string, k string) bool {
+	_, ok := m[k]
+	return ok
 }

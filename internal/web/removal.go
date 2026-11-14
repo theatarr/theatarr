@@ -38,10 +38,10 @@ func (f fakeRefusal) Error() string { return string(f) }
 func (fakeRefusal) Refused() bool   { return true }
 
 // StartCleanup runs a removal's debrid clean-up (torrents.DeleteForRemoval) after the answer, on the service's
-// context (Config.Background), pinned to the settings generation that removed (CaptureRuntime), and writes its
-// outcome into the Removed actions (removal.RecordCleanup). The arr views' DELETE hands its clean-up here too
-// (arrview SetCleanup). Removal is manager-accessible, its clean-up included; the torrent manager's own delete stays
-// admin only. Nothing is retried.
+// context (Config.Background), pinned to the settings generation that removed (CaptureRuntime), and writes each
+// removed library its own torrents' outcome (removal.RecordCleanup). The arr views' DELETE hands its clean-up here
+// too (arrview SetCleanup). Removal is manager-accessible, its clean-up included; the torrent manager's own delete
+// stays admin only. Nothing is retried.
 func (w *Web) StartCleanup(c removal.Cleanup) {
 	ctx := w.background
 	if w.captureRuntime != nil {
@@ -53,22 +53,27 @@ func (w *Web) StartCleanup(c removal.Cleanup) {
 		ctx, cancel := context.WithTimeout(ctx, cleanupBound)
 		defer cancel()
 		words := w.cleanup(ctx, c)
-		w.log.Info("removal: debrid clean-up", "title", c.TitleID, "hashes", len(c.Hashes), "outcome", words)
-		removal.RecordCleanup(context.WithoutCancel(ctx), w.st, w.log, c.Actions, words)
+		for k, id := range c.Actions {
+			ws := words(c.HashesOf(k))
+			w.log.Info("removal: debrid clean-up", "title", c.TitleID, "version", k, "outcome", ws)
+			removal.RecordCleanup(context.WithoutCancel(ctx), w.st, w.log, id, ws)
+		}
 	}()
 }
 
-func (w *Web) cleanup(ctx context.Context, c removal.Cleanup) string {
+// cleanup runs the clean-up and answers the words for a library's hashes.
+func (w *Web) cleanup(ctx context.Context, c removal.Cleanup) func([]string) string {
+	fixed := func(s string) func([]string) string { return func([]string) string { return s } }
 	if w.torrents == nil {
-		return "torrents not cleaned up: the torrent manager is not running"
+		return fixed("torrents not cleaned up: the torrent manager is not running")
 	}
 	m, err := w.torrents.Manager(ctx)
 	if err != nil {
-		return "torrents not cleaned up: " + err.Error()
+		return fixed("torrents not cleaned up: " + err.Error())
 	}
-	words, err := m.DeleteForRemoval(ctx, torrents.RemovalCleanup{Hashes: c.Hashes, By: c.By})
+	out, err := m.DeleteForRemoval(ctx, torrents.RemovalCleanup{TitleID: c.TitleID, Hashes: c.Hashes, By: c.By})
 	if err != nil {
-		return "torrents not cleaned up: " + err.Error()
+		return fixed("torrents not cleaned up: " + err.Error())
 	}
-	return words
+	return out.Words
 }

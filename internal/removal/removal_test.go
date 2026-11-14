@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"maps"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -47,10 +48,15 @@ type fakeUnlinker struct {
 	refuse  map[int64]bool
 	fail    map[int64]bool
 	removed []int64
+	// before, when set, runs at the start of each call.
+	before func(id int64)
 }
 
 func (f *fakeUnlinker) UnlinkRemoved(ctx context.Context, id int64, _ string) (string, error) {
 	f.calls = append(f.calls, id)
+	if f.before != nil {
+		f.before(id)
+	}
 	switch {
 	case f.refuse[id]:
 		return "", refused("library: write refused (shadow): the library is in shadow")
@@ -196,8 +202,7 @@ func TestRunWithFiles(t *testing.T) {
 	if len(f.started) != 1 || res.Cleanup == nil {
 		t.Fatalf("clean-ups started %+v", f.started)
 	}
-	got := slices.Clone(f.started[0].Hashes)
-	slices.Sort(got)
+	got := slices.Sorted(maps.Keys(f.started[0].Hashes))
 	if want := []string{hH, hA, hB}; !slices.Equal(got, want) {
 		t.Errorf("candidates %v, want %v", got, want)
 	}
@@ -228,14 +233,15 @@ func TestRunWithFiles(t *testing.T) {
 	}
 	// The Removed action says what became of the files; each unlinked link has its own entry.
 	rm := journal.ParseRemovalDetail(f.str(`SELECT detail FROM journal_action WHERE action = ?`, journal.ActRemoveVersion))
-	if rm.Files != journal.RemovalFilesPartial || rm.Left != 4 {
+	// Left: the shared link, the refused one, the failed one, the hardlink, and the arr's own file at /arr.
+	if rm.Files != journal.RemovalFilesPartial || rm.Left != 5 {
 		t.Errorf("removal outcome %+v", rm)
 	}
 	if got := f.str(`SELECT COUNT(*) FROM journal_action WHERE action = ?`, journal.ActUnlinkFile); got != "2" {
 		t.Errorf("unlink entries %s", got)
 	}
 	// The clean-up's outcome is written into that action, keeping the files' outcome.
-	RecordCleanup(context.Background(), f.st, nil, f.started[0].Actions, "deleted on RD")
+	RecordCleanup(context.Background(), f.st, nil, f.started[0].Actions["movie-web"], "deleted on RD")
 	rm2 := journal.ParseRemovalDetail(f.str(`SELECT detail FROM journal_action WHERE action = ?`, journal.ActRemoveVersion))
 	if rm2.Cleanup != "deleted on RD" || rm2.Files != rm.Files || rm2.Left != rm.Left {
 		t.Errorf("after the clean-up %+v", rm2)
@@ -253,12 +259,12 @@ func TestRunWithFiles(t *testing.T) {
 	if len(res.Removed) != 0 || !slices.Equal(paths(res.Shared), []string{"c.mkv"}) || len(res.Unlinked) != 2 {
 		t.Errorf("retry %+v", res)
 	}
-	if len(f.started) != 1 || !slices.Equal(slices.Sorted(slices.Values(f.started[0].Hashes)), []string{hD, hE}) ||
+	if len(f.started) != 1 || !slices.Equal(slices.Sorted(maps.Keys(f.started[0].Hashes)), []string{hD, hE}) ||
 		len(f.started[0].Actions) != 1 {
 		t.Errorf("retry clean-up %+v", f.started)
 	}
 	if rm := journal.ParseRemovalDetail(f.str(`SELECT detail FROM journal_action WHERE action = ?`,
-		journal.ActRemoveVersion)); rm.Files != journal.RemovalFilesPartial || rm.Left != 2 {
+		journal.ActRemoveVersion)); rm.Files != journal.RemovalFilesPartial || rm.Left != 3 {
 		t.Errorf("retry outcome %+v", rm)
 	}
 }
@@ -327,7 +333,8 @@ func TestRunKeepsTheArrsFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 	if rm := journal.ParseRemovalDetail(f.str(`SELECT detail FROM journal_action WHERE action = ?`,
-		journal.ActRemoveVersion)); len(f.started) != 0 || rm.Cleanup != "torrents kept: Sonarr's or Radarr's own files of it stay theirs" {
+		journal.ActRemoveVersion)); len(f.started) != 0 || rm.Cleanup != "torrents kept: Sonarr's or Radarr's own files of it stay theirs" ||
+		rm.Files != journal.RemovalFilesKept || rm.Reason != "Sonarr's or Radarr's own file stays" {
 		t.Errorf("outcome %+v, started %v", rm, f.started)
 	}
 }
@@ -374,5 +381,90 @@ func TestRunFailsClosed(t *testing.T) {
 	if f.str(`SELECT COUNT(*) FROM arrview_removed_version`) != "0" || len(f.u.calls) != 0 ||
 		f.str(`SELECT state FROM download WHERE id = 31`) != "downloading" || len(f.started) != 0 {
 		t.Error("a failed removal changed something")
+	}
+}
+
+// A library restored (an Add) while the links are taken out uses its links again: the shared check is made again
+// right before each unlink, and the link stays, its torrent with it.
+func TestRunRechecksBeforeEachUnlink(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	f.u.before = func(id int64) {
+		if id == 10 {
+			f.exec(`DELETE FROM arrview_removed_version WHERE version_id = 1`)
+		}
+	}
+	res, err := Run(context.Background(), f.deps(), webSpec(true))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if slices.Contains(f.u.calls, 11) || !slices.Contains(paths(res.Shared), "b.mkv") {
+		t.Errorf("unlinked %v, shared %v", f.u.calls, paths(res.Shared))
+	}
+	if len(f.started) == 1 {
+		if _, ok := f.started[0].Hashes[hB]; ok {
+			t.Errorf("the restored library's kept link's torrent is a candidate: %v", f.started[0].Hashes)
+		}
+	}
+}
+
+// A link that stays without a hash keeps every candidate of its library; one that stays keeps the hash of every
+// link sharing its target.
+func TestRunKeepsTheTorrentsOfUntiedLinks(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	f.exec(`UPDATE link SET file_metadata = '{}' WHERE id = 13`) // the refused link has no hash
+	if _, err := Run(context.Background(), f.deps(), webSpec(true)); err != nil {
+		t.Fatal(err)
+	}
+	rm := journal.ParseRemovalDetail(f.str(`SELECT detail FROM journal_action WHERE action = ?`, journal.ActRemoveVersion))
+	if len(f.started) != 0 || rm.Cleanup != "torrents kept: their files stay in the library" {
+		t.Errorf("clean-ups %+v, outcome %+v", f.started, rm)
+	}
+
+	g := newFixture(t)
+	g.exec(`UPDATE link SET target = (SELECT target FROM link WHERE id = 13) WHERE id = 10`) // a.mkv and d.mkv: one file
+	if _, err := Run(context.Background(), g.deps(), webSpec(true)); err != nil {
+		t.Fatal(err)
+	}
+	if len(g.started) != 1 {
+		t.Fatalf("clean-ups %+v", g.started)
+	}
+	if _, ok := g.started[0].Hashes[hA]; ok {
+		t.Errorf("a.mkv shares the refused link's target; its torrent is a candidate: %v", g.started[0].Hashes)
+	}
+}
+
+// Each removed library carries its own hashes, so each Removed event gets its own torrents' outcome.
+func TestRunCleanupPerLibrary(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	const hY = "4444444444444444444444444444444444444444"
+	f.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, state,
+		created_at, updated_at) VALUES (33, 1, 2, 'movie-remux', ?, 'Gone.Remux', 'idx', 'imported', 0, 0)`, hY)
+	if _, err := Run(context.Background(), f.deps(), Spec{TitleID: 1, Name: "Gone",
+		Keys: []string{"movie-web", "movie-remux"}, View: "ui", Unlink: true, Action: journal.ActRemoveTitle}); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.started) != 1 || len(f.started[0].Actions) != 2 {
+		t.Fatalf("clean-ups %+v", f.started)
+	}
+	c := f.started[0]
+	if !slices.Equal(c.HashesOf("movie-remux"), []string{hY, hC}) || slices.Contains(c.HashesOf("movie-web"), hY) {
+		t.Errorf("remux %v, web %v", c.HashesOf("movie-remux"), c.HashesOf("movie-web"))
+	}
+}
+
+// A queued copy to another provider is not stopped while another title's current arr file holds its hash.
+func TestRunKeepsCopiesAnArrFileWants(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	f.exec(`INSERT INTO version_file (version_id, title_id, instance, arr_file_id, path, download_id) VALUES
+		(3, 2, 'radarr', 9, '/arr/Other.mkv', ?)`, strings.ToUpper(hH))
+	if _, err := Run(context.Background(), f.deps(), webSpec(false)); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.str(`SELECT state FROM provider_copy WHERE info_hash = ? AND provider = 'tb'`, hH); got != "queued" {
+		t.Errorf("the copy Other's arr file wants: %s", got)
 	}
 }

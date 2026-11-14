@@ -49,6 +49,10 @@ func TestRemoveRunsTheCleanupAfterTheAnswer(t *testing.T) {
 			(5, '/movies/Beta (2021)/Beta.mkv', '/mnt/zurg/__all__/Beta.2021.2160p.WEB/b.mkv', 'symlink', 2, 'active', ?,
 			?, ?)`, `{"InfoHash":"`+hb+`"}`, now, now)
 		o.exec(`INSERT INTO link_version (link_id, version_id) VALUES (5, 3)`)
+		// Theatarr's own add of it (not a reuse): the clean-up may take it.
+		o.exec(`INSERT INTO download (title_id, version_id, version_key, info_hash, release_title, indexer, state,
+			provider, provider_torrent_id, created_at, updated_at) VALUES (2, 3, 'movie-web', ?, 'Beta', 'idx',
+			'imported', 'rd', '20', ?, ?)`, hb, now, now)
 
 		var got RemoveResult
 		if code := o.jsonCall("POST", APIBase+"/titles/2/remove", RemoveRequest{Unlink: unlink}, o.mc, o.mcsrf,

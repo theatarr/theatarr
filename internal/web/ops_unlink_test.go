@@ -21,6 +21,7 @@ func TestRemoveUnlinkFailureIsRetryable(t *testing.T) {
 	o.exec(`INSERT INTO link (id, path, target, kind, title_id, state, created_at, updated_at) VALUES
 		(5, '/lib/Beta/a.mkv', '/mnt/zurg/a.mkv', 'symlink', 2, 'active', ?, ?)`, now, now)
 	o.exec(`INSERT INTO link_version (link_id, version_id) VALUES (5, 3)`)
+	o.exec(`DELETE FROM version_file WHERE version_id = 3`) // no file of the arr's own: every file is a link
 	o.ops.unlinkErr = syscall.ENOSPC
 	var got RemoveResult
 	if code := o.jsonCall("POST", APIBase+"/titles/2/remove", RemoveRequest{Unlink: true}, o.mc, o.mcsrf,
