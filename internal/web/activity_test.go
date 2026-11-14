@@ -839,3 +839,14 @@ func TestHistorySeriesRedaction(t *testing.T) {
 		}
 	}
 }
+
+// A copy that found the torrent there already reads "Already on", not "Added to".
+func TestHistoryCopyWords(t *testing.T) {
+	t.Parallel()
+	for ev, want := range map[string]string{journal.EvCopyAdded: "Added to AD", journal.EvCopyAlready: "Already on AD",
+		journal.EvCopyNotCached: "Not cached on AD"} {
+		if got, _ := historyWords(&journal.HistoryRow{Kind: journal.KindCopy, Event: ev, Provider: "ad"}); got != want {
+			t.Errorf("%s: %q, want %q", ev, got, want)
+		}
+	}
+}

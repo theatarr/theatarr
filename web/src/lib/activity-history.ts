@@ -12,7 +12,7 @@ export const HISTORY_EVENTS: { id: HistoryEventId; label: string; events: string
   { id: "imported", label: "Imported and adopted", events: ["imported", "adopted"] },
   { id: "deleted", label: "Deleted and removed", events: ["deleted", "removed", "missing"] },
   { id: "failed", label: "Failed and blocked", events: ["failed", "blocked"] },
-  { id: "copies", label: "Other providers", events: ["copy_added", "copy_not_cached"], admin: true },
+  { id: "copies", label: "Other providers", events: ["copy_added", "copy_already", "copy_not_cached"], admin: true },
 ];
 
 /** Event filters of bookmarks from before Radarr's words, and the filter each now is. */

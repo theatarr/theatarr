@@ -251,7 +251,7 @@ var historyKinds = []string{journal.KindGrab, journal.KindUpgrade, journal.KindI
 
 // userHistoryEvents are the History events a caller without "see files" gets: not the provider copies.
 var userHistoryEvents = slices.DeleteFunc(slices.Clone(journal.HistoryEvents), func(ev string) bool {
-	return ev == journal.EvCopyAdded || ev == journal.EvCopyNotCached
+	return ev == journal.EvCopyAdded || ev == journal.EvCopyAlready || ev == journal.EvCopyNotCached
 })
 
 var activityKinds = map[string]bool{"": true, "movie": true, "series": true, "anime": true}
@@ -652,13 +652,9 @@ func (w *Web) historyEvents(ctx context.Context, hs []*journal.HistoryRow, admin
 	if err != nil {
 		return nil, err
 	}
-	anime, err := animeTitles(ctx, w.st.Reader(), ids)
-	if err != nil {
-		return nil, err
-	}
 	out := []ActivityEvent{}
 	for _, h := range hs {
-		t := activityTitle(h.Title.ID, h.Title.Name, h.Title.Year, h.Title.Kind, anime[h.Title.ID], posters)
+		t := activityTitle(h.Title.ID, h.Title.Name, h.Title.Year, h.Title.Kind, h.Anime, posters)
 		notStarted := historyNotStarted(h)
 		words, tone := entryWords(h, notStarted, w.providerTag)
 		x := ActivityEvent{ID: h.ID, At: h.At, Kind: h.Kind, Event: h.Event, Title: t, Version: h.Version, Words: words,
@@ -684,31 +680,6 @@ func (w *Web) historyEvents(ctx context.Context, hs []*journal.HistoryRow, admin
 		out = append(out, x)
 	}
 	return out, nil
-}
-
-func animeTitles(ctx context.Context, db *sql.DB, ids []int64) (map[int64]bool, error) {
-	out := map[int64]bool{}
-	if len(ids) == 0 {
-		return out, nil
-	}
-	args := make([]any, len(ids))
-	for i, id := range ids {
-		args[i] = id
-	}
-	rows, err := db.QueryContext(ctx, `SELECT id FROM title WHERE anime = 1 AND id IN (`+
-		strings.TrimSuffix(strings.Repeat("?, ", len(ids)), ", ")+`)`, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var id int64
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		out[id] = true
-	}
-	return out, rows.Err()
 }
 
 // historyNotStarted is the not-started reason of a failed download's row (as activity.Download.NotStarted: a gate
@@ -763,6 +734,8 @@ func entryWords(h *journal.HistoryRow, notStarted string, tag func(string) strin
 		return "Blocked", "warn"
 	case journal.EvCopyAdded:
 		return "Added to " + tag(h.Provider), "ok"
+	case journal.EvCopyAlready:
+		return "Already on " + tag(h.Provider), "ok"
 	case journal.EvCopyNotCached:
 		return "Not cached on " + tag(h.Provider), "info"
 	}
@@ -789,7 +762,7 @@ func historyReason(h *journal.HistoryRow, notStarted string, tag func(string) st
 		}
 	case journal.EvRemoved:
 		return h.Reason
-	case journal.EvCopyAdded, journal.EvCopyNotCached:
+	case journal.EvCopyAdded, journal.EvCopyAlready, journal.EvCopyNotCached:
 		if w, _ := entryWords(h, "", tag); !strings.EqualFold(h.Reason, w) {
 			return h.Reason
 		}

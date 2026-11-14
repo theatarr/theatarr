@@ -31,13 +31,14 @@ export const EVENT_MEANINGS: { words: string; meaning: string }[] = [
   { words: "Not started: …", meaning: "It never left the queue because downloads were off." },
   { words: "Blocked", meaning: "This release is on the library's blocklist and won't be tried again." },
   { words: "Added to …", meaning: "The torrent was added to another provider as well (Add to other providers)." },
+  { words: "Already on …", meaning: "The other provider held the torrent already, so nothing was added there." },
   { words: "Not cached on …", meaning: "Another provider did not have the torrent cached, so it was not added there." },
 ];
 
 /** The meaning of an event's words ("Not started: …" for every not-started reason, "Added to …" and "Not cached on …"
  *  for every provider); "" when the list has none. */
 export function eventMeaning(words: string): string {
-  const prefix = ["Not started: ", "Added to ", "Not cached on "].find((p) => words.startsWith(p));
+  const prefix = ["Not started: ", "Added to ", "Already on ", "Not cached on "].find((p) => words.startsWith(p));
   const key = prefix ? `${prefix.trimEnd()} …` : words;
   return EVENT_MEANINGS.find((m) => m.words === key)?.meaning ?? "";
 }
