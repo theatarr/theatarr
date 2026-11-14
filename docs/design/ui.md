@@ -509,6 +509,39 @@ does the same ("Grabbed #1 via RD"). A torrent hash with a destination is a link
 inventory. It appears after a provider sync if one of your provider accounts holds it." with a link back to Torrents. A title named next to its id
 links to the title page.
 
+**Formatting** (`web/src/lib/format.ts`): one helper per kind of value, used by every screen. Numbers, counts and
+scores go through `fmtNumber` ("1,128", "4,200"); sizes through `fmtBytes` (binary units, "9.6 MiB", never "KB");
+moments through `fmtTime` ("Nov 13 14:15", the year only when it is not this year) and `fmtAgo` ("3 h ago"); calendar
+days through `fmtDay` ("Oct 27", "Oct 27, 2024"), and a list whose dates span more than this year (an episode table,
+a watch order) through `dayFormatter`, which then puts the year on every date so "Jan 1" never follows "Dec 25,
+2025"; Go durations through `fmtGoDuration` ("2 h", not "2h0m0s"). No screen prints an ISO date, a browser-locale
+`toLocaleString` or a raw byte count. A count and its noun use `plural` ("1 title", "2 titles", "1 frozen copy";
+`pluralWord` for a verb: "1 title matches", "2 titles match"). A title's name with its year uses `titleWithYear`,
+which does not add a year the name already ends with ("Foundation (2021)", never "Foundation (2021) (2021)");
+where the year is printed beside or under the name, the name goes through `nameWithoutYear`. Equal sort names order
+by the full name, then the year ("Alien" before "Alien³").
+
+**Shared controls**: a sortable header (`SortHead`) looks like every other header (small capitals). A list read a page
+at a time shows the pager only when there is more than one page; a list that fits one page says "All 48 shown". A
+table wider than its frame scrolls inside the frame, and while columns are hidden on the right the frame's right edge
+fades; library pills in the catalog table wrap instead of widening it. The sidebar's Reviews badge shows nothing
+until all its counts have loaded. On a phone, a title page and Home's "See all" lists highlight **Browse**.
+
+**Codes in words** (`web/src/lib/code-words.ts` and one file per domain): a stored code is never printed as it is.
+Rejection reasons (`rejection-words.ts`: "DiskHigherPreference" reads "Not better than the file held"), the "Why?"
+evidence sources (`evidence-words.ts`: "rss:dmm" reads "RSS (dmm)"), TMDb statuses and release types
+(`tmdb-words.ts`: "inCinemas" reads "In cinemas", "theatrical_limited" "Limited cinema release" or, in the Movies
+"Next" line, "Limited release"), anime formats, mapping statuses, roles, sources and order kinds (`anime-words.ts`:
+"TVDB_SPECIAL" reads "TVDB special", "heuristic" "Matched by date and title"), the router's attempt outcomes, step
+codes, cache states and sources and back-off subjects (`router-words.ts`: "uncached_deleted" reads "not cached, our
+add deleted", "router:miss" "from a search that found it nowhere"), torrent states and the torrents journal
+(`torrent-words.ts`: "downloaded" reads "Complete", "backup ok" "Backed up", "schedule" "Scheduled"), the Errors page's
+statuses, sources and health-check components (`error-words.ts`: "VpnEgressCheck" reads "VPN egress"), and job kinds
+(`jobs.ts`). A code no map knows reads as itself made readable (underscores and camel case to words, sentence case:
+"some_new_code" reads "Some new code"), never blank. Where an admin may need the code, it stays as the element's
+tooltip. Sentences the server builds keep their words in one Go function: the blocklist's reason (`blockWords`,
+including "Imported from Radarr's blocklist" for `arr:<instance>`) and the health checks' messages (dates as "Nov 17").
+
 - **Page:** Movies, Series and Anime use the full width. The toolbar has the title search ("Filter by title", the
   `q` parameter) and **Select** (managers) on the left; **Columns** (table) or **Poster options** (posters), the
   Posters / Table switch, **Sort** (a select and the direction button, in both views since a phone has no headers)
