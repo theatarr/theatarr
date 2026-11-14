@@ -348,6 +348,13 @@ const (
 	droppedArrFile = "arr_file"
 )
 
+// sharedSQL is the condition that link l is still used by a current library (a version not removed): through its
+// link_version rows, or a current arr file (version_file) at its path.
+const sharedSQL = `(EXISTS (SELECT 1 FROM link_version lv2 WHERE lv2.link_id = l.id
+		AND NOT EXISTS (SELECT 1 FROM arrview_removed_version r WHERE r.version_id = lv2.version_id))
+	OR EXISTS (SELECT 1 FROM version_file vf2 WHERE vf2.path = l.path
+		AND NOT EXISTS (SELECT 1 FROM arrview_removed_version r WHERE r.version_id = vf2.version_id)))`
+
 // fate is what became of one removed library's files: how many links were unlinked, and the distinct paths left in
 // place (links and arr files) with the first reason.
 type fate struct {
@@ -383,8 +390,7 @@ func unlink(ctx context.Context, d Deps, s Spec, keys []string, c *cands, out *R
 	var links []link
 	err := scan(ctx, d.Store.Reader(), `SELECT l.id, l.path, l.kind, COALESCE(`+router.LinkStoredHashSQL+`, ''), l.target,
 		group_concat(DISTINCT v.policy_key),
-		EXISTS (SELECT 1 FROM link_version lv2 WHERE lv2.link_id = l.id
-			AND NOT EXISTS (SELECT 1 FROM arrview_removed_version r WHERE r.version_id = lv2.version_id))
+		`+sharedSQL+`
 		FROM link l JOIN link_version lv ON lv.link_id = l.id JOIN version v ON v.id = lv.version_id
 		WHERE v.title_id = ? AND v.policy_key IN (`+store.Placeholders(len(keys))+`) AND l.state IN ('active', 'dead')
 		GROUP BY l.id ORDER BY l.path`, append([]any{s.TitleID}, anyOf(keys)...), func(r *sql.Rows) error {
@@ -394,6 +400,9 @@ func unlink(ctx context.Context, d Deps, s Spec, keys []string, c *cands, out *R
 			return err
 		}
 		x.keys = strings.Split(ks, ",")
+		// Hashes are compared normalised (hex, as the candidates are); one that cannot be read counts as none: the
+		// link is untied.
+		x.hash = indexer.NormalizeHash(x.hash)
 		links = append(links, x)
 		return nil
 	})
@@ -427,9 +436,8 @@ func unlink(ctx context.Context, d Deps, s Spec, keys []string, c *cands, out *R
 		// The shared check again, right before the unlink: a library restored (an Add) since the links were read
 		// uses the link now.
 		if !x.shared && x.kind == "symlink" {
-			err := d.Store.Reader().QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM link_version lv
-				WHERE lv.link_id = ? AND NOT EXISTS (SELECT 1 FROM arrview_removed_version r
-				WHERE r.version_id = lv.version_id))`, x.id).Scan(&x.shared)
+			err := d.Store.Reader().QueryRowContext(ctx, `SELECT `+sharedSQL+` FROM link l WHERE l.id = ?`,
+				x.id).Scan(&x.shared)
 			if err != nil {
 				out.Failed = append(out.Failed, Left{Path: x.path, Reason: err.Error()})
 				count(x, false, err.Error())

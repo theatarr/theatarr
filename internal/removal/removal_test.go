@@ -545,3 +545,35 @@ func TestRunWithoutFilesOnALibraryWithNoFile(t *testing.T) {
 		t.Errorf("files: %+v", rm)
 	}
 }
+
+// A refused link whose hash is stored in base32 still keeps its torrent: hashes are compared normalised.
+func TestRunNormalisesKeptLinkHashes(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	f.exec(`UPDATE link SET file_metadata = '{"InfoHash":"3XO53XO53XO53XO53XO53XO53XO53XO5"}' WHERE id = 13`) // hD
+	f.exec(`INSERT INTO download (title_id, version_id, version_key, info_hash, release_title, indexer, state,
+		created_at, updated_at) VALUES (1, 1, 'movie-web', ?, 'Gone.D', 'idx', 'imported', 0, 0)`, hD)
+	if _, err := Run(context.Background(), f.deps(), webSpec(true)); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.started) == 1 {
+		if _, ok := f.started[0].Hashes[hD]; ok {
+			t.Errorf("the refused link's torrent is a candidate: %v", f.started[0].Hashes)
+		}
+	}
+}
+
+// A current library's arr file at a link's path uses that link: the removal leaves it.
+func TestRunKeepsALinkACurrentArrFileUses(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	f.exec(`INSERT INTO version_file (version_id, title_id, instance, arr_file_id, path) VALUES
+		(2, 1, 'radarr', 3, '/lib/web/Gone/a.mkv')`) // the Remux library's arr file at a.mkv
+	res, err := Run(context.Background(), f.deps(), webSpec(true))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if slices.Contains(f.u.calls, 10) || !slices.Contains(paths(res.Shared), "a.mkv") {
+		t.Errorf("unlinked %v, shared %v", f.u.calls, paths(res.Shared))
+	}
+}
