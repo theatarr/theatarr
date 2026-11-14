@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { expect, it } from "vitest";
 import { json, mockFetch, renderPage, type Route } from "@/test/page";
 import { useReviewCounts, suspectCount } from "@/api/reviews";
@@ -14,6 +14,7 @@ const routes = (empty = false, catalogOff = false, admin = true): Route[] => [
  { method: "GET", path: "/anime/review", reply: { items: empty ? [] : [{ state: "open" }, { state: "accepted" }] } },
  { method: "GET", path: "/cardigann/holds", reply: catalogOff ? json({ error: "off" }, 503) : empty ? [] : [{ id: "site" }] },
  { method: "GET", path: "/journal", reply: { items: empty ? [] : Array.from({ length: 50 }, (_, id) => ({ id: `dl:${id}` })) } },
+ { method: "GET", path: "/journal/resolved", reply: { count: 0, items: [] } },
 ];
 it("counts the three queues, treats catalog 503 as zero, and marks a full journal page as a lower bound", async () => {
  const fetch = mockFetch(routes(false, true));
@@ -90,4 +91,29 @@ it("shows a question mark badge when the scan found no matches but has older ent
  mockFetch(routes(true).map(r => r.path === "/journal" ? { ...r, reply: { items: [], next_cursor: "older" } } : r));
  renderPage(<ReviewsBadge />);
  expect((await screen.findByTestId("reviews-badge")).textContent).toBe("?");
+});
+
+it("names each flagged item and its reason, and acknowledges settled dead-link flags in bulk", async () => {
+ let settled = 2;
+ const fetch = mockFetch([
+  ...routes(true).filter(r => r.path !== "/journal" && r.path !== "/journal/resolved"),
+  { method: "GET", path: "/journal", reply: { items: [
+   { id: "lib:4", at: "2026-11-01T12:00:00Z", kind: "link", title: { id: 3, name: "Gamma" }, version: "tv-2160p", summary: "dead (dry_run) /lib/Gamma/Season 01/Gamma S01E02.mkv", import: { state: "dry_run", links: [{ path: "/lib/Gamma/Season 01/Gamma S01E02.mkv" }] }, flags: [{ code: "dead_link", severity: "warn", reason: "the link's target is gone and no provider folder holds the file" }], suspect: true },
+   { id: "dl:9:fail", at: "2026-11-01T11:00:00Z", kind: "failure", title: { id: 3, name: "Gamma" }, version: "tv-2160p", summary: "", release: { title: "Gamma.S01E03.2160p.WEB-DL", episodes: ["S01E03"] }, flags: [{ code: "repeated_failures", severity: "warn", reason: "4 failures for this title and library in 30 days" }], suspect: true },
+  ] } },
+  { method: "GET", path: "/journal/resolved", reply: () => ({ count: settled, items: [] }) },
+  { method: "POST", path: "/journal/resolved/acknowledge", reply: () => { const n = settled; settled = 0; return { acknowledged: n }; } },
+ ]);
+ renderPage(<ReviewsPage />, "/admin/reviews/decisions");
+ const rows = await screen.findAllByTestId("flagged");
+ expect(within(rows[0]).getByText("/lib/Gamma/Season 01/Gamma S01E02.mkv")).toBeTruthy();
+ expect(within(rows[0]).getByText(/target is gone/)).toBeTruthy();
+ expect(within(rows[1]).getByRole("link", { name: "Gamma S01E03" })).toBeTruthy();
+ expect(within(rows[1]).getByText("Gamma.S01E03.2160p.WEB-DL")).toBeTruthy();
+ expect(within(rows[1]).getByText("4 failures for this title and library in 30 days")).toBeTruthy();
+ const bar = await screen.findByTestId("resolved-flags");
+ expect(bar.textContent).toContain("2 dead-link flags are settled");
+ fireEvent.click(within(bar).getByRole("button", { name: "Acknowledge 2 settled flags" }));
+ await waitFor(() => expect(fetch.calls("POST", "/journal/resolved/acknowledge")).toHaveLength(1));
+ await waitFor(() => expect(screen.queryByTestId("resolved-flags")).toBeNull());
 });

@@ -17,6 +17,8 @@ export function SourcesPanel({ kind }: { kind?: "providers" | "indexers" }) {
   if (q.isPending) return <Loading />;
   if (q.error) return <ErrorState error={q.error} />;
   const s = q.data;
+  // The other indexers drawing on the same request budget: its use is theirs too.
+  const sharedWith = (ix: (typeof s.indexers)[number]) => ix.budget ? s.indexers.filter((o) => o.key !== ix.key && o.budget === ix.budget).map((o) => o.key) : [];
   return (
     <div>
       {kind !== "indexers" ? <Section title="Status" className="mt-0">
@@ -67,11 +69,12 @@ export function SourcesPanel({ kind }: { kind?: "providers" | "indexers" }) {
             <TableBody>
               {s.indexers.map((ix) => (
                 <TableRow key={ix.key} data-indexer={ix.key}>
-                  <TableCell><Link className="text-[var(--accent-ink)] underline-offset-2 hover:underline" to={`/admin/settings/indexers?edit=${encodeURIComponent(ix.key)}`} aria-label={`Edit ${ix.key}`}><Mono className="[overflow-wrap:anywhere]">{ix.key}</Mono></Link><div className="mt-1 flex flex-wrap gap-1 sm:hidden">{ix.kind}</div></TableCell>
+                  <TableCell><Link className="text-[var(--accent-ink)] underline-offset-2 hover:underline" to={`/admin/settings/indexers?edit=${encodeURIComponent(ix.key)}`} aria-label={`Edit ${ix.key}`}><Mono className="[overflow-wrap:anywhere]">{ix.key}</Mono></Link>{ix.disabled ? <Badge className="ml-2" title="Switched off in Settings › Indexers: not searched">Off</Badge> : null}<div className="mt-1 flex flex-wrap gap-1 sm:hidden">{ix.kind}</div></TableCell>
                   <TableCell className="hidden sm:table-cell">{ix.kind}{ix.proxy ? <Badge className="ml-2">proxy</Badge> : null}</TableCell>
                   <TableCell><Badge tone={ix.privacy === "public" ? "positive" : "warning"}>{ix.privacy}</Badge></TableCell>
                   <TableCell className="hidden md:table-cell">
                     <Mono>{ix.budget ?? "—"}</Mono>
+                    {sharedWith(ix).length ? <span className="text-xs text-muted-foreground"> · shared with {sharedWith(ix).join(", ")}</span> : null}
                     {ix.budget_use ? <span className="text-xs text-muted-foreground"> · {fmtNumber(ix.budget_use.used_hour)} this hour · {fmtNumber(ix.budget_use.used_day)} today</span> : null}
                   </TableCell>
                   <TableCell className="max-w-[22rem] text-[13px]">

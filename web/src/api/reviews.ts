@@ -1,5 +1,6 @@
-import { useQuery } from "@tanstack/react-query";
-import { api } from "./client";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "@/components/toaster";
+import { api, type Schemas } from "./client";
 import { permsOf } from "./library";
 import { useAuth } from "./auth";
 import { qk } from "./query-keys";
@@ -10,6 +11,25 @@ export const useFlaggedDecisions = (enabled = true) => useQuery({
   queryKey: qk.journal.list({ suspect: true }),
   queryFn: () => api<JournalPage & { total?: number }>("/journal?suspect=1&limit=50"), enabled, refetchInterval: 60_000,
 });
+
+/** The open dead-link flags that are resolved or superseded (GET /journal/resolved): what Acknowledge resolved covers. */
+export const useResolvedFlags = (enabled = true) => useQuery({
+  queryKey: [...qk.journal.all, "resolved"] as const,
+  queryFn: () => api<Schemas["JournalResolved"]>("/journal/resolved"), enabled, refetchInterval: 60_000,
+});
+
+/** Acknowledge them all: an OK verdict on each (the records stay; nothing is blocked, searched or relinked). */
+export function useAcknowledgeResolved() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api<{ acknowledged: number }>("/journal/resolved/acknowledge", { method: "POST" }),
+    onSuccess: (r) => {
+      toast({ tone: "ok", title: `Acknowledged ${r.acknowledged} flag${r.acknowledged === 1 ? "" : "s"}` });
+      void qc.invalidateQueries({ queryKey: qk.journal.all });
+    },
+    onError: (e: Error) => toast({ tone: "bad", title: "Acknowledge failed", body: e.message }),
+  });
+}
 
 /** The journal currently returns a page, not a total. A full page or an unfinished scan is a lower bound. */
 export function suspectCount(page?: JournalPage & { total?: number }) {

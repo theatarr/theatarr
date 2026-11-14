@@ -19,7 +19,8 @@ import { qk } from "@/api/query-keys";
 import { PRODUCT_NAME } from "@/brand";
 import { DownloadsOffNotice, VersionStatus } from "@/components/version-status";
 import { globalDownloadsOff } from "@/lib/version-grab";
-import { Empty, ErrorState, Loading, Mono, PageHeader, Section, Stat, StatGrid, Strip } from "@/components/page";
+import { Empty, ErrorState, Loading, Mono, PageHeader, Section, Stat, StatGrid, Strip, VersionTag } from "@/components/page";
+import { episodesWords } from "@/components/activity/row-bits";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
@@ -137,15 +138,18 @@ export function Overview() {
   }
   for (const d of stuck.slice(0, DOWNLOADS_LISTED)) {
     const w = timing(d, t);
+    const failedDl = d.state === "failed" || d.steps?.some((s) => s.state === "failed");
+    const eps = episodesWords(d.episodes);
+    // A failure says its error; otherwise whether some files are in (partly linked) or none yet (whether the title
+    // already has one, an upgrade, is not said here).
+    const what = failedDl ? d.error || "No error recorded" : d.import_state === "partial" ? "Some files linked" : "No file from this download yet";
     items.push({
       key: `download-${d.id}`,
-      tone: d.state === "failed" || d.steps?.some((s) => s.state === "failed") ? "bad" : "warn",
-      title: <>{d.title.id ? <Link className="hover:underline" to={`/title/${d.title.id}`}>{d.title.name}</Link> : d.title.name} <span className="font-normal text-muted-foreground">· {stageLabel(d)}</span></>,
-      // Partly linked: some of its files are in; otherwise it has brought none yet (whether the title already has one,
-      // an upgrade, is not said here).
-      effect: `${d.import_state === "partial" ? "Some files linked" : "No file from this download yet"}${w.waited ? `; waiting ${w.waited}` : w.updated ? `; last update ${w.updated}` : ""}${w.retry ? `; next try ${w.retry}` : ""}.`,
+      tone: failedDl ? "bad" : "warn",
+      title: <>{d.title.id ? <Link className="hover:underline" to={`/title/${d.title.id}`}>{d.title.name}</Link> : d.title.name}{eps ? ` ${eps}` : ""} {d.version ? <VersionTag k={d.version} className="ml-1 align-middle" /> : null} <span className="font-normal text-muted-foreground">· {stageLabel(d)}</span></>,
+      effect: <>{what}{w.waited ? `; waiting ${w.waited}` : w.updated ? `; last update ${w.updated}` : ""}{w.retry ? `; next try ${w.retry}` : ""}.{d.release ? <span className="block text-[var(--ink-3)] [overflow-wrap:anywhere]" data-testid="attention-release">Release: {d.release}</span> : null}</>,
       next: "Inspect the download",
-      to: "/activity?show=attention",
+      to: `/activity?show=attention&open=${d.id}`,
       open: "Inspect",
     });
   }
@@ -200,7 +204,7 @@ export function Overview() {
       </Section>
 
       <Section title="Downloads" aside={<Link to="/activity" className="text-primary hover:underline">Open queue</Link>}>
-        {now.error ? <ErrorState error={now.error} /> : (
+        {now.error ? <ErrorState error={now.error} /> : now.isPending ? <Loading /> : (
           <Strip
             items={[
               { label: "in progress", value: fmtNumber(inHand), testid: "dl-all" },
@@ -213,14 +217,15 @@ export function Overview() {
       </Section>
 
       <Section title="Tasks" aside={<Link to="/admin/system/tasks" className="text-primary hover:underline">Open tasks</Link>}>
-        <Strip
+        {/* The counts come from the live stream or the failed-jobs answer; until either has spoken they are unknown, not 0. */}
+        {Object.keys(counts).length === 0 && failed.error ? <ErrorState error={failed.error} /> : Object.keys(counts).length === 0 && failed.isPending ? <Loading /> : <Strip
           items={[
             { label: "running", value: fmtNumber(counts.running ?? 0), testid: "ov-jobs-running" },
             { label: "queued", value: fmtNumber(counts.queued ?? 0), testid: "ov-jobs-queued" },
             { label: "need attention", value: fmtNumber(nFailed), tone: nFailed > 0 ? "bad" : undefined, testid: "health-failed" },
           ]}
           action={<span className="text-xs text-muted-foreground">Finished and resolved tasks are folded on Tasks</span>}
-        />
+        />}
       </Section>
 
       <Section title="Libraries">
@@ -296,7 +301,7 @@ function BrokenLinks({ count }: { count: number }) {
                   {d.title_id ? <Link className="font-medium hover:underline" to={`/title/${d.title_id}`}>{d.title}</Link> : <span className="font-medium">{d.folder || "Unknown"}</span>}
                   {d.label ? <Badge>{d.label}</Badge> : null}
                   <span className="text-muted-foreground">since {fmtAgo(d.first_seen)}</span>
-                  {d.cause === "no_video" ? <span className="text-muted-foreground">torrent has no video upstream</span> : null}
+                  <span className="text-muted-foreground">{d.cause === "no_video" ? "torrent has no video upstream" : "target missing"}</span>
                 </div>
                 <div>{danglingNext(d.link_state)}</div>
                 <Mono className="block text-[11.5px] [overflow-wrap:anywhere]">{d.path}</Mono>
@@ -315,14 +320,17 @@ export function Readiness() {
   const backups = useAppBackups();
   const switches = settings.data?.switches;
   // Send notifications is the notify section's enabled field (default off).
-  const sections = useSettingsSections().data;
+  const sectionsQ = useSettingsSections();
+  const sections = sectionsQ.data;
   const notify = sections ? sections.sections.find(s => s.key === "notify")?.config?.enabled === true : undefined;
+  // Loading or an error reads as such, never as "Unknown" or OFF.
+  const word = (on: boolean | undefined, pending: boolean, error: unknown) => error ? "Could not load" : pending ? "Loading…" : on === undefined ? "Unknown" : on ? "ON" : "OFF";
   const latest = [...(backups.data?.sets ?? [])].filter(b => b.complete).sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
-  return <Section title="Readiness" className="mt-0"><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+  return <Section title="Readiness" className="mt-0"><div className="grid gap-3 sm:grid-cols-3">
     {([
-      ["Pause", "libraries", switches?.paused],
-      ["Notifications", "notifications", notify],
-    ] as const).map(([label, page, on]) => <Link key={page} to={SETTINGS_PAGES.find(p => p.id === page)!.route}><Card><h2>{label}</h2><strong>{on === undefined ? "Unknown" : on ? "ON" : "OFF"}</strong></Card></Link>)}
+      ["Pause", "libraries", word(switches?.paused, settings.isPending, settings.error)],
+      ["Notifications", "notifications", word(notify, sectionsQ.isPending, sectionsQ.error)],
+    ] as const).map(([label, page, value]) => <Link key={page} to={SETTINGS_PAGES.find(p => p.id === page)!.route}><Card><h2>{label}</h2><strong>{value}</strong></Card></Link>)}
     <Link to="/admin/system/backup"><Card><h2>Backup</h2><span>{backups.error ? "Could not load backups" : backups.isPending ? "Loading…" : latest ? fmtTime(latest.created_at) : "No backup yet"}</span></Card></Link>
   </div></Section>;
 }

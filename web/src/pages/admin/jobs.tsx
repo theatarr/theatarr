@@ -35,7 +35,7 @@ export function JobsPage() {
           { label: "need attention", value: fmtNumber(open), tone: open > 0 ? "bad" : undefined, testid: "jobs-attention" },
           { label: "running", value: fmtNumber(counts.running ?? 0), testid: "jobs-running" },
           { label: "queued", value: fmtNumber(counts.queued ?? 0), testid: "jobs-queued" },
-          { label: "failed", value: fmtNumber(counts.failed ?? 0), testid: "jobs-failed" },
+          { label: "failed, resolved ones included", value: fmtNumber(counts.failed ?? 0), testid: "jobs-failed" },
           { label: "done", value: fmtNumber(counts.done ?? 0), testid: "jobs-done" },
         ]}
       />

@@ -42,9 +42,8 @@ export function AdvancedPage() {
 
 const COUNT_LABELS: Record<string, string> = {
   title: "titles",
-  version: "versions",
-  version_file: "library files",
-  content: "contents",
+  version: "title-library entries",
+  content: "torrents in the registry",
   job: "jobs",
   link: "library links",
 };
@@ -62,7 +61,8 @@ export function Database() {
   return (
     <div>
       <StatGrid>
-        {Object.keys(counts).sort().map((k) => (
+        {/* version_file is an empty legacy table: not shown. */}
+        {Object.keys(counts).filter((k) => k !== "version_file").sort().map((k) => (
           <Stat key={k} testid={`count-${k}`} value={fmtNumber(counts[k])} label={COUNT_LABELS[k] ?? k} />
         ))}
       </StatGrid>
@@ -71,7 +71,7 @@ export function Database() {
           <KV
             items={[
               ["Schema", `${st.data?.schema?.current} of ${st.data?.schema?.target}`],
-              ["Last nightly backup", last ? `${fmtTime(last.finished_at)} (job #${last.id})` : "none recorded yet"],
+              ["Last nightly backup", backups.error ? "Could not load" : backups.isPending ? "Loading…" : last ? `${fmtTime(last.finished_at)} (job #${last.id})` : "none recorded yet"],
               ["How", <span key="h">the <Mono>db.nightly</Mono> job writes a copy to the backup directory</span>],
             ]}
           />

@@ -194,3 +194,49 @@ it("offers no broken-links list while the check counts none", async () => {
  const row = await screen.findByTestId("check-DanglingLinksCheck");
  expect(within(row).queryByRole("button")).toBeNull();
 });
+
+it("names a failed download's item, error and release, and Inspect opens that download", async () => {
+ const failed = { id: 7, title: { id: 3, name: "The Kardashians" }, version: "tv-2160p", state: "failed", step: "", steps: [], words: "", progress: 0, created_at: "2026-11-01T12:00:00Z", updated_at: "2026-11-01T12:00:00Z", episodes: ["S05E03"], error: "miss on every provider", release: "The.Kardashians.S05E03.2160p.WEB-DL" };
+ mockFetch([...reviewRoutes,
+  { method: "GET", path: "/readyz", reply: { status: "ok" } },
+  { method: "GET", path: "/status", reply: status },
+  { method: "GET", path: "/jobs", reply: { items: [], counts: {} } },
+  { method: "GET", path: "/gateway", reply: { egress: { vpn_ok: true }, backoffs: [] } },
+  { method: "GET", path: "/health", reply: { checks: [] } },
+  { method: "GET", path: "/activity", reply: { now: [failed] } },
+ ]);
+ renderPage(<Overview />);
+ const row = await screen.findByTestId("attention-download-7");
+ expect(row.textContent).toContain("The Kardashians S05E03");
+ expect(within(row).getByText(/miss on every provider/)).toBeTruthy();
+ expect(within(row).getByTestId("attention-release").textContent).toBe("Release: The.Kardashians.S05E03.2160p.WEB-DL");
+ expect(row.querySelector("[data-vkey='tv-2160p']")).toBeTruthy();
+ expect(within(row).getByRole("link", { name: "Inspect" }).getAttribute("href")).toBe("/activity?show=attention&open=7");
+ expect(within(row).queryByText(/No file from this download yet/)).toBeNull();
+});
+
+it("shows the download and task strips as loading, not as 0, until they load", async () => {
+ mockFetch([...reviewRoutes,
+  { method: "GET", path: "/readyz", reply: { status: "ok" } },
+  { method: "GET", path: "/status", reply: status },
+  { method: "GET", path: "/jobs", reply: () => new Promise(() => {}) },
+  { method: "GET", path: "/gateway", reply: { egress: { vpn_ok: true }, backoffs: [] } },
+  { method: "GET", path: "/health", reply: { checks: [] } },
+  { method: "GET", path: "/activity", reply: () => new Promise(() => {}) },
+ ]);
+ renderPage(<Overview />);
+ await screen.findByText("Diagnostics");
+ expect(screen.queryByTestId("dl-all")).toBeNull();
+ expect(screen.queryByTestId("ov-jobs-running")).toBeNull();
+});
+
+it("says Loading on readiness switches until the settings load", async () => {
+ mockFetch([...reviewRoutes,
+  { method: "GET", path: "/settings", reply: () => new Promise(() => {}) },
+  { method: "GET", path: "/settings/sections", reply: () => new Promise(() => {}) },
+  { method: "GET", path: "/system/backups", reply: { sets: [] } },
+ ]);
+ renderPage(<Readiness />);
+ expect(await screen.findByRole("link", { name: "Pause Loading…" })).toBeTruthy();
+ expect(screen.queryByText("Unknown")).toBeNull();
+});

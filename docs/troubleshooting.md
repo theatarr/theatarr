@@ -157,14 +157,16 @@ something else.
 
 ## Status says links are dangling
 
-**Symptom:** **System › Status** shows a notice such as "3 of 1200 links into the mount are dangling", or a title
+**Symptom:** **System › Status** shows a notice such as "3 dangling links in the libraries", or a title
 that was in Plex no longer plays.
 
 **Cause:** a link in a library folder points at a file that is no longer on the debrid mount: the provider dropped
 or renamed the torrent, or the torrent lost its video file.
 
 **What to look at:** admins get **Show the N broken links** in that check's row on **System › Status**. It opens
-the links of the latest report, oldest first (at most 500; `theatarr library dangling` prints all of them). Each
+the links of the latest report under the libraries' roots, oldest first (at most 500). Links under other folders
+the report also walks (`library.dangling.roots`) are not counted there; `theatarr library dangling` prints all of
+them. Each
 line has the title (or the release folder, for a link Theatarr has no title for), the library, how long the link
 has been broken, "torrent has no video upstream" where that is the cause, the link's path, and what happens next:
 

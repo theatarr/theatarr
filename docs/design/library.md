@@ -734,6 +734,10 @@ folder and, without manual files, only the files under the path. A path anywhere
   dead links of the title (or of the episodes it links) aside like the active files it replaces. **A gated version** (library disabled, version not `mode: active`) is swept read-only: what it
   would mark dead, revive or repoint is recorded as `dry_run` actions, and no link or title state changes
   (`TestRelinkDeadWhileGated`).
+  Every sweep records its dead links again, so the journal's `dead_link` review flag is raised once per finding (the
+  link, its target and the mode), not once per sweep: a repeat carries no flag, and settled flags (link gone,
+  repaired, working again, or superseded) can be acknowledged in bulk on Reviews (docs/journal.md "dead_link";
+  `TestDeadLinkFlagsOncePerFinding`). The sweep itself, what it records and what it repairs or searches are unchanged.
 - **An implausible listing is a mount that is down** (`Mount.checkListing`). `Healthy` only stats
   `__all__`, and a zurg that restarted can serve it present but empty or half-loaded. So relink, the dangling report,
   and `Verify` refuse with `ErrMountDown` (nothing marked dead or missing, no title flipped to
@@ -839,7 +843,7 @@ what the dangling path already did.
   torrent zurg may show there has size 0. A link is also `no_video` when its release folder is listed on the mount but holds no video file (the mount index's listing, cached per folder in a pass); this catches most cases. The dangling report stores cause `no_video` on the row and, per report, the
   count of such links, of zurg's torrents without video, whether zurg was repairing and why the API was not read
   (migration 00063); `theatarr library dangling` prints a CAUSE column (not in the `-tsv` output) and the health
-  check `DanglingLinksCheck` (a notice while any link dangles) says "N of them: torrent has no video upstream". Verify
+  check `DanglingLinksCheck` (a notice while any link under a library root dangles) says "N of them: torrent has no video upstream". Verify
   and the relink sweep report cause `no_video` with that reason; the sweep still marks the link dead as usual
   (`TestDanglingReportNoVideo`, `TestRelinkZurgNoVideoAndRepair`).
 - **Per-file confirmation.** An import that finds its release folder by name asks zurg whose the folder is: a bare
