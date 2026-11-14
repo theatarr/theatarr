@@ -321,7 +321,8 @@ export function TitleTable({ titles, more, onMore, seeFiles, manage, columns, so
       sortable: !!columnSort(id),
       card: id === "status" ? "none" : id === "libraries" ? "full" : "line",
       headClassName: cn("whitespace-nowrap", id === "size" && "text-right"),
-      cellClassName: cn("whitespace-nowrap text-sm", id === "size" && "text-right", (id === "libraries" || id === "provider") && "[&>span]:flex-nowrap"),
+      // Library pills wrap (a row grows taller rather than pushing the table past its frame); the rest stay on one line.
+      cellClassName: cn("text-sm", id === "libraries" ? "min-w-[9rem]" : "whitespace-nowrap", id === "size" && "text-right", id === "provider" && "[&>span]:flex-nowrap"),
       cell: (t) => (id === "status" && !seeFiles ? <WatchCell t={t} /> : cell(id, t, () => setCopiesOf(t.id ?? null))),
     })),
   ];

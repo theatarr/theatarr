@@ -19,7 +19,7 @@ export function SortHead({ dir, onSort, sortLabel, children, ...th }: Props) {
   if (!onSort) return <TableHead {...th}>{children}</TableHead>;
   return (
     <TableHead aria-sort={dir ? (dir === "desc" ? "descending" : "ascending") : undefined} {...th}>
-      <button type="button" onClick={onSort} aria-label={sortLabel ? `Sort by ${sortLabel}` : undefined} className="inline-flex min-w-0 items-center gap-1 text-left hover:text-foreground">
+      <button type="button" onClick={onSort} aria-label={sortLabel ? `Sort by ${sortLabel}` : undefined} className="inline-flex min-w-0 items-center gap-1 text-left [letter-spacing:inherit] [text-transform:inherit] hover:text-foreground">
         {children}
         {dir ? (dir === "desc" ? <ArrowDown className="size-3 shrink-0" aria-hidden /> : <ArrowUp className="size-3 shrink-0" aria-hidden />) : null}
       </button>

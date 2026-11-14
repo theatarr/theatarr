@@ -104,3 +104,10 @@ it("pages: Next asks for the next offset and the range follows", async () => {
   expect(screen.getByTestId("pager-range").textContent).toBe("301–312 of 312");
   expect(screen.getByRole("button", { name: "Next" })).toHaveProperty("disabled", true);
 });
+
+it("pages: a list that fits one page has its count and no buttons", () => {
+  render(<Pager offset={0} limit={50} total={48} onPage={() => {}} />);
+  expect(screen.getByTestId("pager-count").textContent).toBe("All 48 shown");
+  expect(screen.queryByRole("button", { name: "Next" })).toBeNull();
+  expect(screen.queryByTestId("pager")).toBeNull();
+});

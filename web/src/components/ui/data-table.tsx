@@ -63,21 +63,31 @@ type Props<T, K extends string | number> = {
  * viewport. A fitting table clips so its header can stick (a scrolling wrapper is its own scroll box); a wider one
  * scrolls sideways. Until measured it scrolls, which never hides a column.
  */
-export function useFitsFrame(): [(el: HTMLElement | null) => void, boolean] {
+export function useFitsFrame(): [(el: HTMLElement | null) => void, boolean, boolean] {
   const [box, setBox] = useState<HTMLElement | null>(null);
   const [fits, setFits] = useState(false);
+  const [more, setMore] = useState(false);
   useEffect(() => {
     const table = box?.querySelector("table");
     const frame = table?.parentElement;
     if (!table || !frame || typeof ResizeObserver === "undefined") return;
-    const check = () => setFits(table.getBoundingClientRect().width <= frame.getBoundingClientRect().width + 0.5);
+    const check = () => {
+      const f = table.getBoundingClientRect().width <= frame.getBoundingClientRect().width + 0.5;
+      setFits(f);
+      // More to the right: the frame is scrolled short of the table's end (the cue on the frame's right edge).
+      setMore(!f && frame.scrollLeft + frame.clientWidth < frame.scrollWidth - 1);
+    };
     const ro = new ResizeObserver(check);
     ro.observe(table);
     ro.observe(frame);
+    frame.addEventListener("scroll", check, { passive: true });
     check();
-    return () => ro.disconnect();
+    return () => {
+      ro.disconnect();
+      frame.removeEventListener("scroll", check);
+    };
   }, [box]);
-  return [setBox, fits];
+  return [setBox, fits, more];
 }
 
 export function DataTable<T, K extends string | number>({
@@ -97,7 +107,7 @@ export function DataTable<T, K extends string | number>({
   testid,
 }: Props<T, K>) {
   const wide = useMinWidth(minWidth);
-  const [box, fits] = useFitsFrame();
+  const [box, fits, more] = useFitsFrame();
   const can = (r: T) => !select?.selectable || select.selectable(rowKey(r));
   const pickable = select?.selectable ? rows.filter(can) : rows;
   const chosenCount = select ? pickable.filter((r) => select.chosen.has(rowKey(r))).length : 0;
@@ -155,8 +165,9 @@ export function DataTable<T, K extends string | number>({
 
   const span = columns.length + (select ? 1 : 0) + (actions ? 1 : 0);
   return (
-    <div ref={box} data-fits={fits || undefined}>
-      <Card className="p-0">
+    <div ref={box} data-fits={fits || undefined} data-more={more || undefined}>
+      {/* A table wider than its frame scrolls inside it; while columns are hidden on the right, the edge fades. */}
+      <Card className={cn("p-0", more && "relative after:pointer-events-none after:absolute after:inset-y-0 after:right-0 after:w-8 after:rounded-r-[8px] after:bg-linear-to-l after:from-[var(--card)] after:to-transparent")}>
         <Table density="dense" overflow={fits ? "clip" : "auto"} data-testid={testid}>
           <TableHeader>
             <TableRow>

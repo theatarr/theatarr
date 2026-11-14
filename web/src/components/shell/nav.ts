@@ -164,7 +164,8 @@ export function moreFor(can: Can): NavGroup[] {
 /** The tab a path belongs to on the phone (More for everything the tabs do not hold). */
 export function tabFor(pathname: string): Tab["id"] {
   if (pathname === "/") return "home";
-  if (LIBRARY.some((i) => isActive(pathname, i.to!))) return "browse";
+  // A title page or a Home "See all" list belongs to the library the user browses.
+  if (LIBRARY.some((i) => isActive(pathname, i.to!)) || isActive(pathname, "/title") || isActive(pathname, "/discover")) return "browse";
   if (isActive(pathname, "/search")) return "search";
   if (isActive(pathname, "/requests")) return "requests";
   if (isActive(pathname, "/wanted") || isActive(pathname, "/activity") || isActive(pathname, "/now-playing") || isActive(pathname, "/calendar") || isActive(pathname, "/admin")) return "more";

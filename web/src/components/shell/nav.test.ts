@@ -59,6 +59,9 @@ describe("active entries", () => {
     expect(tabFor("/anime")).toBe("browse");
     expect(tabFor("/series")).toBe("browse");
     expect(tabFor("/collections")).toBe("browse");
+    expect(tabFor("/title/515")).toBe("browse");
+    expect(tabFor("/title/515/releases")).toBe("browse");
+    expect(tabFor("/discover/missing")).toBe("browse");
     expect(tabFor("/search")).toBe("search");
     expect(tabFor("/requests/all")).toBe("requests");
     expect(tabFor("/wanted/cutoff")).toBe("more");
@@ -67,7 +70,7 @@ describe("active entries", () => {
     expect(tabFor("/wanted/manual-import")).toBe("more");
     expect(tabFor("/now-playing")).toBe("more");
     expect(tabFor("/admin/system/logs")).toBe("more");
-    expect(tabFor("/title/4")).toBe("home");
+    expect(tabFor("/title/4")).toBe("browse");
   });
   it("finds the deepest item; Status only on /admin itself", () => {
     expect(itemFor("/admin")?.label).toBe("Status");

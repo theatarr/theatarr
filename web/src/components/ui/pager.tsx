@@ -1,10 +1,13 @@
 // A pager for a list read a page at a time (docs/design/ui.md "Library views"): "Previous · 1–50 of 312 · Next".
-// Nothing when the list is empty.
+// Nothing when the list is empty; a list that fits one page gets its count alone, without the buttons.
 import { Button } from "@/components/ui/button";
 import { fmtNumber } from "@/lib/format";
 
 export function Pager({ offset, limit, total, onPage }: { offset: number; limit: number; total: number; onPage: (offset: number) => void }) {
   if (total <= 0) return null;
+  if (offset <= 0 && total <= limit) {
+    return <p className="text-center text-sm tabular-nums text-muted-foreground" data-testid="pager-count">All {fmtNumber(total)} shown</p>;
+  }
   const last = Math.min(offset + limit, total);
   return (
     <nav aria-label="Pages" className="flex items-center justify-center gap-3 text-sm" data-testid="pager">
