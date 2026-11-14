@@ -102,6 +102,11 @@ func TestAdoptImportedMovie(t *testing.T) {
 		AND detail = 'adopted from radarr@radarr:7878 /movies/Amelie (2001)/Amelie.mkv'`); got != "1" {
 		t.Errorf("journal %s", got)
 	}
+	// History's Adopted row keeps the file's release, quality and score as adopted (00129).
+	if got := e.one(`SELECT release_title || '|' || quality || '|' || score FROM library_action WHERE kind = 'link'
+		AND mode = 'applied'`); got != "Amelie.2001.2160p.REMUX-GRP|Remux-2160p|0" {
+		t.Errorf("adopt action facts %s", got)
+	}
 	// {Custom Formats} are decided for the library itself.
 	if len(formatsFor) == 0 || formatsFor[0] != "movie-remux" {
 		t.Errorf("formats decided for %q", formatsFor)

@@ -1233,7 +1233,10 @@ on the title page, an episode's in the episode window; admins: a Torrents row) p
 (off by default), which queues the same work after each import of a download that came from a provider. New imports
 only: the existing library is not swept. Code: `internal/router/copy.go`; table `provider_copy` (migration 00128).
 
-A copy is not a download: no `download` row, import, offer, blocklist, failure re-search or History entry. One row per
+A copy is not a download: no `download` row, import, offer, blocklist or failure re-search. Its outcome is a History
+event: a copy that ends `added` or `not_cached` also writes a `provider_copy_event` row (migration 00129) with the
+release name and the quality and score of the file with that hash, which History shows as "Added to TB" / "Not cached
+on RD" (accounts that see files); the copy row itself is reused by the next request. One row per
 hash and provider (`unique (info_hash, provider)`); a new request for a pair replaces a finished row and returns an
 unfinished one as it is (a double click, a season pack's episodes). Rows are made for the providers with a key whose
 registry row does not hold the hash complete ("Cached on"); one job (`router.copy`) works each row:

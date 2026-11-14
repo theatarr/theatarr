@@ -30,7 +30,7 @@ func init() {
 	for _, tb := range strings.Fields(`job journal_decision shadow_run ceiling_search ceiling_search_indexer web_session source_sighting library_dangling router_refusal_451 arrview_command shadow_rss_seen notify_rename torrent_restore_pending gateway_indexer_request`) {
 		keptByDesign[tb] = "pruned by the package that owns it"
 	}
-	for _, tb := range strings.Fields(`router_offer notify_event router_blocklist journal_action journal_verdict torrent_journal`) {
+	for _, tb := range strings.Fields(`router_offer notify_event router_blocklist journal_action journal_verdict torrent_journal provider_copy_event`) {
 		keptByDesign[tb] = "kept by design (package comment, journal): a memory or record that must not be forgotten"
 	}
 	keptByDesign["arr_frozen_input"] = "arr snapshots kept for FreezeStored; a later migration drops the table"

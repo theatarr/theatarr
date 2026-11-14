@@ -278,16 +278,48 @@ func (l *Library) Stat(ctx context.Context, p string) (os.FileInfo, error) {
 	return l.mount.Stat(ctx, p)
 }
 
-// action is one library_action row.
+// action is one library_action row. Rel is the release of the file it is about as it is now (migration 00129): a
+// link's new file, a replace's old one; History reads it, since the link row may later hold another file.
 type action struct {
 	Kind, Mode, Version, Path, Target, Detail string
 	DownloadID, LinkID                        int64
+	Rel                                       relFacts
+}
+
+// relFacts are a file's release, quality and score (a NULL score when not scored).
+type relFacts struct {
+	Release, Quality string
+	Score            sql.NullInt64
+}
+
+// linkFacts reads the release facts of the link row id, else of the row at path, else of an arr's file at path;
+// none when there is no such row.
+func linkFacts(ctx context.Context, tx *sql.Tx, id int64, path string) relFacts {
+	var f relFacts
+	var rel, q sql.NullString
+	where, arg := `id = ?`, any(id)
+	if id == 0 {
+		where, arg = `path = ?`, path
+	}
+	err := tx.QueryRowContext(ctx, `SELECT release_title, quality, score FROM link WHERE `+where, arg).Scan(&rel, &q,
+		&f.Score)
+	if errors.Is(err, sql.ErrNoRows) && path != "" {
+		err = tx.QueryRowContext(ctx, `SELECT COALESCE(NULLIF(scene_name, ''), release_title), quality,
+			custom_format_score FROM version_file WHERE path = ? ORDER BY id DESC LIMIT 1`, path).Scan(&rel, &q, &f.Score)
+	}
+	if err != nil {
+		return relFacts{}
+	}
+	f.Release, f.Quality = rel.String, q.String
+	return f
 }
 
 func (l *Library) record(ctx context.Context, tx *sql.Tx, a action) error {
-	q := `INSERT INTO library_action (at, kind, mode, version_key, download_id, link_id, path, target, detail)
-		VALUES (?, ?, ?, NULLIF(?, ''), NULLIF(?, 0), NULLIF(?, 0), NULLIF(?, ''), NULLIF(?, ''), ?)`
-	args := []any{store.Millis(l.now()), a.Kind, a.Mode, a.Version, a.DownloadID, a.LinkID, a.Path, a.Target, a.Detail}
+	q := `INSERT INTO library_action (at, kind, mode, version_key, download_id, link_id, path, target, detail,
+		release_title, quality, score)
+		VALUES (?, ?, ?, NULLIF(?, ''), NULLIF(?, 0), NULLIF(?, 0), NULLIF(?, ''), NULLIF(?, ''), ?, NULLIF(?, ''), NULLIF(?, ''), ?)`
+	args := []any{store.Millis(l.now()), a.Kind, a.Mode, a.Version, a.DownloadID, a.LinkID, a.Path, a.Target, a.Detail,
+		a.Rel.Release, a.Rel.Quality, a.Rel.Score}
 	if tx != nil {
 		_, err := tx.ExecContext(ctx, q, args...)
 		return err

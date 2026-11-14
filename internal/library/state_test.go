@@ -119,6 +119,10 @@ func TestUnlinkResetsOnlyWhenNoFileRemains(t *testing.T) {
 	if got := e.one(`SELECT state FROM version WHERE id = 10`); got != "cutoff_met" {
 		t.Fatalf("state with another active file=%s, want cutoff_met", got)
 	}
+	// History's Removed row names the file (00129).
+	if got := e.one(`SELECT release_title FROM library_action WHERE kind = 'replace' AND link_id = ?`, linkID); got != movieRelease {
+		t.Errorf("unlink action release %q", got)
+	}
 	if _, err := e.lib.Unlink(e.ctx, "movie-remux", other, 99, "test"); err != nil {
 		t.Fatal(err)
 	}

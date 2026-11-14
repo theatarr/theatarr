@@ -556,8 +556,12 @@ func (l *Library) recordAdopted(ctx context.Context, version string, vp *policy.
 		if err := recordImportedState(ctx, tx, v, episodes, state, false, now); err != nil {
 			return err
 		}
+		rel := relFacts{Release: f.scene, Quality: f.quality}
+		if meta.Score != nil {
+			rel.Score = sql.NullInt64{Int64: int64(*meta.Score), Valid: true}
+		}
 		if err := l.record(ctx, tx, action{Kind: "link", Mode: "applied", Version: version, LinkID: linkID, Path: p,
-			Target: target, Detail: "adopted from " + source}); err != nil {
+			Target: target, Detail: "adopted from " + source, Rel: rel}); err != nil {
 			return err
 		}
 		return nil

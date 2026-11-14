@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/jobs"
@@ -314,6 +315,11 @@ func (l *Library) apply(ctx context.Context, d *importDownload, vn *VersionNamin
 				}
 			}
 		}
+		// The old files' release facts, before a link at the same path is overwritten (History, 00129).
+		oldRel := map[string]relFacts{}
+		for _, m := range append(slices.Clone(moved), gone...) {
+			oldRel[m.path] = linkFacts(ctx, tx, m.linkID, m.path)
+		}
 		for _, lk := range linked {
 			var cfID any
 			if contentID != 0 {
@@ -384,7 +390,8 @@ func (l *Library) apply(ctx context.Context, d *importDownload, vn *VersionNamin
 				detail += "; client importMode " + o.ImportMode + "; Theatarr linked instead; source left in place"
 			}
 			if err := l.record(ctx, tx, action{Kind: "link", Mode: mode, Version: v.Key, DownloadID: d.ID, LinkID: linkID,
-				Path: lk.Path, Target: lk.Target, Detail: detail}); err != nil {
+				Path: lk.Path, Target: lk.Target, Detail: detail, Rel: relFacts{Release: d.ReleaseTitle, Quality: lf.quality,
+					Score: sql.NullInt64{Int64: int64(lf.score), Valid: true}}}); err != nil {
 				return err
 			}
 		}
@@ -424,7 +431,7 @@ func (l *Library) apply(ctx context.Context, d *importDownload, vn *VersionNamin
 				return err
 			}
 			if err := l.record(ctx, tx, action{Kind: "replace", Mode: "applied", Version: m.version, DownloadID: d.ID,
-				Path: m.path, Target: m.target, Detail: "moved aside to " + m.trashPath}); err != nil {
+				Path: m.path, Target: m.target, Detail: "moved aside to " + m.trashPath, Rel: oldRel[m.path]}); err != nil {
 				return err
 			}
 		}
@@ -456,7 +463,8 @@ func (l *Library) apply(ctx context.Context, d *importDownload, vn *VersionNamin
 				return err
 			}
 			if err := l.record(ctx, tx, action{Kind: "replace", Mode: "applied", Version: m.version, DownloadID: d.ID,
-				Path: m.path, Detail: "already gone from the library (moved aside by an interrupted import)"}); err != nil {
+				Path: m.path, Detail: "already gone from the library (moved aside by an interrupted import)",
+				Rel: oldRel[m.path]}); err != nil {
 				return err
 			}
 		}
@@ -785,7 +793,8 @@ func (l *Library) moveStray(ctx context.Context, d *importDownload, root string,
 				return err
 			}
 			return l.record(ctx, tx, action{Kind: "replace", Mode: "applied", Version: m.version, DownloadID: d.ID,
-				LinkID: m.linkID, Path: m.path, Target: target, Detail: "moved aside to " + tp + " (renamed during the upgrade)"})
+				LinkID: m.linkID, Path: m.path, Target: target, Detail: "moved aside to " + tp + " (renamed during the upgrade)",
+				Rel: linkFacts(ctx, tx, m.linkID, m.path)})
 		})
 	}
 	if err != nil {

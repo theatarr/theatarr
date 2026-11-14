@@ -183,9 +183,12 @@ func (l *Library) markUnlinkedTx(ctx context.Context, tx *sql.Tx, version string
 		}
 	}
 	detail := "unlinked (" + reason + "), moved aside to " + tp
+	var rel relFacts
 	if lost {
 		detail += "; its row had changed and was left"
+	} else {
+		rel = linkFacts(ctx, tx, linkID, path)
 	}
 	return lost, l.record(ctx, tx, action{Kind: "replace", Mode: "applied", Version: version, LinkID: linkID, Path: path,
-		Target: target, Detail: detail})
+		Target: target, Detail: detail, Rel: rel})
 }

@@ -651,6 +651,9 @@ func TestImportUpgradeMovie(t *testing.T) {
 		if _, err := os.Lstat(held); !errors.Is(err, os.ErrNotExist) {
 			t.Errorf("the worse file stayed: %v", err)
 		}
+		if got := e.one(`SELECT release_title || '/' || quality FROM library_action WHERE kind = 'replace'`); got != "Amelie.2001.held-OLD/WEBDL-1080p" {
+			t.Errorf("replace action facts %q", got)
+		}
 	})
 }
 

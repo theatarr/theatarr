@@ -109,6 +109,13 @@ func TestInPlaceReplaceKeepsMissingSince(t *testing.T) {
 	if len(plan.Links) != 1 || plan.Links[0].Path != p {
 		t.Fatalf("plan %+v rejected %+v", plan.Links, plan.Rejected)
 	}
+	// History's facts (00129): the replace names the file it moved aside, though its row now holds the new one.
+	if got := e.one(`SELECT release_title || '/' || quality FROM library_action WHERE kind = 'replace'`); got != "Gone/WEBDL-1080p" {
+		t.Errorf("replace action facts %q", got)
+	}
+	if got := e.one(`SELECT release_title FROM library_action WHERE kind = 'link'`); got != movieRelease {
+		t.Errorf("link action release %q", got)
+	}
 	t.Logf("after the import: target %s missing_since %s", e.one(`SELECT target FROM link WHERE id = 1`),
 		e.one(`SELECT COALESCE(missing_since, 'null') FROM link WHERE id = 1`))
 	// The new file misses one sweep (a zurg hiccup on that folder).

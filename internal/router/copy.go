@@ -22,7 +22,7 @@ import (
 // Copies to other providers (docs/design/router.md "Copies to other providers"): "Add to other providers" adds a
 // torrent the library holds to every configured provider that does not hold it yet, one provider_copy row per hash
 // and provider (migration 00128), each worked by one JobCopy job. A copy is no download: no download row, import,
-// offer, blocklist, re-search or History entry.
+// offer, blocklist or re-search. Its outcome, added or not cached, is a History event (provider_copy_event, setCopy).
 //
 // A copy goes queued -> adding (written before the add is sent) -> checking (torrent id stored right after the add) ->
 // added, not_cached, refused, skipped or failed. An add that is not cached is deleted on every provider (the owner's
@@ -449,22 +449,61 @@ var errCopyLost = errors.New("router: the copy changed under this worker")
 
 // setCopy moves the row from the state it is in to state with msg (and set, a further assignment with args).
 // errCopyLost when the row is no longer in that state.
+// A copy that ends added or not_cached is also written to provider_copy_event (migration 00129) for History, with
+// the release facts of the file it was asked for, since the row itself is reused by the next request.
 func (r *Router) setCopy(ctx context.Context, c *copyRow, state, msg string, set string, args ...any) error {
 	q := `UPDATE provider_copy SET state = ?, message = ?, updated_at = ?`
 	if set != "" {
 		q += ", " + set
 	}
-	all := append([]any{state, msg, store.Millis(r.now())}, args...)
+	now := store.Millis(r.now())
+	all := append([]any{state, msg, now}, args...)
 	all = append(all, c.id, c.state)
-	res, err := r.st.Writer().ExecContext(context.WithoutCancel(ctx), q+` WHERE id = ? AND state = ?`, all...)
+	wctx := context.WithoutCancel(ctx)
+	err := r.st.WriteTx(wctx, func(tx *sql.Tx) error {
+		res, err := tx.ExecContext(wctx, q+` WHERE id = ? AND state = ?`, all...)
+		if err != nil {
+			return err
+		}
+		if n, err := res.RowsAffected(); err != nil || n != 1 {
+			return errCopyLost
+		}
+		if state == c.state || (state != CopyAdded && state != CopyNotCached) {
+			return nil
+		}
+		return copyEvent(wctx, tx, c, state, msg, now)
+	})
+	if errors.Is(err, errCopyLost) {
+		return err
+	}
 	if err != nil {
 		return fmt.Errorf("router: copy %d: %w", c.id, err)
 	}
-	if n, err := res.RowsAffected(); err != nil || n != 1 {
-		return errCopyLost
-	}
 	c.state, c.message, c.updatedAt = state, msg, r.now()
 	return nil
+}
+
+// copyEvent writes History's row of a finished copy: the quality and score of the newest file with the copy's hash
+// (an active link from it, else a download of it); none when neither is known.
+func copyEvent(ctx context.Context, tx *sql.Tx, c *copyRow, state, msg string, at int64) error {
+	var quality sql.NullString
+	var score sql.NullInt64
+	err := tx.QueryRowContext(ctx, `SELECT quality, score FROM (
+			SELECT 0 AS o, l.id AS id, l.quality, l.score FROM link l JOIN content_file cf ON cf.id = l.content_file_id
+				JOIN content ct ON ct.id = cf.content_id WHERE ct.info_hash = ?1 AND l.state = 'active'
+			UNION ALL SELECT 1, d.id, d.quality, d.score FROM download d WHERE d.info_hash = ?1)
+		ORDER BY o, id DESC LIMIT 1`, c.hash).Scan(&quality, &score)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+	var title any
+	if c.titleID > 0 {
+		title = c.titleID
+	}
+	_, err = tx.ExecContext(ctx, `INSERT INTO provider_copy_event (at, info_hash, name, title_id, provider, state,
+		message, quality, score) VALUES (?, ?, ?, ?, ?, ?, ?, NULLIF(?, ''), ?)`, at, c.hash, c.name, title, c.pk, state,
+		msg, quality.String, score)
+	return err
 }
 
 // Waits of an unfinished copy (rule D): at least copyWaitMin, then as long as the row has waited since its last

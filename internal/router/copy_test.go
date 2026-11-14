@@ -3,6 +3,7 @@ package router
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -147,6 +148,23 @@ func TestCopyTorBox(t *testing.T) {
 	}
 	if got := e.ad["tb"].adds; len(got) != 1 || got[0] != h("a") {
 		t.Fatalf("adds %v", got)
+	}
+	// Each outcome is one History event (provider_copy_event), kept when the row is reused.
+	var evs []string
+	rows, err := e.st.Reader().Query(`SELECT info_hash || ' ' || provider || ' ' || state || ' ' || name || ' ' || message
+		FROM provider_copy_event ORDER BY info_hash`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for rows.Next() {
+		var s string
+		rows.Scan(&s)
+		evs = append(evs, s)
+	}
+	rows.Close()
+	if want := []string{h("a") + " tb added Movie.2024.2160p.WEB-GRP Added to TB",
+		h("b") + " tb not_cached Other.2024.2160p.WEB-GRP Not cached on TB"}; !slices.Equal(evs, want) {
+		t.Fatalf("events %q", evs)
 	}
 }
 
