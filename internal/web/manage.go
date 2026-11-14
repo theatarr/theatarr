@@ -865,6 +865,8 @@ type EpisodeVersionDetail struct {
 	// search of it under way (searchFacts). For callers who see files.
 	LastSearch *LastSearch `json:"last_search,omitempty"`
 	Searching  string      `json:"searching,omitempty"`
+	// RSS: the RSS read picks up new releases for this library (readsRSS). For callers who see files.
+	RSS bool `json:"rss,omitempty"`
 }
 
 // EpisodeDetail is the answer of GET titles/{id}/episodes/{eid}.
@@ -986,6 +988,7 @@ func (w *Web) apiEpisode(rw http.ResponseWriter, r *http.Request) {
 			if f := facts[v.id]; f != nil {
 				d.LastSearch, d.Searching = f.last, f.searching
 			}
+			d.RSS = w.readsRSS(v.key)
 		}
 		if seeFiles && w.journal != nil {
 			page, err := w.journal.List(ctx, journal.Filter{Title: strconv.FormatInt(t.id, 10), Version: v.key, Limit: 200})

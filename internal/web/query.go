@@ -383,6 +383,8 @@ type Version struct {
 	// search under way, "queued" or "searching" (searchFacts).
 	LastSearch *LastSearch `json:"last_search,omitempty"`
 	Searching  string      `json:"searching,omitempty"`
+	// RSS (title page, see files): the RSS read picks up new releases for this library (readsRSS).
+	RSS bool `json:"rss,omitempty"`
 	// Removed (title page): the version was removed from the library (arrview_removed_version); its rows and links
 	// stay. It counts in none of the title's rollups (availability, size, added).
 	Removed bool `json:"removed,omitempty"`

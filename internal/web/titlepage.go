@@ -60,6 +60,9 @@ type CurrentFile struct {
 type HistoryEvent struct {
 	DecisionID *int64 `json:"decision_id,omitempty"`
 	RunID      *int64 `json:"run_id,omitempty"`
+	// DownloadID is a Theatarr download's id on its grabbed, imported and failed events (its provider attempts:
+	// GET activity/downloads/{id}/attempts).
+	DownloadID int64 `json:"download_id,omitempty"`
 	// Event is grabbed, imported, upgraded, failed, not_started (a download never tried because downloads were off;
 	// Reason says why), deleted, renamed, ignored, searched or adopted (a file taken over from an arr: the episode window).
 	Event   string    `json:"event"`
@@ -82,6 +85,9 @@ type HistoryEvent struct {
 	// download's own attempts found the release not cached on (missCodes); absent when no attempt says so, and the
 	// reason stands alone.
 	MissedOn []string `json:"missed_on,omitempty"`
+	// Upgrade (a failed event): the download was to replace a file. What it was for (the movie in its library, or
+	// each of its episodes there) held a file then, from an earlier import, or holds one now (heldBeforeSQL).
+	Upgrade bool `json:"upgrade,omitempty"`
 	// Searched events: the search's results and accepted releases, what it grabbed in one line (searchSummary;
 	// InfoHash is then the first release it grabbed) and Latest when its results are the ones the releases view
 	// shows (the version's newest decision).
@@ -94,6 +100,18 @@ type HistoryEvent struct {
 // missCodes are the provider attempt codes (download_attempt.code, internal/router) that say the release was not
 // cached there: a known miss, known uncached, and an uncached add of ours deleted or kept.
 const missCodes = `'miss', 'known_uncached', 'uncached_deleted', 'uncached_kept'`
+
+// heldBeforeSQL is true for a download (the table download, unaliased) whose movie, or each of whose episodes, in its
+// library was held when it was grabbed (an earlier imported download of the library covering it) or is held now. A
+// series download with no episodes listed is never one.
+const heldBeforeSQL = `(CASE WHEN json_array_length(COALESCE(download.episodes, '[]')) = 0 THEN
+	(SELECT t.kind = 'movie' FROM title t WHERE t.id = download.title_id) AND (EXISTS (SELECT 1 FROM version v
+		WHERE v.id = download.version_id AND v.state IN ('filled', 'cutoff_met'))
+	OR EXISTS (SELECT 1 FROM download o WHERE o.version_id = download.version_id AND o.state = 'imported' AND o.id < download.id))
+	ELSE NOT EXISTS (SELECT 1 FROM json_each(download.episodes) e WHERE NOT EXISTS (SELECT 1 FROM episode_version_state s
+		WHERE s.version_id = download.version_id AND s.episode_id = e.value AND s.state IN ('filled', 'cutoff_met'))
+	AND NOT EXISTS (SELECT 1 FROM download o, json_each(o.episodes) oe WHERE o.version_id = download.version_id
+		AND o.state = 'imported' AND o.id < download.id AND oe.value = e.value)) END)`
 
 // notStartedCol is a column of a query on the table download (unaliased): the download failed without ever being
 // tried, because downloads were off when its turn came (activity.NotStartedSQL, as Activity reads it).
@@ -111,8 +129,8 @@ func downloadEvents(out []HistoryEvent, h HistoryEvent, state string, created, d
 		h.Source = "theatarr via " + h.Source
 	}
 	h.Trigger = grabWords(source, run)
-	missed := h.MissedOn
-	h.Event, h.Date, h.MissedOn = "grabbed", ts(created), nil
+	missed, upgrade := h.MissedOn, h.Upgrade
+	h.Event, h.Date, h.MissedOn, h.Upgrade = "grabbed", ts(created), nil, false
 	out = append(out, h)
 	switch state {
 	case "imported":
@@ -122,7 +140,7 @@ func downloadEvents(out []HistoryEvent, h HistoryEvent, state string, created, d
 		if r := activity.NotStarted(errText); notStarted && r != "" {
 			h.Event, h.Date, h.Reason = "not_started", ts(done), activity.NotStartedHistory(r)
 		} else {
-			h.Event, h.Date, h.Reason, h.MissedOn = "failed", ts(done), shortReason(errText, h.Provider), missed
+			h.Event, h.Date, h.Reason, h.MissedOn, h.Upgrade = "failed", ts(done), shortReason(errText, h.Provider), missed, upgrade
 		}
 		out = append(out, h)
 	}
@@ -269,6 +287,7 @@ func (w *Web) enrichTitle(ctx context.Context, d *TitleDetail) error {
 			return err
 		}
 		for i := range d.Versions {
+			d.Versions[i].RSS = w.readsRSS(d.Versions[i].Key)
 			if f := facts[d.Versions[i].ID]; f != nil {
 				d.Versions[i].LastSearch, d.Versions[i].Searching = f.last, f.searching
 			}
@@ -376,19 +395,21 @@ func (w *Web) versionHistory(ctx context.Context, db *sql.DB, titleID int64, kin
 		return err
 	}
 	runDLs := map[int64][]runDownload{}
-	err = scanAll(ctx, db, `SELECT version_id, state, created_at, COALESCE(imported_at, updated_at), release_title,
+	err = scanAll(ctx, db, `SELECT id, version_id, state, created_at, COALESCE(imported_at, updated_at), release_title,
 		info_hash, COALESCE(provider, ''), quality, score, source, COALESCE(error, ''), `+notStartedCol+`,
+		CASE WHEN state = 'failed' THEN `+heldBeforeSQL+` ELSE 0 END,
 		CASE WHEN state = 'failed' AND COALESCE(error, '') GLOB 'miss on every provider*' THEN (SELECT json_group_array(DISTINCT a.provider) FROM download_attempt a
 			WHERE a.download_id = download.id AND a.code IN (`+missCodes+`)) END
 		FROM download WHERE title_id = ? ORDER BY created_at, id`,
 		[]any{titleID}, func(r *sql.Rows) error {
-			var vid, created, done, score int64
+			var dlID, vid, created, done, score int64
 			var state, source, errText string
 			var notStarted bool
 			var missed sql.NullString
+			var upgrade bool
 			var h HistoryEvent
-			if err := r.Scan(&vid, &state, &created, &done, &h.ReleaseTitle, &h.InfoHash, &h.Source, &h.Quality,
-				&score, &source, &errText, &notStarted, &missed); err != nil {
+			if err := r.Scan(&dlID, &vid, &state, &created, &done, &h.ReleaseTitle, &h.InfoHash, &h.Source, &h.Quality,
+				&score, &source, &errText, &notStarted, &upgrade, &missed); err != nil {
 				return err
 			}
 			if missed.Valid {
@@ -410,7 +431,7 @@ func (w *Web) versionHistory(ctx context.Context, db *sql.DB, titleID int64, kin
 					run = &o
 				}
 			}
-			h.Score = &score
+			h.Score, h.DownloadID, h.Upgrade = &score, dlID, upgrade
 			v.History = downloadEvents(v.History, h, state, created, done, source, errText, notStarted, run)
 			return nil
 		})
@@ -524,6 +545,24 @@ type AutoSearch struct {
 	Missing  bool `json:"missing"`
 	Upgrades bool `json:"upgrades"`
 	Enabled  bool `json:"enabled"`
+}
+
+// readsRSS says whether the RSS read covers a library: the read is on and the library lists an indexer whose feed
+// it reads (torznab, dmm, seadex, cardigann; acquire/rss rssIndexers). A feed that cannot be read now still counts.
+func (w *Web) readsRSS(key string) bool {
+	if w.pol == nil || !w.pol.ShadowSettings().RSS {
+		return false
+	}
+	vp := w.pol.Versions[key]
+	if vp == nil || vp.Mode != policy.ModeActive {
+		return false
+	}
+	for _, ik := range vp.Indexers {
+		if ix := w.pol.Indexers[ik]; ix != nil && (ix.Kind == "torznab" || ix.Kind == "dmm" || ix.Kind == "seadex" || ix.Kind == "cardigann") {
+			return true
+		}
+	}
+	return false
 }
 
 func (w *Web) autoSearch() *AutoSearch {

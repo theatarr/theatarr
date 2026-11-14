@@ -651,9 +651,10 @@ func TestTitlePageSearchFacts(t *testing.T) {
 		state, error, source, created_at, updated_at) VALUES (85, 1, 1, 'movie-remux', ?, 'Alpha.2020.Remux-NEW', 'dmm',
 		'rd', 'failed', 'miss on every provider', 'rss', ?, ?)`, strings.ToUpper(miss), now-300, now-200)
 	e.exec(`INSERT INTO download_attempt (download_id, provider, outcome, code, message, attempted_at) VALUES
-		(85, 'rd', 'refused', 'miss', 'not cached', ?)`, now-200)
-	e.exec(`INSERT INTO provider_cache (info_hash, provider, state, source, checked_at) VALUES (?, 'rd', 'miss', 'miss', ?)`,
-		miss, now-200)
+		(85, 'rd', 'skipped', 'miss', 'not cached', ?), (85, 'tb', 'skipped', 'rd_name_rule', 'blocked name', ?)`, now-200, now-200)
+	// The hash-wide cache says TB missed it too; only the attempt's own outcomes count (TB refused the name).
+	e.exec(`INSERT INTO provider_cache (info_hash, provider, state, source, checked_at) VALUES (?, 'rd', 'miss', 'miss', ?),
+		(?, 'tb', 'miss', 'miss', ?)`, miss, now-200, miss, now-200)
 	e.exec(`INSERT INTO acquire_run (id, source, title_id, version_id, version_key, target, state, results, accepted,
 		message, created_at, updated_at) VALUES (51, 'wanted', 1, 2, 'movie-web', 'movie', 'nothing', 12, 0, '', ?, ?),
 		(52, 'command', 1, 2, 'movie-web', 'movie', 'queued', 0, 0, '', ?, ?)`, now-7200, now-7200, now-60, now-60)
@@ -670,7 +671,7 @@ func TestTitlePageSearchFacts(t *testing.T) {
 			t.Errorf("a grabbed event carries missed_on: %+v", h)
 		}
 	}
-	if failed == nil || strings.Join(failed.MissedOn, ",") != "rd" {
+	if failed == nil || strings.Join(failed.MissedOn, ",") != "rd" || failed.DownloadID != 85 || !failed.Upgrade {
 		t.Errorf("failed miss: %+v", failed)
 	}
 	if v := d.Versions[0]; v.LastSearch != nil || v.Searching != "" {
@@ -714,6 +715,27 @@ func TestTitlePageSearchFacts(t *testing.T) {
 		t.Errorf("Delta counts: %+v", d.Versions[0].Episodes)
 	}
 
+	// A failed first download of an episode is no upgrade because another episode is held; one of a held episode is.
+	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, state, error,
+		episodes, source, created_at, updated_at) VALUES
+		(86, 4, 4, 'anime-tv', ?, 'Delta.S01E03', 'dmm', 'failed', 'stalled: no progress', '[43]', 'rss', ?, ?),
+		(87, 4, 4, 'anime-tv', ?, 'Delta.S01E01.v2', 'dmm', 'failed', 'stalled: no progress', '[41]', 'rss', ?, ?)`,
+		strings.Repeat("6", 40), now-100, now-90, strings.Repeat("5", 40), now-80, now-70)
+	d = TitleDetail{}
+	e.getKey(APIBase+"/titles/4", key, &d)
+	ups := map[int64]bool{}
+	for _, h := range d.Versions[0].History {
+		if h.Event == "failed" {
+			ups[h.DownloadID] = h.Upgrade
+		}
+	}
+	if up, ok := ups[86]; !ok || up {
+		t.Errorf("first download of S01E03 reads as an upgrade: %v", ups)
+	}
+	if !ups[87] {
+		t.Errorf("a held episode's failed download is an upgrade attempt: %v", ups)
+	}
+
 	// The episode window: only the runs that searched the episode count, with counts only for a run of it alone.
 	e.exec(`INSERT INTO acquire_run (id, source, title_id, version_id, version_key, target, season, episodes, state,
 		results, accepted, message, created_at, updated_at) VALUES
@@ -748,11 +770,36 @@ func TestTitlePageSearchFacts(t *testing.T) {
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, r)
 		for _, f := range []string{`"last_search"`, `"searching"`, `"auto_search"`, `"missed_on"`, `"monitored_have"`,
-			`"collection"`} {
+			`"collection"`, `"rss"`} {
 			if strings.Contains(rec.Body.String(), f) {
 				t.Errorf("%s shows %s to a caller without see_files", p, f)
 			}
 		}
+	}
+}
+
+// The RSS sentence follows the library: on only for a Live library listing an indexer whose feed the RSS read reads,
+// while the read is on.
+func TestReadsRSS(t *testing.T) {
+	off := false
+	pol := &policy.Policy{
+		Versions: map[string]*policy.VersionPolicy{
+			"live-feed":  {Mode: policy.ModeActive, Indexers: []string{"tz"}},
+			"live-dmm":   {Mode: policy.ModeActive, Indexers: []string{"tio", "dmm"}},
+			"live-none":  {Mode: policy.ModeActive, Indexers: []string{"tio"}},
+			"watch-only": {Mode: policy.ModeShadow, Indexers: []string{"tz"}},
+		},
+		Indexers: map[string]*policy.Indexer{"tz": {Kind: "torznab"}, "dmm": {Kind: "dmm"}, "tio": {Kind: "torrentio"}},
+	}
+	w := &Web{pol: pol}
+	for key, want := range map[string]bool{"live-feed": true, "live-dmm": true, "live-none": false, "watch-only": false, "gone": false} {
+		if got := w.readsRSS(key); got != want {
+			t.Errorf("%s: %v, want %v", key, got, want)
+		}
+	}
+	pol.Shadow = &policy.Shadow{RSS: &off}
+	if w.readsRSS("live-feed") {
+		t.Error("RSS read off: still says RSS")
 	}
 }
 
