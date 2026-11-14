@@ -13,10 +13,10 @@ import { fmtDay, isFamily, relDay } from "@/lib/library";
 
 const DISCOVER_ROWS: Record<string, { title: string; description: string; empty: string; caption: (t: DiscoverItem) => string | undefined }> = {
   recent: {
-    title: "Recently added",
+    title: "Latest files",
     description: "Movies and series by their newest file.",
-    empty: "Nothing has been added yet.",
-    caption: (t) => (t.date ? `Added ${relDay(t.at ?? t.date)}` : undefined),
+    empty: "No files yet.",
+    caption: (t) => (t.date ? `File added ${relDay(t.at ?? t.date)}` : undefined),
   },
   upcoming: {
     title: "Upcoming",
@@ -34,7 +34,7 @@ const DISCOVER_ROWS: Record<string, { title: string; description: string; empty:
     title: "Upgrade found",
     description: "Monitored titles with a library whose file is below its preferred quality and for which a better release was found.",
     empty: "No upgrades found.",
-    caption: () => undefined,
+    caption: (t) => t.note,
   },
 };
 

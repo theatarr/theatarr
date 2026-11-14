@@ -31,6 +31,32 @@ describe("Title page", () => {
     expect(screen.getByRole("button", { name: /Refresh metadata/ })).toBeTruthy();
   });
 
+  it("dates About by the first cinema release, says Releases for one to come and Latest file for the newest file", async () => {
+    const page = (t: object) => {
+      mockFetch([
+        { method: "GET", path: "/auth/me", reply: me },
+        { method: "GET", path: "/titles/70", reply: { ...title, ...t } },
+      ]);
+      return renderPage(
+        <SearchProvider>
+          <Routes>
+            <Route path="/title/:id" element={<TitlePage />} />
+          </Routes>
+        </SearchProvider>,
+        "/title/70?tab=about",
+      );
+    };
+    // A re-release moved TMDb's release date to 2026; the first cinema date is 1988.
+    const old = page({ year: 1988, release_date: "2026-09-04", in_cinemas: "1988-07-16", digital_release: "2026-09-04", added_at: new Date().toISOString() });
+    const facts = await screen.findByTestId("title-facts");
+    expect(facts.textContent).toContain("ReleasedJul 16, 1988");
+    expect(facts.textContent).toContain("Latest file");
+    expect(facts.textContent).not.toMatch(/Added/);
+    old.unmount();
+    page({ year: 2027, release_date: "2999-06-18" });
+    expect((await screen.findByTestId("title-facts")).textContent).toContain("Releases");
+  });
+
   it("says Pause once above the Libraries table", async () => {
     const grab_state = { mode: "active", paused: true, pause_forced: false, will_grab: false };
     const fetch = mockFetch([

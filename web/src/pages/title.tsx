@@ -47,11 +47,6 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-function firstDate(d: TitleDetail, type: string): string | undefined {
-  const all = (d.release_dates ?? []).filter((r) => r.type === type && (r.country === "US" || r.country === "")).map((r) => r.date ?? "");
-  return all.sort()[0];
-}
-
 /** "English" for "en"; the code itself when the browser has no name for it. */
 function languageName(code: string | undefined): string | undefined {
   if (!code) return undefined;
@@ -118,7 +113,9 @@ function About({ d }: { d: TitleDetail }) {
   const series = d.kind === "series";
   const runtime = fmtRuntime(d.runtime_minutes ?? m?.runtime_minutes);
   const air = series ? airFact(m) : undefined;
-  const digital = firstDate(d, "digital");
+  const digital = series ? undefined : d.digital_release;
+  // A movie is released on its first cinema date of the release-date choice (as the calendar and the lists), else TMDb's date.
+  const releasedDay = (series ? undefined : d.in_cinemas) || d.release_date;
   const links = outsideLinks(d);
   return (
     <div data-testid="title-about">
@@ -147,7 +144,7 @@ function About({ d }: { d: TitleDetail }) {
           <div className="overflow-hidden rounded-[8px] border border-[var(--line)] bg-card text-sm" data-testid="title-facts">
             {m?.status ? <Fact label="Status"><span title={m.status}>{titleStatusWords(m.status)}</span></Fact> : null}
             {series && perms.seeFiles && d.id && d.series_type ? <Fact label="Series type"><SeriesTypeControl titleId={d.id} value={d.series_type} anime={d.anime} versions={currentLibraries((d.versions ?? []) as Version[])} /></Fact> : null}
-            {d.release_date ? <Fact label={releasedLabel(series, d.release_date)}>{fmtDay(d.release_date)}</Fact> : null}
+            {releasedDay ? <Fact label={releasedLabel(series, releasedDay)}>{fmtDay(releasedDay)}</Fact> : null}
             {!series && digital ? <Fact label="Digital">{fmtDay(digital)}</Fact> : null}
             {air ? <Fact label={air.label}>{fmtDay(air.day)}</Fact> : null}
             {runtime ? <Fact label="Runtime">{runtime}</Fact> : null}

@@ -13,7 +13,7 @@ import { Empty, ErrorState, Loading, PageHeader } from "@/components/page";
 import { Chip } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { calendarHref, calendarLegend, calendarTone, episodeCode, monthDays, parseYmd, placeEntries, releaseLabel, shiftDay, ymd } from "@/lib/calendar";
+import { calendarHref, calendarLegend, calendarTone, episodeCode, joinReleases, monthDays, parseYmd, placeEntries, releaseLabel, shiftDay, ymd } from "@/lib/calendar";
 import { cn } from "@/lib/utils";
 import "@/styles/calendar.css";
 import { plural, titleWithYear } from "@/lib/format";
@@ -37,8 +37,14 @@ function readView(): "month" | "agenda" {
   return window.matchMedia?.("(max-width: 639px)").matches ? "agenda" : "month";
 }
 
-function badgeOf(e: CalendarEntry): string {
-  return e.kind === "episode" ? episodeCode(e.season, e.number) : releaseLabel(e.type);
+/** An entry with the release types of its day joined (joinReleases). */
+type Entry = CalendarEntry & { types: string[] };
+
+/** A movie's release types of the day: "Digital + Physical". */
+const releasesOf = (e: Entry) => e.types.map(releaseLabel).join(" + ");
+
+function badgeOf(e: Entry): string {
+  return e.kind === "episode" ? episodeCode(e.season, e.number) : releasesOf(e);
 }
 
 function airTime(e: CalendarEntry): string | null {
@@ -50,15 +56,15 @@ function airTime(e: CalendarEntry): string | null {
 /** A status as one of the theme's chip tones (the agenda's word). */
 const CHIP_TONE = { ok: "ok", progress: "info", bad: "bad", neutral: "neutral", idle: "ghost" } as const;
 
-function tooltip(e: CalendarEntry, status: string): string {
+function tooltip(e: Entry, status: string): string {
   const lines = [titleWithYear(e.title.name, e.title.year)];
   if (e.kind === "episode") lines.push(`${episodeCode(e.season, e.number)}${e.episode ? ` · ${e.episode}` : ""}`);
-  else lines.push(releaseLabel(e.type));
+  else lines.push(releasesOf(e));
   lines.push(status);
   return lines.join("\n");
 }
 
-function EventChip({ e, plain, now }: { e: CalendarEntry; plain: boolean; now: Date }) {
+function EventChip({ e, plain, now }: { e: Entry; plain: boolean; now: Date }) {
   const time = airTime(e);
   const s = calendarTone(e, now, plain);
   return (
@@ -72,24 +78,23 @@ function EventChip({ e, plain, now }: { e: CalendarEntry; plain: boolean; now: D
       <div className="theatarr-cal-event-title">{e.title.name}</div>
       <div className="theatarr-cal-event-meta">
         <span className="theatarr-cal-event-badge">{badgeOf(e)}</span>
-        {e.available ? <Check className="size-3 shrink-0 text-[var(--ok)]" aria-label="In the library" /> : null}
+        {e.available ? <Check className="size-3 shrink-0 text-[var(--ok)]" aria-label={s.label} /> : null}
         {time ? <span className="theatarr-cal-event-time">{time}</span> : null}
       </div>
     </Link>
   );
 }
 
-function AgendaItem({ e, plain, now }: { e: CalendarEntry; plain: boolean; now: Date }) {
+function AgendaItem({ e, plain, now }: { e: Entry; plain: boolean; now: Date }) {
   const s = calendarTone(e, now, plain);
   return (
     <li>
       <Link to={calendarHref(e)} data-tone={s.tone} className="flex items-center gap-3 px-3 py-2.5 hover:bg-[var(--hover)] sm:px-4" data-testid="agenda-item">
         <img src={e.title.poster} alt="" loading="lazy" decoding="async" className="aspect-[2/3] w-9 shrink-0 rounded-[4px] object-cover ring-1 ring-[var(--line)]" />
-        <span className={cn("theatarr-cal-dot shrink-0", `theatarr-cal-tone-${s.tone}`)} aria-hidden />
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-medium text-[var(--ink)]">{e.title.name}</div>
           <div className="truncate text-xs text-muted-foreground">
-            {e.kind === "episode" ? `${episodeCode(e.season, e.number)}${e.episode ? ` · ${e.episode}` : ""}` : releaseLabel(e.type)}
+            {e.kind === "episode" ? `${episodeCode(e.season, e.number)}${e.episode ? ` · ${e.episode}` : ""}` : releasesOf(e)}
             {airTime(e) ? ` · ${airTime(e)}` : ""}
           </div>
         </div>
@@ -119,7 +124,7 @@ function dayHeading(s: string, today: string): string {
   return s === today ? `Today · ${label}` : label;
 }
 
-function Agenda({ days, today, plain, now }: { days: [string, CalendarEntry[]][]; today: string; plain: boolean; now: Date }) {
+function Agenda({ days, today, plain, now }: { days: [string, Entry[]][]; today: string; plain: boolean; now: Date }) {
   if (days.length === 0) {
     return (
       <Card>
@@ -158,7 +163,7 @@ function MonthGrid({
   now,
 }: {
   days: Date[];
-  byDay: Map<string, CalendarEntry[]>;
+  byDay: Map<string, Entry[]>;
   month: number;
   today: string;
   selected: string | null;
@@ -234,10 +239,10 @@ export function CalendarPageView() {
   const to = view === "month" ? ymd(days[days.length - 1]) : ymd(new Date(anchor.y, anchor.m + 1, 0));
   // One day wider on each side: an episode's air moment can fall on the day before or after the network's here.
   const q = useCalendar(shiftDay(from, -1), shiftDay(to, 1));
-  const placed = useMemo(() => placeEntries(q.data?.items ?? [], from, to), [q.data, from, to]);
+  const placed = useMemo(() => joinReleases(placeEntries(q.data?.items ?? [], from, to)), [q.data, from, to]);
 
   const byDay = useMemo(() => {
-    const m = new Map<string, CalendarEntry[]>();
+    const m = new Map<string, Entry[]>();
     for (const { day, e } of placed) {
       if (!facets.includes(e.title.kind as Facet)) continue;
       const list = m.get(day) ?? [];

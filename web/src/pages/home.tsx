@@ -3,7 +3,8 @@ import { SetupReminder } from "@/components/setup-reminder";
 // nothing plays or the feature is off). Then Seerr-style sideways rows. "Getting ready" (downloads in progress; GET /activity/continue)
 // is ContinueRow; it renders nothing while nothing is in progress. Then the requests row (pending ones
 // for those who decide them, linked to the request in the queue; your own for everyone else), and the GET /discover
-// rows: recently added, upcoming, missing and below cutoff. A family account (no file detail, no queue) gets My
+// rows: latest files (titles by their newest file; "Added" elsewhere is the day the title was added), upcoming,
+// missing and upgrade found. A family account (no file detail, no queue) gets My
 // requests, Recently available and the browsing rows only: missing and below cutoff are the household's copy
 // shortfalls, which the server leaves empty for it. The row header follows Seerr's slider-header
 // (src/components/MediaSlider, MIT).
@@ -19,7 +20,7 @@ import { PosterCard, Slider } from "@/components/poster-card";
 import { Card } from "@/components/ui/card";
 import { ContinueRow } from "@/components/continue-row";
 import { NowPlayingCard } from "@/components/now-playing-card";
-import { fmtNumber } from "@/lib/format";
+import { fmtNumber, plural } from "@/lib/format";
 import { fmtDay, isFamily, kindOf, posterStatus, relDay } from "@/lib/library";
 import { requestLink } from "@/lib/request-state";
 
@@ -52,7 +53,7 @@ function Row({
         )}
         {row && row.total > items.length ? (
           <Link to={row.more} className="shrink-0 text-sm text-muted-foreground hover:text-foreground">
-            See all {fmtNumber(row.total)}
+            See all {plural(row.total, "title")}
           </Link>
         ) : null}
       </div>
@@ -151,7 +152,7 @@ export function Home() {
         ].map((x) => (
           <Link key={x.to} to={x.to} className="group">
             <Card className="flex items-center gap-2.5 px-3 py-2.5 transition group-hover:border-[var(--line-2)] sm:gap-3 sm:p-4">
-              <span className="grid size-8 shrink-0 place-items-center rounded-[5px] bg-[var(--accent-soft)] text-[var(--accent-ink)] sm:size-9">
+              <span className="hidden size-8 shrink-0 place-items-center rounded-[5px] bg-[var(--accent-soft)] text-[var(--accent-ink)] min-[420px]:grid sm:size-9">
                 <x.icon className="size-4 sm:size-5" />
               </span>
               <span className="min-w-0 truncate text-sm font-medium sm:text-base">{x.label}</span>
@@ -171,10 +172,10 @@ export function Home() {
         <>
           <Row
             id="recent"
-            title={family ? "Recently available" : "Recently added"}
+            title={family ? "Recently available" : "Latest files"}
             row={d.data.recent}
-            empty={family ? "Nothing is available yet." : "Nothing has been added yet."}
-            caption={(t) => (t.date ? `${family ? "Available" : "Added"} ${relDay(t.at ?? t.date)}` : null)}
+            empty={family ? "Nothing is available yet." : "No files yet."}
+            caption={(t) => (t.date ? `${family ? "Available" : "File added"} ${relDay(t.at ?? t.date)}` : null)}
           />
           <Row
             id="upcoming"

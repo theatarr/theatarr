@@ -37,7 +37,7 @@ it("links an episode to its episode window, colours by status and shows the lege
   const alpha = screen.getByText("Alpha").closest("a")!;
   expect(alpha.getAttribute("href")).toBe("/title/1");
   expect(alpha.dataset.tone).toBe("ok");
-  expect(screen.getByTestId("cal-legend").textContent).toBe("DownloadedDownloadingMissingUpcoming or in cinemasNot monitored");
+  expect(screen.getByTestId("cal-legend").textContent).toBe("AvailableGetting readyMissingUpcoming or in cinemasNot monitored");
 });
 
 it("gives an account without see files the household words, no red missing", async () => {
@@ -68,4 +68,18 @@ it("counts the month shown in both views, not the grid's days of the neighbourin
   const shown = [before, after].filter((d) => grid.includes(d));
   for (const d of shown) expect(await screen.findByText(d === before ? "Before" : "After")).toBeTruthy();
   expect(series()).toBe("Series1");
+});
+
+it("shows one movie's releases of a day as one entry, with its status words", async () => {
+  const odyssey = { date: day(1), kind: "movie", title: title(7, "The Odyssey", "movie"), monitored: true, available: true, partial: true, acquiring: false };
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["manage", "see_files"] } },
+    { method: "GET", path: "/calendar", reply: { from: day(1), to: day(28), items: [{ ...odyssey, type: "digital" }, { ...odyssey, type: "physical" }] } },
+  ]);
+  renderPage(<CalendarPageView />, "/calendar");
+  await screen.findByText("The Odyssey");
+  const rows = screen.getAllByTestId("agenda-item");
+  expect(rows).toHaveLength(1);
+  expect(rows[0].textContent).toContain("Digital + Physical");
+  expect(rows[0].textContent).toContain("Partly available");
 });
