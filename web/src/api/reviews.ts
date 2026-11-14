@@ -7,9 +7,10 @@ import { qk } from "./query-keys";
 import { useCardigannHolds } from "./cardigann";
 import type { JournalPage, Review } from "./hooks";
 
+// Fresh for its 60 s poll: moving between admin pages does not rebuild the listing each time.
 export const useFlaggedDecisions = (enabled = true) => useQuery({
   queryKey: qk.journal.list({ suspect: true }),
-  queryFn: () => api<JournalPage & { total?: number }>("/journal?suspect=1&limit=50"), enabled, refetchInterval: 60_000,
+  queryFn: () => api<JournalPage & { total?: number }>("/journal?suspect=1&limit=50"), enabled, refetchInterval: 60_000, staleTime: 60_000,
 });
 
 /** The open dead-link flags that are resolved or superseded (GET /journal/resolved): what Acknowledge resolved covers. */
@@ -36,9 +37,11 @@ export function suspectCount(page?: JournalPage & { total?: number }) {
   const count = page?.total ?? page?.items?.length ?? 0;
   return { count, more: page?.total === undefined && (count >= 50 || !!page?.next_cursor) };
 }
-export function useReviewCounts() {
+/** The waiting counts for an admin. active false reads nothing: the sidebar badge reads them on admin pages only,
+ * since the flagged-decisions listing builds up to 2,000 journal entries. */
+export function useReviewCounts(active = true) {
   const auth = useAuth();
-  const enabled = permsOf(auth.data?.permissions).admin;
+  const enabled = active && permsOf(auth.data?.permissions).admin;
   const anime = useQuery({ queryKey: qk.anime.review("open"), queryFn: () => api<Review>("/anime/review?state=open"), enabled, refetchInterval: 60_000 });
   const indexers = useCardigannHolds(enabled);
   const decisions = useFlaggedDecisions(enabled);

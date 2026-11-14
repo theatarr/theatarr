@@ -89,8 +89,18 @@ it.each(["pending", "error", "empty"])("definition reviews show %s", async state
 it("shows a question mark badge when the scan found no matches but has older entries", async () => {
  const { ReviewsBadge } = await import("@/components/shell/app-shell");
  mockFetch(routes(true).map(r => r.path === "/journal" ? { ...r, reply: { items: [], next_cursor: "older" } } : r));
- renderPage(<ReviewsBadge />);
+ renderPage(<ReviewsBadge />, "/admin");
  expect((await screen.findByTestId("reviews-badge")).textContent).toBe("?");
+});
+
+it("reads no review counts for the badge outside the admin pages", async () => {
+ const { ReviewsBadge } = await import("@/components/shell/app-shell");
+ const fetch = mockFetch(routes(true));
+ renderPage(<ReviewsBadge />, "/movies");
+ await waitFor(() => expect(fetch.calls("GET", "/auth/me")).toHaveLength(1));
+ await new Promise((r) => setTimeout(r, 50));
+ expect(fetch.requests.some((r) => r.path.startsWith("/journal") || r.path.startsWith("/anime"))).toBe(false);
+ expect(screen.queryByTestId("reviews-badge")).toBeNull();
 });
 
 it("names each flagged item and its reason, and acknowledges settled dead-link flags in bulk", async () => {
