@@ -11,7 +11,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useLiveSearch } from "@/api/add";
 import { qk } from "@/api/query-keys";
 import { usePerms, useTitle } from "@/api/library";
-import { useEpisode } from "@/api/manage";
 import { useRemovalScope } from "@/api/ops";
 import { ErrorState, Loading, VersionTag } from "@/components/page";
 import { ReleaseGrid } from "@/components/title/release-grid";
@@ -20,11 +19,9 @@ import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { cn } from "@/lib/utils";
 import { titleWithYear } from "@/lib/format";
-import { currentFile, noneOfTitle, scopeTarget, searchTargetWords } from "@/lib/release-columns";
+import { noneOfTitle, scopeTarget, searchTargetWords } from "@/lib/release-columns";
 
-/** episode.held: whether the episode has a file, by library key, when the opener knows (the episode rows); otherwise
- *  the window reads the episode. */
-export type SearchScope = { titleId: number; version?: string; season?: number; episode?: { id: number; code: string; held?: Record<string, boolean> } };
+export type SearchScope = { titleId: number; version?: string; season?: number; episode?: { id: number; code: string } };
 
 /** The title's libraries interactive search may search: current copies (not removed: the removal scope's copies;
  *  the title data still lists removed ones) that search the indexers live. */
@@ -74,14 +71,10 @@ export function InteractiveSearch({ titleId, version, season, episode, onClose }
   const scope = episode ? episode.code : season === undefined ? "" : season === 0 ? "Specials" : `Season ${season}`;
   const live = r?.source === "live";
   const items = r?.candidates ?? [];
-  // Whether the requested film or episode has a file in this library: a season or the whole series has no one file.
-  const ep = useEpisode(titleId, episode && !episode.held ? episode.id : null);
-  const held = episode ? (episode.held ? episode.held[lib?.key ?? ""] ?? false : ep.data?.versions.find((v) => v.key === lib?.key)?.has_file) : kind === "movie" && season === undefined ? lib?.has_file ?? false : undefined;
-  const current = currentFile(items, held, episode?.code);
+  // The requested film's or episode's own file in this library, as the server reads it now (none for a season).
+  const current = r?.current;
   // A rejection reason picked from the summary: the list keeps those releases; another library starts unfiltered.
-  const [picked, setPicked] = useState<{ lib?: string; reason?: string }>({});
-  const reason = picked.lib === lib?.key ? picked.reason : undefined;
-  const pick = (code: string | undefined) => setPicked({ lib: lib?.key, reason: code });
+  const [reason, setReason] = useState<string>();
   const grab = r && live && r.grab && perms.manage && lib ? { titleId, version: r.version, label: library } : undefined;
   return (
     <Modal
@@ -119,7 +112,7 @@ export function InteractiveSearch({ titleId, version, season, episode, onClose }
                     type="button"
                     role="tab"
                     aria-selected={v.key === lib.key}
-                    onClick={() => setChosen(v.key)}
+                    onClick={() => { setChosen(v.key); setReason(undefined); }}
                     className={cn("rounded-md p-0.5 ring-offset-0 transition", v.key === lib.key ? "ring-2 ring-[var(--line-focus)]" : "opacity-70 hover:opacity-100")}
                   >
                     <VersionTag k={v.key ?? ""} label={v.label} className="text-[12px]" />
@@ -142,7 +135,7 @@ export function InteractiveSearch({ titleId, version, season, episode, onClose }
                   </p>
                 ) : null}
                 {live ? (
-                  <Summary r={r} reason={reason} onReason={pick} />
+                  <Summary r={r} reason={reason} onReason={setReason} />
                 ) : (
                   <>
                     <div className="space-y-1 rounded-[5px] border border-[var(--th-warning-border)] bg-[var(--warn-soft)] p-3 text-sm text-[var(--warn-ink)] [overflow-wrap:anywhere]" role="alert" data-testid="interactive-fallback">
@@ -158,13 +151,13 @@ export function InteractiveSearch({ titleId, version, season, episode, onClose }
                 )}
                 {current ? (
                   <p className="text-sm text-[var(--ink-2)]" data-testid="interactive-current">
-                    {current.held ? `Current file: ${current.quality || "unknown quality"}, score ${current.score ?? 0}` : "No file held"}
+                    {current.held ? `Current file: ${current.quality || "unknown quality"}${current.score != null ? `, score ${current.score}` : ""}` : "No file held"}
                   </p>
                 ) : null}
                 {items.length === 0 ? (
                   <p className="py-4 text-center text-sm text-muted-foreground">No releases found.</p>
                 ) : (
-                  <ReleaseGrid items={items} outcomes={r.outcomes} kind={kind} grab={grab} capped={r.results > items.length ? r.results : undefined} reason={reason} />
+                  <ReleaseGrid key={lib.key} items={items} outcomes={r.outcomes} kind={kind} grab={grab} capped={r.results > items.length ? r.results : undefined} reason={reason} />
                 )}
               </>
             ) : null}

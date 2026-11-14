@@ -248,8 +248,6 @@ type ListProps = {
 };
 
 const epCode = (e: Episode) => `S${String(e.season).padStart(2, "0")}E${String(e.number).padStart(2, "0")}`;
-/** Whether the episode has a file, by library key (interactive search's Current file line). */
-const heldBy = (e: Episode) => Object.fromEntries(Object.entries(e.versions).map(([k, v]) => [k, v.has_file]));
 
 function openOnKey(e: KeyboardEvent, id: number, onOpen: (id: number) => void) {
   if (e.target !== e.currentTarget) return;
@@ -281,7 +279,7 @@ function RowIcons({ e, live, act }: { e: Episode; live: ListProps["live"]; act: 
       ) : null}
       {live ? (
         <span className={PHONE_ICON_WRAP}>
-          <InteractiveSearchButton titleId={live.titleId} version={live.version} episode={{ id: e.id, code: epCode(e), held: heldBy(e) }} iconOnly size="xs" variant="ghost" />
+          <InteractiveSearchButton titleId={live.titleId} version={live.version} episode={{ id: e.id, code: epCode(e) }} iconOnly size="xs" variant="ghost" />
         </span>
       ) : null}
     </span>

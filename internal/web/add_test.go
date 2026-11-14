@@ -693,6 +693,17 @@ func TestReleasesShadowNoLive(t *testing.T) {
 	if r.Source != "none" || r.LiveAllowed || len(r.Candidates) != 0 {
 		t.Fatalf("nothing stored: %+v", r)
 	}
+	// The film's own file in the library, whatever the candidates compared against: none yet, then its arr file.
+	if r.Current == nil || r.Current.Held {
+		t.Errorf("no file: current %+v", r.Current)
+	}
+	e.exec(`INSERT INTO version_file (id, version_id, title_id, instance, arr_file_id, path, size_bytes, quality,
+		custom_format_score) VALUES (900, 1, 1, 'r', 900, '/m/alpha.mkv', 1, 'Remux-2160p', 3100)`)
+	r = Releases{}
+	e.call("GET", APIBase+"/titles/1/releases?version=movie-remux", nil, 200, &r)
+	if c := r.Current; c == nil || !c.Held || c.Quality != "Remux-2160p" || c.Score == nil || *c.Score != 3100 {
+		t.Errorf("held: current %+v", c)
+	}
 	// A journal decision answers. live=1 changes nothing.
 	e.exec(`INSERT INTO journal_decision (source, title_id, version_key, target, results, accepted, candidates,
 		rejections, created_at) VALUES ('rss', 1, 'movie-remux', 'rss', 7, 1,
@@ -720,6 +731,9 @@ func TestReleasesShadowNoLive(t *testing.T) {
 		t.Fatal("searched without live=1")
 	}
 	e.call("GET", APIBase+"/titles/1/releases?version=movie-web&live=1", nil, 200, &r)
+	if r.Current == nil || r.Current.Held {
+		t.Errorf("live, movie-web holds nothing: current %+v", r.Current)
+	}
 	if r.Source != "live" || r.Results != 2 || r.Accepted != 1 || r.Candidates[0].Indexer != "dmm" ||
 		r.Candidates[1].Rejections[0].Reason != "quality" || r.Rejections["quality"] != 1 {
 		t.Errorf("live: %+v", r)

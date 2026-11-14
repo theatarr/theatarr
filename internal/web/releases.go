@@ -52,6 +52,17 @@ type Releases struct {
 	Outcomes map[string]ReleaseOutcome `json:"outcomes"`
 	// Grabbed says in one line what the stored decision's search grabbed (searchSummary); empty for a live answer.
 	Grabbed string `json:"grabbed,omitempty"`
+	// Current is the file the requested film or episode holds in this library now (interactive search's "Current
+	// file" line); absent for a season or a whole series.
+	Current *HeldFile `json:"current,omitempty"`
+}
+
+// HeldFile is the file a film or an episode holds in a library now: none (Held false), or its quality and score
+// (absent when the file has none scored).
+type HeldFile struct {
+	Held    bool   `json:"held"`
+	Quality string `json:"quality,omitempty"`
+	Score   *int64 `json:"score,omitempty"`
 }
 
 // maxLiveCandidates caps a live answer's list.
@@ -140,6 +151,14 @@ func (w *Web) apiReleases(rw http.ResponseWriter, r *http.Request) {
 // writeReleases answers with the outcome of each of the version's releases filled in; episode > 0 scopes them to
 // that episode (releaseOutcomes).
 func (w *Web) writeReleases(ctx context.Context, rw http.ResponseWriter, out *Releases, episode int64) {
+	if out.Current == nil {
+		cur, err := w.heldFile(ctx, w.st.Reader(), out.TitleID, out.Version, episode)
+		if err != nil {
+			w.internal(rw, err)
+			return
+		}
+		out.Current = cur
+	}
 	if out.Outcomes == nil {
 		oc, err := releaseOutcomes(ctx, w.st.Reader(), out.TitleID, out.Version, episode)
 		if err != nil {
@@ -149,6 +168,50 @@ func (w *Web) writeReleases(ctx context.Context, rw http.ResponseWriter, out *Re
 		out.Outcomes = oc
 	}
 	writeJSON(rw, http.StatusOK, out)
+}
+
+// heldFile is the file the title's film (episode 0, a movie) or episode holds in library key now; nil for a series
+// without an episode (a season or the whole series has no one file). An episode's file is episodeFile's; a film's
+// its newest active link, else its arr file.
+func (w *Web) heldFile(ctx context.Context, db *sql.DB, titleID int64, key string, episode int64) (*HeldFile, error) {
+	var vid int64
+	var kind string
+	err := db.QueryRowContext(ctx, `SELECT v.id, t.kind FROM version v JOIN title t ON t.id = v.title_id
+		WHERE v.title_id = ? AND v.policy_key = ?`, titleID, key).Scan(&vid, &kind)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if episode > 0 {
+		f, err := w.episodeFile(ctx, db, vid, episode)
+		if err != nil || f == nil {
+			return &HeldFile{}, err
+		}
+		return &HeldFile{Held: true, Quality: f.Quality, Score: f.Score}, nil
+	}
+	if kind != "movie" {
+		return nil, nil
+	}
+	h := &HeldFile{Held: true}
+	var score sql.NullInt64
+	err = db.QueryRowContext(ctx, `SELECT COALESCE(l.quality, ''), `+linkScoreSQL+` FROM link l
+		JOIN link_version lv ON lv.link_id = l.id WHERE lv.version_id = ? AND l.state = 'active'
+		ORDER BY l.created_at DESC, l.id DESC LIMIT 1`, vid).Scan(&h.Quality, &score)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = db.QueryRowContext(ctx, `SELECT vf.quality, vf.custom_format_score FROM version_file vf
+			LEFT JOIN version_source vs ON vs.version_id = vf.version_id WHERE vf.version_id = ? AND `+curFile+`
+			ORDER BY vf.added_at DESC, vf.id DESC LIMIT 1`, vid).Scan(&h.Quality, &score)
+		if errors.Is(err, sql.ErrNoRows) {
+			return &HeldFile{}, nil
+		}
+	}
+	if err != nil {
+		return nil, err
+	}
+	h.Score = nullInt(score)
+	return h, nil
 }
 
 // liveReleases searches the version's indexers now and decides every release (acquire.Acquirer.Interactive):

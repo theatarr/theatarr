@@ -291,6 +291,21 @@ func TestEpisodeReleasesScopedToEpisode(t *testing.T) {
 	if r.Grabbed != "Grabbed #1 via RD → imported (the current file)" {
 		t.Errorf("E01 summary %q", r.Grabbed)
 	}
+	// Current is the episode's own file: E01 is held by the season pack's link; S02E01 holds nothing.
+	if r.Current == nil || !r.Current.Held {
+		t.Errorf("E01 current: %+v", r.Current)
+	}
+	r = Releases{}
+	e.call("GET", APIBase+"/titles/10/episodes/103/releases", nil, 200, &r)
+	if r.Current == nil || r.Current.Held {
+		t.Errorf("S02E01 current: %+v", r.Current)
+	}
+	// A season's releases have no one current file.
+	r = Releases{}
+	e.call("GET", APIBase+"/titles/10/releases?version=tv-2160p&season=1", nil, 200, &r)
+	if r.Current != nil {
+		t.Errorf("season current: %+v", r.Current)
+	}
 }
 
 // An episode's releases from a season search count only the candidates that cover the episode, even when every

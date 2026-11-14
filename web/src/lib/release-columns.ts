@@ -256,18 +256,6 @@ export function grabConfirmScope(c: Candidate, library: string, late?: string[])
   };
 }
 
-/** Interactive search's "Current file" line: the requested film's or episode's own file in the library searched,
- *  never a pack's (a candidate's existing is the first held episode of its release). held is whether that item has
- *  a file in the library; undefined while unknown or for a season or the whole series, which get no line. A film's
- *  candidates all compare against its one file; an episode's file is read from a release of that episode alone. */
-export function currentFile(items: Candidate[], held: boolean | undefined, episode?: string): { held: false } | { held: true; quality?: string; score?: number } | null {
-  if (held === undefined) return null;
-  if (!held) return { held: false };
-  const code = episode?.toUpperCase();
-  const c = items.find((x) => x.existing && (code === undefined || (x.episodes?.length === 1 && x.episodes[0].toUpperCase() === code)));
-  return c?.existing ? { held: true, quality: c.existing.quality, score: c.existing.score } : null;
-}
-
 /** The reasons that say a release is of another title, not a worse copy of this one. */
 const OTHER_TITLE = new Set(["UnknownMovie", "UnknownSeries", "WrongMovie", "WrongSeries", "MatchesAnotherSeries"]);
 

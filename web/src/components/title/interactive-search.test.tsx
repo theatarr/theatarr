@@ -287,10 +287,20 @@ it("renders the first 50 releases, shows more on asking, and filters by a reject
 it("leads with no release of this title when every result is another title", async () => {
   const other = { ...rejected, rejections: [{ reason: "UnknownMovie", message: "Unknown Movie." }] };
   mockFetch([ME, TITLE, CURRENT, CURRENT, { method: "GET", path: "/titles/7/releases",
-    reply: answer("movie-web", { results: 1, accepted: 0, indexers: 8, candidates: [other], rejections: { UnknownMovie: 1 } }) }]);
+    reply: answer("movie-web", { results: 1, accepted: 0, indexers: 8, candidates: [other], rejections: { UnknownMovie: 1 }, current: { held: false } }) }]);
   renderPage(<InteractiveSearchButton titleId={7} version="movie-web" />);
   open();
   expect((await screen.findByTestId("interactive-none-of-title")).textContent).toBe("No release of this title was found on 8 indexers.");
-  // The film holds no file in this library: the line says so, whatever a candidate compared against.
+  // The server says the film holds no file in this library: the line says so.
   expect(screen.getByTestId("interactive-current").textContent).toBe("No file held");
+});
+
+// The Current file line is the server's file of the requested film or episode, never a candidate's comparison file.
+it("says the requested item's own file, as the server reads it", async () => {
+  const pack = { ...accepted, episodes: ["S01E01", "S01E02"], existing: { quality: "WEBDL-2160p", score: 900 } };
+  mockFetch([ME, TITLE, CURRENT, CURRENT, { method: "GET", path: "/titles/7/releases",
+    reply: answer("movie-web", { candidates: [pack], current: { held: true, quality: "WEBDL-1080p", score: 1775 } }) }]);
+  renderPage(<InteractiveSearchButton titleId={7} version="movie-web" />);
+  open();
+  expect((await screen.findByTestId("interactive-current")).textContent).toBe("Current file: WEBDL-1080p, score 1775");
 });
