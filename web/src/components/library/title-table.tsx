@@ -93,8 +93,9 @@ function CompactStage({ a }: { a: Acquisition }) {
   );
 }
 
-/** Status for an account that sees files: the poster badge's word (the day for Upcoming), with the quality word under
- *  it for a title with a file ("Best quality known", "Upgrade found": qualityWord), and a download in hand's short
+/** Status for an account that sees files: the poster badge's word (the day for Upcoming), with "Upgrade found" under
+ *  it once a better release was found (qualityWord; the other quality words are said on the title page, as on a
+ *  poster), and a download in hand's short
  *  stage after it ("Partly available · 64%", CompactStage); a title with no file yet shows the download's stage
  *  alone, in words. words: a phone card's head (no hover), which shows the stage in words after the badge word and
  *  wraps the status under the title when both do not fit. */
@@ -106,7 +107,8 @@ function StatusCell({ t, words = false }: { t: TitleRow; words?: boolean }) {
   const home = s === "upcoming" ? upcomingRelease(t) : undefined;
   const day = s === "upcoming" ? (home ?? (notAiredYet(t) ? t.next_up?.date : undefined)) : undefined;
   const undated = s === "upcoming" && !day && undatedUpcoming(t);
-  const q = qualityWord(t);
+  const quality = qualityWord(t);
+  const q = quality?.found ? quality : undefined;
   const word = (
     <span className="inline-flex min-w-0 flex-col">
       <span data-testid="status-cell" className={cn("text-[13px] font-medium", TONE_INK[badgeTone(s)])}>

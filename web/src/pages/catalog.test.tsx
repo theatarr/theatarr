@@ -188,7 +188,10 @@ describe("Library table", () => {
     expect(within(coming).getByTestId("status-cell").textContent).toBe("Upcoming · Jun 1, 2099");
     expect(within(coming).queryByTestId("status-quality")).toBeNull();
     const low = screen.getByRole("link", { name: "Low Tide" }).closest("tr") as HTMLElement;
-    expect([within(low).getByTestId("status-cell").textContent, within(low).getByTestId("status-quality").textContent]).toEqual(["Available", "Best quality known"]);
+    // Only "Upgrade found" is said on a list row; "Best quality known" stays on the title page.
+    expect(within(low).getByTestId("status-cell").textContent).toBe("Available");
+    expect(within(low).queryByTestId("status-quality")).toBeNull();
+    expect(within(low).queryByText("Best quality known")).toBeNull();
     const high = screen.getByRole("link", { name: "High Tide" }).closest("tr") as HTMLElement;
     expect([within(high).getByTestId("status-cell").textContent, within(high).getByTestId("status-quality").textContent]).toEqual(["Available", "Upgrade found"]);
     expect(within(coming).getByTestId("library-pill").textContent).toBe("4K · Not released yet");
