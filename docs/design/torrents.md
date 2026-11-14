@@ -314,19 +314,38 @@ is not complete, router.md "Copies to other providers") there is `DeleteUserChos
 
 ## UI
 
-Admin › Torrents opens from the record: a strip per provider (account torrents, of the limit on AllDebrid, size,
-unused, and "as of" the record's time, or "never read"), **Refresh** (reads the accounts, then shows the new
-record), provider tabs, group filters (unused, duplicate
+Admin › Torrents opens from the record: one line per account with its counts in their units ("981 account torrents ·
+938 unique hashes", "of" the limit on AllDebrid), size, unused and unknown, and "as of" the record's time; an account
+never read says "Not read yet — Refresh reads it" (not an empty account), and one whose last read failed says so with
+the record it still shows ("Could not read RD just now: <why>. Showing the record as of <time>."). One line says that
+used and unused are as of the same time. A torrent whose stored usage is not there yet reads **not worked out** with
+its reason (never unused, never in the Unused group); other unknown torrents show their first reason under the badge.
+**Refresh** says "Reading the accounts…" while it runs, then what it read per account ("Read the accounts: RD 981
+account torrents · TB could not be read.", with `refresh_error`) and the list from the new record. Provider tabs,
+group filters (unused, duplicate
 hash, duplicate title, failed, stalled, largest), a name or hash filter (every word in the name or parsed title, in
 any order, or the text as a hash prefix; `?q=` in the address fills it, so other pages link to one torrent: a title's
 **Torrent** link sends the hash's first 12), sort by size, age or name, under "All providers" a **Provider** column
 with the account's tag (RD, AD, TB, as **Cached on** shows it; the account key as tooltip), a usage column whose
-references show on hover and expand on click (the expanded references link their titles to the title page), one
+references show on hover and expand on click (the expanded references link their titles to the title page; the
+first five references, then "and N more" counted from all of them), names decoded (the provider's own name as
+tooltip), one
 table at every width (below 640 px Added, Status and the Size column hide; the size leads the name's second line),
 multi-select and **Delete selected**: the preview opens a
 confirmation with the count, size and the backup it takes first; refused torrents are
-listed with why, and used or unknown ones with a checkbox naming their references to override. **Saved inventory** (`/admin/torrents/inventory`) shows known hashes and provider holdings.
-The torrent journal remains below the provider list. **System › Backup** holds torrent-list backups: **Back up
+listed with why, and used or unknown ones with a checkbox naming their references to override. **Other libraries'
+folders** (`torrents.scan_roots`, `#scan-roots`) sit below the list, shown once it has loaded, and the torrent journal
+below them.
+
+**Saved inventory** (`/admin/torrents/inventory`) lists known hashes by decoded name with **Used** (the Torrents page's
+answer from the record and the link count; "—" when no account holds the hash) and the inventory's own state in words
+that claim nothing about usage: Held, tied to an import (`present`); Held, not tied to an import (`unreferenced`); On no
+account (`absent`); Removed (`gone`); Not known yet (`unknown`). The state filter uses the same words. The count says
+"N torrents (unique hashes)". A detail shows **Used** (badge, links, references: five, then "and N more"; titles
+linked; or that no account holds it), **Imports** only when Theatarr recorded any, **Providers** with a header row
+(Provider, Name, Torrent id, Held since), the RD/AD/TB tag and "gone since <date>" for an account that no longer holds
+it, **Add to other providers** from an account that holds it (the Torrents row's action), **Arr files** only when there
+are any, and files. **System › Backup** holds torrent-list backups: **Back up
 now**, import (Theatarr or DMM, to a chosen provider), the list with download (Theatarr or DMM format) and **Restore…**
 with its preview. A row's expanded area has **Add to other providers** (router.md "Copies to other providers":
 `POST /torrents/copy`; disabled with the Pause words while paused), with an **Other providers:** line for the copies
