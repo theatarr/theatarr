@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { fmtBytes, fmtTime } from "@/lib/format";
+import { fmtBytes, fmtNumber, fmtTime, nameWithoutYear, plural } from "@/lib/format";
 import { journalHome, journalLink } from "@/lib/admin-links";
 import { ProviderTag } from "@/components/provider-pills";
 import { InfoHash } from "@/components/title/info-hash";
@@ -48,7 +48,7 @@ function TitleCell({ e }: { e: JournalEntry }) {
     <span className="flex items-center gap-3">
       <TitleThumb id={e.title?.id} />
       <span>
-        <Link className="font-medium hover:text-primary" to={journalLink(e.id ?? "")}>{e.title?.name ?? "—"}</Link>
+        <Link className="font-medium hover:text-primary" to={journalLink(e.id ?? "")}>{e.title?.name ? nameWithoutYear(e.title.name, e.title.year) : "—"}</Link>
         {e.title?.year ? <span className="text-muted-foreground"> ({e.title.year})</span> : null}
         <div className="max-w-[30rem] text-xs text-muted-foreground [overflow-wrap:anywhere]">{e.summary}</div>
         {/* Phones and tablets: the columns that hide (when, kind, library, flags) stay inline under the title. */}
@@ -160,7 +160,7 @@ export function JournalEntryPage() {
       <PageHeader
         crumb={crumb}
         docTitle="Decision journal"
-        title={<span className="flex items-center gap-4"><TitleThumb id={e.title?.id} className="w-12" /><span>{e.title?.name ?? id}{e.title?.year ? <span className="text-muted-foreground"> ({e.title.year})</span> : null}</span></span>}
+        title={<span className="flex items-center gap-4"><TitleThumb id={e.title?.id} className="w-12" /><span>{e.title?.name ? nameWithoutYear(e.title.name, e.title.year) : id}{e.title?.year ? <span className="text-muted-foreground"> ({e.title.year})</span> : null}</span></span>}
         description={<span className="flex flex-wrap items-center gap-2"><Badge tone="outline">{e.kind}</Badge>{e.version ? <VersionTag k={e.version} /> : null}<Mono>{e.source}</Mono><span>{fmtTime(e.at)}</span><PolicyRev e={e} current={status.data?.policy_revision} /></span>}
         actions={e.title?.id ? <Button asChild variant="outline" size="sm"><a href={`/title/${e.title.id}`}>Title page</a></Button> : undefined}
       />
@@ -206,12 +206,12 @@ export function JournalEntryPage() {
       ) : null}
 
       {r ? (
-        <Section title="Reasoning" aside={r.results !== undefined ? `${r.results} results · ${r.accepted ?? 0} accepted` : undefined}>
+        <Section title="Reasoning" aside={r.results !== undefined ? `${plural(r.results, "result")} · ${fmtNumber(r.accepted ?? 0)} accepted` : undefined}>
           <Card className="space-y-2 text-sm">
             {r.basis ? <div><span className="text-muted-foreground">Basis </span>{r.basis}</div> : null}
-            {r.chosen ? <div><span className="text-muted-foreground">Chosen </span><span className="break-words">{r.chosen.release}</span> · {r.chosen.quality} · score {r.chosen.score}</div> : null}
+            {r.chosen ? <div><span className="text-muted-foreground">Chosen </span><span className="break-words">{r.chosen.release}</span> · {r.chosen.quality} · score {fmtNumber(r.chosen.score)}</div> : null}
             {(r.runners_up ?? []).slice(0, 5).map((c, i) => (
-              <div key={i} className="break-words text-muted-foreground">#{c.rank || i + 2} {c.release} · score {c.score}{c.accepted ? "" : " · rejected"}</div>
+              <div key={i} className="break-words text-muted-foreground">#{c.rank || i + 2} {c.release} · score {fmtNumber(c.score)}{c.accepted ? "" : " · rejected"}</div>
             ))}
             {r.detail || r.notes ? <div>{r.detail || r.notes}</div> : null}
             {r.missing ? <div className="text-muted-foreground">Not recorded: {r.missing}</div> : null}

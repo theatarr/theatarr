@@ -163,7 +163,7 @@ export const STAGE_MEANINGS: { label: string; meaning: string }[] = [
   { label: "Waiting for the mount", meaning: "Finished, but its files are not visible on the mount yet." },
   { label: "Linking", meaning: "Being linked into the library folder." },
   { label: "Partly linked", meaning: "Some files are linked. The rest are tried again." },
-  { label: "Rejected by the library", meaning: "The file failed the library's check (a sample, the wrong length, not an upgrade). Details says which." },
+  { label: "Rejected by the library", meaning: "The file failed the library's check (a sample, the wrong length, not an upgrade). Inspect says which." },
   { label: "Linking failed", meaning: "Linking hit an error and is tried again." },
   { label: "Linked", meaning: "In the library." },
   { label: "Failed", meaning: "The download failed. Retry sends it again; Dismiss clears the row." },

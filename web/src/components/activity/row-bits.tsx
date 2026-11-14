@@ -5,6 +5,7 @@ import type { ActivityDownload } from "@/api/activity";
 import type { DataColumn } from "@/components/ui/data-table";
 import { kindLabel } from "@/components/activity-bits";
 import { cn } from "@/lib/utils";
+import { nameWithoutYear, plural } from "@/lib/format";
 
 export function Poster({ src, className }: { src: string; className?: string }) {
   return (
@@ -23,8 +24,8 @@ export function TitleLine({ t }: { t: ActivityDownload["title"] }) {
   return (
     <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
       {t.id ? (
-        <Link to={`/title/${t.id}`} className={`${nameClass} hover:text-primary`}>{t.name}</Link>
-      ) : <span className={nameClass}>{t.name}</span>}
+        <Link to={`/title/${t.id}`} className={`${nameClass} hover:text-primary`}>{nameWithoutYear(t.name, t.year)}</Link>
+      ) : <span className={nameClass}>{nameWithoutYear(t.name, t.year)}</span>}
       {t.year ? <span className="text-sm text-muted-foreground">{t.year}</span> : null}
       <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--ink-3)]">{kindLabel(t.kind)}</span>
     </div>
@@ -36,10 +37,20 @@ export function Dash() {
   return <span className="text-[var(--ink-3)]">—</span>;
 }
 
-/** Episodes in short: "S01E01 S01E02", or "S01E01 S01E02 S01E03 … 12 episodes". */
+/** Episodes in short: "S01E01 S01E02", or the count first and runs as ranges, "11 episodes · S01E01–S01E11", so a
+ *  cut-off line still says how many. */
 export function episodesWords(eps: readonly string[] | undefined): string {
   if (!eps?.length) return "";
-  return eps.length > 4 ? `${eps.slice(0, 3).join(" ")} … ${eps.length} episodes` : eps.join(" ");
+  if (eps.length <= 4) return eps.join(" ");
+  const runs: string[][] = [];
+  for (const e of eps) {
+    const last = runs.at(-1);
+    const prev = last ? /^S(\d+)E(\d+)$/i.exec(last[last.length - 1]) : null;
+    const cur = /^S(\d+)E(\d+)$/i.exec(e);
+    if (last && prev && cur && prev[1] === cur[1] && Number(cur[2]) === Number(prev[2]) + 1) last.push(e);
+    else runs.push([e]);
+  }
+  return `${plural(eps.length, "episode")} · ${runs.map((r) => (r.length > 1 ? `${r[0]}–${r[r.length - 1]}` : r[0])).join(" ")}`;
 }
 
 /** The custom formats a release matched, with their scores. */

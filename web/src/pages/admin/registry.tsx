@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { fmtAgo, fmtBytes, fmtNumber, fmtTime } from "@/lib/format";
+import { fmtAgo, fmtBytes, fmtTime, plural } from "@/lib/format";
 import { ProviderTag } from "@/components/provider-pills";
 import { TorrentLink } from "@/components/title/info-hash";
 import { ApiError } from "@/api/client";
@@ -94,7 +94,7 @@ export function Registry() {
         </Card>
       )}
       <div className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
-        <span>{fmtNumber(total)} contents{total > 0 ? ` · ${offset + 1}–${Math.min(total, offset + 50)}` : ""}</span>
+        <span>{plural(total, "torrent")}{total > 0 ? ` · ${offset + 1}–${Math.min(total, offset + 50)}` : ""}</span>
         <Button size="sm" variant="outline" disabled={offset === 0} onClick={() => { const n = new URLSearchParams(params); n.set("offset", String(Math.max(0, offset - 50))); setParams(n); }}>Previous</Button>
         <Button size="sm" variant="outline" disabled={offset + 50 >= total} onClick={() => { const n = new URLSearchParams(params); n.set("offset", String(offset + 50)); setParams(n); }}>Next</Button>
       </div>

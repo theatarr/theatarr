@@ -7,10 +7,10 @@ import { ErrorState, Loading, Mono } from "@/components/page";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { fmtDay } from "@/lib/library";
 import { cn } from "@/lib/utils";
+import { animeFormatWords, mappingWords, orderWords, roleWords } from "@/lib/anime-words";
+import { dayFormatter } from "@/lib/format";
 
-const orderName = (k: string | undefined) => (k ? `${k[0].toUpperCase()}${k.slice(1)} order` : "Order");
 
 function Franchise({ slug, admin }: { slug: string; admin: boolean }) {
   const q = useFranchise(slug);
@@ -38,10 +38,13 @@ function Franchise({ slug, admin }: { slug: string; admin: boolean }) {
         <Tabs defaultValue={orders[0].kind} className="p-3">
           <TabsList className="flex-wrap">
             {orders.map((o) => (
-              <TabsTrigger key={o.kind} value={o.kind ?? ""}>{orderName(o.kind)}</TabsTrigger>
+              <TabsTrigger key={o.kind} value={o.kind ?? ""}>{orderWords(o.kind)}</TabsTrigger>
             ))}
           </TabsList>
-          {orders.map((o) => (
+          {orders.map((o) => {
+            // One day format per order: with the year on every date once the order spans more than this year.
+            const day = dayFormatter((o.items ?? []).map((it) => it.date));
+            return (
             <TabsContent key={o.kind} value={o.kind ?? ""} className="mt-3">
               <ol className="divide-y divide-border rounded-lg border border-border">
                 {(o.items ?? []).map((it) => {
@@ -51,16 +54,16 @@ function Franchise({ slug, admin }: { slug: string; admin: boolean }) {
                       <span className="min-w-0 flex-1">
                         <span className="block font-medium">{it.title}</span>
                         <span className="flex flex-wrap gap-x-2 text-xs text-muted-foreground">
-                          {it.format ? <span>{it.format}</span> : null}
-                          {it.date ? <span>{fmtDay(it.date)}</span> : null}
+                          {it.format ? <span title={it.format}>{animeFormatWords(it.format)}</span> : null}
+                          {it.date ? <span>{day(it.date)}</span> : null}
                           {it.part ? <span>part {it.part}</span> : null}
                           {it.tvdb ? <Mono>{it.tvdb}</Mono> : null}
                         </span>
                       </span>
                       <span className="flex shrink-0 flex-wrap justify-end gap-1">
                         {it.optional ? <Badge>optional</Badge> : null}
-                        {it.role && it.role !== "main" ? <Badge>{it.role}</Badge> : null}
-                        {admin && it.mapping ? <Badge title="Mapping status">{it.mapping}</Badge> : null}
+                        {it.role && it.role !== "main" ? <Badge title={it.role}>{roleWords(it.role)}</Badge> : null}
+                        {admin && it.mapping ? <Badge title={`Mapping status: ${it.mapping}`}>{mappingWords(it.mapping)}</Badge> : null}
                       </span>
                     </li>
                   );
@@ -70,7 +73,8 @@ function Franchise({ slug, admin }: { slug: string; admin: boolean }) {
                 <p className="mt-2 text-xs text-muted-foreground">Alternates: {(o.alternates ?? []).map((a) => a.title).join(", ")}</p>
               ) : null}
             </TabsContent>
-          ))}
+            );
+          })}
         </Tabs>
       )}
     </Card>

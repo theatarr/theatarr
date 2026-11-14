@@ -29,7 +29,7 @@ import { Badge, Tag } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { fmtAgo, fmtTime } from "@/lib/format";
+import { fmtAgo, fmtTime, nameWithoutYear } from "@/lib/format";
 import { approvalWords, requestTimeline } from "@/lib/request-timeline";
 import { cn } from "@/lib/utils";
 
@@ -201,7 +201,7 @@ function RequestRow({ r, manager, detail }: { r: Request; manager: boolean; deta
   const err = approve.error ?? cancel.error;
   const title = (
     <>
-      {r.name}
+      {nameWithoutYear(r.name, r.year)}
       {r.year ? <span className="font-normal text-[var(--ink-3)]"> ({r.year})</span> : null}
     </>
   );

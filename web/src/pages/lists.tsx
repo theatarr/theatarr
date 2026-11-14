@@ -21,7 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { fmtAgo } from "@/lib/format";
+import { fmtAgo, titleWithYear } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Forbidden } from "./library";
 
@@ -156,7 +156,7 @@ function ListDialog({ list, libraries, seriesLibraries, canSync, m, onClose }: {
   </Modal>;
 }
 
-const titleName = (t: ListPreview["titles"][number]) => `${t.name}${t.year ? ` (${t.year})` : ""}`;
+const titleName = (t: ListPreview["titles"][number]) => titleWithYear(t.name, t.year);
 
 /** What Preview found: the counts in one sentence, then the first titles. */
 function previewWords(p: ListPreview): string {

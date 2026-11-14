@@ -31,11 +31,12 @@ import { History } from "@/components/title/versions";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { fmtAgo, fmtBytes } from "@/lib/format";
+import { fmtAgo, fmtBytes, nameWithoutYear, plural, titleWithYear } from "@/lib/format";
 import { fmtDay, fmtRuntime } from "@/lib/library";
 import { currentLibraries } from "@/lib/library-rows";
 import { airFact, readiness, resolveTab, titleTabs, type TitleTab } from "@/lib/title-layout";
 import { cn } from "@/lib/utils";
+import { titleStatusWords } from "@/lib/tmdb-words";
 
 function Fact({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -141,7 +142,7 @@ function About({ d }: { d: TitleDetail }) {
         </div>
         <div className="w-full lg:w-80 lg:shrink-0">
           <div className="overflow-hidden rounded-[8px] border border-[var(--line)] bg-card text-sm" data-testid="title-facts">
-            {m?.status ? <Fact label="Status">{m.status}</Fact> : null}
+            {m?.status ? <Fact label="Status"><span title={m.status}>{titleStatusWords(m.status)}</span></Fact> : null}
             {series && perms.seeFiles && d.id && d.series_type ? <Fact label="Series type"><SeriesTypeControl titleId={d.id} value={d.series_type} anime={d.anime} versions={currentLibraries((d.versions ?? []) as Version[])} /></Fact> : null}
             {d.release_date ? <Fact label={series ? "First aired" : "Released"}>{fmtDay(d.release_date)}</Fact> : null}
             {!series && digital ? <Fact label="Digital">{fmtDay(digital)}</Fact> : null}
@@ -149,7 +150,7 @@ function About({ d }: { d: TitleDetail }) {
             {runtime ? <Fact label="Runtime">{runtime}</Fact> : null}
             {m?.network ? <Fact label={series ? "Network" : "Studio"}>{m.network}</Fact> : null}
             {m?.original_language ? <Fact label="Language">{languageName(m.original_language)}</Fact> : null}
-            {d.rating ? <Fact label="TMDb rating">{d.rating.toFixed(1)} <span className="text-xs">({m?.rating_votes} votes)</span></Fact> : null}
+            {d.rating ? <Fact label="TMDb rating">{d.rating.toFixed(1)} <span className="text-xs">({plural(m?.rating_votes ?? 0, "vote")})</span></Fact> : null}
             {d.added_at ? <Fact label="Added">{fmtAgo(d.added_at)}</Fact> : null}
             {d.size_bytes ? <Fact label="On disk">{fmtBytes(d.size_bytes)}</Fact> : null}
             {perms.seeFiles && !d.monitored ? <Fact label="Monitored">No</Fact> : null}
@@ -190,7 +191,7 @@ export function TitlePage() {
   const [params, setParams] = useSearchParams();
   const d = q.data;
   useEffect(() => {
-    if (d?.name) document.title = `${d.name}${d.year ? ` (${d.year})` : ""} · ${PRODUCT_NAME}`;
+    if (d?.name) document.title = `${titleWithYear(d.name, d.year)} · ${PRODUCT_NAME}`;
   }, [d?.name, d?.year]);
 
   if (q.isPending) return <Loading />;
@@ -242,7 +243,7 @@ export function TitlePage() {
         <div className="flex min-w-0 flex-col justify-end gap-1.5 sm:justify-start">
           <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
             <h1 className="min-w-0 font-display text-2xl font-semibold tracking-[-0.01em] text-[var(--ink)] [overflow-wrap:anywhere] sm:text-[34px] sm:leading-tight" data-testid="title-name">
-              {d.name}
+              {nameWithoutYear(d.name, d.year)}
               {d.year ? <span className="ml-2 text-base font-normal text-muted-foreground sm:text-2xl">({d.year})</span> : null}
             </h1>
             <PrimaryAction target={target} has={has} className="max-md:hidden" />

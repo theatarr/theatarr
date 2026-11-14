@@ -14,6 +14,8 @@ import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { fmtAgo, fmtGoDuration, fmtNumber, fmtTime } from "@/lib/format";
+import { animeFormatWords, animeSourceWords, mappingCounts, mappingWords, orderWords, roleWords } from "@/lib/anime-words";
+import { fmtDay } from "@/lib/library";
 
 type BuildJob = { id?: number; state?: string; error?: string } | null | undefined;
 type UncoveredItem = Uncovered["items"][number];
@@ -110,10 +112,10 @@ export function AnimeMappings() {
                     <TableCell>
                       <Link className="font-medium hover:text-primary" to={`/admin/reviews/anime/${f.slug}`}>{f.name}</Link>
                       {f.pending ? <Badge tone="warning" className="ml-2">refresh held</Badge> : null}
-                      <div className="text-xs text-muted-foreground"><Mono>{f.slug}</Mono> · {f.source}</div>
+                      <div className="text-xs text-muted-foreground"><Mono>{f.slug}</Mono> · <span title={f.source}>{animeSourceWords(f.source)}</span></div>
                     </TableCell>
                     <TableCell className="text-right tabular-nums">{f.entries}</TableCell>
-                    <TableCell className="hidden text-[13px] sm:table-cell">{Object.entries(f.statuses ?? {}).map(([k, v]) => `${k} ${v}`).join(" · ")}</TableCell>
+                    <TableCell className="hidden text-[13px] sm:table-cell">{mappingCounts(f.statuses)}</TableCell>
                     <TableCell className="text-right tabular-nums">{f.open_review ? <Badge tone="warning">{f.open_review}</Badge> : 0}</TableCell>
                     <TableCell className="hidden whitespace-nowrap md:table-cell">{fmtAgo(f.built_at)}<div className="text-xs text-muted-foreground">{nextRefresh(f)}</div></TableCell>
                     <TableCell className="text-right"><span className="inline-flex flex-wrap items-center justify-end gap-2"><BuildState job={f.job} /><BuildButton to={{ slug: f.slug ?? "" }} job={f.job} label="Rebuild" /></span></TableCell>
@@ -193,12 +195,12 @@ export function MetadataFranchise() {
   return (
     <div>
       <PageHeader crumb={crumb} title={f.name}
-        description={<span><Mono>{f.slug}</Mono> · {f.source} · built {fmtTime(f.built_at)}{nextRefresh(f) ? ` · ${nextRefresh(f)}` : ""} · {fmtNumber(f.entries)} entries</span>}
+        description={<span><Mono>{f.slug}</Mono> · <span title={f.source}>{animeSourceWords(f.source)}</span> · built {fmtTime(f.built_at)}{nextRefresh(f) ? ` · ${nextRefresh(f)}` : ""} · {fmtNumber(f.entries)} entries</span>}
         actions={<span className="inline-flex items-center gap-2"><BuildState job={f.job} /><BuildButton to={{ slug: f.slug ?? slug }} job={f.job} label="Rebuild" /></span>} />
       {orders.length > 0 ? (
         <Tabs defaultValue={orders[0].kind}>
           <TabsList>
-            {orders.map((o) => <TabsTrigger key={o.kind} value={o.kind ?? ""}>{o.kind} order</TabsTrigger>)}
+            {orders.map((o) => <TabsTrigger key={o.kind} value={o.kind ?? ""}>{orderWords(o.kind)}</TabsTrigger>)}
           </TabsList>
           {orders.map((o) => (
             <TabsContent key={o.kind} value={o.kind ?? ""}>
@@ -218,13 +220,13 @@ export function MetadataFranchise() {
                     {[...(o.items ?? []), ...(o.alternates ?? [])].map((it) => (
                       <TableRow key={`${it.n}-${it.key}`}>
                         <TableCell className="tabular-nums text-muted-foreground">{it.n}</TableCell>
-                        <TableCell>{it.title}{it.part ? <span className="text-xs text-muted-foreground"> ({it.part})</span> : null}<div className="text-xs text-muted-foreground"><Mono>{it.key}</Mono>{it.optional ? " · optional" : ""}{it.role ? ` · ${it.role}` : ""}{it.alternate_of ? ` · alternate of ${it.alternate_of}` : ""}{it.route ? ` · route ${it.route}` : ""}</div>
+                        <TableCell>{it.title}{it.part ? <span className="text-xs text-muted-foreground"> ({it.part})</span> : null}<div className="text-xs text-muted-foreground"><Mono>{it.key}</Mono>{it.optional ? " · optional" : ""}{it.role ? ` · ${roleWords(it.role)}` : ""}{it.alternate_of ? ` · alternate of ${it.alternate_of}` : ""}{it.route ? ` · route ${it.route}` : ""}</div>
                           <div className="text-xs text-muted-foreground">{it.tvdb ? `TVDB ${it.tvdb}` : ""}{it.tmdb?.length ? `${it.tvdb ? " · " : ""}TMDb ${it.tmdb.join(", ")}` : ""}</div>
                         </TableCell>
-                        <TableCell className="hidden sm:table-cell">{it.format}</TableCell>
-                        <TableCell className="hidden whitespace-nowrap md:table-cell">{it.date}</TableCell>
-                        <TableCell className="text-[13px]">{it.mapping || <span className="text-muted-foreground">—</span>}{it.override ? <Badge tone="accent" className="ml-1">override</Badge> : null}</TableCell>
-                        <TableCell className="text-xs">{it.source}</TableCell>
+                        <TableCell className="hidden sm:table-cell" title={it.format}>{animeFormatWords(it.format)}</TableCell>
+                        <TableCell className="hidden whitespace-nowrap md:table-cell">{it.date ? fmtDay(it.date) : "—"}</TableCell>
+                        <TableCell className="text-[13px]" title={it.mapping || undefined}>{it.mapping ? mappingWords(it.mapping) : <span className="text-muted-foreground">—</span>}{it.override ? <Badge tone="accent" className="ml-1">override</Badge> : null}</TableCell>
+                        <TableCell className="text-xs" title={it.source || undefined}>{animeSourceWords(it.source)}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>

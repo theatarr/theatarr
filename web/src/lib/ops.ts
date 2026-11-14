@@ -2,6 +2,7 @@
 // actions"). Every dialog names its scope explicitly: the copy, the release, the counts, and the two things that never
 // happen (a debrid torrent deleted: they are shared by every library; a real file deleted: only Theatarr's own symlinks
 // move to the trash).
+import { plural } from "./format";
 
 export type Scope = {
   /** The dialog's heading. */
@@ -37,10 +38,6 @@ export function operationOutcomeToast(title: string, message: string, search?: {
   tone: "info" | "warn";
 } {
   return { title, body: message, tone: search && !search.started ? "warn" : "info" };
-}
-
-function plural(n: number, one: string, many = one + "s"): string {
-  return `${n.toLocaleString("en-US")} ${n === 1 ? one : many}`;
 }
 
 // ---- Downloads ----

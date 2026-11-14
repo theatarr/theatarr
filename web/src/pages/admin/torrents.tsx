@@ -42,6 +42,7 @@ import {
   type SortKey,
   type Torrent,
 } from "@/lib/torrents";
+import { torrentJournalBy, torrentJournalWords, torrentStateWords } from "@/lib/torrent-words";
 
 const SORTS: { id: SortKey; label: string }[] = [
   { id: "size", label: "Size" },
@@ -283,7 +284,7 @@ function TorrentRow({ t, at, checked, onToggle, code }: { t: Torrent; at: string
         </TableCell>
         <TableCell className="hidden whitespace-nowrap text-right tabular-nums sm:table-cell">{fmtBytes(t.bytes)}</TableCell>
         <TableCell className="hidden whitespace-nowrap sm:table-cell" title={t.added ? fmtTime(t.added) : undefined}>{t.added ? fmtAgo(t.added) : "—"}</TableCell>
-        <TableCell className="hidden md:table-cell">{t.status}{t.state !== "downloaded" && t.progress < 100 ? ` ${Math.round(t.progress)}%` : ""}</TableCell>
+        <TableCell className="hidden md:table-cell" title={t.status ? `The provider says: ${t.status}` : undefined}>{torrentStateWords(t.state, t.progress)}</TableCell>
         <TableCell>
           <button type="button" onClick={() => setOpen((o) => !o)} title={usageDetail(t)} aria-expanded={open} className="text-left">
             <Badge tone={usageTone(t.usage)}>{t.usage}</Badge>
@@ -368,9 +369,9 @@ function JournalSection() {
               {(q.data?.entries ?? []).map((e) => (
                 <TableRow key={e.id}>
                   <TableCell className="whitespace-nowrap">{fmtTime(e.at)}</TableCell>
-                  <TableCell><Badge tone={e.outcome === "failed" ? "negative" : "neutral"}>{e.action} {e.outcome}</Badge></TableCell>
-                  <TableCell className="text-[13px] [overflow-wrap:anywhere]">{e.provider ? <ProviderTag account={e.provider} className="mr-1 font-medium" /> : null}{e.name || e.hash || e.backup_id}{e.detail ? <div className="text-xs text-muted-foreground">{e.detail}</div> : null}</TableCell>
-                  <TableCell className="hidden whitespace-nowrap md:table-cell">{e.by}</TableCell>
+                  <TableCell><Badge tone={e.outcome === "failed" ? "negative" : "neutral"} title={`${e.action} ${e.outcome}`}>{torrentJournalWords(e.action, e.outcome)}</Badge></TableCell>
+                  <TableCell className="text-[13px] [overflow-wrap:anywhere]">{e.provider ? <ProviderTag account={e.provider} className="mr-1 font-medium" /> : null}{e.name || e.hash || (e.backup_id ? <span title={e.backup_id}>{e.provider ? "Backup" : "All providers"}</span> : null)}{e.detail ? <div className="text-xs text-muted-foreground">{e.detail}</div> : null}</TableCell>
+                  <TableCell className="hidden whitespace-nowrap md:table-cell">{torrentJournalBy(e.by)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>

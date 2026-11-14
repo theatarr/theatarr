@@ -19,6 +19,7 @@ import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { fmtAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { readableCode } from "@/lib/code-words";
 
 const ROLES: { id: "admin" | "manager" | "user"; label: string; hint: string }[] = [
   { id: "user", label: "User", hint: "Browses and requests; sees availability only" },
@@ -86,7 +87,7 @@ export function UsersAdmin() {
               {data.items.length === 0 ? <Card><Empty>No accounts.</Empty></Card> : null}
             </div>
           </Section>
-          <Section title="All API keys" aside="Sent as the X-Api-Key header; a key carries its owner's permissions. The arr views take admin keys and view keys only.">
+          <Section title="All API keys" aside="Sent as the X-Api-Key header; a key carries its owner's permissions. Connected apps take admin keys and view keys only.">
             <KeysPanel user="all" owner create={false} idPrefix="all-keys" />
           </Section>
         </>
@@ -115,8 +116,8 @@ function UserCard({ u, page }: { u: User; page: UsersPage }) {
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="font-medium text-[var(--ink)] [overflow-wrap:anywhere]">{name}</span>
             {self ? <Badge tone="accent">you</Badge> : null}
-            <Badge tone={statusTone}>{u.status}</Badge>
-            <Badge tone="outline">{u.plex_id ? "Plex" : "local"}</Badge>
+            <Badge tone={statusTone} title={u.status}>{readableCode(u.status)}</Badge>
+            <Badge tone="outline">{u.plex_id ? "Plex" : "Local"}</Badge>
           </div>
           <div className="text-xs text-muted-foreground [overflow-wrap:anywhere]">
             {u.username}

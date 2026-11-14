@@ -13,7 +13,7 @@ it("shows a skipped-lines marker and links persistent log files", async () => {
   renderPage(<Logs />);
   expect(await screen.findByText(/^17 log lines skipped/)).toBeTruthy();
   expect(screen.queryByRole("link", { name: "Find older lines in log files" })).toBeNull();
-  expect(screen.getByRole("link", { name: "theatarr.log (1 KB)" }).getAttribute("href")).toBe("/api/theatarr/v1/logs/files/theatarr.log");
+  expect(screen.getByRole("link", { name: "theatarr.log (1.0 KiB)" }).getAttribute("href")).toBe("/api/theatarr/v1/logs/files/theatarr.log");
 });
 
 it("shows a restart marker when the new process has no log entries", async () => {

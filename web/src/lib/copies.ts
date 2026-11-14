@@ -5,6 +5,7 @@
 import type { Schemas } from "@/api/client";
 import { fmtDay } from "@/lib/library";
 import { libraryLabel as defaultName } from "./library-label";
+import { releaseEventWords } from "./tmdb-words";
 
 type VersionBrief = Schemas["VersionBrief"];
 type Acquisition = Schemas["Acquisition"];
@@ -215,7 +216,7 @@ export function nextWords(n: { date: string; season?: number; number?: number; t
     const ep = n.season !== undefined && n.number !== undefined ? `S${String(n.season).padStart(2, "0")}E${String(n.number).padStart(2, "0")}` : "Next episode";
     return `${ep} · ${day}`;
   }
-  const t = n.type ? `${n.type.charAt(0).toUpperCase()}${n.type.slice(1)} release` : "Release";
+  const t = releaseEventWords(n.type);
   return `${t} · ${day}`;
 }
 

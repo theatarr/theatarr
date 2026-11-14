@@ -17,6 +17,7 @@ import { SELECT } from "@/components/library/filters";
 import { bulkExpect, outcomeWords, type CopyColumn } from "@/lib/copies";
 import { cn } from "@/lib/utils";
 import { CopyDot } from "./copy-bits";
+import { plural } from "@/lib/format";
 
 /** What the bar can say before asking the server: copies to change, titles without the copy. */
 export function localPreview(titles: readonly TitleRow[], target: string): { editable: number; missing: number } {
@@ -30,7 +31,6 @@ export function localPreview(titles: readonly TitleRow[], target: string): { edi
   return { editable, missing };
 }
 
-const plural = (n: number, w: string, s = "s") => `${n} ${w}${n === 1 ? "" : s}`;
 
 /** POST /wanted/search takes at most this many items (internal/web/wanted.go maxSearchNowItems). */
 const SEARCH_CHUNK = 200;
@@ -53,7 +53,7 @@ type SearchSum = {
 
 
 function searchWords(r: SearchSum): string {
-  const parts = [`Queued ${plural(r.queued, "search", "es")}. ${r.started} started now, ${r.pending} waiting in the queue`];
+  const parts = [`Queued ${plural(r.queued, "search", "searches")}. ${r.started} started now, ${r.pending} waiting in the queue`];
   for (const [reason, n] of r.skipped) parts.push(`Skipped ${plural(n, "title")}: ${reason}`);
   return parts.join(". ") + ".";
 }

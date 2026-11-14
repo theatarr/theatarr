@@ -67,7 +67,7 @@ it.each([false, true])("routes back-offs and gateway failures to their settings 
   { method: "GET", path: "/activity", reply: { now: [] } },
  ]);
  renderPage(<Overview />);
- for (const [text, href] of failure ? [["Could not load the gateway (VPN egress and back-offs)", "/admin/advanced/limits"]] : [["budget:test backed off", "/admin/advanced/limits"], ["indexer:test backed off", "/admin/settings/indexers"], ["provider:test backed off", "/admin/settings/downloads"]]) {
+ for (const [text, href] of failure ? [["Could not load the gateway (VPN egress and back-offs)", "/admin/advanced/limits"]] : [["Request budget test is backed off", "/admin/advanced/limits"], ["Indexer test is backed off", "/admin/settings/indexers"], ["Provider test is backed off", "/admin/settings/downloads"]]) {
   const title = await screen.findByText(text);
   expect(title.closest("li")?.querySelector("a")?.getAttribute("href")).toBe(href);
  }

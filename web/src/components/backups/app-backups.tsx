@@ -4,10 +4,9 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetLayout } from "@/components/ui/sheet";
-import { fmtBytes } from "@/lib/format";
+import { fmtAgo, fmtBytes, fmtTime } from "@/lib/format";
 
 /** A backup's age in whole days: "1 day", "3 days". */
-const ageDays = (iso: string) => { const n = Math.max(0, Math.floor((Date.now() - Date.parse(iso)) / 86400_000)); return `${n} day${n === 1 ? "" : "s"}`; };
 const commands = ["library verify", "library dangling -scan", "library relink -dry-run", "library relink"];
 
 function Restarting() {
@@ -40,7 +39,7 @@ export function AppBackups() {
     <CardHeader><CardTitle>Theatarr backups</CardTitle></CardHeader>
     <CardContent>
       {recent && (result.ok ? <div role="status" className="rounded-lg border p-3 space-y-2">
-        <p>Restored {result.set} on {new Date(result.finished_at).toLocaleString()}. Your previous state is saved as {result.safety_set}.</p>
+        <p>Restored {result.set} on {fmtTime(result.finished_at)}. Your previous state is saved as {result.safety_set}.</p>
         <h3 className="font-semibold">Finish up</h3>
         <ol className="list-decimal pl-5 space-y-2">{commands.map((command) => {
           const text = `docker exec theatarr theatarr ${command}`;
@@ -64,8 +63,8 @@ export function AppBackups() {
           <div className="overflow-x-auto"><table className="w-full text-left text-sm">
             <thead><tr><th className="p-2">Date / name</th><th className="p-2">Age</th><th className="p-2">Size</th><th className="p-2">Restore</th></tr></thead>
             <tbody>{data.sets.map((set) => <tr key={set.name} className="border-t">
-              <td className="p-2">{new Date(set.created_at).toLocaleString()}<div className="font-mono text-xs">{set.name}</div></td>
-              <td className="p-2">{ageDays(set.created_at)}</td>
+              <td className="p-2">{fmtTime(set.created_at)}<div className="font-mono text-xs">{set.name}</div></td>
+              <td className="p-2">{fmtAgo(set.created_at)}</td>
               <td className="p-2">{fmtBytes(set.bytes)}</td>
               <td className="p-2"><Button variant="outline" disabled={!set.restorable || !data.enabled || backupNow.isPending} onClick={() => { setSelected(set); setConfirm(""); restore.reset(); }}>Restore…</Button>
                 {set.why_not && <p className="text-xs">{set.why_not}</p>}</td>
@@ -80,7 +79,7 @@ export function AppBackups() {
           <Button disabled={confirm !== selected.name || restore.isPending} onClick={() => restore.mutate({ name: selected.name, confirm })}>{restore.isPending ? "Preparing safety backup…" : "Restore"}</Button>
         </>}>
           <div className="space-y-4">
-            <p>Everything changed since {new Date(selected.created_at).toLocaleString()} will be lost: settings, library records, users and stored credentials.</p>
+            <p>Everything changed since {fmtTime(selected.created_at)} will be lost: settings, library records, users and stored credentials.</p>
             <p>A safety backup of your current state is made first.</p>
             <p>Theatarr restarts and you may need to sign in again.</p>
             <p>Your container must restart Theatarr automatically (Docker restart: unless-stopped).</p>

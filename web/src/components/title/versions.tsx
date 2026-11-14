@@ -7,7 +7,7 @@ import { usePerms, type HistoryEvent } from "@/api/library";
 import { Mono } from "@/components/page";
 import { journalLink } from "@/lib/admin-links";
 import { Button } from "@/components/ui/button";
-import { fmtAgo, fmtNumber, fmtTime } from "@/lib/format";
+import { fmtAgo, fmtNumber, fmtTime, plural } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { ProviderTag } from "@/components/provider-pills";
 
@@ -35,7 +35,7 @@ const cap = (s: string) => (s ? s[0].toUpperCase() + s.slice(1) : s);
 
 /** One line for a searched event: results, accepted, and what it grabbed or why nothing. */
 function searchLine(h: HistoryEvent): string {
-  const counts = h.results != null ? `${fmtNumber(h.results)} results, ${fmtNumber(h.accepted ?? 0)} accepted` : "";
+  const counts = h.results != null ? `${plural(h.results, "result")}, ${fmtNumber(h.accepted ?? 0)} accepted` : "";
   return [counts, h.summary].filter(Boolean).join(" · ");
 }
 
@@ -62,9 +62,9 @@ export function History({ events, titleId, version }: { events: HistoryEvent[]; 
               <div className="flex flex-wrap items-baseline gap-x-2 text-sm">
                 <span className="font-medium">{e.label}</span>
                 {h.provider && (h.event === "grabbed" || h.event === "failed") ? <span className="text-muted-foreground">via <ProviderTag account={h.provider} /></span> : null}
-                {h.episode ? <Mono className="text-muted-foreground">{h.episode}</Mono> : null}
+                {h.episode && h.episode !== "movie" ? <Mono className="text-muted-foreground">{h.episode}</Mono> : null}
                 {h.quality ? <span className="text-muted-foreground">{h.quality}</span> : null}
-                {h.score !== undefined && h.score !== null ? <span className="text-xs text-muted-foreground">Score then {h.score}</span> : null}
+                {h.score !== undefined && h.score !== null ? <span className="text-xs text-muted-foreground">Score then {fmtNumber(h.score)}</span> : null}
                 <span className="ml-auto whitespace-nowrap text-xs text-muted-foreground" title={fmtTime(h.date)}>{fmtAgo(h.date)}</span>
               </div>
               {h.release_title ? (

@@ -13,7 +13,7 @@ import type {
   SettingsRecord,
   SettingsTestResult,
 } from "@/api/settings";
-import { localDay } from "./format";
+import { localDay, plural } from "./format";
 
 // ---- source of authority ----
 
@@ -666,7 +666,6 @@ export function testErrorAction(key: string, e: unknown): TestAction {
   return { type: "error", key, error: explainError(e) };
 }
 
-const plural = (n: number, noun: string) => `${n} ${noun}${n === 1 ? "" : "s"}`;
 
 /** What the tests' live region says when a test or test-all finishes, or undefined for an action that finishes
  * nothing. The text is built once, from the action, when the outcome arrives: a later render (a countdown, a refresh)
@@ -783,7 +782,7 @@ export function auditOperation(op: string): string {
 
 /** A settings history row's entity in the singular: "switch", "indexer", "provider". */
 export function auditEntity(entity: string): string {
-  return entity === "switches" ? "switch" : entity.replace(/s$/, "");
+  return entity === "switches" ? "switch" : entity === "versions" ? "library" : entity.replace(/s$/, "");
 }
 
 // ---- the record editor ----

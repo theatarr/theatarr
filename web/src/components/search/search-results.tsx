@@ -19,6 +19,7 @@ import { settingHref } from "@/lib/settings-map";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { nameWithoutYear, titleWithYear } from "@/lib/format";
 
 function artIndex(s: string): number {
   let h = 2166136261;
@@ -96,7 +97,7 @@ export function LibraryResultCard({ t, onOpen, onAdd }: { t: LibraryHit; onOpen?
         <Poster src={t.poster} title={name} className="relative h-16 w-11 flex-none rounded-[3px] border border-[var(--line)]" />
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold text-[var(--ink)]">
-            {name}
+            {nameWithoutYear(name, t.year)}
             {t.year ? <span className="font-normal text-[var(--ink-3)]"> ({t.year})</span> : null}
           </p>
           <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-1.5">
@@ -166,7 +167,7 @@ export function TmdbResultCard({ h, onAdd, onOpen, className }: { h: SearchHit; 
   // An account that requests: its own open request for this title turns Request into View request.
   const requests = useMyOpenRequests(!canAdd && canRequest);
   const mine = canAdd ? undefined : findRequest(requests, { kind: h.kind, title_id: h.title_id, tmdb_id: h.tmdb_id });
-  const label = h.year ? `${h.name} (${h.year})` : h.name;
+  const label = titleWithYear(h.name, h.year);
   const verb = canAdd ? "Add" : "Request";
   // An account that may neither add nor request only sees the result (and opens it when it is in the library).
   const act = canAdd || canRequest;

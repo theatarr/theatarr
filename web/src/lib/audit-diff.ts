@@ -54,7 +54,9 @@ const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
 export function auditDiff(before: unknown, after: unknown): AuditChange[] {
   const out: AuditChange[] = [];
   walk(before ?? undefined, after ?? undefined, "", out);
-  return out;
+  // A library's record nests its settings under config.config (the stored row's config holds the library, whose own
+  // settings are its config): the path names them once, config.add_via.
+  return out.map((c) => (c.path.startsWith("config.config.") ? { ...c, path: c.path.slice("config.".length) } : c));
 }
 
 function walk(a: unknown, b: unknown, path: string, out: AuditChange[]) {

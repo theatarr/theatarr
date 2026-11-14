@@ -20,6 +20,7 @@ import {
   type ReviewItem, type ReviewOption,
 } from "@/lib/anime-review";
 import { fmtDay } from "@/lib/library";
+import { animeFormatWords } from "@/lib/anime-words";
 
 type Sample = NonNullable<ReviewOption["samples"]>[number];
 type Mapping = { tvdb: number; season: number; first: number; count: number };
@@ -80,7 +81,7 @@ function EntryColumn({ it }: { it: ReviewItem }) {
       <div className="font-medium">{e.title || e.title_en || e.key}</div>
       {e.title_en && e.title_en !== e.title ? <div className="text-muted-foreground">{e.title_en}</div> : null}
       <div className="text-[13px] text-muted-foreground">
-        {[e.format, e.episodes ? episodes(e.episodes) : "", e.start || e.end ? `${e.start ?? "?"} – ${e.end ?? "?"}` : ""].filter(Boolean).join(" · ")}
+        {[animeFormatWords(e.format), e.episodes ? episodes(e.episodes) : "", e.start || e.end ? `${e.start ? fmtDay(e.start) : "?"} – ${e.end ? fmtDay(e.end) : "?"}` : ""].filter(Boolean).join(" · ")}
       </div>
       <div className="flex gap-3">
         {e.anilist_id ? <a className={ext} href={`https://anilist.co/anime/${e.anilist_id}`} target="_blank" rel="noreferrer">AniList</a> : null}

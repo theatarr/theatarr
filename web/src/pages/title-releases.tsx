@@ -10,6 +10,7 @@ import { Card } from "@/components/ui/card";
 import { Forbidden } from "./library";
 import { currentLibraries } from "@/lib/library-rows";
 import { titleReleaseAccess } from "@/lib/title-layout";
+import { titleWithYear } from "@/lib/format";
 
 export function TitleReleasesPage() {
   const rawID = useParams().id ?? "";
@@ -42,8 +43,7 @@ export function TitleReleasesPage() {
           <span className="flex items-center gap-3">
             <TitleThumb id={id} className="w-10" />
             <span>
-              {name}
-              {t.year ? ` (${t.year})` : ""}: the last search Theatarr decided for each library.{" "}
+              {titleWithYear(name, t.year)}: the last search Theatarr decided for each library.{" "}
               {t.kind === "series" ? "To search the indexers now, use Interactive search on a season or an episode." : "Interactive search searches the indexers now."}
             </span>
           </span>

@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { fmtAgo, fmtNumber, fmtTime } from "@/lib/format";
+import { errorComponentWords, errorSourceWords, errorStatusWords } from "@/lib/error-words";
 
 const STATUSES = [
   { id: "open", label: "Open" },
@@ -85,8 +86,8 @@ export function ErrorsPage() {
           }}
           className="h-8 rounded-md border border-input bg-field px-2 text-sm"
         >
-          <option value="">all sources</option>
-          {SOURCES.map((s) => <option key={s} value={s}>{s}</option>)}
+          <option value="">All sources</option>
+          {SOURCES.map((s) => <option key={s} value={s}>{errorSourceWords(s)}</option>)}
         </select>
         {canBulk ? (
           <span className="ml-auto flex gap-1.5">
@@ -136,9 +137,9 @@ function ErrorRow({ row, open, onToggle }: { row: ErrorEvent; open: boolean; onT
           <ChevronRight className={`mt-0.5 size-4 shrink-0 transition-transform ${open ? "rotate-90" : ""}`} aria-hidden />
           <span className="min-w-0 flex-1">
             <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-              <Badge tone={STATUS_TONE[row.status] ?? "neutral"} data-testid="error-status">{row.status}</Badge>
-              <Badge tone="outline">{row.source}</Badge>
-              <Mono className="text-[11.5px] text-muted-foreground">{row.component}</Mono>
+              <Badge tone={STATUS_TONE[row.status] ?? "neutral"} data-testid="error-status" title={row.status}>{errorStatusWords(row.status)}</Badge>
+              <Badge tone="outline" title={row.source}>{errorSourceWords(row.source)}</Badge>
+              <span title={row.component || undefined}><Mono className="text-[11.5px] text-muted-foreground">{errorComponentWords(row.component)}</Mono></span>
               {row.regressions > 0 ? <Badge tone="warning">came back {row.regressions}×</Badge> : null}
             </span>
             <span className="mt-1 block break-words text-[13px] text-[var(--ink)]" data-testid="error-sample">{row.sample || row.message}</span>
@@ -195,8 +196,8 @@ function ErrorDetail({ id }: { id: number }) {
       <KV
         items={[
           ["Grouped as", <Mono key="m">{r.message}</Mono>],
-          ["First seen", `${fmtTime(r.first_seen)} (${r.first_version || "?"})`],
-          ["Last seen", `${fmtTime(r.last_seen)} (${r.last_version || "?"})`],
+          ["First seen", `${fmtTime(r.first_seen)}${r.first_version ? ` (${r.first_version})` : ""}`],
+          ["Last seen", `${fmtTime(r.last_seen)}${r.last_version ? ` (${r.last_version})` : ""}`],
           ...(r.resolved_at ? [["Resolved", fmtTime(r.resolved_at)] as [string, string]] : []),
           ["Fingerprint", <Mono key="f" className="text-[11.5px]">{r.fingerprint}</Mono>],
           ...ctx.map(([k, v]) => [k, <Mono key={k}>{v}</Mono>] as [string, ReactNode]),
@@ -214,7 +215,7 @@ function ErrorDetail({ id }: { id: number }) {
       >
         <input
           aria-label="Note"
-          placeholder="Note (a fix branch, a cause)"
+          placeholder="Note: the cause, or what fixed it"
           value={noteValue}
           maxLength={4096}
           onChange={(e) => setNote(e.target.value)}

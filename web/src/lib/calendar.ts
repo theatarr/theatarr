@@ -1,5 +1,6 @@
 // Date helpers for the calendar: local dates as YYYY-MM-DD and the weeks of a month grid (weeks start on Sunday).
 import { utcToday, watchWords } from "@/lib/library";
+import { releaseTypeWords } from "./tmdb-words";
 
 export function ymd(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -63,11 +64,8 @@ export function episodeCode(season?: number, number?: number): string {
   return season === undefined ? e : `S${String(season).padStart(2, "0")}${e}`;
 }
 
-const TYPE_LABEL: Record<string, string> = { theatrical: "In cinemas", digital: "Digital", physical: "Physical" };
-
-export function releaseLabel(type: string): string {
-  return TYPE_LABEL[type] ?? type;
-}
+/** A release type in words (tmdb-words.ts). */
+export const releaseLabel = (type: string) => releaseTypeWords(type);
 
 type Toned = { kind: string; type: string; date: string; at?: string; monitored: boolean; available: boolean; acquiring: boolean };
 

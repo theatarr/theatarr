@@ -13,7 +13,7 @@ export const STATE: Record<string, { label: string; tone: Tone; help: string }> 
   pinned: { label: "yours", tone: "accent", help: "You changed it: TRaSH changes to it are not applied, and the update log notes them." },
   differs: { label: "differs", tone: "info", help: "Differs from TRaSH: the next sync run takes TRaSH's score." },
   ours: { label: "our format", tone: "neutral", help: "A format of ours: TRaSH has nothing like it." },
-  unbound: { label: "not bound", tone: "outline", help: "The profile does not follow a TRaSH score set: TRaSH's score is shown only." },
+  unbound: { label: "not synced", tone: "outline", help: "The profile does not follow a TRaSH score set: TRaSH's score is shown only." },
   unlinked: { label: "frozen copy", tone: "outline", help: "A copy of a TRaSH format without its TRaSH id: no sync updates it (Link formats to TRaSH)." },
   no_score: { label: "no TRaSH score", tone: "outline", help: "TRaSH sets no score for it in this score set: the score is ours." },
 };

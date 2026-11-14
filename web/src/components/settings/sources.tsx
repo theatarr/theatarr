@@ -25,7 +25,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Choice } from "@/components/ui/confirm-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { fmtAgo, fmtNumber, fmtTime } from "@/lib/format";
+import { fmtAgo, fmtGoDuration, fmtNumber, fmtTime } from "@/lib/format";
 import {
   editorKey,
   editorReturn,
@@ -460,9 +460,9 @@ function pacing(v: unknown): string {
   const parts: string[] = [];
   if (p.adds_per_minute) parts.push(`${p.adds_per_minute} adds/min`);
   if (p.uncached_adds_per_hour) parts.push(`${p.uncached_adds_per_hour} uncached/h`);
-  if (p.cooldown) parts.push(`cooldown ${p.cooldown}`);
-  if (p.backoff_max) parts.push(`back-off up to ${p.backoff_max}`);
-  if (p.min_gap) parts.push(`${p.min_gap} between adds`);
+  if (p.cooldown) parts.push(`cooldown ${fmtGoDuration(String(p.cooldown))}`);
+  if (p.backoff_max) parts.push(`back-off up to ${fmtGoDuration(String(p.backoff_max))}`);
+  if (p.min_gap) parts.push(`${fmtGoDuration(String(p.min_gap))} between adds`);
   return parts.join(" · ") || "—";
 }
 

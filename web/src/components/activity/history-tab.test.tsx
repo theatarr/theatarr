@@ -25,7 +25,7 @@ it("shows quality and score in cells, a dash where the event has none, and no da
   const rows = await screen.findAllByTestId("history-row");
   expect(rows).toHaveLength(2);
   expect(rows[0].querySelector('[data-column="quality"]')?.textContent).toBe("WEBDL-2160p");
-  expect(rows[0].querySelector('[data-column="score"]')?.textContent).toBe("1500");
+  expect(rows[0].querySelector('[data-column="score"]')?.textContent).toBe("1,500");
   expect(rows[1].querySelector('[data-column="quality"]')?.textContent).toBe("—");
   expect(rows[1].querySelector('[data-column="score"]')?.textContent).toBe("—");
   expect(screen.queryByText("Yesterday")).toBeNull();

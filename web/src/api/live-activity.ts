@@ -7,6 +7,7 @@ import { toast, type ToastTone } from "@/components/toaster";
 import type { DownloadEvent, TitleEvent } from "./activity";
 import { qk, titleChanged } from "./query-keys";
 import { libraryLabel } from "@/lib/library-label";
+import { titleWithYear } from "@/lib/format";
 
 const TONE: Record<string, ToastTone> = {
   imported: "ok",
@@ -22,7 +23,7 @@ export function downloadToast(ev: DownloadEvent, seeFiles = true, nameOf: (key: 
   const changed = ev.previous ? ev.previous !== ev.state : true;
   if (!changed && ev.state !== "ready") return null;
   if (!ev.previous && ev.state === "downloading") return null;
-  const name = ev.title.year ? `${ev.title.name} (${ev.title.year})` : ev.title.name;
+  const name = titleWithYear(ev.title.name, ev.title.year);
   return { title: name, body: seeFiles && ev.version ? `${ev.words} · ${nameOf(ev.version)}` : ev.words, tone: TONE[ev.state] ?? "info" };
 }
 

@@ -9,6 +9,7 @@ import { text } from "./fields";
 import type { QualityRecord } from "./index";
 import { TrashLink } from "./link";
 import { useLibraryName } from "@/lib/library-names";
+import { fmtTime } from "@/lib/format";
 
 type Change = { key: string; trash_id?: string; reason?: string };
 // A score of a bound profile kept as yours: you changed it (it differs from TRaSH's last score) and TRaSH changed it
@@ -49,7 +50,7 @@ const useSyncChanges = (generation: number) => useQuery({
 export function changeLine(p: Preview): string {
   const counts = ([[p.spec_changed.length, "formats updated"], [p.added.length, "added"], [p.scores.length, "scores changed"], [p.fields?.length ?? 0, "profile values changed"], [(p.held?.length ?? 0) + (p.held_fields?.length ?? 0), "kept yours"]] as const)
     .filter(([n]) => n > 0).map(([n, label]) => `${n} ${label}`);
-  return `${p.applied_at ? new Date(p.applied_at).toLocaleString() : ""} · ${p.source} · ${p.commit.slice(0, 12)}: ${counts.join(", ") || "remembered values updated"}`;
+  return `${p.applied_at ? fmtTime(p.applied_at) : ""} · ${p.source} · ${p.commit.slice(0, 12)}: ${counts.join(", ") || "remembered values updated"}`;
 }
 
 // What a preview or a log entry changes, as lists.
@@ -98,7 +99,7 @@ export function SyncSources({ records, generation, draft, baseGeneration, onChan
     </Card> : null}
     <h3 className="font-medium">Update log</h3>
     {changes.isPending ? <p>Loading</p> : changes.error || changes.data?.unavailable ? null : !changes.data?.items.length ? <p className="text-sm">No updates applied yet.</p> : <ul className="space-y-1 text-sm">{changes.data.items.map((p) => <li key={p.id}><details><summary>{changeLine(p)}</summary><div className="space-y-2 p-2"><ChangeLists p={p} retiredLabel="No longer in TRaSH (kept as it is)" /></div></details></li>)}</ul>}
-    <h3 className="font-medium">Recent runs</h3>{runs.isPending || runs.error ? null : !runs.data?.length ? <p className="text-sm" data-testid="sync-no-runs">No runs yet.</p> : <ul className="space-y-1 text-sm">{runs.data.map((r) => <li key={r.id}>{new Date(r.started_at).toLocaleString()} · {r.source}: {r.outcome} · {r.commit} {r.error}</li>)}</ul>}
+    <h3 className="font-medium">Recent runs</h3>{runs.isPending || runs.error ? null : !runs.data?.length ? <p className="text-sm" data-testid="sync-no-runs">No runs yet.</p> : <ul className="space-y-1 text-sm">{runs.data.map((r) => <li key={r.id}>{fmtTime(r.started_at)} · {r.source}: {r.outcome}{r.commit ? <> · <span title={r.commit}>{r.commit.slice(0, 12)}</span></> : null} {r.error}</li>)}</ul>}
   </section>;
 }
 

@@ -48,8 +48,8 @@ import { errText } from "@/components/ui/confirm-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { stageCounts, stageTone, stageWords } from "@/lib/copies";
 import { DEFAULT_EPISODE_COLUMNS, EPISODE_COLUMNS, EPISODE_COLUMNS_PREF, type EpisodeColumnId } from "@/lib/episode-columns";
-import { fmtBytes, fmtNumber } from "@/lib/format";
-import { fmtDay, fmtRuntime } from "@/lib/library";
+import { dayFormatter, fmtBytes, fmtNumber } from "@/lib/format";
+import { fmtRuntime } from "@/lib/library";
 import { nextSearch } from "@/lib/library-rows";
 import { useColumnPrefs } from "@/lib/prefs";
 import {
@@ -120,7 +120,7 @@ function statusOf(e: Episode, keys: string[], merged: boolean, seeFiles: boolean
 
 function cellTitle(c: Cell | undefined): string | undefined {
   if (!c) return undefined;
-  const parts = [c.has_file && c.state === "filled" ? "Preferred quality not met" : undefined, c.release_group, c.size_bytes ? fmtBytes(c.size_bytes) : undefined, c.score != null ? `profile score ${c.score}` : undefined, c.monitored ? "monitored" : "not monitored"];
+  const parts = [c.has_file && c.state === "filled" ? "Preferred quality not met" : undefined, c.release_group, c.size_bytes ? fmtBytes(c.size_bytes) : undefined, c.score != null ? `profile score ${fmtNumber(c.score)}` : undefined, c.monitored ? "monitored" : "not monitored"];
   return parts.filter(Boolean).join(" · ") || undefined;
 }
 
@@ -299,12 +299,12 @@ const COLUMN_HEAD: Record<EpisodeColumnId, { label: string; className?: string }
 };
 
 /** A chosen column's cell for the library in view. Blank, never "0" or "None", for a fact the file lacks. */
-function ColumnCell({ id, e, c, seeFiles }: { id: EpisodeColumnId; e: Episode; c: Cell | undefined; seeFiles: boolean }) {
+function ColumnCell({ id, e, c, seeFiles, day }: { id: EpisodeColumnId; e: Episode; c: Cell | undefined; seeFiles: boolean; day: (d: string) => string }) {
   const file = c?.has_file ? c : undefined;
   const long = (v: string | undefined) => (v ? <span className="block max-w-[22rem] truncate" title={v}><Mono className="text-[11.5px]">{v}</Mono></span> : null);
   switch (id) {
     case "air":
-      return <TableCell className="whitespace-nowrap text-muted-foreground">{e.air_date ? fmtDay(e.air_date) : "—"}</TableCell>;
+      return <TableCell className="whitespace-nowrap text-muted-foreground">{e.air_date ? day(e.air_date) : "—"}</TableCell>;
     case "status": {
       const s = cellStatus(c, aired(e), seeFiles);
       return (
@@ -336,6 +336,7 @@ function ColumnCell({ id, e, c, seeFiles }: { id: EpisodeColumnId; e: Episode; c
 /** Desktop, one library in view (Sonarr's layout): checkbox, monitor switch, number, title, the chosen columns, then
  *  Search and Interactive search. */
 function LibraryTable({ episodes, copies, anime, manage, seeFiles, selected, onSelect, onOpen, live, act, columns }: ListProps) {
+  const day = dayFormatter(episodes.map((e) => e.air_date));
   const v = copies[0];
   const ids = episodes.map((e) => e.id);
   return (
@@ -400,7 +401,7 @@ function LibraryTable({ episodes, copies, anime, manage, seeFiles, selected, onS
                 <div className={cn("font-medium", manage && !on && "text-muted-foreground")}>{e.name || `Episode ${e.number}`}</div>
               </TableCell>
               {columns.map((id) => (
-                <ColumnCell key={id} id={id} e={e} c={c} seeFiles={seeFiles} />
+                <ColumnCell key={id} id={id} e={e} c={c} seeFiles={seeFiles} day={day} />
               ))}
               {act || live ? (
                 <TableCell className="pl-0 text-right">
@@ -417,6 +418,7 @@ function LibraryTable({ episodes, copies, anime, manage, seeFiles, selected, onS
 
 /** Desktop, All libraries: a column per library (or one availability column), then Search and Interactive search. */
 function MatrixTable({ episodes, copies, merged, anime, manage, seeFiles, selected, onSelect, onOpen, live, act }: ListProps) {
+  const day = dayFormatter(episodes.map((e) => e.air_date));
   const ids = episodes.map((e) => e.id);
   const keys = copies.map((v) => v.key);
   return (
@@ -466,7 +468,7 @@ function MatrixTable({ episodes, copies, merged, anime, manage, seeFiles, select
             <TableCell>
               <div className={cn("font-medium", manage && !e.monitored && "text-muted-foreground")}>{e.name || `Episode ${e.number}`}</div>
             </TableCell>
-            <TableCell className="whitespace-nowrap text-muted-foreground">{e.air_date ? fmtDay(e.air_date) : "—"}</TableCell>
+            <TableCell className="whitespace-nowrap text-muted-foreground">{e.air_date ? day(e.air_date) : "—"}</TableCell>
             {merged ? (
               <TableCell>
                 <StatusText st={statusOf(e, keys, true, seeFiles)} manage={false} />
@@ -496,6 +498,7 @@ function MatrixTable({ episodes, copies, merged, anime, manage, seeFiles, select
 
 /** Phones: one row per episode for the library in view (or across copies), with its state in words. */
 function EpisodeRows({ episodes, copies, merged, anime, manage, seeFiles, selected, onSelect, onOpen, live, act }: ListProps) {
+  const day = dayFormatter(episodes.map((e) => e.air_date));
   const keys = copies.map((v) => v.key);
   const ids = episodes.map((e) => e.id);
   const nSel = ids.filter((i) => selected.has(i)).length;
@@ -529,7 +532,7 @@ function EpisodeRows({ episodes, copies, merged, anime, manage, seeFiles, select
                 <div className="truncate text-xs text-muted-foreground">
                   <span className="tabular-nums" data-testid="episode-number">{episodeNumber(e, anime)}</span>
                   {" · "}
-                  {e.air_date ? fmtDay(e.air_date) : "No air date"}
+                  {e.air_date ? day(e.air_date) : "No air date"}
                 </div>
               </div>
               <div className="flex shrink-0 flex-col items-end gap-0.5 text-right">

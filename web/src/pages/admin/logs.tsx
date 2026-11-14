@@ -7,7 +7,7 @@ import { Empty, ErrorState, Loading, Mono, PageHeader } from "@/components/page"
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { fmtTime } from "@/lib/format";
+import { fmtBytes, fmtTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 const LEVELS = ["debug", "info", "warn", "error"];
@@ -45,7 +45,7 @@ export function Logs() {
         <span className="text-sm text-muted-foreground">Download logs:</span>
         {(files.data?.items ?? []).map((f) => (
           <a key={f.name} className="text-sm text-primary underline" href={API_BASE + "/logs/files/" + encodeURIComponent(f.name)} download={f.name}>
-            {f.name} ({Math.ceil(f.size / 1024)} KB)
+            {f.name} ({fmtBytes(f.size)})
           </a>
         ))}
       </div>
@@ -67,7 +67,7 @@ export function Logs() {
           onChange={(e) => setComponent(e.target.value)}
           className="h-8 rounded-md border border-input bg-field px-2 text-sm"
         >
-          <option value="">all components</option>
+          <option value="">All components</option>
           {(q.data?.components ?? []).map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
       </div>
@@ -83,8 +83,9 @@ export function Logs() {
                   <span className="break-words font-sans text-[13px] text-foreground">{e.msg}</span>
                 </div>
                 {e.attrs && Object.keys(e.attrs).length > 0 ? (
-                  <div className={cn("mt-1 break-all text-muted-foreground")}>
-                    {Object.entries(e.attrs).map(([k, v]) => <span key={k} className="mr-3"><Mono className="text-[var(--ink-3)]">{k}=</Mono>{v}</span>)}
+                  <div className={cn("mt-1 break-words text-muted-foreground")}>
+                    {/* A key=value pair breaks between pairs; only a long value (a URL) breaks inside itself. */}
+                    {Object.entries(e.attrs).map(([k, v]) => <span key={k} className="mr-3 inline-block max-w-full [overflow-wrap:anywhere]"><Mono className="whitespace-nowrap text-[var(--ink-3)]">{k}=</Mono>{v}</span>)}
                   </div>
                 ) : null}
               </li>

@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Modal } from "@/components/ui/modal";
 import { copyColumns, distinctLabels, relabel } from "@/lib/copies";
-import { fmtBytes, fmtNumber } from "@/lib/format";
+import { fmtBytes, plural, pluralWord } from "@/lib/format";
 import { defaultColumns, defaultDesc, indexColumns, listColumns, visibleIndexColumns } from "@/lib/index-columns";
 import { activeFilters, CATALOGS, FILTER_KEYS, filterChips, gridQuery, offeredSorts, withoutChip, type CatalogId } from "@/lib/library";
 import { normalizePosters, type PosterPrefs } from "@/lib/poster-options";
@@ -206,7 +206,7 @@ export function Catalog({ id }: { id: CatalogId }) {
         title={cat.title}
         description={
           total !== undefined
-            ? `${fmtNumber(total)} title${total === 1 ? "" : "s"}${n ? " match the filters" : ""}${perms.seeFiles && size && !grid.hasNextPage ? ` · ${fmtBytes(size)}` : ""}`
+            ? `${plural(total, "title")}${n ? ` ${pluralWord(total, "matches", "match")} the filters` : ""}${perms.seeFiles && size && !grid.hasNextPage ? ` · ${fmtBytes(size)}` : ""}`
             : " "
         }
         actions={addButton}

@@ -25,6 +25,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useLibraryName } from "@/lib/library-names";
+import { nameWithoutYear } from "@/lib/format";
 
 function CheckRow({
   checked,
@@ -203,7 +204,7 @@ export function AddSheet({ target, onClose }: { target: AddTarget; onClose: () =
               {inLibrary ? <Badge tone="positive">In library</Badge> : null}
             </div>
             <h2 className="text-lg font-semibold leading-tight text-[var(--ink)] [overflow-wrap:anywhere]">
-              {target.name}
+              {nameWithoutYear(target.name, target.year)}
               {target.year ? <span className="font-normal text-[var(--ink-3)]"> ({target.year})</span> : null}
             </h2>
             {target.overview ? <p className="mt-1 line-clamp-3 text-xs text-[var(--ink-3)]">{target.overview}</p> : null}

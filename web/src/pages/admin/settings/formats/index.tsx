@@ -16,6 +16,7 @@ import { API_BASE } from "@/api/client";
 import { QualityPanel, type QualityRecord } from "../quality";
 import { DEFINITION, StateTag } from "../profiles/parts";
 import { wordMatcher } from "@/lib/words";
+import { plural } from "@/lib/format";
 
 function FormatRow({ f, onEdit }: { f: FormatSummary; onEdit?: () => void }) {
   const d = DEFINITION[f.definition] ?? DEFINITION.ours;
@@ -66,9 +67,9 @@ export function FormatsPage({ compact = false }: { compact?: boolean }) {
     {overview.isPending ? <Loading /> : overview.error ? <ErrorState error={overview.error} /> : o ? <section className="space-y-3" aria-label="Formats by group">
       <div className="flex flex-wrap items-center gap-3">
         <Input className="h-9 w-full sm:w-72" placeholder="Filter by format or profile" aria-label="Filter formats" value={filter} onChange={(e) => setFilter(e.target.value)} />
-        <span className="text-[13px] text-muted-foreground">{o.formats.length} formats · {o.formats.filter((f) => f.definition === "trash").length} TRaSH · {o.formats.filter((f) => f.definition === "frozen").length} frozen copies · {o.formats.filter((f) => f.definition === "ours").length} ours</span>
+        <span className="text-[13px] text-muted-foreground">{o.formats.length} formats · {o.formats.filter((f) => f.definition === "trash").length} TRaSH · {plural(o.formats.filter((f) => f.definition === "frozen").length, "frozen copy", "frozen copies")} · {o.formats.filter((f) => f.definition === "ours").length} ours</span>
       </div>
-      {o.formats.some((f) => f.definition === "frozen") ? <p className="text-[13px] text-muted-foreground">Frozen copies carry a TRaSH name but no TRaSH id, so no sync updates them: <Link className="underline" to="/admin/settings/quality-sync">Link formats to TRaSH</Link> on the TRaSH sync tab.</p> : null}
+      {o.formats.some((f) => f.definition === "frozen") ? <p className="text-[13px] text-muted-foreground">Frozen copies carry a TRaSH name but no TRaSH id, so no sync updates them: <Link className="underline" to="/admin/settings/quality-sync">Link formats to TRaSH</Link> on the Quality sync page.</p> : null}
       {groups.map(([group, list]) => <details key={group} open className="rounded-xl border border-[var(--line)]" data-group={group}>
         <summary className="cursor-pointer select-none px-3 py-2 text-sm font-semibold [overflow-wrap:anywhere]">{group} <span className="font-normal text-muted-foreground">· {list.length}</span></summary>
         <ul className="divide-y divide-[var(--line)] border-t border-[var(--line)]">{list.map((f) => <FormatRow key={`${f.flavour}/${f.trash_id || f.name}`} f={f} onEdit={f.key && o.source === "db" ? () => edit(f.key!) : undefined} />)}</ul>

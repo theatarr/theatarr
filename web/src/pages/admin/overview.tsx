@@ -28,6 +28,7 @@ import { fmtAgo, fmtNumber, fmtTime } from "@/lib/format";
 import { danglingNext, healthAttention, healthBadgeTone, healthEffect, healthLink, healthStatTone } from "@/lib/health";
 import { attentionCount, jobEffect, jobName, type Job } from "@/lib/jobs";
 import { JobActions } from "./jobs";
+import { backoffWords } from "@/lib/router-words";
 
 type Ready = {
   status?: string;
@@ -126,7 +127,7 @@ export function Overview() {
     items.push({
       key: `backoff-${b.subject}`,
       tone: "warn",
-      title: `${b.subject} backed off`,
+      title: backoffWords(b.subject),
       effect: `${b.reason || "Repeated failures"}; requests to it pause until ${fmtTime(b.until)}.`,
       next: "It resumes on its own; check it if it keeps happening",
       to: subjectKind === "provider" ? "/admin/settings/downloads" : subjectKind === "indexer" ? "/admin/settings/indexers" : "/admin/advanced/limits",

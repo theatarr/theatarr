@@ -157,8 +157,8 @@ export function ReleaseCheck() {
           </select>
         </label>
         <div className="flex min-w-0 flex-col gap-1 text-sm"><label className="flex min-w-0 flex-col gap-1">Size in GiB (optional)
-          <Input inputMode="decimal" value={size} onChange={(e) => setSize(e.target.value)} placeholder="unknown, or e.g. 36 GB" aria-invalid={sizeBad || undefined} aria-describedby={sizeBad ? "check-size-error" : undefined} />
-        </label>{sizeBad ? <p id="check-size-error" role="alert" className="text-xs text-[var(--bad-ink)]">Not a size: type a number of GiB, or one with a unit such as 36 GB.</p> : null}</div>
+          <Input inputMode="decimal" value={size} onChange={(e) => setSize(e.target.value)} placeholder="unknown, or e.g. 36 GiB" aria-invalid={sizeBad || undefined} aria-describedby={sizeBad ? "check-size-error" : undefined} />
+        </label>{sizeBad ? <p id="check-size-error" role="alert" className="text-xs text-[var(--bad-ink)]">Not a size: type a number of GiB, or one with a unit such as 36 GiB.</p> : null}</div>
         <label className="flex min-w-0 flex-col gap-1 text-sm sm:col-span-2">Release name
           <Input value={release} onChange={(e) => setRelease(e.target.value)} placeholder="Movie.Name.2024.2160p.WEB-DL.DDP5.1.Atmos.DV.HDR.H.265-GROUP" className="font-mono" />
         </label>

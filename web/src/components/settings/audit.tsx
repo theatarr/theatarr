@@ -64,7 +64,7 @@ function AuditEntry({ r, open, onToggle }: { r: SettingsAuditRow; open: boolean;
           {r.entity === "settings" ? <span className="text-muted-foreground">generation {r.generation}</span> : <><span className="text-muted-foreground">{auditEntity(r.entity)}</span> <Mono>{r.key}</Mono></>}
           <div className="mt-1 font-mono text-[11.5px] text-muted-foreground [overflow-wrap:anywhere]" data-testid="audit-brief">
             {changes.length === 0
-              ? hasRecords ? "no field changed" : "no record diff (whole-settings operation)"
+              ? hasRecords ? "no field changed" : "whole settings saved"
               : changes.slice(0, BRIEF).map(changeLine).join(" · ") + (changes.length > BRIEF ? ` · +${changes.length - BRIEF} more` : "")}
           </div>
         </div>

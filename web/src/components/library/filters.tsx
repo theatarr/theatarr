@@ -37,6 +37,7 @@ function availabilityRows(seeFiles: boolean, kind?: string) {
 }
 import { resolutionWords } from "@/lib/upgrade";
 import { cn } from "@/lib/utils";
+import { fmtNumber } from "@/lib/format";
 
 type Tone = "neutral" | "success" | "danger" | "warning";
 
@@ -97,7 +98,7 @@ function FilterButton({
             selected ? "bg-[color-mix(in_srgb,var(--accent)_18%,transparent)] text-[var(--accent-ink)]" : "bg-[var(--chip)] text-[var(--ink-3)]",
           )}
         >
-          {count.toLocaleString()}
+          {fmtNumber(count)}
         </span>
       ) : null}
       {selected ? <span className="absolute bottom-[-1px] left-2 right-2 h-[2.5px] rounded-full bg-[var(--line-focus)]" /> : null}

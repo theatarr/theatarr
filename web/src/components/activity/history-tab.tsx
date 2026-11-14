@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ColumnPicker } from "@/components/ui/column-picker";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
-import { fmtBytes, fmtTime } from "@/lib/format";
+import { fmtBytes, fmtNumber, fmtTime, titleWithYear } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { adminLink, journalLink } from "@/lib/admin-links";
 import { historyFilterCount, historyParams } from "@/lib/activity-history";
@@ -41,7 +41,7 @@ function dayLabel(iso: string): string {
   return d.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: d.getFullYear() === today.getFullYear() ? undefined : "numeric" });
 }
 
-const titleName = (e: ActivityEvent) => `${e.title.name}${e.title.year ? ` (${e.title.year})` : ""}`;
+const titleName = (e: ActivityEvent) => titleWithYear(e.title.name, e.title.year);
 
 /** A simple row, for household accounts and "View as a user". */
 function EventRow({ e }: { e: ActivityEvent }) {
@@ -89,7 +89,7 @@ function TitleCell({ e }: { e: ActivityEvent }) {
       {e.title.id ? (
         <Link to={`/title/${e.title.id}`} className="block truncate font-medium text-[var(--ink)] hover:text-primary">{titleName(e)}</Link>
       ) : <span className="block truncate font-medium text-[var(--ink)]">{titleName(e)}</span>}
-      {e.episodes?.length ? <p className="truncate text-xs text-muted-foreground">{episodesWords(e.episodes)}</p> : null}
+      {e.episodes?.length ? <p className="truncate text-xs text-muted-foreground" title={e.episodes.join(" ")}>{episodesWords(e.episodes)}</p> : null}
     </div>
   );
 }
@@ -102,7 +102,7 @@ const HISTORY_FIXED: DataColumn<ActivityEvent>[] = [
 const HISTORY_OPTIONAL: Record<HistoryColumnId, DataColumn<ActivityEvent>> = {
   library: { id: "library", label: "Library", cell: (e) => (e.version ? <VersionTag k={e.version} className="text-[11px]" /> : <Dash />) },
   quality: { id: "quality", label: "Quality", cellClassName: "whitespace-nowrap", cell: (e) => e.quality || <Dash /> },
-  score: { id: "score", label: "Score", cellClassName: "tabular-nums", cell: (e) => (e.score !== undefined ? e.score : <Dash />) },
+  score: { id: "score", label: "Score", cellClassName: "tabular-nums", cell: (e) => (e.score !== undefined ? fmtNumber(e.score) : <Dash />) },
   date: { id: "date", label: "Date", card: "none", cellClassName: "whitespace-nowrap tabular-nums", cell: (e) => fmtTime(e.at) },
   release: {
     id: "release",

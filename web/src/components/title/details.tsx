@@ -9,8 +9,9 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { journalHome, journalLink } from "@/lib/admin-links";
-import { fmtBytes, fmtTime } from "@/lib/format";
+import { fmtBytes, fmtDayYear, fmtTime } from "@/lib/format";
 import { fileInventoryRows } from "@/lib/file-inventory";
+import { releaseTypeWords } from "@/lib/tmdb-words";
 
 function outside(d: TitleDetail): { label: string; url: string }[] {
   const out: { label: string; url: string }[] = [];
@@ -140,7 +141,7 @@ export function Details({ d }: { d: TitleDetail }) {
               </TableHeader>
               <TableBody>
                 {(d.release_dates ?? []).map((r, i) => (
-                  <TableRow key={i}><TableCell className="whitespace-nowrap">{r.date}</TableCell><TableCell>{r.type}</TableCell><TableCell>{r.country || "—"}</TableCell><TableCell className="hidden sm:table-cell">{r.source}</TableCell></TableRow>
+                  <TableRow key={i}><TableCell className="whitespace-nowrap">{fmtDayYear(r.date)}</TableCell><TableCell title={r.type}>{releaseTypeWords(r.type)}</TableCell><TableCell>{r.country || "—"}</TableCell><TableCell className="hidden sm:table-cell">{r.source}</TableCell></TableRow>
                 ))}
               </TableBody>
             </Table>

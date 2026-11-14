@@ -22,7 +22,7 @@ import { Card } from "@/components/ui/card";
 import { ColumnPicker, OptionsDialog } from "@/components/ui/column-picker";
 import { Choice } from "@/components/ui/confirm-dialog";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
-import { fmtAgo, fmtBytes, fmtTime } from "@/lib/format";
+import { fmtAgo, fmtBytes, fmtNumber, fmtTime, nameWithoutYear } from "@/lib/format";
 import { bulkWords, filterDownloads, needsAttention, showCounts, SHOWS, STAGE_MEANINGS, stageLabel, stageMeaning, timing, type ActivityShow } from "@/lib/activity";
 import {
   isQueueSortColumn,
@@ -43,6 +43,7 @@ import { adminLink, journalLink } from "@/lib/admin-links";
 import { FAILED_WORDS } from "@/lib/request-timeline";
 import { ProviderTag } from "@/components/provider-pills";
 import { InfoHash } from "@/components/title/info-hash";
+import { attemptCodeWords, attemptOutcomeWords, cacheSourceWords, cacheStateWords } from "@/lib/router-words";
 
 const WORD_TONE = {
   active: "text-[var(--accent-ink)]",
@@ -68,7 +69,7 @@ function DownloadDetails({ d }: { d: ActivityDownload }) {
           <Label>Release</Label>
           <p className="mt-1 break-all font-mono text-[12.5px] text-foreground">{d.release}</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            {[d.quality, d.score !== undefined ? `score ${d.score}` : "", d.size ? fmtBytes(d.size) : "", d.indexer].filter(Boolean).join(" · ")}
+            {[d.quality, d.score !== undefined ? `score ${fmtNumber(d.score)}` : "", d.size ? fmtBytes(d.size) : "", d.indexer].filter(Boolean).join(" · ")}
           </p>
         </div>
         {d.info_hash ? (
@@ -97,9 +98,9 @@ function DownloadDetails({ d }: { d: ActivityDownload }) {
               {attempts.map((a, i) => (
                 <li key={i} className="flex flex-wrap items-baseline gap-x-2">
                   {a.provider ? <ProviderTag account={a.provider} className="font-medium" /> : null}
-                  <Badge tone={a.outcome === "accepted" ? "positive" : a.outcome === "deferred" ? "warning" : a.outcome === "skipped" ? "neutral" : "negative"}>
-                    {a.outcome}
-                    {a.code ? ` · ${a.code}` : ""}
+                  <Badge tone={a.outcome === "accepted" ? "positive" : a.outcome === "deferred" ? "warning" : a.outcome === "skipped" ? "neutral" : "negative"} title={[a.outcome, a.code].filter(Boolean).join(" · ")}>
+                    {attemptOutcomeWords(a.outcome)}
+                    {a.code ? ` · ${attemptCodeWords(a.code)}` : ""}
                   </Badge>
                   <span className="text-xs text-muted-foreground">{fmtTime(a.at)}</span>
                   {a.message ? <span className="w-full break-words text-xs text-muted-foreground">{a.message}</span> : null}
@@ -115,8 +116,8 @@ function DownloadDetails({ d }: { d: ActivityDownload }) {
           ) : (
             <div className="mt-1 flex flex-wrap gap-1.5">
               {(d.cache ?? []).map((c, i) => (
-                <Badge key={i} tone={c.state === "cached" ? "positive" : c.state === "miss" || c.state === "uncached" ? "negative" : "neutral"}>
-                  {c.provider ? <ProviderTag account={c.provider} /> : null} {c.state} <span className="opacity-70">({c.source})</span>
+                <Badge key={i} tone={c.state === "cached" ? "positive" : c.state === "miss" || c.state === "uncached" ? "negative" : "neutral"} title={`${c.state} (${c.source})`}>
+                  {c.provider ? <ProviderTag account={c.provider} /> : null} {cacheStateWords(c.state)} <span className="opacity-70">{cacheSourceWords(c.source)}</span>
                 </Badge>
               ))}
             </div>
@@ -245,7 +246,7 @@ function TableTitle({ t }: { t: ActivityDownload["title"] }) {
   const name = "min-w-0 truncate font-semibold text-[var(--ink)]";
   return (
     <div className="flex min-w-0 items-baseline gap-1.5">
-      {t.id ? <Link to={`/title/${t.id}`} className={`${name} hover:text-primary`} title={t.name}>{t.name}</Link> : <span className={name} title={t.name}>{t.name}</span>}
+      {t.id ? <Link to={`/title/${t.id}`} className={`${name} hover:text-primary`} title={t.name}>{nameWithoutYear(t.name, t.year)}</Link> : <span className={name} title={t.name}>{nameWithoutYear(t.name, t.year)}</span>}
       {t.year ? <span className="shrink-0 text-xs text-muted-foreground">{t.year}</span> : null}
     </div>
   );
@@ -285,7 +286,7 @@ function queueColumns(now: number): { fixed: DataColumn<ActivityDownload>[]; opt
         cell: (d) => (
           <div className="min-w-0">
             <TableTitle t={d.title} />
-            {d.episodes?.length ? <p className="truncate text-xs text-muted-foreground">{episodesWords(d.episodes)}</p> : null}
+            {d.episodes?.length ? <p className="truncate text-xs text-muted-foreground" title={d.episodes.join(" ")}>{episodesWords(d.episodes)}</p> : null}
           </div>
         ),
       },
@@ -296,7 +297,7 @@ function queueColumns(now: number): { fixed: DataColumn<ActivityDownload>[]; opt
       provider: { id: "provider", label: "Provider", sortable: true, cell: (d) => <ProviderCell d={d} /> },
       size: { id: "size", label: "Size", sortable: true, cellClassName: "whitespace-nowrap tabular-nums", cell: (d) => (d.size ? fmtBytes(d.size) : <Dash />) },
       progress: { id: "progress", label: "Progress", sortable: true, card: "none", cell: (d) => <QueueProgress d={d} now={now} /> },
-      score: { id: "score", label: "Score", sortable: true, cellClassName: "tabular-nums", cell: (d) => (d.score !== undefined ? d.score : <Dash />) },
+      score: { id: "score", label: "Score", sortable: true, cellClassName: "tabular-nums", cell: (d) => (d.score !== undefined ? fmtNumber(d.score) : <Dash />) },
       formats: { id: "formats", label: "Formats", cell: (d) => <FormatPills formats={d.formats} /> },
       indexer: { id: "indexer", label: "Indexer", sortable: true, cellClassName: "whitespace-nowrap", cell: (d) => d.indexer || <Dash /> },
       release: {

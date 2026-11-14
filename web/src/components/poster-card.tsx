@@ -11,6 +11,7 @@ import type { ReactNode } from "react";
 import { Link } from "react-router";
 import { POSTER_STATUS_LABEL, type PosterStatus } from "@/lib/library";
 import { cn } from "@/lib/utils";
+import { nameWithoutYear, titleWithYear } from "@/lib/format";
 
 export type { PosterStatus } from "@/lib/library";
 
@@ -117,13 +118,14 @@ export function PosterCard({
       </div>
     </div>
   );
-  const label = [year ? `${title} (${year})` : title, status ? POSTER_STATUS_LABEL[status] : "", unmonitored ? "not monitored" : "", extraLabel ?? ""].filter(Boolean).join(", ");
+  const name = nameWithoutYear(title, year);
+  const label = [titleWithYear(title, year), status ? POSTER_STATUS_LABEL[status] : "", unmonitored ? "not monitored" : "", extraLabel ?? ""].filter(Boolean).join(", ");
   const inner = (
     <>
       {body}
       {bars ? <div className="mt-2 grid gap-1 px-0.5" data-testid="poster-bars">{bars}</div> : null}
       <div className="mt-2 px-0.5" data-testid="poster-caption">
-        <div className="line-clamp-2 text-[13px] font-semibold leading-snug text-[var(--ink)] [overflow-wrap:anywhere]">{title}</div>
+        <div className="line-clamp-2 text-[13px] font-semibold leading-snug text-[var(--ink)] [overflow-wrap:anywhere]">{name}</div>
         {year || status ? (
           <div className="truncate text-[11.5px] text-[var(--ink-3)]">
             {year}

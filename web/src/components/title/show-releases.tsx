@@ -15,9 +15,10 @@ import { AddByHash } from "@/components/title/release-grab";
 import { ReleaseGrid } from "@/components/title/release-grid";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { fmtAgo } from "@/lib/format";
+import { fmtAgo, fmtNumber, plural } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useLibraryName } from "@/lib/library-names";
+import { rejectionWords } from "@/lib/rejection-words";
 
 const SOURCE: Record<string, string> = {
   live: "Live search",
@@ -32,16 +33,16 @@ export function Summary({ r }: { r: Releases }) {
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <Badge tone={r.source === "live" ? "info" : r.source === "none" ? "neutral" : "accent"} data-testid="releases-source">{SOURCE[r.source] ?? r.source}</Badge>
         {r.at ? <span className="text-muted-foreground">{fmtAgo(r.at)}</span> : null}
-        {r.target && r.target !== "movie" ? <span className="text-muted-foreground">· {r.target}</span> : null}
-        <span className="text-muted-foreground">· {r.results} results, {r.accepted} accepted</span>
+        {r.target && r.target !== "movie" ? <span className="text-muted-foreground">· {r.target === "rss" ? "RSS" : r.target}</span> : null}
+        <span className="text-muted-foreground">· {plural(r.results ?? 0, "result")}, {fmtNumber(r.accepted ?? 0)} accepted</span>
       </div>
       {r.message ? <p className="text-xs text-[var(--ink-3)]" data-testid="releases-message">{r.message}</p> : null}
       {r.grabbed ? <p className="text-sm font-medium text-[var(--ink)]" data-testid="releases-grabbed">{r.grabbed}</p> : null}
       {rej.length > 0 ? (
         <div className="flex flex-wrap gap-1.5">
           {rej.map(([k, n]) => (
-            <span key={k} className="rounded-md border border-[var(--th-danger-border)] bg-[var(--bad-soft)] px-1.5 py-0.5 text-[11px] text-[var(--bad-ink)]">
-              {k} <span className="tabular-nums opacity-80">×{n}</span>
+            <span key={k} title={k} className="rounded-md border border-[var(--th-danger-border)] bg-[var(--bad-soft)] px-1.5 py-0.5 text-[11px] text-[var(--bad-ink)]">
+              {rejectionWords(k)} <span className="tabular-nums opacity-80">×{n}</span>
             </span>
           ))}
         </div>

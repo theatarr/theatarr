@@ -27,8 +27,8 @@ import { renameSides } from "@/lib/library-rows";
 import { renameError } from "@/lib/rename";
 import { cn } from "@/lib/utils";
 import { globalDownloadsOff } from "@/lib/version-grab";
+import { plural } from "@/lib/format";
 
-const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 /** The title is already in (monitored) every library that fits it, the add sheet's main list: Add to another library
  * has nothing to tick there. Libraries that do not fit (the sheet's "Show other libraries") do not count; the Libraries

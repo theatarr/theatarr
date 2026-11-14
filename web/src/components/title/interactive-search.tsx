@@ -18,6 +18,7 @@ import { Summary } from "@/components/title/show-releases";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { cn } from "@/lib/utils";
+import { titleWithYear } from "@/lib/format";
 
 export type SearchScope = { titleId: number; version?: string; season?: number; episode?: { id: number; code: string } };
 
@@ -83,7 +84,7 @@ export function InteractiveSearch({ titleId, version, season, episode, onClose }
       <div className="relative border-b border-[var(--line)] p-4 pr-12">
         <h2 className="text-lg font-semibold leading-tight text-[var(--ink)]">Interactive search</h2>
         <p className="mt-0.5 text-sm text-muted-foreground" data-testid="interactive-subject">
-          {d ? `${d.name ?? `Title ${titleId}`}${d.year ? ` (${d.year})` : ""}` : "…"}
+          {d ? (d.name ? titleWithYear(d.name, d.year) : `Title ${titleId}`) : "…"}
           {scope ? <span className="ml-2 font-medium text-[var(--ink-2)]">{scope}</span> : null}
         </p>
         <button type="button" onClick={onClose} aria-label="Close" className="absolute right-3 top-3 grid size-8 place-items-center rounded-lg text-[var(--ink-3)] hover:bg-[var(--hover)]">

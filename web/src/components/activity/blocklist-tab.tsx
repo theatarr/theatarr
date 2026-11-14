@@ -18,13 +18,13 @@ import { Pager } from "@/components/ui/pager";
 import { Select } from "@/components/ui/select";
 import { bulkWords } from "@/lib/activity";
 import { distinctLabels, relabel } from "@/lib/copies";
-import { fmtTime } from "@/lib/format";
+import { fmtTime, titleWithYear } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 const rowKey = (b: ActivityBlocked) => `${b.version}\n${b.info_hash}`;
 const releases = (n: number) => `${n} ${n === 1 ? "release" : "releases"}`;
 
-const titleName = (b: ActivityBlocked) => `${b.title.name}${b.title.year ? ` (${b.title.year})` : ""}`;
+const titleName = (b: ActivityBlocked) => titleWithYear(b.title.name, b.title.year);
 
 /** The title, linked to its page when the row names one. */
 function TitleName({ b, className }: { b: ActivityBlocked; className?: string }) {

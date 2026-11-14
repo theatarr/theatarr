@@ -27,10 +27,10 @@ describe("AppBackups", () => {
     expect(screen.getByText("Nightly at 03:00, keeping 14.")).toBeTruthy();
     expect(screen.getByText("4.0 KiB")).toBeTruthy();
   });
-  it("says a day-old backup is 1 day old", async () => {
+  it("says how old a day-old backup is", async () => {
     list.sets[0].created_at = new Date(Date.now() - 30 * 3600_000).toISOString();
     mount();
-    expect(await screen.findByText("1 day")).toBeTruthy();
+    expect(await screen.findByText("1 d ago")).toBeTruthy();
     expect(screen.queryByText("1 days")).toBeNull();
   });
   it("requires the exact name and shows restarting after 202", async () => {

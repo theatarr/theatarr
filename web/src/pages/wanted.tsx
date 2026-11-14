@@ -17,7 +17,7 @@ import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog, errText } from "@/components/ui/confirm-dialog";
 import { DownloadsOffNotice, VersionStatus } from "@/components/version-status";
-import { fmtAgo, fmtGoDuration, fmtTime } from "@/lib/format";
+import { fmtAgo, fmtGoDuration, fmtNumber, fmtTime, plural } from "@/lib/format";
 import { nextSearchWhy } from "@/lib/library-rows";
 import { useColumnPrefs, type ColumnDef } from "@/lib/prefs";
 import { settingHref } from "@/lib/settings-map";
@@ -41,7 +41,7 @@ export function searchResult(run: WantedRow["last_run"]): string {
   if (run.state === "searching") return "Searching";
   if (run.downloaded) return "Grabbed";
   if (run.state === "routed") return "Sent to download";
-  return run.results ? `${run.results} results, none accepted` : "Nothing found";
+  return run.results ? `${plural(run.results, "result")}, none accepted` : "Nothing found";
 }
 
 export function targetWords(targets: string[]) {
@@ -93,7 +93,6 @@ function blocked(row: WantedRow): string {
 const asked = (row: WantedRow) => row.waiting === "due" && row.why === "asked";
 const rowKey = (row: WantedRow) => `${row.title_id}/${row.version}/${row.season ?? ""}`;
 const rowItem = (row: WantedRow) => ({ title_id: row.title_id, version: row.version, ...(row.season === undefined ? {} : { season: row.season }) });
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "es"}`;
 
 /** What a Search now request did, in words: "Started 6, queued 306", then what was skipped and why. */
 export function searchNowWords(r: WantedSearchResult): string {
@@ -200,15 +199,15 @@ export function WantedPage() {
       <div className="flex flex-wrap gap-2" aria-label="Waiting filters">{waits.map(([key, word]) => {
         const count = key ? d.counts[key] ?? 0 : Object.values(d.counts).reduce((a, b) => a + b, 0);
         const shown = key === "downloads_off" && off ? OFF_WORD[off] : word;
-        return key && !count ? null : <Button key={key} variant={waiting === key || !waiting && !key ? "default" : "outline"} size="sm" aria-pressed={(waiting ?? "") === key} onClick={() => change("waiting", key)}>{shown} ({count})</Button>;
+        return key && !count ? null : <Button key={key} variant={waiting === key || !waiting && !key ? "default" : "outline"} size="sm" aria-pressed={(waiting ?? "") === key} onClick={() => change("waiting", key)}>{shown} ({fmtNumber(count)})</Button>;
       })}</div>
       {d.search_now_pending > 0 ? <p role="status" data-testid="search-now-queue" className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-[5px] border border-[var(--line)] bg-[var(--sunken)] px-3 py-2 text-[13px] text-[var(--ink-2)]">
-        <span>{plural(d.search_now_pending, "search")} queued by Search now{!d.downloads_enabled ? " · waiting until Pause is off" : ""}</span>
+        <span>{plural(d.search_now_pending, "search", "searches")} queued by Search now{!d.downloads_enabled ? " · waiting until Pause is off" : ""}</span>
         <Button variant="outline" size="sm" disabled={clear.isPending} onClick={() => clear.mutate()}>Cancel queued searches</Button>
       </p> : null}
       <div className="flex flex-wrap items-center gap-2" aria-label="Search now">
         <Button variant="outline" size="sm" disabled={!chosen.length || search.isPending} onClick={() => request({ body: { only, items: chosen.map(rowItem) }, count: chosen.length, title: `Search ${chosen.length} selected` }, chosen.length > left)}>Search selected ({chosen.length})</Button>
-        <Button variant="outline" size="sm" disabled={!d.searchable || !d.downloads_enabled || search.isPending} title={!d.downloads_enabled ? "Paused" : !d.searchable ? "Nothing in this list can be searched now" : undefined} onClick={() => request({ body: { only, all: { ...(version ? { version } : {}), ...(waiting ? { waiting: waiting as NonNullable<WantedSearchBody["all"]>["waiting"] } : {}) } }, count: d.searchable, title: `Search all ${d.searchable} ${what}${version ? ` in ${label(version)}` : ""}` }, true)}>Search all {d.searchable > 0 ? `${d.searchable} ` : ""}{what}{version ? ` in ${label(version)}` : ""}</Button>
+        <Button variant="outline" size="sm" disabled={!d.searchable || !d.downloads_enabled || search.isPending} title={!d.downloads_enabled ? "Paused" : !d.searchable ? "Nothing in this list can be searched now" : undefined} onClick={() => request({ body: { only, all: { ...(version ? { version } : {}), ...(waiting ? { waiting: waiting as NonNullable<WantedSearchBody["all"]>["waiting"] } : {}) } }, count: d.searchable, title: `Search all ${fmtNumber(d.searchable)} ${what}${version ? ` in ${label(version)}` : ""}` }, true)}>Search all {d.searchable > 0 ? `${fmtNumber(d.searchable)} ` : ""}{what}{version ? ` in ${label(version)}` : ""}</Button>
         <Button variant="outline" size="sm" className="ml-auto" aria-label="Columns" onClick={() => setPicker(true)}><Columns3 /><span className="hidden sm:inline">Columns</span></Button>
         {search.data && !ask ? <span role="status" className="basis-full text-[13px] text-[var(--ink-2)]" data-testid="search-now-result">{searchNowWords(search.data)}</span> : null}
         {(search.error && !ask) || clear.error ? <span role="alert" className="basis-full text-[13px] text-[var(--bad-ink)]">{errText(search.error ?? clear.error)}</span> : null}
@@ -236,8 +235,8 @@ export function WantedPage() {
     </div> : null}
     {picker ? <ColumnPicker label="Wanted columns" note="Title and the row's links always stay. On a phone the columns show under each title." columns={COLUMNS} prefs={prefs} onChange={savePrefs} onClose={() => setPicker(false)} /> : null}
     {ask && d ? <ConfirmDialog danger={false} testid="search-now-confirm" busy={search.isPending} error={search.error} onClose={() => setAsk(undefined)} onConfirm={() => send(ask.body)}
-      scope={{ title: ask.title, confirm: `Queue ${plural(ask.count, "search")}`, does: [`Queue ${plural(ask.count, "search")}; they start as the hourly limit allows`], keeps: ["The hourly limit: no search goes around it", "Searches that already started"] }}>
-      <p data-testid="search-now-estimate">{plural(ask.count, "search")}. They start as the hourly limit allows: up to {d.per_hour} an hour ({d.searched_last_hour} used this hour). Raise <em>Searches per hour</em> in {perms.admin ? <Link className="text-primary hover:underline" to={settingHref("router", "wanted.per_hour") ?? "/admin/settings/downloads"}>Settings › Download clients</Link> : "Settings › Download clients"} to go faster.</p>
+      scope={{ title: ask.title, confirm: `Queue ${plural(ask.count, "search", "searches")}`, does: [`Queue ${plural(ask.count, "search", "searches")}; they start as the hourly limit allows`], keeps: ["The hourly limit: no search goes around it", "Searches that already started"] }}>
+      <p data-testid="search-now-estimate">{plural(ask.count, "search", "searches")}. They start as the hourly limit allows: up to {d.per_hour} an hour ({d.searched_last_hour} used this hour). Raise <em>Searches per hour</em> in {perms.admin ? <Link className="text-primary hover:underline" to={settingHref("router", "wanted.per_hour") ?? "/admin/settings/downloads"}>Settings › Download clients</Link> : "Settings › Download clients"} to go faster.</p>
     </ConfirmDialog> : null}
   </div>;
 }

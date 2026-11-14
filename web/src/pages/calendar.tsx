@@ -16,6 +16,7 @@ import { Card } from "@/components/ui/card";
 import { calendarHref, calendarLegend, calendarTone, episodeCode, monthDays, parseYmd, placeEntries, releaseLabel, shiftDay, ymd } from "@/lib/calendar";
 import { cn } from "@/lib/utils";
 import "@/styles/calendar.css";
+import { plural, titleWithYear } from "@/lib/format";
 
 type Facet = "movie" | "series" | "anime";
 const FACETS: { id: Facet; label: string }[] = [
@@ -50,7 +51,7 @@ function airTime(e: CalendarEntry): string | null {
 const CHIP_TONE = { ok: "ok", progress: "info", bad: "bad", neutral: "neutral", idle: "ghost" } as const;
 
 function tooltip(e: CalendarEntry, status: string): string {
-  const lines = [e.title.name + (e.title.year ? ` (${e.title.year})` : "")];
+  const lines = [titleWithYear(e.title.name, e.title.year)];
   if (e.kind === "episode") lines.push(`${episodeCode(e.season, e.number)}${e.episode ? ` · ${e.episode}` : ""}`);
   else lines.push(releaseLabel(e.type));
   lines.push(status);
@@ -192,7 +193,7 @@ function MonthGrid({
                 selected === key && "is-selected",
               )}
             >
-              <button type="button" onClick={() => onSelect(key)} className="flex w-full justify-end" aria-label={`${dayHeading(key, today)}: ${items.length} items`}>
+              <button type="button" onClick={() => onSelect(key)} className="flex w-full justify-end" aria-label={`${dayHeading(key, today)}: ${plural(items.length, "item")}`}>
                 <span className="theatarr-cal-day-pill">{d.getDate()}</span>
               </button>
               <div className="hidden sm:block">
