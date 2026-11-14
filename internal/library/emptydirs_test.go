@@ -46,6 +46,27 @@ func TestRemoveEmptyDirsStopsBelowTheRoot(t *testing.T) {
 	if _, err := os.Stat(e.shows); err != nil {
 		t.Errorf("the library root went: %v", err)
 	}
+	// A live link goes the same way; what it points at on the mount, and its folder there, stay.
+	e.release("Live.Release", map[string]float64{"live.mkv": 7000})
+	tgt := filepath.Join(e.mount, "__all__", "Live.Release", "live.mkv")
+	movie := filepath.Join(e.movies, "Live (2004)")
+	mk(movie)
+	lp := filepath.Join(movie, "Live (2004).mkv")
+	if err := os.Symlink(tgt, lp); err != nil {
+		t.Fatal(err)
+	}
+	e.exec(`INSERT INTO link (id, path, target, title_id, state, created_at, updated_at) VALUES (2, ?, ?, 1, 'active', 0, 0)`,
+		lp, tgt)
+	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (2, 10)`)
+	if res, err := e.lib.Unlink(e.ctx, "movie-remux", lp, 2, "removed"); err != nil || res.DryRun {
+		t.Fatalf("unlink: %+v %v", res, err)
+	}
+	if got := e.lib.RemoveEmptyDirs("movie-remux", lp); !slices.Equal(got, []string{movie}) {
+		t.Errorf("removed %v", got)
+	}
+	if _, err := os.Stat(tgt); err != nil {
+		t.Errorf("the mount's file went: %v", err)
+	}
 	// The root itself is never removed, even empty and named directly.
 	if got := e.lib.RemoveEmptyDirs("tv", filepath.Join(e.shows, "x.mkv")); len(got) != 0 {
 		t.Errorf("removed at the root: %v", got)
