@@ -1,4 +1,4 @@
-// The live event stream (GET /api/theatarr/v1/events, Server-Sent Events). One connection per tab, opened once signed in.
+// The live event stream (GET /api/theatarr/v1/events, Server-Sent Events). One connection per tab, opened once signed in and closed when the page is left.
 // jobs events refresh the job queries and carry the queue counts; gateway events carry the full /gateway state and
 // replace the cached query; download and title events refresh the activity, Continue row and calendar, and a
 // download's state change shows a toast (live-activity.ts); request events refresh the requests and tell the
@@ -38,6 +38,15 @@ export function LiveProvider({ enabled, seeFiles = false, children }: { enabled:
   const nameOf = useLibraryName();
   const nameRef = useRef(nameOf);
   nameRef.current = nameOf;
+  // Counts the page's restores from the back/forward cache, each of which reopens the stream.
+  const [shown, setShown] = useState(0);
+  useEffect(() => {
+    const onShow = (e: PageTransitionEvent) => {
+      if (e.persisted) setShown((n) => n + 1);
+    };
+    window.addEventListener("pageshow", onShow);
+    return () => window.removeEventListener("pageshow", onShow);
+  }, []);
   useEffect(() => {
     if (!enabled || typeof EventSource === "undefined") return;
     const es = new EventSource(`${API_BASE}/events`);
@@ -69,8 +78,16 @@ export function LiveProvider({ enabled, seeFiles = false, children }: { enabled:
       if (t) toast({ ...t, to: "/requests" });
     });
     es.addEventListener("users", () => void qc.invalidateQueries({ queryKey: ["users"] }));
-    return () => es.close();
-  }, [enabled, qc]);
+    // A page left behind (another address opened, or kept in the back/forward cache) closes its stream at once: over
+    // HTTP/1.1 the browser allows six connections to the server, and streams of pages already left would hold them
+    // and leave the next page's requests waiting. A page restored from that cache opens a new one (shown).
+    const close = () => es.close();
+    window.addEventListener("pagehide", close);
+    return () => {
+      window.removeEventListener("pagehide", close);
+      es.close();
+    };
+  }, [enabled, qc, shown]);
   return (
     <LiveContext.Provider value={live}>
       {children}
