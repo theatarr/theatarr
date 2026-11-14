@@ -40,7 +40,7 @@ export function SourcesPanel({ kind }: { kind?: "providers" | "indexers" }) {
                     <KV items={[
                       ["Last sync", sync ? `${fmtTime(sync.finished_at)} (${fmtAgo(sync.finished_at)})` : "—"],
                       ["Last good sync", fmtTime(p.last_ok_sync)],
-                      ["Registry", `${fmtNumber(p.counts.present)} present · ${fmtNumber(p.counts.absent)} absent · ${fmtNumber(p.counts.unreferenced)} unreferenced`],
+                      ["Account", !p.record ? "—" : p.record.never_read ? "never read" : `${fmtNumber(p.record.account_torrents)} torrents (${fmtNumber(p.record.unique_hashes)} unique hashes) · ${fmtNumber(p.record.usage.used)} used · ${fmtNumber(p.record.usage.unused)} unused${p.record.usage.unknown ? ` · ${fmtNumber(p.record.usage.unknown)} unknown` : ""} · as of ${fmtTime(p.record.as_of)}`],
                       ["Router, 24 h", Object.keys(p.attempts_24h).length === 0 ? "no attempts" : Object.entries(p.attempts_24h).map(([k, v]) => `${v} ${k}`).join(" · ")],
                       ["Pacing", p.pacing ? `${p.pacing.window_adds} adds this minute · ${p.pacing.hour_uncached} uncached this hour${p.pacing.failures ? ` · ${p.pacing.failures} failures` : ""}${p.pacing.reason ? ` (${p.pacing.reason})` : ""}` : "—"],
                     ]} />

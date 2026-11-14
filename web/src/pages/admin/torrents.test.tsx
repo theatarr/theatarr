@@ -14,7 +14,7 @@ const torrent = (id: string, hash: string, name: string, usage: string, extra = 
 });
 const report = {
   generated_at: "2026-10-29T12:00:00Z",
-  providers: [{ provider: "rd", kind: "realdebrid", ok: true, count: 2, bytes: 2048, usage: { used: 1, unused: 1, unknown: 0, unused_bytes: 1024, unknown_bytes: 0 },
+  providers: [{ provider: "rd", kind: "realdebrid", ok: true, as_of: "2026-10-29T11:00:00Z", account_torrents: 2, unique_hashes: 2, bytes: 2048, usage: { used: 1, unused: 1, unknown: 0, unused_bytes: 1024, unknown_bytes: 0 },
     torrents: [torrent("1", h1, "Unused.Movie", "unused"), torrent("2", h2, "Used.Movie", "used", { refs: { link: 1 }, ref_list: [{ kind: "link", detail: "/lib/Used.mkv" }] })] }],
   unused: [{ provider: "rd", id: "1" }], duplicate_hash: [], duplicate_title: [], failed: [], stalled: [], largest: [],
 };
@@ -26,7 +26,7 @@ const plan = (override: boolean) => ({
       : { provider: "rd", id: "2", hash: h2, name: "Used.Movie", bytes: 1024, usage: "used", action: "refuse", refusal: "used: referenced by 1 link", needs_override: true, expected_override_token: "o1-x", refs: { link: 1 }, ref_list: [{ kind: "link", detail: "/lib/Used.mkv" }] },
   ],
   count: override ? 2 : 1, bytes: override ? 2048 : 1024, refused: override ? 0 : 1, digest: "d", confirmation_token: override ? "d1-2" : "d1-1",
-  warning: "Debrid accounts are shared", deleted: 0, failed: 0,
+  warning: "A full backup of every provider is taken first", deleted: 0, failed: 0,
 });
 
 describe("torrents page", () => {
@@ -35,8 +35,9 @@ describe("torrents page", () => {
     const reports = [at("2026-11-13T12:00:00Z", [{ provider: "tb", state: "added", updated_at: "2026-11-13T12:00:00Z" }]),
       at("2026-11-13T12:05:00Z", [{ provider: "tb", state: "failed", message: "x", updated_at: "2026-11-13T12:04:00Z" }])];
     let n = 0;
-    mockFetch([
+    const fetch = mockFetch([
       { method: "GET", path: "/torrents/report", reply: () => reports[Math.min(n++, 1)] },
+      { method: "POST", path: "/torrents/refresh", reply: () => reports[1] },
       { method: "GET", path: "/torrents/journal", reply: { entries: [] } },
       { method: "GET", path: "/status", reply: { versions: [] } },
     ]);
@@ -46,6 +47,20 @@ describe("torrents page", () => {
     expect((await screen.findByTestId("other-providers")).textContent).toMatch(/^TB added, /);
     fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
     await waitFor(() => expect(screen.getByTestId("other-providers").textContent).toMatch(/^TB failed, /));
+    expect(fetch.calls("POST", "/torrents/refresh")).toHaveLength(1);
+  });
+
+  it("says when the record was read, and an account never read is not an empty one", async () => {
+    const tb = { provider: "tb", kind: "torbox", ok: false, never_read: true, account_torrents: 0, unique_hashes: 0, bytes: 0,
+      usage: { used: 0, unused: 0, unknown: 0, unused_bytes: 0, unknown_bytes: 0 }, torrents: [] };
+    mockFetch([
+      { method: "GET", path: "/torrents/report", reply: { ...report, providers: [...report.providers, tb] } },
+      { method: "GET", path: "/torrents/journal", reply: { entries: [] } },
+      { method: "GET", path: "/status", reply: { versions: [] } },
+    ]);
+    renderPage(<TorrentsPage />);
+    expect((await screen.findByTestId("provider-count-tb")).textContent).toContain("never read");
+    expect(screen.getByTestId("record-as-of").textContent).toMatch(/RD as of .+ · TB never read/);
   });
 
   it("adds a row's torrent to the other providers and polls only that torrent's copies, not the report", async () => {
@@ -102,7 +117,7 @@ describe("torrents page", () => {
     fireEvent.click(screen.getByLabelText("Select all shown"));
     fireEvent.click(screen.getByTestId("delete-selected"));
     expect(await screen.findByRole("heading", { name: /Delete 1 torrent/ })).toBeTruthy();
-    expect(screen.getByText("Debrid accounts are shared")).toBeTruthy();
+    expect(screen.getByText("A full backup of every provider is taken first")).toBeTruthy();
     expect(screen.getByTestId("refused-item").textContent).toContain("/lib/Used.mkv");
     fireEvent.click(screen.getByTestId("override"));
     await waitFor(() => expect(screen.getByRole("heading", { name: /Delete 2 torrents/ })).toBeTruthy());
@@ -116,7 +131,7 @@ describe("torrents page", () => {
   });
 
   it("shows each account's Provider tag under All providers, takes ?q= into the filter, and links a used torrent's titles", async () => {
-    const tb = { provider: "tb", kind: "torbox", ok: true, count: 1, bytes: 1024, usage: { used: 0, unused: 0, unknown: 1, unused_bytes: 0, unknown_bytes: 1024 },
+    const tb = { provider: "tb", kind: "torbox", ok: true, as_of: "2026-10-29T11:00:00Z", account_torrents: 1, unique_hashes: 1, bytes: 1024, usage: { used: 0, unused: 0, unknown: 1, unused_bytes: 0, unknown_bytes: 1024 },
       torrents: [{ ...torrent("9", "9".repeat(40), "Other.Movie", "unknown"), provider: "tb" }] };
     const used = torrent("2", h2, "Used.Movie", "used", { refs: { link: 1 }, ref_list: [{ kind: "link", detail: "/lib/Used.mkv", title_id: 7, title: "Used" }], titles: [{ id: 7, name: "Used" }, { id: 8, name: "Also" }] });
     const rep = { ...report, providers: [{ ...report.providers[0], torrents: [report.providers[0].torrents[0], used] }, tb] };
@@ -145,7 +160,7 @@ describe("torrents page", () => {
   });
 
   it("shows an AllDebrid account's count against its limit and warns near it", async () => {
-    const ad = { provider: "ad", kind: "alldebrid", ok: true, count: 4600, limit: 5000, near_limit: true, bytes: 0,
+    const ad = { provider: "ad", kind: "alldebrid", ok: true, as_of: "2026-10-29T11:00:00Z", account_torrents: 4600, unique_hashes: 4600, limit: 5000, near_limit: true, bytes: 0,
       usage: { used: 0, unused: 0, unknown: 0, unused_bytes: 0, unknown_bytes: 0 }, torrents: [] };
     mockFetch([
       { method: "GET", path: "/torrents/report", reply: { ...report, providers: [...report.providers, ad] } },

@@ -4,9 +4,53 @@ A library view of every debrid account's torrents, like Debrid Media Manager's: 
 each torrent is used by, backups, restores and deleting the torrents a person picks. Migration
 `00078_torrent_journal.sql` (and `00093_torrent_restore_pending.sql`). Commands `theatarr torrents …`; API `/api/theatarr/v1/torrents/…` (admin); UI
 Admin › Torrents (`/admin/torrents`); backups and restore live at System › Backup (`/admin/system/backup`).
+The record of the accounts: migration `00129_provider_torrent.sql`.
 
 Nothing here deletes on its own: there is no automatic cleanup. None of it needs `router.enabled`: a restore is not a
-grab. Reports and backups only read (GET through the gateway, like the registry sync).
+grab. Reports read the record (below), backups read the providers (GET through the gateway, like the registry sync).
+
+## The record
+
+Like Debrid Media Manager's library, Theatarr keeps a record of what each account holds, and the Torrents page,
+Sources (Admin › Connections) and Saved inventory read it instead of the providers. A refresh reads the accounts.
+
+- **What it holds** (`provider_torrent`): one row per torrent of an account, as the provider sync's last successful
+  complete listing gave it: provider, torrent id, hash, name, the torrent's own name when the listing gives it
+  (TorBox's files), size, status, state, progress, added date, selected file count (`-1` when the listing has none)
+  and download links. Two torrents of one hash on one account are two rows (the registry's `content_provider` keeps
+  one per hash). `provider_torrent_read` holds when that listing ended (`as_of`) and how many torrents it held.
+- **Written by the provider sync** (providers.md "Registry sync"), every 6 hours by default and on Refresh: in the
+  same transaction as the registry update, a provider's rows are replaced by its complete list and its time is set.
+  A failed or discarded listing writes nothing: the previous record and its time stay, and the report names the
+  error (`error`, `error_at`: the newest sync run failed after `as_of`). A dry run writes nothing either. A torrent
+  a delete removes leaves the record at once; restores and copies show up at the next sync or Refresh.
+- **Never read** (`never_read`, no `as_of`): the account has had no successful complete listing since the record
+  exists (on an upgrade, until the first sync after it). That is not an empty account, which has an `as_of` and no
+  torrents.
+- **Refresh** (`POST /torrents/refresh`, the page's **Refresh**): runs the provider sync now for every account with
+  a key, back-off or not, and answers when it is done with the report from the record; an account whose listing
+  failed keeps its record and carries the error, and `refresh_error` says the refresh did not complete for every
+  account. A failed account gets its retry job as after a scheduled sync. Nothing else about the scheduled sync
+  changes (interval, back-off, what it writes).
+- **Not the authority for a delete:** a delete lists the provider again and checks usage again (Delete selected,
+  below); the record only says what to show.
+
+### "Used", one answer
+
+The usage (below) is decided at read time from the record and the reference index (library links, arr files,
+downloads in flight, the scan roots' symlinks; `loadRefs`), for the Torrents page, Sources and Saved inventory
+alike: no backfill and no stored state (`content.state` stays the registry's own rule, providers.md). A hash's
+usage (Saved inventory) is used when any account torrent of it is used, else unknown when any is unknown, else
+unused; a hash no account holds in the record has none. Cost per page open: the record (one indexed read) plus the
+reference index as the Torrents page has always built it on each open: every library link, arr file, download and
+registry hash from the database, a walk of `torrents.scan_roots` (bounded, below), and decypharr's or zurg's listing
+when that mount is configured. No provider is called. Sources and Saved inventory build it once per request; it is
+not cached.
+
+Counts name their unit: `account_torrents` (two of one hash count twice), `unique_hashes`, and `linked_files`
+(links: library links and scanned symlinks into a torrent). Names that arrive URL-encoded (TorBox's
+`[SoM]%20Dragon%20Ball…`: a `%XX` escape and no space) are decoded for display and parsing (`name`, with the
+provider's own `raw_name`); the matching against mount folders keeps the provider's name.
 
 ## Usage
 
@@ -18,8 +62,7 @@ Each torrent on Real-Debrid, AllDebrid and TorBox is one of:
 | **unknown** | Theatarr lacks the data: the provider was never listed completely by the registry sync, the hash is not in the registry yet (added since the last sync), a scan root could not be read, `torrents.scan_roots` is set without `library.mount`, library links could not be tied to a torrent, or the torrent has no v1 hash. The reasons are listed. Never offered as unused |
 | **unused** | every file is unreferenced and none of the above applies |
 
-Only the registry's own states are used (no second registry). Accounts are shared: another app or person on the same
-account may use a torrent Theatarr calls unused. The delete confirmation says so every time.
+Only the registry's own states are used (no second registry).
 
 ### `torrents.scan_roots`
 
@@ -45,7 +88,8 @@ torrents:
 
 ## Report
 
-`GET /torrents/report`, `theatarr torrents report [-json] [-group G]`. Per provider: every torrent with its id, hash,
+`GET /torrents/report`, `theatarr torrents report [-json] [-group G]`, from the record. Per provider: when it was read
+(`as_of`, or `never_read`), `account_torrents`, `unique_hashes`, size and usage sums; every torrent with its id, hash,
 name, size, added date, status, selected file count (`-1` when the list gives none and the registry has no files),
 linked file count (library and scanned links), usage with references or reasons, and whether Theatarr's router added
 it (a Theatarr download with this provider id that did not reuse an existing torrent). Each reference of a library
@@ -61,7 +105,8 @@ references, also those past the listed 20, read with the references themselves (
   explicit series marker (`S01`, `S01E02`, `1x02`, "season", a daily date) and does not start with a `[Group]` tag;
 - **failed** (the provider's error states), **stalled** (queued or downloading for over a day), **largest** (25).
 
-An account that cannot be listed is reported with its error; its torrents are not guessed.
+An account whose last listing failed is reported with its error and the record from before it; an account never
+listed is `never_read`, its torrents are not guessed.
 
 ### Account limit
 
@@ -183,8 +228,9 @@ again and adds only hashes in the confirmed set that are still missing.
 or an admin's API key, which confirms like a session, as with settings; the token is bound to the set and the caller);
 `theatarr torrents delete -torrent PROVIDER:ID:HASH …` is a dry run until `-confirm TOKEN`. Up to 200 torrents.
 
-1. **Only the chosen ids.** Each selection names the provider, id and hash the report showed.
-2. **A fresh list:** the id must still be there with the same hash, or it is refused.
+1. **Only the chosen ids.** Each selection names the provider, id and hash the report showed (from the record).
+2. **A fresh list:** the provider is listed again; the id must still be there with the same hash, or it is refused.
+   The record is never the authority for a delete.
 3. **A fresh usage check:** used and unknown torrents are refused unless the selection sets `override` with the
    item's `expected_override_token`. That token is a digest of the torrent's references (or unknown reasons) as the
    preview listed them: the second confirmation names what is being overridden, and a new reference since the
@@ -257,7 +303,9 @@ is not complete, router.md "Copies to other providers") there is `DeleteUserChos
 
 ## UI
 
-Admin › Torrents: a strip per provider (torrents, of the limit on AllDebrid, size, unused), provider tabs, group filters (unused, duplicate
+Admin › Torrents opens from the record: a strip per provider (account torrents, of the limit on AllDebrid, size,
+unused, and "as of" the record's time, or "never read"), **Refresh** (reads the accounts, then shows the new
+record), provider tabs, group filters (unused, duplicate
 hash, duplicate title, failed, stalled, largest), a name or hash filter (every word in the name or parsed title, in
 any order, or the text as a hash prefix; `?q=` in the address fills it, so other pages link to one torrent: a title's
 **Torrent** link sends the hash's first 12), sort by size, age or name, under "All providers" a **Provider** column
@@ -265,7 +313,7 @@ with the account's tag (RD, AD, TB, as **Cached on** shows it; the account key a
 references show on hover and expand on click (the expanded references link their titles to the title page), one
 table at every width (below 640 px Added, Status and the Size column hide; the size leads the name's second line),
 multi-select and **Delete selected**: the preview opens a
-confirmation with the count, size, the backup it takes first and the shared-account warning; refused torrents are
+confirmation with the count, size and the backup it takes first; refused torrents are
 listed with why, and used or unknown ones with a checkbox naming their references to override. **Saved inventory** (`/admin/torrents/inventory`) shows known hashes and provider holdings.
 The torrent journal remains below the provider list. **System › Backup** holds torrent-list backups: **Back up
 now**, import (Theatarr or DMM, to a chosen provider), the list with download (Theatarr or DMM format) and **Restore…**

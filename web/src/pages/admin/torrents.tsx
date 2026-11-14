@@ -124,10 +124,10 @@ export function TorrentsPage() {
       <PageHeader
         crumb={[{ label: "Admin", to: "/admin" }]}
         title="Torrents"
-        description="Every debrid account's torrents and what uses them. Accounts are shared: another app on the same account may use a torrent this page calls unused."
+        description="Every debrid account's torrents and what uses them, as Theatarr last read them. Refresh reads the accounts again."
         actions={
-          <Button size="sm" variant="outline" onClick={() => report.refetch()} disabled={report.isFetching}>
-            Refresh
+          <Button size="sm" variant="outline" onClick={() => actions.refreshRecord.mutate()} disabled={actions.refreshRecord.isPending || report.isFetching}>
+            {actions.refreshRecord.isPending ? "Reading the accounts…" : "Refresh"}
           </Button>
         }
       />
@@ -144,14 +144,17 @@ export function TorrentsPage() {
             className="mb-3"
             items={r.providers.map((p) => ({
               label: providerLabel(codes[p.provider] ?? p.provider),
-              value: p.ok ? `${fmtNumber(p.count)}${p.limit ? ` of ${fmtNumber(p.limit)}` : ""} · ${fmtBytes(p.bytes)} · ${fmtNumber(p.usage.unused)} unused (${fmtBytes(p.usage.unused_bytes)})` : "unreadable",
-              tone: !p.ok ? "bad" : p.near_limit ? "warn" : undefined,
+              value: p.ok ? `${fmtNumber(p.account_torrents)}${p.limit ? ` of ${fmtNumber(p.limit)}` : ""} · ${fmtBytes(p.bytes)} · ${fmtNumber(p.usage.unused)} unused (${fmtBytes(p.usage.unused_bytes)})` : p.never_read ? "never read" : "unreadable",
+              tone: p.error ? "bad" : !p.ok ? "warn" : p.near_limit ? "warn" : undefined,
               testid: `provider-count-${p.provider}`,
             }))}
           />
+          <p className="mb-2 text-xs text-muted-foreground" data-testid="record-as-of">
+            {r.providers.map((p) => `${providerLabel(codes[p.provider] ?? p.provider)} ${p.as_of ? `as of ${fmtTime(p.as_of)}` : "never read"}`).join(" · ")}
+          </p>
           {r.providers.filter((p) => p.ok && p.near_limit).map((p) => (
             <p key={`limit-${p.provider}`} className="mb-2 text-sm text-[var(--warn-ink)]" data-testid="near-limit">
-              {providerLabel(codes[p.provider] ?? p.provider)} holds {fmtNumber(p.count)} of its {fmtNumber(p.limit ?? 0)} torrent limit (magnet_limit). Nothing is removed automatically.
+              {providerLabel(codes[p.provider] ?? p.provider)} holds {fmtNumber(p.account_torrents)} of its {fmtNumber(p.limit ?? 0)} torrent limit (magnet_limit). Nothing is removed automatically.
             </p>
           ))}
           {r.providers.filter((p) => p.error).map((p) => {
@@ -161,6 +164,7 @@ export function TorrentsPage() {
               <details className="text-xs text-muted-foreground"><summary className="cursor-pointer">Details</summary><p className="font-mono [overflow-wrap:anywhere]">{problem.raw}</p></details>
             </div>;
           })}
+          {actions.refreshRecord.error ? <p className="mb-2 text-sm text-[var(--bad-ink)]">Refresh failed: {errText(actions.refreshRecord.error)}</p> : null}
           {(r.unknown ?? []).map((u, i) => (
             <p key={i} className="mb-2 text-sm text-[var(--warn-ink)]">Unknown for every unreferenced torrent: {u}</p>
           ))}

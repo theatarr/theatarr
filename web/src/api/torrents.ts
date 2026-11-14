@@ -1,4 +1,5 @@
-// The torrent manager (docs/design/torrents.md): GET /torrents/report, /torrents/backups and /torrents/journal; a backup
+// The torrent manager (docs/design/torrents.md): GET /torrents/report (from the record), /torrents/backups and
+// /torrents/journal; Refresh (POST /torrents/refresh: the provider sync now, answering with the new report), a backup
 // now, an import, restore and delete previews and their confirmed runs. Writes refresh the torrent queries.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, qs, type Schemas } from "./client";
@@ -24,6 +25,13 @@ export const backupURL = (id: string, format: "theatarr" | "dmm" = "theatarr") =
 export function useTorrentActions() {
   const qc = useQueryClient();
   const refresh = () => qc.invalidateQueries({ queryKey: qk.torrents.all });
+  const refreshRecord = useMutation({
+    mutationFn: () => api<Schemas["TorrentReport"]>("/torrents/refresh", { method: "POST" }),
+    onSuccess: (r) => {
+      qc.setQueryData(qk.torrents.report, r);
+      return refresh();
+    },
+  });
   const backupNow = useMutation({
     mutationFn: () => api<{ job: number }>("/torrents/backups", { method: "POST" }),
     onSuccess: refresh,
@@ -48,5 +56,5 @@ export function useTorrentActions() {
       api<DeletePlan>("/torrents/delete", { method: "POST", body: { items, confirmation_token: token } }),
     onSuccess: refresh,
   });
-  return { backupNow, importBackup, restorePreview, restore, deletePreview, del };
+  return { refreshRecord, backupNow, importBackup, restorePreview, restore, deletePreview, del };
 }

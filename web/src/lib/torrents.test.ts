@@ -26,8 +26,8 @@ const C = t("tb", "3", "Gamma.2019.720p", 100, "2026-09-01T00:00:00Z", { usage: 
 const report: TorrentReport = {
   generated_at: "2026-10-29T12:00:00Z",
   providers: [
-    { provider: "rd", kind: "realdebrid", ok: true, count: 2, bytes: 1200, usage: { used: 1, unused: 1, unknown: 0, unused_bytes: 300, unknown_bytes: 0 }, torrents: [A, B] },
-    { provider: "tb", kind: "torbox", ok: true, count: 1, bytes: 100, usage: { used: 0, unused: 0, unknown: 1, unused_bytes: 0, unknown_bytes: 100 }, torrents: [C] },
+    { provider: "rd", kind: "realdebrid", ok: true, as_of: "2026-10-29T11:00:00Z", account_torrents: 2, unique_hashes: 2, bytes: 1200, usage: { used: 1, unused: 1, unknown: 0, unused_bytes: 300, unknown_bytes: 0 }, torrents: [A, B] },
+    { provider: "tb", kind: "torbox", ok: true, as_of: "2026-10-29T11:00:00Z", account_torrents: 1, unique_hashes: 1, bytes: 100, usage: { used: 0, unused: 0, unknown: 1, unused_bytes: 0, unknown_bytes: 100 }, torrents: [C] },
   ],
   unused: [{ provider: "rd", id: "1" }],
   duplicate_hash: [],
@@ -73,12 +73,12 @@ describe("delete", () => {
     ]);
     expect(deleteSelection([A], {}, true)[0].allow_recent).toBe(true);
   });
-  it("says what it deletes, the backup and the shared-account warning", () => {
-    const plan: DeletePlan = { items: [], count: 2, bytes: 2048, refused: 1, digest: "d", confirmation_token: "d1", warning: "Debrid accounts are shared", deleted: 0, failed: 0 };
+  it("says what it deletes, the backup and the warning", () => {
+    const plan: DeletePlan = { items: [], count: 2, bytes: 2048, refused: 1, digest: "d", confirmation_token: "d1", warning: "A full backup of every provider is taken first", deleted: 0, failed: 0 };
     const s = deleteScope(plan);
     expect(s.title).toContain("2 torrents");
     expect(s.does.join(" ")).toMatch(/full backup/);
-    expect(s.does).toContain("Debrid accounts are shared");
+    expect(s.does).toContain("A full backup of every provider is taken first");
     expect(s.keeps[0]).toMatch(/1 chosen torrent is refused/);
     expect(s.blocked).toBeUndefined();
     expect(deleteScope({ ...plan, count: 0 }).blocked).toBeTruthy();
