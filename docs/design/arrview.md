@@ -380,24 +380,33 @@ Left as before, on purpose:
     also when it is the value shown; without the field nothing changes (`TestSeriesTypeEditor`).
 - **`GET|HEAD <view>/ping`**: 200 `{"status":"OK"}` without a key, on every view, as the arrs' PingController
   (outside `api/v3`, so no `X-Application-Version`); any other method answers 405. It says nothing about the view.
-- **`DELETE movie|series/{id}`**: unlinks only the view's versions. On a Radarr view `addImportExclusion=true` also
+- **`DELETE movie|series/{id}`**: removes only the view's versions, through the shared removal the web UI's Remove
+  title uses (`internal/removal`), with the client's own flags. On a Radarr view `addImportExclusion=true` also
   puts the movie on the exclusion list (`movie_exclusion`, by TMDb id, one list for every view, the row the
   `exclusions` POST writes) in the transaction of the remove, so list and collection intake skip it afterwards;
-  `false` or absent writes none. Sonarr's `addImportListExclusion` is ignored: there is no series exclusion list. With `deleteFiles=true`, Theatarr links in
-  the versions' own library roots go through the library trash gate; every link is checked before anything changes,
-  and a closed gate or refused path answers 409 with the title and links intact.
-  Each is unmonitored and listed in
-  `arrview_removed_version`, which every view hides; the version row, its files, history and arr records stay, and
-  `deleteFiles=false` leaves links in place; imported arr files, mount content and provider data are never touched.
-  The versions' downloads in hand end in Theatarr's records (failed, "deleted through <view> by <client>"), as the
-  web UI's remove does (`router.EndRemoved`), in the same transaction as the hide, so none is imported back into the
-  library and a failure leaves nothing removed; the provider keeps its torrents. With `deleteFiles=true` the links
-  are moved only after that transaction commits (they are just checked before it;
-  `TestDeleteUnlinksOnlyAfterTheHide`) and enumerated then: a link an import committed before the hide goes to the
-  trash too, and an import still running finds its download ended at its commit and takes its links back (`TestDeleteUnlinksWhatAnImportCommittedMeanwhile`). A link the gate refuses at that point answers 409 "versions
-  removed; some files were kept"; one whose move fails (a full disk) does not stop the others and answers 500
-  "versions removed; moving some files to trash failed". Either way the versions are removed; the links left are the
-  removed copies' leftover links on Theatarr's title page, where Remove with unlink moves them. A version an arr instance still owns (an import source in the policy) is refused with
+  `false` or absent writes none. Sonarr's `addImportListExclusion` is ignored: there is no series exclusion list.
+  `deleteFiles` omitted or `false` keeps the files and the torrents (as Radarr and Sonarr default); `true` (Seerr
+  sends it) is the web UI's removal with "Also delete the files and clean up the debrid torrents": Theatarr links in
+  the versions' own library roots go through the library trash gate, dead ones too, and the folders they leave
+  empty go, strictly below the library root; then, after the answer, the torrents nothing else uses are deleted from
+  the providers (torrents.md "Removal clean-up"). Every link is checked before anything changes, and a closed gate
+  or refused path answers 409 with the title and links intact.
+  Each version is unmonitored and listed in `arrview_removed_version`, which every view hides; the version row, its
+  history and arr records stay (the view's own `arrview_title` row goes, the libraries' rows keep everything but the
+  minimum availability choice), and nothing on the mount is touched. In the transaction of the hide the versions'
+  downloads in hand end in Theatarr's records (failed, "deleted through <view> by <client>", `router.EndRemoved`),
+  their search requests and pending offers go, queued copies to other providers nothing else wants stop, and one
+  Removed event per library is recorded (by `key:<client>`), so none is imported back into the library and a
+  failure leaves nothing removed. With `deleteFiles=true` the links are moved only after that transaction commits
+  (they are just checked before it; `TestDeleteUnlinksOnlyAfterTheHide`) and enumerated then: a link an import
+  committed before the hide goes to the trash too, and an import still running finds its download ended at its
+  commit and takes its links back (`TestDeleteUnlinksWhatAnImportCommittedMeanwhile`). A link another current
+  library of the title still uses stays (no error); the arr file rows at an unlinked path go with it. A link the gate
+  refuses at that point answers 409 "versions removed; some files were kept"; one whose move fails (a full disk) does
+  not stop the others and answers 500 "versions removed; moving some files to trash failed". Either way the versions
+  are removed, and the torrents of the links left are not cleaned up; the links left are the removed copies' leftover
+  links on Theatarr's title page, where Delete them deletes them and cleans up their torrents
+  (`TestDeleteKeepsTheClientsFlag`). A version an arr instance still owns (an import source in the policy) is refused with
   409 before anything changes, with the web UI's reason (`policy.ManagedReason`;
   `TestDeleteEndsDownloadsAndRefusesManaged`). The title stays for other views. A later add or PUT with a profile
   restores the versions.
@@ -518,7 +527,8 @@ deleting a label removes it from every version. Rows from before 00105 were copi
 - **Lookups set `hasFile` and `monitored` from the view** (Radarr leaves `hasFile` out of lookups), and set `id` only
   when the view has the title, so Seerr adds it otherwise and returns early when the view has a file.
 - **Second add is a 201**, extra versions on.
-- **DELETE keeps version rows and arr files**; `deleteFiles=true` moves only Theatarr's links to trash.
+- **DELETE keeps version rows**; `deleteFiles=true` moves only Theatarr's links to trash (with the arr file rows at
+  those paths) and cleans up the torrents nothing else uses.
 - **Ids are offset** by 1,000,000 (above).
 - **Queue** and `queue/details` come from the router's downloads (docs/design/router.md). `timeleft` and
   `estimatedCompletionTime` use up to six provider progress samples from the last five minutes (migration 00036);

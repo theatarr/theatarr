@@ -299,6 +299,35 @@ or an admin's API key, which confirms like a session, as with settings; the toke
 9. **Journaled:** every delete in `torrent_journal` with who, when, provider, id, hash, name, size, the backup id, the
    outcome and any override. `GET /torrents/journal`, `theatarr torrents journal`.
 
+### Removal clean-up
+
+A title removal with its files deleted (the web UI's Remove title / Remove from this library with "Also delete the
+files and clean up the debrid torrents", on by default; the arr views' `DELETE movie|series?deleteFiles=true`; the
+"Delete them" of files a removal kept) hands the removed copies' torrents to `Manager.DeleteForRemoval`
+(`internal/torrents/removal.go`; the removal itself is `internal/removal`, arrview.md "DELETE movie|series"). It runs
+after the answer, on the service's context (`web.StartCleanup`), managers included, and is the same delete with these
+differences only:
+
+- **The candidates** are the hashes of the removed copies' links (active or dead), their arr files and their
+  downloads not failed, read before the removal; a hash a link that stayed names (refused, failed, shared with a
+  current library, not a symlink) or an arr file left names is dropped. The clean-up first waits (at most 10
+  minutes) for copies to other providers adding or checking one of them to settle; one still unsettled is kept. It
+  then lists every configured provider and takes each torrent of a candidate hash (a fresh add, a copy on another
+  provider, an older entry Theatarr reused: as step 1 would take them).
+- **Usage** is planned as in step 3, fresh: a torrent another title or library links, a download in hand, a file of
+  the removed title that was kept or a configured other library's folder (`torrents.scan_roots`) uses is kept. No
+  override is ever given, except for a torrent unknown only because the registry has not synced its hash yet (a
+  fresh add): it is ours, and goes. Any other unknown is kept.
+- **Recent or busy** (step 4) is lifted for these torrents only (`allow_recent`), so a title removed minutes after
+  its add takes its torrent with it.
+- Steps 6 to 9 run unchanged: the full `pre-delete` backup first (no backup, no delete: "torrents not cleaned up:
+  backup failed (RD, …)"), the last usage check per torrent under the fence and the add lock, the paced deletes,
+  the journal.
+- **The outcome** per provider ("deleted on RD, TB; kept on AD: used by <title>"; "TB: failed, <reason>") goes into
+  the removal's Removed event (`journal.Removal.Cleanup`), which History shows. Nothing is retried: a torrent kept or
+  failed is left for Torrents › Unused (`TestDeleteForRemoval`, `TestDeleteForRemovalBackupFails`,
+  `TestDeleteForRemovalProviderErrors`, `TestDeleteForRemovalWaitsForMidAddCopy`).
+
 ### The third delete path
 
 `internal/provider/adder/delete.go` holds every provider delete. Besides the router's two (Theatarr's own just-made
