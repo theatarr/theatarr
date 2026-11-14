@@ -40,6 +40,8 @@ type Def = {
   movie?: string;
   /** The label on Series and Anime; absent: they do not offer it. */
   series?: string;
+  /** The label on Anime when it differs from Series': Anime mixes movies and series. */
+  anime?: string;
   hint: string;
   /** The grid sort its header asks for. */
   sort?: string;
@@ -54,8 +56,8 @@ const both = (label: string) => ({ movie: label, series: label });
 const DEFS: Def[] = [
   { id: "status", ...both("Status"), hint: "The poster badge's word; a download in hand, its stage", on: "ms" },
   { id: "libraries", ...both("Libraries"), hint: "One pill per library: its quality, or what it lacks", seeFiles: true, on: "ms" },
-  { id: "network", movie: "Studio", series: "Network", hint: "From the title's metadata", sort: "network", on: "ms" },
-  { id: "next", movie: "Next release", series: "Next airing", hint: "The next episode or coming release", sort: "next", on: "s" },
+  { id: "network", movie: "Studio", series: "Network", anime: "Network / studio", hint: "From the title's metadata", sort: "network", on: "ms" },
+  { id: "next", movie: "Next release", series: "Next airing", anime: "Next episode / release", hint: "The next episode or coming release", sort: "next", on: "s" },
   { id: "seasons", series: "Seasons", hint: "Seasons with episodes, specials left out", on: "s" },
   { id: "size", ...both("Size"), hint: "The title's current files in total", sort: "size", seeFiles: true, on: "ms" },
   { id: "added", ...both("Added"), hint: "The day the title was added to Theatarr", sort: "created", on: "m" },
@@ -64,7 +66,7 @@ const DEFS: Def[] = [
   { id: "quality", ...both("Quality"), hint: "Each library's current quality", sort: "quality", seeFiles: true },
   { id: "profile", ...both("Quality profile"), hint: "Each library's quality profile", seeFiles: true },
   { id: "year", ...both("Year"), hint: "The release year", sort: "year" },
-  { id: "release", movie: "Release date", series: "First aired", hint: "A movie's first cinema release, else TMDb's date; a series' first air date", sort: "release" },
+  { id: "release", movie: "Release date", series: "First aired", anime: "Released / first aired", hint: "A movie's first cinema release, else TMDb's date; a series' first air date", sort: "release" },
   { id: "in_cinemas", movie: "In cinemas", hint: "The first cinema release" },
   { id: "digital", movie: "Digital release", hint: "The first digital release" },
   { id: "physical", movie: "Physical release", hint: "The first disc release" },
@@ -80,7 +82,7 @@ const DEFS: Def[] = [
   { id: "folder", ...both("Folder"), hint: "The title's folder in each library", seeFiles: true },
 ];
 
-const offered = (d: Def, list: ListId) => (list === "movies" ? d.movie : d.series);
+const offered = (d: Def, list: ListId) => (list === "movies" ? d.movie : list === "anime" ? (d.series && (d.anime ?? d.series)) : d.series);
 
 /** Every column a list has, in the default order (for the stored choice: lib/prefs.ts normalizeColumnPrefs). */
 export function listColumns(list: ListId): ColumnDef<IndexColumnId>[] {

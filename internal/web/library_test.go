@@ -100,7 +100,7 @@ func TestTitlesSortAndFilters(t *testing.T) {
 		"sort=rating&order=asc":         "Beta,Alpha,Delta,Gamma",
 		"sort=year":                     "Delta,Beta,Alpha,Gamma",
 		"sort=size":                     "Alpha,Beta,Delta,Gamma",
-		"sort=release":                  "Delta,Beta,Alpha,Gamma",
+		"sort=release":                  "Beta,Alpha,Delta,Gamma", // undated titles last, as their cell shows "—"
 		"kind=movie&sort=added":         "Beta,Alpha",
 		"anime=true":                    "Delta",
 		"anime=false":                   "Alpha,Beta,Gamma",

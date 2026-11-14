@@ -446,10 +446,10 @@ func (g TitleGridFilter) orderBy() (string, []any) {
 	case "year":
 		expr = "t.year"
 	case "release":
-		// What the Release date cell shows: a movie's first cinema date of the release-date choice, else TMDb's date.
-		expr = "COALESCE(CASE WHEN t.kind = 'movie' THEN (SELECT x.date FROM (" +
-			activity.FirstReleasesSQL("d.title_id = t.id AND d.type = 'theatrical'") + ") x) END, NULLIF(m.release_date, ''), " +
-			"CASE WHEN t.year IS NOT NULL THEN printf('%04d-99', t.year) END)"
+		// What the Release date cell shows: a movie's first cinema date of the release-date choice, else TMDb's date;
+		// an undated title (the cell "—") sorts last.
+		expr = "COALESCE(CASE WHEN t.kind = 'movie' THEN " + activity.FirstReleaseOfSQL("t.id", "theatrical") +
+			" END, NULLIF(m.release_date, ''))"
 	case "rating":
 		expr = "CASE WHEN m.rating_votes > 0 THEN m.rating END"
 	case "size":
@@ -474,8 +474,8 @@ func (g TitleGridFilter) orderBy() (string, []any) {
 		// Equal sort names ("Alien" and "Alien³" both sort as "alien") fall back to the full name, then the year.
 		return " ORDER BY " + nameExpr + " " + dir + ", lower(t.name) " + dir + ", t.year, t.id", nil
 	}
-	// The expression appears twice (nulls last, then the value), so its arguments do too.
-	return " ORDER BY (" + expr + ") IS NULL, (" + expr + ") " + dir + ", " + nameExpr + ", lower(t.name), t.year, t.id", append(args, args...)
+	// Nulls last in either direction; the expression is written once, so it runs once per row.
+	return " ORDER BY (" + expr + ") " + dir + " NULLS LAST, " + nameExpr + ", lower(t.name), t.year, t.id", args
 }
 
 func boolParam(r *http.Request, name string) (*bool, error) {

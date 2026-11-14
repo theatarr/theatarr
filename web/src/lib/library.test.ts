@@ -294,11 +294,10 @@ describe("filter chips", () => {
 
 describe("offeredSorts", () => {
   const label = (c: Parameters<typeof offeredSorts>[1], id: string) => offeredSorts(true, c).find((s) => s.id === id)?.label;
-  it("words the kind-bound sorts per catalog and leaves Completion off Movies", () => {
-    expect([label("movies", "next"), label("movies", "network"), label("movies", "completion")]).toEqual(["Next release", "Studio", undefined]);
+  it("words the kind-bound sorts per catalog", () => {
+    expect([label("movies", "next"), label("movies", "network"), label("movies", "completion")]).toEqual(["Next release", "Studio", "Completion"]);
     expect([label("series", "next"), label("series", "network"), label("series", "release"), label("series", "completion")]).toEqual(["Next airing", "Network", "First aired", "Completion"]);
-    expect([label("anime", "next"), label("anime", "network")]).toEqual(["Next episode / release", "Network / studio"]);
-    // An old Movies link sorted by Completion falls back to Title.
-    expect(gridQuery("movies", new URLSearchParams("sort=completion"), true).sort).toBe("name");
+    expect([label("anime", "next"), label("anime", "network"), label("anime", "release")]).toEqual(["Next episode / release", "Network / studio", "Released / first aired"]);
+    expect(gridQuery("movies", new URLSearchParams("sort=completion"), true).sort).toBe("completion");
   });
 });

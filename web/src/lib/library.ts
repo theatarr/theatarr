@@ -246,7 +246,7 @@ export const FILTER_KEYS = ["q", "with", "without", "state", "availability", "up
 const KIND_LABELS: Record<CatalogId, Partial<Record<string, string>>> = {
   movies: { next: "Next release", network: "Studio" },
   series: { next: "Next airing", network: "Network", release: "First aired" },
-  anime: {},
+  anime: { release: "Released / first aired" },
 };
 
 /** A sort's or poster detail's label on a catalog (KIND_LABELS), else its own. */
@@ -254,10 +254,9 @@ export function kindLabel(c: CatalogId | undefined, id: string, label: string): 
   return (c && KIND_LABELS[c][id]) || label;
 }
 
-/** The sorts the Sort menu offers this account on a catalog, with the catalog's words. Movies leave Completion out: a
- *  movie's library holds its file or not, so it only splits the held from the rest. */
+/** The sorts the Sort menu offers this account on a catalog, with the catalog's words. */
 export function offeredSorts(seeFiles: boolean, c?: CatalogId) {
-  return SORTS.filter((s) => (!("seeFiles" in s) || seeFiles) && !(c === "movies" && s.id === "completion")).map((s) => ({ id: s.id, label: kindLabel(c, s.id, s.label) }));
+  return SORTS.filter((s) => !("seeFiles" in s) || seeFiles).map((s) => ({ id: s.id, label: kindLabel(c, s.id, s.label) }));
 }
 
 /** The grid's query from the address. A sort the account is not offered (an old link, Latest file without "see files")

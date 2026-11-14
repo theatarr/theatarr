@@ -665,9 +665,10 @@ including "Imported from Radarr's blocklist" for `arr:<instance>`) and the healt
   tab). Each is disabled from the row's own data with the reason as tooltip: Pause, "No library of this title is
   Live.", "No library is monitored."; on a phone they end the card with their words. Headers sort where the server can: Title, Studio / Network, Next, Size, Added,
   Latest file, Quality, Year, Release date, Runtime, Certification and Rating. The per-library completion sort
-  (`sort=completion&sort_version=<key>`) stays in the API and old links, but no header offers it. The Sort menu uses
-  the list's words (Movies: Next release, Studio; Series: Next airing, Network, First aired; Anime keeps both) and
-  Movies leave Completion out (a movie's library holds its file or not). A sort whose column is not chosen (Next
+  (`sort=completion&sort_version=<key>`) stays in the API and old links, but no header offers it. The Sort menu and
+  the column headers use the list's words (Movies: Next release, Studio, Release date; Series: Next airing, Network,
+  First aired; Anime, which mixes both: Next episode / release, Network / studio, Released / first aired). An undated
+  title sorts last by Release date. A sort whose column is not chosen (Next
   release, Latest file, Quality) shows that column first while the sort lasts, so the order follows a visible cell. Below 640 px rows
   are cards: thumbnail, title with Status on its own line under it, then the pills, then each chosen column as a line. Without See files the
   Libraries, Quality, Quality profile, Size, Latest file, Minimum availability, Provider and Folder columns are not

@@ -30,7 +30,7 @@ describe("the lists' columns", () => {
     expect(label("movies", "network")).toBe("Studio");
     expect(label("series", "network")).toBe("Network");
     expect(label("movies", "next")).toBe("Next release");
-    expect(label("anime", "next")).toBe("Next airing");
+    expect(label("anime", "next")).toBe("Next episode / release"); // Anime mixes movies and series
     expect(label("movies", "release")).toBe("Release date");
     expect(label("series", "release")).toBe("First aired");
     expect(label("series", "title_status")).toBe("Series status");
@@ -84,4 +84,10 @@ describe("the lists' columns", () => {
     expect(perLibrary(vs, (i) => (i ? "Any" : "UHD"))).toBe("4K: UHD · WEB: Any");
     expect(perLibrary(vs, (i) => (i ? "Any" : ""))).toBe("WEB: Any");
   });
+});
+
+it("words the Anime list's mixed columns for movies and series alike", () => {
+  const label = (id: string) => listColumns("anime").find((c) => c.id === id)?.label;
+  expect([label("network"), label("next"), label("release")]).toEqual(["Network / studio", "Next episode / release", "Released / first aired"]);
+  expect(listColumns("series").find((c) => c.id === "network")?.label).toBe("Network");
 });

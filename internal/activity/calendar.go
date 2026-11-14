@@ -47,15 +47,28 @@ var CalendarTypes = []string{"theatrical", "digital", "physical"}
 // fetched reads availability.Dates.
 
 // releaseDatesSQL aggregates title_release_date d per title and release type (CalendarTypes), the rows narrowed by
-// cond (an SQL condition on d, such as "d.title_id = t.id"): canon is the type's first canonical date (country ”,
+// cond (an SQL condition on d, such as "d.title_id = t.id"): canon is the type's first canonical date (country empty,
 // the successful TMDb refresh when there is one, else the arrs' dates: availability.Dates' choice), us its first TMDb
 // US date while the title has no refresh. One pass over the rows; YYYY-MM-DD.
 func releaseDatesSQL(cond string) string {
-	return `SELECT d.title_id, d.type,
-		MIN(CASE WHEN d.country = '' AND (d.source = 'tmdb-art' OR fm.movie_dates_at IS NULL) THEN substr(d.date, 1, 10) END) AS canon,
-		MIN(CASE WHEN d.source = 'tmdb' AND d.country = 'US' AND fm.movie_dates_at IS NULL THEN substr(d.date, 1, 10) END) AS us
+	return `SELECT d.title_id, d.type, ` + canonSQL + ` AS canon, ` + usSQL + ` AS us
 		FROM title_release_date d LEFT JOIN title_meta fm ON fm.title_id = d.title_id
-		WHERE d.type IN ('theatrical', 'digital', 'physical') AND (` + cond + `) GROUP BY d.title_id, d.type`
+		WHERE d.type IN ('theatrical', 'digital', 'physical') AND d.country IN ('', 'US') AND (` + cond + `)
+		GROUP BY d.title_id, d.type`
+}
+
+// canonSQL and usSQL are releaseDatesSQL's two aggregates over d, with fm the title's title_meta row.
+const (
+	canonSQL = `MIN(CASE WHEN d.country = '' AND (d.source = 'tmdb-art' OR fm.movie_dates_at IS NULL) THEN substr(d.date, 1, 10) END)`
+	usSQL    = `MIN(CASE WHEN d.source = 'tmdb' AND d.country = 'US' AND fm.movie_dates_at IS NULL THEN substr(d.date, 1, 10) END)`
+)
+
+// FirstReleaseOfSQL is the release-date choice of one type for title title (an SQL expression such as "t.id") as one
+// scalar value: a flat aggregate, NULL without a date.
+func FirstReleaseOfSQL(title, typ string) string {
+	return `(SELECT COALESCE(` + canonSQL + `, ` + usSQL + `) FROM title_release_date d
+		LEFT JOIN title_meta fm ON fm.title_id = d.title_id
+		WHERE d.title_id = ` + title + ` AND d.type = '` + typ + `' AND d.country IN ('', 'US'))`
 }
 
 // FirstReleasesSQL selects title_id, type and date of the release-date choice for the rows cond narrows
