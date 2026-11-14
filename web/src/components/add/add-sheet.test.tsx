@@ -304,3 +304,28 @@ it("ticks the libraries of an anime series when the type picked is Anime, with t
   await user.click(screen.getByTestId("add-submit"));
   expect(await bodyOf(fetch)).toEqual({ kind: "series", tmdb_id: 8, title: "Kappa", year: 2025, anime: false, versions: ["anime-tv"], search: false, series_type: "anime" });
 });
+
+it("says what each library fetches, offers Monitor for one held unmonitored, and goes to the title page after the add", async () => {
+  const held = [
+    { ...versions[0], key: "movie-web", label: "4K WEB", held: true, on: false, cutoff: "WEBDL-2160p", upgrades: true, profile: "web-2160p" },
+    { ...versions[3], key: "movie-4k", label: "4K Remux", on: false, default: false, fits: true, cutoff: "Remux-2160p", upgrades: false },
+  ];
+  const fetch = mockFetch([
+    { method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["admin", "add"] } },
+    { method: "GET", path: "/add/options", reply: { ...options, title_id: 9, in_library: true, versions: held } },
+    { method: "POST", path: "/titles", reply: json({ created: false, new: ["movie-web"], title: { id: 9, name: "Alpha", versions: [] }, search: { started: true, message: "Searching 4K WEB", versions: ["movie-web"], skipped: [], queued: 1, found: 1 } }) },
+  ]);
+  const user = userEvent.setup();
+  const closed = vi.fn();
+  renderPage(<AddSheet target={{ kind: "movie", name: "Alpha", title_id: 9 }} onClose={closed} />, "/search");
+  const web = await screen.findByTestId("add-version-movie-web");
+  expect(within(web).getByTestId("add-fetches").textContent).toBe("Prefers WEBDL-2160p; upgrades until it has it");
+  expect(within(web).getByText("Already here, not monitored: ticked, it is monitored again")).toBeTruthy();
+  expect(within(screen.getByTestId("add-version-movie-4k")).getByTestId("add-fetches").textContent).toBe("Prefers Remux-2160p; no upgrades");
+  expect(screen.getByTestId("add-submit").textContent).toContain("Monitor");
+  await user.click(screen.getByTestId("add-submit-search"));
+  await waitFor(() => expect(fetch.calls("POST", "/titles")).toHaveLength(1));
+  // The request is the add it always was: the held library, searched.
+  expect(fetch.calls("POST", "/titles")[0].body).toMatchObject({ title_id: 9, versions: ["movie-web"], search: true });
+  await waitFor(() => expect(closed).toHaveBeenCalled());
+});

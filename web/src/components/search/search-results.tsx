@@ -13,7 +13,7 @@ import { usePerms } from "@/api/library";
 import { useMyOpenRequests } from "@/api/requests";
 import { VersionTag } from "@/components/page";
 import { useSearchUI } from "./search-context";
-import { titleWatchWords } from "@/lib/library";
+import { POSTER_STATUS_LABEL, posterStatus, titleWatchWords } from "@/lib/library";
 import { findRequest, requestLink } from "@/lib/request-state";
 import { settingHref } from "@/lib/settings-map";
 import { Badge } from "@/components/ui/badge";
@@ -83,6 +83,8 @@ export function LibraryResultCard({ t, onOpen, onAdd }: { t: LibraryHit; onOpen?
   // Without "see files" a title reads as watchability, not library keys (docs/design/users.md).
   const seeFiles = usePerms().seeFiles;
   const watch = seeFiles ? null : titleWatchWords(t);
+  // Those who see files get the title's status as the lists say it ("Missing", "Not monitored", "Available").
+  const status = seeFiles ? posterStatus(t.availability, false, t) : undefined;
   return (
     <div
       data-search-result="library"
@@ -102,6 +104,7 @@ export function LibraryResultCard({ t, onOpen, onAdd }: { t: LibraryHit; onOpen?
           </p>
           <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-1.5">
             <FacetPill facet={facet} />
+            {status ? <Badge tone={status === "available" ? "positive" : status === "wanted" ? "negative" : status === "partly_available" ? "warning" : "neutral"} data-testid="search-status">{POSTER_STATUS_LABEL[status]}</Badge> : null}
             {seeFiles ? (t.versions ?? []).map((v) => (
               <VersionTag key={v.key} k={v.key ?? ""} className={cn("px-1.5 py-0 text-[11px]", !v.has_file && "opacity-60")} />
             )) : watch ? <Badge tone={watch.tone === "partial" ? "warning" : watch.tone} data-testid="search-watch">{watch.label}</Badge> : null}

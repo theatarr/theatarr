@@ -59,6 +59,21 @@ describe("library status", () => {
   });
 });
 
+describe("library status while searching and by monitored episodes", () => {
+  it("says a search under way for a missing movie, and a series' first download's stage", () => {
+    expect(libraryStatus(v({ searching: "queued" }), { ...movie, release_date: "2020-01-01" }, DAY)).toMatchObject({ label: "Search queued", tone: "info" });
+    expect(libraryStatus(v({ searching: "searching" }), { ...movie, release_date: "2020-01-01" }, DAY).label).toBe("Searching now");
+    const s = libraryStatus(v({ acquisition: downloading, episodes: { have: 0, total: 8, missing: 8 } }), series, DAY);
+    expect(s).toMatchObject({ label: "Downloading · 37%", tone: "info" });
+  });
+  it("counts a series against its monitored episodes and says the rest under it", () => {
+    const s = libraryStatus(v({ has_file: true, episodes: { have: 44, total: 76, missing: 2, monitored: 46, monitored_have: 44 } }), series, DAY);
+    expect(s).toMatchObject({ label: "44 of 46 monitored episodes", sub: "2 missing · 30 not monitored" });
+    // Not monitored: the index's words, with no monitored count.
+    expect(libraryStatus(v({ monitored: false, episodes: { have: 0, total: 17, missing: 0, monitored: 17, monitored_have: 0 } }), series, DAY).label).toMatch(/not monitored/);
+  });
+});
+
 describe("library columns", () => {
   it("offers a column only for the kinds it is for", () => {
     const movie = libraryColumns("movie", [v({})]).map((c) => c.id);

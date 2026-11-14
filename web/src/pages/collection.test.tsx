@@ -25,7 +25,8 @@ const detail = (c: Schemas["Collection"]): Schemas["CollectionDetail"] => ({
 const lonely: Schemas["Collection"] = { tmdb_id: 9100, name: "", monitored: false, versions: [], search_on_add: false, minimum_availability: "released", held: 1, available: 1, total: 1 };
 
 const show = (path: string, extra?: React.ReactNode) => renderPage(
-  <SearchProvider><Routes><Route path="/collections/:id" element={<><CollectionPage />{extra}</>} /></Routes></SearchProvider>, path);
+  <SearchProvider><Routes><Route path="/collections/:id" element={<><CollectionPage />{extra}</>} />
+    <Route path="/title/:id" element={<p data-testid="title-page-shown">title page</p>} /></Routes></SearchProvider>, path);
 
 /** Removes title 217 as the title page's Remove does. */
 function RemoveAlien() {
@@ -147,9 +148,8 @@ it("marks a film removed from every library, offers Add for it, and refreshes th
   await user.click(aliens.getByRole("button", { name: "Aliens (1986), removed from the library, add" }));
   await user.click(await screen.findByTestId("add-submit"));
   await waitFor(() => expect(fetch.calls("POST", "/titles")).toHaveLength(1));
-  // The page reads the collection again: the film now links to its title.
-  await waitFor(() => expect(within(screen.getByTestId("part-679")).getByRole("link").getAttribute("href")).toBe("/title/218"));
-  expect(screen.getByText("2 of 3 in the library · 1 available")).toBeTruthy();
+  // The add goes straight to the title's page (J5); the collection's films are read again when it is opened next.
+  expect(await screen.findByTestId("title-page-shown")).toBeTruthy();
 });
 
 it("follows a removal: the film no longer links to its title and the counts change", async () => {

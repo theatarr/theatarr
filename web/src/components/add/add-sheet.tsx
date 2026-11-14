@@ -5,14 +5,16 @@ import { usePerms } from "@/api/library";
 // A side sheet on desktop and a bottom sheet on phones, in our Modal (components/ui/modal.tsx: focus trap, inert page,
 // focus restore, shared scroll lock), since Radix Dialog's scroll lock injects a <style> element the CSP refuses. Layout follows Scryer (github.com/scryer-media/scryer) apps/scryer-web/components/root/
 // add-to-catalog-dialog.tsx @ 2ef7757c, GPL-3.0 (poster header, option rows, footer actions) and Seerr's RequestModal
-// (MIT): the season list with a toggle per season.
-import { AlertTriangle, ArrowUpRight, CheckCircle2, Loader2, Plus, Search, X } from "lucide-react";
-import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
-import { Link } from "react-router";
+// (MIT): the season list with a toggle per season. Each library says what it fetches (its profile's preferred quality)
+// and whether the title is already there unmonitored (the add then monitors it again). After the add the sheet closes
+// on the title page, and a toast says what was turned on and what is searched, by library name.
+import { AlertTriangle, Loader2, Plus, Search, X } from "lucide-react";
+import { useId, useMemo, useState, type ReactNode } from "react";
+import { useNavigate } from "react-router";
+import { toast } from "@/components/toaster";
 import { ApiError } from "@/api/client";
 import { useAddOptions, useAddTitle, type AddResult, type AddTarget, type VersionOption } from "@/api/add";
 import { DownloadsOffNotice, VersionStatus } from "@/components/version-status";
-import { VersionTag } from "@/components/page";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { globalDownloadsOff } from "@/lib/version-grab";
@@ -91,11 +93,26 @@ function LibraryRow({ v, checked, disabled, onChange, note, admin }: {
         <label htmlFor={id} className={cn("flex flex-wrap items-baseline gap-x-2 gap-y-0.5", !disabled && "cursor-pointer")}>
           <span className="text-sm font-medium text-[var(--ink)] [overflow-wrap:anywhere]" title={admin ? v.key : undefined}>{v.label || nameOf(v.key)}</span>
         </label>
+        {fetchesWords(v) ? <p className="text-xs text-[var(--ink-2)]" title={admin && v.profile ? `Profile ${v.profile}` : undefined} data-testid="add-fetches">{fetchesWords(v)}</p> : null}
         {note ? <p className="text-xs text-[var(--ink-3)]">{note}</p> : null}
         <div id={`${id}-state`}><VersionStatus state={v.grab_state} showMode settingsKey={v.key} canManage={admin} /></div>
       </div>
     </div>
   );
+}
+
+/** What a library fetches, from its profile: "Fetches Remux-2160p, upgrading until it has it" or "Fetches up to
+ *  WEBDL-1080p, no upgrades". */
+export function fetchesWords(v: Pick<VersionOption, "cutoff" | "upgrades">): string {
+  if (!v.cutoff) return "";
+  return v.upgrades ? `Prefers ${v.cutoff}; upgrades until it has it` : `Prefers ${v.cutoff}; no upgrades`;
+}
+
+/** The note under a library already on the title: monitored ("Already in this library"), or held but not monitored. */
+export function heldNote(v: Pick<VersionOption, "on" | "held">): string | undefined {
+  if (v.on) return "Already in this library";
+  if (v.held) return "Already here, not monitored: ticked, it is monitored again";
+  return undefined;
 }
 
 function seasonLabel(n: number) {
@@ -143,7 +160,10 @@ export function AddSheet({ target, onClose }: { target: AddTarget; onClose: () =
   const [monitorNew, setMonitorNew] = useState(true);
   const [minimum, setMinimum] = useState<AddChoice["minimumAvailability"]>();
   const [showOther, setShowOther] = useState(false);
-  const [done, setDone] = useState<AddResult | null>(null);
+  const navigate = useNavigate();
+  const nameOf = useLibraryName();
+  // Every ticked new library is one the title already holds unmonitored: the add only monitors them again.
+  const monitorOnly = (lib: VersionOption[]) => lib.length > 0 && lib.every((v) => v.held);
 
   const o = opts.data;
   const versions = useMemo(() => o?.versions ?? [], [o]);
@@ -183,8 +203,17 @@ export function AddSheet({ target, onClose }: { target: AddTarget; onClose: () =
         seriesType: seriesType === typeDefault ? undefined : seriesType,
         minimumAvailability: chosen.length > 0 ? minimum : undefined,
       }),
-      { onSuccess: setDone },
+      { onSuccess: (r) => done(r) },
     );
+  };
+
+  // The add's outcome: the sheet closes on the title page and a toast says what happened, by library name.
+  const done = (r: AddResult) => {
+    const turned = r.new.map((k) => nameOf(k)).join(", ");
+    const body = [turned ? `Turned on: ${turned}.` : "Saved.", r.search?.message ? r.search.message.replace(/([^.!?])$/, "$1.") : ""].filter(Boolean).join(" ");
+    toast({ tone: r.search && !r.search.started ? "warn" : "ok", title: r.created ? `${r.title.name} is in the library` : `${r.title.name} updated`, body, image: target.poster });
+    onClose();
+    navigate(`/title/${r.title.id}`);
   };
 
   const facet = facetOf(target.kind, anime);
@@ -216,9 +245,7 @@ export function AddSheet({ target, onClose }: { target: AddTarget; onClose: () =
           </Button>
         </div>
 
-        {done ? (
-          <Done result={done} onClose={onClose} />
-        ) : (
+        {(
           <>
             <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4">
               {opts.isPending ? (
@@ -240,7 +267,7 @@ export function AddSheet({ target, onClose }: { target: AddTarget; onClose: () =
                     <DownloadsOffNotice off={globalOff} canManage={perms.admin} className="mb-2" />
                     <div className="border-t border-[var(--line)]" data-testid="add-versions">
                       {fitting.map((v) => (
-                        <LibraryRow key={v.key} v={v} checked={isOn(v)} disabled={v.on} admin={perms.admin} onChange={(c) => setPicked((p) => ({ ...p, [v.key]: c }))} note={v.on ? "Already in this library" : undefined} />
+                        <LibraryRow key={v.key} v={v} checked={isOn(v)} disabled={v.on} admin={perms.admin} onChange={(c) => setPicked((p) => ({ ...p, [v.key]: c }))} note={heldNote(v)} />
                       ))}
                       {fitting.length === 0 ? <p className="text-sm text-muted-foreground">No library of the policy fits this title; pick one below.</p> : null}
                     </div>
@@ -348,12 +375,12 @@ export function AddSheet({ target, onClose }: { target: AddTarget; onClose: () =
                 <Button variant="ghost" onClick={onClose}>Cancel</Button>
                 <Button variant={searchOffered ? "outline" : "default"} onClick={() => submit(false)} disabled={!o || (chosen.length === 0 && !seasonsChanged) || add.isPending} data-testid="add-submit">
                   {add.isPending && !add.variables?.search ? <Loader2 className="animate-spin" /> : <Plus />}
-                  {!current ? "Add" : chosen.length > 0 || o?.kind !== "series" ? "Add libraries" : "Save seasons"}
+                  {!current ? "Add" : chosen.length > 0 && monitorOnly(versions.filter((v) => chosen.includes(v.key))) ? "Monitor" : chosen.length > 0 || o?.kind !== "series" ? "Add libraries" : "Save seasons"}
                 </Button>
                 {searchOffered ? (
                   <Button onClick={() => submit(true)} disabled={add.isPending} data-testid="add-submit-search">
                     {add.isPending && add.variables?.search ? <Loader2 className="animate-spin" /> : <Search />}
-                    {current ? "Add libraries and search" : "Add and search"}
+                    {!current ? "Add and search" : monitorOnly(versions.filter((v) => chosen.includes(v.key))) ? "Monitor and search" : "Add libraries and search"}
                   </Button>
                 ) : null}
               </div>
@@ -361,42 +388,5 @@ export function AddSheet({ target, onClose }: { target: AddTarget; onClose: () =
           </>
         )}
     </Modal>
-  );
-}
-
-function Done({ result, onClose }: { result: AddResult; onClose: () => void }) {
-  const t = result.title;
-  const nameOf = useLibraryName();
-  // The submit button is gone: focus the result, so it is read out and Tab starts here.
-  const box = useRef<HTMLDivElement>(null);
-  useEffect(() => box.current?.focus({ preventScroll: true }), []);
-  return (
-    <div ref={box} tabIndex={-1} className="flex-1 space-y-4 overflow-y-auto p-4 outline-none" data-testid="add-done" role="status">
-      <div className="flex items-start gap-3 rounded-[5px] border border-[var(--th-success-border)] bg-[var(--ok-soft)] p-3 text-sm text-[var(--ok-ink)]">
-        <CheckCircle2 className="mt-0.5 size-4 shrink-0" />
-        <div>
-          <div className="font-semibold">{result.created ? `${t.name} is in the library` : `${t.name} updated`}</div>
-          <div className="mt-0.5 opacity-90">
-            {result.new.length > 0 ? `Turned on: ${result.new.map((k) => nameOf(k)).join(", ")}. New libraries start as wanted.` : "Saved."}
-          </div>
-        </div>
-      </div>
-      {result.search ? (
-        <p className={cn("rounded-[5px] border px-3 py-2.5 text-xs", result.search.started ? "border-[var(--th-info-border)] bg-[var(--accent-soft)] text-[var(--accent-ink)]" : "border-[var(--line)] text-[var(--ink-3)]")} data-testid="add-search-result">
-          {result.search.message}
-        </p>
-      ) : null}
-      <div className="flex flex-wrap gap-2">
-        {t.versions.map((v) => <VersionTag key={v.key} k={v.key ?? ""} />)}
-      </div>
-      <div className="flex gap-2">
-        <Button asChild>
-          <Link to={`/title/${t.id}`} onClick={onClose}>
-            Open title <ArrowUpRight />
-          </Link>
-        </Button>
-        <Button variant="ghost" onClick={onClose}>Close</Button>
-      </div>
-    </div>
   );
 }

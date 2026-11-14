@@ -197,3 +197,44 @@ describe("Title page", () => {
     }
   });
 });
+describe("Title page facts (J5)", () => {
+  const show = (t: object, path = "/title/70") => {
+    mockFetch([
+      { method: "GET", path: "/auth/me", reply: me },
+      { method: "GET", path: "/titles/70", reply: { ...title, ...t } },
+      { method: "GET", path: "/add/options", reply: { kind: "movie", anime: false, title_id: 70, router_enabled: true, episodes_known: false, can_search: true, seasons: [], versions: [] } },
+    ]);
+    renderPage(<SearchProvider><Routes><Route path="/title/:id" element={<TitlePage />} /></Routes></SearchProvider>, path);
+  };
+  const lib = { id: 5, key: "movie-web", label: "4K WEB", state: "wanted", monitored: true, has_file: false, control: { mode: "active", can_edit: true, can_search: true, live_releases: true, grab_state: { mode: "active", paused: false, pause_forced: false, library_writes: true, will_grab: true } } };
+
+  it("says the download's stage in the hero while nothing is held, not Missing", async () => {
+    show({ availability: "missing", release_date: "2020-01-01", versions: [{ ...lib, acquisition: { stage: "starting", words: "", download_id: 1, downloads: 1, updated_at: "2026-11-14T10:00:00Z" } }] });
+    expect((await screen.findByTestId("title-readiness")).textContent).toBe("Waiting to start");
+  });
+
+  it("names each library's latest event under the status, a failed attempt beside Upgrade found", async () => {
+    const recent = new Date(Date.now() - 3600_000).toISOString();
+    show({ availability: "available", versions: [
+      { ...lib, has_file: true, state: "filled", current: { quality: "WEBDL-2160p", files: 1 }, upgrade: { state: "upgrade_available" }, history: [{ event: "failed", date: recent, reason: "miss on every provider", missed_on: ["rd", "tb"] }] },
+      { ...lib, id: 6, key: "movie-remux", label: "4K Remux", has_file: true, state: "cutoff_met", current: { quality: "Remux-2160p", files: 1 }, history: [{ event: "imported", date: recent }] },
+    ] });
+    const events = await screen.findByTestId("title-events");
+    expect(events.textContent).toContain("4K WEB: Last upgrade attempt today: not cached on RD and TB");
+    expect(events.textContent).toContain("4K Remux: Imported today");
+    // The row keeps Upgrade found and shows the attempt beside it.
+    const row = (await screen.findAllByTestId("library-failed"))[0];
+    expect(row.textContent).toBe("Last upgrade attempt today: not cached on RD and TB");
+  });
+
+  it("says why a missing film is missing and what next", async () => {
+    show({ availability: "missing", release_date: "2020-01-01", auto_search: { missing: false, upgrades: true, enabled: true }, versions: [lib] });
+    expect((await screen.findAllByTestId("library-why"))[0].textContent).toBe("Never searched. Automatic search for missing items is off; new releases are still picked up from RSS.");
+  });
+
+  it("links a film to its collection on About", async () => {
+    show({ collection: { tmdb_id: 8091, name: "Alien Collection" } }, "/title/70?tab=about");
+    expect((await screen.findByTestId("title-collection")).getAttribute("href")).toBe("/collections/8091");
+  });
+});
+

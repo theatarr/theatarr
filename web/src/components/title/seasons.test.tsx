@@ -503,10 +503,40 @@ describe("One status vocabulary", () => {
     // library that is not monitored.
     await user.click(screen.getByRole("button", { name: /^Episode 1:/ }));
     const dialog = await screen.findByRole("dialog");
-    const web = await within(dialog).findByText("Available");
-    expect(web).toBeTruthy();
+    // The window's status line across libraries, and the library's own word.
+    expect((await within(dialog).findByTestId("episode-status")).textContent).toBe("Available");
+    expect(within(dialog).getAllByText("Available")).toHaveLength(2);
     expect(within(dialog).getByTestId("upgrade-status").textContent).toContain("Best quality known");
     expect(within(dialog).getByText("Not monitored")).toBeTruthy();
     expect(within(dialog).queryByText("Missing")).toBeNull();
+  });
+});
+
+describe("Seasons order and kept monitoring (J5)", () => {
+  it("lists seasons newest first, specials last", async () => {
+    const { newestFirst } = await import("./seasons");
+    expect(newestFirst([{ season: 0 }, { season: 1 }, { season: 3 }, { season: 2 }]).map((s) => s.season)).toEqual([3, 2, 1, 0]);
+  });
+
+  it("says an unmonitored library keeps its switches, drawn inactive, not unchecked", async () => {
+    const off = { ...episodes, versions: [{ ...episodes.versions[1], monitored: false }] };
+    mockFetch([routes[0], { method: "GET", path: "/titles/1/episodes", reply: off }]);
+    renderPage(<Seasons id="1" anime />, "/title/1");
+    expect((await screen.findByTestId("episodes-kept")).textContent).toContain("Anime WEB is not monitored");
+    const kept = await screen.findAllByTestId("switch-kept");
+    expect(kept.length).toBeGreaterThan(0);
+    // The stored flag stays on: the season's switch is checked, only drawn inactive.
+    expect(within(kept[0]).getByRole("switch").getAttribute("aria-checked")).toBe("true");
+  });
+
+  it("gives an episode's checkbox a touch area that never opens the episode", async () => {
+    mockFetch(routes);
+    const user = userEvent.setup();
+    renderPage(<Seasons id="1" anime />, "/title/1");
+    const box = await screen.findByRole("checkbox", { name: "Select episode 12" });
+    const area = box.closest("[data-testid=episode-check]") as HTMLElement;
+    await user.click(area);
+    expect((box as HTMLInputElement).checked).toBe(true);
+    expect(window.location.search).not.toContain("episode=");
   });
 });

@@ -42,3 +42,17 @@ it("puts an In library TMDb hit the name search missed into the library group", 
   renderPage(<SearchProvider><Opener /></SearchProvider>, "/");
   await waitFor(() => expect(screen.getByTestId("search-group-library").textContent).toContain("Juniper Signal"));
 });
+
+it("starts with the previous text selected, and shows an in-library title's status", async () => {
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: { id: 1, username: "admin", permissions: ["browse", "add", "admin", "see_files"], csrf_token: "t" } },
+    { method: "GET", path: "/search", reply: (r: { search: string }) => (r.search.includes("scope=library")
+      ? { library: [{ id: 4, kind: "series", name: "Lanterns", year: 2026, availability: "unmonitored", monitored: false, versions: [{ key: "tv", has_file: false }] }], library_total: 1 }
+      : { tmdb_state: "off" }) },
+    { method: "GET", path: "/requests", reply: { items: [], total: 0 } },
+  ]);
+  renderPage(<SearchProvider><Opener /></SearchProvider>, "/");
+  const input = (await screen.findByTestId("search-input")) as HTMLInputElement;
+  await waitFor(() => expect([input.selectionStart, input.selectionEnd]).toEqual([0, "Signal".length]));
+  expect((await screen.findByTestId("search-status")).textContent).toBe("Not monitored");
+});

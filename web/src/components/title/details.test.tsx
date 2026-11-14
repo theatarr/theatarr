@@ -35,3 +35,19 @@ describe("Release dates", () => {
     expect(screen.getByTestId("release-dates-all").textContent).toBe("Show fewer");
   });
 });
+
+describe("Technical details", () => {
+  it("folds the identifiers in words, links the collection, and leaves out empty files and inventory", async () => {
+    mockFetch([{ method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["admin"] } }]);
+    renderPage(<Details d={{ id: 70, kind: "movie", name: "Alien", monitored: true, versions: [], registry: [], release_dates: [{ source: "tmdb-art", country: "", type: "theatrical", date: "1979-05-25" }],
+      external_ids: [{ source: "tmdb_collection", id: "8091" }, { source: "wikidata", id: "Q103569" }], collection: { tmdb_id: 8091, name: "Alien Collection" } } as never} />);
+    const tech = await screen.findByTestId("technical-details");
+    expect(tech.hasAttribute("open")).toBe(false);
+    expect(within(tech).getByText("TMDb collection")).toBeTruthy();
+    expect(within(tech).getByText("Wikidata")).toBeTruthy();
+    expect(within(tech).getByText("Movie")).toBeTruthy();
+    expect(within(tech).getByRole("link", { name: /Alien Collection/ }).getAttribute("href")).toBe("/collections/8091");
+    expect(within(tech).queryByText(/Files|Saved inventory|Registry/)).toBeNull();
+    expect(within(screen.getByTestId("release-dates")).getByText("TMDb")).toBeTruthy();
+  });
+});

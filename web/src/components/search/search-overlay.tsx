@@ -5,7 +5,7 @@
 // sections. It runs in our Modal (components/ui/modal.tsx: focus trap, inert page, focus restore, scroll lock), not
 // Radix Dialog, whose scroll lock injects a <style> element the CSP refuses.
 import { ArrowRight, Eraser, Search, X } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { useDebounced, useSearch, withInLibrary, type AddTarget } from "@/api/add";
 import { usePerms } from "@/api/library";
@@ -36,6 +36,11 @@ export function SearchOverlay({ initial, onClose, onAdd }: { initial: string; on
   const { canAdd, canRequest } = useSearchUI();
   const words = searchWords(canAdd, canRequest);
   const input = useRef<HTMLInputElement>(null);
+  // Re-opened with the previous text: it starts selected, so typing replaces it.
+  useEffect(() => {
+    const id = requestAnimationFrame(() => input.current?.select());
+    return () => cancelAnimationFrame(id);
+  }, []);
   const seeAll = () => {
     const t = q.trim();
     onClose();
