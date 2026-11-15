@@ -183,7 +183,7 @@ type Plex struct {
 	// does not need library.enabled. Default true.
 	NowPlaying *bool `yaml:"now_playing"`
 	// Prewarm reads the head of the next episode of a show being watched through the mount, about a minute into an
-	// episode, and raises an error inbox item when that episode is missing or unreadable; past half of the episode
+	// episode, and logs an error when that episode is missing or unreadable; past half of the episode
 	// it reads the next one whole so the mount's cache keeps it. Default true.
 	Prewarm *bool `yaml:"prewarm"`
 	// PrewarmRate caps the pre-warm's whole-file read of the next episode, in bytes per second (25MB: 25 MB/s), so

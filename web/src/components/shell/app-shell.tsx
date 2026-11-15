@@ -75,7 +75,6 @@ function JobsBadge() {
   );
 }
 
-/** The Errors badge (admins): error inbox rows not looked at yet ("new"). */
 /** The flagged decisions (GET /journal/flagged, a stored count), read on admin pages only. */
 function useFlagged() {
   return useFlaggedCount(useLocation().pathname.startsWith("/admin")).data?.count ?? 0;

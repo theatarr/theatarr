@@ -1,6 +1,6 @@
 {
   "AnimeBuild": {
-    "auto_build": "This builds franchises for anime series without one and rebuilds old ones (default true). Building only writes mappings; episodes whose mapping is not settled import through TVDB's numbering, and their conflicts show in Admin › Reviews.",
+    "auto_build": "This builds franchises for anime series without one and rebuilds old ones (default true).",
     "refresh_interval": "This is how old a franchise's build may get before it is rebuilt. Default 168h (7 days), minimum 24h. Rebuilds are spread over the interval; a franchise with a refresh held for review waits for the review."
   },
   "Art": {
@@ -156,7 +156,7 @@
     "budget": "This names a budget for plex calls. Optional.",
     "debounce": "This coalesces scans of one folder. Default 30s.",
     "now_playing": "This follows plex's sessions for the now playing page (docs/design/now-playing.md). It only reads, so it does not need library.enabled. Default true.",
-    "prewarm": "This reads the head of the next episode of a show being watched through the mount, about a minute into an episode, and raises an error inbox item when that episode is missing or unreadable; past half of the episode it reads the next one…",
+    "prewarm": "This reads the head of the next episode of a show being watched through the mount, about a minute into an episode, and logs an error when that episode is missing or unreadable; past half of the episode it reads the next one whole so the…",
     "prewarm_max_size": "This limits whole-file preloading; larger episodes get only a header check. Default 20GB.",
     "prewarm_rate": "This caps the pre-warm's whole-file read of the next episode, in bytes per second (25MB: 25 MB/s), so it never starves a live stream. Default 25MB.",
     "token_env": "This names the environment variable holding the plex token.",
