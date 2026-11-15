@@ -287,9 +287,8 @@ func (l *Library) recomputeVersion(ctx context.Context, v stateVersion) (bool, e
 		return false, nil
 	}
 	db := l.st.Reader()
-	// The quality-cutoff flag of each file, judged with the state (decide.QualityBelow).
+	// The quality-cutoff flag of each file is judged with the state (decide.QualityBelow), but not for prefer-SeaDex.
 	flags := !vp.PreferSeaDex
-	qv := decide.Version{ID: v.id, Key: v.key}
 	if vp.PreferSeaDex {
 		var err error
 		ctx, err = decide.WithStoredSeaDex(ctx, db)
@@ -317,7 +316,7 @@ func (l *Library) recomputeVersion(ctx context.Context, v stateVersion) (bool, e
 			return false, err
 		}
 		if flags {
-			if err := decide.WriteQualityCutoff(ctx, l.st.Writer(), vp.Kind, v.id, f != nil && l.engine.QualityBelow(qv, f),
+			if err := decide.WriteQualityCutoff(ctx, l.st.Writer(), vp.Kind, v.id, f != nil && l.engine.QualityBelow(dv, f),
 				nil); err != nil {
 				return false, err
 			}
@@ -363,7 +362,7 @@ func (l *Library) recomputeVersion(ctx context.Context, v stateVersion) (bool, e
 		if flags {
 			b, ok := below[ep.FileID]
 			if !ok {
-				b = l.engine.QualityBelow(qv, ep.File)
+				b = l.engine.QualityBelow(dv, ep.File)
 				below[ep.FileID] = b
 			}
 			if b {
@@ -508,7 +507,6 @@ var cutoffsStored atomic.Bool
 // CutoffsStored says whether the stored below-the-quality-cutoff flags can be read: the first full state pass of the
 // process has finished (RecomputeLinkStates). Until then acquisition judges every file.
 func CutoffsStored() bool { return cutoffsStored.Load() }
-
 
 // versionPrints fingerprints, per version key, the settings a file's state is judged under: the version, its
 // profile, and the formats and format sets.

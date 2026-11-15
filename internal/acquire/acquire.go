@@ -143,8 +143,8 @@ func New(cfg Config) (*Acquirer, error) {
 	a := &Acquirer{st: cfg.Store, pol: cfg.Policy, q: cfg.Queue, rt: cfg.Router, search: cfg.Search, eng: cfg.Engine,
 		searchBatch: cfg.SearchBatch, meta: cfg.Metadata, runtimeGeneration: cfg.RuntimeGeneration, runtimeCapture: cfg.CaptureRuntime,
 		runtimeEngine: cfg.RuntimeEngine, cutoffsStored: cfg.CutoffsStored,
-		set:           cfg.Policy.WantedSettings(),
-		log:           cfg.Logger.With("component", "acquire"), now: cfg.Now}
+		set: cfg.Policy.WantedSettings(),
+		log: cfg.Logger.With("component", "acquire"), now: cfg.Now}
 	if a.search == nil && a.searchBatch == nil {
 		if cfg.Engine == nil || cfg.Indexers == nil {
 			return nil, errors.New("acquire: an engine and an indexer service are required to search")
@@ -454,6 +454,10 @@ func (a *Acquirer) targets(ctx context.Context, sel Selection) ([]target, error)
 					q += ` AND v.below_quality_cutoff = 1`
 				}
 			}
+		} else if a.storedCutoff(sel, vp) {
+			// Only series with an episode below the cutoff (seriesTargets narrows to the ones it searches).
+			q += ` AND EXISTS (SELECT 1 FROM episode_version_state s WHERE s.version_id = v.id AND s.state = 'filled'
+				AND s.below_quality_cutoff = 1)`
 		}
 		q += ` ORDER BY v.title_id`
 		type vrow struct {

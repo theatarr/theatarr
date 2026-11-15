@@ -628,7 +628,9 @@ func (l *Library) AdoptImported(ctx context.Context, version string, files []Imp
 			vs = append(vs, stateVersion{id: f.versionID, titleID: f.titleID, key: version})
 		}
 	}
-	l.storeCutoffs(ctx, vs)
+	if rep.Linked > 0 {
+		l.storeCutoffs(ctx, vs)
+	}
 	if err != nil {
 		return rep, err
 	}
