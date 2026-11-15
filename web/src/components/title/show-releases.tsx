@@ -144,7 +144,7 @@ function Panel({ titleId, kind, initialVersion, focus, labels }: { titleId: numb
           {shownFocus && !items.some((c) => c.info_hash?.toLowerCase() === shownFocus.toLowerCase()) ? (
             <p className="text-xs text-[var(--ink-3)]" data-testid="releases-focus-missing">The release you followed is not in this list: only the newest search's releases are kept here.</p>
           ) : null}
-          {items.length === 0 ? <Empty>No releases to show for {labels?.[r.version] || nameOf(r.version)}.</Empty> : <ReleaseGrid items={items} kind={kind} outcomes={r.outcomes} focus={shownFocus} />}
+          {items.length === 0 ? <Empty>No releases to show for {labels?.[r.version] || nameOf(r.version)}.</Empty> : <ReleaseGrid key={r.version} items={items} kind={kind} outcomes={r.outcomes} focus={shownFocus} />}
         </>
       ) : null}
       {r && perms.admin ? <AddByHash key={r.version} titleId={titleId} version={r.version} label={labels?.[r.version]} /> : null}

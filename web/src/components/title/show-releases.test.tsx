@@ -203,3 +203,25 @@ it("shows the indexer without its prowlarr- prefix, the key as tooltip, and a sh
   expect(cell.getAttribute("title")).toBe("prowlarr-therarbg");
   expect(screen.getByTestId("release-filter").getAttribute("placeholder")).toBe("Filter releases");
 });
+
+// Each library tab has its own grid: a filter typed in one is not applied to the other.
+it("does not carry a filter from one library tab to the other", async () => {
+  const reply = (r: { search: string }) => {
+    const version = new URLSearchParams(r.search).get("version") || "movie-web";
+    return { title_id: 7, version, versions: ["movie-web", "movie-remux"], mode: "active", live_allowed: false, source: "journal", results: 2, accepted: 2,
+      candidates: [cand(1, "aaa"), cand(2, "bbb")], rejections: {}, outcomes: {}, grab: false };
+  };
+  mockFetch([ME, { method: "GET", path: "/titles/7/releases", reply }]);
+  renderPage(<LibraryNamesProvider keys><ShowReleases titleId={7} defaultOpen initialVersion="movie-web" labels={{ "movie-web": "WEB", "movie-remux": "Remux" }} /></LibraryNamesProvider>);
+  const rows = async () => within(await screen.findByTestId("releases-table")).getAllByRole("row").length - 1;
+  expect(await rows()).toBe(2);
+  fireEvent.change(screen.getByTestId("release-filter"), { target: { value: "WEB-1" } });
+  expect(await rows()).toBe(1);
+  fireEvent.click(screen.getByRole("tab", { name: "Remux" }));
+  await vi.waitFor(async () => expect(await rows()).toBe(2));
+  fireEvent.change(screen.getByTestId("release-filter"), { target: { value: "WEB-2" } });
+  // Back to a tab already answered (no loading in between): its grid starts afresh.
+  fireEvent.click(screen.getByRole("tab", { name: "WEB" }));
+  await vi.waitFor(async () => expect(await rows()).toBe(2));
+  expect((screen.getByTestId("release-filter") as HTMLInputElement).value).toBe("");
+});

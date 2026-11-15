@@ -308,8 +308,8 @@ it("says the requested item's own file, as the server reads it", async () => {
   expect((await screen.findByTestId("interactive-current")).textContent).toBe("Current file: WEBDL-1080p, score 1775");
 });
 
-// A sort chosen earlier is read from the saved preferences on reopening: Show more still adds rows.
-it("shows more after a saved sort, reopened", async () => {
+// A sort chosen in an earlier opening is not kept: reopening starts in the best-match order, and Show more adds rows.
+it("shows more after a sort, reopened", async () => {
   const many = Array.from({ length: 120 }, (_, i) => ({ ...rejected, rank: i + 2, info_hash: `h${i}`, release: `Alpha.2020.720p.R${i}`, score: i }));
   mockFetch([ME, TITLE, CURRENT, CURRENT, CURRENT, CURRENT, { method: "GET", path: "/titles/7/releases",
     reply: answer("movie-web", { results: 121, candidates: [accepted, ...many], rejections: { quality: 120 } }) }]);
@@ -321,6 +321,7 @@ it("shows more after a saved sort, reopened", async () => {
   fireEvent.click(screen.getByTestId("interactive-close"));
   open();
   expect(await rows()).toBe(50);
+  expect(screen.queryByTestId("release-best-match")).toBeNull();
   fireEvent.click(screen.getByTestId("release-more"));
   expect(await rows()).toBe(100);
 });
@@ -360,12 +361,18 @@ it("filters by indexer, quality, language and provider across pages, and a new s
   expect(screen.getByTestId("release-no-match")).toBeTruthy();
   fireEvent.change(screen.getByTestId("release-indexer"), { target: { value: "" } });
   expect(await rows()).toBe(1);
-  // One language in the answer: no language filter to offer.
-  expect(screen.queryByTestId("release-language")).toBeNull();
+  // One language, and releases without one: the filter is offered.
+  fireEvent.change(screen.getByTestId("release-language"), { target: { value: "English" } });
+  expect(await rows()).toBe(1);
+  // A sort chosen for this answer; a new search starts unfiltered in the best-match order.
+  fireEvent.click(within(await table()).getByRole("button", { name: /Score/ }));
+  expect(screen.getByTestId("release-best-match")).toBeTruthy();
   fireEvent.click(screen.getByTestId("interactive-again"));
   await waitFor(() => expect(api.calls("GET", "/titles/7/releases")).toHaveLength(2));
   await waitFor(async () => expect(await rows()).toBe(50));
   expect((screen.getByTestId("release-quality") as HTMLSelectElement).value).toBe("");
+  expect((screen.getByTestId("release-language") as HTMLSelectElement).value).toBe("");
+  expect(screen.queryByTestId("release-best-match")).toBeNull();
 });
 
 it("opens a row's matched formats with each one's score from its score", async () => {

@@ -23,7 +23,7 @@ const c = (rank: number, more: Partial<Candidate> = {}): Candidate => ({ rank, r
 const ranks = (xs: Candidate[]) => xs.map((x) => x.rank);
 
 describe("normalizeReleaseColumns", () => {
-  it("drops unknown ids, appends new columns hidden and resets a bad sort to rank", () => {
+  it("drops unknown ids, appends new columns hidden and ignores a stored sort", () => {
     const p = normalizeReleaseColumns({ order: ["age", "bogus", "title", "size"], shown: ["age", "bogus", "size"], sort: { key: "nope", dir: "asc" } });
     expect(p.order.slice(0, 2)).toEqual(["age", "size"]);
     expect(p.order).toHaveLength(DEFAULT_RELEASE_COLUMNS.order.length);
@@ -36,8 +36,7 @@ describe("normalizeReleaseColumns", () => {
     expect(DEFAULT_RELEASE_COLUMNS.order.slice(0, 4)).toEqual(["age", "status", "quality", "score"]);
     expect(DEFAULT_RELEASE_COLUMNS.shown).not.toContain("source");
     expect(p.shown).toEqual(["age", "size"]);
-    expect(p.sort).toEqual({ key: "rank", dir: "asc" });
-    expect(normalizeReleaseColumns({ order: [], shown: [], sort: { key: "score", dir: "desc" } }).sort).toEqual({ key: "score", dir: "desc" });
+    expect(p).not.toHaveProperty("sort");
     expect(normalizeReleaseColumns(undefined).shown).not.toContain("formats");
   });
 });
@@ -96,6 +95,9 @@ describe("filterReleases", () => {
       language: ["English", "Japanese"],
       cached: ["rd", "tb"],
     });
+    // One value: offered when some release lacks it, not when every release has it.
+    expect(filterChoices([c(1, { languages: ["English"] }), c(2)]).language).toEqual(["English"]);
+    expect(filterChoices([c(1, { indexer: "Nyaa" }), c(2, { indexer: "Nyaa" })]).indexer).toEqual([]);
   });
 });
 
@@ -114,7 +116,6 @@ describe("sorting every column Sonarr sorts", () => {
     expect(ranks(sortReleases(items, { key: "flags", dir: "desc" }))).toEqual([3, 1, 2]);
     const outcomes = { aa: { outcome: "failed" }, bb: { outcome: "imported" } } as never;
     expect(ranks(sortReleases(items, { key: "history", dir: "asc" }, outcomes))).toEqual([2, 1, 3]);
-    expect(normalizeReleaseColumns({ sort: { key: "status", dir: "asc" } }).sort).toEqual({ key: "status", dir: "asc" });
   });
 });
 

@@ -1,9 +1,9 @@
 // The release grid (docs/design/ui.md "Interactive search"): one row per release of a search, as interactive search
 // shows them live and "Last search" shows the stored decision. Columns sort, filter and can be hidden and reordered
-// (lib/release-columns.ts; the choice and the sort are kept per user in this browser); filters (words, accepted, cached
+// (lib/release-columns.ts; the column choice is kept per user in this browser); the sort and filters (words, accepted, cached
 // on, packs, indexer, quality, language) last as long as the grid: a new search starts without them. Sorting and
-// filtering take every release of the answer, then the grid pages. The score opens the row's matched formats with each
-// one's score (always shown on a card). With grab
+// filtering take every release of the answer, then the grid pages; a new grid (a new search) starts in the best-match
+// order. The score opens the row's matched formats with each one's score (always shown on a card). With grab
 // (interactive search, managers) each row has Grab: an accepted release goes to the router at once; a rejected one, or
 // one that would replace a better-scored file, asks first (release-grab.tsx GrabDialog), as does one the server
 // rejects at grab time. A table from md up, one card per release below it.
@@ -27,6 +27,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { readPref, writePref } from "@/lib/copies";
 import { fmtBytes } from "@/lib/format";
 import {
+  BEST_MATCH,
   CACHED_ANY,
   FLAG_LABEL,
   NO_FILTER,
@@ -47,6 +48,7 @@ import {
   type ReleaseColumnId,
   type ReleaseColumnPrefs,
   type ReleaseFilter,
+  type ReleaseSort,
   type ReleaseSortKey,
 } from "@/lib/release-columns";
 import { cn } from "@/lib/utils";
@@ -140,7 +142,8 @@ function Languages({ c }: { c: Candidate }) {
   return <span title={ls.join(", ")}>{ls.slice(0, 2).join(", ")}{ls.length > 2 ? ` +${ls.length - 2}` : ""}</span>;
 }
 
-function Formats({ c }: { c: Candidate }) {
+/** The matched formats with their scores; zeros: also a 0 score (the opened detail and the cards). */
+function Formats({ c, zeros = false }: { c: Candidate; zeros?: boolean }) {
   const fs = c.formats ?? [];
   if (fs.length === 0) return null;
   return (
@@ -148,14 +151,14 @@ function Formats({ c }: { c: Candidate }) {
       {fs.map((f, i) => (
         <span key={i} className="rounded border border-[var(--line)] px-1 text-[10.5px] text-[var(--ink-3)]">
           {f.name}
-          <span className={cn("ml-1 tabular-nums", (f.score ?? 0) < 0 ? "text-[var(--bad-ink)]" : (f.score ?? 0) > 0 ? "text-[var(--ok-ink)]" : undefined)}>{signed(f.score ?? 0)}</span>
+          {f.score || zeros ? <span className={cn("ml-1 tabular-nums", (f.score ?? 0) < 0 ? "text-[var(--bad-ink)]" : (f.score ?? 0) > 0 ? "text-[var(--ok-ink)]" : undefined)}>{signed(f.score ?? 0)}</span> : null}
         </span>
       ))}
     </span>
   );
 }
 
-function Cell({ id, c, outcomes, open }: { id: ReleaseColumnId; c: Candidate; outcomes?: Releases["outcomes"]; open?: { on: boolean; toggle: () => void } }) {
+function Cell({ id, c, outcomes }: { id: ReleaseColumnId; c: Candidate; outcomes?: Releases["outcomes"] }) {
   switch (id) {
     case "source":
       return (
@@ -183,7 +186,7 @@ function Cell({ id, c, outcomes, open }: { id: ReleaseColumnId; c: Candidate; ou
     case "quality":
       return <Quality c={c} />;
     case "score":
-      return <Score c={c} open={open} />;
+      return <Score c={c} />;
     case "formats":
       return <Formats c={c} />;
     case "flags":
@@ -257,11 +260,11 @@ function GrabCell({ c, target, sent, onSent }: { c: Candidate; target: GrabTarge
   );
 }
 
-/** One filter's choices as a select; hidden when the answer has fewer than two (min: one for cached on). */
-function Choice({ label, any, value, values, words, onChange, testid, min = 2 }: {
-  label: string; any: string; value: string; values: string[]; words?: (v: string) => string; onChange: (v: string) => void; testid: string; min?: number;
+/** One filter's choices as a select; hidden when it has none (filterChoices). */
+function Choice({ label, any, value, values, words, onChange, testid }: {
+  label: string; any: string; value: string; values: string[]; words?: (v: string) => string; onChange: (v: string) => void; testid: string;
 }) {
-  if (values.length < min && !value) return null;
+  if (values.length === 0 && !value) return null;
   return (
     <Select className="w-auto max-w-44" aria-label={label} value={value} onChange={(e) => onChange(e.target.value)} data-testid={testid}>
       <option value="">{any}</option>
@@ -317,7 +320,9 @@ export function ReleaseGrid({
   const before = shown.slice(0, lead);
   const after = shown.slice(lead);
   // The stored preferences are read afresh each render (a new object): depend on the sort's values.
-  const { key: sortKey, dir: sortDir } = prefs.sort;
+  // The sort lasts as long as the grid (one answer): a new search starts in the best-match order.
+  const [sort, setSort] = useState<ReleaseSort>(BEST_MATCH);
+  const { key: sortKey, dir: sortDir } = sort;
   const rows = useMemo(() => sortReleases(filterReleases(items, { ...filter, reason }), { key: sortKey, dir: sortDir }, outcomes), [items, filter, reason, sortKey, sortDir, outcomes]);
   const choices = useMemo(() => filterChoices(items), [items]);
   // The rows whose matched formats are open (the table), by row key.
@@ -342,17 +347,17 @@ export function ReleaseGrid({
     document.querySelector(`[data-testid="${view}"] [data-release-hash="${focus.toLowerCase()}"]`)?.scrollIntoView?.({ block: "center" });
   }, [focus, items]);
   const sortBy = (key: ReleaseSortKey) =>
-    save({ ...prefs, sort: prefs.sort.key === key ? { key, dir: prefs.sort.dir === "asc" ? "desc" : "asc" } : { key, dir: naturalDir(key) } });
+    setSort(sort.key === key ? { key, dir: sort.dir === "asc" ? "desc" : "asc" } : { key, dir: naturalDir(key) });
   const markSent = (c: Candidate) => () => grab?.onSent((c.info_hash ?? "").toLowerCase());
   const isSent = (c: Candidate) => !!c.info_hash && !!grab?.sent.has(c.info_hash.toLowerCase());
   const label = (id: ReleaseColumnId | "title") => (id === "title" ? "Title" : columns.find((c) => c.id === id)?.label ?? id);
   const head = (id: ReleaseColumnId | "title") => {
     const key = columnSortKey(id);
     if (!key) return <TableHead key={id}>{label(id)}</TableHead>;
-    const on = prefs.sort.key === key;
-    const Arrow = prefs.sort.dir === "asc" ? ArrowUp : ArrowDown;
+    const on = sort.key === key;
+    const Arrow = sort.dir === "asc" ? ArrowUp : ArrowDown;
     return (
-      <TableHead key={id} aria-sort={on ? (prefs.sort.dir === "asc" ? "ascending" : "descending") : undefined}>
+      <TableHead key={id} aria-sort={on ? (sort.dir === "asc" ? "ascending" : "descending") : undefined}>
         <button type="button" onClick={() => sortBy(key)} className={cn("inline-flex items-center gap-1 uppercase hover:text-foreground", on && "text-foreground")}>
           {label(id)}
           {on ? <Arrow className="size-3" /> : null}
@@ -376,7 +381,7 @@ export function ReleaseGrid({
         />
         <Toggle on={filter.accepted} onChange={(v) => setFilter({ ...filter, accepted: v })} testid="release-accepted-only">Accepted only</Toggle>
         <Choice
-          label="Cached on" any="Cached or not" value={filter.cached} values={[CACHED_ANY, ...choices.cached]} min={2}
+          label="Cached on" any="Cached or not" value={filter.cached} values={choices.cached.length ? [CACHED_ANY, ...choices.cached] : []}
           words={(v) => (v === CACHED_ANY ? "Cached anywhere" : `Cached on ${providerLabel(v)}`)} onChange={(v) => setFilter({ ...filter, cached: v })} testid="release-cached-on"
         />
         {kind === "series" ? <Toggle on={filter.packs} onChange={(v) => setFilter({ ...filter, packs: v })} testid="release-packs-only">Packs only</Toggle> : null}
@@ -384,8 +389,8 @@ export function ReleaseGrid({
         <Choice label="Quality" any="All qualities" value={filter.quality} values={choices.quality} onChange={(v) => setFilter({ ...filter, quality: v })} testid="release-quality" />
         <Choice label="Language" any="All languages" value={filter.language} values={choices.language} onChange={(v) => setFilter({ ...filter, language: v })} testid="release-language" />
         <span className="flex-1" />
-        {prefs.sort.key !== "rank" ? (
-          <Button size="sm" variant="ghost" onClick={() => save({ ...prefs, sort: { key: "rank", dir: "asc" } })} data-testid="release-best-match">Best match</Button>
+        {sort.key !== "rank" ? (
+          <Button size="sm" variant="ghost" onClick={() => setSort(BEST_MATCH)} data-testid="release-best-match">Best match</Button>
         ) : null}
         <Button size="sm" variant="outline" className="hidden md:inline-flex" onClick={() => setPicker(true)}>
           <Columns3 /> Columns
@@ -418,7 +423,7 @@ export function ReleaseGrid({
                   <TableRow data-release-hash={c.info_hash?.toLowerCase()} data-focus={picked(c) || undefined} className={cn(!c.accepted && "opacity-80", picked(c) && "bg-[var(--accent-soft)] opacity-100")}>
                     {before.map((id) => (
                       <TableCell key={id} className="align-top" data-column={id}>
-                        <Cell id={id} c={c} outcomes={outcomes} open={open} />
+                        {id === "score" ? <Score c={c} open={open} /> : <Cell id={id} c={c} outcomes={outcomes} />}
                       </TableCell>
                     ))}
                     <TableCell className="min-w-64 align-top">
@@ -427,7 +432,7 @@ export function ReleaseGrid({
                     {after.map((id) => (
                       // Status keeps a readable width (the table scrolls) rather than wrapping its reasons a word a line.
                       <TableCell key={id} className={cn("align-top", id === "status" && "min-w-44")} data-column={id}>
-                        <Cell id={id} c={c} outcomes={outcomes} open={open} />
+                        {id === "score" ? <Score c={c} open={open} /> : <Cell id={id} c={c} outcomes={outcomes} />}
                       </TableCell>
                     ))}
                     {grab ? (
@@ -440,7 +445,7 @@ export function ReleaseGrid({
                     <TableRow data-testid="release-formats-detail">
                       <TableCell colSpan={shown.length + 1 + (grab ? 1 : 0)} className="bg-[var(--bg)] py-2">
                         <span className="flex flex-wrap items-center gap-2 text-xs text-[var(--ink-2)]">
-                          Matched formats <Formats c={c} /> <span>Score {signed(c.score ?? 0)}</span>
+                          Matched formats <Formats c={c} zeros /> <span>Score {signed(c.score ?? 0)}</span>
                         </span>
                       </TableCell>
                     </TableRow>
@@ -462,7 +467,7 @@ export function ReleaseGrid({
                   {[c.quality || "—", c.size ? fmtBytes(c.size) : "", fmtAge(c.published) !== "—" ? fmtAge(c.published) : "", `${peersText(c)} peers`, indexerWords(c.indexer)].filter(Boolean).join(" · ")}
                 </div>
                 {kind === "series" && c.episodes?.length ? <div className="mt-1 font-mono text-[12px] text-[var(--ink-2)]" data-testid="release-card-episodes">{episodesText(c.episodes)}</div> : null}
-                {c.formats?.length ? <div className="mt-1.5" data-testid="release-card-formats"><Formats c={c} /></div> : null}
+                {c.formats?.length ? <div className="mt-1.5" data-testid="release-card-formats"><Formats c={c} zeros /></div> : null}
                 {c.cached_on?.length || c.languages?.length || c.flags?.length ? (
                   <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-[var(--ink-2)]">
                     {c.cached_on?.length ? <Cached c={c} /> : null}

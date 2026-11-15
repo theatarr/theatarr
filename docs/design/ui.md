@@ -483,12 +483,13 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   verdict stays in view when the table scrolls sideways; it keeps a readable width), Indexer, History (what came of
   the release before), Size, Peers, Cached on (provider pills), Episodes (series), Language, Quality, Score, Formats
   and Flags, then Grab. Every column but Episodes and Formats sorts (the columns Sonarr's sorts; Status puts the
-  accepted first, History the current file first), can be hidden and reordered (Columns); the choice and the sort
-  are kept per user in this browser (`localStorage` `theatarr.library.release-columns.<user>`). Filters: text,
-  Accepted only, Packs only (a series), and selects for Cached on (anywhere, or one provider), Indexer, Quality and
-  Language, each offering the values in the answer's releases and shown only when there is a choice. Sorting and
-  filtering take every release of the answer before the 50-row paging. Filters (and a rejection chip) last while the
-  window shows that answer; a new search (Search again, another library) starts without them. A score with matched
+  accepted first, History the current file first), can be hidden and reordered (Columns); the column choice is kept
+  per user in this browser (`localStorage` `theatarr.library.release-columns.<user>`). Filters: text, Accepted only,
+  Packs only (a series), and selects for Cached on (anywhere, or one provider), Indexer, Quality and Language, each
+  offering the values in the answer's releases and shown only when it can narrow the list. Sorting and filtering take
+  every release of the answer before the 50-row paging. The sort and the filters (and a rejection chip) last while
+  the window shows that answer; a new search (Search again, another library, another opening) starts unfiltered in
+  the best-match order, as does another library's tab on Last search. A score with matched
   formats is a button: it opens a line under the row with each matched format and its score. On a phone each release
   is a card with its indexer, the episodes it covers, its formats with their scores, languages and flags. A title in several
   libraries that search live gets a tab per library (its colour and name, the key as tooltip):

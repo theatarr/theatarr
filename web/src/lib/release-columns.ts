@@ -48,7 +48,11 @@ export const releaseColumnsFor = (kind: "movie" | "series") => RELEASE_COLUMNS.f
 export type ReleaseSortKey =
   | "rank" | "source" | "age" | "title" | "indexer" | "history" | "size" | "peers" | "cached" | "language" | "quality" | "score" | "flags" | "status";
 export type ReleaseSort = { key: ReleaseSortKey; dir: "asc" | "desc" };
-export type ReleaseColumnPrefs = { order: ReleaseColumnId[]; shown: ReleaseColumnId[]; sort: ReleaseSort };
+/** The kept column choice. A sort stored by an earlier version is ignored: the sort lasts one answer. */
+export type ReleaseColumnPrefs = { order: ReleaseColumnId[]; shown: ReleaseColumnId[] };
+
+/** The order a grid starts in: the server's ranking. */
+export const BEST_MATCH: ReleaseSort = { key: "rank", dir: "asc" };
 
 /** The default order: the verdict and the deciding numbers first (status, quality, score), so they are in view at
  *  1440 px without scrolling sideways; Source (mostly one kind) is offered but hidden until chosen. */
@@ -57,28 +61,21 @@ const DEFAULT_ORDER: ReleaseColumnId[] = ["age", "status", "quality", "score", "
 export const DEFAULT_RELEASE_COLUMNS: ReleaseColumnPrefs = {
   order: DEFAULT_ORDER,
   shown: DEFAULT_ORDER.filter((id) => id !== "formats" && id !== "source"),
-  sort: { key: "rank", dir: "asc" },
 };
 
-const SORT_KEYS: ReleaseSortKey[] = ["rank", "source", "age", "title", "indexer", "history", "size", "peers", "cached", "language", "quality", "score", "flags", "status"];
 const isColumn = (x: unknown): x is ReleaseColumnId => RELEASE_COLUMNS.some((c) => c.id === x);
 
-/** Release column prefs read back: unknown ids dropped, columns added since appended (hidden), a bad sort is rank. */
+/** Release column prefs read back: unknown ids dropped, columns added since appended (hidden). */
 export function normalizeReleaseColumns(p: unknown): ReleaseColumnPrefs {
   if (!p || typeof p !== "object") return DEFAULT_RELEASE_COLUMNS;
-  const o = p as { order?: unknown; shown?: unknown; sort?: unknown };
+  const o = p as { order?: unknown; shown?: unknown };
   const order = Array.isArray(o.order) ? [...new Set(o.order.filter(isColumn))] : [];
   const known = new Set(order);
   for (const c of RELEASE_COLUMNS) if (!order.includes(c.id)) order.push(c.id);
   const shown = Array.isArray(o.shown)
     ? [...new Set(o.shown.filter(isColumn))].filter((id) => known.has(id))
     : DEFAULT_RELEASE_COLUMNS.shown;
-  const s = o.sort as { key?: unknown; dir?: unknown } | undefined;
-  const sort: ReleaseSort =
-    s && SORT_KEYS.includes(s.key as ReleaseSortKey) && (s.dir === "asc" || s.dir === "desc")
-      ? { key: s.key as ReleaseSortKey, dir: s.dir }
-      : DEFAULT_RELEASE_COLUMNS.sort;
-  return { order, shown, sort };
+  return { order, shown };
 }
 
 /** The direction a header sorts in on its first click: newest, largest, best, A to Z. */
@@ -205,7 +202,8 @@ export function filterReleases(items: Candidate[], f: ReleaseFilter): Candidate[
 }
 
 /** The values the indexer, quality, language and cached-on filters offer: those in this search's releases (all of
- *  them, not only the shown page); qualities best first, the rest A to Z. */
+ *  them, not only the shown page); qualities best first, the rest A to Z. A filter that cannot narrow the list (one
+ *  value, which every release has) offers none. */
 export function filterChoices(items: Candidate[]): { indexer: string[]; quality: string[]; language: string[]; cached: string[] } {
   const indexer = new Set<string>();
   const quality = new Map<string, number>();
@@ -218,11 +216,12 @@ export function filterChoices(items: Candidate[]): { indexer: string[]; quality:
     for (const p of c.cached_on ?? []) cached.add(p);
   }
   const az = (s: Set<string>) => [...s].sort((a, b) => a.localeCompare(b));
+  const narrows = (vs: string[], has: (c: Candidate) => boolean) => (vs.length > 1 || items.some((c) => !has(c)) ? vs : []);
   return {
-    indexer: [...indexer].sort((a, b) => indexerWords(a).localeCompare(indexerWords(b))),
-    quality: [...quality].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([q]) => q),
-    language: az(language),
-    cached: az(cached),
+    indexer: narrows([...indexer].sort((a, b) => indexerWords(a).localeCompare(indexerWords(b))), (c) => !!c.indexer),
+    quality: narrows([...quality].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([q]) => q), (c) => !!c.quality),
+    language: narrows(az(language), (c) => !!c.languages?.length),
+    cached: narrows(az(cached), (c) => !!c.cached_on?.length),
   };
 }
 
