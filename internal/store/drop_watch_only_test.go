@@ -56,8 +56,9 @@ func TestMigrationDropWatchOnly(t *testing.T) {
 		`SELECT json_extract(config, '$.config.enable') || ' ' || (json_type(config, '$.config.mode') IS NULL) || ' ' ||
 			updated_at FROM setting_version WHERE key = 'live'`: "default 1 5",
 		`SELECT json_extract(config, '$.paused') FROM setting_global_switches WHERE key = 'global'`: "1",
-		// No card: the error inbox goes in 00144; docs/migration.md says what to check.
-		`SELECT COUNT(*) FROM error_event`: "0",
+		// The converted libraries for the Status notice (health.WatchOnlyNotice); no inbox card.
+		`SELECT value FROM notify_state WHERE key = 'watch_only_libraries'`: "watch",
+		`SELECT COUNT(*) FROM error_event`:                                  "0",
 		`SELECT group_concat(id || '=' || enabled || versions || (updated_at > 7), ' ') FROM (SELECT * FROM import_list ORDER BY id)`: `1=1["live"]1 2=0[]1 3=1["live"]1 4=0[]1 5=1["live"]0`,
 		`SELECT group_concat(tmdb_id || '=' || monitored || versions, ' ') FROM (SELECT * FROM movie_collection ORDER BY tmdb_id)`:    `1=0[] 2=1["live"] 3=1["live"]`,
 		`SELECT group_concat(id || '=' || COALESCE(request_versions, '-'), ' ') FROM (SELECT * FROM web_user ORDER BY id)`:            `1=["live"] 2=["live"] 3=["live"] 4=["live"]`,
@@ -104,6 +105,7 @@ func TestMigrationDropWatchOnlyAllLive(t *testing.T) {
 		`SELECT config || ' ' || updated_at FROM setting_version`:                                                          `{"config":{"enable":"default","kind":"movie"},"roots":["/l"]} 5`,
 		`SELECT config || ' ' || updated_at FROM setting_global_switches`:                                                  `{"paused":false} 3`,
 		`SELECT COUNT(*) FROM error_event`:                                                                                 "0",
+		`SELECT COUNT(*) FROM notify_state WHERE key = 'watch_only_libraries'`:                                             "0",
 		`SELECT enabled || versions || updated_at FROM import_list`:                                                        "1[]4",
 		`SELECT monitored || versions || updated_at FROM movie_collection`:                                                 "1[]4",
 		`SELECT group_concat(id || '=' || COALESCE(request_versions, '-'), ' ') FROM (SELECT * FROM web_user ORDER BY id)`: "1=- 2=[]",

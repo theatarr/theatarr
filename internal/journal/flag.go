@@ -53,16 +53,22 @@ func (j *Journal) Fill(ctx context.Context, limit int) (int, error) {
 		kind          string
 		flags         []Flag
 		counted       bool
+		refused       bool
 	}
-	rows, err := j.st.Reader().QueryContext(ctx, `SELECT id, ref, at, title_id, version_key, kind FROM history
-		WHERE `+uncheckedWhere+` ORDER BY id LIMIT ?`, limit)
+	// refused: a failure whose download's import the guard refused, with no History row of its own (no held or
+	// import row: the download failed with it).
+	rows, err := j.st.Reader().QueryContext(ctx, `SELECT id, ref, at, title_id, version_key, kind,
+		kind IN ('failure', 'stall') AND EXISTS (SELECT 1 FROM library_import li WHERE li.download_id = history.download_id
+			AND li.state = 'rejected') AND NOT EXISTS (SELECT 1 FROM history h WHERE h.download_id = history.download_id
+			AND h.kind = 'import')
+		FROM history WHERE `+uncheckedWhere+` ORDER BY id LIMIT ?`, limit)
 	if err != nil {
 		return 0, fmt.Errorf("journal: flags: %w", err)
 	}
 	var todo []*row
 	for rows.Next() {
 		r := &row{}
-		if err := rows.Scan(&r.id, &r.ref, &r.at, &r.title, &r.version, &r.kind); err != nil {
+		if err := rows.Scan(&r.id, &r.ref, &r.at, &r.title, &r.version, &r.kind, &r.refused); err != nil {
 			rows.Close()
 			return 0, err
 		}
@@ -97,17 +103,13 @@ func (j *Journal) Fill(ctx context.Context, limit int) (int, error) {
 		r.counted = e.Kind == KindFailure || e.Kind == KindStall ||
 			e.Kind == KindBlocklist && !slices.ContainsFunc(e.Related, func(s string) bool { return strings.HasPrefix(s, "dl:") })
 		// The import a failed download's guard refused has no History row of its own: its flags go on the failure's.
-		if dl, ok := strings.CutSuffix(r.ref, ":fail"); ok {
-			if im, err := b.refusedImport(dl); err != nil {
+		if dl, ok := strings.CutSuffix(r.ref, ":fail"); ok && r.refused {
+			ie, err := check(head{id: dl + ":import", at: r.at, titleID: r.title, version: r.version, kind: KindImport})
+			if err != nil {
 				return 0, err
-			} else if im {
-				ie, err := check(head{id: dl + ":import", at: r.at, titleID: r.title, version: r.version, kind: KindImport})
-				if err != nil {
-					return 0, err
-				}
-				if ie != nil {
-					r.flags = append(r.flags, ie.Flags...)
-				}
+			}
+			if ie != nil {
+				r.flags = append(r.flags, ie.Flags...)
 			}
 		}
 	}
@@ -142,16 +144,6 @@ func (j *Journal) Fill(ctx context.Context, limit int) (int, error) {
 		return 0, fmt.Errorf("journal: flags: %w", err)
 	}
 	return len(todo), nil
-}
-
-// refusedImport says whether download dl ("dl:<id>") has an import the guard refused that has no History row of its
-// own (no held or import row: the download failed with it).
-func (b *builder) refusedImport(dl string) (bool, error) {
-	var n int
-	err := b.db.QueryRowContext(b.ctx, `SELECT COUNT(*) FROM library_import li WHERE li.download_id = ?
-		AND li.state = 'rejected' AND NOT EXISTS (SELECT 1 FROM history h WHERE h.ref IN (? || ':held', ? || ':import'))`,
-		strings.TrimPrefix(dl, "dl:"), dl, dl).Scan(&n)
-	return n > 0, err
 }
 
 // FillAll flags every History row not checked yet (the start pass).

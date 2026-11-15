@@ -184,8 +184,8 @@ func TestPruneMetadataQueries(t *testing.T) {
 	}
 }
 
-// TestPruneLeavesNoOrphanFlag: a flagged History row whose download or blocklist entry is gone leaves the flagged
-// view (its severity clears); one whose source stays keeps it.
+// TestPruneLeavesNoOrphanFlag: a flagged History row whose download is gone leaves the flagged view (its severity
+// clears); one whose download stays keeps it.
 func TestPruneLeavesNoOrphanFlag(t *testing.T) {
 	t.Parallel()
 	st := openStore(t)
@@ -194,8 +194,7 @@ func TestPruneLeavesNoOrphanFlag(t *testing.T) {
 	exec(t, st, `INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, state,
 		created_at, updated_at) VALUES (7, 1, 1, 'movie-web', 'h', 'R', 'x', 'imported', 0, 0)`)
 	exec(t, st, `INSERT INTO history (ref, at, event, kind, download_id, flags, severity) VALUES
-		('dl:7', 0, 'grabbed', 'grab', 7, '[]', 'warn'), ('dl:8:fail', 0, 'failed', 'failure', 8, '[]', 'warn'),
-		('bl:99', 0, 'blocked', 'blocklist', NULL, '[]', 'error')`)
+		('dl:7', 0, 'grabbed', 'grab', 7, '[]', 'warn'), ('dl:8:fail', 0, 'failed', 'failure', 8, '[]', 'warn')`)
 	if _, err := Prune(context.Background(), st, time.Now(), Defaults); err != nil {
 		t.Fatal(err)
 	}

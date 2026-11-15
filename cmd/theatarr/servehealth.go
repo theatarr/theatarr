@@ -194,6 +194,7 @@ func newServeHealth(c serveHealthConfig) *health.Checker {
 		}, health.AccountOptions{}))
 	}
 	hc.Add("AnimeReviewCheck", "Anime mappings", health.AnimeReviews(c.st))
+	hc.Add("WatchOnlyCheck", "Watch only libraries", health.WatchOnlyNotice(c.st))
 	hc.Add("UnsettledAddsCheck", "Provider adds", health.UnsettledAdds(c.st, 0, nil))
 	hc.Add("CachedOnlyCheck", "Cached-only checks", health.UnfinishedCacheChecks(c.st, 0, nil))
 	hc.Add("TorrentLimitCheck", "Torrent limits", health.TorrentLimits(c.st, func(ctx context.Context) map[string]int {

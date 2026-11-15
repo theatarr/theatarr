@@ -607,3 +607,24 @@ func TestDanglingCountsLibraryRootsOnly(t *testing.T) {
 		t.Errorf("only other folders: %+v", r)
 	}
 }
+
+// The Watch only conversion explains itself on Status while Pause stays on, and goes once Pause is off.
+func TestWatchOnlyNotice(t *testing.T) {
+	st := openStore(t)
+	ctx := context.Background()
+	f := WatchOnlyNotice(st)
+	if r := f(ctx); r.Type != OK {
+		t.Errorf("nothing converted: %+v", r)
+	}
+	exec(t, st, `INSERT INTO notify_state (key, value, updated_at) VALUES ('watch_only_libraries', 'anime-tv, watch', 0)`)
+	exec(t, st, `INSERT INTO setting_global_switches (key, config, created_at, updated_at)
+		VALUES ('global', '{"paused":true}', 0, 0) ON CONFLICT (key) DO UPDATE SET config = excluded.config`)
+	if r := f(ctx); r.Type != Notice || r.Message != "These libraries were Watch only before 0.4.5: anime-tv, watch. "+
+		"Their titles are now not monitored and Pause was turned on. Monitor what you want in them, then turn Pause off." {
+		t.Errorf("paused: %+v", r)
+	}
+	exec(t, st, `UPDATE setting_global_switches SET config = '{"paused":false}' WHERE key = 'global'`)
+	if r := f(ctx); r.Type != OK {
+		t.Errorf("Pause off: %+v", r)
+	}
+}

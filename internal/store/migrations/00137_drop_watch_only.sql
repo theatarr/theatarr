@@ -6,8 +6,9 @@
 --   from its remaining rows, as catalog.SyncMonitored does;
 -- * enable: request, so an arr client's add no longer turns it on by default;
 -- * the global Pause switched on;
--- * nothing written for people: the error inbox it once wrote a card to is gone (00144); docs/migration.md (0.4.5)
---   says what to check;
+-- * their names kept in notify_state (key watch_only_libraries, comma-separated), for the Status notice that
+--   explains the conversion while Pause stays on (health.WatchOnlyNotice); an install whose libraries were all Live
+--   stores nothing;
 -- * no list, collection or account's request libraries adding to it (below).
 --
 -- The mode key leaves every stored library (it is
@@ -37,6 +38,12 @@ SELECT 'global', '{"paused":true}', CAST(strftime('%s', 'now') AS INTEGER) * 100
     CAST(strftime('%s', 'now') AS INTEGER) * 1000
 WHERE EXISTS (SELECT 1 FROM k6_watch_only)
 ON CONFLICT (key) DO UPDATE SET config = json_set(config, '$.paused', json('true')), updated_at = excluded.updated_at;
+
+INSERT INTO notify_state (key, value, updated_at)
+SELECT 'watch_only_libraries', group_concat(key, ', '), CAST(strftime('%s', 'now') AS INTEGER) * 1000
+FROM (SELECT key FROM k6_watch_only ORDER BY key)
+HAVING COUNT(*) > 0
+ON CONFLICT (key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at;
 
 
 -- Lists and collections add monitored titles to their targets whatever enable says, and one without targets takes
@@ -91,6 +98,7 @@ DROP TABLE router_plan;
 DROP TABLE shadow_run;
 
 -- +goose Down
+DELETE FROM notify_state WHERE key = 'watch_only_libraries';
 CREATE TABLE shadow_run (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
     kind         TEXT    NOT NULL,

@@ -1019,3 +1019,24 @@ func AnimeReviews(st *store.Store) Func {
 			Message: fmt.Sprintf("%d anime mapping(s) wait for review in Settings › Anime mappings", n)}
 	}
 }
+
+// WatchOnlyNotice explains the Watch only conversion (migration 00137) once on Status: a notice naming the libraries it
+// converted while Pause is still on. Once Pause is off it shows nothing.
+func WatchOnlyNotice(st *store.Store) Func {
+	return func(ctx context.Context) Result {
+		var names string
+		var paused sql.NullBool
+		err := st.Reader().QueryRowContext(ctx, `SELECT COALESCE((SELECT value FROM notify_state
+			WHERE key = 'watch_only_libraries'), ''), (SELECT json_extract(config, '$.paused') FROM setting_global_switches
+			WHERE key = 'global')`).Scan(&names, &paused)
+		if err != nil {
+			return fail("Settings not readable: %v", err)
+		}
+		if names == "" || !paused.Bool {
+			return Result{Type: OK, Message: "No library waits after the Watch only conversion"}
+		}
+		return Result{Type: Notice, Detail: map[string]any{"libraries": names}, Message: "These libraries were Watch only " +
+			"before 0.4.5: " + names + ". Their titles are now not monitored and Pause was turned on. Monitor what you " +
+			"want in them, then turn Pause off."}
+	}
+}
