@@ -78,6 +78,7 @@ describe("Bulk Remove", () => {
     expect(does).toContain("16 library files are deleted from the library");
     expect(does).toContain("Their debrid torrents are deleted from the providers");
     expect(within(dialog).getByTestId("bulk-remove-skipped").textContent).toBe("Skipped 1 title: in no library.");
+    expect(within(dialog).getByText("Delete them from the debrid providers")).toBeTruthy();
     // The single dialog's two choices, both on; the torrents need the files.
     await user.click(within(dialog).getByTestId("remove-files"));
     expect((within(dialog).getByTestId("remove-debrid") as HTMLInputElement).disabled).toBe(true);
@@ -230,6 +231,14 @@ describe("Bulk Add to a library", () => {
     expect(screen.getByText("1 title not added (Gamma): unknown library.")).toBeTruthy();
     expect(api.calls("PUT", "/titles/2/versions/uhd")[0].body).toEqual({ monitored: true });
     expect(api.requests.filter((r) => r.method !== "GET").map((r) => r.path)).toEqual(["/titles/2/versions/uhd", "/titles/3/versions/uhd", "/titles/5/versions/uhd"]);
+  });
+
+  it("preselects the first library that adds a title, not one every selected title is in", async () => {
+    mockFetch([me(["manage", "add"]), ...routes()]);
+    renderPage(<BulkBar titles={titles.slice(0, 2)} columns={columns} kinds={["movie"]} onClear={() => {}} />);
+    const user = userEvent.setup();
+    await user.click(await within(await bar()).findByRole("button", { name: "Add to a library" }));
+    expect(await screen.findByRole("dialog", { name: "Add 1 title to 4K" })).toBeTruthy();
   });
 });
 

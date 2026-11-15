@@ -153,7 +153,7 @@ export function BulkRemoveDialog({ titles, libraries, onClose, onDone }: { title
         </p>
       ) : null}
       <Choice checked={files} onChange={setFiles} testid="remove-files">Delete the files</Choice>
-      <Choice checked={files && debrid} onChange={setDebrid} disabled={!files} testid="remove-debrid">Delete it from the debrid providers</Choice>
+      <Choice checked={files && debrid} onChange={setDebrid} disabled={!files} testid="remove-debrid">Delete {ids.length === 1 ? "it" : "them"} from the debrid providers</Choice>
       {!files ? <p className="pl-6 text-xs text-[var(--ink-3)]" data-testid="remove-debrid-why">{REMOVAL_DEBRID_NEEDS_FILES}.</p> : null}
       {progress !== null ? <p role="status" className="text-[var(--ink-2)]" data-testid="bulk-progress">Removing {progress + 1} of {scopes.length}…</p> : null}
     </ConfirmDialog>
@@ -181,7 +181,10 @@ export function BulkAddDialog({ titles, kinds, anime, onClose, onDone }: { title
     onClose();
   };
   const loading = movies.isPending && kinds.includes("movie") || series.isPending && kinds.includes("series");
-  const lib = libs.find((v) => v.key === key) ?? libs[0];
+  const inLib = (t: TitleRow, key: string) => (t.versions ?? []).some((v) => v.key === key && v.monitored);
+  // Preselected: the first library that would add at least one of the selected titles.
+  const adds = (v: VersionOption) => titles.some((t) => t.kind === v.kind && !inLib(t, v.key));
+  const lib = libs.find((v) => v.key === key) ?? libs.find(adds) ?? libs[0];
   if (!lib) {
     const error = movies.error ?? series.error;
     return (
@@ -194,7 +197,7 @@ export function BulkAddDialog({ titles, kinds, anime, onClose, onDone }: { title
     );
   }
   const name = lib.label || lib.key;
-  const inIt = (t: TitleRow) => (t.versions ?? []).some((v) => v.key === lib.key && v.monitored);
+  const inIt = (t: TitleRow) => inLib(t, lib.key);
   const wrong = titles.filter((t) => t.kind !== lib.kind);
   const already = titles.filter((t) => t.kind === lib.kind && inIt(t));
   const todo = titles.filter((t) => t.kind === lib.kind && !inIt(t));
