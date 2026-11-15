@@ -72,10 +72,13 @@ const (
 		CASE WHEN MAX(d.type) LIKE 'theatrical%' THEN ` + canonSQL + ` END)`
 )
 
-// FirstReleaseOfSQL is the release-date choice of one type for title title (an SQL expression such as "t.id") as one
-// scalar value, NULL without a date.
-func FirstReleaseOfSQL(title, typ string) string {
-	return `(SELECT x.date FROM (` + FirstReleasesSQL("d.title_id = "+title) + `) x WHERE x.type = '` + typ + `')`
+// FirstReleaseOfTheatricalSQL is the release-date choice's cinema date for title title (an SQL expression such as
+// "t.id") as one scalar value, a flat aggregate over its cinema rows (releaseDatesSQL's theatrical row); NULL without.
+func FirstReleaseOfTheatricalSQL(title string) string {
+	return `(SELECT CASE WHEN MAX(fm.movie_dates_at) IS NOT NULL THEN ` + primarySQL + `
+		ELSE COALESCE(` + canonSQL + `, ` + primarySQL + `) END
+		FROM title_release_date d LEFT JOIN title_meta fm ON fm.title_id = d.title_id
+		WHERE d.title_id = ` + title + ` AND d.type IN ('theatrical', 'theatrical_limited'))`
 }
 
 // FirstReleasesSQL selects title_id, type and date of the release-date choice for the rows cond narrows

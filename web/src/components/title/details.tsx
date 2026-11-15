@@ -128,10 +128,11 @@ export function idLabel(source: string): string {
 }
 
 /** The rows behind the release-date choice the calendar, Home and the lists use: a refreshed title's primary release
- *  (one country, named once under the table), else the arrs' dates. */
+ *  (one country, named once under the table; a country-less cinema row beside it is the first cinema date anywhere,
+ *  marked "first release"), else the arrs' dates. */
 function ReleaseDates({ rows }: { rows: ReleaseDate[] }) {
   if (rows.length === 0) return <Card><Empty>No release dates.</Empty></Card>;
-  const countries = [...new Set(rows.map((r) => r.country).filter(Boolean))];
+  const country = rows.find((r) => r.country)?.country;
   return (
     <Card className="p-0" data-testid="release-dates">
       <Table density="dense">
@@ -142,13 +143,16 @@ function ReleaseDates({ rows }: { rows: ReleaseDate[] }) {
           {rows.map((r, i) => (
             <TableRow key={i}>
               <TableCell className="whitespace-nowrap">{fmtDayYear(r.date)}</TableCell>
-              <TableCell title={r.type}>{releaseTypeWords(r.type)}</TableCell>
+              <TableCell title={r.type}>
+                {releaseTypeWords(r.type)}
+                {country && r.source === "tmdb-art" ? <span className="text-muted-foreground"> · first release, not {country}</span> : null}
+              </TableCell>
               <TableCell className="hidden sm:table-cell" title={r.source}>{releaseSourceWords(r.source)}</TableCell>
             </TableRow>
           ))}
         </TableBody>
       </Table>
-      {countries.length ? <p className="border-t border-[var(--line)] px-3 py-2 text-xs text-muted-foreground" data-testid="release-dates-country">Release in {countries.join(", ")}</p> : null}
+      {country ? <p className="border-t border-[var(--line)] px-3 py-2 text-xs text-muted-foreground" data-testid="release-dates-country">{country} dates{rows.some((r) => r.source === "tmdb-art") ? ", except the first release" : ""}</p> : null}
     </Card>
   );
 }

@@ -449,7 +449,7 @@ func (g TitleGridFilter) orderBy() (string, []any) {
 	case "release":
 		// What the Release date cell shows: a movie's first cinema date of the release-date choice, else TMDb's date;
 		// an undated title (the cell "—") sorts last.
-		expr = "COALESCE(CASE WHEN t.kind = 'movie' THEN " + activity.FirstReleaseOfSQL("t.id", "theatrical") +
+		expr = "COALESCE(CASE WHEN t.kind = 'movie' THEN " + activity.FirstReleaseOfTheatricalSQL("t.id") +
 			" END, NULLIF(m.release_date, ''))"
 	case "rating":
 		expr = "CASE WHEN m.rating_votes > 0 THEN m.rating END"

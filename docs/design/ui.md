@@ -222,7 +222,8 @@ episode window, cell tooltips, the Libraries table and Why?.
   release date (**Releases** while still to come). On the Calendar a movie's cinema date alone is never Missing;
   joined with a digital or disc date of the same day it is. Only the primary country's TMDb rows are stored
   (`title_release_date`, source `tmdb`); Details › Release dates lists them (with the arrs' rows for a title not
-  refreshed), the country named once under the table.
+  refreshed), the country named once under the table; a refreshed title's cinema date taken from the first release
+  anywhere is marked "first release, not US".
   Display only: what may be fetched reads `availability.Dates` (the `tmdb-art` schedule, `tmdb.ReleaseSchedule`) and
   `home_release` (above), unchanged; the arr-compatible API's dates are those too.
 - **Added and Latest file**: **Added** is the day the title was added to Theatarr (lists' Added column and sort,
@@ -428,7 +429,7 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   to Theatarr"); **On disk** counts a file two libraries share once. About's Files inventory includes old-manager
   files (with their instance) and active native library links (with their size, no instance word), deduplicated by
   path. Release dates list the primary release's stored rows (Library and activity
-  pages, Release dates), the country named once under the table; type and source in words, the raw value as tooltip.
+  pages, Release dates), the country named once under the table and a fallback cinema date marked first release; type and source in words, the raw value as tooltip.
   Old `?tab=seasons|details` links open Episodes and About; `?tab=versions|copies` open the first tab.
 - **Minimum availability and series type.** A movie's Libraries table shows **Minimum availability** (a column, or
   the row's Details when the column is hidden), the value in
