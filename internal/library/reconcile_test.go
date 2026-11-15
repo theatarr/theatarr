@@ -13,43 +13,7 @@ import (
 	"github.com/theatarr/theatarr/internal/policy"
 )
 
-// An upgrade that moves the arr's file aside drops its version_file row, as the arr deletes the
-// file it upgrades: a later removal of the new link then leaves the version wanted, not filled by a phantom.
-func TestUpgradeRetiresArrFile(t *testing.T) {
-	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
-	e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
-	e.release("Old.Release", map[string]float64{"old.mkv": 7000})
-	folder := filepath.Join(e.movies, "Amelie The Movie (2001)")
-	old := filepath.Join(folder, "Amelie The Movie (2001) - old.mkv")
-	if err := os.MkdirAll(folder, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Symlink(filepath.Join(e.mount, "__all__", "Old.Release", "old.mkv"), old); err != nil {
-		t.Fatal(err)
-	}
-	e.exec(`INSERT INTO version_file (id, version_id, title_id, instance, arr_file_id, path) VALUES (5, 10, 1, 'radarr', 1, ?)`, old)
-	e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
-	plan, err := e.lib.Import(e.ctx, 1, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if n := e.one(`SELECT COUNT(*) FROM version_file`); n != "0" {
-		t.Fatalf("arr file rows left: %s", n)
-	}
-	var linkID int64
-	if err := e.st.Reader().QueryRowContext(e.ctx, `SELECT id FROM link WHERE path = ?`, plan.Links[0].Path).Scan(&linkID); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := e.lib.Unlink(e.ctx, "movie-remux", plan.Links[0].Path, linkID, "test"); err != nil {
-		t.Fatal(err)
-	}
-	if got := e.one(`SELECT state FROM version WHERE id = 10`); got != "wanted" {
-		t.Fatalf("state after the new link went: %s, want wanted", got)
-	}
-}
-
-// A partial upgrade keeps the multi-episode arr file and both episodes' states.
+// A partial upgrade keeps the multi-episode adopted file and both episodes' states.
 func TestUpgradeRetiresArrEpisodeFile(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, true, policy.ModeActive)
@@ -63,8 +27,7 @@ func TestUpgradeRetiresArrEpisodeFile(t *testing.T) {
 	if err := os.Symlink(filepath.Join(e.mount, "__all__", "Old", "old.mkv"), old); err != nil {
 		t.Fatal(err)
 	}
-	e.exec(`INSERT INTO version_file (id, version_id, title_id, instance, arr_file_id, path) VALUES (6, 20, 2, 'sonarr', 1, ?)`, old)
-	e.exec(`INSERT INTO version_file_episode (version_file_id, episode_id) VALUES (6, 201), (6, 202)`)
+	e.adoptedFile(906, 20, 2, old, filepath.Join(e.mount, "__all__", "Old", "old.mkv"), "", "", 201, 202)
 	e.exec(`INSERT INTO episode_version_state (version_id, episode_id, monitored, state, cutoff_met, updated_at)
 		VALUES (20, 201, 1, 'filled', 0, 0), (20, 202, 1, 'filled', 0, 0)`)
 	e.exec(`UPDATE version SET state = 'filled' WHERE id = 20`)
@@ -72,7 +35,7 @@ func TestUpgradeRetiresArrEpisodeFile(t *testing.T) {
 	if _, err := e.lib.Import(e.ctx, 1, false); err != nil {
 		t.Fatal(err)
 	}
-	if n := e.one(`SELECT COUNT(*) FROM version_file`); n != "1" {
+	if n := e.one(`SELECT COUNT(*) FROM link WHERE id = 906 AND state = 'active'`); n != "1" {
 		t.Fatalf("arr episode file removed: %s", n)
 	}
 	if _, err := os.Readlink(old); err != nil {

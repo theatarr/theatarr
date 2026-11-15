@@ -28,7 +28,7 @@ type linkedFile struct {
 type trashed struct {
 	version, path, trashPath, target, reason string
 	linkPath                                 string // the new link that replaced it
-	linkID                                   int64  // the replaced link's row (0: an arr file, or found by path)
+	linkID                                   int64  // the replaced link's row (0: found by path)
 }
 
 // apply writes the plan: links, the trash copies of what they replace, the registry rows, the download's state,
@@ -422,11 +422,6 @@ func (l *Library) apply(ctx context.Context, d *importDownload, vn *VersionNamin
 					return err
 				}
 			}
-			if m.path != m.linkPath {
-				if err := retireArrFile(ctx, tx, v.VersionID, m.path, now); err != nil {
-					return err
-				}
-			}
 			if _, err := tx.ExecContext(ctx, `INSERT INTO link_trash (link_id, version_key, path, trash_path, target, reason, moved_at)
 				VALUES (?, ?, ?, ?, ?, ?, ?)`, oldID, m.version, m.path, m.trashPath, m.target, m.reason, now); err != nil {
 				return err
@@ -439,9 +434,6 @@ func (l *Library) apply(ctx context.Context, d *importDownload, vn *VersionNamin
 		for _, m := range gone {
 			if m.path == m.linkPath {
 				continue
-			}
-			if err := retireArrFile(ctx, tx, v.VersionID, m.path, now); err != nil {
-				return err
 			}
 			linkID := m.linkID
 			if linkID == 0 {
@@ -538,47 +530,6 @@ func (l *Library) apply(ctx context.Context, d *importDownload, vn *VersionNamin
 		l.onImported(octx, d.ID)
 	}
 	return nil
-}
-
-// retireArrFile drops the arr's file row (version_file) at path once an import moved that file aside, as the arr
-// deletes its MovieFile/EpisodeFile on an upgrade (UpgradeMediaFileService): the arr API, decide and the wanted
-// state stop seeing a file that is no longer in the library. Its file-id aliases go with it, and episodes it held
-// that the new links do not cover are wanted again.
-func retireArrFile(ctx context.Context, tx *sql.Tx, versionID int64, path string, now int64) error {
-	rows, err := tx.QueryContext(ctx, `SELECT vf.id, fe.episode_id FROM version_file vf
-		LEFT JOIN version_file_episode fe ON fe.version_file_id = vf.id
-		WHERE vf.version_id = ? AND vf.path = ? ORDER BY vf.id`, versionID, path)
-	if err != nil {
-		return err
-	}
-	var ids, episodes []int64
-	for rows.Next() {
-		var id int64
-		var ep sql.NullInt64
-		if err := rows.Scan(&id, &ep); err != nil {
-			rows.Close()
-			return err
-		}
-		if len(ids) == 0 || ids[len(ids)-1] != id {
-			ids = append(ids, id)
-		}
-		if ep.Valid {
-			episodes = append(episodes, ep.Int64)
-		}
-	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
-		return err
-	}
-	for _, id := range ids {
-		if _, err := tx.ExecContext(ctx, `DELETE FROM version_file WHERE id = ?`, id); err != nil {
-			return err
-		}
-	}
-	if len(episodes) == 0 {
-		return nil
-	}
-	return episodesLostFile(ctx, tx, versionID, episodes, now)
 }
 
 // recordFile keeps the episode identity a linked file was imported with (download_file, source import), so a retry

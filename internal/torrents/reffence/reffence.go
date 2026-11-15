@@ -3,7 +3,7 @@
 // A delete of a torrent a person chose checks the torrent's usage once more right before the provider's delete; a
 // reference written between that check and the provider's answer would point at a torrent that is going. The
 // writers of the references the check reads hold this fence around their database write: a library link made or
-// pointed at a new target (an import, a manual import, adopt, a relink), and the arr import's files (version_file).
+// pointed at a new target (an import, a manual import, adopt, a relink).
 // Routes and polls (downloads) are kept apart by the router's add lock, which the deletes hold too.
 //
 // In one process the fence is a read-write lock: a writer holds it shared around its whole write transaction, a

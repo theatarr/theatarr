@@ -217,12 +217,12 @@ func (e *env) seed(t *testing.T, films ...movieDef) {
 		e.exec(t, `INSERT INTO version (id, title_id, policy_key, monitored, state, created_at, updated_at) VALUES
 			(?, ?, 'movie-web', 1, 'wanted', ?, ?), (?, ?, 'movie-remux', 1, ?, ?, ?)`, m.id, m.id, at, at, m.id+4, m.id, remux, at, at)
 		if m.id == dune.id {
-			e.exec(t, `INSERT INTO version_file (version_id, title_id, instance, arr_file_id, path, relative_path, size_bytes,
-				quality, quality_revision, release_group, scene_name, languages, cutoff_not_met, added_at, release_title)
-				VALUES (?, ?, 'test', 11, '/movies/Dune/x.mkv', 'Dune Part Two (2024) [WEBDL-2160p]-FLUX.mkv', 26843545600,
-				'WEBDL-2160p', 1, 'FLUX', ?, '["English"]', 1, ?, ?)`, m.id+4, m.id,
-				"Dune.Part.Two.2024.2160p.MA.WEB-DL.DDP5.1-FLUX", store.Millis(time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)),
-				"Dune.Part.Two.2024.2160p.MA.WEB-DL.DDP5.1-FLUX")
+			e.exec(t, `INSERT INTO link (id, path, target, title_id, release_title, quality, file_metadata, created_at,
+				updated_at) VALUES (11, '/movies/Dune/x.mkv', '/zurg/Dune/x.mkv', ?, ?, 'WEBDL-2160p', ?, ?, ?)`, m.id,
+				"Dune.Part.Two.2024.2160p.MA.WEB-DL.DDP5.1-FLUX",
+				`{"Quality":"WEBDL-2160p","Revision":1,"ReleaseGroup":"FLUX","SceneName":"Dune.Part.Two.2024.2160p.MA.WEB-DL.DDP5.1-FLUX","Languages":["English"],"Size":26843545600,"RelativePath":"Dune Part Two (2024) [WEBDL-2160p]-FLUX.mkv"}`,
+				store.Millis(time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)), store.Millis(time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)))
+			e.exec(t, `INSERT INTO link_version (link_id, version_id) VALUES (11, ?)`, m.id+4)
 		}
 	}
 }
@@ -257,12 +257,14 @@ func (e *env) seedShow(t *testing.T) {
 		e.exec(t, `INSERT INTO episode_version_state (version_id, episode_id, monitored, state, cutoff_met, updated_at)
 			VALUES (9, ?, 1, ?, 0, ?)`, n, state, at)
 	}
-	e.exec(t, `INSERT INTO version_file (id, version_id, title_id, instance, arr_file_id, path, relative_path, size_bytes,
-		quality, quality_revision, release_group, scene_name, languages, cutoff_not_met, added_at, release_title, release_type)
-		VALUES (2, 9, 5, 'test', 90, '/media/shows/The Show/Season 01/The Show S01E01.mkv', 'Season 01/The Show S01E01.mkv',
-		8000000000, 'HDTV-2160p', 1, 'GRP', 'The.Show.S01E01.2160p.HDTV-GRP', '[]', 1, ?, 'The.Show.S01E01.2160p.HDTV-GRP',
-		'singleEpisode')`, store.Millis(time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)))
-	e.exec(t, `INSERT INTO version_file_episode (version_file_id, episode_id) VALUES (2, 1)`)
+	at = store.Millis(time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC))
+	e.exec(t, `INSERT INTO link (id, path, target, title_id, release_title, quality, file_metadata, created_at,
+		updated_at) VALUES (2, '/media/shows/The Show/Season 01/The Show S01E01.mkv', '/zurg/Show/e1.mkv', 5,
+		'The.Show.S01E01.2160p.HDTV-GRP', 'HDTV-2160p', ?, ?, ?)`,
+		`{"Quality":"HDTV-2160p","Revision":1,"ReleaseGroup":"GRP","SceneName":"The.Show.S01E01.2160p.HDTV-GRP","Languages":[],"Size":8000000000,"RelativePath":"Season 01/The Show S01E01.mkv","ReleaseType":"singleEpisode"}`,
+		at, at)
+	e.exec(t, `INSERT INTO link_version (link_id, version_id) VALUES (2, 9)`)
+	e.exec(t, `INSERT INTO link_episode (link_id, episode_id) VALUES (2, 1)`)
 }
 
 func (e *env) exec(t *testing.T, q string, args ...any) {

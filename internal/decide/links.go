@@ -56,7 +56,7 @@ func LinkedFile(kind policy.Kind, rel Release, quality string) *ExistingFile {
 	return f
 }
 
-// loadLinks reads active links in replacement order. Negative file ids distinguish links from arr file ids.
+// loadLinks reads active links in replacement order. File ids are the negative link ids.
 func loadLinks(ctx context.Context, db *sql.DB, versionID int64) (map[int64]*ExistingFile, []int64, error) {
 	rows, err := db.QueryContext(ctx, `SELECT l.id, l.file_metadata, t.kind, COALESCE(l.release_title, ''),
 		COALESCE(l.quality, ''), l.path, l.target, COALESCE(cf.size_bytes, 0), COALESCE(c.info_hash, ''),

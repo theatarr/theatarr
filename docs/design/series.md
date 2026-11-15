@@ -10,9 +10,8 @@ releases as Sonarr does, and RSS reads series feeds for Live libraries. Where th
 
 The one-time import (Admin › Import from Sonarr/Radarr, `internal/arrimport`) reads a Sonarr's series, episodes and
 episode files (GET only) and adds them to a library through the normal add and link paths
-([migration.md](../migration.md)). The periodic import that kept `arr_title`, `version_file` and `arr_alias` rows in
-step with a Sonarr is gone, and migration 00125 dropped its tables; the `version_file` rows it left stay as the
-library's files.
+([migration.md](../migration.md)). The periodic import that kept arr rows in step
+with a Sonarr is gone: migration 00125 dropped its tables, and 00134 turned the file rows it left into adopted links.
 
 ### Series type
 
@@ -22,7 +21,7 @@ A series has one type (standard, daily or anime), the same for every library and
   the title's value; when it is empty, `anime` if the title's anime flag is set, else `standard`. The arr's own type
   is not read (migration 00121 copied it onto titles without one).
 - **Readers.** All of them read the resolver: decisions and search style (`decide.LoadTitle`, `LoadSeries`),
-  import naming (`library` `completeDownload`), `checkNames`, the one-time import's adoption, rename preview, reassign,
+  import naming (`library` `completeDownload`), the one-time import's adoption, rename preview, reassign,
   now-playing's next episode, the anime-library filter of acquisition (the flag or the type), the TV metadata
   refresh (anime series take TVDB only) and the Sonarr views (resource and webhooks). The per-instance imported
   type no longer overrides the title's value for a version: an install whose imported types differ per instance,

@@ -74,7 +74,7 @@ Discord and ntfy targets (`format: discord` or `format: ntfy`, docs/design/devic
 
 | Route | What |
 |---|---|
-| `GET titles/{id}` | per version `upgrade` (state, quality, score, cutoff, below/seen counts, next, last search) and `control` (mode, can_edit, can_search with reasons, live_releases); a movie file's `current.media`: for the version's newest active link, Theatarr's own probe stored at import (`content_file.probe`, formatted as the arrs format theirs), else for an adopted link the media info its arr had recorded (`link.adopted_media`, 00117); the arr file's `media_info` only when the version has no active link |
+| `GET titles/{id}` | per version `upgrade` (state, quality, score, cutoff, below/seen counts, next, last search) and `control` (mode, can_edit, can_search with reasons, live_releases); a movie file's `current.media`: for the version's newest active link, Theatarr's own probe stored at import (`content_file.probe`, formatted as the arrs format theirs), else for an adopted link the media info its arr had recorded (`link.adopted_media`, 00117) |
 | `GET titles`, `discover` | `upgrade_seen` per row and version; the Home row `upgrades` lists only titles with an upgrade found (seen), its notes say "upgrade found" |
 | `GET titles/{id}/episodes` | per version `control` and `cutoff`; per season and version `below_cutoff`, `upgrade_seen`, `monitored`, `quality`, `size_bytes`, `score`; per cell `upgrade_seen` |
 | `GET titles/{id}/episodes/{eid}` | the episode drawer: per version state, upgrade, control, file (release, quality, score, size, media, path; `media` of a link as for `current.media`), history, journal entries |

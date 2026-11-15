@@ -43,7 +43,7 @@ Sources (Admin › Connections) and Saved inventory read it instead of the provi
 
 The usage (below) is worked out once after each provider sync (the scheduled job and its retries), after a delete
 and after an account change in Settings, by one background worker of `theatarr serve` outside the job queue (a
-pending signal, so a burst of syncs gives one run, and one run at a time), and by Refresh itself before it answers, from the reference index (library links, arr files, downloads in flight, the scan roots' symlinks, the
+pending signal, so a burst of syncs gives one run, and one run at a time), and by Refresh itself before it answers, from the reference index (library links, downloads in flight, the scan roots' symlinks, the
 mount's listing; `loadRefs`, `StoreUsage`), and stored with the record: per account torrent (`usage`,
 `linked_files`, and the shown file count, references, titles and reasons in `detail`) and per hash
 (`provider_hash_usage`). So "used" is as of the newest sync or Refresh (not always an account's `as_of`, which is when
@@ -70,7 +70,7 @@ Each torrent on Real-Debrid, AllDebrid and TorBox is one of:
 
 | Usage | When |
 |---|---|
-| **used** | a file of it is referenced: a library link of Theatarr (active or dead; by the content's or the download's hash, the hash in the link's file metadata, the adopted source's hash of an adopted link, or the mount folder its target names; a hash stored in base32 counts as its hex form), a current arr file (arr import: the content tied to it, else the arr's download id), a download that is queued or in flight (`queued`, `adding`, `added`, `downloading`, `ready`, `importing`), or a symlink into the debrid mount under one of `torrents.scan_roots`. The report lists which references (up to 20) and counts them all |
+| **used** | a file of it is referenced: a library link of Theatarr (active or dead; by the content's or the download's hash, the hash in the link's file metadata, the adopted source's hash of an adopted link, or the mount folder its target names; a hash stored in base32 counts as its hex form), a download that is queued or in flight (`queued`, `adding`, `added`, `downloading`, `ready`, `importing`), or a symlink into the debrid mount under one of `torrents.scan_roots`. The report lists which references (up to 20) and counts them all |
 | **unknown** | Theatarr lacks the data: the provider was never listed completely by the registry sync, the hash is not in the registry yet (added since the last sync), a scan root could not be read, `torrents.scan_roots` is set without `library.mount`, library links could not be tied to a torrent, or the torrent has no v1 hash. The reasons are listed. Never offered as unused |
 | **unused** | every file is unreferenced and none of the above applies |
 
@@ -105,7 +105,7 @@ torrents:
 name, size, added date, status, selected file count (`-1` when the list gives none and the registry has no files),
 linked file count (library and scanned links), usage with references or reasons, and whether Theatarr's router added
 it (a Theatarr download with this provider id that did not reuse an existing torrent). Each reference of a library
-link, arr file or download names its title (`title_id`, `title`); `titles` lists the distinct titles of all the
+link or download names its title (`title_id`, `title`); `titles` lists the distinct titles of all the
 references, also those past the listed 20, read with the references themselves (no extra query). Groups:
 
 - **unused**;
@@ -258,7 +258,7 @@ or an admin's API key, which confirms like a session, as with settings; the toke
 7. **A last usage check per torrent**, right before its own delete (after the 250 ms pacing wait), under the
    router's add lock (`Router.AddLock`), which each delete holds from that check until the provider answered: a torrent a route reused
    or re-added while the backup ran (on AllDebrid an add of a hash on the account hands back the same magnet), or
-   that a link or arr file references by now (also one written while the earlier deletes of the batch ran), no longer
+   that a link references by now (also one written while the earlier deletes of the batch ran), no longer
    matches the confirmed usage and is skipped ("preview again"); no route adds between a torrent's check and its delete (`TestDeleteRechecksUsageAfterTheBackup`, `TestDeleteRechecksEachItemBeforeItsDelete`). The scan roots are
    walked once after the backup; the references Theatarr writes are read again for every torrent, only the rows that
    torrent's usage can see (its hash, its release folders, and the links with no hash), in the same order as the
@@ -310,10 +310,10 @@ explicit request (owner, after looking at how DMM and zurg delete), so every ent
 provider is taken, whoever added it; the guard is Theatarr's own usage only. It is the same delete with these
 differences:
 
-- **The candidates** are the hashes of the removed copies' links (active or dead), their arr files and their
-  downloads not failed, read before the removal, each with the removed libraries it belongs to. A hash a link that
-  stayed names (refused, failed, shared with a current library, not a symlink), one sharing a staying link's target,
-  or an arr file left names is dropped; a staying link or arr file with no hash drops every candidate of its library.
+- **The candidates** are the hashes of the removed copies' links (active or dead) and their downloads not failed,
+  read before the removal, each with the removed libraries it belongs to. A hash a link that stayed names (refused,
+  failed, shared with a current library, not a symlink) or one sharing a staying link's target is dropped; a staying
+  link with no hash drops every candidate of its library.
   The shared check is made again right before each unlink.
 - **A removed library restored** (an Add) since keeps its torrents ("restored before the clean-up ran"): checked
   first, and again right before each delete under the fence (the deletes are paced, so a restore can land between
@@ -345,7 +345,7 @@ differences:
   `TestDeleteForRemovalKeepsARestoredLibrary`, `TestDeleteForRemovalSaysWhatItLeftOver`).
 
 A removal also stops, once and at the removal, queued copies to other providers that no current copy of any title
-wants (a download in hand, an active link or an arr file of a version not removed, or a current link to the same
+wants (a download in hand, an active link of a version not removed, or a current link to the same
 file; hashes compared in hex and base32). A copy already adding is left to settle; a torrent it leaves shows under
 Torrents › Not used by Theatarr, and a copy asked later is added as any other. With the files kept, nothing on a
 provider is deleted because of the removal: a copy settling later deletes only its own incomplete new add on the other
@@ -403,8 +403,7 @@ account (`absent`); Removed (`gone`); Not known yet (`unknown`). The state filte
 linked; or that no account holds it; worked out again after each read or Refresh, as on Torrents), **Imports** only when Theatarr recorded any, **Providers** with a header row
 (Provider, Name, Torrent id, First seen), the RD/AD/TB tag and "gone since <date>" for an account that no longer holds
 it, **Add to other providers** from an account that holds it (the Torrents row's action) with the hash's copies read when the entry opens and polled while one is unfinished (a copy that ends added reads
-the entry again, so Providers lists the new holder), **Arr files** only when there
-are any, and files. **System › Backup** holds torrent-list backups: **Back up
+the entry again, so Providers lists the new holder), and files. **System › Backup** holds torrent-list backups: **Back up
 now**, import (Theatarr or DMM, to a chosen provider), the list with download (Theatarr or DMM format) and **Restore…**
 with its preview. A row's expanded area has **Add to other providers** (router.md "Copies to other providers":
 `POST /torrents/copy`; disabled with the Pause words while paused), with an **Other providers:** line for the copies

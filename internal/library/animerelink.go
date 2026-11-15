@@ -235,23 +235,17 @@ func (l *Library) relinkAnime(ctx context.Context, tvdbID int) (*AnimeRelinked, 
 }
 
 // episodeHolders are the other files of the version that hold one of the candidate's target episodes: Theatarr's
-// active links and the arr's files.
+// active links.
 func (l *Library) episodeHolders(ctx context.Context, c *relinkCandidate) ([]string, error) {
 	in := store.Placeholders(len(c.to))
 	args := []any{c.versionID, c.linkID}
 	for _, id := range c.to {
 		args = append(args, id)
 	}
-	args = append(args, c.versionID)
-	for _, id := range c.to {
-		args = append(args, id)
-	}
 	var out []string
 	err := scanRows(ctx, l.st.Reader(), `SELECT DISTINCT l.path FROM link l JOIN link_version lv ON lv.link_id = l.id
 		JOIN link_episode le ON le.link_id = l.id WHERE lv.version_id = ? AND l.state = 'active' AND l.id <> ?
-		AND le.episode_id IN (`+in+`)
-		UNION SELECT DISTINCT vf.path FROM version_file vf JOIN version_file_episode fe ON fe.version_file_id = vf.id
-		WHERE vf.version_id = ? AND fe.episode_id IN (`+in+`) ORDER BY 1`, args, func(r *sql.Rows) error {
+		AND le.episode_id IN (`+in+`) ORDER BY 1`, args, func(r *sql.Rows) error {
 		var p string
 		err := r.Scan(&p)
 		out = append(out, p)

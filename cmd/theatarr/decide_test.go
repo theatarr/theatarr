@@ -64,8 +64,11 @@ func decideFixture(t *testing.T, vpnIP string) (policyDir, db string) {
 	for _, q := range []string{
 		`INSERT INTO title (id, kind, name, year, tmdb_id, imdb_id, runtime_minutes, created_at, updated_at) VALUES (7, 'movie', 'Dune: Part Two', 2024, 693134, 'tt15239678', 166, 0, 0)`,
 		`INSERT INTO version (id, title_id, policy_key, state, created_at, updated_at) VALUES (3, 7, 'movie-remux', 'filled', 0, 0)`,
-		`INSERT INTO version_file (version_id, title_id, instance, arr_file_id, path, relative_path, size_bytes, quality, release_group, scene_name, languages)
-		 VALUES (3, 7, 'radarr_4k_debrid', 1, '/m/Dune.mkv', 'Dune Part Two (2024) [WEBDL-2160p]-FLUX.mkv', 26843545600, 'WEBDL-2160p', 'FLUX', 'Dune.Part.Two.2024.2160p.MA.WEB-DL.DDP5.1-FLUX', '["English"]')`,
+		`INSERT INTO link (id, path, target, kind, title_id, release_title, quality, file_metadata, adopted_from, state, created_at, updated_at)
+		 VALUES (1, '/m/Dune.mkv', '/m/Dune.mkv', 'symlink', 7, 'Dune.Part.Two.2024.2160p.MA.WEB-DL.DDP5.1-FLUX', 'WEBDL-2160p',
+		 '{"Quality":"WEBDL-2160p","Revision":1,"SceneName":"Dune.Part.Two.2024.2160p.MA.WEB-DL.DDP5.1-FLUX","RelativePath":"Dune Part Two (2024) [WEBDL-2160p]-FLUX.mkv","ReleaseGroup":"FLUX","Languages":["English"],"Size":26843545600}',
+		 'radarr_4k_debrid /m/Dune.mkv', 'active', 0, 0)`,
+		`INSERT INTO link_version (link_id, version_id) VALUES (1, 3)`,
 	} {
 		if _, err := st.Writer().ExecContext(ctx, q); err != nil {
 			t.Fatalf("%s: %v", q, err)

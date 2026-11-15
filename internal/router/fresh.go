@@ -531,8 +531,8 @@ func (r *Router) routeProfile(vp *policy.VersionPolicy) (*routeProfile, error) {
 }
 
 // currentFilesNow is currentFiles with the first file's custom format score recalculated under the version's running
-// profile, as the decision engine compares an existing file: a score stored at import (link.score,
-// version_file.custom_format_score) is the old profile's, and after a profile or TRaSH score change it would refuse
+// profile, as the decision engine compares an existing file: a score stored at import (link.score) is the old
+// profile's, and after a profile or TRaSH score change it would refuse
 // an upgrade the decision accepted. Without the decision engine's profiles (a CLI route, tests) or when the file's
 // inputs cannot be scored, the stored score stands.
 func (r *Router) currentFilesNow(ctx context.Context, s *routeState, episodes []int64) (itemFiles, error) {
@@ -633,23 +633,17 @@ func (r *Router) fileScores(ctx context.Context, s *routeState) (map[int64]int64
 	return out, nil
 }
 
-// freshEpisodeFiles batches the episode intent and current-file reads for one title/version. Active links win
-// over arr files; within each source the latest file wins, as currentFiles does. Only monitored, present episodes
+// freshEpisodeFiles batches the episode intent and current-file reads for one title/version: the latest active link
+// wins, as currentFiles does. Only monitored, present episodes
 // enter the snapshot, including those with no file. Scores are refreshed lazily from the running profile.
 func (r *Router) freshEpisodeFiles(ctx context.Context, s *routeState) (map[int64]itemFiles, error) {
 	rows, err := r.st.Writer().QueryContext(ctx, `WITH files AS (
-  SELECT fe.episode_id, vf.quality, vf.quality_revision AS revision, 0 AS real, vf.custom_format_score AS score,
-   COALESCE(vf.added_at, 0) AS at, 0 AS linked, vf.id
-  FROM version_file vf JOIN version_file_episode fe ON fe.version_file_id = vf.id
-  LEFT JOIN version_source vs ON vs.version_id = vf.version_id
-  WHERE vf.version_id = ?1 AND vf.title_id = ?2 AND (vs.instance IS NULL OR vs.instance = vf.instance)
-  UNION ALL
-  SELECT le.episode_id, COALESCE(l.quality, ''), COALESCE(json_extract(l.file_metadata, '$.Revision'), 0),
-   COALESCE(json_extract(l.file_metadata, '$.Real'), 0), l.score, l.created_at, 1, l.id
+  SELECT le.episode_id, COALESCE(l.quality, '') AS quality, COALESCE(json_extract(l.file_metadata, '$.Revision'), 0) AS revision,
+   COALESCE(json_extract(l.file_metadata, '$.Real'), 0) AS real, l.score AS score, l.created_at AS at, l.id
   FROM link l JOIN link_version lv ON lv.link_id = l.id JOIN link_episode le ON le.link_id = l.id
   WHERE lv.version_id = ?1 AND l.title_id = ?2 AND l.state = 'active'
  ), ranked AS (
-  SELECT *, ROW_NUMBER() OVER (PARTITION BY episode_id ORDER BY linked DESC, at DESC, id DESC) AS rank FROM files
+  SELECT *, ROW_NUMBER() OVER (PARTITION BY episode_id ORDER BY at DESC, id DESC) AS rank FROM files
  ) SELECT e.id, f.quality, f.revision, f.real, f.score, f.at
  FROM episode e LEFT JOIN episode_version_state s ON s.episode_id = e.id AND s.version_id = ?1
  LEFT JOIN ranked f ON f.episode_id = e.id AND f.rank = 1

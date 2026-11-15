@@ -101,7 +101,7 @@ type HistoryPage struct {
 
 // The title of a library action (alias la).
 const libTitleSQL = `COALESCE(la.title_id, (SELECT title_id FROM download WHERE id = la.download_id),
-	(SELECT title_id FROM link WHERE id = la.link_id), (SELECT vf.title_id FROM version_file vf WHERE vf.path = la.path LIMIT 1), 0)`
+	(SELECT title_id FROM link WHERE id = la.link_id), 0)`
 
 // The link row that still holds an action's file facts, when the action recorded none: a replaced file's unlinked row
 // (not taken over since), an adoption's still adopted row, a dead link's still dead row; NULL when none.

@@ -118,7 +118,7 @@ func planSeriesReplacements(plan *Plan, existing []existingFile) {
 // imports refuse a file that is "Not an upgrade for existing episode file(s)". A season pack accepted because one
 // episode was missing (every series library's pack rule) so fills that episode and upgrades only the files it betters.
 //
-// The current files are the ones the decision compares with: per episode, the active link, else the arr's file
+// The current files are the ones the decision compares with: per episode, the active link
 // (decide.LoadEpisodes); for a movie, decide.LoadExisting. A link already pointing at the file is the same file and
 // needs no check (a retried or repeated import). A client's explicit files (manual import) are not checked, as the
 // arrs' ManualImport executes its choices without the import specifications.
@@ -137,7 +137,7 @@ type upgradeCheck struct {
 }
 
 type heldFile struct {
-	id   int64 // minus the link id for a link, else the version_file id
+	id   int64 // minus the link id
 	file *decide.ExistingFile
 }
 

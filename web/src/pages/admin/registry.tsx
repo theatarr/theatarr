@@ -27,7 +27,7 @@ import { ApiError } from "@/api/client";
 import { torrentsLink } from "@/lib/admin-links";
 
 /** The inventory's own states (content.state, docs/design/providers.md) in words that claim no more than the state
- *  proves: "present" is also set by a copy, so it reads plain "Held"; "unreferenced" means no import, arr file or link
+ *  proves: "present" is also set by a copy, so it reads plain "Held"; "unreferenced" means no import or link
  *  is recorded with it. Whether anything uses the torrent is the Used column. */
 const STATE_WORDS: Record<string, string> = {
   present: "Held",
@@ -37,7 +37,7 @@ const STATE_WORDS: Record<string, string> = {
   unknown: "Not known yet",
 };
 const STATES = ["", "present", "unreferenced", "absent", "gone", "unknown"];
-const STATE_HELP = "The saved inventory's own state. No import recorded: no Theatarr import, arr file or link is recorded with this torrent. Whether anything uses it is the Used column.";
+const STATE_HELP = "The saved inventory's own state. No import recorded: no Theatarr import or link is recorded with this torrent. Whether anything uses it is the Used column.";
 const HASH = /^[0-9a-fA-F]{40}$/;
 
 function StateBadge({ s }: { s?: string }) {

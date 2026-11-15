@@ -5,7 +5,7 @@
 // # Usage
 //
 // A torrent is used when any of its files is referenced: an active or dead library link of Theatarr (by the content's or
-// the download's hash, or by the mount folder its target names), a current arr file (arr import), a download that
+// the download's hash, or by the mount folder its target names), a download that
 // is queued or in flight, or a symlink into the debrid mount under one of torrents.scan_roots (libraries other tools
 // manage). It is unknown when Theatarr lacks the data: the provider was never listed completely, the hash is not in the
 // registry yet, a scan root could not be read, or library links could not be tied to a torrent. Only the rest is

@@ -29,7 +29,6 @@ const (
 	hD = "dddddddddddddddddddddddddddddddddddddddd"
 	hE = "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
 	hF = "ffffffffffffffffffffffffffffffffffffffff"
-	hG = "1111111111111111111111111111111111111111"
 	hH = "2222222222222222222222222222222222222222"
 	hX = "3333333333333333333333333333333333333333"
 )
@@ -84,8 +83,8 @@ type fixture struct {
 //   - 12 c.mkv (hC): shared by Gone's two copies;
 //   - 13 d.mkv (hD): the gate refuses it; 14 e.mkv (hE): its move fails; 15 f.mkv (hF): a hardlink.
 //
-// Other links hA too (a torrent shared with another title). Gone's web copy has an arr file at a.mkv (hA) and one at
-// an arr path no link has (hG), a download in flight (hH, a fresh add) and a failed one (hX).
+// Other links hA too (a torrent shared with another title). Gone's web copy has a download in flight (hH, a fresh
+// add) and a failed one (hX).
 func newFixture(t *testing.T) *fixture {
 	t.Helper()
 	ctx := context.Background()
@@ -118,9 +117,6 @@ func newFixture(t *testing.T) *fixture {
 	link(14, "/lib/web/Gone/e.mkv", "symlink", "active", hE, 1, 1)
 	link(15, "/lib/web/Gone/f.mkv", "hardlink", "active", hF, 1, 1)
 	link(20, "/lib/web/Other/a.mkv", "symlink", "active", hA, 2, 3)
-	f.exec(`INSERT INTO version_file (version_id, title_id, instance, arr_file_id, path, download_id) VALUES
-		(1, 1, 'radarr', 1, '/lib/web/Gone/a.mkv', ?), (1, 1, 'radarr', 2, '/arr/Gone.mkv', ?)`,
-		strings.ToUpper(hA), hG)
 	f.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, state,
 		created_at, updated_at) VALUES (31, 1, 1, 'movie-web', ?, 'Gone.WEB', 'idx', 'downloading', 0, 0),
 		(32, 1, 1, 'movie-web', ?, 'Gone.Bad', 'idx', 'failed', 0, 0)`, hH, hX)
@@ -197,18 +193,13 @@ func TestRunWithFiles(t *testing.T) {
 	if got := f.str(`SELECT state FROM link WHERE id = 12`); got != "active" {
 		t.Errorf("the link the other library uses is %s", got)
 	}
-	// Candidates: hashes of the copy's links, arr files and downloads not failed, less those a link that stays (or
-	// an arr file left) names. hA stays a candidate although Other links it: the clean-up checks usage live.
+	// Candidates: hashes of the copy's links and downloads not failed, less those a link that stays names. hA stays a candidate although Other links it: the clean-up checks usage live.
 	if len(f.started) != 1 || res.Cleanup == nil {
 		t.Fatalf("clean-ups started %+v", f.started)
 	}
 	got := slices.Sorted(maps.Keys(f.started[0].Hashes))
 	if want := []string{hH, hA, hB}; !slices.Equal(got, want) {
 		t.Errorf("candidates %v, want %v", got, want)
-	}
-	// The arr file at the unlinked path goes with it; the other arr file stays.
-	if got := f.str(`SELECT group_concat(path) FROM version_file WHERE version_id = 1`); got != "/arr/Gone.mkv" {
-		t.Errorf("arr files left %q", got)
 	}
 	// The hide, its search requests and offers; queued copies nothing else wants stop, others stay.
 	if f.str(`SELECT COUNT(*) FROM arrview_removed_version WHERE version_id = 1 AND view = 'ui'`) != "1" ||
@@ -233,8 +224,8 @@ func TestRunWithFiles(t *testing.T) {
 	}
 	// The Removed action says what became of the files; each unlinked link has its own entry.
 	rm := journal.ParseRemovalDetail(f.str(`SELECT detail FROM journal_action WHERE action = ?`, journal.ActRemoveVersion))
-	// Left: the shared link, the refused one, the failed one, the hardlink, and the arr's own file at /arr.
-	if rm.Files != journal.RemovalFilesPartial || rm.Left != 5 {
+	// Left: the shared link, the refused one, the failed one and the hardlink.
+	if rm.Files != journal.RemovalFilesPartial || rm.Left != 4 {
 		t.Errorf("removal outcome %+v", rm)
 	}
 	if got := f.str(`SELECT COUNT(*) FROM journal_action WHERE action = ?`, journal.ActUnlinkFile); got != "2" {
@@ -264,12 +255,12 @@ func TestRunWithFiles(t *testing.T) {
 		t.Errorf("retry clean-up %+v", f.started)
 	}
 	if rm := journal.ParseRemovalDetail(f.str(`SELECT detail FROM journal_action WHERE action = ?`,
-		journal.ActRemoveVersion)); rm.Files != journal.RemovalFilesPartial || rm.Left != 3 {
+		journal.ActRemoveVersion)); rm.Files != journal.RemovalFilesPartial || rm.Left != 2 {
 		t.Errorf("retry outcome %+v", rm)
 	}
 }
 
-// Without the files: links, arr files and torrents stay; the action says the files were kept, no clean-up runs.
+// Without the files: links and torrents stay; the action says the files were kept, no clean-up runs.
 // The hide, the downloads, search requests and queued copies are handled the same.
 func TestRunWithoutFiles(t *testing.T) {
 	t.Parallel()
@@ -280,9 +271,6 @@ func TestRunWithoutFiles(t *testing.T) {
 	}
 	if len(f.u.calls) != 0 || len(res.Unlinked) != 0 || res.Cleanup != nil || len(f.started) != 0 {
 		t.Errorf("without the files: %+v, unlinks %v, clean-ups %v", res, f.u.calls, f.started)
-	}
-	if got := f.str(`SELECT COUNT(*) FROM version_file WHERE version_id = 1`); got != "2" {
-		t.Errorf("arr files %s", got)
 	}
 	if rm := journal.ParseRemovalDetail(f.str(`SELECT detail FROM journal_action`)); rm.Files != journal.RemovalFilesKept ||
 		rm.Cleanup != "" {
@@ -310,7 +298,6 @@ func TestRunCleanupWords(t *testing.T) {
 	}
 	g := newFixture(t)
 	g.exec(`DELETE FROM link WHERE id IN (10, 11, 14, 15)`)
-	g.exec(`DELETE FROM version_file`)
 	g.exec(`DELETE FROM download`)
 	if _, err := Run(context.Background(), g.deps(), webSpec(true)); err != nil {
 		t.Fatal(err)
@@ -318,24 +305,6 @@ func TestRunCleanupWords(t *testing.T) {
 	if rm := journal.ParseRemovalDetail(g.str(`SELECT detail FROM journal_action WHERE action = ?`,
 		journal.ActRemoveVersion)); len(g.started) != 0 || rm.Cleanup != "torrents of the files that stay kept" {
 		t.Errorf("outcome %+v, started %v", rm, g.started)
-	}
-}
-
-// Torrents only Sonarr's or Radarr's own files (arr file rows, no link of Theatarr's) name stay, and the event says
-// whose files they are.
-func TestRunKeepsTheArrsFiles(t *testing.T) {
-	t.Parallel()
-	f := newFixture(t)
-	f.exec(`DELETE FROM link`)
-	f.exec(`DELETE FROM version_file WHERE path <> '/arr/Gone.mkv'`)
-	f.exec(`DELETE FROM download`)
-	if _, err := Run(context.Background(), f.deps(), webSpec(true)); err != nil {
-		t.Fatal(err)
-	}
-	if rm := journal.ParseRemovalDetail(f.str(`SELECT detail FROM journal_action WHERE action = ?`,
-		journal.ActRemoveVersion)); len(f.started) != 0 || rm.Cleanup != "torrents of Sonarr's or Radarr's own files kept" ||
-		rm.Files != journal.RemovalFilesKept || rm.Reason != "Sonarr's or Radarr's own file stays" {
-		t.Errorf("outcome %+v, started %v", rm, f.started)
 	}
 }
 
@@ -455,39 +424,26 @@ func TestRunCleanupPerLibrary(t *testing.T) {
 	}
 }
 
-// A queued copy to another provider is not stopped while another title's current arr file holds its hash.
-func TestRunKeepsCopiesAnArrFileWants(t *testing.T) {
+// A queued copy to another provider is not stopped while another title's current link holds its hash.
+func TestRunKeepsCopiesAnotherLinkWants(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
-	f.exec(`INSERT INTO version_file (version_id, title_id, instance, arr_file_id, path, download_id) VALUES
-		(3, 2, 'radarr', 9, '/arr/Other.mkv', ?)`, strings.ToUpper(hH))
+	f.exec(`INSERT INTO link (id, path, target, kind, title_id, state, file_metadata, created_at, updated_at) VALUES
+		(21, '/lib/web/Other/h.mkv', '/mnt/debrid/__all__/H/h.mkv', 'symlink', 2, 'active', ?, 0, 0)`,
+		`{"InfoHash":"`+strings.ToUpper(hH)+`"}`)
+	f.exec(`INSERT INTO link_version (link_id, version_id) VALUES (21, 3)`)
 	if _, err := Run(context.Background(), f.deps(), webSpec(false)); err != nil {
 		t.Fatal(err)
 	}
 	if got := f.str(`SELECT state FROM provider_copy WHERE info_hash = ? AND provider = 'tb'`, hH); got != "queued" {
-		t.Errorf("the copy Other's arr file wants: %s", got)
+		t.Errorf("the copy Other's link wants: %s", got)
 	}
 }
 
-// An arr file that stays with no hash keeps every candidate of its library, as an untied link does.
-func TestRunKeepsTheTorrentsOfAHashlessArrFile(t *testing.T) {
-	t.Parallel()
-	f := newFixture(t)
-	f.exec(`UPDATE version_file SET download_id = '' WHERE path = '/arr/Gone.mkv'`)
-	if _, err := Run(context.Background(), f.deps(), webSpec(true)); err != nil {
-		t.Fatal(err)
-	}
-	if len(f.started) != 0 {
-		t.Errorf("clean-ups %+v", f.started)
-	}
-}
-
-// Kept files are counted by path: a kept link and the arr file row at the same path are one file; a library with no
-// file says nothing about files; the torrents its kept files keep are named with the clean-up's outcome.
+// Kept files are counted by path; a library with no file says nothing about files; the torrents its kept files keep are named with the clean-up's outcome.
 func TestRunCountsFilesByPath(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
-	f.exec(`UPDATE version_file SET path = '/lib/web/Gone/d.mkv' WHERE path = '/arr/Gone.mkv'`) // the refused link's
 	res, err := Run(context.Background(), f.deps(), webSpec(true))
 	if err != nil {
 		t.Fatal(err)
@@ -560,21 +516,6 @@ func TestRunNormalisesKeptLinkHashes(t *testing.T) {
 		if _, ok := f.started[0].Hashes[hD]; ok {
 			t.Errorf("the refused link's torrent is a candidate: %v", f.started[0].Hashes)
 		}
-	}
-}
-
-// A current library's arr file at a link's path uses that link: the removal leaves it.
-func TestRunKeepsALinkACurrentArrFileUses(t *testing.T) {
-	t.Parallel()
-	f := newFixture(t)
-	f.exec(`INSERT INTO version_file (version_id, title_id, instance, arr_file_id, path) VALUES
-		(2, 1, 'radarr', 3, '/lib/web/Gone/a.mkv')`) // the Remux library's arr file at a.mkv
-	res, err := Run(context.Background(), f.deps(), webSpec(true))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if slices.Contains(f.u.calls, 10) || !slices.Contains(paths(res.Shared), "a.mkv") {
-		t.Errorf("unlinked %v, shared %v", f.u.calls, paths(res.Shared))
 	}
 }
 

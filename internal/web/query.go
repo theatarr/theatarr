@@ -3,7 +3,6 @@ package web
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -1011,23 +1010,4 @@ func scanAll(ctx context.Context, db *sql.DB, q string, args []any, fn func(*sql
 		}
 	}
 	return rows.Err()
-}
-
-func jsonStrings(s string) []string {
-	var out []string
-	if err := json.Unmarshal([]byte(s), &out); err != nil || out == nil {
-		// languages may be objects ({"name": ...}) in older rows; fall back to names.
-		var objs []map[string]any
-		if json.Unmarshal([]byte(s), &objs) == nil {
-			for _, o := range objs {
-				if n, ok := o["name"].(string); ok {
-					out = append(out, n)
-				}
-			}
-		}
-	}
-	if out == nil {
-		out = []string{}
-	}
-	return out
 }

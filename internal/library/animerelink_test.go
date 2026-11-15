@@ -124,8 +124,7 @@ func TestAnimeRelinkAfterReview(t *testing.T) {
 func TestAnimeRelinkOccupiedTarget(t *testing.T) {
 	t.Parallel()
 	e, _ := relinkEnv(t)
-	e.exec(`INSERT INTO version_file (id, version_id, title_id, instance, arr_file_id, path) VALUES (1, 30, 3, 'sonarr', 1, '/arr/Isekai S02E02.mkv')`)
-	e.exec(`INSERT INTO version_file_episode (version_file_id, episode_id) VALUES (1, 314)`)
+	e.adoptedFile(900, 30, 3, "/arr/Isekai S02E02.mkv", "/arr/Isekai S02E02.mkv", "", "", 314)
 	e.exec(`UPDATE anime_mapping SET status = 'override' WHERE entry_key = 'al:2'`)
 	got := e.inbox()
 	snap := tree(t, e.dir)
@@ -213,7 +212,7 @@ func TestAnimeRelinkShiftedRange(t *testing.T) {
 		want  string
 	}{
 		{"free end", false, 3, "2,3,4"},
-		{"blocked end", true, 0, "1,2,3"},
+		{"blocked end", true, 0, "1,2,3,4"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
@@ -232,8 +231,7 @@ func TestAnimeRelinkShiftedRange(t *testing.T) {
 				t.Fatalf("import %+v %v", plan, err)
 			}
 			if c.arr {
-				e.exec(`INSERT INTO version_file (id, version_id, title_id, instance, arr_file_id, path) VALUES (1, 30, 3, 'sonarr', 1, '/arr/Isekai S01E04.mkv')`)
-				e.exec(`INSERT INTO version_file_episode (version_file_id, episode_id) VALUES (1, 304)`)
+				e.adoptedFile(900, 30, 3, "/arr/Isekai S01E04.mkv", "/arr/Isekai S01E04.mkv", "", "", 304)
 			}
 			e.exec(`UPDATE anime_mapping SET status = 'override' WHERE entry_key = 'al:2'`)
 			inbox := e.inbox()

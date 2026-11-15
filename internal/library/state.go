@@ -118,8 +118,7 @@ func reconcileRemovedLink(ctx context.Context, tx *sql.Tx, linkID int64, now int
 		if v.kind != string(policy.KindSeries) {
 			if _, err := tx.ExecContext(ctx, `UPDATE version SET state = 'wanted', updated_at = ? WHERE id = ?
 				AND NOT EXISTS (SELECT 1 FROM link l JOIN link_version lv ON lv.link_id = l.id
-					WHERE lv.version_id = ? AND l.state = 'active')
-				AND NOT EXISTS (SELECT 1 FROM version_file WHERE version_id = ?)`, now, v.id, v.id, v.id); err != nil {
+					WHERE lv.version_id = ? AND l.state = 'active')`, now, v.id, v.id); err != nil {
 				return err
 			}
 			continue
@@ -150,23 +149,21 @@ func reconcileRemovedLink(ctx context.Context, tx *sql.Tx, linkID int64, now int
 }
 
 // episodesLostFile makes a series version's episodes wanted again once a file of theirs is gone, each only when no
-// other file (active link or arr file) of the version holds it, and recomputes the version's state.
+// other active link of the version holds it, and recomputes the version's state.
 func episodesLostFile(ctx context.Context, tx *sql.Tx, versionID int64, episodes []int64, now int64) error {
 	for _, id := range episodes {
 		if _, err := tx.ExecContext(ctx, `UPDATE episode_version_state SET state = 'wanted', cutoff_met = 0,
 			updated_at = ? WHERE version_id = ? AND episode_id = ? AND NOT EXISTS (
 				SELECT 1 FROM link l JOIN link_version lv ON lv.link_id = l.id
 				JOIN link_episode le ON le.link_id = l.id
-				WHERE lv.version_id = ? AND le.episode_id = ? AND l.state = 'active')
-			AND NOT EXISTS (SELECT 1 FROM version_file vf JOIN version_file_episode fe ON fe.version_file_id = vf.id
-				WHERE vf.version_id = ? AND fe.episode_id = ?)`, now, versionID, id, versionID, id, versionID, id); err != nil {
+				WHERE lv.version_id = ? AND le.episode_id = ? AND l.state = 'active')`, now, versionID, id, versionID, id); err != nil {
 			return err
 		}
 	}
 	return refreshSeriesState(ctx, tx, versionID, false, now)
 }
 
-// RecomputeLinkStates sets the state of every active version's files (Theatarr's links and imported arr files) from
+// RecomputeLinkStates sets the state of every active version's files (Theatarr's links) from
 // those files' cutoff under the current profile, as an import records it (importedState: quality and custom-format
 // score). The state stored with a file goes stale when the profile changes, and an arr import records the arr's own
 // verdict: a cutoff_met file below a raised cutoff would never be searched again. Only filled and
@@ -195,9 +192,8 @@ func (l *Library) recomputeStates(ctx context.Context, keys []string) (int, erro
 	db := l.st.Reader()
 	rows, err := db.QueryContext(ctx, `SELECT v.id, v.title_id, v.policy_key
 		FROM version v WHERE (? = '' OR v.policy_key IN (SELECT value FROM json_each(?)))
-		AND (EXISTS (SELECT 1 FROM link_version lv JOIN link l ON l.id = lv.link_id
-			WHERE lv.version_id = v.id AND l.state = 'active')
-		OR EXISTS (SELECT 1 FROM version_file vf WHERE vf.version_id = v.id)) ORDER BY v.id`, only, only)
+		AND EXISTS (SELECT 1 FROM link_version lv JOIN link l ON l.id = lv.link_id
+			WHERE lv.version_id = v.id AND l.state = 'active') ORDER BY v.id`, only, only)
 	if err != nil {
 		return 0, err
 	}
@@ -302,7 +298,7 @@ func (l *Library) recomputeVersion(ctx context.Context, v stateVersion) (bool, e
 		return false, err
 	}
 	t.Episodes = eps
-	states := map[int64]string{} // by file id (a link's negative, an arr file's positive)
+	states := map[int64]string{} // by file id (a link's negative id)
 	want := map[int64]string{}   // by episode
 	for _, ep := range eps {
 		if ep.File == nil {

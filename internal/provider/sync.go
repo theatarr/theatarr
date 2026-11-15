@@ -646,9 +646,7 @@ func recompute(ctx context.Context, tx *sql.Tx, configured []string, current str
 	rows, err := tx.QueryContext(ctx, `SELECT c.id, c.state,
 		EXISTS (SELECT 1 FROM content_provider cp WHERE cp.content_id = c.id AND cp.state = 'present'
 			AND cp.provider IN (`+in+`)),
-		EXISTS (SELECT 1 FROM content_version cv WHERE cv.content_id = c.id)
-			OR EXISTS (SELECT 1 FROM version_file vf WHERE vf.content_id = c.id)
-			OR EXISTS (SELECT 1 FROM content_file f JOIN link l ON l.content_file_id = f.id
+		EXISTS (SELECT 1 FROM content_file f JOIN link l ON l.content_file_id = f.id
 				WHERE f.content_id = c.id AND l.state != 'unlinked')
 		FROM content c`, args...)
 	if err != nil {

@@ -286,8 +286,7 @@ func (s *Service) absolute(ctx context.Context, tx *sql.Tx, titleID, episodeID i
 func (s *Service) loadRows(ctx context.Context, tx *sql.Tx, titleID int64, idCol string) ([]*row, error) {
 	q := `SELECT e.id, e.season, e.number, e.` + idCol + `, e.removed_at, e.name, e.air_date, e.air_date_utc_at,
 		e.runtime_minutes, e.airs_before_season, e.airs_before_episode, e.airs_after_season,
-		EXISTS (SELECT 1 FROM version_file_episode f WHERE f.episode_id = e.id)
-		OR EXISTS (SELECT 1 FROM link_episode l WHERE l.episode_id = e.id)
+		EXISTS (SELECT 1 FROM link_episode l WHERE l.episode_id = e.id)
 		OR EXISTS (SELECT 1 FROM episode_version_state v WHERE v.episode_id = e.id AND v.state <> 'wanted')
 		OR EXISTS (SELECT 1 FROM download d, json_each(d.episodes) j WHERE d.title_id = e.title_id AND j.value = e.id)
 		OR EXISTS (SELECT 1 FROM download d JOIN download_file f ON f.download_id = d.id, json_each(f.episodes) j

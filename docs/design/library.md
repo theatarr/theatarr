@@ -362,8 +362,7 @@ mount never lengthen that back-off (`TestPartialAfterWaitsStartsBackoffAgain`).
    linked; a failed link preserves the old file for the partial-import retry (`TestImportUpgradeSplitMultiEpisode`,
    `TestImportUpgradeSplitMultiEpisodeRetry`).
 7. **Link**: atomic symlink (temp link, rename) to the mount path as Plex sees it (`link_path`). An **upgrade**
-   recreates each of the version's current files for that movie or those episodes (Theatarr's active links and the arr's
-   `version_file` paths) under the trash, then removes the old link. `link_trash` keeps path, trash path and target;
+   recreates each of the version's current files for that movie or those episodes (its active links) under the trash, then removes the old link. `link_trash` keeps path, trash path and target;
    `PurgeTrash` removes trash copies after `keep_days`. A trash copy with no `link_trash` row (a run interrupted
    between the copy and its commit) is purged too once the date folder it was filed under
    (`<trash>/<version>/<date>/`) is wholly older than `keep_days`; symlinks only, through the gate, and recorded
@@ -417,24 +416,21 @@ formats are calculated from the link's frozen inputs (`file_metadata`) exactly a
 it (the quality alone would stop RSS and the cutoff sweep at every import at the cutoff quality). Radarr's and Sonarr's Wanted → Cutoff Unmet list is quality-only; Theatarr's `filled` also covers files below the
 format cutoff, as their RSS upgrade check does. Series files update each linked episode and the version summary;
 Watch-only versions keep their state. Partial imports update only linked files and never lower an existing
-state. Moving or unlinking a file returns its version or episodes to `wanted` only when no active link or arr file
+state. Moving or unlinking a file returns its version or episodes to `wanted` only when no active link
 remains for them.
 
 **Recompute.** The first import pass of each process (`Run`), and the first after each settings change (a new policy
 revision, e.g. a raised profile cutoff), recomputes the states of active versions' files under the current profile
-(`RecomputeLinkStates`): Theatarr's links and imported arr files alike, a movie by its current file, an episode by its file;
-only `filled` and `cutoff_met` move, and only between each other. An arr file imported as `cutoff_met` under the
+(`RecomputeLinkStates`): Theatarr's links and adopted links alike, a movie by its current file, an episode by its file;
+only `filled` and `cutoff_met` move, and only between each other. A file adopted as `cutoff_met` under the
 arr's profile thus reaches the cutoff sweep once Theatarr's profile asks for more (`TestRecomputeJudgesArrFilesAfterProfileChange`). A series version is judged whatever its own state: one aired
 episode without a file makes it `wanted` while its other episodes' states still follow the profile. After a settings
 change only the versions whose judging settings changed (the version, its profile, the formats and format sets) are
 recomputed (`TestRecomputeAfterSaveOnlyChangedVersions`). It is idempotent and
 touches nothing of a shadow version.
 
-**The arr's file on an upgrade.** When an import moves an arr file aside (its `version_file` path), the row and its
-file-id aliases are deleted in the same transaction, as the arr deletes the file it upgrades
-(`UpgradeMediaFileService`, `DeleteMediaFileReason.Upgrade`). The arr API and decide stop showing it, and a later
-removal of the new link leaves the version wanted. Episodes the old file held that the new links do not are wanted
-again.
+**An adopted file on an upgrade** is replaced like any link: moved aside to the trash, its row `unlinked`. Episodes
+the old file held that the new links do not are wanted again.
 
 **Removed from the queue during an import.** A client can end the download (`DELETE queue`, `router.Dismiss`: state
 `failed`, maybe blocklisted) while its links are being made. Each fence also checks the download is still
@@ -663,7 +659,7 @@ row, episodes and states never changed) and a `replace` action says it was put b
 (`TestReassignReplaceFailureRestores`). Whether the move committed is read, and the put-back done, with a bounded
 context (30 s) that ignores the request's cancel, so a cancelled or timed-out request still puts it back
 (`TestReassignReplaceCancelledRestores`). When that read fails, nothing is put back over a link that may have moved:
-the copy stays in the trash, and an error log and a failed `replace` action name it. An episode an arr file of that library holds always refuses. The link moves to the
+the copy stays in the trash, and an error log and a failed `replace` action name it. The link moves to the
 name the naming templates give for the new episodes through the rename machinery (new symlink first, gate on old
 and new path, compare-and-swap, old symlink removed), and in the same transaction its `link_episode` rows, the
 episode states (the chosen ones take the file's state; the ones it no longer holds become wanted when no other
@@ -728,7 +724,7 @@ folder and, without manual files, only the files under the path. A path anywhere
   (`TestRelinkRevivesLinkMarkedDeadDuringSweep`). A repoint of a dead link revives it the same
   way, and a revived link's folder gets a Plex partial scan, as a repoint's does (`TestRevivedLinkScansPlex`). A
   dead link whose file is back while another file now holds its title (a movie) or every one of its episodes, in
-  each of its versions (an active link or an arr file), is not revived but moved aside: copied to the trash, removed,
+  each of its versions (an active link), is not revived but moved aside: copied to the trash, removed,
   its row `unlinked` (action `replace` "dead link moved aside", the scan's `retired`); revived it would be a second
   file next to its replacement (`TestDeadRevivedNextToReplacement`). An import moves the version's
   dead links of the title (or of the episodes it links) aside like the active files it replaces. **A gated version** (library disabled, version not `mode: active`) is swept read-only: what it

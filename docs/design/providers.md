@@ -209,7 +209,7 @@ runs `Run` for every provider with a key, back-off or not, and schedules the fai
 
 | State | Rule |
 |---|---|
-| `present` | On at least one configured provider, and referenced: a `content_version` (an import), a `version_file`, or a live `link` |
+| `present` | On at least one configured provider, and referenced by a live `link` |
 | `unreferenced` | On at least one provider, referenced by nothing. The "unreferenced content" report to prune by hand |
 | `absent` | On no provider, and **every configured provider has had a complete listing**. A provider with no key set therefore keeps contents `unknown` |
 | `unknown` | Not every configured provider has been listed yet |
@@ -288,7 +288,7 @@ Inside the `theatarr` container (settings in its database, keys in its environme
 | Choice | Why |
 |---|---|
 | Registry states `absent` and `unreferenced` beside present and gone; `unknown` until every provider is listed | Absent everywhere differs from not yet known, and unreferenced content is the prune report |
-| "Unreferenced" = no `content_version`, `version_file` or live `link` | Those are the references: imports, files kept from a former arr instance and Theatarr's links |
+| "Unreferenced" = no live `link` | Links are the references: Theatarr's imports and files adopted from an arr |
 | Only TorBox has a provider cache check; RD and AD answer from feeds and refusals | Both providers removed their endpoints |
 | AllDebrid: a full list per sync, not live mode | One request either way, and no session state to keep |
 

@@ -56,8 +56,7 @@ export function Database() {
   return (
     <div>
       <StatGrid>
-        {/* version_file is an empty legacy table: not shown. */}
-        {Object.keys(counts).filter((k) => k !== "version_file").sort().map((k) => (
+        {Object.keys(counts).sort().map((k) => (
           <Stat key={k} testid={`count-${k}`} value={fmtNumber(counts[k])} label={COUNT_LABELS[k] ?? k} />
         ))}
       </StatGrid>

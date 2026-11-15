@@ -112,7 +112,6 @@ func TestMovieDates(t *testing.T) {
 	}
 	exec(`INSERT INTO title(id,kind,name,tmdb_id,created_at,updated_at) VALUES(1,'movie','Movie',100,0,0)`)
 	exec(`INSERT INTO version(id,title_id,policy_key,created_at,updated_at) VALUES(1,1,'movie-remux',0,0),(2,1,'parallel',0,0)`)
-	exec(`INSERT INTO version_source(version_id,instance,arr_id) VALUES(1,'radarr_4k_debrid',1)`)
 	exec(`INSERT INTO title_meta(title_id,movie_dates_at,attempted_at,refresh_after) VALUES(1,1,1,1)`)
 	exec(`INSERT INTO title_release_date(title_id,source,country,type,date,fetched_at) VALUES
   (1,'tmdb-art','','digital','2026-12-01',1),(1,'radarr_4k_debrid','','digital','2026-10-01',2)`)

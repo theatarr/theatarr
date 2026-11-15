@@ -407,9 +407,6 @@ func (s *seeder) download(d dl) int64 {
 	switch {
 	case d.state == "imported":
 		s.link(t, v, rel, id, created.Add(5*time.Minute), "active")
-		s.exec(`INSERT INTO content_version (content_id, version_id, release_title, source, grabbed_at, imported_at)
-			VALUES (?, ?, ?, 'router', ?, ?) ON CONFLICT DO NOTHING`, s.content[rel.hash], v.id, rel.name, ms(created),
-			ms(created.Add(5*time.Minute)))
 		s.exec(`INSERT INTO notify_event (kind, ref, created_at) VALUES ('download', ?, ?)`, id, ms(created.Add(5*time.Minute)))
 		if t.kind == "movie" && !s.historyShown {
 			s.historyShown = true
@@ -641,6 +638,7 @@ func (s *seeder) deadLinks() {
 		rel.at = at
 		// Its own path, beside the arr's file (an older copy adopted from disk).
 		rel.files[0].name = "old." + rel.files[0].name
+		rel.old = true
 		s.link(t, v, rel, 0, at, "dead")
 		s.exec(`UPDATE content SET state = 'gone' WHERE info_hash = ?`, rel.hash)
 		s.exec(`UPDATE content_provider SET state = 'absent', absent_at = ? WHERE content_id = ?`, ms(s.ago(days(3))),
@@ -649,12 +647,11 @@ func (s *seeder) deadLinks() {
 		_ = s.tx.QueryRowContext(s.ctx, `SELECT MAX(id) FROM link`).Scan(&lid)
 		var p, tg string
 		_ = s.tx.QueryRowContext(s.ctx, `SELECT path, target FROM link WHERE id = ?`, lid).Scan(&p, &tg)
-		s.exec(`UPDATE link SET path = ? WHERE id = ?`, strings.TrimSuffix(p, ".mkv")+".old.mkv", lid)
 		s.exec(`INSERT INTO library_action (at, kind, mode, version_key, link_id, path, target, detail) VALUES (?, 'dead',
 			'applied', ?, ?, ?, ?, 'the target is gone and no provider folder holds the file')`, ms(s.ago(days(2))), v.key,
-			lid, strings.TrimSuffix(p, ".mkv")+".old.mkv", tg)
+			lid, p, tg)
 		s.exec(`INSERT INTO library_dangling (path, target, root, version_key, folder, first_seen_at, last_seen_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?)`, strings.TrimSuffix(p, ".mkv")+".old.mkv", tg, v.vp.Library, v.key, rel.name,
+			VALUES (?, ?, ?, ?, ?, ?, ?)`, p, tg, v.vp.Library, v.key, rel.name,
 			ms(s.ago(days(3))), ms(s.ago(days(0.2))))
 	}
 	s.exec(`INSERT INTO library_dangling_scan (at, roots, links, dangling, error, took_ms) VALUES (?, ?, ?, 3, NULL, 1840),

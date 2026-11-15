@@ -12,8 +12,8 @@ import (
 	"github.com/theatarr/theatarr/internal/store"
 )
 
-// A stored snapshot that is the only entry provenance of a held file (a legacy link by hash, an imported arr file
-// by content hash or by its SeaDex record id) survives pruning, so the file keeps its standing afterwards.
+// A stored snapshot that is the only entry provenance of a held file (a link by its metadata hash, by its content hash
+// or by its SeaDex record id) survives pruning, so the file keeps its standing afterwards.
 func TestPruneKeepsHeldProvenance(t *testing.T) {
 	t.Parallel()
 	st := openStore(t)
@@ -24,9 +24,9 @@ func TestPruneKeepsHeldProvenance(t *testing.T) {
 		`{"InfoHash":"`+a+`","SeaDexPreference":3,"SeaDex":2,"Revision":1,"Quality":"Remux-2160p"}`)
 	exec(t, st, `INSERT INTO link_version VALUES(1,1)`)
 	exec(t, st, `INSERT INTO content(id,info_hash,first_seen_at,last_seen_at) VALUES(1,?,0,0)`, b)
-	exec(t, st, `INSERT INTO version_source VALUES (1, 'owner', 1)`)
-	exec(t, st, `INSERT INTO version_file (id, version_id, title_id, instance, arr_file_id, path, quality, scene_name, added_at, content_id)
-		VALUES (1, 1, 1, 'owner', 1, '/b.mkv', 'Remux-2160p', 'b', 1, 1), (2, 1, 1, 'owner', 2, '/c.mkv', 'Remux-2160p', 'Film (7vdej49pr26gca0)', 1, NULL)`)
+	exec(t, st, `INSERT INTO content_file(id,content_id,path,size_bytes) VALUES(1,1,'b.mkv',1)`)
+	exec(t, st, `INSERT INTO link(id,title_id,path,target,content_file_id,created_at,updated_at) VALUES(2,1,'/b.mkv','/b',1,0,0),(3,1,'/c.mkv','/c',NULL,0,0)`)
+	exec(t, st, `UPDATE link SET file_metadata = '{"SceneName":"Film (7vdej49pr26gca0)","Revision":1}' WHERE id = 3`)
 	put := func(key int, body string) {
 		exec(t, st, `INSERT INTO metadata_cache(source,key,status,body,fetched_at,expires_at) VALUES('seadex-standing',?,200,?,0,253402214400000)`, key, body)
 	}

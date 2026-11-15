@@ -36,8 +36,8 @@ type itemFiles struct {
 	n        int
 }
 
-// currentFiles reads the version's current files for the items: active links, then the arr's files of the
-// instance that owns the version (as the title page reads them). episodes empty means every file of the title.
+// currentFiles reads the version's current files for the items: its active links (as the title page reads them).
+// episodes empty means every file of the title.
 func currentFiles(ctx context.Context, db *sql.DB, titleID, versionID int64, episodes []int64) (itemFiles, error) {
 	type file struct {
 		quality  string
@@ -47,16 +47,13 @@ func currentFiles(ctx context.Context, db *sql.DB, titleID, versionID int64, epi
 		at       int64
 	}
 	byEp := map[int64]file{}
-	add := func(eid int64, f file, win bool) {
+	add := func(eid int64, f file) {
 		if len(episodes) > 0 && !slices.Contains(episodes, eid) {
-			return
-		}
-		if old, ok := byEp[eid]; ok && !win && old.at >= f.at {
 			return
 		}
 		byEp[eid] = f
 	}
-	scan := func(q string, win bool) error {
+	scan := func(q string) error {
 		rows, err := db.QueryContext(ctx, q, versionID, titleID)
 		if err != nil {
 			if strings.Contains(err.Error(), "no such table") {
@@ -76,22 +73,15 @@ func currentFiles(ctx context.Context, db *sql.DB, titleID, versionID int64, epi
 				v := score.Int64
 				f.score = &v
 			}
-			add(eid, f, win)
+			add(eid, f)
 		}
 		return rows.Err()
-	}
-	if err := scan(`SELECT COALESCE(fe.episode_id, 0), vf.quality, vf.quality_revision, 0, vf.custom_format_score,
-		COALESCE(vf.added_at, 0)
-		FROM version_file vf LEFT JOIN version_file_episode fe ON fe.version_file_id = vf.id
-		LEFT JOIN version_source vs ON vs.version_id = vf.version_id
-		WHERE vf.version_id = ? AND vf.title_id = ? AND (vs.instance IS NULL OR vs.instance = vf.instance)`, false); err != nil {
-		return itemFiles{}, fmt.Errorf("router: current files: %w", err)
 	}
 	if err := scan(`SELECT COALESCE(le.episode_id, 0), COALESCE(l.quality, ''),
 		COALESCE(json_extract(l.file_metadata, '$.Revision'), 0), COALESCE(json_extract(l.file_metadata, '$.Real'), 0),
 		l.score, l.created_at
 		FROM link l JOIN link_version lv ON lv.link_id = l.id LEFT JOIN link_episode le ON le.link_id = l.id
-		WHERE lv.version_id = ? AND l.title_id = ? AND l.state = 'active'`, true); err != nil {
+		WHERE lv.version_id = ? AND l.title_id = ? AND l.state = 'active'`); err != nil {
 		return itemFiles{}, fmt.Errorf("router: current links: %w", err)
 	}
 	var out itemFiles

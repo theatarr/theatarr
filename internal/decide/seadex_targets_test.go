@@ -235,10 +235,11 @@ func TestLoadEpisodesScopesAlternatives(t *testing.T) {
 	seadexExec(t, st, `INSERT INTO title(id,kind,name,tvdb_id,created_at,updated_at) VALUES(1,'series','Show',123,0,0)`)
 	seadexExec(t, st, `INSERT INTO version(id,title_id,policy_key,created_at,updated_at) VALUES(9,1,'tv',0,0)`)
 	seadexExec(t, st, `INSERT INTO episode(id,title_id,season,number,name,created_at,updated_at) VALUES(101,1,1,1,'a',0,0),(201,1,2,1,'b',0,0)`)
-	seadexExec(t, st, `INSERT INTO version_source VALUES (9, 'owner', 1)`)
-	seadexExec(t, st, `INSERT INTO version_file (id, version_id, title_id, instance, arr_file_id, path, quality, scene_name, added_at)
-		VALUES (1, 9, 1, 'owner', 1, '/s1.mkv', 'Bluray-1080p', 's1', 1), (2, 9, 1, 'owner', 2, '/s2.mkv', 'Bluray-1080p', 's2', 1)`)
-	seadexExec(t, st, `INSERT INTO version_file_episode VALUES (1, 101), (2, 201)`)
+	seadexExec(t, st, `INSERT INTO link (id, title_id, path, target, quality, file_metadata, created_at, updated_at) VALUES
+		(1, 1, '/s1.mkv', '/z/s1.mkv', 'Bluray-1080p', json_object('Quality', 'Bluray-1080p', 'Revision', 1, 'SceneName', 's1'), 1, 1),
+		(2, 1, '/s2.mkv', '/z/s2.mkv', 'Bluray-1080p', json_object('Quality', 'Bluray-1080p', 'Revision', 1, 'SceneName', 's2'), 1, 1)`)
+	seadexExec(t, st, `INSERT INTO link_version VALUES (1, 9), (2, 9)`)
+	seadexExec(t, st, `INSERT INTO link_episode VALUES (1, 101), (2, 201)`)
 	s2 := strings.Repeat("2", 40)
 	seadexSnapshotRow(t, st, factsSnapshot(indexer.SeaDexSnapshot{AniList: 20, Targets: []indexer.AniListTarget{{TVDB: 123, Season: 2}},
 		Torrents: []indexer.SeaDexStanding{{InfoHash: s2, Quality: "Bluray-1080p Remux", IsBest: true, Preference: 3}}}))

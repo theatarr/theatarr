@@ -86,7 +86,7 @@ func (f *fakePlex) writes() int {
 
 const fixture = "../testdata/offline"
 
-// setup saves the Re:Zero build and gives TVDB 305089 an arr file for every mapped episode, and one active link.
+// setup saves the Re:Zero build and gives TVDB 305089 an active link for every mapped episode.
 func setup(t *testing.T) (*store.Store, *fakePlex) {
 	t.Helper()
 	ctx := context.Background()
@@ -149,13 +149,14 @@ func setup(t *testing.T) (*store.Store, *fakePlex) {
 		id++
 		p := fmt.Sprintf("/media/anime/Re ZERO/Season %02d/Re ZERO - %s.mkv", se[0], se)
 		exec(`INSERT INTO episode (id, title_id, season, number, created_at, updated_at) VALUES (?, 1, ?, ?, 0, 0)`, id, se[0], se[1])
-		exec(`INSERT INTO version_file (id, version_id, title_id, instance, arr_file_id, path) VALUES (?, 1, 1, 'sonarr_anime_debrid', ?, ?)`, id, id, p)
-		exec(`INSERT INTO version_file_episode (version_file_id, episode_id) VALUES (?, ?)`, id, id)
+		if se == (anime.SE{1, 1}) {
+			p = "/media/anime/Re ZERO/S01E01.mkv"
+		}
+		exec(`INSERT INTO link (id, path, target, title_id, created_at, updated_at) VALUES (?, ?, '/mnt/x', 1, 0, 0)`, id, p)
+		exec(`INSERT INTO link_episode (link_id, episode_id) VALUES (?, ?)`, id, id)
 		fp.files[p] = plex.FileItem{RatingKey: fmt.Sprint(5000 + id)}
 		if se == (anime.SE{1, 1}) {
-			exec(`INSERT INTO link (id, path, target, title_id, created_at, updated_at) VALUES (1, '/media/anime/Re ZERO/S01E01.mkv', '/mnt/x', 1, 0, 0)`)
-			exec(`INSERT INTO link_episode (link_id, episode_id) VALUES (1, ?)`, id)
-			fp.files["/media/anime/Re ZERO/S01E01.mkv"] = plex.FileItem{RatingKey: "7777"}
+			fp.files[p] = plex.FileItem{RatingKey: "7777"}
 		}
 	}
 	if len(seen) < 50 {

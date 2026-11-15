@@ -33,8 +33,9 @@ func TestCutoffLoadsMetadataOnce(t *testing.T) {
 			for i := 0; i < count; i++ {
 				id := 10000 + i
 				e.exec(`INSERT INTO episode(id,title_id,season,number,name,runtime_minutes,created_at,updated_at) VALUES(?,10,3,?,'ep',45,0,0)`, id, i+1)
-				e.exec(`INSERT INTO version_file(id,version_id,title_id,instance,arr_file_id,path,quality,scene_name) VALUES(?,201,10,'sonarr',?,?,'WEBDL-2160p','Show.S03E01.2160p.WEB-DL-GRP')`, id, id, fmt.Sprintf("/s/%d.mkv", id))
-				e.exec(`INSERT INTO version_file_episode(version_file_id,episode_id) VALUES(?,?)`, id, id)
+				e.exec(`INSERT INTO link(id,path,target,title_id,quality,file_metadata,created_at,updated_at) VALUES(?,?,?,10,'WEBDL-2160p',json_object('Quality','WEBDL-2160p','Revision',1,'SceneName','Show.S03E01.2160p.WEB-DL-GRP'),0,0)`, id, fmt.Sprintf("/s/%d.mkv", id), fmt.Sprintf("/z/%d.mkv", id))
+				e.exec(`INSERT INTO link_version(link_id,version_id) VALUES(?,201)`, id)
+				e.exec(`INSERT INTO link_episode(link_id,episode_id) VALUES(?,?)`, id, id)
 			}
 			// Views wrap only the loaded metadata columns; all foreign keys keep pointing at the backing tables.
 			for _, item := range []struct{ table, column, fn string }{{"title", "name", titleFunc}, {"episode", "runtime_minutes", episodeFunc}} {

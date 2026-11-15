@@ -185,7 +185,6 @@ func TestLoadSeriesVersion(t *testing.T) {
 			original_language, created_at, updated_at) VALUES (5, 'series', 'Isekai Story', 2021, 2002, 'standard', 1, 24,
 			'Japanese', 0, 0)`,
 		`INSERT INTO version (id, title_id, policy_key, created_at, updated_at) VALUES (8, 5, 'anime-tv', 0, 0)`,
-		`INSERT INTO version_source (version_id, instance, arr_id) VALUES (8, 'sonarr_b', 1)`,
 		`INSERT INTO title_scene_mapping (title_id, source, name, scene_season_number) VALUES
 			(5, 'sonarr_b', 'Isekai Story S2', 2), (5, 'sonarr_c', 'Isekai Story S2', 2)`,
 		`INSERT INTO episode (id, title_id, season, number, name, air_date, air_date_utc_at, runtime_minutes, monitored,
@@ -199,9 +198,11 @@ func TestLoadSeriesVersion(t *testing.T) {
 			(41, 5, 'scene_absolute', NULL, 3, 'sonarr_b')`,
 		`INSERT INTO episode_version_state (version_id, episode_id, monitored, state, updated_at) VALUES
 			(8, 31, 1, 'filled', 0), (8, 32, 1, 'filled', 0), (8, 41, 0, 'wanted', 0)`,
-		`INSERT INTO version_file (id, version_id, title_id, instance, arr_file_id, path, quality, release_type, scene_name,
-			size_bytes) VALUES (70, 8, 5, 'sonarr_b', 900, '/x.mkv', 'WEBDL-1080p', 'multiEpisode', '[G] Isekai Story - 01-02 (WEB 1080p)', 1000)`,
-		`INSERT INTO version_file_episode (version_file_id, episode_id) VALUES (70, 31), (70, 32)`,
+		`INSERT INTO link (id, title_id, path, target, quality, file_metadata, created_at, updated_at) VALUES
+			(70, 5, '/x.mkv', '/z/x.mkv', 'WEBDL-1080p', json_object('Quality', 'WEBDL-1080p', 'Revision', 1,
+			'ReleaseType', 'multiEpisode', 'SceneName', '[G] Isekai Story - 01-02 (WEB 1080p)', 'Size', 1000), 0, 0)`,
+		`INSERT INTO link_version (link_id, version_id) VALUES (70, 8)`,
+		`INSERT INTO link_episode (link_id, episode_id) VALUES (70, 31), (70, 32)`,
 	} {
 		if _, err := st.Writer().ExecContext(ctx, q); err != nil {
 			t.Fatalf("%s: %v", q, err)
@@ -231,7 +232,7 @@ func TestLoadSeriesVersion(t *testing.T) {
 		t.Errorf("S02E01: %+v", e3)
 	}
 	e1 := tt.Episodes[0]
-	if e1.File == nil || e1.FileID != 70 || e1.File.ReleaseType != "multiEpisode" || len(e1.File.EpisodeIDs) != 2 ||
+	if e1.File == nil || e1.FileID != -70 || e1.File.ReleaseType != "multiEpisode" || len(e1.File.EpisodeIDs) != 2 ||
 		tt.Episodes[1].File != e1.File || e1.AirDateUTC == nil {
 		t.Errorf("S01E01: %+v", e1)
 	}

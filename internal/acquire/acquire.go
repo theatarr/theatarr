@@ -639,7 +639,7 @@ func (a *Acquirer) upgradesAllowed(key string) bool {
 // file when its quality is one the profile ranks below the cutoff (the first allowed quality when upgrades are off);
 // the custom-format score is not looked at. CutoffUnmetMoviesSearch and CutoffUnmetEpisodeSearch search that list
 // (MoviesSearchService, EpisodeSearchService). The file judged is the one decide compares a release with: the newest
-// active link, else the arr's file. Without a decision engine the profile is unknown and the state alone decides.
+// active link. Without a decision engine the profile is unknown and the state alone decides.
 // The arr views' wanted/cutoff lists and cutoff-unmet commands use the same judgement.
 
 // BelowQualityCutoff says whether a filled movie version's file is below the quality cutoff (true without an engine).

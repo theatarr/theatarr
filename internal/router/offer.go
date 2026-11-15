@@ -19,7 +19,7 @@ import (
 )
 
 // Offers (grab once, link twice): when a release is imported for
-// one version, or held through an adopted link or imported arr file, it is offered to the title's other versions.
+// one version, or held through an adopted link, it is offered to the title's other versions.
 // The target's own rules decide (its profile, through the decision engine, against its current files), as a
 // partner Radarr's manual-import evaluation would. An accepted offer is a route request with that one
 // release; the provider holds the hash already, so the router reuses it (no second add) and the library links the
@@ -28,12 +28,12 @@ import (
 // What a partner sync between two arrs does, and how it is done here:
 //   - on import or upgrade (its webhook): JobOffer is enqueued by the library when a download is imported;
 //   - the partner looked up by title id: the same title, every other version of the policy;
-//   - skip when the partner links the same file: the target already holds the hash (link or arr file) -> same;
+//   - skip when the partner links the same file: the target already holds the hash (link or download) -> same;
 //   - SKIP qualities: none needed, the target's profile rejects them (declined with its reasons);
 //   - rejections remembered so the same file is not probed again: router_offer (version, title, hash);
 //   - partner lacks the title yet, or the file is unreadable: pending every 15 min for 6 h, then gave_up;
 //     gave_up retries daily at most seven more times; a readiness change can bring a retry forward;
-//   - the 6-hourly sweep both ways: imported downloads, adopted links and imported arr files;
+//   - the 6-hourly sweep both ways: imported downloads and adopted links;
 //     never back to their source or the arr's own library, never without a known hash (no_hash);
 //   - replaced sources are not offered; their pending offers are declined with reason superseded;
 //   - never to a library the title was removed from (arrview_removed_version): nothing is recorded, and an offer on
@@ -497,17 +497,15 @@ func offerSeriesSearch(t *decide.Title, ids []int64) *decide.SeriesSearch {
 	return s
 }
 
-// holds reports whether a version already has the hash: an active link of ours, or an arr file of that content.
+// holds reports whether a version already has the hash: an active link of ours, or a download of it.
 func (o *Offerer) holds(ctx context.Context, versionID int64, hash string) (bool, error) {
 	var n int
 	err := o.Store.Reader().QueryRowContext(ctx, `SELECT
 		(SELECT COUNT(*) FROM link l JOIN link_version lv ON lv.link_id = l.id LEFT JOIN content_file cf ON cf.id = l.content_file_id
 			LEFT JOIN content c ON c.id = cf.content_id WHERE lv.version_id = ? AND l.state = 'active'
 			AND lower(COALESCE(NULLIF(c.info_hash, ''), json_extract(l.file_metadata, '$.InfoHash'), '')) = ?)
-		+ (SELECT COUNT(*) FROM version_file vf JOIN content c ON c.id = vf.content_id WHERE vf.version_id = ?
-			AND lower(c.info_hash) = ?)
 		+ (SELECT COUNT(*) FROM download WHERE version_id = ? AND lower(info_hash) = ? AND state <> 'failed')`,
-		versionID, hash, versionID, hash, versionID, hash).Scan(&n)
+		versionID, hash, versionID, hash).Scan(&n)
 	return n > 0, err
 }
 
@@ -580,7 +578,7 @@ type SweepResult struct {
 	Offers    []OfferResult  `json:"offers,omitempty"`
 }
 
-// Sweep offers imported downloads, adopted links and arr files (the 6-hourly backfill).
+// Sweep offers imported downloads and adopted links (the 6-hourly backfill).
 // limit caps the sources offered (0: all); a sweep stops after 5 errors.
 func (o *Offerer) Sweep(ctx context.Context, dryRun bool, limit int) (*SweepResult, error) {
 	if o.CaptureRuntime != nil {

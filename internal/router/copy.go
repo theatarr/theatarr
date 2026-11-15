@@ -611,7 +611,7 @@ func (r *Router) workCopy(ctx context.Context, c *copyRow) error {
 
 // copyRefusedName returns the first known name of hash Real-Debrid's name rule refuses (rule J1): the given names
 // (the file's, a provider entry's), the release and original names of its downloads, the release names of the links
-// and arr files tied to it (by content, download or an arr file's download id) and the registry's names. Every read
+// tied to it (by content or download) and the registry's names. Every read
 // is by hash.
 func (r *Router) copyRefusedName(ctx context.Context, hash string, names ...string) (string, error) {
 	err := func() error {
@@ -623,11 +623,7 @@ func (r *Router) copyRefusedName(ctx context.Context, hash string, names ...stri
 			UNION SELECT COALESCE(cp.folder_name, '') FROM content c JOIN content_provider cp ON cp.content_id = c.id
 				WHERE c.info_hash = ?1
 			UNION SELECT COALESCE(l.release_title, '') FROM content c JOIN content_file cf ON cf.content_id = c.id
-				JOIN link l ON l.content_file_id = cf.id WHERE c.info_hash = ?1
-			UNION SELECT COALESCE(vf.release_title, '') || char(10) || COALESCE(vf.scene_name, '') FROM content c
-				JOIN version_file vf ON vf.content_id = c.id WHERE c.info_hash = ?1
-			UNION SELECT COALESCE(release_title, '') || char(10) || COALESCE(scene_name, '') FROM version_file
-				WHERE download_id IN (?1, upper(?1))`, hash)
+				JOIN link l ON l.content_file_id = cf.id WHERE c.info_hash = ?1`, hash)
 		if err != nil {
 			return err
 		}

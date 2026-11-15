@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"reflect"
 	"testing"
-	"time"
 
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/store"
@@ -38,13 +37,8 @@ func TestLoadExistingLinks(t *testing.T) {
 	}
 	exec(`INSERT INTO title (id, kind, name, created_at, updated_at) VALUES (7, 'movie', 'Dune: Part Two', 0, 0)`)
 	exec(`INSERT INTO version (id, title_id, policy_key, created_at, updated_at) VALUES (1, 7, 'movie-remux', 0, 0)`)
-	exec(`INSERT INTO version_source VALUES (1, 'owner', 1)`)
-	exec(`INSERT INTO version_file (id, version_id, title_id, instance, arr_file_id, path, quality, scene_name,
-		added_at) VALUES (1, 1, 7, 'owner', 1, '/arr.mkv', 'WEBDL-2160p', 'arr scene', 1),
-		(2, 1, 7, 'other', 2, '/other.mkv', 'Remux-2160p', 'other scene', 999)`)
-	arr, err := LoadExisting(ctx, st.Reader(), 1)
-	if err != nil || !reflect.DeepEqual(arr, &ExistingFile{Quality: "WEBDL-2160p", Revision: 1, SceneName: "arr scene", Languages: []string{}, Added: time.UnixMilli(1).UTC()}) {
-		t.Fatalf("arr-only owner precedence: %+v, %v", arr, err)
+	if none, err := LoadExisting(ctx, st.Reader(), 1); err != nil || none != nil {
+		t.Fatalf("no file: %+v, %v", none, err)
 	}
 	low := rel("Dune.Part.Two.2024.2160p.MA.WEB-DL.DDP5.1-FLUX", "public", 25*gb)
 	f := LinkedFile(policy.KindMovie, low, "WEBDL-2160p")
@@ -68,15 +62,14 @@ func TestLoadExistingLinks(t *testing.T) {
 		d.UpgradeReason != "better quality: Remux-2160p over WEBDL-2160p" {
 		t.Fatalf("upgrade from link: %+v, %v", d, err)
 	}
-	// An active link wins even over a newer arr file; dead and unlinked rows never hide an arr file.
+	// Dead and unlinked rows are no file.
 	for _, state := range []string{"dead", "unlinked"} {
 		exec(`UPDATE link SET state = ? WHERE id = 1`, state)
 		got, err = LoadExisting(ctx, st.Reader(), 1)
-		if err != nil || !reflect.DeepEqual(got, arr) {
-			t.Fatalf("%s link changed arr loading: %+v, %v", state, got, err)
+		if err != nil || got != nil {
+			t.Fatalf("%s link loaded: %+v, %v", state, got, err)
 		}
 	}
-	exec(`DELETE FROM version_file`)
 	exec(`UPDATE link SET state = 'active' WHERE id = 1`)
 	got, err = LoadExisting(ctx, st.Reader(), 1)
 	if err != nil || got == nil || got.SceneName != low.Title {
@@ -111,14 +104,9 @@ func TestLoadEpisodeLinks(t *testing.T) {
 		exec(`INSERT INTO episode (id, title_id, season, number, name, created_at, updated_at) VALUES (?, 1, ?, ?, ?, 0, 0)`,
 			ep.ID, ep.Season, ep.Number, ep.Title)
 	}
-	exec(`INSERT INTO version_source VALUES (9, 'owner', 1)`)
-	exec(`INSERT INTO version_file (id, version_id, title_id, instance, arr_file_id, path, quality, scene_name,
-		added_at) VALUES (1, 9, 1, 'owner', 1, '/arr.mkv', 'WEBDL-2160p', 'owner', 1),
-		(2, 9, 1, 'other', 2, '/other.mkv', 'Bluray-2160p Remux', 'other', 999)`)
-	exec(`INSERT INTO version_file_episode VALUES (1, 101), (1, 103), (2, 101)`)
 	before, err := LoadEpisodes(ctx, st.Reader(), 1, 9)
-	if err != nil || before[1].FileID != 1 || before[3].FileID != 1 {
-		t.Fatalf("arr-only episodes: %+v, %v", before, err)
+	if err != nil || before[1].File != nil || before[3].File != nil {
+		t.Fatalf("no files: %+v, %v", before, err)
 	}
 	f := LinkedFile(policy.KindSeries, rel("The.Show.S01E01E02.2160p.WEB-DL-GRP", "public", 16*gb), "WEBDL-2160p")
 	body, _ := json.Marshal(f)
@@ -154,7 +142,7 @@ func TestLoadEpisodeLinks(t *testing.T) {
 	exec(`UPDATE link SET state = 'dead'`)
 	got, err = LoadEpisodes(ctx, st.Reader(), 1, 9)
 	if err != nil || !reflect.DeepEqual(got, before) {
-		t.Fatalf("inactive links changed shadow files: %+v, %v", got, err)
+		t.Fatalf("inactive links gave files: %+v, %v", got, err)
 	}
 }
 

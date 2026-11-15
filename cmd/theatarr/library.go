@@ -374,15 +374,6 @@ func printScans(out io.Writer, scans []*library.LinkScan, asJSON bool) error {
 		for _, d := range s.Revived {
 			fmt.Fprintf(out, "    revived%s %s -> %s\n", map[bool]string{true: " (would be)"}[s.DryRun], d.Path, d.Target)
 		}
-		if n := s.Names; n != nil {
-			fmt.Fprintf(out, "  names (%s): %d arr files, %d in the format's shape, %d equal to ours\n", n.Naming, n.Files, n.Shaped, n.Equal)
-			if n.Error != "" {
-				fmt.Fprintf(out, "    error: %s\n", n.Error)
-			}
-			for _, d := range n.Differs {
-				fmt.Fprintf(out, "    %s\n      ours %s\n", d.Path, d.Ours)
-			}
-		}
 	}
 	return nil
 }

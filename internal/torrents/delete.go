@@ -202,7 +202,7 @@ func (m *Manager) planDelete(ctx context.Context, sel []DeleteSelection, lists m
 func describe(refs map[string]int, reasons []string) string {
 	if len(refs) > 0 {
 		var parts []string
-		for _, k := range []string{RefLink, RefArrFile, RefDownload, RefScan} {
+		for _, k := range []string{RefLink, RefDownload, RefScan} {
 			if n := refs[k]; n > 0 {
 				parts = append(parts, fmt.Sprintf("%d %s", n, k))
 			}
@@ -272,7 +272,7 @@ var ErrBackupFailed = errors.New("torrents: the backup before the delete failed;
 // re-added one of the torrents meanwhile (on AllDebrid an add of a hash on the account hands back the same magnet)
 // has a download referencing it, and no route adds between an item's last usage check and the provider's answer.
 // Each item's usage is checked once more right before its own delete, after the pacing wait, under the reference
-// fence (reffence): a library link or arr file written while the earlier deletes ran counts, and no
+// fence (reffence): a library link written while the earlier deletes ran counts, and no
 // such reference is written between that check and the provider's answer. The fence is taken before the add lock:
 // its wait for link writes in progress (at most reffence.HoldWait) never holds up routing. An item whose usage changed since the plan is skipped. The scan roots are walked once,
 // after the backup; only the references Theatarr writes are read again per item.

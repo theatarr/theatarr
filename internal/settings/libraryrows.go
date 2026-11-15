@@ -39,7 +39,8 @@ func removeLibraryRows(ctx context.Context, tx *sql.Tx, key string, now int64) e
 			return fmt.Errorf("settings: remove rows of library %s: %w", key, err)
 		}
 	}
-	// Its upgrade cards (migration 00125's mirror card, FreezeStored's copy card) are resolved: their cause is gone.
+	// Its upgrade cards (migration 00125's mirror card, the arr-freeze card of 00134 or an earlier upgrade) are
+	// resolved: their cause is gone.
 	if _, err := tx.ExecContext(ctx, `UPDATE error_event SET status = 'resolved', resolved_at = ?1, updated_at = ?1
 		WHERE fingerprint IN ('arr-mirror:' || ?2, 'arr-freeze:' || ?2) AND status IN ('new', 'seen')`, now, key); err != nil {
 		return fmt.Errorf("settings: remove rows of library %s: %w", key, err)

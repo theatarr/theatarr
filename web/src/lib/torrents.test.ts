@@ -20,7 +20,7 @@ const t = (provider: string, id: string, name: string, bytes: number, added: str
 });
 
 const A = t("rd", "1", "Alpha.2020.1080p", 300, "2026-10-01T00:00:00Z");
-const B = t("rd", "2", "Beta.2021.2160p", 900, "2026-10-20T00:00:00Z", { usage: "used", refs: { link: 2, arr_file: 1 } });
+const B = t("rd", "2", "Beta.2021.2160p", 900, "2026-10-20T00:00:00Z", { usage: "used", refs: { link: 2, download: 1 } });
 const C = t("tb", "3", "Gamma.2019.720p", 100, "2026-09-01T00:00:00Z", { usage: "unknown", reasons: ["not in the registry yet"] });
 
 const report: TorrentReport = {
@@ -57,7 +57,7 @@ describe("filters", () => {
 
 describe("usage", () => {
   it("names the references and the reasons", () => {
-    expect(refSummary({ link: 2, arr_file: 1 })).toBe("1 arr file, 2 library links");
+    expect(refSummary({ link: 2, download: 1 })).toBe("1 download, 2 library links");
     expect(usageDetail(B)).toContain("2 library links");
     expect(usageDetail(C)).toBe("not in the registry yet");
     expect(usageDetail(A)).toMatch(/No file/);

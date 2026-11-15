@@ -62,13 +62,24 @@ func (e *env) heldLink(id int64, quality, release string, eps ...int64) string {
 	return p
 }
 
-// heldArrFile is a current file of the tv version as the arr's (shadow).
+// heldArrFile is a current file of the tv version adopted from the arr.
 func (e *env) heldArrFile(id int64, quality, release string, eps ...int64) {
 	e.t.Helper()
-	e.exec(`INSERT INTO version_file (id, version_id, title_id, instance, arr_file_id, path, quality, scene_name, relative_path)
-		VALUES (?, 20, 2, 'sonarr', ?, ?, ?, ?, ?)`, id, id, "/arr/Show/"+release+".mkv", quality, release, release+".mkv")
+	e.adoptedFile(900+id, 20, 2, "/arr/Show/"+release+".mkv", "/arr/Show/"+release+".mkv", quality, release, eps...)
+}
+
+// adoptedFile is a link as the arr import (AdoptImported) writes it: no download, the arr's file record in its
+// metadata, provenance in adopted_from.
+func (e *env) adoptedFile(id, versionID, titleID int64, p, target, quality, release string, eps ...int64) {
+	e.t.Helper()
+	e.exec(`INSERT INTO link (id, path, target, kind, title_id, release_title, quality, file_metadata, adopted_from,
+		adopted_media, state, created_at, updated_at) VALUES (?1, ?2, ?3, 'symlink', ?4, ?5, ?6,
+		json_object('Quality', ?6, 'Revision', 1, 'SceneName', ?5, 'RelativePath', ?7, 'ReleaseGroup', 'GRP',
+			'Languages', json('["English"]'), 'Size', 1000),
+		'arr ' || ?2, '{}', 'active', 0, 0)`, id, p, target, titleID, release, quality, filepath.Base(p))
+	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (?, ?)`, id, versionID)
 	for _, ep := range eps {
-		e.exec(`INSERT INTO version_file_episode (version_file_id, episode_id) VALUES (?, ?)`, id, ep)
+		e.exec(`INSERT INTO link_episode (link_id, episode_id) VALUES (?, ?)`, id, ep)
 	}
 }
 
@@ -460,44 +471,27 @@ func TestImportUpgradeSplitMultiEpisode(t *testing.T) {
 
 func TestImportUpgradeMultiEpisodeRemainingLink(t *testing.T) {
 	t.Parallel()
-	for _, active := range []bool{true, false} {
-		t.Run(map[bool]string{true: "active link", false: "arr file"}[active], func(t *testing.T) {
-			e := importUpEnv(t, policy.ModeActive, "")
-			old := e.heldLink(1, "WEBDL-1080p", "Show.S01E01E02.1080p.WEB-DL.H.264-OLD", 201, 202)
-			other := ""
-			if active {
-				other = e.heldLink(2, "WEBDL-1080p", "Show.S01E02.1080p.WEB-DL.H.264-OTHER", 202)
-			} else {
-				e.heldArrFile(2, "WEBDL-1080p", "Show.S01E02.1080p.WEB-DL.H.264-OTHER", 202)
-			}
-			rel := "Show.S01E01.2160p.WEB-DL.H.265-GRP"
-			e.release(rel, map[string]float64{rel + ".mkv": 2700})
-			e.seriesDownload(1, 2, 20, hashA, rel, "[201]", nil)
-			for _, dryRun := range []bool{true, false} {
-				plan, err := e.lib.Import(e.ctx, 1, dryRun)
-				if err != nil {
-					t.Fatal(err)
-				}
-				if active {
-					if len(plan.Links) != 1 || len(plan.Links[0].Replaces) != 1 || plan.Links[0].Replaces[0] != old {
-						t.Fatalf("replacement plan %+v", plan)
-					}
-				} else if len(plan.Links) != 0 || !strings.Contains(skipped(plan)[rel+".mkv"], "Episode file on disk contains more episodes") {
-					t.Fatalf("arr file supplied active coverage: %+v", plan)
-				}
-			}
-			if active {
-				if _, err := os.Readlink(other); err != nil {
-					t.Errorf("remaining link removed: %v", err)
-				}
-				if got := e.one(`SELECT COUNT(DISTINCT le.episode_id) FROM link_episode le JOIN link l ON l.id = le.link_id
-					WHERE l.state = 'active' AND le.episode_id IN (201, 202)`); got != "2" {
-					t.Errorf("covered episodes %s, want 2", got)
-				}
-			} else if _, err := os.Readlink(old); err != nil {
-				t.Errorf("old link removed: %v", err)
-			}
-		})
+	e := importUpEnv(t, policy.ModeActive, "")
+	old := e.heldLink(1, "WEBDL-1080p", "Show.S01E01E02.1080p.WEB-DL.H.264-OLD", 201, 202)
+	other := e.heldLink(2, "WEBDL-1080p", "Show.S01E02.1080p.WEB-DL.H.264-OTHER", 202)
+	rel := "Show.S01E01.2160p.WEB-DL.H.265-GRP"
+	e.release(rel, map[string]float64{rel + ".mkv": 2700})
+	e.seriesDownload(1, 2, 20, hashA, rel, "[201]", nil)
+	for _, dryRun := range []bool{true, false} {
+		plan, err := e.lib.Import(e.ctx, 1, dryRun)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(plan.Links) != 1 || len(plan.Links[0].Replaces) != 1 || plan.Links[0].Replaces[0] != old {
+			t.Fatalf("replacement plan %+v", plan)
+		}
+	}
+	if _, err := os.Readlink(other); err != nil {
+		t.Errorf("remaining link removed: %v", err)
+	}
+	if got := e.one(`SELECT COUNT(DISTINCT le.episode_id) FROM link_episode le JOIN link l ON l.id = le.link_id
+		WHERE l.state = 'active' AND le.episode_id IN (201, 202)`); got != "2" {
+		t.Errorf("covered episodes %s, want 2", got)
 	}
 }
 

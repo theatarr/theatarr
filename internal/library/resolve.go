@@ -42,7 +42,7 @@ import (
 //     narrowed is not widened and a file named for another entry moves nothing.
 //
 // A file that cannot pass the import guards (a sample) moves nothing. A download with no stored entry is never
-// re-scoped. And when a new episode already has a file of the version (a link, a dead link or the arr's file) the
+// re-scoped. And when a new episode already has a file of the version (a link or a dead link) the
 // download is not re-scoped at all: its files are held as out of scope instead of replacing a file the grab did not
 // cover. The stored mapping is kept: a later accept re-links the imported files through it (animerelink.go).
 func (l *Library) rescope(ctx context.Context, d *importDownload, files []PlannedFile, guard func(PlannedFile, []episodeInfo) string) error {

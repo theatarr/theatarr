@@ -89,7 +89,9 @@ func TestRSSCutoffMetSeriesAndEpisodeUpgradeGuard(t *testing.T) {
 	e.seed(t)
 	e.seedShow(t)
 	e.exec(t, `UPDATE version SET state = 'cutoff_met' WHERE policy_key = 'tv'`)
-	e.exec(t, `UPDATE version_file SET quality = 'WEBDL-2160p', scene_name = 'The.Show.S01E01.2160p.WEB-DL-GRP' WHERE version_id IN (SELECT id FROM version WHERE policy_key = 'tv')`)
+	e.exec(t, `UPDATE link SET quality = 'WEBDL-2160p', file_metadata = json_set(file_metadata, '$.Quality', 'WEBDL-2160p',
+		'$.SceneName', 'The.Show.S01E01.2160p.WEB-DL-GRP') WHERE id IN (SELECT lv.link_id FROM link_version lv
+		JOIN version v ON v.id = lv.version_id WHERE v.policy_key = 'tv')`)
 	e.exec(t, `UPDATE episode_version_state SET state = 'cutoff_met' WHERE episode_id IN (SELECT id FROM episode WHERE number = 1)`)
 	e.prow.setRSS(item{title: "The.Show.S01E01.2160p.WEB-DL-GRP", hash: hShowPack, size: 8e9, pub: t0, tv: true},
 		item{title: "The.Show.S01E03.2160p.WEB-DL-GRP", hash: hShowE03, size: 8e9, pub: t0, tv: true})

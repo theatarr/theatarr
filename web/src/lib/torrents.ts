@@ -92,9 +92,9 @@ export function sortTorrents(list: Torrent[], key: SortKey, desc = key !== "name
 }
 
 /** A reference kind in words. */
-export const REF_LABEL: Record<string, string> = { link: "library link", arr_file: "arr file", download: "download", scan: "scanned link" };
+export const REF_LABEL: Record<string, string> = { link: "library link", download: "download", scan: "scanned link" };
 
-/** "2 library links, 1 arr file": a torrent's references counted by kind. */
+/** "2 library links, 1 download": a torrent's references counted by kind. */
 export function refSummary(refs?: Record<string, number>): string {
   if (!refs) return "";
   return Object.entries(refs)
@@ -138,7 +138,7 @@ export function deleteScope(p: DeletePlan): Scope {
     ],
     keeps: [
       p.refused > 0 ? `${fmtNumber(p.refused)} chosen torrent${p.refused === 1 ? " is" : "s are"} refused and kept (see below)` : "Every torrent you did not choose",
-      "Library links and arr files: nothing in the library is touched",
+      "Library links: nothing in the library is touched",
     ],
     confirm: `Delete ${fmtNumber(n)}`,
     blocked: n === 0 ? "Nothing chosen can be deleted as it is: see why below." : undefined,

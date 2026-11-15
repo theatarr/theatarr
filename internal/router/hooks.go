@@ -274,18 +274,13 @@ func EndRemoved(ctx context.Context, tx *sql.Tx, titleID int64, keys []string, r
 
 // copyWantedSQL is the condition that a hash, given as ?1 (lower-case hex) and ?2 (its lower-case base32 form, as a
 // row may store it), is still wanted by a current copy of a title: a download of it in hand, an active link of a
-// version not removed that records it or points at the same target as a link that records it, or an arr file of it of
-// a version not removed.
+// version not removed that records it or points at the same target as a link that records it.
 const copyWantedSQL = `(EXISTS (SELECT 1 FROM download d WHERE lower(d.info_hash) IN (?1, ?2)
 		AND d.state NOT IN ('failed', 'imported'))
 	OR EXISTS (SELECT 1 FROM link lc JOIN link_version lvc ON lvc.link_id = lc.id WHERE lc.state = 'active'
 		AND NOT EXISTS (SELECT 1 FROM arrview_removed_version r WHERE r.version_id = lvc.version_id)
 		AND lc.id IN (SELECT l.id FROM link l WHERE ` + LinkStoredHashSQL + ` IN (?1, ?2)
-			OR l.target IN (SELECT l.target FROM link l WHERE ` + LinkStoredHashSQL + ` IN (?1, ?2))))
-	OR EXISTS (SELECT 1 FROM version_file vf
-		WHERE NOT EXISTS (SELECT 1 FROM arrview_removed_version r WHERE r.version_id = vf.version_id)
-		AND (lower(vf.download_id) IN (?1, ?2) OR EXISTS (SELECT 1 FROM content c WHERE c.id = vf.content_id
-			AND lower(c.info_hash) IN (?1, ?2)))))`
+			OR l.target IN (SELECT l.target FROM link l WHERE ` + LinkStoredHashSQL + ` IN (?1, ?2)))))`
 
 // StopRemovedCopies stops, in the removal's transaction, the queued copies to other providers (provider_copy) of
 // hashes a removal took from the library, so they are not started later or resumed at startup: each becomes

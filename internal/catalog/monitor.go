@@ -189,16 +189,14 @@ func ApplyMonitor(ctx context.Context, tx *sql.Tx, titleID int64, keys []string,
 	return nil
 }
 
-// episodesWithFile are the episodes a version holds: its state is filled or cutoff_met, an arr file of the
-// version has it, or an active link of the version does.
+// episodesWithFile are the episodes a version holds: its state is filled or cutoff_met, or an active link of the
+// version has it.
 func episodesWithFile(ctx context.Context, tx *sql.Tx, versionID int64) (map[int64]bool, error) {
 	rows, err := tx.QueryContext(ctx, `SELECT episode_id FROM episode_version_state WHERE version_id = ?
 		AND state IN ('filled', 'cutoff_met')
-		UNION SELECT fe.episode_id FROM version_file_episode fe JOIN version_file vf ON vf.id = fe.version_file_id
-		WHERE vf.version_id = ?
 		UNION SELECT le.episode_id FROM link_episode le JOIN link l ON l.id = le.link_id
 		JOIN link_version lv ON lv.link_id = l.id WHERE lv.version_id = ? AND l.state = 'active'`,
-		versionID, versionID, versionID)
+		versionID, versionID)
 	if err != nil {
 		return nil, err
 	}

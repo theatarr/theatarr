@@ -146,7 +146,7 @@ func TestCopyRound2CountWithVerdict(t *testing.T) {
 	}
 }
 
-// 10: the name rule sees a download's original name and an arr file found by its download id; a second request that
+// 10: the name rule sees a download's original name and a link's release title; a second request that
 // brings a refused name turns a queued row refused.
 func TestCopyRound2Names(t *testing.T) {
 	t.Parallel()
@@ -154,9 +154,10 @@ func TestCopyRound2Names(t *testing.T) {
 	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, original_name, indexer,
 		provider, state, created_at, updated_at) VALUES (5, 1, 10, 'movie', ?, 'Movie 2024', 'Movie.2024.1080p.WEB.x264-YIFY',
 		'pub', 'ad', 'imported', 0, 0)`, h("a"))
-	e.exec(`INSERT INTO version_file (version_id, title_id, instance, arr_file_id, path, size_bytes, quality, languages,
-		release_title, download_id) VALUES (10, 1, 'radarr', 9, '/m/b.mkv', 1, 'x', '[]', 'Other.2024.1080p.WEB.x264-YIFY', ?)`,
-		h("b"))
+	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer,
+		provider, state, created_at, updated_at) VALUES (6, 1, 10, 'movie', ?, 'Other 2024', 'pub', 'ad', 'imported', 0, 0)`, h("b"))
+	e.exec(`INSERT INTO link (path, target, title_id, download_id, release_title, created_at, updated_at)
+		VALUES ('/m/b.mkv', '/mnt/b', 1, 6, 'Other.2024.1080p.WEB.x264-YIFY', 0, 0)`)
 	e.queue(h("a"), "Movie 2024")
 	e.queue(h("b"), "Other 2024")
 	e.queue(h("c"), "Third 2024")

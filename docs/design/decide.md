@@ -53,8 +53,7 @@ and models three versions with two criteria each.
      - Movies with a known release size and runtime-based size bounds temporarily reject with `UnknownRuntime`
        until real runtime is loaded. They never judge size against a guessed 110 minutes. RSS leaves these items
        eligible for reconsideration; the lower-level Radarr specification keeps its fallback for parity tests.
-  5. **Specifications:** `profile.Engine.Evaluate` runs with the version's active Theatarr link, falling back to the arr's
-     `version_file`; series merge the two per episode, with Theatarr's link winning.
+  5. **Specifications:** `profile.Engine.Evaluate` runs with the version's active link (per episode for series).
      - Its formats are computed as `ParseCustomFormat(MovieFile)` does: release title from the scene name, else
        the original file name, else the relative path.
      - Theatarr links carry the import's original parse, languages, size, flags, formats and score (`file_metadata`,
@@ -115,16 +114,11 @@ beats a better quality; for a library with `prefer_seadex` (the decision's `pref
 (configured winner, SeaDex best, other listed, the rest), then that order. With `prefer_seadex` and no info hash it
 warns that a SeaDex-curated release may be judged differently. It records, searches and grabs nothing.
 
-## Frozen arr profiles
+## Profiles once taken from an arr
 
-`internal/migration` (`freezeArr`) freezes an arr snapshot into native profiles and a format set, so a version decides
-with the arr's own profile and formats. On upgrade, `FreezeStored` uses it to replace a stored profile or naming that
-was taken from an arr (the removed `from_arr`) with a native copy under the same key, and leaves one message per
-library on System › Errors asking to check it; what cannot be converted becomes a minimal profile or the default
-naming, and its library Watch only. Migration 00125 keeps the arr snapshots it needs (`arr_frozen_input`, from
-`arr_policy_snapshot`, for the instances a remaining `from_arr` profile or naming names) before it drops the arr
-tables; `serve` calls `FreezeStored` right after the migrations, before the settings load. Other commands do not, so
-on such an install `serve` must run once after the upgrade before them.
+A stored profile or naming still taken from an arr (the removed `from_arr`, only on an install that skipped the
+upgrades between 00125 and 00134) becomes, in migration 00134, a minimal native profile or the default naming; its
+library turns Watch only, with one message per library on System › Errors asking to check it.
 
 Native profiles may select a set with `format_set`. Its keys are the arr's display names, so the same name can
 exist in several sets, and zero-score formats outside the selected set cannot enter names or rejection text:
@@ -163,8 +157,7 @@ messages.
 ## Arr rules: propers, seeders, episode titles, repeats
 
 - **Proper (RSS only):** revision upgrades reject when propers are disabled, or the held file was added before
-  local midnight seven days ago. `doNotPrefer` and all searches skip this check. Arr files use `added_at`; Theatarr
-  links keep a recorded file-added time, falling back to `link.created_at`. Movie search callers mark the context
+  local midnight seven days ago. `doNotPrefer` and all searches skip this check. Links keep a recorded file-added time, falling back to `link.created_at`. Movie search callers mark the context
   with `decide.WithSearch`; series callers supply `SeriesSearch`.
 - **Torrent seeders:** every torrent indexer kind defaults `min_seeders` to 1. An explicit 0 disables it; negative
   values fail validation. Known counts below the minimum reject in RSS and every search type; unknown counts

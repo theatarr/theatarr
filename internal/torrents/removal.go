@@ -16,8 +16,7 @@ import (
 )
 
 // RemovalCleanup is the debrid clean-up after a removal that deleted the files (internal/removal): the removal's
-// title, and the hashes of the removed copies' torrents (their links that were unlinked, their arr files and their
-// downloads), each with the removed libraries (policy keys) it belongs to, less any hash a link that was kept or
+// title, and the hashes of the removed copies' torrents (their links that were unlinked and their downloads), each with the removed libraries (policy keys) it belongs to, less any hash a link that was kept or
 // failed to unlink still names.
 type RemovalCleanup struct {
 	TitleID int64

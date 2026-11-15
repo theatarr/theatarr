@@ -294,7 +294,7 @@ func TestDemoScreens(t *testing.T) {
 		"/jobs":                                      {"items", "counts"},
 		"/jobs?attention=1":                          {"items"},
 		"/registry":                                  {"items"},
-		"/registry/" + hash:                          {"versions"},
+		"/registry/" + hash:                          {"links"},
 		"/anime/franchises":                          {"items"},
 		"/anime/franchises/" + demo.FranchiseSlug:    {"orders", "mappings", "numbering"},
 		"/anime/review":                              {"items"},
@@ -806,16 +806,12 @@ func TestDemoTwoCopies(t *testing.T) {
 		}
 		return n
 	}
-	// Two copies per series: one fed by its arr, and Theatarr's (<key>-theatarr) with no arr records of its own.
+	// Two copies per series: one fed by its arr, and Theatarr's (<key>-theatarr) beside it.
 	if n := count(`SELECT COUNT(*) FROM title t WHERE kind = 'series' AND NOT (
 		(SELECT COUNT(*) FROM version v WHERE v.title_id = t.id) = 2 AND
-		(SELECT COUNT(*) FROM version v JOIN version_source s ON s.version_id = v.id WHERE v.title_id = t.id) = 1 AND
-		(SELECT COUNT(*) FROM version v JOIN (SELECT c.id AS version_id, o.id AS follows_id FROM version c JOIN version o ON o.title_id = c.title_id AND c.policy_key = o.policy_key || '-theatarr') f ON f.version_id = v.id JOIN version o ON o.id = f.follows_id
-			AND o.title_id = t.id JOIN version_source s ON s.version_id = o.id WHERE v.title_id = t.id) = 1)`); n != 0 {
+		(SELECT COUNT(*) FROM version c JOIN version o ON o.title_id = c.title_id AND c.policy_key = o.policy_key || '-theatarr'
+			WHERE c.title_id = t.id) = 1)`); n != 0 {
 		t.Errorf("%d series without an arr-fed copy and Theatarr's copy of it", n)
-	}
-	if n := count(`SELECT COUNT(*) FROM version_file vf JOIN (SELECT c.id AS version_id, o.id AS follows_id FROM version c JOIN version o ON o.title_id = c.title_id AND c.policy_key = o.policy_key || '-theatarr') f ON f.version_id = vf.version_id`); n != 0 {
-		t.Errorf("Theatarr's copies hold %d arr records", n)
 	}
 	// Theatarr's copies start from the arr's files (adopted links to the same mount targets).
 	if n := count(`SELECT COUNT(*) FROM library_action a JOIN link_version lv ON lv.link_id = a.link_id

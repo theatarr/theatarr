@@ -90,7 +90,7 @@ type PlannedLink struct {
 	// or HowNumber / HowAbsolute (the canonical numbers only, when the resolver found nothing).
 	How      string   `json:"how,omitempty"`
 	Replaces []string `json:"replaces,omitempty"` // current files of the version moved aside
-	// ReplaceIDs are the link ids of Replaces, by index (0 for an arr file): apply finds a link a rename moved since
+	// ReplaceIDs are the link ids of Replaces, by index (0 when unknown): apply finds a link a rename moved since
 	// the plan by its id.
 	ReplaceIDs []int64 `json:"replace_ids,omitempty"`
 	// Quality is the file's own quality (fileFacts), which names it and is stored on its link.
@@ -108,7 +108,7 @@ type PlannedLink struct {
 	facts decide.FileFacts
 }
 
-// replaceID is the link id of Replaces[i], 0 when unknown (an arr file, or a plan recorded before ReplaceIDs).
+// replaceID is the link id of Replaces[i], 0 when unknown (a plan recorded before ReplaceIDs).
 func (lk *PlannedLink) replaceID(i int) int64 {
 	if i < len(lk.ReplaceIDs) {
 		return lk.ReplaceIDs[i]

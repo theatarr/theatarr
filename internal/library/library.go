@@ -305,7 +305,7 @@ type relFacts struct {
 	Episodes         []int64
 }
 
-// linkFacts reads the facts of the link row id, else of the row at path, else of an arr's file at path; none when
+// linkFacts reads the facts of the link row id, else of the row at path; none when
 // there is no such row.
 func linkFacts(ctx context.Context, tx *sql.Tx, id int64, path string) relFacts {
 	var f relFacts
@@ -317,12 +317,6 @@ func linkFacts(ctx context.Context, tx *sql.Tx, id int64, path string) relFacts 
 	epsSQL := `SELECT episode_id FROM link_episode WHERE link_id = ? ORDER BY episode_id`
 	err := tx.QueryRowContext(ctx, `SELECT id, release_title, quality, score, title_id FROM link WHERE `+where,
 		arg).Scan(&id, &rel, &q, &f.Score, &f.TitleID)
-	if errors.Is(err, sql.ErrNoRows) && path != "" {
-		epsSQL = `SELECT episode_id FROM version_file_episode WHERE version_file_id = ? ORDER BY episode_id`
-		err = tx.QueryRowContext(ctx, `SELECT id, COALESCE(NULLIF(scene_name, ''), release_title), quality,
-			custom_format_score, title_id FROM version_file WHERE path = ? ORDER BY id DESC LIMIT 1`, path).Scan(&id, &rel,
-			&q, &f.Score, &f.TitleID)
-	}
 	if err != nil {
 		return relFacts{}
 	}

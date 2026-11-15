@@ -306,8 +306,8 @@ func TestUpgradeMovesAside(t *testing.T) {
 	if err := os.Symlink(oldTarget, old); err != nil {
 		t.Fatal(err)
 	}
-	// The arr's file (no link row yet): an upgrade replaces it as well.
-	e.exec(`INSERT INTO version_file (version_id, title_id, instance, arr_file_id, path) VALUES (10, 1, 'radarr', 1, ?)`, old)
+	// A file adopted from the arr: an upgrade replaces it as well.
+	e.adoptedFile(900, 10, 1, old, oldTarget, "", "")
 	e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
 	plan, err := e.lib.Import(e.ctx, 1, false)
 	if err != nil {

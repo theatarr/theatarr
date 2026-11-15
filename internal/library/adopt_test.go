@@ -17,6 +17,13 @@ import (
 type parallelEnv struct {
 	*env
 	theatarrMovies, theatarrShows string
+	arr                           []arrRec // the arr's files (arrFile), in order
+}
+
+// arrRec is one arr file the test's import hands to AdoptImported.
+type arrRec struct {
+	versionID int64
+	file      ImportFile
 }
 
 func newParallelEnv(t *testing.T, enabled bool) *parallelEnv {
@@ -41,14 +48,13 @@ func newParallelEnv(t *testing.T, enabled bool) *parallelEnv {
 		t.Fatal(err)
 	}
 	e.lib = New(Options{Store: e.st, Policy: e.pol, Engine: engine, Queue: e.queue, Now: func() time.Time { return e.now }})
-	e.exec(`INSERT INTO version_source (version_id, instance, arr_id) VALUES (10, 'radarr', 1), (20, 'sonarr', 2)`)
 	e.exec(`INSERT INTO version (id, title_id, policy_key, state, created_at, updated_at) VALUES
 		(11, 1, 'movie-theatarr', 'wanted', 0, 0), (21, 2, 'tv-theatarr', 'wanted', 0, 0)`)
 	return e
 }
 
-// arrFile makes the arr's link at p to target (relative targets are under the zurg release root) and its
-// version_file row.
+// arrFile makes the arr's link at p to target (relative targets are under the zurg release root) and records the
+// file the import reads from the arr.
 func (e *parallelEnv) arrFile(id int64, instance string, versionID, titleID int64, p, target, quality string, episodes ...int64) {
 	e.t.Helper()
 	if target != "" {
@@ -62,57 +68,22 @@ func (e *parallelEnv) arrFile(id int64, instance string, versionID, titleID int6
 			e.t.Fatal(err)
 		}
 	}
-	e.exec(`INSERT INTO version_file (id, instance, arr_file_id, version_id, title_id, path, relative_path, size_bytes,
-		quality, quality_revision, release_group, scene_name, languages, media_info, custom_format_score)
-		VALUES (?, ?, ?, ?, ?, ?, ?, 1000, ?, 1, 'GRP', ?, '["English"]', '{}', 50)`, id, instance, id, versionID,
-		titleID, p, filepath.Base(p), quality, strings.TrimSuffix(filepath.Base(target), filepath.Ext(target)))
-	for _, ep := range episodes {
-		e.exec(`INSERT INTO version_file_episode (version_file_id, episode_id) VALUES (?, ?)`, id, ep)
-	}
+	e.arr = append(e.arr, arrRec{versionID: versionID, file: ImportFile{TitleID: titleID, Path: p,
+		RelativePath: filepath.Base(p), Quality: quality, Revision: 1, ReleaseGroup: "GRP",
+		SceneName: strings.TrimSuffix(filepath.Base(target), filepath.Ext(target)), Languages: []string{"English"},
+		MediaInfo: "{}", Size: 1000, Source: instance + " " + p, Episodes: episodes}})
 }
 
 // adopt links the arr's files (arrFile) of the library beside version (movie-remux for movie-theatarr, tv for
 // tv-theatarr) into version, as the one-time import does.
 func (e *parallelEnv) adopt(version string) (*AdoptReport, error) {
 	e.t.Helper()
-	from := map[string]string{"movie-theatarr": "movie-remux", "tv-theatarr": "tv"}[version]
-	rows, err := e.st.Reader().QueryContext(e.ctx, `SELECT vf.id, vf.instance, vf.title_id, vf.path, vf.relative_path,
-		vf.quality, vf.quality_revision, vf.release_group, vf.scene_name, vf.languages, vf.media_info, vf.size_bytes
-		FROM version_file vf JOIN version v ON v.id = vf.version_id WHERE v.policy_key = ? ORDER BY vf.id`, from)
-	if err != nil {
-		e.t.Fatal(err)
-	}
+	from := map[string]int64{"movie-theatarr": 10, "tv-theatarr": 20}[version]
 	var files []ImportFile
-	var ids []int64
-	for rows.Next() {
-		var f ImportFile
-		var id int64
-		var instance, langs string
-		if err := rows.Scan(&id, &instance, &f.TitleID, &f.Path, &f.RelativePath, &f.Quality, &f.Revision,
-			&f.ReleaseGroup, &f.SceneName, &langs, &f.MediaInfo, &f.Size); err != nil {
-			e.t.Fatal(err)
+	for _, a := range e.arr {
+		if a.versionID == from {
+			files = append(files, a.file)
 		}
-		f.Source = instance + " " + f.Path
-		_ = json.Unmarshal([]byte(langs), &f.Languages)
-		files, ids = append(files, f), append(ids, id)
-	}
-	if err := rows.Close(); err != nil {
-		e.t.Fatal(err)
-	}
-	for i, id := range ids {
-		eps, err := e.st.Reader().QueryContext(e.ctx, `SELECT episode_id FROM version_file_episode
-			WHERE version_file_id = ? ORDER BY episode_id`, id)
-		if err != nil {
-			e.t.Fatal(err)
-		}
-		for eps.Next() {
-			var ep int64
-			if err := eps.Scan(&ep); err != nil {
-				e.t.Fatal(err)
-			}
-			files[i].Episodes = append(files[i].Episodes, ep)
-		}
-		eps.Close()
 	}
 	return e.lib.AdoptImported(e.ctx, version, files)
 }

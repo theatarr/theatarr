@@ -386,7 +386,7 @@ func (b *builder) decisionFor(e *Entry, d *dlRow) error {
 }
 
 // prevFile fills the version's file before the grab, when the decision did not say: the latest of our imported
-// downloads and the arr's files for the same movie or episodes.
+// downloads for the same movie or episodes.
 func (b *builder) prevFile(e *Entry, versionID int64, eps []int64, before int64) error {
 	if e.f.prevScore != nil || e.Kind != KindUpgrade {
 		return nil
@@ -396,11 +396,6 @@ func (b *builder) prevFile(e *Entry, versionID int64, eps []int64, before int64)
 	err := b.db.QueryRowContext(b.ctx, `SELECT release_title, quality, score FROM download WHERE version_id = ?
 		AND state = 'imported' AND imported_at < ? ORDER BY imported_at DESC LIMIT 1`, versionID, before).Scan(&rel,
 		&q, &score)
-	if errors.Is(err, sql.ErrNoRows) {
-		err = b.db.QueryRowContext(b.ctx, `SELECT COALESCE(release_title, scene_name), quality, custom_format_score
-			FROM version_file WHERE version_id = ? AND COALESCE(added_at, 0) < ? ORDER BY added_at DESC LIMIT 1`,
-			versionID, before).Scan(&rel, &q, &score)
-	}
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil
 	}

@@ -214,10 +214,8 @@ func TestFreshEpisodeSnapshotMatchesCurrentFiles(t *testing.T) {
   VALUES (20,102,0,'wanted',0),(20,103,1,'wanted',0)`)
 	e.exec(`UPDATE episode SET removed_at=1 WHERE id=104`)
 	e.link(2, 20, 101, "WEBDL-2160p", 120, 10)
-	e.exec(`INSERT INTO version_file (id,version_id,title_id,instance,arr_file_id,path,quality,quality_revision,custom_format_score,added_at)
-  VALUES (1,20,2,'arr',1,'/arr/a.mkv','WEBDL-1080p',1,100,100), (2,20,2,'other',2,'/other/a.mkv','WEBDL-1080p',1,200,200)`)
-	e.exec(`INSERT INTO version_file_episode (version_file_id,episode_id) VALUES (1,101),(2,105)`)
-	e.exec(`INSERT INTO version_source (version_id,instance,arr_id) VALUES (20,'arr',2)`)
+	e.link(2, 20, 101, "WEBDL-1080p", 100, 100)
+	e.link(2, 20, 105, "WEBDL-1080p", 200, 200)
 	s := &routeState{req: Request{TitleID: 2, VersionID: 20, Version: "series"}, vp: e.pol.Versions["series"]}
 	got, err := e.r.freshEpisodeFiles(e.ctx, s)
 	if err != nil {

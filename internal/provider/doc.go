@@ -22,7 +22,7 @@
 //   - content_provider: one row per content and provider, state present (torrent id, raw status, progress, size,
 //     link count, added date) or absent (absent_at) once the torrent leaves the provider's list;
 //   - content: a provider torrent with no content row gets one; then every content's state is recomputed:
-//     present (on a provider, referenced by history, an arr file or a link), unreferenced (on a provider, referenced
+//     present (on a provider, referenced by a link), unreferenced (on a provider, referenced
 //     by nothing), absent (on no provider, and every configured provider listed completely), unknown (not every
 //     provider listed yet), gone (left alone unless a provider has it);
 //   - provider_sync_run: one row per provider and run, with the JSON summary.
@@ -33,8 +33,7 @@
 // # Deviations
 //
 //   - content.state values: the design's registry has present and gone; absent and unreferenced are added here
-//     (migration 00006 rebuilds the table to widen the CHECK). "Unreferenced" counts history and arr files as
-//     references until the library scan writes links.
+//     (migration 00006 rebuilds the table to widen the CHECK). "Unreferenced" counts links as references.
 //   - Cache checks: only TorBox still has one. Real-Debrid's instantAvailability answers disabled_endpoint since
 //     November 2024, and AllDebrid removed magnet/instant in 2024. See docs/design/providers.md.
 //   - AllDebrid's magnet list has no paging (one answer per account); RD and TorBox page by offset.

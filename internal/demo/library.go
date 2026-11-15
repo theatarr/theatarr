@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/library/probe"
 	"github.com/theatarr/theatarr/internal/policy"
 )
@@ -361,7 +362,7 @@ func (s *seeder) meta(t *title) {
 // library writes the titles, their metadata, versions, episodes and files.
 func (s *seeder) library() {
 	s.content = map[string]int64{}
-	s.arrTitles, s.arrFileIDs = map[string]int64{}, map[string]int64{}
+	s.arrTitles = map[string]int64{}
 	for _, t := range s.titles {
 		var tmdb, tvdb any = t.tmdb, nil
 		var seriesType any
@@ -485,6 +486,7 @@ type release struct {
 	files                []relFile
 	indexer              string
 	langs                []string
+	old                  bool // an older copy beside the current file: its path ends in .old.mkv
 }
 
 type relFile struct {
@@ -660,8 +662,8 @@ func probeOf(q string, runtime int, anime bool) probe.Result {
 		Subtitles: []string{"eng"}, BytesRead: 4 << 20}
 }
 
-// files writes the files a title's versions hold: arr files (with their content and arr records) for versions an
-// arr instance owns. Versions Theatarr fills itself get their links from imported downloads (downloads.go).
+// files writes the files a title's versions hold: for versions an arr instance filled, the arr's files adopted as
+// links (with their content). Versions Theatarr fills itself get their links from imported downloads (downloads.go).
 func (s *seeder) files(t *title) {
 	for i, v := range t.versions {
 		if v.native {
@@ -672,8 +674,6 @@ func (s *seeder) files(t *title) {
 			continue
 		}
 		s.arrTitle(t, v)
-		s.exec(`INSERT OR IGNORE INTO version_source (version_id, instance, arr_id) VALUES (?, ?, ?)`, v.id, v.instance,
-			t.arrIDs[v.instance])
 		if t.kind == "movie" {
 			below := v.state == "filled"
 			q := quality(v, below)
@@ -682,7 +682,7 @@ func (s *seeder) files(t *title) {
 			}
 			rel := s.movieRelease(t, q)
 			rel.at = s.fileTime(t, i)
-			s.arrFiles(t, v, rel, below)
+			s.arrFiles(t, v, rel)
 			continue
 		}
 		// Series: a season pack per complete aired season, single episodes for a season part-way.
@@ -714,7 +714,7 @@ func (s *seeder) files(t *title) {
 				if rel.at.After(s.now) {
 					rel.at = s.ago(days(1))
 				}
-				s.arrFiles(t, v, rel, below)
+				s.arrFiles(t, v, rel)
 				continue
 			}
 			for _, e := range have {
@@ -728,7 +728,7 @@ func (s *seeder) files(t *title) {
 				if rel.at.After(s.now) {
 					rel.at = s.ago(time.Hour)
 				}
-				s.arrFiles(t, v, rel, below)
+				s.arrFiles(t, v, rel)
 			}
 		}
 	}
@@ -761,7 +761,7 @@ func (s *seeder) latestAired(t *title) *episode {
 	return last
 }
 
-// arrTitle gives a title its arr id in the version's former instance once (version_source).
+// arrTitle gives a title its arr id in the version's former instance once.
 func (s *seeder) arrTitle(t *title, v *version) {
 	if _, ok := t.arrIDs[v.instance]; ok {
 		return
@@ -779,6 +779,11 @@ func (s *seeder) folder(t *title) string {
 
 // libraryPath is where a file of rel sits in the version's library root.
 func (s *seeder) libraryPath(t *title, v *version, rel *release, f relFile) string {
+	if rel.old {
+		r := *rel
+		r.old = false
+		return strings.TrimSuffix(s.libraryPath(t, v, &r, f), ".mkv") + ".old.mkv"
+	}
 	if t.kind == "movie" {
 		return path.Join(v.vp.Library, s.folder(t), fmt.Sprintf("%s (%d) {imdb-%s} - [%s]-%s.mkv", safePath(t.name),
 			t.year, t.imdb, rel.quality, strings.ReplaceAll(rel.group, " ", "")))
@@ -792,16 +797,15 @@ func (s *seeder) libraryPath(t *title, v *version, rel *release, f relFile) stri
 		e.name, rel.quality))
 }
 
-// arrFiles writes the files of rel as the arr holds them, with the content registry rows behind them.
-func (s *seeder) arrFiles(t *title, v *version, rel *release, below bool) {
+// arrFiles writes the files of rel the arr held as adoption links them: a link per file at the arr's path, to its
+// mount target, with the arr's file record as its metadata, and the content registry rows behind them.
+func (s *seeder) arrFiles(t *title, v *version, rel *release) {
 	cid := s.contentFor(rel, s.pick([]string{"rd", "rd", "rd", "ad", "tb"}))
 	imported := rel.at.Add(time.Duration(4+s.r.IntN(50)) * time.Minute)
 	if imported.After(s.now) {
 		imported = s.now.Add(-time.Minute)
 	}
-	langs := jsonOf(rel.langs)
 	for _, f := range rel.files {
-		s.arrFileIDs[v.instance]++
 		p := s.libraryPath(t, v, rel, f)
 		rt := ""
 		if t.kind == "series" {
@@ -813,23 +817,33 @@ func (s *seeder) arrFiles(t *title, v *version, rel *release, below bool) {
 			}
 			v.files[f.ep.id] = arrFile{rel: rel, f: f, path: p}
 		}
-		vfID := s.exec(`INSERT INTO version_file (version_id, title_id, instance, arr_file_id, path, relative_path,
-			size_bytes, quality, release_group, scene_name, languages, media_info, custom_format_score,
-			original_file_path, cutoff_not_met, added_at, download_id, release_title, content_id, release_type)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, v.id, t.id, v.instance, s.arrFileIDs[v.instance], p,
-			strings.TrimPrefix(p, path.Join(v.vp.Library, s.folder(t))+"/"), f.size, rel.quality, rel.group,
-			strings.TrimSuffix(f.name, ".mkv"), langs, jsonOf(mediaInfo(rel.quality, t.runtime, t.anime)), rel.score,
-			path.Join(rel.name, f.name), b01(below), ms(imported), strings.ToUpper(rel.hash), rel.name, cid, rt)
+		score := rel.score
+		meta := decide.ExistingFile{Quality: rel.quality, Revision: 1, Score: &score,
+			SceneName: strings.TrimSuffix(f.name, ".mkv"), OriginalFilePath: path.Join(rel.name, f.name),
+			RelativePath: strings.TrimPrefix(p, path.Join(v.vp.Library, s.folder(t))+"/"), ReleaseGroup: rel.group,
+			Languages: rel.langs, Size: f.size, InfoHash: rel.hash, ReleaseType: rt}
+		var cf int64
+		if err := s.tx.QueryRowContext(s.ctx, `SELECT id FROM content_file WHERE content_id = ? AND path = ?`, cid,
+			f.name).Scan(&cf); err != nil && s.err == nil {
+			s.err = err
+		}
+		lid := s.exec(`INSERT INTO link (path, target, kind, content_file_id, title_id, release_title, quality, score,
+			file_metadata, adopted_from, adopted_media, state, last_checked_at, created_at, updated_at)
+			VALUES (?, ?, 'symlink', ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?)`, p, s.target(rel, f), cf, t.id, rel.name,
+			rel.quality, rel.score, jsonOf(meta), v.instance+" "+p, jsonOf(mediaInfo(rel.quality, t.runtime, t.anime)),
+			ms(s.ago(days(0.3))), ms(imported), ms(imported))
+		s.exec(`INSERT INTO link_version (link_id, version_id) VALUES (?, ?)`, lid, v.id)
+		s.exec(`INSERT INTO library_action (at, kind, mode, version_key, link_id, path, target, detail)
+			VALUES (?, 'link', 'applied', ?, ?, ?, ?, ?)`, ms(imported), v.key, lid, p, s.target(rel, f),
+			"adopted from "+v.instance+" "+p)
 		if f.ep != nil {
-			s.exec(`INSERT INTO version_file_episode (version_file_id, episode_id) VALUES (?, ?)`, vfID, f.ep.id)
+			s.exec(`INSERT INTO link_episode (link_id, episode_id) VALUES (?, ?)`, lid, f.ep.id)
 			if st := s.episodeState(t, v, f.ep); st == "filled" {
 				s.exec(`UPDATE episode_version_state SET current_score = ? WHERE version_id = ? AND episode_id = ?`,
 					rel.score, v.id, f.ep.id)
 			}
 		}
 	}
-	s.exec(`INSERT OR IGNORE INTO content_version (content_id, version_id, release_title, source, grabbed_at, imported_at)
-		VALUES (?, ?, ?, 'arr_history', ?, ?)`, cid, v.id, rel.name, ms(rel.at), ms(imported))
 }
 
 // contentFor writes (once) the registry content of a release: the content, its files with their probe, and the

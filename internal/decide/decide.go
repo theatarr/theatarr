@@ -105,7 +105,7 @@ type Version struct {
 	Policy *policy.VersionPolicy
 }
 
-// ExistingFile is the version's current file, from an active link or an arr file.
+// ExistingFile is the version's current file, from an active link.
 type ExistingFile struct {
 	SeaDexAlternatives []indexer.SeaDexStanding `json:"-"`
 	LastGrab           *profile.ImportedGrab    `json:"-"`

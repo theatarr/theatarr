@@ -237,12 +237,9 @@ const failureRunSQL = `(` + router.FailureResearchSQL + `)`
 const runHeadSQL = `SELECT 'run:' || r.id AS id, r.created_at AS at, r.title_id, r.version_key,
 	CASE WHEN ` + failureRunSQL + ` THEN 'research' ELSE 'search' END AS kind FROM acquire_run r`
 
-// grabKindSQL is a download's kind (alias d): upgrade when the version already had a file of its episodes, else grab.
-const grabKindSQL = `CASE WHEN EXISTS (SELECT 1 FROM version_file vf WHERE vf.version_id = d.version_id
-			AND COALESCE(vf.added_at, 0) < d.created_at
-			AND (d.episodes = '[]' OR EXISTS (SELECT 1 FROM version_file_episode vfe WHERE vfe.version_file_id = vf.id
-				AND vfe.episode_id IN (SELECT value FROM json_each(d.episodes)))))
-		OR EXISTS (SELECT 1 FROM download p WHERE p.version_id = d.version_id AND p.id <> d.id
+// grabKindSQL is a download's kind (alias d): upgrade when an earlier download of the version had imported a file
+// of its episodes, else grab.
+const grabKindSQL = `CASE WHEN EXISTS (SELECT 1 FROM download p WHERE p.version_id = d.version_id AND p.id <> d.id
 			AND p.state = 'imported' AND p.imported_at < d.created_at
 			AND (d.episodes = '[]' OR EXISTS (SELECT 1 FROM json_each(p.episodes) pe
 				WHERE pe.value IN (SELECT value FROM json_each(d.episodes)))))
@@ -268,7 +265,7 @@ var headSQL = unionOf(func(string) bool { return true }, "")
 // libHeadSQL is the library part without its filter.
 const libHeadSQL = `SELECT 'lib:' || la.id, la.at,
 	COALESCE((SELECT title_id FROM download WHERE id = la.download_id), (SELECT title_id FROM link WHERE id = la.link_id),
-		(SELECT vf.title_id FROM version_file vf WHERE vf.path = la.path LIMIT 1), 0),
+		0),
 	COALESCE(la.version_key, ''), 'link'
 FROM library_action la `
 

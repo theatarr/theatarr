@@ -30,7 +30,6 @@ const (
 // Reference kinds.
 const (
 	RefLink     = "link"     // a library link of Theatarr (active or dead)
-	RefArrFile  = "arr_file" // a current arr file (arr import)
 	RefDownload = "download" // a download queued or in flight
 	RefScan     = "scan"     // a symlink into the mount under torrents.scan_roots
 )
@@ -39,7 +38,7 @@ const (
 type Ref struct {
 	Kind   string `json:"kind"`
 	Detail string `json:"detail"` // a path, or the download
-	// TitleID and Title name the title a library link, arr file or download belongs to (0: none, e.g. a scanned link).
+	// TitleID and Title name the title a library link or download belongs to (0: none, e.g. a scanned link).
 	TitleID int64  `json:"title_id,omitempty"`
 	Title   string `json:"title,omitempty"`
 }
@@ -240,7 +239,7 @@ func (m *Manager) loadRefs(ctx context.Context) (*refIndex, error) {
 	return ix, nil
 }
 
-// loadDBRefs reads the references Theatarr writes (library links, arr files, downloads) and the registry.
+// loadDBRefs reads the references Theatarr writes (library links, downloads) and the registry.
 func (m *Manager) loadDBRefs(ctx context.Context) (*refIndex, error) {
 	return m.loadDBRefsFor(ctx, nil)
 }
@@ -257,7 +256,7 @@ type refScope struct {
 
 // loadDBRefsFor is loadDBRefs, or with sc only the rows one torrent's usage can see (a delete's last check of each
 // item under the fence): the links tied to its hash or naming one of its folders, plus every link with
-// no hash (they decide the "could not be tied" reason), the arr files and active downloads of its hash, and its
+// no hash (they decide the "could not be tied" reason), the active downloads of its hash, and its
 // registry row. Its usage and override token are the same as from the full index (rows are read in id order in both),
 // at a fraction of the reads; added and files are filled only by the full load.
 func (m *Manager) loadDBRefsFor(ctx context.Context, sc *refScope) (*refIndex, error) {
@@ -327,37 +326,6 @@ func (m *Manager) loadDBRefsFor(ctx context.Context, sc *refScope) (*refIndex, e
 	if untied > 0 {
 		ix.unknown = append(ix.unknown, fmt.Sprintf("%d library link(s) could not be tied to a torrent "+
 			"(no hash recorded and no library.mount to read the folder from)", untied))
-	}
-
-	// Arr files: the content the import tied to them, else the arr's download id (the hash for torrents).
-	// Scoped, a value that is not a plain hex hash (base32, padded) is normalized here like the rest.
-	q = `SELECT instance, path, h, tid, tname FROM (SELECT vf.id, vf.instance, vf.path,
-		lower(COALESCE(c.info_hash, vf.download_id, '')) AS h, COALESCE(t.id, 0) AS tid, COALESCE(t.name, '') AS tname
-		FROM version_file vf LEFT JOIN content c ON c.id = vf.content_id LEFT JOIN title t ON t.id = vf.title_id)`
-	args = nil
-	if sc != nil {
-		q += ` WHERE h = ? OR length(h) <> 40`
-		args = append(args, sc.hash)
-	}
-	rows, err = db.QueryContext(ctx, q+` ORDER BY id`, args...)
-	if err != nil {
-		return nil, fmt.Errorf("torrents: reading arr files: %w", err)
-	}
-	for rows.Next() {
-		var inst, path, hash, tname string
-		var tid int64
-		if err := rows.Scan(&inst, &path, &hash, &tid, &tname); err != nil {
-			rows.Close()
-			return nil, err
-		}
-		if h := indexer.NormalizeHash(hash); h != "" {
-			ix.byHash[h] = append(ix.byHash[h], Ref{Kind: RefArrFile, Detail: inst + ": " + path, TitleID: tid,
-				Title: tname})
-		}
-	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
-		return nil, err
 	}
 
 	// Downloads still needing their torrent; and which torrents the router added.

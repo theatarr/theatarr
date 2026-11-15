@@ -252,7 +252,7 @@ func (c *SeaDexCatalog) Mapped(s SeaDexSnapshot) bool {
 	return false
 }
 
-// SeaDexHeldRefs are the hashes and SeaDex record ids of the files the library holds (active links and arr files):
+// SeaDexHeldRefs are the hashes and SeaDex record ids of the files the library holds (active links):
 // a stored snapshot listing one of them can be the only entry provenance of an older held file.
 type SeaDexHeldRefs struct {
 	Hashes  map[string]bool
@@ -285,18 +285,6 @@ func LoadSeaDexHeldRefs(ctx context.Context, db Querier) (SeaDexHeldRefs, error)
 			return err
 		}
 		add([]string{hash, dl, content}, []string{scene, release})
-		return nil
-	})
-	if err != nil {
-		return h, err
-	}
-	err = each(ctx, db, `SELECT COALESCE(c.info_hash, ''), COALESCE(vf.scene_name, '') FROM version_file vf
-		LEFT JOIN content c ON c.id = vf.content_id`, func(r *sql.Rows) error {
-		var hash, scene string
-		if err := r.Scan(&hash, &scene); err != nil {
-			return err
-		}
-		add([]string{hash}, []string{scene})
 		return nil
 	})
 	return h, err

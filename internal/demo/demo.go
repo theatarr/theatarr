@@ -147,7 +147,7 @@ func Seed(ctx context.Context, st *store.Store, o Options) (*Result, error) {
 	if err := s.settings(); err != nil {
 		return nil, err
 	}
-	for _, t := range []string{"title", "episode", "version", "version_file", "link", "content", "download", "request",
+	for _, t := range []string{"title", "episode", "version", "link", "content", "download", "request",
 		"request_user", "journal_decision", "job", "anime_entry", "title_meta", "settings_audit"} {
 		var c int
 		if err := st.Reader().QueryRowContext(ctx, `SELECT COUNT(*) FROM `+t).Scan(&c); err != nil {
@@ -174,7 +174,7 @@ type seeder struct {
 	runID   int64
 	content map[string]int64 // info hash -> content id
 	// arr ids given so far per instance
-	arrTitles, arrFileIDs map[string]int64
+	arrTitles map[string]int64
 	// historyShown: one imported movie already shows an upgrade's deleted file and its copies (historyExtras).
 	historyShown bool
 }
@@ -238,7 +238,7 @@ func (s *seeder) versionKeys(kind policy.Kind, anime bool) []string {
 	return out
 }
 
-// demoInstances are the former arr instances whose files the demo's arr-fed versions hold (version_file): the
+// demoInstances are the former arr instances whose files the demo's arr-fed versions hold (adopted links): the
 // libraries a migrated install filled from Sonarr/Radarr before the periodic import went.
 var demoInstances = map[string][2]string{
 	"movie-remux": {"radarr_4k_debrid", "radarr"},

@@ -16,10 +16,11 @@ func TestQualityDecisionImpactCountsChangedFiles(t *testing.T) {
 	for _, q := range []string{
 		`INSERT INTO title(id,kind,name,year,runtime_minutes,created_at,updated_at) VALUES(1,'movie','Example',2026,120,0,0),(2,'movie','Other',2026,120,0,0)`,
 		`INSERT INTO version(id,title_id,policy_key,created_at,updated_at) VALUES(1,1,'movie',0,0),(2,2,'movie',0,0),(3,1,'other',0,0)`,
-		`INSERT INTO version_file(version_id,title_id,instance,arr_file_id,path,relative_path,size_bytes,quality,scene_name,languages) VALUES
-			(1,1,'fixture',1,'/a.mkv','a.mkv',10000000000,'WEBDL-1080p','Example.2026.1080p.WEB-DL-GRP','["English"]'),
-			(2,2,'fixture',2,'/b.mkv','b.mkv',10000000000,'WEBDL-1080p','Other.2026.1080p.WEB-DL-NONE','["English"]'),
-			(3,1,'fixture',3,'/c.mkv','c.mkv',10000000000,'WEBDL-1080p','Example.2026.1080p.WEB-DL-GRP','["English"]')`,
+		`INSERT INTO link(id,path,target,kind,title_id,release_title,quality,file_metadata,adopted_from,state,created_at,updated_at) VALUES
+			(1,'/a.mkv','/a.mkv','symlink',1,'Example.2026.1080p.WEB-DL-GRP','WEBDL-1080p','{"Quality":"WEBDL-1080p","Revision":1,"SceneName":"Example.2026.1080p.WEB-DL-GRP","Languages":["English"],"Size":10000000000}','fixture /a.mkv','active',0,0),
+			(2,'/b.mkv','/b.mkv','symlink',2,'Other.2026.1080p.WEB-DL-NONE','WEBDL-1080p','{"Quality":"WEBDL-1080p","Revision":1,"SceneName":"Other.2026.1080p.WEB-DL-NONE","Languages":["English"],"Size":10000000000}','fixture /b.mkv','active',0,0),
+			(3,'/c.mkv','/c.mkv','symlink',1,'Example.2026.1080p.WEB-DL-GRP','WEBDL-1080p','{"Quality":"WEBDL-1080p","Revision":1,"SceneName":"Example.2026.1080p.WEB-DL-GRP","Languages":["English"],"Size":10000000000}','fixture /c.mkv','active',0,0)`,
+		`INSERT INTO link_version(link_id,version_id) VALUES(1,1),(2,2),(3,3)`,
 	} {
 		if _, err := db.Writer().Exec(q); err != nil {
 			t.Fatal(err)

@@ -12,8 +12,7 @@
 //
 // Each order row is an entry (or a slice of one): its TVDB episodes come from the applied mapping (anime_mapping,
 // importable statuses only: a conflict range is left out like an import), narrowed to the row's part; an entry with
-// no episodes but TMDb ids is a movie. Each episode or movie is the file Plex sees: our active link, else the arr's
-// file (version_file) while the arr still owns the version. When enabled, files are found in Plex by path through
+// no episodes but TMDb ids is a movie. Each episode or movie is the file Plex sees: our active link. When enabled, files are found in Plex by path through
 // the sections of library.versions (one listing per section and type), and the playlist is synced idempotently
 // (plex.SyncPlaylist: diff, then move).
 package playlists
@@ -390,38 +389,20 @@ func (r *resolver) episodeFile(ctx context.Context, tvdb int, se anime.SE) (stri
 		JOIN episode e ON e.id = le.episode_id JOIN title t ON t.id = e.title_id
 		WHERE t.kind = 'series' AND t.tvdb_id = ? AND e.season = ? AND e.number = ? AND l.state = 'active'
 		ORDER BY l.id LIMIT 1`, tvdb, se[0], se[1]).Scan(&p)
-	if err == nil {
-		return p, "link", nil
-	}
-	if !errors.Is(err, sql.ErrNoRows) {
-		return "", "", err
-	}
-	err = r.db.QueryRowContext(ctx, `SELECT vf.path FROM version_file vf JOIN version_file_episode vfe ON vfe.version_file_id = vf.id
-		JOIN episode e ON e.id = vfe.episode_id JOIN title t ON t.id = e.title_id
-		WHERE t.kind = 'series' AND t.tvdb_id = ? AND e.season = ? AND e.number = ? ORDER BY vf.id LIMIT 1`,
-		tvdb, se[0], se[1]).Scan(&p)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", "", nil
 	}
-	return p, "arr", err
+	return p, "link", err
 }
 
 func (r *resolver) movieFile(ctx context.Context, tmdb int) (string, string, error) {
 	var p string
 	err := r.db.QueryRowContext(ctx, `SELECT l.path FROM link l JOIN title t ON t.id = l.title_id
 		WHERE t.kind = 'movie' AND t.tmdb_id = ? AND l.state = 'active' ORDER BY l.id LIMIT 1`, tmdb).Scan(&p)
-	if err == nil {
-		return p, "link", nil
-	}
-	if !errors.Is(err, sql.ErrNoRows) {
-		return "", "", err
-	}
-	err = r.db.QueryRowContext(ctx, `SELECT vf.path FROM version_file vf JOIN title t ON t.id = vf.title_id
-		WHERE t.kind = 'movie' AND t.tmdb_id = ? ORDER BY vf.id LIMIT 1`, tmdb).Scan(&p)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", "", nil
 	}
-	return p, "arr", err
+	return p, "link", err
 }
 
 // apply finds every item in Plex by its file and syncs each playlist. A playlist that fails is reported and the

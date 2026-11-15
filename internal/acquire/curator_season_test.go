@@ -21,7 +21,7 @@ func TestCuratorWantedEpisodeSearchesSeason(t *testing.T) {
 	for _, q := range []string{
 		`UPDATE title SET runtime_minutes = 24 WHERE id = 10`,
 		`UPDATE episode SET runtime_minutes = 24 WHERE title_id = 10`,
-		`UPDATE version_file SET quality = 'WEBDL-2160p' WHERE id = 4`, // only the curator makes anything wanted
+		`UPDATE link SET quality = 'WEBDL-2160p', file_metadata = json_set(file_metadata, '$.Quality', 'WEBDL-2160p') WHERE id = 9004`, // only the curator makes anything wanted
 		`INSERT INTO title_external_id VALUES (10, 'anilist', '1535')`,
 	} {
 		e.exec(q)
@@ -66,7 +66,7 @@ func TestCuratorWantedEpisodeSeasonCriteria(t *testing.T) {
 	for _, q := range []string{
 		`UPDATE title SET runtime_minutes = 24 WHERE id = 10`,
 		`UPDATE episode SET runtime_minutes = 24 WHERE title_id = 10`,
-		`UPDATE version_file SET quality = 'WEBDL-2160p' WHERE id = 4`,
+		`UPDATE link SET quality = 'WEBDL-2160p', file_metadata = json_set(file_metadata, '$.Quality', 'WEBDL-2160p') WHERE id = 9004`,
 		`INSERT INTO title_external_id VALUES (10, 'anilist', '1535')`,
 	} {
 		e.exec(q)

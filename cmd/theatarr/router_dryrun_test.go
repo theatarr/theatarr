@@ -47,7 +47,7 @@ func TestRouterDryRunUsesStoredStanding(t *testing.T) {
 	for _, q := range []string{
 		`INSERT INTO title_external_id VALUES(7,'anilist','11')`,
 		`INSERT INTO content(id,info_hash,first_seen_at,last_seen_at) VALUES(1,'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',0,0)`,
-		`UPDATE version_file SET content_id=1 WHERE version_id=3`,
+		`UPDATE link SET file_metadata=json_set(file_metadata,'$.InfoHash','aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa') WHERE id=1`,
 		`INSERT INTO metadata_cache(source,key,status,body,fetched_at,expires_at) VALUES('seadex-standing','11',200,'{"anilist":11,"torrents":[{"info_hash":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","preference":2,"is_best":true,"facts":{"isBest":true}}]}',0,253402214400000)`,
 	} {
 		if _, err := st.Writer().Exec(q); err != nil {

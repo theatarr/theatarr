@@ -20,7 +20,7 @@ each one ([README.md](README.md)).
 | **Release** | One search result: indexer, title, info hash, size, seeders, flags, privacy label. Links stay in memory | [indexers.md](indexers.md) |
 | **Decision** | A release judged for one version: accepted or rejected with the arr's reason names, quality, formats, score and whether it upgrades the current file | [decide.md](decide.md) |
 | **Grab** (download) | An accepted release the router adds to a provider for a version: provider attempts, state and the provider's id | `download`; [router.md](router.md) |
-| **Provider torrent** (content) | A torrent on a debrid account, keyed by info hash, with the files it holds and which accounts list it. One content can back links in several libraries | `content`, `content_version`; [providers.md](providers.md), [torrents.md](torrents.md) |
+| **Provider torrent** (content) | A torrent on a debrid account, keyed by info hash, with the files it holds and which accounts list it. One content can back links in several libraries | `content`; [providers.md](providers.md), [torrents.md](torrents.md) |
 | **Link** | A symlink in a library folder pointing at a file on the debrid mount, with the release it came from and its parse, formats and score at import | `link`; [library.md](library.md) |
 | **View** | A Radarr- or Sonarr-shaped API over a chosen set of versions, with its own API key | [arrview.md](arrview.md), [devices.md](devices.md) |
 
@@ -88,7 +88,7 @@ Around the pipeline:
 |---|---|
 | `internal/gateway` | The single outbound HTTP path: host allowlist, VPN egress guard, budgets, back-off ([gateway.md](gateway.md)) |
 | `internal/acquire/rss` | The RSS sync: reads the Live libraries' feeds and routes what they accept ([rss.md](rss.md)) |
-| `internal/arrimport`, `internal/migration` | The one-time import from Sonarr/Radarr (GET only); the arr profile and naming converter ([migration.md](../migration.md)) |
+| `internal/arrimport` | The one-time import from Sonarr/Radarr (GET only) ([migration.md](../migration.md)) |
 | `internal/torrents` | The provider torrent manager: usage, backups, restores, deletes a person picks ([torrents.md](torrents.md)) |
 | `internal/jobs` | The persistent job queue: leases, retries, schedules ([jobs.md](jobs.md)) |
 | `internal/health`, `internal/preflight` | Health checks and readiness ([readiness.md](readiness.md)) |

@@ -2,7 +2,7 @@
 // mapping decisions, the three orders, each stage's output, and the metadata review queue.
 //
 // A build replaces the franchise's rows, except when the refresh is held for review (docs/design/anime.md): when it would map more than 10% fewer of a TVDB series' episodes than the applied build, or would move
-// a mapping whose episodes have linked files (an active link, or an imported arr file). A held build is kept as
+// a mapping whose episodes have linked files (an active link). A held build is kept as
 // the franchise's pending result and applied when its review items are accepted.
 //
 // Mapping conflicts and heuristic mappings become review items. A decision taken in review sticks: a later build
@@ -139,12 +139,11 @@ func countBySeries(ms map[string]*mappingRow) map[int]map[anime.SE]bool {
 	return out
 }
 
-// linkedEpisodes lists a TVDB series' episodes that have files: an active link, or an imported arr file.
+// linkedEpisodes lists a TVDB series' episodes that have files: an active link.
 func linkedEpisodes(ctx context.Context, tx *sql.Tx, tvdb int) (map[anime.SE]bool, error) {
 	rows, err := tx.QueryContext(ctx, `SELECT e.season, e.number FROM episode e JOIN title t ON t.id = e.title_id
 		WHERE t.kind = 'series' AND t.tvdb_id = ? AND (
-			EXISTS (SELECT 1 FROM link_episode le JOIN link l ON l.id = le.link_id AND l.state = 'active' WHERE le.episode_id = e.id)
-			OR EXISTS (SELECT 1 FROM version_file_episode v WHERE v.episode_id = e.id))`, tvdb)
+			EXISTS (SELECT 1 FROM link_episode le JOIN link l ON l.id = le.link_id AND l.state = 'active' WHERE le.episode_id = e.id))`, tvdb)
 	if err != nil {
 		return nil, err
 	}

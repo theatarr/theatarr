@@ -9,9 +9,8 @@ The views answer from Theatarr's database, with metadata lookups for new series,
 Versions in `mode: shadow` never acquire anything: nothing is searched or grabbed for them. Search commands for active
 versions go to the acquirer and the router (Commands). Pointing clients at the views: see Cutover.
 
-File hydration chooses the owning instance's row first, then the oldest row, before decoding languages or media
-JSON. Discarded alternatives skip that decoding. A link from Theatarr's own import still wins over an arr file;
-an adopted link only fills a version with no file row.
+Files are the version's active links: Theatarr's own imports and links adopted from an arr alike. An adopted
+link's media detail is not read into `mediaInfo` (resolution only).
 
 Radarr collection intake (`GET/PUT collection`) and the TMDb import-list surface (`GET/POST/PUT/DELETE importlist`,
 `importlist/schema`, TMDb List by `fields.listId` only) keep their target profile/root as Theatarr versions. Existing catalog
@@ -167,7 +166,7 @@ ports are based on. Seerr parses the major (Sonarr 4: no language profiles); dec
 | Movie, series | `1,000,000 + title id`, the same in every view |
 | A replaced instance's movie or series id (< 1,000,000) | answers nothing (404) |
 | Episode | `episode.id` |
-| Movie file | `version_file.id` |
+| Movie file | `1,000,000,000 + link id` |
 | Tag, command | Theatarr's (`arrview_tag`, `arrview_command`), global (a tag's assignments to titles are per version, see "Tags per version") |
 | Quality profile | `arrview_profile.id`, given the first time a view sees the profile name, then kept |
 | Root folder | position of the library in the view's version list, from 1 |
@@ -401,7 +400,7 @@ Left as before, on purpose:
   (they are just checked before it; `TestDeleteUnlinksOnlyAfterTheHide`) and enumerated then: a link an import
   committed before the hide goes to the trash too, and an import still running finds its download ended at its
   commit and takes its links back (`TestDeleteUnlinksWhatAnImportCommittedMeanwhile`). A link another current
-  library of the title still uses stays (no error); the arr file rows at an unlinked path go with it. A link the gate
+  library of the title still uses stays (no error). A link the gate
   refuses at that point answers 409 "versions removed; some files were kept"; one whose move fails (a full disk) does
   not stop the others and answers 500 "versions removed; moving some files to trash failed". Either way the versions
   are removed, and the torrents of the links left are not cleaned up; the links left are the removed copies' leftover
@@ -470,7 +469,7 @@ Left as before, on purpose:
     terminal command shape.
   - The add option (`searchForMovie` / `searchForMissingEpisodes`) goes the same way as the command it records.
 - **Rename preview.** `GET /api/v3/rename?movieId=` (Radarr) and `GET /api/v3/rename?seriesId=` (Sonarr, optionally
-  `seasonNumber`) list only links whose computed `newPath` differs, with the arr file ids and existing paths. Inputs
+  `seasonNumber`) list only links whose computed `newPath` differs, with their file ids and existing paths. Inputs
   come from each link's saved import metadata; incomplete metadata is skipped. Applying a rename relinks the same
   target through the library gate, then removes the old link.
 - **Per-version episode state.** Episode monitoring writes `episode_version_state` rows for the view's versions,
@@ -527,8 +526,8 @@ deleting a label removes it from every version. Rows from before 00105 were copi
 - **Lookups set `hasFile` and `monitored` from the view** (Radarr leaves `hasFile` out of lookups), and set `id` only
   when the view has the title, so Seerr adds it otherwise and returns early when the view has a file.
 - **Second add is a 201**, extra versions on.
-- **DELETE keeps version rows**; `deleteFiles=true` moves only Theatarr's links to trash (with the arr file rows at
-  those paths) and cleans up the torrents nothing else uses.
+- **DELETE keeps version rows**; `deleteFiles=true` moves only Theatarr's links to trash and cleans up the torrents
+  nothing else uses.
 - **Ids are offset** by 1,000,000 (above).
 - **Queue** and `queue/details` come from the router's downloads (docs/design/router.md). `timeleft` and
   `estimatedCompletionTime` use up to six provider progress samples from the last five minutes (migration 00036);
@@ -544,8 +543,7 @@ deleting a label removes it from every version. Rows from before 00105 were copi
   series its parent when that directory is a season folder; else the computed `Title (Year)`
   (`TestViewPathFromFiles`). A movie with a file is `released`, else its status follows its dates; a series' status
   is the series refresh's (`series_meta.status`), else `continuing`. The arrs' own records are not read.
-- **Episode files**: `episodeFileId` is `1,000,000,000 + link id` when a Theatarr link holds the episode, else the
-  arr's file id (`version_file`), else 0; `episodefile` is in [devices](devices.md).
+- **Episode files**: `episodeFileId` is `1,000,000,000 + link id` when a link holds the episode, else 0; `episodefile` is in [devices](devices.md).
 - **Languages** map by name through Radarr's list for both flavours.
 - **Movie files** use parsed quality to fill `movieFile.mediaInfo.resolution` when no probe value exists; a
   recorded value remains authoritative. See [the client compatibility matrix](clients.md) for the Seerr
@@ -633,7 +631,7 @@ hold keep their old ids and stay unresolved (404), which is harmless.
 revision, languages, release group and indexer flags. As in the arrs' ManualImportService, Unknown quality/language
 and a blank group fall back to parsing; final `ManualImport` accepts explicit choices without rerunning upgrade
 specifications, while Theatarr's sample guard and library gate still apply (the mislabel guard only notes a manual pick). Per-file choices survive retries in
-`download_file.overrides` (00066), name the link and populate its saved metadata and subsequent arr file responses.
+`download_file.overrides` (00066), name the link and populate its saved metadata and subsequent file responses.
 All import modes (`auto`, `move`, `copy`, `hardlink`, `link`) create symlinks under version roots and leave the mount
 source untouched; each link action records the client's requested mode and the substitution.
 

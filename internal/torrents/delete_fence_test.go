@@ -143,14 +143,14 @@ func TestScanRootFindsLinks(t *testing.T) {
 
 // A delete's per-item check reads only the rows one torrent's usage sees
 // (loadDBRefsFor); its usage and override token match the full index's for every torrent, including several
-// references of one kind (the token lists them in order), a base32 arr hash, an untied link and a link by folder.
+// references of one kind (the token lists them in order), a base32 link hash, an untied link and a link by folder.
 func TestScopedRefsMatchFullIndex(t *testing.T) {
 	t.Parallel()
 	e, _ := usageFixture(t)
 	ctx := context.Background()
 	b32 := "77777777777777777777777777777777" // base32 of twenty 0xff bytes: hF
-	e.exec(`INSERT INTO version_file (version_id, title_id, instance, arr_file_id, path, download_id)
-		VALUES (1, 1, 'radarr', 8, '/movies/F.mkv', ?)`, b32)
+	e.exec(`INSERT INTO link (path, target, title_id, created_at, updated_at, file_metadata)
+		VALUES ('/movies/F.mkv', '/elsewhere/F.mkv', 1, 0, 0, ?)`, `{"InfoHash":"`+b32+`"}`)
 	for _, p := range []string{"/lib/A/A2.mkv", "/lib/A/A1.mkv"} {
 		e.exec(`INSERT INTO link (path, target, title_id, created_at, updated_at, file_metadata)
 			VALUES (?, '/elsewhere/A.mkv', 1, 0, 0, ?)`, p, `{"InfoHash":"`+hA+`"}`)
@@ -179,8 +179,8 @@ func TestScopedRefsMatchFullIndex(t *testing.T) {
 			t.Errorf("%s %s: full %s %v %v %v, scoped %s %v %v %v", key, tr.ID, fu, fc, fl, fr, su, scnt, sl, sr)
 		}
 	}
-	if u, refs, _, _, _ := full.usage("rd", e.rd.list[5]); u != Used || refs[RefArrFile] != 1 {
-		t.Fatalf("base32 arr hash not tied: %s %v", u, refs)
+	if u, refs, _, _, _ := full.usage("rd", e.rd.list[5]); u != Used || refs[RefLink] != 1 {
+		t.Fatalf("base32 link hash not tied: %s %v", u, refs)
 	}
 }
 

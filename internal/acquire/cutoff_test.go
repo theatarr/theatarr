@@ -104,12 +104,13 @@ func cutoffFixture(t *testing.T, e *env) {
 		`INSERT INTO title (id, kind, name, year, created_at, updated_at) VALUES (4, 'movie', 'Four', 2024, 0, 0)`,
 		`INSERT INTO title_release_date (title_id, source, type, date) VALUES (4, 'fixture', 'digital', '2024-01-01')`,
 		`INSERT INTO version (id, title_id, policy_key, state, created_at, updated_at) VALUES (104, 4, 'movie', 'filled', 0, 0)`,
-		`INSERT INTO version_file (id, version_id, title_id, instance, arr_file_id, path, quality, scene_name)
-			VALUES (1, 103, 3, 'radarr', 1, '/m/3.mkv', 'WEBDL-2160p', 'Three.2024.2160p.WEB-DL-GRP'),
-			(2, 104, 4, 'radarr', 2, '/m/4.mkv', 'WEBDL-1080p', 'Four.2024.1080p.WEB-DL-GRP'),
-			(3, 201, 10, 'sonarr', 3, '/s/e2.mkv', 'WEBDL-2160p', 'Show.S01E02.2160p.WEB-DL-GRP'),
-			(4, 201, 10, 'sonarr', 4, '/s/e3.mkv', 'WEBDL-1080p', 'Show.S01E03.1080p.WEB-DL-GRP')`,
-		`INSERT INTO version_file_episode (version_file_id, episode_id) VALUES (3, 1002), (4, 1003)`,
+		`INSERT INTO link (id, path, target, title_id, release_title, quality, file_metadata, created_at, updated_at) VALUES
+			(9001, '/m/3.mkv', '/z/m/3.mkv', 3, 'Three.2024.2160p.WEB-DL-GRP', 'WEBDL-2160p', json_object('Quality', 'WEBDL-2160p', 'Revision', 1, 'SceneName', 'Three.2024.2160p.WEB-DL-GRP'), 0, 0),
+			(9002, '/m/4.mkv', '/z/m/4.mkv', 4, 'Four.2024.1080p.WEB-DL-GRP', 'WEBDL-1080p', json_object('Quality', 'WEBDL-1080p', 'Revision', 1, 'SceneName', 'Four.2024.1080p.WEB-DL-GRP'), 0, 0),
+			(9003, '/s/e2.mkv', '/z/s/e2.mkv', 10, 'Show.S01E02.2160p.WEB-DL-GRP', 'WEBDL-2160p', json_object('Quality', 'WEBDL-2160p', 'Revision', 1, 'SceneName', 'Show.S01E02.2160p.WEB-DL-GRP'), 0, 0),
+			(9004, '/s/e3.mkv', '/z/s/e3.mkv', 10, 'Show.S01E03.1080p.WEB-DL-GRP', 'WEBDL-1080p', json_object('Quality', 'WEBDL-1080p', 'Revision', 1, 'SceneName', 'Show.S01E03.1080p.WEB-DL-GRP'), 0, 0)`,
+		`INSERT INTO link_version (link_id, version_id) VALUES (9001, 103), (9002, 104), (9003, 201), (9004, 201)`,
+		`INSERT INTO link_episode (link_id, episode_id) VALUES (9003, 1002), (9004, 1003)`,
 		`UPDATE episode_version_state SET state = 'filled' WHERE version_id = 201 AND episode_id = 1003`,
 	} {
 		if _, err := e.st.Writer().ExecContext(e.ctx, q); err != nil {

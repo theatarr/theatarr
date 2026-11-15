@@ -305,19 +305,17 @@ func loadEpisodes(ctx context.Context, db *sql.DB, titleID int64, ids []int64) (
 	return out, rows.Err()
 }
 
-// existingFile is a file the version has now: our link or the arr's file.
+// existingFile is a file the version has now: our link.
 type existingFile struct {
-	LinkID   int64 // 0 for an arr file we have no link row for
+	LinkID   int64
 	Path     string
-	Target   string // a link's target ("" for an arr file)
+	Target   string
 	Episodes []int64
 }
 
-// existingFiles lists the version's current files for a title: active links, and the arr's files (version_file)
-// whose paths have no link row.
+// existingFiles lists the version's current files for a title: its active links.
 func existingFiles(ctx context.Context, db *sql.DB, versionID, titleID int64) ([]existingFile, error) {
 	var out []existingFile
-	seen := map[string]bool{}
 	rows, err := db.QueryContext(ctx, `
 		SELECT l.id, l.path, l.target, COALESCE((SELECT json_group_array(le.episode_id) FROM link_episode le WHERE le.link_id = l.id), '[]')
 		FROM link l JOIN link_version lv ON lv.link_id = l.id
@@ -325,39 +323,14 @@ func existingFiles(ctx context.Context, db *sql.DB, versionID, titleID int64) ([
 	if err != nil {
 		return nil, err
 	}
-	for rows.Next() {
-		var f existingFile
-		var eps string
-		if err := rows.Scan(&f.LinkID, &f.Path, &f.Target, &eps); err != nil {
-			rows.Close()
-			return nil, err
-		}
-		_ = json.Unmarshal([]byte(eps), &f.Episodes)
-		seen[f.Path] = true
-		out = append(out, f)
-	}
-	rows.Close()
-	rows, err = db.QueryContext(ctx, `
-		SELECT vf.path, COALESCE((SELECT json_group_array(e.episode_id) FROM version_file_episode e WHERE e.version_file_id = vf.id), '[]')
-		FROM version_file vf WHERE vf.version_id = ? AND vf.title_id = ? ORDER BY vf.id`, versionID, titleID)
-	if err != nil {
-		if strings.Contains(err.Error(), "no such table") {
-			return out, nil
-		}
-		return nil, err
-	}
 	defer rows.Close()
 	for rows.Next() {
 		var f existingFile
 		var eps string
-		if err := rows.Scan(&f.Path, &eps); err != nil {
+		if err := rows.Scan(&f.LinkID, &f.Path, &f.Target, &eps); err != nil {
 			return nil, err
 		}
-		if seen[f.Path] {
-			continue
-		}
 		_ = json.Unmarshal([]byte(eps), &f.Episodes)
-		seen[f.Path] = true
 		out = append(out, f)
 	}
 	return out, rows.Err()

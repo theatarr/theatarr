@@ -20,7 +20,7 @@ import (
 )
 
 // Loading decision inputs from our database (internal/store schema): titles with their cached TMDb details,
-// versions, and current files (active links and version_file, from the former arr import). Reads only.
+// versions, and current files (active links). Reads only.
 
 // tmdbDetails is what a title takes from the TMDb movie response the importer cached.
 type tmdbDetails struct {
@@ -193,7 +193,7 @@ func LoadSeriesVersion(ctx context.Context, db *sql.DB, t *Title, versionID int6
 }
 
 // LoadEpisodes reads a series' episodes in season and number order, with their numbers (episode_number, any
-// source) and, for versionID, the version's file of each (active links win over arr files). Removed rows are excluded.
+// source) and, for versionID, the version's file of each (its newest active link). Removed rows are excluded.
 func LoadEpisodes(ctx context.Context, db *sql.DB, titleID, versionID int64) ([]Episode, error) {
 	ctx = WithSeaDexTitle(ctx, titleID)
 	rows, err := db.QueryContext(ctx, `SELECT e.id, e.season, e.number, e.name, COALESCE(e.air_date, ''),
@@ -265,48 +265,6 @@ func LoadEpisodes(ctx context.Context, db *sql.DB, titleID, versionID int64) ([]
 	}
 	if versionID == 0 {
 		return out, nil
-	}
-	frows, err := db.QueryContext(ctx, `SELECT fe.episode_id, vf.id, vf.quality, vf.quality_revision, vf.scene_name,
-		vf.original_file_path, vf.relative_path, vf.release_group, vf.edition, vf.languages, vf.size_bytes,
-		vf.indexer_flags, COALESCE(c.info_hash, ''), vf.release_type, COALESCE(vf.added_at, 0)
-		FROM version_file vf JOIN version_file_episode fe ON fe.version_file_id = vf.id
-		LEFT JOIN version_source vs ON vs.version_id = vf.version_id AND vs.instance = vf.instance
-		LEFT JOIN content c ON c.id = vf.content_id
-		WHERE vf.version_id = ? ORDER BY vs.version_id IS NULL DESC, COALESCE(vf.added_at, 0), vf.id`, versionID)
-	if err != nil {
-		return nil, err
-	}
-	files := map[int64]*ExistingFile{}
-	members := map[int64][]int64{}
-	for frows.Next() {
-		var epID, fid int64
-		var f ExistingFile
-		var langs string
-		var added int64
-		if err := frows.Scan(&epID, &fid, &f.Quality, &f.Revision, &f.SceneName, &f.OriginalFilePath, &f.RelativePath,
-			&f.ReleaseGroup, &f.Edition, &langs, &f.Size, &f.IndexerFlags, &f.InfoHash, &f.ReleaseType, &added); err != nil {
-			frows.Close()
-			return nil, err
-		}
-		if added > 0 {
-			f.Added = time.UnixMilli(added).UTC()
-		}
-		_ = json.Unmarshal([]byte(langs), &f.Languages)
-		if files[fid] == nil {
-			files[fid] = &f
-		}
-		members[fid] = append(members[fid], epID)
-		// Later rows win: the owner's files come last, newest last.
-		if i, ok := idx[epID]; ok {
-			out[i].File, out[i].FileID = files[fid], fid
-		}
-	}
-	frows.Close()
-	if err := frows.Err(); err != nil {
-		return nil, err
-	}
-	for fid, f := range files {
-		f.EpisodeIDs = members[fid]
 	}
 	links, order, err := loadLinks(ctx, db, versionID)
 	if err != nil {
@@ -495,15 +453,13 @@ func LoadVersion(ctx context.Context, db *sql.DB, pol *policy.Policy, titleID in
 	return v, err
 }
 
-// LoadExisting reads a version's current movie file: the newest active link, else the owning instance's
-// version_file row (version_source), else the most recently added one. Nil when the version has no file.
+// LoadExisting reads a version's current movie file: the newest active link. Nil when the version has no file.
 func LoadExisting(ctx context.Context, db *sql.DB, versionID int64) (*ExistingFile, error) {
 	f, _, err := LoadExistingFile(ctx, db, versionID)
 	return f, err
 }
 
-// LoadExistingFile is LoadExisting with the file's id: minus the link id for a link (as Episode.FileID), else the
-// version_file id.
+// LoadExistingFile is LoadExisting with the file's id: minus the link id (as Episode.FileID).
 func LoadExistingFile(ctx context.Context, db *sql.DB, versionID int64) (*ExistingFile, int64, error) {
 	if versionID == 0 {
 		return nil, 0, nil
@@ -512,51 +468,20 @@ func LoadExistingFile(ctx context.Context, db *sql.DB, versionID int64) (*Existi
 	if err != nil {
 		return nil, 0, err
 	}
-	if len(order) > 0 {
-		id := order[len(order)-1]
-		f := links[id]
-		history, err := loadGrabHistory(ctx, db, versionID, policy.KindMovie)
-		if err != nil {
-			return nil, 0, err
-		}
-		f.LastGrab = history[0]
-		if err := ResolveSeaDexFiles(ctx, db, []*ExistingFile{f}); err != nil {
-			return nil, 0, err
-		}
-		return f, id, nil
-	}
-	var f ExistingFile
-	var id int64
-	var langs string
-	var added int64
-	err = db.QueryRowContext(ctx, `SELECT vf.id, vf.quality, vf.quality_revision, vf.scene_name, vf.original_file_path,
-		vf.relative_path, vf.release_group, vf.edition, vf.languages, vf.size_bytes, vf.indexer_flags,
-		COALESCE(c.info_hash, ''), COALESCE(vf.added_at, 0)
-		FROM version_file vf LEFT JOIN version_source vs ON vs.version_id = vf.version_id AND vs.instance = vf.instance
-		LEFT JOIN content c ON c.id = vf.content_id
-		WHERE vf.version_id = ?
-		ORDER BY vs.version_id IS NULL, COALESCE(vf.added_at, 0) DESC, vf.id DESC LIMIT 1`, versionID).Scan(
-		&id, &f.Quality, &f.Revision, &f.SceneName, &f.OriginalFilePath, &f.RelativePath, &f.ReleaseGroup, &f.Edition,
-		&langs, &f.Size, &f.IndexerFlags, &f.InfoHash, &added)
-	if errors.Is(err, sql.ErrNoRows) {
+	if len(order) == 0 {
 		return nil, 0, nil
 	}
-	if err != nil {
-		return nil, 0, err
-	}
-	_ = json.Unmarshal([]byte(langs), &f.Languages)
-	if added > 0 {
-		f.Added = time.UnixMilli(added).UTC()
-	}
+	id := order[len(order)-1]
+	f := links[id]
 	history, err := loadGrabHistory(ctx, db, versionID, policy.KindMovie)
 	if err != nil {
 		return nil, 0, err
 	}
 	f.LastGrab = history[0]
-	if err := ResolveSeaDexFiles(ctx, db, []*ExistingFile{&f}); err != nil {
+	if err := ResolveSeaDexFiles(ctx, db, []*ExistingFile{f}); err != nil {
 		return nil, 0, err
 	}
-	return &f, id, nil
+	return f, id, nil
 }
 
 // titleLibrary is a Library over a set of titles.

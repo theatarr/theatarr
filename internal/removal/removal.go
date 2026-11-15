@@ -3,15 +3,14 @@
 // (internal/arrview deleteTitle) both run Run. In order:
 //
 //  1. the clean-up candidates are collected while the copies still relate to them: the torrent hashes of their links
-//     (active or dead), their arr files and their downloads not failed;
+//     (active or dead) and their downloads not failed;
 //  2. one write transaction marks the copies removed (catalog.Remove, plus the caller's own writes), ends their
 //     downloads in hand (router.EndRemoved), clears their search requests and pending offers, stops the queued copies
 //     to other providers that nothing else wants (router.StopRemovedCopies) and records one Removed action per
 //     library (journal);
 //  3. with the files to be deleted: each of their links moves to the trash (Unlinker.UnlinkRemoved, through the
 //     library's gate; a dead symlink too; the folders it leaves empty go, strictly below the library root), except a
-//     link another current library of the title still uses, which stays; the arr file rows at an unlinked path go
-//     with it, so the removed title is not counted as its torrent's user;
+//     link another current library of the title still uses, which stays;
 //  4. each Removed action gets what became of its files, and the hashes no kept or failed link names are handed to
 //     the debrid clean-up (Cleanup, run after the answer by the caller's starter: torrents.DeleteForRemoval).
 //
@@ -180,8 +179,7 @@ func Run(ctx context.Context, d Deps, s Spec) (*Result, error) {
 				var files bool
 				if err := tx.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM link l JOIN link_version lv
 					ON lv.link_id = l.id JOIN version v ON v.id = lv.version_id WHERE v.title_id = ?1 AND v.policy_key = ?2
-					AND l.state IN ('active', 'dead')) OR EXISTS (SELECT 1 FROM version_file vf JOIN version v
-					ON v.id = vf.version_id WHERE v.title_id = ?1 AND v.policy_key = ?2)`, s.TitleID, k).Scan(&files); err != nil {
+					AND l.state IN ('active', 'dead'))`, s.TitleID, k).Scan(&files); err != nil {
 					return err
 				}
 				if files {
@@ -254,21 +252,6 @@ func Run(ctx context.Context, d Deps, s Spec) (*Result, error) {
 	if err != nil {
 		return out, err
 	}
-	// Sonarr's or Radarr's own files the removal left (arr file rows whose path was not unlinked) stay: they count as
-	// left in place.
-	err = scan(ctx, d.Store.Reader(), `SELECT DISTINCT v.policy_key, vf.path FROM version_file vf JOIN version v
-		ON v.id = vf.version_id WHERE v.title_id = ? AND v.policy_key IN (`+store.Placeholders(len(all))+`)`,
-		append([]any{s.TitleID}, anyOf(all)...), func(r *sql.Rows) error {
-			var k, path string
-			if err := r.Scan(&k, &path); err != nil {
-				return err
-			}
-			fates[k] = fates[k].leave(path, "Sonarr's or Radarr's own file stays")
-			return nil
-		})
-	if err != nil {
-		d.Log.Warn("removal: reading the arr files left", "title", s.TitleID, "err", err)
-	}
 	if err := d.Store.WriteTx(ctx, func(tx *sql.Tx) error {
 		for k, id := range actIDs {
 			f := fates[k]
@@ -311,11 +294,8 @@ func Run(ctx context.Context, d Deps, s Spec) (*Result, error) {
 		}
 		// What its kept files keep, said with the clean-up's outcome.
 		keptWords := ""
-		switch {
-		case slices.Contains(kept, droppedLink):
+		if len(kept) > 0 {
 			keptWords = "torrents of the files that stay kept"
-		case len(kept) > 0:
-			keptWords = "torrents of Sonarr's or Radarr's own files kept"
 		}
 		switch {
 		case len(mine) == 0:
@@ -341,22 +321,16 @@ func Run(ctx context.Context, d Deps, s Spec) (*Result, error) {
 	return out, nil
 }
 
-// Why a hash is no clean-up candidate: a link of the removed copies that stays names it, or an arr file of theirs
-// (Sonarr's or Radarr's own file, at a path Theatarr did not unlink) does.
-const (
-	droppedLink    = "link"
-	droppedArrFile = "arr_file"
-)
+// droppedLink is why a hash is no clean-up candidate: a link of the removed copies that stays names it.
+const droppedLink = "link"
 
-// sharedSQL is the condition that link l is still used by a current library (a version not removed): through its
-// link_version rows, or a current arr file (version_file) at its path.
-const sharedSQL = `(EXISTS (SELECT 1 FROM link_version lv2 WHERE lv2.link_id = l.id
-		AND NOT EXISTS (SELECT 1 FROM arrview_removed_version r WHERE r.version_id = lv2.version_id))
-	OR EXISTS (SELECT 1 FROM version_file vf2 WHERE vf2.path = l.path
-		AND NOT EXISTS (SELECT 1 FROM arrview_removed_version r WHERE r.version_id = vf2.version_id)))`
+// sharedSQL is the condition that link l is still used by a current library (a version not removed) through its
+// link_version rows.
+const sharedSQL = `EXISTS (SELECT 1 FROM link_version lv2 WHERE lv2.link_id = l.id
+		AND NOT EXISTS (SELECT 1 FROM arrview_removed_version r WHERE r.version_id = lv2.version_id))`
 
 // fate is what became of one removed library's files: how many links were unlinked, and the distinct paths left in
-// place (links and arr files) with the first reason.
+// place with the first reason.
 type fate struct {
 	unlinked int
 	left     map[string]bool
@@ -473,13 +447,6 @@ func unlink(ctx context.Context, d Deps, s Spec, keys []string, c *cands, out *R
 		count(x, true, "")
 		out.Unlinked = append(out.Unlinked, Unlinked{Path: x.path, Trash: trash, Versions: x.keys})
 		err = d.Store.WriteTx(ctx, func(tx *sql.Tx) error {
-			// The removed copies' arr files at that path go with the link: their torrent is not theirs to keep.
-			if _, err := tx.ExecContext(ctx, `DELETE FROM version_file WHERE path = ? AND version_id IN
-				(SELECT v.id FROM version v JOIN arrview_removed_version r ON r.version_id = v.id WHERE v.title_id = ?
-				AND v.policy_key IN (`+store.Placeholders(len(x.keys))+`))`,
-				append([]any{x.path, s.TitleID}, anyOf(x.keys)...)...); err != nil {
-				return err
-			}
 			trashed := trash
 			if trashed == "" {
 				trashed = "—"
@@ -493,27 +460,7 @@ func unlink(ctx context.Context, d Deps, s Spec, keys []string, c *cands, out *R
 			d.Log.Warn("removal: recording an unlinked link", "title", s.TitleID, "path", x.path, "err", err)
 		}
 	}
-	// A kept link's hash stays wanted; so does a hash an arr file row of a removed copy still holds (its path was
-	// not one of the links unlinked). An arr file left with no hash keeps every candidate of its library, as an
-	// untied link does.
-	err = scan(ctx, d.Store.Reader(), `SELECT DISTINCT `+fileHashSQL+`, v.policy_key FROM version_file vf
-		JOIN version v ON v.id = vf.version_id WHERE v.title_id = ? AND v.policy_key IN (`+
-		store.Placeholders(len(keys))+`)`, append([]any{s.TitleID}, anyOf(keys)...), func(r *sql.Rows) error {
-		var h, k string
-		if err := r.Scan(&h, &k); err != nil {
-			return err
-		}
-		switch h = indexer.NormalizeHash(h); {
-		case h == "":
-			untied = append(untied, k)
-		case dropped[h] == "":
-			dropped[h] = droppedArrFile
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, nil, fmt.Errorf("removal: reading the arr files: %w", err)
-	}
+	// A kept link's hash stays wanted.
 	for _, x := range links {
 		if x.hash != "" && slices.Contains(stayTargets, x.target) {
 			dropped[x.hash] = droppedLink
@@ -531,10 +478,6 @@ func unlink(ctx context.Context, d Deps, s Spec, keys []string, c *cands, out *R
 	}
 	return fates, dropped, nil
 }
-
-// fileHashSQL is an arr file vf's torrent hash: its content's, else its download id when that is a v1 hash.
-const fileHashSQL = `COALESCE((SELECT c.info_hash FROM content c WHERE c.id = vf.content_id),
-	CASE WHEN length(vf.download_id) = 40 THEN vf.download_id END, '')`
 
 // cands are a removal's clean-up candidates: hashes in the order found, each with the removed libraries (policy keys)
 // it belongs to.
@@ -564,8 +507,7 @@ func (c *cands) hashes() []string { return c.list }
 
 func (c *cands) keysOf(h string) []string { return c.keys[h] }
 
-// candidates are the hashes of keys' copies of the title (step 1): their links not unlinked, their arr files, and
-// their downloads that did not fail (a failed grab attempt may name a torrent that was never ours to delete).
+// candidates are the hashes of keys' copies of the title (step 1): their links not unlinked and their downloads that did not fail (a failed grab attempt may name a torrent that was never ours to delete).
 func candidates(ctx context.Context, db *sql.DB, titleID int64, keys []string) (*cands, error) {
 	c := &cands{}
 	if len(keys) == 0 {
@@ -576,7 +518,6 @@ func candidates(ctx context.Context, db *sql.DB, titleID int64, keys []string) (
 	for _, q := range []string{
 		`SELECT ` + router.LinkStoredHashSQL + `, v.policy_key FROM link l JOIN link_version lv ON lv.link_id = l.id
 			JOIN version v ON v.id = lv.version_id WHERE ` + in + ` AND l.state IN ('active', 'dead')`,
-		`SELECT ` + fileHashSQL + `, v.policy_key FROM version_file vf JOIN version v ON v.id = vf.version_id WHERE ` + in,
 		`SELECT d.info_hash, v.policy_key FROM download d JOIN version v ON v.id = d.version_id WHERE ` + in +
 			` AND d.state <> 'failed'`,
 	} {

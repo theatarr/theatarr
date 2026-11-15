@@ -111,7 +111,6 @@ func TestNextEpisodeUsesTitleSeriesType(t *testing.T) {
 		`UPDATE title SET series_type = 'standard', anime = 1 WHERE id = 1`,
 		`INSERT INTO episode_number (episode_id, title_id, scheme, season, number) VALUES
 			(1, 1, 'absolute', NULL, 2), (2, 1, 'absolute', NULL, 1), (3, 1, 'absolute', NULL, 3), (4, 1, 'absolute', NULL, 4)`,
-		`INSERT INTO version_source (version_id, instance, arr_id) VALUES (1, 'sonarr', 1)`,
 	} {
 		if _, err := st.Writer().Exec(q); err != nil {
 			t.Fatalf("%s: %v", q, err)

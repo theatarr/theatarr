@@ -44,8 +44,6 @@ func TestDeleteLibraryRemovesRows(t *testing.T) {
 			(100, '/remux/Shared.mkv', '/mnt/a', 1, 500, 0, 0), (101, '/remux/Shared-web.mkv', '/mnt/b', 1, 501, 0, 0),
 			(102, '/web/WebOnly.mkv', '/mnt/c', 2, 502, 0, 0)`,
 		`INSERT INTO link_version (link_id, version_id) VALUES (100, 11), (101, 11), (101, 12), (102, 22)`,
-		`INSERT INTO version_file (version_id, title_id, instance, arr_file_id, path) VALUES
-			(12, 1, 'radarr_web', 1, '/arr/Shared.mkv'), (22, 2, 'radarr_web', 2, '/arr/WebOnly.mkv')`,
 		`INSERT INTO router_offer (version_key, title_id, info_hash, from_version, outcome, first_at, updated_at) VALUES
 			('movie-remux', 1, 'h1', 'movie-web', 'pending', 0, 0), ('movie-web', 1, 'h2', 'movie-remux', 'pending', 0, 0),
 			('movie-remux', 1, 'h3', 'movie-remux', 'same', 0, 0)`,
@@ -140,7 +138,6 @@ func TestDeleteLibraryRemovesRows(t *testing.T) {
 		`SELECT group_concat(id || ':' || COALESCE(download_id, '-'), ' ') FROM (SELECT * FROM link ORDER BY id)`:                                     "100:500 101:-",
 		`SELECT group_concat(link_id || ':' || version_id, ' ') FROM link_version`:                                                                    "100:11 101:11",
 		`SELECT group_concat(id, ' ') FROM download`:                                                                                                  "500",
-		`SELECT COUNT(*) FROM version_file`:                                                                                                           "0",
 		`SELECT group_concat(info_hash, ' ') FROM router_offer`:                                                                                       "h3",
 		`SELECT group_concat(version_key, ' ') FROM search_request`:                                                                                   "movie-remux",
 		`SELECT group_concat(version, ' ') FROM arrview_title_tag`:                                                                                    "movie-remux",

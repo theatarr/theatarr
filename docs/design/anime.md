@@ -60,8 +60,7 @@ and `refresh_moves_linked` items when a refresh is held. A decision sticks: a la
 not raise again are `superseded`.
 
 **Refresh hold**: `Save` holds a build, keeping the applied one, when it would map more than 10% fewer of
-a TVDB series' episodes, or would move a mapping whose episodes have files (an active `link_episode`, or an imported
-`version_file_episode`). Both checks compare the build with saved review decisions applied, so a refresh that proposes
+a TVDB series' episodes, or would move a mapping whose episodes have files (an active `link_episode`). Both checks compare the build with saved review decisions applied, so a refresh that proposes
 what review already decided does not ask again. The held build is the franchise's `pending_result`; accepting its
 item applies it, rejecting drops it.
 
@@ -298,8 +297,7 @@ left in the watch order (a root with routed rows; `playlists.routes`).
 
 - **Items:** each order row's TVDB episodes come from the applied mapping (importable ranges only; a conflict row is
   listed as missing), narrowed to the row's part (`anime.RowEpisodes`: "up to before S01E13", story slices); an entry
-  without episodes but with TMDb ids is a movie. Each item is the file Plex sees: Theatarr's active link, else the arr's file
-  (`version_file`) while the arr owns the version. `playlists.skip_optional` leaves out recaps and side stories.
+  without episodes but with TMDb ids is a movie. Each item is the file Plex sees: the active link. `playlists.skip_optional` leaves out recaps and side stories.
 - **Sync** (gate open): the server's machine id, one listing per section of `library.versions[*].plex_section` and
   type (episodes, movies) to find rating keys by file path, then `plex.SyncPlaylist` per playlist: find it by the
   stored rating key or by title, create it, or remove unwanted entries and duplicates, append missing ones and move

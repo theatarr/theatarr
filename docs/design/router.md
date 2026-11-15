@@ -94,8 +94,8 @@ The freshness check (is the release still an upgrade of the current file) and th
 decision engine's compiled profile (`SetProfiles`: `decide.Engine.Profile`), with its minimum score, cutoff score and
 minimum upgrade step; a router without an engine builds the same thresholds from the policy (`TestFreshnessUsesProfileFormatThresholds`, `TestFreshnessUsesEngineProfile`). With the engine's profile the
 current file's custom format score is recalculated under it from the file's stored inputs (`decide.ScoreFileWith`,
-as the decision compares an existing file), not taken from `link.score` or `version_file.custom_format_score`, which
-are the import-time profile's: after a profile or TRaSH score change the router no longer cancels as
+as the decision compares an existing file), not taken from `link.score`, which
+is the import-time profile's: after a profile or TRaSH score change the router no longer cancels as
 `no_longer_upgrade` an upgrade the decision accepted (`TestFreshnessRescoresCurrentFile`). Without the engine's profiles the stored score stands.
 
 Form and JSON adder responses share bounded reading and body closure (1 MiB). A 429's numeric `Retry-After` is
@@ -1299,8 +1299,7 @@ registry row does not hold the hash complete ("Cached on"); one job (`router.cop
   route's add there is unsettled, checked under the add lock just before its listing.
 - **Every known name**, once per request: Real-Debrid's name rule is applied to the request's names (the file's
   release and scene names, a provider entry's display and original names), its downloads' release and original
-  names, the release names of the links and arr files tied to it by content, download or an arr file's download id,
-  and the registry's names; every read is by hash. Any refused name makes the copy `refused`, never sent; a queued
+  names, the release names of the links tied to it by content or download, and the registry's names; every read is by hash. Any refused name makes the copy `refused`, never sent; a queued
   row a later request finds refused becomes `refused`.
 - **Hold times** are `provider_copy.until_at`, sent as `until`; the browser shows them in its own zone.
 - **A worker that lost its row stops**: every state change is conditional on the state the worker read; when a new
@@ -1314,8 +1313,7 @@ deleted); none: `queued` again. `checking` is settled from the account, an owed 
 **API.** `POST /titles/{id}/copies {version, episode_id?}` (manage) takes the hash and names of the file the page
 shows (the movie's current file, the episode window's file). One resolution gives that file's hash to the action, the
 Torrent link, `copies` and Cached on (`linkHashSQL`/`fileHashSQL`, `heldByHash`): a link's content, else the hash it
-records (download, file metadata, adopted source) with or without a content row; an arr file's content, else its
-download id when that is a v1 hash. `POST /torrents/copy {provider, id}` (admin) takes the hash and name from the
+records (download, file metadata, adopted source) with or without a content row. `POST /torrents/copy {provider, id}` (admin) takes the hash and name from the
 registry, else the display and original names from a read of the provider. Both
 answer the rows; 409 with the Pause words while paused; 422 "Cannot add to other providers: Theatarr has no torrent
 hash on record for this file." `GET /torrents/copies?hash=` (admin) reads one torrent's copies for the Torrents page
@@ -1559,9 +1557,9 @@ An adopted link is offered from the source stored on it (`link.adopted_source`: 
 names and the library the arr filled, with the `adopted_from` it was read for), resolving the names with
 `IndexerByName` and keeping the arr's library out of the offer (`TestAdoptedLinkOffersWithoutFollowing`). The arr
 history is not read: an adopted link without a stored source, or whose `adopted_from` has changed since, has no
-indexer and is not offered (`TestAdoptedLinkWithoutStoredSourceNotOffered`), as unknown indexers already are. Imported
-arr files (`version_file`) are not offered; an open offer (pending or retry memory) whose source was one is deleted
-at the next sweep, not declined, so the same file from an adopted link is decided afresh (`TestArrFileOfferForgotten`).
+indexer and is not offered (`TestAdoptedLinkWithoutStoredSourceNotOffered`), as unknown indexers already are. An open
+offer (pending or retry memory) whose source was an imported arr file (source kind `arr_file`, from before those files
+became adopted links in 00134) is deleted at the next sweep, not declined, so the same file from an adopted link is decided afresh (`TestArrFileOfferForgotten`).
 
 Arr history names an indexer by the arr's own name ("TheRARBG (Prowlarr)", "DMM RD (Prowlarr)"), never a policy key.
 `Policy.IndexerByName` matches it to a configured indexer: the key itself, a name an indexer's `arr_names` lists
@@ -1642,8 +1640,7 @@ the entry.
 
 The profile's own `upgrades: false` (arr `upgradeAllowed`) still applies inside the decision engine; the version rule
 sits on top of it in the router. `Router.Route` reads the version's current files for the release's items before any
-candidate is tried (`upgrades.go` `currentFiles`: active links, then the arr's `version_file` rows of the owning
-instance). Releases for items without a file are never refused: in a series route a pack that would replace episode
+candidate is tried (`upgrades.go` `currentFiles`: active links). Releases for items without a file are never refused: in a series route a pack that would replace episode
 1's file is skipped under `off` while a release that only fills episode 2 is tried as usual (`TestUpgradesOff`).
 
 `approve` (hold an upgrade until a manager approved it) was removed in 2026-11: migration 00118 drops `upgrade_hold`,

@@ -3,17 +3,9 @@ package library
 import (
 	"encoding/json"
 	"path"
-	"regexp"
 	"strings"
 
 	"github.com/theatarr/theatarr/internal/library/naming"
-)
-
-// Shapes of the current naming formats: a file the arr imported without renaming (or under an older format) has
-// another shape, and its name is not the naming's output.
-var (
-	movieShaped  = regexp.MustCompile(`\{imdb-tt\d+\}|\) - \[`)
-	seriesShaped = regexp.MustCompile(` - S\d{2,}E\d{2,}.* \[`)
 )
 
 // mediaInfoFromAPI turns the arr's MediaInfoResource (already formatted) into naming.MediaInfo. The API formats the

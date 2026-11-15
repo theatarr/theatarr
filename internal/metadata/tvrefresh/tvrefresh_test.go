@@ -445,13 +445,15 @@ func TestRenumberAndRemoval(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := e.st.WriteTx(ctx, func(tx *sql.Tx) error {
-		res, err := tx.Exec(`INSERT INTO version_file (instance, arr_file_id, version_id, title_id, path, relative_path)
-			VALUES ('theatarr', 1, ?, ?, '/x/a.mkv', 'a.mkv')`, vid, id)
+		res, err := tx.Exec(`INSERT INTO link (path, target, title_id, created_at, updated_at) VALUES ('/x/a.mkv', '/m/a.mkv', ?, 0, 0)`, id)
 		if err != nil {
 			return err
 		}
-		vf, _ := res.LastInsertId()
-		if _, err := tx.Exec(`INSERT INTO version_file_episode VALUES (?, ?), (?, ?)`, vf, e9.id, vf, s2e10.id); err != nil {
+		lf, _ := res.LastInsertId()
+		if _, err := tx.Exec(`INSERT INTO link_version VALUES (?, ?)`, lf, vid); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(`INSERT INTO link_episode VALUES (?, ?), (?, ?)`, lf, e9.id, lf, s2e10.id); err != nil {
 			return err
 		}
 		if _, err := tx.Exec(`INSERT INTO link (path, target, title_id, created_at, updated_at) VALUES ('/l/b.mkv', '/m/b.mkv', ?, 0, 0)`,
@@ -495,7 +497,7 @@ func TestRenumberAndRemoval(t *testing.T) {
 	if x := e.ep(t, id, 1, 9); x == nil || x.id != e9.id || x.name != "Inserted" || x.ext.Int64 != 990002 {
 		t.Errorf("S01E09 %+v", x)
 	}
-	if n := e.count(t, `SELECT COUNT(*) FROM version_file_episode WHERE episode_id = ?`, e9.id); n != 1 {
+	if n := e.count(t, `SELECT COUNT(*) FROM link_episode WHERE episode_id = ?`, e9.id); n != 1 {
 		t.Errorf("the file left the renumbered episode")
 	}
 	// A recreated TVDB record keeps the existing row.

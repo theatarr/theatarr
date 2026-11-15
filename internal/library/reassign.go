@@ -46,7 +46,7 @@ type reassignConflict struct {
 // unless replace: that link is then unlinked as Unlink does (moved to the trash; the mount is never touched), in the
 // move's transaction, and the chosen episodes leave its file's recorded identity; when the move fails, it is put
 // back from the trash.
-// An arr file of the version holding a chosen episode, a link shared by several versions and an adopted link
+// A link shared by several versions and an adopted link
 // (no download to record the choice on) are refused.
 func (l *Library) ReassignEpisodes(ctx context.Context, linkID int64, episodeIDs []int64, replace bool) (*Reassigned, error) {
 	if l.runtime != nil {
@@ -137,7 +137,7 @@ func (l *Library) reassignEpisodes(ctx context.Context, linkID int64, episodeIDs
 		return out, refuse("the file holds %s already", strings.Join(out.Episodes, ", "))
 	}
 
-	// Files the version holds for the chosen episodes: an arr file always refuses, another link unless replace.
+	// Files the version holds for the chosen episodes: another link refuses unless replace.
 	label := map[int64]string{}
 	for _, e := range eps {
 		label[e.ID] = episodeLabel(e)
@@ -147,20 +147,6 @@ func (l *Library) reassignEpisodes(ctx context.Context, linkID int64, episodeIDs
 		args = append(args, id)
 	}
 	in := store.Placeholders(len(ids))
-	var arrFiles []string
-	if err := scanRows(ctx, db, `SELECT DISTINCT vf.path FROM version_file vf JOIN version_file_episode fe
-		ON fe.version_file_id = vf.id WHERE vf.version_id = ? AND fe.episode_id IN (`+in+`) ORDER BY vf.path`, args,
-		func(r *sql.Rows) error {
-			var p string
-			err := r.Scan(&p)
-			arrFiles = append(arrFiles, p)
-			return err
-		}); err != nil {
-		return nil, err
-	}
-	if len(arrFiles) > 0 {
-		return out, refuse("the arr's file %s holds a chosen episode; delete it from the arr first", strings.Join(arrFiles, ", "))
-	}
 	var conflicts []*reassignConflict
 	byID := map[int64]*reassignConflict{}
 	if err := scanRows(ctx, db, `SELECT l.id, l.path, l.target, (SELECT COUNT(*) FROM link_version x WHERE x.link_id = l.id),

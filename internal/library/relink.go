@@ -33,7 +33,6 @@ type LinkScan struct {
 	Causes   map[string]int `json:"causes"`     // dangling by cause
 	DryRun   bool           `json:"dry_run"`    // nothing was written
 	Refused  string         `json:"refused"`    // why the gate made it a dry run
-	Names    *NameCheck     `json:"names,omitempty"`
 	Mount    string         `json:"mount_error,omitempty"`
 	// Revived are dead links whose file is on the mount again: active again (or, in a dry run, would be).
 	Revived []DanglingLink `json:"revived,omitempty"`
@@ -1156,7 +1155,7 @@ func (l *Library) repoint(ctx context.Context, sc *LinkScan, version, root strin
 }
 
 // coveredElsewhere reports whether a dead link's title (a movie) or every one of its episodes (a series) has another
-// file in each of the link's versions: an active link or an arr file. Revived, the link would be a second file.
+// file in each of the link's versions: an active link. Revived, the link would be a second file.
 func coveredElsewhere(ctx context.Context, db *sql.DB, linkID int64) (bool, error) {
 	rows, err := db.QueryContext(ctx, `SELECT lv.version_id, t.kind FROM link_version lv
 		JOIN version v ON v.id = lv.version_id JOIN title t ON t.id = v.title_id WHERE lv.link_id = ?`, linkID)
@@ -1185,17 +1184,14 @@ func coveredElsewhere(ctx context.Context, db *sql.DB, linkID int64) (bool, erro
 		var err error
 		if v.kind != "series" {
 			err = db.QueryRowContext(ctx, `SELECT NOT EXISTS (SELECT 1 FROM link l JOIN link_version lv ON lv.link_id = l.id
-				WHERE lv.version_id = ? AND l.id <> ? AND l.state = 'active')
-				AND NOT EXISTS (SELECT 1 FROM version_file WHERE version_id = ?)`, v.id, linkID, v.id).Scan(&uncovered)
+				WHERE lv.version_id = ? AND l.id <> ? AND l.state = 'active')`, v.id, linkID).Scan(&uncovered)
 		} else {
 			err = db.QueryRowContext(ctx, `SELECT COUNT(*) + (SELECT COUNT(*) = 0 FROM link_episode WHERE link_id = ?)
 				FROM link_episode le WHERE le.link_id = ?
 				AND NOT EXISTS (SELECT 1 FROM link l JOIN link_version lv ON lv.link_id = l.id
 					JOIN link_episode x ON x.link_id = l.id
-					WHERE lv.version_id = ? AND l.id <> ? AND l.state = 'active' AND x.episode_id = le.episode_id)
-				AND NOT EXISTS (SELECT 1 FROM version_file vf JOIN version_file_episode fe ON fe.version_file_id = vf.id
-					WHERE vf.version_id = ? AND fe.episode_id = le.episode_id)`, linkID, linkID, v.id, linkID, v.id).
-				Scan(&uncovered)
+					WHERE lv.version_id = ? AND l.id <> ? AND l.state = 'active' AND x.episode_id = le.episode_id)`,
+				linkID, linkID, v.id, linkID).Scan(&uncovered)
 		}
 		if err != nil {
 			return false, err

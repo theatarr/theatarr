@@ -68,13 +68,15 @@ func newSyncEnv(t *testing.T) *syncEnv {
 		now: time.Date(2026, 10, 26, 12, 0, 0, 0, time.UTC)}
 	e.s = &Syncer{Store: st, Providers: map[string]Provider{"rd": e.rd, "ad": e.ad}, Configured: []string{"rd", "ad"},
 		Now: func() time.Time { return e.now }, Log: slog.New(slog.NewTextHandler(io.Discard, nil))}
-	// Seeded from history, as import-arr leaves them: X and Y referenced (content_version), Z gone.
+	// X and Y referenced (a library link into them), Z gone.
 	e.exec(`INSERT INTO title (id, kind, name, created_at, updated_at) VALUES (1, 'movie', 'M', 0, 0)`)
 	e.exec(`INSERT INTO version (id, title_id, policy_key, created_at, updated_at) VALUES (1, 1, 'movie-web', 0, 0)`)
 	for i, c := range []struct{ hash, state string }{{h("a"), "unknown"}, {h("9"), "unknown"}, {h("8"), "gone"}} {
 		e.exec(`INSERT INTO content (id, info_hash, name, state, first_seen_at, last_seen_at) VALUES (?, ?, '', ?, 1, 1)`,
 			i+1, c.hash, c.state)
-		e.exec(`INSERT INTO content_version (content_id, version_id, source) VALUES (?, 1, 'radarr')`, i+1)
+		e.exec(`INSERT INTO content_file (id, content_id, path, size_bytes) VALUES (?, ?, 'f.mkv', 1)`, i+1, i+1)
+		e.exec(`INSERT INTO link (path, target, content_file_id, title_id, created_at, updated_at) VALUES (?, '/z', ?, 1, 0, 0)`,
+			fmt.Sprintf("/lib/%d.mkv", i+1), i+1)
 	}
 	return e
 }

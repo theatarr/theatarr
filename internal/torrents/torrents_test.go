@@ -300,8 +300,8 @@ func usageFixture(t *testing.T) (*env, string) {
 		VALUES ('/lib/B/B.mkv', ?, 1, 0, 0, 'dead')`, mountPath+"/__all__/Movie.B.2021.2160p.WEB-DL/B.mkv")
 	e.exec(`INSERT INTO link (path, target, title_id, created_at, updated_at, state)
 		VALUES ('/lib/old.mkv', ?, 1, 0, 0, 'unlinked')`, mountPath+"/__all__/Movie.F.2016.1080p.WEB-DL/F.mkv")
-	e.exec(`INSERT INTO version_file (version_id, title_id, instance, arr_file_id, path, download_id)
-		VALUES (1, 1, 'radarr', 7, '/movies/C.mkv', ?)`, strings.ToUpper(hC))
+	e.exec(`INSERT INTO link (path, target, title_id, created_at, updated_at, file_metadata)
+		VALUES ('/movies/C.mkv', '/elsewhere/C.mkv', 1, 0, 0, ?)`, `{"InfoHash":"`+strings.ToUpper(hC)+`"}`)
 	e.exec(`INSERT INTO download (title_id, version_id, version_key, info_hash, release_title, indexer, state,
 		provider, provider_torrent_id, created_at, updated_at) VALUES (1, 1, 'v', ?, 'D', 'pub', 'queued', 'rd', '4',
 		0, 0)`, hD)
@@ -327,7 +327,7 @@ func TestUsage(t *testing.T) {
 		u    Usage
 		kind string
 	}{
-		"1": {Used, RefLink}, "2": {Used, RefLink}, "3": {Used, RefArrFile}, "4": {Used, RefDownload},
+		"1": {Used, RefLink}, "2": {Used, RefLink}, "3": {Used, RefLink}, "4": {Used, RefDownload},
 		"5": {Used, RefScan}, "6": {Unused, ""}, "7": {Unknown, ""},
 	}
 	for id, w := range want {

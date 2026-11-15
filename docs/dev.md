@@ -57,7 +57,6 @@ subcommands; each one takes `-h`.
 | `internal/policy` | YAML policy loader and validation |
 | `internal/settings` | The settings database: validated sections, credentials, generations, audit, and runtime generation swaps ([design/settings.md](design/settings.md)) |
 | `internal/secrets` | Shared rules for showing and restoring credentials (masking, webhook URLs) |
-| `internal/migration` | The arr profile and naming converter (`freeze.go`) and `FreezeStored`, which turns a stored profile or naming taken from an arr into a native copy |
 | `internal/trashbundle` | The TRaSH-Guides snapshot the binary embeds for the profile presets (one pinned commit, MIT). `scripts/update-trash-bundle.sh <checkout>` refreshes it before a release; update the commit in `NOTICE` with it |
 | `internal/recyclarr` | Recyclarr configurations and arr custom formats into Theatarr formats and profiles |
 | `internal/server` | HTTP server, health, metrics, logging setup |
