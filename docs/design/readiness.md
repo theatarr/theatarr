@@ -70,7 +70,7 @@ Rows from before 00031 have `''`.
 The worker leases jobs by priority then age, with two refinements (`jobs.WorkerOptions.Urgent`, `Reserved`):
 
 - The acquisition and import kinds (`acquire.search`, `acquire.wanted`, `acquire.research`, `router.route`,
-  `router.offer`, `plex.scan`) are leased before any other ready job, ahead of priority and age.
+  `plex.scan`) are leased before any other ready job, ahead of priority and age.
 - One extra slot (`--workers-reserved`, env `THEATARR_WORKERS_RESERVED`, default 1) runs those kinds only, on top of the
   general slots (`--workers`, env `THEATARR_WORKERS`, default 2). A backlog of `meta.art`, `arrview.maintenance`
   or `provider.sync` can hold both general slots and a grab still runs at once.

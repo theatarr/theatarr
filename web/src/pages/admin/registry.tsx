@@ -3,16 +3,10 @@
 // (docs/design/torrents.md "Used, one answer"); the state is the inventory's own, said in words that do not claim usage.
 import { TorrentTabs } from "./torrent-tabs";
 import { Search } from "lucide-react";
-import { useEffect, useRef, useState, type FormEvent } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { qk } from "@/api/query-keys";
+import { useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
-import { useContent, useRegistry, useStatus } from "@/api/hooks";
-import { useCopyTorrent, useHashCopies } from "@/api/provider-copies";
-import { AddToProviders, OtherProviders } from "@/components/title/provider-copies";
+import { useContent, useRegistry } from "@/api/hooks";
 import { TitleLinks, UsageBadge, UsageDetail } from "@/components/torrent-usage";
-import { otherProvidersLine } from "@/lib/provider-copies";
-import { globalDownloadsOff } from "@/lib/version-grab";
 import { Pager } from "@/components/ui/pager";
 import { Empty, ErrorState, KV, Loading, Mono, PageHeader, Section } from "@/components/page";
 import { Badge } from "@/components/ui/badge";
@@ -193,7 +187,6 @@ export function RegistryContent() {
               </TableRow>
             ))}</TableBody></Table></Card>
         )}
-        <InventoryCopies hash={c.info_hash ?? hash} providers={c.providers ?? []} />
       </Section>
       <Section title="Files">
         {(c.files ?? []).length === 0 ? <Card><Empty>No files recorded.</Empty></Card> : (
@@ -206,33 +199,3 @@ export function RegistryContent() {
   );
 }
 
-/** "Add to other providers" from a provider that holds the hash now (the Torrents row's action, unchanged); nothing
- *  when no provider holds it. */
-function InventoryCopies({ hash, providers }: { hash: string; providers: { provider?: string; torrent_id?: string; state?: string }[] }) {
-  const held = providers.find((p) => p.state !== "absent" && p.provider && p.torrent_id);
-  return held ? <HeldCopies hash={hash} provider={held.provider ?? ""} id={held.torrent_id ?? ""} /> : null;
-}
-
-/** The copies of a held hash, read when the entry opens and polled while one is unfinished, and the action. */
-function HeldCopies({ hash, provider, id }: { hash: string; provider: string; id: string }) {
-  const m = useCopyTorrent(hash, "inventory");
-  const copies = useHashCopies(hash).data?.copies;
-  const status = useStatus();
-  // A copy that finishes as added is a new holder: read the entry again so Providers lists it.
-  const qc = useQueryClient();
-  const added = (copies ?? []).filter((c) => c.state === "added").map((c) => c.provider).sort().join(",");
-  const seen = useRef<string | null>(null);
-  const loaded = copies !== undefined;
-  useEffect(() => {
-    if (!loaded) return;
-    if (seen.current !== null && seen.current !== added) void qc.invalidateQueries({ queryKey: qk.registry.content(hash) });
-    seen.current = added;
-  }, [loaded, added, hash, qc]);
-  const paused = globalDownloadsOff((status.data?.versions ?? []).map((v) => v.grab_state));
-  return (
-    <div className="mt-2 space-y-1 text-[13px]" data-testid="inventory-copies">
-      {otherProvidersLine(copies) ? <div>Other providers: <OtherProviders copies={copies} /></div> : null}
-      <AddToProviders m={m} vars={{ provider, id }} paused={paused} current={copies} />
-    </div>
-  );
-}

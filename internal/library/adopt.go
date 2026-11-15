@@ -519,9 +519,8 @@ func (l *Library) recordAdopted(ctx context.Context, version string, vp *policy.
 			return err
 		}
 		var linkID int64
-		// adopted_from is the provenance the router's offer sources read (00077). The offer sweep's stored
-		// adopted_source (00114) described the file recorded before: a changed file at the same path clears it, to be
-		// read again.
+		// adopted_from is the link's provenance (00077). adopted_source (00114) described the file recorded before: a
+		// changed file at the same path clears it.
 		// adopted_media (00117) is the arr's media info of the file, shown on the title page.
 		err := tx.QueryRowContext(ctx, `INSERT INTO link (path, target, kind, title_id, release_title, quality, score,
 				file_metadata, adopted_from, adopted_media, state, last_checked_at, created_at, updated_at)

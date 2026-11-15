@@ -18,7 +18,7 @@ import (
 
 // isAutomatic identifies routes whose candidates describe current acquisition intent, not an explicit grab.
 func isAutomatic(source string) bool {
-	return source == "job" || source == "wanted" || source == "rss" || source == "research" || source == "offer"
+	return source == "job" || source == "wanted" || source == "rss" || source == "research"
 }
 
 func (r *Router) automatic(ctx context.Context, source string, resumed bool) (bool, error) {
@@ -274,7 +274,7 @@ func (r *Router) redecide(ctx context.Context, s *routeState, cands []Candidate)
 		switch {
 		case !s.vp.PreferSeaDex && series:
 			// A prefer-off version re-decides exactly as before standing existed (only on a revision change).
-			ss := offerSeriesSearch(&t, c.Episodes)
+			ss := seriesSearchFor(&t, c.Episodes)
 			d, err = decideBest(ctx, r.decideSeries, c.Release, t, v, plainCriteria(ss, criteriaQueries(&t, ss, r.now())), ss)
 		case !s.vp.PreferSeaDex:
 			d, err = r.decide(ctx, decide.Release{Release: c.Release}, t, v, existing)
@@ -290,7 +290,7 @@ func (r *Router) redecide(ctx context.Context, s *routeState, cands []Candidate)
 			}
 			continue
 		case series && c.Origin == OriginSearch:
-			d, err = decideBest(ctx, r.decideSeries, c.Release, t, v, c.Criteria, offerSeriesSearch(&t, c.Episodes))
+			d, err = decideBest(ctx, r.decideSeries, c.Release, t, v, c.Criteria, seriesSearchFor(&t, c.Episodes))
 		case series:
 			d, err = r.decideSeries(ctx, decide.Release{Release: c.Release}, t, v, nil)
 		case c.Origin == OriginSearch:

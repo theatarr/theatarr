@@ -13,7 +13,7 @@ import (
 // only while Enabled is true. Every other field is optional.
 type Router struct {
 	// Enabled lets the router write to debrid providers (add a magnet, select files). With database settings it is
-	// derived from Pause (true when Pause is off). False: every version is dry-run only, whatever its mode.
+	// derived from Pause (true when Pause is off). False: every route is a dry run.
 	Enabled bool `yaml:"enabled"`
 	// CachedOnly skips a provider where a release is known to be uncached (an earlier refusal, a cache check) and asks
 	// TorBox to add only if cached. On Real-Debrid and AllDebrid an add is read back at once: one that is not ready
@@ -26,12 +26,8 @@ type Router struct {
 	// upload of a hash already on the account with the existing magnet's id, and the router's proof that the magnet
 	// is new is a list read made just before the upload. Another client adding the same hash between that read and
 	// our upload hands us its magnet, which would then look like ours. Real-Debrid creates a new torrent id per add,
-	// so its delete needs no switch. Copies to other providers delete regardless.
+	// so its delete needs no switch.
 	AllDebridDeleteUncached *bool `yaml:"alldebrid_delete_uncached"`
-	// CopyToProviders adds each new download, after its import, to the other providers when it is cached there
-	// ("Add to other providers", docs/design/router.md "Copies to other providers"). An add that is not cached is
-	// deleted again. Default off. New imports only; the existing library is not swept.
-	CopyToProviders bool `yaml:"copy_to_providers"`
 	// CachedGrace is how long the router waits before reading a fresh Real-Debrid or AllDebrid add again when the
 	// first read shows it still converting or downloading (one re-read; on Real-Debrid also after selecting files),
 	// before it calls the add uncached. Default 2s (decypharr's), 1s to 30s.
@@ -256,13 +252,11 @@ type RouterSettings struct {
 	CachedOnly bool
 	// AllDebridDeleteUncached: cached_only may delete an uncached AllDebrid add of ours (default true).
 	AllDebridDeleteUncached bool
-	// CopyToProviders: each import queues its torrent's copies to the other providers (default false).
-	CopyToProviders bool
-	MissTTL         time.Duration
-	PollInterval    time.Duration
-	MaxCandidates   int
-	Trackers        []string
-	CachedGrace     time.Duration
+	MissTTL                 time.Duration
+	PollInterval            time.Duration
+	MaxCandidates           int
+	Trackers                []string
+	CachedGrace             time.Duration
 	// StalledAfter is 0 when the stall timeout is off.
 	StalledAfter time.Duration
 	// DownloadingTimeout is 0 when the no-progress timeout is off.
@@ -281,7 +275,6 @@ func (p *Policy) RouterSettings() RouterSettings {
 		return s
 	}
 	s.Enabled = c.Enabled
-	s.CopyToProviders = c.CopyToProviders
 	if c.AllDebridDeleteUncached != nil {
 		s.AllDebridDeleteUncached = *c.AllDebridDeleteUncached
 	}
@@ -317,7 +310,7 @@ func (p *Policy) RouterSettings() RouterSettings {
 func (p *Policy) VersionKeys() []string { return sortedKeys(p.Versions) }
 
 // Grabs reports whether the router may add torrents for a version: router.enabled is true (Pause is off) and the
-// version exists. Router.Gate, the offer gate, hold approval and the status read use it.
+// version exists. Router.Gate, hold approval and the status read use it.
 func (p *Policy) Grabs(version string) bool {
 	return p.RouterSettings().Enabled && p.Versions[version] != nil
 }

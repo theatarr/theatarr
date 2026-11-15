@@ -28,7 +28,6 @@ func removeLibraryRows(ctx context.Context, tx *sql.Tx, key string, now int64) e
 			WHERE v.policy_key = ?1) AND NOT EXISTS (SELECT 1 FROM link_version lv JOIN version v ON v.id = lv.version_id
 			WHERE lv.link_id = link.id AND v.policy_key <> ?1)`,
 		`DELETE FROM version WHERE policy_key = ?1`,
-		`DELETE FROM router_offer WHERE version_key = ?1 OR from_version = ?1`,
 		`DELETE FROM search_request WHERE version_key = ?1`,
 		`DELETE FROM arrview_title_tag WHERE version = ?1`,
 		`DELETE FROM arrview_title WHERE view = 'v/' || ?1`,

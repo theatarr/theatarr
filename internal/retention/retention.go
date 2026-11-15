@@ -10,21 +10,19 @@
 //     search responses drain in batches;
 //   - pending notify_delivery rows (only sent, failed and dropped ones go);
 //   - every download that is not failed, and failed ones that a link, a library claim, an import still in
-//     progress (waiting for the mount or partial), a router blocklist entry, a router offer or a
+//     progress (waiting for the mount or partial), a router blocklist entry or a
 //     queued or running job refers to (download_attempt, download_file, download_progress and a finished
 //     library_import go with their download);
 //   - acquire runs that are not finished, the latest run of each version and target (the search schedule's "last
 //     searched"), and runs a queued or running job refers to;
-//   - the applied link and replace library actions of a kept download or at a live link's path (the router's offer
-//     sources read them: which download a replacement superseded, which arr file Theatarr replaced); adoption provenance
+//   - the applied link and replace library actions of a kept download or at a live link's path (they say which download a replacement superseded, which arr file Theatarr replaced); adoption provenance
 //     is on the link row itself (link.adopted_from);
 //   - the current settings generation's audit rows;
 //   - pending quality reviews, the newest 100 closed reviews per source, and reviews referenced by kept sync runs;
 //   - new and seen error inbox rows (error_event), and resolved or ignored ones seen within the runs window.
 //
-// Not pruned, by design: router_offer (one row per version, title and release: deleting one re-offers that release
-// to the other libraries at the next sweep), notify_event (the once-only memory of scanned events) and imported
-// downloads (offer sources and the journal's routed decisions read them; they grow with imports, not with polls).
+// Not pruned, by design: notify_event (the once-only memory of scanned events) and imported downloads (the journal's
+// routed decisions read them; they grow with imports, not with polls).
 package retention
 
 import (
@@ -103,7 +101,6 @@ var rules = []rule{
 		AND NOT EXISTS (SELECT 1 FROM library_import i WHERE i.download_id = download.id
 			AND i.state IN ('waiting_mount', 'partial'))
 		AND NOT EXISTS (SELECT 1 FROM router_blocklist b WHERE b.download_id = download.id)
-		AND NOT EXISTS (SELECT 1 FROM router_offer o WHERE o.source_kind = 'download' AND o.source_id = download.id)
 		AND id NOT IN (SELECT json_extract(payload, '$.download_id') FROM (` + active + `)
 			WHERE json_extract(payload, '$.download_id') IS NOT NULL)`},
 	{table: "acquire_run", where: `created_at < ?1 AND state IN ('routed', 'nothing', 'skipped', 'failed')

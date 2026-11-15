@@ -53,7 +53,7 @@ func TestFreshRouteCarriesIdentityAndOrigin(t *testing.T) {
 	}
 }
 
-// Origin follows the producer: a wanted movie search is a search, a feed pick is RSS, a series offer is a search.
+// Origin follows the producer: a wanted movie search is a search, a feed pick is RSS.
 // A resumed request (a download or hold behind it) keeps what it carried: an older build's candidate stays unstamped.
 func TestStampFreshOrigin(t *testing.T) {
 	t.Parallel()
@@ -65,8 +65,6 @@ func TestStampFreshOrigin(t *testing.T) {
 	}{
 		{"movie", "wanted", false, OriginSearch},
 		{"movie", "shadow.rss", false, OriginRSS},
-		{"movie", "offer", false, OriginRSS},
-		{"series", "offer", false, OriginSearch},
 		{"series", "shadow.rss", true, OriginSearch},
 		{"movie", "ui:grab:x", false, OriginRSS},
 	} {

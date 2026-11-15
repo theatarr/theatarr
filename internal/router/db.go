@@ -86,8 +86,7 @@ func (r *Router) openDownload(ctx context.Context, req Request, c *Candidate, ha
 		// A row another indexer's release queued (a stranded row this route took over, see candidate) becomes this
 		// route's in the same write, before any add: its indexer, stored release, title, size (none when this
 		// release has no known size) and source. What reads the row later (DownloadRequest's replay and its provider
-		// allowlist, the reconciliation of an interrupted add, the re-search after a failure, the offer to another
-		// library) then sees the release that was placed. The row's own release keeps them. created_at moves to
+		// allowlist, the reconciliation of an interrupted add, the re-search after a failure) then sees the release that was placed. The row's own release keeps them. created_at moves to
 		// the takeover with the source: the journal reads the decision of the row's source made by created_at, and
 		// its retention keeps a decision that a download of its source was created after (journal: decisionFor,
 		// Prune), and this route's search decided after the row was first queued.

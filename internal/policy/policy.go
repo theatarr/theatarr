@@ -810,7 +810,7 @@ func RevisionOf(dir string) (string, error) {
 }
 
 func decodeBytes(b []byte, out *Policy) error {
-	b = dropLegacyVersionKeys(b)
+	b = dropLegacyKeys(b)
 	dec := yaml.NewDecoder(bytes.NewReader(b))
 	dec.KnownFields(true)
 	if err := dec.Decode(out); err != nil {
@@ -827,32 +827,40 @@ func decodeBytes(b []byte, out *Policy) error {
 }
 
 // legacyVersionKeys are version keys removed in 0.4.5: the source ceiling (versions.<key>.ceiling) and the Watch
-// only / Live mode (versions.<key>.mode; every library is Live, migration 00137).
-var legacyVersionKeys = map[string]bool{"ceiling": true, "mode": true}
+// only / Live mode (versions.<key>.mode; every library is Live, migration 00137). legacyRouterKeys are router keys
+// removed then: "Add to other providers" after each import (router.copy_to_providers, migration 00139).
+var (
+	legacyVersionKeys = map[string]bool{"ceiling": true, "mode": true}
+	legacyRouterKeys  = map[string]bool{"copy_to_providers": true}
+)
 
-// dropLegacyVersionKeys removes legacyVersionKeys from each version, so an older file still reads; b is returned
-// unchanged when it has none.
-func dropLegacyVersionKeys(b []byte) []byte {
+// dropLegacyKeys removes legacyVersionKeys from each version and legacyRouterKeys from the router section, so an
+// older file still reads; b is returned unchanged when it has none.
+func dropLegacyKeys(b []byte) []byte {
 	var doc yaml.Node
 	if yaml.Unmarshal(b, &doc) != nil || len(doc.Content) != 1 || doc.Content[0].Kind != yaml.MappingNode {
 		return b
 	}
 	dropped := false
+	drop := func(v *yaml.Node, keys map[string]bool) {
+		for k := 0; v.Kind == yaml.MappingNode && k+1 < len(v.Content); {
+			if keys[v.Content[k].Value] {
+				v.Content = append(v.Content[:k], v.Content[k+2:]...)
+				dropped = true
+				continue
+			}
+			k += 2
+		}
+	}
 	top := doc.Content[0].Content
 	for i := 0; i+1 < len(top); i += 2 {
-		if top[i].Value != "versions" || top[i+1].Kind != yaml.MappingNode {
-			continue
-		}
-		vs := top[i+1].Content
-		for j := 1; j < len(vs); j += 2 {
-			v := vs[j]
-			for k := 0; v.Kind == yaml.MappingNode && k+1 < len(v.Content); {
-				if legacyVersionKeys[v.Content[k].Value] {
-					v.Content = append(v.Content[:k], v.Content[k+2:]...)
-					dropped = true
-					continue
-				}
-				k += 2
+		switch {
+		case top[i].Value == "router":
+			drop(top[i+1], legacyRouterKeys)
+		case top[i].Value == "versions" && top[i+1].Kind == yaml.MappingNode:
+			vs := top[i+1].Content
+			for j := 1; j < len(vs); j += 2 {
+				drop(vs[j], legacyVersionKeys)
 			}
 		}
 	}

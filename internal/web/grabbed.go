@@ -9,6 +9,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/theatarr/theatarr/internal/journal/snapshot"
+	"github.com/theatarr/theatarr/internal/library"
 )
 
 // What came of a version's releases, in the words the title page's history and the releases panel share
@@ -116,6 +117,9 @@ func grabWords(source string, run *runOrigin) string {
 	if view, ok := strings.CutPrefix(source, "arrview:push:"); ok {
 		return "release push (" + view + ")"
 	}
+	if from, ok := strings.CutPrefix(source, library.OtherSourcePrefix); ok {
+		return "linked at the import for " + from
+	}
 	if strings.HasPrefix(source, "upgrade:") {
 		return "approved upgrade"
 	}
@@ -126,7 +130,7 @@ func grabWords(source string, run *runOrigin) string {
 		return "automatic search"
 	case "research":
 		return "search again after a failure"
-	case "offer":
+	case "offer": // the offers removed in 0.4.5
 		return "offer from another library"
 	case "api:import", "api:manualimport":
 		return "manual import"

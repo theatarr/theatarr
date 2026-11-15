@@ -103,7 +103,7 @@ once. `section-panel.test.tsx` exercises partial writes, credentials, 422, 409, 
 | Indexers › Catalog | Indexer catalog and Prowlarr (`#catalog`) | `cardigann` | `definitions`, `flaresolverr_url`, `prowlarr` |  |
 | Indexers › RSS | RSS feed checks (`#rss`) | `shadow` | `rss`, `rss_interval` |  |
 | Download clients › Other clients | Other download clients (`#clients`) | `clients` | `"" (root keyed object)` |  |
-| Download clients › Behaviour | What to grab (`#grabbing`) | `router` | `cached_only`, `alldebrid_delete_uncached`, `copy_to_providers` |  |
+| Download clients › Behaviour | What to grab (`#grabbing`) | `router` | `cached_only`, `alldebrid_delete_uncached` |  |
 | Indexers › Search & RSS | Automatic search (`#searches`) | `router` | `wanted` |  |
 | Download clients › Behaviour | Cache checks (`#cache-checks`) | `router` | `cache_evidence` |  |
 | Download clients › Behaviour | Retries and timing (`#timing`) | `router` | `cached_grace`, `stalled_after`, `downloading_timeout`, `ready_timeout`, `miss_ttl`, `poll_interval`, `max_candidates`, `trackers` | Yes |
@@ -275,7 +275,7 @@ paths (for example `mount.rclone_rc.password` in the library section).
 **Removed settings.** `release_push`, `indexers.<key>.private_delivery` and `notify.private_delivery` are not
 settings: privacy is a label only. `indexers.<key>.arr_names` stays as a plain alias list: other
 names for the indexer, as arr history or a release push gives them, matched without regard to case by
-`Policy.IndexerByName` (offers, `/release/push`); each name is listed once and is no other indexer's key. Configs that
+`Policy.IndexerByName` (`/release/push`); each name is listed once and is no other indexer's key. Configs that
 still have them load: a stored `release_push` section row is ignored (`settings.removedSections`), and policy YAML has
 the removed keys stripped before the strict decode, each named in `Policy.Ignored` and logged at serve start ("policy setting
 ignored"). `indexers.<key>.providers` is an optional allowlist of the providers the indexer's releases may go to
@@ -392,7 +392,7 @@ generation. Only data files such as the overrides are read from the directory at
 |---|---|
 | `indexers`, `budgets`, `egress` | Gateway allowlist, budget buckets, proxy and egress guard, indexer clients and the search planner; the gateway is the shared outbound path (`cmd/theatarr/serve.go`, `cmd/theatarr/serveindexer.go`, `internal/gateway/doc.go`) |
 | `providers`, `provider_sync`, `router`, `clients` | Provider sync registry and clients, router provider adapters, pacing, fallback and adders, as one generation (`cmd/theatarr/serve.go`, `cmd/theatarr/router.go`) |
-| `versions`, `profiles`, `formats`, `format_sets`, `shadow` | Decide engines, the RSS sync, acquisition and search, offers, all from the same snapshot (`cmd/theatarr/serve.go`, `cmd/theatarr/decide.go`) |
+| `versions`, `profiles`, `formats`, `format_sets`, `shadow` | Decide engines, the RSS sync, acquisition and search, the import's other libraries, all from the same snapshot (`cmd/theatarr/serve.go`, `cmd/theatarr/decide.go`) |
 | `library`, version roots and naming, `playlists` | Library import, relink and Plex gates, root mapping, naming and playlist sync (`cmd/theatarr/servelibrary.go`) |
 | `metadata` | TMDb, TVDB and other metadata sources, series refresh, indexer helper lookups and Plex sign-in, with their schedules |
 | `views` | Arr-view routes, version exposure and release push; a route identity or path change replaces the route registration (`internal/policy/policy.go` `View`) |
@@ -423,7 +423,7 @@ stable content revision per generation, so earlier decisions stay attributable.
 
 Validated snapshots are published through an atomic pointer. The runtime coordinator serializes saves, commits the database changes, builds the replacement services, then publishes a `Runtime` holding the policy and the component handles: gateway with budgets and egress, indexers, provider sync and registry, router, decide engine and acquirer, library and roots, metadata clients, arr views, notify, art, health and the UI summary. A failed preparation leaves both the stored generation and the active runtime unchanged: preparation finishes before the commit.
 
-Each request, search, RSS read, route attempt, import, poll pass and offer decision captures one runtime pointer at its start and uses it through completion. Queued jobs do not carry a generation; when a job starts it captures whichever runtime is current then. Retired runtimes stay alive only while an operation that captured them is running, and are released when that operation finishes. An operation that requires VPN and whose retired egress path has no fresh check fails closed; its job retries under the current runtime. A save cannot mix an old engine with new indexers midway through one search. Rate-limit counters, provider/download state, library links, outbox, job leases, auth sessions and in-flight network calls are operational state and are not recreated by settings swaps.
+Each request, search, RSS read, route attempt, import (with its other libraries) and poll pass captures one runtime pointer at its start and uses it through completion. Queued jobs do not carry a generation; when a job starts it captures whichever runtime is current then. Retired runtimes stay alive only while an operation that captured them is running, and are released when that operation finishes. An operation that requires VPN and whose retired egress path has no fresh check fails closed; its job retries under the current runtime. A save cannot mix an old engine with new indexers midway through one search. Rate-limit counters, provider/download state, library links, outbox, job leases, auth sessions and in-flight network calls are operational state and are not recreated by settings swaps.
 
 Indexer metadata and cache-evidence callbacks, acquisition, native web handlers and arr views are prepared for each generation. Startup services that only read unchanged sections keep their configuration while their outbound gateway resolves the captured runtime, or the current runtime for work without a capture.
 

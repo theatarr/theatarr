@@ -21,7 +21,6 @@ import (
 	"github.com/theatarr/theatarr/internal/journal/snapshot"
 	"github.com/theatarr/theatarr/internal/library/probe"
 	"github.com/theatarr/theatarr/internal/policy"
-	"github.com/theatarr/theatarr/internal/router"
 	"github.com/theatarr/theatarr/internal/store"
 )
 
@@ -819,9 +818,6 @@ type EpisodeFile struct {
 	CachedOn []string `json:"cached_on,omitempty"`
 	// InfoHash is the torrent the file's content came from, when known (callers who see files only, as the file).
 	InfoHash string `json:"info_hash,omitempty"`
-	// Copies are the file's torrent's copies to other providers ("Add to other providers", router copy.go); omitted
-	// when none.
-	Copies []router.CopyView `json:"copies,omitempty"`
 }
 
 // EpisodeVersionDetail is one version of an episode.
@@ -960,10 +956,6 @@ func (w *Web) apiEpisode(rw http.ResponseWriter, r *http.Request) {
 			if d.File, err = w.episodeFile(ctx, db, v.id, eid); err != nil {
 				w.internal(rw, err)
 				return
-			}
-			if d.File != nil && d.File.InfoHash != "" {
-				h := strings.ToLower(d.File.InfoHash)
-				d.File.Copies = w.fileCopies(ctx, []string{h})[h]
 			}
 		}
 		if seeFiles {

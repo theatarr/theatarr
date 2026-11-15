@@ -427,11 +427,11 @@ func TestNoDeletes(t *testing.T) {
 	if _, ok := any(&torBox{}).(Deleter); ok {
 		t.Error("TorBox can delete")
 	}
-	if _, ok := any(&allDebrid{}).(StalledDeleter); !ok {
-		t.Error("AllDebrid cannot delete a copy of ours")
+	if _, ok := any(&allDebrid{}).(StalledDeleter); ok {
+		t.Error("AllDebrid can delete a stalled add")
 	}
-	if _, ok := any(&torBox{}).(StalledDeleter); !ok {
-		t.Error("TorBox cannot delete a copy of ours")
+	if _, ok := any(&torBox{}).(StalledDeleter); ok {
+		t.Error("TorBox can delete a stalled add")
 	}
 	paths := regexp.MustCompile(`"/[^"]*"`)
 	entries, _ := os.ReadDir(".")
@@ -599,24 +599,6 @@ func TestDeleteOwnUncachedAdd(t *testing.T) {
 	if err := sd.DeleteOwnStalledAdd(ctx, "RDOLD", proof); err != nil ||
 		count(http.MethodDelete, "/rest/1.0/torrents/delete/RDOLD") != 1 {
 		t.Errorf("stalled delete: %v", err)
-	}
-	// A copy of ours on AllDebrid (router copy.go): the same request, with the full proof only.
-	adSD := ad.(StalledDeleter)
-	adFile = "ad/delete_ok.json"
-	if err := adSD.DeleteOwnStalledAdd(ctx, "77", OwnAdd{NotOnAccountBefore: true}); !errors.Is(err, ErrNotOwnAdd) {
-		t.Errorf("AD stalled without proof: %v", err)
-	}
-	if err := adSD.DeleteOwnStalledAdd(ctx, "77", proof); err != nil {
-		t.Errorf("AD stalled: %v", err)
-	}
-	var adLast request
-	for _, r := range f.requests() {
-		if r.host == "ad.test" {
-			adLast = r
-		}
-	}
-	if adLast.path != "/v4/magnet/delete" || adLast.form.Get("id") != "77" {
-		t.Errorf("AD stalled request %+v", adLast)
 	}
 	// The two adders' ledgers are separate: an RD add can't be deleted through AD.
 	a4, _ := rd.AddMagnet(ctx, magnet(t, h("a"), "x"), AddOptions{})

@@ -57,15 +57,13 @@ func removalFixture(t *testing.T) *env {
 	e.exec(`INSERT INTO link (path, target, title_id, state, file_metadata, created_at, updated_at)
 		VALUES ('/lib/M/D.mkv', '/elsewhere/D.mkv', 1, 'unlinked', ?, 0, 0)`, `{"InfoHash":"`+hD+`"}`)
 	// The removed title's downloads: hA's ended with the removal, the others were imported; hG's was a reuse of an
-	// entry already on the account; hD's copy to tb was ours.
+	// entry already on the account.
 	for id, h := range map[string]string{"1": hA, "2": hB, "3": hC, "4": hD, "5": hE, "6": hF} {
 		e.imported("rd", id, h)
 	}
 	e.exec(`INSERT INTO download (title_id, version_id, version_key, info_hash, release_title, indexer, state,
 		provider, provider_torrent_id, reused, provider_epoch, created_at, updated_at) VALUES
 		(1, 1, 'v', ?, 'G', 'pub', 'imported', 'rd', '7', 1, 0, 0, 0)`, hG)
-	e.exec(`INSERT INTO provider_copy (info_hash, name, title_id, provider, torrent_id, own_add, state, created_at,
-		updated_at) VALUES (?, 'D', 1, 'tb', '90', 1, 'added', 0, 0)`, hD)
 	root := t.TempDir()
 	if err := os.Symlink(mountPath+"/__all__/Movie.F.2016.1080p.WEB-DL/F.mkv", filepath.Join(root, "F.mkv")); err != nil {
 		t.Fatal(err)
@@ -341,41 +339,5 @@ func TestDeleteForRemovalNeedsEveryProviderRead(t *testing.T) {
 	}
 	if got := e.deletedIDs(); len(got) != 0 || out.Abort != "torrents not cleaned up: could not read AD" {
 		t.Errorf("deleted %v, %q", got, out.Abort)
-	}
-}
-
-// A copy to another provider still adding one of the hashes is waited for; once it settles, its torrent is in the
-// read and cleaned up too. One still unsettled at the bound is not cleaned up, and said so.
-func TestDeleteForRemovalWaitsForMidAddCopy(t *testing.T) {
-	t.Parallel()
-	e := removalFixture(t)
-	e.tb.list = nil
-	e.exec(`UPDATE provider_copy SET state = 'adding', torrent_id = NULL WHERE info_hash = ?`, hD)
-	sleeps := 0
-	e.m.Sleep = func(_ context.Context, d time.Duration) error {
-		e.now = e.now.Add(d)
-		if sleeps++; sleeps == 2 {
-			e.tb.list = []provider.Torrent{tor("91", hD, "Movie.D.2018.1080p.WEB-DL", 400, e.now, provider.StateDownloaded)}
-			e.exec(`UPDATE provider_copy SET state = 'added', torrent_id = '91' WHERE info_hash = ?`, hD)
-		}
-		return nil
-	}
-	out, err := e.m.DeleteForRemoval(context.Background(), cleanup(hD))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := e.deletedIDs(); !slices.Equal(got, []string{"rd/4", "tb/91"}) || sleeps < 2 {
-		t.Errorf("deleted %v after %d waits: %q", got, sleeps, out.Words([]string{hD}))
-	}
-
-	e2 := removalFixture(t)
-	e2.exec(`UPDATE provider_copy SET state = 'checking' WHERE info_hash = ?`, hD)
-	out, err = e2.m.DeleteForRemoval(context.Background(), cleanup(hD))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := e2.deletedIDs(); !slices.Equal(got, []string{"rd/4"}) ||
-		!strings.Contains(out.Words([]string{hD}), "a copy to TB was still being added; see Torrents › Not used by Theatarr") {
-		t.Errorf("deleted %v, words %q", got, out.Words([]string{hD}))
 	}
 }

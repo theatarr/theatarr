@@ -27,7 +27,7 @@ Panic handling:
   job.
 - Live-settings workers recover panics (the worker shows the error and restarts on its next settings) and record
   them.
-- The top-level serve loops (quality sync, torrents schedule, error inbox health observer, notify, offers,
+- The top-level serve loops (quality sync, torrents schedule, error inbox health observer, notify,
   jobs, http) crash the process on a panic (the container restarts it), on purpose: a loop that died
   silently would stop grabbing or importing with no sign. `errinbox.Go` writes the panic synchronously (at most 2
   s) before it panics on.

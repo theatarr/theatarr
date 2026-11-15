@@ -34,26 +34,6 @@ const plan = (override: boolean) => ({
 });
 
 describe("torrents page", () => {
-  it("shows every copy result on a row, and a newer report's rows replace the earlier ones", async () => {
-    const at = (t: string, copies: object[]) => ({ ...report, generated_at: t, providers: [{ ...report.providers[0], torrents: [torrent("1", h1, "Unused.Movie", "unused", { copies })] }] });
-    const reports = [at("2026-11-13T12:00:00Z", [{ provider: "tb", state: "added", updated_at: "2026-11-13T12:00:00Z" }]),
-      at("2026-11-13T12:05:00Z", [{ provider: "tb", state: "failed", message: "x", updated_at: "2026-11-13T12:04:00Z" }])];
-    let n = 0;
-    const fetch = mockFetch([
-      { method: "GET", path: "/torrents/report", reply: () => reports[Math.min(n++, 1)] },
-      { method: "POST", path: "/torrents/refresh", reply: () => reports[1] },
-      { method: "GET", path: "/torrents/journal", reply: { entries: [] } },
-      { method: "GET", path: "/status", reply: { versions: [] } },
-    ]);
-    renderPage(<TorrentsPage />);
-    await screen.findByText("Unused.Movie");
-    fireEvent.click(screen.getAllByRole("button", { expanded: false })[0]);
-    expect((await screen.findByTestId("other-providers")).textContent).toMatch(/^TB added, /);
-    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
-    await waitFor(() => expect(screen.getByTestId("other-providers").textContent).toMatch(/^TB failed, /));
-    expect(fetch.calls("POST", "/torrents/refresh")).toHaveLength(1);
-  });
-
   it("says when the record was read, and an account never read is not an empty one", async () => {
     const tb = { provider: "tb", kind: "torbox", ok: false, never_read: true, account_torrents: 0, unique_hashes: 0, bytes: 0,
       usage: { used: 0, unused: 0, unknown: 0, unused_bytes: 0, unknown_bytes: 0 }, torrents: [] };
@@ -154,27 +134,6 @@ describe("torrents page", () => {
     expect(screen.getByTestId("usage-refs-more").textContent).toBe("and 286 more");
   });
 
-  it("adds a row's torrent to the other providers and polls only that torrent's copies, not the report", async () => {
-    const fetch = mockFetch([
-      { method: "GET", path: "/torrents/report", reply: report },
-      { method: "GET", path: "/torrents/journal", reply: { entries: [] } },
-      { method: "GET", path: "/status", reply: { versions: [] } },
-      { method: "POST", path: "/torrents/copy", reply: { copies: [{ provider: "ad", state: "queued", updated_at: "2026-11-13T12:00:00Z" }] } },
-      { method: "GET", path: "/torrents/copies", reply: { copies: [{ provider: "ad", state: "not_cached", updated_at: "2026-11-13T12:00:00Z" }] } },
-    ]);
-    renderPage(<TorrentsPage />);
-    await screen.findByText("Unused.Movie");
-    fireEvent.click(screen.getAllByRole("button", { expanded: false })[0]);
-    fireEvent.click(await screen.findByTestId("add-to-providers"));
-    await waitFor(() => expect(fetch.calls("POST", "/torrents/copy")).toHaveLength(1));
-    expect(fetch.calls("POST", "/torrents/copy")[0].body).toEqual({ provider: "rd", id: "1" });
-    await waitFor(() => expect(fetch.calls("GET", "/torrents/copies").length).toBeGreaterThan(0), { timeout: 8000 });
-    await waitFor(() => expect(screen.getByTestId("other-providers").textContent).toMatch(/^AD not cached/));
-    // The action's words follow the current result: nothing left being added.
-    expect(screen.queryByTestId("add-to-providers-result")).toBeNull();
-    expect(fetch.calls("GET", "/torrents/report")).toHaveLength(1);
-  }, 15000);
-
   it("says beside the filters what Not used checks and links the folders' setting; the form is in Settings now", async () => {
     mockFetch([
       { method: "GET", path: "/torrents/report", reply: report },
@@ -188,6 +147,7 @@ describe("torrents page", () => {
     expect(screen.getByTestId("group-unused").textContent).toBe("Not used by Theatarr");
     expect(screen.queryByRole("heading", { name: "Other libraries’ folders" })).toBeNull();
   });
+
   it("keeps the provider, filter, text and sort in the URL", async () => {
     mockFetch([
       { method: "GET", path: "/torrents/report", reply: report },

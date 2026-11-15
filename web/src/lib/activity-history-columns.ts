@@ -31,7 +31,7 @@ export const EVENT_MEANINGS: { words: string; meaning: string }[] = [
   { words: "Failed", meaning: "The download or its import did not complete; the reason says why." },
   { words: "Not started: …", meaning: "It never left the queue because downloads were off." },
   { words: "Blocked", meaning: "This release is on the library's blocklist and won't be tried again." },
-  { words: "Added to …", meaning: "The torrent was added to another provider as well (Add to other providers)." },
+  { words: "Added to …", meaning: "The torrent was added to another provider as well (Add to other providers, removed in 0.4.5)." },
   { words: "Already on …", meaning: "The other provider held the torrent already, so nothing was added there." },
   { words: "Not cached on …", meaning: "Another provider did not have the torrent cached, so it was not added there." },
 ];

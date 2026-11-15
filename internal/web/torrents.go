@@ -7,7 +7,6 @@ import (
 	"io"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"github.com/theatarr/theatarr/internal/auth"
 	"github.com/theatarr/theatarr/internal/torrents"
@@ -89,20 +88,6 @@ func (w *Web) writeTorrentReport(rw http.ResponseWriter, r *http.Request, m *tor
 		return
 	}
 	rep.RefreshError = refreshErr
-	var hashes []string
-	for _, p := range rep.Providers {
-		for _, t := range p.Torrents {
-			hashes = append(hashes, t.Hash)
-		}
-	}
-	if copies := w.fileCopies(r.Context(), hashes); len(copies) > 0 {
-		for i := range rep.Providers {
-			for k := range rep.Providers[i].Torrents {
-				t := &rep.Providers[i].Torrents[k]
-				t.Copies = copies[strings.ToLower(t.Hash)]
-			}
-		}
-	}
 	writeJSON(rw, http.StatusOK, rep)
 }
 

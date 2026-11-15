@@ -79,12 +79,9 @@ func TestPruneKeepsWhatIsStillUsed(t *testing.T) {
 	imported := download("imported", old)
 	jobRef := download("failed", old)
 	linked := download("failed", old)
-	offered := download("failed", old)
 	fresh := download("failed", recent)
 	exec(t, st, `INSERT INTO job (kind, payload, state, run_at, created_at, updated_at) VALUES ('router.research', json_object('download_id', ?), 'queued', 0, 0, 0)`, jobRef)
 	exec(t, st, `INSERT INTO link (path, target, title_id, download_id, created_at, updated_at) VALUES ('/l', '/t', ?, ?, 0, 0)`, title, linked)
-	exec(t, st, `INSERT INTO router_offer (version_key, title_id, info_hash, from_version, outcome, first_at, updated_at, source_kind, source_id)
-		VALUES ('tv', ?, 'h', 'movie-web', 'routed', 0, 0, 'download', ?)`, title, offered)
 	// Acquire runs: an old finished one, the latest for its target (old too), an old queued one.
 	run := func(state, target string, at int64) int64 {
 		return exec(t, st, `INSERT INTO acquire_run (source, title_id, version_id, version_key, target, state, created_at, updated_at)
@@ -111,7 +108,7 @@ func TestPruneKeepsWhatIsStillUsed(t *testing.T) {
 	if got := count(t, st, `SELECT COUNT(*) FROM notify_delivery`); got != 2 {
 		t.Errorf("deliveries kept %d, want pending and recent", got)
 	}
-	for id, want := range map[int64]int{gone: 0, queued: 1, imported: 1, jobRef: 1, linked: 1, offered: 1, fresh: 1} {
+	for id, want := range map[int64]int{gone: 0, queued: 1, imported: 1, jobRef: 1, linked: 1, fresh: 1} {
 		if got := count(t, st, `SELECT COUNT(*) FROM download WHERE id = ?`, id); got != want {
 			t.Errorf("download %d kept %d, want %d", id, got, want)
 		}

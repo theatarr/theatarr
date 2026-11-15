@@ -209,7 +209,7 @@ func (r *Router) readAfterAdd(ctx context.Context, s *routeState, pv *policy.Pro
 	})
 }
 
-// readBack is readAfterAdd's reads, shared with the copies to other providers (copy.go): selectFiles sends a
+// readBack is readAfterAdd's reads: selectFiles sends a
 // Real-Debrid torrent's file selection when it waits for one, and says why not when it did not ("" when it did).
 func (r *Router) readBack(ctx context.Context, pv *policy.Provider, pk string, a *adder.Added,
 	selectFiles func(t *provider.Torrent) (string, error)) (cacheVerdict, *provider.Torrent, string) {

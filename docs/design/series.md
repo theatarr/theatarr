@@ -163,7 +163,7 @@ plain queries (DMM, Torrentio, Zilean, SeaDex, or a feed when there are no crite
 TVDB criteria and, for a scene-numbered series, with each `episode`/`season` criteria of another number
 (`plainCriteria`): their release names use either numbering. A release found by several of a target's queries (same
 indexer and hash) is judged with each of their criteria and keeps the decision with the fewest rejections, the first on
-a tie (`DeDupeDecisions`). Offers judge the offered release the same way. The query key and the one-query-per-key
+a tie (`DeDupeDecisions`). A release imported for another library is judged the same way (router.md "Other libraries at import"). The query key and the one-query-per-key
 sharing across versions stay as they are: criteria are per target, so two versions sharing a request each judge its
 answer with their own.
 

@@ -127,8 +127,8 @@ The writes live in their own package. `internal/provider` stays GET-only: its `T
   `ui:grab:<who>`, the same gate, blocklist, pacing, cached-only settle and ledger of our own adds. Its size and
   seeders are unknown (0 and -1); a size limit set for its quality is not checked and does not reject it, as for a
   searched release with no size (the person picked the release). Only the name the person gave and
-  the hash are used; the magnet's trackers are not sent. An offer to another library declines it
-  (`unknown_indexer`).
+  the hash are used; the magnet's trackers are not sent. Another library is not tried with it at the import
+  (its indexer is no configured one).
   - *One marker, one writer.* Only `AddRelease` writes the placeholder (`policy.IsManualAdd` reads it). A release
     push that names it as its indexer is refused (400), and so does the decide API; search results carry a policy
     key and stored downloads keep what they were queued with (an Activity retry stays a manual add).
@@ -229,7 +229,7 @@ every placement in their steps and simulate pacing between adds without writing 
 its first deferred release, retaining the later alternatives and resuming queued rows without duplicating successful
 placements. For each release:
 
-Automatic wanted, RSS, research, offer and resumed routes recheck current monitoring, movie availability, episode
+Automatic wanted, RSS, research and resumed routes recheck current monitoring, movie availability, episode
 removal and files before placement; stale candidates are skipped and a queued download is cancelled when none remain.
 Explicit grabs keep their override behavior.
 
@@ -248,7 +248,7 @@ Explicit grabs keep their override behavior.
    off. A release that cannot be compared (no profile, an unknown quality) is refused: it fails closed. Skipped
    `in_flight` ("download N holds another release of the movie: …"), the next candidate is tried, and a route that
    placed nothing ends `in_flight` on that download. Every automatic source is checked (RSS, searches, re-searches,
-   offers, release pushes, deferred jobs; dry runs too). A release push (`arrview:push:<view>`, autobrr) was decided
+   release pushes, deferred jobs; dry runs too). A release push (`arrview:push:<view>`, autobrr) was decided
    against the current files when it was pushed; one deferred behind a paced provider gets the freshness check when
    it resumes (still wanted, still an upgrade of the current file, decided again under a new policy revision), as an
    RSS route does (`TestDeferredPushRechecksFreshness`). A person's grab is not (`ui:grab:`, `ui:retry:`,
@@ -1218,117 +1218,6 @@ states from `queued` to `importing`, for the view's versions.
 - `queue/status` counts the items.
 - The empty goldens are unchanged. `TestQueueFromDownloads` covers the filled queue.
 
-## Copies to other providers
-
-"Add to other providers" (the owner's decision of 2026-11-13, phase H part 2) adds a torrent the library holds to every
-configured provider that does not hold it yet. It only adds holdings on the accounts: the library's links are not
-changed, and it is not playback failover by itself. A first 451 on a name that passed the refusal rule is treated as
-the route treats it (the release is refused, "Real-Debrid refuses this file (451)"; the account is held only when
-the hold rule says so). It adds
-the torrent; an add that is not cached is deleted on every provider; it is a manual action (managers: a movie's file
-on the title page, an episode's in the episode window; admins: a Torrents row) plus `router.copy_to_providers`
-(off by default), which queues the same work after each import of a download that came from a provider. New imports
-only: the existing library is not swept. Code: `internal/router/copy.go`; table `provider_copy` (migration 00128).
-
-A copy is not a download: no `download` row, import, offer, blocklist or failure re-search. Its outcome is a History
-event: a copy that ends `added` or `not_cached` also writes a `provider_copy_event` row (migration 00129) with the
-release name, the quality and score of the file with that hash and its title (the request's, else the one title whose
-active link or download holds the hash), which History shows as "Added to TB", "Already on AD" (the provider held it
-already) or "Not cached on RD" (accounts that see files); the copy row itself is reused by the next request. The
-migration seeds the events from the copies already finished. One row per
-hash and provider (`unique (info_hash, provider)`); a new request for a pair replaces a finished row and returns an
-unfinished one as it is (a double click, a season pack's episodes). Rows are made for the providers with a key whose
-registry row does not hold the hash complete ("Cached on"); one job (`router.copy`) works each row:
-
-1. **Stop early.** Paused (or the router off): `skipped` ("Skipped: paused"). Held complete meanwhile: `added`. The
-   account at `TorrentLimitWarnPercent` of its limit (the last complete sync, as the health check counts it):
-   `skipped`. A running back-off or Real-Debrid hold: `skipped` with its end. Real-Debrid and
-   `indexer.RealDebridRefuses(name, loose)`: `refused`, never sent.
-2. **Read-only evidence** (`checkHash`): a live `provider_cache` row; else DMM's availability for that one hash on
-   Real-Debrid and AllDebrid (`indexer.Service.CheckAvailabilityHash`, handed to the router as
-   `Config.AvailabilityHash`; a listed hash is stored like a search's, an unlisted one is unknown, never uncached);
-   on TorBox its own cache check. Uncached: `not_cached`, nothing added.
-3. **The add**, under the add lock only for this step, as the torrent manager's restore holds it. A route's add of
-   the hash to that provider still unsettled (`download` in `adding`): the copy waits. Every provider's account is
-   listed first; a failed listing sends nothing and the row waits. The hash on the list: `added`, "Already on AD";
-   Cached on (`content_provider` present/100) is written only when that entry is complete, otherwise "Already on AD,
-   still downloading (12%)". The account at `TorrentLimitWarnPercent` of its limit by that fresh listing: `skipped`.
-   The pacing reservation is the route's (`updatePace`); a provider paced out hands the job back (`jobs.Later`).
-   The gate is read again right before the add. `adding` is written before it, then `checking` with the torrent id.
-   Outcomes go to pacing as the route's `classify` records them; a 451 is the route's hold handling (`note451`) and
-   ends `failed`, never retried; TorBox's not-cached refusal ends `not_cached`.
-4. **Settle** with the route's read-back (`readBack`, shared with `readAfterAdd`; Real-Debrid selects every playable
-   file, the gate read again before the selection, then the grace). Complete: Cached on written, `added`. Not
-   complete (or dead): the uncached verdict is recorded (`provider_cache` uncached for `miss_ttl`) and counted in
-   `uncached_adds_per_hour` once, then our add is deleted when it is ours. Copies delete regardless of
-   `alldebrid_delete_uncached`; the delete is `adder.StalledDeleter` on all three providers (AllDebrid and TorBox
-   implement it for copies only), so it needs no in-memory ledger and survives a restart.
-
-**The rules** (the fix round of 2026-11-13; `copy_rules_test.go`):
-- **Ownership** (`own_add`): true only when a successful listing read just before the add showed neither the hash nor
-  the id the add returned, no registry row shows the hash present on that provider, and the returned id is not a
-  registry entry of the hash (an absent registry row, an old torrent since removed, does not count). Otherwise the
-  entry is never deleted. Known limit: after a lost add answer, an entry found by hash is treated as not ours and kept.
-- **Before every delete** (the first, each retry, after a restart; an owed delete included): the torrent is read
-  again. Gone (confirmed by a fresh listing that shows neither id nor hash when the read failed: TorBox answers a
-  missing id with a 500): `not_cached`. Complete meanwhile: Cached on, `added`. Another hash, or in use on this
-  provider (a download of ours naming the id, or the hash there in any state but failed; a registry entry giving the
-  id another hash; another copy with the id): `failed`, "left in place". The torrent is read again under the add
-  lock, and that read, the use check, the gate and the delete decide together, so no route adopts the torrent and no
-  completion goes unseen in between. A not-found read counts as gone only when a successful listing then shows
-  neither the id nor the hash. Complete at that read: cached evidence replaces the
-  uncached verdict, as on a settle.
-- **Real-Debrid with nothing playable to select** (an .iso, a DVD's .vob): `failed`, "Real-Debrid cannot serve this
-  file type", and our trial add is deleted under the same checks.
-- **Pause**: the gate is read before every provider write (add, file selection, delete). A queued copy is
-  `skipped`; one past `queued` only waits (an `adding` row is not rewound while paused).
-- **Never stranded**: anything an unfinished copy cannot do now hands the job back (`jobs.Later`) after the time it
-  has waited since its last change, 1 to 30 minutes; the job's attempts are never used up. A new request for an
-  unfinished row whose job is gone queues one, and so does every poller pass (`ResumeCopies`). The uncached verdict is
-  counted in the transaction that records the owed delete.
-- **Routes and copies wait for each other**: a route defers (`unsettled`, a minute) while a copy of the hash to that
-  provider is `adding` or `checking`, before it would reuse a registry entry of the hash there; a copy waits while a
-  route's add there is unsettled, checked under the add lock just before its listing.
-- **Every known name**, once per request: Real-Debrid's name rule is applied to the request's names (the file's
-  release and scene names, a provider entry's display and original names), its downloads' release and original
-  names, the release names of the links tied to it by content or download, and the registry's names; every read is by hash. Any refused name makes the copy `refused`, never sent; a queued
-  row a later request finds refused becomes `refused`.
-- **Hold times** are `provider_copy.until_at`, sent as `until`; the browser shows them in its own zone.
-- **A worker that lost its row stops**: every state change is conditional on the state the worker read; when a new
-  request changed the row meanwhile (a refused name, say), nothing more is sent.
-
-**Recovery.** At start (`ResumeCopies`, every unfinished row without a queued job) and on each job run, the row's
-state says what is left. `adding` without a torrent id waits `addSettle` from its last update, then the account's
-list is read: a torrent of the hash there is taken up (`own_add` false: it may be an older one, so it is never
-deleted); none: `queued` again. `checking` is settled from the account, an owed delete through the checks above.
-
-**API.** `POST /titles/{id}/copies {version, episode_id?}` (manage) takes the hash and names of the file the page
-shows (the movie's current file, the episode window's file). One resolution gives that file's hash to the action, the
-Torrent link, `copies` and Cached on (`linkHashSQL`/`fileHashSQL`, `heldByHash`): a link's content, else the hash it
-records (download, file metadata, adopted source) with or without a content row. `POST /torrents/copy {provider, id}` (admin) takes the hash and name from the
-registry, else the display and original names from a read of the provider. Both
-answer the rows; 409 with the Pause words while paused; 422 "Cannot add to other providers: Theatarr has no torrent
-hash on record for this file." `GET /torrents/copies?hash=` (admin) reads one torrent's copies for the Torrents page
-to poll. The movie's current file, the episode file and the Torrents row carry `copies` (`provider`, `state`,
-`message`, `updated_at`, `until`, and `code`, the provider's cache code, so a custom key reads as Cached on
-does), see files only.
-
-Tests: `TestCopyTorBox`, `TestCopyRealDebridTrial`, `TestCopyAllDebridList`, `TestCopyRefusedAndPaused`,
-`TestCopyWaitsForMinGap`, `TestCopyRestartInChecking`, `TestCopyLostDeleteAnswer`, `TestCopyRecoversAdding`,
-`TestCopyDedupe`, `TestCopyRule*`, `TestCopyRound2*`, `TestCopyFinal*`, `TestProviderCopiesOneHash`, `TestProviderCopiesSeriesCachedOn`,
-`TestProviderCopiesCode`, `TestProviderCopiesSameHashAndPoll`, `TestCopyAfterImport`, `TestProviderCopiesAPI`, `TestRouterSectionCopyToProviders`.
-
-**Known limits** (accepted, not handled):
-- The names Real-Debrid's rule sees for a file whose hash is resolved only through a shared symlink target.
-- A retry while negative evidence is live for a torrent kept after a lost add answer.
-- The uncached verdict of a copy that was not provably ours can be counted twice after an interruption.
-- Per-provider and per-version query tidy-ups.
-- A delete whose answer was lost, followed by a restore of the same hash under a new id before the retry, leaves the
-  copy unfinished (the old id is gone, the hash is listed); routes for that hash on that provider defer meanwhile.
-- A worker that lost its row to a second request keeps its pacing reservation (the next add may wait one gap).
-- The provider can complete a torrent between the last read and the delete; closing that needs a conditional delete
-  the providers do not offer.
-
 ## Policy (`router`, `examples/policy/router.yaml`)
 
 ```yaml
@@ -1336,7 +1225,6 @@ router:
   enabled: false       # the kill switch; default false
   cached_only: true    # skip known-uncached providers; TorBox adds only if cached; RD/AD: add, read, delete Theatarr's own
   alldebrid_delete_uncached: true   # default; delete Theatarr's own uncached AD add (see the accepted race above); false keeps it
-  copy_to_providers: false  # default; after each import add the torrent to the other providers ("Copies to other providers")
   cached_grace: 2s     # RD/AD: wait before the one re-read of a fresh add; 1s to 30s
   stalled_after: 10m   # fail, blocklist and re-search a download still added this long; 1m to 24h; 0s = off
                        # (providers.<key>.stalled_after overrides it; AllDebrid defaults to at least 25m)
@@ -1545,44 +1433,36 @@ router did with the run's source:
 | All ended | `completed`, with "added X on P", "no accepted release", "a download is in flight", or "nothing placed" while the kill switch is off |
 | All failed | `failed` |
 
-**Imported-release offers.** `router.offer` offers an imported movie or series release to the title's other versions
-of the same kind. Series decisions use the imported download's episode ids as Sonarr search criteria; accepted offers
-route one release, so the router reuses the provider torrent and the library links the season pack or episodes.
-The six-hour sweep also covers adopted links, from their stored source (below); `-sweep -dry-run` lists decisions, unknown hashes are remembered as `no_hash`,
-and neither the source version nor the arr's own library receive its files. Pending offers retry every
-15 minutes for six hours, then daily for at most seven further attempts; readiness changes can retry early within
-that cap, and the final `gave_up` carries `retry_limit`. Recorded replacements retire sources and cancel their
-pending offers as `declined` with reason `superseded`; every accepted offer still passes the existing router,
-mode, version-indexer, blocklist and library gates.
+**Other libraries at import.** One download can fill more than one library of a title. After a download is
+imported for library A (every link made: not partial, not failed) while Pause is off, each other library B of the
+same title is tried once, in key order, when all of these hold: B is of A's kind (and anime flag, when both set one),
+the title is monitored in B and not removed from it (`arrview_removed_version`), B's storage is A's and B allows the
+download's provider (debrid: B's `providers` lists it; a client library: B's `client` is the download's), B allows
+its indexer when B lists indexers, B's library gate is open, B does not already hold the hash (an active link or a download that did not fail), and B has not
+blocklisted it. Then B's own decision (`Decide`, or `DecideSeries` with the download's episodes as the criteria, as
+a search would) judges the release against B's current files, and the checks B's own route makes before it asks a
+provider run on it with the route's functions (`router.ScreenOther`): a prefer-SeaDex library's candidate takes its
+SeaDex standing from the stored evidence (`RefreshSeaDexRelease`, the route's first step), then `freshCandidates` (title and library monitored
+and not removed, a movie's minimum availability for B, each episode still monitored, the release improving B's
+files under B's upgrade setting, prefer-SeaDex's same-torrent rule), `screenUpgrades` (`upgrades: off` never replaces
+a file) and the queue checks (`movieInFlight`, `episodesInFlight`). Accepted: a download of B for the same torrent is
+written ready (`reused`, never our add, source `library:<A>`, with B's quality, score, formats and episodes) and
+imported at once through the ordinary import (`Library.Import`): B's naming and root, its links, version and
+episode states, History (its grabbed row written as a manual import's, then its import or failure row by the
+ordinary writers), requests and Plex scan. Rejected, skipped, busy or unreadable: nothing is stored or
+retried; B's own search or RSS finds what it wants later. B's import is its own and tried once: if it does not go
+through at once (a failure, a mount wait, a partial import) B's download ends failed with its reason, a normal
+failed row in Activity that an admin can Retry; it never undoes or holds A's. A download that was itself linked
+this way tries no further library (A's pass covers them all). Files adopted from Sonarr/Radarr are not tried, old
+adopted links with a stored source (`link.adopted_source`) included: since 00134 an adoption records no hash, provider
+or indexer, so nothing can be decided or checked for them; the one-time import is run for each library that should
+have the files. Code: `internal/library/other.go`, the decision
+`router.DecideOther` and `router.ScreenOther`. Tests: `TestOtherLibraryLinkedAtImport`, `TestOtherLibraryRejects`,
+`TestOtherLibrarySkipped`, `TestOtherLibraryFailureKeepsSource`, `TestOtherLibraryRouteRules`,
+`TestOtherLibrarySeaDexPreferred`.
 
-An adopted link is offered from the source stored on it (`link.adopted_source`: hash, release, the arr's indexer
-names and the library the arr filled, with the `adopted_from` it was read for), resolving the names with
-`IndexerByName` and keeping the arr's library out of the offer (`TestAdoptedLinkOffersWithoutFollowing`). The arr
-history is not read: an adopted link without a stored source, or whose `adopted_from` has changed since, has no
-indexer and is not offered (`TestAdoptedLinkWithoutStoredSourceNotOffered`), as unknown indexers already are. An open
-offer (pending or retry memory) whose source was an imported arr file (source kind `arr_file`, from before those files
-became adopted links in 00134) is deleted at the next sweep, not declined, so the same file from an adopted link is decided afresh (`TestArrFileOfferForgotten`).
-
-Arr history names an indexer by the arr's own name ("TheRARBG (Prowlarr)", "DMM RD (Prowlarr)"), never a policy key.
-`Policy.IndexerByName` matches it to a configured indexer: the key itself, a name an indexer's `arr_names` lists
-(a plain alias list, without regard to case: "DMM RD (Prowlarr)" for `dmm`), or the name without a trailing " (…)" compared, letters and digits only and without regard to case,
-with the key or the key without its `prowlarr-` prefix; a name two indexers match is no match. A name that matches
-none keeps the offer `declined` `unknown_indexer`. That decline (and an old `private_indexer` one) is decided again on
-the next offer or sweep once the source's indexer resolves, and the target's own rules decide (`IndexerNotInVersion`
-when the version does not list it). Other declines stay remembered.
-
-An accepted offer to a target the router gate refuses (`router.enabled` off) is recorded
-`planned` (its route is a dry-run plan), not `routed`. A `planned` offer is offered again, and routed, by the
-next offer or six-hour sweep once the gate is open for the target; while it stays shut nothing is decided or queued
-again. After the flip the planned offers are paced: one offer pass routes at most
-`OfferPlannedPerPass` (20) planned offers, the rest wait for the next pass, and a planned offer not offered again for
-`OfferPlannedExpiry` (7 days) is declined `planned_expired` instead of routed (`TestPlannedOffersPacedPerSweep`,
-`TestPlannedOffersExpire`). Migration 00069 turns `routed` rows that made no download of the target for that hash (accepted while the
-router was off) into `planned`. Tests: `TestOfferArrIndexerMatchedByName`, `policy.TestIndexerByName`,
-`TestOfferWhileGateShutIsRetried`, `TestOfferGateRetryMigration`. A library the title was removed from
-(`arrview_removed_version`) is offered nothing: without a remembered offer nothing is recorded (an Add that restores
-it gets the offer at the next sweep); a remembered pending, given-up or planned offer is declined `removed`, and
-decided again once the library has the title again (`TestOfferSkipsRemovedLibrary`).
+Until 0.4.5 this was the offer machine (`router_offer`, retries every 15 minutes then daily, planned offers, a
+six-hour sweep, the `theatarr router offer` command); migration 00139 drops it.
 
 **RSS routes.** Accepted RSS items of a version:
 - they are collected per title and version;
@@ -1727,16 +1607,16 @@ keep them. A prefer-on searched route stored without criteria, or a candidate wi
 origin, is not re-decided: it is skipped and its episodes are searched again, one re-search per route; no criteria
 are reconstructed. Invalid stored release data carries unknown seeder evidence, like NULL data. The fresh check's
 same-torrent guard applies to prefer-on versions only. With `prefer_seadex` off, a route is decided again only on a
-policy revision change. The offer CLI supplies both movie and series deciders. Curator comparisons share one pinned
-stored snapshot per operation (one route, one offer sweep, one cutoff list); cached search results cannot replace
+policy revision change. Curator comparisons share one pinned
+stored snapshot per operation (one route, one import's other libraries, one cutoff list); cached search results cannot replace
 it. How SeaDex standing is kept and used: [decide.md](decide.md#seadex-standing).
 
 ### Candidate identity version and origin
 
 A producer's new request (`Route`, `Enqueue`, `EnqueueTx`, with no resumed download) stamps
 each candidate with `identity` = `RouteIdentityVersion` (1: the identity checks above ran on it while its links were in
-memory) and `origin`: `rss` (feeds, release pushes, movie offers, grabs by hand) or `search` (wanted, re-search,
-`acquire:` runs, series offers, or a series search candidate with its `criteria`). The marks travel through
+memory) and `origin`: `rss` (feeds, release pushes, grabs by hand) or `search` (wanted, re-search,
+`acquire:` runs, or a series search candidate with its `criteria`). The marks travel through
 route job payloads, `download.release_data` (`route_identity`, `route_origin`, beside `route_search` and
 `route_criteria`) and hold candidates; a request rebuilt from a stored row keeps what was stored. Re-decision uses
 the explicit origin only. A prefer-on re-decision does not trust a candidate without identity

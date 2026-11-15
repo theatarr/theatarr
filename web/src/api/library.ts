@@ -6,7 +6,6 @@ import { api, qs, type Schemas } from "./client";
 import type { Get } from "./hooks";
 import { qk, titleChanged } from "./query-keys";
 import { withDistinctLabels } from "@/lib/copies";
-import { COPY_POLL_MS, copiesUnfinished } from "@/lib/provider-copies";
 
 export type TitleRow = Schemas["TitleRow"];
 export type TitlePage = Schemas["TitlePage"];
@@ -78,8 +77,6 @@ const episodeLabels = (l: EpisodeList): EpisodeList => (l.versions ? { ...l, ver
 export function useTitle(id: string, enabled = true) {
   return useQuery({
     queryKey: qk.title(id), queryFn: () => api<TitleDetail>(`/titles/${encodeURIComponent(id)}`), enabled, select: titleLabels,
-    // Asked again while a copy to another provider is unfinished (Add to other providers).
-    refetchInterval: (q) => ((q.state.data?.versions ?? []).some((v) => copiesUnfinished((v as Version).current?.copies)) ? COPY_POLL_MS : false),
   });
 }
 

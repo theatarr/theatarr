@@ -647,7 +647,12 @@ func (l *Library) importDownload(ctx context.Context, d *importDownload, dryRun 
 	if plan.DryRun {
 		return plan, l.recordDryRun(ctx, d, plan)
 	}
-	return plan, l.apply(ctx, d, vn, root, plan)
+	if err := l.apply(ctx, d, vn, root, plan); err != nil {
+		return plan, err
+	}
+	// Imported (every link made): the title's other libraries are tried with the same files (other.go).
+	l.linkOthers(ctx, d)
+	return plan, nil
 }
 
 func vToDecideVersion(v *importVersion) decide.Version {

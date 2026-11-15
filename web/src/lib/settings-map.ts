@@ -275,8 +275,7 @@ export const SETTINGS_PANELS: SettingsPanel[] = [
     "section": "router",
     "keys": [
       "cached_only",
-      "alldebrid_delete_uncached",
-      "copy_to_providers"
+      "alldebrid_delete_uncached"
     ],
     "tab": "behaviour"
   },

@@ -1052,7 +1052,7 @@ func (s *Service) deleteTitle(w http.ResponseWriter, r *request) {
 	if others == 0 {
 		act = journal.ActRemoveTitle
 	}
-	// The shared removal (internal/removal), as the web UI's: the hide, the downloads ended, requests and offers,
+	// The shared removal (internal/removal), as the web UI's: the hide, the downloads ended, the search requests,
 	// the Removed actions, and with deleteFiles the links and the debrid clean-up. The view's own rows go in its
 	// transaction.
 	res, err := removal.Run(ctx, removal.Deps{Store: s.st, Unlinker: removalUnlinker{s}, AfterRemove: s.onRemoved,

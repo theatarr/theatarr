@@ -1,7 +1,6 @@
 package demo
 
 import (
-	"fmt"
 	"strings"
 	"time"
 )
@@ -108,16 +107,5 @@ func (s *seeder) system() {
 			ended_at) VALUES (?, ?, ?, 'completed', 'successful', ?, 'Seerr/2', ?, ?, ?)`,
 			map[bool]string{true: "sonarr", false: "radarr"}[strings.HasPrefix(name, "Series")], name,
 			jsonOf(map[string]any{"name": name}), "Nothing to search: no monitored item of the versions matches", ms(at), ms(at), ms(at.Add(time.Second)))
-	}
-	// Offers: an imported movie offered to the title's other movie version.
-	for i, t := range s.titles {
-		if t.kind != "movie" || t.anime || len(t.versions) < 2 || i%11 != 1 {
-			continue
-		}
-		outcome := []string{"declined", "same", "planned"}[i%3]
-		s.exec(`INSERT INTO router_offer (version_key, title_id, info_hash, from_version, release_title, outcome, reasons,
-			attempts, first_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`, t.versions[1].key, t.id, s.hash(),
-			t.versions[0].key, dots(t.name)+fmt.Sprintf(".%d.2160p.UHD.BluRay.REMUX-OSPRYX", t.year), outcome,
-			jsonOf([]string{"QualityNotWanted"}), ms(s.ago(days(4))), ms(s.ago(days(4))))
 	}
 }

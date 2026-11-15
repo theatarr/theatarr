@@ -64,7 +64,7 @@ func (f *liveFixture) build(ctx context.Context, snap *settings.Snapshot, prev *
 	if err != nil {
 		return nil, err
 	}
-	if rt.Library, err = newServeLibrary(rt.Policy, f.db, f.q, rt.Gateway, f.log, rt.Engine, nil, nil, nil); err != nil {
+	if rt.Library, err = newServeLibrary(rt.Policy, f.db, f.q, rt.Gateway, f.log, rt.Engine, nil, nil); err != nil {
 		return nil, err
 	}
 	var prevMeta *serveMetadata
@@ -402,7 +402,7 @@ func TestServeLibraryCurrentFollowsSaves(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	lb, err := newServeLibrary(f.base, f.db, f.q, nil, f.log, nil, nil, nil, nil)
+	lb, err := newServeLibrary(f.base, f.db, f.q, nil, f.log, nil, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

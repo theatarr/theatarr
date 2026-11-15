@@ -24,13 +24,13 @@ func init() {
 	for _, tb := range strings.Fields(`anime_alt_cut anime_discovery anime_entry anime_franchise anime_mapping anime_node anime_order anime_review anime_stage arrview_removed_version arrview_title arrview_title_tag content content_file content_provider episode episode_number episode_version_state link link_episode link_trash link_version movie_collection movie_exclusion series_meta series_monitor title title_alias title_external_id title_meta title_release_date title_scene_mapping version request request_user`) {
 		keptByDesign[tb] = "catalog and library state: grows with the library, not with runs"
 	}
-	for _, tb := range strings.Fields(`router_pacing provider_copy gateway_backoff gateway_budget_window shadow_rss_cursor notify_state tvdb_sync scene_refresh library_lease library_dangling_scan cardigann_session search_request series_search_wait error_inbox_state task`) {
+	for _, tb := range strings.Fields(`router_pacing gateway_backoff gateway_budget_window shadow_rss_cursor notify_state tvdb_sync scene_refresh library_lease library_dangling_scan cardigann_session search_request series_search_wait error_inbox_state task`) {
 		keptByDesign[tb] = "state per key, overwritten in place"
 	}
 	for _, tb := range strings.Fields(`job journal_decision web_session library_dangling router_refusal_451 arrview_command shadow_rss_seen notify_rename torrent_restore_pending gateway_indexer_request`) {
 		keptByDesign[tb] = "pruned by the package that owns it"
 	}
-	for _, tb := range strings.Fields(`router_offer notify_event router_blocklist journal_action journal_verdict torrent_journal provider_copy_event history`) {
+	for _, tb := range strings.Fields(`notify_event router_blocklist journal_action journal_verdict torrent_journal provider_copy_event history`) {
 		keptByDesign[tb] = "kept by design (package comment, journal): a memory or record that must not be forgotten"
 	}
 	for _, tb := range strings.Fields(`provider_hash_usage provider_torrent provider_torrent_read`) {

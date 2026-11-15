@@ -16,7 +16,7 @@ lines (`shadow job scheduled`, `shadow rss`).
 
 The schedule runs as the `rss` serve worker and follows each settings generation by itself: a new interval, `rss`
 turned off, or no library listing a readable feed stops the queuing without a restart. The job has a dedupe key,
-so a slow read never stacks; bulk work (imports, wanted searches, offers) runs first and RSS can lag behind it.
+so a slow read never stacks; bulk work (imports, wanted searches) runs first and RSS can lag behind it.
 
 **Pause.** While downloads are paused (`router.enabled` false, the router gate's switch) a run reads no feed and routes
 nothing, whether scheduled, queued or asked for: it writes a run row whose summary says `skipped: downloads are

@@ -424,12 +424,6 @@ func runServe(args []string) error {
 	router.RegisterRuntimeJobs(w, q, routeService.forOperation)
 	rt.SetRuntimeResolver(routeService.forOperation)
 	rt.LogState()
-	// Copies to other providers a restart interrupted are finished from the account (router copy.go).
-	if n, err := rt.ResumeCopies(ctx); err != nil {
-		log.Warn("router: unfinished copies to other providers not resumed", "err", err)
-	} else if n > 0 {
-		log.Info("router: unfinished copies to other providers resumed", "copies", n)
-	}
 
 	// The RSS sync (docs/design/rss.md): the libraries' feeds, their accepted items to the router. It is the
 	// decision engine's film index.
@@ -473,25 +467,8 @@ func runServe(args []string) error {
 
 	// The library: imports of ready downloads, relinks and Plex scans, written only through its gate
 	// (docs/design/library.md).
-	// Offers: an imported movie is offered to the title's other movie versions; their own
-	// rules decide, and an accepted offer reuses the provider's torrent.
-	off := newServeOfferer(st, pol, eng, routeService, q, log, runtimeManager)
-	off.RegisterJobs(w)
-	// After each import: the offer, and with router.copy_to_providers the copies to the other providers (router
-	// copy.go; queued only, no provider is asked here). One function for the startup library and every library a
-	// settings save builds, so the automatic copies survive a save.
-	onImported := func(ctx context.Context, id int64) {
-		ctx = captureRuntime(ctx)
-		if err := router.EnqueueOffer(ctx, q, id, time.Now()); err != nil {
-			log.Warn("offer not queued", "download", id, "err", err)
-		}
-		if _, active := routeService.forOperation(ctx); active != nil {
-			if err := active.QueueCopiesForDownload(ctx, id); err != nil {
-				log.Warn("copies to other providers not queued", "download", id, "err", err)
-			}
-		}
-	}
-	lb, err := newServeLibrary(pol, st, q, gw, log, eng, helper, ps.syncer.Providers, onImported)
+	// After an import the library tries the title's other libraries itself (library other.go).
+	lb, err := newServeLibrary(pol, st, q, gw, log, eng, helper, ps.syncer.Providers)
 	if err != nil {
 		return err
 	}
@@ -541,7 +518,7 @@ func runServe(args []string) error {
 		wireIndexerLookups(runtime.Policy, st, runtime.Gateway, runtime.Indexers, runtime.Metadata.tvc, log)
 		wireCacheEvidence(runtime.Policy, st, runtime.Indexers, runtime.Providers.syncer.Providers, log)
 		runtime.Library, err = newServeLibrary(runtime.Policy, st, q, runtime.Gateway, log, runtime.Engine, helper,
-			runtime.Providers.syncer.Providers, onImported)
+			runtime.Providers.syncer.Providers)
 		if err != nil {
 			return err
 		}
@@ -713,12 +690,7 @@ func runServe(args []string) error {
 		Version: version, Devices: av, Art: refresher, Journal: jr, Logs: logs, Add: add, RSS: rssRunner, Jobs: q, Tasks: tbl, Plex: pl, Health: hc,
 		Ops: serveOps{av}, OnRequest: requestNotify, LogLevel: logLevel, LogDir: *logDir, ReloadSettings: runtimeManager.Reload,
 		CaptureRuntime: captureRuntime, SettingsTests: newSettingsTestLimits(), SettingsLookup: os.LookupEnv, TrashRoot: os.Getenv("THEATARR_TRASH"),
-		Torrents: torrentSvc, Background: ctx, ProviderCopies: func(ctx context.Context) web.Copier {
-			if _, active := routeService.forOperation(ctx); active != nil {
-				return active
-			}
-			return nil
-		}, NowPlaying: nowPlayingSnapshot, ArrImport: serveArrImport{manager: runtimeManager, st: st, log: log},
+		Torrents: torrentSvc, Background: ctx, NowPlaying: nowPlayingSnapshot, ArrImport: serveArrImport{manager: runtimeManager, st: st, log: log},
 		RcloneTestGateway: rcloneTestGateway(runtimeManager, gw, log), NotifyTest: nt.SendTest,
 		AnimeBuilds: func(ctx context.Context) web.AnimeBuilder {
 			if _, s := currentAnime(ctx); s != nil {
@@ -835,14 +807,10 @@ func runServe(args []string) error {
 	// Every gateway generation shares the first one's request counts (Options.Previous): one loop writes them, the
 	// last time after everything that sends indexer requests has stopped.
 	stopRequestFlush := startRequestFlush(ctx, gw)
-	wg.Add(4)
+	wg.Add(3)
 	go errinbox.Go("notify", func() {
 		defer wg.Done()
 		nt.Run(ctx)
-	})()
-	go errinbox.Go("offers", func() {
-		defer wg.Done()
-		runOfferSweep(ctx, off, log)
 	})()
 	go errinbox.Go("jobs", func() {
 		defer wg.Done()
@@ -1045,7 +1013,7 @@ const nightlyKind = "db.nightly"
 // urgentJobKinds are the acquisition and import jobs: leased before other kinds, and the only ones the reserved
 // worker slots run (jobs.WorkerOptions.Urgent).
 var urgentJobKinds = []string{acquire.JobSearch, router.JobResearch, router.JobRoute,
-	router.JobOffer, library.ScanJobKind}
+	library.ScanJobKind}
 
 // nightly is the db.nightly task at the backup hour: it writes a backup set (database, policy, manifest; backup.go)
 // and keeps the newest sets, prunes finished jobs and the journal's decision rows, then starts the db.retention task.

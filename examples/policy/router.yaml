@@ -12,7 +12,6 @@ router:
                        # provider. The one hole: another client uploading the same hash in the second between our
                        # list read and our upload gets the same magnet, which would look like ours and be deleted
                        # (docs/design/router.md).
-  copy_to_providers: false  # after each import, add the torrent to the other providers when cached there
   cached_grace: 2s     # RD/AD: wait this long before the one re-read of a fresh add; 1s to 30s
   stalled_after: 10m   # a download still not fetching this long after its add fails as stalled, is blocklisted and
                        # searched again (our own RD add is deleted); 1m to 24h, 0s turns it off

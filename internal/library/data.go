@@ -66,8 +66,11 @@ type importDownload struct {
 	TorrentID    string
 	ReleaseTitle string
 	InfoHash     string
-	Indexer      string
-	Name         string // the provider's torrent name: the mount folder
+	// Source is what started the download (download.source) and Size its release's size in bytes (0 unknown).
+	Source  string
+	Size    int64
+	Indexer string
+	Name    string // the provider's torrent name: the mount folder
 	// OriginalName is the name the torrent declared (download.original_name), "" when no read gave one: zurg names
 	// the folder after it when the provider's name differs.
 	OriginalName string
@@ -113,10 +116,11 @@ func loadDownload(ctx context.Context, db *sql.DB, pol *policy.Policy, id int64)
 	err := db.QueryRowContext(ctx, `
 		SELECT d.state, d.provider, d.client, d.release_title, d.info_hash, d.indexer, d.name, d.quality, d.score, d.episodes,
 		       d.formats, d.episode_map, d.source_path, d.ready_at, d.version_id, d.version_key, d.title_id, d.original_name,
-		       d.provider_torrent_id
+		       d.provider_torrent_id, d.source, COALESCE(d.size_bytes, 0)
 		FROM download d WHERE d.id = ?`, id).
 		Scan(&d.State, &provider, &client, &d.ReleaseTitle, &d.InfoHash, &d.Indexer, &d.Name, &v.Quality, &v.Score, &eps,
-			&formats, &epMap, &srcPath, &readyAt, &v.VersionID, &v.Key, &v.Title.ID, &origName, &torrentID)
+			&formats, &epMap, &srcPath, &readyAt, &v.VersionID, &v.Key, &v.Title.ID, &origName, &torrentID,
+			&d.Source, &d.Size)
 	if err != nil {
 		return nil, fmt.Errorf("library: download %d: %w", id, err)
 	}

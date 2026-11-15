@@ -122,11 +122,6 @@ func newFixture(t *testing.T) *fixture {
 		(32, 1, 1, 'movie-web', ?, 'Gone.Bad', 'idx', 'failed', 0, 0)`, hH, hX)
 	f.exec(`INSERT INTO search_request (title_id, version_key, reason, season, created_at, next_at, tries) VALUES
 		(1, 'movie-web', 'missing', -1, 0, 0, 0), (1, 'movie-remux', 'missing', -1, 0, 0, 0)`)
-	f.exec(`INSERT INTO router_offer (version_key, title_id, info_hash, from_version, outcome, first_at, next_at,
-		updated_at) VALUES ('movie-web', 1, ?, 'movie-remux', 'pending', 0, 0, 0),
-		('movie-remux', 1, ?, 'movie-web', 'pending', 0, 0, 0)`, hC, hA)
-	f.exec(`INSERT INTO provider_copy (info_hash, provider, state, created_at, updated_at) VALUES
-		(?, 'tb', 'queued', 0, 0), (?, 'ad', 'adding', 0, 0), (?, 'tb', 'queued', 0, 0)`, hH, hH, hA)
 	return f
 }
 
@@ -201,26 +196,13 @@ func TestRunWithFiles(t *testing.T) {
 	if want := []string{hH, hA, hB}; !slices.Equal(got, want) {
 		t.Errorf("candidates %v, want %v", got, want)
 	}
-	// The hide, its search requests and offers; queued copies nothing else wants stop, others stay.
+	// The hide and its search requests.
 	if f.str(`SELECT COUNT(*) FROM arrview_removed_version WHERE version_id = 1 AND view = 'ui'`) != "1" ||
 		f.str(`SELECT COUNT(*) FROM arrview_removed_version WHERE version_id = 2`) != "0" {
 		t.Error("hidden copies")
 	}
 	if got := f.str(`SELECT group_concat(version_key) FROM search_request WHERE title_id = 1`); got != "movie-remux" {
 		t.Errorf("search requests left %q", got)
-	}
-	if got := f.str(`SELECT outcome || reasons FROM router_offer WHERE version_key = 'movie-web'`); got != `declined["removed"]` {
-		t.Errorf("offer into the removed library: %s", got)
-	}
-	if got := f.str(`SELECT outcome FROM router_offer WHERE version_key = 'movie-remux'`); got != "pending" {
-		t.Errorf("offer into the remaining library: %s", got)
-	}
-	if got := f.str(`SELECT group_concat(provider || ':' || state, ' ') FROM (SELECT provider, state FROM provider_copy
-		WHERE info_hash = ? ORDER BY provider)`, hH); got != "ad:adding tb:skipped" {
-		t.Errorf("copies of the removed download's hash: %s", got)
-	}
-	if got := f.str(`SELECT state FROM provider_copy WHERE info_hash = ?`, hA); got != "queued" {
-		t.Errorf("a copy Other still wants: %s", got)
 	}
 	// The Removed action says what became of the files; each unlinked link has its own entry.
 	rm := journal.ParseRemovalDetail(f.str(`SELECT detail FROM journal_action WHERE action = ?`, journal.ActRemoveVersion))
@@ -276,8 +258,7 @@ func TestRunWithoutFiles(t *testing.T) {
 		rm.Cleanup != "" {
 		t.Errorf("outcome %+v", rm)
 	}
-	if res.DownloadsEnded != 1 || f.str(`SELECT state FROM provider_copy WHERE info_hash = ? AND provider = 'tb'`, hH) != "skipped" ||
-		f.str(`SELECT COUNT(*) FROM search_request WHERE version_key = 'movie-web'`) != "0" {
+	if res.DownloadsEnded != 1 || f.str(`SELECT COUNT(*) FROM search_request WHERE version_key = 'movie-web'`) != "0" {
 		t.Error("the removal's records")
 	}
 }
@@ -424,22 +405,6 @@ func TestRunCleanupPerLibrary(t *testing.T) {
 	}
 }
 
-// A queued copy to another provider is not stopped while another title's current link holds its hash.
-func TestRunKeepsCopiesAnotherLinkWants(t *testing.T) {
-	t.Parallel()
-	f := newFixture(t)
-	f.exec(`INSERT INTO link (id, path, target, kind, title_id, state, file_metadata, created_at, updated_at) VALUES
-		(21, '/lib/web/Other/h.mkv', '/mnt/debrid/__all__/H/h.mkv', 'symlink', 2, 'active', ?, 0, 0)`,
-		`{"InfoHash":"`+strings.ToUpper(hH)+`"}`)
-	f.exec(`INSERT INTO link_version (link_id, version_id) VALUES (21, 3)`)
-	if _, err := Run(context.Background(), f.deps(), webSpec(false)); err != nil {
-		t.Fatal(err)
-	}
-	if got := f.str(`SELECT state FROM provider_copy WHERE info_hash = ? AND provider = 'tb'`, hH); got != "queued" {
-		t.Errorf("the copy Other's link wants: %s", got)
-	}
-}
-
 // Kept files are counted by path; a library with no file says nothing about files; the torrents its kept files keep are named with the clean-up's outcome.
 func TestRunCountsFilesByPath(t *testing.T) {
 	t.Parallel()
@@ -516,34 +481,5 @@ func TestRunNormalisesKeptLinkHashes(t *testing.T) {
 		if _, ok := f.started[0].Hashes[hD]; ok {
 			t.Errorf("the refused link's torrent is a candidate: %v", f.started[0].Hashes)
 		}
-	}
-}
-
-// A queued copy survives the removal while a current library still uses its file: through a link to the same target
-// as the removed copy's link (no hash of its own), or a download that stores the hash in base32.
-func TestRunKeepsCopiesACurrentLibrarySharing(t *testing.T) {
-	t.Parallel()
-	f := newFixture(t)
-	f.exec(`INSERT INTO link (id, path, target, kind, title_id, state, file_metadata, created_at, updated_at) VALUES
-		(16, '/lib/web/Gone/h.mkv', '/mnt/debrid/__all__/H/h.mkv', 'symlink', 1, 'active', ?, 0, 0),
-		(26, '/lib/remux/Gone/h.mkv', '/mnt/debrid/__all__/H/h.mkv', 'symlink', 1, 'active', '{}', 0, 0)`,
-		`{"InfoHash":"`+hH+`"}`)
-	f.exec(`INSERT INTO link_version (link_id, version_id) VALUES (16, 1), (26, 2)`)
-	if _, err := Run(context.Background(), f.deps(), webSpec(false)); err != nil {
-		t.Fatal(err)
-	}
-	if got := f.str(`SELECT state FROM provider_copy WHERE info_hash = ? AND provider = 'tb'`, hH); got != "queued" {
-		t.Errorf("a copy the Remux library's file shares: %s", got)
-	}
-
-	g := newFixture(t)
-	g.exec(`INSERT INTO download (title_id, version_id, version_key, info_hash, release_title, indexer, state,
-		created_at, updated_at) VALUES (2, 3, 'movie-web', 'EIRCEIRCEIRCEIRCEIRCEIRCEIRCEIRC', 'Other.H', 'idx',
-		'downloading', 0, 0)`)
-	if _, err := Run(context.Background(), g.deps(), webSpec(false)); err != nil {
-		t.Fatal(err)
-	}
-	if got := g.str(`SELECT state FROM provider_copy WHERE info_hash = ? AND provider = 'tb'`, hH); got != "queued" {
-		t.Errorf("a copy Other's base32 download wants: %s", got)
 	}
 }

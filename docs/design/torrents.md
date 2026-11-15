@@ -344,19 +344,12 @@ differences:
 `TestDeleteForRemovalBackupFails`, `TestDeleteForRemovalProviderErrors`,
   `TestDeleteForRemovalKeepsARestoredLibrary`, `TestDeleteForRemovalSaysWhatItLeftOver`).
 
-A removal also stops, once and at the removal, queued copies to other providers that no current copy of any title
-wants (a download in hand, an active link of a version not removed, or a current link to the same
-file; hashes compared in hex and base32). A copy already adding is left to settle; a torrent it leaves shows under
-Torrents › Not used by Theatarr, and a copy asked later is added as any other. With the files kept, nothing on a
-provider is deleted because of the removal: a copy settling later deletes only its own incomplete new add on the other
-provider, as before, and ending the removed download does not change that check (`copyInUse` looks at that provider
-only).
+With the files kept, nothing on a provider is deleted because of the removal.
 
 ### The third delete path
 
 `internal/provider/adder/delete.go` holds every provider delete. Besides the router's two (Theatarr's own just-made
-uncached add, its own stalled add: on RD for a stalled download, on every provider for a copy to another provider that
-is not complete, router.md "Copies to other providers") there is `DeleteUserChosen`, which takes a `UserChoice` only
+uncached add, and its own stalled Real-Debrid add) there is `DeleteUserChosen`, which takes a `UserChoice` only
 `adder.ChooseForDelete` makes, from an id, a v1 hash, a backup id and a confirmation digest. Fences:
 
 - `TestNoDeletes`: the method sets, paths and HTTP methods per provider (three deletes per kind's set), and
@@ -402,14 +395,9 @@ account (`absent`); Removed (`gone`); Not known yet (`unknown`). The state filte
 "N torrents (unique hashes)". A detail shows **Used** (badge, links, references: five, then "and N more"; titles
 linked; or that no account holds it; worked out again after each read or Refresh, as on Torrents), **Imports** only when Theatarr recorded any, **Providers** with a header row
 (Provider, Name, Torrent id, First seen), the RD/AD/TB tag and "gone since <date>" for an account that no longer holds
-it, **Add to other providers** from an account that holds it (the Torrents row's action) with the hash's copies read when the entry opens and polled while one is unfinished (a copy that ends added reads
-the entry again, so Providers lists the new holder), and files. **System › Backup** holds torrent-list backups: **Back up
+it, and files. **System › Backup** holds torrent-list backups: **Back up
 now**, import (Theatarr or DMM, to a chosen provider), the list with download (Theatarr or DMM format) and **Restore…**
-with its preview. A row's expanded area has **Add to other providers** (router.md "Copies to other providers":
-`POST /torrents/copy`; disabled with the Pause words while paused), with an **Other providers:** line for the copies
-the provider list does not show yet (in progress, not cached, refused, skipped, failed); while one is unfinished only that
-torrent's copies are read again (`GET /torrents/copies?hash=`, every 5 s), never the whole report; a newer report
-brings its own rows. The row shows every result (it has no Cached on), "TB added" included. Code: `web/src/pages/admin/torrents.tsx`, `web/src/components/backups/torrent-backups.tsx`, `web/src/lib/torrents.ts`.
+with its preview. Code: `web/src/pages/admin/torrents.tsx`, `web/src/components/backups/torrent-backups.tsx`, `web/src/lib/torrents.ts`.
 
 ## Out of scope
 

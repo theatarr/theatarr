@@ -101,7 +101,7 @@ when that task works after it (`resolved_by_task`), as a later `{}` sweep job re
 | `cardigann.refresh` indexer definitions | `cardigann.definitions.refresh` after the last check; a failed one again after an hour | 1 |
 | `anime.discover` anime franchise discovery and refresh | every minute, first 2 min after start (recorded when it queued a build job) | 1 |
 
-Not tasks: the download poll, the library's import pass, now playing, the offer sweep, and the health hand-off to the
+Not tasks: the download poll, the library's import pass, now playing, and the health hand-off to the
 error inbox. The per-subject runs of the same kinds stay jobs: one provider's retry, one title's art or series
 refresh, a manual torrent backup.
 
@@ -125,16 +125,15 @@ writer. Code: `internal/retention`. The windows:
 0 keeps that kind for good. Kept whatever their age: the latest successful and the latest failed sync run of each
 provider; the latest quality sync run of each TRaSH source and outcome (the sync reads the latest run and the latest
 that read TRaSH), and runs still running; pending deliveries; every download that is not failed, and a failed one that a link, a library claim,
-an import still waiting for the mount or partial, a router blocklist entry, a router offer or a
+an import still waiting for the mount or partial, a router blocklist entry or a
 queued or running job refers to (a finished import or an expired claim does not keep it); applied
-`link`/`replace` library actions whose download is kept or whose path is still an active or dead link (the offer
-sources and the superseded check read them; adoption provenance lives on `link.adopted_from`); acquire
+`link`/`replace` library actions whose download is kept or whose path is still an active or dead link (the
+superseded check reads them; adoption provenance lives on `link.adopted_from`); acquire
 runs that are not finished, the latest run of each version and target (the search schedule's "last searched") and runs a
 queued or running job refers to, and a run whose children are kept; the current settings generation's audit rows.
 
-Not pruned, by design: `router_offer` (one row per version, title and release; deleting one re-offers that release
-at the next sweep), `notify_event` (the once-only memory of scanned events), and imported downloads (offer sources, and the journal keeps routed decisions by
-them). `journal_decision` and finished jobs keep their own pruning in the nightly job. A
+Not pruned, by design: `notify_event` (the once-only memory of scanned events), and imported downloads (the journal
+keeps routed decisions by them). `journal_decision` and finished jobs keep their own pruning in the nightly job. A
 journal decision older than 180 days whose only download was a pruned failed one is deleted instead of trimmed.
 `TestRetentionCoversEveryTable` checks that every table the migrations create is pruned by a rule, goes
 with a pruned row (`ON DELETE CASCADE`), or is listed in `keptByDesign` with its reason (configuration, catalog and

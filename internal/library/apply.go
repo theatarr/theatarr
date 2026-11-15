@@ -86,7 +86,6 @@ func (l *Library) apply(ctx context.Context, d *importDownload, vn *VersionNamin
 	}
 	// One mutation per link path (linklock.go): every path this import makes or moves aside is held from here to the
 	// commit. A path another run is changing now leaves the import to the next pass, before anything changed.
-	octx := ctx
 	var paths []string
 	for _, lk := range plan.Links {
 		paths = append(append(paths, lk.Path), lk.Replaces...)
@@ -532,9 +531,6 @@ func (l *Library) apply(ctx context.Context, d *importDownload, vn *VersionNamin
 		return errf(d.ID, "%d step(s) failed: %v", len(failures), failures)
 	}
 	l.log.Info("library: imported", "download", d.ID, "version", v.Key, "links", len(linked), "moved_aside", len(moved))
-	if len(linked) > 0 && l.onImported != nil {
-		l.onImported(octx, d.ID)
-	}
 	return nil
 }
 

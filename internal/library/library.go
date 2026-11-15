@@ -67,12 +67,9 @@ type Options struct {
 	// when the download has them. Optional.
 	Matched MatchedFormats
 	// Queue receives plex.scan jobs. Nil: no scans.
-	Queue *jobs.Queue
-	// OnImported is called after a download is imported (links made), e.g. to offer it to the title's other
-	// versions (router.Offerer). Optional.
-	OnImported func(ctx context.Context, downloadID int64)
-	Logger     *slog.Logger
-	Now        func() time.Time
+	Queue  *jobs.Queue
+	Logger *slog.Logger
+	Now    func() time.Time
 	// Registerer, if set, receives the mount guard's metrics (breaker.go).
 	Registerer prometheus.Registerer
 	// Zurg is zurg's read-only API (library.mount.zurg_api; zurgapi.go). Nil: the mount alone.
@@ -110,9 +107,7 @@ type Library struct {
 	files TorrentFilesFunc
 	// forget clears the mount's cached listing of the release root (Options.ForgetDir); nil when off.
 	forget *rootForget
-	// onImported runs after an import (Options.OnImported).
-	onImported func(ctx context.Context, downloadID int64)
-	now        func() time.Time
+	now    func() time.Time
 	// recomputedRev is the policy revision RecomputeLinkStates last succeeded under in this process (Run does it
 	// first, and again after a settings change); recomputed whether it has.
 	recomputeMu   sync.Mutex
@@ -141,7 +136,7 @@ func New(o Options) *Library {
 		mount: &Mount{Path: s.MountPath, LinkPath: s.LinkPath, AllDir: s.AllDir, StatTimeout: s.StatTimeout,
 			Now: o.Now},
 		probe: o.Probe, formats: o.Formats, matched: o.Matched, queue: o.Queue, log: o.Logger, now: o.Now,
-		onImported: o.OnImported, zurg: o.Zurg, decy: o.Decypharr, files: o.TorrentFiles}
+		zurg: o.Zurg, decy: o.Decypharr, files: o.TorrentFiles}
 	if o.ForgetDir != nil {
 		l.forget = &rootForget{call: o.ForgetDir}
 	}

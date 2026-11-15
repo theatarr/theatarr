@@ -393,7 +393,7 @@ Left as before, on purpose:
   history and arr records stay (the view's own `arrview_title` row goes, the libraries' rows keep everything but the
   minimum availability choice), and nothing on the mount is touched. In the transaction of the hide the versions'
   downloads in hand end in Theatarr's records (failed, "deleted through <view> by <client>", `router.EndRemoved`),
-  their search requests and pending offers go, queued copies to other providers nothing else wants stop, and one
+  their search requests go, and one
   Removed event per library is recorded (by `key:<client>`), so none is imported back into the library and a
   failure leaves nothing removed. With `deleteFiles=true` the links are moved only after that transaction commits
   (they are just checked before it; `TestDeleteUnlinksOnlyAfterTheHide`) and enumerated then: a link an import

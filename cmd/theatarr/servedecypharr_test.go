@@ -71,7 +71,7 @@ func TestServeDecypharr(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		lb, err := newServeLibrary(pol, st, jobs.NewQueue(st), gw, log, nil, nil, nil, nil)
+		lb, err := newServeLibrary(pol, st, jobs.NewQueue(st), gw, log, nil, nil, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -122,7 +122,7 @@ func TestServeDecypharr(t *testing.T) {
 
 	// Without the block: no client, and the mount check is the mount's alone.
 	plain := &policy.Policy{Library: &policy.Library{Enabled: true, Mount: policy.LibraryMount{Path: mount}}}
-	lb, err = newServeLibrary(plain, st, jobs.NewQueue(st), nil, log, nil, nil, nil, nil)
+	lb, err = newServeLibrary(plain, st, jobs.NewQueue(st), nil, log, nil, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -22,7 +22,7 @@ import (
 //   - the new release is not an upgrade of the queued one (UpgradableSpecification.IsUpgradable): refused;
 //   - it is an upgrade the profile does not allow (IsUpgradeAllowed), or versions.<key>.upgrades is off: refused.
 //
-// Every automatic source is checked (RSS, searches, re-searches, offers, release pushes, deferred jobs); a person's
+// Every automatic source is checked (RSS, searches, re-searches, release pushes, deferred jobs); a person's
 // grab (manualSource) is not, as Radarr lets an interactive grab through. A release that cannot be compared (no
 // profile, an unknown quality) is refused: the check fails closed. Series keep their episode overlap check
 // (episodesInFlight).

@@ -39,10 +39,7 @@ import (
 // The second case (router.stalled_after) is [StalledDeleter.DeleteOwnStalledAdd]: a download still not ready long
 // after its add fails as stalled, and its Real-Debrid torrent is deleted when the router recorded at the add that the
 // entry was a new one of ours (download.own_add) and still finds it so. Real-Debrid makes a new torrent for every
-// add, so an entry of ours stays ours. The router's stall timeout uses it on Real-Debrid only. AllDebrid and TorBox
-// implement it for "Add to other providers" alone (the router's copy.go): a copy that is not complete after its
-// settle is deleted on every provider, by the owner's decision, when the account's listing before the add did not
-// show the hash (provider_copy.own_add), across a restart too.
+// add, so an entry of ours stays ours. The router's stall timeout uses it on Real-Debrid only.
 //
 // The third case is [UserDeleter.DeleteUserChosen], on all three providers: the torrent
 // manager (internal/torrents, docs/design/torrents.md) deletes torrents a person picked and confirmed, Theatarr's or not, after
@@ -78,7 +75,7 @@ type Deleter interface {
 	DeleteOwnUncachedAdd(ctx context.Context, a *Added, proof OwnAdd) error
 }
 
-// StalledDeleter is implemented by every adder (AllDebrid and TorBox for the router's copies only). Like Deleter, it
+// StalledDeleter is implemented by the Real-Debrid adder (the router deletes stalled adds there only). Like Deleter, it
 // is not part of [Adder].
 type StalledDeleter interface {
 	// DeleteOwnStalledAdd deletes torrent id, which the router added itself (proof: recorded at the add, and the
@@ -165,15 +162,6 @@ func (a *allDebrid) DeleteOwnUncachedAdd(ctx context.Context, ad *Added, proof O
 	return a.deleteMagnet(ctx, ad.ID)
 }
 
-// DeleteOwnStalledAdd: the same AllDebrid request as DeleteOwnUncachedAdd, for a copy of ours (internal/router
-// copy.go) whose add the router proved new from the magnet list read before it.
-func (a *allDebrid) DeleteOwnStalledAdd(ctx context.Context, id string, proof OwnAdd) error {
-	if id == "" || !proof.NotOnAccountBefore || !proof.NewEntry {
-		return ErrNotOwnAdd
-	}
-	return a.deleteMagnet(ctx, id)
-}
-
 func (a *allDebrid) deleteMagnet(ctx context.Context, id string) error {
 	status, b, ra, err := a.p.send(ctx, http.MethodPost, "/v4/magnet/delete", url.Values{"id": {id}})
 	if err != nil {
@@ -187,15 +175,6 @@ func (a *allDebrid) deleteMagnet(ctx context.Context, id string) error {
 		return a.err(status, env.Error, ra)
 	}
 	return nil
-}
-
-// DeleteOwnStalledAdd: the same TorBox request as DeleteUserChosen, for a copy of ours (internal/router copy.go)
-// whose add the router proved new from the torrent list read before it.
-func (t *torBox) DeleteOwnStalledAdd(ctx context.Context, id string, proof OwnAdd) error {
-	if id == "" || !proof.NotOnAccountBefore || !proof.NewEntry {
-		return ErrNotOwnAdd
-	}
-	return t.deleteTorrent(ctx, id)
 }
 
 // UserChoice is one torrent a person chose to delete: its provider id and hash as a fresh list showed them, the

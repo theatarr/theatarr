@@ -43,8 +43,7 @@ type Candidate struct {
 // identity and criteria cannot be proved from what was stored; `theatarr router reconcile` inventories such rows.
 const RouteIdentityVersion = 1
 
-// Origins of a candidate: decided on the RSS path (no search criteria: feeds, release pushes, movie offers, grabs by
-// hand) or on a search (its Criteria for a series).
+// Origins of a candidate: decided on the RSS path (no search criteria: feeds, release pushes, grabs by hand) or on a search (its Criteria for a series).
 const (
 	OriginRSS    = "rss"
 	OriginSearch = "search"
@@ -74,10 +73,10 @@ func (r *Router) stampFresh(req *Request) {
 }
 
 // searchedBy says whether a candidate queued by source with the search flag came from a search rather than a feed:
-// its own flag, or the source (a wanted or re-search producer, a series offer, which keeps the series decider).
+// its own flag, or the source (a wanted or re-search producer).
 func searchedBy(src string, kind policy.Kind, search bool) bool {
 	return search || src == "wanted" || src == "job" || src == "research" ||
-		src == "offer" && kind == policy.KindSeries || strings.HasPrefix(src, "acquire:")
+		strings.HasPrefix(src, "acquire:")
 }
 
 // Request asks the router to place ranked, disjoint episode releases for one version of a title (one for movies).

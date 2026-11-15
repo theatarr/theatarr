@@ -5,9 +5,8 @@
 //  1. the clean-up candidates are collected while the copies still relate to them: the torrent hashes of their links
 //     (active or dead) and their downloads not failed;
 //  2. one write transaction marks the copies removed (catalog.Remove, plus the caller's own writes), ends their
-//     downloads in hand (router.EndRemoved), clears their search requests and pending offers, stops the queued copies
-//     to other providers that nothing else wants (router.StopRemovedCopies) and records one Removed action per
-//     library (journal);
+//     downloads in hand (router.EndRemoved), clears their search requests and records one Removed action per library
+//     (journal);
 //  3. with the files to be deleted: each of their links moves to the trash (Unlinker.UnlinkRemoved, through the
 //     library's gate; a dead symlink too; the folders it leaves empty go, strictly below the library root), except a
 //     link another current library of the title still uses, which stays;
@@ -131,9 +130,6 @@ func (c Cleanup) HashesOf(key string) []string {
 	return out
 }
 
-// SkippedRemoved is the message of a queued copy to another provider that a removal stopped.
-const SkippedRemoved = "Skipped: its title was removed from the library"
-
 // Run removes spec's copies (see the package comment for the order). An error before the transaction commits
 // changes nothing; after it, a link that fails is reported in the result, not as an error.
 func Run(ctx context.Context, d Deps, s Spec) (*Result, error) {
@@ -199,17 +195,13 @@ func Run(ctx context.Context, d Deps, s Spec) (*Result, error) {
 			return err
 		}
 		if len(s.Keys) > 0 {
-			// A quick re-add must not inherit an old Search now or a pending offer.
+			// A quick re-add must not inherit an old Search now.
 			if _, err := tx.ExecContext(ctx, `DELETE FROM search_request WHERE title_id = ? AND version_key IN (`+
 				store.Placeholders(len(s.Keys))+`)`, append([]any{s.TitleID}, anyOf(s.Keys)...)...); err != nil {
 				return err
 			}
-			if _, err := router.EndRemovedOffers(ctx, tx, s.TitleID, s.Keys, ms); err != nil {
-				return err
-			}
 		}
-		_, err = router.StopRemovedCopies(ctx, tx, cands.hashes(), SkippedRemoved, ms)
-		return err
+		return nil
 	})
 	if err != nil {
 		return nil, err

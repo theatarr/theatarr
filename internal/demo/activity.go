@@ -717,8 +717,8 @@ func (s *seeder) verdicts(wrongYear int64) {
 }
 
 // historyExtras gives one imported movie the rest of History's events: the file its import replaced ("Deleted
-// (upgrade)", with the old release as recorded) and the release's copies to the other providers, one added and one
-// not cached (provider_copy and its provider_copy_event).
+// (upgrade)", with the old release as recorded) and the History events of the release's former copies to the
+// other providers, one added and one not cached (provider_copy_event, read-only since 00139).
 func (s *seeder) historyExtras(t *title, v *version, rel *release, id int64, at time.Time) {
 	old := fmt.Sprintf("%s.%d.1080p.WEB-DL.DDP5.1.H.264-OLD", strings.ReplaceAll(t.name, " ", "."), t.year)
 	s.exec(`INSERT INTO library_action (at, kind, mode, version_key, download_id, path, detail, release_title, quality,
@@ -727,8 +727,6 @@ func (s *seeder) historyExtras(t *title, v *version, rel *release, id int64, at 
 	for i, c := range []struct{ pk, state, msg string }{{"tb", "added", "Added to TB"}, {"ad", "not_cached",
 		"Not cached on AD; our add was deleted"}} {
 		at := at.Add(time.Duration(10+i) * time.Minute)
-		s.exec(`INSERT INTO provider_copy (info_hash, name, title_id, provider, state, message, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, rel.hash, rel.name, t.id, c.pk, c.state, c.msg, ms(at), ms(at))
 		s.exec(`INSERT INTO provider_copy_event (at, info_hash, name, title_id, provider, state, message, quality, score)
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, ms(at), rel.hash, rel.name, t.id, c.pk, c.state, c.msg, rel.quality, rel.score)
 	}

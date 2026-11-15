@@ -29,11 +29,7 @@ import { ProgressBar } from "@/components/activity-bits";
 import { History } from "@/components/title/versions";
 import { ProviderPills } from "@/components/provider-pills";
 import { TorrentLink } from "@/components/title/info-hash";
-import { AddToProviders, OtherProviders } from "@/components/title/provider-copies";
-import { useCopyFile } from "@/api/provider-copies";
 import { useLibraryName } from "@/lib/library-names";
-import { otherProvidersLine } from "@/lib/provider-copies";
-import { globalDownloadsOff } from "@/lib/version-grab";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
@@ -89,7 +85,6 @@ function fileRows(f: EpisodeVersionDetail["file"]): [React.ReactNode, React.Reac
   if (f.score !== undefined && f.score !== null) rows.push(["Profile score", fmtNumber(f.score)]);
   if (f.size_bytes) rows.push(["Size", fmtBytes(f.size_bytes)]);
   rows.push(["Cached on", <span key="c" className="flex flex-wrap items-center gap-x-2 gap-y-1"><ProviderPills codes={f.cached_on} /><TorrentLink hash={f.info_hash} /></span>]);
-  if (otherProvidersLine(f.copies, f.cached_on)) rows.push(["Other providers", <OtherProviders key="o" copies={f.copies} shown={f.cached_on} />]);
   const media = mediaLine(f.media);
   if (media) rows.push(["Media", <span key="m" title={f.media?.subtitles ? `Subtitles: ${subsList(f.media.subtitles)}` : undefined}>{media}</span>]);
   if (f.episodes && f.episodes.length > 1) rows.push(["In the file", f.episodes.join(", ")]);
@@ -199,7 +194,6 @@ function DetailsPart({ titleId, eid, epCode, d, aired, manage, admin, single, ac
       {rows.length > 0 ? (
         <div className="rounded-[5px] border border-[var(--line)] p-3" data-testid="episode-file">
           <KV items={rows} />
-          {manage && d.file ? <div className="mt-3"><EpisodeAddToProviders titleId={titleId} eid={eid} d={d} /></div> : null}
           {admin && d.file?.link_id ? (
             <div className="mt-3">
               <ChangeEpisodes titleId={titleId} linkId={d.file.link_id} path={d.file.path ?? ""} copy={d.label || nameOf(d.key)} held={d.file.episodes ?? []} />
@@ -211,11 +205,6 @@ function DetailsPart({ titleId, eid, epCode, d, aired, manage, admin, single, ac
   );
 }
 
-/** "Add to other providers" for the episode's file in one library (managers). */
-function EpisodeAddToProviders({ titleId, eid, d }: { titleId: number; eid: number; d: EpisodeVersionDetail }) {
-  const m = useCopyFile(titleId);
-  return <AddToProviders m={m} vars={{ version: d.key, episode_id: eid }} paused={globalDownloadsOff([d.control?.grab_state])} current={d.file?.copies} testid={`add-to-providers-${d.key}`} />;
-}
 
 /** One copy's history and journal. */
 function HistoryPart({ titleId, d, single }: { titleId: number; d: EpisodeVersionDetail; single: boolean }) {

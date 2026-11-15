@@ -4,8 +4,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"database/sql"
-	"encoding/base32"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,7 +11,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/theatarr/theatarr/internal/indexer"
 	"github.com/theatarr/theatarr/internal/store"
 )
 
@@ -309,68 +306,4 @@ func EndRemoved(ctx context.Context, tx *sql.Tx, titleID int64, keys []string, r
 		}
 	}
 	return n, nil
-}
-
-// copyWantedSQL is the condition that a hash, given as ?1 (lower-case hex) and ?2 (its lower-case base32 form, as a
-// row may store it), is still wanted by a current copy of a title: a download of it in hand, an active link of a
-// version not removed that records it or points at the same target as a link that records it.
-const copyWantedSQL = `(EXISTS (SELECT 1 FROM download d WHERE lower(d.info_hash) IN (?1, ?2)
-		AND d.state NOT IN ('failed', 'imported'))
-	OR EXISTS (SELECT 1 FROM link lc JOIN link_version lvc ON lvc.link_id = lc.id WHERE lc.state = 'active'
-		AND NOT EXISTS (SELECT 1 FROM arrview_removed_version r WHERE r.version_id = lvc.version_id)
-		AND lc.id IN (SELECT l.id FROM link l WHERE ` + LinkStoredHashSQL + ` IN (?1, ?2)
-			OR l.target IN (SELECT l.target FROM link l WHERE ` + LinkStoredHashSQL + ` IN (?1, ?2)))))`
-
-// StopRemovedCopies stops, in the removal's transaction, the queued copies to other providers (provider_copy) of
-// hashes a removal took from the library, so they are not started later or resumed at startup: each becomes
-// skipped with msg. A copy belongs to its hash and provider, not to a library, so one whose hash a current copy of
-// any title still wants (copyWantedSQL, the hash compared in hex and base32) is left as it is, and so is a copy already
-// adding or checking: it settles on its own, and a torrent it leaves shows under Torrents › Not used by Theatarr. It returns how
-// many copies it stopped.
-func StopRemovedCopies(ctx context.Context, tx *sql.Tx, hashes []string, msg string, at int64) (int, error) {
-	var done []string
-	n := 0
-	for _, h := range hashes {
-		if h = indexer.NormalizeHash(h); h == "" || slices.Contains(done, h) {
-			continue
-		}
-		done = append(done, h)
-		b, err := hex.DecodeString(h)
-		if err != nil {
-			continue
-		}
-		b32 := strings.ToLower(base32.StdEncoding.EncodeToString(b))
-		res, err := tx.ExecContext(ctx, `UPDATE provider_copy SET state = 'skipped', message = ?3, updated_at = ?4
-			WHERE state = 'queued' AND info_hash = ?1 AND NOT `+copyWantedSQL, h, b32, msg, at)
-		if err != nil {
-			return n, fmt.Errorf("router: stopping removed copies: %w", err)
-		}
-		k, err := res.RowsAffected()
-		if err != nil {
-			return n, err
-		}
-		n += int(k)
-	}
-	return n, nil
-}
-
-// EndRemovedOffers declines, in the removal's transaction, the pending offers (router_offer) into a title's removed
-// libraries (by policy key) with reason removed, as the sweep would on its next pass; an Add that restores the
-// library has them decided again (offerTo). It returns how many it declined.
-func EndRemovedOffers(ctx context.Context, tx *sql.Tx, titleID int64, keys []string, at int64) (int, error) {
-	if len(keys) == 0 {
-		return 0, nil
-	}
-	args := []any{`["` + offerRemoved + `"]`, at, titleID}
-	for _, k := range keys {
-		args = append(args, k)
-	}
-	res, err := tx.ExecContext(ctx, `UPDATE router_offer SET outcome = 'declined', reasons = ?, next_at = NULL,
-		updated_at = ? WHERE title_id = ? AND version_key IN (`+store.Placeholders(len(keys))+`)
-		AND outcome = 'pending'`, args...)
-	if err != nil {
-		return 0, fmt.Errorf("router: declining removed offers: %w", err)
-	}
-	n, err := res.RowsAffected()
-	return int(n), err
 }

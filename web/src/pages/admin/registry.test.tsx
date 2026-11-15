@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, screen, waitFor } from "@testing-library/react";
+import { cleanup, screen } from "@testing-library/react";
 import { Route, Routes } from "react-router";
 import { afterEach, expect, it } from "vitest";
 import { json, mockFetch, renderPage } from "@/test/page";
@@ -48,13 +48,12 @@ it("lists each hash with the Torrents page's usage and links, the state in words
   expect(screen.getByRole("link", { name: "Dragon Ball Z" }).getAttribute("href")).toBe("/title/7");
 });
 
-it("shows a hash's usage with five references and how many more, the providers with a header and a gone badge, its copies, and no empty sections", async () => {
+it("shows a hash's usage with five references and how many more, the providers with a header and a gone badge, and no empty sections", async () => {
   const hash = "c".repeat(40);
   const refs = Array.from({ length: 20 }, (_, i) => ({ kind: "link", detail: `/lib/E${i + 1}.mkv`, title_id: 7, title: "Dragon Ball Z" }));
   mockFetch([
     { method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["admin", "see_files"] } },
     { method: "GET", path: "/status", reply: { versions: [] } },
-    { method: "GET", path: "/torrents/copies", reply: { copies: [{ provider: "rd", state: "not_cached", updated_at: "2026-11-13T12:00:00Z" }] } },
     { method: "GET", path: `/registry/${hash}`, reply: {
       info_hash: hash, name: "[SoM] Dragon Ball Z", state: "unreferenced", size_bytes: 1024, first_seen_at: "2026-10-01T00:00:00Z", last_seen_at: "2026-11-13T00:00:00Z",
       providers: [
@@ -77,34 +76,9 @@ it("shows a hash's usage with five references and how many more, the providers w
   expect(rows[0].querySelector("[data-testid=provider-gone]")).toBeNull();
   expect(rows[1].querySelector("[data-testid=provider-gone]")?.textContent).toMatch(/^gone since /);
   expect(screen.queryByText("No library points at this content.")).toBeNull();
-  expect(screen.getByTestId("add-to-providers")).toBeTruthy();
-  // The hash's copies are read when the entry opens.
-  await waitFor(() => expect(screen.getByTestId("other-providers").textContent).toMatch(/^RD not cached/));
 });
 
-it("reads the entry again when a copy finishes as added, so Providers lists the new holder", async () => {
-  const hash = "f".repeat(40);
-  const entry = (providers: object[]) => ({ info_hash: hash, name: "Copied", state: "present", providers, files: [], links: [],
-    usage: { usage: "unused", linked_files: 0 } });
-  const tb = { provider: "tb", torrent_id: "77", folder_name: "Copied", seen_at: "2026-11-01T00:00:00Z", state: "present" };
-  const rd = { provider: "rd", torrent_id: "R1", folder_name: "Copied", seen_at: "2026-11-13T12:00:00Z", state: "present" };
-  let copied = false;
-  let reads = 0;
-  mockFetch([
-    { method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["admin", "see_files"] } },
-    { method: "GET", path: "/status", reply: { versions: [] } },
-    { method: "GET", path: "/torrents/copies", reply: () => {
-      reads++;
-      if (reads > 1) copied = true;
-      return { copies: [{ provider: "rd", state: copied ? "added" : "checking", updated_at: "2026-11-13T12:00:00Z" }] };
-    } },
-    { method: "GET", path: `/registry/${hash}`, reply: () => entry(copied ? [tb, rd] : [tb]) },
-  ]);
-  renderPage(<Routes><Route path="/admin/torrents/inventory/:hash" element={<RegistryContent />} /></Routes>, `/admin/torrents/inventory/${hash}`);
-  expect(await screen.findAllByTestId("inventory-provider")).toHaveLength(1);
-  await waitFor(() => expect(screen.getAllByTestId("inventory-provider")).toHaveLength(2), { timeout: 9000 });
-}, 15000);
-
+// opus A29, carbon C4: a held entry the accounts' last read has not seen does not also say no account holds it.
 it("says a hash no account holds has no usage worked out, not unused", async () => {
   const hash = "d".repeat(40);
   mockFetch([
@@ -114,17 +88,14 @@ it("says a hash no account holds has no usage worked out, not unused", async () 
   ]);
   renderPage(<Routes><Route path="/admin/torrents/inventory/:hash" element={<RegistryContent />} /></Routes>, `/admin/torrents/inventory/${hash}`);
   expect((await screen.findByTestId("inventory-usage")).textContent).toBe("No account holds it in the record, so its usage is not worked out.");
-  expect(screen.queryByTestId("inventory-copies")).toBeNull();
   expect(screen.getByText("Removed").className).toMatch(/bad-ink/);
 });
 
-// opus A29, carbon C4: a held entry the accounts' last read has not seen does not also say no account holds it.
 it("says a held hash without usage is not in the last read yet, not that no account holds it", async () => {
   const hash = "f".repeat(40);
   mockFetch([
     { method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["admin", "see_files"] } },
     { method: "GET", path: "/status", reply: { versions: [] } },
-    { method: "GET", path: "/torrents/copies", reply: { copies: [] } },
     { method: "GET", path: `/registry/${hash}`, reply: { info_hash: hash, name: "Fresh", state: "present", files: [], links: [],
       providers: [{ provider: "rd", torrent_id: "R9", folder_name: "Fresh", seen_at: "2026-11-14T00:00:00Z", state: "present" }] } },
   ]);

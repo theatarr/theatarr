@@ -37,9 +37,6 @@ func TestDeleteLibraryRemovesRows(t *testing.T) {
 			(100, '/remux/Shared.mkv', '/mnt/a', 1, 500, 0, 0), (101, '/remux/Shared-web.mkv', '/mnt/b', 1, 501, 0, 0),
 			(102, '/web/WebOnly.mkv', '/mnt/c', 2, 502, 0, 0)`,
 		`INSERT INTO link_version (link_id, version_id) VALUES (100, 11), (101, 11), (101, 12), (102, 22)`,
-		`INSERT INTO router_offer (version_key, title_id, info_hash, from_version, outcome, first_at, updated_at) VALUES
-			('movie-remux', 1, 'h1', 'movie-web', 'pending', 0, 0), ('movie-web', 1, 'h2', 'movie-remux', 'pending', 0, 0),
-			('movie-remux', 1, 'h3', 'movie-remux', 'same', 0, 0)`,
 		`INSERT INTO search_request (title_id, version_key, reason, created_at) VALUES (1, 'movie-web', 'missing', 0),
 			(1, 'movie-remux', 'cutoff', 0)`,
 		`INSERT INTO arrview_tag (id, label, created_at) VALUES (1, 'kids', 0)`,
@@ -64,8 +61,6 @@ func TestDeleteLibraryRemovesRows(t *testing.T) {
 			`SELECT l.id || l.path || l.target || l.state || ':' || lv.version_id FROM link l JOIN link_version lv
 				ON lv.link_id = l.id WHERE lv.version_id = 11`,
 			`SELECT id || state FROM download WHERE version_key = 'movie-remux'`,
-			`SELECT version_key || from_version || info_hash || outcome FROM router_offer WHERE version_key = 'movie-remux'
-				AND from_version = 'movie-remux'`,
 			`SELECT version_key || reason FROM search_request WHERE version_key = 'movie-remux'`,
 			`SELECT view || minimum_availability FROM arrview_title WHERE view = 'v/movie-remux'`,
 			`SELECT version || title_id FROM arrview_title_tag WHERE version = 'movie-remux'`,
@@ -131,7 +126,6 @@ func TestDeleteLibraryRemovesRows(t *testing.T) {
 		`SELECT group_concat(id || ':' || COALESCE(download_id, '-'), ' ') FROM (SELECT * FROM link ORDER BY id)`:                                     "100:500 101:-",
 		`SELECT group_concat(link_id || ':' || version_id, ' ') FROM link_version`:                                                                    "100:11 101:11",
 		`SELECT group_concat(id, ' ') FROM download`:                                                                                                  "500",
-		`SELECT group_concat(info_hash, ' ') FROM router_offer`:                                                                                       "h3",
 		`SELECT group_concat(version_key, ' ') FROM search_request`:                                                                                   "movie-remux",
 		`SELECT group_concat(version, ' ') FROM arrview_title_tag`:                                                                                    "movie-remux",
 		`SELECT group_concat(view, ' ') FROM arrview_title`:                                                                                           "v/movie-remux",

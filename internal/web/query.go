@@ -295,7 +295,7 @@ func nullInt(n sql.NullInt64) *int64 {
 }
 
 // A file's torrent hash: the one resolution the title page's current file, the episode window's file, their Cached on
-// (heldByHash), the Torrent link and "Add to other providers" all use: link l's content file's content, else the hash
+// (heldByHash) and the Torrent link use: link l's content file's content, else the hash
 // it records (its download's, the file metadata's InfoHash, the adopted source's), with or without a content row.
 const linkHashSQL = `COALESCE(` + router.LinkStoredHashSQL + `, '')`
 

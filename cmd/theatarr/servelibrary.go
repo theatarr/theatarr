@@ -53,8 +53,7 @@ var readyRecheck = 2 * time.Second
 // newServeLibrary builds one generation's library service. Its mount metrics are not registered here: serve registers
 // them once, against the active generation's library (serveLibrary.current).
 func newServeLibrary(pol *policy.Policy, st *store.Store, q *jobs.Queue, gw *gateway.Gateway, log *slog.Logger,
-	engine *decide.Engine, helper *library.MountHelper, provs map[string]provider.Provider,
-	onImported func(ctx context.Context, downloadID int64)) (*serveLibrary, error) {
+	engine *decide.Engine, helper *library.MountHelper, provs map[string]provider.Provider) (*serveLibrary, error) {
 	s := &serveLibrary{pol: pol, st: st, log: log.With("component", "library"), set: pol.LibrarySettings(),
 		gw: gw, engine: engine}
 	if p := s.set.Plex; p != nil {
@@ -69,8 +68,8 @@ func newServeLibrary(pol *policy.Policy, st *store.Store, q *jobs.Queue, gw *gat
 		}
 	}
 	s.lib = library.New(library.Options{Store: st, Policy: pol, Engine: engine, Queue: q, Logger: s.log, Formats: s.formats,
-		Matched: matchedRenameFormats(pol, s.decider), OnImported: onImported,
-		Zurg: newZurgAPI(s.set, gw, s.log), MountHelper: helper, ForgetDir: newRcloneForget(pol, s.set, gw),
+		Matched: matchedRenameFormats(pol, s.decider),
+		Zurg:    newZurgAPI(s.set, gw, s.log), MountHelper: helper, ForgetDir: newRcloneForget(pol, s.set, gw),
 		Decypharr: newDecypharr(pol, s.set, gw, s.log), TorrentFiles: providerTorrentFiles(st, provs)})
 	return s, nil
 }
