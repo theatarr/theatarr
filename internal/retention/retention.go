@@ -5,7 +5,7 @@
 // What it keeps, whatever its age:
 //   - the latest successful and the latest failed provider_sync_run of each provider;
 //   - the latest settings_quality_sync_run of each TRaSH source and outcome, and runs still running;
-//   - provider_cache rows that have not expired, or expired less than the runs window ago (rows without an expiry);
+//   - provider_cache rows that have not expired, or expired less than a day ago (rows without an expiry);
 //   - metadata detail responses and other sources used for offline reads and conditional refresh; expired TMDb and TVDB
 //     search responses drain in batches;
 //   - pending notify_delivery rows (only sent, failed and dropped ones go);
@@ -51,7 +51,7 @@ const Priority = -10
 type Config struct {
 	// History covers failed downloads, acquire runs, router plans, library actions and settings audit.
 	History time.Duration
-	// Runs covers provider and quality sync runs, finished notification deliveries and expired provider cache rows.
+	// Runs covers provider and quality sync runs and finished notification deliveries.
 	Runs time.Duration
 	// MaxBatches bounds the batches (of batchSize rows) one run deletes per table; 0 means 100.
 	MaxBatches int
@@ -94,7 +94,7 @@ var rules = []rule{
 	// ones stay whatever their age; the inbox writer caps the table at 5000 rows.
 	{table: "error_event", runs: true, where: `status IN ('resolved', 'ignored') AND last_seen < ?1
 		AND COALESCE(resolved_at, updated_at) < ?1`},
-	{table: "provider_cache", runs: true, where: `expires_at IS NOT NULL AND expires_at < ?1`},
+	{table: "provider_cache", where: `expires_at IS NOT NULL AND expires_at < ?2 - 86400000`},
 	// Search caches have arbitrary query/page keys; detail caches keep stale bodies and validators.
 	{table: "metadata_cache", runs: true, where: `expires_at <= ?2 AND ((source = 'tmdb' AND key GLOB '/search/*')
   OR (source = 'tvdb' AND (key GLOB 'GET */search[?]*' OR key GLOB 'GET */search/*')))`},

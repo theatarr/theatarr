@@ -80,7 +80,7 @@ writer. Code: `internal/retention`. The windows:
 | Setting | Default | Tables |
 |---|---|---|
 | `--retention-days` (`THEATARR_RETENTION_DAYS`) | 180 | failed `download` rows (their attempts, files and progress go with them), finished `acquire_run`, `router_plan`, `library_action`, `settings_audit` |
-| `--retention-run-days` (`THEATARR_RETENTION_RUN_DAYS`) | 30 | `provider_sync_run`, `settings_quality_sync_run`, sent, failed and dropped `notify_delivery`, `provider_cache` rows expired that long ago (cache evidence from every feed search would otherwise grow without bound; index `provider_cache_expires`, migration 00086) |
+| `--retention-run-days` (`THEATARR_RETENTION_RUN_DAYS`) | 30 | `provider_sync_run`, `settings_quality_sync_run`, sent, failed and dropped `notify_delivery`. `provider_cache` rows go a day after they expire, whatever this setting (cache evidence from every feed search would otherwise grow without bound; index `provider_cache_expires`, migration 00086; migration 00132 deleted the ones already past that) |
 
 0 keeps that kind for good. Kept whatever their age: the latest successful and the latest failed sync run of each
 provider; the latest quality sync run of each TRaSH source and outcome (the sync reads the latest run and the latest

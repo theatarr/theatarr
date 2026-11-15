@@ -110,8 +110,8 @@ func TestRetentionCoversEveryTable(t *testing.T) {
 	}
 }
 
-// TestPruneProviderCache: provider_cache rows expired for longer than the runs window go; live
-// rows, recently expired ones and rows without an expiry stay.
+// TestPruneProviderCache: provider_cache rows expired more than a day ago go; live rows, rows expired within the
+// day and rows without an expiry stay.
 func TestPruneProviderCache(t *testing.T) {
 	t.Parallel()
 	st := openStore(t)
@@ -120,7 +120,7 @@ func TestPruneProviderCache(t *testing.T) {
 	exec(t, st, `INSERT INTO provider_cache (info_hash, provider, state, source, checked_at, expires_at) VALUES
 		('old', 'rd', 'cached', 'feed:dmm', 0, ?), ('recent', 'rd', 'miss', 'router:miss', 0, ?),
 		('live', 'rd', 'miss', 'router:451', 0, ?), ('forever', 'rd', 'cached', 'add:rd', 0, NULL)`,
-		at(-60*24*time.Hour), at(-24*time.Hour), at(time.Hour))
+		at(-48*time.Hour), at(-12*time.Hour), at(time.Hour))
 	sum, err := Prune(context.Background(), st, now, Defaults)
 	if err != nil {
 		t.Fatal(err)
