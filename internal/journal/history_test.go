@@ -337,8 +337,13 @@ func TestHistoryAdoptionReplaced(t *testing.T) {
 	unlink(1, time.Hour+2*time.Second, "/movies/Beta/Beta.A.mkv", "Beta.2021.Bluray-A", "Bluray-2160p", 6650)
 	// B removed by hand hours later, nothing adopted beside it.
 	unlink(2, 5*time.Hour, "/movies/Beta/Beta.B.mkv", "Beta.2021.Remux-B", "Remux-2160p", 6500)
+	// C adopted, and unlinked again 20 s later: the adopted file going, not one it replaced.
+	adopt(3, 10*time.Hour, "/movies/Beta/Beta.C.mkv", "Beta.2021.Remux-C", "Remux-2160p", 7000)
+	unlink(3, 10*time.Hour+20*time.Second, "/movies/Beta/Beta.C.mkv", "Beta.2021.Remux-C", "Remux-2160p", 7000)
 	got := e.history(Filter{Title: "2"})
 	want := []string{
+		"removed Beta.2021.Remux-C Remux-2160p 7000 (deleted in Radarr)",
+		"adopted Beta.2021.Remux-C Remux-2160p 7000",
 		"removed Beta.2021.Remux-B Remux-2160p 6500 (deleted in Radarr)",
 		"adopted Beta.2021.Remux-B Remux-2160p 6500 replaced Beta.2021.Bluray-A",
 		"adopted Beta.2021.Bluray-A Bluray-2160p 6650",
@@ -350,12 +355,13 @@ func TestHistoryAdoptionReplaced(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if r := p.Items[0].Replaced; len(r) != 1 || r[0].Path != "/movies/Beta/Beta.A.mkv" || r[0].Release.Quality !=
+	if r := p.Items[1].Replaced; len(r) != 1 || r[0].Path != "/movies/Beta/Beta.A.mkv" || r[0].Release.Quality !=
 		"Bluray-2160p" || *r[0].Release.Score != 6650 {
 		t.Errorf("replaced: %+v", r)
 	}
 	got = e.history(Filter{Title: "2", Events: []string{EvRemoved}})
 	want = []string{
+		"removed Beta.2021.Remux-C Remux-2160p 7000 (deleted in Radarr)",
 		"removed Beta.2021.Remux-B Remux-2160p 6500 (deleted in Radarr)",
 		"removed Beta.2021.Bluray-A Bluray-2160p 6650 (deleted in Radarr)",
 	}
@@ -372,7 +378,41 @@ func TestHistoryAdoptionReplaced(t *testing.T) {
 			break
 		}
 	}
-	if n != 2 {
-		t.Errorf("pages: %d, want 3", n+1)
+	if n != 4 {
+		t.Errorf("pages: %d, want 5", n+1)
+	}
+}
+
+// A pack upgrade that replaced E01 and brought E02-E03 as well, partly imported: its one Upgraded row lists the
+// episodes the import brought (the old file's in Replaced) and keeps the import's partial state.
+func TestHistoryPackUpgrade(t *testing.T) {
+	e := newEnv(t)
+	at := testNow.Add(-time.Hour)
+	e.dlEvent(60, "imported", at, 3, 3, "tv-2160p", hashC, "Gamma.S01.2160p.NEW", "WEBDL-2160p", 2000, 9<<30,
+		[]int64{101, 102, 103, 104}, "")
+	e.exec(`INSERT INTO library_import (download_id, state, mount_folder, plan, created_at, updated_at)
+		VALUES (60, 'partial', '/m/G', '{}', ?, ?)`, msOf(at.Add(time.Minute)), msOf(at.Add(time.Minute)))
+	for i, ep := range []int64{101, 102, 103} {
+		e.exec(`INSERT INTO library_action (at, kind, mode, version_key, download_id, link_id, path, title_id, episodes)
+			VALUES (?, 'link', 'applied', 'tv-2160p', 60, ?, ?, 3, ?)`, msOf(at.Add(time.Minute)), 70+i,
+			fmt.Sprintf("/tv/G/new%d.mkv", ep), fmt.Sprintf("[%d]", ep))
+	}
+	e.exec(`INSERT INTO library_action (at, kind, mode, version_key, download_id, path, detail, release_title, quality,
+		score, title_id, episodes) VALUES (?, 'replace', 'applied', 'tv-2160p', 60, '/tv/G/S01E01.old.mkv',
+		'moved aside to /trash/g', 'Gamma.S01E01.OLD', 'WEBDL-1080p', 500, 3, '[101]')`, msOf(at.Add(time.Minute))+1)
+	got := e.history(Filter{Title: "3"})
+	want := []string{
+		"deleted Gamma.S01.2160p.NEW WEBDL-2160p 2000 [S01E01,S01E02,S01E03] replaced Gamma.S01E01.OLD",
+		"grabbed Gamma.S01.2160p.NEW WEBDL-2160p 2000 [S01E01,S01E02,S01E03,S01E04]",
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("rows:\n got %q\nwant %q", got, want)
+	}
+	p, err := e.j.History(context.Background(), Filter{Title: "3", Events: []string{EvDeleted}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if x := p.Items[0]; x.Import != "partial" || strings.Join(x.Replaced[0].Episodes, ",") != "S01E01" {
+		t.Errorf("upgrade row: import %q, replaced %+v", x.Import, x.Replaced)
 	}
 }

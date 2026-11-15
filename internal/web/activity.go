@@ -747,6 +747,9 @@ func entryWords(h *journal.HistoryRow, notStarted string, tag func(string) strin
 	case journal.EvAdopted:
 		return "Adopted", "ok"
 	case journal.EvDeleted:
+		if h.Import == "partial" {
+			return "Upgraded", "warn"
+		}
 		return "Upgraded", "ok"
 	case journal.EvRemoved:
 		return "Removed", "info"
@@ -785,7 +788,8 @@ func historyReason(h *journal.HistoryRow, notStarted string, tag func(string) st
 			return blockWords(h.Source)
 		}
 		return blockWords(h.Source) + ": " + h.Reason
-	case journal.EvImported:
+	case journal.EvImported, journal.EvDeleted:
+		// An upgrade's row carries its import's state.
 		if h.Import == "partial" {
 			return "Partly imported; the rest is tried again"
 		}

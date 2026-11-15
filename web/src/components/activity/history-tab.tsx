@@ -70,7 +70,7 @@ function EventRow({ e }: { e: ActivityEvent }) {
         <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
           <div className="flex min-w-0 items-center gap-2">
             <span className={cn("size-2 shrink-0 rounded-full", EVENT_TONE[e.tone])} aria-hidden />
-            <span className="text-sm font-medium" title={eventMeaning(e.words) || undefined}>{e.words}</span>
+            <span className="text-sm font-medium">{e.words}</span>
           </div>
           <span className="text-xs tabular-nums text-muted-foreground" title={fmtTime(e.at)}>
             {new Date(e.at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}

@@ -177,9 +177,10 @@ func (j *Journal) History(ctx context.Context, f Filter) (*HistoryPage, error) {
 	// Folded rows (historyWhere): an upgrade takes its import's release facts and journal entry; an adoption the files
 	// its removals took out, as an upgrade's replaced files.
 	type importFacts struct {
-		version, hash, indexer, provider string
-		size                             int64
-		formats                          sql.NullString
+		version, hash, indexer, provider, state string
+		size                                    int64
+		formats                                 sql.NullString
+		episodes                                []int64
 	}
 	imports := map[string]importFacts{}
 	var importRefs, adoptRefs []string
@@ -192,16 +193,20 @@ func (j *Journal) History(ctx context.Context, f Filter) (*HistoryPage, error) {
 		}
 	}
 	if len(importRefs) > 0 {
-		if err := l.query(`SELECT ref, version_key, info_hash, indexer, size, formats, provider FROM history
-			WHERE ref IN (SELECT value FROM json_each(?))`, []any{jsonList(importRefs)}, func(r *sql.Rows) error {
-			var ref string
-			var x importFacts
-			if err := r.Scan(&ref, &x.version, &x.hash, &x.indexer, &x.size, &x.formats, &x.provider); err != nil {
-				return err
-			}
-			imports[ref] = x
-			return nil
-		}); err != nil {
+		if err := l.query(`SELECT ref, version_key, info_hash, indexer, size, formats, provider, import_state, episodes
+			FROM history WHERE ref IN (SELECT value FROM json_each(?))`, []any{jsonList(importRefs)},
+			func(r *sql.Rows) error {
+				var ref, eps string
+				var x importFacts
+				if err := r.Scan(&ref, &x.version, &x.hash, &x.indexer, &x.size, &x.formats, &x.provider, &x.state,
+					&eps); err != nil {
+					return err
+				}
+				_ = json.Unmarshal([]byte(eps), &x.episodes)
+				l.epIDs = append(l.epIDs, x.episodes...)
+				imports[ref] = x
+				return nil
+			}); err != nil {
 			return nil, fmt.Errorf("journal: history: %w", err)
 		}
 	}
@@ -212,7 +217,8 @@ func (j *Journal) History(ctx context.Context, f Filter) (*HistoryPage, error) {
 		}
 		if err := l.query(`SELECT p.ref, CAST(substr(history.ref, 5) AS INTEGER), history.at, history.release,
 				history.quality, history.score, history.episodes, COALESCE(la.path, '')
-			FROM history p JOIN history ON history.event = 'removed' AND `+adoptionOfRemovalSQL+`
+			FROM history p JOIN history ON history.event = 'removed'
+				AND `+adoptionOfRemovalSQL(`history.at BETWEEN p.at - 60000 AND p.at + 60000`)+`
 			LEFT JOIN library_action la ON la.id = CAST(substr(history.ref, 5) AS INTEGER)
 			WHERE p.ref IN (SELECT value FROM json_each(?)) ORDER BY history.at, history.ref`,
 			[]any{jsonList(adoptRefs)}, func(r *sql.Rows) error {
@@ -337,7 +343,8 @@ func (j *Journal) History(ctx context.Context, f Filter) (*HistoryPage, error) {
 			x.Removal = &rm
 		}
 		if x.Event == EvDeleted && s.dl.Valid {
-			// The upgrade's row stands for its import: the import's release facts and journal entry.
+			// The upgrade's row stands for its import: the import's release facts, episodes (the files it brought; the
+			// old files' are in Replaced), state (a partial import) and journal entry.
 			ref := fmt.Sprintf("dl:%d:import", s.dl.Int64)
 			if im, ok := imports[ref]; ok && im.version == s.h.version {
 				if x.Release != nil {
@@ -349,6 +356,7 @@ func (j *Journal) History(ctx context.Context, f Filter) (*HistoryPage, error) {
 				if x.Provider == "" {
 					x.Provider = im.provider
 				}
+				x.Episodes, x.Import = l.labelsOf(im.episodes), im.state
 				if live[ref] {
 					x.Entry = ref
 				}
@@ -475,43 +483,62 @@ func (j *Journal) historyFilter(ctx context.Context, f *Filter) (string, []any, 
 	return where, args, false, nil
 }
 
-// historyWhere is the filter of the history rows, with the rows another row stands for left out (historyFolded).
+// historyWhere is the filter of the history rows, with the rows another row stands for left out (docs/journal.md
+// "History's folded rows"): an upgrade's import, and a removal its adoption replaced, are shown on their partner's row
+// when that row is listed too, so a page or a filter never shows half of a pair. The partner shares the row's title
+// and library, so of the filter only the event, kind and since bounds can tell them apart.
 func historyWhere(f Filter, titles []int64, cur *cursor) (string, []any) {
-	w, args := historyMatch(f, titles, "")
-	pm, pargs := historyMatch(f, titles, "p.")
-	pw := strings.Join(pm, " AND ")
-	// An upgrade's import, and a removal its adoption replaced, are shown on their partner's row when that row is
-	// listed too (the same filter), so a page or a filter never shows half of a pair.
-	w = append(w,
-		`NOT (event = 'imported' AND EXISTS (SELECT 1 FROM history p WHERE `+upgradeOfImportSQL+` AND `+pw+`))`,
-		`NOT (event = 'removed' AND EXISTS (SELECT 1 FROM history p WHERE `+adoptionOfRemovalSQL+` AND `+pw+`))`)
-	args = append(append(args, pargs...), pargs...)
+	w, args := historyMatch(f, titles)
+	// listed: a partner row (kind link) with event ev can be listed under f's events and kinds.
+	listed := func(ev string) bool {
+		return (len(f.Events) == 0 || slices.Contains(f.Events, ev)) && (len(f.Kinds) == 0 || slices.Contains(f.Kinds, KindLink))
+	}
+	since, sinceArgs := "", []any{}
+	if !f.Since.IsZero() {
+		since, sinceArgs = ` AND p.at >= ?`, []any{store.Millis(f.Since)}
+	}
+	if listed(EvDeleted) {
+		w = append(w, `NOT (event = 'imported' AND EXISTS (SELECT 1 FROM history p WHERE `+upgradeOfImportSQL+since+`))`)
+		args = append(args, sinceArgs...)
+	}
+	if listed(EvAdopted) {
+		w = append(w, `NOT (event = 'removed' AND EXISTS (SELECT 1 FROM history p WHERE `+
+			adoptionOfRemovalSQL(`p.at BETWEEN history.at - 60000 AND history.at + 60000`)+since+`))`)
+		args = append(args, sinceArgs...)
+	}
 	if cur != nil {
 		w, args = append(w, `(at < ? OR (at = ? AND ref < ?))`), append(args, cur.at, cur.at, cur.id)
 	}
 	return strings.Join(w, " AND "), args
 }
 
-// Folded rows (docs/journal.md "History's folded rows"): p is the partner row that stands for the row history.
-const (
-	// The upgrade row (deleted) of an import: the same download and library.
-	upgradeOfImportSQL = `p.event = 'deleted' AND p.download_id = history.download_id
-		AND p.version_key IS history.version_key`
-	// The adoption that replaced a removed file: the same title and library, within a minute (an adoption's row is
-	// dated by its group's latest file, and the unlink is a step of its own), and the same episodes (a movie's none).
-	adoptionOfRemovalSQL = `p.event = 'adopted' AND p.title_id = history.title_id
-		AND p.version_key IS history.version_key AND p.at BETWEEN history.at - 60000 AND history.at + 60000
-		AND ((json_array_length(p.episodes) = 0 AND json_array_length(history.episodes) = 0)
-			OR EXISTS (SELECT 1 FROM json_each(p.episodes) pe, json_each(history.episodes) he WHERE pe.value = he.value))`
-)
+// The upgrade row (deleted, alias p) of an import (history): the same download and library.
+const upgradeOfImportSQL = `p.event = 'deleted' AND p.download_id = history.download_id
+	AND p.version_key IS history.version_key`
 
-// historyMatch is the filter's conditions on the history columns, each column named with prefix ("" or "p.").
-func historyMatch(f Filter, titles []int64, prefix string) ([]string, []any) {
+// adoptionOfRemovalSQL is the adoption (alias p) that replaced a removed file (history): the same title and library,
+// within a minute (window: the bound on p.at or on history.at, so the (title_id, at) index serves the side looked up;
+// an adoption's row is dated by its group's latest file, and the unlink is a step of its own), and the same episodes
+// (a movie's none). A removal of a file that arrived within that minute, or of the adoption's own link, is the
+// adopted file going again, not one it replaced.
+func adoptionOfRemovalSQL(window string) string {
+	return `p.event = 'adopted' AND p.title_id = history.title_id AND p.version_key IS history.version_key
+		AND ` + window + `
+		AND ((json_array_length(p.episodes) = 0 AND json_array_length(history.episodes) = 0)
+			OR EXISTS (SELECT 1 FROM json_each(p.episodes) pe, json_each(history.episodes) he WHERE pe.value = he.value))
+		AND NOT EXISTS (SELECT 1 FROM library_action ra LEFT JOIN link l ON l.id = ra.link_id
+			LEFT JOIN library_action aa ON aa.id = CAST(substr(p.ref, 5) AS INTEGER)
+			WHERE ra.id = CAST(substr(history.ref, 5) AS INTEGER)
+			AND (l.created_at >= history.at - 60000 OR ra.link_id = aa.link_id))`
+}
+
+// historyMatch is the filter's conditions on the history columns.
+func historyMatch(f Filter, titles []int64) ([]string, []any) {
 	w := []string{"1 = 1"}
 	var args []any
-	in := func(col string, n int) { w = append(w, prefix+col+` IN (`+store.Placeholders(n)+`)`) }
+	in := func(col string, n int) { w = append(w, col+` IN (`+store.Placeholders(n)+`)`) }
 	if !f.Since.IsZero() {
-		w, args = append(w, prefix+`at >= ?`), append(args, store.Millis(f.Since))
+		w, args = append(w, `at >= ?`), append(args, store.Millis(f.Since))
 	}
 	if f.Title != "" {
 		in("title_id", len(titles))
@@ -524,10 +551,10 @@ func historyMatch(f Filter, titles []int64, prefix string) ([]string, []any) {
 		for _, t := range f.Within {
 			vs, narrowed := f.WithinVersions[t]
 			if !narrowed {
-				or, args = append(or, prefix+`title_id = ?`), append(args, t)
+				or, args = append(or, `title_id = ?`), append(args, t)
 				continue
 			}
-			or, args = append(or, prefix+`title_id = ? AND COALESCE(`+prefix+`version_key, '') IN (''`+strings.Repeat(", ?", len(vs))+`)`),
+			or, args = append(or, `title_id = ? AND COALESCE(version_key, '') IN (''`+strings.Repeat(", ?", len(vs))+`)`),
 				append(args, t)
 			for _, v := range vs {
 				args = append(args, v)
@@ -537,12 +564,12 @@ func historyMatch(f Filter, titles []int64, prefix string) ([]string, []any) {
 	}
 	switch f.TitleKind {
 	case "anime":
-		w = append(w, prefix+`title_id IN (SELECT id FROM title WHERE anime = 1)`)
+		w = append(w, `title_id IN (SELECT id FROM title WHERE anime = 1)`)
 	case "movie", "series":
-		w, args = append(w, prefix+`title_id IN (SELECT id FROM title WHERE anime = 0 AND kind = ?)`), append(args, f.TitleKind)
+		w, args = append(w, `title_id IN (SELECT id FROM title WHERE anime = 0 AND kind = ?)`), append(args, f.TitleKind)
 	}
 	if f.Version != "" {
-		w, args = append(w, prefix+`version_key = ?`), append(args, f.Version)
+		w, args = append(w, `version_key = ?`), append(args, f.Version)
 	}
 	if len(f.Kinds) > 0 {
 		in("kind", len(f.Kinds))

@@ -343,7 +343,7 @@ func TestActivityReleaseFacts(t *testing.T) {
 	}
 	if links != 1 || replace.Event != "deleted" || replace.Words != "Upgraded" ||
 		replace.Release != "Alpha.2020.2160p.WEB" || replace.Quality != "WEBDL-2160p" || len(replace.Replaced) != 1 ||
-		replace.Replaced[0].Release != "" {
+		replace.Replaced[0].Release != "" || replace.Replaced[0].Quality != "" || replace.Replaced[0].Score != nil {
 		t.Errorf("replace row (%d link rows): %+v", links, replace)
 	}
 
@@ -1135,5 +1135,16 @@ func TestActivityQueueFailureRule(t *testing.T) {
 		if !seen[id] {
 			t.Errorf("history lacks %s: %v", id, seen)
 		}
+	}
+}
+
+// An upgrade's row carries its import's state: a partial one says so, as an Imported row does.
+func TestHistoryPartialUpgradeWords(t *testing.T) {
+	h := &journal.HistoryRow{Event: journal.EvDeleted, Import: "partial"}
+	if w, tone := historyWords(h); w != "Upgraded" || tone != "warn" {
+		t.Errorf("words %q %q", w, tone)
+	}
+	if r := historyReason(h, "", strings.ToUpper); r != "Partly imported; the rest is tried again" {
+		t.Errorf("reason %q", r)
 	}
 }

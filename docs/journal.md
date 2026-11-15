@@ -212,15 +212,18 @@ changes, and the episode window, which shows no upgrade or removal rows, is unch
 
 - An upgrade: the `deleted` row of a download and library stands for that download's import (`dl:<id>:import`, the
   same download and library). It shows the new release (its quality, score, and the import's hash, indexer, size and
-  formats), the replaced files in `Replaced`, and links to the import's journal entry; the import's own row is left
-  out. A first import (nothing replaced) stays Grabbed then Imported; Grabbed is always its own row.
+  formats), the import's episodes (what the new release brought; the old files' are in `Replaced`) and state (a
+  partial import says so, as on Imported), the replaced files in `Replaced`, and links to the import's journal entry;
+  the import's own row is left out. A first import (nothing replaced) stays Grabbed then Imported; Grabbed is always its own row.
 - An adoption that replaced a file: a `removed` row is left out when an `adopted` row of the same title and library,
   dated within a minute of it, holds one of its episodes (both none for a movie); the adopted row lists it in
   `Replaced` (path from its library action, release, quality, score, episodes). A removal with no such adoption stays
-  Removed.
+  Removed, and so does the removal of the adopted file itself (its link is the adoption's, or it arrived within that
+  minute).
 
-A row is left out only when the row that stands for it matches the same filter (title, library, kinds, events, since,
-the caller's scope), checked in the SQL that pages, so a page boundary or a filter never shows half of a pair: with
+A row is left out only when the row that stands for it matches the same filter, checked in the SQL that pages (the
+partner shares the row's title and library, so only the event and kind filters, decided in Go, and the since bound,
+in the SQL, can tell them apart), so a page boundary or a filter never shows half of a pair: with
 the Imported filter an upgrade's import is listed as Imported (the upgrade row is not), with Deleted and removed a
 removal its adoption replaced is listed as Removed. Rows at the same time keep their order: newest first by time, then
 by journal id, so an upgrade or import shows above its grab.
