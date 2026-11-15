@@ -131,6 +131,12 @@ func TestPruneProviderCache(t *testing.T) {
 	if n := count(t, st, `SELECT COUNT(*) FROM provider_cache`); n != 3 {
 		t.Fatalf("%d rows kept, want 3", n)
 	}
+	// Without retention windows (--retention-days 0) expired cache rows still go.
+	exec(t, st, `INSERT INTO provider_cache (info_hash, provider, state, source, checked_at, expires_at) VALUES
+		('old', 'rd', 'cached', 'feed:dmm', 0, ?)`, at(-48*time.Hour))
+	if sum, err := Prune(context.Background(), st, now, Config{}); err != nil || sum["provider_cache"] != 1 {
+		t.Fatalf("pruned without windows %v %v", sum, err)
+	}
 }
 
 // Query strings create new search/discovery keys; expired ones must drain in bounded batches.

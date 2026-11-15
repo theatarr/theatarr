@@ -72,6 +72,8 @@ type rule struct {
 	// it, so a run whose children are kept stays too.
 	where string
 	runs  bool
+	// always runs the rule whatever the windows (it names its own cutoff from ?2).
+	always bool
 }
 
 // rules run in order.
@@ -94,7 +96,7 @@ var rules = []rule{
 	// ones stay whatever their age; the inbox writer caps the table at 5000 rows.
 	{table: "error_event", runs: true, where: `status IN ('resolved', 'ignored') AND last_seen < ?1
 		AND COALESCE(resolved_at, updated_at) < ?1`},
-	{table: "provider_cache", where: `expires_at IS NOT NULL AND expires_at < ?2 - 86400000`},
+	{table: "provider_cache", always: true, where: `expires_at IS NOT NULL AND expires_at < ?2 - 86400000`},
 	// Search caches have arbitrary query/page keys; detail caches keep stale bodies and validators.
 	{table: "metadata_cache", runs: true, where: `expires_at <= ?2 AND ((source = 'tmdb' AND key GLOB '/search/*')
   OR (source = 'tvdb' AND (key GLOB 'GET */search[?]*' OR key GLOB 'GET */search/*')))`},
@@ -124,7 +126,8 @@ var rules = []rule{
 // Summary is the rows deleted per table.
 type Summary map[string]int64
 
-// Prune deletes what the config no longer keeps, as of now. A zero window keeps that kind of row for good.
+// Prune deletes what the config no longer keeps, as of now. A zero window keeps that kind of row for good; provider
+// cache rows go a day after they expire whatever the windows.
 func Prune(ctx context.Context, st *store.Store, now time.Time, cfg Config) (Summary, error) {
 	batches := cfg.MaxBatches
 	if batches <= 0 {
@@ -145,7 +148,7 @@ func Prune(ctx context.Context, st *store.Store, now time.Time, cfg Config) (Sum
 		if r.runs {
 			keep = cfg.Runs
 		}
-		if keep <= 0 {
+		if keep <= 0 && !r.always {
 			continue
 		}
 		args := []any{store.Millis(now.Add(-keep))}
