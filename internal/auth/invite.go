@@ -3,7 +3,6 @@ package auth
 import (
 	"context"
 	"crypto/rand"
-	"crypto/subtle"
 	"database/sql"
 	"encoding/hex"
 	"errors"
@@ -105,10 +104,10 @@ func (s *Service) inviteGate(ctx context.Context, token, addr string) (int64, In
 	}
 	h := sha(token)
 	var id, expires int64
-	var stored, name string
-	err := s.st.Reader().QueryRowContext(ctx, `SELECT id, invite_token_hash, invite_expires_at, display_name
-		FROM web_user WHERE status = ? AND invite_token_hash = ?`, StatusInvited, h).Scan(&id, &stored, &expires, &name)
-	if errors.Is(err, sql.ErrNoRows) || err == nil && subtle.ConstantTimeCompare([]byte(stored), []byte(h)) != 1 {
+	var name string
+	err := s.st.Reader().QueryRowContext(ctx, `SELECT id, invite_expires_at, display_name
+		FROM web_user WHERE status = ? AND invite_token_hash = ?`, StatusInvited, h).Scan(&id, &expires, &name)
+	if errors.Is(err, sql.ErrNoRows) {
 		return 0, Invite{}, ErrInviteUnknown
 	}
 	if err != nil {

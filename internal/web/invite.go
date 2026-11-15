@@ -120,6 +120,12 @@ func decodeInvite(rw http.ResponseWriter, r *http.Request) (inviteRequest, bool)
 	return req, true
 }
 
+// What a dead invite link says.
+const (
+	inviteExpiredMsg = "This invite link has expired. Ask for a new one."
+	inviteUnknownMsg = "This invite link is not valid or has already been used."
+)
+
 // inviteFailed answers a refused invite; it reports whether err was one.
 func (w *Web) inviteFailed(rw http.ResponseWriter, err error) bool {
 	var thr *auth.Throttled
@@ -127,9 +133,9 @@ func (w *Web) inviteFailed(rw http.ResponseWriter, err error) bool {
 	case err == nil:
 		return false
 	case errors.Is(err, auth.ErrInviteExpired):
-		writeJSON(rw, http.StatusGone, apiError{Error: "This invite link has expired. Ask for a new one."})
+		writeJSON(rw, http.StatusGone, apiError{Error: inviteExpiredMsg})
 	case errors.Is(err, auth.ErrInviteUnknown):
-		writeJSON(rw, http.StatusNotFound, apiError{Error: "This invite link is not valid or has already been used."})
+		writeJSON(rw, http.StatusNotFound, apiError{Error: inviteUnknownMsg})
 	case errors.As(err, &thr):
 		rw.Header().Set("Retry-After", retryAfter(thr, w.now()))
 		writeJSON(rw, http.StatusTooManyRequests, apiError{Error: "Too many tries. Try again later."})

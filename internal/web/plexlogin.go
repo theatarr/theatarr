@@ -63,7 +63,7 @@ func (w *Web) apiPlexStart(rw http.ResponseWriter, r *http.Request) {
 
 // PlexPoll is the answer to POST auth/plex/poll. Status: waiting, signed_in, pending (the account waits for an
 // admin), denied (no access to our server), disabled, expired, taken (an invite for a Plex account that already has
-// an account), error.
+// an account), invite_gone (the invite expired, was used or revoked), error.
 type PlexPoll struct {
 	Status    string `json:"status"`
 	Error     string `json:"error,omitempty"`
@@ -169,7 +169,14 @@ func (w *Web) plexInvite(rw http.ResponseWriter, r *http.Request, token string, 
 			Error: "This Plex account already has an account here. Sign in on the sign-in page instead."})
 		return
 	}
-	if w.inviteFailed(rw, err) {
+	switch {
+	case errors.Is(err, auth.ErrInviteExpired):
+		writeJSON(rw, http.StatusGone, PlexPoll{Status: "invite_gone", Error: inviteExpiredMsg})
+		return
+	case errors.Is(err, auth.ErrInviteUnknown):
+		writeJSON(rw, http.StatusNotFound, PlexPoll{Status: "invite_gone", Error: inviteUnknownMsg})
+		return
+	case w.inviteFailed(rw, err):
 		return
 	}
 	w.publishUsersChanged()

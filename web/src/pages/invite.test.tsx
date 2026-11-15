@@ -1,16 +1,13 @@
 // @vitest-environment jsdom
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { Route, Routes } from "react-router";
-import { afterEach, expect, it } from "vitest";
+import { Link, Route, Routes } from "react-router";
+import { expect, it } from "vitest";
 import { InvitePage } from "./invite";
 import { json, mockFetch, renderPage } from "@/test/page";
 
-afterEach(() => window.history.replaceState(null, "", "/"));
-
 function renderInvite(token: string) {
-  window.history.replaceState(null, "", `/invite${token ? `#${token}` : ""}`);
-  return renderPage(<Routes><Route path="/invite" element={<InvitePage />} /><Route path="/" element={<p>Home page</p>} /></Routes>, "/invite");
+  return renderPage(<><Link to="/invite#second">another link</Link><Routes><Route path="/invite" element={<InvitePage />} /><Route path="/" element={<p>Home page</p>} /></Routes></>, `/invite${token ? `#${token}` : ""}`);
 }
 
 it("lets an invited person choose a username and password, sends the token in the body only, and lands on Home", async () => {
@@ -42,4 +39,39 @@ it("says plainly when a link is expired, used or missing, and offers nothing els
   r.unmount();
   renderInvite("");
   expect((await screen.findByTestId("invite-line")).textContent).toBe("This invite link is not valid or has already been used.");
+});
+
+it("reads a second invite link opened in the same tab afresh", async () => {
+  const user = userEvent.setup();
+  const fetch = mockFetch([
+    { method: "POST", path: "/auth/invite", reply: (r: { body?: unknown }) => (r.body as { token: string }).token === "second"
+      ? { name: "Cy", expires_at: "2099-01-01T00:00:00Z", plex: false }
+      : json({ error: "This invite link has expired. Ask for a new one." }, 410) },
+  ]);
+  renderInvite("old");
+  expect((await screen.findByTestId("invite-line")).textContent).toBe("This invite link has expired. Ask for a new one.");
+  await user.click(screen.getByRole("link", { name: "another link" }));
+  expect((await screen.findByTestId("invite-line")).textContent).toContain("Cy, you have been invited");
+  expect((screen.getByLabelText("Username") as HTMLInputElement).value).toBe("cy");
+  expect(fetch.calls("POST", "/auth/invite").map((r) => (r.body as { token: string }).token)).toEqual(["old", "second"]);
+});
+
+it("ends on the dead-link message when the invite is gone at a Plex sign-in", async () => {
+  const opened = { location: { href: "" }, close: () => {} };
+  const realOpen = window.open;
+  window.open = (() => opened) as unknown as typeof window.open;
+  try {
+    const user = userEvent.setup();
+    mockFetch([
+      { method: "POST", path: "/auth/invite", reply: { name: "", expires_at: "2099-01-01T00:00:00Z", plex: true } },
+      { method: "POST", path: "/auth/plex/start", reply: { id: "pin", auth_url: "https://app.plex.tv/auth", expires_at: "2099-01-01T00:00:00Z" } },
+      { method: "POST", path: "/auth/plex/poll", reply: json({ status: "invite_gone", error: "This invite link is not valid or has already been used." }, 404) },
+    ]);
+    renderInvite("tok");
+    await user.click(await screen.findByTestId("invite-plex"));
+    expect(await screen.findByText("This invite link is not valid or has already been used.", {}, { timeout: 4000 })).toBeTruthy();
+    expect(screen.queryByRole("textbox")).toBeNull();
+  } finally {
+    window.open = realOpen;
+  }
 });

@@ -211,7 +211,9 @@ func (w *Web) apiCreateKey(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if owner != auth.FromContext(r.Context()).UserID {
-		if _, err := w.auth.GetUser(r.Context(), owner); errors.Is(err, auth.ErrUserNotFound) {
+		// An invite is not an account yet: it gets no key.
+		if u, err := w.auth.GetUser(r.Context(), owner); errors.Is(err, auth.ErrUserNotFound) ||
+			err == nil && u.Status == auth.StatusInvited {
 			notFound(rw)
 			return
 		}

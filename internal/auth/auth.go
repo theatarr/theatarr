@@ -582,7 +582,8 @@ func (s *Service) CheckCSRF(r *http.Request) bool {
 }
 
 // ResetPassword sets username's password, creating the account if it does not exist, and ends its sessions. It
-// works on the database alone, so `theatarr admin reset-password` can run while the service is stopped.
+// works on the database alone, so `theatarr admin reset-password` can run while the service is stopped. An invite's
+// row (status invited) is refused: it becomes an account only through its link.
 func ResetPassword(ctx context.Context, st *store.Store, username, password string) error {
 	if len(password) < MinPasswordLen {
 		return fmt.Errorf("password too short: at least %d characters", MinPasswordLen)
@@ -596,6 +597,14 @@ func ResetPassword(ctx context.Context, st *store.Store, username, password stri
 	}
 	now := store.Millis(time.Now())
 	return st.WriteTx(ctx, func(tx *sql.Tx) error {
+		var invited bool
+		if err := tx.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM web_user WHERE username = ? AND status = ?)`,
+			username, StatusInvited).Scan(&invited); err != nil {
+			return err
+		}
+		if invited {
+			return fmt.Errorf("%s is an invite, not an account", username)
+		}
 		res, err := tx.ExecContext(ctx, `UPDATE web_user SET password_hash = ?, updated_at = ?, password_changed_at = ?
 			WHERE username = ?`, hash, now, now, username)
 		if err != nil {

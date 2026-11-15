@@ -120,7 +120,9 @@ export function usePlexLogin() {
           p = await api<Poll>("/auth/plex/poll", { method: "POST", body: invite ? { id: st.id, invite } : { id: st.id }, redirectOn401: false });
         } catch (e) {
           if (e instanceof ApiError) {
-            const status = e.status === 409 ? "taken" : e.status === 410 ? "expired" : e.status === 403 ? (/disabled/i.test(e.message) ? "disabled" : "denied") : "error";
+            // The server names the outcome in the body's status when it sends one (taken, invite_gone, ...).
+            const named = (e.body as { status?: unknown } | undefined)?.status;
+            const status = typeof named === "string" ? named : e.status === 409 ? "taken" : e.status === 410 ? "expired" : e.status === 403 ? (/disabled/i.test(e.message) ? "disabled" : "denied") : "error";
             throw new PlexSignInError(status, e.message);
           }
           throw e;

@@ -84,14 +84,15 @@ the fragment, which the browser never sends, and travels in JSON bodies only. It
 | `DELETE /users/{id}/invite` | users: revoke an invite not redeemed yet (deletes the row); 404 for anything else |
 | `POST /auth/invite` | public: `{token}` → the name, expiry and whether Plex sign-in is offered; 404 not valid or used, 410 expired |
 | `POST /auth/invite/accept` | public: `{token, username, password}` → an active local account, signed in (cookie plus `csrf_token`) |
-| `POST /auth/plex/poll` with `invite` | a confirmed Plex account with access to our server redeems the invite and is signed in; 409 `taken` when that Plex account already has an account here |
+| `POST /auth/plex/poll` with `invite` | a confirmed Plex account with access to our server redeems the invite and is signed in; 409 `taken` when that Plex account already has an account here; 404/410 `invite_gone` when the invite is used, revoked or expired |
 
 Redeeming sets the credentials, status `active` and clears both invite columns in one `UPDATE … WHERE status =
 'invited' AND invite_token_hash = ? AND invite_expires_at > now`, so a token works once. A username already in use
 (any case) or a Plex account that already has an account is refused and the invite stays unused: an invite never
 takes over an account. The public routes are same-origin JSON, and each attempt counts against the client address in
 the sign-in throttle; a valid, unexpired token clears the count. An invite cannot be changed with `PATCH users/{id}`
-(404) and gets no session. Any role may be invited: whoever holds `users` can already set any role on another
+(404), gets no session and no API key (`POST /keys`, `theatarr admin create-key`), and `theatarr admin
+reset-password` refuses it. Any role may be invited: whoever holds `users` can already set any role on another
 account. An expired invite stays listed with its date until revoked; to send a link again, make a new invite. The
 old way still works: someone signs in with Plex and waits as pending until an admin lets them in. `TestInvites`,
 `TestInviteNotLogged` and `TestMigrationUserInvite` cover it.

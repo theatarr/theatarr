@@ -76,7 +76,9 @@ func (s *Service) CreateKey(ctx context.Context, name string, by int64) (string,
 // CreateUserKey is CreateKey for the account called username, with only the store (`theatarr admin create-key`).
 func CreateUserKey(ctx context.Context, st *store.Store, username, name string) (string, KeyInfo, error) {
 	var id int64
-	err := st.Reader().QueryRowContext(ctx, `SELECT id FROM web_user WHERE username = ?`, username).Scan(&id)
+	// An invite is not an account yet: it gets no key.
+	err := st.Reader().QueryRowContext(ctx, `SELECT id FROM web_user WHERE username = ? AND status != ?`, username,
+		StatusInvited).Scan(&id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", KeyInfo{}, ErrUserNotFound
 	}

@@ -167,6 +167,13 @@ func TestInviteNotLogged(t *testing.T) {
 	if _, err := s.Login(ctx, u.Username, "", "192.0.2.1", "t"); !errors.Is(err, ErrInvalid) {
 		t.Errorf("an invite signs in: %v", err)
 	}
+	// Nor do the shell's admin commands make it an account.
+	if _, _, err := CreateUserKey(ctx, st, u.Username, "k"); !errors.Is(err, ErrUserNotFound) {
+		t.Errorf("create-key for an invite: %v", err)
+	}
+	if err := ResetPassword(ctx, st, u.Username, "a long enough password"); err == nil {
+		t.Error("reset-password on an invite")
+	}
 	var wg sync.WaitGroup
 	var ok atomic.Int32
 	for i := range 2 {

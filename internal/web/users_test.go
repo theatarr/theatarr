@@ -476,9 +476,9 @@ func TestInvites(t *testing.T) {
 	if cme.Username != "cyplex" || cme.Role != auth.RoleManager || !cme.Plex || cme.Local || cme.DisplayName != "Cy" {
 		t.Errorf("plex account: %+v", cme)
 	}
-	if code, _ := plexRedeem(plexauthtest.Account{ID: 51000002, Username: "eve", Servers: []string{"our-machine"}},
-		pinv.Token); code != 404 {
-		t.Errorf("plex reuse: %d", code)
+	if code, p := plexRedeem(plexauthtest.Account{ID: 51000002, Username: "eve", Servers: []string{"our-machine"}},
+		pinv.Token); code != 404 || p.Status != "invite_gone" {
+		t.Errorf("plex reuse: %d %+v", code, p)
 	}
 
 	// Expired and revoked.
@@ -509,7 +509,10 @@ func TestInvites(t *testing.T) {
 	if !throttled {
 		t.Error("ten wrong tokens from one address: not throttled")
 	}
-	// An invite is not an account: no patch.
+	// An invite is not an account: no patch, no API key.
+	if code := e.jsonCall("POST", APIBase+"/keys", map[string]any{"name": "k", "user_id": old.User.ID}, c, csrf, nil); code != 404 {
+		t.Errorf("key for an invite: %d", code)
+	}
 	if code := e.jsonCall("PATCH", APIBase+"/users/"+itoa(old.User.ID), map[string]any{"status": "active"}, c, csrf, nil); code != 404 {
 		t.Errorf("patch an invite: %d", code)
 	}

@@ -4,7 +4,7 @@
 // unknown link says so and offers nothing else. Laid out like the sign-in and create-admin cards.
 import { Loader2 } from "lucide-react";
 import { useState, type FormEvent } from "react";
-import { useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import { PlexSignInError, useAcceptInvite, useInvite, usePlexLogin } from "@/api/auth";
 import { ApiError } from "@/api/client";
 import { PRODUCT_NAME } from "@/brand";
@@ -35,8 +35,13 @@ const deadMessage = (err: unknown) =>
     : err instanceof ApiError && err.status === 429 ? "Too many tries. Try again later."
       : err instanceof Error ? err.message : "This invite link does not work.";
 
+/** The token is the current fragment; another invite link opened in this tab is a new form. */
 export function InvitePage() {
-  const [token] = useState(() => window.location.hash.replace(/^#/, ""));
+  const token = useLocation().hash.replace(/^#/, "");
+  return <InviteForm key={token} token={token} />;
+}
+
+function InviteForm({ token }: { token: string }) {
   const invite = useInvite(token);
   const accept = useAcceptInvite();
   const plexLogin = usePlexLogin();
@@ -86,7 +91,7 @@ export function InvitePage() {
       done();
     } catch (err) {
       setPlexBusy(false);
-      if (err instanceof PlexSignInError && (err.status === "expired" || err.status === "error") && /invite/i.test(err.message)) setDead(err.message);
+      if (err instanceof PlexSignInError && err.status === "invite_gone") setDead(err.message);
       else if (err instanceof PlexSignInError && err.status === "denied") setError("This Plex account has no access to our Plex server.");
       else refused(err);
     }
