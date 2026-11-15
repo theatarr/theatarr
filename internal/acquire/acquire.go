@@ -127,6 +127,18 @@ type Acquirer struct {
 	// cutoffsStored says whether the stored below-the-quality-cutoff flags may be read (library.CutoffsStored: the
 	// library's first full state pass of the process has finished); nil or false: every file is judged.
 	cutoffsStored func() bool
+	// judgeEach (tests) judges a prefer-SeaDex library's cutoff with reads per title instead of LoadCutoffInputs.
+	judgeEach bool
+}
+
+// cutoffInputsKey holds the decide.CutoffInputs one targets call read for a prefer-SeaDex library's cutoff, by
+// version id (cutoffInput).
+type cutoffInputsKey struct{}
+
+// cutoffInput is the version's batched cutoff input of this targets call, nil when there is none.
+func cutoffInput(ctx context.Context, versionID int64) *decide.CutoffInput {
+	m, _ := ctx.Value(cutoffInputsKey{}).(map[int64]*decide.CutoffInput)
+	return m[versionID]
 }
 
 // New builds the acquirer.
@@ -485,7 +497,21 @@ func (a *Acquirer) targets(ctx context.Context, sel Selection) ([]target, error)
 		if err := rows.Err(); err != nil {
 			return nil, err
 		}
+		vctx := ctx
+		if sel.Only == OnlyCutoff && vp.PreferSeaDex && a.eng != nil && !a.judgeEach && len(vs) > 0 {
+			// The library's files are judged below (belowCutoff, cutoffEpisodes): read what that takes at once.
+			versions := make(map[int64]int64, len(vs))
+			for _, v := range vs {
+				versions[v.id] = v.title
+			}
+			in, err := decide.LoadCutoffInputs(decide.WithSeaDexPolicy(ctx, a.pol, vp), db, vp.Kind, versions)
+			if err != nil {
+				return nil, err
+			}
+			vctx = context.WithValue(ctx, cutoffInputsKey{}, in)
+		}
 		for _, v := range vs {
+			ctx := vctx
 			if vp.Anime != nil && *vp.Anime != (v.anime == 1 || v.series == "anime") {
 				continue
 			}
@@ -674,19 +700,25 @@ func (a *Acquirer) belowCutoff(ctx context.Context, key string, versionID, title
 	if a.eng == nil {
 		return true, nil
 	}
+	var err error
 	if vp := a.pol.Versions[key]; vp != nil && vp.PreferSeaDex {
-		var err error
 		ctx, err = decide.WithStoredSeaDex(ctx, a.st.Reader())
 		if err != nil {
 			return false, err
 		}
 		ctx = decide.WithSeaDexTitle(decide.WithSeaDexPolicy(ctx, a.pol, vp), titleID)
 	}
-	f, err := decide.LoadExisting(ctx, a.st.Reader(), versionID)
-	if err != nil || f == nil {
+	var f *decide.ExistingFile
+	var title *decide.Title
+	if in := cutoffInput(ctx, versionID); in != nil {
+		f, title = in.File, in.Title
+	} else if f, err = decide.LoadExisting(ctx, a.st.Reader(), versionID); err != nil {
 		return false, err
 	}
-	below, err := a.currentFileBelowCutoff(ctx, key, versionID, titleID, f, full)
+	if f == nil {
+		return false, nil
+	}
+	below, err := a.currentFileBelowCutoff(ctx, key, versionID, titleID, f, full, title)
 	if err != nil {
 		a.log.Warn("cutoff search: file not judged", "version", key, "title", titleID, "err", err)
 		return false, nil
@@ -724,24 +756,31 @@ func (a *Acquirer) cutoffEpisodes(ctx context.Context, key string, versionID, ti
 	var eps []decide.Episode
 	var title *decide.Title
 	var err error
-	if full || a.pol.Versions[key].PreferSeaDex {
-		t, loadErr := decide.LoadTitle(ctx, a.st.Reader(), titleID)
-		if loadErr != nil {
-			return nil, loadErr
+	if in := cutoffInput(ctx, versionID); in != nil {
+		if in.Title == nil {
+			return nil, fmt.Errorf("no title %d", titleID)
 		}
-		title = &t
-	}
-	if a.pol.Versions[key].PreferSeaDex {
-		err = decide.LoadSeriesVersion(ctx, a.st.Reader(), title, versionID)
-		eps = title.Episodes
+		title, eps = in.Title, in.Title.Episodes
 	} else {
-		eps, err = decide.LoadEpisodes(ctx, a.st.Reader(), titleID, versionID)
-		if title != nil {
-			title.Episodes = eps
+		if full || a.pol.Versions[key].PreferSeaDex {
+			t, loadErr := decide.LoadTitle(ctx, a.st.Reader(), titleID)
+			if loadErr != nil {
+				return nil, loadErr
+			}
+			title = &t
 		}
-	}
-	if err != nil {
-		return nil, err
+		if a.pol.Versions[key].PreferSeaDex {
+			err = decide.LoadSeriesVersion(ctx, a.st.Reader(), title, versionID)
+			eps = title.Episodes
+		} else {
+			eps, err = decide.LoadEpisodes(ctx, a.st.Reader(), titleID, versionID)
+			if title != nil {
+				title.Episodes = eps
+			}
+		}
+		if err != nil {
+			return nil, err
+		}
 	}
 	out := map[int64]bool{}
 	judged := map[int64]bool{} // by file

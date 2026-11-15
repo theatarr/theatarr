@@ -69,22 +69,43 @@ type Series struct {
 
 // Load reads the mappings into a TVDB series. It returns nil (and no error) when no franchise maps into it.
 func Load(ctx context.Context, db *sql.DB, tvdb int) (*Series, error) {
-	if tvdb <= 0 {
+	m, err := LoadMany(ctx, db, []int{tvdb})
+	return m[tvdb], err
+}
+
+// LoadMany is Load for many TVDB series at once, by TVDB id; a series no franchise maps into is left out.
+func LoadMany(ctx context.Context, db *sql.DB, tvdbs []int) (map[int]*Series, error) {
+	var ids []int
+	for _, id := range tvdbs {
+		if id > 0 {
+			ids = append(ids, id)
+		}
+	}
+	if len(ids) == 0 {
 		return nil, nil
 	}
-	rows, err := db.QueryContext(ctx, `SELECT m.franchise, m.entry_key, m.status, m.winner, m.reason, m.episodes,
-		COALESCE(e.title, ''), COALESCE(e.body, '{}')
+	list, _ := json.Marshal(ids)
+	rows, err := db.QueryContext(ctx, `SELECT m.tvdb_series, m.franchise, m.entry_key, m.status, m.winner, m.reason,
+		m.episodes, COALESCE(e.title, ''), COALESCE(e.body, '{}')
 		FROM anime_mapping m LEFT JOIN anime_entry e ON e.franchise = m.franchise AND e.key = m.entry_key
-		WHERE m.tvdb_series = ? ORDER BY m.franchise, m.entry_key`, tvdb)
+		WHERE m.tvdb_series IN (SELECT value FROM json_each(?)) ORDER BY m.tvdb_series, m.franchise, m.entry_key`,
+		string(list))
 	if err != nil {
 		return nil, fmt.Errorf("animemap: %w", err)
 	}
 	defer rows.Close()
-	s := &Series{TVDB: tvdb, byEp: map[anime.SE][]*Entry{}}
+	all := map[int]*Series{}
+	series := func(tvdb int) *Series {
+		if all[tvdb] == nil {
+			all[tvdb] = &Series{TVDB: tvdb, byEp: map[anime.SE][]*Entry{}}
+		}
+		return all[tvdb]
+	}
 	for rows.Next() {
 		e := &Entry{}
+		var tvdb int
 		var eps, body string
-		if err := rows.Scan(&e.Franchise, &e.Key, &e.Status, &e.Winner, &e.Reason, &eps, &e.Title, &body); err != nil {
+		if err := rows.Scan(&tvdb, &e.Franchise, &e.Key, &e.Status, &e.Winner, &e.Reason, &eps, &e.Title, &body); err != nil {
 			return nil, err
 		}
 		if err := json.Unmarshal([]byte(eps), &e.Episodes); err != nil {
@@ -107,6 +128,7 @@ func Load(ctx context.Context, db *sql.DB, tvdb int) (*Series, error) {
 				e.Names = append(e.Names, n)
 			}
 		}
+		s := series(tvdb)
 		s.Entries = append(s.Entries, e)
 		for _, se := range e.Episodes {
 			s.byEp[se] = append(s.byEp[se], e)
@@ -116,30 +138,30 @@ func Load(ctx context.Context, db *sql.DB, tvdb int) (*Series, error) {
 		return nil, err
 	}
 	rows.Close()
-	cr, err := db.QueryContext(ctx, `SELECT name, entry_key, match, episodes FROM anime_alt_cut WHERE tvdb_series = ?
-		ORDER BY franchise, name`, tvdb)
+	cr, err := db.QueryContext(ctx, `SELECT tvdb_series, name, entry_key, match, episodes FROM anime_alt_cut
+		WHERE tvdb_series IN (SELECT value FROM json_each(?)) ORDER BY tvdb_series, franchise, name`, string(list))
 	if err != nil {
 		return nil, fmt.Errorf("animemap: %w", err)
 	}
 	defer cr.Close()
 	for cr.Next() {
-		c := &anime.AltCutMap{SeriesID: tvdb}
+		var tvdb int
 		var eps string
-		if err := cr.Scan(&c.Name, &c.Entry, &c.Match, &eps); err != nil {
+		c := &anime.AltCutMap{}
+		if err := cr.Scan(&tvdb, &c.Name, &c.Entry, &c.Match, &eps); err != nil {
 			return nil, err
 		}
+		c.SeriesID = tvdb
 		if err := json.Unmarshal([]byte(eps), &c.Episodes); err != nil {
 			return nil, fmt.Errorf("animemap: alt cut %s: %w", c.Name, err)
 		}
+		s := series(tvdb)
 		s.AltCuts = append(s.AltCuts, c)
 	}
 	if err := cr.Err(); err != nil {
 		return nil, err
 	}
-	if len(s.Entries) == 0 && len(s.AltCuts) == 0 {
-		return nil, nil
-	}
-	return s, nil
+	return all, nil
 }
 
 func deref(p *string) string {

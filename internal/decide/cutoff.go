@@ -139,7 +139,7 @@ func (e *Engine) curatedUpgradeAvailable(title *Title, v *policy.VersionPolicy, 
 						continue
 					}
 				}
-				if !e.curatedReleaseAllowed(title, v, p, t, candidate) || e.knownUnavailable(v, t) {
+				if !e.curatedAllowed(title, v, p, t, q, season, candidate) || e.knownUnavailable(v, t) {
 					continue
 				}
 				return true
@@ -147,6 +147,28 @@ func (e *Engine) curatedUpgradeAvailable(title *Title, v *policy.VersionPolicy, 
 		}
 	}
 	return false
+}
+
+// curatedAllowed is curatedReleaseAllowed for the candidate cutoffAlternativeIn gave for the same arguments,
+// remembered with it for a series: every held file of the title asks it of the same release.
+func (e *Engine) curatedAllowed(title *Title, v *policy.VersionPolicy, p *Profile, t indexer.SeaDexStanding,
+	q profile.Quality, season int, candidate cutoffCandidate) bool {
+	if p.Profile.Flavour != format.Sonarr {
+		return e.curatedReleaseAllowed(title, v, p, t, candidate)
+	}
+	c := title.cutoff // set by cutoffAlternativeIn
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	key := cutoffKeyOf(title, v, p, t, q, season)
+	if allowed, ok := c.allowed[key]; ok {
+		return allowed
+	}
+	if c.allowed == nil {
+		c.allowed = map[cutoffKey]bool{}
+	}
+	allowed := e.curatedReleaseAllowed(title, v, p, t, candidate)
+	c.allowed[key] = allowed
+	return allowed
 }
 
 // curatedReleaseAllowed runs the decider's format and language checks on the release a curator search would return
@@ -217,8 +239,9 @@ func (e *Engine) knownUnavailable(v *policy.VersionPolicy, t indexer.SeaDexStand
 // most once per pass. LoadSeriesVersion gives each load its own (a reload starts empty; value copies of the title
 // share it); it has its own lock, so no title field is written during a pass.
 type cutoffCache struct {
-	mu sync.Mutex
-	m  map[cutoffKey]cutoffCandidate
+	mu      sync.Mutex
+	m       map[cutoffKey]cutoffCandidate
+	allowed map[cutoffKey]bool // curatedAllowed
 }
 
 // cutoffInit only allocates the cache of a title not loaded by LoadSeriesVersion; it is never held during a pass.
@@ -245,6 +268,22 @@ type cutoffCandidate struct {
 	release  indexer.Release // what a curator search would return for it (indexer.SeaDexCandidateRelease)
 }
 
+// cutoffKeyOf is the cutoffCache key of cutoffAlternativeIn's arguments.
+func cutoffKeyOf(title *Title, v *policy.VersionPolicy, p *Profile, t indexer.SeaDexStanding, q profile.Quality,
+	season int) cutoffKey {
+	engine := p.Engine
+	if p.baseEngine != nil {
+		engine = p.baseEngine
+	}
+	var episodes *Episode
+	if len(title.Episodes) > 0 {
+		episodes = &title.Episodes[0]
+	}
+	return cutoffKey{profile: p.Profile, engine: engine, mapping: title.AnimeMap, episodes: episodes,
+		name: title.Name, runtime: title.Runtime, version: v, facts: t.Facts, hash: t.InfoHash, entry: t.Entry, size: t.Size,
+		quality: q.Name, season: season}
+}
+
 // cutoffAlternative is cutoffAlternativeIn for the entry's own lowest regular season.
 func cutoffAlternative(title *Title, v *policy.VersionPolicy, p *Profile, t indexer.SeaDexStanding, q profile.Quality,
 	resolve func(*Title, FileInput) (FileEpisodes, error)) cutoffCandidate {
@@ -265,17 +304,7 @@ func cutoffAlternativeIn(title *Title, v *policy.VersionPolicy, p *Profile, t in
 		cutoffInit.Unlock()
 		c.mu.Lock()
 		defer c.mu.Unlock()
-		engine := p.Engine
-		if p.baseEngine != nil {
-			engine = p.baseEngine
-		}
-		var episodes *Episode
-		if len(title.Episodes) > 0 {
-			episodes = &title.Episodes[0]
-		}
-		key := cutoffKey{profile: p.Profile, engine: engine, mapping: title.AnimeMap, episodes: episodes,
-			name: title.Name, runtime: title.Runtime, version: v, facts: t.Facts, hash: t.InfoHash, entry: t.Entry, size: t.Size, quality: q.Name,
-			season: season}
+		key := cutoffKeyOf(title, v, p, t, q, season)
 		if cached, ok := c.m[key]; ok {
 			return cached
 		}

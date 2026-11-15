@@ -9,11 +9,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/theatarr/theatarr/internal/decide/parser/radarr"
 	"github.com/theatarr/theatarr/internal/decide/parser/sonarr"
+	"github.com/theatarr/theatarr/internal/decide/profile"
 	"github.com/theatarr/theatarr/internal/metadata/anime/animemap"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/store"
@@ -104,29 +107,49 @@ func loadAliases(ctx context.Context, db *sql.DB, q string, args ...any) (map[in
 
 // LoadTitle reads one title by id.
 func LoadTitle(ctx context.Context, db *sql.DB, id int64) (Title, error) {
-	rows, err := db.QueryContext(ctx, titleSelect+` WHERE t.id = ?`, id)
+	ts, err := LoadTitles(ctx, db, []int64{id})
 	if err != nil {
 		return Title{}, err
 	}
-	defer rows.Close()
-	if !rows.Next() {
-		if err := rows.Err(); err != nil {
-			return Title{}, err
-		}
+	t, ok := ts[id]
+	if !ok {
 		return Title{}, fmt.Errorf("no title %d", id)
 	}
-	t, err := scanTitle(rows)
+	return t, nil
+}
+
+// LoadTitles is LoadTitle for many titles at once, by id; an id without a title is left out.
+func LoadTitles(ctx context.Context, db *sql.DB, ids []int64) (map[int64]Title, error) {
+	list, _ := json.Marshal(ids)
+	rows, err := db.QueryContext(ctx, titleSelect+` WHERE t.id IN (SELECT value FROM json_each(?))`, string(list))
 	if err != nil {
-		return t, err
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[int64]Title{}
+	for rows.Next() {
+		t, err := scanTitle(rows)
+		if err != nil {
+			return nil, err
+		}
+		out[t.ID] = t
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 	rows.Close()
-	aliases, err := loadAliases(ctx, db, `SELECT title_id, name FROM title_alias WHERE title_id = ?
-		ORDER BY kind, source, name`, id)
+	aliases, err := loadAliases(ctx, db, `SELECT title_id, name FROM title_alias
+		WHERE title_id IN (SELECT value FROM json_each(?)) ORDER BY title_id, kind, source, name`, string(list))
 	if err != nil {
-		return t, err
+		return nil, err
 	}
-	t.Aliases = aliases[id]
-	return t, nil
+	for id, a := range aliases {
+		if t, ok := out[id]; ok {
+			t.Aliases = a
+			out[id] = t
+		}
+	}
+	return out, nil
 }
 
 // LoadSeries reads every series, by title id, without episodes (LoadSeriesVersion adds them for one version).
@@ -151,43 +174,77 @@ func LoadSeries(ctx context.Context, db *sql.DB) (map[int64]Title, error) {
 // with their absolute and scene numbers and the version's file of each (versionID 0: no files). The series type is the
 // title's (store.SeriesTypeSQL, read with the title), the same for every version.
 func LoadSeriesVersion(ctx context.Context, db *sql.DB, t *Title, versionID int64) error {
-	t.cutoff = &cutoffCache{}
-	if t.Kind != policy.KindSeries {
+	return loadSeriesVersions(ctx, db, []*Title{t}, []int64{versionID}, true)
+}
+
+// loadSeriesVersions is LoadSeriesVersion for titles[i] and versionIDs[i] at once; without history the episodes'
+// LastGrab is not read.
+func loadSeriesVersions(ctx context.Context, db *sql.DB, titles []*Title, versionIDs []int64, history bool) error {
+	var series []titleVersion
+	var ts []*Title
+	var ids []int64
+	var tvdbs []int
+	for i, t := range titles {
+		t.cutoff = &cutoffCache{}
+		if t.Kind != policy.KindSeries {
+			continue
+		}
+		t.SceneMappings = nil
+		series = append(series, titleVersion{t.ID, versionIDs[i]})
+		ts = append(ts, t)
+		ids = append(ids, t.ID)
+		tvdbs = append(tvdbs, t.TVDB)
+	}
+	if len(ts) == 0 {
 		return nil
 	}
-	t.SceneMappings = nil
-	rows, err := db.QueryContext(ctx, `SELECT name, season_number, scene_season_number, scene_origin, comment
-		FROM title_scene_mapping WHERE title_id = ? ORDER BY source, rowid`, t.ID)
+	list, _ := json.Marshal(ids)
+	rows, err := db.QueryContext(ctx, `SELECT title_id, name, season_number, scene_season_number, scene_origin, comment
+		FROM title_scene_mapping WHERE title_id IN (SELECT value FROM json_each(?)) ORDER BY title_id, source, rowid`,
+		string(list))
 	if err != nil {
 		return err
 	}
-	seen := map[string]bool{}
+	mappings := map[int64][]SceneMapping{}
+	seen := map[int64]map[string]bool{}
 	for rows.Next() {
+		var id int64
 		var m SceneMapping
 		var season, scene sql.NullInt64
-		if err := rows.Scan(&m.Title, &season, &scene, &m.SceneOrigin, &m.Comment); err != nil {
+		if err := rows.Scan(&id, &m.Title, &season, &scene, &m.SceneOrigin, &m.Comment); err != nil {
 			rows.Close()
 			return err
 		}
 		m.SeasonNumber, m.SceneSeasonNumber = nullIntPtr(season), nullIntPtr(scene)
 		k := fmt.Sprintf("%s|%d|%d", m.Title, orMinus1(m.SeasonNumber), orMinus1(m.SceneSeasonNumber))
-		if !seen[k] {
-			seen[k] = true
-			t.SceneMappings = append(t.SceneMappings, m)
+		if seen[id] == nil {
+			seen[id] = map[string]bool{}
+		}
+		if !seen[id][k] {
+			seen[id][k] = true
+			mappings[id] = append(mappings[id], m)
 		}
 	}
 	rows.Close()
 	if err := rows.Err(); err != nil {
 		return err
 	}
-	eps, err := LoadEpisodes(ctx, db, t.ID, versionID)
+	eps, err := loadEpisodes(ctx, db, series, history)
 	if err != nil {
 		return err
 	}
-	t.Episodes = eps
 	// franchise mappings into the series, if any (anime.go)
-	if t.AnimeMap, err = animemap.Load(ctx, db, t.TVDB); err != nil {
+	maps, err := animemap.LoadMany(ctx, db, tvdbs)
+	if err != nil {
 		return err
+	}
+	for i, t := range ts {
+		t.SceneMappings = append(t.SceneMappings, mappings[t.ID]...)
+		t.Episodes = eps[i]
+		t.AnimeMap = nil
+		if t.TVDB > 0 {
+			t.AnimeMap = maps[t.TVDB]
+		}
 	}
 	return nil
 }
@@ -195,20 +252,50 @@ func LoadSeriesVersion(ctx context.Context, db *sql.DB, t *Title, versionID int6
 // LoadEpisodes reads a series' episodes in season and number order, with their numbers (episode_number, any
 // source) and, for versionID, the version's file of each (its newest active link). Removed rows are excluded.
 func LoadEpisodes(ctx context.Context, db *sql.DB, titleID, versionID int64) ([]Episode, error) {
-	ctx = WithSeaDexTitle(ctx, titleID)
-	rows, err := db.QueryContext(ctx, `SELECT e.id, e.season, e.number, e.name, COALESCE(e.air_date, ''),
-		e.air_date_utc_at, COALESCE(e.runtime_minutes, 0), COALESCE(s.monitored, e.monitored)
-		FROM episode e LEFT JOIN episode_version_state s ON s.episode_id = e.id AND s.version_id = ?
-		WHERE e.title_id = ? AND e.removed_at IS NULL ORDER BY e.season, e.number`, versionID, titleID)
+	eps, err := loadEpisodes(ctx, db, []titleVersion{{titleID, versionID}}, true)
 	if err != nil {
 		return nil, err
 	}
-	var out []Episode
-	idx := map[int64]int{}
+	return eps[0], nil
+}
+
+// titleVersion is a title and one of its versions (0: none) for a batched load.
+type titleVersion struct{ title, version int64 }
+
+// loadEpisodes is LoadEpisodes for each of tvs, in their order; without history the episodes' LastGrab is not read.
+func loadEpisodes(ctx context.Context, db *sql.DB, tvs []titleVersion, history bool) ([][]Episode, error) {
+	pairs := make([][2]int64, len(tvs))
+	byTitle := map[int64][]int{} // the indexes of tvs with the title
+	var titles, versions []int64
+	for i, tv := range tvs {
+		pairs[i] = [2]int64{tv.title, tv.version}
+		if byTitle[tv.title] == nil {
+			titles = append(titles, tv.title)
+		}
+		byTitle[tv.title] = append(byTitle[tv.title], i)
+		if tv.version != 0 {
+			versions = append(versions, tv.version)
+		}
+	}
+	list, _ := json.Marshal(pairs)
+	rows, err := db.QueryContext(ctx, `SELECT p.key, e.id, e.season, e.number, e.name, COALESCE(e.air_date, ''),
+		e.air_date_utc_at, COALESCE(e.runtime_minutes, 0), COALESCE(s.monitored, e.monitored)
+		FROM json_each(?) p JOIN episode e ON e.title_id = json_extract(p.value, '$[0]')
+		LEFT JOIN episode_version_state s ON s.episode_id = e.id AND s.version_id = json_extract(p.value, '$[1]')
+		WHERE e.removed_at IS NULL ORDER BY p.key, e.season, e.number`, string(list))
+	if err != nil {
+		return nil, err
+	}
+	out := make([][]Episode, len(tvs))
+	idx := make([]map[int64]int, len(tvs))
+	for i := range idx {
+		idx[i] = map[int64]int{}
+	}
 	for rows.Next() {
+		var i int
 		var e Episode
 		var at sql.NullInt64
-		if err := rows.Scan(&e.ID, &e.Season, &e.Number, &e.Title, &e.AirDate, &at, &e.Runtime, &e.Monitored); err != nil {
+		if err := rows.Scan(&i, &e.ID, &e.Season, &e.Number, &e.Title, &e.AirDate, &at, &e.Runtime, &e.Monitored); err != nil {
 			rows.Close()
 			return nil, err
 		}
@@ -216,46 +303,50 @@ func LoadEpisodes(ctx context.Context, db *sql.DB, titleID, versionID int64) ([]
 			u := time.UnixMilli(at.Int64).UTC()
 			e.AirDateUTC = &u
 		}
-		idx[e.ID] = len(out)
-		out = append(out, e)
+		idx[i][e.ID] = len(out[i])
+		out[i] = append(out[i], e)
 	}
 	rows.Close()
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	nrows, err := db.QueryContext(ctx, `SELECT n.episode_id, n.scheme, n.season, n.number FROM episode_number n
-		WHERE n.title_id = ? AND n.scheme IN ('absolute_tvdb', 'scene', 'scene_absolute') ORDER BY n.source, n.id`, titleID)
+	tl, _ := json.Marshal(titles)
+	nrows, err := db.QueryContext(ctx, `SELECT n.title_id, n.episode_id, n.scheme, n.season, n.number FROM episode_number n
+		WHERE n.title_id IN (SELECT value FROM json_each(?)) AND n.scheme IN ('absolute_tvdb', 'scene', 'scene_absolute')
+		ORDER BY n.title_id, n.source, n.id`, string(tl))
 	if err != nil {
 		return nil, err
 	}
 	for nrows.Next() {
-		var id int64
+		var title, id int64
 		var scheme string
 		var season sql.NullInt64
 		var number int
-		if err := nrows.Scan(&id, &scheme, &season, &number); err != nil {
+		if err := nrows.Scan(&title, &id, &scheme, &season, &number); err != nil {
 			nrows.Close()
 			return nil, err
 		}
-		i, ok := idx[id]
-		if !ok {
-			continue
-		}
-		e := &out[i]
-		n := number
-		switch scheme {
-		case "absolute_tvdb":
-			if e.Absolute == 0 {
-				e.Absolute = n
+		for _, ti := range byTitle[title] {
+			i, ok := idx[ti][id]
+			if !ok {
+				continue
 			}
-		case "scene":
-			if e.SceneSeason == nil && season.Valid {
-				ss := int(season.Int64)
-				e.SceneSeason, e.SceneNumber = &ss, &n
-			}
-		case "scene_absolute":
-			if e.SceneAbsolute == nil {
-				e.SceneAbsolute = &n
+			e := &out[ti][i]
+			n := number
+			switch scheme {
+			case "absolute_tvdb":
+				if e.Absolute == 0 {
+					e.Absolute = n
+				}
+			case "scene":
+				if e.SceneSeason == nil && season.Valid {
+					ss := int(season.Int64)
+					e.SceneSeason, e.SceneNumber = &ss, &n
+				}
+			case "scene_absolute":
+				if e.SceneAbsolute == nil {
+					e.SceneAbsolute = &n
+				}
 			}
 		}
 	}
@@ -263,52 +354,63 @@ func LoadEpisodes(ctx context.Context, db *sql.DB, titleID, versionID int64) ([]
 	if err := nrows.Err(); err != nil {
 		return nil, err
 	}
-	if versionID == 0 {
+	if len(versions) == 0 {
 		return out, nil
 	}
-	links, order, err := loadLinks(ctx, db, versionID)
+	links, err := loadLinksOf(ctx, db, versions)
 	if err != nil {
 		return nil, err
 	}
-	for _, id := range order {
-		f := links[id]
-		for _, epID := range f.EpisodeIDs {
-			if i, ok := idx[epID]; ok {
-				out[i].File, out[i].FileID = f, id
-			}
-		}
-	}
-	history, err := loadGrabHistory(ctx, db, versionID, policy.KindSeries)
-	if err != nil {
-		return nil, err
-	}
-	var held []*ExistingFile
-	numbers := make(map[int64][2]int, len(out))
-	for i := range out {
-		numbers[out[i].ID] = [2]int{out[i].Season, out[i].Number}
-	}
-	seen := map[*ExistingFile]bool{}
-	for i := range out {
-		out[i].LastGrab = history[out[i].ID]
-		f := out[i].File
-		if f == nil || seen[f] {
+	for ti, tv := range tvs {
+		if tv.version == 0 {
 			continue
 		}
-		seen[f] = true
-		held = append(held, f)
-		// The file's own episodes (season, number) scope its curator alternatives.
-		f.seaDexEpisodes = nil
-		for _, id := range f.EpisodeIDs {
-			if n, ok := numbers[id]; ok {
-				f.seaDexEpisodes = append(f.seaDexEpisodes, n)
+		eps := out[ti]
+		l := links[tv.version]
+		if l != nil {
+			for _, id := range l.order {
+				f := l.files[id]
+				for _, epID := range f.EpisodeIDs {
+					if i, ok := idx[ti][epID]; ok {
+						eps[i].File, eps[i].FileID = f, id
+					}
+				}
 			}
 		}
-		if len(f.seaDexEpisodes) == 0 {
-			f.seaDexEpisodes = [][2]int{numbers[out[i].ID]}
+		var grabs map[int64]*profile.ImportedGrab
+		if history {
+			if grabs, err = loadGrabHistory(ctx, db, tv.version, policy.KindSeries); err != nil {
+				return nil, err
+			}
 		}
-	}
-	if err := ResolveSeaDexFiles(ctx, db, held); err != nil {
-		return nil, err
+		var held []*ExistingFile
+		numbers := make(map[int64][2]int, len(eps))
+		for i := range eps {
+			numbers[eps[i].ID] = [2]int{eps[i].Season, eps[i].Number}
+		}
+		seen := map[*ExistingFile]bool{}
+		for i := range eps {
+			eps[i].LastGrab = grabs[eps[i].ID]
+			f := eps[i].File
+			if f == nil || seen[f] {
+				continue
+			}
+			seen[f] = true
+			held = append(held, f)
+			// The file's own episodes (season, number) scope its curator alternatives.
+			f.seaDexEpisodes = nil
+			for _, id := range f.EpisodeIDs {
+				if n, ok := numbers[id]; ok {
+					f.seaDexEpisodes = append(f.seaDexEpisodes, n)
+				}
+			}
+			if len(f.seaDexEpisodes) == 0 {
+				f.seaDexEpisodes = [][2]int{numbers[eps[i].ID]}
+			}
+		}
+		if err := ResolveSeaDexFiles(WithSeaDexTitle(ctx, tv.title), db, held); err != nil {
+			return nil, err
+		}
 	}
 	return out, nil
 }
@@ -482,6 +584,65 @@ func LoadExistingFile(ctx context.Context, db *sql.DB, versionID int64) (*Existi
 		return nil, 0, err
 	}
 	return f, id, nil
+}
+
+// CutoffInput is what judging a version's held files against the cutoff reads (LoadCutoffInputs).
+type CutoffInput struct {
+	Title *Title        // nil when the title is gone
+	File  *ExistingFile // a movie's current file (LoadExisting); nil without one
+}
+
+// LoadCutoffInputs reads, for many versions of one library at once (version id -> title id), what judging their held
+// files against the cutoff reads, by version id: the title (LoadTitle), for a series filled for the version
+// (LoadSeriesVersion), for a movie with the version's current file (LoadExisting). One batch of reads instead of a
+// set per title. Grab history (LastGrab) is not read: no cutoff judgement looks at it. The files take standing as
+// LoadExisting and LoadEpisodes give it (ctx as configured for the version, WithSeaDexPolicy).
+func LoadCutoffInputs(ctx context.Context, db *sql.DB, kind policy.Kind,
+	versions map[int64]int64) (map[int64]*CutoffInput, error) {
+	ids := slices.Sorted(maps.Keys(versions))
+	titleIDs := make([]int64, len(ids))
+	for i, v := range ids {
+		titleIDs[i] = versions[v]
+	}
+	titles, err := LoadTitles(ctx, db, titleIDs)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[int64]*CutoffInput, len(ids))
+	for _, v := range ids {
+		in := &CutoffInput{}
+		if t, ok := titles[versions[v]]; ok {
+			in.Title = &t
+		}
+		out[v] = in
+	}
+	if kind == policy.KindSeries {
+		var ts []*Title
+		var vs []int64
+		for _, v := range ids {
+			if t := out[v].Title; t != nil {
+				ts, vs = append(ts, t), append(vs, v)
+			}
+		}
+		if err := loadSeriesVersions(ctx, db, ts, vs, false); err != nil {
+			return nil, err
+		}
+		return out, nil
+	}
+	links, err := loadLinksOf(ctx, db, ids)
+	if err != nil {
+		return nil, err
+	}
+	for _, v := range ids {
+		if l := links[v]; l != nil && len(l.order) > 0 {
+			f := l.files[l.order[len(l.order)-1]]
+			if err := ResolveSeaDexFiles(WithSeaDexTitle(ctx, versions[v]), db, []*ExistingFile{f}); err != nil {
+				return nil, err
+			}
+			out[v].File = f
+		}
+	}
+	return out, nil
 }
 
 // titleLibrary is a Library over a set of titles.

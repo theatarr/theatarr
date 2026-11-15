@@ -441,3 +441,96 @@ func TestCutoffJudgedUntilFlagsStored(t *testing.T) {
 		t.Errorf("reading the (unset) flags: %s", got)
 	}
 }
+
+// demoStanding records a curator standing for every anime title of the demo database (which has none): one better
+// torrent each, a BluRay remux film or a BluRay season 1 of one file per episode.
+const demoStanding = `INSERT INTO metadata_cache(source, key, status, body, fetched_at, expires_at)
+	SELECT 'seadex-standing', x.external_id, 200, json_object('anilist', CAST(x.external_id AS INTEGER),
+		'torrents', json_array(json_object('quality', IIF(t.kind = 'movie', 'Bluray-1080p Remux', 'Bluray-1080p'),
+		'size', IIF(t.kind = 'movie', 20000000000, 1500000000 * (SELECT COUNT(*) FROM episode e WHERE e.title_id = t.id
+			AND e.season = 1)),
+		'is_best', json('true'), 'record_id', printf('r%014d', t.id), 'info_hash', printf('%040x', t.id), 'preference', 3,
+		'facts', json_object('id', printf('r%014d', t.id), 'tracker', 'Nyaa', 'isBest', json('true'), 'files',
+			IIF(t.kind = 'movie', json_array(json_object('name', replace(t.name, ' ', '.') || '.1080p.BluRay.Remux.mkv',
+				'length', 20000000000)),
+			json((SELECT json_group_array(json_object('name', printf('%s.S01E%02d.1080p.BluRay.mkv', replace(t.name, ' ', '.'),
+				e.number), 'length', 1500000000)) FROM episode e WHERE e.title_id = t.id AND e.season = 1))))))),
+		0, 253402214400000
+	FROM title_external_id x JOIN title t ON t.id = x.title_id WHERE x.source = 'anilist'`
+
+// The prefer-SeaDex libraries' cutoff is judged live, with what it reads loaded for the whole library at once
+// (decide.LoadCutoffInputs): its targets equal those of judging each title with its own reads, on the demo database
+// with a curator standing for its anime titles, in quality and score mode.
+func TestCutoffInputsMatchPerTitle(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	dir := t.TempDir()
+	if err := os.CopyFS(dir, os.DirFS(filepath.Join("..", "..", "examples", "policy"))); err != nil {
+		t.Fatal(err)
+	}
+	overlay, _ := filepath.Glob(filepath.Join("..", "..", "examples", "demo", "*.yaml"))
+	for _, f := range overlay {
+		b, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, filepath.Base(f)), b, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	pol, err := policy.Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	st, err := store.Open(ctx, storetest.Seed(t, filepath.Join(t.TempDir(), "theatarr.db")), store.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { st.Close() })
+	if _, err := st.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Date(2026, 10, 26, 12, 0, 0, 0, time.UTC)
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	if _, err := demo.Seed(ctx, st, demo.Options{Policy: pol, Seed: 1, Now: now, Logger: log}); err != nil {
+		t.Fatal(err)
+	}
+	eng, err := decide.New(pol, decide.Options{TrashRoot: filepath.Join("..", "demo", "formats")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := &Acquirer{st: st, pol: pol, eng: eng, set: pol.WantedSettings(), log: log, now: func() time.Time { return now },
+		cutoffsStored: func() bool { return true }}
+	var keys []string
+	for k, vp := range pol.Versions {
+		if vp.PreferSeaDex {
+			keys = append(keys, k)
+		}
+	}
+	slices.Sort(keys)
+	if len(keys) < 2 {
+		t.Fatalf("prefer-SeaDex libraries %v, want a movie and a series one", keys)
+	}
+	judge := func(quality, each bool) []target {
+		t.Helper()
+		a.judgeEach = each
+		ts, err := a.targets(ctx, Selection{Versions: keys, Only: OnlyCutoff, QualityCutoff: quality})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return ts
+	}
+	without := judge(true, true)
+	if _, err := st.Writer().ExecContext(ctx, demoStanding); err != nil {
+		t.Fatal(err)
+	}
+	for _, quality := range []bool{true, false} {
+		each := judge(quality, true)
+		if batched := judge(quality, false); !reflect.DeepEqual(batched, each) {
+			t.Errorf("quality %v: batched\n%+v\nwant (per title)\n%+v", quality, batched, each)
+		}
+		if quality && (len(each) == 0 || reflect.DeepEqual(each, without)) {
+			t.Errorf("the standing changed no target (%d targets)", len(each))
+		}
+	}
+}
