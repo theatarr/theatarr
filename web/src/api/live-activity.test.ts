@@ -1,7 +1,7 @@
 import { QueryClient } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
 import type { DownloadEvent } from "./activity";
-import { downloadToast, libraryRefresh, onDownloadEvent, onTitleEvent, PROGRESS_LIVE_MS, PROGRESS_REFRESH_MS } from "./live-activity";
+import { downloadToast, libraryRefresh, onDownloadEvent, onTitleEvent, PROGRESS_LIVE_MS, PROGRESS_REFRESH_MS, stateChanged } from "./live-activity";
 import { qk } from "./query-keys";
 
 const base: DownloadEvent = {
@@ -45,11 +45,20 @@ describe("libraryRefresh", () => {
   it("refreshes the title and lists on a change of state, and progress at most every 20 s", () => {
     const t0 = 1_000_000;
     const ev = { ...base, title: { ...base.title, id: 77 } };
-    expect(libraryRefresh(ev, t0)).toEqual({ title: true, lists: true });
-    const progress = { ...ev, state: "downloading" as const, previous: "downloading" as const };
-    expect(libraryRefresh(progress, t0 + 1000)).toEqual({ title: false, lists: false });
-    expect(libraryRefresh(ev, t0 + 2000)).toEqual({ title: true, lists: true });
-    expect(libraryRefresh(progress, t0 + 2000 + PROGRESS_REFRESH_MS)).toEqual({ title: true, lists: true });
+    expect(libraryRefresh(ev, true, t0)).toEqual({ title: true, lists: true });
+    expect(libraryRefresh(ev, false, t0 + 1000)).toEqual({ title: false, lists: false });
+    expect(libraryRefresh(ev, true, t0 + 2000)).toEqual({ title: true, lists: true });
+    expect(libraryRefresh(ev, false, t0 + 2000 + PROGRESS_REFRESH_MS)).toEqual({ title: true, lists: true });
+  });
+});
+
+describe("stateChanged", () => {
+  it("is a change on a download's first event and when its state moves, not on progress", () => {
+    // What the server sends: previous only on a change.
+    expect(stateChanged({ id: 50, state: "downloading" })).toBe(true);
+    expect(stateChanged({ id: 50, state: "downloading" })).toBe(false);
+    expect(stateChanged({ id: 51, state: "downloading" })).toBe(true);
+    expect(stateChanged({ id: 50, state: "ready" })).toBe(true);
   });
 });
 
@@ -74,16 +83,19 @@ describe("onDownloadEvent", () => {
     expect(invalidated(qc)).toEqual({ calendar: true, now: true, continue: true, history: true });
   });
   it("refreshes only the queue and the Continue row on progress, at most every 5 s per download", () => {
+    // Progress events as the server sends them: no previous.
     const progress = (id: number, at: number) => {
       const qc = fresh();
-      onDownloadEvent(qc, JSON.stringify({ ...base, id, state: "downloading", previous: "downloading", progress: 40 }), at);
+      onDownloadEvent(qc, JSON.stringify({ ...base, id, state: "downloading", previous: undefined, progress: 40 }), at);
       return invalidated(qc);
     };
     const t0 = 2_000_000;
-    expect(progress(11, t0)).toEqual({ calendar: false, now: true, continue: true, history: false });
-    expect(progress(11, t0 + 1000)).toEqual({ calendar: false, now: false, continue: false, history: false });
-    expect(progress(12, t0 + 1000).now).toBe(true);
-    expect(progress(11, t0 + PROGRESS_LIVE_MS).now).toBe(true);
+    // The first event of a download is a change.
+    expect(progress(11, t0)).toEqual({ calendar: true, now: true, continue: true, history: true });
+    expect(progress(11, t0 + 1000)).toEqual({ calendar: false, now: true, continue: true, history: false });
+    expect(progress(11, t0 + 2000)).toEqual({ calendar: false, now: false, continue: false, history: false });
+    expect(progress(12, t0 + 2000).history).toBe(true);
+    expect(progress(11, t0 + 1000 + PROGRESS_LIVE_MS).now).toBe(true);
   });
 });
 
