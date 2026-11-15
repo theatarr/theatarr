@@ -145,3 +145,37 @@ describe("Bulk Search now", () => {
     expect(review.isConnected).toBe(true);
   });
 });
+
+describe("Bulk Monitor of a large selection", () => {
+  it("previews and applies in groups of 500, joined, and Apply waits for the preview", async () => {
+    let release: () => void = () => {};
+    const held = new Promise<void>((res) => { release = res; });
+    const reply = async (r: RequestRecord) => {
+      const b = r.body as { title_ids: number[]; dry_run?: boolean; versions?: string[] };
+      if (b.dry_run && b.versions) await held;
+      const items = b.title_ids.map((id) => ({ title_id: id, title: `Film ${id}`, version: "movies-hd", label: "HD", outcome: "changed", from: true, to: false }));
+      return { dry_run: !!b.dry_run, items, changed: items.length, unchanged: 0, missing: 0, stale: 0, message: "one group" };
+    };
+    const api = setup(1100, [me(["manage"]), { method: "POST", path: "/titles/monitor", reply }]);
+    const user = userEvent.setup();
+    const bar = await screen.findByRole("region", { name: "Bulk edit" });
+    await user.click(within(bar).getByRole("button", { name: "Unmonitor" }));
+    const dialog = await screen.findByRole("dialog", { name: "Review bulk edit" });
+    await waitFor(() => expect(within(dialog).getByTestId("bulk-message").textContent).toBe("Would unmonitor 1100 libraries"));
+    const sizes = () => api.calls("POST", "/titles/monitor").map((c) => (c.body as { title_ids: number[] }).title_ids.length);
+    expect(sizes()).toEqual([500, 500, 100]);
+    // Another library: Apply is off until its preview is in.
+    await user.selectOptions(within(dialog).getByRole("combobox", { name: "Libraries" }), "movies-hd");
+    await waitFor(() => expect(sizes()).toHaveLength(4));
+    expect((within(dialog).getByRole("button", { name: /Apply to|Nothing to change/ }) as HTMLButtonElement).disabled).toBe(true);
+    release();
+    const applyButton = await within(dialog).findByRole("button", { name: "Apply to 1100 libraries" });
+    await waitFor(() => expect((applyButton as HTMLButtonElement).disabled).toBe(false));
+    await user.click(applyButton);
+    await waitFor(() => expect(within(dialog).getByTestId("bulk-message").textContent).toBe("Unmonitored 1100 libraries"));
+    const applies = api.calls("POST", "/titles/monitor").slice(6) as RequestRecord[];
+    expect(applies.map((c) => (c.body as { title_ids: number[] }).title_ids.length)).toEqual([500, 500, 100]);
+    expect(applies.map((c) => (c.body as { expect: unknown[] }).expect.length)).toEqual([500, 500, 100]);
+    expect((applies[2].body as { title_ids: number[] }).title_ids[0]).toBe(1001);
+  });
+});

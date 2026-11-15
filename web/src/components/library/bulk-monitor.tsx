@@ -289,7 +289,7 @@ function ReviewDialog({
         {done ? null : (
           <Button
             size="sm"
-            disabled={!pv || changes === 0 || apply.isPending}
+            disabled={!pv || changes === 0 || preview.isPending || apply.isPending}
             onClick={() => pv && apply.mutate({ title_ids: titleIds, versions, monitored, expect: bulkExpect(pv.items) })}
           >
             {apply.isPending ? <Loader2 className="animate-spin" /> : null}
