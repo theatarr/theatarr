@@ -30,7 +30,7 @@ func TestCuratorWantedEpisodeSearchesSeason(t *testing.T) {
 	targets := func() []string {
 		t.Helper()
 		e.storeCutoffs()
-		ts, err := e.a.seriesTargets(e.ctx, e.st.Reader(), 201, 10, "series", sel, store.Millis(e.now))
+		ts, err := e.a.seriesTargets(e.ctx, e.st.Reader(), 201, 10, "series", sel, store.Millis(e.now), nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -84,7 +84,7 @@ func TestCuratorWantedEpisodeSeasonCriteria(t *testing.T) {
 	e.exec(`INSERT INTO metadata_cache(source,key,status,body,fetched_at,expires_at) VALUES('seadex-standing','1535',200,?,0,253402214400000)`, body)
 	e.storeCutoffs()
 	ts, err := e.a.seriesTargets(e.ctx, e.st.Reader(), 201, 10, "series", Selection{Versions: []string{"series"},
-		Only: OnlyCutoff, QualityCutoff: true}, store.Millis(e.now))
+		Only: OnlyCutoff, QualityCutoff: true}, store.Millis(e.now), nil)
 	if err != nil || len(ts) != 1 || len(ts[0].episodes) != 1 {
 		t.Fatalf("fixture: targets %+v %v", ts, err)
 	}

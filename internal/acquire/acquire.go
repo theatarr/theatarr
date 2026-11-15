@@ -131,16 +131,6 @@ type Acquirer struct {
 	judgeEach bool
 }
 
-// cutoffInputsKey holds the decide.CutoffInputs one targets call read for a prefer-SeaDex library's cutoff, by
-// version id (cutoffInput).
-type cutoffInputsKey struct{}
-
-// cutoffInput is the version's batched cutoff input of this targets call, nil when there is none.
-func cutoffInput(ctx context.Context, versionID int64) *decide.CutoffInput {
-	m, _ := ctx.Value(cutoffInputsKey{}).(map[int64]*decide.CutoffInput)
-	return m[versionID]
-}
-
 // New builds the acquirer.
 func New(cfg Config) (*Acquirer, error) {
 	if cfg.Store == nil || cfg.Policy == nil || cfg.Queue == nil || cfg.Router == nil {
@@ -497,21 +487,18 @@ func (a *Acquirer) targets(ctx context.Context, sel Selection) ([]target, error)
 		if err := rows.Err(); err != nil {
 			return nil, err
 		}
-		vctx := ctx
+		var inputs map[int64]*decide.CutoffInput
 		if sel.Only == OnlyCutoff && vp.PreferSeaDex && a.eng != nil && !a.judgeEach && len(vs) > 0 {
 			// The library's files are judged below (belowCutoff, cutoffEpisodes): read what that takes at once.
 			versions := make(map[int64]int64, len(vs))
 			for _, v := range vs {
 				versions[v.id] = v.title
 			}
-			in, err := decide.LoadCutoffInputs(decide.WithSeaDexPolicy(ctx, a.pol, vp), db, vp.Kind, versions)
-			if err != nil {
+			if inputs, err = decide.LoadCutoffInputs(decide.WithSeaDexPolicy(ctx, a.pol, vp), db, vp.Kind, versions); err != nil {
 				return nil, err
 			}
-			vctx = context.WithValue(ctx, cutoffInputsKey{}, in)
 		}
 		for _, v := range vs {
-			ctx := vctx
 			if vp.Anime != nil && *vp.Anime != (v.anime == 1 || v.series == "anime") {
 				continue
 			}
@@ -530,7 +517,7 @@ func (a *Acquirer) targets(ctx context.Context, sel Selection) ([]target, error)
 					}
 				}
 				if sel.Only == OnlyCutoff && (sel.QualityCutoff || vp.PreferSeaDex) && !a.storedCutoff(sel, vp) {
-					below, err := a.belowCutoff(ctx, k, v.id, v.title, !sel.QualityCutoff)
+					below, err := a.belowCutoff(ctx, k, v.id, v.title, !sel.QualityCutoff, inputs[v.id])
 					if err != nil {
 						return nil, err
 					}
@@ -542,7 +529,7 @@ func (a *Acquirer) targets(ctx context.Context, sel Selection) ([]target, error)
 					joinedAt: v.created, joined: joined})
 				continue
 			}
-			ts, err := a.seriesTargets(ctx, db, v.id, v.title, k, sel, now)
+			ts, err := a.seriesTargets(ctx, db, v.id, v.title, k, sel, now, inputs[v.id])
 			if err != nil {
 				return nil, err
 			}
@@ -563,8 +550,9 @@ func (a *Acquirer) targets(ctx context.Context, sel Selection) ([]target, error)
 // upgrades takes only the episodes without a file, so a season whose episodes all have one is not searched: Sonarr
 // v5's SeriesSearchService passes missingOnly = !UpgradeAllowed to ReleaseSearchService.SeasonSearch, which skips a
 // season left with no episode (b94cf9b3b).
+// in, when given, is what judging the version's files reads (decide.LoadCutoffInputs); nil: cutoffEpisodes reads it.
 func (a *Acquirer) seriesTargets(ctx context.Context, db *sql.DB, versionID, titleID int64, key string, sel Selection,
-	now int64) ([]target, error) {
+	now int64, in *decide.CutoffInput) ([]target, error) {
 	vp := a.pol.Versions[key]
 	missingOnly := sel.Only == "" && sel.Season == nil && len(sel.EpisodeIDs) == 0 && !a.upgradesAllowed(key)
 	var keep map[int64]bool  // quality cutoff: the filled episodes whose file is below it
@@ -572,8 +560,11 @@ func (a *Acquirer) seriesTargets(ctx context.Context, db *sql.DB, versionID, tit
 	stored := a.storedCutoff(sel, vp)
 	if sel.Only == OnlyCutoff && (sel.QualityCutoff || vp.PreferSeaDex) && !stored {
 		var err error
-		if keep, err = a.cutoffEpisodes(ctx, key, versionID, titleID, !sel.QualityCutoff, pack); err != nil {
+		if keep, err = a.cutoffEpisodes(ctx, key, versionID, titleID, !sel.QualityCutoff, pack, in); err != nil {
 			return nil, err
+		}
+		if keep != nil && len(keep) == 0 {
+			return nil, nil // no file below the cutoff: every episode would be skipped
 		}
 	}
 	// An episode the metadata source dropped (removed_at; kept for its files or history) is searched only when named.
@@ -694,9 +685,12 @@ func (a *Acquirer) storedCutoff(sel Selection, vp *policy.VersionPolicy) bool {
 
 // BelowQualityCutoff says whether a filled movie version's file is below the quality cutoff (true without an engine).
 func (a *Acquirer) BelowQualityCutoff(ctx context.Context, key string, versionID, titleID int64) (bool, error) {
-	return a.belowCutoff(ctx, key, versionID, titleID, false)
+	return a.belowCutoff(ctx, key, versionID, titleID, false, nil)
 }
-func (a *Acquirer) belowCutoff(ctx context.Context, key string, versionID, titleID int64, full bool) (bool, error) {
+
+// in, when given, is the version's title and file as decide.LoadCutoffInputs read them; nil: they are read here.
+func (a *Acquirer) belowCutoff(ctx context.Context, key string, versionID, titleID int64, full bool,
+	in *decide.CutoffInput) (bool, error) {
 	if a.eng == nil {
 		return true, nil
 	}
@@ -710,7 +704,7 @@ func (a *Acquirer) belowCutoff(ctx context.Context, key string, versionID, title
 	}
 	var f *decide.ExistingFile
 	var title *decide.Title
-	if in := cutoffInput(ctx, versionID); in != nil {
+	if in != nil {
 		f, title = in.File, in.Title
 	} else if f, err = decide.LoadExisting(ctx, a.st.Reader(), versionID); err != nil {
 		return false, err
@@ -734,14 +728,14 @@ func (a *Acquirer) EpisodesBelowQualityCutoff(ctx context.Context, key string, v
 }
 
 func (a *Acquirer) episodesBelowCutoff(ctx context.Context, key string, versionID, titleID int64, full bool) (map[int64]bool, error) {
-	return a.cutoffEpisodes(ctx, key, versionID, titleID, full, nil)
+	return a.cutoffEpisodes(ctx, key, versionID, titleID, full, nil, nil)
 }
 
 // cutoffEpisodes are a series version's episodes whose file is below cutoff (full: the upgrade rule). pack, when
 // given, receives the episodes a curated alternative makes wanted: the alternative is a season pack, so their
-// search is a season search even for one episode.
+// search is a season search even for one episode. in, when given, is the title as decide.LoadCutoffInputs read it.
 func (a *Acquirer) cutoffEpisodes(ctx context.Context, key string, versionID, titleID int64, full bool,
-	pack map[int64]bool) (map[int64]bool, error) {
+	pack map[int64]bool, in *decide.CutoffInput) (map[int64]bool, error) {
 	if a.eng == nil {
 		return nil, nil
 	}
@@ -756,7 +750,7 @@ func (a *Acquirer) cutoffEpisodes(ctx context.Context, key string, versionID, ti
 	var eps []decide.Episode
 	var title *decide.Title
 	var err error
-	if in := cutoffInput(ctx, versionID); in != nil {
+	if in != nil {
 		if in.Title == nil {
 			return nil, fmt.Errorf("no title %d", titleID)
 		}
@@ -783,7 +777,8 @@ func (a *Acquirer) cutoffEpisodes(ctx context.Context, key string, versionID, ti
 		}
 	}
 	out := map[int64]bool{}
-	judged := map[int64]bool{} // by file
+	judged := map[int64]bool{}  // by file
+	curated := map[int64]bool{} // by file: CuratorWanted
 	for _, e := range eps {
 		if e.File == nil {
 			continue
@@ -798,8 +793,15 @@ func (a *Acquirer) cutoffEpisodes(ctx context.Context, key string, versionID, ti
 		}
 		if below {
 			out[e.ID] = true
-			if pack != nil && title != nil && a.eng.CuratorWanted(title, decide.Version{ID: versionID, Key: key}, e.File) {
-				pack[e.ID] = true
+			if pack != nil && title != nil {
+				wanted, ok := curated[e.FileID]
+				if !ok {
+					wanted = a.eng.CuratorWanted(title, decide.Version{ID: versionID, Key: key}, e.File)
+					curated[e.FileID] = wanted
+				}
+				if wanted {
+					pack[e.ID] = true
+				}
 			}
 		}
 	}

@@ -10,6 +10,8 @@ import (
 // VersionNaming is how one version names its files.
 type VersionNaming struct {
 	Config naming.Config
+	// NamesFormats says whether the names can show custom formats (naming.Config.NamesCustomFormats).
+	NamesFormats bool
 	// Source is "policy".
 	Source string
 }
@@ -58,5 +60,5 @@ func NamingFor(pol *policy.Policy, version string) (*VersionNaming, error) {
 	if n.Colon != "" {
 		cfg.ColonReplacement = colonByName[n.Colon]
 	}
-	return &VersionNaming{Config: cfg, Source: "policy"}, nil
+	return &VersionNaming{Config: cfg, NamesFormats: cfg.NamesCustomFormats(), Source: "policy"}, nil
 }

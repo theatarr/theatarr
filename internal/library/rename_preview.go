@@ -97,7 +97,6 @@ func (l *Library) previewRename(ctx context.Context, titleID int64, season *int,
 		}
 	}
 	namings := map[string]*VersionNaming{}
-	namesFormats := map[string]bool{} // by version: its naming can show custom formats (NamesCustomFormats)
 	type folderKey struct {
 		version int64
 		root    string
@@ -125,7 +124,6 @@ func (l *Library) previewRename(ctx context.Context, titleID int64, season *int,
 				return nil, err
 			}
 			namings[key] = vn
-			namesFormats[key] = vn.Config.NamesCustomFormats()
 		}
 		root := ""
 		for _, r := range l.gate.Roots(key) {
@@ -158,7 +156,7 @@ func (l *Library) previewRename(ctx context.Context, titleID int64, season *int,
 		// The {Custom Formats} names, worked out only when the naming can show them (adopted links decide their
 		// release again for them).
 		var formats []string
-		if namesFormats[key] {
+		if vn.NamesFormats {
 			formats = l.storedRenameFormats(ctx, key, facts)
 			if len(facts.Formats) == 0 {
 				if cfs, ok := l.adoptedRenameFormats(ctx, pl.adoptedFrom, &v, facts); ok {
