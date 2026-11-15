@@ -186,6 +186,24 @@ describe("Bulk Remove after the preview", () => {
   });
 });
 
+describe("Bulk Remove of a large selection", () => {
+  it("reads the preview in groups of 500 and joins them in the selection's order", async () => {
+    const many = Array.from({ length: 1100 }, (_, i) => ({ id: i + 1, kind: "movie", name: `Film ${i + 1}`, versions: [{ key: "hd", label: "HD", monitored: true }] })) as unknown as TitleRow[];
+    const reply = (r: RequestRecord) => {
+      const ids = (r.body as { title_ids: number[] }).title_ids;
+      return { scopes: ids.filter((id) => id !== 7).map((id) => scope(id, `Film ${id}`, [copy("hd", "HD", 1)])), skipped: ids.includes(7) ? [{ title_id: 7, reason: "in no library" }] : [] };
+    };
+    const api = mockFetch([me(["manage"]), { method: "POST", path: "/titles/removal", reply }]);
+    renderPage(<BulkBar titles={many} columns={columns} onClear={() => {}} />);
+    const user = userEvent.setup();
+    await user.click(await within(await bar()).findByRole("button", { name: "Remove" }));
+    const dialog = await screen.findByRole("dialog", { name: "Remove 1,099 titles" });
+    expect(api.calls("POST", "/titles/removal").map((c) => (c.body as { title_ids: number[] }).title_ids.length)).toEqual([500, 500, 100]);
+    expect(within(dialog).getByText("Film 1, Film 2, Film 3 and 1096 more")).toBeTruthy();
+    expect(within(dialog).getByTestId("bulk-remove-skipped").textContent).toBe("Skipped 1 title: in no library.");
+  });
+});
+
 describe("Bulk Add to a library", () => {
   const options = (kind: string, versions: { key: string; label: string }[]) => ({ kind, anime: true, router_enabled: true, versions: versions.map((v) => ({ ...v, kind, fits: true })), seasons: [] });
   const routes = (put: unknown = {}) => [

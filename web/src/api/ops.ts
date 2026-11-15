@@ -70,13 +70,24 @@ export function useRemove(titleId: number) {
   });
 }
 
+/** POST /titles/removal takes at most this many titles (internal/web maxBulkTitles). */
+const SCOPE_GROUP = 500;
+
 /** The selection bar's Remove: each title's removal scope (versions: the one library; none: the whole title), in the
- *  selection's order, read once while enabled; the previous answer stays up while the library changes. One request:
- *  the server takes up to 500 titles, as POST /titles/monitor. */
+ *  selection's order, read once while enabled; the previous answer stays up while the library changes. */
 export function useBulkRemovalScope(titleIds: number[], versions: string[], enabled: boolean) {
   return useQuery({
     queryKey: ["bulk-removal", titleIds.join(), versions.join()],
-    queryFn: () => api<BulkRemovalScope>("/titles/removal", { method: "POST", body: { title_ids: titleIds, versions } }),
+    // Groups of 500 (the server's limit), one after another, joined in the selection's order.
+    queryFn: async () => {
+      const out: BulkRemovalScope = { scopes: [], skipped: [] };
+      for (let i = 0; i < titleIds.length; i += SCOPE_GROUP) {
+        const r = await api<BulkRemovalScope>("/titles/removal", { method: "POST", body: { title_ids: titleIds.slice(i, i + SCOPE_GROUP), versions } });
+        out.scopes.push(...r.scopes);
+        out.skipped.push(...r.skipped);
+      }
+      return out;
+    },
     enabled: enabled && titleIds.length > 0,
     staleTime: 0,
     placeholderData: keepPreviousData,

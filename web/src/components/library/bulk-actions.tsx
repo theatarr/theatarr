@@ -90,7 +90,6 @@ export function BulkRemoveDialog({ titles, libraries, onClose, onDone }: { title
   const { scopes, skipped } = q.data;
   const label = libraries?.find((c) => c.key === lib)?.label;
   const scope = bulkRemovalScope(scopes, files, debrid, label);
-  const byName = new Map(titles.map((t) => [t.id ?? 0, t.name ?? ""]));
   const skips = new Map<string, number>();
   for (const s of skipped) skips.set(s.reason, (skips.get(s.reason) ?? 0) + 1);
   const run = async () => {
@@ -103,7 +102,7 @@ export function BulkRemoveDialog({ titles, libraries, onClose, onDone }: { title
     for (const s of scopes) {
       if (stop.current) break;
       setProgress(done);
-      const name = s.name || byName.get(s.title_id) || `#${s.title_id}`;
+      const name = s.name;
       try {
         // Exactly the libraries the preview showed, and only while the title still holds what it showed.
         const keys = previewKeys(s);
