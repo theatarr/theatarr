@@ -740,6 +740,12 @@ func (s *Syncer) Handle(ctx context.Context, j *jobs.Job) error {
 			return jobs.Permanent(fmt.Errorf("provider sync: bad payload: %w", err))
 		}
 	}
+	return s.Sync(ctx, p)
+}
+
+// Sync is one sync as Handle runs it: p with no providers syncs every provider not backing off (the scheduled
+// sync's task).
+func (s *Syncer) Sync(ctx context.Context, p SyncPayload) error {
 	for _, k := range p.Providers {
 		if s.Providers[k] == nil {
 			return jobs.Permanent(fmt.Errorf("provider sync: unknown provider %q", k))

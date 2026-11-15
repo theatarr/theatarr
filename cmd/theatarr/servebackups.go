@@ -16,9 +16,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/theatarr/theatarr/internal/jobs"
 	"github.com/theatarr/theatarr/internal/policy"
-	"github.com/theatarr/theatarr/internal/provider"
 	"github.com/theatarr/theatarr/internal/store"
 	"github.com/theatarr/theatarr/internal/web"
 )
@@ -340,13 +338,4 @@ func finishRestoreResult(log *slog.Logger, dataDir, taken string, result *web.Re
 	if err := os.Remove(taken); err != nil {
 		log.Error("remove claimed restore request", "err", err)
 	}
-}
-
-// Only the result returned by this startup is passed here, never a historical result file.
-func enqueueRestoredProviderSync(ctx context.Context, q *jobs.Queue, result *web.RestoreResult) error {
-	if result == nil || !result.OK {
-		return nil
-	}
-	_, _, err := q.Enqueue(ctx, provider.JobKind, provider.SyncPayload{}, jobs.EnqueueOptions{DedupeKey: provider.JobKind})
-	return err
 }

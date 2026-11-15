@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/theatarr/theatarr/internal/retention"
 	"github.com/theatarr/theatarr/internal/store"
 	"github.com/theatarr/theatarr/internal/store/storetest"
+	"github.com/theatarr/theatarr/internal/tasks"
 )
 
 func TestNightlyNext(t *testing.T) {
@@ -248,14 +250,27 @@ func TestProviderSyncSchedule(t *testing.T) {
 		t.Errorf("first, overdue: %v", got)
 	}
 
-	// A sync still queued (or running) is not enqueued again.
-	ps.enqueue(ctx)
-	ps.enqueue(ctx)
-	if counts, _ := q.Counts(ctx); counts[jobs.StateQueued] != 1 {
-		t.Errorf("queued %v, want 1", counts)
+	// The schedule runs the sync as the provider.sync task: its row records the run and the next one an interval
+	// on; no job row is written. After a restore (soon) the first sync is a delay after start.
+	ps.delay, ps.soon, ps.interval = 10*time.Millisecond, true, time.Hour
+	ps.tasks = tasks.New(ctx, st, nil)
+	var syncs atomic.Int32
+	ps.sync = func(context.Context) error { syncs.Add(1); return nil }
+	rctx, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+	go func() { ps.run(rctx); close(done) }()
+	waitFor(t, "scheduled sync recorded", func() bool {
+		got, _ := ps.tasks.List(ctx)
+		return len(got) == 1 && got[0].LastFinished != nil && got[0].NextRun != nil &&
+			got[0].NextRun.Sub(*got[0].LastStarted) == time.Hour
+	})
+	cancel()
+	<-done
+	if n := syncs.Load(); n != 1 {
+		t.Errorf("syncs %d", n)
 	}
-	if !strings.Contains(logs.String(), "not enqueued again") {
-		t.Errorf("dedupe log: %s", logs.String())
+	if counts, _ := q.Counts(ctx); counts[jobs.StateQueued]+counts[jobs.StateDone] != 0 {
+		t.Errorf("job rows %v", counts)
 	}
 }
 

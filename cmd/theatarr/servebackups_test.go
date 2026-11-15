@@ -18,7 +18,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/theatarr/theatarr/internal/jobs"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/store"
 	"github.com/theatarr/theatarr/internal/web"
@@ -132,25 +131,9 @@ func TestStartupApplyRestore(t *testing.T) {
 			if _, err := reopened.Migrate(ctx); err != nil {
 				t.Fatal(err)
 			}
-			q := jobs.NewQueue(reopened)
-			for range 2 {
-				if err := enqueueRestoredProviderSync(ctx, q, result); err != nil {
-					t.Fatal(err)
-				}
-			}
-			if err := enqueueRestoredProviderSync(ctx, q, nil); err != nil {
-				t.Fatal(err)
-			}
-			var count int
-			if err := reopened.Reader().QueryRowContext(ctx, `SELECT COUNT(*) FROM job WHERE kind='provider.sync'`).Scan(&count); err != nil {
-				t.Fatal(err)
-			}
-			expected := 1
-			if corrupt {
-				expected = 0
-			}
-			if count != expected {
-				t.Fatalf("sync jobs %d want %d", count, expected)
+			// A restore that worked syncs the providers soon after start (providerSync.soon).
+			if result.OK == corrupt {
+				t.Fatalf("restore ok %v with a corrupt set %v", result.OK, corrupt)
 			}
 		})
 	}
@@ -473,16 +456,6 @@ func TestStartupFinishesRestoreAfterSwap(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer st.Close()
-	if err := enqueueRestoredProviderSync(ctx, jobs.NewQueue(st), result); err != nil {
-		t.Fatal(err)
-	}
-	var count int
-	if err := st.Reader().QueryRowContext(ctx, `SELECT COUNT(*) FROM job WHERE kind='provider.sync'`).Scan(&count); err != nil {
-		t.Fatal(err)
-	}
-	if count != 1 {
-		t.Fatalf("sync jobs: %d", count)
-	}
 	if again, err := applyRestoreRequest(ctx, log, io.Discard, filepath.Dir(base), db, "", now.Add(2*time.Minute)); err != nil || again != nil {
 		t.Fatalf("replayed: %+v %v", again, err)
 	}

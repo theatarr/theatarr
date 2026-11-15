@@ -454,15 +454,9 @@ func runServe(args []string) error {
 		return torrentSvc.Manager(captureRuntime(ctx))
 	}
 	torrents.RegisterJobs(w, torrentManager)
-	// The provider sync job; after each one the usage worker works out the record's usage outside the job queue
-	// (docs/design/torrents.md "The record").
-	w.Handle(provider.JobKind, func(ctx context.Context, j *jobs.Job) error {
-		var payload provider.SyncPayload
-		if len(j.Payload) > 0 {
-			if err := j.Decode(&payload); err != nil {
-				return jobs.Permanent(err)
-			}
-		}
+	// The provider sync: one provider's retry job, and the scheduled sync of all (its task); after each one the usage
+	// worker works out the record's usage outside the job queue (docs/design/torrents.md "The record").
+	syncProviders := func(ctx context.Context, payload provider.SyncPayload) error {
 		ctx = runtimeManager.Capture(ctx)
 		runtime := settings.ContextRuntime(ctx)
 		if runtime == nil {
@@ -472,10 +466,22 @@ func runServe(args []string) error {
 		if !ok || active == nil || active.Providers == nil {
 			return errors.New("provider sync: active settings runtime is unavailable")
 		}
-		err := active.Providers.syncer.Handle(ctx, j)
+		err := active.Providers.syncer.Sync(ctx, payload)
 		torrentUsage.Signal()
 		return err
+	}
+	w.Handle(provider.JobKind, func(ctx context.Context, j *jobs.Job) error {
+		var payload provider.SyncPayload
+		if len(j.Payload) > 0 {
+			if err := j.Decode(&payload); err != nil {
+				return jobs.Permanent(err)
+			}
+		}
+		return syncProviders(ctx, payload)
 	})
+	ps.tasks, ps.sync = tbl, func(ctx context.Context) error { return syncProviders(ctx, provider.SyncPayload{}) }
+	// After a restore the first sync is soon, whenever the restored set last synced.
+	ps.soon = restoreResult != nil && restoreResult.OK
 
 	// The library: imports of ready downloads, relinks and Plex scans, written only through its gate
 	// (docs/design/library.md).
@@ -787,10 +793,6 @@ func runServe(args []string) error {
 		return err
 	}
 
-	if err := enqueueRestoredProviderSync(ctx, q, restoreResult); err != nil {
-		log.Error("enqueue provider sync after restore", "err", err)
-	}
-
 	// The serve loops below run under errinbox.Go: a panic is written to the error inbox before it crashes the
 	// process as before (the container restarts it).
 	var wg sync.WaitGroup
@@ -909,6 +911,11 @@ type providerSync struct {
 	runtimeSyncer func() *providerSync
 	// delay is the earliest a first sync runs after start, so the egress check has run when providers need the VPN.
 	delay time.Duration
+	// tasks records the scheduled sync, which sync runs (every provider with the settings in force); soon makes the
+	// first one run after delay (a restore).
+	tasks *tasks.Table
+	sync  func(context.Context) error
+	soon  bool
 }
 
 func newProviderSync(pol *policy.Policy, st *store.Store, q *jobs.Queue, d provider.Doer, log *slog.Logger) (*providerSync, error) {
@@ -982,22 +989,8 @@ func (p *providerSync) first(ctx context.Context, now time.Time) (time.Time, err
 	return next, nil
 }
 
-// enqueue adds a sync of every provider with a key, unless one is already queued or running.
-func (p *providerSync) enqueue(ctx context.Context) {
-	payload := provider.SyncPayload{}
-	id, created, err := p.q.Enqueue(ctx, provider.JobKind, payload,
-		jobs.EnqueueOptions{DedupeKey: provider.JobKind})
-	switch {
-	case err != nil:
-		p.log.Warn("enqueue provider sync", "err", err)
-	case !created:
-		p.log.Info("provider sync still queued or running; not enqueued again", "job", id)
-	default:
-		p.log.Debug("provider sync enqueued", "job", id)
-	}
-}
-
-// run enqueues a sync when one is due, then every interval, until ctx ends. Without providers it does nothing.
+// run syncs every provider when a sync is due, then every interval, until ctx ends, as the provider.sync task (5
+// tries, as the job had). Without providers it does nothing.
 func (p *providerSync) run(ctx context.Context) {
 	if p.runtimeSyncer == nil && len(p.keys) == 0 {
 		return
@@ -1010,7 +1003,13 @@ func (p *providerSync) run(ctx context.Context) {
 	if err != nil {
 		active.log.Warn("reading the last provider sync", "err", err)
 	}
+	if p.soon {
+		next = time.Now().Add(p.delay)
+	}
 	active.log.Info("provider sync scheduled", "providers", active.keys, "interval", active.interval.String(), "next", next.UTC())
+	task := tasks.Task{Key: provider.JobKind, Name: "Sync debrid holdings", Every: active.interval, Attempts: jobs.DefaultMaxAttempts,
+		Next: next, Run: p.sync}
+	defer p.tasks.Register(ctx, task)()
 	t := time.NewTimer(time.Until(next))
 	defer t.Stop()
 	for {
@@ -1022,8 +1021,12 @@ func (p *providerSync) run(ctx context.Context) {
 			if p.runtimeSyncer != nil {
 				active = p.runtimeSyncer()
 			}
-			active.enqueue(ctx)
-			t.Reset(active.interval)
+			task.Every = active.interval
+			start := time.Now()
+			if _, err := p.tasks.Run(ctx, task); err != nil && ctx.Err() == nil {
+				active.log.Warn("provider sync", "err", err)
+			}
+			t.Reset(time.Until(start.Add(active.interval)))
 		}
 	}
 }
