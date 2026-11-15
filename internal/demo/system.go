@@ -6,7 +6,7 @@ import (
 )
 
 // system writes the operator's tables: jobs in every state, budgets, back-offs, provider pacing, the TVDB sync,
-// API keys, the views' profiles and tags, recent view commands and offers.
+// API keys, the views' profiles and tags and recent view commands.
 func (s *seeder) system() {
 	job := func(kind, payload, state string, created time.Time, attempts int, lastErr string, extra ...any) int64 {
 		var finished, errText any

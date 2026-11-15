@@ -25,7 +25,7 @@ import (
 func init() {
 	register(command{
 		name:    "providers",
-		summary: "debrid providers, read-only: sync the content registry from their torrent lists, show status",
+		summary: "debrid providers, read-only: record each account's torrent listing, show status",
 		run:     runProviders,
 	})
 }
@@ -179,7 +179,7 @@ func runProvidersSync(args []string) error {
 	settingsSourceFlag(fs)
 	fs.Usage = func() {
 		fmt.Fprint(fs.Output(), "usage: theatarr providers sync [flags]\n\n"+
-			"Lists each provider's torrents (GET only) and updates the content registry. Providers whose key is not\n"+
+			"Lists each provider's torrents (GET only) and updates the record of its torrents. Providers whose key is not\n"+
 			"set are skipped. Nothing is added to or removed from any provider.\n\n")
 		fs.PrintDefaults()
 	}

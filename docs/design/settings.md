@@ -384,7 +384,7 @@ profiles, formats and format sets, indexers, providers, clients, views, budgets,
 sync, shadow, library, router, playlists, notify and UI (`examples/policy/*.yaml`; the section fields are in
 `internal/policy/policy.go`). Per-title overrides are a separate format under `metadata.overrides_dir`, not root
 policy. These files are import input, not live settings: serve and the CLI commands that need settings (`theatarr
-search`, `router`, `shadow` and the others using `loadCommandPolicy`) read the stored generation from the
+search`, `router` and the others using `loadCommandPolicy`) read the stored generation from the
 database, over the policy directory for relative data paths, and refuse with "no settings yet" before the first
 generation. Only data files such as the overrides are read from the directory at run time.
 
@@ -1113,7 +1113,7 @@ Runtime `grab_state` carries `paused` and `pause_forced` (Pause and whether `THE
 ## Readiness and phone navigation
 
 Setup is a six-step checklist; [quickstart](../quickstart.md#readiness-led-setup) defines its shared progress count.
-Its activation review lists library keys (also their current display labels), roots, the library state (mode and verdict), indexers and
+Its activation review lists library keys (also their current display labels), roots, the library state, indexers and
 providers, plus Pause (and whether the environment forces it).
 Each links to its existing editor; reviewing never writes settings. Home and Settings remind admins while setup is
 unfinished. [The arr map](../arr-map.md) maps upstream pages and explains missing equivalents.

@@ -39,10 +39,10 @@ How it is enforced:
   "stop, read nothing there, retry later". An import refused that way plans nothing and records nothing (planning
   reads the root's links, unbounded); the download stays `ready`, and the periodic pass logs it and goes on with the
   others. Reconcile, relink and verify skip such a root whole (the scan's `skipped`: "unreachable: ..."), and adopt
-  stops. Versions the gate refuses before their roots (shadow, library off) and dry runs check the roots they read
+  stops. Versions the gate refuses before their roots (library off) and dry runs check the roots they read
   the same way
   (`Gate.Reachable`), including every share mounted below a root, which a walk would cross into
-  (`TestImportUnreachableRootPlansNothing`, `TestImportShadowUnreachableRootPlansNothing`,
+  (`TestImportUnreachableRootPlansNothing`,
   `TestScansSkipUnreachableRoot`, `TestScanSkipsRootWithHungNestedMount`, `TestAdoptUnreachableRoot`).
   `Gate.Reachable` only shows the root answered a moment ago (a share can answer a cached stat, then hang on a
   listing), so the scans' read phase is bounded too (`rootread.go`): the walk of a root (relink sweep,
@@ -63,11 +63,11 @@ How it is enforced:
 - When the gate refuses (other than `unreachable`, above), the import runs as a **dry run**: it plans everything and
   records it (`library_import` state `dry_run`, `library_action` mode `dry_run`), and the download stays `ready`.
 - `theatarr serve` logs the gate at start, at WARN: `LIBRARY DISABLED: library.enabled is false: no filesystem writes and no
-  Plex calls; shadow dry runs only`, or `LIBRARY ENABLED: library writes enabled for: <versions and roots>; dry run
-  only: <versions>`.
+  Plex calls; dry runs only`, or `LIBRARY ENABLED: library writes enabled for: <versions and roots>; no roots:
+  <versions>`.
 
 **Proof (`go test ./internal/library`).**
-- `TestGateBlocksWrites`: disabled, then enabled with the version in shadow. An import with an upgrade to make, a
+- `TestGateBlocksWrites`: the library disabled. An import with an upgrade to make, a
   relink sweep and a trash purge 400 days later leave the temp tree byte-for-byte identical; the download stays
   `ready`; the planned link and the planned move-aside are recorded as `dry_run`; Plex calls are refused.
 - `TestGatePaths`: the root itself, another version's root, a sibling directory, `..` traversal, a symlinked escape
@@ -295,7 +295,7 @@ mount never lengthen that back-off (`TestPartialAfterWaitsStartsBackoffAgain`).
    episodes, and the same file is refused again each time.
    The note is the plan file's `note`; the journal shows it on the file and as a `library_guard`
    info check. A client's explicit files (manual import) are only noted (`not refused (manual import): ...`), and
-   specials are skipped (a pack's special is often an SD disc extra). Gated versions (shadow, library off) record it
+   specials are skipped (a pack's special is often an SD disc extra). Gated versions (library off) record it
    as a dry-run reject without a blocklist, and adoption of the arr's files does not run the guard. The SEI comes
    from the first frame of an H.264 or HEVC Matroska stream (at most 64 KiB of it unless PQ) or from hvcC; MP4
    samples are not read. Tests: `TestMislabelCheck`, `TestMislabelFileClaim`, `TestImportRefusesMislabelledRemux`,
@@ -418,14 +418,13 @@ state. Moving or unlinking a file returns its version or episodes to `wanted` on
 remains for them.
 
 **Recompute.** The first import pass of each process (`Run`), and the first after each settings change (a new policy
-revision, e.g. a raised profile cutoff), recomputes the states of active versions' files under the current profile
+revision, e.g. a raised profile cutoff), recomputes the states of the versions' files under the current profile
 (`RecomputeLinkStates`): Theatarr's links and adopted links alike, a movie by its current file, an episode by its file;
 only `filled` and `cutoff_met` move, and only between each other. A file adopted as `cutoff_met` under the
 arr's profile thus reaches the cutoff sweep once Theatarr's profile asks for more (`TestRecomputeJudgesArrFilesAfterProfileChange`). A series version is judged whatever its own state: one aired
 episode without a file makes it `wanted` while its other episodes' states still follow the profile. After a settings
 change only the versions whose judging settings changed (the version, its profile, the formats and format sets) are
-recomputed (`TestRecomputeAfterSaveOnlyChangedVersions`). It is idempotent and
-touches nothing of a shadow version.
+recomputed (`TestRecomputeAfterSaveOnlyChangedVersions`). It is idempotent.
 
 **An adopted file on an upgrade** is replaced like any link: moved aside to the trash, its row `unlinked`. Episodes
 the old file held that the new links do not are wanted again.

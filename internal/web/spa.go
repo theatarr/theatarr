@@ -15,7 +15,7 @@ var pageRedirects = []struct{ from, to string }{
 	{"/registry", "/admin/torrents"},
 	{"/registry/{hash}", "/admin/torrents?q={hash}"},
 	{"/settings", "/admin/settings"},
-	{"/anime/{slug}", "/admin/reviews/anime/{slug}"},
+	{"/anime/{slug}", "/admin/settings/anime-mappings/{slug}"},
 }
 
 // libraryRedirect preserves the grid filters of an old library bookmark.

@@ -203,7 +203,7 @@
     },
     "/titles/{id}": {
       "get": {
-        "summary": "One title with versions, files, links, history and registry contents. Callers without see_files get state, quality and dates only: no files, links, arr records, registry, paths, hashes, release names, sizes, scores or providers",
+        "summary": "One title with versions, files, links, history and the provider torrents recorded for it. Callers without see_files get state, quality and dates only: no files, links, arr records, provider torrents, paths, hashes, release names, sizes, scores or providers",
         "parameters": [{ "$ref": "#/components/parameters/id" }],
         "responses": {
           "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TitleDetail" } } } },

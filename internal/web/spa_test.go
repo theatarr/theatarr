@@ -30,7 +30,7 @@ func TestOldPathsRedirect(t *testing.T) {
 		"/registry/" + hashA:                "/admin/torrents?q=" + hashA,
 		"/registry/" + hashA + "?x=1":       "/admin/torrents?q=" + hashA + "&x=1",
 		"/settings":                         "/admin/settings",
-		"/anime/re-zero":                    "/admin/reviews/anime/re-zero",
+		"/anime/re-zero":                    "/admin/settings/anime-mappings/re-zero",
 	} {
 		rec := e.get(from, nil)
 		if rec.Code != http.StatusFound || rec.Header().Get("Location") != to {
