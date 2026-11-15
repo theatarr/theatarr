@@ -1,6 +1,7 @@
 // The episode overview (docs/design/manage.md, docs/design/ui.md Title page / Episodes), in the shared Modal: a dialog
 // centred on desktop and a bottom sheet on phones, opened from an episode row (?episode=<id>). The episode's number
-// (labelled "E01 · absolute 1" for anime), air date and runtime; then, for callers who see files, three tabs:
+// (labelled "E01 · absolute 1" for anime), air date and runtime, and its synopsis (every account, as Sonarr's episode
+// dialog); then, for callers who see files, three tabs:
 // Details (per copy its state against the cutoff with Why? and what Theatarr would take next, the download in hand,
 // the monitor switch and Search now for managers, read-only with the reason while an arr manages the copy,
 // Interactive search for a library that may search, and the file's facts with Cached on, shown openly), History (per
@@ -346,6 +347,11 @@ export function EpisodeOverview({
         {e ? (
           <p className="mt-1 text-xs text-muted-foreground" data-testid="episode-meta">
             {[e.air_date ? `${aired ? "Aired" : "Airs"} ${fmtDay(e.air_date)}` : "No air date", runtime, anime && e.absolute ? episodeNumber(e, true) : ""].filter(Boolean).join(" · ")}
+          </p>
+        ) : null}
+        {d?.overview ? (
+          <p className="mt-2 text-sm leading-snug text-[var(--ink-2)] [overflow-wrap:anywhere]" data-testid="episode-synopsis">
+            {d.overview}
           </p>
         ) : null}
         <button type="button" onClick={onClose} aria-label="Close" className="absolute right-3 top-3 grid size-8 place-items-center rounded-lg text-[var(--ink-3)] hover:bg-[var(--hover)]">

@@ -103,7 +103,7 @@ routes answer 403. The permission check is `canManage` in
   Search and Interactive search icons; checkboxes select episodes for bulk monitor, unmonitor and search in the
   libraries in view. A season's Interactive search (also the Wanted row's) requests every episode of that season,
   Specials included.
-- **Episode overview** (a shared-Modal dialog) with three tabs: **Details** (per version the state, monitor switch,
+- **Episode overview** (a shared-Modal dialog): the episode's synopsis under its air date, then three tabs: **Details** (per version the state, monitor switch,
   search now, Interactive search for managers and a version that searches live, the download in hand, the upgrade
   block and the file's facts with Cached on), **History** (with the journal) and **Last search** (the stored decision
   scoped to the episode, read-only).

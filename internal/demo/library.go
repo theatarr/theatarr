@@ -396,9 +396,14 @@ func (s *seeder) library() {
 			if !e.air.IsZero() {
 				air, airAt = date(e.air), ms(e.air)
 			}
-			s.exec(`INSERT INTO episode (id, title_id, season, number, name, air_date, air_date_utc_at, runtime_minutes,
-				monitored, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, e.id, t.id, e.season,
-				e.number, e.name, air, airAt, t.runtime, b01(e.season > 0), ms(t.added), ms(t.added))
+			overview := ""
+			if e.name != "" {
+				overview = "The crew of " + t.name + " face " + strings.ToLower(e.name) + "."
+			}
+			s.exec(`INSERT INTO episode (id, title_id, season, number, name, overview, air_date, air_date_utc_at,
+				runtime_minutes, monitored, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, e.id, t.id,
+				e.season, e.number, e.name, overview, air, airAt,
+				t.runtime, b01(e.season > 0), ms(t.added), ms(t.added))
 			if t.anime && e.abs > 0 {
 				s.exec(`INSERT INTO episode_number (episode_id, title_id, scheme, season, number, source)
 					VALUES (?, ?, 'absolute', NULL, ?, 'tvdb'), (?, ?, 'tvdb', ?, ?, 'tvdb')`, e.id, t.id, e.abs,

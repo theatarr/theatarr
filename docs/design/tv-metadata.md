@@ -14,7 +14,9 @@ absolute order) and store it in one transaction:
   new TVDB id. TMDb fallback rows still match by source id first, then empty-id slots.
 - **Fields:** season, number, absolute number (`episode_number`, scheme `absolute_tvdb`, source `tvdb`), name ("TBA"
   when empty), air date, `air_date_utc` from airs time and the network country's time zone (TVDB v4 has no zone: a
-  country to IANA zone map, US = Eastern, unknown = UTC), runtime. Sonarr ports: duplicate slots dropped, multi-episode
+  country to IANA zone map, US = Eastern, unknown = UTC), runtime, and the synopsis (`episode.overview`, from the same
+  listing: TVDB's in the client's language as names are, or the TMDb season's; no extra request, so existing episodes
+  take it on their next refresh). Sonarr ports: duplicate slots dropped, multi-episode
   air times spread (up to 3, not specials), direct-to-DVD air dates, anime absolute mapping.
 - **Renumbering:** TVDB identity follows the slot, including when TVDB moves an id between slots. A TMDb episode
   that moves keeps its row; moves use a temporary negative number to preserve the unique slot index.

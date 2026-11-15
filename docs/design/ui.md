@@ -539,7 +539,8 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   - **Numbering:** "E01"; anime with an absolute number "E01 · absolute 13", in the rows, the table and the episode
     overview. Anime with a franchise get a **Watch order** link above the seasons (the tab stays).
   - **Episode overview:** the shared Modal, a centred dialog on desktop and a bottom sheet on phones
-    (`?episode=<id>`): number, name, air date, runtime; then three tabs. **Details**: per library its state in the
+    (`?episode=<id>`): number, name, air date, runtime, and the synopsis under them (`EpisodeDetail.overview`, every
+    account: it is public metadata, as Sonarr's episode dialog shows it); then three tabs. **Details**: per library its state in the
     upgrade vocabulary, monitor switch and Search now (managers), Interactive search for that episode in that library
     (managers, a library that searches live), the download in hand, the upgrade block with Why?, and the file's facts
     (release, quality, score, size, group, **Cached on** with the admins' **Torrent** link, **Other providers**,

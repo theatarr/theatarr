@@ -49,6 +49,7 @@ type remoteEp struct {
 	season, number int
 	absolute       *int
 	name           string
+	overview       string
 	airDate        string
 	airUTC         *time.Time
 	runtime        *int
@@ -119,6 +120,9 @@ func fromTVDB(s *tvdb.Series, eps []tvdb.Episode) *show {
 		if e.Name != nil {
 			r.name = strings.TrimSpace(*e.Name)
 		}
+		if e.Overview != nil {
+			r.overview = strings.TrimSpace(*e.Overview)
+		}
 		if e.Aired != nil {
 			r.airDate = strings.TrimSpace(*e.Aired)
 			r.airUTC = airUTC(r.airDate, sh.airTime, loc)
@@ -168,7 +172,7 @@ func fromTMDb(ctx context.Context, c TMDb, id int) (*show, error) {
 		}
 		for _, e := range ss.Episodes {
 			r := remoteEp{extID: e.ID, season: e.SeasonNumber, number: e.EpisodeNumber, name: strings.TrimSpace(e.Name),
-				airDate: strings.TrimSpace(e.AirDate), runtime: e.Runtime}
+				overview: strings.TrimSpace(e.Overview), airDate: strings.TrimSpace(e.AirDate), runtime: e.Runtime}
 			r.airUTC = airUTC(r.airDate, "", loc)
 			sh.episodes = append(sh.episodes, r)
 		}

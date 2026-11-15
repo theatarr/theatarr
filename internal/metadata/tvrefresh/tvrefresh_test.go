@@ -137,7 +137,8 @@ func (f *fakeTMDb) TVSeasonEpisodes(_ context.Context, id, season int) (*tmdb.TV
 	f.calls++
 	rt := 31
 	return &tmdb.TVSeason{SeasonNumber: 1, Episodes: []tmdb.TVEpisode{
-		{ID: 70001, Name: "First", AirDate: "2019-03-01", EpisodeNumber: 1, SeasonNumber: 1, Runtime: &rt},
+		{ID: 70001, Name: "First", Overview: "It starts.", AirDate: "2019-03-01", EpisodeNumber: 1, SeasonNumber: 1,
+			Runtime: &rt},
 		{ID: 70002, Name: "", AirDate: "2019-03-08", EpisodeNumber: 2, SeasonNumber: 1},
 	}}, nil
 }
@@ -641,6 +642,50 @@ func TestAnimeAbsoluteAndNames(t *testing.T) {
 	}
 }
 
+// TestEpisodeOverview: the synopsis comes from the listing the refresh already reads; an existing episode takes it on its next ordinary refresh, and a changed one replaces it.
+func TestEpisodeOverview(t *testing.T) {
+	t.Parallel()
+	e := setup(t)
+	id := e.add(t, catalog.Input{TvdbID: 371980, Title: "Severance"})
+	e.refresh(t, id)
+	if ov := e.overview(t, id, 1, 1); ov != "" {
+		t.Fatalf("overview before TVDB has one: %q", ov)
+	}
+	path := "/series/371980/episodes/default?page=0"
+	set := func(ov string) {
+		e.tvdb.edit(path, func(eps []map[string]any) []map[string]any {
+			for _, x := range eps {
+				if int(x["id"].(float64)) == 8891221 {
+					x["overview"] = ov
+				}
+			}
+			return eps
+		})
+	}
+	set("  Mark leads a team of office workers.  ")
+	if r := e.refresh(t, id); r.Updated != 1 {
+		t.Errorf("result %+v", r)
+	}
+	if ov := e.overview(t, id, 1, 1); ov != "Mark leads a team of office workers." {
+		t.Errorf("overview %q", ov)
+	}
+	set("A new synopsis.")
+	e.refresh(t, id)
+	if ov := e.overview(t, id, 1, 1); ov != "A new synopsis." {
+		t.Errorf("changed overview %q", ov)
+	}
+}
+
+func (e *env) overview(t *testing.T, titleID int64, season, number int) string {
+	t.Helper()
+	var ov string
+	if err := e.st.Reader().QueryRow(`SELECT overview FROM episode WHERE title_id = ? AND season = ? AND number = ?`,
+		titleID, season, number).Scan(&ov); err != nil {
+		t.Fatal(err)
+	}
+	return ov
+}
+
 func TestTMDbFallback(t *testing.T) {
 	t.Parallel()
 	e := setup(t)
@@ -660,6 +705,9 @@ func TestTMDbFallback(t *testing.T) {
 	}
 	if x := e.ep(t, id, 1, 2); x.name != "TBA" {
 		t.Errorf("S01E02 %+v", x)
+	}
+	if ov := e.overview(t, id, 1, 1); ov != "It starts." {
+		t.Errorf("S01E01 overview %q", ov)
 	}
 	// An anime series is never taken from TMDb.
 	anime := true

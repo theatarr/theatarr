@@ -862,6 +862,8 @@ type EpisodeDetail struct {
 	Versions  []EpisodeVersionDetail `json:"versions"`
 	// AutoSearch says whether Theatarr searches by itself (titlepage.go); for callers who see files.
 	AutoSearch *AutoSearch `json:"auto_search,omitempty"`
+	// Overview is the episode's synopsis from its metadata source: public metadata, for every signed-in caller.
+	Overview string `json:"overview,omitempty"`
 }
 
 // episodeJournalLimit caps the journal entries listed per version of an episode.
@@ -896,7 +898,9 @@ func (w *Web) apiEpisode(rw http.ResponseWriter, r *http.Request) {
 	seeFiles := perms.SeeFiles
 	db := w.st.Reader()
 	var season int
-	if err := db.QueryRowContext(ctx, `SELECT season FROM episode WHERE id = ?`, eid).Scan(&season); err != nil {
+	var overview string
+	if err := db.QueryRowContext(ctx, `SELECT season, overview FROM episode WHERE id = ?`, eid).Scan(&season,
+		&overview); err != nil {
 		w.internal(rw, err)
 		return
 	}
@@ -905,7 +909,7 @@ func (w *Web) apiEpisode(rw http.ResponseWriter, r *http.Request) {
 		w.internal(rw, err)
 		return
 	}
-	out := EpisodeDetail{TitleID: t.id, TitleName: t.name, Versions: []EpisodeVersionDetail{}}
+	out := EpisodeDetail{TitleID: t.id, TitleName: t.name, Overview: overview, Versions: []EpisodeVersionDetail{}}
 	if seeFiles {
 		out.AutoSearch = w.autoSearch()
 	}

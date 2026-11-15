@@ -233,6 +233,18 @@ func TestUpgradeEvidence(t *testing.T) {
 		ev.File.InfoHash != strings.Repeat("ab", 20) {
 		t.Fatalf("episode 101: %+v file %+v history %+v", ev.Upgrade, ev.File, ev.History)
 	}
+	// The synopsis: public metadata, for an account without see_files too.
+	e.exec(`UPDATE episode SET overview = 'Mark leads a team.' WHERE id = 101`)
+	ep = EpisodeDetail{}
+	e.call("GET", APIBase+"/titles/10/episodes/101", nil, 200, &ep)
+	ur := httptest.NewRequest("GET", APIBase+"/titles/10/episodes/101", nil)
+	ur.Header.Set(auth.APIKeyHeader, e.key)
+	urec := httptest.NewRecorder()
+	e.userMux().ServeHTTP(urec, ur)
+	if ep.Overview != "Mark leads a team." || urec.Code != 200 || !strings.Contains(urec.Body.String(),
+		`"overview":"Mark leads a team."`) {
+		t.Errorf("overview %q; household %d %s", ep.Overview, urec.Code, urec.Body.String())
+	}
 	ep = EpisodeDetail{}
 	e.call("GET", APIBase+"/titles/10/episodes/102", nil, 200, &ep)
 	if ep.Versions[0].Upgrade.State != "below_cutoff" || ep.Versions[0].Upgrade.Next != nil {

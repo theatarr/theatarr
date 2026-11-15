@@ -18,7 +18,7 @@ type row struct {
 	season, number                  int
 	extID                           sql.NullInt64 // the source's id column (tvdb_episode_id or tmdb_episode_id)
 	removed                         sql.NullInt64
-	name                            string
+	name, overview                  string
 	airDate                         sql.NullString
 	airUTC                          sql.NullInt64
 	runtime                         sql.NullInt64
@@ -171,10 +171,10 @@ func (s *Service) store(ctx context.Context, tx *sql.Tx, t *titleRow, sh *show, 
 		}
 		r := match[i]
 		if r == nil {
-			id, err := s.insert(ctx, tx, `INSERT INTO episode (title_id, season, number, name, air_date, air_date_utc_at,
-				runtime_minutes, airs_before_season, airs_before_episode, airs_after_season, monitored, `+idCol+`,
-				created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)`, t.id, e.season, e.number,
-				e.name, nullStr(e.airDate), utc, intPtr(e.runtime), intPtr(e.airsBeforeS), intPtr(e.airsBeforeE),
+			id, err := s.insert(ctx, tx, `INSERT INTO episode (title_id, season, number, name, overview, air_date,
+				air_date_utc_at, runtime_minutes, airs_before_season, airs_before_episode, airs_after_season, monitored,
+				`+idCol+`, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)`, t.id, e.season,
+				e.number, e.name, e.overview, nullStr(e.airDate), utc, intPtr(e.runtime), intPtr(e.airsBeforeS), intPtr(e.airsBeforeE),
 				intPtr(e.airsAfterS), want[i], ms, ms)
 			if err != nil {
 				return err
@@ -237,6 +237,9 @@ func (r *row) changes(e *remoteEp, extID sql.NullInt64, utc any, idCol string) (
 	if r.name != e.name {
 		add("name", e.name)
 	}
+	if r.overview != e.overview {
+		add("overview", e.overview)
+	}
 	if !sameStr(r.airDate, e.airDate) {
 		add("air_date", nullStr(e.airDate))
 	}
@@ -284,7 +287,7 @@ func (s *Service) absolute(ctx context.Context, tx *sql.Tx, titleID, episodeID i
 
 // loadRows reads the title's episodes with what the refresh needs to match and keep them.
 func (s *Service) loadRows(ctx context.Context, tx *sql.Tx, titleID int64, idCol string) ([]*row, error) {
-	q := `SELECT e.id, e.season, e.number, e.` + idCol + `, e.removed_at, e.name, e.air_date, e.air_date_utc_at,
+	q := `SELECT e.id, e.season, e.number, e.` + idCol + `, e.removed_at, e.name, e.overview, e.air_date, e.air_date_utc_at,
 		e.runtime_minutes, e.airs_before_season, e.airs_before_episode, e.airs_after_season,
 		EXISTS (SELECT 1 FROM link_episode l WHERE l.episode_id = e.id)
 		OR EXISTS (SELECT 1 FROM episode_version_state v WHERE v.episode_id = e.id AND v.state <> 'wanted')
@@ -300,7 +303,7 @@ func (s *Service) loadRows(ctx context.Context, tx *sql.Tx, titleID int64, idCol
 	var out []*row
 	for rs.Next() {
 		r := &row{}
-		if err := rs.Scan(&r.id, &r.season, &r.number, &r.extID, &r.removed, &r.name, &r.airDate, &r.airUTC,
+		if err := rs.Scan(&r.id, &r.season, &r.number, &r.extID, &r.removed, &r.name, &r.overview, &r.airDate, &r.airUTC,
 			&r.runtime, &r.airsBeforeS, &r.airsBeforeE, &r.airsA, &r.keep); err != nil {
 			return nil, err
 		}

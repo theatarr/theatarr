@@ -552,4 +552,12 @@ describe("Episode window status (J5)", () => {
     expect(status.getAttribute("data-status")).toBe("unmonitored");
     expect(within(await screen.findByTestId("episode-meta")).getByText(/Aired/)).toBeTruthy();
   });
+
+  it("shows the episode's synopsis under its air date, to a household account too (K11)", async () => {
+    const household = { method: "GET", path: "/auth/me", reply: { id: 2, username: "kid", permissions: [], csrf_token: "t" } };
+    const win = { ...detail, overview: "The lantern goes out." };
+    mockFetch([household, routes[1], { method: "GET", path: "/titles/1/episodes/102", reply: win }]);
+    renderPage(<Seasons id="1" anime />, "/title/1?episode=102");
+    expect((await screen.findByTestId("episode-synopsis")).textContent).toBe("The lantern goes out.");
+  });
 });
