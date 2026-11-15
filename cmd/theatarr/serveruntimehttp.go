@@ -87,8 +87,7 @@ func runtimeHTTPHandler(manager *settings.RuntimeCoordinator, fallback http.Hand
 	})
 }
 
-// A publication stops the old generation's event pollers and starts the new one's; the streams stay open on the
-// shared hub (web.Config.Events) and get the new generation's events.
+// A publication closes the old event stream so clients reconnect to the new generation.
 type serveHTTPServices struct {
 	ctx     context.Context
 	mu      sync.Mutex

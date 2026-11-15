@@ -807,56 +807,6 @@ func TestEventsEndWhenKeyRevoked(t *testing.T) {
 	}
 }
 
-// With a shared hub (a settings save publishing a new generation's Web), a stream opened on the old Web stays open
-// after the old Web's loops stop, and gets the new one's events; closing the hub ends it.
-func TestEventsOutliveGeneration(t *testing.T) {
-	hub := NewEventHub()
-	e := newEnvWith(t, func(c *Config) { c.Events = hub })
-	next, err := New(Config{Store: e.st, Auth: e.auth, Policy: e.web.pol, Egress: e.eg, Logger: e.web.log, Version: "test",
-		Now: func() time.Time { return testNow }, PollInterval: 20 * time.Millisecond, Events: hub})
-	if err != nil {
-		t.Fatal(err)
-	}
-	key := e.apiKey()
-	ts := httptest.NewServer(e.mux)
-	defer ts.Close()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	oldCtx, stopOld := context.WithCancel(ctx)
-	oldDone := make(chan struct{})
-	go func() { e.web.Run(oldCtx); close(oldDone) }()
-	req, _ := http.NewRequestWithContext(ctx, "GET", ts.URL+APIBase+"/events", nil)
-	req.Header.Set(auth.APIKeyHeader, key)
-	resp, err := ts.Client().Do(req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer resp.Body.Close()
-	lines := make(chan string, 64)
-	go func() {
-		sc := bufio.NewScanner(resp.Body)
-		for sc.Scan() {
-			lines <- sc.Text()
-		}
-		close(lines)
-	}()
-	stopOld()
-	<-oldDone
-	go next.Run(ctx)
-	// The stream is subscribed before its first line; the old loops are gone.
-	time.Sleep(50 * time.Millisecond)
-	next.hub.publish(event{name: "users", data: []byte(`{}`)})
-	for line := range lines {
-		if line == "event: users" {
-			hub.Close()
-			for range lines {
-			}
-			return
-		}
-	}
-	t.Fatal("stream ended before the new generation's event")
-}
-
 func TestAPILoginThrottled(t *testing.T) {
 	e := newEnv(t)
 	var last int
