@@ -10,7 +10,7 @@ export const HISTORY_COLUMNS: ColumnDef<HistoryColumnId>[] = [
   { id: "quality", label: "Quality", hint: "The release's quality, when it is known" },
   { id: "score", label: "Score", hint: "The release's custom format score, when it was scored" },
   { id: "date", label: "Date", hint: "When it happened" },
-  { id: "release", label: "Release", hint: "The release name; for a deleted file, what replaced it" },
+  { id: "release", label: "Release", hint: "The release name; for an upgrade or an adoption, what it replaced" },
   { id: "provider", label: "Provider", hint: "The debrid provider or download client" },
   { id: "indexer", label: "Indexer", hint: "Where the release was found" },
   { id: "formats", label: "Formats", hint: "The custom formats it matched" },
@@ -23,8 +23,8 @@ export const HISTORY_DEFAULT: HistoryColumnId[] = ["library", "quality", "score"
 export const EVENT_MEANINGS: { words: string; meaning: string }[] = [
   { words: "Grabbed", meaning: "Theatarr picked this release and sent it to a provider or download client." },
   { words: "Imported", meaning: "The release's files were linked into the library." },
-  { words: "Adopted", meaning: "A file Sonarr or Radarr had was taken over into the library." },
-  { words: "Upgraded: …", meaning: "These files were moved out of the library because a better release replaced them." },
+  { words: "Adopted", meaning: "Taken over from Sonarr/Radarr's library; Theatarr did not download it." },
+  { words: "Upgraded", meaning: "A better release was imported; \"Replaced\" says which files it took the place of." },
   { words: "Removed", meaning: "This file was taken out of the library by hand (or by Sonarr/Radarr deleting it)." },
   { words: "Removed from library", meaning: "The title was removed from this library by hand; the reason says who removed it and whether its files were kept." },
   { words: "File missing", meaning: "The file behind a library link is gone and could not be found again." },
@@ -37,9 +37,9 @@ export const EVENT_MEANINGS: { words: string; meaning: string }[] = [
 ];
 
 /** The meaning of an event's words ("Not started: …" for every not-started reason, "Added to …" and "Not cached on …"
- *  for every provider, "Upgraded: …" for every count of files); "" when the list has none. */
+ *  for every provider); "" when the list has none. */
 export function eventMeaning(words: string): string {
-  const prefix = ["Not started: ", "Added to ", "Already on ", "Not cached on ", "Upgraded: "].find((p) => words.startsWith(p));
+  const prefix = ["Not started: ", "Added to ", "Already on ", "Not cached on "].find((p) => words.startsWith(p));
   const key = prefix ? `${prefix.trimEnd()} …` : words;
   return EVENT_MEANINGS.find((m) => m.words === key)?.meaning ?? "";
 }

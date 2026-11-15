@@ -6,6 +6,7 @@ import { Link } from "react-router";
 import { usePerms, type HistoryEvent } from "@/api/library";
 import { Mono } from "@/components/page";
 import { journalLink } from "@/lib/admin-links";
+import { eventMeaning } from "@/lib/activity-history-columns";
 import { Button } from "@/components/ui/button";
 import { fmtAgo, fmtNumber, fmtTime, plural } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -25,6 +26,9 @@ const EVENTS: Record<HistoryEvent["event"], { label: string; icon: typeof Downlo
   // A file taken over from Sonarr/Radarr (the episode window; the title's History says the same).
   adopted: { label: "Adopted", icon: FileInput, cls: "text-[var(--ok-ink)]" },
 };
+
+/** What Adopted means (the same words as History's tooltip, lib/activity-history-columns.ts). */
+const ADOPTED_MEANING = eventMeaning("Adopted");
 
 /** The releases view of a title's library, with the row of one release (by hash) picked out when given. */
 export function releasesHref(titleId: number, version: string, hash?: string): string {
@@ -62,7 +66,7 @@ export function History({ events, titleId, version }: { events: HistoryEvent[]; 
             <li key={i} className="relative" data-testid="history-event">
               <e.icon className={cn("absolute -left-[25px] top-0.5 size-[17px] rounded-full bg-card", e.cls)} />
               <div className="flex flex-wrap items-baseline gap-x-2 text-sm">
-                <span className="font-medium">{e.label}</span>
+                <span className="font-medium" title={h.event === "adopted" ? ADOPTED_MEANING : undefined}>{e.label}</span>
                 {h.provider && (h.event === "grabbed" || h.event === "failed") ? <span className="text-muted-foreground">via <ProviderTag account={h.provider} /></span> : null}
                 {h.episode && h.episode !== "movie" ? <Mono className="text-muted-foreground">{h.episode}</Mono> : null}
                 {h.quality ? <span className="text-muted-foreground">{h.quality}</span> : null}

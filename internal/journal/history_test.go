@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// row is one History row in brief: event, release, quality, score, episodes and what replaced it.
+// row is one History row in brief: event, release, quality, score, episodes and the releases it replaced.
 func histRow(h *HistoryRow) string {
 	s := h.Event
 	if r := h.Release; r != nil {
@@ -23,8 +23,15 @@ func histRow(h *HistoryRow) string {
 	if len(h.Episodes) > 0 {
 		s += " [" + strings.Join(h.Episodes, ",") + "]"
 	}
-	if r := h.ReplacedBy; r != nil {
-		s += " -> " + r.Title
+	if len(h.Replaced) > 0 {
+		s += " replaced"
+		for _, f := range h.Replaced {
+			if f.Release != nil {
+				s += " " + f.Release.Title
+			} else {
+				s += " ?"
+			}
+		}
 	}
 	if h.Provider != "" {
 		s += " @" + h.Provider
@@ -62,8 +69,8 @@ func (e *env) history(f Filter) []string {
 	return out
 }
 
-// History's rows: a season pack's grab and import are one row each; an upgrade over an adopted file is Grabbed,
-// Imported and Deleted (upgrade) naming the old release and what replaced it; a hand unlink is Removed; copies are
+// History's rows: a season pack's grab and import are one row each; an upgrade over an adopted file is Grabbed and
+// Upgraded (deleted) with the new release and the old one in Replaced, its import folded in; a hand unlink is Removed; copies are
 // their own rows; rows from before the facts were recorded show what the link rows still tell, or nothing.
 func TestHistoryRows(t *testing.T) {
 	e := newEnv(t)
@@ -116,13 +123,38 @@ func TestHistoryRows(t *testing.T) {
 		'Alpha.2020.2160p.WEB-OLD', 'WEBDL-2160p', 4000)`, ms(3*time.Hour)+1)
 	got = e.history(Filter{Title: "1", Version: "movie-web"})
 	want = []string{
-		"deleted Alpha.2020.2160p.WEB-OLD WEBDL-2160p 4000 -> Alpha.2020.2160p.WEB-DL-FLUX",
-		"imported Alpha.2020.2160p.WEB-DL-FLUX WEBDL-2160p 5000",
+		"deleted Alpha.2020.2160p.WEB-DL-FLUX WEBDL-2160p 5000 replaced Alpha.2020.2160p.WEB-OLD",
 		"grabbed Alpha.2020.2160p.WEB-DL-FLUX WEBDL-2160p 5000",
 		"adopted Alpha.2020.2160p.WEB-OLD WEBDL-2160p 4000",
 	}
 	if !slices.Equal(got, want) {
 		t.Errorf("upgrade:\n got %q\nwant %q", got, want)
+	}
+	// The upgrade's row stands for its import: the import's facts and journal entry. Paging one row at a time never
+	// shows the import; filtered to imports, its row is there (the upgrade is not listed).
+	var ids []string
+	for cur := ""; ; {
+		p, err := e.j.History(context.Background(), Filter{Title: "1", Version: "movie-web", Limit: 1, Cursor: cur})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, x := range p.Items {
+			ids = append(ids, x.ID)
+			if x.Event == EvDeleted && (x.Entry != "dl:20:import" || x.Release.InfoHash != hashB ||
+				x.Release.Indexer != "dmm" || x.Release.Size != 20<<30) {
+				t.Errorf("upgrade row facts: %+v %+v", x, x.Release)
+			}
+		}
+		if cur = p.NextCursor; cur == "" {
+			break
+		}
+	}
+	if len(ids) != 3 || slices.Contains(ids, "dl:20:import") {
+		t.Errorf("pages: %q", ids)
+	}
+	got = e.history(Filter{Title: "1", Events: []string{EvImported}})
+	if want := []string{"imported Alpha.2020.2160p.WEB-DL-FLUX WEBDL-2160p 5000"}; !slices.Equal(got, want) {
+		t.Errorf("imports only:\n got %q\nwant %q", got, want)
 	}
 
 	// A hand unlink of the new file: Removed, with its reason and release.
@@ -170,7 +202,7 @@ func TestHistoryRows(t *testing.T) {
 		(?, 'replace', 'applied', 'movie-remux', 30, '/movies/Beta/Beta.mkv', 'moved aside to /trash/c')`,
 		ms(7*time.Hour))
 	got = e.history(Filter{Title: "2", Events: []string{EvDeleted, EvAdopted}})
-	want = []string{"deleted ? -> Beta.2021.Remux-NEW", "adopted ?"}
+	want = []string{"deleted Beta.2021.Remux-NEW Remux-2160p 9000 replaced ?", "adopted ?"}
 	if !slices.Equal(got, want) {
 		t.Errorf("old rows:\n got %q\nwant %q", got, want)
 	}
@@ -275,4 +307,72 @@ func TestHistoryRecordedFacts(t *testing.T) {
 		t.Errorf("already: %q", got)
 	}
 	checkStoredHistory(t, context.Background(), e.j, e.st)
+}
+
+// An adoption that replaced the previous file (Radarr upgraded it, Theatarr took the new file over) is one Adopted row
+// with the old file in Replaced; a removal with no adoption beside it stays Removed; filtered to removals, or paged one
+// row at a time, no row shows half of the pair.
+func TestHistoryAdoptionReplaced(t *testing.T) {
+	e := newEnv(t)
+	at := testNow.Add(-24 * time.Hour)
+	ms := func(d time.Duration) int64 { return msOf(at.Add(d)) }
+	adopt := func(link int64, d time.Duration, path, release, quality string, score int) {
+		e.exec(`INSERT INTO link (id, path, target, title_id, release_title, quality, score, adopted_from, state,
+			created_at, updated_at) VALUES (?, ?, '/t', 2, ?, ?, ?, 'radarr_4k /arr/b.mkv', 'active', ?, ?)`, link, path,
+			release, quality, score, ms(d), ms(d))
+		e.exec(`INSERT INTO library_action (at, kind, mode, version_key, link_id, path, detail, release_title, quality,
+			score) VALUES (?, 'link', 'applied', 'movie-remux', ?, ?, 'adopted from radarr_4k /arr/b.mkv', ?, ?, ?)`,
+			ms(d), link, path, release, quality, score)
+	}
+	unlink := func(link int64, d time.Duration, path, release, quality string, score int) {
+		e.exec(`UPDATE link SET state = 'unlinked' WHERE id = ?`, link)
+		e.exec(`INSERT INTO library_action (at, kind, mode, version_key, link_id, path, detail, release_title, quality,
+			score, title_id) VALUES (?, 'replace', 'applied', 'movie-remux', ?, ?,
+			'unlinked (deleted in Radarr), moved aside to /trash/x', ?, ?, ?, 2)`, ms(d), link, path, release, quality,
+			score)
+	}
+	adopt(1, 0, "/movies/Beta/Beta.A.mkv", "Beta.2021.Bluray-A", "Bluray-2160p", 6650)
+	// Radarr replaced A with B: B adopted, A unlinked two seconds later.
+	adopt(2, time.Hour, "/movies/Beta/Beta.B.mkv", "Beta.2021.Remux-B", "Remux-2160p", 6500)
+	unlink(1, time.Hour+2*time.Second, "/movies/Beta/Beta.A.mkv", "Beta.2021.Bluray-A", "Bluray-2160p", 6650)
+	// B removed by hand hours later, nothing adopted beside it.
+	unlink(2, 5*time.Hour, "/movies/Beta/Beta.B.mkv", "Beta.2021.Remux-B", "Remux-2160p", 6500)
+	got := e.history(Filter{Title: "2"})
+	want := []string{
+		"removed Beta.2021.Remux-B Remux-2160p 6500 (deleted in Radarr)",
+		"adopted Beta.2021.Remux-B Remux-2160p 6500 replaced Beta.2021.Bluray-A",
+		"adopted Beta.2021.Bluray-A Bluray-2160p 6650",
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("rows:\n got %q\nwant %q", got, want)
+	}
+	p, err := e.j.History(context.Background(), Filter{Title: "2", Events: []string{EvAdopted}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r := p.Items[0].Replaced; len(r) != 1 || r[0].Path != "/movies/Beta/Beta.A.mkv" || r[0].Release.Quality !=
+		"Bluray-2160p" || *r[0].Release.Score != 6650 {
+		t.Errorf("replaced: %+v", r)
+	}
+	got = e.history(Filter{Title: "2", Events: []string{EvRemoved}})
+	want = []string{
+		"removed Beta.2021.Remux-B Remux-2160p 6500 (deleted in Radarr)",
+		"removed Beta.2021.Bluray-A Bluray-2160p 6650 (deleted in Radarr)",
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("removals only:\n got %q\nwant %q", got, want)
+	}
+	var n int
+	for cur := ""; ; n++ {
+		p, err := e.j.History(context.Background(), Filter{Title: "2", Limit: 1, Cursor: cur})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if cur = p.NextCursor; cur == "" {
+			break
+		}
+	}
+	if n != 2 {
+		t.Errorf("pages: %d, want 3", n+1)
+	}
 }

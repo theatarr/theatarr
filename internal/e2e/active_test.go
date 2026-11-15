@@ -255,13 +255,13 @@ func TestUpgrade(t *testing.T) {
 	_, err = os.Stat(first.Target)
 	must(t, err)
 	e.movieAvailable(id, "movie")
-	// History reads an upgrade like Radarr: Grabbed and Imported for the better release, and one Upgraded row
-	// naming the old release and what replaced it.
+	// History reads an upgrade like Radarr: Grabbed for the better release, then one Upgraded row (its import folded
+	// in) with the new release and the old one it replaced.
 	grabbed, replaced := false, false
 	for _, event := range e.history(id, "movie", 4) {
 		grabbed = grabbed || event.Event == "grabbed" && event.Release == high.name
-		replaced = replaced || event.Event == "deleted" && event.Words == "Upgraded: 1 file replaced" && event.Release == low.name &&
-			event.ReplacedBy != nil && event.ReplacedBy.Release == high.name
+		replaced = replaced || event.Event == "deleted" && event.Words == "Upgraded" && event.Release == high.name &&
+			len(event.Replaced) == 1 && event.Replaced[0].Release == low.name
 	}
 	if !grabbed || !replaced {
 		t.Fatalf("native history lacks the upgrade (grabbed=%v, deleted naming old and new=%v)", grabbed, replaced)

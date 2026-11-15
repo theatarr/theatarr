@@ -299,8 +299,8 @@ func TestActivityBlockedAndParams(t *testing.T) {
 
 // TestActivityReleaseFacts: a grab's history row carries the release's quality, score, indexer, size, formats and
 // episodes for an admin and none of them in the user view; the import's link actions are no rows of their own; an
-// upgrade's replace is "Deleted (upgrade)" naming what replaced it, its old release unknown when the link row was
-// taken over before the facts were recorded; a queue row its formats for an admin only.
+// upgrade's replace is "Upgraded" with the new release, its old release unknown when the link row was taken over
+// before the facts were recorded; a queue row its formats for an admin only.
 func TestActivityReleaseFacts(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t)
@@ -341,9 +341,9 @@ func TestActivityReleaseFacts(t *testing.T) {
 			replace = x
 		}
 	}
-	if links != 1 || replace.Event != "deleted" || replace.Words != "Upgraded: 1 file replaced" || replace.Release != "" ||
-		replace.Quality != "" || replace.Score != nil || replace.ReplacedBy == nil ||
-		replace.ReplacedBy.Release != "Alpha.2020.2160p.WEB" {
+	if links != 1 || replace.Event != "deleted" || replace.Words != "Upgraded" ||
+		replace.Release != "Alpha.2020.2160p.WEB" || replace.Quality != "WEBDL-2160p" || len(replace.Replaced) != 1 ||
+		replace.Replaced[0].Release != "" {
 		t.Errorf("replace row (%d link rows): %+v", links, replace)
 	}
 
@@ -354,7 +354,7 @@ func TestActivityReleaseFacts(t *testing.T) {
 	}
 	for _, x := range u.History {
 		if x.Quality != "" || x.Score != nil || x.Indexer != "" || x.Size != 0 || x.Formats != nil || x.Episodes != nil ||
-			x.ReplacedBy != nil || x.Release != "" {
+			x.Replaced != nil || x.Release != "" {
 			t.Errorf("user history row has release facts: %+v", x)
 		}
 	}

@@ -171,8 +171,8 @@ files (`Journal.History`, `internal/journal/history.go`; the episode window in `
 from the rows stored when each event happened (below), worded like Radarr's: grabbed (a download that reached a
 provider or client, dated by `added_at` or its accepted attempt; grab and upgrade alike, classified only when `kinds`
 is filtered), imported (one row per import, with the episodes its links held), adopted (adoption link actions grouped
-by library, release and day), deleted (an import's replaced files, one row per download and library, "Upgraded: N
-files replaced" with what replaced them and the list of files), removed (a replace without a download: an unlink by
+by library, release and day), deleted (an upgrade: an import's replaced files, one row per download and library,
+"Upgraded" with the new release and the list of files it replaced), removed (a replace without a download: an unlink by
 hand), missing (a dead link), failed (a failed or stalled download, or an import held for review), blocked, the
 provider copies' outcomes (`copy:<id>`, stored rows only since their source table went in 00144; not a journal entry) and title_removed. Searches, plans, dry
 runs, mount waits and repaired links are journal entries only; the journal's own list still reads its sources.
@@ -204,3 +204,23 @@ backfill to the same rows (`internal/journal/history_compare_test.go`). Before t
 rows were compared with the old reader (which derived History from the sources at read time) row for row on a copy
 of the live database; the one intended difference is that an upgrade's replaced files are one row per download and
 library (`Replaced` lists the files: action, time, path, release, episodes), not one row per old release.
+
+### History's folded rows
+
+One change of a file is one History row, folded when it is read (`historyWhere` and `Journal.History`; nothing stored
+changes, and the episode window, which shows no upgrade or removal rows, is unchanged):
+
+- An upgrade: the `deleted` row of a download and library stands for that download's import (`dl:<id>:import`, the
+  same download and library). It shows the new release (its quality, score, and the import's hash, indexer, size and
+  formats), the replaced files in `Replaced`, and links to the import's journal entry; the import's own row is left
+  out. A first import (nothing replaced) stays Grabbed then Imported; Grabbed is always its own row.
+- An adoption that replaced a file: a `removed` row is left out when an `adopted` row of the same title and library,
+  dated within a minute of it, holds one of its episodes (both none for a movie); the adopted row lists it in
+  `Replaced` (path from its library action, release, quality, score, episodes). A removal with no such adoption stays
+  Removed.
+
+A row is left out only when the row that stands for it matches the same filter (title, library, kinds, events, since,
+the caller's scope), checked in the SQL that pages, so a page boundary or a filter never shows half of a pair: with
+the Imported filter an upgrade's import is listed as Imported (the upgrade row is not), with Deleted and removed a
+removal its adoption replaced is listed as Removed. Rows at the same time keep their order: newest first by time, then
+by journal id, so an upgrade or import shows above its grab.

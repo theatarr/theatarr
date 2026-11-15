@@ -1,7 +1,9 @@
 // History (pages/activity.tsx, and the title page's History tab): what happened to the titles' files, worded like
-// Radarr's (Grabbed, Imported, Adopted, Upgraded: N files replaced, Removed, Failed, Blocked, Added to / Not cached on
-// a provider). The server builds the rows (journal history.go, from the stored rows; GET /activity?state=history, the
-// title tab with title_id), so both places show the same rows. An upgrade's row opens to the files it replaced. Activity filters by title, copy, event and since date in the URL
+// Radarr's (Grabbed, Imported, Adopted, Upgraded, Removed, Failed, Blocked, Added to / Not cached on a provider). The
+// server builds the rows (journal history.go, from the stored rows; GET /activity?state=history, the title tab with
+// title_id), so both places show the same rows. An upgrade is one row with the new release (its import folded in), an
+// adoption that replaced a file one Adopted row (the removal folded in); "Replaced: …" under the release says what
+// went, and the row opens to the replaced files, labelled. Activity filters by title, copy, event and since date in the URL
 // (lib/activity-history.ts), newest first, 50 a page with Load more. Accounts that see files get a table (DataTable):
 // Event (with its episodes on the title tab, and its reason) and Title, the columns they chose
 // (lib/activity-history-columns.ts), and Retry on a failed download and the journal link. Household accounts and
@@ -68,7 +70,7 @@ function EventRow({ e }: { e: ActivityEvent }) {
         <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
           <div className="flex min-w-0 items-center gap-2">
             <span className={cn("size-2 shrink-0 rounded-full", EVENT_TONE[e.tone])} aria-hidden />
-            <span className="text-sm font-medium">{e.words}</span>
+            <span className="text-sm font-medium" title={eventMeaning(e.words) || undefined}>{e.words}</span>
           </div>
           <span className="text-xs tabular-nums text-muted-foreground" title={fmtTime(e.at)}>
             {new Date(e.at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
@@ -99,7 +101,8 @@ function EventWords({ e }: { e: ActivityEvent }) {
 /** The rows whose replaced files are open, and the toggle (HistoryList keeps them). */
 const FilesOpen = createContext<{ open: ReadonlySet<string>; toggle: (id: string) => void }>({ open: new Set(), toggle: () => {} });
 
-/** An upgrade's replaced files: the toggle in the Event cell; the list opens under the row (ReplacedList). */
+/** The files an upgrade or an adoption replaced: the toggle in the Event cell; the list opens under the row
+ *  (ReplacedList). */
 function ReplacedToggle({ e }: { e: ActivityEvent }) {
   const { open, toggle } = useContext(FilesOpen);
   const n = e.replaced?.length ?? 0;
@@ -118,8 +121,12 @@ function episodeKey(eps: readonly string[] | undefined): [number, number] {
   return m ? [Number(m[1]), Number(m[2])] : [Infinity, Infinity];
 }
 
-/** An upgrade's replaced files across the row, in episode order (then path): each file's name, release and episodes.
- *  When no file has a release name it is said once, not on every line. */
+const fileName = (path: string) => path.split("/").pop() ?? "";
+const scoreWords = (score: number | null | undefined) => (score !== undefined && score !== null ? fmtNumber(score) : "");
+
+/** The files an upgrade or an adoption replaced, across the row, in episode order (then path): each file on its own
+ *  lines, its parts labelled (file name, the path as tooltip; release; quality; score; episodes). When no file has a
+ *  release name it is said once, not on every file. */
 function ReplacedList({ e }: { e: ActivityEvent }) {
   const files = [...(e.replaced ?? [])].sort((a, b) => {
     const [as, ae] = episodeKey(a.episodes), [bs, be] = episodeKey(b.episodes);
@@ -129,18 +136,42 @@ function ReplacedList({ e }: { e: ActivityEvent }) {
   return (
     <div className="text-xs text-muted-foreground" data-testid="history-replaced">
       {named ? null : <p className="mb-1">Release names not recorded.</p>}
-      <ul className="space-y-1">
-        {files.map((f) => (
-          <li key={f.path} className="min-w-0">
-            <span className="font-mono text-[11px] [overflow-wrap:anywhere]" title={f.path}>{f.path.split("/").pop()}</span>
-            {" "}
-            <span className="[overflow-wrap:anywhere]">
-              {[named ? f.release || "Name not recorded" : "", f.quality, f.episodes?.length ? episodesWords(f.episodes) : ""].filter(Boolean).join(" · ")}
-            </span>
+      <ul className="space-y-2">
+        {files.map((f, i) => (
+          <li key={f.path || i} className="min-w-0">
+            <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-0.5">
+              {f.path ? <><dt>File</dt><dd className="font-mono text-[11px] text-foreground [overflow-wrap:anywhere]" title={f.path}>{fileName(f.path)}</dd></> : null}
+              {named ? <><dt>Release</dt><dd className="font-mono text-[11px] [overflow-wrap:anywhere]">{f.release || "Name not recorded"}</dd></> : null}
+              {f.quality ? <><dt>Quality</dt><dd>{f.quality}</dd></> : null}
+              {scoreWords(f.score) ? <><dt>Score</dt><dd className="tabular-nums">{scoreWords(f.score)}</dd></> : null}
+              {f.episodes?.length ? <><dt>Episodes</dt><dd>{episodesWords(f.episodes)}</dd></> : null}
+            </dl>
           </li>
         ))}
       </ul>
     </div>
+  );
+}
+
+/** The line under an upgrade's or an adoption's release: what it replaced ("Replaced: <old release or file name> ·
+ *  <quality> · <score>", or "Replaced N files"). */
+function ReplacedLine({ e }: { e: ActivityEvent }) {
+  const files = e.replaced ?? [];
+  if (files.length === 0) return null;
+  const f = files[0];
+  const facts = files.length === 1 ? [f.quality, scoreWords(f.score)].filter(Boolean) : [];
+  const name = files.length === 1 ? f.release || fileName(f.path) : "";
+  const words = files.length === 1 ? ["Replaced: " + (name || "a file not recorded"), ...facts].join(" · ") : `Replaced ${files.length} files`;
+  return (
+    <span className="flex min-w-0 text-xs text-muted-foreground max-sm:flex-wrap" title={words} data-testid="history-replaced-line">
+      {name ? (
+        <>
+          <span className="shrink-0">Replaced:&nbsp;</span>
+          <span className="min-w-0 font-mono max-sm:break-all sm:truncate">{name}</span>
+          {facts.length ? <span className="shrink-0 whitespace-pre">{" · " + facts.join(" · ")}</span> : null}
+        </>
+      ) : words}
+    </span>
   );
 }
 
@@ -167,22 +198,15 @@ function TitleCell({ e }: { e: ActivityEvent }) {
   );
 }
 
-/** The release ("Name not recorded" for a file event from before its facts were recorded, "N releases" for an upgrade
- *  over files of several) and what replaced an upgrade's files. */
+/** The release ("Name not recorded" for a file event from before its facts were recorded) and, for an upgrade or an
+ *  adoption, what it replaced. */
 function ReleaseCell({ e }: { e: ActivityEvent }) {
-  const r = e.replaced_by;
-  // An upgrade over files of several releases has no one release: its files name them.
-  const known = new Set((e.replaced ?? []).map((f) => f.release).filter(Boolean)).size;
   return (
     <div className="min-w-0">
       {e.release ? (
         <span className="block font-mono text-[12px] max-sm:break-all sm:truncate" title={e.release}>{e.release}</span>
-      ) : known > 1 ? <span>{known} releases</span> : known === 1 ? <Dash /> : FILE_EVENTS.has(e.event) ? <span className="text-[var(--ink-3)]">Name not recorded</span> : <Dash />}
-      {r ? (
-        <span className="block text-xs text-muted-foreground max-sm:break-all sm:truncate" title={[r.release, r.quality, r.score != null ? `score ${fmtNumber(r.score)}` : ""].filter(Boolean).join(" · ")} data-testid="history-replaced-by">
-          Replaced by <span className="font-mono">{r.release}</span>
-        </span>
-      ) : null}
+      ) : FILE_EVENTS.has(e.event) ? <span className="text-[var(--ink-3)]">Name not recorded</span> : <Dash />}
+      <ReplacedLine e={e} />
     </div>
   );
 }

@@ -242,8 +242,7 @@ func TestStoredHistoryUpgradeIsOneRow(t *testing.T) {
 	for _, f := range h.Replaced {
 		files = append(files, f.Path+" "+f.Release.Title+" "+strings.Join(f.Episodes, ","))
 	}
-	if h.ID != "lib:81" || h.Files != 3 || h.Release != nil || h.ReplacedBy == nil ||
-		h.ReplacedBy.Title != "Gamma.S01.2160p.REMUX" || strings.Join(h.Episodes, ",") != "S01E01,S01E02,S01E03" ||
+	if h.ID != "lib:81" || h.Files != 3 || h.Release == nil || h.Release.Title != "Gamma.S01.2160p.REMUX" || strings.Join(h.Episodes, ",") != "S01E01,S01E02,S01E03" ||
 		!h.At.Equal(at.Add(3*time.Minute)) || strings.Join(files, "|") != "/tv/G/S01E01.mkv Gamma.S01E01.1080p.WEB "+
 		"S01E01|/tv/G/S01E02.mkv Gamma.S01E02.1080p.WEB S01E02|/tv/G/S01E03.mkv Gamma.S01E03.1080p.WEB S01E03" {
 		t.Errorf("upgrade row %s %v", historyKey(h), files)
