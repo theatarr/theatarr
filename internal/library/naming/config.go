@@ -52,6 +52,18 @@ type Config struct {
 	SpecialsFolderFormat  string
 }
 
+// NamesCustomFormats says whether a format of c can name a custom format ({Custom Formats}, {Custom Format:...}, in
+// any spelling the token parsers accept). Without one, no name of c depends on the file's custom formats.
+func (c *Config) NamesCustomFormats() bool {
+	for _, f := range []string{c.StandardMovieFormat, c.MovieFolderFormat, c.StandardEpisodeFormat, c.DailyEpisodeFormat,
+		c.AnimeEpisodeFormat, c.SeriesFolderFormat, c.SeasonFolderFormat, c.SpecialsFolderFormat} {
+		if strings.Contains(simplifyToken(f), "customformat") {
+			return true
+		}
+	}
+	return false
+}
+
 // DefaultMovieConfig is Radarr's NamingConfig.Default.
 func DefaultMovieConfig() Config {
 	return Config{Rename: false, ReplaceIllegalCharacters: true, ColonReplacement: ColonSmart,

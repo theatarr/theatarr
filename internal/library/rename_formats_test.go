@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/theatarr/theatarr/internal/decide"
+	"github.com/theatarr/theatarr/internal/library/naming"
 	"github.com/theatarr/theatarr/internal/policy"
 )
 
@@ -180,5 +181,48 @@ func TestRenamePreviewKeepsAdoptedFormatsDecided(t *testing.T) {
 	}
 	if len(rp.Files) != 0 {
 		t.Fatalf("rename of an adopted link proposes %+v, want none", rp.Files)
+	}
+}
+
+// The rename preview works out {Custom Formats} only for a naming that can show them (naming.NamesCustomFormats):
+// the token in any spelling counts, and a naming without it names every file the same whatever its formats.
+func TestNamingWithoutCustomFormatsIgnoresThem(t *testing.T) {
+	t.Parallel()
+	for _, f := range []string{"{Movie Title} {[Custom Formats]}", "{Movie Title} {custom.formats}", "{Movie Title} {Custom_Format:DV}",
+		"{Movie Title} [{Custom Formats }{Quality Full}]"} {
+		c := naming.DefaultMovieConfig()
+		c.StandardMovieFormat = f
+		if !c.NamesCustomFormats() {
+			t.Errorf("%q: no custom formats seen", f)
+		}
+	}
+	movie, series := naming.DefaultMovieConfig(), naming.DefaultSeriesConfig()
+	if movie.NamesCustomFormats() || series.NamesCustomFormats() {
+		t.Fatal("the default namings show custom formats")
+	}
+	facts := decide.FileFacts{Quality: "WEBDL-1080p", Revision: 1, ReleaseGroup: "GRP", SceneName: "Show.S01E01.1080p.WEB-DL-GRP"}
+	eps := []episodeInfo{{ID: 1, Season: 1, Number: 1, Name: "Pilot", AirDate: "2020-01-01"}}
+	for _, c := range []naming.Config{movie, series} {
+		c.Rename = true
+		vn := &VersionNaming{Config: c}
+		name := func(formats []string) string {
+			t.Helper()
+			var p string
+			var err error
+			if c.StandardMovieFormat != "" {
+				v := &importVersion{Key: "m", Title: titleInfo{ID: 1, Kind: "movie", Name: "Film", Year: 2020}}
+				p, err = nameMovieIn("", v, vn, "/m", "Film.mkv", facts, nil, formats, nil)
+			} else {
+				v := &importVersion{Key: "s", Title: titleInfo{ID: 2, Kind: "series", Name: "Show", Year: 2020}}
+				p, err = nameSeriesIn("", v, vn, "/s", "e.mkv", facts, nil, formats, eps, nil)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			return p
+		}
+		if a, b := name(nil), name([]string{"IMAX", "DV"}); a != b {
+			t.Errorf("formats changed a name without the token: %s, %s", a, b)
+		}
 	}
 }
