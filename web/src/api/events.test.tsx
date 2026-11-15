@@ -25,10 +25,12 @@ afterEach(() => {
 
 // Over HTTP/1.1 a browser allows six connections to the server: streams of pages already left (another address
 // opened, or kept in the back/forward cache) held them, and the next title page's requests waited for a minute.
-it("closes the event stream when the page is left and reopens it when the page is shown again", () => {
+it("closes the event stream when the page is left, and reopens it and refetches when the page is shown again", () => {
   vi.stubGlobal("EventSource", FakeSource);
+  const qc = new QueryClient();
+  const refetch = vi.spyOn(qc, "invalidateQueries");
   render(
-    <QueryClientProvider client={new QueryClient()}>
+    <QueryClientProvider client={qc}>
       <LiveProvider enabled>
         <p>page</p>
       </LiveProvider>
@@ -39,9 +41,17 @@ it("closes the event stream when the page is left and reopens it when the page i
     window.dispatchEvent(new PageTransitionEvent("pagehide", { persisted: true }));
   });
   expect(FakeSource.all[0].closed).toBe(true);
+  expect(refetch).not.toHaveBeenCalled();
   act(() => {
     window.dispatchEvent(new PageTransitionEvent("pageshow", { persisted: true }));
   });
   expect(FakeSource.all).toHaveLength(2);
   expect(FakeSource.all[1].closed).toBe(false);
+  // It missed the events meanwhile: what it shows is read again.
+  expect(refetch).toHaveBeenCalledTimes(1);
+  // A first show (not from the cache) opens nothing more.
+  act(() => {
+    window.dispatchEvent(new PageTransitionEvent("pageshow", { persisted: false }));
+  });
+  expect(FakeSource.all).toHaveLength(2);
 });

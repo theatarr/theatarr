@@ -23,6 +23,8 @@ describe("downloadToast", () => {
       tone: "ok",
     });
     expect(downloadToast({ ...base, state: "failed", words: "Download failed" })?.tone).toBe("bad");
+    // A removal ended it: History has it, the queue the toast opens does not.
+    expect(downloadToast({ ...base, state: "failed", previous: "downloading", words: "Download failed", removed: true })).toBeNull();
   });
   it("stays quiet on progress", () => {
     expect(downloadToast({ ...base, state: "downloading", previous: undefined, progress: 40 })).toBeNull();

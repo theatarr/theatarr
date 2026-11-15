@@ -16,13 +16,15 @@ const TONE: Record<string, ToastTone> = {
 };
 
 /**
- * The toast for a download event, or null when nothing worth a toast changed (progress only). The library's name
+ * The toast for a download event, or null when nothing worth a toast changed (progress only) or a removal ended it. The library's name
  * (nameOf, lib/library-names) is for accounts that see files; others get the words alone (docs/design/users.md).
  */
 export function downloadToast(ev: DownloadEvent, seeFiles = true, nameOf: (key: string) => string = libraryLabel): { title: string; body: string; tone: ToastTone } | null {
   const changed = ev.previous ? ev.previous !== ev.state : true;
   if (!changed && ev.state !== "ready") return null;
   if (!ev.previous && ev.state === "downloading") return null;
+  // A removal ended it: it is in History only, not in the queue the toast would open.
+  if (ev.removed) return null;
   const name = titleWithYear(ev.title.name, ev.title.year);
   return { title: name, body: seeFiles && ev.version ? `${ev.words} · ${nameOf(ev.version)}` : ev.words, tone: TONE[ev.state] ?? "info" };
 }

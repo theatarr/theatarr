@@ -38,56 +38,60 @@ export function LiveProvider({ enabled, seeFiles = false, children }: { enabled:
   const nameOf = useLibraryName();
   const nameRef = useRef(nameOf);
   nameRef.current = nameOf;
-  // Counts the page's restores from the back/forward cache, each of which reopens the stream.
-  const [shown, setShown] = useState(0);
-  useEffect(() => {
-    const onShow = (e: PageTransitionEvent) => {
-      if (e.persisted) setShown((n) => n + 1);
-    };
-    window.addEventListener("pageshow", onShow);
-    return () => window.removeEventListener("pageshow", onShow);
-  }, []);
   useEffect(() => {
     if (!enabled || typeof EventSource === "undefined") return;
-    const es = new EventSource(`${API_BASE}/events`);
-    es.onopen = () => setLive((l) => ({ ...l, connected: true, connectedAt: Date.now() }));
-    es.onerror = () => setLive((l) => (l.connected || !l.lostAt ? { ...l, connected: false, lostAt: Date.now() } : l));
-    es.addEventListener("jobs", (e) => {
-      const d = JSON.parse((e as MessageEvent).data) as { counts?: Record<string, number>; changed?: unknown[] };
-      const now = Date.now();
-      setLive((l) => ({ ...l, connected: true, connectedAt: l.connected ? l.connectedAt : now, jobCounts: d.counts, jobsAt: now, lastEventAt: now }));
-      if (d.changed && d.changed.length > 0) {
-        qc.invalidateQueries({ queryKey: qk.jobs.all });
-        qc.invalidateQueries({ queryKey: qk.status });
-      }
-    });
-    es.addEventListener("gateway", (e) => {
-      const g = JSON.parse((e as MessageEvent).data) as Gateway;
-      qc.setQueryData(qk.gateway, g);
-      const now = Date.now();
-      setLive((l) => ({ ...l, connected: true, connectedAt: l.connected ? l.connectedAt : now, gateway: g, gatewayAt: now, lastEventAt: now }));
-    });
-    es.addEventListener("download", (e) => onDownloadEvent(qc, (e as MessageEvent).data, Date.now(), seeFilesRef.current, nameRef.current));
-    es.addEventListener("title", (e) => onTitleEvent(qc, (e as MessageEvent).data));
-    es.addEventListener("request", (e) => {
-      const ev = JSON.parse((e as MessageEvent).data) as RequestEvent;
-      void qc.invalidateQueries({ queryKey: ["requests"] });
-      void qc.invalidateQueries({ queryKey: ["search"] });
-      if (ev.title_id) void qc.invalidateQueries({ queryKey: ["title"] });
-      const t = ev.mine ? requestToast(ev) : null;
-      if (t) toast({ ...t, to: "/requests" });
-    });
-    es.addEventListener("users", () => void qc.invalidateQueries({ queryKey: ["users"] }));
+    function open(): EventSource {
+      const es = new EventSource(`${API_BASE}/events`);
+      es.onopen = () => setLive((l) => ({ ...l, connected: true, connectedAt: Date.now() }));
+      es.onerror = () => setLive((l) => (l.connected || !l.lostAt ? { ...l, connected: false, lostAt: Date.now() } : l));
+      es.addEventListener("jobs", (e) => {
+        const d = JSON.parse((e as MessageEvent).data) as { counts?: Record<string, number>; changed?: unknown[] };
+        const now = Date.now();
+        setLive((l) => ({ ...l, connected: true, connectedAt: l.connected ? l.connectedAt : now, jobCounts: d.counts, jobsAt: now, lastEventAt: now }));
+        if (d.changed && d.changed.length > 0) {
+          qc.invalidateQueries({ queryKey: qk.jobs.all });
+          qc.invalidateQueries({ queryKey: qk.status });
+        }
+      });
+      es.addEventListener("gateway", (e) => {
+        const g = JSON.parse((e as MessageEvent).data) as Gateway;
+        qc.setQueryData(qk.gateway, g);
+        const now = Date.now();
+        setLive((l) => ({ ...l, connected: true, connectedAt: l.connected ? l.connectedAt : now, gateway: g, gatewayAt: now, lastEventAt: now }));
+      });
+      es.addEventListener("download", (e) => onDownloadEvent(qc, (e as MessageEvent).data, Date.now(), seeFilesRef.current, nameRef.current));
+      es.addEventListener("title", (e) => onTitleEvent(qc, (e as MessageEvent).data));
+      es.addEventListener("request", (e) => {
+        const ev = JSON.parse((e as MessageEvent).data) as RequestEvent;
+        void qc.invalidateQueries({ queryKey: ["requests"] });
+        void qc.invalidateQueries({ queryKey: ["search"] });
+        if (ev.title_id) void qc.invalidateQueries({ queryKey: ["title"] });
+        const t = ev.mine ? requestToast(ev) : null;
+        if (t) toast({ ...t, to: "/requests" });
+      });
+      es.addEventListener("users", () => void qc.invalidateQueries({ queryKey: ["users"] }));
+      return es;
+    }
+    let es = open();
     // A page left behind (another address opened, or kept in the back/forward cache) closes its stream at once: over
     // HTTP/1.1 the browser allows six connections to the server, and streams of pages already left would hold them
-    // and leave the next page's requests waiting. A page restored from that cache opens a new one (shown).
-    const close = () => es.close();
-    window.addEventListener("pagehide", close);
+    // and leave the next page's requests waiting. A page restored from that cache opens a new one and refetches what
+    // it shows, since it missed the events meanwhile (their notices are not replayed).
+    const hide = () => es.close();
+    const show = (e: PageTransitionEvent) => {
+      if (!e.persisted) return;
+      es.close();
+      es = open();
+      void qc.invalidateQueries();
+    };
+    window.addEventListener("pagehide", hide);
+    window.addEventListener("pageshow", show);
     return () => {
-      window.removeEventListener("pagehide", close);
+      window.removeEventListener("pagehide", hide);
+      window.removeEventListener("pageshow", show);
       es.close();
     };
-  }, [enabled, qc, shown]);
+  }, [enabled, qc]);
   return (
     <LiveContext.Provider value={live}>
       {children}

@@ -11,6 +11,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"strings"
 	"time"
 
 	"github.com/theatarr/theatarr/internal/store"
@@ -49,6 +50,15 @@ var NativeQueueFailureSQL = `d.state='failed' AND d.dismissed_at IS NULL AND d.u
 // …" (internal/web ops.go) or an arr view's "deleted through … by …" (internal/arrview write.go). The copy is gone,
 // so there is nothing to retry: History says what happened.
 const endedByRemovalSQL = `(COALESCE(d.error, '') GLOB 'copy removed by *' OR COALESCE(d.error, '') GLOB 'deleted through * by *')`
+
+// EndedByRemoval is endedByRemovalSQL for a download's stored reason (error).
+func EndedByRemoval(reason string) bool {
+	if strings.HasPrefix(reason, "copy removed by ") {
+		return true
+	}
+	rest, ok := strings.CutPrefix(reason, "deleted through ")
+	return ok && strings.Contains(rest, " by ")
+}
 
 // newerLinkSQL selects the active links of d's title and library that an imported download newer than d made.
 const newerLinkSQL = `SELECT 1 FROM link l JOIN download n ON n.id = l.download_id WHERE l.state = 'active'

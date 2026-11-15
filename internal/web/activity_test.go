@@ -515,6 +515,9 @@ func TestActivityEvents(t *testing.T) {
 	next("download", `"words":"Waiting for the mount"`)
 	e.exec(`UPDATE version SET state = 'filled', updated_at = ? WHERE id = 2`, now+7)
 	next("title", `"id":1`, `"reason":"versions"`)
+	// A download a removal ended says so (removed), so the UI raises no failure toast pointing at the queue.
+	e.exec(`UPDATE download SET state = 'failed', error = 'copy removed by admin', updated_at = ? WHERE id = 1`, now+8)
+	next("download", `"state":"failed"`, `"removed":true`)
 	cancel()
 }
 

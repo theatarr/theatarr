@@ -31,6 +31,8 @@ type DownloadEvent struct {
 	Step     string        `json:"step"`
 	Words    string        `json:"words"`
 	Progress float64       `json:"progress"`
+	// Removed: a removal ended it (activity.EndedByRemoval); History has it, the queue does not, so no failure toast.
+	Removed bool `json:"removed,omitempty"`
 }
 
 // TitleEvent is the payload of a title event.
@@ -180,7 +182,7 @@ func (w *Web) pollActivity(ctx context.Context, p *activityPoller) error {
 				acquiring[d.TitleID] = d.TitleName
 			}
 			ev := DownloadEvent{ID: v.ID, Title: v.Title, Version: v.Version, State: v.State, Previous: p.state[d.ID],
-				Step: v.Step, Words: v.Words, Progress: v.Progress}
+				Step: v.Step, Words: v.Words, Progress: v.Progress, Removed: d.State == "failed" && activity.EndedByRemoval(d.Error)}
 			if ev.Previous == ev.State {
 				ev.Previous = ""
 			}

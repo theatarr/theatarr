@@ -59,3 +59,19 @@ func TestDownloadsChangedBranches(t *testing.T) {
 		t.Fatalf("latest = %v, %v", latest, err)
 	}
 }
+
+// EndedByRemoval reads the reasons router.EndRemoved stores, as endedByRemovalSQL does.
+func TestEndedByRemoval(t *testing.T) {
+	for reason, want := range map[string]bool{
+		"copy removed by admin":                 true,
+		"deleted through sonarr-main by Sonarr": true,
+		"removed in Activity by admin":          false,
+		"deleted through sonarr-main":           false,
+		"stalled: not ready":                    false,
+		"":                                      false,
+	} {
+		if got := EndedByRemoval(reason); got != want {
+			t.Errorf("EndedByRemoval(%q) = %v, want %v", reason, got, want)
+		}
+	}
+}
