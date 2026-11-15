@@ -155,16 +155,20 @@ func (r *Runner) read(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	_, err = run.rssJob(run.pin(ctx))
+	sum, err := run.rssJob(run.pin(ctx))
+	if err == nil && sum != nil && sum.Skipped == skippedPaused {
+		return tasks.ErrSkip // a read Pause skipped is not a run that worked
+	}
 	return err
 }
 
-// task is the RSS read's task with run's interval, or on demand only (the arr RssSync command) while RSS is off. A
-// read while Pause is on records itself as skipped (rssJob).
+// task is the RSS read's task with run's interval, or on demand only (the arr RssSync command) while RSS is off.
+// While Pause is on, or with RSS on but no Live library, it is paused: no next run, no Run now.
 func (r *Runner) task(run *Runner) tasks.Task {
 	t := tasks.Task{Key: KindRSS, Name: "Check RSS feeds", Attempts: 2, Inbox: true, Run: r.read}
 	if run.set.RSS {
 		t.Every = run.set.RSSInterval
+		t.Paused = run.paused() || len(run.rssVersions()) == 0
 	}
 	return t
 }
@@ -235,8 +239,11 @@ func (r *Runner) Schedule(ctx context.Context, rssDelay time.Duration) {
 			next = now.Add(every)
 			if err == nil && active.eligible(ctx) {
 				_, _ = r.tasks.Run(ctx, KindRSS, next)
-			} else if !fresh {
-				r.reloadIndex(ctx)
+			} else {
+				r.tasks.SetNext(KindRSS, next) // no read this time: the next deadline still moves
+				if !fresh {
+					r.reloadIndex(ctx)
+				}
 			}
 		}
 		fresh = false
@@ -266,9 +273,9 @@ func (r *Runner) Covers(ctx context.Context, version string) bool {
 }
 
 // QueueRSS starts an RSS read now (the arr RssSync command), automatic RSS on or off; one already running is that
-// read.
+// read, and while the task is paused there is nothing to read.
 func (r *Runner) QueueRSS(context.Context) error {
-	if err := r.tasks.RunNow(KindRSS); err != nil && !errors.Is(err, tasks.ErrRunning) {
+	if err := r.tasks.RunNow(KindRSS); err != nil && !errors.Is(err, tasks.ErrRunning) && !errors.Is(err, tasks.ErrPaused) {
 		return fmt.Errorf("shadow: RSS read: %w", err)
 	}
 	return nil

@@ -19,6 +19,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/theatarr/theatarr/internal/errinbox"
@@ -67,12 +68,14 @@ type Table struct {
 	gen     uint64
 	tasks   map[string]*entry
 	running map[string]time.Time
+	changes atomic.Int64
 }
 
 type entry struct {
-	t    Task
-	gen  uint64
-	next time.Time // the next run as last written
+	t      Task
+	gen    uint64
+	next   time.Time // the next run shown
+	failed bool      // the newest run failed
 }
 
 // New returns a table on st. Run now runs under base (the service's context).
@@ -96,11 +99,18 @@ func backoff(attempt int) time.Duration {
 // Register adds (or replaces) a task with its next run (zero: not known) and writes that next run to its row. The returned
 // func removes it again (the loop stopped), unless a newer registration replaced it.
 func (tb *Table) Register(ctx context.Context, t Task, next time.Time) (unregister func()) {
+	failed := false
+	if tb.st != nil {
+		var lastErr string
+		_ = tb.st.Reader().QueryRowContext(ctx, `SELECT last_error FROM task WHERE key = ?`, t.Key).Scan(&lastErr)
+		failed = lastErr != ""
+	}
 	tb.mu.Lock()
 	tb.gen++
 	gen := tb.gen
-	tb.tasks[t.Key] = &entry{t: t, gen: gen}
+	tb.tasks[t.Key] = &entry{t: t, gen: gen, failed: failed}
 	tb.mu.Unlock()
+	tb.changes.Add(1)
 	tb.SetNext(t.Key, next)
 	tb.write(ctx, t.Key, `INSERT INTO task (key, next_run) VALUES (?1, ?2)
 		ON CONFLICT (key) DO UPDATE SET next_run = excluded.next_run`, t.Key, optMillis(next))
@@ -109,6 +119,7 @@ func (tb *Table) Register(ctx context.Context, t Task, next time.Time) (unregist
 		defer tb.mu.Unlock()
 		if e := tb.tasks[t.Key]; e != nil && e.gen == gen {
 			delete(tb.tasks, t.Key)
+			tb.changes.Add(1)
 		}
 	}
 }
@@ -118,10 +129,15 @@ func (tb *Table) Register(ctx context.Context, t Task, next time.Time) (unregist
 func (tb *Table) SetNext(key string, next time.Time) {
 	tb.mu.Lock()
 	defer tb.mu.Unlock()
-	if e := tb.tasks[key]; e != nil && !next.IsZero() {
+	if e := tb.tasks[key]; e != nil && !next.IsZero() && !e.next.Equal(next) {
 		e.next = next
+		tb.changes.Add(1)
 	}
 }
+
+// Changes counts the changes of what List shows (a task registered or gone, a run started or recorded, a next run
+// moved): the event stream tells open pages when it moves.
+func (tb *Table) Changes() int64 { return tb.changes.Load() }
 
 // Run runs the registered task now in the caller's goroutine and records it with next as its next run (zero: keep
 // the next run as it is), unless a run of it is already going (ran false). The error is the last try's.
@@ -140,10 +156,12 @@ func (tb *Table) Run(ctx context.Context, key string, next time.Time) (ran bool,
 	start := tb.Now()
 	tb.running[key] = start
 	tb.mu.Unlock()
+	tb.changes.Add(1)
 	defer func() {
 		tb.mu.Lock()
 		delete(tb.running, key)
 		tb.mu.Unlock()
+		tb.changes.Add(1)
 	}()
 	err = tb.try(ctx, t)
 	if errors.Is(err, ErrSkip) {
@@ -220,7 +238,14 @@ func (tb *Table) record(ctx context.Context, t Task, start, next time.Time, runE
 	if runErr == nil {
 		ok = store.Millis(end)
 	}
-	tb.SetNext(t.Key, next)
+	tb.mu.Lock()
+	if e := tb.tasks[t.Key]; e != nil {
+		e.failed = runErr != nil
+		if !next.IsZero() {
+			e.next = next
+		}
+	}
+	tb.mu.Unlock()
 	wctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 	defer cancel()
 	tb.write(wctx, t.Key, `INSERT INTO task (key, last_started, last_finished, last_error, last_ok, next_run)
@@ -353,15 +378,16 @@ func (tb *Table) List(ctx context.Context) ([]Status, error) {
 }
 
 // Failed counts the registered tasks whose newest run failed: they need attention until a run works.
-func (tb *Table) Failed(ctx context.Context) (int, error) {
-	list, err := tb.List(ctx)
+func (tb *Table) Failed() int {
+	tb.mu.Lock()
+	defer tb.mu.Unlock()
 	n := 0
-	for _, s := range list {
-		if s.LastError != "" {
+	for _, e := range tb.tasks {
+		if e.failed {
 			n++
 		}
 	}
-	return n, err
+	return n
 }
 
 // NextAt is the next local time of day at ("15:04") after now.

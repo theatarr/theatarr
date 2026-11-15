@@ -112,7 +112,8 @@ System › Tasks lists them under "Scheduled" with Run now.
 
 ## Retention (`db.retention`)
 
-Once the nightly task is done (its last try included), it starts the `db.retention` task, which deletes in
+Once the nightly task is done (its last try included), it starts the `db.retention` task right away (before
+0.4.5 retention was a lowest-priority job that waited for idle workers), which deletes in
 batches of 500 rows, at most 100 batches per table a run, so a backlog drains over a few nights without holding the
 writer. Code: `internal/retention`. The windows:
 

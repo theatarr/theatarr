@@ -58,10 +58,11 @@ export function LiveProvider({ enabled, seeFiles = false, children }: { enabled:
         setLive((l) => (l.connected || !l.lostAt ? { ...l, connected: false, lostAt: Date.now() } : l));
       };
       es.addEventListener("jobs", (e) => {
-        const d = JSON.parse((e as MessageEvent).data) as { counts?: Record<string, number>; changed?: unknown[] };
+        const d = JSON.parse((e as MessageEvent).data) as { counts?: Record<string, number>; changed?: unknown[]; tasks?: boolean };
         const now = Date.now();
         setLive((l) => ({ ...l, connected: true, connectedAt: l.connected ? l.connectedAt : now, jobCounts: d.counts, jobsAt: now, lastEventAt: now }));
-        if (d.changed && d.changed.length > 0) {
+        // A changed job or scheduled task refreshes the job lists, the tasks and the attention lists built on them.
+        if ((d.changed && d.changed.length > 0) || d.tasks) {
           qc.invalidateQueries({ queryKey: qk.jobs.all });
           qc.invalidateQueries({ queryKey: qk.status });
         }

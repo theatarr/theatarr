@@ -995,9 +995,8 @@ func (w *Web) jobCounts(ctx context.Context) (map[string]int, error) {
 		return counts, err
 	}
 	// A scheduled task whose newest run failed needs attention too, until a run works.
-	failed, err := w.tasks.Failed(ctx)
-	counts["attention"] += failed
-	return counts, err
+	counts["attention"] += w.tasks.Failed()
+	return counts, nil
 }
 
 func scanJob(r *sql.Rows) (Job, error) {

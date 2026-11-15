@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http/httptest"
 	"strings"
 	"sync/atomic"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/theatarr/theatarr/internal/auth"
 	"github.com/theatarr/theatarr/internal/gateway"
+	"github.com/theatarr/theatarr/internal/tasks"
 )
 
 type snapshotWriter struct {
@@ -90,5 +92,47 @@ func TestEventsSnapshotReadsOnlyCounts(t *testing.T) {
 	e.web.apiEvents(snapshotWriter{rec, cancel}, httptest.NewRequest("GET", APIBase+"/events", nil).WithContext(ctx))
 	if body := rec.Body.String(); !strings.Contains(body, `event: jobs`) || !strings.Contains(body, `"queued":1`) || !strings.Contains(body, `"attention":1`) {
 		t.Fatalf("missing counts snapshot: %s", body)
+	}
+}
+
+// A scheduled task's run publishes the jobs event with tasks set and its failure in the attention count, so open
+// Tasks and Status pages refresh without polling.
+func TestEventsTaskRunPublishesJobs(t *testing.T) {
+	e := newEnv(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	tb := tasks.New(ctx, e.web.st, nil)
+	e.web.tasks = tb
+	defer tb.Register(ctx, tasks.Task{Key: "k", Name: "K", Every: time.Hour,
+		Run: func(context.Context) error { return errors.New("boom") }}, time.Time{})()
+	ch := e.web.hub.subscribe()
+	defer e.web.hub.unsubscribe(ch)
+	done := make(chan struct{})
+	go func() { defer close(done); e.web.runEvents(ctx) }()
+	defer func() { cancel(); <-done }()
+	for deadline := time.Now().Add(time.Second); e.web.polls.Load() < 1; time.Sleep(time.Millisecond) {
+		if time.Now().After(deadline) {
+			t.Fatal("event poll did not finish")
+		}
+	}
+	before, err := e.web.jobCounts(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tb.Run(ctx, "k", time.Time{}); err == nil {
+		t.Fatal("the run worked")
+	}
+	for deadline := time.After(2 * time.Second); ; {
+		select {
+		case ev := <-ch:
+			var d struct {
+				Counts map[string]int `json:"counts"`
+				Tasks  bool           `json:"tasks"`
+			}
+			if ev.name == "jobs" && json.Unmarshal(ev.data, &d) == nil && d.Tasks && d.Counts["attention"] == before["attention"]+1 {
+				return
+			}
+		case <-deadline:
+			t.Fatal("no jobs event for the task run")
+		}
 	}
 }

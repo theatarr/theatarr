@@ -1022,7 +1022,7 @@ func (p *providerSync) run(ctx context.Context) {
 		active.log.Warn("reading the last provider sync", "err", err)
 	}
 	if p.soon {
-		next = time.Now().Add(p.delay)
+		next, p.soon = time.Now().Add(p.delay), false // once, for this start's first sync
 	}
 	active.log.Info("provider sync scheduled", "providers", active.keys, "interval", active.interval.String(), "next", next.UTC())
 	defer p.tasks.Register(ctx, tasks.Task{Key: provider.JobKind, Name: "Sync debrid holdings", Every: active.interval,

@@ -2,12 +2,14 @@ package rss
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/theatarr/theatarr/internal/policy"
+	"github.com/theatarr/theatarr/internal/tasks"
 )
 
 const (
@@ -202,4 +204,24 @@ func waitUntil(t *testing.T, what string, ok func() bool) {
 		}
 	}
 	t.Fatal(what)
+}
+
+// While Pause is on the RSS task is paused (no next run, no Run now) and a read records no good run.
+func TestRSSTaskPaused(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true)
+	e.seed(t)
+	e.pol.Router.Enabled = false
+	e.build(nil)
+	if task := e.r.task(e.r); !task.Paused {
+		t.Fatalf("not paused: %+v", task)
+	}
+	if err := e.r.read(e.ctx); !errors.Is(err, tasks.ErrSkip) {
+		t.Fatalf("paused read: %v", err)
+	}
+	e.pol.Router.Enabled = true
+	e.build(nil)
+	if task := e.r.task(e.r); task.Paused {
+		t.Fatalf("paused with downloads on: %+v", task)
+	}
 }

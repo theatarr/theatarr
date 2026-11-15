@@ -22,7 +22,8 @@ export function JobsPage() {
   const failed = useJobsFiltered({ kind: kind || undefined, state: "failed", dismissed: false, limit: 50 });
   const { dismissResolved } = useJobActions();
   const tasks = useTasks();
-  const failedTasks = (tasks.data?.items ?? []).filter((t) => t.last_error);
+  const runTask = useRunTask();
+  const failedTasks = (tasks.data?.items ?? []).filter((t) => t.last_error && (!kind || t.key === kind));
   const open = attentionCount(counts);
   const header = <PageHeader crumb={[{ label: "System", to: "/admin" }]} title="Tasks" description="Background work: what failed and needs a look first, then what runs next." />;
   if (jobs.isPending) return <div>{header}<Loading /></div>;
@@ -54,7 +55,7 @@ export function JobsPage() {
             {failedTasks.length > 0 ? (
               <Card className="mb-3 p-0">
                 <ul className="divide-y divide-border" data-testid="tasks-failed">
-                  {failedTasks.map((t) => <TaskRow key={t.key} t={t} showError />)}
+                  {failedTasks.map((t) => <TaskRow key={t.key} t={t} run={runTask} showError />)}
                 </ul>
               </Card>
             ) : null}
@@ -65,7 +66,7 @@ export function JobsPage() {
       <Section title="Running and queued" aside="running first, then by run time">
         {g.active.length === 0 ? <Card><Empty>Nothing is running or queued.</Empty></Card> : <JobList items={g.active} testid="jobs-active-list" />}
       </Section>
-      <Scheduled />
+      <Scheduled run={runTask} />
       {g.settled.length > 0 ? (
         <Fold
           testid="jobs-settled"
@@ -100,14 +101,14 @@ export function JobsPage() {
 }
 
 /** The scheduled tasks: how often each runs, its last run and how long it took, its next run, and Run now. */
-function Scheduled() {
+function Scheduled({ run }: { run: RunTask }) {
   const q = useTasks();
   return (
     <Section title="Scheduled" aside="how often each runs, from the settings in force">
       {q.error ? <ErrorState error={q.error} /> : q.isPending ? <Loading /> : (
         <Card className="p-0">
           <ul className="divide-y divide-border" data-testid="tasks">
-            {q.data.items.map((t) => <TaskRow key={t.key} t={t} />)}
+            {q.data.items.map((t) => <TaskRow key={t.key} t={t} run={run} />)}
           </ul>
         </Card>
       )}
@@ -115,8 +116,9 @@ function Scheduled() {
   );
 }
 
-function TaskRow({ t, showError }: { t: Task; showError?: boolean }) {
-  const run = useRunTask();
+type RunTask = ReturnType<typeof useRunTask>;
+
+function TaskRow({ t, run, showError }: { t: Task; run: RunTask; showError?: boolean }) {
   const busy = !!t.running || (run.isPending && run.variables?.key === t.key);
   return (
     <li className="flex flex-wrap items-center gap-x-3 gap-y-0.5 px-4 py-2.5" data-key={t.key}>

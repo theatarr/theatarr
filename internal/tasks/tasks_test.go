@@ -65,7 +65,7 @@ func TestRunRecordsTheRow(t *testing.T) {
 		s.LastOK != nil || !s.NextRun.Equal(start.Add(15*time.Minute)) || s.EverySeconds != 900 || s.Running != nil {
 		t.Fatalf("after a failed run: %+v", s)
 	}
-	if n, _ := tb.Failed(ctx); n != 1 {
+	if n := tb.Failed(); n != 1 {
 		t.Fatalf("failed %d", n)
 	}
 	fail = false
@@ -76,7 +76,7 @@ func TestRunRecordsTheRow(t *testing.T) {
 	if got[0].LastError != "" || got[0].LastOK == nil || !got[0].NextRun.Equal(start.Add(15*time.Minute)) {
 		t.Fatalf("after a run that worked (next kept): %+v", got[0])
 	}
-	if n, _ := tb.Failed(ctx); n != 0 {
+	if n := tb.Failed(); n != 0 {
 		t.Fatalf("failed %d", n)
 	}
 	var jobs int
