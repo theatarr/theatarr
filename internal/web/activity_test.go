@@ -512,7 +512,8 @@ func TestActivityEvents(t *testing.T) {
 	}
 	e.exec(`INSERT INTO library_import (download_id, state, created_at, updated_at) VALUES (1, 'waiting_mount', ?, ?)`,
 		now+6, now+6)
-	next("download", `"words":"Waiting for the mount"`)
+	// A change that keeps the state names it as previous too, so the UI tells it from a change of state.
+	next("download", `"words":"Waiting for the mount"`, `"state":"ready"`, `"previous":"ready"`)
 	e.exec(`UPDATE version SET state = 'filled', updated_at = ? WHERE id = 2`, now+7)
 	next("title", `"id":1`, `"reason":"versions"`)
 	// A download a removal ended says so (removed), so the UI raises no failure toast pointing at the queue.

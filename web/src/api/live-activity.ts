@@ -34,8 +34,9 @@ export const PROGRESS_REFRESH_MS = 20_000;
 const lastTitle = new Map<string, number>();
 let lastLists = 0;
 
-/** Whether a download event refreshes its title and the lists now (and notes when it did); changed: stateChanged. */
-export function libraryRefresh(ev: Pick<DownloadEvent, "title">, changed: boolean, now: number): { title: boolean; lists: boolean } {
+/** Whether a download event refreshes its title and the lists now (and notes when it did). */
+export function libraryRefresh(ev: Pick<DownloadEvent, "state" | "previous" | "title">, now: number): { title: boolean; lists: boolean } {
+  const changed = ev.previous ? ev.previous !== ev.state : true;
   const key = String(ev.title?.id ?? "");
   const title = !!key && (changed || now - (lastTitle.get(key) ?? -Infinity) >= PROGRESS_REFRESH_MS);
   const lists = changed || now - lastLists >= PROGRESS_REFRESH_MS;
@@ -47,15 +48,6 @@ export function libraryRefresh(ev: Pick<DownloadEvent, "title">, changed: boolea
 /** How often progress alone refreshes the queue and the Continue row, per download. */
 export const PROGRESS_LIVE_MS = 5_000;
 const lastProgress = new Map<number, number>();
-const lastState = new Map<number, string>();
-
-/** Whether ev's state differs from the last one seen for its download (the first event of a download counts). The
- * server names previous only on a change, so a progress event cannot tell by itself. */
-export function stateChanged(ev: Pick<DownloadEvent, "id" | "state">): boolean {
-  const before = lastState.get(ev.id);
-  lastState.set(ev.id, ev.state);
-  return before !== ev.state;
-}
 
 export function onDownloadEvent(qc: QueryClient, raw: string, now: number = Date.now(), seeFiles = true, nameOf?: (key: string) => string) {
   let ev: DownloadEvent;
@@ -64,7 +56,7 @@ export function onDownloadEvent(qc: QueryClient, raw: string, now: number = Date
   } catch {
     return;
   }
-  const changed = stateChanged(ev);
+  const changed = ev.previous ? ev.previous !== ev.state : true;
   if (changed) {
     lastProgress.delete(ev.id);
     qc.invalidateQueries({ queryKey: qk.activity.all });
@@ -74,7 +66,7 @@ export function onDownloadEvent(qc: QueryClient, raw: string, now: number = Date
     qc.invalidateQueries({ queryKey: [...qk.activity.all, "now"] });
     qc.invalidateQueries({ queryKey: [...qk.activity.all, "continue"] });
   }
-  const r = libraryRefresh(ev, changed, now);
+  const r = libraryRefresh(ev, now);
   if (r.title) qc.invalidateQueries({ queryKey: qk.title(ev.title.id) });
   if (r.lists) qc.invalidateQueries({ queryKey: qk.titles.all });
   const t = downloadToast(ev, seeFiles, nameOf);

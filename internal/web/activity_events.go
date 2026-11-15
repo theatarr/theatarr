@@ -27,7 +27,7 @@ type DownloadEvent struct {
 	Title    ActivityTitle `json:"title"`
 	Version  string        `json:"version"`
 	State    string        `json:"state"`
-	Previous string        `json:"previous,omitempty"` // the state before, when this poller saw it
+	Previous string        `json:"previous,omitempty"` // the state before, when this poller saw it (the same on progress)
 	Step     string        `json:"step"`
 	Words    string        `json:"words"`
 	Progress float64       `json:"progress"`
@@ -183,9 +183,6 @@ func (w *Web) pollActivity(ctx context.Context, p *activityPoller) error {
 			}
 			ev := DownloadEvent{ID: v.ID, Title: v.Title, Version: v.Version, State: v.State, Previous: p.state[d.ID],
 				Step: v.Step, Words: v.Words, Progress: v.Progress, Removed: d.State == "failed" && activity.EndedByRemoval(d.Error)}
-			if ev.Previous == ev.State {
-				ev.Previous = ""
-			}
 			data, _ := json.Marshal(ev)
 			dev, err := w.downloadEvent(ctx, d, data)
 			if err != nil {
