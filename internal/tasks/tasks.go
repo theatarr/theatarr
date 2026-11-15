@@ -161,6 +161,24 @@ func (tb *Table) Run(ctx context.Context, t Task) (ran bool, err error) {
 	return true, err
 }
 
+// Loop registers t and runs it every t.Every until ctx ends, the first run after first (0: at once).
+func (tb *Table) Loop(ctx context.Context, t Task, first time.Duration) {
+	t.Next = time.Now().Add(first)
+	defer tb.Register(ctx, t)()
+	timer := time.NewTimer(first)
+	defer timer.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-timer.C:
+		}
+		start := time.Now()
+		_, _ = tb.Run(ctx, t)
+		timer.Reset(time.Until(start.Add(t.Every)))
+	}
+}
+
 // Start is Run in a goroutine of its own, for a loop that must not wait for the work (it keeps polling meanwhile).
 // It reports false when a run of t.Key is already going.
 func (tb *Table) Start(ctx context.Context, t Task) bool {

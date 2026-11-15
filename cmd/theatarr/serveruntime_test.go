@@ -820,7 +820,7 @@ func TestServeEgressWorkerFollowsTheSection(t *testing.T) {
 		return &serveRuntime{Generation: gen, Policy: pol, Gateway: gw}
 	}
 	var current atomic.Pointer[serveRuntime]
-	workers := newServeWorkers(context.Background(), quiet, egressWorker(func(ctx context.Context) (context.Context, *serveRuntime) {
+	workers := newServeWorkers(context.Background(), quiet, egressWorker(nil, func(ctx context.Context) (context.Context, *serveRuntime) {
 		return ctx, current.Load()
 	}))
 	defer workers.Close()

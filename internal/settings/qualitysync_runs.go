@@ -148,18 +148,6 @@ func (s *QualitySync) RunDue(ctx context.Context) error {
 	}
 	return errors.Join(errs...)
 }
-func (s *QualitySync) Run(ctx context.Context) {
-	ticker := time.NewTicker(time.Minute)
-	defer ticker.Stop()
-	for {
-		_ = s.RunDue(ctx)
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-		}
-	}
-}
 
 type QualitySyncRun struct {
 	ID        int64  `json:"id"`

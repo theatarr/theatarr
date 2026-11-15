@@ -791,13 +791,22 @@ func runServe(args []string) error {
 	// process as before (the container restarts it).
 	var wg sync.WaitGroup
 	wg.Add(1)
-	go errinbox.Go("quality-sync", func() { defer wg.Done(); qualitySync.Run(ctx) })()
+	// The quality sync looks for due sources every minute.
+	go errinbox.Go("quality-sync", func() {
+		defer wg.Done()
+		tbl.Loop(ctx, tasks.Task{Key: "quality.sync", Name: "Check quality profile sources", Every: time.Minute,
+			Run: qualitySync.RunDue}, 0)
+	})()
 	// Planner statistics: PRAGMA optimize after the startup migrations, then daily.
 	// The nightly backup and tidy-up at the backup hour.
 	wg.Add(1)
 	go errinbox.Go("nightly", func() { defer wg.Done(); n.loop(ctx) })()
 	wg.Add(1)
-	go errinbox.Go("store-optimize", func() { defer wg.Done(); runStoreOptimize(ctx, st, log) })()
+	go errinbox.Go("store-optimize", func() {
+		defer wg.Done()
+		tbl.Loop(ctx, tasks.Task{Key: "db.optimize", Name: "Optimize the database", Every: 24 * time.Hour,
+			Run: st.Optimize}, 0)
+	})()
 	// Scheduled torrent backups: off unless torrents.backup.every is set. Each check reads the settings in force.
 	wg.Add(1)
 	go errinbox.Go("torrents", func() { defer wg.Done(); torrents.RunSchedule(ctx, tbl, torrentManager, 10*time.Minute) })()
@@ -1161,20 +1170,4 @@ func startRequestFlush(ctx context.Context, gw *gateway.Gateway) (stop func()) {
 	done := make(chan struct{})
 	go errinbox.Go("indexer-requests", func() { defer close(done); gw.RunRequestFlush(fctx) })()
 	return func() { cancel(); <-done }
-}
-
-// runStoreOptimize runs the store's PRAGMA optimize now and then every day until ctx ends.
-func runStoreOptimize(ctx context.Context, st *store.Store, log *slog.Logger) {
-	t := time.NewTicker(24 * time.Hour)
-	defer t.Stop()
-	for {
-		start := time.Now()
-		err := st.Optimize(ctx)
-		log.Debug("store: optimize", "took_ms", time.Since(start).Milliseconds(), "err", err)
-		select {
-		case <-ctx.Done():
-			return
-		case <-t.C:
-		}
-	}
 }

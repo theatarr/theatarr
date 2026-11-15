@@ -35,7 +35,7 @@ func (l serveLoops) workers() []serveWorker {
 	return []serveWorker{
 		// The periodic VPN egress check (egress.interval), on while an egress section exists: a section added, removed
 		// or re-timed after startup starts, stops or restarts it. Each pass checks the gateway in force.
-		egressWorker(l.current),
+		egressWorker(l.tasks, l.current),
 		// The library's import pass, relink sweep, dangling report, naming sync and zurg log watch
 		// (library.poll_interval, relink_interval, dangling_every, mount.zurg_log...).
 		{name: "library", key: func(rt *serveRuntime) string {
@@ -45,7 +45,7 @@ func (l serveLoops) workers() []serveWorker {
 			s := rt.Library.set
 			return keyOf(s.PollInterval, s.RelinkInterval, s.DanglingEvery, s.ZurgLog, s.ZurgLogURL, s.ZurgLogInterval)
 		}, run: func(ctx context.Context, rt *serveRuntime, _ string) error {
-			rt.Library.Run(ctx)
+			rt.Library.Run(ctx, l.tasks)
 			return nil
 		}},
 		// The provider registry sync schedule (provider_sync.interval and the providers with a key).
@@ -201,30 +201,26 @@ func (l serveLoops) workers() []serveWorker {
 	}
 }
 
-// egressWorker checks every egress path at its start and then every egress.interval, each time through the gateway
-// of the generation in force (a publication's own immediate check is serveEgressChecks').
-func egressWorker(current func(context.Context) (context.Context, *serveRuntime)) serveWorker {
+// egressWorker checks every egress path at its start and then every egress.interval (task egress.check), each time
+// through the gateway of the generation in force (a publication's own immediate check is serveEgressChecks').
+func egressWorker(tb *tasks.Table, current func(context.Context) (context.Context, *serveRuntime)) serveWorker {
 	return serveWorker{name: "egress", key: func(rt *serveRuntime) string {
 		if rt.Gateway == nil || rt.Policy == nil || rt.Policy.Egress == nil {
 			return ""
 		}
 		return egressInterval(rt.Policy.Egress).String()
 	}, run: func(ctx context.Context, rt *serveRuntime, _ string) error {
-		t := time.NewTicker(egressInterval(rt.Policy.Egress))
-		defer t.Stop()
-		for {
-			checkCtx, now := current(ctx)
-			gw := rt.Gateway
-			if now != nil && now.Gateway != nil {
-				gw = now.Gateway
-			}
-			gw.CheckEgress(checkCtx)
-			select {
-			case <-ctx.Done():
+		tb.Loop(ctx, tasks.Task{Key: "egress.check", Name: "Check the VPN egress", Every: egressInterval(rt.Policy.Egress),
+			Run: func(ctx context.Context) error {
+				checkCtx, now := current(ctx)
+				gw := rt.Gateway
+				if now != nil && now.Gateway != nil {
+					gw = now.Gateway
+				}
+				gw.CheckEgress(checkCtx)
 				return nil
-			case <-t.C:
-			}
-		}
+			}}, 0)
+		return nil
 	}}
 }
 
@@ -242,11 +238,15 @@ func egressInterval(e *policy.Egress) time.Duration {
 	return policy.DefaultEgressInterval
 }
 
-// runPlaylists syncs the watch-order playlists every interval (task anime.playlists, listed while playlists are
-// set up), each time with the syncer in force.
+// runPlaylists syncs the watch-order playlists every interval (task anime.playlists, listed while playlists are set
+// up), each time with the syncer in force.
 func (l serveLoops) runPlaylists(ctx context.Context, interval time.Duration, fallback *playlists.Syncer) {
-	task := tasks.Task{Key: "anime.playlists", Name: "Sync watch-order playlists", Every: interval,
-		Next: time.Now().Add(interval), Run: func(ctx context.Context) error {
+	tb := l.tasks
+	if fallback == nil {
+		tb = nil
+	}
+	tb.Loop(ctx, tasks.Task{Key: "anime.playlists", Name: "Sync watch-order playlists", Every: interval,
+		Run: func(ctx context.Context) error {
 			current := fallback
 			syncCtx, rt := l.current(ctx)
 			if rt.Playlists != nil {
@@ -257,20 +257,7 @@ func (l serveLoops) runPlaylists(ctx context.Context, interval time.Duration, fa
 			}
 			_, err := current.Sync(syncCtx, "", false)
 			return err
-		}}
-	if fallback != nil {
-		defer l.tasks.Register(ctx, task)()
-	}
-	t := time.NewTicker(interval)
-	defer t.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-t.C:
-			_, _ = l.tasks.Run(ctx, task)
-		}
-	}
+		}}, interval)
 }
 
 // runWanted runs the search round's task every acquire.RoundEvery until ctx ends, the first after 5 minutes, or at

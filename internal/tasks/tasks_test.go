@@ -173,3 +173,35 @@ func TestRegisterListAndRunNow(t *testing.T) {
 		t.Fatalf("last started: %v %v", at, err)
 	}
 }
+
+// Loop runs the task at once and then every interval, one run at a time, and unregisters it when ctx ends.
+func TestLoopRunsEveryInterval(t *testing.T) {
+	ctx := context.Background()
+	tb, _ := open(t)
+	var n atomic.Int32
+	lctx, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+	go func() {
+		tb.Loop(lctx, Task{Key: "k", Name: "Tick", Every: 20 * time.Millisecond, Run: func(context.Context) error {
+			n.Add(1)
+			return nil
+		}}, 0)
+		close(done)
+	}()
+	deadline := time.Now().Add(5 * time.Second)
+	for n.Load() < 3 {
+		if time.Now().After(deadline) {
+			t.Fatalf("runs %d", n.Load())
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	got, _ := tb.List(ctx)
+	if len(got) != 1 || got[0].NextRun == nil || got[0].LastStarted == nil || got[0].NextRun.Sub(*got[0].LastStarted) != 20*time.Millisecond {
+		t.Fatalf("row %+v", got)
+	}
+	cancel()
+	<-done
+	if got, _ := tb.List(ctx); len(got) != 0 {
+		t.Fatalf("listed after the loop ended: %+v", got)
+	}
+}

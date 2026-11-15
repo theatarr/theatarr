@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"log/slog"
 	"strings"
 	"sync"
@@ -20,6 +21,7 @@ import (
 	"github.com/theatarr/theatarr/internal/secrets"
 	"github.com/theatarr/theatarr/internal/settings"
 	"github.com/theatarr/theatarr/internal/store"
+	"github.com/theatarr/theatarr/internal/tasks"
 )
 
 // serveLibrary runs the library in theatarr serve: imports of ready downloads every poll interval and as soon as one
@@ -203,8 +205,9 @@ func (s *serveLibrary) current() *library.Library {
 	return current.lib
 }
 
-// Run loops until ctx ends.
-func (s *serveLibrary) Run(ctx context.Context) {
+// Run loops until ctx ends. The relink sweep, the dangling report and the trash purge are tasks on tb (System ›
+// Tasks); the import pass is not (it runs on every poll and wake-up).
+func (s *serveLibrary) Run(ctx context.Context, tb *tasks.Table) {
 	if s.pol.Library == nil {
 		return
 	}
@@ -245,7 +248,39 @@ func (s *serveLibrary) Run(ctx context.Context) {
 			s.log.Info("library: following zurg's log for renames", "path", s.set.ZurgLog)
 		}
 	}
-	initial.danglingReport(startCtx)
+	relink := tasks.Task{Key: "library.relink", Name: "Relink renamed folders", Every: s.set.RelinkInterval,
+		Run: func(ctx context.Context) error {
+			ctx, current := s.forOperation(ctx)
+			if current.backOff("relink sweep") {
+				return nil
+			}
+			_, err := current.lib.Relink(ctx, "", false)
+			return err
+		}}
+	dangling := tasks.Task{Key: "library.dangling", Name: "Report dangling links", Every: s.set.DanglingEvery,
+		Run: func(ctx context.Context) error {
+			ctx, current := s.forOperation(ctx)
+			if current.backOff("dangling report") {
+				return nil
+			}
+			return current.danglingReport(ctx)
+		}}
+	trash := tasks.Task{Key: "library.trash", Name: "Empty the library trash", Every: 24 * time.Hour,
+		Run: func(ctx context.Context) error {
+			ctx, current := s.forOperation(ctx)
+			n, err := current.lib.PurgeTrash(ctx)
+			if n > 0 {
+				s.log.Info("library: trash purge", "removed", n)
+			}
+			return err
+		}}
+	now := time.Now()
+	relink.Next, dangling.Next, trash.Next = now.Add(s.set.RelinkInterval), now, now.Add(24*time.Hour)
+	for _, t := range []tasks.Task{relink, dangling, trash} {
+		defer tb.Register(ctx, t)()
+	}
+	// The dangling report runs at start too.
+	_, _ = tb.Run(ctx, dangling)
 	importTick := time.NewTicker(s.set.PollInterval)
 	relinkTick := time.NewTicker(s.set.RelinkInterval)
 	dailyTick := time.NewTicker(24 * time.Hour)
@@ -286,11 +321,7 @@ func (s *serveLibrary) Run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-danglingTick.C:
-			ctx, current := s.forOperation(ctx)
-			if current.backOff("dangling report") {
-				continue
-			}
-			current.danglingReport(ctx)
+			_, _ = tb.Run(ctx, dangling)
 		case <-importTick.C:
 			importPass(ctx)
 		case <-s.readyWake:
@@ -299,26 +330,11 @@ func (s *serveLibrary) Run(ctx context.Context) {
 		case <-recheck.C:
 			importPass(ctx)
 		case <-rotated:
-			ctx, current := s.forOperation(ctx)
-			if current.backOff("relink sweep") {
-				continue
-			}
-			if _, err := current.lib.Relink(ctx, "", false); err != nil {
-				s.log.Warn("library: relink sweep", "err", err)
-			}
+			_, _ = tb.Run(ctx, relink)
 		case <-relinkTick.C:
-			ctx, current := s.forOperation(ctx)
-			if current.backOff("relink sweep") {
-				continue
-			}
-			if _, err := current.lib.Relink(ctx, "", false); err != nil {
-				s.log.Warn("library: relink sweep", "err", err)
-			}
+			_, _ = tb.Run(ctx, relink)
 		case <-dailyTick.C:
-			ctx, current := s.forOperation(ctx)
-			if n, err := current.lib.PurgeTrash(ctx); err != nil || n > 0 {
-				s.log.Info("library: trash purge", "removed", n, "err", err)
-			}
+			_, _ = tb.Run(ctx, trash)
 		}
 	}
 }
@@ -341,14 +357,14 @@ func (s *serveLibrary) backOff(pass string) bool {
 }
 
 // danglingReport records the dangling links (theatarr library dangling prints them).
-func (s *serveLibrary) danglingReport(ctx context.Context) {
+func (s *serveLibrary) danglingReport(ctx context.Context) error {
 	if s.set.MountPath == "" {
-		return
+		return nil
 	}
 	sum, err := s.lib.DanglingReport(ctx)
 	switch {
 	case err != nil:
-		s.log.Warn("library: dangling report", "err", err)
+		return fmt.Errorf("library: dangling report: %w", err)
 	case sum.Dangling > 0 || len(sum.Errors) > 0:
 		attrs := []any{"dangling", sum.Dangling, "links", sum.Links, "by_root", sum.ByRoot, "errors", sum.Errors,
 			"took_ms", sum.Took.Milliseconds()}
@@ -360,4 +376,5 @@ func (s *serveLibrary) danglingReport(ctx context.Context) {
 	default:
 		s.log.Info("library: no dangling links", "links", sum.Links, "took_ms", sum.Took.Milliseconds())
 	}
+	return nil
 }

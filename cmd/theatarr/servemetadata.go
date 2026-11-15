@@ -275,8 +275,8 @@ func intakePaused(mi *catalog.MovieIntake) bool {
 // series with the series refresh in force.
 func runTVDBUpdates(ctx context.Context, tb *tasks.Table, tvc *tvdb.Client, current func(context.Context) *tvrefresh.Service,
 	log *slog.Logger) {
-	task := tasks.Task{Key: "tvdb.updates", Name: "Read TVDB's changed series", Every: time.Hour,
-		Next: time.Now().Add(time.Hour), Run: func(ctx context.Context) error {
+	tb.Loop(ctx, tasks.Task{Key: "tvdb.updates", Name: "Read TVDB's changed series", Every: time.Hour,
+		Run: func(ctx context.Context) error {
 			res, err := tvc.Refresh(ctx)
 			if err != nil {
 				return fmt.Errorf("tvdb: refresh: %w", err)
@@ -290,18 +290,7 @@ func runTVDBUpdates(ctx context.Context, tb *tasks.Table, tvc *tvdb.Client, curr
 				log.Info("series metadata: changed series queued", "series", n)
 			}
 			return nil
-		}}
-	defer tb.Register(ctx, task)()
-	t := time.NewTicker(time.Hour)
-	defer t.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-t.C:
-			_, _ = tb.Run(ctx, task)
-		}
-	}
+		}}, time.Hour)
 }
 
 // startupServeMetadata is the bundle of the metadata services serve built at start from pol, so the first reload
