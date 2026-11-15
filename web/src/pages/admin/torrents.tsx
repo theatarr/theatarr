@@ -302,6 +302,13 @@ function TorrentRow({ t, checked, onToggle, code }: { t: Torrent; checked: boole
           <TableCell />
           <TableCell colSpan={code === undefined ? 5 : 6} className="text-xs text-muted-foreground [overflow-wrap:anywhere]" data-testid="torrent-refs">
             <UsageDetail u={t} />
+            {/* The files Theatarr recorded for the hash (imported or probed), folded: a pack can hold hundreds. */}
+            {(t.recorded_files ?? []).length > 0 ? (
+              <details className="mt-1" data-testid="torrent-files">
+                <summary className="cursor-pointer">{plural((t.recorded_files ?? []).length, "file")}</summary>
+                <ul className="mt-1 space-y-0.5">{(t.recorded_files ?? []).map((f) => <li key={f.path} className="[overflow-wrap:anywhere]">{f.path} · {fmtBytes(f.size)}</li>)}</ul>
+              </details>
+            ) : null}
           </TableCell>
         </TableRow>
       ) : null}

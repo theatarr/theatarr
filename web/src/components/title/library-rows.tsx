@@ -172,7 +172,8 @@ function RowDetails({ v, kind, minimumShown, statusShown, onRemove }: { v: Versi
   const rows: [ReactNode, ReactNode][] = perms.admin ? [["Library key", <Mono key="k">{key}</Mono>]] : [];
   // The path once: Library files lists each linked file's; a file with no link (an arr's) shows it here.
   if (c?.path && unlinkable(v.links).length === 0) rows.push(["Path", <Mono key="p" className="text-muted-foreground [overflow-wrap:anywhere]">{c.path}</Mono>]);
-  if (c?.info_hash) rows.push(["Hash", <span key="h" className="flex flex-wrap items-baseline gap-x-2"><InfoHash hash={c.info_hash} admin={perms.admin} /><TorrentLink hash={c.info_hash} /></span>]);
+  // For admins the hash itself opens Torrents filtered to it (InfoHash), so no separate Torrent link here.
+  if (c?.info_hash) rows.push(["Hash", <InfoHash key="h" hash={c.info_hash} admin={perms.admin} />]);
   if (c?.edition) rows.push(["Edition", c.edition]);
   if (kind === "series" && v.episodes) {
     const e = v.episodes;

@@ -392,7 +392,8 @@ are in the URL. The torrent journal is below the list.
 
 The old Saved inventory addresses (`/admin/torrents/inventory`, an entry `/admin/torrents/inventory/<hash>`, and
 the older `/admin/registry…`, `/registry…`) open Torrents, an entry filtered to its hash (`?q=<hash>`); a file's hash
-on the title page links there too. A row's detail is its usage (titles, references). **System › Backup** holds torrent-list backups: **Back up
+on the title page links there too. A row's detail is its usage (titles, references) and, folded as "N files", the files Theatarr
+recorded for its hash (`content_file`: path and size; the report's `recorded_files`). **System › Backup** holds torrent-list backups: **Back up
 now**, import (Theatarr or DMM, to a chosen provider), the list with download (Theatarr or DMM format) and **Restore…**
 with its preview. Code: `web/src/pages/admin/torrents.tsx`, `web/src/components/backups/torrent-backups.tsx`, `web/src/lib/torrents.ts`.
 

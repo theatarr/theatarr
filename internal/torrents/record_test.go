@@ -160,3 +160,26 @@ func TestRecordReadsNothingLive(t *testing.T) {
 		t.Fatalf("the stored usage: %+v", got)
 	}
 }
+
+// A torrent in the report carries the files Theatarr recorded for its hash (what Saved inventory showed), by path.
+func TestReportRecordedFiles(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	ctx := context.Background()
+	old := e.now.Add(-72 * time.Hour)
+	e.rd.list = []provider.Torrent{tor("1", hA, "Pack.S01.1080p", 100, old, provider.StateDownloaded),
+		tor("2", hB, "Other.2020.1080p", 100, old, provider.StateDownloaded)}
+	e.synced("rd")
+	e.content(hA, 2)
+	r, err := e.report(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := find(r, "rd", "1").RecordedFiles; len(got) != 2 || got[0] != (RecordedFile{Path: "fa.mkv", Size: 1}) ||
+		got[1].Path != "fb.mkv" {
+		t.Errorf("recorded files %+v", got)
+	}
+	if got := find(r, "rd", "2").RecordedFiles; got != nil {
+		t.Errorf("a hash with no recorded files: %+v", got)
+	}
+}

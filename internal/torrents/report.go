@@ -66,8 +66,16 @@ type Torrent struct {
 	Parsed  string   `json:"parsed,omitempty"`
 	Quality string   `json:"quality,omitempty"`
 	Groups  []string `json:"groups,omitempty"`
+	// RecordedFiles are the files Theatarr recorded for its hash (content_file: imported or probed), by path.
+	RecordedFiles []RecordedFile `json:"recorded_files,omitempty"`
 
 	titleKey string
+}
+
+// RecordedFile is one file Theatarr recorded for a torrent's hash: its path inside the torrent and size.
+type RecordedFile struct {
+	Path string `json:"path"`
+	Size int64  `json:"size"`
 }
 
 // Member names one torrent of a group.

@@ -139,7 +139,36 @@ func (m *Manager) readRecord(ctx context.Context) (map[string]*recorded, error) 
 			return nil, err
 		}
 	}
-	return out, nil
+	return out, recordedFiles(ctx, db, out)
+}
+
+// recordedFiles adds to each recorded torrent the files Theatarr recorded for its hash (content_file), in one read.
+func recordedFiles(ctx context.Context, db *sql.DB, rec map[string]*recorded) error {
+	rows, err := db.QueryContext(ctx, `SELECT c.info_hash, f.path, f.size_bytes FROM content_file f
+		JOIN content c ON c.id = f.content_id WHERE c.info_hash IN (SELECT info_hash FROM provider_torrent)
+		ORDER BY c.info_hash, f.path`)
+	if err != nil {
+		return fmt.Errorf("torrents: reading the recorded files: %w", err)
+	}
+	defer rows.Close()
+	files := map[string][]RecordedFile{}
+	for rows.Next() {
+		var h string
+		var f RecordedFile
+		if err := rows.Scan(&h, &f.Path, &f.Size); err != nil {
+			return err
+		}
+		files[h] = append(files[h], f)
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	for _, rc := range rec {
+		for i := range rc.list {
+			rc.list[i].RecordedFiles = files[rc.list[i].Hash]
+		}
+	}
+	return nil
 }
 
 // StoreUsage works out the usage of every recorded torrent from the reference index (the database's

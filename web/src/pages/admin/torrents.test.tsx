@@ -223,6 +223,22 @@ describe("torrents page", () => {
     expect([...refs.querySelectorAll("a")].map((l) => [l.textContent, l.getAttribute("href")])).toEqual([["Used", "/title/7"], ["Also", "/title/8"], ["Used", "/title/7"]]);
   });
 
+  it("folds the files Theatarr recorded for a torrent under its usage", async () => {
+    const files = [{ path: "Pack/E01.mkv", size: 1024 }, { path: "Pack/E02.mkv", size: 2048 }];
+    const used = torrent("2", h2, "Used.Movie", "used", { refs: { link: 1 }, recorded_files: files });
+    mockFetch([
+      { method: "GET", path: "/torrents/report", reply: { ...report, providers: [{ ...report.providers[0], torrents: [used] }] } },
+      { method: "GET", path: "/torrents/journal", reply: { entries: [] } },
+    ]);
+    renderPage(<TorrentsPage />);
+    await screen.findByText("Used.Movie");
+    expect(screen.queryByTestId("torrent-files")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { expanded: false }));
+    const folded = screen.getByTestId("torrent-files");
+    expect(folded.querySelector("summary")?.textContent).toBe("2 files");
+    expect([...folded.querySelectorAll("li")].map((l) => l.textContent)).toEqual(["Pack/E01.mkv · 1.0 KiB", "Pack/E02.mkv · 2.0 KiB"]);
+  });
+
   it("shows an AllDebrid account's count against its limit and warns near it", async () => {
     const ad = { provider: "ad", kind: "alldebrid", ok: true, as_of: "2026-10-29T11:00:00Z", account_torrents: 4600, unique_hashes: 4600, limit: 5000, near_limit: true, bytes: 0,
       usage: { used: 0, unused: 0, unknown: 0, unused_bytes: 0, unknown_bytes: 0 }, torrents: [] };
