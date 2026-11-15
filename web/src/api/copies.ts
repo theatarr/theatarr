@@ -39,15 +39,15 @@ export async function bulkMonitor(body: BulkMonitorRequest): Promise<BulkMonitor
   return out;
 }
 
-/** The bulk monitor; an apply (not a preview) refreshes every title list and the titles it named. */
+/** The bulk monitor; an apply (not a preview) refreshes every title list and every title page. */
 export function useBulkMonitor() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: bulkMonitor,
-    onSuccess: (r, req) => {
+    onSuccess: (r) => {
       if (r.dry_run) return;
       for (const queryKey of titleChanged()) void qc.invalidateQueries({ queryKey });
-      for (const id of req.title_ids) void qc.invalidateQueries({ queryKey: ["title", String(id)] });
+      void qc.invalidateQueries({ queryKey: ["title"] });
     },
   });
 }
