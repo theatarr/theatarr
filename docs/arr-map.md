@@ -35,7 +35,7 @@ claim of Sonarr v5 API parity. Recyclarr has no web pages; its table maps the CL
 | Settings › UI | **not needed** | No separate UI settings page; theme is in the account menu, display choices are beside their views. |
 | Settings › Metadata Source | Admin › Settings › Metadata & artwork — `/admin/settings/metadata` | TMDb/TVDB and anime metadata services. |
 | System › Status | Admin › System › Status — `/admin` | Health and readiness across the single service. Admins open the broken library links from the dangling-links check (**Show the N broken links**). |
-| System › Tasks | Admin › System › Tasks — `/admin/system/tasks` | Jobs and failures, rather than one scheduler per arr instance. |
+| System › Tasks | Admin › System › Tasks — `/admin/system/tasks` | One scheduled-tasks list (interval, last run, duration, next run, Run now) plus the jobs and failures, rather than one scheduler per arr instance. |
 | System › Backups | Admin › System › Backup — `/admin/system/backup` | Full Theatarr backups and restore plus separate torrent-list backups. |
 | System › Updates | **not needed** | Deploy a new Theatarr binary/container; there is no in-app updater. |
 | System › Events | Admin › System › Errors — `/admin/system/errors` | Persistent error inbox; ordinary runtime messages are in Logs. |
@@ -71,7 +71,7 @@ claim of Sonarr v5 API parity. Recyclarr has no web pages; its table maps the CL
 | Settings › General | No General page: provider account sync is on Download clients (`/admin/settings/downloads#provider-sync`), the artwork cache on Metadata & artwork (`/admin/settings/metadata#artwork-cache`), other libraries' folders on Download clients › Torrents (`/admin/settings/downloads/torrents#scan-roots`) | Accounts/API keys are under Users & access, deployment flags remain outside the UI. `/admin/settings/general` redirects. |
 | Settings › UI | **not needed** | No separate UI settings page; theme is in the account menu, display choices are beside their views. |
 | System › Status | Admin › System › Status — `/admin` | Health and readiness across the single service. Admins open the broken library links from the dangling-links check (**Show the N broken links**). |
-| System › Tasks | Admin › System › Tasks — `/admin/system/tasks` | Jobs and failures, rather than one scheduler per arr instance. |
+| System › Tasks | Admin › System › Tasks — `/admin/system/tasks` | One scheduled-tasks list (interval, last run, duration, next run, Run now) plus the jobs and failures, rather than one scheduler per arr instance. |
 | System › Backup | Admin › System › Backup — `/admin/system/backup` | Full Theatarr backups and restore plus separate torrent-list backups. |
 | System › Updates | **not needed** | Deploy a new Theatarr binary/container; there is no in-app updater. |
 | System › Events | Admin › System › Errors — `/admin/system/errors` | Persistent error inbox; ordinary runtime messages are in Logs. |
@@ -100,7 +100,7 @@ claim of Sonarr v5 API parity. Recyclarr has no web pages; its table maps the CL
 | Settings › UI | **not needed** | No separate UI settings page; theme is in the account menu, display choices are beside their views. |
 | Settings › Development | **not needed** | No developer-settings page; diagnostics use System and deployment configuration. |
 | System › Status | Admin › System › Status — `/admin` | Health and readiness across the single service. Admins open the broken library links from the dangling-links check (**Show the N broken links**). |
-| System › Tasks | Admin › System › Tasks — `/admin/system/tasks` | Jobs and failures, rather than one scheduler per arr instance. |
+| System › Tasks | Admin › System › Tasks — `/admin/system/tasks` | One scheduled-tasks list (interval, last run, duration, next run, Run now) plus the jobs and failures, rather than one scheduler per arr instance. |
 | System › Backup | Admin › System › Backup — `/admin/system/backup` | Full Theatarr backups and restore plus separate torrent-list backups. |
 | System › Updates | **not needed** | Deploy a new Theatarr binary/container; there is no in-app updater. |
 | System › Events | Admin › System › Errors — `/admin/system/errors` | Persistent error inbox; ordinary runtime messages are in Logs. |

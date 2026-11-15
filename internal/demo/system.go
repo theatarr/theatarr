@@ -26,23 +26,23 @@ func (s *seeder) system() {
 			errText, ms(created), ms(created), finished)
 		return id
 	}
-	// Done: the regular work of a day.
-	for k := range 6 {
-		at := s.ago(time.Duration(k)*4*time.Hour + 20*time.Minute)
-		job("provider.sync", "{}", "done", at, 1, "")
-		job("shadow.rss", "{}", "done", at.Add(7*time.Minute), 1, "")
+	// The scheduled tasks' last runs (theatarr serve lists the tasks it schedules; internal/tasks).
+	task := func(key, name string, every time.Duration, at string, last time.Time, took time.Duration, errText string) {
+		s.exec(`INSERT INTO task (key, name, every_s, at, last_started, last_finished, last_duration_ms, last_error,
+			updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, key, name, int64(every/time.Second), at, ms(last),
+			ms(last.Add(took)), took.Milliseconds(), errText, ms(last.Add(took)))
 	}
-	for k := range 3 {
-		job("meta.art", "{}", "done", s.ago(time.Duration(k)*6*time.Hour+time.Hour), 1, "")
-		job("db.nightly", "{}", "done", s.ago(days(float64(k)+0.4)), 1, "")
-	}
+	task("provider.sync", "Sync debrid holdings", 6*time.Hour, "", s.ago(20*time.Minute), 4*time.Second, "")
+	task("shadow.rss", "Check RSS feeds", 15*time.Minute, "", s.ago(5*time.Minute), 3*time.Second, "rss: every indexer is backing off")
+	task("meta.art", "Refresh details and artwork", 24*time.Hour, "", s.ago(time.Hour), 12*time.Second, "")
+	task("db.nightly", "Nightly database backup", 0, "03:00", s.ago(days(0.4)), 2*time.Second, "")
 	for i := int64(1); i <= min(s.runID, 6); i++ {
 		job("acquire.search", jsonOf(map[string]any{"run": i}), "done", s.ago(time.Duration(i)*17*time.Minute), 1, "")
 	}
-	// Failed, resolved by a later success: AllDebrid blocked the location, a later sync of every provider worked.
-	job("provider.sync", `{"provider":"ad"}`, "failed", s.ago(26*time.Hour), 5,
+	// Failed, resolved by a later success: AllDebrid blocked the location, its next retry worked.
+	job("provider.sync", `{"providers":["ad"],"retry":true}`, "failed", s.ago(26*time.Hour), 5,
 		"alldebrid: AUTH_BLOCKED: approve this location in your account")
-	job("provider.sync", "{}", "done", s.ago(20*time.Hour), 1, "")
+	job("provider.sync", `{"providers":["ad"],"retry":true}`, "done", s.ago(20*time.Hour), 1, "")
 	// Failed and dismissed.
 	d := job("meta.art", `{"title_id":7}`, "failed", s.ago(days(3)), 5, "tmdb: 429 Too Many Requests (back-off 10m)")
 	s.exec(`UPDATE job SET dismissed_at = ?, dismissed_by = ? WHERE id = ?`, ms(s.ago(days(2.5))), Username, d)
@@ -51,11 +51,9 @@ func (s *seeder) system() {
 	r := job("plex.scan", `{"section":19,"path":"/media/movies"}`, "done", s.ago(days(1.1)), 1, "")
 	s.exec(`UPDATE job SET retry_of = ? WHERE id = ?`, f, r)
 	// Failed, needing attention.
-	job("shadow.rss", "{}", "failed", s.ago(5*time.Hour), 5, "rss: every indexer is backing off")
 	job("acquire.research", `{"run":2}`, "failed", s.ago(9*time.Hour), 5, "indexer dmm: 503 Service Unavailable")
-	// Queued: the next runs (theatarr serve schedules its own db.nightly).
+	// Queued: the next run.
 	job("meta.art", `{"title_id":3}`, "queued", s.now.Add(-5*time.Hour), 0, "")
-	job("acquire.wanted", "{}", "queued", s.now.Add(-5*time.Hour), 0, "")
 
 	// Budgets: this hour's and day's counts, as the gateway persists them.
 	hour, day := s.now.Truncate(time.Hour), s.now.Truncate(24*time.Hour)

@@ -1,12 +1,10 @@
 import { ADVANCED_SETTINGS_PAGES } from "@/lib/settings-map";
 // Advanced tools and the existing database diagnostics composed on System › Backup.
-import { useQuery } from "@tanstack/react-query";
 import { CheckCircle2, ChevronRight, XCircle } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { Link, useLocation } from "react-router";
-import { api } from "@/api/client";
-import { qk } from "@/api/query-keys";
-import { useHealth, useStatus, type JobList } from "@/api/hooks";
+import { useHealth, useStatus } from "@/api/hooks";
+import { useTasks } from "@/api/jobs";
 import { Empty, ErrorState, KV, Loading, Mono, PageHeader, Section, Stat, StatGrid } from "@/components/page";
 import { ADVANCED } from "@/components/shell/nav";
 import { Badge } from "@/components/ui/badge";
@@ -50,14 +48,11 @@ const COUNT_LABELS: Record<string, string> = {
 
 export function Database() {
   const st = useStatus();
-  const backups = useQuery({
-    queryKey: qk.jobs.kind("db.nightly"),
-    queryFn: () => api<JobList>("/jobs?kind=db.nightly&state=done&limit=1"),
-  });
+  const backups = useTasks();
   if (st.isPending) return <Loading />;
   if (st.error) return <ErrorState error={st.error} />;
   const counts = st.data?.counts ?? {};
-  const last = backups.data?.items?.[0];
+  const nightly = backups.data?.items.find((t) => t.key === "db.nightly");
   return (
     <div>
       <StatGrid>
@@ -71,8 +66,8 @@ export function Database() {
           <KV
             items={[
               ["Schema", `${st.data?.schema?.current} of ${st.data?.schema?.target}`],
-              ["Last nightly backup", backups.error ? "Could not load" : backups.isPending ? "Loading…" : last ? `${fmtTime(last.finished_at)} (job #${last.id})` : "none recorded yet"],
-              ["How", <span key="h">the <Mono>db.nightly</Mono> job writes a copy to the backup directory</span>],
+              ["Last nightly backup", backups.error ? "Could not load" : backups.isPending ? "Loading…" : nightly?.last_finished ? `${fmtTime(nightly.last_finished)}${nightly.last_error ? " (failed)" : ""}` : "none recorded yet"],
+              ["How", <span key="h">the <Mono>db.nightly</Mono> task writes a copy to the backup directory</span>],
             ]}
           />
         </Card>

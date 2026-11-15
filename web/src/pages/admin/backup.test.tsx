@@ -10,6 +10,7 @@ it("renders the four backup sections in order and shows the torrent schedule as 
   { method: "GET", path: "/torrents/report", reply: { providers: [] } },
   { method: "GET", path: "/status", reply: { counts: { title: 10 }, schema: { current: 103, target: 103 } } },
   { method: "GET", path: "/jobs", reply: { items: [] } },
+  { method: "GET", path: "/tasks", reply: { items: [] } },
   { method: "GET", path: "/health", reply: { checks: [] } },
  ]);
  renderPage(<BackupPage />, "/admin/system/backup");

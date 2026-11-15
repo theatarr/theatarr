@@ -113,7 +113,7 @@ export function backupCheck(c: HealthCheck | undefined): { parts: BackupPart[]; 
   else if (!d.newest) fix = "No set in the backup directory: run theatarr backup now in the container (docker exec theatarr theatarr backup now), then theatarr backup list.";
   else if (parts.some((p) => !p.present) && (d.age_s ?? 0) < 36 * 3600)
     fix = "The newest set is incomplete: run theatarr backup now in the container (docker exec theatarr theatarr backup now), then theatarr backup list. A complete set has the database copy, the policy archive and the manifest; theatarr backup restore refuses a set without its manifest.";
-  else fix = "The nightly db.nightly job has not written a set lately: check it on Tasks, then run theatarr backup now in the container (docker exec theatarr theatarr backup now).";
+  else fix = "The nightly backup task (db.nightly) has not written a set lately: check it on Tasks, then run theatarr backup now in the container (docker exec theatarr theatarr backup now).";
   return { ...out, fix };
 }
 
