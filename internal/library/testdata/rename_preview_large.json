@@ -1,0 +1,3005 @@
+{
+ "Files": [
+  {
+   "LinkID": 100,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-0.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 02/Show - S02E01 - 001 - Episode 0 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 2,
+   "EpisodeNums": [
+    1
+   ]
+  },
+  {
+   "LinkID": 101,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-1.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 02/Show - S02E02 - 002 - Episode 1.mkv",
+   "SeasonNumber": 2,
+   "EpisodeNums": [
+    2
+   ]
+  },
+  {
+   "LinkID": 102,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-2.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 02/Show (2020) - S02E03 - Episode 2 [WEBDL-1080p].mkv",
+   "SeasonNumber": 2,
+   "EpisodeNums": [
+    3
+   ]
+  },
+  {
+   "LinkID": 103,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-3.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 02/Show - S02E04 - 004 - Episode 3 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 2,
+   "EpisodeNums": [
+    4
+   ]
+  },
+  {
+   "LinkID": 104,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-4.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 02/Show - S02E05 - 005 - Episode 4.mkv",
+   "SeasonNumber": 2,
+   "EpisodeNums": [
+    5
+   ]
+  },
+  {
+   "LinkID": 105,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-5.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 02/Show (2020) - S02E06 - Episode 5 [WEBDL-1080p].mkv",
+   "SeasonNumber": 2,
+   "EpisodeNums": [
+    6
+   ]
+  },
+  {
+   "LinkID": 106,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-6.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 02/Show - S02E07 - 007 - Episode 6 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 2,
+   "EpisodeNums": [
+    7
+   ]
+  },
+  {
+   "LinkID": 107,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-7.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 02/Show - S02E08 - 008 - Episode 7.mkv",
+   "SeasonNumber": 2,
+   "EpisodeNums": [
+    8
+   ]
+  },
+  {
+   "LinkID": 108,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-8.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 02/Show (2020) - S02E09 - Episode 8 [WEBDL-1080p].mkv",
+   "SeasonNumber": 2,
+   "EpisodeNums": [
+    9
+   ]
+  },
+  {
+   "LinkID": 109,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-9.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 02/Show - S02E10 - 010 - Episode 9 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 2,
+   "EpisodeNums": [
+    10
+   ]
+  },
+  {
+   "LinkID": 110,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-10.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 02/Show - S02E11 - 011 - Episode 10.mkv",
+   "SeasonNumber": 2,
+   "EpisodeNums": [
+    11
+   ]
+  },
+  {
+   "LinkID": 111,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-11.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 02/Show (2020) - S02E12 - Episode 11 [WEBDL-1080p].mkv",
+   "SeasonNumber": 2,
+   "EpisodeNums": [
+    12
+   ]
+  },
+  {
+   "LinkID": 112,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-12.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 02/Show - S02E13 - 013 - Episode 12 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 2,
+   "EpisodeNums": [
+    13
+   ]
+  },
+  {
+   "LinkID": 113,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-13.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 02/Show - S02E14 - 014 - Episode 13.mkv",
+   "SeasonNumber": 2,
+   "EpisodeNums": [
+    14
+   ]
+  },
+  {
+   "LinkID": 114,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-14.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 02/Show (2020) - S02E15 - Episode 14 [WEBDL-1080p].mkv",
+   "SeasonNumber": 2,
+   "EpisodeNums": [
+    15
+   ]
+  },
+  {
+   "LinkID": 115,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-15.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 02/Show - S02E16 - 016 - Episode 15 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 2,
+   "EpisodeNums": [
+    16
+   ]
+  },
+  {
+   "LinkID": 116,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-16.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 02/Show - S02E17 - 017 - Episode 16.mkv",
+   "SeasonNumber": 2,
+   "EpisodeNums": [
+    17
+   ]
+  },
+  {
+   "LinkID": 117,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-17.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 02/Show (2020) - S02E18 - Episode 17 [WEBDL-1080p].mkv",
+   "SeasonNumber": 2,
+   "EpisodeNums": [
+    18
+   ]
+  },
+  {
+   "LinkID": 118,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-18.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 02/Show - S02E19 - 019 - Episode 18 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 2,
+   "EpisodeNums": [
+    19
+   ]
+  },
+  {
+   "LinkID": 119,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-19.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 02/Show - S02E20 - 020 - Episode 19.mkv",
+   "SeasonNumber": 2,
+   "EpisodeNums": [
+    20
+   ]
+  },
+  {
+   "LinkID": 120,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-20.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 02/Show (2020) - S02E21 - Episode 20 [WEBDL-1080p].mkv",
+   "SeasonNumber": 2,
+   "EpisodeNums": [
+    21
+   ]
+  },
+  {
+   "LinkID": 121,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-21.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 02/Show - S02E22 - 022 - Episode 21 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 2,
+   "EpisodeNums": [
+    22
+   ]
+  },
+  {
+   "LinkID": 122,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-22.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 02/Show - S02E23 - 023 - Episode 22.mkv",
+   "SeasonNumber": 2,
+   "EpisodeNums": [
+    23
+   ]
+  },
+  {
+   "LinkID": 123,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-23.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 02/Show (2020) - S02E24 - Episode 23 [WEBDL-1080p].mkv",
+   "SeasonNumber": 2,
+   "EpisodeNums": [
+    24
+   ]
+  },
+  {
+   "LinkID": 124,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-24.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 02/Show - S02E25 - 025 - Episode 24 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 2,
+   "EpisodeNums": [
+    25
+   ]
+  },
+  {
+   "LinkID": 125,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-25.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 03/Show - S03E01 - 026 - Episode 25.mkv",
+   "SeasonNumber": 3,
+   "EpisodeNums": [
+    1
+   ]
+  },
+  {
+   "LinkID": 126,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-26.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 03/Show (2020) - S03E02 - Episode 26 [WEBDL-1080p].mkv",
+   "SeasonNumber": 3,
+   "EpisodeNums": [
+    2
+   ]
+  },
+  {
+   "LinkID": 127,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-27.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 03/Show - S03E03 - 028 - Episode 27 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 3,
+   "EpisodeNums": [
+    3
+   ]
+  },
+  {
+   "LinkID": 128,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-28.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 03/Show - S03E04 - 029 - Episode 28.mkv",
+   "SeasonNumber": 3,
+   "EpisodeNums": [
+    4
+   ]
+  },
+  {
+   "LinkID": 129,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-29.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 03/Show (2020) - S03E05 - Episode 29 [WEBDL-1080p].mkv",
+   "SeasonNumber": 3,
+   "EpisodeNums": [
+    5
+   ]
+  },
+  {
+   "LinkID": 130,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-30.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 03/Show - S03E06 - 031 - Episode 30 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 3,
+   "EpisodeNums": [
+    6
+   ]
+  },
+  {
+   "LinkID": 131,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-31.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 03/Show - S03E07 - 032 - Episode 31.mkv",
+   "SeasonNumber": 3,
+   "EpisodeNums": [
+    7
+   ]
+  },
+  {
+   "LinkID": 132,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-32.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 03/Show (2020) - S03E08 - Episode 32 [WEBDL-1080p].mkv",
+   "SeasonNumber": 3,
+   "EpisodeNums": [
+    8
+   ]
+  },
+  {
+   "LinkID": 133,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-33.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 03/Show - S03E09 - 034 - Episode 33 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 3,
+   "EpisodeNums": [
+    9
+   ]
+  },
+  {
+   "LinkID": 134,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-34.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 03/Show - S03E10 - 035 - Episode 34.mkv",
+   "SeasonNumber": 3,
+   "EpisodeNums": [
+    10
+   ]
+  },
+  {
+   "LinkID": 135,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-35.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 03/Show (2020) - S03E11 - Episode 35 [WEBDL-1080p].mkv",
+   "SeasonNumber": 3,
+   "EpisodeNums": [
+    11
+   ]
+  },
+  {
+   "LinkID": 136,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-36.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 03/Show - S03E12 - 037 - Episode 36 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 3,
+   "EpisodeNums": [
+    12
+   ]
+  },
+  {
+   "LinkID": 137,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-37.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 03/Show - S03E13 - 038 - Episode 37.mkv",
+   "SeasonNumber": 3,
+   "EpisodeNums": [
+    13
+   ]
+  },
+  {
+   "LinkID": 138,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-38.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 03/Show (2020) - S03E14 - Episode 38 [WEBDL-1080p].mkv",
+   "SeasonNumber": 3,
+   "EpisodeNums": [
+    14
+   ]
+  },
+  {
+   "LinkID": 139,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-39.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 03/Show - S03E15 - 040 - Episode 39 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 3,
+   "EpisodeNums": [
+    15
+   ]
+  },
+  {
+   "LinkID": 140,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-40.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 03/Show - S03E16 - 041 - Episode 40.mkv",
+   "SeasonNumber": 3,
+   "EpisodeNums": [
+    16
+   ]
+  },
+  {
+   "LinkID": 141,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-41.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 03/Show (2020) - S03E17 - Episode 41 [WEBDL-1080p].mkv",
+   "SeasonNumber": 3,
+   "EpisodeNums": [
+    17
+   ]
+  },
+  {
+   "LinkID": 142,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-42.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 03/Show - S03E18 - 043 - Episode 42 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 3,
+   "EpisodeNums": [
+    18
+   ]
+  },
+  {
+   "LinkID": 143,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-43.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 03/Show - S03E19 - 044 - Episode 43.mkv",
+   "SeasonNumber": 3,
+   "EpisodeNums": [
+    19
+   ]
+  },
+  {
+   "LinkID": 144,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-44.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 03/Show (2020) - S03E20 - Episode 44 [WEBDL-1080p].mkv",
+   "SeasonNumber": 3,
+   "EpisodeNums": [
+    20
+   ]
+  },
+  {
+   "LinkID": 145,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-45.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 03/Show - S03E21 - 046 - Episode 45 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 3,
+   "EpisodeNums": [
+    21
+   ]
+  },
+  {
+   "LinkID": 146,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-46.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 03/Show - S03E22 - 047 - Episode 46.mkv",
+   "SeasonNumber": 3,
+   "EpisodeNums": [
+    22
+   ]
+  },
+  {
+   "LinkID": 147,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-47.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 03/Show (2020) - S03E23 - Episode 47 [WEBDL-1080p].mkv",
+   "SeasonNumber": 3,
+   "EpisodeNums": [
+    23
+   ]
+  },
+  {
+   "LinkID": 148,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-48.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 03/Show - S03E24 - 049 - Episode 48 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 3,
+   "EpisodeNums": [
+    24
+   ]
+  },
+  {
+   "LinkID": 149,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-49.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 03/Show - S03E25 - 050 - Episode 49.mkv",
+   "SeasonNumber": 3,
+   "EpisodeNums": [
+    25
+   ]
+  },
+  {
+   "LinkID": 150,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-50.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 04/Show (2020) - S04E01 - Episode 50 [WEBDL-1080p].mkv",
+   "SeasonNumber": 4,
+   "EpisodeNums": [
+    1
+   ]
+  },
+  {
+   "LinkID": 151,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-51.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 04/Show - S04E02 - 052 - Episode 51 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 4,
+   "EpisodeNums": [
+    2
+   ]
+  },
+  {
+   "LinkID": 152,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-52.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 04/Show - S04E03 - 053 - Episode 52.mkv",
+   "SeasonNumber": 4,
+   "EpisodeNums": [
+    3
+   ]
+  },
+  {
+   "LinkID": 153,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-53.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 04/Show (2020) - S04E04 - Episode 53 [WEBDL-1080p].mkv",
+   "SeasonNumber": 4,
+   "EpisodeNums": [
+    4
+   ]
+  },
+  {
+   "LinkID": 154,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-54.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 04/Show - S04E05 - 055 - Episode 54 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 4,
+   "EpisodeNums": [
+    5
+   ]
+  },
+  {
+   "LinkID": 155,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-55.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 04/Show - S04E06 - 056 - Episode 55.mkv",
+   "SeasonNumber": 4,
+   "EpisodeNums": [
+    6
+   ]
+  },
+  {
+   "LinkID": 156,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-56.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 04/Show (2020) - S04E07 - Episode 56 [WEBDL-1080p].mkv",
+   "SeasonNumber": 4,
+   "EpisodeNums": [
+    7
+   ]
+  },
+  {
+   "LinkID": 157,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-57.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 04/Show - S04E08 - 058 - Episode 57 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 4,
+   "EpisodeNums": [
+    8
+   ]
+  },
+  {
+   "LinkID": 158,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-58.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 04/Show - S04E09 - 059 - Episode 58.mkv",
+   "SeasonNumber": 4,
+   "EpisodeNums": [
+    9
+   ]
+  },
+  {
+   "LinkID": 159,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-59.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 04/Show (2020) - S04E10 - Episode 59 [WEBDL-1080p].mkv",
+   "SeasonNumber": 4,
+   "EpisodeNums": [
+    10
+   ]
+  },
+  {
+   "LinkID": 160,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-60.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 04/Show - S04E11 - 061 - Episode 60 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 4,
+   "EpisodeNums": [
+    11
+   ]
+  },
+  {
+   "LinkID": 161,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-61.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 04/Show - S04E12 - 062 - Episode 61.mkv",
+   "SeasonNumber": 4,
+   "EpisodeNums": [
+    12
+   ]
+  },
+  {
+   "LinkID": 162,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-62.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 04/Show (2020) - S04E13 - Episode 62 [WEBDL-1080p].mkv",
+   "SeasonNumber": 4,
+   "EpisodeNums": [
+    13
+   ]
+  },
+  {
+   "LinkID": 163,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-63.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 04/Show - S04E14 - 064 - Episode 63 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 4,
+   "EpisodeNums": [
+    14
+   ]
+  },
+  {
+   "LinkID": 164,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-64.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 04/Show - S04E15 - 065 - Episode 64.mkv",
+   "SeasonNumber": 4,
+   "EpisodeNums": [
+    15
+   ]
+  },
+  {
+   "LinkID": 165,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-65.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 04/Show (2020) - S04E16 - Episode 65 [WEBDL-1080p].mkv",
+   "SeasonNumber": 4,
+   "EpisodeNums": [
+    16
+   ]
+  },
+  {
+   "LinkID": 166,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-66.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 04/Show - S04E17 - 067 - Episode 66 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 4,
+   "EpisodeNums": [
+    17
+   ]
+  },
+  {
+   "LinkID": 167,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-67.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 04/Show - S04E18 - 068 - Episode 67.mkv",
+   "SeasonNumber": 4,
+   "EpisodeNums": [
+    18
+   ]
+  },
+  {
+   "LinkID": 168,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-68.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 04/Show (2020) - S04E19 - Episode 68 [WEBDL-1080p].mkv",
+   "SeasonNumber": 4,
+   "EpisodeNums": [
+    19
+   ]
+  },
+  {
+   "LinkID": 169,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-69.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 04/Show - S04E20 - 070 - Episode 69 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 4,
+   "EpisodeNums": [
+    20
+   ]
+  },
+  {
+   "LinkID": 170,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-70.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 04/Show - S04E21 - 071 - Episode 70.mkv",
+   "SeasonNumber": 4,
+   "EpisodeNums": [
+    21
+   ]
+  },
+  {
+   "LinkID": 171,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-71.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 04/Show (2020) - S04E22 - Episode 71 [WEBDL-1080p].mkv",
+   "SeasonNumber": 4,
+   "EpisodeNums": [
+    22
+   ]
+  },
+  {
+   "LinkID": 172,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-72.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 04/Show - S04E23 - 073 - Episode 72 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 4,
+   "EpisodeNums": [
+    23
+   ]
+  },
+  {
+   "LinkID": 173,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-73.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 04/Show - S04E24 - 074 - Episode 73.mkv",
+   "SeasonNumber": 4,
+   "EpisodeNums": [
+    24
+   ]
+  },
+  {
+   "LinkID": 174,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-74.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 04/Show (2020) - S04E25 - Episode 74 [WEBDL-1080p].mkv",
+   "SeasonNumber": 4,
+   "EpisodeNums": [
+    25
+   ]
+  },
+  {
+   "LinkID": 175,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-75.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 05/Show - S05E01 - 076 - Episode 75 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 5,
+   "EpisodeNums": [
+    1
+   ]
+  },
+  {
+   "LinkID": 176,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-76.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 05/Show - S05E02 - 077 - Episode 76.mkv",
+   "SeasonNumber": 5,
+   "EpisodeNums": [
+    2
+   ]
+  },
+  {
+   "LinkID": 177,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-77.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 05/Show (2020) - S05E03 - Episode 77 [WEBDL-1080p].mkv",
+   "SeasonNumber": 5,
+   "EpisodeNums": [
+    3
+   ]
+  },
+  {
+   "LinkID": 178,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-78.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 05/Show - S05E04 - 079 - Episode 78 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 5,
+   "EpisodeNums": [
+    4
+   ]
+  },
+  {
+   "LinkID": 179,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-79.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 05/Show - S05E05 - 080 - Episode 79.mkv",
+   "SeasonNumber": 5,
+   "EpisodeNums": [
+    5
+   ]
+  },
+  {
+   "LinkID": 180,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-80.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 05/Show (2020) - S05E06 - Episode 80 [WEBDL-1080p].mkv",
+   "SeasonNumber": 5,
+   "EpisodeNums": [
+    6
+   ]
+  },
+  {
+   "LinkID": 181,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-81.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 05/Show - S05E07 - 082 - Episode 81 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 5,
+   "EpisodeNums": [
+    7
+   ]
+  },
+  {
+   "LinkID": 182,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-82.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 05/Show - S05E08 - 083 - Episode 82.mkv",
+   "SeasonNumber": 5,
+   "EpisodeNums": [
+    8
+   ]
+  },
+  {
+   "LinkID": 183,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-83.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 05/Show (2020) - S05E09 - Episode 83 [WEBDL-1080p].mkv",
+   "SeasonNumber": 5,
+   "EpisodeNums": [
+    9
+   ]
+  },
+  {
+   "LinkID": 184,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-84.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 05/Show - S05E10 - 085 - Episode 84 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 5,
+   "EpisodeNums": [
+    10
+   ]
+  },
+  {
+   "LinkID": 185,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-85.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 05/Show - S05E11 - 086 - Episode 85.mkv",
+   "SeasonNumber": 5,
+   "EpisodeNums": [
+    11
+   ]
+  },
+  {
+   "LinkID": 186,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-86.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 05/Show (2020) - S05E12 - Episode 86 [WEBDL-1080p].mkv",
+   "SeasonNumber": 5,
+   "EpisodeNums": [
+    12
+   ]
+  },
+  {
+   "LinkID": 187,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-87.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 05/Show - S05E13 - 088 - Episode 87 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 5,
+   "EpisodeNums": [
+    13
+   ]
+  },
+  {
+   "LinkID": 188,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-88.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 05/Show - S05E14 - 089 - Episode 88.mkv",
+   "SeasonNumber": 5,
+   "EpisodeNums": [
+    14
+   ]
+  },
+  {
+   "LinkID": 189,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-89.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 05/Show (2020) - S05E15 - Episode 89 [WEBDL-1080p].mkv",
+   "SeasonNumber": 5,
+   "EpisodeNums": [
+    15
+   ]
+  },
+  {
+   "LinkID": 190,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-90.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 05/Show - S05E16 - 091 - Episode 90 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 5,
+   "EpisodeNums": [
+    16
+   ]
+  },
+  {
+   "LinkID": 191,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-91.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 05/Show - S05E17 - 092 - Episode 91.mkv",
+   "SeasonNumber": 5,
+   "EpisodeNums": [
+    17
+   ]
+  },
+  {
+   "LinkID": 192,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-92.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 05/Show (2020) - S05E18 - Episode 92 [WEBDL-1080p].mkv",
+   "SeasonNumber": 5,
+   "EpisodeNums": [
+    18
+   ]
+  },
+  {
+   "LinkID": 193,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-93.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 05/Show - S05E19 - 094 - Episode 93 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 5,
+   "EpisodeNums": [
+    19
+   ]
+  },
+  {
+   "LinkID": 194,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-94.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 05/Show - S05E20 - 095 - Episode 94.mkv",
+   "SeasonNumber": 5,
+   "EpisodeNums": [
+    20
+   ]
+  },
+  {
+   "LinkID": 195,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-95.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 05/Show (2020) - S05E21 - Episode 95 [WEBDL-1080p].mkv",
+   "SeasonNumber": 5,
+   "EpisodeNums": [
+    21
+   ]
+  },
+  {
+   "LinkID": 196,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-96.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 05/Show - S05E22 - 097 - Episode 96 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 5,
+   "EpisodeNums": [
+    22
+   ]
+  },
+  {
+   "LinkID": 197,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-97.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 05/Show - S05E23 - 098 - Episode 97.mkv",
+   "SeasonNumber": 5,
+   "EpisodeNums": [
+    23
+   ]
+  },
+  {
+   "LinkID": 198,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-98.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 05/Show (2020) - S05E24 - Episode 98 [WEBDL-1080p].mkv",
+   "SeasonNumber": 5,
+   "EpisodeNums": [
+    24
+   ]
+  },
+  {
+   "LinkID": 199,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-99.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 05/Show - S05E25 - 100 - Episode 99 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 5,
+   "EpisodeNums": [
+    25
+   ]
+  },
+  {
+   "LinkID": 200,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-100.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 06/Show - S06E01 - 101 - Episode 100.mkv",
+   "SeasonNumber": 6,
+   "EpisodeNums": [
+    1
+   ]
+  },
+  {
+   "LinkID": 201,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-101.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 06/Show (2020) - S06E02 - Episode 101 [WEBDL-1080p].mkv",
+   "SeasonNumber": 6,
+   "EpisodeNums": [
+    2
+   ]
+  },
+  {
+   "LinkID": 202,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-102.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 06/Show - S06E03 - 103 - Episode 102 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 6,
+   "EpisodeNums": [
+    3
+   ]
+  },
+  {
+   "LinkID": 203,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-103.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 06/Show - S06E04 - 104 - Episode 103.mkv",
+   "SeasonNumber": 6,
+   "EpisodeNums": [
+    4
+   ]
+  },
+  {
+   "LinkID": 204,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-104.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 06/Show (2020) - S06E05 - Episode 104 [WEBDL-1080p].mkv",
+   "SeasonNumber": 6,
+   "EpisodeNums": [
+    5
+   ]
+  },
+  {
+   "LinkID": 205,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-105.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 06/Show - S06E06 - 106 - Episode 105 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 6,
+   "EpisodeNums": [
+    6
+   ]
+  },
+  {
+   "LinkID": 206,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-106.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 06/Show - S06E07 - 107 - Episode 106.mkv",
+   "SeasonNumber": 6,
+   "EpisodeNums": [
+    7
+   ]
+  },
+  {
+   "LinkID": 207,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-107.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 06/Show (2020) - S06E08 - Episode 107 [WEBDL-1080p].mkv",
+   "SeasonNumber": 6,
+   "EpisodeNums": [
+    8
+   ]
+  },
+  {
+   "LinkID": 208,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-108.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 06/Show - S06E09 - 109 - Episode 108 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 6,
+   "EpisodeNums": [
+    9
+   ]
+  },
+  {
+   "LinkID": 209,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-109.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 06/Show - S06E10 - 110 - Episode 109.mkv",
+   "SeasonNumber": 6,
+   "EpisodeNums": [
+    10
+   ]
+  },
+  {
+   "LinkID": 210,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-110.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 06/Show (2020) - S06E11 - Episode 110 [WEBDL-1080p].mkv",
+   "SeasonNumber": 6,
+   "EpisodeNums": [
+    11
+   ]
+  },
+  {
+   "LinkID": 211,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-111.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 06/Show - S06E12 - 112 - Episode 111 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 6,
+   "EpisodeNums": [
+    12
+   ]
+  },
+  {
+   "LinkID": 212,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-112.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 06/Show - S06E13 - 113 - Episode 112.mkv",
+   "SeasonNumber": 6,
+   "EpisodeNums": [
+    13
+   ]
+  },
+  {
+   "LinkID": 213,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-113.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 06/Show (2020) - S06E14 - Episode 113 [WEBDL-1080p].mkv",
+   "SeasonNumber": 6,
+   "EpisodeNums": [
+    14
+   ]
+  },
+  {
+   "LinkID": 214,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-114.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 06/Show - S06E15 - 115 - Episode 114 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 6,
+   "EpisodeNums": [
+    15
+   ]
+  },
+  {
+   "LinkID": 215,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-115.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 06/Show - S06E16 - 116 - Episode 115.mkv",
+   "SeasonNumber": 6,
+   "EpisodeNums": [
+    16
+   ]
+  },
+  {
+   "LinkID": 216,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-116.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 06/Show (2020) - S06E17 - Episode 116 [WEBDL-1080p].mkv",
+   "SeasonNumber": 6,
+   "EpisodeNums": [
+    17
+   ]
+  },
+  {
+   "LinkID": 217,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-117.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 06/Show - S06E18 - 118 - Episode 117 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 6,
+   "EpisodeNums": [
+    18
+   ]
+  },
+  {
+   "LinkID": 218,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-118.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 06/Show - S06E19 - 119 - Episode 118.mkv",
+   "SeasonNumber": 6,
+   "EpisodeNums": [
+    19
+   ]
+  },
+  {
+   "LinkID": 219,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-119.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 06/Show (2020) - S06E20 - Episode 119 [WEBDL-1080p].mkv",
+   "SeasonNumber": 6,
+   "EpisodeNums": [
+    20
+   ]
+  },
+  {
+   "LinkID": 220,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-120.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 06/Show - S06E21 - 121 - Episode 120 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 6,
+   "EpisodeNums": [
+    21
+   ]
+  },
+  {
+   "LinkID": 221,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-121.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 06/Show - S06E22 - 122 - Episode 121.mkv",
+   "SeasonNumber": 6,
+   "EpisodeNums": [
+    22
+   ]
+  },
+  {
+   "LinkID": 222,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-122.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 06/Show (2020) - S06E23 - Episode 122 [WEBDL-1080p].mkv",
+   "SeasonNumber": 6,
+   "EpisodeNums": [
+    23
+   ]
+  },
+  {
+   "LinkID": 223,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-123.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 06/Show - S06E24 - 124 - Episode 123 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 6,
+   "EpisodeNums": [
+    24
+   ]
+  },
+  {
+   "LinkID": 224,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-124.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 06/Show - S06E25 - 125 - Episode 124.mkv",
+   "SeasonNumber": 6,
+   "EpisodeNums": [
+    25
+   ]
+  },
+  {
+   "LinkID": 225,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-125.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 07/Show (2020) - S07E01 - Episode 125 [WEBDL-1080p].mkv",
+   "SeasonNumber": 7,
+   "EpisodeNums": [
+    1
+   ]
+  },
+  {
+   "LinkID": 226,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-126.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 07/Show - S07E02 - 127 - Episode 126 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 7,
+   "EpisodeNums": [
+    2
+   ]
+  },
+  {
+   "LinkID": 227,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-127.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 07/Show - S07E03 - 128 - Episode 127.mkv",
+   "SeasonNumber": 7,
+   "EpisodeNums": [
+    3
+   ]
+  },
+  {
+   "LinkID": 228,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-128.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 07/Show (2020) - S07E04 - Episode 128 [WEBDL-1080p].mkv",
+   "SeasonNumber": 7,
+   "EpisodeNums": [
+    4
+   ]
+  },
+  {
+   "LinkID": 229,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-129.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 07/Show - S07E05 - 130 - Episode 129 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 7,
+   "EpisodeNums": [
+    5
+   ]
+  },
+  {
+   "LinkID": 230,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-130.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 07/Show - S07E06 - 131 - Episode 130.mkv",
+   "SeasonNumber": 7,
+   "EpisodeNums": [
+    6
+   ]
+  },
+  {
+   "LinkID": 231,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-131.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 07/Show (2020) - S07E07 - Episode 131 [WEBDL-1080p].mkv",
+   "SeasonNumber": 7,
+   "EpisodeNums": [
+    7
+   ]
+  },
+  {
+   "LinkID": 232,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-132.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 07/Show - S07E08 - 133 - Episode 132 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 7,
+   "EpisodeNums": [
+    8
+   ]
+  },
+  {
+   "LinkID": 233,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-133.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 07/Show - S07E09 - 134 - Episode 133.mkv",
+   "SeasonNumber": 7,
+   "EpisodeNums": [
+    9
+   ]
+  },
+  {
+   "LinkID": 234,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-134.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 07/Show (2020) - S07E10 - Episode 134 [WEBDL-1080p].mkv",
+   "SeasonNumber": 7,
+   "EpisodeNums": [
+    10
+   ]
+  },
+  {
+   "LinkID": 235,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-135.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 07/Show - S07E11 - 136 - Episode 135 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 7,
+   "EpisodeNums": [
+    11
+   ]
+  },
+  {
+   "LinkID": 236,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-136.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 07/Show - S07E12 - 137 - Episode 136.mkv",
+   "SeasonNumber": 7,
+   "EpisodeNums": [
+    12
+   ]
+  },
+  {
+   "LinkID": 237,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-137.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 07/Show (2020) - S07E13 - Episode 137 [WEBDL-1080p].mkv",
+   "SeasonNumber": 7,
+   "EpisodeNums": [
+    13
+   ]
+  },
+  {
+   "LinkID": 238,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-138.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 07/Show - S07E14 - 139 - Episode 138 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 7,
+   "EpisodeNums": [
+    14
+   ]
+  },
+  {
+   "LinkID": 239,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-139.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 07/Show - S07E15 - 140 - Episode 139.mkv",
+   "SeasonNumber": 7,
+   "EpisodeNums": [
+    15
+   ]
+  },
+  {
+   "LinkID": 240,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-140.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 07/Show (2020) - S07E16 - Episode 140 [WEBDL-1080p].mkv",
+   "SeasonNumber": 7,
+   "EpisodeNums": [
+    16
+   ]
+  },
+  {
+   "LinkID": 241,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-141.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 07/Show - S07E17 - 142 - Episode 141 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 7,
+   "EpisodeNums": [
+    17
+   ]
+  },
+  {
+   "LinkID": 242,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-142.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 07/Show - S07E18 - 143 - Episode 142.mkv",
+   "SeasonNumber": 7,
+   "EpisodeNums": [
+    18
+   ]
+  },
+  {
+   "LinkID": 243,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-143.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 07/Show (2020) - S07E19 - Episode 143 [WEBDL-1080p].mkv",
+   "SeasonNumber": 7,
+   "EpisodeNums": [
+    19
+   ]
+  },
+  {
+   "LinkID": 244,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-144.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 07/Show - S07E20 - 145 - Episode 144 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 7,
+   "EpisodeNums": [
+    20
+   ]
+  },
+  {
+   "LinkID": 245,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-145.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 07/Show - S07E21 - 146 - Episode 145.mkv",
+   "SeasonNumber": 7,
+   "EpisodeNums": [
+    21
+   ]
+  },
+  {
+   "LinkID": 246,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-146.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 07/Show (2020) - S07E22 - Episode 146 [WEBDL-1080p].mkv",
+   "SeasonNumber": 7,
+   "EpisodeNums": [
+    22
+   ]
+  },
+  {
+   "LinkID": 247,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-147.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 07/Show - S07E23 - 148 - Episode 147 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 7,
+   "EpisodeNums": [
+    23
+   ]
+  },
+  {
+   "LinkID": 248,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-148.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 07/Show - S07E24 - 149 - Episode 148.mkv",
+   "SeasonNumber": 7,
+   "EpisodeNums": [
+    24
+   ]
+  },
+  {
+   "LinkID": 249,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-149.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 07/Show (2020) - S07E25 - Episode 149 [WEBDL-1080p].mkv",
+   "SeasonNumber": 7,
+   "EpisodeNums": [
+    25
+   ]
+  },
+  {
+   "LinkID": 250,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-150.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 08/Show - S08E01 - 151 - Episode 150 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 8,
+   "EpisodeNums": [
+    1
+   ]
+  },
+  {
+   "LinkID": 251,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-151.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 08/Show - S08E02 - 152 - Episode 151.mkv",
+   "SeasonNumber": 8,
+   "EpisodeNums": [
+    2
+   ]
+  },
+  {
+   "LinkID": 252,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-152.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 08/Show (2020) - S08E03 - Episode 152 [WEBDL-1080p].mkv",
+   "SeasonNumber": 8,
+   "EpisodeNums": [
+    3
+   ]
+  },
+  {
+   "LinkID": 253,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-153.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 08/Show - S08E04 - 154 - Episode 153 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 8,
+   "EpisodeNums": [
+    4
+   ]
+  },
+  {
+   "LinkID": 254,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-154.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 08/Show - S08E05 - 155 - Episode 154.mkv",
+   "SeasonNumber": 8,
+   "EpisodeNums": [
+    5
+   ]
+  },
+  {
+   "LinkID": 255,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-155.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 08/Show (2020) - S08E06 - Episode 155 [WEBDL-1080p].mkv",
+   "SeasonNumber": 8,
+   "EpisodeNums": [
+    6
+   ]
+  },
+  {
+   "LinkID": 256,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-156.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 08/Show - S08E07 - 157 - Episode 156 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 8,
+   "EpisodeNums": [
+    7
+   ]
+  },
+  {
+   "LinkID": 257,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-157.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 08/Show - S08E08 - 158 - Episode 157.mkv",
+   "SeasonNumber": 8,
+   "EpisodeNums": [
+    8
+   ]
+  },
+  {
+   "LinkID": 258,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-158.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 08/Show (2020) - S08E09 - Episode 158 [WEBDL-1080p].mkv",
+   "SeasonNumber": 8,
+   "EpisodeNums": [
+    9
+   ]
+  },
+  {
+   "LinkID": 259,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-159.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 08/Show - S08E10 - 160 - Episode 159 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 8,
+   "EpisodeNums": [
+    10
+   ]
+  },
+  {
+   "LinkID": 260,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-160.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 08/Show - S08E11 - 161 - Episode 160.mkv",
+   "SeasonNumber": 8,
+   "EpisodeNums": [
+    11
+   ]
+  },
+  {
+   "LinkID": 261,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-161.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 08/Show (2020) - S08E12 - Episode 161 [WEBDL-1080p].mkv",
+   "SeasonNumber": 8,
+   "EpisodeNums": [
+    12
+   ]
+  },
+  {
+   "LinkID": 262,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-162.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 08/Show - S08E13 - 163 - Episode 162 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 8,
+   "EpisodeNums": [
+    13
+   ]
+  },
+  {
+   "LinkID": 263,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-163.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 08/Show - S08E14 - 164 - Episode 163.mkv",
+   "SeasonNumber": 8,
+   "EpisodeNums": [
+    14
+   ]
+  },
+  {
+   "LinkID": 264,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-164.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 08/Show (2020) - S08E15 - Episode 164 [WEBDL-1080p].mkv",
+   "SeasonNumber": 8,
+   "EpisodeNums": [
+    15
+   ]
+  },
+  {
+   "LinkID": 265,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-165.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 08/Show - S08E16 - 166 - Episode 165 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 8,
+   "EpisodeNums": [
+    16
+   ]
+  },
+  {
+   "LinkID": 266,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-166.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 08/Show - S08E17 - 167 - Episode 166.mkv",
+   "SeasonNumber": 8,
+   "EpisodeNums": [
+    17
+   ]
+  },
+  {
+   "LinkID": 267,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-167.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 08/Show (2020) - S08E18 - Episode 167 [WEBDL-1080p].mkv",
+   "SeasonNumber": 8,
+   "EpisodeNums": [
+    18
+   ]
+  },
+  {
+   "LinkID": 268,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-168.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 08/Show - S08E19 - 169 - Episode 168 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 8,
+   "EpisodeNums": [
+    19
+   ]
+  },
+  {
+   "LinkID": 269,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-169.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 08/Show - S08E20 - 170 - Episode 169.mkv",
+   "SeasonNumber": 8,
+   "EpisodeNums": [
+    20
+   ]
+  },
+  {
+   "LinkID": 270,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-170.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 08/Show (2020) - S08E21 - Episode 170 [WEBDL-1080p].mkv",
+   "SeasonNumber": 8,
+   "EpisodeNums": [
+    21
+   ]
+  },
+  {
+   "LinkID": 271,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-171.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 08/Show - S08E22 - 172 - Episode 171 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 8,
+   "EpisodeNums": [
+    22
+   ]
+  },
+  {
+   "LinkID": 272,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-172.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 08/Show - S08E23 - 173 - Episode 172.mkv",
+   "SeasonNumber": 8,
+   "EpisodeNums": [
+    23
+   ]
+  },
+  {
+   "LinkID": 273,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-173.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 08/Show (2020) - S08E24 - Episode 173 [WEBDL-1080p].mkv",
+   "SeasonNumber": 8,
+   "EpisodeNums": [
+    24
+   ]
+  },
+  {
+   "LinkID": 274,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-174.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 08/Show - S08E25 - 175 - Episode 174 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 8,
+   "EpisodeNums": [
+    25
+   ]
+  },
+  {
+   "LinkID": 275,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-175.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 09/Show - S09E01 - 176 - Episode 175.mkv",
+   "SeasonNumber": 9,
+   "EpisodeNums": [
+    1
+   ]
+  },
+  {
+   "LinkID": 276,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-176.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 09/Show (2020) - S09E02 - Episode 176 [WEBDL-1080p].mkv",
+   "SeasonNumber": 9,
+   "EpisodeNums": [
+    2
+   ]
+  },
+  {
+   "LinkID": 277,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-177.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 09/Show - S09E03 - 178 - Episode 177 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 9,
+   "EpisodeNums": [
+    3
+   ]
+  },
+  {
+   "LinkID": 278,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-178.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 09/Show - S09E04 - 179 - Episode 178.mkv",
+   "SeasonNumber": 9,
+   "EpisodeNums": [
+    4
+   ]
+  },
+  {
+   "LinkID": 279,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-179.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 09/Show (2020) - S09E05 - Episode 179 [WEBDL-1080p].mkv",
+   "SeasonNumber": 9,
+   "EpisodeNums": [
+    5
+   ]
+  },
+  {
+   "LinkID": 280,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-180.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 09/Show - S09E06 - 181 - Episode 180 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 9,
+   "EpisodeNums": [
+    6
+   ]
+  },
+  {
+   "LinkID": 281,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-181.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 09/Show - S09E07 - 182 - Episode 181.mkv",
+   "SeasonNumber": 9,
+   "EpisodeNums": [
+    7
+   ]
+  },
+  {
+   "LinkID": 282,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-182.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 09/Show (2020) - S09E08 - Episode 182 [WEBDL-1080p].mkv",
+   "SeasonNumber": 9,
+   "EpisodeNums": [
+    8
+   ]
+  },
+  {
+   "LinkID": 283,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-183.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 09/Show - S09E09 - 184 - Episode 183 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 9,
+   "EpisodeNums": [
+    9
+   ]
+  },
+  {
+   "LinkID": 284,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-184.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 09/Show - S09E10 - 185 - Episode 184.mkv",
+   "SeasonNumber": 9,
+   "EpisodeNums": [
+    10
+   ]
+  },
+  {
+   "LinkID": 285,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-185.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 09/Show (2020) - S09E11 - Episode 185 [WEBDL-1080p].mkv",
+   "SeasonNumber": 9,
+   "EpisodeNums": [
+    11
+   ]
+  },
+  {
+   "LinkID": 286,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-186.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 09/Show - S09E12 - 187 - Episode 186 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 9,
+   "EpisodeNums": [
+    12
+   ]
+  },
+  {
+   "LinkID": 287,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-187.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 09/Show - S09E13 - 188 - Episode 187.mkv",
+   "SeasonNumber": 9,
+   "EpisodeNums": [
+    13
+   ]
+  },
+  {
+   "LinkID": 288,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-188.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 09/Show (2020) - S09E14 - Episode 188 [WEBDL-1080p].mkv",
+   "SeasonNumber": 9,
+   "EpisodeNums": [
+    14
+   ]
+  },
+  {
+   "LinkID": 289,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-189.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 09/Show - S09E15 - 190 - Episode 189 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 9,
+   "EpisodeNums": [
+    15
+   ]
+  },
+  {
+   "LinkID": 290,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-190.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 09/Show - S09E16 - 191 - Episode 190.mkv",
+   "SeasonNumber": 9,
+   "EpisodeNums": [
+    16
+   ]
+  },
+  {
+   "LinkID": 291,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-191.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 09/Show (2020) - S09E17 - Episode 191 [WEBDL-1080p].mkv",
+   "SeasonNumber": 9,
+   "EpisodeNums": [
+    17
+   ]
+  },
+  {
+   "LinkID": 292,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-192.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 09/Show - S09E18 - 193 - Episode 192 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 9,
+   "EpisodeNums": [
+    18
+   ]
+  },
+  {
+   "LinkID": 293,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-193.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 09/Show - S09E19 - 194 - Episode 193.mkv",
+   "SeasonNumber": 9,
+   "EpisodeNums": [
+    19
+   ]
+  },
+  {
+   "LinkID": 294,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-194.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 09/Show (2020) - S09E20 - Episode 194 [WEBDL-1080p].mkv",
+   "SeasonNumber": 9,
+   "EpisodeNums": [
+    20
+   ]
+  },
+  {
+   "LinkID": 295,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-195.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 09/Show - S09E21 - 196 - Episode 195 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 9,
+   "EpisodeNums": [
+    21
+   ]
+  },
+  {
+   "LinkID": 296,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-196.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 09/Show - S09E22 - 197 - Episode 196.mkv",
+   "SeasonNumber": 9,
+   "EpisodeNums": [
+    22
+   ]
+  },
+  {
+   "LinkID": 297,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-197.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 09/Show (2020) - S09E23 - Episode 197 [WEBDL-1080p].mkv",
+   "SeasonNumber": 9,
+   "EpisodeNums": [
+    23
+   ]
+  },
+  {
+   "LinkID": 298,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-198.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 09/Show - S09E24 - 199 - Episode 198 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 9,
+   "EpisodeNums": [
+    24
+   ]
+  },
+  {
+   "LinkID": 299,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-199.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 09/Show - S09E25 - 200 - Episode 199.mkv",
+   "SeasonNumber": 9,
+   "EpisodeNums": [
+    25
+   ]
+  },
+  {
+   "LinkID": 300,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-200.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 10/Show (2020) - S10E01 - Episode 200 [WEBDL-1080p].mkv",
+   "SeasonNumber": 10,
+   "EpisodeNums": [
+    1
+   ]
+  },
+  {
+   "LinkID": 301,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-201.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 10/Show - S10E02 - 202 - Episode 201 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 10,
+   "EpisodeNums": [
+    2
+   ]
+  },
+  {
+   "LinkID": 302,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-202.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 10/Show - S10E03 - 203 - Episode 202.mkv",
+   "SeasonNumber": 10,
+   "EpisodeNums": [
+    3
+   ]
+  },
+  {
+   "LinkID": 303,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-203.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 10/Show (2020) - S10E04 - Episode 203 [WEBDL-1080p].mkv",
+   "SeasonNumber": 10,
+   "EpisodeNums": [
+    4
+   ]
+  },
+  {
+   "LinkID": 304,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-204.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 10/Show - S10E05 - 205 - Episode 204 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 10,
+   "EpisodeNums": [
+    5
+   ]
+  },
+  {
+   "LinkID": 305,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-205.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 10/Show - S10E06 - 206 - Episode 205.mkv",
+   "SeasonNumber": 10,
+   "EpisodeNums": [
+    6
+   ]
+  },
+  {
+   "LinkID": 306,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-206.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 10/Show (2020) - S10E07 - Episode 206 [WEBDL-1080p].mkv",
+   "SeasonNumber": 10,
+   "EpisodeNums": [
+    7
+   ]
+  },
+  {
+   "LinkID": 307,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-207.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 10/Show - S10E08 - 208 - Episode 207 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 10,
+   "EpisodeNums": [
+    8
+   ]
+  },
+  {
+   "LinkID": 308,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-208.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 10/Show - S10E09 - 209 - Episode 208.mkv",
+   "SeasonNumber": 10,
+   "EpisodeNums": [
+    9
+   ]
+  },
+  {
+   "LinkID": 309,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-209.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 10/Show (2020) - S10E10 - Episode 209 [WEBDL-1080p].mkv",
+   "SeasonNumber": 10,
+   "EpisodeNums": [
+    10
+   ]
+  },
+  {
+   "LinkID": 310,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-210.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 10/Show - S10E11 - 211 - Episode 210 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 10,
+   "EpisodeNums": [
+    11
+   ]
+  },
+  {
+   "LinkID": 311,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-211.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 10/Show - S10E12 - 212 - Episode 211.mkv",
+   "SeasonNumber": 10,
+   "EpisodeNums": [
+    12
+   ]
+  },
+  {
+   "LinkID": 312,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-212.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 10/Show (2020) - S10E13 - Episode 212 [WEBDL-1080p].mkv",
+   "SeasonNumber": 10,
+   "EpisodeNums": [
+    13
+   ]
+  },
+  {
+   "LinkID": 313,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-213.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 10/Show - S10E14 - 214 - Episode 213 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 10,
+   "EpisodeNums": [
+    14
+   ]
+  },
+  {
+   "LinkID": 314,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-214.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 10/Show - S10E15 - 215 - Episode 214.mkv",
+   "SeasonNumber": 10,
+   "EpisodeNums": [
+    15
+   ]
+  },
+  {
+   "LinkID": 315,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-215.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 10/Show (2020) - S10E16 - Episode 215 [WEBDL-1080p].mkv",
+   "SeasonNumber": 10,
+   "EpisodeNums": [
+    16
+   ]
+  },
+  {
+   "LinkID": 316,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-216.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 10/Show - S10E17 - 217 - Episode 216 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 10,
+   "EpisodeNums": [
+    17
+   ]
+  },
+  {
+   "LinkID": 317,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-217.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 10/Show - S10E18 - 218 - Episode 217.mkv",
+   "SeasonNumber": 10,
+   "EpisodeNums": [
+    18
+   ]
+  },
+  {
+   "LinkID": 318,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-218.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 10/Show (2020) - S10E19 - Episode 218 [WEBDL-1080p].mkv",
+   "SeasonNumber": 10,
+   "EpisodeNums": [
+    19
+   ]
+  },
+  {
+   "LinkID": 319,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-219.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 10/Show - S10E20 - 220 - Episode 219 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 10,
+   "EpisodeNums": [
+    20
+   ]
+  },
+  {
+   "LinkID": 320,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-220.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 10/Show - S10E21 - 221 - Episode 220.mkv",
+   "SeasonNumber": 10,
+   "EpisodeNums": [
+    21
+   ]
+  },
+  {
+   "LinkID": 321,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-221.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 10/Show (2020) - S10E22 - Episode 221 [WEBDL-1080p].mkv",
+   "SeasonNumber": 10,
+   "EpisodeNums": [
+    22
+   ]
+  },
+  {
+   "LinkID": 322,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-222.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 10/Show - S10E23 - 223 - Episode 222 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 10,
+   "EpisodeNums": [
+    23
+   ]
+  },
+  {
+   "LinkID": 323,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-223.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 10/Show - S10E24 - 224 - Episode 223.mkv",
+   "SeasonNumber": 10,
+   "EpisodeNums": [
+    24
+   ]
+  },
+  {
+   "LinkID": 324,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-224.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 10/Show (2020) - S10E25 - Episode 224 [WEBDL-1080p].mkv",
+   "SeasonNumber": 10,
+   "EpisodeNums": [
+    25
+   ]
+  },
+  {
+   "LinkID": 325,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-225.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 11/Show - S11E01 - 226 - Episode 225 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 11,
+   "EpisodeNums": [
+    1
+   ]
+  },
+  {
+   "LinkID": 326,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-226.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 11/Show - S11E02 - 227 - Episode 226.mkv",
+   "SeasonNumber": 11,
+   "EpisodeNums": [
+    2
+   ]
+  },
+  {
+   "LinkID": 327,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-227.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 11/Show (2020) - S11E03 - Episode 227 [WEBDL-1080p].mkv",
+   "SeasonNumber": 11,
+   "EpisodeNums": [
+    3
+   ]
+  },
+  {
+   "LinkID": 328,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-228.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 11/Show - S11E04 - 229 - Episode 228 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 11,
+   "EpisodeNums": [
+    4
+   ]
+  },
+  {
+   "LinkID": 329,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-229.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 11/Show - S11E05 - 230 - Episode 229.mkv",
+   "SeasonNumber": 11,
+   "EpisodeNums": [
+    5
+   ]
+  },
+  {
+   "LinkID": 330,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-230.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 11/Show (2020) - S11E06 - Episode 230 [WEBDL-1080p].mkv",
+   "SeasonNumber": 11,
+   "EpisodeNums": [
+    6
+   ]
+  },
+  {
+   "LinkID": 331,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-231.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 11/Show - S11E07 - 232 - Episode 231 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 11,
+   "EpisodeNums": [
+    7
+   ]
+  },
+  {
+   "LinkID": 332,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-232.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 11/Show - S11E08 - 233 - Episode 232.mkv",
+   "SeasonNumber": 11,
+   "EpisodeNums": [
+    8
+   ]
+  },
+  {
+   "LinkID": 333,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-233.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 11/Show (2020) - S11E09 - Episode 233 [WEBDL-1080p].mkv",
+   "SeasonNumber": 11,
+   "EpisodeNums": [
+    9
+   ]
+  },
+  {
+   "LinkID": 334,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-234.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 11/Show - S11E10 - 235 - Episode 234 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 11,
+   "EpisodeNums": [
+    10
+   ]
+  },
+  {
+   "LinkID": 335,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-235.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 11/Show - S11E11 - 236 - Episode 235.mkv",
+   "SeasonNumber": 11,
+   "EpisodeNums": [
+    11
+   ]
+  },
+  {
+   "LinkID": 336,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-236.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 11/Show (2020) - S11E12 - Episode 236 [WEBDL-1080p].mkv",
+   "SeasonNumber": 11,
+   "EpisodeNums": [
+    12
+   ]
+  },
+  {
+   "LinkID": 337,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-237.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 11/Show - S11E13 - 238 - Episode 237 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 11,
+   "EpisodeNums": [
+    13
+   ]
+  },
+  {
+   "LinkID": 338,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-238.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 11/Show - S11E14 - 239 - Episode 238.mkv",
+   "SeasonNumber": 11,
+   "EpisodeNums": [
+    14
+   ]
+  },
+  {
+   "LinkID": 339,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-239.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 11/Show (2020) - S11E15 - Episode 239 [WEBDL-1080p].mkv",
+   "SeasonNumber": 11,
+   "EpisodeNums": [
+    15
+   ]
+  },
+  {
+   "LinkID": 340,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-240.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 11/Show - S11E16 - 241 - Episode 240 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 11,
+   "EpisodeNums": [
+    16
+   ]
+  },
+  {
+   "LinkID": 341,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-241.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 11/Show - S11E17 - 242 - Episode 241.mkv",
+   "SeasonNumber": 11,
+   "EpisodeNums": [
+    17
+   ]
+  },
+  {
+   "LinkID": 342,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-242.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 11/Show (2020) - S11E18 - Episode 242 [WEBDL-1080p].mkv",
+   "SeasonNumber": 11,
+   "EpisodeNums": [
+    18
+   ]
+  },
+  {
+   "LinkID": 343,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-243.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 11/Show - S11E19 - 244 - Episode 243 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 11,
+   "EpisodeNums": [
+    19
+   ]
+  },
+  {
+   "LinkID": 344,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-244.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 11/Show - S11E20 - 245 - Episode 244.mkv",
+   "SeasonNumber": 11,
+   "EpisodeNums": [
+    20
+   ]
+  },
+  {
+   "LinkID": 345,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-245.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 11/Show (2020) - S11E21 - Episode 245 [WEBDL-1080p].mkv",
+   "SeasonNumber": 11,
+   "EpisodeNums": [
+    21
+   ]
+  },
+  {
+   "LinkID": 346,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-246.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 11/Show - S11E22 - 247 - Episode 246 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 11,
+   "EpisodeNums": [
+    22
+   ]
+  },
+  {
+   "LinkID": 347,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-247.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 11/Show - S11E23 - 248 - Episode 247.mkv",
+   "SeasonNumber": 11,
+   "EpisodeNums": [
+    23
+   ]
+  },
+  {
+   "LinkID": 348,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-248.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 11/Show (2020) - S11E24 - Episode 248 [WEBDL-1080p].mkv",
+   "SeasonNumber": 11,
+   "EpisodeNums": [
+    24
+   ]
+  },
+  {
+   "LinkID": 349,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-249.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 11/Show - S11E25 - 250 - Episode 249 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 11,
+   "EpisodeNums": [
+    25
+   ]
+  },
+  {
+   "LinkID": 350,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-250.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 12/Show - S12E01 - 251 - Episode 250.mkv",
+   "SeasonNumber": 12,
+   "EpisodeNums": [
+    1
+   ]
+  },
+  {
+   "LinkID": 351,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-251.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 12/Show (2020) - S12E02 - Episode 251 [WEBDL-1080p].mkv",
+   "SeasonNumber": 12,
+   "EpisodeNums": [
+    2
+   ]
+  },
+  {
+   "LinkID": 352,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-252.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 12/Show - S12E03 - 253 - Episode 252 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 12,
+   "EpisodeNums": [
+    3
+   ]
+  },
+  {
+   "LinkID": 353,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-253.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 12/Show - S12E04 - 254 - Episode 253.mkv",
+   "SeasonNumber": 12,
+   "EpisodeNums": [
+    4
+   ]
+  },
+  {
+   "LinkID": 354,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-254.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 12/Show (2020) - S12E05 - Episode 254 [WEBDL-1080p].mkv",
+   "SeasonNumber": 12,
+   "EpisodeNums": [
+    5
+   ]
+  },
+  {
+   "LinkID": 355,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-255.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 12/Show - S12E06 - 256 - Episode 255 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 12,
+   "EpisodeNums": [
+    6
+   ]
+  },
+  {
+   "LinkID": 356,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-256.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 12/Show - S12E07 - 257 - Episode 256.mkv",
+   "SeasonNumber": 12,
+   "EpisodeNums": [
+    7
+   ]
+  },
+  {
+   "LinkID": 357,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-257.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 12/Show (2020) - S12E08 - Episode 257 [WEBDL-1080p].mkv",
+   "SeasonNumber": 12,
+   "EpisodeNums": [
+    8
+   ]
+  },
+  {
+   "LinkID": 358,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-258.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 12/Show - S12E09 - 259 - Episode 258 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 12,
+   "EpisodeNums": [
+    9
+   ]
+  },
+  {
+   "LinkID": 359,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-259.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 12/Show - S12E10 - 260 - Episode 259.mkv",
+   "SeasonNumber": 12,
+   "EpisodeNums": [
+    10
+   ]
+  },
+  {
+   "LinkID": 360,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-260.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 12/Show (2020) - S12E11 - Episode 260 [WEBDL-1080p].mkv",
+   "SeasonNumber": 12,
+   "EpisodeNums": [
+    11
+   ]
+  },
+  {
+   "LinkID": 361,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-261.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 12/Show - S12E12 - 262 - Episode 261 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 12,
+   "EpisodeNums": [
+    12
+   ]
+  },
+  {
+   "LinkID": 362,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-262.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 12/Show - S12E13 - 263 - Episode 262.mkv",
+   "SeasonNumber": 12,
+   "EpisodeNums": [
+    13
+   ]
+  },
+  {
+   "LinkID": 363,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-263.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 12/Show (2020) - S12E14 - Episode 263 [WEBDL-1080p].mkv",
+   "SeasonNumber": 12,
+   "EpisodeNums": [
+    14
+   ]
+  },
+  {
+   "LinkID": 364,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-264.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 12/Show - S12E15 - 265 - Episode 264 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 12,
+   "EpisodeNums": [
+    15
+   ]
+  },
+  {
+   "LinkID": 365,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-265.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 12/Show - S12E16 - 266 - Episode 265.mkv",
+   "SeasonNumber": 12,
+   "EpisodeNums": [
+    16
+   ]
+  },
+  {
+   "LinkID": 366,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-266.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 12/Show (2020) - S12E17 - Episode 266 [WEBDL-1080p].mkv",
+   "SeasonNumber": 12,
+   "EpisodeNums": [
+    17
+   ]
+  },
+  {
+   "LinkID": 367,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-267.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 12/Show - S12E18 - 268 - Episode 267 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 12,
+   "EpisodeNums": [
+    18
+   ]
+  },
+  {
+   "LinkID": 368,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-268.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 12/Show - S12E19 - 269 - Episode 268.mkv",
+   "SeasonNumber": 12,
+   "EpisodeNums": [
+    19
+   ]
+  },
+  {
+   "LinkID": 369,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-269.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 12/Show (2020) - S12E20 - Episode 269 [WEBDL-1080p].mkv",
+   "SeasonNumber": 12,
+   "EpisodeNums": [
+    20
+   ]
+  },
+  {
+   "LinkID": 370,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-270.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 12/Show - S12E21 - 271 - Episode 270 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 12,
+   "EpisodeNums": [
+    21
+   ]
+  },
+  {
+   "LinkID": 371,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-271.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 12/Show - S12E22 - 272 - Episode 271.mkv",
+   "SeasonNumber": 12,
+   "EpisodeNums": [
+    22
+   ]
+  },
+  {
+   "LinkID": 372,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-272.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 12/Show (2020) - S12E23 - Episode 272 [WEBDL-1080p].mkv",
+   "SeasonNumber": 12,
+   "EpisodeNums": [
+    23
+   ]
+  },
+  {
+   "LinkID": 373,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-273.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 12/Show - S12E24 - 274 - Episode 273 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 12,
+   "EpisodeNums": [
+    24
+   ]
+  },
+  {
+   "LinkID": 374,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-274.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 12/Show - S12E25 - 275 - Episode 274.mkv",
+   "SeasonNumber": 12,
+   "EpisodeNums": [
+    25
+   ]
+  },
+  {
+   "LinkID": 375,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-275.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 13/Show (2020) - S13E01 - Episode 275 [WEBDL-1080p].mkv",
+   "SeasonNumber": 13,
+   "EpisodeNums": [
+    1
+   ]
+  },
+  {
+   "LinkID": 376,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-276.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 13/Show - S13E02 - 277 - Episode 276 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 13,
+   "EpisodeNums": [
+    2
+   ]
+  },
+  {
+   "LinkID": 377,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-277.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 13/Show - S13E03 - 278 - Episode 277.mkv",
+   "SeasonNumber": 13,
+   "EpisodeNums": [
+    3
+   ]
+  },
+  {
+   "LinkID": 378,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-278.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 13/Show (2020) - S13E04 - Episode 278 [WEBDL-1080p].mkv",
+   "SeasonNumber": 13,
+   "EpisodeNums": [
+    4
+   ]
+  },
+  {
+   "LinkID": 379,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-279.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 13/Show - S13E05 - 280 - Episode 279 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 13,
+   "EpisodeNums": [
+    5
+   ]
+  },
+  {
+   "LinkID": 380,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-280.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 13/Show - S13E06 - 281 - Episode 280.mkv",
+   "SeasonNumber": 13,
+   "EpisodeNums": [
+    6
+   ]
+  },
+  {
+   "LinkID": 381,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-281.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 13/Show (2020) - S13E07 - Episode 281 [WEBDL-1080p].mkv",
+   "SeasonNumber": 13,
+   "EpisodeNums": [
+    7
+   ]
+  },
+  {
+   "LinkID": 382,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-282.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 13/Show - S13E08 - 283 - Episode 282 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 13,
+   "EpisodeNums": [
+    8
+   ]
+  },
+  {
+   "LinkID": 383,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-283.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 13/Show - S13E09 - 284 - Episode 283.mkv",
+   "SeasonNumber": 13,
+   "EpisodeNums": [
+    9
+   ]
+  },
+  {
+   "LinkID": 384,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-284.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 13/Show (2020) - S13E10 - Episode 284 [WEBDL-1080p].mkv",
+   "SeasonNumber": 13,
+   "EpisodeNums": [
+    10
+   ]
+  },
+  {
+   "LinkID": 385,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-285.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 13/Show - S13E11 - 286 - Episode 285 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 13,
+   "EpisodeNums": [
+    11
+   ]
+  },
+  {
+   "LinkID": 386,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-286.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 13/Show - S13E12 - 287 - Episode 286.mkv",
+   "SeasonNumber": 13,
+   "EpisodeNums": [
+    12
+   ]
+  },
+  {
+   "LinkID": 387,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-287.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 13/Show (2020) - S13E13 - Episode 287 [WEBDL-1080p].mkv",
+   "SeasonNumber": 13,
+   "EpisodeNums": [
+    13
+   ]
+  },
+  {
+   "LinkID": 388,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-288.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 13/Show - S13E14 - 289 - Episode 288 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 13,
+   "EpisodeNums": [
+    14
+   ]
+  },
+  {
+   "LinkID": 389,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-289.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 13/Show - S13E15 - 290 - Episode 289.mkv",
+   "SeasonNumber": 13,
+   "EpisodeNums": [
+    15
+   ]
+  },
+  {
+   "LinkID": 390,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-290.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 13/Show (2020) - S13E16 - Episode 290 [WEBDL-1080p].mkv",
+   "SeasonNumber": 13,
+   "EpisodeNums": [
+    16
+   ]
+  },
+  {
+   "LinkID": 391,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-291.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 13/Show - S13E17 - 292 - Episode 291 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 13,
+   "EpisodeNums": [
+    17
+   ]
+  },
+  {
+   "LinkID": 392,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-292.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 13/Show - S13E18 - 293 - Episode 292.mkv",
+   "SeasonNumber": 13,
+   "EpisodeNums": [
+    18
+   ]
+  },
+  {
+   "LinkID": 393,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-293.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 13/Show (2020) - S13E19 - Episode 293 [WEBDL-1080p].mkv",
+   "SeasonNumber": 13,
+   "EpisodeNums": [
+    19
+   ]
+  },
+  {
+   "LinkID": 394,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-294.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 13/Show - S13E20 - 295 - Episode 294 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 13,
+   "EpisodeNums": [
+    20
+   ]
+  },
+  {
+   "LinkID": 395,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-295.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 13/Show - S13E21 - 296 - Episode 295.mkv",
+   "SeasonNumber": 13,
+   "EpisodeNums": [
+    21
+   ]
+  },
+  {
+   "LinkID": 396,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-296.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 13/Show (2020) - S13E22 - Episode 296 [WEBDL-1080p].mkv",
+   "SeasonNumber": 13,
+   "EpisodeNums": [
+    22
+   ]
+  },
+  {
+   "LinkID": 397,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-297.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 13/Show - S13E23 - 298 - Episode 297 [h265][TrueHD 7.1].mkv",
+   "SeasonNumber": 13,
+   "EpisodeNums": [
+    23
+   ]
+  },
+  {
+   "LinkID": 398,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-298.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 13/Show - S13E24 - 299 - Episode 298.mkv",
+   "SeasonNumber": 13,
+   "EpisodeNums": [
+    24
+   ]
+  },
+  {
+   "LinkID": 399,
+   "Version": "tv",
+   "ExistingPath": "DIR/media/shows/Show (2020)/old-299.mkv",
+   "NewPath": "DIR/media/shows/Show (2020)/Season 13/Show (2020) - S13E25 - Episode 299 [WEBDL-1080p].mkv",
+   "SeasonNumber": 13,
+   "EpisodeNums": [
+    25
+   ]
+  }
+ ],
+ "Skipped": 0
+}

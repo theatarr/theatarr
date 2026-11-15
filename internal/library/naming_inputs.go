@@ -15,6 +15,16 @@ import (
 // nameMovie and nameSeries are the single naming path used by imports and rename previews.
 func (l *Library) nameMovie(ctx context.Context, v *importVersion, vn *VersionNaming, root, rel string,
 	facts decide.FileFacts, p *probe.Result, formats []string, mi *naming.MediaInfo) (string, error) {
+	folder, err := titleFolder(ctx, l.st.Reader(), v.VersionID, v.Title.ID, "movie", root)
+	if err != nil {
+		return "", err
+	}
+	return nameMovieIn(folder, v, vn, root, rel, facts, p, formats, mi)
+}
+
+// nameMovieIn is nameMovie with the title folder already looked up (titleFolder; "" names a new one).
+func nameMovieIn(folder string, v *importVersion, vn *VersionNaming, root, rel string,
+	facts decide.FileFacts, p *probe.Result, formats []string, mi *naming.MediaInfo) (string, error) {
 	q := naming.Quality{Title: facts.Quality, Version: max(facts.Revision, 1), Real: facts.Real}
 	mf := &naming.MovieFile{Quality: q, ReleaseGroup: facts.ReleaseGroup, Edition: facts.Edition,
 		SceneName: facts.SceneName, RelativePath: filepath.Base(rel), CustomFormats: formats}
@@ -24,10 +34,7 @@ func (l *Library) nameMovie(ctx context.Context, v *importVersion, vn *VersionNa
 		mf.MediaInfo = mi
 	}
 	m := &naming.Movie{Title: v.Title.Name, Year: v.Title.Year, ImdbID: v.Title.ImdbID, TmdbID: v.Title.TmdbID}
-	folder, err := titleFolder(ctx, l.st.Reader(), v.VersionID, v.Title.ID, "movie", root)
-	if err != nil {
-		return "", err
-	}
+	var err error
 	if folder == "" {
 		if folder, err = naming.MovieFolder(&vn.Config, m); err != nil {
 			return "", err
@@ -41,6 +48,16 @@ func (l *Library) nameMovie(ctx context.Context, v *importVersion, vn *VersionNa
 }
 
 func (l *Library) nameSeries(ctx context.Context, v *importVersion, vn *VersionNaming, root, rel string,
+	facts decide.FileFacts, p *probe.Result, formats []string, eps []episodeInfo, mi *naming.MediaInfo) (string, error) {
+	folder, err := titleFolder(ctx, l.st.Reader(), v.VersionID, v.Title.ID, "series", root)
+	if err != nil {
+		return "", err
+	}
+	return nameSeriesIn(folder, v, vn, root, rel, facts, p, formats, eps, mi)
+}
+
+// nameSeriesIn is nameSeries with the title folder already looked up (titleFolder; "" names a new one).
+func nameSeriesIn(folder string, v *importVersion, vn *VersionNaming, root, rel string,
 	facts decide.FileFacts, p *probe.Result, formats []string, eps []episodeInfo, mi *naming.MediaInfo) (string, error) {
 	stype := naming.SeriesType(v.Title.SeriesType)
 	if stype == "" {
@@ -60,10 +77,7 @@ func (l *Library) nameSeries(ctx context.Context, v *importVersion, vn *VersionN
 	} else {
 		ef.MediaInfo = mi
 	}
-	folder, err := titleFolder(ctx, l.st.Reader(), v.VersionID, v.Title.ID, "series", root)
-	if err != nil {
-		return "", err
-	}
+	var err error
 	if folder == "" {
 		if folder, err = naming.SeriesFolder(&vn.Config, s); err != nil {
 			return "", err
@@ -98,8 +112,16 @@ func metadataFacts(raw string) (decide.ExistingFile, error) {
 func probeResult(ctx context.Context, db *sql.DB, linkID int64) (*probe.Result, error) {
 	var raw sql.NullString
 	err := db.QueryRowContext(ctx, `SELECT cf.probe FROM link l LEFT JOIN content_file cf ON cf.id = l.content_file_id WHERE l.id = ?`, linkID).Scan(&raw)
-	if err != nil || !raw.Valid || raw.String == "" || raw.String == "{}" {
+	if err != nil {
 		return nil, err
+	}
+	return parseProbe(raw)
+}
+
+// parseProbe reads a stored content_file probe; none (NULL, empty) is nil.
+func parseProbe(raw sql.NullString) (*probe.Result, error) {
+	if !raw.Valid || raw.String == "" || raw.String == "{}" {
+		return nil, nil
 	}
 	var p probe.Result
 	if err := json.Unmarshal([]byte(raw.String), &p); err != nil {

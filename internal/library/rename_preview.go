@@ -3,14 +3,12 @@ package library
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"path"
 	"path/filepath"
 	"strings"
 
 	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/library/naming"
-	"github.com/theatarr/theatarr/internal/library/probe"
 	"github.com/theatarr/theatarr/internal/store"
 )
 
@@ -54,19 +52,23 @@ func (l *Library) previewRename(ctx context.Context, titleID int64, season *int,
 	rows, err := l.st.Reader().QueryContext(ctx, `
 		SELECT l.id, l.path, v.id, v.policy_key, t.kind, t.name, COALESCE(t.year, 0), COALESCE(t.imdb_id, ''),
 			COALESCE(t.tmdb_id, 0), COALESCE(t.tvdb_id, 0), `+store.SeriesTypeSQL("t")+`, l.file_metadata,
-			COALESCE(l.adopted_media, '')
+			COALESCE(l.adopted_media, ''), cf.probe, CASE WHEN l.download_id IS NULL THEN COALESCE(l.adopted_from, '') ELSE '' END
 		FROM link l JOIN link_version lv ON lv.link_id = l.id JOIN version v ON v.id = lv.version_id
-		JOIN title t ON t.id = l.title_id WHERE l.title_id = ? AND l.state = 'active'
+		JOIN title t ON t.id = l.title_id LEFT JOIN content_file cf ON cf.id = l.content_file_id
+		WHERE l.title_id = ? AND l.state = 'active'
 			AND NOT EXISTS (SELECT 1 FROM arrview_removed_version r WHERE r.version_id = v.id) ORDER BY l.id`, titleID)
 	if err != nil {
 		return nil, err
 	}
-	// Read every link first and close the rows: the per-link lookups below take their own reader connection,
-	// and holding one while waiting for another deadlocks the pool once enough previews run at once.
+	// Read every link first and close the rows: the lookups below take their own reader connection, and holding
+	// one while waiting for another deadlocks the pool once enough previews run at once. The probe and the adopted
+	// source come with the link; the episodes of all links in one more query.
 	type previewLink struct {
 		linkID       int64
 		oldPath, raw string
 		media        string // adopted_media: the arr's media info of an adopted link
+		probe        sql.NullString
+		adoptedFrom  string // adopted_from of a link adopt made (no download)
 		v            importVersion
 	}
 	var links []previewLink
@@ -74,7 +76,7 @@ func (l *Library) previewRename(ctx context.Context, titleID int64, season *int,
 		pl := previewLink{v: importVersion{Title: titleInfo{ID: titleID}}}
 		t := &pl.v.Title
 		if err := rows.Scan(&pl.linkID, &pl.oldPath, &pl.v.VersionID, &pl.v.Key, &t.Kind, &t.Name, &t.Year, &t.ImdbID,
-			&t.TmdbID, &t.TvdbID, &t.SeriesType, &pl.raw, &pl.media); err != nil {
+			&t.TmdbID, &t.TvdbID, &t.SeriesType, &pl.raw, &pl.media, &pl.probe, &pl.adoptedFrom); err != nil {
 			rows.Close()
 			return nil, err
 		}
@@ -87,6 +89,18 @@ func (l *Library) previewRename(ctx context.Context, titleID int64, season *int,
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
+	var titleEpisodes map[int64][]episodeInfo
+	if len(links) > 0 && links[0].v.Title.Kind == "series" {
+		if titleEpisodes, err = titleLinkEpisodes(ctx, l.st.Reader(), titleID); err != nil {
+			return nil, err
+		}
+	}
+	namings := map[string]*VersionNaming{}
+	type folderKey struct {
+		version int64
+		root    string
+	}
+	folders := map[folderKey]string{}
 	for _, pl := range links {
 		linkID, oldPath, key, kind, v := pl.linkID, pl.oldPath, pl.v.Key, pl.v.Title.Kind, pl.v
 		facts, err := metadataFacts(pl.raw)
@@ -94,9 +108,8 @@ func (l *Library) previewRename(ctx context.Context, titleID int64, season *int,
 			out.Skipped++
 			continue
 		}
-		var p *probe.Result
-		p, err = probeResult(ctx, l.st.Reader(), linkID)
-		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		p, err := parseProbe(pl.probe)
+		if err != nil {
 			out.Skipped++
 			continue
 		}
@@ -104,9 +117,12 @@ func (l *Library) previewRename(ctx context.Context, titleID int64, season *int,
 			out.Skipped++ // a library no longer in the settings: no naming to check against
 			continue
 		}
-		vn, err := NamingFor(l.pol, key)
-		if err != nil {
-			return nil, err
+		vn := namings[key]
+		if vn == nil {
+			if vn, err = NamingFor(l.pol, key); err != nil {
+				return nil, err
+			}
+			namings[key] = vn
 		}
 		root := ""
 		for _, r := range l.gate.Roots(key) {
@@ -121,10 +137,7 @@ func (l *Library) previewRename(ctx context.Context, titleID int64, season *int,
 		}
 		var episodes []episodeInfo
 		if kind == "series" {
-			episodes, err = linkEpisodes(ctx, l.st.Reader(), linkID)
-			if err != nil {
-				return nil, err
-			}
+			episodes = titleEpisodes[linkID]
 			if len(episodes) == 0 {
 				out.Skipped++
 				continue
@@ -141,14 +154,24 @@ func (l *Library) previewRename(ctx context.Context, titleID int64, season *int,
 		}
 		formats := l.storedRenameFormats(ctx, key, facts)
 		if len(facts.Formats) == 0 {
-			if cfs, ok := l.adoptedRenameFormats(ctx, linkID, &v, vn, facts); ok {
+			if cfs, ok := l.adoptedRenameFormats(ctx, pl.adoptedFrom, &v, facts); ok {
 				formats = cfs
 			}
 		}
+		// The folder the library already uses for the title is the same for every link of a version and root.
+		fk := folderKey{v.VersionID, root}
+		folder, known := folders[fk]
+		if !known {
+			if folder, err = titleFolder(ctx, l.st.Reader(), v.VersionID, titleID, kind, root); err != nil {
+				out.Skipped++
+				continue
+			}
+			folders[fk] = folder
+		}
 		if kind == "movie" {
-			path, err = l.nameMovie(ctx, &v, vn, root, facts.RelativePath, factsToFileFacts(facts), p, formats, mi)
+			path, err = nameMovieIn(folder, &v, vn, root, facts.RelativePath, factsToFileFacts(facts), p, formats, mi)
 		} else {
-			path, err = l.nameSeries(ctx, &v, vn, root, facts.RelativePath, factsToFileFacts(facts), p, formats, episodes, mi)
+			path, err = nameSeriesIn(folder, &v, vn, root, facts.RelativePath, factsToFileFacts(facts), p, formats, episodes, mi)
 		}
 		if err != nil {
 			out.Skipped++
@@ -209,6 +232,33 @@ func factsToFileFacts(f decide.ExistingFile) decide.FileFacts {
 		ReleaseHash: f.ReleaseHash, Edition: f.Edition, SceneName: f.SceneName, Languages: f.Languages}
 }
 
+// titleLinkEpisodes is linkEpisodes for every active link of a title at once, by link.
+func titleLinkEpisodes(ctx context.Context, db *sql.DB, titleID int64) (map[int64][]episodeInfo, error) {
+	rows, err := db.QueryContext(ctx, `SELECT le.link_id, e.id, e.season, e.number, e.name, COALESCE(e.air_date, ''),
+		COALESCE(e.runtime_minutes, 0), (SELECT n.number FROM episode_number n WHERE n.episode_id = e.id AND n.scheme = 'absolute_tvdb' ORDER BY n.id LIMIT 1)
+		FROM link l JOIN link_episode le ON le.link_id = l.id JOIN episode e ON e.id = le.episode_id
+		WHERE l.title_id = ? AND l.state = 'active' ORDER BY le.link_id, e.season, e.number`, titleID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[int64][]episodeInfo{}
+	for rows.Next() {
+		var linkID int64
+		var e episodeInfo
+		var abs sql.NullInt64
+		if err := rows.Scan(&linkID, &e.ID, &e.Season, &e.Number, &e.Name, &e.AirDate, &e.Runtime, &abs); err != nil {
+			return nil, err
+		}
+		if abs.Valid {
+			x := int(abs.Int64)
+			e.Absolute = &x
+		}
+		out[linkID] = append(out[linkID], e)
+	}
+	return out, rows.Err()
+}
+
 func linkEpisodes(ctx context.Context, db *sql.DB, linkID int64) ([]episodeInfo, error) {
 	rows, err := db.QueryContext(ctx, `SELECT e.id, e.season, e.number, e.name, COALESCE(e.air_date, ''),
 		COALESCE(e.runtime_minutes, 0), (SELECT n.number FROM episode_number n WHERE n.episode_id = e.id AND n.scheme = 'absolute_tvdb' ORDER BY n.id LIMIT 1)
@@ -257,15 +307,8 @@ func (l *Library) storedRenameFormats(ctx context.Context, version string, facts
 
 // adoptedRenameFormats gives the {Custom Formats} names of a link adopt made (adopted_from set, no download), whose
 // stored metadata keeps no formats: as adopt named it (adoptFormats), from the arr's file name or the release title.
-// ok is false for any other link.
-func (l *Library) adoptedRenameFormats(ctx context.Context, linkID int64, v *importVersion, vn *VersionNaming,
-	facts decide.ExistingFile) ([]string, bool) {
-	var from string
-	err := l.st.Reader().QueryRowContext(ctx, `SELECT adopted_from FROM link WHERE id = ? AND download_id IS NULL
-		AND adopted_from IS NOT NULL`, linkID).Scan(&from)
-	if err != nil {
-		return nil, false
-	}
+// from is the link's adopted_from ("" for any other link); ok is false for any other link.
+func (l *Library) adoptedRenameFormats(ctx context.Context, from string, v *importVersion, facts decide.ExistingFile) ([]string, bool) {
 	// "<instance> <arr path>"
 	f := strings.SplitN(from, " ", 2)
 	if len(f) != 2 {

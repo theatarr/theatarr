@@ -3,9 +3,12 @@ package library
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/policy"
@@ -135,5 +138,61 @@ func TestRenameSkipsRemovedAndUnknownLibraries(t *testing.T) {
 	}
 	if _, err := os.Lstat(old); err != nil {
 		t.Fatalf("a removed copy's link was renamed: %v", err)
+	}
+}
+
+// A long series previews every link with its own probe, episodes (with the absolute number) and adopted formats; the
+// golden file is the preview as the per-link reads made it.
+func TestRenamePreviewLargeSeries(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true, policy.ModeActive)
+	const n = 300
+	e.exec(`UPDATE title SET series_type = 'anime' WHERE id = 2`)
+	e.pol.Versions["tv"].Naming.Anime = "{Series CleanTitleWithoutYear} - S{season:00}E{episode:00} - {absolute:000} - {Episode CleanTitle} {[Custom Formats]}{[Mediainfo VideoCodec]}{[Mediainfo AudioCodec}{ Mediainfo AudioChannels]}{-Release Group}"
+	e.exec(`INSERT INTO content (id, info_hash, name, mount_folder, first_seen_at, last_seen_at) VALUES (1, 'h', 'c', 'c', 0, 0)`)
+	pj, _ := json.Marshal(probed("hevc", 1920, 1080, "", ""))
+	probeJSON := string(pj)
+	for i := range n {
+		id, ep := int64(100+i), int64(1000+i)
+		e.exec(`INSERT INTO episode (id, title_id, season, number, name, created_at, updated_at) VALUES (?, 2, ?, ?, ?, 0, 0)`,
+			ep, 2+i/25, 1+i%25, fmt.Sprintf("Episode %d", i))
+		if i%3 != 2 {
+			e.exec(`INSERT INTO episode_number (episode_id, title_id, scheme, number) VALUES (?, 2, 'absolute_tvdb', ?)`, ep, i+1)
+		}
+		old := filepath.Join(e.shows, "Show (2020)", fmt.Sprintf("old-%d.mkv", i))
+		var cf, from any
+		switch i % 3 {
+		case 0:
+			e.exec(`INSERT INTO content_file (id, content_id, path, size_bytes, probe) VALUES (?, 1, ?, 1, ?)`, id, fmt.Sprintf("f%d.mkv", i), probeJSON)
+			cf = id
+		case 1:
+			from = fmt.Sprintf("sonarr /tv/Show/Show.S01E%02d.1080p.WEB-DL-GRP.mkv", i)
+		}
+		e.exec(`INSERT INTO link (id,path,target,title_id,release_title,quality,file_metadata,state,content_file_id,adopted_from,created_at,updated_at)
+			VALUES (?,?,?,2,'r','WEBDL-1080p',?,'active',?,?,0,0)`, id, old, "/mnt/zurg/x.mkv",
+			linkMetadata(t, decide.ExistingFile{Quality: "WEBDL-1080p", Revision: 1, RelativePath: "e.mkv", SceneName: "Show.S01E01.1080p-GRP"}), cf, from)
+		e.exec(`INSERT INTO link_version (link_id,version_id) VALUES (?,20)`, id)
+		e.exec(`INSERT INTO link_episode (link_id,episode_id) VALUES (?,?)`, id, ep)
+	}
+	start := time.Now()
+	got, err := e.lib.PreviewRename(e.ctx, 2, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("preview of %d links: %v", n, time.Since(start))
+	b, _ := json.MarshalIndent(got, "", " ")
+	b = []byte(strings.ReplaceAll(string(b), e.dir, "DIR"))
+	golden := filepath.Join("testdata", "rename_preview_large.json")
+	if os.Getenv("UPDATE_GOLDEN") != "" {
+		if err := os.WriteFile(golden, b, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	want, err := os.ReadFile(golden)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(want) != string(b) {
+		t.Fatalf("preview differs from %s:\n%s", golden, b)
 	}
 }
