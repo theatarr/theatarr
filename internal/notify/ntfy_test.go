@@ -72,16 +72,12 @@ func TestNtfyText(t *testing.T) {
 			ntfyMessage{"Health check no longer failing, now warning: MountCheck", "Now: mount slow\nWas: mount not readable", 3, []string{"warning"}}},
 		{"restored", Event{Kind: HealthRestored, Health: []HealthItem{*was}},
 			ntfyMessage{"Health check OK again: MountCheck", "Was: mount not readable", 3, []string{"white_check_mark"}}},
-		{"error", Event{Kind: Error, Error: &ErrorItem{ID: 7, Source: "log", Component: "router", Sample: "route `failed`", Count: 2}},
-			ntfyMessage{"New error: router", "route `failed`\nSource log · seen 2 times · Admin › System › Errors #7", 4, []string{"warning"}}},
-		{"error again", Event{Kind: Error, Error: &ErrorItem{ID: 7, Source: "log", Component: "router", Sample: "x", Count: 1, Reopened: true}},
-			ntfyMessage{"Error back after it was resolved: router", "x\nSource log · seen 1 times · Admin › System › Errors #7", 4, []string{"warning"}}},
 		{"quiet digest", Event{Kind: Digest, Digest: &DigestSummary{Day: "2026-11-06"}},
-			ntfyMessage{"Theatarr daily digest · 2026-11-06", "Quiet day: nothing grabbed, imported, failed or blocklisted; no dead links, open errors or health problems.", 3, nil}},
+			ntfyMessage{"Theatarr daily digest · 2026-11-06", "Quiet day: nothing grabbed, imported, failed or blocklisted; no dead links or health problems.", 3, nil}},
 		{"digest", Event{Kind: Digest, Digest: &DigestSummary{Day: "2026-11-06", Grabs: 3, Imports: 1, Grabbed: []string{"A (2020)", "B (2021)"},
-			Imported: []string{"A (2020)"}, OpenErrors: 1, Errors: []string{"router: boom (1×)"}, GrabbingOff: true}},
+			Imported: []string{"A (2020)"}, GrabbingOff: true}},
 			ntfyMessage{"Theatarr daily digest · 2026-11-06", "Last 24 h: 3 grabbed · 1 imported · 0 failed · 0 blocklisted · 0 dead links found\n" +
-				"Grabbed: A (2020), B (2021) and 1 more\nImported: A (2020)\nOpen error groups: 1 (Admin › System › Errors)\n• router: boom (1×)\n" +
+				"Grabbed: A (2020), B (2021) and 1 more\nImported: A (2020)\n" +
 				"Theatarr is paused: nothing is downloaded or linked.", 3, []string{"warning"}}},
 		{"test", Event{Kind: Test}, ntfyMessage{"Theatarr test message", "This topic gets Theatarr's notifications.", 3, nil}},
 	} {
@@ -171,10 +167,6 @@ func TestNtfyTargetGetsMessages(t *testing.T) {
 	if len(got) != 1 || got[0].Title != "Health check failing: MountCheck" || got[0].Message != "mount not readable" || got[0].Priority != 4 {
 		t.Fatalf("health (a warning, a grab and a download are not messages): %+v", got)
 	}
-	insertError(e, "f1")
-	if err := e.n.Scan(ctx); err != nil {
-		t.Fatal(err)
-	}
 	if err := e.n.SendDigest(ctx, e.now); err != nil {
 		t.Fatal(err)
 	}
@@ -184,33 +176,27 @@ func TestNtfyTargetGetsMessages(t *testing.T) {
 			{ID: 2, Username: "bob"}}}})
 	e.n.Emit(ctx, Event{Kind: RequestPartial, TitleID: 1, Request: &Request{ID: 8, Name: "Alpha", TitleID: 1}})
 	got = e.ntfySent()
-	if len(got) != 5 {
+	if len(got) != 4 {
 		t.Fatalf("messages %d: %+v", len(got), got)
 	}
-	if got[1].Title != "New error: router" || !strings.HasPrefix(got[1].Message, "boom in f1\n") || got[1].Priority != 4 {
-		t.Errorf("error %+v", got[1])
-	}
-	if !strings.HasPrefix(got[2].Title, "Theatarr daily digest · ") || !strings.Contains(got[2].Message, "Open error groups: 1") ||
-		strings.Contains(got[2].Message, "**") {
-		t.Errorf("digest %+v", got[2])
+	if !strings.HasPrefix(got[1].Title, "Theatarr daily digest · ") || strings.Contains(got[1].Message, "**") {
+		t.Errorf("digest %+v", got[1])
 	}
 	// Request ready names the requesters; a Discord user id never leaves for ntfy.
-	if got[3].Title != "Request ready" || got[3].Message != "Alpha (2020) is ready in Plex, requested by Ann and bob" ||
-		len(got[3].Tags) != 1 || got[3].Tags[0] != "white_check_mark" {
-		t.Errorf("ready %+v", got[3])
+	if got[2].Title != "Request ready" || got[2].Message != "Alpha (2020) is ready in Plex, requested by Ann and bob" ||
+		len(got[2].Tags) != 1 || got[2].Tags[0] != "white_check_mark" {
+		t.Errorf("ready %+v", got[2])
 	}
-	if got[4].Title != "Request partly ready" || got[4].Message != "Alpha (2020) is partly ready in Plex" {
-		t.Errorf("partial %+v", got[4])
+	if got[3].Title != "Request partly ready" || got[3].Message != "Alpha (2020) is partly ready in Plex" {
+		t.Errorf("partial %+v", got[3])
 	}
 	if n := e.one(`SELECT COUNT(*) FROM notify_delivery WHERE payload LIKE '%123456789012345678%'`); n != 0 {
 		t.Errorf("discord id in %d payloads", n)
 	}
-	// The events filter applies; other targets are as before: no error or digest to a JSON target.
-	if n := e.one(`SELECT COUNT(*) FROM notify_delivery WHERE target = 'policy:errors-only'`); n != 1 {
+	// The events filter applies (a target listing only "error" gets nothing: errors are no longer sent); other
+	// targets are as before: no digest to a JSON target.
+	if n := e.one(`SELECT COUNT(*) FROM notify_delivery WHERE target = 'policy:errors-only'`); n != 0 {
 		t.Errorf("errors-only got %d", n)
-	}
-	if n := e.one(`SELECT COUNT(*) FROM notify_delivery WHERE target = 'policy:errors-only' AND event = 'ntfy.error'`); n != 1 {
-		t.Errorf("errors-only error %d", n)
 	}
 	if n := e.one(`SELECT COUNT(*) FROM notify_delivery WHERE target NOT IN ('policy:phone', 'policy:errors-only')
 		AND (event LIKE '%error%' OR event LIKE '%digest%' OR event LIKE 'ntfy.%')`); n != 0 {

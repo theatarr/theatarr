@@ -26,7 +26,7 @@ import (
 // A franchise mapping that is not importable (conflict, or rejected in review) is never used: a release that names
 // such an entry (step 2, or a SeaDex pack's entry) maps through Sonarr instead, and so does an episode that only such
 // ranges cover. Nothing is held; the decision lists those episodes (AnimeFallback) with the entry and its status,
-// and the review item waits in Admin › Reviews. The best-scoring candidate of a conflict is never imported under.
+// and the review item waits in Settings › Anime mappings. The best-scoring candidate of a conflict is never imported under.
 // The entry a release names (step 2) stays on the decision (AnimeEntry, and EpisodeMap.Fallback on the download), also
 // when its candidate cannot hold the number, so an accept before the import re-scopes the download and one after it
 // re-links the files through the entry. A decision that stored no entry is never re-scoped.

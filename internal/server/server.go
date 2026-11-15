@@ -17,6 +17,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"runtime/debug"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -25,7 +26,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
-	"github.com/theatarr/theatarr/internal/errinbox"
 	"github.com/theatarr/theatarr/internal/indexer"
 )
 
@@ -130,7 +130,7 @@ func (s *Server) Handler() http.Handler {
 		rec := &statusRecorder{ResponseWriter: w, code: http.StatusOK}
 		inner := &routeHolder{}
 		r = r.WithContext(context.WithValue(r.Context(), routeKey{}, inner))
-		panicked := s.serve(rec, r)
+		s.serve(rec, r)
 		took := time.Since(start)
 		route := r.Pattern // set by ServeMux on match
 		if inner.pattern != "" {
@@ -144,19 +144,6 @@ func (s *Server) Handler() http.Handler {
 			// The client went away (a page reload or navigation cancels its requests): the handler failed only
 			// because of that, so it is no server error. Logged and counted as 499, as nginx does.
 			rec.code = statusClientClosed
-		}
-		if rec.code >= 500 {
-			// The error inbox records the answer itself (or the panic behind it); the request line stays out of it.
-			ctx = errinbox.Quiet(ctx)
-			if !panicked && inboxStatus(rec.code) {
-				component := route // a pattern carries its method ("GET /api/..."); a catch-all may not
-				if !strings.Contains(route, " ") {
-					component = r.Method + " " + route
-				}
-				errinbox.Report(errinbox.Event{Source: errinbox.SourceHTTP, Component: component,
-					Message: fmt.Sprintf("answered %d", rec.code), Time: start,
-					Context: map[string]string{"method": r.Method, "route": route, "status": fmt.Sprint(rec.code)}})
-			}
 		}
 		s.requests.WithLabelValues(route, r.Method, fmt.Sprint(rec.code)).Inc()
 		s.latency.WithLabelValues(route).Observe(took.Seconds())
@@ -173,10 +160,10 @@ func (s *Server) Handler() http.Handler {
 	})
 }
 
-// serve runs the mux, recovering a handler's panic: the inbox records it with its stack, the client gets a 500
+// serve runs the mux, recovering a handler's panic: it is logged with its stack, the client gets a 500
 // (when nothing was written yet; otherwise the connection is aborted) and the server keeps serving.
 // http.ErrAbortHandler, the deliberate way to abort a response, panics on to net/http as before.
-func (s *Server) serve(rec *statusRecorder, r *http.Request) (panicked bool) {
+func (s *Server) serve(rec *statusRecorder, r *http.Request) {
 	defer func() {
 		p := recover()
 		if p == nil {
@@ -185,13 +172,12 @@ func (s *Server) serve(rec *statusRecorder, r *http.Request) (panicked bool) {
 		if p == http.ErrAbortHandler {
 			panic(p)
 		}
-		panicked = true
 		route := r.Pattern
 		if h, ok := r.Context().Value(routeKey{}).(*routeHolder); ok && h.pattern != "" {
 			route = h.pattern
 		}
-		errinbox.Panic("http", p, map[string]string{"method": r.Method, "route": route})
-		s.log.ErrorContext(errinbox.Quiet(r.Context()), "handler panicked", "method", r.Method, "route", route, "panic", fmt.Sprint(p))
+		s.log.ErrorContext(r.Context(), "handler panicked", "method", r.Method, "route", route, "panic", fmt.Sprint(p),
+			"stack", string(debug.Stack()))
 		if rec.wroteHeader {
 			// Part of the answer is out: abort the connection as net/http would, so the client cannot take it
 			// for a whole one.
@@ -202,14 +188,6 @@ func (s *Server) serve(rec *statusRecorder, r *http.Request) (panicked bool) {
 	gz := newGzipResponse(rec, r)
 	s.mux.ServeHTTP(gz, r)
 	gz.close()
-	return false
-}
-
-// inboxStatus is a 5xx the error inbox records: 502, 503 and 504 say a dependency is down or switched off (no policy
-// loaded, the engine not running, an upstream that did not answer), which the health checks report.
-func inboxStatus(code int) bool {
-	return code >= 500 && code != http.StatusBadGateway && code != http.StatusServiceUnavailable &&
-		code != http.StatusGatewayTimeout
 }
 
 // statusClientClosed is nginx's 499: the client closed the connection before the answer.

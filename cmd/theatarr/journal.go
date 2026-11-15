@@ -25,9 +25,8 @@ const journalUsage = `usage: theatarr journal [flags]          list entries, new
        theatarr journal -id ID [flags]    one entry
 
 The grab journal (docs/journal.md): one entry per decision Theatarr made (grab, upgrade, plan, search, research)
-and per thing that followed (failure, stall, blocklist, import, link, verdict), with the reasoning, provider attempts,
-cache evidence, import results and suspect flags. It reads the database only. Verdicts are given through the API
-(POST /api/theatarr/v1/journal/{id}/verdict).
+and per thing that followed (failure, stall, blocklist, import, link, action), with the reasoning, provider attempts,
+cache evidence, import results and the suspect flags theatarr serve stored. It reads the database only.
 
 flags:
 `
@@ -43,12 +42,11 @@ func runJournal(args []string, out io.Writer) error {
 	title := fs.String("title", "", "a title id, or part of a title's name")
 	version := libraryFlag(fs, "a library key")
 	kind := fs.String("kind", "", "kinds, comma-separated: "+strings.Join(journal.Kinds, ", "))
-	suspect := fs.Bool("suspect", false, "only entries with an unacknowledged warn or error flag")
-	severity := fs.String("severity", "", "only entries with an unacknowledged flag of at least: info, warn, error")
+	suspect := fs.Bool("suspect", false, "only entries with a warn or error flag")
+	severity := fs.String("severity", "", "only entries with a flag of at least: info, warn, error")
 	cursor := fs.String("cursor", "", "continue after a previous page (its next_cursor line)")
 	limit := fs.Int("limit", 50, "entries per page (at most 500)")
 	all := fs.Bool("all", false, "follow the cursor to the end")
-	scan := fs.Int("scan", 0, "entries one page may look at for -suspect/-severity (default: no limit)")
 	format := fs.String("format", "jsonl", "jsonl (one entry per line, then {\"next_cursor\"} when more), json, or text")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -56,11 +54,8 @@ func runJournal(args []string, out io.Writer) error {
 	if *format != "jsonl" && *format != "json" && *format != "text" {
 		return errors.New("-format must be jsonl, json or text")
 	}
-	if *scan == 0 {
-		*scan = 1 << 30 // offline: look as far as it takes
-	}
 	f := journal.Filter{Title: *title, Version: *version, Suspect: *suspect, Severity: *severity, Cursor: *cursor,
-		Limit: *limit, ScanLimit: *scan}
+		Limit: *limit}
 	if *kind != "" {
 		f.Kinds = strings.Split(*kind, ",")
 	}
@@ -86,7 +81,7 @@ func runJournal(args []string, out io.Writer) error {
 		return err
 	}
 	defer st.Close()
-	j := journal.New(journal.Config{Store: st, Policy: pol})
+	j := journal.New(journal.Config{Store: st, Policy: pol, ReadOnly: true})
 	if *id != "" {
 		e, err := j.Get(ctx, *id)
 		if err != nil {

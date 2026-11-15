@@ -729,12 +729,8 @@ folder and, without manual files, only the files under the path. A path anywhere
   dead links of the title (or of the episodes it links) aside like the active files it replaces. **A gated version** (library disabled) is swept read-only: what it
   would mark dead, revive or repoint is recorded as `dry_run` actions, and no link or title state changes
   (`TestRelinkDeadWhileGated`).
-  Every sweep records its dead links again, so the journal's `dead_link` review flag is raised once per finding (an
-  unbroken run of dead actions of the link; only a recovery action at its path or a dead action with another target
-  ends it, so a recovery that left no library action cannot start a new finding), not once per sweep: a
-  repeat carries no flag, and flags the action log proves
-  settled (repaired by an action, or superseded) can be acknowledged in bulk on Reviews (docs/journal.md "dead_link";
-  `TestDeadLinkFlagsOncePerFinding`). The sweep itself, what it records and what it repairs or searches are unchanged.
+  Every sweep records its dead links again; the journal raises no flag for them (since 0.4.5): open dead links are on
+  System › Status under Dangling links, with relink and search.
 - **An implausible listing is a mount that is down** (`Mount.checkListing`). `Healthy` only stats
   `__all__`, and a zurg that restarted can serve it present but empty or half-loaded. So relink, the dangling report,
   and `Verify` refuse with `ErrMountDown` (nothing marked dead or missing, no title flipped to
@@ -908,8 +904,8 @@ rows, view tags and its own view rows (`arrview_title` `v/<key>`). The episode a
 recomputed from the remaining libraries (an episode with states left is monitored when any of them is; one with none left keeps its flag), and movie
 collections drop the key. Files on
 disk, mount content, `link_trash` entries and downloads at the provider are not touched; a title left with no
-library stays as an unmonitored title. The library's upgrade cards on System › Errors (`arr-mirror:<key>`,
-`arr-freeze:<key>`) are resolved. Migration 00125 did the same once for libraries already gone from the stored
+library stays as an unmonitored title. Its journal entries leave the flagged view (their History rows keep their
+flags but lose their severity). Migration 00125 did the same once for libraries already gone from the stored
 settings. There is no start-up prune of unknown libraries: it could delete everything if the settings loaded empty.
 
 ## Commands

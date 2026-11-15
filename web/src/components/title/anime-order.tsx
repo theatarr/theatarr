@@ -27,7 +27,7 @@ function Franchise({ slug, admin }: { slug: string; admin: boolean }) {
           <span className="text-xs text-muted-foreground">{f.entries} entries</span>
         </div>
         {admin ? (
-          <Link to={`/admin/reviews/anime/${encodeURIComponent(slug)}`} className="text-sm text-primary hover:underline">
+          <Link to={`/admin/settings/anime-mappings/${encodeURIComponent(slug)}`} className="text-sm text-primary hover:underline">
             Mappings and review
           </Link>
         ) : null}

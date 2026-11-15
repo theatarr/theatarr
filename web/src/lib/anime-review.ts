@@ -1,4 +1,4 @@
-// Plain words for the anime review cards (Admin › Reviews › Anime mappings): episode ranges, mapping sources, the
+// Plain words for the anime review cards (Settings › Anime mappings): episode ranges, mapping sources, the
 // kind of each item and the question it asks.
 import type { components } from "@/api/schema";
 

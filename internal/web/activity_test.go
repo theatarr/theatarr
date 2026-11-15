@@ -825,10 +825,16 @@ func TestHistorySameForTitle(t *testing.T) {
 		now, now, now+5, now+1, now+1, now+6)
 	e.exec(`INSERT INTO library_import (download_id, state, mount_folder, plan, created_at, updated_at) VALUES
 		(1, 'linked', '/m/a', '{}', ?, ?), (2, 'linked', '/m/b', '{}', ?, ?)`, now+5, now+5, now+6, now+6)
-	e.exec(`INSERT INTO provider_copy_event (at, info_hash, name, title_id, provider, state, message, quality, score)
-		VALUES (?, 'f1', 'Alpha.2020.2160p.WEB', 1, 'rd', 'not_cached', 'Not cached on RD', 'WEBDL-2160p', 1500)`, now+9)
-
 	var all, one ActivityPage
+	if code := e.getKey(APIBase+"/activity?state=history", key, nil); code != 200 {
+		t.Fatalf("history: %d", code)
+	}
+	// A copy's row (stored only: its source table is gone since 00144).
+	if _, err := e.st.Writer().Exec(`INSERT INTO history (ref, at, event, kind, title_id, release, info_hash, quality,
+		score, provider, reason) VALUES ('copy:1', ?, 'copy_not_cached', 'copy', 1, 'Alpha.2020.2160p.WEB', 'f1',
+		'WEBDL-2160p', 1500, 'rd', 'Not cached on RD')`, now+9); err != nil {
+		t.Fatal(err)
+	}
 	if code := e.getKey(APIBase+"/activity?state=history", key, &all); code != 200 {
 		t.Fatalf("history: %d", code)
 	}

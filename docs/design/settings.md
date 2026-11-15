@@ -640,7 +640,7 @@ which may differ from the proxy's.
   The switch follows the active generation (`notify.Config.PolicyFor`). Webhooks always carry the release name
   and indexer.
   Webhook payloads and the Health webhook read the arr views of the current runtime, and the
-  grab journal's verdicts follow the current policy generation (`journal.Config.PolicyFor`;
+  grab journal's checks follow the current policy generation (`journal.Config.PolicyFor`;
   `journal.TestJournalFollowsCurrentPolicy`).
 
 Tests: `internal/settings/reload_export_test.go`, `internal/router/provider_epoch_test.go`, `internal/gateway/budget_reload_test.go`,

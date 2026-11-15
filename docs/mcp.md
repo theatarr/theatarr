@@ -12,7 +12,7 @@ The client accepts that revision or disconnects. Subsequent HTTP requests still 
 
 ## Connect
 
-Create an API key in Theatarr under your account. Setup, settings, migration, health, the journal and the error inbox require an
+Create an API key in Theatarr under your account. Setup, settings, migration, health, and the journal require an
 admin account's key. A viewer's key gets library versions, library search and its permitted activity only.
 Store the key in a local file readable only by you, or supply it to the agent process as `THEATARR_MCP_KEY`.
 Never put a literal key in a command line or a checked-in configuration.
@@ -100,7 +100,6 @@ arguments, unknown methods and unknown tools. Secrets are write-only; reads show
 | `settings_sections`, `settings_views` | Settings generation, sections and arr view identities/bindings |
 | `journal`, `activity` | Recent decisions/grabs and queue/download activity; normal account filtering applies |
 | `library_search` | Library titles by `q`, with optional `limit` and `offset`; no metadata/indexer search |
-| `errors_list`, `errors_get`, `errors_resolve` | Admin: the error inbox ([design/errors.md (internals)](design/errors.md)); list by `status` (`open` for new and seen), `source`, `since`, `limit`, `offset`; get by `id` with stack; resolve `id` with an optional `note` |
 | `preflight` | Read-only install checks; `sources: false` skips source probes and Plex |
 | `settings_section_update` | Section `key`, expected `generation`, whole `config` or `yaml`, optional write-only `secrets` and `clear_secrets` |
 | `settings_view_create`, `settings_view_update` | View `key`, expected `generation`, identity and version/profile bindings, optional write-only key |

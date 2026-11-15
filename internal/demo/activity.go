@@ -266,7 +266,6 @@ func (s *seeder) downloads() {
 		}
 	}
 	s.deadLinks()
-	s.verdicts(marked["wrongyear"])
 	s.libraryExtras()
 }
 
@@ -676,49 +675,12 @@ func (s *seeder) libraryExtras() {
 		'waiting for the mount past 6m0s')`, ms(s.ago(days(0.1))), ms(s.ago(7*time.Hour)))
 }
 
-// verdicts records two verdicts: "wrong" on the grab named for the wrong year (its hash blocklisted for the version,
-// a re-search queued) and "ok" on a dead link that was removed on purpose.
-func (s *seeder) verdicts(wrongYear int64) {
-	if wrongYear > 0 {
-		var hash, rel, key string
-		var titleID int64
-		_ = s.tx.QueryRowContext(s.ctx, `SELECT info_hash, release_title, version_key, title_id FROM download WHERE id = ?`,
-			wrongYear).Scan(&hash, &rel, &key, &titleID)
-		at := s.ago(20 * time.Minute)
-		job := s.exec(`INSERT INTO job (kind, payload, state, run_at, attempts, created_at, updated_at, finished_at)
-			VALUES ('acquire.research', ?, 'done', ?, 1, ?, ?, ?)`, jsonOf(map[string]any{"title_id": titleID, "version": key}),
-			ms(at), ms(at), ms(at), ms(at.Add(30*time.Second)))
-		s.exec(`INSERT INTO router_blocklist (version_key, info_hash, title_id, release_title, reason, source, download_id,
-			created_at, researched_at) VALUES (?, ?, ?, ?, 'verdict: wrong (the release is a different year)', 'journal', ?, ?, ?)`,
-			key, hash, titleID, rel, wrongYear, ms(at), ms(at.Add(30*time.Second)))
-		s.exec(`INSERT INTO journal_verdict (entry_id, verdict, reason, acked, title_id, version_key, info_hash, action,
-			action_note, research_job, by, created_at) VALUES (?, 'wrong', 'the release is the 2019 short of the same name',
-			'["year_mismatch"]', ?, ?, ?, 'blocklisted', 'blocklisted for the version; re-search queued', ?, ?, ?)`,
-			fmt.Sprintf("dl:%d", wrongYear), titleID, key, hash, job, Username, ms(at))
-	}
-	var actionID, titleID int64
-	var key string
-	_ = s.tx.QueryRowContext(s.ctx, `SELECT a.id, l.title_id, a.version_key FROM library_action a JOIN link l ON l.id = a.link_id
-		WHERE a.kind = 'dead' ORDER BY a.id LIMIT 1`).Scan(&actionID, &titleID, &key)
-	if actionID > 0 {
-		s.exec(`INSERT INTO journal_verdict (entry_id, verdict, reason, acked, title_id, version_key, action, by, created_at)
-			VALUES (?, 'ok', 'the old copy was removed on purpose; the current file is fine', '["dead_link"]', ?, ?,
-			'recorded', ?, ?)`, fmt.Sprintf("lib:%d", actionID), titleID, key, Username, ms(s.ago(days(1))))
-	}
-}
-
 // historyExtras gives one imported movie the rest of History's events: the file its import replaced ("Deleted
-// (upgrade)", with the old release as recorded) and the History events of the release's former copies to the
-// other providers, one added and one not cached (provider_copy_event, read-only since 00139).
+// (upgrade)", with the old release as recorded).
 func (s *seeder) historyExtras(t *title, v *version, rel *release, id int64, at time.Time) {
 	old := fmt.Sprintf("%s.%d.1080p.WEB-DL.DDP5.1.H.264-OLD", strings.ReplaceAll(t.name, " ", "."), t.year)
 	s.exec(`INSERT INTO library_action (at, kind, mode, version_key, download_id, path, detail, release_title, quality,
 		score) VALUES (?, 'replace', 'applied', ?, ?, ?, 'moved aside to the trash', ?, 'WEBDL-1080p', 400)`,
 		ms(at.Add(time.Second)), v.key, id, path.Join(v.vp.Library, s.folder(t), old+".mkv"), old)
-	for i, c := range []struct{ pk, state, msg string }{{"tb", "added", "Added to TB"}, {"ad", "not_cached",
-		"Not cached on AD; our add was deleted"}} {
-		at := at.Add(time.Duration(10+i) * time.Minute)
-		s.exec(`INSERT INTO provider_copy_event (at, info_hash, name, title_id, provider, state, message, quality, score)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, ms(at), rel.hash, rel.name, t.id, c.pk, c.state, c.msg, rel.quality, rel.score)
-	}
+
 }

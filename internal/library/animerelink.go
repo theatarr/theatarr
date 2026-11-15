@@ -6,11 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"strconv"
 	"strings"
 
 	"github.com/theatarr/theatarr/internal/decide"
-	"github.com/theatarr/theatarr/internal/errinbox"
 	"github.com/theatarr/theatarr/internal/jobs"
 	"github.com/theatarr/theatarr/internal/metadata/anime/animemap"
 	"github.com/theatarr/theatarr/internal/store"
@@ -28,7 +26,7 @@ import (
 // S01E02 or special keeps Sonarr's meaning). A version the gate refuses (library off)
 // gets a dry-run plan only. A target episode that already has another file (after every move that frees one: a
 // shifted range moves from its free end), or a new name another file already has on disk, is skipped, both files
-// stay, and the error inbox names the two paths.
+// stay, and an error in Logs names the two paths.
 
 // AnimeRelinkJobKind is the job animestore queues (animemap.RelinkJobKind).
 const AnimeRelinkJobKind = animemap.RelinkJobKind
@@ -222,10 +220,7 @@ func (l *Library) relinkAnime(ctx context.Context, tvdbID int) (*AnimeRelinked, 
 		}
 		msg := fmt.Sprintf("anime relink skipped (%s): %s stays, %s %s",
 			strings.TrimPrefix(c.detail, "relinked after review: "), c.path, what, strings.Join(holders, ", "))
-		l.log.Warn("library: "+msg, "link", c.linkID)
-		l.reportInbox(errinbox.Event{Source: errinbox.SourceLog, Component: "anime-relink", Level: "error", Message: msg,
-			Key: "link:" + strconv.FormatInt(c.linkID, 10), Context: map[string]string{"version": c.version,
-				"path": c.path, "other": strings.Join(holders, ", ")}, Time: l.now()})
+		l.log.Error("library: "+msg, "link", c.linkID, "version", c.version)
 	}
 	if len(out.Moved)+len(out.Planned)+len(out.Occupied) > 0 {
 		l.log.Info("library: anime relink", "tvdb", tvdbID, "moved", len(out.Moved), "planned", len(out.Planned),
@@ -252,15 +247,6 @@ func (l *Library) episodeHolders(ctx context.Context, c *relinkCandidate) ([]str
 		return err
 	})
 	return out, err
-}
-
-// reportInbox puts an event in the error inbox (errinbox.Report; tests replace it).
-func (l *Library) reportInbox(ev errinbox.Event) {
-	if l.inbox != nil {
-		l.inbox(ev)
-		return
-	}
-	errinbox.Report(ev)
 }
 
 // labels names episodes of t as "S00E26, S00E27" ("none" for none).

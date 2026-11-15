@@ -28,6 +28,8 @@ func removeLibraryRows(ctx context.Context, tx *sql.Tx, key string, now int64) e
 			WHERE v.policy_key = ?1) AND NOT EXISTS (SELECT 1 FROM link_version lv JOIN version v ON v.id = lv.version_id
 			WHERE lv.link_id = link.id AND v.policy_key <> ?1)`,
 		`DELETE FROM version WHERE policy_key = ?1`,
+		// Its journal entries go with its downloads: their History rows leave the flagged view.
+		`UPDATE history SET severity = '' WHERE version_key = ?1 AND severity <> ''`,
 		`DELETE FROM search_request WHERE version_key = ?1`,
 		`DELETE FROM arrview_title_tag WHERE version = ?1`,
 		`DELETE FROM arrview_title WHERE view = 'v/' || ?1`,
@@ -37,12 +39,6 @@ func removeLibraryRows(ctx context.Context, tx *sql.Tx, key string, now int64) e
 		if _, err := tx.ExecContext(ctx, q, key); err != nil {
 			return fmt.Errorf("settings: remove rows of library %s: %w", key, err)
 		}
-	}
-	// Its upgrade cards (migration 00125's mirror card, the arr-freeze card of 00134 or an earlier upgrade) are
-	// resolved: their cause is gone.
-	if _, err := tx.ExecContext(ctx, `UPDATE error_event SET status = 'resolved', resolved_at = ?1, updated_at = ?1
-		WHERE fingerprint IN ('arr-mirror:' || ?2, 'arr-freeze:' || ?2) AND status IN ('new', 'seen')`, now, key); err != nil {
-		return fmt.Errorf("settings: remove rows of library %s: %w", key, err)
 	}
 	// An episode with states left is monitored when any of them is; one with none left keeps its flag (a remaining
 	// library may have no state for it yet, and a series added again keeps its flags). A title is monitored when any

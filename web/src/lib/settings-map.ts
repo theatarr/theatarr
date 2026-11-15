@@ -127,6 +127,7 @@ export const SETTINGS_PAGES: SettingsPage[] = [
     ]
   },
   { id: "import-lists", own: true, label: "Import lists", route: "/admin/settings/import-lists", arr: "Import Lists", description: "TMDb lists and Radarr or Sonarr instances whose titles are added by themselves.", tabs: [] },
+  { id: "anime-mappings", own: true, label: "Anime mappings", route: "/admin/settings/anime-mappings", arr: "", description: "Anime episode numbering Theatarr could not match on its own, and the franchises it maps.", tabs: [] },
   {
     "id": "notifications",
     "label": "Notifications",
@@ -520,7 +521,7 @@ export const SETTINGS_ALIASES: { terms: string[]; href: string; title?: string }
  {"terms": ["prowlarr tasks", "radarr tasks", "sonarr tasks", "system › tasks", "tasks"], "href": "/admin/system/tasks", "title": "Admin › System › Tasks"},
  {"terms": ["backup", "backups", "prowlarr backup", "radarr backup", "sonarr backups", "system › backup", "system › backups"], "href": "/admin/system/backup", "title": "Admin › System › Backup"},
  {"terms": ["prowlarr updates", "radarr updates", "sonarr updates", "system › updates", "updates"], "href": "/admin/settings", "title": "Updates — no separate page"},
- {"terms": ["events", "prowlarr events", "radarr events", "sonarr events", "system › events"], "href": "/admin/system/errors", "title": "Admin › System › Errors"},
+ {"terms": ["events", "prowlarr events", "radarr events", "sonarr events", "system › events"], "href": "/admin/system/logs", "title": "Admin › System › Logs"},
  {"terms": ["log files", "prowlarr log files", "radarr log files", "sonarr log files", "system › log files"], "href": "/admin/system/logs", "title": "Admin › System › Logs"},
  {"terms": ["sonarr update log files", "system › update log files", "update log files"], "href": "/admin/settings", "title": "Update Log Files — no separate page"},
  {"terms": ["activity › queue", "queue", "radarr queue", "sonarr queue"], "href": "/activity", "title": "Activity › Queue"},

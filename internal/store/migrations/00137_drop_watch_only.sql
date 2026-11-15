@@ -6,10 +6,11 @@
 --   from its remaining rows, as catalog.SyncMonitored does;
 -- * enable: request, so an arr client's add no longer turns it on by default;
 -- * the global Pause switched on;
--- * one card on System › Errors (fingerprint watch-only) naming the libraries and what to do;
+-- * nothing written for people: the error inbox it once wrote a card to is gone (00144); docs/migration.md (0.4.5)
+--   says what to check;
 -- * no list, collection or account's request libraries adding to it (below).
 --
--- 00134's arr-freeze cards no longer say to set the library Live. The mode key leaves every stored library (it is
+-- The mode key leaves every stored library (it is
 -- ignored when read; versions.<key>.mode in a policy file is dropped before the strict decode). The dry-run plans
 -- (router_plan), the verdicts on their journal entries and the RSS run log nothing read (shadow_run) go. Down
 -- recreates the two tables empty; it cannot tell which library was Watch only.
@@ -37,24 +38,6 @@ SELECT 'global', '{"paused":true}', CAST(strftime('%s', 'now') AS INTEGER) * 100
 WHERE EXISTS (SELECT 1 FROM k6_watch_only)
 ON CONFLICT (key) DO UPDATE SET config = json_set(config, '$.paused', json('true')), updated_at = excluded.updated_at;
 
-INSERT INTO error_event (fingerprint, source, component, level, message, first_seen, last_seen, updated_at)
-SELECT 'watch-only', 'log', 'settings', 'error', 'Watch only is gone: every library is Live. ' ||
-    CASE WHEN COUNT(*) = 1 THEN 'Library ' ELSE 'Libraries ' END || group_concat(key, ', ') ||
-    CASE WHEN COUNT(*) = 1 THEN ' was' ELSE ' were' END || ' Watch only, so ' ||
-    CASE WHEN COUNT(*) = 1 THEN 'its' ELSE 'their' END || ' titles are now not monitored, arr clients no longer add' ||
-    ' to ' || CASE WHEN COUNT(*) = 1 THEN 'it' ELSE 'them' END || ', and Pause is on. Monitor what should download,' ||
-    ' check Settings › Libraries, then turn Pause off.',
-    CAST(strftime('%s', 'now') AS INTEGER) * 1000, CAST(strftime('%s', 'now') AS INTEGER) * 1000,
-    CAST(strftime('%s', 'now') AS INTEGER) * 1000
-FROM (SELECT key FROM k6_watch_only ORDER BY key)
-WHERE true
-HAVING COUNT(*) > 0
-ON CONFLICT (fingerprint) DO UPDATE SET message = excluded.message, last_seen = excluded.last_seen, status = 'new',
-    updated_at = excluded.updated_at;
-UPDATE error_event SET message = replace(message, ' It is now Watch only. Check its profile and naming in Settings ›'
-        || ' Libraries, then set it Live.', ' Check its profile and naming in Settings › Libraries.'),
-    updated_at = CAST(strftime('%s', 'now') AS INTEGER) * 1000
-WHERE fingerprint LIKE 'arr-freeze:%' AND message LIKE '%then set it Live.';
 
 -- Lists and collections add monitored titles to their targets whatever enable says, and one without targets takes
 -- every library that fits. So, with a converted library: its key leaves every list's and collection's targets; one

@@ -89,10 +89,9 @@ subcommands; each one takes `-h`.
 | `internal/webui`, `web/` | The SPA (React, Vite, Tailwind; [design/ui.md](design/ui.md)). `web/` is the source; `make ui` builds it into `internal/webui/dist`, which is embedded (only `dist/.keep` is committed) |
 | `internal/uipages` | UI destinations named in Go readiness and recovery messages; kept in step with `web/src/components/shell/nav.ts` and `web/src/lib/settings-map.ts` |
 | `internal/logring` | The last 2,000 log records in memory, secrets redacted, for `GET /logs` |
-| `internal/errinbox` | The error inbox ([design/errors.md](design/errors.md)): unexpected failures, deduplicated, for the API, `theatarr errors` and MCP |
 | `internal/activity` | The shared reader behind the arr views' queue and the native activity, calendar and Continue row |
 | `internal/arrview`, `internal/arrview/nativeapi` | Radarr- and Sonarr-shaped views for Seerr, Homepage, decypharr, autobrr and the phone apps; request types shared with `web`. `ops.go`: the web UI's grab, retry and unlink ([design/arrview.md](design/arrview.md)) |
-| `internal/journal`, `internal/journal/snapshot` | The grab journal: entries over the decision, router, library and arr tables, suspect checks, verdicts, web UI actions ([journal.md](journal.md)) |
+| `internal/journal`, `internal/journal/snapshot` | The grab journal: entries over the decision, router and library tables, suspect flags worked out once per History row, web UI actions ([journal.md](journal.md)) |
 | `internal/notify` | Outbound webhooks (arr-shaped per view, native `theatarr.*`): outbox, sender, retries; through the gateway |
 | `internal/library`, `internal/library/{naming,probe}`, `internal/plex` | Arr naming, gated import (probe, sample guard, symlinks), relink and verify, Plex scans ([design/library.md](design/library.md)) |
 | `internal/rootprobe` | Bounded filesystem calls on library roots, so a hung network filesystem cannot block the service |

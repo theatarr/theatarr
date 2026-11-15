@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { animeFormatWords, animeSourceWords, mappingCounts, mappingWords, orderWords, roleWords } from "./anime-words";
 import { readableCode, wordsFor } from "./code-words";
-import { errorComponentWords, errorSourceWords, errorStatusWords } from "./error-words";
 import { rejectionWords } from "./rejection-words";
 import { attemptCodeWords, attemptOutcomeWords, backoffWords, cacheSourceWords, cacheStateWords } from "./router-words";
 import { releaseEventWords, releaseTypeWords, titleStatusWords } from "./tmdb-words";
@@ -101,17 +100,5 @@ describe("torrent words", () => {
     expect(torrentJournalWords("prune", "partial")).toBe("Prune partial");
     expect(torrentJournalBy("schedule")).toBe("Scheduled");
     expect(torrentJournalBy("nathan")).toBe("nathan");
-  });
-});
-
-describe("error words", () => {
-  it("statuses, sources and health-check components", () => {
-    expect(errorStatusWords("seen")).toBe("Seen");
-    expect(errorSourceWords("http")).toBe("Web request");
-    expect(errorSourceWords("other")).toBe("Other");
-    expect(errorComponentWords("VpnEgressCheck")).toBe("VPN egress");
-    expect(errorComponentWords("BrandNewCheck")).toBe("Brand new");
-    expect(errorComponentWords("GET /api/v1/journal")).toBe("GET /api/v1/journal");
-    expect(errorComponentWords(undefined)).toBe("");
   });
 });

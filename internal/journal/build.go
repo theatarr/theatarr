@@ -25,15 +25,11 @@ type builder struct {
 	pol    *policy.Policy
 	ctx    context.Context
 	db     *sql.DB
-	own    bool
 	titles map[int64]*titleInfo
-	// firsts are the library_action ids of every dead-link finding's first action (deadlink.go), read once by a
-	// filtered listing; nil: each entry is checked on its own.
-	firsts map[int64]bool
 }
 
 func (j *Journal) newBuilder(ctx context.Context) *builder {
-	return &builder{j: j, pol: j.policy(ctx), ctx: ctx, db: j.st.Reader(), own: j.hasOwnTables(ctx), titles: j.titleCache()}
+	return &builder{j: j, pol: j.policy(ctx), ctx: ctx, db: j.st.Reader(), titles: j.titleCache()}
 }
 
 // titleCache is the shared title cache, replaced every titleTTL; a builder keeps the map it got, and reads and
@@ -47,8 +43,21 @@ func (j *Journal) titleCache() map[int64]*titleInfo {
 	return j.titles
 }
 
-// build turns a head into its entry, with flags and verdict; nil when its row is gone.
+// build turns a head into its entry with its stored flags (flag.go); nil when its row is gone.
 func (b *builder) build(h head) (*Entry, error) {
+	e, err := b.load(h)
+	if e == nil || err != nil {
+		return nil, err
+	}
+	if err := b.storedFlags(e); err != nil {
+		return nil, err
+	}
+	finish(e)
+	return e, nil
+}
+
+// load reads a head's entry from its sources, without flags; nil when its row is gone.
+func (b *builder) load(h head) (*Entry, error) {
 	e := &Entry{ID: h.id, At: store.FromMillis(h.at), Kind: h.kind, Version: h.version, Flags: []Flag{}}
 	if ti, err := b.title(h.titleID); err != nil {
 		return nil, err
@@ -66,8 +75,6 @@ func (b *builder) build(h head) (*Entry, error) {
 		err = b.blocklist(e, rest)
 	case "run":
 		err = b.run(e, rest)
-	case "v":
-		err = b.verdictEntry(e, rest)
 	case "act":
 		err = b.actionEntry(e, rest)
 	default:
@@ -79,15 +86,6 @@ func (b *builder) build(h head) (*Entry, error) {
 	if err != nil {
 		return nil, fmt.Errorf("journal: %s: %w", h.id, err)
 	}
-	if e.Kind != KindVerdict && e.Kind != KindAction {
-		if err := b.check(e); err != nil {
-			return nil, fmt.Errorf("journal: %s: checks: %w", h.id, err)
-		}
-		if err := b.verdict(e); err != nil {
-			return nil, err
-		}
-	}
-	finish(e)
 	switch {
 	case e.Reasoning != nil && e.Reasoning.PolicyRev != "":
 		e.PolicyRev = e.Reasoning.PolicyRev
@@ -102,13 +100,10 @@ func (b *builder) build(h head) (*Entry, error) {
 	return e, nil
 }
 
-// finish sets Suspect and Severity from the unacknowledged flags.
+// finish sets Suspect and Severity from the flags.
 func finish(e *Entry) {
 	e.Suspect, e.Severity = false, ""
 	for _, f := range e.Flags {
-		if f.Acked {
-			continue
-		}
 		if SevRank(f.Severity) > SevRank(e.Severity) {
 			e.Severity = f.Severity
 		}
@@ -289,7 +284,7 @@ func (b *builder) cache(e *Entry, hash string) error {
 
 // snapshotFor reads the journal_decision a route came from: same source, title and version, at or before at.
 func (b *builder) snapshotFor(source string, titleID int64, version string, at int64) (*Reasoning, error) {
-	if !b.own || source == "" {
+	if source == "" {
 		return nil, nil
 	}
 	var cj, rj, notes, target, rev string
@@ -488,10 +483,13 @@ func (b *builder) researchAfter(e *Entry, titleID int64, version string, after i
 	return rows.Err()
 }
 
+// failureWindow is how far back repeated failures count.
+const failureWindow = 30 * 24 * 3600 * 1000
+
 // failures counts failure-like events of a title's version in the 30 days up to at (our failed downloads, the
-// blocklist without a download), and those in the 30 days after it.
+// blocklist without a download), and those in the 30 days after it (none for a new event; an older row flagged by
+// the start pass may have later ones).
 func (b *builder) failures(e *Entry, titleID int64, version string, at int64) error {
-	const window = 30 * 24 * 3600 * 1000
 	count := func(from, to int64) (int, error) {
 		var n int
 		err := b.db.QueryRowContext(b.ctx, `SELECT
@@ -502,10 +500,10 @@ func (b *builder) failures(e *Entry, titleID int64, version string, at int64) er
 		return n, err
 	}
 	var err error
-	if e.f.failureCount, err = count(at-window, at+1000); err != nil {
+	if e.f.failureCount, err = count(at-failureWindow, at+1000); err != nil {
 		return err
 	}
-	e.f.failuresAfter, err = count(at+1001, at+window)
+	e.f.failuresAfter, err = count(at+1001, at+failureWindow)
 	return err
 }
 

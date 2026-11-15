@@ -12,7 +12,6 @@ import {
   Bell,
   Radar,
   BookOpen,
-  Bug,
   Boxes,
   CalendarDays,
   ClipboardCheck,
@@ -42,7 +41,7 @@ import {
 } from "lucide-react";
 
 export type NavNeed = "admin" | "users" | "manage";
-export type NavBadge = "requests" | "jobs" | "errors" | "system" | "reviews";
+export type NavBadge = "requests" | "jobs" | "system" | "journal";
 export type NavItem = {
   /** The page; a parent without one only groups its children (Library). */
   to?: string;
@@ -75,7 +74,7 @@ const ACTIVITY: NavItem = { to: "/activity", label: "Activity", icon: Activity }
 const CALENDAR: NavItem = { to: "/calendar", label: "Calendar", icon: CalendarDays };
 const NOW_PLAYING: NavItem = { to: "/now-playing", label: "Now playing", icon: MonitorPlay };
 
-const SETTINGS_ICONS: Record<string, LucideIcon> = { libraries: HardDrive, profiles: SlidersHorizontal, formats: ListChecks, "quality-sync": GitCompareArrows, indexers: Radar, downloads: Import, notifications: Bell, plex: MonitorPlay, metadata: Database, apps: Boxes, "import-lists": ListVideo };
+const SETTINGS_ICONS: Record<string, LucideIcon> = { libraries: HardDrive, profiles: SlidersHorizontal, formats: ListChecks, "quality-sync": GitCompareArrows, indexers: Radar, downloads: Import, notifications: Bell, plex: MonitorPlay, metadata: Database, apps: Boxes, "import-lists": ListVideo, "anime-mappings": Sparkles };
 export const SETTINGS: NavItem[] = SETTINGS_PAGES.filter(p => !p.system).map(p => ({ to: p.route, label: p.label, icon: SETTINGS_ICONS[p.id] ?? SlidersHorizontal, need: "admin" }));
 
 export const ADVANCED: NavItem[] = [
@@ -91,11 +90,9 @@ const ADMIN: NavGroup = {
       { to: "/admin", label: "Status", icon: Gauge, end: true },
       { to: "/admin/system/tasks", label: "Tasks", icon: ListTodo, badge: "jobs" },
       { to: "/admin/system/backup", label: "Backup", icon: Database },
-      { to: "/admin/system/errors", label: "Errors", icon: Bug, badge: "errors" },
       { to: "/admin/system/logs", label: "Logs", icon: ScrollText },
-      { to: "/admin/system/journal", label: "Decision journal", icon: BookOpen },
+      { to: "/admin/system/journal", label: "Decision journal", icon: BookOpen, badge: "journal" },
     ] },
-    { to: "/admin/reviews", label: "Reviews", icon: ListChecks, need: "admin", badge: "reviews" },
     { to: "/admin/torrents", label: "Torrents", icon: HardDrive, need: "admin" },
     { to: "/admin/settings", label: "Settings", icon: SlidersHorizontal, need: "admin", children: SETTINGS, childrenWhenActive: true },
     { to: "/admin/users", label: "Users & access", icon: KeyRound, need: "users" },

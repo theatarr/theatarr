@@ -164,7 +164,7 @@ func TestDiscordFit(t *testing.T) {
 	}
 }
 
-func TestDiscordHealthAndErrorsGoToDiscordOnly(t *testing.T) {
+func TestDiscordHealthGoesToDiscordOnly(t *testing.T) {
 	t.Parallel()
 	e := newDiscordEnv(t, true, nil)
 	ctx := context.Background()
@@ -193,18 +193,6 @@ func TestDiscordHealthAndErrorsGoToDiscordOnly(t *testing.T) {
 	// Native targets keep their theatarr.health and never get errors or digests.
 	if n := e.one(`SELECT COUNT(*) FROM notify_delivery WHERE target = 'policy:automation' AND event LIKE 'theatarr.health%'`); n == 0 {
 		t.Error("native health gone")
-	}
-	e.exec(`INSERT INTO error_event (fingerprint, source, component, level, message, sample, count, first_seen,
-		last_seen, status, updated_at) VALUES ('f1', 'log', 'router', 'error', 'route failed', 'route failed for title 1',
-		1, 0, 0, 'new', 0)`)
-	if err := e.n.Scan(ctx); err != nil {
-		t.Fatal(err)
-	}
-	if n := e.one(`SELECT COUNT(*) FROM notify_delivery WHERE event LIKE '%error%' AND target != 'policy:chan'`); n != 0 {
-		t.Errorf("errors to other targets: %d", n)
-	}
-	if n := len(e.discordSent()); n != 3 {
-		t.Errorf("error alert missing: %d", n)
 	}
 }
 
@@ -240,69 +228,6 @@ func TestDiscordHealthLeavingErrorThroughWarning(t *testing.T) {
 	// Native targets keep every transition.
 	if n := e.one(`SELECT COUNT(*) FROM notify_delivery WHERE target = 'policy:automation' AND event LIKE 'theatarr.health%'`); n != 5 {
 		t.Errorf("native health deliveries %d", n)
-	}
-}
-
-func insertError(e *nenv, fp string) int64 {
-	e.t.Helper()
-	res, err := e.st.Writer().Exec(`INSERT INTO error_event (fingerprint, source, component, level, message, sample,
-		count, first_seen, last_seen, status, updated_at) VALUES (?, 'log', 'router', 'error', 'boom', ?, 1, ?, ?, 'new', ?)`,
-		fp, "boom in "+fp, store.Millis(e.now), store.Millis(e.now), store.Millis(e.now))
-	if err != nil {
-		e.t.Fatal(err)
-	}
-	id, _ := res.LastInsertId()
-	return id
-}
-
-func TestDiscordErrorAlertsNewAndCapped(t *testing.T) {
-	t.Parallel()
-	e := newDiscordEnv(t, true, nil)
-	ctx := context.Background()
-	old := insertError(e, "before")
-	if err := e.n.Scan(ctx); err != nil {
-		t.Fatal(err)
-	}
-	if n := len(e.discordSent()); n != 0 {
-		t.Fatalf("the baseline was announced: %d", n)
-	}
-	// An error storm: six new groups, three alerts this hour.
-	var ids []int64
-	for i := range 6 {
-		ids = append(ids, insertError(e, fmt.Sprint("storm", i)))
-	}
-	for range 2 {
-		if err := e.n.Scan(ctx); err != nil {
-			t.Fatal(err)
-		}
-	}
-	got := e.discordSent()
-	if len(got) != errorAlertsPerHour {
-		t.Fatalf("alerts %d, want %d", len(got), errorAlertsPerHour)
-	}
-	if g := got[0].Embeds[0]; g.Title != "New error: router" || !strings.Contains(g.Description, "boom in storm0") ||
-		!strings.Contains(g.Description, fmt.Sprintf("#%d", ids[0])) {
-		t.Errorf("alert %+v", g)
-	}
-	// A repeat of an open group is not announced, even after the hour.
-	e.now = e.now.Add(2 * time.Hour)
-	e.exec(`UPDATE error_event SET count = count + 5 WHERE id = ?`, ids[0])
-	if err := e.n.Scan(ctx); err != nil {
-		t.Fatal(err)
-	}
-	if n := len(e.discordSent()); n != errorAlertsPerHour {
-		t.Errorf("a repeat (or a held group) was announced: %d", n)
-	}
-	// A resolved group that happens again is new again: announced as back. So is the old baseline one.
-	for _, id := range []int64{ids[0], old} {
-		e.exec(`UPDATE error_event SET status = 'new', regressions = regressions + 1 WHERE id = ?`, id)
-	}
-	if err := e.n.Scan(ctx); err != nil {
-		t.Fatal(err)
-	}
-	got = e.discordSent()
-	if len(got) != errorAlertsPerHour+2 || got[len(got)-1].Embeds[0].Title != "Error back after it was resolved: router" {
-		t.Fatalf("regressions: %d %+v", len(got), got[len(got)-1])
 	}
 }
 
@@ -423,7 +348,6 @@ func TestDigest(t *testing.T) {
 		(?, 'dead', 'applied', 1, '/l', '/t', 'gone h1'), (?, 'dead', 'applied', 2, '/r', '/t2', 'gone h2'),
 		(?, 'dead', 'dry_run', 3, '/o', '/t3', 'gone h3'), (0, 'dead', 'applied', 3, '/o', '/t3', 'gone h3'),
 		(?, 'dead', 'applied', 4, '/v', '/t4', 'vanished: the symlink is no longer in the library')`, now, now, now, now)
-	insertError(e, "open")
 	e.hlth = []HealthItem{{Source: "ProviderAccountCheck", Type: "warning", Message: "Debrid accounts: rd: premium ends 2026-11-10 (in 3d)"},
 		{Source: "MountCheck", Type: "error", Message: "mount not readable"},
 		{Source: "RouterDisabledCheck", Type: "warning", Message: "Router disabled"},
@@ -438,7 +362,7 @@ func TestDigest(t *testing.T) {
 	body := text(got[1])
 	for _, want := range []string{"12 grabbed · 2 imported · 1 failed · 1 blocklisted · 2 dead links found, 1 still dead",
 		"Movie 0 (2021), Movie 1 (2021)", " and 2 more", "**Imported:** Movie 1 (2021), Movie 0 (2021)",
-		"**Open error groups:** 1", "router: boom (1×)", "**Debrid accounts:** Debrid accounts: rd: premium ends",
+		"**Debrid accounts:** Debrid accounts: rd: premium ends",
 		"**Health checks not OK:** 1", "error: mount not readable", "Theatarr is paused"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("missing %q in\n%s", want, body)

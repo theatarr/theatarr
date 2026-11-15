@@ -7,8 +7,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/theatarr/theatarr/internal/store"
 )
 
 // row is one History row in brief: event, release, quality, score, episodes and what replaced it.
@@ -37,16 +35,22 @@ func histRow(h *HistoryRow) string {
 	return s
 }
 
+// copyRows stores copy History rows of title 1 directly (at, ref, event, release, hash, quality, score, provider,
+// reason): their source table is gone.
+func (e *env) copyRows(values string, args ...any) {
+	e.t.Helper()
+	if _, err := e.st.Writer().Exec(`INSERT INTO history (at, ref, event, release, info_hash, quality, score, provider,
+		reason, kind, title_id) SELECT column1, column2, column3, column4, column5, column6, column7, column8, column9,
+		'copy', 1 FROM (VALUES `+values+`)`, args...); err != nil {
+		e.t.Fatal(err)
+	}
+}
+
 // history is History's rows in brief, stored from the sources the test wrote (as the migration would have).
 func (e *env) history(f Filter) []string {
 	e.t.Helper()
 	ctx := context.Background()
-	if _, err := e.st.Writer().ExecContext(ctx, `DELETE FROM history`); err != nil {
-		e.t.Fatal(err)
-	}
-	if err := store.BackfillHistory(ctx, e.st.Writer()); err != nil {
-		e.t.Fatal(err)
-	}
+	e.flag()
 	p, err := e.j.History(ctx, f)
 	if err != nil {
 		e.t.Fatal(err)
@@ -127,11 +131,12 @@ func TestHistoryRows(t *testing.T) {
 		VALUES (?, 'replace', 'applied', 'movie-web', 51, '/movies/Alpha/Alpha.FLUX.mkv',
 		'unlinked (deleted in Radarr), moved aside to /trash/b', 'Alpha.2020.2160p.WEB-DL-FLUX', 'WEBDL-2160p', 5000)`,
 		ms(5*time.Hour))
-	// Copies of the FLUX torrent: added to TorBox, not cached on AllDebrid.
-	e.exec(`INSERT INTO provider_copy_event (at, info_hash, name, title_id, provider, state, message, quality, score)
-		VALUES (?, ?, 'Alpha.2020.2160p.WEB-DL-FLUX', 1, 'tb', 'added', 'Added to TB', 'WEBDL-2160p', 5000),
-		(?, ?, 'Alpha.2020.2160p.WEB-DL-FLUX', 1, 'ad', 'not_cached', 'Not cached on AD; our add was deleted', NULL, NULL)`,
-		ms(4*time.Hour), hashB, ms(4*time.Hour)+1, hashB)
+	// Copies of the FLUX torrent: added to TorBox, not cached on AllDebrid (stored rows only: their source table is
+	// gone).
+	e.flag()
+	e.copyRows(`(?, 'copy:1', 'copy_added', 'Alpha.2020.2160p.WEB-DL-FLUX', ?, 'WEBDL-2160p', 5000, 'tb', 'Added to TB'),
+		(?, 'copy:2', 'copy_not_cached', 'Alpha.2020.2160p.WEB-DL-FLUX', ?, '', NULL, 'ad',
+		'Not cached on AD; our add was deleted')`, ms(4*time.Hour), hashB, ms(4*time.Hour)+1, hashB)
 	got = e.history(Filter{Title: "1", Since: at.Add(4 * time.Hour)})
 	want = []string{
 		"removed Alpha.2020.2160p.WEB-DL-FLUX WEBDL-2160p 5000 (deleted in Radarr)",
@@ -260,8 +265,12 @@ func TestHistoryRecordedFacts(t *testing.T) {
 	if len(got) != 1 || !strings.Contains(got[0], "Gamma.S01.Pack") {
 		t.Errorf("grabs since yesterday: %q", got)
 	}
-	e.exec(`INSERT INTO provider_copy_event (at, info_hash, name, title_id, provider, state, message)
-		VALUES (?, ?, 'Gamma.S01.Pack', 3, 'ad', 'already', 'Already on AD')`, msOf(testNow), hashA)
+	e.flag()
+	if _, err := e.st.Writer().Exec(`INSERT INTO history (ref, at, event, kind, title_id, release, info_hash, provider,
+		reason) VALUES ('copy:3', ?, 'copy_already', 'copy', 3, 'Gamma.S01.Pack', ?, 'ad', 'Already on AD')`,
+		msOf(testNow), hashA); err != nil {
+		t.Fatal(err)
+	}
 	if got := e.history(Filter{Events: []string{EvCopyAlready}}); len(got) != 1 || !strings.HasPrefix(got[0], "copy_already") {
 		t.Errorf("already: %q", got)
 	}

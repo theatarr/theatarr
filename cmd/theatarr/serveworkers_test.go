@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/theatarr/theatarr/internal/acquire"
-	"github.com/theatarr/theatarr/internal/errinbox"
 	"github.com/theatarr/theatarr/internal/health"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/store"
@@ -239,26 +238,21 @@ func TestServeWorkersBeforeStartAndNil(t *testing.T) {
 	(&serveRuntime{}).AfterPublish()
 }
 
-// A worker that panics is recorded in the error inbox with its stack and its status shows the error; the
-// supervisor keeps running and starts it again on its next settings.
+// A worker that panics is logged at error level with its stack and its status shows the error; the supervisor keeps
+// running and starts it again on its next settings.
 func TestServeWorkerPanicRecorded(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	st, err := store.Open(ctx, storetest.Seed(t, filepath.Join(t.TempDir(), "theatarr.db")), store.Options{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer st.Close()
-	if _, err := st.Migrate(ctx); err != nil {
-		t.Fatal(err)
-	}
-	in := errinbox.New(st, errinbox.Options{Version: "test"})
-	errinbox.Install(in)
-	defer errinbox.Install(nil)
-
+	var mu sync.Mutex
+	var logged strings.Builder
+	log := slog.New(slog.NewJSONHandler(writerFunc(func(p []byte) (int, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		return logged.Write(p)
+	}), nil))
 	var runs atomic.Int32
 	keys := map[int64]string{1: "a", 2: "b"}
-	s := newServeWorkers(ctx, quietLog(), serveWorker{name: "watch",
+	s := newServeWorkers(ctx, log, serveWorker{name: "watch",
 		key: func(rt *serveRuntime) string { return keys[rt.Generation] },
 		run: func(ctx context.Context, rt *serveRuntime, _ string) error {
 			runs.Add(1)
@@ -273,19 +267,18 @@ func TestServeWorkerPanicRecorded(t *testing.T) {
 	waitFor(t, "panic recorded in the status", func() bool { return workerStatus(s, "watch").Error != "" })
 	s.Apply(&serveRuntime{Generation: 2})
 	waitFor(t, "started again", func() bool { return runs.Load() == 2 && workerStatus(s, "watch").Running })
-	if err := in.Flush(ctx); err != nil {
-		t.Fatal(err)
-	}
-	p, err := errinbox.List(ctx, st, errinbox.Filter{Source: errinbox.SourcePanic})
-	if err != nil || len(p.Items) != 1 {
-		t.Fatalf("panic rows: %v %+v", err, p)
-	}
-	row, err := errinbox.Get(ctx, st, p.Items[0].ID)
-	if err != nil || row.Component != "live-settings" || !strings.Contains(row.Sample, "watch exploded") ||
-		!strings.Contains(row.Stack, "TestServeWorkerPanicRecorded") || !strings.Contains(string(row.Context), `"worker":"watch"`) {
-		t.Fatalf("panic row: %v %+v", err, row)
+	mu.Lock()
+	out := logged.String()
+	mu.Unlock()
+	if !strings.Contains(out, `"level":"ERROR"`) || !strings.Contains(out, "watch exploded") ||
+		!strings.Contains(out, "TestServeWorkerPanicRecorded") {
+		t.Fatalf("panic log: %s", out)
 	}
 }
+
+type writerFunc func([]byte) (int, error)
+
+func (f writerFunc) Write(p []byte) (int, error) { return f(p) }
 
 // The search round worker waits while router.enabled is false (Pause) and is off with no Live library; turning Pause
 // off changes its key from "paused", which starts the first round at once.

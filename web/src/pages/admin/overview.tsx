@@ -1,5 +1,5 @@
 // System › Status (docs/design/ui.md): what needs attention first, by consequence (VPN egress and failing health
-// checks, failed jobs and back-offs, Reviews, then downloads, collapsed into one line when more than one: the queue's
+// checks, failed jobs and back-offs, flagged decisions and held indexer definitions, then downloads, collapsed into one line when more than one: the queue's
 // own rule, internal/activity NativeQueueFailureSQL), each with its effect and the next step; then one summary strip
 // each for downloads and jobs; then diagnostics (readiness, schema, version and every health check). The numbers are
 // the API's (/readyz, /status, /health, /jobs, /gateway, /activity); job counts and the gateway update live.
@@ -7,14 +7,14 @@ import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, CheckCircle2 } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { Link } from "react-router";
-import { useReviewCounts } from "@/api/reviews";
+import { useCardigannHolds } from "@/api/cardigann";
 import { useSettings, useSettingsSections } from "@/api/settings";
 import { useSetup, setupUnfinished } from "@/api/setup";
 import { useAppBackups } from "@/api/backups";
 import { SETTINGS_PAGES } from "@/lib/settings-map";
 import { type ActivityDownload, useActivityNow } from "@/api/activity";
 import { useDanglingLinks } from "@/api/dangling";
-import { type Gateway, useGateway, useHealth, useStatus } from "@/api/hooks";
+import { type Gateway, useFlaggedCount, useGateway, useHealth, useStatus } from "@/api/hooks";
 import { useJobCounts, useJobsFiltered, useTasks } from "@/api/jobs";
 import { qk } from "@/api/query-keys";
 import { PRODUCT_NAME } from "@/brand";
@@ -64,11 +64,11 @@ type Attention = {
 };
 
 /** Needs attention's order by consequence: VPN and health checks (accounts, mount, backups) first, then tasks,
- * back-offs and sources that did not load, then Reviews, and single downloads last. */
+ * back-offs and sources that did not load, then flagged decisions and held definitions, and single downloads last. */
 function rank(key: string): number {
   if (key === "vpn" || key.startsWith("check-")) return 0;
   if (key.startsWith("job-") || key.startsWith("backoff-") || key.startsWith("unavailable-")) return 1;
-  if (key.startsWith("reviews")) return 2;
+  if (key === "flagged" || key === "holds") return 2;
   return 3;
 }
 
@@ -83,7 +83,8 @@ export function downloadsWords(ds: ActivityDownload[]): string {
 export function Overview() {
   // Readiness reads its own answers (settings sections, Theatarr backups) only once Details is opened.
   const [details, setDetails] = useState(false);
-  const reviews = useReviewCounts();
+  const flagged = useFlaggedCount().data?.count ?? 0;
+  const holds = useCardigannHolds().data?.length ?? 0;
   const setup = useSetup();
   const ready = useReady();
   const st = useStatus();
@@ -111,8 +112,8 @@ export function Overview() {
     d.import_state !== "rejected" && d.import_state !== "failed").length;
 
   const items: Attention[] = [];
-  for (const name of reviews.failures) items.push({ key: `reviews-${name}`, tone: "warn", title: `Reviews: couldn't load ${name}`, effect: "Waiting decisions are unknown.", next: "Open Reviews", to: "/admin/reviews" });
-  if (reviews.total > 0 || reviews.decisionsMore) items.push({ key: "reviews", tone: "warn", title: `${reviews.decisionsMore ? reviews.total ? `${reviews.total}+` : "?" : reviews.total} decisions waiting in Reviews`, effect: "Updates and matches that need your decision.", next: "Review the waiting items", to: "/admin/reviews" });
+  if (flagged > 0) items.push({ key: "flagged", tone: "warn", title: `${fmtNumber(flagged)} flagged ${flagged === 1 ? "decision" : "decisions"}`, effect: "A check found a grab, import or failure suspect.", next: "Open them in the Decision journal", to: "/admin/system/journal?suspect=1" });
+  if (holds > 0) items.push({ key: "holds", tone: "warn", title: `${fmtNumber(holds)} indexer ${holds === 1 ? "definition update" : "definition updates"} waiting`, effect: "An updated definition is used once you approve it.", next: "Review them in Settings › Indexers", to: "/admin/settings/indexers" });
   if (vpn === false || vpnOptional) {
     items.push({ key: "vpn", tone: vpnOptional ? "warn" : "bad", title: egress?.mode === "off" ? "VPN guard off" : egress?.mode === "monitor-only" ? "VPN monitor-only" : "VPN egress not confirmed", effect: vpnOptional ? "Requests do not require a VPN check." : `Requests requiring VPN (${(egress?.require_vpn_for ?? []).join(", ")}) wait until the VPN check passes.`, next: "Check the egress paths", to: "/admin/settings/indexers/vpn" });
   }
@@ -199,7 +200,7 @@ export function Overview() {
   for (const { key, name, q, to } of sources.filter((x) => x.q.error)) {
     items.push({ key: `unavailable-${key}`, tone: "warn", title: `Could not load ${name}`, effect: <>Alerts from it are unknown. <span className="text-[var(--ink-3)]">{q.error instanceof Error ? q.error.message : String(q.error)}</span></>, next: "Reload the page; check the server if it keeps failing", to });
   }
-  const checking = reviews.isPending || sources.some((x) => x.q.isPending);
+  const checking = sources.some((x) => x.q.isPending);
   items.sort((a, b) => rank(a.key) - rank(b.key) || (a.tone === b.tone ? 0 : a.tone === "bad" ? -1 : 1));
   const checks = hc.data?.checks ?? [];
   const schemaOK = st.data?.schema?.current === st.data?.schema?.target;

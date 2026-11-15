@@ -74,15 +74,14 @@ calls them. The UI shares two things with them (§3, §6): the add path (`catalo
   Requests (with its badge), More (a sheet with Wanted (managers and admins; Manual import admins only), Now playing,
   Calendar and the admin pages the account may open, top level only). Search stays in the header.
 - **Sidebar** (`web/src/components/shell/nav.ts`): Home, Library (Movies,
-  Series, Anime, Collections for managers and admins: `/collections`, docs/design/arrview.md), Requests, Activity, Wanted (managers and admins; Manual import admins only), Now playing, Calendar; then **Admin**: System, Reviews, Torrents,
+  Series, Anime, Collections for managers and admins: `/collections`, docs/design/arrview.md), Requests, Activity, Wanted (managers and admins; Manual import admins only), Now playing, Calendar; then **Admin**: System, Torrents,
   Settings, Users & access, Advanced. A manager, who has no Settings, gets **Import lists** under Admin. **Setup** appears first only when `/setup` reports `first_run` or
   nonempty `missing`. Successful section, provider, indexer and library saves refresh this query, including metadata keys and mount changes. A Setup checklist link remains on Status and the Settings home footer.
   System, Settings and Advanced show children while their pages are open; System includes `/admin`
-  and `/admin/system/*` (Status, Tasks, Backup, Errors, Logs, Decision journal). The phone More sheet lists the same
-  pages top level only: System, Settings and Advanced are closed groups that open on a tap, their own page first. System's badge sums new errors excluding source=job
-  and attention jobs; Tasks and Errors retain their own badges. Reviews uses an accent badge for all
-  waiting decisions; the flagged decisions among them are read only by the Reviews page and Status (the listing is
-  a slow scan), so the badge counts them as those pages last read them. Users and managers never see Admin; users-only accounts see Users & access,
+  and `/admin/system/*` (Status, Tasks, Backup, Logs, Decision journal). The phone More sheet lists the same
+  pages top level only: System, Settings and Advanced are closed groups that open on a tap, their own page first. System's badge sums the attention jobs and the
+  flagged decisions; Tasks and Decision journal keep their own badges. The flagged count (`GET /journal/flagged`, a
+  `COUNT(*)` over the stored flags) is read on admin pages only, once a minute. Users and managers never see Admin; users-only accounts see Users & access,
   and `/admin` takes them there. Sign-in still lands on Home.
 - Each library gets its own colour mark (the dots on pills, tags, the title page, filters): the configured libraries
   in key order take the palette `--v-0` … `--v-9` in turn (`web/src/lib/library-names.tsx`), so five libraries get
@@ -261,8 +260,6 @@ The remaining pages use the same tokens and primitives:
   actions, and the kind as a square chip with its facet mark (`FacetPill`, also in the add and request drawers). On
   TMDb posters only the kind chip sits on the art scrim; In library and Requested sit under the year, since a status
   chip beside the kind does not fit a phone-width poster.
-- **Reviews**: the waiting cards' Review is a Button, the empty inbox the shared empty state, and flagged decisions one
-  ruled list with each library's key tag.
 - **Login**: a ruled card, a Newsreader heading, Sign in with Plex as the primary button (no Plex orange), and the
   error and pending notices as edge-marked notes.
 - **Users & access**: the role select, Discord id input and switches are the primitives; the "Requests ask for"
@@ -297,15 +294,16 @@ The remaining pages use the same tokens and primitives:
 | Wanted › Missing / Cutoff unmet (managers and admins) / Manual import (admin) | `/wanted`, `/wanted/cutoff`, `/wanted/manual-import` |
 | Now playing / Calendar | `/now-playing`, `/calendar` |
 | Admin › Setup (while unfinished) | `/admin/setup` |
-| Admin › System › Status / Tasks / Backup / Errors / Logs / Decision journal | `/admin`, `/admin/system/tasks`, `/admin/system/backup`, `/admin/system/errors`, `/admin/system/logs`, `/admin/system/journal` (entry `/:id`) |
+| Admin › System › Status / Tasks / Backup / Logs / Decision journal | `/admin`, `/admin/system/tasks`, `/admin/system/backup`, `/admin/system/logs`, `/admin/system/journal` (entry `/:id`) |
 | Admin › Settings › Import lists (managers and admins) | `/admin/settings/import-lists` (old `/collections/lists` redirects) |
-| Admin › Reviews / Torrents | `/admin/reviews`, `/admin/torrents` |
+| Admin › Settings › Anime mappings | `/admin/settings/anime-mappings` (franchise `/:slug`) |
+| Admin › Torrents | `/admin/torrents` |
 | Admin › Settings | `/admin/settings` (destinations below) |
 | Admin › Users & access | `/admin/users` |
 | Admin › Advanced | `/admin/advanced` (migration, raw configuration, history and limits) |
 
 Phone tabs are Home, Browse, Activity, Requests and More (the search page belongs to Browse). More lists Wanted, Now
-playing and Calendar, then under Admin: Setup (when needed), System, Reviews, Torrents, Settings, Users & access and
+playing and Calendar, then under Admin: Setup (when needed), System, Torrents, Settings, Users & access and
 Advanced; System, Settings and Advanced open their pages on a tap. Counts retain the desktop badge
 sources. Below 640 px route tabs become a **Section** select. Settings authority banners collapse to a single-line
 summary with **Details** on phones; source and fallback information remain available.
@@ -621,8 +619,7 @@ by the full name, then the year ("Alien" before "Alien³").
 **Shared controls**: a sortable header (`SortHead`) looks like every other header (small capitals). A list read a page
 at a time shows the pager only when there is more than one page; a list that fits one page says "All 48 shown". A
 table wider than its frame scrolls inside the frame, and while columns are hidden on the right the frame's right edge
-fades. The sidebar's Reviews badge shows nothing
-until all its counts have loaded. On a phone, a title page and Home's "See all" lists highlight **Browse**.
+fades. On a phone, a title page and Home's "See all" lists highlight **Browse**.
 
 **Codes in words** (`web/src/lib/code-words.ts` and one file per domain): a stored code is never printed as it is.
 Rejection reasons (`rejection-words.ts`: "DiskHigherPreference" reads "Not better than the file held"), TMDb statuses and release types
@@ -631,8 +628,7 @@ Rejection reasons (`rejection-words.ts`: "DiskHigherPreference" reads "Not bette
 "TVDB_SPECIAL" reads "TVDB special", "heuristic" "Matched by date and title"), the router's attempt outcomes, step
 codes, cache states and sources and back-off subjects (`router-words.ts`: "uncached_deleted" reads "not cached, our
 add deleted", "router:miss" "from a search that found it nowhere"), torrent states and the torrents journal
-(`torrent-words.ts`: "downloaded" reads "Complete", "backup ok" "Backed up", "schedule" "Scheduled"), the Errors page's
-statuses, sources and health-check components (`error-words.ts`: "VpnEgressCheck" reads "VPN egress"), and job kinds
+(`torrent-words.ts`: "downloaded" reads "Complete", "backup ok" "Backed up", "schedule" "Scheduled"), and job kinds
 (`jobs.ts`). A code no map knows reads as itself made readable (underscores and camel case to words, sentence case:
 "some_new_code" reads "Some new code"), never blank. Where an admin may need the code, it stays as the element's
 tooltip. Sentences the server builds keep their words in one Go function: the blocklist's reason (`blockWords`,
@@ -778,12 +774,11 @@ column (no list projection of media facts).
 
 | Screen | Path | Holds |
 |---|---|---|
-| System › Status | `/admin` | Needs attention, then Checks, first; the rest is folded under **Details**: Readiness (Downloads, Library links, Notifications ON/OFF, linked to their settings, and the newest complete Theatarr backup), the download and task strips, Libraries and Diagnostics. Needs attention groups failed jobs by kind with newest error, Retry newest and See all; single failures retain Retry/Dismiss. Waiting Reviews count, health failures, back-offs and delayed downloads; then download/task summaries, libraries and diagnostics. A download held for review (the library refused it) or whose link failed counts under need attention only, not also in progress. A delayed download names its title with episodes and library, its stage, its error when it failed (or whether some files are linked) and its release; Inspect opens that download in Activity (`/activity?open=<id>`). The download and task strips and the readiness switches say Loading (or the error) until their answers arrive, never 0, Unknown or OFF. The dangling-links check counts links under the libraries' roots only (other folders the report walks, `library.dangling.roots`, are not counted); its row has a "Show the N broken links" list, loaded when opened from `GET /health/dangling` (the latest report's links under the libraries' roots; `theatarr library dangling` prints every root; at most the 500 oldest, with a note when there are more): title or release folder, library, since, cause ("target missing" when no other is known), and a hint from the recorded link's state (marked missing, waiting for the repair sweep, or not a link Theatarr made). It only lists: nothing is scanned or repaired from it. |
+| System › Status | `/admin` | Needs attention, then Checks, first; the rest is folded under **Details**: Readiness (Downloads, Library links, Notifications ON/OFF, linked to their settings, and the newest complete Theatarr backup), the download and task strips, Libraries and Diagnostics. Needs attention groups failed jobs by kind with newest error, Retry newest and See all; single failures retain Retry/Dismiss. The flagged decisions count (to the journal's Flagged view), held indexer definition updates, health failures, back-offs and delayed downloads; then download/task summaries, libraries and diagnostics. A download held for review (the library refused it) or whose link failed counts under need attention only, not also in progress. A delayed download names its title with episodes and library, its stage, its error when it failed (or whether some files are linked) and its release; Inspect opens that download in Activity (`/activity?open=<id>`). The download and task strips and the readiness switches say Loading (or the error) until their answers arrive, never 0, Unknown or OFF. The dangling-links check counts links under the libraries' roots only (other folders the report walks, `library.dangling.roots`, are not counted); its row has a "Show the N broken links" list, loaded when opened from `GET /health/dangling` (the latest report's links under the libraries' roots; `theatarr library dangling` prints every root; at most the 500 oldest, with a note when there are more): title or release folder, library, since, cause ("target missing" when no other is known), and a hint from the recorded link's state (marked missing, waiting for the repair sweep, or not a link Theatarr made). It only lists: nothing is scanned or repaired from it. |
 | System › Tasks | `/admin/system/tasks` | Attention, running/queued, the scheduled tasks (interval, last run and duration, next run, Run now), and folded resolved/finished work; `?kind=` filters on the server before the limit. The "failed, resolved ones included" count is every failed job; "need attention" is the open ones. Technical job kinds and details are kept. |
 | System › Backup | `/admin/system/backup` | Theatarr backups and confirmed restore; the torrent-list schedule as text (changed in Settings › Download clients › Torrents), backups, import, download and restore preview; review-only settings export link; database counts (title-library entries, torrents in the registry, library links), nightly run (Loading or the error until it loads, never "none recorded") and `#backup-check`. No advanced-settings toggle: the page has no advanced field. |
-| System › Errors | `/admin/system/errors` | Existing error inbox and its actions. |
 | System › Logs | `/admin/system/logs` | The log viewer and its filters ("Show lines from", component); the service's own log level is a separate card above the lines (`#log-level`) with **Apply**: it changes what the running service writes until a restart. |
-| Reviews | `/admin/reviews` | Waiting cards for Anime mappings (`/anime`, franchise detail `/:slug`, with alternate cuts and episode numbering), Indexer definitions (`/indexers`) and Flagged decisions (`/decisions`). These suffixes are under `/admin/reviews`; the old `/admin/reviews/quality` opens the Waiting tab (TRaSH and Recyclarr updates apply by themselves, Settings › Quality sync logs them). Counts poll every 60 seconds for admins; catalog off returns an empty holds list (HTTP 200). Pending counts show Loading and failed counts show unavailable. Journal has no total: a full page or next_cursor marks a lower bound (`50+`, `1+`, or `?` when no matches were found in the scan). Waiting and Status never give an all-clear for unknown counts; Status names failed review sources. An empty scanned window says “None in the newest entries.” and links to all flagged decisions. Definition reviews show loading, errors, or “No definition updates waiting.”. Flagged rows name their item (title with episodes; a link entry's file, else the release) and the reason, and link to the journal verdict controls. Above them, **Acknowledge N settled flags** records an OK verdict on every open dead-link flag that is settled (`GET /journal/resolved`: repaired by a library action and not broken now, or a newer flag for the same link exists; docs/journal.md); the entries stay, and nothing else changes. Each row also has **Acknowledge** (the plain OK verdict). Wrong blocks and searches again only with new downloads on, an active library and a known release; otherwise it records the verdict. |
+| Settings › Anime mappings | `/admin/settings/anime-mappings` | The anime review queue (Waiting, Accepted, Rejected, Replaced, All; one card per item), the franchises with their mapping counts and builds, and anime series without a franchise; a franchise at `/:slug` with alternate cuts and episode numbering (docs/design/anime.md). System › Status shows an **Anime mappings** notice while items wait. The old Reviews hub went in 0.4.5: `/admin/reviews` and `/admin/reviews/decisions` redirect to the journal's Flagged view, `/admin/reviews/anime[/:slug]` here, `/admin/reviews/indexers` to Settings › Indexers (held definition updates are listed there, above the indexers, while any wait) and `/admin/reviews/quality` to Settings › Quality sync. |
 | Torrents | `/admin/torrents` | Provider torrents from the record (torrents.md "The record"): one line per account with counts in their units (account torrents, unique hashes) and "as of" its time ("Not read yet — Refresh reads it" before the first listing; a failed read keeps showing the earlier record and says so), **Refresh** ("Reading the accounts…") says what it read per account and reloads; "not worked out" usage with its reason; usage, filters (`?q=` fills the name or hash filter), sorting, a Provider column with the RD/AD/TB tag under All providers (the strip, tabs, refusals and journal name providers the same way), each hash shown (its first 12 hex), the titles a used torrent belongs to linked under its usage (the first three) and all of them in the expanded row, confirmed deletes and journal. The provider tab, filter, text and sort are in the URL (`?provider=&group=&q=&sort=`); a name and its parsed episode list show two lines at most, the whole as tooltip. **Not used by Theatarr** (the former Unused) has a line beside the filters saying it checks Theatarr's libraries and the other libraries' folders listed in Settings › Download clients › Torrents, linked; other apps on the same accounts are not seen. An account that cannot be read gets one line: the provider's tag, why in plain words (the provider asked to slow down, paused after failed requests, request limit used up, VPN not confirmed) and the next try in local time, with the raw error under Details. The old Saved inventory addresses open Torrents (an entry filtered to its hash). Backups live in System › Backup. |
 | Settings | `/admin/settings` | Search and task pages below. |
 | Users & access | `/admin/users` | Users, roles, permissions, sessions and API/view keys. **Give someone access**: the sign-in link to copy, what a first Plex sign-in gets (waits for approval, or is let in at once, as a User) and what each role does; no invite system. Your own role cannot be changed (the select is locked; `PATCH users/{id}` answers 400). |
@@ -794,7 +789,7 @@ One admin-only screen lives outside `/admin`, beside the page it belongs with:
 | Screen | Path | Holds |
 |---|---|---|
 | Wanted › Manual import | `/wanted/manual-import` | Existing file linking workflow, as the third tab of Wanted. |
-| System › Decision journal | `/admin/system/journal[/:id]` | Decisions, evidence and Ok/Wrong verdicts (admin). Reviews › Flagged decisions links to it filtered (`?suspect=1`); its row button is the same **Ok**. `/activity/journal[/:id]` redirects here. |
+| System › Decision journal | `/admin/system/journal[/:id]` | Decisions and their evidence (admin); **Flagged** (`?suspect=1`) lists the entries with a stored warn or error flag, and Status's Needs attention links there with the count. No verdicts. `/activity/journal[/:id]` redirects here. |
 
 Older Jobs, Errors, Logs, Database, Metadata review, inventory, migration, journal (`/admin/journal[/:id]`,
 `/admin/advanced/journal[/:id]`, `/activity/journal[/:id]`) and manual import (`/admin/advanced/manual-import`) URLs redirect in one hop to the current
@@ -910,7 +905,7 @@ The torrent-backups panel is owned by the System Backup page and is searchable w
   ways with profile scores.
 - Settings history is newest first with Older/Newer.
 - Phones (400 px): Cache checks labels wrap with a one-word Reset; provider status cards do not push Download
-  clients sideways; Errors rows give the message the full width with Seen/Resolve/Ignore below.
+  clients sideways.
 - Details: [settings.md](settings.md#form-details).
 
 ## 3. Multi-user

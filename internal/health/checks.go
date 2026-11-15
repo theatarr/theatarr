@@ -1001,3 +1001,21 @@ func day(t, now time.Time) string {
 	}
 	return t.UTC().Format("Jan 2, 2006")
 }
+
+// AnimeReviews is a notice while anime mappings wait for review (Settings › Anime mappings): episode numbering
+// Theatarr could not match on its own.
+func AnimeReviews(st *store.Store) Func {
+	return func(ctx context.Context) Result {
+		var n int
+		if err := st.Reader().QueryRowContext(ctx, `SELECT COUNT(*) FROM anime_review WHERE state = 'open'`).
+			Scan(&n); err != nil {
+			return fail("Anime reviews not readable: %v", err)
+		}
+		detail := map[string]any{"open": n}
+		if n == 0 {
+			return Result{Type: OK, Detail: detail, Message: "No anime mapping waits for review"}
+		}
+		return Result{Type: Notice, Detail: detail,
+			Message: fmt.Sprintf("%d anime mapping(s) wait for review in Settings › Anime mappings", n)}
+	}
+}

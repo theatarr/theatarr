@@ -1,6 +1,6 @@
 // Package journal is Theatarr's grab journal: one entry per decision (grab, upgrade, search, re-search) and per thing that happened to one afterwards (failure, stall, blocklist, import, link), each with
 // its reasoning (the chosen release, its score and formats, the runners-up and their rejections), provider attempts
-// and cache evidence, import results, suspect flags and verdicts. docs/journal.md is the reader's guide.
+// and cache evidence, import results and suspect flags. docs/journal.md is the reader's guide.
 //
 // # Sources
 //
@@ -9,14 +9,15 @@
 //   - download, download_attempt, provider_cache, router_blocklist (router), acquire_run (acquirer);
 //   - library_import, library_action, link, content_file (the library).
 //
-// Two tables are its own (migration 00024): journal_decision, the candidates a search decided between when it
-// handed work to the router (written by internal/journal/snapshot), and journal_verdict.
+// Its own tables: journal_decision (migration 00024), the candidates a search decided between when it handed work to
+// the router (written by internal/journal/snapshot), and journal_action (operator actions, action.go). Flags are
+// stored on the History rows (flag.go).
 //
 // # Ids
 //
 // An entry id names its source row: dl:<download> (grab or upgrade), dl:<download>:fail (failure or stall),
 // dl:<download>:import, lib:<library_action>, bl:<router_blocklist rowid>, run:<acquire_run>,
-// v:<journal_verdict>, act:<journal_action> (an operator action through the web UI, migration 00039: action.go).
+// act:<journal_action> (an operator action through the web UI, migration 00039: action.go).
 //
 // # Safety
 //
@@ -27,15 +28,14 @@
 //
 // # Retention
 //
-// See Prune: the journal's own decision rows are kept in full for 180 days, then trimmed or dropped; verdicts are
-// kept for good. Everything else follows its owner's retention.
+// See Prune: the journal's own decision rows are kept in full for 180 days, then trimmed or dropped. Everything else
+// follows its owner's retention.
 package journal
 
 import (
 	"context"
 	"database/sql"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -45,7 +45,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/theatarr/theatarr/internal/jobs"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/router"
 	"github.com/theatarr/theatarr/internal/store"
@@ -62,27 +61,27 @@ var ErrBadFilter = errors.New("journal: bad filter")
 type Config struct {
 	Store  *store.Store
 	Policy *policy.Policy
-	// Queue enqueues the re-search of a "wrong" verdict; nil records verdicts only.
-	Queue  *jobs.Queue
 	Logger *slog.Logger
 	Now    func() time.Time
 	// PolicyFor is the policy of the settings generation an operation runs under (serve: the captured runtime, else
 	// the current one), so a version activated after startup is journaled and judged as active. nil, or a nil
 	// result, uses Policy.
 	PolicyFor func(context.Context) *policy.Policy
+	// ReadOnly leaves the flags unchecked rows wait for alone (theatarr journal reads the database only).
+	ReadOnly bool
 }
 
-// Journal reads the journal and records verdicts.
+// Journal reads the journal and stores its flags.
 type Journal struct {
 	st     *store.Store
 	pol    *policy.Policy
 	polFor func(context.Context) *policy.Policy
-	q      *jobs.Queue
 	log    *slog.Logger
 	now    func() time.Time
+	ro     bool
 
+	fillMu sync.Mutex // one flag fill at a time (flag.go)
 	mu     sync.Mutex
-	own    *bool // journal_decision and journal_verdict exist (a database not migrated to 00024 has neither)
 	acts   *bool // journal_action exists (migration 00039)
 	sizes  *sizeStats
 	sizeAt time.Time
@@ -102,7 +101,7 @@ func New(cfg Config) *Journal {
 	if cfg.Now == nil {
 		cfg.Now = time.Now
 	}
-	return &Journal{st: cfg.Store, pol: cfg.Policy, polFor: cfg.PolicyFor, q: cfg.Queue, log: cfg.Logger.With("component", "journal"),
+	return &Journal{st: cfg.Store, pol: cfg.Policy, polFor: cfg.PolicyFor, ro: cfg.ReadOnly, log: cfg.Logger.With("component", "journal"),
 		now: cfg.Now}
 }
 
@@ -135,16 +134,14 @@ type Filter struct {
 	TitleKind string
 	// Kinds keeps these kinds.
 	Kinds []string
-	// Suspect keeps entries with an unacknowledged flag of severity warn or error.
+	// Suspect keeps entries with a stored flag of severity warn or error (flag.go).
 	Suspect bool
-	// Severity keeps entries with an unacknowledged flag of at least this severity (info, warn, error).
+	// Severity keeps entries with a stored flag of at least this severity (info, warn, error).
 	Severity string
 	// Cursor continues a listing: the NextCursor of the previous page.
 	Cursor string
 	// Limit is the page size: default 50, at most 500.
 	Limit int
-	// ScanLimit caps how many entries one page may build while looking for suspect ones: default 2000.
-	ScanLimit int
 	// Events keeps these History events (History only, history.go).
 	Events []string
 }
@@ -154,8 +151,6 @@ type Page struct {
 	Items []*Entry `json:"items"`
 	// NextCursor continues the listing; empty at the end.
 	NextCursor string `json:"next_cursor,omitempty"`
-	// Scanned counts the entries looked at to fill the page (more than len(Items) with suspect or severity).
-	Scanned int `json:"scanned"`
 }
 
 // head is one entry's place in the listing.
@@ -205,28 +200,11 @@ func (f *Filter) Validate() error {
 	if f.Severity != "" && SevRank(f.Severity) == 0 {
 		return fmt.Errorf("%w: severity %q: want info, warn or error", ErrBadFilter, f.Severity)
 	}
-	if f.Limit < 0 || f.ScanLimit < 0 {
+	if f.Limit < 0 {
 		return fmt.Errorf("%w: negative limit", ErrBadFilter)
 	}
 	_, err := decodeCursor(f.Cursor)
 	return err
-}
-
-func (j *Journal) hasOwnTables(ctx context.Context) bool {
-	j.mu.Lock()
-	defer j.mu.Unlock()
-	if j.own != nil {
-		return *j.own
-	}
-	var n int
-	err := j.st.Reader().QueryRowContext(ctx, `SELECT COUNT(*) FROM sqlite_master WHERE type = 'table'
-		AND name IN ('journal_decision', 'journal_verdict')`).Scan(&n)
-	if err != nil {
-		return false
-	}
-	ok := n == 2
-	j.own = &ok
-	return ok
 }
 
 // failureRunSQL says an acquire run is a re-search after a failure (router.FailureResearchSQL): Search now, the
@@ -254,52 +232,43 @@ FROM library_import li JOIN download d ON d.id = li.download_id`},
 }
 
 // headSQL is the union of every part.
-var headSQL = unionOf(func(string) bool { return true }, "")
+var headSQL = unionOf(func(string) bool { return true })
+
+// flaggedHeadSQL lists the History rows by their entries, before a severity condition.
+const flaggedHeadSQL = `SELECT ` + entryOfRefSQL + ` AS id, at, title_id, version_key, kind FROM history WHERE `
 
 // libHeadSQL is the library part without its filter.
 const libHeadSQL = `SELECT 'lib:' || la.id, la.at, ` + libTitleSQL + `,
 	COALESCE(la.version_key, ''), 'link'
 FROM library_action la `
 
-// filteredHeadSQL is headSQL for a filtered listing: its library part lists only the flagged dead actions (rowid
-// lookups, one JSON argument).
-var filteredHeadSQL = unionOf(func(string) bool { return true }, libHeadSQL+`WHERE la.id IN (SELECT value FROM json_each(?))`)
-
-// unionOf is the union of the parts keep selects, with lib, when set, in place of the library part. Its first
-// member only names the columns.
-func unionOf(keep func(prefix string) bool, lib string) string {
+// unionOf is the union of the parts keep selects. Its first member only names the columns.
+func unionOf(keep func(prefix string) bool) string {
 	qs := []string{`SELECT '' AS id, 0 AS at, 0 AS title_id, '' AS version_key, '' AS kind WHERE 0`}
 	for _, p := range headParts {
 		if keep(p.prefix) {
-			if p.prefix == "lib" && lib != "" {
-				qs = append(qs, lib)
-				continue
-			}
 			qs = append(qs, p.sql)
 		}
 	}
 	return strings.Join(qs, "\nUNION ALL\n")
 }
 
-const verdictHeadSQL = `
-UNION ALL
-SELECT 'v:' || jv.id, jv.created_at, COALESCE(jv.title_id, 0), jv.version_key, 'verdict' FROM journal_verdict jv`
-
-// heads returns up to n entries' places, newest first, after cur.
-// firsts, for a filtered listing, are the dead-link findings' first actions as a JSON array of library_action ids:
-// a link entry's only flag is dead_link and only those carry it, so the other link entries are not listed at all.
-func (j *Journal) heads(ctx context.Context, f Filter, titles []int64, cur *cursor, n int, firsts []byte) ([]head, error) {
+// heads returns up to n entries' places, newest first, after cur. A flagged listing (Suspect or Severity) reads the
+// flagged History rows (flag.go) instead of every source.
+func (j *Journal) heads(ctx context.Context, f Filter, titles []int64, cur *cursor, n int) ([]head, error) {
 	q := headSQL
 	var args []any
-	if firsts != nil {
-		q = filteredHeadSQL
-		args = append(args, string(firsts))
-	}
-	if j.hasOwnTables(ctx) {
-		q += verdictHeadSQL
-	}
-	if j.hasActions(ctx) {
-		q += actionHeadSQL
+	switch {
+	case f.Severity == SevError:
+		q = flaggedHeadSQL + `severity = 'error'`
+	case f.Suspect || f.Severity == SevWarn:
+		q = flaggedHeadSQL + flaggedWhere
+	case f.Severity == SevInfo:
+		q = flaggedHeadSQL + `severity <> ''`
+	default:
+		if j.hasActions(ctx) {
+			q += actionHeadSQL
+		}
 	}
 	q = `SELECT id, at, title_id, version_key, kind FROM (` + q + `) WHERE 1 = 1`
 	if !f.Since.IsZero() {
@@ -410,51 +379,34 @@ func (j *Journal) List(ctx context.Context, f Filter) (*Page, error) {
 		f.Limit = 50
 	}
 	f.Limit = min(f.Limit, 500)
-	if f.ScanLimit == 0 {
-		f.ScanLimit = 2000
-	}
 	cur, _ := decodeCursor(f.Cursor)
 	titles, err := j.titleIDs(ctx, f.Title)
 	if err != nil {
 		return nil, err
 	}
-	filtered := f.Suspect || f.Severity != ""
-	b := j.newBuilder(ctx)
-	var firsts []byte
-	if filtered {
-		// Every dead-link finding's first action, read once for the whole listing.
-		if b.firsts, err = j.deadFirsts(ctx, b.db); err != nil {
-			return nil, err
-		}
-		ids := make([]int64, 0, len(b.firsts))
-		for id := range b.firsts {
-			ids = append(ids, id)
-		}
-		firsts, _ = json.Marshal(ids)
+	if _, err := j.Fill(ctx, fillBatch); err != nil {
+		return nil, err
 	}
+	b := j.newBuilder(ctx)
 	page := &Page{Items: []*Entry{}}
 	batch := f.Limit + 1
-	if filtered {
-		batch = 200
-	}
 	for {
-		hs, err := j.heads(ctx, f, titles, cur, batch, firsts)
+		hs, err := j.heads(ctx, f, titles, cur, batch)
 		if err != nil {
 			return nil, err
 		}
 		for _, h := range hs {
-			if len(page.Items) == f.Limit || (filtered && page.Scanned >= f.ScanLimit) {
+			if len(page.Items) == f.Limit {
 				// cur is the last head looked at: the next page starts after it.
 				page.NextCursor = encodeCursor(head{at: cur.at, id: cur.id})
 				return page, nil
 			}
-			page.Scanned++
 			cur = &cursor{at: h.at, id: h.id}
 			e, err := b.build(h)
 			if err != nil {
 				return nil, err
 			}
-			if e != nil && keep(e, f) {
+			if e != nil {
 				page.Items = append(page.Items, e)
 			}
 		}
@@ -464,18 +416,11 @@ func (j *Journal) List(ctx context.Context, f Filter) (*Page, error) {
 	}
 }
 
-func keep(e *Entry, f Filter) bool {
-	if f.Suspect && !e.Suspect {
-		return false
-	}
-	if f.Severity != "" && SevRank(e.Severity) < SevRank(f.Severity) {
-		return false
-	}
-	return true
-}
-
 // Get returns one entry.
 func (j *Journal) Get(ctx context.Context, id string) (*Entry, error) {
+	if _, err := j.Fill(ctx, fillBatch); err != nil {
+		return nil, err
+	}
 	h, err := j.headOf(ctx, id)
 	if err != nil {
 		return nil, err
@@ -496,13 +441,10 @@ func (j *Journal) headOf(ctx context.Context, id string) (head, error) {
 		return head{}, ErrNotFound
 	}
 	prefix, _, _ := strings.Cut(id, ":")
-	q := unionOf(func(p string) bool { return p == prefix }, "")
+	q := unionOf(func(p string) bool { return p == prefix })
 	// A direct search handoff includes routed runs too; the feed still represents those by their downloads.
 	if prefix == "run" {
 		q = runHeadSQL
-	}
-	if prefix == "v" && j.hasOwnTables(ctx) {
-		q += verdictHeadSQL
 	}
 	if prefix == "act" && j.hasActions(ctx) {
 		q += actionHeadSQL

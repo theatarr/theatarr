@@ -43,7 +43,7 @@ describe("old admin URLs", () => {
     expect(legacyTarget("/admin/torrents/inventory/abcdef", "?x=1", "#y")).toBe("/admin/torrents?q=abcdef&x=1#y");
   });
   it("leaves current URLs alone", () => {
-    for (const p of ["/admin", "/admin/system/tasks", "/admin/users", "/admin/reviews/anime/x", "/admin/system/journal", "/admin/system/journal/dl:7", "/admin/settings/import-lists", "/collections", "/collections/12", "/wanted/manual-import", "/movies"]) {
+    for (const p of ["/admin", "/admin/system/tasks", "/admin/users", "/admin/settings/anime-mappings/x", "/admin/system/journal", "/admin/system/journal/dl:7", "/admin/settings/import-lists", "/collections", "/collections/12", "/wanted/manual-import", "/movies"]) {
       expect(legacyTarget(p)).toBeNull();
     }
   });
@@ -51,7 +51,7 @@ describe("old admin URLs", () => {
 
 it("preserves edit, raw and anchors for all moved settings routes", () => {
  for (const [from, to] of LEGACY_ROUTES.filter(([from]) => !from.includes(":"))) {
-  expect(legacyTarget(from, "?edit=movie-web&raw=1", "#mount")).toBe(to + "?edit=movie-web&raw=1#mount");
+  expect(legacyTarget(from, "?edit=movie-web&raw=1", "#mount")).toBe(to + (to.includes("?") ? "&" : "?") + "edit=movie-web&raw=1#mount");
  }
 });
 
@@ -62,20 +62,27 @@ it("preserves query and hash for every legacy route including details", () => {
   expect(legacyTarget(path, "?x=1", "#y")).toBe(target + (target.includes("?") ? "&" : "?") + "x=1#y");
  }
 });
-it.each(["tasks", "backup", "errors", "logs", "journal"])("system parent aliases do not shadow /admin/system/%s", page => {
+it.each(["tasks", "backup", "logs", "journal"])("system parent aliases do not shadow /admin/system/%s", page => {
  expect(legacyTarget(`/admin/system/${page}`, "?x=1", "#y")).toBeNull();
 });
 
 it.each([
  ["/admin/jobs", "/admin/system/tasks"],
  ["/admin/system/jobs", "/admin/system/tasks"],
- ["/admin/errors", "/admin/system/errors"],
+ ["/admin/errors", "/admin/system/logs"],
+ ["/admin/system/errors", "/admin/system/logs"],
+ ["/admin/reviews", "/admin/system/journal?suspect=1"],
+ ["/admin/reviews/decisions", "/admin/system/journal?suspect=1"],
+ ["/admin/reviews/anime", "/admin/settings/anime-mappings"],
+ ["/admin/reviews/anime/example", "/admin/settings/anime-mappings/example"],
+ ["/admin/reviews/indexers", "/admin/settings/indexers"],
+ ["/admin/reviews/quality", "/admin/settings/quality-sync"],
  ["/admin/advanced/logs", "/admin/system/logs"],
  ["/admin/logs", "/admin/system/logs"],
  ["/admin/advanced/database", "/admin/system/backup"],
  ["/admin/system/database", "/admin/system/backup"],
- ["/admin/metadata", "/admin/reviews/anime"],
- ["/admin/metadata/example", "/admin/reviews/anime/example"],
+ ["/admin/metadata", "/admin/settings/anime-mappings"],
+ ["/admin/metadata/example", "/admin/settings/anime-mappings/example"],
  ["/admin/advanced/inventory", "/admin/torrents"],
  ["/admin/registry", "/admin/torrents"],
  ["/admin/setup/migrate", "/admin/arr-import"],
@@ -85,7 +92,7 @@ it.each([
  ["/admin/advanced/arr/imports", "/admin/arr-import"],
  ["/admin/system/imports", "/admin/arr-import"],
 ])("ia2 redirects %s with query and hash intact", (from, to) => {
- expect(legacyTarget(from, "?x=1", "#y")).toBe(to + "?x=1#y");
+ expect(legacyTarget(from, "?x=1", "#y")).toBe(to + (to.includes("?") ? "&" : "?") + "x=1#y");
 });
 
 it("sends Settings › General bookmarks to the pages that own its panels now", () => {

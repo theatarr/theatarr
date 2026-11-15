@@ -1,7 +1,6 @@
 package web
 
 import (
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -39,62 +38,26 @@ func TestJournalAPI(t *testing.T) {
 		t.Errorf("missing: %d", code)
 	}
 
-	post := func(id, body string, c *http.Cookie, withKey bool) *httptest.ResponseRecorder {
-		r := httptest.NewRequest("POST", APIBase+"/journal/"+id+"/verdict", strings.NewReader(body))
-		r.Header.Set("Content-Type", "application/json")
-		if withKey {
-			r.Header.Set("X-Api-Key", key)
-		}
-		if c != nil {
-			r.AddCookie(c)
-		}
-		return e.do(r)
+	// Three failures in 30 days flag the latest; the flagged view and the badge's count read the stored flags.
+	for id := 2; id <= 3; id++ {
+		e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, quality,
+			score, state, error, source, created_at, updated_at) VALUES (?, 1, 2, 'movie-web', ?, 'Alpha.2020.2160p.WEB-DL-GRP',
+			'dmm', 'WEBDL-2160p', 1500, 'failed', 'miss on every provider', 'acquire:1', ?, ?)`, id, hashA[:39]+string(rune('0'+id)),
+			now-3000+int64(id), now-2000+int64(id))
 	}
-	if rec := post("dl:1", `{"verdict":"wrong","reason":"x"}`, nil, false); rec.Code != 401 {
-		t.Errorf("no auth: %d", rec.Code)
+	if code := e.getKey(APIBase+"/journal?suspect=1", key, &page); code != 200 || len(page.Items) != 1 ||
+		page.Items[0].ID != "dl:3:fail" || !page.Items[0].Suspect {
+		t.Fatalf("flagged: %d %+v", code, page.Items)
 	}
-	if rec := post("dl:1", `{"verdict":"wrong","reason":"x"}`, e.login(), false); rec.Code != 403 {
-		t.Errorf("session without CSRF: %d", rec.Code)
+	var count struct{ Count int }
+	if code := e.getKey(APIBase+"/journal/flagged", key, &count); code != 200 || count.Count != 1 {
+		t.Errorf("flagged count: %d %+v", code, count)
 	}
-	if rec := post("dl:1", `{"verdict":"meh","reason":"x"}`, nil, true); rec.Code != 400 {
-		t.Errorf("bad verdict: %d", rec.Code)
-	}
-	if rec := post("dl:99", `{"verdict":"ok","reason":"x"}`, nil, true); rec.Code != 404 {
-		t.Errorf("missing entry: %d", rec.Code)
-	}
-	rec := post("dl:1", `{"verdict":"wrong","reason":"not the movie"}`, nil, true)
-	var v journal.Verdict
-	if rec.Code != 200 || json.Unmarshal(rec.Body.Bytes(), &v) != nil || v.Action != journal.ActionRecorded ||
-		v.By != "key:test-client" || !strings.Contains(v.Note, "router.enabled is false") {
-		t.Fatalf("verdict: %d %s", rec.Code, rec.Body.String())
-	}
-	var n int
-	e.st.Reader().QueryRow(`SELECT COUNT(*) FROM router_blocklist`).Scan(&n)
-	if n != 0 {
-		t.Error("a recorded verdict blocklisted")
-	}
-	if code := e.getKey(APIBase+"/journal/dl:1", key, &en); code != 200 || en.Verdict == nil || en.Verdict.ID != v.ID {
-		t.Errorf("entry verdict: %+v", en.Verdict)
-	}
-
-	// A dead-link flag superseded by a newer finding of the same link is listed as resolved and acknowledged in bulk.
-	e.exec(`INSERT INTO library_action (at, kind, mode, version_key, link_id, path, target)
-		VALUES (?, 'dead', 'dry_run', 'movie-web', 999, '/lib/x.mkv', '/mnt/x.mkv'),
-		(?, 'dead', 'dry_run', 'movie-web', 999, '/lib/x.mkv', '/mnt/y.mkv')`, now-3000, now-2000)
-	var res struct {
-		Count int `json:"count"`
-		Items []struct{ Entry, Why string }
-	}
-	if code := e.getKey(APIBase+"/journal/resolved", key, &res); code != 200 || res.Count != 1 ||
-		res.Items[0].Why != journal.ResolvedSuperseded {
-		t.Fatalf("resolved: %d %+v", code, res)
-	}
-	if code, body := e.postKeyJSON(APIBase+"/journal/resolved/acknowledge", key, ``); code != 200 ||
-		body["acknowledged"] != float64(1) {
-		t.Errorf("acknowledge: %d %v", code, body)
-	}
-	if code := e.getKey(APIBase+"/journal/"+res.Items[0].Entry, key, &en); code != 200 || en.Suspect ||
-		en.Verdict == nil || en.Verdict.By != "key:test-client" {
-		t.Errorf("acknowledged entry: %d %+v", code, en)
+	// Verdicts are gone.
+	r := httptest.NewRequest("POST", APIBase+"/journal/dl:1/verdict", strings.NewReader(`{"verdict":"ok","reason":"x"}`))
+	r.Header.Set("Content-Type", "application/json")
+	r.Header.Set("X-Api-Key", key)
+	if rec := e.do(r); rec.Code != http.StatusNotFound && rec.Code != http.StatusMethodNotAllowed {
+		t.Errorf("verdict: %d", rec.Code)
 	}
 }

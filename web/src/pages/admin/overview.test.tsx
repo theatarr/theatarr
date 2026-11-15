@@ -10,9 +10,8 @@ import { JobsPage } from "./jobs";
 const reviewRoutes = [
  { method: "GET", path: "/auth/me", reply: { permissions: ["admin"] } },
  { method: "GET", path: "/settings/sync/changes", reply: [] },
- { method: "GET", path: "/anime/review", reply: { items: [] } },
  { method: "GET", path: "/cardigann/holds", reply: [] },
- { method: "GET", path: "/journal", reply: { items: [] } },
+ { method: "GET", path: "/journal/flagged", reply: { count: 0 } },
 ];
 const status = { schema: { current: 1, target: 1 } };
 
@@ -118,9 +117,9 @@ it("filters Tasks by the kind query and can show all again", async () => {
  expect(await screen.findByText("arr error")).toBeTruthy();
 });
 
-it.each(["pending", "error", "scan"])("Status does not give an all-clear for %s reviews", async state => {
+it("lists the flagged decisions and the held indexer definitions under Needs attention", async () => {
  mockFetch([
-  ...reviewRoutes.map(r => r.path === "/journal" ? { ...r, reply: state === "pending" ? () => new Promise(() => {}) : state === "error" ? json({ error: "journal down" }, 500) : { items: [], next_cursor: "older" } } : r),
+  ...reviewRoutes.map(r => r.path === "/journal/flagged" ? { ...r, reply: { count: 3 } } : r.path === "/cardigann/holds" ? { ...r, reply: [{ id: "tpb", reasons: [], detail: [], commit: "abc", since: "2026-11-01T00:00:00Z" }] } : r),
   { method: "GET", path: "/readyz", reply: { status: "ok" } },
   { method: "GET", path: "/status", reply: status },
   { method: "GET", path: "/jobs", reply: { items: [], counts: {} } },
@@ -129,13 +128,11 @@ it.each(["pending", "error", "scan"])("Status does not give an all-clear for %s 
   { method: "GET", path: "/activity", reply: { now: [] } },
  ]);
  renderPage(<Overview />);
- await screen.findByText("Needs attention" + (state === "pending" ? "" : " (1)"));
- if (state === "error") {
-  const row = await screen.findByText("Reviews: couldn't load flagged decisions");
-  expect(row.closest("li")?.querySelector("a")?.getAttribute("href")).toBe("/admin/reviews");
- }
- if (state === "scan") expect(await screen.findByText("? decisions waiting in Reviews")).toBeTruthy();
- expect(screen.queryByText("Nothing needs attention.")).toBeNull();
+ await screen.findByText("Needs attention (2)");
+ const flagged = await screen.findByText("3 flagged decisions");
+ expect(flagged.closest("li")?.querySelector("a")?.getAttribute("href")).toBe("/admin/system/journal?suspect=1");
+ const holds = screen.getByText("1 indexer definition update waiting");
+ expect(holds.closest("li")?.querySelector("a")?.getAttribute("href")).toBe("/admin/settings/indexers");
 });
 
 it("lists the broken links behind the dangling-links check when opened, once, and only shows them", async () => {

@@ -23,7 +23,6 @@ import (
 	"github.com/theatarr/theatarr/internal/arrview"
 	"github.com/theatarr/theatarr/internal/auth"
 	"github.com/theatarr/theatarr/internal/buildinfo"
-	"github.com/theatarr/theatarr/internal/errinbox"
 	"github.com/theatarr/theatarr/internal/gateway"
 	"github.com/theatarr/theatarr/internal/health"
 	"github.com/theatarr/theatarr/internal/jobs"
@@ -247,24 +246,9 @@ func runServe(args []string) error {
 	if err != nil {
 		return err
 	}
-	// The error inbox (docs/design/errors.md): error-level log records, recovered panics, 5xx answers, jobs that failed
-	// for good and health checks turning error, deduplicated in error_event. Its writer outlives ctx, so what goes
-	// wrong during shutdown is still written before the database closes.
-	inbox := errinbox.New(st, errinbox.Options{Version: version, Logger: log})
-	logs.OnError(inbox.LogTee)
 	if restoreResult != nil && !restoreResult.OK {
 		log.Error("backup restore failed", "set", restoreResult.Set, "err", restoreResult.Error)
 	}
-	errinbox.Install(inbox)
-	inboxCtx, stopInbox := context.WithCancel(context.WithoutCancel(ctx))
-	inboxDone := make(chan struct{})
-	go func() { inbox.Run(inboxCtx); close(inboxDone) }()
-	defer func() {
-		stopInbox()
-		<-inboxDone
-		logs.OnError(nil)
-		errinbox.Install(nil)
-	}()
 	loaded, err := settingsFlags.load(ctx, st)
 	if err != nil {
 		return err
@@ -403,8 +387,6 @@ func runServe(args []string) error {
 	// Every outbound call goes through the gateway, including any configured VPN requirements.
 	gw = serveSnapshot.Gateway
 	ps := serveSnapshot.Providers
-	// The inbox masks the known credentials of the active settings generation (the gateway follows publications).
-	inbox.SetKnownSecrets(gw.Redact)
 	// The provider registry sync runs as a job on the policy's interval, for providers whose key is set.
 	ps.syncer.Queue = q
 	ps.runtimeSyncer = func() *providerSync {
@@ -641,9 +623,17 @@ func runServe(args []string) error {
 		ctx, m := currentMetadata(ctx)
 		return ctx, m.art
 	})
-	// The grab journal: readers and verdicts; a "wrong" verdict on an active version queues acquire.research.
-	// It follows the current settings generation, so a version activated later is journaled and judged as active.
-	jr := journal.New(journal.Config{Store: st, Policy: pol, Queue: q, Logger: log, PolicyFor: runtimePolicy(runtimeManager)})
+	// The grab journal. It follows the current settings generation, so a version activated later is journaled and
+	// checked as active. Its flags are worked out once per History row: every row an upgrade left unchecked now, in
+	// the background; new ones before each journal read (internal/journal flag.go).
+	jr := journal.New(journal.Config{Store: st, Policy: pol, Logger: log, PolicyFor: runtimePolicy(runtimeManager)})
+	go func() {
+		if n, err := jr.FillAll(ctx); err != nil {
+			log.Warn("journal: flags", "err", err)
+		} else if n > 0 {
+			log.Info("journal: flags worked out", "rows", n)
+		}
+	}()
 	// Search and add (docs/design/ui.md): TMDb search through the gateway; searches for active versions only.
 	add, err := newServeAdd(pol, st, gw, acService, log)
 	if err != nil {
@@ -757,12 +747,11 @@ func runServe(args []string) error {
 		return err
 	}
 
-	// The serve loops below run under errinbox.Go: a panic is written to the error inbox before it crashes the
-	// process as before (the container restarts it).
+	// A panic in one of the serve loops below crashes the process (the container restarts it); Go prints its stack.
 	var wg sync.WaitGroup
 	wg.Add(1)
 	// The quality sync looks for due sources every minute.
-	go errinbox.Go("quality-sync", func() {
+	go func() {
 		defer wg.Done()
 		tbl.Loop(ctx, tasks.Task{Key: "quality.sync", Name: "Check quality profile sources", Every: time.Minute,
 			Run: func(ctx context.Context) error {
@@ -773,23 +762,20 @@ func runServe(args []string) error {
 				}
 				return err
 			}}, 0)
-	})()
+	}()
 	// Planner statistics: PRAGMA optimize after the startup migrations, then daily.
 	// The nightly backup and tidy-up at the backup hour.
 	wg.Add(1)
-	go errinbox.Go("nightly", func() { defer wg.Done(); n.loop(ctx) })()
+	go func() { defer wg.Done(); n.loop(ctx) }()
 	wg.Add(1)
-	go errinbox.Go("store-optimize", func() {
+	go func() {
 		defer wg.Done()
 		tbl.Loop(ctx, tasks.Task{Key: "db.optimize", Name: "Optimize the database", Every: 24 * time.Hour,
 			Run: st.Optimize}, 0)
-	})()
+	}()
 	// Scheduled torrent backups: off unless torrents.backup.every is set. Each check reads the settings in force.
 	wg.Add(1)
-	go errinbox.Go("torrents", func() { defer wg.Done(); torrents.RunSchedule(ctx, tbl, torrentManager, 10*time.Minute) })()
-	// Health checks turning error go to the error inbox, and recover there automatically.
-	wg.Add(1)
-	go errinbox.Go("errinbox", func() { defer wg.Done(); observeHealth(ctx, hc, inbox, 2*time.Minute) })()
+	go func() { defer wg.Done(); torrents.RunSchedule(ctx, tbl, torrentManager, 10*time.Minute) }()
 	// The loops whose schedule or source is a settings section run as workers: a published generation that changes
 	// their settings stops and restarts them (serveliveworkers.go).
 	startRuntime := serveSnapshot
@@ -812,24 +798,24 @@ func runServe(args []string) error {
 	// last time after everything that sends indexer requests has stopped.
 	stopRequestFlush := startRequestFlush(ctx, gw)
 	wg.Add(3)
-	go errinbox.Go("notify", func() {
+	go func() {
 		defer wg.Done()
 		nt.Run(ctx)
-	})()
-	go errinbox.Go("jobs", func() {
+	}()
+	go func() {
 		defer wg.Done()
 		w.Run(ctx)
-	})()
+	}()
 	// The usage worker; a record whose usage is not worked out (seeded, synced by the CLI) gets it at start.
 	if torrentUsageMissing(ctx, st) {
 		torrentUsage.Signal()
 	}
-	go errinbox.Go("torrent-usage", func() { torrentUsage.run(ctx, torrentSvc, captureRuntime, log) })()
-	go errinbox.Go("http", func() {
+	go func() { torrentUsage.run(ctx, torrentSvc, captureRuntime, log) }()
+	go func() {
 		defer wg.Done()
 		httpServices.Start(initialHTTP)
 		<-ctx.Done()
-	})()
+	}()
 
 	ready := egressReadiness(server.StoreReadiness(st), gw)
 	srv := server.New(server.Config{Listen: *listen, Logger: log, Registry: reg, Ready: ready, Version: version,
@@ -993,7 +979,7 @@ func (p *providerSync) run(ctx context.Context) {
 	}
 	active.log.Info("provider sync scheduled", "providers", active.keys, "interval", active.interval.String(), "next", next.UTC())
 	defer p.tasks.Register(ctx, tasks.Task{Key: provider.JobKind, Name: "Sync debrid holdings", Every: active.interval,
-		Attempts: jobs.DefaultMaxAttempts, Inbox: true, Run: p.sync}, next)()
+		Attempts: jobs.DefaultMaxAttempts, Run: p.sync}, next)()
 	t := time.NewTimer(time.Until(next))
 	defer t.Stop()
 	for {
@@ -1048,13 +1034,13 @@ func (n *nightly) next(now time.Time) time.Time {
 // task is the nightly's task: three tries, as its job had.
 func (n *nightly) task() tasks.Task {
 	return tasks.Task{Key: nightlyKind, Name: "Nightly database backup", At: fmt.Sprintf("%02d:00", n.hour), Attempts: 3,
-		Inbox: true, Run: n.run}
+		Run: n.run}
 }
 
 // retentionTask runs after the nightly backup, as its own task.
 func (n *nightly) retentionTask() tasks.Task {
 	return tasks.Task{Key: retention.JobKind, Name: "Tidy old records", At: fmt.Sprintf("%02d:00", n.hour), Attempts: 3,
-		Inbox: true, Run: n.retain}
+		Run: n.retain}
 }
 
 // loop runs the night at the backup hour until ctx ends; a night whose run was due while the service was
@@ -1112,8 +1098,7 @@ func (n *nightly) run(ctx context.Context) error {
 		base, m, err := writeBackupSet(ctx, n.st, pol, n.dir, start)
 		if err != nil {
 			backupErr = fmt.Errorf("backup: %w", err)
-			// The error inbox records the nightly job once it fails for good (job source), not each attempt.
-			n.log.ErrorContext(errinbox.Quiet(ctx), "backup failed", "err", err)
+			n.log.ErrorContext(ctx, "backup failed", "err", err)
 		} else {
 			n.log.Info("backup written", "set", base, "db_bytes", m.Database.Bytes, "policy_state", m.Policy.State,
 				"policy_revision", m.Policy.Revision, "took_ms", time.Since(start).Milliseconds())
@@ -1145,6 +1130,6 @@ func envInt(name string, def int) int {
 func startRequestFlush(ctx context.Context, gw *gateway.Gateway) (stop func()) {
 	fctx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 	done := make(chan struct{})
-	go errinbox.Go("indexer-requests", func() { defer close(done); gw.RunRequestFlush(fctx) })()
+	go func() { defer close(done); gw.RunRequestFlush(fctx) }()
 	return func() { cancel(); <-done }
 }

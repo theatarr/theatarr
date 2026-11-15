@@ -19,7 +19,6 @@
 //     is on the link row itself (link.adopted_from);
 //   - the current settings generation's audit rows;
 //   - pending quality reviews, the newest 100 closed reviews per source, and reviews referenced by kept sync runs;
-//   - new and seen error inbox rows (error_event), and resolved or ignored ones seen within the runs window.
 //
 // Not pruned, by design: notify_event (the once-only memory of scanned events) and imported downloads (the journal's
 // routed decisions read them; they grow with imports, not with polls).
@@ -87,10 +86,6 @@ var rules = []rule{
   AND NOT EXISTS (SELECT 1 FROM settings_quality_sync_run r WHERE r.review_id=settings_quality_review.id)`, qualityReviewKeep)},
 	{table: "notify_delivery", runs: true, where: `created_at < ?1 AND state IN ('sent', 'failed', 'dropped')`},
 	// Cache evidence and misses no lookup reads any more (expired; a route reads live rows only).
-	// The error inbox (docs/design/errors.md): resolved and ignored fingerprints not seen within the runs window. Open
-	// ones stay whatever their age; the inbox writer caps the table at 5000 rows.
-	{table: "error_event", runs: true, where: `status IN ('resolved', 'ignored') AND last_seen < ?1
-		AND COALESCE(resolved_at, updated_at) < ?1`},
 	{table: "provider_cache", always: true, where: `expires_at IS NOT NULL AND expires_at < ?2 - 86400000`},
 	// Search caches have arbitrary query/page keys; detail caches keep stale bodies and validators.
 	{table: "metadata_cache", runs: true, where: `expires_at <= ?2 AND ((source = 'tmdb' AND key GLOB '/search/*')

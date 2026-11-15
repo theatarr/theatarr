@@ -329,7 +329,7 @@ describe("add-indexer sheet", () => {
       { method: "POST", path: "/cardigann/holds/thepiratebay/approve", reply: { ok: true } },
     ]);
     const user = userEvent.setup();
-    renderPage(<DefinitionHolds />, "/admin/reviews/indexers");
+    renderPage(<DefinitionHolds />, "/admin/settings/indexers");
     const holds = await screen.findByTestId("holds");
     expect(holds.textContent).toContain("adds host: api2.example");
     await user.click(within(holds).getByRole("button", { name: "Review thepiratebay" }));

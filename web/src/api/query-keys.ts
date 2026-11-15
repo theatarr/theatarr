@@ -18,12 +18,6 @@ export const qk = {
     filtered: (f: unknown) => ["jobs", "filtered", f] as const,
     kind: (kind: string) => ["jobs", "kind", kind] as const,
   },
-  errors: {
-    all: ["errors"] as const,
-    list: (f: unknown) => ["errors", "list", f] as const,
-    entry: (e: Id) => ["errors", "entry", id(e)] as const,
-    newCount: ["errors", "new-count"] as const,
-  },
   policy: { all: ["policy"] as const, validate: ["policy", "validate"] as const },
   keys: ["keys"] as const,
   anime: {
@@ -62,6 +56,7 @@ export const qk = {
     all: ["journal"] as const,
     list: (f: unknown) => ["journal", "list", f] as const,
     entry: (e: string) => ["journal", "entry", e] as const,
+    flagged: ["journal", "flagged"] as const,
     title: (t: Id) => ["journal", "title", id(t)] as const,
   },
 

@@ -16,11 +16,10 @@ package health
 import (
 	"context"
 	"log/slog"
+	"runtime/debug"
 	"slices"
 	"sync"
 	"time"
-
-	"github.com/theatarr/theatarr/internal/errinbox"
 )
 
 // Types, as the arrs' HealthCheckResult names them (lower case, as their API serialises it).
@@ -181,9 +180,8 @@ func (c *Checker) run(ctx context.Context, ch check) Result {
 		defer func() {
 			if p := recover(); p != nil {
 				done <- Result{Type: Error, Message: "the check failed: internal error"}
-				// The error inbox records the panic with its stack; the log line stays out of it.
-				errinbox.Panic("health", p, map[string]string{"check": ch.source})
-				c.log.ErrorContext(errinbox.Quiet(ctx), "health check panicked", "check", ch.source, "panic", p)
+				c.log.ErrorContext(ctx, "health check panicked", "check", ch.source, "panic", p,
+					"stack", string(debug.Stack()))
 			}
 		}()
 		done <- ch.fn(cctx)

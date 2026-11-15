@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/theatarr/theatarr/internal/errinbox"
 	"github.com/theatarr/theatarr/internal/plex"
 )
 
@@ -16,7 +15,7 @@ func TestUnlinkedSourceResolvedAtMostEveryFewMinutes(t *testing.T) {
 	c := &clock{time.Now()}
 	p := &fakePlex{ss: []plex.Session{{SessionKey: "1", RatingKey: "m", Type: "movie", State: "playing",
 		File: "/elsewhere/Movie/movie.mkv"}}}
-	var reports []errinbox.Event
+	var reports []Problem
 	tr := newTracker(t, p, nil, &fakeMount{}, c, &reports)
 	tr.poll(ctx)
 	tr.mu.Lock()
@@ -47,7 +46,7 @@ func TestUnlinkedSourceResolvedAtMostEveryFewMinutes(t *testing.T) {
 // viewer of the same series version watching another episode.
 func TestCacheProgressOnlyForNextEpisode(t *testing.T) {
 	m := &fakeMount{block: make(chan struct{})}
-	var reports []errinbox.Event
+	var reports []Problem
 	tr, _ := cacheTracker(t, m, &reports)
 	tr.poll(context.Background())
 	t.Cleanup(func() { close(m.block); waitCache(t, tr) })

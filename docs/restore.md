@@ -71,11 +71,11 @@ is recorded as successful.
 
 The browser reconnects and reloads when Theatarr is ready. `restore-result.json` records success or failure; the
 card shows it for seven days, with the safety set to use to go back. A failed restore starts on the old database and
-is also recorded in the error inbox. The restarted service keeps its configured policy directory: the restored
+is also logged as an error (System › Logs). The restarted service keeps its configured policy directory: the restored
 settings are checked against that directory, so a relative `metadata.overrides_dir` must exist there. Archived policy
 files go to `policy-restored-<UTC stamp>` beside the database for reference only. A set whose stored settings do not
 load with the configured directory is refused before anything is replaced and needs the command-line restore below.
-Such a refusal shows after the restart, on the card and in the error inbox.
+Such a refusal shows after the restart, on the card and in the logs.
 
 After a successful restore, Theatarr enqueues one provider sync. **Reconcile the library links yourself** (step 6
 below); the card has the commands to copy. Library links and provider files are not part of the backup. Backups
@@ -133,11 +133,10 @@ migrations.
    credentials stored in Settings are already restored. Set the missing ones in the service's environment before you
    start it. `-env-file FILE` checks the names against an env file instead (names only).
 5. **Start the service** (`docker compose up -d`) and wait until it is healthy (`/readyz`, the container's
-   healthcheck). Then check the schema and the error inbox:
+   healthcheck). Then check the schema and the health checks:
 
    ```sh
    docker compose exec theatarr theatarr migrate status
-   docker compose exec theatarr theatarr errors list -status open
    docker compose exec theatarr theatarr health
    ```
 

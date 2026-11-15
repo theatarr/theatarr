@@ -43,7 +43,6 @@ func (w *Web) mountAPI(mux *http.ServeMux) {
 	w.mountCopiesAPI(mux)
 	w.mountActivityAPI(mux)
 	w.mountJobsAPI(mux)
-	w.mountErrorsAPI(mux)
 
 	w.handle(mux, "POST "+b+"/auth/login", Public, 0, w.apiLogin)
 	w.handle(mux, "GET "+b+"/auth/first-account", Public, 0, w.apiFirstAccountStatus)

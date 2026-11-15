@@ -199,7 +199,7 @@ func (s *Service) Run(ctx context.Context, tb *tasks.Table, batch func(context.C
 	}
 	next := s.now().Add(s.delay)
 	defer tb.Register(ctx, tasks.Task{Key: JobKind, Name: "Refresh details and artwork", Every: s.set.Interval,
-		Attempts: jobs.DefaultMaxAttempts, Inbox: true, Run: batch}, next)()
+		Attempts: jobs.DefaultMaxAttempts, Run: batch}, next)()
 	t := time.NewTicker(min(s.poll, s.delay))
 	defer t.Stop()
 	for {

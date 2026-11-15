@@ -94,7 +94,7 @@ the sunny day special stay alternates.
 `rejected`). A mapping that is not importable (`conflict`, `rejected`) is never used, and nothing waits for it: its
 episodes import through TVDB's numbering, exactly like an episode no entry maps (so specials land in Season 00 the
 way Sonarr puts them). The best-scoring candidate of a conflict is never imported under. The review item is still
-created, and Admin › Reviews shows it; playlists leave such an entry out ("missing") until it is reviewed.
+created, and Settings › Anime mappings shows it; playlists leave such an entry out ("missing") until it is reviewed.
 
 **Decisions** (`decide/anime.go`; `Title.AnimeMap`, loaded by `LoadSeriesVersion` for any series with mappings):
 1. An alternate cut the release title names: its numbers map through the cut's table (`anime_mapping: alt_cut:<name>`);
@@ -239,7 +239,7 @@ next sync.
 
 ### Review screen and API (`internal/web/anime.go`)
 
-- **`/admin/reviews/anime` (Anime mappings):** items filtered by state (Waiting, Accepted, Rejected, Replaced, All) and
+- **`/admin/settings/anime-mappings` (Settings › Anime mappings; System › Status has an "Anime mappings" notice while items wait):** items filtered by state (Waiting, Accepted, Rejected, Replaced, All) and
   franchise, one card each (`web/src/components/anime/review-card.tsx`, words in `web/src/lib/anime-review.ts`). A card
   shows the series (linked to its title page when it is a Theatarr title), the kind in words, a link to the franchise,
   and one plain question per kind:
@@ -273,7 +273,7 @@ next sync.
   candidate, to paste into `overrides/<slug>.yaml`) and an optional note sent with the next choice.
   Below, the franchises with mapping counts by status. Items raised from this version store `detail.after` of a
   `refresh_moves_linked` item properly (`{"tvdb", "episodes"}`); older ones have it empty.
-- **`/admin/reviews/anime/{slug}`:** open items, the **order panel** (release, watch, story; each item with its source: release
+- **`/admin/settings/anime-mappings/{slug}`:** open items, the **order panel** (release, watch, story; each item with its source: release
   date, TVDB airs, the AniList chain, or `override` for moves, routes, alternate cuts and mappings decided in
   review; a series split by an interleaved special shows the part to stop at and to resume from, and each item
   its TVDB and TMDb ids), the mappings, the **numbering view** (each mapped episode: TVDB, absolute as the imported Sonarr has it, the
@@ -327,7 +327,7 @@ playlists:
 `theatarr serve` builds franchises on its own while `metadata.anime.auto_build` is on (default true) and the policy
 has the anime sources (`anilist`, `kitsu`, `thexem`, `anime-lists`, `fribb`, `anibridge`, `manami`; the gateway
 refuses any other target). Building only writes mappings; episodes whose mapping is not settled import through
-TVDB's numbering, and their conflicts show in Admin › Reviews. With a source missing, the "Anime builds" health
+TVDB's numbering, and their conflicts show in Settings › Anime mappings. With a source missing, the "Anime builds" health
 check says which, and nothing builds; manual builds are refused the same way.
 
 **Discovery.** Every anime series (`title.anime`, kind series, with a TVDB id) that no franchise maps into gets a
@@ -372,7 +372,7 @@ through the same live sources as the CLI and saves like `-save`: a rebuild that 
 mappings is held for review. The lists (about 90 MB) are parsed once per process, kept a day, and released after
 30 idle minutes.
 
-**Screen and API** (`internal/web/animebuild.go`, admin only). Admin › Reviews › Anime mappings shows each franchise's
+**Screen and API** (`internal/web/animebuild.go`, admin only). Settings › Anime mappings shows each franchise's
 last build, its next refresh (built_at + interval while automatic builds are on and no refresh waits for review), the
 latest build job while it is queued or running (or its error when it failed) and a **Rebuild** button; the franchise
 page has the same. Below, **Anime series without a franchise** lists the discovery candidates with the last outcome,

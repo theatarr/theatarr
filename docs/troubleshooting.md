@@ -1,7 +1,7 @@
 # Troubleshooting
 
 The places new installs most often get stuck, and what to do about each. For anything else, start with
-**Admin › System › Status**, **System › Errors** and **System › Logs**, and run the preflight
+**Admin › System › Status** and **System › Logs**, and run the preflight
 (**Setup › Run preflight**, or `docker compose exec theatarr theatarr preflight`): each line says why it failed and
 what to do next.
 

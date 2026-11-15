@@ -118,7 +118,7 @@ warns that a SeaDex-curated release may be judged differently. It records, searc
 
 A stored profile or naming still taken from an arr (the removed `from_arr`, only on an install that skipped the
 upgrades between 00125 and 00134) becomes, in migration 00134, a minimal native profile or the default naming; its
-library turned Watch only (until migration 00137), with one message per library on System › Errors asking to check it.
+library turned Watch only (until migration 00137); docs/migration.md says what to check.
 
 Native profiles may select a set with `format_set`. Its keys are the arr's display names, so the same name can
 exist in several sets, and zero-score formats outside the selected set cannot enter names or rejection text:

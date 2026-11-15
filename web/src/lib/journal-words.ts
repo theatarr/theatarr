@@ -5,7 +5,6 @@ import { wordsFor } from "./code-words";
 const KINDS: Record<string, string> = {
   grab: "Grab",
   upgrade: "Upgrade grab",
-  plan: "Dry run",
   search: "Search",
   research: "Search after a failure",
   failure: "Failure",
@@ -13,7 +12,6 @@ const KINDS: Record<string, string> = {
   blocklist: "Blocked",
   import: "Import",
   link: "Link",
-  verdict: "Verdict",
   action: "By hand",
 };
 
@@ -21,7 +19,7 @@ const KINDS: Record<string, string> = {
 export const journalKindWords = (k: string | null | undefined) => wordsFor(KINDS, k);
 
 /** The kinds the list's filter offers, in its order. */
-export const JOURNAL_KINDS = ["grab", "upgrade", "plan", "search", "research", "failure", "stall", "blocklist", "import", "link", "verdict"] as const;
+export const JOURNAL_KINDS = ["grab", "upgrade", "search", "research", "failure", "stall", "blocklist", "import", "link", "action"] as const;
 
 const SOURCES: Record<string, string> = {
   theatarr: "Theatarr",
@@ -55,8 +53,6 @@ const FLAGS: Record<string, string> = {
   upgrade_lower_score: "Upgrade scored lower",
   upgrade_lower_quality: "Upgrade of lower quality",
   repeated_failures: "Repeated failures",
-  download_stuck: "Download stuck",
-  dead_link: "Dead link",
   library_guard: "Library guard note",
   unparseable: "Name not understood",
 };

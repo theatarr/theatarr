@@ -296,9 +296,9 @@ func (s *Service) Run(ctx context.Context, tb *tasks.Table, sweep, scene func(co
 	}
 	next := s.now().Add(s.delay)
 	nextScene := next
-	defer tb.Register(ctx, tasks.Task{Key: JobKind, Name: "Refresh series episodes", Every: s.set.Interval, Inbox: true,
+	defer tb.Register(ctx, tasks.Task{Key: JobKind, Name: "Refresh series episodes", Every: s.set.Interval,
 		Run: sweep}, next)()
-	defer tb.Register(ctx, tasks.Task{Key: sceneJob, Name: "Read scene names", Every: SceneAge, Attempts: 3, Inbox: true,
+	defer tb.Register(ctx, tasks.Task{Key: sceneJob, Name: "Read scene names", Every: SceneAge, Attempts: 3,
 		Run: scene}, nextScene)()
 	t := time.NewTicker(min(s.poll, s.delay))
 	defer t.Stop()

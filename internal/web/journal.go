@@ -12,57 +12,28 @@ import (
 	"github.com/theatarr/theatarr/internal/journal"
 )
 
-// The grab journal (internal/journal, docs/journal.md): entries with their reasoning, what followed and suspect
-// flags; verdicts that acknowledge flags and, for "wrong" on an active version with the router on, blocklist the
-// release and search again.
+// The grab journal (internal/journal, docs/journal.md): entries with their reasoning, what followed and their stored
+// suspect flags; the flagged count for the badge.
 
 func (w *Web) mountJournalAPI(mux *http.ServeMux) {
 	b := APIBase + "/journal"
 	w.handle(mux, "GET "+b, SignedIn, auth.PermAdmin, w.apiJournal)
 	w.handle(mux, "GET "+b+"/{id}", SignedIn, auth.PermAdmin, w.apiJournalEntry)
-	w.handle(mux, "POST "+b+"/{id}/verdict", SignedIn, auth.PermAdmin, w.apiJournalVerdict)
-	w.handle(mux, "GET "+b+"/resolved", SignedIn, auth.PermAdmin, w.apiJournalResolved)
-	w.handle(mux, "POST "+b+"/resolved/acknowledge", SignedIn, auth.PermAdmin, w.apiJournalAcknowledgeResolved)
+	w.handle(mux, "GET "+b+"/flagged", SignedIn, auth.PermAdmin, w.apiJournalFlagged)
 }
 
-// GET /journal/resolved: the open dead-link flags that are resolved or superseded (journal.ResolvedDeadLinks), the
-// ones Reviews offers to acknowledge in bulk.
-func (w *Web) apiJournalResolved(rw http.ResponseWriter, r *http.Request) {
-	list, err := w.journal.ResolvedDeadLinks(r.Context())
+// GET /journal/flagged: how many entries carry a flag of warn or error (a COUNT over the stored flags).
+func (w *Web) apiJournalFlagged(rw http.ResponseWriter, r *http.Request) {
+	n, err := w.journal.FlaggedCount(r.Context())
 	if err != nil {
 		w.internal(rw, err)
 		return
 	}
-	writeJSON(rw, http.StatusOK, map[string]any{"count": len(list), "items": list})
-}
-
-// POST /journal/resolved/acknowledge: an "ok" verdict on each of them (journal.AcknowledgeResolved); the records stay.
-func (w *Web) apiJournalAcknowledgeResolved(rw http.ResponseWriter, r *http.Request) {
-	n, err := w.journal.AcknowledgeResolved(r.Context(), w.verdictBy(r))
-	switch {
-	case errors.Is(err, journal.ErrNotMigrated):
-		writeJSON(rw, http.StatusServiceUnavailable, apiError{Error: "the database lacks the journal tables (migrate)"})
-	case err != nil:
-		w.internal(rw, err)
-	default:
-		writeJSON(rw, http.StatusOK, map[string]int{"acknowledged": n})
-	}
-}
-
-// verdictBy names who records a verdict: the user, or key:<name> for an API key.
-func (w *Web) verdictBy(r *http.Request) string {
-	id := auth.FromContext(r.Context())
-	if id == nil {
-		return ""
-	}
-	if id.Kind == "apikey" {
-		return "key:" + id.KeyName
-	}
-	return id.Username
+	writeJSON(rw, http.StatusOK, map[string]int{"count": n})
 }
 
 // journalFilter reads since (RFC 3339, YYYY-MM-DD, or a duration back from now such as 72h), title (id or part of
-// the name), version, kind (comma-separated or repeated), suspect, severity, cursor, limit (≤500) and scan.
+// the name), version, kind (comma-separated or repeated), suspect, severity, cursor and limit (≤500).
 func (w *Web) journalFilter(r *http.Request) (journal.Filter, error) {
 	q := r.URL.Query()
 	f := journal.Filter{Title: strings.TrimSpace(q.Get("title")), Version: q.Get("version"),
@@ -98,10 +69,6 @@ func (w *Web) journalFilter(r *http.Request) (journal.Filter, error) {
 	if f.Limit, err = intParam(r, "limit", 50); err != nil {
 		return f, err
 	}
-	if f.ScanLimit, err = intParam(r, "scan", 2000); err != nil {
-		return f, err
-	}
-	f.ScanLimit = min(max(f.ScanLimit, 1), 20000)
 	return f, f.Validate()
 }
 
@@ -149,27 +116,4 @@ func (w *Web) apiJournalEntry(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(rw, http.StatusOK, e)
-}
-
-// POST /journal/{id}/verdict {verdict: ok|wrong, reason}: record a verdict (both acknowledge the entry's flags);
-// "wrong" on an active version with the router on also blocklists the release for the version and queues a search.
-func (w *Web) apiJournalVerdict(rw http.ResponseWriter, r *http.Request) {
-	var req journal.VerdictRequest
-	if err := decodeJSON(r, &req); err != nil {
-		badRequest(rw, "invalid JSON: "+err.Error())
-		return
-	}
-	v, err := w.journal.Judge(r.Context(), r.PathValue("id"), req, w.verdictBy(r))
-	switch {
-	case errors.Is(err, journal.ErrNotFound):
-		notFound(rw)
-	case errors.Is(err, journal.ErrBadVerdict):
-		badRequest(rw, strings.TrimPrefix(err.Error(), "journal: "))
-	case errors.Is(err, journal.ErrNotMigrated):
-		writeJSON(rw, http.StatusServiceUnavailable, apiError{Error: "the database lacks the journal tables (migrate)"})
-	case err != nil:
-		w.internal(rw, err)
-	default:
-		writeJSON(rw, http.StatusOK, v)
-	}
 }

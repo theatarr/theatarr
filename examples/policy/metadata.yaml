@@ -18,7 +18,7 @@ metadata:
   # Automatic anime franchise builds (docs/design/anime.md "Automatic builds"): every anime series without a franchise
   # gets one built, and stored franchises are rebuilt every refresh_interval, spread over it. Needs the anime sources
   # below (anilist, kitsu, thexem, anime-lists, fribb, anibridge, manami). Building only writes mappings; episodes
-  # whose mapping is not settled import through Sonarr's numbering, and their conflicts show in Admin › Reviews.
+  # whose mapping is not settled import through Sonarr's numbering, and their conflicts show in Admin › Settings › Anime mappings.
   anime:
     auto_build: true
     refresh_interval: 168h

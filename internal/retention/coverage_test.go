@@ -24,13 +24,13 @@ func init() {
 	for _, tb := range strings.Fields(`anime_alt_cut anime_discovery anime_entry anime_franchise anime_mapping anime_node anime_order anime_review anime_stage arrview_removed_version arrview_title arrview_title_tag content content_file episode episode_number episode_version_state link link_episode link_trash link_version movie_collection movie_exclusion series_meta series_monitor title title_alias title_external_id title_meta title_release_date title_scene_mapping version request request_user`) {
 		keptByDesign[tb] = "catalog and library state: grows with the library, not with runs"
 	}
-	for _, tb := range strings.Fields(`router_pacing gateway_backoff gateway_budget_window shadow_rss_cursor notify_state tvdb_sync scene_refresh library_lease library_dangling_scan cardigann_session search_request series_search_wait error_inbox_state task`) {
+	for _, tb := range strings.Fields(`router_pacing gateway_backoff gateway_budget_window shadow_rss_cursor notify_state tvdb_sync scene_refresh library_lease library_dangling_scan cardigann_session search_request series_search_wait task`) {
 		keptByDesign[tb] = "state per key, overwritten in place"
 	}
 	for _, tb := range strings.Fields(`job journal_decision web_session library_dangling router_refusal_451 arrview_command shadow_rss_seen notify_rename torrent_restore_pending gateway_indexer_request`) {
 		keptByDesign[tb] = "pruned by the package that owns it"
 	}
-	for _, tb := range strings.Fields(`notify_event router_blocklist journal_action journal_verdict torrent_journal provider_copy_event history`) {
+	for _, tb := range strings.Fields(`notify_event router_blocklist journal_action torrent_journal history`) {
 		keptByDesign[tb] = "kept by design (package comment, journal): a memory or record that must not be forgotten"
 	}
 	for _, tb := range strings.Fields(`provider_torrent provider_torrent_read`) {
@@ -181,43 +181,5 @@ func TestPruneMetadataQueries(t *testing.T) {
 	}
 	if n := count(t, st, `SELECT COUNT(*) FROM metadata_cache`); n != 5 {
 		t.Fatalf("kept %d rows, want 5", n)
-	}
-}
-
-// TestPruneErrorInbox: resolved and ignored error inbox rows go after the runs window; open rows stay whatever their
-// age, and so does a resolved row seen again recently.
-func TestPruneErrorInbox(t *testing.T) {
-	t.Parallel()
-	st := openStore(t)
-	now := time.Date(2026, 10, 30, 3, 0, 0, 0, time.UTC)
-	old, recent := store.Millis(now.Add(-40*24*time.Hour)), store.Millis(now.Add(-24*time.Hour))
-	for _, r := range []struct {
-		fp, status string
-		last       int64
-	}{{"old-resolved", "resolved", old}, {"old-ignored", "ignored", old}, {"old-new", "new", old},
-		{"old-seen", "seen", old}, {"recent-resolved", "resolved", recent}} {
-		exec(t, st, `INSERT INTO error_event (fingerprint, source, message, first_seen, last_seen, status, resolved_at,
-			updated_at) VALUES (?, 'log', 'm', ?, ?, ?, ?, ?)`, r.fp, r.last, r.last, r.status, r.last, r.last)
-	}
-	sum, err := Prune(context.Background(), st, now, Defaults)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if sum["error_event"] != 2 {
-		t.Errorf("pruned %d error_event rows, want 2", sum["error_event"])
-	}
-	var left []string
-	rows, err := st.Reader().Query(`SELECT fingerprint FROM error_event ORDER BY fingerprint`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var fp string
-		rows.Scan(&fp)
-		left = append(left, fp)
-	}
-	if strings.Join(left, ",") != "old-new,old-seen,recent-resolved" {
-		t.Errorf("left %v", left)
 	}
 }

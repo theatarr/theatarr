@@ -22,7 +22,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/theatarr/theatarr/internal/errinbox"
 	"github.com/theatarr/theatarr/internal/store"
 )
 
@@ -49,8 +48,6 @@ type Task struct {
 	Attempts int
 	// Paused: the loop waits (Pause on, or no library); Run now is refused.
 	Paused bool
-	// Inbox: a failed run goes to the error inbox, as the job the task replaced did. Every failure is logged.
-	Inbox bool
 	// Run is the work.
 	Run func(ctx context.Context) error
 }
@@ -188,7 +185,7 @@ func (tb *Table) Start(ctx context.Context, key string, next time.Time) bool {
 	if busy || !ok {
 		return false
 	}
-	go errinbox.Go("task "+key, func() { _, _ = tb.Run(ctx, key, next) })()
+	go func() { _, _ = tb.Run(ctx, key, next) }()
 	return true
 }
 
@@ -235,9 +232,6 @@ func (tb *Table) record(ctx context.Context, t Task, start, next time.Time, runE
 		msg = runErr.Error()
 		if ctx.Err() == nil {
 			tb.log.Warn("task failed", "task", t.Key, "err", runErr)
-		}
-		if t.Inbox && ctx.Err() == nil {
-			errinbox.Report(errinbox.Event{Source: errinbox.SourceJob, Component: t.Key, Message: msg, Context: map[string]string{"task": t.Key}})
 		}
 	}
 	var ok any
@@ -291,11 +285,11 @@ func (tb *Table) RunNow(key string) error {
 	case busy:
 		return ErrRunning
 	}
-	go errinbox.Go("task "+key, func() {
+	go func() {
 		if ran, err := tb.Run(base, key, time.Time{}); ran && err == nil {
 			tb.log.Info("task run now", "task", key)
 		}
-	})()
+	}()
 	return nil
 }
 

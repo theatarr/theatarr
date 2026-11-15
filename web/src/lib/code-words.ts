@@ -1,6 +1,6 @@
 // Words for the codes the server stores (docs/design/ui.md "Codes in words"): each domain keeps a small map in its own
-// file (rejection-words.ts, tmdb-words.ts, anime-words.ts, router-words.ts, torrent-words.ts,
-// error-words.ts; job kinds in jobs.ts). A code no map knows is shown as a readable form of itself, never blank; the
+// file (rejection-words.ts, tmdb-words.ts, anime-words.ts, router-words.ts, torrent-words.ts; job kinds in
+// jobs.ts). A code no map knows is shown as a readable form of itself, never blank; the
 // raw code stays in the element's title where an admin may need it.
 
 /** Abbreviations kept in capitals; every other word is lower-cased. */

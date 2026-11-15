@@ -65,8 +65,8 @@ func TestMigrationDropArrFiles(t *testing.T) {
 		`SELECT json_extract(config, '$.Cutoff') || ' ' || COALESCE(json_extract(config, '$.FromArr'), '-')
 			FROM setting_quality_profile WHERE key = 'arrp'`: "WEBDL-1080p -",
 		`SELECT json_extract(config, '$.config.mode') FROM setting_version WHERE key = 'movie'`: "shadow",
-		`SELECT COUNT(*) FROM error_event WHERE fingerprint = 'arr-freeze:movie'`:               "1",
-		`SELECT COUNT(*) FROM pragma_foreign_key_check`:                                         "0",
+		`SELECT COUNT(*) FROM error_event`:              "0",
+		`SELECT COUNT(*) FROM pragma_foreign_key_check`: "0",
 	} {
 		var got string
 		if err := db.QueryRowContext(ctx, q).Scan(&got); err != nil || got != want {

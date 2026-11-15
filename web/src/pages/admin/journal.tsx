@@ -1,9 +1,9 @@
 // System › Decision journal (admins; /admin/system/journal, an entry at /admin/system/journal/:id): the grab journal
-// (GET /journal, /journal/{id}) with ok/wrong verdicts (POST /journal/{id}/verdict). An entry shows what was decided and
-// what followed first, then the verdict with what each choice does.
+// (GET /journal, /journal/{id}) with the flags stored when each entry's History row was written; Flagged lists the
+// entries with a warn or error flag. An entry shows what was decided and what followed.
 import { useEffect, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
-import { useJournal, useJournalEntry, useJournalVerdict, useStatus, type JournalEntry } from "@/api/hooks";
+import { useJournal, useJournalEntry, useStatus, type JournalEntry } from "@/api/hooks";
 import { TitleThumb } from "@/components/poster-card";
 import { Empty, ErrorState, KV, Loading, Mono, PageHeader, Section, VersionTag } from "@/components/page";
 import { Badge } from "@/components/ui/badge";
@@ -38,16 +38,12 @@ function PolicyRev({ e, current }: { e: JournalEntry; current?: string }) {
 }
 
 function Flags({ e }: { e: JournalEntry }) {
-  const open = (e.flags ?? []).filter((f) => !f.acked);
   return (
     <span className="flex flex-wrap gap-1">
-      {open.map((f) => <Badge key={f.code} tone={sevTone(f.severity)} title={f.code}>{journalFlagWords(f.code)}</Badge>)}
-      {e.verdict ? <Badge tone={e.verdict.verdict === "ok" ? "positive" : "negative"}>{verdictWords(e.verdict.verdict)}</Badge> : null}
+      {(e.flags ?? []).map((f) => <Badge key={f.code} tone={sevTone(f.severity)} title={f.code}>{journalFlagWords(f.code)}</Badge>)}
     </span>
   );
 }
-
-const verdictWords = (v?: string) => (v === "ok" ? "Judged ok" : v === "wrong" ? "Judged wrong" : v ?? "");
 
 /** An entry's kind as a badge, the code as its tooltip. */
 function KindBadge({ kind, className }: { kind?: string; className?: string }) {
@@ -115,11 +111,11 @@ export function JournalList() {
   const filtered = !!kind || !!urlTitle || cursors.length > 0;
   return (
     <div>
-      <p className="mb-4 text-sm text-muted-foreground">Every grab decision and what followed it, newest first. Judge suspect entries ok or wrong.</p>
+      <p className="mb-4 text-sm text-muted-foreground">Every grab decision and what followed it, newest first. Flagged shows the entries a check found suspect.</p>
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <div className="flex gap-1">
           <Button size="xs" variant={suspect ? "ghost" : "secondary"} onClick={() => set("suspect")}>All</Button>
-          <Button size="xs" variant={suspect ? "secondary" : "ghost"} onClick={() => set("suspect", "1")} data-testid="journal-suspect">Suspect</Button>
+          <Button size="xs" variant={suspect ? "secondary" : "ghost"} onClick={() => set("suspect", "1")} data-testid="journal-suspect">Flagged</Button>
         </div>
         <Select aria-label="Kind" value={kind} onChange={(e) => set("kind", e.target.value)} className="w-auto">
           <option value="">All kinds</option>
@@ -131,7 +127,7 @@ export function JournalList() {
         </form>
       </div>
       {q.isPending ? <Loading /> : q.error ? <ErrorState error={q.error} /> : items.length === 0 && !q.data?.next_cursor ? (
-        <Card><Empty>{suspect ? "Nothing suspect." : filtered ? "No entries." : "No entries yet. One appears each time a library judges a release, when it searches or grabs. A title added a moment ago may show nothing yet."}</Empty></Card>
+        <Card><Empty>{suspect ? "Nothing flagged." : filtered ? "No entries." : "No entries yet. One appears each time a library judges a release, when it searches or grabs. A title added a moment ago may show nothing yet."}</Empty></Card>
       ) : (
         <Card className="p-0">
           <Table>
@@ -172,14 +168,11 @@ export function JournalEntryPage() {
   const { id = "" } = useParams();
   const q = useJournalEntry(id);
   const status = useStatus();
-  const verdict = useJournalVerdict();
-  const [reason, setReason] = useState("");
   const crumb = [{ label: "System", to: "/admin" }, { label: "Decision journal", to: journalHome() }];
   if (q.isPending) return <Loading />;
   if (q.error) return (<div><PageHeader crumb={crumb} title={id} docTitle="Decision journal" /><ErrorState error={q.error} /></div>);
   const e = q.data;
   const r = e.reasoning;
-  const judge = (v: "ok" | "wrong") => verdict.mutate({ id: e.id ?? id, verdict: v, reason: reason.trim() || undefined });
   return (
     <div>
       <PageHeader
@@ -190,6 +183,7 @@ export function JournalEntryPage() {
         actions={e.title?.id ? <Button asChild variant="outline" size="sm"><a href={`/title/${e.title.id}`}>Title page</a></Button> : undefined}
       />
       {e.summary ? <Card className="text-sm leading-relaxed [overflow-wrap:anywhere]" data-testid="journal-summary">{e.summary}</Card> : null}
+      {e.id?.startsWith("run:") ? (e.related ?? []).filter(id => id.startsWith("dl:")).map(id => <p key={id} className="mt-2 text-sm"><Link className="text-primary hover:underline" to={journalLink(id)}>View download</Link></p>) : null}
 
       {(e.flags ?? []).length > 0 ? (
         <Section title="Flags">
@@ -197,8 +191,8 @@ export function JournalEntryPage() {
             <ul className="space-y-2 text-sm">
               {(e.flags ?? []).map((f) => (
                 <li key={f.code} className="flex flex-wrap items-baseline gap-2">
-                  <Badge tone={f.acked ? "neutral" : sevTone(f.severity)} title={f.code}>{journalFlagWords(f.code)}</Badge>
-                  <span className={f.acked ? "text-muted-foreground line-through" : ""}>{f.reason}</span>
+                  <Badge tone={sevTone(f.severity)} title={f.code}>{journalFlagWords(f.code)}</Badge>
+                  <span>{f.reason}</span>
                 </li>
               ))}
             </ul>
@@ -270,20 +264,6 @@ export function JournalEntryPage() {
         </Section>
       ) : null}
 
-      <Section title="Verdict" aside={e.verdict ? `${verdictWords(e.verdict.verdict)} by ${e.verdict.by ?? "?"} · ${fmtTime(e.verdict.at)}` : undefined}>
-        <Card>
-          {(e.flags ?? []).length === 0 ? <p className="mb-4 text-sm text-muted-foreground">No flags.</p> : null}
-          {e.verdict?.reason ? <p className="mb-3 text-sm">“{e.verdict.reason}”{e.verdict.action_note ? <span className="text-muted-foreground"> · {e.verdict.action_note}</span> : null}</p> : null}
-          <div className="flex flex-wrap items-center gap-2">
-            <Input aria-label="Reason" placeholder="Reason (optional)" value={reason} onChange={(ev) => setReason(ev.target.value)} className="h-8 max-w-sm" />
-            <Button size="sm" variant="outline" disabled={verdict.isPending} onClick={() => judge("ok")} data-testid="verdict-ok">Ok</Button>
-            <Button size="sm" variant="destructive" disabled={verdict.isPending} onClick={() => judge("wrong")} data-testid="verdict-wrong">Wrong</Button>
-          </div>
-          <p className="mt-2 text-xs text-muted-foreground">{e.id?.startsWith("run:") ? "Records your verdict only. To block the release, use its download in Activity." : "Ok and Wrong both acknowledge the flags (Ok on Reviews is the same Ok). Wrong with the router on also blocklists the release and queues a re-search."}</p>
-          {e.id?.startsWith("run:") ? (e.related ?? []).filter(id => id.startsWith("dl:")).map(id => <Link key={id} className="text-sm text-primary hover:underline" to={journalLink(id)}>View download</Link>) : null}
-          {verdict.error ? <div className="mt-2"><ErrorState error={verdict.error} /></div> : null}
-        </Card>
-      </Section>
     </div>
   );
 }

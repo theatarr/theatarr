@@ -43,7 +43,7 @@ type ntfyMessage struct {
 // check and an error are high priority; the tag is a warning sign for a problem and a check mark for good news.
 func (n *Notifier) ntfyPayload(ctx context.Context, ev Event) (ntfyMessage, error) {
 	switch ev.Kind {
-	case Health, HealthRestored, Error, Digest:
+	case Health, HealthRestored, Digest:
 		title, lines, level := messageText(ev, false)
 		return fitNtfy(title, lines, level), nil
 	case RequestAvailable, RequestPartial:

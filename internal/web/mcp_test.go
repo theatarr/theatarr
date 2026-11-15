@@ -78,7 +78,7 @@ func TestMCPProtocol(t *testing.T) {
 			Tools []mcpTool `json:"tools"`
 		} `json:"result"`
 	}
-	if json.Unmarshal(list.Body.Bytes(), &rpc) != nil || len(rpc.Result.Tools) != 19 {
+	if json.Unmarshal(list.Body.Bytes(), &rpc) != nil || len(rpc.Result.Tools) != 16 {
 		t.Fatalf("tools/list: %s", list.Body.String())
 	}
 	// MCP confirms like the API (docs/mcp.md): the write tools that can need confirmation, and api_request, take the
@@ -108,8 +108,8 @@ func TestMCPProtocol(t *testing.T) {
 		{"bad call", `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":[]}`, `"code":-32602`},
 		{"bad arguments", `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"library_search","arguments":{"q":1}}}`, `"code":-32602`},
 		{"unknown argument", `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"health","arguments":{"secret":"hidden"}}}`, `"code":-32602`},
-		{"missing argument", `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"errors_get","arguments":{}}}`, `"code":-32602`},
-		{"imprecise id", `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"errors_get","arguments":{"id":9007199254740992}}}`, `"code":-32602`},
+		{"missing argument", `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"library_search","arguments":{}}}`, `"code":-32602`},
+		{"imprecise id", `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"library_search","arguments":{"q":"a","offset":9007199254740992}}}`, `"code":-32602`},
 		{"batch", `[]`, `"code":-32600`},
 		{"bad version", `{"jsonrpc":"1.0","id":1,"method":"ping"}`, `"code":-32600`},
 		{"bad id", `{"jsonrpc":"2.0","id":{},"method":"ping"}`, `"code":-32600`},

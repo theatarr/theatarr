@@ -516,7 +516,7 @@
             "default": "true",
             "label": "Preload next episode",
             "type": "boolean",
-            "help": "About a minute into an episode, this reads the start of the next episode of the show through the mount, and raises an error inbox item when that episode is missing or unreadable; past half of the episode it reads the next one whole so the mount's cache keeps it. Default on.",
+            "help": "About a minute into an episode, this reads the start of the next episode of the show through the mount, and logs an error when that episode is missing or unreadable; past half of the episode it reads the next one whole so the mount's cache keeps it. Default on.",
             "nullable": true
           },
           {

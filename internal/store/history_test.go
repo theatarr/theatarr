@@ -56,7 +56,7 @@ func TestHistoryMigration(t *testing.T) {
 func TestHistoryHeldImportAndUnblock(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	st, err := Open(ctx, migratedPath(t, 140), Options{})
+	st, err := Open(ctx, migratedPath(t, 144), Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,5 +111,48 @@ func TestHistoryHeldImportAndUnblock(t *testing.T) {
 	block("hb", "second")
 	if got := rows(); got != "bl:1 blocked second, bl:1:5 blocked first" {
 		t.Errorf("blocked rows %q", got)
+	}
+}
+
+// 00144 adds the stored flags (unchecked: NULL) and drops verdicts, the error inbox and the copy events (their History
+// rows stay, and their alert claims go); it rolls back cleanly.
+func TestJournalFlagsMigration(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	st, err := Open(ctx, migratedPath(t, 143), Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	p, err := st.provider(false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.Writer().ExecContext(ctx, `INSERT INTO history (ref, at, event, kind) VALUES
+			('copy:1', 1, 'copy_added', 'copy'), ('dl:1:fail', 2, 'failed', 'failure');
+		INSERT INTO journal_verdict (entry_id, verdict, reason, action, created_at) VALUES ('dl:1', 'ok', 'x', 'recorded', 0);
+		INSERT INTO error_event (fingerprint, source, message, first_seen, last_seen, updated_at) VALUES ('f', 'log', 'm', 0, 0, 0);
+		INSERT INTO notify_state (key, value, updated_at) VALUES ('errors_since', '0', 0);
+		INSERT INTO notify_event (kind, ref, created_at) VALUES ('error:0', 1, 0), ('digest', 20261115, 0)`); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 2; i++ {
+		if _, err := p.UpTo(ctx, 144); err != nil {
+			t.Fatal(err)
+		}
+		for q, want := range map[string]string{
+			`SELECT group_concat(ref || ':' || COALESCE(flags, 'null') || ':' || severity, ' ') FROM (SELECT * FROM history ORDER BY ref)`:    "copy:1:null: dl:1:fail:null:",
+			`SELECT COUNT(*) FROM sqlite_master WHERE name IN ('journal_verdict', 'error_event', 'error_inbox_state', 'provider_copy_event')`: "0",
+			`SELECT COUNT(*) FROM notify_state WHERE key = 'errors_since'`:                                                                    "0",
+			`SELECT group_concat(kind) FROM notify_event`:                                                                                     "digest",
+		} {
+			var got string
+			if err := st.Reader().QueryRowContext(ctx, q).Scan(&got); err != nil || got != want {
+				t.Errorf("%s: %q %v, want %q", q, got, err, want)
+			}
+		}
+		if _, err := p.DownTo(ctx, 143); err != nil {
+			t.Fatal(err)
+		}
 	}
 }

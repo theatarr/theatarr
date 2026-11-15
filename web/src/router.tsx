@@ -40,13 +40,12 @@ const SetupPage = lazyPage(() => import("./pages/admin/setup").then((m) => m.Set
 const ArrImportPage = lazyPage(() => import("./pages/admin/arr-import").then((m) => m.ArrImportPage));
 const Overview = lazyPage(() => import("./pages/admin/overview").then((m) => m.Overview));
 const JobsPage = lazyPage(() => import("./pages/admin/jobs").then((m) => m.JobsPage));
-const ErrorsPage = lazyPage(() => import("./pages/admin/errors").then((m) => m.ErrorsPage));
 const TorrentsPage = lazyPage(() => import("./pages/admin/torrents").then((m) => m.TorrentsPage));
 const AdvancedPage = lazyPage(() => import("./pages/admin/advanced").then((m) => m.AdvancedPage));
 const BackupPage = lazyPage(() => import("./pages/admin/backup").then((m) => m.BackupPage));
 const JournalEntryPage = lazyPage(() => import("./pages/admin/journal").then((m) => m.JournalEntryPage));
 const JournalPage = lazyPage(() => import("./pages/admin/journal").then((m) => m.JournalPage));
-const ReviewsPage = lazyPage(() => import("./pages/admin/reviews").then((m) => m.ReviewsPage));
+const AnimeMappingsPage = lazyPage(() => import("./pages/admin/anime-mappings").then((m) => m.AnimeMappingsPage));
 const MetadataFranchise = lazyPage(() => import("./pages/admin/anime-mappings").then((m) => m.MetadataFranchise));
 const ManualImport = lazyPage(() => import("./pages/admin/manual-import").then((m) => m.ManualImportPage));
 const UsersPage = lazyPage(() => import("./pages/admin/users").then((m) => m.UsersAdmin));
@@ -203,14 +202,13 @@ export const routes: RouteObject[] = [
           { path: "/admin/setup", element: <SetupPage /> },
           { path: "/admin/arr-import", element: <ArrImportPage /> },
           { path: "/admin/system/tasks", element: <JobsPage /> },
-          { path: "/admin/system/errors", element: <ErrorsPage /> },
           { path: "/admin/settings", element: <SettingsHome /> },
           ...SETTINGS_PAGES.filter(p => !p.system && !p.own).flatMap(p => [...new Set([p.route, ...p.tabs.map(t => t.route)])].map(path => ({ path, element: <SettingsPage key={path} /> }))),
           { path: "/admin/settings/profiles/format_sets", element: <SettingsPage /> },
           ...["config", "config/sections", "config/import", "history", "limits"].map(path => ({ path: `/admin/advanced/${path}`, element: <AdvancedSettingsPage /> })),
           { path: "/admin/torrents", element: <TorrentsPage /> },
-          ...["", "/quality", "/anime", "/indexers", "/decisions"].map(tab => ({ path: `/admin/reviews${tab}`, element: <ReviewsPage /> })),
-          { path: "/admin/reviews/anime/:slug", element: <MetadataFranchise /> },
+          { path: "/admin/settings/anime-mappings", element: <AnimeMappingsPage /> },
+          { path: "/admin/settings/anime-mappings/:slug", element: <MetadataFranchise /> },
           { path: "/admin/advanced", element: <AdvancedPage /> },
           { path: "/admin/system/logs", element: <Logs /> },
           { path: "/admin/system/backup", element: <BackupPage /> },

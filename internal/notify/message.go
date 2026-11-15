@@ -25,7 +25,7 @@ const (
 )
 
 // messageKinds are the events a message target gets.
-var messageKinds = map[Kind]bool{Health: true, HealthRestored: true, Error: true, Digest: true,
+var messageKinds = map[Kind]bool{Health: true, HealthRestored: true, Digest: true,
 	RequestAvailable: true, RequestPartial: true, Test: true}
 
 // messageWants reports whether message target t gets ev: its kinds, and health only for checks in error (an alert
@@ -72,18 +72,6 @@ func messageText(ev Event, markdown bool) (string, []string, messageLevel) {
 	case HealthRestored:
 		h := ev.Health[0]
 		return "Health check OK again: " + h.Source, []string{"Was: " + h.Message}, levelGood
-	case Error:
-		e := ev.Error
-		title := "New error: " + e.Component
-		if e.Reopened {
-			title = "Error back after it was resolved: " + e.Component
-		}
-		sample := e.Sample
-		if markdown {
-			sample = "```" + strings.ReplaceAll(e.Sample, "```", "'''") + "```"
-		}
-		return title, []string{sample,
-			fmt.Sprintf("Source %s · seen %d times · Admin › System › Errors #%d", e.Source, e.Count, e.ID)}, levelBad
 	case Digest:
 		return digestText(ev.Digest, markdown)
 	}
@@ -101,7 +89,7 @@ func digestText(d *DigestSummary, markdown bool) (string, []string, messageLevel
 	var lines []string
 	level := levelInfo
 	if d.Quiet() {
-		lines = append(lines, "Quiet day: nothing grabbed, imported, failed or blocklisted; no dead links, open errors or health problems.")
+		lines = append(lines, "Quiet day: nothing grabbed, imported, failed or blocklisted; no dead links or health problems.")
 	} else {
 		line := fmt.Sprintf("%s %d grabbed · %d imported · %d failed · %d blocklisted · %d dead links found",
 			label("Last 24 h:"), d.Grabs, d.Imports, d.Failed, d.Blocklisted, d.DeadLinks)
@@ -114,12 +102,6 @@ func digestText(d *DigestSummary, markdown bool) (string, []string, messageLevel
 		}
 		if len(d.Imported) > 0 {
 			lines = append(lines, label("Imported:")+" "+strings.Join(d.Imported, ", ")+more(d.Imports, len(d.Imported)))
-		}
-		if d.OpenErrors > 0 {
-			lines = append(lines, fmt.Sprintf("%s %d (Admin › System › Errors)", label("Open error groups:"), d.OpenErrors))
-			for _, l := range d.Errors {
-				lines = append(lines, "• "+l)
-			}
 		}
 		if d.Accounts != nil {
 			lines = append(lines, label("Debrid accounts:")+" "+d.Accounts.Message)
@@ -134,7 +116,7 @@ func digestText(d *DigestSummary, markdown bool) (string, []string, messageLevel
 	if d.GrabbingOff {
 		lines = append(lines, "Theatarr is paused: nothing is downloaded or linked.")
 	}
-	if d.GrabbingOff || d.Accounts != nil || len(d.Health) > 0 || d.OpenErrors > 0 {
+	if d.GrabbingOff || d.Accounts != nil || len(d.Health) > 0 {
 		level = levelWarn
 	}
 	return "Theatarr daily digest · " + d.Day, lines, level

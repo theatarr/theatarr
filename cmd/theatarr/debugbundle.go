@@ -20,7 +20,6 @@ import (
 	"time"
 
 	"github.com/theatarr/theatarr/internal/buildinfo"
-	"github.com/theatarr/theatarr/internal/errinbox"
 	"github.com/theatarr/theatarr/internal/logring"
 	"github.com/theatarr/theatarr/internal/store"
 )
@@ -33,8 +32,8 @@ func init() {
 const debugUsage = `usage: theatarr debug bundle [flags]
 
 Writes a tar.gz of redacted diagnostics to attach to a bug report: build info and schema version, the settings
-review export (credentials omitted), the latest log lines, the open error inbox rows with their stacks, and the
-last health snapshot theatarr serve recorded. Every credential the settings and the environment name is masked, as
+review export (credentials omitted) and the latest log lines (errors and panics with their stacks are among them).
+Every credential the settings and the environment name is masked, as
 are credential-named log attributes, URL credentials and long tokens. Reads only; safe while the service runs.
 `
 
@@ -174,20 +173,6 @@ func (b *debugBundle) collect(ctx context.Context, fs *flag.FlagSet, dbPath, pol
 		add("logs.jsonl", buf.Bytes())
 	}
 
-	if rows, drops, err := openErrors(ctx, st); err != nil {
-		add("errors.json", note(err))
-	} else {
-		add("errors.json", mustJSON(map[string]any{"open": rows, "dropped": drops}))
-	}
-
-	if v, at, err := errinbox.State(ctx, st, "health"); err != nil {
-		add("health.json", note(err))
-	} else if v == "" {
-		add("health.json", []byte(`{"note":"no health snapshot: theatarr serve has not recorded one yet"}`+"\n"))
-	} else {
-		add("health.json", mustJSON(map[string]any{"recorded_at": at.UTC(), "snapshot": json.RawMessage(v)}))
-	}
-
 	for i := range files {
 		files[i].data = []byte(b.scrub(string(files[i].data)))
 	}
@@ -265,15 +250,15 @@ func (b *debugBundle) scrub(s string) string {
 }
 
 // redactLogLine redacts one JSON log line: credential-named attributes (at any depth) become "[redacted]" and
-// every string goes through the inbox's text redaction. A line that is not JSON is redacted as text.
+// every string goes through the log ring's text redaction. A line that is not JSON is redacted as text.
 func redactLogLine(line string) string {
 	var m map[string]any
 	if json.Unmarshal([]byte(line), &m) != nil {
-		return errinbox.RedactText(line)
+		return logring.RedactText(line)
 	}
 	b, err := json.Marshal(redactValue(m))
 	if err != nil {
-		return errinbox.RedactText(line)
+		return logring.RedactText(line)
 	}
 	return string(b)
 }
@@ -295,7 +280,7 @@ func redactValue(v any) any {
 		}
 		return x
 	case string:
-		return errinbox.RedactText(x)
+		return logring.RedactText(x)
 	}
 	return v
 }
@@ -340,29 +325,6 @@ func tailLines(path string, n int) ([]string, error) {
 		}
 	}
 	return ring, sc.Err()
-}
-
-// openErrors returns the new and seen inbox rows with their stacks, newest first (at most 500), and the drop count.
-func openErrors(ctx context.Context, st *store.Store) ([]errinbox.Row, int64, error) {
-	p, err := errinbox.List(ctx, st, errinbox.Filter{Status: "open", Limit: 500})
-	if err != nil {
-		return nil, 0, err
-	}
-	rows := make([]errinbox.Row, 0, len(p.Items))
-	for _, r := range p.Items {
-		full, err := errinbox.Get(ctx, st, r.ID)
-		if err != nil {
-			return nil, 0, err
-		}
-		full.Sample = errinbox.RedactText(full.Sample)
-		full.Stack = errinbox.RedactText(full.Stack)
-		var c map[string]any
-		if json.Unmarshal(full.Context, &c) == nil {
-			full.Context = mustJSON(redactValue(c))
-		}
-		rows = append(rows, full)
-	}
-	return rows, p.Drops, nil
 }
 
 func mustJSON(v any) []byte {

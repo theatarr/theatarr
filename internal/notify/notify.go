@@ -183,7 +183,7 @@ func (n *Notifier) deliveries(ctx context.Context, ev Event) ([]delivery, error)
 	if ev.Kind == Health || ev.Kind == HealthRestored || ev.Kind == SeriesAdd || ev.Kind == MovieAdded || ev.Kind == Rename {
 		ev.Reason = ""
 	}
-	if ev.Request == nil && ev.Error == nil && ev.Digest == nil && n.pay != nil && !(ev.Kind == Test && ev.Target != "") {
+	if ev.Request == nil && ev.Digest == nil && n.pay != nil && !(ev.Kind == Test && ev.Target != "") {
 		ps, err := n.pay.Payloads(ctx, ev)
 		if err != nil {
 			return nil, err
@@ -229,7 +229,7 @@ func (n *Notifier) deliveries(ctx context.Context, ev Event) ([]delivery, error)
 		isDiscord, isNtfy := t.Format == policy.NotifyFormatDiscord, t.Format == policy.NotifyFormatNtfy
 		isMessage := isDiscord || isNtfy
 		// Errors and the digest go to message targets (Discord, ntfy) only; a message target gets only its kinds.
-		if isMessage && !messageWants(ev, t) || !isMessage && (!t.Native || ev.Error != nil || ev.Digest != nil) {
+		if isMessage && !messageWants(ev, t) || !isMessage && (!t.Native || ev.Digest != nil) {
 			continue
 		}
 		if !wants(t, ev.Kind) || ev.Target != "" && ev.Target != k {
@@ -765,9 +765,6 @@ func (n *Notifier) Scan(ctx context.Context) error {
 		return err
 	}
 	if err := n.scanHolds(ctx, since); err != nil {
-		return err
-	}
-	if err := n.scanErrors(ctx); err != nil {
 		return err
 	}
 	return n.scanHealth(ctx)

@@ -89,3 +89,20 @@ func TestPollCountsOnlyMatchingLossAcrossPages(t *testing.T) {
 		t.Fatalf("restart kept old counts: %+v", restarted)
 	}
 }
+
+func TestRedactText(t *testing.T) {
+	const plantedKey = "Zq81xVb7Lm02Pr6tKd9wYh3sNc5uJe4f"
+	cases := map[string]string{
+		"https://x.example/api?apikey=" + plantedKey + "&t=1": "https://x.example/api?apikey=********&t=1",
+		"token: " + plantedKey:                                "token: ********",
+		`{"password":"p@ss"}`:                                 `{"password":"********"}`,
+		"Authorization: Bearer abcdefgh12345":                 "Authorization: Bearer ********",
+		"hash 5d41402abc4b2a76b9719d911017c5925d41402a ok":    "hash 5d41402abc4b2a76b9719d911017c5925d41402a ok",
+		"key " + plantedKey + " refused":                      "key ******** refused",
+	}
+	for in, want := range cases {
+		if got := RedactText(in); got != want {
+			t.Errorf("RedactText(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

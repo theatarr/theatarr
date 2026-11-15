@@ -14,7 +14,6 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 )
 
@@ -37,9 +36,6 @@ type Ring struct {
 	seq     int64
 	bootID  string
 	dropped map[logKind]int64
-	// onError hears every error-level entry (the error inbox, internal/errinbox), after the secret-named
-	// attributes are redacted.
-	onError atomic.Pointer[func(context.Context, Entry)]
 }
 
 type logKind struct{ level, component string }
@@ -194,16 +190,6 @@ func (r *Ring) Components() []string {
 	return out
 }
 
-// OnError sets the function that hears every error-level record as its ring entry, with the record's context (the
-// error inbox, internal/errinbox). It runs in the logging goroutine, so it must not block or log at error level.
-func (r *Ring) OnError(fn func(ctx context.Context, e Entry)) {
-	if fn == nil {
-		r.onError.Store(nil)
-		return
-	}
-	r.onError.Store(&fn)
-}
-
 // Handler wraps next so every record it handles is also kept in the ring. Records below next's level are not kept.
 func (r *Ring) Handler(next slog.Handler) slog.Handler {
 	return &handler{ring: r, next: next}
@@ -252,11 +238,6 @@ func (h *handler) Handle(ctx context.Context, rec slog.Record) error {
 		return true
 	})
 	h.ring.add(e)
-	if rec.Level >= slog.LevelError {
-		if fn := h.ring.onError.Load(); fn != nil {
-			(*fn)(ctx, e)
-		}
-	}
 	return h.next.Handle(ctx, rec)
 }
 

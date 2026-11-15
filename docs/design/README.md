@@ -56,4 +56,3 @@ How Theatarr works inside, one part per page. Start with the overview.
 
 - [readiness.md](readiness.md): health checks, backups, policy revisions, job priorities.
 - [jobs.md](jobs.md): failed jobs: resolve, retry, dismiss.
-- [errors.md](errors.md): the error inbox.

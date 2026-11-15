@@ -1,15 +1,17 @@
 # The grab journal
 
-For an admin, or an agent working for one, checking what Theatarr grabbed and correcting what looks wrong. The journal
-answers that without reading the code or the raw database. Code: `internal/journal`. Migration `00024_journal.sql`.
+For an admin, or an agent working for one, checking what Theatarr grabbed and why, and finding what looks wrong. The
+journal answers that without reading the code or the raw database. Code: `internal/journal`. Migrations
+`00024_journal.sql` (decisions) and `00144_journal_flags.sql` (stored flags).
 
 ## Reading it
 
 | How | Use |
 |---|---|
-| **System › Decision journal** (`/admin/system/journal`, admins) | The list in the UI, newest first. An entry opens from its title link. |
+| **System › Decision journal** (`/admin/system/journal`, admins) | The list in the UI, newest first, with **Flagged** for the entries a check found suspect (the nav badge counts them). An entry opens from its title link. |
 | `GET /api/theatarr/v1/journal` | List entries, newest first. Header `X-Api-Key: <key>`. |
 | `GET /api/theatarr/v1/journal/{id}` | Get one entry. |
+| `GET /api/theatarr/v1/journal/flagged` | `{"count": n}`: how many entries carry a `warn` or `error` flag (a count over the stored flags). |
 | `theatarr journal [flags]` | The same list on a database file. Output is JSONL (one entry per line, then `{"next_cursor": ...}` when there are more). `-format text` gives a few lines per entry. `-id ID` prints one entry. `-all` follows the cursor to the end. |
 
 Filters work the same way in the API and the CLI (`-flag` or `?param=`):
@@ -20,14 +22,13 @@ Filters work the same way in the API and the CLI (`-flag` or `?param=`):
 | `title` | A title id, or part of a title's name |
 | `version` | A version key (`movie-remux`) |
 | `kind` | A comma list of kinds (table below) |
-| `suspect` | `true`: only entries with an unacknowledged `warn` or `error` flag |
-| `severity` | `info`, `warn` or `error`: only entries with an unacknowledged flag at least that high |
+| `suspect` | `true`: only entries with a `warn` or `error` flag |
+| `severity` | `info`, `warn` or `error`: only entries with a flag at least that high |
 | `cursor` | The `next_cursor` of the previous page |
 | `limit` | 1–500, default 50 |
-| `scan` | API: how many entries one page may look at while filtering by `suspect` or `severity` (default 2000, at most 20000). The CLI has no limit. |
 
-**With `suspect` or `severity`, a page can come back short, or even empty, and still carry a `next_cursor`.** Keep
-following the cursor until it is gone.
+`suspect` and `severity` read the stored flags (below), so a flagged page is as quick as any other. The CLI reads the
+database only: it shows the flags `theatarr serve` stored and works out none itself.
 
 A good first pass:
 
@@ -51,7 +52,6 @@ Each entry is one decision, or one thing that happened after a decision.
 | `blocklist` | A hash went on a version's blocklist |
 | `import` | The library imported a download (linked, rejected or dry run) |
 | `link` | A library link action: link, replace, relink, or dead |
-| `verdict` | Someone judged an entry |
 | `action` | A person acted by hand in the web UI (grab, remove, retry, unblock, unlink), with who did it |
 
 The **id** names the source row. Ids are stable, so they work as keys in your notes:
@@ -64,7 +64,6 @@ The **id** names the source row. Ids are stable, so they work as keys in your no
 | `lib:<n>` | Library action n |
 | `bl:<n>` | Blocklist row n |
 | `run:<n>` | Acquire run n |
-| `v:<n>` | Verdict n |
 | `act:<n>` | Web UI action n |
 
 ### Fields
@@ -82,9 +81,8 @@ The **id** names the source row. Ids are stable, so they work as keys in your no
 | `import` | Library state, the files with runtime, resolution and audio languages (from the probe), and the links |
 | `after` | What happened next, oldest first. Each event has a `ref` to its own entry when it has one |
 | `related` | Ids of related entries |
-| `flags` | Suspect checks that fired. Each has a `code`, `severity`, `reason`, and `acked` once a verdict covers it |
-| `suspect`, `severity` | `suspect` is true when an unacknowledged flag is `warn` or `error`. `severity` is the highest unacknowledged severity |
-| `verdict` | The latest verdict |
+| `flags` | Suspect checks that fired, as stored (below). Each has a `code`, `severity` and `reason`. Empty for an entry without a History row |
+| `suspect`, `severity` | `suspect` is true when a flag is `warn` or `error`. `severity` is the highest one |
 
 The `reasoning` object:
 
@@ -101,66 +99,47 @@ GUIDs and download links are never read. Don't try to find them.
 
 ## Flags
 
+Flags are worked out once and stored (migration 00144, `internal/journal/flag.go`). The events that give a History
+row (below) write it with no flags yet; the journal then runs the checks on that row's entry, from what its sources
+say at that moment, and stores the result on the row (`history.flags`, `history.severity`). They are never worked out
+again: a later change to the release, the title or the size medians leaves them as they were. The journal does this
+for every unchecked row in the background when `theatarr serve` starts (after an upgrade that is every existing row:
+the checks are Go, so the migration leaves them unchecked), and for up to 50 new rows before each journal read (list,
+entry, count). The Flagged filter and the badge are a filter and a `COUNT(*)` on `history`.
+
+Only entries with a History row carry flags: grabs that reached a provider or client, failures, imports that linked
+or were held for review, and blocklist entries. A grab that never reached a provider, an import that is a dry run,
+still waits for the mount, or whose download failed, link and relink actions, searches and actions by hand carry
+none. An entry whose source is gone (a release unblocked since, a library removed) leaves the flagged view.
+
 | Code | Fires when | Severity | What to do |
 |---|---|---|---|
-| `title_mismatch` | The release's parsed title is not close to the title's name, original title, aliases or scene names (similarity under 0.6). That is how mis-tagged releases get in. | warn | Compare the release name with the title. If it is another film or show, give a `wrong` verdict. |
-| `year_mismatch` | The release year is more than a year from the title's year, and isn't its secondary year | warn | Usually another film with the same name (`wrong`). Sometimes a re-release (`ok`). |
-| `episode_mapping` | A season the series doesn't have; an episode past the season's count; a season pack filed under another season's episodes; a release that names SxxEyy but was filed as another episode; an absolute number past the series' total | error or warn. info for anime, for series with scene numbering, and for an episode past the end of the latest season (listings lag) | Check the episode list. A wrong season or episode gets `wrong`. |
+| `title_mismatch` | The release's parsed title is not close to the title's name, original title, aliases or scene names (similarity under 0.6). That is how mis-tagged releases get in. | warn | Compare the release name with the title. If it is another film or show, block it from its download in Activity. |
+| `year_mismatch` | The release year is more than a year from the title's year, and isn't its secondary year | warn | Usually another film with the same name. Sometimes a re-release. |
+| `episode_mapping` | A season the series doesn't have; an episode past the season's count; a season pack filed under another season's episodes; a release that names SxxEyy but was filed as another episode; an absolute number past the series' total | error or warn. info for anime, for series with scene numbering, and for an episode past the end of the latest season (listings lag) | Check the episode list. |
 | `size_outlier` | MB per minute of runtime against the median grab of the same quality (needs 15 grabs of that quality, and the runtime from TMDb or the episodes). Under 0.2× the median is an error, under 0.35× or over 4× a warning | error, warn | Very small means a fake, a sample or a re-encode mislabelled as Remux. Very large is usually harmless. |
-| `language` | The release's languages hold neither the profile's language nor, without one, English or the original language | warn | Usually a dub (`wrong`). Multi-language releases pass. |
+| `language` | The release's languages hold neither the profile's language nor, without one, English or the original language | warn | Usually a dub. Multi-language releases pass. |
 | `file_audio_language` | The imported file's audio tracks (probe) hold none of the wanted languages | warn with a profile language, otherwise info | TMDb's original language is sometimes not the spoken one. Check before you act. |
-| `file_runtime` | The file runs under half the expected runtime | error under 0.2×, else warn | A sample or the wrong file (`wrong`) |
-| `file_resolution` | A 2160p release holds a file under 3000×1900, or a 1080p one a file under 1200×800 (either dimension passing is enough) | warn | Mislabelled quality (`wrong` if it matters) |
+| `file_runtime` | The file runs under half the expected runtime | error under 0.2×, else warn | A sample or the wrong file |
+| `file_resolution` | A 2160p release holds a file under 3000×1900, or a 1080p one a file under 1200×800 (either dimension passing is enough) | warn | Mislabelled quality |
 | `sample_or_extras` | The release name says sample, trailer, featurettes, extras, bonus, or behind the scenes | warn | Check that the main feature is in it |
-| `upgrade_lower_score` | An upgrade whose format score (scored with today's profile) is below the file it replaced, at the same or lower quality | warn. info for a hand grab | Often a profile change since then. `wrong` if the new file is worse. |
+| `upgrade_lower_score` | An upgrade whose format score (scored with today's profile) is below the file it replaced, at the same or lower quality | warn. info for a hand grab | Often a profile change since then. |
 | `upgrade_lower_quality` | An upgrade to a lower quality than the file it replaced | warn. info for a hand grab | Usually wrong, unless the old file was gone |
-| `repeated_failures` | 3 or more failures (5 or more is an error) for the title and library in 30 days. Only the latest failure of a run is flagged. | warn, error | Look at the failure messages and the cache evidence. Often the only releases are uncached or dead. |
-| `download_stuck` | A grab still queued, added or downloading after 24 h, or an import still waiting for the mount after 6 h | warn | Check the provider and the mount |
-| `dead_link` | The library found a link whose target is gone, and no provider folder holds the file. Flagged once per finding, an unbroken run of dead observations of the link: a later scan that finds the same link dead again is a repeat and is not flagged, so a dry-run sweep does not raise a new flag every scan. Only the action log breaks a run: an applied link, relink or replace, or a gated revive, at its path, or a dead action with another target, starts a new finding with its own flag. A recovery that left no library action cannot start a new finding | warn | The relink sweep could not fix it. It needs a new grab. Settled flags can be acknowledged in bulk (below). |
-| `library_guard` | The library's sample, runtime or mislabel guard rejected a file, or the mislabel guard noted one it kept | info | The reason says what the import did: blocklisted (a failed import; the re-search runs later and only while grabbing is on), the rest of the release linked (for a series the refused episodes stay wanted), a dry run (nothing happened), or neither (held for review). A file skipped as not an upgrade is no guard refusal. A note refused nothing |
+| `repeated_failures` | 3 or more failures (5 or more is an error) for the title and library in the 30 days up to this one. Only the latest failure of a run is flagged: a new one takes the flag from the earlier ones of the title and library in its window. | warn, error | Look at the failure messages and the cache evidence. Often the only releases are uncached or dead. |
+| `library_guard` | The library's sample, runtime or mislabel guard rejected a file, or the mislabel guard noted one it kept | info | The reason says what the import did: blocklisted (a failed import; the re-search runs later and only while grabbing is on), the rest of the release linked (for a series the refused episodes stay wanted), or neither (held for review). A file skipped as not an upgrade is no guard refusal. A note refused nothing |
 | `unparseable` | The parser can't read the release name | info | — |
 
-## Acting: verdicts
-
-```
-POST /api/theatarr/v1/journal/{id}/verdict
-X-Api-Key: <key>
-Content-Type: application/json
-
-{"verdict": "wrong", "reason": "The Moon (2023), not Killers of the Flower Moon"}
-```
-
-- **Both verdicts acknowledge every flag the entry has right now**, so it stops being suspect. A flag that fires later
-  is not acknowledged. The verdict is an entry of its own (`v:<n>`), and the judged entry shows it under `verdict` and
-  in `after`.
-- **`ok`** records that the decision was fine. That is all it does.
-- **Settled dead-link flags in bulk.** `GET /journal/resolved` lists the open `dead_link` flags whose finding is
-  the action log proves settled: superseded (a newer finding of the same link has its own open flag), or repaired
-  (an applied link, relink or replace, or a gated revive, at its path after the finding's latest dead action, while
-  the link is not marked dead and not in the latest dangling-link report). Nothing is inferred from a link row alone
-  or from a report that does not list the path. `POST /journal/resolved/acknowledge` records an `ok` verdict on each (reason "Acknowledged in bulk:
-  …"); the entries stay, and nothing is blocklisted, searched or changed in the library. Reviews › Flagged decisions
-  offers it as **Acknowledge N settled flags**.
-- **`wrong`** always records. When the entry has a release hash, its library is Live and Pause is
-  off, it also does two things in the same transaction:
-  - blocklists the hash for that version (`router_blocklist`, source `journal`), so the router never routes it again for
-    that version;
-  - queues `acquire.research` for the title, and for series the entry's episodes. The item is then due for a search
-    at once and starts as `router.wanted.per_hour` allows; one within `again_after` of the last search after a
-    failure is skipped.
-- **With Pause on**, `wrong` is only recorded. `action_note` says why.
-- The response's `action` is `recorded` or `blocklisted`, and `research_job` is the job id when one was queued.
-- **Nothing is ever deleted**, on a debrid provider or anywhere else, and the current link stays. The new grab
-  replaces it as an upgrade, or you report it.
-- You need an API key (it is recorded as `key:<name>`) or a browser session. A session also needs the CSRF token.
-- You can't judge a verdict entry. A reason is required, up to 1000 characters.
+Not flagged any more (0.4.5): a download still waiting after a day and an import waiting for the mount
+(`download_stuck`: they depend on time passing, not on an event; Activity › Queue shows their age, and the stall check
+fails a stalled download, which then has a stall entry), and dead links (`dead_link`: open dead links are on
+System › Status under Dangling links, with relink and search; a stored flag would stay after the link is repaired).
+Verdicts (Ok and Wrong) are gone; to block a wrong release, use its download's actions in Activity.
 
 What to do:
 
-1. List suspects: `suspect=1`, newest first, and follow the cursor.
+1. List the flagged entries: `suspect=1`, newest first, and follow the cursor.
 2. For each one, read `flags`, `release`, `reasoning` and `after`. Fetch the `related` entries you need.
-3. Give a verdict on the decision entry itself: the `grab` or `upgrade` entry, not the `failure`
-   or `import` that followed. That entry carries the hash and the version.
+3. Act on the release from Activity (block it, search again) or on the title page.
 
 ## Retention
 
@@ -172,7 +151,8 @@ The journal is mostly a reader, so its entries live as long as their source rows
   - A full row is about 3–6 KB. At the default limit of 10 automatic searches an hour, the 180-day window is at most
     about 45 MB, and the trimmed history grows by about 9 MB a year after that. At the expected pace of tens of
     searches a day, the whole table stays under 10 MB.
-- **`journal_verdict`** is kept for good.
+- **`journal_action`**, the actions by hand, is kept for good.
+- The flags live on the History rows, which are not pruned.
 
 The source tables keep their own rules. Listing the whole journal takes seconds for thousands of entries; one entry
 takes about a millisecond.
@@ -187,10 +167,10 @@ is filtered), imported (one row per import, with the episodes its links held), a
 by library, release and day), deleted (an import's replaced files, one row per download and library, "Upgraded: N
 files replaced" with what replaced them and the list of files), removed (a replace without a download: an unlink by
 hand), missing (a dead link), failed (a failed or stalled download, or an import held for review), blocked, the
-provider copies' outcomes (`copy:<provider_copy_event>`, not a journal entry) and title_removed. Searches, plans, dry
+provider copies' outcomes (`copy:<id>`, stored rows only since their source table went in 00144; not a journal entry) and title_removed. Searches, plans, dry
 runs, mount waits and repaired links are journal entries only; the journal's own list still reads its sources.
 Each row names its journal entry for the Journal link (`journal.EntryOf`: a held import's is `dl:<id>:import`; a copy
-and a release unblocked since have none). History rows carry no suspect flags. The release facts of library actions
+and a release unblocked since have none). A History row carries its entry's stored flags (above). The release facts of library actions
 are those recorded with the action (migration 00129); older actions were stored with what a link row still held then.
 
 ### Stored History rows (migration 00140)

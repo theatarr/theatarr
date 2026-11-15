@@ -1,4 +1,4 @@
-// Admin › Metadata review: the anime review queue (one plain-language card per item, components/anime/review-card.tsx), franchises (GET /anime/*), and a franchise
+// Settings › Anime mappings (/admin/settings/anime-mappings; a franchise at /:slug): the anime review queue (one plain-language card per item, components/anime/review-card.tsx), franchises (GET /anime/*), and a franchise
 // with its orders and mappings. Accept and reject go through POST /anime/review/{id}/accept|reject. Rebuild and Build
 // queue anime_build jobs (POST /anime/franchises/{slug}/build, POST /anime/build); "Anime series without a franchise"
 // is GET /anime/uncovered.
@@ -66,6 +66,17 @@ function nextRefresh(f: { built_at?: string | null; next_refresh?: string | null
 
 const STATES: [string, string][] = [["open", "Waiting"], ["accepted", "Accepted"], ["rejected", "Rejected"], ["superseded", "Replaced"], ["all", "All"]];
 
+/** Settings › Anime mappings: the page. */
+export function AnimeMappingsPage() {
+  return (
+    <div>
+      <PageHeader crumb={[{ label: "Settings", to: "/admin/settings" }]} title="Anime mappings"
+        description="Episode numbering Theatarr could not match on its own. Accept or reject the proposed match." />
+      <AnimeMappings />
+    </div>
+  );
+}
+
 export function AnimeMappings() {
   const [params, setParams] = useSearchParams();
   const state = params.get("state") ?? "open";
@@ -110,7 +121,7 @@ export function AnimeMappings() {
                 {(fr.data?.items ?? []).map((f) => (
                   <TableRow key={f.slug}>
                     <TableCell>
-                      <Link className="font-medium hover:text-primary" to={`/admin/reviews/anime/${f.slug}`}>{f.name}</Link>
+                      <Link className="font-medium hover:text-primary" to={`/admin/settings/anime-mappings/${f.slug}`}>{f.name}</Link>
                       {f.pending ? <Badge tone="warning" className="ml-2">refresh held</Badge> : null}
                       <div className="text-xs text-muted-foreground"><Mono>{f.slug}</Mono> · <span title={f.source}>{animeSourceWords(f.source)}</span></div>
                     </TableCell>
@@ -175,7 +186,7 @@ function UncoveredRow({ u }: { u: UncoveredItem }) {
       <TableCell><Link className="font-medium hover:text-primary hover:underline" to={`/title/${u.title_id}`}>{u.name}</Link><div className="text-xs text-muted-foreground">TVDB <Mono>{u.tvdb_id}</Mono></div></TableCell>
       <TableCell className="text-[13px]">
         {o ? <Badge tone={o.tone}>{o.label}</Badge> : <span className="text-muted-foreground">not tried yet</span>}
-        {u.franchise ? <Link className="ml-2 hover:text-primary" to={`/admin/reviews/anime/${u.franchise}`}><Mono>{u.franchise}</Mono></Link> : null}
+        {u.franchise ? <Link className="ml-2 hover:text-primary" to={`/admin/settings/anime-mappings/${u.franchise}`}><Mono>{u.franchise}</Mono></Link> : null}
         {u.tried_at ? <span className="ml-2 text-xs text-muted-foreground">{fmtAgo(u.tried_at)}</span> : null}
         {u.detail ? <div className="max-w-[28rem] break-words text-xs text-muted-foreground">{u.detail}</div> : null}
       </TableCell>
@@ -187,7 +198,7 @@ function UncoveredRow({ u }: { u: UncoveredItem }) {
 export function MetadataFranchise() {
   const { slug = "" } = useParams();
   const q = useFranchise(slug);
-  const crumb = [{ label: "Admin", to: "/admin" }, { label: "Reviews", to: "/admin/reviews" }, { label: "Anime mappings", to: "/admin/reviews/anime" }];
+  const crumb = [{ label: "Settings", to: "/admin/settings" }, { label: "Anime mappings", to: "/admin/settings/anime-mappings" }];
   if (q.isPending) return <Loading />;
   if (q.error) return (<div><PageHeader crumb={crumb} title={slug} /><ErrorState error={q.error} /></div>);
   const f = q.data;

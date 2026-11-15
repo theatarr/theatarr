@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"os"
 	"path"
 	"slices"
@@ -19,7 +20,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/theatarr/theatarr/internal/errinbox"
 	"github.com/theatarr/theatarr/internal/library"
 	"github.com/theatarr/theatarr/internal/plex"
 	"github.com/theatarr/theatarr/internal/policy"
@@ -91,8 +91,15 @@ type Options struct {
 	Logger                      *slog.Logger
 	Now                         func() time.Time
 	Readlink                    func(string) (string, error)
-	// Report raises an error-inbox item (errinbox.Report by default).
-	Report func(errinbox.Event)
+	// Report hears a pre-warm problem (logged at error level by default, so it is in Logs).
+	Report func(Problem)
+}
+
+// Problem is a next episode the pre-warm found missing or unreadable. Key names the version and episode.
+type Problem struct {
+	Key     string
+	Message string
+	Context map[string]string
 }
 
 // Tracker holds the current playbacks.
@@ -232,7 +239,14 @@ func New(o Options) *Tracker {
 		o.Readlink = os.Readlink
 	}
 	if o.Report == nil {
-		o.Report = errinbox.Report
+		log := o.Logger
+		o.Report = func(p Problem) {
+			args := []any{"key", p.Key}
+			for _, k := range slices.Sorted(maps.Keys(p.Context)) {
+				args = append(args, k, p.Context[k])
+			}
+			log.Error("nowplaying: "+p.Message, args...)
+		}
 	}
 	if o.AllDir == "" {
 		o.AllDir = "__all__"
@@ -739,7 +753,7 @@ func (t *Tracker) setPrewarm(key string, linkID int64, p PrewarmState) {
 // prewarm warms the next episode of the job's playback: finds it in the version's order, checks its link, the
 // registry and zurg's entry, then reads the head of the file through the mount. A missing next episode (aired and
 // monitored but not linked, gone from the providers, without a zurg entry, off the mount) or an unreadable file
-// raises an error-inbox item (one per version and episode). It never calls a provider.
+// raises an error in Logs (one per version and episode). It never calls a provider.
 func (t *Tracker) prewarm(ctx context.Context, j *warmJob) {
 	defer func() {
 		t.mu.Lock()
@@ -770,8 +784,7 @@ func (t *Tracker) prewarm(ctx context.Context, j *warmJob) {
 		if linkID != 0 {
 			ctx["link_id"] = fmt.Sprint(linkID)
 		}
-		t.o.Report(errinbox.Event{Source: errinbox.SourceJob, Component: "nowplaying.prewarm",
-			Message: "next episode " + msg, Key: fmt.Sprintf("%d:%d", j.versionID, next.ID), Time: t.o.Now(),
+		t.o.Report(Problem{Message: "next episode " + msg, Key: fmt.Sprintf("%d:%d", j.versionID, next.ID),
 			Context: ctx})
 	}
 	err = t.o.Store.Reader().QueryRowContext(ctx, `SELECT l.id, l.target, l.kind, l.content_file_id
@@ -849,14 +862,13 @@ func (t *Tracker) prewarm(ctx context.Context, j *warmJob) {
 	t.mu.Unlock()
 }
 
-// report raises the pre-warm's error-inbox item for a next episode (one per version and episode).
+// report raises the pre-warm's error in Logs for a next episode (one per version and episode).
 func (t *Tracker) report(nf *nextFile, msg string, linkID int64) {
 	c := map[string]string{"title": nf.title, "version": nf.version, "episode": nf.ep}
 	if linkID != 0 {
 		c["link_id"] = fmt.Sprint(linkID)
 	}
-	t.o.Report(errinbox.Event{Source: errinbox.SourceJob, Component: "nowplaying.prewarm",
-		Message: "next episode " + msg, Key: fmt.Sprintf("%d:%d", nf.versionID, nf.episodeID), Time: t.o.Now(),
+	t.o.Report(Problem{Message: "next episode " + msg, Key: fmt.Sprintf("%d:%d", nf.versionID, nf.episodeID),
 		Context: c})
 }
 
@@ -918,7 +930,7 @@ func (t *Tracker) nextCache(ctx context.Context) *cacheStart {
 
 // cacheNext reads the next episode's whole file through the mount at the rate cap, so rclone's VFS cache keeps it
 // and it plays from local disk. Once started it runs to the end, whatever the sessions do (only Theatarr stopping
-// ends it early). A file over the size cap is left alone; a read error raises the inbox item and stops. It never
+// ends it early). A file over the size cap is left alone; a read error logs the error and stops. It never
 // calls a provider and deletes nothing from the cache (rclone evicts on its own).
 func (t *Tracker) cacheNext(ctx context.Context, j *cacheJob) {
 	nf := j.nf

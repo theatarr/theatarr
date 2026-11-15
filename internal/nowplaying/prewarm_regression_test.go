@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/theatarr/theatarr/internal/errinbox"
 	"github.com/theatarr/theatarr/internal/library"
 	"github.com/theatarr/theatarr/internal/plex"
 )
@@ -31,7 +30,7 @@ func TestPrewarmBufferingAdmission(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			m := &fakeMount{}
-			var reports []errinbox.Event
+			var reports []Problem
 			tr, p := cacheTracker(t, m, &reports)
 			if tc.pausedCandidate {
 				p.ss[0].State = "paused"
@@ -77,7 +76,7 @@ func TestHeadCheckWaitsForProviderBuffering(t *testing.T) {
 		ViewOffset: 70000, File: "/media/tv/Show/S01E02.mkv"}}}
 	z := &fakeZurg{stats: &library.ZurgStats{BlockedReads: []library.ZurgBlockedRead{{Filename: "S01E02.mkv"}}}}
 	m := &fakeMount{}
-	var reports []errinbox.Event
+	var reports []Problem
 	tr := newTracker(t, p, z, m, &clock{time.Now()}, &reports)
 	tr.poll(context.Background())
 	waitPrewarm(t, tr)
@@ -156,7 +155,7 @@ func TestSourceRefreshAfterAdoption(t *testing.T) {
 	for _, initial := range []string{"content", "missing"} {
 		t.Run(initial, func(t *testing.T) {
 			m := &fakeMount{}
-			var reports []errinbox.Event
+			var reports []Problem
 			p := &fakePlex{ss: []plex.Session{{SessionKey: "1", RatingKey: "r2", Type: "episode", State: "playing",
 				ViewOffset: 70000, File: "/plex/tv/Show/S01E02.mkv"}}}
 			c := &clock{time.Now()}
@@ -209,7 +208,7 @@ func TestCacheProgressSharedAfterViewerLeaves(t *testing.T) {
 func testCacheProgressShared(t *testing.T, late bool) {
 	t.Helper()
 	m := &fakeMount{block: make(chan struct{})}
-	var reports []errinbox.Event
+	var reports []Problem
 	tr, p := cacheTracker(t, m, &reports)
 	remaining := p.ss[0]
 	remaining.SessionKey = "2"
@@ -256,7 +255,7 @@ func testCacheProgressShared(t *testing.T, late bool) {
 
 func TestCacheProgressVersionScope(t *testing.T) {
 	m := &fakeMount{block: make(chan struct{})}
-	var reports []errinbox.Event
+	var reports []Problem
 	tr, _ := cacheTracker(t, m, &reports)
 	tr.poll(context.Background())
 	t.Cleanup(func() { close(m.block); waitCache(t, tr) })

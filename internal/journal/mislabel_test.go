@@ -82,22 +82,6 @@ func TestImportPartMovieRefusal(t *testing.T) {
 	}
 }
 
-// A shadow dry run that would link one file and refuse another: nothing linked, blocklisted or searched.
-func TestImportDryRunRefusal(t *testing.T) {
-	e := newEnv(t)
-	e.seedRoute()
-	e.exec(`INSERT INTO library_import (download_id, state, mount_folder, last_error, plan, created_at, updated_at)
-		VALUES (1, 'dry_run', '/m/Alpha', NULL, ?, ?, ?)`, `{"files":[{"path":"/m/Alpha/e01.mkv","size":1}],
-		"links":[{"path":"/l/e01.mkv","target":"/m/Alpha/e01.mkv"}],
-		"rejected":[{"path":"/m/Alpha/e02.mkv","reason":"mislabelled 2160p: the video is 1920x1080","episodes":["S01E02"]}]}`,
-		msOf(testNow), msOf(testNow))
-	flags := guardFlags(e.get("dl:1:import"))
-	if len(flags) != 1 || flags[0] != "the library's guard would reject a file: mislabelled 2160p: the video is "+
-		"1920x1080 (S01E02) (dry run: nothing was linked, blocklisted or searched)" {
-		t.Errorf("flags %q", flags)
-	}
-}
-
 // A failed import says blocklisted only when the library's blocklist row is there: a hold for
 // review (here a naming collision next to the refusal) has none.
 func TestImportRejectedBlocklist(t *testing.T) {
@@ -106,6 +90,8 @@ func TestImportRejectedBlocklist(t *testing.T) {
 	for _, blocklisted := range []bool{true, false} {
 		e := newEnv(t)
 		e.seedRoute()
+		// Held for review: the download itself did not fail (a failed download's import has no History row of its own).
+		e.exec(`UPDATE download SET state = 'ready', error = NULL WHERE id = 1`)
 		e.exec(`INSERT INTO library_import (download_id, state, mount_folder, last_error, plan, created_at, updated_at)
 			VALUES (1, 'rejected', '/m/Alpha', 'no file passed the sample guard', ?, ?, ?)`, plan, msOf(testNow), msOf(testNow))
 		want := "the library's guard rejected a file: sample: 60s of 7200s"

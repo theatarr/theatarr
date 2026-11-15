@@ -51,7 +51,7 @@ import { returnTarget } from "./focus";
 import { Sheet, useEditParam } from "@/components/ui/sheet";
 import { Announcer, ExplainBox, TestResult, useAnnouncement, type Announcement } from "./parts";
 import { adapterWord, NOUN, RecordEditor } from "./record-form";
-import { AddIndexer, HoldsCard } from "./add-indexer";
+import { AddIndexer, DefinitionHolds } from "./add-indexer";
 import { useCardigannCatalog, type CardigannDefinition } from "@/api/cardigann";
 import { useVersions } from "@/api/settings-versions";
 import type { LibraryList } from "./indexer-libraries";
@@ -584,7 +584,7 @@ export function SourcesPanel({
   return (
     <div ref={ed.root} tabIndex={-1} className="outline-none">
       {confirm.dialog}
-      {entity === "indexers" ? <HoldsCard /> : null}
+      {entity === "indexers" ? <DefinitionHolds /> : null}
       {adding && !ed.editing ? (
         <Sheet label="Add indexer" onClose={() => setAdding(false)} initialFocus={ed.heading}>
           <AddIndexer overview={overview} kinds={ent.kinds ?? []} libraries={libraries!} onBuiltIn={builtIn} onDone={() => setAdding(false)} headingRef={ed.heading} />

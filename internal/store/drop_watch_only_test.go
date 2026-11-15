@@ -27,10 +27,6 @@ func TestMigrationDropWatchOnly(t *testing.T) {
 			('watch', '{"config":{"mode":"shadow","enable":"default","kind":"movie"},"roots":["/w"]}', 0, 0),
 			('live', '{"config":{"mode":"active","enable":"default","kind":"movie"},"roots":["/l"]}', 0, 5)`,
 		`INSERT INTO setting_global_switches (key, config, created_at, updated_at) VALUES ('global', '{"paused":false}', 0, 0)`,
-		`INSERT INTO error_event (fingerprint, source, component, level, message, first_seen, last_seen, updated_at)
-			VALUES ('arr-freeze:watch', 'log', 'settings', 'error', 'Library watch used a profile or naming taken from'
-			|| ' Sonarr/Radarr that could not be copied. It is now Watch only. Check its profile and naming in Settings ›'
-			|| ' Libraries, then set it Live.', 0, 0, 0)`,
 		`INSERT INTO router_plan (id, title_id, version_key, mode, outcome, created_at) VALUES (1, 1, 'watch', 'shadow', 'none', 0)`,
 		`INSERT INTO journal_verdict (entry_id, verdict, reason, action, created_at) VALUES ('plan:1', 'ok', 'x', 'recorded', 0),
 			('dl:1', 'ok', 'y', 'recorded', 0)`,
@@ -60,11 +56,8 @@ func TestMigrationDropWatchOnly(t *testing.T) {
 		`SELECT json_extract(config, '$.config.enable') || ' ' || (json_type(config, '$.config.mode') IS NULL) || ' ' ||
 			updated_at FROM setting_version WHERE key = 'live'`: "default 1 5",
 		`SELECT json_extract(config, '$.paused') FROM setting_global_switches WHERE key = 'global'`: "1",
-		`SELECT message FROM error_event WHERE fingerprint = 'watch-only'`: "Watch only is gone: every library is Live. " +
-			"Library watch was Watch only, so its titles are now not monitored, arr clients no longer add to it, and Pause " +
-			"is on. Monitor what should download, check Settings › Libraries, then turn Pause off.",
-		`SELECT message FROM error_event WHERE fingerprint = 'arr-freeze:watch'`: "Library watch used a profile or naming " +
-			"taken from Sonarr/Radarr that could not be copied. Check its profile and naming in Settings › Libraries.",
+		// No card: the error inbox goes in 00144; docs/migration.md says what to check.
+		`SELECT COUNT(*) FROM error_event`: "0",
 		`SELECT group_concat(id || '=' || enabled || versions || (updated_at > 7), ' ') FROM (SELECT * FROM import_list ORDER BY id)`: `1=1["live"]1 2=0[]1 3=1["live"]1 4=0[]1 5=1["live"]0`,
 		`SELECT group_concat(tmdb_id || '=' || monitored || versions, ' ') FROM (SELECT * FROM movie_collection ORDER BY tmdb_id)`:    `1=0[] 2=1["live"] 3=1["live"]`,
 		`SELECT group_concat(id || '=' || COALESCE(request_versions, '-'), ' ') FROM (SELECT * FROM web_user ORDER BY id)`:            `1=["live"] 2=["live"] 3=["live"] 4=["live"]`,

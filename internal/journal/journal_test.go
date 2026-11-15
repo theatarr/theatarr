@@ -9,6 +9,7 @@ import (
 	"io"
 	"log/slog"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -37,6 +38,8 @@ type env struct {
 	pol *policy.Policy
 	q   *jobs.Queue
 	j   *Journal
+	// dirty: exec wrote one of History's sources since History was last stored (flag).
+	dirty bool
 }
 
 func msOf(t time.Time) int64 { return store.Millis(t) }
@@ -59,7 +62,7 @@ func newEnv(t *testing.T) *env {
 	q := jobs.NewQueue(st)
 	q.SetClock(func() time.Time { return testNow })
 	e := &env{t: t, st: st, pol: pol, q: q}
-	e.j = New(Config{Store: st, Policy: pol, Queue: q, Now: func() time.Time { return testNow },
+	e.j = New(Config{Store: st, Policy: pol, Now: func() time.Time { return testNow },
 		Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
 	e.seed()
 	return e
@@ -67,6 +70,9 @@ func newEnv(t *testing.T) *env {
 
 func (e *env) exec(q string, args ...any) {
 	e.t.Helper()
+	if historySourceRE.MatchString(q) {
+		e.dirty = true
+	}
 	if _, err := e.st.Writer().Exec(q, args...); err != nil {
 		e.t.Fatalf("%s: %v", q, err)
 	}
@@ -109,8 +115,31 @@ func (e *env) seed() {
 	}
 }
 
+// historySourceRE matches a statement that writes one of History's sources.
+var historySourceRE = regexp.MustCompile(`(?i)(INSERT\s+(OR\s+\w+\s+)?INTO|UPDATE|DELETE\s+FROM)\s+(download|download_attempt|library_import|library_action|router_blocklist|journal_action)\b`)
+
+// flag stores History's rows from the sources the test wrote by exec (as the migration would have) and works out their
+// flags once.
+func (e *env) flag() {
+	e.t.Helper()
+	ctx := context.Background()
+	if e.dirty {
+		e.dirty = false
+		if _, err := e.st.Writer().ExecContext(ctx, `DELETE FROM history`); err != nil {
+			e.t.Fatal(err)
+		}
+		if err := store.BackfillHistory(ctx, e.st.Writer()); err != nil {
+			e.t.Fatal(err)
+		}
+	}
+	if _, err := e.j.FillAll(ctx); err != nil {
+		e.t.Fatal(err)
+	}
+}
+
 func (e *env) list(f Filter) *Page {
 	e.t.Helper()
+	e.flag()
 	p, err := e.j.List(context.Background(), f)
 	if err != nil {
 		e.t.Fatal(err)
@@ -120,6 +149,7 @@ func (e *env) list(f Filter) *Page {
 
 func (e *env) get(id string) *Entry {
 	e.t.Helper()
+	e.flag()
 	en, err := e.j.Get(context.Background(), id)
 	if err != nil {
 		e.t.Fatalf("get %s: %v", id, err)
@@ -421,97 +451,25 @@ func TestDownloadChecks(t *testing.T) {
 	if !slices.Equal(paged, want) {
 		t.Errorf("paged %v\nwant %v", paged, want)
 	}
-	// A suspect scan with a small scan limit returns a cursor to continue.
-	if p := e.list(Filter{Suspect: true, Limit: 10, ScanLimit: 2}); p.NextCursor == "" || p.Scanned != 2 {
-		t.Errorf("scan limit: %+v", p)
+	// The flagged view pages too, and the badge counts the same entries.
+	if p := e.list(Filter{Suspect: true, Limit: 2}); len(p.Items) != 2 || p.NextCursor == "" {
+		t.Errorf("flagged page: %+v", p)
+	}
+	if n, err := e.j.FlaggedCount(context.Background()); err != nil || n != 3 {
+		t.Errorf("flagged count %d %v", n, err)
+	}
+	// Flags are worked out once: a later change to the source does not change them.
+	if _, err := e.st.Writer().Exec(`UPDATE download SET release_title = 'Alpha.2020.2160p.WEB-DL-GRP' WHERE id = 3`); err != nil {
+		t.Fatal(err)
+	}
+	if f := hasFlag(e.get("dl:3"), CheckTitle); f == nil {
+		t.Error("stored flag recomputed")
 	}
 	if _, err := e.j.List(context.Background(), Filter{Kinds: []string{"nope"}}); err == nil {
 		t.Error("bad kind accepted")
 	}
 	if _, err := e.j.Get(context.Background(), "dl:999"); err != ErrNotFound {
 		t.Errorf("missing: %v", err)
-	}
-}
-
-func TestVerdicts(t *testing.T) {
-	e := newEnv(t)
-	e.seedRoute()
-	ctx := context.Background()
-	// The router off: recorded only, and the flags are acknowledged.
-	e.dlEvent(3, "added", testNow.Add(-time.Hour), 1, 1, "movie-remux", hashC, "Other.Film.1999.2160p.WEB-DL-X",
-		"WEBDL-2160p", 100, 0, nil, "")
-	before := e.get("dl:3")
-	if !before.Suspect {
-		t.Fatalf("not suspect: %+v", before.Flags)
-	}
-	v, err := e.j.Judge(ctx, "dl:3", VerdictRequest{Verdict: "wrong", Reason: "another film"}, "admin")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if v.Action != ActionRecorded || !strings.Contains(v.Note, "router.enabled is false") || v.ResearchJob != 0 {
-		t.Errorf("recorded verdict: %+v", v)
-	}
-	after := e.get("dl:3")
-	if after.Suspect || after.Verdict == nil || after.Verdict.Verdict != "wrong" || !after.Flags[0].Acked {
-		t.Errorf("after: %+v", after)
-	}
-	var n int
-	e.st.Reader().QueryRow(`SELECT COUNT(*) FROM router_blocklist WHERE source = 'journal'`).Scan(&n)
-	if n != 0 {
-		t.Errorf("shadow verdict blocklisted")
-	}
-	// The verdict is an entry too.
-	if ve := e.get("v:1"); ve.Kind != KindVerdict || ve.Judged != "dl:3" {
-		t.Errorf("verdict entry: %+v", ve)
-	}
-	if _, err := e.j.Judge(ctx, "v:1", VerdictRequest{Verdict: "ok", Reason: "x"}, "admin"); err == nil {
-		t.Error("judged a verdict")
-	}
-	for _, bad := range []VerdictRequest{{Verdict: "maybe", Reason: "x"}, {Verdict: "ok"}} {
-		if _, err := e.j.Judge(ctx, "dl:1", bad, "admin"); err == nil {
-			t.Errorf("accepted %+v", bad)
-		}
-	}
-	if _, err := e.j.Judge(ctx, "dl:99", VerdictRequest{Verdict: "ok", Reason: "x"}, "admin"); err != ErrNotFound {
-		t.Errorf("missing entry: %v", err)
-	}
-	// Active, router off: still recorded only.
-	v, err = e.j.Judge(ctx, "dl:1", VerdictRequest{Verdict: "wrong", Reason: "bad"}, "key:agent")
-	if err != nil || v.Action != ActionRecorded || !strings.Contains(v.Note, "router.enabled is false") {
-		t.Fatalf("router off: %+v %v", v, err)
-	}
-	// Active, router on: blocklisted for the version, and a re-search queued.
-	if e.pol.Router == nil {
-		e.pol.Router = &policy.Router{}
-	}
-	e.pol.Router.Enabled = true
-	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, quality,
-		score, state, source, created_at, updated_at) VALUES (2, 1, 1, 'movie-remux', ?, 'Alpha.2020.2160p.WEB-DL-OTHER',
-		'torrentio', 'WEBDL-2160p', 6200, 'imported', 'acquire:9', ?, ?)`, hashB, msOf(testNow), msOf(testNow))
-	v, err = e.j.Judge(ctx, "dl:2", VerdictRequest{Verdict: "wrong", Reason: "wrong cut"}, "key:agent")
-	if err != nil || v.Action != ActionBlocklisted || v.ResearchJob == 0 {
-		t.Fatalf("active: %+v %v", v, err)
-	}
-	var src, reason string
-	var researched any
-	if err := e.st.Reader().QueryRow(`SELECT source, reason, researched_at FROM router_blocklist WHERE version_key =
-		'movie-remux' AND info_hash = ?`, hashB).Scan(&src, &reason, &researched); err != nil || src != "journal" ||
-		!strings.Contains(reason, "wrong cut") || researched == nil {
-		t.Errorf("blocklist: %s %s %v %v", src, reason, researched, err)
-	}
-	var kind, payload string
-	if err := e.st.Reader().QueryRow(`SELECT kind, payload FROM job WHERE id = ?`, v.ResearchJob).Scan(&kind,
-		&payload); err != nil || kind != "acquire.research" || !strings.Contains(payload, `"reason":"journal"`) ||
-		!strings.Contains(payload, `"download_id":2`) {
-		t.Errorf("job: %s %s %v", kind, payload, err)
-	}
-	// An ok verdict records only, even on an active version.
-	v, err = e.j.Judge(ctx, "dl:1:fail", VerdictRequest{Verdict: "ok", Reason: "expected"}, "admin")
-	if err != nil || v.Action != ActionRecorded || v.Note != "" {
-		t.Errorf("ok: %+v %v", v, err)
-	}
-	if p := e.list(Filter{Kinds: []string{KindVerdict}}); len(p.Items) != 4 {
-		t.Errorf("verdict entries: %d", len(p.Items))
 	}
 }
 
@@ -609,29 +567,6 @@ func TestClean(t *testing.T) {
 	}
 }
 
-func TestUnmigratedDatabase(t *testing.T) {
-	ctx := context.Background()
-	st, err := store.Open(ctx, storetest.Seed(t, filepath.Join(t.TempDir(), "theatarr.db")), store.Options{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer st.Close()
-	// The live schema before the journal: no journal_verdict (and so no verdicts or verdict entries).
-	if _, err := st.Migrate(ctx); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := st.Writer().Exec(`DROP TABLE journal_verdict`); err != nil {
-		t.Fatal(err)
-	}
-	j := New(Config{Store: st})
-	if _, err := j.List(ctx, Filter{}); err != nil {
-		t.Errorf("list without the journal tables: %v", err)
-	}
-	if _, err := j.Judge(ctx, "dl:1", VerdictRequest{Verdict: "ok", Reason: "x"}, ""); err != ErrNotMigrated {
-		t.Errorf("judge: %v", err)
-	}
-}
-
 // A decision carries the revision of the policy that made it: the search's, shown on the run and on the download it
 // routed, and the revision the run was queued under when that differs.
 func TestPolicyRevision(t *testing.T) {
@@ -667,199 +602,4 @@ func TestPolicyRevision(t *testing.T) {
 		dl.QueuedPolicyRev != "olderrev0000" {
 		t.Fatalf("download: policy %q queued %q", dl.PolicyRev, dl.QueuedPolicyRev)
 	}
-}
-
-// deadEnv is a journal with links and helpers for dead-link actions.
-type deadEnv struct {
-	*env
-}
-
-func (d deadEnv) at(h int) int64 { return msOf(testNow.Add(time.Duration(-h) * time.Hour)) }
-
-func (d deadEnv) action(h int, kind, mode string, link int64, path, target, detail string) {
-	d.exec(`INSERT INTO library_action (at, kind, mode, version_key, link_id, path, target, detail)
-		VALUES (?, ?, ?, 'movie-remux', NULLIF(?, 0), ?, ?, ?)`, d.at(h), kind, mode, link, path, target, detail)
-}
-
-func (d deadEnv) dead(h int, link int64, path, target, mode string) {
-	d.action(h, "dead", mode, link, path, target, "unknown")
-}
-
-// scan records a dangling-link report at h hours ago over root, listing the paths given.
-func (d deadEnv) scan(h int, root string, dangling ...string) {
-	d.exec(`DELETE FROM library_dangling`)
-	d.exec(`INSERT INTO library_dangling_scan (at, roots, links, dangling, took_ms) VALUES (?, ?, 10, ?, 1)`, d.at(h),
-		`["`+root+`"]`, len(dangling))
-	for _, p := range dangling {
-		d.exec(`INSERT INTO library_dangling (path, target, root, folder, first_seen_at, last_seen_at)
-			VALUES (?, 'x', ?, 'x', ?, ?)`, p, root, d.at(h), d.at(h))
-	}
-}
-
-// flagged says whether an entry carries a dead_link flag, read alone (Get) and in the suspect listing (List), which
-// must agree.
-func (d deadEnv) flagged(id string) bool {
-	d.t.Helper()
-	alone := slices.ContainsFunc(d.get(id).Flags, func(f Flag) bool { return f.Code == CheckDeadLink })
-	listed := slices.ContainsFunc(d.list(Filter{Suspect: true}).Items, func(e *Entry) bool { return e.ID == id })
-	if !d.get(id).Suspect {
-		listed = alone // an acknowledged flag is not listed
-	}
-	if alone != listed {
-		d.t.Errorf("%s: flagged alone %v, listed %v", id, alone, listed)
-	}
-	return alone
-}
-
-func (d deadEnv) resolved() map[string]string {
-	d.t.Helper()
-	res, err := d.j.ResolvedDeadLinks(context.Background())
-	if err != nil {
-		d.t.Fatal(err)
-	}
-	got := map[string]string{}
-	for _, r := range res {
-		got[r.Entry] = r.Why
-	}
-	return got
-}
-
-func newDeadEnv(t *testing.T) deadEnv {
-	d := deadEnv{newEnv(t)}
-	now := msOf(testNow)
-	d.exec(`INSERT INTO link (id, path, target, title_id, state, created_at, updated_at) VALUES
-		(10, '/lib/Alpha/a.mkv', '/mnt/zurg/A/a.mkv', 1, 'active', ?, ?),
-		(11, '/lib/Beta/b.mkv', '/mnt/zurg/B2/b.mkv', 2, 'active', ?, ?),
-		(12, '/lib/Gamma/c.mkv', '/mnt/zurg/C/c.mkv', 3, 'active', ?, ?),
-		(14, '/lib/Alpha/d.mkv', '/mnt/zurg/D/d.mkv', 1, 'dead', ?, ?)`, now, now, now, now, now, now, now, now)
-	return d
-}
-
-// The same dead link found by every scan is flagged once; only the action log starts a new finding or proves one
-// settled for bulk Acknowledge, and bulk Acknowledge writes nothing but verdicts.
-func TestDeadLinkFlagsOncePerFinding(t *testing.T) {
-	d := newDeadEnv(t)
-	ctx := context.Background()
-	const a, b, c, x = "/lib/Alpha/a.mkv", "/lib/Beta/b.mkv", "/lib/Gamma/c.mkv", "/lib/Gone/x.mkv"
-	d.dead(20, 10, a, "/mnt/zurg/A/a.mkv", "dry_run")                            // lib:1, three times dead: one finding
-	d.dead(19, 10, a, "/mnt/zurg/A/a.mkv", "dry_run")                            // lib:2
-	d.dead(18, 10, a, "/mnt/zurg/A/a.mkv", "applied")                            // lib:3
-	d.dead(17, 11, b, "/mnt/zurg/B/b.mkv", "dry_run")                            // lib:4, repaired by an action
-	d.action(16, "relink", "applied", 11, b, "/mnt/zurg/B2/b.mkv", "")           // lib:5
-	d.dead(15, 12, c, "/mnt/zurg/C/c.mkv", "dry_run")                            // lib:6, dead, relinked, dead again
-	d.action(14, "relink", "dry_run", 0, c, "/mnt/zurg/C/c.mkv", "revive: back") // lib:7
-	d.dead(13, 12, c, "/mnt/zurg/C/c.mkv", "dry_run")                            // lib:8, a new finding: lib:6 superseded
-	d.dead(12, 13, x, "/mnt/zurg/X/x.mkv", "dry_run")                            // lib:9, no link row: not provable
-	d.scan(1, "/lib", a)                                                         // a clean report for b, c and x
-
-	for id, want := range map[string]bool{"lib:1": true, "lib:2": false, "lib:3": false, "lib:4": true, "lib:6": true,
-		"lib:8": true, "lib:9": true} {
-		if got := d.flagged(id); got != want {
-			t.Errorf("%s flagged %v, want %v", id, got, want)
-		}
-	}
-	want := map[string]string{"lib:4": ResolvedRepaired, "lib:6": ResolvedSuperseded}
-	if got := d.resolved(); fmt.Sprint(got) != fmt.Sprint(want) {
-		t.Errorf("resolved %v, want %v", got, want)
-	}
-	n, err := d.j.AcknowledgeResolved(ctx, "admin")
-	if err != nil || n != 2 {
-		t.Fatalf("acknowledged %d, %v", n, err)
-	}
-	var ids []string
-	for _, en := range d.list(Filter{Suspect: true}).Items {
-		ids = append(ids, en.ID)
-	}
-	if want := []string{"lib:9", "lib:8", "lib:1"}; !slices.Equal(ids, want) {
-		t.Errorf("suspect after acknowledge %v, want %v", ids, want)
-	}
-	if en := d.get("lib:4"); en.Verdict == nil || en.Verdict.Verdict != VerdictOK || !en.Flags[0].Acked {
-		t.Errorf("lib:4 after: %+v", en)
-	}
-	if n, _ := d.j.AcknowledgeResolved(ctx, "admin"); n != 0 {
-		t.Errorf("second acknowledge: %d", n)
-	}
-	// Only verdicts were written: the actions, links and blocklist are as they were, and no job was queued.
-	var actions, links, blocked, jobs int
-	d.st.Reader().QueryRow(`SELECT (SELECT COUNT(*) FROM library_action), (SELECT COUNT(*) FROM link),
-		(SELECT COUNT(*) FROM router_blocklist), (SELECT COUNT(*) FROM job)`).Scan(&actions, &links, &blocked, &jobs)
-	if actions != 9 || links != 4 || blocked != 0 || jobs != 0 {
-		t.Errorf("side effects: actions %d links %d blocklist %d jobs %d", actions, links, blocked, jobs)
-	}
-}
-
-// Old dead actions have no link id (they predate the column), and most of their paths have no link row any more:
-// each path's run is its own finding, and a newer flag supersedes only an older one at the same path.
-func TestDeadLinkNullLinkIDByPath(t *testing.T) {
-	d := newDeadEnv(t)
-	const a, b, x, y = "/lib/Alpha/a.mkv", "/lib/Beta/b.mkv", "/lib/Gone/x.mkv", "/lib/Gone/y.mkv"
-	sweep := func(h int) {
-		d.dead(h, 0, a, "/mnt/zurg/A/a.mkv", "dry_run")
-		d.dead(h, 0, b, "/mnt/zurg/B/b.mkv", "dry_run")
-		d.dead(h, 0, x, "/mnt/zurg/X/x.mkv", "dry_run")
-		d.dead(h, 0, y, "/mnt/zurg/Y/y.mkv", "dry_run")
-	}
-	sweep(20)                                                        // lib:1-4
-	sweep(19)                                                        // lib:5-8, repeats
-	d.action(18, "relink", "applied", 0, b, "/mnt/zurg/B/b.mkv", "") // lib:9
-	sweep(17)                                                        // lib:10-13: only b (lib:11) starts a new finding
-	d.scan(1, "/lib", a)                                             // a is still dangling
-	for i := 1; i <= 13; i++ {
-		id := fmt.Sprintf("lib:%d", i)
-		if i == 9 {
-			continue
-		}
-		want := i <= 4 || i == 11
-		if got := d.flagged(id); got != want {
-			t.Errorf("%s flagged %v, want %v", id, got, want)
-		}
-	}
-	// lib:1 (a, still dead) is not superseded by another path's newer flag; x and y have no link row.
-	want := map[string]string{"lib:2": ResolvedSuperseded}
-	if got := d.resolved(); fmt.Sprint(got) != fmt.Sprint(want) {
-		t.Errorf("resolved %v, want %v", got, want)
-	}
-}
-
-// What the action log cannot prove is never acknowledged in bulk and never starts a new finding.
-func TestDeadLinkCurrentProblems(t *testing.T) {
-	ctx := context.Background()
-	t.Run("dead, acknowledged, dead again with no action: no new flag (documented limit)", func(t *testing.T) {
-		d := newDeadEnv(t)
-		d.dead(10, 10, "/lib/Alpha/a.mkv", "/mnt/zurg/A/a.mkv", "dry_run") // lib:1
-		if _, err := d.j.Judge(ctx, "lib:1", VerdictRequest{Verdict: "ok", Reason: "seen"}, "admin"); err != nil {
-			t.Fatal(err)
-		}
-		d.dead(4, 10, "/lib/Alpha/a.mkv", "/mnt/zurg/A/a.mkv", "dry_run") // lib:2
-		if d.flagged("lib:2") {
-			t.Error("a repeat with no recovery action got a flag")
-		}
-	})
-	t.Run("repaired to a target that is dangling", func(t *testing.T) {
-		d := newDeadEnv(t)
-		d.dead(10, 11, "/lib/Beta/b.mkv", "/mnt/zurg/B/b.mkv", "dry_run")
-		d.action(9, "relink", "applied", 11, "/lib/Beta/b.mkv", "/mnt/zurg/B2/b.mkv", "")
-		d.scan(8, "/lib", "/lib/Beta/b.mkv")
-		if got := d.resolved(); len(got) != 0 {
-			t.Errorf("a repair to a dangling target is acknowledgeable: %v", got)
-		}
-	})
-	t.Run("repaired, then marked dead", func(t *testing.T) {
-		d := newDeadEnv(t)
-		d.dead(10, 14, "/lib/Alpha/d.mkv", "/mnt/zurg/D/d.mkv", "dry_run")
-		d.action(9, "relink", "applied", 14, "/lib/Alpha/d.mkv", "/mnt/zurg/D/d.mkv", "")
-		if got := d.resolved(); len(got) != 0 { // link 14's row is dead
-			t.Errorf("a dead link is acknowledgeable: %v", got)
-		}
-	})
-	t.Run("an unlinked row or a clean report alone", func(t *testing.T) {
-		d := newDeadEnv(t)
-		d.exec(`UPDATE link SET state = 'unlinked' WHERE id = 11`)
-		d.dead(10, 11, "/lib/Beta/b.mkv", "/mnt/zurg/B/b.mkv", "dry_run")
-		d.dead(10, 12, "/lib/Gamma/c.mkv", "/mnt/zurg/C/c.mkv", "dry_run")
-		d.scan(1, "/lib")
-		if got := d.resolved(); len(got) != 0 {
-			t.Errorf("inferred settled: %v", got)
-		}
-	})
 }

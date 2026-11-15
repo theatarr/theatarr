@@ -209,14 +209,11 @@ export const useJournal = (f: JournalFilter) =>
 export const useJournalEntry = (id: string) =>
   useQuery({ queryKey: qk.journal.entry(id), queryFn: () => api<JournalEntry>(`/journal/${encodeURIComponent(id)}`) });
 
-export function useJournalVerdict() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, verdict, reason }: { id: string; verdict: "ok" | "wrong"; reason?: string }) =>
-      api<unknown>(`/journal/${encodeURIComponent(id)}/verdict`, { method: "POST", body: { verdict, reason } }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: qk.journal.all }),
-  });
-}
+/** How many journal entries carry a warn or error flag (GET /journal/flagged, a stored count): the Decision journal's
+ *  badge. Read on admin pages only, once a minute. */
+export const useFlaggedCount = (enabled = true) =>
+  useQuery({ queryKey: qk.journal.flagged, queryFn: () => api<{ count: number }>("/journal/flagged"), enabled,
+    refetchInterval: 60_000, staleTime: 60_000 });
 
 export const useLogFiles = () =>
   useQuery({ queryKey: qk.logFiles, queryFn: () => api<Get<"/logs/files">>("/logs/files"), refetchInterval: 30_000 });

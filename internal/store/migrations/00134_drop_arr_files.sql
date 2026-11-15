@@ -11,7 +11,7 @@
 -- * A library action that found its title only through an arr file at its path keeps that title (title_id).
 -- * A stored profile or naming still taken from an arr (FromArr; FreezeStored converted them at every start, so this
 --   is only an install that jumps here from before 00125) becomes the minimal native profile or the default naming,
---   and its libraries Watch only with one message each, as FreezeStored does with one it cannot copy.
+--   and its libraries Watch only, as FreezeStored does with one it cannot copy (docs/migration.md, 0.4.5).
 --
 -- Down recreates the tables empty.
 -- +goose Up
@@ -50,18 +50,6 @@ UPDATE setting_version SET config = json_set(config, '$.config.mode', 'shadow'),
 WHERE COALESCE(json_extract(config, '$.config.profile'), '') IN (SELECT key FROM setting_quality_profile
         WHERE COALESCE(json_extract(config, '$.FromArr'), '') <> '')
     OR key IN (SELECT key FROM setting_version_naming WHERE COALESCE(json_extract(config, '$.FromArr'), '') <> '');
-INSERT INTO error_event (fingerprint, source, component, level, message, first_seen, last_seen, updated_at)
-SELECT 'arr-freeze:' || v.key, 'log', 'settings', 'error', 'Library ' || v.key || ' used a profile or naming taken from'
-    || ' Sonarr/Radarr that could not be copied. It is now Watch only. Check its profile and naming in Settings ›'
-    || ' Libraries, then set it Live.',
-    CAST(strftime('%s', 'now') AS INTEGER) * 1000, CAST(strftime('%s', 'now') AS INTEGER) * 1000,
-    CAST(strftime('%s', 'now') AS INTEGER) * 1000
-FROM setting_version v
-WHERE COALESCE(json_extract(v.config, '$.config.profile'), '') IN (SELECT key FROM setting_quality_profile
-        WHERE COALESCE(json_extract(config, '$.FromArr'), '') <> '')
-    OR v.key IN (SELECT key FROM setting_version_naming WHERE COALESCE(json_extract(config, '$.FromArr'), '') <> '')
-ON CONFLICT (fingerprint) DO UPDATE SET message = excluded.message, last_seen = excluded.last_seen, status = 'new',
-    updated_at = excluded.updated_at;
 UPDATE setting_quality_profile SET config = '{"Qualities":[{"Name":"WEBDL-1080p","Group":false,"Qualities":null}],"QualityOrder":null,"Cutoff":"WEBDL-1080p","Upgrades":null,"MinScore":0,"CutoffScore":0,"MinUpgradeStep":null,"Sizes":null,"FormatSet":"","Formats":null,"Language":"","Propers":""}',
     updated_at = CAST(strftime('%s', 'now') AS INTEGER) * 1000
 WHERE COALESCE(json_extract(config, '$.FromArr'), '') <> '';

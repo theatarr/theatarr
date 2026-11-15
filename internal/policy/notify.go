@@ -57,7 +57,8 @@ type NotifyTarget struct {
 	Warnings bool `yaml:"warnings,omitempty"`
 }
 
-// NotifyEvents are the event names a target may list.
+// NotifyEvents are the event names a target may list. "error" is no longer sent (the error inbox went in 0.4.5); it
+// stays accepted so stored targets that list it still load.
 var NotifyEvents = []string{"grab", "download", "upgrade", "rename", "delete", "health", "health_restored", "series_add", "movie_added", "manual_interaction_required", "test", "error", "digest", "request_ready"}
 
 // NotifyFormatDiscord is the target format that sends Discord messages.

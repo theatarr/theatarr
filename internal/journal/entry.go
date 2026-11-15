@@ -21,13 +21,12 @@ const (
 	KindBlocklist = "blocklist" // a hash went on a version's blocklist
 	KindImport    = "import"    // the library's import of a download (linked, rejected, dry run), or an arr import
 	KindLink      = "link"      // a library link action: link, replace, relink, dead
-	KindVerdict   = "verdict"   // a person or an agent judged an entry
 	KindAction    = "action"    // a person acted by hand through the web UI (grab, remove, retry, unblock, unlink)
 )
 
 // Kinds lists every kind, for filters.
 var Kinds = []string{KindGrab, KindUpgrade, KindSearch, KindResearch, KindFailure, KindStall,
-	KindBlocklist, KindImport, KindLink, KindVerdict, KindAction}
+	KindBlocklist, KindImport, KindLink, KindAction}
 
 // Severities, lowest first.
 const (
@@ -49,12 +48,11 @@ func SevRank(s string) int {
 	return 0
 }
 
-// Flag is one suspect check that fired. Acked is set once a verdict acknowledged it.
+// Flag is one suspect check that fired, worked out once after the entry's History row was written (flag.go).
 type Flag struct {
 	Code     string `json:"code"`
 	Severity string `json:"severity"`
 	Reason   string `json:"reason"`
-	Acked    bool   `json:"acked,omitempty"`
 }
 
 // TitleRef names the title an entry is about.
@@ -180,20 +178,6 @@ type Event struct {
 	Ref  string    `json:"ref,omitempty"`
 }
 
-// Verdict is a judgement on an entry.
-type Verdict struct {
-	ID          int64     `json:"id"`
-	Entry       string    `json:"entry"`
-	Verdict     string    `json:"verdict"`
-	Reason      string    `json:"reason"`
-	Acked       []string  `json:"acked,omitempty"`
-	Action      string    `json:"action"`
-	Note        string    `json:"action_note,omitempty"`
-	ResearchJob int64     `json:"research_job,omitempty"`
-	By          string    `json:"by,omitempty"`
-	At          time.Time `json:"at"`
-}
-
 // Entry is one journal entry.
 type Entry struct {
 	ID   string    `json:"id"`
@@ -214,14 +198,11 @@ type Entry struct {
 	// After is what happened afterwards, oldest first.
 	After   []Event  `json:"after,omitempty"`
 	Related []string `json:"related,omitempty"`
-	Flags   []Flag   `json:"flags"`
-	// Suspect is true when a flag of severity warn or error is not acknowledged; Severity is the highest
-	// unacknowledged severity ("" when none).
-	Suspect  bool     `json:"suspect"`
-	Severity string   `json:"severity,omitempty"`
-	Verdict  *Verdict `json:"verdict,omitempty"`
-	// Verdict entries: the entry judged.
-	Judged string `json:"judged,omitempty"`
+	// Flags are the entry's stored flags (flag.go): none for an entry without a History row.
+	Flags []Flag `json:"flags"`
+	// Suspect is true when a flag of severity warn or error fired; Severity is the highest one ("" when none).
+	Suspect  bool   `json:"suspect"`
+	Severity string `json:"severity,omitempty"`
 	// Action entries: what a person did by hand (action.go).
 	Action *Action `json:"action,omitempty"`
 	// PolicyRev is the revision of the policy files that made the decision (policy.Policy.Revision): the search's,
@@ -315,7 +296,7 @@ func candLine(c *snapshot.Candidate) string {
 }
 
 // Text renders the entry as a few lines of plain text: the header, then the release, the reasoning, provider
-// attempts, the import, what followed, flags and the verdict, each when present.
+// attempts, the import, what followed and flags, each when present.
 func (e *Entry) Text() string {
 	var b strings.Builder
 	name := e.Title.Name
@@ -423,14 +404,7 @@ func (e *Entry) Text() string {
 		line("then", ev.At.UTC().Format("01-02 15:04")+" "+ev.Kind+": "+ev.Text)
 	}
 	for _, f := range e.Flags {
-		ack := ""
-		if f.Acked {
-			ack = " (acked)"
-		}
-		line("flag", strings.ToUpper(f.Severity)+" "+f.Code+": "+f.Reason+ack)
-	}
-	if v := e.Verdict; v != nil {
-		line("verdict", fmt.Sprintf("%s by %s: %s (%s)", v.Verdict, orDash(v.By), v.Reason, v.Action))
+		line("flag", strings.ToUpper(f.Severity)+" "+f.Code+": "+f.Reason)
 	}
 	return b.String()
 }

@@ -92,7 +92,7 @@ func (r *redactor) TargetURL(c Class, u *url.URL) string {
 	return r.URL(u)
 }
 
-// Redact masks the known secrets of the active settings generation in s (the error inbox's first redaction step).
+// Redact masks the known secrets of the active settings generation in s.
 func (g *Gateway) Redact(s string) string {
 	c := g.current()
 	if c == nil || c.redact == nil {

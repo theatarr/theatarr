@@ -17,8 +17,8 @@ const ROLES = {
 };
 
 const paths = (groups: NavGroup[]) => flatItems(groups).map((i) => i.to);
-const ADMIN_PAGES = ["/admin", "/admin", ...["tasks", "backup", "errors", "logs", "journal"].map(p => `/admin/system/${p}`), "/admin/reviews", "/admin/torrents", "/admin/settings",
- ...["libraries", "profiles", "formats", "quality-sync", "indexers", "downloads", "import-lists", "notifications", "plex", "metadata", "apps"].map(p => `/admin/settings/${p}`),
+const ADMIN_PAGES = ["/admin", "/admin", ...["tasks", "backup", "logs", "journal"].map(p => `/admin/system/${p}`), "/admin/torrents", "/admin/settings",
+ ...["libraries", "profiles", "formats", "quality-sync", "indexers", "downloads", "import-lists", "anime-mappings", "notifications", "plex", "metadata", "apps"].map(p => `/admin/settings/${p}`),
  "/admin/users", "/admin/advanced", ...["config", "history", "limits"].map(p => `/admin/advanced/${p}`)];
 const MAIN = ["/", "/movies", "/series", "/anime", "/requests", "/activity", "/now-playing", "/calendar"];
 // Managers and admins also have Collections in Library.
@@ -43,7 +43,7 @@ describe("navigation by role", () => {
     const g = navFor(ROLES.admin);
     expect(g.map((x) => x.id)).toEqual(["main", "admin"]);
     expect(g[0].items.map((i) => i.label)).toEqual(["Home", "Library", "Requests", "Activity", "Wanted", "Now playing", "Calendar"]);
-    expect(g[1].items.map((i) => i.label)).toEqual(["System", "Reviews", "Torrents", "Settings", "Users & access", "Advanced"]);
+    expect(g[1].items.map((i) => i.label)).toEqual(["System", "Torrents", "Settings", "Users & access", "Advanced"]);
     expect(paths(g)).toEqual([...MAIN_MANAGE.flatMap(p => p === "/activity" ? [p, "/wanted"] : [p]), ...ADMIN_PAGES]);
     // Admins reach Import lists under Settings only.
     expect(paths(g).filter(p => p === "/admin/settings/import-lists")).toHaveLength(1);
@@ -103,17 +103,16 @@ it("opens System children only on Status and System pages and keeps child badges
  expect(system.childrenWhenActive).toBe(true);
  expect(system.end).toBe(true);
  for (const path of ["/admin", "/admin/system/logs"]) expect(itemActive(path, system)).toBe(true);
- expect(itemActive("/admin/reviews", system)).toBe(false);
+ expect(itemActive("/admin/torrents", system)).toBe(false);
  expect(system.children?.find(c => c.label === "Tasks")?.badge).toBe("jobs");
- expect(system.children?.find(c => c.label === "Errors")?.badge).toBe("errors");
+ expect(system.children?.find(c => c.label === "Decision journal")?.badge).toBe("journal");
 });
 
 vi.mock("@/api/events", () => ({ useLive: () => ({ jobCounts: { attention: 3, failed: 10 } }) }));
-it("excludes job-sourced errors from the sum of errors and attention jobs in the System badge", async () => {
- const fetch = mockFetch([{ method: "GET", path: "/errors", reply: { counts: { new: 4 }, total: 2 } }]);
- renderPage(createElement(SystemBadge));
+it("sums the attention jobs and the flagged decisions in the System badge", async () => {
+ mockFetch([{ method: "GET", path: "/journal/flagged", reply: { count: 2 } }]);
+ renderPage(createElement(SystemBadge), "/admin");
  await waitFor(() => expect(screen.getByTestId("system-badge").textContent).toBe("5"));
- expect(fetch.calls("GET", "/errors")[0].search).toContain("source=job");
 });
 it("uses first_run or missing setup steps", () => {
  expect(setupUnfinished(undefined)).toBe(false);
@@ -143,7 +142,7 @@ it("the phone's More lists top-level pages; System, Settings and Advanced open o
  const groups = moreFor(ROLES.admin);
  expect(groups.map(g => g.id)).toEqual(["more", "admin"]);
  const admin = groups[1].items;
- expect(admin.map(i => i.label)).toEqual(["System", "Reviews", "Torrents", "Settings", "Users & access", "Advanced"]);
+ expect(admin.map(i => i.label)).toEqual(["System", "Torrents", "Settings", "Users & access", "Advanced"]);
  expect(new Set(paths(groups)).size).toBe(paths(groups).length);
  const system = admin.find(i => i.label === "System")!;
  // A group: no page of its own (a tap opens it), closed at first, with its pages inside.
@@ -152,9 +151,8 @@ it("the phone's More lists top-level pages; System, Settings and Advanced open o
  expect(system.badge).toBe("system");
  expect(system.children?.find(i => i.label === "Status")?.badge).toBe("system");
  expect(system.children?.find(i => i.label === "Tasks")?.badge).toBe("jobs");
- expect(system.children?.find(i => i.label === "Errors")?.badge).toBe("errors");
+ expect(system.children?.find(i => i.label === "Decision journal")?.badge).toBe("journal");
  expect(admin.find(i => i.label === "Settings")?.children?.[0]).toMatchObject({ to: "/admin/settings", label: "All settings" });
  expect(admin.find(i => i.label === "Advanced")?.children?.[0]).toMatchObject({ to: "/admin/advanced", label: "Advanced overview" });
- expect(admin.find(i => i.label === "Reviews")?.badge).toBe("reviews");
  expect(admin.filter(i => i.label !== "System" && i.label !== "Settings" && i.label !== "Advanced").every(i => !i.children?.length)).toBe(true);
 });

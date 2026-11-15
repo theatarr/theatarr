@@ -2,7 +2,6 @@ package notify
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"strconv"
 	"time"
@@ -30,9 +29,6 @@ type DigestSummary struct {
 	// DeadLinks are library links a relink sweep marked dead in the window (its applied dead actions), counted even
 	// when relinked or replaced since; StillDead are those of them still dead.
 	DeadLinks, StillDead int
-	// OpenErrors counts the new and seen error-inbox groups; Errors names the latest few.
-	OpenErrors int
-	Errors     []string
 	// Health are the checks not OK (but the accounts check), Accounts the debrid accounts check when it is not OK.
 	Health   []HealthItem
 	Accounts *HealthItem
@@ -43,7 +39,7 @@ type DigestSummary struct {
 // Quiet reports a day with nothing to tell (grabbing off aside).
 func (d *DigestSummary) Quiet() bool {
 	return d.Grabs == 0 && d.Imports == 0 && d.Failed == 0 && d.Blocklisted == 0 && d.DeadLinks == 0 &&
-		d.OpenErrors == 0 && len(d.Health) == 0 && d.Accounts == nil
+		len(d.Health) == 0 && d.Accounts == nil
 }
 
 // digestDay is the day key of t: the local date as yyyymmdd.
@@ -64,7 +60,7 @@ func digestAt(set policy.NotifySettings, on bool) string {
 // tries, as its job had.
 func (n *Notifier) registerDigest(ctx context.Context, at string) (unregister func()) {
 	return n.tasks.Register(ctx, tasks.Task{Key: DigestJob, Name: "Send the daily digest", At: at, Attempts: 3,
-		Inbox: true, Run: func(ctx context.Context) error { return n.SendDigest(ctx, n.now()) }}, tasks.NextAt(at, n.now()))
+		Run: func(ctx context.Context) error { return n.SendDigest(ctx, n.now()) }}, tasks.NextAt(at, n.now()))
 }
 
 // startDigest starts today's digest task once notify.digest_at has passed and today's digest is not claimed. A day's
@@ -161,27 +157,6 @@ func (n *Notifier) digest(ctx context.Context, now time.Time) (*DigestSummary, e
 			return nil, err
 		}
 	}
-	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM error_event WHERE status IN ('new', 'seen')`).
-		Scan(&d.OpenErrors); err != nil {
-		return nil, err
-	}
-	rows, err := db.QueryContext(ctx, `SELECT component, message, count FROM error_event WHERE status IN ('new', 'seen')
-		ORDER BY last_seen DESC, id DESC LIMIT 5`)
-	if err != nil {
-		return nil, err
-	}
-	for rows.Next() {
-		var comp, msg string
-		var count int64
-		if err := rows.Scan(&comp, &msg, &count); err != nil {
-			rows.Close()
-			return nil, err
-		}
-		d.Errors = append(d.Errors, comp+": "+clip(msg, 200)+" ("+strconv.FormatInt(count, 10)+"×)")
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
 	if n.health != nil {
 		for _, h := range n.health(ctx) {
 			switch {
@@ -198,76 +173,4 @@ func (n *Notifier) digest(ctx context.Context, now time.Time) (*DigestSummary, e
 	p := n.policy(ctx)
 	d.GrabbingOff = p.Router == nil || !p.Router.Enabled
 	return d, nil
-}
-
-// errorAlertsPerHour caps the instant error alerts; the rest wait for the digest (it counts the open groups).
-const errorAlertsPerHour = 3
-
-// scanErrors alerts on error-inbox groups that are new: a new fingerprint, or one that happened again after it was
-// resolved (the inbox makes it new again and counts a regression). Each group and regression is claimed once
-// (notify_event error:<regressions>, or error_held:<regressions> when the hourly cap held it back); a repeat of an
-// open group is not announced. Groups that existed when the scan first ran are the baseline.
-func (n *Notifier) scanErrors(ctx context.Context) error {
-	db := n.st.Reader()
-	var since string
-	err := db.QueryRowContext(ctx, `SELECT value FROM notify_state WHERE key = 'errors_since'`).Scan(&since)
-	if err == sql.ErrNoRows {
-		now := store.Millis(n.now())
-		return n.st.WriteTx(ctx, func(tx *sql.Tx) error {
-			if _, err := tx.ExecContext(ctx, `INSERT INTO notify_state (key, value, updated_at) VALUES ('errors_since', ?, ?)`,
-				strconv.FormatInt(now, 10), now); err != nil {
-				return err
-			}
-			_, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO notify_event (kind, ref, created_at)
-				SELECT 'error_held:' || regressions, id, ? FROM error_event`, now)
-			return err
-		})
-	}
-	if err != nil {
-		return err
-	}
-	rows, err := db.QueryContext(ctx, `SELECT id, source, component, sample, count, regressions FROM error_event e
-		WHERE status = 'new' AND NOT EXISTS (SELECT 1 FROM notify_event x WHERE x.ref = e.id
-		AND x.kind IN ('error:' || e.regressions, 'error_held:' || e.regressions)) ORDER BY id`)
-	if err != nil {
-		return err
-	}
-	type group struct {
-		item        ErrorItem
-		regressions int64
-	}
-	var groups []group
-	for rows.Next() {
-		var g group
-		if err := rows.Scan(&g.item.ID, &g.item.Source, &g.item.Component, &g.item.Sample, &g.item.Count,
-			&g.regressions); err != nil {
-			rows.Close()
-			return err
-		}
-		g.item.Reopened = g.regressions > 0
-		groups = append(groups, g)
-	}
-	if err := rows.Close(); err != nil {
-		return err
-	}
-	for _, g := range groups {
-		var sent int
-		if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM notify_event WHERE kind LIKE 'error:%'
-			AND created_at > ?`, store.Millis(n.now().Add(-time.Hour))).Scan(&sent); err != nil {
-			return err
-		}
-		suffix := strconv.FormatInt(g.regressions, 10)
-		if sent >= errorAlertsPerHour {
-			if _, err := n.st.Writer().ExecContext(ctx, `INSERT OR IGNORE INTO notify_event (kind, ref, created_at)
-				VALUES (?, ?, ?)`, "error_held:"+suffix, g.item.ID, store.Millis(n.now())); err != nil {
-				return err
-			}
-			continue
-		}
-		item := g.item
-		if err := n.emitOnce(ctx, "error:"+suffix, item.ID, Event{Kind: Error, Error: &item}); err != nil {
-			return err
-		}
-	}
-	return nil
 }

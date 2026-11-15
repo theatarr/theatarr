@@ -392,7 +392,7 @@ func TestDemoCoverage(t *testing.T) {
 	}
 	want("download states", distinct(`SELECT DISTINCT state FROM download`), "queued", "adding", "added",
 		"downloading", "ready", "importing", "imported", "failed")
-	want("stalled", distinct(`SELECT DISTINCT source FROM router_blocklist`), "stalled", "library", "journal")
+	want("stalled", distinct(`SELECT DISTINCT source FROM router_blocklist`), "stalled", "library")
 	want("version states", distinct(`SELECT DISTINCT policy_key || ':' || state FROM version`),
 		"movie-remux:wanted", "movie-remux:filled", "movie-remux:cutoff_met", "movie-web:wanted", "movie-web:cutoff_met",
 		"anime-movie:wanted", "anime-movie:cutoff_met", "tv-2160p:wanted", "tv-2160p:filled", "tv-2160p:cutoff_met",
@@ -403,7 +403,6 @@ func TestDemoCoverage(t *testing.T) {
 	want("job states", distinct(`SELECT DISTINCT state FROM job`), "queued", "done", "failed")
 	want("job marks", distinct(`SELECT CASE WHEN dismissed_at IS NOT NULL THEN 'dismissed' WHEN retry_of IS NOT NULL
 		THEN 'retry' ELSE 'plain' END FROM job`), "dismissed", "retry", "plain")
-	want("verdicts", distinct(`SELECT DISTINCT verdict FROM journal_verdict`), "ok", "wrong")
 	want("attempt outcomes", distinct(`SELECT DISTINCT outcome FROM download_attempt`), "accepted", "refused",
 		"skipped", "error", "deferred")
 	want("cache evidence", distinct(`SELECT DISTINCT state FROM provider_cache`), "cached", "uncached")

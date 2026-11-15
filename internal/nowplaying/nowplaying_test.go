@@ -16,7 +16,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/theatarr/theatarr/internal/errinbox"
 	"github.com/theatarr/theatarr/internal/gateway"
 	"github.com/theatarr/theatarr/internal/library"
 	"github.com/theatarr/theatarr/internal/plex"
@@ -232,7 +231,7 @@ type clock struct{ t time.Time }
 
 func (c *clock) now() time.Time { return c.t }
 
-func newTracker(t *testing.T, p *fakePlex, z *fakeZurg, m *fakeMount, c *clock, reports *[]errinbox.Event) *Tracker {
+func newTracker(t *testing.T, p *fakePlex, z *fakeZurg, m *fakeMount, c *clock, reports *[]Problem) *Tracker {
 	var mu sync.Mutex
 	var za ZurgAPI
 	if z != nil {
@@ -246,7 +245,7 @@ func newTracker(t *testing.T, p *fakePlex, z *fakeZurg, m *fakeMount, c *clock, 
 			}
 			return "", errors.New("not a link")
 		},
-		Report: func(e errinbox.Event) { mu.Lock(); *reports = append(*reports, e); mu.Unlock() }})
+		Report: func(e Problem) { mu.Lock(); *reports = append(*reports, e); mu.Unlock() }})
 }
 
 func waitPrewarm(t *testing.T, tr *Tracker) {
@@ -270,7 +269,7 @@ func TestTrackerSourceAndPrewarm(t *testing.T) {
 		ParentIndex: 1, Index: 2, State: "playing", ViewOffset: 30000, File: "/plex/tv/Show/S01E02.mkv", UserID: "7",
 		UserName: "alice", Bitrate: 8000, Local: true}}}
 	z, m := &fakeZurg{missing: map[string]bool{}}, &fakeMount{}
-	var reports []errinbox.Event
+	var reports []Problem
 	tr := newTracker(t, p, z, m, c, &reports)
 	tr.poll(ctx)
 	snap := tr.Snapshot()
@@ -322,13 +321,13 @@ func TestPrewarmMissing(t *testing.T) {
 	p := &fakePlex{ss: []plex.Session{{SessionKey: "1", RatingKey: "r2", Type: "episode", State: "playing",
 		ViewOffset: 70000, File: "/media/tv/Show/S01E02.mkv"}}}
 	z, m := &fakeZurg{missing: map[string]bool{"Rel3/S01E03.mkv": true}}, &fakeMount{}
-	var reports []errinbox.Event
+	var reports []Problem
 	tr := newTracker(t, p, z, m, c, &reports)
 	tr.poll(ctx)
 	waitPrewarm(t, tr)
 	tr.poll(ctx)
 	waitPrewarm(t, tr)
-	if len(reports) != 1 || reports[0].Key != "1:3" || reports[0].Component != "nowplaying.prewarm" ||
+	if len(reports) != 1 || reports[0].Key != "1:3" ||
 		!strings.Contains(reports[0].Message, "zurg has no entry") || len(m.read) != 0 {
 		t.Fatalf("reports %+v reads %v", reports, m.read)
 	}
@@ -351,7 +350,7 @@ func TestVerdicts(t *testing.T) {
 	p := &fakePlex{ss: []plex.Session{sess}}
 	m := &fakeMount{}
 	z := &fakeZurg{}
-	var reports []errinbox.Event
+	var reports []Problem
 	tr := newTracker(t, p, z, m, c, &reports)
 	step := func(off int64, state string) Health {
 		c.t = c.t.Add(10 * time.Second)
@@ -472,7 +471,7 @@ func TestRC(t *testing.T) {
 
 func TestSnapshotSpeedsUpPolling(t *testing.T) {
 	c := &clock{time.Now()}
-	var reports []errinbox.Event
+	var reports []Problem
 	tr := newTracker(t, &fakePlex{}, nil, &fakeMount{}, c, &reports)
 	if d := tr.interval(); d != idleEvery {
 		t.Errorf("idle %v", d)
@@ -568,7 +567,7 @@ func TestPrewarmRegistryLookup(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			p := &fakePlex{ss: []plex.Session{{SessionKey: "1", RatingKey: "r2", Type: "episode", State: "playing",
 				ViewOffset: 70000, File: "/media/tv/Show/S01E02.mkv"}}}
-			var reports []errinbox.Event
+			var reports []Problem
 			m := &fakeMount{}
 			tr := newTracker(t, p, nil, m, &clock{time.Now()}, &reports)
 			tr.o.Zurg = hashZurg{"BBBB"}
@@ -608,7 +607,7 @@ func TestPrewarmMissingNextReported(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			p := &fakePlex{ss: []plex.Session{{SessionKey: "1", RatingKey: "r2", Type: "episode", State: "playing",
 				ViewOffset: 70000, File: "/media/tv/Show/S01E02.mkv"}}}
-			var reports []errinbox.Event
+			var reports []Problem
 			m := &fakeMount{readErr: c.readErr}
 			tr := newTracker(t, p, &fakeZurg{missing: map[string]bool{}}, m, &clock{time.Now()}, &reports)
 			if c.sql != "" {
@@ -675,7 +674,7 @@ func waitCache(t *testing.T, tr *Tracker) {
 }
 
 // cacheTracker: S01E02 playing a minute in (its head check of S01E03 passes), then past half of it.
-func cacheTracker(t *testing.T, m *fakeMount, reports *[]errinbox.Event) (*Tracker, *fakePlex) {
+func cacheTracker(t *testing.T, m *fakeMount, reports *[]Problem) (*Tracker, *fakePlex) {
 	t.Helper()
 	p := &fakePlex{ss: []plex.Session{{SessionKey: "1", RatingKey: "r2", Type: "episode", GrandparentTitle: "Show",
 		State: "playing", ViewOffset: 70000, Duration: 3_000_000, File: "/media/tv/Show/S01E02.mkv"}}}
@@ -695,7 +694,7 @@ func cacheTracker(t *testing.T, m *fakeMount, reports *[]errinbox.Event) (*Track
 // Past half of the episode, the next one is read whole through the mount at the rate cap, its progress shown.
 func TestCacheNextEpisode(t *testing.T) {
 	m := &fakeMount{block: make(chan struct{})}
-	var reports []errinbox.Event
+	var reports []Problem
 	tr, _ := cacheTracker(t, m, &reports)
 	tr.poll(context.Background())
 	for range 200 {
@@ -725,7 +724,7 @@ func TestCacheNextEpisode(t *testing.T) {
 // Before half of the episode, nothing is read whole; a file over prewarm_max_size never is.
 func TestCacheNextSkips(t *testing.T) {
 	m := &fakeMount{}
-	var reports []errinbox.Event
+	var reports []Problem
 	tr, p := cacheTracker(t, m, &reports)
 	p.mu.Lock()
 	p.ss[0].ViewOffset = 1_400_000
@@ -750,7 +749,7 @@ func TestCacheNextSkips(t *testing.T) {
 // A read error mid-file raises the inbox item and stops.
 func TestCacheNextError(t *testing.T) {
 	m := &fakeMount{cacheErr: errors.New("input/output error")}
-	var reports []errinbox.Event
+	var reports []Problem
 	tr, _ := cacheTracker(t, m, &reports)
 	tr.poll(context.Background())
 	waitCache(t, tr)
@@ -767,7 +766,7 @@ func TestCacheNextFinishesAfterStop(t *testing.T) {
 	for _, after := range [][]plex.Session{nil, {{SessionKey: "1", RatingKey: "movie", Type: "movie",
 		State: "playing", File: "/media/movie/movie.mkv"}}} {
 		m := &fakeMount{block: make(chan struct{})}
-		var reports []errinbox.Event
+		var reports []Problem
 		tr, p := cacheTracker(t, m, &reports)
 		tr.poll(context.Background())
 		for range 200 {

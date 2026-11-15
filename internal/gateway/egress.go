@@ -15,7 +15,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/theatarr/theatarr/internal/errinbox"
 	"github.com/theatarr/theatarr/internal/policy"
 )
 
@@ -458,8 +457,8 @@ func (g *Gateway) setState(p *egressPath, s EgressState, result string, seq uint
 		if s.OK {
 			g.log.Info("egress changed", attrs...)
 		} else {
-			// An outage, not a bug: the egress health check reports it, and the error inbox records that check.
-			g.log.ErrorContext(errinbox.Quiet(context.Background()), "egress changed", attrs...)
+			// An outage, not a bug: the egress health check reports it too.
+			g.log.Error("egress changed", attrs...)
 		}
 	}
 	return s

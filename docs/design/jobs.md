@@ -81,8 +81,7 @@ while one goes on does nothing); a failed run is tried again after the job queue
 the task's tries; a run lost to a restart is not resumed, the next time covers it (the nightly backup, whose next
 run the row keeps, runs at start when it came due while stopped; the upgrade carries a queued nightly's due time).
 Whether a task runs is known in the process only. A task whose newest run failed needs attention (Tasks and Status,
-the attention count) until a run works; tasks that replaced a job report a failed run to the error inbox as the job
-did. A failed one-subject job of a task's kind (one title's art or series refresh, one provider's retry) is resolved
+the attention count) until a run works; every failed run is logged. A failed one-subject job of a task's kind (one title's art or series refresh, one provider's retry) is resolved
 when that task works after it (`resolved_by_task`), as a later `{}` sweep job resolved it before.
 
 | Task | When | Tries |
@@ -101,8 +100,7 @@ when that task works after it (`resolved_by_task`), as a later `{}` sweep job re
 | `cardigann.refresh` indexer definitions | `cardigann.definitions.refresh` after the last check; a failed one again after an hour | 1 |
 | `anime.discover` anime franchise discovery and refresh | every minute, first 2 min after start (recorded when it queued a build job) | 1 |
 
-Not tasks: the download poll, the library's import pass, now playing, and the health hand-off to the
-error inbox. The per-subject runs of the same kinds stay jobs: one provider's retry, one title's art or series
+Not tasks: the download poll, the library's import pass and now playing. The per-subject runs of the same kinds stay jobs: one provider's retry, one title's art or series
 refresh, a manual torrent backup.
 
 `GET tasks` lists the registered tasks (key, name, `every_seconds` or `at`, `paused`, `running`, last start/finish,

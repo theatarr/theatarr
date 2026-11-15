@@ -175,7 +175,7 @@ func RunSchedule(ctx context.Context, tb *tasks.Table, resolve Resolver, tick ti
 
 // scheduledTask is the scheduled backup's task, a backup with the manager in force; skipped while a manual one runs.
 func scheduledTask(resolve Resolver, every time.Duration) tasks.Task {
-	return tasks.Task{Key: JobBackup, Name: "Back up the debrid torrent lists", Every: every, Inbox: true,
+	return tasks.Task{Key: JobBackup, Name: "Back up the debrid torrent lists", Every: every,
 		Run: func(ctx context.Context) error {
 			m, err := resolve(ctx)
 			if err != nil {

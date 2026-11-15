@@ -199,18 +199,18 @@ func (e *env) do(r *http.Request) *httptest.ResponseRecorder {
 }
 
 // historySources are the tables History's rows are written from.
-var historySources = regexp.MustCompile(`(?i)(INSERT\s+(OR\s+\w+\s+)?INTO|UPDATE|DELETE\s+FROM)\s+(download|download_attempt|library_import|library_action|router_blocklist|journal_action|provider_copy_event)\b`)
+var historySources = regexp.MustCompile(`(?i)(INSERT\s+(OR\s+\w+\s+)?INTO|UPDATE|DELETE\s+FROM)\s+(download|download_attempt|library_import|library_action|router_blocklist|journal_action)\b`)
 
 // writesHistorySources says whether a fixture statement writes one of History's source tables.
 func writesHistorySources(q string) bool { return historySources.MatchString(q) }
 
 // storeHistory writes History's rows from their sources, as migration 00140 did, before a request that reads them
-// (History, an episode's window), when the test wrote source rows by SQL (*dirty): the event writers did not see
+// (History, an episode's window, the journal and its stored flags), when the test wrote source rows by SQL (*dirty): the event writers did not see
 // those. A test that went through the real grabs and imports reads what the writers stored.
 func storeHistory(t *testing.T, st *store.Store, r *http.Request, dirty *bool) {
 	t.Helper()
-	if !*dirty || r.Method != "GET" ||
-		!strings.Contains(r.URL.RawQuery, "state=history") && !strings.Contains(r.URL.Path, "/episodes/") {
+	if !*dirty || r.Method != "GET" || !strings.Contains(r.URL.RawQuery, "state=history") &&
+		!strings.Contains(r.URL.Path, "/episodes/") && !strings.Contains(r.URL.Path, "/journal") {
 		return
 	}
 	ctx := context.Background()

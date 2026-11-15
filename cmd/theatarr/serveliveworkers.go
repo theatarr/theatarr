@@ -260,7 +260,7 @@ func (l serveLoops) runPlaylists(ctx context.Context, interval time.Duration, fa
 // runWanted runs the search round's task every acquire.RoundEvery until ctx ends, the first after 5 minutes, or at
 // once when Pause was just turned off (the due rows waited for it). While Pause is on the task is listed as paused.
 func (l serveLoops) runWanted(ctx context.Context, rt *serveRuntime, prev string) {
-	task := tasks.Task{Key: acquire.TaskWanted, Name: "Search everything wanted", Every: acquire.RoundEvery, Inbox: true,
+	task := tasks.Task{Key: acquire.TaskWanted, Name: "Search everything wanted", Every: acquire.RoundEvery,
 		Run: l.acquirer.Round}
 	if wantedWorkerKey(rt) == "paused" {
 		task.Paused = true

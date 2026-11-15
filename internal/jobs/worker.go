@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"runtime/debug"
 	"slices"
 	"strconv"
 	"sync"
@@ -14,7 +15,6 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/theatarr/theatarr/internal/errinbox"
 	"github.com/theatarr/theatarr/internal/store"
 )
 
@@ -321,40 +321,34 @@ func (w *Worker) run(ctx context.Context, j *Job) {
 			outcome = "lost"
 		}
 		w.runs.WithLabelValues(j.Kind, outcome).Inc()
-		log.Warn("job error", "err", err, "outcome", outcome)
-		if outcome == "failed" {
-			reportFailure(j, err)
+		var pe *panicError
+		switch {
+		case errors.As(err, &pe):
+			log.Error("job handler panicked", "err", err, "outcome", outcome, "stack", pe.stack)
+		case outcome == "failed":
+			// Failed for good: an error in Logs. Retries stay warnings.
+			log.Error("job failed", "err", err, "max_attempts", j.MaxAttempts)
+		default:
+			log.Warn("job error", "err", err, "outcome", outcome)
 		}
 	}
 }
 
-// panicError is a handler's recovered panic. The error inbox has it with its stack already, so the job's failure is
-// not recorded again.
-type panicError struct{ p any }
+// panicError is a handler's recovered panic, with the stack of where it happened.
+type panicError struct {
+	p     any
+	stack string
+}
 
 func (e *panicError) Error() string { return fmt.Sprintf("handler panic: %v", e.p) }
 
 func safeRun(ctx context.Context, h Handler, j *Job) (err error) {
 	defer func() {
 		if p := recover(); p != nil {
-			errinbox.Panic("jobs", p, map[string]string{"kind": j.Kind, "job": strconv.FormatInt(j.ID, 10),
-				"attempt": strconv.Itoa(j.Attempt)})
-			err = &panicError{p}
+			err = &panicError{p: p, stack: string(debug.Stack())}
 		}
 	}()
 	return h(ctx, j)
-}
-
-// reportFailure records a job that failed for good in the error inbox: its last attempt, or a permanent error.
-// Retries, panics (recorded by safeRun) and cancellations are left out.
-func reportFailure(j *Job, err error) {
-	var pe *panicError
-	if errors.As(err, &pe) || errors.Is(err, context.Canceled) {
-		return
-	}
-	errinbox.Report(errinbox.Event{Source: errinbox.SourceJob, Component: j.Kind, Message: err.Error(),
-		Context: map[string]string{"kind": j.Kind, "job": strconv.FormatInt(j.ID, 10),
-			"attempt": strconv.Itoa(j.Attempt), "max_attempts": strconv.Itoa(j.MaxAttempts)}})
 }
 
 // renew extends the lease every third of its length until stopped. A renewal that matches no row means another

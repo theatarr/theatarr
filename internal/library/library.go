@@ -27,7 +27,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/theatarr/theatarr/internal/decide"
-	"github.com/theatarr/theatarr/internal/errinbox"
 	"github.com/theatarr/theatarr/internal/jobs"
 	"github.com/theatarr/theatarr/internal/library/probe"
 	"github.com/theatarr/theatarr/internal/policy"
@@ -121,8 +120,6 @@ type Library struct {
 	recomputedPrints map[string]string
 	// beforeSweepWrite, when set (tests), runs just before a relink sweep records its outcome: a concurrent writer.
 	beforeSweepWrite func()
-	// inbox, when set (tests), takes the error-inbox events errinbox.Report would (reportInbox).
-	inbox func(errinbox.Event)
 }
 
 // New builds the library service.

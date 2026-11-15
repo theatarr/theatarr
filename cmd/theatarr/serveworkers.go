@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"runtime/debug"
 	"sync"
 	"time"
 
-	"github.com/theatarr/theatarr/internal/errinbox"
 	"github.com/theatarr/theatarr/internal/health"
 )
 
@@ -266,15 +266,13 @@ func (s *serveWorkers) supervise(slot *workerSlot) {
 		go func(ctx context.Context, done chan struct{}, failed chan error) {
 			var err error
 			defer func() {
-				lctx := context.Background()
+				var stack string
 				if r := recover(); r != nil {
-					err = fmt.Errorf("panic: %v", r)
-					// The error inbox records the panic with its stack; the log line stays out of it.
-					errinbox.Panic("live-settings", r, map[string]string{"worker": slot.spec.name})
-					lctx = errinbox.Quiet(lctx)
+					err, stack = fmt.Errorf("panic: %v", r), string(debug.Stack())
 				}
 				if err != nil && ctx.Err() == nil {
-					s.log.ErrorContext(lctx, "worker failed on saved settings", "worker", slot.spec.name, "generation", rt.Generation, "err", err)
+					s.log.Error("worker failed on saved settings", "worker", slot.spec.name, "generation", rt.Generation, "err", err,
+						"stack", stack)
 					slot.update(func(st *serveWorkerStatus) { st.Error, st.ErrorAt = err.Error(), time.Now() })
 				} else {
 					err = nil

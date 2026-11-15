@@ -12,7 +12,6 @@ import (
 	"strings"
 
 	"github.com/theatarr/theatarr/internal/auth"
-	"github.com/theatarr/theatarr/internal/errinbox"
 	"github.com/theatarr/theatarr/internal/settings"
 	"go.yaml.in/yaml/v3"
 )
@@ -56,7 +55,6 @@ const mcpConfirmNote = " A change that needs confirmation returns its effects an
 
 func (w *Web) mcpTools() []mcpTool {
 	empty := func() map[string]any { return mcpObject(map[string]any{}) }
-	id := func() map[string]any { return mcpObject(map[string]any{"id": mcpInteger(1)}, "id") }
 	tools := []mcpTool{}
 	add := func(name, description, method, path string, schema map[string]any, perm auth.Perm, write bool, handler http.HandlerFunc) {
 		if slices.Contains(mcpConfirmTools, name) {
@@ -84,14 +82,6 @@ func (w *Web) mcpTools() []mcpTool {
 	add("library_search", "Search library titles by name.", "GET", "/titles", mcpObject(map[string]any{
 		"q": mcpString(), "limit": map[string]any{"type": "integer", "minimum": 1, "maximum": 500}, "offset": mcpInteger(0),
 	}, "q"), browse, false, w.apiTitles)
-	add("errors_list", "List the error inbox: unexpected failures grouped by fingerprint, newest sighting first. status: new, seen, resolved, ignored or open (new and seen); since: a duration such as 24h or an RFC 3339 time.", "GET", "/errors", mcpObject(map[string]any{
-		"status": map[string]any{"type": "string", "enum": append([]string{"open"}, errinbox.Statuses...)},
-		"source": map[string]any{"type": "string", "enum": errinbox.Sources}, "since": mcpString(),
-		"limit": map[string]any{"type": "integer", "minimum": 1, "maximum": 500}, "offset": mcpInteger(0),
-	}), admin, false, w.apiErrors)
-	add("errors_get", "Read one error inbox entry with its context and stack.", "GET", "/errors/{id}", id(), admin, false, w.apiError)
-	add("errors_resolve", "Mark an error inbox entry resolved, with an optional note (a fix branch, say). It comes back as new if it happens again.", "POST", "/errors/{id}",
-		mcpObject(map[string]any{"id": mcpInteger(1), "note": mcpString()}, "id"), admin, false, w.apiErrorUpdate(errinbox.StatusResolved))
 	add("preflight", "Run read-only install preflight checks.", "POST", "/preflight", mcpObject(map[string]any{
 		"sources": map[string]any{"type": "boolean"},
 	}), admin, false, w.apiPreflight)

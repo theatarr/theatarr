@@ -113,8 +113,8 @@ type HistoryPage struct {
 // libTitleSQL is the title of a library action (alias la), as the journal's own list reads it.
 const libTitleSQL = store.HistoryLibTitleSQL
 
-// History returns one page of History, newest first. Every filter applies to the stored rows; Suspect, Severity and
-// ScanLimit do not apply. An upgrade's row has its files in Replaced and its Release set only when they all held one
+// History returns one page of History, newest first. Every filter applies to the stored rows; Suspect and Severity
+// do not apply. An upgrade's row has its files in Replaced and its Release set only when they all held one
 // release.
 func (j *Journal) History(ctx context.Context, f Filter) (*HistoryPage, error) {
 	page := &HistoryPage{Items: []*HistoryRow{}}

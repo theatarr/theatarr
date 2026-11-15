@@ -234,7 +234,7 @@ export function ReviewCard({ it }: { it: ReviewItem }) {
           <div className="min-w-0">
             {head ? <SeriesLink s={head} /> : <span className="font-medium">{label}</span>}
             <div className="text-xs text-muted-foreground">
-              Franchise: <Link className="hover:text-primary" to={`/admin/reviews/anime/${it.franchise}`}>{it.franchise_name || it.franchise}</Link>
+              Franchise: <Link className="hover:text-primary" to={`/admin/settings/anime-mappings/${it.franchise}`}>{it.franchise_name || it.franchise}</Link>
             </div>
           </div>
         </div>

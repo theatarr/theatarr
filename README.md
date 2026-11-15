@@ -163,9 +163,10 @@ compose volume is for, is [docs/quickstart.md](docs/quickstart.md).
 **A first library, Pause on.** Setup can create the first library with Pause left on: Theatarr searches, downloads and links nothing until you turn Pause off. Add titles from **Search**, or let requests come in.
 See [docs/quickstart.md](docs/quickstart.md#6-a-first-library).
 
-**Reading its decisions.** **Activity › Decision journal** lists every decision; an entry opens from its
-title link and shows the chosen release, runners-up, rejections and suspect flags. **Admin › Reviews** collects what waits for you: quality updates, anime
-mappings, indexer definitions and flagged decisions. See [docs/journal.md](docs/journal.md).
+**Reading its decisions.** **System › Decision journal** lists every decision; an entry opens from its
+title link and shows the chosen release, runners-up, rejections and suspect flags, and **Flagged** lists the suspect
+ones. Anime mappings that wait for you are on **Settings › Anime mappings**, indexer definition updates on
+**Settings › Indexers**. See [docs/journal.md](docs/journal.md).
 
 **Going live.** Run `theatarr preflight`, turn **Pause** off, and watch the first
 imports. See [docs/quickstart.md](docs/quickstart.md#9-go-live-deliberately).

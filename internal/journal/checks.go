@@ -30,16 +30,14 @@ const (
 	CheckLowerScore  = "upgrade_lower_score"
 	CheckLowerQual   = "upgrade_lower_quality"
 	CheckFailures    = "repeated_failures"
-	CheckStuck       = "download_stuck"
-	CheckDeadLink    = "dead_link"
 	CheckGuard       = "library_guard"
 	CheckUnparsed    = "unparseable"
 )
 
 // Checks lists every check code.
 var Checks = []string{CheckSize, CheckLanguage, CheckFileAudio, CheckEpisodes, CheckTitle, CheckYear, CheckSample,
-	CheckFileRuntime, CheckFileRes, CheckLowerScore, CheckLowerQual, CheckFailures, CheckStuck,
-	CheckDeadLink, CheckGuard, CheckUnparsed}
+	CheckFileRuntime, CheckFileRes, CheckLowerScore, CheckLowerQual, CheckFailures,
+	CheckGuard, CheckUnparsed}
 
 func (e *Entry) flag(code, sev, format string, args ...any) {
 	e.Flags = append(e.Flags, Flag{Code: code, Severity: sev, Reason: fmt.Sprintf(format, args...)})
@@ -48,7 +46,10 @@ func (e *Entry) flag(code, sev, format string, args ...any) {
 // releaseKinds are the kinds whose release is a decision to check.
 var releaseKinds = []string{KindGrab, KindUpgrade}
 
-// check runs the suspect checks that apply to the entry.
+// check runs the suspect checks that apply to the entry, once, when its History row is flagged (flag.go). Each is
+// decided from what the entry's sources say at that time; nothing later changes the result, except that a newer
+// repeated failure takes the flag from the earlier ones (clearFailures; a row the start pass checks after later
+// failures is not flagged).
 func (b *builder) check(e *Entry) error {
 	ti, err := b.title(e.Title.ID)
 	if err != nil {
@@ -69,7 +70,7 @@ func (b *builder) check(e *Entry) error {
 	case KindFailure, KindStall, KindBlocklist:
 		switch n := e.f.failureCount; {
 		case e.f.failuresAfter > 0:
-			// Flag the latest failure of a run only: the agent acts once per title and library.
+			// Flag the latest failure of a run only (a row checked after later failures: the start pass).
 		case n >= 5:
 			e.flag(CheckFailures, SevError, "%d failures for this title and library in 30 days", n)
 		case n >= 3:
@@ -79,27 +80,6 @@ func (b *builder) check(e *Entry) error {
 		b.checkGuardRejects(e)
 		if e.f.importNotes != "" {
 			e.flag(CheckGuard, SevInfo, "the library's guard noted a file: %s (not refused)", e.f.importNotes)
-		}
-		if im := e.Import; im != nil && im.State == "waiting_mount" && b.j.now().Sub(e.At) > 6*time.Hour {
-			e.flag(CheckStuck, SevWarn, "still waiting for the release on the mount after %s",
-				b.j.now().Sub(e.At).Round(time.Hour))
-		}
-	case KindLink:
-		if strings.HasPrefix(e.Summary, "dead (applied)") || strings.HasPrefix(e.Summary, "dead (dry_run)") {
-			// One flag per finding: a later scan that finds the same link dead again is a repeat (deadlink.go).
-			first, err := b.firstDead(e)
-			if err != nil {
-				return err
-			}
-			if first {
-				e.flag(CheckDeadLink, SevWarn, "the link's target is gone and no provider folder holds the file")
-			}
-		}
-	}
-	if d := e.Download; d != nil && (e.Kind == KindGrab || e.Kind == KindUpgrade) &&
-		slices.Contains([]string{"queued", "adding", "added", "downloading"}, d.State) {
-		if age := b.j.now().Sub(d.CreatedAt); age > 24*time.Hour {
-			e.flag(CheckStuck, SevWarn, "still %s %s after the grab", d.State, age.Round(time.Hour))
 		}
 	}
 	return nil

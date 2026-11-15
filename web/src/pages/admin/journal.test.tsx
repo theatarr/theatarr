@@ -6,19 +6,19 @@ import { expect, it } from "vitest";
 import { mockFetch, renderPage } from "@/test/page";
 import { JournalList, JournalEntryPage } from "./journal";
 
-it("explains a run verdict and links its download", async () => {
+it("links a search's download and has no verdict", async () => {
   mockFetch([
     { method: "GET", path: "/journal/71", reply: { id: "run:21", kind: "search", related: ["dl:8"] } },
     { method: "GET", path: "/status", reply: {} },
   ]);
   renderPage(<Routes><Route path="/admin/system/journal/:id" element={<JournalEntryPage />} /></Routes>, "/admin/system/journal/71");
-  expect(await screen.findByText("Records your verdict only. To block the release, use its download in Activity.")).toBeTruthy();
-  expect(screen.queryByText(/Wrong on an active version/)).toBeNull();
-  expect(screen.getByRole("link", { name: "View download" }).getAttribute("href")).toBe("/admin/system/journal/dl%3A8");
+  expect((await screen.findByRole("link", { name: "View download" })).getAttribute("href")).toBe("/admin/system/journal/dl%3A8");
   expect(document.title).toMatch(/^Decision journal · /);
   const crumb = within(screen.getByRole("navigation", { name: "Breadcrumb" }));
   expect(crumb.getByRole("link", { name: "System" }).getAttribute("href")).toBe("/admin");
   expect(crumb.getByRole("link", { name: "Decision journal" }).getAttribute("href")).toBe("/admin/system/journal");
+  expect(screen.queryByRole("button", { name: "Ok" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Wrong" })).toBeNull();
 });
 
 it("keeps the decision kind and library inline under the title for when the columns hide on phones", async () => {
@@ -69,15 +69,15 @@ it("says how entries appear when the journal is empty, and keeps the short text 
 
 it("words kinds, sources and flags, keeping the codes as tooltips", async () => {
   mockFetch([
-    { method: "GET", path: "/journal", reply: { items: [{ id: "lnk:4", kind: "research", source: "theatarr", at: "2026-11-07T10:00:00Z", title: { id: 3, name: "Ferrous Bay" }, summary: "s", flags: [{ code: "dead_link", severity: "warn", reason: "gone" }] }] } },
+    { method: "GET", path: "/journal", reply: { items: [{ id: "lnk:4", kind: "research", source: "theatarr", at: "2026-11-07T10:00:00Z", title: { id: 3, name: "Ferrous Bay" }, summary: "s", flags: [{ code: "repeated_failures", severity: "warn", reason: "3 failures" }] }] } },
     { method: "GET", path: "/status", reply: {} },
   ]);
   renderPage(<JournalList />, "/admin/system/journal");
   const row = await screen.findByTestId("journal-row");
   expect(within(row).getAllByText("Search after a failure")[0].getAttribute("title")).toBe("research");
   expect(within(row).getByText("Theatarr").getAttribute("title")).toBe("theatarr");
-  expect(within(row).getAllByText("Dead link")[0].getAttribute("title")).toBe("dead_link");
-  expect(within(row).queryByText("dead_link")).toBeNull();
+  expect(within(row).getAllByText("Repeated failures")[0].getAttribute("title")).toBe("repeated_failures");
+  expect(within(row).queryByText("repeated_failures")).toBeNull();
   expect(screen.getByRole("option", { name: "All kinds" })).toBeTruthy();
 });
 

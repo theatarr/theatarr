@@ -118,7 +118,7 @@ can be undone.
 
 ### What to watch
 
-**First hour:** the container logs, **Activity › Queue**, **System › Status**, **System › Errors** and **Activity ›
+**First hour:** the container logs, **Activity › Queue**, **System › Status**, **System › Logs** and **System ›
 Decision journal**. Follow each download from add to poll, import, link and Plex; watch provider refusals and their
 reasons, mount and VPN health, and playback.
 
@@ -211,14 +211,13 @@ The database migrations run at start; nothing needs doing first. What an install
   followed: new titles arrive through a list sync or the one-time import, and files the arr upgrades are no longer
   mirrored. An add that names no library now also adds to former followers.
 - **Libraries that copied a Sonarr/Radarr instance** (through the old periodic import) stay, with their
-  titles, as ordinary libraries. They are no longer updated. Each gets one **System › Errors** card:
-  "Library K copied a Sonarr/Radarr instance. That copy is no longer updated. Delete the library when you no longer
-  need it." Remove it with **Stop managing library** when you no longer need it; that also resolves the card.
+  titles, as ordinary libraries. They are no longer updated. Remove one with **Stop managing library** when you no
+  longer need it. (Earlier releases put a card on System › Errors for each; the error inbox is gone, see below.)
 - **A quality profile or naming taken from an instance** (`from_arr`) becomes a stored copy of what the library used,
-  keeping its key. Each library concerned gets one **System › Errors** message asking you to check the copy in
-  **Settings › Profiles** or **Settings › Libraries**. If no copy could be made (no stored snapshot of the instance),
-  that library alone was set Watch only, with a message saying so (since 00137, see below: its titles are not
-  monitored and Pause is on); check its profile and naming.
+  keeping its key. Check the copy in **Settings › Profiles** or **Settings › Libraries** for each library that used
+  one. If no copy could be made (no stored snapshot of the instance), that library got the minimal native profile
+  (WEBDL-1080p) or the default naming and was set Watch only (since 00137, see below: its titles are not monitored
+  and Pause is on); check its profile and naming in **Settings › Libraries**. Nothing announces this on a page.
 - **Old arr ids in the views no longer answer** (`alias_from` is gone). A client that kept a title's Radarr or Sonarr
   id from before (Seerr, for example) gets 404 for it until its next scan of the view stores Theatarr's ids. Point
   the client at the view and let it sync.
@@ -228,7 +227,8 @@ The database migrations run at start; nothing needs doing first. What an install
 - **Watch only is gone** (migration 00137). Every library is live; the global **Pause**, each title's **Monitored**
   switch in a library and `THEATARR_FORCE_OFF` are what hold downloads. A library that was Watch only does not
   start grabbing: every title in it is set not monitored, arr clients no longer add to it (`enable: request`), Pause
-  is switched on, and one **System › Errors** card names those libraries. Lists, collections and accounts' request
+  is switched on (Status shows Pause; no page names the libraries: look for the libraries whose titles are all
+  unmonitored). Lists, collections and accounts' request
   libraries stop targeting them: a list or collection left with no target is turned off, one that used the
   defaults gets the other libraries of its kind as targets, and an account's request libraries become the other
   libraries when they named none or only those. Monitor what should download there, check
@@ -246,13 +246,33 @@ The database migrations run at start; nothing needs doing first. What an install
   sooner** are gone (`router.wanted.enabled`, `interval`, `retry_new`); older policy files that hold them still load.
   If automatic search was off, **Search for missing items** and **Search for upgrades** are both off after the upgrade.
 
+- **The journal keeps its list, entries and Flagged view; verdicts, Reviews and the error inbox are gone**
+  (migration 00144). Each entry's suspect flags are worked out once, right after its History row is written, and
+  stored; the Flagged filter and its badge read them. After the upgrade `theatarr serve` works out the flags of every
+  existing row once in the background, so the Flagged view fills within minutes. Dead links are no longer journal
+  flags (they are on **System › Status** under Dangling links, with relink and search), nor are downloads that wait
+  long (Activity › Queue shows their age). The Ok/Wrong verdicts and the stored verdicts are dropped. **Admin ›
+  Reviews** is gone: flagged decisions are **System › Decision journal › Flagged**, anime mappings are **Settings ›
+  Anime mappings** (Status shows a notice while some wait), indexer definition updates are on **Settings ›
+  Indexers**, quality-sync updates on **Settings › Quality sync**. **System › Errors** and the error inbox are gone:
+  errors and panics (with their stacks) are in **System › Logs**, a failing provider or indexer is on **System ›
+  Status**; the instant error notifications and the digest's error lines go with it (a notification target that
+  lists the `error` event still loads; it gets nothing for it). Old addresses redirect.
+
 ### Removed in this release
 
 - **Commands:** `theatarr golive`, `theatarr parallel`, `theatarr import-arr`, `theatarr shadow` (`run-once`,
   `status`, `reclassify`), `theatarr decide shadow`, `theatarr library adopt` and `library naming-sync`, and the guided
   move in `theatarr migrate` (`inspect`, `plan`, `apply`, `verify`, `seerr-ids`); `theatarr migrate` keeps `up` and
   `status`. `theatarr sonarr-parse` lost `-sonarr`.
-- **Pages:** **Advanced › Sonarr/Radarr migration** (the comparison, the arr imports and the guided migration).
+- **Pages:** **Advanced › Sonarr/Radarr migration** (the comparison, the arr imports and the guided migration);
+  **Admin › Reviews** and **System › Errors** (above).
+- **Journal:** verdicts (`POST /journal/{id}/verdict`, `GET /journal/resolved`, `POST /journal/resolved/acknowledge`,
+  the `verdict` kind and `v:` entries, the entries' `verdict`, `judged` and flags' `acked`, the list's `scan`
+  parameter and `scanned` count) and the `download_stuck` and `dead_link` flags.
+- **Error inbox:** `theatarr errors`, the `/errors` API, the MCP tools `errors_list`, `errors_get` and
+  `errors_resolve`, the open-errors and health files in `theatarr debug bundle`, and the tables `error_event`,
+  `error_inbox_state`, `journal_verdict` and `provider_copy_event` (copies' History rows stay).
 - **Settings and policy fields:** the `import` section (`import.arr`, the periodic arr import), `from_arr` on
   profiles and naming, `alias_from` on views, `follows` on libraries and `naming.from_version`, `grab` on libraries,
   the separate router, library and notification switches (`router_enabled`, `library_enabled`, `notify_enabled`; use

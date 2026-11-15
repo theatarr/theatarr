@@ -164,7 +164,7 @@ func (r *Runner) read(ctx context.Context) error {
 // readable is not part of it: that changes without a settings change (a first catalog fetch), and a read with no feed
 // does nothing.
 func (r *Runner) task(_ context.Context, run *Runner) tasks.Task {
-	t := tasks.Task{Key: KindRSS, Name: "Check RSS feeds", Attempts: 2, Inbox: true, Run: r.read, Paused: run.paused()}
+	t := tasks.Task{Key: KindRSS, Name: "Check RSS feeds", Attempts: 2, Run: r.read, Paused: run.paused()}
 	if run.set.RSS {
 		t.Every = run.set.RSSInterval
 		t.Paused = t.Paused || run.idx == nil || len(run.active) == 0

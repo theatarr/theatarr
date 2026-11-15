@@ -14,7 +14,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/theatarr/theatarr/internal/errinbox"
 	"github.com/theatarr/theatarr/internal/gateway"
 	"github.com/theatarr/theatarr/internal/health"
 	"github.com/theatarr/theatarr/internal/jobs"
@@ -194,6 +193,7 @@ func newServeHealth(c serveHealthConfig) *health.Checker {
 			return out
 		}, health.AccountOptions{}))
 	}
+	hc.Add("AnimeReviewCheck", "Anime mappings", health.AnimeReviews(c.st))
 	hc.Add("UnsettledAddsCheck", "Provider adds", health.UnsettledAdds(c.st, 0, nil))
 	hc.Add("CachedOnlyCheck", "Cached-only checks", health.UnfinishedCacheChecks(c.st, 0, nil))
 	hc.Add("TorrentLimitCheck", "Torrent limits", health.TorrentLimits(c.st, func(ctx context.Context) map[string]int {
@@ -321,30 +321,6 @@ func settingsFallbackHealth(m *settings.RuntimeCoordinator) health.Func {
 					"again from Settings.", active, head)}
 		}
 		return health.Result{Type: health.OK, Message: fmt.Sprintf("The latest saved settings are in use (save %d)", active)}
-	}
-}
-
-// observeHealth hands the health results to the error inbox every interval (the checks' own cache applies), so a
-// check turning error is recorded and resolved again when it recovers. The first look waits one interval: checks
-// that are still settling after the start (the mount, the egress check) are not recorded.
-func observeHealth(ctx context.Context, hc *health.Checker, inbox *errinbox.Inbox, every time.Duration) {
-	t := time.NewTicker(every)
-	defer t.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-t.C:
-		}
-		rs := hc.Results(ctx)
-		if ctx.Err() != nil {
-			return
-		}
-		checks := make([]errinbox.HealthCheck, len(rs))
-		for i, r := range rs {
-			checks[i] = errinbox.HealthCheck{Source: r.Source, Name: r.Name, Type: r.Type, Message: r.Message, At: r.CheckedAt}
-		}
-		inbox.ObserveHealth(checks)
 	}
 }
 

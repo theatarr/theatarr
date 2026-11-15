@@ -15,7 +15,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/theatarr/theatarr/internal/errinbox"
 	"github.com/theatarr/theatarr/internal/jobs"
 	"github.com/theatarr/theatarr/internal/store"
 	"github.com/theatarr/theatarr/internal/store/storetest"
@@ -232,14 +231,9 @@ func TestInProcessRequestKeepsRouteLabel(t *testing.T) {
 	}
 }
 
-// TestErrorInboxCapture: a handler panic is recorded with its stack, answers 500 and the server keeps serving; a 500
-// is recorded by route pattern; 4xx, 503, the panic's own 500 and a 500 after the client went away are not recorded
-// again.
-func TestErrorInboxCapture(t *testing.T) {
-	st := openStore(t, true)
-	in := errinbox.New(st, errinbox.Options{Logger: quiet})
-	errinbox.Install(in)
-	t.Cleanup(func() { errinbox.Install(nil) })
+// TestPanicLogged: a handler panic is logged at error level with its stack and route, answers 500 and the server
+// keeps serving; a 500 after the client went away is logged as a 499.
+func TestPanicLogged(t *testing.T) {
 	var logs bytes.Buffer
 	log, _ := NewLogger(&logs, "info")
 	s := New(Config{Logger: log})
@@ -288,30 +282,9 @@ func TestErrorInboxCapture(t *testing.T) {
 	if !strings.Contains(logs.String(), `"level":"INFO","msg":"request","component":"http","method":"GET","path":"/gone","route":"GET /gone","code":499`) {
 		t.Errorf("client-closed request not logged as INFO 499: %s", logs.String())
 	}
-	if err := in.Flush(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	p, err := errinbox.List(context.Background(), st, errinbox.Filter{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	got := map[string]errinbox.Row{}
-	for _, r := range p.Items {
-		got[r.Source+" "+r.Component] = r
-	}
-	if len(got) != 2 {
-		t.Fatalf("rows %v", got)
-	}
-	pr, ok := got["panic http"]
-	if !ok || pr.Count != 2 {
-		t.Fatalf("panic row = %+v", pr)
-	}
-	full, _ := errinbox.Get(context.Background(), st, pr.ID)
-	if !strings.Contains(full.Stack, "TestErrorInboxCapture") || !strings.Contains(string(full.Context), "GET /boom/{id}") {
-		t.Errorf("panic row lacks stack or route: %+v", full)
-	}
-	if hr, ok := got["http GET /fail/{id}"]; !ok || hr.Count != 2 || hr.Message != "answered <n>" {
-		t.Errorf("http row = %+v", hr)
+	if !strings.Contains(logs.String(), `"level":"ERROR","msg":"handler panicked"`) ||
+		!strings.Contains(logs.String(), "TestPanicLogged") || !strings.Contains(logs.String(), `"route":"GET /boom/{id}"`) {
+		t.Errorf("panic not logged with its stack and route: %s", logs.String())
 	}
 	if !strings.Contains(logs.String(), "handler panicked") {
 		t.Errorf("panic not logged: %s", logs.String())

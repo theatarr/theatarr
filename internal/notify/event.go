@@ -28,8 +28,6 @@ const (
 	RequestAvailable          Kind = "request_available"
 	RequestPartial            Kind = "request_partial_available"
 	RequestFailed             Kind = "request_failed"
-	// Error is a new error-inbox group, or one that came back after it was resolved (Discord and ntfy targets only).
-	Error Kind = "error"
 	// Digest is the daily summary (Discord and ntfy targets only).
 	Digest Kind = "digest"
 )
@@ -74,22 +72,8 @@ type Event struct {
 	Target string
 	// Request carries the request details for request notifications.
 	Request *Request
-	// Error is the inbox group an Error event announces.
-	Error *ErrorItem
 	// Digest is the Digest event's summary.
 	Digest *DigestSummary
-}
-
-// ErrorItem is an error-inbox group as an alert names it.
-type ErrorItem struct {
-	ID        int64
-	Source    string
-	Component string
-	// Sample is the latest occurrence, redacted by the inbox.
-	Sample string
-	Count  int64
-	// Reopened: it was resolved and happened again.
-	Reopened bool
 }
 
 // Request is the request data included in native request notifications.

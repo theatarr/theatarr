@@ -143,9 +143,10 @@ func HistoryBlocklist(ctx context.Context, ex Execer, version, key string) {
 }
 
 // HistoryUnblock keeps the blocked row of the blocklist entry (version, key) about to be deleted under a ref of its
-// own (bl:<rowid>:<at>), so a later entry that takes the rowid does not write over it.
+// own (bl:<rowid>:<at>), so a later entry that takes the rowid does not write over it. It leaves the flagged view:
+// its journal entry is gone.
 func HistoryUnblock(ctx context.Context, ex Execer, version, key string) {
-	historyExec(ctx, ex, `UPDATE history SET ref = ref || ':' || at WHERE ref = (SELECT 'bl:' || rowid
+	historyExec(ctx, ex, `UPDATE history SET ref = ref || ':' || at, severity = '' WHERE ref = (SELECT 'bl:' || rowid
 		FROM router_blocklist WHERE version_key = ? AND info_hash = ?)`, version, key)
 }
 
@@ -308,7 +309,8 @@ func historyErr(err error) error {
 }
 
 // BackfillHistory writes every History row from its sources into an empty history table with migration 00140's own
-// statements: for a database whose sources were written directly (the demo seed).
+// statements (but the copy events', whose table is gone): for a database whose sources were written directly (the
+// demo seed).
 func BackfillHistory(ctx context.Context, ex Execer) error {
 	b, err := migrationFiles.ReadFile("migrations/00140_history.sql")
 	if err != nil {
@@ -324,7 +326,8 @@ func BackfillHistory(ctx context.Context, ex Execer) error {
 			}
 		}
 		q = strings.TrimSpace(strings.Join(keep, "\n"))
-		if !strings.HasPrefix(q, "INSERT") && !strings.HasPrefix(q, "WITH") {
+		// Copy events: their table went in 00144 (their rows stay in history).
+		if !strings.HasPrefix(q, "INSERT") && !strings.HasPrefix(q, "WITH") || strings.Contains(q, "provider_copy_event") {
 			continue
 		}
 		if _, err := ex.ExecContext(ctx, q); err != nil {

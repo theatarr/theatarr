@@ -19,10 +19,20 @@ export const LEGACY_ROUTES: [from: string, to: string][] = [
   ["/admin/advanced/inventory/:hash", "/admin/torrents?q=:hash"],
   ["/admin/torrents/inventory", "/admin/torrents"],
   ["/admin/torrents/inventory/:hash", "/admin/torrents?q=:hash"],
-  ["/admin/metadata", "/admin/reviews/anime"],
-  ["/admin/metadata/:slug", "/admin/reviews/anime/:slug"],
+  ["/admin/metadata", "/admin/settings/anime-mappings"],
+  ["/admin/metadata/:slug", "/admin/settings/anime-mappings/:slug"],
+  // The Reviews hub went in phase K (K8): flagged decisions are the journal's Flagged filter, anime mappings a
+  // Settings page, indexer definition updates on Settings › Indexers, quality-sync updates on Settings › Quality sync.
+  ["/admin/reviews", "/admin/system/journal?suspect=1"],
+  ["/admin/reviews/decisions", "/admin/system/journal?suspect=1"],
+  ["/admin/reviews/anime", "/admin/settings/anime-mappings"],
+  ["/admin/reviews/anime/:slug", "/admin/settings/anime-mappings/:slug"],
+  ["/admin/reviews/indexers", "/admin/settings/indexers"],
+  ["/admin/reviews/quality", "/admin/settings/quality-sync"],
   ["/admin/jobs", "/admin/system/tasks"],
-  ["/admin/errors", "/admin/system/errors"],
+  // System › Errors went with the error inbox (K8): errors are in Logs.
+  ["/admin/errors", "/admin/system/logs"],
+  ["/admin/system/errors", "/admin/system/logs"],
   ["/admin/advanced/logs", "/admin/system/logs"],
   ["/admin/advanced/database", "/admin/system/backup"],
   ["/admin/rules", "/admin/settings"],

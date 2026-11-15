@@ -369,7 +369,7 @@ It exits 1 when a line fails; each line names the settings page to fix it on. Go
 decisions look right.
 
 1. Turn **Pause** off at the top of the page. Review the libraries it names. A save applies without a restart.
-2. Watch **Activity**, **System › Status** and **System › Errors**, and Plex; check that a cached release imports and
+2. Watch **Activity**, **System › Status** and **System › Logs**, and Plex; check that a cached release imports and
    plays. Run the check again.
 
 Downloads and library writes need **Pause** off; writes stay inside the library's roots and

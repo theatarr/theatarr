@@ -1,12 +1,11 @@
-import { Empty, Loading, ErrorState } from "@/components/page";
-import { Link } from "react-router";
+import { Loading } from "@/components/page";
 // The add-indexer sheet (docs/design/settings.md, "Adding an indexer"): four tabs. Catalog lists the cardigann
 // definitions Theatarr runs itself, with a set-up form built from the chosen definition's settings, and turns the
 // catalog on when it is off; Torznab & built-in sources opens the record editor for torznab/newznab, dmm, torrentio,
 // zilean or seadex; Link Prowlarr adds Prowlarr's indexers as Torznab feeds (the trackers stay in Prowlarr); Move
 // from Prowlarr (once) turns Prowlarr's indexers into native ones. Whatever is added here is saved on, and joins the
 // libraries its form ticks (every library that suits it, by default) in the same save. The one exception: a moved
-// tracker that needs a login is added off. The held definition updates are listed by HoldsCard, on the indexers page.
+// tracker that needs a login is added off. The held definition updates are listed by DefinitionHolds, on the indexers page.
 import { ArrowLeft, Loader2, Plus, Zap } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -700,13 +699,11 @@ function MigrateTab({ overview, libraries }: { overview: SettingsOverview; libra
 
 /** The definition updates held for review: approving applies one update (or removal); no indexer changes. Hidden
  * while there are none or the catalog is off. */
-export function DefinitionHolds({ showEmpty = false }: { showEmpty?: boolean }) {
+export function DefinitionHolds() {
   const holds = useCardigannHolds();
   const approve = useApproveHold();
   const [asking, setAsking] = useState<CardigannHold>();
-  if (showEmpty && holds.isPending) return <Loading />;
-  if (showEmpty && holds.error) return <ErrorState error={holds.error} />;
-  if (!holds.data?.length) return showEmpty ? <Empty>No definition updates waiting.</Empty> : null;
+  if (!holds.data?.length) return null;
   return (
     <Card className="mb-3 p-3" data-testid="holds">
       <div className="text-sm font-semibold">Definition updates waiting for review</div>
@@ -745,9 +742,4 @@ export function DefinitionHolds({ showEmpty = false }: { showEmpty?: boolean }) 
       ) : null}
     </Card>
   );
-}
-
-export function HoldsCard() {
-  const holds = useCardigannHolds();
-  return holds.data?.length ? <p className="mb-3 text-sm">{holds.data.length} definition updates waiting — <Link className="text-primary underline" to="/admin/reviews/indexers">Review</Link></p> : null;
 }

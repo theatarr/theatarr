@@ -37,7 +37,7 @@ claim of Sonarr v5 API parity. Recyclarr has no web pages; its table maps the CL
 | System › Tasks | Admin › System › Tasks — `/admin/system/tasks` | One scheduled-tasks list (interval, last run, duration, next run, Run now) plus the jobs and failures, rather than one scheduler per arr instance. |
 | System › Backups | Admin › System › Backup — `/admin/system/backup` | Full Theatarr backups and restore plus separate torrent-list backups. |
 | System › Updates | **not needed** | Deploy a new Theatarr binary/container; there is no in-app updater. |
-| System › Events | Admin › System › Errors — `/admin/system/errors` | Persistent error inbox; ordinary runtime messages are in Logs. |
+| System › Events | Admin › System › Logs — `/admin/system/logs` | Errors and warnings are log lines; a failing provider or indexer shows on System › Status. |
 | System › Log Files | Admin › System › Logs — `/admin/system/logs` | Recent lines from memory, plus the rotated log files to download. |
 | System › Update Log Files | **not needed** | No in-app updater; inspect deployment/container logs. |
 | Activity › Queue | Activity › Queue — `/activity` | Downloads and imports as a table with the columns you choose (accounts that see files); remove several at once; each action follows the account's permissions. |
@@ -73,7 +73,7 @@ claim of Sonarr v5 API parity. Recyclarr has no web pages; its table maps the CL
 | System › Tasks | Admin › System › Tasks — `/admin/system/tasks` | One scheduled-tasks list (interval, last run, duration, next run, Run now) plus the jobs and failures, rather than one scheduler per arr instance. |
 | System › Backup | Admin › System › Backup — `/admin/system/backup` | Full Theatarr backups and restore plus separate torrent-list backups. |
 | System › Updates | **not needed** | Deploy a new Theatarr binary/container; there is no in-app updater. |
-| System › Events | Admin › System › Errors — `/admin/system/errors` | Persistent error inbox; ordinary runtime messages are in Logs. |
+| System › Events | Admin › System › Logs — `/admin/system/logs` | Errors and warnings are log lines; a failing provider or indexer shows on System › Status. |
 | System › Log Files | Admin › System › Logs — `/admin/system/logs` | Recent lines from memory, plus the rotated log files to download. |
 | Activity › Queue | Activity › Queue — `/activity` | Downloads and imports as a table with the columns you choose (accounts that see files); remove several at once; each action follows the account's permissions. |
 | Activity › History | Activity › History — `/activity/history` | Grabs, imports, failures and search decisions as a table with the columns you choose (accounts that see files); admin decision links explain outcomes. |
@@ -90,7 +90,7 @@ claim of Sonarr v5 API parity. Recyclarr has no web pages; its table maps the CL
 | Search | Search — `/search` | Find a title, then use its Releases action; no unrestricted all-indexer raw search page. |
 | History | System › Decision journal — `/admin/system/journal` | Search and download decisions, not a full Prowlarr request log. |
 | Settings | Admin › Settings — `/admin/settings` | Search by task or an arr page name. |
-| Settings › Indexers | Admin › Settings › Indexers › VPN — `/admin/settings/indexers/vpn` | Optional VPN guard and catalog settings replace proxy management; native definition reviews are under Reviews. |
+| Settings › Indexers | Admin › Settings › Indexers › VPN — `/admin/settings/indexers/vpn` | Optional VPN guard and catalog settings replace proxy management; held definition updates are listed on Settings › Indexers. |
 | Settings › Apps | Admin › Settings › Connected apps — `/admin/settings/apps` | Theatarr is its own indexer manager, so there is no indexer-to-arr sync; Connected apps exposes Radarr- and Sonarr-compatible APIs to Seerr and other clients. |
 | Settings › Download Clients | Admin › Settings › Download clients — `/admin/settings/downloads` | Debrid providers are direct; a decypharr-style debrid client goes under Other clients (seedbox clients are not supported yet). Pause remains explicit. |
 | Settings › Connect | Admin › Settings › Notifications — `/admin/settings/notifications` | Webhook, Discord and ntfy targets and Send notifications; Plex lives under Plex & playback. |
@@ -102,7 +102,7 @@ claim of Sonarr v5 API parity. Recyclarr has no web pages; its table maps the CL
 | System › Tasks | Admin › System › Tasks — `/admin/system/tasks` | One scheduled-tasks list (interval, last run, duration, next run, Run now) plus the jobs and failures, rather than one scheduler per arr instance. |
 | System › Backup | Admin › System › Backup — `/admin/system/backup` | Full Theatarr backups and restore plus separate torrent-list backups. |
 | System › Updates | **not needed** | Deploy a new Theatarr binary/container; there is no in-app updater. |
-| System › Events | Admin › System › Errors — `/admin/system/errors` | Persistent error inbox; ordinary runtime messages are in Logs. |
+| System › Events | Admin › System › Logs — `/admin/system/logs` | Errors and warnings are log lines; a failing provider or indexer shows on System › Status. |
 | System › Log Files | Admin › System › Logs — `/admin/system/logs` | Recent lines from memory, plus the rotated log files to download. |
 
 ## Recyclarr (CLI)

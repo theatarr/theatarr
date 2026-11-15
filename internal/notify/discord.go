@@ -65,7 +65,7 @@ var discordColor = map[messageLevel]int{levelInfo: discordBlue, levelGood: disco
 func (n *Notifier) discordPayload(ctx context.Context, ev Event) (discordMessage, error) {
 	at := ev.At.UTC().Format(time.RFC3339)
 	switch ev.Kind {
-	case Health, HealthRestored, Error, Digest:
+	case Health, HealthRestored, Digest:
 		title, lines, level := messageText(ev, true)
 		return fitDiscord("", []embedLines{{title: title, lines: lines, color: discordColor[level]}}, nil, at), nil
 	case RequestAvailable, RequestPartial:

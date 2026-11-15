@@ -3,14 +3,15 @@ package library
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/theatarr/theatarr/internal/decide"
-	"github.com/theatarr/theatarr/internal/errinbox"
 	"github.com/theatarr/theatarr/internal/library/probe"
 	"github.com/theatarr/theatarr/internal/metadata/anime/animemap"
 	"github.com/theatarr/theatarr/internal/metadata/anime/animestore"
@@ -58,11 +59,28 @@ func (e *env) withLibrary(change func(*policy.Policy)) {
 	e.t.Cleanup(e.lib.mount.closeHelpers)
 }
 
-func (e *env) inbox() *[]errinbox.Event {
-	var got []errinbox.Event
-	e.lib.inbox = func(ev errinbox.Event) { got = append(got, ev) }
-	return &got
+// errorLogs collects the library's error-level log messages from now on.
+func (e *env) errorLogs() *[]string {
+	h := &errorHandler{}
+	e.lib.log = slog.New(h)
+	return &h.msgs
 }
+
+// errorHandler keeps the messages of error-level records.
+type errorHandler struct {
+	mu   sync.Mutex
+	msgs []string
+}
+
+func (h *errorHandler) Enabled(_ context.Context, l slog.Level) bool { return l >= slog.LevelError }
+func (h *errorHandler) Handle(_ context.Context, r slog.Record) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.msgs = append(h.msgs, r.Message)
+	return nil
+}
+func (h *errorHandler) WithAttrs([]slog.Attr) slog.Handler { return h }
+func (h *errorHandler) WithGroup(string) slog.Handler      { return h }
 
 // Accepting the mapping in review queues the series' re-link; the job moves both files to the episodes the entry
 // gives them, with the version's naming, records the episodes on the download's file identity, leaves a journal
@@ -119,14 +137,14 @@ func TestAnimeRelinkAfterReview(t *testing.T) {
 	}
 }
 
-// A target episode that already has another file (Theatarr's or the arr's) is skipped: both stay, and the error inbox
+// A target episode that already has another file (Theatarr's or the arr's) is skipped: both stay, and an error in Logs
 // names the two paths. The other file moves.
 func TestAnimeRelinkOccupiedTarget(t *testing.T) {
 	t.Parallel()
 	e, _ := relinkEnv(t)
 	e.adoptedFile(900, 30, 3, "/arr/Isekai S02E02.mkv", "/arr/Isekai S02E02.mkv", "", "", 314)
 	e.exec(`UPDATE anime_mapping SET status = 'override' WHERE entry_key = 'al:2'`)
-	got := e.inbox()
+	got := e.errorLogs()
 	snap := tree(t, e.dir)
 	res, err := e.lib.RelinkAnime(e.ctx, 2002)
 	if err != nil {
@@ -135,9 +153,9 @@ func TestAnimeRelinkOccupiedTarget(t *testing.T) {
 	if len(res.Moved) != 1 || len(res.Occupied) != 1 || !strings.Contains(res.Moved[0], "S01E01 → S02E01") {
 		t.Fatalf("relink %+v", res)
 	}
-	if len(*got) != 1 || !strings.Contains((*got)[0].Message, "/arr/Isekai S02E02.mkv") ||
-		!strings.Contains((*got)[0].Message, "S01E02 - Episode") || (*got)[0].Source != errinbox.SourceLog {
-		t.Errorf("inbox %+v", *got)
+	if len(*got) != 1 || !strings.Contains((*got)[0], "/arr/Isekai S02E02.mkv") ||
+		!strings.Contains((*got)[0], "S01E02 - Episode") {
+		t.Errorf("error logs %+v", *got)
 	}
 	if strings.Join(tree(t, e.dir), "\n") == strings.Join(snap, "\n") {
 		t.Error("nothing moved")
@@ -200,7 +218,7 @@ func TestAnimeRelinkPlanOnly(t *testing.T) {
 }
 
 // A shifted range (E01-E03 to E02-E04) frees each target as the file ahead of it moves: passes repeat while a move
-// succeeds, so every file moves and nothing reaches the inbox. When the arr holds S01E04, no move frees anything:
+// succeeds, so every file moves and nothing is logged as an error. When the arr holds S01E04, no move frees anything:
 // the passes stop, every file stays, and each is reported once.
 func TestAnimeRelinkShiftedRange(t *testing.T) {
 	t.Parallel()
@@ -233,7 +251,7 @@ func TestAnimeRelinkShiftedRange(t *testing.T) {
 				e.adoptedFile(900, 30, 3, "/arr/Isekai S01E04.mkv", "/arr/Isekai S01E04.mkv", "", "", 304)
 			}
 			e.exec(`UPDATE anime_mapping SET status = 'override' WHERE entry_key = 'al:2'`)
-			inbox := e.inbox()
+			inbox := e.errorLogs()
 			snap := tree(t, e.dir)
 			res, err := e.lib.RelinkAnime(e.ctx, 2002)
 			if err != nil {
@@ -255,7 +273,7 @@ func TestAnimeRelinkShiftedRange(t *testing.T) {
 }
 
 // A new name another file already has on disk (not in the database) is skipped like a held episode: that file and
-// the link stay, and the error inbox names both paths. The other file moves.
+// the link stay, and an error in Logs names both paths. The other file moves.
 func TestAnimeRelinkDestinationOnDisk(t *testing.T) {
 	t.Parallel()
 	e, before := relinkEnv(t)
@@ -273,7 +291,7 @@ func TestAnimeRelinkDestinationOnDisk(t *testing.T) {
 	if err := os.WriteFile(dest, []byte("user file"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	inbox := e.inbox()
+	inbox := e.errorLogs()
 	res, err := e.lib.RelinkAnime(e.ctx, 2002)
 	if err != nil {
 		t.Fatal(err)
@@ -287,7 +305,7 @@ func TestAnimeRelinkDestinationOnDisk(t *testing.T) {
 	if len(res.Moved) != 1 || len(res.Occupied) != 1 || res.Occupied[0] != old {
 		t.Fatalf("relink %+v", res)
 	}
-	if len(*inbox) != 1 || !strings.Contains((*inbox)[0].Message, old) || !strings.Contains((*inbox)[0].Message, dest) {
+	if len(*inbox) != 1 || !strings.Contains((*inbox)[0], old) || !strings.Contains((*inbox)[0], dest) {
 		t.Errorf("inbox %+v", *inbox)
 	}
 }
