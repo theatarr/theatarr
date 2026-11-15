@@ -945,6 +945,13 @@ func (w *Web) apiEpisode(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	var history map[string][]HistoryEvent
+	if seeFiles {
+		if history, err = w.episodeHistory(ctx, db, t.id, eid); err != nil {
+			w.internal(rw, err)
+			return
+		}
+	}
 	for i, v := range mvs {
 		c := out.Episode.Versions[v.key]
 		d := EpisodeVersionDetail{Key: v.key, Label: labels[v.key], State: c.State, Monitored: c.Monitored,
@@ -960,9 +967,8 @@ func (w *Web) apiEpisode(rw http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if seeFiles {
-			if d.History, err = w.episodeHistory(ctx, db, t.id, v.id, eid); err != nil {
-				w.internal(rw, err)
-				return
+			if h := history[v.key]; h != nil {
+				d.History = h
 			}
 			if f := facts[v.id]; f != nil {
 				d.LastSearch, d.Searching = f.last, f.searching
@@ -1037,29 +1043,28 @@ func (w *Web) episodeFile(ctx context.Context, db *sql.DB, versionID, eid int64)
 	return &f, nil
 }
 
-// episodeHistory is one episode's history in a version, newest first, at most historyLimit: History's stored rows
-// that hold it (internal/store history.go): Theatarr's downloads (grabbed, then imported or failed) and files taken
-// over from Sonarr/Radarr (adopted).
-func (w *Web) episodeHistory(ctx context.Context, db *sql.DB, titleID, versionID, eid int64) ([]HistoryEvent, error) {
-	out := []HistoryEvent{}
+// episodeHistory is one episode's history in each library of the title, by library key, newest first, at most
+// historyLimit each: History's stored rows that hold it (internal/store history.go): Theatarr's downloads (grabbed,
+// then imported or failed) and files taken over from Sonarr/Radarr (adopted).
+func (w *Web) episodeHistory(ctx context.Context, db *sql.DB, titleID, eid int64) (map[string][]HistoryEvent, error) {
+	byKey := map[string][]HistoryEvent{}
 	origins, err := runOrigins(ctx, db, titleID)
 	if err != nil {
 		return nil, err
 	}
-	err = scanAll(ctx, db, `SELECT h.ref, h.at, h.event, COALESCE(h.release, ''), h.info_hash, h.provider, h.quality,
-		h.score, h.reason, h.detail, COALESCE(download.source, ''),
+	err = scanAll(ctx, db, `SELECT h.version_key, h.at, h.event, COALESCE(h.release, ''), h.info_hash, h.provider,
+		h.quality, h.score, h.reason, h.detail, COALESCE(download.source, ''),
 		COALESCE(download.state = 'failed' AND `+activity.NotStartedSQL+`, 0)
 		FROM history h LEFT JOIN download ON download.id = h.download_id
-		WHERE h.title_id = ? AND h.version_key = (SELECT policy_key FROM version WHERE id = ?)
-		AND (h.event IN ('grabbed', 'imported', 'adopted') OR h.ref GLOB 'dl:*:fail')
-		AND EXISTS (SELECT 1 FROM json_each(h.episodes) j WHERE j.value = ?)`, []any{titleID, versionID, eid},
+		WHERE h.title_id = ? AND (h.event IN ('grabbed', 'imported', 'adopted') OR h.ref GLOB 'dl:*:fail')
+		AND EXISTS (SELECT 1 FROM json_each(h.episodes) j WHERE j.value = ?)`, []any{titleID, eid},
 		func(r *sql.Rows) error {
-			var ref, event, provider, reason, detail, source string
+			var key, event, provider, reason, detail, source string
 			var at int64
 			var score sql.NullInt64
 			var notStarted bool
 			var h HistoryEvent
-			if err := r.Scan(&ref, &at, &event, &h.ReleaseTitle, &h.InfoHash, &provider, &h.Quality, &score, &reason,
+			if err := r.Scan(&key, &at, &event, &h.ReleaseTitle, &h.InfoHash, &provider, &h.Quality, &score, &reason,
 				&detail, &source, &notStarted); err != nil {
 				return err
 			}
@@ -1071,7 +1076,7 @@ func (w *Web) episodeHistory(ctx context.Context, db *sql.DB, titleID, versionID
 				if from, _, _ := strings.Cut(strings.TrimPrefix(detail, "adopted from "), " "); from != "" {
 					h.Source = from
 				}
-				out = append(out, h)
+				byKey[key] = append(byKey[key], h)
 				return nil
 			}
 			// A download's event: its provider, where it came from and what started it.
@@ -1092,27 +1097,30 @@ func (w *Web) episodeHistory(ctx context.Context, db *sql.DB, titleID, versionID
 					h.Reason = shortReason(reason, provider)
 				}
 			}
-			out = append(out, h)
+			byKey[key] = append(byKey[key], h)
 			return nil
 		})
 	if err != nil {
 		return nil, err
 	}
-	slices.SortStableFunc(out, func(a, b HistoryEvent) int { return b.Date.Compare(a.Date) })
-	// An import after an earlier import of the same episode replaced its file: an upgrade.
-	imports := 0
-	for i := len(out) - 1; i >= 0; i-- {
-		if out[i].Event == "imported" {
-			if imports > 0 {
-				out[i].Event = "upgraded"
+	for key, out := range byKey {
+		slices.SortStableFunc(out, func(a, b HistoryEvent) int { return b.Date.Compare(a.Date) })
+		// An import after an earlier import of the same episode replaced its file: an upgrade.
+		imports := 0
+		for i := len(out) - 1; i >= 0; i-- {
+			if out[i].Event == "imported" {
+				if imports > 0 {
+					out[i].Event = "upgraded"
+				}
+				imports++
 			}
-			imports++
 		}
+		if len(out) > historyLimit {
+			out = out[:historyLimit]
+		}
+		byKey[key] = out
 	}
-	if len(out) > historyLimit {
-		out = out[:historyLimit]
-	}
-	return out, nil
+	return byKey, nil
 }
 
 // GET titles/{id}/episodes/{eid}/releases?version=&live=: the releases panel for one episode. live=1 searches the

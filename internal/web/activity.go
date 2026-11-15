@@ -712,7 +712,7 @@ func (w *Web) historyEvents(ctx context.Context, hs []*journal.HistoryRow, admin
 				}
 				x.Replaced = append(x.Replaced, hf)
 			}
-			x.Entry = journal.EntryOf(h)
+			x.Entry = h.Entry
 			x.By, x.Removal = h.By, h.Removal
 		}
 		out = append(out, x)

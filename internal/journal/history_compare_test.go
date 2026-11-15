@@ -249,4 +249,23 @@ func TestStoredHistoryUpgradeIsOneRow(t *testing.T) {
 		t.Errorf("upgrade row %s %v", historyKey(h), files)
 	}
 	checkStoredHistory(t, ctx, e.j, e.st)
+	// A row names its journal entry while the entry's source exists; once retention deleted the download, not.
+	entries := func() string {
+		p, err := e.j.History(ctx, Filter{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var out []string
+		for _, h := range p.Items {
+			out = append(out, h.ID+"="+h.Entry)
+		}
+		return strings.Join(out, " ")
+	}
+	if got := entries(); got != "lib:81=lib:81 dl:60=dl:60" {
+		t.Errorf("entries %s", got)
+	}
+	e.exec(`DELETE FROM download WHERE id = 60`)
+	if got := entries(); got != "lib:81=lib:81 dl:60=" {
+		t.Errorf("entries after retention %s", got)
+	}
 }

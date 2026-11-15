@@ -130,15 +130,17 @@ func (f *fakeTMDb) SeasonEpisodeCounts(context.Context, int) (map[int]int, error
 
 // addEnv is the native API and the arr views over one database, as in theatarr serve.
 type addEnv struct {
-	t   *testing.T
-	st  *store.Store
-	pol *policy.Policy
-	mux *http.ServeMux
-	key string
-	acq *fakeAcquirer
-	tm  *fakeTMDb
-	web *Web
-	au  *auth.Service
+	// sqlSources: as env's.
+	sqlSources bool
+	t          *testing.T
+	st         *store.Store
+	pol        *policy.Policy
+	mux        *http.ServeMux
+	key        string
+	acq        *fakeAcquirer
+	tm         *fakeTMDb
+	web        *Web
+	au         *auth.Service
 }
 
 var addNow = time.Date(2026, 10, 26, 12, 0, 0, 0, time.UTC)
@@ -202,6 +204,7 @@ func newAddEnvWith(t *testing.T, mutate func(*policy.Policy), noTMDb bool) *addE
 
 func (e *addEnv) exec(q string, args ...any) {
 	e.t.Helper()
+	e.sqlSources = e.sqlSources || writesHistorySources(q)
 	if _, err := e.st.Writer().Exec(q, args...); err != nil {
 		e.t.Fatalf("%s: %v", q, err)
 	}
@@ -236,7 +239,7 @@ func (e *addEnv) call(method, path string, body any, want int, out any) {
 	if body != nil {
 		r.Header.Set("Content-Type", "application/json")
 	}
-	storeHistory(e.t, e.st, r)
+	storeHistory(e.t, e.st, r, &e.sqlSources)
 	rec := httptest.NewRecorder()
 	e.mux.ServeHTTP(rec, r)
 	if rec.Code != want {

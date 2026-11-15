@@ -54,14 +54,16 @@ func (f *fakeEgress) EgressSummary() map[string]any {
 }
 
 type env struct {
-	t      *testing.T
-	st     *store.Store
-	auth   *auth.Service
-	web    *Web
-	eg     *fakeEgress
-	mux    *http.ServeMux
-	pw     string
-	policy string
+	// sqlSources: the test wrote History's source rows by SQL since History was last stored (storeHistory).
+	sqlSources bool
+	t          *testing.T
+	st         *store.Store
+	auth       *auth.Service
+	web        *Web
+	eg         *fakeEgress
+	mux        *http.ServeMux
+	pw         string
+	policy     string
 }
 
 const hashA = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
@@ -135,6 +137,7 @@ func newEnvAccount(t *testing.T, cfg func(*Config), withAdmin bool) *env {
 
 func (e *env) exec(q string, args ...any) {
 	e.t.Helper()
+	e.sqlSources = e.sqlSources || writesHistorySources(q)
 	if _, err := e.st.Writer().Exec(q, args...); err != nil {
 		e.t.Fatalf("%s: %v", q, err)
 	}
@@ -189,17 +192,25 @@ func (e *env) login() *http.Cookie {
 }
 
 func (e *env) do(r *http.Request) *httptest.ResponseRecorder {
-	storeHistory(e.t, e.st, r)
+	storeHistory(e.t, e.st, r, &e.sqlSources)
 	rec := httptest.NewRecorder()
 	e.mux.ServeHTTP(rec, r)
 	return rec
 }
 
-// storeHistory writes History's rows from the sources the test wrote directly, as migration 00140 did, before a
-// request that reads them (History, an episode's window).
-func storeHistory(t *testing.T, st *store.Store, r *http.Request) {
+// historySources are the tables History's rows are written from.
+var historySources = regexp.MustCompile(`(?i)(INSERT\s+(OR\s+\w+\s+)?INTO|UPDATE|DELETE\s+FROM)\s+(download|download_attempt|library_import|library_action|router_blocklist|journal_action|provider_copy_event)\b`)
+
+// writesHistorySources says whether a fixture statement writes one of History's source tables.
+func writesHistorySources(q string) bool { return historySources.MatchString(q) }
+
+// storeHistory writes History's rows from their sources, as migration 00140 did, before a request that reads them
+// (History, an episode's window), when the test wrote source rows by SQL (*dirty): the event writers did not see
+// those. A test that went through the real grabs and imports reads what the writers stored.
+func storeHistory(t *testing.T, st *store.Store, r *http.Request, dirty *bool) {
 	t.Helper()
-	if r.Method != "GET" || !strings.Contains(r.URL.RawQuery, "state=history") && !strings.Contains(r.URL.Path, "/episodes/") {
+	if !*dirty || r.Method != "GET" ||
+		!strings.Contains(r.URL.RawQuery, "state=history") && !strings.Contains(r.URL.Path, "/episodes/") {
 		return
 	}
 	ctx := context.Background()
@@ -209,6 +220,7 @@ func storeHistory(t *testing.T, st *store.Store, r *http.Request) {
 	if err := store.BackfillHistory(ctx, st.Writer()); err != nil {
 		t.Fatal(err)
 	}
+	*dirty = false
 }
 
 func (e *env) get(path string, c *http.Cookie) *httptest.ResponseRecorder {

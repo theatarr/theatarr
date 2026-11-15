@@ -42,6 +42,7 @@ const rows = [
   { id: "lib:9", at: "2026-11-12T15:00:00Z", kind: "link", event: "deleted", title: series, version: "tv-2160p", words: "Upgraded: 2 files replaced", tone: "info", episodes: ["S01E01", "S01E02"], files: 2, release: "Gamma.S01.1080p.WEB-OLD", quality: "WEBDL-1080p", score: 900, replaced_by: { release: "Gamma.S01.2160p.WEB-GRP", quality: "WEBDL-2160p", score: 2400 }, replaced: [{ path: "/tv/Gamma/S01E01.mkv", release: "Gamma.S01.1080p.WEB-OLD", quality: "WEBDL-1080p", episodes: ["S01E01"] }, { path: "/tv/Gamma/S01E02.mkv", episodes: ["S01E02"] }], entry: "lib:9" },
   { id: "dl:5:import", at: "2026-11-12T15:00:00Z", kind: "import", event: "imported", title: series, version: "tv-2160p", words: "Imported", tone: "ok", episodes: eps, release: "Gamma.S01.2160p.WEB-GRP", quality: "WEBDL-2160p", score: 2400 },
   { id: "lib:4", at: "2026-10-27T09:00:00Z", kind: "link", event: "adopted", title: series, version: "tv-2160p", words: "Adopted", tone: "ok", episodes: ["S01E07"] },
+  { id: "lib:12", at: "2026-10-25T09:00:00Z", kind: "link", event: "deleted", title: series, version: "tv-2160p", words: "Upgraded: 2 files replaced", tone: "info", files: 2, replaced: [{ path: "/tv/Gamma/S02E01.mkv", release: "Gamma.S02E01.WEB" }, { path: "/tv/Gamma/S02E02.mkv", release: "Gamma.S02E02.WEB" }] },
   { id: "dl:6:fail", at: "2026-10-20T09:00:00Z", kind: "failure", event: "failed", title: series, version: "tv-2160p", words: "Failed", tone: "bad", release: "Gamma.S01E08.WEB", reason: "Provider refused: too many active" },
 ];
 
@@ -52,7 +53,7 @@ it("words rows like Radarr's: one import with its episodes, an upgrade's one row
   ]);
   renderPage(<HistoryTab admin titleId={3} />, "/title/3?tab=history");
   const got = await screen.findAllByTestId("history-row");
-  expect(got.map((r) => r.querySelector('[data-testid="history-words"]')?.textContent)).toEqual(["Not cached on AD", "Upgraded: 2 files replaced", "Imported", "Adopted", "Failed"]);
+  expect(got.map((r) => r.querySelector('[data-testid="history-words"]')?.textContent)).toEqual(["Not cached on AD", "Upgraded: 2 files replaced", "Imported", "Adopted", "Upgraded: 2 files replaced", "Failed"]);
   // The title tab: no filters, no Title column; the episodes under the event, compact, the full list on hover.
   expect(screen.queryByTestId("history-filters")).toBeNull();
   expect(got[0].querySelector('[data-column="title"]')).toBeNull();
@@ -70,7 +71,9 @@ it("words rows like Radarr's: one import with its episodes, an upgrade's one row
   expect(got[0].querySelector('[data-testid="history-replaced"]')).toBeNull();
   expect(got[3].querySelector('[data-column="release"]')?.textContent).toBe("Name not recorded");
   expect(got[3].querySelector('[data-column="quality"]')?.textContent).toBe("—");
-  expect(got[4].querySelector('[data-testid="history-reason"]')?.textContent).toBe("Provider refused: too many active");
+  // An upgrade over files of two releases names how many, not "Name not recorded".
+  expect(got[4].querySelector('[data-column="release"]')?.textContent).toBe("2 releases");
+  expect(got[5].querySelector('[data-testid="history-reason"]')?.textContent).toBe("Provider refused: too many active");
   expect(got[0].querySelector('[data-testid="history-reason"]')?.textContent).toBe("Not cached on AD; our add was deleted");
   expect(fetch.calls("GET", "/activity")[0].search).toContain("title_id=3");
 });

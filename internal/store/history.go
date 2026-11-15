@@ -208,13 +208,13 @@ type historyMember struct {
 // HistoryReplacedFile is one file of an upgrade's row (history.replaced): the library action that moved it aside,
 // when, its path, its release (empty and no quality when not known), the episode ids it held.
 type HistoryReplacedFile struct {
-	ID       int64           `json:"id"`
-	At       int64           `json:"at"`
-	Path     string          `json:"path"`
-	Release  string          `json:"release"`
-	Quality  *string         `json:"quality"`
-	Score    *int64          `json:"score"`
-	Episodes json.RawMessage `json:"episodes"`
+	ID       int64   `json:"id"`
+	At       int64   `json:"at"`
+	Path     string  `json:"path"`
+	Release  string  `json:"release"`
+	Quality  *string `json:"quality"`
+	Score    *int64  `json:"score"`
+	Episodes []int64 `json:"episodes"`
 }
 
 // HistoryLibraryAction writes the History row of library action id (its kind, mode, download and detail), when
@@ -269,7 +269,8 @@ func historyLibraryAction(ctx context.Context, ex Execer, id int64, class string
 		return insert(class, 1, nil)
 	}
 	// An upgrade's replaced file: added to its download's row in its library, which names what replaced it.
-	f := HistoryReplacedFile{ID: m.id, At: m.at, Path: m.path, Release: m.rel, Episodes: json.RawMessage(m.episodes)}
+	f := HistoryReplacedFile{ID: m.id, At: m.at, Path: m.path, Release: m.rel, Episodes: []int64{}}
+	_ = json.Unmarshal([]byte(m.episodes), &f.Episodes)
 	if m.quality.Valid {
 		f.Quality = &m.quality.String
 	}

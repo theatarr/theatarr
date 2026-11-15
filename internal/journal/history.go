@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -88,16 +89,16 @@ type HistoryRow struct {
 	// By is who did it: a title_removed row's remover. Removal is what a title_removed row did with its files.
 	By      string
 	Removal *Removal
-	// Replaced are the files an upgrade replaced, oldest first: set on a deleted row of the stored History
-	// (one row per download and library).
+	// Replaced are the files an upgrade replaced, oldest first (one row per download and library).
 	Replaced []ReplacedFile
+	// Entry is the row's journal entry (its Journal link): its id, a held import's import entry; "" for a copy, a
+	// release unblocked since, and a row whose source is gone (retention).
+	Entry string
 }
 
-// ReplacedFile is one file an upgrade replaced: the library action that moved it aside (lib:<id>), when, its path,
-// its release (title, quality, score; nil when not known) and the episodes it held.
+// ReplacedFile is one file an upgrade replaced: its path, its release (title, quality, score; nil when not known) and
+// the episodes it held.
 type ReplacedFile struct {
-	ID       string
-	At       time.Time
 	Path     string
 	Release  *Release
 	Episodes []string
@@ -124,11 +125,6 @@ func (j *Journal) History(ctx context.Context, f Filter) (*HistoryPage, error) {
 	if none {
 		return page, nil
 	}
-	// A grab's kind is grab unless kinds are filtered, as History reads it.
-	kind := `CASE kind WHEN 'upgrade' THEN 'grab' ELSE kind END`
-	if len(f.Kinds) > 0 {
-		kind = `kind`
-	}
 	l := &historyLoader{ctx: ctx, db: j.st.Reader()}
 	type stored struct {
 		h                                            head
@@ -142,34 +138,34 @@ func (j *Journal) History(ctx context.Context, f Filter) (*HistoryPage, error) {
 		replacedFiles                                []store.HistoryReplacedFile
 	}
 	var rows []*stored
-	err = l.query(`SELECT id, at, title_id, version_key, kind, event, download_id, release, info_hash, indexer, size,
+	err = l.query(`SELECT ref, at, title_id, version_key, kind, event, download_id, release, info_hash, indexer, size,
 		quality, score, formats, episodes, files, replaced, provider, reason, source, import_state, by, detail
-		FROM (SELECT ref AS id, at, title_id, version_key, `+kind+` AS kind, event, download_id, release, info_hash,
-			indexer, size, quality, score, formats, episodes, files, replaced, provider, reason, source, import_state,
-			by, detail FROM history)
-		WHERE `+where+` ORDER BY at DESC, id DESC LIMIT ?`, append(wargs, f.Limit+1), func(r *sql.Rows) error {
-		var s stored
-		if err := r.Scan(&s.h.id, &s.h.at, &s.h.titleID, &s.h.version, &s.h.kind, &s.event, &s.dl, &s.release,
-			&s.hash, &s.indexer, &s.size, &s.quality, &s.score, &s.formats, &s.eps, &s.files, &s.replaced,
-			&s.provider, &s.reason, &s.source, &s.importSt, &s.by, &s.detail); err != nil {
-			return err
-		}
-		_ = json.Unmarshal([]byte(s.eps), &s.episodes)
-		l.epIDs = append(l.epIDs, s.episodes...)
-		if s.replaced.Valid {
-			_ = json.Unmarshal([]byte(s.replaced.String), &s.replacedFiles)
-			slices.SortFunc(s.replacedFiles, func(a, b store.HistoryReplacedFile) int { return int(a.ID - b.ID) })
-			for _, rf := range s.replacedFiles {
-				var eps []int64
-				_ = json.Unmarshal(rf.Episodes, &eps)
-				l.epIDs = append(l.epIDs, eps...)
+		FROM history WHERE `+where+` ORDER BY at DESC, ref DESC LIMIT ?`, append(wargs, f.Limit+1),
+		func(r *sql.Rows) error {
+			var s stored
+			if err := r.Scan(&s.h.id, &s.h.at, &s.h.titleID, &s.h.version, &s.h.kind, &s.event, &s.dl, &s.release,
+				&s.hash, &s.indexer, &s.size, &s.quality, &s.score, &s.formats, &s.eps, &s.files, &s.replaced,
+				&s.provider, &s.reason, &s.source, &s.importSt, &s.by, &s.detail); err != nil {
+				return err
 			}
-		}
-		rows = append(rows, &s)
-		return nil
-	})
+			// A grab's kind is grab unless kinds are filtered (the journal's grab/upgrade split).
+			if s.h.kind == "upgrade" && len(f.Kinds) == 0 {
+				s.h.kind = "grab"
+			}
+			_ = json.Unmarshal([]byte(s.eps), &s.episodes)
+			l.epIDs = append(l.epIDs, s.episodes...)
+			if s.replaced.Valid {
+				_ = json.Unmarshal([]byte(s.replaced.String), &s.replacedFiles)
+				slices.SortFunc(s.replacedFiles, func(a, b store.HistoryReplacedFile) int { return int(a.ID - b.ID) })
+				for _, rf := range s.replacedFiles {
+					l.epIDs = append(l.epIDs, rf.Episodes...)
+				}
+			}
+			rows = append(rows, &s)
+			return nil
+		})
 	if err != nil {
-		return nil, fmt.Errorf("journal: stored history: %w", err)
+		return nil, fmt.Errorf("journal: history: %w", err)
 	}
 	if len(rows) > f.Limit {
 		rows = rows[:f.Limit]
@@ -185,8 +181,9 @@ func (j *Journal) History(ctx context.Context, f Filter) (*HistoryPage, error) {
 	}
 	attempts := map[int64][]Attempt{}
 	if len(failed) > 0 {
+		in, args := inList(failed)
 		if err := l.query(`SELECT download_id, provider, outcome, code, attempted_at FROM download_attempt
-			WHERE download_id IN (`+ph(failed)+`) ORDER BY id`, anys(failed), func(r *sql.Rows) error {
+			WHERE download_id IN (`+in+`) ORDER BY id`, args, func(r *sql.Rows) error {
 			var dl, at int64
 			var a Attempt
 			if err := r.Scan(&dl, &a.Provider, &a.Outcome, &a.Code, &at); err != nil {
@@ -196,26 +193,37 @@ func (j *Journal) History(ctx context.Context, f Filter) (*HistoryPage, error) {
 			attempts[dl] = append(attempts[dl], a)
 			return nil
 		}); err != nil {
-			return nil, fmt.Errorf("journal: stored history: %w", err)
+			return nil, fmt.Errorf("journal: history: %w", err)
 		}
 	}
 	titles, animes := map[int64]TitleRef{}, map[int64]bool{}
 	if len(titleIDs) > 0 {
-		if err := l.query(`SELECT id, name, COALESCE(year, 0), kind, anime FROM title WHERE id IN (`+
-			ph(titleIDs)+`)`, anys(titleIDs), func(r *sql.Rows) error {
-			var t TitleRef
-			var anime bool
-			if err := r.Scan(&t.ID, &t.Name, &t.Year, &t.Kind, &anime); err != nil {
-				return err
-			}
-			titles[t.ID], animes[t.ID] = t, anime
-			return nil
-		}); err != nil {
-			return nil, fmt.Errorf("journal: stored history: %w", err)
+		in, args := inList(titleIDs)
+		if err := l.query(`SELECT id, name, COALESCE(year, 0), kind, anime FROM title WHERE id IN (`+in+`)`, args,
+			func(r *sql.Rows) error {
+				var t TitleRef
+				var anime bool
+				if err := r.Scan(&t.ID, &t.Name, &t.Year, &t.Kind, &anime); err != nil {
+					return err
+				}
+				titles[t.ID], animes[t.ID] = t, anime
+				return nil
+			}); err != nil {
+			return nil, fmt.Errorf("journal: history: %w", err)
 		}
 	}
 	if err := l.loadLabels(); err != nil {
-		return nil, fmt.Errorf("journal: stored history: %w", err)
+		return nil, fmt.Errorf("journal: history: %w", err)
+	}
+	var entries []string
+	for _, s := range rows {
+		if e := entryOf(s.h.id); e != "" {
+			entries = append(entries, e)
+		}
+	}
+	live, err := l.liveEntries(entries)
+	if err != nil {
+		return nil, fmt.Errorf("journal: history: %w", err)
 	}
 
 	for _, s := range rows {
@@ -225,6 +233,9 @@ func (j *Journal) History(ctx context.Context, f Filter) (*HistoryPage, error) {
 			Import: s.importSt, By: s.by}
 		if x.Title.ID == 0 {
 			x.Title.ID = s.h.titleID
+		}
+		if e := entryOf(x.ID); live[e] {
+			x.Entry = e
 		}
 		if s.release.Valid {
 			x.Release = &Release{Title: clean(s.release.String), Indexer: s.indexer, InfoHash: s.hash, Size: s.size,
@@ -262,7 +273,7 @@ func (j *Journal) History(ctx context.Context, f Filter) (*HistoryPage, error) {
 			x.ReplacedBy, x.Release = x.Release, nil
 			same := true
 			for _, rf := range s.replacedFiles {
-				f := ReplacedFile{ID: fmt.Sprint("lib:", rf.ID), At: store.FromMillis(rf.At), Path: rf.Path}
+				f := ReplacedFile{Path: rf.Path}
 				if rf.Release != "" || rf.Quality != nil {
 					f.Release = &Release{Title: clean(rf.Release)}
 					if rf.Quality != nil {
@@ -273,9 +284,7 @@ func (j *Journal) History(ctx context.Context, f Filter) (*HistoryPage, error) {
 						f.Release.Score = &sc
 					}
 				}
-				var eps []int64
-				_ = json.Unmarshal(rf.Episodes, &eps)
-				f.Episodes = l.labelsOf(eps)
+				f.Episodes = l.labelsOf(rf.Episodes)
 				x.Replaced = append(x.Replaced, f)
 				same = same && rf.Release == s.replacedFiles[0].Release
 			}
@@ -288,18 +297,69 @@ func (j *Journal) History(ctx context.Context, f Filter) (*HistoryPage, error) {
 	return page, nil
 }
 
-// EntryOf is the journal entry of a History row (its Journal link): its id, a held import's import entry; "" for a
-// copy (no entry) and a release unblocked since (bl:<rowid>:<at>, its entry gone).
-func EntryOf(h *HistoryRow) string {
+// entryOf is the journal entry a History row id names: its id, a held import's import entry; "" for a copy (no
+// entry) and a release unblocked since (bl:<rowid>:<at>).
+func entryOf(id string) string {
 	switch {
-	case h.Kind == KindCopy:
+	case strings.HasPrefix(id, "copy:"):
 		return ""
-	case strings.HasSuffix(h.ID, ":held"):
-		return strings.TrimSuffix(h.ID, ":held") + ":import"
-	case strings.HasPrefix(h.ID, "bl:") && strings.Count(h.ID, ":") > 1:
+	case strings.HasSuffix(id, ":held"):
+		return strings.TrimSuffix(id, ":held") + ":import"
+	case strings.HasPrefix(id, "bl:") && strings.Count(id, ":") > 1:
 		return ""
 	}
-	return h.ID
+	return id
+}
+
+// liveEntries are the journal entries among ids whose source rows still exist (retention deletes old failed
+// downloads and library actions), in one read.
+func (l *historyLoader) liveEntries(ids []string) (map[string]bool, error) {
+	var dls, imports, libs, bls, acts []int64
+	for _, id := range ids {
+		n := idNum(id)
+		switch {
+		case strings.HasSuffix(id, ":import"):
+			imports = append(imports, n)
+		case strings.HasPrefix(id, "dl:"):
+			dls = append(dls, n)
+		case strings.HasPrefix(id, "lib:"):
+			libs = append(libs, n)
+		case strings.HasPrefix(id, "bl:"):
+			bls = append(bls, n)
+		case strings.HasPrefix(id, "act:"):
+			acts = append(acts, n)
+		}
+	}
+	js := func(ns []int64) string {
+		b, _ := json.Marshal(ns)
+		return string(b)
+	}
+	live := map[string]bool{}
+	err := l.query(`SELECT 'dl:' || id FROM download WHERE id IN (SELECT value FROM json_each(?1))
+		UNION ALL SELECT 'dl:' || id || ':fail' FROM download WHERE state = 'failed'
+			AND id IN (SELECT value FROM json_each(?1))
+		UNION ALL SELECT 'dl:' || download_id || ':import' FROM library_import
+			WHERE download_id IN (SELECT value FROM json_each(?2))
+		UNION ALL SELECT 'lib:' || id FROM library_action WHERE id IN (SELECT value FROM json_each(?3))
+		UNION ALL SELECT 'bl:' || rowid FROM router_blocklist WHERE rowid IN (SELECT value FROM json_each(?4))
+		UNION ALL SELECT 'act:' || id FROM journal_action WHERE id IN (SELECT value FROM json_each(?5))`,
+		[]any{js(dls), js(imports), js(libs), js(bls), js(acts)}, func(r *sql.Rows) error {
+			var id string
+			if err := r.Scan(&id); err != nil {
+				return err
+			}
+			live[id] = true
+			return nil
+		})
+	return live, err
+}
+
+// idNum is the number of a journal id (dl:12:fail is 12).
+func idNum(id string) int64 {
+	_, rest, _ := strings.Cut(id, ":")
+	rest, _, _ = strings.Cut(rest, ":")
+	n, _ := strconv.ParseInt(rest, 10, 64)
+	return n
 }
 
 // historyFilter checks f and sets its page size; the WHERE clause of its rows, or none when no row can match.
@@ -329,7 +389,7 @@ func (j *Journal) historyFilter(ctx context.Context, f *Filter) (string, []any, 
 	return where, args, false, nil
 }
 
-// historyWhere is the filter of every source's rows (columns id, at, title_id, version_key, kind, event).
+// historyWhere is the filter of the history rows.
 func historyWhere(f Filter, titles []int64, cur *cursor) (string, []any) {
 	w := []string{"1 = 1"}
 	var args []any
@@ -381,7 +441,7 @@ func historyWhere(f Filter, titles []int64, cur *cursor) (string, []any) {
 		}
 	}
 	if cur != nil {
-		w, args = append(w, `(at < ? OR (at = ? AND id < ?))`), append(args, cur.at, cur.at, cur.id)
+		w, args = append(w, `(at < ? OR (at = ? AND ref < ?))`), append(args, cur.at, cur.at, cur.id)
 	}
 	return strings.Join(w, " AND "), args
 }
@@ -413,8 +473,8 @@ func (l *historyLoader) query(q string, args []any, scan func(*sql.Rows) error) 
 	return rows.Err()
 }
 
-// anys are ids as query arguments, each once; ph their placeholders.
-func anys(ids []int64) []any {
+// inList is ids as an IN list's placeholders and arguments, each id once.
+func inList(ids []int64) (string, []any) {
 	u := slices.Clone(ids)
 	slices.Sort(u)
 	u = slices.Compact(u)
@@ -422,10 +482,8 @@ func anys(ids []int64) []any {
 	for i, x := range u {
 		out[i] = x
 	}
-	return out
+	return store.Placeholders(len(out)), out
 }
-
-func ph(ids []int64) string { return store.Placeholders(len(anys(ids))) }
 
 // loadLabels reads the season and number of every episode the page names.
 func (l *historyLoader) loadLabels() error {
@@ -435,7 +493,8 @@ func (l *historyLoader) loadLabels() error {
 	if len(ids) == 0 {
 		return nil
 	}
-	return l.query(`SELECT id, season, number FROM episode WHERE id IN (`+ph(ids)+`)`, anys(ids),
+	in, args := inList(ids)
+	return l.query(`SELECT id, season, number FROM episode WHERE id IN (`+in+`)`, args,
 		func(r *sql.Rows) error {
 			var id int64
 			var e epLabel

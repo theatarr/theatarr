@@ -526,6 +526,7 @@ func TestActivityScopedToRequestedCopies(t *testing.T) {
 			t.Fatal(err)
 		}
 		id, _ := res.LastInsertId()
+		e.sqlSources = true // a fixture download: History is stored from it before it is read
 		return id
 	}
 	remux := dl(1, 1, "movie-remux", "h1", "[]")
