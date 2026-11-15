@@ -272,8 +272,8 @@ SignalR, Sonarr v5, `downloadclient`.
 - **Decisions are per version.** In a view with several versions, a release is approved when any accepts it, and
   rejections name the version. Per-version views (`/v/<version>/…`) give one version's answer; push clients should
   use them.
-- **Interactive search, parse and decide also serve shadow versions.** They only read indexers through the gateway;
-  any grab still goes to the router, which writes only for active versions.
+- **Interactive search, parse and decide also serve paused libraries.** They only read indexers through the gateway;
+  any grab still goes to the router, which adds nothing while Pause is on.
 - **Release guids are Theatarr's** (`theatarr:<indexer>:<hash>`): an indexer's own guid can be a URL with a passkey.
   `downloadUrl` is never written; `magnetUrl` is the bare magnet of the hash.
 - **Custom format ids** in release, parse and manualimport resources are stable numbers derived from the name (Theatarr's
@@ -331,7 +331,8 @@ A client that pushes releases and imports its own downloads (for example a Usene
 - **Ids**: movie ids are `1,000,000 + title id`; a replaced instance's id answers 404. Stored rows with old ids need a
   one-time mapping (`GET movie?tmdbId=`).
 - **Usenet search** stays on Prowlarr (`/api/v1/search`): Theatarr does not serve it.
-- **Health**: `GET health` lists the shadow-mode notice and the router-disabled warning (`RouterDisabledCheck`).
+- **Health**: `GET health` lists the router-disabled warning (`RouterDisabledCheck`) and the service's own checks that
+  are not ok; the anime-mapping and Watch only conversion notices of 0.4.5 stay on System › Status.
   Indexer back-offs are in `GET /api/theatarr/v1/gateway`, not in "Indexers unavailable due to failures".
 - **Push outcome**: after `release/push`, poll `history/movie?movieId=&eventType=4` (or without `eventType`) as well
   as `eventType=1`: a failed route is `downloadFailed` with `data.message`.

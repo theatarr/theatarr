@@ -644,13 +644,19 @@ func TestUpgradeScriptViewGaps(t *testing.T) {
 		t.Errorf("no router section %v", health)
 	}
 	// The service's own failing checks follow the view's; each changed check gets its own Health webhook.
+	// The notices of the checks new in 0.4.5 (anime mappings to review, the Watch only conversion) stay on Status.
 	e.svc.SetHealth(fakeHealth{{Source: "BackupCheck", Type: "warning", Message: "The newest backup is 2d old"},
-		{Source: "MountCheck", Type: "error", Message: "The mount at /m is empty: is it mounted?"}})
+		{Source: "MountCheck", Type: "error", Message: "The mount at /m is empty: is it mounted?"},
+		{Source: "AnimeReviewCheck", Type: "notice", Message: "2 anime mapping(s) wait for review"},
+		{Source: "WatchOnlyCheck", Type: "notice", Message: "Watch only"}})
 	c.must("GET", "/health", nil, nil, 200, &health)
 	if len(health) != 3 || health[1]["source"] != "BackupCheck" || health[2]["type"] != "error" {
 		t.Errorf("service health %v", health)
 	}
 	items := e.svc.HealthItems(t.Context())
+	if len(items) != 3 || items[1].Source != "BackupCheck" || items[2].Source != "MountCheck" {
+		t.Errorf("webhook service health %v", items)
+	}
 	for _, item := range items {
 		ps, err := e.svc.Payloads(t.Context(), notify.Event{Kind: notify.Health, Health: []notify.HealthItem{item}})
 		if err != nil || len(ps) == 0 {

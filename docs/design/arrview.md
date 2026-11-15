@@ -50,13 +50,13 @@ validation is `PUT`'s: collection targets only, and a monitored collection needs
 (`metadata.sources.tmdb` and its key) the three endpoints answer 503 and `GET /collections` says `can_add: false`, so
 the page disables the buttons. The dialog turns search on add on by default; discovered rows keep it off.
 
-A collection's targets are always explicit, and only **collection targets** qualify (`policy.CollectionTarget`): Live
-movie libraries, the versions the library gate lets write. The page lists only
+A collection's targets are always explicit, and only **collection targets** qualify (`policy.CollectionTarget`): movie
+libraries. The page lists only
 those; `PUT` refuses any other key, and refuses monitoring with no target (an empty list, or stored targets none of
 which qualify). `GET` leaves stored targets that no longer qualify out. Intake revalidates the stored targets at every
 refresh: it adds only to the ones that qualify, skips the rest with one log line per collection and target set, and
 adds nothing for a monitored collection left with none. So a discovered collection's preselected versions (its
-members' versions, shadow ones among them) or an old empty list never add to a shadow library. The Radarr
+members' versions) or an old empty list never add to a library that is not a collection target. The Radarr
 view's `PUT collection` follows the same rule: when it leaves a collection monitored, the targets (from its profile
 or root, else the stored ones) are cut to collection targets and stored explicitly; with none left, a per-version
 view `/v/K` whose K qualifies uses K, and otherwise the request is a 400 validation error (`TestCollectionPutTargets`). A `movieAndCollection` list monitors the collection only in the
@@ -199,7 +199,7 @@ reference type that is null is left out; value types are always written; `id` 0 
 | `GET queue/details` | `QueueResource[]` | Every queue item, unpaged; `movieId`, or `seriesId` and `episodeIds`, filter it. Homepage calls it always |
 | `GET wanted/missing` | `PagingResource<MovieResource>` / `<EpisodeResource>` | Radarr: monitored without a file, sort `movieMetadata.sortTitle`; Sonarr: monitored, aired, no file, series monitored, sort `episodes.airDateUtc`. `monitored=false` inverts |
 | `GET history`, `history/since?date=`, `history/movie?movieId=`, `history/series?seriesId=` | `PagingResource<HistoryResource>` for history; `HistoryResource[]` for the other routes | Theatarr's download history; SQL filters `eventType` (number or name, repeated or comma-separated), `downloadId`, `movieIds`/`seriesIds`, Sonarr `episodeId` and title history `seasonNumber`. Optional `includeMovie`, `includeSeries`, `includeEpisode` embed the matching resources. Default date descending; `/since` is inclusive and ascending |
-| `GET health` | `HealthResource[]` | One `warning` while Pause is on (`router.enabled` off) ([devices](devices.md)) |
+| `GET health` | `HealthResource[]` | One `warning` while Pause is on (`router.enabled` off) ([devices](devices.md)), then the service's checks that are not ok, without the 0.4.5 notices `AnimeReviewCheck` and `WatchOnlyCheck` (Status only; the Health webhook leaves them out too) |
 | `GET diskspace` | `DiskSpaceResource[]` | One per existing root folder (statfs), bounded like `rootfolder`: a root that does not answer is left out |
 | `GET config/downloadclient` | `DownloadClientConfigResource`, `id` 1 | Completed download handling on, auto-redownload on |
 | `POST command`, `GET command`, `GET command/{id}` | `CommandResource` | See Commands |
@@ -435,7 +435,7 @@ Left as before, on purpose:
     - A command over a whole view starts at most 100 searches, the ones searched longest ago first.
     - A search that cannot be handed to the acquirer (shutdown, database error) is stored `failed`, so the same
       request sent again starts a new search instead of returning the stuck one (`TestSearchCommandSubmitFailure`).
-    - The message says what started and names the shadow versions that were left out.
+    - The message says what started, for which versions.
     - Each search with accepted releases becomes a `router.route` job.
   - **Command status** (`GET command`, `command/{id}`) is computed from the searches, the route jobs and the router's
     download (or dry-run plan) rows:
@@ -454,8 +454,8 @@ Left as before, on purpose:
     recorded mount folders at or below that directory. Theatarr imports its own downloads only; unmatched paths, missing
     downloads, waiting mounts, rejected files and library gate refusals fail with a message instead of claiming an import happened.
     The two Rescan commands first check the titles' links against the disk (`library.ReconcileLinks`: a deleted
-    symlink stops counting and the title is wanted again; an unavailable or empty root is skipped; shadow versions
-    only report), and succeed when there is nothing ready to import.
+    symlink stops counting and the title is wanted again; an unavailable or empty root is skipped; a library the
+    gate refuses only reports), and succeed when there is nothing ready to import.
   - `RefreshMonitoredDownloads` queues one router download poll. Maintenance commands follow their jobs through
     `queued`, `started`, and terminal `completed` / `failed`; unavailable services fail explicitly.
   - `RenameMovie`, `RenameSeries` and `RenameFiles` apply the current version naming to theatarr-owned links. The command

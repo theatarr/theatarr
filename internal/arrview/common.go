@@ -16,6 +16,7 @@ import (
 
 	"github.com/theatarr/theatarr/internal/decide/format"
 	"github.com/theatarr/theatarr/internal/decide/profile"
+	"github.com/theatarr/theatarr/internal/health"
 	"github.com/theatarr/theatarr/internal/notify"
 	"github.com/theatarr/theatarr/internal/rootprobe"
 	"github.com/theatarr/theatarr/internal/store"
@@ -420,7 +421,7 @@ func (s *Service) wantedMissing(w http.ResponseWriter, r *request) {
 // GET health (HealthResource; type is HealthCheckResult): one warning while router.enabled is off (RouterDisabledCheck:
 // their grabs and pushes are decided as dry runs, never added); then the service's own checks that are
 // not ok, worst first (internal/health: mount, metadata, jobs, backups, providers, indexers, VPN egress, disk), as the
-// arrs list their failing checks.
+// arrs list their failing checks; the notices of the checks new in 0.4.5 (anime mappings, Watch only) stay on Status.
 func (s *Service) getHealth(w http.ResponseWriter, r *request) {
 	out := []healthResource{}
 	for _, h := range s.healthOf(r.Context(), r.v.Versions) {
@@ -434,6 +435,9 @@ func (s *Service) healthOf(ctx context.Context, keys []string) []notify.HealthIt
 	out := s.versionHealth(keys)
 	if s.health != nil {
 		for _, h := range s.health.Issues(ctx) {
+			if h.Type == health.Notice && (h.Source == "AnimeReviewCheck" || h.Source == "WatchOnlyCheck") {
+				continue // new in 0.4.5, for Status only: the arr views gain no standing entry
+			}
 			out = append(out, notify.HealthItem{Source: h.Source, Type: h.Type, Message: h.Message})
 		}
 	}
