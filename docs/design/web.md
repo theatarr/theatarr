@@ -6,8 +6,8 @@ permissions: [users.md](users.md). Code: `internal/auth`, `internal/web`, migrat
 ## Auth model
 
 Auth is on by default and has no switch to turn it off. Public routes include `/healthz`, `/readyz`,
-`/metrics` (see below), the public SPA shell and assets, JSON login and Plex sign-in, and the first-account status and
-create (below). Protected API handlers require credentials.
+`/metrics` (see below), the public SPA shell and assets, JSON login and Plex sign-in, the first-account status and
+create (below), and an invite link's look-up and accept (`docs/design/users.md`, Invites). Protected API handlers require credentials.
 
 **First start.** `theatarr serve` calls `auth.New`. When the database has no signing secret, it creates one (32 random
 bytes in `web_setting`). It creates no account. While the user table is empty the log says, once per start:

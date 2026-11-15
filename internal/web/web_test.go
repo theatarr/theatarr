@@ -252,7 +252,8 @@ func TestEveryRouteNeedsAuth(t *testing.T) {
 
 	wantPublic := map[string]bool{"POST " + APIBase + "/auth/login": true, "/": true, "GET " + APIBase + "/auth/plex": true,
 		"POST " + APIBase + "/auth/plex/start": true, "POST " + APIBase + "/auth/plex/poll": true,
-		"GET " + APIBase + "/auth/first-account": true, "POST " + APIBase + "/auth/first-account": true}
+		"GET " + APIBase + "/auth/first-account": true, "POST " + APIBase + "/auth/first-account": true,
+		"POST " + APIBase + "/auth/invite": true, "POST " + APIBase + "/auth/invite/accept": true}
 	for _, rd := range pageRedirects {
 		wantPublic["GET "+rd.from] = true
 	}

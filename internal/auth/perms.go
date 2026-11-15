@@ -24,6 +24,8 @@ const (
 	StatusActive   = "active"
 	StatusPending  = "pending"
 	StatusDisabled = "disabled"
+	// StatusInvited is an invite not yet redeemed (invite.go): no password, no Plex account, no sign-in.
+	StatusInvited = "invited"
 )
 
 // Perm is a set of permission bits.

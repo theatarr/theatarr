@@ -5,15 +5,18 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/theatarr/theatarr/internal/auth"
 	"github.com/theatarr/theatarr/internal/plexauth"
 	"github.com/theatarr/theatarr/internal/plexauth/plexauthtest"
+	"github.com/theatarr/theatarr/internal/store"
 )
 
 func (e *env) jsonCall(method, path string, body any, c *http.Cookie, csrf string, out any) int {
@@ -345,5 +348,206 @@ func TestUsersAdmin(t *testing.T) {
 	}
 	if code := e.jsonCall("GET", APIBase+"/auth/me", nil, c, "", nil); code != 200 {
 		t.Errorf("own session after a password change: %d", code)
+	}
+}
+
+// TestInvites: an admin invites a person; the link redeems once, by password or by Plex, into an active account with
+// the invited role and auto-approve, signed in. Expired, used, revoked and unknown links are refused plainly; a
+// username or Plex account that already exists is not taken over and the invite stays usable. The token is in the
+// create answer only: not in the users list, the database or the log.
+func TestInvites(t *testing.T) {
+	t.Parallel()
+	fake := plexauthtest.New()
+	var logs bytes.Buffer
+	svc, err := plexauth.New(plexauth.Config{Doer: fake, BaseURL: "https://plex.tv",
+		ClientID: func(context.Context) (string, error) { return "theatarr-test", nil },
+		ServerID: func(context.Context) (string, error) { return "our-machine", nil }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	e := newEnvWith(t, func(c *Config) {
+		c.Plex = svc
+		c.Logger = slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	})
+	c := e.login()
+	var me Me
+	e.jsonCall("GET", APIBase+"/auth/me", nil, c, "", &me)
+	csrf := me.CSRFToken
+	e.account("ann", auth.RoleUser, auth.StatusActive, false)
+
+	invite := func(body map[string]any) CreatedInvite {
+		t.Helper()
+		var out CreatedInvite
+		if code := e.jsonCall("POST", APIBase+"/users/invites", body, c, csrf, &out); code != 201 || len(out.Token) < 40 ||
+			out.User.Status != auth.StatusInvited || out.User.InviteExpiresAt == nil {
+			t.Fatalf("invite %v: %d %+v", body, code, out)
+		}
+		return out
+	}
+	accept := func(token, username, password string) (int, *http.Cookie, string) {
+		t.Helper()
+		b, _ := json.Marshal(map[string]string{"token": token, "username": username, "password": password})
+		r := httptest.NewRequest("POST", APIBase+"/auth/invite/accept", bytes.NewReader(b))
+		r.Header.Set("Content-Type", "application/json")
+		r.RemoteAddr = "192.0.2.50:1234"
+		rec := e.do(r)
+		var out struct {
+			CSRFToken string `json:"csrf_token"`
+			Error     string `json:"error"`
+		}
+		json.Unmarshal(rec.Body.Bytes(), &out)
+		return rec.Code, findCookie(rec, auth.SessionCookie), out.Error
+	}
+
+	// Only the users permission makes invites; the role must be one.
+	if code := e.jsonCall("POST", APIBase+"/users/invites", map[string]any{"role": "owner"}, c, csrf, nil); code != 400 {
+		t.Errorf("unknown role: %d", code)
+	}
+	ac, acsrf := e.session(2)
+	if code := e.jsonCall("POST", APIBase+"/users/invites", map[string]any{"role": "admin"}, ac, acsrf, nil); code != 403 {
+		t.Errorf("a user invites: %d", code)
+	}
+
+	// By password: a user with auto-approve, a 7-day link by default.
+	inv := invite(map[string]any{"role": "user", "auto_approve": true, "name": "Bea"})
+	if got := inv.User.InviteExpiresAt.Sub(testNow); got != auth.DefaultInviteTTL {
+		t.Errorf("default expiry: %v", got)
+	}
+	var info InviteInfo
+	if code := e.jsonCall("POST", APIBase+"/auth/invite", map[string]any{"token": inv.Token}, nil, "", &info); code != 200 ||
+		info.Name != "Bea" || !info.Plex {
+		t.Errorf("look up: %d %+v", code, info)
+	}
+	// A taken username (any case) is refused; the invite stays usable.
+	if code, sc, msg := accept(inv.Token, "ANN", "a long enough password"); code != 400 || sc != nil || !strings.Contains(msg, "taken") {
+		t.Errorf("taken name: %d %v %q", code, sc, msg)
+	}
+	code, sc, _ := accept(inv.Token, "bea", "a long enough password")
+	if code != 200 || sc == nil {
+		t.Fatalf("accept: %d", code)
+	}
+	var bme Me
+	e.jsonCall("GET", APIBase+"/auth/me", nil, sc, "", &bme)
+	if bme.Username != "bea" || bme.DisplayName != "Bea" || bme.Role != auth.RoleUser || !bme.Local ||
+		strings.Join(bme.Permissions, ",") != "browse,request,auto_approve" {
+		t.Errorf("redeemed account: %+v", bme)
+	}
+	if _, err := e.auth.Login(context.Background(), "bea", "a long enough password", "192.0.2.9", "t"); err != nil {
+		t.Errorf("password sign-in afterwards: %v", err)
+	}
+	// Used: refused, plainly.
+	if code, _, msg := accept(inv.Token, "bea2", "a long enough password"); code != 404 || !strings.Contains(msg, "already been used") {
+		t.Errorf("reused: %d %q", code, msg)
+	}
+
+	// By Plex: a manager. A Plex account that already has an account is refused and keeps it; the invite stays.
+	pinv := invite(map[string]any{"role": "manager", "days": 1})
+	if got := pinv.User.InviteExpiresAt.Sub(testNow); got != 24*time.Hour {
+		t.Errorf("1-day expiry: %v", got)
+	}
+	plexRedeem := func(a plexauthtest.Account, token string) (int, plexPollOut) {
+		var st plexauth.Started
+		if code := e.jsonCall("POST", APIBase+"/auth/plex/start", map[string]any{}, nil, "", &st); code != 200 {
+			t.Fatalf("start: %d", code)
+		}
+		if err := fake.ConfirmLatest(a); err != nil {
+			t.Fatal(err)
+		}
+		var p plexPollOut
+		code := e.jsonCall("POST", APIBase+"/auth/plex/poll", map[string]any{"id": st.ID, "invite": token}, nil, "", &p)
+		return code, p
+	}
+	cy := plexauthtest.Account{ID: 51000001, Username: "cyplex", Title: "Cy", Servers: []string{"our-machine"}}
+	existing := e.account("dee", auth.RoleUser, auth.StatusActive, true)
+	e.exec(`UPDATE web_user SET plex_id = 51000009 WHERE id = ?`, existing)
+	code, p := plexRedeem(plexauthtest.Account{ID: 51000009, Username: "deeplex", Servers: []string{"our-machine"}}, pinv.Token)
+	if code != 409 || p.Status != "taken" || p.cookie != nil {
+		t.Errorf("existing Plex account: %d %+v", code, p)
+	}
+	if u, _ := e.auth.GetUser(context.Background(), existing); u.Role != auth.RoleUser {
+		t.Errorf("existing account changed: %+v", u)
+	}
+	code, p = plexRedeem(cy, pinv.Token)
+	if code != 200 || p.Status != "signed_in" || p.cookie == nil {
+		t.Fatalf("plex redeem: %d %+v", code, p)
+	}
+	var cme Me
+	e.jsonCall("GET", APIBase+"/auth/me", nil, p.cookie, "", &cme)
+	if cme.Username != "cyplex" || cme.Role != auth.RoleManager || !cme.Plex || cme.Local || cme.DisplayName != "Cy" {
+		t.Errorf("plex account: %+v", cme)
+	}
+	if code, _ := plexRedeem(plexauthtest.Account{ID: 51000002, Username: "eve", Servers: []string{"our-machine"}},
+		pinv.Token); code != 404 {
+		t.Errorf("plex reuse: %d", code)
+	}
+
+	// Expired and revoked.
+	old := invite(map[string]any{"role": "user"})
+	e.exec(`UPDATE web_user SET invite_expires_at = ? WHERE id = ?`, store.Millis(testNow), old.User.ID)
+	if code, _, msg := accept(old.Token, "fay", "a long enough password"); code != 410 || !strings.Contains(msg, "expired") {
+		t.Errorf("expired: %d %q", code, msg)
+	}
+	gone := invite(map[string]any{"role": "admin"})
+	if code := e.jsonCall("DELETE", APIBase+"/users/"+itoa(gone.User.ID)+"/invite", nil, c, csrf, nil); code != 204 {
+		t.Errorf("revoke: %d", code)
+	}
+	if code := e.jsonCall("DELETE", APIBase+"/users/"+itoa(existing)+"/invite", nil, c, csrf, nil); code != 404 {
+		t.Errorf("revoke an account: %d", code)
+	}
+	if code, _, _ := accept(gone.Token, "gus", "a long enough password"); code != 404 {
+		t.Errorf("revoked: %d", code)
+	}
+	if code := e.jsonCall("POST", APIBase+"/auth/invite", map[string]any{"token": "nope"}, nil, "", nil); code != 404 {
+		t.Errorf("unknown: %d", code)
+	}
+	// Guessing is throttled per address like the sign-in.
+	var throttled bool
+	for i := 0; i < 10 && !throttled; i++ {
+		code, _, _ := accept("guess-"+itoa(int64(i)), "hal", "a long enough password")
+		throttled = code == 429
+	}
+	if !throttled {
+		t.Error("ten wrong tokens from one address: not throttled")
+	}
+	// An invite is not an account: no patch.
+	if code := e.jsonCall("PATCH", APIBase+"/users/"+itoa(old.User.ID), map[string]any{"status": "active"}, c, csrf, nil); code != 404 {
+		t.Errorf("patch an invite: %d", code)
+	}
+
+	// The list shows the open invite with its expiry; no token anywhere but the create answers.
+	rec := e.get(APIBase+"/users", c)
+	var page UsersPage
+	json.Unmarshal(rec.Body.Bytes(), &page)
+	var listed int
+	for _, u := range page.Items {
+		if u.Status == auth.StatusInvited {
+			listed++
+		}
+	}
+	if listed != 1 {
+		t.Errorf("invites listed: %d", listed)
+	}
+	var dump strings.Builder
+	rows, err := e.st.Reader().Query(`SELECT * FROM web_user`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cols, _ := rows.Columns()
+	for rows.Next() {
+		vals := make([]any, len(cols))
+		ptrs := make([]any, len(cols))
+		for i := range vals {
+			ptrs[i] = &vals[i]
+		}
+		rows.Scan(ptrs...)
+		fmt.Fprintln(&dump, vals...)
+	}
+	rows.Close()
+	for _, tok := range []string{inv.Token, pinv.Token, old.Token, gone.Token} {
+		for where, s := range map[string]string{"users list": rec.Body.String(), "log": logs.String(), "database": dump.String()} {
+			if strings.Contains(s, tok) {
+				t.Errorf("token in the %s", where)
+			}
+		}
 	}
 }

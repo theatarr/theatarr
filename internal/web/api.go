@@ -53,6 +53,7 @@ func (w *Web) mountAPI(mux *http.ServeMux) {
 	w.handle(mux, "POST "+b+"/auth/logout", SessionOnly, auth.PermBrowse, w.apiLogout)
 	w.mountUsersAPI(mux)
 	w.mountPlexLogin(mux)
+	w.mountInviteAPI(mux)
 	w.mountRequestsAPI(mux)
 }
 

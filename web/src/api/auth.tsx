@@ -102,9 +102,10 @@ function openPopup(): Window | null {
 
 const sleep = (ms: number) => new Promise((r) => window.setTimeout(r, ms));
 
+/** A Plex sign-in; with invite (an invite link's token) the confirmed account redeems the invite instead. */
 export function usePlexLogin() {
   const qc = useQueryClient();
-  return async (signal?: AbortSignal) => {
+  return async (signal?: AbortSignal, invite?: string) => {
     const popup = openPopup();
     if (!popup) throw new PlexSignInError("popup", "The browser blocked the Plex window. Allow pop-ups for this site and try again.");
     try {
@@ -116,10 +117,10 @@ export function usePlexLogin() {
         await sleep(1000);
         let p: Poll;
         try {
-          p = await api<Poll>("/auth/plex/poll", { method: "POST", body: { id: st.id }, redirectOn401: false });
+          p = await api<Poll>("/auth/plex/poll", { method: "POST", body: invite ? { id: st.id, invite } : { id: st.id }, redirectOn401: false });
         } catch (e) {
           if (e instanceof ApiError) {
-            const status = e.status === 410 ? "expired" : e.status === 403 ? (/disabled/i.test(e.message) ? "disabled" : "denied") : "error";
+            const status = e.status === 409 ? "taken" : e.status === 410 ? "expired" : e.status === 403 ? (/disabled/i.test(e.message) ? "disabled" : "denied") : "error";
             throw new PlexSignInError(status, e.message);
           }
           throw e;
@@ -140,5 +141,33 @@ export function usePlexLogin() {
         // already gone
       }
     }
+  };
+}
+
+/** What an invite link's page shows (POST auth/invite): the name the admin gave, the expiry, whether Plex is offered.
+ * The token is read from the link's fragment and sent in the body only. */
+export type InviteInfo = { name: string; expires_at: string; plex: boolean };
+
+export function useInvite(token: string) {
+  return useQuery({
+    queryKey: ["auth", "invite", token],
+    queryFn: () => api<InviteInfo>("/auth/invite", { method: "POST", body: { token }, redirectOn401: false }),
+    enabled: token !== "",
+    retry: false,
+    staleTime: Infinity,
+  });
+}
+
+/** Redeems an invite with a chosen username and password and signs in (POST auth/invite/accept). */
+export function useAcceptInvite() {
+  const qc = useQueryClient();
+  return async (token: string, username: string, password: string) => {
+    const r = await api<{ username: string; csrf_token: string }>("/auth/invite/accept", {
+      method: "POST",
+      body: { token, username, password },
+      redirectOn401: false,
+    });
+    setCSRF(r.csrf_token);
+    await qc.invalidateQueries({ queryKey: qk.me });
   };
 }

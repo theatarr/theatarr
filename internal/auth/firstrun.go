@@ -49,11 +49,8 @@ func (s *Service) PasswordPending() bool {
 	return err == nil
 }
 
-// CreateFirstAdmin creates the first account, an active admin with a password, and starts its session (the token
-// is the cookie value). It works only while the user table is empty: the check and the insert are one statement,
-// so of two requests at once only one creates an account; every later call gets ErrClaimed. The password is never
-// logged.
-func (s *Service) CreateFirstAdmin(ctx context.Context, username, password, addr, userAgent string) (string, error) {
+// checkNewAccount trims a chosen username and checks it and the password (the create page and an invite).
+func checkNewAccount(username, password string) (string, error) {
 	username = strings.TrimSpace(username)
 	switch {
 	case username == "":
@@ -64,6 +61,18 @@ func (s *Service) CreateFirstAdmin(ctx context.Context, username, password, addr
 		return "", InvalidAccount("The username cannot contain spaces.")
 	case len(password) < MinPasswordLen:
 		return "", InvalidAccount(fmt.Sprintf("The password must be at least %d characters.", MinPasswordLen))
+	}
+	return username, nil
+}
+
+// CreateFirstAdmin creates the first account, an active admin with a password, and starts its session (the token
+// is the cookie value). It works only while the user table is empty: the check and the insert are one statement,
+// so of two requests at once only one creates an account; every later call gets ErrClaimed. The password is never
+// logged.
+func (s *Service) CreateFirstAdmin(ctx context.Context, username, password, addr, userAgent string) (string, error) {
+	username, err := checkNewAccount(username, password)
+	if err != nil {
+		return "", err
 	}
 	// Refused before the hash, so a claimed install spends nothing on this public route.
 	if need, err := s.NeedsFirstAccount(ctx); err != nil {

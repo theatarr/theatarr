@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -141,4 +143,47 @@ func newServiceEmpty(t *testing.T, st *store.Store) (*Service, *clock) {
 		t.Fatal(err)
 	}
 	return s, c
+}
+
+// TestInviteNotLogged: the auth log names the account, never the invite token; an invite cannot sign in before it
+// is redeemed, and redeeming twice at once activates it once.
+func TestInviteNotLogged(t *testing.T) {
+	st := openStore(t)
+	ctx := context.Background()
+	var logs bytes.Buffer
+	c := &clock{t: time.Date(2026, 11, 15, 12, 0, 0, 0, time.UTC)}
+	s, _, err := New(ctx, st, Options{Logger: slog.New(slog.NewTextHandler(&logs, nil)), Now: c.now})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := ResetPassword(ctx, st, AdminUsername, testAdminPassword); err != nil {
+		t.Fatal(err)
+	}
+	id, token, err := s.CreateInvite(ctx, NewInvite{Role: RoleUser})
+	if err != nil {
+		t.Fatal(err)
+	}
+	u, _ := s.GetUser(ctx, id)
+	if _, err := s.Login(ctx, u.Username, "", "192.0.2.1", "t"); !errors.Is(err, ErrInvalid) {
+		t.Errorf("an invite signs in: %v", err)
+	}
+	var wg sync.WaitGroup
+	var ok atomic.Int32
+	for i := range 2 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if _, err := s.AcceptInvite(ctx, token, fmt.Sprintf("racer%d", i), "a long enough password", "192.0.2.2",
+				"t"); err == nil {
+				ok.Add(1)
+			}
+		}()
+	}
+	wg.Wait()
+	if ok.Load() != 1 {
+		t.Errorf("redeemed %d times", ok.Load())
+	}
+	if strings.Contains(logs.String(), token) || !strings.Contains(logs.String(), "invite accepted") {
+		t.Errorf("log: %s", logs.String())
+	}
 }

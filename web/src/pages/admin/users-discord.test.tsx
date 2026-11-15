@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, it, vi } from "vitest";
 import { DiscordID, permissionWords } from "./users";
@@ -36,26 +36,38 @@ it("says an account's permissions in words, not their stored names", () => {
 });
 
 
-it("offers a copyable sign-in link that says what approval means and what each role does, and locks your own role", async () => {
+it("leads with an invite link, shown once after it is made, keeps the sign-in page as one line, lists open invites and locks your own role", async () => {
  const { mockFetch, renderPage } = await import("@/test/page");
  const { UsersAdmin } = await import("./users");
  const me = { ...user(), id: 1, username: "admin", display_name: "Admin", role: "admin", local: true };
- mockFetch([
+ const invited = { ...user(), id: 9, username: "invite-ab12", display_name: "Bea", status: "invited", invite_expires_at: "2099-01-08T00:00:00Z" };
+ const api = mockFetch([
   { method: "GET", path: "/auth/me", reply: { kind: "session", id: 1, username: "admin", permissions: ["admin", "users"], csrf_token: "t" } },
-  { method: "GET", path: "/users", reply: { items: [me, user()], settings: { plex_new_users: "pending", plex_enabled: true }, versions: [] } },
+  { method: "GET", path: "/users", reply: { items: [me, user(), invited], settings: { plex_new_users: "pending", plex_enabled: true }, versions: [] } },
   { method: "GET", path: "/keys", reply: { items: [] } },
+  { method: "POST", path: "/users/invites", reply: { status: 201, body: { token: "tok123", user: { ...invited, id: 10, display_name: "Cy" } } } },
  ]);
+ const ue = userEvent.setup();
  renderPage(<UsersAdmin />, "/admin/users");
  const card = await screen.findByTestId("sign-in-link");
- expect((screen.getByLabelText("Sign-in link") as HTMLInputElement).value).toBe(`${window.location.origin}/login`);
- expect(card.textContent).toContain("Copy link");
- expect(screen.getByTestId("sign-in-approval").textContent).toContain("waits for approval");
+ expect(card.textContent).toContain("Make an invite link for one person");
+ expect(screen.getByTestId("sign-in-approval").textContent).toBe(`Without an invite: send the sign-in page, ${window.location.origin}/login. A first Plex sign-in there waits under Waiting for approval.`);
  expect(screen.getByTestId("sign-in-roles").textContent).toBe("User: browses and requests; sees availability only. Manager: runs the library: adds, approves requests, sees files. Admin: everything, with the admin panel and users.");
+ // An open invite is listed with its expiry, not among the accounts.
+ const rows = screen.getAllByTestId("invite-row");
+ expect(rows).toHaveLength(1);
+ expect(rows[0].textContent).toContain("Bea");
+ expect(rows[0].textContent).toContain("Link works until");
+ await ue.click(within(card).getByRole("radio", { name: "Manager" }));
+ await ue.type(screen.getByTestId("invite-name"), "Cy");
+ await ue.click(screen.getByTestId("invite-create"));
+ expect((await screen.findByLabelText("Invite link") as HTMLInputElement).value).toBe(`${window.location.origin}/invite#tok123`);
+ expect(api.calls("POST", "/users/invites")[0].body).toEqual({ role: "manager", auto_approve: true, name: "Cy", days: 7 });
  const roles = await screen.findAllByTestId("user-role") as HTMLSelectElement[];
  // Your own row cannot change its role; another account's can.
- const rows = screen.getAllByTestId("user-row");
- const mine = rows.find(r => r.getAttribute("data-username") === "admin")!.querySelector("select") as HTMLSelectElement;
- const ann = rows.find(r => r.getAttribute("data-username") === "ann")!.querySelector("select") as HTMLSelectElement;
+ const accounts = screen.getAllByTestId("user-row");
+ const mine = accounts.find(r => r.getAttribute("data-username") === "admin")!.querySelector("select") as HTMLSelectElement;
+ const ann = accounts.find(r => r.getAttribute("data-username") === "ann")!.querySelector("select") as HTMLSelectElement;
  expect(roles).toHaveLength(2);
  expect(mine.disabled).toBe(true);
  expect(ann.disabled).toBe(false);

@@ -1,14 +1,14 @@
 import { settingHref } from "@/lib/settings-map";
-// Admin › Users & access (docs/design/users.md): the setting for new Plex accounts, accounts waiting for approval, and per
+// Admin › Users & access (docs/design/users.md): the setting for new Plex accounts, invite links, accounts waiting for approval, and per
 // account the role, enable or disable, auto-approve, own API keys, its Discord user id, the versions its requests ask for, its keys and
 // "sign out everywhere"; then every API key. Laid out after Seerr's user list and user settings (MIT,
 // github.com/seerr-team/seerr src/components/UserList and UserProfile/UserSettings @ c167958): avatar, name, role
 // and status per row, permissions behind an edit panel.
-import { ChevronDown, LogOut, ShieldCheck, UserCheck, UserX } from "lucide-react";
+import { ChevronDown, LogOut, ShieldCheck, Trash2, UserCheck, UserX } from "lucide-react";
 import { useRef, useState } from "react";
 import { ApiError } from "@/api/client";
 import { useAuth } from "@/api/auth";
-import { useEndSessions, usePatchUser, useSetUserSettings, useUsers, type User, type UserPatch, type UsersPage } from "@/api/users";
+import { useCreateInvite, useEndSessions, usePatchUser, useRevokeInvite, useSetUserSettings, useUsers, type User, type UserPatch, type UsersPage } from "@/api/users";
 import { Empty, ErrorState, Loading, PageHeader, Section } from "@/components/page";
 import { Avatar, KeysPanel } from "@/components/users/keys";
 import { Badge } from "@/components/ui/badge";
@@ -17,7 +17,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { fmtAgo } from "@/lib/format";
+import { fmtAgo, fmtTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { readableCode } from "@/lib/code-words";
 
@@ -60,6 +60,8 @@ export function UsersAdmin() {
   const settings = useSetUserSettings();
   const data = users.data;
   const pending = (data?.items ?? []).filter((u) => u.status === "pending");
+  const invites = (data?.items ?? []).filter((u) => u.status === "invited");
+  const accounts = (data?.items ?? []).filter((u) => u.status !== "pending" && u.status !== "invited");
   return (
     <div>
       <PageHeader crumb={[{ label: "Admin", to: "/admin" }]} title="Users & access" description="Household members sign in with Plex; the local admin account stays as the way in when Plex is down." />
@@ -83,7 +85,14 @@ export function UsersAdmin() {
               />
             </div>
           </Card>
-          <SignInLink approval={data.settings.plex_new_users === "pending"} plex={data.settings.plex_enabled} />
+          <InviteCard approval={data.settings.plex_new_users === "pending"} plex={data.settings.plex_enabled} />
+          {invites.length > 0 ? (
+            <Section title={`Invites (${invites.length})`} aside="A link is shown only when it is made; to send one again, revoke it and make a new one.">
+              <div className="space-y-3" data-testid="invites">
+                {invites.map((u) => <InviteRow key={u.id} u={u} />)}
+              </div>
+            </Section>
+          ) : null}
           {pending.length > 0 ? (
             <Section title={`Waiting for approval (${pending.length})`}>
               <div className="space-y-3" data-testid="pending-users">
@@ -91,9 +100,9 @@ export function UsersAdmin() {
               </div>
             </Section>
           ) : null}
-          <Section title="Accounts" aside={`${data.items.length - pending.length}`}>
+          <Section title="Accounts" aside={`${accounts.length}`}>
             <div className="space-y-3" data-testid="user-list">
-              {data.items.filter((u) => u.status !== "pending").map((u) => <UserCard key={u.id} u={u} page={data} />)}
+              {accounts.map((u) => <UserCard key={u.id} u={u} page={data} />)}
               {data.items.length === 0 ? <Card><Empty>No accounts.</Empty></Card> : null}
             </div>
           </Section>
@@ -106,16 +115,33 @@ export function UsersAdmin() {
   );
 }
 
-/** The address to send a family member, copyable, with what happens next: approval (or none) and what each role does.
- *  No invite system: the first Plex sign-in creates the account. */
-function SignInLink({ approval, plex }: { approval: boolean; plex: boolean }) {
-  const url = `${window.location.origin}/login`;
+const INVITE_DAYS = [{ id: "1", label: "1 day" }, { id: "7", label: "7 days" }, { id: "30", label: "30 days" }];
+
+/** Give someone access: an invite link for one person, with the role and auto-approve they get and how long the link
+ *  works. The link is shown once, right after it is made. The old way (the sign-in page, then approval) in one line. */
+function InviteCard({ approval, plex }: { approval: boolean; plex: boolean }) {
+  const create = useCreateInvite();
+  const [role, setRole] = useState<User["role"]>("user");
+  const [auto, setAuto] = useState(false);
+  const [name, setName] = useState("");
+  const [days, setDays] = useState("7");
+  const [made, setMade] = useState<{ url: string; expires?: string } | null>(null);
   const field = useRef<HTMLInputElement>(null);
   const [copy, setCopy] = useState<"idle" | "copied" | "failed">("idle");
+  const make = () => {
+    setCopy("idle");
+    create.mutate({ role, auto_approve: role === "user" ? auto : true, name: name.trim(), days: Number(days) }, {
+      onSuccess: (r) => {
+        setMade({ url: `${window.location.origin}/invite#${r.token}`, expires: r.user.invite_expires_at });
+        setName("");
+      },
+    });
+  };
   const copyURL = async () => {
+    if (!made) return;
     try {
       if (!navigator.clipboard?.writeText) throw new Error("no clipboard");
-      await navigator.clipboard.writeText(url);
+      await navigator.clipboard.writeText(made.url);
       setCopy("copied");
     } catch {
       setCopy("failed");
@@ -126,17 +152,74 @@ function SignInLink({ approval, plex }: { approval: boolean; plex: boolean }) {
   return (
     <Card className="mt-3" data-testid="sign-in-link">
       <div className="font-medium">Give someone access</div>
-      <div className="mt-2 flex flex-wrap items-center gap-2">
-        <Input ref={field} readOnly value={url} aria-label="Sign-in link" className="h-8 max-w-sm font-mono text-[13px]" onFocus={(e) => e.target.select()} />
-        <Button size="sm" variant="outline" onClick={() => void copyURL()}>Copy link</Button>
-        {copy === "copied" ? <span role="status" className="text-xs text-muted-foreground">Copied.</span> : copy === "failed" ? <span role="status" className="text-xs text-muted-foreground">Could not copy here: the link is selected, copy it yourself.</span> : null}
-      </div>
-      <p className="mt-2 text-sm text-muted-foreground" data-testid="sign-in-approval">
-        {!plex ? "Plex sign-in is off, so only local accounts can sign in for now." : approval
-          ? "They sign in with Plex there. A first sign-in waits for approval: it shows under Waiting for approval on this page, where Let in opens it as a User."
-          : "They sign in with Plex there. A first sign-in is let in at once as a User."}
+      <p className="mt-1 text-sm text-muted-foreground">
+        Make an invite link for one person. They open it, choose a username and password{plex ? " or sign in with Plex" : ""}, and are in at once with the role you pick.
       </p>
-      <p className="mt-1 text-sm text-muted-foreground" data-testid="sign-in-roles">{ROLES.map((r) => `${r.label}: ${r.hint.charAt(0).toLowerCase()}${r.hint.slice(1)}`).join(". ")}.</p>
+      <div className="mt-3 flex flex-wrap items-end gap-x-4 gap-y-3">
+        <div>
+          <div className="mb-1 text-xs text-[var(--ink-3)]">Role</div>
+          <Segmented label="Role" value={role} onChange={setRole} options={ROLES} />
+        </div>
+        <label className="flex h-8 items-center gap-2 text-sm">
+          <Switch checked={role !== "user" || auto} disabled={role !== "user"} onCheckedChange={setAuto} aria-label="Auto-approve requests" data-testid="invite-auto-approve" />
+          Auto-approve requests
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-xs text-[var(--ink-3)]">Name (optional)</span>
+          <Input value={name} onChange={(e) => setName(e.target.value)} maxLength={64} placeholder="Their name" className="h-8 w-44 max-w-full" data-testid="invite-name" />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-xs text-[var(--ink-3)]">Link works for</span>
+          <Select value={days} onChange={(e) => setDays(e.target.value)} className="h-8 w-auto" data-testid="invite-days">
+            {INVITE_DAYS.map((d) => <option key={d.id} value={d.id}>{d.label}</option>)}
+          </Select>
+        </label>
+        <Button size="sm" onClick={make} disabled={create.isPending} data-testid="invite-create">Create invite link</Button>
+      </div>
+      {create.error ? <p role="alert" className="mt-2 text-xs text-[var(--bad-ink)]">{create.error instanceof ApiError ? create.error.message : String(create.error)}</p> : null}
+      {made ? (
+        <div className="mt-3" data-testid="invite-link">
+          <div className="flex flex-wrap items-center gap-2">
+            <Input ref={field} readOnly value={made.url} aria-label="Invite link" className="h-8 max-w-md font-mono text-[13px]" onFocus={(e) => e.target.select()} />
+            <Button size="sm" variant="outline" onClick={() => void copyURL()}>Copy link</Button>
+            {copy === "copied" ? <span role="status" className="text-xs text-muted-foreground">Copied.</span> : copy === "failed" ? <span role="status" className="text-xs text-muted-foreground">Could not copy here: the link is selected, copy it yourself.</span> : null}
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">Copy it now: it is shown only this once. It works once{made.expires ? `, until ${fmtTime(made.expires)}` : ""}.</p>
+        </div>
+      ) : null}
+      <p className="mt-3 text-sm text-muted-foreground" data-testid="sign-in-roles">{ROLES.map((r) => `${r.label}: ${r.hint.charAt(0).toLowerCase()}${r.hint.slice(1)}`).join(". ")}.</p>
+      <p className="mt-1 text-sm text-muted-foreground" data-testid="sign-in-approval">
+        {plex
+          ? `Without an invite: send the sign-in page, ${window.location.origin}/login. A first Plex sign-in there ${approval ? "waits under Waiting for approval" : "is let in at once as a User"}.`
+          : "Without an invite, only local accounts can sign in: Plex sign-in is off."}
+      </p>
+    </Card>
+  );
+}
+
+/** An invite not redeemed yet: who it is for, the role, when the link expires, and Revoke. */
+function InviteRow({ u }: { u: User }) {
+  const revoke = useRevokeInvite();
+  const name = u.display_name || "Unnamed invite";
+  const expired = !!u.invite_expires_at && new Date(u.invite_expires_at).getTime() <= Date.now();
+  const role = ROLES.find((r) => r.id === u.role)?.label ?? u.role;
+  return (
+    <Card className="flex flex-wrap items-center gap-3 p-3 sm:p-4" data-testid="invite-row">
+      <Avatar name={name} />
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="font-medium text-[var(--ink)] [overflow-wrap:anywhere]">{name}</span>
+          <Badge tone={expired ? "negative" : "warning"}>{expired ? "Expired" : "Invited"}</Badge>
+          <Badge tone="outline">{role}</Badge>
+          {u.auto_approve && u.role === "user" ? <Badge tone="outline">Auto-approve</Badge> : null}
+        </div>
+        <div className="text-xs text-muted-foreground">
+          {expired ? `Expired ${fmtTime(u.invite_expires_at)}` : `Link works until ${fmtTime(u.invite_expires_at)}`} · made {fmtAgo(u.created_at)}
+        </div>
+      </div>
+      <Button size="sm" variant="ghost" className="text-[var(--bad-ink)]" disabled={revoke.isPending} onClick={() => { if (window.confirm(`Revoke the invite${u.display_name ? ` for ${u.display_name}` : ""}? Its link stops working.`)) revoke.mutate(u.id); }} data-testid="invite-revoke">
+        <Trash2 /> Revoke
+      </Button>
     </Card>
   );
 }

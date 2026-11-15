@@ -36,8 +36,10 @@ type User struct {
 	CreatedAt   time.Time  `json:"created_at"`
 	LastLoginAt *time.Time `json:"last_login_at,omitempty"`
 	DisabledAt  *time.Time `json:"disabled_at,omitempty"`
-	Sessions    int        `json:"sessions"`
-	Keys        int        `json:"keys"`
+	// InviteExpiresAt is set on an invite not yet redeemed (status invited).
+	InviteExpiresAt *time.Time `json:"invite_expires_at,omitempty"`
+	Sessions        int        `json:"sessions"`
+	Keys            int        `json:"keys"`
 }
 
 // Errors from user management.
@@ -50,18 +52,18 @@ var (
 
 const userSelect = `SELECT u.id, u.username, u.display_name, u.email, u.avatar_url, u.role, u.status,
 	u.password_hash != '', u.plex_id, u.plex_username, u.permissions, u.auto_approve, u.request_versions, u.created_at,
-	u.last_login_at, u.disabled_at, u.discord_id,
+	u.last_login_at, u.disabled_at, u.discord_id, u.invite_expires_at,
 	(SELECT COUNT(*) FROM web_session s WHERE s.user_id = u.id),
 	(SELECT COUNT(*) FROM api_key k WHERE k.created_by = u.id AND k.revoked_at IS NULL)
 	FROM web_user u`
 
 func scanUserRow(sc interface{ Scan(...any) error }) (User, error) {
 	var u User
-	var plexID, login, disabled sql.NullInt64
+	var plexID, login, disabled, invite sql.NullInt64
 	var extra, created int64
 	var rv sql.NullString
 	err := sc.Scan(&u.ID, &u.Username, &u.DisplayName, &u.Email, &u.AvatarURL, &u.Role, &u.Status, &u.Local, &plexID,
-		&u.PlexName, &extra, &u.AutoApprove, &rv, &created, &login, &disabled, &u.DiscordID, &u.Sessions, &u.Keys)
+		&u.PlexName, &extra, &u.AutoApprove, &rv, &created, &login, &disabled, &u.DiscordID, &invite, &u.Sessions, &u.Keys)
 	if err != nil {
 		return u, err
 	}
@@ -76,6 +78,10 @@ func scanUserRow(sc interface{ Scan(...any) error }) (User, error) {
 	if disabled.Valid {
 		t := store.FromMillis(disabled.Int64)
 		u.DisabledAt = &t
+	}
+	if invite.Valid {
+		t := store.FromMillis(invite.Int64)
+		u.InviteExpiresAt = &t
 	}
 	if rv.Valid && rv.String != "" {
 		if err := json.Unmarshal([]byte(rv.String), &u.RequestVersions); err != nil {
@@ -131,7 +137,7 @@ type UserPatch struct {
 }
 
 // UpdateUser applies p. Disabling ends the account's sessions; its keys stop working while it is disabled. The last
-// active admin keeps the role and stays active.
+// active admin keeps the role and stays active. An invite is not an account yet: it is ErrUserNotFound here.
 func (s *Service) UpdateUser(ctx context.Context, id int64, p UserPatch) error {
 	if p.Role != nil && !ValidRole(*p.Role) {
 		return fmt.Errorf("role must be admin, manager or user")
@@ -146,7 +152,7 @@ func (s *Service) UpdateUser(ctx context.Context, id int64, p UserPatch) error {
 	return s.st.WriteTx(ctx, func(tx *sql.Tx) error {
 		var role, status string
 		err := tx.QueryRowContext(ctx, `SELECT role, status FROM web_user WHERE id = ?`, id).Scan(&role, &status)
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, sql.ErrNoRows) || err == nil && status == StatusInvited {
 			return ErrUserNotFound
 		}
 		if err != nil {

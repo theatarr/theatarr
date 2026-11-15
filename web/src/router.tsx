@@ -14,6 +14,7 @@ import { Home } from "./pages/home";
 import { Catalog } from "./pages/catalog";
 import { TitlePage } from "./pages/title";
 import { Login, PlexPopup } from "./pages/login";
+import { InvitePage } from "./pages/invite";
 import { permsOf } from "./api/library";
 import { SearchPage } from "./pages/search";
 import { DiscoverPage } from "./pages/discover";
@@ -159,6 +160,7 @@ export const routes: RouteObject[] = [
   { path: "/login", element: <Login /> },
   { path: "/login/plex/loading", element: <PlexPopup /> },
   { path: "/login/plex/done", element: <PlexPopup done /> },
+  { path: "/invite", element: <InvitePage /> },
   {
     element: <RequireAuth />,
     children: [

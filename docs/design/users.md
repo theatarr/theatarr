@@ -6,7 +6,7 @@ Migration 00026. The design is `docs/design/ui.md` §3, with the decisions in §
 
 `web_user` has `role` (`admin`, `manager`, `user`; accounts from before migration 00026 are `admin`), `permissions`
 (extra bits on top of the role: only `auto_approve` and `own_keys`; any other bit is refused with 400 and a stored one
-grants nothing), `status` (`active`, `pending`, `disabled`), `display_name`, `email`, `avatar_url`, `plex_id`,
+grants nothing), `status` (`active`, `pending`, `disabled`; `invited` for an invite, see Invites), `display_name`, `email`, `avatar_url`, `plex_id`,
 `plex_username`, `request_versions` (JSON keys, NULL = the default), `auto_approve`, `last_login_at`. Migration 00107 adds `discord_id` (empty, or a 17 to 20 digit Discord user id). Only an admin sets it
 (`PATCH users/{id}` with `discord_id`, Admin › Users); request-ready Discord messages mention it.
 
@@ -68,6 +68,33 @@ verification and then dropped. It is never stored, logged or returned; the PIN i
 
 The first sign-in creates a `user` account; its status is the admin setting "new Plex users": `active` (let in at
 once) or `pending` (default). Later sign-ins refresh display name, email and avatar.
+
+## Invites
+
+Migration 00136 (`internal/auth/invite.go`, `internal/web/invite.go`). An admin (the `users` permission) invites a
+person from Admin › Users & access: role, auto-approve, an optional name the account starts with, and an expiry (1, 7
+or 30 days; 7 by default). There is no invite table: the invite is a `web_user` row with status `invited`, no
+password and no Plex id, carrying the role, `auto_approve`, `invite_token_hash` (SHA-256 of a 256-bit random token)
+and `invite_expires_at`. The token is in the create answer only; the link is `/invite#<token>`, so the token sits in
+the fragment, which the browser never sends, and travels in JSON bodies only. It is not stored, listed or logged.
+
+| Route | |
+|---|---|
+| `POST /users/invites` | users: `{role, auto_approve, name, days}` (days 0 is 7, at most 30); 201 `{token, user}` |
+| `DELETE /users/{id}/invite` | users: revoke an invite not redeemed yet (deletes the row); 404 for anything else |
+| `POST /auth/invite` | public: `{token}` → the name, expiry and whether Plex sign-in is offered; 404 not valid or used, 410 expired |
+| `POST /auth/invite/accept` | public: `{token, username, password}` → an active local account, signed in (cookie plus `csrf_token`) |
+| `POST /auth/plex/poll` with `invite` | a confirmed Plex account with access to our server redeems the invite and is signed in; 409 `taken` when that Plex account already has an account here |
+
+Redeeming sets the credentials, status `active` and clears both invite columns in one `UPDATE … WHERE status =
+'invited' AND invite_token_hash = ? AND invite_expires_at > now`, so a token works once. A username already in use
+(any case) or a Plex account that already has an account is refused and the invite stays unused: an invite never
+takes over an account. The public routes are same-origin JSON, and each attempt counts against the client address in
+the sign-in throttle; a valid, unexpired token clears the count. An invite cannot be changed with `PATCH users/{id}`
+(404) and gets no session. Any role may be invited: whoever holds `users` can already set any role on another
+account. An expired invite stays listed with its date until revoked; to send a link again, make a new invite. The
+old way still works: someone signs in with Plex and waits as pending until an admin lets them in. `TestInvites`,
+`TestInviteNotLogged` and `TestMigrationUserInvite` cover it.
 
 ## Requests
 

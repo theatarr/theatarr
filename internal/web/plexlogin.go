@@ -62,7 +62,8 @@ func (w *Web) apiPlexStart(rw http.ResponseWriter, r *http.Request) {
 }
 
 // PlexPoll is the answer to POST auth/plex/poll. Status: waiting, signed_in, pending (the account waits for an
-// admin), denied (no access to our server), disabled, expired, error.
+// admin), denied (no access to our server), disabled, expired, taken (an invite for a Plex account that already has
+// an account), error.
 type PlexPoll struct {
 	Status    string `json:"status"`
 	Error     string `json:"error,omitempty"`
@@ -77,6 +78,8 @@ func (w *Web) apiPlexPoll(rw http.ResponseWriter, r *http.Request) {
 	}
 	var req struct {
 		ID string `json:"id"`
+		// Invite is an invite link's token: a confirmed sign-in redeems it (internal/auth/invite.go).
+		Invite string `json:"invite"`
 	}
 	if err := decodeJSON(r, &req); err != nil || req.ID == "" {
 		badRequest(rw, "want JSON {\"id\"}")
@@ -106,6 +109,10 @@ func (w *Web) apiPlexPoll(rw http.ResponseWriter, r *http.Request) {
 		writeJSON(rw, http.StatusOK, PlexPoll{Status: "waiting"})
 		return
 	}
+	if req.Invite != "" {
+		w.plexInvite(rw, r, req.Invite, *acct)
+		return
+	}
 	uid, status, created, err := w.auth.PlexSignIn(ctx, *acct)
 	if errors.Is(err, auth.ErrNoAdminYet) {
 		w.log.Warn("plex sign-in refused: no admin account exists yet", "plex_id", acct.ID, "remote", addr)
@@ -131,6 +138,13 @@ func (w *Web) apiPlexPoll(rw http.ResponseWriter, r *http.Request) {
 		writeJSON(rw, http.StatusForbidden, PlexPoll{Status: "disabled", Error: "This account is disabled."})
 		return
 	}
+	w.plexSession(rw, r, uid, created)
+}
+
+// plexSession signs in account uid after a Plex sign-in.
+func (w *Web) plexSession(rw http.ResponseWriter, r *http.Request, uid int64, created bool) {
+	ctx := r.Context()
+	addr := auth.ClientAddr(r)
 	token, err := w.auth.StartSession(ctx, uid, addr, r.UserAgent())
 	if err != nil {
 		w.internal(rw, err)
@@ -144,4 +158,20 @@ func (w *Web) apiPlexPoll(rw http.ResponseWriter, r *http.Request) {
 	}
 	w.log.Info("login", "username", name, "via", "plex", "new", created, "remote", addr)
 	writeJSON(rw, http.StatusOK, PlexPoll{Status: "signed_in", Username: name, CSRFToken: w.auth.SessionCSRF(token)})
+}
+
+// plexInvite redeems an invite for a confirmed Plex account and signs it in. A Plex account that already has an
+// account here keeps it: the invite stays unused and the person is sent to the sign-in page.
+func (w *Web) plexInvite(rw http.ResponseWriter, r *http.Request, token string, acct auth.PlexAccount) {
+	uid, err := w.auth.AcceptInvitePlex(r.Context(), token, acct, auth.ClientAddr(r))
+	if errors.Is(err, auth.ErrPlexTaken) {
+		writeJSON(rw, http.StatusConflict, PlexPoll{Status: "taken",
+			Error: "This Plex account already has an account here. Sign in on the sign-in page instead."})
+		return
+	}
+	if w.inviteFailed(rw, err) {
+		return
+	}
+	w.publishUsersChanged()
+	w.plexSession(rw, r, uid, true)
 }

@@ -1,5 +1,5 @@
 // Users, the profile and API keys (docs/design/users.md): GET/PATCH users, users/settings, DELETE users/{id}/sessions,
-// PATCH me, POST me/password, and keys per account.
+// PATCH me, POST me/password, keys per account, and invites (POST users/invites, DELETE users/{id}/invite).
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, qs, type Schemas } from "./client";
 import { qk } from "./query-keys";
@@ -81,5 +81,25 @@ export function usePatchMe() {
 export function useChangePassword() {
   return useMutation({
     mutationFn: (p: { current: string; new: string }) => api<void>("/me/password", { method: "POST", body: p }),
+  });
+}
+
+/** An invite for one person (POST users/invites): the answer holds the link's token, shown this once. */
+export type NewInvite = { role: User["role"]; auto_approve: boolean; name: string; days: number };
+
+export function useCreateInvite() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (inv: NewInvite) => api<{ token: string; user: User }>("/users/invites", { method: "POST", body: inv }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["users"] }),
+  });
+}
+
+/** Revokes an invite not redeemed yet (DELETE users/{id}/invite). */
+export function useRevokeInvite() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api<void>(`/users/${id}/invite`, { method: "DELETE" }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["users"] }),
   });
 }
