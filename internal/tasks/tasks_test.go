@@ -128,15 +128,16 @@ func TestRunRetries(t *testing.T) {
 	}
 }
 
-// Only registered tasks are listed and run now; a paused one shows no next run and refuses Run now; a daily task's
-// next run is its time of day.
+// Only registered tasks are listed and run now; a paused one shows no next run and refuses Run now; a run now leaves
+// a daily task's next run at its time of day.
 func TestRegisterListAndRunNow(t *testing.T) {
 	ctx := context.Background()
 	tb, _ := open(t)
 	now := time.Date(2026, 11, 15, 10, 0, 0, 0, time.Local)
 	tb.Now = func() time.Time { return now }
 	done := make(chan struct{})
-	daily := Task{Key: "d", Name: "B daily", At: "03:00", Run: func(context.Context) error { close(done); return nil }}
+	daily := Task{Key: "d", Name: "B daily", At: "03:00", Next: NextAt("03:00", now),
+		Run: func(context.Context) error { close(done); return nil }}
 	defer tb.Register(ctx, daily)()
 	defer tb.Register(ctx, Task{Key: "p", Name: "A paused", Every: time.Minute, Paused: true, Next: now})()
 	gone := tb.Register(ctx, Task{Key: "g", Name: "C gone", Every: time.Minute, Run: func(context.Context) error { return nil }})

@@ -112,7 +112,7 @@ function TaskRow({ t }: { t: Task }) {
       <span className="min-w-0 font-medium text-[var(--ink)] sm:w-64">{t.name}</span>
       <span className="text-sm text-muted-foreground sm:w-28" data-testid="task-every">{everyWords(t.every_seconds, t.at)}</span>
       {t.paused ? <Badge tone="warning" title="Pause is on, or no library is Live" data-testid="task-paused">paused</Badge> : null}
-      <span className="min-w-0 flex-1 text-sm text-muted-foreground" data-testid="task-last">
+      <span className="w-full min-w-0 text-sm text-muted-foreground sm:w-auto sm:flex-1" data-testid="task-last">
         {t.running ? <>running since <span title={fmtTime(t.running)}>{fmtAgo(t.running)}</span></>
           : t.last_finished ? <>last run <span title={fmtTime(t.last_started)}>{fmtAgo(t.last_finished)}</span>, took {fmtDuration(t.last_started, t.last_finished)}{t.last_error ? <Badge tone="negative" className="ml-1.5" title={t.last_error}>failed</Badge> : null}</>
           : "not run yet"}

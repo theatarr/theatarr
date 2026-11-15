@@ -64,7 +64,7 @@ at once and nothing leaves the machine. Two ways:
   ```
 
 What an offline `theatarr serve` shows, and why: **VPN guard off** in the top bar (the example policy ships the egress check off),
-the RSS job (**Check RSS feeds**, `shadow.rss`) failing after a few minutes (the indexers cannot be reached offline), and a few warnings in the log (the mount, the zurg log, TRaSH formats).
+the RSS task (**Check RSS feeds**, `shadow.rss`) failing on System › Tasks after a few minutes (the indexers cannot be reached offline), and a few warnings in the log (the mount, the zurg log, TRaSH formats).
 Everything else is the seeded data. The seeder itself needs no network, so `demo seed` runs with `--network none` too.
 
 ### Artwork

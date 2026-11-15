@@ -285,8 +285,11 @@ func (tb *Table) RunNow(key string) error {
 	case busy:
 		return ErrRunning
 	}
+	// A run now leaves the next scheduled run as it is: the loop's timer does not move.
+	now := e.t
+	now.Every, now.At = 0, ""
 	go errinbox.Go("task "+key, func() {
-		if ran, err := tb.Run(base, e.t); ran && err == nil {
+		if ran, err := tb.Run(base, now); ran && err == nil {
 			tb.log.Info("task run now", "task", key)
 		}
 	})()
