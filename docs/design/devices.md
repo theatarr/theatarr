@@ -332,7 +332,7 @@ A client that pushes releases and imports its own downloads (for example a Usene
   one-time mapping (`GET movie?tmdbId=`).
 - **Usenet search** stays on Prowlarr (`/api/v1/search`): Theatarr does not serve it.
 - **Health**: `GET health` lists the router-disabled warning (`RouterDisabledCheck`) and the service's own checks that
-  are not ok; the anime-mapping and Watch only conversion notices of 0.4.5 stay on System › Status.
+  are not ok; the anime-mapping and Watch only conversion checks of 0.4.5 stay on System › Status.
   Indexer back-offs are in `GET /api/theatarr/v1/gateway`, not in "Indexers unavailable due to failures".
 - **Push outcome**: after `release/push`, poll `history/movie?movieId=&eventType=4` (or without `eventType`) as well
   as `eventType=1`: a failed route is `downloadFailed` with `data.message`.
