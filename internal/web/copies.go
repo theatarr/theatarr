@@ -174,8 +174,8 @@ func heldEpisodes(ctx context.Context, db *sql.DB, versionIDs []any) (map[[2]int
 
 // fillCopies adds the library views' per-copy reads to list rows: each version's control (ownership), a series
 // copy's coverage and the acquisition in hand, and each title's network and next episode or release. Every query
-// covers the whole page.
-func (w *Web) fillCopies(ctx context.Context, db *sql.DB, items []TitleRow) error {
+// covers the whole page; held is the page's held (version, episode) pairs (versionFiles).
+func (w *Web) fillCopies(ctx context.Context, db *sql.DB, items []TitleRow, held map[[2]int64]bool) error {
 	now := w.now()
 	clock := newAirClock(now)
 	var titleIDs []int64
@@ -218,7 +218,6 @@ func (w *Web) fillCopies(ctx context.Context, db *sql.DB, items []TitleRow) erro
 	}
 	eps := map[int64][]ep{}
 	mon := map[[2]int64]bool{}
-	var held map[[2]int64]bool
 	// The same scan gives each series its season count and latest aired day.
 	seasons := map[int64]map[int64]bool{}
 	if len(seriesIDs) > 0 {
@@ -257,9 +256,6 @@ func (w *Web) fillCopies(ctx context.Context, db *sql.DB, items []TitleRow) erro
 			mon[[2]int64{vid, eid}] = true
 			return nil
 		}); err != nil {
-			return err
-		}
-		if held, err = heldEpisodes(ctx, db, seriesVIDs); err != nil {
 			return err
 		}
 	}
@@ -522,16 +518,22 @@ func copySortExpr(sort, key string, clock airClock) (string, []any) {
 	}
 	switch sort {
 	case "completion":
-		// A movie copy is done or not; a series copy is the share of its aired (or held) episodes it holds.
+		// A movie copy is done or not; a series copy is the share of its aired (or held) episodes it holds: its held
+		// episodes (specials left out) over the aired ones plus the held ones still to air. Counted from the copy's
+		// active links, so each title costs a walk of its links, not a lookup per episode.
 		aired, airedArgs := clock.airedSQL("e")
+		args = append(args, airedArgs...)
 		args = append(args, airedArgs...)
 		if key != "" {
 			args = append(args, key)
 		}
 		return `(SELECT MAX(CASE WHEN t.kind = 'movie' THEN (CASE WHEN ` + hasFileSQL + ` THEN 1.0 ELSE 0.0 END) ELSE
-			(SELECT CAST(SUM(CASE WHEN ` + episodeHeld + ` THEN 1 ELSE 0 END) AS REAL) / NULLIF(SUM(CASE WHEN
-				` + aired + ` OR ` + episodeHeld + ` THEN 1 ELSE 0 END), 0) FROM episode e WHERE e.title_id = t.id
-				AND e.season > 0) END) FROM version v WHERE v.title_id = t.id AND ` + liveVersion + versionCond + `)`, args
+			(SELECT CAST(COUNT(DISTINCT le.episode_id) AS REAL) / NULLIF((SELECT COUNT(*) FROM episode e
+				WHERE e.title_id = t.id AND e.season > 0 AND ` + aired + `) + COUNT(DISTINCT CASE WHEN NOT ` + aired + `
+				THEN le.episode_id END), 0) FROM link_version lv JOIN link l ON l.id = lv.link_id
+				JOIN link_episode le ON le.link_id = lv.link_id JOIN episode e ON e.id = le.episode_id
+				WHERE lv.version_id = v.id AND l.state = 'active' AND e.title_id = t.id AND e.season > 0) END)
+			FROM version v WHERE v.title_id = t.id AND ` + liveVersion + versionCond + `)`, args
 	case "quality":
 		// The quality each library's cell shows (briefFiles: the quality most of its current files have), the
 		// best of the libraries.

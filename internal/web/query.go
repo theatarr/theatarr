@@ -184,9 +184,6 @@ func (w *Web) listTitles(ctx context.Context, f TitleFilter) (TitlePage, error) 
 		}
 	}
 	where, args := f.where()
-	if err := db.QueryRowContext(ctx, "SELECT COUNT(*)"+titleFrom+where, args...).Scan(&page.Total); err != nil {
-		return page, err
-	}
 	order, orderArgs := f.orderBy()
 	if rank, rankArgs := titleTextRank(f.Q); rank != "" && (f.Sort == "" || f.Sort == "name") && f.Order == "" {
 		// A name search in the default order (the lists send sort=name without an order): the best matches first,
@@ -194,11 +191,33 @@ func (w *Web) listTitles(ctx context.Context, f TitleFilter) (TitlePage, error) 
 		order = " ORDER BY (" + rank + "), " + strings.TrimPrefix(order, " ORDER BY ")
 		orderArgs = append(rankArgs, orderArgs...)
 	}
-	items, err := w.titleRows(ctx, db, `SELECT `+titleCols+titleFrom+where+order+` LIMIT ? OFFSET ?`,
-		append(append(args, orderArgs...), f.Limit, f.Offset))
+	// Every matching id in order, in one pass: the total and the page come from it, so the filters' and the sort's
+	// expressions run once per title.
+	var ids []any
+	if err := scanAll(ctx, db, `SELECT t.id`+titleFrom+where+order, append(args, orderArgs...), func(r *sql.Rows) error {
+		var id int64
+		if err := r.Scan(&id); err != nil {
+			return err
+		}
+		ids = append(ids, id)
+		return nil
+	}); err != nil {
+		return page, err
+	}
+	page.Total = len(ids)
+	ids = ids[min(f.Offset, len(ids)):min(f.Offset+f.Limit, len(ids))]
+	if len(ids) == 0 {
+		return page, nil
+	}
+	items, err := w.titleRows(ctx, db, `SELECT `+titleCols+titleFrom+` WHERE t.id IN (`+store.Placeholders(len(ids))+`)`, ids)
 	if err != nil {
 		return page, err
 	}
+	at := map[int64]int{}
+	for i, id := range ids {
+		at[id.(int64)] = i
+	}
+	slices.SortFunc(items, func(a, b TitleRow) int { return at[a.ID] - at[b.ID] })
 	page.Items = items
 	return page, nil
 }
@@ -251,10 +270,20 @@ func (w *Web) titleRows(ctx context.Context, db *sql.DB, q string, args []any) (
 	if err != nil {
 		return items, err
 	}
-	if err := w.fillVersionFiles(ctx, db, items); err != nil {
+	vids := make([]any, 0, len(items))
+	for _, it := range items {
+		for _, v := range it.Versions {
+			vids = append(vids, v.ID)
+		}
+	}
+	vf, err := readVersionFiles(ctx, db, vids)
+	if err != nil {
 		return items, err
 	}
-	return items, w.fillCopies(ctx, db, items)
+	if err := w.fillVersionFiles(ctx, db, items, vf); err != nil {
+		return items, err
+	}
+	return items, w.fillCopies(ctx, db, items, vf.held)
 }
 
 func nullInt(n sql.NullInt64) *int64 {

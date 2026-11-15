@@ -676,7 +676,7 @@ type fileAgg struct {
 
 // fillVersionFiles sets each version's label and current files, and each row's availability, added time and
 // size.
-func (w *Web) fillVersionFiles(ctx context.Context, db *sql.DB, items []TitleRow) error {
+func (w *Web) fillVersionFiles(ctx context.Context, db *sql.DB, items []TitleRow, vf *versionFiles) error {
 	var ids []any
 	byID := map[int64]*VersionBrief{}
 	for i := range items {
@@ -688,10 +688,7 @@ func (w *Web) fillVersionFiles(ctx context.Context, db *sql.DB, items []TitleRow
 		}
 	}
 	if len(ids) > 0 {
-		aggs, provs, err := w.currentFiles(ctx, db, ids)
-		if err != nil {
-			return err
-		}
+		aggs, provs := vf.aggs, vf.provs
 		var lib map[string]*policy.LibraryVersion
 		if w.pol != nil {
 			lib = w.pol.LibrarySettings().Versions
@@ -734,7 +731,7 @@ func (w *Web) fillVersionFiles(ctx context.Context, db *sql.DB, items []TitleRow
 			it.AddedAt = &t
 		}
 	}
-	return w.markUpgradeSeen(ctx, db, items)
+	return w.markUpgradeSeen(ctx, db, items, vf.items)
 }
 
 // firstPath is the smallest link path of aggs, "" when none.
@@ -790,31 +787,124 @@ func briefFiles(label string, aggs []fileAgg, provs []string) VersionFiles {
 	return vf
 }
 
-// currentFiles groups the current files of versions ids by quality, and lists the providers (keys) that hold them
-// now (providerHolds; a link's content is linkContentSQL).
-func (w *Web) currentFiles(ctx context.Context, db *sql.DB, ids []any) (map[int64][]fileAgg, map[int64][]string, error) {
-	in := store.Placeholders(len(ids))
-	aggs := map[int64][]fileAgg{}
-	scan := func(r *sql.Rows) error {
-		var vid int64
-		var a fileAgg
-		if err := r.Scan(&vid, &a.quality, &a.n, &a.size, &a.added, &a.path); err != nil {
+// versionFiles is what the list rows read of their versions' current files (active links), once per page: the
+// files by quality (fileAgg) and the providers that hold them now, the files per episode (itemFile, as
+// loadItemFiles reads them but without the score: the rows' upgrade state does not use it) and the (version,
+// episode) pairs a file holds (heldEpisodes).
+type versionFiles struct {
+	aggs  map[int64][]fileAgg
+	provs map[int64][]string
+	items map[int64]map[int64]itemFile
+	held  map[[2]int64]bool
+}
+
+// readVersionFiles reads the current files of versions ids: their active links, the links' episodes and the
+// providers that hold the links' content now (providerHolds; a link's content is linkContentSQL).
+func readVersionFiles(ctx context.Context, db *sql.DB, ids []any) (*versionFiles, error) {
+	vf := &versionFiles{aggs: map[int64][]fileAgg{}, provs: map[int64][]string{}, items: map[int64]map[int64]itemFile{},
+		held: map[[2]int64]bool{}}
+	if len(ids) == 0 {
+		return vf, nil
+	}
+	type row struct {
+		vid     int64
+		f       itemFile
+		path    string
+		content sql.NullInt64
+	}
+	var rows []row
+	var linkIDs, contentIDs []int64
+	if err := scanAll(ctx, db, `SELECT lv.version_id, l.id, COALESCE(l.quality, ''), COALESCE(`+linkSizeSQL+`, 0), l.created_at, l.path, `+linkContentSQL+` FROM link_version lv
+		JOIN link l ON l.id = lv.link_id LEFT JOIN content_file cf ON cf.id = l.content_file_id
+		WHERE lv.version_id IN (`+store.Placeholders(len(ids))+`) AND l.state = 'active'`, ids, func(r *sql.Rows) error {
+		var x row
+		if err := r.Scan(&x.vid, &x.f.key, &x.f.quality, &x.f.size, &x.f.added, &x.path, &x.content); err != nil {
 			return err
 		}
-		aggs[vid] = append(aggs[vid], a)
+		rows = append(rows, x)
+		linkIDs = append(linkIDs, x.f.key)
+		if x.content.Valid {
+			contentIDs = append(contentIDs, x.content.Int64)
+		}
 		return nil
+	}); err != nil {
+		return nil, err
 	}
-	if err := scanAll(ctx, db, `SELECT lv.version_id, COALESCE(l.quality, ''), COUNT(*),
-		COALESCE(SUM(COALESCE(`+linkSizeSQL+`, 0)), 0),
-		COALESCE(MAX(l.created_at), 0), COALESCE(MIN(l.path), '') FROM link_version lv JOIN link l ON l.id = lv.link_id
-		LEFT JOIN content_file cf ON cf.id = l.content_file_id WHERE lv.version_id IN (`+in+`) AND l.state = 'active'
-		GROUP BY lv.version_id, l.quality ORDER BY lv.version_id`, ids, scan); err != nil {
-		return nil, nil, err
+	episodes := map[int64][]int64{}
+	if len(linkIDs) > 0 {
+		list, _ := json.Marshal(linkIDs)
+		if err := scanAll(ctx, db, `SELECT link_id, episode_id FROM link_episode WHERE link_id IN
+			(SELECT value FROM json_each(?)) ORDER BY link_id, episode_id`, []any{string(list)}, func(r *sql.Rows) error {
+			var lid, eid int64
+			if err := r.Scan(&lid, &eid); err != nil {
+				return err
+			}
+			episodes[lid] = append(episodes[lid], eid)
+			return nil
+		}); err != nil {
+			return nil, err
+		}
 	}
-	provs, err := scanProviders(ctx, db, `SELECT DISTINCT lv.version_id, cp.provider FROM link_version lv
-		JOIN link l ON l.id = lv.link_id JOIN content_provider cp ON cp.content_id = `+linkContentSQL+`
-		WHERE lv.version_id IN (`+in+`) AND l.state = 'active' AND `+providerHolds+` ORDER BY 1, 2`, ids)
-	return aggs, provs, err
+	holders := map[int64][]string{}
+	if len(contentIDs) > 0 {
+		list, _ := json.Marshal(contentIDs)
+		if err := scanAll(ctx, db, `SELECT DISTINCT cp.content_id, cp.provider FROM content_provider cp
+			WHERE cp.content_id IN (SELECT value FROM json_each(?)) AND `+providerHolds, []any{string(list)},
+			func(r *sql.Rows) error {
+				var cid int64
+				var p string
+				if err := r.Scan(&cid, &p); err != nil {
+					return err
+				}
+				holders[cid] = append(holders[cid], p)
+				return nil
+			}); err != nil {
+			return nil, err
+		}
+	}
+	type group struct {
+		vid     int64
+		quality string
+	}
+	groups := map[group]*fileAgg{}
+	for _, x := range rows {
+		g := groups[group{x.vid, x.f.quality}]
+		if g == nil {
+			g = &fileAgg{quality: x.f.quality, path: x.path}
+			groups[group{x.vid, x.f.quality}] = g
+		}
+		g.n++
+		g.size += x.f.size
+		g.added = max(g.added, x.f.added)
+		g.path = min(g.path, x.path)
+		if vf.items[x.vid] == nil {
+			vf.items[x.vid] = map[int64]itemFile{}
+		}
+		if len(episodes[x.f.key]) == 0 {
+			vf.items[x.vid][0] = x.f
+		}
+		for _, e := range episodes[x.f.key] {
+			vf.items[x.vid][e] = x.f
+			vf.held[[2]int64{x.vid, e}] = true
+		}
+		if x.content.Valid {
+			for _, p := range holders[x.content.Int64] {
+				if !slices.Contains(vf.provs[x.vid], p) {
+					vf.provs[x.vid] = append(vf.provs[x.vid], p)
+				}
+			}
+		}
+	}
+	for g, a := range groups {
+		vf.aggs[g.vid] = append(vf.aggs[g.vid], *a)
+	}
+	for vid := range vf.aggs {
+		slices.SortFunc(vf.aggs[vid], func(a, b fileAgg) int { return strings.Compare(a.quality, b.quality) })
+	}
+	for vid := range vf.provs {
+		slices.Sort(vf.provs[vid])
+	}
+	return vf, nil
 }
 
 // heldByHash lists, by lower-case hash, the providers that hold each torrent complete now (providerHolds): Cached on

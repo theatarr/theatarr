@@ -1082,7 +1082,7 @@ func TestAdoptedLinkFileSizes(t *testing.T) {
 	if f, err := e.web.episodeFile(context.Background(), e.st.Reader(), 4, 43); err != nil || f == nil || f.SizeBytes == nil || *f.SizeBytes != want {
 		t.Errorf("episode file %+v %v", f, err)
 	}
-	files, err := loadItemFiles(context.Background(), e.st.Reader(), []any{int64(4)})
+	files, err := loadItemFiles(context.Background(), e.st.Reader(), []any{int64(4)}, true)
 	if err != nil || files[4][43].size != want {
 		t.Errorf("upgrade item files %+v %v", files[4], err)
 	}

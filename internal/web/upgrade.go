@@ -274,14 +274,19 @@ type itemFile struct {
 	added   int64
 }
 
-// loadItemFiles reads the current files of versions, per episode (0 for a movie): their active links.
-func loadItemFiles(ctx context.Context, db *sql.DB, versionIDs []any) (map[int64]map[int64]itemFile, error) {
+// loadItemFiles reads the current files of versions, per episode (0 for a movie): their active links. Without
+// scores each file's score is left out.
+func loadItemFiles(ctx context.Context, db *sql.DB, versionIDs []any, scores bool) (map[int64]map[int64]itemFile, error) {
 	out := map[int64]map[int64]itemFile{}
 	if len(versionIDs) == 0 {
 		return out, nil
 	}
 	in := store.Placeholders(len(versionIDs))
-	err := scanAll(ctx, db, `SELECT l.id, lv.version_id, COALESCE(le.episode_id, 0), COALESCE(l.quality, ''), `+linkScoreSQL+`,
+	score := "NULL"
+	if scores {
+		score = linkScoreSQL
+	}
+	err := scanAll(ctx, db, `SELECT l.id, lv.version_id, COALESCE(le.episode_id, 0), COALESCE(l.quality, ''), `+score+`,
 		COALESCE(`+linkSizeSQL+`, 0), l.created_at FROM link l JOIN link_version lv ON lv.link_id = l.id
 		LEFT JOIN link_episode le ON le.link_id = l.id LEFT JOIN content_file cf ON cf.id = l.content_file_id
 		WHERE lv.version_id IN (`+in+`) AND l.state = 'active'`, versionIDs, func(r *sql.Rows) error {
@@ -327,16 +332,33 @@ type upgradeSet struct {
 // upgradeLoadChunk is how many versions loadUpgrades reads files and episodes for at once (bound parameters).
 const upgradeLoadChunk = 500
 
-// loadUpgrades reads what explaining these versions needs. With cutoffs false the profiles are not read (the
-// grids only ask whether an upgrade was seen).
+// loadUpgrades reads what explaining these versions needs. With cutoffs false the profiles and the files' scores
+// are not read (the grids and Discover only ask whether an upgrade was seen).
 func (w *Web) loadUpgrades(ctx context.Context, db *sql.DB, vs []upgradeVersion, cutoffs bool) (*upgradeSet, error) {
-	s := &upgradeSet{episodes: map[int64][]upgradeEpisode{}, cutoffs: map[int64]*Cutoff{}}
 	var vids []any
+	for _, v := range vs {
+		vids = append(vids, v.id)
+	}
+	// In chunks: these reads go by version id (indexed), and a caller may pass every version below its cutoff.
+	files := map[int64]map[int64]itemFile{}
+	for chunk := range slices.Chunk(vids, upgradeLoadChunk) {
+		f, err := loadItemFiles(ctx, db, chunk, cutoffs)
+		if err != nil {
+			return nil, err
+		}
+		maps.Copy(files, f)
+	}
+	return w.upgradesWith(ctx, db, vs, files, cutoffs)
+}
+
+// upgradesWith is loadUpgrades with the versions' current files already read (loadItemFiles, or versionFiles' items).
+func (w *Web) upgradesWith(ctx context.Context, db *sql.DB, vs []upgradeVersion, files map[int64]map[int64]itemFile,
+	cutoffs bool) (*upgradeSet, error) {
+	s := &upgradeSet{files: files, episodes: map[int64][]upgradeEpisode{}, cutoffs: map[int64]*Cutoff{}}
 	var series []any
 	titleSet := map[int64]bool{}
 	var titles []int64
 	for _, v := range vs {
-		vids = append(vids, v.id)
 		if v.kind == "series" {
 			series = append(series, v.id)
 		}
@@ -346,15 +368,6 @@ func (w *Web) loadUpgrades(ctx context.Context, db *sql.DB, vs []upgradeVersion,
 		}
 	}
 	var err error
-	// In chunks: these reads go by version id (indexed), and a caller may pass every version below its cutoff.
-	s.files = map[int64]map[int64]itemFile{}
-	for chunk := range slices.Chunk(vids, upgradeLoadChunk) {
-		files, err := loadItemFiles(ctx, db, chunk)
-		if err != nil {
-			return nil, err
-		}
-		maps.Copy(s.files, files)
-	}
 	for chunk := range slices.Chunk(series, upgradeLoadChunk) {
 		err = scanAll(ctx, db, `SELECT s.version_id, e.id, e.season, e.number, s.state FROM episode_version_state s
 			JOIN episode e ON e.id = s.episode_id WHERE s.version_id IN (`+store.Placeholders(len(chunk))+`)
@@ -546,7 +559,7 @@ var rowUpgradeRank = map[string]int{"cutoff_met": 1, "below_cutoff": 2, "upgrade
 // markUpgradeSeen sets upgrade_seen on list rows: on each version below cutoff with a better release seen, and on
 // the row when any version has one. A row with a file held (available or partial) also gets upgrade_state, as on the
 // title page.
-func (w *Web) markUpgradeSeen(ctx context.Context, db *sql.DB, items []TitleRow) error {
+func (w *Web) markUpgradeSeen(ctx context.Context, db *sql.DB, items []TitleRow, files map[int64]map[int64]itemFile) error {
 	var vs []upgradeVersion
 	where := map[int64][2]int{}
 	for i := range items {
@@ -560,7 +573,7 @@ func (w *Web) markUpgradeSeen(ctx context.Context, db *sql.DB, items []TitleRow)
 	if len(vs) == 0 {
 		return nil
 	}
-	s, err := w.loadUpgrades(ctx, db, vs, false)
+	s, err := w.upgradesWith(ctx, db, vs, files, false)
 	if err != nil {
 		return fmt.Errorf("upgrade evidence: %w", err)
 	}

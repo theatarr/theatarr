@@ -214,10 +214,11 @@ func (w *Web) enrichTitle(ctx context.Context, d *TitleDetail) error {
 		d.InCinemas, d.DigitalRelease, d.PhysicalRelease = fr["theatrical"], fr["digital"], fr["physical"]
 	}
 	if len(ids) > 0 {
-		aggs, provs, err := w.currentFiles(ctx, db, ids)
+		vf, err := readVersionFiles(ctx, db, ids)
 		if err != nil {
 			return err
 		}
+		aggs, provs := vf.aggs, vf.provs
 		var added int64
 		var current []*Version
 		for id, v := range byID {

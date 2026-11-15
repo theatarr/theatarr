@@ -1104,3 +1104,108 @@ func TestDemoJournalCounts(t *testing.T) {
 		t.Fatal("no download journal entries")
 	}
 }
+
+// listGolden is the golden file of TestDemoListGolden: by request, the response body's SHA-256 and the title ids in
+// the order the list returned them.
+const listGolden = "testdata/lists.golden.json"
+
+// TestDemoListGolden: the Series, Movies and Anime lists and their facet counts answer exactly as recorded, for
+// every sort, both orders and every filter (the list queries' rewrites keep their results).
+// THEATARR_UPDATE_GOLDEN=1 rewrites the file.
+func TestDemoListGolden(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	pol := loadPolicy(t)
+	st := seedDemo(t)
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	now := func() time.Time { return anchor.Add(time.Hour) }
+	au, _, err := auth.New(ctx, st, auth.Options{Logger: log, Now: now})
+	if err != nil {
+		t.Fatal(err)
+	}
+	session, err := au.Login(ctx, demo.Username, demo.Password, "127.0.0.1", "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	w, err := web.New(web.Config{Store: st, Auth: au, Policy: pol, Logger: log, Version: "demo", Now: now,
+		UI: fstest.MapFS{"index.html": {Data: []byte("<!doctype html><title>spa</title>")}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	mux := http.NewServeMux()
+	w.Mount(mux)
+	var paths []string
+	grids := []string{"kind=series&anime=false", "kind=movie&anime=false", "anime=true", "kind=series"}
+	for _, g := range grids {
+		paths = append(paths, "/titles/facets?"+g)
+		for _, s := range []string{"", "added", "created", "name", "year", "release", "rating", "runtime", "certification",
+			"network", "size", "completion", "quality", "activity", "next"} {
+			for _, o := range []string{"", "asc", "desc"} {
+				paths = append(paths, fmt.Sprintf("/titles?%s&limit=500&sort=%s&order=%s", g, s, o))
+			}
+		}
+		for _, k := range []string{"tv-2160p", "tv-2160p-theatarr", "movie-remux", "movie-web", "anime-tv"} {
+			for _, s := range []string{"completion", "quality", "activity"} {
+				paths = append(paths, fmt.Sprintf("/titles?%s&limit=500&sort=%s&sort_version=%s", g, s, k))
+			}
+		}
+		for _, f := range []string{"availability=available", "availability=partial", "availability=missing",
+			"availability=upcoming", "availability=unmonitored", "provider=rd", "provider=ad", "provider=tb",
+			"quality=1080p", "quality=2160p", "quality=WEBDL-1080p", "upgrade=found", "monitored=false", "genre=Drama"} {
+			paths = append(paths, fmt.Sprintf("/titles?%s&limit=500&%s", g, f))
+		}
+		paths = append(paths, "/titles?"+g+"&limit=20&offset=20&sort=completion")
+	}
+	type entry struct {
+		SHA string  `json:"sha256"`
+		IDs []int64 `json:"ids,omitempty"`
+	}
+	got := map[string]entry{}
+	for _, p := range paths {
+		r := httptest.NewRequest(http.MethodGet, web.APIBase+p, nil)
+		r.AddCookie(&http.Cookie{Name: auth.SessionCookie, Value: session})
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, r)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("%s: %d %s", p, rec.Code, rec.Body.String())
+		}
+		sum := sha256.Sum256(rec.Body.Bytes())
+		e := entry{SHA: hex.EncodeToString(sum[:])}
+		var page struct {
+			Items []struct {
+				ID int64 `json:"id"`
+			} `json:"items"`
+		}
+		if json.Unmarshal(rec.Body.Bytes(), &page) == nil {
+			for _, it := range page.Items {
+				e.IDs = append(e.IDs, it.ID)
+			}
+		}
+		got[p] = e
+	}
+	if os.Getenv("THEATARR_UPDATE_GOLDEN") != "" {
+		b, _ := json.MarshalIndent(got, "", " ")
+		if err := os.MkdirAll("testdata", 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(listGolden, append(b, '\n'), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return
+	}
+	b, err := os.ReadFile(listGolden)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var want map[string]entry
+	if err := json.Unmarshal(b, &want); err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range paths {
+		if g, ok := want[p]; !ok {
+			t.Errorf("%s: not in %s", p, listGolden)
+		} else if g.SHA != got[p].SHA {
+			t.Errorf("%s: answer changed (ids %v, want %v)", p, got[p].IDs, g.IDs)
+		}
+	}
+}
