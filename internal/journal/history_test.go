@@ -165,6 +165,7 @@ func TestHistoryRows(t *testing.T) {
 			t.Errorf("journal entry %s", x.ID)
 		}
 	}
+	checkStoredHistory(t, context.Background(), e.j, e.st)
 }
 
 // An import lists the episodes its links hold, not the ones asked for; a download that never reached a provider is
@@ -205,6 +206,7 @@ func TestHistoryImportEpisodesAndNeverStarted(t *testing.T) {
 	if err != nil || len(p2.Items) != 2 || p2.NextCursor != "" || p2.Items[0].Event != EvImported {
 		t.Fatalf("page 2: %+v %v", p2, err)
 	}
+	checkStoredHistory(t, context.Background(), e.j, e.st)
 }
 
 // Facts recorded with the action outlive later changes: an import's episodes as its links held them (not the ones it
@@ -253,4 +255,5 @@ func TestHistoryRecordedFacts(t *testing.T) {
 	if got := e.history(Filter{Events: []string{EvCopyAlready}}); len(got) != 1 || !strings.HasPrefix(got[0], "copy_already") {
 		t.Errorf("already: %q", got)
 	}
+	checkStoredHistory(t, context.Background(), e.j, e.st)
 }

@@ -91,6 +91,19 @@ type HistoryRow struct {
 	// By is who did it: a title_removed row's remover. Removal is what a title_removed row did with its files.
 	By      string
 	Removal *Removal
+	// Replaced are the files an upgrade replaced, oldest first: set on a deleted row of the stored History
+	// (StoredHistory), which is one row per download and library; the derived reader leaves it nil.
+	Replaced []ReplacedFile
+}
+
+// ReplacedFile is one file an upgrade replaced: the library action that moved it aside (lib:<id>), when, its path,
+// its release (title, quality, score; nil when not known) and the episodes it held.
+type ReplacedFile struct {
+	ID       string
+	At       time.Time
+	Path     string
+	Release  *Release
+	Episodes []string
 }
 
 // HistoryPage is one page of History, newest first.
@@ -99,40 +112,26 @@ type HistoryPage struct {
 	NextCursor string
 }
 
-// The title of a library action (alias la).
-const libTitleSQL = `COALESCE(la.title_id, (SELECT title_id FROM download WHERE id = la.download_id),
-	(SELECT title_id FROM link WHERE id = la.link_id), 0)`
-
-// The link row that still holds an action's file facts, when the action recorded none: a replaced file's unlinked row
-// (not taken over since), an adoption's still adopted row, a dead link's still dead row; NULL when none.
+// The title of a library action (alias la), the link rows that still hold an action's file facts when it recorded
+// none, an action's release, and which actions and downloads give rows: shared with the stored History rows
+// (internal/store history.go).
 const (
-	oldLinkSQL = `(SELECT l.id FROM link l WHERE l.state = 'unlinked'
-		AND (l.id = la.link_id OR (la.link_id IS NULL AND l.path = la.path)) ORDER BY l.id DESC LIMIT 1)`
-	adoptLinkSQL = `(SELECT l.id FROM link l WHERE l.id = la.link_id AND l.adopted_from IS NOT NULL)`
-	deadLinkSQL  = `(SELECT l.id FROM link l WHERE l.id = la.link_id AND l.state = 'dead')`
-)
-
-// relSQL is an action's release: recorded, else its fallback link's, else empty.
-func relSQL(linkSQL string) string {
-	return `COALESCE(la.release_title, (SELECT release_title FROM link WHERE id = ` + linkSQL + `), '')`
-}
-
-const (
-	deletedWhere = `la.kind = 'replace' AND la.mode = 'applied' AND la.download_id IS NOT NULL
-		AND la.detail NOT LIKE 'import undone%'`
+	libTitleSQL  = store.HistoryLibTitleSQL
+	oldLinkSQL   = store.HistoryOldLinkSQL
+	adoptLinkSQL = store.HistoryAdoptLinkSQL
+	deadLinkSQL  = store.HistoryDeadLinkSQL
+	deletedWhere = store.HistoryDeletedWhere
 	adoptedWhere = AdoptedWhere
-	removedWhere = `la.kind = 'replace' AND la.mode = 'applied' AND la.download_id IS NULL
-		AND la.detail NOT LIKE 'change of episodes failed%'`
-	missingWhere = `la.kind = 'dead' AND la.mode = 'applied'`
-	// grabbedWhere: the download reached a provider or client: past adding, or a failed one that was added, reused or
-	// accepted by a provider (a requeue clears added_at).
-	grabbedWhere = `(d.state NOT IN ('queued', 'adding', 'failed') OR d.added_at IS NOT NULL OR d.reused = 1
-		OR EXISTS (SELECT 1 FROM download_attempt a WHERE a.download_id = d.id AND a.outcome = 'accepted'))`
+	removedWhere = store.HistoryRemovedWhere
+	missingWhere = store.HistoryMissingWhere
+	grabbedWhere = store.HistoryGrabbedWhere
 )
+
+var relSQL = store.HistoryRelSQL
 
 // AdoptedWhere selects the library actions (alias la) that took a file over from Sonarr/Radarr: History's adopted
 // rows, and the episode window's (internal/web episodeHistory).
-const AdoptedWhere = `la.kind = 'link' AND la.mode = 'applied' AND la.download_id IS NULL AND la.detail LIKE 'adopted from %'`
+const AdoptedWhere = store.HistoryAdoptedWhere
 
 // historyArm is one source of History's rows: a SELECT of (id, at, title_id, version_key, kind, event), and the
 // events it can give.
@@ -187,28 +186,14 @@ func historyArms(kinds bool) []historyArm {
 // History returns one page of History rows, newest first. Every filter applies inside each source, which then gives
 // at most a page of its newest rows; Suspect, Severity and ScanLimit do not apply.
 func (j *Journal) History(ctx context.Context, f Filter) (*HistoryPage, error) {
-	if err := f.Validate(); err != nil {
-		return nil, err
-	}
-	for _, ev := range f.Events {
-		if !slices.Contains(HistoryEvents, ev) {
-			return nil, fmt.Errorf("%w: event %q: want one of %s", ErrBadFilter, ev, strings.Join(HistoryEvents, ", "))
-		}
-	}
-	if f.Limit == 0 {
-		f.Limit = 50
-	}
-	f.Limit = min(f.Limit, 500)
 	page := &HistoryPage{Items: []*HistoryRow{}}
-	titles, err := j.titleIDs(ctx, f.Title)
+	where, wargs, none, err := j.historyFilter(ctx, &f)
 	if err != nil {
 		return nil, err
 	}
-	if (f.Title != "" && len(titles) == 0) || (f.Restricted && len(f.Within) == 0) {
+	if none {
 		return page, nil
 	}
-	cur, _ := decodeCursor(f.Cursor)
-	where, wargs := historyWhere(f, titles, cur)
 	// Each source is a common table; the union reads at most a page of each, filtered.
 	var ctes, qs []string
 	var args []any
@@ -255,6 +240,33 @@ func (j *Journal) History(ctx context.Context, f Filter) (*HistoryPage, error) {
 	}
 	page.Items = items
 	return page, nil
+}
+
+// historyFilter checks f and sets its page size; the WHERE clause of its rows, or none when no row can match.
+func (j *Journal) historyFilter(ctx context.Context, f *Filter) (string, []any, bool, error) {
+	if err := f.Validate(); err != nil {
+		return "", nil, false, err
+	}
+	for _, ev := range f.Events {
+		if !slices.Contains(HistoryEvents, ev) {
+			return "", nil, false, fmt.Errorf("%w: event %q: want one of %s", ErrBadFilter, ev,
+				strings.Join(HistoryEvents, ", "))
+		}
+	}
+	if f.Limit == 0 {
+		f.Limit = 50
+	}
+	f.Limit = min(f.Limit, 500)
+	titles, err := j.titleIDs(ctx, f.Title)
+	if err != nil {
+		return "", nil, false, err
+	}
+	if (f.Title != "" && len(titles) == 0) || (f.Restricted && len(f.Within) == 0) {
+		return "", nil, true, nil
+	}
+	cur, _ := decodeCursor(f.Cursor)
+	where, args := historyWhere(*f, titles, cur)
+	return where, args, false, nil
 }
 
 // historyWhere is the filter of every source's rows (columns id, at, title_id, version_key, kind, event).

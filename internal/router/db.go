@@ -257,9 +257,11 @@ func (r *Router) move(ctx context.Context, dl int64, t transition) error {
 			return fmt.Errorf("download %d: %w", dl, errAddTaken)
 		}
 		if t.after != nil {
-			return t.after(tx)
+			if err := t.after(tx); err != nil {
+				return err
+			}
 		}
-		return nil
+		return store.HistoryDownloads(ctx, tx, dl)
 	})
 }
 

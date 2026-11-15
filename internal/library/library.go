@@ -345,14 +345,21 @@ func (l *Library) record(ctx context.Context, tx *sql.Tx, a action) error {
 		NULLIF(?, ''), ?, NULLIF(?, 0), ?)`
 	args := []any{store.Millis(l.now()), a.Kind, a.Mode, a.Version, a.DownloadID, a.LinkID, a.Path, a.Target, a.Detail,
 		a.Rel.Release, a.Rel.Quality, a.Rel.Score, a.Rel.TitleID, eps}
-	if tx != nil {
-		_, err := tx.ExecContext(ctx, q, args...)
-		return err
+	write := func(tx *sql.Tx) error {
+		res, err := tx.ExecContext(ctx, q, args...)
+		if err != nil {
+			return err
+		}
+		id, err := res.LastInsertId()
+		if err != nil {
+			return err
+		}
+		return store.HistoryLibraryAction(ctx, tx, id)
 	}
-	return l.st.WriteTx(ctx, func(tx *sql.Tx) error {
-		_, err := tx.ExecContext(ctx, q, args...)
-		return err
-	})
+	if tx != nil {
+		return write(tx)
+	}
+	return l.st.WriteTx(ctx, write)
 }
 
 func modeOf(err error) string {

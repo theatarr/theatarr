@@ -196,3 +196,20 @@ flags. The release facts of library rows are stored on `library_action` (`releas
 fall back to a link row that still holds the file (an unlinked row, an adopted one, a dead one) and are otherwise
 unknown. A copy asked for without a title (a Torrents row) is recorded for the one title whose active link or
 download holds its hash. Nothing is backfilled.
+
+### Stored History rows (migration 00140)
+
+History is also stored as rows (table `history`, `internal/store/history.go`), written in the transaction that
+records each event: a download's grab, failure and import (`store.HistoryDownloads`, after the router's guarded
+transitions and its direct failure and requeue writes, the library's import outcome, the arr import's insert and a
+queue removal's reason), a library action (`store.HistoryLibraryAction` from `Library.record`), a blocklist entry
+(`store.HistoryBlocklist` from `router.Blocklist`) and a removal (`store.HistoryRemoval` from `RecordAction` and
+`SetActionDetail`, so the clean-up's outcome reaches the row). A row keeps its source's journal id (`ref`: `dl:<id>`,
+`dl:<id>:fail`, `dl:<id>:import`, `lib:<id>`, `bl:<rowid>`, `act:<id>`, `copy:<id>`) and is rewritten when its source
+changes; it is not deleted when its source changes or goes (a requeued download keeps its failure row, an unblocked
+release its blocked row). The migration backfilled the rows once from the same sources (provider copies included; no
+new copy rows are written, "Add to other providers" is going). `Journal.StoredHistory` reads them in History's shape
+and filters; nothing reads it yet but the comparison test (`internal/journal/history_compare_test.go`), which holds it
+to `Journal.History` row for row on the demo database and the fixtures, and on any database file given as
+`THEATARR_HISTORY_DB`. The one intended difference: an upgrade's replaced files are one deleted row per download and
+library (`Replaced` lists the files: action, time, path, release, episodes), not one row per old release.

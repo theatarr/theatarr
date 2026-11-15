@@ -59,6 +59,9 @@ func (r *Router) requeue(ctx context.Context, x pollRow, reused int, why, failWh
 		if n, _ := res.RowsAffected(); n != 1 {
 			return nil // moved on meanwhile
 		}
+		if err := store.HistoryDownloads(ctx, tx, x.id); err != nil {
+			return err
+		}
 		if _, err := tx.ExecContext(ctx, `UPDATE content_provider SET state = 'absent', absent_at = ?
 			WHERE provider = ? AND torrent_id = ? AND state = 'present'`, now, x.pk, x.tid); err != nil {
 			return err

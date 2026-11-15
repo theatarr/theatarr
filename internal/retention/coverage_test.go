@@ -30,7 +30,7 @@ func init() {
 	for _, tb := range strings.Fields(`job journal_decision web_session library_dangling router_refusal_451 arrview_command shadow_rss_seen notify_rename torrent_restore_pending gateway_indexer_request`) {
 		keptByDesign[tb] = "pruned by the package that owns it"
 	}
-	for _, tb := range strings.Fields(`router_offer notify_event router_blocklist journal_action journal_verdict torrent_journal provider_copy_event`) {
+	for _, tb := range strings.Fields(`router_offer notify_event router_blocklist journal_action journal_verdict torrent_journal provider_copy_event history`) {
 		keptByDesign[tb] = "kept by design (package comment, journal): a memory or record that must not be forgotten"
 	}
 	for _, tb := range strings.Fields(`provider_hash_usage provider_torrent provider_torrent_read`) {

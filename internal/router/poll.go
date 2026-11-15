@@ -860,6 +860,11 @@ func (r *Router) applyStatus(ctx context.Context, dl int64, version string, kind
 				return err
 			}
 		}
+		if state != cur {
+			if err := store.HistoryDownloads(ctx, tx, dl); err != nil {
+				return err
+			}
+		}
 		return recordProgress(ctx, tx, dl, now, pk, t.ID, t.Progress,
 			state == StateDownloading && t.State == provider.StateDownloading)
 	})
@@ -915,6 +920,9 @@ func (r *Router) rejectTorrentFiles(ctx context.Context, dl int64, version, why 
 		}
 		if n, _ := res.RowsAffected(); n != 1 {
 			return nil // ended meanwhile: its own reason stands
+		}
+		if err := store.HistoryDownloads(ctx, tx, dl); err != nil {
+			return err
 		}
 		return Blocklist(ctx, tx, version, hash, titleID, dl, release, why, BlocklistTorrentFiles, now)
 	})
@@ -994,15 +1002,31 @@ func (r *Router) endDeletedVersions(ctx context.Context, now time.Time) (int, er
 			keys = append(keys, k)
 		}
 	}
-	res, err := r.st.Writer().ExecContext(ctx, `UPDATE download SET state = 'failed',
+	res, err := r.st.Writer().QueryContext(ctx, `UPDATE download SET state = 'failed',
 		error = 'version "' || version_key || '" is no longer in settings; the download was ended, nothing blocklisted',
 		updated_at = ? WHERE state IN ('queued', 'added', 'downloading', 'ready')
 		AND NOT EXISTS (SELECT 1 FROM library_claim c WHERE c.download_id = download.id AND c.until > ?)
-		AND COALESCE(version_key, '') <> ''`+notIn, keys...)
+		AND COALESCE(version_key, '') <> ''`+notIn+` RETURNING id`, keys...)
 	if err != nil {
 		return 0, fmt.Errorf("router: end downloads of deleted versions: %w", err)
 	}
-	n, _ := res.RowsAffected()
+	var ended []int64
+	for res.Next() {
+		var id int64
+		if err := res.Scan(&id); err != nil {
+			res.Close()
+			return 0, fmt.Errorf("router: end downloads of deleted versions: %w", err)
+		}
+		ended = append(ended, id)
+	}
+	res.Close()
+	if err := res.Err(); err != nil {
+		return 0, fmt.Errorf("router: end downloads of deleted versions: %w", err)
+	}
+	if err := store.HistoryDownloads(ctx, r.st.Writer(), ended...); err != nil {
+		return 0, err
+	}
+	n := len(ended)
 	if n > 0 {
 		r.log.Warn("poll: downloads of versions no longer in settings ended; nothing blocklisted or deleted", "count", n)
 	}

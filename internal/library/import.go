@@ -1039,6 +1039,9 @@ func (l *Library) reject(ctx context.Context, d *importDownload, plan *Plan, dry
 			"library: "+reason, now, d.ID); err != nil {
 			return err
 		}
+		if err := store.HistoryDownloads(ctx, tx, d.ID); err != nil {
+			return err
+		}
 		why := reason
 		if len(plan.Rejected) > 0 && plan.Rejected[0].Reason != reason {
 			why += " (" + plan.Rejected[0].Reason + ")"
@@ -1072,6 +1075,9 @@ func (l *Library) holdForReview(ctx context.Context, d *importDownload, plan *Pl
 			VALUES (?, 'rejected', ?, ?, ?, ?, ?) ON CONFLICT (download_id) DO UPDATE SET state = 'rejected',
 			mount_folder = excluded.mount_folder, last_error = excluded.last_error, plan = excluded.plan, updated_at = excluded.updated_at`,
 			d.ID, plan.Folder, reason, string(pj), now, now); err != nil {
+			return err
+		}
+		if err := store.HistoryDownloads(ctx, tx, d.ID); err != nil {
 			return err
 		}
 		return l.record(ctx, tx, action{Kind: "reject", Mode: "applied", Version: d.Version.Key, DownloadID: d.ID,

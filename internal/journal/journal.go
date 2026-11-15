@@ -238,11 +238,7 @@ const runHeadSQL = `SELECT 'run:' || r.id AS id, r.created_at AS at, r.title_id,
 
 // grabKindSQL is a download's kind (alias d): upgrade when an earlier download of the version had imported a file
 // of its episodes, else grab.
-const grabKindSQL = `CASE WHEN EXISTS (SELECT 1 FROM download p WHERE p.version_id = d.version_id AND p.id <> d.id
-			AND p.state = 'imported' AND p.imported_at < d.created_at
-			AND (d.episodes = '[]' OR EXISTS (SELECT 1 FROM json_each(p.episodes) pe
-				WHERE pe.value IN (SELECT value FROM json_each(d.episodes)))))
-	THEN 'upgrade' ELSE 'grab' END`
+const grabKindSQL = store.HistoryGrabKindSQL
 
 // headParts are every source's entries as (id, at, title_id, version_key, kind), by id prefix.
 var headParts = []struct{ prefix, sql string }{

@@ -164,7 +164,10 @@ func Blocklist(ctx context.Context, tx *sql.Tx, version, hash string, titleID, d
 		ON CONFLICT (version_key, info_hash) DO UPDATE SET reason = excluded.reason, source = excluded.source,
 		download_id = excluded.download_id, created_at = excluded.created_at`,
 		version, hash, nullID(titleID), release, reason, source, nullID(downloadID), at)
-	return err
+	if err != nil {
+		return err
+	}
+	return store.HistoryBlocklist(ctx, tx, version, hash)
 }
 
 func nullID(id int64) any {
@@ -239,6 +242,9 @@ func dismissTx(ctx context.Context, tx *sql.Tx, id int64, reason string, block b
 	if d.State != StateFailed && d.State != StateImported {
 		if _, err := tx.ExecContext(ctx, `UPDATE download SET state = 'failed', error = ?, updated_at = ?
 			WHERE id = ?`, reason, at, id); err != nil {
+			return nil, err
+		}
+		if err := store.HistoryDownloads(ctx, tx, id); err != nil {
 			return nil, err
 		}
 		d.Ended = true

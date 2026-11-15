@@ -485,18 +485,21 @@ func (l *Library) apply(ctx context.Context, d *importDownload, vn *VersionNamin
 			d.ID, state, plan.Folder, lastErr, string(pj), now, now); err != nil {
 			return err
 		}
-		if dl == "imported" {
-			_, err := tx.ExecContext(ctx, `UPDATE download SET state = 'imported', imported_at = ?, error = NULL, updated_at = ? WHERE id = ?`, now, now, d.ID)
-			return err
-		}
-		if dl == "importing" {
-			_, err := tx.ExecContext(ctx, `UPDATE download SET error = ?, updated_at = ? WHERE id = ?`,
+		var err error
+		switch dl {
+		case "imported":
+			_, err = tx.ExecContext(ctx, `UPDATE download SET state = 'imported', imported_at = ?, error = NULL, updated_at = ? WHERE id = ?`, now, now, d.ID)
+		case "importing":
+			_, err = tx.ExecContext(ctx, `UPDATE download SET error = ?, updated_at = ? WHERE id = ?`,
 				"library: partial import, retried: "+fmt.Sprint(failures), now, d.ID)
+		default:
+			_, err = tx.ExecContext(ctx, `UPDATE download SET state = 'failed', error = ?, updated_at = ? WHERE id = ?`,
+				"library: "+fmt.Sprint(failures), now, d.ID)
+		}
+		if err != nil {
 			return err
 		}
-		_, err := tx.ExecContext(ctx, `UPDATE download SET state = 'failed', error = ?, updated_at = ? WHERE id = ?`,
-			"library: "+fmt.Sprint(failures), now, d.ID)
-		return err
+		return store.HistoryDownloads(ctx, tx, d.ID)
 	})
 	if errors.Is(err, ErrRemoved) {
 		return l.stopped(ctx, d, root, plan, made, moved, err)

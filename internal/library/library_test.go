@@ -328,6 +328,11 @@ func TestUpgradeMovesAside(t *testing.T) {
 	if _, err := os.Readlink(plan.Links[0].Path); err != nil {
 		t.Error(err)
 	}
+	// History's rows are written with the import: the grab, the import, the upgrade with its replaced file.
+	if got := e.one(`SELECT group_concat(ref || ' ' || event || ' ' || files, ', ') FROM (SELECT * FROM history
+		ORDER BY ref)`); got != "dl:1 grabbed 0, dl:1:import imported 0, lib:2 deleted 1" {
+		t.Errorf("history rows %s", got)
+	}
 	// After keep_days, the trash copy goes, and still only the link.
 	e.now = e.now.Add(31 * 24 * time.Hour)
 	if n, err := e.lib.PurgeTrash(e.ctx); err != nil || n != 1 {

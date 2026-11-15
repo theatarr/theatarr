@@ -117,6 +117,9 @@ func (r *Router) failStalled(ctx context.Context, x pollRow, t *provider.Torrent
 		if n, _ := res.RowsAffected(); n != 1 {
 			return nil // ended or moved on meanwhile: its own outcome stands
 		}
+		if err := store.HistoryDownloads(ctx, tx, x.id); err != nil {
+			return err
+		}
 		return Blocklist(ctx, tx, x.version, x.hash, titleID, x.id, release, why, BlocklistStalled, at)
 	})
 	if err != nil {
@@ -257,6 +260,9 @@ func (r *Router) endUnavailable(ctx context.Context, x pollRow, why string, now 
 		}
 		if n, _ := res.RowsAffected(); n != 1 {
 			return nil // moved on meanwhile
+		}
+		if err := store.HistoryDownloads(ctx, tx, x.id); err != nil {
+			return err
 		}
 		p := routePayload{Request: *req}
 		_, _, err = enqueueRoute(ctx, r.q, tx, p, now)

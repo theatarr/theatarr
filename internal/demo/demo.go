@@ -135,6 +135,10 @@ func Seed(ctx context.Context, st *store.Store, o Options) (*Result, error) {
 		s.upgradesFound()
 		s.record()
 		s.system()
+		if s.err == nil {
+			// History's stored rows, as the migration would have written them from these sources.
+			s.err = store.BackfillHistory(ctx, tx)
+		}
 		return s.err
 	})
 	if err != nil {

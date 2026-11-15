@@ -500,6 +500,9 @@ func (s *Service) removeDownload(ctx context.Context, r *request, id int64, reas
 			updated_at = ? WHERE id = ? AND state = 'failed'`, reason, store.Millis(s.now()), id); err != nil {
 			return false, err
 		}
+		if err := store.HistoryDownloads(ctx, s.st.Writer(), id); err != nil {
+			return false, err
+		}
 	}
 	s.log.Info("download dismissed", "view", r.v.Key, "download", id, "version", d.Version, "ended", d.Ended,
 		"blocklisted", block)
