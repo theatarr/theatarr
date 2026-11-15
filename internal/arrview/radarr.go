@@ -333,14 +333,19 @@ func movieFileFrom(e *entry, f *vfile, moviePath string) *movieFileResource {
 // arr serializer writes and Ruddarr's file model requires; nil when the quality has no resolution. Seerr uses the
 // resolution to distinguish 4K from non-4K services.
 func mediaInfoWithResolution(qualityName string) json.RawMessage {
-	resolution := qualityResolutionText(qualityFor(Radarr, qualityName).Resolution)
-	if resolution == "" {
-		return nil
-	}
-	out, _ := json.Marshal(map[string]any{"audioBitrate": 0, "audioChannels": 0, "audioStreamCount": 0,
-		"videoBitDepth": 0, "videoBitrate": 0, "videoFps": 0, "resolution": resolution})
-	return out
+	return mediaInfoByResolution[qualityResolutionText(qualityFor(Radarr, qualityName).Resolution)]
 }
+
+// mediaInfoByResolution holds the media info of each resolution text, built once (shared: callers only marshal it).
+var mediaInfoByResolution = func() map[string]json.RawMessage {
+	out := map[string]json.RawMessage{}
+	for _, r := range []int{2160, 1080, 720, 576, 480} {
+		res := qualityResolutionText(r)
+		out[res] = json.RawMessage(`{"audioBitrate":0,"audioChannels":0,"audioStreamCount":0,"resolution":"` + res +
+			`","videoBitDepth":0,"videoBitrate":0,"videoFps":0}`)
+	}
+	return out
+}()
 
 func qualityResolutionText(resolution int) string {
 	switch resolution {

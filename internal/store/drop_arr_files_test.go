@@ -2,8 +2,10 @@ package store_test
 
 import (
 	"context"
+	"strconv"
 	"testing"
 
+	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/store"
 )
 
@@ -18,9 +20,9 @@ func TestMigrationDropArrFiles(t *testing.T) {
 	db := st.Writer()
 	for _, q := range []string{
 		`INSERT INTO title (id, kind, name, created_at, updated_at) VALUES (1, 'movie', 'Alpha', 0, 0),
-			(2, 'series', 'Show', 0, 0)`,
+			(2, 'series', 'Show', 0, 0), (3, 'movie', 'Zero', 0, 0)`,
 		`INSERT INTO version (id, title_id, policy_key, state, created_at, updated_at) VALUES
-			(1, 1, 'movie', 'filled', 0, 0), (2, 2, 'tv', 'filled', 0, 0)`,
+			(1, 1, 'movie', 'filled', 0, 0), (2, 2, 'tv', 'filled', 0, 0), (3, 3, 'movie', 'filled', 0, 0)`,
 		`INSERT INTO episode (id, title_id, season, number, name, created_at, updated_at) VALUES
 			(21, 2, 1, 1, 'a', 0, 0), (22, 2, 1, 2, 'b', 0, 0)`,
 		`INSERT INTO version_source (version_id, instance, arr_id) VALUES (1, 'radarr', 7)`,
@@ -31,7 +33,8 @@ func TestMigrationDropArrFiles(t *testing.T) {
 			(1, 1, 1, 'radarr', 1, '/movies/Alpha/Alpha.mkv', 9000, 'Remux-2160p', 'Alpha.2020.REMUX', '["English"]',
 			 '{"videoCodec":"x265"}', 1000, 5, 1950),
 			(2, 1, 1, 'radarr_old', 2, '/old/Alpha.mkv', 1, 'DVD', '', '[]', '{}', 10, NULL, 0),
-			(3, 2, 2, 'sonarr', 3, '/tv/Show/S01E01E02.mkv', 2000, 'WEBDL-1080p', '', '[]', '{}', 2000, NULL, NULL)`,
+			(3, 2, 2, 'sonarr', 3, '/tv/Show/S01E01E02.mkv', 2000, 'WEBDL-1080p', '', '[]', '{}', 2000, NULL, NULL),
+			(4, 3, 3, 'radarr', 4, '/movies/Zero.mkv', 3000, 'WEBDL-1080p', 'Zero.2020.WEB', '[]', '{}', 3000, NULL, 0)`,
 		`INSERT INTO version_file_episode (version_file_id, episode_id) VALUES (3, 21), (3, 22)`,
 		`INSERT INTO content_version (content_id, version_id, source) VALUES (5, 1, 'arr_history')`,
 		`INSERT INTO arr_frozen_input (instance, flavour, body) VALUES ('radarr', 'radarr', '{}')`,
@@ -50,7 +53,7 @@ func TestMigrationDropArrFiles(t *testing.T) {
 	for q, want := range map[string]string{
 		`SELECT COUNT(*) FROM sqlite_master WHERE name IN ('version_file', 'version_file_episode', 'version_source',
 			'content_version', 'arr_frozen_input', 'release', 'decision')`: "0",
-		`SELECT group_concat(path, ' ') FROM (SELECT path FROM link ORDER BY path)`: "/movies/Alpha/Alpha.mkv /tv/Show/S01E01E02.mkv",
+		`SELECT group_concat(path, ' ') FROM (SELECT path FROM link ORDER BY path)`: "/movies/Alpha/Alpha.mkv /movies/Zero.mkv /tv/Show/S01E01E02.mkv",
 		`SELECT l.kind || ' ' || l.quality || ' ' || l.state || ' ' || lv.version_id || ' ' || l.adopted_from || ' ' ||
 			json_extract(l.file_metadata, '$.InfoHash') || ' ' || json_extract(l.file_metadata, '$.Size') || ' ' ||
 			json_extract(l.adopted_media, '$.videoCodec') || ' ' || l.created_at || ' ' || l.score
@@ -68,6 +71,24 @@ func TestMigrationDropArrFiles(t *testing.T) {
 		var got string
 		if err := db.QueryRowContext(ctx, q).Scan(&got); err != nil || got != want {
 			t.Errorf("%s: %q %v, want %q", q, got, err, want)
+		}
+	}
+	// The arr's format score reaches the file as decide reads it: a known score (also zero) as Score, an unknown one
+	// absent.
+	for _, c := range []struct {
+		version int64
+		want    string
+	}{{1, "1950"}, {3, "0"}, {2, "nil"}} {
+		f, err := decide.LoadExisting(ctx, st.Reader(), c.version)
+		if err != nil || f == nil {
+			t.Fatalf("version %d: %+v %v", c.version, f, err)
+		}
+		got := "nil"
+		if f.Score != nil {
+			got = strconv.Itoa(*f.Score)
+		}
+		if got != c.want {
+			t.Errorf("version %d: score %s, want %s", c.version, got, c.want)
 		}
 	}
 }

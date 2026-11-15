@@ -4,7 +4,7 @@
 --
 -- * A current arr file (its version's owning instance's, or any of a version without one) becomes a link record at
 --   its path with its title, library, episodes, quality, release and the arr's facts in file_metadata, its media info
---   in adopted_media, its format score as the link's score and "<instance> <path>" as adopted_from, as adoption records them. The migration cannot read the
+--   in adopted_media, its format score as the link's score (and Score in file_metadata) and "<instance> <path>" as adopted_from, as adoption records them. The migration cannot read the
 --   disk, so the record is kind 'copy' with the path as its target: the file shows as held, and Theatarr never moves or
 --   unlinks it (as it never touched the arr's file). A path that already holds a link keeps it; the library and
 --   episodes are added to it when it is the same title's.
@@ -19,12 +19,14 @@ INSERT OR IGNORE INTO link (path, target, kind, title_id, release_title, quality
     adopted_media, state, created_at, updated_at)
 SELECT vf.path, vf.path, 'copy', vf.title_id, NULLIF(COALESCE(NULLIF(vf.scene_name, ''), vf.release_title), ''),
     NULLIF(vf.quality, ''), vf.custom_format_score,
-    json_object('Quality', vf.quality, 'Revision', max(vf.quality_revision, 1), 'SceneName', vf.scene_name,
+    -- json_patch drops a null Score: an unknown score stays absent, as adoption leaves it.
+    json_patch(json_object('Quality', vf.quality, 'Revision', max(vf.quality_revision, 1), 'SceneName', vf.scene_name,
         'OriginalFilePath', vf.original_file_path, 'RelativePath', vf.relative_path, 'ReleaseGroup', vf.release_group,
         'Edition', vf.edition, 'Languages', json(CASE WHEN json_valid(vf.languages) THEN vf.languages ELSE '[]' END),
         'Size', vf.size_bytes, 'IndexerFlags', vf.indexer_flags, 'ReleaseType', vf.release_type,
         'InfoHash', COALESCE((SELECT c.info_hash FROM content c WHERE c.id = vf.content_id),
             CASE WHEN length(vf.download_id) = 40 THEN lower(vf.download_id) END, '')),
+        json_object('Score', vf.custom_format_score)),
     vf.instance || ' ' || vf.path, vf.media_info, 'active', COALESCE(vf.added_at, 0), COALESCE(vf.added_at, 0)
 FROM version_file vf LEFT JOIN version_source vs ON vs.version_id = vf.version_id
 WHERE vs.instance IS NULL OR vs.instance = vf.instance
