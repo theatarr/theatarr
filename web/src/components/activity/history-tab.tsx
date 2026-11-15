@@ -7,7 +7,7 @@
 // (lib/activity-history-columns.ts), and Retry on a failed download and the journal link. Household accounts and
 // "View as a user" keep the simple rows grouped by day: no library key, no release.
 import { Columns3, History as HistoryIcon, NotebookPen } from "lucide-react";
-import { useState } from "react";
+import { createContext, useContext, useState } from "react";
 import { Link } from "react-router";
 import { useActivityHistory, type ActivityEvent } from "@/api/activity";
 import { usePerms } from "@/api/library";
@@ -96,35 +96,62 @@ function EventWords({ e }: { e: ActivityEvent }) {
   );
 }
 
-/** An upgrade's replaced files, folded: each file's name, release (or "Name not recorded") and episodes. */
-function ReplacedFiles({ e }: { e: ActivityEvent }) {
-  const files = e.replaced ?? [];
-  if (files.length === 0) return null;
+/** The rows whose replaced files are open, and the toggle (HistoryList keeps them). */
+const FilesOpen = createContext<{ open: ReadonlySet<string>; toggle: (id: string) => void }>({ open: new Set(), toggle: () => {} });
+
+/** An upgrade's replaced files: the toggle in the Event cell; the list opens under the row (ReplacedList). */
+function ReplacedToggle({ e }: { e: ActivityEvent }) {
+  const { open, toggle } = useContext(FilesOpen);
+  const n = e.replaced?.length ?? 0;
+  if (n === 0) return null;
+  const shown = open.has(e.id);
   return (
-    <details className="mt-0.5 text-xs text-muted-foreground" data-testid="history-replaced">
-      <summary className="cursor-pointer text-primary">{files.length === 1 ? "Show the file" : `Show the ${files.length} files`}</summary>
-      <ul className="mt-1 space-y-1">
+    <button type="button" className="mt-0.5 block text-xs text-primary hover:underline" aria-expanded={shown} onClick={() => toggle(e.id)} data-testid="history-replaced-toggle">
+      {shown ? (n === 1 ? "Hide the file" : "Hide the files") : n === 1 ? "Show the file" : `Show the ${n} files`}
+    </button>
+  );
+}
+
+/** The first episode a file held as [season, episode]; files without one go last. */
+function episodeKey(eps: readonly string[] | undefined): [number, number] {
+  const m = eps?.length ? /^S(\d+)E(\d+)/i.exec(eps[0]) : null;
+  return m ? [Number(m[1]), Number(m[2])] : [Infinity, Infinity];
+}
+
+/** An upgrade's replaced files across the row, in episode order (then path): each file's name, release and episodes.
+ *  When no file has a release name it is said once, not on every line. */
+function ReplacedList({ e }: { e: ActivityEvent }) {
+  const files = [...(e.replaced ?? [])].sort((a, b) => {
+    const [as, ae] = episodeKey(a.episodes), [bs, be] = episodeKey(b.episodes);
+    return as - bs || ae - be || a.path.localeCompare(b.path);
+  });
+  const named = files.some((f) => f.release);
+  return (
+    <div className="text-xs text-muted-foreground" data-testid="history-replaced">
+      {named ? null : <p className="mb-1">Release names not recorded.</p>}
+      <ul className="space-y-1">
         {files.map((f) => (
           <li key={f.path} className="min-w-0">
-            <span className="block font-mono text-[11px] [overflow-wrap:anywhere]" title={f.path}>{f.path.split("/").pop()}</span>
-            <span className="block [overflow-wrap:anywhere]">
-              {[f.release || "Name not recorded", f.quality, f.episodes?.length ? episodesWords(f.episodes) : ""].filter(Boolean).join(" · ")}
+            <span className="font-mono text-[11px] [overflow-wrap:anywhere]" title={f.path}>{f.path.split("/").pop()}</span>
+            {" "}
+            <span className="[overflow-wrap:anywhere]">
+              {[named ? f.release || "Name not recorded" : "", f.quality, f.episodes?.length ? episodesWords(f.episodes) : ""].filter(Boolean).join(" · ")}
             </span>
           </li>
         ))}
       </ul>
-    </details>
+    </div>
   );
 }
 
-/** The Event cell: the words, the episodes when no Title column shows them, the reason and an upgrade's files. */
+/** The Event cell: the words, the episodes when no Title column shows them, the reason and an upgrade's files toggle. */
 function EventCell({ e, episodes }: { e: ActivityEvent; episodes: boolean }) {
   return (
     <div className="min-w-0">
       <EventWords e={e} />
       {episodes ? <Episodes e={e} /> : null}
       {e.reason ? <p className="mt-0.5 text-xs text-muted-foreground max-sm:break-words sm:line-clamp-2" title={e.reason} data-testid="history-reason">{e.reason}</p> : null}
-      <ReplacedFiles e={e} />
+      <ReplacedToggle e={e} />
     </div>
   );
 }
@@ -228,6 +255,7 @@ export function HistoryTab({ admin, as, titleId }: { admin: boolean; as?: "user"
 
 function HistoryList({ q, admin, prefs, filtered, withTitle }: { q: ReturnType<typeof useActivityHistory>; admin: boolean; prefs: { order: HistoryColumnId[]; shown: HistoryColumnId[] }; filtered: boolean; withTitle: boolean }) {
   const items = q.data?.pages.flatMap((p) => p.history ?? []) ?? [];
+  const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
   if (items.length === 0) {
     return (
       <Card>
@@ -253,7 +281,9 @@ function HistoryList({ q, admin, prefs, filtered, withTitle }: { q: ReturnType<t
   ) : null;
   if (admin) {
     const columns = tight([...historyFixed(withTitle), ...prefs.order.filter((id) => prefs.shown.includes(id)).map((id) => HISTORY_OPTIONAL[id])]);
+    const toggle = (id: string) => setOpen((o) => { const n = new Set(o); if (!n.delete(id)) n.add(id); return n; });
     return (
+      <FilesOpen.Provider value={{ open, toggle }}>
       <div className="space-y-4">
         <DataTable
           rows={items}
@@ -269,13 +299,15 @@ function HistoryList({ q, admin, prefs, filtered, withTitle }: { q: ReturnType<t
               </div>
               {withTitle ? <TitleCell e={e} /> : <Episodes e={e} />}
               {e.reason ? <p className="text-xs text-muted-foreground" data-testid="history-reason">{e.reason}</p> : null}
-              <ReplacedFiles e={e} />
+              <ReplacedToggle e={e} />
             </>
           )}
           actions={(e) => <HistoryActions e={e} />}
+          expanded={(e) => (open.has(e.id) && e.replaced?.length ? <ReplacedList e={e} /> : null)}
         />
         {more}
       </div>
+      </FilesOpen.Provider>
     );
   }
   const groups: { day: string; items: ActivityEvent[] }[] = [];
