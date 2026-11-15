@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"sync/atomic"
 
 	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/decide/format"
@@ -234,20 +235,6 @@ type stateVersion struct {
 	key         string
 }
 
-// recomputeVersion is RecomputeLinkStates for one version, and its files' below-the-quality-cutoff flags
-// (storeCutoff); true when a state changed. A version that is not mode: active, or no decision engine, is left.
-func (l *Library) recomputeVersion(ctx context.Context, v stateVersion) (bool, error) {
-	vp := l.pol.Versions[v.key]
-	if l.engine == nil || vp == nil || vp.Mode != policy.ModeActive {
-		return false, nil
-	}
-	changed, err := l.recomputeVersionState(ctx, v)
-	if err != nil {
-		return changed, err
-	}
-	return changed, l.storeCutoff(ctx, v)
-}
-
 // storeCutoff stores whether version v's files are below the quality cutoff (decide.StoreQualityCutoff). Without a
 // decision engine nothing is stored.
 func (l *Library) storeCutoff(ctx context.Context, v stateVersion) error {
@@ -291,10 +278,18 @@ func (l *Library) storeLinkCutoffs(ctx context.Context, id int64) {
 	l.storeCutoffs(ctx, vs)
 }
 
-// recomputeVersionState is recomputeVersion's state part.
-func (l *Library) recomputeVersionState(ctx context.Context, v stateVersion) (bool, error) {
+// recomputeVersion is RecomputeLinkStates for one version, and in the same pass its files' below-the-quality-cutoff
+// flags (decide.StoreQualityCutoff; none for a prefer-SeaDex library); true when a state changed. A version that is
+// not mode: active, or no decision engine, is left.
+func (l *Library) recomputeVersion(ctx context.Context, v stateVersion) (bool, error) {
 	vp := l.pol.Versions[v.key]
+	if l.engine == nil || vp == nil || vp.Mode != policy.ModeActive {
+		return false, nil
+	}
 	db := l.st.Reader()
+	// The quality-cutoff flag of each file, judged with the state (decide.QualityBelow).
+	flags := !vp.PreferSeaDex
+	qv := decide.Version{ID: v.id, Key: v.key}
 	if vp.PreferSeaDex {
 		var err error
 		ctx, err = decide.WithStoredSeaDex(ctx, db)
@@ -320,6 +315,12 @@ func (l *Library) recomputeVersionState(ctx context.Context, v stateVersion) (bo
 		f, _, err := decide.LoadExistingFile(ctx, db, v.id)
 		if err != nil {
 			return false, err
+		}
+		if flags {
+			if err := decide.WriteQualityCutoff(ctx, l.st.Writer(), vp.Kind, v.id, f != nil && l.engine.QualityBelow(qv, f),
+				nil); err != nil {
+				return false, err
+			}
 		}
 		if f == nil {
 			return false, nil // its link went meanwhile
@@ -353,9 +354,21 @@ func (l *Library) recomputeVersionState(ctx context.Context, v stateVersion) (bo
 	t.Episodes = eps
 	states := map[int64]string{} // by file id (a link's negative id)
 	want := map[int64]string{}   // by episode
+	below := map[int64]bool{}    // by file, then by episode: below the quality cutoff
+	belowEps := map[int64]bool{}
 	for _, ep := range eps {
 		if ep.File == nil {
 			continue
+		}
+		if flags {
+			b, ok := below[ep.FileID]
+			if !ok {
+				b = l.engine.QualityBelow(qv, ep.File)
+				below[ep.FileID] = b
+			}
+			if b {
+				belowEps[ep.ID] = true
+			}
 		}
 		s, ok := states[ep.FileID]
 		if !ok {
@@ -367,6 +380,11 @@ func (l *Library) recomputeVersionState(ctx context.Context, v stateVersion) (bo
 		}
 		if s != "" {
 			want[ep.ID] = s
+		}
+	}
+	if flags {
+		if err := decide.WriteQualityCutoff(ctx, l.st.Writer(), vp.Kind, v.id, false, belowEps); err != nil {
+			return false, err
 		}
 	}
 	n := 0
@@ -453,7 +471,6 @@ func (l *Library) recomputeOnce(ctx context.Context) {
 		pol = target.pol
 	}
 	if l.recomputed && l.recomputedRev == pol.Revision {
-		l.storeSeaDexCutoffs(ctx, pol, false)
 		return
 	}
 	prints := versionPrints(pol)
@@ -475,53 +492,23 @@ func (l *Library) recomputeOnce(ctx context.Context) {
 			return
 		}
 	}
-	first := !l.recomputed
 	l.recomputed, l.recomputedRev, l.recomputedPrints = true, pol.Revision, prints
+	if keys == nil {
+		cutoffsStored.Store(true)
+	}
 	if n > 0 {
 		l.log.Info("library: link states recomputed", "versions", n)
 	}
-	l.storeSeaDexCutoffs(ctx, pol, first)
 }
 
-// storeSeaDexCutoffs stores the prefer-SeaDex libraries' below-cutoff flags again when the stored SeaDex standing
-// changed since they were last stored (their quality cutoff reads it). The first pass of a process stored every flag
-// already (first) and only notes the standing.
-func (l *Library) storeSeaDexCutoffs(ctx context.Context, pol *policy.Policy, first bool) {
-	var at int64
-	if err := l.st.Reader().QueryRowContext(ctx, `SELECT COALESCE(MAX(fetched_at), 0) FROM metadata_cache
-		WHERE source = 'seadex-standing'`).Scan(&at); err != nil {
-		l.log.Warn("library: SeaDex standing not read", "err", err)
-		return
-	}
-	if at == l.seaDexAt {
-		return
-	}
-	var keys []string
-	for k, vp := range pol.Versions {
-		if vp != nil && vp.PreferSeaDex && vp.Mode == policy.ModeActive {
-			keys = append(keys, k)
-		}
-	}
-	if !first && len(keys) > 0 {
-		b, _ := json.Marshal(keys)
-		rows, err := l.st.Reader().QueryContext(ctx, `SELECT id, title_id, policy_key FROM version
-			WHERE policy_key IN (SELECT value FROM json_each(?)) ORDER BY id`, string(b))
-		if err != nil {
-			l.log.Warn("library: below-cutoff flags not stored", "err", err)
-			return
-		}
-		var vs []stateVersion
-		for rows.Next() {
-			var v stateVersion
-			if err := rows.Scan(&v.id, &v.titleID, &v.key); err == nil {
-				vs = append(vs, v)
-			}
-		}
-		rows.Close()
-		l.storeCutoffs(ctx, vs)
-	}
-	l.seaDexAt = at
-}
+// cutoffsStored is set once a full state pass of this process has finished: every library's below-the-quality-
+// cutoff flags are stored (a database upgraded to them starts with every flag 0).
+var cutoffsStored atomic.Bool
+
+// CutoffsStored says whether the stored below-the-quality-cutoff flags can be read: the first full state pass of the
+// process has finished (RecomputeLinkStates). Until then acquisition judges every file.
+func CutoffsStored() bool { return cutoffsStored.Load() }
+
 
 // versionPrints fingerprints, per version key, the settings a file's state is judged under: the version, its
 // profile, and the formats and format sets.

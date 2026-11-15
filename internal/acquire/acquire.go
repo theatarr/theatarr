@@ -89,6 +89,9 @@ type Config struct {
 	CaptureRuntime func(context.Context) context.Context
 	// RuntimeEngine selects the decision engine pinned to the request's settings generation.
 	RuntimeEngine func(context.Context) *decide.Engine
+	// CutoffsStored says when the stored below-the-quality-cutoff flags may be read (library.CutoffsStored); nil
+	// judges every file.
+	CutoffsStored func() bool
 	// Metadata, when set, holds the searches of a series added in Theatarr until its first metadata refresh finishes
 	// (internal/metadata/tvrefresh); nil searches at once.
 	Metadata MetadataWait
@@ -121,8 +124,9 @@ type Acquirer struct {
 	// drainMu serialises the rounds, the only searches that check and spend router.wanted.per_hour. So no target
 	// starts twice and two of them never spend the same slot of the hour.
 	drainMu sync.Mutex
-	// judgeCutoff (tests) judges every file for a quality cutoff selection, as before the flags were stored.
-	judgeCutoff bool
+	// cutoffsStored says whether the stored below-the-quality-cutoff flags may be read (library.CutoffsStored: the
+	// library's first full state pass of the process has finished); nil or false: every file is judged.
+	cutoffsStored func() bool
 }
 
 // New builds the acquirer.
@@ -138,7 +142,7 @@ func New(cfg Config) (*Acquirer, error) {
 	}
 	a := &Acquirer{st: cfg.Store, pol: cfg.Policy, q: cfg.Queue, rt: cfg.Router, search: cfg.Search, eng: cfg.Engine,
 		searchBatch: cfg.SearchBatch, meta: cfg.Metadata, runtimeGeneration: cfg.RuntimeGeneration, runtimeCapture: cfg.CaptureRuntime,
-		runtimeEngine: cfg.RuntimeEngine,
+		runtimeEngine: cfg.RuntimeEngine, cutoffsStored: cfg.CutoffsStored,
 		set:           cfg.Policy.WantedSettings(),
 		log:           cfg.Logger.With("component", "acquire"), now: cfg.Now}
 	if a.search == nil && a.searchBatch == nil {
@@ -446,7 +450,7 @@ func (a *Acquirer) targets(ctx context.Context, sel Selection) ([]target, error)
 				} else {
 					q += ` AND v.state = 'filled'`
 				}
-				if a.storedCutoff(sel) {
+				if a.storedCutoff(sel, vp) {
 					q += ` AND v.below_quality_cutoff = 1`
 				}
 			}
@@ -495,7 +499,7 @@ func (a *Acquirer) targets(ctx context.Context, sel Selection) ([]target, error)
 						continue
 					}
 				}
-				if sel.Only == OnlyCutoff && (sel.QualityCutoff || vp.PreferSeaDex) && !a.storedCutoff(sel) {
+				if sel.Only == OnlyCutoff && (sel.QualityCutoff || vp.PreferSeaDex) && !a.storedCutoff(sel, vp) {
 					below, err := a.belowCutoff(ctx, k, v.id, v.title, !sel.QualityCutoff)
 					if err != nil {
 						return nil, err
@@ -535,7 +539,7 @@ func (a *Acquirer) seriesTargets(ctx context.Context, db *sql.DB, versionID, tit
 	missingOnly := sel.Only == "" && sel.Season == nil && len(sel.EpisodeIDs) == 0 && !a.upgradesAllowed(key)
 	var keep map[int64]bool  // quality cutoff: the filled episodes whose file is below it
 	pack := map[int64]bool{} // the kept episodes a curated season pack makes wanted: searched by season
-	stored := sel.Only == OnlyCutoff && a.storedCutoff(sel)
+	stored := a.storedCutoff(sel, vp)
 	if sel.Only == OnlyCutoff && (sel.QualityCutoff || vp.PreferSeaDex) && !stored {
 		var err error
 		if keep, err = a.cutoffEpisodes(ctx, key, versionID, titleID, !sel.QualityCutoff, pack); err != nil {
@@ -598,17 +602,6 @@ func (a *Acquirer) seriesTargets(ctx context.Context, db *sql.DB, versionID, tit
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	if stored && vp.PreferSeaDex {
-		var kept []int64
-		for _, s := range seasons {
-			for _, e := range bySeason[s] {
-				kept = append(kept, e.id)
-			}
-		}
-		if err := a.curatorPacks(ctx, key, versionID, titleID, kept, pack); err != nil {
-			return nil, err
-		}
-	}
 	var out []target
 	for _, s := range seasons {
 		eps := bySeason[s]
@@ -651,40 +644,13 @@ func (a *Acquirer) upgradesAllowed(key string) bool {
 	return true
 }
 
-// storedCutoff says whether a cutoff selection reads the stored below-the-quality-cutoff flags
-// (decide.StoreQualityCutoff): the quality cutoff with a decision engine. The full cutoff (score mode) and a run
-// without an engine judge as before.
-func (a *Acquirer) storedCutoff(sel Selection) bool {
-	return sel.Only == OnlyCutoff && sel.QualityCutoff && a.eng != nil && !a.judgeCutoff
-}
-
-// curatorPacks puts into pack the episodes of ids whose file a curated alternative makes wanted
-// (decide.CuratorWanted, as cutoffEpisodes does): the alternative is a season pack, so their search is a season
-// search even for one episode. Prefer-SeaDex libraries only.
-func (a *Acquirer) curatorPacks(ctx context.Context, key string, versionID, titleID int64, ids []int64,
-	pack map[int64]bool) error {
-	if len(ids) == 0 {
-		return nil
-	}
-	vp := a.pol.Versions[key]
-	ctx, err := decide.WithStoredSeaDex(ctx, a.st.Reader())
-	if err != nil {
-		return err
-	}
-	ctx = decide.WithSeaDexTitle(decide.WithSeaDexPolicy(ctx, a.pol, vp), titleID)
-	t, err := decide.LoadTitle(ctx, a.st.Reader(), titleID)
-	if err != nil {
-		return err
-	}
-	if err := decide.LoadSeriesVersion(ctx, a.st.Reader(), &t, versionID); err != nil {
-		return err
-	}
-	for _, e := range t.Episodes {
-		if e.File != nil && slices.Contains(ids, e.ID) && a.eng.CuratorWanted(&t, decide.Version{ID: versionID, Key: key}, e.File) {
-			pack[e.ID] = true
-		}
-	}
-	return nil
+// storedCutoff says whether a cutoff selection reads version vp's stored below-the-quality-cutoff flags
+// (decide.StoreQualityCutoff): the quality cutoff with a decision engine, for a library without prefer-SeaDex, once
+// the flags are stored (cutoffsStored). The full cutoff (score mode), a prefer-SeaDex library (its cutoff reads the
+// curator's standing and cache evidence) and a run without an engine judge every file.
+func (a *Acquirer) storedCutoff(sel Selection, vp *policy.VersionPolicy) bool {
+	return sel.Only == OnlyCutoff && sel.QualityCutoff && a.eng != nil && !vp.PreferSeaDex && a.cutoffsStored != nil &&
+		a.cutoffsStored()
 }
 
 // The quality cutoff of router.wanted.cutoff_unmet: quality. Radarr's MovieCutoffService.MoviesWhereCutoffUnmet and

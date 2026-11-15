@@ -132,9 +132,11 @@ func cutoffFixture(t *testing.T, e *env) {
 }
 
 // storeCutoffs stores every version's below-the-quality-cutoff flags (decide.StoreQualityCutoff), as the library
-// does after its writes and when the SeaDex standing changes: the fixtures write files and standing by hand.
+// does after its writes and its first full state pass, and lets the cutoff searches read them: the fixtures write
+// files by hand.
 func (e *env) storeCutoffs() {
 	e.t.Helper()
+	e.a.cutoffsStored = func() bool { return true }
 	rows, err := e.st.Reader().QueryContext(e.ctx, `SELECT id, title_id, policy_key FROM version ORDER BY id`)
 	if err != nil {
 		e.t.Fatal(err)
@@ -275,8 +277,9 @@ func (e *env) runEpisodes(versionID int64) string {
 
 // The stored below-the-quality-cutoff flags (decide.StoreQualityCutoff, as the demo seed and the library store them)
 // equal the judgement the cutoff selections made before they were stored (BelowQualityCutoff,
-// EpisodesBelowQualityCutoff), for every movie and series library of the demo database, the prefer-SeaDex ones
-// too; and the cutoff targets Wanted and the round search, in quality and score mode, are the same either way.
+// EpisodesBelowQualityCutoff), for every movie and series library of the demo database without prefer-SeaDex (those
+// are judged when searched); and the cutoff targets Wanted and the round search, in quality and score mode, are the
+// same either way.
 func TestStoredCutoffMatchesJudgement(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -342,13 +345,10 @@ func TestStoredCutoffMatchesJudgement(t *testing.T) {
 	judged := map[string]int{}
 	for _, v := range vs {
 		vp := pol.Versions[v.key]
-		if vp == nil {
+		if vp == nil || vp.PreferSeaDex { // judged when searched, never stored
 			continue
 		}
 		kind := string(vp.Kind)
-		if vp.PreferSeaDex {
-			kind += " seadex"
-		}
 		if vp.Kind != policy.KindSeries {
 			want, err := a.BelowQualityCutoff(ctx, v.key, v.id, v.title)
 			if err != nil {
@@ -383,9 +383,8 @@ func TestStoredCutoffMatchesJudgement(t *testing.T) {
 		}
 		judged[fmt.Sprintf("%s %v", kind, len(want) > 0)]++
 	}
-	// The demo has files on both sides of the cutoff, in plain and prefer-SeaDex libraries of both kinds.
-	for _, k := range []string{"movie true", "movie false", "series true", "series false", "series seadex true",
-		"series seadex false", "movie seadex false"} {
+	// The demo has files on both sides of the cutoff, in libraries of both kinds.
+	for _, k := range []string{"movie true", "movie false", "series true", "series false"} {
 		if judged[k] == 0 {
 			t.Errorf("no %s library judged (%v)", k, judged)
 		}
@@ -397,12 +396,12 @@ func TestStoredCutoffMatchesJudgement(t *testing.T) {
 	slices.Sort(keys)
 	for _, quality := range []bool{true, false} {
 		sel := Selection{Versions: keys, Only: OnlyCutoff, QualityCutoff: quality}
-		a.judgeCutoff = false
+		a.cutoffsStored = func() bool { return true }
 		stored, err := a.targets(ctx, sel)
 		if err != nil {
 			t.Fatal(err)
 		}
-		a.judgeCutoff = true
+		a.cutoffsStored = nil
 		before, err := a.targets(ctx, sel)
 		if err != nil {
 			t.Fatal(err)
@@ -413,5 +412,36 @@ func TestStoredCutoffMatchesJudgement(t *testing.T) {
 		if quality && len(stored) == 0 {
 			t.Error("no cutoff target")
 		}
+	}
+}
+
+// Until the library's first full state pass of the process has stored the flags (a database just upgraded to them
+// holds 0 everywhere), Wanted and the cutoff searches judge every file: a film below the cutoff stays listed.
+func TestCutoffJudgedUntilFlagsStored(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true, &policy.Wanted{PerHour: 100})
+	cutoffFixture(t, e)
+	e.exec(`UPDATE version SET below_quality_cutoff = 0`)
+	e.exec(`UPDATE episode_version_state SET below_quality_cutoff = 0`)
+	stored := false
+	e.a.cutoffsStored = func() bool { return stored }
+	list := func() string {
+		t.Helper()
+		l, err := e.a.WantedList(e.ctx, WantedQuery{Only: OnlyCutoff})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var got []string
+		for _, r := range l.Items {
+			got = append(got, fmt.Sprintf("%d/%s", r.TitleID, strings.Join(r.Targets, ",")))
+		}
+		return sortWords(strings.Join(got, " "))
+	}
+	if got := list(); got != "10/s01e03 4/movie" {
+		t.Errorf("before the first pass: %s, want the film and the episode below the cutoff", got)
+	}
+	stored = true
+	if got := list(); got != "" {
+		t.Errorf("reading the (unset) flags: %s", got)
 	}
 }

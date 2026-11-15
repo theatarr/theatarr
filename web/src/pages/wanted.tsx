@@ -61,9 +61,9 @@ export function whatWords(row: Pick<WantedRow, "targets" | "episodes">): string 
   return row.episodes && row.targets.some((t) => /^s\d+$/.test(t)) ? `${words}, ${plural(row.episodes, "episode")}` : words;
 }
 
-/** The What cell; a Cutoff unmet season row opens to its episodes, each with the quality it holds, and the cutoff. */
+/** The What cell; a Cutoff unmet whole-season row opens to its episodes, each with the quality it holds, and the cutoff. */
 function WhatCell({ row }: { row: WantedRow }) {
-  const eps = row.below_cutoff ?? [];
+  const eps = row.targets.some(t => /^s\d+$/.test(t)) ? row.below_cutoff ?? [] : [];
   if (!eps.length) return <>{whatWords(row)}</>;
   return <details data-testid="wanted-below-cutoff">
     <summary className="cursor-pointer">{whatWords(row)}</summary>

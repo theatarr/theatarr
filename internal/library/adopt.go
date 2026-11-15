@@ -510,7 +510,7 @@ func (l *Library) recordAdopted(ctx context.Context, version string, vp *policy.
 	}
 	source := f.source
 	now := store.Millis(l.now())
-	err = l.refWriteTx(ctx, func(tx *sql.Tx) error {
+	return l.refWriteTx(ctx, func(tx *sql.Tx) error {
 		if err := l.linksHeldTx(ctx, tx); err != nil {
 			return err
 		}
@@ -566,10 +566,6 @@ func (l *Library) recordAdopted(ctx context.Context, version string, vp *policy.
 		}
 		return nil
 	})
-	if err == nil {
-		l.storeCutoffs(ctx, []stateVersion{{id: f.versionID, titleID: f.titleID, key: version}})
-	}
-	return err
 }
 
 func sortedKeys(m map[string]bool) []string {
@@ -622,7 +618,18 @@ func (l *Library) AdoptImported(ctx context.Context, version string, files []Imp
 	if err != nil {
 		return rep, err
 	}
-	if err := l.adoptAll(ctx, version, vp, afs, rep); err != nil {
+	err = l.adoptAll(ctx, version, vp, afs, rep)
+	// The adopted files' versions, once each: below the quality cutoff or not.
+	seen := map[int64]bool{}
+	var vs []stateVersion
+	for _, f := range afs {
+		if f.versionID != 0 && !seen[f.versionID] {
+			seen[f.versionID] = true
+			vs = append(vs, stateVersion{id: f.versionID, titleID: f.titleID, key: version})
+		}
+	}
+	l.storeCutoffs(ctx, vs)
+	if err != nil {
 		return rep, err
 	}
 	l.log.Info("library: adopted imported files", "version", version, "files", rep.Files, "linked", rep.Linked,

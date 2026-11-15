@@ -98,11 +98,11 @@ type WantedRow struct {
 	SearchBlocked string     `json:"search_blocked,omitempty"`
 	LastRun       *WantedRun `json:"last_run"`
 	DecisionID    *int64     `json:"decision_id"`
-	// BelowCutoff (Cutoff unmet, a season row) are the row's episodes with the quality each holds, and Cutoff the
+	// BelowCutoff (Cutoff unmet, a whole-season row) are the row's episodes with the quality each holds, and Cutoff the
 	// library's cutoff quality: what Sonarr's Cutoff Unmet lists episode by episode.
 	BelowCutoff []WantedEpisode `json:"below_cutoff,omitempty"`
 	Cutoff      string          `json:"cutoff,omitempty"`
-	// episodeIDs are the row's episodes.
+	// episodeIDs are a Cutoff unmet whole-season row's episodes.
 	episodeIDs []int64
 }
 
@@ -232,12 +232,12 @@ func (a *Acquirer) wantedRows(ctx context.Context, q WantedQuery, out *WantedLis
 	return a.sortWanted(ctx, list, v.last, q.Sort)
 }
 
-// belowCutoffEpisodes fills the season rows' BelowCutoff and Cutoff: each episode with the quality of its file (the
+// belowCutoffEpisodes fills the whole-season rows' BelowCutoff and Cutoff: each episode with the quality of its file (the
 // newest active link of the row's library, as decide judges it), in season and number order.
 func (a *Acquirer) belowCutoffEpisodes(ctx context.Context, list []WantedRow) error {
 	var eps, vids []int64
 	for _, r := range list {
-		if r.Season != nil {
+		if len(r.episodeIDs) > 0 {
 			eps = append(eps, r.episodeIDs...)
 			vids = append(vids, r.versionID)
 		}
@@ -289,7 +289,7 @@ func (a *Acquirer) belowCutoffEpisodes(ctx context.Context, list []WantedRow) er
 	}
 	for i := range list {
 		r := &list[i]
-		if r.Season == nil {
+		if len(r.episodeIDs) == 0 {
 			continue
 		}
 		if vp := a.pol.Versions[r.Version]; vp != nil {
@@ -480,6 +480,9 @@ func (a *Acquirer) wantedRow(ctx context.Context, v *wantedView, only string, gr
 	}
 	if row.Season != nil {
 		row.Episodes = len(episodes)
+	}
+	// A whole-season row of Cutoff unmet lists its episodes (belowCutoffEpisodes).
+	if only == OnlyCutoff && slices.ContainsFunc(group, func(t target) bool { return seasonTarget(t.name) }) {
 		for id := range episodes {
 			row.episodeIDs = append(row.episodeIDs, id)
 		}

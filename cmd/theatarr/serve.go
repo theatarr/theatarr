@@ -583,7 +583,8 @@ func runServe(args []string) error {
 	})
 	// The acquirer: the arr views' search commands and the wanted loop, for active versions only, routed
 	// (docs/design/router.md "Triggers").
-	acConfig := acquire.Config{Store: st, Policy: pol, Queue: q, Router: routeService, Engine: eng, Indexers: idx, Logger: log}
+	acConfig := acquire.Config{Store: st, Policy: pol, Queue: q, Router: routeService, Engine: eng, Indexers: idx, Logger: log,
+		CutoffsStored: library.CutoffsStored}
 	acConfig.CaptureRuntime = runtimeManager.Capture
 	acConfig.Search, acConfig.SearchBatch, acConfig.RuntimeEngine = runtimeSearchers(runtimeManager)
 	ac, err := pipeline.NewAcquirer(acConfig, tv)

@@ -121,9 +121,6 @@ type Library struct {
 	// recomputedPrints are the versionPrints of that pass: a settings change recomputes only the versions whose
 	// print changed.
 	recomputedPrints map[string]string
-	// seaDexAt is the newest stored SeaDex standing (metadata_cache fetched_at) the prefer-SeaDex libraries'
-	// below-cutoff flags were last stored under (recomputeOnce).
-	seaDexAt int64
 	// beforeSweepWrite, when set (tests), runs just before a relink sweep records its outcome: a concurrent writer.
 	beforeSweepWrite func()
 	// inbox, when set (tests), takes the error-inbox events errinbox.Report would (reportInbox).
