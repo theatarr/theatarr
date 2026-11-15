@@ -24,15 +24,20 @@ export function fmtPercent(r: number | null | undefined, digits = 1): string {
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-/** "Oct 26 18:24" in local time; with the year when it is not the current one. A number is milliseconds. */
+/** A time of day, "18:24" or "06:24 PM": 24- or 12-hour as the browser's locale has it. Every screen's times go
+ * through it, the household's and admin's alike. */
+export function fmtClock(d: Date): string {
+  return d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+}
+
+/** "Oct 26 18:24" in local time (the time as fmtClock); with the year when it is not the current one. A number is
+ * milliseconds. */
 export function fmtTime(iso: string | number | null | undefined, now: Date = new Date()): string {
   if (!iso) return "—";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime()) || d.getFullYear() < 1971) return "—";
-  const hh = String(d.getHours()).padStart(2, "0");
-  const mm = String(d.getMinutes()).padStart(2, "0");
   const year = d.getFullYear() === now.getFullYear() ? "" : ` ${d.getFullYear()}`;
-  return `${MONTHS[d.getMonth()]} ${d.getDate()}${year} ${hh}:${mm}`;
+  return `${MONTHS[d.getMonth()]} ${d.getDate()}${year} ${fmtClock(d)}`;
 }
 
 /**

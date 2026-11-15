@@ -21,7 +21,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { calendarHref, calendarLegend, calendarTone, episodeCode, joinReleases, monthDays, parseYmd, placeEntries, releaseLabel, shiftDay, ymd } from "@/lib/calendar";
 import { cn } from "@/lib/utils";
 import "@/styles/calendar.css";
-import { plural, titleWithYear } from "@/lib/format";
+import { fmtClock, plural, titleWithYear } from "@/lib/format";
 
 type Facet = "movie" | "series" | "anime";
 const FACETS: { id: Facet; label: string }[] = [
@@ -71,8 +71,7 @@ function badgeOf(e: Entry): string {
 
 function airTime(e: CalendarEntry): string | null {
   if (!e.at) return null;
-  const d = new Date(e.at);
-  return d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+  return fmtClock(new Date(e.at));
 }
 
 /** A status as one of the theme's chip tones (the agenda's word). */

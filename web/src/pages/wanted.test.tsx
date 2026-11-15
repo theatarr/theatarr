@@ -67,7 +67,7 @@ it("words each Next search state; no time is promised for a due row or while pau
   const next = rows.map(r => r.querySelector('[data-column="next"]')?.textContent);
   expect(next).toEqual(["Now", "Now (Search now)", "in 3 h", "in 2 h (new release) · try 3", "in 5 h (after a failed download)", "Downloading", "Not scheduled", "Now (Added by a list)"]);
   // The exact time is the tooltip of a scheduled row.
-  expect(within(rows[2]).getByText("in 3 h").getAttribute("title")).toMatch(/^\w{3} \d+ \d\d:\d\d$/);
+  expect(within(rows[2]).getByText("in 3 h").getAttribute("title")).toMatch(/^\w{3} \d+ \d\d:\d\d( [AP]M)?$/);
   // A row asked for already cannot be asked again.
   expect((within(rows[1]).getByRole("button", { name: "Search now" }) as HTMLButtonElement).title).toBe("Already asked for");
 });
