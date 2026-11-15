@@ -38,9 +38,8 @@ describe("activity history filters", () => {
     expect(p).toMatchObject({ title: "Alpha", version: "movie-web", events: "imported" });
     expect(historyParams({ title: "", copy: "", event: "adopted", since: "" }).events).toBe("adopted");
     expect(historyParams({ ...NO_HISTORY_FILTERS, event: "deleted" }).events).toBe("deleted,removed,missing,title_removed");
-    // Other providers is for accounts that see files: the user view asks for every event.
-    expect(historyFiltersFor({ ...NO_HISTORY_FILTERS, event: "copies" }, false).event).toBe("all");
-    expect(historyFiltersFor({ ...NO_HISTORY_FILTERS, event: "copies" }, true).event).toBe("copies");
+    // The Other providers filter is gone: an old bookmark shows All events.
+    expect(parseHistoryFilters(new URLSearchParams("event=copies")).event).toBe("all");
     // The household view has no library selector, so a library in the URL filters nothing there.
     expect(historyFiltersFor({ ...NO_HISTORY_FILTERS, copy: "movie-web" }, false).copy).toBe("");
     expect(historyFiltersFor({ ...NO_HISTORY_FILTERS, copy: "movie-web" }, true).copy).toBe("movie-web");

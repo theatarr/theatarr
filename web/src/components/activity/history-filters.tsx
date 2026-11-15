@@ -31,7 +31,7 @@ export function useHistoryFilters(): Filters {
   return parseHistoryFilters(sp);
 }
 
-/** tools: buttons at the row's end (the table's Columns); admin: the caller sees files (the Other providers event).
+/** tools: buttons at the row's end (the table's Columns); admin: the caller sees files.
  *  Library names never hold keys, for every account; the library selector is for admin only. */
 export function HistoryFilters({ tools, admin = false }: { tools?: ReactNode; admin?: boolean } = {}) {
   const nameOf = useLibraryName();
@@ -74,7 +74,7 @@ export function HistoryFilters({ tools, admin = false }: { tools?: ReactNode; ad
         {f.copy && !copies.some((v) => v.key === f.copy) ? <option value={f.copy}>{known(f.copy) ? nameOf(f.copy) : "Removed library"}</option> : null}
       </Select> : null}
       <Select aria-label="Event" value={f.event} onChange={(e) => set("event", e.target.value)} className="min-w-0 sm:w-auto" data-testid="history-event">
-        {HISTORY_EVENTS.filter((e) => admin || !e.admin).map((e) => (
+        {HISTORY_EVENTS.map((e) => (
           <option key={e.id} value={e.id}>{e.label}</option>
         ))}
       </Select>

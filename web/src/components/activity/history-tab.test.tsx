@@ -78,13 +78,15 @@ it("words rows like Radarr's: one import with its episodes, an upgrade's one row
   expect(fetch.calls("GET", "/activity")[0].search).toContain("title_id=3");
 });
 
-it("drops the Other providers filter in a view without see files, instead of asking for it", async () => {
+it("reads an old Other providers bookmark as All events", async () => {
   const fetch = mockFetch([
     { method: "GET", path: "/auth/me", reply: me },
     { method: "GET", path: "/titles/facets", reply: {} },
     { method: "GET", path: "/activity", reply: { state: "history", admin: false, history: [] } },
   ]);
   renderPage(<HistoryTab admin={false} as="user" />, "/activity/history?event=copies");
+  expect((await screen.findByTestId("history-event") as HTMLSelectElement).value).toBe("all");
+  expect(screen.queryByRole("option", { name: "Other providers" })).toBeNull();
   await screen.findByText("Nothing has happened yet.");
   expect(fetch.calls("GET", "/activity").every((r) => !r.search.includes("events="))).toBe(true);
 });
