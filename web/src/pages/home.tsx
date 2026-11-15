@@ -201,7 +201,7 @@ export function Home() {
             <>
               <Row id="missing" title="Missing" row={d.data.missing} empty="Nothing released is missing." caption={(t) => t.note}
                 also={perms.manage && (d.data.missing?.total ?? 0) > 0 ? (
-                  <Link to="/wanted" className="text-sm text-[var(--accent-ink)] hover:underline" data-testid="missing-in-wanted" title="Wanted lists one item per film or season in each Live library; Missing here counts titles, Watch-only libraries too">
+                  <Link to="/wanted" className="text-sm text-[var(--accent-ink)] hover:underline" data-testid="missing-in-wanted" title="Wanted lists one item per film or season in each library; Missing here counts titles">
                     In Wanted
                   </Link>
                 ) : undefined} />

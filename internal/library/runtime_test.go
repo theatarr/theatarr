@@ -11,11 +11,10 @@ import (
 
 	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/library/probe"
-	"github.com/theatarr/theatarr/internal/policy"
 )
 
 func TestQualityRuntimePinsImportAndDoesNotRenameLinks(t *testing.T) {
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
 	e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
 	started, release := make(chan struct{}), make(chan struct{})
@@ -87,7 +86,7 @@ func TestQualityRuntimePinsImportAndDoesNotRenameLinks(t *testing.T) {
 
 func TestRuntimeSwitchOffStopsLibraryWrites(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
 	e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
 	before := strings.Join(tree(t, e.dir), "\n")

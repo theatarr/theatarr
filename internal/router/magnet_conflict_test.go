@@ -3,14 +3,13 @@ package router
 import (
 	"github.com/theatarr/theatarr/internal/indexer"
 	"github.com/theatarr/theatarr/internal/jobs"
-	"github.com/theatarr/theatarr/internal/policy"
 	"testing"
 	"time"
 )
 
 func TestEncodedMagnetConflict(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	c := cand(h("a"), "Movie.2024.2160p.BluRay-GRP")
 	c.Release.Magnet = indexer.NewLink("magnet:?xt=urn%3Abtih%3A" + h("b"))
 	res, err := e.r.Route(e.ctx, grabReq(c))
@@ -25,7 +24,7 @@ func TestEncodedMagnetConflict(t *testing.T) {
 func TestEnqueueEncodedConflict(t *testing.T) {
 	t.Parallel()
 	for _, prefer := range []bool{false, true} {
-		e := newEnv(t, true, policy.ModeActive)
+		e := newEnv(t, true)
 		e.pol.Versions["movie"].PreferSeaDex = prefer
 		q := jobs.NewQueue(e.st)
 		e.r.RegisterJobs(jobs.NewWorker(q, jobs.WorkerOptions{}), q)

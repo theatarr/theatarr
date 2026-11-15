@@ -42,7 +42,7 @@ func hangRootRead[F any](t *testing.T, hook *F, wrap func(orig F, block func(p s
 // and the dangling summary skip the root ("unreachable") after one bounded wait, and at once while that read is
 // stuck, instead of walking it unbounded; nothing is recorded for it.
 func TestScanHungListingAfterPreflight(t *testing.T) {
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
 	e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
 	plan, err := e.lib.Import(e.ctx, 1, false)
@@ -90,7 +90,7 @@ func TestScanHungListingAfterPreflight(t *testing.T) {
 // ReconcileLinks' lstat of a link hangs after the root answered its checks: the root is skipped
 // ("unreachable") after one bounded wait, and at once while the call is stuck, with nothing recorded.
 func TestReconcileHungLstatAfterPreflight(t *testing.T) {
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
 	e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
 	plan, err := e.lib.Import(e.ctx, 1, false)
@@ -120,7 +120,7 @@ func TestReconcileHungLstatAfterPreflight(t *testing.T) {
 // sibling directory) is not the root's, even when it is missing.
 func TestReconcileRootPrefixIsADirectory(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
 	e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
 	if _, err := e.lib.Import(e.ctx, 1, false); err != nil {
@@ -202,7 +202,7 @@ func TestWalkLinksStrictAndBounded(t *testing.T) {
 // The trash purge's walk of an orphan day folder is bounded: a folder that hangs after the gate's
 // check stops the purge (ErrRootDown, retried) after one bounded wait, with nothing purged.
 func TestPurgeTrashHungListing(t *testing.T) {
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.lib.set.TrashKeepDays = 7
 	day := filepath.Join(e.trash, "movie-remux", "2026-10-01")
 	orphan := filepath.Join(day, "Movie (2001)", "orphan.mkv")

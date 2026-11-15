@@ -1,7 +1,7 @@
 # The download router (`internal/router`, `internal/provider/adder`)
 
 The router takes the decisions for a version and adds the chosen release to a debrid provider or a download client.
-Where it sits in the pipeline: [overview.md](overview.md). Live and Watch-only libraries: [overview.md](overview.md).
+Where it sits in the pipeline: [overview.md](overview.md).
 Code: `internal/router`, `internal/provider/adder`, migration
 `00014_router.sql`, the policy's `router` section, `internal/arrview/queue.go`, `cmd/theatarr/router.go`, a few lines in
 `cmd/theatarr/serve.go`, acquisition fanout in migration `00033_acquire_fanout.sql`, and the upgrade rule
@@ -11,21 +11,18 @@ The provider tests run on fixtures written from the providers' API docs and decy
 
 ## The gate
 
-The router writes to a provider (adds a magnet, selects Real-Debrid files) only when **both** hold:
-
-1. `router.enabled: true`. With DB settings it is derived from **Pause** (true when Pause is off; Admin header,
-   `PUT /settings/switches {paused}`); without the section it is off. The other `router` options are a settings
-   section that applies on save (the poll loop restarts on a changed interval).
-2. The version's `mode` is `active` (Live). A Watch-only version (`mode: shadow`) gets dry runs only. There is no
-   per-library downloads switch (the former `grab` field went in migration 00122: a Live library without it became
-   Watch only). The automatic searches (the search schedule, re-searches) run only for the Live versions while Pause is off
-   (`Policy.SearchVersions`). User-invoked searches (interactive, arr commands) still run and their routes are dry
-   runs while the gate is closed. `theatarr router status` shows Pause and each library's state and whether it
-   downloads.
+The router writes to a provider (adds a magnet, selects Real-Debrid files) only when `router.enabled: true` and the
+version is in the policy. With DB settings `router.enabled` is derived from **Pause** (true when Pause is off; Admin
+header, `PUT /settings/switches {paused}`); without the section it is off. The other `router` options are a settings
+section that applies on save (the poll loop restarts on a changed interval). There is no per-library switch: Watch
+only (`mode: shadow`) was removed in migration 00137, which made every stored library Live (a former Watch-only one
+with its titles unmonitored and Pause on). The automatic searches (the search schedule, re-searches) run only while
+Pause is off (`Policy.SearchVersions`). User-invoked searches (interactive, arr commands) still run and their routes are dry
+   runs while the gate is closed. `theatarr router status` shows Pause and whether each library downloads.
 
 `Router.Gate` is that rule (`Policy.Grabs`), and every write passes it last: the add in `Route`, and the file
 selection in `Poll`. A router of an older settings generation also asks the published runtime's gate
-(`SetCurrentRuntime`), so turning Pause on (or a library to Watch only) stops a route already running at its
+(`SetCurrentRuntime`), so turning Pause on stops a route already running at its
 next write: the download it holds ends (`route stopped: ...`) and nothing is added (`TestPauseStopsRunningRoute`).
 Preparing and publishing that generation never waits for the running route: `New` copies the previous generation's
 account-change grace, and `SetMountCheck` / `PublishProviderChanges` set theirs, under each router's own small lock,
@@ -34,10 +31,9 @@ once, and the route's next add is refused (`TestPausePublishedDuringRunningRoute
 
 When the gate refuses, `Route` runs the same decisions as a **dry run**:
 - it sends nothing to any provider and makes no cache check;
-- it records what it would have done in `router_plan`: mode `shadow` or `disabled`, the release, the provider, and
-  every step with its reason, for the journal (`plan` entries);
-- a queued download it resumes ends (`failed`, `route ended: ...`), as a switch to shadow ends it through the
-  freshness check. It is not resumed every 10 minutes while Pause is on and then
+- it returns what it would have done (the release, the provider and every step with its reason) and records nothing
+  (the dry-run plans of `router_plan` went with Watch only, migration 00137);
+- a queued download it resumes ends (`failed`, `route ended: ...`). It is not resumed every 10 minutes while Pause is on and then
   grabbed whenever they come back on; the next search grabs the title then (`TestGrabOffQueuedDownloadIsEnded`).
   When no add was ever sent for it to a provider or client (no such `download_attempt`), Activity shows it as Not
   started (`activity.NotStarted`) and it does not fail a request; one tried before (a refused add waiting for its
@@ -47,20 +43,17 @@ When the gate refuses, `Route` runs the same decisions as a **dry run**:
 
 `theatarr serve` logs the gate at start, at WARN:
 - `ROUTER DISABLED: router.enabled is false; ...`;
-- `ROUTER ENABLED but no version is active`;
+- `ROUTER ENABLED but no library is set up`;
 - `ROUTER ENABLED: adds go to debrid providers for the active versions` with their names.
 
 **Proof (tests, `go test ./internal/router`).** The fake adders log every call, and they are the only writer the
 router has.
-- `TestShadowVersionNeverWrites`: switch on, version in shadow. Zero adds, no download rows, one `router_plan` row,
-  and the poller doesn't select files for a shadow download.
-- `TestKillSwitchBlocksWrites`: section missing, then `enabled: false`, version active. Zero adds and zero
-  selections, and `disabled` plans are recorded. `Plan` never writes, even when the gate would allow it.
-- `TestDeferredRouteReEnqueues`: a shadow version's `router.route` job records a plan and enqueues nothing.
+- `TestKillSwitchBlocksWrites`: section missing, then `enabled: false`. Zero adds and zero selections. `Plan` never
+  writes, even when the gate would allow it.
 - `TestPrivateLabelFollowsIndexerProviders`: privacy is a label: a private-labelled release of an indexer
   the version lists is routed like any other, only to the providers its indexer allows (`indexers.<key>.providers`).
 - `web.TestPauseClosesBothGates`: with Pause on, `Router.Gate`, the library gate and `catalog.Searchable` all refuse
-  a Live library; with it off all three let it through.
+  a library; with it off all three let it through.
 
 **Before a route opens a download**: a candidate every usable provider would skip anyway (a recorded
 cache miss, uncached under `cached_only`, or a release Real-Debrid refuses) is skipped with step `known_miss` and
@@ -231,7 +224,7 @@ set is disjoint from releases placed or deferred in this batch or already in fli
 all its mapped episodes. A release that misses everywhere reserves nothing, so its overlapping alternatives remain
 eligible. Movies still stop after one placement.
 
-Season targets still make one search, including when only some wanted episodes are in flight. Dry-run plans record
+Season targets still make one search, including when only some wanted episodes are in flight. A dry run lists
 every placement in their steps and simulate pacing between adds without writing it. A deferred batch retries from
 its first deferred release, retaining the later alternatives and resuming queued rows without duplicating successful
 placements. For each release:
@@ -357,8 +350,7 @@ debrid key to a third party (keys leaked through a third-party proxy before), so
   equal quality and format score ("Cache tie-break"): it never skips an add or a check and never puts a release
   ahead of a better quality or format score. It is never asked on the add or poll path. `theatarr router dry-run` applies the cross-feed part
   only and makes no check (it sends nothing to a provider). The check is a search-side read, not the router's: it
-  runs in `SearchRequest` whatever the version's mode (the views' interactive search serves shadow versions too) and
-  whatever `router.enabled` says; `torbox_check.enabled: false` turns it off. The router's dry run still makes no
+  runs in `SearchRequest` whatever `router.enabled` says; `torbox_check.enabled: false` turns it off. The router's dry run still makes no
   cache check of its own.
 - **Release fields.** `indexer.Release.CachedOn` (`["rd","ad","tb"]` order) and `CachedVia` (code → `dmm-ad`,
   `feed:dmm-ad`, `feed:dmm/availability`, `check:torbox`); JSON `cached_on`, `cached_via` in `theatarr search -json`. `Release.CachedList` merges
@@ -486,7 +478,7 @@ the note.
 
 **Unfinished checks** (`internal/router/cachedcheck.go`, migration
 00104). When the reads give no verdict, or the verdict is uncached on an add of Theatarr's own but the delete is blocked by the
-stop switch (Pause on, or the version Watch only), the route's lost job lease, or a failed delete, the add
+stop switch (Pause on), the route's lost job lease, or a failed delete, the add
 stays and the check stays open on the download: `download.cached_check` `pending` (no verdict) or `uncached` (the
 delete is owed). Kept for ownership reasons (not provably Theatarr's, the adder cannot delete, AllDebrid with
 `alldebrid_delete_uncached` off) sets nothing, as before. The marker counts only while the download is `added` or
@@ -577,7 +569,7 @@ kept in a per-adder ledger), once, within two minutes, and only with the router'
 NewEntry}`). Anything else is `ErrNotOwnAdd` before a request. Requests: RD `DELETE /torrents/delete/{id}` (204), AD
 `POST /v4/magnet/delete` `id=` (the docs' path; v4.1 changed only upload and status). TorBox has no delete: `add_only_if_cached` refuses before anything exists.
 
-**Dry run.** The plan's `would_add` message says what cached-only would do: "deleted (uncached_deleted) and the next
+**Dry run.** The dry run's `would_add` message says what cached-only would do: "deleted (uncached_deleted) and the next
 provider tried" (AD with the switch on: unless the list shows the hash or the id), "stays on AllDebrid
 (uncached_kept …) and the next provider is tried" (AD with the switch off), or "stays (uncached_kept_shared …)" when
 the registry (or, on AllDebrid, Theatarr's downloads) place the hash on the account. A dry run reads no list.
@@ -591,9 +583,9 @@ deleted; every provider misses), `TestCachedOnlyNeverDeletesExistingADMagnet` (l
 returns an id the list had: kept; list unreadable: kept, even with the opt-in on),
 `TestAllDebridUncachedDeleteOptIn` (on/off and list proof with in-memory providers),
 `TestAllDebridUncachedDeleteUnprovable` (registry hash or id, download id, delete failure: kept), `TestCachedOnlyNeverDeletesKnownHash` (registry: kept; an old
-Theatarr download that failed: on RD the new add is deleted and the old torrent untouched, on AD kept), `TestCachedOnlyOffUnchanged`, `TestCachedOnlyGate` (shadow and kill switch: no request at all, the poller
+Theatarr download that failed: on RD the new add is deleted and the old torrent untouched, on AD kept), `TestCachedOnlyOffUnchanged`, `TestCachedOnlyGate` (kill switch: no request at all, the poller
 deletes nothing), `TestAllDebridUncachedKeptOncePerRoute`, `TestUncachedCapOnRealDebridAndAllDebrid`, `TestDeleteNeedsTheAddersOwnAdd`, `TestDeleteOwnUncachedAdd`, `TestAllDebridOwnUncachedDelete` (in-memory gateway), `TestNoDeletes`. The gate tests
-(`TestShadowVersionNeverWrites`, `TestKillSwitchBlocksWrites`) count deletes as writes.
+(`TestKillSwitchBlocksWrites`) count deletes as writes.
 
 ## Stalled downloads (`router.stalled_after`)
 
@@ -702,10 +694,10 @@ searched again, default 24 h), and the two backlog switches, `missing` ("Search 
 separate retry switch and no on/off switch for the whole schedule: Pause stops it.
 
 **Rounds.** `Round` starts what is due. A full round runs every 15 minutes (job `acquire.wanted`, worker `wanted`
-while a library is Live and Pause is off; the first 5 minutes after start, or at once when Pause is turned off).
+while a library is set up and Pause is off; the first 5 minutes after start, or at once when Pause is turned off).
 Search now and a failure run a round of their own titles only. A round:
 
-- does nothing while Pause is on or no library is Live;
+- does nothing while Pause is on or no library is set up;
 - (full round) marks a series wanted when a monitored missing episode passes its stored air time;
 - takes the due rows whose item still has something to search: a row with a `why` whatever the switches say, a
   regular row only while its switch is on. A due row with nothing left to search, or a regular row whose switch is
@@ -823,7 +815,7 @@ stalled-torrent cleanup.
 The router enqueues job `acquire.research` (`router.ResearchRequest`: title, version, the failed download's
 episodes, reason) only when its gate allows writes for the version (so not while paused). The acquirer (`Research`):
 
-- skips a version that is not Live;
+- skips a version that is not in the settings;
 - finds the item's rows: a movie's (missing while the movie is wanted, else cutoff), or for a series one per season
   of the failed episodes (missing when one of them is wanted). The search covers that season's whole missing (or
   cutoff) set, not only the failed episodes;
@@ -848,7 +840,7 @@ When relink marks an active version's link dead (`docs/design/library.md` "Relin
 30 min apart, the mount healthy, not within zurg's repair grace, and no provider folder holds the hash, since relink
 repoints by hash to any provider first), the library queues one `acquire.research` job (reason `dead_link`) in the
 dead mark's transaction for each of the link's versions the library gate lets write (a version the link shares that
-is shadow or not listed gets none): the movie, or the dead link's own episodes. The acquirer makes the item's row due
+is not listed gets none): the movie, or the dead link's own episodes. The acquirer makes the item's row due
 as above, without the `again_after` skip, and only while the library still writes for the version.
 
 It stays one search: the run and its route carry the reason (`acquire_run.research`, read by the router through the
@@ -857,7 +849,7 @@ route's `acquire:<run>` source). A route of it adds only while its target is sti
 runs, the route is cancelled (`not_wanted`), even for a release that would upgrade the new file. A route of it that
 misses everywhere queues no `exhausted` re-search. If it finds nothing, the item stays wanted for its next search,
 RSS and hand searches. The dead release is not blocklisted: found cached again, re-adding it is the repair; uncached,
-the cached-only check rejects it. Gated versions (shadow, library disabled) only record the dead mark as a dry run
+the cached-only check rejects it. Gated versions (library disabled) only record the dead mark as a dry run
 and queue nothing. The dead mark waits only through zurg's existing repair grace; a repair zurg still reports after
 the grace does not hold the search back. Tests: `TestRelinkDeadQueuesOneSearch`,
 `TestRelinkDeadSeriesQueuesItsEpisodes`, `TestRelinkDeadSharedLinkQueuesActiveVersionOnly`,
@@ -985,7 +977,7 @@ come in an error envelope on HTTP 200 and are read as a 5xx (`provider.ErrUnavai
 (`failure.go`).
 
 **Selection behind the write gate**. A non-reused Real-Debrid add that waits for its file selection
-while the router may not write for its version (Pause on, or the version Watch only) cannot be
+while the router may not write for its version (Pause on) cannot be
 selected; the wait is the gate's, not the torrent's. This is the only pause of the stall clock, since it is Theatarr's own
 switch: the read clears the failed reads in a row and starts `download.poll_outage_since` (migration 00086; the
 column now records only this pause) until a read that is not gated; then the selection goes out and the gated time
@@ -1199,7 +1191,7 @@ migration restores them.
   `name`; `TestRouteAddsAndPolls`), `episodes` (JSON episode ids for series);
 - `ready_at`, `imported_at`.
 
-Also new: `router_pacing` and `router_plan`. `provider_cache` (00001) holds the `miss` and `uncached` rows with
+Also new: `router_pacing` and `router_plan` (the dry-run plans; dropped in 00137). `provider_cache` (00001) holds the `miss` and `uncached` rows with
 `source` `router:*`, and (cache evidence) `cached` rows from `feed:<indexer>` and `cached`/`uncached` rows from
 `check:torbox`, and `cached` rows from a router add the provider had at once (`add:<provider>`). Its CHECK already
 allowed `cached`, so no migration. Migration 00022 adds `download.own_add`, `router_blocklist.researched_at` and
@@ -1502,7 +1494,7 @@ serving the version wins over its imported arr setting; without one, the default
   the title-target groups searched longest ago first.
 
 **What the search schedule searches.** When it searches is "The search schedule" above; this is what it takes. With
-no `router.wanted` keys it searches the whole backlog at `per_hour` from the first Live start; `missing: false` and
+no `router.wanted` keys it searches the whole backlog at `per_hour` from the first start with Pause off; `missing: false` and
 `cutoff_unmet: off` leave the backlog to RSS, searches on add, searches by hand and the re-searches after a failure.
 The schedule paces by `per_hour` and the router by provider pacing only; there is no separate per-season bulk pacing.
 - It takes the active versions' missing (`wanted`) and cutoff-unmet (`filled`) movies and episodes; cutoff-unmet
@@ -1541,8 +1533,7 @@ The schedule paces by `per_hour` and the router by provider pacing only; there i
   `score`, the schedule would search every title with a file again every `again_after`. The arrs never search those.
 - At most `per_hour` shared searches start in any hour, counted from root `acquire_run` rows of source `wanted`;
   child version rows do not spend another search, and gated runs (Pause) spend none.
-- It does nothing while Pause is on (`router.enabled` false), and searches only Live versions
-  (`Policy.SearchVersions`). Test: `catalog.TestSearchable`.
+- It does nothing while Pause is on (`router.enabled` false) (`Policy.SearchVersions`). Test: `catalog.TestSearchable`.
 
 **Command status.** A command's status follows its runs (`acquire.LoadCommandStatus`), the route job, and what the
 router did with the run's source:
@@ -1551,7 +1542,7 @@ router did with the run's source:
 |---|---|
 | All waiting | `queued` |
 | Any searching, routing, or its download `queued` for a provider | `started` |
-| All ended | `completed`, with "added X on P", "no accepted release", "a download is in flight", or "dry run (disabled): would add X on P" while the kill switch is off |
+| All ended | `completed`, with "added X on P", "no accepted release", "a download is in flight", or "nothing placed" while the kill switch is off |
 | All failed | `failed` |
 
 **Imported-release offers.** `router.offer` offers an imported movie or series release to the title's other versions
@@ -1580,7 +1571,7 @@ none keeps the offer `declined` `unknown_indexer`. That decline (and an old `pri
 the next offer or sweep once the source's indexer resolves, and the target's own rules decide (`IndexerNotInVersion`
 when the version does not list it). Other declines stay remembered.
 
-An accepted offer to a target the router gate refuses (`router.enabled` off, or the target in shadow) is recorded
+An accepted offer to a target the router gate refuses (`router.enabled` off) is recorded
 `planned` (its route is a dry-run plan), not `routed`. A `planned` offer is offered again, and routed, by the
 next offer or six-hour sweep once the gate is open for the target; while it stays shut nothing is decided or queued
 again. After the flip the planned offers are paced: one offer pass routes at most
@@ -1593,8 +1584,7 @@ router was off) into `planned`. Tests: `TestOfferArrIndexerMatchedByName`, `poli
 it gets the offer at the next sweep); a remembered pending, given-up or planned offer is declined `removed`, and
 decided again once the library has the title again (`TestOfferSkipsRemovedLibrary`).
 
-**Active RSS.** RSS reads the feeds of shadow and active versions. Accepted items of an active version are not
-shadow picks:
+**RSS routes.** Accepted RSS items of a version:
 - they are collected per title and version;
 - each group becomes one `router.route` job, `Source` `rss`, unless a download is in flight for it. The job's dedupe
   key is a hash of the whole request (target, version, candidates with their episodes, policy revision), so a second
@@ -1607,17 +1597,12 @@ shadow picks:
   (`TestRSSSeenPerPolicyRevision`).
 
 **Proof (tests).** The fake adders (`internal/router/routertest`) log every call.
-- `TestActiveRSSRoutes` (`internal/acquire/rss`): movie-web active, movie-remux shadow. The active picks are added,
-  and there are no downloads for the shadow version.
-- `TestSearchCommandsShadowNeverWrite` (arrview): every search command and the add option on shadow views. No search,
-  no run, zero writes.
-- `TestSearchCommandActiveVersion` (arrview): searches and adds for the active versions only, and the command status
+- `TestActiveRSSRoutes` (`internal/acquire/rss`): the picks of the libraries RSS reads for are added.
+- `TestSearchCommandActiveVersion` (arrview): searches and adds for the view's libraries, and the command status
   follows them.
-- `TestShadowVersionsNeverSearchedOrWritten` (acquire): Submit, a stale run for a now-shadow version, and the search
-  schedule.
 - `TestCommandFanoutSearchesTitleOnceAndRecordsServedVersions` (acquire) and `TestSearchRequestsSharesQueriesAcrossVersions`
   (router): a shared query records both version targets and runs the upstream request once.
-- `TestKillSwitchDryRun` (acquire): an active version with the switch off. A dry-run plan and zero writes, and the
+- `TestKillSwitchDryRun` (acquire): a version with the switch off. A dry run, nothing placed and zero writes, and the
   schedule searches nothing.
 
 ## Decision formats and the blocklist (00016)
@@ -1672,7 +1657,7 @@ own debrid account, so `router.cached_only`, the providers' pacing and `stalled_
 - **Before the add.** Releases from an indexer with a `providers` allowlist are skipped (`indexer_providers`): the
   allowlist names debrid accounts, and the client chooses its own. A `client:<key>` miss in `provider_cache` within
   `miss_ttl` skips the release (`known_miss`). A version whose client is not built (another kind, bad URL) gets
-  `no_client`. A dry run (`theatarr router dry-run`, the shadow plans) reports `would_add` with the client and makes
+  `no_client`. A dry run (`theatarr router dry-run`, a route while Pause is on) reports `would_add` with the client and makes
   no call.
 - **The add.** One `torrents/info?hashes=<hash>` read first, with no category filter: a hash the client already
   holds, under any category (an arr's from before the handover), is adopted as it is (`client_adopted`,
@@ -1717,8 +1702,8 @@ own debrid account, so `router.cached_only`, the providers' pacing and `stalled_
 ## Turning the router on
 
   1. Run `theatarr router dry-run` for a few titles.
-  2. Check `theatarr router status`, and the router plans in **System › Decision journal** (`plan` entries).
-  3. Set one library Live and turn **Pause** off. The search schedule then starts at its default pace (10 searches
+  2. Check `theatarr router status`.
+  3. Turn **Pause** off. The search schedule then starts at its default pace (10 searches
      an hour).
   4. Watch the log line and the first adds.
 

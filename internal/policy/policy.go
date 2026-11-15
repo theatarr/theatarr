@@ -107,15 +107,6 @@ const (
 	KindSeries Kind = "series"
 )
 
-// Mode is a version's state (docs/design/overview.md): shadow is Watch only (nothing is searched, downloaded or
-// linked), active is Live.
-type Mode string
-
-const (
-	ModeShadow Mode = "shadow"
-	ModeActive Mode = "active"
-)
-
 // Storage is where a version's files live.
 type Storage string
 
@@ -137,8 +128,6 @@ type VersionPolicy struct {
 	// minimum availability compares against, negative for earlier. Announced movies and movies without a date are
 	// not affected. Movie libraries only.
 	AvailabilityDelay int `yaml:"availability_delay,omitempty" json:",omitempty"`
-	// Mode is shadow (the default) or active.
-	Mode Mode `yaml:"mode"`
 	// Kind is movie or series.
 	Kind Kind `yaml:"kind"`
 	// Anime limits the version to anime (true) or non-anime (false) titles. Unset means both.
@@ -821,7 +810,7 @@ func RevisionOf(dir string) (string, error) {
 }
 
 func decodeBytes(b []byte, out *Policy) error {
-	b = dropLegacyCeiling(b)
+	b = dropLegacyVersionKeys(b)
 	dec := yaml.NewDecoder(bytes.NewReader(b))
 	dec.KnownFields(true)
 	if err := dec.Decode(out); err != nil {
@@ -837,9 +826,13 @@ func decodeBytes(b []byte, out *Policy) error {
 	return nil
 }
 
-// dropLegacyCeiling removes the source-ceiling key of each version (versions.<key>.ceiling), removed in 0.4.5, so an
-// older file still reads; b is returned unchanged when it has none.
-func dropLegacyCeiling(b []byte) []byte {
+// legacyVersionKeys are version keys removed in 0.4.5: the source ceiling (versions.<key>.ceiling) and the Watch
+// only / Live mode (versions.<key>.mode; every library is Live, migration 00137).
+var legacyVersionKeys = map[string]bool{"ceiling": true, "mode": true}
+
+// dropLegacyVersionKeys removes legacyVersionKeys from each version, so an older file still reads; b is returned
+// unchanged when it has none.
+func dropLegacyVersionKeys(b []byte) []byte {
 	var doc yaml.Node
 	if yaml.Unmarshal(b, &doc) != nil || len(doc.Content) != 1 || doc.Content[0].Kind != yaml.MappingNode {
 		return b
@@ -853,12 +846,13 @@ func dropLegacyCeiling(b []byte) []byte {
 		vs := top[i+1].Content
 		for j := 1; j < len(vs); j += 2 {
 			v := vs[j]
-			for k := 0; v.Kind == yaml.MappingNode && k+1 < len(v.Content); k += 2 {
-				if v.Content[k].Value == "ceiling" {
+			for k := 0; v.Kind == yaml.MappingNode && k+1 < len(v.Content); {
+				if legacyVersionKeys[v.Content[k].Value] {
 					v.Content = append(v.Content[:k], v.Content[k+2:]...)
 					dropped = true
-					break
+					continue
 				}
+				k += 2
 			}
 		}
 	}

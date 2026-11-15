@@ -37,7 +37,7 @@ func providersTried(res *Result) []string {
 // still tried, as before; known-uncached and miss rules still skip.
 func TestRouterOrdersProvidersByCacheEvidence(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 
 	// Evidence on the release (a DMM AllDebrid feed in the same search): AllDebrid first, Real-Debrid untouched.
 	c := cand(h("a"), "Movie.2023.2160p.web-dl")
@@ -121,7 +121,7 @@ func TestRouterOrdersProvidersByCacheEvidence(t *testing.T) {
 // ordering step out.
 func TestCacheEvidenceNeverSkipsUnknownProviders(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, false, policy.ModeActive)
+	e := newEnv(t, false)
 	for _, a := range e.ad {
 		a.add = refuse(adder.CodeBlocked)
 	}
@@ -139,7 +139,7 @@ func TestCacheEvidenceNeverSkipsUnknownProviders(t *testing.T) {
 		t.Errorf("would-add message %q", res.Steps[len(res.Steps)-1].Message)
 	}
 
-	e = newEnv(t, true, policy.ModeActive)
+	e = newEnv(t, true)
 	for _, a := range e.ad {
 		a.add = refuse(adder.CodeBlocked)
 	}
@@ -160,7 +160,7 @@ func TestCacheEvidenceNeverSkipsUnknownProviders(t *testing.T) {
 // the hash (the arr views' cachedOn and the candidates).
 func TestCheckTopFillsDecisions(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, false, policy.ModeShadow)
+	e := newEnv(t, false)
 	e.pr["tb"].cache = map[string]bool{h("1"): true}
 	svc, err := indexer.New(&policy.Policy{}, nil, indexer.Options{})
 	if err != nil {

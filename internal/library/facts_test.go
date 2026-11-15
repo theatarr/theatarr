@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/theatarr/theatarr/internal/decide"
-	"github.com/theatarr/theatarr/internal/policy"
 )
 
 // A pack's file is named, stored and judged as what it is. A "2160p REMUX" pack holding a 1080p WEB-DL
@@ -15,7 +14,7 @@ import (
 // remux cutoff.
 func TestPackFileIsWhatItIs(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	pack := "Show.S01.2160p.BluRay.REMUX-PACK"
 	e.release(pack, map[string]float64{"Show.S01E01.1080p.WEB-DL-FILE.mkv": 2700,
 		"Show.S01E02.2160p.BluRay.REMUX-PACK.mkv": 2700})
@@ -58,7 +57,7 @@ func TestPackFileIsWhatItIs(t *testing.T) {
 // 2160p episode file.
 func TestUpgradeCheckJudgesTheFile(t *testing.T) {
 	t.Parallel()
-	e := importUpEnv(t, policy.ModeActive, "")
+	e := importUpEnv(t, "")
 	held := e.heldLink(1, "WEBDL-2160p", "Show.S01E01.2160p.WEB-DL.H.265-OLD", 201)
 	pack := "Show.S01.2160p.BluRay.REMUX-PACK"
 	e.release(pack, map[string]float64{"Show.S01E01.1080p.WEB-DL-FILE.mkv": 2700, "Show.S01E02.2160p.BluRay.REMUX-PACK.mkv": 2700})
@@ -82,7 +81,7 @@ func TestUpgradeCheckJudgesTheFile(t *testing.T) {
 // {Release Hash} is the file's own hash (Sonarr's AggregateReleaseHash).
 func TestReleaseHashToken(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.pol.Versions["tv"].Naming.Anime = "{Series Title} - S{season:00}E{episode:00} [{Release Hash}]"
 	e.exec(`UPDATE title SET series_type = 'anime' WHERE id = 2`)
 	e.exec(`INSERT INTO episode_number (episode_id, title_id, scheme, number, source) VALUES
@@ -105,7 +104,7 @@ func TestReleaseHashToken(t *testing.T) {
 // Movies: the picked file's own quality (Radarr's MovieImport aggregation).
 func TestMovieFileIsWhatItIs(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	rel := "Amelie.2001.1080p.WEB-DL.DDP5.1.H.264-GRP"
 	e.release(rel, map[string]float64{"Amelie.2001.720p.WEB-DL.H.264-FILE.mkv": 7000})
 	e.videoSize(rel, 1280, 720)

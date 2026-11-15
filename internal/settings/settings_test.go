@@ -835,8 +835,8 @@ func TestRuntimeReloadPreservesYAMLSafetySwitches(t *testing.T) {
 	}
 	after := runtime.Current().Policy
 	if !reflect.DeepEqual(before.Router, after.Router) || !reflect.DeepEqual(before.Library, after.Library) ||
-		!reflect.DeepEqual(before.Notify, after.Notify) || !sameModes(before.Versions, after.Versions) {
-		t.Fatal("reload changed a YAML-owned safety switch or version mode")
+		!reflect.DeepEqual(before.Notify, after.Notify) || !sameVersionKeys(before.Versions, after.Versions) {
+		t.Fatal("reload changed a YAML-owned safety switch or the versions")
 	}
 }
 
@@ -1017,13 +1017,12 @@ func TestRuntimeAfterPublishRunsAfterAtomicPublication(t *testing.T) {
 	}
 }
 
-func sameModes(a, b map[string]*policy.VersionPolicy) bool {
+func sameVersionKeys(a, b map[string]*policy.VersionPolicy) bool {
 	if len(a) != len(b) {
 		return false
 	}
-	for key, version := range a {
-		other := b[key]
-		if other == nil || version.Mode != other.Mode {
+	for key := range a {
+		if b[key] == nil {
 			return false
 		}
 	}

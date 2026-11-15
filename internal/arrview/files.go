@@ -359,7 +359,7 @@ func (s *Service) episodeFiles(w http.ResponseWriter, r *request) {
 
 // DELETE moviefile/{id}, episodefile/{id} and their bulk forms (body movieFileIds / episodeFileIds): the file leaves
 // the view's version, as unlinking only (docs/design/arrview.md): the library link is moved to the trash through the library's
-// gate, and what it points at is never touched. While the gate refuses (library disabled, version in shadow), nothing
+// gate, and what it points at is never touched. While the gate refuses (library disabled), nothing
 // changes and the answer is 409 with the reason, so a client does not go on as if the file were gone. Applied, our
 // records follow: the link row is unlinked, and the version or its episodes are wanted
 // again only when no other file remains. 200 with no body ({} for bulk).

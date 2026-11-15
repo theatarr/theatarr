@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/indexer"
-	"github.com/theatarr/theatarr/internal/policy"
 	"strings"
 	"testing"
 )
@@ -14,7 +13,7 @@ func TestImportLegacyRankMustNotReturn(t *testing.T) {
 	t.Parallel()
 	for _, explicit := range []bool{false, true} {
 		t.Run(fmt.Sprint(explicit), func(t *testing.T) {
-			e := newEnv(t, true, policy.ModeActive)
+			e := newEnv(t, true)
 			e.pol.Versions["tv"].PreferSeaDex = true
 			hash := strings.Repeat("a", 40)
 			for _, q := range []string{

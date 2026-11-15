@@ -69,13 +69,8 @@ func TestExampleIsValid(t *testing.T) {
 		t.Fatalf("example policy: %v", err)
 	}
 	for _, k := range []string{"movie-remux", "movie-web", "anime-movie", "tv-2160p", "anime-tv"} {
-		v, ok := p.Versions[k]
-		if !ok {
+		if _, ok := p.Versions[k]; !ok {
 			t.Errorf("version %s missing", k)
-			continue
-		}
-		if v.Mode != ModeShadow {
-			t.Errorf("version %s: mode %q, want the shadow default", k, v.Mode)
 		}
 	}
 	if p.Views["radarr"].Path != "/radarr" || p.Views["sonarr"].Path != "/sonarr" {
@@ -216,11 +211,6 @@ func TestBadPolicies(t *testing.T) {
 			name: "bad privacy",
 			file: "indexers.yaml", old: "privacy: private", new: "privacy: secret",
 			want: []string{`indexers[tracker-example].privacy: must be public, private or semi-private, got "secret"`},
-		},
-		{
-			name: "bad mode",
-			file: "versions.yaml", old: "    mode: shadow\n    kind: series\n    anime: false", new: "    mode: live\n    kind: series\n    anime: false",
-			want: []string{`versions[tv-2160p].mode: must be shadow or active, got "live"`},
 		},
 		{
 			name: "series view with a movie version",

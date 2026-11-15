@@ -9,13 +9,12 @@ import (
 	"time"
 
 	"github.com/theatarr/theatarr/internal/library/probe"
-	"github.com/theatarr/theatarr/internal/policy"
 )
 
 // upgradeEnv is an upgrade: the version's current file is an active link of ours into Old.Release, and download 1
 // brings the new release.
 func upgradeEnv(t *testing.T) (e *env, old, oldTarget string) {
-	e = newEnv(t, true, policy.ModeActive)
+	e = newEnv(t, true)
 	e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
 	e.release("Old.Release", map[string]float64{"old.mkv": 7000})
 	oldTarget = filepath.Join(e.mount, "__all__", "Old.Release", "old.mkv")

@@ -5,7 +5,7 @@
 // approval all call Add, so one set of tests covers every way a title gets into the library.
 //
 // Add writes only to the database, in the caller's transaction. It never searches: a search is the caller's to
-// start after the commit, and only for versions Searchable lets through (mode active and router.enabled true).
+// start after the commit, and only for versions Searchable lets through (router.enabled true).
 package catalog
 
 import (
@@ -501,8 +501,7 @@ type Skip struct {
 }
 
 // Searchable splits version keys into the ones a search may run for and the ones it skips, with the reason: a
-// version is searched only in mode active (Live) while Pause is off. A shadow version is never searched from an add
-// or a click: that would send indexer traffic for a route that can only be a dry run.
+// version is searched only while Pause is off.
 func Searchable(pol *policy.Policy, keys []string) (active []string, skipped []Skip) {
 	on := pol != nil && pol.RouterSettings().Enabled
 	for _, k := range keys {
@@ -513,8 +512,6 @@ func Searchable(pol *policy.Policy, keys []string) (active []string, skipped []S
 		switch {
 		case vp == nil:
 			skipped = append(skipped, Skip{k, "not in the policy"})
-		case vp.Mode != policy.ModeActive:
-			skipped = append(skipped, Skip{k, "Watch only: nothing is searched or downloaded for this library"})
 		case !on:
 			skipped = append(skipped, Skip{k, "Paused: nothing is searched or downloaded"})
 		case !slices.Contains(active, k):

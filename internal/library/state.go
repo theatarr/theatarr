@@ -279,11 +279,11 @@ func (l *Library) storeLinkCutoffs(ctx context.Context, id int64) {
 }
 
 // recomputeVersion is RecomputeLinkStates for one version, and in the same pass its files' below-the-quality-cutoff
-// flags (decide.StoreQualityCutoff; none for a prefer-SeaDex library); true when a state changed. A version that is
-// not mode: active, or no decision engine, is left.
+// flags (decide.StoreQualityCutoff; none for a prefer-SeaDex library); true when a state changed. A version gone from
+// the policy, or no decision engine, is left.
 func (l *Library) recomputeVersion(ctx context.Context, v stateVersion) (bool, error) {
 	vp := l.pol.Versions[v.key]
-	if l.engine == nil || vp == nil || vp.Mode != policy.ModeActive {
+	if l.engine == nil || vp == nil {
 		return false, nil
 	}
 	db := l.st.Reader()

@@ -303,7 +303,7 @@ func TestWantedWorkerFollowsTheRouterSwitch(t *testing.T) {
 	if k := key(rt); k != "" {
 		t.Fatalf("no Live library: key %q", k)
 	}
-	rt.Policy.Versions = map[string]*policy.VersionPolicy{"movie": {Mode: policy.ModeActive}}
+	rt.Policy.Versions = map[string]*policy.VersionPolicy{"movie": {}}
 	if k := key(rt); k != "paused" {
 		t.Fatalf("paused key %q", k)
 	}
@@ -325,7 +325,7 @@ func TestWantedTaskPaused(t *testing.T) {
 	tb := tasks.New(ctx, st, nil)
 	l := serveLoops{tasks: tb, log: slog.New(slog.NewTextHandler(io.Discard, nil))}
 	rt := &serveRuntime{Acquirer: &acquire.Acquirer{}, Policy: &policy.Policy{Router: &policy.Router{},
-		Versions: map[string]*policy.VersionPolicy{"movie": {Mode: policy.ModeActive}}}}
+		Versions: map[string]*policy.VersionPolicy{"movie": {}}}}
 	wctx, cancel := context.WithCancel(ctx)
 	done := make(chan struct{})
 	go func() { l.runWanted(wctx, rt, ""); close(done) }()

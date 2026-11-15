@@ -1040,7 +1040,7 @@
         "name": "wanted",
         "label": "Automatic search",
         "type": "object",
-        "help": "This is the search schedule of the Live libraries' missing and cutoff-unmet titles and episodes.",
+        "help": "This is the search schedule of the libraries' missing and cutoff-unmet titles and episodes.",
         "nullable": true,
         "fields": [
           {
@@ -1143,7 +1143,7 @@
         "default": "15m",
         "label": "RSS feed check interval",
         "type": "duration",
-        "help": "This is how often the RSS feeds of the Live libraries' indexers are read. Default 15 minutes, the arrs' default RSS sync interval; minimum 10 minutes."
+        "help": "This is how often the RSS feeds of the libraries' indexers are read. Default 15 minutes, the arrs' default RSS sync interval; minimum 10 minutes."
       },
       {
         "name": "rss",

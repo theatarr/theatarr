@@ -132,7 +132,6 @@ export function explainReloadError(e: unknown): Explained {
 const LIBRARY_FIELD_WORDS: Record<string, string> = {
   library: "folder",
   profile: "quality profile",
-  mode: "Watch only or Live",
   minimum_availability: "minimum availability",
   indexers: "indexers",
   providers: "providers",

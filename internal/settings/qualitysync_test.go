@@ -171,7 +171,7 @@ func TestQualitySyncAppliesWithoutReview(t *testing.T) {
 	if !added {
 		t.Fatal("format named by its TRaSH id not added")
 	}
-	if applied.ProviderEpoch != saved.ProviderEpoch || !reflect.DeepEqual(applied.Records.Providers, saved.Records.Providers) || !reflect.DeepEqual(applied.Policy.Router, saved.Policy.Router) || !reflect.DeepEqual(applied.Policy.Library, saved.Policy.Library) || !reflect.DeepEqual(applied.Policy.Notify, saved.Policy.Notify) || !sameModes(applied.Policy.Versions, saved.Policy.Versions) {
+	if applied.ProviderEpoch != saved.ProviderEpoch || !reflect.DeepEqual(applied.Records.Providers, saved.Records.Providers) || !reflect.DeepEqual(applied.Policy.Router, saved.Policy.Router) || !reflect.DeepEqual(applied.Policy.Library, saved.Policy.Library) || !reflect.DeepEqual(applied.Policy.Notify, saved.Policy.Notify) || !sameVersionKeys(applied.Policy.Versions, saved.Policy.Versions) {
 		t.Fatal("quality sync touched source records or safety switches")
 	}
 	changes, err := svc.Changes(ctx, 50)
@@ -205,14 +205,11 @@ func TestQualitySyncAppliesWithoutReview(t *testing.T) {
 	}
 }
 
-// A run applies to a profile a Live library uses, a raised score included, with no confirmation.
+// A run applies to a profile a library uses, a raised score included, with no confirmation.
 func TestQualitySyncAppliesToLiveLibrary(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	m, base, live := liveGrabFixture(t)
-	if v := live.Policy.Versions["movie-web"]; v.Mode != policy.ModeActive {
-		t.Fatal("fixture: movie-web is not Live")
-	}
 	profile := live.Policy.Versions["movie-web"].Profile
 	const web01 = "c20f169ef63c5f40c2def54abaf4438e"
 	ours, ok := live.Policy.Profiles[profile].Formats["WEB Tier 01"]
@@ -233,8 +230,8 @@ func TestQualitySyncAppliesToLiveLibrary(t *testing.T) {
 		t.Fatal(err)
 	}
 	head := currentSnap(t, m)
-	if r := lastRunOf(t, svc); r.Outcome != "applied" || head.Policy.Profiles[profile].Formats["WEB Tier 01"] != ours+500 || head.Policy.Versions["movie-web"].Mode != policy.ModeActive {
-		t.Fatalf("run on a Live library's profile: %+v", r)
+	if r := lastRunOf(t, svc); r.Outcome != "applied" || head.Policy.Profiles[profile].Formats["WEB Tier 01"] != ours+500 {
+		t.Fatalf("run on a library's profile: %+v", r)
 	}
 }
 

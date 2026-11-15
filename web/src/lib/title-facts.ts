@@ -62,7 +62,7 @@ export function latestEvent(v: Pick<Version, "history">, now: Date = new Date())
 
 /**
  * The last targeted search by its state: "Never searched"; "Last search Nov 12 failed" (no indexer answered, or the
- * search errored) and "Last search Nov 12 was skipped" (paused, Watch only, a download in flight) say no results; a
+ * search errored) and "Last search Nov 12 was skipped" (paused, a download in flight) say no results; a
  * completed one "Last searched Nov 12: nothing found" or "…: 12 results, none accepted". Without counts (an episode
  * covered by a season's search) only when.
  */

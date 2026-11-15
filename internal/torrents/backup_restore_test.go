@@ -22,10 +22,9 @@ func TestRestoreReaddsPrivateLabelledHashes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	e.exec(`INSERT INTO router_plan (title_id, version_key, mode, outcome, release_title, indexer, info_hash, created_at)
-		VALUES (1, 'v', 'shadow', 'would_add', 'A.2024.1080p', 'priv', ?, 0)`, hA)
 	e.exec(`INSERT INTO download (title_id, version_id, version_key, info_hash, release_title, indexer, state,
-		created_at, updated_at, release_data) VALUES (1, 1, 'v', ?, 'B', 'priv', 'imported', 0, 0, '{"private":true}')`, hB)
+		created_at, updated_at, release_data) VALUES (1, 1, 'v', ?, 'A.2024.1080p', 'priv', 'failed', 0, 0, '{"private":true}'),
+		(1, 1, 'v', ?, 'B', 'priv', 'imported', 0, 0, '{"private":true}')`, hA, hB)
 	plan, err := e.m.PlanRestore(ctx, RestoreRequest{BackupID: b.ID})
 	if err != nil {
 		t.Fatal(err)

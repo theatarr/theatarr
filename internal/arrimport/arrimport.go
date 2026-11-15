@@ -139,7 +139,7 @@ func Validate(d Deps, req Request) (writeBlock string, err error) {
 	}
 	writeBlock = gateBlock(d, req.Library)
 	if writeBlock != "" && !req.DryRun {
-		return writeBlock, &Refusal{Msg: "Import needs a Live library and Pause off: " + writeBlock + "."}
+		return writeBlock, &Refusal{Msg: "Import needs a library and Pause off: " + writeBlock + "."}
 	}
 	// Where Theatarr reads each mapped instance folder; an unmapped folder is checked at its own path after the read.
 	var folders []string
@@ -167,8 +167,6 @@ func gateBlock(d Deps, key string) string {
 		return ""
 	case errors.As(err, &r) && r.Reason == "disabled":
 		return "Theatarr is paused"
-	case errors.As(err, &r) && r.Reason == "shadow":
-		return "it is Watch only"
 	case errors.As(err, &r) && r.Reason == "unlisted":
 		return "it has no write folder"
 	case errors.As(err, &r):

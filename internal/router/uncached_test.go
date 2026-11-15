@@ -303,9 +303,9 @@ func (f *fakeDebrid) requests() int {
 }
 
 // newDebridEnv is newEnv with real RD and AD clients against the fakes. cachedOnly sets router.cached_only.
-func newDebridEnv(t *testing.T, enabled bool, mode policy.Mode, cachedOnly bool) (*env, *fakeDebrid, *int) {
+func newDebridEnv(t *testing.T, enabled bool, cachedOnly bool) (*env, *fakeDebrid, *int) {
 	t.Helper()
-	e := newEnv(t, enabled, mode)
+	e := newEnv(t, enabled)
 	e.pol.Router.CachedOnly = &cachedOnly
 	f := newFakeDebrid(t)
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -362,7 +362,7 @@ func attempts(e *env, dl int64) string {
 // A cached add is accepted, and the provider's instant answer is stored as evidence (add:<provider>).
 func TestCachedOnlyCachedAdd(t *testing.T) {
 	t.Parallel()
-	e, f, sleeps := newDebridEnv(t, true, policy.ModeActive, true)
+	e, f, sleeps := newDebridEnv(t, true, true)
 	f.cached["rd:"+h("a")] = true
 	res, err := e.r.Route(e.ctx, grabReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")))
 	if err != nil {
@@ -401,7 +401,7 @@ func TestCachedOnlyCachedAdd(t *testing.T) {
 // An uncached add of ours is deleted, recorded uncached and counted, and the next provider is tried.
 func TestCachedOnlyUncachedAddDeleted(t *testing.T) {
 	t.Parallel()
-	e, f, sleeps := newDebridEnv(t, true, policy.ModeActive, true)
+	e, f, sleeps := newDebridEnv(t, true, true)
 	f.cached["ad:"+h("a")] = true
 	res, err := e.r.Route(e.ctx, grabReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")))
 	if err != nil {
@@ -505,7 +505,7 @@ func TestCachedOnlyNeverDeletesExistingADMagnet(t *testing.T) {
 	t.Parallel()
 	title := "Movie.2024.2160p.WEB-DL.DDP5.1-GRP" // RD's name rule refuses it: AD is tried first
 	// The fresh list shows the hash: reused, nothing added.
-	e, f, _ := newDebridEnv(t, true, policy.ModeActive, true)
+	e, f, _ := newDebridEnv(t, true, true)
 	e.r.set.AllDebridDeleteUncached = true
 	f.ad[77] = &fakeAD{hash: h("a"), code: 1}
 	res, err := e.r.Route(e.ctx, movieReq(cand(h("a"), title)))
@@ -517,7 +517,7 @@ func TestCachedOnlyNeverDeletesExistingADMagnet(t *testing.T) {
 	}
 
 	// The list does not show hashes (or lags): the upload returns id 77, which the list had. Kept.
-	e, f, _ = newDebridEnv(t, true, policy.ModeActive, true)
+	e, f, _ = newDebridEnv(t, true, true)
 	e.r.set.AllDebridDeleteUncached = true
 	f.ad[77] = &fakeAD{hash: h("a"), code: 1}
 	f.adNoHashInList = true
@@ -541,7 +541,7 @@ func TestCachedOnlyNeverDeletesExistingADMagnet(t *testing.T) {
 	}
 
 	// The list cannot be read: the router cannot prove the magnet is new. Kept.
-	e, f, _ = newDebridEnv(t, true, policy.ModeActive, true)
+	e, f, _ = newDebridEnv(t, true, true)
 	e.r.set.AllDebridDeleteUncached = true
 	f.ad[77] = &fakeAD{hash: h("a"), code: 1}
 	f.adListFails = true
@@ -558,7 +558,7 @@ func TestCachedOnlyNeverDeletesExistingADMagnet(t *testing.T) {
 func TestCachedOnlyNeverDeletesKnownHash(t *testing.T) {
 	t.Parallel()
 	// Registry with a torrent id: reused after one read of it, nothing added.
-	e, f, _ := newDebridEnv(t, true, policy.ModeActive, true)
+	e, f, _ := newDebridEnv(t, true, true)
 	e.exec(`INSERT INTO content (id, info_hash, state, first_seen_at, last_seen_at) VALUES (7, ?, 'present', 0, 0)`, h("a"))
 	e.exec(`INSERT INTO content_provider (content_id, provider, torrent_id, seen_at) VALUES (7, 'rd', 'HELD', 0)`)
 	f.rd["HELD"] = &fakeRD{hash: h("a"), status: "downloaded", selected: true}
@@ -567,7 +567,7 @@ func TestCachedOnlyNeverDeletesKnownHash(t *testing.T) {
 		t.Fatalf("%+v %v, %d requests", res, err, f.requests())
 	}
 	// Registry present without a torrent id: added (uncached), kept.
-	e, f, _ = newDebridEnv(t, true, policy.ModeActive, true)
+	e, f, _ = newDebridEnv(t, true, true)
 	e.exec(`INSERT INTO content (id, info_hash, state, first_seen_at, last_seen_at) VALUES (7, ?, 'present', 0, 0)`, h("a"))
 	e.exec(`INSERT INTO content_provider (content_id, provider, seen_at) VALUES (7, 'rd', 0)`)
 	res, err = e.r.Route(e.ctx, movieReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")))
@@ -584,7 +584,7 @@ func TestCachedOnlyNeverDeletesKnownHash(t *testing.T) {
 	// A failed download of ours left a torrent of this hash on RD (nothing is deleted when a download fails). RD makes
 	// a new torrent for every add: our new add RD1001 is ours, uncached, and
 	// deleted; the old torrent is never touched, and the next provider is tried.
-	e, f, _ = newDebridEnv(t, true, policy.ModeActive, true)
+	e, f, _ = newDebridEnv(t, true, true)
 	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, provider,
 		provider_torrent_id, state, created_at, updated_at) VALUES (5, 2, 20, 'series', ?, 'x', 'pub', 'rd', 'OLD',
 		'failed', 0, 0)`, h("a"))
@@ -602,7 +602,7 @@ func TestCachedOnlyNeverDeletesKnownHash(t *testing.T) {
 	}
 	// On AllDebrid the same old download still makes the hash shared (an upload of a hash already there returns the
 	// existing magnet): kept, nothing deleted, even with deletes on.
-	e, f, _ = newDebridEnv(t, true, policy.ModeActive, true)
+	e, f, _ = newDebridEnv(t, true, true)
 	e.r.set.AllDebridDeleteUncached = true
 	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, provider,
 		provider_torrent_id, state, created_at, updated_at) VALUES (5, 2, 20, 'series', ?, 'x', 'pub', 'ad', 'OLD',
@@ -619,7 +619,7 @@ func TestCachedOnlyNeverDeletesKnownHash(t *testing.T) {
 // cached_only off: nothing changes. The add stays, no list read, no re-read, no delete.
 func TestCachedOnlyOffUnchanged(t *testing.T) {
 	t.Parallel()
-	e, f, sleeps := newDebridEnv(t, true, policy.ModeActive, false)
+	e, f, sleeps := newDebridEnv(t, true, false)
 	e.r.set.AllDebridDeleteUncached = true
 	res, err := e.r.Route(e.ctx, grabReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")))
 	if err != nil || res.Provider != "rd" || res.Outcome != OutcomeAdded {
@@ -642,17 +642,16 @@ func TestCachedOnlyOffUnchanged(t *testing.T) {
 	}
 }
 
-// The gate: a shadow version and the kill switch send nothing to RD or AD (no list read, no add, no delete), and
+// The gate: the kill switch sends nothing to RD or AD (no list read, no add, no delete), and
 // the dry run says what cached-only would do.
 func TestCachedOnlyGate(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		enabled bool
-		mode    policy.Mode
-	}{{true, policy.ModeShadow}, {false, policy.ModeActive}} {
-		e, f, _ := newDebridEnv(t, tc.enabled, tc.mode, true)
+	}{{false}} {
+		e, f, _ := newDebridEnv(t, tc.enabled, true)
 		res, err := e.r.Route(e.ctx, movieReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")))
-		if err != nil || res.Outcome != OutcomeWouldAdd || res.PlanID == 0 {
+		if err != nil || res.Outcome != OutcomeWouldAdd {
 			t.Fatalf("%+v %v", res, err)
 		}
 		if !strings.Contains(res.Steps[0].Message, "cached_only: if it is not ready at once it is deleted") {
@@ -676,7 +675,7 @@ func TestCachedOnlyGate(t *testing.T) {
 	}
 	// The dry run on RD with an old failed download of ours holding the hash: the new add would be ours, deleted when
 	// uncached.
-	e, _, _ := newDebridEnv(t, true, policy.ModeShadow, true)
+	e, _, _ := newDebridEnv(t, true, true)
 	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, provider,
 		provider_torrent_id, state, created_at, updated_at) VALUES (5, 2, 20, 'series', ?, 'x', 'pub', 'rd', 'OLD',
 		'failed', 0, 0)`, h("a"))
@@ -686,7 +685,7 @@ func TestCachedOnlyGate(t *testing.T) {
 		t.Errorf("dry-run message %q, want %q", res.Steps[0].Message, want)
 	}
 	// The dry run names a hash the registry shows on the account (another client's): it would stay.
-	e, _, _ = newDebridEnv(t, true, policy.ModeShadow, true)
+	e, _, _ = newDebridEnv(t, true, true)
 	e.exec(`INSERT INTO content (id, info_hash, state, first_seen_at, last_seen_at) VALUES (7, ?, 'present', 0, 0)`, h("a"))
 	e.exec(`INSERT INTO content_provider (content_id, provider, seen_at) VALUES (7, 'rd', 0)`)
 	res, _ = e.r.Plan(e.ctx, movieReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")))
@@ -698,7 +697,7 @@ func TestCachedOnlyGate(t *testing.T) {
 // The delete is refused by the adder itself when the router's guard is bypassed: only an add of this attempt.
 func TestDeleteNeedsTheAddersOwnAdd(t *testing.T) {
 	t.Parallel()
-	e, f, _ := newDebridEnv(t, true, policy.ModeActive, true)
+	e, f, _ := newDebridEnv(t, true, true)
 	del := e.r.adders["rd"].(adder.Deleter)
 	err := del.DeleteOwnUncachedAdd(e.ctx, &adder.Added{ID: "RDX", Hash: h("a")},
 		adder.OwnAdd{NotOnAccountBefore: true, NewEntry: true})
@@ -729,7 +728,7 @@ func TestAllDebridUncachedDeleteUnprovable(t *testing.T) {
 		{"delete failed", "delete failed", func(_ *env, f *fakeDebrid) { f.adDeleteFails = true }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			e, f, _ := newDebridEnv(t, true, policy.ModeActive, true)
+			e, f, _ := newDebridEnv(t, true, true)
 			e.r.set.AllDebridDeleteUncached = true
 			tc.setup(e, f)
 			res, err := e.r.Route(e.ctx, movieReq(cand(h("a"), "Movie.2024.2160p.WEB-DL.DDP5.1-GRP")))
@@ -768,7 +767,7 @@ func TestAllDebridUncachedDeleteOptIn(t *testing.T) {
 		{name: "id already listed", enabled: true, listedID: true, code: "uncached_kept_shared", provider: "ad"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			e := newEnv(t, true, policy.ModeActive)
+			e := newEnv(t, true)
 			e.pol.Router.AllDebridDeleteUncached = &tc.enabled
 			e.r.set = e.pol.RouterSettings()
 			e.r.sleep = func(context.Context, time.Duration) error { return nil }
@@ -799,7 +798,7 @@ func TestAllDebridUncachedDeleteOptIn(t *testing.T) {
 func TestCachedOnlyRDConvertingUsesTheReads(t *testing.T) {
 	t.Parallel()
 	t.Run("still converting", func(t *testing.T) {
-		e, f, sleeps := newDebridEnv(t, true, policy.ModeActive, true)
+		e, f, sleeps := newDebridEnv(t, true, true)
 		f.rdStuck = true
 		f.cached["ad:"+h("a")] = true
 		res, err := e.r.Route(e.ctx, grabReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")))
@@ -822,7 +821,7 @@ func TestCachedOnlyRDConvertingUsesTheReads(t *testing.T) {
 		}
 	})
 	t.Run("converts by the third read", func(t *testing.T) {
-		e, f, sleeps := newDebridEnv(t, true, policy.ModeActive, true)
+		e, f, sleeps := newDebridEnv(t, true, true)
 		f.rdConvertReads = 2
 		f.cached["rd:"+h("a")] = true
 		res, err := e.r.Route(e.ctx, grabReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")))
@@ -843,7 +842,7 @@ func TestCachedOnlyRDConvertingUsesTheReads(t *testing.T) {
 	// Conversion ends exactly at the last read: the selection is still followed by a read after its grace.
 	for _, cached := range []bool{true, false} {
 		t.Run(fmt.Sprintf("selected on the last read, cached %v", cached), func(t *testing.T) {
-			e, f, sleeps := newDebridEnv(t, true, policy.ModeActive, true)
+			e, f, sleeps := newDebridEnv(t, true, true)
 			f.rdConvertReads = 3
 			f.cached["rd:"+h("a")] = cached
 			f.cached["ad:"+h("a")] = true

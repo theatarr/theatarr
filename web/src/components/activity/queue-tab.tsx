@@ -333,7 +333,7 @@ function OpenPanel({ d }: { d: ActivityDownload }) {
   const manage = usePerms().manage;
   const failed = failedRow(d);
   // Interactive search for the failed download's own library only: when that library does not search the indexers
-  // now (Watch only, removed), no search of another library is offered and the sentence does not mention one.
+  // now (removed), no search of another library is offered and the sentence does not mention one.
   const live = useLiveLibraries(d.title.id, failed && manage && !!d.title.id);
   const search = manage && !!d.title.id && !live.pending && live.libs.some((v) => v.key === d.version);
   const lead = failedLead(d, search);

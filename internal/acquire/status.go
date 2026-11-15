@@ -3,7 +3,6 @@ package acquire
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -126,7 +125,7 @@ func LoadCommandStatus(ctx context.Context, db *sql.DB, commandID int64) (*Comma
 }
 
 // routeStatus is a routed run's status from its route job and what the router did with the run's request: the
-// download it opened (active), or the plan it recorded (a dry run while the kill switch is off).
+// download it opened, if any.
 func routeStatus(ctx context.Context, db *sql.DB, runID int64, jobState, jobErr, searched string) (string, string, error) {
 	switch jobState {
 	case "queued", "running", "":
@@ -149,16 +148,5 @@ func routeStatus(ctx context.Context, db *sql.DB, runID int64, jobState, jobErr,
 	case err != sql.ErrNoRows:
 		return "", "", err
 	}
-	var mode, outcome, steps string
-	err = db.QueryRowContext(ctx, `SELECT mode, outcome, release_title, provider, steps FROM router_plan
-		WHERE source = ? ORDER BY id DESC LIMIT 1`, src).Scan(&mode, &outcome, &release, &prov, &steps)
-	switch {
-	case err == sql.ErrNoRows:
-		return "completed", "nothing placed: " + searched, nil
-	case err != nil:
-		return "", "", err
-	}
-	var st []router.Step
-	_ = json.Unmarshal([]byte(steps), &st)
-	return "completed", fmt.Sprintf("dry run (%s): %s", mode, router.PlanSummary(outcome, release, prov, st)), nil
+	return "completed", "nothing placed: " + searched, nil
 }

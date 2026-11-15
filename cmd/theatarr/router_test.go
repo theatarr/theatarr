@@ -28,8 +28,7 @@ func TestRouterStatusAndArgs(t *testing.T) {
 		t.Fatal(err)
 	}
 	if s := out.String(); !strings.Contains(s, "pause      ON: nothing is searched, downloaded or linked") ||
-		!strings.Contains(s, "DOWNLOADS  PROVIDERS") || !strings.Contains(s, "Watch only  no") ||
-		!strings.Contains(s, "active     none") ||
+		!strings.Contains(s, "LIBRARY      DOWNLOADS  PROVIDERS") ||
 		!strings.Contains(s, "0 unfinished cache check(s)") || !strings.Contains(s, "movie-remux") {
 		t.Errorf("status:\n%s", s)
 	}

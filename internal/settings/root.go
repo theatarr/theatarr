@@ -25,8 +25,6 @@ type rootQueryer interface {
 type RootCheck struct {
 	Root     string `json:"root"`
 	Resolved string `json:"resolved"`
-	// Writable is true when the root was probed writable; only an active version's root is probed.
-	Writable bool `json:"writable"`
 }
 
 // validateVersionChanges runs the version rules and then the bounded filesystem checks of changed roots.
@@ -37,13 +35,10 @@ func validateVersionChanges(ctx context.Context, q rootQueryer, previous, next *
 	return validateVersionRoots(ctx, previous, next, bootstrap)
 }
 
-// rootsToCheck is the versions whose roots are checked: all at bootstrap, else those whose roots changed or that
-// become active. Unchanged versions are not stat'ed again; policy.Validate already checks the separation of
-// active versions.
+// rootsToCheck is the versions whose roots are checked: all at bootstrap, else new ones and those whose roots
+// changed. Unchanged versions are not stat'ed again; policy.Validate already checks their separation.
 func rootsToCheck(previous, next *policy.Policy, key string, bootstrap bool) bool {
-	before, after := previous.Versions[key], next.Versions[key]
-	return bootstrap || before == nil || versionRootsChanged(previous, next, key) ||
-		(before.Mode != policy.ModeActive && after.Mode == policy.ModeActive)
+	return bootstrap || previous.Versions[key] == nil || versionRootsChanged(previous, next, key)
 }
 
 // validateVersionRules is the part of the version checks that reads the database and no filesystem: a save runs it
@@ -126,8 +121,8 @@ func validateVersionRoots(ctx context.Context, previous, next *policy.Policy, bo
 			}
 		}
 	}
-	// A save that changes no root and makes no version active (Pause, sections, a version back to
-	// shadow) touches no filesystem, so a stuck check of some root never holds it.
+	// A save that changes no root and adds no library (Pause, sections) touches no filesystem, so a stuck check of
+	// some root never holds it.
 	var keys []string
 	for _, key := range sortedPolicyKeys(next.Versions) {
 		if rootsToCheck(previous, next, key, bootstrap) {
@@ -156,7 +151,7 @@ func validateVersionRoots(ctx context.Context, previous, next *policy.Policy, bo
 			continue
 		}
 		for _, root := range configuredVersionRoots(next, key) {
-			if _, err := validateOneRoot(ctx, rr, next, key, root, next.Versions[key].Mode == policy.ModeActive); err != nil {
+			if _, err := validateOneRoot(ctx, rr, next, key, root); err != nil {
 				return rootFieldError(field, err.Error())
 			}
 		}
@@ -247,7 +242,7 @@ func versionRootsChanged(before, after *policy.Policy, key string) bool {
 
 // validateOneRoot checks a proposed root of version key in p. rr resolves every root it consults (the operation's RootResolver); the root's own stat and
 // writability are bounded by probeRoot.
-func validateOneRoot(ctx context.Context, rr *policy.RootResolver, p *policy.Policy, key, path string, writable bool) (RootCheck, error) {
+func validateOneRoot(ctx context.Context, rr *policy.RootResolver, p *policy.Policy, key, path string) (RootCheck, error) {
 	if !filepath.IsAbs(path) || filepath.Clean(path) != path {
 		return RootCheck{}, errors.New("must be an absolute, clean path")
 	}
@@ -275,8 +270,8 @@ func validateOneRoot(ctx context.Context, rr *policy.RootResolver, p *policy.Pol
 			check = errors.New("directory must exist")
 		case !info.IsDir():
 			check = errors.New("path is not a directory")
-		case writable && rootWritable(path) != nil:
-			check = errors.New("active library root is not writable by Theatarr")
+		case rootWritable(path) != nil:
+			check = errors.New("library root is not writable by Theatarr")
 		}
 		return nil
 	}); err != nil {
@@ -288,7 +283,7 @@ func validateOneRoot(ctx context.Context, rr *policy.RootResolver, p *policy.Pol
 	if err := physicalPathSeparation(p, rr, key, root); err != nil {
 		return RootCheck{}, err
 	}
-	return RootCheck{Root: path, Resolved: root.Resolved, Writable: writable}, nil
+	return RootCheck{Root: path, Resolved: root.Resolved}, nil
 }
 
 func physicalPathSeparation(p *policy.Policy, rr *policy.RootResolver, key string, root policy.ResolvedRoot) error {
@@ -362,7 +357,7 @@ func (s *Store) ValidateRoot(ctx context.Context, base *policy.Policy, key, root
 	// One resolver for the whole check: each root it consults is resolved once, through its own probe slot.
 	rr := policy.NewRootResolver(ctx)
 	if version == nil {
-		checked, err := validateOneRoot(ctx, rr, snap.Policy, key, root, false)
+		checked, err := validateOneRoot(ctx, rr, snap.Policy, key, root)
 		if err != nil {
 			return RootCheck{}, rootFieldError("root", err.Error())
 		}
@@ -394,10 +389,8 @@ func (s *Store) ValidateRoot(ctx context.Context, base *policy.Policy, key, root
 	if err := p.Validate(); err != nil {
 		return RootCheck{}, err
 	}
-	if v := p.Versions[key]; v.Mode == policy.ModeActive {
-		if _, err := p.CheckRootSeparationWith(key, rr); err != nil {
-			return RootCheck{}, rootFieldError("root", err.Error())
-		}
+	if _, err := p.CheckRootSeparationWith(key, rr); err != nil {
+		return RootCheck{}, rootFieldError("root", err.Error())
 	}
 	if root != version.Library {
 		links, err := s.ActiveVersionLinks(ctx, key)
@@ -408,7 +401,7 @@ func (s *Store) ValidateRoot(ctx context.Context, base *policy.Policy, key, root
 			return RootCheck{}, rootFieldError("root", "active links would stay at the old root; use the procedure in docs/migration.md#changing-a-root-with-links")
 		}
 	}
-	checked, err := validateOneRoot(ctx, rr, p, key, root, version.Mode == policy.ModeActive)
+	checked, err := validateOneRoot(ctx, rr, p, key, root)
 	if err != nil {
 		return RootCheck{}, rootFieldError("root", err.Error())
 	}

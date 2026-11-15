@@ -119,12 +119,12 @@ writer. Code: `internal/retention`. The windows:
 
 | Setting | Default | Tables |
 |---|---|---|
-| `--retention-days` (`THEATARR_RETENTION_DAYS`) | 180 | failed `download` rows (their attempts, files and progress go with them), finished `acquire_run`, `router_plan`, `library_action`, `settings_audit` |
+| `--retention-days` (`THEATARR_RETENTION_DAYS`) | 180 | failed `download` rows (their attempts, files and progress go with them), finished `acquire_run`, `library_action`, `settings_audit` |
 | `--retention-run-days` (`THEATARR_RETENTION_RUN_DAYS`) | 30 | `provider_sync_run`, `settings_quality_sync_run`, sent, failed and dropped `notify_delivery`. `provider_cache` rows go a day after they expire, whatever this setting and `--retention-days`, 0 included (cache evidence from every feed search would otherwise grow without bound; index `provider_cache_expires`, migration 00086; migration 00132 deleted the ones already past that) |
 
 0 keeps that kind for good. Kept whatever their age: the latest successful and the latest failed sync run of each
 provider; the latest quality sync run of each TRaSH source and outcome (the sync reads the latest run and the latest
-that read TRaSH), and runs still running; pending deliveries; every download that is not failed, and a failed one that a link, a live library claim,
+that read TRaSH), and runs still running; pending deliveries; every download that is not failed, and a failed one that a link, a library claim,
 an import still waiting for the mount or partial, a router blocklist entry, a router offer or a
 queued or running job refers to (a finished import or an expired claim does not keep it); applied
 `link`/`replace` library actions whose download is kept or whose path is still an active or dead link (the offer
@@ -134,7 +134,7 @@ queued or running job refers to, and a run whose children are kept; the current 
 
 Not pruned, by design: `router_offer` (one row per version, title and release; deleting one re-offers that release
 at the next sweep), `notify_event` (the once-only memory of scanned events), and imported downloads (offer sources, and the journal keeps routed decisions by
-them). `shadow_run`, `journal_decision` and finished jobs keep their own pruning in the nightly job. A
+them). `journal_decision` and finished jobs keep their own pruning in the nightly job. A
 journal decision older than 180 days whose only download was a pruned failed one is deleted instead of trimmed.
 `TestRetentionCoversEveryTable` checks that every table the migrations create is pruned by a rule, goes
 with a pruned row (`ON DELETE CASCADE`), or is listed in `keptByDesign` with its reason (configuration, catalog and

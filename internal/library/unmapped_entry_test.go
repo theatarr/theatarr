@@ -7,7 +7,6 @@ import (
 
 	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/indexer"
-	"github.com/theatarr/theatarr/internal/policy"
 )
 
 // A held link remains a SeaDex reference after its title loses other mappings. The catalog lists the
@@ -23,7 +22,7 @@ func TestUnmappedHeldLinkUsesSavedEntry(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			e := importUpEnv(t, policy.ModeActive, "")
+			e := importUpEnv(t, "")
 			e.pol.Versions["tv"].PreferSeaDex = true
 			body := fmt.Sprintf(`{"version":2,"anilist":11,"torrents":[%s]}`, tc.member)
 			e.exec(`INSERT INTO metadata_cache(source,key,status,body,fetched_at,expires_at) VALUES('seadex-standing','11',200,?,0,253402214400000)`, body)
@@ -58,7 +57,7 @@ func TestUnmappedHeldLinkUsesSavedEntry(t *testing.T) {
 // A confirmed retirement of the saved entry's torrent no longer blocks an allowed quality upgrade.
 func TestUnmappedRetirementAllowsQualityUpgrade(t *testing.T) {
 	t.Parallel()
-	e := importUpEnv(t, policy.ModeActive, "")
+	e := importUpEnv(t, "")
 	e.pol.Versions["tv"].PreferSeaDex = true
 	body := fmt.Sprintf(`{"version":2,"anilist":11,"torrents":[{"info_hash":"%s","preference":0,"missing_since":1}]}`, hashA)
 	e.exec(`INSERT INTO metadata_cache(source,key,status,body,fetched_at,expires_at) VALUES('seadex-standing','11',200,?,0,253402214400000)`, body)

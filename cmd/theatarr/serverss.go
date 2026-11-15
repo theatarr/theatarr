@@ -15,7 +15,7 @@ import (
 	"github.com/theatarr/theatarr/internal/tasks"
 )
 
-// newRSSRunner builds the RSS sync theatarr serve runs (job shadow.rss, docs/design/rss.md): the Live libraries' feeds,
+// newRSSRunner builds the RSS sync theatarr serve runs (job shadow.rss, docs/design/rss.md): the libraries' feeds,
 // their accepted items to the router rt. It is the decision engine's film index.
 func newRSSRunner(pol *policy.Policy, st *store.Store, q *jobs.Queue, tbl *tasks.Table, gw *gateway.Gateway, reg prometheus.Registerer,
 	log *slog.Logger, rt rss.Router, prepared *serveRuntime, runtime rss.RuntimeSource) *rss.Runner {

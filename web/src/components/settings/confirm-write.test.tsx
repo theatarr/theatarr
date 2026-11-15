@@ -13,13 +13,13 @@ const effects = [
   { version: "movie-web", effect: "Grab for movie-web: grab false → true." },
   { version: "", effect: "Turn on Allow new downloads (router.enabled): new downloads may be added." },
   { version: "movie-4k", effect: "movie-4k can now grab from provider rd." },
-  { version: "movie-web", effect: "Library movie-web becomes Live and starts searching." },
+  { version: "movie-web", effect: "Library movie-web is removed with its entries on every title." },
 ];
 
 it("groups the server's effects by library, global ones first, in the server's words", () => {
   expect(groupEffects(effects)).toEqual([
     { version: "", effects: ["Turn on Allow new downloads (router.enabled): new downloads may be added."] },
-    { version: "movie-web", effects: ["Grab for movie-web: grab false → true.", "Library movie-web becomes Live and starts searching."] },
+    { version: "movie-web", effects: ["Grab for movie-web: grab false → true.", "Library movie-web is removed with its entries on every title."] },
     { version: "movie-4k", effects: ["movie-4k can now grab from provider rd."] },
   ]);
 });

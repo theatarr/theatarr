@@ -427,7 +427,7 @@ func TestDigest(t *testing.T) {
 	e.hlth = []HealthItem{{Source: "ProviderAccountCheck", Type: "warning", Message: "Debrid accounts: rd: premium ends 2026-11-10 (in 3d)"},
 		{Source: "MountCheck", Type: "error", Message: "mount not readable"},
 		{Source: "RouterDisabledCheck", Type: "warning", Message: "Router disabled"},
-		{Source: "ShadowModeCheck", Type: "notice", Message: "shadow"}}
+		{Source: "UpdateCheck", Type: "notice", Message: "a notice only"}}
 	if err := e.n.SendDigest(ctx, day); err != nil {
 		t.Fatal(err)
 	}
@@ -444,7 +444,7 @@ func TestDigest(t *testing.T) {
 			t.Errorf("missing %q in\n%s", want, body)
 		}
 	}
-	for _, not := range []string{"Router disabled", "shadow", "Alpha"} {
+	for _, not := range []string{"Router disabled", "a notice only", "Alpha"} {
 		if strings.Contains(body, not) {
 			t.Errorf("%q in\n%s", not, body)
 		}

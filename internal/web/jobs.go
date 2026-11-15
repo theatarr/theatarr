@@ -172,7 +172,7 @@ func (w *Web) apiTaskRun(rw http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, tasks.ErrRunning):
 		writeJSON(rw, http.StatusConflict, apiError{Error: "the task is already running"})
 	case errors.Is(err, tasks.ErrPaused):
-		writeJSON(rw, http.StatusConflict, apiError{Error: "the task waits while Pause is on or no library is Live"})
+		writeJSON(rw, http.StatusConflict, apiError{Error: "the task waits while Pause is on or no library is set up"})
 	case err != nil:
 		w.internal(rw, err)
 	default:

@@ -125,7 +125,7 @@ describe("numbering", () => {
 });
 
 describe("restrictions", () => {
-  const ctl = (o: object) => ({ mode: "shadow", can_edit: true, can_search: true, live_releases: false, ...o }) as const;
+  const ctl = (o: object) => ({ can_edit: true, can_search: true, live_releases: false, ...o }) as const;
   it("says each reason once and names the copies only when not all share it", () => {
     const why = "Your account may not change this";
     expect(

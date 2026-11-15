@@ -7,9 +7,9 @@ Start with the task you have. A **library** is what settings keys and API fields
 
 | Guide | Use it for |
 |---|---|
-| [Quickstart](quickstart.md) | Run the container, first login, Setup, a first library (Live at once or Watch only), going Live, a first download |
+| [Quickstart](quickstart.md) | Run the container, first login, Setup, a first library (downloading at once or with Pause on), going live, a first download |
 | [Not supported yet](not-supported.md) | What Theatarr does not do yet (usenet, real torrent clients, Jellyfin and Emby, ...) and the workarounds |
-| [Troubleshooting](troubleshooting.md) | A restarting container, TMDb off, no profile, a Watch only library that does nothing, a Live library that downloads nothing |
+| [Troubleshooting](troubleshooting.md) | A restarting container, TMDb off, no profile, a library that downloads nothing |
 | [Arr-to-Theatarr map](arr-map.md) | Where each familiar Sonarr, Radarr, Prowlarr and Recyclarr page lives |
 | [Moving from Sonarr and Radarr](migration.md) | The one-time import from an arr, a trial, client and Plex handover, rollback, and what upgrading from the older tools changes |
 | [Decision journal](journal.md) | Reading what Theatarr decided and why, and correcting it |

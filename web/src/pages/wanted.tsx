@@ -288,8 +288,8 @@ export function WantedPage() {
         {(search.error && !ask) || clear.error ? <span role="alert" className="basis-full text-[13px] text-[var(--bad-ink)]">{errText(search.error ?? clear.error)}</span> : null}
       </div>
       {/* The unit: a row is one search (a film, or a series' season, in one library), not an episode or a title. */}
-      {d.total > 0 ? <p className="text-[13px] text-[var(--ink-3)]" data-testid="wanted-count">{plural(d.total, "item")} (one per film or season in each Live library, not per episode){only === "missing" ? <>; Home's <Link className="text-primary hover:underline" to="/discover/missing">Missing</Link> counts titles, Watch-only libraries too</> : null}.</p> : null}
-      {!items.length ? <Card><Empty>No items waiting in this selection; Wanted lists Live libraries only.</Empty></Card> : <DataTable
+      {d.total > 0 ? <p className="text-[13px] text-[var(--ink-3)]" data-testid="wanted-count">{plural(d.total, "item")} (one per film or season in each library, not per episode){only === "missing" ? <>; Home's <Link className="text-primary hover:underline" to="/discover/missing">Missing</Link> counts titles</> : null}.</p> : null}
+      {!items.length ? <Card><Empty>No items waiting in this selection.</Empty></Card> : <DataTable
         testid="wanted-table"
         rows={items}
         rowKey={rowKey}

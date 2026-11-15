@@ -19,7 +19,7 @@ const qualityOverview = (o: Partial<QualityOverview> = {}): QualityOverview => (
   profiles: [
     {
       id: 7, key: "radarr-4k-web", flavour: "radarr", qualities: ["WEB 2160p", "Remux-1080p", "WEB 1080p"], cutoff: "WEB 2160p", cutoff_score: 10000, upgrades: true, format_set: "radarr-4k-web", formats: 3,
-      used_by: [{ key: "movie-web", mode: "active", kind: "movie", anime: false, active: true }, { key: "movie-web-shadow", mode: "shadow", kind: "movie", anime: false, active: false }],
+      used_by: [{ key: "movie-web", kind: "movie", anime: false }, { key: "movie-web-shadow", kind: "movie", anime: false }],
       origin: { preset: "0537bd27bcf8da604f30a862343b1742", name: "WEB 2160p", flavour: "radarr", modifiers: ["fallbacks_1080p"] }, guessed: true,
       diff: { preset: "WEB 2160p + 1080p fallbacks", qualities_added: [], qualities_removed: ["Bluray-1080p"], cutoff: null, settings: [], formats_added: [{ format: "DD+", trash_id: "abc", ours: 2500, trash: null }, { format: "Our Group", ours: 150, trash: null }], formats_missing: [], scores_changed: [], summary: ["− Bluray-1080p", "DD+ +2500 (not in the preset)", "Our Group +150 (ours)"], same: false },
       binding: "trash-radarr", score_set: "default",
@@ -66,7 +66,7 @@ describe("Quality profiles page", () => {
     expect(within(row).getAllByText("TRaSH WEB 2160p + 1080p fallbacks").length).toBeGreaterThan(0);
     expect(within(row).getAllByText("closest").length).toBeGreaterThan(0);
     expect(within(row).getAllByText("DD+ +2500 (not in the preset)").length).toBeGreaterThan(0);
-    expect(within(row).getAllByText("WEB · Live").length).toBeGreaterThan(0);
+    expect(within(row).getAllByText("WEB").length).toBeGreaterThan(0);
     const unused = screen.getAllByText("web-2160p")[0].closest("tr")!;
     expect(within(unused).getAllByText("unused").length).toBeGreaterThan(0);
     expect(within(unused).getAllByTestId("profile-until")[0].textContent).toBe("No upgrades");
@@ -186,7 +186,7 @@ describe("Quality profiles page", () => {
     renderPage(<ProfilesPage />);
     await user.click(await screen.findByRole("button", { name: "Edit radarr-4k-web" }));
     const sheet = await screen.findByTestId("profile-sheet");
-    expect(within(sheet).getByTestId("profile-affects").textContent).toContain("WEB (Live)");
+    expect(within(sheet).getByTestId("profile-affects").textContent).toContain("Used by WEB");
     // Compare with TRaSH lists our edits against the preset.
     await user.click(within(sheet).getByRole("button", { name: "Compare with TRaSH" }));
     expect(within(within(sheet).getByTestId("origin-diff")).getByText("Bluray-1080p")).toBeTruthy();
@@ -337,7 +337,7 @@ describe("Quality profiles page", () => {
 
   it("shows a profile used by movie and series libraries read-only, pointing at the raw editor", async () => {
     const ov = qualityOverview();
-    ov.profiles[0] = { ...ov.profiles[0], used_by: [...ov.profiles[0].used_by, { key: "tv", mode: "active", kind: "series", anime: false, active: true }] };
+    ov.profiles[0] = { ...ov.profiles[0], used_by: [...ov.profiles[0].used_by, { key: "tv", kind: "series", anime: false }] };
     mockFetch(routes(ov));
     const user = userEvent.setup();
     renderPage(<ProfilesPage />);

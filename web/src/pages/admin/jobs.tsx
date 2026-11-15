@@ -124,7 +124,7 @@ function TaskRow({ t, run, showError }: { t: Task; run: RunTask; showError?: boo
     <li className="flex flex-wrap items-center gap-x-3 gap-y-0.5 px-4 py-2.5" data-key={t.key}>
       <span className="min-w-0 font-medium text-[var(--ink)] sm:w-64">{t.name}</span>
       <span className="text-sm text-muted-foreground sm:w-28" data-testid="task-every">{everyWords(t.every_seconds, t.at)}</span>
-      {t.paused ? <Badge tone="warning" title="Pause is on, or no library is Live" data-testid="task-paused">paused</Badge> : null}
+      {t.paused ? <Badge tone="warning" title="Pause is on, or no library is set up" data-testid="task-paused">paused</Badge> : null}
       <span className="w-full min-w-0 text-sm text-muted-foreground sm:w-auto sm:flex-1" data-testid="task-last">
         {t.running ? <>running since <span title={fmtTime(t.running)}>{fmtAgo(t.running)}</span></>
           : t.last_finished ? <>last run <span title={fmtTime(t.last_started)}>{fmtAgo(t.last_finished)}</span>, took {fmtDuration(t.last_started, t.last_finished)}{t.last_error ? <Badge tone="negative" className="ml-1.5" title={t.last_error}>failed</Badge> : null}</>

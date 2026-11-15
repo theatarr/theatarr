@@ -384,7 +384,6 @@ profiles:
     cutoff: WEBDL-1080p
 versions:
   movie:
-    mode: shadow
     kind: movie
     profile: web
     library: ROOT/media/movies

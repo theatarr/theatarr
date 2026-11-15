@@ -11,14 +11,13 @@ import (
 	"time"
 
 	"github.com/theatarr/theatarr/internal/library/probe"
-	"github.com/theatarr/theatarr/internal/policy"
 )
 
 // A release folder on the mount that is a symlink out of it (or holds one) is not mount content: the import stops
 // with ErrNotOnMount, links nothing, and does not judge (fail, blocklist) the download.
 func TestSymlinkOutOfTheMountIsNotImported(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	real := filepath.Join(e.outside, "Release")
 	if err := os.MkdirAll(real, 0o755); err != nil {
 		t.Fatal(err)
@@ -83,7 +82,7 @@ func (f infoErrFS) ReadDir(name string) ([]os.DirEntry, error) {
 // (ErrMountDown) and the download is neither failed nor blocklisted.
 func TestDirEntryInfoErrorPausesImport(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
 	e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
 	e.lib.mount.fs = infoErrFS{}

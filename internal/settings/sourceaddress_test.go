@@ -94,29 +94,26 @@ func TestProviderURLRepointNeedsConfirmation(t *testing.T) {
 	}
 }
 
-// The same for an indexer only shadow versions search, and the store refuses the change for a caller
+// The same for an indexer no library searches, and the store refuses the change for a caller
 // that skips the coordinator.
-func TestShadowIndexerURLRepointNeedsConfirmation(t *testing.T) {
+func TestUnusedIndexerURLRepointNeedsConfirmation(t *testing.T) {
 	t.Parallel()
 	m, p, active := activeWebFixture(t)
 	activeUses := map[string]bool{}
 	for _, v := range active.Policy.Versions {
-		if v.Mode == policy.ModeActive {
-			for _, ix := range v.Indexers {
-				activeUses[ix] = true
-			}
+		for _, ix := range v.Indexers {
+			activeUses[ix] = true
 		}
 	}
 	target := ""
-	for _, v := range active.Policy.Versions {
-		for _, ix := range v.Indexers {
-			if !activeUses[ix] {
-				target = ix
-			}
+	for _, key := range sortedPolicyKeys(active.Policy.Indexers) {
+		if !activeUses[key] {
+			target = key
+			break
 		}
 	}
 	if target == "" {
-		t.Fatal("fixture has no indexer used only by shadow versions")
+		t.Fatal("fixture has no indexer no library uses")
 	}
 	ctx := WithoutConfirmation(context.Background())
 	req := saveRequest(p, active)

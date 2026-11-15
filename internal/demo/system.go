@@ -107,7 +107,7 @@ func (s *seeder) system() {
 		s.exec(`INSERT INTO arrview_command (view, name, body, status, result, message, user_agent, queued_at, started_at,
 			ended_at) VALUES (?, ?, ?, 'completed', 'successful', ?, 'Seerr/2', ?, ?, ?)`,
 			map[bool]string{true: "sonarr", false: "radarr"}[strings.HasPrefix(name, "Series")], name,
-			jsonOf(map[string]any{"name": name}), "every version is in shadow mode; nothing searched", ms(at), ms(at), ms(at.Add(time.Second)))
+			jsonOf(map[string]any{"name": name}), "Nothing to search: no monitored item of the versions matches", ms(at), ms(at), ms(at.Add(time.Second)))
 	}
 	// Offers: an imported movie offered to the title's other movie version.
 	for i, t := range s.titles {

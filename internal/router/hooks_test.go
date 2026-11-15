@@ -8,12 +8,11 @@ import (
 
 	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/indexer"
-	"github.com/theatarr/theatarr/internal/policy"
 )
 
 func TestInFlight(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	check := func(title, version int64, eps []int64, want bool) {
 		t.Helper()
 		got, err := InFlight(e.ctx, e.st.Reader(), title, version, eps)
@@ -38,7 +37,7 @@ func TestInFlight(t *testing.T) {
 func TestTitleOnlyBlocklist(t *testing.T) {
 	t.Parallel()
 	for _, dry := range []bool{false, true} {
-		e := newEnv(t, true, policy.ModeActive)
+		e := newEnv(t, true)
 		if err := e.st.WriteTx(e.ctx, func(tx *sql.Tx) error {
 			return Blocklist(e.ctx, tx, "movie", "", 1, 0, "Blocked.Release", "arr blocklist (radarr)", "arr:radarr", 0)
 		}); err != nil {
@@ -87,7 +86,7 @@ func TestPlanSummary(t *testing.T) {
 // Route and Plan alike, and listed in the status.
 func TestFormatsAndBlocklist(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	d := &decide.Decision{Accepted: true, Quality: "Remux-2160p", Score: 2400,
 		Formats: []decide.FormatScore{{Name: "HDR", Score: 500}, {Name: "Remux Tier 01", Score: 1900}}}
 	cs := Candidates([]*decide.Decision{d}, map[*decide.Decision]indexer.Release{d: cand(h("a"), "Movie.2024.2160p.UHD.BluRay.REMUX-GRP").Release})

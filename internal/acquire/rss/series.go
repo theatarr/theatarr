@@ -21,7 +21,7 @@ type seriesCandidate struct {
 // seriesCandidates includes cutoff-met series: a later episode can air without a metadata refresh.
 func (r *Runner) seriesCandidates(ctx context.Context) (map[int64][]seriesCandidate, map[int64]decide.Title, error) {
 	var keys []string
-	for _, k := range sortedKeys(r.rssVersions()) {
+	for _, k := range sortedKeys(r.active) {
 		if r.pol.Versions[k].Kind == policy.KindSeries {
 			keys = append(keys, k)
 		}

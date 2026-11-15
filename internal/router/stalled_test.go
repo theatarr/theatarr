@@ -39,7 +39,7 @@ func researchJobs(e *env) []ResearchRequest {
 // started for the title: the blocklist row is marked researched without a re-search job.
 func TestStalledManualAddStartsNoSearch(t *testing.T) {
 	t.Parallel()
-	e, f, _ := newDebridEnv(t, true, policy.ModeActive, false)
+	e, f, _ := newDebridEnv(t, true, false)
 	withQueue(e)
 	f.rdStuck = true
 	res, err := e.r.Route(e.ctx, grabReq(manualCand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")))
@@ -64,7 +64,7 @@ func TestStalledManualAddStartsNoSearch(t *testing.T) {
 // search does, as before.
 func TestMissedManualAddStartsNoSearch(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	withQueue(e)
 	for k := range e.ad {
 		e.ad[k].add = refuse(adder.CodeNotCached)
@@ -89,7 +89,7 @@ func TestMissedManualAddStartsNoSearch(t *testing.T) {
 // deleted, and the title is searched again.
 func TestStalledDownload(t *testing.T) {
 	t.Parallel()
-	e, f, _ := newDebridEnv(t, true, policy.ModeActive, false)
+	e, f, _ := newDebridEnv(t, true, false)
 	withQueue(e)
 	f.rdStuck = true
 	res, err := e.r.Route(e.ctx, movieReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")))
@@ -143,7 +143,7 @@ func TestStalledNeverDeletesShared(t *testing.T) {
 			provider, provider_torrent_id, state, own_add, added_at, created_at, updated_at) VALUES (?, 1, 10, 'movie', ?,
 			'x', 'pub', ?, ?, 'added', ?, ?, 0, 0)`, id, hash, pk, tid, ownAdd, e.clock.Add(-time.Hour).UnixMilli())
 	}
-	e, f, _ := newDebridEnv(t, true, policy.ModeActive, false)
+	e, f, _ := newDebridEnv(t, true, false)
 	// Reused (own_add NULL); not provably new (0); own but another download knows the id; AllDebrid.
 	f.rd["RDR"] = &fakeRD{hash: h("a"), status: "magnet_conversion"}
 	insert(e, 1, "rd", "RDR", h("a"), nil)
@@ -167,7 +167,7 @@ func TestStalledNeverDeletesShared(t *testing.T) {
 		t.Errorf("%d stalled kept", n)
 	}
 	// The kill switch: our own stalled add fails, but nothing is deleted and nothing searched.
-	e, f, _ = newDebridEnv(t, false, policy.ModeActive, true)
+	e, f, _ = newDebridEnv(t, false, true)
 	withQueue(e)
 	f.rd["RDK"] = &fakeRD{hash: h("a"), status: "magnet_conversion"}
 	insert(e, 1, "rd", "RDK", h("a"), 1)
@@ -175,7 +175,7 @@ func TestStalledNeverDeletesShared(t *testing.T) {
 		t.Errorf("kill switch: %+v, %v", sum, f.list())
 	}
 	// Off: nothing stalls.
-	e, f, _ = newDebridEnv(t, true, policy.ModeActive, false)
+	e, f, _ = newDebridEnv(t, true, false)
 	off := policy.Duration(0)
 	e.pol.Router.StalledAfter = &off
 	e.r.set = e.pol.RouterSettings()
@@ -190,7 +190,7 @@ func TestStalledNeverDeletesShared(t *testing.T) {
 // without a request do not count against max_candidates.
 func TestExhaustedRouteResearches(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	withQueue(e)
 	for _, k := range []string{"rd", "ad", "tb"} {
 		e.ad[k].add = refusePlain
@@ -214,19 +214,12 @@ func TestExhaustedRouteResearches(t *testing.T) {
 	if len(e.ad["rd"].adds) != adds+1 || !strings.Contains(steps(res), "cccc/rd/refused") {
 		t.Errorf("steps %s", steps(res))
 	}
-	// A shadow version: no re-search.
-	e.pol.Versions["movie"].Mode = policy.ModeShadow
-	n := len(researchJobs(e))
-	_, _ = e.r.Route(e.ctx, movieReq(cand(h("e"), "E.2160p.WEB.H265-GRP")))
-	if len(researchJobs(e)) != n {
-		t.Error("a shadow route asked for a re-search")
-	}
 }
 
 // Dangerous files and the library's guard: blocklisted failures are searched again from the poll.
 func TestBlocklistedFailuresResearch(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	withQueue(e)
 	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, state,
 		episodes, created_at, updated_at) VALUES (5, 2, 20, 'series', ?, 'x', 'pub', 'failed', '[7]', 0, 0)`, h("a"))
@@ -255,7 +248,7 @@ func withEps(c Candidate, eps ...int64) Candidate {
 // stalls, the title is searched again, as for any other grab.
 func TestStalledSearchedGrabOnManualAddRowIsSearchedAgain(t *testing.T) {
 	t.Parallel()
-	e, f, _ := newDebridEnv(t, true, policy.ModeActive, false)
+	e, f, _ := newDebridEnv(t, true, false)
 	withQueue(e)
 	f.rdStuck = true
 	id := strandQueued(e, grabReq(manualCand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")))

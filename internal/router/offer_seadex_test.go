@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/indexer"
-	"github.com/theatarr/theatarr/internal/policy"
 	"testing"
 )
 
@@ -48,7 +47,7 @@ func TestOfferSweepSharesStanding(t *testing.T) {
 func TestSameTorrentUpgradePreferOff(t *testing.T) {
 	t.Parallel()
 	for _, prefer := range []bool{false, true} {
-		e := newEnv(t, true, policy.ModeActive)
+		e := newEnv(t, true)
 		freshMovie(e)
 		e.pol.Versions["movie"].PreferSeaDex = prefer
 		eng, err := decide.New(e.pol, decide.Options{})

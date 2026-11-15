@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/store"
 )
 
@@ -12,7 +11,7 @@ import (
 // nothing blocklisted past the ready deadline; a later pass imports it once the gate allows it.
 func TestDryRunImportNeverExpires(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	withQueue(e)
 	start := e.clock
 	old := store.Millis(start.Add(-24 * time.Hour))

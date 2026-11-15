@@ -16,10 +16,12 @@ func TestMovieAvailabilityBeforeSearch(t *testing.T) {
 	e := newEnv(t, true, &policy.Wanted{PerHour: 1})
 	e.exec(`UPDATE version SET monitored = 0 WHERE title_id = 10`)
 	e.exec(`UPDATE title_release_date SET date = '2099-01-01' WHERE title_id = 1`)
+	e.pol.Versions["movie-shadow"] = &policy.VersionPolicy{Kind: policy.KindMovie, Storage: policy.StorageDebrid, Indexers: []string{"pub"}, Providers: []string{"rd"}}
 	if got, err := e.a.InteractiveMany(e.ctx, 1, []string{"movie", "movie-shadow"}, nil, nil); err != nil || len(got) != 2 || len(e.calls) != 2 {
 		t.Fatalf("interactive: %v %v, calls %v", got, err, e.calls)
 	}
 	e.calls = nil
+	delete(e.pol.Versions, "movie-shadow")
 	if err := e.a.Research(e.ctx, router.ResearchRequest{TitleID: 1, VersionID: 101, Version: "movie",
 		Reason: router.ReasonStalled}); err != nil {
 		t.Fatal(err)
@@ -46,7 +48,7 @@ func TestQueuedSearchRechecksMovieAvailability(t *testing.T) {
 		t.Run(map[bool]string{false: "single", true: "fanout"}[fanout], func(t *testing.T) {
 			e := newEnv(t, true, nil)
 			if fanout {
-				e.pol.Versions["movie-shadow"].Mode = policy.ModeActive
+				e.pol.Versions["movie-shadow"] = &policy.VersionPolicy{Kind: policy.KindMovie, Storage: policy.StorageDebrid, Indexers: []string{"pub"}, Providers: []string{"rd"}}
 			}
 			if q, _, err := e.a.Submit(e.ctx, 0, Selection{Versions: []string{"movie"}, TitleIDs: []int64{1}}); err != nil || q != 1 {
 				t.Fatalf("submit: %d %v", q, err)
@@ -154,7 +156,7 @@ func TestPushedMovieDecisionChecksAvailability(t *testing.T) {
 func TestFanoutKeepsAvailableVersion(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, true, nil)
-	e.pol.Versions["movie-shadow"].Mode = policy.ModeActive
+	e.pol.Versions["movie-shadow"] = &policy.VersionPolicy{Kind: policy.KindMovie, Storage: policy.StorageDebrid, Indexers: []string{"pub"}, Providers: []string{"rd"}}
 	if q, _, err := e.a.Submit(e.ctx, 0, Selection{Versions: []string{"movie"}, TitleIDs: []int64{1}}); err != nil || q != 1 {
 		t.Fatalf("submit: %d %v", q, err)
 	}
@@ -180,7 +182,7 @@ func TestUserInvokedMovieAvailability(t *testing.T) {
 		t.Run(map[bool]string{false: "single", true: "fanout"}[fanout], func(t *testing.T) {
 			e := newEnv(t, true, nil)
 			if fanout {
-				e.pol.Versions["movie-shadow"].Mode = policy.ModeActive
+				e.pol.Versions["movie-shadow"] = &policy.VersionPolicy{Kind: policy.KindMovie, Storage: policy.StorageDebrid, Indexers: []string{"pub"}, Providers: []string{"rd"}}
 			}
 			e.exec(`UPDATE title_release_date SET date = '2099-01-01' WHERE title_id = 1`)
 			if q, n, err := e.a.Submit(e.ctx, 0, Selection{Versions: []string{"movie"}, TitleIDs: []int64{1}}); err != nil || q != 1 || n != 1 {

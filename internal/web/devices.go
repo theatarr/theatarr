@@ -70,7 +70,7 @@ func (w *Web) apiDecide(rw http.ResponseWriter, r *http.Request) {
 }
 
 // POST /import: hand a finished download (info hash or mount path) to the library for a version of a title. The
-// library's gate decides: while it refuses (library disabled, version in shadow), or with dry_run, the answer is
+// library's gate decides: while it refuses (library disabled), or with dry_run, the answer is
 // the plan with applied false and nothing written.
 func (w *Web) apiImportRelease(rw http.ResponseWriter, r *http.Request) {
 	if w.devices == nil {

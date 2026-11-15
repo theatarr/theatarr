@@ -199,28 +199,15 @@ func (c *checker) debridVersions() []string {
 func (c *checker) versions() {
 	if len(c.p.Versions) == 0 {
 		c.add(AreaVersions, "versions", Warn, "create a first library from a preset on the setup screen ("+uipages.Setup+") "+
-			"or in "+uipages.Libraries+"; it starts as Watch only, unless Setup's one-step start is used",
+			"or in "+uipages.Libraries,
 			"no libraries: nothing is searched, grabbed or linked")
 		return
-	}
-	var active, shadow []string
-	for _, k := range sortedKeys(c.p.Versions) {
-		if c.p.Versions[k].Mode == policy.ModeActive {
-			active = append(active, k)
-		} else {
-			shadow = append(shadow, k)
-		}
 	}
 	msg := "1 library"
 	if len(c.p.Versions) != 1 {
 		msg = fmt.Sprintf("%d libraries", len(c.p.Versions))
 	}
-	if len(shadow) > 0 {
-		msg += "; shadow (compare only): " + strings.Join(shadow, ", ")
-	}
-	if len(active) > 0 {
-		msg += "; active: " + strings.Join(active, ", ")
-	}
+	msg += ": " + strings.Join(sortedKeys(c.p.Versions), ", ")
 	c.add(AreaVersions, "versions", OK, "", "%s", msg)
 }
 
@@ -261,12 +248,7 @@ func (c *checker) library(ctx context.Context) {
 			continue
 		}
 		for _, root := range lv.Roots {
-			// A Watch-only library writes nothing: its root need only be readable.
-			if v.Mode == policy.ModeActive {
-				c.dir(AreaLibrary, "root "+k, root, true, "create "+root+" on the host and bind it read-write into the container at the same path the media server uses")
-			} else {
-				c.dir(AreaLibrary, "root "+k, root, false, "make "+root+" readable inside the container")
-			}
+			c.dir(AreaLibrary, "root "+k, root, true, "create "+root+" on the host and bind it read-write into the container at the same path the media server uses")
 			if lib.MountPath != "" && under(root, lib.MountPath) {
 				c.add(AreaLibrary, "root "+k, Fail, "move the root out of the debrid mount",
 					"%s is inside the debrid mount %s: the library never writes there", root, lib.MountPath)
@@ -275,7 +257,7 @@ func (c *checker) library(ctx context.Context) {
 				c.sameFS("root "+k, root, lib.MountPath, "hardlinks need the root and the downloads on one filesystem")
 			}
 		}
-		if v.Mode == policy.ModeActive && lib.Plex != nil && lv.PlexSection == 0 {
+		if lib.Plex != nil && lv.PlexSection == 0 {
 			c.add(AreaLibrary, "plex library "+k, Warn, "choose "+k+"'s Plex library in "+uipages.Plex,
 				"library %s has no Plex library: new files appear only after Plex's own scan", k)
 		}
@@ -678,7 +660,7 @@ func (c *checker) switches() {
 	case !c.p.RouterSettings().Enabled:
 		c.add(AreaSwitches, "pause", OK, next, "on: %s", why)
 	default:
-		c.add(AreaSwitches, "pause", OK, next, "off: Live libraries search, download and link")
+		c.add(AreaSwitches, "pause", OK, next, "off: libraries search, download and link")
 	}
 	for _, unknown := range c.p.ForceOffUnknown {
 		c.add(AreaSwitches, "force off", Warn, "use pause or notify (comma-separated) and restart",

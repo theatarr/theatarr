@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/store"
 	"github.com/theatarr/theatarr/internal/torrents/reffence"
 )
@@ -97,7 +96,7 @@ func TestAdoptWaitsForDeleteAndRechecksTarget(t *testing.T) {
 // An import during another process's delete makes no link before its commit is refused.
 func TestImportNoSymlinkDuringForeignDelete(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
 	e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
 	plan, err := e.lib.Import(e.ctx, 1, true)
@@ -124,7 +123,7 @@ func TestImportNoSymlinkDuringForeignDelete(t *testing.T) {
 // repointed it on disk, then had its row refused).
 func TestRelinkNoRepointDuringForeignDelete(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.release("Name {abcdef}", map[string]float64{"episode.mkv": 7000})
 	p := filepath.Join(e.movies, "Movie (2001)", "Movie.mkv")
 	old := filepath.Join(e.mount, "__all__", "Name", "episode.mkv")

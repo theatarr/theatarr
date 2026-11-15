@@ -28,9 +28,9 @@ Hooks in other packages:
 
 | Write | Path | Gate |
 |---|---|---|
-| Grab (`POST release`), push (`release/push`) | `router.Enqueue` per version | Router: `router.enabled` + `mode: active`. A shadow version gets a dry-run plan in `router_plan`, never an add (`TestReleaseSearchAndGrab`, `TestReleasePush`) |
+| Grab (`POST release`), push (`release/push`) | `router.Enqueue` per version | Router: `router.enabled` (Pause off). While Pause is on a grab is a dry run, never an add (`TestReleaseSearchAndGrab`, `TestReleasePush`) |
 | Queue removal, mark failed | `router.Dismiss`: download `failed` in Theatarr's database, optional `router_blocklist` row | DB only. Nothing is removed on a provider, whatever `removeFromClient` says |
-| File delete (`DELETE moviefile/episodefile`, bulk) | `library.Unlink`: the symlink is copied to the trash, then removed | Library gate (`library.enabled` + active + roots). While it refuses, the answer is **409** with the reason and nothing changes, so decypharr doesn't continue as if the file were gone |
+| File delete (`DELETE moviefile/episodefile`, bulk) | `library.Unlink`: the symlink is copied to the trash, then removed | Library gate (`library.enabled` + roots). While it refuses, the answer is **409** with the reason and nothing changes, so decypharr doesn't continue as if the file were gone |
 | `ManualImport` command, `POST /api/theatarr/v1/import` | `library.Import` | Library gate. When gated, the import API plans on a temporary download row and removes it again (dry run) |
 | Notifications, editors, tags | arrview tables | DB only |
 | Webhooks | `notify` → gateway | `notify.enabled` (default false) plus the allowlist (`notify.allow_hosts`, target hosts) |
@@ -60,7 +60,7 @@ Hooks in other packages:
 | `GET wanted/cutoff` | Titles (Radarr) or episodes (Sonarr) whose file in a view version is below the **quality** cutoff, as the arrs list them (Radarr `MovieCutoffService`, Sonarr `EpisodeCutoffService`): `filled` and of a quality the profile ranks below the cutoff. A file at the cutoff quality but below `cutoff_score` is not listed. A prefer-SeaDex version's `cutoff_met` file that a better curated alternative makes wanted is listed too, as the cutoff search selects it. `TestWantedCutoffQualityOnly`, `TestCutoffPageListsCuratorWanted` |
 | `GET calendar` | Radarr: movies with a cinema, digital or physical date in `[start, end]`. Sonarr: episodes by `airDateUtc`, with `includeSeries`, `includeEpisodeFile`, `unmonitored`, `tags` |
 | `GET notification[/{id}]`, `POST`, `PUT {id}`, `DELETE {id}`, `GET schema`, `POST test` | Webhook only (see Webhooks) |
-| `GET health` | `ShadowModeCheck` (notice) while a view version is in shadow mode; `RouterDisabledCheck` (warning) while `router.enabled` is off (or the policy has no `router`) and a view version is active; then the service's failing health checks, worst first (`MountCheck`, `BackupCheck`, ...: [readiness.md](readiness.md)). `wikiUrl` is always written, `""` (see below) |
+| `GET health` | `RouterDisabledCheck` (warning) while `router.enabled` is off (or the policy has no `router`); then the service's failing health checks, worst first (`MountCheck`, `BackupCheck`, ...: [readiness.md](readiness.md)). `wikiUrl` is always written, `""` (see below) |
 | `GET indexer[/{id}]` | The policy indexers the view's versions search, read-only. Ids are the sorted keys' positions (1-based); no URL or key is written |
 | `GET episode?includeEpisodeFile=true` | Embeds `episodeFile` |
 | `GET extrafile`, `credit`, `exclusions`, `importlistexclusion`, `importlist/movie`, `filesystem`, `language`, `qualitydefinition`, `languageprofile` (Sonarr) | Empty or static answers in the arrs' shape, so the phone apps' screens load |
@@ -94,8 +94,7 @@ SignalR, Sonarr v5, `downloadclient`.
     the hash means it failed, `data.message` says why.
 - **Router disabled in health.** `GET health` adds
   `{"source": "RouterDisabledCheck", "type": "warning", "message": "Router disabled: grabs are dry runs: movie-web", "wikiUrl": ""}`
-  while `router.enabled` is false and some of the view's versions are `mode: active` (they are listed in the view's
-  order). `ShadowModeCheck` comes first. The Health webhook reports the same items over the configured views'
+  while `router.enabled` is false (the view's versions are listed in the view's order). The Health webhook reports the same items over the configured views'
   versions. `wikiUrl` is always written (`""`), as the arrs write it (a string from `HttpUri.FullUri`).
 - **`cachedOn` on releases (Theatarr extension).** `ReleaseResource` has `cachedOn: ["rd", "ad", "tb"]`: the providers
   cache evidence says hold the release cached, in that order. It is every piece of evidence

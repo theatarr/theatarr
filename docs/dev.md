@@ -73,12 +73,12 @@ subcommands; each one takes `-h`.
 | `internal/provider/adder` | Debrid **write** capability: add a magnet, select files. The only deletes are in `delete.go`: Theatarr's own just-made uncached add (on AllDebrid only with `router.alldebrid_delete_uncached`, default on), Theatarr's own copy to another provider that is not complete (`DeleteOwnStalledAdd` on all three, router `copy.go`), Theatarr's own stalled Real-Debrid add, each behind a proof, and torrents a person chose and confirmed after a backup (`DeleteUserChosen`). Only `internal/router` and `internal/torrents` may import it: `cmd/theatarr` builds adders with `router.BuildAdders`, `TestOnlyRouterImportsAdder` enforces it, and `TestOnlyTorrentsDeletesChosen` keeps the user-chosen delete and `adder.Restore` in `internal/torrents` |
 | `internal/qbit` | The qBittorrent Web API subset a library's grabs go through when it adds via an external client ([design/external-clients.md](design/external-clients.md)) |
 | `internal/torrents` | The torrent manager ([design/torrents.md](design/torrents.md)): what uses each provider torrent, reports, backups (DMM export and import), paced restore through `adder.Restore`, and deleting chosen torrents after a fresh check and a full backup; journaled in `torrent_journal` |
-| `internal/router` | Download router: fallback, refusals, pacing, poller; gated by `mode: active` and `router.enabled` ([design/router.md](design/router.md)) |
+| `internal/router` | Download router: fallback, refusals, pacing, poller; gated by `router.enabled` (Pause) ([design/router.md](design/router.md)) |
 | `internal/acquire` | Searches for active libraries: arr-view commands and the search schedule, into the router |
 | `internal/pipeline` | Shared acquisition and series-refresh wiring for the service and the end-to-end tests |
 | `internal/e2e` | Active pipeline tests over local HTTP fixtures and temporary mount and library roots |
 | `internal/router/routertest` | Test helper: a real router over logging fake adders |
-| `internal/acquire/rss` | The RSS sync for Live libraries ([design/rss.md](design/rss.md)) |
+| `internal/acquire/rss` | The RSS sync for libraries ([design/rss.md](design/rss.md)) |
 | `internal/catalog` | The one add path for titles and libraries: find or create the title, turn the chosen libraries on, season monitoring |
 | `internal/arrimport`, `internal/metadata/tmdb` | The one-time import from Sonarr/Radarr (read-only), TMDb client |
 | `internal/metadata/art` | `meta.art` job (TMDb details into `title_meta`) and the `/img` proxy with its disk cache ([design/artwork.md](design/artwork.md)) |

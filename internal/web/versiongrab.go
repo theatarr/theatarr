@@ -4,18 +4,16 @@ import (
 	"slices"
 
 	"github.com/theatarr/theatarr/internal/catalog"
-	"github.com/theatarr/theatarr/internal/library"
 	"github.com/theatarr/theatarr/internal/policy"
 )
 
 // VersionGrabState is the runtime gates for a version, independent of search and monitoring permissions.
 type VersionGrabState struct {
-	WillGrab    bool   `json:"will_grab"`
-	Mode        string `json:"mode"`
-	Paused      bool   `json:"paused"`
-	PauseForced bool   `json:"pause_forced"`
-	// LibraryWrites is the library's own write gate (library.Gate.Active): Pause off, and the version mode:
-	// active and listed under library.versions with roots.
+	WillGrab    bool `json:"will_grab"`
+	Paused      bool `json:"paused"`
+	PauseForced bool `json:"pause_forced"`
+	// LibraryWrites is the library's own write gate (library.Gate.Active): library writes on, and the version listed
+	// under library.versions with roots.
 	LibraryWrites bool `json:"library_writes"`
 }
 
@@ -39,19 +37,17 @@ func versionGrabSummaries(p *policy.Policy) []VersionGrabSummary {
 }
 
 func versionGrabState(p *policy.Policy, key string) VersionGrabState {
-	out := VersionGrabState{Mode: "off", Paused: true}
+	out := VersionGrabState{Paused: true}
 	if p == nil {
 		return out
 	}
-	out.LibraryWrites = library.NewGate(p).Active(key)
+	// The library gate's Active (library.Gate), read from the policy without building anything per row.
+	if l := p.Library; l != nil && l.Enabled && p.Versions[key] != nil {
+		lv := l.Versions[key]
+		out.LibraryWrites = lv != nil && len(lv.Roots) > 0
+	}
 	out.Paused = p.Router == nil || !p.Router.Enabled
 	out.PauseForced = slices.Contains(p.ForcedOff, "pause")
-	if v := p.Versions[key]; v != nil {
-		out.Mode = string(v.Mode)
-		if out.Mode == "" {
-			out.Mode = string(policy.ModeShadow)
-		}
-	}
 	active, _ := catalog.Searchable(p, []string{key})
 	out.WillGrab = len(active) > 0
 	return out

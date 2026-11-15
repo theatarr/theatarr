@@ -61,7 +61,7 @@ func newIntake(t *testing.T, src intakeSource) (*MovieIntake, *store.Store) {
 		t.Fatal(err)
 	}
 	pol := &policy.Policy{Versions: map[string]*policy.VersionPolicy{
-		"movie-web": {Kind: policy.KindMovie, Enable: "default", Mode: policy.ModeActive},
+		"movie-web": {Kind: policy.KindMovie, Enable: "default"},
 	}}
 	now := time.Date(2026, 10, 27, 0, 0, 0, 0, time.UTC)
 	return &MovieIntake{Store: st, Policy: pol, TMDb: src, Now: func() time.Time { return now }}, st
@@ -365,8 +365,8 @@ func TestMovieAndCollectionListMonitoring(t *testing.T) {
 	}
 }
 
-// A monitored collection adds only to its stored targets that are collection targets (Live movie libraries): a
-// Watch-only target is skipped and logged once, and with none left (or an empty list) nothing is
+// A monitored collection adds only to its stored targets that are collection targets (movie libraries): another
+// target is skipped and logged once, and with none left (or an empty list) nothing is
 // added. A movieAndCollection list monitors the collection only in such targets.
 func TestCollectionTargetsRevalidated(t *testing.T) {
 	t.Parallel()
@@ -374,9 +374,9 @@ func TestCollectionTargetsRevalidated(t *testing.T) {
 	s, st := newIntake(t, src)
 	var logs bytes.Buffer
 	s.Log = slog.New(slog.NewTextHandler(&logs, nil))
-	s.Policy.Versions["movie-remux"] = &policy.VersionPolicy{Kind: policy.KindMovie, Mode: policy.ModeShadow}
-	s.Policy.Versions["movie-4k"] = &policy.VersionPolicy{Kind: policy.KindMovie, Mode: policy.ModeShadow}
-	s.Policy.Versions["movie-4k-theatarr"] = &policy.VersionPolicy{Kind: policy.KindMovie, Mode: policy.ModeActive}
+	s.Policy.Versions["movie-remux"] = &policy.VersionPolicy{Kind: policy.KindSeries}
+	s.Policy.Versions["movie-4k"] = &policy.VersionPolicy{Kind: policy.KindSeries}
+	s.Policy.Versions["movie-4k-theatarr"] = &policy.VersionPolicy{Kind: policy.KindMovie}
 	ctx := context.Background()
 	for _, versions := range []string{`[]`, `["movie-remux"]`, `["movie-4k"]`} {
 		if _, err := st.Writer().Exec(`DELETE FROM movie_collection`); err != nil {
@@ -621,7 +621,7 @@ func TestIntakeSearchOnAddPerLibraryDelay(t *testing.T) {
 			s, st := newIntake(t, intakeSource{list: &tmdb.List{Items: []tmdb.MovieSummary{{ID: 201}}}, movies: map[int]*tmdb.Movie{201: m}})
 			s.Policy.Versions["movie-web"].AvailabilityDelay = tc.web
 			s.Policy.Versions["movie-remux"] = &policy.VersionPolicy{Kind: policy.KindMovie, Enable: "default",
-				Mode: policy.ModeActive, AvailabilityDelay: tc.remux}
+				AvailabilityDelay: tc.remux}
 			if _, err := st.Writer().Exec(`INSERT INTO import_list(name,tmdb_id,versions,minimum_availability,search_on_add,created_at,updated_at) VALUES('list',9,'["movie-web","movie-remux"]','released',1,0,0)`); err != nil {
 				t.Fatal(err)
 			}
@@ -702,7 +702,7 @@ func TestRadarrListAddsMissingMovies(t *testing.T) {
 	t.Parallel()
 	s, st := newIntake(t, intakeSource{})
 	anime := true
-	s.Policy.Versions["anime-movie"] = &policy.VersionPolicy{Kind: policy.KindMovie, Anime: &anime, Mode: policy.ModeActive}
+	s.Policy.Versions["anime-movie"] = &policy.VersionPolicy{Kind: policy.KindMovie, Anime: &anime}
 	reads := withArr(s, map[string]fakeArr{
 		"http://10.0.0.5:7878": {"movie": `[{"tmdbId":301,"title":"New","year":2020},{"tmdbId":302,"title":"Excluded"},
 			{"tmdbId":303,"title":"Unmonitored"},{"tmdbId":304,"title":"Removed"},{"tmdbId":0,"title":"No id"}]`},
@@ -759,9 +759,9 @@ func TestSonarrListAddsSeries(t *testing.T) {
 	t.Parallel()
 	s, st := newIntake(t, intakeSource{})
 	yes, no := true, false
-	s.Policy.Versions["tv"] = &policy.VersionPolicy{Kind: policy.KindSeries, Anime: &no, Mode: policy.ModeActive}
-	s.Policy.Versions["anime-tv"] = &policy.VersionPolicy{Kind: policy.KindSeries, Anime: &yes, Mode: policy.ModeActive}
-	s.Policy.Versions["tv-4k"] = &policy.VersionPolicy{Kind: policy.KindSeries, Mode: policy.ModeActive}
+	s.Policy.Versions["tv"] = &policy.VersionPolicy{Kind: policy.KindSeries, Anime: &no}
+	s.Policy.Versions["anime-tv"] = &policy.VersionPolicy{Kind: policy.KindSeries, Anime: &yes}
+	s.Policy.Versions["tv-4k"] = &policy.VersionPolicy{Kind: policy.KindSeries}
 	withArr(s, map[string]fakeArr{"http://10.0.0.7:8989": {"series": `[
 		{"tvdbId":401,"tmdbId":501,"imdbId":"tt401","title":"Standard","year":2020,"seriesType":"standard",
 			"seasons":[{"seasonNumber":1,"monitored":false},{"seasonNumber":2,"monitored":true}]},
@@ -847,7 +847,7 @@ func TestListPreviewWritesNothing(t *testing.T) {
 	t.Parallel()
 	s, st := newIntake(t, intakeSource{})
 	anime := true
-	s.Policy.Versions["anime-movie"] = &policy.VersionPolicy{Kind: policy.KindMovie, Anime: &anime, Mode: policy.ModeActive}
+	s.Policy.Versions["anime-movie"] = &policy.VersionPolicy{Kind: policy.KindMovie, Anime: &anime}
 	withArr(s, map[string]fakeArr{"http://10.0.0.5:7878": {"movie": `[{"tmdbId":301,"title":"New","year":2020},
 		{"tmdbId":302,"title":"Excluded"},{"tmdbId":303,"title":"Present"},{"tmdbId":304,"title":"Elsewhere"}]`},
 		"http://10.0.0.6:7878": {"movie": `[{"tmdbId":305,"title":"Not anime"}]`}})

@@ -12,7 +12,7 @@ import (
 	"github.com/theatarr/theatarr/internal/policy"
 )
 
-// activeTestVersion creates test-version as an active copy of movie-web through the versions confirm flow.
+// activeTestVersion creates test-version as a copy of movie-web; a new library saves without confirmation.
 func activeTestVersion(t *testing.T) (*settingsEnv, string) {
 	t.Helper()
 	area := t.TempDir()
@@ -23,11 +23,9 @@ func activeTestVersion(t *testing.T) (*settingsEnv, string) {
 	if err := os.Mkdir(root, 0700); err != nil {
 		t.Fatal(err)
 	}
-	config["library"], config["mode"] = root, "active"
+	config["library"] = root
 	body := map[string]any{"generation": se.generation(), "key": "test-version", "config": config, "roots": []string{root}}
-	proof := se.want(se.call("POST", "/versions/confirm", body), 200, "confirm")
-	body["confirmation_token"] = proof["token"]
-	se.want(se.call("POST", "/versions", body), 200, "active create")
+	se.want(se.call("POST", "/versions", body), 200, "create")
 	return se, root
 }
 
@@ -75,7 +73,7 @@ func confirmedDelete(se *settingsEnv, path, token string) *httptest.ResponseReco
 	return se.do(r)
 }
 
-// Editing a profile a Live library uses saves at once: no 422, no token.
+// Editing a profile a library uses saves at once: no 422, no token.
 func TestSettingsLiveProfileEditSavesDirectly(t *testing.T) {
 	t.Parallel()
 	se, _ := activeTestVersion(t)

@@ -3,7 +3,6 @@ package router
 import (
 	"testing"
 
-	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/provider"
 )
 
@@ -11,7 +10,7 @@ import (
 // provider epoch: after an account change the old account's ids (and legacy rows with no epoch) are not reused.
 func TestHeldByIgnoresTorrentIDsFromAnotherProviderEpoch(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.r.settingsManaged, e.r.providerEpoch = true, 1
 	e.exec(`INSERT INTO settings_runtime_state (id, last_published_generation, provider_epoch) VALUES (1, 1, 1)`)
 	for _, q := range []string{
@@ -48,7 +47,7 @@ func TestHeldByIgnoresTorrentIDsFromAnotherProviderEpoch(t *testing.T) {
 // A YAML router (--settings-source yaml) has no provider epoch and keeps reusing its own downloads' torrent ids.
 func TestYAMLRouterReusesLegacyDownloadTorrentID(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.exec(`INSERT INTO title (id, kind, name, created_at, updated_at) VALUES (3, 'movie', 'Other', 0, 0)`)
 	e.exec(`INSERT INTO version (id, title_id, policy_key, created_at, updated_at) VALUES (30, 3, 'movie', 0, 0)`)
 	e.exec(`INSERT INTO download (title_id, version_id, version_key, info_hash, release_title, indexer, provider,

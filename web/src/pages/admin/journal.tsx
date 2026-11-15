@@ -131,7 +131,7 @@ export function JournalList() {
         </form>
       </div>
       {q.isPending ? <Loading /> : q.error ? <ErrorState error={q.error} /> : items.length === 0 && !q.data?.next_cursor ? (
-        <Card><Empty>{suspect ? "Nothing suspect." : filtered ? "No entries." : "No entries yet. One appears each time a Live library judges a release, when it searches or grabs. A title added a moment ago may show nothing yet."}</Empty></Card>
+        <Card><Empty>{suspect ? "Nothing suspect." : filtered ? "No entries." : "No entries yet. One appears each time a library judges a release, when it searches or grabs. A title added a moment ago may show nothing yet."}</Empty></Card>
       ) : (
         <Card className="p-0">
           <Table>
@@ -279,7 +279,7 @@ export function JournalEntryPage() {
             <Button size="sm" variant="outline" disabled={verdict.isPending} onClick={() => judge("ok")} data-testid="verdict-ok">Ok</Button>
             <Button size="sm" variant="destructive" disabled={verdict.isPending} onClick={() => judge("wrong")} data-testid="verdict-wrong">Wrong</Button>
           </div>
-          <p className="mt-2 text-xs text-muted-foreground">{e.id?.startsWith("run:") ? "Records your verdict only. To block the release, use its download in Activity." : "Ok and Wrong both acknowledge the flags (Ok on Reviews is the same Ok). Wrong on a Live library with the router on also blocklists the release and queues a re-search."}</p>
+          <p className="mt-2 text-xs text-muted-foreground">{e.id?.startsWith("run:") ? "Records your verdict only. To block the release, use its download in Activity." : "Ok and Wrong both acknowledge the flags (Ok on Reviews is the same Ok). Wrong with the router on also blocklists the release and queues a re-search."}</p>
           {e.id?.startsWith("run:") ? (e.related ?? []).filter(id => id.startsWith("dl:")).map(id => <Link key={id} className="text-sm text-primary hover:underline" to={journalLink(id)}>View download</Link>) : null}
           {verdict.error ? <div className="mt-2"><ErrorState error={verdict.error} /></div> : null}
         </Card>

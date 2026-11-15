@@ -10,7 +10,7 @@ import (
 
 func TestCuratedQueue(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	freshMovie(e)
 	e.exec(`INSERT INTO title_external_id VALUES(1,'anilist','1')`)
 	e.exec(`INSERT INTO metadata_cache(source,key,status,body,fetched_at,expires_at) VALUES('seadex-standing','1',200,?,0,253402214400000)`, fmt.Sprintf(`{"anilist":1,"torrents":[{"info_hash":"%s","preference":3,"is_best":true,"facts":{"isBest":true}}]}`, h("a")))
@@ -38,7 +38,7 @@ func TestCuratedQueue(t *testing.T) {
 
 func TestCuratorUpgradeSurvivesAutomaticRoute(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	freshMovie(e)
 	e.exec(`INSERT INTO title_external_id VALUES(1,'anilist','1')`)
 	e.exec(`INSERT INTO metadata_cache(source,key,status,body,fetched_at,expires_at) VALUES('seadex-standing','1',200,?,0,253402214400000)`, fmt.Sprintf(`{"anilist":1,"torrents":[{"info_hash":"%s","preference":3,"is_best":true,"facts":{"isBest":true}}]}`, h("a")))

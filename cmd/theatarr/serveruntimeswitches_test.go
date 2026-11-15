@@ -13,7 +13,6 @@ import (
 	"github.com/theatarr/theatarr/internal/arrview"
 	"github.com/theatarr/theatarr/internal/auth"
 	"github.com/theatarr/theatarr/internal/library"
-	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/settings"
 	"github.com/theatarr/theatarr/internal/web"
 )
@@ -77,7 +76,7 @@ func TestArrViewHealthFollowsRouterSwitch(t *testing.T) {
 	save(func(r *settings.Records) {
 		for i := range r.Versions {
 			if r.Versions[i].Key == "movie-web" {
-				r.Versions[i].Config.Mode, r.Versions[i].Config.Library = policy.ModeActive, root
+				r.Versions[i].Config.Library = root
 				r.Versions[i].Roots = []string{root}
 			}
 		}

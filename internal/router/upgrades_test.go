@@ -12,9 +12,9 @@ import (
 
 // upgradesEnv is an env whose movie and series versions have the given upgrades rule, a movie file (link) for title 1,
 // and a series with two episodes of which only the first has a file.
-func upgradesEnv(t *testing.T, enabled bool, mode policy.Mode, rule string) *env {
+func upgradesEnv(t *testing.T, enabled bool, rule string) *env {
 	t.Helper()
-	e := newEnv(t, enabled, mode)
+	e := newEnv(t, enabled)
 	e.pol.Versions["movie"].Upgrades = rule
 	e.pol.Versions["series"].Upgrades = rule
 	e.exec(`INSERT INTO episode (id, title_id, season, number, created_at, updated_at) VALUES (101, 2, 1, 1, 0, 0),
@@ -49,7 +49,7 @@ func remux(hash, title string, score int) Candidate {
 
 func TestUpgradesOff(t *testing.T) {
 	t.Parallel()
-	e := upgradesEnv(t, true, policy.ModeActive, policy.UpgradesOff)
+	e := upgradesEnv(t, true, policy.UpgradesOff)
 	res, err := e.r.Route(e.ctx, movieReq(remux(h("a"), "A", 3000)))
 	if err != nil {
 		t.Fatal(err)
@@ -70,7 +70,7 @@ func TestUpgradesOff(t *testing.T) {
 // approval was removed: the release is added like any other upgrade.
 func TestQueuedApprovedRouteRunsAfterUpgrade(t *testing.T) {
 	t.Parallel()
-	e := upgradesEnv(t, true, policy.ModeActive, policy.UpgradesAuto)
+	e := upgradesEnv(t, true, policy.UpgradesAuto)
 	c, err := json.Marshal(remux(h("a"), "A", 3000))
 	if err != nil {
 		t.Fatal(err)

@@ -19,7 +19,7 @@ import {
   withDistinctLabels,
 } from "./copies";
 
-const control = { mode: "active" as const, can_edit: true, can_search: true, live_releases: true };
+const control = { can_edit: true, can_search: true, live_releases: true };
 const acq = (stage: "queued" | "downloading" | "waiting_mount" | "blocked", extra = {}) => ({ stage, words: stage, download_id: 1, downloads: 1, updated_at: "2026-10-29T00:00:00Z", ...extra });
 
 describe("stage words", () => {

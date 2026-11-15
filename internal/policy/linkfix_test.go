@@ -60,7 +60,7 @@ func TestNestedBindAlias(t *testing.T) {
 	defer func() { mountInfoPath = old }()
 	p := &Policy{Versions: map[string]*VersionPolicy{
 		"F": {Kind: KindMovie, Library: arr},
-		"K": {Kind: KindMovie, Mode: ModeActive, Library: mine},
+		"K": {Kind: KindMovie, Library: mine},
 	}, Library: &Library{Versions: map[string]*LibraryVersion{"K": {Roots: []string{mine}}}}}
 	if _, err := p.CheckRootSeparation("K"); err == nil || !strings.Contains(err.Error(), "overlaps") {
 		t.Fatalf("nested bind alias: %v", err)

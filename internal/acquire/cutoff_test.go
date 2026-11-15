@@ -314,10 +314,6 @@ func TestStoredCutoffMatchesJudgement(t *testing.T) {
 	if _, err := demo.Seed(ctx, st, demo.Options{Policy: pol, Seed: 1, Now: now, Logger: log}); err != nil {
 		t.Fatal(err)
 	}
-	// Every library searched, Watch only ones too, so each is judged.
-	for _, vp := range pol.Versions {
-		vp.Mode = policy.ModeActive
-	}
 	eng, err := decide.New(pol, decide.Options{TrashRoot: filepath.Join("..", "demo", "formats")})
 	if err != nil {
 		t.Fatal(err)

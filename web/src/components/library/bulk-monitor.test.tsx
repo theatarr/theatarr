@@ -7,7 +7,7 @@ import type { CopyColumn } from "@/lib/copies";
 import { json, mockFetch, renderPage, type RequestRecord, type Route } from "@/test/page";
 import { BulkBar } from "./bulk-monitor";
 
-const managed = { mode: "active", can_edit: true, can_search: true, live_releases: true };
+const managed = { can_edit: true, can_search: true, live_releases: true };
 const rows = (n: number) => Array.from({ length: n }, (_, i) => ({
   id: i + 1, kind: "movie", name: `Film ${i + 1}`, versions: [{ id: 100 + i, key: "movies-hd", label: "HD", monitored: true, control: managed }],
 })) as unknown as TitleRow[];

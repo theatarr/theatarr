@@ -7,14 +7,13 @@ import (
 
 	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/indexer"
-	"github.com/theatarr/theatarr/internal/policy"
 )
 
 func TestActualImportRestoresLegacyRank(t *testing.T) {
 	t.Parallel()
 	for _, explicit := range []bool{false, true} {
 		t.Run(fmt.Sprint(explicit), func(t *testing.T) {
-			e := importUpEnv(t, policy.ModeActive, "")
+			e := importUpEnv(t, "")
 			e.pol.Versions["tv"].PreferSeaDex = true
 			e.exec(`INSERT INTO title_external_id VALUES(2,'anilist','11')`)
 			body := fmt.Sprintf(`{"anilist":11,"torrents":[{"info_hash":"%s","preference":2,"is_best":true}]}`, hashA)
@@ -53,7 +52,7 @@ func TestIncomingCurrentHashStanding(t *testing.T) {
 	t.Parallel()
 	for _, explicit := range []bool{false, true} {
 		t.Run(fmt.Sprint(explicit), func(t *testing.T) {
-			e := newEnv(t, true, policy.ModeActive)
+			e := newEnv(t, true)
 			e.pol.Versions["tv"].PreferSeaDex = true
 			e.exec(`INSERT INTO title_external_id VALUES(2,'anilist','11')`)
 			body := fmt.Sprintf(`{"anilist":11,"torrents":[{"info_hash":"%s","preference":2,"is_best":true,"facts":{"isBest":true,"files":[{"name":"Show.S01E01.1080p.BluRay.mkv","length":10000000}]}}]}`, hashA)

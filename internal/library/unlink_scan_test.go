@@ -7,14 +7,13 @@ import (
 	"time"
 
 	"github.com/theatarr/theatarr/internal/jobs"
-	"github.com/theatarr/theatarr/internal/policy"
 )
 
 // An unlink queues one Plex partial scan of the link's folder, so Plex drops the file; a refused unlink queues none.
 func TestUnlinkQueuesPlexScan(t *testing.T) {
 	t.Parallel()
 	for _, enabled := range []bool{true, false} {
-		e := newEnv(t, enabled, policy.ModeActive)
+		e := newEnv(t, enabled)
 		e.release("Name", map[string]float64{"episode.mkv": 7000})
 		p := filepath.Join(e.movies, "Movie (2001)", "Movie.mkv")
 		tgt := filepath.Join(e.mount, "__all__", "Name", "episode.mkv")

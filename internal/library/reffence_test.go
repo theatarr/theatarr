@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/store"
 	"github.com/theatarr/theatarr/internal/torrents/reffence"
 )
@@ -15,7 +14,7 @@ import (
 // retries once the delete's lease is gone.
 func TestRefWriteTxRefusedDuringForeignDelete(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	if _, err := e.st.Writer().Exec(`INSERT INTO library_lease (name, owner, until) VALUES (?, 'pid 1 at 1', ?)`,
 		reffence.LeaseName, store.Millis(e.now.Add(time.Minute))); err != nil {
 		t.Fatal(err)

@@ -12,29 +12,16 @@ import (
 	"github.com/theatarr/theatarr/internal/policy"
 )
 
-// activeWebFixture publishes movie-web as active (confirmed) and returns the coordinator and that snapshot.
+// activeWebFixture returns the coordinator of the version fixture with quality records and its snapshot.
 func activeWebFixture(t *testing.T) (*RuntimeCoordinator, *policy.Policy, *Snapshot) {
 	t.Helper()
 	s, _, p, _ := versionFixture(t)
-	ctx := context.Background()
 	// quality records too, so profile edits are record edits as in the editor.
-	initial, err := s.BootstrapQuality(ctx, p, "fixture")
+	initial, err := s.BootstrapQuality(context.Background(), p, "fixture")
 	if err != nil {
 		t.Fatal(err)
 	}
-	m := versionCoordinator(t, s, p, initial)
-	req := saveRequest(p, initial)
-	editVersion(&req.Records, "movie-web", func(v *Version) { v.Config.Mode = policy.ModeActive })
-	proof, err := m.Confirm(ctx, req)
-	if err != nil || proof.Token == "" {
-		t.Fatalf("confirm activation: %+v %v", proof, err)
-	}
-	req.ConfirmationToken = proof.Token
-	active, err := m.SaveAndApply(ctx, req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return m, p, active
+	return versionCoordinator(t, s, p, initial), p, initial
 }
 
 func requireConfirmation(t *testing.T, err error, contains string) {
@@ -76,7 +63,6 @@ func TestEditsOnActiveVersionAskNothing(t *testing.T) {
 	_, db, _, initial := versionFixture(t)
 	ctx := context.Background()
 	before, _ := initial.Policy.Clone()
-	before.Versions["movie-web"].Mode = policy.ModeActive
 	before.Versions["movie-web"].Profile = "remux-2160p"
 	before.Profiles["remux-2160p"].Cutoff = "WEB 2160p"
 	for _, tc := range []struct {
@@ -119,7 +105,7 @@ func TestConfirmationSurvivesFailedCommit(t *testing.T) {
 	m := versionCoordinator(t, s, p, initial)
 	ctx := context.Background()
 	req := saveRequest(p, initial)
-	editVersion(&req.Records, "movie-web", func(v *Version) { v.Config.Mode = policy.ModeActive })
+	req.Records.Switches = &GlobalSwitches{Paused: false}
 	proof, err := m.Confirm(ctx, req)
 	if err != nil {
 		t.Fatal(err)
@@ -143,7 +129,7 @@ func TestFallbackReloadTakesConfirmationToken(t *testing.T) {
 	ctx := context.Background()
 	first := versionCoordinator(t, s, p, initial)
 	req := saveRequest(p, initial)
-	editVersion(&req.Records, "movie-web", func(v *Version) { v.Config.Mode = policy.ModeActive })
+	req.Records.Switches = &GlobalSwitches{Paused: false}
 	proof, err := first.Confirm(ctx, req)
 	if err != nil {
 		t.Fatal(err)
@@ -156,7 +142,7 @@ func TestFallbackReloadTakesConfirmationToken(t *testing.T) {
 	// The next start fell back to the initial generation.
 	fallback := versionCoordinator(t, s, p, initial)
 	err = fallback.Reload(ctx, head.Generation)
-	requireConfirmation(t, err, "becomes Live")
+	requireConfirmation(t, err, "Turn Pause off")
 	var refused *ConfirmationError
 	errors.As(err, &refused)
 	if refused.Confirmation == nil || refused.Confirmation.Generation != head.Generation {
@@ -172,14 +158,14 @@ func TestFallbackReloadTakesConfirmationToken(t *testing.T) {
 		t.Fatal("reload did not publish the head")
 	}
 
-	// A source-only save over a fallback runtime confirms the head's activation too, and its token is accepted.
+	// A source-only save over a fallback runtime confirms the head's Pause off too, and its token is accepted.
 	again := versionCoordinator(t, s, p, initial)
 	req = saveRequest(p, head)
 	for i := range req.Records.Budgets {
 		req.Records.Budgets[i].Config.Burst++
 	}
 	_, err = again.SaveAndApply(ctx, req)
-	requireConfirmation(t, err, "becomes Live")
+	requireConfirmation(t, err, "Turn Pause off")
 	errors.As(err, &refused)
 	req.ConfirmationToken = refused.Confirmation.Token
 	if _, err := again.SaveAndApply(ctx, req); err != nil {
@@ -187,8 +173,7 @@ func TestFallbackReloadTakesConfirmationToken(t *testing.T) {
 	}
 }
 
-// liveGrabFixture publishes movie-web Live (confirmed), with quality records, the database-owned
-// sections and the VPN guard on.
+// liveGrabFixture is the sections fixture with quality records, the database-owned sections and the VPN guard on.
 func liveGrabFixture(t *testing.T) (*RuntimeCoordinator, *policy.Policy, *Snapshot) {
 	t.Helper()
 	ctx := context.Background()
@@ -197,19 +182,7 @@ func liveGrabFixture(t *testing.T) (*RuntimeCoordinator, *policy.Policy, *Snapsh
 	if err != nil {
 		t.Fatal(err)
 	}
-	m := versionCoordinator(t, s, base, initial)
-	req := saveRequest(base, initial)
-	editVersion(&req.Records, "movie-web", func(v *Version) { v.Config.Mode = policy.ModeActive })
-	proof, err := m.Confirm(ctx, req)
-	if err != nil || proof.Token == "" {
-		t.Fatalf("confirm going Live: %+v %v", proof, err)
-	}
-	req.ConfirmationToken = proof.Token
-	live, err := m.SaveAndApply(ctx, req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return m, base, live
+	return versionCoordinator(t, s, base, initial), base, initial
 }
 
 // Everyday edits of a Live library, and of what it uses, save at once without a token.
@@ -303,8 +276,7 @@ func TestEverydayLiveEditsSaveDirectly(t *testing.T) {
 	}
 }
 
-// Going Live, a new Live library and Pause off still refuse without a token and save with the token the
-// refusal gave.
+// Pause off still refuses without a token and saves with the token the refusal gave; a new library saves at once.
 func TestKeptConfirmations(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -317,19 +289,6 @@ func TestKeptConfirmations(t *testing.T) {
 		name, effect string
 		change       func(*SaveRequest)
 	}{
-		{"watch only to Live", "Library movie-remux becomes Live", func(req *SaveRequest) {
-			editVersion(&req.Records, "movie-remux", func(v *Version) { v.Config.Mode = policy.ModeActive })
-		}},
-		{"new Live library", "Library movie-new becomes Live", func(req *SaveRequest) {
-			for _, v := range req.Records.Versions {
-				if v.Key == "movie-web" {
-					v.Record = Record{Key: "movie-new"}
-					v.Config.Library, v.Roots = newRoot, []string{newRoot}
-					req.Records.Versions = append(req.Records.Versions, v)
-					return
-				}
-			}
-		}},
 		{"Pause off", "Turn Pause off: ", func(req *SaveRequest) { req.Records.Switches = &GlobalSwitches{Paused: false} }},
 	} {
 		req := saveRequest(p, live)
@@ -346,6 +305,19 @@ func TestKeptConfirmations(t *testing.T) {
 			t.Fatalf("%s: confirmed save: %v", tc.name, err)
 		}
 		live = saved
+	}
+	// A new library asks nothing.
+	req := saveRequest(p, live)
+	for _, v := range req.Records.Versions {
+		if v.Key == "movie-web" {
+			v.Record = Record{Key: "movie-new"}
+			v.Config.Library, v.Roots = newRoot, []string{newRoot}
+			req.Records.Versions = append(req.Records.Versions, v)
+			break
+		}
+	}
+	if saved, err := m.SaveAndApply(ctx, req); err != nil || saved.Policy.Versions["movie-new"] == nil {
+		t.Fatalf("new library: %v", err)
 	}
 
 	// Removing a library that has links asks too.

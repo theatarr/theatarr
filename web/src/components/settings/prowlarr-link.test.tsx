@@ -10,7 +10,7 @@ import { SettingsTabView } from "@/pages/admin/settings";
 import { dmm, overview, schema } from "./fixtures";
 import { expectNamedControls, json, mockFetch, renderPage, type RequestRecord } from "@/test/page";
 
-const lib = (key: string, kind: string) => ({ id: 1, key, created_at: "", updated_at: "", roots: [], config: { kind, anime: null, mode: "active" } }) as unknown as VersionRecord;
+const lib = (key: string, kind: string) => ({ id: 1, key, created_at: "", updated_at: "", roots: [], config: { kind, anime: null } }) as unknown as VersionRecord;
 const feed = (o: Partial<ProwlarrFeed>): ProwlarrFeed => ({ id: 1, name: "Site", privacy: "public", protocol: "torrent", enabled: true, url: "http://10.0.0.5:9696/1/api", status: "linkable", ...o });
 const feeds: ProwlarrFeed[] = [
   feed({ id: 1, name: "The Pirate Bay", key: "prowlarr-the-pirate-bay" }),

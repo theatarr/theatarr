@@ -226,10 +226,10 @@ func newDecisionEngine(pol *policy.Policy, log *slog.Logger, previous *decide.En
 		if previous != nil || e == nil {
 			return nil, err
 		}
-		log.Warn("shadow: some profiles failed to build", "err", err)
+		log.Warn("decide: some profiles failed to build", "err", err)
 	}
 	for _, w := range e.Warnings {
-		log.Info("shadow: format left out", "warning", w)
+		log.Info("decide: format left out", "warning", w)
 	}
 	return e, nil
 }
@@ -305,7 +305,7 @@ func prepareStartupRuntime(ctx context.Context, settingsStore *settings.Store, b
 		return nil, nil, false, errors.Join(prepareErr, loadErr)
 	}
 	// LoadGeneration clamps the switches and versions to the head; any write effect still left between the head and
-	// the fallback (snapshotWriteEffects: a library going Live, Pause off, a library the fallback lacks) refuses it,
+	// the fallback (snapshotWriteEffects: Pause off, a library the fallback lacks) refuses it,
 	// and the start fails with both reasons instead of running settings the owner did not save.
 	effects, effectsErr := settingsStore.FallbackEffects(ctx, initial, fallback)
 	if effectsErr != nil {

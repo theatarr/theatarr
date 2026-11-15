@@ -43,11 +43,11 @@ const routerUsage = `usage:
 dry-run searches the library's indexers through the gateway (with the configured VPN requirements, like
 theatarr decide -search), decides every result, and shows what the router would do with the accepted
 ones: which release, which provider, and why each was skipped. It sends nothing to any provider and records nothing,
-whatever Pause and the library's mode say. status reads the database: Pause, which libraries the
-router may write for, provider pacing, downloads by state, and recent downloads and dry-run plans. offer offers an
+whatever Pause says. status reads the database: Pause, which libraries the
+router may write for, provider pacing, downloads by state, and recent downloads. offer offers an
 imported download to the title's other libraries (-sweep also offers adopted
-links): each library's own profile decides, an accepted offer queues a route that reuses the provider's torrent
-(a dry-run plan for a Watch-only library), and outcomes are remembered in router_offer. -dry-run decides only.
+links): each library's own profile decides, an accepted offer queues a route that reuses the provider's torrent,
+and outcomes are remembered in router_offer. -dry-run decides only.
 reconcile lists queued route jobs and queued downloads queued by an older build, whose
 identity and origin cannot be proved (no identity validation version); -apply ends the automatic ones (job failed and
 dismissed, download failed) and queues one re-search per title and library; manual rows are only listed.
@@ -288,19 +288,16 @@ func runRouterStatus(args []string, out io.Writer) error {
 			sw += " [forced by THEATARR_FORCE_OFF]"
 		}
 	}
-	fmt.Fprintf(out, "pause      %s\ncached     cached_only %v; %d unfinished cache check(s)\nactive     %s\n"+
-		"misses     %d live\n", sw, s.CachedOnly, s.UnfinishedChecks, orNone(s.ActiveVersions), s.Misses)
+	fmt.Fprintf(out, "pause      %s\ncached     cached_only %v; %d unfinished cache check(s)\n"+
+		"misses     %d live\n", sw, s.CachedOnly, s.UnfinishedChecks, s.Misses)
 	tw := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
-	fmt.Fprintln(tw, "\nLIBRARY\tSTATE\tDOWNLOADS\tPROVIDERS")
+	fmt.Fprintln(tw, "\nLIBRARY\tDOWNLOADS\tPROVIDERS")
 	for _, v := range s.Versions {
-		state, downloads := "Watch only", "no"
-		if v.Mode == string(policy.ModeActive) {
-			state = "Live"
-		}
+		downloads := "no"
 		if v.Writes {
 			downloads = "yes"
 		}
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n", v.Key, state, downloads, strings.Join(v.Providers, ", "))
+		fmt.Fprintf(tw, "%s\t%s\t%s\n", v.Key, downloads, strings.Join(v.Providers, ", "))
 	}
 	fmt.Fprintln(tw, "\nPROVIDER\tKEY\tADDS/MIN\tUNCACHED/H\tCOOLDOWN\tBACKOFF\tFAILURES\tREASON")
 	for _, p := range s.Providers {
@@ -318,13 +315,6 @@ func runRouterStatus(args []string, out io.Writer) error {
 		for _, d := range s.Recent {
 			fmt.Fprintf(tw, "%d\t%s\t%s\t%s\t%.0f%%\t%s\t%s\n", d.ID, d.Version, d.State, d.Provider, d.Progress,
 				d.Release, d.Error)
-		}
-	}
-	if len(s.Plans) > 0 {
-		fmt.Fprintln(tw, "\nPLAN\tVERSION\tMODE\tOUTCOME\tPROVIDER\tRELEASE\tAT")
-		for _, p := range s.Plans {
-			fmt.Fprintf(tw, "%d\t%s\t%s\t%s\t%s\t%s\t%s\n", p.ID, p.Version, p.Mode, p.Outcome, p.Provider, p.Release,
-				p.Created.Format(time.RFC3339))
 		}
 	}
 	fmt.Fprintf(tw, "\nblocklist\t%d hashes never routed again for their version\n", s.BlocklistTotal)

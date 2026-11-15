@@ -1,5 +1,4 @@
-// Package journal is Theatarr's grab journal: one entry per decision (grab, upgrade, search, re-search,
-// router dry run) and per thing that happened to one afterwards (failure, stall, blocklist, import, link), each with
+// Package journal is Theatarr's grab journal: one entry per decision (grab, upgrade, search, re-search) and per thing that happened to one afterwards (failure, stall, blocklist, import, link), each with
 // its reasoning (the chosen release, its score and formats, the runners-up and their rejections), provider attempts
 // and cache evidence, import results, suspect flags and verdicts. docs/journal.md is the reader's guide.
 //
@@ -7,7 +6,7 @@
 //
 // The journal is a reader over the tables that already record all of this; nothing is copied:
 //
-//   - download, download_attempt, provider_cache, router_blocklist (router), acquire_run (acquirer), router_plan;
+//   - download, download_attempt, provider_cache, router_blocklist (router), acquire_run (acquirer);
 //   - library_import, library_action, link, content_file (the library).
 //
 // Two tables are its own (migration 00024): journal_decision, the candidates a search decided between when it
@@ -17,7 +16,7 @@
 //
 // An entry id names its source row: dl:<download> (grab or upgrade), dl:<download>:fail (failure or stall),
 // dl:<download>:import, lib:<library_action>, bl:<router_blocklist rowid>, run:<acquire_run>,
-// plan:<router_plan>, v:<journal_verdict>, act:<journal_action> (an operator action through the web UI, migration 00039: action.go).
+// v:<journal_verdict>, act:<journal_action> (an operator action through the web UI, migration 00039: action.go).
 //
 // # Safety
 //
@@ -256,7 +255,6 @@ FROM library_import li JOIN download d ON d.id = li.download_id`},
 	{"lib", libHeadSQL + `WHERE la.kind IN ('link', 'replace', 'relink', 'dead')`},
 	{"bl", `SELECT 'bl:' || b.rowid, b.created_at, COALESCE(b.title_id, 0), b.version_key, 'blocklist' FROM router_blocklist b`},
 	{"run", runHeadSQL + ` WHERE ` + failureRunSQL + ` OR r.state IN ('nothing', 'failed')`},
-	{"plan", `SELECT 'plan:' || p.id, p.created_at, p.title_id, p.version_key, 'plan' FROM router_plan p`},
 }
 
 // headSQL is the union of every part.

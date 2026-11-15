@@ -1,7 +1,7 @@
-// The title page's Libraries table (docs/design/ui.md, Title page): one row per library the title is in (Live or Watch
-// only), for a movie and a series alike, on the shared DataTable. Monitored and Library always show, then the columns
+// The title page's Libraries table (docs/design/ui.md, Title page): one row per library the title is in, for a movie
+// and a series alike, on the shared DataTable. Monitored and Library always show, then the columns
 // the user chose (lib/library-rows.ts, kept per user in this browser), then the row's actions: Search now, Interactive
-// search (a movie's Live library) and Details, which opens a panel with what has no column: the library key, path,
+// search (a movie's library) and Details, which opens a panel with what has no column: the library key, path,
 // hash, edition, upgrade explanation, minimum availability, the hand-offs to Wanted, the last search's results, each
 // linked file with Unlink, and Remove from this library. Below 768 px each library is a stacked block. A library the
 // title was removed from has no row; one that still has linked files gets one line under the table. Only for callers
@@ -35,7 +35,7 @@ import { leftoverLinks, unlinkable } from "@/lib/ops";
 import { useColumnPrefs } from "@/lib/prefs";
 import { belowCount, nextLine } from "@/lib/upgrade";
 import { cn } from "@/lib/utils";
-import { downloadReason, globalDownloadsOff, linksOff, MODE_WORDS, verdict } from "@/lib/version-grab";
+import { downloadReason, globalDownloadsOff, linksOff, verdict } from "@/lib/version-grab";
 import { otherProvidersLine } from "@/lib/provider-copies";
 import { mediaLine, subsList } from "@/lib/media";
 import { coverageWords, latestEvent, missingLine } from "@/lib/title-facts";
@@ -47,13 +47,12 @@ const PREFS = "title-libraries";
 
 const nameOf = (v: Version) => v.label || v.key || "";
 
-/** The library cell: colour, name (the key as tooltip), the Live / Watch only tag, and a verdict only when it adds
+/** The library cell: colour, name (the key as tooltip), and a verdict only when it adds
  *  something ("Downloads off", "New files won't be linked"); Paused is said once by the page. */
 function LibraryName({ v, wrap = false }: { v: Version; wrap?: boolean }) {
   const perms = usePerms();
   const c = v.control;
   const state = c?.grab_state;
-  const mode = MODE_WORDS[state?.mode ?? c?.mode ?? ""];
   const off = state && verdict(state).word === "Downloads off";
   return (
     <span className={cn("flex min-w-0 items-center gap-x-2 gap-y-1", wrap ? "flex-wrap" : "whitespace-nowrap")}>
@@ -61,7 +60,6 @@ function LibraryName({ v, wrap = false }: { v: Version; wrap?: boolean }) {
         <CopyDot vkey={v.key} className="size-2.5 rounded-[3px]" />
         <span className="truncate">{nameOf(v)}</span>
       </span>
-      {mode ? <Tag title={mode.help} data-mode={state?.mode ?? c?.mode}>{mode.label}</Tag> : null}
       {off ? <VersionStatus state={state} why={false} settingsKey={v.key} canManage={perms.admin} /> : null}
       {!off && state && linksOff(state) ? <Badge tone="ghost" data-testid="links-off" title="This library writes no links: new files won't be linked">New files won't be linked</Badge> : null}
     </span>
@@ -71,7 +69,7 @@ function LibraryName({ v, wrap = false }: { v: Version; wrap?: boolean }) {
 /** Why a library is missing and what comes next (a monitored library with nothing in hand that is missing a movie or
  *  aired episodes): the last targeted search or "Never searched", and whether Theatarr searches by itself. */
 export function whyMissing(v: Version, title: TitleDetail, kind: Kind): string {
-  if (!v.monitored || v.acquisition || v.control?.mode !== "active") return "";
+  if (!v.monitored || v.acquisition || !v.control) return "";
   const missing = kind === "series" ? (v.episodes?.missing ?? 0) > 0 : !v.has_file && !upcomingRelease({ ...title, kind }) && !undatedUpcoming({ ...title, kind });
   if (!missing) return "";
   const n = nextSearchOf(v);
@@ -195,7 +193,7 @@ function RowDetails({ v, kind, minimumShown, statusShown, onRemove }: { v: Versi
   const next = nextLine(v.upgrade);
   if (next) rows.push(["Upgrade", <span key="n" className="[overflow-wrap:anywhere]">{next}</span>]);
   if (v.minimum_availability && !minimumShown) rows.push(["Minimum availability", <MinimumAvailabilityControl key="m" v={v} label={nameOf(v)} />]);
-  const active = perms.manage && v.control?.mode === "active";
+  const active = perms.manage && !!v.control;
   return (
     <div className="space-y-3" data-testid={`library-row-details-${key}`}>
       <KV items={rows} />
@@ -251,10 +249,10 @@ export function LibraryRows({ title, versions }: { title: TitleDetail; versions:
     );
   };
 
-  // The server's search for one library may also grab for the title's other Live libraries that want it.
+  // The server's search for one library may also grab for the title's other libraries that want it.
   const searchTip = (v: Version) =>
-    rows.some((o) => o.key !== v.key && o.control?.mode === "active")
-      ? `Search ${nameOf(v)} now. Other Live libraries that want this title may use the results too.`
+    rows.some((o) => o.key !== v.key && o.control)
+      ? `Search ${nameOf(v)} now. Other libraries that want this title may use the results too.`
       : `Search ${nameOf(v)} now`;
 
   const actions = (v: Version) => {

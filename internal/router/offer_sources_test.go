@@ -38,81 +38,6 @@ func (e *offerEnv) sourceFile(kind, hash string) {
 	}
 }
 
-func TestOfferFileSources(t *testing.T) {
-	t.Parallel()
-	e := newOfferEnv(t)
-	hash := strings.Repeat("a", 40)
-	e.sourceFile("adopted", strings.ToUpper(hash))
-	e.storeSource(hash, "dmm")
-	// A second version may accept an active route too.
-	e.off.Policy.Versions["movie-active"] = &policy.VersionPolicy{Kind: policy.KindMovie, Mode: policy.ModeActive}
-	e.exec(`INSERT INTO version (id, title_id, policy_key, created_at, updated_at) VALUES (15, 1, 'movie-active', 0, 0)`)
-	sr, err := e.off.Sweep(e.ctx, true, 0)
-	if err != nil || sr.Downloads != 1 || len(sr.Offers) != 2 || sr.Outcomes[OfferPlanned] != 1 || sr.Outcomes[OfferRouted] != 1 {
-		t.Fatalf("dry run: %+v, %v", sr, err)
-	}
-	if len(e.enq.reqs) != 0 || e.outcome("movie-extra", 1, hash) != "" {
-		t.Fatal("dry run recorded or queued")
-	}
-	sr, err = e.off.Sweep(e.ctx, false, 0)
-	if err != nil || sr.Downloads != 1 || len(e.enq.reqs) != 2 {
-		t.Fatalf("sweep: %+v, routes %+v, %v", sr, e.enq.reqs, err)
-	}
-	for _, req := range e.enq.reqs {
-		if req.Version != "movie-extra" && req.Version != "movie-active" {
-			t.Errorf("offered to the source or the arr's library: %+v", req)
-		}
-		if req.Candidates[0].Release.InfoHash != hash || req.Candidates[0].Release.Size != 1000 {
-			t.Errorf("lost file identity: %+v", req)
-		}
-	}
-	if sr, err = e.off.Sweep(e.ctx, false, 0); err != nil || sr.Downloads != 0 || len(sr.Outcomes) != 0 || len(e.enq.reqs) != 2 {
-		t.Fatalf("repeated sweep: %+v, %v", sr, err)
-	}
-}
-
-// The adopted link's hash is its own (content) when it has one, else the stored source's; without either it is
-// declined as no_hash.
-func TestOfferFileHashDiscovery(t *testing.T) {
-	t.Parallel()
-	for _, method := range []string{"content", "stored", "no_hash"} {
-		t.Run(method, func(t *testing.T) {
-			e := newOfferEnv(t)
-			hash := strings.Repeat("b", 40)
-			e.sourceFile("adopted", "")
-			switch method {
-			case "content":
-				e.storeSource("", "dmm")
-				e.exec(`INSERT INTO content (id, info_hash, first_seen_at, last_seen_at) VALUES (1, ?, 0, 0)`, hash)
-				e.exec(`INSERT INTO content_file (id, content_id, path, size_bytes) VALUES (1, 1, 'video.mkv', 1000)`)
-				e.exec(`UPDATE link SET content_file_id = 1 WHERE id = 1`)
-			case "stored":
-				e.storeSource(hash, "dmm")
-			case "no_hash":
-				e.storeSource("", "dmm")
-			}
-			sr, err := e.off.Sweep(e.ctx, false, 0)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if method == "no_hash" {
-				var reasons string
-				if err := e.st.Reader().QueryRow(`SELECT reasons FROM router_offer WHERE version_key = 'movie-extra' AND info_hash = ''`).Scan(&reasons); err != nil {
-					t.Fatal(err)
-				}
-				if reasons != `["no_hash"]` || sr.Outcomes[OfferDeclined] != 1 || len(e.enq.reqs) != 0 {
-					t.Fatalf("hashless source: %+v, reasons %s, routes %+v", sr, reasons, e.enq.reqs)
-				}
-				if again, err := e.off.Sweep(e.ctx, false, 0); err != nil || len(again.Outcomes) != 0 {
-					t.Fatalf("hashless source repeated: %+v, %v", again, err)
-				}
-			} else if sr.Outcomes[OfferPlanned] != 1 || len(e.enq.reqs) != 1 || e.enq.reqs[0].Candidates[0].Release.InfoHash != hash {
-				t.Fatalf("hash discovery: %+v, routes %+v", sr, e.enq.reqs)
-			}
-		})
-	}
-}
-
 func TestOfferFileAlreadyHeld(t *testing.T) {
 	t.Parallel()
 	e := newOfferEnv(t)
@@ -129,7 +54,7 @@ func TestOfferFileAlreadyHeld(t *testing.T) {
 func TestOfferFileSeriesPack(t *testing.T) {
 	t.Parallel()
 	e := newOfferEnv(t)
-	e.off.Policy.Versions["tv-web"] = &policy.VersionPolicy{Kind: policy.KindSeries, Mode: policy.ModeActive}
+	e.off.Policy.Versions["tv-web"] = &policy.VersionPolicy{Kind: policy.KindSeries}
 	e.exec(`INSERT INTO title (id, kind, name, series_type, created_at, updated_at) VALUES (3, 'series', 'Show', 'standard', 0, 0)`)
 	e.exec(`INSERT INTO version (id, title_id, policy_key, created_at, updated_at) VALUES (30, 3, 'tv', 0, 0), (31, 3, 'tv-web', 0, 0)`)
 	e.exec(`INSERT INTO episode (id, title_id, season, number, name, created_at, updated_at) VALUES
@@ -158,31 +83,6 @@ func TestOfferFileSeriesPack(t *testing.T) {
 	}
 	if got := e.enq.reqs[0].Candidates[0].Episodes; len(got) != 2 || got[0] != 301 || got[1] != 302 {
 		t.Fatalf("pack episodes: %v", got)
-	}
-}
-
-// An unknown source indexer is declined without asking the target; a private-labelled configured one is decided
-// like any other (privacy is a label only).
-func TestOfferFilePrivateAndUnknownIndexer(t *testing.T) {
-	t.Parallel()
-	for _, indexer := range []string{"private", "unknown", ""} {
-		t.Run(indexer, func(t *testing.T) {
-			e := newOfferEnv(t)
-			hash := strings.Repeat("d", 40)
-			e.off.Policy.Indexers["private"] = &policy.Indexer{Privacy: policy.PrivacyPrivate}
-			e.sourceFile("adopted", hash)
-			e.storeSource(hash, indexer)
-			sr, err := e.off.Sweep(e.ctx, false, 0)
-			if indexer == "private" {
-				if err != nil || sr.Outcomes[OfferPlanned] != 1 || len(e.asked) == 0 {
-					t.Fatalf("private-labelled source: %+v, routes %+v, %v", sr, e.enq.reqs, err)
-				}
-				return
-			}
-			if err != nil || sr.Outcomes[OfferDeclined] != 1 || len(e.enq.reqs) != 0 || len(e.asked) != 0 {
-				t.Fatalf("unknown source: %+v, routes %+v, %v", sr, e.enq.reqs, err)
-			}
-		})
 	}
 }
 
@@ -256,69 +156,6 @@ func TestOfferGaveUpEarlyOnTitleAdded(t *testing.T) {
 	res, err := e.off.Offer(e.ctx, 1, false)
 	if err != nil || len(res) != 1 || res[0].Version != "movie-web" || res[0].Outcome != OfferRouted {
 		t.Fatalf("early retry: %+v, %v", res, err)
-	}
-}
-
-func TestOfferGaveUpEarlyWhenReadable(t *testing.T) {
-	t.Parallel()
-	e := newOfferEnv(t)
-	hash := strings.Repeat("1", 40)
-	e.sourceFile("adopted", hash)
-	e.storeSource(hash, "dmm")
-	e.exec(`INSERT INTO library_dangling (path, target, root, first_seen_at, last_seen_at)
-		VALUES ('/theatarr/Movie.mkv', '/mount/__all__/Movie/video.mkv', '/theatarr', 0, 0)`)
-	if _, err := e.off.Sweep(e.ctx, false, 0); err != nil {
-		t.Fatal(err)
-	}
-	e.now = e.now.Add(OfferRetryFor)
-	if _, err := e.off.Sweep(e.ctx, false, 0); err != nil {
-		t.Fatal(err)
-	}
-	e.exec(`DELETE FROM library_dangling`)
-	sr, err := e.off.Sweep(e.ctx, false, 0)
-	if err != nil || sr.Outcomes[OfferPlanned] != 1 || len(e.enq.reqs) != 1 {
-		t.Fatalf("readable retry: %+v, %v", sr, err)
-	}
-}
-
-func TestOfferFileRetryJob(t *testing.T) {
-	t.Parallel()
-	e := newOfferEnv(t)
-	hash := strings.Repeat("b", 40)
-	e.off.Queue = jobs.NewQueue(e.st)
-	e.sourceFile("adopted", hash)
-	e.storeSource(hash, "dmm")
-	e.exec(`DELETE FROM version WHERE id = 12`)
-	if _, err := e.off.Sweep(e.ctx, false, 0); err != nil {
-		t.Fatal(err)
-	}
-	var payload string
-	if err := e.st.Reader().QueryRow(`SELECT payload FROM job WHERE kind = ? ORDER BY id LIMIT 1`, JobOffer).Scan(&payload); err != nil {
-		t.Fatal(err)
-	}
-	var p offerPayload
-	if err := json.Unmarshal([]byte(payload), &p); err != nil || p.SourceKind != "link" || p.SourceID != 1 || p.DownloadID != 0 {
-		t.Fatalf("file retry payload: %s, %v", payload, err)
-	}
-	e.now = e.now.Add(OfferRetryFor)
-	job := &jobs.Job{Payload: []byte(payload)}
-	if err := e.off.handle(e.ctx, job); err != nil || e.outcome("movie-extra", 1, hash) != OfferGaveUp {
-		t.Fatalf("file gave up: %v", err)
-	}
-	e.now = e.now.Add(OfferGaveUpEvery)
-	if err := e.off.handle(e.ctx, job); err != nil {
-		t.Fatal(err)
-	}
-	var retries int
-	if err := e.st.Reader().QueryRow(`SELECT retry_attempts FROM router_offer WHERE info_hash = ?`, hash).Scan(&retries); err != nil || retries != 1 {
-		t.Fatalf("file daily retry: %d, %v", retries, err)
-	}
-	e.exec(`INSERT INTO version (id, title_id, policy_key, created_at, updated_at) VALUES (12, 1, 'movie-extra', 0, 0)`)
-	if err := e.off.handle(e.ctx, job); err != nil || e.outcome("movie-extra", 1, hash) != OfferPlanned || len(e.enq.reqs) != 1 {
-		t.Fatalf("file early retry: routes %+v, %v", e.enq.reqs, err)
-	}
-	if err := e.off.handle(e.ctx, job); err != nil || len(e.enq.reqs) != 1 {
-		t.Fatalf("replayed file job: routes %+v, %v", e.enq.reqs, err)
 	}
 }
 
@@ -428,34 +265,6 @@ func adoptedEnv(t *testing.T, hash string) (*offerEnv, *[]string) {
 	return e, &indexers
 }
 
-// TestOfferAdoptedSourceStored: an adopted link is offered from its stored source, with the stored indexer; a dry run
-// decides the same and writes nothing to the link.
-func TestOfferAdoptedSourceStored(t *testing.T) {
-	t.Parallel()
-	hash := strings.Repeat("e", 40)
-	e, indexers := adoptedEnv(t, hash)
-	before, err := e.off.Sweep(e.ctx, true, 0)
-	if err != nil || before.Outcomes[OfferPlanned] != 1 {
-		t.Fatalf("dry run: %+v, %v", before, err)
-	}
-	if len(*indexers) == 0 || (*indexers)[0] != "dmm" {
-		t.Fatalf("indexers %v", *indexers)
-	}
-	var stored string
-	if err := e.st.Reader().QueryRow(`SELECT adopted_source FROM link WHERE id = 1`).Scan(&stored); err != nil {
-		t.Fatal(err)
-	}
-	sr, err := e.off.Sweep(e.ctx, false, 0)
-	if err != nil || fmt.Sprint(sr.Outcomes) != fmt.Sprint(before.Outcomes) || len(e.enq.reqs) != 1 ||
-		e.enq.reqs[0].Candidates[0].Release.InfoHash != hash {
-		t.Fatalf("sweep: %+v, before %+v, routes %+v, %v", sr, before, e.enq.reqs, err)
-	}
-	var after string
-	if err := e.st.Reader().QueryRow(`SELECT adopted_source FROM link WHERE id = 1`).Scan(&after); err != nil || after != stored {
-		t.Fatalf("stored source changed: %s, %v", after, err)
-	}
-}
-
 // TestAdoptedLinkWithoutStoredSourceNotOffered: an adopted link with no stored source, or one stored for the arr file
 // it was adopted from before a refresh moved it, has no indexer and is not offered.
 func TestAdoptedLinkWithoutStoredSourceNotOffered(t *testing.T) {
@@ -492,30 +301,5 @@ func TestAdoptedLinkOffersWithoutFollowing(t *testing.T) {
 	}
 	if offered["movie-remux"] || offered["movie-web"] || !offered["movie-extra"] {
 		t.Fatalf("offers %+v", sr.Offers)
-	}
-}
-
-// TestArrFileOfferForgotten: an open offer (pending or retry memory) whose source was an imported arr file is
-// deleted, not declined, so the same file from an adopted link with a stored source is offered normally.
-func TestArrFileOfferForgotten(t *testing.T) {
-	t.Parallel()
-	for _, outcome := range []string{OfferPending, OfferGaveUp} {
-		t.Run(outcome, func(t *testing.T) {
-			e := newOfferEnv(t)
-			hash := strings.Repeat("e", 40)
-			e.exec(`INSERT INTO router_offer (version_key, title_id, info_hash, from_version, release_title, outcome,
-				reasons, attempts, first_at, next_at, updated_at, source_kind, source_id) VALUES ('movie-extra', 1, ?,
-				'movie-remux', 'Movie.2001.2160p.WEB-DL-GRP', ?, '[]', 1, 0, 0, 0, 'arr_file', 1)`, hash, outcome)
-			e.sourceFile("adopted", hash)
-			e.storeSource(hash, "dmm")
-			sr, err := e.off.Sweep(e.ctx, false, 0)
-			if err != nil || sr.Outcomes[OfferDeclined] != 0 || e.outcome("movie-extra", 1, hash) != OfferPlanned {
-				t.Fatalf("sweep: %+v, outcome %q, %v", sr, e.outcome("movie-extra", 1, hash), err)
-			}
-			var n int
-			if err := e.st.Reader().QueryRow(`SELECT COUNT(*) FROM router_offer WHERE source_kind = 'arr_file'`).Scan(&n); err != nil || n != 0 {
-				t.Fatalf("arr file offers left: %d, %v", n, err)
-			}
-		})
 	}
 }

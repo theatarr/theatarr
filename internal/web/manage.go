@@ -29,9 +29,8 @@ import (
 // monitoring, whether a search would run), season and episode monitoring, season and episode search, the episode
 // detail, and episode-scoped releases.
 //
-// Every copy's monitoring may be changed here. Searches follow the existing rule (catalog.Searchable: mode active and router.enabled), and
-// releases answer from what is stored unless the version is active, so a Watch-only version gets no writes and no
-// indexer traffic from these controls.
+// Every copy's monitoring may be changed here. Searches follow the existing rule (catalog.Searchable: router.enabled),
+// and releases answer from what is stored unless a live search is asked for.
 
 func (w *Web) mountManageAPI(mux *http.ServeMux) {
 	b := APIBase + "/titles/{id}"
@@ -50,19 +49,18 @@ func canManage(p Perms) bool { return p.Has(auth.PermManage) }
 // VersionControl says what the title page's controls may do for one version, and why not.
 type VersionControl struct {
 	GrabState VersionGrabState `json:"grab_state"`
-	// Mode is the version's policy mode: shadow or active.
-	Mode string `json:"mode"`
 	// CanEdit: monitoring may be changed here; EditReason says why not.
 	CanEdit    bool   `json:"can_edit"`
 	EditReason string `json:"edit_reason,omitempty"`
-	// CanSearch: a search would run (mode active, router on, acquirer running); SearchReason says why not.
+	// CanSearch: a search would run (router on, acquirer running); SearchReason says why not.
 	CanSearch    bool   `json:"can_search"`
 	SearchReason string `json:"search_reason,omitempty"`
-	// LiveReleases: the releases panel may search the indexers now (mode active).
+	// LiveReleases: the releases panel may search the indexers now (the library is in the settings, the acquirer
+	// runs).
 	LiveReleases bool `json:"live_releases"`
 	// NextSearchAt (a movie copy) is from when the copy's next automatic search may start, the earliest time of its
 	// Wanted rows (nextSearches; now or earlier: due), and NextSearchWhy why it is early. Unset when Wanted gives the
-	// copy no time: not Live, not monitored, at its cutoff, not scheduled, a download in flight, or paused.
+	// copy no time: not monitored, at its cutoff, not scheduled, a download in flight, or paused.
 	NextSearchAt  *time.Time `json:"next_search_at,omitempty"`
 	NextSearchWhy string     `json:"next_search_why,omitempty"`
 }
@@ -79,15 +77,10 @@ const noManage = "Your account may not change this"
 
 // control builds a version's controls.
 func (w *Web) control(key string) *VersionControl {
-	c := &VersionControl{GrabState: versionGrabState(w.pol, key), Mode: string(policy.ModeShadow), CanEdit: true}
-	if w.pol != nil {
-		if vp := w.pol.Versions[key]; vp != nil && vp.Mode != "" {
-			c.Mode = string(vp.Mode)
-		}
-	}
+	c := &VersionControl{GrabState: versionGrabState(w.pol, key), CanEdit: true}
 	c.SearchReason = w.searchBlock(key)
 	c.CanSearch = c.SearchReason == ""
-	c.LiveReleases = c.Mode == string(policy.ModeActive) && w.add.Acquirer != nil
+	c.LiveReleases = w.pol != nil && w.pol.Versions[key] != nil && w.add.Acquirer != nil
 	return c
 }
 
@@ -724,7 +717,7 @@ func (w *Web) apiSearchSeason(rw http.ResponseWriter, r *http.Request) {
 func (w *Web) apiSearchEpisodes(rw http.ResponseWriter, r *http.Request) { w.searchScoped(rw, r, nil) }
 
 // searchScoped searches one season, or the episodes named, for the title's monitored versions (or the ones named),
-// through the same gate as search now: only versions in mode active while router.enabled is true are searched, and
+// through the same gate as search now: only while router.enabled is true are versions searched, and
 // the answer says why the rest were not. The acquirer searches monitored episodes only.
 func (w *Web) searchScoped(rw http.ResponseWriter, r *http.Request, season *int) {
 	ctx := r.Context()
@@ -1128,7 +1121,7 @@ func (w *Web) episodeHistory(ctx context.Context, db *sql.DB, titleID, versionID
 }
 
 // GET titles/{id}/episodes/{eid}/releases?version=&live=: the releases panel for one episode. live=1 searches the
-// indexers for that episode now, for a version in mode active only; otherwise (and for any shadow version) the answer
+// indexers for that episode now; otherwise (or without the acquirer) the answer
 // is the newest stored decision that covered the episode: a journal search of it or its season, a journal RSS read
 // with a release for it. Candidates for other episodes are left out.
 func (w *Web) apiEpisodeReleases(rw http.ResponseWriter, r *http.Request) {
@@ -1159,11 +1152,8 @@ func (w *Web) apiEpisodeReleases(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	vp := w.pol.Versions[key]
-	out := Releases{GrabState: versionGrabState(w.pol, key), TitleID: t.id, Version: key, Versions: have, Mode: string(policy.ModeShadow),
+	out := Releases{GrabState: versionGrabState(w.pol, key), TitleID: t.id, Version: key, Versions: have,
 		Candidates: []snapshot.Candidate{}, Rejections: map[string]int{}, Source: "none"}
-	if vp != nil && vp.Mode != "" {
-		out.Mode = string(vp.Mode)
-	}
 	var season, number int64
 	if err := w.st.Reader().QueryRowContext(ctx, `SELECT season, number FROM episode WHERE id = ?`, eid).Scan(&season,
 		&number); err != nil {
@@ -1172,11 +1162,11 @@ func (w *Web) apiEpisodeReleases(rw http.ResponseWriter, r *http.Request) {
 	}
 	it := evItem{episodeID: eid, season: season, number: number}
 	out.Target = strings.ToLower(it.code())
-	out.LiveAllowed = vp != nil && vp.Mode == policy.ModeActive && w.add.Acquirer != nil
+	out.LiveAllowed = vp != nil && w.add.Acquirer != nil
 	if live, _ := strconv.ParseBool(r.URL.Query().Get("live")); live {
 		switch {
-		case !out.LiveAllowed && (vp == nil || vp.Mode != policy.ModeActive):
-			out.Message = "Watch only: no live search for " + key + "; showing the last stored decision"
+		case vp == nil:
+			out.Message = "No live search: " + key + " is not in the settings; showing the last stored decision"
 		case !out.LiveAllowed:
 			out.Message = "The acquirer is not running; showing the last stored decision"
 		default:

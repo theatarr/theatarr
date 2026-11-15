@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/store"
 )
 
@@ -47,7 +46,7 @@ type SearchNowResult struct {
 
 // Reasons an item is skipped.
 const (
-	skipNotActive = "the library is not active"
+	skipNotActive = "the library is not in the settings"
 	skipNothing   = "nothing of it is wanted now"
 	skipInFlight  = "a download for it is in progress"
 	skipSearching = "a search of it is queued or running"
@@ -76,7 +75,7 @@ func (a *Acquirer) RequestSearchNow(ctx context.Context, only string, items []Se
 		skip := ""
 		vp := a.pol.Versions[it.Version]
 		switch {
-		case vp == nil || vp.Mode != policy.ModeActive:
+		case vp == nil:
 			skip = skipNotActive
 		default:
 			ts, err := a.targets(ctx, a.searchNowSelection(it.TitleID, it.Version, only, seasonOf(it.Season)))

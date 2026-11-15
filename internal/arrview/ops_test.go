@@ -77,12 +77,6 @@ func TestGrabReleaseByHand(t *testing.T) {
 		!strings.Contains(err.Error(), "Theatarr is paused") {
 		t.Errorf("disabled grab: %v", err)
 	}
-	e.pol.Router.Enabled = true
-	e.pol.Versions["movie-web"].Mode = policy.ModeShadow
-	if _, err := e.svc.GrabRelease(ctx, 1, "movie-web", good, true, "ui:grab:test"); !isRefused(err) ||
-		!strings.Contains(err.Error(), "Watch only") {
-		t.Errorf("shadow grab: %v", err)
-	}
 }
 
 // TestAddReleaseByHand: a release added by its hash has no indexer (it carries policy.ManualIndexer) and takes the grab's route: decided now, refused
@@ -168,12 +162,6 @@ func TestAddReleaseByHand(t *testing.T) {
 		!strings.Contains(err.Error(), "Theatarr is paused") {
 		t.Errorf("disabled add: %v", err)
 	}
-	e.pol.Router.Enabled = true
-	e.pol.Versions["movie-web"].Mode = policy.ModeShadow
-	if _, err := e.svc.AddRelease(ctx, 1, "movie-web", good, true, "ui:grab:test"); !isRefused(err) ||
-		!strings.Contains(err.Error(), "Watch only") {
-		t.Errorf("shadow add: %v", err)
-	}
 }
 
 // TestRetryDownload: a failed download's release is routed again (a new download row, never a link), refused while
@@ -233,12 +221,6 @@ func TestRetryDownload(t *testing.T) {
 	if _, err := e.svc.RetryDownload(ctx, 50, "ui:retry:50"); !isRefused(err) ||
 		!strings.Contains(err.Error(), "Theatarr is paused") {
 		t.Errorf("disabled retry: %v", err)
-	}
-	e.pol.Router.Enabled = true
-	e.pol.Versions["movie-web"].Mode = policy.ModeShadow
-	if _, err := e.svc.RetryDownload(ctx, 50, "ui:retry:50"); !isRefused(err) ||
-		!strings.Contains(err.Error(), "Watch only") {
-		t.Errorf("shadow retry: %v", err)
 	}
 }
 

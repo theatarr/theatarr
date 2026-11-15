@@ -182,7 +182,7 @@ func TestMountCallsBounded(t *testing.T) {
 // without touching the mount, and the state is exported for health checks.
 func TestLibraryBacksOffWhileMountBreakerOpen(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
 	e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
 	fs := newSlowFS()
@@ -217,7 +217,7 @@ func TestLibraryBacksOffWhileMountBreakerOpen(t *testing.T) {
 
 // A probe that hangs is a mount outage, not a verdict on the file: the import pauses and nothing is rejected.
 func TestHungProbePausesImport(t *testing.T) {
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
 	e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
 	old := probeTimeout

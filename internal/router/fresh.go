@@ -58,8 +58,8 @@ func (r *Router) freshCandidates(ctx context.Context, s *routeState) ([]Candidat
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("router: route intent: %w", err)
 	}
-	if errors.Is(err, sql.ErrNoRows) || s.vp.Mode != policy.ModeActive || kind != string(s.vp.Kind) {
-		return r.cancelFresh(ctx, s, "the title or version is no longer monitored and active", "not_wanted")
+	if errors.Is(err, sql.ErrNoRows) || kind != string(s.vp.Kind) {
+		return r.cancelFresh(ctx, s, "the title or version is no longer monitored", "not_wanted")
 	}
 	if s.vp.Kind == policy.KindMovie {
 		available, err := availability.Movie(ctx, r.st.Writer(), r.pol, s.req.TitleID, s.req.VersionID, s.req.Version, r.now())

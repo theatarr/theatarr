@@ -193,8 +193,8 @@ func (s *Service) historyFailed(w http.ResponseWriter, r *request) {
 	notFound(w, "History with ID "+strconv.FormatInt(id, 10)+" does not exist")
 }
 
-// redownload starts a search for a title's active versions in the view (MoviesSearch / SeriesSearch), as the arrs'
-// failed-download handling does; shadow versions are left out by the command itself.
+// redownload starts a search for a title's versions in the view (MoviesSearch / SeriesSearch), as the arrs'
+// failed-download handling does.
 func (s *Service) redownload(ctx context.Context, r *request, titleID int64) error {
 	name := "MoviesSearch"
 	body := map[string]any{"name": name, "movieIds": []any{float64(viewID(titleID))}}

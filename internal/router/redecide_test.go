@@ -9,7 +9,6 @@ import (
 
 	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/jobs"
-	"github.com/theatarr/theatarr/internal/policy"
 )
 
 // deferredRSS routes an RSS candidate while every provider backs off and returns the queued follow-up payload.
@@ -53,7 +52,7 @@ func TestDeferredAutomaticRouteRedecidedAfterPolicyChange(t *testing.T) {
 		accept       bool
 	}{{"rejected", "rss", false}, {"accepted", "rss", true}, {"manual", "manual", false}} {
 		t.Run(tc.name, func(t *testing.T) {
-			e := newEnv(t, true, policy.ModeActive)
+			e := newEnv(t, true)
 			freshMovie(e)
 			e.pol.Revision = "rev1"
 			asked := 0

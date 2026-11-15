@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -38,30 +39,19 @@ func TestSettingsVersionsCRUDAndConfirmation(t *testing.T) {
 		t.Fatal(err)
 	}
 	config["library"] = root
-	delete(config, "mode")
 	gen := se.generation()
 	body := map[string]any{"generation": gen, "key": "test-version", "config": config, "roots": []string{root}}
-	se.want(se.call("POST", "/versions", body), 200, "create shadow by default")
-	got := se.want(se.call("GET", "/versions/test-version", nil), 200, "new get")["record"].(map[string]any)
-	if got["config"].(map[string]any)["mode"] != "shadow" {
-		t.Fatal("create inferred activation")
+	se.want(se.call("POST", "/versions", body), 200, "create")
+	if se.generation() != gen+1 {
+		t.Fatal("create not saved")
 	}
 	se.want(se.call("PUT", "/versions/test-version", body), 409, "stale")
 	body["generation"] = se.generation()
-	config["mode"] = "active"
-	refusal := se.want(se.call("PUT", "/versions/test-version", body), 422, "unconfirmed activation")
-	effects := refusal["effects"].([]any)
-	text := fmt.Sprint(effects)
-	if !strings.Contains(text, root) || !strings.Contains(text, "rd, ad, tb") || !strings.Contains(text, "Pause is on") {
-		t.Fatalf("effects not specific: %s", text)
+	config["upgrades"] = "off"
+	se.want(se.call("PUT", "/versions/test-version", body), 200, "edit")
+	if got := se.coord.Current().Policy.Versions["test-version"]; got == nil || got.Upgrades != "off" {
+		t.Fatalf("edit not applied: %+v", got)
 	}
-	proof := se.want(se.call("POST", "/versions/confirm", body), 200, "confirm")
-	if se.generation() != gen+1 {
-		t.Fatal("confirm wrote settings")
-	}
-	body["confirmation_token"] = proof["token"]
-	se.want(se.call("PUT", "/versions/test-version", body), 200, "confirmed activation")
-	se.want(se.call("PUT", "/versions/test-version", body), 409, "stale token")
 	if se.coord.Current().Policy.Router.Enabled || se.coord.Current().Policy.Library.Enabled || se.coord.Current().Policy.Notify.Enabled {
 		t.Fatal("changed YAML gates")
 	}
@@ -163,9 +153,21 @@ func TestSettingsVersionImportRequiresExactConfirmation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	p.Versions["movie-web"].Mode = policy.ModeActive
 	p.Versions["movie-web"].Library = root
 	p.Library.Versions["movie-web"].Roots = []string{root}
+	// The import also drops anime-movie: removing a library asks for confirmation.
+	delete(p.Versions, "anime-movie")
+	delete(p.Library.Versions, "anime-movie")
+	for _, v := range p.Views {
+		v.Versions = slices.DeleteFunc(v.Versions, func(k string) bool { return k == "anime-movie" })
+		for name, ks := range v.Profiles {
+			if ks = slices.DeleteFunc(ks, func(k string) bool { return k == "anime-movie" }); len(ks) == 0 {
+				delete(v.Profiles, name)
+			} else {
+				v.Profiles[name] = ks
+			}
+		}
+	}
 	write := func() {
 		t.Helper()
 		files, err := filepath.Glob(filepath.Join(se.dir, "*.yaml"))
@@ -188,10 +190,10 @@ func TestSettingsVersionImportRequiresExactConfirmation(t *testing.T) {
 	write()
 	gen := se.generation()
 	body := map[string]any{"generation": gen, "orphan_active_downloads": false}
-	se.want(se.call("POST", "/import", body), 422, "ordinary import refuses activation")
+	se.want(se.call("POST", "/import", body), 422, "ordinary import refuses the removal")
 	proof := se.want(se.call("POST", "/import/confirm", body), 200, "import proof")
-	if !strings.Contains(fmt.Sprint(proof["effects"]), root) {
-		t.Fatal("import confirmation omitted root")
+	if !strings.Contains(fmt.Sprint(proof["effects"]), "Library anime-movie is removed") {
+		t.Fatal("import confirmation omitted the removal")
 	}
 	p.Versions["movie-web"].Upgrades = "off"
 	write()
@@ -233,7 +235,6 @@ func TestSettingsVersionsCreateDeleteWithQualityNaming(t *testing.T) {
 		t.Fatal(err)
 	}
 	config["library"] = root
-	delete(config, "mode")
 	body := map[string]any{"generation": se.generation(), "key": "test-version", "config": config, "roots": []string{root}}
 	se.want(se.call("POST", "/versions", body), 200, "create")
 	naming := qualityID(t, se, "naming", "test-version")
@@ -327,7 +328,6 @@ func TestSettingsVersionEditEmptyRootsUsesLibraryFolder(t *testing.T) {
 		}
 	}
 	config["library"] = root
-	delete(config, "mode")
 	se.want(se.call("POST", "/versions", map[string]any{"generation": se.generation(), "key": "test-version", "config": config, "roots": []string{root}}), 200, "create")
 	roots := func() []any {
 		return se.want(se.call("GET", "/versions/test-version", nil), 200, "get")["record"].(map[string]any)["roots"].([]any)
@@ -344,43 +344,9 @@ func TestSettingsVersionEditEmptyRootsUsesLibraryFolder(t *testing.T) {
 	}
 }
 
-// A library stored without roots keeps none when an edit sends the editor's [] for them: the edit does not start
-// writes under its folder.
-func TestSettingsVersionEditKeepsStoredNilRoots(t *testing.T) {
-	t.Parallel()
-	se := newSettingsEnvBase(t, nil, nil, nil)
-	snap, err := se.coord.Snapshot(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	req := settings.SaveRequest{ExpectedGeneration: snap.Generation, Actor: "test", Records: cloneRecords(snap.Records)}
-	for i := range req.Records.Versions {
-		if req.Records.Versions[i].Key == "movie-remux" {
-			req.Records.Versions[i].Roots = nil
-		}
-	}
-	if _, err := se.coord.SaveAndApply(context.Background(), req); err != nil {
-		t.Fatal(err)
-	}
-	record := se.want(se.call("GET", "/versions/movie-remux", nil), 200, "get")["record"].(map[string]any)
-	if record["roots"] != nil {
-		t.Fatalf("fixture roots: %v", record["roots"])
-	}
-	config := record["config"].(map[string]any)
-	config["upgrades"] = "off"
-	se.want(se.call("PUT", "/versions/movie-remux", map[string]any{"generation": se.generation(), "key": "movie-remux", "config": config, "roots": []string{}}), 200, "edit")
-	after := se.want(se.call("GET", "/versions/movie-remux", nil), 200, "get")["record"].(map[string]any)
-	if after["roots"] != nil || after["config"].(map[string]any)["upgrades"] != "off" {
-		t.Fatalf("after the edit: roots %v, upgrades %v", after["roots"], after["config"].(map[string]any)["upgrades"])
-	}
-	if lv := se.coord.Current().Policy.Library.Versions["movie-remux"]; lv != nil {
-		t.Fatalf("the edit gave the library roots: %+v", lv)
-	}
-}
-
-// A library stored without roots that is switched to Live gets its library folder as its root, as a create does:
-// without one every import it grabs would be refused (not listed under library.versions).
-func TestSettingsVersionLiveFillsStoredNilRoots(t *testing.T) {
+// A library stored without roots gets its library folder as its root on its next edit, as a create does: without one
+// every import it grabs would be refused (not listed under library.versions).
+func TestSettingsVersionEditFillsStoredNilRoots(t *testing.T) {
 	t.Parallel()
 	area := t.TempDir()
 	se := newSettingsEnvBase(t, nil, func(p *policy.Policy) { p.Library.Dangling.Roots = []string{area} }, nil)
@@ -397,7 +363,6 @@ func TestSettingsVersionLiveFillsStoredNilRoots(t *testing.T) {
 	for i := range req.Records.Versions {
 		if req.Records.Versions[i].Key == "movie-remux" {
 			req.Records.Versions[i].Roots = nil
-			req.Records.Versions[i].Config.Mode = policy.ModeShadow
 		}
 	}
 	if _, err := se.coord.SaveAndApply(context.Background(), req); err != nil {
@@ -408,14 +373,12 @@ func TestSettingsVersionLiveFillsStoredNilRoots(t *testing.T) {
 		t.Fatalf("fixture roots: %v", record["roots"])
 	}
 	config := record["config"].(map[string]any)
-	config["mode"] = string(policy.ModeActive)
 	config["library"] = folder
 	body := map[string]any{"generation": se.generation(), "key": "movie-remux", "config": config, "roots": []string{}}
-	body["confirmation_token"] = se.want(se.call("POST", "/versions/confirm", body), 200, "confirm")["token"]
-	se.want(se.call("PUT", "/versions/movie-remux", body), 200, "switch to Live")
+	se.want(se.call("PUT", "/versions/movie-remux", body), 200, "edit")
 	after := se.want(se.call("GET", "/versions/movie-remux", nil), 200, "get")["record"].(map[string]any)
 	if roots, _ := after["roots"].([]any); len(roots) != 1 || roots[0] != config["library"] {
-		t.Fatalf("roots after the switch to Live: %v (library %v)", after["roots"], config["library"])
+		t.Fatalf("roots after the edit: %v (library %v)", after["roots"], config["library"])
 	}
 	if roots := library.NewGate(se.coord.Current().Policy).Roots("movie-remux"); len(roots) != 1 || roots[0] != folder {
 		t.Fatalf("gate roots: %v", roots)

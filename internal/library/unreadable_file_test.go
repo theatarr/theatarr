@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/theatarr/theatarr/internal/library/probe"
-	"github.com/theatarr/theatarr/internal/policy"
 )
 
 // One ready download whose file read fails with EIO (rclone's answer for a debrid link that cannot be
@@ -18,7 +17,7 @@ import (
 // A mount that does not answer still pauses every import.
 func TestOneUnreadableFileDoesNotStallImports(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
 	e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
 	rel := "Show.S01.2160p.WEB-DL.DDP5.1.H.265-GRP"
@@ -68,7 +67,7 @@ func TestOneUnreadableFileDoesNotStallImports(t *testing.T) {
 // The same EIO while the mount's release root does not answer stops the pass (mount down).
 func TestUnreadableFileOnADownMountPausesImports(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
 	e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
 	broken := filepath.Join(e.mount, "__all__", movieRelease, "movie.mkv")
@@ -106,7 +105,7 @@ func (f eioDirFS) ReadDir(name string) ([]os.DirEntry, error) {
 // alone; the sweep goes on and still notes the other link's miss.
 func TestRelinkSweepSurvivesOneUnreadableFolder(t *testing.T) {
 	t.Parallel()
-	e, _, _ := deadEnv(t, true, policy.ModeActive)
+	e, _, _ := deadEnv(t, true)
 	p := filepath.Join(e.movies, "Other (2002)", "Other.mkv")
 	tgt := filepath.Join(e.mount, "__all__", "Other", "a.mkv")
 	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
@@ -134,7 +133,7 @@ func TestRelinkSweepSurvivesOneUnreadableFolder(t *testing.T) {
 // only notes them again and cannot confirm a dead mark.
 func TestRefusedSweepForgetsNotedMisses(t *testing.T) {
 	t.Parallel()
-	e, _, _ := deadEnv(t, true, policy.ModeActive)
+	e, _, _ := deadEnv(t, true)
 	e.sweep()
 	if got := e.one(`SELECT COALESCE(missing_since, 'null') FROM link WHERE id = 1`); got == "null" {
 		t.Fatal("the first sweep noted nothing")

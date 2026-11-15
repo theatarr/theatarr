@@ -72,8 +72,8 @@ func testPolicy(enabled bool, wanted *policy.Wanted) *policy.Policy {
 	if wanted == nil {
 		wanted = &policy.Wanted{}
 	}
-	v := func(mode policy.Mode, kind policy.Kind) *policy.VersionPolicy {
-		return &policy.VersionPolicy{Mode: mode, Kind: kind, Storage: policy.StorageDebrid, Indexers: []string{"pub"},
+	v := func(kind policy.Kind) *policy.VersionPolicy {
+		return &policy.VersionPolicy{Kind: kind, Storage: policy.StorageDebrid, Indexers: []string{"pub"},
 			Providers: []string{"rd"}}
 	}
 	return &policy.Policy{
@@ -83,16 +83,15 @@ func testPolicy(enabled bool, wanted *policy.Wanted) *policy.Policy {
 			URL: "http://rd.test/rest/1.0", APIKeyEnv: "THEATARR_RD_KEY", Pacing: policy.Pacing{AddsPerMinute: 100,
 				MinGap: new(policy.Duration)}}}, // adds back to back on a frozen clock: no min_gap (tested in internal/router)
 		Versions: map[string]*policy.VersionPolicy{
-			"movie":         v(policy.ModeActive, policy.KindMovie),
-			"movie-shadow":  v(policy.ModeShadow, policy.KindMovie),
-			"series":        v(policy.ModeActive, policy.KindSeries),
-			"series-shadow": v(policy.ModeShadow, policy.KindSeries),
+			"movie":  v(policy.KindMovie),
+			"series": v(policy.KindSeries),
 		},
 		Router: &policy.Router{Enabled: enabled, Wanted: wanted},
 	}
 }
 
-// newEnv: movies 1-3 (1 and 2 wanted, 3 filled below cutoff), each with an active and a shadow version; series 10
+// newEnv: movies 1-3 (1 and 2 wanted, 3 filled below cutoff), each with a version and one of a library gone from the
+// policy (movie-shadow, series-shadow: never searched); series 10
 // with seasons 1 (three aired episodes, one filled) and 2 (one aired, one not yet), and a special.
 func newEnv(t *testing.T, enabled bool, wanted *policy.Wanted) *env {
 	t.Helper()
@@ -325,7 +324,7 @@ func TestSearchJobCapturesRuntimeWhenItStarts(t *testing.T) {
 func TestCommandFanoutSearchesTitleOnceAndRecordsServedVersions(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, true, nil)
-	e.pol.Versions["movie-copy"] = &policy.VersionPolicy{Mode: policy.ModeActive, Kind: policy.KindMovie,
+	e.pol.Versions["movie-copy"] = &policy.VersionPolicy{Kind: policy.KindMovie,
 		Indexers: []string{"pub"}, Providers: []string{"rd"}}
 	if _, err := e.st.Writer().ExecContext(e.ctx, `INSERT INTO version (id, title_id, policy_key, state,
 		created_at, updated_at) VALUES (114, 1, 'movie-copy', 'wanted', 0, 0)`); err != nil {
@@ -367,7 +366,7 @@ func TestCommandFanoutSearchesTitleOnceAndRecordsServedVersions(t *testing.T) {
 func TestBulkCommandSearchesOnlyItsVersions(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, true, nil)
-	e.pol.Versions["movie-copy"] = &policy.VersionPolicy{Mode: policy.ModeActive, Kind: policy.KindMovie,
+	e.pol.Versions["movie-copy"] = &policy.VersionPolicy{Kind: policy.KindMovie,
 		Indexers: []string{"pub"}, Providers: []string{"rd"}}
 	if _, err := e.st.Writer().ExecContext(e.ctx, `INSERT INTO version (id, title_id, policy_key, state,
 		created_at, updated_at) VALUES (114, 1, 'movie-copy', 'wanted', 0, 0)`); err != nil {
@@ -418,7 +417,7 @@ func TestBulkCommandSearchesOnlyItsVersions(t *testing.T) {
 func TestInteractiveFanoutUsesOneBatch(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, true, nil)
-	e.pol.Versions["movie-copy"] = &policy.VersionPolicy{Mode: policy.ModeActive, Kind: policy.KindMovie,
+	e.pol.Versions["movie-copy"] = &policy.VersionPolicy{Kind: policy.KindMovie,
 		Indexers: []string{"pub"}, Providers: []string{"rd"}}
 	if _, err := e.st.Writer().ExecContext(e.ctx, `INSERT INTO version (id, title_id, policy_key, state,
 		created_at, updated_at) VALUES (114, 1, 'movie-copy', 'wanted', 0, 0)`); err != nil {
@@ -519,8 +518,8 @@ func TestShadowVersionsNeverSearchedOrWritten(t *testing.T) {
 	}
 }
 
-// The kill switch: an active version's search routes, but the router only records a dry-run plan; the command says
-// what it would have added.
+// The kill switch: a version's search routes, but the router only dry-runs it and records nothing; the command says
+// nothing was placed.
 func TestKillSwitchDryRun(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, false, nil)
@@ -531,11 +530,8 @@ func TestKillSwitchDryRun(t *testing.T) {
 	if e.rt.Writes() != 0 {
 		t.Fatalf("writes %d with router.enabled false", e.rt.Writes())
 	}
-	if n := e.count(`SELECT COUNT(*) FROM router_plan WHERE mode = 'disabled' AND source = ?`, Source(1)); n != 1 {
-		t.Fatalf("plans %d", n)
-	}
 	st, err := LoadCommandStatus(e.ctx, e.st.Reader(), 1)
-	if err != nil || st.Status != "completed" || !strings.Contains(st.Message, "dry run (disabled): would add Two") {
+	if err != nil || st.Status != "completed" || !strings.Contains(st.Message, "nothing placed") {
 		t.Fatalf("status %+v %v", st, err)
 	}
 	// The wanted loop does not search at all while the switch is off.
@@ -786,10 +782,9 @@ func TestTitleSearchFanoutSkipsUnmonitoredAndRemovedVersions(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, true, nil)
 	for _, k := range []string{"movie-web", "movie-gone", "movie-copy"} {
-		e.pol.Versions[k] = &policy.VersionPolicy{Mode: policy.ModeActive, Kind: policy.KindMovie,
+		e.pol.Versions[k] = &policy.VersionPolicy{Kind: policy.KindMovie,
 			Indexers: []string{"pub"}, Providers: []string{"rd"}}
 	}
-	e.pol.Versions["series-shadow"].Mode = policy.ModeActive
 	e.exec(`UPDATE version SET monitored = 0 WHERE id = 101`)
 	e.exec(`INSERT INTO version (id, title_id, policy_key, state, monitored, created_at, updated_at) VALUES
 		(121, 1, 'movie-web', 'wanted', 0, 0, 0), (122, 1, 'movie-gone', 'wanted', 1, 0, 0),

@@ -18,9 +18,9 @@ const packRelease = "Show.S01.2160p.WEB-DL.DDP5.1.H.265-GRP"
 
 // importUpEnv is a series version with four episodes and a profile Remux > WEB 2160p > WEB 1080p, a "Good" format
 // (release title says GOOD) scored 100, and the given propers setting.
-func importUpEnv(t *testing.T, mode policy.Mode, propers string) *env {
+func importUpEnv(t *testing.T, propers string) *env {
 	t.Helper()
-	e := newEnv(t, true, mode)
+	e := newEnv(t, true)
 	e.exec(`INSERT INTO episode (id, title_id, season, number, name, created_at, updated_at) VALUES
 		(203, 2, 1, 3, 'Third', 0, 0), (204, 2, 1, 4, 'Fourth', 0, 0)`)
 	body := `{"name":"Good","specifications":[{"name":"g","implementation":"ReleaseTitleSpecification","negate":false,
@@ -128,7 +128,7 @@ func checkMixedPlan(t *testing.T, p *Plan) {
 // upgrades the worse file, but leaves the better remux and the higher-scored file of the same quality alone.
 func TestImportUpgradeCheck(t *testing.T) {
 	t.Parallel()
-	e := importUpEnv(t, policy.ModeActive, "")
+	e := importUpEnv(t, "")
 	remux := e.heldLink(1, "Bluray-2160p Remux", "Show.S01E01.2160p.BluRay.REMUX.HEVC-OLD", 201)
 	worse := e.heldLink(2, "WEBDL-1080p", "Show.S01E02.1080p.WEB-DL.H.264-OLD", 202)
 	good := e.heldLink(4, "WEBDL-2160p", "Show.S01E04.2160p.WEB-DL.GOOD.H.265-OLD", 204)
@@ -177,10 +177,12 @@ func TestImportUpgradeCheck(t *testing.T) {
 	}
 }
 
-// Shadow: the dry run against the arr's files shows the same skips, and records them as dry-run rejections.
-func TestImportUpgradeCheckShadow(t *testing.T) {
+// Library off: the dry run against the arr's files shows the same skips, and records them as dry-run rejections.
+func TestImportUpgradeCheckDryRun(t *testing.T) {
 	t.Parallel()
-	e := importUpEnv(t, policy.ModeShadow, "")
+	e := importUpEnv(t, "")
+	e.pol.Library.Enabled = false
+	e.lib.gate = NewGate(e.pol)
 	e.heldArrFile(1, "Bluray-2160p Remux", "Show.S01E01.2160p.BluRay.REMUX.HEVC-OLD", 201)
 	e.heldArrFile(2, "WEBDL-1080p", "Show.S01E02.1080p.WEB-DL.H.264-OLD", 202)
 	e.heldArrFile(4, "WEBDL-2160p", "Show.S01E04.2160p.WEB-DL.GOOD.H.265-OLD", 204)
@@ -190,7 +192,7 @@ func TestImportUpgradeCheckShadow(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !plan.DryRun {
-		t.Fatal("shadow import was not a dry run")
+		t.Fatal("gated import was not a dry run")
 	}
 	checkMixedPlan(t, plan)
 	if got := e.one(`SELECT COUNT(*) FROM library_action WHERE kind = 'reject' AND mode = 'dry_run' AND detail LIKE 'Not a%'`); got != "2" {
@@ -204,7 +206,7 @@ func TestImportUpgradeCheckShadow(t *testing.T) {
 // Equal quality and score is accepted by the arr import specification.
 func TestImportEqualIsNotAnUpgrade(t *testing.T) {
 	t.Parallel()
-	e := importUpEnv(t, policy.ModeActive, "")
+	e := importUpEnv(t, "")
 	held := e.heldLink(1, "WEBDL-2160p", "Show.S01E01.2160p.WEB-DL.DDP5.1.H.265-OTHER", 201)
 	rel := "Show.S01E01.2160p.WEB-DL.DDP5.1.H.265-GRP"
 	e.release(rel, map[string]float64{rel + ".mkv": 2700})
@@ -234,7 +236,7 @@ func TestImportEqualIsNotAnUpgrade(t *testing.T) {
 // A pack whose release title scores higher can still tie on each file's parsed name; equal files are imported.
 func TestImportEqualPackIsImported(t *testing.T) {
 	t.Parallel()
-	e := importUpEnv(t, policy.ModeActive, policy.PropersDoNotPrefer)
+	e := importUpEnv(t, policy.PropersDoNotPrefer)
 	e.heldLink(1, "WEBDL-2160p", "Show.S01E01.2160p.WEB-DL.H.265-OLD", 201)
 	e.heldLink(2, "WEBDL-2160p", "Show.S01E02.2160p.WEB-DL.H.265-OLD", 202)
 	rel := "Show.S01.2160p.WEB-DL.GOOD.H.265-GRP"
@@ -258,7 +260,7 @@ func TestImportEqualPackIsImported(t *testing.T) {
 
 func TestImportAllUnmatchedIsHeld(t *testing.T) {
 	t.Parallel()
-	e := importUpEnv(t, policy.ModeActive, "")
+	e := importUpEnv(t, "")
 	rel := "Show.S01E99.2160p.WEB-DL.H.265-GRP"
 	e.release(rel, map[string]float64{rel + ".mkv": 2700})
 	e.seriesDownload(1, 2, 20, hashA, rel, "[201]", nil)
@@ -316,7 +318,7 @@ func TestImportUpgradePropers(t *testing.T) {
 		{policy.PropersDoNotPrefer, "Show.S01E01.PROPER.2160p.WEB-DL.H.265-OLD", "Show.S01E01.GOOD.2160p.WEB-DL.H.265-GRP", ""},
 	} {
 		t.Run(tc.propers+"/"+tc.release, func(t *testing.T) {
-			e := importUpEnv(t, policy.ModeActive, tc.propers)
+			e := importUpEnv(t, tc.propers)
 			e.heldLink(1, "WEBDL-2160p", tc.held, 201)
 			e.release(tc.release, map[string]float64{tc.release + ".mkv": 2700})
 			e.seriesDownload(1, 2, 20, hashA, tc.release, "[201]", nil)
@@ -346,7 +348,7 @@ func TestImportUpgradeMultiEpisode(t *testing.T) {
 		{"both worse", "WEBDL-1080p", "WEBDL-1080p", true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			e := importUpEnv(t, policy.ModeActive, "")
+			e := importUpEnv(t, "")
 			e.heldLink(1, tc.first, "Show.S01E01.held-OLD", 201)
 			e.heldLink(2, tc.other, "Show.S01E02.held-OLD", 202)
 			rel := "Show.S01E01E02.2160p.WEB-DL.DDP5.1.H.265-GRP"
@@ -404,7 +406,7 @@ func TestImportUpgradeSplitMultiEpisode(t *testing.T) {
 			map[string]float64{first: 2700, second: 10}, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			e := importUpEnv(t, policy.ModeActive, "")
+			e := importUpEnv(t, "")
 			old := e.heldLink(1, tc.quality, tc.held, 201, 202)
 			e.exec(`INSERT INTO episode_version_state (version_id, episode_id, state, updated_at)
 				VALUES (20, 201, 'filled', 0), (20, 202, 'filled', 0)`)
@@ -471,7 +473,7 @@ func TestImportUpgradeSplitMultiEpisode(t *testing.T) {
 
 func TestImportUpgradeMultiEpisodeRemainingLink(t *testing.T) {
 	t.Parallel()
-	e := importUpEnv(t, policy.ModeActive, "")
+	e := importUpEnv(t, "")
 	old := e.heldLink(1, "WEBDL-1080p", "Show.S01E01E02.1080p.WEB-DL.H.264-OLD", 201, 202)
 	other := e.heldLink(2, "WEBDL-1080p", "Show.S01E02.1080p.WEB-DL.H.264-OTHER", 202)
 	rel := "Show.S01E01.2160p.WEB-DL.H.265-GRP"
@@ -520,7 +522,7 @@ func TestImportUpgradeSplitMultiEpisodeRetry(t *testing.T) {
 		{"E02 in place", -1, 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			e := importUpEnv(t, policy.ModeActive, "")
+			e := importUpEnv(t, "")
 			old := e.heldLink(1, "WEBDL-1080p", "Show.S01E01E02.1080p.WEB-DL.H.264-OLD", 201, 202)
 			e.exec(`INSERT INTO episode_version_state (version_id, episode_id, state, updated_at)
 				VALUES (20, 201, 'filled', 0), (20, 202, 'filled', 0)`)
@@ -598,7 +600,7 @@ func TestImportUpgradeSplitMultiEpisodeRetry(t *testing.T) {
 func TestImportUpgradeMovie(t *testing.T) {
 	t.Parallel()
 	setup := func(t *testing.T, held string) (*env, string) {
-		e := importUpEnv(t, policy.ModeActive, "")
+		e := importUpEnv(t, "")
 		folder := filepath.Join(e.movies, "Amelie The Movie (2001)")
 		p := filepath.Join(folder, "held.mkv")
 		target := filepath.Join(e.mount, "__all__", "Held", "held.mkv")
@@ -660,7 +662,7 @@ func TestImportUpgradeMovie(t *testing.T) {
 // A client's explicit files are imported as chosen, as the arrs' ManualImport does, even over a better file.
 func TestManualImportSkipsUpgradeCheck(t *testing.T) {
 	t.Parallel()
-	e := importUpEnv(t, policy.ModeActive, "")
+	e := importUpEnv(t, "")
 	e.heldLink(1, "Bluray-2160p Remux", "Show.S01E01.2160p.BluRay.REMUX.HEVC-OLD", 201)
 	rel := "Show.S01E01.2160p.WEB-DL.DDP5.1.H.265-GRP"
 	e.release(rel, map[string]float64{rel + ".mkv": 2700})

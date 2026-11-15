@@ -150,8 +150,7 @@ const (
 type Mode string
 
 const (
-	ModeActive   Mode = "active"   // writes allowed: router.enabled is true (Pause off) and the version is active
-	ModeShadow   Mode = "shadow"   // the version is in shadow mode: dry run
+	ModeActive   Mode = "active"   // writes allowed: router.enabled is true (Pause off)
 	ModeDisabled Mode = "disabled" // router.enabled is false (Pause on): dry run
 )
 
@@ -185,7 +184,6 @@ type Result struct {
 	TorrentID  string    `json:"torrent_id,omitempty"`
 	Reused     bool      `json:"reused,omitempty"`
 	DownloadID int64     `json:"download_id,omitempty"`
-	PlanID     int64     `json:"plan_id,omitempty"`
 	RetryAt    time.Time `json:"retry_at,omitzero"`
 	Steps      []Step    `json:"steps"`
 }

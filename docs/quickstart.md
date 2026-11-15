@@ -1,6 +1,6 @@
 # Quickstart
 
-From nothing to a first library: live at once, or Watch only first. Theatarr replaces Sonarr, Radarr, Prowlarr,
+From nothing to a first library: live at once, or with Pause on first. Theatarr replaces Sonarr, Radarr, Prowlarr,
 Recyclarr and a debrid bridge (decypharr or similar) with one service. Seerr, Overseerr, Homepage and the arr phone
 apps keep working: they talk to Theatarr's arr-compatible views.
 
@@ -103,7 +103,7 @@ leads back to it.
 Open **Setup** (`/admin/setup`). Its six steps: secure the admin account, connect downloads, add metadata (TMDb),
 connect the library, check readiness, then review activation. A fresh install needs a writable data directory, nothing else. Add the debrid mount,
 writable library roots and trash before checking readiness or importing. Settings save at once; only a few changes
-ask first (making a library Live, turning **Pause** off, removing a library, and moving a
+ask first (turning **Pause** off, removing a library, and moving a
 provider or indexer to a new address while keeping its stored key). Steps 4–7 below fill in the connections
 and the first library; Setup links to each editor.
 
@@ -120,7 +120,7 @@ and the first library; Setup links to each editor.
 
 Save validates and applies settings without a restart; new work and background loops use the saved generation.
 Use **Show advanced** for less common fields, or **Edit as YAML** for a section's raw editor. Nothing downloads
-until you say so: the first-library flow sets the library to **Live** and turns **Pause** off only
+until you say so: the first-library flow turns **Pause** off only
 when you choose **Create library and start downloading** and confirm the list it shows (step 6).
 
 **TMDb.** Setup's **Add metadata (TMDb)** step has one field: your TMDb API key (the short v3 "API Key" from your
@@ -244,16 +244,16 @@ the indexers it searches and the providers it adds to. **Setup** builds the firs
    TRaSH quality profile is offered, here and in the library editor under **Settings › Libraries**;
 3. the indexers and providers;
 4. one of two buttons on a fresh install:
-   - **Create library and start downloading** creates the library **Live** and turns **Pause** off, in one
+   - **Create library and start downloading** creates the library and turns **Pause** off, in one
      save. A dialog lists each of these first; nothing is saved until you confirm. The button is disabled, with the
      reason, until the library picks at least one enabled indexer and one enabled debrid provider with its key, and
      the debrid mount and the trash folder (**Settings › Libraries › File management**) are set. If
      `THEATARR_FORCE_OFF` forces Pause, the library is still created and Setup says Pause stays on.
-   - **Create as Watch only (decide later)**, then **Create library**: the library starts as **Watch only**
-     and Pause does not change.
+   - **Create library, Pause stays on**, then **Create library**: the library is created and Pause does not
+     change, so nothing is searched, downloaded or linked until you turn it off.
 
 
-A **Watch only** library: Theatarr searches, downloads and links nothing for it. A debrid library needs no download client: Theatarr adds to the providers itself. Edit libraries later
+A debrid library needs no download client: Theatarr adds to the providers itself. Edit libraries later
 under **Settings › Libraries**.
 
 The editor there has two things Setup does not ask for:
@@ -266,27 +266,25 @@ The editor there has two things Setup does not ask for:
 - **Advanced**, at the end of **Where**: **Write roots**, **Send grabs to** and **Client**. A debrid library that links into its own root needs none of
   them. The section starts open when the library already uses one of them.
 
-Each library is **Watch only** or **Live**, chosen in its row on **Settings › Libraries** or at the top of its
-editor. Going **Live** asks for a confirmation first; going back to Watch only saves at once. Watch only: Theatarr searches,
-downloads and links nothing for this library. Live searches, downloads and links. Beside the control, the row says
-when Pause holds a Live library back: **Live, paused**.
+A library searches, downloads and links what its profile wants for the titles monitored in it. Its row on
+**Settings › Libraries** says when Pause holds it back: **Paused**.
 
 **Pause**, at the top of every admin page, stops searches, new downloads, list syncs and changes in your library
 folders, for every library. Downloads already at a provider finish there and are imported when you turn Pause off. Turning it off
-asks for a confirmation that names the Live libraries; turning it on does not. **Send notifications** is a field on
+asks for a confirmation that names the libraries; turning it on does not. **Send notifications** is a field on
 **Settings › Notifications**.
 
-**A Watch only library makes no decisions of its own.** The scheduled search for wanted titles and the RSS sync
-run only for libraries that are Live while Pause is off. To see how a library judges releases, start in the UI:
+**While Pause is on a library makes no decisions of its own.** The scheduled search for wanted titles and the RSS
+sync run only while Pause is off. To see how a library judges releases, start in the UI:
 
 - **Settings › Profiles › Check a release**: paste a release name and pick a title and library. It shows the parsed
   quality, the matched formats, the score, any rejection and whether it would upgrade the file. It searches nothing
   and records nothing.
 - The title's **Last search** page (on the title page, a library row's **Details** › **Last search results**): the
-  last stored decision, if there is one. To search the indexers now in a Live library, use **Interactive search**:
+  last stored decision, if there is one. To search the indexers now, use **Interactive search**:
   for a movie in the title's action bar, for a series on a season or an episode in the **Episodes** tab.
 
-To search a Watch only library's indexers for a title right away, run the decision engine from the shell. It prints the
+To search a library's indexers for a title from the shell, run the decision engine. It prints the
 ranked decisions with their score breakdown and records nothing:
 
 ```sh
@@ -357,9 +355,8 @@ Two details for clients and monitors:
 
 ## 9. Go live deliberately
 
-A library created with **Create library and start downloading** (step 6) is already live: it is Live and
-Pause is off. Watch it as in item 3 below. The rest of this step is for a
-library created as Watch only.
+A library created with **Create library and start downloading** (step 6) is already live: Pause is off. Watch
+it as in item 3 below. The rest of this step is for a library created with Pause left on.
 
 For a fresh library, check how it judges releases first: **Settings › Profiles › Check a release**, or
 `theatarr decide -search` for a title ([step 6](#6-a-first-library)). Then run preflight:
@@ -371,30 +368,28 @@ docker compose exec theatarr theatarr preflight
 It exits 1 when a line fails; each line names the settings page to fix it on. Go live deliberately once the
 decisions look right.
 
-1. **Settings › Libraries:** set the library to **Live**, reviewing the confirmation.
-2. Turn **Pause** off at the top of the page. Review the Live libraries it names. A save applies without a restart.
-3. Watch **Activity**, **System › Status** and **System › Errors**, and Plex; check that a cached release imports and
+1. Turn **Pause** off at the top of the page. Review the libraries it names. A save applies without a restart.
+2. Watch **Activity**, **System › Status** and **System › Errors**, and Plex; check that a cached release imports and
    plays. Run the check again.
 
-Downloads and library writes need a **Live** library and **Pause** off; writes stay inside the library's roots and
+Downloads and library writes need **Pause** off; writes stay inside the library's roots and
 trash. Pause stops searches, new downloads and library changes; downloads already at a provider finish there and are
 imported when Pause is turned off. Settings changes do not cancel work already in flight.
 `THEATARR_FORCE_OFF=pause,notify` forces Pause on and notifications off at startup whatever the saved settings say
 (`router` and `library` also force Pause); it needs a restart and can never turn anything on.
 
-Moving an existing arr library? Once the library is Live and Pause is off, **Admin › Import from
+Moving an existing arr library? Once Pause is off, **Admin › Import from
 Sonarr/Radarr** brings in its titles, their monitoring and the files on the debrid mount
 ([migration.md](migration.md#import-from-sonarrradarr)); Theatarr only reads the instance.
 
 ## 10. A first download
 
-With a live library (**Live**, and **Pause** off), add a title and watch it arrive:
+With a library and **Pause** off, add a title and watch it arrive:
 
 1. Type a film or series into the search in the top bar (or open **Search**, or press **Add movie**, **Add series**
    or **Add anime** on those lists) and choose **Add** on the result. Tick the library and press **Add and search**
    to search it now. **Add** only adds it: the title then waits for the automatic search, which runs every 15
-   minutes and starts at most 10 searches an hour. The footer counts the ticked libraries and the Live ones among
-   them.
+   minutes and starts at most 10 searches an hour. The footer counts the ticked libraries.
 
    A series that is not in the library yet has two more choices, and leaving them alone adds it as before:
    - **Monitor**: the seasons you tick (**Seasons I pick below**; **Every season** while the episodes are not
@@ -413,14 +408,14 @@ With a live library (**Live**, and **Pause** off), add a title and watch it arri
 By default only releases a provider already has cached are added (**Settings › Download clients › Behaviour**,
 **What to grab › Only add cached releases**), so a title with no cached release stays wanted and is searched again
 later. One exception: on AllDebrid an add that turns out uncached stays on the account and finishes downloading
-there. [troubleshooting.md](troubleshooting.md#a-live-library-downloads-nothing) explains it and lists the other
-reasons a live library stays quiet.
+there. [troubleshooting.md](troubleshooting.md#a-library-downloads-nothing) explains it and lists the other
+reasons a library stays quiet.
 
 ## Readiness-led setup
 
 Home and Settings show admins **Finish setting up Theatarr: N of 6** and **Continue setup** while the install has no
-libraries, Setup reports missing pieces, or no library is Active yet and the readiness check (step 5) has not passed
-for the current settings (a restart or a settings change opens it again; run preflight to close it). Once a library is Active and nothing is missing, the card and the sidebar entry go away;
+libraries, Setup reports missing pieces, or no library is set up yet and the readiness check (step 5) has not passed
+for the current settings (a restart or a settings change opens it again; run preflight to close it). Once a library is set up and nothing is missing, the card and the sidebar entry go away;
 the **Setup checklist** link stays on Settings and System › Status. Other users see no setup card. The
 [arr-to-Theatarr map](arr-map.md) has the page names and menu paths for familiar arr tasks.
 
@@ -431,7 +426,7 @@ Setup (`/admin/setup`) has six steps:
 2. **Connect downloads:** configure a debrid provider and an indexer; each has its own completion badge.
 3. **Add metadata (TMDb):** enter your TMDb API key; Setup creates the `tmdb` and `tmdb-images` sources.
 4. **Connect your library:** configure the mount under **Settings › Libraries › File management** and Plex under
-   **Settings › Plex & playback**, then create your first library: started at once, or as Watch only
+   **Settings › Plex & playback**, then create your first library: started at once, or with Pause left on
    ([above](#6-a-first-library)).
 5. **Check readiness:** run preflight and look at **System › Decision journal** (**Open the decision journal**).
 6. **Review activation:** one card per library (its key, label, root, state, indexers and providers, and **Why?**
@@ -443,7 +438,7 @@ resolves (stored in settings, or in the environment variable it names), and at l
 mount. Readiness is complete when the latest full preflight for the current settings has no failures
 (warnings stay visible). The server remembers the latest run until it restarts, so a page reload keeps the step;
 after a restart, or once the settings change, run the preflight again. Activation is complete only when a
-library runs as **Live** and Pause is off; otherwise it says
+library is set up and Pause is off; otherwise it says
 **Not yet**.
 
 Theatarr turns these on for you only through **Create library and start downloading** in step 4, after you confirm

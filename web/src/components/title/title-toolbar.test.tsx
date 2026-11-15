@@ -8,18 +8,18 @@ import { SearchProvider } from "@/components/search/search-context";
 import { mockFetch, renderPage } from "@/test/page";
 import { TitleToolbar } from "./title-toolbar";
 
-const gates = { mode: "active", paused: false, pause_forced: false, will_grab: true };
-const lib = (key: string, grab_state: object) => ({ key, label: key.toUpperCase(), kind: "movie", mode: "active", enable: "", fits: true, default: false, on: true, searchable: false, grab_state });
+const gates = { paused: false, pause_forced: false, will_grab: true };
+const lib = (key: string, grab_state: object) => ({ key, label: key.toUpperCase(), kind: "movie", enable: "", fits: true, default: false, on: true, searchable: false, grab_state });
 const options = (versions: object[]) => ({ method: "GET", path: "/add/options", reply: { kind: "movie", anime: false, title_id: 7, router_enabled: true, episodes_known: false, can_search: false, seasons: [], versions } });
 const show = (versions: object[]) => {
   mockFetch([{ method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["admin", "manage", "add"] } }, options(versions)]);
   renderPage(<SearchProvider><TitleToolbar titleId={7} name="Alpha" kind="movie" versions={[]} page="releases" /></SearchProvider>);
 };
 
-it("says Downloads off for a Live library the server holds, and Watch only for a Watch-only one", async () => {
-  show([lib("movie-web", { ...gates, will_grab: false }), lib("movie-1080", { ...gates, mode: "shadow", will_grab: false })]);
+it("says Downloads off for each library the server holds", async () => {
+  show([lib("movie-web", { ...gates, will_grab: false }), lib("movie-1080", { ...gates, will_grab: false })]);
   const note = await screen.findByTestId("title-no-search");
-  expect(note.textContent).toBe("Nothing is searched now: MOVIE-WEB: Downloads off · MOVIE-1080: Watch only");
+  expect(note.textContent).toBe("Nothing is searched now: MOVIE-WEB: Downloads off · MOVIE-1080: Downloads off");
 });
 
 it("says the global state once when Pause is forced", async () => {
@@ -29,23 +29,17 @@ it("says the global state once when Pause is forced", async () => {
   expect(note.textContent).toContain("Paused by the environment (THEATARR_FORCE_OFF)");
 });
 
-const control = (live: boolean) => ({ mode: live ? "active" : "shadow", can_edit: true, can_search: live, live_releases: live });
+const control = (live: boolean) => ({ can_edit: true, can_search: live, live_releases: live });
 const bar = (permissions: string[], live: boolean, kind: "movie" | "series" = "movie") => {
   const api = mockFetch([{ method: "GET", path: "/auth/me", reply: { id: 1, permissions } }, options([])]);
   renderPage(<SearchProvider><TitleToolbar titleId={7} name="Alpha" kind={kind} versions={[{ id: 1, key: "movie-web", label: "WEB", control: control(live) }] as never} /></SearchProvider>);
   return api;
 };
 
-it("offers Interactive search of a movie to a manager when a library of it is Live", async () => {
+it("offers Interactive search of a movie to a manager when a library of it searches live", async () => {
   bar(["manage", "add"], true);
   expect(await screen.findByTestId("interactive-search-open")).toBeTruthy();
   expect(screen.queryByTestId("title-no-interactive")).toBeNull();
-});
-
-it("says why a movie whose libraries are all Watch only has no Interactive search", async () => {
-  bar(["manage", "add"], false);
-  expect((await screen.findByTestId("title-no-interactive")).textContent).toBe("Interactive search needs a Live library. This film's libraries are Watch only.");
-  expect(screen.queryByTestId("interactive-search-open")).toBeNull();
 });
 
 it("offers no whole-title Interactive search for a series or a non-manager", async () => {
@@ -118,25 +112,14 @@ it("shows the changed folders when a rename keeps the file name", async () => {
 it("says a series' Search now also looks for upgrades", async () => {
   mockFetch([{ method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["manage"] } }, options([{ ...lib("tv-web", gates), searchable: true }])]);
   renderPage(<SearchProvider><TitleToolbar titleId={7} name="Alpha" kind="series" versions={[]} /></SearchProvider>);
-  expect((await screen.findByTestId("title-search-now")).getAttribute("title")).toBe("Search every monitored episode now, in every Live library (missing episodes and upgrades)");
+  expect((await screen.findByTestId("title-search-now")).getAttribute("title")).toBe("Search every monitored episode now, in every library (missing episodes and upgrades)");
 });
 
-
-it("links an admin from the Watch-only notice to the library's settings; others get the sentence only", async () => {
-  bar(["admin", "manage", "add"], false);
-  const note = await screen.findByTestId("title-no-interactive");
-  expect(note.textContent).toBe("Interactive search needs a Live library. This film's libraries are Watch only. Library settings");
-  expect(within(note).getByRole("link", { name: "Library settings" }).getAttribute("href")).toBe("/admin/settings/libraries?edit=movie-web");
-  document.body.innerHTML = "";
-  bar(["manage", "add"], false);
-  expect((await screen.findByTestId("title-no-interactive")).textContent).toBe("Interactive search needs a Live library. This film's libraries are Watch only.");
-  expect(screen.queryByRole("link", { name: "Library settings" })).toBeNull();
-});
 
 it("shows Search now disabled with the reason when nothing would search, and none to a non-manager", async () => {
   const cases: [object[], boolean, string][] = [
     [[lib("movie-web", { ...gates, paused: true, will_grab: false })], true, "Paused: nothing is searched, downloaded or linked for any library."],
-    [[lib("movie-web", { ...gates, mode: "shadow", will_grab: false })], false, "No library of this title is Live."],
+    [[lib("movie-web", { ...gates, will_grab: false })], false, "Nothing is searched now: MOVIE-WEB: Downloads off"],
     [[{ ...lib("movie-web", gates), on: false }], true, "No library is monitored."],
     [[lib("movie-web", { ...gates, will_grab: false })], true, "Nothing is searched now: MOVIE-WEB: Downloads off"],
   ];

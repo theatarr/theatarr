@@ -156,10 +156,9 @@ Code: `internal/web/setup.go`, `internal/preflight`, `cmd/theatarr/preflight.go`
   two counts count, and `trash` says the trash folder is set.
 - `POST /setup/start` (admin, CSRF; `internal/web/settingsapi_start.go`): the one-step start. Body: `generation`,
   `key`, `roots` and `config` as `POST /settings/versions` takes them, an optional `preset` (`flavour`, `preset`,
-  `modifiers`) and `confirmation_token`. One settings save creates the version with `mode: active`
-  whatever the body says, creates the preset's profile and format set under the library's key (from the checkout
+  `modifiers`) and `confirmation_token`. One settings save creates the version, creates the preset's profile and format set under the library's key (from the checkout
   or the bundled TRaSH defaults) and turns Pause off; notifications and every other record are untouched. It is one
-  generation and one confirmation: the 422 lists the activation and Pause off with one token. It answers 409 when the settings
+  generation and one confirmation: the 422 lists Pause off with one token. It answers 409 when the settings
   are not in the database, and the usual stale-generation 409 and validation 422 (an unwritable root is named; a missing trash folder is
   `library.trash.dir: required`). It also answers 422 when none of the library's indexers, or none of its
   providers, is enabled and ready.
@@ -185,13 +184,12 @@ Code: `internal/web/setup.go`, `internal/preflight`, `cmd/theatarr/preflight.go`
   addresses where they have none and stores the key, in one `PUT /settings/sections/metadata` with its confirmation;
   `web/src/components/settings/tmdb-key.tsx`), a
   first version (key, kind, root with the validate-root check, a TRaSH preset through `POST /settings/presets/create`
-  or an existing profile, indexers, providers; Review, then `POST /settings/versions` with `mode: shadow`,
-  answering a 422 confirmation with the token; a retry after a failed version save reuses the profile it already made
+  or an existing profile, indexers, providers; Review, then `POST /settings/versions`; a retry after a failed version save reuses the profile it already made
   only for the same key and preset, and asks for another key when the preset changed), and the preflight table.
   The form has two buttons: **Create library and start downloading** sends `POST /setup/start`
   (the preset in the same request, no separate profile save) and shows the 422's effects in the settings
   confirmation dialog before sending the token; it is disabled, with the reason, unless one of the picked providers
-  and one of the picked indexers is ready and the mount and the trash folder are set. **Create as Watch only (decide later)** is the flow above with the same request. A
+  and one of the picked indexers is ready and the mount and the trash folder are set. **Create library, Pause stays on** is the flow above with the same request. A
   non-empty `forced_off` is shown after the library is created.
   `GET /setup` also carries `last_preflight`, the summary of the latest `POST /preflight` (time, settings generation,
   whether the source tests ran, counts), kept in memory until a restart. Readiness counts the latest run in the

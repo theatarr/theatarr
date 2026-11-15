@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -106,6 +107,26 @@ func (e *env) start() {
 	e.svc = svc
 	e.mux = http.NewServeMux()
 	svc.Mount(e.mux)
+}
+
+// onlyLibraries keeps the given libraries in the policy and its views and drops the others (the example policy
+// has five; tests that route keep the ones they search).
+func (e *env) onlyLibraries(keys ...string) {
+	for k := range e.pol.Versions {
+		if !slices.Contains(keys, k) {
+			delete(e.pol.Versions, k)
+		}
+	}
+	for _, v := range e.pol.Views {
+		v.Versions = slices.DeleteFunc(v.Versions, func(k string) bool { return !slices.Contains(keys, k) })
+		for name, ks := range v.Profiles {
+			if ks = slices.DeleteFunc(ks, func(k string) bool { return !slices.Contains(keys, k) }); len(ks) == 0 {
+				delete(v.Profiles, name)
+			} else {
+				v.Profiles[name] = ks
+			}
+		}
+	}
 }
 
 func (e *env) exec(q string, args ...any) {

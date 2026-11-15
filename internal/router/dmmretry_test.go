@@ -17,7 +17,7 @@ import (
 // it on RD. That listing reopens our verdict once: the next route asks RD again (the normal cached-only add and
 // check). The retry misses too, so the same listing read again changes nothing: no third request.
 func TestDMMListingRetriesUncachedOnce(t *testing.T) {
-	e, f, _ := newDebridEnv(t, true, policy.ModeActive, true)
+	e, f, _ := newDebridEnv(t, true, true)
 	t0 := e.clock
 	listed := t0.Add(15 * time.Minute)
 	const title = "Movie.2024.2160p.WEB.H265-GRP"

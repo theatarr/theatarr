@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/provider"
 	"github.com/theatarr/theatarr/internal/provider/adder"
 )
@@ -26,7 +25,7 @@ func TestCachedCheckRDNeedsSelection(t *testing.T) {
 	t.Parallel()
 	for _, status := range []string{"magnet_conversion", "queued"} {
 		t.Run(status, func(t *testing.T) {
-			e, f, _ := newDebridEnv(t, true, policy.ModeActive, true)
+			e, f, _ := newDebridEnv(t, true, true)
 			withQueue(e)
 			f.rdStuck = true
 			f.cached["rd:"+h("a")] = true
@@ -75,7 +74,7 @@ func (a lostSelection) DeleteOwnStalledAdd(ctx context.Context, id string, proof
 // then, the grace counts from there, and the torrent finishing ends the check with nothing deleted.
 func TestCachedCheckLostSelectionQueued(t *testing.T) {
 	t.Parallel()
-	e, f, _ := newDebridEnv(t, true, policy.ModeActive, true)
+	e, f, _ := newDebridEnv(t, true, true)
 	withQueue(e)
 	e.r.set.CachedGrace = 30 * time.Second
 	e.r.set.PollInterval = 15 * time.Second
@@ -138,7 +137,7 @@ func (a slowSelection) DeleteOwnStalledAdd(ctx context.Context, id string, proof
 // The grace after the selection counts from its answer, not from before the request.
 func TestCachedCheckGraceFromSelectionAnswer(t *testing.T) {
 	t.Parallel()
-	e, f, _ := newDebridEnv(t, true, policy.ModeActive, true)
+	e, f, _ := newDebridEnv(t, true, true)
 	withQueue(e)
 	e.r.set.CachedGrace = 30 * time.Second
 	e.r.set.PollInterval = 15 * time.Second
@@ -193,7 +192,7 @@ func (a queuedSelection) DeleteOwnStalledAdd(ctx context.Context, id string, pro
 // again, nothing blocklisted.
 func TestCachedCheckGateClosedPastStall(t *testing.T) {
 	t.Parallel()
-	e, f, _ := newDebridEnv(t, true, policy.ModeActive, true)
+	e, f, _ := newDebridEnv(t, true, true)
 	withQueue(e)
 	e.r.adders["rd"] = queuedSelection{Adder: e.r.adders["rd"], f: f}
 	e.r.sleep = func(context.Context, time.Duration) error {
@@ -294,7 +293,7 @@ func wantOwedMiss(t *testing.T, e *env, dl int64) {
 // is our delete.
 func TestCachedCheckAmbiguousDelete(t *testing.T) {
 	t.Parallel()
-	e, f, _ := newDebridEnv(t, true, policy.ModeActive, true)
+	e, f, _ := newDebridEnv(t, true, true)
 	withQueue(e)
 	f.rd["RD1"] = &fakeRD{hash: h("a"), status: "downloading", selected: true}
 	insertChecked(e, 1, "rd", "RD1", h("a"), checkUncached, 0, 1)
@@ -321,7 +320,7 @@ func TestCachedCheckAmbiguousDelete(t *testing.T) {
 // The same in the route's own settle: the uncached verdict's delete errors and the read after it says nothing.
 func TestCachedCheckAmbiguousInitialDelete(t *testing.T) {
 	t.Parallel()
-	e, f, _ := newDebridEnv(t, true, policy.ModeActive, true)
+	e, f, _ := newDebridEnv(t, true, true)
 	e.pol.Versions["movie"].Providers = []string{"rd"}
 	withQueue(e)
 	p := &flakyRead{Provider: e.r.provs["rd"]}
@@ -348,7 +347,7 @@ func TestCachedCheckAmbiguousInitialDelete(t *testing.T) {
 // then ends the check with nothing deleted or blocklisted.
 func TestCachedCheckLostSelectionAtStallDeadline(t *testing.T) {
 	t.Parallel()
-	e, f, _ := newDebridEnv(t, true, policy.ModeActive, true)
+	e, f, _ := newDebridEnv(t, true, true)
 	withQueue(e)
 	e.r.set.CachedGrace = 30 * time.Second
 	e.r.set.PollInterval = 15 * time.Second
@@ -395,7 +394,7 @@ func TestCachedCheckLostSelectionAtStallDeadline(t *testing.T) {
 // the time of the inference, not the pass's start, so the next polls within the grace keep the add.
 func TestCachedCheckInferenceAfterSlowReads(t *testing.T) {
 	t.Parallel()
-	e, f, _ := newDebridEnv(t, true, policy.ModeActive, true)
+	e, f, _ := newDebridEnv(t, true, true)
 	withQueue(e)
 	e.r.set.CachedGrace = 30 * time.Second
 	e.r.set.PollInterval = 15 * time.Second

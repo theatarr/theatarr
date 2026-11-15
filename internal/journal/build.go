@@ -55,14 +55,6 @@ func (b *builder) build(h head) (*Entry, error) {
 	} else if ti != nil {
 		e.Title = ti.ref
 	}
-	if b.pol != nil {
-		if vp := b.pol.Versions[h.version]; vp != nil {
-			e.Mode = string(vp.Mode)
-			if e.Mode == "" {
-				e.Mode = "shadow"
-			}
-		}
-	}
 	prefix, rest, _ := strings.Cut(h.id, ":")
 	var err error
 	switch prefix {
@@ -74,8 +66,6 @@ func (b *builder) build(h head) (*Entry, error) {
 		err = b.blocklist(e, rest)
 	case "run":
 		err = b.run(e, rest)
-	case "plan":
-		err = b.plan(e, rest)
 	case "v":
 		err = b.verdictEntry(e, rest)
 	case "act":
@@ -763,50 +753,4 @@ func (b *builder) run(e *Entry, rest string) error {
 		e.Related = append(e.Related, "dl:"+strconv.FormatInt(dl, 10))
 	}
 	return rows.Err()
-}
-
-func (b *builder) planRow(id int64) (*Plan, error) {
-	p := &Plan{ID: id}
-	var steps string
-	if err := b.db.QueryRowContext(b.ctx, `SELECT mode, outcome, release_title, provider, source, steps
-		FROM router_plan WHERE id = ?`, id).Scan(&p.Mode, &p.Outcome, &p.Release, &p.Provider, &p.Source,
-		&steps); err != nil {
-		return nil, err
-	}
-	_ = json.Unmarshal([]byte(steps), &p.Steps)
-	for i := range p.Steps {
-		p.Steps[i].Message = cleanMessage(p.Steps[i].Message)
-	}
-	p.Release = clean(p.Release)
-	p.Summary = router.PlanSummary(p.Outcome, p.Release, p.Provider, p.Steps)
-	return p, nil
-}
-
-func (b *builder) plan(e *Entry, rest string) error {
-	id, err := strconv.ParseInt(rest, 10, 64)
-	if err != nil {
-		return sql.ErrNoRows
-	}
-	p, err := b.planRow(id)
-	if err != nil {
-		return err
-	}
-	e.Source = "router"
-	e.Summary = "dry run (" + p.Mode + "): " + p.Summary
-	var hash, indexer string
-	_ = b.db.QueryRowContext(b.ctx, `SELECT info_hash, indexer FROM router_plan WHERE id = ?`, id).Scan(&hash, &indexer)
-	if p.Release != "" {
-		e.Release = &Release{Title: p.Release, InfoHash: hash, Indexer: indexer, How: p.Source}
-	}
-	r, err := b.snapshotFor(p.Source, e.Title.ID, e.Version, store.Millis(e.At))
-	if err != nil {
-		return err
-	}
-	if r == nil {
-		r = &Reasoning{Basis: "router"}
-	}
-	r.pickChosen(hash, p.Release)
-	r.Plan = p
-	e.Reasoning = r
-	return nil
 }

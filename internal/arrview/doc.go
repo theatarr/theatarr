@@ -28,9 +28,8 @@
 // # Writes
 //
 // Writes go to our database, except through the two gated paths: grabs (search commands, POST release,
-// release/push) go to the router, which writes to a provider only for active versions while router.enabled is
-// true; imports and file unlinks go to the library, which writes only through its gate. A search command whose
-// versions are all in shadow mode is stored completed with a message saying so. POST movie|series creates the title if needed and turns on the versions the chosen profile
+// release/push) go to the router, which writes to a provider only while router.enabled is true; imports and file
+// unlinks go to the library, which writes only through its gate. POST movie|series creates the title if needed and turns on the versions the chosen profile
 // (or, with none, the view's default-enabled versions) calls for; anime-only or non-anime versions are matched to
 // the title, with Sonarr's series type and the root folder as hints for a new title. A second add of a title turns
 // on the extra versions instead of failing. PUT changes only the view's versions. DELETE unlinks only the view's

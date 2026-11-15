@@ -4,7 +4,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/provider"
 )
 
@@ -64,7 +63,7 @@ func TestImportFileRejection(t *testing.T) {
 // version, nothing is written to a provider, and the next route skips the hash.
 func TestPollRefusesDangerousTorrents(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	res, err := e.r.Route(e.ctx, movieReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")))
 	if err != nil || res.Outcome != OutcomeAdded || res.Provider != "rd" {
 		t.Fatalf("route %+v %v", res, err)
@@ -115,7 +114,7 @@ func TestPollRefusesDangerousTorrents(t *testing.T) {
 
 func TestPollRejectsDifferentProviderTorrentID(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.exec(`INSERT INTO download (id,title_id,version_id,version_key,info_hash,release_title,indexer,provider,provider_torrent_id,state,created_at,updated_at) VALUES (77,1,10,'movie',?,'Movie','pub','rd','T77','added',0,0)`, h("a"))
 	e.pr["rd"].set("T77", provider.Torrent{Hash: h("b"), State: provider.StateDownloading, Status: "downloading"})
 	if _, err := e.r.Poll(e.ctx); err != nil {

@@ -1,8 +1,8 @@
 [
   {
-    "message": "Watch only libraries download nothing: movie-remux, movie-web, anime-movie",
-    "source": "ShadowModeCheck",
-    "type": "notice",
+    "message": "Paused: nothing is downloaded: movie-remux, movie-web, anime-movie",
+    "source": "RouterDisabledCheck",
+    "type": "warning",
     "wikiUrl": ""
   }
 ]

@@ -456,8 +456,6 @@ func TestEpisodeOutcomeFromLinks(t *testing.T) {
 func TestLiveReleasesNoAnswer(t *testing.T) {
 	t.Parallel()
 	e := newAddEnv(t, func(p *policy.Policy) {
-		p.Versions["movie-web"].Mode = policy.ModeActive
-		p.Versions["tv-2160p"].Mode = policy.ModeActive
 	})
 	e.exec(`INSERT INTO version (title_id, policy_key, state, created_at, updated_at) VALUES (1, 'movie-web', 'wanted', 0, 0)`)
 	e.acq.noAnswer = true

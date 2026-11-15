@@ -1,10 +1,10 @@
-# Demo overlay: examples/policy/library.yaml with the roots of the Live libraries in versions-theatarr.yaml added at the
-# end of library.versions (a Live library needs roots of its own). Replaces library.yaml in the demo's policy
+# Demo overlay: examples/policy/library.yaml with the roots of the libraries in versions-theatarr.yaml added at the
+# end of library.versions (a library needs roots of its own). Replaces library.yaml in the demo's policy
 # directory (docs/demo.md "Two copies"); internal/demo's tests keep it equal to the example's otherwise.
 #
 # Library: imports of ready downloads into the version roots, relinks and Plex scans (docs/design/library.md).
 # Off by default; with database settings enabled follows Pause. With enabled: false nothing writes to any filesystem
-# and nothing calls Plex. A version writes only when it is Live (mode: active), listed below, and only under its roots.
+# and nothing calls Plex. A version writes only when it is listed below, and only under its roots.
 library:
   enabled: false
   mount:

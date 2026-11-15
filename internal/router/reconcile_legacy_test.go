@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/theatarr/theatarr/internal/jobs"
-	"github.com/theatarr/theatarr/internal/policy"
 )
 
 // `router reconcile` lists every queued row an older build queued (no identity validation version): route jobs,
@@ -17,7 +16,7 @@ import (
 // is deleted and no provider is called. A second apply finds nothing more and queues nothing.
 func TestReconcileLegacyQueue(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	q := jobs.NewQueue(e.st)
 	q.SetClock(func() time.Time { return e.clock })
 	e.r.RegisterJobs(jobs.NewWorker(q, jobs.WorkerOptions{}), q)

@@ -476,7 +476,7 @@ func TestMovieIntakeSkipsWhilePaused(t *testing.T) {
 			t.Fatal(err)
 		}
 		pol := &policy.Policy{Router: &policy.Router{Enabled: !paused}, Versions: map[string]*policy.VersionPolicy{
-			"movie-web": {Kind: policy.KindMovie, Enable: "default", Mode: policy.ModeActive},
+			"movie-web": {Kind: policy.KindMovie, Enable: "default"},
 		}}
 		src := &pauseIntakeSource{}
 		var searches atomic.Int32

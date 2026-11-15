@@ -11,7 +11,7 @@ import { ArrImportPage } from "./arr-import";
 
 const record = (key: string, kind: "movie" | "series", name: string) => ({
   id: key.length, key, created_at: "2026-11-01T00:00:00Z", updated_at: "2026-11-01T00:00:00Z", roots: ["/lib/" + key],
-  config: { name, mode: "active", kind, anime: null, profile: "hd", library: "/lib/" + key },
+  config: { name, kind, anime: null, profile: "hd", library: "/lib/" + key },
 });
 const versions = {
   source: "db", generation: 3, profiles: {}, format_sets: [], clients: [], indexers: [], providers: [],

@@ -36,8 +36,7 @@ type searchEnv struct {
 
 func newSearchEnv(t *testing.T) *searchEnv {
 	e := &searchEnv{env: newEnv(t)}
-	e.pol.Versions["movie-web"].Mode = policy.ModeActive
-	e.pol.Versions["tv-2160p"].Mode = policy.ModeActive
+	e.onlyLibraries("movie-web", "tv-2160p")
 	e.pol.Router = &policy.Router{Enabled: true}
 	// These tests drain jobs on a frozen clock: RD's 20s min_gap (router gap_test.go) would hold every add after the
 	// first.
@@ -113,7 +112,7 @@ func (e *searchEnv) command(id any) map[string]any {
 }
 
 // A search command for an active version searches it and routes the result; its status follows the search and the
-// router (queued, then completed with what was added). The shadow version of the same title is not searched.
+// router (queued, then completed with what was added). A copy in a library gone from the policy is not searched.
 func TestSearchCommandActiveVersion(t *testing.T) {
 	t.Parallel()
 	e := newSearchEnv(t)
@@ -121,7 +120,7 @@ func TestSearchCommandActiveVersion(t *testing.T) {
 	var c map[string]any
 	e.call("POST", "/radarr/api/v3/command", map[string]any{"name": "MoviesSearch", "movieIds": []int{IDBase + 1}},
 		201, &c)
-	if c["status"] != "queued" || c["message"] != "Searching 1 items for movie-web; Watch only, nothing searched for movie-remux" {
+	if c["status"] != "queued" || c["message"] != "Searching 1 items for movie-web" {
 		t.Fatalf("posted %v: %v", c["status"], c["message"])
 	}
 	e.currentGeneration = 24
@@ -168,48 +167,13 @@ func TestSearchCommandActiveVersion(t *testing.T) {
 	if got := e.searches(); strings.Join(got, "|") != "movie-web Iota" {
 		t.Errorf("add search %v", got)
 	}
-	// No download for a shadow version, and every add is for one of ours.
+	// No download for a library gone from the policy, and every add is for one of ours.
 	if n := e.one(`SELECT COUNT(*) FROM download WHERE version_key NOT IN ('movie-web', 'tv-2160p')`); n != 0 {
-		t.Errorf("%d downloads for shadow versions", n)
+		t.Errorf("%d downloads for other libraries", n)
 	}
 	// Alpha, the season, the episode (searched before the season's route ran) and Iota.
 	// Three adds: the episode search finds S01E02 covered by the season search's pack, which is in flight.
 	if n := int64(len(e.rt.Adders["rd"].Adds())); n != e.one(`SELECT COUNT(*) FROM download`) || n != 3 {
 		t.Errorf("adds %d", n)
-	}
-}
-
-// Shadow versions through every command and the add option: no search, no route, no write. The message stays the
-// shadow one.
-func TestSearchCommandsShadowNeverWrite(t *testing.T) {
-	t.Parallel()
-	e := newSearchEnv(t)
-	var c map[string]any
-	for _, tc := range []struct {
-		path string
-		body map[string]any
-	}{
-		{"/v/movie-remux/radarr/api/v3/command", map[string]any{"name": "MoviesSearch", "movieIds": []int{IDBase + 1}}},
-		{"/v/movie-remux/radarr/api/v3/command", map[string]any{"name": "MissingMoviesSearch"}},
-		{"/v/movie-remux/radarr/api/v3/command", map[string]any{"name": "CutOffUnmetMoviesSearch"}},
-		{"/v/anime-tv/sonarr/api/v3/command", map[string]any{"name": "MissingEpisodeSearch"}},
-		{"/v/anime-movie/radarr/api/v3/command", map[string]any{"name": "MoviesSearch", "movieIds": []int{IDBase + 3}}},
-	} {
-		e.call("POST", tc.path, tc.body, 201, &c)
-		if c["status"] != "completed" || !strings.HasPrefix(c["message"].(string), "Watch only: nothing searched") {
-			t.Errorf("%s %v: %v %v", tc.path, tc.body["name"], c["status"], c["message"])
-		}
-	}
-	e.call("POST", "/v/movie-remux/radarr/api/v3/movie", map[string]any{"title": "Kappa", "year": 2024, "tmdbId": 110,
-		"addOptions": map[string]any{"searchForMovie": true}}, 201, nil)
-	e.drain()
-	if got := e.searches(); len(got) != 0 {
-		t.Errorf("searches %v", got)
-	}
-	if n := e.one(`SELECT COUNT(*) FROM acquire_run`); n != 0 {
-		t.Errorf("%d runs", n)
-	}
-	if e.rt.Writes() != 0 {
-		t.Errorf("%d provider writes for shadow versions", e.rt.Writes())
 	}
 }

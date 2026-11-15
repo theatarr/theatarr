@@ -321,13 +321,13 @@ func TestDetachedFollowerKeepsNaming(t *testing.T) {
 			t.Fatalf("%s: %v", q, err)
 		}
 	}
-	// The key names the migration reads: FromVersion sat beside Folder, follows beside mode.
+	// The key names the migration reads: FromVersion sat beside Folder, follows in the library's config.
 	if got := one(`SELECT json_type(config, '$.Folder') || ' ' || json_extract(config, '$.Folder')
 		FROM setting_version_naming WHERE key = 'movie-remux'`); got != "text "+pol.Versions["movie-remux"].Naming.Folder {
 		t.Fatalf("naming row: %s", got)
 	}
-	if got := one(`SELECT json_extract(config, '$.config.mode') || ' ' || json_type(config, '$.roots')
-		FROM setting_version WHERE key = 'movie-remux'`); got != "shadow array" {
+	if got := one(`SELECT json_type(config, '$.config') || ' ' || json_type(config, '$.roots')
+		FROM setting_version WHERE key = 'movie-remux'`); got != "object array" {
 		t.Fatalf("library row: %s", got)
 	}
 

@@ -10,7 +10,6 @@ import (
 	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/indexer"
 	"github.com/theatarr/theatarr/internal/metadata/anime/animestore"
-	"github.com/theatarr/theatarr/internal/policy"
 )
 
 // TestAnimeUnreviewedImports: an episode only a conflict mapping covers is not held; it imports through Sonarr's
@@ -18,7 +17,7 @@ import (
 // places elsewhere (TestAnimeRelinkAfterReview); this one's range agrees with Sonarr's S01E01, so nothing moves.
 func TestAnimeUnreviewedImports(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.exec(`INSERT INTO anime_franchise (slug, name, seed_anilist, created_at, updated_at) VALUES ('show', 'Show', 1, 0, 0)`)
 	e.exec(`INSERT INTO anime_mapping (franchise, entry_key, status, tvdb_series, episodes, reason, updated_at) VALUES
 		('show', 'al:1', 'conflict', 5, '[[1,1]]', 'the lists disagree', 0), ('show', 'al:2', 'auto', 5, '[[1,2]]', '', 0)`)
@@ -87,7 +86,7 @@ func TestAnimeRejectedMappingImports(t *testing.T) {
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
-			e := newEnv(t, true, policy.ModeActive)
+			e := newEnv(t, true)
 			e.isekai()
 			e.exec(`UPDATE anime_mapping SET status = 'heuristic' WHERE entry_key = 'al:2'`)
 			e.exec(`INSERT INTO anime_review (id, franchise, entry_key, kind, state, summary, created_at)
@@ -149,7 +148,7 @@ func TestAnimeSplitPackScope(t *testing.T) {
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
-			e := newEnv(t, true, policy.ModeActive)
+			e := newEnv(t, true)
 			e.isekai()
 			e.exec(`INSERT INTO anime_entry (franchise, key, origin, title, body) VALUES
 				('isekai', 'al:3#1', 'anilist', 'Other Story', '{}'), ('isekai', 'al:3#2', 'anilist', 'Other Story', '{}')`)
@@ -176,7 +175,7 @@ func TestAnimeSplitPackScope(t *testing.T) {
 // instead of holding them as out of scope.
 func TestAnimeAcceptBeforeImport(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.isekai()
 	e.exec(`UPDATE anime_mapping SET status = 'conflict' WHERE entry_key = 'al:2'`)
 	e.exec(`INSERT INTO anime_review (id, franchise, entry_key, kind, state, summary, created_at)
@@ -250,7 +249,7 @@ func TestAnimeFirstBuildBeforeImport(t *testing.T) {
 		held bool
 	}{{"agrees", 1, false}, {"disagrees", 2, true}} {
 		t.Run(c.name, func(t *testing.T) {
-			e := newEnv(t, true, policy.ModeActive)
+			e := newEnv(t, true)
 			e.isekai()
 			e.exec(`DELETE FROM anime_mapping`)
 			rel := "[SubsPlease] Isekai Story - 13 (1080p WEB-DL)"
@@ -284,7 +283,7 @@ func TestAnimeFirstBuildBeforeImport(t *testing.T) {
 // numbering when the first build runs before its import: the files in scope import, the other is held as before.
 func TestAnimeRescopeIgnoresExplicitFile(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.isekai()
 	e.exec(`DELETE FROM anime_mapping`)
 	rel := "[Group] Isekai Story - 01-02 (1080p WEB-DL)"
@@ -318,7 +317,7 @@ func TestAnimeCandidateBeforeImport(t *testing.T) {
 		{"[[2,1],[2,2]]", "S01E05", "[305]"},
 	} {
 		t.Run(c.link, func(t *testing.T) {
-			e := newEnv(t, true, policy.ModeActive)
+			e := newEnv(t, true)
 			e.isekai()
 			e.exec(`UPDATE anime_mapping SET status = 'conflict' WHERE entry_key = 'al:2'`)
 			for n := 3; n <= 5; n++ {
@@ -361,7 +360,7 @@ func TestAnimeFallbackFilesNameOtherEntry(t *testing.T) {
 	t.Parallel()
 	for _, before := range []bool{true, false} {
 		t.Run(map[bool]string{true: "before", false: "after"}[before], func(t *testing.T) {
-			e := newEnv(t, true, policy.ModeActive)
+			e := newEnv(t, true)
 			e.isekai()
 			e.exec(`UPDATE anime_mapping SET status = 'conflict' WHERE entry_key = 'al:2'`)
 			rel := "[Group] Isekai Story 2nd Season - 01-02 (1080p WEB-DL)"

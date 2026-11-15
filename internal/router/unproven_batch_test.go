@@ -5,14 +5,13 @@ import (
 	"testing"
 
 	"github.com/theatarr/theatarr/internal/decide"
-	"github.com/theatarr/theatarr/internal/policy"
 )
 
 // The unproven candidates of one route are re-searched together, with all their episodes (one
 // re-search each was deduplicated into the first).
 func TestUnprovenBatchResearchesAllEpisodes(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.pol.Versions["series"].PreferSeaDex = true
 	e.exec(`INSERT INTO episode(id,title_id,season,number,name,air_date,created_at,updated_at) VALUES(101,2,1,1,'One','2024-01-01',0,0),(102,2,1,2,'Two','2024-01-02',0,0)`)
 	e.exec(`UPDATE episode SET air_date_utc_at=1000 WHERE title_id=2`)

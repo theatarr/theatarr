@@ -13,7 +13,7 @@ import (
 // that moves the clock (altRetry waits for min_gap on it). It returns the sleeps.
 func altEnv(t *testing.T) (*env, *fakeDebrid, *[]time.Duration) {
 	t.Helper()
-	e, f, _ := newDebridEnv(t, true, policy.ModeActive, true)
+	e, f, _ := newDebridEnv(t, true, true)
 	f.rdFiles = []rdFile{{1, "/Movie/Movie.2024.2160p.WEB.H265-GRP.nfo", 2},
 		{2, "/Movie/Movie.2024.2160p.WEB.H265-GRP.mkv", 9000}, {3, "/Movie/Featurettes/Making.Of.mkv", 800}}
 	f.rdCachedSel = map[string]bool{}

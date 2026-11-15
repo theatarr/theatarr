@@ -9,7 +9,7 @@ import (
 )
 
 // Two copies of a series (docs/demo.md "Two copies"). With the demo overlay (examples/demo) the policy has a second
-// Live library <k>-theatarr for each arr-fed series version k, as live does: Theatarr's own copy, with the arr's titles
+// library <k>-theatarr for each arr-fed series version k, as live does: Theatarr's own copy, with the arr's titles
 // and monitoring, links to the arr's files (as the one-time import adopts them) and its own downloads for the gaps. Each series then has the arr's copy (its scenario) and Theatarr's (the scenario changed by its plan).
 
 // copyPlan is how Theatarr's copy of a series differs from the arr's. The zero plan mirrors it: every file the arr

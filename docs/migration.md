@@ -3,7 +3,7 @@
 Coming from the arrs? See the [arr-to-Theatarr page map](arr-map.md) for routes and menu paths.
 
 Moving to Theatarr means one thing now: the one-time [import](#import-from-sonarrradarr) brings a Sonarr or Radarr
-instance's titles, their monitoring and the files already on the debrid mount into a Live library you made in Setup.
+instance's titles, their monitoring and the files already on the debrid mount into a library you made in Setup.
 New titles then arrive through a list sync or by running the import again. [Moving off the arr](#moving-off-the-arr)
 below is the order to do it in, and [Upgrading to this release](#upgrading-to-this-release) says what an install
 that used the older tools (following, the comparison, the periodic import) sees after the upgrade.
@@ -47,7 +47,7 @@ What comes in:
 - A Sonarr series has its monitoring and files brought over only when its episode list comes from TVDB, so episodes
   match Sonarr's numbering. Without a TVDB key (**Settings › Metadata & artwork**) series are added, but their
   monitoring and files are not; the Preview says so first.
-- A library that is Watch only, or while **Pause** is on, can be previewed but not imported into.
+- While **Pause** is on, a library can be previewed but not imported into.
 
 Running it again adds only titles that are new and links files that are still missing; it never changes a title
 already in the library or monitoring you set in Theatarr, with one exception: a series whose episode list the run
@@ -66,11 +66,11 @@ can be undone.
 ### Before the trial
 
 1. **Create the library.** In **Settings › Libraries**, add a library of the arr's kind with a root of its own (for
-   example `/media/library/movies`), the profile and naming you want, its indexers and providers. Keep it **Watch
-   only** for now. Check the mount, the trash and the roots.
+   example `/media/library/movies`), the profile and naming you want, its indexers and providers. Keep **Pause**
+   on for now. Check the mount, the trash and the roots.
 2. **Give it a Plex library.** Create one Plex library on its root, shared with no one yet, and set its section
    under **Settings › Plex & playback**. Your users keep watching the arr's sections.
-3. **Check how it judges releases.** A Watch-only library searches nothing on its own. **Settings › Profiles › Check
+3. **Check how it judges releases.** While Pause is on a library searches nothing on its own. **Settings › Profiles › Check
    a release** judges one release name for a title and library, and `theatarr decide -search` searches its indexers
    for one title and prints the ranked decisions ([quickstart.md](quickstart.md#6-a-first-library)); neither records
    anything.
@@ -84,10 +84,9 @@ can be undone.
    on those providers the
    cache check is itself an add. Keep **Send notifications** (**Settings › Notifications**) off, and review the
    request budgets under **Advanced › Request limits**.
-6. **Set the library Live and turn Pause off.** Set it **Live** in **Settings › Libraries**, then turn **Pause** off
-   at the top of any admin page. Pause is one switch for every library: its confirmation names all the Live
-   libraries that start searching and downloading, so review that list. The import needs both: while the library is
-   Watch only or Pause is on, Preview says so and Import is refused.
+6. **Turn Pause off.** Turn **Pause** off at the top of any admin page. Pause is one switch for every library: its
+   confirmation names all the libraries that start searching and downloading, so review that list. The import needs
+   it: while Pause is on, Preview says so and Import is refused.
 7. **Import** (**Admin › Import from Sonarr/Radarr**), then:
 
    ```sh
@@ -155,8 +154,8 @@ Keep Prowlarr while any library still uses one of its feeds. Then, for a library
 
 ### Stopping and rolling back
 
-**During the trial (the arr never stopped):** set the library to **Watch only** in **Settings › Libraries**, or turn
-**Pause** on to stop every library. A provider request already sent can finish. Review queued or ready work in
+**During the trial (the arr never stopped):** turn **Pause** on to stop every library, or switch a title's
+**Monitored** off in the library to stop it there. A provider request already sent can finish. Review queued or ready work in
 **Activity** and remove what you don't want there (ending Theatarr's record does not delete the provider torrent).
 Existing links stay available in Plex. The arr kept doing its job, so there is no arr catch-up search to cause
 duplicates.
@@ -173,10 +172,10 @@ cannot undo provider adds or filesystem changes.
 
 ### Stopping or removing a library
 
-With DB settings, edit mode, root and view bindings in **Admin › Settings › Libraries**. Watch only stops new work;
+With DB settings, edit root and view bindings in **Admin › Settings › Libraries**. Pause stops new work;
 **Stop managing library** removes the library after a confirmation that names what it leaves behind.
 
-A Watch-only library keeps its links, and Plex keeps showing them. A removed library's entries on every title go
+A paused library keeps its links, and Plex keeps showing them. A removed library's entries on every title go
 (versions, monitoring, wanted state, downloads, the link rows it alone holds, its own view rows), while its symlinks
 stay on disk, untracked, until removed by hand, and downloads at the provider stay there; its Plex sections can be
 deleted.
@@ -211,20 +210,30 @@ The database migrations run at start; nothing needs doing first. What an install
   where it differed from the library's default. They no longer receive titles or file changes from the library they
   followed: new titles arrive through a list sync or the one-time import, and files the arr upgrades are no longer
   mirrored. An add that names no library now also adds to former followers.
-- **Watch-only libraries that copied a Sonarr/Radarr instance** (through the old periodic import) stay, with their
-  titles, as ordinary Watch-only libraries. They are no longer updated. Each gets one **System › Errors** card:
+- **Libraries that copied a Sonarr/Radarr instance** (through the old periodic import) stay, with their
+  titles, as ordinary libraries. They are no longer updated. Each gets one **System › Errors** card:
   "Library K copied a Sonarr/Radarr instance. That copy is no longer updated. Delete the library when you no longer
   need it." Remove it with **Stop managing library** when you no longer need it; that also resolves the card.
 - **A quality profile or naming taken from an instance** (`from_arr`) becomes a stored copy of what the library used,
   keeping its key. Each library concerned gets one **System › Errors** message asking you to check the copy in
   **Settings › Profiles** or **Settings › Libraries**. If no copy could be made (no stored snapshot of the instance),
-  that library alone is set Watch only, with a message saying so; check its profile and naming, then set it Live.
+  that library alone was set Watch only, with a message saying so (since 00137, see below: its titles are not
+  monitored and Pause is on); check its profile and naming.
 - **Old arr ids in the views no longer answer** (`alias_from` is gone). A client that kept a title's Radarr or Sonarr
   id from before (Seerr, for example) gets 404 for it until its next scan of the view stores Theatarr's ids. Point
   the client at the view and let it sync.
-- **One Pause.** Pause is on after the upgrade if the router or the library switch was off. A Live library whose
-  downloads were off is now Watch only. **Send notifications** is a setting on **Settings › Notifications**, kept as it
+- **One Pause.** Pause is on after the upgrade if the router or the library switch was off. A library whose
+  downloads were off became Watch only (see the next item). **Send notifications** is a setting on **Settings › Notifications**, kept as it
   was.
+- **Watch only is gone** (migration 00137). Every library is live; the global **Pause**, each title's **Monitored**
+  switch in a library and `THEATARR_FORCE_OFF` are what hold downloads. A library that was Watch only does not
+  start grabbing: every title in it is set not monitored, arr clients no longer add to it (`enable: request`), Pause
+  is switched on, and one **System › Errors** card names those libraries. Lists, collections and accounts' request
+  libraries stop targeting them: a list or collection left with no target is turned off, one that used the
+  defaults gets the other libraries of its kind as targets, and an account's request libraries become the other
+  libraries when they named none or only those. Monitor what should download there, check
+  **Settings › Libraries**, then turn Pause off. An install whose libraries were all Live sees no change. The dry-run
+  plans and the RSS run log are dropped; `versions.<key>.mode` in a policy file is ignored.
 - **One parser.** Every library uses the same release parser and pack rule. Picks can differ from before on installs
   that used the old defaults.
 - **One search schedule.** Every missing or upgradable item has a next search time, shown with its reason on

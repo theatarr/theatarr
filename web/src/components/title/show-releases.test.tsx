@@ -32,7 +32,7 @@ it("says what the shown search did and picks out the followed release", async ()
   mockFetch([
     { method: "GET", path: "/auth/me", reply: { permissions: ["browse", "see_files", "manage"] } },
     { method: "GET", path: "/titles/7/releases", reply: {
-      title_id: 7, version: "movie-web", versions: ["movie-web"], mode: "active", live_allowed: false, source: "journal", results: 12, accepted: 2,
+      title_id: 7, version: "movie-web", versions: ["movie-web"], live_allowed: false, source: "journal", results: 12, accepted: 2,
       candidates: [cand(1, "aaa"), cand(2, "bbb")], rejections: {}, outcomes: { aaa: { outcome: "failed", provider: "rd", reason: "RD status error" }, bbb: { outcome: "current", provider: "rd" } },
       grabbed: "Grabbed #2 via rd → imported (the current file)", grab: false,
       notes: "seadex: dropped 1 entries: private tracker; dropped 1 single-file entries; dropped 1 recent entries not filed under one of our titles; dropped 2 entries with an excluded tag",
@@ -45,7 +45,7 @@ it("says what the shown search did and picks out the followed release", async ()
   const rows = within(screen.getByTestId("releases-table")).getAllByRole("row").filter((r) => r.dataset.releaseHash);
   expect(rows.map((r) => r.dataset.focus ?? "")).toEqual(["", "true"]);
   expect(screen.queryByTestId("releases-focus-missing")).toBeNull();
-  // A Live library whose acquirer is down is not called Watch only; the facts are one text run.
+  // A library whose acquirer is down says so; the facts are one text run.
   expect(screen.getByTestId("releases-no-live").textContent).toBe("The acquirer is not running");
   expect(screen.getByTestId("releases-facts").textContent).toBe("12 results, 2 accepted");
   expect(screen.getByTestId("releases-notes").textContent).toBe("Indexers: seadex: dropped 1 entry: private tracker; dropped 1 single-file entry; dropped 1 recent entry not filed under one of our titles; dropped 2 entries with an excluded tag");
@@ -56,7 +56,7 @@ it("says when the followed release is not in the stored list", async () => {
   mockFetch([
     { method: "GET", path: "/auth/me", reply: { permissions: ["browse", "see_files", "manage"] } },
     { method: "GET", path: "/titles/7/releases", reply: {
-      title_id: 7, version: "movie-web", versions: ["movie-web"], mode: "active", live_allowed: false, source: "journal", results: 4, accepted: 0,
+      title_id: 7, version: "movie-web", versions: ["movie-web"], live_allowed: false, source: "journal", results: 4, accepted: 0,
       candidates: [cand(1, "aaa", false)], rejections: {}, outcomes: {}, grabbed: "Nothing grabbed: no accepted release among 4 results", grab: false,
     } },
   ]);
@@ -66,7 +66,7 @@ it("says when the followed release is not in the stored list", async () => {
 });
 
 const stored = (cands: ReturnType<typeof cand>[]) => ({
-  title_id: 7, version: "movie-web", versions: ["movie-web"], mode: "active", live_allowed: true, source: "journal", results: cands.length, accepted: 1,
+  title_id: 7, version: "movie-web", versions: ["movie-web"], live_allowed: true, source: "journal", results: cands.length, accepted: 1,
   candidates: cands, rejections: {}, outcomes: {}, grabbed: "Nothing grabbed: blocklisted", grab: false,
 });
 
@@ -74,7 +74,7 @@ it("a stored list has no Grab buttons and offers Interactive search", async () =
   mockFetch([
     ME,
     { method: "GET", path: "/titles/7/releases", reply: stored([cand(1, "aaa"), cand(2, "bbb", false)]) },
-    { method: "GET", path: "/titles/7", reply: { id: 7, name: "Alpha", year: 2020, kind: "movie", versions: [{ id: 1, key: "movie-web", label: "WEB", control: { mode: "active", can_edit: true, can_search: true, live_releases: true } }] } },
+    { method: "GET", path: "/titles/7", reply: { id: 7, name: "Alpha", year: 2020, kind: "movie", versions: [{ id: 1, key: "movie-web", label: "WEB", control: { can_edit: true, can_search: true, live_releases: true } }] } },
     { method: "GET", path: "/titles/7/releases", reply: () => new Promise(() => {}) },
     { method: "GET", path: "/titles/7/removal", reply: { title_id: 7, name: "x", title: true, leftover: [], copies: [{ key: "movie-web", label: "movie-web", links: 0, downloads: 0 }] } },
   ]);
@@ -208,7 +208,7 @@ it("shows the indexer without its prowlarr- prefix, the key as tooltip, and a sh
 it("does not carry a filter from one library tab to the other", async () => {
   const reply = (r: { search: string }) => {
     const version = new URLSearchParams(r.search).get("version") || "movie-web";
-    return { title_id: 7, version, versions: ["movie-web", "movie-remux"], mode: "active", live_allowed: false, source: "journal", results: 2, accepted: 2,
+    return { title_id: 7, version, versions: ["movie-web", "movie-remux"], live_allowed: false, source: "journal", results: 2, accepted: 2,
       candidates: [cand(1, "aaa"), cand(2, "bbb")], rejections: {}, outcomes: {}, grab: false };
   };
   mockFetch([ME, { method: "GET", path: "/titles/7/releases", reply }]);

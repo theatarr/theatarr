@@ -10,7 +10,7 @@ import (
 
 func TestHashlessReleaseMustNotAcquireSnapshotHash(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	const record = "6vdej49pr26gca0"
 	snapshot := indexer.SeaDexSnapshot{AniList: 1535, Torrents: []indexer.SeaDexStanding{{RecordID: record, InfoHash: h("a"), Preference: 3}}}
 	body, _ := json.Marshal(snapshot)
@@ -32,7 +32,7 @@ func TestHashlessReleaseMustNotAcquireSnapshotHash(t *testing.T) {
 
 func TestWantedMovieRetainsSearchContextDuringRedecision(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	freshMovie(e)
 	e.pol.Versions["movie"].PreferSeaDex = true
 	e.exec(`UPDATE title SET year=2024,runtime_minutes=110 WHERE id=1`)
@@ -72,7 +72,7 @@ func TestWantedMovieRetainsSearchContextDuringRedecision(t *testing.T) {
 
 func TestRSSSeriesRetainsRSSContextDuringRedecision(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.pol.Profiles = map[string]*policy.Profile{"tv": {Qualities: []policy.QualityItem{{Name: "WEBDL-2160p"}}, Cutoff: "WEBDL-2160p"}}
 	e.pol.Versions["series"].Profile = "tv"
 	e.pol.Versions["series"].PreferSeaDex = true
@@ -118,7 +118,7 @@ func TestRSSSeriesRetainsRSSContextDuringRedecision(t *testing.T) {
 
 func TestRSSPackRedecisionKeepsSingleWantedEpisode(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.pol.Profiles = map[string]*policy.Profile{"tv": {Qualities: []policy.QualityItem{{Name: "WEBDL-2160p"}}, Cutoff: "WEBDL-2160p"}}
 	e.pol.Versions["series"].Profile = "tv"
 	e.pol.Versions["series"].PreferSeaDex = true

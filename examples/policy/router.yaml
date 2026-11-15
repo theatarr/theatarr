@@ -1,7 +1,7 @@
-# The download router (docs/design/router.md). It adds releases to the debrid providers of Live versions
-# (mode: active), in each version's providers order, and only while enabled is true. With database settings enabled
+# The download router (docs/design/router.md). It adds releases to the debrid providers of the versions,
+# in each version's providers order, and only while enabled is true. With database settings enabled
 # follows Pause (true when Pause is off); off, nothing is written to any provider and every version is dry-run only.
-# theatarr serve logs the switch and the active versions at start. Every other field is optional; these are the defaults.
+# theatarr serve logs the switch and the versions at start. Every other field is optional; these are the defaults.
 router:
   enabled: false
   cached_only: true    # skip a provider where the release is known uncached; TorBox adds only if cached; an RD
@@ -31,7 +31,7 @@ router:
       enabled: true    # does nothing without a TorBox key
       top: 10          # best hashes of one search checked; 1 to 100
       per_hour: 60     # checkcached requests in any hour; 1 to 1000
-  # The search schedule (internal/acquire): each missing or cutoff-unmet item of a Live library has a next search
+  # The search schedule (internal/acquire): each missing or cutoff-unmet item of a library has a next search
   # time. New releases that are not found are tried again after 1, 2, 4, 8 and 16 hours, then daily for a week; older
   # items every again_after. A failed download and Search now make an item due at once. Nothing is searched while
   # router.enabled is false (Pause).

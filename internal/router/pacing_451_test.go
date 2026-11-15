@@ -9,7 +9,7 @@ import (
 
 func TestExplained451DoesNotStartAnotherHold(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	p := e.st.Writer()
 	held, _, err := note451(e.ctx, p, "rd", h("a"), 1, e.clock, time.Hour, false)
 	if err != nil || held {
@@ -27,7 +27,7 @@ func TestExplained451DoesNotStartAnotherHold(t *testing.T) {
 
 func TestRoute451MissLiftedWhenHoldExplainsIt(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.pol.Versions["movie"].Providers = []string{"rd"}
 	e.pol.Providers["rd"].Pacing = policy.Pacing{}
 	e.ad["rd"].add = refuse(adder.CodeAccountHold)
@@ -56,7 +56,7 @@ func TestRoute451MissLiftedWhenHoldExplainsIt(t *testing.T) {
 // A restore shares the same refusal memory: its account hold explains earlier router misses too.
 func TestRestoreHoldLiftsRouter451Miss(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.pol.Versions["movie"].Providers = []string{"rd"}
 	e.ad["rd"].add = refuse(adder.CodeAccountHold)
 	if _, err := e.r.Route(e.ctx, grabReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP"))); err != nil {

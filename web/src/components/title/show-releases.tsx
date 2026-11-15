@@ -125,13 +125,13 @@ function Panel({ titleId, kind, initialVersion, focus, labels }: { titleId: numb
               <VersionTag k={k} label={labels?.[k]} className="text-[12px]" />
             </button>
           ))}
-          {r ? <VersionStatus state={r.grab_state} showMode settingsKey={r.version} canManage={perms.admin} /> : null}
+          {r ? <VersionStatus state={r.grab_state} settingsKey={r.version} canManage={perms.admin} /> : null}
         </div>
         {r?.live_allowed && perms.manage ? (
           // A series is searched per season or per episode, never as a whole.
           kind === "movie" ? <InteractiveSearchButton titleId={titleId} version={r.version} variant="outline" /> : null
         ) : r ? (
-          <span className="text-xs text-[var(--ink-3)]" data-testid="releases-no-live">{r.mode === "active" ? "The acquirer is not running" : "Watch only: no live indexer search"}</span>
+          <span className="text-xs text-[var(--ink-3)]" data-testid="releases-no-live">The acquirer is not running</span>
         ) : null}
       </div>
       {q.isPending ? (

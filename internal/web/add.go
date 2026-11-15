@@ -26,10 +26,8 @@ import (
 // catalog.Add, the arr views' add path), PUT /titles/{id}/versions/{key}, POST /titles/{id}/search and
 // GET /titles/{id}/releases.
 //
-// Safety: an add never searches unless asked, and a search (from an add or a click) runs only for versions in mode
-// active while router.enabled is true (catalog.Searchable); every other version is answered with the reason. The
-// releases panel searches indexers live only for an active version; for a shadow version it answers from what is
-// stored (the journal's decided searches, the shadow runner's last grab), so a click sends no indexer traffic.
+// Safety: an add never searches unless asked, and a search (from an add or a click) runs only while router.enabled
+// is true (catalog.Searchable); every other version is answered with the reason.
 
 // AddConfig is what search and add use beyond the store and the policy. Each may be nil.
 type AddConfig struct {
@@ -91,7 +89,6 @@ type VersionOption struct {
 	Label string `json:"label"`
 	// Anime is the version's anime rule: true (anime only), false (no anime), absent (both).
 	Anime  *bool  `json:"anime,omitempty"`
-	Mode   string `json:"mode"`
 	Enable string `json:"enable"`
 	// Fits: the version takes this title (kind and anime). Default: an add asks for it unless unticked.
 	Fits    bool `json:"fits"`
@@ -108,7 +105,7 @@ type VersionOption struct {
 	// OpenSeasons (a series the title has with this version on): its seasons, specials aside, that the version does
 	// not fully monitor. A request can still ask for them ("Request more seasons").
 	OpenSeasons []int `json:"open_seasons,omitempty"`
-	// Searchable: a search would run for it (mode active, router on); Reason says why not.
+	// Searchable: a search would run for it (router on); Reason says why not.
 	Searchable bool   `json:"searchable"`
 	Reason     string `json:"reason,omitempty"`
 }
@@ -280,7 +277,7 @@ func (w *Web) apiAddOptions(rw http.ResponseWriter, r *http.Request) {
 				open = append(open, n)
 			}
 		}
-		o := VersionOption{GrabState: versionGrabState(w.pol, k), OpenSeasons: open, Key: k, Kind: string(vp.Kind), Label: names[k], Anime: vp.Anime, Mode: string(vp.Mode),
+		o := VersionOption{GrabState: versionGrabState(w.pol, k), OpenSeasons: open, Key: k, Kind: string(vp.Kind), Label: names[k], Anime: vp.Anime,
 			Enable: vp.Enable,
 			Fits:   catalog.Fits(vp, kind, anime), On: slices.Contains(on, k)}
 		if seeFiles {
@@ -291,9 +288,6 @@ func (w *Web) apiAddOptions(rw http.ResponseWriter, r *http.Request) {
 			if pr := w.pol.Profiles[vp.Profile]; pr != nil {
 				o.Profile, o.Cutoff, o.Upgrades = vp.Profile, pr.Cutoff, (pr.Upgrades == nil || *pr.Upgrades) && vp.Upgrades != "off"
 			}
-		}
-		if o.Mode == "" {
-			o.Mode = string(policy.ModeShadow)
 		}
 		o.Default = o.Fits
 		active, skipped := catalog.Searchable(w.pol, []string{k})
@@ -805,7 +799,7 @@ func (w *Web) searchNow(ctx context.Context, titleID int64, keys []string) (*Sea
 }
 
 // POST /titles/{id}/search {versions?}: search now for the title's monitored versions (or the ones named), for the
-// versions in mode active while router.enabled is true; the answer says why any other was skipped.
+// versions while router.enabled is true; the answer says why any other was skipped.
 func (w *Web) apiSearchNow(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	id, ok := pathID(r)

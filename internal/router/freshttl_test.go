@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/provider/adder"
 	"github.com/theatarr/theatarr/internal/store"
 )
@@ -13,7 +12,7 @@ import (
 // all-provider miss. Old content keeps miss_ttl, and so does a 451.
 func TestFreshContentMissLivesAnHour(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	for id, aired := range map[int64]time.Time{501: e.clock.Add(-48 * time.Hour), 502: e.clock.Add(-10 * 24 * time.Hour),
 		503: e.clock.Add(-48 * time.Hour), 504: e.clock.Add(-48 * time.Hour)} {
 		e.exec(`INSERT INTO episode (id, title_id, season, number, air_date_utc_at, created_at, updated_at)

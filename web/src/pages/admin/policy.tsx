@@ -58,7 +58,7 @@ export function PolicyFiles() {
               {p.versions.map((v) => (
                 <TableRow key={v.key}>
                   <TableCell><VersionTag k={v.key} /><div className="mt-1 font-mono text-xs text-muted-foreground">{v.key}</div><div className="text-xs text-muted-foreground">{v.kind} · {v.storage}</div></TableCell>
-                  <TableCell><VersionStatus state={v.grab_state} showMode settingsKey={v.key} canManage /></TableCell>
+                  <TableCell><VersionStatus state={v.grab_state} settingsKey={v.key} canManage /></TableCell>
                   <TableCell className="hidden sm:table-cell"><Mono>{v.profile}</Mono></TableCell>
                   <TableCell className="hidden break-all lg:table-cell"><Mono>{v.library}</Mono></TableCell>
                   <TableCell className="hidden max-w-[16rem] text-[13px] md:table-cell">{v.indexers.join(", ")}</TableCell>

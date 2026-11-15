@@ -31,8 +31,8 @@ var (
 	ErrUnknown = errors.New("tasks: no such task scheduled")
 	// ErrRunning is a Run now while the task runs.
 	ErrRunning = errors.New("tasks: the task is already running")
-	// ErrPaused is a Run now of a task that waits for Pause to be turned off (or a Live library).
-	ErrPaused = errors.New("tasks: the task waits while Pause is on or no library is Live")
+	// ErrPaused is a Run now of a task that waits for Pause to be turned off (or a library).
+	ErrPaused = errors.New("tasks: the task waits while Pause is on or no library is set up")
 	// ErrSkip is returned by a task's Run that had nothing to do (nothing due, another run holds the work): no run is
 	// recorded, only the next run.
 	ErrSkip = errors.New("tasks: nothing to do")
@@ -47,7 +47,7 @@ type Task struct {
 	At    string
 	// Attempts is how many tries one run gets (0 or 1: one).
 	Attempts int
-	// Paused: the loop waits (Pause on, or no Live library); Run now is refused.
+	// Paused: the loop waits (Pause on, or no library); Run now is refused.
 	Paused bool
 	// Inbox: a failed run goes to the error inbox, as the job the task replaced did. Every failure is logged.
 	Inbox bool

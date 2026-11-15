@@ -27,7 +27,7 @@ func (f *fakeArrImport) Check(_ context.Context, flavour, _, key string) (*arrim
 
 func (f *fakeArrImport) Validate(_ context.Context, req arrimport.Request) error {
 	if req.Library != "movie-remux" {
-		return &arrimport.Refusal{Msg: "Import needs the library to write links: it is Watch only."}
+		return &arrimport.Refusal{Msg: "Import needs a library and Pause off: paused."}
 	}
 	return nil
 }
@@ -82,7 +82,7 @@ func TestArrImportRoutes(t *testing.T) {
 	}
 	refused := strings.Replace(start, "movie-remux", "watch", 1)
 	if rec := call("POST", "/arr-import", admin, refused); rec.Code != http.StatusConflict ||
-		!strings.Contains(rec.Body.String(), "Watch only") {
+		!strings.Contains(rec.Body.String(), "Pause off") {
 		t.Fatalf("refusal: %d %s", rec.Code, rec.Body.String())
 	}
 

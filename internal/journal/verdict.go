@@ -114,9 +114,9 @@ func (b *builder) verdictEntry(e *Entry, rest string) error {
 }
 
 // Judge records a verdict on an entry. Both verdicts acknowledge the entry's current flags. "wrong" on an entry
-// with a release hash, for a version that is active while router.enabled is true, also blocklists the hash for the
+// with a release hash, for a version in the policy while router.enabled is true, also blocklists the hash for the
 // version (router_blocklist, source journal) and queues acquire.research for the title (and the entry's episodes),
-// in one transaction with the verdict. In shadow mode, or with the router off, the verdict is only recorded.
+// in one transaction with the verdict. With the router off the verdict is only recorded.
 // Nothing is ever deleted, on a provider or anywhere else.
 func (j *Journal) Judge(ctx context.Context, id string, req VerdictRequest, by string) (*Verdict, error) {
 	req.Verdict = strings.ToLower(strings.TrimSpace(req.Verdict))
@@ -197,8 +197,6 @@ func (j *Journal) mayAct(pol *policy.Policy, e *Entry, hash string) (bool, strin
 	switch {
 	case vp == nil:
 		return false, "recorded only: the policy has no version " + orDash(e.Version)
-	case vp.Mode != policy.ModeActive:
-		return false, "recorded only: version " + e.Version + " is Watch only"
 	case !pol.RouterSettings().Enabled:
 		return false, "recorded only: router.enabled is false"
 	case hash == "":

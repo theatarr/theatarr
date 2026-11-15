@@ -78,7 +78,7 @@ type Grabbed struct {
 // release does for the arr clients). The release is decided again now for the version (so the answer reflects the
 // file and blocklist as they are, not as they were at the search); a rejected one is grabbed only with override, as
 // the arrs let a person grab a rejected release from an interactive search. The router then applies every rule it
-// applies to any route: the gate (shadow and router.enabled), the blocklist, pacing and budgets.
+// applies to any route: the gate (router.enabled), the blocklist, pacing and budgets.
 func (s *Service) GrabRelease(ctx context.Context, titleID int64, version string, rel indexer.Release, override bool,
 	source string) (*Grabbed, error) {
 	if s.pol.Indexers[rel.Indexer] == nil {
@@ -229,7 +229,7 @@ func (s *Service) importOutcome(ctx context.Context, id int64, p *library.Plan, 
 }
 
 // RetryDownload tries a download again. A failed download's release is routed again for its version (a new
-// download row; refused while the router is disabled, the version is in shadow, or the hash is blocklisted), using
+// download row; refused while the router is disabled or the hash is blocklisted), using
 // the stored hash, never a link. A download that finished but is not linked yet
 // (ready, importing) is imported now, without waiting for the import's back-off. Anything still on its way is
 // refused: there is nothing to retry.
@@ -315,12 +315,8 @@ func (s *Service) refuseDryRunRoute(version string) error {
 	if !s.pol.RouterSettings().Enabled {
 		return refused("Theatarr is paused; no download will start")
 	}
-	vp := s.pol.Versions[version]
-	if vp == nil {
+	if s.pol.Versions[version] == nil {
 		return refused("there is no active policy for %s; no download will start", version)
-	}
-	if vp.Mode != policy.ModeActive {
-		return refused("the %s copy is Watch only; no download will start", version)
 	}
 	return nil
 }
@@ -337,8 +333,8 @@ type Unlinked struct {
 // UnlinkLink takes one of our library symlinks out of the library (DELETE moviefile/episodefile does the same for
 // the arr clients): through the library's gate the link moves to the trash, what it points at is never touched, and
 // the version, or the episodes the link held, are wanted again when no other file remains. Only an active symlink
-// of ours: a regular file or hardlink is refused, and so is a link the gate will not let change (library disabled,
-// version in shadow), with the gate's reason and nothing changed.
+// of ours: a regular file or hardlink is refused, and so is a link the gate will not let change (library disabled),
+// with the gate's reason and nothing changed.
 func (s *Service) UnlinkLink(ctx context.Context, linkID int64, reason string) (*Unlinked, error) {
 	return s.unlinkLink(ctx, linkID, reason, false)
 }

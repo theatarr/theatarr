@@ -8,12 +8,11 @@ import (
 
 	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/indexer"
-	"github.com/theatarr/theatarr/internal/policy"
 )
 
 func TestIncomingImportClearsGrabRank(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.pol.Versions["tv"].PreferSeaDex = true
 	hash := strings.Repeat("a", 40)
 	for _, query := range []string{

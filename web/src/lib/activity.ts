@@ -201,7 +201,7 @@ export const STAGE_MEANINGS: { label: string; meaning: string }[] = [
   { label: "Linking failed", meaning: "Linking hit an error and is tried again." },
   { label: "Linked", meaning: "In the library." },
   { label: "Failed", meaning: "The download failed. Retry sends it again; Dismiss clears the row." },
-  { label: "Not started", meaning: "It was still waiting when downloads were paused or its library was Watch only, and was never sent. Retry starts it." },
+  { label: "Not started", meaning: "It was still waiting when downloads were paused, and was never sent. Retry starts it." },
 ];
 
 /** The meaning of a stageLabel word; "" for a state the list does not know. */

@@ -500,11 +500,6 @@ func (p *Policy) validateVersion(e *Errors, k string, v *VersionPolicy) {
 	path := fmt.Sprintf("versions[%s]", k)
 	checkKey(e, path, k)
 	validateVersionName(e, path, v.Name)
-	switch v.Mode {
-	case ModeShadow, ModeActive:
-	default:
-		e.add(path+".mode", "must be shadow or active, got %q", v.Mode)
-	}
 	kindOK := v.Kind == KindMovie || v.Kind == KindSeries
 	if !kindOK {
 		e.add(path+".kind", "must be movie or series, got %q", v.Kind)

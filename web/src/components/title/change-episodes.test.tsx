@@ -5,7 +5,7 @@ import { expect, it } from "vitest";
 import { Seasons } from "./seasons";
 import { mockFetch, renderPage } from "@/test/page";
 
-const managed = { mode: "active", can_edit: true, can_search: true, live_releases: true };
+const managed = { can_edit: true, can_search: true, live_releases: true };
 const cell = (has: boolean) => ({ state: has ? "cutoff_met" : "wanted", monitored: true, has_file: has });
 const episodes = {
   title_id: 1,

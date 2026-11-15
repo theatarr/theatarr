@@ -4,13 +4,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/provider"
 )
 
 func routeReusedRD(t *testing.T) (*env, *fakeDebrid, int64) {
 	t.Helper()
-	e, f, _ := newDebridEnv(t, true, policy.ModeActive, false)
+	e, f, _ := newDebridEnv(t, true, false)
 	e.exec(`INSERT INTO content (id, info_hash, state, first_seen_at, last_seen_at) VALUES (7, ?, 'present', 0, 0)`, h("a"))
 	e.exec(`INSERT INTO content_provider (content_id, provider, torrent_id, seen_at) VALUES (7, 'rd', 'HELD', 0)`)
 	f.rd["HELD"] = &fakeRD{hash: h("a"), status: "waiting_files_selection"}
@@ -67,7 +66,7 @@ func TestReusedWaitingFilesSelectionNeverWrites(t *testing.T) {
 // or deletes anything on the shared torrent.
 func TestReusedWaitingWithoutVideoFailsWithoutProviderWrite(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.exec(`INSERT INTO content (id, info_hash, state, first_seen_at, last_seen_at) VALUES (7, ?, 'present', 0, 0)`, h("a"))
 	e.exec(`INSERT INTO content_provider (content_id, provider, torrent_id, seen_at) VALUES (7, 'rd', 'HELD', 0)`)
 	e.pr["rd"].set("HELD", provider.Torrent{Hash: h("a"), Status: "downloading", State: provider.StateDownloading})
@@ -114,7 +113,7 @@ func TestReusedWaitingFilesSelectionStallsWithoutProviderWrite(t *testing.T) {
 
 func TestReusedTorrentHashMismatchFailsWithoutBlocklisting(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.exec(`INSERT INTO content (id, info_hash, state, first_seen_at, last_seen_at) VALUES (7, ?, 'present', 0, 0)`, h("a"))
 	e.exec(`INSERT INTO content_provider (content_id, provider, torrent_id, seen_at) VALUES (7, 'rd', 'HELD', 0)`)
 	// The entry holds the hash when it is reused (the reuse reads it first), and another one by the poll.

@@ -3,13 +3,11 @@ package router
 import (
 	"errors"
 	"testing"
-
-	"github.com/theatarr/theatarr/internal/policy"
 )
 
 func TestRuntimeSwitchOffStopsRouterAdds(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	off, err := e.pol.Clone()
 	if err != nil {
 		t.Fatal(err)

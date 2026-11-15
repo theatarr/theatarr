@@ -163,7 +163,7 @@ func (p *fakeProvider) set(id string, t provider.Torrent) {
 	p.torrents[id] = &t
 }
 
-func testPolicy(enabled bool, mode policy.Mode) *policy.Policy {
+func testPolicy(enabled bool) *policy.Policy {
 	return &policy.Policy{
 		Indexers: map[string]*policy.Indexer{
 			"pub":  {Kind: "torznab", URL: "http://pub.test/api", Privacy: policy.PrivacyPublic},
@@ -181,11 +181,11 @@ func testPolicy(enabled bool, mode policy.Mode) *policy.Policy {
 				Pacing: policy.Pacing{AddsPerMinute: 10, UncachedPerHr: 2, BackoffMax: policy.Duration(2 * time.Hour)}},
 		},
 		Versions: map[string]*policy.VersionPolicy{
-			"movie": {Mode: mode, Kind: policy.KindMovie, Storage: policy.StorageDebrid, Indexers: []string{"pub"},
+			"movie": {Kind: policy.KindMovie, Storage: policy.StorageDebrid, Indexers: []string{"pub"},
 				Providers: []string{"rd", "ad", "tb"}},
-			"series": {Mode: mode, Kind: policy.KindSeries, Storage: policy.StorageDebrid, Indexers: []string{"pub"},
+			"series": {Kind: policy.KindSeries, Storage: policy.StorageDebrid, Indexers: []string{"pub"},
 				Providers: []string{"rd", "ad", "tb"}},
-			"seed": {Mode: mode, Kind: policy.KindMovie, Storage: policy.StorageSeedbox, Indexers: []string{"priv"}},
+			"seed": {Kind: policy.KindMovie, Storage: policy.StorageSeedbox, Indexers: []string{"priv"}},
 		},
 		Router: &policy.Router{Enabled: enabled},
 	}
@@ -202,7 +202,7 @@ type env struct {
 	clock time.Time
 }
 
-func newEnv(t *testing.T, enabled bool, mode policy.Mode) *env {
+func newEnv(t *testing.T, enabled bool) *env {
 	t.Helper()
 	ctx := context.Background()
 	st, err := store.Open(ctx, storetest.Seed(t, filepath.Join(t.TempDir(), "theatarr.db")), store.Options{})
@@ -223,7 +223,7 @@ func newEnv(t *testing.T, enabled bool, mode policy.Mode) *env {
 			t.Fatal(err)
 		}
 	}
-	e := &env{t: t, ctx: ctx, st: st, pol: testPolicy(enabled, mode), ad: map[string]*fakeAdder{},
+	e := &env{t: t, ctx: ctx, st: st, pol: testPolicy(enabled), ad: map[string]*fakeAdder{},
 		pr: map[string]*fakeProvider{}, clock: time.Date(2026, 10, 26, 12, 0, 0, 0, time.UTC)}
 	adders := map[string]adder.Adder{}
 	provs := map[string]provider.Provider{}

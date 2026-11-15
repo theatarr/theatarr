@@ -55,11 +55,9 @@ type QualityOverview struct {
 }
 
 type VersionUse struct {
-	Key    string `json:"key"`
-	Mode   string `json:"mode"`
-	Kind   string `json:"kind"`
-	Anime  *bool  `json:"anime"`
-	Active bool   `json:"active"`
+	Key   string `json:"key"`
+	Kind  string `json:"kind"`
+	Anime *bool  `json:"anime"`
 }
 
 type ProfileSummary struct {
@@ -160,7 +158,7 @@ func VersionsUsing(p *policy.Policy, key string) []VersionUse {
 	for _, vk := range sortedPolicyKeys(p.Versions) {
 		v := p.Versions[vk]
 		if v.Profile == key {
-			out = append(out, VersionUse{Key: vk, Mode: string(v.Mode), Kind: string(v.Kind), Anime: v.Anime, Active: v.Mode == policy.ModeActive})
+			out = append(out, VersionUse{Key: vk, Kind: string(v.Kind), Anime: v.Anime})
 		}
 	}
 	return out

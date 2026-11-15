@@ -12,7 +12,6 @@ import (
 
 	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/jobs"
-	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/store"
 )
 
@@ -77,13 +76,11 @@ func (l *Library) apply(ctx context.Context, d *importDownload, vn *VersionNamin
 		if file.Score != nil {
 			lf.score = *file.Score
 		}
-		if v.Policy.Mode == policy.ModeActive {
-			if title == nil {
-				return errf(d.ID, "quality cutoff: decision engine is not configured")
-			}
-			if lf.state, err = l.importedState(v, title, &file); err != nil {
-				return errf(d.ID, "quality cutoff: %w", err)
-			}
+		if title == nil {
+			return errf(d.ID, "quality cutoff: decision engine is not configured")
+		}
+		if lf.state, err = l.importedState(v, title, &file); err != nil {
+			return errf(d.ID, "quality cutoff: %w", err)
 		}
 		files[lk.Path] = lf
 	}

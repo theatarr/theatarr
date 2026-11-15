@@ -20,7 +20,7 @@ import (
 // title are verdicts on those hashes; after title451Limit of them the title is skipped on RD, without more adds.
 func TestTitleAll451DoesNotHoldAccount(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.pol.Versions["movie"].Providers = []string{"rd"}
 	e.ad["rd"].add = func(m adder.Magnet, _ adder.AddOptions) (*adder.Added, error) {
 		return nil, &adder.Error{Provider: "rd", Code: adder.CodeAccountHold, Status: 451}
@@ -74,7 +74,7 @@ func TestTitleAll451DoesNotHoldAccount(t *testing.T) {
 // 451 in the window that the hold also explains loses its miss.
 func TestHeld451DoesNotBlockHash(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.pol.Versions["movie"].Providers = []string{"rd"}
 	e.pol.Providers["rd"].Pacing = policy.Pacing{}
 	e.ad["rd"].add = refuse(adder.CodeAccountHold)
@@ -121,7 +121,7 @@ func fullSteps(res *Result) string {
 // nothing deleted (the torrent was not seen).
 func TestProviderOutageEndsUnavailable(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	withQueue(e)
 	stall := e.r.stallAfter("rd")
 	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, provider,
@@ -169,7 +169,7 @@ func TestProviderOutageEndsUnavailable(t *testing.T) {
 // TestPollCutKeepsFailedStreak: a read cut by the pass deadline used to clear the failed-read
 // streak, so a torrent whose reads alternate between hanging and failing never reached a blind stall.
 func TestPollCutKeepsFailedStreak(t *testing.T) {
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	withQueue(e)
 	old := pollPassLimit
 	pollPassLimit = 50 * time.Millisecond
@@ -211,7 +211,7 @@ func TestUnrecognisedRefusalBacksProviderOff(t *testing.T) {
 		{"server error", 502, "NEW", true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			e := newEnv(t, true, policy.ModeActive)
+			e := newEnv(t, true)
 			e.pol.Versions["movie"].Providers = []string{"ad"}
 			e.ad["ad"].add = func(adder.Magnet, adder.AddOptions) (*adder.Added, error) {
 				return nil, &adder.Error{Provider: "ad", Code: adder.CodeUnknown, Status: tc.status, ProviderCode: tc.code, Refused: tc.refused}
@@ -238,7 +238,7 @@ func TestUnrecognisedRefusalBacksProviderOff(t *testing.T) {
 // add, under the router lock, with no deadline, so a slow provider held every route up for minutes. Now the account is
 // listed once per pass, without the lock, within reconcilePassLimit, and a pass checks at most reconcileBatch adds.
 func TestPollRecoveryIsBounded(t *testing.T) {
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	for i := range reconcileBatch + 5 {
 		e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, state,
 			provider, created_at, updated_at) VALUES (?, 1, 10, 'movie', ?, 'R', 'pub', 'adding', 'rd', 0, ?)`,
@@ -291,7 +291,7 @@ func TestPollRecoveryIsBounded(t *testing.T) {
 // no_longer_upgrade. The router rescores the current file now.
 func TestFreshnessRescoresCurrentFile(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	freshMovie(e)
 	engPol := &policy.Policy{Profiles: map[string]*policy.Profile{"fresh": {
 		Qualities: []policy.QualityItem{{Name: "WEBDL-2160p"}, {Name: "WEBDL-1080p"}}, Cutoff: "WEBDL-2160p",
@@ -327,7 +327,7 @@ func (f slowDeleter) DeleteOwnStalledAdd(ctx context.Context, _ string, _ adder.
 // stalled add) are bounded by providerWriteLimit: a provider that never answers them cannot hold the lock, and the
 // write's own checks and outcome stay as they were.
 func TestPollProviderWritesAreBounded(t *testing.T) {
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	withQueue(e)
 	old := providerWriteLimit
 	providerWriteLimit = 50 * time.Millisecond
@@ -372,7 +372,7 @@ func TestPollProviderWritesAreBounded(t *testing.T) {
 // selection wait, so it is recorded as selected and goes on, instead of stalling at added. A reused torrent, or an add
 // with no selection request, is never inferred. Deletion proof is independent of selection inference.
 func TestSelectionInferredForOwnAdd(t *testing.T) {
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	withQueue(e)
 	now := store.Millis(e.clock)
 	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, provider,

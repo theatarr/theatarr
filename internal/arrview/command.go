@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -74,9 +73,8 @@ func splitCamel(s string) string {
 	return b.String()
 }
 
-// POST command (CommandController.StartCommand). A search over versions that are all in shadow mode is stored
-// completed at once, with a message saying why nothing happened. A search touching an active version is stored
-// queued and handed to the Searcher for its active versions only; its status then follows their searches and routes
+// POST command (CommandController.StartCommand). A search without any monitored version is stored completed at
+// once, with a message saying why nothing happened. Any other search is stored queued and handed to the Searcher; its status then follows their searches and routes
 // (acquire.LoadCommandStatus). Maintenance commands follow their jobs; unsupported commands fail. 201 with the command.
 func (s *Service) postCommand(w http.ResponseWriter, r *request) {
 	var body map[string]any
@@ -210,15 +208,9 @@ func (s *Service) TrimCommands(ctx context.Context, now time.Time) error {
 	return err
 }
 
-// startSearch hands a queued search to the Searcher, for the active versions only, and notes what it started.
+// startSearch hands a queued search to the Searcher and notes what it started.
 func (s *Service) startSearch(ctx context.Context, id int64, sc *commandScope) error {
-	shadow := s.shadowVersions(sc.versions)
-	var active []string
-	for _, k := range sc.versions {
-		if !slices.Contains(shadow, k) {
-			active = append(active, k)
-		}
-	}
+	active := sc.versions
 	sc.sel.Versions = active
 	queued, found, err := s.searcher.Submit(ctx, id, sc.sel)
 	if err != nil {
@@ -228,16 +220,13 @@ func (s *Service) startSearch(ctx context.Context, id int64, sc *commandScope) e
 	var msg string
 	switch {
 	case queued == 0:
-		msg = "Nothing to search: no monitored item of the active versions (" + strings.Join(active, ", ") +
+		msg = "Nothing to search: no monitored item of the versions (" + strings.Join(active, ", ") +
 			") matches"
 	case queued < found:
 		msg = fmt.Sprintf("Searching %d of %d items (searched longest ago first) for %s", queued, found,
 			strings.Join(active, ", "))
 	default:
 		msg = fmt.Sprintf("Searching %d items for %s", queued, strings.Join(active, ", "))
-	}
-	if len(shadow) > 0 {
-		msg += "; Watch only, nothing searched for " + strings.Join(shadow, ", ")
 	}
 	if queued == 0 {
 		_, err = s.st.Writer().ExecContext(ctx, `UPDATE arrview_command SET status = 'completed', result = 'successful',
@@ -523,16 +512,11 @@ func (s *Service) recordSearch(ctx context.Context, v *View, name string, body m
 	return err
 }
 
-// searchOutcome is what a search over these versions does: nothing while they are all in shadow mode (completed,
-// with the reason), else it is queued for the searches of the active versions.
+// searchOutcome is what a search over these versions does: nothing without any (completed, with the reason), else
+// it is queued for the searches of the versions.
 func (s *Service) searchOutcome(keys []string, now int64) (status, result, msg string, started, ended any) {
-	shadow := s.shadowVersions(keys)
-	switch {
-	case len(keys) == 0:
+	if len(keys) == 0 {
 		return "completed", "successful", "Nothing to search: no monitored version of this view for these titles", now, now
-	case len(shadow) == len(keys):
-		return "completed", "successful", "Watch only: nothing searched or grabbed (libraries " +
-			strings.Join(shadow, ", ") + ")", now, now
 	}
-	return "queued", "unknown", "Queued for the searches of the active versions", nil, nil
+	return "queued", "unknown", "Queued for the searches of the versions", nil, nil
 }

@@ -1,7 +1,6 @@
 package router
 
 import (
-	"encoding/json"
 	"slices"
 	"testing"
 	"time"
@@ -36,7 +35,7 @@ func TestSeriesCoverage(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			for _, dry := range []bool{false, true} {
-				e := newEnv(t, true, policy.ModeActive)
+				e := newEnv(t, true)
 				if tc.reject != "" {
 					e.exec(`INSERT INTO router_blocklist (version_key, info_hash, release_title, reason, source, created_at)
 						VALUES ('series', ?, 'pack', 'rejected', 'library', 0)`, tc.reject)
@@ -75,7 +74,7 @@ func TestSeriesCoverageInFlight(t *testing.T) {
 	t.Parallel()
 	for _, state := range []string{StateQueued, StateAdding, StateAdded, StateDownloading, StateReady, StateImporting, StateFailed, StateImported} {
 		t.Run(state, func(t *testing.T) {
-			e := newEnv(t, true, policy.ModeActive)
+			e := newEnv(t, true)
 			e.exec(`INSERT INTO download (title_id, version_id, version_key, info_hash, release_title, indexer, episodes, state,
 				created_at, updated_at) VALUES (2, 20, 'series', ?, 'old E01', 'pub', '[101]', ?, 0, 0)`, h("f"), state)
 			res, err := e.r.Route(e.ctx, seriesReq(episodeCandidate("a", 101), episodeCandidate("b", 102)))
@@ -95,7 +94,7 @@ func TestSeriesCoverageInFlight(t *testing.T) {
 
 func TestSeriesCoverageProviderMissFallsBack(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	for _, ad := range e.ad {
 		ad.add = func(m adder.Magnet, _ adder.AddOptions) (*adder.Added, error) {
 			if m.Hash() == h("a") {
@@ -117,7 +116,7 @@ func TestSeriesCoverageProviderMissFallsBack(t *testing.T) {
 
 func TestSeriesCoverageDeferredBatch(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.pol.Versions["series"].Providers = []string{"rd"}
 	e.pol.Providers["rd"].Pacing = policy.Pacing{AddsPerMinute: 1}
 	q := jobs.NewQueue(e.st)
@@ -150,37 +149,30 @@ func TestSeriesCoverageDeferredBatch(t *testing.T) {
 
 func TestMovieCoverageStillOnePlacement(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	res, err := e.r.Route(e.ctx, movieReq(cand(h("a"), "Movie.A"), cand(h("b"), "Movie.B")))
 	if err != nil || res.Outcome != OutcomeAdded || !slices.Equal(e.ad["rd"].adds, []string{h("a")}) {
 		t.Fatalf("adds %v result %+v err %v", e.ad["rd"].adds, res, err)
 	}
 }
 
-func TestShadowSeriesCoverageRecorded(t *testing.T) {
+// While paused the dry run plans every placement of a series route.
+func TestPausedSeriesCoverageDryRun(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeShadow)
+	e := newEnv(t, false)
 	res, err := e.r.Route(e.ctx, seriesReq(episodeCandidate("a", 101), episodeCandidate("b", 102), episodeCandidate("c", 103)))
-	if err != nil || res.PlanID == 0 || e.writes() != 0 {
+	if err != nil || e.writes() != 0 {
 		t.Fatalf("result %+v err %v writes %d", res, err, e.writes())
 	}
-	var js string
-	if err := e.st.Reader().QueryRow(`SELECT steps FROM router_plan WHERE id = ?`, res.PlanID).Scan(&js); err != nil {
-		t.Fatal(err)
-	}
-	var got []Step
-	if err := json.Unmarshal([]byte(js), &got); err != nil {
-		t.Fatal(err)
-	}
-	if n := len(slices.DeleteFunc(got, func(s Step) bool { return s.Outcome != "would_add" })); n != 3 {
-		t.Fatalf("planned %d placements: %s", n, js)
+	if n := len(slices.DeleteFunc(slices.Clone(res.Steps), func(s Step) bool { return s.Outcome != "would_add" })); n != 3 {
+		t.Fatalf("planned %d placements: %+v", n, res.Steps)
 	}
 }
 
 // Placements do not count against max_candidates: a season of single-episode releases fills in one route.
 func TestSeriesCoverageCandidateBudget(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.r.set.MaxCandidates = 2
 	res, err := e.r.Route(e.ctx, seriesReq(episodeCandidate("a", 101), episodeCandidate("b", 102), episodeCandidate("c", 103)))
 	if err != nil || res.Outcome != OutcomeAdded || !slices.Equal(e.ad["rd"].adds, []string{h("a"), h("b"), h("c")}) {
@@ -190,7 +182,7 @@ func TestSeriesCoverageCandidateBudget(t *testing.T) {
 
 func TestSeriesCoverageUnsettledAddReservesEpisodes(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	// A transport failure does not prove the provider refused the add.
 	e.ad["rd"].add = func(adder.Magnet, adder.AddOptions) (*adder.Added, error) {
 		return nil, &adder.Error{Code: adder.CodeUnavailable, Status: 503}

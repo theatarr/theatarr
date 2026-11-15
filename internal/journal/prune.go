@@ -11,11 +11,10 @@ import (
 )
 
 // Retention of the journal's own rows. The entries themselves are read from their owners' tables and follow their
-// owners' retention (none of them is pruned except shadow_run and shadow_rss_seen, which the journal does not
-// read).
+// owners' retention (none of them is pruned except shadow_rss_seen, which the journal does not read).
 //
 //   - journal_decision: in full for DecisionFull (180 days). After that a decision from which nothing was routed
-//     (no download and no plan from it) is deleted, and the others keep the chosen release and one runner-up
+//     (no download from it) is deleted, and the others keep the chosen release and one runner-up
 //     (trimmed = 1) for good. A full row is ~3-6 KB (8 accepted and 4 rejected candidates), a trimmed one ~1 KB: at
 //     the wanted loop's cap (10 searches an hour) that is at most ~45 MB for the full window and ~9 MB a year
 //     after; at the expected pace (tens of searches a day) well under 10 MB in all.
@@ -34,10 +33,7 @@ func Prune(ctx context.Context, st *store.Store, now time.Time) (PruneSummary, e
 	cutoff := store.Millis(now.Add(-DecisionFull))
 	res, err := st.Writer().ExecContext(ctx, `DELETE FROM journal_decision WHERE created_at < ? AND NOT EXISTS (
 			SELECT 1 FROM download d WHERE d.source = journal_decision.source AND d.title_id = journal_decision.title_id
-			AND d.version_key = journal_decision.version_key AND d.created_at >= journal_decision.created_at)
-		AND NOT EXISTS (SELECT 1 FROM router_plan p WHERE p.source = journal_decision.source
-			AND p.title_id = journal_decision.title_id AND p.version_key = journal_decision.version_key
-			AND p.created_at >= journal_decision.created_at)`, cutoff)
+			AND d.version_key = journal_decision.version_key AND d.created_at >= journal_decision.created_at)`, cutoff)
 	if err != nil {
 		return sum, fmt.Errorf("journal: prune: %w", err)
 	}

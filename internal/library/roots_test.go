@@ -89,7 +89,7 @@ func TestGateHungDestinationRefusesWithoutHanging(t *testing.T) {
 	}
 	probetest.Mounts(t, mine, show, trash)
 	hung := hangLstat(t, show)
-	p := &policy.Policy{Versions: map[string]*policy.VersionPolicy{"K": {Mode: policy.ModeActive, Library: mine}},
+	p := &policy.Policy{Versions: map[string]*policy.VersionPolicy{"K": {Library: mine}},
 		Library: &policy.Library{Enabled: true, Trash: policy.LibraryTrash{Dir: trash},
 			Versions: map[string]*policy.LibraryVersion{"K": {Roots: []string{mine}}}}}
 	g := NewGate(p)
@@ -125,7 +125,7 @@ func TestGateHungMountParentRefusesWithoutHanging(t *testing.T) {
 	}
 	probetest.Mounts(t, mine, trash, share)
 	hangLstat(t, share)
-	p := &policy.Policy{Versions: map[string]*policy.VersionPolicy{"K": {Mode: policy.ModeActive, Library: mine}},
+	p := &policy.Policy{Versions: map[string]*policy.VersionPolicy{"K": {Library: mine}},
 		Library: &policy.Library{Enabled: true, Mount: policy.LibraryMount{Path: mount},
 			Trash: policy.LibraryTrash{Dir: trash}, Versions: map[string]*policy.LibraryVersion{"K": {Roots: []string{mine}}}}}
 	g := NewGate(p)
@@ -150,7 +150,7 @@ func TestGateHungMountParentRefusesWithoutHanging(t *testing.T) {
 // An import whose version's own root does not answer is a pause, like a mount outage: no plan under
 // the hung root (it would read it unbounded), no dry run recorded, and Run goes on with the other downloads.
 func TestImportUnreachableRootPlansNothing(t *testing.T) {
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	probetest.Mounts(t, e.movies, e.shows, e.trash)
 	hangStat(t, e.movies)
 	e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
@@ -182,10 +182,10 @@ func TestImportUnreachableRootPlansNothing(t *testing.T) {
 	}
 }
 
-// A shadow version (refused by the gate before its roots are checked) is planned as a dry run, but
-// not under a root that does not answer.
-func TestImportShadowUnreachableRootPlansNothing(t *testing.T) {
-	e := newEnv(t, true, policy.ModeShadow)
+// A version the gate refuses before its roots are checked (library off) is planned as a dry run, but not under a
+// root that does not answer.
+func TestImportGatedUnreachableRootPlansNothing(t *testing.T) {
+	e := newEnv(t, false)
 	probetest.Mounts(t, e.movies, e.shows, e.trash)
 	hangStat(t, e.movies)
 	e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
@@ -201,7 +201,7 @@ func TestImportShadowUnreachableRootPlansNothing(t *testing.T) {
 
 // Reconcile, relink, verify and adopt skip a root that does not answer instead of walking it.
 func TestScansSkipUnreachableRoot(t *testing.T) {
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	probetest.Mounts(t, e.movies, e.shows, e.trash)
 	e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
 	hangStat(t, e.movies)
@@ -298,7 +298,7 @@ func TestAdoptLeavesOwnImportRow(t *testing.T) {
 // A rename reads the old symlink before its commit, never inside the write transaction (a readlink
 // on a share that stops answering would hold the database's writer).
 func TestRenameReadsLinkOutsideWriteTx(t *testing.T) {
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
 	e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
 	plan, err := e.lib.Import(e.ctx, 1, false)
@@ -373,7 +373,7 @@ func TestLocateHungPathIsMountDown(t *testing.T) {
 // noted before. The mount is checked again before the sweep writes: down now, the sweep stops and forgets the misses.
 func TestRelinkRechecksMountBeforeConfirmingMiss(t *testing.T) {
 	t.Parallel()
-	e, _, _ := deadEnv(t, true, policy.ModeActive)
+	e, _, _ := deadEnv(t, true)
 	e.sweep() // the miss is noted
 	e.now = e.now.Add(deadConfirm + time.Minute)
 	all := filepath.Join(e.mount, "__all__")
@@ -401,7 +401,7 @@ func TestRelinkRechecksMountBeforeConfirmingMiss(t *testing.T) {
 // The root answers, but a share mounted below it does not; a walk of the root
 // would cross into it, so the scan skips the root instead of blocking.
 func TestScanSkipsRootWithHungNestedMount(t *testing.T) {
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	nested := filepath.Join(e.movies, "4k")
 	if err := os.Mkdir(nested, 0o755); err != nil {
 		t.Fatal(err)

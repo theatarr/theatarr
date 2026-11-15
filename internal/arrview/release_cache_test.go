@@ -35,10 +35,7 @@ func TestReleaseCacheIsPerView(t *testing.T) {
 	if len(other) == 0 || other[0]["guid"] != good["guid"] {
 		t.Fatalf("remuxonly releases %v, want the same guid %v", other, good["guid"])
 	}
-	remuxRows := func() int64 {
-		return e.one(`SELECT COUNT(*) FROM router_plan WHERE version_key = 'movie-remux'`) +
-			e.one(`SELECT COUNT(*) FROM download WHERE version_key = 'movie-remux'`)
-	}
+	remuxRows := func() int64 { return e.one(`SELECT COUNT(*) FROM download WHERE version_key = 'movie-remux'`) }
 	e.drain()
 	before := remuxRows()
 	e.call("POST", "/radarr/api/v3/release", map[string]any{"guid": good["guid"], "indexerId": good["indexerId"]}, 200, nil)
@@ -66,8 +63,8 @@ func TestReleaseCacheSameHashTwoTitles(t *testing.T) {
 	e.call("POST", "/radarr/api/v3/release", map[string]any{"guid": a[0]["guid"], "indexerId": a[0]["indexerId"],
 		"movieId": IDBase + 1}, 200, nil)
 	e.drain()
-	if n := e.one(`SELECT COUNT(*) FROM download WHERE title_id = 1`); n != 1 {
-		t.Errorf("grab naming movie 1: %d download rows for title 1, want 1", n)
+	if n := e.one(`SELECT COUNT(*) FROM download WHERE title_id = 1`); n != 2 {
+		t.Errorf("grab naming movie 1: %d download rows for title 1, want 2 (both its libraries)", n)
 	}
 	if n := e.one(`SELECT COUNT(*) FROM download WHERE title_id = 2`); n != 0 {
 		t.Errorf("grab naming movie 1: %d download rows for title 2, want 0", n)

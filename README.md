@@ -33,11 +33,8 @@ before every upgrade ([docs/restore.md](docs/restore.md)) and report what breaks
 
 It is built so that nothing happens until you say so:
 
-- A library is **Watch only** or **Live**. A new library starts Watch only: Theatarr searches, downloads and links
-  nothing for it.
 - **Pause** is on for a fresh install. It stops searches, new downloads and library changes for every library;
-  downloads already at a provider finish there and are imported when Pause is turned off. Making a library Live,
-  turning Pause off, sending a stored key to a new address and deletes ask for a confirmation; other settings save at
+  downloads already at a provider finish there and are imported when Pause is turned off. Turning Pause off, sending a stored key to a new address and deletes ask for a confirmation; other settings save at
   once. Notifications are an ordinary setting.
 - On a fresh install, Setup can do all of that in one step, **Create library and start
   downloading**, after one confirmation that lists what it turns on.
@@ -48,8 +45,8 @@ It is built so that nothing happens until you say so:
 
 - **Libraries per title.** Each library has a kind, a quality profile, a root, indexers and debrid providers. A title
   can belong to several libraries.
-- **Watch only or Live.** A library starts Watch only (Theatarr searches, downloads and links nothing for it) until
-  you set it Live; one Pause stops every library at once.
+- **One Pause.** One switch stops every library at once; a title is searched in a library only while it is
+  monitored there.
 - **Indexers.** Prowlarr and other Torznab feeds, the Cardigann definition catalog run natively, and built-in
   sources: DMM, Torrentio, Zilean and SeaDex. Each library lists the indexers it searches.
 - **Debrid providers.** Real-Debrid, AllDebrid and TorBox, in a fallback order per library, with cache checks,
@@ -157,20 +154,20 @@ password. If you lose the password, run `docker compose exec theatarr theatarr a
 `data/initial-admin-password`, and an install from such a version whose password was never used keeps it there.
 
 On a fresh install, creating the account opens **Setup** (`/admin/setup`): add a debrid provider and an indexer,
-set the debrid mount and Plex, create a first library (downloading at once, or Watch only to look first), and run the
+set the debrid mount and Plex, create a first library (downloading at once, or with Pause left on to look first), and run the
 preflight. The full walkthrough, with what each
 compose volume is for, is [docs/quickstart.md](docs/quickstart.md).
 
 ## Using Theatarr
 
-**A first library, Watch only.** Setup can create the first library as Watch only: Theatarr searches, downloads and links nothing for it until you set it Live. Add titles from **Search**, or let requests come in.
+**A first library, Pause on.** Setup can create the first library with Pause left on: Theatarr searches, downloads and links nothing until you turn Pause off. Add titles from **Search**, or let requests come in.
 See [docs/quickstart.md](docs/quickstart.md#6-a-first-library).
 
 **Reading its decisions.** **Activity › Decision journal** lists every decision; an entry opens from its
 title link and shows the chosen release, runners-up, rejections and suspect flags. **Admin › Reviews** collects what waits for you: quality updates, anime
 mappings, indexer definitions and flagged decisions. See [docs/journal.md](docs/journal.md).
 
-**Going live.** Run `theatarr preflight`, set the library to **Live**, turn **Pause** off, and watch the first
+**Going live.** Run `theatarr preflight`, turn **Pause** off, and watch the first
 imports. See [docs/quickstart.md](docs/quickstart.md#9-go-live-deliberately).
 
 **Requests.** Add Theatarr to Seerr or Overseerr as a Radarr or Sonarr server: the view path as URL base (for

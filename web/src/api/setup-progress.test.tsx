@@ -11,7 +11,7 @@ import { SetupReminder } from "@/components/setup-reminder";
 import { SetupPage } from "@/pages/admin/setup";
 import { LibraryNamesProvider } from "@/lib/library-names";
 const state: SetupState = { first_run: false, settings_source: "db", admin_password_generated: false, providers: 1, indexers: 1, versions: 1, versions_with_roots: 1, profiles: 1, api_keys: 1, tmdb: true, ready_providers: ["rd"], ready_indexers: ["feed"], trash: true, missing: ["no libraries"] };
-const versions: VersionList = { source: "db", generation: 1, versions: [{ id: 1, key: "movies", created_at: "", updated_at: "", roots: ["/media/movies"], config: { mode: "active", kind: "movie", anime: false, profile: "hd", library: "/media/movies", storage: "debrid", indexers: ["feed"], providers: ["rd"], client: "", import: "symlink", upgrades: "auto" } }], profiles: {}, format_sets: [], clients: [], indexers: ["feed"], providers: ["rd"], switches: { paused: false, pause_forced: false, notify_forced: false, versions: [{ key: "movies", mode: "active", grab_state: { mode: "active", paused: false, pause_forced: false, will_grab: true } }] } };
+const versions: VersionList = { source: "db", generation: 1, versions: [{ id: 1, key: "movies", created_at: "", updated_at: "", roots: ["/media/movies"], config: { kind: "movie", anime: false, profile: "hd", library: "/media/movies", storage: "debrid", indexers: ["feed"], providers: ["rd"], client: "", import: "symlink", upgrades: "auto" } }], profiles: {}, format_sets: [], clients: [], indexers: ["feed"], providers: ["rd"], switches: { paused: false, pause_forced: false, notify_forced: false, versions: [{ key: "movies", grab_state: { paused: false, pause_forced: false, will_grab: true } }] } };
 it("counts six independent steps without requiring activation or treating missing data as done", () => {
  expect(setupSteps()).toEqual([false, false, false, false, false, false]);
  expect(setupSteps(state, versions)).toEqual([true, true, true, true, false, true]);
@@ -22,7 +22,6 @@ it("counts six independent steps without requiring activation or treating missin
  expect(setupSteps({ ...state, indexers: 0 }, versions)[1]).toBe(false);
  expect(setupSteps({ ...state, missing: ["no debrid mount: nothing can be imported"] }, versions)[3]).toBe(false);
  expect(setupSteps({ ...state, versions_with_roots: 0 }, versions)[3]).toBe(false);
- for (const config of [{ mode: "shadow" as const }]) expect(setupSteps(state, { ...versions, switches: { ...versions.switches, versions: [{ ...versions.switches.versions[0], grab_state: { ...versions.switches.versions[0].grab_state!, ...config } }] } })[5]).toBe(false);
  expect(setupSteps(state, { ...versions, switches: { ...versions.switches, paused: true } })[5]).toBe(false);
  expect(setupSteps(state, { ...versions, switches: { ...versions.switches, paused: true, pause_forced: true } })[5]).toBe(false);
 });
@@ -74,20 +73,19 @@ it.each([["browse"], ["users"]])("never requests setup or versions for a non-adm
  expect(fetch.calls("GET", "/settings/versions")).toHaveLength(0);
 });
 
-it("shows running fallback gates, saved differences and a library display label", async () => {
- const fallback: VersionList = { ...versions, versions: [{ ...versions.versions[0], key: "movie-web", config: { ...versions.versions[0].config, profile: "web-2160p" } }], switches: { ...versions.switches, versions: [{ key: "movie-web", mode: "shadow", grab_state: { mode: "shadow", paused: false, pause_forced: false, will_grab: false } }] } };
- expect(setupSteps(state, fallback)[5]).toBe(false);
+it("shows the running gates and a library display label", async () => {
+ const paused: VersionList = { ...versions, versions: [{ ...versions.versions[0], key: "movie-web", config: { ...versions.versions[0].config, profile: "web-2160p" } }], switches: { ...versions.switches, paused: true, versions: [{ key: "movie-web", grab_state: { paused: true, pause_forced: false, will_grab: false } }] } };
+ expect(setupSteps(state, paused)[5]).toBe(false);
  expect(setupSteps(state, { ...versions, switches: { ...versions.switches, versions: [] } })[5]).toBe(false);
- mockFetch([{ method: "GET", path: "/setup", reply: state }, { method: "GET", path: "/settings/versions", reply: fallback }]);
+ mockFetch([{ method: "GET", path: "/setup", reply: state }, { method: "GET", path: "/settings/versions", reply: paused }]);
  renderPage(<SetupPage />);
- await screen.findByText("Mode saved: active, running: shadow");
- const card = screen.getByRole("heading", { name: "4K WEB movie-web" }).parentElement!;
+ const card = (await screen.findByRole("heading", { name: "4K WEB movie-web" })).parentElement!;
  expect(within(card).getByText("movie-web")).toBeTruthy();
- // The state comes from the running gates: Watch only, so nothing is downloaded.
- expect(within(card).getAllByText("Watch only")).toHaveLength(1);
+ // The state comes from the running gates: Paused, so nothing is downloaded.
+ expect(within(card).getAllByText("Paused")).toHaveLength(1);
  expect(within(card).queryByText("Downloads on")).toBeNull();
  await userEvent.click(within(card).getByRole("button", { name: "Why?" }));
- expect([...within(card).getByTestId("state-why").querySelectorAll("li")].map((li) => li.textContent?.split(" · ")[0])).toEqual(["Watch only: Theatarr searches, downloads and links nothing for this library"]);
+ expect([...within(card).getByTestId("state-why").querySelectorAll("li")].map((li) => li.textContent?.split(" · ")[0])).toEqual(["Paused: turn Pause off at the top of the page"]);
  const step = screen.getByRole("heading", { name: "6. Review activation" }).closest("li")!;
  expect(within(step).getByText("Not yet")).toBeTruthy();
 });
@@ -136,14 +134,13 @@ it("shows the server's last preflight on the setup page, and a run in this sessi
 });
 
 it.each([
- ["a fresh install with Shadow libraries and readiness open (4 of 6)", "shadow", undefined, "4", true],
- ["a Shadow install whose full preflight passed", "shadow", { at: "2026-11-09T10:00:00Z", generation: 1, sources: true, ok: 3, warn: 1, fail: 0 }, "5", false],
- ["a Shadow install whose preflight found a failure", "shadow", { at: "2026-11-09T10:00:00Z", generation: 1, sources: true, ok: 3, warn: 0, fail: 1 }, "4", true],
- ["an install that went live long ago, after a restart forgot its preflight", "active", undefined, "5", false],
-] as const)("the Home setup card and its link for %s", async (_name, mode, last, done, shown) => {
- const row = versions.switches.versions[0];
- const list: VersionList = { ...versions, versions: [{ ...versions.versions[0], config: { ...versions.versions[0].config, mode } }], switches: { ...versions.switches, versions: [{ ...row, mode, grab_state: { ...row.grab_state!, mode } }] } };
- mockFetch([{ method: "GET", path: "/auth/me", reply: { permissions: ["admin"] } }, { method: "GET", path: "/setup", reply: { ...state, missing: [], last_preflight: last } }, { method: "GET", path: "/settings/versions", reply: list }]);
+ ["a paused install with readiness open (4 of 6)", true, undefined, [], "4", false],
+ ["a paused install whose full preflight passed", true, { at: "2026-11-09T10:00:00Z", generation: 1, sources: true, ok: 3, warn: 1, fail: 0 }, [], "5", false],
+ ["an install missing a piece", true, undefined, ["no debrid mount: nothing can be imported"], "3", true],
+ ["an install that went live long ago, after a restart forgot its preflight", false, undefined, [], "5", false],
+] as const)("the Home setup card and its link for %s", async (_name, paused, last, missing, done, shown) => {
+ const list: VersionList = { ...versions, switches: { ...versions.switches, paused } };
+ mockFetch([{ method: "GET", path: "/auth/me", reply: { permissions: ["admin"] } }, { method: "GET", path: "/setup", reply: { ...state, missing: [...missing], last_preflight: last } }, { method: "GET", path: "/settings/versions", reply: list }]);
  renderPage(<><Progress id="p" /><SetupReminder /></>);
  await waitFor(() => expect(screen.getByTestId("p").textContent).toBe(done));
  if (shown) expect((await screen.findByRole("link", { name: "Continue setup" })).getAttribute("href")).toBe("/admin/setup");

@@ -631,13 +631,11 @@ func TestUpgradeScriptViewGaps(t *testing.T) {
 	}
 	r := devClient(t, e, "/radarr", true)
 	r.must("GET", "/health", nil, nil, 200, &health)
-	if len(health) != 2 || health[0]["source"] != "ShadowModeCheck" ||
-		health[0]["message"] != "Watch only libraries download nothing: movie-remux, anime-movie" ||
-		health[1]["message"] != "Paused: nothing is downloaded: movie-web" {
+	if len(health) != 1 || health[0]["message"] != "Paused: nothing is downloaded: movie-remux, movie-web, anime-movie" {
 		t.Errorf("radarr view health %v", health)
 	}
-	if items := e.svc.HealthItems(t.Context()); len(items) != 2 || items[1].Source != "RouterDisabledCheck" ||
-		items[1].Message != "Paused: nothing is downloaded: movie-web, tv-2160p" {
+	if items := e.svc.HealthItems(t.Context()); len(items) != 1 || items[0].Source != "RouterDisabledCheck" ||
+		items[0].Message != "Paused: nothing is downloaded: anime-movie, anime-tv, movie-remux, movie-web, tv-2160p" {
 		t.Errorf("webhook health %v", items)
 	}
 	e.pol.Router = nil

@@ -1,10 +1,9 @@
 # Demo overlay (docs/demo.md "Two copies"): not a policy on its own. Copied into examples/policy beside its files
-# (this file added, library.yaml replaced), it gives each arr-fed series version a second Live library of the same
+# (this file added, library.yaml replaced), it gives each arr-fed series version a second library of the same
 # kind, <key>-theatarr: Theatarr's own copy, with links of its own under /media/library. The demo seed then gives
 # every series and anime series a second copy.
 versions:
   tv-2160p-theatarr:
-    mode: active
     kind: series
     anime: false
     profile: tv-2160p
@@ -15,7 +14,6 @@ versions:
     client: decypharr
 
   anime-tv-theatarr:
-    mode: active
     kind: series
     anime: true
     profile: anime-tv

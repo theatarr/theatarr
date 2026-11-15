@@ -108,7 +108,7 @@ function RequestTimeline({ r }: { r: RequestDetail }) {
             {s.key === "ready" && (s.state === "current" || r.status === "failed") ? r.progress.map((p, i) => <div key={`${p.key}-${i}`} className="rounded-[5px] border border-[var(--line)] p-2">
               <p className="font-medium">{r.versions.find((v) => v.key === p.key)?.label || p.key}</p>
               <p>{p.words}</p>
-              <VersionStatus state={versions.find((v) => v.key === p.key)?.grab_state} showMode settingsKey={p.key} canManage={perms.admin} />
+              <VersionStatus state={versions.find((v) => v.key === p.key)?.grab_state} settingsKey={p.key} canManage={perms.admin} />
               {p.episodes_total !== undefined ? <p>{p.episodes_available} of {p.episodes_total} requested episodes available</p> : null}
               {p.updated_at ? <p className="text-xs text-[var(--ink-3)]">Updated {fmtTime(p.updated_at)}</p> : null}
             </div>) : null}
@@ -148,7 +148,7 @@ function RequestQueue() {
         title="Requests"
         description={
           manager
-            ? "What the household asked for. Approving adds the title with the requested libraries; nothing is searched while a library is Watch only."
+            ? "What the household asked for. Approving adds the title with the requested libraries; nothing is searched while Pause is on."
             : "What you asked for, and where it is. Find something new with the search box and press Request."
         }
       />

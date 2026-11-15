@@ -12,8 +12,7 @@ automatically; the arr queue reports the pending import.
 A filesystem write or a Plex call happens only when **all** of these hold:
 
 1. `library.enabled: true`. Off by default and when the section is missing.
-2. The version is `mode: active`.
-3. The version is listed under `library.versions`, and the path is under one of its `roots` (a link moved aside goes
+2. The version is listed under `library.versions`, and the path is under one of its `roots` (a link moved aside goes
    under `library.trash.dir` instead).
 
 How it is enforced:
@@ -414,8 +413,7 @@ custom-format score is below the cutoff score (the minimum score when upgrades a
 formats are calculated from the link's frozen inputs (`file_metadata`) exactly as decide scores an existing file
 (`decide.Engine.FileCutoffNotMet`), so a version is pursued for a format upgrade exactly when a release could upgrade
 it (the quality alone would stop RSS and the cutoff sweep at every import at the cutoff quality). Radarr's and Sonarr's Wanted → Cutoff Unmet list is quality-only; Theatarr's `filled` also covers files below the
-format cutoff, as their RSS upgrade check does. Series files update each linked episode and the version summary;
-Watch-only versions keep their state. Partial imports update only linked files and never lower an existing
+format cutoff, as their RSS upgrade check does. Series files update each linked episode and the version summary. Partial imports update only linked files and never lower an existing
 state. Moving or unlinking a file returns its version or episodes to `wanted` only when no active link
 remains for them.
 
@@ -727,7 +725,7 @@ folder and, without manual files, only the files under the path. A path anywhere
   each of its versions (an active link), is not revived but moved aside: copied to the trash, removed,
   its row `unlinked` (action `replace` "dead link moved aside", the scan's `retired`); revived it would be a second
   file next to its replacement (`TestDeadRevivedNextToReplacement`). An import moves the version's
-  dead links of the title (or of the episodes it links) aside like the active files it replaces. **A gated version** (library disabled, version not `mode: active`) is swept read-only: what it
+  dead links of the title (or of the episodes it links) aside like the active files it replaces. **A gated version** (library disabled) is swept read-only: what it
   would mark dead, revive or repoint is recorded as `dry_run` actions, and no link or title state changes
   (`TestRelinkDeadWhileGated`).
   Every sweep records its dead links again, so the journal's `dead_link` review flag is raised once per finding (an
@@ -876,7 +874,7 @@ links an instance's files into a library. `Library.AdoptImported(ctx, version, f
 records (`ImportFile`: the title, the path where Theatarr reads the file after the import's folder mapping, the
 file's quality and media details, and for a series Theatarr's episode ids): mount-backed symlinks only, never over a
 path that is taken or over the library's own file, named by the library's naming and scored with the library's own
-profile. It needs a Live library and Pause off.
+profile. It needs a library and Pause off.
 The link's provenance (`adopted_from`) is `<flavour>@<host:port> <the instance's path>`. `CheckImportFile` is the
 same look at one file without writing (the Preview); `DirExists` is the Check's folder test. There is no refresh:
 when the instance later upgrades a file, Theatarr's link to the old one dangles and is handled as any dead link.

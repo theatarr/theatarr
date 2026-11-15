@@ -11,7 +11,6 @@ import (
 
 	"github.com/theatarr/theatarr/internal/gateway"
 	"github.com/theatarr/theatarr/internal/jobs"
-	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/provider"
 	"github.com/theatarr/theatarr/internal/provider/adder"
 )
@@ -61,7 +60,7 @@ func (e *env) download(id int64) (state, prov, tid string, reused int, own any) 
 // in all, and nothing deleted.
 func TestCrashAfterAddIsReconciledNotAddedAgain(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	ctx, cancel := context.WithCancel(e.ctx)
 	e.ad["rd"].add = func(m adder.Magnet, _ adder.AddOptions) (*adder.Added, error) {
 		e.landOnAccount(m)
@@ -98,7 +97,7 @@ func TestCrashAfterAddIsReconciledNotAddedAgain(t *testing.T) {
 // The add's answer came back and the context ended right after: the add is still recorded.
 func TestCancelRightAfterAddStillRecords(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	ctx, cancel := context.WithCancel(e.ctx)
 	e.ad["rd"].add = func(m adder.Magnet, _ adder.AddOptions) (*adder.Added, error) {
 		a := e.landOnAccount(m)
@@ -117,7 +116,7 @@ func TestCancelRightAfterAddStillRecords(t *testing.T) {
 // Crash mid-add when the add never reached the provider: the retried route resumes the same download and adds it.
 func TestCrashBeforeAddLandedResumes(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	ctx, cancel := context.WithCancel(e.ctx)
 	e.ad["rd"].add = func(adder.Magnet, adder.AddOptions) (*adder.Added, error) {
 		cancel()
@@ -154,7 +153,7 @@ func TestCrashBeforeAddLandedResumes(t *testing.T) {
 // The account cannot be read: the row stays in adding (in flight) and nothing is added a second time.
 func TestUnreadableAccountAddsNothing(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	ctx, cancel := context.WithCancel(e.ctx)
 	e.ad["rd"].add = func(m adder.Magnet, _ adder.AddOptions) (*adder.Added, error) {
 		cancel()
@@ -176,7 +175,7 @@ func TestUnreadableAccountAddsNothing(t *testing.T) {
 // The poller settles an interrupted add from the account (found: added; not found: failed), never deleting.
 func TestPollReconcilesInterruptedAdds(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	for i, hash := range []string{h("a"), h("b")} {
 		e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, state,
 			provider, created_at, updated_at) VALUES (?, 1, 10, 'movie', ?, 'R', 'pub', 'adding', 'rd', 0, ?)`,
@@ -206,7 +205,7 @@ func TestPollReconcilesInterruptedAdds(t *testing.T) {
 // lease resumes the same download and adds it once.
 func TestLostLeaseBeforeAddThenTakeover(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	q := jobs.NewQueue(e.st)
 	q.SetClock(func() time.Time { return e.clock })
 	e.r.q = q
@@ -267,7 +266,7 @@ func (e *env) secondRouter() *Router {
 // download stays in adding, no other provider is tried, and the next route settles it from the account. One add.
 func TestUncertainAddIsSettledNotAddedAgain(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.ad["rd"].add = func(m adder.Magnet, _ adder.AddOptions) (*adder.Added, error) {
 		e.landOnAccount(m)
 		return nil, &adder.Error{Provider: "rd", Code: adder.CodeUnavailable, Message: "request not sent or failed",
@@ -321,7 +320,7 @@ func TestUncertainAddIsSettledNotAddedAgain(t *testing.T) {
 // it into a second add, and a later route adds nothing.
 func TestUnreadableAccountNeverTimesOutIntoASecondAdd(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	ctx, cancel := context.WithCancel(e.ctx)
 	e.ad["rd"].add = func(m adder.Magnet, _ adder.AddOptions) (*adder.Added, error) {
 		e.landOnAccount(m)
@@ -367,7 +366,7 @@ func TestUnreadableAccountNeverTimesOutIntoASecondAdd(t *testing.T) {
 // writes nothing over the second's result.
 func TestTakeoverDuringAnAddInFlight(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	other := e.secondRouter()
 	sent, release := make(chan struct{}), make(chan struct{})
 	e.ad["rd"].add = func(m adder.Magnet, _ adder.AddOptions) (*adder.Added, error) {
@@ -417,7 +416,7 @@ func TestTakeoverDuringAnAddInFlight(t *testing.T) {
 // looping the same add for every resume.
 func TestUnlandedAddsCapped(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.ad["rd"].add = func(adder.Magnet, adder.AddOptions) (*adder.Added, error) {
 		return nil, &adder.Error{Provider: "rd", Code: adder.CodeUnavailable, Err: errors.New("connection reset")}
 	}

@@ -304,7 +304,7 @@ func TestImportStandingDifferential(t *testing.T) {
 	for _, tc := range scopeCases() {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			e := importUpEnv(t, policy.ModeActive, "")
+			e := importUpEnv(t, "")
 			e.pol.Versions["tv"].PreferSeaDex = true
 			tc.setup(e)
 			plan, err := e.lib.Import(e.ctx, 1, false)
@@ -331,7 +331,7 @@ func TestImportStandingDifferential(t *testing.T) {
 // A dry run of the reproduction passes through the same gate: nothing planned to link, held for review.
 func TestImportStandingDryRun(t *testing.T) {
 	t.Parallel()
-	e := importUpEnv(t, policy.ModeActive, "")
+	e := importUpEnv(t, "")
 	e.pol.Versions["tv"].PreferSeaDex = true
 	scopeEntry(e, 11, `[[1,1]]`, false, false)
 	e.heldLink(1, "Bluray-2160p Remux", "Show.S01E02.2160p.BluRay.REMUX.HEVC-OLD", 202)

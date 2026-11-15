@@ -127,7 +127,7 @@ export function seasonsToSend(picked: readonly number[], requestable: readonly n
 /**
  * The settled state in words, from the applicable request versions' readiness: Available only when they can be
  * watched; partly ready; or monitored and waiting for a copy. fetching: whether any of those copies is acquiring now
- * (versionFetching); only then does the rest read as on its way. A copy in shadow mode, with grabbing off or with the
+ * (versionFetching); only then does the rest read as on its way. A copy with grabbing off or with the
  * router off is monitored but nothing fetches it, and the words say so plainly. labels: those copies' names; the
  * sentence names them, so it reads as about what this account can ask for, not the whole title (whose hero line may
  * say another copy is ready to watch).
@@ -170,7 +170,7 @@ export function requestDoneWords(result: { approved: boolean; merged: boolean; n
 }
 
 /** The grab gates every account sees on a version (control.grab_state; redaction keeps it). */
-type GrabGates = { mode: string; paused: boolean; pause_forced: boolean; will_grab?: boolean };
+type GrabGates = { paused: boolean; pause_forced: boolean; will_grab?: boolean };
 
 /**
  * Whether any copy may grab, from the server decision shared with add options and request detail. Older server

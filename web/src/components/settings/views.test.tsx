@@ -13,9 +13,9 @@ const overview = {
   switches: { paused: true, pause_forced: false, versions: [] },
 };
 const radarr = { id: 1, key: "radarr", versions: ["movie-web"], profiles: { "WEB only": ["movie-web"] }, identity: { flavour: "radarr", path: "/radarr" }, secret_set: true };
-const library = (key: string) => ({ id: 1, key, roots: [], config: { mode: key === "movie-web" ? "active" : "shadow", kind: "movie" } });
+const library = (key: string) => ({ id: 1, key, roots: [], config: { kind: "movie" } });
 const versionsReply = { source: "db", generation: 7, versions: ["movie-web", "movie-remux", "tv-web"].map(library), profiles: {}, format_sets: [], clients: [], indexers: [], providers: [],
-  switches: { paused: true, pause_forced: false, versions: [{ key: "movie-web", mode: "shadow", grab_state: { mode: "shadow", paused: true, pause_forced: false } }] } };
+  switches: { paused: true, pause_forced: false, versions: [{ key: "movie-web", grab_state: { paused: true, pause_forced: false } }] } };
 const librariesRoute = { method: "GET", path: "/settings/versions", reply: versionsReply };
 const routes = (list: unknown[] = [radarr]) => [
   librariesRoute,
@@ -225,7 +225,7 @@ describe("Connected apps bindings (moved from Settings › Libraries)", () => {
     const user = userEvent.setup();
     renderPage(<GeneralSettingsPage />);
     const row = (await screen.findByText("API key set")).closest("li") as HTMLElement;
-    expect(await within(row).findByText("Watch only")).toBeTruthy();
+    expect(await within(row).findByText("Paused")).toBeTruthy();
     await user.click(within(row).getByRole("button", { name: /Edit/ }));
     const sheet = await screen.findByTestId("view-editor");
     expect(within(sheet).getByRole("link", { name: "Users & access" }).getAttribute("href")).toBe("/admin/users");

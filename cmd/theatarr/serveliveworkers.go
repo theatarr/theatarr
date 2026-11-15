@@ -65,7 +65,7 @@ func (l serveLoops) workers() []serveWorker {
 			l.router.RunEvery(ctx, rt.Router.Settings().PollInterval)
 			return nil
 		}},
-		// The search schedule's rounds (internal/acquire Round), while a library is Live and Pause is off; the first
+		// The search schedule's rounds (internal/acquire Round), while a library is set up and Pause is off; the first
 		// round 5 minutes after start, or at once when Pause is turned off (the due rows waited for it).
 		{name: "wanted", key: wantedWorkerKey, run: func(ctx context.Context, rt *serveRuntime, prev string) error {
 			l.runWanted(ctx, rt, prev)
@@ -288,11 +288,11 @@ func (l serveLoops) runWanted(ctx context.Context, rt *serveRuntime, prev string
 	}
 }
 
-// wantedWorkerKey is the search round worker's key: "" with no acquirer or no Live library, "paused" while Pause is
+// wantedWorkerKey is the search round worker's key: "" with no acquirer or no library, "paused" while Pause is
 // on (the worker waits, so turning Pause off is a change from "paused"), "on" otherwise.
 func wantedWorkerKey(rt *serveRuntime) string {
 	switch {
-	case rt.Acquirer == nil || rt.Policy == nil || len(rt.Policy.ActiveVersions()) == 0:
+	case rt.Acquirer == nil || rt.Policy == nil || len(rt.Policy.VersionKeys()) == 0:
 		return ""
 	case !rt.Policy.RouterSettings().Enabled:
 		return "paused"

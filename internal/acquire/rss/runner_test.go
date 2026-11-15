@@ -89,10 +89,8 @@ func TestScheduleRunsTheRSSTask(t *testing.T) {
 	done := make(chan struct{})
 	go func() { e.r.Schedule(ctx, 0); close(done) }()
 	defer func() { cancel(); <-done }()
-	rows := func() int {
-		return one[int](t, e.st, `SELECT COUNT(*) FROM shadow_run WHERE kind = ? AND ok = 1`, KindRSS)
-	}
-	waitUntil(t, "scheduled read", func() bool { return rows() == 1 })
+	reads := func() int { return len(e.net.requests("prowlarr.test/1/api")) }
+	waitUntil(t, "scheduled read", func() bool { return reads() > 0 })
 	waitUntil(t, "task row", func() bool {
 		return one[int](t, e.st, `SELECT COUNT(*) FROM task WHERE key = ? AND last_finished IS NOT NULL AND next_run = ?`,
 			KindRSS, e.clock().Add(e.r.set.RSSInterval).UnixMilli()) == 1
@@ -103,10 +101,11 @@ func TestScheduleRunsTheRSSTask(t *testing.T) {
 	if got := e.rec.candidates(); len(got) != 2 {
 		t.Errorf("routed %v", got)
 	}
+	first := reads()
 	if err := e.r.QueueRSS(e.ctx); err != nil {
 		t.Fatal(err)
 	}
-	waitUntil(t, "read run now", func() bool { return rows() == 2 })
+	waitUntil(t, "read run now", func() bool { return reads() > first })
 }
 
 // While downloads are paused (router.enabled false) a run, scheduled, queued or manual, reads and routes nothing and
@@ -130,9 +129,6 @@ func TestRSSPausedRoutesNothing(t *testing.T) {
 	if n := one[int](t, e.st, `SELECT COUNT(*) FROM shadow_rss_cursor`) + one[int](t, e.st, `SELECT COUNT(*) FROM shadow_rss_seen`); n != 0 {
 		t.Fatalf("%d cursors or seen marks while paused", n)
 	}
-	if s := one[string](t, e.st, `SELECT summary FROM shadow_run WHERE kind = ?`, KindRSS); !strings.Contains(s, skippedPaused) {
-		t.Errorf("run row %s", s)
-	}
 
 	e.pol.Router.Enabled = true
 	if rs, err = e.r.RSS(e.ctx); err != nil || rs.Routed != 2 {
@@ -143,17 +139,17 @@ func TestRSSPausedRoutesNothing(t *testing.T) {
 	}
 }
 
-// Scheduling: nothing is queued while every library is Watch only.
-func TestRSSSkipsWatchOnlySchedule(t *testing.T) {
+// Scheduling: nothing is queued while no library lists a feed.
+func TestRSSSkipsScheduleWithoutFeeds(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, true)
 	for _, v := range e.pol.Versions {
-		v.Mode = ""
+		v.Indexers = nil
 	}
 	e.build(nil)
 	ctx, cancel := context.WithTimeout(e.ctx, 1500*time.Millisecond)
 	defer cancel()
-	e.r.Schedule(ctx, 0) // runs until ctx ends, reading nothing: no Live library reads a feed
+	e.r.Schedule(ctx, 0) // runs until ctx ends, reading nothing: no library reads a feed
 	if n := one[int](t, e.st, `SELECT COUNT(*) FROM task WHERE key = ? AND last_started IS NOT NULL`, KindRSS); n != 0 {
 		t.Fatalf("%d RSS reads", n)
 	}

@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/theatarr/theatarr/internal/jobs"
-	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/provider"
 	"github.com/theatarr/theatarr/internal/provider/adder"
 	"github.com/theatarr/theatarr/internal/store"
@@ -48,7 +47,7 @@ func routeJobs(e *env, dl int64) []routePayload {
 // is made.
 func TestDismissCancelsDeferredRoute(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	withQueue(e)
 	paceAll(e, 3*time.Minute)
 	req := movieReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP"))
@@ -89,7 +88,7 @@ func TestDismissCancelsDeferredRoute(t *testing.T) {
 // the next provider.
 func TestDismissDuringSettleStaysEnded(t *testing.T) {
 	t.Parallel()
-	e, f, _ := newDebridEnv(t, true, policy.ModeActive, true)
+	e, f, _ := newDebridEnv(t, true, true)
 	dismissed := false
 	e.r.sleep = func(context.Context, time.Duration) error {
 		if dismissed {
@@ -124,7 +123,7 @@ func TestDismissDuringSettleStaysEnded(t *testing.T) {
 // A deferred route records its queued download and the continuation together, whoever called Route.
 func TestDeferredRouteWritesItsContinuation(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	withQueue(e)
 	paceAll(e, 3*time.Minute)
 	res, err := e.r.Route(e.ctx, movieReq(cand(h("a"), "A"), cand(h("b"), "B")))
@@ -142,7 +141,7 @@ func TestDeferredRouteWritesItsContinuation(t *testing.T) {
 // forever.
 func TestStrayQueuedDownloadIsResumed(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	withQueue(e)
 	old := store.Millis(e.clock.Add(-time.Hour))
 	insert := func(id int64, hash string) {
@@ -174,7 +173,7 @@ func TestStrayQueuedDownloadIsResumed(t *testing.T) {
 // a poll read it before then.
 func TestADQueuedStillStalls(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, provider,
 		provider_torrent_id, state, own_add, added_at, created_at, updated_at) VALUES (1, 1, 10, 'movie', ?, 'x', 'pub',
 		'ad', '55', 'added', 0, ?, 0, 0)`, h("a"), store.Millis(e.clock))
@@ -202,7 +201,7 @@ func TestADQueuedStillStalls(t *testing.T) {
 // one that moves does not.
 func TestDownloadingWithoutProgressTimesOut(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	add := func(id int64, hash, tid string) {
 		e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, provider,
 			provider_torrent_id, state, reused, progress, added_at, created_at, updated_at) VALUES (?, 1, 10, 'movie', ?,
@@ -235,7 +234,7 @@ func TestDownloadingWithoutProgressTimesOut(t *testing.T) {
 // is queued again, not left added with the deleted torrent.
 func TestUncachedDeleteRecordedAfterCancel(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.r.set.CachedOnly = true
 	ctx, cancel := context.WithCancel(e.ctx)
 	defer cancel()
@@ -283,7 +282,7 @@ func TestRDOwnAddFailedBeforeSelectionDeleted(t *testing.T) {
 		{"no video", []provider.File{{ID: "1", Path: "Movie.nfo"}, {ID: "2", Path: "readme.txt"}}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			e := newEnv(t, true, policy.ModeActive)
+			e := newEnv(t, true)
 			fa := stalledFake{e.ad["rd"]}
 			e.r.adders["rd"] = fa
 			fa.add = func(m adder.Magnet, o adder.AddOptions) (*adder.Added, error) {

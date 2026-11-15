@@ -13,7 +13,7 @@ import (
 // guess but ended, and its episodes are searched again.
 func TestLegacyNullReleaseData(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.pol.Profiles = map[string]*policy.Profile{"tv": {Qualities: []policy.QualityItem{{Name: "WEBDL-2160p"}}, Cutoff: "WEBDL-2160p"}}
 	e.pol.Versions["series"].Profile = "tv"
 	e.pol.Versions["series"].PreferSeaDex = true
@@ -61,7 +61,7 @@ func TestLegacyNullReleaseData(t *testing.T) {
 
 func TestLegacyUnprovablePackResearches(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.pol.Profiles = map[string]*policy.Profile{"tv": {Qualities: []policy.QualityItem{{Name: "WEBDL-2160p"}}, Cutoff: "WEBDL-2160p"}}
 	e.pol.Versions["series"].Profile = "tv"
 	e.pol.Versions["series"].PreferSeaDex = true

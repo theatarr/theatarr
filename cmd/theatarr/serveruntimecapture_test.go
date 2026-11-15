@@ -694,7 +694,7 @@ func TestServeRoundStartsDueRows(t *testing.T) {
 		Indexers: map[string]*policy.Indexer{"pub": {Kind: "torznab", URL: "http://pub.test/api", Privacy: policy.PrivacyPublic}},
 		Providers: map[string]*policy.Provider{"rd": {Kind: provider.KindRealDebrid, Order: 1, URL: "http://rd.test/rest/1.0",
 			APIKeyEnv: "THEATARR_RD_KEY"}},
-		Versions: map[string]*policy.VersionPolicy{"movie": {Mode: policy.ModeActive, Kind: policy.KindMovie,
+		Versions: map[string]*policy.VersionPolicy{"movie": {Kind: policy.KindMovie,
 			Storage: policy.StorageDebrid, Indexers: []string{"pub"}, Providers: []string{"rd"}}},
 		Router: &policy.Router{Enabled: true, Wanted: &policy.Wanted{Missing: new(false)}},
 	}

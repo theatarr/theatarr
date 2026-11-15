@@ -1,20 +1,15 @@
-// The library state (docs/design/ui.md "Library state"), the same on every page: the mode marker (Watch only / Live), one
-// verdict from the server's will_grab (lib/version-grab.ts), the separate "New files won't be linked" mark, and
+// The library state (docs/design/ui.md "Library state"), the same on every page: one verdict from the server's will_grab (lib/version-grab.ts), the separate "New files won't be linked" mark, and
 // behind "Why?" every closed gate with where it is changed (links for admins).
 import { useId, useState } from "react";
 import { Popover } from "radix-ui";
 import { Link } from "react-router";
-import { Badge, Tag } from "@/components/ui/badge";
-import { closedGates, globalDownloadsOff, linksOff, MODE_WORDS, repeatsChoice, stateWords, verdict, type VersionGrabState } from "@/lib/version-grab";
+import { Badge } from "@/components/ui/badge";
+import { closedGates, globalDownloadsOff, linksOff, stateWords, verdict, type VersionGrabState } from "@/lib/version-grab";
 
-export function VersionStatus({ state, showMode = false, words = false, beside, settingsKey, canManage = false, why = true }: {
+export function VersionStatus({ state, words = false, settingsKey, canManage = false, why = true }: {
   state?: VersionGrabState;
-  showMode?: boolean;
-  /** Settings › Libraries: one plain phrase ("Live, paused") in place of the mode tag and the verdict, beside the
-   * library's Watch only / Live control. Why? stays. */
+  /** Settings › Libraries: one plain phrase ("Downloads held by the server") in place of the verdict. Why? stays. */
   words?: boolean;
-  /** With words: the stored mode the Watch only / Live control beside them shows; words that only repeat it are left out. */
-  beside?: string;
   settingsKey?: string;
   canManage?: boolean;
   /** false: dense rows (library tables, request chips). Why? is a small "?" button and the list opens in a popover
@@ -23,25 +18,21 @@ export function VersionStatus({ state, showMode = false, words = false, beside, 
 }) {
   const id = useId();
   const [open, setOpen] = useState(false);
-  if (!state) return null;
+  if (!state) return words ? <Badge tone="neutral" data-testid="state-words">{stateWords(undefined).text}</Badge> : null;
   const v = verdict(state);
   const gates = closedGates(state, settingsKey);
-  const mode = MODE_WORDS[state.mode] ?? { label: state.mode, help: "" };
   const items = gates.map((g) => (
     <li key={g.text} className="[overflow-wrap:anywhere]">
       {g.text}
       {canManage && g.to ? <> · <Link className="text-[var(--accent-ink)] underline" to={g.to}>{g.label}</Link></> : null}
     </li>
   ));
-  // words: shown beside the Watch only / Live control, so only when they add to it (such as Live, paused).
-  const phrase = words && !repeatsChoice(state, beside) ? stateWords(state) : undefined;
-  const badges = words ? phrase ? <>
+  const phrase = words ? stateWords(state) : undefined;
+  const badges = phrase ? <>
     <Badge tone={phrase.tone} data-testid="state-words" title={!why && gates.length ? gates.map((g) => g.text).join(". ") + "." : undefined}>{phrase.text}</Badge>
-    {linksOff(state) && phrase.text !== "Live, but new files won't be linked" ? <Badge tone="ghost" data-testid="links-off">New files won't be linked</Badge> : null}
-  </> : null : <>
-    {showMode ? <Tag title={mode.help} data-mode={state.mode}>{mode.label}</Tag> : null}
-    {/* A Watch-only library's verdict is its mode: the tag beside it says it once. */}
-    {showMode && v.word === mode.label ? null : <Badge tone={v.tone} title={!why && gates.length ? gates.map((g) => g.text).join(". ") + "." : undefined}>{v.word}</Badge>}
+    {linksOff(state) && phrase.text !== "New files won't be linked" ? <Badge tone="ghost" data-testid="links-off">New files won't be linked</Badge> : null}
+  </> : <>
+    <Badge tone={v.tone} title={!why && gates.length ? gates.map((g) => g.text).join(". ") + "." : undefined}>{v.word}</Badge>
     {linksOff(state) ? <Badge tone="ghost" data-testid="links-off">New files won't be linked</Badge> : null}
   </>;
   if (!why) {
@@ -87,8 +78,6 @@ export function VersionStatus({ state, showMode = false, words = false, beside, 
 export const pausedWords = (off: "locked" | "off" | "unknown") =>
   off === "locked" ? "Paused by the environment (THEATARR_FORCE_OFF): nothing is searched, downloaded or linked for any library." : "Paused: nothing is searched, downloaded or linked for any library.";
 
-export const NO_LIVE_LIBRARY = "No library of this title is Live.";
-
 type SearchLibrary = { label?: string; key?: string; grab_state?: VersionGrabState | null };
 
 /** Each monitored library's verdict, when none of them searches. */
@@ -96,11 +85,11 @@ export const nothingSearchedWords = (on: readonly SearchLibrary[]) =>
   `Nothing is searched now: ${on.map((v) => `${v.label || v.key}: ${v.grab_state ? verdict(v.grab_state).word : "Downloads off"}`).join(" · ")}`;
 
 /** A disabled Search now's reason in plain text (the title page and the list rows): Pause (global, so any library
- *  carries it), then no Live library of the title, then no monitored library, else each monitored library's verdict.
+ *  carries it), then no monitored library, else each monitored library's verdict.
  *  states: every library's grab state; on: the monitored libraries. */
-export function searchOffWords(states: readonly (VersionGrabState | undefined | null)[], noLive: boolean, on: readonly SearchLibrary[]): string {
+export function searchOffWords(states: readonly (VersionGrabState | undefined | null)[], on: readonly SearchLibrary[]): string {
   const paused = globalDownloadsOff(states);
-  return paused ? pausedWords(paused) : noLive ? NO_LIVE_LIBRARY : !on.length ? "No library is monitored." : nothingSearchedWords(on);
+  return paused ? pausedWords(paused) : !on.length ? "No library is monitored." : nothingSearchedWords(on);
 }
 
 /** One notice per page when Pause is on for every library (or forced by the environment), so rows show only their

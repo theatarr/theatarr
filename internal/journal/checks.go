@@ -46,7 +46,7 @@ func (e *Entry) flag(code, sev, format string, args ...any) {
 }
 
 // releaseKinds are the kinds whose release is a decision to check.
-var releaseKinds = []string{KindGrab, KindUpgrade, KindPlan}
+var releaseKinds = []string{KindGrab, KindUpgrade}
 
 // check runs the suspect checks that apply to the entry.
 func (b *builder) check(e *Entry) error {

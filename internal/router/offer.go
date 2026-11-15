@@ -39,9 +39,6 @@ import (
 //   - never to a library the title was removed from (arrview_removed_version): nothing is recorded, and an offer on
 //     record is declined with reason removed, decided again once an Add restores the library;
 //   - offer/backfill commands: theatarr router offer -download ID | -sweep [-dry-run] [-limit N].
-//
-// Shadow targets get the same decision; the route is then a dry-run plan (router_plan), so an offer is visible
-// before cutover without writing anything.
 
 // JobOffer offers an imported download or file source to the title's other versions.
 const JobOffer = "router.offer"
@@ -63,7 +60,7 @@ const (
 const (
 	OfferPending  = "pending"  // the target cannot decide yet; retried
 	OfferRouted   = "routed"   // accepted; a route request was enqueued for an active target
-	OfferPlanned  = "planned"  // accepted for a shadow target; the route is a dry-run plan
+	OfferPlanned  = "planned"  // accepted while the gate is shut; the route is a dry-run plan
 	OfferDeclined = "declined" // the target's rules rejected it (remembered)
 	OfferSame     = "same"     // the target holds this release already
 	OfferGaveUp   = "gave_up"  // still pending after OfferRetryFor
@@ -311,7 +308,7 @@ func (o *Offerer) offerTo(ctx context.Context, s *offerSource, key string, dryRu
 		}
 		memory.outcome = ""
 	case OfferPlanned:
-		// Accepted while the gate was shut (router off, or the target in shadow): offered again once grabbing is on
+		// Accepted while the gate was shut (router off): offered again once grabbing is on
 		// for the target.
 		if !o.gateOpen(key) {
 			return nil, nil
@@ -442,7 +439,7 @@ func (o *Offerer) offerTo(ctx context.Context, s *offerSource, key string, dryRu
 		}
 		return o.finish(ctx, s, res, memory, now, dryRun)
 	}
-	// The route of a target the gate refuses (router.enabled off, or the target in shadow) is a dry-run plan: the
+	// The route of a target the gate refuses (router.enabled off) is a dry-run plan: the
 	// offer is recorded planned, not routed, and offered again once the gate is open.
 	res.Outcome = OfferPlanned
 	if o.gateOpen(key) {

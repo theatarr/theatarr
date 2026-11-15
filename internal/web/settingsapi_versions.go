@@ -9,7 +9,6 @@ import (
 	"strconv"
 
 	"github.com/theatarr/theatarr/internal/auth"
-	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/settings"
 )
 
@@ -131,7 +130,6 @@ func versionSettingsRequest(snap *settings.Snapshot, body versionSettingsBody, c
 	}
 	if create {
 		record.Record = settings.Record{Key: body.Key}
-		record.Config.Mode = policy.ModeShadow
 	}
 	if len(body.Config) == 0 {
 		return req, bodyError("config is required")
@@ -152,11 +150,9 @@ func versionSettingsRequest(snap *settings.Snapshot, body versionSettingsBody, c
 	if body.Roots != nil && (len(*body.Roots) > 0 || len(stored) > 0) {
 		record.Roots = append([]string(nil), (*body.Roots)...)
 	}
-	// A new library, an edit that empties stored roots, or a Live library writes under its library folder, as the
-	// editor shows it. A Watch only library stored without roots keeps none when an edit sends none (the editor
-	// sends [] for it); switched to Live it gets the folder, or every import it grabs would be refused.
-	live := record.Config.Mode == policy.ModeActive
-	if (create || len(stored) > 0 || live) && len(record.Roots) == 0 && record.Config.Library != "" {
+	// A library without roots writes under its library folder, as the editor shows it, or every import it grabs
+	// would be refused.
+	if len(record.Roots) == 0 && record.Config.Library != "" {
 		record.Roots = []string{record.Config.Library}
 	}
 	if index < 0 {

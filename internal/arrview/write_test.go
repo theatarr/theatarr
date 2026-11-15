@@ -10,7 +10,6 @@ import (
 
 	"github.com/theatarr/theatarr/internal/catalog"
 	"github.com/theatarr/theatarr/internal/metadata/tmdb"
-	"github.com/theatarr/theatarr/internal/policy"
 )
 
 func (e *env) profileID(view, name string) int64 {
@@ -202,10 +201,10 @@ func TestCommands(t *testing.T) {
 	e.call("POST", "/radarr/api/v3/command", map[string]any{"name": "MoviesSearch", "movieIds": []int{IDBase + 1}},
 		201, &c)
 	// CommandResource; decypharr reads id, name, commandName, status, queued, body (pkg/arr/media.go L18-33).
-	wantKeys(t, "command", any(c), fields(`id name commandName message body priority status result queued started
-		ended duration trigger stateChangeTime sendUpdatesToClient updateScheduledTask`), "clientUserAgent")
-	if c["status"] != "completed" || c["commandName"] != "Movies Search" ||
-		c["message"] != "Watch only: nothing searched or grabbed (libraries movie-remux, movie-web)" {
+	wantKeys(t, "command", any(c), fields(`id name commandName message body priority status result queued trigger
+		sendUpdatesToClient updateScheduledTask`), "clientUserAgent")
+	if c["status"] != "queued" || c["commandName"] != "Movies Search" ||
+		c["message"] != "Queued for the searches of the versions" {
 		t.Errorf("command %v", c)
 	}
 	id := strconv.Itoa(int(c["id"].(float64)))
@@ -226,18 +225,17 @@ func TestCommands(t *testing.T) {
 	e.call("POST", "/radarr/api/v3/command", map[string]any{"name": "EpisodeSearch"}, 400, nil)
 	e.call("POST", "/sonarr/api/v3/command", map[string]any{"name": "SeasonSearch", "seriesId": IDBase + 10, "seasonNumber": 1},
 		201, &c)
-	if c["message"] != "Watch only: nothing searched or grabbed (libraries tv-2160p)" {
+	if c["message"] != "Queued for the searches of the versions" {
 		t.Errorf("season search %v", c["message"])
 	}
 	e.call("POST", "/sonarr/api/v3/command", map[string]any{"name": "EpisodeSearch", "episodeIds": []int{101}}, 201, &c)
-	if c["status"] != "completed" {
-		t.Errorf("episode search %v", c)
-	}
+	wantKeys(t, "command", any(c), fields(`id name commandName message body priority status result queued started
+		ended duration trigger stateChangeTime sendUpdatesToClient updateScheduledTask`), "clientUserAgent")
 	e.call("GET", "/radarr/api/v3/command/999", nil, 404, nil)
 	// With an add's search option, the add records the search.
 	e.call("POST", "/radarr/api/v3/movie", map[string]any{"title": "Iota", "tmdbId": 109,
 		"addOptions": map[string]any{"searchForMovie": true}}, 201, nil)
-	if n := e.one(`SELECT COUNT(*) FROM arrview_command WHERE name = 'MoviesSearch' AND status = 'completed'`); n != 2 {
+	if n := e.one(`SELECT COUNT(*) FROM arrview_command WHERE name = 'MoviesSearch'`); n != 2 {
 		t.Errorf("%d MoviesSearch commands", n)
 	}
 }
@@ -382,7 +380,6 @@ func TestDeleteAddImportExclusion(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 			e := newEnv(t)
-			e.pol.Versions["movie-remux"].Mode = policy.ModeActive
 			e.start()
 			e.call("DELETE", "/v/movie-web/radarr/api/v3/movie/"+beta+c.query, nil, 200, nil)
 			rows, own := e.one(`SELECT COUNT(*) FROM movie_exclusion`),

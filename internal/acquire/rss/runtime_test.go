@@ -9,13 +9,6 @@ import (
 	"github.com/theatarr/theatarr/internal/policy"
 )
 
-type fixedRuntimeSource struct{ generation int64 }
-
-func (s fixedRuntimeSource) CurrentGeneration() int64 { return s.generation }
-func (fixedRuntimeSource) Resolve(context.Context, int64) (Runtime, bool) {
-	return Runtime{}, false
-}
-
 type runtimeSnapshotSource struct {
 	mu      sync.RWMutex
 	runtime Runtime
@@ -41,9 +34,6 @@ func TestRSSSchedulerUsesCurrentRuntimeEligibility(t *testing.T) {
 	}
 	off := false
 	currentPolicy.Shadow = &policy.Shadow{RSS: &off}
-	for _, version := range currentPolicy.Versions {
-		version.Mode = ""
-	}
 	e.r.set.RSS = false // no feed was eligible when the long-lived scheduler started
 	e.r.active = map[string]bool{}
 	source := &runtimeSnapshotSource{runtime: Runtime{Generation: 1, Policy: currentPolicy, Engine: e.eng,
@@ -51,7 +41,7 @@ func TestRSSSchedulerUsesCurrentRuntimeEligibility(t *testing.T) {
 	e.r.runtime = source
 
 	active, err := e.r.forOperation(e.ctx)
-	if err != nil || active.set.RSS || len(active.rssVersions()) != 0 {
+	if err != nil || active.set.RSS || len(active.active) != 0 {
 		t.Fatalf("disabled startup runtime unexpectedly enabled RSS: active=%v err=%v", active, err)
 	}
 	ctx, cancel := context.WithCancel(e.ctx)
@@ -68,7 +58,6 @@ func TestRSSSchedulerUsesCurrentRuntimeEligibility(t *testing.T) {
 	}
 	on := true
 	currentPolicy.Shadow = &policy.Shadow{RSS: &on}
-	currentPolicy.Versions["movie-remux"].Mode = policy.ModeActive
 	source.set(Runtime{Generation: 2, Policy: currentPolicy, Engine: e.eng, Indexers: e.svc, Router: e.rec})
 	var count int
 	deadline := time.Now().Add(2 * time.Second)
@@ -91,9 +80,6 @@ func TestRSSSchedulerUsesCurrentRuntimeEligibility(t *testing.T) {
 	}
 	off = false
 	currentPolicy.Shadow = &policy.Shadow{RSS: &off}
-	for _, version := range currentPolicy.Versions {
-		version.Mode = ""
-	}
 	source.set(Runtime{Generation: 3, Policy: currentPolicy, Engine: e.eng, Indexers: e.svc})
 	ctx2, cancel2 := context.WithCancel(e.ctx)
 	done2 := make(chan struct{})

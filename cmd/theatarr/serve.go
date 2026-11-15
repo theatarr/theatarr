@@ -431,7 +431,7 @@ func runServe(args []string) error {
 		log.Info("router: unfinished copies to other providers resumed", "copies", n)
 	}
 
-	// The RSS sync (docs/design/rss.md): the Live libraries' feeds, their accepted items to the router. It is the
+	// The RSS sync (docs/design/rss.md): the libraries' feeds, their accepted items to the router. It is the
 	// decision engine's film index.
 	eng, idx := serveSnapshot.Engine, serveSnapshot.Indexers
 	rssRunner := newRSSRunner(pol, st, q, tbl, gw, reg, log, routeService, serveSnapshot, rssRuntimeSource{manager: runtimeManager})
@@ -888,7 +888,7 @@ func logPolicy(log *slog.Logger, p *policy.Policy, snap *settings.Snapshot) {
 	sort.Strings(keys)
 	for _, k := range keys {
 		v := p.Versions[k]
-		log.Info("version", "key", k, "mode", v.Mode, "kind", v.Kind, "storage", v.Storage, "library", v.Library)
+		log.Info("version", "key", k, "kind", v.Kind, "storage", v.Storage, "library", v.Library)
 	}
 	hosts := p.OutboundHosts()
 	names := make([]string, len(hosts))

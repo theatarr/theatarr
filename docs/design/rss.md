@@ -1,11 +1,11 @@
 # The RSS sync (`internal/acquire/rss`)
 
-Theatarr reads the RSS feeds of the indexers its **Live** libraries list, decides what is new for the titles that want
-it and hands what it accepts to the download router. A Watch-only library gets nothing from RSS. Where it sits:
+Theatarr reads the RSS feeds of the indexers its libraries list, decides what is new for the titles that want
+it and hands what it accepts to the download router. While Pause is on nothing is read. Where it sits:
 [overview.md](overview.md). Code: `internal/acquire/rss`, `cmd/theatarr/serverss.go`.
 
 The names are older than the package and kept: the settings section `shadow` (fields `rss` and `rss_interval`), the
-job kind `shadow.rss`, the tables `shadow_rss_seen`, `shadow_rss_cursor` and `shadow_run`, the metrics and the log
+job kind `shadow.rss`, the tables `shadow_rss_seen` and `shadow_rss_cursor`, the metrics and the log
 lines (`shadow job scheduled`, `shadow rss`).
 
 ## When it runs
@@ -15,7 +15,7 @@ lines (`shadow job scheduled`, `shadow rss`).
 | `shadow.rss` | every `shadow.rss_interval` (15 min, the arrs' default), first 3 min after start; also on an arr view's `RssSync` command | -20, the lowest |
 
 The schedule runs as the `rss` serve worker and follows each settings generation by itself: a new interval, `rss`
-turned off, or no Live library listing a readable feed stops the queuing without a restart. The job has a dedupe key,
+turned off, or no library listing a readable feed stops the queuing without a restart. The job has a dedupe key,
 so a slow read never stacks; bulk work (imports, wanted searches, offers) runs first and RSS can lag behind it.
 
 **Pause.** While downloads are paused (`router.enabled` false, the router gate's switch) a run reads no feed and routes
@@ -53,7 +53,7 @@ index is reloaded all the same.
   must identify one movie across the library. Series match by TVDB id, else by the title and its scene mappings. The
   film index (shared with the decision engine, which searches with it) is reloaded at the start of every run, so a
   film added since is matched.
-- **Decided** for every monitored Live library of the title, including `cutoff_met`, with the library's current file.
+- **Decided** for every monitored library of the title, including `cutoff_met`, with the library's current file.
   Per-file upgrade checks reject replacements that do not improve the full quality/score cutoff. Movies must reach
   their minimum availability first.
 - **Routed:** the accepted items are ranked per title and library for the whole sync and handed to the router as one
@@ -91,4 +91,3 @@ shadow:
 |---|---|
 | `shadow_rss_cursor` | per feed, the head's key and publish date |
 | `shadow_rss_seen` | feed items already decided (14 days) |
-| `shadow_run` | one row per run with its summary (30 days) |

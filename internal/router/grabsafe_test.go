@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/theatarr/theatarr/internal/jobs"
-	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/provider"
 	"github.com/theatarr/theatarr/internal/provider/adder"
 	"github.com/theatarr/theatarr/internal/store"
@@ -24,7 +23,7 @@ func TestMovieSecondReleaseWhileFirstInFlight(t *testing.T) {
 	t.Parallel()
 	for _, src := range []string{"rss", "research", "offer", "job", "test", "acquire:999", "arrview:push:movie"} {
 		t.Run(src, func(t *testing.T) {
-			e := newEnv(t, true, policy.ModeActive)
+			e := newEnv(t, true)
 			freshMovie(e)
 			req := movieReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP"))
 			req.Source = src
@@ -61,7 +60,7 @@ func TestMovieSecondReleaseWhileFirstInFlight(t *testing.T) {
 // upgrade over the queued one by the version's profile) may still be added. A manual grab is never blocked.
 func TestMovieQueuedReleaseUpgradeAndManual(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	freshMovie(e)
 	low := cand(h("a"), "Movie.2024.1080p.WEB.H264-GRP")
 	low.Quality = "WEBDL-1080p"
@@ -99,7 +98,7 @@ func TestMovieQueuedReleaseUpgradeAndManual(t *testing.T) {
 // A release of another version, or of another title, does not block.
 func TestMovieInFlightIsPerVersion(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	freshMovie(e)
 	e.exec(`INSERT INTO version (id, title_id, policy_key, created_at, updated_at) VALUES (11, 1, 'other', 0, 0)`)
 	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, quality,
@@ -115,7 +114,7 @@ func TestMovieInFlightIsPerVersion(t *testing.T) {
 // reused blind: read first, not found, so a fresh add; nothing is blocklisted.
 func TestStaleDownloadIDNotReused(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, provider,
 		provider_torrent_id, state, created_at, updated_at) VALUES (90, 2, 20, 'series', ?, 'x', 'pub', 'rd', 'OLD',
 		'imported', 0, 0)`, h("a"))
@@ -156,7 +155,7 @@ func TestStaleRegistryIDNotReused(t *testing.T) {
 		}, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			e := newEnv(t, true, policy.ModeActive)
+			e := newEnv(t, true)
 			e.exec(`INSERT INTO content (id, info_hash, state, first_seen_at, last_seen_at) VALUES (7, ?, 'present', 0, 0)`, h("a"))
 			e.exec(`INSERT INTO content_provider (content_id, provider, torrent_id, seen_at) VALUES (7, 'rd', 'HELD', 0)`)
 			tc.setup(e)
@@ -182,7 +181,7 @@ func TestStaleRegistryIDNotReused(t *testing.T) {
 // and blocklisted.
 func TestReusedTorrentGoneRequeues(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	q := jobs.NewQueue(e.st)
 	q.SetClock(func() time.Time { return e.clock })
 	e.r.RegisterJobs(jobs.NewWorker(q, jobs.WorkerOptions{}), q)
@@ -237,7 +236,7 @@ func TestAllDebridUncachedKeptOncePerRoute(t *testing.T) {
 		return Request{TitleID: 2, VersionID: 20, Version: "series", Candidates: []Candidate{a, b}, Source: "test"}
 	}
 	t.Run("kept", func(t *testing.T) {
-		e, f, _ := newDebridEnv(t, true, policy.ModeActive, true)
+		e, f, _ := newDebridEnv(t, true, true)
 		e.r.set.AllDebridDeleteUncached = false
 		res, err := e.r.Route(e.ctx, series())
 		if err != nil {
@@ -252,7 +251,7 @@ func TestAllDebridUncachedKeptOncePerRoute(t *testing.T) {
 		}
 	})
 	t.Run("not provably ours", func(t *testing.T) {
-		e, f, _ := newDebridEnv(t, true, policy.ModeActive, true)
+		e, f, _ := newDebridEnv(t, true, true)
 		e.r.set.AllDebridDeleteUncached = true
 		f.adListFails = true
 		res, err := e.r.Route(e.ctx, series())
@@ -269,7 +268,7 @@ func TestAllDebridUncachedKeptOncePerRoute(t *testing.T) {
 	})
 	t.Run("deletes on", func(t *testing.T) {
 		// With the switch on, our own uncached add is deleted and AllDebrid stays usable for the next release.
-		e, f, _ := newDebridEnv(t, true, policy.ModeActive, true)
+		e, f, _ := newDebridEnv(t, true, true)
 		e.r.set.AllDebridDeleteUncached = true
 		if _, err := e.r.Route(e.ctx, series()); err != nil {
 			t.Fatal(err)
@@ -286,7 +285,7 @@ func TestUncachedCapOnRealDebridAndAllDebrid(t *testing.T) {
 	t.Parallel()
 	for _, pk := range []string{"rd", "ad"} {
 		t.Run(pk, func(t *testing.T) {
-			e, f, _ := newDebridEnv(t, true, policy.ModeActive, true)
+			e, f, _ := newDebridEnv(t, true, true)
 			e.r.set.AllDebridDeleteUncached = true
 			for _, k := range []string{"rd", "ad"} {
 				e.pol.Providers[k].Pacing.UncachedPerHr = 1
@@ -327,7 +326,7 @@ func TestUncachedCapOnRealDebridAndAllDebrid(t *testing.T) {
 // adopted as our add (reused 0) for the file selection.
 func TestCrashedAddTorrentNeverDeletedAsStalled(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	sent := e.clock
 	ctx, cancel := context.WithCancel(e.ctx)
 	e.ad["rd"].add = func(m adder.Magnet, _ adder.AddOptions) (*adder.Added, error) {
@@ -375,7 +374,7 @@ func TestCrashedAddTorrentNeverDeletedAsStalled(t *testing.T) {
 // still in settings poll as before.
 func TestDeletedVersionDownloadsEnd(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	withQueue(e)
 	e.exec(`INSERT INTO version (id, title_id, policy_key, created_at, updated_at) VALUES (11, 1, 'gone', 0, 0)`)
 	ins := func(id int64, key, state, tid string) {
@@ -441,7 +440,7 @@ func TestDeletedVersionDownloadsEnd(t *testing.T) {
 // provider torrent and could mark it ready.
 func TestLastVersionRemovedEndsDownloads(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	withQueue(e)
 	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, provider,
 		provider_torrent_id, state, own_add, ready_at, added_at, created_at, updated_at)

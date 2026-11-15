@@ -2,7 +2,6 @@ package rss
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"slices"
 	"time"
@@ -45,11 +44,6 @@ func (r *Runner) budgetBlocked(ctx context.Context, key string) string {
 		}
 	}
 	return ""
-}
-
-func jsonString(v any) (string, error) {
-	b, err := json.Marshal(v)
-	return string(b), err
 }
 
 type metrics struct {

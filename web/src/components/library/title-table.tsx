@@ -18,7 +18,7 @@ import { ProviderPills } from "@/components/provider-pills";
 import { InteractiveSearch } from "@/components/title/interactive-search";
 import { failed, searched } from "@/components/title/seasons";
 import { Button } from "@/components/ui/button";
-import { NO_LIVE_LIBRARY, searchOffWords } from "@/components/version-status";
+import { searchOffWords } from "@/components/version-status";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
 import type { RowSelection } from "@/components/ui/row-select";
 import { activityHref, copyBar, nextWords, stageTone, stageWords, titleAcquisition } from "@/lib/copies";
@@ -264,11 +264,11 @@ function TitleCell({ t, seeFiles }: { t: TitleRow; seeFiles: boolean }) {
 export function searchOff(vs: readonly Version[]): string {
   if (vs.some((v) => v.monitored && v.control?.can_search)) return "";
   const on = vs.filter((v) => v.monitored).map((v) => ({ label: v.label, key: v.key, grab_state: v.control?.grab_state }));
-  return searchOffWords(vs.map((v) => v.control?.grab_state), !vs.some((v) => v.control?.mode === "active"), on);
+  return searchOffWords(vs.map((v) => v.control?.grab_state), on);
 }
 
-/** A row's actions for managers: Search now (the title page's: every monitored Live library, missing and upgrades;
- *  the answer is a toast), then for a movie Interactive search in its first Live library, for a series a link to its
+/** A row's actions for managers: Search now (the title page's: every monitored library, missing and upgrades;
+ *  the answer is a toast), then for a movie Interactive search in its first library that searches live, for a series a link to its
  *  Episodes tab (interactive search is per season or episode). Disabled with the reason as tooltip from the row's own
  *  data; a disabled button still shows its tooltip. On a phone the buttons carry their words. */
 function RowActions({ t, wide }: { t: TitleRow; wide: boolean }) {
@@ -288,7 +288,7 @@ function RowActions({ t, wide }: { t: TitleRow; wide: boolean }) {
       {!wide && off ? <p className="w-full text-xs text-[var(--ink-3)]" data-testid="row-search-off">{off}</p> : null}
       <span className="inline-flex items-center gap-0.5" data-testid="row-actions">
         <Button size={size} variant="ghost" className={tip} disabled={!!off || search.isPending} aria-label={`Search now, ${name}`}
-          title={off || (series ? "Search every monitored episode now, in every Live library (missing episodes and upgrades)" : "Search every monitored Live library now")}
+          title={off || (series ? "Search every monitored episode now, in every library (missing episodes and upgrades)" : "Search every monitored library now")}
           onClick={() => search.mutate(undefined, { onSuccess: (o) => searched(o, `/img/t/${id}/poster/w92`), onError: failed("Not searched") })}
           data-testid="row-search">
           {search.isPending ? <Loader2 className="animate-spin" /> : <Search />}
@@ -303,7 +303,7 @@ function RowActions({ t, wide }: { t: TitleRow; wide: boolean }) {
           </Button>
         ) : (
           <Button size={size} variant="ghost" className={tip} disabled={!live} aria-label={`Interactive search, ${name}`}
-            title={live ? "Search now and choose the release yourself" : NO_LIVE_LIBRARY} onClick={() => setInteractive(true)} data-testid="row-interactive">
+            title={live ? "Search now and choose the release yourself" : "No library of this title can search live now"} onClick={() => setInteractive(true)} data-testid="row-interactive">
             <UserSearch />
             {wide ? null : "Interactive search"}
           </Button>

@@ -12,14 +12,13 @@ import (
 	"time"
 
 	"github.com/theatarr/theatarr/internal/decide"
-	"github.com/theatarr/theatarr/internal/policy"
 )
 
 // previewRename keeps its link rows open on the reader pool and queries the pool again inside the loop
 // (probeResult, NamingFor, linkEpisodes): one preview needs two reader connections at once. With every other reader
 // connection busy (other previews in the same state, other reads) it waits for a connection that never frees.
 func TestRenamePreviewNeedsOneReader(t *testing.T) {
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	old := filepath.Join(e.movies, "Amelie (2001)", "old.mkv")
 	if err := os.MkdirAll(filepath.Dir(old), 0o755); err != nil {
 		t.Fatal(err)

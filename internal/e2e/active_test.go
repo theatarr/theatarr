@@ -11,6 +11,7 @@ import (
 	"github.com/theatarr/theatarr/internal/acquire"
 	"github.com/theatarr/theatarr/internal/arrview"
 	"github.com/theatarr/theatarr/internal/policy"
+	"github.com/theatarr/theatarr/internal/router"
 	"github.com/theatarr/theatarr/internal/web"
 )
 
@@ -360,14 +361,10 @@ func TestMissingMountFolder(t *testing.T) {
 
 func TestGates(t *testing.T) {
 	t.Parallel()
-	for _, gate := range []string{"router_disabled", "shadow"} {
+	for _, gate := range []string{"router_disabled"} {
 		t.Run(gate, func(t *testing.T) {
 			e := newEnvironment(t, func(p *policy.Policy) {
-				if gate == "router_disabled" {
-					p.Router.Enabled = false
-				} else {
-					p.Versions["movie"].Mode = policy.ModeShadow
-				}
+				p.Router.Enabled = false
 			})
 			rel := movieRelease(9, "2160p.WEB.H265")
 			e.edge.set(rel)
@@ -376,7 +373,6 @@ func TestGates(t *testing.T) {
 			_, _, err := e.ac.Submit(e.ctx, 0, acquire.Selection{Versions: []string{"movie"}, TitleIDs: []int64{id}})
 			must(t, err)
 			e.drain()
-			// Interactive search is also how the shadow runner builds the dry-run route request.
 			searched, err := e.ac.Interactive(e.ctx, id, "movie", nil, nil)
 			must(t, err)
 			if len(searched.Request.Candidates) == 0 {
@@ -384,9 +380,8 @@ func TestGates(t *testing.T) {
 			}
 			result, err := e.rt.Route(e.ctx, searched.Request)
 			must(t, err)
-			t.Logf("dry-run route: %+v", result)
-			if e.count(`SELECT count(*) FROM router_plan`) == 0 {
-				t.Fatal("missing dry-run route plan")
+			if result.Mode != router.ModeDisabled || result.Outcome != router.OutcomeWouldAdd {
+				t.Fatalf("dry-run route: %+v", result)
 			}
 			if e.count(`SELECT count(*) FROM download`) != 0 || e.count(`SELECT count(*) FROM link`) != 0 {
 				t.Fatal("gate created a download or link")

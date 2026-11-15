@@ -32,7 +32,7 @@ const libraryOptions = (data: VersionList | undefined, saved: string[], nameOf: 
   (data ? data.versions.map((v) => v.key) : saved).map((key) => ({ key, label: <>{nameOf(key)} <span className="font-mono text-[12px] text-muted-foreground">{key}</span></> }));
 
 /** A library's state for the list; the same fallback as the Libraries page when the switches lack it. */
-const stateOf = (data: VersionList, key: string) => data.switches.versions.find((v) => v.key === key)?.grab_state ?? { mode: "off", paused: data.switches.paused, pause_forced: data.switches.pause_forced };
+const stateOf = (data: VersionList, key: string) => data.switches.versions.find((v) => v.key === key)?.grab_state ?? { paused: data.switches.paused, pause_forced: data.switches.pause_forced, will_grab: false };
 
 export function ViewsCard({ readOnly }: { readOnly: boolean }) {
   const views = useSettingsViews();
@@ -71,7 +71,7 @@ export function ViewsCard({ readOnly }: { readOnly: boolean }) {
                   {v.versions.map((key) => (
                     <li key={key} className="flex flex-wrap items-center gap-2 text-[12.5px]">
                       <span className="[overflow-wrap:anywhere]">{nameOf(key)}</span><span className="font-mono text-muted-foreground [overflow-wrap:anywhere]">{key}</span>
-                      {libraries.data?.versions.some((l) => l.key === key) ? <VersionStatus showMode why={false} state={stateOf(libraries.data, key)} /> : null}
+                      {libraries.data?.versions.some((l) => l.key === key) ? <VersionStatus why={false} state={stateOf(libraries.data, key)} /> : null}
                     </li>
                   ))}
                 </ul>

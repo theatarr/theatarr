@@ -92,13 +92,13 @@ describe("Title page", () => {
   });
 
   it("says Pause once above the Libraries table", async () => {
-    const grab_state = { mode: "active", paused: true, pause_forced: false, will_grab: false };
+    const grab_state = { paused: true, pause_forced: false, will_grab: false };
     const fetch = mockFetch([
       { method: "GET", path: "/auth/me", reply: me },
       { method: "GET", path: "/titles/70", reply: { ...title, versions: [{ id: 5, key: "anime-tv-theatarr", label: "Anime", state: "wanted", monitored: true,
-        control: { mode: "active", can_edit: true, can_search: false, live_releases: true, search_reason: "Paused: nothing is searched or downloaded", grab_state } }] } },
+        control: { can_edit: true, can_search: false, live_releases: true, search_reason: "Paused: nothing is searched or downloaded", grab_state } }] } },
       { method: "GET", path: "/add/options", reply: { kind: "movie", anime: false, title_id: 70, router_enabled: false, episodes_known: false, can_search: false, seasons: [],
-        versions: [{ key: "anime-tv-theatarr", kind: "movie", mode: "active", enable: "", fits: true, default: true, on: true, searchable: false, label: "Anime", grab_state }] } },
+        versions: [{ key: "anime-tv-theatarr", kind: "movie", enable: "", fits: true, default: true, on: true, searchable: false, label: "Anime", grab_state }] } },
     ]);
     renderPage(
       <SearchProvider>
@@ -125,7 +125,7 @@ describe("Title page", () => {
 
   it("offers no hero action when every library that fits is on the title, other libraries aside", async () => {
     const adder = { ...me, permissions: ["see_files", "manage", "add"] };
-    const lib = { kind: "movie", mode: "active", enable: "", fits: true, default: true, on: true, searchable: true, label: "WEB" };
+    const lib = { kind: "movie", enable: "", fits: true, default: true, on: true, searchable: true, label: "WEB" };
     for (const [versions, want] of [[[{ ...lib, key: "movie-web" }, { ...lib, key: "movie-remux" }, { ...lib, key: "anime-movie", fits: false, default: false, on: false }], null], [[{ ...lib, key: "movie-web" }, { ...lib, key: "movie-2160", on: false }], "Add to another library"], [[{ ...lib, key: "movie-web", on: false }], "Monitor again"],
       // Both libraries held, one monitored: its switch in the Libraries table does it, no hero action.
       [[{ ...lib, key: "movie-web" }, { ...lib, key: "movie-remux", on: false }], null]] as const) {
@@ -177,10 +177,10 @@ describe("Title page", () => {
 
   it("names the libraries in the Request box when its answer differs from the top line", async () => {
     const household = { id: 8, username: "demo-limited", permissions: ["browse", "request"], request_versions: ["movie-web"], csrf_token: "t" };
-    const off = { mode: "active", paused: true, pause_forced: false, will_grab: false };
+    const off = { paused: true, pause_forced: false, will_grab: false };
     const held = { id: 5, key: "movie-remux", label: "4K", state: "filled", monitored: true, has_file: true, current: { quality: "2160p" } };
-    const web = { id: 6, key: "movie-web", label: "4K", state: "wanted", monitored: true, has_file: false, control: { mode: "active", can_edit: false, can_search: false, live_releases: false, grab_state: off } };
-    const opt = (key: string) => ({ key, label: "4K", kind: "movie", mode: "active", enable: "", fits: true, default: false, on: true, searchable: false, grab_state: off });
+    const web = { id: 6, key: "movie-web", label: "4K", state: "wanted", monitored: true, has_file: false, control: { can_edit: false, can_search: false, live_releases: false, grab_state: off } };
+    const opt = (key: string) => ({ key, label: "4K", kind: "movie", enable: "", fits: true, default: false, on: true, searchable: false, grab_state: off });
     for (const [versions, want] of [[[held, web], "In 4K (2): not available yet"], [[{ ...held, control: web.control }], "Available"]] as const) {
       mockFetch([
         { method: "GET", path: "/auth/me", reply: { ...household, request_versions: [versions.at(-1)!.key] } },
@@ -214,7 +214,7 @@ describe("Title page facts (J5)", () => {
     ]);
     renderPage(<SearchProvider><Routes><Route path="/title/:id" element={<TitlePage />} /></Routes></SearchProvider>, path);
   };
-  const lib = { id: 5, key: "movie-web", label: "4K WEB", state: "wanted", monitored: true, has_file: false, control: { mode: "active", can_edit: true, can_search: true, live_releases: true, grab_state: { mode: "active", paused: false, pause_forced: false, library_writes: true, will_grab: true } } };
+  const lib = { id: 5, key: "movie-web", label: "4K WEB", state: "wanted", monitored: true, has_file: false, control: { can_edit: true, can_search: true, live_releases: true, grab_state: { paused: false, pause_forced: false, library_writes: true, will_grab: true } } };
 
   it("says the download's stage in the hero while nothing is held, not Missing", async () => {
     show({ availability: "missing", release_date: "2020-01-01", versions: [{ ...lib, acquisition: { stage: "starting", words: "", download_id: 1, downloads: 1, updated_at: "2026-11-14T10:00:00Z" } }] });

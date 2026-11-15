@@ -229,32 +229,25 @@ func (r *Router) SetCurrentRuntime(current func() *Router) { r.current = current
 // Settings returns the router section in force.
 func (r *Router) Settings() policy.RouterSettings { return r.set }
 
-// Errors from the write gate.
-var (
-	ErrDisabled = errors.New("router: router.enabled is false; nothing is written to any provider")
-	ErrShadow   = errors.New("router: the library is Watch only; nothing is written for it")
-)
+// ErrDisabled is the write gate's refusal while Pause is on.
+var ErrDisabled = errors.New("router: router.enabled is false; nothing is written to any provider")
 
 // Gate says whether the router may write for a version: only when router.enabled is true (Pause is off) and the
-// version's mode is active (policy.Grabs). Every provider write in this package passes through it (mayWrite), so a shadow version or the kill switch
-// blocks adds and file selections alike.
+// version exists (policy.Grabs). Every provider write in this package passes through it (mayWrite), so the kill
+// switch blocks adds and file selections alike.
 func (r *Router) Gate(version string) (Mode, error) {
 	if !r.set.Enabled {
 		return ModeDisabled, ErrDisabled
 	}
-	vp := r.pol.Versions[version]
-	if vp == nil {
-		return ModeShadow, fmt.Errorf("router: unknown version %q", version)
-	}
-	if vp.Mode != policy.ModeActive {
-		return ModeShadow, ErrShadow
+	if r.pol.Versions[version] == nil {
+		return ModeDisabled, fmt.Errorf("router: unknown version %q", version)
 	}
 	return ModeActive, nil
 }
 
 // LogState logs the kill switch and the versions the router may write for, loudly (theatarr serve calls it at start).
 func (r *Router) LogState() {
-	active := r.pol.ActiveVersions()
+	active := r.pol.VersionKeys()
 	var keys []string
 	for k := range r.adders {
 		keys = append(keys, k)
@@ -264,7 +257,7 @@ func (r *Router) LogState() {
 		r.log.Warn("ROUTER DISABLED: router.enabled is false; nothing is added to any debrid provider, every version "+
 			"is dry-run only", "active_versions", active)
 	case len(active) == 0:
-		r.log.Warn("ROUTER ENABLED but no version is active: nothing is added; shadow versions are dry-run only")
+		r.log.Warn("ROUTER ENABLED but no library is set up: nothing is added")
 	default:
 		r.log.Warn("ROUTER ENABLED: adds go to debrid providers for the active versions",
 			"active_versions", active, "providers_with_key", keys,
@@ -272,8 +265,8 @@ func (r *Router) LogState() {
 	}
 }
 
-// Route places the best disjoint candidates for req's version (one for movies). For a version the gate refuses
-// (shadow, or the kill switch off) it never writes: it records the dry-run plan instead (router_plan) and returns it.
+// Route places the best disjoint candidates for req's version (one for movies). While the gate refuses (the kill
+// switch off) it never writes: it returns the dry-run result, recorded nowhere.
 func (r *Router) Route(ctx context.Context, req Request) (*Result, error) {
 	req.Candidates = slices.Clone(req.Candidates)
 	r.stampFresh(&req)
@@ -295,16 +288,12 @@ func (r *Router) routeStored(ctx context.Context, req Request) (*Result, error) 
 		}
 		res.Mode, res.Why = mode, err.Error()
 		if req.DownloadID != 0 {
-			// A queued download resumed while the gate refuses its version (grab or the kill switch off) ends here,
-			// as a switch to shadow ends it (freshCandidates): it is not resumed every strayAfter and grabbed
-			// whenever the gate opens again. A new search grabs the title then.
+			// A queued download resumed while the gate refuses its version (the kill switch off) ends here: it is not
+			// resumed every strayAfter and grabbed whenever the gate opens again. A new search grabs the title then.
 			if eerr := r.endQueued(ctx, req.DownloadID, "route ended: "+err.Error()); eerr != nil &&
 				!errors.Is(eerr, errMovedOn) {
 				return nil, eerr
 			}
-		}
-		if err := r.recordPlan(ctx, req, res); err != nil {
-			return res, err
 		}
 		return res, nil
 	}
@@ -1216,7 +1205,7 @@ func (r *Router) provider(ctx context.Context, s *routeState, c *Candidate, m ad
 		}
 	}
 	if err := r.mayWrite(s.req.Version); err != nil {
-		// The gate closed while the route ran (grab or the kill switch turned off, the version made shadow): the
+		// The gate closed while the route ran (the kill switch turned off): the
 		// download it holds ends, as a route queued under the closed gate ends it (Route), and the route stops.
 		if s.dlID != 0 {
 			if eerr := r.endQueued(ctx, s.dlID, "route stopped: "+err.Error()); eerr != nil &&

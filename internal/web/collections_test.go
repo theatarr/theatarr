@@ -12,7 +12,6 @@ import (
 	"github.com/theatarr/theatarr/internal/auth"
 	"github.com/theatarr/theatarr/internal/catalog"
 	"github.com/theatarr/theatarr/internal/metadata/tmdb"
-	"github.com/theatarr/theatarr/internal/policy"
 )
 
 func (e *env) putCollection(path, body, key, role string) *httptest.ResponseRecorder {
@@ -35,11 +34,11 @@ func (e *env) sendCollection(method, path, body, key, role string) *httptest.Res
 	return e.do(r)
 }
 
-// Collections target only collection targets: here movie-remux, made active; movie-web stays shadow. Held counts
+// Collections target only collection targets (movie libraries): a stored series library does not count. Held counts
 // the catalog's visible movies among the TMDb parts, membership rows or not.
 func TestCollectionsAPI(t *testing.T) {
 	t.Parallel()
-	e := newEnvWith(t, func(c *Config) { c.Policy.Versions["movie-remux"].Mode = policy.ModeActive })
+	e := newEnv(t)
 	// Alpha (TMDb 101) belongs to collection 7, which intake refreshed: its parts are 101, 103 and an announced 104.
 	// Alpha 2 (103) has no membership row but is held; 104 is not in the catalog.
 	e.exec(`INSERT INTO title (id, kind, name, year, tmdb_id, created_at, updated_at) VALUES (4, 'movie', 'Alpha 2', 2024, 103, 0, 0)`)
@@ -47,11 +46,11 @@ func TestCollectionsAPI(t *testing.T) {
 	e.exec(`INSERT INTO title_external_id (title_id, source, external_id) VALUES (1, 'tmdb_collection', '7'),
 		(2, 'tmdb_collection', '8')`)
 	e.exec(`INSERT INTO movie_collection (tmdb_id, name, monitored, versions, search_on_add, minimum_availability, movies,
-		updated_at) VALUES (7, 'Alpha Collection', 1, '["movie-remux","movie-web"]', 1, 'announced', ?, 0)`,
+		updated_at) VALUES (7, 'Alpha Collection', 1, '["movie-remux","tv-2160p"]', 1, 'announced', ?, 0)`,
 		`[{"id":104,"title":"Alpha 3","release_date":""},{"id":103,"title":"Alpha 2","release_date":"2024-01-01","poster_path":"/posterTwo123.jpg"},`+
 			`{"id":101,"title":"Alpha","release_date":"2020-01-01","poster_path":"/posterOne123.jpg"}]`)
-	// Beta's collection as discovery left it (Beta's shadow version preselected), with its one part.
-	e.exec(`INSERT INTO movie_collection (tmdb_id, name, versions, movies, updated_at) VALUES (8, 'Beta Collection', '["movie-web"]', '[{"id":102}]', 0)`)
+	// Beta's collection with only a series library stored, with its one part.
+	e.exec(`INSERT INTO movie_collection (tmdb_id, name, versions, movies, updated_at) VALUES (8, 'Beta Collection', '["tv-2160p"]', '[{"id":102}]', 0)`)
 	key := e.apiKey()
 	var page CollectionsPage
 	if code := e.getKey(APIBase+"/collections", key, &page); code != 200 {
@@ -71,11 +70,11 @@ func TestCollectionsAPI(t *testing.T) {
 		got.Versions == nil || len(got.Versions) != 0 {
 		t.Errorf("discovered %+v", got)
 	}
-	if len(page.Libraries) != 1 || page.Libraries["movie-remux"] == "" {
-		t.Errorf("libraries %v, want movie-remux only", page.Libraries)
+	if len(page.Libraries) != 3 || page.Libraries["movie-remux"] == "" || page.Libraries["movie-web"] == "" {
+		t.Errorf("libraries %v, want the three movie libraries", page.Libraries)
 	}
 
-	// Monitoring needs an eligible library: the stored shadow one does not count, and an empty list is refused.
+	// Monitoring needs an eligible library: the stored series one does not count, and an empty list is refused.
 	for _, body := range []string{`{"monitored":true}`, `{"monitored":true,"versions":[]}`} {
 		if rec := e.putCollection("/collections/8", body, key, ""); rec.Code != 400 {
 			t.Errorf("%s: %d %s", body, rec.Code, rec.Body)
@@ -103,7 +102,6 @@ func TestCollectionsAPI(t *testing.T) {
 	}
 
 	for _, tc := range []struct{ path, body string }{
-		{"/collections/8", `{"versions":["movie-web"]}`}, // shadow
 		{"/collections/8", `{"versions":["tv-2160p"]}`},
 		{"/collections/8", `{"versions":["nope"]}`},
 		{"/collections/8", `{"minimum_availability":"soon"}`},
@@ -179,7 +177,6 @@ type testIntake struct {
 // withIntake makes movie-remux an active library and gives the web layer a movie intake over tm.
 func withIntake(tm *fakeIntakeTMDb) func(*Config) {
 	return func(c *Config) {
-		c.Policy.Versions["movie-remux"].Mode = policy.ModeActive
 		c.Add.Collections = testIntake{&catalog.MovieIntake{Store: c.Store, Policy: c.Policy, TMDb: tm, Now: c.Now, Log: c.Logger}, tm}
 	}
 }
@@ -213,10 +210,9 @@ func TestAddCollection(t *testing.T) {
 	}
 
 	for _, body := range []string{
-		`{"tmdb_id":7}`,                          // monitored by default: needs a library
-		`{"tmdb_id":7,"versions":["movie-web"]}`, // shadow
-		`{"tmdb_id":7,"versions":["tv-2160p"]}`,  // series
-		`{"versions":["movie-remux"]}`,           // no id
+		`{"tmdb_id":7}`,                         // monitored by default: needs a library
+		`{"tmdb_id":7,"versions":["tv-2160p"]}`, // series
+		`{"versions":["movie-remux"]}`,          // no id
 		`{"tmdb_id":7,"versions":["movie-remux"],"minimum_availability":"soon"}`,
 	} {
 		if rec := e.sendCollection("POST", "/collections", body, key, ""); rec.Code != 400 {
@@ -306,7 +302,7 @@ func TestAddCollectionNeedsTMDb(t *testing.T) {
 // GET /collections/{id} lists the stored parts in release order with their place in the library, without TMDb.
 func TestCollectionDetailAPI(t *testing.T) {
 	t.Parallel()
-	e := newEnvWith(t, func(c *Config) { c.Policy.Versions["movie-remux"].Mode = policy.ModeActive })
+	e := newEnv(t)
 	e.exec(`INSERT INTO title (id, kind, name, year, tmdb_id, created_at, updated_at) VALUES (4, 'movie', 'Alpha 2', 2024, 103, 0, 0)`)
 	e.exec(`INSERT INTO version (id, title_id, policy_key, state, created_at, updated_at) VALUES (4, 4, 'movie-remux', 'wanted', 0, 0)`)
 	e.exec(`INSERT INTO movie_collection (tmdb_id, name, monitored, versions, search_on_add, minimum_availability, movies,

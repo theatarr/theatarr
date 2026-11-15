@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/theatarr/theatarr/internal/jobs"
-	"github.com/theatarr/theatarr/internal/policy"
 )
 
 // Unfinished cached-only checks (cachedcheck.go): the poller finishes what settle could not.
@@ -51,7 +50,7 @@ func hiccupAdd(t *testing.T, e *env, f *fakeDebrid) int64 {
 // there), with nothing blocklisted.
 func TestCachedCheckHiccupResumed(t *testing.T) {
 	t.Parallel()
-	e, f, _ := newDebridEnv(t, true, policy.ModeActive, true)
+	e, f, _ := newDebridEnv(t, true, true)
 	w := withWorker(e)
 	f.cached["ad:"+h("a")] = true
 	dl := hiccupAdd(t, e, f)
@@ -101,7 +100,7 @@ func TestCachedCheckHiccupResumed(t *testing.T) {
 // a blocklist entry and the title is searched again, as an in-route miss on every provider.
 func TestCachedCheckOnlyProviderSearchesAgain(t *testing.T) {
 	t.Parallel()
-	e, f, _ := newDebridEnv(t, true, policy.ModeActive, true)
+	e, f, _ := newDebridEnv(t, true, true)
 	e.pol.Versions["movie"].Providers = []string{"rd"}
 	w := withWorker(e)
 	dl := hiccupAdd(t, e, f)
@@ -134,7 +133,7 @@ func TestCachedCheckOnlyProviderSearchesAgain(t *testing.T) {
 // owed. Polls while the gate is closed delete nothing; once it reopens, the poller deletes and routes again.
 func TestCachedCheckStopSwitch(t *testing.T) {
 	t.Parallel()
-	e, f, _ := newDebridEnv(t, true, policy.ModeActive, true)
+	e, f, _ := newDebridEnv(t, true, true)
 	withQueue(e)
 	e.r.sleep = func(context.Context, time.Duration) error {
 		e.r.set.Enabled = false // Pause turned on mid-check
@@ -180,7 +179,7 @@ func TestCachedCheckStopSwitch(t *testing.T) {
 // A pending check whose torrent finishes: the check is dropped, nothing deleted, and the download is ready.
 func TestCachedCheckPendingDownloaded(t *testing.T) {
 	t.Parallel()
-	e, f, _ := newDebridEnv(t, true, policy.ModeActive, true)
+	e, f, _ := newDebridEnv(t, true, true)
 	withQueue(e)
 	dl := hiccupAdd(t, e, f)
 	if _, err := e.r.Poll(e.ctx); err != nil {
@@ -217,7 +216,7 @@ func insertChecked(e *env, id int64, pk, tid, hash, check string, reused int, ow
 // dropped with the reason on the row.
 func TestCachedCheckOwnershipKept(t *testing.T) {
 	t.Parallel()
-	e, f, _ := newDebridEnv(t, true, policy.ModeActive, true)
+	e, f, _ := newDebridEnv(t, true, true)
 	withQueue(e)
 	e.r.set.AllDebridDeleteUncached = true
 	f.rd["RDR"] = &fakeRD{hash: h("a"), status: "downloading", selected: true}
@@ -253,7 +252,7 @@ func TestCachedCheckOwnershipKept(t *testing.T) {
 // cached_only turned off: the check is dropped and nothing is deleted.
 func TestCachedCheckCachedOnlyOff(t *testing.T) {
 	t.Parallel()
-	e, f, _ := newDebridEnv(t, true, policy.ModeActive, true)
+	e, f, _ := newDebridEnv(t, true, true)
 	withQueue(e)
 	e.r.set.CachedOnly = false
 	f.rd["RD1"] = &fakeRD{hash: h("a"), status: "downloading", selected: true}
@@ -275,7 +274,7 @@ func TestCachedCheckCachedOnlyOff(t *testing.T) {
 // The router status counts the unfinished checks.
 func TestCachedCheckStatus(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	insertChecked(e, 1, "rd", "RD1", h("a"), checkPending, 0, 1)
 	insertChecked(e, 2, "rd", "RD2", h("b"), checkUncached, 0, 1)
 	e.exec(`UPDATE download SET state = 'failed' WHERE id = 2`)
@@ -289,7 +288,7 @@ func TestCachedCheckStatus(t *testing.T) {
 // and the grace counts from then, not from the add.
 func TestCachedCheckInferredSelection(t *testing.T) {
 	t.Parallel()
-	e, f, _ := newDebridEnv(t, true, policy.ModeActive, true)
+	e, f, _ := newDebridEnv(t, true, true)
 	withQueue(e)
 	f.rd["RD1"] = &fakeRD{hash: h("a"), status: "downloading", selected: true}
 	insertChecked(e, 1, "rd", "RD1", h("a"), checkPending, 0, 1)
@@ -323,7 +322,7 @@ func TestCachedCheckResumedFreshTTL(t *testing.T) {
 		want time.Duration
 	}{{"new", 24 * time.Hour, time.Hour}, {"old", 0, 6 * time.Hour}} {
 		t.Run(q.name, func(t *testing.T) {
-			e, f, _ := newDebridEnv(t, true, policy.ModeActive, true)
+			e, f, _ := newDebridEnv(t, true, true)
 			if q.date != 0 {
 				e.exec(`INSERT INTO title_release_date (title_id, source, type, date) VALUES (1, 'fixture', 'digital', ?)`,
 					e.clock.Add(-q.date).UTC().Format("2006-01-02"))

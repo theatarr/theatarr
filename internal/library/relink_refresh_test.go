@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/theatarr/theatarr/internal/decide"
-	"github.com/theatarr/theatarr/internal/policy"
 )
 
 func renameMeta(t *testing.T) string {
@@ -37,7 +36,7 @@ func (e *env) theatarrLink(id int64, p, target string) {
 // no link is marked dead and no link-only title flips to wanted. With the account listing again, the sweep runs.
 func TestRelinkRefusesEmptyMount(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	p := filepath.Join(e.movies, "Amelie (2001)", "Amelie.mkv")
 	e.theatarrLink(1, p, filepath.Join(e.mount, "__all__", "Gone", "movie.mkv"))
 	e.exec(`UPDATE version SET state = 'filled' WHERE id = 10`)
@@ -76,7 +75,7 @@ func TestRelinkRefusesEmptyMount(t *testing.T) {
 func TestRelinkRefusesShrunkMount(t *testing.T) {
 	t.Parallel()
 	t.Run("below half of the last listing", func(t *testing.T) {
-		e := newEnv(t, true, policy.ModeActive)
+		e := newEnv(t, true)
 		for _, f := range []string{"A", "B", "C", "D"} {
 			e.release(f, map[string]float64{"movie.mkv": 7000})
 		}
@@ -97,7 +96,7 @@ func TestRelinkRefusesShrunkMount(t *testing.T) {
 		}
 	})
 	t.Run("below half of the linked folders", func(t *testing.T) {
-		e := newEnv(t, true, policy.ModeActive)
+		e := newEnv(t, true)
 		for i, f := range []string{"F1", "F2", "F3", "F4", "F5", "F6"} {
 			if i < 2 {
 				e.release(f, map[string]float64{"movie.mkv": 7000})
@@ -120,7 +119,7 @@ func TestRenameLosesToConcurrentRelink(t *testing.T) {
 	t.Parallel()
 	for _, rowToo := range []bool{true, false} {
 		t.Run(map[bool]string{true: "disk and row", false: "disk only"}[rowToo], func(t *testing.T) {
-			e := newEnv(t, true, policy.ModeActive)
+			e := newEnv(t, true)
 			old := filepath.Join(e.movies, "Old", "old.mkv")
 			newPath := filepath.Join(e.movies, "New", "new.mkv")
 			target := filepath.Join(e.mount, "__all__", "Name", "movie.mkv")
@@ -169,7 +168,7 @@ func TestRenameLosesToConcurrentRelink(t *testing.T) {
 // the first, a refresh repoints the second (disk and row). The sweep must leave the second alone.
 func TestRelinkLosesToConcurrentRefresh(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.release("A.New", map[string]float64{"a.mkv": 7000})
 	e.release("B.New", map[string]float64{"b.mkv": 7000})
 	e.release("B.Refreshed", map[string]float64{"b.mkv": 7000})
@@ -219,7 +218,7 @@ func TestRelinkLosesToConcurrentRefresh(t *testing.T) {
 // refresh repointed it: the mark needs the target the sweep saw.
 func TestRelinkDeadMarkSkipsRepointedLink(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.release("A.New", map[string]float64{"a.mkv": 7000})
 	e.release("Fresh", map[string]float64{"b.mkv": 7000})
 	a := filepath.Join(e.movies, "A (2001)", "A.mkv")
@@ -252,7 +251,7 @@ func TestRenameQueuesPlexScans(t *testing.T) {
 			WHERE kind = 'plex.scan' AND json_extract(payload, '$.section') = 18 ORDER BY p)`)
 	}
 	t.Run("moved", func(t *testing.T) {
-		e := newEnv(t, true, policy.ModeActive)
+		e := newEnv(t, true)
 		old := filepath.Join(e.movies, "Amelie (2001)", "old.mkv")
 		e.theatarrLink(1, old, filepath.Join(e.mount, "__all__", "x.mkv"))
 		e.exec(`UPDATE link SET file_metadata = ? WHERE id = 1`, renameMeta(t))
@@ -266,7 +265,7 @@ func TestRenameQueuesPlexScans(t *testing.T) {
 		}
 	})
 	t.Run("batch failed after one move", func(t *testing.T) {
-		e := newEnv(t, true, policy.ModeActive)
+		e := newEnv(t, true)
 		first := filepath.Join(e.movies, "A (2001)", "old.mkv")
 		second := filepath.Join(e.movies, "B (2001)", "old.mkv")
 		e.theatarrLink(1, first, filepath.Join(e.mount, "__all__", "x.mkv"))
@@ -283,7 +282,7 @@ func TestRenameQueuesPlexScans(t *testing.T) {
 		}
 	})
 	t.Run("gate closed", func(t *testing.T) {
-		e := newEnv(t, true, policy.ModeShadow)
+		e := newEnv(t, false)
 		old := filepath.Join(e.movies, "Amelie (2001)", "old.mkv")
 		e.theatarrLink(1, old, filepath.Join(e.mount, "__all__", "x.mkv"))
 		e.exec(`UPDATE link SET file_metadata = ?`, renameMeta(t))

@@ -1064,9 +1064,6 @@ func (s *Store) LoadGeneration(ctx context.Context, base *policy.Policy, gen int
 	} else if !errors.Is(err, sql.ErrNoRows) {
 		return nil, dbError(err)
 	}
-	if err := s.clampVersionsToHead(ctx, stored.Records.Versions); err != nil {
-		return nil, err
-	}
 	rows, err := rowsFrom(stored.Records)
 	if err != nil {
 		return nil, err
@@ -1088,42 +1085,11 @@ func (s *Store) LoadGeneration(ctx context.Context, base *policy.Policy, gen int
 }
 
 // FallbackEffects lists what running fallback instead of the stored head would allow that the head does not: the
-// confirmation effects of going from head to fallback (going Live, Pause off, importing an arr into a Live
-// library, and removing a library). A startup fallback with any is refused. A credential the
+// confirmation effects of going from head to fallback (Pause off, importing an arr into a library, and removing a
+// library). A startup fallback with any is refused. A credential the
 // fallback sends to its own earlier address is not one: that generation was published with it.
 func (s *Store) FallbackEffects(ctx context.Context, head, fallback *Snapshot) ([]ConfirmationEffect, error) {
 	return snapshotWriteEffects(ctx, s.db.Reader(), head, fallback)
-}
-
-// clampVersionsToHead keeps a recovered version no more permissive than the stored head: it stays active only while
-// the head's version is active. A version the head no longer has is recovered as shadow.
-func (s *Store) clampVersionsToHead(ctx context.Context, versions []Version) error {
-	head := map[string]bool{}
-	rows, err := s.db.Reader().QueryContext(ctx, "SELECT key, config FROM setting_version")
-	if err != nil {
-		return dbError(err)
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var key, raw string
-		if err := rows.Scan(&key, &raw); err != nil {
-			return dbError(err)
-		}
-		config, _, err := versionConfigFromJSON([]byte(raw))
-		if err != nil {
-			return fmt.Errorf("settings: corrupt library %q", key)
-		}
-		head[key] = config.Mode == policy.ModeActive
-	}
-	if err := rows.Err(); err != nil {
-		return dbError(err)
-	}
-	for i := range versions {
-		if versions[i].Config.Mode == policy.ModeActive && !head[versions[i].Key] {
-			versions[i].Config.Mode = policy.ModeShadow
-		}
-	}
-	return nil
 }
 
 // LastPublishedGeneration is the last generation whose runtime was completely prepared and published.

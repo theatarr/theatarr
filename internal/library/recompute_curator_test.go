@@ -8,12 +8,11 @@ import (
 	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/decide/format"
 	"github.com/theatarr/theatarr/internal/decide/profile"
-	"github.com/theatarr/theatarr/internal/policy"
 )
 
 func TestSeriesRecomputeMissesEligibleCuratorAlternative(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	vp := e.pol.Versions["tv"]
 	vp.PreferSeaDex = true
 	p := e.lib.engine.Profile(vp.Profile, format.Sonarr)

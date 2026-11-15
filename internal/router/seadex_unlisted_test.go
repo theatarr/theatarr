@@ -26,7 +26,7 @@ func TestUnlistedSeaDexTorrentNeverRouted(t *testing.T) {
 					`{"id":"listed","infoHash":"`+listed+`","tracker":"Nyaa","isBest":true,"files":[{"name":"Movie 2024 BD 1080p.mkv","length":5000000000}]}]}}]}`)
 			}))
 			defer srv.Close()
-			e := newEnv(t, true, policy.ModeActive)
+			e := newEnv(t, true)
 			e.pol.Indexers["sd"] = &policy.Indexer{Kind: "seadex", URL: srv.URL, Privacy: policy.PrivacyPublic}
 			e.pol.Profiles = map[string]*policy.Profile{"sd": {Qualities: []policy.QualityItem{{Name: "Bluray-1080p"}}, Cutoff: "Bluray-1080p"}}
 			e.pol.Versions["movie"].Profile = "sd"

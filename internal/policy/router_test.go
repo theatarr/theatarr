@@ -26,9 +26,6 @@ func TestRouterSettings(t *testing.T) {
 		!got.AllDebridDeleteUncached {
 		t.Errorf("example %+v, defaults %+v", got, def)
 	}
-	if got := p.ActiveVersions(); len(got) != 0 {
-		t.Errorf("example active versions %v, want none", got)
-	}
 	for _, tc := range []struct {
 		yaml, err string
 	}{
@@ -72,11 +69,10 @@ func TestRouterSettings(t *testing.T) {
 	}
 }
 
-func TestActiveVersions(t *testing.T) {
+func TestVersionKeys(t *testing.T) {
 	t.Parallel()
-	p := &Policy{Versions: map[string]*VersionPolicy{"b": {Mode: ModeActive}, "a": {Mode: ModeActive},
-		"c": {Mode: ModeShadow}, "d": {}}}
-	if got := p.ActiveVersions(); !slices.Equal(got, []string{"a", "b"}) {
+	p := &Policy{Versions: map[string]*VersionPolicy{"b": {}, "a": {}, "c": {}}}
+	if got := p.VersionKeys(); !slices.Equal(got, []string{"a", "b", "c"}) {
 		t.Errorf("got %v", got)
 	}
 }

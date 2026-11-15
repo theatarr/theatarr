@@ -8,14 +8,12 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/theatarr/theatarr/internal/policy"
 )
 
 // reassignEnv imports the two-episode pack (links 1: E01, 2: E02 in version tv) and adds E03 without a file.
 func reassignEnv(t *testing.T) (*env, map[int64]string) {
 	t.Helper()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.lib.set.Versions["tv"].PlexSection = 7
 	e.exec(`INSERT INTO episode (id, title_id, season, number, name, created_at, updated_at) VALUES (203, 2, 1, 3, 'Third', 0, 0)`)
 	e.importSeries()
@@ -244,16 +242,16 @@ func TestReassignOtherVersionUntouched(t *testing.T) {
 	}
 }
 
-// TestReassignGate: a version the gate refuses (shadow) changes nothing.
+// TestReassignGate: a version the gate refuses (library off) changes nothing.
 func TestReassignGate(t *testing.T) {
 	t.Parallel()
 	e, byEp := reassignEnv(t)
 	id := e.linkOf(byEp[201])
-	e.pol.Versions["tv"].Mode = policy.ModeShadow
+	e.pol.Library.Enabled = false
 	e.lib = e.lib.WithPolicy(e.pol, e.lib.engine, nil, nil)
 	snap := tree(t, e.dir)
 	if _, err := e.lib.ReassignEpisodes(e.ctx, id, []int64{203}, false); !errors.Is(err, ErrRefused) {
-		t.Fatalf("shadow: %v", err)
+		t.Fatalf("library off: %v", err)
 	}
 	if got := tree(t, e.dir); strings.Join(got, "\n") != strings.Join(snap, "\n") || e.linkEps(id) != "201" {
 		t.Fatalf("refused reassign changed something")
@@ -368,7 +366,7 @@ func TestReassignReplaceStaleRowAtDestination(t *testing.T) {
 // files still import.
 func TestReassignReplaceKeptByReimport(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.exec(`INSERT INTO episode (id, title_id, season, number, name, created_at, updated_at) VALUES (203, 2, 1, 3, 'Third', 0, 0)`)
 	rel := "Show.S01.2160p.BluRay.REMUX.HEVC-GRP"
 	e.release(rel, map[string]float64{"Show.S01E01.2160p.BluRay.REMUX.HEVC-GRP.mkv": 2700,
@@ -480,7 +478,7 @@ func TestReassignReplaceCancelledRestores(t *testing.T) {
 // other files still import.
 func TestReassignReplaceManualKeptByReimport(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.exec(`INSERT INTO episode (id, title_id, season, number, name, created_at, updated_at) VALUES (203, 2, 1, 3, 'Third', 0, 0)`)
 	rel := "Show.S01.2160p.BluRay.REMUX.HEVC-GRP"
 	f1, f2, f3 := "Show.S01E01.2160p.BluRay.REMUX.HEVC-GRP.mkv", "Show.S01E02.2160p.BluRay.REMUX.HEVC-GRP.mkv",
@@ -538,7 +536,7 @@ func TestReassignReplaceManualKeptByReimport(t *testing.T) {
 // a re-import links E02 from it again, and E01 stays corrected.
 func TestReassignReplaceManualByNameKeepsRest(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.exec(`INSERT INTO episode (id, title_id, season, number, name, created_at, updated_at) VALUES (203, 2, 1, 3, 'Third', 0, 0)`)
 	rel := "Show.S01.2160p.BluRay.REMUX.HEVC-GRP"
 	f12, f3 := "Show.S01E01E02.2160p.BluRay.REMUX.HEVC-GRP.mkv", "Show.S01E03.2160p.BluRay.REMUX.HEVC-GRP.mkv"

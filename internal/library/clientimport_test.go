@@ -33,7 +33,7 @@ func symlinks(t *testing.T, dir string, links map[string]string) {
 
 func TestImportClientDownloadFromMount(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
 	// import_from: mount: the client's torrent name is the mount folder.
 	e.clientDownload(movieRelease, "")
@@ -51,7 +51,7 @@ func TestImportClientDownloadFromMount(t *testing.T) {
 
 func TestImportClientDownloadFolder(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.release(movieRelease, map[string]float64{"movie.mkv": 7000, "Extras/featurette.mkv": 30})
 	// The client's folder (already mapped to local_path by the poller): a link per file, a sub-folder as the
 	// torrent has it, and a file that is not a link (passed over).
@@ -90,7 +90,7 @@ func TestImportClientDownloadFolderRefused(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			e := newEnv(t, true, policy.ModeActive)
+			e := newEnv(t, true)
 			e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
 			e.release("Other.Release-GRP", map[string]float64{"movie.mkv": 7000})
 			dir := filepath.Join(e.outside, "dl", "Amelie")
@@ -113,7 +113,7 @@ func TestImportClientDownloadFolderRefused(t *testing.T) {
 // and none for the torrent) imports from the mount, found by hash and names as in import_from: mount.
 func TestImportClientDownloadFolderMissingImportsFromMount(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
 	e.clientDownload(movieRelease, filepath.Join(e.outside, "decypharr", "Amelie"))
 	plan, err := e.lib.Import(e.ctx, 1, false)
@@ -124,7 +124,7 @@ func TestImportClientDownloadFolderMissingImportsFromMount(t *testing.T) {
 		t.Errorf("download %s", got)
 	}
 	// A provider download's missing path is still an error, as before.
-	e2 := newEnv(t, true, policy.ModeActive)
+	e2 := newEnv(t, true)
 	e2.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
 	e2.exec(`UPDATE download SET source_path = ? WHERE id = 1`, filepath.Join(e2.outside, "nothing"))
 	if _, err := e2.lib.Import(e2.ctx, 1, true); err == nil {
@@ -136,7 +136,7 @@ func TestImportClientDownloadFolderMissingImportsFromMount(t *testing.T) {
 // mount under its own path.
 func TestImportClientDownloadFolderMapsLinkTargets(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
 	e.pol.Clients = map[string]*policy.Client{"dc": {Kind: "decypharr", ImportFrom: policy.ImportFromDownloadFolder,
 		RemotePath: "/client-data", LocalPath: filepath.Dir(e.mount)}}
@@ -149,7 +149,7 @@ func TestImportClientDownloadFolderMapsLinkTargets(t *testing.T) {
 		t.Fatalf("plan %+v, %v", plan, err)
 	}
 	// Unmapped, a target outside the mount is still refused.
-	e2 := newEnv(t, true, policy.ModeActive)
+	e2 := newEnv(t, true)
 	e2.release(movieRelease, map[string]float64{"movie.mkv": 7000})
 	dir2 := filepath.Join(e2.outside, "decypharr", "Amelie")
 	symlinks(t, dir2, map[string]string{"movie.mkv": filepath.Join("/client-data", filepath.Base(e2.mount), "__all__",
@@ -164,7 +164,7 @@ func TestImportClientDownloadFolderMapsLinkTargets(t *testing.T) {
 // path) imports from the mount by hash and names, as for a missing folder elsewhere.
 func TestImportClientDownloadFolderMissingUnderTheMount(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
 	e.clientDownload(movieRelease, filepath.Join(e.mount, "__all__", "Amelie.Not.There"))
 	plan, err := e.lib.Import(e.ctx, 1, false)

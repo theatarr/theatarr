@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/theatarr/theatarr/internal/library/probe"
-	"github.com/theatarr/theatarr/internal/policy"
 )
 
 // probed is a real-shaped probe: codec, frame size, and the encoder SEI MediaInfo would show.
@@ -151,7 +150,7 @@ func (e *env) size(folder string, size int64) {
 // and the Bluray stays.
 func TestImportRefusesMislabelledRemux(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	folder := filepath.Join(e.movies, "Amelie The Movie (2001)")
 	held := filepath.Join(folder, "held.mkv")
 	target := filepath.Join(e.mount, "__all__", "Held", "held.mkv")
@@ -215,7 +214,7 @@ func TestImportMislabelGuardPassesHonestRemux(t *testing.T) {
 			"remux: 1080p remux in HEVC", 25 << 30},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			e := newEnv(t, true, policy.ModeActive)
+			e := newEnv(t, true)
 			e.release(tc.release, map[string]float64{"movie.mkv": 7000})
 			e.size(tc.release, tc.size)
 			e.videoSize(tc.release, tc.w, tc.h)
@@ -245,7 +244,7 @@ func TestImportMislabelSeriesAndManual(t *testing.T) {
 	t.Parallel()
 	pack := "Show.S01.2160p.UHD.BluRay.Remux.HEVC-PACK"
 	setup := func(t *testing.T) *env {
-		e := newEnv(t, true, policy.ModeActive)
+		e := newEnv(t, true)
 		e.release(pack, map[string]float64{"Show.S01E01.mkv": 2700, "Show.S01E02.mkv": 2700})
 		e.size(pack, 20<<30)
 		e.videoSize(pack, 1920, 1080)
@@ -281,7 +280,7 @@ func TestImportMislabelSeriesAndManual(t *testing.T) {
 // is per release, and E01 came from it), so no re-search is queued: the wanted loop may pick the pack again.
 func TestImportMislabelPartPack(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	pack := "Show.S01.2160p.UHD.BluRay.Remux.HEVC-PACK"
 	e.release(pack, map[string]float64{"Show.S01E01.mkv": 2700, "Show.S01E02.mkv": 2700})
 	e.size(pack, 20<<30)

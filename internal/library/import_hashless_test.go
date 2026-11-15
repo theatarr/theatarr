@@ -9,14 +9,13 @@ import (
 	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/decide/format"
 	"github.com/theatarr/theatarr/internal/decide/profile"
-	"github.com/theatarr/theatarr/internal/policy"
 )
 
 // A client may import by path with no known torrent hash. Its file is ordinary,
 // but covering curated alternatives can still justify a search after import.
 func TestHashlessSeriesImportCutoff(t *testing.T) {
 	t.Parallel()
-	e := importUpEnv(t, policy.ModeActive, "")
+	e := importUpEnv(t, "")
 	e.pol.Profiles["tv-state"].Cutoff = "WEBDL-2160p"
 	e.pol.Profiles["tv-state"].CutoffScore = 0
 	engine, err := decide.New(e.pol, decide.Options{})
@@ -62,7 +61,7 @@ func TestHashlessSeriesImportCutoff(t *testing.T) {
 
 func TestHashlessMovieImportCutoff(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	vp := e.pol.Versions["movie-remux"]
 	vp.PreferSeaDex = true
 	p := e.lib.engine.Profile(vp.Profile, format.Radarr)

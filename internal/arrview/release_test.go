@@ -43,7 +43,7 @@ func TestReleaseSearchAndGrab(t *testing.T) {
 		t.Errorf("searches %s", got)
 	}
 	// Ruddarr and upgrade scripts grab with guid and indexerId only. The release goes to the router for both versions that
-	// accepted it: the active one is added, the shadow one is a dry-run plan (no write).
+	// accepted it.
 	e.call("POST", "/radarr/api/v3/release", map[string]any{"guid": good["guid"], "indexerId": 2}, 200, nil)
 	e.drain()
 	if adds := e.adds(); len(adds) != 1 || adds[0] != strings.Repeat("9", 40) {
@@ -52,11 +52,8 @@ func TestReleaseSearchAndGrab(t *testing.T) {
 	if n := e.one(`SELECT COUNT(*) FROM download WHERE version_key = 'movie-web' AND source = 'arrview:release:radarr'`); n != 1 {
 		t.Errorf("download rows %d", n)
 	}
-	if n := e.one(`SELECT COUNT(*) FROM router_plan WHERE version_key = 'movie-remux' AND mode = 'shadow'`); n != 1 {
-		t.Errorf("shadow plans %d", n)
-	}
-	if n := e.one(`SELECT COUNT(*) FROM download WHERE version_key = 'movie-remux'`); n != 0 {
-		t.Errorf("shadow version got a download")
+	if n := e.one(`SELECT COUNT(*) FROM download WHERE version_key = 'movie-remux'`); n != 1 {
+		t.Errorf("movie-remux download rows %d", n)
 	}
 	// The grab shows in history with our guid (decypharr's reconcile reads data.guid).
 	var p struct{ Records []map[string]any }
@@ -218,18 +215,6 @@ func TestReleasePush(t *testing.T) {
 		"indexer": "prowlarr-public", "publishDate": "2026-10-26T11:00:00Z", "tvdbId": 201, "imdbId": "tt0000201"}, 200)
 	if out[0]["approved"] != true || out[0]["mappedSeriesId"].(float64) != IDBase+10 {
 		t.Errorf("sonarr push %v", out)
-	}
-	// A shadow version never writes: the remux view.
-	writes := e.rt.Writes()
-	push("/v/movie-remux/radarr/api/v3/release/push", map[string]any{"title": "Alpha.2020.2160p.WEB-DL.H265-GRP",
-		"magnetUrl": "magnet:?xt=urn:btih:" + strings.Repeat("4", 40), "protocol": "torrent", "indexer": "prowlarr-public",
-		"publishDate": "2026-10-26T11:00:00Z", "tmdbId": 101}, 200)
-	e.drain()
-	if e.rt.Writes() != writes+1 { // the Sonarr push above, nothing for the remux view
-		t.Errorf("writes %d, before %d", e.rt.Writes(), writes)
-	}
-	if n := e.one(`SELECT COUNT(*) FROM download WHERE version_key = 'movie-remux'`); n != 0 {
-		t.Errorf("shadow downloads %d", n)
 	}
 }
 

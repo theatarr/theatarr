@@ -11,7 +11,7 @@ import (
 // With PreferSeaDex off too, a deferred RSS release whose scene mapping changed while it waited is placed for the episodes it maps to
 // now, not the ones it was queued with.
 func TestDeferredRemapWithoutSeaDex(t *testing.T) {
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.pol.Profiles = map[string]*policy.Profile{"tv": {Qualities: []policy.QualityItem{{Name: "WEBDL-2160p"}},
 		Cutoff: "WEBDL-2160p"}}
 	e.pol.Versions["series"].Profile = "tv"

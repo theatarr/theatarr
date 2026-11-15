@@ -49,7 +49,7 @@ const (
 	PermManage
 	// PermOwnKeys: create and revoke one's own API keys.
 	PermOwnKeys
-	// PermAdmin: the admin panel (system, jobs, shadow, registry, policy, logs, journal, metadata review) and the
+	// PermAdmin: the admin panel (system, jobs, registry, policy, logs, journal, metadata review) and the
 	// device routes.
 	PermAdmin
 	// PermUsers: users, their settings and everyone's API keys.

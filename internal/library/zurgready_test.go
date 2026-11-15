@@ -18,7 +18,7 @@ import (
 // readyLoadingTTL; a 200 is reused for the interval.
 func TestZurgReadyHoldsSweeps(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.release("Some.Release", map[string]float64{"movie.mkv": 7000})
 	srv := newZurgServer(t)
 	srv.ready = http.StatusServiceUnavailable
@@ -75,7 +75,7 @@ func TestZurgReadyHoldsSweeps(t *testing.T) {
 func TestZurgReadyNoAnswerFallsBack(t *testing.T) {
 	t.Parallel()
 	for _, status := range []int{http.StatusNotFound, http.StatusInternalServerError} {
-		e := newEnv(t, true, policy.ModeActive)
+		e := newEnv(t, true)
 		e.release("Some.Release", map[string]float64{"movie.mkv": 7000})
 		srv := newZurgServer(t)
 		srv.ready = status
@@ -91,7 +91,7 @@ func TestZurgReadyNoAnswerFallsBack(t *testing.T) {
 		}
 	}
 
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.release("Some.Release", map[string]float64{"movie.mkv": 7000})
 	gone := httptest.NewServer(http.NotFoundHandler())
 	gone.Close()
@@ -119,7 +119,7 @@ func TestZurgReadyNoAnswerFallsBack(t *testing.T) {
 // TestZurgReadyOffWithoutAPI: without zurg_api nothing asks /ready and the mount checks are as before.
 func TestZurgReadyOffWithoutAPI(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.release("Some.Release", map[string]float64{"movie.mkv": 7000})
 	if err := e.lib.MountListed(e.ctx); err != nil {
 		t.Fatal(err)

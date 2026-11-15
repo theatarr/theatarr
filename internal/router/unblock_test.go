@@ -6,15 +6,13 @@ import (
 	"errors"
 	"strings"
 	"testing"
-
-	"github.com/theatarr/theatarr/internal/policy"
 )
 
 // TestUnblock: the row goes and comes back as it was; the other version's entry for the same hash stays; an unknown
 // entry is sql.ErrNoRows.
 func TestUnblock(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	ctx := context.Background()
 	hash := strings.Repeat("ab", 20)
 	err := e.st.WriteTx(ctx, func(tx *sql.Tx) error {

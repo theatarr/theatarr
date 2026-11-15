@@ -13,8 +13,7 @@ import (
 )
 
 // Hooks for the arr views' decision endpoints (release, release/push, parse, manualimport) and the native decision
-// API: search and decide one target, or decide one release, for a version of a title. Nothing is routed (grabs go to the router, which writes only for active versions). Unlike Submit
-// they serve shadow versions too: a decision is an answer, not an acquisition.
+// API: search and decide one target, or decide one release, for a version of a title. Nothing is routed (grabs go to the router, which writes only while Pause is off).
 
 // ErrNoEngine means the acquirer was built without a decision engine.
 var ErrNoEngine = errors.New("acquire: no decision engine")

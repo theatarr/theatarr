@@ -57,7 +57,7 @@ func newImportLoop(t *testing.T, mountDown bool) *importLoop {
 		mount = filepath.Join(dir, "gone")
 	}
 	pol := &policy.Policy{
-		Versions: map[string]*policy.VersionPolicy{"movie": {Mode: policy.ModeActive, Kind: policy.KindMovie, Library: root}},
+		Versions: map[string]*policy.VersionPolicy{"movie": {Kind: policy.KindMovie, Library: root}},
 		Library: &policy.Library{Enabled: true, Mount: policy.LibraryMount{Path: mount},
 			Versions: map[string]*policy.LibraryVersion{"movie": {Roots: []string{root}}}},
 	}

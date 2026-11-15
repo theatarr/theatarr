@@ -71,7 +71,7 @@ type copyEnv struct {
 // torrents keep the hash), and the deleters remove them from it.
 func newCopyEnv(t *testing.T, state provider.State, keys ...string) *copyEnv {
 	t.Helper()
-	e := &copyEnv{env: newEnv(t, true, policy.ModeActive), del: map[string]*copyDeleter{}}
+	e := &copyEnv{env: newEnv(t, true), del: map[string]*copyDeleter{}}
 	e.w = withWorker(e.env)
 	for k := range e.r.adders {
 		delete(e.r.adders, k)

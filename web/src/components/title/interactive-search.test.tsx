@@ -6,7 +6,7 @@ import { InteractiveSearchButton } from "./interactive-search";
 import { LibraryNamesProvider } from "@/lib/library-names";
 
 const ME: Route = { method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["browse", "see_files", "manage"] } };
-const control = (live: boolean) => ({ mode: live ? "active" : "shadow", can_edit: true, can_search: live, live_releases: live });
+const control = (live: boolean) => ({ can_edit: true, can_search: live, live_releases: live });
 const TITLE: Route = {
   method: "GET",
   path: "/titles/7",
@@ -34,7 +34,7 @@ const accepted = {
 };
 const rejected = { rank: 2, release: "Alpha.2020.720p.WEB-OTHER", info_hash: "bbb", accepted: false, score: -10, quality: "WEBDL-720p", rejections: [{ reason: "quality", message: "WEBDL-720p is not wanted" }] };
 const answer = (version = "movie-web", more: object = {}) => ({
-  title_id: 7, version, versions: ["movie-web", "movie-remux"], mode: "active", live_allowed: true, source: "live", results: 2, accepted: 1,
+  title_id: 7, version, versions: ["movie-web", "movie-remux"], live_allowed: true, source: "live", results: 2, accepted: 1,
   candidates: [accepted, rejected], rejections: { quality: 1 }, outcomes: { aaa: { outcome: "failed", provider: "rd", reason: "RD status error" } }, grab: true, ...more,
 });
 const sent = { version: "movie-web", release: accepted.release, info_hash: "aaa", accepted: true, overridden: false, message: "Sent to the router" };

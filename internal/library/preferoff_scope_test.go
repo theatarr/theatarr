@@ -8,7 +8,6 @@ import (
 
 	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/indexer"
-	"github.com/theatarr/theatarr/internal/policy"
 )
 
 // A split-cour pack imported under a prefer-on version stores each file's own scoped rank and entry; a later
@@ -16,7 +15,7 @@ import (
 // after the mappings that scoped them are gone.
 func TestPreferOffReadKeepsSplitCourScope(t *testing.T) {
 	t.Parallel()
-	e := importUpEnv(t, policy.ModeActive, "")
+	e := importUpEnv(t, "")
 	e.pol.Versions["tv"].PreferSeaDex = true
 	for _, q := range []string{
 		`INSERT INTO anime_franchise(slug,name,seed_anilist,created_at,updated_at) VALUES('f','F',11,0,0)`,

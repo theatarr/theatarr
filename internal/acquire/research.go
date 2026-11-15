@@ -37,8 +37,8 @@ func (a *Acquirer) Research(ctx context.Context, p router.ResearchRequest) error
 	ctx = a.captureRuntime(ctx)
 	vp := a.pol.Versions[p.Version]
 	switch {
-	case vp == nil || vp.Mode != policy.ModeActive:
-		a.log.Info("re-search skipped: the library is not Live", "title", p.TitleID, "version", p.Version, "reason", p.Reason)
+	case vp == nil:
+		a.log.Info("re-search skipped: the library is not in the settings", "title", p.TitleID, "version", p.Version, "reason", p.Reason)
 		return nil
 	case p.Reason == router.ReasonDeadLink && !library.NewGate(a.pol).Active(p.Version):
 		a.log.Info("re-search skipped: the library does not write", "title", p.TitleID, "version", p.Version)

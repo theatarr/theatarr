@@ -44,7 +44,6 @@ Each entry is one decision, or one thing that happened after a decision.
 |---|---|
 | `grab` | A release was chosen and sent to a provider or a download client |
 | `upgrade` | The same, for a version that already had a file |
-| `plan` | A router dry run (a Watch-only library, or Pause on) |
 | `search` | A theatarr search that routed nothing: nothing was accepted, or the search failed |
 | `research` | A theatarr search started by a failure |
 | `failure` | A download failed |
@@ -65,7 +64,6 @@ The **id** names the source row. Ids are stable, so they work as keys in your no
 | `lib:<n>` | Library action n |
 | `bl:<n>` | Blocklist row n |
 | `run:<n>` | Acquire run n |
-| `plan:<n>` | Router plan n |
 | `v:<n>` | Verdict n |
 | `act:<n>` | Web UI action n |
 
@@ -74,7 +72,7 @@ The **id** names the source row. Ids are stable, so they work as keys in your no
 | Field | What |
 |---|---|
 | `at`, `kind`, `source` | When it happened, and who decided or acted: `theatarr`, `router`, `library`, `journal` or `web` |
-| `title`, `version`, `mode` | `mode` is the version's mode in the running policy: `active` (Live) writes, `shadow` (Watch only) only plans |
+| `title`, `version` | The title and the library |
 | `summary` | One line saying what happened |
 | `release` | Title, indexer, info hash, size, quality, score, formats, languages, episodes (`S01E02`), and `how` it was found (`Rss`, `Search`, `InteractiveSearch`; `acquire:<run>`, `rss`). A `link` entry for a link action carries the title and quality of its own download when it has one; a replace or a link without a download has none. Activity › History reads the journal in its own way (below) |
 | `reasoning` | Why this release was chosen (next table) |
@@ -96,7 +94,6 @@ The `reasoning` object:
 | `runners_up` | The other kept candidates. That is up to 8 accepted ones in rank order, then the 4 rejected ones with the highest scores, each with its rejections. |
 | `rejection_counts` | How many results each rejection reason (the arr's `DownloadRejectionReason` names) refused |
 | `results`, `accepted` | How many releases the search found, and how many it accepted |
-| `router_plan` | The router's dry run: summary, and every step with provider, outcome, code and why |
 | `missing` | What is not recorded for this entry. Routes from before migration 00024 have no candidate list. A trimmed list is noted. |
 
 Secrets never appear. Every free-text field is masked: URLs, API keys, passkeys, tokens and magnets come out as `[redacted]`.
@@ -151,7 +148,7 @@ Content-Type: application/json
   - queues `acquire.research` for the title, and for series the entry's episodes. The item is then due for a search
     at once and starts as `router.wanted.per_hour` allows; one within `again_after` of the last search after a
     failure is skipped.
-- **For a Watch-only library, or with Pause on**, `wrong` is only recorded. `action_note` says why.
+- **With Pause on**, `wrong` is only recorded. `action_note` says why.
 - The response's `action` is `recorded` or `blocklisted`, and `research_job` is the job id when one was queued.
 - **Nothing is ever deleted**, on a debrid provider or anywhere else, and the current link stays. The new grab
   replaces it as an upgrade, or you report it.
@@ -162,7 +159,7 @@ What to do:
 
 1. List suspects: `suspect=1`, newest first, and follow the cursor.
 2. For each one, read `flags`, `release`, `reasoning` and `after`. Fetch the `related` entries you need.
-3. Give a verdict on the decision entry itself: the `grab`, `upgrade` or `plan` entry, not the `failure`
+3. Give a verdict on the decision entry itself: the `grab` or `upgrade` entry, not the `failure`
    or `import` that followed. That entry carries the hash and the version.
 
 ## Retention
@@ -188,7 +185,7 @@ upgrade alike, classified only when `kinds` is filtered), imported (one row per 
 held, as recorded on its link actions), adopted (adoption link actions grouped by library, release and day), deleted (an import's replace actions,
 grouped by old release; "Deleted (upgrade)" with what replaced it), removed (a replace without a download: an unlink
 by hand), missing (a dead link), failed, blocked, and the provider copies' outcomes (`copy:<provider_copy_event>`, not
-a journal entry). Searches, plans, dry runs, mount waits and repaired links are journal entries only.
+a journal entry). Searches, dry runs, mount waits and repaired links are journal entries only.
 
 History reads the same sources as the journal but not its entries: every filter (title, scope, kind of title, library,
 since, events, cursor) is applied inside each source, which gives at most a page of its newest rows, and the page's

@@ -35,7 +35,7 @@ it("shows read-only waits and handoffs, filters and pages on the server", async 
   expect(screen.getByTestId("pager-range").textContent).toBe("1–50 of 51");
   // Missing counts items; Home's Missing counts titles, and the line says so with a link.
   const count = screen.getByTestId("wanted-count");
-  expect(count.textContent).toBe("51 items (one per film or season in each Live library, not per episode); Home's Missing counts titles, Watch-only libraries too.");
+  expect(count.textContent).toBe("51 items (one per film or season in each library, not per episode); Home's Missing counts titles.");
   expect(within(count).getByRole("link", { name: "Missing" }).getAttribute("href")).toBe("/discover/missing");
   await user.click(screen.getByRole("button", { name: "Next" }));
   await waitFor(() => expect(new URLSearchParams(fetch.calls("GET", "/wanted").at(-1)?.search).get("offset")).toBe("50"));
@@ -97,7 +97,7 @@ it("names upgrades on the cutoff tab's banner and links its switch", async () =>
   const banner = await screen.findByTestId("wanted-switch-off");
   expect(banner.textContent).toContain("Theatarr is not searching for upgrades by itself.");
   expect(banner.textContent).toContain("Better releases are still picked up from RSS feeds.");
-  expect(screen.getByText("No items waiting in this selection; Wanted lists Live libraries only.")).toBeTruthy();
+  expect(screen.getByText("No items waiting in this selection.")).toBeTruthy();
   expect(within(banner).getByRole("link", { name: "Automatic search settings" }).getAttribute("href")).toBe("/admin/settings/indexers/rss#searches");
   expect(screen.queryByRole("switch")).toBeNull();
   expect(screen.getByRole("tab", { name: "Missing" }).getAttribute("href")).toBe("/wanted?version=movie-web");
@@ -122,7 +122,7 @@ it("formats search outcomes and targets", () => {
   expect(searchResult({ ...run, state: "routed", downloaded: true, download_state: "downloading" })).toBe("Grabbed · Downloading");
 });
 
-const gates = { mode: "active", paused: false, pause_forced: false, will_grab: true };
+const gates = { paused: false, pause_forced: false, will_grab: true };
 
 it("words rows and the notice from the server's grab state: forced Pause", async () => {
   const locked = { ...gates, paused: true, pause_forced: true, will_grab: false };
@@ -322,9 +322,9 @@ it("opens Interactive search for a series row's season from the row", async () =
     { method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["manage"] } },
     { method: "GET", path: "/wanted", reply: { ...page, items: [{ ...row, version: "tv-web", targets: ["s02e03"], season: 2 }] } },
     { method: "GET", path: "/status", reply: { versions: [] } },
-    { method: "GET", path: "/titles/1", reply: { id: 1, name: "Alpha", kind: "series", versions: [{ id: 1, key: "tv-web", label: "TV WEB", control: { mode: "active", can_edit: true, can_search: true, live_releases: true } }] } },
+    { method: "GET", path: "/titles/1", reply: { id: 1, name: "Alpha", kind: "series", versions: [{ id: 1, key: "tv-web", label: "TV WEB", control: { can_edit: true, can_search: true, live_releases: true } }] } },
     { method: "GET", path: "/titles/1/removal", reply: { title_id: 1, name: "Alpha", title: true, leftover: [], copies: [{ key: "tv-web", label: "TV WEB", links: 0, downloads: 0 }] } },
-    { method: "GET", path: "/titles/1/releases", reply: { title_id: 1, version: "tv-web", versions: ["tv-web"], mode: "active", live_allowed: true, source: "live", results: 0, accepted: 0, candidates: [], grab: true } },
+    { method: "GET", path: "/titles/1/releases", reply: { title_id: 1, version: "tv-web", versions: ["tv-web"], live_allowed: true, source: "live", results: 0, accepted: 0, candidates: [], grab: true } },
   ]);
   renderPage(<WantedPage />, "/wanted");
   const r = await screen.findByTestId("wanted-row");
@@ -364,7 +364,7 @@ it("keeps the retry sentence to Missing, names the unit, and puts Decision with 
   renderPage(<WantedPage />, "/wanted/cutoff");
   const r = await screen.findByTestId("wanted-row");
   expect(screen.getByTestId("wanted-pace").textContent).toBe("Up to 20 searches an hour (4 in the last hour). Items are searched again every 24 h.");
-  expect(screen.getByTestId("wanted-count").textContent).toBe("1,128 items (one per film or season in each Live library, not per episode).");
+  expect(screen.getByTestId("wanted-count").textContent).toBe("1,128 items (one per film or season in each library, not per episode).");
   const last = r.querySelector('[data-column="last"]')!;
   expect(last.textContent).toMatch(/Grabbed · Decision$/);
   expect(within(last as HTMLElement).getByRole("link", { name: "Decision" }).getAttribute("href")).toBe("/admin/system/journal/run%3A3");

@@ -3,8 +3,6 @@ package library
 import (
 	"errors"
 	"testing"
-
-	"github.com/theatarr/theatarr/internal/policy"
 )
 
 // TestMountListedRefusesEmptyListing: the router's ready deadline waits while the mount is
@@ -12,7 +10,7 @@ import (
 // the listing check relink uses (Mount.checkListing): an empty listing is ErrMountDown, a real one is not.
 func TestMountListedRefusesEmptyListing(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	if err := e.lib.MountHealthy(e.ctx); err != nil {
 		t.Fatalf("stat check on an empty listing: %v", err)
 	}

@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/provider/adder"
 )
 
@@ -12,7 +11,7 @@ import (
 // (router:add) miss_ttl.
 func TestCheckUncachedLivesThirtyMinutes(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.r.set.CachedOnly = true
 	e.pr["tb"].cache = map[string]bool{}
 	e.ad["rd"].add = refuse(adder.CodeNotCached)
@@ -61,7 +60,7 @@ func TestCheckUncachedLivesThirtyMinutes(t *testing.T) {
 // An all-provider miss leaves a live check verdict and its 30 minutes as they are.
 func TestMissKeepsCheckVerdict(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.r.set.CachedOnly = true
 	e.pr["tb"].cache = map[string]bool{}
 	e.pol.Versions["movie"].Providers = []string{"tb"}

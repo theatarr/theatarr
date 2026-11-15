@@ -185,7 +185,7 @@ func TestDownloadEntries(t *testing.T) {
 	e := newEnv(t)
 	e.seedRoute()
 	g := e.get("dl:1")
-	if g.Kind != KindGrab || g.Source != "theatarr" || g.Title.Name != "Alpha" || g.Mode != "shadow" {
+	if g.Kind != KindGrab || g.Source != "theatarr" || g.Title.Name != "Alpha" {
 		t.Fatalf("grab: %+v", g)
 	}
 	r := g.Reasoning
@@ -437,7 +437,7 @@ func TestVerdicts(t *testing.T) {
 	e := newEnv(t)
 	e.seedRoute()
 	ctx := context.Background()
-	// Shadow mode: recorded only, and the flags are acknowledged.
+	// The router off: recorded only, and the flags are acknowledged.
 	e.dlEvent(3, "added", testNow.Add(-time.Hour), 1, 1, "movie-remux", hashC, "Other.Film.1999.2160p.WEB-DL-X",
 		"WEBDL-2160p", 100, 0, nil, "")
 	before := e.get("dl:3")
@@ -448,8 +448,8 @@ func TestVerdicts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v.Action != ActionRecorded || !strings.Contains(v.Note, "Watch only") || v.ResearchJob != 0 {
-		t.Errorf("shadow verdict: %+v", v)
+	if v.Action != ActionRecorded || !strings.Contains(v.Note, "router.enabled is false") || v.ResearchJob != 0 {
+		t.Errorf("recorded verdict: %+v", v)
 	}
 	after := e.get("dl:3")
 	if after.Suspect || after.Verdict == nil || after.Verdict.Verdict != "wrong" || !after.Flags[0].Acked {
@@ -476,7 +476,6 @@ func TestVerdicts(t *testing.T) {
 		t.Errorf("missing entry: %v", err)
 	}
 	// Active, router off: still recorded only.
-	e.pol.Versions["movie-remux"].Mode = policy.ModeActive
 	v, err = e.j.Judge(ctx, "dl:1", VerdictRequest{Verdict: "wrong", Reason: "bad"}, "key:agent")
 	if err != nil || v.Action != ActionRecorded || !strings.Contains(v.Note, "router.enabled is false") {
 		t.Fatalf("router off: %+v %v", v, err)

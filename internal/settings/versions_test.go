@@ -137,13 +137,13 @@ func TestVersionsConfirmationCandidateAndGeneration(t *testing.T) {
 	s, _, p, initial := versionFixture(t)
 	m := versionCoordinator(t, s, p, initial)
 	req := saveRequest(p, initial)
-	editVersion(&req.Records, "movie-web", func(v *Version) { v.Config.Mode = policy.ModeActive })
+	req.Records.Switches = &GlobalSwitches{Paused: false}
 	if _, err := s.Save(context.Background(), req); err == nil {
 		t.Fatal("direct store save enabled writes")
 	}
 	_, err := m.SaveAndApply(context.Background(), req)
 	var refused *ConfirmationError
-	if !errors.As(err, &refused) || len(refused.Effects) == 0 || !strings.Contains(refused.Effects[0].Effect, p.Versions["movie-web"].Library) || !strings.Contains(refused.Effects[0].Effect, "rd, ad, tb") {
+	if !errors.As(err, &refused) || len(refused.Effects) == 0 || !strings.Contains(refused.Effects[0].Effect, "Turn Pause off") {
 		t.Fatalf("missing specific effects: %v", err)
 	}
 	proof, err := m.Confirm(context.Background(), req)
@@ -152,7 +152,8 @@ func TestVersionsConfirmationCandidateAndGeneration(t *testing.T) {
 	}
 	changed := req
 	changed.Records = saveRequest(p, initial).Records
-	editVersion(&changed.Records, "movie-web", func(v *Version) { v.Config.Mode = policy.ModeActive; v.Config.Upgrades = "off" })
+	changed.Records.Switches = &GlobalSwitches{Paused: false}
+	editVersion(&changed.Records, "movie-web", func(v *Version) { v.Config.Upgrades = "off" })
 	changed.ConfirmationToken = proof.Token
 	if _, err := m.SaveAndApply(context.Background(), changed); !errors.As(err, &refused) {
 		t.Fatalf("token authorized different candidate: %v", err)
@@ -166,7 +167,7 @@ func TestVersionsConfirmationCandidateAndGeneration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if saved.Policy.Router.Enabled || saved.Policy.Library.Enabled || saved.Policy.Notify.Enabled {
+	if saved.Policy.Notify.Enabled {
 		t.Fatal("confirmation enabled YAML switch")
 	}
 	if _, err = m.SaveAndApply(context.Background(), req); !errors.Is(err, ErrConflict) {
@@ -299,7 +300,7 @@ func TestVersionsUpgradeFailureAtomic(t *testing.T) {
 		_, err = s.Bootstrap(context.Background(), base, ImportRequest{Dir: dir, Actor: "serve"})
 		return err
 	}
-	editFixture(t, dir, "versions.yaml", "mode: shadow", "mode: invalid")
+	editFixture(t, dir, "versions.yaml", "kind: movie", "kind: invalid")
 	if err := upgrade(); err == nil {
 		t.Fatal("accepted invalid upgrade")
 	}
@@ -352,16 +353,13 @@ func TestVersionWriteEffects(t *testing.T) {
 	s, db, p, initial := versionFixture(t)
 	ctx := context.Background()
 	active, _ := initial.Policy.Clone()
-	active.Versions["movie-web"].Mode = policy.ModeActive
 	active.Versions["movie-web"].Providers = []string{"rd"}
-	// Only the kept list asks: a library going Live (or created Live). Everyday edits
-	// of a Live library (contains "") ask nothing.
+	// A new library and everyday edits of a library (contains "") ask nothing.
 	for _, tc := range []struct {
 		name, contains string
 		change         func(*policy.Policy)
 	}{
-		{"new-active", "becomes Live", func(next *policy.Policy) { v := *next.Versions["movie-web"]; next.Versions["new"] = &v }},
-		{"go-live", "becomes Live", func(next *policy.Policy) { next.Versions["movie-web"].Mode = policy.ModeActive }},
+		{"new", "", func(next *policy.Policy) { v := *next.Versions["movie-web"]; next.Versions["new"] = &v }},
 		{"active-root", "", func(next *policy.Policy) { next.Versions["movie-web"].Library += "-new" }},
 		{"active-provider", "", func(next *policy.Policy) {
 			next.Versions["movie-web"].Providers = append(next.Versions["movie-web"].Providers, "ad")
@@ -369,10 +367,6 @@ func TestVersionWriteEffects(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			before, _ := active.Clone()
-			switch tc.name {
-			case "go-live":
-				before.Versions["movie-web"].Mode = policy.ModeShadow
-			}
 			next, _ := before.Clone()
 			tc.change(next)
 			effects, err := versionConfirmationEffects(ctx, db.Reader(), before, next)
@@ -397,7 +391,7 @@ func TestVersionWriteEffects(t *testing.T) {
 		})
 	}
 	req := saveRequest(p, initial)
-	editVersion(&req.Records, "movie-web", func(v *Version) { v.Config.Mode = policy.ModeActive })
+	req.Records.Switches = &GlobalSwitches{Paused: false}
 	m := versionCoordinator(t, s, p, initial)
 	proof, err := m.Confirm(ctx, req)
 	if err != nil {
@@ -470,11 +464,8 @@ func TestVersionRootWritableMountTrash(t *testing.T) {
 	if err := os.Mkdir(root, 0500); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := validateOneRoot(context.Background(), policy.NewRootResolver(context.Background()), p, "new", root, true); err == nil || !strings.Contains(err.Error(), "not writable") {
-		t.Fatalf("active readonly root: %v", err)
-	}
-	if _, err := validateOneRoot(context.Background(), policy.NewRootResolver(context.Background()), p, "new", root, false); err != nil {
-		t.Fatal("shadow root requires write permission:", err)
+	if _, err := validateOneRoot(context.Background(), policy.NewRootResolver(context.Background()), p, "new", root); err == nil || !strings.Contains(err.Error(), "not writable") {
+		t.Fatalf("readonly root: %v", err)
 	}
 	for _, kind := range []string{"mount", "trash"} {
 		target := filepath.Join(area, kind)
@@ -490,7 +481,7 @@ func TestVersionRootWritableMountTrash(t *testing.T) {
 		if err := os.Symlink(target, alias); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := validateOneRoot(context.Background(), policy.NewRootResolver(context.Background()), p, "new", alias, false); err == nil || !strings.Contains(err.Error(), kind) {
+		if _, err := validateOneRoot(context.Background(), policy.NewRootResolver(context.Background()), p, "new", alias); err == nil || !strings.Contains(err.Error(), kind) {
 			t.Fatalf("%s alias accepted: %v", kind, err)
 		}
 	}
@@ -609,16 +600,14 @@ func TestVersionsSaveIgnoresUnreachableMount(t *testing.T) {
 	}
 }
 
-// Beyond the root, providers and mode: changes to how an active version writes or what it may replace
-// also need the confirmation; the same changes on a shadow version do not.
-// Storage, client, import, upgrades and enable of a Live library are everyday edits: they save at once.
+// Storage, client, import, upgrades and enable of a library are everyday edits: they save at once.
 func TestVersionConfirmationSkipsActiveWriteSettings(t *testing.T) {
 	t.Parallel()
 	p, err := policy.Load(exampleDir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	p.Versions["movie-web"].Mode, p.Versions["movie-web"].Upgrades = policy.ModeActive, policy.UpgradesOff
+	p.Versions["movie-web"].Upgrades = policy.UpgradesOff
 	p.Versions["movie-web"].Enable = "request"
 	next, _ := p.Clone()
 	v := next.Versions["movie-web"]
@@ -724,7 +713,6 @@ func TestVersionRenameNeedsNoConfirmation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	p.Versions["movie-web"].Mode = policy.ModeActive
 	next, _ := p.Clone()
 	next.Versions["movie-web"].Name = "Films in 4K"
 	if effects, err := versionConfirmationEffects(context.Background(), nil, p, next); err != nil || len(effects) != 0 {

@@ -9,7 +9,7 @@
 //   - metadata detail responses and other sources used for offline reads and conditional refresh; expired TMDb and TVDB
 //     search responses drain in batches;
 //   - pending notify_delivery rows (only sent, failed and dropped ones go);
-//   - every download that is not failed, and failed ones that a link, a live library claim, an import still in
+//   - every download that is not failed, and failed ones that a link, a library claim, an import still in
 //     progress (waiting for the mount or partial), a router blocklist entry, a router offer or a
 //     queued or running job refers to (download_attempt, download_file, download_progress and a finished
 //     library_import go with their download);
@@ -117,7 +117,6 @@ var rules = []rule{
 		EXISTS (SELECT 1 FROM download d WHERE d.id = library_action.download_id)
 		OR EXISTS (SELECT 1 FROM link l WHERE l.path = library_action.path AND l.state IN ('active', 'dead'))))`},
 	{table: "settings_audit", where: `created_at < ?1 AND generation < (SELECT MAX(generation) FROM settings_generation)`},
-	{table: "router_plan", where: `created_at < ?1`},
 }
 
 // Summary is the rows deleted per table.

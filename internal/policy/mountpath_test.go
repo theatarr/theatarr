@@ -67,7 +67,7 @@ func TestRootSeparationMount(t *testing.T) {
 				t.Fatal(err)
 			}
 			root := filepath.Join(dir, tc.root)
-			p := &Policy{Versions: map[string]*VersionPolicy{"K": {Kind: KindMovie, Mode: ModeActive, Library: root}},
+			p := &Policy{Versions: map[string]*VersionPolicy{"K": {Kind: KindMovie, Library: root}},
 				Library: &Library{Mount: LibraryMount{Path: mount}, Versions: map[string]*LibraryVersion{"K": {Roots: []string{root}}}}}
 			if _, err := p.CheckRootSeparation("K"); err == nil {
 				t.Fatal("accepted")

@@ -128,9 +128,9 @@ it("monitors a collection only once it has a library", async () => {
 
 it("marks a film removed from every library, offers Add for it, and refreshes the films after an add", async () => {
   const user = userEvent.setup();
-  const gates = { paused: false, pause_forced: false, library_writes: true, mode: "active", will_grab: true };
+  const gates = { paused: false, pause_forced: false, library_writes: true, will_grab: true };
   const options = { kind: "movie", anime: false, router_enabled: true, episodes_known: false, can_search: true, seasons: [],
-    versions: [{ key: "movie-web", label: "4K WEB", mode: "active", grab_state: gates, kind: "movie", enable: "", fits: true, default: true, on: false, searchable: true }] };
+    versions: [{ key: "movie-web", label: "4K WEB", grab_state: gates, kind: "movie", enable: "", fits: true, default: true, on: false, searchable: true }] };
   const removedFirst = { ...detail({ ...alien, held: 1, removed: 1 }), parts: [detail(alien).parts[0], { tmdb_id: 679, title: "Aliens", year: 1986, removed: true }] };
   let added = false;
   const fetch = mockFetch([

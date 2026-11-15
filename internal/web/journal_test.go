@@ -65,13 +65,13 @@ func TestJournalAPI(t *testing.T) {
 	rec := post("dl:1", `{"verdict":"wrong","reason":"not the movie"}`, nil, true)
 	var v journal.Verdict
 	if rec.Code != 200 || json.Unmarshal(rec.Body.Bytes(), &v) != nil || v.Action != journal.ActionRecorded ||
-		v.By != "key:test-client" || !strings.Contains(v.Note, "Watch only") {
+		v.By != "key:test-client" || !strings.Contains(v.Note, "router.enabled is false") {
 		t.Fatalf("verdict: %d %s", rec.Code, rec.Body.String())
 	}
 	var n int
 	e.st.Reader().QueryRow(`SELECT COUNT(*) FROM router_blocklist`).Scan(&n)
 	if n != 0 {
-		t.Error("a shadow verdict blocklisted")
+		t.Error("a recorded verdict blocklisted")
 	}
 	if code := e.getKey(APIBase+"/journal/dl:1", key, &en); code != 200 || en.Verdict == nil || en.Verdict.ID != v.ID {
 		t.Errorf("entry verdict: %+v", en.Verdict)

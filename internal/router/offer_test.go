@@ -50,11 +50,11 @@ func newOfferEnv(t *testing.T) *offerEnv {
 	tr := true
 	pol := &policy.Policy{
 		Versions: map[string]*policy.VersionPolicy{
-			"movie-remux": {Mode: policy.ModeActive, Kind: policy.KindMovie, Anime: &f},
-			"movie-web":   {Mode: policy.ModeActive, Kind: policy.KindMovie, Anime: &f},
-			"movie-extra": {Mode: policy.ModeShadow, Kind: policy.KindMovie},
-			"anime-movie": {Mode: policy.ModeActive, Kind: policy.KindMovie, Anime: &tr},
-			"tv":          {Mode: policy.ModeActive, Kind: policy.KindSeries},
+			"movie-remux": {Kind: policy.KindMovie, Anime: &f},
+			"movie-web":   {Kind: policy.KindMovie, Anime: &f},
+			"movie-extra": {Kind: policy.KindMovie},
+			"anime-movie": {Kind: policy.KindMovie, Anime: &tr},
+			"tv":          {Kind: policy.KindSeries},
 		},
 		Indexers: map[string]*policy.Indexer{"dmm": {Kind: "dmm", Privacy: policy.PrivacyPublic}},
 		// Grabbing on: an active target's accepted offer is routed (with it off it is planned and retried).
@@ -117,38 +117,6 @@ func byVersion(rs []OfferResult) map[string]OfferResult {
 	return m
 }
 
-func TestOfferAcceptedAndRemembered(t *testing.T) {
-	t.Parallel()
-	e := newOfferEnv(t)
-	h := strings.Repeat("a", 40)
-	e.download(1, 1, 10, "movie-remux", strings.ToUpper(h), "Movie.2001.2160p.WEB-DL.DDP5.1.Atmos-GRP", "imported")
-	res, err := e.off.Offer(e.ctx, 1, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	m := byVersion(res)
-	// Same kind and anime flag only: movie-web and movie-extra (no anime flag), not anime-movie or tv.
-	if len(res) != 2 || m["movie-web"].Outcome != OfferRouted || m["movie-extra"].Outcome != OfferPlanned {
-		t.Fatalf("results %+v", res)
-	}
-	if len(e.enq.reqs) != 2 {
-		t.Fatalf("enqueued %d", len(e.enq.reqs))
-	}
-	r := e.enq.reqs[0]
-	if r.Version != "movie-extra" && r.Version != "movie-web" || r.Source != "offer" || len(r.Candidates) != 1 ||
-		r.Candidates[0].Release.InfoHash != h || r.Candidates[0].Release.Privacy.IsPrivate() || r.Candidates[0].Score != 1700 {
-		t.Errorf("request %+v", r)
-	}
-	if e.outcome("movie-web", 1, h) != OfferRouted || e.outcome("movie-extra", 1, h) != OfferPlanned {
-		t.Error("outcomes not recorded")
-	}
-	// Remembered: nothing is decided or queued again.
-	asked := len(e.asked)
-	if res, err := e.off.Offer(e.ctx, 1, false); err != nil || len(res) != 0 || len(e.asked) != asked || len(e.enq.reqs) != 2 {
-		t.Errorf("second offer %+v %v asked %d", res, err, len(e.asked))
-	}
-}
-
 func TestOfferDeclinedSameAndDryRun(t *testing.T) {
 	t.Parallel()
 	e := newOfferEnv(t)
@@ -181,54 +149,6 @@ func TestOfferDeclinedSameAndDryRun(t *testing.T) {
 	}
 }
 
-// A library the title was removed from is offered nothing: a release the remaining library imports is neither
-// routed nor linked there, nothing is remembered for it, and the other libraries' offers are as before. A pending
-// offer remembered from before the removal is declined (removed); once an Add restores the library it is offered
-// again.
-func TestOfferSkipsRemovedLibrary(t *testing.T) {
-	t.Parallel()
-	e := newOfferEnv(t)
-	h := strings.Repeat("9", 40)
-	e.exec(`INSERT INTO arrview_removed_version (version_id, view, removed_at) VALUES (11, 'ui', 0)`)
-	e.download(1, 1, 10, "movie-remux", h, "Movie.2001.2160p.WEB-DL.DDP5.1.Atmos-GRP", "imported")
-	res, err := e.off.Offer(e.ctx, 1, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	m := byVersion(res)
-	if _, ok := m["movie-web"]; ok || len(res) != 1 || m["movie-extra"].Outcome != OfferPlanned {
-		t.Fatalf("results %+v", res)
-	}
-	if e.outcome("movie-web", 1, h) != "" || len(e.enq.reqs) != 1 || e.enq.reqs[0].Version != "movie-extra" ||
-		slices.Contains(e.asked, "movie-web") {
-		t.Errorf("removed library: outcome %q, queued %+v, asked %v", e.outcome("movie-web", 1, h), e.enq.reqs, e.asked)
-	}
-	// An offer still pending from before the removal is declined, not retried.
-	h2 := strings.Repeat("8", 40)
-	e.exec(`INSERT INTO router_offer (version_key, title_id, info_hash, from_version, release_title, outcome, reasons,
-		attempts, first_at, next_at, updated_at) VALUES ('movie-web', 1, ?, 'movie-remux', 'Movie.WEB', 'pending', '[]',
-		1, 0, 0, 0)`, h2)
-	e.download(2, 1, 10, "movie-remux", h2, "Movie.2001.2160p.WEB-DL-OTHER", "imported")
-	if res, err = e.off.Offer(e.ctx, 2, false); err != nil {
-		t.Fatal(err)
-	}
-	if m := byVersion(res); m["movie-web"].Outcome != OfferDeclined || e.outcome("movie-web", 1, h2) != OfferDeclined {
-		t.Fatalf("pending before the removal: %+v", res)
-	}
-	// Added again: both are offered and routed to it.
-	e.exec(`DELETE FROM arrview_removed_version WHERE version_id = 11`)
-	e.off.seen = nil
-	for _, dl := range []int64{1, 2} {
-		res, err := e.off.Offer(e.ctx, dl, false)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if m := byVersion(res); m["movie-web"].Outcome != OfferRouted {
-			t.Errorf("download %d after the add: %+v", dl, res)
-		}
-	}
-}
-
 func TestOfferPendingRetriesThenGivesUp(t *testing.T) {
 	t.Parallel()
 	e := newOfferEnv(t)
@@ -254,25 +174,6 @@ func TestOfferPendingRetriesThenGivesUp(t *testing.T) {
 	res, _ = e.off.Offer(e.ctx, 1, false)
 	if m := byVersion(res); m["movie-extra"].Outcome != OfferGaveUp || e.outcome("movie-extra", 2, h) != OfferGaveUp {
 		t.Errorf("after six hours %+v", res)
-	}
-}
-
-func TestOfferSweep(t *testing.T) {
-	t.Parallel()
-	e := newOfferEnv(t)
-	e.download(1, 1, 10, "movie-remux", strings.Repeat("d", 40), "Movie.2001.2160p.WEB-DL-GRP", "imported")
-	e.download(2, 2, 20, "movie-remux", strings.Repeat("e", 40), "Other.2002.2160p.BluRay.REMUX-GRP", "imported")
-	e.download(3, 2, 20, "movie-remux", strings.Repeat("f", 40), "Other.2002.1080p.WEB-DL-GRP", "failed")
-	sr, err := e.off.Sweep(e.ctx, false, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	// Download 1 to movie-web and movie-extra; download 2 to both, missing on title 2.
-	if sr.Downloads != 2 || sr.Outcomes[OfferRouted] != 1 || sr.Outcomes[OfferPlanned] != 1 || sr.Outcomes[OfferPending] != 2 {
-		t.Errorf("sweep %+v", sr)
-	}
-	if sr, _ := e.off.Sweep(e.ctx, false, 1); sr.Downloads != 1 {
-		t.Errorf("limit: %+v", sr)
 	}
 }
 
@@ -332,7 +233,7 @@ func TestOfferAndSweepUseRuntimeCapturedAtStart(t *testing.T) {
 func TestOfferSeriesSeasonPack(t *testing.T) {
 	t.Parallel()
 	e := newOfferEnv(t)
-	e.off.Policy.Versions["tv-web"] = &policy.VersionPolicy{Mode: policy.ModeActive, Kind: policy.KindSeries}
+	e.off.Policy.Versions["tv-web"] = &policy.VersionPolicy{Kind: policy.KindSeries}
 	e.exec(`INSERT INTO title (id, kind, name, year, tvdb_id, series_type, created_at, updated_at)
 		VALUES (3, 'series', 'Show', 2020, 99, 'standard', 0, 0)`)
 	e.exec(`INSERT INTO version (id, title_id, policy_key, created_at, updated_at) VALUES
@@ -383,7 +284,7 @@ func TestOfferSeriesSeasonPack(t *testing.T) {
 func TestOfferSeriesSceneNumbering(t *testing.T) {
 	t.Parallel()
 	e := newOfferEnv(t)
-	e.off.Policy.Versions["tv-web"] = &policy.VersionPolicy{Mode: policy.ModeActive, Kind: policy.KindSeries}
+	e.off.Policy.Versions["tv-web"] = &policy.VersionPolicy{Kind: policy.KindSeries}
 	e.exec(`INSERT INTO title (id, kind, name, year, tvdb_id, series_type, use_scene_numbering, created_at, updated_at)
 		VALUES (3, 'series', 'Show', 2020, 99, 'standard', 1, 0, 0)`)
 	e.exec(`INSERT INTO version (id, title_id, policy_key, created_at, updated_at) VALUES

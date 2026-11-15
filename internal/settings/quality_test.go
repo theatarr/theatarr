@@ -95,7 +95,7 @@ func TestQualityBootstrapAtomicAndIdempotent(t *testing.T) {
 	if again.Generation != next.Generation || again.Revision != next.Revision || !reflect.DeepEqual(again.Policy.Profiles, next.Policy.Profiles) {
 		t.Fatal("restart changed database settings")
 	}
-	if !reflect.DeepEqual(again.Policy.Router, p.Router) || !reflect.DeepEqual(again.Policy.Library, p.Library) || !reflect.DeepEqual(again.Policy.Notify, p.Notify) || !sameModes(again.Policy.Versions, p.Versions) {
+	if !reflect.DeepEqual(again.Policy.Router, p.Router) || !reflect.DeepEqual(again.Policy.Library, p.Library) || !reflect.DeepEqual(again.Policy.Notify, p.Notify) || !sameVersionKeys(again.Policy.Versions, p.Versions) {
 		t.Fatal("safety switches changed")
 	}
 }
@@ -273,8 +273,8 @@ func TestQualityBootstrapWithActiveVersions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if first.Policy.Versions["tv-2160p-theatarr"].Mode != policy.ModeActive {
-		t.Fatal("the overlay's active version was not imported active")
+	if first.Policy.Versions["tv-2160p-theatarr"] == nil {
+		t.Fatal("the overlay's version was not imported")
 	}
 	s.SetTrashRoot("testdata/trash")
 	next, err := s.BootstrapQuality(ctx, p, "serve")

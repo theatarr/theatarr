@@ -6,10 +6,10 @@ import { describe, expect, it } from "vitest";
 import { json, mockFetch, renderPage } from "@/test/page";
 import { RequestsPage } from "./requests";
 
-const on = { mode: "active", grab: true, router_enabled: true, router_forced_off: false, will_grab: true };
+const on = { grab: true, router_enabled: true, router_forced_off: false, will_grab: true };
 
 describe("request progress grab gates", () => {
-  it.each([{ mode: "shadow" }, { grab: false }, { router_enabled: false }, { router_forced_off: true }])("explains paused requests for %j and links the switches for admins", async (closed) => {
+  it.each([{}, { grab: false }, { router_enabled: false }, { router_forced_off: true }])("explains paused requests for %j and links the switches for admins", async (closed) => {
     mockFetch([
       { method: "GET", path: "/auth/me", reply: { username: "admin", permissions: ["admin", "manage_requests"], csrf_token: "fixture" } },
       { method: "GET", path: "/requests/1", reply: json({ id: 1, kind: "movie", name: "Alpha", anime: false, title_id: 12, tmdb_id: 34, status: "approved", mine: true, seasons: [], created_at: "2026-10-30T12:00:00Z", updated_at: "2026-10-30T12:00:00Z", approved_at_creation: true,

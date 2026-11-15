@@ -19,7 +19,7 @@ import (
 // video file" and blocklisted.
 func TestAllDebridFinishedIsReady(t *testing.T) {
 	t.Parallel()
-	e, f, _ := newDebridEnv(t, true, policy.ModeActive, true)
+	e, f, _ := newDebridEnv(t, true, true)
 	e.pol.Versions["movie"].Providers = []string{"ad"}
 	f.cached["ad:"+h("a")] = true
 	res, err := e.r.Route(e.ctx, grabReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")))
@@ -47,7 +47,7 @@ func TestOtherProvidersKeepVOB(t *testing.T) {
 	t.Parallel()
 	for _, pk := range []string{"ad", "tb"} {
 		t.Run(pk, func(t *testing.T) {
-			e := newEnv(t, true, policy.ModeActive)
+			e := newEnv(t, true)
 			e.exec(`INSERT INTO download (id,title_id,version_id,version_key,info_hash,release_title,indexer,provider,
 				provider_torrent_id,state,created_at,updated_at) VALUES (99,1,10,'movie',?,'Movie.2024.DVD-GRP','pub',?,
 				'T99','added',0,0)`, h("a"), pk)
@@ -100,7 +100,7 @@ func TestAllDebridMaintenanceIsOutage(t *testing.T) {
 	t.Parallel()
 	for _, status := range []int{http.StatusOK, http.StatusServiceUnavailable} {
 		t.Run(fmt.Sprint(status), func(t *testing.T) {
-			e, f, _ := newDebridEnv(t, true, policy.ModeActive, false)
+			e, f, _ := newDebridEnv(t, true, false)
 			e.pol.Versions["movie"].Providers = []string{"ad"}
 			for _, c := range []string{"a", "b", "c", "d"} {
 				res, err := e.r.Route(e.ctx, grabReq(cand(h(c), "Movie.2024.2160p.WEB.H265-GRP"+c)))
@@ -224,7 +224,7 @@ func TestPacedHeldReadDefersRelease(t *testing.T) {
 		{"down", errors.New("rd: connection refused"), true},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			e := newEnv(t, true, policy.ModeActive)
+			e := newEnv(t, true)
 			e.pol.Versions["movie"].Providers = []string{"rd", "ad"}
 			e.exec(`INSERT INTO content (id, info_hash, state, first_seen_at, last_seen_at) VALUES (7, ?, 'present', 0, 0)`,
 				h("a"))
@@ -250,7 +250,7 @@ func TestPacedHeldReadDefersRelease(t *testing.T) {
 // mid-add").
 func TestCancelledAddNoBackoff(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	ctx, cancel := context.WithCancel(e.ctx)
 	e.ad["rd"].add = func(adder.Magnet, adder.AddOptions) (*adder.Added, error) {
 		cancel()

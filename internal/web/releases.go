@@ -12,15 +12,13 @@ import (
 
 	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/journal/snapshot"
-	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/router"
 	"github.com/theatarr/theatarr/internal/store"
 )
 
 // GET /titles/{id}/releases: the title page's "Show releases" panel (admin), the decision engine's results for one
-// version with scores and rejections. A live indexer search runs only for a version in mode active (live=1);
-// otherwise the answer is the last stored decision: the journal's decided search (acquirer or RSS). A Watch-only
-// version's panel sends no indexer traffic.
+// version with scores and rejections. A live indexer search runs with live=1; otherwise the answer is the last
+// stored decision: the journal's decided search (acquirer or RSS).
 
 // Releases is the answer of GET /titles/{id}/releases.
 type Releases struct {
@@ -29,8 +27,7 @@ type Releases struct {
 	Version   string           `json:"version"`
 	// Versions are the title's versions, for the panel's picker.
 	Versions []string `json:"versions"`
-	Mode     string   `json:"mode"`
-	// LiveAllowed: live=1 would search the indexers (the version is active).
+	// LiveAllowed: live=1 would search the indexers (the acquirer runs).
 	LiveAllowed bool `json:"live_allowed"`
 	// Source is live, journal or none.
 	Source     string               `json:"source"`
@@ -128,20 +125,15 @@ func (w *Web) apiReleases(rw http.ResponseWriter, r *http.Request) {
 		badRequest(rw, "the title was removed from library "+strconv.Quote(key)+": add it there again first")
 		return
 	}
-	out := Releases{GrabState: versionGrabState(w.pol, key), TitleID: id, Version: key, Versions: have, Mode: string(vp.Mode), Candidates: []snapshot.Candidate{},
+	out := Releases{GrabState: versionGrabState(w.pol, key), TitleID: id, Version: key, Versions: have, Candidates: []snapshot.Candidate{},
 		Rejections: map[string]int{}, Source: "none"}
 	if out.Versions == nil {
 		out.Versions = []string{}
 	}
-	if out.Mode == "" {
-		out.Mode = string(policy.ModeShadow)
-	}
-	out.LiveAllowed = vp.Mode == policy.ModeActive && w.add.Acquirer != nil
+	out.LiveAllowed = w.add.Acquirer != nil
 	live, _ := strconv.ParseBool(r.URL.Query().Get("live"))
 	if live {
 		switch {
-		case vp.Mode != policy.ModeActive:
-			out.Message = "Watch only: no live search for " + key + "; showing the last stored decision"
 		case w.add.Acquirer == nil:
 			out.Message = "The acquirer is not running; showing the last stored decision"
 		default:

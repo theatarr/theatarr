@@ -5,14 +5,13 @@ import (
 	"time"
 
 	"github.com/theatarr/theatarr/internal/jobs"
-	"github.com/theatarr/theatarr/internal/policy"
 )
 
 // A producer's new route carries the identity validation version and its origin: in the queued payload, on the
 // download row it opens, and back on the request rebuilt from that row. The caller's candidates are not changed.
 func TestFreshRouteCarriesIdentityAndOrigin(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	q := jobs.NewQueue(e.st)
 	q.SetClock(func() time.Time { return e.clock })
 	w := jobs.NewWorker(q, jobs.WorkerOptions{})
@@ -58,7 +57,7 @@ func TestFreshRouteCarriesIdentityAndOrigin(t *testing.T) {
 // A resumed request (a download or hold behind it) keeps what it carried: an older build's candidate stays unstamped.
 func TestStampFreshOrigin(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	for _, tc := range []struct {
 		version, source string
 		search          bool

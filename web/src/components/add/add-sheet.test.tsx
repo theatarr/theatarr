@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 // The add drawer's library rows (audit 2): one checkbox per library, identity and state on their own rows, the
-// library state from grab_state, the global notice said once, and "N libraries · M Live" from the ticked rows' mode.
+// library state from grab_state, the global notice said once, and "N libraries" from the ticked rows.
 // Invented keys and names.
 import { cleanup, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -13,17 +13,17 @@ afterEach(() => vi.restoreAllMocks());
 const gates = { paused: false, pause_forced: false, library_writes: true };
 const long = "A library name that is long enough to wrap at four hundred p";
 const versions = [
-  { key: "movie-web", label: long, mode: "active", grab_state: { ...gates, mode: "active", will_grab: true } },
-  { key: "movie-remux", label: "Remux", mode: "active", grab_state: { ...gates, mode: "active", will_grab: false } },
-  { key: "movie-1080", label: "1080p", mode: "shadow", grab_state: { ...gates, mode: "shadow", will_grab: false, library_writes: false } },
-  { key: "movie-4k", label: "4K", mode: "active", grab_state: { ...gates, mode: "active", will_grab: true } },
-  { key: "movie-hdr", label: "HDR", mode: "active", grab_state: { ...gates, mode: "active", will_grab: true, library_writes: false } },
-  { key: "movie-dv", label: "Dolby Vision", mode: "shadow", grab_state: { ...gates, mode: "shadow", will_grab: false, library_writes: false } },
-  { key: "movie-sd", label: "SD", mode: "active", grab_state: { ...gates, mode: "active", will_grab: true } },
+  { key: "movie-web", label: long, grab_state: { ...gates, will_grab: true } },
+  { key: "movie-remux", label: "Remux", grab_state: { ...gates, will_grab: false } },
+  { key: "movie-1080", label: "1080p", grab_state: { ...gates, will_grab: false, library_writes: false } },
+  { key: "movie-4k", label: "4K", grab_state: { ...gates, will_grab: true } },
+  { key: "movie-hdr", label: "HDR", grab_state: { ...gates, will_grab: true, library_writes: false } },
+  { key: "movie-dv", label: "Dolby Vision", grab_state: { ...gates, will_grab: false, library_writes: false } },
+  { key: "movie-sd", label: "SD", grab_state: { ...gates, will_grab: true } },
 ].map((v) => ({ ...v, kind: "movie", enable: "", fits: true, default: v.key !== "movie-sd", on: false, searchable: v.grab_state.will_grab }));
 const options = { kind: "movie", anime: false, router_enabled: true, episodes_known: false, can_search: true, seasons: [], versions };
 
-it("lists every library with its state, counts the Live ones and sends the same add", async () => {
+it("lists every library with its state, counts the ticked ones and sends the same add", async () => {
   expect(long).toHaveLength(60);
   const fetch = mockFetch([
     { method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["admin", "add"] } },
@@ -41,17 +41,17 @@ it("lists every library with its state, counts the Live ones and sends the same 
   expect(within(web).getByText(long).getAttribute("title")).toBe("movie-web");
   expect(within(web).getByText("Downloads on")).toBeTruthy();
   expect(within(screen.getByTestId("add-version-movie-remux")).getByText("Downloads off")).toBeTruthy();
-  expect(within(screen.getByTestId("add-version-movie-1080")).getByText("Watch only")).toBeTruthy();
+  expect(within(screen.getByTestId("add-version-movie-1080")).getByText("Downloads off")).toBeTruthy();
   expect(within(screen.getByTestId("add-version-movie-hdr")).getByTestId("links-off")).toBeTruthy();
   // The checkbox is named by the library and described by its state.
   const box = within(web).getByRole("checkbox", { name: new RegExp(long) });
   expect(document.getElementById(box.getAttribute("aria-describedby") ?? "")?.textContent).toContain("Downloads on");
-  // Six ticked by default; four of them are Live (movie-remux too, though the server holds its downloads).
-  expect(screen.getByTestId("add-count").textContent).toBe("6 libraries · 4 Live");
+  // Six ticked by default.
+  expect(screen.getByTestId("add-count").textContent).toBe("6 libraries");
   await user.click(within(screen.getByTestId("add-version-movie-sd")).getByRole("checkbox"));
-  expect(screen.getByTestId("add-count").textContent).toBe("7 libraries · 5 Live");
+  expect(screen.getByTestId("add-count").textContent).toBe("7 libraries");
   await user.click(box);
-  expect(screen.getByTestId("add-count").textContent).toBe("6 libraries · 4 Live");
+  expect(screen.getByTestId("add-count").textContent).toBe("6 libraries");
   expect(screen.queryByTestId("downloads-off-notice")).toBeNull();
   await user.click(screen.getByTestId("add-submit"));
   await waitFor(() => expect(fetch.calls("POST", "/titles")).toHaveLength(1));
@@ -88,14 +88,14 @@ it("says Pause once, not on every row", async () => {
   expect((await screen.findAllByTestId("downloads-off-notice"))).toHaveLength(1);
   expect(screen.queryByTestId("add-no-search")).toBeNull();
   expect(within(screen.getByTestId("add-version-movie-web")).getByText("Paused")).toBeTruthy();
-  // Pause does not stop a library being Live; nothing can search, so one Add.
-  expect(screen.getByTestId("add-count").textContent).toBe("6 libraries · 4 Live");
+  // Nothing can search, so one Add.
+  expect(screen.getByTestId("add-count").textContent).toBe("6 libraries");
   expect(screen.queryByTestId("add-submit-search")).toBeNull();
   // Not an admin: no settings link.
   expect(within(screen.getByTestId("downloads-off-notice")).queryByRole("link")).toBeNull();
 });
 
-const tv = { key: "tv-web", label: "TV", kind: "series", mode: "active", enable: "", fits: true, default: true, on: false, searchable: true, grab_state: { ...gates, mode: "active", will_grab: true } };
+const tv = { key: "tv-web", label: "TV", kind: "series", enable: "", fits: true, default: true, on: false, searchable: true, grab_state: { ...gates, will_grab: true } };
 const seriesOptions = { kind: "series", anime: false, router_enabled: true, episodes_known: false, can_search: true, seasons: [{ season: 1, episodes: 8 }], versions: [tv] };
 const posted = { created: true, new: ["tv-web"], title: { id: 9, name: "Kappa", versions: [] } };
 const routes = (opts: unknown) => [
@@ -108,8 +108,8 @@ const bodyOf = async (fetch: ReturnType<typeof mockFetch>) => {
   return fetch.calls("POST", "/titles")[0].body;
 };
 
-it("offers one Add and the explanation when no ticked library can search, and counts no Live when none is", async () => {
-  const watch = versions.map((v) => ({ ...v, searchable: false, grab_state: { ...v.grab_state, mode: "shadow", will_grab: false } }));
+it("offers one Add and the explanation when no ticked library can search, ", async () => {
+  const watch = versions.map((v) => ({ ...v, searchable: false, grab_state: { ...v.grab_state, will_grab: false } }));
   const fetch = mockFetch(routes({ ...options, versions: watch }));
   const user = userEvent.setup();
   renderPage(<AddSheet target={{ kind: "movie", name: "Alpha", tmdb_id: 7 }} onClose={() => {}} />);
@@ -128,7 +128,7 @@ it("keeps one Save seasons when only the seasons of a series in the library chan
   await user.click(within(await screen.findByTestId("add-seasons")).getByRole("checkbox"));
   expect(screen.getByTestId("add-submit").textContent).toBe("Save seasons");
   expect(screen.queryByTestId("add-submit-search")).toBeNull();
-  expect(screen.getByTestId("add-count").textContent).toBe("1 library · 1 Live");
+  expect(screen.getByTestId("add-count").textContent).toBe("1 library");
   await user.click(screen.getByTestId("add-submit"));
   expect(await bodyOf(fetch)).toEqual({ title_id: 10, kind: "series", versions: ["tv-old"], seasons: [{ season: 1, monitored: false }], search: false });
 });
@@ -200,7 +200,7 @@ it("counts only the libraries this click adds for a film already in two", async 
   mockFetch(routes({ ...options, title_id: 5, versions: two }));
   renderPage(<AddSheet target={{ kind: "movie", name: "Alpha", title_id: 5 }} onClose={() => {}} />);
   await screen.findByTestId("add-versions");
-  expect(screen.getByTestId("add-count").textContent).toBe("1 library · 1 Live");
+  expect(screen.getByTestId("add-count").textContent).toBe("1 library");
   expect(screen.getByTestId("add-submit").textContent).toBe("Add libraries");
 });
 

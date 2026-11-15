@@ -37,7 +37,7 @@ func TestCheckTopEvidenceReranks(t *testing.T) {
 		fmt.Fprint(w, `</channel></rss>`)
 	}))
 	defer srv.Close()
-	e := newEnv(t, false, policy.ModeActive)
+	e := newEnv(t, false)
 	e.pol.Indexers["pub"].URL = srv.URL + "/api"
 	e.pol.Profiles = map[string]*policy.Profile{"web": {Qualities: []policy.QualityItem{{Name: "WEBDL-2160p"}}, Cutoff: "WEBDL-2160p"}}
 	e.pol.Versions["movie"].Profile = "web"
@@ -85,7 +85,7 @@ func TestCheckTopEvidenceReranks(t *testing.T) {
 // two equally scored releases queued uncached-first, the one now stored cached is tried first.
 func TestRedecideReadsStoredCacheEvidence(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	freshMovie(e)
 	e.exec(`UPDATE title SET year=2024,runtime_minutes=110 WHERE id=1`)
 	eng, err := decide.New(e.pol, decide.Options{})
@@ -114,7 +114,7 @@ func TestRedecideReadsStoredCacheEvidence(t *testing.T) {
 // accounts and a cached row on the second only, the route still tries that account first, as it did when queued.
 func TestRedecideKeepsAccountOrder(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	freshMovie(e)
 	e.exec(`UPDATE title SET year=2024,runtime_minutes=110 WHERE id=1`)
 	e.pol.Providers["ad2"] = &policy.Provider{Kind: provider.KindAllDebrid, Order: 4, URL: "http://ad2.test/v4",

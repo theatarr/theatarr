@@ -127,11 +127,9 @@ func globalSwitchEffects(previous, next *Snapshot) []ConfirmationEffect {
 	names := policy.LibraryNames(next.Policy)
 	var versions []string
 	for _, key := range sortedPolicyKeys(next.Policy.Versions) {
-		if next.Policy.Versions[key].Mode == policy.ModeActive {
-			versions = append(versions, names[key])
-		}
+		versions = append(versions, names[key])
 	}
-	effect := "Turn Pause off: Live libraries search, download and link again: " + switchList(versions) +
+	effect := "Turn Pause off: libraries search, download and link again: " + switchList(versions) +
 		". Waiting downloads are imported."
 	if len(next.Policy.ForcedOff) > 0 {
 		effect += " Environment overrides remain in force: " + strings.Join(next.Policy.ForcedOff, ", ") + "."

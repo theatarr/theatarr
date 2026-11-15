@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/theatarr/theatarr/internal/gateway"
-	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/provider"
 	"github.com/theatarr/theatarr/internal/store"
 )
@@ -107,7 +106,7 @@ func TestTorrent5xxThroughRealGateway(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			e := newEnv(t, true, policy.ModeActive)
+			e := newEnv(t, true)
 			withQueue(e)
 			e.r.set.DownloadingTimeout = 0 // the healthy downloads stay downloading
 			srv := &rdServer{broken: map[string]bool{}, accountDown: tc.accountDown}
@@ -164,7 +163,7 @@ func TestTorrent5xxThroughRealGateway(t *testing.T) {
 // selection goes out.
 func TestGatedSelectionPausesStallClock(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	withQueue(e)
 	e.r.set.CachedOnly = false
 	e.pr["rd"].set("rd-aaaa", provider.Torrent{Hash: h("a"), State: provider.StateQueued, Status: "magnet_conversion"})

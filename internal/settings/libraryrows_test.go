@@ -6,22 +6,15 @@ import (
 	"slices"
 	"strings"
 	"testing"
-
-	"github.com/theatarr/theatarr/internal/policy"
 )
 
-// Removing a library removes its rows ("Stop managing library", the owner's way to drop his Watch-only mirrors): a
-// Watch-only movie-web with versions, file records, offers, wanted rows, tags and its own view rows, next to a Live
-// movie-remux that shares its titles and one link. The Live library's links, monitoring and wanted state stay as they
-// were; the shared link loses only the removed library and its download; title monitoring is recomputed, and so is
+// Removing a library removes its rows ("Stop managing library"): movie-web with versions, file records, offers,
+// wanted rows, tags and its own view rows, next to movie-remux that shares its titles and one link. The kept library's
+// links, monitoring and wanted state stay as they were; the shared link loses only the removed library and its download; title monitoring is recomputed, and so is
 // episode monitoring for a removed series library.
 func TestDeleteLibraryRemovesRows(t *testing.T) {
 	t.Parallel()
-	s, db, p, initial := versionFixture(t, func(p *policy.Policy) {
-		p.Versions["movie-remux"].Mode = policy.ModeActive
-		p.Versions["movie-web"].Mode = policy.ModeShadow
-		p.Versions["tv-2160p"].Mode = policy.ModeActive
-	})
+	s, db, p, initial := versionFixture(t)
 	ctx := context.Background()
 	for _, q := range []string{
 		`INSERT INTO title (id, kind, name, monitored, created_at, updated_at) VALUES (1, 'movie', 'Shared', 1, 0, 0),
@@ -54,7 +47,7 @@ func TestDeleteLibraryRemovesRows(t *testing.T) {
 		`INSERT INTO arrview_title (view, title_id, minimum_availability, added_at, updated_at) VALUES
 			('v/movie-web', 1, 'announced', 1, 1), ('v/movie-remux', 1, 'inCinemas', 1, 1)`,
 		`INSERT INTO movie_collection (tmdb_id, versions, updated_at) VALUES (900, '["movie-remux","movie-web"]', 0)`,
-		// Upgrade cards of the removed library, and the Live library's, which stays open.
+		// Upgrade cards of the removed library, and the kept library's, which stays open.
 		`INSERT INTO error_event (fingerprint, source, message, first_seen, last_seen, updated_at) VALUES
 			('arr-mirror:movie-web', 'log', 'mirror', 0, 0, 0), ('arr-freeze:movie-web', 'log', 'copy', 0, 0, 0),
 			('arr-freeze:movie-remux', 'log', 'copy', 0, 0, 0)`,
@@ -117,9 +110,9 @@ func TestDeleteLibraryRemovesRows(t *testing.T) {
 		t.Fatal(err)
 	}
 	if after := live(); after != before {
-		t.Errorf("the Live library changed:\nbefore\n%s\nafter\n%s", before, after)
+		t.Errorf("the kept library changed:\nbefore\n%s\nafter\n%s", before, after)
 	}
-	// A series library removed the same way (the store call): a shared series' episodes follow the remaining Live
+	// A series library removed the same way (the store call): a shared series' episodes follow the remaining
 	// library (303 has no state in it yet and is left as it was); a series that had only the removed library ends
 	// unmonitored, its episodes keep their flags.
 	if err := db.WriteTx(ctx, func(tx *sql.Tx) error { return removeLibraryRows(ctx, tx, "anime-tv", 9) }); err != nil {

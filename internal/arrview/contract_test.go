@@ -198,10 +198,10 @@ func TestSeerrRadarrContract(t *testing.T) {
 	if movie["titleSlug"] != "120" || movie["monitored"] != true {
 		t.Errorf("added %v", movie)
 	}
-	// The add's searchForMovie was recorded and did nothing.
+	// The add's searchForMovie was recorded (no searcher runs here: it stays queued).
 	var cmds []map[string]any
 	c.must("GET", "/command", nil, nil, 200, &cmds)
-	if len(cmds) != 1 || cmds[0]["name"] != "MoviesSearch" || cmds[0]["status"] != "completed" {
+	if len(cmds) != 1 || cmds[0]["name"] != "MoviesSearch" || cmds[0]["status"] != "queued" {
 		t.Errorf("commands %v", cmds)
 	}
 	// A second request user tag lookup finds the tag (no second POST).
@@ -385,7 +385,7 @@ func TestSeerrSonarrContract(t *testing.T) {
 	for _, cm := range cmds {
 		if cm["name"] == "MissingEpisodeSearch" {
 			n++
-			if cm["status"] != "completed" {
+			if cm["status"] != "queued" {
 				t.Errorf("search %v", cm)
 			}
 		}
@@ -571,7 +571,7 @@ func TestDecypharrContract(t *testing.T) {
 		} `json:"body"`
 	}
 	c.must("POST", "/command", nil, map[string]any{"name": "MoviesSearch", "movieIds": []int64{ms[0].ID}}, 201, &cmd)
-	if cmd.Status != "completed" || len(cmd.Body.MovieIDs) != 1 || cmd.Body.MovieIDs[0] != ms[0].ID {
+	if cmd.Status != "queued" || len(cmd.Body.MovieIDs) != 1 || cmd.Body.MovieIDs[0] != ms[0].ID {
 		t.Errorf("command %+v", cmd)
 	}
 	var list []struct{ ID int64 }

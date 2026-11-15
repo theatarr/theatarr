@@ -27,7 +27,7 @@ func init() {
 	for _, tb := range strings.Fields(`router_pacing provider_copy gateway_backoff gateway_budget_window shadow_rss_cursor notify_state tvdb_sync scene_refresh library_lease library_dangling_scan cardigann_session search_request series_search_wait error_inbox_state task`) {
 		keptByDesign[tb] = "state per key, overwritten in place"
 	}
-	for _, tb := range strings.Fields(`job journal_decision shadow_run web_session library_dangling router_refusal_451 arrview_command shadow_rss_seen notify_rename torrent_restore_pending gateway_indexer_request`) {
+	for _, tb := range strings.Fields(`job journal_decision web_session library_dangling router_refusal_451 arrview_command shadow_rss_seen notify_rename torrent_restore_pending gateway_indexer_request`) {
 		keptByDesign[tb] = "pruned by the package that owns it"
 	}
 	for _, tb := range strings.Fields(`router_offer notify_event router_blocklist journal_action journal_verdict torrent_journal provider_copy_event`) {

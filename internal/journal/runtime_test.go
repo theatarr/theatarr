@@ -11,8 +11,8 @@ import (
 	"github.com/theatarr/theatarr/internal/policy"
 )
 
-// The journal follows the current settings generation. A version activated after startup is shown and judged
-// as active, not as the startup policy's shadow version.
+// The journal follows the current settings generation: an entry is shown and judged under the current policy, not
+// the startup one.
 func TestJournalFollowsCurrentPolicy(t *testing.T) {
 	e := newEnv(t)
 	e.seedRoute()
@@ -21,15 +21,17 @@ func TestJournalFollowsCurrentPolicy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	later.Versions["movie-remux"].Mode = policy.ModeActive
+	// The startup policy would act on a verdict; the current one has the router off.
+	e.pol.Router = &policy.Router{Enabled: true}
+	later.Router = &policy.Router{Enabled: false}
 	j := New(Config{Store: e.st, Policy: e.pol, Queue: e.q, Now: func() time.Time { return testNow },
 		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)), PolicyFor: func(context.Context) *policy.Policy { return later }})
 	entry, err := j.Get(ctx, "dl:1")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if entry.Version != "movie-remux" || entry.Mode != "active" {
-		t.Fatalf("journaled under the startup policy: version %s mode %s", entry.Version, entry.Mode)
+	if entry.Version != "movie-remux" {
+		t.Fatalf("journaled under the startup policy: version %s", entry.Version)
 	}
 	v, err := j.Judge(ctx, "dl:1", VerdictRequest{Verdict: "wrong", Reason: "bad"}, "admin")
 	if err != nil || !strings.Contains(v.Note, "router.enabled is false") {

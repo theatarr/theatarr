@@ -65,7 +65,7 @@ function Releases({ titleId, eid, d }: { titleId: number; eid: number; d: Episod
   return (
     <div className="space-y-3" data-testid="episode-releases">
       {d.control?.live_releases ? null : (
-        <p className="text-[11.5px] text-[var(--ink-3)]">{d.control?.mode === "active" ? "The acquirer is not running" : "Watch only: no live indexer search; the last stored decision"}</p>
+        <p className="text-[11.5px] text-[var(--ink-3)]">The acquirer is not running: the last stored decision</p>
       )}
       {q.isPending ? (
         <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" /> Loading…</p>
@@ -158,12 +158,12 @@ function DetailsPart({ titleId, eid, epCode, d, aired, manage, admin, single, ac
     <section className={cn("space-y-3", !single && "rounded-xl border border-[var(--line)] p-3")} data-episode-version={d.key}>
       <div className="flex flex-wrap items-center gap-2">
         <VersionTag k={d.key} label={d.label} />
-        {c?.grab_state ? <VersionStatus state={c.grab_state} showMode settingsKey={d.key} canManage={admin} /> : null}
+        {c?.grab_state ? <VersionStatus state={c.grab_state} settingsKey={d.key} canManage={admin} /> : null}
         <Badge tone={badge.tone}>{badge.label}</Badge>
       </div>
       {acquisition ? <AcquisitionPart a={acquisition} /> : null}
       {/* Why it is missing and what next: the season's last targeted search in this library, and the switches. */}
-      {!acquisition && !d.has_file && aired && d.monitored && d.library_monitored && c?.mode === "active" ? (
+      {!acquisition && !d.has_file && aired && d.monitored && d.library_monitored && c ? (
         <p className="text-xs text-[var(--ink-2)]" data-testid="episode-why">{missingLine(d, auto)}</p>
       ) : null}
       {manage && c ? (

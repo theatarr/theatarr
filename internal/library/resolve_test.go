@@ -6,8 +6,6 @@ import (
 	"sort"
 	"strings"
 	"testing"
-
-	"github.com/theatarr/theatarr/internal/policy"
 )
 
 // Lifecycle tests for "which file is which episode": the import maps a release's files as the decision mapped the
@@ -58,7 +56,7 @@ func (e *env) isekai() {
 // through the decision's stored mapping; the identity is kept for the download.
 func TestImportFranchiseNumbering(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.isekai()
 	rel := "[Group] Isekai Story 2nd Season (BD 1080p)"
 	e.release(rel, map[string]float64{"[Group] Isekai Story 2nd Season - 01 (BD 1080p).mkv": 1440,
@@ -112,7 +110,7 @@ func TestImportFranchiseNumbering(t *testing.T) {
 // would match only two of them.
 func TestImportMixedPackSpecialsDailyScene(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.exec(`INSERT INTO episode (id, title_id, season, number, name, created_at, updated_at) VALUES (203, 2, 0, 1, 'The Making Of', 0, 0)`)
 	e.exec(`INSERT INTO episode (id, title_id, season, number, name, created_at, updated_at) VALUES (204, 2, 2, 1, 'Return', 0, 0)`)
 	rel := "Show.S01-S02.2160p.WEB-DL.DDP5.1.H.265-GRP"
@@ -173,7 +171,7 @@ func TestImportMixedPackSpecialsDailyScene(t *testing.T) {
 // even against the file's name; a path import of one file in a pack imports that file only.
 func TestImportManualFiles(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	rel := "Show.S01.2160p.WEB-DL.DDP5.1.H.265-GRP"
 	e.release(rel, map[string]float64{"Show.S01E01.2160p.WEB-DL.DDP5.1.H.265-GRP.mkv": 2700,
 		"Show.S01E02.2160p.WEB-DL.DDP5.1.H.265-GRP.mkv": 2650})
@@ -213,7 +211,7 @@ func TestImportManualFiles(t *testing.T) {
 // cannot be applied, so it stays unmatched and is never linked by the episode its name says.
 func TestManualChoiceIsAuthoritative(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	rel := "Show.S01.1080p.WEB-DL-GRP"
 	e.release(rel, map[string]float64{"Show.S01E01.mkv": 2700, "Show.S01E02.mkv": 2700})
 	e.videoSize(rel, 1920, 1080)
@@ -245,7 +243,7 @@ func TestManualChoiceIsAuthoritative(t *testing.T) {
 // links each file to its real episode, and a client's explicit choice still applies.
 func TestResolverAnswerIsNotOverridden(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.exec(`INSERT INTO title (id, kind, name, year, tvdb_id, series_type, use_scene_numbering, runtime_minutes, created_at, updated_at)
 		VALUES (5, 'series', 'Scene Show', 2019, 8, 'standard', 1, 45, 0, 0)`)
 	e.exec(`INSERT INTO version (id, title_id, policy_key, created_at, updated_at) VALUES (50, 5, 'tv', 0, 0)`)

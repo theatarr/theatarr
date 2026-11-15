@@ -26,9 +26,6 @@ func (p *Policy) ApplyDefaults() {
 }
 
 func (v *VersionPolicy) applyDefaults() {
-	if v.Mode == "" {
-		v.Mode = ModeShadow
-	}
 	if v.Enable == "" {
 		v.Enable = "default"
 	}

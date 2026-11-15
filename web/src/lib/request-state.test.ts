@@ -99,15 +99,15 @@ describe("request state", () => {
     expect(settledWords("positive", true, []).sentence).toBe("Everything you can ask for is in the library.");
   });
   it("says on its way only when a copy is being fetched", () => {
-    const gates = (mode: string, paused = false) => ({ control: { grab_state: { mode, paused, pause_forced: false, will_grab: mode === "active" && !paused } } });
-    expect(versionFetching([gates("active")])).toBe(true);
-    expect(versionFetching([gates("shadow")])).toBe(false);
-    expect(versionFetching([gates("active", true)])).toBe(false);
-    expect(versionFetching([gates("shadow"), gates("active")])).toBe(true);
+    const gates = (grab: boolean, paused = false) => ({ control: { grab_state: { paused, pause_forced: false, will_grab: grab && !paused } } });
+    expect(versionFetching([gates(true)])).toBe(true);
+    expect(versionFetching([gates(false)])).toBe(false);
+    expect(versionFetching([gates(true, true)])).toBe(false);
+    expect(versionFetching([gates(false), gates(true)])).toBe(true);
     expect(versionFetching([{}])).toBe(true);
-    const shadow = settledWords("partial", versionFetching([gates("shadow")]));
-    expect(shadow.badge).toBe("Partly available");
-    expect(shadow.sentence).not.toMatch(/on its way|being looked for/);
+    const held = settledWords("partial", versionFetching([gates(false)]));
+    expect(held.badge).toBe("Partly available");
+    expect(held.sentence).not.toMatch(/on its way|being looked for/);
     expect(settledWords("neutral", false)).toMatchObject({ badge: "Not available yet", tone: "neutral" });
     expect(settledWords("neutral", false).sentence).toMatch(/not being fetched/);
   });
@@ -132,7 +132,7 @@ it.each(["approved", "processing"])("does not promise progress for %s while grab
 });
 
  it("uses the server grab decision for title and request copies", () => {
-  const state = {mode:"active",paused:false,pause_forced:false,will_grab:false};
+  const state = {paused:false,pause_forced:false,will_grab:false};
   expect(versionFetching([{grab_state:state}])).toBe(false);
   expect(versionFetching([{control:{grab_state:state}}])).toBe(false);
  });

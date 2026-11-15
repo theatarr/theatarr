@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/theatarr/theatarr/internal/decide"
-	"github.com/theatarr/theatarr/internal/policy"
 )
 
 func linkMetadata(t *testing.T, f decide.ExistingFile) string {
@@ -26,7 +25,7 @@ func linkMetadata(t *testing.T, f decide.ExistingFile) string {
 
 func TestRenamePreviewSeriesMultiEpisodeAndMovie(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	movieOld := filepath.Join(e.movies, "Amelie (2001)", "old.mkv")
 	seriesOld := filepath.Join(e.shows, "Show (2020)", "Season 01", "old.mkv")
 	for _, p := range []string{movieOld, seriesOld} {
@@ -58,7 +57,7 @@ func TestRenamePreviewSeriesMultiEpisodeAndMovie(t *testing.T) {
 
 func TestRenameApplyGateAndIdempotent(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	old := filepath.Join(e.movies, "Amelie (2001)", "old.mkv")
 	if err := os.MkdirAll(filepath.Dir(old), 0o755); err != nil {
 		t.Fatal(err)
@@ -86,7 +85,7 @@ func TestRenameApplyGateAndIdempotent(t *testing.T) {
 	if got := e.one(`SELECT COUNT(*) FROM notify_rename`); got != "1" {
 		t.Fatalf("apply must queue one rename: %s", got)
 	}
-	e2 := newEnv(t, false, policy.ModeActive)
+	e2 := newEnv(t, false)
 	old2 := filepath.Join(e2.movies, "Amelie (2001)", "old.mkv")
 	if err := os.MkdirAll(filepath.Dir(old2), 0o755); err != nil {
 		t.Fatal(err)
@@ -109,7 +108,7 @@ func TestRenameApplyGateAndIdempotent(t *testing.T) {
 // a library no longer in the settings is skipped (counted), not an error.
 func TestRenameSkipsRemovedAndUnknownLibraries(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	old := filepath.Join(e.movies, "Amelie (2001)", "old.mkv")
 	gone := filepath.Join(e.movies, "Amelie (2001)", "gone.mkv")
 	target := filepath.Join(e.mount, "__all__", "x.mkv")
@@ -146,7 +145,7 @@ func TestRenameSkipsRemovedAndUnknownLibraries(t *testing.T) {
 // golden file is the preview as the per-link reads made it.
 func TestRenamePreviewLargeSeries(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	const n = 300
 	e.exec(`UPDATE title SET series_type = 'anime' WHERE id = 2`)
 	e.pol.Versions["tv"].Naming.Anime = "{Series CleanTitleWithoutYear} - S{season:00}E{episode:00} - {absolute:000} - {Episode CleanTitle} {[Custom Formats]}{[Mediainfo VideoCodec]}{[Mediainfo AudioCodec}{ Mediainfo AudioChannels]}{-Release Group}"

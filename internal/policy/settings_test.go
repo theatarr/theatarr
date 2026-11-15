@@ -29,7 +29,8 @@ func TestReadSettingsKeepsYAMLOwnedFieldsStrict(t *testing.T) {
 			if (err != nil) != tc.wantError {
 				t.Fatalf("ReadSettings err=%v, wantError=%v", err, tc.wantError)
 			}
-			if tc.name == "managed" && (p.Versions["movie"].Mode != ModeShadow || p.Router == nil || p.Router.Enabled || p.Library == nil || p.Library.Enabled || len(p.Profiles) != 0) {
+			// The removed versions.<key>.mode (Watch only) is dropped before the strict decode.
+			if tc.name == "managed" && (p.Versions["movie"] == nil || p.Router == nil || p.Router.Enabled || p.Library == nil || p.Library.Enabled || len(p.Profiles) != 0) {
 				t.Fatal("filter changed YAML-owned settings")
 			}
 		})

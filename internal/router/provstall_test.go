@@ -13,7 +13,7 @@ import (
 // router's value.
 func TestProviderStalledAfterOverride(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	long := policy.Duration(30 * time.Minute)
 	e.pol.Providers["tb"].StalledAfter = &long
 	for _, row := range []struct {

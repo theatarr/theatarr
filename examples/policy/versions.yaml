@@ -1,13 +1,10 @@
-# Version naming is DB-owned once the database is seeded; the version, roots and mode remain YAML-owned.
-# Versions: one per library. Each is Watch only (mode: shadow, the default) or Live (mode: active). Watch only:
-# Theatarr searches, downloads and links nothing for this library. Live: it searches, downloads and links, while
-# Pause is off. In the DB settings, going Live needs confirmation. Library roots are the arr roots the version
-# replaces, so links keep the arr naming and paths.
+# Version naming is DB-owned once the database is seeded; the version and roots remain YAML-owned.
+# Versions: one per library. A library searches, downloads and links what its profile wants, while Pause is off.
+# Library roots are the arr roots the version replaces, so links keep the arr naming and paths.
 # add_via: providers (the default) adds to the version's providers. add_via: client sends its grabs to its client
 # (a decypharr, which picks its own debrid account) and imports what it finished (docs/design/router.md).
 versions:
   movie-remux:
-    mode: shadow
     kind: movie
     anime: false
     profile: remux-2160p
@@ -25,7 +22,6 @@ versions:
       file: "{Movie CleanTitle} {(Release Year)} {imdb-{ImdbId}} - {edition-{Edition Tags}} {[Custom Formats]}{[Quality Full]}{[MediaInfo 3D]}{[MediaInfo VideoDynamicRangeType]}{[Mediainfo AudioCodec}{ Mediainfo AudioChannels]}{[Mediainfo VideoCodec]}{-Release Group}"
 
   movie-web:
-    mode: shadow
     kind: movie
     anime: false
     profile: web-2160p
@@ -41,7 +37,6 @@ versions:
     client: decypharr
 
   anime-movie:
-    mode: shadow
     kind: movie
     anime: true
     profile: anime-remux-1080p-movie
@@ -54,7 +49,6 @@ versions:
     client: decypharr
 
   tv-2160p:
-    mode: shadow
     kind: series
     anime: false
     profile: tv-2160p
@@ -67,7 +61,6 @@ versions:
     client: decypharr
 
   anime-tv:
-    mode: shadow
     kind: series
     anime: true
     profile: anime-tv

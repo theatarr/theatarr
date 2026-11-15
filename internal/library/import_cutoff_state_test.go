@@ -15,7 +15,7 @@ import (
 
 func TestImportCuratedCutoffState(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	vp := e.pol.Versions["tv"]
 	vp.PreferSeaDex = true
 	p := e.lib.engine.Profile(vp.Profile, format.Sonarr)
@@ -50,7 +50,7 @@ func TestImportCuratedCutoffState(t *testing.T) {
 
 func TestImportEpisodeScopedCurrentStanding(t *testing.T) {
 	t.Parallel()
-	e := importUpEnv(t, policy.ModeActive, "")
+	e := importUpEnv(t, "")
 	e.pol.Versions["tv"].PreferSeaDex = true
 	for _, q := range []string{
 		`INSERT INTO anime_franchise(slug,name,seed_anilist,created_at,updated_at) VALUES('f','F',11,0,0)`,

@@ -67,23 +67,17 @@ func TestRequestDetailApprovalAndBranches(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name, role, action, words string
-		active, router            bool
+		router                    bool
 	}{
-		{name: "pending shadow", role: auth.RoleUser, words: "Waiting for approval"},
-		{name: "auto shadow", role: auth.RoleManager, words: "Automatic downloads are paused"},
-		{name: "router paused", role: auth.RoleManager, active: true, words: "Automatic downloads are paused"},
-		{name: "active waiting", role: auth.RoleManager, active: true, router: true, words: "Waiting for a release that matches"},
+		{name: "pending", role: auth.RoleUser, words: "Waiting for approval"},
+		{name: "router paused", role: auth.RoleManager, words: "Automatic downloads are paused"},
+		{name: "waiting", role: auth.RoleManager, router: true, words: "Waiting for a release that matches"},
 		{name: "declined", role: auth.RoleUser, action: "decline", words: "Request declined"},
 		{name: "canceled", role: auth.RoleUser, action: "cancel", words: "Request canceled"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			e := newAddEnv(t, func(p *policy.Policy) {
 				p.Router = &policy.Router{Enabled: tc.router}
-				if tc.active {
-					for _, v := range p.Versions {
-						v.Mode = policy.ModeActive
-					}
-				}
 			})
 			uid, key := e.user("requester", tc.role)
 			var cr CreateResult
@@ -100,7 +94,7 @@ func TestRequestDetailApprovalAndBranches(t *testing.T) {
 			if d.ApprovedAtCreation != cr.Approved || len(d.Progress) != 2 || d.Progress[0].Words != tc.words {
 				t.Fatalf("detail: %+v progress: %+v", d, d.Progress)
 			}
-			paused := !(tc.active && tc.router)
+			paused := !tc.router
 			if strings.Contains(d.Progress[0].Approval, "automatic downloads are paused") != paused {
 				t.Errorf("approval: %s", d.Progress[0].Approval)
 			}

@@ -38,7 +38,7 @@ const libraryUsage = `usage:
                                                  differ from ours. Writes nothing
   theatarr library relink [-library KEY] [-dry-run] [flags]
                                                  repoint dangling links by info hash; through the gate (Pause off,
-                                                 a Live library, the library's roots), otherwise it reports what it would do
+                                                 a library, the library's roots), otherwise it reports what it would do
   theatarr library rename-preview -library KEY [flags]
                                                  read-only: every link of the library whose name would change under its
                                                  naming, link_id<TAB>existing<TAB>new. Opens the database read-only

@@ -59,7 +59,7 @@ func good(t *testing.T) (Options, string) {
 		}
 	}
 	p := &policy.Policy{
-		Versions:  map[string]*policy.VersionPolicy{"movies": {Mode: policy.ModeActive, Kind: policy.KindMovie, Storage: policy.StorageDebrid, Import: "symlink"}},
+		Versions:  map[string]*policy.VersionPolicy{"movies": {Kind: policy.KindMovie, Storage: policy.StorageDebrid, Import: "symlink"}},
 		Providers: map[string]*policy.Provider{"rd": {Kind: "realdebrid", APIKeyEnv: "RD_KEY"}},
 		Indexers:  map[string]*policy.Indexer{"feed": {Kind: "torznab", APIKeyEnv: "FEED_KEY", Privacy: policy.PrivacyPublic}},
 		Metadata:  &policy.Metadata{Sources: map[string]*policy.MetadataSource{"tmdb": {APIKeyEnv: "TMDB_KEY"}}},
@@ -98,7 +98,7 @@ func TestRunGoodInstall(t *testing.T) {
 		Print(&b, r)
 		t.Fatalf("a complete install has %d fail, %d warn:\n%s", r.Fail, r.Warn, b.String())
 	}
-	want(t, r, "versions/versions", OK, "1 library; active: movies")
+	want(t, r, "versions/versions", OK, "1 library: movies")
 	want(t, r, "library/mount", OK, "visible and readable")
 	want(t, r, "library/root movies", OK, "writable")
 	want(t, r, "library/trash", OK, "writable")
@@ -150,7 +150,7 @@ func TestRunEmptyInstall(t *testing.T) {
 	forced := Run(context.Background(), Options{Policy: &policy.Policy{Library: &policy.Library{Enabled: false}, ForcedOff: []string{"pause"}}, APIKeys: 0})
 	want(t, forced, "switches/pause", OK, "on, forced by environment")
 	open := Run(context.Background(), Options{Policy: &policy.Policy{Router: &policy.Router{Enabled: true}}, APIKeys: 0})
-	want(t, open, "switches/pause", OK, "off: Live libraries search, download and link")
+	want(t, open, "switches/pause", OK, "off: libraries search, download and link")
 	typo := Run(context.Background(), Options{Policy: &policy.Policy{ForceOffUnknown: []string{"THEATARR_FORCE_OFF: routr"}}, APIKeys: 0})
 	want(t, typo, "switches/force off", Warn, "THEATARR_FORCE_OFF: routr is not a switch")
 	if r.Fail != 1 {
@@ -343,37 +343,6 @@ func TestPreflightVPNLimits(t *testing.T) {
 	}
 }
 
-// A Watch-only library writes nothing: a read-only root passes; once the library is Live it must be writable.
-func TestWatchOnlyRootReadOnly(t *testing.T) {
-	o, _ := good(t)
-	o.FS = readOnlyFS{}
-	o.Policy.Versions["movies"].Mode = policy.ModeShadow
-	for _, it := range Run(context.Background(), o).Items {
-		if it.Check == "root movies" && it.Status == Fail {
-			t.Fatalf("Watch-only root failed: %+v", it)
-		}
-	}
-	o.Policy.Versions["movies"].Mode = policy.ModeActive
-	want(t, Run(context.Background(), o), "library/root movies", Fail, "not writable")
-}
-
-type unreadableFS struct{ OSFS }
-
-func (unreadableFS) Readable(string) error { return errors.New("permission denied") }
-
-func TestWatchOnlyRootMustBeReadable(t *testing.T) {
-	o, _ := good(t)
-	o.Policy.Versions["movies"].Mode = policy.ModeShadow
-	o.FS = unreadableFS{}
-	r := Run(context.Background(), o)
-	for _, it := range r.Items {
-		if it.Check == "root movies" && it.Status == Fail && strings.Contains(it.Why, "not readable") {
-			return
-		}
-	}
-	t.Fatal("unreadable Watch-only root did not fail")
-}
-
 // Once a library exists an unset trash folder is a failure: upgrades and removals would keep no copy of the replaced
 // link. Before the first library it stays a warning (TestRunEmptyInstall).
 func TestRunTrashUnsetWithLibraryFails(t *testing.T) {
@@ -383,11 +352,10 @@ func TestRunTrashUnsetWithLibraryFails(t *testing.T) {
 	want(t, Run(context.Background(), o), "library/trash", Fail, "library.trash.dir is not set")
 }
 
-// No library can write (shadow only, or library.enabled off): no trash stays a warning, so the CLI exit code and
+// No library can write (library.enabled off): no trash stays a warning, so the CLI exit code and
 // Setup's readiness are unchanged.
 func TestRunTrashUnsetWithoutWritesWarns(t *testing.T) {
 	for name, edit := range map[string]func(*policy.Policy){
-		"shadow":           func(p *policy.Policy) { p.Library.Enabled = true; p.Versions["movies"].Mode = policy.ModeShadow },
 		"library disabled": func(p *policy.Policy) { p.Library.Enabled = false },
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -437,13 +405,9 @@ func TestClientLoginMissing(t *testing.T) {
 	}
 }
 
-// A Live library with Plex set up but no Plex library warns; a Watch only one does not.
-func TestLiveLibraryWithoutPlexLibrary(t *testing.T) {
+// A library with Plex set up but no Plex library warns.
+func TestLibraryWithoutPlexLibrary(t *testing.T) {
 	o, _ := good(t)
 	o.Policy.Library.Versions["movies"].PlexSection = 0
 	want(t, Run(context.Background(), o), "library/plex library movies", Warn, "library movies has no Plex library")
-	o.Policy.Versions["movies"].Mode = policy.ModeShadow
-	if it, ok := items(Run(context.Background(), o))["library/plex library movies"]; ok {
-		t.Fatalf("watch only: %+v", it)
-	}
 }

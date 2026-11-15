@@ -15,7 +15,6 @@ import (
 	"github.com/pressly/goose/v3/database"
 
 	"github.com/theatarr/theatarr/internal/library/probe"
-	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/store"
 )
 
@@ -23,7 +22,7 @@ import (
 // partial, and a later pass finishes it once the failing path is fixed.
 func TestPartialImportRetried(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	rel := "Show.S01.2160p.WEB-DL.DDP5.1.H.265-GRP"
 	e.release(rel, map[string]float64{"Show.S01E01.2160p.WEB-DL.DDP5.1.H.265-GRP.mkv": 2700,
 		"Show.S01E02.2160p.WEB-DL.DDP5.1.H.265-GRP.mkv": 2650})
@@ -75,7 +74,7 @@ func TestPartialImportRetried(t *testing.T) {
 // waits is retried after the first delay, and a second partial doubles it.
 func TestPartialAfterWaitsStartsBackoffAgain(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	rel := "Show.S01.2160p.WEB-DL.DDP5.1.H.265-GRP"
 	e.download(1, "tv", 2, 20, rel, rel, "[201, 202]")
 	for range 7 {
@@ -119,7 +118,7 @@ func TestPartialAfterWaitsStartsBackoffAgain(t *testing.T) {
 // before planning or writing anything.
 func TestConcurrentImportsClaimed(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
 	e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
 	inner := e.lib.probe
@@ -236,7 +235,7 @@ func TestMigration27(t *testing.T) {
 // rejection does not fail the download the newer run imported, nor blocklist its hash.
 func TestStaleImportRecordsNoOutcome(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.release(movieRelease, map[string]float64{"movie.mkv": 40 * 60}) // a sample: rejected
 	e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
 	inner := e.lib.probe

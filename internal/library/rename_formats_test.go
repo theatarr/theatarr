@@ -28,7 +28,7 @@ const storedFormats = `[{"name":"HDR","score":500},{"name":"Remux Tier 01","scor
 // the stored formats through the same include-when-renaming filter, so a scoring-only format stays out of the name.
 func TestRenamePreviewKeepsIncludeWhenRenaming(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.pol.Versions["movie-remux"].Naming.File = "{Movie CleanTitle} {(Release Year)} {[Custom Formats]}{[Quality Full]}"
 	e.lib.matched = onlyHDRWhenRenaming
 	e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
@@ -56,7 +56,7 @@ func TestRenamePreviewKeepsIncludeWhenRenaming(t *testing.T) {
 // Reassigning episodes names the file with the same include-when-renaming filter as import.
 func TestReassignKeepsIncludeWhenRenaming(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.pol.Versions["tv"].Naming.File = "{Series Title} - S{season:00}E{episode:00} {[Custom Formats]}"
 	e.lib.matched = onlyHDRWhenRenaming
 	e.exec(`INSERT INTO episode (id, title_id, season, number, name, created_at, updated_at) VALUES (203, 2, 1, 3, 'Third', 0, 0)`)
@@ -86,7 +86,7 @@ func TestReassignKeepsIncludeWhenRenaming(t *testing.T) {
 // the release's size), so a size-based format is in the name and a rename right after import proposes nothing.
 func TestRenamePreviewAfterImportWithoutStoredFormats(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	body := `{"name":"Big","specifications":[{"name":"s","implementation":"SizeSpecification","negate":false,
 		"required":true,"fields":{"min":10,"max":1000}}]}`
 	if err := os.WriteFile(filepath.Join(e.dir, "big.json"), []byte(body), 0o644); err != nil {

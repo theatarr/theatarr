@@ -7,14 +7,13 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/theatarr/theatarr/internal/policy"
 )
 
-// ConfirmationEffect describes a change that asks for confirmation before it is saved: going Live, Pause off,
-// importing an arr into a Live library, removing a library, and an address change that keeps a stored credential.
+// ConfirmationEffect describes a change that asks for confirmation before it is saved: Pause off, importing an arr
+// into a library, removing a library, and an address change that keeps a stored credential.
 type ConfirmationEffect struct {
 	Version string `json:"version"`
 	Effect  string `json:"effect"`
@@ -165,8 +164,7 @@ func snapshotConfirmationEffects(ctx context.Context, q rootQueryer, previous, n
 	return append(effects, credentialAddressEffects(previous, next, lookup)...), nil
 }
 
-// snapshotWriteEffects are snapshotConfirmationEffects without the credential addresses: a library going Live,
-// Pause off, and removing a library (always: its rows go with it). Every other change saves at once after validation. A startup fallback checks only
+// snapshotWriteEffects are snapshotConfirmationEffects without the credential addresses: Pause off, and removing a library (always: its rows go with it). Every other change saves at once after validation. A startup fallback checks only
 // these (FallbackEffects): the last published generation already sent its credentials to its own addresses.
 func snapshotWriteEffects(ctx context.Context, q rootQueryer, previous, next *Snapshot) ([]ConfirmationEffect, error) {
 	if previous == nil || next == nil {
@@ -184,25 +182,6 @@ func versionConfirmationEffects(ctx context.Context, q rootQueryer, previous, ne
 		return nil, nil
 	}
 	var effects []ConfirmationEffect
-	for _, key := range sortedPolicyKeys(next.Versions) {
-		before, after := previous.Versions[key], next.Versions[key]
-		if after == nil {
-			continue
-		}
-		root := strings.Join(configuredVersionRoots(next, key), ", ")
-		if root == "" {
-			root = "(no library root configured)"
-		}
-		if after.Mode != policy.ModeActive || before != nil && before.Mode == policy.ModeActive {
-			continue
-		}
-		effect := fmt.Sprintf("Library %s becomes Live: it searches, downloads to %s and writes links under %s.",
-			key, providerList(after.Providers), root)
-		if next.Router == nil || !next.Router.Enabled {
-			effect += " Pause is on, so nothing starts until you turn it off."
-		}
-		effects = append(effects, ConfirmationEffect{Version: key, Effect: effect})
-	}
 	for _, key := range sortedPolicyKeys(previous.Versions) {
 		if next.Versions[key] != nil {
 			continue
@@ -224,13 +203,6 @@ func versionConfirmationEffects(ctx context.Context, q rootQueryer, previous, ne
 		effects = append(effects, ConfirmationEffect{Version: key, Effect: effect})
 	}
 	return effects, nil
-}
-
-func providerList(providers []string) string {
-	if len(providers) == 0 {
-		return "no providers"
-	}
-	return strings.Join(providers, ", ")
 }
 
 func (r *RuntimeCoordinator) takeConfirmation(ctx context.Context, token string, generation int64, revision string, effects []ConfirmationEffect) bool {

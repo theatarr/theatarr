@@ -15,7 +15,7 @@ func TestIndexerProxyNeedsConfirmation(t *testing.T) {
 	m, p, active := activeWebFixture(t)
 	target := ""
 	for _, v := range active.Policy.Versions {
-		if v.Mode == policy.ModeActive && len(v.Indexers) > 0 {
+		if len(v.Indexers) > 0 {
 			target = v.Indexers[0]
 		}
 	}
@@ -52,15 +52,13 @@ func TestProxyOrigins(t *testing.T) {
 	}
 }
 
-func TestShadowIndexerProxyNeedsCredentialConfirmation(t *testing.T) {
+func TestUnusedIndexerProxyNeedsCredentialConfirmation(t *testing.T) {
 	t.Parallel()
 	m, p, active := activeWebFixture(t)
 	uses := map[string]bool{}
 	for _, v := range active.Policy.Versions {
-		if v.Mode == policy.ModeActive {
-			for _, key := range v.Indexers {
-				uses[key] = true
-			}
+		for _, key := range v.Indexers {
+			uses[key] = true
 		}
 	}
 	target := ""

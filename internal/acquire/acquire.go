@@ -1,11 +1,11 @@
-// Package acquire runs the searches of the versions in mode active and hands what they accept to the router: the
+// Package acquire runs the searches of the versions and hands what they accept to the router: the
 // arr views' search commands (Submit) and the search schedule (Round, Run; schedule.go). A shared search has one root
 // acquire_run and one child row per served version-target; it searches once, decides each target and enqueues each
 // accepted route.
 //
-// It never searches for a version in shadow mode: Submit and the loop drop every version that is not active, and the
-// job checks the mode again before it searches. Whether the router may write is still the router's gate alone
-// (router.enabled and the version's mode); with the switch off a route is a dry run recorded in router_plan.
+// Submit and the loop drop every version the policy does not have, and the job checks again before it searches.
+// Whether the router may write is still the router's gate alone (router.enabled); with the switch off a route is a
+// dry run.
 package acquire
 
 import (
@@ -187,7 +187,7 @@ func (a *Acquirer) RegisterJobs(w *jobs.Worker) {
 
 // Selection is what a search asks for, in the arrs' terms.
 type Selection struct {
-	// Versions are the version keys; only those in mode active are searched.
+	// Versions are the version keys; only those in the policy are searched.
 	Versions []string
 	// TitleIDs limits the search to these titles; empty means every title of the versions, which needs Only.
 	TitleIDs []int64
@@ -246,11 +246,11 @@ func namedEpisode(source, reason, name string, episodes []int64) bool {
 	return source == SourceCommand && reason == "" && len(episodes) == 1 && strings.Contains(name, "e")
 }
 
-// Active filters keys to the versions in mode active, sorted.
+// Active filters keys to the versions in the policy, sorted.
 func (a *Acquirer) Active(keys []string) []string {
 	var out []string
 	for _, k := range keys {
-		if vp := a.pol.Versions[k]; vp != nil && vp.Mode == policy.ModeActive && !slices.Contains(out, k) {
+		if a.pol.Versions[k] != nil && !slices.Contains(out, k) {
 			out = append(out, k)
 		}
 	}
@@ -288,7 +288,7 @@ func (a *Acquirer) Submit(ctx context.Context, commandID int64, sel Selection) (
 	// would take it; the user-invoked semantics (unmonitored, before availability) are for the named versions only.
 	if named {
 		sel.requested = requested
-		sel.Versions = a.pol.ActiveVersions()
+		sel.Versions = a.pol.VersionKeys()
 	}
 	queued, found = held, held
 	sel.userInvoked = true
@@ -948,8 +948,8 @@ func (a *Acquirer) run(ctx context.Context, sj SearchJob, claim string) error {
 		_, err := finishTx(state, msg, results, accepted, nil)
 		return err
 	}
-	if vp := a.pol.Versions[t.key]; vp == nil || vp.Mode != policy.ModeActive {
-		return finish("skipped", "version "+t.key+" is not active: nothing searched", 0, 0)
+	if a.pol.Versions[t.key] == nil {
+		return finish("skipped", "version "+t.key+" is not in the settings: nothing searched", 0, 0)
 	}
 	// A loop search is checked for Pause again before it asks any indexer: its row stays due (runGated).
 	if source == SourceWanted && !a.pol.RouterSettings().Enabled {
@@ -1131,8 +1131,8 @@ func (a *Acquirer) runFanout(ctx context.Context, rootID int64, claim, rootState
 	for _, r := range runs {
 		outcome := fanoutOutcome{run: r}
 		vp := a.pol.Versions[r.key]
-		if vp == nil || vp.Mode != policy.ModeActive {
-			outcome.state, outcome.message = "skipped", "version "+r.key+" is not active: nothing searched"
+		if vp == nil {
+			outcome.state, outcome.message = "skipped", "version "+r.key+" is not in the settings: nothing searched"
 			outcomes = append(outcomes, outcome)
 			continue
 		}
@@ -1405,7 +1405,7 @@ func held(t *decide.Title, tg target, existing *decide.ExistingFile) bool {
 	return true
 }
 
-// Source is the router request source of a run: download.source and router_plan.source carry it.
+// Source is the router request source of a run: download.source carries it.
 func Source(runID int64) string { return "acquire:" + strconv.FormatInt(runID, 10) }
 
 // seriesSearch is the arr's search criteria for a target: a season search for several episodes, an episode search

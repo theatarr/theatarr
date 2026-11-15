@@ -9,15 +9,13 @@ import (
 	"syscall"
 	"testing"
 	"time"
-
-	"github.com/theatarr/theatarr/internal/policy"
 )
 
 // The now playing page's reads: zurg's /stats, every new log line, and the pre-warm read of a link target.
 
 func TestZurgStats(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, false, policy.ModeShadow)
+	e := newEnv(t, false)
 	z := e.withZurg(newZurgServer(t))
 	st, err := z.Stats(e.ctx)
 	if err != nil || st.ActiveStreams != 2 || len(st.BlockedReads) != 1 || st.BlockedReads[0].Filename != "e.mkv" ||
@@ -43,7 +41,7 @@ func TestZurgLogOnLine(t *testing.T) {
 
 func TestPrewarm(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, false, policy.ModeShadow)
+	e := newEnv(t, false)
 	e.release("Show.S01.WEB", map[string]float64{"Show.S01E02.mkv": 2700})
 	target := filepath.Join(e.mount, "__all__", "Show.S01.WEB", "Show.S01E02.mkv")
 	// Not a container the probe knows ("video"): read all the same.

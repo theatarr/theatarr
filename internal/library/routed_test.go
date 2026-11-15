@@ -37,7 +37,7 @@ func (e *env) withFormats(decided, matched *[]string) {
 // The router's matched formats name the file; a download without them decides the release title again.
 func TestImportUsesStoredFormats(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	var decided, matched []string
 	e.withFormats(&decided, &matched)
 	e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
@@ -62,7 +62,7 @@ func TestImportUsesStoredFormats(t *testing.T) {
 // A guard rejection blocklists the hash for the version, and the router skips it from then on: no add.
 func TestRejectBlocklistsForRouter(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.release(movieRelease, map[string]float64{"movie.mkv": 40 * 60})
 	e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
 	if _, err := e.lib.Import(e.ctx, 1, false); err != nil {
@@ -78,7 +78,7 @@ func TestRejectBlocklistsForRouter(t *testing.T) {
 			Privacy: policy.PrivacyPublic}},
 		Providers: map[string]*policy.Provider{"rd": {Kind: provider.KindRealDebrid, Order: 1,
 			URL: "http://rd.test/rest/1.0", APIKeyEnv: "THEATARR_RD_KEY", Pacing: policy.Pacing{AddsPerMinute: 10}}},
-		Versions: map[string]*policy.VersionPolicy{"movie-remux": {Mode: policy.ModeActive, Kind: policy.KindMovie,
+		Versions: map[string]*policy.VersionPolicy{"movie-remux": {Kind: policy.KindMovie,
 			Storage: policy.StorageDebrid, Indexers: []string{"idx"}, Providers: []string{"rd"}}},
 		Router: &policy.Router{Enabled: true},
 	}

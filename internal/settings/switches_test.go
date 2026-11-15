@@ -3,7 +3,6 @@ package settings
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"log/slog"
 	"os"
@@ -189,7 +188,7 @@ func TestGlobalSwitchOmittedAndImportPreserveDB(t *testing.T) {
 	}
 }
 
-func TestGlobalSwitchEffectsNameLiveLibraries(t *testing.T) {
+func TestGlobalSwitchEffectsNameLibraries(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	s, _, base, _ := versionFixture(t)
@@ -200,19 +199,8 @@ func TestGlobalSwitchEffectsNameLiveLibraries(t *testing.T) {
 	}
 	m := versionCoordinator(t, s, base, initial)
 	req := saveRequest(base, initial)
-	editVersion(&req.Records, "movie-web", func(v *Version) { v.Config.Mode = policy.ModeActive })
-	proof, err := m.Confirm(ctx, req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	req.ConfirmationToken = proof.Token
-	active, err := m.SaveAndApply(ctx, req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	req = saveRequest(base, active)
 	req.Records.Switches = &GlobalSwitches{Paused: false}
-	proof, err = m.Confirm(ctx, req)
+	proof, err := m.Confirm(ctx, req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -220,7 +208,7 @@ func TestGlobalSwitchEffectsNameLiveLibraries(t *testing.T) {
 	for _, effect := range proof.Effects {
 		text += effect.Effect
 	}
-	for _, expected := range []string{"Turn Pause off: Live libraries search, download and link again: 4K WEB.", "Waiting downloads are imported."} {
+	for _, expected := range []string{"Turn Pause off: libraries search, download and link again: ", "4K WEB", "Waiting downloads are imported."} {
 		if !strings.Contains(text, expected) {
 			t.Fatalf("effect lacks %s: %s", expected, text)
 		}
@@ -309,50 +297,16 @@ func TestGlobalSwitchImportPreservesDB(t *testing.T) {
 	}
 }
 
-// Going Live names what the library does; with Pause on it says nothing starts until Pause is off.
-func TestVersionConfirmationReportsPause(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	s, _, base, _ := versionFixture(t)
-	base.Router.Enabled, base.Library.Enabled = true, true
-	seeded, err := s.BootstrapSwitches(ctx, base, "test")
-	if err != nil {
-		t.Fatal(err)
-	}
-	m := versionCoordinator(t, s, base, seeded)
-	req := saveRequest(base, seeded)
-	editVersion(&req.Records, "movie-web", func(v *Version) { v.Config.Mode = policy.ModeActive })
-	proof, err := m.Confirm(ctx, req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var text string
-	for _, effect := range proof.Effects {
-		text += effect.Effect + "\n"
-	}
-	want := "Library movie-web becomes Live: it searches, downloads to rd, ad, tb and writes links under " +
-		seeded.Policy.Versions["movie-web"].Library + ". Pause is on, so nothing starts until you turn it off."
-	if len(proof.Effects) != 1 || !strings.Contains(text, want) {
-		t.Fatalf("confirmation:\n%s\nwant %s", text, want)
-	}
-}
-
-// Only going Live and turning Pause off ask: Pause on, going Watch only and notifications do not.
+// Only turning Pause off asks: Pause on and notifications do not.
 func TestControlConfirmations(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	live := func(p *policy.Policy) *policy.Policy {
-		c, _ := p.Clone()
-		c.Versions["movie-web"].Mode = policy.ModeActive
-		return c
-	}
 	open := func(p *policy.Policy) *policy.Policy {
 		c, _ := p.Clone()
 		c.Router, c.Library = &policy.Router{Enabled: true}, &policy.Library{Enabled: true}
 		return c
 	}
 	_, _, base, _ := versionFixture(t)
-	base.Versions["movie-web"].Mode = policy.ModeShadow
 	notified, _ := base.Clone()
 	notified.Notify = &policy.Notify{Enabled: true}
 	snap := func(p *policy.Policy, paused bool) *Snapshot {
@@ -363,10 +317,8 @@ func TestControlConfirmations(t *testing.T) {
 		before, next *Snapshot
 		asks         bool
 	}{
-		{"going Live", snap(base, true), snap(live(base), true), true},
 		{"Pause off", snap(base, true), snap(open(base), false), true},
-		{"Pause on", snap(open(live(base)), false), snap(live(base), true), false},
-		{"going Watch only", snap(live(base), false), snap(base, false), false},
+		{"Pause on", snap(open(base), false), snap(base, true), false},
 		{"notifications on", snap(base, true), snap(notified, true), false},
 	} {
 		effects, err := snapshotWriteEffects(ctx, nil, c.before, c.next)
@@ -397,65 +349,5 @@ func TestForceOffUnknownNames(t *testing.T) {
 		if !strings.Contains(logs.String(), entry) || !strings.Contains(logs.String(), "level=WARN") {
 			t.Fatalf("missing warning for %s: %s", entry, &logs)
 		}
-	}
-}
-
-// Startup fallback cannot bring back a version's active mode that the stored head no longer has.
-func TestVersionFallbackCannotReactivateHeadShadow(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	s, db, base, _ := versionFixture(t)
-	initial, err := s.BootstrapSwitches(ctx, base, "test")
-	if err != nil {
-		t.Fatal(err)
-	}
-	var raw string
-	if err := db.Reader().QueryRowContext(ctx, "SELECT snapshot FROM settings_generation WHERE generation = ?",
-		initial.Generation).Scan(&raw); err != nil {
-		t.Fatal(err)
-	}
-	var stored generationSnapshot
-	if err := json.Unmarshal([]byte(raw), &stored); err != nil {
-		t.Fatal(err)
-	}
-	found := false
-	for i := range stored.Records.Versions {
-		if stored.Records.Versions[i].Key == "movie-web" {
-			stored.Records.Versions[i].Config.Mode = policy.ModeActive
-			found = true
-		}
-	}
-	if !found {
-		t.Fatal("fixture has no movie-web version")
-	}
-	edited, err := json.Marshal(stored)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := db.Writer().ExecContext(ctx, "UPDATE settings_generation SET snapshot = ? WHERE generation = ?",
-		string(edited), initial.Generation); err != nil {
-		t.Fatal(err)
-	}
-	fallback, err := s.LoadGeneration(ctx, base, initial.Generation)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if v := fallback.Policy.Versions["movie-web"]; v.Mode == policy.ModeActive {
-		t.Fatalf("fallback kept mode %q over a shadow head", v.Mode)
-	}
-	// A version the head deleted is recovered as shadow.
-	if _, err := db.Writer().ExecContext(ctx, "DELETE FROM setting_version WHERE key = 'movie-web'"); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := db.Writer().ExecContext(ctx, "UPDATE settings_generation SET snapshot = ? WHERE generation = ?",
-		string(edited), initial.Generation); err != nil {
-		t.Fatal(err)
-	}
-	fallback, err = s.LoadGeneration(ctx, base, initial.Generation)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if v := fallback.Policy.Versions["movie-web"]; v.Mode == policy.ModeActive {
-		t.Fatalf("fallback kept mode %q for a version the head removed", v.Mode)
 	}
 }

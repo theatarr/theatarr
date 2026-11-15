@@ -26,7 +26,7 @@ func TestRootInMountRefusedByPath(t *testing.T) {
 	}
 	p.Library.Mount.Path = filepath.Join(file, "zurg") // any stat in it fails: not a directory
 	for _, root := range []string{p.Library.Mount.Path, filepath.Join(p.Library.Mount.Path, "__all__", "lib")} {
-		if _, err := validateOneRoot(context.Background(), policy.NewRootResolver(context.Background()), p, "new", root, false); err == nil || !strings.Contains(err.Error(), "overlaps the library mount") {
+		if _, err := validateOneRoot(context.Background(), policy.NewRootResolver(context.Background()), p, "new", root); err == nil || !strings.Contains(err.Error(), "overlaps the library mount") {
 			t.Errorf("%s: %v", root, err)
 		}
 		if _, err := s.ValidateRoot(context.Background(), p, "movie-web", root); err == nil || !strings.Contains(err.Error(), "mount") {
@@ -156,7 +156,6 @@ func TestStuckRootCheckHoldsOnlyItsRoot(t *testing.T) {
 	}
 
 	req := saveRequest(p, initial)
-	editVersion(&req.Records, "movie-web", func(v *Version) { v.Config.Mode = policy.ModeShadow })
 	req.Records.Switches = &GlobalSwitches{Paused: true}
 	saved, err := s.Save(ctx, req)
 	if err != nil {
@@ -233,10 +232,13 @@ func TestHungActiveRootLeavesOffSavesOpen(t *testing.T) {
 	if time.Since(start) > 5*time.Second || rootprobe.Default.Stuck(other) {
 		t.Fatalf("the hang was charged to %s (%s)", other, time.Since(start))
 	}
+	// A save that changes no root saves beside the hung root.
 	req = saveRequest(p, saved)
-	editVersion(&req.Records, "movie-web", func(v *Version) { v.Config.Mode = policy.ModeShadow })
+	for i := range req.Records.Budgets {
+		req.Records.Budgets[i].Config.Burst++
+	}
 	if _, err := m.SaveAndApply(ctx, req); err != nil {
-		t.Fatalf("the hung version back to shadow: %v", err)
+		t.Fatalf("a save beside the hung root: %v", err)
 	}
 }
 
@@ -331,7 +333,7 @@ func TestFilesystemRootRefused(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, root := range []string{"/", alias} {
-		if _, err := validateOneRoot(context.Background(), policy.NewRootResolver(context.Background()), p, "new", root, false); err == nil || !strings.Contains(err.Error(), "filesystem root") {
+		if _, err := validateOneRoot(context.Background(), policy.NewRootResolver(context.Background()), p, "new", root); err == nil || !strings.Contains(err.Error(), "filesystem root") {
 			t.Errorf("%s: %v", root, err)
 		}
 	}
@@ -340,7 +342,7 @@ func TestFilesystemRootRefused(t *testing.T) {
 	if withMount.Library.Mount.Path == "" {
 		withMount.Library.Mount.Path = filepath.Join(t.TempDir(), "mount")
 	}
-	if _, err := validateOneRoot(context.Background(), policy.NewRootResolver(context.Background()), withMount, "new", "/", false); err == nil || err.Error() != "directory cannot be the filesystem root" {
+	if _, err := validateOneRoot(context.Background(), policy.NewRootResolver(context.Background()), withMount, "new", "/"); err == nil || err.Error() != "directory cannot be the filesystem root" {
 		t.Errorf("/ with a library mount: %v", err)
 	}
 }

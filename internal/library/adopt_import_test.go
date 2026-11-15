@@ -7,8 +7,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/theatarr/theatarr/internal/policy"
 )
 
 // instanceLink makes a Radarr/Sonarr file at p: a symlink to target (relative targets are under the zurg release
@@ -34,7 +32,7 @@ func (e *env) instanceLink(p, target string) {
 
 func TestAdoptImportedMovie(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	var formatsFor []string
 	e.lib.formats = func(_ context.Context, key string, _ int64, _ string) []string {
 		formatsFor = append(formatsFor, key)
@@ -128,7 +126,7 @@ func TestAdoptImportedMovie(t *testing.T) {
 
 func TestAdoptImportedSeries(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	rel := "Show.S01.1080p.WEB-DL-GRP"
 	e.release(rel, map[string]float64{"Show.S01E01E02.mkv": 5400, "Show.S01E01.mkv": 2700})
 	inst := filepath.Join(e.outside, "sonarr", "Show", "Season 1")
@@ -164,9 +162,9 @@ func TestAdoptImportedSeries(t *testing.T) {
 	}
 }
 
-func TestAdoptImportedNeedsLiveLibrary(t *testing.T) {
+func TestAdoptImportedNeedsLibraryWrites(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeShadow)
+	e := newEnv(t, false)
 	e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
 	p := filepath.Join(e.outside, "radarr", "Amelie (2001)", "Amelie.mkv")
 	e.instanceLink(p, movieRelease+"/movie.mkv")
@@ -174,7 +172,7 @@ func TestAdoptImportedNeedsLiveLibrary(t *testing.T) {
 	_, err := e.lib.AdoptImported(e.ctx, "movie-remux", []ImportFile{{TitleID: 1, Source: "radarr@r:7878 " + p, Path: p,
 		Quality: "Remux-2160p"}})
 	if !errors.Is(err, ErrRefused) {
-		t.Fatalf("Watch only: %v", err)
+		t.Fatalf("library off: %v", err)
 	}
 	if after := strings.Join(tree(t, e.dir), "|"); before != after {
 		t.Fatal("refused run changed the tree")

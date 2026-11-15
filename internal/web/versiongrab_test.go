@@ -17,13 +17,12 @@ func (s grabStateSettings) Current() *settings.Runtime { return s.runtime }
 
 func TestVersionGrabStateSettingsRuntime(t *testing.T) {
 	t.Parallel()
-	stored := &policy.Policy{Versions: map[string]*policy.VersionPolicy{"v": {Mode: policy.ModeActive}},
+	stored := &policy.Policy{Versions: map[string]*policy.VersionPolicy{"v": {}},
 		Router: &policy.Router{Enabled: true}}
-	running := &policy.Policy{Versions: map[string]*policy.VersionPolicy{"v": {Mode: policy.ModeShadow}},
-		ForcedOff: []string{"pause"}}
+	running := &policy.Policy{Versions: map[string]*policy.VersionPolicy{"v": {}}, ForcedOff: []string{"pause"}}
 	w := &Web{pol: stored, settings: grabStateSettings{runtime: &settings.Runtime{Policy: running}}}
 	switches := w.settingsSwitches()
-	want := VersionGrabState{Mode: "shadow", Paused: true, PauseForced: true}
+	want := VersionGrabState{Paused: true, PauseForced: true}
 	if len(switches.Versions) != 1 || switches.Versions[0].GrabState != want {
 		t.Fatalf("settings must report the runtime, not the stored head: %+v", switches)
 	}
@@ -31,42 +30,40 @@ func TestVersionGrabStateSettingsRuntime(t *testing.T) {
 
 func TestVersionGrabState(t *testing.T) {
 	t.Parallel()
-	for _, mode := range []policy.Mode{"off", policy.ModeShadow, policy.ModeActive} {
-		for _, paused := range []bool{false, true} {
-			for _, forced := range []bool{false, true} {
-				if forced && !paused {
-					continue // the override always pauses
-				}
-				t.Run(fmt.Sprintf("%s/paused=%t/forced=%t", mode, paused, forced), func(t *testing.T) {
-					p := &policy.Policy{Versions: map[string]*policy.VersionPolicy{"v": {Mode: mode}},
-						Router: &policy.Router{Enabled: !paused}}
-					if forced {
-						p.ForcedOff = []string{"pause"}
-					}
-					got := versionGrabState(p, "v")
-					want := VersionGrabState{Mode: string(mode), Paused: paused, PauseForced: forced, WillGrab: mode == policy.ModeActive && !paused}
-					if got != want {
-						t.Fatalf("state = %+v, want %+v", got, want)
-					}
-				})
+	for _, paused := range []bool{false, true} {
+		for _, forced := range []bool{false, true} {
+			if forced && !paused {
+				continue // the override always pauses
 			}
+			t.Run(fmt.Sprintf("paused=%t/forced=%t", paused, forced), func(t *testing.T) {
+				p := &policy.Policy{Versions: map[string]*policy.VersionPolicy{"v": {}},
+					Router: &policy.Router{Enabled: !paused}}
+				if forced {
+					p.ForcedOff = []string{"pause"}
+				}
+				got := versionGrabState(p, "v")
+				want := VersionGrabState{Paused: paused, PauseForced: forced, WillGrab: !paused}
+				if got != want {
+					t.Fatalf("state = %+v, want %+v", got, want)
+				}
+			})
 		}
 	}
-	for _, p := range []*policy.Policy{nil, {}, {Versions: map[string]*policy.VersionPolicy{"other": {Mode: policy.ModeActive}}}} {
-		if got := versionGrabState(p, "missing"); got != (VersionGrabState{Mode: "off", Paused: true}) {
+	for _, p := range []*policy.Policy{nil, {}, {Versions: map[string]*policy.VersionPolicy{"other": {}}, Router: &policy.Router{Enabled: true}}} {
+		if got := versionGrabState(p, "missing"); got.WillGrab || got.LibraryWrites {
 			t.Fatalf("missing policy/version: %+v", got)
 		}
 	}
 	p := &policy.Policy{Versions: map[string]*policy.VersionPolicy{"v": {}}, ForcedOff: []string{"notify"}}
-	if got := versionGrabState(p, "v"); got != (VersionGrabState{Mode: "shadow", Paused: true}) {
-		t.Fatalf("default mode, nil router, unrelated overrides: %+v", got)
+	if got := versionGrabState(p, "v"); got != (VersionGrabState{Paused: true}) {
+		t.Fatalf("nil router, unrelated overrides: %+v", got)
 	}
-	// library_writes is the library's own write gate: Pause off, listed with roots, mode active.
+	// library_writes is the library's own write gate: library writes on, the library in the policy and listed with
+	// roots.
 	lib := &policy.Policy{Library: &policy.Library{Enabled: true, Versions: map[string]*policy.LibraryVersion{
-		"a": {Roots: []string{"/lib/a"}}, "s": {Roots: []string{"/lib/s"}}}},
-		Versions: map[string]*policy.VersionPolicy{"a": {Mode: policy.ModeActive}, "s": {Mode: policy.ModeShadow},
-			"u": {Mode: policy.ModeActive}}}
-	for key, want := range map[string]bool{"a": true, "s": false, "u": false} {
+		"a": {Roots: []string{"/lib/a"}}, "gone": {Roots: []string{"/lib/gone"}}}},
+		Versions: map[string]*policy.VersionPolicy{"a": {}, "u": {}}}
+	for key, want := range map[string]bool{"a": true, "gone": false, "u": false} {
 		if got := versionGrabState(lib, key); got.LibraryWrites != want {
 			t.Errorf("%s: %+v, want library_writes %t", key, got, want)
 		}
@@ -99,11 +96,8 @@ func TestVersionGrabStateAPI(t *testing.T) {
 				if forced {
 					p.ForcedOff = []string{"pause"}
 				}
-				for _, v := range p.Versions {
-					v.Mode = policy.ModeActive
-				}
 			})
-			want := VersionGrabState{Mode: "active", Paused: forced, PauseForced: forced, WillGrab: !forced}
+			want := VersionGrabState{Paused: forced, PauseForced: forced, WillGrab: !forced}
 			check := func(got VersionGrabState) {
 				t.Helper()
 				if got != want {
@@ -177,8 +171,8 @@ func TestVersionGrabStateAPI(t *testing.T) {
 // only when a copy is actually acquiring (web/src/lib/request-state.ts versionFetching).
 func TestRedactVersionKeepsGrabState(t *testing.T) {
 	t.Parallel()
-	gs := VersionGrabState{Mode: "shadow"}
-	v := Version{Key: "tv-2160p", State: "wanted", Control: &VersionControl{GrabState: gs, Mode: "shadow", CanEdit: true, CanSearch: true}}
+	gs := VersionGrabState{Paused: true}
+	v := Version{Key: "tv-2160p", State: "wanted", Control: &VersionControl{GrabState: gs, CanEdit: true, CanSearch: true}}
 	redactVersion(&v)
 	if v.Control == nil || v.Control.GrabState != gs {
 		t.Fatalf("control after redaction = %+v, want grab_state %+v kept", v.Control, gs)

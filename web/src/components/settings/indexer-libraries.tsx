@@ -47,7 +47,6 @@ export function IndexerLibraries({ libraries, value, onChange, disabled }: {
         <span className="text-muted-foreground">
           {v.config.kind === "movie" ? "Movies" : "Series"}
           {v.config.anime === true ? " · anime" : ""}
-          {v.config.mode === "shadow" ? " · Watch only" : ""}
         </span>
       </>
     ),

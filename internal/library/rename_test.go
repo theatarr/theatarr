@@ -5,15 +5,13 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-
-	"github.com/theatarr/theatarr/internal/policy"
 )
 
 func TestRenameLink(t *testing.T) {
 	t.Parallel()
 	for _, enabled := range []bool{true, false} {
 		t.Run(map[bool]string{true: "enabled", false: "disabled"}[enabled], func(t *testing.T) {
-			e := newEnv(t, enabled, policy.ModeActive)
+			e := newEnv(t, enabled)
 			old := filepath.Join(e.movies, "Old", "old.mkv")
 			newPath := filepath.Join(e.movies, "New", "new.mkv")
 			target := filepath.Join(e.mount, "__all__", "movie.mkv")

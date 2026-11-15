@@ -55,9 +55,9 @@ type Config struct {
 	Getenv func(string) string
 	// Started is reported as startTime. Default: when New ran.
 	Started time.Time
-	// Searcher runs the search commands of active versions (internal/acquire). nil leaves them queued.
+	// Searcher runs the search commands of the versions (internal/acquire). nil leaves them queued.
 	Searcher Searcher
-	// RSSSync queues an immediate shadow RSS sync for the arr RssSync command. nil reports that no sync is configured.
+	// RSSSync queues an immediate RSS sync for the arr RssSync command. nil reports that no sync is configured.
 	RSSSync func(context.Context) error
 	// Decider searches and decides for the decision endpoints (release, release/push, parse, manualimport);
 	// acquire.Acquirer in theatarr serve. nil: those endpoints answer without decisions where they can, else 503.

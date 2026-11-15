@@ -616,30 +616,6 @@ func (r *Router) stillHeld(ctx context.Context, pk, id, hash string) (why string
 	return "", nil
 }
 
-// recordPlan stores a dry run for the shadow report.
-func (r *Router) recordPlan(ctx context.Context, req Request, res *Result) error {
-	outcome := "none"
-	switch res.Outcome {
-	case OutcomeWouldAdd:
-		outcome = "would_add"
-	case OutcomeDeferred:
-		outcome = "deferred"
-	}
-	steps, err := json.Marshal(res.Steps)
-	if err != nil {
-		return err
-	}
-	out, err := r.st.Writer().ExecContext(ctx, `INSERT INTO router_plan (title_id, version_key, mode, outcome,
-		release_title, indexer, info_hash, provider, steps, source, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		req.TitleID, req.Version, string(res.Mode), outcome, res.Release, res.Indexer, res.Hash, res.Provider,
-		string(steps), req.Source, store.Millis(r.now()))
-	if err != nil {
-		return fmt.Errorf("router: recording the plan: %w", err)
-	}
-	res.PlanID, _ = out.LastInsertId()
-	return nil
-}
-
 // storedRelease is a download's release_data: the release as the route had it, plus whether it came from a search and
 // that search's criteria, so a route that resumes the download (requeue, strays, a retry) re-decides it as it was
 // found. Readers of the release alone ignore the route fields; no schema change.

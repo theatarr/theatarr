@@ -345,7 +345,6 @@ type PolicySummary struct {
 type VersionPolicy struct {
 	GrabState VersionGrabState `json:"grab_state"`
 	Key       string           `json:"key"`
-	Mode      string           `json:"mode"`
 	Kind      string           `json:"kind"`
 	Profile   string           `json:"profile"`
 	Library   string           `json:"library"`
@@ -372,7 +371,7 @@ func summarise(p *policy.Policy) PolicySummary {
 	s.Dir, s.Files = p.Dir, append(s.Files, p.Files...)
 	for _, k := range sortedKeys(p.Versions) {
 		v := p.Versions[k]
-		s.Versions = append(s.Versions, VersionPolicy{GrabState: versionGrabState(p, k), Key: k, Mode: string(v.Mode), Kind: string(v.Kind),
+		s.Versions = append(s.Versions, VersionPolicy{GrabState: versionGrabState(p, k), Key: k, Kind: string(v.Kind),
 			Profile: v.Profile, Library: v.Library, Storage: string(v.Storage),
 			Indexers: append([]string{}, v.Indexers...), Providers: append([]string{}, v.Providers...)})
 	}

@@ -6,7 +6,6 @@ import (
 
 	"github.com/theatarr/theatarr/internal/indexer"
 	"github.com/theatarr/theatarr/internal/jobs"
-	"github.com/theatarr/theatarr/internal/policy"
 )
 
 // A queued route loses the release's magnet (links never reach the payload). A release whose reported hash conflicts
@@ -15,7 +14,7 @@ import (
 func TestQueuedRouteAddsMagnetHash(t *testing.T) {
 	t.Parallel()
 	for _, prefer := range []bool{false, true} {
-		e := newEnv(t, true, policy.ModeActive)
+		e := newEnv(t, true)
 		e.pol.Versions["movie"].PreferSeaDex = prefer
 		q := jobs.NewQueue(e.st)
 		q.SetClock(func() time.Time { return e.clock })
@@ -44,7 +43,7 @@ func TestQueuedRouteAddsMagnetHash(t *testing.T) {
 func TestRouteRejectsConflictingIdentity(t *testing.T) {
 	t.Parallel()
 	for _, prefer := range []bool{false, true} {
-		e := newEnv(t, true, policy.ModeActive)
+		e := newEnv(t, true)
 		e.pol.Versions["movie"].PreferSeaDex = prefer
 		c := cand(h("a"), "Movie.2024.2160p.BluRay-GRP")
 		c.Release.Magnet = indexer.BareMagnet(h("b"))

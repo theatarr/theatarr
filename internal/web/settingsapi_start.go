@@ -6,14 +6,12 @@ import (
 	"slices"
 
 	"github.com/theatarr/theatarr/internal/auth"
-	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/settings"
 )
 
 // The one-step start of a fresh install (docs/quickstart.md):
 //
-//	POST setup/start   create a library that downloads at once: the version in mode active (Live), the
-//	                   optional TRaSH preset as its profile, and Pause off
+//	POST setup/start   create a library that downloads at once: the version, the optional TRaSH preset as its profile, and Pause off
 //
 // It is one settings save: one generation and one confirmation, which lists the activation and Pause off.
 
@@ -85,7 +83,6 @@ func (w *Web) apiSetupStart(rw http.ResponseWriter, r *http.Request) {
 		}
 		version.Config.Profile = body.Key
 	}
-	version.Config.Mode = policy.ModeActive
 	// A library that starts downloading needs something to search and something to add to among its own picks: an
 	// enabled indexer and an enabled provider with their credentials, as GET /setup counts them.
 	indexers, providers := snap.ReadyKeys(w.settingsLookup)

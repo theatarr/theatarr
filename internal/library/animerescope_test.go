@@ -9,7 +9,6 @@ import (
 
 	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/indexer"
-	"github.com/theatarr/theatarr/internal/policy"
 )
 
 // The franchise mapping of a series changes between a grab and its import (docs/design/anime.md, "Import"). The
@@ -83,7 +82,7 @@ func (e *env) held(plan *Plan, dl int64, episodes, oldPath, oldTarget string) {
 // its file to S02E02, which holds a 1080p link: the incoming remux is held, and the link stays.
 func TestAnimeFirstBuildKeepsOtherEpisodesLink(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.isekai()
 	e.exec(`DELETE FROM anime_mapping`)
 	e.exec(`UPDATE episode SET air_date_utc_at = 1600000000000 WHERE title_id = 3`)
@@ -122,7 +121,7 @@ func TestAnimeRescopeKeepsOtherEpisodesLink(t *testing.T) {
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
-			e := newEnv(t, true, policy.ModeActive)
+			e := newEnv(t, true)
 			e.isekai()
 			e.exec(`UPDATE episode SET air_date_utc_at = 1600000000000 WHERE title_id = 3`)
 			e.exec(`UPDATE anime_mapping SET status = ? WHERE entry_key = 'al:2'`, c.grabStatus)
@@ -153,7 +152,7 @@ func TestAnimeRescopeKeepsOtherEpisodesLink(t *testing.T) {
 // special beside it is linked outside it.
 func TestAnimeFirstBuildKeepsIdMatchedPack(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.isekai()
 	e.exec(`DELETE FROM anime_mapping`)
 	e.exec(`UPDATE episode SET air_date_utc_at = 1600000000000 WHERE title_id = 3`)
@@ -184,7 +183,7 @@ func TestAnimeFirstBuildKeepsIdMatchedPack(t *testing.T) {
 // the first build agrees with Sonarr's numbering: S02E02 is not linked.
 func TestAnimeFirstBuildKeepsNarrowedPack(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.isekai()
 	e.exec(`DELETE FROM anime_mapping`)
 	e.exec(`UPDATE episode SET air_date_utc_at = 1600000000000 WHERE title_id = 3`)
@@ -217,7 +216,7 @@ func TestAnimeFirstBuildKeepsNarrowedPack(t *testing.T) {
 // router kept: S02E01 is linked, S02E02 is not.
 func TestAnimeAcceptKeepsNarrowedPack(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.isekai()
 	e.exec(`UPDATE anime_mapping SET status = 'conflict' WHERE entry_key = 'al:2'`)
 	rel := "[Group] Isekai Story 2nd Season - 01-02 (BD 1080p)"
@@ -254,7 +253,7 @@ func TestAnimeSampleDoesNotRescope(t *testing.T) {
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
-			e := newEnv(t, true, policy.ModeActive)
+			e := newEnv(t, true)
 			e.isekai()
 			e.exec(`UPDATE episode SET air_date_utc_at = 1600000000000 WHERE title_id = 3`)
 			var epMap any
@@ -293,7 +292,7 @@ func TestAnimeSampleDoesNotRescope(t *testing.T) {
 // episodes of whatever files the pack holds. The special beside the episodes is not linked.
 func TestAnimeRejectedMappingKeepsReleaseIdentity(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.isekai()
 	e.exec(`UPDATE episode SET air_date_utc_at = 1600000000000 WHERE title_id = 3`)
 	e.exec(`INSERT INTO episode (id, title_id, season, number, name, created_at, updated_at) VALUES (315, 3, 0, 1, 'Bonus', 0, 0)`)

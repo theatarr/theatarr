@@ -62,7 +62,7 @@ func startEnv(t *testing.T) (se *settingsEnv, area string) {
 func (se *settingsEnv) startBody(key, root string) map[string]any {
 	se.t.Helper()
 	config := se.want(se.call("GET", "/versions/movie-web", nil), 200, "template")["record"].(map[string]any)["config"].(map[string]any)
-	config["library"], config["mode"] = root, "shadow"
+	config["library"] = root
 	return map[string]any{"generation": se.generation(), "key": key, "roots": []string{root}, "config": config}
 }
 
@@ -109,27 +109,24 @@ func TestSetupStart(t *testing.T) {
 	body := se.startBody("films", root)
 	gen := body["generation"].(int64)
 	refused := se.start(body)
-	if effects, _ := refused["effects"].([]any); refused["status"] != 422 || len(effects) != 2 {
+	if effects, _ := refused["effects"].([]any); refused["status"] != 422 || len(effects) != 1 {
 		t.Fatalf("unconfirmed start: %v", refused)
 	}
-	// Each thing the save turns on is its own line.
-	for _, want := range []string{"Library films becomes Live: it searches, downloads to", "Turn Pause off: Live libraries search, download and link again: 4K WEB."} {
-		confirmRefusal(t, refused, want)
-	}
+	confirmRefusal(t, refused, "Turn Pause off: libraries search, download and link again: ")
 	if text := fmt.Sprint(refused["effects"]); strings.Contains(text, "notif") {
 		t.Fatalf("the start touches notify: %s", text)
 	}
 	if router, library := se.switchesOn(); se.generation() != gen || router || library {
 		t.Fatal("the refused start changed something")
 	}
-	body["confirmation_token"] = confirmRefusal(t, refused, root)
+	body["confirmation_token"] = confirmRefusal(t, refused, "Turn Pause off")
 	started := se.start(body)
 	if started["status"] != 200 || int64(started["generation"].(float64)) != gen+1 || se.generation() != gen+1 ||
 		fmt.Sprint(started["forced_off"]) != "[]" {
 		t.Fatalf("confirmed start: %v (generation %d, was %d)", started, se.generation(), gen)
 	}
 	config := se.want(se.call("GET", "/versions/films", nil), 200, "the library")["record"].(map[string]any)["config"].(map[string]any)
-	if config["mode"] != "active" || config["profile"] != "web-2160p" {
+	if config["profile"] != "web-2160p" {
 		t.Fatalf("stored library: %v", config)
 	}
 	if router, library := se.switchesOn(); !router || !library {
@@ -137,10 +134,6 @@ func TestSetupStart(t *testing.T) {
 	}
 	if n := se.coord.Current().Policy.Notify; n != nil && n.Enabled {
 		t.Fatal("notifications on: the start must leave them alone")
-	}
-	// The other libraries are as they were.
-	if other := se.want(se.call("GET", "/versions/movie-web", nil), 200, "another library")["record"].(map[string]any)["config"].(map[string]any); other["mode"] != "shadow" {
-		t.Fatalf("another library changed: %v", other)
 	}
 
 	// The same key again, a stale generation, and a request without one.
@@ -183,7 +176,7 @@ func TestSetupStartWithPreset(t *testing.T) {
 	body["preset"] = map[string]any{"flavour": "radarr", "preset": webPreset, "modifiers": []string{}}
 	gen := se.generation()
 	refused := se.start(body)
-	if effects, _ := refused["effects"].([]any); refused["status"] != 422 || len(effects) != 2 {
+	if effects, _ := refused["effects"].([]any); refused["status"] != 422 || len(effects) != 1 {
 		t.Fatalf("unconfirmed start: %v", refused)
 	}
 	body["confirmation_token"] = confirmRefusal(t, refused, "Turn Pause off")
@@ -191,7 +184,7 @@ func TestSetupStartWithPreset(t *testing.T) {
 		t.Fatalf("confirmed start: %v (generation %d, was %d)", out, se.generation(), gen)
 	}
 	config := se.want(se.call("GET", "/versions/films", nil), 200, "the library")["record"].(map[string]any)["config"].(map[string]any)
-	if config["mode"] != "active" || config["profile"] != "films" {
+	if config["profile"] != "films" {
 		t.Fatalf("stored library: %v", config)
 	}
 	snap, err := se.coord.Snapshot(t.Context())
@@ -232,7 +225,7 @@ func TestSetupStartForcedOff(t *testing.T) {
 }
 
 // Pause closes both gates: with it on, the router's write gate, the library's write gate and the search gate all
-// refuse a Live library; with it off all three let it through.
+// refuse a library; with it off all three let it through.
 func TestPauseClosesBothGates(t *testing.T) {
 	t.Parallel()
 	se, area := startEnv(t)

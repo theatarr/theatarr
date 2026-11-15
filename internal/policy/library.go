@@ -13,7 +13,7 @@ import (
 //
 // Writes are gated three ways, and all three must allow one:
 //   - Enabled must be true (with database settings: Pause off). False blocks every filesystem write and every Plex call;
-//   - the version must be mode: active (Live; a Watch-only version writes nothing);
+//   - the version must be in the policy;
 //   - the path must be under one of the version's Roots here (or under Trash.Dir for a link moved aside).
 type Library struct {
 	// Enabled turns on filesystem writes and Plex calls. Default false; with database settings it is derived from Pause.

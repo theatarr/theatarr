@@ -732,7 +732,7 @@ func (l *Library) relinkRoot(ctx context.Context, ix *mountIndex, zv *zurgView, 
 		}
 	}
 	// Record the sweep's outcome (not in a pure dry run). A gated version (sc.DryRun: the library is disabled, or the
-	// version is not mode: active) records its plan as dry runs only: no link turns dead or active, no title wanted.
+	// version is not listed) records its plan as dry runs only: no link turns dead or active, no title wanted.
 	var scanned []string
 	if !dryRun && (len(sc.Dangling) > 0 || len(found) > 0 || (sc.DryRun && (len(sc.Relinked) > 0 || len(sc.Retired) > 0))) {
 		if l.beforeSweepWrite != nil {
@@ -901,7 +901,7 @@ func (l *Library) markMissing(ctx context.Context, tx *sql.Tx, version string, d
 // acquirer makes the item due in the search schedule, and its round checks everything else (Pause off, the version
 // active and monitored, still wanted, nothing in flight); the key keeps one job per version, title and episodes
 // pending. Only
-// versions the library gate lets write get one (a link can be shared with a shadow version).
+// versions the library gate lets write get one (a link can be shared with a version that may not).
 func (l *Library) queueDeadLinkSearch(ctx context.Context, tx *sql.Tx, linkID int64) error {
 	if l.queue == nil {
 		return nil
@@ -946,7 +946,7 @@ func (l *Library) queueDeadLinkSearch(ctx context.Context, tx *sql.Tx, linkID in
 		return err
 	}
 	for _, v := range vs {
-		if !l.gate.Active(v.key) { // a shared link's shadow, followed or unlisted version: its own sweep records it
+		if !l.gate.Active(v.key) { // a shared link's followed or unlisted version: its own sweep records it
 			continue
 		}
 		p := router.ResearchRequest{TitleID: v.title, VersionID: v.id, Version: v.key, Reason: router.ReasonDeadLink}

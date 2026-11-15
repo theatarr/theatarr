@@ -270,14 +270,14 @@ func TestScanPipelineEvents(t *testing.T) {
 		t.Errorf("upgrade deliveries %d", n)
 	}
 	// Health: recorded at first sight, emitted on change only.
-	e.hlth = []HealthItem{{Source: "ShadowModeCheck", Type: "notice", Message: "x"}}
+	e.hlth = []HealthItem{{Source: "UpdateCheck", Type: "notice", Message: "x"}}
 	_ = e.n.Scan(ctx)
 	_ = e.n.Scan(ctx)
 	if n := e.one(`SELECT COUNT(*) FROM notify_delivery WHERE event = 'Health'`); n != 1 {
 		t.Errorf("health deliveries %d", n)
 	}
 	// A new message alone sends nothing; a check turning bad does, once.
-	e.hlth = []HealthItem{{Source: "ShadowModeCheck", Type: "notice", Message: "y"}}
+	e.hlth = []HealthItem{{Source: "UpdateCheck", Type: "notice", Message: "y"}}
 	_ = e.n.Scan(ctx)
 	e.hlth = append(e.hlth, HealthItem{Source: "BackupCheck", Type: "warning", Message: "The newest backup is 2d old"})
 	_ = e.n.Scan(ctx)

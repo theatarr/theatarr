@@ -24,7 +24,7 @@ import (
 
 func TestDeferredRouteReEnqueues(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	q := jobs.NewQueue(e.st)
 	q.SetClock(func() time.Time { return e.clock })
 	e.r.q = q
@@ -58,22 +58,11 @@ func TestDeferredRouteReEnqueues(t *testing.T) {
 	if e.writes() != 0 {
 		t.Error("a paced route wrote")
 	}
-	// A shadow version's job records a plan and enqueues nothing.
-	e.pol.Versions["movie"].Mode = policy.ModeShadow
-	if err := e.r.handleRoute(e.ctx, &jobs.Job{Kind: JobRoute, Payload: p}); err != nil {
-		t.Fatal(err)
-	}
-	if n := e.count(`SELECT COUNT(*) FROM job WHERE kind = ?`, JobRoute); n != 1 {
-		t.Errorf("%d route jobs", n)
-	}
-	if n := e.count(`SELECT COUNT(*) FROM router_plan WHERE mode = 'shadow' AND outcome = 'deferred'`); n != 1 {
-		t.Errorf("shadow plan rows: %d", n)
-	}
 }
 
 func TestRuntimeRouteJobUsesCurrentRuntimeWhenItStarts(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	q := jobs.NewQueue(e.st)
 	q.SetClock(func() time.Time { return e.clock })
 	e.r.q = q
@@ -92,14 +81,14 @@ func TestRuntimeRouteJobUsesCurrentRuntimeWhenItStarts(t *testing.T) {
 	if ok, err := w.RunOne(e.ctx); err != nil || !ok {
 		t.Fatalf("route job: ran %v, %v", ok, err)
 	}
-	if e.writes() == 0 || e.count(`SELECT COUNT(*) FROM router_plan WHERE mode = 'disabled'`) != 0 || observed != 2 {
+	if e.writes() == 0 || observed != 2 {
 		t.Fatalf("route did not use the current runtime: writes=%d generation=%d", e.writes(), observed)
 	}
 }
 
 func TestProviderEpochChangeRequeuesRouteBeforeAdding(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.pol.Versions["movie"].Providers = []string{"ad"}
 	e.r.settingsManaged = true
 	e.exec(`INSERT INTO settings_runtime_state (id, last_published_generation, provider_epoch) VALUES (1, 1, 0)`)
@@ -151,7 +140,7 @@ func TestProviderEpochChangeRequeuesRouteBeforeAdding(t *testing.T) {
 
 func TestStartupFallbackProviderEpochAllowsRoute(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.exec(`INSERT INTO settings_generation (generation, revision, created_at) VALUES (5, 'head', 0)`)
 	e.exec(`INSERT INTO settings_runtime_state (id, last_published_generation, provider_epoch) VALUES (1, 4, 7)`)
 	e.r.generation = 4
@@ -170,7 +159,7 @@ func TestStartupFallbackProviderEpochAllowsRoute(t *testing.T) {
 // DB-managed provider changes.
 func TestYAMLRouterIgnoresSettingsProviderEpoch(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.exec(`INSERT INTO settings_runtime_state (id, last_published_generation, provider_epoch) VALUES (1, 3, 1)`)
 	res, err := e.r.Route(e.ctx, movieReq(cand(h("a"), "A")))
 	if err != nil || res.Outcome != OutcomeAdded || res.Provider != "rd" {
@@ -183,7 +172,7 @@ func TestYAMLRouterIgnoresSettingsProviderEpoch(t *testing.T) {
 
 func TestBudgetSaveDoesNotAbortRouteInFlight(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.exec(`INSERT INTO settings_generation (generation, revision, created_at) VALUES (1, 'initial', 0)`)
 	e.exec(`INSERT INTO settings_runtime_state (id, last_published_generation, provider_epoch) VALUES (1, 1, 0)`)
 	e.r.generation = 1
@@ -272,7 +261,7 @@ func TestMigration14(t *testing.T) {
 // original payload (DownloadID 0). The retry must resume the stranded queued row, not report it in flight and stop.
 func TestRetriedRouteResumesStrandedQueuedRow(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	q := jobs.NewQueue(e.st)
 	q.SetClock(func() time.Time { return e.clock })
 	w := jobs.NewWorker(q, jobs.WorkerOptions{})
@@ -302,7 +291,7 @@ func TestRetriedRouteResumesStrandedQueuedRow(t *testing.T) {
 	}
 
 	// A queued row whose follow-up job is still pending belongs to that job: another route stays in flight.
-	e2 := newEnv(t, true, policy.ModeActive)
+	e2 := newEnv(t, true)
 	q2 := jobs.NewQueue(e2.st)
 	q2.SetClock(func() time.Time { return e2.clock })
 	e2.r.RegisterJobs(jobs.NewWorker(q2, jobs.WorkerOptions{}), q2)
@@ -323,7 +312,7 @@ func TestRetriedRouteResumesStrandedQueuedRow(t *testing.T) {
 // one that runs second finds the row moved on: in flight, not a new download for the same hash.
 func TestResumeOfMovedOnRowIsInFlight(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	for _, k := range []string{"rd", "ad", "tb"} {
 		e.exec(`INSERT INTO router_pacing (provider, backoff_until, failures, reason, updated_at) VALUES (?, ?, 1, 'x', 0)`,
 			k, e.clock.Add(3*time.Minute).UnixMilli())
@@ -353,7 +342,7 @@ func TestResumeOfMovedOnRowIsInFlight(t *testing.T) {
 // add does; and a route gives up after maxDeferWait however it waited.
 func TestDeferralsCountAddsAndStagger(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	withQueue(e)
 	e.pol.Versions["movie"].Providers = []string{"rd"}
 	g := policy.Duration(20 * time.Second)
@@ -435,7 +424,7 @@ func provenance(e *env, id int64) (ix, title, source, data string) {
 // none of them.
 func TestStrandedRowTakenOverByAnotherIndexer(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	withQueue(e)
 	e.pol.Indexers["pub2"] = &policy.Indexer{Kind: "torznab", URL: "http://pub2.test/api", Privacy: policy.PrivacyPublic,
 		Providers: []string{"ad"}}
@@ -500,7 +489,7 @@ func TestStrandedRowTakenOverByAnotherIndexer(t *testing.T) {
 // replay from the row keeps to the provider allowlist of the indexer that found it, also while that provider is down.
 func TestSearchedGrabTakesOverManualAddRow(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	withQueue(e)
 	e.pol.Indexers["pub2"] = &policy.Indexer{Kind: "torznab", URL: "http://pub2.test/api", Privacy: policy.PrivacyPublic,
 		Providers: []string{"rd"}}
@@ -550,7 +539,7 @@ func sizeAndCreated(e *env, id int64) (*int64, int64) {
 // from the row carries no size of another release. A route resuming its own row keeps the size.
 func TestTakeoverWritesCandidateSize(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	withQueue(e)
 	id := strandQueued(e, grabReq(manualCand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")))
 	if size, _ := sizeAndCreated(e, id); size != nil {

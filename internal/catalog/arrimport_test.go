@@ -36,7 +36,7 @@ func TestImportArrTitleCopiesMonitoring(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	s, st := newIntake(t, intakeSource{})
-	s.Policy.Versions["tv"] = &policy.VersionPolicy{Kind: policy.KindSeries, Mode: policy.ModeActive}
+	s.Policy.Versions["tv"] = &policy.VersionPolicy{Kind: policy.KindSeries}
 	s.OnAdd = func(context.Context, int64, []string, bool) error { return errors.New("OnAdd called") }
 
 	change, id := importTitle(t, s, "movie-web", ArrImportTitle{Kind: policy.KindMovie, TmdbID: 601, Name: "Off",
@@ -126,7 +126,7 @@ func TestImportArrTitleDryRun(t *testing.T) {
 			"genres":[{"id":16,"name":"Animation"}]}`),
 	}})
 	anime := true
-	s.Policy.Versions["anime-movie"] = &policy.VersionPolicy{Kind: policy.KindMovie, Anime: &anime, Mode: policy.ModeActive}
+	s.Policy.Versions["anime-movie"] = &policy.VersionPolicy{Kind: policy.KindMovie, Anime: &anime}
 	if change, id := importTitle(t, s, "movie-web", ArrImportTitle{Kind: policy.KindMovie, TmdbID: 800}, true); change != "add_title" || id != 0 {
 		t.Errorf("new movie: %s %d", change, id)
 	}
@@ -153,7 +153,7 @@ func TestImportEpisodeMonitoring(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	s, st := newIntake(t, intakeSource{})
-	s.Policy.Versions["tv"] = &policy.VersionPolicy{Kind: policy.KindSeries, Mode: policy.ModeActive}
+	s.Policy.Versions["tv"] = &policy.VersionPolicy{Kind: policy.KindSeries}
 	execAll(t, st,
 		`INSERT INTO title(id,kind,name,tvdb_id,created_at,updated_at) VALUES(90,'series','Show',901,0,0),(91,'series','Other',902,0,0)`,
 		`INSERT INTO version(id,title_id,policy_key,monitored,state,created_at,updated_at) VALUES(95,90,'tv',0,'wanted',0,0),(96,91,'tv',0,'wanted',0,0)`)

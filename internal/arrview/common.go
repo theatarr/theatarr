@@ -17,7 +17,6 @@ import (
 	"github.com/theatarr/theatarr/internal/decide/format"
 	"github.com/theatarr/theatarr/internal/decide/profile"
 	"github.com/theatarr/theatarr/internal/notify"
-	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/rootprobe"
 	"github.com/theatarr/theatarr/internal/store"
 )
@@ -418,9 +417,8 @@ func (s *Service) wantedMissing(w http.ResponseWriter, r *request) {
 	s.wantedPage(w, r, false)
 }
 
-// GET health (HealthResource; type is HealthCheckResult): one notice while the view's versions are in shadow mode
-// (ShadowModeCheck), and one warning while router.enabled is off and some of them are active (RouterDisabledCheck:
-// their grabs and pushes are decided and planned as dry runs, never added); then the service's own checks that are
+// GET health (HealthResource; type is HealthCheckResult): one warning while router.enabled is off (RouterDisabledCheck:
+// their grabs and pushes are decided as dry runs, never added); then the service's own checks that are
 // not ok, worst first (internal/health: mount, metadata, jobs, backups, providers, indexers, VPN egress, disk), as the
 // arrs list their failing checks.
 func (s *Service) getHealth(w http.ResponseWriter, r *request) {
@@ -442,33 +440,19 @@ func (s *Service) healthOf(ctx context.Context, keys []string) []notify.HealthIt
 	return out
 }
 
-// versionHealth is the health of the versions themselves: shadow mode and Pause.
+// versionHealth is the health of the versions themselves: Pause.
 func (s *Service) versionHealth(keys []string) []notify.HealthItem {
 	out := []notify.HealthItem{}
-	if sh := s.shadowVersions(keys); len(sh) > 0 {
-		out = append(out, notify.HealthItem{Source: "ShadowModeCheck", Type: "notice",
-			Message: "Watch only libraries download nothing: " + strings.Join(sh, ", ")})
-	}
 	if s.pol.Router == nil || !s.pol.Router.Enabled {
 		var act []string
 		for _, k := range keys {
-			if vp := s.pol.Versions[k]; vp != nil && vp.Mode == policy.ModeActive {
+			if s.pol.Versions[k] != nil {
 				act = append(act, k)
 			}
 		}
 		if len(act) > 0 {
 			out = append(out, notify.HealthItem{Source: "RouterDisabledCheck", Type: "warning",
 				Message: "Paused: nothing is downloaded: " + strings.Join(act, ", ")})
-		}
-	}
-	return out
-}
-
-func (s *Service) shadowVersions(keys []string) []string {
-	var out []string
-	for _, k := range keys {
-		if vp := s.pol.Versions[k]; vp != nil && vp.Mode != policy.ModeActive {
-			out = append(out, k)
 		}
 	}
 	return out

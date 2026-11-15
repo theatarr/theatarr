@@ -373,43 +373,30 @@ func searchCalls(e *addEnv) []acquire.Selection {
 	return slices.Clone(e.acq.submits)
 }
 
-// TestAddNeverSearchesShadow: search now (on an add or by itself) reaches the acquirer only for versions in mode
-// active while router.enabled is true; every other version is answered with the reason.
-func TestAddNeverSearchesShadow(t *testing.T) {
+// TestAddNeverSearchesWhilePaused: search now (on an add or by itself) reaches the acquirer only while
+// router.enabled is true; otherwise every version is answered with the reason.
+func TestAddNeverSearchesWhilePaused(t *testing.T) {
 	t.Parallel()
-	// The example policy: every version in shadow, router off.
+	// The example policy: router off.
 	e := newAddEnv(t, nil)
 	var res AddResult
 	e.call("POST", APIBase+"/titles", map[string]any{"kind": "movie", "tmdb_id": 105, "title": "Epsilon", "search": true},
 		201, &res)
 	if res.Search == nil || res.Search.Started || len(res.Search.Versions) != 0 || len(res.Search.Skipped) != 2 ||
-		!strings.Contains(res.Search.Message, "Watch only") {
-		t.Fatalf("shadow add: %+v", res.Search)
+		!strings.Contains(res.Search.Message, "Paused") {
+		t.Fatalf("paused add: %+v", res.Search)
 	}
 	var so SearchOutcome
 	e.call("POST", fmt.Sprintf("%s/titles/%d/search", APIBase, res.Title.ID), nil, 200, &so)
-	if so.Started || !strings.Contains(so.Message, "Watch only") {
-		t.Errorf("shadow search now: %+v", so)
+	if so.Started || !strings.Contains(so.Message, "Paused") {
+		t.Errorf("paused search now: %+v", so)
 	}
 	if n := len(searchCalls(e)); n != 0 {
-		t.Fatalf("shadow: %d searches", n)
+		t.Fatalf("paused: %d searches", n)
 	}
 
-	// movie-web active, router still off: nothing either.
+	// Router on: both movie libraries are searched.
 	e = newAddEnv(t, func(p *policy.Policy) {
-		p.Versions["movie-web"].Mode = policy.ModeActive
-	})
-	e.call("POST", APIBase+"/titles", map[string]any{"kind": "movie", "tmdb_id": 105, "search": true}, 201, &res)
-	if res.Search.Started || !strings.Contains(res.Search.Message, "Paused") {
-		t.Errorf("router off: %+v", res.Search)
-	}
-	if n := len(searchCalls(e)); n != 0 {
-		t.Fatalf("router off: %d searches", n)
-	}
-
-	// Router on: only movie-web is searched; movie-remux (shadow) is skipped with the reason.
-	e = newAddEnv(t, func(p *policy.Policy) {
-		p.Versions["movie-web"].Mode = policy.ModeActive
 		p.Router = &policy.Router{Enabled: true}
 	})
 	// An add without search: still nothing.
@@ -421,33 +408,32 @@ func TestAddNeverSearchesShadow(t *testing.T) {
 	res = AddResult{}
 	e.call("POST", APIBase+"/titles", map[string]any{"kind": "movie", "tmdb_id": 105, "search": true}, 201, &res)
 	calls := searchCalls(e)
-	if len(calls) != 1 || !slices.Equal(calls[0].Versions, []string{"movie-web"}) ||
+	if len(calls) != 1 || !slices.Equal(calls[0].Versions, []string{"movie-remux", "movie-web"}) ||
 		!slices.Equal(calls[0].TitleIDs, []int64{res.Title.ID}) {
-		t.Fatalf("active add: %+v", calls)
+		t.Fatalf("add: %+v", calls)
 	}
-	if !res.Search.Started || len(res.Search.Skipped) != 1 || res.Search.Skipped[0].Version != "movie-remux" {
-		t.Errorf("active outcome: %+v", res.Search)
+	if !res.Search.Started || len(res.Search.Skipped) != 0 {
+		t.Errorf("outcome: %+v", res.Search)
 	}
 	// The message names the libraries for people, without keys or "item(s)".
-	web, remux := e.web.versionLabel("movie-web"), e.web.versionLabel("movie-remux")
-	if want := "Searching " + web + "; not searched: " + remux; res.Search.Message != want {
+	if want := "Searching " + e.web.labelList([]string{"movie-remux", "movie-web"}); res.Search.Message != want {
 		t.Errorf("message %q, want %q", res.Search.Message, want)
 	}
-	// Search now on Alpha (movie-remux only, shadow): nothing; naming a version it lacks is refused.
+	// Search now on Alpha (movie-remux only): its one library; naming a version it lacks is refused.
 	e.call("POST", APIBase+"/titles/1/search", map[string]any{}, 200, &so)
-	if so.Started || len(searchCalls(e)) != 1 {
-		t.Errorf("shadow-only title: %+v", so)
+	if calls = searchCalls(e); !so.Started || len(calls) != 2 || !slices.Equal(calls[1].Versions, []string{"movie-remux"}) {
+		t.Errorf("search now: %+v %+v", so, calls)
 	}
 	e.call("POST", APIBase+"/titles/1/search", map[string]any{"versions": []string{"movie-web"}}, 400, nil)
-	// Turning movie-web on never searches; search now then does, for it alone.
+	// Turning movie-web on never searches; search now then does, for both.
 	var at AddedTitle
 	e.call("PUT", APIBase+"/titles/1/versions/movie-web", map[string]any{"monitored": true}, 200, &at)
-	if len(searchCalls(e)) != 1 {
+	if len(searchCalls(e)) != 2 {
 		t.Fatal("turning a version on searched")
 	}
 	e.call("POST", APIBase+"/titles/1/search", nil, 200, &so)
 	calls = searchCalls(e)
-	if !so.Started || len(calls) != 2 || !slices.Equal(calls[1].Versions, []string{"movie-web"}) {
+	if !so.Started || len(calls) != 3 || !slices.Equal(calls[2].Versions, []string{"movie-remux", "movie-web"}) {
 		t.Errorf("search now: %+v %+v", so, calls)
 	}
 }
@@ -650,7 +636,6 @@ func TestSearchKindAndPaging(t *testing.T) {
 func TestAddOptions(t *testing.T) {
 	t.Parallel()
 	e := newAddEnv(t, func(p *policy.Policy) {
-		p.Versions["movie-web"].Mode = policy.ModeActive
 		p.Router = &policy.Router{Enabled: true}
 	})
 	var o AddOptions
@@ -660,7 +645,7 @@ func TestAddOptions(t *testing.T) {
 		byKey[v.Key] = v
 	}
 	if len(o.Versions) != 3 || !byKey["movie-web"].Default || !byKey["movie-web"].Searchable ||
-		!byKey["movie-remux"].Default || byKey["movie-remux"].Searchable || byKey["anime-movie"].Default || !o.CanSearch {
+		!byKey["movie-remux"].Default || !byKey["movie-remux"].Searchable || byKey["anime-movie"].Default || !o.CanSearch {
 		t.Fatalf("movie options: %+v", o)
 	}
 	e.call("GET", APIBase+"/add/options?kind=movie&tmdb_id=101", nil, 200, &o)
@@ -697,7 +682,7 @@ func TestAddOptions(t *testing.T) {
 	e.web.pol.Versions["movie-remux"].Upgrades = ""
 	e.call("GET", APIBase+"/add/options?title_id=10", nil, 200, &o)
 	if o.Kind != "series" || !o.EpisodesKnown || len(o.Seasons) != 3 || *o.Seasons[0].Monitored || !*o.Seasons[1].Monitored ||
-		o.CanSearch {
+		!o.CanSearch {
 		t.Errorf("series options: %+v", o)
 	}
 	e.call("GET", APIBase+"/add/options?kind=series&tmdb_id=777&anime=1", nil, 200, &o)
@@ -708,17 +693,14 @@ func TestAddOptions(t *testing.T) {
 	e.call("GET", APIBase+"/add/options?title_id=99", nil, 404, nil)
 }
 
-// TestReleasesShadowNoLive: the releases panel searches indexers only for an active version; a Watch-only version's
-// answer comes from the journal.
-func TestReleasesShadowNoLive(t *testing.T) {
+// TestReleasesStoredAnswer: without live=1 the releases panel answers from the journal.
+func TestReleasesStoredAnswer(t *testing.T) {
 	t.Parallel()
-	e := newAddEnv(t, func(p *policy.Policy) {
-		p.Versions["movie-web"].Mode = policy.ModeActive
-	})
+	e := newAddEnv(t, nil)
 	e.exec(`INSERT INTO version (title_id, policy_key, state, created_at, updated_at) VALUES (1, 'movie-web', 'wanted', 0, 0)`)
 	var r Releases
 	e.call("GET", APIBase+"/titles/1/releases?version=movie-remux", nil, 200, &r)
-	if r.Source != "none" || r.LiveAllowed || len(r.Candidates) != 0 {
+	if r.Source != "none" || len(r.Candidates) != 0 {
 		t.Fatalf("nothing stored: %+v", r)
 	}
 	// The film's own file in the library, whatever the candidates compared against: none yet, then its arr file.
@@ -733,13 +715,12 @@ func TestReleasesShadowNoLive(t *testing.T) {
 	if c := r.Current; c == nil || !c.Held || c.Quality != "Remux-2160p" || c.Score == nil || *c.Score != 3100 {
 		t.Errorf("held: current %+v", c)
 	}
-	// A journal decision answers. live=1 changes nothing.
+	// A journal decision answers.
 	e.exec(`INSERT INTO journal_decision (source, title_id, version_key, target, results, accepted, candidates,
 		rejections, created_at) VALUES ('rss', 1, 'movie-remux', 'rss', 7, 1,
 		'[{"rank":1,"release":"Alpha.2020.REMUX-C","accepted":true,"score":3100}]', '{"size":6}', 3000)`)
-	e.call("GET", APIBase+"/titles/1/releases?version=movie-remux&live=true", nil, 200, &r)
-	if r.Source != "journal" || r.Results != 7 || r.Rejections["size"] != 6 || r.Candidates[0].Release != "Alpha.2020.REMUX-C" ||
-		!strings.Contains(r.Message, "Watch only: no live search") {
+	e.call("GET", APIBase+"/titles/1/releases?version=movie-remux", nil, 200, &r)
+	if r.Source != "journal" || r.Results != 7 || r.Rejections["size"] != 6 || r.Candidates[0].Release != "Alpha.2020.REMUX-C" {
 		t.Fatalf("journal: %+v", r)
 	}
 	// Without live the stored decision names what it came from, once.
@@ -749,7 +730,7 @@ func TestReleasesShadowNoLive(t *testing.T) {
 		t.Errorf("stored message %q", r.Message)
 	}
 	if _, i := e.acq.counts(); i != 0 {
-		t.Fatalf("a shadow version searched indexers %d times", i)
+		t.Fatalf("a stored answer searched indexers %d times", i)
 	}
 	// The active version: live=1 searches (the router switch does not matter for an answer that writes nothing).
 	e.call("GET", APIBase+"/titles/1/releases?version=movie-web", nil, 200, &r)
@@ -1204,9 +1185,6 @@ func TestAddMinimumAvailabilityKeepsAddedDate(t *testing.T) {
 // page marks a monitored copy the rule leaves out (anime_skip), also after a change of type.
 func TestAddSeriesTypeLibraries(t *testing.T) {
 	e := newAddEnv(t, func(p *policy.Policy) {
-		for _, k := range []string{"tv-2160p", "anime-tv"} {
-			p.Versions[k].Mode = policy.ModeActive
-		}
 		p.Router = &policy.Router{Enabled: true}
 	})
 	q := jobs.NewQueue(e.st)
@@ -1272,13 +1250,13 @@ func TestAddSeriesTypeLibraries(t *testing.T) {
 	if !slices.Equal(got, []string{"tv-2160p"}) || queued != 0 || skips(id) != "tv-2160p" {
 		t.Errorf("named library: libraries %v, %d searches, skipped %q", got, queued, skips(id))
 	}
-	// A library no search runs for (shadow here) is not marked: the anime rule is not why it is not searched.
-	shadow := newAddEnv(t, nil)
-	shadow.call("POST", APIBase+"/titles/series-type", map[string]any{"title_ids": []int64{10}, "series_type": "anime"}, 200, nil)
+	// A library no search runs for (paused here) is not marked: the anime rule is not why it is not searched.
+	paused := newAddEnv(t, nil)
+	paused.call("POST", APIBase+"/titles/series-type", map[string]any{"title_ids": []int64{10}, "series_type": "anime"}, 200, nil)
 	var d TitleDetail
-	shadow.call("GET", APIBase+"/titles/10", nil, 200, &d)
+	paused.call("GET", APIBase+"/titles/10", nil, 200, &d)
 	if len(d.Versions) != 1 || d.Versions[0].AnimeSkip {
-		t.Errorf("a shadow library: %+v", d.Versions)
+		t.Errorf("a paused library: %+v", d.Versions)
 	}
 	// The title page follows a change of type, both ways.
 	if got := skips(10); got != "" {

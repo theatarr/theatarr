@@ -680,20 +680,12 @@ func TestSettingsAPIKillSwitchesUntouchable(t *testing.T) {
 	}
 	edit("router.yaml", "\n  enabled: false", "\n  enabled: true")
 	edit("library.yaml", "\n  enabled: false", "\n  enabled: true")
-	edit("versions.yaml", "mode: shadow", "mode: active")
 	if p, err := policy.Read(se.dir); err != nil || !p.Router.Enabled || !p.Library.Enabled {
 		t.Fatalf("edited fixture: %v", err)
 	}
 	// The import still changes the records it owns.
 	edit("indexers.yaml", "page_cap: 200", "page_cap: 150")
-	se.want(se.call("POST", "/import", map[string]any{"generation": gen, "orphan_active_downloads": false}), http.StatusUnprocessableEntity, "unconfirmed active modes")
-	if se.generation() != gen || se.coord.Current().Policy.Indexers["dmm"].PageCap != 200 {
-		t.Fatal("unconfirmed import changed settings")
-	}
-	edit("versions.yaml", "mode: active", "mode: shadow")
 	body := map[string]any{"generation": gen, "orphan_active_downloads": false}
-	proof := se.want(se.call("POST", "/import/confirm", body), 200, "confirm missing sections")
-	body["confirmation_token"] = proof["token"]
 	out := se.want(se.call("POST", "/import", body), http.StatusOK, "import")
 	if out["generation"] != float64(gen+1) {
 		t.Fatalf("import: %v", out)
@@ -701,11 +693,6 @@ func TestSettingsAPIKillSwitchesUntouchable(t *testing.T) {
 	cur := se.coord.Current().Policy
 	if cur.Router.Enabled || cur.Library.Enabled || cur.Indexers["dmm"].PageCap != 150 {
 		t.Fatalf("after import: router %v library %v page_cap %d", cur.Router.Enabled, cur.Library.Enabled, cur.Indexers["dmm"].PageCap)
-	}
-	for k, v := range cur.Versions {
-		if v.Mode == policy.ModeActive {
-			t.Fatalf("version %s became active through the settings API", k)
-		}
 	}
 	// An import needs the orphan confirmation stated either way.
 	se.want(se.call("POST", "/import", map[string]any{"generation": gen + 1}), http.StatusBadRequest, "import without orphan flag")
@@ -839,8 +826,8 @@ func TestSettingsAPIOverviewSwitches(t *testing.T) {
 			t.Fatalf("%s: %d version modes, want %d", label, len(o.Switches.Versions), len(pol.Versions))
 		}
 		for _, v := range o.Switches.Versions {
-			if pol.Versions[v.Key] == nil || string(pol.Versions[v.Key].Mode) != v.Mode {
-				t.Errorf("%s: version %s mode %q", label, v.Key, v.Mode)
+			if pol.Versions[v.Key] == nil {
+				t.Errorf("%s: version %s not in the policy", label, v.Key)
 			}
 		}
 	}
@@ -850,8 +837,8 @@ func TestSettingsAPIOverviewSwitches(t *testing.T) {
 		t.Fatal(err)
 	}
 	check("db", o, se.coord.Current().Policy)
-	// The versions page carries each version's grab state from the stored settings: the example's five versions run
-	// in shadow on a new database, so none grabs.
+	// The versions page carries each version's grab state from the stored settings: Pause is on on a new database, so
+	// none grabs.
 	var versions struct {
 		Switches SettingsSwitches `json:"switches"`
 	}
@@ -864,8 +851,8 @@ func TestSettingsAPIOverviewSwitches(t *testing.T) {
 		t.Fatalf("settings versions = %+v", versions.Switches.Versions)
 	}
 	for _, v := range versions.Switches.Versions {
-		if v.GrabState != (VersionGrabState{Mode: "shadow", Paused: true}) {
-			t.Errorf("version %s grab_state = %+v, want shadow and no grab", v.Key, v.GrabState)
+		if v.GrabState.WillGrab || !v.GrabState.Paused {
+			t.Errorf("version %s grab_state = %+v, want paused and no grab", v.Key, v.GrabState)
 		}
 	}
 }

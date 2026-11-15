@@ -1,13 +1,12 @@
 package library
 
 import (
-	"github.com/theatarr/theatarr/internal/policy"
 	"testing"
 )
 
 func TestFirstImportEnforcesAllowedFileQuality(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.pol.Versions["movie-remux"].PreferSeaDex = true
 	rel := "Amelie.2001.1080p.WEB-DL.DDP5.1.H.264-GRP"
 	e.release(rel, map[string]float64{"Amelie.2001.720p.WEB-DL.H.264-FILE.mkv": 7000})
@@ -24,7 +23,7 @@ func TestFirstImportEnforcesAllowedFileQuality(t *testing.T) {
 
 func TestNonoverlappingImportEnforcesAllowedFileQuality(t *testing.T) {
 	t.Parallel()
-	e := importUpEnv(t, policy.ModeActive, "")
+	e := importUpEnv(t, "")
 	e.pol.Versions["tv"].PreferSeaDex = true
 	e.heldLink(1, "WEBDL-2160p", "Show.S01E01.2160p.WEB-DL-OLD", 201)
 	pack := "Show.S01.1080p.WEB-DL-PACK"

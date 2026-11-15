@@ -41,7 +41,7 @@ flowchart LR
   prov --> mount["Debrid mount<br/>(zurg, rclone)"]
   mount --> lib["Library import<br/>probe, link, rename"]
   lib --> plex["Plex scan"]
-  rt -. "Watch only / Pause" .-> rec["Recorded plan only"]
+  rt -. "Pause" .-> rec["Dry run, recorded nowhere"]
   lib -. "Pause" .-> rec
 ```
 
@@ -80,14 +80,14 @@ flowchart LR
    each episode into the version's root with its naming, and records the content and its links.
 6. Plex scans those folders. Seerr sees progress through the view's `queue` and availability through Plex.
 
-For a Watch-only library, or with Pause on, the same request stops after step 4 with a recorded plan.
+With Pause on, the same request stops after step 4 as a dry run that writes nothing.
 
 Around the pipeline:
 
 | Package | Does |
 |---|---|
 | `internal/gateway` | The single outbound HTTP path: host allowlist, VPN egress guard, budgets, back-off ([gateway.md](gateway.md)) |
-| `internal/acquire/rss` | The RSS sync: reads the Live libraries' feeds and routes what they accept ([rss.md](rss.md)) |
+| `internal/acquire/rss` | The RSS sync: reads the libraries' feeds and routes what they accept ([rss.md](rss.md)) |
 | `internal/arrimport` | The one-time import from Sonarr/Radarr (GET only) ([migration.md](../migration.md)) |
 | `internal/torrents` | The provider torrent manager: usage, backups, restores, deletes a person picks ([torrents.md](torrents.md)) |
 | `internal/jobs` | The persistent job queue: leases, retries, schedules ([jobs.md](jobs.md)) |
@@ -99,12 +99,11 @@ Around the pipeline:
 
 Nothing writes to a provider or the library until it is turned on, step by step:
 
-- **Watch only.** Every version starts as Watch only (`mode: shadow`): Theatarr searches, downloads and links
-  nothing for it. Live (`mode: active`) searches, downloads and links.
+- **Monitoring.** A title is searched in a library only while it is monitored there.
 - **Pause.** One switch, on for a fresh install, stops searches, new downloads and library changes for every library.
   The runtime switches `router.enabled` (provider writes: add a magnet, select files) and `library.enabled`
   (filesystem writes and Plex calls) are both derived from it. The router writes for a version only when Pause is
-  off and the version is Live; a link is written only when Pause is off, the version is Live, and the path is under
+  off; a link is written only when Pause is off and the path is under
   one of the version's roots (or the trash directory) ([library.md](library.md)). Downloads already at a provider
   finish there and are imported when Pause is turned off.
 - **The gateway.** Every outbound request goes through `internal/gateway` and its host allowlist. With an `egress`

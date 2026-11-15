@@ -2,8 +2,6 @@ package library
 
 import (
 	"testing"
-
-	"github.com/theatarr/theatarr/internal/policy"
 )
 
 // importSeries imports the two-episode series pack into version 20 (cutoff_met under the default profile).
@@ -23,7 +21,7 @@ func (e *env) importSeries() {
 // judged when the cutoff rises.
 func TestRecomputeWantedSeriesVersion(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.importSeries()
 	e.exec(`INSERT INTO episode (id, title_id, season, number, name, air_date_utc_at, created_at, updated_at)
 		VALUES (203, 2, 1, 3, 'Third', 1000, 0, 0)`)
@@ -42,7 +40,7 @@ func TestRecomputeWantedSeriesVersion(t *testing.T) {
 // After a settings save only the versions whose judging settings changed are recomputed.
 func TestRecomputeAfterSaveOnlyChangedVersions(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
 	e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
 	if _, err := e.lib.Import(e.ctx, 1, false); err != nil {

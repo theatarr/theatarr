@@ -26,9 +26,9 @@ const (
 
 // clientEnv is newEnv with the movie version sent to a decypharr client "dc" (a fake qBittorrent API) instead of
 // the providers.
-func clientEnv(t *testing.T, enabled bool, mode policy.Mode) (*env, *qbittest.Fake) {
+func clientEnv(t *testing.T, enabled bool) (*env, *qbittest.Fake) {
 	t.Helper()
-	e := newEnv(t, enabled, mode)
+	e := newEnv(t, enabled)
 	f := qbittest.New()
 	t.Cleanup(f.Close)
 	f.User, f.Pass = "http://theatarr.test/radarr", "view-key"
@@ -59,7 +59,7 @@ func (e *env) dl(hash string) (id int64, state, client string, provider sql.Null
 
 func TestClientRouteAddsToTheClientOnly(t *testing.T) {
 	t.Parallel()
-	e, f := clientEnv(t, true, policy.ModeActive)
+	e, f := clientEnv(t, true)
 	res, err := e.r.Route(e.ctx, movieReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")))
 	if err != nil {
 		t.Fatal(err)
@@ -95,8 +95,7 @@ func TestClientRouteAddsToTheClientOnly(t *testing.T) {
 func TestClientRouteClosedGatesAddNothing(t *testing.T) {
 	t.Parallel()
 	for name, mk := range map[string]func(*testing.T) (*env, *qbittest.Fake){
-		"router off": func(t *testing.T) (*env, *qbittest.Fake) { return clientEnv(t, false, policy.ModeActive) },
-		"shadow":     func(t *testing.T) (*env, *qbittest.Fake) { return clientEnv(t, true, policy.ModeShadow) },
+		"router off": func(t *testing.T) (*env, *qbittest.Fake) { return clientEnv(t, false) },
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -113,7 +112,7 @@ func TestClientRouteClosedGatesAddNothing(t *testing.T) {
 
 func TestClientRouteSkipsIndexerAllowlistReleases(t *testing.T) {
 	t.Parallel()
-	e, f := clientEnv(t, true, policy.ModeActive)
+	e, f := clientEnv(t, true)
 	e.pol.Indexers["priv"].Providers = []string{"rd"}
 	c := cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")
 	c.Release.Indexer, c.Release.Privacy = "priv", policy.PrivacyPrivate
@@ -131,7 +130,7 @@ func TestClientRouteSkipsIndexerAllowlistReleases(t *testing.T) {
 
 func TestClientRouteNotCachedMovesOn(t *testing.T) {
 	t.Parallel()
-	e, f := clientEnv(t, true, policy.ModeActive)
+	e, f := clientEnv(t, true)
 	f.AddErr[h("a")] = []qbittest.AddError{{Status: 404, Code: "torrent_not_cached", Retryable: true}}
 	res, err := e.r.Route(e.ctx, grabReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP"),
 		cand(h("b"), "Movie.2024.1080p.WEB.H264-GRP")))
@@ -158,7 +157,7 @@ func TestClientRouteNotCachedMovesOn(t *testing.T) {
 
 func TestClientRouteRefusedIsBlocklisted(t *testing.T) {
 	t.Parallel()
-	e, f := clientEnv(t, true, policy.ModeActive)
+	e, f := clientEnv(t, true)
 	f.AddErr[h("a")] = []qbittest.AddError{{Status: 451, Code: "torrent_blocked", Permanent: true}}
 	res, err := e.r.Route(e.ctx, grabReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP"),
 		cand(h("b"), "Movie.2024.1080p.WEB.H264-GRP")))
@@ -176,7 +175,7 @@ func TestClientRouteRefusedIsBlocklisted(t *testing.T) {
 
 func TestClientRouteDeferredStaysQueued(t *testing.T) {
 	t.Parallel()
-	e, f := clientEnv(t, true, policy.ModeActive)
+	e, f := clientEnv(t, true)
 	withQueue(e)
 	f.AddErr[h("a")] = []qbittest.AddError{{Status: 509, Code: "too_many_active_downloads", Retryable: true}}
 	res, err := e.r.Route(e.ctx, movieReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")))
@@ -197,7 +196,7 @@ func TestClientRouteDeferredStaysQueued(t *testing.T) {
 
 func TestClientRouteAdoptsAHeldHash(t *testing.T) {
 	t.Parallel()
-	e, f := clientEnv(t, true, policy.ModeActive)
+	e, f := clientEnv(t, true)
 	f.Set(h("a"), held("downloading", 0.5, ""))
 	res, err := e.r.Route(e.ctx, movieReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")))
 	if err != nil {
@@ -216,7 +215,7 @@ func TestClientRouteAdoptsAHeldHash(t *testing.T) {
 
 func TestClientPollMapsStates(t *testing.T) {
 	t.Parallel()
-	e, f := clientEnv(t, true, policy.ModeActive)
+	e, f := clientEnv(t, true)
 	withQueue(e)
 	if _, err := e.r.Route(e.ctx, movieReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP"))); err != nil {
 		t.Fatal(err)
@@ -268,7 +267,7 @@ func TestClientPollMapsStates(t *testing.T) {
 
 func TestClientPollDownloadFolderSourcePath(t *testing.T) {
 	t.Parallel()
-	e, f := clientEnv(t, true, policy.ModeActive)
+	e, f := clientEnv(t, true)
 	c := e.pol.Clients["dc"]
 	c.ImportFrom, c.RemotePath, c.LocalPath = policy.ImportFromDownloadFolder, "/data/symlinks", "/mnt/decypharr"
 	if _, err := e.r.Route(e.ctx, movieReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP"))); err != nil {
@@ -299,7 +298,7 @@ func TestClientPollDownloadFolderSourcePath(t *testing.T) {
 
 func TestClientPollFailedAndMissing(t *testing.T) {
 	t.Parallel()
-	e, f := clientEnv(t, true, policy.ModeActive)
+	e, f := clientEnv(t, true)
 	withQueue(e)
 	for _, c := range []Candidate{cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP"),
 		cand(h("b"), "Movie.2024.1080p.WEB.H264-GRP")} {
@@ -341,7 +340,7 @@ func TestClientPollFailedAndMissing(t *testing.T) {
 
 func TestClientPollOutageFailsNothing(t *testing.T) {
 	t.Parallel()
-	e, f := clientEnv(t, true, policy.ModeActive)
+	e, f := clientEnv(t, true)
 	var logs bytes.Buffer
 	e.r.log = slog.New(slog.NewTextHandler(&logs, nil))
 	if _, err := e.r.Route(e.ctx, movieReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP"))); err != nil {
@@ -380,7 +379,7 @@ func TestClientPollOutageFailsNothing(t *testing.T) {
 
 func TestClientDismissMakesNoClientCall(t *testing.T) {
 	t.Parallel()
-	e, f := clientEnv(t, true, policy.ModeActive)
+	e, f := clientEnv(t, true)
 	if _, err := e.r.Route(e.ctx, movieReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP"))); err != nil {
 		t.Fatal(err)
 	}
@@ -405,7 +404,7 @@ func TestClientAddingSettledFromTheClient(t *testing.T) {
 	}{"landed": {true, StateAdded}, "never landed": {false, StateQueued}} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			e, f := clientEnv(t, true, policy.ModeActive)
+			e, f := clientEnv(t, true)
 			e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer,
 				client, add_attempt, state, created_at, updated_at) VALUES (7, 1, 10, 'movie', ?, 'Movie', 'pub', 'dc',
 				'a1', 'adding', 0, ?)`, h("a"), store.Millis(e.clock))
@@ -430,7 +429,7 @@ func TestClientAddingSettledFromTheClient(t *testing.T) {
 
 func TestClientAddingSettledByTheRoute(t *testing.T) {
 	t.Parallel()
-	e, f := clientEnv(t, true, policy.ModeActive)
+	e, f := clientEnv(t, true)
 	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer,
 		client, add_attempt, state, created_at, updated_at) VALUES (7, 1, 10, 'movie', ?, 'Movie', 'pub', 'dc',
 		'a1', 'adding', 0, ?)`, h("a"), store.Millis(e.clock))
@@ -469,7 +468,7 @@ func TestBuildClientsKeepsDebridClientsOnly(t *testing.T) {
 // downloads are read one hash at a time, or neither is found.
 func TestClientPollReadsEachHash(t *testing.T) {
 	t.Parallel()
-	e, f := clientEnv(t, true, policy.ModeActive)
+	e, f := clientEnv(t, true)
 	for _, x := range []string{"a", "b"} {
 		if _, err := e.r.Route(e.ctx, grabReq(cand(h(x), "Movie.2024.2160p.WEB.H265-GRP"))); err != nil {
 			t.Fatal(err)
@@ -489,7 +488,7 @@ func TestClientPollReadsEachHash(t *testing.T) {
 // A hash the client holds under another category (an arr's, before the handover) is adopted as it is and polled.
 func TestClientRouteAdoptsAHashUnderAnotherCategory(t *testing.T) {
 	t.Parallel()
-	e, f := clientEnv(t, true, policy.ModeActive)
+	e, f := clientEnv(t, true)
 	other := held("downloading", 0.5, "")
 	other["category"] = "radarr"
 	f.Set(h("a"), other)
@@ -515,7 +514,7 @@ func TestClientRouteAdoptsAHashUnderAnotherCategory(t *testing.T) {
 // downloading, and its interim content path is not kept.
 func TestClientPollReadyOnlyWhenCompleted(t *testing.T) {
 	t.Parallel()
-	e, f := clientEnv(t, true, policy.ModeActive)
+	e, f := clientEnv(t, true)
 	c := e.pol.Clients["dc"]
 	c.ImportFrom = policy.ImportFromDownloadFolder
 	if _, err := e.r.Route(e.ctx, movieReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP"))); err != nil {
@@ -534,7 +533,7 @@ func TestClientPollReadyOnlyWhenCompleted(t *testing.T) {
 
 func TestClientRouteAdoptedRowIsReused(t *testing.T) {
 	t.Parallel()
-	e, f := clientEnv(t, true, policy.ModeActive)
+	e, f := clientEnv(t, true)
 	f.Set(h("a"), held("downloading", 0.5, ""))
 	if _, err := e.r.Route(e.ctx, movieReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP"))); err != nil {
 		t.Fatal(err)
@@ -548,7 +547,7 @@ func TestClientRouteAdoptedRowIsReused(t *testing.T) {
 // client miss within miss_ttl (a skip, no call) schedules no further search.
 func TestClientNotCachedEverywhereSearchesAgain(t *testing.T) {
 	t.Parallel()
-	e, f := clientEnv(t, true, policy.ModeActive)
+	e, f := clientEnv(t, true)
 	withQueue(e)
 	f.AddErr[h("a")] = []qbittest.AddError{{Status: 404, Code: "torrent_not_cached", Retryable: true}}
 	res, err := e.r.Route(e.ctx, movieReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")))
@@ -579,7 +578,7 @@ func TestClientNotCachedEverywhereSearchesAgain(t *testing.T) {
 // the next pass, not counted missing.
 func TestClientPollKeepsReadsBeforeAFailedOne(t *testing.T) {
 	t.Parallel()
-	e, f := clientEnv(t, true, policy.ModeActive)
+	e, f := clientEnv(t, true)
 	for _, x := range []string{"a", "b"} {
 		if _, err := e.r.Route(e.ctx, grabReq(cand(h(x), "Movie.2024.2160p.WEB.H265-GRP"))); err != nil {
 			t.Fatal(err)
@@ -613,7 +612,7 @@ func (d slowDoer) Do(ctx context.Context, t gateway.Target, req *http.Request) (
 
 func TestClientPollReadyAtIsTheWriteTime(t *testing.T) {
 	t.Parallel()
-	e, f := clientEnv(t, true, policy.ModeActive)
+	e, f := clientEnv(t, true)
 	withQueue(e)
 	if _, err := e.r.Route(e.ctx, movieReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP"))); err != nil {
 		t.Fatal(err)

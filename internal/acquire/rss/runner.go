@@ -1,10 +1,10 @@
-// Package rss runs the RSS sync (job shadow.rss, docs/design/rss.md): it reads the RSS feeds of the indexers the Live
-// libraries list, decides each new item for the titles that want it and hands what it accepts to the router. A
-// Watch-only library gets nothing from it. While downloads are paused (router.enabled false) a run reads nothing and
+// Package rss runs the RSS sync (job shadow.rss, docs/design/rss.md): it reads the RSS feeds of the indexers the
+// libraries list, decides each new item for the titles that want it and hands what it accepts to the router. While
+// downloads are paused (router.enabled false) a run reads nothing and
 // routes nothing, so no feed item is lost: the next run after the pause reads the same items.
 //
 // The names are kept from when RSS ran in the shadow runner: the settings section shadow (fields rss and
-// rss_interval), the job kind shadow.rss, the tables shadow_rss_seen, shadow_rss_cursor and shadow_run, the metrics
+// rss_interval), the job kind shadow.rss, the tables shadow_rss_seen and shadow_rss_cursor, the metrics
 // and the log texts.
 package rss
 
@@ -69,7 +69,7 @@ type Config struct {
 	Indexers *indexer.Service
 	// Budgets, when set, lets the runner skip indexers whose budget is capped or backing off.
 	Budgets BudgetSource
-	// Router gets the accepted items of the Live libraries as router.route jobs. nil: RSS reads for nothing.
+	// Router gets the accepted items of the libraries as router.route jobs. nil: RSS reads for nothing.
 	Router     Router
 	Logger     *slog.Logger
 	Registerer prometheus.Registerer
@@ -97,7 +97,7 @@ type Runner struct {
 	set     policy.ShadowSettings
 	lib     *library
 	m       *metrics
-	active  map[string]bool // Live versions whose profile built, read by RSS for the router (Router set)
+	active  map[string]bool // versions whose profile built, read by RSS for the router (Router set)
 	rt      Router
 
 	runtime         RuntimeSource
@@ -131,20 +131,17 @@ func (r *Runner) setVersions(pol *policy.Policy, eng *decide.Engine, rt Router) 
 		if v.Kind == policy.KindSeries {
 			fl = format.Sonarr
 		}
-		if v.Mode == policy.ModeActive && rt != nil && eng != nil && eng.Profile(v.Profile, fl) != nil {
+		if rt != nil && eng != nil && eng.Profile(v.Profile, fl) != nil {
 			r.active[k] = true
 		}
 	}
 }
 
-// ActiveVersions lists the Live versions whose RSS picks go to the router. A run is skipped while Pause is on; a route
-// the router's gate still refuses is a dry run: a "would add" plan, no add and no re-search. Items routed this way are not marked seen, so they are
+// ActiveVersions lists the versions whose RSS picks go to the router. A run is skipped while Pause is on; a route
+// the router's gate still refuses is a dry run: no add and no re-search. Items routed this way are not marked seen, so they are
 // decided again each sync while they stay in the feed (at most one page, indexer.DefaultPageCap items, per feed and
 // sync).
 func (r *Runner) ActiveVersions() []string { return sortedKeys(r.active) }
-
-// rssVersions are the versions RSS reads for: the Live ones.
-func (r *Runner) rssVersions() map[string]bool { return r.active }
 
 // paused is whether downloads are paused: router.enabled false in the pinned policy, the router gate's own switch.
 func (r *Runner) paused() bool { return !r.pol.RouterSettings().Enabled }
@@ -163,14 +160,14 @@ func (r *Runner) read(ctx context.Context) error {
 }
 
 // task is the RSS read's task with run's interval, or on demand only (the arr RssSync command) while RSS is off. It is
-// paused (no next run, no Run now) while Pause is on, or while RSS is on and no library is Live. Whether a feed is
+// paused (no next run, no Run now) while Pause is on, or while RSS is on and no library is set up. Whether a feed is
 // readable is not part of it: that changes without a settings change (a first catalog fetch), and a read with no feed
 // does nothing.
 func (r *Runner) task(_ context.Context, run *Runner) tasks.Task {
 	t := tasks.Task{Key: KindRSS, Name: "Check RSS feeds", Attempts: 2, Inbox: true, Run: r.read, Paused: run.paused()}
 	if run.set.RSS {
 		t.Every = run.set.RSSInterval
-		t.Paused = t.Paused || run.idx == nil || len(run.rssVersions()) == 0
+		t.Paused = t.Paused || run.idx == nil || len(run.active) == 0
 	}
 	return t
 }
@@ -204,7 +201,7 @@ func (r *Runner) Schedule(ctx context.Context, rssDelay time.Duration) {
 		return
 	}
 	// The film index the decision engine searches with is loaded now and on every due tick no read is queued for (RSS
-	// off, no Live feed), so it never depends on RSS running; a queued read reloads it itself.
+	// off, no feed), so it never depends on RSS running; a queued read reloads it itself.
 	r.reloadIndex(ctx)
 	fresh := true
 	var generation int64
@@ -257,9 +254,9 @@ func (r *Runner) Schedule(ctx context.Context, rssDelay time.Duration) {
 	}
 }
 
-// eligible is whether an RSS read has anything to do: RSS on, an indexer service, a Live version and a feed it lists.
+// eligible is whether an RSS read has anything to do: RSS on, an indexer service, a version and a feed it lists.
 func (r *Runner) eligible(ctx context.Context) bool {
-	return r.set.RSS && r.idx != nil && len(r.rssVersions()) > 0 && r.hasRSSFeeds(ctx)
+	return r.set.RSS && r.idx != nil && len(r.active) > 0 && r.hasRSSFeeds(ctx)
 }
 
 // Covers says whether the RSS read picks up new releases for a version: the read is on, the version is one whose RSS
@@ -267,7 +264,7 @@ func (r *Runner) eligible(ctx context.Context) bool {
 // a catalog source without a feed does not count). The title page says so only then.
 func (r *Runner) Covers(ctx context.Context, version string) bool {
 	run, err := r.forOperation(ctx)
-	if err != nil || !run.set.RSS || run.idx == nil || !run.rssVersions()[version] {
+	if err != nil || !run.set.RSS || run.idx == nil || !run.active[version] {
 		return false
 	}
 	feeds, _ := run.rssIndexers(ctx)
@@ -333,32 +330,7 @@ func (r *Runner) reload(ctx context.Context) (map[int64]decide.Title, decide.Lib
 	return titles, lib, nil
 }
 
-// record writes a run row.
-func (r *Runner) record(ctx context.Context, kind string, start time.Time, ok bool, summary any) {
-	b, err := jsonString(summary)
-	if err != nil {
-		r.log.Warn("run summary", "err", err)
-		return
-	}
-	_, err = r.st.Writer().ExecContext(ctx, `INSERT INTO shadow_run (kind, started_at, finished_at, ok, summary)
-		VALUES (?, ?, ?, ?, ?)`, kind, store.Millis(start), store.Millis(r.now()), boolInt(ok), b)
-	if err != nil {
-		r.log.Warn("run record", "err", err)
-	}
-	if _, err := r.st.Writer().ExecContext(ctx, `DELETE FROM shadow_run WHERE started_at < ?`,
-		store.Millis(r.now().Add(-30*24*time.Hour))); err != nil {
-		r.log.Warn("run prune", "err", err)
-	}
-}
-
-func boolInt(b bool) int {
-	if b {
-		return 1
-	}
-	return 0
-}
-
-// hasRSSFeeds is whether the Live versions list a feed the RSS sync can read.
+// hasRSSFeeds is whether the versions list a feed the RSS sync can read.
 func (r *Runner) hasRSSFeeds(ctx context.Context) bool {
 	feeds, _ := r.rssIndexers(ctx)
 	return len(feeds) > 0

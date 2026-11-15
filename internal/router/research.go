@@ -18,7 +18,7 @@ import (
 // Re-search after a failure (docs/design/router.md "The search schedule"). When a download fails for a reason the
 // arrs and decypharr answer with "blocklist and search again", the router asks the acquirer to search that title
 // (or those episodes) again: job JobResearch, handled by internal/acquire, which makes the item due at once in the
-// search schedule (skipped when the version is not active), under router.wanted.per_hour. The router only enqueues;
+// search schedule (skipped when the version is not in the settings), under router.wanted.per_hour. The router only enqueues;
 // it never searches.
 //
 // The failures:
@@ -70,7 +70,7 @@ type ResearchRequest struct {
 	DownloadID int64 `json:"download_id,omitempty"`
 }
 
-// research enqueues a re-search, unless the router may not write for the version (shadow, or the kill switch off) or
+// research enqueues a re-search, unless the router may not write for the version (the kill switch off) or
 // has no job queue. Failures are logged.
 func (r *Router) research(ctx context.Context, titleID, versionID int64, version string, episodes []int64,
 	reason string, dl int64) bool {

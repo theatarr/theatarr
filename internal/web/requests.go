@@ -25,8 +25,8 @@ import (
 // from the user's request set (an admin's choice per user; by default every version that fits the title). A
 // manager or admin approves (optionally changing versions or seasons) or declines with a reason; an account with
 // auto-approve has its requests approved at once. Approval runs addTitle, the same path as POST /titles and so
-// catalog.Add, the arr views' add path, and asks for a search, which runs only for active versions while the router
-// is on (catalog.Searchable): nothing searches while a version is in shadow. Afterwards the request follows its
+// catalog.Add, the arr views' add path, and asks for a search, which runs only while the router is on
+// (catalog.Searchable). Afterwards the request follows its
 // versions: approved, processing (a download is in hand), available (every requested version has its file) or failed
 // (the last downloads failed and none is in hand).
 //

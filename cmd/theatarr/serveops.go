@@ -61,7 +61,7 @@ func (o serveOps) UnlinkRemoved(ctx context.Context, linkID int64, reason string
 }
 
 // PreviewRename and ApplyRename give the title page's rename (internal/web/rename.go) the library's rename through
-// the arr views' service. Apply writes only through the library gate (library.enabled, mode: active, the version's
+// the arr views' service. Apply writes only through the library gate (library.enabled, the version's
 // roots), moves each link as a compare-and-swap, and queues Plex scans of the folders it moved links in and out of.
 // A gate refusal or a link that changed under the rename answers 409 with the reason.
 func (o serveOps) PreviewRename(ctx context.Context, titleID int64, season *int) (*library.RenamePreview, error) {

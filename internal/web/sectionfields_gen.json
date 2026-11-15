@@ -186,7 +186,7 @@
     "ready_timeout": "This fails a download still ready this long after ready_at, blocklists it and searches again. Default 6h, 1m to 7d. No torrent is deleted on the provider.",
     "stalled_after": "This fails a download still in state added (accepted, not ready, nothing fetched yet) this long after its add, as stalled (decypharr's remove_stalled_after): its hash is blocklisted for the version, our own Real-Debrid add is deleted,…",
     "trackers": "This lists public tracker announce URLs added to every debrid magnet. Default none: the magnet is bare. Each must be udp, http or https with no credentials, no query and a path of \"\" or /announce.",
-    "wanted": "This is the search schedule of the Live libraries' missing and cutoff-unmet titles and episodes."
+    "wanted": "This is the search schedule of the libraries' missing and cutoff-unmet titles and episodes."
   },
   "SeriesMeta": {
     "enabled": "This turns the refresh on; default true when a tvdb or tmdb source is configured.",
@@ -195,7 +195,7 @@
   },
   "Shadow": {
     "rss": "This turns the shadow.rss job on or off. Default on.",
-    "rss_interval": "This is how often the shadow.rss job reads the rss feeds of the Live libraries' indexers. Default 15m, the arrs' default rss sync interval; minimum 10m."
+    "rss_interval": "This is how often the shadow.rss job reads the rss feeds of the libraries' indexers. Default 15m, the arrs' default rss sync interval; minimum 10m."
   },
   "TorBoxCheck": {
     "enabled": "This turns it on. Default true; it does nothing without a TorBox provider whose key is set.",

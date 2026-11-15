@@ -6,8 +6,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/theatarr/theatarr/internal/policy"
 )
 
 func TestImportSetsMovieStateFromCutoff(t *testing.T) {
@@ -17,7 +15,7 @@ func TestImportSetsMovieStateFromCutoff(t *testing.T) {
 	}{{"below cutoff", "Amelie.2001.1080p.WEB-DL.DDP5.1.H.264-GRP", "filled"}, {"at cutoff", movieRelease, "cutoff_met"}} {
 		t.Run(tc.name, func(t *testing.T) {
 			// The file's own quality (from its release and probe) is judged, not the download's.
-			e := newEnv(t, true, policy.ModeActive)
+			e := newEnv(t, true)
 			e.release(tc.quality, map[string]float64{"movie.mkv": 7000})
 			if tc.want == "filled" {
 				e.videoSize(tc.quality, 1920, 1080)
@@ -35,7 +33,7 @@ func TestImportSetsMovieStateFromCutoff(t *testing.T) {
 
 func TestPartialEpisodeImportState(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	rel := "Show.S01.2160p.WEB-DL.DDP5.1.H.265-GRP"
 	e.release(rel, map[string]float64{"Show.S01E01.2160p.WEB-DL.DDP5.1.H.265-GRP.mkv": 2700,
 		"Show.S01E02.2160p.WEB-DL.DDP5.1.H.265-GRP.mkv": 2650})
@@ -98,7 +96,7 @@ func TestPartialEpisodeImportState(t *testing.T) {
 
 func TestUnlinkResetsOnlyWhenNoFileRemains(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
 	e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
 	plan, err := e.lib.Import(e.ctx, 1, false)
@@ -131,9 +129,9 @@ func TestUnlinkResetsOnlyWhenNoFileRemains(t *testing.T) {
 	}
 }
 
-func TestShadowImportLeavesVersionStateAlone(t *testing.T) {
+func TestDryRunImportLeavesVersionStateAlone(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeShadow)
+	e := newEnv(t, false)
 	e.exec(`UPDATE version SET state = 'filled' WHERE id = 10`)
 	e.exec(`INSERT INTO episode_version_state (version_id, episode_id, monitored, state, updated_at)
 		VALUES (20, 201, 1, 'wanted', 0)`)
@@ -163,7 +161,7 @@ func TestShadowImportLeavesVersionStateAlone(t *testing.T) {
 
 func TestImportRequiresBuiltProfileBeforeWriting(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.lib.engine = nil
 	e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
 	e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")

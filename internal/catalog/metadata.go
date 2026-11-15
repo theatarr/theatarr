@@ -232,7 +232,7 @@ func (s *MovieIntake) refreshCollection(ctx context.Context, cfg movieIntakeConf
 }
 
 // collectionTargets revalidates a monitored collection's stored targets: only collection targets (policy
-// CollectionTarget: Live movie libraries, the ones the library gate lets write) take its movies.
+// CollectionTarget: movie libraries) take its movies.
 // Others are skipped, logged once; with none left (an empty list among them) it adds nothing, and returns "".
 func (s *MovieIntake) collectionTargets(cfg movieIntakeConfig) (string, error) {
 	var keys, ok, skipped []string
@@ -248,7 +248,7 @@ func (s *MovieIntake) collectionTargets(cfg movieIntakeConfig) (string, error) {
 	}
 	if len(skipped) > 0 || len(ok) == 0 {
 		if _, seen := s.skipLogged.LoadOrStore(fmt.Sprintf("%d:%s", cfg.tmdbID, strings.Join(skipped, ",")), true); !seen {
-			s.Log.Warn("movie collection: targets skipped, not active movie versions the library may write",
+			s.Log.Warn("movie collection: targets skipped, not movie versions",
 				"collection", cfg.tmdbID, "skipped", skipped, "targets", ok)
 		}
 	}

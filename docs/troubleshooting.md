@@ -66,8 +66,7 @@ the raw profile editor (`/admin/settings/profiles?raw=1`, **Add profiles**).
 **Symptom:** you created a library and added titles, but nothing is downloaded and nothing appears in the library
 folder.
 
-**Cause:** a new library starts as **Watch only**: Theatarr searches, downloads and links nothing for it. Or
-**Pause** is on (a fresh install starts paused).
+**Cause:** **Pause** is on (a fresh install starts paused), or the titles are not monitored in the library.
 
 **Fix:**
 
@@ -75,13 +74,13 @@ folder.
   has recorded are in **System › Decision journal** and on the title's **Last search** page; a title added a
   moment ago may have none yet. To search the indexers for one title now, run
   `docker compose exec theatarr theatarr decide -tmdb <id> -library <library> -search` (it records nothing).
-- To start downloading, follow [quickstart.md](quickstart.md#9-go-live-deliberately): set the library to
-  **Live** on **Settings › Libraries** and turn **Pause** off at the top of the page. **Wanted** says why each title
+- To start downloading, follow [quickstart.md](quickstart.md#9-go-live-deliberately): turn **Pause** off at the
+  top of the page. **Wanted** says why each title
   is still waiting.
 
-## A live library downloads nothing
+## A library downloads nothing
 
-**Symptom:** the library is **Live**, **Pause** is off,
+**Symptom:** **Pause** is off,
 you added a title, and nothing is downloaded or nothing reaches Plex.
 
 Start with **Wanted** (it says what each title is waiting for), the title's **Releases** page (what the indexers

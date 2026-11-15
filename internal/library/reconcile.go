@@ -35,7 +35,7 @@ type VanishedLink struct {
 // Only a path that is confirmed missing counts (lstat says it does not exist); any other error leaves the link as
 // it is. A root that is missing, unreadable or empty is skipped whole (the arrs' "root folder doesn't exist / is
 // empty" failsafe): an unmounted library must not turn every link missing. Links of a download being imported now
-// are left to that import. A version the gate refuses (shadow, library off) only reports what it found: nothing is
+// are left to that import. A version the gate refuses (library off) only reports what it found: nothing is
 // written.
 func (l *Library) ReconcileLinks(ctx context.Context, version string, titleIDs []int64) ([]*LinkScan, error) {
 	var out []*LinkScan
@@ -221,7 +221,7 @@ func (l *Library) reconcileRoot(ctx context.Context, sc *LinkScan, titleIDs []in
 // scanCheck is the gate's word on a scan of version's root: refused is why the scan may only report (a dry run),
 // down why the root is skipped whole (ErrRootDown): it, or a filesystem mounted below it, does not answer, and a
 // walk would block on it with nothing to bound it (Gate.Reachable: also for a version the gate refuses before its
-// roots, shadow or library off).
+// roots: library off).
 func (l *Library) scanCheck(ctx context.Context, version, root string) (refused, down error) {
 	err := l.gate.CheckVersion(version)
 	if Unavailable(err) {

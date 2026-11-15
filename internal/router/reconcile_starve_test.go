@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/provider"
 )
 
@@ -14,7 +13,7 @@ import (
 // again on every pass and the adds on healthy providers were never looked at. Each listing has its share of the pass
 // now, and an add whose lookup was cut is marked tried without being settled or noted.
 func TestPollRecoveryDoesNotStarveProviders(t *testing.T) {
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	old := reconcilePassLimit
 	reconcilePassLimit = 150 * time.Millisecond
 	t.Cleanup(func() { reconcilePassLimit = old })

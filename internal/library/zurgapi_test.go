@@ -126,7 +126,7 @@ const (
 // (404 is no entry), a failure keeping the API alone for the interval, and the repair grace bounded.
 func TestZurgAPIClient(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	srv := newZurgServer(t)
 	srv.torrents = []ZurgTorrent{{Name: "Some.Movie.2001.2160p.mkv", Hash: strings.ToUpper(hashA), Size: 5},
 		{Name: "Lost.Show.S01", Hash: hashB, Size: 0}, {Name: "Lost.Show.S01", Hash: hashC, Size: 0}}
@@ -216,7 +216,7 @@ func TestZurgAPIClient(t *testing.T) {
 // report counts them, and the health check says it. Without an answer the rows stay unclassified.
 func TestDanglingReportNoVideo(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, false, policy.ModeShadow)
+	e := newEnv(t, false)
 	e.release("Here", map[string]float64{"a.mkv": 1})
 	// The torrent lost its video upstream: only an .nfo is left in its folder.
 	if err := os.MkdirAll(filepath.Join(e.mount, "__all__", "Lost.Movie"), 0o755); err != nil {
@@ -303,7 +303,7 @@ func TestDanglingReportNoVideo(t *testing.T) {
 // while zurg repairs, dangling links are reported as repairing and stay active, until the grace is over.
 func TestRelinkZurgNoVideoAndRepair(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.release("Other", map[string]float64{"o.mkv": 1})
 	e.exec(`UPDATE version SET state = 'filled' WHERE id = 10`)
 	lost := filepath.Join(e.movies, "Amelie (2001)", "Amelie.mkv")
@@ -360,7 +360,7 @@ func TestRelinkZurgNoVideoAndRepair(t *testing.T) {
 // the mount-only sweep.
 func TestRelinkZurgUnreachableKeepsBehaviour(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.release("Other", map[string]float64{"o.mkv": 1})
 	e.theatarrLink(1, filepath.Join(e.movies, "Amelie (2001)", "Amelie.mkv"), filepath.Join(e.mount, "__all__", "Gone", "m.mkv"))
 	srv := newZurgServer(t)
@@ -399,7 +399,7 @@ func TestRelinkZurgConfirmsCandidate(t *testing.T) {
 		{"not answering", hashB, true, true},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			e := newEnv(t, true, policy.ModeActive)
+			e := newEnv(t, true)
 			e.release("Movie.Release {abcdef}", map[string]float64{"movie.mkv": 7000})
 			e.exec(`INSERT INTO content (id, info_hash, name, state, first_seen_at, last_seen_at) VALUES (1, ?, 'Movie.Release', 'present', 0, 0)`, hashA)
 			link := filepath.Join(e.movies, "Movie (2001)", "Movie (2001).mkv")
@@ -433,7 +433,7 @@ func TestRelinkZurgConfirmsCandidate(t *testing.T) {
 func TestImportZurgConfirmsRelease(t *testing.T) {
 	t.Parallel()
 	setup := func(t *testing.T) *env {
-		e := newEnv(t, true, policy.ModeActive)
+		e := newEnv(t, true)
 		e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
 		e.release(movieRelease+" {abcdef}", map[string]float64{"movie.mkv": 7000})
 		e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
@@ -592,7 +592,7 @@ func TestImportZurgConfirmsRelease(t *testing.T) {
 // mismatchEnv is a movie download whose one file zurg reports at another size than the mount: a mismatch wait.
 func mismatchEnv(t *testing.T) (*env, *zurgServer) {
 	t.Helper()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
 	e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
 	srv := newZurgServer(t)
@@ -751,7 +751,7 @@ func TestImportOriginalNameReaddedClaim(t *testing.T) {
 		original = "Movie.Name.2001.2160p.UHD.BluRay.REMUX.HDR.HEVC.TrueHD.Atmos.7.1-GRP[TGx]"
 		release  = "Movie.Name.2001.2160p.UHD.BluRay.REMUX.HDR.HEVC.TrueHD.Atmos.7.1-GRP"
 	)
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	second := filepath.Join(e.dir, "media", "movies-second")
 	if err := os.MkdirAll(second, 0o755); err != nil {
 		t.Fatal(err)
@@ -796,7 +796,7 @@ func TestImportZurgNameForHash(t *testing.T) {
 	)
 	provider := strings.ToLower(release) + ".mkv"
 	setup := func(t *testing.T, folder string) (*env, *zurgServer, *bytes.Buffer) {
-		e := newEnv(t, true, policy.ModeActive)
+		e := newEnv(t, true)
 		var buf bytes.Buffer
 		e.lib.log = slog.New(slog.NewTextHandler(&buf, nil))
 		if folder != "" {
@@ -1060,7 +1060,7 @@ func TestImportZurgFreshListing(t *testing.T) {
 	)
 	// zurg has the folder but listed the torrent after the first listing was read.
 	setup := func(t *testing.T, readyAgo time.Duration) (*env, *zurgServer) {
-		e := newEnv(t, true, policy.ModeActive)
+		e := newEnv(t, true)
 		e.release(zname, map[string]float64{"movie.mkv": 7000})
 		e.download(1, "movie-remux", 1, 10, release, strings.ToLower(release)+".mkv", "[]")
 		e.exec(`UPDATE download SET ready_at = ? WHERE id = 1`, store.Millis(e.now.Add(-readyAgo)))
@@ -1136,7 +1136,7 @@ func TestImportZurgForgetsReleaseRoot(t *testing.T) {
 	t.Parallel()
 	const zname = "Movie.Name.2001.2160p.UHD.BluRay.REMUX.HDR.HEVC.TrueHD.Atmos.7.1-GRP[TGx]"
 	setup := func(t *testing.T, listed string, on bool) (*env, *[]string) {
-		e := newEnv(t, true, policy.ModeActive)
+		e := newEnv(t, true)
 		e.download(1, "movie-remux", 1, 10, "Movie.Name.2001.2160p.UHD.BluRay.REMUX.HDR.HEVC.TrueHD.Atmos.7.1-GRP",
 			"movie.name.2001.mkv", "[]")
 		srv := newZurgServer(t)
@@ -1196,7 +1196,7 @@ func TestImportZurgForgetsReleaseRoot(t *testing.T) {
 // TestZurgEntryPathEscaping: the entry path goes in the query, escaped; names with spaces, braces and & arrive whole.
 func TestZurgEntryPathEscaping(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	srv := newZurgServer(t)
 	name := "A & B {abcdef} 100%"
 	srv.entries[davPath(name, "Season 1/e 01.mkv")] = ZurgEntry{Hash: hashA, Size: 1}
@@ -1210,7 +1210,7 @@ func TestZurgEntryPathEscaping(t *testing.T) {
 // .nfo has lost its video too (live 2026-10-28: 32 such links, every one with a non-zero size).
 func TestDanglingReportNoVideoOnMount(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, false, policy.ModeShadow)
+	e := newEnv(t, false)
 	e.release("Here", map[string]float64{"a.mkv": 1})
 	if err := os.MkdirAll(filepath.Join(e.mount, "__all__", "Lost.Movie"), 0o755); err != nil {
 		t.Fatal(err)
@@ -1324,7 +1324,7 @@ func TestZurgMismatchFolderErrorAdvances(t *testing.T) {
 // filesystem error keeps the wait and advances its back-off.
 func TestZurgMismatchClientFolderErrorAdvances(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	dir := filepath.Join(e.mount, "__all__", movieRelease)
 	if err := os.Symlink(movieRelease, dir); err != nil {
 		t.Fatal(err)

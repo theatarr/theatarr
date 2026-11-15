@@ -1,7 +1,7 @@
 import { usePerms } from "@/api/library";
 // The add sheet: versions to turn on (every version that fits the title ticked), seasons
 // for a series whose episodes the library knows, and the footer's "Add" and "Add and search", the second offered only
-// when a search would run (a ticked version in mode active with the router on). It posts to POST /titles, the same add path as the arr views.
+// when a search would run (a ticked version while Pause is off). It posts to POST /titles, the same add path as the arr views.
 // A side sheet on desktop and a bottom sheet on phones, in our Modal (components/ui/modal.tsx: focus trap, inert page,
 // focus restore, shared scroll lock), since Radix Dialog's scroll lock injects a <style> element the CSP refuses. Layout follows Scryer (github.com/scryer-media/scryer) apps/scryer-web/components/root/
 // add-to-catalog-dialog.tsx @ 2ef7757c, GPL-3.0 (poster header, option rows, footer actions) and Seerr's RequestModal
@@ -96,7 +96,7 @@ function LibraryRow({ v, checked, disabled, onChange, note, admin }: {
         </label>
         {fetchesWords(v) ? <p className="text-xs text-[var(--ink-2)]" title={admin && v.profile ? `Profile key ${v.profile}` : undefined} data-testid="add-fetches">{fetchesWords(v)}</p> : null}
         {note ? <p className="text-xs text-[var(--ink-3)]">{note}</p> : null}
-        <div id={`${id}-state`}><VersionStatus state={v.grab_state} showMode settingsKey={v.key} canManage={admin} /></div>
+        <div id={`${id}-state`}><VersionStatus state={v.grab_state} settingsKey={v.key} canManage={admin} /></div>
       </div>
     </div>
   );
@@ -174,12 +174,10 @@ export function AddSheet({ target, onClose }: { target: AddTarget; onClose: () =
   const chosen = versions.filter((v) => !v.on && isOn(v)).map((v) => v.key);
   const fitting = versions.filter((v) => v.fits || v.on);
   const other = versions.filter((v) => !v.fits && !v.on);
-  // Live is counted by mode (Pause does not stop a library being Live).
   const selected = versions.filter(isOn);
   // The summary counts what this click adds (the newly ticked libraries); a change of seasons alone, the libraries it
   // applies to.
   const counted = chosen.length > 0 ? selected.filter((v) => !v.on) : selected;
-  const live = counted.filter((v) => v.grab_state?.mode === "active").length;
   const globalOff = globalDownloadsOff(versions.map((v) => v.grab_state));
   const canSearch = selected.some((v) => v.searchable);
   const seasonOn = (n: number, def: boolean) => seasons[n] ?? def;
@@ -370,7 +368,7 @@ export function AddSheet({ target, onClose }: { target: AddTarget; onClose: () =
                 </span>
               ) : (
                 <span className="min-w-0 text-xs text-[var(--ink-3)]" data-testid="add-count">
-                  {chosen.length > 0 || seasonsChanged ? `${counted.length} ${counted.length === 1 ? "library" : "libraries"}${live > 0 ? ` · ${live} Live` : ""}` : "Nothing new ticked"}
+                  {chosen.length > 0 || seasonsChanged ? `${counted.length} ${counted.length === 1 ? "library" : "libraries"}` : "Nothing new ticked"}
                 </span>
               )}
               <div className="ml-auto flex min-w-0 flex-wrap justify-end gap-2">

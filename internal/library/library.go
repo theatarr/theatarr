@@ -6,7 +6,7 @@
 // # Gating
 //
 // Every filesystem change goes through one writer (fs.go) that asks the [Gate] with the exact path first:
-// library.enabled, the version's mode: active, and the version's roots under library.versions. Otherwise the same
+// library.enabled and the version's roots under library.versions. Otherwise the same
 // work runs as a dry run and records what it would do (library_action mode dry_run). Plex calls need
 // library.enabled too. Nothing here deletes debrid content: links are symlinks into a read-only mount, replaced
 // links are copied into the trash before they go, and the content they point at is never touched.

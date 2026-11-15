@@ -130,7 +130,7 @@ func TestProfilePresetsAndOverviewAPI(t *testing.T) {
 			t.Fatalf("our HDR score %+v", s)
 		}
 	}
-	if len(remux.UsedBy) != 1 || remux.UsedBy[0].Key != "movie-remux" || remux.UsedBy[0].Active {
+	if len(remux.UsedBy) != 1 || remux.UsedBy[0].Key != "movie-remux" {
 		t.Fatalf("remux used by %+v", remux.UsedBy)
 	}
 

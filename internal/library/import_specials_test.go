@@ -5,14 +5,12 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/theatarr/theatarr/internal/policy"
 )
 
 // An OVA larger than episode 01 cannot take that episode's slot in an entry-local batch.
 func TestImportFranchiseBatchKeepsOVAOutOfRegularSlot(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.isekai()
 	rel := "[Other] Isekai Monogatari Season 2 (BD 1080p)"
 	e.release(rel, map[string]float64{"[Other] Isekai Monogatari - 01 (BD 1080p).mkv": 1440,
@@ -40,7 +38,7 @@ func TestImportFranchiseBatchKeepsOVAOutOfRegularSlot(t *testing.T) {
 
 func TestImportAltCutTableGapStaysUnmatched(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.isekai()
 	e.exec(`INSERT INTO anime_alt_cut (franchise, name, tvdb_series, episodes) VALUES ('isekai', 'Director''s Cut', 2002, '{"1":[[1,1],[1,2]],"2":[[1,3]]}')`)
 	rel := "[Group] Isekai Story Directors Cut (BD 1080p)"

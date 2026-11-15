@@ -77,22 +77,16 @@ func TestSearchable(t *testing.T) {
 	t.Parallel()
 	_, pol := setup(t)
 	keys := []string{"movie-remux", "movie-web", "nope"}
-	// The example policy: every version in shadow, router off.
+	// The example policy: router off, nothing is searched.
 	active, skipped := Searchable(pol, keys)
-	if len(active) != 0 || len(skipped) != 3 || !strings.Contains(skipped[0].Reason, "Watch only") ||
-		!strings.Contains(skipped[2].Reason, "not in the policy") {
-		t.Fatalf("all shadow: %v %v", active, skipped)
-	}
-	// Active but paused: still nothing.
-	pol.Versions["movie-web"].Mode = policy.ModeActive
-	active, skipped = Searchable(pol, keys)
-	if len(active) != 0 || skipped[1].Version != "movie-web" || !strings.Contains(skipped[1].Reason, "Paused") {
+	if len(active) != 0 || len(skipped) != 3 || skipped[1].Version != "movie-web" ||
+		!strings.Contains(skipped[1].Reason, "Paused") || !strings.Contains(skipped[2].Reason, "not in the policy") {
 		t.Fatalf("router off: %v %v", active, skipped)
 	}
-	// Pause off: the active version only.
+	// Pause off: every library in the policy.
 	pol.Router = &policy.Router{Enabled: true}
 	active, skipped = Searchable(pol, keys)
-	if !slices.Equal(active, []string{"movie-web"}) || len(skipped) != 2 {
+	if !slices.Equal(active, []string{"movie-remux", "movie-web"}) || len(skipped) != 1 {
 		t.Fatalf("router on: %v %v", active, skipped)
 	}
 }

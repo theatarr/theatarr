@@ -2,7 +2,7 @@
 // through the admin password, the debrid providers, the indexers (Prowlarr feeds as Torznab and the native catalog),
 // the TMDb key, a library root and a first version from a preset, then the preflight. Everything it creates goes through the
 // settings API. The first library can start downloading at once (POST setup/start: one save, one confirmation that
-// lists what turning Pause off starts), or start Watch only, and then nothing Setup does can grab.
+// lists what turning Pause off starts), or be created with Pause left on, and then nothing Setup does can grab.
 import { useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { Link } from "react-router";
@@ -96,14 +96,14 @@ export function SetupPage() {
           : <FirstVersion state={s} onDone={(forced) => { setForcedOff(forced ?? []); refresh(); void qc.invalidateQueries({ queryKey: qk.settings.overview }); void qc.invalidateQueries({ queryKey: qk.me }); }} />}
         {forcedOff.length ? <p role="status" data-testid="start-forced-off">The library was created and Pause is saved as off, but THEATARR_FORCE_OFF keeps Pause on: nothing is searched, downloaded or linked until that override is removed and the service restarted.</p> : null}
         <DownloadsOffNotice off={globalDownloadsOff((s.version_states ?? []).map((v) => v.grab_state))} canManage />
-        <div className="space-y-1">{(s.version_states ?? []).map((v) => <div key={v.key} className="flex flex-wrap items-start gap-2"><span className="text-[13px] font-medium" title={v.key}>{v.label || v.key}</span><VersionStatus state={v.grab_state} showMode settingsKey={v.key} canManage /></div>)}</div>
+        <div className="space-y-1">{(s.version_states ?? []).map((v) => <div key={v.key} className="flex flex-wrap items-start gap-2"><span className="text-[13px] font-medium" title={v.key}>{v.label || v.key}</span><VersionStatus state={v.grab_state} settingsKey={v.key} canManage /></div>)}</div>
       </Step>
       <Step n={5} title="Check readiness" done={progress.steps[4]}>
         <Preflight generation={progress.versions.data?.generation} report={progress.report} last={progress.last} />
         <p><Link className="underline" to={journalHome()}>Open the decision journal</Link></p>
       </Step>
       <Step n={6} title="Review activation" done={progress.steps[5]}>
-        <p>A library created with "Create library and start downloading" is Live with Pause off already. For any other library: when you're ready, set it to Live on Libraries and turn Pause off at the top of the page.</p>
+        <p>A library created with "Create library and start downloading" downloads with Pause off already. Otherwise, when you're ready, turn Pause off at the top of the page.</p>
         {progress.versions.isPending ? <Loading /> : progress.versions.error ? <ErrorState error={progress.versions.error} /> : <Activation data={progress.versions.data} />}
       </Step>
     </ol>
@@ -136,8 +136,7 @@ function Activation({ data }: { data: VersionList }) {
    const running = data.switches.versions.find(s => s.key === v.key)?.grab_state;
    return <div key={v.key} className="rounded border p-3">
    <h3 className="font-medium">{nameOf(v.key, libraryLabel(v.key, v.config.profile, v.config.name, v.config.kind))} <span className="font-mono text-sm font-normal text-muted-foreground">{v.key}</span></h3><p>Root: {v.config.library || (v.roots ?? []).join(", ") || "Not set"}</p>
-   {running ? <VersionStatus state={running} showMode settingsKey={v.key} canManage /> : <p>State: Unknown</p>}
-   {running && v.config.mode !== running.mode ? <p className="text-xs text-muted-foreground">Mode saved: {v.config.mode}, running: {running.mode}</p> : null}
+   {running ? <VersionStatus state={running} settingsKey={v.key} canManage /> : <p>State: Unknown</p>}
    <p>Indexers: {(v.config.indexers ?? []).join(", ") || "None"} · Providers: {(v.config.providers ?? []).join(", ") || "None"}</p>
    <Link className="underline" to={`/admin/settings/libraries?edit=${encodeURIComponent(v.key)}`}>Edit {nameOf(v.key)}</Link>
   </div>; }) : <p>No libraries yet.</p>}
@@ -225,8 +224,8 @@ function VersionForm({ data, state, onDone, reload }: { data: VersionList; state
     noTrash && "the trash folder is not set, and writing library links needs it",
   ].filter(Boolean) as string[];
 
-  const config = (mode: "shadow" | "active"): VersionConfig => ({
-    mode, kind: draft.kind, anime: false, profile: preset ? draft.key : draft.profile, library: draft.library,
+  const config = (): VersionConfig => ({
+    kind: draft.kind, anime: false, profile: preset ? draft.key : draft.profile, library: draft.library,
     storage: "debrid", indexers: draft.indexers, providers: draft.providers, client: "", import: "symlink", upgrades: "auto",
   });
 
@@ -241,7 +240,7 @@ function VersionForm({ data, state, onDone, reload }: { data: VersionList; state
     try {
       if (!body) {
         const generation = (await reload())?.generation ?? data.generation;
-        body = { generation, key: draft.key, roots: [draft.library], config: config("active"),
+        body = { generation, key: draft.key, roots: [draft.library], config: config(),
           ...(preset && !reuse ? { preset: { flavour, preset: preset.trash_id, modifiers: [] } } : {}) };
       }
       const started = await startSetup(pendingStart ? { ...body, confirmation_token: pendingStart.token } : body);
@@ -257,8 +256,7 @@ function VersionForm({ data, state, onDone, reload }: { data: VersionList; state
     setRoot(undefined);
     try {
       const r = await checkRoot(data.generation, draft.key, draft.library, new AbortController().signal);
-      // writable is probed only for an active library: false means not checked, so it is not shown.
-      setRoot(`Root resolves to ${r.resolved}${r.writable ? " · writable" : ""}`);
+      setRoot(`Root resolves to ${r.resolved} · writable`);
     } catch (failure) { setRoot(message(failure)); }
   }
 
@@ -272,7 +270,7 @@ function VersionForm({ data, state, onDone, reload }: { data: VersionList; state
         generation = (await createFromPreset({ generation, key: draft.key, flavour, preset: preset.trash_id, modifiers: [] })).generation;
         setMade({ key: draft.key, preset: preset.trash_id });
       }
-      await submit({ generation, key: draft.key, roots: [draft.library], config: config("shadow") });
+      await submit({ generation, key: draft.key, roots: [draft.library], config: config() });
     } catch (failure) { setError(message(failure)); }
     finally { setBusy(false); }
   }
@@ -303,7 +301,7 @@ function VersionForm({ data, state, onDone, reload }: { data: VersionList; state
   }
 
   return <div className="grid max-w-xl gap-3" data-testid="first-version">
-    <p>Each library has its own settings: a kind, a profile, a root it links into, the indexers it searches and the providers it adds to. Create it and start downloading at once, or create it as <strong>Watch only</strong>: Theatarr then searches, downloads and links nothing for it until you make it Live.</p>
+    <p>Each library has its own settings: a kind, a profile, a root it links into, the indexers it searches and the providers it adds to. Create it and start downloading at once, or create it with Pause left on: Theatarr then searches, downloads and links nothing until you turn Pause off.</p>
     <Field label="Key"><Input value={draft.key} onChange={(e) => set("key", e.target.value)} /></Field>
     <Field label="Kind"><select className={SELECT_CLASS} value={draft.kind} onChange={(e) => setKind(e.target.value as Draft["kind"])}><option value="movie">Movies</option><option value="series">Series</option></select></Field>
     <Field label="Library root (absolute path the library links into; not inside the debrid mount)">
@@ -325,12 +323,12 @@ function VersionForm({ data, state, onDone, reload }: { data: VersionList; state
     <div className="space-y-1" data-testid="one-step-start">
       <Button type="button" className="w-fit" disabled={busy || missing.length > 0 || blocked.length > 0} onClick={() => void start()}>Create library and start downloading</Button>
       {blocked.length ? <p data-testid="start-blocked">Starting is not possible yet: {blocked.join("; ")}.{noTrash ? <> Set the trash folder under <Link className="underline" to={settingHref("library", "trash")!}>Settings › Libraries › File management › Trash</Link>.</> : null}</p>
-        : <p className="text-muted-foreground">Sets the library to Live and turns Pause off for the whole install. You confirm the list first.</p>}
+        : <p className="text-muted-foreground">Creates the library and turns Pause off for the whole install. You confirm the list first.</p>}
     </div>
     {!review
-      ? <Button type="button" variant="outline" className="w-fit" disabled={missing.length > 0} onClick={() => setReview(true)}>Create as Watch only (decide later)</Button>
+      ? <Button type="button" variant="outline" className="w-fit" disabled={missing.length > 0} onClick={() => setReview(true)}>Create library, Pause stays on</Button>
       : <div className="space-y-2 rounded-md border border-border p-3" data-testid="version-review">
-        <p>This creates {newProfile}the library <strong>{draft.key}</strong> ({draft.kind}){profileUse} as Watch only, linking into {draft.library}, searching {draft.indexers.join(", ")} and adding to {draft.providers.join(", ")}. It downloads nothing until you make it Live on Libraries.</p>
+        <p>This creates {newProfile}the library <strong>{draft.key}</strong> ({draft.kind}){profileUse}, linking into {draft.library}, searching {draft.indexers.join(", ")} and adding to {draft.providers.join(", ")}. It downloads nothing while Pause is on.</p>
         {effects?.length ? <><p>The settings API asks to confirm:</p><ul className="list-disc pl-5">{effects.map((e, i) => <li key={i}>{e.version}: {e.effect}</li>)}</ul><Button type="button" disabled={busy} onClick={() => void confirmEffects()}>Confirm and create</Button></>
           : <Button type="button" disabled={busy} onClick={() => void create()}>Create library</Button>}
       </div>}
@@ -348,7 +346,7 @@ function VersionForm({ data, state, onDone, reload }: { data: VersionList; state
       onClose={() => setStarting(undefined)}
       onConfirm={() => void start({ body: starting.body, token: starting.confirmation.token })}
     >
-      <p>In plain words: the library <strong>{draft.key}</strong> is created Live{starting.body.preset ? ` with a new profile "${draft.key}" from the TRaSH preset ${preset?.name ?? starting.body.preset.preset}` : ""}; and for the whole install, Pause is turned off.</p>
+      <p>In plain words: the library <strong>{draft.key}</strong> is created{starting.body.preset ? ` with a new profile "${draft.key}" from the TRaSH preset ${preset?.name ?? starting.body.preset.preset}` : ""}; and for the whole install, Pause is turned off.</p>
     </EffectsConfirmDialog> : null}
   </div>;
 }

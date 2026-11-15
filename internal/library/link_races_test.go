@@ -8,14 +8,13 @@ import (
 	"time"
 
 	"github.com/theatarr/theatarr/internal/library/probe"
-	"github.com/theatarr/theatarr/internal/policy"
 )
 
 // A dead link whose title was filled again by a new import at another path is revived when its old file
 // comes back: two active links for one movie, and the dead symlink was never moved aside.
 func TestDeadRevivedNextToReplacement(t *testing.T) {
 	t.Parallel()
-	e, deadPath, _ := deadEnv(t, true, policy.ModeActive)
+	e, deadPath, _ := deadEnv(t, true)
 	// The dead link's release is another torrent than the new download's.
 	e.exec(`UPDATE content SET info_hash = ? WHERE id = 1`, hashB)
 	e.exec(`UPDATE link SET state = 'dead' WHERE id = 1`)
@@ -47,7 +46,7 @@ var _ = filepath.Join
 // template): importing the second replaces the first title's link in place and takes over its row.
 func TestPathCollisionStealsOtherTitlesLink(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.pol.Versions["movie-remux"].Naming.File = "{Movie CleanTitle} ({Release Year})"
 	e.exec(`INSERT INTO title (id, kind, name, year, imdb_id, tmdb_id, runtime_minutes, created_at, updated_at)
 		VALUES (3, 'movie', 'Amelie The Movie', 2001, 'tt9999999', 999, 120, 0, 0)`)
@@ -86,7 +85,7 @@ func TestPathCollisionStealsOtherTitlesLink(t *testing.T) {
 // new file marks the link dead at once, without the second sweep B1's fix requires.
 func TestInPlaceReplaceKeepsMissingSince(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.release("Other", map[string]float64{"a.mkv": 7000})
 	e.release("Other2", map[string]float64{"a.mkv": 7000})
 	p := filepath.Join(e.movies, "Amelie The Movie (2001)",
@@ -131,7 +130,7 @@ func TestInPlaceReplaceKeepsMissingSince(t *testing.T) {
 // takes longer than the claim fails its first fence with ErrClaimed every time: the download never imports.
 func TestSlowPlanNeverImports(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	rel := "Show.S01.2160p.WEB-DL.DDP5.1.H.265-GRP"
 	e.release(rel, map[string]float64{"Show.S01E01.2160p.WEB-DL.DDP5.1.H.265-GRP.mkv": 2700,
 		"Show.S01E02.2160p.WEB-DL.DDP5.1.H.265-GRP.mkv": 2650})
@@ -155,7 +154,7 @@ func TestSlowPlanNeverImports(t *testing.T) {
 // moved aside again by the next sweep as a "leftover": its row is unlinked with the same target and was updated after
 // the symlink's mtime.
 func TestRestoredFromTrashMovedAsideAgain(t *testing.T) {
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.release("Other", map[string]float64{"a.mkv": 7000})
 	e.release("Name", map[string]float64{"episode.mkv": 7000})
 	p := filepath.Join(e.movies, "Movie (2001)", "Movie.mkv")
@@ -188,7 +187,7 @@ func TestRestoredFromTrashMovedAsideAgain(t *testing.T) {
 // is left for a later sweep) or the replacement survives; the row always matches the disk.
 func TestUnlinkKeepsConcurrentReplacement(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.release("Other", map[string]float64{"a.mkv": 7000})
 	e.release("Name {abcdef}", map[string]float64{"episode.mkv": 7000})
 	p := filepath.Join(e.movies, "Movie (2001)", "Movie.mkv")
@@ -232,7 +231,7 @@ func TestUnlinkKeepsConcurrentReplacement(t *testing.T) {
 // first records it, leaving the database with one target and the disk with another.
 func TestConcurrentImportsSamePath(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.pol.Versions["movie-remux"].Naming.File = "{Movie CleanTitle} ({Release Year})"
 	other := "Amelie.2001.2160p.UHD.BluRay.REMUX.HDR.HEVC.TrueHD.Atmos.7.1-OTHER"
 	e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
@@ -269,7 +268,7 @@ func TestConcurrentImportsSamePath(t *testing.T) {
 // A dead link revived by a sweep (its file is back) gets a Plex scan of its folder, as a repoint does.
 func TestRevivedLinkScansPlex(t *testing.T) {
 	t.Parallel()
-	e, deadPath, _ := deadEnv(t, true, policy.ModeActive)
+	e, deadPath, _ := deadEnv(t, true)
 	e.exec(`UPDATE link SET state = 'dead' WHERE id = 1`)
 	e.release("Name", map[string]float64{"episode.mkv": 7000})
 	e.sweep()

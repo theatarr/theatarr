@@ -14,7 +14,7 @@ import (
 // A download resumed from its row (requeue, strays, retry) keeps the search criteria it was found with.
 func TestRecoveredWantedPackKeepsCriteria(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.pol.Profiles = map[string]*policy.Profile{"tv": {Qualities: []policy.QualityItem{{Name: "WEBDL-2160p"}}, Cutoff: "WEBDL-2160p"}}
 	e.pol.Versions["series"].Profile = "tv"
 	e.pol.Versions["series"].PreferSeaDex = true
@@ -54,7 +54,7 @@ func TestRecoveredWantedPackKeepsCriteria(t *testing.T) {
 // A: a hashless prefer-on release is added by its magnet's hash; the caller's candidates are not mutated.
 func TestPreferOnTransportHash(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.pol.Versions["movie"].PreferSeaDex = true
 	const record = "6vdej49pr26gca0"
 	snapshot := indexer.SeaDexSnapshot{AniList: 1535, Torrents: []indexer.SeaDexStanding{{RecordID: record, InfoHash: h("a"), Preference: 3}}}

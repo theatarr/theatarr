@@ -20,7 +20,7 @@ import (
 // relinkEnv is the isekai series with its second season's mapping (al:2) in a conflict and a two-file release named
 // by that entry imported through Sonarr's numbering (S01E01-E02), plus an open review item for the mapping.
 func relinkEnv(t *testing.T) (*env, []string) {
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.isekai()
 	e.exec(`UPDATE anime_mapping SET status = 'conflict' WHERE entry_key = 'al:2'`)
 	e.exec(`INSERT INTO anime_review (id, franchise, entry_key, kind, state, summary, created_at)
@@ -158,7 +158,6 @@ func TestAnimeRelinkPlanOnly(t *testing.T) {
 		change func(*policy.Policy)
 	}{
 		{"library off", func(p *policy.Policy) { p.Library.Enabled = false }},
-		{"shadow version", func(p *policy.Policy) { p.Versions["tv"].Mode = policy.ModeShadow }},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
@@ -216,7 +215,7 @@ func TestAnimeRelinkShiftedRange(t *testing.T) {
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
-			e := newEnv(t, true, policy.ModeActive)
+			e := newEnv(t, true)
 			e.isekai()
 			e.exec(`UPDATE anime_mapping SET status = 'conflict', episodes = '[[1,2],[1,3],[1,4]]' WHERE entry_key = 'al:2'`)
 			rel := "[Group] Isekai Story 2nd Season (BD 1080p)"
@@ -298,7 +297,7 @@ func TestAnimeRelinkDestinationOnDisk(t *testing.T) {
 // re-links the files through it.
 func TestAnimeRelinkFallbackMapping(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.isekai()
 	e.exec(`UPDATE anime_mapping SET status = 'conflict' WHERE entry_key = 'al:2'`)
 	rel := "[Group] Isekai Story 2nd Season - 01-02 (BD 1080p)"

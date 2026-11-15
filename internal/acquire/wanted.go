@@ -190,7 +190,7 @@ func (a *Acquirer) WantedList(ctx context.Context, q WantedQuery) (*WantedList, 
 // without paging; out.Counts receives the waiting counts before the waiting filter. "Search all" asks for exactly
 // these.
 func (a *Acquirer) wantedRows(ctx context.Context, q WantedQuery, out *WantedList) ([]WantedRow, error) {
-	versions := a.pol.ActiveVersions()
+	versions := a.pol.VersionKeys()
 	if q.Version != "" {
 		if !slices.Contains(versions, q.Version) {
 			return nil, nil
@@ -559,7 +559,7 @@ func (a *Acquirer) NextSearches(ctx context.Context, titleID int64) ([]NextSearc
 	if !a.pol.RouterSettings().Enabled {
 		return nil, nil
 	}
-	versions := a.pol.ActiveVersions()
+	versions := a.pol.VersionKeys()
 	if len(versions) == 0 {
 		return nil, nil
 	}

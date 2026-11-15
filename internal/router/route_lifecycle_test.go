@@ -24,7 +24,7 @@ import (
 // the route stops there (no job retry), so the release is not added again under a new download row.
 func TestDismissDuringAddIsNotAddedAgainByTheRetry(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	withQueue(e)
 	dismissed := false
 	e.ad["rd"].observe = func(context.Context) {
@@ -64,7 +64,7 @@ func TestCancelledRouteDoesNotFailAnImportedDownload(t *testing.T) {
 	t.Parallel()
 	for _, state := range []string{StateImported, StateReady, StateAdded} {
 		t.Run(state, func(t *testing.T) {
-			e := newEnv(t, true, policy.ModeActive)
+			e := newEnv(t, true)
 			withQueue(e)
 			e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, quality,
 				score, episodes, state, source, created_at, updated_at, imported_at) VALUES (7, 1, 10, 'movie', ?,
@@ -91,7 +91,7 @@ func TestCancelledRouteDoesNotFailAnImportedDownload(t *testing.T) {
 // ten minutes and grabbed when Pause goes off.
 func TestGrabOffQueuedDownloadIsEnded(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	withQueue(e)
 	paceAll(e, 3*time.Minute)
 	p, _ := json.Marshal(routePayload{Request: movieReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP"))})
@@ -145,7 +145,7 @@ func TestFreshnessUsesProfileFormatThresholds(t *testing.T) {
 		{"under the upgrade step", 1050, OutcomeCancelled},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			e := newEnv(t, true, policy.ModeActive)
+			e := newEnv(t, true)
 			freshMovie(e)
 			pr := e.pol.Profiles["fresh"]
 			pr.CutoffScore, pr.MinUpgradeStep = 10000, &step
@@ -167,7 +167,7 @@ func TestFreshnessUsesProfileFormatThresholds(t *testing.T) {
 // before the add, so the library imports only the episodes still wanted.
 func TestResumedPackPersistsNarrowedEpisodes(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	withQueue(e)
 	e.exec(`INSERT INTO episode (id, title_id, season, number, created_at, updated_at)
 		VALUES (101, 2, 1, 1, 0, 0), (102, 2, 1, 2, 0, 0)`)
@@ -206,7 +206,7 @@ func TestResumedPackPersistsNarrowedEpisodes(t *testing.T) {
 // rank them, not the order they were queued in.
 func TestRedecisionRanksCandidatesAgain(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	freshMovie(e)
 	e.exec(`UPDATE title SET year = 2024 WHERE id = 1`)
 	e.pol.Revision = "rev2"
@@ -237,7 +237,7 @@ func TestRedecisionRanksCandidatesAgain(t *testing.T) {
 // is not failed the moment the mount comes back.
 func TestReadyDeadlineSkipsMountOutage(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	withQueue(e)
 	start := e.clock
 	down := errors.New("mount down")
@@ -269,9 +269,9 @@ func TestReadyDeadlineSkipsMountOutage(t *testing.T) {
 // Pause turned on in the published runtime stops a route of an older runtime before its add.
 func TestPauseStopsRunningRoute(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	withQueue(e)
-	pol := testPolicy(false, policy.ModeActive)
+	pol := testPolicy(false)
 	cur, err := New(Config{Store: e.st, Policy: pol, Previous: e.r,
 		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)), Now: func() time.Time { return e.clock }})
 	if err != nil {
@@ -294,7 +294,7 @@ func TestPauseStopsRunningRoute(t *testing.T) {
 // download once the account can tell, instead of the poller failing it.
 func TestUnsettledContinuationQueuesAnother(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	withQueue(e)
 	e.ad["rd"].add = func(m adder.Magnet, _ adder.AddOptions) (*adder.Added, error) {
 		return nil, &adder.Error{Provider: "rd", Code: adder.CodeUnavailable, Status: 502}
@@ -338,7 +338,7 @@ func TestUnsettledContinuationQueuesAnother(t *testing.T) {
 // A poll pass reads providers without the router lock, so a route is not blocked behind slow status reads, and
 // a pass ends at its deadline, leaving the rest for the next one.
 func TestPollReleasesLockAndIsBounded(t *testing.T) {
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	withQueue(e)
 	for i, id := range []string{"t1", "t2"} {
 		e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, provider,
@@ -379,7 +379,7 @@ func TestPollReleasesLockAndIsBounded(t *testing.T) {
 // profile, not one rebuilt from the policy.
 func TestFreshnessUsesEngineProfile(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	freshMovie(e)
 	engPol := &policy.Policy{Profiles: map[string]*policy.Profile{"fresh": {
 		Qualities: []policy.QualityItem{{Name: "WEBDL-2160p"}, {Name: "WEBDL-1080p"}}, Cutoff: "WEBDL-2160p",
@@ -406,7 +406,7 @@ func TestFreshnessUsesEngineProfile(t *testing.T) {
 // so the stray sweep does not resume it every ten minutes.
 func TestRedecisionEndsSupersededQueuedDownload(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	withQueue(e)
 	freshMovie(e)
 	e.exec(`UPDATE title SET year = 2024 WHERE id = 1`)
@@ -449,7 +449,7 @@ func TestRedecisionEndsSupersededQueuedDownload(t *testing.T) {
 // it as stalled instead of keeping it out of the stall timeout forever. Nothing is deleted: it was never seen.
 func TestPollFailedReadsRotateAndStall(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	withQueue(e)
 	for i, id := range []string{"t1", "t2", "t3"} {
 		e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, provider,

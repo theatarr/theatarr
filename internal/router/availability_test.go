@@ -19,7 +19,7 @@ import (
 // DMM's availability listing a Prowlarr release on AllDebrid puts AllDebrid first for it, in the search (CachedOn)
 // and from the stored row; Real-Debrid is still tried after it. A release DMM does not list keeps the version order.
 func TestDMMAvailabilityOrdersProviders(t *testing.T) {
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
 			Service string   `json:"service"`

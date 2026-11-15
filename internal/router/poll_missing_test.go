@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/provider"
 	"github.com/theatarr/theatarr/internal/store"
 )
@@ -19,7 +18,7 @@ func (p *fakeProvider) remove(id string) {
 // polls spanning missingGrace, and a poll that finds it again starts over.
 func TestNotFoundNeedsRepeatedPolls(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	withQueue(e)
 	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, provider,
 		provider_torrent_id, state, added_at, own_add, created_at, updated_at)
@@ -72,7 +71,7 @@ func TestNoVideoReusedOrFinished(t *testing.T) {
 		{"finished own add", "ad", 0, provider.StateDownloaded},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			e := newEnv(t, true, policy.ModeActive)
+			e := newEnv(t, true)
 			withQueue(e)
 			e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer,
 				provider, provider_torrent_id, state, added_at, own_add, reused, created_at, updated_at)

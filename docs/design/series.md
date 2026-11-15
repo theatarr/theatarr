@@ -1,7 +1,7 @@
 # Series (Sonarr import, series decisions, series RSS)
 
 Series follow the movie path end to end: the one-time import reads a Sonarr, `internal/decide` decides series
-releases as Sonarr does, and RSS reads series feeds for Live libraries. Where this sits:
+releases as Sonarr does, and RSS reads series feeds for libraries. Where this sits:
 [overview.md](overview.md); TV metadata: [tv-metadata.md](tv-metadata.md). Migration `00011_series.sql`.
 
 ## Parts

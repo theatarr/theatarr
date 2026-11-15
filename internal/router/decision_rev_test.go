@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/store"
 )
 
@@ -13,7 +12,7 @@ import (
 // decides them again.
 func TestRouteJobsCarryDecisionRev(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	withQueue(e)
 	e.r.pol.Revision = "rev-1"
 	paceAll(e, 3*time.Minute)

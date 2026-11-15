@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/provider/adder"
 )
 
@@ -12,7 +11,7 @@ import (
 // missed; routing it again within miss_ttl (RSS does every sync) opens no new row and asks for no new search.
 func TestKnownMissOpensNoDownload(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	for k := range e.ad {
 		e.ad[k].add = refuse(adder.CodeNotCached)
 	}

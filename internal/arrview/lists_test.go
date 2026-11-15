@@ -4,8 +4,6 @@ import (
 	"encoding/json"
 	"slices"
 	"testing"
-
-	"github.com/theatarr/theatarr/internal/policy"
 )
 
 func TestImportListCRUDRoundTrip(t *testing.T) {
@@ -43,10 +41,6 @@ func TestImportListCRUDRoundTrip(t *testing.T) {
 func TestCollectionCRUDRoundTrip(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t)
-	// A monitored collection needs an active target (TestCollectionPutTargets): the /radarr movie versions are.
-	for _, k := range []string{"movie-remux", "movie-web", "anime-movie"} {
-		e.pol.Versions[k].Mode = policy.ModeActive
-	}
 	e.start()
 	base := "/radarr/api/v3"
 	var got map[string]any
@@ -148,7 +142,6 @@ func TestCollectionDiscoveryAndMissingPartsInView(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t)
 	// Gamma's anime-movie is preselected by discovery; monitoring needs it active (TestCollectionPutTargets).
-	e.pol.Versions["anime-movie"].Mode = policy.ModeActive
 	e.start()
 	e.exec(`INSERT INTO title_external_id(title_id,source,external_id) VALUES(3,'tmdb_collection','77')`)
 	var collections []map[string]any
@@ -233,15 +226,14 @@ func TestImportListsAreViewScoped(t *testing.T) {
 }
 
 // The Radarr view's PUT collection follows the native rule: a collection it leaves monitored targets only collection
-// targets (Live movie libraries), stored explicitly; a per-version view of one falls back to its own
+// targets (movie libraries), stored explicitly; a per-version view of one falls back to its own
 // version; otherwise 400.
 func TestCollectionPutTargets(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t)
-	e.pol.Versions["movie-web"].Mode = policy.ModeActive
 	e.start()
 	e.exec(`INSERT INTO movie_collection (tmdb_id, name, versions, updated_at) VALUES (80, 'Empty', '[]', 0),
-		(81, 'Shadow', '["movie-remux"]', 0), (82, 'Mixed', '["movie-remux","movie-web"]', 0)`)
+		(81, 'Series', '["tv-2160p"]', 0), (82, 'Mixed', '["tv-2160p","movie-web"]', 0)`)
 	row := func(id int) (monitored bool, versions, view string) {
 		t.Helper()
 		if err := e.st.Reader().QueryRow(`SELECT monitored, versions, view FROM movie_collection WHERE tmdb_id = ?`, id).
@@ -251,7 +243,6 @@ func TestCollectionPutTargets(t *testing.T) {
 		return
 	}
 	e.call("PUT", "/radarr/api/v3/collection", map[string]any{"tmdbId": 80, "monitored": true}, 400, nil)
-	e.call("PUT", "/v/movie-remux/radarr/api/v3/collection", map[string]any{"tmdbId": 81, "monitored": true}, 400, nil)
 	e.call("PUT", "/radarr/api/v3/collection", map[string]any{"collectionIds": []int{82, 81}, "monitored": true}, 400, nil)
 	if on, _, _ := row(82); on {
 		t.Error("a refused bulk PUT monitored 82")

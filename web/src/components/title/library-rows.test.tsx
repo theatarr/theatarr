@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// The title page's Libraries table: one row per current library, provider pills and the file name, the Watch-only
+// The title page's Libraries table: one row per current library, provider pills and the file name, the held
 // row's limits, the removed library's leftover line, chosen columns kept, and the details panel. Invented keys.
 import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -13,8 +13,8 @@ import { LibraryRows } from "./library-rows";
 
 afterEach(() => window.localStorage.clear());
 
-const live = { mode: "active" as const, can_edit: true, can_search: true, live_releases: true, grab_state: { mode: "active", paused: false, pause_forced: false, will_grab: true } };
-const watch = { mode: "shadow" as const, can_edit: true, can_search: false, live_releases: false, search_reason: "shadow mode", grab_state: { mode: "shadow", paused: false, pause_forced: false, will_grab: false } };
+const live = { can_edit: true, can_search: true, live_releases: true, grab_state: { paused: false, pause_forced: false, will_grab: true } };
+const watch = { can_edit: true, can_search: false, live_releases: false, search_reason: "held by the server", grab_state: { paused: false, pause_forced: false, will_grab: false } };
 const web = {
   id: 1, title_id: 7, key: "movie-web", label: "WEB", monitored: true, has_file: true, state: "filled", cached_on: ["rd", "tb"], control: live,
   upgrade: { state: "cutoff_met" },
@@ -45,17 +45,15 @@ describe("Libraries table", () => {
     expect(within(b).getByText("Preferred quality not met")).toBeTruthy();
   });
 
-  it("gives a Watch-only row its tag, no Interactive search and a disabled Search with the reason", async () => {
+  it("gives a held row no Interactive search and a disabled Search with the reason", async () => {
     manager();
     renderPage(<LibraryRows title={title as never} versions={[web, remux] as never} />);
     const b = await waitFor(() => rowOf("movie-remux"));
     await waitFor(() => expect(within(b).getByTestId("version-search-movie-remux")).toBeTruthy());
-    expect(within(b).getByText("Watch only")).toBeTruthy();
-    expect(document.body.textContent?.match(/Watch only/g)).toHaveLength(1);
     expect(within(b).queryByTestId("version-interactive-movie-remux")).toBeNull();
     const search = within(b).getByTestId("version-search-movie-remux") as HTMLButtonElement;
     expect(search.disabled).toBe(true);
-    expect(search.parentElement?.getAttribute("title")).toContain("Watch only");
+    expect(search.parentElement?.getAttribute("title")).toContain("Downloads off (held by the server)");
     expect(within(rowOf("movie-web")).getByTestId("version-interactive-movie-web")).toBeTruthy();
   });
 
@@ -134,7 +132,7 @@ describe("Add to other providers", () => {
     const user = userEvent.setup();
     // TB is in Cached on (left out of the line); AD was found still downloading (said).
     const copied = { ...web, current: { ...web.current, copies: [{ provider: "tb", state: "added", updated_at: "2026-11-13T12:00:00Z" }, { provider: "ad", state: "added", message: "Already on AD, still downloading (12%)", updated_at: "2026-11-13T12:00:00Z" }] } };
-    const paused = { ...remux, has_file: true, control: { ...live, grab_state: { mode: "active", paused: true, pause_forced: false, will_grab: false } } };
+    const paused = { ...remux, has_file: true, control: { ...live, grab_state: { paused: true, pause_forced: false, will_grab: false } } };
     renderPage(<LibraryRows title={title as never} versions={[copied, paused] as never} />);
     await user.click(await screen.findByTestId("copy-details-movie-web"));
     const panel = screen.getByTestId("library-row-details-movie-web");
@@ -238,7 +236,7 @@ describe("fix round 1", () => {
     manager();
     renderPage(<LibraryRows title={title as never} versions={[web, { ...remux, control: live }] as never} />);
     const search = await screen.findByTestId("version-search-movie-web");
-    expect(search.parentElement?.getAttribute("title")).toBe("Search WEB now. Other Live libraries that want this title may use the results too.");
+    expect(search.parentElement?.getAttribute("title")).toBe("Search WEB now. Other libraries that want this title may use the results too.");
   });
 
   it("has no Why? beside a plainly Available copy", async () => {

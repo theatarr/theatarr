@@ -106,7 +106,7 @@ export function InteractiveSearch({ titleId, version, season, episode, onClose }
         ) : error ? (
           <ErrorState error={error} />
         ) : !lib ? (
-          <p className="text-sm text-muted-foreground" data-testid="interactive-none">None of this title's libraries searches the indexers: they are Watch only.</p>
+          <p className="text-sm text-muted-foreground" data-testid="interactive-none">None of this title's libraries can search the indexers now.</p>
         ) : (
           <>
             <div className="flex flex-wrap items-center justify-between gap-3">

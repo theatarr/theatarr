@@ -51,7 +51,7 @@ func TestMinGapBlocks(t *testing.T) {
 // wait for their turn (deferred and resumed), none is failed or dropped.
 func TestMinGapSpacesSeasonBatch(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.pol.Versions["series"].Providers = []string{"rd"}
 	e.pol.Providers["rd"].Pacing = policy.Pacing{} // min_gap unset: Real-Debrid's 20s default
 	q := jobs.NewQueue(e.st)
@@ -137,7 +137,7 @@ func TestAccountHoldEscalates(t *testing.T) {
 // explained by the first hold cannot justify the second.
 func TestAccountHoldEscalatesInRoute(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.pol.Versions["movie"].Providers = []string{"rd"}
 	e.pol.Providers["rd"].Pacing = policy.Pacing{}
 	e.ad["rd"].add = refuse(adder.CodeAccountHold)

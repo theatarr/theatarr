@@ -31,7 +31,7 @@ type RSSSummary struct {
 	Matched  int `json:"matched"`
 	Decided  int `json:"decided"`
 	Requests int `json:"requests"`
-	// Routed are the router.route jobs enqueued for Live versions (one per title and version, its picks ranked);
+	// Routed are the router.route jobs enqueued for versions (one per title and version, its picks ranked);
 	// RouteSkipped the titles skipped because a download for them is in flight.
 	Routed       int   `json:"routed,omitempty"`
 	RouteSkipped int   `json:"route_skipped,omitempty"`
@@ -61,7 +61,7 @@ const rssCatchupPages = 10
 const rssPageSize = 100
 
 // rssIndexers are the torznab feeds, DMM's newly cached list, SeaDex's recent feed and the catalog sources (kind
-// cardigann) the Live versions list. DMM's feed is read on a path naming rd or ad (the indexer asks those
+// cardigann) the versions list. DMM's feed is read on a path naming rd or ad (the indexer asks those
 // providers only); a path whose only provider is tb has none and is left out. Torrentio and Zilean have no RSS feed
 // we read: they answer per title. SeaDex files each recent entry under one of our titles itself (its TVDB or TMDb id and seadexerr's
 // season or movie title), so its items map like any other feed's. A catalog source's feed is its definition's search
@@ -70,7 +70,7 @@ const rssPageSize = 100
 func (r *Runner) rssIndexers(ctx context.Context) (feeds []string, skipped map[string]string) {
 	set := map[string]bool{}
 	skipped = map[string]string{}
-	for k := range r.rssVersions() {
+	for k := range r.active {
 		for _, ik := range r.pol.Versions[k].Indexers {
 			ix := r.pol.Indexers[ik]
 			if ix == nil || ix.Kind != "torznab" && ix.Kind != "dmm" && ix.Kind != "seadex" && ix.Kind != "cardigann" {
@@ -90,11 +90,11 @@ func (r *Runner) rssIndexers(ctx context.Context) (feeds []string, skipped map[s
 	return sortedKeys(set), skipped
 }
 
-// rssCategories are the Newznab categories asked of a feed: movies (2000) and TV (5000) as the Live versions
+// rssCategories are the Newznab categories asked of a feed: movies (2000) and TV (5000) as the versions
 // that list it need.
 func (r *Runner) rssCategories(k string) []int {
 	var movie, tv, anime bool
-	for v := range r.rssVersions() {
+	for v := range r.active {
 		vp := r.pol.Versions[v]
 		if !slices.Contains(vp.Indexers, k) {
 			continue
@@ -162,7 +162,6 @@ func (r *Runner) rssJob(ctx context.Context) (*RSSSummary, error) {
 			r.log.Warn("shadow rss: film index not reloaded", "err", err)
 		}
 		sum.Skipped = skippedPaused
-		r.record(ctx, KindRSS, start, true, sum)
 		r.log.Info("shadow rss skipped: downloads are paused")
 		return sum, nil
 	}
@@ -175,7 +174,6 @@ func (r *Runner) rssJob(ctx context.Context) (*RSSSummary, error) {
 		sum.Error = err.Error()
 	}
 	sum.TookMS = r.now().Sub(start).Milliseconds()
-	r.record(ctx, KindRSS, start, err == nil, sum)
 	r.m.rssItems.Add(float64(sum.New))
 	r.log.Info("shadow rss", "items", sum.Items, "new", sum.New, "matched", sum.Matched, "routed", sum.Routed,
 		"requests", sum.Requests, "took_ms", sum.TookMS)
@@ -467,9 +465,9 @@ func (r *Runner) rssPages(ctx context.Context, key string, cats []int, cursor rs
 	}
 }
 
-// candidates are, per title, the Live versions that are monitored and wanted or below their cutoff.
+// candidates are, per title, the versions that are monitored and wanted or below their cutoff.
 func (r *Runner) candidates(ctx context.Context, titles map[int64]decide.Title) (map[int64][]candidate, error) {
-	keys := sortedKeys(r.rssVersions())
+	keys := sortedKeys(r.active)
 	if len(keys) == 0 {
 		return nil, nil
 	}

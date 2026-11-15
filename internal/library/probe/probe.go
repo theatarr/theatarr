@@ -32,7 +32,7 @@
 //     mkvmerge copies them from the bitstream; a file without them is read as SDR unless it carries Dolby Vision.
 //   - Run time is the container duration; ffprobe prefers the video stream's own duration (equal in practice).
 //   - The Atmos and DTS:X checks follow the bitstream specifications; they are to be compared with the arrs' names
-//     in shadow mode (theatarr library verify reports names that differ).
+//     (theatarr library verify reports names that differ).
 package probe
 
 import (

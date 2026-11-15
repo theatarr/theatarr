@@ -4,13 +4,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/provider"
 )
 
 func TestPollProgressWindow(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer,
 		provider, provider_torrent_id, state, created_at, updated_at)
 		VALUES (1, 1, 10, 'movie', ?, 'Release', 'pub', 'ad', 'A1', 'added', 0, 0)`, h("a"))
@@ -74,7 +73,7 @@ func TestPollProgressResets(t *testing.T) {
 	t.Parallel()
 	for _, kind := range []string{"provider", "torrent", "clock", "queued"} {
 		t.Run(kind, func(t *testing.T) {
-			e := newEnv(t, true, policy.ModeActive)
+			e := newEnv(t, true)
 			e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer,
 				provider, provider_torrent_id, state, created_at, updated_at)
 				VALUES (1, 1, 10, 'movie', ?, 'Release', 'pub', 'ad', 'A1', 'added', 0, 0)`, h("a"))

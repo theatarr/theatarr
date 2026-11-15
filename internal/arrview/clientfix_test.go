@@ -47,7 +47,6 @@ func TestDeleteTitleFiles(t *testing.T) {
 				VALUES (8, ?, ?, 1, 'active', 0, 0)`, paths[1], target)
 			e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (8, 1)`)
 			e.exec(`DELETE FROM link WHERE id IN (1, 2, 3)`) // only this test's links 7 and 8
-			e.pol.Versions["movie-remux"].Mode = policy.ModeActive
 			e.pol.Versions["movie-remux"].Library = remux
 			e.pol.Versions["movie-web"].Library = web
 			e.pol.Library = &policy.Library{Enabled: mode != "gate closed", Trash: policy.LibraryTrash{Dir: trash},

@@ -56,10 +56,10 @@ export function ControlNote({ c, kind, globalSaid = false, verdictSaid = false }
   const lines: { text: string; search?: boolean }[] = [];
   if ((kind === "edit" || kind === "both") && !c.can_edit && c.edit_reason) lines.push({ text: c.edit_reason });
   const g = c.grab_state;
-  const global = globalSaid && !!g && g.mode === "active" && verdict(g).word === "Paused";
+  const global = globalSaid && !!g && verdict(g).word === "Paused";
   // verdictSaid: the library-state chip beside this note already names the verdict (its popover has the gates), so
-  // the note drops a line that would only repeat it; a server's own hold reason and a library gone from the policy stay.
-  const repeat = verdictSaid && !!g && g.will_grab === false && g.mode !== "off" && verdict(g).word !== "Downloads off";
+  // the note drops a line that would only repeat it; a server's own hold reason stays.
+  const repeat = verdictSaid && !!g && g.will_grab === false && verdict(g).word !== "Downloads off";
   if ((kind === "search" || kind === "both") && (!c.can_search || g?.will_grab === false) && !global && !repeat) lines.push({ text: downloadReason(c), search: true });
   if (lines.length === 0) return null;
   const fix = downloadSettings(c.grab_state);

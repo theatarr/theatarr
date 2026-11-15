@@ -284,9 +284,9 @@ format_sets:
 	if !reflect.DeepEqual(before.Records.SyncSources, after.Records.SyncSources) || before.Policy.Router.Enabled != after.Policy.Router.Enabled || before.Policy.Library.Enabled != after.Policy.Library.Enabled || !reflect.DeepEqual(before.Policy.Notify, after.Policy.Notify) {
 		t.Fatal("import changed sync sources or write gates")
 	}
-	for key, version := range before.Policy.Versions {
-		if after.Policy.Versions[key].Mode != version.Mode {
-			t.Fatalf("import changed version %s mode", key)
+	for key := range before.Policy.Versions {
+		if after.Policy.Versions[key] == nil {
+			t.Fatalf("import dropped version %s", key)
 		}
 	}
 	if err := os.Remove(filepath.Join(se.dir, "formats", "imported.json")); err != nil {

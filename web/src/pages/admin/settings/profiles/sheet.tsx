@@ -1,7 +1,7 @@
 // The profile editor sheet (docs/design/settings.md, "Profiles, presets and formats"): who the profile affects, the
 // preset it started from with "Compare with TRaSH", the quality ladder with its cutoff, size limits per quality, and the scores grouped as
 // TRaSH groups them, each with its score state. An edit of a saved profile shows its decision impact before it is saved;
-// a change applies to the next searches and upgrades of the Live libraries using it. A new profile starts from a TRaSH preset.
+// a change applies to the next searches and upgrades of the libraries using it. A new profile starts from a TRaSH preset.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
 import { ApiError } from "@/api/client";
@@ -174,7 +174,6 @@ export function ProfileSheet({ session: initial, readOnly, onClose, onSaved, onR
   const setField = (key: string, value: unknown) => config && change({ ...config, [key]: value });
   const rows = config ? rowsOf(config, summary, built) : [];
   const used = summary?.used_by ?? [];
-  const active = used.filter((u) => u.active);
 
   const save = () => {
     if (!config) return;
@@ -228,8 +227,8 @@ export function ProfileSheet({ session: initial, readOnly, onClose, onSaved, onR
       {picking ? <PresetPicker flavour={flavour} setFlavour={setFlavour} onCancel={onClose} onBuilt={(trash_id, modifiers, b) => { setSession({ ...create, flavour, preset: { trash_id, modifiers, built: b } }); setConfig(b.profile); window.setTimeout(() => heading.current?.focus(), 0); }} /> : config ? <div className="space-y-5">
         <div ref={errorBox}>{error ? <ExplainBox error={error} onReload={edit ? () => void reload(false) : undefined} onReloadKeep={edit ? () => void reload(true) : undefined} /> : null}{failure instanceof ApiError && object(failure.body).uses ? <p className="text-sm">In use by: {String(object((failure as ApiError).body).uses)}</p> : null}</div>
         {/* Who a save affects. */}
-        <div data-testid="profile-affects" className={cn("rounded-lg border px-3 py-2 text-[13px]", active.length ? "border-[var(--th-warning-border)] bg-[var(--warn-soft)] text-[var(--warn-ink)]" : "border-[var(--line)] text-muted-foreground")}>
-          {create ? "A new profile: no library uses it until you pick it for one." : used.length === 0 ? "No library uses this profile: saving changes no decision." : <>Used by {used.map((u) => `${nameOf(u.key)}${u.active ? " (Live)" : " (Watch only)"}`).join(", ")}. {active.length ? "Live libraries grab with it: a change applies to their next searches and upgrades." : "Watch only libraries alone: nothing is grabbed with it."}</>}
+        <div data-testid="profile-affects" className={cn("rounded-lg border px-3 py-2 text-[13px]", used.length ? "border-[var(--th-warning-border)] bg-[var(--warn-soft)] text-[var(--warn-ink)]" : "border-[var(--line)] text-muted-foreground")}>
+          {create ? "A new profile: no library uses it until you pick it for one." : used.length === 0 ? "No library uses this profile: saving changes no decision." : <>Used by {used.map((u) => nameOf(u.key)).join(", ")}. A change applies to their next searches and upgrades.</>}
         </div>
         {/* Where it started. */}
         <section className="space-y-2" aria-label="Started from">

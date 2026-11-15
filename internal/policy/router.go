@@ -10,7 +10,7 @@ import (
 )
 
 // Router configures the download router (internal/router, docs/design/router.md). It acts
-// only for versions in mode active, and only while Enabled is true. Every other field is optional.
+// only while Enabled is true. Every other field is optional.
 type Router struct {
 	// Enabled lets the router write to debrid providers (add a magnet, select files). With database settings it is
 	// derived from Pause (true when Pause is off). False: every version is dry-run only, whatever its mode.
@@ -59,7 +59,7 @@ type Router struct {
 	// Trackers lists public tracker announce URLs added to every debrid magnet. Default none: the magnet is bare.
 	// Each must be udp, http or https with no credentials, no query and a path of "" or /announce.
 	Trackers []string `yaml:"trackers"`
-	// Wanted is the search schedule of the Live libraries' missing and cutoff-unmet titles and episodes.
+	// Wanted is the search schedule of the libraries' missing and cutoff-unmet titles and episodes.
 	Wanted *Wanted `yaml:"wanted"`
 	// CacheEvidence is what the router and the release views know about which providers hold a release cached.
 	CacheEvidence *CacheEvidence `yaml:"cache_evidence"`
@@ -87,7 +87,7 @@ type TorBoxCheck struct {
 	PerHour int `yaml:"per_hour"`
 }
 
-// Wanted paces the search schedule (internal/acquire): the Live libraries' missing and cutoff-unmet items are
+// Wanted paces the search schedule (internal/acquire): the libraries' missing and cutoff-unmet items are
 // searched at most PerHour times in any hour, an older item again AgainAfter after its last search, and the accepted
 // releases go to the router. New content is retried sooner by a fixed rule. Nothing is searched while paused
 // (router.enabled false). Every field is optional.
@@ -313,32 +313,22 @@ func (p *Policy) RouterSettings() RouterSettings {
 	return s
 }
 
-// ActiveVersions lists the versions in mode active, sorted. The router writes for these only, and only while
-// router.enabled is true.
-func (p *Policy) ActiveVersions() []string {
-	var out []string
-	for _, k := range sortedKeys(p.Versions) {
-		if p.Versions[k].Mode == ModeActive {
-			out = append(out, k)
-		}
-	}
-	return out
-}
+// VersionKeys lists the versions (libraries), sorted.
+func (p *Policy) VersionKeys() []string { return sortedKeys(p.Versions) }
 
 // Grabs reports whether the router may add torrents for a version: router.enabled is true (Pause is off) and the
-// version is active (Live). Router.Gate, the offer gate, hold approval and the status read use it.
+// version exists. Router.Gate, the offer gate, hold approval and the status read use it.
 func (p *Policy) Grabs(version string) bool {
-	v := p.Versions[version]
-	return p.RouterSettings().Enabled && v != nil && v.Mode == ModeActive
+	return p.RouterSettings().Enabled && p.Versions[version] != nil
 }
 
-// SearchVersions lists the versions automatic searches (the wanted loop and re-searches) run for: the Live ones,
+// SearchVersions lists the versions automatic searches (the wanted loop and re-searches) run for: every library,
 // sorted. None while router.enabled is false (Pause is on). User-invoked searches are not limited by it.
 func (p *Policy) SearchVersions() []string {
 	if !p.RouterSettings().Enabled {
 		return nil
 	}
-	return p.ActiveVersions()
+	return p.VersionKeys()
 }
 
 func (p *Policy) validateRouter(e *Errors) {

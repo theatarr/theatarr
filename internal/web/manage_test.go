@@ -291,43 +291,37 @@ func TestUpgradeEvidence(t *testing.T) {
 	}
 }
 
-// shadow versions get no searches from these controls; their monitoring is editable, even when an arr imports them.
-func TestManageShadowNoWrites(t *testing.T) {
+// While paused these controls start no searches; monitoring is editable, even when an arr imports them.
+func TestManagePausedNoWrites(t *testing.T) {
 	t.Parallel()
 	e := newManageEnv(t, nil)
 	before := e.state()
 	var d TitleDetail
 	e.call("GET", APIBase+"/titles/10", nil, 200, &d)
 	if c := d.Versions[0].Control; c == nil || !c.CanEdit || c.CanSearch || c.EditReason != "" ||
-		!strings.Contains(c.SearchReason, "Watch only") {
+		!strings.Contains(c.SearchReason, "Paused") {
 		t.Fatalf("control: %+v", d.Versions[0].Control)
 	}
 	var so SearchOutcome
 	e.call("POST", APIBase+"/titles/10/seasons/1/search", nil, 200, &so)
-	if so.Started || !strings.Contains(so.Message, "Watch only") {
+	if so.Started || !strings.Contains(so.Message, "Paused") {
 		t.Errorf("season search: %+v", so)
 	}
 	e.call("POST", APIBase+"/titles/10/episodes/search", map[string]any{"episode_ids": []int64{101, 102}}, 200, &so)
 	if so.Started {
 		t.Errorf("episode search: %+v", so)
 	}
-	var r Releases
-	e.call("GET", APIBase+"/titles/10/episodes/101/releases?live=1", nil, 200, &r)
-	if r.LiveAllowed || !strings.Contains(r.Message, "Watch only") {
-		t.Errorf("episode releases: %+v", r)
-	}
 	if s, i := e.acq.counts(); s != 0 || i != 0 {
-		t.Fatalf("shadow controls searched: %d acquisitions, %d interactive", s, i)
+		t.Fatalf("paused controls searched: %d acquisitions, %d interactive", s, i)
 	}
 	if after := e.state(); after != before {
-		t.Fatalf("shadow controls wrote:\n%s\n%s", before, after)
+		t.Fatalf("paused controls wrote:\n%s\n%s", before, after)
 	}
 }
 
 func TestManageActive(t *testing.T) {
 	t.Parallel()
 	e := newManageEnv(t, func(p *policy.Policy) {
-		p.Versions["tv-2160p"].Mode = policy.ModeActive
 		p.Router = &policy.Router{Enabled: true}
 	})
 	var d TitleDetail

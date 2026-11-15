@@ -5,11 +5,10 @@
 // # Gate
 //
 // The router writes to a provider (adds a magnet, selects Real-Debrid files) only when router.enabled is true in the
-// policy (the global kill switch, off by default) and the version's mode is active. [Router.Gate] is that rule, and
-// every write passes it last. Otherwise [Router.Route] runs the same decisions as a dry run, sends nothing to any
-// provider, and records what it would have done in router_plan for the shadow report. [Router.Plan] is the same dry
-// run for any version, recorded nowhere (theatarr router dry-run). theatarr serve logs the switch and the active versions at
-// start ([Router.LogState]).
+// policy (the global kill switch, off by default). [Router.Gate] is that rule, and every write passes it last.
+// Otherwise [Router.Route] runs the same decisions as a dry run, sends nothing to any provider and records nothing.
+// [Router.Plan] is the same dry run for any version (theatarr router dry-run). theatarr serve logs the switch and the
+// versions at start ([Router.LogState]).
 //
 // # One route
 //
@@ -55,7 +54,7 @@
 // selects Real-Debrid's files when RD waits for them (every playable file, movie or series: playable.go), records
 // progress and the provider's name, and marks ready or failed. A download still in added router.stalled_after past
 // its add fails as stalled and is blocklisted (stalled.go). A torrent that left the provider fails its download
-// with that reason and is blocklisted, as are provider error statuses and torrents without video. Downloads still ready past router.ready_timeout fail and are blocklisted unless a live library
+// with that reason and is blocklisted, as are provider error statuses and torrents without video. Downloads still ready past router.ready_timeout fail and are blocklisted unless a library
 // claim holds them (failure.go). Blocklisted failures are searched again at once (research.go).
 //
 // # Deletes

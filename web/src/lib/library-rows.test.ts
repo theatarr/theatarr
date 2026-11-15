@@ -87,7 +87,7 @@ describe("library columns", () => {
   });
   it("offers Next search only when a row carries the server's time", () => {
     expect(libraryColumns("movie", [v({})]).map((c) => c.id)).not.toContain("next_search");
-    const timed = v({ control: { mode: "active", can_edit: true, can_search: true, live_releases: true, next_search_at: "2026-11-12T15:00:00Z" } as Version["control"] });
+    const timed = v({ control: { can_edit: true, can_search: true, live_releases: true, next_search_at: "2026-11-12T15:00:00Z" } as Version["control"] });
     expect(libraryColumns("movie", [v({}), timed]).map((c) => c.id)).toContain("next_search");
   });
 });
@@ -114,6 +114,6 @@ describe("row readers", () => {
     expect(nextSearch({ at: "2026-11-12T15:00:00Z", why: "new" }, now)).toBe("in 3 h (new release)");
     expect(nextSearch({ at: "2026-11-12T11:00:00Z" }, now)).toBe("now");
     expect(nextSearch({ at: "2026-11-12T11:00:00Z", why: "stalled" }, now)).toBe("now (after a failed download)");
-    expect(nextSearchOf(v({ control: { mode: "active", can_edit: true, can_search: true, live_releases: true } }))).toBeUndefined();
+    expect(nextSearchOf(v({ control: { can_edit: true, can_search: true, live_releases: true } }))).toBeUndefined();
   });
 });

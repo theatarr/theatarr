@@ -6,8 +6,8 @@ import { Seasons } from "./seasons";
 import { Toaster } from "@/components/toaster";
 import { expectNamedControls, mockFetch, renderPage } from "@/test/page";
 
-const readOnly = { mode: "shadow", can_edit: false, edit_reason: "Your account may not change this", can_search: false, live_releases: false };
-const managed = { mode: "active", can_edit: true, can_search: true, live_releases: true };
+const readOnly = { can_edit: false, edit_reason: "Your account may not change this", can_search: false, live_releases: false };
+const managed = { can_edit: true, can_search: true, live_releases: true };
 const downloading = { stage: "downloading", words: "Downloading (37%)", progress: 37, download_id: 9, downloads: 1, episodes: 1, updated_at: "2026-10-29T00:00:00Z" };
 
 const cell = (has: boolean, extra = {}) => ({ state: has ? "cutoff_met" : "wanted", monitored: true, has_file: has, quality: has ? "WEBDL-1080p" : undefined, ...extra });
@@ -127,16 +127,6 @@ describe("Series page copies", () => {
   });
 });
 
-it("words a Watch-only library's closed download gate without policy keys", async () => {
-  const control = { ...managed, can_search: false, search_reason: "Watch only: nothing is searched or downloaded for this library", grab_state: { mode: "shadow", paused: false, pause_forced: false, will_grab: false } };
-  mockFetch([{ ...routes[0], reply: { id: 1, permissions: ["admin", "manage", "see_files"] } }, { method: "GET", path: "/titles/1/episodes", reply: { ...episodes, versions: [{ ...episodes.versions[1], control }] } }]);
-  renderPage(<Seasons id="1" anime />, "/title/1");
-  const note = await screen.findByTestId("episode-restrictions");
-  expect(note.textContent).toContain("Anime WEB: Watch only: Theatarr searches, downloads and links nothing for this library");
-  expect(note.textContent).not.toContain("router.enabled");
-  expect(within(note).getByRole("link", { name: "Settings › Libraries" }).getAttribute("href")).toBe("/admin/settings/libraries");
-});
-
 it("says restrictions only about the library in view", async () => {
   mockFetch(routes);
   const user = userEvent.setup();
@@ -149,7 +139,7 @@ it("says restrictions only about the library in view", async () => {
 });
 
 it("leaves Pause for every library to the title page's bar: no notice or restriction line in the tab", async () => {
-  const control = { ...managed, can_search: false, search_reason: "Paused: nothing is searched or downloaded", grab_state: { mode: "active", paused: true, pause_forced: false, will_grab: false } };
+  const control = { ...managed, can_search: false, search_reason: "Paused: nothing is searched or downloaded", grab_state: { paused: true, pause_forced: false, will_grab: false } };
   mockFetch([{ ...routes[0], reply: { id: 1, permissions: ["admin", "manage", "see_files"] } }, { method: "GET", path: "/titles/1/episodes", reply: { ...episodes, versions: [{ ...episodes.versions[1], control }] } }]);
   renderPage(<Seasons id="1" anime />, "/title/1");
   await screen.findByTestId("season-header");
@@ -179,7 +169,7 @@ it("leaves season settings destinations as text for non-admin managers", async (
 describe("Interactive search from the episodes", () => {
   const title = { method: "GET", path: "/titles/1", reply: { id: 1, name: "Tsukikage Signal", kind: "series", versions: [{ id: 2, key: "anime-web", label: "Anime WEB", control: managed }] } };
   const current = { method: "GET", path: "/titles/1/removal", reply: { title_id: 1, name: "Tsukikage Signal", title: true, leftover: [], copies: [{ key: "anime-tv", label: "Anime Blu-ray", links: 0, downloads: 0 }, { key: "anime-web", label: "Anime WEB", links: 0, downloads: 0 }] } };
-  const answer = { title_id: 1, version: "anime-web", versions: ["anime-web"], mode: "active", live_allowed: true, source: "live", results: 0, accepted: 0, candidates: [], grab: true };
+  const answer = { title_id: 1, version: "anime-web", versions: ["anime-web"], live_allowed: true, source: "live", results: 0, accepted: 0, candidates: [], grab: true };
 
   it("searches a season from its header", async () => {
     const api = mockFetch([...routes, title, current, { method: "GET", path: "/titles/1/releases", reply: answer }]);

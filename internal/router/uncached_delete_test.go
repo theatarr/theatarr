@@ -28,7 +28,7 @@ func TestUncachedDeleteErrorReadBack(t *testing.T) {
 	// transient: the first confirmation read answers not found, the second shows the torrent.
 	for _, outcome := range []string{"gone", "present", "unreadable", "transient"} {
 		t.Run(outcome, func(t *testing.T) {
-			e := newEnv(t, true, policy.ModeActive)
+			e := newEnv(t, true)
 			e.pol.Versions["movie"].Providers = []string{"ad", "tb"}
 			e.pol.Router.AllDebridDeleteUncached = new(true)
 			e.r.set = e.pol.RouterSettings()
@@ -104,7 +104,7 @@ func TestTorrent5xxDoesNotFreezeStallClock(t *testing.T) {
 		{name: "three broken among five answering", broken: 3, healthy: 5, want: 3, maxReads: 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			e := newEnv(t, true, policy.ModeActive)
+			e := newEnv(t, true)
 			withQueue(e)
 			e.r.set.DownloadingTimeout = 0
 			p := &accountStatusProvider{fakeProvider: e.pr["rd"]}
@@ -151,7 +151,7 @@ func TestTorrent5xxDoesNotFreezeStallClock(t *testing.T) {
 }
 
 func TestSelectionInferenceWithoutDeleteOwnership(t *testing.T) {
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	withQueue(e)
 	off := false
 	e.pol.Router.CachedOnly = &off

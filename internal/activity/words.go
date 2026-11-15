@@ -203,16 +203,12 @@ func Tried(outcome, code string) bool {
 	return false
 }
 
-// The router's gate errors (router.ErrShadow; every other gate refusal is router.ErrDisabled). The texts are mirrored
-// here because activity does not import router; a test in internal/web pins them. gateNoGrab is the text of the
-// per-library downloads switch, removed in 2026-11; it is kept for download rows written before.
-const (
-	gateWatchOnly = "router: the library is Watch only; nothing is written for it"
-	gateNoGrab    = "router: the version's grab switch is off; nothing is written for it"
-)
+// gateNoGrab is the router gate's text of the per-library downloads switch, removed in 2026-11; it is kept for
+// download rows written before (every other gate refusal is router.ErrDisabled). activity does not import router.
+const gateNoGrab = "router: the version's grab switch is off; nothing is written for it"
 
 // NotStarted says why a download's error text says it ended because downloads were off when its turn came (a
-// download is only not started when it was also never Tried: Download.NotStarted): "off" (Pause, the environment lock), "watch_only" (its library is Watch only) or
+// download is only not started when it was also never Tried: Download.NotStarted): "off" (Pause, the environment lock) or
 // "grab_off" (the library's former downloads switch was off; old rows only). "" for any other error text. The router writes these texts
 // ("route ended: " / "route stopped: " + the gate's error) only when its gate refused before a provider add.
 func NotStarted(errText string) string {
@@ -223,10 +219,7 @@ func NotStarted(errText string) string {
 	if !ok || !strings.HasPrefix(rest, "router: ") {
 		return ""
 	}
-	switch rest {
-	case gateWatchOnly:
-		return "watch_only"
-	case gateNoGrab:
+	if rest == gateNoGrab {
 		return "grab_off"
 	}
 	return "off"
@@ -241,21 +234,18 @@ func (d *Download) NotStarted() string {
 }
 
 var notStartedWords = map[string]string{
-	"off":        "Downloads were off when it was due to start",
-	"watch_only": "Its library is Watch only, so it was not started",
-	"grab_off":   "Downloads are off for its library, so it was not started",
+	"off":      "Downloads were off when it was due to start",
+	"grab_off": "Downloads are off for its library, so it was not started",
 }
 
 var notStartedMessages = map[string]string{
-	"off":        "Nothing was added to a provider. Use Retry once downloads are on again.",
-	"watch_only": "Nothing was added to a provider. Use Retry once the library is Live.",
-	"grab_off":   "Nothing was added to a provider. Use Retry once downloads are on for the library.",
+	"off":      "Nothing was added to a provider. Use Retry once downloads are on again.",
+	"grab_off": "Nothing was added to a provider. Use Retry once downloads are on for the library.",
 }
 
 var notStartedHistory = map[string]string{
-	"off":        "Not started: downloads were off",
-	"watch_only": "Not started: its library is Watch only",
-	"grab_off":   "Not started: downloads are off for its library",
+	"off":      "Not started: downloads were off",
+	"grab_off": "Not started: downloads are off for its library",
 }
 
 // NotStartedMessage is the admin's message for a not-started download (by NotStarted's reason), "" for none.

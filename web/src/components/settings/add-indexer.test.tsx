@@ -34,7 +34,7 @@ const catalog: CardigannList = {
 };
 const indexers = (extra = {}) => <SettingsTabView tab="indexers" overview={overview({ indexers: [dmm], ...extra })} schema={schema} versions={[]} />;
 const writes = (requests: RequestRecord[]) => requests.filter((r) => r.method !== "GET");
-const lib = (key: string, kind: string, anime: boolean | null) => ({ id: 1, key, created_at: "", updated_at: "", roots: [], config: { kind, anime, mode: "active" } }) as unknown as VersionRecord;
+const lib = (key: string, kind: string, anime: boolean | null) => ({ id: 1, key, created_at: "", updated_at: "", roots: [], config: { kind, anime } }) as unknown as VersionRecord;
 // A movie library, a series library marked non-anime, and an anime series library.
 const versionsRoute = { method: "GET", path: "/settings/versions", reply: json({ source: "db", generation: 4, versions: [lib("movies", "movie", null), lib("tv", "series", false), lib("anime", "series", true)] }) };
 

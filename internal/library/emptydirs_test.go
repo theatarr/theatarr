@@ -5,8 +5,6 @@ import (
 	"path/filepath"
 	"slices"
 	"testing"
-
-	"github.com/theatarr/theatarr/internal/policy"
 )
 
 // A removed title's links leave its season and title folders empty: RemoveEmptyDirs takes them out, strictly below
@@ -15,7 +13,7 @@ import (
 // A dead symlink (its target gone) is unlinked like a live one.
 func TestRemoveEmptyDirsStopsBelowTheRoot(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	mk := func(p string) {
 		t.Helper()
 		if err := os.MkdirAll(p, 0o755); err != nil {
@@ -112,7 +110,7 @@ func TestRemoveEmptyDirsStopsBelowTheRoot(t *testing.T) {
 		t.Errorf("removed outside the roots: %v", got)
 	}
 	// The gate refusing the version: nothing.
-	off := newEnv(t, false, policy.ModeActive)
+	off := newEnv(t, false)
 	dir := filepath.Join(off.movies, "Off (2003)")
 	mk(dir)
 	if got := off.lib.RemoveEmptyDirs("movie-remux", filepath.Join(dir, "a.mkv")); len(got) != 0 {
@@ -125,7 +123,7 @@ func TestRemoveEmptyDirsStopsBelowTheRoot(t *testing.T) {
 // the root (not only the last folder).
 func TestRemoveEmptyDirsStopsAtNestedRootsAndSymlinks(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	nested := filepath.Join(e.shows, "Kids")
 	e.pol.Library.Versions["tv"].Roots = []string{e.shows, nested}
 	g := NewGate(e.pol)
@@ -162,7 +160,7 @@ func TestRemoveEmptyDirsStopsAtNestedRootsAndSymlinks(t *testing.T) {
 // (versions.<key>.library), and in its resolved form too (a root configured through a symlink).
 func TestRemoveEmptyDirsKeepsEveryConfiguredRoot(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	kids := filepath.Join(e.shows, "Kids")
 	e.pol.Versions["tv"].Library = kids
 	g := NewGate(e.pol)
@@ -180,7 +178,7 @@ func TestRemoveEmptyDirsKeepsEveryConfiguredRoot(t *testing.T) {
 	}
 
 	// A library folder configured through a symlink: its resolved folder stays.
-	f := newEnv(t, true, policy.ModeActive)
+	f := newEnv(t, true)
 	real := filepath.Join(f.shows, "Real")
 	if err := os.MkdirAll(filepath.Join(real, "Show (2021)"), 0o755); err != nil {
 		t.Fatal(err)

@@ -99,7 +99,7 @@ func firstLibraryDirs(t *testing.T) (root, trash string) {
 func createFirstLibrary(t *testing.T, m *RuntimeCoordinator, st *Store, base *policy.Policy, snap *Snapshot, movie Version, root string) *Snapshot {
 	t.Helper()
 	checked, err := st.ValidateRoot(context.Background(), base, "movies", root)
-	if err != nil || checked.Resolved != root || checked.Writable {
+	if err != nil || checked.Resolved != root {
 		t.Fatalf("root check of the first library: %+v %v", checked, err)
 	}
 	req := saveRequest(base, snap)
@@ -229,10 +229,9 @@ func TestSecondTopLevelLibrarySaves(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if saved, err = addLibrary(t, m, base, saved, movie, "tv", dirs[1]); err != nil {
+	if _, err = addLibrary(t, m, base, saved, movie, "tv", dirs[1]); err != nil {
 		t.Fatalf("second top-level library: %v", err)
 	}
-	activateAll(t, m, base, saved, "movies", "tv")
 }
 
 // withTrash saves a trash folder, which making a library active needs.
@@ -249,24 +248,6 @@ func withTrash(t *testing.T, m *RuntimeCoordinator, base *policy.Policy, snap *S
 		t.Fatal(err)
 	}
 	return next
-}
-
-// activateAll makes every library of saved Live and checks that keys ended Live.
-func activateAll(t *testing.T, m *RuntimeCoordinator, base *policy.Policy, saved *Snapshot, keys ...string) {
-	t.Helper()
-	req := saveRequest(base, saved)
-	for i := range req.Records.Versions {
-		req.Records.Versions[i].Config.Mode = policy.ModeActive
-	}
-	saved, err := saveConfirmed(t, m, req)
-	if err != nil {
-		t.Fatalf("activate all: %v", err)
-	}
-	for _, k := range keys {
-		if saved.Policy.Versions[k].Mode != policy.ModeActive {
-			t.Fatalf("%s not active", k)
-		}
-	}
 }
 
 // A library folder may be anywhere: with /…/a/movies Live and library.dangling.roots at /…/a, /…/b/tv passes Check
@@ -297,10 +278,9 @@ func TestLibraryFolderAnywhere(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if saved, err = addLibrary(t, m, base, saved, movie, "movies", movies); err != nil {
+	if _, err = addLibrary(t, m, base, saved, movie, "movies", movies); err != nil {
 		t.Fatal(err)
 	}
-	activateAll(t, m, base, saved, "movies")
 	saved, err = st.Load(context.Background(), base)
 	if err != nil {
 		t.Fatal(err)
@@ -319,8 +299,8 @@ func TestLibraryFolderAnywhere(t *testing.T) {
 	}
 }
 
-// A Watch only library at a top-level folder can later be made Live.
-func TestTopLevelWatchOnlyThenLive(t *testing.T) {
+// A library can sit at a top-level folder.
+func TestTopLevelLibrary(t *testing.T) {
 	t.Parallel()
 	m, _, base, snap, movie := firstLibraryEnv(t)
 	dirs := topLevelDirs(1)
@@ -329,12 +309,7 @@ func TestTopLevelWatchOnlyThenLive(t *testing.T) {
 	}
 	needWritable(t, dirs...)
 	snap = withTrash(t, m, base, snap)
-	saved, err := addLibrary(t, m, base, snap, movie, "movies", dirs[0])
-	if err != nil {
+	if _, err := addLibrary(t, m, base, snap, movie, "movies", dirs[0]); err != nil {
 		t.Fatal(err)
 	}
-	if saved.Policy.Versions["movies"].Mode == policy.ModeActive {
-		t.Fatal("created live; want Watch only first")
-	}
-	activateAll(t, m, base, saved, "movies")
 }

@@ -68,7 +68,7 @@ func TestImportDecypharrFolder(t *testing.T) {
 	torrent := decypharrtest.Torrent{Hash: hashA, Name: decyFolder, Provider: "realdebrid"}
 
 	t.Run("decypharr's name for the hash", func(t *testing.T) {
-		e := newEnv(t, true, policy.ModeActive)
+		e := newEnv(t, true)
 		e.release(decyFolder, map[string]float64{"movie.mkv": 7000})
 		e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
 		e.withDecypharr(torrent)
@@ -81,7 +81,7 @@ func TestImportDecypharrFolder(t *testing.T) {
 	})
 
 	t.Run("not listed: the names of any mount", func(t *testing.T) {
-		e := newEnv(t, true, policy.ModeActive)
+		e := newEnv(t, true)
 		e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
 		e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
 		// The registry records the bare name for another torrent: on decypharr's mount it is still the folder.
@@ -98,7 +98,7 @@ func TestImportDecypharrFolder(t *testing.T) {
 	})
 
 	t.Run("folder not on the mount yet", func(t *testing.T) {
-		e := newEnv(t, true, policy.ModeActive)
+		e := newEnv(t, true)
 		e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
 		var forgot int
 		e.lib.forget = &rootForget{call: func(context.Context, string) error { forgot++; return nil }}
@@ -116,7 +116,7 @@ func TestImportDecypharrFolder(t *testing.T) {
 	})
 
 	t.Run("listed: never another folder of the download's name", func(t *testing.T) {
-		e := newEnv(t, true, policy.ModeActive)
+		e := newEnv(t, true)
 		e.release(movieRelease, map[string]float64{"movie.mkv": 7000}) // an older torrent's folder
 		e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
 		e.withDecypharr(torrent)
@@ -133,7 +133,7 @@ func TestImportDecypharrFolder(t *testing.T) {
 	})
 
 	t.Run("index unknown", func(t *testing.T) {
-		e := newEnv(t, true, policy.ModeActive)
+		e := newEnv(t, true)
 		e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
 		e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
 		srv := e.withDecypharr(torrent)
@@ -156,7 +156,7 @@ func TestImportDecypharrFolder(t *testing.T) {
 	})
 
 	t.Run("a path import does not read decypharr", func(t *testing.T) {
-		e := newEnv(t, true, policy.ModeActive)
+		e := newEnv(t, true)
 		e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
 		e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
 		e.exec(`UPDATE download SET source_path = ? WHERE id = 1`, filepath.Join(e.mount, "__all__", movieRelease))
@@ -187,7 +187,7 @@ func TestImportDecypharrFileList(t *testing.T) {
 	t.Parallel()
 	torrent := decypharrtest.Torrent{Hash: hashA, Name: decyFolder, Provider: "realdebrid"}
 	setup := func(t *testing.T) *env {
-		e := newEnv(t, true, policy.ModeActive)
+		e := newEnv(t, true)
 		e.release(decyFolder, map[string]float64{"movie.mkv": 7000})
 		e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
 		e.withDecypharr(torrent)
@@ -248,7 +248,7 @@ func TestImportDecypharrFileList(t *testing.T) {
 	})
 
 	t.Run("not listed: another torrent's folder of the same name waits", func(t *testing.T) {
-		e := newEnv(t, true, policy.ModeActive)
+		e := newEnv(t, true)
 		e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
 		e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
 		e.withDecypharr()
@@ -270,7 +270,7 @@ func TestImportDecypharrFileList(t *testing.T) {
 	t.Run("pack: a skipped file is no verdict on the release", func(t *testing.T) {
 		// Grabbed for E02. E01 is the download's file but not an episode it was grabbed for; E02 in the shared folder
 		// is another torrent's (another size). No file failed a guard: held as unmatched, not failed or blocklisted.
-		e := newEnv(t, true, policy.ModeActive)
+		e := newEnv(t, true)
 		folder := "Pale.Ferry.S01.2160p.WEB-DL.DDP5.1.H.265-TILLER"
 		e.release(folder, map[string]float64{"Show.S01E01.2160p.WEB-DL.DDP5.1.H.265-GRP.mkv": 2700,
 			"Show.S01E02.2160p.WEB-DL.DDP5.1.H.265-GRP.mkv": 2650})
@@ -295,7 +295,7 @@ func TestImportDecypharrFileList(t *testing.T) {
 	})
 
 	t.Run("dry run of a download that is not ready reads no file", func(t *testing.T) {
-		e := newEnv(t, true, policy.ModeActive)
+		e := newEnv(t, true)
 		e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
 		e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
 		e.withDecypharr()
@@ -335,7 +335,7 @@ func TestImportDecypharrFileList(t *testing.T) {
 	})
 
 	t.Run("pack: the listed files link, the rest is skipped", func(t *testing.T) {
-		e := newEnv(t, true, policy.ModeActive)
+		e := newEnv(t, true)
 		folder := "Pale.Ferry.S01.2160p.WEB-DL.DDP5.1.H.265-TILLER"
 		e.release(folder, map[string]float64{"Show.S01E01.2160p.WEB-DL.DDP5.1.H.265-GRP.mkv": 2700,
 			"Show.S01E02.2160p.WEB-DL.DDP5.1.H.265-GRP.mkv": 2650})
@@ -374,7 +374,7 @@ func TestImportDecypharrFileList(t *testing.T) {
 			{"queue entry gone: by name", false, 6, true},
 		} {
 			t.Run(c.name, func(t *testing.T) {
-				e := newEnv(t, true, policy.ModeActive)
+				e := newEnv(t, true)
 				e.release(decyFolder, map[string]float64{"movie.mkv": 7000})
 				e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
 				e.exec(`UPDATE download SET provider = NULL, client = 'decy' WHERE id = 1`)
@@ -409,7 +409,7 @@ func TestRelinkDecypharr(t *testing.T) {
 		{"another torrent's file", []TorrentFile{{Name: "movie.mkv", Size: 6}}, false},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			e := newEnv(t, true, policy.ModeActive)
+			e := newEnv(t, true)
 			e.release(decyFolder, map[string]float64{"movie.mkv": 7000})
 			e.exec(`INSERT INTO content (id, info_hash, name, state, first_seen_at, last_seen_at) VALUES (1, ?, 'Movie.Release', 'present', 0, 0)`, hashA)
 			e.download(1, "movie-remux", 1, 10, movieRelease, "Movie.Release", "[]")
@@ -443,7 +443,7 @@ func TestRelinkDecypharr(t *testing.T) {
 // downloads of one hash under two torrent ids each get their own.
 func TestRelinkDecypharrListPerTorrent(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.release(decyFolder, map[string]float64{"movie.mkv": 7000, "extra.mkv": 7000})
 	e.exec(`INSERT INTO content (id, info_hash, name, state, first_seen_at, last_seen_at) VALUES (1, ?, 'Movie.Release', 'present', 0, 0)`, hashA)
 	e.download(1, "movie-remux", 1, 10, movieRelease, "Movie.Release", "[]")
@@ -478,7 +478,7 @@ func TestRelinkDecypharrListPerTorrent(t *testing.T) {
 // the mount is down for the library.
 func TestDecypharrAcrossGenerations(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	srv := e.withDecypharr(decypharrtest.Torrent{Hash: hashA, Name: decyFolder, Provider: "realdebrid"})
 	if names, known := e.lib.decypharrNames(e.ctx, hashA, false); !known || len(names) != 1 {
 		t.Fatalf("names %q, known %v", names, known)

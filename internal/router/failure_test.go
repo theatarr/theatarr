@@ -27,7 +27,7 @@ func TestProviderFailuresBlocklistAndResearch(t *testing.T) {
 			Status: rdWaitingFiles, Files: []provider.File{{ID: "1", Path: "readme.txt"}}}, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			e := newEnv(t, true, policy.ModeActive)
+			e := newEnv(t, true)
 			withQueue(e)
 			e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer,
 				provider, provider_torrent_id, state, episodes, added_at, own_add, created_at, updated_at)
@@ -95,7 +95,7 @@ func TestReadyDeadline(t *testing.T) {
 		{name: "live claim", readyAt: true, claim: true, waiting: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			e := newEnv(t, true, policy.ModeActive)
+			e := newEnv(t, true)
 			withQueue(e)
 			if tc.timeout != 0 {
 				e.r.set.ReadyTimeout = tc.timeout
@@ -172,7 +172,7 @@ func TestHeldReadyImportDoesNotExpire(t *testing.T) {
 	// An import rejected as not an upgrade, and one waiting for its episode title (library.TitleHoldPrefix).
 	for _, held := range [][2]string{{"rejected", "not an upgrade"}, {"waiting_mount", "episode title hold: Episode has a TBA title and recently aired"}} {
 		t.Run(held[0], func(t *testing.T) {
-			e := newEnv(t, true, policy.ModeActive)
+			e := newEnv(t, true)
 			withQueue(e)
 			start := e.clock
 			e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, state,
@@ -204,7 +204,7 @@ func TestHeldReadyImportDoesNotExpire(t *testing.T) {
 // release to show on the mount fails, blocklisted and re-searched, in the same pass.
 func TestReadyDeadlineMismatchNotBlocklisted(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	withQueue(e)
 	start := e.clock
 	for _, w := range []struct {
@@ -250,7 +250,7 @@ func TestReadyDeadlineMismatchNotBlocklisted(t *testing.T) {
 
 func TestReadyDeadlineKeepsOtherStates(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	withQueue(e)
 	for i, state := range []string{StateQueued, StateAdding, StateImporting, StateImported, StateFailed} {
 		e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer,
@@ -267,7 +267,7 @@ func TestReadyDeadlineKeepsOtherStates(t *testing.T) {
 
 func TestReadyDeadlineWaitsForMount(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	withQueue(e)
 	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer,
 		state, ready_at, created_at, updated_at) VALUES (1, 1, 10, 'movie', ?, 'Movie', 'pub', ?, 0, 0, 0)`,
@@ -290,7 +290,7 @@ func TestFailureAndBlocklistAtomic(t *testing.T) {
 	t.Parallel()
 	for _, state := range []string{StateAdded, StateDownloading, StateReady} {
 		t.Run(state, func(t *testing.T) {
-			e := newEnv(t, true, policy.ModeActive)
+			e := newEnv(t, true)
 			withQueue(e)
 			// Missing once already, a grace ago: this poll's miss is the one that blocklists.
 			e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer,
@@ -320,7 +320,7 @@ func TestFailureAndBlocklistAtomic(t *testing.T) {
 // mount mismatch still meets its deadline, failed without blocklist.
 func TestReadyDeadlineMismatchAfterPartial(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	withQueue(e)
 	start := e.clock
 	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer,

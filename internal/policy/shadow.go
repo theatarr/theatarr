@@ -5,7 +5,7 @@ import "time"
 // Shadow tunes the RSS read in theatarr serve (docs/design/rss.md). The section keeps its historical name. Every field
 // is optional; the section may be left out.
 type Shadow struct {
-	// RSSInterval is how often the shadow.rss job reads the RSS feeds of the Live libraries' indexers. Default 15m,
+	// RSSInterval is how often the shadow.rss job reads the RSS feeds of the libraries' indexers. Default 15m,
 	// the arrs' default RSS sync interval; minimum 10m.
 	RSSInterval Duration `yaml:"rss_interval"`
 	// RSS turns the shadow.rss job on or off. Default on.

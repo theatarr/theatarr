@@ -65,7 +65,7 @@ func dlRow(t *testing.T, e *env) (state, pk, tid string, reused bool) {
 // off and the healthy fallback takes the release.
 func TestOutageContinuationUsesHealthyFallback(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	j := outageToQueued(t, e)
 	if err := e.r.handleRoute(e.ctx, j); err != nil {
 		t.Fatal(err)
@@ -91,7 +91,7 @@ func TestOutageContinuationUsesHealthyFallback(t *testing.T) {
 // no other provider, the download waits instead of pointing at an unverified torrent.
 func TestUnreadableHeldIDNotReused(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.pol.Versions["movie"].Providers = []string{"rd"}
 	j := outageToQueued(t, e)
 	p, _ := loadPace(e.ctx, e.st.Reader(), "rd")
@@ -116,7 +116,7 @@ func TestUnreadableHeldIDNotReused(t *testing.T) {
 // (the minute's adds are spent, which would defer an add).
 func TestHealthyReuseTakesNoPacingSlot(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.pol.Versions["movie"].Providers = []string{"rd"}
 	j := outageToQueued(t, e)
 	p, _ := loadPace(e.ctx, e.st.Reader(), "rd")
@@ -143,7 +143,7 @@ func TestHealthyReuseTakesNoPacingSlot(t *testing.T) {
 // be read either the outcome stays unknown.
 func TestReconcileDoesNotAdoptUnreadableID(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, state,
 		provider, created_at, updated_at) VALUES (1, 1, 10, 'movie', ?, 'R', 'pub', 'adding', 'rd', 0, ?)`, h("a"),
 		e.clock.Add(-addSettle-time.Minute).UnixMilli())
@@ -183,7 +183,7 @@ func TestAddBackoffDoesNotBlockReuse(t *testing.T) {
 		{"provider down", true, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			e := newEnv(t, true, policy.ModeActive)
+			e := newEnv(t, true)
 			heldOnRD(e)
 			e.exec(`INSERT INTO router_pacing (provider, backoff_until, failures, reason, backoff_down, updated_at)
 				VALUES ('rd', ?, 1, 'rate_limited', ?, 0)`, store.Millis(e.clock.Add(30*time.Minute)), tc.down)
@@ -229,7 +229,7 @@ func TestBackoffKind(t *testing.T) {
 		{"auth", &adder.Error{Provider: "rd", Code: adder.CodeAuth, Status: 401}, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			e := newEnv(t, true, policy.ModeActive)
+			e := newEnv(t, true)
 			var p pace
 			v, _, _ := e.r.classify(&p, e.pol.Providers["rd"], e.clock, h("a"), tc.err, false)
 			if v != vUnavailable || !p.BackoffUntil.After(e.clock) {
@@ -251,7 +251,7 @@ func TestBackoffKind(t *testing.T) {
 		})
 	}
 	// The torrent manager's restore records the kind it is given.
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	if err := RecordAddOutcome(e.ctx, e.st, "rd", policy.Pacing{}, e.clock, AddOutcome{Reason: "unavailable",
 		Down: true}); err != nil {
 		t.Fatal(err)
@@ -265,7 +265,7 @@ func TestBackoffKind(t *testing.T) {
 // adding the hash on another provider.
 func TestHeldReadRetriedOnce(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	heldOnRD(e)
 	reads := 0
 	e.pr["rd"].readErr = map[string]error{"t1": errors.New("rd: connection reset")}

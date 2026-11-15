@@ -5,8 +5,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/theatarr/theatarr/internal/policy"
 )
 
 const relinkHashB = "1111111111111111111111111111111111111111"
@@ -23,7 +21,7 @@ func TestRelinkRenameCollision(t *testing.T) {
 		{"missing destination file", "other.mkv", true, false},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			e := newEnv(t, true, policy.ModeActive)
+			e := newEnv(t, true)
 			if tt.collision {
 				e.release("Name", map[string]float64{"episode.mkv": 7000})
 			}
@@ -75,7 +73,7 @@ func TestRelinkRenameCollision(t *testing.T) {
 
 func TestRelinkKeepsNewerTorrent(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.release("Name", map[string]float64{"episode.mkv": 7000})
 	e.release("Name {abcdef}", map[string]float64{"episode.mkv": 7000})
 	old := filepath.Join(e.mount, "__all__", "Name", "episode.mkv")
@@ -121,7 +119,7 @@ func TestRelinkKeepsNewerTorrent(t *testing.T) {
 
 func TestRelinkLeavesAmbiguousHealthyLinks(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.release("Name", map[string]float64{"episode.mkv": 7000})
 	old := filepath.Join(e.mount, "__all__", "Name", "episode.mkv")
 	for i, hash := range []string{hashA, relinkHashB} {
@@ -156,7 +154,7 @@ func TestRelinkLeavesAmbiguousHealthyLinks(t *testing.T) {
 
 func TestRelinkKeepsHealthyCurrentTorrent(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.release("Name", map[string]float64{"episode.mkv": 7000})
 	old := filepath.Join(e.mount, "__all__", "Name", "episode.mkv")
 	e.exec(`INSERT INTO content (id, info_hash, name, mount_folder, state, first_seen_at, last_seen_at)
@@ -186,7 +184,7 @@ func TestRelinkKeepsHealthyCurrentTorrent(t *testing.T) {
 
 func TestRelinkKeepsAdoptedLinkWithAmbiguousRegistry(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.release("Name", map[string]float64{"episode.mkv": 7000})
 	old := filepath.Join(e.mount, "__all__", "Name", "episode.mkv")
 	e.exec(`INSERT INTO content (id, info_hash, name, state, first_seen_at, last_seen_at)
@@ -217,18 +215,15 @@ func TestRelinkCollisionGate(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		name    string
-		mode    policy.Mode
 		enabled bool
 		dryRun  bool
 		hint    bool
 	}{
-		{"dry run", policy.ModeActive, true, true, false},
-		{"disabled", policy.ModeActive, false, false, false},
-		{"shadow sweep", policy.ModeShadow, true, false, false},
-		{"shadow hint", policy.ModeShadow, true, false, true},
+		{"dry run", true, true, false},
+		{"disabled", false, false, false},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			e := newEnv(t, tt.enabled, tt.mode)
+			e := newEnv(t, tt.enabled)
 			e.release("Name", map[string]float64{"episode.mkv": 7000})
 			e.release("Name {abcdef}", map[string]float64{"episode.mkv": 7000})
 			e.exec(`INSERT INTO content (id, info_hash, name, first_seen_at, last_seen_at) VALUES (1, ?, 'Name', 0, 0)`, hashA)
@@ -291,7 +286,7 @@ func TestRelinkRecordedIdentity(t *testing.T) {
 		{"healthy target without registry", "unregistered download", "Name", "Name", "episode.mkv", false, true, false, false},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			e := newEnv(t, true, policy.ModeActive)
+			e := newEnv(t, true)
 			e.release(tt.current, map[string]float64{tt.file: 7000})
 			if tt.targetExists && !hash6Suffix.MatchString(tt.old) {
 				e.release(tt.old, map[string]float64{"episode.mkv": 7000})

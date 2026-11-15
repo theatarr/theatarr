@@ -19,54 +19,11 @@ import (
 	"github.com/theatarr/theatarr/internal/store"
 )
 
-// The gate: a shadow version never gets a provider write, even with the switch on; it gets a recorded plan.
-func TestShadowVersionNeverWrites(t *testing.T) {
-	t.Parallel()
-	e := newEnv(t, true, policy.ModeShadow)
-	// Were the add sent, RD would show it uncached: with cached_only that is the one case the router deletes. The
-	// fakes count deletes as writes.
-	e.pr["rd"].set("rd-aaaa", provider.Torrent{Status: "downloading", State: provider.StateDownloading})
-	res, err := e.r.Route(e.ctx, movieReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if e.writes() != 0 {
-		t.Fatalf("%d provider writes for a shadow version", e.writes())
-	}
-	if res.Mode != ModeShadow || res.Outcome != OutcomeWouldAdd || res.Provider != "rd" || res.PlanID == 0 ||
-		!strings.Contains(res.Why, "Watch only") {
-		t.Errorf("result %+v", res)
-	}
-	if n := e.count(`SELECT COUNT(*) FROM download`); n != 0 {
-		t.Errorf("%d download rows for a dry run", n)
-	}
-	var mode, outcome, prov, stepsJSON string
-	if err := e.st.Reader().QueryRow(`SELECT mode, outcome, provider, steps FROM router_plan WHERE id = ?`,
-		res.PlanID).Scan(&mode, &outcome, &prov, &stepsJSON); err != nil {
-		t.Fatal(err)
-	}
-	if mode != "shadow" || outcome != "would_add" || prov != "rd" || !strings.Contains(stepsJSON, "would_add") {
-		t.Errorf("plan %s %s %s %s", mode, outcome, prov, stepsJSON)
-	}
-	// The poller doesn't select files for a shadow version either.
-	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, provider,
-		provider_torrent_id, state, created_at, updated_at) VALUES (5, 1, 10, 'movie', ?, 'x', 'pub', 'rd', 'T1',
-		'added', 0, 0)`, h("b"))
-	e.pr["rd"].set("T1", provider.Torrent{Status: "waiting_files_selection", State: provider.StateQueued,
-		Files: []provider.File{{ID: "1", Path: "a.mkv", Bytes: 10}}})
-	if _, err := e.r.Poll(e.ctx); err != nil {
-		t.Fatal(err)
-	}
-	if e.writes() != 0 {
-		t.Errorf("the poller wrote for a shadow version")
-	}
-}
-
 // The kill switch: router.enabled false blocks every write, for active versions too.
 func TestKillSwitchBlocksWrites(t *testing.T) {
 	t.Parallel()
 	for _, pol := range []*policy.Router{nil, {Enabled: false}} {
-		e := newEnv(t, false, policy.ModeActive)
+		e := newEnv(t, false)
 		e.pr["rd"].set("rd-aaaa", provider.Torrent{Status: "downloading", State: provider.StateDownloading})
 		e.pol.Router = pol
 		e.r.set = e.pol.RouterSettings()
@@ -91,24 +48,21 @@ func TestKillSwitchBlocksWrites(t *testing.T) {
 		if e.writes() != 0 {
 			t.Error("the poller wrote with the switch off")
 		}
-		if n := e.count(`SELECT COUNT(*) FROM router_plan WHERE mode = 'disabled'`); n != 1 {
-			t.Errorf("%d disabled plans", n)
-		}
 	}
 	// Plan never writes, whatever the gate says.
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	res, err := e.r.Plan(e.ctx, movieReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")))
 	if err != nil || e.writes() != 0 || res.Mode != ModeActive || res.Outcome != OutcomeWouldAdd {
 		t.Errorf("plan: writes %d, %+v %v", e.writes(), res, err)
 	}
-	if n := e.count(`SELECT COUNT(*) FROM router_plan`) + e.count(`SELECT COUNT(*) FROM download`); n != 0 {
+	if n := e.count(`SELECT COUNT(*) FROM download`); n != 0 {
 		t.Errorf("Plan recorded %d rows", n)
 	}
 }
 
 func TestRouteAddsAndPolls(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	res, err := e.r.Route(e.ctx, movieReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")))
 	if err != nil {
 		t.Fatal(err)
@@ -191,7 +145,7 @@ func TestRouteAddsAndPolls(t *testing.T) {
 
 func TestFallbackAcrossProviders(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.ad["ad"].add = refuse(adder.CodeTooManyActive)
 	// RD's name rule refuses WEB-DL: skipped without a request; AD has no slot; TorBox takes it.
 	res, err := e.r.Route(e.ctx, movieReq(cand(h("a"), "Movie.2024.2160p.WEB-DL.DDP5.1-GRP")))
@@ -221,7 +175,7 @@ func TestFallbackAcrossProviders(t *testing.T) {
 
 func TestMissOnEveryProvider(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	missed := map[string]bool{h("a"): true}
 	for k, code := range map[string]adder.Code{"rd": adder.CodeBlocked, "ad": adder.CodeInvalid, "tb": adder.CodeNotCached} {
 		e.ad[k].add = func(m adder.Magnet, o adder.AddOptions) (*adder.Added, error) {
@@ -275,7 +229,7 @@ func TestMissOnEveryProvider(t *testing.T) {
 // providers allowlist (indexers.K.providers); an allowlist that leaves none fails the route with a clear reason.
 func TestPrivateLabelFollowsIndexerProviders(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	priv := cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")
 	priv.Release.Indexer, priv.Release.Privacy = "priv", policy.PrivacyPrivate
 	res, err := e.r.Route(e.ctx, movieReq(priv))
@@ -285,7 +239,7 @@ func TestPrivateLabelFollowsIndexerProviders(t *testing.T) {
 	if res.Provider != "rd" || len(e.ad["rd"].adds) != 1 || e.ad["rd"].adds[0] != h("a") {
 		t.Fatalf("private-labelled: %+v %s", res, steps(res))
 	}
-	e = newEnv(t, true, policy.ModeActive)
+	e = newEnv(t, true)
 	e.pol.Indexers["priv"].Providers = []string{"tb"}
 	only := cand(h("b"), "Movie.2024.1080p.WEB.H265-GRP")
 	only.Release.Indexer = "priv"
@@ -295,7 +249,7 @@ func TestPrivateLabelFollowsIndexerProviders(t *testing.T) {
 	if res.Provider != "tb" || len(e.ad["rd"].adds) != 0 || len(e.ad["ad"].adds) != 0 {
 		t.Fatalf("allowlist [tb]: %+v %s", res, steps(res))
 	}
-	e = newEnv(t, true, policy.ModeActive)
+	e = newEnv(t, true)
 	e.pol.Indexers["priv"].Providers = []string{"elsewhere"}
 	none := cand(h("c"), "Movie.2024.720p.WEB.H265-GRP")
 	none.Release.Indexer = "priv"
@@ -320,7 +274,7 @@ func TestPrivateLabelFollowsIndexerProviders(t *testing.T) {
 
 func TestDeferredWhenPaced(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	// RD: 3 adds a minute with a 10-minute cooldown after the third (a burst).
 	for i, c := range []string{"a", "b", "c"} {
 		res, _ := e.r.Route(e.ctx, Request{TitleID: 1, VersionID: 10, Version: "movie", Source: "ui:grab:test", Candidates: []Candidate{
@@ -363,7 +317,7 @@ func TestDeferredWhenPaced(t *testing.T) {
 
 func TestReuseHeldTorrent(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.exec(`INSERT INTO content (id, info_hash, state, first_seen_at, last_seen_at) VALUES (7, ?, 'present', 0, 0)`, h("a"))
 	e.exec(`INSERT INTO content_provider (content_id, provider, torrent_id, seen_at) VALUES (7, 'rd', 'HELD', 0)`)
 	e.pr["rd"].set("HELD", provider.Torrent{Hash: h("a"), Status: "downloaded", State: provider.StateDownloaded})
@@ -382,7 +336,7 @@ func TestReuseHeldTorrent(t *testing.T) {
 // A 451 on a hash holds the account only when another title's hash got one within holdWindow.
 func TestAccountHoldCoolsDown(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.ad["rd"].add = refuse(adder.CodeAccountHold)
 	e.exec(`INSERT INTO router_refusal_451 (provider, info_hash, refused_at) VALUES ('rd', ?, ?)`, h("z"),
 		store.Millis(e.clock.Add(-time.Minute)))
@@ -406,7 +360,7 @@ func TestAccountHoldCoolsDown(t *testing.T) {
 // hash refused again is no sign of an account hold.
 func TestOne451BlocksTheHashNotTheAccount(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.pol.Versions["movie"].Providers = []string{"rd"}
 	e.ad["rd"].add = func(m adder.Magnet, _ adder.AddOptions) (*adder.Added, error) {
 		if m.Hash() == h("a") {
@@ -443,7 +397,7 @@ func TestOne451BlocksTheHashNotTheAccount(t *testing.T) {
 
 func TestTorBoxCacheCheckFirst(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.pr["tb"].cache = map[string]bool{h("b"): true}
 	e.ad["rd"].add = refuse(adder.CodeBlocked)
 	e.ad["ad"].add = refuse(adder.CodeBlocked)
@@ -459,7 +413,7 @@ func TestTorBoxCacheCheckFirst(t *testing.T) {
 
 func TestNoKeyProviders(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.r.adders = map[string]adder.Adder{}
 	res, err := e.r.Route(e.ctx, movieReq(cand(h("a"), "x")))
 	if err != nil || res.Outcome != OutcomeExhausted || !strings.Contains(steps(res), "no_provider") {
@@ -472,7 +426,7 @@ func TestNoKeyProviders(t *testing.T) {
 
 func TestPollStatuses(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	for i, tid := range []string{"A1", "A2", "A3", "A4"} {
 		e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer,
 			provider, provider_torrent_id, state, created_at, updated_at) VALUES (?, 1, 10, 'movie', ?, 'x', 'pub',
@@ -598,16 +552,14 @@ func TestLogState(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		enabled bool
-		mode    policy.Mode
 		want    string
-	}{{false, policy.ModeActive, "ROUTER DISABLED"}, {true, policy.ModeShadow, "no version is active"},
-		{true, policy.ModeActive, "ROUTER ENABLED: adds go"}} {
-		e := newEnv(t, tc.enabled, tc.mode)
+	}{{false, "ROUTER DISABLED"}, {true, "ROUTER ENABLED: adds go"}} {
+		e := newEnv(t, tc.enabled)
 		var buf strings.Builder
 		e.r.log = slogTo(&buf)
 		e.r.LogState()
 		if !strings.Contains(buf.String(), tc.want) || !strings.Contains(buf.String(), "level=WARN") {
-			t.Errorf("%v %s: %s", tc.enabled, tc.mode, buf.String())
+			t.Errorf("%v: %s", tc.enabled, buf.String())
 		}
 	}
 }
@@ -616,7 +568,7 @@ func TestLogState(t *testing.T) {
 // is left as it was and the route waits for the refusal's RetryAt, counting no deferral.
 func TestGatewayRefusalIsNotAnAdd(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	withQueue(e)
 	e.pol.Versions["movie"].Providers = []string{"rd"}
 	g := policy.Duration(20 * time.Second)
@@ -644,7 +596,7 @@ func TestGatewayRefusalIsNotAnAdd(t *testing.T) {
 // reserves and records in transactions instead of saving a copy read before its add.
 func TestRouteKeepsConcurrentRestoreReservation(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.pol.Versions["movie"].Providers = []string{"rd"}
 	pc := policy.Pacing{AddsPerMinute: 10}
 	e.pol.Providers["rd"].Pacing = pc

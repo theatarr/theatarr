@@ -34,7 +34,7 @@ import (
 // Hard rules. Nothing here deletes a debrid torrent: they are shared by every library, so a removal ends only Theatarr's
 // record of a download. Nothing deletes a real file: an unlink moves one of Theatarr's own symlinks to the trash through
 // the library's gate, and what it points at is never touched. A grab and a retry go through the router like any
-// route (gate, blocklist, pacing), so a shadow version or a router that is off places nothing.
+// route (gate, blocklist, pacing), so a router that is off places nothing.
 
 // Ops is the arr views' service as the recovery actions use it (arrview.Service in theatarr serve). nil answers 503.
 type Ops interface {
@@ -222,7 +222,7 @@ type GrabResult struct {
 
 // POST /titles/{id}/releases/grab {version, info_hash, override}: route one release of the panel's last live search
 // (30 minutes) for the version. The release is decided again now; a rejected one needs override (409 with the
-// rejections otherwise). Only for a version a search would run for (mode active, router on).
+// rejections otherwise). Only for a version a search would run for (router on).
 func (w *Web) apiGrab(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	id, ok := pathID(r)
@@ -389,7 +389,7 @@ func magnetHash(m string) string {
 // on: decided now under the given name, a rejected one needs override (409 with the rejections otherwise), then the
 // router with a person's grab as the source, so provider order, pacing, the cached-only rule, the record of our own
 // adds and the history are the grab's. The release has no indexer, and no size or seeders are known. Only for a
-// version a search would run for (mode active, router on). Nothing is sent to a provider here.
+// version a search would run for (router on). Nothing is sent to a provider here.
 func (w *Web) apiAddRelease(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	id, ok := pathID(r)
@@ -570,7 +570,7 @@ func orSomeone(s string) string {
 	return s
 }
 
-// searchCopy searches one copy of a title now when it is monitored (searchNow's rules: mode active, router on).
+// searchCopy searches one copy of a title now when it is monitored (searchNow's rules: router on).
 func (w *Web) searchCopy(ctx context.Context, titleID int64, version string) (*SearchOutcome, error) {
 	on, err := w.versionsOn(ctx, titleID)
 	if err != nil {

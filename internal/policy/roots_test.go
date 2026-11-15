@@ -31,7 +31,6 @@ func parallelPolicy(t *testing.T, version, libraryVersion string) string {
 }
 
 const liveYAML = `  movie-new:
-    mode: active
     kind: movie
     anime: false
     profile: remux-2160p
@@ -100,7 +99,7 @@ func TestLiveRootPhysicalSeparation(t *testing.T) {
 			mine = filepath.Join(mine, tc.suffix)
 			p := &Policy{Versions: map[string]*VersionPolicy{
 				"F": {Kind: KindMovie, Library: arr},
-				"K": {Kind: KindMovie, Mode: ModeActive, Library: mine},
+				"K": {Kind: KindMovie, Library: mine},
 			}, Library: &Library{Trash: LibraryTrash{Dir: trash}, Versions: map[string]*LibraryVersion{
 				"K": {Roots: []string{mine}},
 			}}}
@@ -160,7 +159,7 @@ func TestValidateBoundsHungRoot(t *testing.T) {
 	})
 	p := &Policy{Versions: map[string]*VersionPolicy{
 		"F": {Kind: KindMovie, Library: arr},
-		"K": {Kind: KindMovie, Mode: ModeActive, Library: mine},
+		"K": {Kind: KindMovie, Library: mine},
 	}, Library: &Library{Trash: LibraryTrash{Dir: trash}, Versions: map[string]*LibraryVersion{
 		"K": {Roots: []string{mine}},
 	}}}
@@ -189,19 +188,18 @@ func TestValidateBoundsHungRoot(t *testing.T) {
 	}
 }
 
-// Collection targets are the versions the library gate lets write: Live movie libraries.
+// Collection targets are the movie libraries.
 func TestCollectionTargets(t *testing.T) {
 	t.Parallel()
 	p := &Policy{Versions: map[string]*VersionPolicy{
-		"movie-remux": {Kind: KindMovie, Mode: ModeShadow},
-		"movie-4k":    {Kind: KindMovie, Mode: ModeActive},
-		"movie-new":   {Kind: KindMovie, Mode: ModeActive},
-		"tv-2160p":    {Kind: KindSeries, Mode: ModeActive},
+		"movie-4k":  {Kind: KindMovie},
+		"movie-new": {Kind: KindMovie},
+		"tv-2160p":  {Kind: KindSeries},
 	}}
 	if got, want := strings.Join(p.CollectionTargets(), ","), "movie-4k,movie-new"; got != want {
 		t.Errorf("targets %s, want %s", got, want)
 	}
-	if p.CollectionTarget("movie-remux") || p.CollectionTarget("tv-2160p") || p.CollectionTarget("nope") {
-		t.Error("a Watch-only, series or unknown version is a target")
+	if p.CollectionTarget("tv-2160p") || p.CollectionTarget("nope") {
+		t.Error("a series or unknown version is a target")
 	}
 }

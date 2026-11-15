@@ -8,14 +8,12 @@ import (
 
 	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/journal/snapshot"
-	"github.com/theatarr/theatarr/internal/router"
 )
 
 // Entry kinds. One entry is one decision or one thing that happened to a decision afterwards.
 const (
 	KindGrab      = "grab"      // a release was chosen and handed to a provider (Theatarr) or a download client (arr)
 	KindUpgrade   = "upgrade"   // the same, for a version that already had a file
-	KindPlan      = "plan"      // a router dry run (a Watch-only library, or the router off)
 	KindSearch    = "search"    // an theatarr search that routed nothing (no accepted release, or it failed)
 	KindResearch  = "research"  // an theatarr search started by a failure (re-search)
 	KindFailure   = "failure"   // a download failed
@@ -28,7 +26,7 @@ const (
 )
 
 // Kinds lists every kind, for filters.
-var Kinds = []string{KindGrab, KindUpgrade, KindPlan, KindSearch, KindResearch, KindFailure, KindStall,
+var Kinds = []string{KindGrab, KindUpgrade, KindSearch, KindResearch, KindFailure, KindStall,
 	KindBlocklist, KindImport, KindLink, KindVerdict, KindAction}
 
 // Severities, lowest first.
@@ -123,18 +121,6 @@ type Evidence struct {
 	ExpiresAt *time.Time `json:"expires_at,omitempty"`
 }
 
-// Plan is a router dry run.
-type Plan struct {
-	ID       int64         `json:"id"`
-	Mode     string        `json:"mode"`
-	Outcome  string        `json:"outcome"`
-	Release  string        `json:"release,omitempty"`
-	Provider string        `json:"provider,omitempty"`
-	Summary  string        `json:"summary"`
-	Source   string        `json:"source,omitempty"`
-	Steps    []router.Step `json:"steps,omitempty"`
-}
-
 // Reasoning is why the release was chosen: the chosen candidate with its score and formats, the runners-up with
 // theirs and their rejections, and the counts of every rejection reason.
 type Reasoning struct {
@@ -147,7 +133,6 @@ type Reasoning struct {
 	Existing   *decide.Existing     `json:"existing,omitempty"`
 	Detail     string               `json:"detail,omitempty"`
 	Notes      string               `json:"notes,omitempty"`
-	Plan       *Plan                `json:"router_plan,omitempty"`
 	Missing    string               `json:"missing,omitempty"`
 	// PolicyRev is the revision of the policy files the search decided under (policy.Policy.Revision); empty for
 	// decisions recorded before revisions were kept.
@@ -218,8 +203,6 @@ type Entry struct {
 	Source  string   `json:"source"`
 	Title   TitleRef `json:"title"`
 	Version string   `json:"version,omitempty"`
-	// Mode is the version's mode in the running policy (active, shadow); "" when the policy has no such version.
-	Mode string `json:"mode,omitempty"`
 	// Summary is one line: what was decided or what happened.
 	Summary   string     `json:"summary"`
 	Release   *Release   `json:"release,omitempty"`
@@ -242,8 +225,8 @@ type Entry struct {
 	// Action entries: what a person did by hand (action.go).
 	Action *Action `json:"action,omitempty"`
 	// PolicyRev is the revision of the policy files that made the decision (policy.Policy.Revision): the search's,
-	// else the download's, else the queued run's. Empty for rows from before revisions were kept and for arr and
-	// shadow entries. QueuedPolicyRev is set only when an acquire run was queued under a different revision.
+	// else the download's, else the queued run's. Empty for rows from before revisions were kept and for arr
+	// entries. QueuedPolicyRev is set only when an acquire run was queued under a different revision.
 	PolicyRev       string `json:"policy_revision,omitempty"`
 	QueuedPolicyRev string `json:"queued_policy_revision,omitempty"`
 
@@ -339,16 +322,12 @@ func (e *Entry) Text() string {
 	if y := fmt.Sprintf("(%d)", e.Title.Year); e.Title.Year > 0 && !strings.HasSuffix(name, y) {
 		name += fmt.Sprintf(" (%d)", e.Title.Year)
 	}
-	mode := ""
-	if e.Mode != "" {
-		mode = " [" + e.Mode + "]"
-	}
 	sus := ""
 	if e.Suspect {
 		sus = " SUSPECT(" + e.Severity + ")"
 	}
-	fmt.Fprintf(&b, "%s  %s  %s  %s  %s  %s%s%s\n", e.ID, e.At.UTC().Format("2006-01-02 15:04"), e.Kind, e.Source,
-		e.Version, name, mode, sus)
+	fmt.Fprintf(&b, "%s  %s  %s  %s  %s  %s%s\n", e.ID, e.At.UTC().Format("2006-01-02 15:04"), e.Kind, e.Source,
+		e.Version, name, sus)
 	line := func(label, text string) {
 		if text != "" {
 			fmt.Fprintf(&b, "  %-9s %s\n", label, text)
@@ -388,9 +367,6 @@ func (e *Entry) Text() string {
 			why = append(why, r.Missing)
 		}
 		line("why", strings.Join(why, "; "))
-		if r.Plan != nil {
-			line("plan", r.Plan.Summary)
-		}
 	}
 	if e.PolicyRev != "" {
 		pol := e.PolicyRev

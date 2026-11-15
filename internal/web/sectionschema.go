@@ -431,7 +431,7 @@ var sectionHelp = map[string]string{
 	"router.cache_evidence.torbox_check.per_hour": "This caps TorBox cache checks in any hour. Default 60, 1 to 1000.",
 	"egress.vpn_ips":                              "These and the VPN address ranges are the expected exit addresses. At least one entry is required.",
 	"shadow.rss":                                  "This turns the RSS feed checks on or off. Default on.",
-	"shadow.rss_interval":                         "This is how often the RSS feeds of the Live libraries' indexers are read. Default 15m, the arrs' default RSS sync interval; minimum 10m.",
+	"shadow.rss_interval":                         "This is how often the RSS feeds of the libraries' indexers are read. Default 15m, the arrs' default RSS sync interval; minimum 10m.",
 	"playlists.enabled":                           "This allows playlist writes in Plex. They are also held while Theatarr is paused. Default false.",
 	"playlists.interval":                          "This is how often Theatarr syncs the playlists. Default 6h, minimum 1h.",
 	"torrents.backup":                             "This schedules backups of the provider torrent lists. Off until a backup interval is set.",

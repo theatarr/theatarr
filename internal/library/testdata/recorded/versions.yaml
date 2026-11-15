@@ -1,8 +1,7 @@
-# Versions: one per library. Each starts Watch only (mode: shadow, docs/design/overview.md) and is switched to active per area at
-# cutover. Library roots are the arr roots the version replaces, so links keep the arr naming and paths.
+# Versions: one per library. Library roots are the arr roots the version replaces, so links keep the arr naming and
+# paths.
 versions:
   movie-remux:
-    mode: shadow
     kind: movie
     anime: false
     profile: radarr-4k-debrid
@@ -22,7 +21,6 @@ versions:
       colon: delete
       multi_episode: ""
   movie-web:
-    mode: shadow
     kind: movie
     anime: false
     profile: radarr-4k-web
@@ -41,7 +39,6 @@ versions:
       colon: delete
       multi_episode: ""
   anime-movie:
-    mode: shadow
     kind: movie
     anime: true
     profile: anime-remux-1080p-movie
@@ -51,7 +48,6 @@ versions:
     providers: [rd, ad, tb]
     client: decypharr
   tv-2160p:
-    mode: shadow
     kind: series
     anime: false
     profile: sonarr-4k-debrid
@@ -70,7 +66,6 @@ versions:
       colon: delete
       multi_episode: prefixed_range
   anime-tv:
-    mode: shadow
     kind: series
     anime: true
     profile: sonarr-anime-debrid

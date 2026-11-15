@@ -6,8 +6,7 @@ read: [clients.md](clients.md). Code: `internal/arrview`, migration `00012_arrvi
 comments in `examples/policy/views.yaml`.
 
 The views answer from Theatarr's database, with metadata lookups for new series, and write only to that database.
-Versions in `mode: shadow` never acquire anything: nothing is searched or grabbed for them. Search commands for active
-versions go to the acquirer and the router (Commands). Pointing clients at the views: see Cutover.
+While Pause is on nothing is searched or grabbed. Search commands go to the acquirer and the router (Commands). Pointing clients at the views: see Cutover.
 
 Files are the version's active links: Theatarr's own imports and links adopted from an arr alike. An adopted
 link's media detail is not read into `mediaInfo` (resolution only).
@@ -200,7 +199,7 @@ reference type that is null is left out; value types are always written; `id` 0 
 | `GET queue/details` | `QueueResource[]` | Every queue item, unpaged; `movieId`, or `seriesId` and `episodeIds`, filter it. Homepage calls it always |
 | `GET wanted/missing` | `PagingResource<MovieResource>` / `<EpisodeResource>` | Radarr: monitored without a file, sort `movieMetadata.sortTitle`; Sonarr: monitored, aired, no file, series monitored, sort `episodes.airDateUtc`. `monitored=false` inverts |
 | `GET history`, `history/since?date=`, `history/movie?movieId=`, `history/series?seriesId=` | `PagingResource<HistoryResource>` for history; `HistoryResource[]` for the other routes | Theatarr's download history; SQL filters `eventType` (number or name, repeated or comma-separated), `downloadId`, `movieIds`/`seriesIds`, Sonarr `episodeId` and title history `seasonNumber`. Optional `includeMovie`, `includeSeries`, `includeEpisode` embed the matching resources. Default date descending; `/since` is inclusive and ascending |
-| `GET health` | `HealthResource[]` | One `notice` while any of the view's versions is in shadow mode; one `warning` while `router.enabled` is off and any is active ([devices](devices.md)) |
+| `GET health` | `HealthResource[]` | One `warning` while Pause is on (`router.enabled` off) ([devices](devices.md)) |
 | `GET diskspace` | `DiskSpaceResource[]` | One per existing root folder (statfs), bounded like `rootfolder`: a root that does not answer is left out |
 | `GET config/downloadclient` | `DownloadClientConfigResource`, `id` 1 | Completed download handling on, auto-redownload on |
 | `POST command`, `GET command`, `GET command/{id}` | `CommandResource` | See Commands |
@@ -415,10 +414,8 @@ Left as before, on purpose:
   `CutoffUnmetEpisodeSearch`, `RssSync`, `RefreshSeries`, `RescanSeries`, `RefreshMonitoredDownloads`,
   `DownloadedEpisodesScan`, `ManualImport`, `RenameSeries`, `RenameFiles`. Others get a 400 (Radarr throws a 500).
   Each is stored in `arrview_command` and answered 201:
-  - **All shadow.** A search whose versions (of the titles or episodes it names, or all the view's) are all in shadow
-    mode is stored `completed` with `Shadow mode: nothing searched or grabbed (versions …)`. Nothing is searched.
-  - **Active.** A search touching an active version is stored `queued` and handed to the acquirer
-    (`internal/acquire`, docs/design/router.md "Triggers") for its **active versions only**:
+  - A search is stored `queued` and handed to the acquirer (`internal/acquire`, docs/design/router.md "Triggers") for
+    the view's versions:
 
     | Command | Searches |
     |---|---|
@@ -583,7 +580,7 @@ deleting a label removes it from every version. Rows from before 00105 were copi
 
 ## Cutover
 
-Per area, after the version is switched to `mode: active` ([migration.md](../migration.md)). Before: make one key per
+Per area, once Pause is off ([migration.md](../migration.md)). Before: make one key per
 client in Settings › Connected apps (or set `THEATARR_VIEW_RADARR_KEY` and `THEATARR_VIEW_SONARR_KEY`), and back up
 Seerr's settings.
 

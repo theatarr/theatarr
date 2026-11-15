@@ -87,7 +87,7 @@ it("waits for the library list before a new indexer can be saved, and offers Try
 it("ticks the libraries that suit a new indexer's service and sends the ticked ones", async () => {
   const fetch = mockFetch([{ method: "POST", path: "/settings/indexers", reply: { generation: 5 } }]);
   const user = userEvent.setup();
-  const lib = (key: string, kind: string, anime: boolean | null) => ({ id: 1, key, created_at: "", updated_at: "", roots: [], config: { kind, anime, mode: "active" } }) as unknown as VersionRecord;
+  const lib = (key: string, kind: string, anime: boolean | null) => ({ id: 1, key, created_at: "", updated_at: "", roots: [], config: { kind, anime } }) as unknown as VersionRecord;
   const libraries = [lib("movies", "movie", null), lib("tv", "series", false), lib("anime", "series", true)];
   renderPage(<RecordEditor entity="indexers" ent={indexerSchema} session={{ entity: "indexers", generation: 4, kind: "torrentio" }} libraries={{ versions: libraries, retry: () => {} }} nextOrder={1} onDone={vi.fn()} />);
   expect(screen.getByTestId("record-form").textContent).toContain("Fill in and save. Test checks the values without saving.");
@@ -332,7 +332,7 @@ it("shows a field's default as its placeholder, not a 0 that reads as the value"
 it("counts a new indexer's library ticks against the ones it started with", async () => {
   mockFetch([]);
   const user = userEvent.setup();
-  const lib = (key: string, kind: string) => ({ id: 1, key, created_at: "", updated_at: "", roots: [], config: { kind, anime: null, mode: "active" } }) as unknown as VersionRecord;
+  const lib = (key: string, kind: string) => ({ id: 1, key, created_at: "", updated_at: "", roots: [], config: { kind, anime: null } }) as unknown as VersionRecord;
   renderPage(<RecordEditor entity="indexers" ent={indexerSchema} session={{ entity: "indexers", generation: 4, kind: "torrentio" }} libraries={{ versions: [lib("movies", "movie"), lib("tv", "series")], retry: () => {} }} nextOrder={1} onDone={vi.fn()} />);
   expect(screen.queryByTestId("unsaved-count")).toBeNull();
   await user.click(screen.getByRole("checkbox", { name: /^movies/ }));

@@ -23,7 +23,7 @@ func TestMissingRelationsNotRouted(t *testing.T) {
 					fmt.Fprint(w, `{"page":1,"perPage":100,"totalItems":1,"totalPages":1,"items":[{"alID":1,`+relation+`"expand":{"trs":[{"id":"unrelated","infoHash":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","tracker":"Nyaa","isBest":true,"files":[{"name":"Other Film BD 1080p.mkv","length":5000000000}]}]}}]}`)
 				}))
 				defer srv.Close()
-				e := newEnv(t, true, policy.ModeActive)
+				e := newEnv(t, true)
 				e.pol.Indexers["sd"] = &policy.Indexer{Kind: "seadex", URL: srv.URL, Privacy: policy.PrivacyPublic}
 				e.pol.Profiles = map[string]*policy.Profile{"sd": {Qualities: []policy.QualityItem{{Name: "Bluray-1080p"}}, Cutoff: "Bluray-1080p"}}
 				e.pol.Versions["movie"].Profile = "sd"

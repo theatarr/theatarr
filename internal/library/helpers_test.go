@@ -90,7 +90,7 @@ func TestRelinkRenamed(t *testing.T) {
 	oldWait, oldPoll := RenameWait, renamePoll
 	RenameWait, renamePoll = 200*time.Millisecond, 10*time.Millisecond
 	defer func() { RenameWait, renamePoll = oldWait, oldPoll }()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.now = time.Now()
 	e.lib.now = time.Now
 	// Nothing in our database knows the release: only the log's rename finds it.
@@ -131,8 +131,8 @@ func TestRelinkRenamed(t *testing.T) {
 	if n := e.one(`SELECT COUNT(*) FROM library_action WHERE kind = 'relink' AND mode = 'applied'`); n != "1" {
 		t.Errorf("relink actions %s", n)
 	}
-	// Shadow: the gate makes it a dry run.
-	e2 := newEnv(t, true, policy.ModeShadow)
+	// Library off: the gate makes it a dry run.
+	e2 := newEnv(t, false)
 	e2.release("New", map[string]float64{"movie.mkv": 7000})
 	l2 := filepath.Join(e2.movies, "M (2001)", "M (2001).mkv")
 	os.MkdirAll(filepath.Dir(l2), 0o755)
@@ -150,7 +150,7 @@ func TestRelinkKeepsOwner(t *testing.T) {
 	if os.Geteuid() != 0 {
 		t.Skip("needs root to chown")
 	}
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.release("Movie.Release {abcdef}", map[string]float64{"movie.mkv": 7000})
 	e.exec(`INSERT INTO content (id, info_hash, name, state, first_seen_at, last_seen_at) VALUES (1, ?, 'Movie.Release', 'present', 0, 0)`, hashA)
 	p := filepath.Join(e.movies, "Movie (2001)", "Movie (2001).mkv")
@@ -178,7 +178,7 @@ func TestRelinkKeepsOwner(t *testing.T) {
 func TestDanglingReport(t *testing.T) {
 	t.Parallel()
 	// Library disabled: the report still runs (it only reads) and writes nothing to disk.
-	e := newEnv(t, false, policy.ModeShadow)
+	e := newEnv(t, false)
 	downloads := filepath.Join(e.dir, "downloads")
 	e.pol.Library.Dangling = policy.LibraryDangling{Roots: []string{filepath.Join(e.dir, "media"), downloads}}
 	e.lib = New(Options{Store: e.st, Policy: e.pol, Now: func() time.Time { return e.now }})
@@ -247,7 +247,7 @@ func TestDanglingReport(t *testing.T) {
 // A release folder whose name starts with ".." is inside the mount: its links are listed and reported like any other.
 func TestDanglingReportDotDotFolder(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, false, policy.ModeShadow)
+	e := newEnv(t, false)
 	e.lib = New(Options{Store: e.st, Policy: e.pol, Now: func() time.Time { return e.now }})
 	e.release("...And Justice for All 1979", map[string]float64{"a.mkv": 1})
 	links := map[string]string{

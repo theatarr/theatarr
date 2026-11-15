@@ -1,4 +1,3 @@
-import { cn } from "@/lib/utils";
 import { keyProblem } from "@/lib/field-checks";
 import { useQueryClient } from "@tanstack/react-query";
 import { setupKey } from "@/api/setup";
@@ -21,14 +20,12 @@ import { Sheet, SheetCancel, SheetLayout, useEditParam } from "@/components/ui/s
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { explainError } from "@/lib/settings";
-import { CHOICE_HELP, CHOICE_LABEL, choiceOf, repeatsChoice, withChoice, type LibraryChoice } from "@/lib/version-grab";
 import { libraryLabel } from "@/lib/library-label";
 import { useLibraryName } from "@/lib/library-names";
 
 /** saved: the record as stored (a new library: its first draft), for the changed marks, the count and Discard. */
 type Session = { record: VersionRecord; saved: VersionRecord; generation: number; create: boolean; draftID: number };
-/** create: the body adds a library; inSheet: it came from the edit sheet (a row's Watch only / Live control saves
- * without one). */
+/** create: the body adds a library; inSheet: it came from the edit sheet. */
 type Pending = { body: VersionBody; effects: Confirmation["effects"]; proof?: Confirmation; create: boolean; inSheet: boolean };
 /** The arr flavour whose TRaSH defaults fit a library kind. */
 const KIND_WORD: Record<string, string> = { movie: "Movies", series: "Series" };
@@ -91,11 +88,11 @@ function Multi({ label, choices, values, onChange }: { label: string; choices: s
   return <fieldset className="space-y-1"><legend className="text-sm">{label}</legend><div className="flex flex-wrap gap-3">{choices.map((key) => <label key={key} className="flex items-center gap-1 text-sm"><input type="checkbox" checked={values.includes(key)} onChange={(event) => onChange(choices.filter((choice) => choice === key ? event.target.checked : values.includes(choice)))} />{key}</label>)}</div></fieldset>;
 }
 
-// A new version starts in shadow mode with the default profile for movies (Quality profiles, "Defaults for new
+// A new version starts with the default profile for movies (Quality profiles, "Defaults for new
 // versions"), else the first profile.
 function blank(data: VersionList, defaults: Record<string, string> = {}): VersionRecord {
   const profile = defaults.movie && Object.hasOwn(data.profiles, defaults.movie) ? defaults.movie : Object.keys(data.profiles)[0] ?? "";
-  return { id: 0, key: "", created_at: "", updated_at: "", roots: [], config: { mode: "shadow", kind: "movie", anime: false, profile, library: "", storage: "debrid", indexers: [], providers: [], client: data.clients[0] ?? "", import: "symlink", upgrades: "auto" } };
+  return { id: 0, key: "", created_at: "", updated_at: "", roots: [], config: { kind: "movie", anime: false, profile, library: "", storage: "debrid", indexers: [], providers: [], client: data.clients[0] ?? "", import: "symlink", upgrades: "auto" } };
 }
 
 const GROUPS: Category[] = ["movie", "series", "anime_movie", "anime_series"];
@@ -107,17 +104,7 @@ function profileOrigin(p: ProfileSummary | undefined): string {
   return "our own profile";
 }
 
-/** A library's Watch only / Live control. A mode it cannot express shows as text. */
-function ChoicePick({ mode, onChange, disabled, label }: { mode: string; onChange: (choice: LibraryChoice) => void; disabled?: boolean; label: string }) {
-  const choice = choiceOf(mode);
-  if (!choice) return <span className="text-sm" data-testid="choice-readonly">{mode}</span>;
-  return <select aria-label={label} className={cn(SELECT_CLASS, "w-auto")} value={choice} disabled={disabled} data-testid="library-choice" onChange={(event) => onChange(event.target.value as LibraryChoice)}>
-    <option value="watch">{CHOICE_LABEL.watch}</option>
-    <option value="live">{CHOICE_LABEL.live}</option>
-  </select>;
-}
-
-function VersionGroup({ title, versions, switches, selected, readOnly, busy, onOpen, onChoose }: { title: string; versions: VersionRecord[]; switches: VersionList["switches"]; selected?: string; readOnly: boolean; busy: boolean; onOpen: (record: VersionRecord) => void; onChoose: (record: VersionRecord, choice: LibraryChoice) => void }) {
+function VersionGroup({ title, versions, switches, selected, readOnly, onOpen }: { title: string; versions: VersionRecord[]; switches: VersionList["switches"]; selected?: string; readOnly: boolean; onOpen: (record: VersionRecord) => void }) {
   const nameOf = useLibraryName();
   return <section className="space-y-2" aria-label={title}>
     <h2 className="text-base font-semibold">{title}</h2>
@@ -140,7 +127,7 @@ function VersionGroup({ title, versions, switches, selected, readOnly, busy, onO
           return <TableRow key={record.key} data-record={record.key} data-selected={selected === record.key ? "true" : undefined}>
             <TableCell className="align-top">
               <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5"><span className="text-[13.5px] font-medium [overflow-wrap:anywhere]" data-testid="library-name">{nameOf(record.key, libraryLabel(record.key, c.profile, c.name, c.kind))}</span><span className="font-mono text-[12px] text-muted-foreground [overflow-wrap:anywhere]" data-testid="library-key">{record.key}</span></div>
-              <div className="mt-1 flex flex-wrap items-center gap-1.5" data-testid="library-state-row"><ChoicePick mode={c.mode} label={`State of ${nameOf(record.key, libraryLabel(record.key, c.profile, c.name, c.kind))}`} disabled={readOnly || busy} onChange={(choice) => onChoose(record, choice)} /><VersionStatus words beside={c.mode} settingsKey={record.key} canManage state={switches.versions.find((v) => v.key === record.key)?.grab_state ?? { mode: "off", paused: switches.paused, pause_forced: switches.pause_forced }} /></div>
+              <div className="mt-1 flex flex-wrap items-center gap-1.5" data-testid="library-state-row"><VersionStatus words settingsKey={record.key} canManage state={switches.versions.find((v) => v.key === record.key)?.grab_state} /></div>
               <div className="text-xs text-muted-foreground">{c.anime === null ? "anime and regular" : ""}</div>
               <div className="mt-1.5 space-y-1.5 md:hidden"><div><div className="text-[11px] text-muted-foreground">Where</div>{where}</div><div><div className="text-[11px] text-muted-foreground">Profile</div>{profile}</div></div>
               <div className="mt-1.5 lg:hidden"><div className="text-[11px] text-muted-foreground">Sources</div>{sources}</div>
@@ -225,15 +212,14 @@ export function VersionsPage({ embedded = false }: { embedded?: boolean }) {
     setPending(undefined);
   }
 
-  // inSheet: the save came from the edit sheet, which closes on success; a row's Watch only / Live control saves the
-  // stored library with only mode changed, through the same confirmation.
+  // inSheet: the save came from the edit sheet, which closes on success.
   async function apply(body: VersionBody, create: boolean, inSheet: boolean) {
     if (inSheet && !session) return;
     setBusy(true);
     try {
       await saveVersion(body, create);
       void qc.invalidateQueries({ queryKey: setupKey });
-      // A library's Watch only / Live change shows on the lists' row actions.
+      // A library change shows on the lists' row actions.
       void qc.invalidateQueries({ queryKey: qk.titles.all });
       // The header Pause saves with the overview's generation, which this save moved on.
       void qc.invalidateQueries({ queryKey: qk.settings.overview });
@@ -255,14 +241,6 @@ export function VersionsPage({ embedded = false }: { embedded?: boolean }) {
       else { setPending(undefined); setError(failure); }
     }
     finally { setBusy(false); }
-  }
-
-  /** A row's control: the stored library as it is, with the chosen mode. */
-  function choose(record: VersionRecord, choice: LibraryChoice) {
-    if (!data || busy || choiceOf(record.config.mode) === choice) return;
-    const config = withChoice(record.config, choice);
-    setError(undefined);
-    void apply({ generation: data.generation, key: record.key, config, roots: record.roots ?? [] }, false, false);
   }
 
   // A picked TRaSH default ("preset:<trash_id>") becomes a stored profile first, named after the library; the draft
@@ -334,12 +312,12 @@ export function VersionsPage({ embedded = false }: { embedded?: boolean }) {
       <Button ref={addButton} onClick={() => open(undefined)} disabled={readOnly}>Add library</Button>
       {GROUPS.map((group) => {
         const list = data.versions.filter((record) => categoryOf(record.config.kind, record.config.anime) === group);
-        return list.length ? <VersionGroup key={group} title={CATEGORY_LABEL[group]} versions={list} busy={busy} onChoose={choose} switches={data.switches} selected={session && !session.create ? session.record.key : undefined} readOnly={readOnly} onOpen={open} /> : null;
+        return list.length ? <VersionGroup key={group} title={CATEGORY_LABEL[group]} versions={list} switches={data.switches} selected={session && !session.create ? session.record.key : undefined} readOnly={readOnly} onOpen={open} /> : null;
       })}
       {session ? <Sheet label={session.create ? "New library" : `Edit library ${nameOf(session.record.key, libraryLabel(session.record.key, session.saved.config.profile, session.saved.config.name, session.saved.config.kind))}`} onClose={close} initialFocus={heading} returnFocus={() => (stopped.current ? addButton.current : undefined)}>
         <SheetLayout key={session.draftID} testid="version-form" headingRef={heading} onClose={close} changes={readOnly ? 0 : libraryChanges(session.record, session.saved)}
           title={`${session.create ? "New library" : `Edit library ${nameOf(session.record.key, libraryLabel(session.record.key, session.saved.config.profile, session.saved.config.name, session.saved.config.kind))}`}`}
-          subtitle={session.create ? "Starts as Watch only unless you choose otherwise." : `${KIND_WORD[session.record.config.kind] ?? session.record.config.kind}${session.record.config.anime ? " · anime" : ""} · ${CHOICE_LABEL[choiceOf(session.record.config.mode) ?? "watch"]}`}
+          subtitle={session.create ? "Downloads once saved, while Pause is off." : `${KIND_WORD[session.record.config.kind] ?? session.record.config.kind}${session.record.config.anime ? " · anime" : ""}`}
           footer={<><Button onClick={() => void review()} disabled={readOnly || busy || newKeyProblem(session) !== undefined}>Save</Button><SheetCancel variant="outline" onClick={close}>Cancel</SheetCancel>{libraryChanges(session.record, session.saved) ? <><span className="text-[13px] font-medium text-[var(--ink)]" data-testid="unsaved-count" aria-live="polite">{changeCount(libraryChanges(session.record, session.saved))}</span><Button variant="ghost" size="sm" disabled={busy} data-testid="version-discard" onClick={() => { setSession({ ...session, record: copy(session.saved) }); setError(undefined); setPending(undefined); setDiscards(discards + 1); }}>Discard</Button></> : null}<Link className="text-sm text-[var(--accent-ink)] underline" to="/admin/settings/libraries/naming">Edit naming</Link>{!session.create ? <Button className="ml-auto" variant="destructive" onClick={() => void review(true)} disabled={readOnly || busy}>Stop managing library</Button> : null}</>}>
           {made ? <p className="mb-4 rounded-md border border-[var(--line)] px-3 py-2 text-[13px]" role="status" data-testid="preset-profile-made">The profile <span className="font-mono">{made.key}</span> was created from the TRaSH default {made.name} and is selected. The library itself is saved when Save succeeds; the profile stays either way.</p> : null}
           {error ? <div ref={errorBox} tabIndex={-1} className="mb-4"><ExplainBox error={explainError(error)} onReload={() => void reload(false)} onReloadKeep={() => void reload(true)} /></div> : null}
@@ -406,7 +384,7 @@ function VersionForm({ session, data, defaults, profiles, error, onChange }: { s
     const controller = new AbortController();
     const timer = window.setTimeout(() => {
       setRootStatus("Checking root…");
-      void checkRoot(generation, record.key, config.library, controller.signal).then((result) => setRootStatus(`Root resolves to ${result.resolved}${result.writable ? " · writable" : ""}`), (failure: unknown) => { if (!controller.signal.aborted) setRootStatus(`root check: ${fieldMessage(failure, (path) => path === "root") ?? message(failure).replace(/^settings refused:\s*(?:root:\s*)?/, "")}`); });
+      void checkRoot(generation, record.key, config.library, controller.signal).then((result) => setRootStatus(`Root resolves to ${result.resolved} · writable`), (failure: unknown) => { if (!controller.signal.aborted) setRootStatus(`root check: ${fieldMessage(failure, (path) => path === "root") ?? message(failure).replace(/^settings refused:\s*(?:root:\s*)?/, "")}`); });
     }, 400);
     return () => { window.clearTimeout(timer); controller.abort(); };
   }, [generation, record.key, config.library, data.source]);
@@ -445,8 +423,6 @@ function VersionForm({ session, data, defaults, profiles, error, onChange }: { s
   // for its grabs, or a storage or import mode that is not the supported one. A refused field
   // inside keeps it open.
   const [opened, setAdvanced] = useState(() => (!!record.roots?.length && !same(record.roots, [config.library])) || viaClient || storage.options.length > 1 || importMode.options.length > 1);
-  // The Watch only / Live control: changed when the mode changed.
-  const choiceChanged = config.mode !== saved.config.mode;
   const advanced = opened || !!advancedError;
   // The TRaSH defaults of the library's kind (movies: Radarr's, series: Sonarr's), offered beside the stored profiles.
   const flavour = flavourOf(config.kind);
@@ -457,20 +433,11 @@ function VersionForm({ session, data, defaults, profiles, error, onChange }: { s
   const picked = presetPick(config.profile);
   const pickedPreset = picked ? presets.find((p) => p.trash_id === picked) : undefined;
   const copiesOf = (id: string) => presetCopies([...profiles.values()], flavour, id);
-  const draftState = { mode: config.mode, paused: data.switches.paused, pause_forced: data.switches.pause_forced };
   const select = (value: string) => { pickedByHand.current = true; setProfileFrom(undefined); update("profile", value); };
   return <div className="space-y-6">
-    {repeatsChoice(draftState, config.mode) ? null : <div className="flex flex-wrap items-center gap-2 text-sm"><span>Draft after saving:</span><VersionStatus words state={draftState} /></div>}
     <Part title="Where" help="What the library holds, where its folder lives and how files get there.">
       <Field label="Name" help="Optional. Shown in place of the guessed label, such as 4K WEB. Connected apps never see it." changed={(config.name ?? "") !== (saved.config.name ?? "")} onUndo={() => setName(saved.config.name ?? "")} error={fieldError("name")}><Input value={config.name ?? ""} maxLength={40} onChange={(event) => setName(event.target.value)} /></Field>
       <Field label="Key" help={`${session.create && !record.key ? "Enter a name. " : ""}Used by connected apps and in settings; fixed once the library exists. Lower case letters, digits, - and _.`} changed={record.key !== saved.key} onUndo={() => onChange({ ...record, key: saved.key })} error={(record.key ? newKeyProblem(session) : undefined) ?? fieldError("key")}><Input value={record.key} disabled={!session.create} onChange={(event) => onChange({ ...record, key: event.target.value })} /></Field>
-      <div className="flex flex-col gap-1 text-sm" data-changed={choiceChanged || undefined}>
-        <span>State</span>
-        <ChoicePick mode={config.mode} label="State" onChange={(choice) => onChange({ ...record, config: withChoice(config, choice) })} />
-        <p className="text-xs text-muted-foreground">{CHOICE_HELP}</p>
-        {fieldError("mode") ? <p role="alert" className="text-xs text-destructive">{fieldError("mode")}</p> : null}
-        {choiceChanged ? <ChangedMark name="State" onUndo={() => onChange({ ...record, config: { ...config, mode: saved.config.mode } })} /> : null}
-      </div>
       <Field label="Kind" {...mark("kind")}><Pick value={config.kind} options={["movie", "series"]} onChange={(value) => recategorize({ ...config, kind: value as VersionConfig["kind"] })} /></Field>
       <Field label="Anime" {...mark("anime")}><Pick value={config.anime === null ? "both" : String(config.anime)} options={["false", "true", "both"]} labels={{ false: "Not anime", true: "Anime only", both: "Anime and not" }} onChange={(value) => recategorize({ ...config, anime: value === "both" ? null : value === "true" })} /></Field>
       <Field label="Root" changed={!same(config.library, saved.config.library)} error={fieldError("library")}><Input value={config.library} onChange={(event) => { const root = event.target.value; const roots = record.roots?.length && record.roots.length > 1 ? record.roots.map((value) => value === config.library ? root : value) : [root]; setRootsText(roots.join(", ")); onChange({ ...record, config: { ...config, library: root }, roots }); }} /><span role="status" className="text-xs [overflow-wrap:anywhere]">{rootStatus}</span></Field>

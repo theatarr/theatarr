@@ -380,7 +380,7 @@ func (s *Service) downloadFile(ctx context.Context, downloadID int64) *notify.Fi
 }
 
 // HealthItems is the health the views report (GET health), for the Health webhook, over the configured views'
-// versions: the shadow-mode notice and the router-disabled warning (healthOf).
+// versions: the router-disabled warning (healthOf).
 func (s *Service) HealthItems(ctx context.Context) []notify.HealthItem {
 	var keys []string
 	for _, v := range s.views {

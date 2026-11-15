@@ -17,7 +17,7 @@ import (
 	"github.com/theatarr/theatarr/internal/store"
 )
 
-// Hooks for the triggers outside this package (internal/acquire, internal/shadow): read-only helpers. None of them
+// Hooks for the triggers outside this package (internal/acquire, internal/acquire/rss): read-only helpers. None of them
 // writes to a provider; the only ways to a provider stay Route and the poller, through Gate.
 
 // InFlight reports whether a version already has a download in hand (queued to importing) for a title: for a movie

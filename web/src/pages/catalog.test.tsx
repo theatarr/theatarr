@@ -12,15 +12,15 @@ import { expectNamedControls, mockFetch, renderPage } from "@/test/page";
 const search = vi.hoisted(() => ({ openOverlay: vi.fn() }));
 vi.mock("@/components/search/search-context", () => ({ useSearchUI: () => search }));
 
-const shadow = { mode: "shadow", can_edit: true, can_search: false, live_releases: false };
-const managed = { mode: "active", can_edit: true, can_search: true, live_releases: true };
+const held = { can_edit: true, can_search: false, live_releases: false };
+const managed = { can_edit: true, can_search: true, live_releases: true };
 
 const titles = [
   {
     id: 1, kind: "series", name: "The Pellbrook Inquiries", year: 2017, monitored: true, network: "Northstar Network",
     next_up: { date: "2099-11-04", season: 3, number: 6 }, size_bytes: 184e9, added_at: "2026-10-28T00:00:00Z", title_added_at: "2025-10-01T12:00:00Z",
     versions: [
-      { id: 11, key: "tv-2160p", label: "4K", monitored: true, has_file: true, quality: "WEBDL-2160p", state: "wanted", control: shadow,
+      { id: 11, key: "tv-2160p", label: "4K", monitored: true, has_file: true, quality: "WEBDL-2160p", state: "wanted", control: held,
         coverage: { have: 13, total: 17, aired: 17, upcoming: 1, in_flight: 2 },
         acquisition: { stage: "downloading", words: "Downloading (37%)", progress: 37, download_id: 5, downloads: 2, episodes: 2, stages: { downloading: 1, queued: 1 }, updated_at: "2026-10-29T00:00:00Z" } },
       { id: 12, key: "tv-web", label: "1080p WEB", monitored: true, has_file: true, quality: "WEBDL-1080p", state: "cutoff_met", control: managed,
@@ -391,7 +391,7 @@ describe("Library table", () => {
     const movie = {
       id: 9, kind: "movie", name: "Saltglass Meridian", year: 2018, monitored: true,
       versions: [
-        { id: 91, key: "movie-remux", label: "4K Remux", monitored: true, has_file: true, quality: "Remux-2160p", state: "filled", size_bytes: 30e9, control: shadow,
+        { id: 91, key: "movie-remux", label: "4K Remux", monitored: true, has_file: true, quality: "Remux-2160p", state: "filled", size_bytes: 30e9, control: held,
           acquisition: { stage: "downloading", words: "Downloading (37%)", progress: 37, download_id: 3, downloads: 1, upgrade: true, updated_at: "2026-10-29T00:00:00Z" } },
         { id: 92, key: "movie-web", label: "4K WEB", monitored: true, has_file: true, quality: "WEBDL-2160p", state: "cutoff_met", control: managed },
       ],
@@ -701,7 +701,7 @@ describe("Same-named copies", () => {
     {
       id: 3, kind: "series", name: "Brindlewood Bakers", year: 2023, monitored: true,
       versions: [
-        { id: 31, key: "tv-2160p", label: "4K", monitored: true, has_file: true, quality: "WEBDL-2160p", state: "filled", control: shadow,
+        { id: 31, key: "tv-2160p", label: "4K", monitored: true, has_file: true, quality: "WEBDL-2160p", state: "filled", control: held,
           coverage: { have: 24, total: 24, aired: 24, upcoming: 0 } },
         { id: 32, key: "tv-2160p-theatarr", label: "4K", monitored: true, has_file: true, quality: "WEBDL-2160p", state: "wanted", control: managed,
           coverage: { have: 12, total: 24, aired: 24, upcoming: 0 } },
@@ -752,16 +752,16 @@ describe("Row actions", () => {
   beforeEach(() => window.localStorage.setItem("theatarr.catalog.view", "table"));
   afterEach(() => vi.unstubAllGlobals());
 
-  const on = { mode: "active", paused: false, pause_forced: false, will_grab: true };
+  const on = { paused: false, pause_forced: false, will_grab: true };
   const live = { ...managed, grab_state: on };
   const movies = [
     { id: 6, kind: "movie", name: "Copper Sky", year: 2022, monitored: true, availability: "missing",
       versions: [
-        { id: 61, key: "movie-4k", label: "4K", monitored: true, has_file: false, state: "wanted", control: { ...shadow, grab_state: { ...on, mode: "shadow", will_grab: false } } },
+        { id: 61, key: "movie-4k", label: "4K", monitored: true, has_file: false, state: "wanted", control: { ...held, grab_state: { ...on, will_grab: false } } },
         { id: 62, key: "movie-web", label: "WEB", monitored: true, has_file: false, state: "wanted", control: live },
       ] },
     { id: 7, kind: "movie", name: "Sundial", year: 2021, monitored: true, availability: "missing",
-      versions: [{ id: 71, key: "movie-4k", label: "4K", monitored: true, has_file: false, state: "wanted", control: { ...shadow, grab_state: { ...on, mode: "shadow", will_grab: false } } }] },
+      versions: [{ id: 71, key: "movie-4k", label: "4K", monitored: true, has_file: false, state: "wanted", control: { ...held, grab_state: { ...on, will_grab: false } } }] },
   ];
   const movieRoutes = (perms = me.permissions) => [
     { method: "GET", path: "/auth/me", reply: { ...me, permissions: perms } },
@@ -784,7 +784,7 @@ describe("Row actions", () => {
     renderPage(<><Catalog id="movies" /><Toaster /></>, "/movies");
     await screen.findAllByText("Copper Sky");
     const search = within(rowOf("Copper Sky")).getByRole("button", { name: "Search now, Copper Sky" });
-    expect(search.getAttribute("title")).toBe("Search every monitored Live library now");
+    expect(search.getAttribute("title")).toBe("Search every monitored library now");
     await user.click(search);
     expect(await screen.findByText("Search started")).toBeTruthy();
     expect(screen.getByText("Searching 1 item(s) for movie-web")).toBeTruthy();
@@ -798,15 +798,15 @@ describe("Row actions", () => {
     const row = rowOf("Sundial");
     const search = within(row).getByRole("button", { name: "Search now, Sundial" }) as HTMLButtonElement;
     expect(search.disabled).toBe(true);
-    expect(search.getAttribute("title")).toBe("No library of this title is Live.");
+    expect(search.getAttribute("title")).toBe("Nothing is searched now: 4K: Downloads off");
     const interactive = within(row).getByRole("button", { name: "Interactive search, Sundial" }) as HTMLButtonElement;
     expect(interactive.disabled).toBe(true);
-    expect(interactive.getAttribute("title")).toBe("No library of this title is Live.");
+    expect(interactive.getAttribute("title")).toBe("No library of this title can search live now");
     // Each reason, from the row's own libraries.
     const v = (control: object, monitored = true) => ({ key: "movie-web", label: "WEB", monitored, control }) as never;
     expect(searchOff([v({ ...live, can_search: false, grab_state: { ...on, paused: true, will_grab: false } })])).toBe("Paused: nothing is searched, downloaded or linked for any library.");
     expect(searchOff([v({ ...live, can_search: false, grab_state: { ...on, pause_forced: true, will_grab: false } })])).toBe("Paused by the environment (THEATARR_FORCE_OFF): nothing is searched, downloaded or linked for any library.");
-    expect(searchOff([v({ ...shadow, grab_state: { ...on, mode: "shadow", will_grab: false } })])).toBe("No library of this title is Live.");
+    expect(searchOff([v({ ...held, grab_state: { ...on, will_grab: false } })])).toBe("Nothing is searched now: WEB: Downloads off");
     expect(searchOff([v(live, false)])).toBe("No library is monitored.");
     expect(searchOff([v(live)])).toBe("");
   });
@@ -838,7 +838,7 @@ describe("Row actions", () => {
     expect(link.getAttribute("href")).toBe("/title/1?tab=episodes");
     expect(link.getAttribute("title")).toBe("Choose season or episode");
     // The 1080p WEB library is monitored and Live: Search now is on, with the series words.
-    expect(within(row).getByRole("button", { name: "Search now, The Pellbrook Inquiries" }).getAttribute("title")).toBe("Search every monitored episode now, in every Live library (missing episodes and upgrades)");
+    expect(within(row).getByRole("button", { name: "Search now, The Pellbrook Inquiries" }).getAttribute("title")).toBe("Search every monitored episode now, in every library (missing episodes and upgrades)");
   });
 
   it("says on a phone card why Search now is disabled, and not in the desktop row", async () => {
@@ -854,7 +854,7 @@ describe("Row actions", () => {
     renderPage(<Catalog id="movies" />, "/movies");
     await screen.findAllByText("Sundial");
     const card = (name: string) => screen.getByRole("link", { name }).closest("li") as HTMLElement;
-    expect(within(card("Sundial")).getByTestId("row-search-off").textContent).toBe("No library of this title is Live.");
+    expect(within(card("Sundial")).getByTestId("row-search-off").textContent).toBe("Nothing is searched now: 4K: Downloads off");
     expect(within(card("Copper Sky")).queryByTestId("row-search-off")).toBeNull();
   });
 

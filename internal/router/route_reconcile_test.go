@@ -19,7 +19,7 @@ import (
 // never wait for a running route. A save turning Pause on while a route is mid-send is published at once and the
 // route sends nothing more.
 func TestPausePublishedDuringRunningRoute(t *testing.T) {
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	var published atomic.Pointer[Router]
 	published.Store(e.r)
 	e.r.SetCurrentRuntime(func() *Router { return published.Load() })
@@ -43,7 +43,7 @@ func TestPausePublishedDuringRunningRoute(t *testing.T) {
 	}()
 	<-started
 
-	pol := testPolicy(false, policy.ModeActive)
+	pol := testPolicy(false)
 	prepared := make(chan *Router, 1)
 	go func() {
 		cur, err := New(Config{Store: e.st, Policy: pol, Previous: e.r,
@@ -77,7 +77,7 @@ func TestPausePublishedDuringRunningRoute(t *testing.T) {
 // nothing is deleted (own_add stays unset).
 func TestReconciledAddGetsFilesSelected(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	withQueue(e)
 	var tid string
 	e.ad["rd"].add = func(m adder.Magnet, _ adder.AddOptions) (*adder.Added, error) {
@@ -142,7 +142,7 @@ func manualCand(hash, title string) Candidate {
 // selected on it and nothing is deleted, also when it then stalls. (TestReconciledAddGetsFilesSelected is the same for a searched release.)
 func TestReconciledManualAddIsReused(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	withQueue(e)
 	const tid = "rd-foreign"
 	foreign := provider.Torrent{ID: tid, Hash: h("a"), State: provider.StateQueued, Status: rdWaitingFiles,
@@ -197,7 +197,7 @@ func TestReconciledManualAddIsReused(t *testing.T) {
 // torrent, it is adopted as reused: no files are selected on it and nothing is deleted.
 func TestManualAddTakesOverSearchedRowIsReused(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	withQueue(e)
 	id := strandQueued(e, movieReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")))
 	e.clock = e.clock.Add(5 * time.Minute)
@@ -251,7 +251,7 @@ func TestManualAddTakesOverSearchedRowIsReused(t *testing.T) {
 // selection of ours on the shared torrent.
 func TestReconciledAddHeldByAnotherDownloadIsReuse(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	ctx, cancel := context.WithCancel(e.ctx)
 	e.ad["rd"].add = func(m adder.Magnet, _ adder.AddOptions) (*adder.Added, error) {
 		e.landOnAccount(m)
@@ -279,7 +279,7 @@ func TestReconciledAddHeldByAnotherDownloadIsReuse(t *testing.T) {
 // its share of the recovery pass.
 func TestAccountListErrorIsNotACut(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	want := &provider.APIError{Provider: "rd", Status: 401, Code: "bad_token", Message: "bad token"}
 	e.pr["rd"].listErr = want
 	lists := &accountLists{m: map[string]accountList{}, slice: time.Minute}
@@ -298,7 +298,7 @@ func TestDeferredPushRechecksFreshness(t *testing.T) {
 	t.Parallel()
 	for _, source := range []string{"rss", "arrview:push:radarr"} {
 		t.Run(source, func(t *testing.T) {
-			e := newEnv(t, true, policy.ModeActive)
+			e := newEnv(t, true)
 			freshMovie(e)
 			for _, k := range []string{"rd", "ad", "tb"} {
 				e.exec(`INSERT INTO router_pacing (provider, backoff_until, failures, reason, updated_at)
@@ -332,7 +332,7 @@ func TestCrashAfterUncachedDeleteNotBlocklisted(t *testing.T) {
 	t.Parallel()
 	for _, journaled := range []bool{true, false} {
 		t.Run(map[bool]string{true: "journaled", false: "plain"}[journaled], func(t *testing.T) {
-			e := newEnv(t, true, policy.ModeActive)
+			e := newEnv(t, true)
 			withQueue(e)
 			why := any(nil)
 			if journaled {
@@ -363,7 +363,7 @@ func TestCrashAfterUncachedDeleteNotBlocklisted(t *testing.T) {
 // does not add it there again; it waits for that add to settle.
 func TestUnsettledAddOfSameHashDefers(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	withQueue(e)
 	e.exec(`INSERT INTO version (id, title_id, policy_key, created_at, updated_at) VALUES (11, 1, 'other', 0, 0)`)
 	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, provider,
@@ -383,7 +383,7 @@ func TestUnsettledAddOfSameHashDefers(t *testing.T) {
 // provider is not pushed back by a slot nobody uses.
 func TestDeferSlotTakenOnlyWhenUsed(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	now := e.clock
 	at := now.Add(time.Minute)
 	first, _ := e.r.deferSlot("rd", at, now) // computed, never taken (the route gave up)

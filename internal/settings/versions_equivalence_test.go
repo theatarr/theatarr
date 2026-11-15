@@ -43,7 +43,6 @@ func TestVersionsPolicyRuntimeEquivalence(t *testing.T) {
 				sort.Strings(keys)
 				for _, key := range keys {
 					v := *p.Versions[key]
-					v.Mode = policy.ModeActive
 					v.Library += "-theatarr"
 					p.Versions[key+"-theatarr"] = &v
 					p.Library.Versions[key+"-theatarr"] = &policy.LibraryVersion{Roots: []string{v.Library}}

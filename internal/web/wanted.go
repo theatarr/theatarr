@@ -160,7 +160,7 @@ func (w *Web) apiWanted(rw http.ResponseWriter, r *http.Request) {
 		w.internal(rw, err)
 		return
 	}
-	out := WantedPage{WantedList: list, Titles: map[int64]string{}, Libraries: w.keyLabels(w.pol.ActiveVersions())}
+	out := WantedPage{WantedList: list, Titles: map[int64]string{}, Libraries: w.keyLabels(w.pol.VersionKeys())}
 	// The filtered title is named even when none of its rows is listed (its chip on the page).
 	var ids []any
 	if titleID != 0 {

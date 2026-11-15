@@ -18,9 +18,9 @@ import (
 
 // deadEnv is an active movie link of version 10 into Name/episode.mkv, the version filled, and another release so
 // the listing is plausible. The file itself is not on the mount.
-func deadEnv(t *testing.T, enabled bool, mode policy.Mode) (*env, string, string) {
+func deadEnv(t *testing.T, enabled bool) (*env, string, string) {
 	t.Helper()
-	e := newEnv(t, enabled, mode)
+	e := newEnv(t, enabled)
 	e.release("Other", map[string]float64{"a.mkv": 7000})
 	e.release("Name", map[string]float64{"x.mkv": 7000})
 	e.exec(`INSERT INTO content (id, info_hash, name, mount_folder, first_seen_at, last_seen_at) VALUES (1, ?, 'Name', 'Name', 0, 0)`, hashA)
@@ -53,7 +53,7 @@ func (e *env) sweep() []*LinkScan {
 // link dead. A sweep that finds it again in between starts over.
 func TestRelinkDeadNeedsTwoSweeps(t *testing.T) {
 	t.Parallel()
-	e, _, _ := deadEnv(t, true, policy.ModeActive)
+	e, _, _ := deadEnv(t, true)
 	e.sweep()
 	if got := e.one(`SELECT state FROM link WHERE id = 1`) + " " + e.one(`SELECT state FROM version WHERE id = 10`); got != "active filled" {
 		t.Fatalf("after one sweep: %s, want active filled", got)
@@ -99,7 +99,7 @@ func (e *env) deadLinkJobs() int {
 // queues no other.
 func TestRelinkDeadQueuesOneSearch(t *testing.T) {
 	t.Parallel()
-	e, _, _ := deadEnv(t, true, policy.ModeActive)
+	e, _, _ := deadEnv(t, true)
 	e.sweep()
 	if n := e.deadLinkJobs(); n != 0 {
 		t.Fatalf("%d searches queued on the first miss", n)
@@ -125,13 +125,12 @@ func TestRelinkDeadQueuesOneSearch(t *testing.T) {
 	}
 }
 
-// A link shared with a version the library gate does not let write (shadow, unlisted) queues a search for the
-// active version only.
+// A link shared with a version the library gate does not let write (unlisted) queues a search for the active
+// version only.
 func TestRelinkDeadSharedLinkQueuesActiveVersionOnly(t *testing.T) {
 	t.Parallel()
-	e, _, _ := deadEnv(t, true, policy.ModeActive)
-	e.pol.Versions["movie-shadow"] = &policy.VersionPolicy{Mode: policy.ModeShadow, Kind: policy.KindMovie,
-		Profile: "movie-state"}
+	e, _, _ := deadEnv(t, true)
+	e.pol.Versions["movie-shadow"] = &policy.VersionPolicy{Kind: policy.KindMovie, Profile: "movie-state"}
 	e.lib.gate = NewGate(e.pol)
 	e.exec(`INSERT INTO version (id, title_id, policy_key, created_at, updated_at) VALUES (11, 1, 'movie-shadow', 0, 0)`)
 	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (1, 11)`)
@@ -150,7 +149,7 @@ func TestRelinkDeadSharedLinkQueuesActiveVersionOnly(t *testing.T) {
 // A dead series link queues one search of its own episodes only.
 func TestRelinkDeadSeriesQueuesItsEpisodes(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.release("Other", map[string]float64{"a.mkv": 7000})
 	e.release("Show.S01", map[string]float64{"x.mkv": 2700})
 	tgt := filepath.Join(e.mount, "__all__", "Show.S01", "e1.mkv")
@@ -201,7 +200,7 @@ func TestRelinkDeadSeriesQueuesItsEpisodes(t *testing.T) {
 // A dead link whose file is back turns active again, and the title is no longer wanted.
 func TestRelinkRevivesDeadLink(t *testing.T) {
 	t.Parallel()
-	e, _, _ := deadEnv(t, true, policy.ModeActive)
+	e, _, _ := deadEnv(t, true)
 	e.exec(`UPDATE link SET state = 'dead' WHERE id = 1`)
 	e.exec(`UPDATE version SET state = 'wanted' WHERE id = 10`)
 	e.release("Name", map[string]float64{"episode.mkv": 7000})
@@ -215,7 +214,7 @@ func TestRelinkRevivesDeadLink(t *testing.T) {
 	// Gated: reported, not revived.
 	e.exec(`UPDATE link SET state = 'dead' WHERE id = 1`)
 	e.exec(`UPDATE version SET state = 'wanted' WHERE id = 10`)
-	e.pol.Versions["movie-remux"].Mode = policy.ModeShadow
+	e.pol.Library.Enabled = false
 	e.lib.gate = NewGate(e.pol)
 	e.sweep()
 	if got := e.one(`SELECT state FROM link WHERE id = 1`) + " " + e.one(`SELECT state FROM version WHERE id = 10`); got != "dead wanted" {
@@ -229,7 +228,7 @@ func TestRelinkRevivesDeadLink(t *testing.T) {
 // B1(a), series: the link's episodes are no longer wanted once it is revived.
 func TestRelinkRevivesDeadSeriesLink(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.release("Other", map[string]float64{"a.mkv": 7000})
 	e.release("Show.S01", map[string]float64{"e1.mkv": 2700})
 	p := filepath.Join(e.shows, "Show (2020)", "Season 01", "e1.mkv")
@@ -256,17 +255,16 @@ func TestRelinkRevivesDeadSeriesLink(t *testing.T) {
 	}
 }
 
-// A gated version's sweep (disabled library or shadow) never marks a link dead or flips its title to
+// A gated version's sweep (disabled library) never marks a link dead or flips its title to
 // wanted: it records the plan as a dry run.
 func TestRelinkDeadWhileGated(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		name    string
 		enabled bool
-		mode    policy.Mode
-	}{{"disabled", false, policy.ModeActive}, {"shadow", true, policy.ModeShadow}} {
+	}{{"disabled", false}} {
 		t.Run(tt.name, func(t *testing.T) {
-			e, _, _ := deadEnv(t, tt.enabled, tt.mode)
+			e, _, _ := deadEnv(t, tt.enabled)
 			e.sweep()
 			e.now = e.now.Add(2 * deadConfirm)
 			scans := e.sweep()
@@ -290,7 +288,7 @@ func TestRelinkDeadWhileGated(t *testing.T) {
 // An untracked dangling symlink (an arr's file in the root) has no row to mark: no "dead applied" action.
 func TestRelinkUntrackedNoDeadAction(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.release("Other", map[string]float64{"a.mkv": 7000})
 	p := filepath.Join(e.movies, "Arr Movie (2001)", "Arr.mkv")
 	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
@@ -313,7 +311,7 @@ func TestRelinkUntrackedNoDeadAction(t *testing.T) {
 // Relink's repoint never revives an unlinked row.
 func TestRelinkKeepsUnlinkedRow(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.release("Other", map[string]float64{"a.mkv": 7000})
 	e.release("Name {"+hashA[:6]+"}", map[string]float64{"episode.mkv": 7000})
 	e.exec(`INSERT INTO content (id, info_hash, name, mount_folder, first_seen_at, last_seen_at) VALUES (1, ?, 'Name', 'Name', 0, 0)`, hashA)
@@ -338,7 +336,7 @@ func TestRelinkKeepsUnlinkedRow(t *testing.T) {
 // Unlink is a compare-and-swap on the row: a link a rename moved meanwhile is not unlinked by a stale path.
 func TestUnlinkCompareAndSwap(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	oldPath := filepath.Join(e.movies, "Old", "old.mkv")
 	newPath := filepath.Join(e.movies, "New", "new.mkv")
 	target := filepath.Join(e.mount, "__all__", "R", "movie.mkv")
@@ -369,7 +367,7 @@ func TestUnlinkCompareAndSwap(t *testing.T) {
 // points at the target.
 func TestRenameRetryAfterCrash(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	old := filepath.Join(e.movies, "Old", "old.mkv")
 	newPath := filepath.Join(e.movies, "New", "new.mkv")
 	target := filepath.Join(e.mount, "__all__", "movie.mkv")
@@ -444,7 +442,7 @@ func TestUpgradeRacingRename(t *testing.T) {
 // Trash copies an interrupted run left without a link_trash row are purged after keep_days too (symlinks only).
 func TestPurgeTrashOrphans(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.lib.set.TrashKeepDays = 7
 	dir := filepath.Join(e.trash, "movie-remux", "2026-10-01", "Movie (2001)")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -499,7 +497,7 @@ func TestPurgeTrashOrphans(t *testing.T) {
 // A sweep that saw a present link as active (with a noted miss) while another sweep marked it dead in
 // the meantime revives it: the state is read again in the write transaction, not taken from the sweep's start.
 func TestRelinkRevivesLinkMarkedDeadDuringSweep(t *testing.T) {
-	e, _, _ := deadEnv(t, true, policy.ModeActive)
+	e, _, _ := deadEnv(t, true)
 	e.sweep() // the miss is noted
 	e.release("Name", map[string]float64{"episode.mkv": 7000})
 	e.lib.beforeSweepWrite = func() {
@@ -518,7 +516,7 @@ func TestRelinkRevivesLinkMarkedDeadDuringSweep(t *testing.T) {
 // left the stray it was to move aside. The sweep moves both aside (they are Theatarr's, retired by a row that changed after
 // the symlink was made), and leaves a symlink newer than its row (a rename still in flight) and a gated version alone.
 func TestRelinkMovesAsideCrashLeftovers(t *testing.T) {
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.release("Other", map[string]float64{"a.mkv": 7000})
 	e.release("Name", map[string]float64{"movie.mkv": 7000, "old.mkv": 7000})
 	target := filepath.Join(e.mount, "__all__", "Name", "movie.mkv")
@@ -550,7 +548,7 @@ func TestRelinkMovesAsideCrashLeftovers(t *testing.T) {
 	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (1, 10), (2, 10)`)
 
 	// Gated: nothing moves.
-	e.pol.Versions["movie-remux"].Mode = policy.ModeShadow
+	e.pol.Library.Enabled = false
 	e.lib.gate = NewGate(e.pol)
 	e.sweep()
 	for _, p := range []string{renamedFrom, stray, inFlight} {
@@ -558,7 +556,7 @@ func TestRelinkMovesAsideCrashLeftovers(t *testing.T) {
 			t.Fatalf("gated sweep moved %s: %v", p, err)
 		}
 	}
-	e.pol.Versions["movie-remux"].Mode = policy.ModeActive
+	e.pol.Library.Enabled = true
 	e.lib.gate = NewGate(e.pol)
 	e.sweep()
 	for _, p := range []string{renamedFrom, stray} {

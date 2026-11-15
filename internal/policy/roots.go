@@ -15,11 +15,10 @@ import (
 )
 
 // CollectionTarget reports whether a version may be a movie collection's target (docs/design/arrview.md, Collections):
-// a Live movie library, the versions the library gate lets write (internal/library NewGate). A Watch-only one only
-// dry-runs.
+// a movie library.
 func (p *Policy) CollectionTarget(key string) bool {
 	v := p.Versions[key]
-	return v != nil && v.Kind == KindMovie && v.Mode == ModeActive
+	return v != nil && v.Kind == KindMovie
 }
 
 // CollectionTargets returns every version CollectionTarget allows, sorted.
@@ -51,14 +50,14 @@ func (p *Policy) versionRoots(k string) []string {
 	return out
 }
 
-// validateRootSeparation checks that every Live library's roots overlap no other library's roots, the trash or the
+// validateRootSeparation checks that every library's roots overlap no other library's roots, the trash or the
 // debrid mount.
 func (p *Policy) validateRootSeparation(e *Errors) {
 	// Every version's check consults the same roots: they are resolved once for the whole validation.
 	rr := newLenientResolver()
 	for _, k := range sortedKeys(p.Versions) {
 		v := p.Versions[k]
-		if v == nil || v.Mode != ModeActive || p.Library == nil || p.Library.Versions[k] == nil {
+		if v == nil || p.Library == nil || p.Library.Versions[k] == nil {
 			continue
 		}
 		if _, err := p.CheckRootSeparationWith(k, rr); err != nil {

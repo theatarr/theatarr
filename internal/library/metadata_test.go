@@ -6,12 +6,11 @@ import (
 	"testing"
 
 	"github.com/theatarr/theatarr/internal/decide"
-	"github.com/theatarr/theatarr/internal/policy"
 )
 
 func TestImportRecordsFileMetadata(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	release := "Amelie.2001.REPACK.2160p.UHD.BluRay.REMUX.HDR.HEVC.TrueHD.Atmos.7.1-GRP"
 	e.release(release, map[string]float64{"movie.mkv": 7000})
 	e.download(1, "movie-remux", 1, 10, release, release, "[]")

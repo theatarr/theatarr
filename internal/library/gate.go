@@ -17,7 +17,7 @@ var ErrRefused = errors.New("library: write refused")
 
 // Refused is a gate refusal: why a write may not happen.
 type Refused struct {
-	Reason string // disabled, shadow, unlisted, outside, symlinked, not_symlink, unreachable
+	Reason string // disabled, unlisted, outside, symlinked, not_symlink, unreachable
 	Detail string
 }
 
@@ -40,7 +40,7 @@ func Unavailable(err error) bool {
 }
 
 // Gate decides whether a filesystem write or a Plex call may happen (docs/design/library.md "The gate"):
-// library.enabled must be true, the version must be mode: active and listed under library.versions, and the path
+// library.enabled must be true, the version must be listed under library.versions, and the path
 // must be under one of that version's roots (the trash directory for links moved aside). Paths are cleaned and
 // their parent directories resolved, so a symlinked directory inside a root cannot lead a write outside it, and no
 // root or directory may lead into the debrid mount (policy.ResolvePath, which never touches the mount itself).
@@ -52,8 +52,8 @@ type Gate struct {
 }
 
 type gateVersion struct {
-	active bool
-	roots  []string
+	known bool // the version is in the policy
+	roots []string
 }
 
 // NewGate builds the gate from the policy.
@@ -61,9 +61,7 @@ func NewGate(p *policy.Policy) *Gate {
 	s := p.LibrarySettings()
 	g := &Gate{policy: p, enabled: s.Enabled, trash: s.TrashDir, versions: map[string]gateVersion{}}
 	for k, lv := range s.Versions {
-		vp := p.Versions[k]
-		active := vp != nil && vp.Mode == policy.ModeActive
-		g.versions[k] = gateVersion{active: active, roots: lv.Roots}
+		g.versions[k] = gateVersion{known: p.Versions[k] != nil, roots: lv.Roots}
 	}
 	return g
 }
@@ -71,10 +69,10 @@ func NewGate(p *policy.Policy) *Gate {
 // Enabled reports library.enabled.
 func (g *Gate) Enabled() bool { return g.enabled }
 
-// Active reports whether a version may write at all (enabled, active, listed).
+// Active reports whether a version may write at all (enabled, in the policy, listed with roots).
 func (g *Gate) Active(version string) bool {
 	v, ok := g.versions[version]
-	return g.enabled && ok && v.active && len(v.roots) > 0
+	return g.enabled && ok && v.known && len(v.roots) > 0
 }
 
 // Roots returns a version's roots.
@@ -122,17 +120,17 @@ func (g *Gate) Versions() []string {
 // Summary describes the gate for the startup log.
 func (g *Gate) Summary() string {
 	if !g.enabled {
-		return "library.enabled is false: no filesystem writes and no Plex calls; shadow dry runs only"
+		return "library.enabled is false: no filesystem writes and no Plex calls; dry runs only"
 	}
-	var active, shadow []string
+	var active, none []string
 	for _, k := range g.Versions() {
 		if g.Active(k) {
 			active = append(active, k+" "+strings.Join(g.versions[k].roots, ","))
 		} else {
-			shadow = append(shadow, k)
+			none = append(none, k)
 		}
 	}
-	return fmt.Sprintf("library writes enabled for: %s; dry run only: %s", orNone(active), orNone(shadow))
+	return fmt.Sprintf("library writes enabled for: %s; no roots: %s", orNone(active), orNone(none))
 }
 
 func orNone(s []string) string {
@@ -152,12 +150,8 @@ func (g *Gate) checkVersion(version string, rr *policy.RootResolver) error {
 	if !g.enabled {
 		return &Refused{Reason: "disabled", Detail: "library.enabled is false"}
 	}
-	v, ok := g.versions[version]
-	if !ok {
+	if v, ok := g.versions[version]; !ok || !v.known {
 		return &Refused{Reason: "unlisted", Detail: fmt.Sprintf("version %q is not listed under library.versions", version)}
-	}
-	if !v.active {
-		return &Refused{Reason: "shadow", Detail: fmt.Sprintf("version %q is not Live", version)}
 	}
 	// Every root is resolved through the root prober: a root on a share that stops answering refuses the write
 	// ("not answering") after one bounded wait, and at once while that call is stuck, instead of holding the

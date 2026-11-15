@@ -148,10 +148,10 @@ func newEnv(t *testing.T) *env {
 	e.st = st
 	e.pol = &policy.Policy{
 		Versions: map[string]*policy.VersionPolicy{
-			"movies": {Mode: policy.ModeActive, Kind: policy.KindMovie, Profile: "movie", Library: e.movies,
+			"movies": {Kind: policy.KindMovie, Profile: "movie", Library: e.movies,
 				Naming: policy.Naming{Folder: "{Movie CleanTitle} ({Release Year})",
 					File: "{Movie CleanTitle} ({Release Year}) {[Quality Full]}{-Release Group}"}},
-			"shows": {Mode: policy.ModeActive, Kind: policy.KindSeries, Profile: "tv", Library: e.shows,
+			"shows": {Kind: policy.KindSeries, Profile: "tv", Library: e.shows,
 				Naming: policy.Naming{Folder: "{Series CleanTitleWithoutYear}", Season: "Season {season:00}",
 					File: "{Series CleanTitleWithoutYear} - S{season:00}E{episode:00} {[Quality Full]}"}},
 		},
@@ -453,20 +453,6 @@ func TestRunRefusals(t *testing.T) {
 	d.Titles = nil
 	if _, err := Run(e.ctx, d, base, nil); !errors.As(err, &ref) || !strings.Contains(ref.Msg, "TMDb") {
 		t.Fatalf("no TMDb: %v", err)
-	}
-
-	// A Watch-only library: an Import is refused, a Preview reports it.
-	e.pol.Versions["movies"].Mode = policy.ModeShadow
-	d = e.deps(radarr)
-	d.Library = e.newLib()
-	if _, err := Run(e.ctx, d, base, nil); !errors.As(err, &ref) || !strings.Contains(ref.Msg, "Watch only") {
-		t.Fatalf("watch only: %v", err)
-	}
-	preview := base
-	preview.DryRun = true
-	rep, err := Run(e.ctx, d, preview, nil)
-	if err != nil || rep.Writable || rep.WriteBlock != "it is Watch only" {
-		t.Fatalf("watch-only preview %+v %v", rep, err)
 	}
 }
 

@@ -147,7 +147,7 @@ errors omit addresses and unknown option text that could contain credentials.
 
 ## RSS
 
-The RSS sync (`shadow.rss`, [rss.md](rss.md)) reads the catalog sources the Live libraries list, with the Torznab
+The RSS sync (`shadow.rss`, [rss.md](rss.md)) reads the catalog sources the libraries list, with the Torznab
 feeds, under the same rules: the indexer's budget and back-off, the VPN check on every hop, and accepted items routed
 (written only while Pause is off).
 

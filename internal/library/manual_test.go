@@ -18,7 +18,7 @@ func TestManualImportOverridesAndModes(t *testing.T) {
 	for _, series := range []bool{false, true} {
 		for _, mode := range []string{"move", "copy", "auto"} {
 			t.Run(map[bool]string{false: "movie", true: "series"}[series]+"/"+mode, func(t *testing.T) {
-				e := newEnv(t, true, policy.ModeActive)
+				e := newEnv(t, true)
 				version, folder, rel, tid, vid, episodes, fl := "movie-remux", "Amelie.2001.2160p.REMUX-OLD", "Amelie.2001.2160p.REMUX-OLD.mkv", int64(1), int64(10), "[]", format.Radarr
 				if series {
 					version, folder, rel, tid, vid, episodes, fl = "tv", "Show.S01.2160p.BluRay.REMUX-OLD", "Show.S01E01.2160p.BluRay.REMUX-OLD.mkv", 2, 20, "[202]", format.Sonarr
@@ -95,7 +95,7 @@ func TestManualImportOverridesAndModes(t *testing.T) {
 
 func TestManualFactsChangeUpgradeDecision(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	d, err := (&NewImport{TitleID: 1, VersionID: 10, Version: "movie-remux", ReleaseTitle: "Amelie.2001.1080p.WEB-DL-OLD"}).download(e.ctx, e.st.Reader(), e.pol)
 	if err != nil {
 		t.Fatal(err)

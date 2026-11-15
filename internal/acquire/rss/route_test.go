@@ -15,22 +15,20 @@ import (
 	"github.com/theatarr/theatarr/internal/router/routertest"
 )
 
-// withRouter rebuilds the runner with a router over logging fake adders (router.enabled true, so only the versions'
-// modes keep it from writing), only the given versions Live (the others Watch only), and TorBox added
+// withRouter rebuilds the runner with a router over logging fake adders (router.enabled true), only the given
+// versions in the policy (the others removed), and TorBox added
 // after Real-Debrid for every debrid version (TorBox has no name rule, so a WEB-DL can be placed).
 func (e *env) withRouter(t *testing.T, active ...string) (*routertest.Fake, *jobs.Queue, *jobs.Worker) {
 	t.Helper()
 	e.pol.Router = &policy.Router{Enabled: true}
 	e.pol.Providers["tb"] = &policy.Provider{Kind: provider.KindTorBox, Order: 2, URL: "https://api.torbox.app/v1",
 		APIKeyEnv: "THEATARR_TB_KEY", Pacing: policy.Pacing{AddsPerMinute: 100}}
-	for _, v := range e.pol.Versions {
-		v.Mode = ""
-		if v.Storage == policy.StorageDebrid {
+	for k, v := range e.pol.Versions {
+		if !slices.Contains(active, k) {
+			delete(e.pol.Versions, k)
+		} else if v.Storage == policy.StorageDebrid {
 			v.Providers = []string{"rd", "tb"}
 		}
-	}
-	for _, k := range active {
-		e.pol.Versions[k].Mode = policy.ModeActive
 	}
 	q := jobs.NewQueue(e.st)
 	q.SetClock(e.clock)
@@ -43,8 +41,8 @@ func (e *env) withRouter(t *testing.T, active ...string) (*routertest.Fake, *job
 	return rt, q, w
 }
 
-// With movie-web Live, RSS picks for it go to the router as route jobs (the router adds them); movie-remux is Watch
-// only and gets nothing.
+// With movie-web the one library, RSS picks for it go to the router as route jobs (the router adds them); movie-remux
+// is gone from the policy and gets nothing.
 func TestActiveRSSRoutes(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, false)
@@ -80,7 +78,7 @@ func TestActiveRSSRoutes(t *testing.T) {
 		t.Errorf("movie-web downloads %d", n)
 	}
 	if n := one[int](t, e.st, `SELECT COUNT(*) FROM download WHERE version_key != 'movie-web'`); n != 0 {
-		t.Errorf("%d downloads for Watch-only versions", n)
+		t.Errorf("%d downloads for versions outside the policy", n)
 	}
 	// The next read with the same titles in flight routes nothing more.
 	e.prow.setRSS(item{title: "Alien.Romulus.2024.2160p.AMZN.WEB-DL.DDP5.1.Atmos.DV.HDR.H.265-FLUX", hash: strings.Repeat("8", 40),

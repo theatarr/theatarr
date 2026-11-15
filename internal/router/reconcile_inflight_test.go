@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/theatarr/theatarr/internal/jobs"
-	"github.com/theatarr/theatarr/internal/policy"
 )
 
 // Reconcile leaves work in flight alone: the queued download a running route job works on is listed
@@ -20,7 +19,7 @@ func TestReconcileLeavesWorkInFlight(t *testing.T) {
 		{"queued continuation, adding download", StateAdding, jobs.StateQueued},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			e := newEnv(t, true, policy.ModeActive)
+			e := newEnv(t, true)
 			q := jobs.NewQueue(e.st)
 			e.exec(`INSERT INTO download (id,title_id,version_id,version_key,info_hash,release_title,indexer,state,episodes,
 				source,release_data,created_at,updated_at) VALUES (7,1,10,'movie',?,'Movie 2024','pub',?,'[]','wanted','{}',0,0)`,

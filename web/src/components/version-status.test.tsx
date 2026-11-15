@@ -8,24 +8,22 @@ import { DownloadsOffNotice, VersionStatus } from "./version-status";
 afterEach(cleanup);
 
 describe("VersionStatus", () => {
-  const on = { mode: "active", paused: false, pause_forced: false };
+  const on = { paused: false, pause_forced: false };
 
   it("shows Downloads on only with every gate open, and no Why?", () => {
-    render(<VersionStatus state={on} showMode />);
-    expect(screen.getByText("Live")).toBeTruthy();
+    render(<VersionStatus state={on} />);
     expect(screen.getByText("Downloads on").dataset.tone).toBe("ok");
     expect(screen.queryByRole("button", { name: "Why?" })).toBeNull();
     expect(screen.queryByTestId("links-off")).toBeNull();
   });
 
-  const cases: [Partial<typeof on>, string, string[]][] = [
+  const cases: [Partial<typeof on & { will_grab: boolean }>, string, string[]][] = [
     [{ paused: true }, "Paused", ["Paused: turn Pause off at the top of the page"]],
     [{ paused: true, pause_forced: true }, "Paused", ["Paused by the environment (THEATARR_FORCE_OFF)"]],
-    [{ mode: "shadow" }, "Watch only", ["Watch only: Theatarr searches, downloads and links nothing for this library"]],
-    [{ mode: "off", paused: true }, "Downloads off", ["This library is not in the saved settings", "Paused: turn Pause off at the top of the page"]],
+    [{ will_grab: false }, "Downloads off", ["Automatic downloads are paused by the server"]],
   ];
   it.each(cases)("shows the verdict and every closed gate behind Why? for %j", async (gates, word, closed) => {
-    render(<VersionStatus state={{ ...on, ...gates }} showMode />);
+    render(<VersionStatus state={{ ...on, ...gates }} />);
     expect(screen.getByText(word)).toBeTruthy();
     expect(screen.queryByText("Downloads on")).toBeNull();
     const why = screen.getByRole("button", { name: "Why?" });
@@ -42,14 +40,18 @@ describe("VersionStatus", () => {
 });
 
 it("links closed gates to where they are changed for admins; Pause has no link", async () => {
-  render(<MemoryRouter><VersionStatus state={{ mode: "shadow", paused: true, pause_forced: false }} showMode canManage settingsKey="movie-web" /></MemoryRouter>);
+  render(<MemoryRouter><VersionStatus state={{ paused: false, pause_forced: false, will_grab: false }} canManage settingsKey="movie-web" /></MemoryRouter>);
   await userEvent.click(screen.getByRole("button", { name: "Why?" }));
   const links = screen.getAllByRole("link");
   expect(links.map((l) => l.getAttribute("href"))).toEqual(["/admin/settings/libraries?edit=movie-web"]);
+  cleanup();
+  render(<MemoryRouter><VersionStatus state={{ paused: true, pause_forced: false }} canManage settingsKey="movie-web" /></MemoryRouter>);
+  await userEvent.click(screen.getByRole("button", { name: "Why?" }));
+  expect(screen.queryAllByRole("link")).toHaveLength(0);
 });
 
 it("marks links off separately while downloads stay on", async () => {
-  render(<MemoryRouter><VersionStatus canManage showMode state={{ mode: "active", paused: false, pause_forced: false, will_grab: true, library_writes: false }} /></MemoryRouter>);
+  render(<MemoryRouter><VersionStatus canManage state={{ paused: false, pause_forced: false, will_grab: true, library_writes: false }} /></MemoryRouter>);
   expect(screen.getByText("Downloads on")).toBeTruthy();
   expect(screen.getByTestId("links-off").textContent).toBe("New files won't be linked");
   await userEvent.click(screen.getByRole("button", { name: "Why?" }));
@@ -57,17 +59,17 @@ it("marks links off separately while downloads stay on", async () => {
 });
 
 it("links library settings to Libraries without a key, and shows no links to others", async () => {
-  render(<MemoryRouter><VersionStatus canManage state={{ mode: "shadow", paused: false, pause_forced: false }} /></MemoryRouter>);
+  render(<MemoryRouter><VersionStatus canManage state={{ paused: false, pause_forced: false, will_grab: false }} /></MemoryRouter>);
   await userEvent.click(screen.getByRole("button", { name: "Why?" }));
   expect(screen.getAllByRole("link")[0].getAttribute("href")).toBe("/admin/settings/libraries");
   cleanup();
-  render(<VersionStatus state={{ mode: "shadow", paused: false, pause_forced: false }} />);
+  render(<VersionStatus state={{ paused: false, pause_forced: false, will_grab: false }} />);
   await userEvent.click(screen.getByRole("button", { name: "Why?" }));
   expect(screen.queryAllByRole("link")).toHaveLength(0);
 });
 
 it("keeps the gates reachable by keyboard in dense rows, with admin links, and Escape returns focus", async () => {
-  render(<MemoryRouter><VersionStatus why={false} canManage settingsKey="movie-web" state={{ mode: "active", paused: false, pause_forced: false, will_grab: false }} /></MemoryRouter>);
+  render(<MemoryRouter><VersionStatus why={false} canManage settingsKey="movie-web" state={{ paused: false, pause_forced: false, will_grab: false }} /></MemoryRouter>);
   expect(screen.queryByRole("button", { name: "Why?" })).toBeNull();
   expect(screen.getByText("Downloads off").title).toBe("Automatic downloads are paused by the server.");
   const why = screen.getByRole("button", { name: "Why Downloads off?" });
@@ -87,7 +89,7 @@ it("keeps the gates reachable by keyboard in dense rows, with admin links, and E
 });
 
 it("shows no dense Why? button when downloads are on", () => {
-  render(<VersionStatus why={false} state={{ mode: "active", paused: false, pause_forced: false }} />);
+  render(<VersionStatus why={false} state={{ paused: false, pause_forced: false }} />);
   expect(screen.queryByRole("button")).toBeNull();
 });
 

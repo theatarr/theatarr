@@ -80,7 +80,7 @@ func TestServeOpsRename(t *testing.T) {
 		t.Fatalf("preview %+v %v", p, err)
 	}
 	var refusal interface{ Refused() bool }
-	for _, e := range []error{&library.Refused{Reason: "shadow", Detail: "version \"movie-remux\" is not mode: active"},
+	for _, e := range []error{&library.Refused{Reason: "disabled", Detail: "library.enabled is false"},
 		&library.LinkChanged{ID: 7, Path: "/a.mkv", Target: "/t", Detail: "its row changed"}} {
 		lib.applyErr = e
 		if _, err := ren.ApplyRename(ctx, 1, nil); !errors.As(err, &refusal) {

@@ -114,7 +114,7 @@ describe("writes", () => {
 
 describe("matchingLibraries", () => {
   const lib = (key: string, kind: "movie" | "series", anime: boolean | null = null): VersionRecord =>
-    ({ id: 1, key, created_at: "", updated_at: "", roots: [], config: { kind, anime, mode: "active" } }) as unknown as VersionRecord;
+    ({ id: 1, key, created_at: "", updated_at: "", roots: [], config: { kind, anime } }) as unknown as VersionRecord;
   const libs = [lib("movies", "movie"), lib("anime-movies", "movie", true), lib("tv", "series", false), lib("series", "series"), lib("anime", "series", true)];
 
   it("goes by a catalog site's categories", () => {

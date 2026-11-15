@@ -10,13 +10,12 @@ import (
 	"time"
 
 	"github.com/theatarr/theatarr/internal/health"
-	"github.com/theatarr/theatarr/internal/policy"
 )
 
 // A partial upgrade keeps the multi-episode adopted file and both episodes' states.
 func TestUpgradeRetiresArrEpisodeFile(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	rel := "Show.S01E01.2160p.WEB-DL.DDP5.1.H.265-GRP"
 	e.release(rel, map[string]float64{"Show.S01E01.2160p.WEB-DL.DDP5.1.H.265-GRP.mkv": 2700})
 	e.release("Old", map[string]float64{"old.mkv": 2700})
@@ -51,7 +50,7 @@ func TestUpgradeRetiresArrEpisodeFile(t *testing.T) {
 // that is missing or empty is skipped whole, and a shadow version only reports.
 func TestReconcileVanishedLinks(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
 	e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
 	plan, err := e.lib.Import(e.ctx, 1, false)
@@ -71,17 +70,17 @@ func TestReconcileVanishedLinks(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Shadow: reported, nothing written.
-	e.pol.Versions["movie-remux"].Mode = policy.ModeShadow
+	// Library off: reported, nothing written.
+	e.pol.Library.Enabled = false
 	e.lib.gate = NewGate(e.pol)
 	scans, err = e.lib.ReconcileLinks(e.ctx, "movie-remux", nil)
 	if err != nil || len(scans) != 1 || len(scans[0].Vanished) != 1 || !scans[0].DryRun {
-		t.Fatalf("shadow: %+v %v", scans, err)
+		t.Fatalf("library off: %+v %v", scans, err)
 	}
 	if got := e.one(`SELECT state FROM link`) + e.one(`SELECT state FROM version WHERE id = 10`); got != "activecutoff_met" {
-		t.Fatalf("shadow wrote: %s", got)
+		t.Fatalf("library off wrote: %s", got)
 	}
-	e.pol.Versions["movie-remux"].Mode = policy.ModeActive
+	e.pol.Library.Enabled = true
 	e.lib.gate = NewGate(e.pol)
 
 	// Another title only: this link is not looked at.
@@ -106,7 +105,7 @@ func TestReconcileVanishedLinks(t *testing.T) {
 
 func TestReconcileSkipsUnavailableRoots(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
 	e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
 	if _, err := e.lib.Import(e.ctx, 1, false); err != nil {
@@ -139,7 +138,7 @@ func TestReconcileSkipsUnavailableRoots(t *testing.T) {
 // The relink sweep reconciles too; a pure dry run only reports.
 func TestRelinkSweepReconciles(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
 	e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
 	plan, err := e.lib.Import(e.ctx, 1, false)
@@ -171,7 +170,7 @@ func TestRelinkSweepReconciles(t *testing.T) {
 // none of them missing: an alert is recorded instead, which the health check reports. A few missing go as before.
 func TestReconcileVanishFailsafe(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
 	e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
 	plan, err := e.lib.Import(e.ctx, 1, false)
@@ -237,7 +236,7 @@ func TestReconcileVanishFailsafe(t *testing.T) {
 // series (more than a quarter of that title's links, few of the root's) goes as a full sweep would take it.
 func TestReconcileTitleScanFailsafeCountsTheRoot(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
 	e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
 	plan, err := e.lib.Import(e.ctx, 1, false)

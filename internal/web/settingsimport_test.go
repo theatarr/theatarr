@@ -32,7 +32,7 @@ profiles:
     cutoff: WEBDL-1080p
 versions:
   movie:
-    mode: shadow
+    import: symlink
     kind: movie
     profile: web
     library: ROOT/media/movies
@@ -307,12 +307,12 @@ func TestSettingsImportKeepsStoredSectionsAndSwitches(t *testing.T) {
 	}
 }
 
-// Importing the stored settings' files again with a default left out (the version's mode: shadow) changes nothing:
+// Importing the stored settings' files again with a default left out (the version's import: symlink) changes nothing:
 // the imported records carry the defaults the stored ones were saved with.
 func TestSettingsReimportWithDefaultLeftOutChangesNothing(t *testing.T) {
 	t.Parallel()
 	se := newImportEnv(t, seedImport(t))
-	se.editImportPolicy("    mode: shadow\n", "")
+	se.editImportPolicy("    import: symlink\n", "")
 	out := se.want(se.call("POST", "/import/preview", map[string]any{"generation": 1}), http.StatusOK, "preview")
 	if changes, _ := json.Marshal(out["changes"]); string(changes) != "[]" {
 		t.Fatalf("re-import changes: %s", changes)

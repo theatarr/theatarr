@@ -5,13 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/theatarr/theatarr/internal/auth"
-	"github.com/theatarr/theatarr/internal/policy"
 )
 
 // keyCall sends a settings request with an API key, as an agent does.
@@ -40,38 +37,22 @@ func (se *settingsEnv) lastActor(entity string) string {
 	return actor
 }
 
-// An admin's key creates and activates a version through the same 422/preview and token round
-// trips as the UI; its saves are audited as the key, confirmed by the key.
-func TestAgentKeyActivatesVersion(t *testing.T) {
+// An admin's key turns Pause off through the same 422/preview and token round trip as the UI; its confirmed save is
+// audited as the key, confirmed by the key.
+func TestAgentKeyConfirmsPauseOff(t *testing.T) {
 	t.Parallel()
-	area := t.TempDir()
-	se := newQualityEnvBase(t, func(p *policy.Policy) { p.Library.Dangling.Roots = []string{area} })
+	se := seededSwitchesEnv(t, nil)
 	key := se.apiKeyNamed("agent")
-	config := se.want(se.keyCall(key, "GET", "/versions/movie-web", nil), 200, "get")["record"].(map[string]any)["config"].(map[string]any)
-	root := filepath.Join(area, "test-version")
-	if err := os.Mkdir(root, 0700); err != nil {
-		t.Fatal(err)
-	}
-	config["library"], config["mode"] = root, "shadow"
-	body := map[string]any{"generation": se.generation(), "key": "test-version", "config": config, "roots": []string{root}}
-	se.want(se.keyCall(key, "POST", "/versions", body), 200, "shadow create")
-
-	config["mode"] = "active"
-	body["generation"] = se.generation()
 	gen := se.generation()
-	token := confirmRefusal(t, se.want(se.keyCall(key, "PUT", "/versions/test-version", body), 422, "activation"), root)
+	body := map[string]any{"generation": gen, "paused": false}
+	token := confirmRefusal(t, se.want(se.keyCall(key, "PUT", "/switches", body), 422, "Pause off"), "Turn Pause off")
 	body["confirmation_token"] = token
-	se.want(se.keyCall(key, "PUT", "/versions/test-version", body), 200, "key-confirmed activation")
+	se.want(se.keyCall(key, "PUT", "/switches", body), 200, "key-confirmed Pause off")
 	if se.generation() != gen+1 {
-		t.Fatal("activation not saved")
+		t.Fatal("Pause off not saved")
 	}
-	if got := se.lastActor("versions"); got != "admin (api key agent), confirmed by api key agent" {
+	if got := se.lastActor("switches"); got != "admin (api key agent), confirmed by api key agent" {
 		t.Fatalf("audit actor %q", got)
-	}
-
-	got := se.want(se.keyCall(key, "GET", "/versions/test-version", nil), 200, "read")["record"].(map[string]any)["config"].(map[string]any)
-	if got["mode"] != "active" {
-		t.Fatalf("version not active: %v", got)
 	}
 }
 

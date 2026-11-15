@@ -28,8 +28,8 @@ import (
 // The decision endpoints: GET release (interactive search with our decisions), POST release (grab one),
 // POST release/push (decide a pushed release and route it). A release is decided for each of the view's versions
 // the title has; it is approved when any of them accepts it, and a grab goes to the router for the versions that
-// accepted it (all of them when none did: the arrs let a user grab a rejected release). The router writes only for
-// active versions while router.enabled is true; for a shadow version it records a dry-run plan.
+// accepted it (all of them when none did: the arrs let a user grab a rejected release). The router writes only while
+// router.enabled is true.
 
 // releaseTTL is how long a searched release can be grabbed (the arrs' release cache: 30 minutes).
 const releaseTTL = 30 * time.Minute
@@ -681,8 +681,8 @@ func (s *Service) grabRelease(w http.ResponseWriter, r *request) {
 	writeJSON(w, http.StatusOK, raw)
 }
 
-// routeRelease hands one release to the router for each decision's version. A shadow version's route is a dry run
-// recorded in router_plan; the router alone decides whether it writes.
+// routeRelease hands one release to the router for each decision's version; the router alone decides whether it
+// writes.
 func (s *Service) routeRelease(ctx context.Context, f *found, ds []*decide.Decision, source string, userInvoked bool) error {
 	// Radarr AvailabilitySpecification.cs:22-26: user-invoked searches and grabs skip availability.
 	var ready []*decide.Decision

@@ -69,10 +69,9 @@ type SettingsSwitches struct {
 	Versions     []SettingsVersionMode `json:"versions"`
 }
 
-// SettingsVersionMode is one version's running mode and grab gates.
+// SettingsVersionMode is one version's grab gates.
 type SettingsVersionMode struct {
 	Key       string           `json:"key"`
-	Mode      string           `json:"mode"`
 	GrabState VersionGrabState `json:"grab_state"`
 }
 
@@ -92,8 +91,7 @@ func (w *Web) settingsSwitches() SettingsSwitches {
 	out.PauseForced = slices.Contains(pol.ForcedOff, "pause")
 	out.NotifyForced = slices.Contains(pol.ForcedOff, "notify")
 	for _, k := range sortedKeys(pol.Versions) {
-		out.Versions = append(out.Versions, SettingsVersionMode{Key: k, Mode: string(pol.Versions[k].Mode),
-			GrabState: versionGrabState(pol, k)})
+		out.Versions = append(out.Versions, SettingsVersionMode{Key: k, GrabState: versionGrabState(pol, k)})
 	}
 	return out
 }

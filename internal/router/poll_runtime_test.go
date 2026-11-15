@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/provider"
 	"github.com/theatarr/theatarr/internal/settings"
 	"github.com/theatarr/theatarr/internal/store"
@@ -37,7 +36,7 @@ func addActiveDownload(e *env, id int64, hash string) {
 
 func TestPollLeavesUnavailableProvidersUnpolled(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	var logs bytes.Buffer
 	e.r.log = slog.New(slog.NewTextHandler(&logs, nil))
 	for i, state := range []string{"adding", "added", "downloading", "ready"} {
@@ -61,7 +60,7 @@ func TestPollLeavesUnavailableProvidersUnpolled(t *testing.T) {
 }
 
 func TestProviderGraceStartsAtPublicationAndSurvivesReload(t *testing.T) {
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.clock = e.clock.Add(time.Hour)
 	e.r.PublishProviderChanges([]string{"rd"})
 	deadline := e.r.ignoreMissingUntil["rd"]
@@ -88,7 +87,7 @@ func TestProviderGraceStartsAtPublicationAndSurvivesReload(t *testing.T) {
 
 func TestPollDoesNotBlocklistNotFoundImmediatelyAfterSettingsChange(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.clock = time.Now().UTC()
 	addActiveDownload(e, 5, h("a"))
 	e.r.ignoreMissingUntil = map[string]time.Time{"rd": e.clock.Add(time.Minute)}
@@ -116,7 +115,7 @@ func TestPollDoesNotBlocklistNotFoundImmediatelyAfterSettingsChange(t *testing.T
 
 func TestPollPassUsesRuntimeCapturedAtStart(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	addActiveDownload(e, 5, h("a"))
 	e.pr["rd"].set("RD5", provider.Torrent{Status: "downloading", State: provider.StateDownloading})
 	started, release := make(chan int64, 1), make(chan struct{})

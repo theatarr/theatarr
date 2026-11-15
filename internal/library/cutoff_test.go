@@ -41,7 +41,7 @@ func TestImportStateCountsFormatCutoff(t *testing.T) {
 		want          string
 	}{{"score below cutoff", 100, 10000, "filled"}, {"score at cutoff", 100, 100, "cutoff_met"}} {
 		t.Run(tc.name, func(t *testing.T) {
-			e := newEnv(t, true, policy.ModeActive)
+			e := newEnv(t, true)
 			e.scoreFormat(tc.score, tc.cutoff)
 			e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
 			e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
@@ -70,7 +70,7 @@ func TestImportStateCountsFormatCutoff(t *testing.T) {
 // versions only, moving only between filled and cutoff_met.
 func TestRecomputeLinkStates(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
 	e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
 	rel := "Show.S01.2160p.BluRay.REMUX.HEVC-GRP"
@@ -129,12 +129,4 @@ func TestRecomputeLinkStates(t *testing.T) {
 		t.Errorf("second Run recomputed again: %s", got)
 	}
 
-	// A shadow version is never touched.
-	e.pol.Versions["movie-remux"].Mode = policy.ModeShadow
-	if n, err := e.lib.RecomputeLinkStates(e.ctx); err != nil || n != 0 {
-		t.Fatalf("shadow run %d, %v", n, err)
-	}
-	if got := e.one(`SELECT state FROM version WHERE id = 10`); got != "cutoff_met" {
-		t.Errorf("shadow version moved to %s", got)
-	}
 }

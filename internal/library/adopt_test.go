@@ -28,7 +28,7 @@ type arrRec struct {
 
 func newParallelEnv(t *testing.T, enabled bool) *parallelEnv {
 	t.Helper()
-	e := &parallelEnv{env: newEnv(t, enabled, policy.ModeShadow)}
+	e := &parallelEnv{env: newEnv(t, enabled)}
 	e.theatarrMovies = filepath.Join(e.dir, "media", "theatarr", "movies")
 	e.theatarrShows = filepath.Join(e.dir, "media", "theatarr", "tv")
 	for _, d := range []string{e.theatarrMovies, e.theatarrShows} {
@@ -37,9 +37,9 @@ func newParallelEnv(t *testing.T, enabled bool) *parallelEnv {
 		}
 	}
 	movie := *e.pol.Versions["movie-remux"]
-	movie.Mode, movie.Library = policy.ModeActive, e.theatarrMovies
+	movie.Library = e.theatarrMovies
 	tv := *e.pol.Versions["tv"]
-	tv.Mode, tv.Library = policy.ModeActive, e.theatarrShows
+	tv.Library = e.theatarrShows
 	e.pol.Versions["movie-theatarr"], e.pol.Versions["tv-theatarr"] = &movie, &tv
 	e.pol.Library.Versions["movie-theatarr"] = &policy.LibraryVersion{Roots: []string{e.theatarrMovies}}
 	e.pol.Library.Versions["tv-theatarr"] = &policy.LibraryVersion{Roots: []string{e.theatarrShows}}

@@ -6,14 +6,13 @@ import (
 	"time"
 
 	"github.com/theatarr/theatarr/internal/jobs"
-	"github.com/theatarr/theatarr/internal/policy"
 )
 
 // A running initial legacy route keeps its queued download: its payload has no download_id yet
 // when it opens the queued row before the account read, so reconcile leaves every queued download of a title version
 // with a running route job.
 func TestRunningInitialRouteKeepsItsQueuedDownload(t *testing.T) {
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.pol.Versions["movie"].Providers = []string{"ad"}
 	e.exec(`INSERT INTO title_release_date (title_id, source, type, date) VALUES (1, 'fixture', 'digital', '2024-01-01')`)
 	entered, resume := make(chan struct{}), make(chan struct{})

@@ -736,7 +736,7 @@ func (s *seeder) files(t *title) {
 }
 
 // fileTime is when a movie version's file was grabbed: spread over the last year, some in the last two weeks (the
-// shadow report's window and Home's Recently added).
+// window of Home's Recently added).
 func (s *seeder) fileTime(t *title, i int) time.Time {
 	if (t.id+int64(i))%4 == 0 {
 		return s.between(days(13), days(0.2))

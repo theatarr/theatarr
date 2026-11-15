@@ -36,7 +36,7 @@ type env struct {
 
 const hashA = "abcdef0123456789abcdef0123456789abcdef01"
 
-func newEnv(t *testing.T, enabled bool, mode policy.Mode) *env {
+func newEnv(t *testing.T, enabled bool) *env {
 	t.Helper()
 	e := &env{t: t, ctx: context.Background(), dir: t.TempDir(), now: time.Date(2026, 10, 26, 12, 0, 0, 0, time.UTC),
 		probes: map[string]*probe.Result{}}
@@ -61,11 +61,11 @@ func newEnv(t *testing.T, enabled bool, mode policy.Mode) *env {
 	e.st = st
 	e.pol = &policy.Policy{
 		Versions: map[string]*policy.VersionPolicy{
-			"movie-remux": {Mode: mode, Kind: policy.KindMovie, Profile: "movie-state", Library: e.movies, Naming: policy.Naming{
+			"movie-remux": {Kind: policy.KindMovie, Profile: "movie-state", Library: e.movies, Naming: policy.Naming{
 				Folder: "{Movie CleanTitle} ({Release Year})",
 				File:   "{Movie CleanTitle} {(Release Year)} {imdb-{ImdbId}} - {[Quality Full]}{[Mediainfo AudioCodec}{ Mediainfo AudioChannels]}{[MediaInfo VideoDynamicRangeType]}{[Mediainfo VideoCodec]}{-Release Group}",
 				Colon:  "delete"}},
-			"tv": {Mode: mode, Kind: policy.KindSeries, Profile: "tv-state", Library: e.shows, Naming: policy.Naming{
+			"tv": {Kind: policy.KindSeries, Profile: "tv-state", Library: e.shows, Naming: policy.Naming{
 				Folder: "{Series CleanTitleWithoutYear} {(Series Year)}", Season: "Season {season:00}",
 				File: "{Series CleanTitleWithoutYear} {(Series Year)} - S{season:00}E{episode:00} - {Episode CleanTitle:90} {[Quality Full]}{-Release Group}"}},
 		},
@@ -184,7 +184,7 @@ const movieRelease = "Amelie.2001.2160p.UHD.BluRay.REMUX.HDR.HEVC.TrueHD.Atmos.7
 
 func TestImportMovie(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.release(movieRelease, map[string]float64{"movie.mkv": 7000, "sample.mkv": 30})
 	e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
 	plan, err := e.lib.Import(e.ctx, 1, false)
@@ -228,18 +228,17 @@ func TestImportMovie(t *testing.T) {
 	}
 }
 
-// TestGateBlocksWrites: with library.enabled false, or the version in shadow mode, an import writes nothing to the
+// TestGateBlocksWrites: with library.enabled false an import writes nothing to the
 // filesystem, leaves the download ready, and records what it would have linked.
 func TestGateBlocksWrites(t *testing.T) {
 	t.Parallel()
 	for _, c := range []struct {
 		name    string
 		enabled bool
-		mode    policy.Mode
 		reason  string
-	}{{"disabled", false, policy.ModeActive, "disabled"}, {"shadow", true, policy.ModeShadow, "shadow"}} {
+	}{{"disabled", false, "disabled"}} {
 		t.Run(c.name, func(t *testing.T) {
-			e := newEnv(t, c.enabled, c.mode)
+			e := newEnv(t, c.enabled)
 			e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
 			e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
 			// An old link the upgrade would move aside.
@@ -294,7 +293,7 @@ func TestGateBlocksWrites(t *testing.T) {
 
 func TestUpgradeMovesAside(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
 	e.release("Old.Release", map[string]float64{"old.mkv": 7000})
 	oldTarget := filepath.Join(e.mount, "__all__", "Old.Release", "old.mkv")
@@ -344,7 +343,7 @@ func TestUpgradeMovesAside(t *testing.T) {
 
 func TestSeriesPack(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	rel := "Show.S01.2160p.WEB-DL.DDP5.1.H.265-GRP"
 	e.release(rel, map[string]float64{"Show.S01E01.2160p.WEB-DL.DDP5.1.H.265-GRP.mkv": 2700,
 		"Show.S01E02.2160p.WEB-DL.DDP5.1.H.265-GRP.mkv": 2650, "Show.S01E03.2160p.WEB-DL.DDP5.1.H.265-GRP.mkv": 2600})
@@ -374,7 +373,7 @@ func TestSeriesPack(t *testing.T) {
 
 func TestSampleGuardRejects(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.release(movieRelease, map[string]float64{"movie.mkv": 40 * 60}) // 40 min for a 120 min film
 	e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
 	before := tree(t, e.movies)
@@ -404,7 +403,7 @@ func TestSampleGuardRejects(t *testing.T) {
 
 func TestWaitingAndMountDown(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
 	plan, err := e.lib.Import(e.ctx, 1, false)
 	if err != nil || !plan.Waiting {
@@ -436,7 +435,7 @@ func TestWaitingAndMountDown(t *testing.T) {
 // its release to show on the mount; past the window, or waiting for another reason, the poll interval applies.
 func TestFreshWaiting(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
 	if e.lib.FreshWaiting(e.ctx) {
 		t.Error("fresh before any import")
@@ -468,7 +467,7 @@ func TestFreshWaiting(t *testing.T) {
 	}
 
 	// A version the gate refuses (library off) only plans its import: no quick re-check for it.
-	g := newEnv(t, false, policy.ModeActive)
+	g := newEnv(t, false)
 	g.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
 	g.exec(`UPDATE download SET ready_at = ? WHERE id = 1`, store.Millis(g.now))
 	if plan, err := g.lib.Import(g.ctx, 1, false); err != nil || !plan.Waiting {
@@ -481,7 +480,7 @@ func TestFreshWaiting(t *testing.T) {
 
 func TestRelink(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	// zurg renamed "Movie.Release" to "Movie.Release {abcdef}" when another hash took the bare name.
 	e.release("Movie.Release {abcdef}", map[string]float64{"movie.mkv": 7000})
 	e.exec(`INSERT INTO content (id, info_hash, name, state, first_seen_at, last_seen_at) VALUES (1, ?, 'Movie.Release', 'present', 0, 0)`, hashA)
@@ -533,7 +532,7 @@ func TestRelink(t *testing.T) {
 
 func TestGatePaths(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	g := e.lib.Gate()
 	// A directory inside the root that is a symlink to somewhere else.
 	if err := os.Symlink(e.outside, filepath.Join(e.movies, "escape")); err != nil {
@@ -609,7 +608,7 @@ func (f *fakeScanner) Scan(_ context.Context, section int, path string) error {
 
 func TestPlexScanJob(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	w := jobs.NewWorker(e.queue, jobs.WorkerOptions{Owner: "t"})
 	fs := &fakeScanner{}
 	e.lib.RegisterJobs(w, fs)
@@ -633,7 +632,7 @@ func TestPlexScanJob(t *testing.T) {
 		t.Errorf("scans %v", fs.calls)
 	}
 	// Disabled: the handler refuses even a queued job.
-	e2 := newEnv(t, false, policy.ModeActive)
+	e2 := newEnv(t, false)
 	w2 := jobs.NewWorker(e2.queue, jobs.WorkerOptions{Owner: "t"})
 	fs2 := &fakeScanner{}
 	e2.lib.RegisterJobs(w2, fs2)
@@ -653,7 +652,7 @@ func TestPlexScanJob(t *testing.T) {
 // blocklisted; without one it remains held for manual resolution.
 func TestImportRefusesDangerousFiles(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.release(movieRelease, map[string]float64{"movie.mkv.exe": 7000, "readme.txt": 0})
 	e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
 	if _, err := e.lib.Import(e.ctx, 1, false); err != nil {
@@ -670,7 +669,7 @@ func TestImportRefusesDangerousFiles(t *testing.T) {
 		t.Errorf("%s links", got)
 	}
 
-	e2 := newEnv(t, true, policy.ModeActive)
+	e2 := newEnv(t, true)
 	e2.release(movieRelease, map[string]float64{"Movie/payload.lnk": 0, "Movie/run.bat": 0})
 	e2.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
 	if _, err := e2.lib.Import(e2.ctx, 1, false); err != nil {
@@ -680,7 +679,7 @@ func TestImportRefusesDangerousFiles(t *testing.T) {
 		t.Errorf("dangerous first: %q", got)
 	}
 
-	e3 := newEnv(t, true, policy.ModeActive)
+	e3 := newEnv(t, true)
 	e3.release(movieRelease, map[string]float64{"info.nfo": 0})
 	e3.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
 	if _, err := e3.lib.Import(e3.ctx, 1, false); err != nil {
@@ -696,7 +695,7 @@ func TestImportRefusesDangerousFiles(t *testing.T) {
 		t.Errorf("no video blocklist rows: %q", got)
 	}
 
-	e4 := newEnv(t, true, policy.ModeActive)
+	e4 := newEnv(t, true)
 	e4.release(movieRelease, map[string]float64{"movie.mkv.exe": 7000, "readme.txt": 0})
 	e4.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
 	e4.exec(`INSERT INTO download_file (download_id, rel, episodes, source, updated_at)
@@ -735,7 +734,7 @@ func (e *env) cpRow() string {
 // download whose provider is not a configured debrid provider records nothing.
 func TestImportRecordsProvider(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.pol.Providers = map[string]*policy.Provider{"rd": {Kind: "realdebrid", Order: 1}}
 	e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
 	e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
@@ -754,7 +753,7 @@ func TestImportRecordsProvider(t *testing.T) {
 		t.Errorf("links held by rd: %s", got)
 	}
 
-	f := newEnv(t, true, policy.ModeActive)
+	f := newEnv(t, true)
 	f.release(movieRelease, map[string]float64{"movie.mkv": 7000})
 	f.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
 	if _, err := f.lib.Import(f.ctx, 1, false); err != nil {
@@ -769,7 +768,7 @@ func TestImportRecordsProvider(t *testing.T) {
 // rest, in the one row; an import never degrades a row the sync wrote, and brings an absent one back to present.
 func TestImportProviderRowAndSync(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, policy.ModeActive)
+	e := newEnv(t, true)
 	e.pol.Providers = map[string]*policy.Provider{"rd": {Kind: "realdebrid", Order: 1}}
 	e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
 	e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")

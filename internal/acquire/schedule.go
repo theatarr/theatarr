@@ -307,7 +307,7 @@ func (a *Acquirer) roundSelection(active []string, only string, titles []int64) 
 
 // Round starts the due items of the titles in scope (nil: a full round, which also takes the unscheduled items of
 // the backlog switches that are on), as many groups as router.wanted.per_hour leaves, skipping items with a download
-// in flight (their rows stay due). It does nothing while paused or with no Live library.
+// in flight (their rows stay due). It does nothing while paused or with no library.
 func (a *Acquirer) Round(ctx context.Context, scope []int64) (*WantedSummary, error) {
 	ctx = a.captureRuntime(ctx)
 	sum := &WantedSummary{}
@@ -532,5 +532,5 @@ func (a *Acquirer) Round(ctx context.Context, scope []int64) (*WantedSummary, er
 // LogSchedule logs the search schedule a round follows (theatarr serve, when the round's task starts).
 func (a *Acquirer) LogSchedule() {
 	a.log.Info("search schedule", "per_hour", a.set.PerHour, "again_after", a.set.AgainAfter.String(),
-		"missing", a.switchOn(OnlyMissing), "cutoff_unmet", a.switchOn(OnlyCutoff), "active_versions", a.pol.ActiveVersions())
+		"missing", a.switchOn(OnlyMissing), "cutoff_unmet", a.switchOn(OnlyCutoff), "active_versions", a.pol.VersionKeys())
 }

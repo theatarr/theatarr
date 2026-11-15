@@ -44,7 +44,7 @@ const JOB_KINDS: Record<string, { name: string; effect: string }> = {
   "meta.art": { name: "Refresh details and artwork", effect: "Titles may show stale details or artwork." },
   "meta.series": { name: "Refresh series episodes", effect: "New episodes may be missing from series." },
   "plex.scan": { name: "Ask Plex to scan", effect: "New files may not show in Plex yet." },
-  "shadow.rss": { name: "Check RSS feeds", effect: "The indexers' RSS feeds were not read: new releases for Live libraries may be missed." },
+  "shadow.rss": { name: "Check RSS feeds", effect: "The indexers' RSS feeds were not read: new releases may be missed." },
   "arrview.maintenance": { name: "Arr view housekeeping", effect: "Old arr-view records were not tidied." },
   "db.nightly": { name: "Nightly database backup", effect: "Last night's backup may be missing." },
   "router.copy": { name: "Add a torrent to another provider", effect: "A copy to another debrid provider was not made." },

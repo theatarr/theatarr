@@ -201,7 +201,7 @@ const withFix = (reason: string, fix: string) => (reason.includes(fix) ? reason 
 export function restrictions(versions: { label: string; control?: VersionControl | null }[], opts: { globalSaid?: boolean } = {}): string[] {
   const out: string[] = [];
   // globalSaid: the page notice already says Pause is on (or forced) for every library.
-  const global = (c: VersionControl) => !!opts.globalSaid && c.grab_state?.mode === "active" && (c.grab_state.pause_forced || c.grab_state.paused);
+  const global = (c: VersionControl) => !!opts.globalSaid && !!c.grab_state && (c.grab_state.pause_forced || c.grab_state.paused);
   const add = (kind: "edit" | "search") => {
     const groups = new Map<string, string[]>();
     for (const v of versions) {

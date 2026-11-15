@@ -14,12 +14,12 @@ export function setupSteps(s?: SetupState, versions?: VersionList, readiness = f
   !!s && s.tmdb === true,
   !!s && s.versions_with_roots > 0 && !(s.missing ?? []).some(m => /no debrid mount/i.test(m)),
   readiness,
-  !!versions && !versions.switches.paused && !versions.switches.pause_forced && versions.switches.versions.some(v => v.grab_state?.mode === "active"),
+  !!versions && !versions.switches.paused && !versions.switches.pause_forced && versions.switches.versions.length > 0,
  ];
 }
-/** A library is Active, as saved or as running: the install went live at some point, whatever Pause
+/** A library is set up, as saved or as running: the install went live at some point, whatever Pause
  * says now and whether or not a startup fallback runs older settings. */
-export const anyActive = (versions: VersionList) => versions.versions.some(v => v.config.mode === "active") || versions.switches.versions.some(v => v.grab_state?.mode === "active");
+export const anyActive = (versions: VersionList) => versions.versions.length > 0 || versions.switches.versions.length > 0;
 export function useSetupProgress(enabled = true) {
  const setup = useSetup(enabled);
  const versions = useVersions(enabled);
