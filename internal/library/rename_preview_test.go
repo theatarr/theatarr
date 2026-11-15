@@ -187,7 +187,7 @@ func TestRenamePreviewLargeSeries(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Logf("preview of %d links: %v", n, time.Since(start))
-	if len(memos) != 1 || memos[fmt.Sprintf("%p", map[string]any(nil))] != 0 {
+	if len(memos) != 1 || memos[fmt.Sprintf("%p", map[int64]decide.Title(nil))] != 0 {
 		t.Fatalf("rename memos %v", memos)
 	}
 	b, _ := json.MarshalIndent(got, "", " ")

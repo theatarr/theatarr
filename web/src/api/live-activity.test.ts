@@ -26,9 +26,11 @@ describe("downloadToast", () => {
     // A removal ended it: History has it, the queue the toast opens does not.
     expect(downloadToast({ ...base, state: "failed", previous: "downloading", words: "Download failed", removed: true })).toBeNull();
   });
-  it("stays quiet on progress", () => {
+  it("stays quiet on progress and on any event that keeps the state", () => {
     expect(downloadToast({ ...base, state: "downloading", previous: undefined, progress: 40 })).toBeNull();
     expect(downloadToast({ ...base, state: "downloading", previous: "downloading" })).toBeNull();
+    // Ready, then waiting for the mount: one notice per real change of state.
+    expect(downloadToast({ ...base, state: "ready", previous: "ready", words: "Waiting for the mount" })).toBeNull();
   });
   it("names the library only to accounts that see files", () => {
     expect(downloadToast(base, false)?.body).toBe("Download complete, waiting to be linked");

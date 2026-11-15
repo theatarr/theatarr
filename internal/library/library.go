@@ -41,10 +41,10 @@ type RenameFormats func(ctx context.Context, version string, titleID int64, rele
 
 type renameMemoKey struct{}
 
-// RenameMemo is where a RenameFormats keeps what it loads (a title, a library) while one rename preview names all of
-// its links, on one goroutine; nil outside a preview (reads of a nil map find nothing, so callers check before storing).
-func RenameMemo(ctx context.Context) map[string]any {
-	m, _ := ctx.Value(renameMemoKey{}).(map[string]any)
+// RenameMemo is where a RenameFormats keeps the titles it loads, by id, while one rename preview names all of its
+// links, on one goroutine; nil outside a preview (reads of a nil map find nothing, so callers check before storing).
+func RenameMemo(ctx context.Context) map[int64]decide.Title {
+	m, _ := ctx.Value(renameMemoKey{}).(map[int64]decide.Title)
 	return m
 }
 

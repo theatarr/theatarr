@@ -16,12 +16,11 @@ const TONE: Record<string, ToastTone> = {
 };
 
 /**
- * The toast for a download event, or null when nothing worth a toast changed (progress only) or a removal ended it. The library's name
+ * The toast for a download event, or null when its state did not change (one notice per real change) or a removal ended it. The library's name
  * (nameOf, lib/library-names) is for accounts that see files; others get the words alone (docs/design/users.md).
  */
 export function downloadToast(ev: DownloadEvent, seeFiles = true, nameOf: (key: string) => string = libraryLabel): { title: string; body: string; tone: ToastTone } | null {
-  const changed = ev.previous ? ev.previous !== ev.state : true;
-  if (!changed && ev.state !== "ready") return null;
+  if (ev.previous === ev.state) return null;
   if (!ev.previous && ev.state === "downloading") return null;
   // A removal ended it: it is in History only, not in the queue the toast would open.
   if (ev.removed) return null;
@@ -36,7 +35,7 @@ let lastLists = 0;
 
 /** Whether a download event refreshes its title and the lists now (and notes when it did). */
 export function libraryRefresh(ev: Pick<DownloadEvent, "state" | "previous" | "title">, now: number): { title: boolean; lists: boolean } {
-  const changed = ev.previous ? ev.previous !== ev.state : true;
+  const changed = ev.previous !== ev.state;
   const key = String(ev.title?.id ?? "");
   const title = !!key && (changed || now - (lastTitle.get(key) ?? -Infinity) >= PROGRESS_REFRESH_MS);
   const lists = changed || now - lastLists >= PROGRESS_REFRESH_MS;
@@ -56,7 +55,7 @@ export function onDownloadEvent(qc: QueryClient, raw: string, now: number = Date
   } catch {
     return;
   }
-  const changed = ev.previous ? ev.previous !== ev.state : true;
+  const changed = ev.previous !== ev.state;
   if (changed) {
     lastProgress.delete(ev.id);
     qc.invalidateQueries({ queryKey: qk.activity.all });

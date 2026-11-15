@@ -215,10 +215,9 @@ func decideRenameFormats(st *store.Store, pol *policy.Policy, eng *decide.Engine
 		if vp == nil || eng == nil {
 			return nil
 		}
-		// A rename preview names every link of the title: the title is loaded once for it, each library once.
+		// A rename preview names every link of the title: the title is loaded once for it.
 		memo := library.RenameMemo(ctx)
-		tkey, vkey := fmt.Sprint("title/", titleID), fmt.Sprint("version/", titleID, "/", version)
-		t, ok := memo[tkey].(decide.Title)
+		t, ok := memo[titleID]
 		if !ok {
 			var err error
 			if t, err = decide.LoadTitle(ctx, st.Reader(), titleID); err != nil {
@@ -228,19 +227,11 @@ func decideRenameFormats(st *store.Store, pol *policy.Policy, eng *decide.Engine
 				return nil
 			}
 			if memo != nil {
-				memo[tkey] = t
+				memo[titleID] = t
 			}
 		}
-		v, ok := memo[vkey].(decide.Version)
-		if !ok {
-			var err error
-			if v, err = decide.LoadVersion(ctx, st.Reader(), pol, titleID, version); err != nil {
-				return nil
-			}
-			if memo != nil {
-				memo[vkey] = v
-			}
-		}
+		// Only the matched formats are read: the version's row id is not needed.
+		v := decide.Version{Key: version, Policy: vp}
 		d, err := eng.Decide(ctx, decide.Release{Release: indexer.Release{Title: release}}, t, v, nil)
 		if err != nil || d == nil {
 			return nil
