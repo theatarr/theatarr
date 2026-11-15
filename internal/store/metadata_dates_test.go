@@ -13,7 +13,7 @@ import (
 func TestMigrationMetadataDates(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	st := store.OpenAt(t, 132)
+	st := store.OpenAt(t, 134)
 	db := st.Writer()
 	for _, q := range []string{
 		`INSERT INTO title (id, kind, name, created_at, updated_at) VALUES (1, 'movie', 'US Film', 0, 0),
