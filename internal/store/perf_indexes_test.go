@@ -9,6 +9,7 @@ import (
 )
 
 // 00132: provider_cache rows expired more than a day ago go once; live, recently expired and unexpiring rows stay.
+// journal_decision gains its per-title and accepted indexes.
 func TestMigrationPerfIndexes(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -27,6 +28,8 @@ func TestMigrationPerfIndexes(t *testing.T) {
 	}
 	for q, want := range map[string]string{
 		`SELECT group_concat(info_hash, ' ') FROM (SELECT info_hash FROM provider_cache ORDER BY info_hash)`: "forever live recent",
+		`SELECT group_concat(name, ' ') FROM (SELECT name FROM sqlite_master WHERE type = 'index'
+			AND name IN ('journal_decision_title', 'journal_decision_accepted') ORDER BY name)`: "journal_decision_accepted journal_decision_title",
 	} {
 		var got string
 		if err := db.QueryRowContext(ctx, q).Scan(&got); err != nil || got != want {
