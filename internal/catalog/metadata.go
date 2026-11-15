@@ -168,24 +168,27 @@ func (s *MovieIntake) RefreshCollections(ctx context.Context) (IntakeResult, err
 	var errs []error
 	for _, cfg := range configs {
 		cfg.later = true
-		soft, err := s.refreshCollection(ctx, cfg, &out)
+		soft, gone, err := s.refreshCollection(ctx, cfg, &out)
 		if err != nil {
 			return out, err
 		}
-		errs = append(errs, soft...)
+		if !gone {
+			errs = append(errs, soft...)
+		}
 	}
 	return out, errors.Join(errs...)
 }
 
 // RefreshCollection refreshes one known collection now: its name and parts, and, when it is monitored, its missing
-// movies. sql.ErrNoRows when the collection is not known.
+// movies. sql.ErrNoRows when the collection is not known; TMDb's not found (with the row gone when it was not
+// monitored) when TMDb no longer has it.
 func (s *MovieIntake) RefreshCollection(ctx context.Context, tmdbID int64) (IntakeResult, error) {
 	cfg, err := s.config(ctx, collectionConfigs+` WHERE tmdb_id=?`, tmdbID)
 	if err != nil {
 		return IntakeResult{}, err
 	}
 	var out IntakeResult
-	soft, err := s.refreshCollection(ctx, cfg, &out)
+	soft, _, err := s.refreshCollection(ctx, cfg, &out)
 	if err != nil {
 		return out, err
 	}
@@ -193,28 +196,33 @@ func (s *MovieIntake) RefreshCollection(ctx context.Context, tmdbID int64) (Inta
 }
 
 // refreshCollection is one collection's refresh, counted in out. TMDb and per-movie failures come back as soft (the
-// caller carries on with the next collection); err is a store failure.
-func (s *MovieIntake) refreshCollection(ctx context.Context, cfg movieIntakeConfig, out *IntakeResult) (soft []error, err error) {
+// caller carries on with the next collection); err is a store failure. gone: TMDb no longer has the collection
+// (soft holds its not found); an unmonitored one's row and memberships are deleted then, so discovery does not
+// bring it back.
+func (s *MovieIntake) refreshCollection(ctx context.Context, cfg movieIntakeConfig, out *IntakeResult) (soft []error, gone bool, err error) {
 	out.Collections++
 	c, err := s.TMDb.Collection(ctx, int(cfg.tmdbID))
+	if errors.Is(err, tmdb.ErrNotFound) {
+		return []error{fmt.Errorf("collection %d: %w", cfg.tmdbID, err)}, true, s.collectionGone(ctx, cfg)
+	}
 	if err != nil {
-		return []error{fmt.Errorf("collection %d: %w", cfg.tmdbID, err)}, nil
+		return []error{fmt.Errorf("collection %d: %w", cfg.tmdbID, err)}, false, nil
 	}
 	parts, err := json.Marshal(c.Parts)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	if _, err = s.Store.Writer().ExecContext(ctx, `UPDATE movie_collection SET name=?,movies=?,refreshed_at=? WHERE tmdb_id=?`, c.Name, string(parts), store.Millis(s.Now()), cfg.tmdbID); err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	if !cfg.monitored {
-		return nil, nil
+		return nil, false, nil
 	}
 	if cfg.versions, err = s.collectionTargets(cfg); err != nil {
-		return []error{fmt.Errorf("collection %d: %w", cfg.tmdbID, err)}, nil
+		return []error{fmt.Errorf("collection %d: %w", cfg.tmdbID, err)}, false, nil
 	}
 	if cfg.versions == "" {
-		return nil, nil
+		return nil, false, nil
 	}
 	for _, m := range c.Parts {
 		n, err := s.addMovie(ctx, m, cfg, cfg.tmdbID)
@@ -228,7 +236,28 @@ func (s *MovieIntake) refreshCollection(ctx context.Context, cfg movieIntakeConf
 			out.Skipped++
 		}
 	}
-	return soft, nil
+	return soft, false, nil
+}
+
+// collectionGone handles a collection TMDb answers not found for: a monitored one keeps its row and settings; an
+// unmonitored one loses its row and its tmdb_collection memberships. Titles, files and versions stay.
+func (s *MovieIntake) collectionGone(ctx context.Context, cfg movieIntakeConfig) error {
+	var name string
+	if err := s.Store.Reader().QueryRowContext(ctx, `SELECT name FROM movie_collection WHERE tmdb_id=?`, cfg.tmdbID).Scan(&name); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+	if cfg.monitored {
+		s.Log.Info("movie collection: not found on TMDb, kept (monitored)", "collection", cfg.tmdbID, "name", name)
+		return nil
+	}
+	s.Log.Info("movie collection: not found on TMDb, removed (not monitored)", "collection", cfg.tmdbID, "name", name)
+	return s.Store.WriteTx(ctx, func(tx *sql.Tx) error {
+		if _, err := tx.ExecContext(ctx, `DELETE FROM title_external_id WHERE source='tmdb_collection' AND external_id=?`, strconv.FormatInt(cfg.tmdbID, 10)); err != nil {
+			return err
+		}
+		_, err := tx.ExecContext(ctx, `DELETE FROM movie_collection WHERE tmdb_id=?`, cfg.tmdbID)
+		return err
+	})
 }
 
 // collectionTargets revalidates a monitored collection's stored targets: only collection targets (policy

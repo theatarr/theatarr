@@ -24,11 +24,19 @@ import (
 
 type intakeSource struct {
 	collection *tmdb.Collection
-	list       *tmdb.List
-	movies     map[int]*tmdb.Movie
+	// collections, when set, answers by id; a missing id is TMDb's not found.
+	collections map[int]*tmdb.Collection
+	list        *tmdb.List
+	movies      map[int]*tmdb.Movie
 }
 
-func (f intakeSource) Collection(context.Context, int) (*tmdb.Collection, error) {
+func (f intakeSource) Collection(_ context.Context, id int) (*tmdb.Collection, error) {
+	if f.collections != nil {
+		if c := f.collections[id]; c != nil {
+			return c, nil
+		}
+		return nil, tmdb.ErrNotFound
+	}
 	return f.collection, nil
 }
 func (f intakeSource) List(context.Context, int) (*tmdb.List, error) { return f.list, nil }
@@ -114,6 +122,65 @@ func TestCollectionRefreshAddsOnceAndHonoursExclusionsAndMonitoring(t *testing.T
 	}
 	if got.Added != 0 {
 		t.Fatalf("unmonitored added=%d, want 0", got.Added)
+	}
+}
+
+// A collection TMDb no longer has does not fail the run: an unmonitored one loses its row and memberships, a
+// monitored one is kept.
+func TestCollectionGoneFromTMDb(t *testing.T) {
+	t.Parallel()
+	src := intakeSource{collections: map[int]*tmdb.Collection{9: {ID: 9, Name: "Healthy"}}}
+	s, st := newIntake(t, src)
+	ctx := context.Background()
+	if err := st.WriteTx(ctx, func(tx *sql.Tx) error {
+		res, err := Add(ctx, tx, Input{Kind: policy.KindMovie, TmdbID: 101, Versions: func(bool) ([]string, error) { return []string{"movie-web"}, nil }}, s.Now(), nil)
+		if err != nil {
+			return err
+		}
+		for _, q := range []string{
+			`INSERT INTO movie_collection(tmdb_id,name,monitored,versions,updated_at) VALUES(7,'Gone',0,'["movie-web"]',0),(8,'Kept',1,'["movie-web"]',0),(9,'Old',0,'["movie-web"]',0)`,
+			`INSERT INTO title_external_id(title_id,source,external_id) VALUES(?,'tmdb_collection','7')`,
+		} {
+			args := []any{}
+			if strings.Contains(q, "?") {
+				args = append(args, res.TitleID)
+			}
+			if _, err := tx.Exec(q, args...); err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.RefreshCollections(ctx); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+	var names []string
+	rows, err := st.Reader().Query(`SELECT name FROM movie_collection ORDER BY tmdb_id`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var n string
+		if err := rows.Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		names = append(names, n)
+	}
+	if !slices.Equal(names, []string{"Kept", "Healthy"}) {
+		t.Fatalf("collections=%v", names)
+	}
+	var members, titles int
+	if err := st.Reader().QueryRow(`SELECT (SELECT COUNT(*) FROM title_external_id WHERE source='tmdb_collection'),(SELECT COUNT(*) FROM title)`).Scan(&members, &titles); err != nil {
+		t.Fatal(err)
+	}
+	if members != 0 || titles != 1 {
+		t.Fatalf("memberships=%d titles=%d", members, titles)
+	}
+	if _, err := s.RefreshCollection(ctx, 8); !errors.Is(err, tmdb.ErrNotFound) {
+		t.Fatalf("one kept collection: %v", err)
 	}
 }
 
