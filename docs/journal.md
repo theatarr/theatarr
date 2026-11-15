@@ -38,9 +38,9 @@ left out of the list and named in that entry's `after` (What followed), with its
 
 | Line | Stands for |
 |---|---|
-| A download's grab (`dl:<n>`, grab or upgrade) | Its failure (`dl:<n>:fail`), its import (`dl:<n>:import`) and its link and replace actions (`lib:<n>` with the download). The summary says what came of it: "Grabbed <release> on RD · imported, replaced <file>", "… · imported 8 files", "… · failed: <reason>", "… · waiting", "… · waiting for the mount" |
+| A download's grab (`dl:<n>`, grab or upgrade) | Its failure (`dl:<n>:fail`), its import (`dl:<n>:import`) and its link and replace actions (`lib:<n>` with the download). The summary says what came of it: "Grabbed <release> on RD · imported, replaced <file>", "… · imported 8 files", "… · failed: <reason>", "… · waiting", "… · waiting for the mount". A pack's grab names its episodes, so the episode window still lists it |
 | An adoption's first file (`lib:<n>`, the first action of its History row: one per title, library, release and day) | The group's other files, and the files the adoption replaced (History's own pairing, "History's folded rows"): "Adopted 8 files of Season 1 from Sonarr (sonarr_4k) · replaced 2 files". Files of one season adopted with a release each are one line each, as in History |
-| A file's removal (`lib:<n>`, a replace without a download) | The hand unlink's action (`act:<n>`, `unlink_file`) of the same file, title and library within the minute after it: "Removed <file> · copy removed by <who> · moved to the trash". The files of one removal (a season taken out with its library) are one line each, beside the copy's own "Removed the copy" line |
+| A file's removal (`lib:<n>`, a replace without a download) | The hand unlink's action (`act:<n>`, `unlink_file`) of the same file, title and library within the minute after it: "Removed <file> · by <who> · moved to the trash". The files of one removal (a season taken out with its library) are one line each, beside the copy's own "Removed the copy" line |
 
 An entry is left out only when the line that stands for it matches the same filter (`headParts`' parent column, checked
 in the SQL that pages, so a page boundary never splits them). The parent has the entry's title and library, so only
@@ -53,7 +53,11 @@ is the number of lines.
 Every summary names files by their file names only; the full paths are in `paths` (the UI's tooltip, and listed on the
 entry). `label` is the kind in History's words: Grabbed, Upgraded, Imported, Import held, Import waiting, Dry run,
 Linked, Adopted, Replaced, Removed, Missing, Relinked, Failed, Stalled, Blocked, Search, Search after a failure, and an
-action's own (Grabbed by hand, Download removed, Retried, Unblocked, Copy removed, Title removed, Removed).
+action's own (Grabbed by hand, Download removed, Retried, Unblocked, Title removed, Removed; a copy's removal reads
+"Removed from the library"). A grab's line reads Upgraded only once its download replaced a file, Failed when the download
+failed, else Grabbed. An import refused together with its failed download reads Import failed, not Import held.
+What followed lists every link and replace action of the download, dry runs and failed attempts too; only applied ones
+count in the line's "imported N files" and "replaced".
 
 A good first pass:
 

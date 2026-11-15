@@ -3,6 +3,7 @@ package journal
 import (
 	"fmt"
 	"path"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -147,13 +148,17 @@ func grabOutcome(state, errText string, linked, replaced int, replacedName strin
 }
 
 // importWords are an import's label and its state in words.
-func importWords(state string) (label, words string) {
+// A refused import whose download failed with it was not held for review: failed says so.
+func importWords(state string, failed bool) (label, words string) {
 	switch state {
 	case "linked":
 		return "Imported", "imported"
 	case "partial":
 		return "Imported", "partly imported"
 	case "rejected":
+		if failed {
+			return "Import failed", "import failed"
+		}
 		return "Import held", "held for review"
 	case "waiting_mount":
 		return "Import waiting", "waiting for the mount"
@@ -176,7 +181,9 @@ func searchWords(source, target, state, research, message string) string {
 	}
 	if research != "" {
 		who = "Search again after " + map[string]string{"failed": "a failed download", "stalled": "a stalled download",
-			"rejected": "a refused import"}[research]
+			"rejected": "a refused import", "exhausted": "every release tried failed", "library": "a refused import",
+			"provider": "a provider failure", "torrent_files": "a release with unwanted files",
+			"ready_timeout": "a download that never got ready", "dead_link": "a missing file"}[research]
 		if strings.HasSuffix(who, "after ") {
 			who += research
 		}
@@ -213,4 +220,18 @@ func seasonOf(labels []string) string {
 		return "Season " + strconv.Itoa(n)
 	}
 	return ""
+}
+
+// missingHash is a dead link's detail that only names the file's hash ("missing <hash>").
+var missingHash = regexp.MustCompile(`(?i)^missing [0-9a-f]{8,}$`)
+
+// byWhom is a removal's reason as who did it: "copy removed by X", "title removed by X" and "unlinked by X" are
+// "by X" (the removed copy or title has a line of its own).
+func byWhom(why string) string {
+	for _, p := range []string{"copy removed by ", "title removed by ", "unlinked by "} {
+		if who, ok := strings.CutPrefix(why, p); ok {
+			return "by " + who
+		}
+	}
+	return why
 }

@@ -26,6 +26,9 @@ type builder struct {
 	ctx    context.Context
 	db     *sql.DB
 	titles map[int64]*titleInfo
+	// list: building a page of the list, where an adoption's line counts its group's files from its History row
+	// instead of reading them (they are listed on its entry).
+	list bool
 }
 
 func (j *Journal) newBuilder(ctx context.Context) *builder {
@@ -130,6 +133,9 @@ type dlRow struct {
 	created, updated                            int64
 	added, ready, imported                      sql.NullInt64
 	formats                                     sql.NullString
+	// its library import, if any: state, error, when
+	liState, liErr sql.NullString
+	liAt           sql.NullInt64
 }
 
 func (b *builder) loadDownload(id int64) (*dlRow, error) {
@@ -137,10 +143,14 @@ func (b *builder) loadDownload(id int64) (*dlRow, error) {
 	err := b.db.QueryRowContext(b.ctx, `SELECT id, title_id, version_id, version_key, info_hash, release_title, indexer,
 		quality, score, size_bytes, episodes, COALESCE(provider, ''), COALESCE(provider_torrent_id, ''), provider_status,
 		name, progress, cached, own_add, reused, state, COALESCE(error, ''), source, created_at, updated_at, added_at,
-		ready_at, imported_at, formats, policy_rev FROM download WHERE id = ?`, id).Scan(&d.id, &d.titleID,
+		ready_at, imported_at, formats, policy_rev,
+		(SELECT state FROM library_import WHERE download_id = download.id),
+		(SELECT last_error FROM library_import WHERE download_id = download.id),
+		(SELECT updated_at FROM library_import WHERE download_id = download.id) FROM download WHERE id = ?`, id).Scan(&d.id, &d.titleID,
 		&d.versionID, &d.version, &d.hash, &d.release, &d.indexer, &d.quality, &d.score, &d.size, &d.episodes,
 		&d.provider, &d.torrentID, &d.status, &d.name, &d.progress, &d.cached, &d.ownAdd, &d.reused, &d.state,
-		&d.errText, &d.source, &d.created, &d.updated, &d.added, &d.ready, &d.imported, &d.formats, &d.policyRev)
+		&d.errText, &d.source, &d.created, &d.updated, &d.added, &d.ready, &d.imported, &d.formats, &d.policyRev,
+		&d.liState, &d.liErr, &d.liAt)
 	return &d, err
 }
 
@@ -192,9 +202,6 @@ func (b *builder) download(e *Entry, rest string) error {
 	switch sub {
 	case "":
 		e.Label = "Grabbed"
-		if e.Kind == KindUpgrade {
-			e.Label = "Upgraded"
-		}
 		where := ""
 		if d.provider != "" {
 			where = " on " + providerShort(d.provider)
@@ -206,26 +213,27 @@ func (b *builder) download(e *Entry, rest string) error {
 		}
 		var linked, replaced []string
 		for _, k := range kids {
-			if k.kind == "link" {
+			switch {
+			case k.mode != "applied":
+			case k.kind == "link":
 				linked = append(linked, k.path)
-			} else if !strings.HasPrefix(k.detail, "import undone") {
+			case !strings.HasPrefix(k.detail, "import undone"):
 				replaced = append(replaced, k.path)
 			}
 		}
 		e.Paths = append(linked, replaced...)
-		if len(replaced) > 0 {
+		switch {
+		case len(replaced) > 0:
 			e.Label = "Upgraded" // as History says: it replaced a file
+		case d.state == "failed":
+			e.Label = "Failed"
 		}
 		outcome := grabOutcome(d.state, d.errText, len(linked), len(replaced), baseName(firstOf(replaced)))
 		if d.state == "ready" || d.state == "importing" {
 			// Its import's state, when it waits or was held.
-			var st, why string
-			if err := b.db.QueryRowContext(b.ctx, `SELECT state, COALESCE(last_error, '') FROM library_import
-				WHERE download_id = ?`, d.id).Scan(&st, &why); err != nil && !errors.Is(err, sql.ErrNoRows) {
-				return err
-			}
+			st, why := d.liState.String, d.liErr.String
 			if st != "" && st != "linked" {
-				_, outcome = importWords(st)
+				_, outcome = importWords(st, false)
 				if why != "" && st != "dry_run" {
 					outcome += ": " + plainDetail(why)
 				}
@@ -440,15 +448,9 @@ func (b *builder) downloadAfter(e *Entry, d *dlRow, sub string) error {
 		}
 		add(sql.NullInt64{Int64: d.updated, Valid: true}, k, cleanMessage(d.errText), base+":fail")
 	}
-	var li sql.NullString
-	var liAt sql.NullInt64
-	if err := b.db.QueryRowContext(b.ctx, `SELECT state, updated_at FROM library_import WHERE download_id = ?`,
-		d.id).Scan(&li, &liAt); err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return err
-	}
-	if li.Valid && sub != "import" {
-		_, words := importWords(li.String)
-		add(liAt, "import", words, base+":import")
+	if d.liState.Valid && sub != "import" {
+		_, words := importWords(d.liState.String, d.state == "failed")
+		add(d.liAt, "import", words, base+":import")
 	}
 	if sub != "import" {
 		add(d.imported, "imported", "linked into the library", "")
@@ -639,7 +641,7 @@ func (b *builder) libraryImport(e *Entry, d *dlRow) error {
 	}
 	e.Import = im
 	e.Source = "library"
-	label, words := importWords(state)
+	label, words := importWords(state, d.state == "failed")
 	e.Label = label
 	why := ""
 	switch {
@@ -677,12 +679,20 @@ func (b *builder) libraryImport(e *Entry, d *dlRow) error {
 
 // libKid is one of a download's link actions (link or replace, applied): they stand under its grab's line.
 type libKid struct {
-	id, at             int64
-	kind, path, detail string
+	id, at                   int64
+	kind, mode, path, detail string
 }
 
 // words is the action as a line of the grab's "What followed".
 func (k libKid) words() string {
+	verb := map[string]string{"link": "link", "replace": "replace"}[k.kind]
+	switch k.mode {
+	case "applied":
+	case "dry_run":
+		return join("Dry run: would "+verb+" "+baseName(k.path), plainDetail(k.detail))
+	default:
+		return join("Could not "+verb+" "+baseName(k.path), plainDetail(k.detail))
+	}
 	if k.kind == "link" {
 		return "Linked " + baseName(k.path)
 	}
@@ -694,8 +704,8 @@ func (k libKid) words() string {
 
 // downloadLinks are download id's applied link and replace actions, oldest first.
 func (b *builder) downloadLinks(id int64) ([]libKid, error) {
-	rows, err := b.db.QueryContext(b.ctx, `SELECT id, at, kind, COALESCE(path, ''), detail FROM library_action
-		WHERE download_id = ? AND kind IN ('link', 'replace') AND mode = 'applied' ORDER BY at, id`, id)
+	rows, err := b.db.QueryContext(b.ctx, `SELECT id, at, kind, mode, COALESCE(path, ''), detail FROM library_action
+		WHERE download_id = ? AND kind IN ('link', 'replace') ORDER BY at, id`, id)
 	if err != nil {
 		return nil, err
 	}
@@ -703,7 +713,7 @@ func (b *builder) downloadLinks(id int64) ([]libKid, error) {
 	var out []libKid
 	for rows.Next() {
 		var k libKid
-		if err := rows.Scan(&k.id, &k.at, &k.kind, &k.path, &k.detail); err != nil {
+		if err := rows.Scan(&k.id, &k.at, &k.kind, &k.mode, &k.path, &k.detail); err != nil {
 			return nil, err
 		}
 		out = append(out, k)
@@ -771,7 +781,7 @@ func (b *builder) libWords(e *Entry, id int64, kind, mode, path, detail string, 
 		}
 		e.Label, e.Summary = "Linked", join("Linked "+name, plainDetail(detail))
 	case kind == "replace" && withDownload:
-		k := libKid{kind: kind, path: path, detail: detail}
+		k := libKid{kind: kind, mode: mode, path: path, detail: detail}
 		e.Label, e.Summary = "Replaced", k.words()
 		if strings.HasPrefix(detail, "import undone") {
 			e.Label = "Import undone"
@@ -789,7 +799,7 @@ func (b *builder) libWords(e *Entry, id int64, kind, mode, path, detail string, 
 			} else if rest == "" {
 				trash = "already gone"
 			}
-			e.Summary = join("Removed "+name, plainDetail(why), trash)
+			e.Summary = join("Removed "+name, plainDetail(byWhom(why)), trash)
 		} else {
 			e.Summary = join("Removed "+name, plainDetail(detail))
 		}
@@ -797,6 +807,9 @@ func (b *builder) libWords(e *Entry, id int64, kind, mode, path, detail string, 
 	case kind == "relink":
 		e.Label, e.Summary = "Relinked", join("Relinked "+name, plainDetail(detail))
 	case kind == "dead":
+		if missingHash.MatchString(detail) {
+			detail = "" // only the file's hash
+		}
 		e.Label, e.Summary = "Missing", join("Missing "+name, plainDetail(detail))
 	default:
 		e.Label, e.Summary = kind, join(name, plainDetail(detail))
@@ -835,10 +848,10 @@ func (b *builder) adoption(e *Entry, id int64, name, detail string) error {
 	from := " from " + arrWords(clean(inst))
 	e.Summary = "Adopted " + name + from
 	ref := "lib:" + strconv.FormatInt(id, 10)
-	var pAt int64
+	var pAt, files int64
 	var rel, eps string
-	err := b.db.QueryRowContext(b.ctx, `SELECT at, COALESCE(release, ''), episodes FROM history WHERE ref = ?
-		AND event = 'adopted'`, ref).Scan(&pAt, &rel, &eps)
+	err := b.db.QueryRowContext(b.ctx, `SELECT at, COALESCE(release, ''), episodes, files FROM history WHERE ref = ?
+		AND event = 'adopted'`, ref).Scan(&pAt, &rel, &eps, &files)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil // one of a group's other files, or no History row
 	}
@@ -850,30 +863,34 @@ func (b *builder) adoption(e *Entry, id int64, name, detail string) error {
 		path, what string
 	}
 	var members, replaced []file
-	day := pAt / 86_400_000 * 86_400_000
-	rows, err := b.db.QueryContext(b.ctx, `SELECT la.id, la.at, COALESCE(la.path, '') FROM library_action la
-		WHERE la.at >= ? AND la.at < ? AND la.id <> ? AND la.kind = 'link' AND la.mode = 'applied'
-		AND la.download_id IS NULL AND la.detail LIKE 'adopted from %' AND `+libTitleSQL+` = ?
-		AND COALESCE(la.version_key, '') = ? AND `+store.HistoryAdoptReleaseSQL+` = ?
-		AND NOT EXISTS (SELECT 1 FROM history o WHERE o.ref = 'lib:' || la.id) ORDER BY la.at, la.id`,
-		day, day+86_400_000, id, e.Title.ID, e.Version, rel)
-	if err != nil {
-		return err
-	}
-	for rows.Next() {
-		var f file
-		if err := rows.Scan(&f.id, &f.at, &f.path); err != nil {
-			rows.Close()
+	n := int(files)
+	if !b.list {
+		day := pAt / 86_400_000 * 86_400_000
+		rows, err := b.db.QueryContext(b.ctx, `SELECT la.id, la.at, COALESCE(la.path, '') FROM library_action la
+			WHERE la.at >= ? AND la.at < ? AND la.id <> ? AND la.kind = 'link' AND la.mode = 'applied'
+			AND la.download_id IS NULL AND la.detail LIKE 'adopted from %' AND `+libTitleSQL+` = ?
+			AND COALESCE(la.version_key, '') = ? AND `+store.HistoryAdoptReleaseSQL+` = ?
+			AND NOT EXISTS (SELECT 1 FROM history o WHERE o.ref = 'lib:' || la.id) ORDER BY la.at, la.id`,
+			day, day+86_400_000, id, e.Title.ID, e.Version, rel)
+		if err != nil {
 			return err
 		}
-		f.what = "Adopted " + baseName(f.path)
-		members = append(members, f)
+		for rows.Next() {
+			var f file
+			if err := rows.Scan(&f.id, &f.at, &f.path); err != nil {
+				rows.Close()
+				return err
+			}
+			f.what = "Adopted " + baseName(f.path)
+			members = append(members, f)
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return err
+		}
+		n = len(members) + 1
 	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
-		return err
-	}
-	rows, err = b.db.QueryContext(b.ctx, `SELECT CAST(substr(history.ref, 5) AS INTEGER), history.at,
+	rows, err := b.db.QueryContext(b.ctx, `SELECT CAST(substr(history.ref, 5) AS INTEGER), history.at,
 			COALESCE(la.path, ''), COALESCE(la.detail, '')
 		FROM history p JOIN history ON history.event = 'removed'
 			AND `+adoptionOfRemovalSQL(`history.at BETWEEN p.at - 60000 AND p.at + 60000`)+`
@@ -893,17 +910,17 @@ func (b *builder) adoption(e *Entry, id int64, name, detail string) error {
 		if r, ok := strings.CutPrefix(d, "unlinked ("); ok {
 			why, _, _ = strings.Cut(r, "), moved aside")
 		}
-		f.what = join("Removed "+baseName(f.path), plainDetail(why))
+		f.what = join("Removed "+baseName(f.path), plainDetail(byWhom(why)))
 		replaced = append(replaced, f)
 	}
 	rows.Close()
 	if err := rows.Err(); err != nil {
 		return err
 	}
-	if len(members) > 0 {
+	if n > 1 {
 		var ids []int64
 		_ = json.Unmarshal([]byte(eps), &ids)
-		what := fmt.Sprintf("%d files", len(members)+1)
+		what := fmt.Sprintf("%d files", n)
 		if ti, _ := b.title(e.Title.ID); ti != nil {
 			if s := seasonOf(ti.labels(ids)); s != "" {
 				what += " of " + s

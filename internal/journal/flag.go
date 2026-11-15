@@ -171,32 +171,25 @@ func clearFailures(ctx context.Context, tx *sql.Tx, id, title int64, version str
 	return err
 }
 
-// flagRefs are the History rows that may hold an entry's flags, first found first: its own; for an import, its held
-// row, then its failed download's row (an import refused with the download).
-func flagRefs(id string) []string {
+// flagRefs are the History rows that may hold an entry's flags: its own; for an import, its held row, then its failed
+// download's row (an import refused with the download), the first found counting; for a grab, whose line stands for
+// its download's import and failure too (headParts), its own, its import's and its failure's, all merged.
+func flagRefs(id string) (refs []string, all bool) {
 	if dl, ok := strings.CutSuffix(id, ":import"); ok {
-		return []string{id, dl + ":held", dl + ":fail"}
+		return []string{id, dl + ":held", dl + ":fail"}, false
 	}
-	return []string{id}
-}
-
-// flagGroups are the History rows of the flags an entry's line shows, a group per entry it stands for (first found of
-// each counts): its own (flagRefs); a grab's line stands for its download's import and failure too (headParts), so
-// it shows their flags as well.
-func flagGroups(id string) [][]string {
 	if strings.HasPrefix(id, "dl:") && strings.Count(id, ":") == 1 {
-		return [][]string{{id}, flagRefs(id + ":import"), {id + ":fail"}}
+		return []string{id, id + ":import", id + ":held", id + ":fail"}, true
 	}
-	return [][]string{flagRefs(id)}
+	return []string{id}, false
 }
 
 // setFlags fills the entries' flags from their stored History rows, in one query.
 func (b *builder) setFlags(es []*Entry) error {
 	var refs []string
 	for _, e := range es {
-		for _, g := range flagGroups(e.ID) {
-			refs = append(refs, g...)
-		}
+		r, _ := flagRefs(e.ID)
+		refs = append(refs, r...)
 	}
 	if len(refs) == 0 {
 		return nil
@@ -220,19 +213,16 @@ func (b *builder) setFlags(es []*Entry) error {
 		return err
 	}
 	for _, e := range es {
-		var used []string
-		for _, g := range flagGroups(e.ID) {
-			for _, ref := range g {
-				raw, ok := stored[ref]
-				if !ok {
-					continue
-				}
-				if !slices.Contains(used, ref) {
-					used = append(used, ref)
-					var fs []Flag
-					_ = json.Unmarshal([]byte(raw), &fs)
-					e.Flags = mergeFlags(e.Flags, fs)
-				}
+		refs, all := flagRefs(e.ID)
+		for _, ref := range refs {
+			raw, ok := stored[ref]
+			if !ok {
+				continue
+			}
+			var fs []Flag
+			_ = json.Unmarshal([]byte(raw), &fs)
+			e.Flags = mergeFlags(e.Flags, fs)
+			if !all {
 				break
 			}
 		}

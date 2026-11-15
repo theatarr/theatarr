@@ -250,8 +250,7 @@ var libParentSQL = `CASE
 	WHEN la.download_id IS NOT NULL THEN CASE WHEN la.kind IN ('link', 'replace') THEN (SELECT 'dl:' || d.id
 		FROM download d WHERE d.id = la.download_id AND d.version_key = COALESCE(la.version_key, '')
 		AND (la.title_id IS NULL OR la.title_id = d.title_id)) END
-	WHEN la.kind = 'link' AND la.mode = 'applied' AND la.detail LIKE 'adopted from %' THEN (SELECT p.ref ` +
-	adoptGroupSQL + ` ORDER BY p.id LIMIT 1)
+	WHEN la.kind = 'link' AND la.mode = 'applied' AND la.detail LIKE 'adopted from %' THEN ` + adoptParentMark + `
 	WHEN la.kind = 'replace' AND la.mode = 'applied' THEN (SELECT p.ref FROM history JOIN history p ON ` +
 	adoptionOfRemovalSQL(`p.at BETWEEN history.at - 60000 AND history.at + 60000`) + `
 		AND EXISTS (SELECT 1 FROM library_action pa WHERE pa.id = CAST(substr(p.ref, 5) AS INTEGER))
@@ -267,8 +266,20 @@ const (
 		WHERE d.id = CAST(substr(parent, 4) AS INTEGER)) ELSE 'link' END`
 )
 
-// headSQL is the union of every part.
-var headSQL = unionOf(func(string) bool { return true })
+// adoptParentMark stands for an adoption's parent in libParentSQL: the group's first action (adoptGroupSQL) where the
+// parent's time is needed (a since bound), else only whether there is one (headFastSQL).
+const adoptParentMark = `/*adopt-parent*/`
+
+// headSQL is the union of every part, with each parent's id; headFastSQL the same where an adoption's parent is only
+// known to exist ('lib:'): an adoption action is not its group's first exactly when it has no History row of its own,
+// one lookup in the ref index instead of a search of the day's group rows. The filter needs a lib parent's id only for
+// its time (parentAtSQL, the since bound): its kind is always link.
+var (
+	headSQL = strings.Replace(unionOf(func(string) bool { return true }), adoptParentMark,
+		`(SELECT p.ref `+adoptGroupSQL+` ORDER BY p.id LIMIT 1)`, 1)
+	headFastSQL = strings.Replace(unionOf(func(string) bool { return true }), adoptParentMark,
+		`CASE WHEN NOT EXISTS (SELECT 1 FROM history o WHERE o.ref = 'lib:' || la.id) THEN 'lib:' END`, 1)
+)
 
 // flaggedHeadSQL lists the History rows by their entries, at the entries' own times (a grab's row is dated when a
 // provider took it, its entry when it was created), before a severity condition.
@@ -297,7 +308,10 @@ func unionOf(keep func(prefix string) bool) string {
 // (headParts) matches the filter too is left out: its parent's line stands for it. Title and library are the
 // parent's own, so only the since bound and the kinds can tell them apart; folding does not depend on the page.
 func (j *Journal) heads(ctx context.Context, f Filter, titles []int64, cur *cursor, n int) ([]head, error) {
-	q := headSQL
+	q := headFastSQL
+	if !f.Since.IsZero() {
+		q = headSQL
+	}
 	var args []any
 	fold := false
 	switch {
@@ -448,6 +462,7 @@ func (j *Journal) List(ctx context.Context, f Filter) (*Page, error) {
 		return nil, err
 	}
 	b := j.newBuilder(ctx)
+	b.list = true
 	page := &Page{Items: []*Entry{}}
 	batch := f.Limit + 1
 	for {
@@ -502,7 +517,7 @@ func (j *Journal) headOf(ctx context.Context, id string) (head, error) {
 		return head{}, ErrNotFound
 	}
 	prefix, _, _ := strings.Cut(id, ":")
-	q := unionOf(func(p string) bool { return p == prefix })
+	q := strings.Replace(unionOf(func(p string) bool { return p == prefix }), adoptParentMark, "NULL", 1) // parent unused
 	// A direct search handoff includes routed runs too; the feed still represents those by their downloads.
 	if prefix == "run" {
 		q = runHeadSQL

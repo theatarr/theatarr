@@ -139,7 +139,7 @@ var actionWords = map[string][2]string{
 	ActRemoveDownload: {"Download removed", "Removed the download"},
 	ActRetryDownload:  {"Retried", "Retried"},
 	ActUnblock:        {"Unblocked", "Unblocked"},
-	ActRemoveVersion:  {"Copy removed", "Removed the copy"},
+	ActRemoveVersion:  {"Removed", "Removed from the library"},
 	ActRemoveTitle:    {"Title removed", "Removed the title"},
 	ActUnlinkFile:     {"Removed", "Removed"},
 }

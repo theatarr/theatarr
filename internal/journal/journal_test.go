@@ -260,7 +260,7 @@ func TestDownloadEntries(t *testing.T) {
 	if rs := e.get("run:8"); rs.Kind != KindResearch || rs.Summary != "Search again after a stalled download: nothing grabbed · no accepted release among 4 results" {
 		t.Errorf("research: %+v", rs)
 	}
-	if g.Label != "Grabbed" || !strings.HasPrefix(g.Summary, "Grabbed Alpha.2020.2160p.UHD.BluRay.REMUX-GRP on AD · failed: stalled: not ready 10m0s") {
+	if g.Label != "Failed" || !strings.HasPrefix(g.Summary, "Grabbed Alpha.2020.2160p.UHD.BluRay.REMUX-GRP on AD · failed: stalled: not ready 10m0s") {
 		t.Errorf("grab summary: %s %q", g.Label, g.Summary)
 	}
 	// Nothing secret in any output, JSON or text. The failure is on the grab's line.
@@ -706,7 +706,7 @@ func TestListFolds(t *testing.T) {
 		t.Fatalf("lines: %v", got)
 	}
 	want := map[string][2]string{
-		"lib:6": {"Removed", "Removed Alpha.WEB.mkv · unlinked by mgr · moved to the trash"},
+		"lib:6": {"Removed", "Removed Alpha.WEB.mkv · by mgr · moved to the trash"},
 		"lib:3": {"Adopted", "Adopted 2 files of Season 1 from Sonarr (sonarr_4k_debrid) · replaced Gamma - S01E01 old.mkv"},
 		"dl:5":  {"Upgraded", "Grabbed Alpha.2020.2160p.REMUX-NEW on RD · imported, replaced Alpha (2020) [Remux-2160p]-OLD.mkv"},
 	}
@@ -802,6 +802,82 @@ func TestPlainDetail(t *testing.T) {
 	} {
 		if got := plainDetail(in); got != want {
 			t.Errorf("%q: %q, want %q", in, got, want)
+		}
+	}
+}
+
+// Review follow-ups to the list: every folded action is in its grab's What followed (applied or not); a grab reads
+// Upgraded only once it replaced a file, Failed when it failed; an import refused with its failed download is no
+// import held for review; a pack's grab line names its episodes (the episode window keeps it); plain words for a
+// missing file's hash, a search after every release failed, and a removal's remover.
+func TestListFollowUps(t *testing.T) {
+	e := newEnv(t)
+	at := testNow.Add(-72 * time.Hour)
+	ms := func(d time.Duration) int64 { return msOf(at.Add(d)) }
+	// Gamma: an imported pack (S01E01-E02), then an upgrade attempt still downloading and one that failed.
+	e.dlEvent(1, "imported", at, 3, 3, "tv-2160p", hashA, "Gamma.S01.2160p-A", "WEBDL-2160p", 100, 1<<30,
+		[]int64{101, 102}, "")
+	e.exec(`INSERT INTO library_import (download_id, state, mount_folder, plan, created_at, updated_at)
+		VALUES (1, 'linked', '/m/G', '{}', ?, ?)`, ms(time.Hour), ms(time.Hour))
+	e.dlEvent(2, "downloading", at.Add(2*time.Hour), 3, 3, "tv-2160p", hashB, "Gamma.S01.2160p-B", "WEBDL-2160p", 200,
+		1<<30, []int64{101, 102}, "")
+	e.dlEvent(3, "failed", at.Add(3*time.Hour), 3, 3, "tv-2160p", hashC, "Gamma.S01.2160p-C", "WEBDL-2160p", 200,
+		1<<30, []int64{101, 102}, "library: rejected by the sample guard")
+	e.exec(`INSERT INTO library_import (download_id, state, mount_folder, last_error, plan, created_at, updated_at)
+		VALUES (3, 'rejected', '/m/G', 'sample guard: the file runs 4 min', '{}', ?, ?)`, ms(3*time.Hour), ms(3*time.Hour))
+	// Alpha movie-remux: a download whose import ran dry (library paused).
+	e.dlEvent(4, "ready", at.Add(4*time.Hour), 1, 1, "movie-remux", "dddddddddddddddddddddddddddddddddddddddd",
+		"Alpha.2020.REMUX-D", "Remux-2160p", 9000, 1<<30, nil, "")
+	e.exec(`INSERT INTO library_import (download_id, state, mount_folder, plan, created_at, updated_at)
+		VALUES (4, 'dry_run', '/m/A', '{}', ?, ?)`, ms(5*time.Hour), ms(5*time.Hour))
+	e.exec(`INSERT INTO library_action (id, at, kind, mode, version_key, download_id, path, detail) VALUES
+		(1, ?, 'link', 'dry_run', 'movie-remux', 4, '/movies/Alpha/Alpha.D.mkv', 'the library is in dry-run mode'),
+		(2, ?, 'dead', 'applied', 'movie-web', NULL, '/movies/Alpha/Alpha.W.mkv',
+			'missing 7c977171240e2dfc7c977171240e2dfc7c977171'),
+		(3, ?, 'replace', 'applied', 'movie-web', NULL, '/movies/Alpha/Alpha.X.mkv',
+			'unlinked (copy removed by key:auto), moved aside to /trash/Alpha.X.mkv')`,
+		ms(5*time.Hour), ms(6*time.Hour), ms(7*time.Hour))
+	e.exec(`UPDATE library_action SET title_id = 1 WHERE id IN (2, 3)`)
+	e.exec(`INSERT INTO journal_action (id, action, title_id, version_key, target, detail, by, created_at) VALUES
+		(1, 'remove_version', 1, 'movie-web', 'Alpha', 'files deleted', 'key:auto', ?)`, ms(7*time.Hour-time.Second))
+	e.exec(`INSERT INTO acquire_run (id, source, title_id, version_id, version_key, target, state, research, message,
+		created_at, updated_at) VALUES (5, 'wanted', 3, 3, 'tv-2160p', 'season', 'nothing', 'exhausted',
+		'no accepted release left', ?, ?)`, ms(8*time.Hour), ms(8*time.Hour))
+
+	byID := map[string]*Entry{}
+	for _, it := range e.list(Filter{}).Items {
+		byID[it.ID] = it
+	}
+	for id, w := range map[string][2]string{
+		"dl:1":  {"Grabbed", "Grabbed Gamma.S01.2160p-A · imported"},
+		"dl:2":  {"Grabbed", "Grabbed Gamma.S01.2160p-B · downloading"},
+		"dl:3":  {"Failed", "Grabbed Gamma.S01.2160p-C · failed: library: rejected by the sample guard"},
+		"dl:4":  {"Grabbed", "Grabbed Alpha.2020.REMUX-D · dry run, nothing linked"},
+		"lib:2": {"Missing", "Missing Alpha.W.mkv"},
+		"lib:3": {"Removed", "Removed Alpha.X.mkv · by key:auto · moved to the trash"},
+		"act:1": {"Removed", "Removed from the library · by key:auto · files moved to the trash"},
+		"run:5": {"Search after a failure", "Search again after every release tried failed (season): nothing grabbed · no accepted release left"},
+	} {
+		if g := byID[id]; g == nil || g.Label != w[0] || g.Summary != w[1] {
+			t.Errorf("%s: %+v\nwant %s %q", id, g, w[0], w[1])
+		}
+	}
+	if g := byID["dl:1"]; g == nil || !slices.Contains(g.Release.Episodes, "S01E02") {
+		t.Errorf("pack's episodes: %+v", g)
+	}
+	var refs []string
+	for _, ev := range e.get("dl:4").After {
+		refs = append(refs, ev.Ref)
+	}
+	if !slices.Contains(refs, "lib:1") {
+		t.Errorf("dry run's link action not in what followed: %v", refs)
+	}
+	if im := e.get("dl:3:import"); im.Label != "Import failed" || strings.Contains(im.Summary, "held") {
+		t.Errorf("refused import: %s %q", im.Label, im.Summary)
+	}
+	for _, ev := range e.get("dl:3").After {
+		if ev.Ref == "dl:3:import" && strings.Contains(ev.Text, "held") {
+			t.Errorf("refused import in what followed: %q", ev.Text)
 		}
 	}
 }
