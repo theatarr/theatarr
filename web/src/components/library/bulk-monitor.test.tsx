@@ -128,4 +128,20 @@ describe("Bulk Search now", () => {
     expect(api.calls("POST", "/wanted/search")).toHaveLength(2);
     expect(result.textContent).toBe("Queued 200 searches. 4 started now, 196 waiting in the queue. Stopped after 200 of 450 searches: Theatarr is paused, so nothing can be searched. Wanted");
   });
+
+  it("finishing leaves a dialog opened since alone", async () => {
+    let release: () => void = () => {};
+    const held = new Promise<void>((r) => { release = r; });
+    setup(3, [me(["manage"]), wanted,
+      { method: "POST", path: "/wanted/search", reply: async () => { await held; return answer({ queued: 3 }); } },
+      { method: "POST", path: "/titles/monitor", reply: { dry_run: true, changed: 0, unchanged: 0, missing: 0, stale: 0, message: "Nothing to change", items: [] } }]);
+    const bar = await searchNow(3);
+    const user = userEvent.setup();
+    await user.click(within(screen.getByRole("dialog", { name: "Search 3 titles" })).getByRole("button", { name: "Cancel" }));
+    await user.click(within(bar).getByRole("button", { name: "Monitor" }));
+    const review = await screen.findByRole("dialog", { name: "Review bulk edit" });
+    release();
+    await within(bar).findByTestId("bulk-search-result");
+    expect(review.isConnected).toBe(true);
+  });
 });

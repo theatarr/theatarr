@@ -89,7 +89,8 @@ export function BulkBar({ titles, columns, onClear, kinds = [], anime = false }:
       out.error = e;
     }
     setBusy(false);
-    setOpen(null);
+    // Only the Search now confirmation closes: a dialog opened since stays.
+    setOpen((o) => (o === "search" ? null : o));
     setSum(out);
   };
   if (titles.length === 0 || !perms.manage) return null;

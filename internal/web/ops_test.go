@@ -608,22 +608,22 @@ func TestRemoveCopiesAndTitle(t *testing.T) {
 	}
 }
 
-// TestBulkRemovalScope: the selection bar's Remove reads each title's removal scope in one call (the per-title scope,
-// unchanged); a title with nothing to remove is skipped with the reason and the rest still answer; managers only.
+// TestBulkRemovalScope: the selection bar's Remove reads each title's removal scope in one call, in the request's
+// order (the per-title scope, unchanged); an unknown library is refused; a title with nothing to remove is skipped with the reason and the rest still answer; managers only.
 func TestBulkRemovalScope(t *testing.T) {
 	t.Parallel()
 	o := newOpsEnv(t)
 	url := APIBase + "/titles/removal"
 	var got BulkRemovalScope
 	if code := o.jsonCall("POST", url, BulkRemovalRequest{TitleIDs: []int64{2, 1, 99, 1}}, o.mc, o.mcsrf, &got); code != 200 ||
-		len(got.Scopes) != 2 || got.Scopes[0].TitleID != 1 || !got.Scopes[0].Title || len(got.Scopes[0].Copies) != 2 ||
-		got.Scopes[1].TitleID != 2 || len(got.Skipped) != 1 || got.Skipped[0] != (BulkRemovalSkip{TitleID: 99, Reason: "no longer exists"}) {
+		len(got.Scopes) != 2 || got.Scopes[1].TitleID != 1 || !got.Scopes[1].Title || len(got.Scopes[1].Copies) != 2 ||
+		got.Scopes[0].TitleID != 2 || len(got.Skipped) != 1 || got.Skipped[0] != (BulkRemovalSkip{TitleID: 99, Reason: "no longer exists"}) {
 		t.Fatalf("every library: %d %+v", code, got)
 	}
 	var one RemovalScope
 	o.jsonCall("GET", APIBase+"/titles/1/removal", nil, o.mc, "", &one)
-	if got.Scopes[0].Name != one.Name || got.Scopes[0].Copies[1] != one.Copies[1] {
-		t.Errorf("bulk scope %+v, per title %+v", got.Scopes[0], one)
+	if got.Scopes[1].Name != one.Name || got.Scopes[1].Copies[1] != one.Copies[1] {
+		t.Errorf("bulk scope %+v, per title %+v", got.Scopes[1], one)
 	}
 	// One library: Beta is not in it; Alpha keeps its other library, so it is not the whole title.
 	got = BulkRemovalScope{}
@@ -640,6 +640,9 @@ func TestBulkRemovalScope(t *testing.T) {
 	if code := o.jsonCall("POST", url, BulkRemovalRequest{TitleIDs: []int64{2}}, o.mc, o.mcsrf, &got); code != 200 ||
 		len(got.Scopes) != 0 || got.Skipped[0].Reason != "in no library" {
 		t.Fatalf("removed title: %d %+v", code, got)
+	}
+	if code := o.jsonCall("POST", url, BulkRemovalRequest{TitleIDs: []int64{1}, Versions: []string{"no-such"}}, o.mc, o.mcsrf, nil); code != 400 {
+		t.Errorf("unknown library: %d", code)
 	}
 	if code := o.jsonCall("POST", url, BulkRemovalRequest{}, o.mc, o.mcsrf, nil); code != 400 {
 		t.Errorf("no titles: %d", code)

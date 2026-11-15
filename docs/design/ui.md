@@ -733,12 +733,15 @@ including "Imported from Radarr's blocklist" for `arr:<instance>`) and the healt
     a link to Wanted. A refused request (409 while new downloads are off) shows the server's message and stops the
     rest.
   - **Remove** is the title page's removal dialog for the selection: `POST titles/removal {title_ids, versions}`
-    reads each title's removal scope (the per-title `GET titles/{id}/removal`; a title with nothing to remove is
-    skipped with the reason), and the dialog sums the counts ("Remove 12 titles": libraries, downloads, library
-    files, Sonarr's or Radarr's own files), names the first titles ("Alpha, Beta, Gamma and 9 more") and has the
-    same two choices, both on. Confirming runs `POST titles/{id}/remove` for each title in turn (the same removal,
-    debrid clean-up rules included), shows "Removing 3 of 12…", and ends in one notice: how many were removed, which
-    failed and why, files left in place. Closing the dialog stops after the title in hand.
+    reads each title's removal scope (the per-title `GET titles/{id}/removal`, for up to 500 titles in the selection's
+    order; an unknown library is refused; a title with nothing to remove is skipped with the reason), and the dialog
+    sums the counts ("Remove 12 titles": libraries, downloads, library files), names the first titles ("Alpha, Beta,
+    Gamma and 9 more") and has the same two choices, both on. Confirming handles each title in turn: it reads the
+    title's scope again for exactly the libraries its preview showed, skips it as "changed since the preview" when
+    its libraries, files, downloads or whether it leaves the library differ, and otherwise runs `POST
+    titles/{id}/remove` with those libraries (the same removal, debrid clean-up rules included). It shows "Removing
+    3 of 12…" and ends in one notice: how many were removed, which were not and why, files left in place. Closing
+    the dialog stops after the title in hand and leaves the selection as it is.
   - **Remove from a library** is the same dialog with one library picked in it (the libraries the list shows):
     titles not in it are skipped and counted; a title in no other library leaves the library, as on its page.
   - **Add to a library** picks one library of the list's kinds (Anime: movie and series libraries) and turns it on

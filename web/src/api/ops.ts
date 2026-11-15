@@ -56,7 +56,7 @@ export function useRemovalScope(titleId: number, versions: string[] | undefined,
   const v = versions?.join(",") ?? "";
   return useQuery({
     queryKey: [...qk.title(titleId), "removal", v],
-    queryFn: () => api<RemovalScope>(`/titles/${titleId}/removal` + qs({ versions: v })),
+    queryFn: () => removalScopeOf(titleId, versions),
     enabled,
     staleTime: 0,
   });
@@ -70,28 +70,22 @@ export function useRemove(titleId: number) {
   });
 }
 
-/** POST /titles/removal takes at most this many titles (internal/web maxBulkTitles). */
-const SCOPE_CHUNK = 500;
-
-/** The selection bar's Remove: each title's removal scope (versions: the one library; none: the whole title), read
- *  once while enabled; the previous answer stays up while the library changes. */
+/** The selection bar's Remove: each title's removal scope (versions: the one library; none: the whole title), in the
+ *  selection's order, read once while enabled; the previous answer stays up while the library changes. One request:
+ *  the server takes up to 500 titles, as POST /titles/monitor. */
 export function useBulkRemovalScope(titleIds: number[], versions: string[], enabled: boolean) {
   return useQuery({
     queryKey: ["bulk-removal", titleIds.join(), versions.join()],
-    queryFn: async () => {
-      const out: BulkRemovalScope = { scopes: [], skipped: [] };
-      for (let i = 0; i < titleIds.length; i += SCOPE_CHUNK) {
-        const r = await api<BulkRemovalScope>("/titles/removal", { method: "POST", body: { title_ids: titleIds.slice(i, i + SCOPE_CHUNK), versions } });
-        out.scopes.push(...r.scopes);
-        out.skipped.push(...r.skipped);
-      }
-      return out;
-    },
+    queryFn: () => api<BulkRemovalScope>("/titles/removal", { method: "POST", body: { title_ids: titleIds, versions } }),
     enabled: enabled && titleIds.length > 0,
     staleTime: 0,
     placeholderData: keepPreviousData,
   });
 }
+
+/** GET /titles/{id}/removal: what removing versions (none: every copy) of a title would do. */
+export const removalScopeOf = (titleId: number, versions?: string[]) =>
+  api<RemovalScope>(`/titles/${titleId}/removal` + qs({ versions: versions?.join(",") ?? "" }));
 
 /** One title's removal, for a loop over a selection (the single dialog's useRemove does the same call). */
 export const removeTitle = (titleId: number, body: RemoveRequest) => api<RemoveResult>(`/titles/${titleId}/remove`, { method: "POST", body });

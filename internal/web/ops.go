@@ -726,67 +726,107 @@ type RemovalScope struct {
 
 // removalScope reads what removing keys (every copy when empty) of a title would touch.
 func (w *Web) removalScope(ctx context.Context, titleID int64, keys []string) (*RemovalScope, error) {
-	t, err := w.findTitle(ctx, titleID, "", 0)
-	if err != nil || t == nil {
-		return nil, err
-	}
-	out := &RemovalScope{TitleID: titleID, Name: t.name, Copies: []RemovalCopy{}, Leftover: []RemovalCopy{}}
-	var all []string
-	var named []copyName
-	err = scanAll(ctx, w.st.Reader(), `SELECT v.policy_key,
-		(SELECT COUNT(*) FROM link l JOIN link_version lv ON lv.link_id = l.id WHERE lv.version_id = v.id
-			AND l.state = 'active' AND l.kind = 'symlink'),
-		(SELECT COUNT(*) FROM download d WHERE d.version_id = v.id AND d.state NOT IN ('failed', 'imported'))
-		FROM version v WHERE v.title_id = ?
-		AND NOT EXISTS (SELECT 1 FROM arrview_removed_version r WHERE r.version_id = v.id) ORDER BY v.policy_key`,
-		[]any{titleID}, func(r *sql.Rows) error {
-			var c RemovalCopy
-			if err := r.Scan(&c.Key, &c.Links, &c.Downloads); err != nil {
-				return err
-			}
-			all = append(all, c.Key)
-			named = append(named, copyName{key: c.Key, label: w.versionLabel(c.Key)})
-			if len(keys) > 0 && !slices.Contains(keys, c.Key) {
-				return nil
-			}
-			out.Copies = append(out.Copies, c)
-			return nil
-		})
+	got, err := w.removalScopes(ctx, []int64{titleID}, keys)
 	if err != nil {
 		return nil, err
 	}
-	// Named apart among the title's copies, as the title page names them.
-	labels := distinctLabels(named)
-	for i := range out.Copies {
-		out.Copies[i].Label = labels[out.Copies[i].Key]
+	r := got[titleID]
+	return r.scope, r.err
+}
+
+// scopeRead is one title's removal scope, or why it has none: nil for a title that does not exist, errBadRemoval
+// for keys it lacks.
+type scopeRead struct {
+	scope *RemovalScope
+	err   error
+}
+
+// removalScopes reads removalScope for many titles in three queries (the selection bar's Remove).
+func (w *Web) removalScopes(ctx context.Context, ids []int64, keys []string) (map[int64]scopeRead, error) {
+	in := make([]any, len(ids))
+	for i, id := range ids {
+		in[i] = id
 	}
-	var hidden []string
-	err = scanAll(ctx, w.st.Reader(), `SELECT v.policy_key, COUNT(DISTINCT l.id)
-		FROM version v JOIN arrview_removed_version r ON r.version_id = v.id
-		JOIN link_version lv ON lv.version_id = v.id JOIN link l ON l.id = lv.link_id
-		WHERE v.title_id = ? AND l.state IN ('active', 'dead') AND l.kind = 'symlink'
-		GROUP BY v.id ORDER BY v.policy_key`, []any{titleID}, func(r *sql.Rows) error {
-		var c RemovalCopy
-		if err := r.Scan(&c.Key, &c.Links); err != nil {
+	where := `(` + store.Placeholders(len(ids)) + `)`
+	scopes := map[int64]*RemovalScope{}
+	err := scanAll(ctx, w.st.Reader(), `SELECT id, name FROM title WHERE id IN `+where, in, func(r *sql.Rows) error {
+		s := &RemovalScope{Copies: []RemovalCopy{}, Leftover: []RemovalCopy{}}
+		if err := r.Scan(&s.TitleID, &s.Name); err != nil {
 			return err
 		}
-		hidden = append(hidden, c.Key)
-		if len(keys) > 0 && !slices.Contains(keys, c.Key) {
-			return nil
-		}
-		c.Label = w.versionLabel(c.Key)
-		out.Leftover = append(out.Leftover, c)
+		scopes[s.TitleID] = s
 		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
-	for _, k := range keys {
-		if !slices.Contains(all, k) && !slices.Contains(hidden, k) {
-			return nil, fmt.Errorf("%w: the title has no copy %q", errBadRemoval, k)
-		}
+	all := map[int64][]string{}
+	named := map[int64][]copyName{}
+	err = scanAll(ctx, w.st.Reader(), `SELECT v.title_id, v.policy_key,
+		(SELECT COUNT(*) FROM link l JOIN link_version lv ON lv.link_id = l.id WHERE lv.version_id = v.id
+			AND l.state = 'active' AND l.kind = 'symlink'),
+		(SELECT COUNT(*) FROM download d WHERE d.version_id = v.id AND d.state NOT IN ('failed', 'imported'))
+		FROM version v WHERE v.title_id IN `+where+`
+		AND NOT EXISTS (SELECT 1 FROM arrview_removed_version r WHERE r.version_id = v.id) ORDER BY v.policy_key`,
+		in, func(r *sql.Rows) error {
+			var id int64
+			var c RemovalCopy
+			if err := r.Scan(&id, &c.Key, &c.Links, &c.Downloads); err != nil {
+				return err
+			}
+			all[id] = append(all[id], c.Key)
+			named[id] = append(named[id], copyName{key: c.Key, label: w.versionLabel(c.Key)})
+			if s := scopes[id]; s != nil && (len(keys) == 0 || slices.Contains(keys, c.Key)) {
+				s.Copies = append(s.Copies, c)
+			}
+			return nil
+		})
+	if err != nil {
+		return nil, err
 	}
-	out.Title = len(all) > 0 && len(out.Copies) == len(all)
+	hidden := map[int64][]string{}
+	err = scanAll(ctx, w.st.Reader(), `SELECT v.title_id, v.policy_key, COUNT(DISTINCT l.id)
+		FROM version v JOIN arrview_removed_version r ON r.version_id = v.id
+		JOIN link_version lv ON lv.version_id = v.id JOIN link l ON l.id = lv.link_id
+		WHERE v.title_id IN `+where+` AND l.state IN ('active', 'dead') AND l.kind = 'symlink'
+		GROUP BY v.id ORDER BY v.policy_key`, in, func(r *sql.Rows) error {
+		var id int64
+		var c RemovalCopy
+		if err := r.Scan(&id, &c.Key, &c.Links); err != nil {
+			return err
+		}
+		hidden[id] = append(hidden[id], c.Key)
+		if s := scopes[id]; s != nil && (len(keys) == 0 || slices.Contains(keys, c.Key)) {
+			c.Label = w.versionLabel(c.Key)
+			s.Leftover = append(s.Leftover, c)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[int64]scopeRead, len(ids))
+	for _, id := range ids {
+		s := scopes[id]
+		if s == nil {
+			out[id] = scopeRead{}
+			continue
+		}
+		// Named apart among the title's copies, as the title page names them.
+		labels := distinctLabels(named[id])
+		for i := range s.Copies {
+			s.Copies[i].Label = labels[s.Copies[i].Key]
+		}
+		var bad error
+		for _, k := range keys {
+			if !slices.Contains(all[id], k) && !slices.Contains(hidden[id], k) {
+				bad = fmt.Errorf("%w: the title has no copy %q", errBadRemoval, k)
+				break
+			}
+		}
+		s.Title = len(all[id]) > 0 && len(s.Copies) == len(all[id])
+		out[id] = scopeRead{scope: s, err: bad}
+	}
 	return out, nil
 }
 
@@ -843,39 +883,52 @@ type BulkRemovalScope struct {
 	Skipped []BulkRemovalSkip `json:"skipped"`
 }
 
-// POST /titles/removal {title_ids, versions}: GET /titles/{id}/removal for each title. A title with nothing to remove
-// (not in that library, in no library, gone) is skipped with the reason.
+// POST /titles/removal {title_ids, versions}: GET /titles/{id}/removal for each title, in the request's order. A
+// title with nothing to remove (not in that library, in no library, gone) is skipped with the reason.
 func (w *Web) apiBulkRemovalScope(rw http.ResponseWriter, r *http.Request) {
 	var req BulkRemovalRequest
 	if err := decodeJSON(r, &req); err != nil {
 		badRequest(rw, "invalid JSON: "+err.Error())
 		return
 	}
-	ids := slices.Compact(slices.Sorted(slices.Values(req.TitleIDs)))
+	var ids []int64
+	for _, id := range req.TitleIDs {
+		if !slices.Contains(ids, id) {
+			ids = append(ids, id)
+		}
+	}
 	if len(ids) == 0 || len(ids) > maxBulkTitles {
 		badRequest(rw, fmt.Sprintf("title_ids must name 1 to %d titles", maxBulkTitles))
 		return
 	}
-	keys := splitKeys(strings.Join(req.Versions, ","))
+	if w.pol == nil {
+		writeJSON(rw, http.StatusServiceUnavailable, apiError{Error: "no policy loaded"})
+		return
+	}
+	for _, k := range req.Versions {
+		if w.pol.Versions[k] == nil {
+			badRequest(rw, fmt.Sprintf("unknown library %q", k))
+			return
+		}
+	}
+	got, err := w.removalScopes(r.Context(), ids, req.Versions)
+	if err != nil {
+		w.internal(rw, err)
+		return
+	}
 	out := BulkRemovalScope{Scopes: []RemovalScope{}, Skipped: []BulkRemovalSkip{}}
 	none := "in no library"
-	if len(keys) > 0 {
+	if len(req.Versions) > 0 {
 		none = "not in this library"
 	}
 	for _, id := range ids {
-		s, err := w.removalScope(r.Context(), id, keys)
-		switch {
-		case errors.Is(err, errBadRemoval):
-			out.Skipped = append(out.Skipped, BulkRemovalSkip{TitleID: id, Reason: none})
-		case err != nil:
-			w.internal(rw, err)
-			return
-		case s == nil:
+		switch g := got[id]; {
+		case g.scope == nil:
 			out.Skipped = append(out.Skipped, BulkRemovalSkip{TitleID: id, Reason: "no longer exists"})
-		case len(s.Copies) == 0:
+		case g.err != nil || len(g.scope.Copies) == 0:
 			out.Skipped = append(out.Skipped, BulkRemovalSkip{TitleID: id, Reason: none})
 		default:
-			out.Scopes = append(out.Scopes, *s)
+			out.Scopes = append(out.Scopes, *g.scope)
 		}
 	}
 	writeJSON(rw, http.StatusOK, out)

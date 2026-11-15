@@ -7,7 +7,7 @@ import { Loader2 } from "lucide-react";
 import { useRef, useState } from "react";
 import { setVersion, useAddOptions, type VersionOption } from "@/api/add";
 import type { TitleRow } from "@/api/library";
-import { removeTitle, useBulkRemovalScope, useRefresh } from "@/api/ops";
+import { removalScopeOf, removeTitle, useBulkRemovalScope, useRefresh, type RemovalScope } from "@/api/ops";
 import { toast } from "@/components/toaster";
 import { Button } from "@/components/ui/button";
 import { Choice, ConfirmDialog, errText } from "@/components/ui/confirm-dialog";
@@ -27,6 +27,16 @@ function failedWords(failed: Map<string, string[]>, verb: string): string[] {
 function addFailure(failed: Map<string, string[]>, e: unknown, name: string) {
   const why = errText(e).replace(/\.$/, "");
   failed.set(why, [...(failed.get(why) ?? []), name]);
+}
+
+/** The libraries a title's preview showed: its copies and the removed libraries whose files are left. */
+const previewKeys = (s: RemovalScope) => [...s.copies, ...s.leftover].map((c) => c.key);
+
+/** Whether a title still holds what its preview showed: the same libraries with the same files, and the same answer
+ *  to whether it leaves the library. */
+function sameScope(was: RemovalScope, now: RemovalScope): boolean {
+  const sig = (s: RemovalScope) => JSON.stringify([s.title, s.copies.map((c) => [c.key, c.links, c.downloads]), s.leftover.map((c) => [c.key, c.links])]);
+  return sig(was) === sig(now);
 }
 
 function LibrarySelect({ label, value, onChange, groups }: { label: string; value: string; onChange: (v: string) => void; groups: { label?: string; libs: CopyColumn[] }[] }) {
@@ -77,10 +87,7 @@ export function BulkRemoveDialog({ titles, libraries, onClose, onDone }: { title
     onClose();
   };
   if (!q.data) return <Checking error={q.error} onClose={close} />;
-  // In the list's order, as selected.
-  const order = new Map(ids.map((id, i) => [id, i]));
-  const scopes = [...q.data.scopes].sort((a, b) => (order.get(a.title_id) ?? 0) - (order.get(b.title_id) ?? 0));
-  const { skipped } = q.data;
+  const { scopes, skipped } = q.data;
   const label = libraries?.find((c) => c.key === lib)?.label;
   const scope = bulkRemovalScope(scopes, files, debrid, label);
   const byName = new Map(titles.map((t) => [t.id ?? 0, t.name ?? ""]));
@@ -96,13 +103,21 @@ export function BulkRemoveDialog({ titles, libraries, onClose, onDone }: { title
     for (const s of scopes) {
       if (stop.current) break;
       setProgress(done);
+      const name = s.name || byName.get(s.title_id) || `#${s.title_id}`;
       try {
-        const r = await removeTitle(s.title_id, { versions, unlink: files, debrid: files && debrid });
+        // Exactly the libraries the preview showed, and only while the title still holds what it showed.
+        const keys = previewKeys(s);
+        if (!sameScope(s, await removalScopeOf(s.title_id, keys))) {
+          addFailure(failed, "changed since the preview", name);
+          done++;
+          continue;
+        }
+        const r = await removeTitle(s.title_id, { versions: keys, unlink: files, debrid: files && debrid });
         removed++;
         left += r.kept.length + r.failed.length;
         cleanup ||= r.cleanup;
       } catch (e) {
-        addFailure(failed, e, s.name || byName.get(s.title_id) || `#${s.title_id}`);
+        addFailure(failed, e, name);
       }
       done++;
     }
@@ -120,7 +135,8 @@ export function BulkRemoveDialog({ titles, libraries, onClose, onDone }: { title
       body: body.join(" ") || undefined,
       duration: 10_000,
     });
-    onDone();
+    // A dialog closed while it ran leaves the bar (and any dialog opened since) alone.
+    if (!stop.current) onDone();
   };
   return (
     <ConfirmDialog
@@ -179,9 +195,10 @@ export function BulkAddDialog({ titles, kinds, anime, onClose, onDone }: { title
     );
   }
   const name = lib.label || lib.key;
+  const inIt = (t: TitleRow) => (t.versions ?? []).some((v) => v.key === lib.key && v.monitored);
   const wrong = titles.filter((t) => t.kind !== lib.kind);
-  const already = titles.filter((t) => t.kind === lib.kind && (t.versions ?? []).some((v) => v.key === lib.key && v.monitored));
-  const todo = titles.filter((t) => !wrong.includes(t) && !already.includes(t));
+  const already = titles.filter((t) => t.kind === lib.kind && inIt(t));
+  const todo = titles.filter((t) => t.kind === lib.kind && !inIt(t));
   const n = todo.length;
   const kindWord = lib.kind === "series" ? "series" : "movies";
   const scope: Scope = {
@@ -220,7 +237,7 @@ export function BulkAddDialog({ titles, kinds, anime, onClose, onDone }: { title
       body: body.join(" ") || undefined,
       duration: 10_000,
     });
-    onDone();
+    if (!stop.current) onDone();
   };
   return (
     <ConfirmDialog

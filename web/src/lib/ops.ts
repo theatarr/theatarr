@@ -211,7 +211,6 @@ export function bulkRemovalScope(scopes: readonly RemovalScopeLike[], files: boo
   const one = n === 1;
   const sum = (f: (s: RemovalScopeLike) => number) => scopes.reduce((t, s) => t + f(s), 0);
   const links = sum((s) => s.copies.reduce((t, c) => t + c.links, 0) + (files ? (s.leftover ?? []).reduce((t, c) => t + c.links, 0) : 0));
-  const arr = sum((s) => s.copies.reduce((t, c) => t + (c.arr_files ?? 0), 0));
   const downloads = sum((s) => s.copies.reduce((t, c) => t + c.downloads, 0));
   // Titles the removal takes out of every library: all of them without a library, else those with no other.
   const whole = scopes.filter((s) => s.title).length;
@@ -230,7 +229,6 @@ export function bulkRemovalScope(scopes: readonly RemovalScopeLike[], files: boo
     ...(files
       ? whole < n ? [SHARED_FILE_STAYS] : []
       : links === 0 ? [] : [`${plural(links, "library file")} ${links === 1 ? "stays" : "stay"} linked and playable`]),
-    ...(arr > 0 ? [arrFilesStay(arr)] : []),
     ...(debrid ? [] : [one ? "Its debrid torrents stay" : "Their debrid torrents stay"]),
     one ? "Its history stays" : "Their history stays",
     one ? REMOVAL_LISTS : "Import lists will not restore the removed libraries; add them yourself to bring them back",

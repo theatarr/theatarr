@@ -18,8 +18,11 @@ const titles = [
 ] as unknown as TitleRow[];
 const columns = [{ key: "hd", label: "HD" }, { key: "uhd", label: "4K" }, { key: "tv", label: "TV" }] as CopyColumn[];
 
-const copy = (key: string, label: string, links: number, downloads = 0, arr_files = 0) => ({ key, label, links, downloads, arr_files });
+const copy = (key: string, label: string, links: number, downloads = 0) => ({ key, label, links, downloads });
 const scope = (title_id: number, name: string, copies: ReturnType<typeof copy>[], title = true) => ({ title_id, name, copies, title, leftover: [] });
+type ScopeT = ReturnType<typeof scope>;
+/** The per-title scope read again just before each removal: as previewed unless changed. */
+const reread = (list: ScopeT[]) => list.map((sc) => ({ method: "GET", path: `/titles/${sc.title_id}/removal`, reply: sc }));
 const removed = (over: Record<string, unknown> = {}) => ({ removed: ["hd"], title: true, downloads_ended: 0, unlinked: [], kept: [], failed: [], cleanup: true, message: "Removed.", ...over });
 
 function setup(routes: Route[], perms = ["manage", "add", "see_files"]) {
@@ -50,7 +53,7 @@ describe("Bulk bar", () => {
 describe("Bulk Remove", () => {
   const scopes = {
     scopes: [
-      scope(1, "Alpha", [copy("hd", "HD", 3, 1), copy("uhd", "4K", 2, 0, 4)]),
+      scope(1, "Alpha", [copy("hd", "HD", 3, 1), copy("uhd", "4K", 2)]),
       scope(2, "Beta", [copy("hd", "HD", 1)]),
       scope(3, "Gamma", [copy("uhd", "4K", 0)]),
       scope(4, "Delta", [copy("tv", "TV", 10)]),
@@ -61,6 +64,7 @@ describe("Bulk Remove", () => {
   it("sums the scopes, lists the titles and removes each through the per-title removal", async () => {
     const { api, cleared } = setup([
       { method: "POST", path: "/titles/removal", reply: scopes },
+      ...reread(scopes.scopes),
       ...[1, 2, 3, 4].map((id) => ({ method: "POST", path: `/titles/${id}/remove`, reply: removed() })),
     ]);
     const user = userEvent.setup();
@@ -73,7 +77,6 @@ describe("Bulk Remove", () => {
     expect(does).toContain("Theatarr stops following 1 download in progress");
     expect(does).toContain("16 library files are deleted from the library");
     expect(does).toContain("Their debrid torrents are deleted from the providers");
-    expect(within(dialog).getByTestId("confirm-keeps").textContent).toContain("4 files that Sonarr or Radarr manages stay");
     expect(within(dialog).getByTestId("bulk-remove-skipped").textContent).toBe("Skipped 1 title: in no library.");
     // The single dialog's two choices, both on; the torrents need the files.
     await user.click(within(dialog).getByTestId("remove-files"));
@@ -82,8 +85,10 @@ describe("Bulk Remove", () => {
     await user.click(within(dialog).getByTestId("remove-files"));
     await user.click(within(dialog).getByRole("button", { name: "Remove 4 titles" }));
     await screen.findByText("Removed 4 titles");
-    expect([1, 2, 3, 4].map((id) => api.calls("POST", `/titles/${id}/remove`)[0]?.body)).toEqual(
-      Array(4).fill({ versions: [], unlink: true, debrid: true }));
+    // Each title with exactly the libraries its preview showed.
+    expect([1, 2, 3, 4].map((id) => api.calls("POST", `/titles/${id}/remove`)[0]?.body)).toEqual([["hd", "uhd"], ["hd"], ["uhd"], ["tv"]].map(
+      (versions) => ({ versions, unlink: true, debrid: true })));
+    expect(api.calls("GET", "/titles/1/removal")[0].search).toBe("?versions=hd%2Cuhd");
     expect(screen.getByText("Their debrid torrents are being cleaned up; each title's History shows the outcome.")).toBeTruthy();
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(cleared()).toBe(1);
@@ -92,6 +97,7 @@ describe("Bulk Remove", () => {
   it("goes on after a refused title and says which failed and why", async () => {
     setup([
       { method: "POST", path: "/titles/removal", reply: { scopes: scopes.scopes.slice(0, 3), skipped: [] } },
+      ...reread(scopes.scopes.slice(0, 3)),
       { method: "POST", path: "/titles/1/remove", reply: removed({ kept: [{ path: "/a", reason: "shared" }] }) },
       { method: "POST", path: "/titles/2/remove", reply: json({ error: "a copy Radarr still manages cannot be removed" }, 409) },
       { method: "POST", path: "/titles/3/remove", reply: removed({ cleanup: false }) },
@@ -113,6 +119,7 @@ describe("Bulk Remove", () => {
     };
     const { api } = setup([
       { method: "POST", path: "/titles/removal", reply },
+      ...reread([scope(1, "Alpha", [copy("uhd", "4K", 2)], false), scope(3, "Gamma", [copy("uhd", "4K", 0)])]),
       ...[1, 3].map((id) => ({ method: "POST", path: `/titles/${id}/remove`, reply: removed({ title: id === 3 }) })),
     ]);
     const user = userEvent.setup();
@@ -128,6 +135,54 @@ describe("Bulk Remove", () => {
     await screen.findByText("Removed 2 titles from 4K");
     expect(api.calls("POST", "/titles/1/remove")[0].body).toEqual({ versions: ["uhd"], unlink: true, debrid: true });
     expect(api.calls("POST", "/titles/2/remove")).toHaveLength(0);
+  });
+});
+
+describe("Bulk Remove after the preview", () => {
+  it("removes only what the preview showed: a title that changed since is skipped and said so", async () => {
+    // Previewed: Alpha in HD with no files, Beta in HD. Since then Alpha got a 4K library and a file.
+    const preview = { scopes: [scope(1, "Alpha", [copy("hd", "HD", 0)]), scope(2, "Beta", [copy("hd", "HD", 1)])], skipped: [] };
+    const { api } = setup([
+      { method: "POST", path: "/titles/removal", reply: preview },
+      { method: "GET", path: "/titles/1/removal", reply: scope(1, "Alpha", [copy("hd", "HD", 1)], false) },
+      { method: "GET", path: "/titles/2/removal", reply: preview.scopes[1] },
+      { method: "POST", path: "/titles/2/remove", reply: removed() },
+    ]);
+    const user = userEvent.setup();
+    await user.click(await within(await bar()).findByRole("button", { name: "Remove" }));
+    const dialog = await screen.findByRole("dialog", { name: "Remove 2 titles" });
+    await user.click(within(dialog).getByRole("button", { name: "Remove 2 titles" }));
+    await screen.findByText("Removed 1 of 2 titles");
+    expect(screen.getByText(/^1 title not removed \(Alpha\): changed since the preview\./)).toBeTruthy();
+    // Alpha's check asked for the previewed library only, and Alpha was not removed.
+    expect(api.calls("GET", "/titles/1/removal")[0].search).toBe("?versions=hd");
+    expect(api.calls("POST", "/titles/1/remove")).toHaveLength(0);
+    expect(api.calls("POST", "/titles/2/remove")[0].body).toEqual({ versions: ["hd"], unlink: true, debrid: true });
+  });
+
+  it("stops after the title in hand when the dialog is closed, and leaves the bar and a newer dialog alone", async () => {
+    let release: () => void = () => {};
+    const held = new Promise<void>((r) => { release = r; });
+    const preview = { scopes: [scope(1, "Alpha", [copy("hd", "HD", 0)]), scope(2, "Beta", [copy("hd", "HD", 1)])], skipped: [] };
+    const { api, cleared } = setup([
+      { method: "POST", path: "/titles/removal", reply: preview },
+      ...reread(preview.scopes),
+      { method: "POST", path: "/titles/1/remove", reply: async () => { await held; return removed(); } },
+      { method: "POST", path: "/titles/monitor", reply: { dry_run: true, changed: 0, unchanged: 0, missing: 0, stale: 0, message: "Nothing to change", items: [] } },
+    ]);
+    const user = userEvent.setup();
+    await user.click(await within(await bar()).findByRole("button", { name: "Remove" }));
+    const dialog = await screen.findByRole("dialog", { name: "Remove 2 titles" });
+    await user.click(within(dialog).getByRole("button", { name: "Remove 2 titles" }));
+    await waitFor(() => expect(api.calls("POST", "/titles/1/remove")).toHaveLength(1));
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    await user.click(await within(await bar()).findByRole("button", { name: "Monitor" }));
+    const review = await screen.findByRole("dialog", { name: "Review bulk edit" });
+    release();
+    await screen.findByText("Removed 1 of 2 titles");
+    expect(api.calls("POST", "/titles/2/remove")).toHaveLength(0);
+    expect(cleared()).toBe(0);
+    expect(review.isConnected).toBe(true);
   });
 });
 
