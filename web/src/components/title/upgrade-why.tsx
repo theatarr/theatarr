@@ -1,50 +1,35 @@
 // The quality word (lib/upgrade.ts upgradeBadge) with its Why? explanation in the shared
 // Modal: what falls short with its numbers first, then current against preferred source (folded when they are the
-// same source), the source ceiling's evidence kind and date, search coverage, sightings
-// and any manual override (who, when, note), then the scores and cutoff arithmetic. Managers reach the source
-// ceiling control (ceiling-control.tsx) from there. Used by the copy cards, season headers and the episode overview.
-import { useQuery } from "@tanstack/react-query";
+// same source), then the scores and cutoff arithmetic. Used by the copy cards, season headers and the episode overview.
 import { ArrowUpCircle, HelpCircle, X } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { Link } from "react-router";
-import { useAuth } from "@/api/auth";
-import { api } from "@/api/client";
 import { usePerms } from "@/api/library";
 import type { Cutoff, UpgradeInfo } from "@/api/manage";
-import type { UsersPage } from "@/api/users";
-import { CeilingControl } from "@/components/title/ceiling-control";
 import { Badge } from "@/components/ui/badge";
 import { Modal } from "@/components/ui/modal";
 import { cutoffLine, nextLine, shortfall, upgradeBadge, whyOf } from "@/lib/upgrade";
 import { cn } from "@/lib/utils";
 
 /**
- * The status badge, and a Why? button when the caller sees files and there is something to explain: not on a plain
- * Preferred quality met copy, unless it carries a manual ceiling that Why? lets a manager clear.
+ * The status badge, and a Why? button when the caller sees files and there is something to explain: not on a
+ * Preferred quality met copy.
  */
 export function UpgradeStatus({
   u,
   what,
-  titleId,
-  season,
   score,
   cutoff,
   releases,
-  ceilingControl = true,
   className,
 }: {
   u: UpgradeInfo | undefined | null;
   /** What the status is about, for the dialog's heading: "4K Remux copy", "Season 1 · Anime". */
   what: string;
-  titleId: number;
-  /** A series season, for the ceiling control (movies have none). */
-  season?: number;
   score?: number | null;
   cutoff?: Cutoff | null;
   /** Where "Show releases" goes. */
   releases?: string;
-  /** False where the ceiling has no single scope (a series copy across seasons: the season headers set it). */
-  ceilingControl?: boolean;
   className?: string;
 }) {
   const perms = usePerms();
@@ -57,7 +42,7 @@ export function UpgradeStatus({
         {u.state === "upgrade_available" ? <ArrowUpCircle /> : null}
         {w.label}
       </Badge>
-      {perms.seeFiles && (u.state !== "cutoff_met" || u.ceiling?.override) ? (
+      {perms.seeFiles && u.state !== "cutoff_met" ? (
         <button
           type="button"
           onClick={() => setOpen(true)}
@@ -68,7 +53,7 @@ export function UpgradeStatus({
         </button>
       ) : null}
       {open ? (
-        <WhyDialog u={u} what={what} titleId={titleId} season={season} score={score} cutoff={cutoff} releases={releases} manage={perms.manage && ceilingControl} onClose={() => setOpen(false)} />
+        <WhyDialog u={u} what={what} score={score} cutoff={cutoff} releases={releases} onClose={() => setOpen(false)} />
       ) : null}
     </span>
   );
@@ -83,54 +68,34 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-/** Override authors by name for callers who may list users; others see "user #3" (or "you"). */
-function useAuthorName(enabled: boolean): (id: number) => string | undefined {
-  const me = useAuth();
-  const perms = usePerms();
-  const users = useQuery({ queryKey: ["users"], queryFn: () => api<UsersPage>("/users"), enabled: enabled && perms.users });
-  return (id) => {
-    if (me.data?.id === id) return "you";
-    const u = users.data?.items?.find((x) => x.id === id);
-    return u ? u.display_name || u.username : undefined;
-  };
-}
-
 function WhyDialog({
   u,
   what,
-  titleId,
-  season,
   score,
   cutoff,
   releases,
-  manage,
   onClose,
 }: {
   u: UpgradeInfo;
   what: string;
-  titleId: number;
-  season?: number;
   score?: number | null;
   cutoff?: Cutoff | null;
   releases?: string;
-  manage: boolean;
   onClose: () => void;
 }) {
-  const name = useAuthorName(!!u.ceiling?.override?.by);
-  const why = whyOf(u, new Date(), (id) => name(id) ?? `user #${id}`);
+  const why = whyOf(u);
   const sc = score !== undefined ? score : u.score;
   const co = cutoff ?? u.cutoff;
   const line = cutoffLine(u.quality, sc, co);
-  // Every state short of the preferred quality leads with the profile score when it falls short, Best source seen so
-  // far and Best available included (the quality can match while the score does not).
+  // Every state short of the preferred quality leads with the profile score when it falls short (the quality can
+  // match while the score does not).
   const short = u.state !== "cutoff_met" && u.state !== "none" ? shortfall(sc, co) : "";
-  // The source lines say one thing when current, preferred and reachable are the same source: folded.
-  const sameSource = why.current === why.preferred && (!why.reachable || why.reachable === why.current);
+  // The source lines say one thing when current and preferred are the same source: folded.
+  const sameSource = why.current === why.preferred;
   const sources = (
     <>
       <Row label="Current source">{why.current}</Row>
       <Row label="Preferred quality">{why.preferred}{co && !co.upgrades ? " · upgrades off" : ""}</Row>
-      {why.reachable ? <Row label="Reachable now">{why.reachable}</Row> : null}
     </>
   );
   const next = nextLine(u);
@@ -159,24 +124,7 @@ function WhyDialog({
             <dl className="mt-1 divide-y divide-[var(--line)]">{sources}</dl>
           </details>
         ) : null}
-        <dl className="divide-y divide-[var(--line)]">
-          {sameSource ? null : sources}
-          {why.evidence ? <Row label="Evidence">{why.evidence}</Row> : null}
-          {why.checked ? <Row label="Checked">{why.checked}</Row> : null}
-          {why.override ? <Row label="Manual ceiling">{why.override}</Row> : null}
-        </dl>
-        {why.coverage.length > 0 ? (
-          <details className="text-sm">
-            <summary className="cursor-pointer font-medium">Search coverage ({[...new Set(why.coverage)].length})</summary>
-            <ul className="mt-2 space-y-1 text-xs text-muted-foreground">{[...new Set(why.coverage)].map((c) => <li key={c}>{c}</li>)}</ul>
-          </details>
-        ) : null}
-        {why.sightings.length > 0 ? (
-          <details className="text-sm">
-            <summary className="cursor-pointer font-medium">Sources seen ({why.sightings.length})</summary>
-            <ul className="mt-2 space-y-1 text-xs text-muted-foreground [overflow-wrap:anywhere]">{why.sightings.map((c, i) => <li key={i} title={c.source}>{c.text}</li>)}</ul>
-          </details>
-        ) : null}
+        {sameSource ? null : <dl className="divide-y divide-[var(--line)]">{sources}</dl>}
         <div className="rounded-[5px] border border-[var(--line)] bg-[var(--surface)] px-3 py-2.5 text-xs" data-testid="why-scores">
           <div className="mb-1 font-bold uppercase tracking-[0.05em] text-[var(--ink-3)]">Scores</div>
           {line ? <p className="font-medium tabular-nums text-[var(--ink)]" data-testid="cutoff-line">{line}</p> : null}
@@ -187,7 +135,6 @@ function WhyDialog({
             </Link>
           ) : null}
         </div>
-        {manage ? <CeilingControl titleId={titleId} season={season} ceiling={u.ceiling} /> : null}
       </div>
     </Modal>
   );

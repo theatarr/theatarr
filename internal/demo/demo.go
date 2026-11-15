@@ -133,10 +133,7 @@ func Seed(ctx context.Context, st *store.Store, o Options) (*Result, error) {
 		s.upgradesFound()
 		s.record()
 		s.system()
-		if s.err != nil {
-			return s.err
-		}
-		return s.ceilings()
+		return s.err
 	})
 	if err != nil {
 		return nil, err

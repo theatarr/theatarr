@@ -27,13 +27,10 @@ import (
 // it asked for (scene numbering where it applies) and the episodes it is for. The target's own search stays in TVDB
 // numbering; it is what the plain queries of the other sources ask and are judged with (plainCriteria).
 
-// seriesQuery is one query of a series search, the TVDB season its answer covers for the search ceiling, and the
-// criteria its answer is judged with.
+// seriesQuery is one query of a series search and the criteria its answer is judged with.
 type seriesQuery struct {
-	query    indexer.Query
-	season   int
-	complete bool
-	search   *decide.SeriesSearch
+	query  indexer.Query
+	search *decide.SeriesSearch
 }
 
 // sceneEpisodeMapping is Sonarr's SceneEpisodeMapping.
@@ -187,17 +184,7 @@ func (b *criteriaBuilder) addFor(q indexer.Query, kind profile.SearchKind, eps, 
 	for _, e := range requested {
 		sc.Episodes = append(sc.Episodes, e.ID)
 	}
-	sq := seriesQuery{query: q, season: eps[0].Season, search: sc}
-	if q.Criteria == indexer.CriteriaSeason || q.Criteria == indexer.CriteriaAnimeSeason {
-		// A season-wide search in TVDB numbering by id can prove absence; a remapped or title-only one cannot.
-		sq.complete = q.Season == sq.season && q.Mode&indexer.SearchTitle == 0
-		for _, e := range eps {
-			if e.Season != sq.season {
-				sq.complete = false
-			}
-		}
-	}
-	b.out = append(b.out, sq)
+	b.out = append(b.out, seriesQuery{query: q, search: sc})
 }
 
 // episode is EpisodeSearch.

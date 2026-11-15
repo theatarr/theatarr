@@ -527,7 +527,7 @@ func (s *seeder) snapshot(t *title, v *version, rel *release, target string, run
 }
 
 // upgradesFound records, for two movies whose file is below its cutoff, a later search that found a better release:
-// they read "Upgrade found" and fill Home's row of that name; the others below cutoff read "Best quality known".
+// they read "Upgrade found" and fill Home's row of that name; the others below cutoff read "Preferred quality not met".
 // No draws here, so the rest of the seeded data is unchanged.
 func (s *seeder) upgradesFound() {
 	for i, name := range []string{"Saltglass Meridian", "Tidewater Requiem"} {

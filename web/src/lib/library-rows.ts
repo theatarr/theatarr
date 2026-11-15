@@ -100,7 +100,7 @@ export function versionBrief(v: Version): VersionBrief {
  * (copyWords: "20 of 24 episodes linked", "nothing aired yet" or "no episode information yet"), with "6 missing" under
  * them. A movie without a file: the stage words ("Downloading · 37%"), else "Not monitored", else "Upcoming · Jan 14"
  * when not out at home yet, else "Missing" (the poster badge words). A held movie: "Available", with the quality word
- * beside it (upgrade: "Upgrade found", "Best quality known" or "Preferred quality met", with Why?) and "Upgrade
+ * beside it (upgrade: "Upgrade found", "Preferred quality not met" or "Preferred quality met", with Why?) and "Upgrade
  * downloading · 37%" under it when one is in hand.
  */
 export function libraryStatus(v: Version, t: ToneTitle, day?: string): LibraryStatus {

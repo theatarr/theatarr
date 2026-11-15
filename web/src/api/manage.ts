@@ -71,9 +71,6 @@ export function useScopedSearch(titleId: number) {
   });
 }
 
-export type SourceCeiling = Schemas["SourceCeiling"];
-export type CeilingOverrideRequest = Schemas["CeilingOverrideRequest"];
-
 export type MinimumAvailability = Schemas["MinimumAvailabilityRequest"]["minimum_availability"];
 export type SeriesType = Schemas["SeriesTypeRequest"]["series_type"];
 
@@ -97,13 +94,3 @@ export function useSeriesType(titleId: number) {
   });
 }
 
-export function useCeiling(titleId: number) {
-  const done = useInvalidateTitle(titleId);
-  return useMutation({
-    mutationFn: ({ clear, ...body }: CeilingOverrideRequest & { clear?: boolean }) =>
-      clear
-        ? api<{ ok: boolean }>(`/titles/${titleId}/ceiling` + qs({ season: body.season }), { method: "DELETE" })
-        : api<{ ok: boolean }>(`/titles/${titleId}/ceiling`, { method: "PUT", body }),
-    onSettled: done,
-  });
-}

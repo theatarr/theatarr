@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"github.com/theatarr/theatarr/internal/availability"
-	"github.com/theatarr/theatarr/internal/ceiling"
 	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/gateway"
 	"github.com/theatarr/theatarr/internal/policy"
@@ -14,8 +13,7 @@ import (
 )
 
 // Hooks for the arr views' decision endpoints (release, release/push, parse, manualimport) and the native decision
-// API: search and decide one target, or decide one release, for a version of a title. They record source evidence
-// but nothing is routed (grabs go to the router, which writes only for active versions). Unlike Submit
+// API: search and decide one target, or decide one release, for a version of a title. Nothing is routed (grabs go to the router, which writes only for active versions). Unlike Submit
 // they serve shadow versions too: a decision is an answer, not an acquisition.
 
 // ErrNoEngine means the acquirer was built without a decision engine.
@@ -87,24 +85,6 @@ func (a *Acquirer) InteractiveMany(ctx context.Context, titleID int64, versions 
 	}
 	if err != nil {
 		return nil, err
-	}
-	for _, item := range ls {
-		ss := item.target.Series
-		targetName := "movie"
-		if ss != nil {
-			targetName = fmt.Sprintf("s%02d", ss.Season)
-			if ss.Episode > 0 {
-				targetName += fmt.Sprintf("e%02d", ss.Episode)
-			}
-		}
-		search := found[item.key]
-		if search == nil {
-			continue
-		}
-		if err := ceiling.Record(ctx, a.st.Writer(), a.pol, titleID, item.key, targetName, "search", search.Ranked,
-			search.Releases, search.Coverage, a.now()); err != nil {
-			a.log.Warn("ceiling: interactive search not recorded", "title", titleID, "version", item.key, "err", err)
-		}
 	}
 	return found, nil
 }

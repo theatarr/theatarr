@@ -26,7 +26,6 @@ import (
 	"github.com/theatarr/theatarr/internal/decide/format"
 	"github.com/theatarr/theatarr/internal/gateway"
 	"github.com/theatarr/theatarr/internal/health"
-	"github.com/theatarr/theatarr/internal/indexer"
 	"github.com/theatarr/theatarr/internal/jobs"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/provider"
@@ -36,69 +35,6 @@ import (
 	"github.com/theatarr/theatarr/internal/store/storetest"
 	"github.com/theatarr/theatarr/internal/web"
 )
-
-func TestAcquirerEvidenceUsesCapturedPolicy(t *testing.T) {
-	t.Parallel()
-	db, s, base, initial := runtimeFixture(t)
-	ctx := context.Background()
-	for _, query := range []string{
-		`INSERT INTO title(id,kind,name,created_at,updated_at) VALUES(1,'movie','Movie',0,0)`,
-		`INSERT INTO version(id,title_id,policy_key,created_at,updated_at) VALUES(1,1,'movie-web',0,0)`,
-	} {
-		if _, err := db.Writer().ExecContext(ctx, query); err != nil {
-			t.Fatal(err)
-		}
-	}
-	cfg := acquire.Config{Store: db, Policy: initial.Policy, Queue: jobs.NewQueue(db), Router: &serveRouter{},
-		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
-		Search: func(context.Context, decide.Title, decide.Version, *decide.ExistingFile, *decide.SeriesSearch) (*router.Searched, error) {
-			d := &decide.Decision{MatchType: decide.MatchTitle, Release: "Movie", Quality: "WEBDL-1080p"}
-			return &router.Searched{Ranked: []*decide.Decision{d}, Releases: map[*decide.Decision]indexer.Release{
-				d: {Indexer: "dmm", Title: "Movie"},
-			}}, nil
-		}}
-	first, err := acquire.New(cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	service := &serveAcquirer{fallback: first}
-	manager, err := settings.NewRuntimeCoordinator(s, base, initial, &serveRuntime{Acquirer: first},
-		func(_ context.Context, snap *settings.Snapshot, _ *settings.Runtime) (any, error) {
-			runtime := &serveRuntime{Policy: snap.Policy}
-			return runtime, service.prepare(cfg, runtime)
-		})
-	if err != nil {
-		t.Fatal(err)
-	}
-	service.manager = manager
-	oldCtx := manager.Capture(ctx)
-	req := settings.SaveRequest{ExpectedGeneration: initial.Generation, Actor: "test", Base: base, Records: initial.Records}
-	for i := range req.Records.Indexers {
-		if req.Records.Indexers[i].Key == "dmm" {
-			req.Records.Indexers[i].Config.Kind = "torznab"
-		}
-	}
-	// Another kind with the kept key is another address for it: confirmed.
-	proof, err := manager.Confirm(ctx, req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	req.ConfirmationToken = proof.Token
-	if _, err := manager.SaveAndApply(ctx, req); err != nil {
-		t.Fatal(err)
-	}
-	for _, opCtx := range []context.Context{ctx, oldCtx} {
-		if _, err := service.Interactive(opCtx, 1, "movie-web", nil, nil); err != nil {
-			t.Fatal(err)
-		}
-	}
-	for _, kind := range []string{"dmm", "torznab"} {
-		var count int
-		if err := db.Reader().QueryRowContext(ctx, `SELECT count FROM source_sighting WHERE source_kind = ?`, kind).Scan(&count); err != nil || count != 1 {
-			t.Fatalf("%s evidence count=%d, err=%v", kind, count, err)
-		}
-	}
-}
 
 type continuityProbe struct {
 	provider.Provider

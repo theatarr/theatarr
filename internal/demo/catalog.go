@@ -22,10 +22,10 @@ type seriesSpec struct {
 }
 
 var movieSpecs = []movieSpec{
-	{"The Saffron Observatory", 2017, []string{"Drama"}, scCeilingKnown},
-	{"The Waxwing Almanac", 2018, []string{"Mystery"}, scCeilingLikely},
-	{"Juniper Signal", 2019, []string{"Science Fiction"}, scCeilingHigher},
-	{"The Quiet Astrolabe", 2020, []string{"Drama"}, scCeilingUnknown},
+	{"The Saffron Observatory", 2017, []string{"Drama"}, scBelowCutoff},
+	{"The Waxwing Almanac", 2018, []string{"Mystery"}, scBelowCutoff},
+	{"Juniper Signal", 2019, []string{"Science Fiction"}, scBelowCutoff},
+	{"The Quiet Astrolabe", 2020, []string{"Drama"}, scBelowCutoff},
 	{"The Brassmoor Accord", 2019, []string{"Drama", "Thriller"}, scComplete},
 	{"Quillon Drift", 2021, []string{"Science Fiction", "Adventure"}, scComplete},
 	{"Saltglass Meridian", 2018, []string{"Mystery"}, scUpgrade},
@@ -111,10 +111,10 @@ var seriesSpecs = []seriesSpec{
 }
 
 var animeSeriesSpecs = []seriesSpec{
-	{"Kohaku Observatory", 2016, []string{"Animation", "Drama"}, "Studio Harukaze", []int{12}, scCeilingKnown},
-	{"Aozora Almanac", 2017, []string{"Animation", "Mystery"}, "Studio Harukaze", []int{12}, scCeilingLikely},
-	{"Tsukikage Signal", 2018, []string{"Animation", "Science Fiction"}, "Studio Harukaze", []int{12}, scCeilingHigher},
-	{"Komorebi Astrolabe", 2019, []string{"Animation", "Drama"}, "Studio Harukaze", []int{12}, scCeilingUnknown},
+	{"Kohaku Observatory", 2016, []string{"Animation", "Drama"}, "Studio Harukaze", []int{12}, scBelowCutoff},
+	{"Aozora Almanac", 2017, []string{"Animation", "Mystery"}, "Studio Harukaze", []int{12}, scBelowCutoff},
+	{"Tsukikage Signal", 2018, []string{"Animation", "Science Fiction"}, "Studio Harukaze", []int{12}, scBelowCutoff},
+	{"Komorebi Astrolabe", 2019, []string{"Animation", "Drama"}, "Studio Harukaze", []int{12}, scBelowCutoff},
 	{"Aokaze Requiem", 2016, []string{"Animation", "Action", "Fantasy"}, "Studio Harukaze", []int{12, 12}, scComplete},
 	{"Kiraboshi Mechanics", 2019, []string{"Animation", "Science Fiction"}, "Kobaru Works", []int{24}, scComplete},
 	{"Yumegatari Express", 2021, []string{"Animation", "Fantasy"}, "Studio Harukaze", []int{12}, scPartial},

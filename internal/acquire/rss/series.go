@@ -128,7 +128,6 @@ func (r *Runner) decideSeriesItem(ctx context.Context, rel, ranked indexer.Relea
 			if err != nil {
 				return matched, err
 			}
-			r.recordCeiling(ctx, t.ID, c.version.Key, "rss", "rss", []*decide.Decision{d}, map[*decide.Decision]indexer.Release{d: rel})
 			sum.Decided++
 			if !d.Accepted || d.MatchType == decide.MatchNone {
 				sum.remember = sum.remember && permanentRSS(d)

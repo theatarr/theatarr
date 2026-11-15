@@ -142,8 +142,7 @@ numbers). Clean titles are `GetCleanSceneTitle`; a feed whose caps say `searchEn
 
 Other sources keep the plain query in TVDB numbering: DMM and Torrentio key by IMDb id (Cinemeta/TMDb numbering),
 Zilean filters by IMDb id and title, SeaDex by AniList id per TVDB season. A whole-series search, or one for a title
-with no episodes loaded, keeps the plain query everywhere. Search ceiling coverage stays per TVDB season; only a
-season search by id whose scene season is the TVDB season can prove absence.
+with no episodes loaded, keeps the plain query everywhere.
 
 **Judging the answers.** The target's search (`SearchTarget.Series`, built by
 `decide.SearchFor`) is in TVDB numbering: the episodes wanted by their own season and number. Each query carries its

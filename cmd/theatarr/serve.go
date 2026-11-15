@@ -23,7 +23,6 @@ import (
 	"github.com/theatarr/theatarr/internal/arrview"
 	"github.com/theatarr/theatarr/internal/auth"
 	"github.com/theatarr/theatarr/internal/buildinfo"
-	"github.com/theatarr/theatarr/internal/ceiling"
 	"github.com/theatarr/theatarr/internal/errinbox"
 	"github.com/theatarr/theatarr/internal/gateway"
 	"github.com/theatarr/theatarr/internal/health"
@@ -446,7 +445,6 @@ func runServe(args []string) error {
 	rssRunner := newRSSRunner(pol, st, q, gw, reg, log, routeService, serveSnapshot, rssRuntimeSource{manager: runtimeManager})
 	rssRunner.RegisterJobs(w)
 
-	ceiling.RegisterJobs(w, st, pol)
 	// The torrent manager (docs/design/torrents.md): backups and restores run as jobs; deletes only on request.
 	torrentSvc := &serveTorrents{manager: runtimeManager, st: st, q: q, dir: torrentBackupDir(*dbPath), log: log,
 		pol: pol, gw: gw, ps: ps, addLock: rt.AddLock(), usage: torrentUsage}
@@ -826,8 +824,7 @@ func runServe(args []string) error {
 	// Every gateway generation shares the first one's request counts (Options.Previous): one loop writes them, the
 	// last time after everything that sends indexer requests has stopped.
 	stopRequestFlush := startRequestFlush(ctx, gw)
-	wg.Add(5)
-	go errinbox.Go("ceiling", func() { defer wg.Done(); ceiling.Run(ctx, q, log) })()
+	wg.Add(4)
 	go errinbox.Go("notify", func() {
 		defer wg.Done()
 		nt.Run(ctx)

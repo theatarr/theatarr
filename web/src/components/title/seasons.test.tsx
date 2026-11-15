@@ -484,16 +484,16 @@ describe("One status vocabulary", () => {
     expect(within(row(1)).getByText("Not monitored")).toBeTruthy();
     expect(within(row(2)).getByTestId("cell-upgrade").textContent).toBe("Upgrade found");
     expect(screen.queryByText("Missing")).toBeNull();
-    expect(screen.queryByText("Best quality known")).toBeNull();
+    expect(screen.queryByText("Preferred quality not met")).toBeNull();
     expect(within(screen.getByTestId("season-header")).getByTestId("season-summary").textContent).toBe("3 of 3 available · 1 upgrade found");
     // One library in view: the season header's quality word, and its Why? headed by the same word.
     await user.click(screen.getByRole("radio", { name: "Anime WEB" }));
     const header = screen.getByTestId("season-header");
-    expect(within(header).getByTestId("upgrade-status").textContent).toContain("Best quality known");
+    expect(within(header).getByTestId("upgrade-status").textContent).toContain("Preferred quality not met");
     expect(within(header).getByTestId("season-facts").textContent).toContain("1 upgrade found");
     await user.click(within(header).getByTestId("upgrade-why"));
     const why = await screen.findByTestId("upgrade-why-dialog");
-    expect(within(why).getByRole("heading").textContent).toBe("Best quality known");
+    expect(within(why).getByRole("heading").textContent).toBe("Preferred quality not met");
     // Current and preferred quality are equal: Why? leads with the score that falls short, and the equal source
     // lines are folded.
     expect(within(why).getByTestId("why-short").textContent).toBe("Score 1,500 of 10,000.");
@@ -506,7 +506,7 @@ describe("One status vocabulary", () => {
     // The window's status line across libraries, and the library's own word.
     expect((await within(dialog).findByTestId("episode-status")).textContent).toBe("Available");
     expect(within(dialog).getAllByText("Available")).toHaveLength(2);
-    expect(within(dialog).getByTestId("upgrade-status").textContent).toContain("Best quality known");
+    expect(within(dialog).getByTestId("upgrade-status").textContent).toContain("Preferred quality not met");
     expect(within(dialog).getByText("Not monitored")).toBeTruthy();
     expect(within(dialog).queryByText("Missing")).toBeNull();
   });

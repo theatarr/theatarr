@@ -38,7 +38,7 @@ describe("the quality word", () => {
   it("is said beside a held title only, and only as Upgrade found", () => {
     expect(qualityWord({ availability: "available", upgrade_seen: true, upgrade_state: "upgrade_available" })?.label).toBe("Upgrade found");
     expect(qualityWord({ availability: "partial", upgrade_state: "upgrade_available" })?.label).toBe("Upgrade found");
-    for (const state of ["below_cutoff", "best_available", "best_source_seen", "higher_source_exists", "cutoff_met"] as const) {
+    for (const state of ["below_cutoff", "cutoff_met"] as const) {
       expect(qualityWord({ availability: "available", upgrade_state: state })).toBeUndefined();
       // A partly available title says no quality word either: its row reads just "Partly available".
       expect(qualityWord({ availability: "partial", upgrade_state: state })).toBeUndefined();
@@ -48,7 +48,7 @@ describe("the quality word", () => {
     expect(qualityWord({ availability: "upcoming" })).toBeUndefined();
   });
   it("names the quality filters by the same words", () => {
-    expect(UPGRADE_FILTERS.map((u) => u.label)).toEqual(["Upgrade found", "Best quality known"]);
+    expect(UPGRADE_FILTERS.map((u) => u.label)).toEqual(["Upgrade found"]);
   });
 });
 
@@ -63,8 +63,8 @@ describe("the status filters", () => {
     expect(gridQuery("movies", new URLSearchParams("upgrade=found"), false).upgrade).toBeUndefined();
   });
   it("chips the quality filter", () => {
-    expect(filterChips(new URLSearchParams("upgrade=best_known"), { seeFiles: true }).map((c) => c.label)).toEqual(["Best quality known"]);
-    expect(filterChips(new URLSearchParams("upgrade=best_known"), { seeFiles: false })).toEqual([]);
+    expect(filterChips(new URLSearchParams("upgrade=found"), { seeFiles: true }).map((c) => c.label)).toEqual(["Upgrade found"]);
+    expect(filterChips(new URLSearchParams("upgrade=found"), { seeFiles: false })).toEqual([]);
   });
 });
 

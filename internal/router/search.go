@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/theatarr/theatarr/internal/ceiling"
 	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/gateway"
 	"github.com/theatarr/theatarr/internal/indexer"
@@ -19,9 +18,8 @@ import (
 // Searched is one search decided for a version: every decision ranked, and the route request built from the
 // accepted ones.
 type Searched struct {
-	Coverage []ceiling.Coverage
-	Request  Request
-	Ranked   []*decide.Decision
+	Request Request
+	Ranked  []*decide.Decision
 	// Notes are indexers that failed or were skipped.
 	Notes []string
 	// Incomplete: at least one planned request failed or returned a partial answer (our own page_cap aside:
@@ -64,10 +62,6 @@ func SearchRequest(ctx context.Context, eng *decide.Engine, svc *indexer.Service
 type searchQuery struct {
 	indexer string
 	query   indexer.Query
-	// season is the TVDB season the answer covers for the search ceiling; complete a season-wide search that can
-	// prove absence.
-	season   int
-	complete bool
 	// criteria are what the answer is judged with (nil for a movie): the query's own Sonarr criteria for a feed's
 	// criteria query, plainCriteria for a plain one.
 	criteria []*decide.SeriesSearch
@@ -159,7 +153,7 @@ func SearchRequests(ctx context.Context, eng *decide.Engine, svc *indexer.Servic
 				} else if tt.Kind == policy.KindSeries {
 					crit = plan.plain
 				}
-				ref := searchQuery{indexer: k, query: qq, season: sq.season, complete: sq.complete, criteria: crit}
+				ref := searchQuery{indexer: k, query: qq, criteria: crit}
 				key := k + "\x00" + qq.Key()
 				if i, ok := targetSeen[key]; ok {
 					// Two of the target's criteria ask the same request: its answer is judged with both.
@@ -256,8 +250,8 @@ func SearchRequests(ctx context.Context, eng *decide.Engine, svc *indexer.Servic
 			}
 			answered++
 			snapshots = append(snapshots, got.result.SeaDex...)
-			// Our own page_cap is a choice, not a failure: the search counts as done (its coverage stays incomplete
-			// for the ceiling below). A request that failed part-way is a partial answer.
+			// Our own page_cap is a choice, not a failure: the search counts as done. A request that failed part-way
+			// is a partial answer.
 			if got.result.Truncated && !got.result.Capped {
 				searched.Incomplete = true
 				searched.Notes = append(searched.Notes, ref.indexer+": partial answer")
@@ -268,12 +262,6 @@ func SearchRequests(ctx context.Context, eng *decide.Engine, svc *indexer.Servic
 				searched.Incomplete = true
 				searched.Notes = append(searched.Notes, ref.indexer+": only a plain keyword query; no episode criteria")
 			}
-			season := -1
-			if tt.Kind == policy.KindSeries {
-				season = ref.season
-			}
-			searched.Coverage = append(searched.Coverage, ceiling.Coverage{Indexer: ref.indexer, Kind: searcher.Kind(), Season: season,
-				Complete: !got.result.Cached && !got.result.Shared && !got.result.Truncated && ref.complete})
 			for _, r := range got.releases {
 				if len(refs[target.ID]) > 1 && r.InfoHash != "" {
 					k := ref.indexer + "\x00" + r.InfoHash
@@ -342,7 +330,7 @@ type seriesPlan struct {
 
 // planSeries plans a target's queries; q is the plain query (TVDB numbering). A movie has the plain query only.
 func planSeries(t *decide.Title, ss *decide.SeriesSearch, q indexer.Query) *seriesPlan {
-	p := &seriesPlan{base: seriesQuery{query: q, season: q.Season, complete: q.Episode == 0}}
+	p := &seriesPlan{base: seriesQuery{query: q}}
 	if t.Kind != policy.KindSeries {
 		return p
 	}
@@ -373,12 +361,7 @@ func (p *seriesPlan) forKind(kind string) []seriesQuery {
 	switch seriesQueriesByKind[kind] {
 	case queryCriteria, queryKeywords:
 		if len(p.criteria) == 0 {
-			// Without usable episode metadata, a keyword query cannot establish season coverage.
-			sq := p.base
-			if seriesQueriesByKind[kind] == queryKeywords && sq.query.Type == indexer.QuerySeries {
-				sq.complete = false
-			}
-			return []seriesQuery{sq}
+			return []seriesQuery{p.base}
 		}
 		return p.criteria
 	case queryAniList:

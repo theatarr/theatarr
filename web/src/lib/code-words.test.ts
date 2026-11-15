@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { animeFormatWords, animeSourceWords, mappingCounts, mappingWords, orderWords, roleWords } from "./anime-words";
 import { readableCode, wordsFor } from "./code-words";
 import { errorComponentWords, errorSourceWords, errorStatusWords } from "./error-words";
-import { evidenceSourceWords } from "./evidence-words";
 import { rejectionWords } from "./rejection-words";
 import { attemptCodeWords, attemptOutcomeWords, backoffWords, cacheSourceWords, cacheStateWords } from "./router-words";
 import { releaseEventWords, releaseTypeWords, titleStatusWords } from "./tmdb-words";
@@ -29,18 +28,6 @@ describe("rejection reasons", () => {
     expect(rejectionWords("UnknownMovie")).toBe("Movie not recognised");
     expect(rejectionWords("UnknownSeries")).toBe("Series not recognised");
     expect(rejectionWords("BrandNewReason")).toBe("Brand new reason");
-  });
-});
-
-describe("Why? evidence sources", () => {
-  it("names the origin and keeps the indexer or instance", () => {
-    expect(evidenceSourceWords("rss:dmm")).toBe("RSS (dmm)");
-    expect(evidenceSourceWords("search:prowlarr-therarbg")).toBe("Search (prowlarr-therarbg)");
-    expect(evidenceSourceWords("arr_history:sonarr_4k_zurg")).toBe("Sonarr/Radarr history (sonarr_4k_zurg)");
-    expect(evidenceSourceWords("shadow_search:nyaa")).toBe("Watch-only search (nyaa)");
-    expect(evidenceSourceWords("tmdb:US")).toBe("TMDb release note (US)");
-    expect(evidenceSourceWords("new_origin:x")).toBe("New origin (x)");
-    expect(evidenceSourceWords("")).toBe("");
   });
 });
 

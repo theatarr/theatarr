@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { mediaLine } from "./media";
 import { availabilityFilters, posterStatus } from "./library";
-import { UPGRADE_WORDS, availableIn, belowCount, cutoffLine, nextLine, plainUpgrade, resolutionWords, reasonWords, shortfall, sourceWords, tierWords, upgradeBadge, whyOf } from "./upgrade";
+import { UPGRADE_WORDS, availableIn, belowCount, cutoffLine, nextLine, plainUpgrade, resolutionWords, reasonWords, shortfall, sourceWords, upgradeBadge, whyOf } from "./upgrade";
 
 const cutoff = { quality: "Remux-2160p", score: 10000, upgrades: true };
 
@@ -9,9 +9,6 @@ describe("upgrade words", () => {
   it("uses one vocabulary for every state", () => {
     const table: [string, string][] = [
       ["cutoff_met", "Preferred quality met"],
-      ["best_available", "Best available"],
-      ["best_source_seen", "Best source seen so far"],
-      ["higher_source_exists", "No suitable release found yet, though a better source exists"],
       ["upgrade_available", "Upgrade found"],
       ["below_cutoff", "Preferred quality not met; no better copy found"],
     ];
@@ -19,17 +16,15 @@ describe("upgrade words", () => {
       expect(UPGRADE_WORDS[state as keyof typeof UPGRADE_WORDS].label).toBe(label);
       const badge = upgradeBadge({ state: state as keyof typeof UPGRADE_WORDS });
       // The quality word, never the status word Available.
-      expect(badge?.label).toBe(state === "upgrade_available" ? "Upgrade found" : state === "cutoff_met" ? "Preferred quality met" : "Best quality known");
+      expect(badge?.label).toBe(state === "upgrade_available" ? "Upgrade found" : state === "cutoff_met" ? "Preferred quality met" : "Preferred quality not met");
       expect(badge?.short).toBe(badge?.label);
-      // Best quality known is never a warning.
-      if (badge?.label === "Best quality known") expect(["neutral", "positive"]).toContain(badge.tone);
+      // Preferred quality not met is never a warning.
+      if (badge?.label === "Preferred quality not met") expect(badge.tone).toBe("neutral");
       // The short form is the wording's main clause.
       expect(label.startsWith(UPGRADE_WORDS[state as keyof typeof UPGRADE_WORDS].short)).toBe(true);
     }
     expect(Object.keys(UPGRADE_WORDS).sort()).toEqual(table.map(([s]) => s).sort());
     expect(upgradeBadge({ state: "none" })).toBeNull();
-    // Why? is backed by ceiling evidence for the ceiling states.
-    expect(Object.entries(UPGRADE_WORDS).filter(([, w]) => w.why).map(([s]) => s).sort()).toEqual(["best_available", "best_source_seen", "higher_source_exists"]);
   });
   it("never says Below cutoff to anyone", () => {
     const words = [
@@ -59,53 +54,13 @@ describe("upgrade words", () => {
     expect(sourceWords("WEB 2160p")).toBe("4K WEB");
     expect(sourceWords("Unknown")).toBe("Unknown");
     expect(sourceWords(undefined)).toBe("");
-    expect(tierWords("uhd_bd")).toBe("4K Blu-ray");
   });
   it("explains Why", () => {
-    const now = new Date("2026-10-26T12:00:00Z");
-    const base = { quality: "WEBDL-2160p", cutoff: { quality: "Remux-2160p", upgrades: true, score: 10000 }, score: 1500, effective_cutoff: "WEB 2160p" };
-    const ceiling = {
-      tier: "web_2160" as const,
-      label: "2160p WEB",
-      checked_at: "2026-10-25T12:00:00Z",
-      next_check_at: "2026-10-27T12:00:00Z",
-      evidence: [{ source: "arr_history", source_kind: "arr_history", positive_only: true, tier: "web_2160" as const, example: "Alpha.2160p.WEB-DL", count: 1, first_seen_at: "2026-07-01T12:00:00Z", last_seen_at: "2026-07-01T12:00:00Z" }],
-      searches: [{ searched_at: "2026-09-01T12:00:00Z", source: "search", best_tier: "web_2160", indexers: [{ indexer: "disc-feed", source_kind: "torznab", season: -1, complete: true }, { indexer: "dmm", source_kind: "dmm", season: -1, complete: false }] }],
-    };
-    const known = whyOf({ ...base, state: "best_available", ceiling: { ...ceiling, status: "known" } }, now);
+    const base = { quality: "WEBDL-2160p", cutoff: { quality: "Remux-2160p", upgrades: true, score: 10000 }, score: 1500 };
     // The heading is the badge's quality word; the state's longer wording is the line under it.
-    expect(known.headline).toBe("Best quality known");
-    expect(known.detail).toBe("Best available");
-    expect(known.current).toBe("4K WEB");
-    expect(known.preferred).toBe("4K Remux");
-    expect(known.reachable).toBe("4K WEB");
-    expect(known.evidence).toBe("Known: searches over at least 90 days found nothing above 4K WEB.");
-    expect(known.checked).toBe("Checked 1 d ago; next check Oct 27.");
-    expect(known.coverage).toEqual(["Sep 1: disc-feed, dmm (partial or cached)"]);
-    // The source in words, its raw key kept for the tooltip; positive-only evidence in plain words.
-    expect(known.sightings[0]).toEqual({ text: "4K WEB · Sonarr/Radarr history: Alpha.2160p.WEB-DL · last seen Jul 1 · seen, not confirmed", source: "arr_history" });
-    expect(known.override).toBeUndefined();
-    const likely = whyOf({ ...base, state: "best_source_seen", ceiling: { ...ceiling, status: "likely" } }, now);
-    expect(likely.headline).toBe("Best quality known");
-    expect(likely.detail).toBe("Best source seen so far");
-    // A better source known: the heading never contradicts the badge that opened it.
-    const higher = whyOf({ ...base, state: "higher_source_exists", ceiling: { ...ceiling, status: "known" } }, now);
-    expect([higher.headline, higher.detail]).toEqual(["Best quality known", "No suitable release found yet, though a better source exists"]);
-    expect(whyOf({ ...base, state: "upgrade_available" }, now)).toMatchObject({ headline: "Upgrade found", detail: undefined });
-    expect(likely.evidence).toMatch(/^Provisional/);
-    const manual = whyOf(
-      { ...base, state: "best_available", ceiling: { ...ceiling, status: "override", override: { tier: "web_2160", note: "No disc exists", by: 3, at: "2026-10-20T12:00:00Z" } } },
-      now,
-      (id) => (id === 3 ? "Nick" : `user #${id}`),
-    );
-    expect(manual.evidence).toBe("Set by hand to 4K WEB.");
-    expect(manual.override).toBe("Set to 4K WEB by Nick on Oct 20: “No disc exists”.");
-    // No ceiling: only current against preferred.
-    const plain = whyOf({ ...base, state: "below_cutoff" }, now);
-    expect(plain.headline).toBe("Best quality known");
-    expect(plain.detail).toBe("Preferred quality not met; no better copy found");
-    expect(plain.evidence).toBeUndefined();
-    expect(plain.coverage).toEqual([]);
+    const plain = whyOf({ ...base, state: "below_cutoff" });
+    expect(plain).toEqual({ headline: "Preferred quality not met", detail: "Preferred quality not met; no better copy found", current: "4K WEB", preferred: "4K Remux" });
+    expect(whyOf({ ...base, state: "upgrade_available" })).toMatchObject({ headline: "Upgrade found", detail: undefined });
   });
   it("writes the cutoff line", () => {
     expect(cutoffLine("Bluray-1080p", 6302, cutoff)).toBe("Bluray-1080p · profile score 6,302 / 10,000 · cutoff Remux-2160p");

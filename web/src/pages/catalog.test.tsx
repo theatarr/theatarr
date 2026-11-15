@@ -168,7 +168,7 @@ describe("Library table", () => {
       { id: 7, kind: "movie", name: "Sundial", year: 2099, monitored: false, release_date: "2099-06-01", availability: "upcoming",
         versions: [{ id: 71, key: "movie-4k", label: "4K", monitored: true, has_file: false, state: "wanted", control: managed }] },
       // Held below its preferred quality (every profile's cutoff is out of reach): Available, the quality word under it.
-      { id: 9, kind: "movie", name: "Low Tide", year: 2020, monitored: true, release_date: "2020-05-01", availability: "available", upgrade_state: "best_source_seen",
+      { id: 9, kind: "movie", name: "Low Tide", year: 2020, monitored: true, release_date: "2020-05-01", availability: "available", upgrade_state: "below_cutoff",
         versions: [{ id: 91, key: "movie-4k", label: "4K", monitored: true, has_file: true, quality: "WEBDL-1080p", state: "filled", control: managed }] },
       { id: 10, kind: "movie", name: "High Tide", year: 2020, monitored: true, release_date: "2020-05-01", availability: "available", upgrade_seen: true, upgrade_state: "upgrade_available",
         versions: [{ id: 101, key: "movie-4k", label: "4K", monitored: true, has_file: true, quality: "WEBDL-1080p", state: "filled", control: managed }] },
@@ -188,10 +188,10 @@ describe("Library table", () => {
     expect(within(coming).getByTestId("status-cell").textContent).toBe("Upcoming · Jun 1, 2099");
     expect(within(coming).queryByTestId("status-quality")).toBeNull();
     const low = screen.getByRole("link", { name: "Low Tide" }).closest("tr") as HTMLElement;
-    // Only "Upgrade found" is said on a list row; "Best quality known" stays on the title page.
+    // Only "Upgrade found" is said on a list row; "Preferred quality not met" stays on the title page.
     expect(within(low).getByTestId("status-cell").textContent).toBe("Available");
     expect(within(low).queryByTestId("status-quality")).toBeNull();
-    expect(within(low).queryByText("Best quality known")).toBeNull();
+    expect(within(low).queryByText("Preferred quality not met")).toBeNull();
     const high = screen.getByRole("link", { name: "High Tide" }).closest("tr") as HTMLElement;
     expect([within(high).getByTestId("status-cell").textContent, within(high).getByTestId("status-quality").textContent]).toEqual(["Available", "Upgrade found"]);
     expect(within(coming).getByTestId("library-pill").textContent).toBe("4K · Not released yet");

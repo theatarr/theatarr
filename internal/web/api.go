@@ -198,9 +198,6 @@ func (w *Web) apiTitle(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !canManage(w.permsOf(r)) {
-		for i := range d.Versions {
-			redactCeiling(d.Versions[i].Upgrade)
-		}
 		// The collection's page is for managers (GET /collections/{id}).
 		d.Collection = nil
 	}

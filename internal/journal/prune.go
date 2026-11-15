@@ -17,7 +17,7 @@ import (
 //   - journal_decision: in full for DecisionFull (180 days). After that a decision from which nothing was routed
 //     (no download and no plan from it) is deleted, and the others keep the chosen release and one runner-up
 //     (trimmed = 1) for good. A full row is ~3-6 KB (8 accepted and 4 rejected candidates), a trimmed one ~1 KB: at
-//     the wanted loop's ceiling (10 searches an hour) that is at most ~45 MB for the full window and ~9 MB a year
+//     the wanted loop's cap (10 searches an hour) that is at most ~45 MB for the full window and ~9 MB a year
 //     after; at the expected pace (tens of searches a day) well under 10 MB in all.
 //   - journal_verdict: kept for good (a few hundred bytes each, written by hand).
 const DecisionFull = 180 * 24 * time.Hour

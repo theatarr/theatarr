@@ -908,7 +908,7 @@ Every save that removes a library record (Stop managing library, a settings impo
 the library's rows in the same transaction (`internal/settings/libraryrows.go`), after the confirmation in
 [settings.md](settings.md) "Confirmation on every path". In order: links of its downloads lose the download (a link
 can serve two libraries), the links it alone holds go, then its versions with what cascades from them (downloads,
-decisions, episode states, file records, wanted and ceiling state), its offers (as target or source), wanted search
+decisions, episode states, file records and wanted state), its offers (as target or source), wanted search
 rows, view tags and its own view rows (`arrview_title` `v/<key>`). The episode and title monitoring of its titles is
 recomputed from the remaining libraries (an episode with states left is monitored when any of them is; one with none left keeps its flag), and movie
 collections drop the key. Files on

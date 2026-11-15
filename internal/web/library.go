@@ -43,7 +43,7 @@ type TitleGridFilter struct {
 	YearFrom  int
 	YearTo    int
 	// Availability is the title's availability (titleAvailabilitySQL): available, partial, missing, upcoming,
-	// unmonitored or none; Upgrade a quality filter (upgradeFilters): found or best_known.
+	// unmonitored or none; Upgrade the quality filter: found (some library's file has a better release found).
 	Availability, Upgrade string
 	// Sort is added (newest current file), created (when the title was added), name, year, release (TMDb release or
 	// first air date), rating, runtime, certification, network or size (current files); Order is asc or desc
@@ -196,7 +196,7 @@ func availStateSQL(c airClock) string {
 //     included), or its first air date is still to come (without one, its TMDb status is not Returning Series, Ended
 //     or Canceled);
 //   - missing: no file, monitored and out.
-// A gap in a library that is not monitored is no gap. Quality is said apart from it (upgradeFilters). Display and
+// A gap in a library that is not monitored is no gap. Quality is said apart from it (upgradeFoundCond). Display and
 // filters only: searching, grabbing and Wanted read the stored states.
 
 // undatedMovieSQL is true for a movie t without any date whose status (m, title_meta) says it is announced or still
@@ -300,33 +300,12 @@ func (w *Web) titleAvailability(ctx context.Context, db *sql.DB, ids []any) (map
 	return out, err
 }
 
-// The quality filters (upgrade=): found, some library's file has a better release found (upgrade_available, as
-// markUpgradeSeen marks rows: the posters' and the table's "Upgrade found"); best_known, a file is held, none has
-// an upgrade found, and some file is below its profile's cutoff (Best quality known). A title whose files are all at
-// their cutoff is in neither (Preferred quality met).
-var upgradeFilters = map[string]bool{"found": true, "best_known": true}
-
-// belowCutoffSQL is true when version v of title t has a file below its cutoff, as the upgrade explanation counts
-// them: a movie version filled, or a series episode held in a filled state.
-const belowCutoffSQL = `(CASE WHEN t.kind = 'movie' THEN v.state = 'filled' ELSE EXISTS (SELECT 1 FROM episode_version_state s
-	JOIN episode e ON e.id = s.episode_id WHERE s.version_id = v.id AND s.state = 'filled' AND ` + episodeHeld + `) END)`
-
-// upgradeConds are the quality filters' conditions on title t; each takes the found title ids (upgradeFoundTitles)
-// as one JSON array argument.
-func upgradeConds(c airClock) map[string]string {
-	held := titleAvailabilitySQL(c) + ` IN ('available', 'partial')`
-	return map[string]string{
-		"found":      held + ` AND ` + upgradeFoundSQL,
-		"best_known": held + ` AND NOT ` + upgradeFoundSQL + ` AND ` + heldBelowCutoffSQL,
-	}
+// upgradeFoundCond is the quality filter (upgrade=found) on title t: a file is held and some library's file has a
+// better release found (upgrade_available, as markUpgradeSeen marks rows: "Upgrade found"). It takes the found title
+// ids (upgradeFoundTitles) as one JSON array argument.
+func upgradeFoundCond(c airClock) string {
+	return titleAvailabilitySQL(c) + ` IN ('available', 'partial') AND t.id IN (SELECT value FROM json_each(?))`
 }
-
-// upgradeFoundSQL is true when title t is in upgradeFoundTitles' list, given as one JSON array argument.
-const upgradeFoundSQL = `t.id IN (SELECT value FROM json_each(?))`
-
-// heldBelowCutoffSQL is true when some version of title t in the library has a file below its cutoff.
-const heldBelowCutoffSQL = `EXISTS (SELECT 1 FROM version v WHERE v.title_id = t.id AND ` + liveVersion + ` AND ` +
-	hasFileSQL + ` AND ` + belowCutoffSQL + `)`
 
 // upgradeFoundTitles is the set of titles with an upgrade found: some version in the library with a
 // file below its cutoff (a movie version filled; a series version with files) for which a better release was seen,
@@ -380,7 +359,7 @@ func (w *Web) upgradeFoundTitles(ctx context.Context, db *sql.DB) (map[int64]boo
 	return found, nil
 }
 
-// idsJSON is a set of title ids as the JSON array upgradeFoundSQL takes.
+// idsJSON is a set of title ids as the JSON array upgradeFoundCond takes.
 func idsJSON(ids map[int64]bool) (string, error) {
 	list := make([]int64, 0, len(ids))
 	for id := range ids {
@@ -473,8 +452,8 @@ func (g TitleGridFilter) where(conds []string, args []any) ([]string, []any) {
 		conds = append(conds, titleAvailabilitySQL(g.clock)+" = ?")
 		args = append(args, g.Availability)
 	}
-	if c, ok := upgradeConds(g.clock)[g.Upgrade]; ok {
-		conds = append(conds, "("+c+")")
+	if g.Upgrade == "found" {
+		conds = append(conds, "("+upgradeFoundCond(g.clock)+")")
 		args = append(args, g.upgradeFound)
 	}
 	return conds, args
@@ -572,8 +551,8 @@ func gridFilter(r *http.Request) (TitleGridFilter, error) {
 	if !availabilities[g.Availability] {
 		return g, errors.New("availability must be available, partial, missing, upcoming, unmonitored or none")
 	}
-	if g.Upgrade != "" && !upgradeFilters[g.Upgrade] {
-		return g, errors.New("upgrade must be found or best_known")
+	if g.Upgrade != "" && g.Upgrade != "found" {
+		return g, errors.New("upgrade must be found")
 	}
 	return g, nil
 }
@@ -592,8 +571,7 @@ type TitleFacts struct {
 	// UpgradeSeen: some version below cutoff has a better release seen (upgrade.go): "Upgrade found".
 	UpgradeSeen bool `json:"upgrade_seen,omitempty"`
 	// UpgradeState, with a file held (available or partial): the most pressing upgrade state among the title's
-	// versions (upgrade_available, higher_source_exists, below_cutoff, best_source_seen, best_available, cutoff_met),
-	// the quality word beside the status. The source-ceiling states need manage (redactRowCeiling).
+	// versions (upgrade_available, below_cutoff, cutoff_met), the quality word beside the status.
 	UpgradeState string `json:"upgrade_state,omitempty"`
 	// AddedAt is the newest current file's time.
 	AddedAt *time.Time `json:"added_at,omitempty"`

@@ -169,7 +169,7 @@ The quality word, beside the status word of something with a file and never in i
 | State (`UpgradeInfo.state`) | Word | Colour | Where |
 |---|---|---|---|
 | a better release was found (`upgrade_available`) | **Upgrade found** | accent | posters' year line, table Status (second line), library rows, season headers, episode cells, episode window, quality filter, Home's row |
-| a file below its preferred quality, nothing better found (`below_cutoff`, `best_available`, `best_source_seen`, `higher_source_exists`) | **Best quality known** | neutral | title page: library rows, season headers, episode window; quality filter |
+| a file below its preferred quality, nothing better found (`below_cutoff`) | **Preferred quality not met** | neutral | title page: library rows, season headers, episode window |
 | every file at its preferred quality (`cutoff_met`) | **Preferred quality met** | green | title page: library rows, season headers, episode window |
 
 List rows and posters say only **Upgrade found** (lib/library.ts qualityWord); the other two words are the title page's.
@@ -177,12 +177,12 @@ List rows and posters say only **Upgrade found** (lib/library.ts qualityWord); t
 **Why?** is headed by the quality word that opened it. For every state short of the preferred quality whose profile
 score falls short, the first line under the heading is that score with its numbers ("Score 8,550 of 10,000.", any
 configured cutoff score, zero or below included); the quality part is not judged there (the API does not say whether
-a file's quality meets a cutoff that is a group), the source lines and the cutoff line say it. The state's longer wording (`UPGRADE_WORDS`, such as "Best source seen so far") follows. When current, preferred and
-reachable source are the same, those three lines are folded under "Source: 4K Remux, the preferred one".
+a file's quality meets a cutoff that is a group), the source lines and the cutoff line say it. The state's longer wording (`UPGRADE_WORDS`, such as "Preferred quality not met; no better copy found") follows. When
+current and preferred source are the same, those lines are folded under "Source: 4K Remux, the preferred one".
 
 Filters on Movies, Series and Anime (those who see files): **Available**, **Partly available**, **Missing**, **Not
-monitored**, **Upcoming** (`availability=`), and apart from them **Upgrade found** and **Best quality known**
-(`upgrade=found|best_known`), each with the facet count of exactly the titles it lists; the five status counts add up
+monitored**, **Upcoming** (`availability=`), and apart from them **Upgrade found**
+(`upgrade=found`), each with the facet count of exactly the titles it lists; the five status counts add up
 to the list. An old saved `availability=upgrade` ("Preferred quality not met") opens as Available. Accounts without
 see files keep watchability: Not available, Some episodes, Available (Getting ready and Upcoming on posters).
 
@@ -381,8 +381,8 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   go once nothing is being added.
   **Status:** a download in hand and no file reads its stage ("Downloading · 37%", "Waiting for mount", "Blocked"),
   linked to Activity; a movie without a file "Not monitored", "Upcoming · Jan 14" (not out at home yet, the posters'
-  rule) or "Missing"; a held movie "Available" with the quality word beside it (Upgrade found, Best quality known or
-  Preferred quality met; Why? unless it is plainly at its preferred quality without a manual ceiling; Status words), with
+  rule) or "Missing"; a held movie "Available" with the quality word beside it (Upgrade found, Preferred quality not
+  met or Preferred quality met; Why? unless it is at its preferred quality; Status words), with
   "Upgrade downloading · 37%" under it while one is in hand; a series "42 / 48 episodes" (green when complete, red
   when none, amber between; "Nothing aired yet" before any episode), with "6 missing" under it.
   **Row actions:** **Search now** (icon, managers; disabled with the reason; when other Live libraries want the
@@ -690,7 +690,7 @@ including "Imported from Radarr's blocklist" for `arr:<instance>`) and the healt
   available** (amber) is a title that one library holds while another, monitored library lacks a file or an aired
   episode (the server's `partial`, the Partly available filter); a library that is not monitored does not count, so
   such a title reads Available. Family accounts get the server's watchability as is, so that movie reads Available
-  for them; never Missing. Source-ceiling evidence stays in **Why?**. Top left a small eye-off chip when the title is
+  for them; never Missing. Top left a small eye-off chip when the title is
   not monitored; the Movie / Series / Anime pill is not shown on these pages. Between the art and the title, for
   accounts that see files: a movie in one library has one thin bar; a movie in several has one bar in the badge's
   tone and a line of pills, one per library (dot and label); a series in one library has one bar with its count

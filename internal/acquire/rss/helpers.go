@@ -9,17 +9,8 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/theatarr/theatarr/internal/ceiling"
-	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/indexer"
 )
-
-func (r *Runner) recordCeiling(ctx context.Context, titleID int64, key, target, source string,
-	ds []*decide.Decision, rels map[*decide.Decision]indexer.Release) {
-	if err := ceiling.Record(ctx, r.st.Writer(), r.pol, titleID, key, target, source, ds, rels, nil, r.now()); err != nil {
-		r.log.Warn("ceiling: evidence not recorded", "title", titleID, "version", key, "err", err)
-	}
-}
 
 // withCacheEvidence is a copy of rels with the cache evidence a live search applies before deciding: the same hash in
 // another release and live stored provider_cache rows (Service.ApplyCachedOn), so the ranking's cache tie-break sees

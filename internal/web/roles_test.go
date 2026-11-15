@@ -277,7 +277,7 @@ func TestUserSeesAvailabilityOnly(t *testing.T) {
 	}
 	// Source qualities and cutoff filters are refused.
 	for _, path := range []string{b + "/titles?quality=Bluray-1080p", b + "/titles?upgrade=found",
-		b + "/titles?upgrade=best_known", b + "/titles?availability=upcoming", b + "/titles?availability=unmonitored",
+		b + "/titles?availability=upcoming", b + "/titles?availability=unmonitored",
 		b + "/titles?state=cutoff_met", b + "/versions?state=cutoff_met"} {
 		if code, _ := get(path, ukey); code != http.StatusForbidden {
 			t.Errorf("GET %s as user: %d, want 403", path, code)

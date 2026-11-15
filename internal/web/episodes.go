@@ -144,9 +144,6 @@ func (w *Web) apiTitleEpisodes(rw http.ResponseWriter, r *http.Request) {
 		w.internal(rw, err)
 		return
 	}
-	if !canManage(w.permsOf(r)) {
-		redactEpisodeCeilings(out)
-	}
 	if !w.permsOf(r).SeeFiles {
 		redactEpisodes(out)
 	}

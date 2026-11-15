@@ -17,17 +17,14 @@ var jsonMarshal = json.Marshal
 
 // Scenarios: what state a title's versions are in.
 const (
-	scCeilingKnown   = "ceiling_known"
-	scCeilingLikely  = "ceiling_likely"
-	scCeilingHigher  = "ceiling_higher"
-	scCeilingUnknown = "ceiling_unknown"
-	scComplete       = "complete"    // every version has its file at the cutoff
-	scUpgrade        = "upgrade"     // the first version has a file below its cutoff
-	scPartial        = "partial"     // the first version wanted (movies) or seasons part-way (series)
-	scMissing        = "missing"     // released, every version wanted, no files
-	scUpcoming       = "upcoming"    // not released yet, every version wanted
-	scUnmonitored    = "unmonitored" // the title is not monitored; one version off
-	scAiring         = "airing"      // series: aired episodes filled, the rest air in the coming weeks
+	scBelowCutoff = "below_cutoff" // the first version has a 4K WEB file below its cutoff; nothing better found
+	scComplete    = "complete"     // every version has its file at the cutoff
+	scUpgrade     = "upgrade"      // the first version has a file below its cutoff
+	scPartial     = "partial"      // the first version wanted (movies) or seasons part-way (series)
+	scMissing     = "missing"      // released, every version wanted, no files
+	scUpcoming    = "upcoming"     // not released yet, every version wanted
+	scUnmonitored = "unmonitored"  // the title is not monitored; one version off
+	scAiring      = "airing"       // series: aired episodes filled, the rest air in the coming weeks
 )
 
 type title struct {
@@ -258,7 +255,7 @@ func (s *seeder) versionState(t *title, i int) string {
 	switch t.scenario {
 	case scComplete, scUnmonitored:
 		return "cutoff_met"
-	case scCeilingKnown, scCeilingLikely, scCeilingHigher, scCeilingUnknown:
+	case scBelowCutoff:
 		if i == 0 {
 			return "filled"
 		}
@@ -299,7 +296,7 @@ func (s *seeder) arrEpisodeState(t *title, e *episode) string {
 	switch t.scenario {
 	case scComplete, scAiring:
 		return "cutoff_met"
-	case scCeilingKnown, scCeilingLikely, scCeilingHigher, scCeilingUnknown:
+	case scBelowCutoff:
 		return "filled"
 	case scUpgrade:
 		if e.season == 1 {
@@ -680,7 +677,7 @@ func (s *seeder) files(t *title) {
 		if t.kind == "movie" {
 			below := v.state == "filled"
 			q := quality(v, below)
-			if strings.HasPrefix(t.scenario, "ceiling_") {
+			if t.scenario == scBelowCutoff {
 				q = "WEBDL-2160p"
 			}
 			rel := s.movieRelease(t, q)
@@ -705,7 +702,7 @@ func (s *seeder) files(t *title) {
 			if len(have) == 0 {
 				continue
 			}
-			below := t.scenario == scUpgrade && season == 1 || strings.HasPrefix(t.scenario, "ceiling_")
+			below := t.scenario == scUpgrade && season == 1 || t.scenario == scBelowCutoff
 			q := quality(v, below)
 			if full {
 				rel := s.seriesRelease(t, q, have, true)

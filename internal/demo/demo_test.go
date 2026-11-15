@@ -275,7 +275,6 @@ func TestDemoScreens(t *testing.T) {
 		// The demo has no title without a file that no library monitors: the filter answers, with no rows.
 		"/titles?availability=unmonitored":           {},
 		"/titles?upgrade=found":                      {"items"},
-		"/titles?upgrade=best_known":                 {"items"},
 		"/titles/facets?kind=movie":                  {"versions", "qualities", "genres", "certifications", "providers", "upgrades"},
 		"/titles/facets?kind=series":                 {"versions", "qualities", "genres"},
 		"/discover":                                  {"recent.items", "upcoming.items", "missing.items", "upgrades.items"},
@@ -671,23 +670,6 @@ func digest(t *testing.T, st *store.Store) string {
 		r.Close()
 	}
 	return hex.EncodeToString(h.Sum(nil))
-}
-
-func TestDemoCeilings(t *testing.T) {
-	t.Parallel()
-	st := seedDemo(t)
-	for _, state := range []string{"best_available", "best_source_seen", "higher_source_exists", "below_cutoff"} {
-		var n int
-		if err := st.Reader().QueryRow(`SELECT COUNT(*) FROM version_ceiling WHERE upgrade_state=?`, state).Scan(&n); err != nil || n < 2 {
-			t.Errorf("%s examples: %d (%v)", state, n, err)
-		}
-	}
-	for _, status := range []string{"known", "likely", "unknown"} {
-		var n int
-		if err := st.Reader().QueryRow(`SELECT COUNT(*) FROM version_ceiling WHERE json_extract(ceiling,'$.status')=?`, status).Scan(&n); err != nil || n < 2 {
-			t.Errorf("%s evidence: %d (%v)", status, n, err)
-		}
-	}
 }
 
 // The demo database starts on database settings: the first-start import is done with invented credentials and a

@@ -11,7 +11,6 @@ import (
 	"github.com/theatarr/theatarr/internal/acquire"
 	"github.com/theatarr/theatarr/internal/acquire/rss"
 	"github.com/theatarr/theatarr/internal/auth"
-	"github.com/theatarr/theatarr/internal/ceiling"
 	"github.com/theatarr/theatarr/internal/jobs"
 	"github.com/theatarr/theatarr/internal/metadata/art"
 	"github.com/theatarr/theatarr/internal/metadata/tvrefresh"
@@ -177,7 +176,6 @@ type JobSchedules struct {
 // provider's retry, a manual backup): only those are the task's last or next run.
 var scheduledOnly = map[string]string{
 	provider.JobKind: ` AND payload = '{}'`, art.JobKind: ` AND payload = '{}'`, tvrefresh.JobKind: ` AND payload = '{}'`,
-	ceiling.JobKind:    ` AND payload = '{}'`,
 	torrents.JobBackup: ` AND json_extract(payload, '$.reason') = '` + torrents.ReasonScheduled + `'`,
 }
 
@@ -214,7 +212,6 @@ func (w *Web) recurringJobs() []JobSchedule {
 		out = append(out, JobSchedule{Kind: tvrefresh.JobKind, EverySeconds: sec(sm.Interval)},
 			JobSchedule{Kind: "meta.scene", EverySeconds: sec(tvrefresh.SceneAge)})
 	}
-	out = append(out, JobSchedule{Kind: ceiling.JobKind, EverySeconds: sec(ceiling.RunEvery)})
 	if e := w.pol.TorrentBackupEvery(); e > 0 {
 		out = append(out, JobSchedule{Kind: torrents.JobBackup, EverySeconds: sec(e)})
 	}

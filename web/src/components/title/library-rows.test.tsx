@@ -42,7 +42,7 @@ describe("Libraries table", () => {
     const b = rowOf("movie-remux");
     expect(b.querySelector('[data-column="score"]')?.textContent).toBe("");
     expect(b.querySelector('[data-column="cached_on"]')?.textContent).toBe("—");
-    expect(within(b).getByText("Best quality known")).toBeTruthy();
+    expect(within(b).getByText("Preferred quality not met")).toBeTruthy();
   });
 
   it("gives a Watch-only row its tag, no Interactive search and a disabled Search with the reason", async () => {
@@ -241,14 +241,11 @@ describe("fix round 1", () => {
     expect(search.parentElement?.getAttribute("title")).toBe("Search WEB now. Other Live libraries that want this title may use the results too.");
   });
 
-  it("has no Why? beside a plainly Available copy, and keeps it when a manual ceiling is set", async () => {
+  it("has no Why? beside a plainly Available copy", async () => {
     manager();
-    const page = renderPage(<LibraryRows title={title as never} versions={[web] as never} />);
+    renderPage(<LibraryRows title={title as never} versions={[web] as never} />);
     await waitFor(() => expect(within(rowOf("movie-web")).getByTestId("upgrade-status")).toBeTruthy());
     expect(within(rowOf("movie-web")).queryByTestId("upgrade-why")).toBeNull();
-    page.unmount();
-    renderPage(<LibraryRows title={title as never} versions={[{ ...web, upgrade: { state: "cutoff_met", ceiling: { override: { tier: "web" } } } }] as never} />);
-    await waitFor(() => expect(within(rowOf("movie-web")).getByTestId("upgrade-why")).toBeTruthy());
   });
 
   it("shows the score the server sends, formats or not, and leaves a missing one blank", async () => {
@@ -266,7 +263,7 @@ describe("fix round 1", () => {
     window.localStorage.setItem("theatarr.library.title-libraries.3", JSON.stringify({ order: ["status", "quality"], shown: ["quality"] }));
     manager();
     const user = userEvent.setup();
-    const page = renderPage(<LibraryRows title={title as never} versions={[{ ...web, upgrade: { state: "best_available" } }] as never} />);
+    const page = renderPage(<LibraryRows title={title as never} versions={[{ ...web, upgrade: { state: "below_cutoff" } }] as never} />);
     await waitFor(() => expect(rowOf("movie-web").querySelector('[data-column="status"]')).toBeNull());
     await user.click(screen.getByTestId("copy-details-movie-web"));
     expect(within(screen.getByTestId("library-row-details-movie-web")).getByTestId("upgrade-why")).toBeTruthy();

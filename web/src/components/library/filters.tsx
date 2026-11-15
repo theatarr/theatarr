@@ -259,11 +259,11 @@ export function FiltersPanel({
                 key={u.id}
                 selected={values.upgrade === u.id}
                 onClick={() => toggle("upgrade", u.id)}
-                icon={u.id === "found" ? <Sparkle /> : <PackageCheck />}
+                icon={<Sparkle />}
                 label={u.label}
                 title={u.hint}
                 count={up[u.id]}
-                tone={u.id === "found" ? "warning" : "neutral"}
+                tone="warning"
                 className={segment(values.upgrade === u.id, j > 0)}
               />
             ))}

@@ -10,8 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/theatarr/theatarr/internal/ceiling"
-	"github.com/theatarr/theatarr/internal/decide/profile"
 	"github.com/theatarr/theatarr/internal/store"
 )
 
@@ -58,8 +56,6 @@ type UpgradeNext struct {
 
 // UpgradeInfo explains a version's (or one episode's) state against its cutoff.
 type UpgradeInfo struct {
-	Ceiling         *ceiling.Info `json:"ceiling,omitempty"`
-	EffectiveCutoff string        `json:"effective_cutoff,omitempty"`
 	// State is none (no file), cutoff_met, below_cutoff (no better release seen) or upgrade_available.
 	State   string  `json:"state"`
 	Quality string  `json:"quality,omitempty"`
@@ -80,11 +76,6 @@ func redactUpgrade(u *UpgradeInfo) {
 		return
 	}
 	u.Score, u.Next, u.LastSearch = nil, nil, nil
-	u.Ceiling = nil
-	u.EffectiveCutoff = ""
-	if u.State == "best_available" || u.State == "best_source_seen" || u.State == "higher_source_exists" {
-		u.State = "below_cutoff"
-	}
 	if c := u.Cutoff; c != nil {
 		*c = Cutoff{Quality: c.Quality, Upgrades: c.Upgrades}
 	}
@@ -353,8 +344,6 @@ type upgradeEpisode struct {
 
 // upgradeSet explains versions: their items below cutoff and the evidence about them.
 type upgradeSet struct {
-	ceilings map[ceilingKey]ceilingView
-	profiles map[int64]*profile.Profile
 	files    map[int64]map[int64]itemFile
 	episodes map[int64][]upgradeEpisode
 	evidence map[titleKey][]evRecord
@@ -428,9 +417,6 @@ func (w *Web) loadUpgrades(ctx context.Context, db *sql.DB, vs []upgradeVersion,
 	}
 	if cutoffs {
 		s.cutoffs = w.loadCutoffs(vs)
-		if err := w.loadCeilings(ctx, db, vs, s); err != nil {
-			return nil, err
-		}
 	}
 	return s, nil
 }
@@ -438,7 +424,6 @@ func (w *Web) loadUpgrades(ctx context.Context, db *sql.DB, vs []upgradeVersion,
 // explain builds a version's UpgradeInfo; episode > 0 explains that one episode of a series version.
 func (s *upgradeSet) explain(v upgradeVersion, episode int64) *UpgradeInfo {
 	u := &UpgradeInfo{State: "none", Cutoff: s.cutoffs[v.id]}
-	defer s.applyCeiling(v, episode, u)
 	files := s.files[v.id]
 	recs := s.evidence[titleKey{v.titleID, v.key}]
 	var lastSearch int64
@@ -582,12 +567,11 @@ func (w *Web) loadCutoffs(vs []upgradeVersion) map[int64]*Cutoff {
 }
 
 // rowUpgradeRank orders upgrade states for a list row's badge: the most pressing one wins.
-var rowUpgradeRank = map[string]int{"cutoff_met": 1, "best_available": 2, "best_source_seen": 3, "below_cutoff": 4,
-	"higher_source_exists": 5, "upgrade_available": 6}
+var rowUpgradeRank = map[string]int{"cutoff_met": 1, "below_cutoff": 2, "upgrade_available": 3}
 
 // markUpgradeSeen sets upgrade_seen on list rows: on each version below cutoff with a better release seen, and on
-// the row when any version has one. A row with a file held (available or partial) also gets upgrade_state, with its
-// source ceilings applied as on the title page.
+// the row when any version has one. A row with a file held (available or partial) also gets upgrade_state, as on the
+// title page.
 func (w *Web) markUpgradeSeen(ctx context.Context, db *sql.DB, items []TitleRow) error {
 	var vs []upgradeVersion
 	where := map[int64][2]int{}
@@ -605,9 +589,6 @@ func (w *Web) markUpgradeSeen(ctx context.Context, db *sql.DB, items []TitleRow)
 	s, err := w.loadUpgrades(ctx, db, vs, false)
 	if err != nil {
 		return fmt.Errorf("upgrade evidence: %w", err)
-	}
-	if err := w.loadCeilings(ctx, db, vs, s); err != nil {
-		return fmt.Errorf("source ceilings: %w", err)
 	}
 	for _, v := range vs {
 		u := s.explain(v, 0)

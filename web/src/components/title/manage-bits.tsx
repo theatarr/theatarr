@@ -77,8 +77,8 @@ export function ControlNote({ c, kind, globalSaid = false, verdictSaid = false }
 }
 
 /**
- * The upgrade explanation for an episode: its status in the one vocabulary with Why? (the cutoff line, scores and the
- * source ceiling are in there), what Theatarr would take next (or that nothing better was seen), and a link to the
+ * The upgrade explanation for an episode: its status in the one vocabulary with Why? (the cutoff line and scores
+ * are in there), what Theatarr would take next (or that nothing better was seen), and a link to the
  * releases. People without "see files" get plain words: the API gives them no states, scores or releases.
  */
 export function UpgradeBlock({
@@ -86,7 +86,6 @@ export function UpgradeBlock({
   quality,
   seeFiles,
   releases,
-  titleId,
   what,
 }: {
   u: UpgradeInfo | undefined | null;
@@ -94,7 +93,6 @@ export function UpgradeBlock({
   seeFiles: boolean;
   /** Where "Show releases" goes: a path, or a click handler. */
   releases?: string | (() => void);
-  titleId: number;
   /** What the status is about, for the Why? heading. */
   what: string;
 }) {
@@ -113,7 +111,7 @@ export function UpgradeBlock({
       data-testid="upgrade-block"
       data-state={u.state}
     >
-      <UpgradeStatus u={u} what={what} titleId={titleId} ceilingControl={false} />
+      <UpgradeStatus u={u} what={what} />
       {below && next ? (
         <p className={cn("mt-1 text-xs [overflow-wrap:anywhere]", u.state === "upgrade_available" ? "text-[var(--accent-ink)]" : "text-[var(--ink-3)]")} data-testid="upgrade-next">
           {next}

@@ -988,7 +988,7 @@ func (a *Acquirer) run(ctx context.Context, sj SearchJob, claim string) error {
 	req := found.Request
 	req.Source = Source(runID)
 	// The grab journal keeps what this search decided between (internal/journal/snapshot).
-	if err := snapshot.Record(ctx, a.st.Writer(), snapshot.Search{Policy: a.pol, Coverage: found.Coverage, Source: req.Source, RunID: runID,
+	if err := snapshot.Record(ctx, a.st.Writer(), snapshot.Search{Policy: a.pol, Source: req.Source, RunID: runID,
 		TitleID: t.titleID, Version: t.key, Target: t.name, Ranked: found.Ranked, Releases: found.Releases,
 		Notes: found.Notes, CreatedAt: a.now()}); err != nil {
 		a.log.Warn("journal: decision not recorded", "run", runID, "err", err)
@@ -1233,7 +1233,7 @@ func (a *Acquirer) runFanout(ctx context.Context, rootID int64, claim, rootState
 		}
 		req := searched.Request
 		req.Source = Source(item.id)
-		if err := snapshot.Record(ctx, a.st.Writer(), snapshot.Search{Policy: a.pol, Coverage: searched.Coverage,
+		if err := snapshot.Record(ctx, a.st.Writer(), snapshot.Search{Policy: a.pol,
 			Source: req.Source, RunID: item.id, TitleID: item.titleID, Version: item.key, Target: item.name,
 			Ranked: searched.Ranked, Releases: searched.Releases, Notes: searched.Notes, CreatedAt: a.now()}); err != nil {
 			a.log.Warn("journal: decision not recorded", "run", item.id, "err", err)

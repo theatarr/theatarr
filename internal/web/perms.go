@@ -134,22 +134,10 @@ func redactRowWith(r *TitleRow, states []versionState) {
 	}
 }
 
-// redactRowCeiling hides the source-ceiling states from a row for a caller without manage (as redactCeiling does on
-// the title page): best available, best source seen and higher source exists read as below cutoff.
-func redactRowCeiling(r *TitleRow) {
-	switch r.UpgradeState {
-	case "best_available", "best_source_seen", "higher_source_exists":
-		r.UpgradeState = "below_cutoff"
-	}
-}
-
-// redactRowFor redacts a list row for a caller: everything file-related without see_files, the ceiling states
-// without manage.
+// redactRowFor redacts a list row for a caller: everything file-related without see_files.
 func redactRowFor(p Perms, r *TitleRow) {
 	if !p.SeeFiles {
 		redactRow(r)
-	} else if !canManage(p) {
-		redactRowCeiling(r)
 	}
 }
 

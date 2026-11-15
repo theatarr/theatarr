@@ -93,7 +93,7 @@ function StatusCell({ v, title, kind }: { v: Version; title: TitleDetail; kind: 
       ) : s.upgrade ? (
         <span className="inline-flex flex-wrap items-center gap-1.5">
           <Badge tone={s.tone}>{s.label}</Badge>
-          <UpgradeStatus u={v.upgrade} what={nameOf(v)} titleId={titleId} releases={releasesHref(titleId, v.key ?? "")} ceilingControl={kind === "movie"} />
+          <UpgradeStatus u={v.upgrade} what={nameOf(v)} releases={releasesHref(titleId, v.key ?? "")} />
         </span>
       ) : (
         <Badge tone={s.tone}>{s.label}</Badge>
@@ -185,10 +185,10 @@ function RowDetails({ v, kind, minimumShown, statusShown, onRemove }: { v: Versi
     const e = v.episodes;
     rows.push(["Episodes", coverageWords(e, !!v.monitored)]);
   }
-  // The upgrade explanation (Why?, and the source ceiling for a movie) when no Status cell offers it: a series row
+  // The upgrade explanation (Why?) when no Status cell offers it: a series row
   // always (its status is an episode count), a movie when the Status column is hidden.
   if (v.has_file && (kind === "series" || !statusShown) && v.upgrade && v.upgrade.state !== "none") {
-    rows.push(["Upgrade status", <UpgradeStatus key="u" u={v.upgrade} what={nameOf(v)} titleId={titleId} releases={releasesHref(titleId, key)} ceilingControl={kind === "movie"} />]);
+    rows.push(["Upgrade status", <UpgradeStatus key="u" u={v.upgrade} what={nameOf(v)} releases={releasesHref(titleId, key)} />]);
   }
   const below = belowCount(v.upgrade);
   if (below) rows.push(["Upgrades", below]);

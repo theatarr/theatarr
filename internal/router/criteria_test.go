@@ -19,7 +19,7 @@ import (
 
 func ip(n int) *int { return &n }
 
-// describe prints the queries compactly: criteria, numbers, titles, mode, coverage.
+// describe prints the queries compactly: criteria, numbers, titles, mode.
 func describe(qs []seriesQuery) []string {
 	var out []string
 	for _, sq := range qs {
@@ -44,10 +44,6 @@ func describe(qs []seriesQuery) []string {
 		}
 		if q.Mode != indexer.SearchDefault {
 			s += fmt.Sprintf(" mode%d", q.Mode)
-		}
-		s += fmt.Sprintf(" cover%d", sq.season)
-		if sq.complete {
-			s += " complete"
 		}
 		out = append(out, s)
 	}
@@ -75,11 +71,11 @@ func TestCriteriaStandardUnchanged(t *testing.T) {
 	tt := &decide.Title{Name: "Severance", TVDB: 371980, SeriesType: "standard", Episodes: []decide.Episode{
 		{ID: 1, Season: 2, Number: 1}, {ID: 2, Season: 2, Number: 2}}}
 	checkQueries(t, "episode", criteriaQueries(tt, &decide.SeriesSearch{Episodes: []int64{2}, Season: 2, Episode: 2}, searchClock),
-		"episode s2 e2 [Severance] cover2")
+		"episode s2 e2 [Severance]")
 	checkQueries(t, "season", criteriaQueries(tt, &decide.SeriesSearch{Episodes: []int64{1, 2}, Season: 2}, searchClock),
-		"season s2 e0 [Severance] cover2 complete")
+		"season s2 e0 [Severance]")
 	checkQueries(t, "season without listed episodes", criteriaQueries(tt, &decide.SeriesSearch{Season: 2}, searchClock),
-		"season s2 e0 [Severance] cover2 complete")
+		"season s2 e0 [Severance]")
 	if got := criteriaQueries(tt, &decide.SeriesSearch{}, searchClock); got != nil {
 		t.Errorf("a whole-series search keeps the plain query: %v", describe(got))
 	}
@@ -88,8 +84,7 @@ func TestCriteriaStandardUnchanged(t *testing.T) {
 	}
 }
 
-// TVDB season 1 is two scene seasons (XEM): each half is searched by its scene numbers, and the coverage stays the
-// TVDB season but cannot prove absence.
+// TVDB season 1 is two scene seasons (XEM): each half is searched by its scene numbers.
 func TestCriteriaSceneNumbering(t *testing.T) {
 	t.Parallel()
 	tt := &decide.Title{Name: "Show", SeriesType: "standard", UseSceneNumbering: true, Episodes: []decide.Episode{
@@ -98,9 +93,9 @@ func TestCriteriaSceneNumbering(t *testing.T) {
 		{ID: 3, Season: 1, Number: 14, SceneSeason: ip(2), SceneNumber: ip(2)},
 	}}
 	checkQueries(t, "episode", criteriaQueries(tt, &decide.SeriesSearch{Episodes: []int64{2}, Episode: 13, Season: 1}, searchClock),
-		"episode s2 e1 [Show] cover1")
+		"episode s2 e1 [Show]")
 	checkQueries(t, "season", criteriaQueries(tt, &decide.SeriesSearch{Episodes: []int64{1, 2, 3}, Season: 1}, searchClock),
-		"episode s1 e12 [Show] cover1", "season s2 e0 [Show] cover1")
+		"episode s1 e12 [Show]", "season s2 e0 [Show]")
 }
 
 // A season-specific scene name is a search term for that season only; an all-season mapping for every season; a
@@ -116,12 +111,12 @@ func TestCriteriaSeasonSceneNames(t *testing.T) {
 		{ID: 3, Season: 2, Number: 1}, {ID: 4, Season: 2, Number: 2},
 	}}
 	checkQueries(t, "season 1", criteriaQueries(tt, &decide.SeriesSearch{Episodes: []int64{1, 2}, Season: 1}, searchClock),
-		"season s1 e0 [Show Alt|Show] cover1 complete")
+		"season s1 e0 [Show Alt|Show]")
 	checkQueries(t, "season 2", criteriaQueries(tt, &decide.SeriesSearch{Episodes: []int64{3, 4}, Season: 2}, searchClock),
-		"season s2 e0 [Show Second Stage] mode2 cover2",
-		"season s2 e0 [Show Alt|Show] cover2 complete")
+		"season s2 e0 [Show Second Stage] mode2",
+		"season s2 e0 [Show Alt|Show]")
 	checkQueries(t, "episode of season 2", criteriaQueries(tt, &decide.SeriesSearch{Episodes: []int64{3}, Season: 2, Episode: 1}, searchClock),
-		"episode s2 e1 [Show Second Stage] mode2 cover2", "episode s2 e1 [Show Alt|Show] cover2")
+		"episode s2 e1 [Show Second Stage] mode2", "episode s2 e1 [Show Alt|Show]")
 }
 
 func TestCriteriaAnime(t *testing.T) {
@@ -135,19 +130,19 @@ func TestCriteriaAnime(t *testing.T) {
 		{ID: 4, Season: 0, Number: 1, Title: "Recap Special"},
 	}}
 	checkQueries(t, "episode by absolute", criteriaQueries(tt, &decide.SeriesSearch{Episodes: []int64{1}, Season: 1, Episode: 28}, searchClock),
-		"anime-episode s1 e28 abs28 [Sousou no Frieren|Frieren] cover1")
+		"anime-episode s1 e28 abs28 [Sousou no Frieren|Frieren]")
 	checkQueries(t, "scene absolute", criteriaQueries(tt, &decide.SeriesSearch{Episodes: []int64{2}, Season: 2, Episode: 1}, searchClock),
-		"anime-episode s2 e1 abs1 [Sousou no Frieren|Frieren] cover2")
+		"anime-episode s2 e1 abs1 [Sousou no Frieren|Frieren]")
 	// Season 2 is still airing: the season search, then each aired episode; the unaired one is not searched.
 	checkQueries(t, "airing season", criteriaQueries(tt, &decide.SeriesSearch{Episodes: []int64{2, 3}, Season: 2}, searchClock),
-		"anime-season s2 e0 [Sousou no Frieren|Frieren] cover2 complete",
-		"anime-episode s2 e1 abs1 [Sousou no Frieren|Frieren] cover2")
+		"anime-season s2 e0 [Sousou no Frieren|Frieren]",
+		"anime-episode s2 e1 abs1 [Sousou no Frieren|Frieren]")
 	checkQueries(t, "aired season", criteriaQueries(tt, &decide.SeriesSearch{Episodes: []int64{1}, Season: 1, Kind: profile.SearchAnimeSeason}, searchClock),
-		"anime-season s1 e0 [Sousou no Frieren|Frieren] cover1 complete")
+		"anime-season s1 e0 [Sousou no Frieren|Frieren]")
 	// A special without absolute numbers: the episode title, then its numbers.
 	checkQueries(t, "special", criteriaQueries(tt, &decide.SeriesSearch{Episodes: []int64{4}, Episode: 1}, searchClock),
 		"text Sousou no Frieren Recap Special", "text Frieren Recap Special",
-		"episode s0 e1 [Sousou no Frieren|Frieren] cover0")
+		"episode s0 e1 [Sousou no Frieren|Frieren]")
 }
 
 func TestCriteriaDaily(t *testing.T) {
@@ -159,11 +154,11 @@ func TestCriteriaDaily(t *testing.T) {
 		{ID: 4, Season: 2025, Number: 2},
 	}}
 	checkQueries(t, "episode", criteriaQueries(tt, &decide.SeriesSearch{Episodes: []int64{1}, Season: 2024, Episode: 40}, searchClock),
-		"daily s0 e0 2024-03-05 [The Daily Show] cover2024")
+		"daily s0 e0 2024-03-05 [The Daily Show]")
 	checkQueries(t, "no air date", criteriaQueries(tt, &decide.SeriesSearch{Episodes: []int64{4}, Season: 2025, Episode: 2}, searchClock),
-		"episode s2025 e2 [The Daily Show] cover2025")
+		"episode s2025 e2 [The Daily Show]")
 	checkQueries(t, "season", criteriaQueries(tt, &decide.SeriesSearch{Episodes: []int64{1, 2, 3, 4}, Season: 2024}, searchClock),
-		"daily-season s0 e0 y2024 [The Daily Show] cover2024", "daily s0 e0 2025-01-06 [The Daily Show] cover2025")
+		"daily-season s0 e0 y2024 [The Daily Show]", "daily s0 e0 2025-01-06 [The Daily Show]")
 }
 
 type tvFeed struct {
@@ -220,7 +215,7 @@ func TestSearchRequestsSceneCriteriaShared(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 2 || len(got["a"].Coverage) != 1 || got["a"].Coverage[0].Season != 2 {
+	if len(got) != 2 || got["a"] == nil || got["b"] == nil {
 		t.Fatalf("results %+v", got)
 	}
 	want := []string{"q=01&t=tvsearch&tvdbid=424536", "ep=1&season=2&t=tvsearch&tvdbid=424536", "q=Frieren+01&t=search",

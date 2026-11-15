@@ -24,7 +24,6 @@ How Theatarr works inside, one part per page. Start with the overview.
 - [providers.md](providers.md): debrid provider reads and the content registry.
 - [external-clients.md](external-clients.md): sending grabs to a qBittorrent-API client.
 - [torrents.md](torrents.md): the provider torrent manager: usage, backups, restores, deletes.
-- [ceilings.md](ceilings.md): source ceilings.
 
 ## Library
 

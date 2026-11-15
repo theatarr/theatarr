@@ -59,20 +59,8 @@ func TestCardigannGetsSonarrCriteria(t *testing.T) {
 	}
 }
 
-func TestKeywordPlainQueryCannotProveSeasonSearched(t *testing.T) {
-	t.Parallel()
-	title := &decide.Title{Kind: policy.KindSeries, Name: "Daily Show", SeriesType: "daily"}
-	plan := planSeries(title, &decide.SeriesSearch{Season: 2024}, indexer.Query{Type: indexer.QuerySeries, Title: title.Name, Season: 2024})
-	for _, sq := range plan.forKind("cardigann") {
-		if sq.complete {
-			t.Fatal("plain keyword query marked season searched without daily episode metadata")
-		}
-	}
-}
-
 // A page that fails after the first makes the answer partial (Incomplete); our own page_cap stopping the paging does
-// not (DMM's 200 cap made every search of a popular title a failure), though the coverage stays
-// incomplete for the ceiling.
+// not (DMM's 200 cap made every search of a popular title a failure).
 func TestSearchPartialAnswerIsIncomplete(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -113,9 +101,6 @@ func TestSearchPartialAnswerIsIncomplete(t *testing.T) {
 			if got.NoAnswer || got.Incomplete != tc.incomplete || len(got.Ranked) != 1 {
 				t.Fatalf("answer: incomplete %v (want %v), no answer %v, ranked %d, notes %v", got.Incomplete,
 					tc.incomplete, got.NoAnswer, len(got.Ranked), got.Notes)
-			}
-			if len(got.Coverage) != 1 || got.Coverage[0].Complete {
-				t.Fatalf("a truncated answer reported complete coverage: %+v", got.Coverage)
 			}
 		})
 	}
@@ -161,10 +146,5 @@ func TestPlainKeywordAnswerDoesNotCountAsSeasonSearch(t *testing.T) {
 	}
 	if got.NoAnswer || !got.Incomplete {
 		t.Fatalf("plain keyword answer counted as searched: %+v", got)
-	}
-	for _, c := range got.Coverage {
-		if c.Complete {
-			t.Fatalf("plain keyword answer has complete coverage: %v", got.Coverage)
-		}
 	}
 }

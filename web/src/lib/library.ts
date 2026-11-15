@@ -122,7 +122,7 @@ export function posterStatus(a: Availability | undefined, plain = false, title?:
 
 /**
  * The quality word a list row or poster says beside a held title's status (those who see files): "Upgrade found" once
- * a better release was found, else nothing (Best quality known and Preferred quality met are the title page's words,
+ * a better release was found, else nothing (Preferred quality not met and Preferred quality met are the title page's words,
  * lib/upgrade.ts upgradeBadge). Undefined without a file.
  */
 export function qualityWord(t: Pick<TitleRow, "availability" | "upgrade_seen" | "upgrade_state">): { label: string; tone: Tone } | undefined {
@@ -181,10 +181,9 @@ export const AVAILABILITY: { id: Availability; label: string; hint: string }[] =
   { id: "upcoming", label: "Upcoming", hint: "Monitored, no file, and not out yet" },
 ];
 
-/** The quality filters (upgrade=), for those who see files: among titles with a file. */
-export const UPGRADE_FILTERS: { id: "found" | "best_known"; label: string; hint: string }[] = [
+/** The quality filter (upgrade=), for those who see files: among titles with a file. */
+export const UPGRADE_FILTERS: { id: "found"; label: string; hint: string }[] = [
   { id: "found", label: "Upgrade found", hint: "A better release than a held file has been found" },
-  { id: "best_known", label: "Best quality known", hint: "A file is below its preferred quality and nothing better has been found" },
 ];
 
 /** Without "see files" the filters are watchability, as the server applies them (perms.go plainAvailability). */

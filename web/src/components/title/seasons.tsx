@@ -40,7 +40,7 @@ import { InteractiveSearchButton } from "@/components/title/interactive-search";
 import { MonitorSwitch } from "@/components/title/manage-bits";
 import { ProgressBar } from "@/components/activity-bits";
 import { UpgradeStatus } from "@/components/title/upgrade-why";
-import { BEST_KNOWN } from "@/lib/upgrade";
+import { BELOW_PREFERRED } from "@/lib/upgrade";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -130,7 +130,7 @@ function statusOf(e: Episode, copies: { key: string; monitored?: boolean }[], me
 /** A cell's tooltip: the quality word, release group, size, score (when scored) and monitoring. */
 function cellTitle(c: Cell | undefined): string | undefined {
   if (!c) return undefined;
-  const quality = c.has_file ? (c.upgrade_seen ? UPGRADE_FOUND : c.state === "filled" ? BEST_KNOWN : undefined) : undefined;
+  const quality = c.has_file ? (c.upgrade_seen ? UPGRADE_FOUND : c.state === "filled" ? BELOW_PREFERRED : undefined) : undefined;
   const parts = [quality, c.release_group, c.size_bytes ? fmtBytes(c.size_bytes) : undefined, c.score != null ? `profile score ${fmtNumber(c.score)}` : undefined, c.monitored ? "monitored" : "not monitored"];
   return parts.filter(Boolean).join(" · ") || undefined;
 }
@@ -638,7 +638,7 @@ function SeasonCount({ season, v }: { season: SeasonT; v: VersionT }) {
   );
 }
 
-function OneLibraryFacts({ titleId, season, v, seeFiles }: { titleId: number; season: SeasonT; v: VersionT; seeFiles: boolean }) {
+function OneLibraryFacts({ season, v, seeFiles }: { season: SeasonT; v: VersionT; seeFiles: boolean }) {
   const c = season.versions[v.key];
   // The quality word with Why? (UpgradeStatus) says Upgrade found once; the count is said only without it.
   const quality = seeFiles && !!c && c.have > 0 && !!c.upgrade;
@@ -654,7 +654,7 @@ function OneLibraryFacts({ titleId, season, v, seeFiles }: { titleId: number; se
       {facts.length ? <span className="min-w-0 truncate text-xs text-muted-foreground" data-testid="season-facts">{facts.join(" · ")}</span> : null}
       {quality && c ? (
         <span onClick={(e) => e.stopPropagation()} className="contents">
-          <UpgradeStatus u={c.upgrade} what={`Season ${season.season} · ${v.label}`} titleId={titleId} season={season.season} score={c.score} cutoff={v.cutoff} />
+          <UpgradeStatus u={c.upgrade} what={`Season ${season.season} · ${v.label}`} score={c.score} cutoff={v.cutoff} />
         </span>
       ) : null}
     </>
@@ -750,7 +750,7 @@ function SeasonBlock({
         {one && seeFiles ? <SeasonCount season={season} v={one} /> : null}
         <span className="flex min-w-0 items-center gap-2 max-md:order-last max-md:basis-full max-md:flex-wrap md:flex-1">
           {one && seeFiles ? (
-            <OneLibraryFacts titleId={titleId} season={season} v={one} seeFiles={seeFiles} />
+            <OneLibraryFacts season={season} v={one} seeFiles={seeFiles} />
           ) : (
             <>
               {seeFiles && !merged ? copies.map((v) => <LibraryBadge key={v.key} v={v} season={season} />) : null}

@@ -57,7 +57,7 @@ describe("jobs", () => {
 });
 
 describe("collapseDone", () => {
-  const j = (id: number, extra: Partial<Job> = {}): Job => ({ id, kind: "ceiling.compute", state: "done", attempts: 1, max_attempts: 3, finished_at: `2026-11-14T10:0${id}:00Z`, ...extra } as Job);
+  const j = (id: number, extra: Partial<Job> = {}): Job => ({ id, kind: "provider.sync", state: "done", attempts: 1, max_attempts: 3, finished_at: `2026-11-14T10:0${id}:00Z`, ...extra } as Job);
   it("folds plain done runs of a kind into one row with the newest, and keeps retries, errors and failures apart", () => {
     const rows = collapseDone([j(1), j(3), j(2), j(4, { retry_of: 9 }), j(5, { last_error: "busy", attempts: 2 }), j(6, { state: "failed" })]);
     expect(rows.map((r) => [r.job.id, r.count])).toEqual([[3, 3], [4, 1], [5, 1], [6, 1]]);

@@ -605,21 +605,6 @@ func TestIndexerByName(t *testing.T) {
 	}
 }
 
-func TestCeilingDiscOnly(t *testing.T) {
-	t.Parallel()
-	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "versions.yaml"), []byte("versions:\n  normal: {}\n  disc:\n    ceiling:\n      disc_only: true\n"), 0600); err != nil {
-		t.Fatal(err)
-	}
-	p, err := Read(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if p.Versions["normal"].Ceiling.DiscOnly || !p.Versions["disc"].Ceiling.DiscOnly {
-		t.Fatal("disc_only default or explicit value lost")
-	}
-}
-
 func TestRevision(t *testing.T) {
 	t.Parallel()
 	dir := copyExample(t)

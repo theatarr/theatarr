@@ -35,8 +35,6 @@ import (
 
 func (w *Web) mountManageAPI(mux *http.ServeMux) {
 	b := APIBase + "/titles/{id}"
-	w.handle(mux, "PUT "+b+"/ceiling", SignedIn, auth.PermManage, w.apiSetCeiling)
-	w.handle(mux, "DELETE "+b+"/ceiling", SignedIn, auth.PermManage, w.apiClearCeiling)
 	w.handle(mux, "PUT "+b+"/seasons/{season}/monitor", SignedIn, auth.PermManage, w.apiMonitorSeason)
 	w.handle(mux, "PUT "+b+"/episodes/monitor", SignedIn, auth.PermManage, w.apiMonitorEpisodes)
 	w.handle(mux, "POST "+b+"/seasons/{season}/search", SignedIn, auth.PermManage, w.apiSearchSeason)
@@ -1013,16 +1011,7 @@ func (w *Web) apiEpisode(rw http.ResponseWriter, r *http.Request) {
 			d.State, d.Upgrade, d.History = plainState(d.State), nil, nil
 			redactControl(d.Control)
 		}
-		if !canManage(perms) {
-			redactCeiling(d.Upgrade)
-		}
 		out.Versions = append(out.Versions, d)
-	}
-	if !canManage(perms) {
-		for k, c := range out.Episode.Versions {
-			redactCeiling(c.Upgrade)
-			out.Episode.Versions[k] = c
-		}
 	}
 	if !seeFiles {
 		redactEpisodeCells(&out.Episode)

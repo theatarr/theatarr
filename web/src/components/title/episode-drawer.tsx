@@ -199,7 +199,7 @@ function DetailsPart({ titleId, eid, epCode, d, aired, manage, admin, single, ac
       ) : null}
       {manage ? <ControlNote c={c} kind="both" /> : null}
       {msg ? <p className="text-xs text-[var(--accent-ink)]">{msg}</p> : null}
-      <UpgradeBlock u={d.upgrade} seeFiles releases={onReleases} titleId={titleId} what={`This episode · ${d.label || nameOf(d.key)}`} />
+      <UpgradeBlock u={d.upgrade} seeFiles releases={onReleases} what={`This episode · ${d.label || nameOf(d.key)}`} />
       {rows.length > 0 ? (
         <div className="rounded-[5px] border border-[var(--line)] p-3" data-testid="episode-file">
           <KV items={rows} />

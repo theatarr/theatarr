@@ -11,14 +11,12 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"errors"
 	"slices"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/theatarr/theatarr/internal/ceiling"
 	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/indexer"
 	"github.com/theatarr/theatarr/internal/policy"
@@ -69,8 +67,7 @@ type Candidate struct {
 
 // Search is one decided search.
 type Search struct {
-	Policy   *policy.Policy
-	Coverage []ceiling.Coverage
+	Policy *policy.Policy
 	// Source is the router request source: acquire:<run id>, rss.
 	Source    string
 	RunID     int64
@@ -185,7 +182,7 @@ func releaseFlags(rel indexer.Release) []string {
 	return out
 }
 
-// Record writes one search. Empty searches still record ceiling coverage, but have no journal candidate sample.
+// Record writes one search. An empty search has no journal candidate sample.
 func Record(ctx context.Context, db Execer, s Search) error {
 	if s.TitleID == 0 || s.Version == "" {
 		return nil
@@ -194,13 +191,8 @@ func Record(ctx context.Context, db Execer, s Search) error {
 	if at.IsZero() {
 		at = time.Now()
 	}
-	var ceilingErr error
-	if db, ok := db.(ceiling.DB); ok && s.Target != "rss" {
-		source := "search"
-		ceilingErr = ceiling.Record(ctx, db, s.Policy, s.TitleID, s.Version, s.Target, source, s.Ranked, s.Releases, s.Coverage, at)
-	}
 	if len(s.Ranked) == 0 {
-		return ceilingErr
+		return nil
 	}
 	cands, counts := Candidates(s.Ranked, s.Releases)
 	accepted := 0
@@ -230,5 +222,5 @@ func Record(ctx context.Context, db Execer, s Search) error {
 		accepted, candidates, rejections, notes, policy_rev, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		s.Source, run, s.TitleID, s.Version, s.Target, len(s.Ranked), accepted, string(cj), string(rj),
 		strings.Join(s.Notes, "; "), rev, store.Millis(at))
-	return errors.Join(err, ceilingErr)
+	return err
 }

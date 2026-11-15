@@ -29,7 +29,7 @@ describe("library status", () => {
   });
   it("says Available for a held movie, the quality word beside it, with an upgrade in hand under them", () => {
     // The status word is Available whatever the quality; the quality word (with Why?) follows it (upgrade).
-    for (const state of ["cutoff_met", "upgrade_available", "below_cutoff", "best_source_seen"] as const) {
+    for (const state of ["cutoff_met", "upgrade_available", "below_cutoff"] as const) {
       expect(libraryStatus(v({ has_file: true, upgrade: { state } }), movie, DAY)).toMatchObject({ label: "Available", tone: "positive", upgrade: true });
     }
     expect(libraryStatus(v({ has_file: true, upgrade: { state: "cutoff_met" }, acquisition: downloading }), movie, DAY).sub).toBe("Upgrade downloading · 37%");

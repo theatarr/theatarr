@@ -181,8 +181,6 @@ func TestJobsRecurring(t *testing.T) {
 		(10, 'shadow.rss', 'null', 'failed', ?1, ?1, ?1, ?1 - 60000), (11, 'shadow.rss', 'null', 'done', ?1, ?1, ?1, ?1),
 		(12, 'provider.sync', '{}', 'done', ?1, ?1, ?1, ?1 - 3600000),
 		(13, 'provider.sync', '{"providers":["ad"],"retry":true}', 'failed', ?1, ?1, ?1, ?1),
-		(14, 'ceiling.compute', '{"title_id":4}', 'done', ?1, ?1, ?1, ?1),
-		(15, 'ceiling.compute', '{"title_id":5}', 'queued', ?1 + 60000, ?1, ?1, NULL),
 		(16, 'torrents.backup', '{"reason":"scheduled","by":"schedule"}', 'done', ?1, ?1, ?1, ?1 - 7200000),
 		(17, 'torrents.backup', '{"reason":"manual","by":"admin"}', 'failed', ?1, ?1, ?1, ?1)`, now)
 	if e.web.pol.Torrents == nil {
@@ -203,9 +201,6 @@ func TestJobsRecurring(t *testing.T) {
 	}
 	if s := by["provider.sync"]; s.EverySeconds != 6*3600 || s.LastRun == nil || !s.LastRun.Equal(testNow.Add(-time.Hour)) || s.LastState != "done" {
 		t.Errorf("provider sync takes the full sync, not the one-provider retry: %+v", s)
-	}
-	if s := by["ceiling.compute"]; s.EverySeconds != 60 || s.LastRun != nil || s.NextRun != nil {
-		t.Errorf("ceiling takes its scheduled run, not one title's: %+v", s)
 	}
 	if s := by["db.nightly"]; s.EverySeconds != 86400 || s.NextRun == nil || !s.NextRun.Equal(testNow.Add(time.Hour)) {
 		t.Errorf("nightly: %+v", s)

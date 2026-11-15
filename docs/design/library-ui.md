@@ -21,8 +21,7 @@ catalog,title}.tsx`, `web/src/components/{library,title}/`.
   library lacks one, or an aired monitored episode), missing (no file, monitored, out), upcoming (no file, monitored,
   not out yet), unmonitored (no file, no library monitored), none (no versions). A gap in a library that is not
   monitored is no gap, for a series as for a movie. The row, the `availability=` filter, the facet counts and the
-  title page share this one SQL rule. `upgrade=found|best_known` filters by the quality word (an upgrade found; a file
-  below its cutoff with nothing better found).
+  title page share this one SQL rule. `upgrade=found` filters by the quality word Upgrade found.
 - **`GET titles/facets?kind=&anime=`** counts per availability (adding up to the grid), quality filter (`upgrades`,
   see files), monitoring, version key, quality, genre,
   certification and (see files) provider cache code, over one grid; the grid's other filters are ignored.
@@ -76,6 +75,5 @@ Version detail hash inference first selects targets used by the requested versio
 symlinked version file on those targets. Evidence from another title or version still suppresses an ambiguous
 hash. Migration 00087 indexes the target and file-path lookups; unrelated library targets are not grouped.
 
-List rows (including discover/Home) batch stored ceilings and their evidence in one query and load the referenced
-quality profiles in one more, decoding each shared profile once per page; larger batches are chunked below SQLite's
-variable limit. Availability, filters, facets and permission redaction retain their existing rules.
+List rows (including discover/Home) batch their upgrade evidence; larger batches are chunked below SQLite's variable
+limit.

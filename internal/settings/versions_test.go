@@ -859,6 +859,23 @@ func TestStoredApproveLoadsAsAuto(t *testing.T) {
 	}
 }
 
+// Source ceilings were removed: a library row stored with its ceiling settings still loads, the key ignored.
+func TestStoredCeilingKeyIgnored(t *testing.T) {
+	t.Parallel()
+	s, db, p, _ := versionFixture(t)
+	if _, err := db.Writer().Exec(`UPDATE setting_version SET config = json_set(config, '$.config.ceiling', json('{"disc_only":true}'))
+		WHERE key = 'movie-web'`); err != nil {
+		t.Fatal(err)
+	}
+	snap, err := s.Load(context.Background(), p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snap.Policy.Versions["movie-web"] == nil {
+		t.Fatal("movie-web not loaded")
+	}
+}
+
 // A stored library with the removed parser and pack settings (sonarr, packs, packs_threshold) loads after migration
 // 00124, which strips them, and keeps the rest of its settings.
 func TestVersionLoadsAfterParserPackFieldsGo(t *testing.T) {

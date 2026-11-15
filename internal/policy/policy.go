@@ -124,14 +124,8 @@ const (
 	StorageSeedbox Storage = "seedbox"
 )
 
-// Ceiling configures the display-only source ceiling.
-type Ceiling struct {
-	DiscOnly bool `yaml:"disc_only"`
-}
-
 // VersionPolicy defines a version (docs/design/overview.md): which titles get it, how releases are judged, where files go.
 type VersionPolicy struct {
-	Ceiling Ceiling `yaml:"ceiling"`
 	// Name is an optional display name for people; empty uses the label guessed from the key and profile. It names
 	// nothing an arr client sees: keys, paths and arr-view profile names do not come from it.
 	Name string `yaml:"name,omitempty" json:",omitempty"`

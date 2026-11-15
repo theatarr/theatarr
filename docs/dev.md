@@ -66,7 +66,6 @@ subcommands; each one takes `-h`.
 | `internal/decide/format` | Custom formats: specifications, arr matching rules, scores, TRaSH and arr JSON import |
 | `internal/decide`, `internal/decide/{adapt,profile}` | Decision engine, adapters, profiles and specs ([design/decide.md](design/decide.md)) |
 | `internal/availability` | Movie acquisition gated on the stored release dates |
-| `internal/ceiling` | Local source evidence and display-only quality ceilings; never searches or grabs |
 | `internal/arr` | Read-only client for the arr v3 API |
 | `internal/gateway` | The one outbound HTTP path: allowlist, budgets, back-offs and the VPN egress guard ([design/gateway.md](design/gateway.md)) |
 | `internal/indexer` | Search adapters (Torznab, DMM, Torrentio, Zilean, SeaDex), planner, single-flight |
