@@ -129,12 +129,12 @@ function TaskRow({ t, run, showError }: { t: Task; run: RunTask; showError?: boo
       <span className="w-full min-w-0 text-sm text-muted-foreground sm:w-auto sm:flex-1" data-testid="task-last">
         {t.running ? <>running since <span title={fmtTime(t.running)}>{fmtAgo(t.running)}</span></>
           : t.last_finished ? <>last run <span title={fmtTime(t.last_started)}>{fmtAgo(t.last_finished)}</span>, took {fmtDuration(t.last_started, t.last_finished)}{t.last_error ? <Badge tone="negative" className="ml-1.5" title={t.last_error}>failed</Badge> : null}</>
-          : "not run yet"}
+          : <span title="A run that finds nothing to do is not counted">nothing done yet</span>}
         {t.next_run ? <> · next <span title={fmtTime(t.next_run)} data-testid="task-next">{fmtTime(t.next_run)}</span></> : null}
       </span>
       {t.paused ? null : (
-        <Button size="xs" variant="outline" data-testid={`task-run-${t.key}`} disabled={busy} onClick={() => run.mutate(t)} title="Run it now">
-          <Play /> Run now
+        <Button size="xs" variant="outline" data-testid={`task-run-${t.key}`} disabled={busy} onClick={() => run.mutate(t)} title={busy ? "Already running" : "Run it now"}>
+          <Play /> {busy ? "Running" : "Run now"}
         </Button>
       )}
       {showError && t.last_error ? <p className="w-full break-words text-[12.5px] text-[var(--bad-ink)]" data-testid="task-error">{t.last_error}</p> : null}

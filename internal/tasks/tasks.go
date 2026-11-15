@@ -159,6 +159,12 @@ func (tb *Table) Run(ctx context.Context, key string, next time.Time) (ran bool,
 	start := tb.Now()
 	tb.running[key] = start
 	tb.mu.Unlock()
+	return tb.run(ctx, t, start, next)
+}
+
+// run is one run of t, already marked running since start.
+func (tb *Table) run(ctx context.Context, t Task, start, next time.Time) (ran bool, err error) {
+	key := t.Key
 	tb.changes.Add(1)
 	defer func() {
 		tb.mu.Lock()
@@ -272,21 +278,27 @@ func (tb *Table) write(ctx context.Context, key, q string, args ...any) {
 // RunNow starts a run of the task in the background (System › Tasks › Run now, the arr commands). It leaves the
 // next scheduled run as it is: the loop's timer does not move.
 func (tb *Table) RunNow(key string) error {
+	// Marked running before the answer, so the list read right after it shows the run and a second Run now is refused.
 	tb.mu.Lock()
 	e := tb.tasks[key]
 	_, busy := tb.running[key]
 	base := tb.base
-	tb.mu.Unlock()
 	switch {
 	case e == nil:
+		tb.mu.Unlock()
 		return ErrUnknown
 	case e.t.Paused:
+		tb.mu.Unlock()
 		return ErrPaused
 	case busy:
+		tb.mu.Unlock()
 		return ErrRunning
 	}
+	t, start := e.t, tb.Now()
+	tb.running[key] = start
+	tb.mu.Unlock()
 	go func() {
-		if ran, err := tb.Run(base, key, time.Time{}); ran && err == nil {
+		if ran, err := tb.run(base, t, start, time.Time{}); ran && err == nil {
 			tb.log.Info("task run now", "task", key)
 		}
 	}()

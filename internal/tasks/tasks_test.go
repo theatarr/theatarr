@@ -118,6 +118,13 @@ func TestRunDoesNotOverlap(t *testing.T) {
 	if err := tb.RunNow("k"); err != nil {
 		t.Fatal(err)
 	}
+	// Running from the answer on, before the run itself starts: a second Run now is refused at once.
+	if got, _ := tb.List(ctx); got[0].Running == nil {
+		t.Fatal("not shown as running after Run now")
+	}
+	if err := tb.RunNow("k"); !errors.Is(err, ErrRunning) {
+		t.Fatalf("Run now right after Run now: %v", err)
+	}
 	<-started
 	if ran, _ := tb.Run(ctx, "k", time.Time{}); ran {
 		t.Fatal("a second run started while the first ran")

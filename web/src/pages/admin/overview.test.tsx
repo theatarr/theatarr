@@ -301,7 +301,7 @@ it("lists the scheduled tasks with how often they run, their last and next run, 
  expect(rss.textContent).toContain("failed");
  expect(rss.querySelector("[data-testid='task-next']")).toBeTruthy();
  expect(rec.querySelector("[data-key='notify.digest']")!.textContent).toContain("daily at 09:00");
- expect(rec.querySelector("[data-key='notify.digest']")!.textContent).toContain("not run yet");
+ expect(rec.querySelector("[data-key='notify.digest']")!.textContent).toContain("nothing done yet");
  expect(rec.querySelector("[data-key='acquire.wanted'] [data-testid='task-paused']")).toBeTruthy();
  expect(rec.querySelector("[data-testid='task-run-acquire.wanted']")).toBeNull();
  // A failed task needs attention until a run works.
