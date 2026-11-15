@@ -76,6 +76,9 @@ type Config struct {
 	Now       func() time.Time
 	// PollInterval is how often the event stream looks for job and egress changes. Default 2s.
 	PollInterval time.Duration
+	// Events, when set, is the event stream's hub shared by every settings generation's Web, so the open streams
+	// outlive a save; its owner closes it. Unset: this Web's own, closed when Run ends.
+	Events *EventHub
 	// Devices serves POST /decide and /import (arrview.Service); nil answers 503.
 	Devices Devices
 	// UI is the single-page app bundle; nil is the embedded one (webui.Bundle).
@@ -179,6 +182,7 @@ type Web struct {
 	now               func() time.Time
 	poll              time.Duration
 	hub               *hub
+	ownHub            bool // hub is this Web's own: Run closes it
 	devices           Devices
 	ui                fs.FS
 	logs              *logring.Ring
@@ -264,9 +268,13 @@ func New(cfg Config) (*Web, error) {
 	if cfg.Background == nil {
 		cfg.Background = context.Background()
 	}
+	h, ownHub := newHub(), true
+	if cfg.Events != nil {
+		h, ownHub = cfg.Events.h, false
+	}
 	return &Web{st: cfg.Store, jobs: cfg.Jobs, auth: cfg.Auth, pol: cfg.Policy, policyDir: cfg.PolicyDir, egress: cfg.Egress,
 		log: cfg.Logger.With("component", "web"), version: cfg.Version, now: cfg.Now, poll: cfg.PollInterval,
-		hub: newHub(), devices: cfg.Devices, art: cfg.Art, journal: cfg.Journal, ui: cfg.UI, logs: cfg.Logs, add: cfg.Add, rss: cfg.RSS,
+		hub: h, ownHub: ownHub, devices: cfg.Devices, art: cfg.Art, journal: cfg.Journal, ui: cfg.UI, logs: cfg.Logs, add: cfg.Add, rss: cfg.RSS,
 		perms: cfg.Perms, plex: cfg.Plex, health: cfg.Health, ops: cfg.Ops, onRequest: cfg.OnRequest,
 		logLevel: cfg.LogLevel, logDir: cfg.LogDir, reloadSettings: cfg.ReloadSettings,
 		captureRuntime: cfg.CaptureRuntime, settings: cfg.Settings, settingsTester: cfg.SettingsTester, qualitySync: cfg.QualitySync, trashRoot: cfg.TrashRoot,

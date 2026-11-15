@@ -745,6 +745,10 @@ func runServe(args []string) error {
 	if c := serveCardigann.Load(); c != nil {
 		uiConfig.Cardigann = c
 	}
+	// One event stream hub for every settings generation: a save keeps the open streams. It closes with the serve
+	// context, so shutdown does not wait on them.
+	uiConfig.Events = web.NewEventHub()
+	context.AfterFunc(ctx, uiConfig.Events.Close)
 	ui, err := web.New(uiConfig)
 	if err != nil {
 		return err

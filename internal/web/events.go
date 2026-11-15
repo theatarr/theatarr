@@ -109,8 +109,18 @@ func (h *hub) publish(e event) {
 
 func (h *hub) close() { h.once.Do(func() { close(h.done) }) }
 
+// EventHub is an event stream hub that outlives one Web (Config.Events): the settings generations share it, so a save
+// keeps every open stream. Close ends the streams.
+type EventHub struct{ h *hub }
+
+func NewEventHub() *EventHub { return &EventHub{h: newHub()} }
+
+func (e *EventHub) Close() { e.h.close() }
+
 func (w *Web) runEvents(ctx context.Context) {
-	defer w.hub.close()
+	if w.ownHub {
+		defer w.hub.close()
+	}
 	t := time.NewTicker(w.poll)
 	defer t.Stop()
 	var jobCursor int64 = -1
