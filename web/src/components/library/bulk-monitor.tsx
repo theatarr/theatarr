@@ -101,7 +101,7 @@ export function BulkBar({ titles, columns, onClear, kinds = [], anime = false }:
     <section
       aria-label="Bulk edit"
       data-testid="bulk-bar"
-      className="sticky bottom-3 z-30 mt-4 rounded-xl border border-[var(--th-baccent)] bg-[var(--surface)] p-3 shadow-[var(--shadow-2)]"
+      className="sticky bottom-[calc(env(safe-area-inset-bottom)+4.5rem)] z-30 mt-4 rounded-xl border border-[var(--th-baccent)] md:bottom-3 bg-[var(--surface)] p-3 shadow-[var(--shadow-2)]"
     >
       <div className="flex flex-wrap items-center gap-2">
         <strong className="text-sm">{plural(titles.length, "title")} selected</strong>

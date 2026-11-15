@@ -5,7 +5,7 @@
 // sheet); nothing is searched.
 import { Loader2 } from "lucide-react";
 import { useRef, useState } from "react";
-import { setVersion, useAddOptions } from "@/api/add";
+import { setVersion, useAddOptions, type VersionOption } from "@/api/add";
 import type { TitleRow } from "@/api/library";
 import { removeTitle, useBulkRemovalScope, useRefresh } from "@/api/ops";
 import { toast } from "@/components/toaster";
@@ -77,7 +77,10 @@ export function BulkRemoveDialog({ titles, libraries, onClose, onDone }: { title
     onClose();
   };
   if (!q.data) return <Checking error={q.error} onClose={close} />;
-  const { scopes, skipped } = q.data;
+  // In the list's order, as selected.
+  const order = new Map(ids.map((id, i) => [id, i]));
+  const scopes = [...q.data.scopes].sort((a, b) => (order.get(a.title_id) ?? 0) - (order.get(b.title_id) ?? 0));
+  const { skipped } = q.data;
   const label = libraries?.find((c) => c.key === lib)?.label;
   const scope = bulkRemovalScope(scopes, files, debrid, label);
   const byName = new Map(titles.map((t) => [t.id ?? 0, t.name ?? ""]));
@@ -147,9 +150,11 @@ export function BulkRemoveDialog({ titles, libraries, onClose, onDone }: { title
 export function BulkAddDialog({ titles, kinds, anime, onClose, onDone }: { titles: TitleRow[]; kinds: ("movie" | "series")[]; anime: boolean; onClose: () => void; onDone: () => void }) {
   const movies = useAddOptions(kinds.includes("movie") ? { kind: "movie", name: "" } : null, anime);
   const series = useAddOptions(kinds.includes("series") ? { kind: "series", name: "" } : null, anime);
+  // The libraries that fit the list (anime or not) first, as the add sheet lists them.
+  const fitting = (vs: VersionOption[] = []) => [...vs.filter((v) => v.fits), ...vs.filter((v) => !v.fits)];
   const groups = [
-    { label: kinds.length > 1 ? "Movie libraries" : undefined, kind: "movie", libs: movies.data?.versions ?? [] },
-    { label: kinds.length > 1 ? "Series libraries" : undefined, kind: "series", libs: series.data?.versions ?? [] },
+    { label: kinds.length > 1 ? "Movie libraries" : undefined, kind: "movie", libs: fitting(movies.data?.versions) },
+    { label: kinds.length > 1 ? "Series libraries" : undefined, kind: "series", libs: fitting(series.data?.versions) },
   ].filter((g) => g.libs.length > 0);
   const libs = groups.flatMap((g) => g.libs);
   const [key, setKey] = useState("");
