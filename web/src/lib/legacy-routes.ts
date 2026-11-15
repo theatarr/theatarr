@@ -55,6 +55,7 @@ export const LEGACY_ROUTES: [from: string, to: string][] = [
 
   ["/admin/system", "/admin"],
   ["/admin/system/health", "/admin"],
+  ["/admin/system/status", "/admin"],
   ["/admin/system/jobs", "/admin/system/tasks"],
   ["/admin/system/network", "/admin/settings/indexers/vpn"],
   ["/admin/system/imports", "/admin/arr-import"],
