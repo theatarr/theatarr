@@ -67,8 +67,9 @@ library that still points at the arr roots finds the same link. If that fails, t
 used. When several versions link the same target, the one whose root (`versions[k].library`,
 `library.versions[k].roots`) holds Plex's file is the one playing; when that
 does not decide it, the source lists every version sharing the target. The link gives the title, its versions, release
-and quality, its episodes and, through `content_file`, the content with its hash and the providers in
-`content_provider` whose state is `present` (an `absent` provider is neither listed nor counted for single copy). Without a link the release folder is looked up as
+and quality, its episodes and, through `content_file`, the content with its hash and the providers whose
+account holds it in the record (`provider_torrent`; one whose listing no longer has it is neither listed nor counted
+for single copy). Without a link the release folder is looked up as
 `content.mount_folder`, and then zurg's `GET /api/library/entry` names the torrent hash. Only the hash is used: the
 signed streaming path is neither read nor logged. `source.matched` says which way the file was found (`link`, `content`,
 `zurg`, or empty). Sources without a Theatarr link are resolved again at most every two minutes (`resolveEvery`), not on

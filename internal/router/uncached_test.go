@@ -560,7 +560,7 @@ func TestCachedOnlyNeverDeletesKnownHash(t *testing.T) {
 	// Registry with a torrent id: reused after one read of it, nothing added.
 	e, f, _ := newDebridEnv(t, true, true)
 	e.exec(`INSERT INTO content (id, info_hash, state, first_seen_at, last_seen_at) VALUES (7, ?, 'present', 0, 0)`, h("a"))
-	e.exec(`INSERT INTO content_provider (content_id, provider, torrent_id, seen_at) VALUES (7, 'rd', 'HELD', 0)`)
+	e.exec(`INSERT INTO provider_torrent (provider, torrent_id, info_hash) VALUES ('rd', 'HELD', ?)`, h("a"))
 	f.rd["HELD"] = &fakeRD{hash: h("a"), status: "downloaded", selected: true}
 	res, err := e.r.Route(e.ctx, movieReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")))
 	if err != nil || !res.Reused || f.requests() != 1 || f.count("rd.test GET /rest/1.0/torrents/info/HELD") != 1 {
@@ -569,7 +569,7 @@ func TestCachedOnlyNeverDeletesKnownHash(t *testing.T) {
 	// Registry present without a torrent id: added (uncached), kept.
 	e, f, _ = newDebridEnv(t, true, true)
 	e.exec(`INSERT INTO content (id, info_hash, state, first_seen_at, last_seen_at) VALUES (7, ?, 'present', 0, 0)`, h("a"))
-	e.exec(`INSERT INTO content_provider (content_id, provider, seen_at) VALUES (7, 'rd', 0)`)
+	e.exec(`INSERT INTO provider_torrent (provider, torrent_id, info_hash) VALUES ('rd', '', ?)`, h("a"))
 	res, err = e.r.Route(e.ctx, movieReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")))
 	if err != nil || res.Provider != "rd" || !strings.Contains(steps(res), "rd/accepted/uncached_kept_shared") {
 		t.Fatalf("%+v %v: %s", res, err, steps(res))
@@ -687,7 +687,7 @@ func TestCachedOnlyGate(t *testing.T) {
 	// The dry run names a hash the registry shows on the account (another client's): it would stay.
 	e, _, _ = newDebridEnv(t, true, true)
 	e.exec(`INSERT INTO content (id, info_hash, state, first_seen_at, last_seen_at) VALUES (7, ?, 'present', 0, 0)`, h("a"))
-	e.exec(`INSERT INTO content_provider (content_id, provider, seen_at) VALUES (7, 'rd', 0)`)
+	e.exec(`INSERT INTO provider_torrent (provider, torrent_id, info_hash) VALUES ('rd', '', ?)`, h("a"))
 	res, _ = e.r.Plan(e.ctx, movieReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")))
 	if !strings.Contains(res.Steps[0].Message, codeUncachedKeptShared) {
 		t.Errorf("dry-run message %q", res.Steps[0].Message)
@@ -715,11 +715,11 @@ func TestAllDebridUncachedDeleteUnprovable(t *testing.T) {
 	}{
 		{"registry hash", "hash was on the account", func(e *env, _ *fakeDebrid) {
 			e.exec(`INSERT INTO content (id, info_hash, state, first_seen_at, last_seen_at) VALUES (7, ?, 'present', 0, 0)`, h("a"))
-			e.exec(`INSERT INTO content_provider (content_id, provider, seen_at) VALUES (7, 'ad', 0)`)
+			e.exec(`INSERT INTO provider_torrent (provider, torrent_id, info_hash) VALUES ('ad', '', ?)`, h("a"))
 		}},
 		{"registry id", "known already (registry)", func(e *env, _ *fakeDebrid) {
 			e.exec(`INSERT INTO content (id, info_hash, state, first_seen_at, last_seen_at) VALUES (7, ?, 'present', 0, 0)`, h("b"))
-			e.exec(`INSERT INTO content_provider (content_id, provider, torrent_id, state, seen_at) VALUES (7, 'ad', '1001', 'absent', 0)`)
+			e.exec(`INSERT INTO provider_torrent (provider, torrent_id, info_hash) VALUES ('ad', '1001', ?)`, h("b"))
 		}},
 		{"download id", "known already (download 5)", func(e *env, _ *fakeDebrid) {
 			e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, provider,
@@ -901,4 +901,44 @@ func TestUnmadeAddLeavesNoGrab(t *testing.T) {
 	if n := e.count(`SELECT COUNT(*) FROM history WHERE ref = 'dl:900' AND at = 5`); n != 1 {
 		t.Error("an earlier accepted add lost its grab row")
 	}
+}
+
+// The guards read the record (provider_torrent). A torrent of the hash on the account before our add (G1) is
+// reused, never added over or deleted; one the record lists without an id it can reuse keeps the add (as
+// TestCachedOnlyNeverDeletesKnownHash); a recorded torrent with the id our add returned (G2) keeps the add; with
+// neither, our own just-made add is deleted, whatever else the record holds.
+func TestCachedOnlyGuardsReadTheRecord(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, row, hash, want string
+	}{
+		{"hash on the account before", "RD0001", h("a"), "rd/accepted/reused"},
+		{"returned id in the record", "RD1001", h("b"), "rd/accepted/uncached_kept_shared"},
+		{"our own add", "RD0001", h("b"), "rd/refused/uncached_deleted"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			e, f, _ := newDebridEnv(t, true, true)
+			e.exec(`INSERT INTO provider_torrent (provider, torrent_id, info_hash, progress) VALUES ('rd', ?, ?, 100)`,
+				tc.row, tc.hash)
+			if tc.hash == h("a") {
+				f.rd[tc.row] = &fakeRD{hash: h("a"), status: "downloaded", selected: true}
+			}
+			res, err := e.r.Route(e.ctx, grabReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")))
+			if err != nil || !strings.Contains(steps(res)+reusedStep(res), tc.want) {
+				t.Fatalf("%+v %v: %s", res, err, steps(res))
+			}
+			deleted := f.count("rd.test DELETE")
+			if deleted != map[bool]int{true: 1, false: 0}[strings.HasSuffix(tc.want, "uncached_deleted")] {
+				t.Errorf("rd deletes %d", deleted)
+			}
+		})
+	}
+}
+
+// reusedStep names a reuse as a step ("rd/accepted/reused; ").
+func reusedStep(res *Result) string {
+	if res == nil || !res.Reused {
+		return ""
+	}
+	return res.Provider + "/accepted/reused; "
 }

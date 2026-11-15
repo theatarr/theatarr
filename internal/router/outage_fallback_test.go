@@ -27,7 +27,7 @@ func outageToQueued(t *testing.T, e *env) *jobs.Job {
 	// The registry still names t1 (the provider sync saw it before the outage).
 	e.exec(`INSERT INTO content (id, info_hash, state, first_seen_at, last_seen_at) VALUES (7, ?, 'present', 0, 0)`,
 		h("a"))
-	e.exec(`INSERT INTO content_provider (content_id, provider, torrent_id, seen_at) VALUES (7, 'rd', 't1', 0)`)
+	e.exec(`INSERT INTO provider_torrent (provider, torrent_id, info_hash) VALUES ('rd', 't1', ?)`, h("a"))
 	e.pr["rd"].set("t1", provider.Torrent{Hash: h("a"), State: provider.StateQueued, Status: "magnet_conversion"})
 	e.pr["rd"].readErr = map[string]error{"t1": errors.New("rd: connection refused")}
 	added := e.clock
@@ -149,7 +149,7 @@ func TestReconcileDoesNotAdoptUnreadableID(t *testing.T) {
 		e.clock.Add(-addSettle-time.Minute).UnixMilli())
 	e.exec(`INSERT INTO content (id, info_hash, state, first_seen_at, last_seen_at) VALUES (7, ?, 'present', 0, 0)`,
 		h("a"))
-	e.exec(`INSERT INTO content_provider (content_id, provider, torrent_id, seen_at) VALUES (7, 'rd', 't1', 0)`)
+	e.exec(`INSERT INTO provider_torrent (provider, torrent_id, info_hash) VALUES ('rd', 't1', ?)`, h("a"))
 	e.pr["rd"].readErr = map[string]error{"t1": errors.New("rd: connection refused")}
 	e.pr["rd"].listErr = errors.New("rd: connection refused")
 	c, err := e.r.lookupAdding(e.ctx, 1, nil)
@@ -165,7 +165,7 @@ func TestReconcileDoesNotAdoptUnreadableID(t *testing.T) {
 func heldOnRD(e *env) {
 	e.exec(`INSERT INTO content (id, info_hash, state, first_seen_at, last_seen_at) VALUES (7, ?, 'present', 0, 0)`,
 		h("a"))
-	e.exec(`INSERT INTO content_provider (content_id, provider, torrent_id, seen_at) VALUES (7, 'rd', 't1', 0)`)
+	e.exec(`INSERT INTO provider_torrent (provider, torrent_id, info_hash) VALUES ('rd', 't1', ?)`, h("a"))
 	e.pr["rd"].set("t1", provider.Torrent{Hash: h("a"), State: provider.StateDownloading})
 }
 

@@ -289,7 +289,7 @@ func (l *Library) apply(ctx context.Context, d *importDownload, vn *VersionNamin
 			}
 		}
 		// A debrid provider's download linked from the mount: the provider holds the content, complete, now. Its
-		// registry row (content_provider, else written only by the provider sync) shows that at once; a row the sync
+		// registry row (content_provider) shows that at once; a row the sync
 		// wrote stays as it is unless it was absent or unfinished. The next sync fills in or corrects the rest.
 		if contentID != 0 && len(linked) > 0 && l.pol.Providers[d.Provider] != nil {
 			res, err := tx.ExecContext(ctx, `INSERT INTO content_provider (content_id, provider, torrent_id,
@@ -302,6 +302,16 @@ func (l *Library) apply(ctx context.Context, d *importDownload, vn *VersionNamin
 				contentID, d.Provider, d.TorrentID, d.Name, now)
 			if err != nil {
 				return err
+			}
+			// The record (provider_torrent) shows it at once too, for the readers of what the accounts hold (the
+			// router's guards, Cached on); a row the sync wrote stays unless it was unfinished.
+			if d.TorrentID != "" {
+				if _, err := tx.ExecContext(ctx, `INSERT INTO provider_torrent (provider, torrent_id, info_hash, name,
+					state, progress) VALUES (?, ?, lower(?), ?, 'downloaded', 100)
+					ON CONFLICT (provider, torrent_id) DO UPDATE SET state = 'downloaded', progress = 100
+					WHERE provider_torrent.progress < 100`, d.Provider, d.TorrentID, d.InfoHash, d.Name); err != nil {
+					return err
+				}
 			}
 			// Held by a provider and linked: present, as the sync's recompute (nextState) would set it.
 			if n, _ := res.RowsAffected(); n > 0 {

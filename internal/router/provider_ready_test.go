@@ -228,7 +228,7 @@ func TestPacedHeldReadDefersRelease(t *testing.T) {
 			e.pol.Versions["movie"].Providers = []string{"rd", "ad"}
 			e.exec(`INSERT INTO content (id, info_hash, state, first_seen_at, last_seen_at) VALUES (7, ?, 'present', 0, 0)`,
 				h("a"))
-			e.exec(`INSERT INTO content_provider (content_id, provider, torrent_id, seen_at) VALUES (7, 'rd', 't1', 0)`)
+			e.exec(`INSERT INTO provider_torrent (provider, torrent_id, info_hash) VALUES ('rd', 't1', ?)`, h("a"))
 			e.pr["rd"].set("t1", provider.Torrent{Hash: h("a"), State: provider.StateDownloaded, Status: "downloaded"})
 			e.pr["rd"].readErr = map[string]error{"t1": c.err}
 			res, err := e.r.Route(e.ctx, grabReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")))

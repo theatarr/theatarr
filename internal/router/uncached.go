@@ -23,13 +23,16 @@ import (
 // three), and otherwise uncached. An uncached add is
 // deleted again and the next provider tried, but only when the router can prove the entry is its own new one:
 //
-//   - before the add, the hash was not on the account: no registry row (content_provider, from the provider sync) in
-//     state present; on AllDebrid also no download of ours there with a torrent id (any state: a failed download's
+//   - before the add, the hash was not on the account: no torrent of it in the record (provider_torrent: the provider
+//     sync's last complete listing, plus what an import put there since); on AllDebrid also no download of ours there with a torrent id (any state: a failed download's
 //     torrent was never deleted) and not in a fresh read of the account's magnet list (on Real-Debrid an old
 //     download of ours with the hash does not count: the add makes a new torrent regardless);
 //   - the returned id is a new entry: on Real-Debrid always (every addMagnet creates a torrent); on AllDebrid the id
-//     was not in that list (an upload of a hash already there returns the existing id); and on both, no registry row
-//     or download of ours knows the id.
+//     was not in that list (an upload of a hash already there returns the existing id); and on both, no torrent in
+//     the record or download of ours knows the id.
+//
+// Before the first complete listing of a newly added (or changed) account the record has no rows for it: the guard
+// then has only the per-provider fresh checks above (AllDebrid's magnet list, Real-Debrid's new torrent per add).
 //
 // When any of this cannot be shown (the list read failed, the id was there already), nothing is deleted: the add
 // stays and the download waits for it, as before (uncached_kept_shared, logged with the reason). An add of ours whose
@@ -101,9 +104,8 @@ func (r *Router) guardBefore(ctx context.Context, pv *policy.Provider, pk, hash 
 	fresh bool) (*ownGuard, error) {
 	g := &ownGuard{listed: true, at: r.now()}
 	var why string
-	err := r.st.Writer().QueryRowContext(ctx, `SELECT 'registry: torrent ' || COALESCE(NULLIF(cp.torrent_id, ''), '?')
-		FROM content_provider cp JOIN content c ON c.id = cp.content_id
-		WHERE c.info_hash = ? AND cp.provider = ? AND cp.state = 'present' LIMIT 1`, hash, pk).Scan(&why)
+	err := r.st.Writer().QueryRowContext(ctx, `SELECT 'registry: torrent ' || COALESCE(NULLIF(torrent_id, ''), '?') FROM provider_torrent
+		WHERE info_hash = lower(?) AND provider = ? ORDER BY torrent_id LIMIT 1`, hash, pk).Scan(&why)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("router: registry: %w", err)
 	}
@@ -167,7 +169,7 @@ func (r *Router) proof(ctx context.Context, g *ownGuard, pv *policy.Provider, pk
 		}
 	}
 	var known string
-	err := r.st.Writer().QueryRowContext(ctx, `SELECT 'registry' FROM content_provider WHERE provider = ?
+	err := r.st.Writer().QueryRowContext(ctx, `SELECT 'registry' FROM provider_torrent WHERE provider = ?
 		AND torrent_id = ? UNION ALL SELECT 'download ' || id FROM download WHERE provider = ?
 		AND provider_torrent_id = ? AND id != ? LIMIT 1`, pk, a.ID, pk, a.ID, dl).Scan(&known)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {

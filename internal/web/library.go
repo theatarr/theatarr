@@ -95,10 +95,14 @@ const linkScoreSQL = `CASE WHEN json_valid(l.file_metadata) AND (json_type(l.fil
 	OR (json_type(l.file_metadata, '$.Score') IN ('integer', 'real') AND json_extract(l.file_metadata, '$.Score') <> 0))
 	THEN l.score END`
 
-// providerHolds is the condition on content_provider cp that the provider holds the content now, complete: listed
-// on the account (present) and downloaded there (progress 100; the provider sync stores every provider's progress
-// as 0-100). A torrent still downloading or never finished is not counted.
-const providerHolds = `cp.state = 'present' AND cp.progress >= 100`
+// providerHolds is the condition on provider_torrent cp (the record, docs/design/torrents.md) that the provider holds
+// the content now, complete: listed on the account by its last complete listing (or put there by an import since)
+// and downloaded there (progress 100; the provider sync stores every provider's progress as 0-100). A torrent still
+// downloading or never finished is not counted.
+const providerHolds = `cp.progress >= 100`
+
+// heldJoin joins link l's content (linkContentSQL) to its torrents in the record as cp (providerHolds).
+const heldJoin = `content c_h ON c_h.id = ` + linkContentSQL + ` JOIN provider_torrent cp ON cp.info_hash = c_h.info_hash`
 
 // liveVersion is the condition that version v is in the library: not removed (catalog.Remove lists removed versions
 // in arrview_removed_version and keeps their rows).
@@ -377,8 +381,8 @@ func hasProvider(n int) string {
 	in := store.Placeholders(n)
 	// CROSS JOIN keeps the title's links as the outer loop: without statistics SQLite would otherwise scan the
 	// provider's rows for every title.
-	return `EXISTS (SELECT 1 FROM link l CROSS JOIN content_provider cp ON cp.content_id = ` + linkContentSQL + `
-		WHERE l.title_id = t.id AND l.state = 'active' AND ` + liveLink + ` AND ` + providerHolds + `
+	return `EXISTS (SELECT 1 FROM link l CROSS JOIN content c_h ON c_h.id = ` + linkContentSQL + `
+		CROSS JOIN provider_torrent cp ON cp.info_hash = c_h.info_hash WHERE l.title_id = t.id AND l.state = 'active' AND ` + liveLink + ` AND ` + providerHolds + `
 		AND cp.provider IN (` + in + `))`
 }
 
@@ -848,8 +852,9 @@ func readVersionFiles(ctx context.Context, db *sql.DB, ids []any) (*versionFiles
 	holders := map[int64][]string{}
 	if len(contentIDs) > 0 {
 		list, _ := json.Marshal(contentIDs)
-		if err := scanAll(ctx, db, `SELECT DISTINCT cp.content_id, cp.provider FROM content_provider cp
-			WHERE cp.content_id IN (SELECT value FROM json_each(?)) AND `+providerHolds, []any{string(list)},
+		if err := scanAll(ctx, db, `SELECT DISTINCT c.id, cp.provider FROM content c
+			JOIN provider_torrent cp ON cp.info_hash = c.info_hash
+			WHERE c.id IN (SELECT value FROM json_each(?)) AND `+providerHolds, []any{string(list)},
 			func(r *sql.Rows) error {
 				var cid int64
 				var p string
@@ -920,7 +925,7 @@ func heldByHash(ctx context.Context, db *sql.DB, hashes ...string) (map[string][
 	if len(args) == 0 {
 		return out, nil
 	}
-	err := scanAll(ctx, db, `SELECT c.info_hash, cp.provider FROM content c JOIN content_provider cp ON cp.content_id = c.id
+	err := scanAll(ctx, db, `SELECT DISTINCT c.info_hash, cp.provider FROM content c JOIN provider_torrent cp ON cp.info_hash = c.info_hash
 		WHERE c.info_hash IN (`+store.Placeholders(len(args))+`) AND `+providerHolds+` ORDER BY 1, 2`, args,
 		func(r *sql.Rows) error {
 			var h, p string

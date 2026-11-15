@@ -24,10 +24,14 @@ Sources (Admin › Connections) and Saved inventory read it instead of the provi
   same transaction as the registry update, a provider's rows are replaced by its complete list and its time is set.
   A failed or discarded listing writes nothing: the previous record and its time stay, and the report names the
   error (`error`, `error_at`: the newest sync run failed after `as_of`). A dry run writes nothing either. A torrent
-  a delete removes leaves the record at once (the counts follow; `as_of` stays the last complete read); restores and
-  copies show up at the next sync or Refresh. A provider account changed or removed in Settings loses its record and
+  a delete removes (or the router finds gone) leaves the record at once (the counts follow; `as_of` stays the last complete read); an import of a
+  debrid download puts its torrent in at once (complete, progress 100) so the readers below need not wait for the
+  sync; restores show up at the next sync or Refresh. A provider account changed or removed in Settings loses its record and
   read time in the same commit that clears its registry rows, so the new account reads "never read" until a sync
   lists it.
+- **Read by** everything that asks what an account holds: the router's ownership guards (cached-only delete, the
+  stall delete, the restore's retry) and torrent reuse, Cached on pills, filters and facets, Now playing's
+  providers, mount relinking by folder name, the import's folder names and the content states of the provider sync.
 - **Never read** (`never_read`, no `as_of`): the account has had no successful complete listing since the record
   exists (on an upgrade, until the first sync after it). That is not an empty account, which has an `as_of` and no
   torrents.
@@ -207,7 +211,7 @@ again and adds only hashes in the confirmed set that are still missing.
   too (episodes with their `.srt`, a movie with its nfo: files Real-Debrid packs into a RAR) is retried as below
   with that playable part alone, still `files`: the pack's part the backup held, never the whole pack (`TestRestoreMixedPartialSelectionKeepsItsPart`). For other selections, when the torrent is still not downloaded one
   `router.cached_grace` after the selection, the restore deletes its own add (`DeleteOwnUncachedAdd`:
-  Real-Debrid makes a new torrent per add, the run's plan found the hash absent, and no registry row or download
+  Real-Debrid makes a new torrent per add, the run's plan found the hash absent, and no torrent in the record or download
   knows the id) and adds the torrent once more with every playable file, the set DMM, decypharr and zurg select and
   so the one most likely cached. The first add is counted uncached in the shared pacing and its journal row
   completed as `uncached` with that detail; the second goes through the same pacing slot wait and has its own row;

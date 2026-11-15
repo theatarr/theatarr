@@ -276,7 +276,7 @@ Explicit grabs keep their override behavior.
 | `provider_cache` has a live `miss` | `miss` |
 | `provider_cache` has a live `uncached`, and `cached_only` is on | `known_uncached`: miss |
 | `router_pacing` has the provider backing off because it is **down** (`backoff_down`: unreachable, 5xx, its maintenance, or downloads that stalled while it was down: provider unavailable) | `paced`: deferred until the back-off ends, **reuse included**: a route queued again after an outage does not go straight back to the provider that was down. A back-off from refused or rate-limited adds does not stop a reuse (it needs no add; skipping it would add the hash again elsewhere): it is checked with the add pacing below |
-| The provider already holds the hash (registry `content_provider` from the provider sync, or one of Theatarr's downloads; with DB settings only a download recorded under the current provider epoch, see docs/design/settings.md), and a read of that torrent id finds it with the hash (an entry not found or holding another hash is not reused; its registry row is marked `absent`, a download's stale id is passed over and the next known id tried) | `reused`: the download points at that torrent, and **nothing is added**; a reuse sends no add and takes no add-pacing slot (gap, rate, cooldown and hold are checked after it) |
+| The provider already holds the hash (the record `provider_torrent`: the provider sync's last complete listing plus what an import put there since, or one of Theatarr's downloads; with DB settings only a download recorded under the current provider epoch, see docs/design/settings.md), and a read of that torrent id finds it with the hash (an entry not found or holding another hash is not reused; its row leaves the record, a download's stale id is passed over and the next known id tried) | `reused`: the download points at that torrent, and **nothing is added**; a reuse sends no add and takes no add-pacing slot (gap, rate, cooldown and hold are checked after it) |
 | The read of that known torrent id fails otherwise (transport error, 5xx, gateway refusal), and fails again when retried once 2 s later (within the route's or pass's deadline; `TestHeldReadRetriedOnce`): presence not verified | `held_unread`: not reused, deferred 1 min; the route tries the next provider. When the read was only paced (a 429, or the gateway's request budget or VPN check refused it) the provider is not shown down, and adding the release elsewhere would leave the torrent it holds unreferenced: the whole release waits (until the refusal's retry time, at least 1 min) and no other provider is tried for it in this route (`TestPacedHeldReadDefersRelease`). The gateway's back-off after failed requests still counts as the provider down |
 | `router_pacing` says wait (add pacing) | `paced`: deferred until then |
 | TorBox with `cached_only`: its cache check (a read, cheaper than a refused add) says uncached | `known_uncached`: miss; `provider_cache` `uncached` (source `router:check`) for 30 min, at most `miss_ttl` (a read is cheap; DMM keeps its TorBox misses as long) |
@@ -419,15 +419,18 @@ adds, reads the status, takes `downloaded` as cached and anything still fetching
 id (`TorrentNotCachedError`) and tries the next debrid. Theatarr does the same with `router.cached_only`, on RD and AD:
 
 **Before the add (the guard).** Is the hash already on that account?
-- a registry row (`content_provider`, from the provider sync) in state `present`, with or without a torrent id (with
-  one, the hash is `reused` and nothing is added, as before);
+- a torrent of the hash in the record (`provider_torrent`: the provider sync's last complete listing of the account,
+  plus what an import put there since; a torrent the router found gone leaves it); a readable one is `reused` and
+  nothing is added, as before. Before the first complete listing of a newly added (or changed) account the record
+  holds nothing for it: the guard then has only the per-provider fresh checks below (AllDebrid's magnet list,
+  Real-Debrid's new torrent per add), as for any new account;
 - AllDebrid only: a download of Theatarr's own on that provider with a torrent id, in any state (a failed
   download's torrent was never deleted). On Real-Debrid such an old download does not count:
   every `addMagnet` creates a new torrent, so the id the add returns is Theatarr's even when an old
   failed Theatarr download (another version's, say) holds the same hash, and an uncached one is deleted as usual. The
-  id itself must still be unknown to every other download and the registry;
+  id itself must still be unknown to every other download and the record;
 - AllDebrid only: a fresh read of the whole magnet list (`GET /v4.1/magnet/status`, one request, no paging), since
-  the registry may be stale and an upload of a hash already there returns the existing magnet's id. A hash in the
+  the record may be stale and an upload of a hash already there returns the existing magnet's id. A hash in the
   list is `reused` (nothing added); its ids are kept. RD needs no list: every `addMagnet` creates a new torrent.
 
 **After the add (the reads).** `router.cached_grace` (default 2 s, decypharr's sleep):
@@ -446,7 +449,7 @@ a converting Real-Debrid magnet the remaining reads, as its poller does not judg
 - **cached:** `accepted/added`; `provider_cache` `cached`, source `add:<provider>`, for `cache_evidence.ttl`; the
   download is recorded ready at once when the read showed it.
 - **uncached, provably Theatarr's (on AllDebrid with `router.alldebrid_delete_uncached`, on by default)** (the hash was not on the account, and the id is new: RD always, AD not in the list read
-  before; on both no registry row or other download knows the id; the entry shows the hash added): deleted
+  before; on both no torrent in the record or other download knows the id; the entry shows the hash added): deleted
   (`adder.Deleter.DeleteOwnUncachedAdd`), `provider_cache` `uncached` (source `router:add`) for `miss_ttl`, counted in
   `uncached_adds_per_hour`, the download back to `queued` with no provider, step and attempt `refused/uncached_deleted`,
   and the next provider is tried. If every provider misses, the usual miss rule applies.
@@ -644,7 +647,7 @@ fails and blocklists the release (`the torrent is no longer on <provider>`, sour
 of them spanning five minutes; a read that finds the torrent clears the count. Within the window after a provider
 settings change the old rule stands: the download fails without a blocklist. A **reused** torrent (never Theatarr's add)
 that stays missing says nothing against the release: the download goes back to `queued` with no provider, the
-torrent's registry row is marked `absent`, and a `router.route` job resumes it with its own release (a fresh add, or
+torrent's row leaves the record (`provider_torrent`), and a `router.route` job resumes it with its own release (a fresh add, or
 the reuse of another entry that holds the hash); nothing is blocklisted. Without a route queue (a CLI poll) it fails
 unblocklisted. Tests: `TestNotFoundNeedsRepeatedPolls`, `TestNoVideoReusedOrFinished`, `TestStaleDownloadIDNotReused`,
 `TestStaleRegistryIDNotReused`, `TestReusedTorrentGoneRequeues`.

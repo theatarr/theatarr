@@ -319,7 +319,7 @@ func TestReuseHeldTorrent(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, true)
 	e.exec(`INSERT INTO content (id, info_hash, state, first_seen_at, last_seen_at) VALUES (7, ?, 'present', 0, 0)`, h("a"))
-	e.exec(`INSERT INTO content_provider (content_id, provider, torrent_id, seen_at) VALUES (7, 'rd', 'HELD', 0)`)
+	e.exec(`INSERT INTO provider_torrent (provider, torrent_id, info_hash) VALUES ('rd', 'HELD', ?)`, h("a"))
 	e.pr["rd"].set("HELD", provider.Torrent{Hash: h("a"), Status: "downloaded", State: provider.StateDownloaded})
 	res, err := e.r.Route(e.ctx, movieReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")))
 	if err != nil {

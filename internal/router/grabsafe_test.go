@@ -157,13 +157,13 @@ func TestStaleRegistryIDNotReused(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			e := newEnv(t, true)
 			e.exec(`INSERT INTO content (id, info_hash, state, first_seen_at, last_seen_at) VALUES (7, ?, 'present', 0, 0)`, h("a"))
-			e.exec(`INSERT INTO content_provider (content_id, provider, torrent_id, seen_at) VALUES (7, 'rd', 'HELD', 0)`)
+			e.exec(`INSERT INTO provider_torrent (provider, torrent_id, info_hash) VALUES ('rd', 'HELD', ?)`, h("a"))
 			tc.setup(e)
 			res, err := e.r.Route(e.ctx, movieReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")))
 			if err != nil {
 				t.Fatal(err)
 			}
-			state := e.count(`SELECT COUNT(*) FROM content_provider WHERE torrent_id = 'HELD' AND state = 'present'`)
+			state := e.count(`SELECT COUNT(*) FROM provider_torrent WHERE torrent_id = 'HELD'`)
 			if tc.reuse {
 				if !res.Reused || res.TorrentID != "HELD" || e.adds() != 0 || state != 1 {
 					t.Fatalf("%+v: %s; adds %d, present %d", res, steps(res), e.adds(), state)
@@ -186,7 +186,7 @@ func TestReusedTorrentGoneRequeues(t *testing.T) {
 	q.SetClock(func() time.Time { return e.clock })
 	e.r.RegisterJobs(jobs.NewWorker(q, jobs.WorkerOptions{}), q)
 	e.exec(`INSERT INTO content (id, info_hash, state, first_seen_at, last_seen_at) VALUES (7, ?, 'present', 0, 0)`, h("a"))
-	e.exec(`INSERT INTO content_provider (content_id, provider, torrent_id, seen_at) VALUES (7, 'rd', 'HELD', 0)`)
+	e.exec(`INSERT INTO provider_torrent (provider, torrent_id, info_hash) VALUES ('rd', 'HELD', ?)`, h("a"))
 	e.pr["rd"].set("HELD", provider.Torrent{Hash: h("a"), Status: "downloading", State: provider.StateDownloading})
 	res, err := e.r.Route(e.ctx, movieReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")))
 	if err != nil || !res.Reused || res.TorrentID != "HELD" {

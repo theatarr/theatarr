@@ -168,8 +168,8 @@ func (t *Tracker) resolve(ctx context.Context, file string) *Source {
 	}
 	if contentID != 0 {
 		_ = db.QueryRowContext(ctx, `SELECT info_hash FROM content WHERE id = ?`, contentID).Scan(&src.Hash)
-		src.Providers = t.strings(ctx, `SELECT provider FROM content_provider WHERE content_id = ? AND state = 'present'
-			ORDER BY provider`, contentID)
+		src.Providers = t.strings(ctx, `SELECT DISTINCT pt.provider FROM content c
+			JOIN provider_torrent pt ON pt.info_hash = c.info_hash WHERE c.id = ? ORDER BY pt.provider`, contentID)
 		src.SingleCopy = len(src.Providers) == 1
 	}
 	return src

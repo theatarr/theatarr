@@ -696,7 +696,8 @@ folder and, without manual files, only the files under the path. A path anywhere
   An existing target is left healthy unless an explicit rename hint or a matching hash-suffixed folder proves it
   moved; ambiguous or stale registry names never make it dangling. A successful known-hash move also records the
   new `content.mount_folder` atomically with the link update. The registry lookup per folder name is an index
-  search on `content.mount_folder`, `content.name` and `content_provider.folder_name` (00103), not a registry scan
+  search on `content.mount_folder`, `content.name` (00103) and the record's torrent name `provider_torrent.name`
+  (00142), not a registry scan
   per link (`TestIdentityLookupUsesIndexes`). The link is repointed atomically (`TestRelink`). What
   can't be fixed is reported by cause (`gone`: absent on
   every provider; `missing`; `unknown`), and its link row turns `dead` on the **second** miss:

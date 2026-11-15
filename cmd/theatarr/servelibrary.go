@@ -131,8 +131,8 @@ func providerTorrentFiles(st *store.Store, provs map[string]provider.Provider) l
 		t := read(id)
 		if t == nil {
 			var current sql.NullString
-			_ = st.Reader().QueryRowContext(ctx, `SELECT cp.torrent_id FROM content_provider cp
-				JOIN content c ON c.id = cp.content_id WHERE cp.provider = ? AND lower(c.info_hash) = ?`,
+			_ = st.Reader().QueryRowContext(ctx, `SELECT torrent_id FROM provider_torrent WHERE provider = ? AND info_hash = ?
+				ORDER BY `+provider.RecordPrimaryOrder+` LIMIT 1`,
 				key, strings.ToLower(hash)).Scan(&current)
 			if current.String != id {
 				t = read(current.String)

@@ -266,3 +266,23 @@ func TestStalledSearchedGrabOnManualAddRowIsSearchedAgain(t *testing.T) {
 		t.Errorf("research jobs %+v", got)
 	}
 }
+
+// The stall delete's id check reads the record: our own stalled add's id recorded under another hash keeps it; the
+// record listing it under its own hash (a sync after our add) does not.
+func TestStalledDeleteReadsTheRecord(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		hash    string
+		deletes int
+	}{{h("e"), 0}, {h("c"), 1}} {
+		e, f, _ := newDebridEnv(t, true, false)
+		f.rd["RDS"] = &fakeRD{hash: h("c"), status: "magnet_conversion"}
+		e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer,
+			provider, provider_torrent_id, state, own_add, added_at, created_at, updated_at) VALUES (1, 1, 10, 'movie', ?,
+			'x', 'pub', 'rd', 'RDS', 'added', 1, ?, 0, 0)`, h("c"), e.clock.Add(-time.Hour).UnixMilli())
+		e.exec(`INSERT INTO provider_torrent (provider, torrent_id, info_hash) VALUES ('rd', 'RDS', ?)`, tc.hash)
+		if sum, err := e.r.Poll(e.ctx); err != nil || sum.Stalled != 1 || f.deletes() != tc.deletes {
+			t.Errorf("record hash %s: %+v %v, deletes %d", tc.hash[:4], sum, err, f.deletes())
+		}
+	}
+}

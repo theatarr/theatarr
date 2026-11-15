@@ -266,3 +266,19 @@ func TestRestoreAllSelectsPlayableOnly(t *testing.T) {
 		t.Errorf("D: %+v", d)
 	}
 }
+
+// The restore's retry deletes its own first add only when nothing else knows the id: a torrent in the record with
+// that id (provider_torrent) keeps it.
+func TestRestoreRetryKeepsARecordedID(t *testing.T) {
+	t.Parallel()
+	e, da, req := rdselFixture(t, 0, 1, 4)
+	da.cached[hA+"|2,5"] = true
+	if _, err := e.st.Writer().Exec(`INSERT INTO provider_torrent (provider, torrent_id, info_hash)
+		VALUES ('rd', 'new-aaaa-1', ?)`, strings.Repeat("e", 40)); err != nil {
+		t.Fatal(err)
+	}
+	restoreAll(t, e, req)
+	if len(da.dels) != 0 || !slices.Equal(da.selects, []string{"new-aaaa-1:1,2,5"}) {
+		t.Errorf("deletes %v, selections %v", da.dels, da.selects)
+	}
+}

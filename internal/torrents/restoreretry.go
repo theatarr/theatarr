@@ -102,7 +102,7 @@ func (m *Manager) retryPlayable(ctx context.Context, it *RestoreItem, added *add
 // knownTorrent reports whether the registry or a download of the router knows torrent id on target.
 func (m *Manager) knownTorrent(ctx context.Context, target, id string) (bool, error) {
 	var n int
-	err := m.Store.Writer().QueryRowContext(ctx, `SELECT 1 FROM content_provider WHERE provider = ? AND torrent_id = ?
+	err := m.Store.Writer().QueryRowContext(ctx, `SELECT 1 FROM provider_torrent WHERE provider = ? AND torrent_id = ?
 		UNION ALL SELECT 1 FROM download WHERE provider = ? AND provider_torrent_id = ? LIMIT 1`,
 		target, id, target, id).Scan(&n)
 	if errors.Is(err, sql.ErrNoRows) {

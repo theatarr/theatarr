@@ -170,13 +170,13 @@ func TestProviderTorrentFiles(t *testing.T) {
 	if _, found := read(ctx, "tb", "A", hash); found {
 		t.Error("a list from a provider that is not set up")
 	}
-	// The registry knows the hash's current id on the provider.
+	// The record knows the hash's current id on the provider.
 	if _, err := st.Writer().ExecContext(ctx, `INSERT INTO content (id, info_hash, name, first_seen_at, last_seen_at)
 		VALUES (1, ?, 'x', 0, 0)`, hash); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := st.Writer().ExecContext(ctx, `INSERT INTO content_provider (content_id, provider, torrent_id, seen_at)
-		VALUES (1, 'rd', 'N', 0)`); err != nil {
+	if _, err := st.Writer().ExecContext(ctx, `INSERT INTO provider_torrent (provider, torrent_id, info_hash)
+		VALUES ('rd', 'N', lower(?))`, hash); err != nil {
 		t.Fatal(err)
 	}
 	p.reads = nil

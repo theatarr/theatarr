@@ -562,9 +562,9 @@ func (r *Router) heldBy(ctx context.Context, hash, provider string, read bool) (
 		r.log.Info("known torrent id not reused", "provider", provider, "torrent", id, "hash", hash, "why", why,
 			"registry", registry)
 		if registry {
-			if _, err := r.st.Writer().ExecContext(ctx, `UPDATE content_provider SET state = 'absent', absent_at = ?
-				WHERE provider = ? AND torrent_id = ? AND state = 'present'`, store.Millis(r.now()), provider,
-				id); err != nil {
+			if err := r.st.WriteTx(ctx, func(tx *sql.Tx) error {
+				return dropRecordRow(ctx, tx, store.Millis(r.now()), provider, id)
+			}); err != nil {
 				return "", nil, fmt.Errorf("router: registry: %w", err)
 			}
 		}
@@ -572,6 +572,21 @@ func (r *Router) heldBy(ctx context.Context, hash, provider string, read bool) (
 	}
 	return "", nil, nil
 }
+
+// dropRecordRow notes that torrent id is not on provider pk any more (our own add deleted or left behind, or the
+// account no longer holds it): its registry row reads absent and its row leaves the record (provider_torrent), as
+// the next complete listing would have it.
+func dropRecordRow(ctx context.Context, tx *sql.Tx, now int64, pk, id string) error {
+	if _, err := tx.ExecContext(ctx, `UPDATE content_provider SET state = 'absent', absent_at = ?
+		WHERE provider = ? AND torrent_id = ? AND state = 'present'`, now, pk, id); err != nil {
+		return err
+	}
+	_, err := tx.ExecContext(ctx, `DELETE FROM provider_torrent WHERE provider = ? AND torrent_id = ?`, pk, id)
+	return err
+}
+
+// recordPrimaryOrder: provider.RecordPrimaryOrder (knownID's argument provider hides the package).
+const recordPrimaryOrder = provider.RecordPrimaryOrder
 
 // heldReadRetry is the pause before heldBy reads a known torrent id a second time after a failed read.
 var heldReadRetry = 2 * time.Second
@@ -584,10 +599,9 @@ func (r *Router) knownID(ctx context.Context, hash, provider string, skip []stri
 		notArgs = append(notArgs, id)
 	}
 	var id string
-	err := r.st.Writer().QueryRowContext(ctx, `SELECT cp.torrent_id FROM content_provider cp
-		JOIN content c ON c.id = cp.content_id WHERE c.info_hash = ? AND cp.provider = ? AND cp.state = 'present'
-		AND cp.torrent_id IS NOT NULL AND cp.torrent_id != ''`+strings.ReplaceAll(not, "%s", "cp.torrent_id")+` LIMIT 1`,
-		append([]any{hash, provider}, notArgs...)...).Scan(&id)
+	err := r.st.Writer().QueryRowContext(ctx, `SELECT torrent_id FROM provider_torrent
+		WHERE info_hash = ? AND provider = ? AND torrent_id != ''`+strings.ReplaceAll(not, "%s", "torrent_id")+`
+		ORDER BY `+recordPrimaryOrder+` LIMIT 1`, append([]any{hash, provider}, notArgs...)...).Scan(&id)
 	if err == nil {
 		return id, true, nil
 	}

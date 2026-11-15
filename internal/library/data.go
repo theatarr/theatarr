@@ -11,6 +11,7 @@ import (
 
 	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/policy"
+	"github.com/theatarr/theatarr/internal/provider"
 	"github.com/theatarr/theatarr/internal/store"
 )
 
@@ -216,8 +217,9 @@ func completeDownload(ctx context.Context, db *sql.DB, pol *policy.Policy, d *im
 		}
 		d.ContentName, d.MountFolder = name.String, folder.String
 		if d.ContentID != 0 {
-			rows, err := db.QueryContext(ctx, `SELECT COALESCE(folder_name, '') FROM content_provider
-				WHERE content_id = ? ORDER BY CASE WHEN provider = ? THEN 0 ELSE 1 END, provider`, d.ContentID, d.Provider)
+			rows, err := db.QueryContext(ctx, `SELECT name FROM provider_torrent WHERE info_hash = lower(?)
+				ORDER BY CASE WHEN provider = ? THEN 0 ELSE 1 END, provider, `+provider.RecordPrimaryOrder, d.InfoHash,
+				d.Provider)
 			if err != nil {
 				return err
 			}

@@ -60,8 +60,7 @@ func (r *Router) requeue(ctx context.Context, x pollRow, reused int, why, failWh
 			return nil // moved on meanwhile
 		}
 		store.HistoryGrab(ctx, tx, x.id)
-		if _, err := tx.ExecContext(ctx, `UPDATE content_provider SET state = 'absent', absent_at = ?
-			WHERE provider = ? AND torrent_id = ? AND state = 'present'`, now, x.pk, x.tid); err != nil {
+		if err := dropRecordRow(ctx, tx, now, x.pk, x.tid); err != nil {
 			return err
 		}
 		p := routePayload{Request: *req}

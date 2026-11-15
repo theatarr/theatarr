@@ -11,7 +11,7 @@ func routeReusedRD(t *testing.T) (*env, *fakeDebrid, int64) {
 	t.Helper()
 	e, f, _ := newDebridEnv(t, true, false)
 	e.exec(`INSERT INTO content (id, info_hash, state, first_seen_at, last_seen_at) VALUES (7, ?, 'present', 0, 0)`, h("a"))
-	e.exec(`INSERT INTO content_provider (content_id, provider, torrent_id, seen_at) VALUES (7, 'rd', 'HELD', 0)`)
+	e.exec(`INSERT INTO provider_torrent (provider, torrent_id, info_hash) VALUES ('rd', 'HELD', ?)`, h("a"))
 	f.rd["HELD"] = &fakeRD{hash: h("a"), status: "waiting_files_selection"}
 	res, err := e.r.Route(e.ctx, movieReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")))
 	if err != nil || !res.Reused || res.Provider != "rd" || res.TorrentID != "HELD" {
@@ -68,7 +68,7 @@ func TestReusedWaitingWithoutVideoFailsWithoutProviderWrite(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, true)
 	e.exec(`INSERT INTO content (id, info_hash, state, first_seen_at, last_seen_at) VALUES (7, ?, 'present', 0, 0)`, h("a"))
-	e.exec(`INSERT INTO content_provider (content_id, provider, torrent_id, seen_at) VALUES (7, 'rd', 'HELD', 0)`)
+	e.exec(`INSERT INTO provider_torrent (provider, torrent_id, info_hash) VALUES ('rd', 'HELD', ?)`, h("a"))
 	e.pr["rd"].set("HELD", provider.Torrent{Hash: h("a"), Status: "downloading", State: provider.StateDownloading})
 	res, err := e.r.Route(e.ctx, movieReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")))
 	if err != nil || !res.Reused {
@@ -115,7 +115,7 @@ func TestReusedTorrentHashMismatchFailsWithoutBlocklisting(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, true)
 	e.exec(`INSERT INTO content (id, info_hash, state, first_seen_at, last_seen_at) VALUES (7, ?, 'present', 0, 0)`, h("a"))
-	e.exec(`INSERT INTO content_provider (content_id, provider, torrent_id, seen_at) VALUES (7, 'rd', 'HELD', 0)`)
+	e.exec(`INSERT INTO provider_torrent (provider, torrent_id, info_hash) VALUES ('rd', 'HELD', ?)`, h("a"))
 	// The entry holds the hash when it is reused (the reuse reads it first), and another one by the poll.
 	e.pr["rd"].set("HELD", provider.Torrent{Hash: h("a"), Status: "downloading", State: provider.StateDownloading})
 	res, err := e.r.Route(e.ctx, movieReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")))

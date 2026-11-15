@@ -776,6 +776,11 @@ func TestImportRecordsProvider(t *testing.T) {
 		WHERE l.download_id = 1 AND cp.provider = 'rd' AND cp.state = 'present' AND cp.progress >= 100`); got != "1" {
 		t.Errorf("links held by rd: %s", got)
 	}
+	// The record shows it at once too, as the readers of what the accounts hold read it (heldJoin, providerHolds).
+	if got := e.one(`SELECT group_concat(provider || '|' || torrent_id || '|' || state || '|' || progress || '|' || name)
+		FROM provider_torrent WHERE info_hash = ?`, hashA); got != "rd|T1|downloaded|100.0|"+movieRelease {
+		t.Errorf("record %q", got)
+	}
 
 	f := newEnv(t, true)
 	f.release(movieRelease, map[string]float64{"movie.mkv": 7000})
@@ -783,7 +788,7 @@ func TestImportRecordsProvider(t *testing.T) {
 	if _, err := f.lib.Import(f.ctx, 1, false); err != nil {
 		t.Fatal(err)
 	}
-	if got := f.one(`SELECT count(*) FROM content_provider`); got != "0" {
+	if got := f.one(`SELECT (SELECT count(*) FROM content_provider) + (SELECT count(*) FROM provider_torrent)`); got != "0" {
 		t.Errorf("unconfigured provider recorded: %s rows", got)
 	}
 }
@@ -848,6 +853,9 @@ func TestImportProviderRowAndSync(t *testing.T) {
 	}
 	if got := e.one(`SELECT absent_at IS NULL FROM content_provider WHERE provider = 'rd'`); got != "1" {
 		t.Errorf("absent_at kept")
+	}
+	if got := e.one(`SELECT group_concat(torrent_id || '|' || progress) FROM provider_torrent WHERE provider = 'rd'`); got != "T9|100.0" {
+		t.Errorf("record after re-import %q", got)
 	}
 	if got := e.one(`SELECT state FROM content WHERE info_hash = ?`, hashA); got != "present" {
 		t.Errorf("content state after re-import %s", got)

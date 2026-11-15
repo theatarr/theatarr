@@ -253,7 +253,7 @@ func (w *Web) titleEpisodes(ctx context.Context, id int64, season int, seeFiles 
 		held := map[[2]int64][]string{}
 		if err := scanAll(ctx, db, `SELECT DISTINCT le.episode_id, lv.version_id, cp.provider FROM link l
 			JOIN link_episode le ON le.link_id = l.id JOIN link_version lv ON lv.link_id = l.id
-			JOIN content_provider cp ON cp.content_id = `+linkContentSQL+`
+			JOIN `+heldJoin+`
 			WHERE l.title_id = ? AND l.state = 'active' AND `+providerHolds+` ORDER BY 1, 2, 3`,
 			[]any{id}, func(r *sql.Rows) error {
 				var eid, vid int64

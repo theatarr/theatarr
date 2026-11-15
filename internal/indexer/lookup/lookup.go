@@ -36,9 +36,8 @@ func (d DB) TorrentNames(ctx context.Context, hash string) ([]string, error) {
 	if hash == "" {
 		return nil, nil
 	}
-	rows, err := d.DB.QueryContext(ctx, `SELECT DISTINCT p.folder_name FROM content_provider p
-		JOIN content c ON c.id=p.content_id WHERE c.info_hash=? AND p.state='present' AND p.folder_name<>'' AND (p.progress>=100 OR p.links>0)
-		ORDER BY p.folder_name`, hash)
+	rows, err := d.DB.QueryContext(ctx, `SELECT DISTINCT name FROM provider_torrent
+		WHERE info_hash = ? AND name <> '' AND (progress >= 100 OR links > 0) ORDER BY name`, hash)
 	if err != nil {
 		return nil, err
 	}

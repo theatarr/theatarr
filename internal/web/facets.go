@@ -212,7 +212,7 @@ func (w *Web) titleFacets(ctx context.Context, f TitleFilter, seeFiles bool) (Ti
 		// now (providerHolds; a link's content is linkContentSQL), counted by cache code.
 		titles := map[string]map[int64]bool{}
 		err := scanAll(ctx, db, `SELECT DISTINCT cp.provider AS p, t.id AS tid`+titleFrom+` JOIN link l ON l.title_id = t.id
-				JOIN content_provider cp ON cp.content_id = `+linkContentSQL+
+				JOIN `+heldJoin+
 			andWhere(where, "l.state = 'active' AND "+liveLink+" AND "+providerHolds), args, func(r *sql.Rows) error {
 			var p string
 			var tid int64

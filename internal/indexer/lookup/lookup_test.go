@@ -80,9 +80,10 @@ func TestTorrentNamesUseProviderInventoryForExactHash(t *testing.T) {
 		VALUES(99,?,'Synthetic 1080p remux release',0,0)`, hash); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := st.Writer().Exec(`INSERT INTO content_provider(content_id,provider,torrent_id,folder_name,state,seen_at,progress)
-		VALUES(99,'ad','a','[Arid] Show BDRip 1280x720','present',0,100),
-		(99,'tb','b','Show BD 720p','present',0,100),(99,'rd','c','Old name 1080p','absent',0,100),(99,'pending','d','Show BD 1080p','present',0,0)`); err != nil {
+	// The record holds what the accounts hold now: a torrent that left rd's account has no row.
+	if _, err := st.Writer().Exec(`INSERT INTO provider_torrent(provider,torrent_id,info_hash,name,progress)
+		VALUES('ad','a',?1,'[Arid] Show BDRip 1280x720',100),
+		('tb','b',?1,'Show BD 720p',100),('pending','d',?1,'Show BD 1080p',0)`, hash); err != nil {
 		t.Fatal(err)
 	}
 	db := DB{DB: st.Reader()}

@@ -322,8 +322,8 @@ func TestRelinkRecordedIdentity(t *testing.T) {
 				e.exec(`UPDATE link SET download_id = 1 WHERE id = 1`)
 				if tt.source == "torrent" {
 					e.exec(`UPDATE download SET info_hash = '', provider_torrent_id = 'torrent-a' WHERE id = 1`)
-					e.exec(`INSERT INTO content_provider (content_id, provider, torrent_id, folder_name, seen_at)
-						VALUES (1, 'rd', 'torrent-a', 'Name', 0)`)
+					e.exec(`INSERT INTO provider_torrent (provider, torrent_id, info_hash, name)
+						SELECT 'rd', 'torrent-a', info_hash, 'Name' FROM content WHERE id = 1`)
 				}
 			}
 			if tt.wantMissing {

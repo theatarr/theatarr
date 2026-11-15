@@ -245,10 +245,10 @@ func (s *Syncer) syncOne(ctx context.Context, key string, p Provider, dry bool, 
 		if err != nil {
 			return err
 		}
-		if err := recompute(ctx, tx, s.Configured, key, created, localTr); err != nil {
+		if err := WriteRecord(ctx, tx, key, list, now); err != nil {
 			return err
 		}
-		if err := WriteRecord(ctx, tx, key, list, now); err != nil {
+		if err := recompute(ctx, tx, s.Configured, key, created, localTr); err != nil {
 			return err
 		}
 		sum.RowsUnchanged = sum.NewContents+sum.NamesFilled+sum.NowPresent+sum.Updated+sum.NowAbsent == 0 &&
@@ -310,6 +310,10 @@ func boolInt(b bool) int {
 	}
 	return 0
 }
+
+// RecordPrimaryOrder orders a hash's torrents in the record (provider_torrent) as better does: the one that stands
+// for the hash first.
+const RecordPrimaryOrder = `(state = 'downloaded') DESC, added_at IS NULL, added_at, torrent_id`
 
 // pick chooses which torrent stands for a hash when the provider holds it more than once: a downloaded one first,
 // then the oldest (the one the mount most likely shows), then the lowest id.
@@ -615,7 +619,7 @@ func contentFor(ctx context.Context, tx *sql.Tx, t *Torrent, contents map[string
 	return c.id, nil
 }
 
-// recompute sets every content's state from content_provider and the references (docs/design/library.md). current is the provider
+// recompute sets every content's state from the record (provider_torrent) and the references (docs/design/library.md). current is the provider
 // being applied in this transaction, which counts as completely listed even though its run row is not written yet.
 // Contents created in this transaction count their transition from "new".
 func recompute(ctx context.Context, tx *sql.Tx, configured []string, current string, created map[int64]bool,
@@ -644,8 +648,7 @@ func recompute(ctx context.Context, tx *sql.Tx, configured []string, current str
 	}
 	in := store.Placeholders(len(keys))
 	rows, err := tx.QueryContext(ctx, `SELECT c.id, c.state,
-		EXISTS (SELECT 1 FROM content_provider cp WHERE cp.content_id = c.id AND cp.state = 'present'
-			AND cp.provider IN (`+in+`)),
+		EXISTS (SELECT 1 FROM provider_torrent pt WHERE pt.info_hash = c.info_hash AND pt.provider IN (`+in+`)),
 		EXISTS (SELECT 1 FROM content_file f JOIN link l ON l.content_file_id = f.id
 				WHERE f.content_id = c.id AND l.state != 'unlinked')
 		FROM content c`, args...)

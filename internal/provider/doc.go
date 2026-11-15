@@ -21,7 +21,9 @@
 // [Syncer] lists each provider's torrents and updates the registry (migration 00006):
 //   - content_provider: one row per content and provider, state present (torrent id, raw status, progress, size,
 //     link count, added date) or absent (absent_at) once the torrent leaves the provider's list;
-//   - content: a provider torrent with no content row gets one; then every content's state is recomputed:
+//   - provider_torrent (the record, 00130): every torrent of the list, which the readers of what an account holds use;
+//   - content: a provider torrent with no content row gets one; then every content's state is recomputed from the
+//     record:
 //     present (on a provider, referenced by a link), unreferenced (on a provider, referenced
 //     by nothing), absent (on no provider, and every configured provider listed completely), unknown (not every
 //     provider listed yet), gone (left alone unless a provider has it);

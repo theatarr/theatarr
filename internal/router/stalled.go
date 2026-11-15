@@ -175,9 +175,9 @@ func (r *Router) ownRDAdd(ctx context.Context, x pollRow, t *provider.Torrent, w
 	}
 	var known string
 	err := r.st.Writer().QueryRowContext(ctx, `SELECT 'download ' || id FROM download WHERE provider = ?
-		AND provider_torrent_id = ? AND id != ? UNION ALL SELECT 'registry content ' || c.info_hash
-		FROM content_provider cp JOIN content c ON c.id = cp.content_id WHERE cp.provider = ? AND cp.torrent_id = ?
-		AND c.info_hash != ? LIMIT 1`, x.pk, x.tid, x.id, x.pk, x.tid, x.hash).Scan(&known)
+		AND provider_torrent_id = ? AND id != ? UNION ALL SELECT 'registry content ' || info_hash
+		FROM provider_torrent WHERE provider = ? AND torrent_id = ? AND length(info_hash) = 40
+		AND info_hash != ? LIMIT 1`, x.pk, x.tid, x.id, x.pk, x.tid, x.hash).Scan(&known)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return "", err
 	}

@@ -25,13 +25,12 @@ func (e *manageEnv) userBody(path string) string {
 }
 
 // seedHeld adds content id with hash and its provider rows: rd holds it complete, tb lists it still downloading, ad
-// held it once (absent now).
+// held it once (no row now: its account no longer lists it).
 func seedHeld(e *manageEnv, id int64, hash string) {
 	e.exec(`INSERT INTO content (id, info_hash, name, state, first_seen_at, last_seen_at) VALUES (?, ?, 'c', 'present', 0, 0)`,
 		id, hash)
-	e.exec(`INSERT INTO content_provider (content_id, provider, torrent_id, seen_at, state, status, progress) VALUES
-		(?, 'rd', 'R1', 0, 'present', 'downloaded', 100), (?, 'tb', 'T1', 0, 'present', 'downloading', 40),
-		(?, 'ad', 'A1', 0, 'absent', 'Ready', 100)`, id, id, id)
+	e.exec(`INSERT INTO provider_torrent (provider, torrent_id, info_hash, status, state, progress) VALUES
+		('rd', 'R1', ?1, 'downloaded', 'downloaded', 100), ('tb', 'T1', ?1, 'downloading', 'downloading', 40)`, hash)
 }
 
 // TestTitleCachedOnAdoptedLink: an adopted link (no content file, no download) is resolved through the hash it

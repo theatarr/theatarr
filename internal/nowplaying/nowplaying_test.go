@@ -124,8 +124,8 @@ func openStore(t *testing.T) *store.Store {
 			(4, 1, 1, 4, 'Four', ` + strconv.FormatInt(now+day, 10) + `, 0, 0)`,
 		`INSERT INTO content (id, info_hash, name, mount_folder, first_seen_at, last_seen_at) VALUES
 			(50, 'aaaa', 'Rel', 'Rel', 0, 0), (51, 'bbbb', 'Rel3', 'Rel3', 0, 0)`,
-		`INSERT INTO content_provider (content_id, provider, seen_at) VALUES (50, 'realdebrid', 0), (51, 'realdebrid', 0),
-			(51, 'alldebrid', 0)`,
+		`INSERT INTO provider_torrent (provider, torrent_id, info_hash) VALUES ('realdebrid', 'r50', 'aaaa'),
+			('realdebrid', 'r51', 'bbbb'), ('alldebrid', 'a51', 'bbbb')`,
 		`INSERT INTO content_file (id, content_id, path, size_bytes) VALUES (100, 50, 'S01E02.mkv', 1), (101, 51, 'S01E03.mkv', 1)`,
 		`INSERT INTO link (id, path, target, content_file_id, title_id, release_title, quality, state, created_at, updated_at) VALUES
 			(10, '/media/tv/Show/S01E02.mkv', '/mnt/zurg/__all__/Rel/S01E02.mkv', 100, 1, 'Show.S01.1080p', 'WEBDL-1080p', 'active', 0, 0),
@@ -506,10 +506,10 @@ func TestPickNextAnimeSkipsSpecials(t *testing.T) {
 	}
 }
 
-// Only providers the registry has the content present on count: an absent one is neither shown nor a second copy.
+// Only providers whose account holds the content (the record) count: one whose listing no longer has it is neither shown nor a second copy.
 func TestAbsentProviderNotShown(t *testing.T) {
 	st := openStore(t)
-	if _, err := st.Writer().Exec(`UPDATE content_provider SET state = 'absent' WHERE content_id = 51 AND provider = 'alldebrid'`); err != nil {
+	if _, err := st.Writer().Exec(`DELETE FROM provider_torrent WHERE info_hash = 'bbbb' AND provider = 'alldebrid'`); err != nil {
 		t.Fatal(err)
 	}
 	tr := New(Options{Store: st, MountPath: "/mnt/zurg"})

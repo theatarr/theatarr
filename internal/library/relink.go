@@ -254,9 +254,9 @@ func linkHash(ctx context.Context, db *sql.DB, path string) (string, error) {
 	var hash string
 	err := db.QueryRowContext(ctx, `SELECT COALESCE(NULLIF(c.info_hash, ''), NULLIF(d.info_hash, ''),
 		CASE WHEN json_valid(lk.file_metadata) THEN NULLIF(json_extract(lk.file_metadata, '$.InfoHash'), '') END,
-		(SELECT MIN(cp_content.info_hash) FROM content_provider cp JOIN content cp_content ON cp_content.id = cp.content_id
-		 WHERE cp.provider = d.provider AND cp.torrent_id = d.provider_torrent_id
-		 HAVING COUNT(DISTINCT cp_content.info_hash) = 1), '')
+		(SELECT MIN(pt.info_hash) FROM provider_torrent pt
+		 WHERE pt.provider = d.provider AND pt.torrent_id = d.provider_torrent_id AND length(pt.info_hash) = 40
+		 HAVING COUNT(DISTINCT pt.info_hash) = 1), '')
 		FROM link lk LEFT JOIN content_file cf ON cf.id = lk.content_file_id
 		LEFT JOIN content c ON c.id = cf.content_id LEFT JOIN download d ON d.id = lk.download_id
 		WHERE lk.path = ?`, path).Scan(&hash)
@@ -278,8 +278,8 @@ func (l *Library) candidates(ctx context.Context, db *sql.DB, ml mountLink) (str
 	}
 	if hash == "" {
 		rows, err := db.QueryContext(ctx, `
-			SELECT DISTINCT c.info_hash FROM content c LEFT JOIN content_provider cp ON cp.content_id = c.id
-			WHERE c.mount_folder = ? OR c.name IN (?, ?, ?) OR cp.folder_name IN (?, ?, ?)`,
+			SELECT info_hash FROM content WHERE mount_folder = ? OR name IN (?, ?, ?)
+			UNION SELECT info_hash FROM provider_torrent WHERE name IN (?, ?, ?) AND length(info_hash) = 40`,
 			ml.folder, base, base+".mkv", base+".mp4", base, base+".mkv", base+".mp4")
 		if err != nil {
 			return "", nil, err
@@ -302,8 +302,8 @@ func (l *Library) candidates(ctx context.Context, db *sql.DB, ml mountLink) (str
 	}
 	names := []string{base}
 	if hash != "" {
-		rows, err := db.QueryContext(ctx, `SELECT COALESCE(c.mount_folder, ''), c.name, COALESCE(cp.folder_name, '')
-			FROM content c LEFT JOIN content_provider cp ON cp.content_id = c.id WHERE c.info_hash = ?`, hash)
+		rows, err := db.QueryContext(ctx, `SELECT COALESCE(c.mount_folder, ''), c.name, COALESCE(pt.name, '')
+			FROM content c LEFT JOIN provider_torrent pt ON pt.info_hash = c.info_hash WHERE c.info_hash = ?`, hash)
 		if err != nil {
 			return "", nil, err
 		}
@@ -327,24 +327,28 @@ func (l *Library) candidates(ctx context.Context, db *sql.DB, ml mountLink) (str
 }
 
 // identityQuery counts the registry's claims on folder name n: by recorded mount folder, and by any of mount folder,
-// content name or provider folder name. Each arm is an index lookup (migration 00103), so a sweep over every healthy
+// content name or provider folder name (the record's torrent name). Each arm is an index lookup (migrations 00103,
+// 00142), so a sweep over every healthy
 // link does not scan the registry once per link.
 const identityQuery = `SELECT MIN(CASE WHEN c.mount_folder = ? THEN LOWER(c.info_hash) END),
 	COUNT(DISTINCT CASE WHEN c.mount_folder = ? THEN LOWER(c.info_hash) END),
 	MIN(LOWER(c.info_hash)), COUNT(DISTINCT LOWER(c.info_hash)) FROM content c
 	WHERE c.id IN (SELECT id FROM content WHERE mount_folder = ?
 		UNION SELECT id FROM content WHERE name IN (?, ?, ?)
-		UNION SELECT content_id FROM content_provider WHERE folder_name IN (?, ?, ?))`
+		UNION SELECT c_pt.id FROM provider_torrent pt JOIN content c_pt ON c_pt.info_hash = pt.info_hash
+			WHERE pt.name IN (?, ?, ?))`
 
 // claimedByOther reports whether the registry records folder name n (by mount folder, content name or provider
-// folder name, as identityQuery) for a torrent other than hash, whatever its state: a torrent marked absent may be
-// back on a provider the last sync did not read.
+// folder name, as identityQuery) for a torrent other than hash: by mount folder and content name whatever the
+// content's state (a torrent marked absent may be back on a provider the last sync did not read), by provider folder
+// name while an account holds it.
 func claimedByOther(ctx context.Context, db *sql.DB, hash, n string) (bool, error) {
 	var count int
 	err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM content c WHERE LOWER(c.info_hash) <> ?
 		AND c.id IN (SELECT id FROM content WHERE mount_folder = ?
 			UNION SELECT id FROM content WHERE name IN (?, ?, ?)
-			UNION SELECT content_id FROM content_provider WHERE folder_name IN (?, ?, ?))`,
+			UNION SELECT c_pt.id FROM provider_torrent pt JOIN content c_pt ON c_pt.info_hash = pt.info_hash
+				WHERE pt.name IN (?, ?, ?))`,
 		strings.ToLower(hash), n, n, n+".mkv", n+".mp4", n, n+".mkv", n+".mp4").Scan(&count)
 	return count > 0, err
 }
