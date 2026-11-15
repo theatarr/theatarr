@@ -10,7 +10,7 @@
   },
   "CacheEvidence": {
     "torbox_check": "This asks TorBox, with our own key, whether the best releases of a search are cached.",
-    "ttl": "This is how long a provider's answer that a release is cached is remembered, per release and provider. Default 24h, 1h to 7d."
+    "ttl": "This is how long a provider's answer that a release is cached is remembered, per release and provider. Default 14d, 1h to 30d."
   },
   "Cardigann": {
     "definitions": "This is the repository branch the catalog follows. Unset: the catalog is not fetched.",

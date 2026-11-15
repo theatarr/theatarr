@@ -328,6 +328,11 @@ a sanitised message and `retry_at`.
 Which providers hold a release cached, for every release of a search, not only DMM's. Code:
 `internal/indexer/cachedon.go`, `internal/router/cachedon.go`, `router.SearchRequest`.
 
+A provider's "cached" answer is kept for `cache_evidence.ttl`, 14 days by default (1 hour to 30 days): what a debrid
+service has cached usually stays cached a while. "Not cached" and miss answers stay short (`miss_ttl`, the check's
+30 minutes), since a release often becomes cached later. Migration 00132 kept the cached rows stored before to 14
+days after their check.
+
 The arrs got this from per-provider Torrentio indexers with the debrid key in Torrentio's URL. Theatarr never sends a
 debrid key to a third party (keys leaked through a third-party proxy before), so the evidence comes from:
 
@@ -1352,7 +1357,7 @@ router:
   max_candidates: 5    # 1 to 50
   trackers: []         # public announce URLs added to magnets; none by default
   cache_evidence:      # see "Cache evidence"
-    ttl: 24h           # positive evidence kept; 1h to 7d
+    ttl: 336h          # positive evidence kept (14 days); 1h to 30d
     torbox_check:
       enabled: true    # nothing without a TorBox key
       top: 10          # hashes of one search, best first; 1 to 100

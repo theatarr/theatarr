@@ -380,7 +380,7 @@ func TestCachedOnlyCachedAdd(t *testing.T) {
 		t.Error("download not ready and cached")
 	}
 	if n := e.count(`SELECT COUNT(*) FROM provider_cache WHERE info_hash = ? AND provider = 'rd' AND state = 'cached'
-		AND source = 'add:rd' AND expires_at = ?`, h("a"), e.clock.Add(24*time.Hour).UnixMilli()); n != 1 {
+		AND source = 'add:rd' AND expires_at = ?`, h("a"), e.clock.Add(policy.DefaultCacheEvidenceTTL).UnixMilli()); n != 1 {
 		t.Error("no cached evidence from the add")
 	}
 	// AllDebrid: the upload answers ready; no status read is needed.

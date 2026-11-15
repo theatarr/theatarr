@@ -154,7 +154,7 @@ func TestCacheEvidenceSettings(t *testing.T) {
 		t.Fatal(err)
 	}
 	def := (&Policy{}).CacheEvidenceSettings()
-	if def.TTL != 24*time.Hour || def.UncachedTTL != 6*time.Hour || !def.CheckEnabled || def.CheckTop != 10 ||
+	if def.TTL != 14*24*time.Hour || def.UncachedTTL != 6*time.Hour || !def.CheckEnabled || def.CheckTop != 10 ||
 		def.CheckPerHour != 60 {
 		t.Errorf("defaults %+v", def)
 	}
@@ -166,6 +166,7 @@ func TestCacheEvidenceSettings(t *testing.T) {
 	}{
 		{"router:\n  miss_ttl: 2h\n  cache_evidence:\n    ttl: 12h\n    torbox_check: {enabled: false, top: 5, per_hour: 20}\n", ""},
 		{"router:\n  cache_evidence:\n    ttl: 30m\n", "router.cache_evidence.ttl"},
+		{"router:\n  cache_evidence:\n    ttl: 721h\n", "router.cache_evidence.ttl"},
 		{"router:\n  cache_evidence:\n    torbox_check: {top: 101}\n", "router.cache_evidence.torbox_check.top"},
 		{"router:\n  cache_evidence:\n    torbox_check: {per_hour: -1}\n", "router.cache_evidence.torbox_check.per_hour"},
 	} {

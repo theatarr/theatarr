@@ -70,7 +70,7 @@ type Router struct {
 // absence never skips one. Every field is optional.
 type CacheEvidence struct {
 	// TTL is how long a provider's answer that a release is cached is remembered, per release and provider. Default
-	// 24h, 1h to 7d.
+	// 14d, 1h to 30d.
 	TTL Duration `yaml:"ttl"`
 	// TorBoxCheck asks TorBox, with our own key, whether the best releases of a search are cached.
 	TorBoxCheck *TorBoxCheck `yaml:"torbox_check"`
@@ -175,9 +175,9 @@ const (
 	MinWantedAgainAfter     = time.Hour
 	MaxWantedAgainAfter     = 30 * 24 * time.Hour
 
-	DefaultCacheEvidenceTTL = 24 * time.Hour
+	DefaultCacheEvidenceTTL = 14 * 24 * time.Hour
 	MinCacheEvidenceTTL     = time.Hour
-	MaxCacheEvidenceTTL     = 7 * 24 * time.Hour
+	MaxCacheEvidenceTTL     = 30 * 24 * time.Hour
 	DefaultTorBoxCheckTop   = 10
 	MaxTorBoxCheckTop       = 100
 	DefaultTorBoxCheckHour  = 60

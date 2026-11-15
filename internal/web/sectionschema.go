@@ -234,7 +234,7 @@ var sectionAnnotations = map[string]SchemaField{
 	"router.max_candidates":                       bounds(1, policy.MaxRouterMaxCandidates, "5"),
 	"router.wanted.again_after":                   durationBounds(policy.MinWantedAgainAfter, policy.MaxWantedAgainAfter, "24h"),
 	"router.wanted.per_hour":                      bounds(1, policy.MaxWantedPerHour, "10"),
-	"router.cache_evidence.ttl":                   durationBounds(policy.MinCacheEvidenceTTL, policy.MaxCacheEvidenceTTL, "24h"),
+	"router.cache_evidence.ttl":                   durationBounds(policy.MinCacheEvidenceTTL, policy.MaxCacheEvidenceTTL, "336h"),
 	"router.cache_evidence.torbox_check.top":      bounds(1, policy.MaxTorBoxCheckTop, "10"),
 	"router.cache_evidence.torbox_check.per_hour": bounds(1, policy.MaxTorBoxCheckHour, "60"),
 }

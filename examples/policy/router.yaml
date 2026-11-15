@@ -26,7 +26,7 @@ router:
   # evidence is tried first; one without is tried as before (unknown never means uncached). No debrid key ever goes
   # to a third party.
   cache_evidence:
-    ttl: 24h           # positive evidence is kept this long; 1h to 7d
+    ttl: 336h          # positive evidence is kept this long (14 days); 1h to 30d
     torbox_check:      # TorBox checkcached with our key, through the gateway and its torbox-api budget
       enabled: true    # does nothing without a TorBox key
       top: 10          # best hashes of one search checked; 1 to 100

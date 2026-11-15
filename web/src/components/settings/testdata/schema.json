@@ -1092,11 +1092,11 @@
           {
             "name": "ttl",
             "min": 3600,
-            "max": 604800,
-            "default": "24h",
+            "max": 2592000,
+            "default": "336h",
             "label": "Remember cached results for",
             "type": "duration",
-            "help": "This is how long a provider's answer that a release is cached is remembered, per release and provider. Default 24 hours, 1 hour to 7 days."
+            "help": "This is how long a provider's answer that a release is cached is remembered, per release and provider. Default 14 days, 1 hour to 30 days."
           },
           {
             "name": "torbox_check",
