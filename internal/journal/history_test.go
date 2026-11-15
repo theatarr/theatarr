@@ -381,6 +381,22 @@ func TestHistoryAdoptionReplaced(t *testing.T) {
 	if n != 4 {
 		t.Errorf("pages: %d, want 5", n+1)
 	}
+	// Radarr replaced Alpha's file at the same path: the adoption took over the link row (its creation time kept),
+	// and the old file's unlink is folded into it.
+	e.exec(`INSERT INTO link (id, path, target, title_id, release_title, quality, score, adopted_from, state, created_at,
+		updated_at) VALUES (9, '/movies/Alpha/Alpha.mkv', '/t', 1, 'Alpha.2020.NEW', 'Remux-2160p', 8000,
+		'radarr_4k /arr/a.mkv', 'active', ?, ?)`, ms(0), ms(8*time.Hour))
+	e.exec(`INSERT INTO library_action (at, kind, mode, version_key, link_id, path, detail, release_title, quality,
+		score) VALUES (?, 'link', 'applied', 'movie-web', 9, '/movies/Alpha/Alpha.mkv', 'adopted from radarr_4k /arr/a.mkv',
+		'Alpha.2020.NEW', 'Remux-2160p', 8000)`, ms(8*time.Hour))
+	e.exec(`INSERT INTO library_action (at, kind, mode, version_key, link_id, path, detail, release_title, quality,
+		score, title_id) VALUES (?, 'replace', 'applied', 'movie-web', 9, '/movies/Alpha/Alpha.mkv',
+		'unlinked (deleted in Radarr), moved aside to /trash/a', 'Alpha.2020.OLD', 'WEBDL-2160p', 4000, 1)`,
+		ms(8*time.Hour+2*time.Second))
+	got = e.history(Filter{Title: "1"})
+	if want := []string{"adopted Alpha.2020.NEW Remux-2160p 8000 replaced Alpha.2020.OLD"}; !slices.Equal(got, want) {
+		t.Errorf("same path:\n got %q\nwant %q", got, want)
+	}
 }
 
 // A pack upgrade that replaced E01 and brought E02-E03 as well, partly imported: its one Upgraded row lists the

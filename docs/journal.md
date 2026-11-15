@@ -218,8 +218,8 @@ changes, and the episode window, which shows no upgrade or removal rows, is unch
 - An adoption that replaced a file: a `removed` row is left out when an `adopted` row of the same title and library,
   dated within a minute of it, holds one of its episodes (both none for a movie); the adopted row lists it in
   `Replaced` (path from its library action, release, quality, score, episodes). A removal with no such adoption stays
-  Removed, and so does the removal of the adopted file itself (its link is the adoption's, or it arrived within that
-  minute).
+  Removed, and so does the removal of the adopted file itself (its link arrived within that minute; an adoption
+  that takes over a link at the same path keeps the link's creation time, so that replacement still folds).
 
 A row is left out only when the row that stands for it matches the same filter, checked in the SQL that pages (the
 partner shares the row's title and library, so only the event and kind filters, decided in Go, and the since bound,

@@ -519,17 +519,15 @@ const upgradeOfImportSQL = `p.event = 'deleted' AND p.download_id = history.down
 // adoptionOfRemovalSQL is the adoption (alias p) that replaced a removed file (history): the same title and library,
 // within a minute (window: the bound on p.at or on history.at, so the (title_id, at) index serves the side looked up;
 // an adoption's row is dated by its group's latest file, and the unlink is a step of its own), and the same episodes
-// (a movie's none). A removal of a file that arrived within that minute, or of the adoption's own link, is the
-// adopted file going again, not one it replaced.
+// (a movie's none). A removal of a file whose link arrived within that minute is the adopted file going again, not one
+// it replaced (an adoption that takes over a link at the same path keeps its creation time, so it still folds).
 func adoptionOfRemovalSQL(window string) string {
 	return `p.event = 'adopted' AND p.title_id = history.title_id AND p.version_key IS history.version_key
 		AND ` + window + `
 		AND ((json_array_length(p.episodes) = 0 AND json_array_length(history.episodes) = 0)
 			OR EXISTS (SELECT 1 FROM json_each(p.episodes) pe, json_each(history.episodes) he WHERE pe.value = he.value))
-		AND NOT EXISTS (SELECT 1 FROM library_action ra LEFT JOIN link l ON l.id = ra.link_id
-			LEFT JOIN library_action aa ON aa.id = CAST(substr(p.ref, 5) AS INTEGER)
-			WHERE ra.id = CAST(substr(history.ref, 5) AS INTEGER)
-			AND (l.created_at >= history.at - 60000 OR ra.link_id = aa.link_id))`
+		AND NOT EXISTS (SELECT 1 FROM library_action ra JOIN link l ON l.id = ra.link_id
+			WHERE ra.id = CAST(substr(history.ref, 5) AS INTEGER) AND l.created_at >= history.at - 60000)`
 }
 
 // historyMatch is the filter's conditions on the history columns.
