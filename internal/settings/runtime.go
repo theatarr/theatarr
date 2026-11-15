@@ -160,6 +160,8 @@ type RuntimeCoordinator struct {
 	reloadMu      sync.Mutex
 	confirmMu     sync.Mutex
 	confirmations map[string]confirmationToken
+	// head is the last stored head Snapshot loaded, reused while the head generation and provider epoch are the same.
+	head atomic.Pointer[Snapshot]
 }
 
 // NewRuntimeCoordinator installs the already-prepared startup generation.
@@ -416,10 +418,27 @@ func (r *RuntimeCoordinator) Behind(ctx context.Context) (active, head int64, be
 	return cur.Generation, head, cur.Generation < head, nil
 }
 
-// Snapshot loads the stored head generation over the coordinator's YAML base. The admin API edits this head; the
-// active runtime may be an older generation after a startup fallback (see Current).
+// Snapshot is the stored head generation over the coordinator's YAML base. The admin API edits this head; the
+// active runtime may be an older generation after a startup fallback (see Current). Every write of the settings
+// records adds a generation, so the head is loaded and validated once per generation (and provider epoch) and then
+// served from memory after reading one row. It is shared: callers copy the records before changing them
+// (Records slices, as the save handlers do) and never change it in place.
 func (r *RuntimeCoordinator) Snapshot(ctx context.Context) (*Snapshot, error) {
-	return r.store.Load(ctx, r.base)
+	var gen, epoch int64
+	if err := r.store.db.Reader().QueryRowContext(ctx, `SELECT
+		COALESCE((SELECT generation FROM settings_generation ORDER BY generation DESC LIMIT 1), 0),
+		COALESCE((SELECT provider_epoch FROM settings_runtime_state WHERE id = 1), 0)`).Scan(&gen, &epoch); err != nil {
+		return nil, dbError(err)
+	}
+	if head := r.head.Load(); head != nil && head.Generation == gen && head.ProviderEpoch == epoch {
+		return head, nil
+	}
+	snap, err := r.store.Load(ctx, r.base)
+	if err != nil {
+		return nil, err
+	}
+	r.head.Store(snap)
+	return snap, nil
 }
 
 // Candidate validates a save without committing it, over the coordinator's YAML base. Admin tests of unsaved

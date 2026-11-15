@@ -1069,3 +1069,40 @@ func confirmedImport(t *testing.T, s *Store, req ImportRequest) (*Snapshot, erro
 	req.ConfirmationToken = approval.Token
 	return manager.ImportAndApply(context.Background(), req)
 }
+
+// The stored head is loaded once per generation; a save (here past the coordinator, as another writer would) is
+// the next read's head while the active runtime stays at its own generation.
+func TestSnapshotHeadKeptPerGeneration(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	s, _, base := setup(t)
+	initial := bootstrap(t, s, base)
+	runtime, err := NewRuntimeCoordinator(s, base, initial, nil, func(_ context.Context, snap *Snapshot, _ *Runtime) (any, error) {
+		return snap.Generation, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := runtime.Snapshot(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	again, err := runtime.Snapshot(ctx)
+	if err != nil || again != first {
+		t.Fatalf("second read loaded again: %p %p (%v)", first, again, err)
+	}
+	req := saveRequest(base, initial)
+	req.Records.Budgets[0].Config.Requests++
+	next, err := s.Save(ctx, req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	head, err := runtime.Snapshot(ctx)
+	if err != nil || head == first || head.Generation != next.Generation ||
+		head.Records.Budgets[0].Config.Requests != req.Records.Budgets[0].Config.Requests {
+		t.Fatalf("head after save: %+v (%v)", head, err)
+	}
+	if runtime.Current().Generation != initial.Generation {
+		t.Fatalf("active generation %d, want %d", runtime.Current().Generation, initial.Generation)
+	}
+}
