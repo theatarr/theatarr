@@ -101,8 +101,10 @@ GUIDs and download links are never read. Don't try to find them.
 
 Flags are worked out once and stored (migration 00144, `internal/journal/flag.go`). The events that give a History
 row (below) write it with no flags yet; the journal then runs the checks on that row's entry, from what its sources
-say at that moment, and stores the result on the row (`history.flags`, `history.severity`). They are never worked out
-again: a later change to the release, the title or the size medians leaves them as they were. The journal does this
+say at that moment, and stores the result on the row (`history.flags`, `history.severity`). They are not worked out
+again while the row stands: a later change to the release, the title or the size medians leaves them as they were.
+A row its writer rewrites in place (a partial import that later links, a failure after a retry, an overwritten
+blocklist entry) loses its flags and is checked again. The journal does this
 for every unchecked row in the background when `theatarr serve` starts (after an upgrade that is every existing row:
 the checks are Go, so the migration leaves them unchecked), and for up to 50 new rows before each journal read (list,
 entry, count; a read writes nothing when no row waits, and a batch is one transaction). Only the kinds the checks
@@ -196,7 +198,7 @@ A row keeps its source's journal id (`ref`: `dl:<id>`, `dl:<id>:fail`, `dl:<id>:
 `lib:<id>`, `bl:<rowid>`, `act:<id>`, `copy:<id>`) and is rewritten when the same event happens again (a download
 failing again, a release blocked again). Rows are a log: a requeued download keeps its failure row, an unblocked
 release its blocked row, a held import its held row; they are not pruned. The migration backfilled the rows once from
-the same sources (provider copies included; no new copy rows are written, "Add to other providers" is going);
+the same sources (provider copies included; no new copy rows are written since "Add to other providers" was removed in 0.4.5);
 `store.BackfillHistory` runs the migration's statements for the demo seed; a test holds the event writers and the
 backfill to the same rows (`internal/journal/history_compare_test.go`). Before the readers were cut over, the stored
 rows were compared with the old reader (which derived History from the sources at read time) row for row on a copy

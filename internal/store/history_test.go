@@ -114,6 +114,40 @@ func TestHistoryHeldImportAndUnblock(t *testing.T) {
 	}
 }
 
+// A row rewritten in place loses its stored flags, so the journal checks it again: a flagged partial import that
+// then links is no longer flagged.
+func TestHistoryUpsertClearsFlags(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	st, err := Open(ctx, migratedPath(t, 144), Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	db := st.Writer()
+	if _, err := db.ExecContext(ctx, `INSERT INTO title (id, kind, name, created_at, updated_at) VALUES (1, 'movie', 'M', 0, 0);
+		INSERT INTO version (id, title_id, policy_key, created_at, updated_at) VALUES (1, 1, 'movie-remux', 0, 0);
+		INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, state,
+			created_at, updated_at) VALUES (7, 1, 1, 'movie-remux', 'h7', 'R7', 'x', 'importing', 1, 1);
+		INSERT INTO library_import (download_id, state, created_at, updated_at) VALUES (7, 'partial', 2, 2)`); err != nil {
+		t.Fatal(err)
+	}
+	HistoryImport(ctx, db, 7)
+	if _, err := db.ExecContext(ctx, `UPDATE history SET flags = '[{"code":"x","severity":"warn"}]', severity = 'warn';
+		UPDATE library_import SET state = 'linked', updated_at = 3 WHERE download_id = 7`); err != nil {
+		t.Fatal(err)
+	}
+	HistoryImport(ctx, db, 7)
+	var got string
+	if err := db.QueryRowContext(ctx, `SELECT import_state || ' ' || COALESCE(flags, 'NULL') || ' [' || severity || ']'
+		FROM history WHERE ref = 'dl:7:import'`).Scan(&got); err != nil {
+		t.Fatal(err)
+	}
+	if got != "linked NULL []" {
+		t.Errorf("import row %q", got)
+	}
+}
+
 // 00144 adds the stored flags (unchecked: NULL) and drops verdicts, the error inbox and the copy events (their History
 // rows stay, and their alert claims go); it rolls back cleanly.
 func TestJournalFlagsMigration(t *testing.T) {

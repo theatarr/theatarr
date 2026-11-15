@@ -55,14 +55,15 @@ func historyRelSQL(linkSQL string) string {
 const historyCols = `ref, at, event, kind, title_id, version_key, download_id, release, info_hash, indexer, size,
 	quality, score, formats, episodes, files, replaced, provider, reason, source, import_state, by, detail`
 
-// historyUpsert rewrites a row whose source changed.
+// historyUpsert rewrites a row whose source changed; its flags go, so the journal checks it again (journal.Fill).
 const historyUpsert = ` ON CONFLICT (ref) DO UPDATE SET at = excluded.at, event = excluded.event,
 	kind = excluded.kind, title_id = excluded.title_id, version_key = excluded.version_key,
 	download_id = excluded.download_id, release = excluded.release, info_hash = excluded.info_hash,
 	indexer = excluded.indexer, size = excluded.size, quality = excluded.quality, score = excluded.score,
 	formats = excluded.formats, episodes = excluded.episodes, files = excluded.files, replaced = excluded.replaced,
 	provider = excluded.provider, reason = excluded.reason, source = excluded.source,
-	import_state = excluded.import_state, by = excluded.by, detail = excluded.detail`
+	import_state = excluded.import_state, by = excluded.by, detail = excluded.detail, flags = NULL,
+	severity = ''`
 
 // A download's release facts (alias d): title, version, id, release, hash, indexer, size, quality, a score only
 // with scoring evidence (stored formats, '[]' for a calculated 0, or a score), formats.

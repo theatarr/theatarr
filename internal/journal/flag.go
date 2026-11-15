@@ -11,7 +11,8 @@ import (
 
 // Stored flags (migration 00144, docs/journal.md "Flags"). A History row (internal/store history.go) is written when
 // its event happens, with flags NULL. The journal works out the flags of the row's entry once, from what the
-// entry's sources say then, and stores them on the row (flags, severity); they are never worked out again. The
+// entry's sources say then, and stores them on the row (flags, severity); they are not worked out again unless the
+// row is rewritten in place (its writer clears them, store historyUpsert). The
 // flagged view and its count are a filter on history. Entries without a History row (searches, grabs that never
 // reached a provider, link and relink actions, dry-run or waiting imports, operator actions) carry no flags.
 //
