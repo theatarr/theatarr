@@ -91,7 +91,8 @@ export function needsAttention(j: Job): boolean {
 
 /** How often a recurring task runs, in words: "every 15 min", "every 6 h", "daily at 09:00", "daily". */
 export function everyWords(seconds: number, at?: string): string {
-  if (seconds === 86_400) return at ? `daily at ${at}` : "daily";
+  if (at) return `daily at ${at}`;
+  if (seconds === 86_400) return "daily";
   if (seconds % 3600 === 0) return `every ${seconds / 3600} h`;
   if (seconds % 60 === 0) return `every ${seconds / 60} min`;
   return `every ${seconds} s`;

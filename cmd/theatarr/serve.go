@@ -43,6 +43,7 @@ import (
 	"github.com/theatarr/theatarr/internal/server"
 	"github.com/theatarr/theatarr/internal/settings"
 	"github.com/theatarr/theatarr/internal/store"
+	"github.com/theatarr/theatarr/internal/tasks"
 	"github.com/theatarr/theatarr/internal/torrents"
 	"github.com/theatarr/theatarr/internal/web"
 )
@@ -286,6 +287,8 @@ func runServe(args []string) error {
 	reg := server.NewRegistry(version)
 	q := jobs.NewQueue(st)
 	server.RegisterJobGauges(reg, q)
+	// The scheduled tasks (System › Tasks): each recurring loop registers its task and records its runs there.
+	tbl := tasks.New(ctx, st, log)
 	// Acquisition and import jobs go first and have reserved slots, so metadata, art and sync backlogs never hold
 	// every worker while a grab waits (urgentJobKinds).
 	w := jobs.NewWorker(q, jobs.WorkerOptions{Logger: log, Registerer: reg, Concurrency: *workers,
@@ -714,7 +717,7 @@ func runServe(args []string) error {
 	backupSvc := &serveBackups{st: st, dir: *backupDir, dbPath: *dbPath, source: *settingsSource,
 		keep: *backupKeep, hour: *backupHour, policyNow: backupPolicy, now: time.Now}
 	uiConfig := web.Config{Backups: backupSvc, Restart: stop, Store: st, Auth: au, Policy: pol, PolicyDir: *policyDir, Egress: serveEgressSource{manager: runtimeManager, fallback: gw}, Logger: log,
-		Version: version, Devices: av, Art: refresher, Journal: jr, Logs: logs, Add: add, RSS: rssRunner, Jobs: q, Plex: pl, Health: hc,
+		Version: version, Devices: av, Art: refresher, Journal: jr, Logs: logs, Add: add, RSS: rssRunner, Jobs: q, Tasks: tbl, Plex: pl, Health: hc,
 		Ops: serveOps{av}, OnRequest: requestNotify, LogLevel: logLevel, LogDir: *logDir, ReloadSettings: runtimeManager.Reload,
 		CaptureRuntime: captureRuntime, SettingsTests: newSettingsTestLimits(), SettingsLookup: os.LookupEnv, TrashRoot: os.Getenv("THEATARR_TRASH"),
 		Torrents: torrentSvc, Background: ctx, ProviderCopies: func(ctx context.Context) web.Copier {

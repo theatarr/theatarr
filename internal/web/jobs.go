@@ -1,24 +1,13 @@
 package web
 
 import (
-	"database/sql"
 	"errors"
-	"fmt"
 	"net/http"
 	"strconv"
-	"time"
 
-	"github.com/theatarr/theatarr/internal/acquire"
-	"github.com/theatarr/theatarr/internal/acquire/rss"
 	"github.com/theatarr/theatarr/internal/auth"
 	"github.com/theatarr/theatarr/internal/jobs"
-	"github.com/theatarr/theatarr/internal/metadata/art"
-	"github.com/theatarr/theatarr/internal/metadata/tvrefresh"
-	"github.com/theatarr/theatarr/internal/notify"
-	"github.com/theatarr/theatarr/internal/provider"
-	"github.com/theatarr/theatarr/internal/retention"
-	"github.com/theatarr/theatarr/internal/store"
-	"github.com/theatarr/theatarr/internal/torrents"
+	"github.com/theatarr/theatarr/internal/tasks"
 )
 
 // The job queue view and failed-job management (internal/jobs manage.go): a failed job needs attention until a later
@@ -29,10 +18,11 @@ import (
 func (w *Web) mountJobsAPI(mux *http.ServeMux) {
 	b := APIBase + "/jobs"
 	w.handle(mux, "GET "+b, SignedIn, auth.PermAdmin, w.apiJobs)
-	w.handle(mux, "GET "+b+"/recurring", SignedIn, auth.PermAdmin, w.apiJobsRecurring)
 	w.handle(mux, "POST "+b+"/{id}/retry", SignedIn, auth.PermAdmin, w.apiJobRetry)
 	w.handle(mux, "POST "+b+"/{id}/dismiss", SignedIn, auth.PermAdmin, w.apiJobDismiss)
 	w.handle(mux, "POST "+b+"/dismiss-resolved", SignedIn, auth.PermAdmin, w.apiJobsDismissResolved)
+	w.handle(mux, "GET "+APIBase+"/tasks", SignedIn, auth.PermAdmin, w.apiTasks)
+	w.handle(mux, "POST "+APIBase+"/tasks/{key}/run", SignedIn, auth.PermAdmin, w.apiTaskRun)
 }
 
 // GET /jobs?state&kind&attention&dismissed&limit: the counts (per state, plus attention) and the jobs.
@@ -134,8 +124,6 @@ func (w *Web) jobError(rw http.ResponseWriter, err error) {
 		notFound(rw)
 	case errors.Is(err, jobs.ErrNotFailed):
 		writeJSON(rw, http.StatusConflict, apiError{Error: "only a failed job can be retried or dismissed"})
-	case errors.Is(err, jobs.ErrNotMigrated):
-		writeJSON(rw, http.StatusServiceUnavailable, apiError{Error: "the database lacks migration 00025 (migrate)"})
 	default:
 		w.internal(rw, err)
 	}
@@ -153,107 +141,38 @@ func requester(r *http.Request) string {
 	return id.Username
 }
 
-// JobSchedule is a recurring task and the interval Theatarr knows for it from its settings or code, with its last
-// finished run and, when one is already queued for later, its next run.
-type JobSchedule struct {
-	Kind string `json:"kind"`
-	// EverySeconds is how often it runs; At is the local time of day ("09:00") of a daily task when known.
-	EverySeconds int64  `json:"every_seconds"`
-	At           string `json:"at,omitempty"`
-	// Paused: scheduled but not queued now (Pause is on, or no library is Live).
-	Paused    bool       `json:"paused,omitempty"`
-	LastRun   *time.Time `json:"last_run,omitempty"`
-	LastState string     `json:"last_state,omitempty"`
-	NextRun   *time.Time `json:"next_run,omitempty"`
+// TaskList is GET /tasks.
+type TaskList struct {
+	Items []tasks.Status `json:"items"`
 }
 
-// JobSchedules is GET /jobs/recurring.
-type JobSchedules struct {
-	Items []JobSchedule `json:"items"`
-}
-
-// scheduledOnly picks a recurring kind's scheduled runs where the kind also runs for one item or by hand (a title, one
-// provider's retry, a manual backup): only those are the task's last or next run.
-var scheduledOnly = map[string]string{
-	provider.JobKind: ` AND payload = '{}'`, art.JobKind: ` AND payload = '{}'`, tvrefresh.JobKind: ` AND payload = '{}'`,
-	torrents.JobBackup: ` AND json_extract(payload, '$.reason') = '` + torrents.ReasonScheduled + `'`,
-}
-
-// metadataSourceOn is whether metadata.sources.<name> has a URL and its key is set (cmd/theatarr builds the client then).
-func (w *Web) metadataSourceOn(name string) bool {
-	if w.pol.Metadata == nil {
-		return false
-	}
-	src := w.pol.Metadata.Sources[name]
-	return src != nil && src.URL != "" && src.APIKeyEnv != "" && w.pol.Getenv(src.APIKeyEnv) != ""
-}
-
-// recurringJobs are the recurring tasks the settings in force schedule, in the order Tasks lists them, with the
-// conditions their schedulers in cmd/theatarr start them on. Tasks run only on demand are not here.
-func (w *Web) recurringJobs() []JobSchedule {
-	day := int64(24 * time.Hour / time.Second)
-	sec := func(d time.Duration) int64 { return int64(d / time.Second) }
-	// The search round and the RSS read do nothing without a Live library or while Pause is on
-	// (serveliveworkers.go wantedWorkerKey; rss eligible and rssJob's paused).
-	paused := len(w.pol.ActiveVersions()) == 0 || !w.pol.RouterSettings().Enabled
-	var out []JobSchedule
-	if sh := w.pol.ShadowSettings(); sh.RSS {
-		out = append(out, JobSchedule{Kind: rss.KindRSS, EverySeconds: sec(sh.RSSInterval), Paused: paused})
-	}
-	out = append(out, JobSchedule{Kind: acquire.JobWanted, EverySeconds: sec(acquire.RoundEvery), Paused: paused})
-	if len(w.pol.Providers) > 0 {
-		out = append(out, JobSchedule{Kind: provider.JobKind, EverySeconds: sec(w.pol.ProviderSyncInterval())})
-	}
-	tmdbOn := w.metadataSourceOn("tmdb")
-	if tmdbOn {
-		out = append(out, JobSchedule{Kind: art.JobKind, EverySeconds: sec(w.pol.ArtSettings().Interval)})
-	}
-	if sm := w.pol.SeriesMetaSettings(); sm.Enabled && (tmdbOn || w.metadataSourceOn("tvdb")) {
-		out = append(out, JobSchedule{Kind: tvrefresh.JobKind, EverySeconds: sec(sm.Interval)},
-			JobSchedule{Kind: "meta.scene", EverySeconds: sec(tvrefresh.SceneAge)})
-	}
-	if e := w.pol.TorrentBackupEvery(); e > 0 {
-		out = append(out, JobSchedule{Kind: torrents.JobBackup, EverySeconds: sec(e)})
-	}
-	out = append(out, JobSchedule{Kind: "db.nightly", EverySeconds: day}, JobSchedule{Kind: retention.JobKind, EverySeconds: day})
-	if n := w.pol.NotifySettings(); n.Enabled {
-		out = append(out, JobSchedule{Kind: notify.DigestJob, EverySeconds: day, At: fmt.Sprintf("%02d:%02d", n.DigestHour, n.DigestMinute)})
-	}
-	return out
-}
-
-// GET /jobs/recurring: the recurring tasks with their interval, last run and next run (when one is queued). Two
-// lookups per listed kind answered by an index (job_resolve: kind, state, id; job_ready). The last run is the
-// newest finished job by id: one with a higher id that finished a moment earlier is not worth a sort.
-func (w *Web) apiJobsRecurring(rw http.ResponseWriter, r *http.Request) {
-	items := w.recurringJobs()
-	ctx := r.Context()
-	db := w.st.Reader()
-	now := store.Millis(w.now())
-	for i := range items {
-		k := items[i].Kind
-		sweep := scheduledOnly[k]
-		var fin int64
-		var state string
-		err := db.QueryRowContext(ctx, `SELECT finished_at, state FROM job WHERE kind = ? AND state IN ('done', 'failed')
-			AND finished_at IS NOT NULL`+sweep+` ORDER BY id DESC LIMIT 1`, k).Scan(&fin, &state)
-		if err == nil {
-			t := ts(fin)
-			items[i].LastRun, items[i].LastState = &t, state
-		} else if !errors.Is(err, sql.ErrNoRows) {
-			w.internal(rw, err)
-			return
-		}
-		var run int64
-		err = db.QueryRowContext(ctx, `SELECT run_at FROM job WHERE kind = ? AND state = 'queued' AND run_at > ?`+sweep+`
-			ORDER BY run_at LIMIT 1`, k, now).Scan(&run)
-		if err == nil {
-			t := ts(run)
-			items[i].NextRun = &t
-		} else if !errors.Is(err, sql.ErrNoRows) {
+// GET /tasks: the scheduled tasks (internal/tasks) with their interval, last run, last duration and next run.
+func (w *Web) apiTasks(rw http.ResponseWriter, r *http.Request) {
+	items := []tasks.Status{}
+	if w.tasks != nil {
+		var err error
+		if items, err = w.tasks.List(r.Context()); err != nil {
 			w.internal(rw, err)
 			return
 		}
 	}
-	writeJSON(rw, http.StatusOK, JobSchedules{Items: items})
+	writeJSON(rw, http.StatusOK, TaskList{Items: items})
+}
+
+// POST /tasks/{key}/run: run the task now, in the background (202).
+func (w *Web) apiTaskRun(rw http.ResponseWriter, r *http.Request) {
+	key := r.PathValue("key")
+	switch err := w.tasks.RunNow(key); {
+	case errors.Is(err, tasks.ErrUnknown):
+		notFound(rw)
+	case errors.Is(err, tasks.ErrRunning):
+		writeJSON(rw, http.StatusConflict, apiError{Error: "the task is already running"})
+	case errors.Is(err, tasks.ErrPaused):
+		writeJSON(rw, http.StatusConflict, apiError{Error: "the task waits while Pause is on or no library is Live"})
+	case err != nil:
+		w.internal(rw, err)
+	default:
+		w.log.Info("task run now", "task", key, "by", requester(r))
+		writeJSON(rw, http.StatusAccepted, map[string]string{"task": key})
+	}
 }

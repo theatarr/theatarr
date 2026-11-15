@@ -1,17 +1,17 @@
 // Admin › Jobs (docs/design/ui.md): the counts as one summary strip, then failed jobs that need attention (each with
-// its friendly name, raw kind, error, effect, Retry and Dismiss), then running and queued work, then the recurring
-// tasks with how often they run and their last run; failures already resolved, retried or dismissed and finished jobs
+// its friendly name, raw kind, error, effect, Retry and Dismiss), then running and queued work, then the scheduled
+// tasks as Sonarr's (interval, last run, how long it took, next run, Run now); failures already resolved, retried or dismissed and finished jobs
 // (identical ones as one row) are folded below. Counts update live from the event stream.
 // A failed job needs attention until a later done job of its kind and payload resolves it, it is retried, or it is
 // dismissed (lib/jobs.ts).
 import { useSearchParams } from "react-router";
-import { CheckCircle2, EyeOff, RotateCcw } from "lucide-react";
-import { type JobSchedule, useJobActions, useJobCounts, useJobsFiltered, useJobsRecurring } from "@/api/jobs";
+import { CheckCircle2, EyeOff, Play, RotateCcw } from "lucide-react";
+import { type Task, useJobActions, useJobCounts, useJobsFiltered, useRunTask, useTasks } from "@/api/jobs";
 import { Empty, ErrorState, Fold, JobState, Loading, Mono, PageHeader, Section, Strip } from "@/components/page";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { fmtAgo, fmtNumber, fmtTime } from "@/lib/format";
+import { fmtAgo, fmtDuration, fmtNumber, fmtTime } from "@/lib/format";
 import { attentionCount, canDismiss, canRetry, collapseDone, everyWords, groupJobs, jobEffect, jobName, jobNotes, type Job } from "@/lib/jobs";
 
 export function JobsPage() {
@@ -54,7 +54,7 @@ export function JobsPage() {
       <Section title="Running and queued" aside="running first, then by run time">
         {g.active.length === 0 ? <Card><Empty>Nothing is running or queued.</Empty></Card> : <JobList items={g.active} testid="jobs-active-list" />}
       </Section>
-      <Recurring />
+      <Scheduled />
       {g.settled.length > 0 ? (
         <Fold
           testid="jobs-settled"
@@ -88,15 +88,15 @@ export function JobsPage() {
   );
 }
 
-/** The recurring tasks with how often they run, their last run and, when one is queued, their next run. */
-function Recurring() {
-  const q = useJobsRecurring();
+/** The scheduled tasks: how often each runs, its last run and how long it took, its next run, and Run now. */
+function Scheduled() {
+  const q = useTasks();
   return (
-    <Section title="Recurring" aside="how often each runs, from the settings in force">
+    <Section title="Scheduled" aside="how often each runs, from the settings in force">
       {q.error ? <ErrorState error={q.error} /> : q.isPending ? <Loading /> : (
         <Card className="p-0">
-          <ul className="divide-y divide-border" data-testid="jobs-recurring">
-            {q.data.items.map((s) => <RecurringRow key={s.kind} s={s} />)}
+          <ul className="divide-y divide-border" data-testid="tasks">
+            {q.data.items.map((t) => <TaskRow key={t.key} t={t} />)}
           </ul>
         </Card>
       )}
@@ -104,16 +104,25 @@ function Recurring() {
   );
 }
 
-function RecurringRow({ s }: { s: JobSchedule }) {
+function TaskRow({ t }: { t: Task }) {
+  const run = useRunTask();
+  const busy = !!t.running || (run.isPending && run.variables?.key === t.key);
   return (
-    <li className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 px-4 py-2.5" data-kind={s.kind}>
-      <span className="min-w-0 font-medium text-[var(--ink)] sm:w-72">{jobName(s.kind)}</span>
-      <span className="text-sm text-muted-foreground sm:w-32" data-testid="recurring-every">{everyWords(s.every_seconds, s.at)}</span>
-      {s.paused ? <Badge tone="warning" title="Pause is on, or no library is Live" data-testid="recurring-paused">paused</Badge> : null}
-      <span className="text-sm text-muted-foreground" data-testid="recurring-last">
-        {s.last_run ? <>last run <span title={fmtTime(s.last_run)}>{fmtAgo(s.last_run)}</span>{s.last_state === "failed" ? <Badge tone="negative" className="ml-1.5">failed</Badge> : null}</> : "not run recently"}
-        {s.next_run ? <> · next <span title={fmtTime(s.next_run)}>{fmtTime(s.next_run)}</span></> : null}
+    <li className="flex flex-wrap items-center gap-x-3 gap-y-0.5 px-4 py-2.5" data-key={t.key}>
+      <span className="min-w-0 font-medium text-[var(--ink)] sm:w-64">{t.name}</span>
+      <span className="text-sm text-muted-foreground sm:w-28" data-testid="task-every">{everyWords(t.every_seconds, t.at)}</span>
+      {t.paused ? <Badge tone="warning" title="Pause is on, or no library is Live" data-testid="task-paused">paused</Badge> : null}
+      <span className="min-w-0 flex-1 text-sm text-muted-foreground" data-testid="task-last">
+        {t.running ? <>running since <span title={fmtTime(t.running)}>{fmtAgo(t.running)}</span></>
+          : t.last_finished ? <>last run <span title={fmtTime(t.last_started)}>{fmtAgo(t.last_finished)}</span>, took {fmtDuration(t.last_started, t.last_finished)}{t.last_error ? <Badge tone="negative" className="ml-1.5" title={t.last_error}>failed</Badge> : null}</>
+          : "not run yet"}
+        {t.next_run ? <> · next <span title={fmtTime(t.next_run)} data-testid="task-next">{fmtTime(t.next_run)}</span></> : null}
       </span>
+      {t.paused ? null : (
+        <Button size="xs" variant="outline" data-testid={`task-run-${t.key}`} disabled={busy} onClick={() => run.mutate(t)} title="Run it now">
+          <Play /> Run now
+        </Button>
+      )}
     </li>
   );
 }

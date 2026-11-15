@@ -252,17 +252,3 @@ func TestDismissResolved(t *testing.T) {
 		t.Errorf("second pass dismissed %d", n)
 	}
 }
-
-func TestManageNeedsMigration(t *testing.T) {
-	q, _ := setup(t)
-	ctx := context.Background()
-	if _, err := q.st.Writer().ExecContext(ctx, `ALTER TABLE job DROP COLUMN dismissed_by`); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := q.List(ctx, ListFilter{}); !errors.Is(err, ErrNotMigrated) {
-		t.Errorf("list: %v", err)
-	}
-	if _, _, err := q.Retry(ctx, 1); !errors.Is(err, ErrNotMigrated) {
-		t.Errorf("retry: %v", err)
-	}
-}

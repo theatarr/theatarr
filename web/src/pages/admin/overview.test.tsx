@@ -284,22 +284,31 @@ it("counts a download held for review or with a failed link under need attention
  expect((await screen.findByTestId("dl-all")).textContent).toContain("1");
  expect(screen.getByTestId("dl-attention").textContent).toContain("2");
 });
-it("lists the recurring tasks with how often they run, and folds identical finished tasks into one row", async () => {
+it("lists the scheduled tasks with how often they run, their last and next run, and folds identical finished tasks into one row", async () => {
  const done = (id: number, at: string) => ({ id, kind: "provider.sync", state: "done", attempts: 1, max_attempts: 3, finished_at: at });
- mockFetch([
+ const api = mockFetch([
   { method: "GET", path: "/jobs", reply: { counts: {}, items: [done(1, "2026-11-14T10:00:00Z"), done(2, "2026-11-14T10:05:00Z"), done(3, "2026-11-14T10:01:00Z"), { id: 4, kind: "plex.scan", state: "done", attempts: 1, max_attempts: 3, finished_at: "2026-11-14T09:00:00Z" }] } },
-  { method: "GET", path: "/jobs/recurring", reply: { items: [{ kind: "shadow.rss", every_seconds: 900, last_run: "2026-11-14T10:00:00Z", last_state: "failed" }, { kind: "notify.digest", every_seconds: 86400, at: "09:00" }, { kind: "db.nightly", every_seconds: 86400, next_run: "2026-11-15T03:00:00Z" }, { kind: "acquire.wanted", every_seconds: 900, paused: true }] } },
+  { method: "GET", path: "/tasks", reply: { items: [
+   { key: "shadow.rss", name: "Check RSS feeds", every_seconds: 900, last_started: "2026-11-14T09:59:00Z", last_finished: "2026-11-14T10:00:00Z", last_duration_ms: 60000, last_error: "boom", next_run: "2026-11-14T10:14:00Z" },
+   { key: "notify.digest", name: "Send the daily digest", every_seconds: 0, at: "09:00", last_duration_ms: 0 },
+   { key: "acquire.wanted", name: "Search for wanted items", every_seconds: 900, paused: true, last_duration_ms: 0 },
+  ] } },
+  { method: "POST", path: "/tasks/shadow.rss/run", reply: { task: "shadow.rss" } },
  ]);
  renderPage(<JobsPage />);
- const rec = await screen.findByTestId("jobs-recurring");
- const rss = rec.querySelector("[data-kind='shadow.rss']")!;
+ const rec = await screen.findByTestId("tasks");
+ const rss = rec.querySelector("[data-key='shadow.rss']")!;
  expect(rss.textContent).toContain("Check RSS feeds");
  expect(rss.textContent).toContain("every 15 min");
+ expect(rss.textContent).toContain("took 1 min 0 s");
  expect(rss.textContent).toContain("failed");
- expect(rec.querySelector("[data-kind='notify.digest']")!.textContent).toContain("daily at 09:00");
- expect(rec.querySelector("[data-kind='notify.digest']")!.textContent).toContain("not run recently");
- expect(rec.querySelector("[data-kind='db.nightly']")!.textContent).toContain("next");
- expect(rec.querySelector("[data-kind='acquire.wanted'] [data-testid='recurring-paused']")).toBeTruthy();
+ expect(rss.querySelector("[data-testid='task-next']")).toBeTruthy();
+ expect(rec.querySelector("[data-key='notify.digest']")!.textContent).toContain("daily at 09:00");
+ expect(rec.querySelector("[data-key='notify.digest']")!.textContent).toContain("not run yet");
+ expect(rec.querySelector("[data-key='acquire.wanted'] [data-testid='task-paused']")).toBeTruthy();
+ expect(rec.querySelector("[data-testid='task-run-acquire.wanted']")).toBeNull();
+ fireEvent.click(screen.getByTestId("task-run-shadow.rss"));
+ await waitFor(() => expect(api.calls("POST", "/tasks/shadow.rss/run")).toHaveLength(1));
  const group = screen.getByTestId("jobs-done-group");
  expect(group.textContent).toContain("Sync debrid holdings");
  expect(group.textContent).toContain("×3, last");

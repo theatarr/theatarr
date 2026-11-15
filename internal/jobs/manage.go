@@ -1,6 +1,6 @@
 package jobs
 
-// Managing failed jobs (migration 00025). A failed job needs attention until one of these happens:
+// Managing failed jobs. A failed job needs attention until one of these happens:
 //
 //   - Resolved: a later job (higher id) of the same kind finished done with the same payload, or with the empty
 //     payload {}, which every kind uses for a run over all its subjects (provider.sync of every provider, the art
@@ -29,8 +29,6 @@ var (
 	ErrNotFound = errors.New("jobs: no such job")
 	// ErrNotFailed is a retry or dismissal of a job that has not failed.
 	ErrNotFailed = errors.New("jobs: only a failed job can be retried or dismissed")
-	// ErrNotMigrated is a database without migration 00025 (retry_of, dismissed_at).
-	ErrNotMigrated = errors.New("jobs: the database lacks migration 00025 (job.dismissed_at)")
 )
 
 // Status is a job row with what became of it, for the Jobs view, the API and theatarr jobs (which prints it as JSON).
@@ -114,30 +112,16 @@ func optTime(n sql.NullInt64) *time.Time {
 	return &t
 }
 
-// migrated reports whether the job table has the 00025 columns.
-func (q *Queue) migrated(ctx context.Context) (bool, error) {
-	var n int
-	err := q.st.Reader().QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM pragma_table_info('job') WHERE name IN ('retry_of', 'dismissed_at', 'dismissed_by')`).Scan(&n)
-	return n == 3, err
-}
-
-func (q *Queue) needMigrated(ctx context.Context) error {
-	ok, err := q.migrated(ctx)
-	if err != nil {
-		return err
-	}
-	if !ok {
-		return ErrNotMigrated
-	}
-	return nil
+// listOrder is List's order, one indexed read per state group: running and queued by run time, then the latest
+// finished (newest first).
+var listOrder = []struct{ states, order string }{
+	{`j.state = 'running'`, `j.run_at, j.id`},
+	{`j.state = 'queued'`, `j.run_at, j.id`},
+	{`j.state IN ('done', 'failed')`, `j.id DESC`},
 }
 
 // List returns jobs: running first, then queued by run time, then the latest finished.
 func (q *Queue) List(ctx context.Context, f ListFilter) ([]Status, error) {
-	if err := q.needMigrated(ctx); err != nil {
-		return nil, err
-	}
 	if f.Limit <= 0 || f.Limit > 500 {
 		f.Limit = 100
 	}
@@ -157,32 +141,37 @@ func (q *Queue) List(ctx context.Context, f ListFilter) ([]Status, error) {
 	if f.HideDismissed {
 		conds = append(conds, "j.dismissed_at IS NULL")
 	}
-	rows, err := q.st.Reader().QueryContext(ctx, `SELECT `+statusColumns+` FROM job j
-		WHERE `+strings.Join(conds, " AND ")+`
-		ORDER BY CASE j.state WHEN 'running' THEN 0 WHEN 'queued' THEN 1 ELSE 2 END,
-			CASE WHEN j.state IN ('running', 'queued') THEN j.run_at ELSE -COALESCE(j.finished_at, j.updated_at) END,
-			j.id DESC
-		LIMIT ?`, append(args, f.Limit)...)
-	if err != nil {
-		return nil, fmt.Errorf("jobs: list: %w", err)
-	}
-	defer rows.Close()
+	where := strings.Join(conds, " AND ")
 	out := []Status{}
-	for rows.Next() {
-		s, err := scanStatus(rows)
+	for _, g := range listOrder {
+		left := f.Limit - len(out)
+		if left <= 0 {
+			break
+		}
+		rows, err := q.st.Reader().QueryContext(ctx, `SELECT `+statusColumns+` FROM job j
+			WHERE `+g.states+` AND `+where+` ORDER BY `+g.order+` LIMIT ?`, append(args, left)...)
+		if err != nil {
+			return nil, fmt.Errorf("jobs: list: %w", err)
+		}
+		for rows.Next() {
+			s, err := scanStatus(rows)
+			if err != nil {
+				rows.Close()
+				return nil, err
+			}
+			out = append(out, s)
+		}
+		err = rows.Err()
+		rows.Close()
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, s)
 	}
-	return out, rows.Err()
+	return out, nil
 }
 
 // Status returns one job with what became of it.
 func (q *Queue) Status(ctx context.Context, id int64) (Status, error) {
-	if err := q.needMigrated(ctx); err != nil {
-		return Status{}, err
-	}
 	s, err := scanStatus(q.st.Reader().QueryRowContext(ctx, `SELECT `+statusColumns+` FROM job j WHERE j.id = ?`, id))
 	if errors.Is(err, sql.ErrNoRows) {
 		return s, ErrNotFound
@@ -192,9 +181,6 @@ func (q *Queue) Status(ctx context.Context, id int64) (Status, error) {
 
 // AttentionCount is the number of failed jobs that still need attention.
 func (q *Queue) AttentionCount(ctx context.Context) (int, error) {
-	if err := q.needMigrated(ctx); err != nil {
-		return 0, err
-	}
 	var n int
 	err := q.st.Reader().QueryRowContext(ctx, `SELECT COUNT(*) FROM job j WHERE j.state = 'failed' AND `+attentionSQL).
 		Scan(&n)
@@ -206,9 +192,6 @@ func (q *Queue) AttentionCount(ctx context.Context) (int, error) {
 // that one (created false). If the dedupe key belongs to a job already queued or running, that job is returned and
 // linked as the retry, unless it already re-runs another job.
 func (q *Queue) Retry(ctx context.Context, id int64) (newID int64, created bool, err error) {
-	if err := q.needMigrated(ctx); err != nil {
-		return 0, false, err
-	}
 	err = q.st.WriteTx(ctx, func(tx *sql.Tx) error {
 		var kind, state, payload string
 		var priority, maxAttempts int
@@ -252,9 +235,6 @@ func (q *Queue) Retry(ctx context.Context, id int64) (newID int64, created bool,
 
 // Dismiss hides a failed job from attention, recording when and by whom. Dismissing it again changes nothing.
 func (q *Queue) Dismiss(ctx context.Context, id int64, by string) (Status, error) {
-	if err := q.needMigrated(ctx); err != nil {
-		return Status{}, err
-	}
 	now := store.Millis(q.now())
 	err := q.st.WriteTx(ctx, func(tx *sql.Tx) error {
 		var state string
@@ -284,9 +264,6 @@ func (q *Queue) Dismiss(ctx context.Context, id int64, by string) (Status, error
 
 // DismissResolved dismisses every failed job that a later done job resolved, and returns how many.
 func (q *Queue) DismissResolved(ctx context.Context, by string) (int64, error) {
-	if err := q.needMigrated(ctx); err != nil {
-		return 0, err
-	}
 	now := store.Millis(q.now())
 	var n int64
 	err := q.st.WriteTx(ctx, func(tx *sql.Tx) error {

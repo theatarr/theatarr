@@ -48,6 +48,7 @@ import (
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/settings"
 	"github.com/theatarr/theatarr/internal/store"
+	"github.com/theatarr/theatarr/internal/tasks"
 	"github.com/theatarr/theatarr/internal/webui"
 )
 
@@ -104,6 +105,8 @@ type Config struct {
 	// Jobs is the queue the workers run, so a retry wakes them at once; nil builds one on Store (workers then find
 	// retries on their next poll).
 	Jobs *jobs.Queue
+	// Tasks is the scheduled-tasks table System › Tasks lists and runs now (internal/tasks); nil lists none.
+	Tasks *tasks.Table
 	// Health serves GET /health and the health summary in /status (internal/health.Checker); nil answers with no
 	// checks.
 	Health HealthChecker
@@ -203,6 +206,7 @@ type Web struct {
 	rss               RSSCoverage
 	perms             PermsFunc
 	jobs              *jobs.Queue
+	tasks             *tasks.Table
 	plex              PlexLogin
 	health            HealthChecker
 	ops               Ops
@@ -264,7 +268,7 @@ func New(cfg Config) (*Web, error) {
 	if cfg.Background == nil {
 		cfg.Background = context.Background()
 	}
-	return &Web{st: cfg.Store, jobs: cfg.Jobs, auth: cfg.Auth, pol: cfg.Policy, policyDir: cfg.PolicyDir, egress: cfg.Egress,
+	return &Web{st: cfg.Store, jobs: cfg.Jobs, tasks: cfg.Tasks, auth: cfg.Auth, pol: cfg.Policy, policyDir: cfg.PolicyDir, egress: cfg.Egress,
 		log: cfg.Logger.With("component", "web"), version: cfg.Version, now: cfg.Now, poll: cfg.PollInterval,
 		hub: newHub(), devices: cfg.Devices, art: cfg.Art, journal: cfg.Journal, ui: cfg.UI, logs: cfg.Logs, add: cfg.Add, rss: cfg.RSS,
 		perms: cfg.Perms, plex: cfg.Plex, health: cfg.Health, ops: cfg.Ops, onRequest: cfg.OnRequest,

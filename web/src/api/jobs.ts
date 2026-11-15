@@ -13,11 +13,24 @@ type JobFilter = { kind?: string; state?: string; attention?: boolean; dismissed
 export const useJobsFiltered = (f: JobFilter) =>
   useQuery({ queryKey: qk.jobs.filtered(f), queryFn: () => api<JobList>("/jobs" + qs(f)) });
 
-export type JobSchedule = Schemas["JobSchedule"];
+export type Task = Schemas["Task"];
 
-/** GET /jobs/recurring: the recurring tasks with their interval, last run and (when queued) next run. */
-export const useJobsRecurring = () =>
-  useQuery({ queryKey: [...qk.jobs.all, "recurring"], queryFn: () => api<{ items: JobSchedule[] }>("/jobs/recurring") });
+/** GET /tasks: the scheduled tasks with their interval, last run, last duration and next run. */
+export const useTasks = () =>
+  useQuery({ queryKey: [...qk.jobs.all, "tasks"], queryFn: () => api<{ items: Task[] }>("/tasks"), refetchInterval: 15_000 });
+
+/** POST /tasks/{key}/run: run a scheduled task now. */
+export function useRunTask() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (t: Task) => api<{ task: string }>(`/tasks/${encodeURIComponent(t.key)}/run`, { method: "POST" }),
+    onSuccess: (_, t) => {
+      toast({ tone: "ok", title: `${t.name} started` });
+      void qc.invalidateQueries({ queryKey: [...qk.jobs.all, "tasks"] });
+    },
+    onError: (e: Error) => toast({ tone: "bad", title: "Run now failed", body: e.message }),
+  });
+}
 
 export function useJobActions() {
   const qc = useQueryClient();

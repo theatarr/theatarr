@@ -1,7 +1,9 @@
 package web
 
 import (
+	"context"
 	"encoding/json"
+	"github.com/theatarr/theatarr/internal/tasks"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -9,7 +11,6 @@ import (
 	"time"
 
 	"github.com/theatarr/theatarr/internal/auth"
-	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/store"
 )
 
@@ -169,85 +170,40 @@ func TestConfirmedJobRetryWithKey(t *testing.T) {
 	}
 }
 
-// GET /jobs/recurring lists the recurring tasks the settings schedule, with their interval, the last finished run and
-// the next run only when one is queued for later. A sweep kind's last run is its scheduled run ({}), not a one-item
-// job; the search round says when it is paused.
-func TestJobsRecurring(t *testing.T) {
+// GET /tasks lists the registered tasks with their last run and next run; POST /tasks/{key}/run runs one now and
+// refuses one already running or unknown.
+func TestTasksListAndRunNow(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t)
-	now := store.Millis(testNow)
-	// The seed queues db.nightly an hour ahead (and has a failed one, never finished).
-	e.exec(`INSERT INTO job (id, kind, payload, state, run_at, created_at, updated_at, finished_at) VALUES
-		(10, 'shadow.rss', 'null', 'failed', ?1, ?1, ?1, ?1 - 60000), (11, 'shadow.rss', 'null', 'done', ?1, ?1, ?1, ?1),
-		(12, 'provider.sync', '{}', 'done', ?1, ?1, ?1, ?1 - 3600000),
-		(13, 'provider.sync', '{"providers":["ad"],"retry":true}', 'failed', ?1, ?1, ?1, ?1),
-		(16, 'torrents.backup', '{"reason":"scheduled","by":"schedule"}', 'done', ?1, ?1, ?1, ?1 - 7200000),
-		(17, 'torrents.backup', '{"reason":"manual","by":"admin"}', 'failed', ?1, ?1, ?1, ?1)`, now)
-	if e.web.pol.Torrents == nil {
-		e.web.pol.Torrents = &policy.Torrents{}
+	ctx := context.Background()
+	tb := tasks.New(ctx, e.web.st, nil)
+	e.web.tasks = tb
+	key := e.apiKey()
+	ran := make(chan struct{})
+	release := make(chan struct{})
+	defer tb.Register(ctx, tasks.Task{Key: "shadow.rss", Name: "Check RSS feeds", Every: 15 * time.Minute,
+		Next: testNow.Add(time.Minute), Run: func(context.Context) error { close(ran); <-release; return nil }})()
+	var tl TaskList
+	if code := e.getKey(APIBase+"/tasks", key, &tl); code != 200 || len(tl.Items) != 1 {
+		t.Fatalf("tasks: %d %+v", code, tl)
 	}
-	e.web.pol.Torrents.Backup.Every = policy.Duration(24 * time.Hour)
-	var js JobSchedules
-	if code := e.getKey(APIBase+"/jobs/recurring", e.apiKey(), &js); code != 200 {
-		t.Fatalf("recurring: %d", code)
+	if s := tl.Items[0]; s.Name != "Check RSS feeds" || s.EverySeconds != 900 || s.NextRun == nil || !s.NextRun.Equal(testNow.Add(time.Minute)) {
+		t.Fatalf("task: %+v", s)
 	}
-	by := map[string]JobSchedule{}
-	for _, s := range js.Items {
-		by[s.Kind] = s
+	run := func(task string) int {
+		r := httptest.NewRequest("POST", APIBase+"/tasks/"+task+"/run", nil)
+		r.Header.Set(auth.APIKeyHeader, key)
+		return e.do(r).Code
 	}
-	rss := by["shadow.rss"]
-	if rss.EverySeconds != 900 || rss.LastRun == nil || !rss.LastRun.Equal(testNow) || rss.LastState != "done" || rss.NextRun != nil {
-		t.Errorf("rss: %+v", rss)
+	if code := run("shadow.rss"); code != 202 {
+		t.Fatalf("run now: %d", code)
 	}
-	if s := by["provider.sync"]; s.EverySeconds != 6*3600 || s.LastRun == nil || !s.LastRun.Equal(testNow.Add(-time.Hour)) || s.LastState != "done" {
-		t.Errorf("provider sync takes the full sync, not the one-provider retry: %+v", s)
+	<-ran
+	if code := run("shadow.rss"); code != 409 {
+		t.Fatalf("run now while running: %d", code)
 	}
-	if s := by["db.nightly"]; s.EverySeconds != 86400 || s.NextRun == nil || !s.NextRun.Equal(testNow.Add(time.Hour)) {
-		t.Errorf("nightly: %+v", s)
-	}
-	pol := e.web.pol
-	paused := len(pol.ActiveVersions()) == 0 || !pol.RouterSettings().Enabled
-	if s := by["acquire.wanted"]; s.EverySeconds != 900 || s.Paused != paused {
-		t.Errorf("search round: %+v", s)
-	}
-	if rss.Paused != paused {
-		t.Errorf("rss paused %v, want %v", rss.Paused, paused)
-	}
-	if s := by["torrents.backup"]; s.EverySeconds != 86400 || s.LastRun == nil || !s.LastRun.Equal(testNow.Add(-2*time.Hour)) || s.LastState != "done" {
-		t.Errorf("torrent backups take the scheduled run, not a manual one: %+v", s)
-	}
-	if _, ok := by["meta.art"]; ok != e.web.metadataSourceOn("tmdb") {
-		t.Errorf("meta.art listed %v with TMDb %v", ok, e.web.metadataSourceOn("tmdb"))
-	}
-	if _, ok := by["notify.digest"]; ok {
-		t.Errorf("the digest is listed with notifications off: %+v", js.Items)
-	}
-}
-
-// The art refresh and the series sweeps are listed with their intervals when their metadata sources are on.
-func TestJobsRecurringMetadata(t *testing.T) {
-	e := newEnv(t)
-	pol := e.web.pol
-	if pol.Metadata == nil || pol.Metadata.Sources["tmdb"] == nil {
-		t.Skip("the example policy has no tmdb source")
-	}
-	src := *pol.Metadata.Sources["tmdb"]
-	src.APIKeyEnv = "THEATARR_TEST_TMDB_KEY"
-	t.Setenv(src.APIKeyEnv, "x")
-	pol.Metadata.Sources["tmdb"] = &src
-	by := map[string]JobSchedule{}
-	for _, s := range e.web.recurringJobs() {
-		by[s.Kind] = s
-	}
-	if s, ok := by["meta.art"]; !ok || s.EverySeconds != int64(pol.ArtSettings().Interval/time.Second) {
-		t.Errorf("art: %+v", by)
-	}
-	if pol.SeriesMetaSettings().Enabled {
-		if s := by["meta.series"]; s.EverySeconds != int64(pol.SeriesMetaSettings().Interval/time.Second) {
-			t.Errorf("series: %+v", s)
-		}
-		if s := by["meta.scene"]; s.EverySeconds != 3*3600 {
-			t.Errorf("scene: %+v", s)
-		}
+	close(release)
+	if code := run("nope"); code != 404 {
+		t.Fatalf("unknown task: %d", code)
 	}
 }
