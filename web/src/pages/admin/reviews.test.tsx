@@ -86,11 +86,13 @@ it.each(["pending", "error", "empty"])("definition reviews show %s", async state
  else expect(await screen.findByText(state === "error" ? "holds unavailable" : "No definition updates waiting.")).toBeTruthy();
 });
 
-it("shows a question mark badge when the scan found no matches but has older entries", async () => {
+it("shows a question mark badge when the Reviews page's scan found no matches but has older entries", async () => {
  const { ReviewsBadge } = await import("@/components/shell/app-shell");
- mockFetch(routes(true).map(r => r.path === "/journal" ? { ...r, reply: { items: [], next_cursor: "older" } } : r));
- renderPage(<ReviewsBadge />, "/admin");
+ const fetch = mockFetch(routes(true).map(r => r.path === "/journal" ? { ...r, reply: { items: [], next_cursor: "older" } } : r));
+ // The badge reads the flagged decisions only as the page read them.
+ renderPage(<><ReviewsPage /><ReviewsBadge /></>, "/admin/reviews");
  expect((await screen.findByTestId("reviews-badge")).textContent).toBe("?");
+ expect(fetch.calls("GET", "/journal")).toHaveLength(1);
 });
 
 it("reads no review counts for the badge outside the admin pages", async () => {

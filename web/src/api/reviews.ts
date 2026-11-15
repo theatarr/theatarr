@@ -37,18 +37,19 @@ export function suspectCount(page?: JournalPage & { total?: number }) {
   const count = page?.total ?? page?.items?.length ?? 0;
   return { count, more: page?.total === undefined && (count >= 50 || !!page?.next_cursor) };
 }
-/** The waiting counts for an admin. active false reads nothing: the sidebar badge reads them on admin pages only,
- * since the flagged-decisions listing builds up to 2,000 journal entries. */
-export function useReviewCounts(active = true) {
+/** The waiting counts for an admin. active false reads nothing: the sidebar badge reads them on admin pages only.
+ * withDecisions false leaves out reading the flagged decisions (the listing builds up to 2,000 journal entries): the
+ * sidebar badge counts them only as the Reviews page or Status last read them. */
+export function useReviewCounts(active = true, withDecisions = true) {
   const auth = useAuth();
   const enabled = active && permsOf(auth.data?.permissions).admin;
   const anime = useQuery({ queryKey: qk.anime.review("open"), queryFn: () => api<Review>("/anime/review?state=open"), enabled, refetchInterval: 60_000 });
   const indexers = useCardigannHolds(enabled);
-  const decisions = useFlaggedDecisions(enabled);
+  const decisions = useFlaggedDecisions(enabled && withDecisions);
   const suspect = suspectCount(decisions.data);
   const counts = { anime: anime.data?.items?.filter(i => i.state === "open").length ?? 0, indexers: indexers.data?.length ?? 0, decisions: suspect.count };
   return { ...counts, total: Object.values(counts).reduce((a, b) => a + b, 0), decisionsMore: suspect.more,
-    isPending: auth.isPending || enabled && [anime, indexers, decisions].some(q => q.isPending),
+    isPending: auth.isPending || enabled && [anime, indexers, ...(withDecisions ? [decisions] : [])].some(q => q.isPending),
     failures: [{ name: "anime mappings", q: anime }, { name: "indexer definitions", q: indexers }, { name: "flagged decisions", q: decisions }].filter(({ q }) => q.error).map(({ name }) => name),
     error: auth.error ?? [anime, indexers, decisions].find(q => q.error)?.error,
   };

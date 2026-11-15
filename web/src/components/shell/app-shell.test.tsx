@@ -3,7 +3,7 @@ import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, it, vi } from "vitest";
 import { mockFetch, renderPage } from "@/test/page";
-import { AppShell } from "./app-shell";
+import { AppShell, ReviewsBadge } from "./app-shell";
 vi.mock("@/components/search/search-context", () => ({ useSearchUI: () => ({ openOverlay: vi.fn() }) }));
 vi.mock("./account-menu", () => ({ AccountMenu: () => null, ThemeSwitch: () => null }));
 vi.mock("@/api/useSetupProgress", () => ({ useSetupProgress: () => ({ unfinished: false }) }));
@@ -93,4 +93,15 @@ it("phone: tabs Home, Browse, Activity, Requests, More; More opens System only o
   await user.click(screen.getByTestId("more-tab"));
   const sheet = await screen.findByRole("dialog", { name: "More" });
   expect([...sheet.querySelectorAll("a[href]")].map((a) => a.getAttribute("href")).filter((h) => h !== "/")).toEqual(["/now-playing", "/calendar"]);
+});
+
+it("counts the waiting reviews on an admin page without reading the flagged decisions", async () => {
+  const fetch = mockFetch([
+    { method: "GET", path: "/auth/me", reply: { kind: "session", id: 1, username: "admin", permissions: ["browse", "admin"], csrf_token: "t" } },
+    { method: "GET", path: "/anime/review", reply: { items: [{ state: "open" }, { state: "open" }] } },
+    { method: "GET", path: "/cardigann/holds", reply: [] },
+  ]);
+  renderPage(<ReviewsBadge />, "/admin/system/tasks");
+  expect((await screen.findByTestId("reviews-badge")).textContent).toBe("2");
+  expect(fetch.calls("GET", "/journal")).toHaveLength(0);
 });

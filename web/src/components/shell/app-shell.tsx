@@ -94,8 +94,9 @@ export function SystemBadge() {
 }
 
 export function ReviewsBadge() {
-  // Only on admin pages: elsewhere the badge is not read (the flagged-decisions listing is a slow scan).
-  const counts = useReviewCounts(useLocation().pathname.startsWith("/admin"));
+  // Only on admin pages: elsewhere the badge is not read. The flagged decisions (a slow scan) are only counted as the
+  // Reviews page or Status last read them.
+  const counts = useReviewCounts(useLocation().pathname.startsWith("/admin"), false);
   // Nothing until every count has loaded: a partial sum would show one number and then jump to another.
   if (counts.isPending) return null;
   return counts.total > 0 || counts.decisionsMore ? <span data-testid="reviews-badge" className={COUNT}>{counts.total > 99 ? "99+" : counts.decisionsMore ? counts.total ? `${counts.total}+` : "?" : counts.total}</span> : null;
