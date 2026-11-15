@@ -306,6 +306,9 @@ it("lists the scheduled tasks with how often they run, their last and next run, 
  expect(rec.querySelector("[data-testid='task-run-acquire.wanted']")).toBeNull();
  // A failed task needs attention until a run works.
  expect(screen.getByTestId("tasks-failed").textContent).toContain("boom");
+ // The summary counts it, as Needs attention shows it.
+ expect(screen.getByTestId("jobs-attention").textContent).toContain("1");
+ expect(screen.getByTestId("jobs-failed").textContent).toContain("1");
  fireEvent.click(screen.getAllByTestId("task-run-shadow.rss")[0]);
  await waitFor(() => expect(api.calls("POST", "/tasks/shadow.rss/run")).toHaveLength(1));
  const group = screen.getByTestId("jobs-done-group");

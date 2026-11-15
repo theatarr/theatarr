@@ -24,7 +24,8 @@ export function JobsPage() {
   const tasks = useTasks();
   const runTask = useRunTask();
   const failedTasks = (tasks.data?.items ?? []).filter((t) => t.last_error && (!kind || t.key === kind));
-  const open = attentionCount(counts);
+  // The failed scheduled tasks are listed under Needs attention with the failed jobs, so the counts take them in.
+  const open = attentionCount(counts) + failedTasks.length;
   const header = <PageHeader crumb={[{ label: "System", to: "/admin" }]} title="Tasks" description="Background work: what failed and needs a look first, then what runs next." />;
   if (jobs.isPending) return <div>{header}<Loading /></div>;
   if (jobs.error) return <div>{header}<ErrorState error={jobs.error} /></div>;
@@ -39,7 +40,7 @@ export function JobsPage() {
           { label: "need attention", value: fmtNumber(open), tone: open > 0 ? "bad" : undefined, testid: "jobs-attention" },
           { label: "running", value: fmtNumber(counts.running ?? 0), testid: "jobs-running" },
           { label: "queued", value: fmtNumber(counts.queued ?? 0), testid: "jobs-queued" },
-          { label: "failed, resolved ones included", value: fmtNumber(counts.failed ?? 0), testid: "jobs-failed" },
+          { label: "failed, resolved ones included", value: fmtNumber((counts.failed ?? 0) + failedTasks.length), testid: "jobs-failed" },
           { label: "done", value: fmtNumber(counts.done ?? 0), testid: "jobs-done" },
         ]}
       />
