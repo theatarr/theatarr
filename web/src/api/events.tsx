@@ -1,7 +1,8 @@
 // The live event stream (GET /api/theatarr/v1/events, Server-Sent Events). One connection per tab, opened once signed in and closed when the page is left.
 // jobs events refresh the job queries and carry the queue counts; gateway events carry the full /gateway state and
-// replace the cached query; download and title events refresh the activity, Continue row and calendar, and a
-// download's state change shows a toast (live-activity.ts); request events refresh the requests and tell the
+// replace the cached query; download and title events refresh the activity, Continue row and calendar (progress alone
+// only what shows progress), and a download's state change shows a toast (live-activity.ts); request events refresh
+// the requests and the one title they name, and tell the
 // requester in a toast; users events refresh the users screen. The server sends each listener only the events its
 // account may see (jobs and gateway to admins). The browser reconnects on its own (retry: 5000).
 import { useQueryClient } from "@tanstack/react-query";
@@ -65,7 +66,7 @@ export function LiveProvider({ enabled, seeFiles = false, children }: { enabled:
         const ev = JSON.parse((e as MessageEvent).data) as RequestEvent;
         void qc.invalidateQueries({ queryKey: ["requests"] });
         void qc.invalidateQueries({ queryKey: ["search"] });
-        if (ev.title_id) void qc.invalidateQueries({ queryKey: ["title"] });
+        if (ev.title_id) void qc.invalidateQueries({ queryKey: qk.title(ev.title_id) });
         const t = ev.mine ? requestToast(ev) : null;
         if (t) toast({ ...t, to: "/requests" });
       });

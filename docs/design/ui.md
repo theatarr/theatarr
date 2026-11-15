@@ -80,7 +80,8 @@ calls them. The UI shares two things with them (§3, §6): the add path (`catalo
   and `/admin/system/*` (Status, Tasks, Backup, Errors, Logs, Decision journal). The phone More sheet lists the same
   pages top level only: System, Settings and Advanced are closed groups that open on a tap, their own page first. System's badge sums new errors excluding source=job
   and attention jobs; Tasks and Errors retain their own badges. Reviews uses an accent badge for all
-  waiting decisions. Users and managers never see Admin; users-only accounts see Users & access,
+  waiting decisions; the flagged decisions among them are read only by the Reviews page and Status (the listing is
+  a slow scan), so the badge counts them as those pages last read them. Users and managers never see Admin; users-only accounts see Users & access,
   and `/admin` takes them there. Sign-in still lands on Home.
 - Each library gets its own colour mark (the dots on pills, tags, the title page, filters): the configured libraries
   in key order take the palette `--v-0` … `--v-9` in turn (`web/src/lib/library-names.tsx`), so five libraries get
@@ -722,8 +723,10 @@ including "Imported from Radarr's blocklist" for `arr:<instance>`) and the healt
   `theatarr.library.columns.<list>.<user>` (the old shared column choice is not read, so each list starts with its
   defaults) and `theatarr.library.posters.<list>.<user>` (falling back to the old shared poster options, so the size
   carries over). Sort and filters are not remembered: they stay in the address.
-- **Live:** a download event refreshes its title and the lists at once on a change of state, and at most every
-  20 s for progress alone (`web/src/api/live-activity.ts`).
+- **Live:** a download's change of state refreshes the Activity lists (Home's Continue row among them), the
+  Calendar, its title and the lists at once. Progress alone refreshes only what shows progress: the queue and the
+  Continue row at most every 5 s per download, its title and the lists at most every 20 s
+  (`web/src/api/live-activity.ts`). A request event refreshes the one title it names.
 
 API fields (all additive): `TitleRow.versions[]` (VersionBrief) gains `control`, `coverage` {have, total, aired,
 upcoming, missing, monitored, in_flight} and `acquisition` {stage, words, progress, download_id, downloads,

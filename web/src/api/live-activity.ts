@@ -1,7 +1,7 @@
-// What the live stream's download and title events do (docs/design/ui.md, live updates): refresh the activity, the Continue row,
-// the calendar and the title queries, and toast a download's change of state. Progress alone refreshes quietly. A
-// download event also refreshes its title and the library lists, whose copies show the acquisition stage: at once on
-// a change of state, and at most every 20 s for progress alone.
+// What the live stream's download and title events do (docs/design/ui.md, live updates). A download's change of state
+// refreshes the activity lists (Home's Continue row among them), the calendar, its title and the library lists, whose
+// copies show the acquisition stage, and toasts. Progress alone refreshes quietly only what shows progress: the queue
+// and the Continue row at most every 5 s per download, its title and the lists at most every 20 s.
 import type { QueryClient } from "@tanstack/react-query";
 import { toast, type ToastTone } from "@/components/toaster";
 import type { DownloadEvent, TitleEvent } from "./activity";
@@ -45,6 +45,10 @@ export function libraryRefresh(ev: Pick<DownloadEvent, "state" | "previous" | "t
   return { title, lists };
 }
 
+/** How often progress alone refreshes the queue and the Continue row, per download. */
+export const PROGRESS_LIVE_MS = 5_000;
+const lastProgress = new Map<number, number>();
+
 export function onDownloadEvent(qc: QueryClient, raw: string, now: number = Date.now(), seeFiles = true, nameOf?: (key: string) => string) {
   let ev: DownloadEvent;
   try {
@@ -52,8 +56,16 @@ export function onDownloadEvent(qc: QueryClient, raw: string, now: number = Date
   } catch {
     return;
   }
-  qc.invalidateQueries({ queryKey: qk.activity.all });
-  qc.invalidateQueries({ queryKey: qk.calendar.all });
+  const changed = ev.previous ? ev.previous !== ev.state : true;
+  if (changed) {
+    lastProgress.delete(ev.id);
+    qc.invalidateQueries({ queryKey: qk.activity.all });
+    qc.invalidateQueries({ queryKey: qk.calendar.all });
+  } else if (now - (lastProgress.get(ev.id) ?? -Infinity) >= PROGRESS_LIVE_MS) {
+    lastProgress.set(ev.id, now);
+    qc.invalidateQueries({ queryKey: [...qk.activity.all, "now"] });
+    qc.invalidateQueries({ queryKey: [...qk.activity.all, "continue"] });
+  }
   const r = libraryRefresh(ev, now);
   if (r.title) qc.invalidateQueries({ queryKey: qk.title(ev.title.id) });
   if (r.lists) qc.invalidateQueries({ queryKey: qk.titles.all });

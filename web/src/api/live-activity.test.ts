@@ -1,7 +1,7 @@
 import { QueryClient } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
 import type { DownloadEvent } from "./activity";
-import { downloadToast, libraryRefresh, onDownloadEvent, onTitleEvent, PROGRESS_REFRESH_MS } from "./live-activity";
+import { downloadToast, libraryRefresh, onDownloadEvent, onTitleEvent, PROGRESS_LIVE_MS, PROGRESS_REFRESH_MS } from "./live-activity";
 import { qk } from "./query-keys";
 
 const base: DownloadEvent = {
@@ -54,12 +54,36 @@ describe("libraryRefresh", () => {
 });
 
 describe("onDownloadEvent", () => {
-  it("refreshes the calendar, whose entries show downloading and downloaded", () => {
+  const keys = {
+    calendar: [...qk.calendar.all, "2026-11-01", "2026-11-30"],
+    now: [...qk.activity.all, "now", {}],
+    continue: [...qk.activity.all, "continue", 12],
+    history: [...qk.activity.all, "history", {}, {}],
+  };
+  function fresh() {
     const qc = new QueryClient();
-    const key = [...qk.calendar.all, "2026-11-01", "2026-11-30"];
-    qc.setQueryData(key, { items: [] });
-    onDownloadEvent(qc, JSON.stringify({ ...base, state: "downloading", previous: "downloading", progress: 40 }));
-    expect(qc.getQueryState(key)?.isInvalidated).toBe(true);
+    for (const key of Object.values(keys)) qc.setQueryData(key, { items: [] });
+    return qc;
+  }
+  const invalidated = (qc: QueryClient) =>
+    Object.fromEntries(Object.entries(keys).map(([name, key]) => [name, qc.getQueryState(key)?.isInvalidated]));
+
+  it("refreshes the activity lists and the calendar, whose entries show downloading and downloaded, on a change of state", () => {
+    const qc = fresh();
+    onDownloadEvent(qc, JSON.stringify({ ...base, id: 10, state: "downloading", previous: "queued", progress: 0 }), 1_000_000);
+    expect(invalidated(qc)).toEqual({ calendar: true, now: true, continue: true, history: true });
+  });
+  it("refreshes only the queue and the Continue row on progress, at most every 5 s per download", () => {
+    const progress = (id: number, at: number) => {
+      const qc = fresh();
+      onDownloadEvent(qc, JSON.stringify({ ...base, id, state: "downloading", previous: "downloading", progress: 40 }), at);
+      return invalidated(qc);
+    };
+    const t0 = 2_000_000;
+    expect(progress(11, t0)).toEqual({ calendar: false, now: true, continue: true, history: false });
+    expect(progress(11, t0 + 1000)).toEqual({ calendar: false, now: false, continue: false, history: false });
+    expect(progress(12, t0 + 1000).now).toBe(true);
+    expect(progress(11, t0 + PROGRESS_LIVE_MS).now).toBe(true);
   });
 });
 
