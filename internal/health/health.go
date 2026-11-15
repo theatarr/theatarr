@@ -123,7 +123,7 @@ func (c *Checker) Results(ctx context.Context) []Result {
 	defer c.mu.Unlock()
 	now := c.opts.Now()
 	if !c.at.IsZero() && now.Sub(c.at) < c.opts.TTL {
-		return shown(slices.Clone(c.results))
+		return slices.Clone(c.results)
 	}
 	out := make([]Result, len(c.checks))
 	var wg sync.WaitGroup
@@ -135,17 +135,13 @@ func (c *Checker) Results(ctx context.Context) []Result {
 		}()
 	}
 	wg.Wait()
+	out = slices.DeleteFunc(out, func(r Result) bool { return r.Hidden })
 	// A caller that gave up cut its checks short: those errors say nothing about the system, so keep them out of
 	// the cache (and out of the health events that read it).
 	if ctx.Err() == nil {
 		c.results, c.at = out, c.opts.Now()
 	}
-	return shown(slices.Clone(out))
-}
-
-// shown is rs without the hidden results.
-func shown(rs []Result) []Result {
-	return slices.DeleteFunc(rs, func(r Result) bool { return r.Hidden })
+	return slices.Clone(out)
 }
 
 // Refresh drops the cache, so the next Results runs every check.
