@@ -1,0 +1,15 @@
+first summary {"indexers":[{"indexer":"dmm","items":0,"new":0,"requests":1},{"indexer":"prowlarr","items":7,"new":7,"requests":2}],"items":7,"new":7,"matched":5,"decided":7,"requests":3,"routed":2,"took_ms":0}
+first routed movie-remux | prowlarr | Dune.Part.Two.2024.2160p.UHD.BluRay.REMUX.HDR.HEVC.TrueHD.Atmos-FRAME
+first routed tv | prowlarr | The.Show.S01.2160p.WEB-DL.DDP5.1.H.265-GRP
+first routed tv | prowlarr | The.Show.S01E02.2160p.WEB-DL-GRP
+first routed tv | prowlarr | Show.Alt.S01E03.2160p.WEB-DL-GRP
+first seen prowlarr h:cccccccccccccccccccccccccccccccccccccccc@1fdff930ddca
+second summary {"indexers":[{"indexer":"dmm","items":0,"new":0,"requests":1},{"indexer":"prowlarr","items":4,"new":3,"requests":1}],"items":4,"new":3,"matched":2,"decided":3,"requests":2,"routed":3,"took_ms":0}
+second routed movie-remux | prowlarr | Dune.Part.Two.2024.2160p.UHD.BluRay.REMUX.HDR.HEVC.TrueHD.Atmos-FRAME
+second routed tv | prowlarr | The.Show.S01.2160p.WEB-DL.DDP5.1.H.265-GRP
+second routed tv | prowlarr | The.Show.S01E02.2160p.WEB-DL-GRP
+second routed tv | prowlarr | Show.Alt.S01E03.2160p.WEB-DL-GRP
+second routed movie-remux | prowlarr | Argylle.2024.2160p.WEB-DL.DDP5.1.Atmos.DV.H.265-FLUX
+second routed movie-web | prowlarr | Argylle.2024.2160p.WEB-DL.DDP5.1.Atmos.DV.H.265-FLUX
+second routed tv | prowlarr | Show.Alt.S01E03.2160p.WEB-DL-GRP
+second seen prowlarr h:cccccccccccccccccccccccccccccccccccccccc@1fdff930ddca

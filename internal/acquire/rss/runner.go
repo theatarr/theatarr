@@ -294,14 +294,21 @@ func (r *Runner) reloadIndex(ctx context.Context) {
 
 // refresh reloads our movies.
 func (r *Runner) refresh(ctx context.Context) (map[int64]decide.Title, error) {
+	titles, _, err := r.reload(ctx)
+	return titles, err
+}
+
+// reload is refresh, also returning the film index it installed.
+func (r *Runner) reload(ctx context.Context) (map[int64]decide.Title, decide.Library, error) {
 	titles, err := decide.LoadMovies(ctx, r.st.Reader())
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
+	lib := decide.NewLibrary(titles)
 	r.lib.mu.Lock()
-	r.lib.inner = decide.NewLibrary(titles)
+	r.lib.inner = lib
 	r.lib.mu.Unlock()
-	return titles, nil
+	return titles, lib, nil
 }
 
 // record writes a run row.

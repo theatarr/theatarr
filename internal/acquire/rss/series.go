@@ -2,6 +2,7 @@ package rss
 
 import (
 	"context"
+	"encoding/json"
 	"slices"
 	"strings"
 
@@ -59,23 +60,47 @@ func (r *Runner) seriesCandidates(ctx context.Context) (map[int64][]seriesCandid
 	return out, series, rows.Err()
 }
 
-// seriesIndex finds series by the clean names a release may use: the title and its scene mappings.
+// seriesIndex finds series by the clean names a release may use: the title and its scene mappings. It also keeps
+// each candidate version's series as loaded for the run's first item of it (loaded, by version id).
 type seriesIndex struct {
 	byClean map[string][]int64
 	byTVDB  map[int]int64
+	loaded  map[int64]decide.Title
 }
 
 func (r *Runner) seriesIndex(ctx context.Context, cands map[int64][]seriesCandidate) (*seriesIndex, error) {
-	ix := &seriesIndex{byClean: map[string][]int64{}, byTVDB: map[int]int64{}}
-	for id, cs := range cands {
-		t := cs[0].title
-		if err := decide.LoadSeriesVersion(ctx, r.st.Reader(), &t, 0); err != nil {
+	ix := &seriesIndex{byClean: map[string][]int64{}, byTVDB: map[int]int64{}, loaded: map[int64]decide.Title{}}
+	if len(cands) == 0 {
+		return ix, nil
+	}
+	// The scene mapping names of every candidate series, in one query.
+	ids := make([]int64, 0, len(cands))
+	for id := range cands {
+		ids = append(ids, id)
+	}
+	list, _ := json.Marshal(ids)
+	scene := map[int64][]string{}
+	rows, err := r.st.Reader().QueryContext(ctx, `SELECT title_id, name FROM title_scene_mapping
+		WHERE title_id IN (SELECT value FROM json_each(?)) ORDER BY title_id, source, rowid`, string(list))
+	if err != nil {
+		return nil, err
+	}
+	for rows.Next() {
+		var id int64
+		var name string
+		if err := rows.Scan(&id, &name); err != nil {
+			rows.Close()
 			return nil, err
 		}
-		names := []string{t.Name}
-		for _, m := range t.SceneMappings {
-			names = append(names, m.Title)
-		}
+		scene[id] = append(scene[id], name)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	for id, cs := range cands {
+		t := cs[0].title
+		names := append([]string{t.Name}, scene[id]...)
 		for _, n := range names {
 			if c := sonarr.CleanSeriesTitle(n); c != "" && !slices.Contains(ix.byClean[c], id) {
 				ix.byClean[c] = append(ix.byClean[c], id)
@@ -120,9 +145,13 @@ func (r *Runner) decideSeriesItem(ctx context.Context, rel, ranked indexer.Relea
 	for _, id := range ids {
 		for _, c := range cands[id] {
 			matched = true
-			t := c.title
-			if err := decide.LoadSeriesVersion(ctx, r.st.Reader(), &t, c.version.ID); err != nil {
-				return matched, err
+			t, ok := ix.loaded[c.version.ID]
+			if !ok {
+				t = c.title
+				if err := decide.LoadSeriesVersion(ctx, r.st.Reader(), &t, c.version.ID); err != nil {
+					return matched, err
+				}
+				ix.loaded[c.version.ID] = t
 			}
 			d, err := r.eng.Decide(ctx, decide.Release{Release: ranked}, t, c.version, nil)
 			if err != nil {

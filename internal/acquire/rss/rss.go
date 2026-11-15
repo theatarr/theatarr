@@ -5,6 +5,7 @@ import (
 	"crypto/sha1"
 	"database/sql"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
@@ -186,7 +187,7 @@ func (r *Runner) rss(ctx context.Context, sum *RSSSummary) error {
 		return errors.New("no indexer service")
 	}
 	// Reload the film index: films added since the last run (by hand, a request or a list) are matched now.
-	titles, err := r.refresh(ctx)
+	titles, lib, err := r.reload(ctx)
 	if err != nil {
 		return err
 	}
@@ -210,7 +211,6 @@ func (r *Runner) rss(ctx context.Context, sum *RSSSummary) error {
 			}
 		}
 	}
-	lib := decide.NewLibrary(titles)
 	var failed []string
 	// Only immutable rejections are remembered. Temporary rejections and routes are reconsidered next time (enqueuing a route does not prove a grab succeeded).
 	var fresh []seenItem
@@ -302,6 +302,17 @@ func (r *Runner) rss(ctx context.Context, sum *RSSSummary) error {
 	if err != nil {
 		return err
 	}
+	// The seen marks of every item read, in one query.
+	var read []seenItem
+	for _, feed := range ready {
+		for _, rel := range feed.result.Releases[:min(len(feed.result.Releases), indexer.DefaultPageCap)] {
+			read = append(read, seenItem{feed.key, r.seenKey(rel)})
+		}
+	}
+	seen, err := r.seenBefore(ctx, read)
+	if err != nil {
+		return err
+	}
 	for _, feed := range ready {
 		k, ri, res := feed.key, feed.info, feed.result
 		ri.Items = len(res.Releases)
@@ -314,11 +325,7 @@ func (r *Runner) rss(ctx context.Context, sum *RSSSummary) error {
 				continue
 			}
 			inRun[it] = true
-			isNew, err := r.unseen(ctx, it)
-			if err != nil {
-				return err
-			}
-			if !isNew {
+			if seen[it] {
 				continue
 			}
 			rssDecided := sum.Decided
@@ -514,12 +521,31 @@ func (r *Runner) seenKey(rel indexer.Release) string {
 // seenItem is a feed item: its indexer and seenKey.
 type seenItem struct{ indexer, key string }
 
-// unseen reports whether the item was not seen (and decided) by an earlier read.
-func (r *Runner) unseen(ctx context.Context, it seenItem) (bool, error) {
-	var n int
-	err := r.st.Writer().QueryRowContext(ctx, `SELECT COUNT(*) FROM shadow_rss_seen WHERE indexer = ? AND item_key = ?`,
-		it.indexer, it.key).Scan(&n)
-	return n == 0, err
+// seenBefore is which of the items an earlier read saw (and decided).
+func (r *Runner) seenBefore(ctx context.Context, items []seenItem) (map[seenItem]bool, error) {
+	out := map[seenItem]bool{}
+	if len(items) == 0 {
+		return out, nil
+	}
+	pairs := make([][2]string, len(items))
+	for i, it := range items {
+		pairs[i] = [2]string{it.indexer, it.key}
+	}
+	list, _ := json.Marshal(pairs)
+	rows, err := r.st.Writer().QueryContext(ctx, `SELECT indexer, item_key FROM shadow_rss_seen
+		WHERE (indexer, item_key) IN (SELECT value ->> 0, value ->> 1 FROM json_each(?))`, string(list))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var it seenItem
+		if err := rows.Scan(&it.indexer, &it.key); err != nil {
+			return nil, err
+		}
+		out[it] = true
+	}
+	return out, rows.Err()
 }
 
 // markSeen records the items a read decided and the feeds' new heads (cursors), in one transaction.
