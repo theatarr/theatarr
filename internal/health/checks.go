@@ -1015,8 +1015,12 @@ func AnimeReviews(st *store.Store) Func {
 		if n == 0 {
 			return Result{Type: OK, Detail: detail, Message: "No anime mapping waits for review"}
 		}
-		return Result{Type: Notice, Detail: detail,
-			Message: fmt.Sprintf("%d anime mapping(s) wait for review in Settings › Anime mappings", n)}
+		r := Result{Type: Notice, Detail: detail,
+			Message: fmt.Sprintf("%d anime mapping waits for review", n)}
+		if n != 1 {
+			r.Message = fmt.Sprintf("%d anime mappings wait for review", n)
+		}
+		return r
 	}
 }
 
