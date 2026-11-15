@@ -109,10 +109,11 @@ it("opens System children only on Status and System pages and keeps child badges
 });
 
 vi.mock("@/api/events", () => ({ useLive: () => ({ jobCounts: { attention: 3, failed: 10 } }) }));
-it("sums the attention jobs and the flagged decisions in the System badge", async () => {
- mockFetch([{ method: "GET", path: "/journal/flagged", reply: { count: 2 } }]);
+it("counts the attention jobs alone in the System badge, not the flagged decisions", async () => {
+ const fetch = mockFetch([{ method: "GET", path: "/journal/flagged", reply: { count: 2 } }]);
  renderPage(createElement(SystemBadge), "/admin");
- await waitFor(() => expect(screen.getByTestId("system-badge").textContent).toBe("5"));
+ await waitFor(() => expect(screen.getByTestId("system-badge").textContent).toBe("3"));
+ expect(fetch.calls("GET", "/journal/flagged")).toHaveLength(0);
 });
 it("uses first_run or missing setup steps", () => {
  expect(setupUnfinished(undefined)).toBe(false);

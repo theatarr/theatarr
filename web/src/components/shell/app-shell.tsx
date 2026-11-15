@@ -85,9 +85,10 @@ export function JournalBadge() {
   return n > 0 ? <span data-testid="journal-badge" className={COUNT}>{n > 99 ? "99+" : n}</span> : null;
 }
 
+/** System: the jobs and tasks needing attention, as before 0.4.5; the flagged decisions are the journal's own badge. */
 export function SystemBadge() {
   const live = useLive();
-  const n = attentionCount(live.jobCounts) + useFlagged();
+  const n = attentionCount(live.jobCounts);
   return n > 0 ? <span data-testid="system-badge" className={COUNT}>{n > 99 ? "99+" : n}</span> : null;
 }
 
