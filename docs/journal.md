@@ -179,23 +179,19 @@ takes about a millisecond.
 
 ## History
 
-Activity › History and the title page's History tab are what happened to a title's files (`Journal.History`,
-`internal/journal/history.go`), worded like Radarr's: grabbed (a download that reached a provider or client, dated by `added_at` or its accepted attempt; grab and
-upgrade alike, classified only when `kinds` is filtered), imported (one row per import, with the episodes its links
-held, as recorded on its link actions), adopted (adoption link actions grouped by library, release and day), deleted (an import's replace actions,
-grouped by old release; "Deleted (upgrade)" with what replaced it), removed (a replace without a download: an unlink
-by hand), missing (a dead link), failed, blocked, and the provider copies' outcomes (`copy:<provider_copy_event>`, not
-a journal entry). Searches, dry runs, mount waits and repaired links are journal entries only.
-
-History reads the same sources as the journal but not its entries: every filter (title, scope, kind of title, library,
-since, events, cursor) is applied inside each source, which gives at most a page of its newest rows, and the page's
-facts are read in batch (about a dozen queries a page whatever its size; building journal entries took ten or more a
-row: decision, attempts, cache evidence, what followed, failures, checks, verdict). History rows carry no suspect
-flags. The release facts of library rows are stored on `library_action` (`release_title`, `quality`, `score`,
-`title_id`, `episodes`, migration 00129) when the action happens, since a later file can take over a link row at the same path; older actions
-fall back to a link row that still holds the file (an unlinked row, an adopted one, a dead one) and are otherwise
-unknown. A copy asked for without a title (a Torrents row) is recorded for the one title whose active link or
-download holds its hash. Nothing is backfilled.
+Activity › History, the title page's History tab and the episode window's History are what happened to a title's
+files (`Journal.History`, `internal/journal/history.go`; the episode window in `internal/web` episodeHistory), read
+from the rows stored when each event happened (below), worded like Radarr's: grabbed (a download that reached a
+provider or client, dated by `added_at` or its accepted attempt; grab and upgrade alike, classified only when `kinds`
+is filtered), imported (one row per import, with the episodes its links held), adopted (adoption link actions grouped
+by library, release and day), deleted (an import's replaced files, one row per download and library, "Upgraded: N
+files replaced" with what replaced them and the list of files), removed (a replace without a download: an unlink by
+hand), missing (a dead link), failed (a failed or stalled download, or an import held for review), blocked, the
+provider copies' outcomes (`copy:<provider_copy_event>`, not a journal entry) and title_removed. Searches, plans, dry
+runs, mount waits and repaired links are journal entries only; the journal's own list still reads its sources.
+Each row names its journal entry for the Journal link (`journal.EntryOf`: a held import's is `dl:<id>:import`; a copy
+and a release unblocked since have none). History rows carry no suspect flags. The release facts of library actions
+are those recorded with the action (migration 00129); older actions were stored with what a link row still held then.
 
 ### Stored History rows (migration 00140)
 
@@ -216,8 +212,8 @@ A row keeps its source's journal id (`ref`: `dl:<id>`, `dl:<id>:fail`, `dl:<id>:
 failing again, a release blocked again). Rows are a log: a requeued download keeps its failure row, an unblocked
 release its blocked row, a held import its held row; they are not pruned. The migration backfilled the rows once from
 the same sources (provider copies included; no new copy rows are written, "Add to other providers" is going);
-`store.BackfillHistory` runs the migration's statements for the demo seed. `Journal.StoredHistory` reads them in
-History's shape and filters; nothing reads it yet but the comparison test (`internal/journal/history_compare_test.go`),
-which holds it to `Journal.History` row for row on the demo database and the fixtures, and on any database file
-given as `THEATARR_HISTORY_DB`. The one intended difference: an upgrade's replaced files are one deleted row per
-download and library (`Replaced` lists the files: action, time, path, release, episodes), not one row per old release.
+`store.BackfillHistory` runs the migration's statements for the demo seed; a test holds the event writers and the
+backfill to the same rows (`internal/journal/history_compare_test.go`). Before the readers were cut over, the stored
+rows were compared with the old reader (which derived History from the sources at read time) row for row on a copy
+of the live database; the one intended difference is that an upgrade's replaced files are one row per download and
+library (`Replaced` lists the files: action, time, path, release, episodes), not one row per old release.

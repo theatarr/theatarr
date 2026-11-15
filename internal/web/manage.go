@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/theatarr/theatarr/internal/acquire"
+	"github.com/theatarr/theatarr/internal/activity"
 	"github.com/theatarr/theatarr/internal/auth"
 	"github.com/theatarr/theatarr/internal/catalog"
 	"github.com/theatarr/theatarr/internal/decide"
@@ -1036,58 +1037,60 @@ func (w *Web) episodeFile(ctx context.Context, db *sql.DB, versionID, eid int64)
 	return &f, nil
 }
 
-// episodeHistory is one episode's history in a version: Theatarr's downloads that held it, newest first, at most
-// historyLimit.
+// episodeHistory is one episode's history in a version, newest first, at most historyLimit: History's stored rows
+// that hold it (internal/store history.go): Theatarr's downloads (grabbed, then imported or failed) and files taken
+// over from Sonarr/Radarr (adopted).
 func (w *Web) episodeHistory(ctx context.Context, db *sql.DB, titleID, versionID, eid int64) ([]HistoryEvent, error) {
 	out := []HistoryEvent{}
 	origins, err := runOrigins(ctx, db, titleID)
 	if err != nil {
 		return nil, err
 	}
-	err = scanAll(ctx, db, `SELECT state, created_at, COALESCE(imported_at, updated_at), release_title, info_hash,
-		COALESCE(provider, ''), quality, score, source, COALESCE(error, ''), `+notStartedCol+` FROM download
-		WHERE version_id = ? AND EXISTS (SELECT 1 FROM json_each(download.episodes) j WHERE j.value = ?)`,
-		[]any{versionID, eid}, func(r *sql.Rows) error {
-			var state, source, errText string
-			var created, done, score int64
+	err = scanAll(ctx, db, `SELECT h.ref, h.at, h.event, COALESCE(h.release, ''), h.info_hash, h.provider, h.quality,
+		h.score, h.reason, h.detail, COALESCE(download.source, ''),
+		COALESCE(download.state = 'failed' AND `+activity.NotStartedSQL+`, 0)
+		FROM history h LEFT JOIN download ON download.id = h.download_id
+		WHERE h.title_id = ? AND h.version_key = (SELECT policy_key FROM version WHERE id = ?)
+		AND (h.event IN ('grabbed', 'imported', 'adopted') OR h.ref GLOB 'dl:*:fail')
+		AND EXISTS (SELECT 1 FROM json_each(h.episodes) j WHERE j.value = ?)`, []any{titleID, versionID, eid},
+		func(r *sql.Rows) error {
+			var ref, event, provider, reason, detail, source string
+			var at int64
+			var score sql.NullInt64
 			var notStarted bool
 			var h HistoryEvent
-			if err := r.Scan(&state, &created, &done, &h.ReleaseTitle, &h.InfoHash, &h.Source, &h.Quality, &score,
-				&source, &errText, &notStarted); err != nil {
+			if err := r.Scan(&ref, &at, &event, &h.ReleaseTitle, &h.InfoHash, &provider, &h.Quality, &score, &reason,
+				&detail, &source, &notStarted); err != nil {
 				return err
+			}
+			h.Event, h.Date = event, ts(at)
+			if event == "adopted" {
+				if score.Valid {
+					h.Score = &score.Int64
+				}
+				if from, _, _ := strings.Cut(strings.TrimPrefix(detail, "adopted from "), " "); from != "" {
+					h.Source = from
+				}
+				out = append(out, h)
+				return nil
+			}
+			// A download's event: its provider, where it came from and what started it.
+			h.Score = &score.Int64
+			h.Provider, h.Source = provider, "theatarr"
+			if provider != "" {
+				h.Source = "theatarr via " + provider
 			}
 			var run *runOrigin
 			if o, ok := origins[runIDOf(source)]; ok {
 				run = &o
 			}
-			h.Score = &score
-			out = downloadEvents(out, h, state, created, done, source, errText, notStarted, run)
-			return nil
-		})
-	if err != nil {
-		return nil, err
-	}
-	// Files taken over from Sonarr/Radarr that hold the episode, as the title's History lists them (adopted): the
-	// action's own episodes, else its link's.
-	err = scanAll(ctx, db, `SELECT la.at, COALESCE(la.release_title, l.release_title, ''), COALESCE(la.quality, l.quality, ''),
-		COALESCE(la.score, l.score), la.detail FROM library_action la LEFT JOIN link l ON l.id = la.link_id
-		WHERE `+journal.AdoptedWhere+` AND la.version_key = (SELECT policy_key FROM version WHERE id = ?)
-		AND CASE WHEN la.episodes IS NOT NULL THEN EXISTS (SELECT 1 FROM json_each(la.episodes) j WHERE j.value = ?)
-			ELSE EXISTS (SELECT 1 FROM link_episode le WHERE le.link_id = la.link_id AND le.episode_id = ?) END`,
-		[]any{versionID, eid, eid}, func(r *sql.Rows) error {
-			var at int64
-			var score sql.NullInt64
-			var detail string
-			h := HistoryEvent{Event: "adopted"}
-			if err := r.Scan(&at, &h.ReleaseTitle, &h.Quality, &score, &detail); err != nil {
-				return err
-			}
-			h.Date = ts(at)
-			if score.Valid {
-				h.Score = &score.Int64
-			}
-			if from, _, _ := strings.Cut(strings.TrimPrefix(detail, "adopted from "), " "); from != "" {
-				h.Source = from
+			h.Trigger = grabWords(source, run)
+			if event == "failed" {
+				if nr := activity.NotStarted(reason); notStarted && nr != "" {
+					h.Event, h.Reason = "not_started", activity.NotStartedHistory(nr)
+				} else {
+					h.Reason = shortReason(reason, provider)
+				}
 			}
 			out = append(out, h)
 			return nil

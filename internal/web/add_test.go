@@ -236,6 +236,7 @@ func (e *addEnv) call(method, path string, body any, want int, out any) {
 	if body != nil {
 		r.Header.Set("Content-Type", "application/json")
 	}
+	storeHistory(e.t, e.st, r)
 	rec := httptest.NewRecorder()
 	e.mux.ServeHTTP(rec, r)
 	if rec.Code != want {

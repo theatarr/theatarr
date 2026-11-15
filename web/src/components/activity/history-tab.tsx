@@ -1,7 +1,7 @@
 // History (pages/activity.tsx, and the title page's History tab): what happened to the titles' files, worded like
-// Radarr's (Grabbed, Imported, Adopted, Deleted (upgrade), Removed, Failed, Blocked, Added to / Not cached on a
-// provider). The server builds the rows (journal history.go; GET /activity?state=history, the title tab with
-// title_id), so both places show the same rows. Activity filters by title, copy, event and since date in the URL
+// Radarr's (Grabbed, Imported, Adopted, Upgraded: N files replaced, Removed, Failed, Blocked, Added to / Not cached on
+// a provider). The server builds the rows (journal history.go, from the stored rows; GET /activity?state=history, the
+// title tab with title_id), so both places show the same rows. An upgrade's row opens to the files it replaced. Activity filters by title, copy, event and since date in the URL
 // (lib/activity-history.ts), newest first, 50 a page with Load more. Accounts that see files get a table (DataTable):
 // Event (with its episodes on the title tab, and its reason) and Title, the columns they chose
 // (lib/activity-history-columns.ts), and Retry on a failed download and the journal link. Household accounts and
@@ -96,13 +96,35 @@ function EventWords({ e }: { e: ActivityEvent }) {
   );
 }
 
-/** The Event cell: the words, the episodes when no Title column shows them, and the reason. */
+/** An upgrade's replaced files, folded: each file's name, release (or "Name not recorded") and episodes. */
+function ReplacedFiles({ e }: { e: ActivityEvent }) {
+  const files = e.replaced ?? [];
+  if (files.length === 0) return null;
+  return (
+    <details className="mt-0.5 text-xs text-muted-foreground" data-testid="history-replaced">
+      <summary className="cursor-pointer text-primary">{files.length === 1 ? "Show the file" : `Show the ${files.length} files`}</summary>
+      <ul className="mt-1 space-y-1">
+        {files.map((f) => (
+          <li key={f.path} className="min-w-0">
+            <span className="block font-mono text-[11px] [overflow-wrap:anywhere]" title={f.path}>{f.path.split("/").pop()}</span>
+            <span className="block [overflow-wrap:anywhere]">
+              {[f.release || "Name not recorded", f.quality, f.episodes?.length ? episodesWords(f.episodes) : ""].filter(Boolean).join(" · ")}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
+}
+
+/** The Event cell: the words, the episodes when no Title column shows them, the reason and an upgrade's files. */
 function EventCell({ e, episodes }: { e: ActivityEvent; episodes: boolean }) {
   return (
     <div className="min-w-0">
       <EventWords e={e} />
       {episodes ? <Episodes e={e} /> : null}
       {e.reason ? <p className="mt-0.5 text-xs text-muted-foreground max-sm:break-words sm:line-clamp-2" title={e.reason} data-testid="history-reason">{e.reason}</p> : null}
+      <ReplacedFiles e={e} />
     </div>
   );
 }
@@ -154,10 +176,10 @@ const HISTORY_OPTIONAL: Record<HistoryColumnId, DataColumn<ActivityEvent>> = {
 };
 
 function HistoryActions({ e }: { e: ActivityEvent }) {
-  // The journal is an admin page; managers (see files) get the row without the link.
-  // A copy to another provider is a History row only, with no journal entry.
+  // The journal is an admin page; managers (see files) get the row without the link. A row without an entry (a copy
+  // to another provider, a release unblocked since) has none.
   const admin = usePerms().admin;
-  const journal = e.kind === "copy" ? undefined : adminLink(admin, journalLink(e.id));
+  const journal = e.entry ? adminLink(admin, journalLink(e.entry)) : undefined;
   return (
     <span className="inline-flex items-center gap-1.5">
       <HistoryRetry e={e} />
@@ -249,6 +271,7 @@ function HistoryList({ q, admin, prefs, filtered, withTitle }: { q: ReturnType<t
               </div>
               {withTitle ? <TitleCell e={e} /> : <Episodes e={e} />}
               {e.reason ? <p className="text-xs text-muted-foreground" data-testid="history-reason">{e.reason}</p> : null}
+              <ReplacedFiles e={e} />
             </>
           )}
           actions={(e) => <HistoryActions e={e} />}

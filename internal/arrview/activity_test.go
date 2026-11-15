@@ -1,6 +1,7 @@
 package arrview
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -10,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/theatarr/theatarr/internal/store"
 	"github.com/theatarr/theatarr/internal/web"
 )
 
@@ -115,6 +117,10 @@ func TestActivityMatchesQueue(t *testing.T) {
 		if strings.Contains(d.Words, "Debrid") {
 			t.Errorf("plain words name the provider: %q", d.Words)
 		}
+	}
+	// History's rows, as the migration stores them from the downloads written above.
+	if err := store.BackfillHistory(context.Background(), e.st.Writer()); err != nil {
+		t.Fatal(err)
 	}
 	var hist web.ActivityPage
 	getJSON(t, mux, web.APIBase+"/activity?state=history", e.key, &hist)

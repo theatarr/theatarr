@@ -189,9 +189,26 @@ func (e *env) login() *http.Cookie {
 }
 
 func (e *env) do(r *http.Request) *httptest.ResponseRecorder {
+	storeHistory(e.t, e.st, r)
 	rec := httptest.NewRecorder()
 	e.mux.ServeHTTP(rec, r)
 	return rec
+}
+
+// storeHistory writes History's rows from the sources the test wrote directly, as migration 00140 did, before a
+// request that reads them (History, an episode's window).
+func storeHistory(t *testing.T, st *store.Store, r *http.Request) {
+	t.Helper()
+	if r.Method != "GET" || !strings.Contains(r.URL.RawQuery, "state=history") && !strings.Contains(r.URL.Path, "/episodes/") {
+		return
+	}
+	ctx := context.Background()
+	if _, err := st.Writer().ExecContext(ctx, `DELETE FROM history`); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.BackfillHistory(ctx, st.Writer()); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func (e *env) get(path string, c *http.Cookie) *httptest.ResponseRecorder {

@@ -252,8 +252,9 @@ func TestUpgradeEvidence(t *testing.T) {
 	}
 	// A file taken over from Sonarr for S01E02: the episode window's History lists the adoption, as the title's does;
 	// another library's adoption is not this one's.
-	e.exec(`INSERT INTO link (id, path, target, title_id, release_title, quality, state, created_at, updated_at) VALUES
-		(70, '/media/tv/The Show/S01E02.mkv', '/zurg/Show/e2.mkv', 10, 'The.Show.S01E02.1080p.WEB-DL', 'WEBDL-1080p', 'active', 5000, 5000)`)
+	e.exec(`INSERT INTO link (id, path, target, title_id, release_title, quality, state, adopted_from, created_at,
+		updated_at) VALUES (70, '/media/tv/The Show/S01E02.mkv', '/zurg/Show/e2.mkv', 10, 'The.Show.S01E02.1080p.WEB-DL',
+		'WEBDL-1080p', 'active', 'sonarr_4k', 5000, 5000)`)
 	e.exec(`INSERT INTO link_episode (link_id, episode_id) VALUES (70, 102)`)
 	e.exec(`INSERT INTO library_action (at, kind, mode, version_key, link_id, path, detail) VALUES
 		(5000, 'link', 'applied', 'tv-2160p', 70, '/media/tv/The Show/S01E02.mkv', 'adopted from sonarr_4k'),

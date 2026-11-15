@@ -208,8 +208,12 @@ type ActivityEvent struct {
 	Formats []decide.FormatScore `json:"formats,omitempty"`
 	// Reason: a failure's or a block's reason, a removal's, a partial import's, a copy's message.
 	Reason string `json:"reason,omitempty"`
-	// ReplacedBy is what replaced a deleted row's file.
+	// ReplacedBy is what replaced a deleted row's files; Replaced the files (an upgrade's row is one per download and
+	// library, "Upgraded: N files replaced").
 	ReplacedBy *HistoryRelease `json:"replaced_by,omitempty"`
+	Replaced   []HistoryFile   `json:"replaced,omitempty"`
+	// Entry is the row's journal entry (the Journal link); none for a copy or a release unblocked since.
+	Entry string `json:"entry,omitempty"`
 	// A title_removed row: who removed the title from the library (Version), and what became of its files and,
 	// once the debrid clean-up ran, its torrents (journal.Removal).
 	By      string           `json:"by,omitempty"`
@@ -221,6 +225,15 @@ type HistoryRelease struct {
 	Release string `json:"release"`
 	Quality string `json:"quality,omitempty"`
 	Score   *int   `json:"score,omitempty"`
+}
+
+// HistoryFile is one file an upgrade replaced: its path, its release (empty when not known) and its episodes.
+type HistoryFile struct {
+	Path     string   `json:"path"`
+	Release  string   `json:"release,omitempty"`
+	Quality  string   `json:"quality,omitempty"`
+	Score    *int     `json:"score,omitempty"`
+	Episodes []string `json:"episodes,omitempty"`
 }
 
 // ActivityBlocked is a release a version never routes again (admin).
@@ -692,6 +705,14 @@ func (w *Web) historyEvents(ctx context.Context, hs []*journal.HistoryRow, admin
 			if r := h.ReplacedBy; r != nil {
 				x.ReplacedBy = &HistoryRelease{Release: r.Title, Quality: r.Quality, Score: r.Score}
 			}
+			for _, f := range h.Replaced {
+				hf := HistoryFile{Path: f.Path, Episodes: f.Episodes}
+				if r := f.Release; r != nil {
+					hf.Release, hf.Quality, hf.Score = r.Title, r.Quality, r.Score
+				}
+				x.Replaced = append(x.Replaced, hf)
+			}
+			x.Entry = journal.EntryOf(h)
 			x.By, x.Removal = h.By, h.Removal
 		}
 		out = append(out, x)
@@ -722,7 +743,7 @@ func historyWords(h *journal.HistoryRow) (words, tone string) {
 	return entryWords(h, historyNotStarted(h), strings.ToUpper)
 }
 
-// entryWords is a History row's words, like Radarr's: Grabbed, Imported, Adopted, Deleted (upgrade), Removed,
+// entryWords is a History row's words, like Radarr's: Grabbed, Imported, Adopted, Upgraded: N files replaced, Removed,
 // Failed, Blocked, Added to <provider>, Not cached on <provider>. notStarted is the row's historyNotStarted reason;
 // tag names a provider account.
 func entryWords(h *journal.HistoryRow, notStarted string, tag func(string) string) (words, tone string) {
@@ -737,7 +758,10 @@ func entryWords(h *journal.HistoryRow, notStarted string, tag func(string) strin
 	case journal.EvAdopted:
 		return "Adopted", "ok"
 	case journal.EvDeleted:
-		return "Deleted (upgrade)", "info"
+		if h.Files == 1 {
+			return "Upgraded: 1 file replaced", "info"
+		}
+		return fmt.Sprintf("Upgraded: %d files replaced", h.Files), "info"
 	case journal.EvRemoved:
 		return "Removed", "info"
 	case journal.EvMissing:

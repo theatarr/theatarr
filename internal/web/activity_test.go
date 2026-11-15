@@ -341,7 +341,7 @@ func TestActivityReleaseFacts(t *testing.T) {
 			replace = x
 		}
 	}
-	if links != 1 || replace.Event != "deleted" || replace.Words != "Deleted (upgrade)" || replace.Release != "" ||
+	if links != 1 || replace.Event != "deleted" || replace.Words != "Upgraded: 1 file replaced" || replace.Release != "" ||
 		replace.Quality != "" || replace.Score != nil || replace.ReplacedBy == nil ||
 		replace.ReplacedBy.Release != "Alpha.2020.2160p.WEB" {
 		t.Errorf("replace row (%d link rows): %+v", links, replace)

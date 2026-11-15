@@ -22,7 +22,7 @@ type Execer interface {
 	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
 }
 
-// Where clauses and expressions History shares with the derived reader (internal/journal history.go).
+// Expressions of History's rows; the grab kind and a library action's title are also the journal's (internal/journal).
 const (
 	// HistoryGrabKindSQL is a download's kind (alias d): upgrade when an earlier download of the version had imported
 	// a file of its episodes, else grab.
@@ -31,32 +31,24 @@ const (
 			AND (d.episodes = '[]' OR EXISTS (SELECT 1 FROM json_each(p.episodes) pe
 				WHERE pe.value IN (SELECT value FROM json_each(d.episodes)))))
 	THEN 'upgrade' ELSE 'grab' END`
-	// HistoryGrabbedWhere: the download (alias d) reached a provider or client: past adding, or a failed one that was
+	// historyGrabbedWhere: the download (alias d) reached a provider or client: past adding, or a failed one that was
 	// added, reused or accepted by a provider (a requeue clears added_at).
-	HistoryGrabbedWhere = `(d.state NOT IN ('queued', 'adding', 'failed') OR d.added_at IS NOT NULL OR d.reused = 1
+	historyGrabbedWhere = `(d.state NOT IN ('queued', 'adding', 'failed') OR d.added_at IS NOT NULL OR d.reused = 1
 		OR EXISTS (SELECT 1 FROM download_attempt a WHERE a.download_id = d.id AND a.outcome = 'accepted'))`
-	// The library actions (alias la) History shows: an upgrade's replaced files, an adoption, a hand unlink, a missing
-	// file.
-	HistoryDeletedWhere = `la.kind = 'replace' AND la.mode = 'applied' AND la.download_id IS NOT NULL
-		AND la.detail NOT LIKE 'import undone%'`
-	HistoryAdoptedWhere = `la.kind = 'link' AND la.mode = 'applied' AND la.download_id IS NULL AND la.detail LIKE 'adopted from %'`
-	HistoryRemovedWhere = `la.kind = 'replace' AND la.mode = 'applied' AND la.download_id IS NULL
-		AND la.detail NOT LIKE 'change of episodes failed%'`
-	HistoryMissingWhere = `la.kind = 'dead' AND la.mode = 'applied'`
 	// HistoryLibTitleSQL is the title of a library action (alias la).
 	HistoryLibTitleSQL = `COALESCE(la.title_id, (SELECT title_id FROM download WHERE id = la.download_id),
 	(SELECT title_id FROM link WHERE id = la.link_id), 0)`
 	// The link row that still holds an action's file facts, when the action recorded none (rows from before 00129):
 	// a replaced file's unlinked row (not taken over since), an adoption's still adopted row, a dead link's still dead
 	// row; NULL when none.
-	HistoryOldLinkSQL = `(SELECT l.id FROM link l WHERE l.state = 'unlinked'
+	historyOldLinkSQL = `(SELECT l.id FROM link l WHERE l.state = 'unlinked'
 		AND (l.id = la.link_id OR (la.link_id IS NULL AND l.path = la.path)) ORDER BY l.id DESC LIMIT 1)`
-	HistoryAdoptLinkSQL = `(SELECT l.id FROM link l WHERE l.id = la.link_id AND l.adopted_from IS NOT NULL)`
-	HistoryDeadLinkSQL  = `(SELECT l.id FROM link l WHERE l.id = la.link_id AND l.state = 'dead')`
+	historyAdoptLinkSQL = `(SELECT l.id FROM link l WHERE l.id = la.link_id AND l.adopted_from IS NOT NULL)`
+	historyDeadLinkSQL  = `(SELECT l.id FROM link l WHERE l.id = la.link_id AND l.state = 'dead')`
 )
 
-// HistoryRelSQL is a library action's release: recorded, else its fallback link's, else empty.
-func HistoryRelSQL(linkSQL string) string {
+// historyRelSQL is a library action's release: recorded, else its fallback link's, else empty.
+func historyRelSQL(linkSQL string) string {
 	return `COALESCE(la.release_title, (SELECT release_title FROM link WHERE id = ` + linkSQL + `), '')`
 }
 
@@ -93,9 +85,9 @@ func HistoryGrab(ctx context.Context, ex Execer, id int64) {
 		SELECT 'dl:' || d.id, COALESCE(d.added_at, (SELECT MIN(a.attempted_at) FROM download_attempt a
 			WHERE a.download_id = d.id AND a.outcome = 'accepted'), d.created_at), 'grabbed', `+HistoryGrabKindSQL+`,
 			`+historyDownloadFacts+`, d.episodes, 0, NULL, COALESCE(d.provider, ''), '', '', '', '', ''
-		FROM download d WHERE `+HistoryGrabbedWhere+` AND d.id = ?`+historyUpsert, id)
+		FROM download d WHERE `+historyGrabbedWhere+` AND d.id = ?`+historyUpsert, id)
 	historyExec(ctx, ex, `DELETE FROM history WHERE ref = 'dl:' || ?1 AND NOT EXISTS (SELECT 1 FROM download d
-		WHERE d.id = ?1 AND `+HistoryGrabbedWhere+`)`, id)
+		WHERE d.id = ?1 AND `+historyGrabbedWhere+`)`, id)
 }
 
 // HistoryFailure writes the failed rows of downloads ids that are failed.
@@ -193,7 +185,7 @@ func historyActionClass(kind, mode string, downloadID int64, detail string) stri
 // historyMember is one library action's facts as History shows them, read with the fallback link linkSQL.
 func historyMemberSQL(linkSQL string) string {
 	return `SELECT la.id, la.at, ` + HistoryLibTitleSQL + `, COALESCE(la.version_key, ''), la.download_id,
-		COALESCE(la.path, ''), ` + HistoryRelSQL(linkSQL) + `,
+		COALESCE(la.path, ''), ` + historyRelSQL(linkSQL) + `,
 		CASE WHEN la.release_title IS NOT NULL OR la.quality IS NOT NULL THEN la.quality
 			ELSE (SELECT quality FROM link WHERE id = ` + linkSQL + `) END,
 		CASE WHEN la.release_title IS NOT NULL OR la.quality IS NOT NULL THEN la.score
@@ -240,8 +232,8 @@ func HistoryLibraryAction(ctx context.Context, ex Execer, id int64, kind, mode s
 }
 
 func historyLibraryAction(ctx context.Context, ex Execer, id int64, class string) error {
-	link := map[string]string{"deleted": HistoryOldLinkSQL, "removed": HistoryOldLinkSQL,
-		"adopted": HistoryAdoptLinkSQL, "missing": HistoryDeadLinkSQL}[class]
+	link := map[string]string{"deleted": historyOldLinkSQL, "removed": historyOldLinkSQL,
+		"adopted": historyAdoptLinkSQL, "missing": historyDeadLinkSQL}[class]
 	var m historyMember
 	if err := ex.QueryRowContext(ctx, historyMemberSQL(link), id).Scan(&m.id, &m.at, &m.title, &m.version, &m.dl,
 		&m.path, &m.rel, &m.quality, &m.score, &m.episodes, &m.detail); err != nil {

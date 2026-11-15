@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
-	"strconv"
 	"strings"
 	"time"
 
@@ -14,29 +13,27 @@ import (
 )
 
 // History (docs/design/ui.md "Activity", History) is what happened to the titles' files, worded like Radarr's, one row
-// per event. Activity › History and the title page's History tab both read it (GET /activity?state=history), so they
-// cannot disagree. It reads the journal's sources (not its entries: no decision, checks or verdicts per row), a page
-// at a time, the facts of a page's rows in a few batch queries.
+// per event, read from the rows stored when each event happened (table history, internal/store history.go;
+// docs/journal.md "Stored History rows"). Activity › History and the title page's History tab both read it (GET
+// /activity?state=history), so they cannot disagree.
 //
 //   - grabbed: a download added or reused at a provider or client, dated when it got there (one that never started is
-//     no grab; the
-//     journal's grab/upgrade classification is not changed and read only when kinds are filtered);
+//     no grab; the journal's grab/upgrade classification is read only when kinds are filtered);
 //   - imported: a download's import that linked (linked or partial), one row per import with the episodes its links
 //     hold, not one per link;
 //   - adopted: files taken over from Sonarr/Radarr, one row per library, release and day;
-//   - deleted: files an import moved aside for an upgrade, one row per import and old release;
+//   - deleted: an upgrade's replaced files, one row per download and library ("Upgraded: N files replaced"), the
+//     files in Replaced;
 //   - removed: a link taken out by hand (an unlink, recorded as a replace without a download);
 //   - missing: a link whose file is gone (dead);
-//   - failed: a failed or stalled download, or an import held for review whose download did not fail;
+//   - failed: a failed or stalled download, or an import held for review (its own row, dl:<id>:held);
 //   - blocked: a release put on a version's blocklist;
 //   - copy_added, copy_already, copy_not_cached: a copy to another provider ("Add to other providers") that was added,
 //     found already there, or not cached;
-//   - title_removed: a title taken out of a library (Remove title, Remove copy: the remove_title and remove_version
-//     actions), one row per library, with who removed it and what became of its files (Removal).
+//   - title_removed: a title taken out of a library (Remove title, Remove copy), one row per library, with who
+//     removed it and what became of its files (Removal).
 //
-// Searches, dry runs, mount waits, repaired links and plans stay in the journal only. The release facts of library
-// rows are those recorded with the action (migration 00129); older rows fall back to a link row that still holds the
-// same file (an unlinked row, an adopted one, a dead one), and are left unknown otherwise.
+// Searches, dry runs, mount waits, repaired links and plans stay in the journal only.
 
 // History events.
 const (
@@ -92,7 +89,7 @@ type HistoryRow struct {
 	By      string
 	Removal *Removal
 	// Replaced are the files an upgrade replaced, oldest first: set on a deleted row of the stored History
-	// (StoredHistory), which is one row per download and library; the derived reader leaves it nil.
+	// (one row per download and library).
 	Replaced []ReplacedFile
 }
 
@@ -112,79 +109,12 @@ type HistoryPage struct {
 	NextCursor string
 }
 
-// The title of a library action (alias la), the link rows that still hold an action's file facts when it recorded
-// none, an action's release, and which actions and downloads give rows: shared with the stored History rows
-// (internal/store history.go).
-const (
-	libTitleSQL  = store.HistoryLibTitleSQL
-	oldLinkSQL   = store.HistoryOldLinkSQL
-	adoptLinkSQL = store.HistoryAdoptLinkSQL
-	deadLinkSQL  = store.HistoryDeadLinkSQL
-	deletedWhere = store.HistoryDeletedWhere
-	adoptedWhere = AdoptedWhere
-	removedWhere = store.HistoryRemovedWhere
-	missingWhere = store.HistoryMissingWhere
-	grabbedWhere = store.HistoryGrabbedWhere
-)
+// libTitleSQL is the title of a library action (alias la), as the journal's own list reads it.
+const libTitleSQL = store.HistoryLibTitleSQL
 
-var relSQL = store.HistoryRelSQL
-
-// AdoptedWhere selects the library actions (alias la) that took a file over from Sonarr/Radarr: History's adopted
-// rows, and the episode window's (internal/web episodeHistory).
-const AdoptedWhere = store.HistoryAdoptedWhere
-
-// historyArm is one source of History's rows: a SELECT of (id, at, title_id, version_key, kind, event), and the
-// events it can give.
-type historyArm struct {
-	sql    string
-	events []string
-}
-
-func historyArms(kinds bool) []historyArm {
-	grabKind := `'grab'`
-	if kinds {
-		grabKind = grabKindSQL
-	}
-	return []historyArm{
-		{`SELECT 'dl:' || d.id AS id, COALESCE(d.added_at, (SELECT MIN(a.attempted_at) FROM download_attempt a
-			WHERE a.download_id = d.id AND a.outcome = 'accepted'), d.created_at) AS at, d.title_id AS title_id, d.version_key AS version_key,
-			` + grabKind + ` AS kind, 'grabbed' AS event FROM download d WHERE ` + grabbedWhere, []string{EvGrabbed}},
-		{`SELECT 'dl:' || d.id || ':fail' AS id, d.updated_at AS at, d.title_id AS title_id, d.version_key AS version_key,
-			CASE WHEN d.error LIKE 'stalled%' THEN 'stall' ELSE 'failure' END AS kind, 'failed' AS event
-			FROM download d WHERE d.state = 'failed'`, []string{EvFailed}},
-		{`SELECT 'dl:' || li.download_id || ':import' AS id, li.updated_at AS at, d.title_id AS title_id,
-			d.version_key AS version_key, 'import' AS kind,
-			CASE li.state WHEN 'rejected' THEN 'failed' ELSE 'imported' END AS event
-			FROM library_import li JOIN download d ON d.id = li.download_id
-			WHERE li.state IN ('linked', 'partial') OR (li.state = 'rejected' AND d.state <> 'failed')`,
-			[]string{EvImported, EvFailed}},
-		{`SELECT 'lib:' || la.id AS id, la.at AS at, ` + libTitleSQL + ` AS title_id,
-			COALESCE(la.version_key, '') AS version_key, 'link' AS kind,
-			CASE la.kind WHEN 'dead' THEN 'missing' ELSE 'removed' END AS event
-			FROM library_action la WHERE (` + removedWhere + `) OR (` + missingWhere + `)`, []string{EvRemoved, EvMissing}},
-		{`SELECT 'lib:' || MIN(la.id) AS id, MAX(la.at) AS at, (SELECT title_id FROM download WHERE id = la.download_id)
-			AS title_id, COALESCE(la.version_key, '') AS version_key, 'link' AS kind, 'deleted' AS event
-			FROM library_action la WHERE ` + deletedWhere + `
-			GROUP BY la.download_id, la.version_key, ` + relSQL(oldLinkSQL), []string{EvDeleted}},
-		{`SELECT 'lib:' || MIN(la.id) AS id, MAX(la.at) AS at, ` + libTitleSQL + ` AS title_id,
-			COALESCE(la.version_key, '') AS version_key, 'link' AS kind, 'adopted' AS event
-			FROM library_action la WHERE ` + adoptedWhere + `
-			GROUP BY ` + libTitleSQL + `, la.version_key, ` + relSQL(adoptLinkSQL) + `, la.at / 86400000`,
-			[]string{EvAdopted}},
-		{`SELECT 'bl:' || b.rowid AS id, b.created_at AS at, COALESCE(b.title_id, 0) AS title_id,
-			b.version_key AS version_key, 'blocklist' AS kind, 'blocked' AS event FROM router_blocklist b`,
-			[]string{EvBlocked}},
-		{`SELECT 'act:' || a.id AS id, a.created_at AS at, COALESCE(a.title_id, 0) AS title_id,
-			COALESCE(a.version_key, '') AS version_key, '` + KindAction + `' AS kind, 'title_removed' AS event FROM journal_action a
-			WHERE a.action IN ('` + ActRemoveTitle + `', '` + ActRemoveVersion + `')`, []string{EvTitleRemoved}},
-		{`SELECT 'copy:' || c.id AS id, c.at AS at, COALESCE(c.title_id, 0) AS title_id, '' AS version_key,
-			'copy' AS kind, CASE c.state WHEN 'added' THEN 'copy_added' WHEN 'already' THEN 'copy_already'
-			ELSE 'copy_not_cached' END AS event FROM provider_copy_event c`, []string{EvCopyAdded, EvCopyAlready, EvCopyNotCached}},
-	}
-}
-
-// History returns one page of History rows, newest first. Every filter applies inside each source, which then gives
-// at most a page of its newest rows; Suspect, Severity and ScanLimit do not apply.
+// History returns one page of History, newest first. Every filter applies to the stored rows; Suspect, Severity and
+// ScanLimit do not apply. An upgrade's row has its files in Replaced and its Release set only when they all held one
+// release.
 func (j *Journal) History(ctx context.Context, f Filter) (*HistoryPage, error) {
 	page := &HistoryPage{Items: []*HistoryRow{}}
 	where, wargs, none, err := j.historyFilter(ctx, &f)
@@ -194,52 +124,182 @@ func (j *Journal) History(ctx context.Context, f Filter) (*HistoryPage, error) {
 	if none {
 		return page, nil
 	}
-	// Each source is a common table; the union reads at most a page of each, filtered.
-	var ctes, qs []string
-	var args []any
-	for i, a := range historyArms(len(f.Kinds) > 0) {
-		if len(f.Events) > 0 && !slices.ContainsFunc(a.events, func(ev string) bool { return slices.Contains(f.Events, ev) }) {
-			continue
+	// A grab's kind is grab unless kinds are filtered, as History reads it.
+	kind := `CASE kind WHEN 'upgrade' THEN 'grab' ELSE kind END`
+	if len(f.Kinds) > 0 {
+		kind = `kind`
+	}
+	l := &historyLoader{ctx: ctx, db: j.st.Reader()}
+	type stored struct {
+		h                                            head
+		release, formats, replaced                   sql.NullString
+		event, hash, indexer, quality, eps, provider string
+		reason                                       string
+		source, importSt, by, detail                 string
+		dl, score                                    sql.NullInt64
+		size, files                                  int64
+		episodes                                     []int64
+		replacedFiles                                []store.HistoryReplacedFile
+	}
+	var rows []*stored
+	err = l.query(`SELECT id, at, title_id, version_key, kind, event, download_id, release, info_hash, indexer, size,
+		quality, score, formats, episodes, files, replaced, provider, reason, source, import_state, by, detail
+		FROM (SELECT ref AS id, at, title_id, version_key, `+kind+` AS kind, event, download_id, release, info_hash,
+			indexer, size, quality, score, formats, episodes, files, replaced, provider, reason, source, import_state,
+			by, detail FROM history)
+		WHERE `+where+` ORDER BY at DESC, id DESC LIMIT ?`, append(wargs, f.Limit+1), func(r *sql.Rows) error {
+		var s stored
+		if err := r.Scan(&s.h.id, &s.h.at, &s.h.titleID, &s.h.version, &s.h.kind, &s.event, &s.dl, &s.release,
+			&s.hash, &s.indexer, &s.size, &s.quality, &s.score, &s.formats, &s.eps, &s.files, &s.replaced,
+			&s.provider, &s.reason, &s.source, &s.importSt, &s.by, &s.detail); err != nil {
+			return err
 		}
-		name := fmt.Sprintf("h%d", i)
-		ctes = append(ctes, name+` AS (`+a.sql+`)`)
-		qs = append(qs, `SELECT * FROM (SELECT * FROM `+name+` WHERE `+where+` ORDER BY at DESC, id DESC LIMIT ?)`)
-		args = append(append(args, wargs...), f.Limit+1)
-	}
-	if len(qs) == 0 {
-		return page, nil
-	}
-	rows, err := j.st.Reader().QueryContext(ctx, `WITH `+strings.Join(ctes, ",\n")+`
-		SELECT id, at, title_id, COALESCE(version_key, ''), kind, event FROM (`+
-		strings.Join(qs, "\nUNION ALL\n")+`) ORDER BY at DESC, id DESC LIMIT ?`, append(args, f.Limit+1)...)
-	if err != nil {
-		return nil, fmt.Errorf("journal: history: %w", err)
-	}
-	var hs []head
-	var events []string
-	for rows.Next() {
-		var h head
-		var ev string
-		if err := rows.Scan(&h.id, &h.at, &h.titleID, &h.version, &h.kind, &ev); err != nil {
-			rows.Close()
-			return nil, err
+		_ = json.Unmarshal([]byte(s.eps), &s.episodes)
+		l.epIDs = append(l.epIDs, s.episodes...)
+		if s.replaced.Valid {
+			_ = json.Unmarshal([]byte(s.replaced.String), &s.replacedFiles)
+			slices.SortFunc(s.replacedFiles, func(a, b store.HistoryReplacedFile) int { return int(a.ID - b.ID) })
+			for _, rf := range s.replacedFiles {
+				var eps []int64
+				_ = json.Unmarshal(rf.Episodes, &eps)
+				l.epIDs = append(l.epIDs, eps...)
+			}
 		}
-		hs, events = append(hs, h), append(events, ev)
-	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	if len(hs) > f.Limit {
-		hs, events = hs[:f.Limit], events[:f.Limit]
-		page.NextCursor = encodeCursor(hs[f.Limit-1])
-	}
-	items, err := (&historyLoader{ctx: ctx, db: j.st.Reader()}).load(hs, events)
+		rows = append(rows, &s)
+		return nil
+	})
 	if err != nil {
-		return nil, fmt.Errorf("journal: history: %w", err)
+		return nil, fmt.Errorf("journal: stored history: %w", err)
 	}
-	page.Items = items
+	if len(rows) > f.Limit {
+		rows = rows[:f.Limit]
+		page.NextCursor = encodeCursor(rows[f.Limit-1].h)
+	}
+
+	var titleIDs, failed []int64
+	for _, s := range rows {
+		titleIDs = append(titleIDs, s.h.titleID)
+		if strings.HasSuffix(s.h.id, ":fail") && s.dl.Valid {
+			failed = append(failed, s.dl.Int64)
+		}
+	}
+	attempts := map[int64][]Attempt{}
+	if len(failed) > 0 {
+		if err := l.query(`SELECT download_id, provider, outcome, code, attempted_at FROM download_attempt
+			WHERE download_id IN (`+ph(failed)+`) ORDER BY id`, anys(failed), func(r *sql.Rows) error {
+			var dl, at int64
+			var a Attempt
+			if err := r.Scan(&dl, &a.Provider, &a.Outcome, &a.Code, &at); err != nil {
+				return err
+			}
+			a.At = store.FromMillis(at)
+			attempts[dl] = append(attempts[dl], a)
+			return nil
+		}); err != nil {
+			return nil, fmt.Errorf("journal: stored history: %w", err)
+		}
+	}
+	titles, animes := map[int64]TitleRef{}, map[int64]bool{}
+	if len(titleIDs) > 0 {
+		if err := l.query(`SELECT id, name, COALESCE(year, 0), kind, anime FROM title WHERE id IN (`+
+			ph(titleIDs)+`)`, anys(titleIDs), func(r *sql.Rows) error {
+			var t TitleRef
+			var anime bool
+			if err := r.Scan(&t.ID, &t.Name, &t.Year, &t.Kind, &anime); err != nil {
+				return err
+			}
+			titles[t.ID], animes[t.ID] = t, anime
+			return nil
+		}); err != nil {
+			return nil, fmt.Errorf("journal: stored history: %w", err)
+		}
+	}
+	if err := l.loadLabels(); err != nil {
+		return nil, fmt.Errorf("journal: stored history: %w", err)
+	}
+
+	for _, s := range rows {
+		x := &HistoryRow{ID: s.h.id, At: store.FromMillis(s.h.at), Kind: s.h.kind, Event: s.event,
+			Title: titles[s.h.titleID], Anime: animes[s.h.titleID], Version: s.h.version,
+			Episodes: l.labelsOf(s.episodes), Files: int(s.files), Provider: s.provider, Source: s.source,
+			Import: s.importSt, By: s.by}
+		if x.Title.ID == 0 {
+			x.Title.ID = s.h.titleID
+		}
+		if s.release.Valid {
+			x.Release = &Release{Title: clean(s.release.String), Indexer: s.indexer, InfoHash: s.hash, Size: s.size,
+				Quality: s.quality}
+			if s.score.Valid {
+				sc := int(s.score.Int64)
+				x.Release.Score = &sc
+			}
+			if s.formats.Valid {
+				_ = json.Unmarshal([]byte(s.formats.String), &x.Release.Formats)
+			}
+		}
+		switch {
+		case x.Event == EvFailed && x.Kind == KindImport:
+			x.Reason = "Import held for review: " + cleanMessage(s.reason)
+		case x.Event == EvRemoved:
+			// "unlinked (<reason>), moved aside to …"
+			if r, ok := strings.CutPrefix(s.detail, "unlinked ("); ok {
+				if i := strings.LastIndex(r, "), moved aside"); i >= 0 {
+					x.Reason = cleanMessage(r[:i])
+				}
+			}
+		case s.reason != "":
+			x.Reason = cleanMessage(s.reason)
+		}
+		if strings.HasSuffix(x.ID, ":fail") && s.dl.Valid {
+			x.Attempts = attempts[s.dl.Int64]
+		}
+		if x.Event == EvTitleRemoved {
+			rm := ParseRemovalDetail(s.detail)
+			x.Removal = &rm
+		}
+		if x.Event == EvDeleted {
+			// The row's release is what replaced the files; its own the files' one release, when they share one.
+			x.ReplacedBy, x.Release = x.Release, nil
+			same := true
+			for _, rf := range s.replacedFiles {
+				f := ReplacedFile{ID: fmt.Sprint("lib:", rf.ID), At: store.FromMillis(rf.At), Path: rf.Path}
+				if rf.Release != "" || rf.Quality != nil {
+					f.Release = &Release{Title: clean(rf.Release)}
+					if rf.Quality != nil {
+						f.Release.Quality = *rf.Quality
+					}
+					if rf.Score != nil {
+						sc := int(*rf.Score)
+						f.Release.Score = &sc
+					}
+				}
+				var eps []int64
+				_ = json.Unmarshal(rf.Episodes, &eps)
+				f.Episodes = l.labelsOf(eps)
+				x.Replaced = append(x.Replaced, f)
+				same = same && rf.Release == s.replacedFiles[0].Release
+			}
+			if same && len(x.Replaced) > 0 {
+				x.Release = x.Replaced[0].Release
+			}
+		}
+		page.Items = append(page.Items, x)
+	}
 	return page, nil
+}
+
+// EntryOf is the journal entry of a History row (its Journal link): its id, a held import's import entry; "" for a
+// copy (no entry) and a release unblocked since (bl:<rowid>:<at>, its entry gone).
+func EntryOf(h *HistoryRow) string {
+	switch {
+	case h.Kind == KindCopy:
+		return ""
+	case strings.HasSuffix(h.ID, ":held"):
+		return strings.TrimSuffix(h.ID, ":held") + ":import"
+	case strings.HasPrefix(h.ID, "bl:") && strings.Count(h.ID, ":") > 1:
+		return ""
+	}
+	return h.ID
 }
 
 // historyFilter checks f and sets its page size; the WHERE clause of its rows, or none when no row can match.
@@ -339,26 +399,6 @@ type epLabel struct {
 	season, number int
 }
 
-type histDownload struct {
-	titleID                                      int64
-	version, hash, release, indexer, quality     string
-	score                                        int
-	size                                         sql.NullInt64
-	formats                                      sql.NullString
-	episodes, provider, errText, state, importSt string
-	importErr                                    sql.NullString
-	eps, linked                                  []int64
-}
-
-// libMember is one library action of a library row.
-type libMember struct {
-	id, title, at, dl, link int64
-	version, rel, detail    string
-	eps                     sql.NullString // the episode ids recorded with the action (JSON)
-	quality                 sql.NullString
-	score                   sql.NullInt64
-}
-
 func (l *historyLoader) query(q string, args []any, scan func(*sql.Rows) error) error {
 	rows, err := l.db.QueryContext(l.ctx, q, args...)
 	if err != nil {
@@ -386,412 +426,6 @@ func anys(ids []int64) []any {
 }
 
 func ph(ids []int64) string { return store.Placeholders(len(anys(ids))) }
-
-// members loads library actions (alias la) matching where, with the facts of linkSQL's fallback link.
-func (l *historyLoader) members(linkSQL, where string, args []any) ([]libMember, error) {
-	var out []libMember
-	q := `SELECT la.id, ` + libTitleSQL + `, la.at, COALESCE(la.download_id, 0), COALESCE(la.version_key, ''),
-		` + relSQL(linkSQL) + `,
-		CASE WHEN la.release_title IS NOT NULL OR la.quality IS NOT NULL THEN la.quality
-			ELSE (SELECT quality FROM link WHERE id = ` + linkSQL + `) END,
-		CASE WHEN la.release_title IS NOT NULL OR la.quality IS NOT NULL THEN la.score
-			ELSE (SELECT score FROM link WHERE id = ` + linkSQL + `) END,
-		COALESCE(` + linkSQL + `, la.link_id, (SELECT id FROM link WHERE path = la.path ORDER BY id DESC LIMIT 1), 0),
-		la.detail, la.episodes FROM library_action la WHERE ` + where + ` ORDER BY la.id`
-	err := l.query(q, args, func(r *sql.Rows) error {
-		var m libMember
-		if err := r.Scan(&m.id, &m.title, &m.at, &m.dl, &m.version, &m.rel, &m.quality, &m.score, &m.link,
-			&m.detail, &m.eps); err != nil {
-			return err
-		}
-		out = append(out, m)
-		return nil
-	})
-	return out, err
-}
-
-func idOf(id string) int64 {
-	_, rest, _ := strings.Cut(id, ":")
-	rest, _, _ = strings.Cut(rest, ":")
-	n, _ := strconv.ParseInt(rest, 10, 64)
-	return n
-}
-
-func (l *historyLoader) load(hs []head, events []string) ([]*HistoryRow, error) {
-	byEvent := map[string][]int64{}
-	var titleIDs, dlIDs, blIDs, copyIDs, actIDs []int64
-	for i, h := range hs {
-		titleIDs = append(titleIDs, h.titleID)
-		id := idOf(h.id)
-		switch {
-		case strings.HasPrefix(h.id, "dl:"):
-			dlIDs = append(dlIDs, id)
-		case strings.HasPrefix(h.id, "bl:"):
-			blIDs = append(blIDs, id)
-		case strings.HasPrefix(h.id, "copy:"):
-			copyIDs = append(copyIDs, id)
-		case strings.HasPrefix(h.id, "act:"):
-			actIDs = append(actIDs, id)
-		default:
-			byEvent[events[i]] = append(byEvent[events[i]], id)
-		}
-	}
-
-	// Library rows: the actions of each row (a group's by its key), keyed by the row's first action id.
-	groups := map[int64][]libMember{}
-	add := func(ms []libMember, key func(libMember) string, heads []int64) {
-		byKey := map[string][]libMember{}
-		for _, m := range ms {
-			byKey[key(m)] = append(byKey[key(m)], m)
-		}
-		for _, g := range byKey {
-			if slices.Contains(heads, g[0].id) {
-				groups[g[0].id] = g
-			}
-		}
-	}
-	single := func(m libMember) string { return strconv.FormatInt(m.id, 10) }
-	for ev, linkSQL := range map[string]string{EvRemoved: oldLinkSQL, EvMissing: deadLinkSQL} {
-		if ids := byEvent[ev]; len(ids) > 0 {
-			ms, err := l.members(linkSQL, `la.id IN (`+ph(ids)+`)`, anys(ids))
-			if err != nil {
-				return nil, err
-			}
-			add(ms, single, ids)
-		}
-	}
-	if ids := byEvent[EvDeleted]; len(ids) > 0 {
-		ms, err := l.members(oldLinkSQL, deletedWhere+` AND la.download_id IN (SELECT download_id FROM library_action
-			WHERE id IN (`+ph(ids)+`))`, anys(ids))
-		if err != nil {
-			return nil, err
-		}
-		add(ms, func(m libMember) string { return fmt.Sprint(m.dl, "\x00", m.version, "\x00", m.rel) }, ids)
-	}
-	if ids := byEvent[EvAdopted]; len(ids) > 0 {
-		ms, err := l.members(adoptLinkSQL, adoptedWhere+` AND la.at / 86400000 IN (SELECT at / 86400000
-			FROM library_action WHERE id IN (`+ph(ids)+`))`, anys(ids))
-		if err != nil {
-			return nil, err
-		}
-		add(ms, func(m libMember) string {
-			return fmt.Sprint(m.title, "\x00", m.version, "\x00", m.rel, "\x00", m.at/86400000)
-		}, ids)
-	}
-	var linkIDs []int64
-	for _, g := range groups {
-		for _, m := range g {
-			if m.eps.Valid {
-				var eps []int64
-				_ = json.Unmarshal([]byte(m.eps.String), &eps)
-				l.epIDs = append(l.epIDs, eps...)
-			}
-			if m.link > 0 {
-				linkIDs = append(linkIDs, m.link)
-			}
-			if m.dl > 0 {
-				dlIDs = append(dlIDs, m.dl)
-			}
-		}
-	}
-
-	type blRow struct {
-		hash, release, reason, source string
-		dl                            int64
-	}
-	bls := map[int64]blRow{}
-	if len(blIDs) > 0 {
-		if err := l.query(`SELECT rowid, info_hash, release_title, reason, source, COALESCE(download_id, 0)
-			FROM router_blocklist WHERE rowid IN (`+ph(blIDs)+`)`, anys(blIDs), func(r *sql.Rows) error {
-			var id int64
-			var b blRow
-			if err := r.Scan(&id, &b.hash, &b.release, &b.reason, &b.source, &b.dl); err != nil {
-				return err
-			}
-			bls[id] = b
-			if b.dl > 0 {
-				dlIDs = append(dlIDs, b.dl)
-			}
-			return nil
-		}); err != nil {
-			return nil, err
-		}
-	}
-
-	dls := map[int64]*histDownload{}
-	if len(dlIDs) > 0 {
-		in := ph(dlIDs)
-		if err := l.query(`SELECT d.id, d.title_id, d.version_key, d.info_hash, d.release_title, d.indexer, d.quality,
-			d.score, d.size_bytes, d.formats, d.episodes, COALESCE(d.provider, ''), COALESCE(d.error, ''), d.state,
-			COALESCE(li.state, ''), li.last_error
-			FROM download d LEFT JOIN library_import li ON li.download_id = d.id WHERE d.id IN (`+in+`)`, anys(dlIDs),
-			func(r *sql.Rows) error {
-				var id int64
-				var d histDownload
-				if err := r.Scan(&id, &d.titleID, &d.version, &d.hash, &d.release, &d.indexer, &d.quality, &d.score,
-					&d.size, &d.formats, &d.episodes, &d.provider, &d.errText, &d.state, &d.importSt,
-					&d.importErr); err != nil {
-					return err
-				}
-				_ = json.Unmarshal([]byte(d.episodes), &d.eps)
-				l.epIDs = append(l.epIDs, d.eps...)
-				dls[id] = &d
-				return nil
-			}); err != nil {
-			return nil, err
-		}
-	}
-	// The episodes an import's links held: recorded with each link action (00129), else the link's current episodes.
-	var imports []int64
-	for _, h := range hs {
-		if strings.HasSuffix(h.id, ":import") {
-			imports = append(imports, idOf(h.id))
-		}
-	}
-	if len(imports) > 0 {
-		if err := l.query(`SELECT a.download_id, COALESCE(a.episodes, (SELECT json_group_array(le.episode_id)
-			FROM link_episode le WHERE le.link_id = a.link_id), '[]') FROM library_action a
-			WHERE a.kind = 'link' AND a.mode = 'applied' AND a.download_id IN (`+ph(imports)+`)`, anys(imports),
-			func(r *sql.Rows) error {
-				var dl int64
-				var js string
-				if err := r.Scan(&dl, &js); err != nil {
-					return err
-				}
-				var eps []int64
-				_ = json.Unmarshal([]byte(js), &eps)
-				if d := dls[dl]; d != nil {
-					for _, ep := range eps {
-						if !slices.Contains(d.linked, ep) {
-							d.linked = append(d.linked, ep)
-							l.epIDs = append(l.epIDs, ep)
-						}
-					}
-				}
-				return nil
-			}); err != nil {
-			return nil, err
-		}
-	}
-	attempts := map[int64][]Attempt{}
-	var failed []int64
-	for i, h := range hs {
-		if events[i] == EvFailed && strings.HasSuffix(h.id, ":fail") {
-			failed = append(failed, idOf(h.id))
-		}
-	}
-	if len(failed) > 0 {
-		if err := l.query(`SELECT download_id, provider, outcome, code, attempted_at FROM download_attempt
-			WHERE download_id IN (`+ph(failed)+`) ORDER BY id`, anys(failed), func(r *sql.Rows) error {
-			var dl, at int64
-			var a Attempt
-			if err := r.Scan(&dl, &a.Provider, &a.Outcome, &a.Code, &at); err != nil {
-				return err
-			}
-			a.At = store.FromMillis(at)
-			attempts[dl] = append(attempts[dl], a)
-			return nil
-		}); err != nil {
-			return nil, err
-		}
-	}
-
-	linkEps := map[int64][]int64{}
-	if len(linkIDs) > 0 {
-		if err := l.query(`SELECT link_id, episode_id FROM link_episode WHERE link_id IN (`+
-			ph(linkIDs)+`)`, anys(linkIDs), func(r *sql.Rows) error {
-			var lk, ep int64
-			if err := r.Scan(&lk, &ep); err != nil {
-				return err
-			}
-			linkEps[lk] = append(linkEps[lk], ep)
-			l.epIDs = append(l.epIDs, ep)
-			return nil
-		}); err != nil {
-			return nil, err
-		}
-	}
-
-	type copyRow struct {
-		hash, name, provider, message string
-		quality                       sql.NullString
-		score                         sql.NullInt64
-	}
-	copies := map[int64]copyRow{}
-	if len(copyIDs) > 0 {
-		if err := l.query(`SELECT id, info_hash, name, provider, message, quality, score FROM provider_copy_event
-			WHERE id IN (`+ph(copyIDs)+`)`, anys(copyIDs), func(r *sql.Rows) error {
-			var id int64
-			var c copyRow
-			if err := r.Scan(&id, &c.hash, &c.name, &c.provider, &c.message, &c.quality, &c.score); err != nil {
-				return err
-			}
-			copies[id] = c
-			return nil
-		}); err != nil {
-			return nil, err
-		}
-	}
-
-	type actRow struct{ by, detail string }
-	acts := map[int64]actRow{}
-	if len(actIDs) > 0 {
-		if err := l.query(`SELECT id, by, detail FROM journal_action WHERE id IN (`+ph(actIDs)+`)`, anys(actIDs),
-			func(r *sql.Rows) error {
-				var id int64
-				var a actRow
-				if err := r.Scan(&id, &a.by, &a.detail); err != nil {
-					return err
-				}
-				acts[id] = a
-				return nil
-			}); err != nil {
-			return nil, err
-		}
-	}
-
-	titles, animes := map[int64]TitleRef{}, map[int64]bool{}
-	if len(titleIDs) > 0 {
-		if err := l.query(`SELECT id, name, COALESCE(year, 0), kind, anime FROM title WHERE id IN (`+
-			ph(titleIDs)+`)`, anys(titleIDs), func(r *sql.Rows) error {
-			var t TitleRef
-			var anime bool
-			if err := r.Scan(&t.ID, &t.Name, &t.Year, &t.Kind, &anime); err != nil {
-				return err
-			}
-			titles[t.ID] = t
-			if anime {
-				animes[t.ID] = true
-			}
-			return nil
-		}); err != nil {
-			return nil, err
-		}
-	}
-	if err := l.loadLabels(); err != nil {
-		return nil, err
-	}
-
-	release := func(d *histDownload) *Release {
-		r := &Release{Title: clean(d.release), Indexer: d.indexer, InfoHash: d.hash, Size: d.size.Int64, Quality: d.quality}
-		if d.formats.Valid {
-			_ = json.Unmarshal([]byte(d.formats.String), &r.Formats)
-		}
-		// A score only with scoring evidence: stored formats ('[]' for a calculated 0) or a score.
-		if d.formats.Valid || d.score != 0 {
-			s := d.score
-			r.Score = &s
-		}
-		return r
-	}
-	out := make([]*HistoryRow, 0, len(hs))
-	for i, h := range hs {
-		x := &HistoryRow{ID: h.id, At: store.FromMillis(h.at), Kind: h.kind, Event: events[i], Title: titles[h.titleID],
-			Version: h.version, Anime: animes[h.titleID]}
-		if x.Title.ID == 0 {
-			x.Title.ID = h.titleID
-		}
-		id := idOf(h.id)
-		switch {
-		case strings.HasPrefix(h.id, "dl:"):
-			d := dls[id]
-			if d == nil {
-				continue
-			}
-			x.Release, x.Provider = release(d), d.provider
-			x.Episodes = l.labelsOf(d.eps)
-			switch {
-			case strings.HasSuffix(h.id, ":fail"):
-				x.Reason, x.Attempts = cleanMessage(d.errText), attempts[id]
-			case strings.HasSuffix(h.id, ":import"):
-				x.Import = d.importSt
-				// The episodes its links held, never the ones it asked for.
-				x.Episodes = l.labelsOf(d.linked)
-				if x.Event == EvFailed {
-					x.Reason = "Import held for review: " + cleanMessage(d.importErr.String)
-				}
-			}
-		case strings.HasPrefix(h.id, "bl:"):
-			b, ok := bls[id]
-			if !ok {
-				continue
-			}
-			x.Release = &Release{Title: clean(b.release), InfoHash: b.hash}
-			if d := dls[b.dl]; d != nil {
-				x.Release = release(d)
-				x.Release.Title, x.Release.InfoHash, x.Release.Formats = clean(b.release), b.hash, nil
-			}
-			x.Source, x.Reason = b.source, cleanMessage(b.reason)
-		case strings.HasPrefix(h.id, "copy:"):
-			c, ok := copies[id]
-			if !ok {
-				continue
-			}
-			x.Release = &Release{Title: clean(c.name), InfoHash: c.hash, Quality: c.quality.String}
-			if c.score.Valid {
-				s := int(c.score.Int64)
-				x.Release.Score = &s
-			}
-			x.Provider, x.Reason = c.provider, cleanMessage(c.message)
-		case strings.HasPrefix(h.id, "act:"):
-			a, ok := acts[id]
-			if !ok {
-				continue
-			}
-			rm := ParseRemovalDetail(a.detail)
-			x.By, x.Removal = a.by, &rm
-		default:
-			g := groups[id]
-			if len(g) == 0 {
-				continue
-			}
-			l.libRow(x, g, linkEps)
-			if x.Event == EvDeleted {
-				if d := dls[g[0].dl]; d != nil {
-					x.ReplacedBy, x.Provider = release(d), d.provider
-					x.ReplacedBy.Indexer, x.ReplacedBy.InfoHash, x.ReplacedBy.Size, x.ReplacedBy.Formats = "", "", 0, nil
-				}
-			}
-		}
-		out = append(out, x)
-	}
-	return out, nil
-}
-
-// libRow fills a library row from its actions.
-func (l *historyLoader) libRow(x *HistoryRow, g []libMember, linkEps map[int64][]int64) {
-	m := g[0]
-	x.Files = len(g)
-	if m.rel != "" || m.quality.Valid {
-		x.Release = &Release{Title: clean(m.rel), Quality: m.quality.String}
-		if m.score.Valid {
-			s := int(m.score.Int64)
-			x.Release.Score = &s
-		}
-	}
-	var eps []int64
-	for _, m := range g {
-		held := linkEps[m.link]
-		if m.eps.Valid {
-			held = nil
-			_ = json.Unmarshal([]byte(m.eps.String), &held)
-		}
-		for _, ep := range held {
-			if !slices.Contains(eps, ep) {
-				eps = append(eps, ep)
-			}
-		}
-	}
-	x.Episodes = l.labelsOf(eps)
-	if x.Event == EvRemoved {
-		// "unlinked (<reason>), moved aside to …"
-		if r, ok := strings.CutPrefix(m.detail, "unlinked ("); ok {
-			if i := strings.LastIndex(r, "), moved aside"); i >= 0 {
-				x.Reason = cleanMessage(r[:i])
-			}
-		}
-	}
-}
 
 // loadLabels reads the season and number of every episode the page names.
 func (l *historyLoader) loadLabels() error {

@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/theatarr/theatarr/internal/store"
 )
 
 // row is one History row in brief: event, release, quality, score, episodes and what replaced it.
@@ -35,9 +37,17 @@ func histRow(h *HistoryRow) string {
 	return s
 }
 
+// history is History's rows in brief, stored from the sources the test wrote (as the migration would have).
 func (e *env) history(f Filter) []string {
 	e.t.Helper()
-	p, err := e.j.History(context.Background(), f)
+	ctx := context.Background()
+	if _, err := e.st.Writer().ExecContext(ctx, `DELETE FROM history`); err != nil {
+		e.t.Fatal(err)
+	}
+	if err := store.BackfillHistory(ctx, e.st.Writer()); err != nil {
+		e.t.Fatal(err)
+	}
+	p, err := e.j.History(ctx, f)
 	if err != nil {
 		e.t.Fatal(err)
 	}

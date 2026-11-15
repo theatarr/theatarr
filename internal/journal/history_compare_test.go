@@ -36,47 +36,6 @@ func historyAll(ctx context.Context, read func(context.Context, Filter) (*Histor
 	}
 }
 
-// splitUpgrades turns each stored upgrade row (one per download and library) into the derived reader's rows: one per
-// old release, named by its first file's action, dated by its last, with its first file's release.
-func splitUpgrades(rows []*HistoryRow) []*HistoryRow {
-	var out []*HistoryRow
-	for _, h := range rows {
-		if h.Event != EvDeleted || len(h.Replaced) == 0 {
-			out = append(out, h)
-			continue
-		}
-		var keys []string
-		groups := map[string][]ReplacedFile{}
-		for _, f := range h.Replaced {
-			k := ""
-			if f.Release != nil {
-				k = f.Release.Title
-			}
-			if _, ok := groups[k]; !ok {
-				keys = append(keys, k)
-			}
-			groups[k] = append(groups[k], f)
-		}
-		for _, k := range keys {
-			g := groups[k]
-			x := *h
-			x.ID, x.At, x.Release, x.Files, x.Replaced, x.Episodes = g[0].ID, g[0].At, g[0].Release, len(g), nil, nil
-			for _, f := range g {
-				if f.At.After(x.At) {
-					x.At = f.At
-				}
-				for _, ep := range f.Episodes {
-					if !slices.Contains(x.Episodes, ep) {
-						x.Episodes = append(x.Episodes, ep)
-					}
-				}
-			}
-			out = append(out, &x)
-		}
-	}
-	return out
-}
-
 // historyKey is a row as compared: every field, episodes in order.
 func historyKey(h *HistoryRow) string {
 	x := *h
@@ -87,108 +46,6 @@ func historyKey(h *HistoryRow) string {
 	}
 	b, _ := json.Marshal(x)
 	return string(b)
-}
-
-// compareHistory reads every row of the derived History (History) and of the stored rows (StoredHistory) and returns
-// the rows that differ, one line each, plus a summary. A stored upgrade row stands for the derived rows of its old
-// releases (splitUpgrades); nothing else may differ.
-func compareHistory(ctx context.Context, j *Journal) (summary string, diffs []string, err error) {
-	t0 := time.Now()
-	old, err := historyAll(ctx, j.History)
-	if err != nil {
-		return "", nil, err
-	}
-	t1 := time.Now()
-	stored, err := historyAll(ctx, j.StoredHistory)
-	if err != nil {
-		return "", nil, err
-	}
-	t2 := time.Now()
-	for i := 1; i < len(stored); i++ {
-		a, b := stored[i-1], stored[i]
-		if a.At.Before(b.At) || (a.At.Equal(b.At) && a.ID < b.ID) {
-			diffs = append(diffs, fmt.Sprintf("stored rows out of order at %s, %s", a.ID, b.ID))
-		}
-	}
-	upgrades := 0
-	for _, h := range stored {
-		if h.Event == EvDeleted {
-			upgrades++
-		}
-	}
-	// A held import is its own row (dl:<id>:held); the derived reader names it dl:<id>:import, and shows only the
-	// import once it linked.
-	var unheld []*HistoryRow
-	imports := map[string]bool{}
-	for _, h := range stored {
-		if strings.HasSuffix(h.ID, ":import") {
-			imports[h.ID] = true
-		}
-	}
-	for _, h := range stored {
-		if id, ok := strings.CutSuffix(h.ID, ":held"); ok {
-			if imports[id+":import"] {
-				continue
-			}
-			x := *h
-			x.ID = id + ":import"
-			h = &x
-		}
-		unheld = append(unheld, h)
-	}
-	split := splitUpgrades(unheld)
-	summary = fmt.Sprintf("derived %d rows in %s; stored %d rows in %s (%d upgrade rows, %d rows split by old release)",
-		len(old), t1.Sub(t0).Round(time.Millisecond), len(stored), t2.Sub(t1).Round(time.Millisecond), upgrades,
-		len(split))
-	byID := map[string]*HistoryRow{}
-	for _, h := range split {
-		if byID[h.ID] != nil {
-			diffs = append(diffs, "stored twice: "+h.ID)
-		}
-		byID[h.ID] = h
-	}
-	seen := map[string]bool{}
-	for _, h := range old {
-		seen[h.ID] = true
-		s := byID[h.ID]
-		switch {
-		case s == nil:
-			diffs = append(diffs, "only derived: "+historyKey(h))
-		case historyKey(s) != historyKey(h):
-			diffs = append(diffs, "differs "+h.ID+":\n  derived "+historyKey(h)+"\n  stored  "+historyKey(s))
-		}
-	}
-	for _, h := range split {
-		if !seen[h.ID] {
-			diffs = append(diffs, "only stored: "+historyKey(h))
-		}
-	}
-	return summary, diffs, nil
-}
-
-// checkHistory fails t with every difference between the derived and the stored History.
-func checkHistory(t *testing.T, ctx context.Context, j *Journal) []*HistoryRow {
-	t.Helper()
-	summary, diffs, err := compareHistory(ctx, j)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Log(summary)
-	for i, d := range diffs {
-		if i == 200 {
-			t.Errorf("... %d more differences", len(diffs)-i)
-			break
-		}
-		t.Error(d)
-	}
-	if len(diffs) > 0 {
-		t.Errorf("%d differences; %s", len(diffs), summary)
-	}
-	rows, err := historyAll(ctx, j.StoredHistory)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return rows
 }
 
 // writeHistory writes every History row with the event writers, as each source's events would have: a download's
@@ -270,19 +127,25 @@ func writeHistory(t *testing.T, ctx context.Context, st *store.Store) {
 	}
 }
 
-// checkStoredHistory compares History with its rows as the event writers store them (writeHistory) and as migration
-// 00140 backfills them (store.BackfillHistory): all three alike.
-func checkStoredHistory(t *testing.T, ctx context.Context, j *Journal, st *store.Store) {
+// checkStoredHistory checks that the event writers (writeHistory) and migration 00140's backfill
+// (store.BackfillHistory) store the same History, row for row; it returns the rows.
+func checkStoredHistory(t *testing.T, ctx context.Context, j *Journal, st *store.Store) []*HistoryRow {
 	t.Helper()
 	writeHistory(t, ctx, st)
-	written := checkHistory(t, ctx, j)
+	written, err := historyAll(ctx, j.History)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if _, err := st.Writer().ExecContext(ctx, `DELETE FROM history`); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.BackfillHistory(ctx, st.Writer()); err != nil {
 		t.Fatal(err)
 	}
-	migrated := checkHistory(t, ctx, j)
+	migrated, err := historyAll(ctx, j.History)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(written) != len(migrated) {
 		t.Fatalf("writers stored %d rows, the migration %d", len(written), len(migrated))
 	}
@@ -291,10 +154,17 @@ func checkStoredHistory(t *testing.T, ctx context.Context, j *Journal, st *store
 			t.Errorf("row %d:\n  written  %s\n  migrated %s", i, a, b)
 		}
 	}
+	for i := 1; i < len(migrated); i++ {
+		if a, b := migrated[i-1], migrated[i]; a.At.Before(b.At) || (a.At.Equal(b.At) && a.ID < b.ID) {
+			t.Errorf("rows out of order at %s, %s", a.ID, b.ID)
+		}
+	}
+	return migrated
 }
 
-// The demo database's History, derived and stored, row for row; the demo seed stores its rows as the writers do.
-func TestStoredHistoryMatchesDemo(t *testing.T) {
+// The demo database's History: the writers and the migration's backfill store the same rows, and the demo has a row
+// of each kind of event the writers write.
+func TestStoredHistoryDemo(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	dir := t.TempDir()
@@ -329,7 +199,7 @@ func TestStoredHistoryMatchesDemo(t *testing.T) {
 		t.Fatal(err)
 	}
 	j := New(Config{Store: st, Policy: pol, Now: func() time.Time { return now }, Logger: log})
-	rows := checkHistory(t, ctx, j)
+	rows := checkStoredHistory(t, ctx, j, st)
 	var events []string
 	for _, h := range rows {
 		if !slices.Contains(events, h.Event) {
@@ -340,50 +210,13 @@ func TestStoredHistoryMatchesDemo(t *testing.T) {
 	t.Logf("events: %v", events)
 	for _, ev := range []string{EvGrabbed, EvImported, EvFailed, EvBlocked, EvDeleted, EvAdopted, EvMissing} {
 		if !slices.Contains(events, ev) {
-			t.Errorf("the demo has no %s row to compare", ev)
+			t.Errorf("the demo has no %s row", ev)
 		}
 	}
-	checkStoredHistory(t, ctx, j, st)
 }
 
-// THEATARR_HISTORY_DB=<database file>: the same comparison on a copy of that file (any schema this binary can
-// migrate), migrated to this binary's schema, so migration 00140's backfill is what is compared. The file itself is
-// not opened.
-func TestStoredHistoryMatchesDatabase(t *testing.T) {
-	src := os.Getenv("THEATARR_HISTORY_DB")
-	if src == "" {
-		t.Skip("THEATARR_HISTORY_DB is not set")
-	}
-	ctx := context.Background()
-	dst := filepath.Join(t.TempDir(), "theatarr.db")
-	for _, sfx := range []string{"", "-wal"} {
-		b, err := os.ReadFile(src + sfx)
-		if os.IsNotExist(err) && sfx != "" {
-			continue
-		}
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(dst+sfx, b, 0o600); err != nil {
-			t.Fatal(err)
-		}
-	}
-	st, err := store.Open(ctx, dst, store.Options{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { st.Close() })
-	t0 := time.Now()
-	if _, err := st.Migrate(ctx); err != nil {
-		t.Fatal(err)
-	}
-	t.Logf("migrated in %s", time.Since(t0).Round(time.Millisecond))
-	checkHistory(t, ctx, New(Config{Store: st, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))}))
-}
-
-// A pack that replaced three single-episode files is one stored upgrade row listing the three files (the derived
-// reader gives one row per old release), written by the event writer as each replace is recorded; and a stored row
-// that disagrees with its source is reported.
+// A pack that replaced three single-episode files is one upgrade row listing the three files, written by the event
+// writer as each replace is recorded.
 func TestStoredHistoryUpgradeIsOneRow(t *testing.T) {
 	e := newEnv(t)
 	ctx := context.Background()
@@ -397,16 +230,12 @@ func TestStoredHistoryUpgradeIsOneRow(t *testing.T) {
 			fmt.Sprintf("/tv/G/S01E0%d.mkv", i), fmt.Sprintf("Gamma.S01E0%d.1080p.WEB", i), fmt.Sprintf("[%d]", 100+i))
 		store.HistoryLibraryAction(ctx, e.st.Writer(), 80+i, "replace", "applied", 60, "moved aside")
 	}
-	derived := e.history(Filter{Events: []string{EvDeleted}})
-	if len(derived) != 3 {
-		t.Fatalf("derived rows %q", derived)
-	}
-	p, err := e.j.StoredHistory(ctx, Filter{Events: []string{EvDeleted}})
+	p, err := e.j.History(ctx, Filter{Events: []string{EvDeleted}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(p.Items) != 1 {
-		t.Fatalf("stored rows %d", len(p.Items))
+		t.Fatalf("upgrade rows %d", len(p.Items))
 	}
 	h := p.Items[0]
 	var files []string
@@ -420,9 +249,4 @@ func TestStoredHistoryUpgradeIsOneRow(t *testing.T) {
 		t.Errorf("upgrade row %s %v", historyKey(h), files)
 	}
 	checkStoredHistory(t, ctx, e.j, e.st)
-	e.exec(`UPDATE history SET quality = 'HDTV-720p' WHERE ref = 'dl:60'`)
-	if _, diffs, err := compareHistory(ctx, e.j); err != nil || len(diffs) != 1 ||
-		!strings.HasPrefix(diffs[0], "differs dl:60") {
-		t.Errorf("a changed row: %q %v", diffs, err)
-	}
 }

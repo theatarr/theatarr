@@ -255,12 +255,12 @@ func TestUpgrade(t *testing.T) {
 	_, err = os.Stat(first.Target)
 	must(t, err)
 	e.movieAvailable(id, "movie")
-	// History reads an upgrade like Radarr: Grabbed and Imported for the better release, and Deleted (upgrade)
+	// History reads an upgrade like Radarr: Grabbed and Imported for the better release, and one Upgraded row
 	// naming the old release and what replaced it.
 	grabbed, replaced := false, false
 	for _, event := range e.history(id, "movie", 4) {
 		grabbed = grabbed || event.Event == "grabbed" && event.Release == high.name
-		replaced = replaced || event.Event == "deleted" && event.Words == "Deleted (upgrade)" && event.Release == low.name &&
+		replaced = replaced || event.Event == "deleted" && event.Words == "Upgraded: 1 file replaced" && event.Release == low.name &&
 			event.ReplacedBy != nil && event.ReplacedBy.Release == high.name
 	}
 	if !grabbed || !replaced {

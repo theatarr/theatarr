@@ -24,7 +24,7 @@ export const EVENT_MEANINGS: { words: string; meaning: string }[] = [
   { words: "Grabbed", meaning: "Theatarr picked this release and sent it to a provider or download client." },
   { words: "Imported", meaning: "The release's files were linked into the library." },
   { words: "Adopted", meaning: "A file Sonarr or Radarr had was taken over into the library." },
-  { words: "Deleted (upgrade)", meaning: "This file was moved out of the library because a better release replaced it." },
+  { words: "Upgraded: …", meaning: "These files were moved out of the library because a better release replaced them." },
   { words: "Removed", meaning: "This file was taken out of the library by hand (or by Sonarr/Radarr deleting it)." },
   { words: "Removed from library", meaning: "The title was removed from this library by hand; the reason says who removed it and whether its files were kept." },
   { words: "File missing", meaning: "The file behind a library link is gone and could not be found again." },
@@ -37,9 +37,9 @@ export const EVENT_MEANINGS: { words: string; meaning: string }[] = [
 ];
 
 /** The meaning of an event's words ("Not started: …" for every not-started reason, "Added to …" and "Not cached on …"
- *  for every provider); "" when the list has none. */
+ *  for every provider, "Upgraded: …" for every count of files); "" when the list has none. */
 export function eventMeaning(words: string): string {
-  const prefix = ["Not started: ", "Added to ", "Already on ", "Not cached on "].find((p) => words.startsWith(p));
+  const prefix = ["Not started: ", "Added to ", "Already on ", "Not cached on ", "Upgraded: "].find((p) => words.startsWith(p));
   const key = prefix ? `${prefix.trimEnd()} …` : words;
   return EVENT_MEANINGS.find((m) => m.words === key)?.meaning ?? "";
 }
