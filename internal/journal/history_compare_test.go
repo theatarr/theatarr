@@ -116,7 +116,27 @@ func compareHistory(ctx context.Context, j *Journal) (summary string, diffs []st
 			upgrades++
 		}
 	}
-	split := splitUpgrades(stored)
+	// A held import is its own row (dl:<id>:held); the derived reader names it dl:<id>:import, and shows only the
+	// import once it linked.
+	var unheld []*HistoryRow
+	imports := map[string]bool{}
+	for _, h := range stored {
+		if strings.HasSuffix(h.ID, ":import") {
+			imports[h.ID] = true
+		}
+	}
+	for _, h := range stored {
+		if id, ok := strings.CutSuffix(h.ID, ":held"); ok {
+			if imports[id+":import"] {
+				continue
+			}
+			x := *h
+			x.ID = id + ":import"
+			h = &x
+		}
+		unheld = append(unheld, h)
+	}
+	split := splitUpgrades(unheld)
 	summary = fmt.Sprintf("derived %d rows in %s; stored %d rows in %s (%d upgrade rows, %d rows split by old release)",
 		len(old), t1.Sub(t0).Round(time.Millisecond), len(stored), t2.Sub(t1).Round(time.Millisecond), upgrades,
 		len(split))
@@ -171,51 +191,84 @@ func checkHistory(t *testing.T, ctx context.Context, j *Journal) []*HistoryRow {
 	return rows
 }
 
-// migrationBackfill runs the backfill statements of migration 00140 on st's sources, after emptying history.
-func migrationBackfill(t *testing.T, ctx context.Context, st *store.Store) {
+// writeHistory writes every History row with the event writers, as each source's events would have: a download's
+// grab, failure and import, each library action in order, each blocklist entry and removal. Copies have no event
+// writer any more: their rows come from the backfill.
+func writeHistory(t *testing.T, ctx context.Context, st *store.Store) {
 	t.Helper()
-	b, err := os.ReadFile(filepath.Join("..", "store", "migrations", "00140_history.sql"))
+	db := st.Writer()
+	if _, err := db.ExecContext(ctx, `DELETE FROM history`); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.BackfillHistory(ctx, db); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(ctx, `DELETE FROM history WHERE ref NOT LIKE 'copy:%'`); err != nil {
+		t.Fatal(err)
+	}
+	ids := func(q string) []int64 {
+		rows, err := db.QueryContext(ctx, q)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer rows.Close()
+		var out []int64
+		for rows.Next() {
+			var id int64
+			if err := rows.Scan(&id); err != nil {
+				t.Fatal(err)
+			}
+			out = append(out, id)
+		}
+		return out
+	}
+	for _, id := range ids(`SELECT id FROM download ORDER BY id`) {
+		store.HistoryGrab(ctx, db, id)
+		store.HistoryFailure(ctx, db, id)
+		store.HistoryImport(ctx, db, id)
+	}
+	for _, id := range ids(`SELECT id FROM library_action ORDER BY id`) {
+		var kind, mode, detail string
+		var dl int64
+		if err := db.QueryRowContext(ctx, `SELECT kind, mode, COALESCE(download_id, 0), detail FROM library_action
+			WHERE id = ?`, id).Scan(&kind, &mode, &dl, &detail); err != nil {
+			t.Fatal(err)
+		}
+		store.HistoryLibraryAction(ctx, db, id, store.HistoryActionClass(kind, mode, dl, detail))
+	}
+	rows, err := db.QueryContext(ctx, `SELECT version_key, info_hash FROM router_blocklist`)
 	if err != nil {
 		t.Fatal(err)
 	}
-	up, _, _ := strings.Cut(strings.SplitN(string(b), "-- +goose Up", 2)[1], "-- +goose Down")
-	if _, err := st.Writer().ExecContext(ctx, `DELETE FROM history`); err != nil {
-		t.Fatal(err)
+	var keys [][2]string
+	for rows.Next() {
+		var k [2]string
+		if err := rows.Scan(&k[0], &k[1]); err != nil {
+			t.Fatal(err)
+		}
+		keys = append(keys, k)
 	}
-	n := 0
-	for _, q := range strings.Split(up, ";\n") {
-		var keep []string
-		for _, line := range strings.Split(q, "\n") {
-			if !strings.HasPrefix(strings.TrimSpace(line), "--") {
-				keep = append(keep, line)
-			}
-		}
-		q = strings.TrimSpace(strings.Join(keep, "\n"))
-		if !strings.HasPrefix(q, "INSERT") && !strings.HasPrefix(q, "WITH") {
-			continue
-		}
-		if _, err := st.Writer().ExecContext(ctx, q); err != nil {
-			t.Fatalf("migration backfill: %v\n%s", err, q)
-		}
-		n++
+	rows.Close()
+	for _, k := range keys {
+		store.HistoryBlocklist(ctx, db, k[0], k[1])
 	}
-	if n != 10 {
-		t.Fatalf("migration backfill: %d statements, want 10", n)
+	for _, id := range ids(`SELECT id FROM journal_action WHERE action IN ('remove_title', 'remove_version')`) {
+		store.HistoryRemoval(ctx, db, id)
 	}
 }
 
-// checkStoredHistory compares History with its rows as the writers store them (BackfillHistory, the event writers'
-// statements) and as migration 00140 backfills them: all three alike.
+// checkStoredHistory compares History with its rows as the event writers store them (writeHistory) and as migration
+// 00140 backfills them (store.BackfillHistory): all three alike.
 func checkStoredHistory(t *testing.T, ctx context.Context, j *Journal, st *store.Store) {
 	t.Helper()
+	writeHistory(t, ctx, st)
+	written := checkHistory(t, ctx, j)
 	if _, err := st.Writer().ExecContext(ctx, `DELETE FROM history`); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.BackfillHistory(ctx, st.Writer()); err != nil {
 		t.Fatal(err)
 	}
-	written := checkHistory(t, ctx, j)
-	migrationBackfill(t, ctx, st)
 	migrated := checkHistory(t, ctx, j)
 	if len(written) != len(migrated) {
 		t.Fatalf("writers stored %d rows, the migration %d", len(written), len(migrated))
@@ -329,9 +382,7 @@ func TestStoredHistoryUpgradeIsOneRow(t *testing.T) {
 			quality, score, title_id, episodes) VALUES (?, ?, 'replace', 'applied', 'tv-2160p', 60, ?, 'moved aside', ?,
 			'WEBDL-1080p', 100, 3, ?)`, 80+i, msOf(at.Add(time.Duration(i)*time.Minute)),
 			fmt.Sprintf("/tv/G/S01E0%d.mkv", i), fmt.Sprintf("Gamma.S01E0%d.1080p.WEB", i), fmt.Sprintf("[%d]", 100+i))
-		if err := store.HistoryLibraryAction(ctx, e.st.Writer(), 80+i); err != nil {
-			t.Fatal(err)
-		}
+		store.HistoryLibraryAction(ctx, e.st.Writer(), 80+i, "deleted")
 	}
 	derived := e.history(Filter{Events: []string{EvDeleted}})
 	if len(derived) != 3 {

@@ -868,3 +868,37 @@ func TestCachedOnlyRDConvertingUsesTheReads(t *testing.T) {
 		})
 	}
 }
+
+// A not-cached trial add that is deleted and requeued leaves no Grabbed row in History; one a provider took before
+// keeps it, dated when that provider accepted it.
+func TestUnmadeAddLeavesNoGrab(t *testing.T) {
+	t.Parallel()
+	e, _, _ := newDebridEnv(t, true, true)
+	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, state,
+		created_at, updated_at) VALUES (900, 1, 10, 'movie', ?, 'Movie.2024.2160p.WEB.H265-GRP', 'x', 'queued', 1, 1)`,
+		h("z"))
+	grabs := func() int { return e.count(`SELECT COUNT(*) FROM history WHERE ref = 'dl:900' AND event = 'grabbed'`) }
+	if err := e.r.markAdded(e.ctx, 900, "rd", &adder.Added{ID: "RD9"}, false, addFence{}); err != nil {
+		t.Fatal(err)
+	}
+	if grabs() != 1 {
+		t.Fatal("no grab row for the add")
+	}
+	if err := e.r.unmarkAdded(e.ctx, 900, "rd", "RD9", "uncached on rd; our add was deleted"); err != nil {
+		t.Fatal(err)
+	}
+	if grabs() != 0 {
+		t.Error("the unmade add is still a grab")
+	}
+	e.exec(`INSERT INTO download_attempt (download_id, provider, outcome, code, message, attempted_at)
+		VALUES (900, 'ad', 'accepted', 'added', '', 5)`)
+	if err := e.r.markAdded(e.ctx, 900, "rd", &adder.Added{ID: "RD10"}, false, addFence{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.r.unmarkAdded(e.ctx, 900, "rd", "RD10", "uncached on rd; our add was deleted"); err != nil {
+		t.Fatal(err)
+	}
+	if n := e.count(`SELECT COUNT(*) FROM history WHERE ref = 'dl:900' AND at = 5`); n != 1 {
+		t.Error("an earlier accepted add lost its grab row")
+	}
+}

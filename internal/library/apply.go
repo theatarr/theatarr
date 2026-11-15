@@ -499,7 +499,11 @@ func (l *Library) apply(ctx context.Context, d *importDownload, vn *VersionNamin
 		if err != nil {
 			return err
 		}
-		return store.HistoryDownloads(ctx, tx, d.ID)
+		store.HistoryImport(ctx, tx, d.ID)
+		if dl == "failed" {
+			store.HistoryFailure(ctx, tx, d.ID)
+		}
+		return nil
 	})
 	if errors.Is(err, ErrRemoved) {
 		return l.stopped(ctx, d, root, plan, made, moved, err)

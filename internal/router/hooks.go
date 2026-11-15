@@ -167,7 +167,8 @@ func Blocklist(ctx context.Context, tx *sql.Tx, version, hash string, titleID, d
 	if err != nil {
 		return err
 	}
-	return store.HistoryBlocklist(ctx, tx, version, hash)
+	store.HistoryBlocklist(ctx, tx, version, hash)
+	return nil
 }
 
 func nullID(id int64) any {
@@ -244,9 +245,7 @@ func dismissTx(ctx context.Context, tx *sql.Tx, id int64, reason string, block b
 			WHERE id = ?`, reason, at, id); err != nil {
 			return nil, err
 		}
-		if err := store.HistoryDownloads(ctx, tx, id); err != nil {
-			return nil, err
-		}
+		store.HistoryFailure(ctx, tx, id)
 		d.Ended = true
 	}
 	key := routeJobKey(id)

@@ -860,10 +860,8 @@ func (r *Router) applyStatus(ctx context.Context, dl int64, version string, kind
 				return err
 			}
 		}
-		if state != cur {
-			if err := store.HistoryDownloads(ctx, tx, dl); err != nil {
-				return err
-			}
+		if state == StateFailed {
+			store.HistoryFailure(ctx, tx, dl)
 		}
 		return recordProgress(ctx, tx, dl, now, pk, t.ID, t.Progress,
 			state == StateDownloading && t.State == provider.StateDownloading)
@@ -921,9 +919,7 @@ func (r *Router) rejectTorrentFiles(ctx context.Context, dl int64, version, why 
 		if n, _ := res.RowsAffected(); n != 1 {
 			return nil // ended meanwhile: its own reason stands
 		}
-		if err := store.HistoryDownloads(ctx, tx, dl); err != nil {
-			return err
-		}
+		store.HistoryFailure(ctx, tx, dl)
 		return Blocklist(ctx, tx, version, hash, titleID, dl, release, why, BlocklistTorrentFiles, now)
 	})
 	if err != nil {
@@ -1023,9 +1019,7 @@ func (r *Router) endDeletedVersions(ctx context.Context, now time.Time) (int, er
 	if err := res.Err(); err != nil {
 		return 0, fmt.Errorf("router: end downloads of deleted versions: %w", err)
 	}
-	if err := store.HistoryDownloads(ctx, r.st.Writer(), ended...); err != nil {
-		return 0, err
-	}
+	store.HistoryFailure(ctx, r.st.Writer(), ended...)
 	n := len(ended)
 	if n > 0 {
 		r.log.Warn("poll: downloads of versions no longer in settings ended; nothing blocklisted or deleted", "count", n)

@@ -221,7 +221,17 @@ type transition struct {
 	args     []any
 	before   func(*sql.Tx) error // in the transaction, before the write
 	after    func(*sql.Tx) error // in the transaction, after it
+	hist     histWrite           // the History row the move writes, if any
 }
+
+// histWrite is the History row a transition writes: the grab (an add, or an add unmade), the failure.
+type histWrite int
+
+const (
+	histNone histWrite = iota
+	histGrab
+	histFail
+)
 
 // move applies t to download dl. errAddTaken when the row is not where t expects it; nothing is written then.
 func (r *Router) move(ctx context.Context, dl int64, t transition) error {
@@ -261,7 +271,13 @@ func (r *Router) move(ctx context.Context, dl int64, t transition) error {
 				return err
 			}
 		}
-		return store.HistoryDownloads(ctx, tx, dl)
+		switch t.hist {
+		case histGrab:
+			store.HistoryGrab(ctx, tx, dl)
+		case histFail:
+			store.HistoryFailure(ctx, tx, dl)
+		}
+		return nil
 	})
 }
 
@@ -320,7 +336,7 @@ func (r *Router) noteUnsettled(ctx context.Context, dl int64, attempt sql.NullSt
 // write that matches its attempt (reconcile.go) may settle it.
 func (r *Router) failDownload(ctx context.Context, dl int64, why string, from ...string) error {
 	err := r.move(ctx, dl, transition{from: from, set: `state = 'failed', error = ?, updated_at = ?`,
-		args: []any{why, store.Millis(r.now())}})
+		args: []any{why, store.Millis(r.now())}, hist: histFail})
 	if errors.Is(err, errAddTaken) {
 		return nil
 	}
@@ -342,7 +358,7 @@ func (r *Router) failProviderDownload(ctx context.Context, dl int64, why string)
 		// torrent, not the provider. Nothing is blocklisted.
 		why += "; " + journal + " when its route was interrupted: not blocklisted"
 	}
-	err := r.move(ctx, dl, transition{from: []string{StateAdded, StateDownloading},
+	err := r.move(ctx, dl, transition{from: []string{StateAdded, StateDownloading}, hist: histFail,
 		set: `state = 'failed', error = ?, updated_at = ?`, args: []any{why, now},
 		after: func(tx *sql.Tx) error {
 			if deleting {
@@ -383,7 +399,7 @@ func (r *Router) queueDownload(ctx context.Context, dl int64, retryAt time.Time,
 // meanwhile.
 func (r *Router) endQueued(ctx context.Context, dl int64, why string) error {
 	err := r.move(ctx, dl, transition{from: []string{StateQueued}, set: `state = 'failed', error = ?, updated_at = ?`,
-		args: []any{why, store.Millis(r.now())}})
+		args: []any{why, store.Millis(r.now())}, hist: histFail})
 	if errors.Is(err, errAddTaken) {
 		return fmt.Errorf("download %d: %w", dl, errMovedOn)
 	}
@@ -421,7 +437,7 @@ func (r *Router) markAdded(ctx context.Context, dl int64, provider string, a *ad
 	if a.Ready {
 		cached = 1
 	}
-	t := transition{from: []string{StateQueued}, set: `state = 'added', provider = ?, provider_torrent_id = ?,
+	t := transition{from: []string{StateQueued}, hist: histGrab, set: `state = 'added', provider = ?, provider_torrent_id = ?,
 		provider_epoch = ?, name = COALESCE(NULLIF(?, ''), name), cached = ?, reused = ?, own_add = NULL, error = NULL, added_at = ?,
 		cached_check = NULL, selected_at = NULL, updated_at = ?, select_alt_torrent = CASE WHEN ? = 1 OR (? = 1 AND select_alt_torrent = ?) THEN ? END`,
 		args: []any{provider, a.ID, r.recordedEpoch(), a.Name, cached, b2i(reused), now, now, b2i(f.alt),

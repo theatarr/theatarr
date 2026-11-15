@@ -244,7 +244,7 @@ func endLegacyRow(ctx context.Context, tx *sql.Tx, x LegacyRow, at int64) error 
 		_, err = tx.ExecContext(ctx, `UPDATE download SET state = 'failed', error = ?, updated_at = ?
 			WHERE id = ? AND state = ?`, why, at, x.ID, StateQueued)
 		if err == nil {
-			err = store.HistoryDownloads(ctx, tx, x.ID)
+			store.HistoryFailure(ctx, tx, x.ID)
 		}
 	}
 	if err != nil {

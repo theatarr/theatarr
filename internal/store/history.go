@@ -5,15 +5,15 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strings"
 )
 
-// History rows (migration 00140, docs/design/ui.md "Activity", History) are written when their event happens, in the
+// History rows (migration 00140, docs/journal.md "Stored History rows") are written when their event happens, in the
 // transaction that records it, from the source rows it just wrote: a download's grab, failure and import, a library
 // action (an upgrade's replaced files, an adoption, a hand unlink, a missing file), a blocklist entry, a title's
-// removal. A row keeps its source's journal id (ref) and is rewritten when its source changes the same way the
-// derived History reader would show it (a download failing again, a removal's clean-up finishing). Migration 00140
-// backfills the same rows from the same statements (the library actions grouped in SQL); a test holds them equal.
+// removal. A row keeps its source's journal id (ref). Writes are best effort: one that fails is logged and the event
+// goes on. Migration 00140 backfilled the same rows from the same sources; a test holds the two alike.
 
 // Execer is a transaction or a database handle.
 type Execer interface {
@@ -77,35 +77,43 @@ const historyUpsert = ` ON CONFLICT (ref) DO UPDATE SET at = excluded.at, event 
 const historyDownloadFacts = `d.title_id, d.version_key, d.id, d.release_title, d.info_hash, d.indexer,
 	COALESCE(d.size_bytes, 0), d.quality, CASE WHEN d.formats IS NOT NULL OR d.score <> 0 THEN d.score END, d.formats`
 
-// historyDownloadSQL are the statements writing the grabbed, failed and import rows of the downloads (alias d) that
-// filter selects.
-func historyDownloadSQL(filter string) []string {
-	return []string{
-		`INSERT INTO history (` + historyCols + `)
+// historyGrabSQL writes the grabbed rows of the downloads (alias d) filter selects that reached a provider or client.
+func historyGrabSQL(filter string) string {
+	return `INSERT INTO history (` + historyCols + `)
 		SELECT 'dl:' || d.id, COALESCE(d.added_at, (SELECT MIN(a.attempted_at) FROM download_attempt a
 			WHERE a.download_id = d.id AND a.outcome = 'accepted'), d.created_at), 'grabbed', ` + HistoryGrabKindSQL + `,
 			` + historyDownloadFacts + `, d.episodes, 0, NULL, COALESCE(d.provider, ''), '', '', '', '', ''
-		FROM download d WHERE ` + HistoryGrabbedWhere + ` AND ` + filter + historyUpsert,
-		`INSERT INTO history (` + historyCols + `)
+		FROM download d WHERE ` + HistoryGrabbedWhere + ` AND ` + filter + historyUpsert
+}
+
+// historyFailureSQL writes the failed rows of the failed downloads (alias d) filter selects.
+func historyFailureSQL(filter string) string {
+	return `INSERT INTO history (` + historyCols + `)
 		SELECT 'dl:' || d.id || ':fail', d.updated_at, 'failed',
 			CASE WHEN d.error LIKE 'stalled%' THEN 'stall' ELSE 'failure' END,
 			` + historyDownloadFacts + `, d.episodes, 0, NULL, COALESCE(d.provider, ''), COALESCE(d.error, ''), '', '',
 			'', ''
-		FROM download d WHERE d.state = 'failed' AND ` + filter + historyUpsert,
-		// An import that linked, or one held for review whose download did not fail; its episodes are those its links
-		// held (recorded with each link action, else the link's current episodes), never the ones it asked for.
-		`INSERT INTO history (` + historyCols + `)
-		SELECT 'dl:' || d.id || ':import', li.updated_at, CASE li.state WHEN 'rejected' THEN 'failed' ELSE 'imported' END,
-			'import', ` + historyDownloadFacts + `,
+		FROM download d WHERE d.state = 'failed' AND ` + filter + historyUpsert
+}
+
+// historyImportSQL writes the import rows of the downloads (alias d) filter selects: an import that linked
+// (dl:<id>:import), its episodes those its links held (recorded with each link action, else the link's current
+// episodes), never the ones it asked for; and an import held for review whose download did not fail, its own row
+// (dl:<id>:held), so a later import that links keeps it.
+func historyImportSQL(filter string) []string {
+	return []string{`INSERT INTO history (` + historyCols + `)
+		SELECT 'dl:' || d.id || ':import', li.updated_at, 'imported', 'import', ` + historyDownloadFacts + `,
 			(SELECT json_group_array(DISTINCT j.value) FROM library_action a, json_each(COALESCE(a.episodes,
 				(SELECT json_group_array(le.episode_id) FROM link_episode le WHERE le.link_id = a.link_id))) j
 				WHERE a.kind = 'link' AND a.mode = 'applied' AND a.download_id = d.id),
-			0, NULL, COALESCE(d.provider, ''), CASE li.state WHEN 'rejected' THEN COALESCE(li.last_error, '') ELSE '' END,
-			'', li.state, '', ''
+			0, NULL, COALESCE(d.provider, ''), '', '', li.state, '', ''
 		FROM library_import li JOIN download d ON d.id = li.download_id
-		WHERE (li.state IN ('linked', 'partial') OR (li.state = 'rejected' AND d.state <> 'failed')) AND ` + filter +
-			historyUpsert,
-	}
+		WHERE li.state IN ('linked', 'partial') AND ` + filter + historyUpsert,
+		`INSERT INTO history (` + historyCols + `)
+		SELECT 'dl:' || d.id || ':held', li.updated_at, 'failed', 'import', ` + historyDownloadFacts + `, '[]', 0, NULL,
+			COALESCE(d.provider, ''), COALESCE(li.last_error, ''), '', li.state, '', ''
+		FROM library_import li JOIN download d ON d.id = li.download_id
+		WHERE li.state = 'rejected' AND d.state <> 'failed' AND ` + filter + historyUpsert}
 }
 
 // historyBlocklistSQL writes the blocked rows of the blocklist entries (alias b) filter selects: the release as
@@ -128,48 +136,90 @@ func historyRemovalSQL(filter string) string {
 	FROM journal_action a WHERE a.action IN ('remove_title', 'remove_version') AND ` + filter + historyUpsert
 }
 
-// historyCopySQL writes the rows of finished provider copies ("Add to other providers"); only the backfill writes
-// them.
-const historyCopySQL = `INSERT INTO history (` + historyCols + `)
-	SELECT 'copy:' || c.id, c.at, CASE c.state WHEN 'added' THEN 'copy_added' WHEN 'already' THEN 'copy_already'
-		ELSE 'copy_not_cached' END, 'copy', COALESCE(c.title_id, 0), '', NULL, c.name, c.info_hash, '', 0,
-		COALESCE(c.quality, ''), c.score, NULL, '[]', 0, NULL, c.provider, c.message, '', '', '', ''
-	FROM provider_copy_event c WHERE true` + historyUpsert
-
-// HistoryDownloads writes the History rows of downloads ids as they stand: its grab once it reached a provider or
-// client, its failure, its import. Called after a download changes state or its import is recorded.
-func HistoryDownloads(ctx context.Context, ex Execer, ids ...int64) error {
-	if len(ids) == 0 {
-		return nil
+// History writes are best effort: a failed one is logged and the event goes on (inside a transaction a failed
+// statement undoes only itself).
+func historyExec(ctx context.Context, ex Execer, q string, args ...any) {
+	if _, err := ex.ExecContext(ctx, q, args...); err != nil {
+		slog.Default().Warn("history: row not written", "err", err)
 	}
+}
+
+func idArgs(ids []int64) (string, []any) {
 	args := make([]any, len(ids))
 	for i, id := range ids {
 		args[i] = id
 	}
-	for _, q := range historyDownloadSQL(`d.id IN (` + Placeholders(len(ids)) + `)`) {
-		if _, err := ex.ExecContext(ctx, q, args...); err != nil {
-			return fmt.Errorf("store: history: %w", err)
-		}
+	return `d.id IN (` + Placeholders(len(ids)) + `)`, args
+}
+
+// HistoryGrab writes the grabbed rows of downloads ids once they reached a provider or client (an add, a reused
+// torrent, a client's hash), dated when they got there; a download whose add was unmade (a not-cached add deleted
+// and requeued) and that no provider took before loses its row.
+func HistoryGrab(ctx context.Context, ex Execer, ids ...int64) {
+	if len(ids) == 0 {
+		return
 	}
-	return nil
+	in, args := idArgs(ids)
+	historyExec(ctx, ex, historyGrabSQL(in), args...)
+	historyExec(ctx, ex, `DELETE FROM history WHERE ref IN (SELECT 'dl:' || d.id FROM download d WHERE `+in+`
+		AND NOT `+HistoryGrabbedWhere+`)`, args...)
+}
+
+// HistoryFailure writes the failed rows of downloads ids that are failed.
+func HistoryFailure(ctx context.Context, ex Execer, ids ...int64) {
+	if len(ids) == 0 {
+		return
+	}
+	in, args := idArgs(ids)
+	historyExec(ctx, ex, historyFailureSQL(in), args...)
+}
+
+// HistoryImport writes download id's import row: linked or partly linked, or held for review.
+func HistoryImport(ctx context.Context, ex Execer, id int64) {
+	for _, q := range historyImportSQL(`d.id = ?`) {
+		historyExec(ctx, ex, q, id)
+	}
 }
 
 // HistoryBlocklist writes the blocked row of the blocklist entry (version, key), as router.Blocklist stored it.
-func HistoryBlocklist(ctx context.Context, ex Execer, version, key string) error {
-	if _, err := ex.ExecContext(ctx, historyBlocklistSQL(`b.version_key = ? AND b.info_hash = ?`), version,
-		key); err != nil {
-		return fmt.Errorf("store: history: %w", err)
-	}
-	return nil
+func HistoryBlocklist(ctx context.Context, ex Execer, version, key string) {
+	historyExec(ctx, ex, historyBlocklistSQL(`b.version_key = ? AND b.info_hash = ?`), version, key)
 }
 
-// HistoryRemoval writes the title_removed row of journal action id, when it is a removal; again when its detail
-// changes (the clean-up's outcome).
-func HistoryRemoval(ctx context.Context, ex Execer, id int64) error {
-	if _, err := ex.ExecContext(ctx, historyRemovalSQL(`a.id = ?`), id); err != nil {
-		return fmt.Errorf("store: history: %w", err)
+// HistoryUnblock keeps the blocked row of the blocklist entry (version, key) about to be deleted under a ref of its
+// own (bl:<rowid>:<at>), so a later entry that takes the rowid does not write over it.
+func HistoryUnblock(ctx context.Context, ex Execer, version, key string) {
+	historyExec(ctx, ex, `UPDATE history SET ref = ref || ':' || at WHERE ref = (SELECT 'bl:' || rowid
+		FROM router_blocklist WHERE version_key = ? AND info_hash = ?)`, version, key)
+}
+
+// HistoryRemoval writes the title_removed row of journal action id (a Remove title or Remove copy).
+func HistoryRemoval(ctx context.Context, ex Execer, id int64) {
+	historyExec(ctx, ex, historyRemovalSQL(`a.id = ?`), id)
+}
+
+// HistoryRemovalDetail sets a removal row's detail when its outcome is known (the clean-up).
+func HistoryRemovalDetail(ctx context.Context, ex Execer, id int64, detail string) {
+	historyExec(ctx, ex, `UPDATE history SET detail = ? WHERE ref = ?`, detail, fmt.Sprint("act:", id))
+}
+
+// HistoryActionClass is the History row a library action gives: deleted (an upgrade's replaced file), adopted,
+// removed (a hand unlink), missing (a dead link), or "" for none; as the Where clauses above say.
+func HistoryActionClass(kind, mode string, downloadID int64, detail string) string {
+	prefix := func(p string) bool { return len(detail) >= len(p) && strings.EqualFold(detail[:len(p)], p) }
+	switch {
+	case mode != "applied":
+		return ""
+	case kind == "replace" && downloadID != 0 && !prefix("import undone"):
+		return "deleted"
+	case kind == "link" && downloadID == 0 && prefix("adopted from "):
+		return "adopted"
+	case kind == "replace" && downloadID == 0 && !prefix("change of episodes failed"):
+		return "removed"
+	case kind == "dead":
+		return "missing"
 	}
-	return nil
+	return ""
 }
 
 // historyMember is one library action's facts as History shows them, read with the fallback link linkSQL.
@@ -207,17 +257,19 @@ type HistoryReplacedFile struct {
 	Episodes json.RawMessage `json:"episodes"`
 }
 
-// HistoryLibraryAction writes the History row of library action id, when History shows it: a missing file or a hand
-// unlink is its own row; an upgrade's replaced files are one row per download and library (Upgraded: N files
+// HistoryLibraryAction writes the History row of library action id of class (HistoryActionClass): a missing file or
+// a hand unlink is its own row; an upgrade's replaced files are one row per download and library (Upgraded: N files
 // replaced), the action added to its files; adoptions are one row per title, library, release and day.
-func HistoryLibraryAction(ctx context.Context, ex Execer, id int64) error {
-	var class string
-	err := ex.QueryRowContext(ctx, `SELECT CASE WHEN `+HistoryDeletedWhere+` THEN 'deleted'
-		WHEN `+HistoryAdoptedWhere+` THEN 'adopted' WHEN `+HistoryRemovedWhere+` THEN 'removed'
-		WHEN `+HistoryMissingWhere+` THEN 'missing' ELSE '' END FROM library_action la WHERE la.id = ?`, id).Scan(&class)
-	if err != nil || class == "" {
-		return historyErr(err)
+func HistoryLibraryAction(ctx context.Context, ex Execer, id int64, class string) {
+	if class == "" {
+		return
 	}
+	if err := historyLibraryAction(ctx, ex, id, class); err != nil {
+		slog.Default().Warn("history: row not written", "action", id, "err", err)
+	}
+}
+
+func historyLibraryAction(ctx context.Context, ex Execer, id int64, class string) error {
 	link := map[string]string{"deleted": HistoryOldLinkSQL, "removed": HistoryOldLinkSQL,
 		"adopted": HistoryAdoptLinkSQL, "missing": HistoryDeadLinkSQL}[class]
 	var m historyMember
@@ -292,36 +344,28 @@ func historyErr(err error) error {
 	return fmt.Errorf("store: history: %w", err)
 }
 
-// BackfillHistory writes every History row from its sources, as migration 00140 does: for a database whose sources
-// were written directly (the demo seed) and for tests.
+// BackfillHistory writes every History row from its sources into an empty history table with migration 00140's own
+// statements: for a database whose sources were written directly (the demo seed).
 func BackfillHistory(ctx context.Context, ex Execer) error {
-	qs := append(historyDownloadSQL(`true`), historyBlocklistSQL(`true`), historyRemovalSQL(`true`), historyCopySQL)
-	for _, q := range qs {
-		if _, err := ex.ExecContext(ctx, q); err != nil {
-			return fmt.Errorf("store: history backfill: %w", err)
-		}
-	}
-	rows, err := ex.QueryContext(ctx, `SELECT la.id FROM library_action la WHERE (`+strings.Join([]string{
-		HistoryDeletedWhere, HistoryAdoptedWhere, HistoryRemovedWhere, HistoryMissingWhere}, `) OR (`)+`) ORDER BY la.id`)
+	b, err := migrationFiles.ReadFile("migrations/00140_history.sql")
 	if err != nil {
-		return fmt.Errorf("store: history backfill: %w", err)
-	}
-	var ids []int64
-	for rows.Next() {
-		var id int64
-		if err := rows.Scan(&id); err != nil {
-			rows.Close()
-			return err
-		}
-		ids = append(ids, id)
-	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
 		return err
 	}
-	for _, id := range ids {
-		if err := HistoryLibraryAction(ctx, ex, id); err != nil {
-			return err
+	_, up, _ := strings.Cut(string(b), "-- +goose Up")
+	up, _, _ = strings.Cut(up, "-- +goose Down")
+	for _, q := range strings.Split(up, ";\n") {
+		var keep []string
+		for _, line := range strings.Split(q, "\n") {
+			if !strings.HasPrefix(strings.TrimSpace(line), "--") {
+				keep = append(keep, line)
+			}
+		}
+		q = strings.TrimSpace(strings.Join(keep, "\n"))
+		if !strings.HasPrefix(q, "INSERT") && !strings.HasPrefix(q, "WITH") {
+			continue
+		}
+		if _, err := ex.ExecContext(ctx, q); err != nil {
+			return fmt.Errorf("store: history backfill: %w", err)
 		}
 	}
 	return nil

@@ -332,7 +332,7 @@ func (r *Router) resumeStrays(ctx context.Context, now time.Time) (resumed, fail
 			return resumed, failed, fmt.Errorf("router: download %d: %w", x.id, err)
 		}
 		if err == nil {
-			if err := r.move(ctx, x.id, transition{from: []string{StateQueued},
+			if err := r.move(ctx, x.id, transition{from: []string{StateQueued}, hist: histFail,
 				set: `state = 'failed', error = ?, updated_at = ?`, args: []any{"its route job failed: " + lastErr,
 					store.Millis(now)}}); err != nil && !errors.Is(err, errAddTaken) {
 				return resumed, failed, err

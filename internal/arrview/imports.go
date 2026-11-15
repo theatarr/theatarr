@@ -263,9 +263,7 @@ func (s *Service) insertImport(ctx context.Context, n library.NewImport, source 
 		if id, err = x.LastInsertId(); err != nil {
 			return err
 		}
-		if err := store.HistoryDownloads(ctx, tx, id); err != nil {
-			return err
-		}
+		store.HistoryGrab(ctx, tx, id)
 		return writeManualFiles(ctx, tx, id, files, now)
 	})
 	return id, err

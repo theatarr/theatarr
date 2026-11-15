@@ -377,7 +377,11 @@ func (r *Router) settleAdding(ctx context.Context, dl int64, attempt sql.NullStr
 	if state == StateFailed {
 		errText = why
 	}
-	err := r.move(ctx, dl, transition{from: []string{StateAdding}, attempt: &attempt,
+	hist := histGrab // an adoption, or back to queued
+	if state == StateFailed {
+		hist = histFail
+	}
+	err := r.move(ctx, dl, transition{from: []string{StateAdding}, attempt: &attempt, hist: hist,
 		set: `state = ?, provider = CASE WHEN ? = 'queued' THEN NULL ELSE provider END,
 		client = CASE WHEN ? = 'queued' THEN NULL ELSE client END, add_attempt = NULL, error = ?, updated_at = ?`,
 		args: []any{state, state, state, errText, store.Millis(r.now())}})

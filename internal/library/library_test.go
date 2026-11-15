@@ -328,9 +328,10 @@ func TestUpgradeMovesAside(t *testing.T) {
 	if _, err := os.Readlink(plan.Links[0].Path); err != nil {
 		t.Error(err)
 	}
-	// History's rows are written with the import: the grab, the import, the upgrade with its replaced file.
+	// History's rows are written with the import: the import and the upgrade with its replaced file (the grab is
+	// written when the provider takes the download).
 	if got := e.one(`SELECT group_concat(ref || ' ' || event || ' ' || files, ', ') FROM (SELECT * FROM history
-		ORDER BY ref)`); got != "dl:1 grabbed 0, dl:1:import imported 0, lib:2 deleted 1" {
+		ORDER BY ref)`); got != "dl:1:import imported 0, lib:2 deleted 1" {
 		t.Errorf("history rows %s", got)
 	}
 	// After keep_days, the trash copy goes, and still only the link.
@@ -343,6 +344,24 @@ func TestUpgradeMovesAside(t *testing.T) {
 	}
 	if _, err := os.Stat(oldTarget); err != nil {
 		t.Errorf("debrid content touched by purge: %v", err)
+	}
+}
+
+// A History write that fails never stops the event: with no history table the import still links and finishes.
+func TestImportWithoutHistory(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true)
+	e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
+	e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
+	if _, err := e.st.Writer().Exec(`DROP TABLE history`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.lib.Import(e.ctx, 1, false); err != nil {
+		t.Fatal(err)
+	}
+	if got := e.one(`SELECT state || ' ' || (SELECT COUNT(*) FROM link WHERE download_id = 1) FROM download
+		WHERE id = 1`); got != "imported 1" {
+		t.Errorf("download and links %s", got)
 	}
 }
 

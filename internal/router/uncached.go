@@ -515,7 +515,7 @@ func (r *Router) readAfterDelete(ctx context.Context, pk, id string) (gone, pres
 // (errMovedOn), and the route stops.
 func (r *Router) unmarkAdded(ctx context.Context, dl int64, pk, tid, why string) error {
 	err := r.move(ctx, dl, transition{from: []string{StateAdded, StateDownloading}, provider: pk, torrent: tid,
-		set: `state = 'queued', provider = NULL, provider_torrent_id = NULL, provider_status = '', name = '',
+		hist: histGrab, set: `state = 'queued', provider = NULL, provider_torrent_id = NULL, provider_status = '', name = '',
 		progress = 0, cached = NULL, files_selected = 0, selected_at = NULL, reused = 0, own_add = NULL,
 		added_at = NULL, cached_check = NULL, error = ?, updated_at = ?`, args: []any{why, store.Millis(r.now())}})
 	if errors.Is(err, errAddTaken) {

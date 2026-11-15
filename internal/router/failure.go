@@ -160,9 +160,7 @@ func (r *Router) expireReady(ctx context.Context, now time.Time) (int, error) {
 				updated_at = ? WHERE download_id = ? AND state = 'waiting_mount'`, why, at, id); err != nil {
 				return err
 			}
-			if err := store.HistoryDownloads(ctx, tx, id); err != nil {
-				return err
-			}
+			store.HistoryFailure(ctx, tx, id)
 			// An expired importer must also lose its claim, so it cannot record a later outcome over the failure.
 			if _, err := tx.ExecContext(ctx, `DELETE FROM library_claim WHERE download_id = ?`, id); err != nil {
 				return err

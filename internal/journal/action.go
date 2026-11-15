@@ -100,7 +100,10 @@ func RecordAction(ctx context.Context, tx *sql.Tx, a Action) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-	return id, store.HistoryRemoval(ctx, tx, id)
+	if a.Action == ActRemoveTitle || a.Action == ActRemoveVersion {
+		store.HistoryRemoval(ctx, tx, id)
+	}
+	return id, nil
 }
 
 // Record stores one operator action in its own transaction, timed by the journal's clock.
@@ -228,9 +231,10 @@ func ParseRemovalDetail(detail string) Removal {
 // SetActionDetail replaces a recorded action's detail (a removal's outcome once known), inside the caller's
 // transaction.
 func SetActionDetail(ctx context.Context, tx *sql.Tx, id int64, detail string) error {
-	if _, err := tx.ExecContext(ctx, `UPDATE journal_action SET detail = ? WHERE id = ?`, trimText(detail, 1000),
-		id); err != nil {
+	detail = trimText(detail, 1000)
+	if _, err := tx.ExecContext(ctx, `UPDATE journal_action SET detail = ? WHERE id = ?`, detail, id); err != nil {
 		return err
 	}
-	return store.HistoryRemoval(ctx, tx, id)
+	store.HistoryRemovalDetail(ctx, tx, id, detail)
+	return nil
 }

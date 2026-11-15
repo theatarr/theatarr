@@ -5,7 +5,8 @@
 -- ("Upgraded: N files replaced") listing the files in replaced, instead of one row per old release.
 --
 -- ref is the source's journal id, as the derived reader names its rows: dl:<download> (grabbed), dl:<id>:fail,
--- dl:<id>:import, lib:<library_action> (a group's first action), bl:<router_blocklist rowid>, act:<journal_action>
+-- dl:<id>:import, dl:<id>:held (an import held for review; dl:<id>:import there), lib:<library_action> (a group's
+-- first action), bl:<router_blocklist rowid> (bl:<rowid>:<at> once the entry is deleted), act:<journal_action>
 -- (title_removed), copy:<provider_copy_event>. kind is the journal kind (grab or upgrade for a grab; stall or failure;
 -- import; link; blocklist; action; copy). release is NULL when the release is not known; for a deleted (upgrade) row
 -- release, quality and score are what replaced the files, and replaced lists the files: [{id, at, path, release,
@@ -48,8 +49,8 @@ CREATE INDEX history_at ON history (at, ref);
 CREATE INDEX history_title ON history (title_id, at);
 CREATE INDEX history_download ON history (download_id) WHERE download_id IS NOT NULL;
 
--- Downloads (grabbed, failed, import), blocklist entries, removals, copies: the statements of internal/store
--- history.go.
+-- Downloads (grabbed, failed, imported, held), blocklist entries, removals, copies, then the library actions; the
+-- event writers (internal/store history.go) write the same rows, and store.BackfillHistory runs these statements.
 INSERT INTO history (ref, at, event, kind, title_id, version_key, download_id, release, info_hash, indexer, size,
     quality, score, formats, episodes, files, replaced, provider, reason, source, import_state, by, detail)
     SELECT 'dl:' || d.id, COALESCE(d.added_at, (SELECT MIN(a.attempted_at) FROM download_attempt a
@@ -74,16 +75,24 @@ INSERT INTO history (ref, at, event, kind, title_id, version_key, download_id, r
 
 INSERT INTO history (ref, at, event, kind, title_id, version_key, download_id, release, info_hash, indexer, size,
     quality, score, formats, episodes, files, replaced, provider, reason, source, import_state, by, detail)
-    SELECT 'dl:' || d.id || ':import', li.updated_at, CASE li.state WHEN 'rejected' THEN 'failed' ELSE 'imported' END,
-        'import', d.title_id, d.version_key, d.id, d.release_title, d.info_hash, d.indexer,
-        COALESCE(d.size_bytes, 0), d.quality, CASE WHEN d.formats IS NOT NULL OR d.score <> 0 THEN d.score END, d.formats,
+    SELECT 'dl:' || d.id || ':import', li.updated_at, 'imported', 'import', d.title_id, d.version_key, d.id,
+        d.release_title, d.info_hash, d.indexer, COALESCE(d.size_bytes, 0), d.quality,
+        CASE WHEN d.formats IS NOT NULL OR d.score <> 0 THEN d.score END, d.formats,
         (SELECT json_group_array(DISTINCT j.value) FROM library_action a, json_each(COALESCE(a.episodes,
             (SELECT json_group_array(le.episode_id) FROM link_episode le WHERE le.link_id = a.link_id))) j
             WHERE a.kind = 'link' AND a.mode = 'applied' AND a.download_id = d.id),
-        0, NULL, COALESCE(d.provider, ''), CASE li.state WHEN 'rejected' THEN COALESCE(li.last_error, '') ELSE '' END,
-        '', li.state, '', ''
+        0, NULL, COALESCE(d.provider, ''), '', '', li.state, '', ''
     FROM library_import li JOIN download d ON d.id = li.download_id
-    WHERE (li.state IN ('linked', 'partial') OR (li.state = 'rejected' AND d.state <> 'failed'));
+    WHERE li.state IN ('linked', 'partial');
+
+INSERT INTO history (ref, at, event, kind, title_id, version_key, download_id, release, info_hash, indexer, size,
+    quality, score, formats, episodes, files, replaced, provider, reason, source, import_state, by, detail)
+    SELECT 'dl:' || d.id || ':held', li.updated_at, 'failed', 'import', d.title_id, d.version_key, d.id,
+        d.release_title, d.info_hash, d.indexer, COALESCE(d.size_bytes, 0), d.quality,
+        CASE WHEN d.formats IS NOT NULL OR d.score <> 0 THEN d.score END, d.formats, '[]', 0, NULL,
+        COALESCE(d.provider, ''), COALESCE(li.last_error, ''), '', li.state, '', ''
+    FROM library_import li JOIN download d ON d.id = li.download_id
+    WHERE li.state = 'rejected' AND d.state <> 'failed';
 
 INSERT INTO history (ref, at, event, kind, title_id, version_key, download_id, release, info_hash, indexer, size,
     quality, score, formats, episodes, files, replaced, provider, reason, source, import_state, by, detail)

@@ -1039,9 +1039,7 @@ func (l *Library) reject(ctx context.Context, d *importDownload, plan *Plan, dry
 			"library: "+reason, now, d.ID); err != nil {
 			return err
 		}
-		if err := store.HistoryDownloads(ctx, tx, d.ID); err != nil {
-			return err
-		}
+		store.HistoryFailure(ctx, tx, d.ID)
 		why := reason
 		if len(plan.Rejected) > 0 && plan.Rejected[0].Reason != reason {
 			why += " (" + plan.Rejected[0].Reason + ")"
@@ -1077,9 +1075,7 @@ func (l *Library) holdForReview(ctx context.Context, d *importDownload, plan *Pl
 			d.ID, plan.Folder, reason, string(pj), now, now); err != nil {
 			return err
 		}
-		if err := store.HistoryDownloads(ctx, tx, d.ID); err != nil {
-			return err
-		}
+		store.HistoryImport(ctx, tx, d.ID)
 		return l.record(ctx, tx, action{Kind: "reject", Mode: "applied", Version: d.Version.Key, DownloadID: d.ID,
 			Path: plan.Folder, Detail: reason})
 	})

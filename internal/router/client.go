@@ -229,7 +229,7 @@ func (r *Router) deferClient(ctx context.Context, s *routeState, c *Candidate, s
 func (r *Router) failRefused(ctx context.Context, dl int64, why string) error {
 	now := store.Millis(r.now())
 	err := r.move(ctx, dl, transition{from: []string{StateQueued}, set: `state = 'failed', error = ?, updated_at = ?`,
-		args: []any{why, now}, after: func(tx *sql.Tx) error {
+		hist: histFail, args: []any{why, now}, after: func(tx *sql.Tx) error {
 			return blocklistDownload(ctx, tx, dl, why, BlocklistClient, now)
 		}})
 	if errors.Is(err, errAddTaken) {
@@ -251,7 +251,7 @@ func (r *Router) markClientAdding(ctx context.Context, dl int64, key string) (st
 // client held it before (adopted).
 func (r *Router) markClientAdded(ctx context.Context, dl int64, key, name string, reused bool, f addFence) error {
 	now := store.Millis(r.now())
-	t := transition{from: []string{StateQueued}, set: `state = 'added', client = ?, provider = NULL,
+	t := transition{from: []string{StateQueued}, hist: histGrab, set: `state = 'added', client = ?, provider = NULL,
 		provider_torrent_id = info_hash, name = COALESCE(NULLIF(?, ''), name), add_attempt = NULL, error = NULL,
 		reused = ?, added_at = ?, missing_polls = 0, missing_since = NULL, updated_at = ?`,
 		args: []any{key, name, b2i(reused), now, now}}

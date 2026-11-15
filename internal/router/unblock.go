@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"strings"
+
+	"github.com/theatarr/theatarr/internal/store"
 )
 
 // Blocked is one router_blocklist row.
@@ -30,6 +32,7 @@ func Unblock(ctx context.Context, tx *sql.Tx, version, hash string) (*Blocked, e
 		return nil, err
 	}
 	b.TitleID, b.DownloadID = title.Int64, dl.Int64
+	store.HistoryUnblock(ctx, tx, version, b.Hash)
 	if _, err := tx.ExecContext(ctx, `DELETE FROM router_blocklist WHERE version_key = ? AND info_hash = ?`, version,
 		b.Hash); err != nil {
 		return nil, err
