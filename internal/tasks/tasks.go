@@ -176,11 +176,26 @@ func (tb *Table) Start(ctx context.Context, t Task) bool {
 	return true
 }
 
+type attemptKey struct{}
+
+// WithAttempt is ctx for try n of a run of of tries (Attempt reads it).
+func WithAttempt(ctx context.Context, n, of int) context.Context {
+	return context.WithValue(ctx, attemptKey{}, [2]int{n, of})
+}
+
+// Attempt is, inside a run, which try this is (1-based) of how many; 1 of 1 outside one.
+func Attempt(ctx context.Context) (n, of int) {
+	if a, ok := ctx.Value(attemptKey{}).([2]int); ok {
+		return a[0], a[1]
+	}
+	return 1, 1
+}
+
 // try runs t up to its attempts, waiting the back-off between tries.
 func try(ctx context.Context, t Task, log *slog.Logger, wait func(int) time.Duration) error {
 	attempts := max(t.Attempts, 1)
 	for attempt := 1; ; attempt++ {
-		err := t.Run(ctx)
+		err := t.Run(WithAttempt(ctx, attempt, attempts))
 		if err == nil || attempt >= attempts || ctx.Err() != nil {
 			return err
 		}
@@ -220,10 +235,13 @@ func (tb *Table) record(ctx context.Context, t Task, start time.Time, runErr err
 	wctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 	defer cancel()
 	err := tb.st.WriteTx(wctx, func(tx *sql.Tx) error {
-		_, err := tx.ExecContext(wctx, `UPDATE task SET last_started = ?, last_finished = ?, last_duration_ms = ?,
-			last_error = ?, next_run = COALESCE(?, next_run), updated_at = ? WHERE key = ?`,
-			store.Millis(start), store.Millis(end), end.Sub(start).Milliseconds(), truncate(msg), optMillis(next),
-			store.Millis(end), t.Key)
+		_, err := tx.ExecContext(wctx, `INSERT INTO task (key, name, every_s, at, last_started, last_finished,
+				last_duration_ms, last_error, next_run, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			ON CONFLICT (key) DO UPDATE SET last_started = excluded.last_started, last_finished = excluded.last_finished,
+				last_duration_ms = excluded.last_duration_ms, last_error = excluded.last_error,
+				next_run = COALESCE(excluded.next_run, task.next_run), updated_at = excluded.updated_at`,
+			t.Key, t.Name, int64(t.Every/time.Second), t.At, store.Millis(start), store.Millis(end),
+			end.Sub(start).Milliseconds(), truncate(msg), optMillis(next), store.Millis(end))
 		return err
 	})
 	if err != nil {
@@ -257,8 +275,25 @@ func (tb *Table) RunNow(key string) error {
 	return nil
 }
 
+// NextRun is the task's next run as last recorded (zero for none): read before Register, it is the next run the
+// previous start planned, so a loop can run at once what came due while the service was stopped.
+func (tb *Table) NextRun(ctx context.Context, key string) (time.Time, error) {
+	if tb == nil {
+		return time.Time{}, nil
+	}
+	var at sql.NullInt64
+	err := tb.st.Reader().QueryRowContext(ctx, `SELECT next_run FROM task WHERE key = ?`, key).Scan(&at)
+	if errors.Is(err, sql.ErrNoRows) || (err == nil && !at.Valid) {
+		return time.Time{}, nil
+	}
+	return store.FromMillis(at.Int64), err
+}
+
 // LastStarted is when the task's newest recorded run started (zero for none).
 func (tb *Table) LastStarted(ctx context.Context, key string) (time.Time, error) {
+	if tb == nil {
+		return time.Time{}, nil
+	}
 	var at sql.NullInt64
 	err := tb.st.Reader().QueryRowContext(ctx, `SELECT last_started FROM task WHERE key = ?`, key).Scan(&at)
 	if errors.Is(err, sql.ErrNoRows) || (err == nil && !at.Valid) {

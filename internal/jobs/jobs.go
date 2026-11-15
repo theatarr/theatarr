@@ -194,16 +194,6 @@ func (q *Queue) Get(ctx context.Context, id int64) (Info, error) {
 	return in, nil
 }
 
-// Seen reports whether a job of kind whose dedupe key starts with prefix is queued or running, or was created at or
-// after since (finished jobs are kept 14 days before the nightly prune).
-func (q *Queue) Seen(ctx context.Context, kind, prefix string, since time.Time) (bool, error) {
-	var n int
-	err := q.st.Reader().QueryRowContext(ctx, `SELECT COUNT(*) FROM job WHERE kind = ?
-		AND (state IN ('queued', 'running') OR created_at >= ?) AND substr(dedupe_key, 1, ?) = ?`,
-		kind, store.Millis(since), len(prefix), prefix).Scan(&n)
-	return n > 0, err
-}
-
 // Counts returns the number of jobs per state.
 func (q *Queue) Counts(ctx context.Context) (map[string]int, error) {
 	rows, err := q.st.Reader().QueryContext(ctx, `SELECT state, count(*) FROM job GROUP BY state`)

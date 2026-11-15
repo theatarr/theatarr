@@ -3,15 +3,17 @@ package notify
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"strconv"
 	"time"
 
-	"github.com/theatarr/theatarr/internal/jobs"
+	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/store"
+	"github.com/theatarr/theatarr/internal/tasks"
 )
 
-// DigestJob is the job kind that sends the daily digest. The notifier queues one per day once notify.digest_at has
-// passed (dedupe key notify.digest:<date>); the claim (notify_event digest/<yyyymmdd>) commits with its deliveries,
+// DigestJob is the task that sends the daily digest (internal/tasks). The notifier runs it once a day once
+// notify.digest_at has passed; the claim (notify_event digest/<yyyymmdd>) commits with its deliveries,
 // so a restart or a second run never sends the same day twice.
 const DigestJob = "notify.digest"
 
@@ -44,19 +46,30 @@ func (d *DigestSummary) Quiet() bool {
 		d.OpenErrors == 0 && len(d.Health) == 0 && d.Accounts == nil
 }
 
-// RegisterJobs registers the digest job.
-func (n *Notifier) RegisterJobs(w *jobs.Worker) { w.Handle(DigestJob, n.runDigest) }
-
 // digestDay is the day key of t: the local date as yyyymmdd.
 func digestDay(t time.Time) int64 {
 	v, _ := strconv.ParseInt(t.Format("20060102"), 10, 64)
 	return v
 }
 
-// queueDigest queues today's digest job once notify.digest_at has passed and today's digest is not claimed. A day's
-// job is queued once (a job that failed for good is not queued again that day).
-func (n *Notifier) queueDigest(ctx context.Context) error {
-	if n.q == nil {
+// digestAt is the digest's time of day ("09:00"), "" while off.
+func digestAt(set policy.NotifySettings, on bool) string {
+	if !on {
+		return ""
+	}
+	return fmt.Sprintf("%02d:%02d", set.DigestHour, set.DigestMinute)
+}
+
+// digestTask sends the digest of the day it runs on: three tries, as its job had.
+func (n *Notifier) digestTask(at string) tasks.Task {
+	return tasks.Task{Key: DigestJob, Name: "Send the daily digest", At: at, Attempts: 3, Inbox: true,
+		Run: func(ctx context.Context) error { return n.SendDigest(ctx, n.now()) }}
+}
+
+// runDigest runs today's digest task once notify.digest_at has passed and today's digest is not claimed. A day's
+// digest is tried once (a run that failed on every try is not run again that day).
+func (n *Notifier) runDigest(ctx context.Context) error {
+	if n.tasks == nil {
 		return nil
 	}
 	set := n.settings(ctx)
@@ -70,29 +83,11 @@ func (n *Notifier) queueDigest(ctx context.Context) error {
 		AND ref = ?)`, digestDay(now)).Scan(&claimed); err != nil || claimed {
 		return err
 	}
-	key := DigestJob + ":" + now.Format(time.DateOnly)
-	if seen, err := n.q.Seen(ctx, DigestJob, key, slot); err != nil || seen {
+	if last, err := n.tasks.LastStarted(ctx, DigestJob); err != nil || !last.Before(slot) {
 		return err
 	}
-	_, _, err := n.q.Enqueue(ctx, DigestJob, digestJobPayload{Day: now.Format(time.DateOnly)},
-		jobs.EnqueueOptions{DedupeKey: key, MaxAttempts: 3})
+	_, err := n.tasks.Run(ctx, n.digestTask(digestAt(set, true)))
 	return err
-}
-
-type digestJobPayload struct {
-	Day string `json:"day"`
-}
-
-func (n *Notifier) runDigest(ctx context.Context, j *jobs.Job) error {
-	var p digestJobPayload
-	if err := j.Decode(&p); err != nil {
-		return jobs.Permanent(err)
-	}
-	day, err := time.ParseInLocation(time.DateOnly, p.Day, n.now().Location())
-	if err != nil {
-		return jobs.Permanent(err)
-	}
-	return n.SendDigest(ctx, day)
 }
 
 // SendDigest records the digest of day (the 24 hours before now) once.

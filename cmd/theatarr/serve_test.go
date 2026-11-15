@@ -62,13 +62,7 @@ func TestNightlyRun(t *testing.T) {
 	q := jobs.NewQueue(st)
 	n := &nightly{st: st, q: q, pol: pol, log: slog.New(slog.NewTextHandler(io.Discard, nil)), dir: backups, keep: 2,
 		hour: 3}
-	// Scheduling twice for the same night makes one job.
-	n.schedule(ctx, time.Now())
-	n.schedule(ctx, time.Now())
-	if counts, _ := q.Counts(ctx); counts[jobs.StateQueued] != 1 {
-		t.Errorf("queued %v, want 1", counts)
-	}
-	if err := n.run(ctx, &jobs.Job{}); err != nil {
+	if err := n.run(ctx); err != nil {
 		t.Fatal(err)
 	}
 	files, _ := filepath.Glob(filepath.Join(backups, "theatarr-*.db"))
@@ -94,6 +88,8 @@ func TestNightlyRun(t *testing.T) {
 	}
 }
 
+// A nightly run that fails on every try records its error and the next night on its task row; the retention task
+// still starts after the last try.
 func TestNightlyFailureStillSchedulesNext(t *testing.T) {
 	t.Parallel()
 	for _, failure := range []string{"backup", "job prune"} {
@@ -108,11 +104,11 @@ func TestNightlyFailureStillSchedulesNext(t *testing.T) {
 			if _, err := st.Migrate(ctx); err != nil {
 				t.Fatal(err)
 			}
-			q := jobs.NewQueue(st)
-			clock := time.Now()
-			q.SetClock(func() time.Time { return clock })
-			n := &nightly{st: st, q: q, log: slog.New(slog.NewTextHandler(io.Discard, nil)),
-				hour: clock.Hour()}
+			tb := tasks.New(ctx, st, nil)
+			tb.Backoff = func(int) time.Duration { return time.Millisecond }
+			retained := make(chan struct{}, 4)
+			n := &nightly{st: st, q: jobs.NewQueue(st), tasks: tb, log: slog.New(slog.NewTextHandler(io.Discard, nil)),
+				hour: 3, retain: func(context.Context) error { retained <- struct{}{}; return nil }}
 			var wantError string
 			if failure == "backup" {
 				n.dir = filepath.Join(dir, "not-a-directory")
@@ -131,44 +127,56 @@ func TestNightlyFailureStillSchedulesNext(t *testing.T) {
 				}
 				wantError = "prune unavailable"
 			}
-			id, _, err := q.Enqueue(ctx, nightlyKind, nil, jobs.EnqueueOptions{MaxAttempts: 3,
-				DedupeKey: nightlyKind + ":" + clock.Format("2006-01-02")})
-			if err != nil {
-				t.Fatal(err)
+			defer tb.Register(ctx, n.task())()
+			tries := 0
+			task := n.task()
+			run := task.Run
+			task.Run = func(ctx context.Context) error { tries++; return run(ctx) }
+			if ran, err := tb.Run(ctx, task); !ran || err == nil || !strings.Contains(err.Error(), wantError) || tries != 3 {
+				t.Fatalf("ran %v, tries %d, err %v", ran, tries, err)
 			}
-			w := jobs.NewWorker(q, jobs.WorkerOptions{Logger: n.log})
-			w.Handle(nightlyKind, n.run)
-			for attempt := 1; attempt <= 3; attempt++ {
-				if ran, err := w.RunOne(ctx); err != nil || !ran {
-					t.Fatalf("attempt %d: ran %v, %v", attempt, ran, err)
+			got, err := tb.List(ctx)
+			if err != nil || len(got) != 1 || !strings.Contains(got[0].LastError, wantError) || got[0].NextRun == nil ||
+				!got[0].NextRun.Equal(n.next(time.Now())) {
+				t.Fatalf("task %+v %v", got, err)
+			}
+			if failure == "backup" {
+				select {
+				case <-retained:
+				case <-time.After(5 * time.Second):
+					t.Fatal("retention not started after the last try")
 				}
-				in, err := q.Get(ctx, id)
-				wantState := jobs.StateQueued
-				if attempt == 3 {
-					wantState = jobs.StateFailed
-				}
-				if err != nil || in.State != wantState || in.Attempts != attempt || !strings.Contains(in.LastError, wantError) {
-					t.Fatalf("attempt %d: %+v, %v", attempt, in, err)
-				}
-				clock = in.RunAt
-			}
-			var nextID, runAt int64
-			var maxAttempts int
-			var key string
-			if err := st.Reader().QueryRowContext(ctx, `SELECT id, run_at, max_attempts, dedupe_key FROM job
-				WHERE kind = ? AND state = 'queued'`, nightlyKind).Scan(&nextID, &runAt, &maxAttempts, &key); err != nil {
-				t.Fatal(err)
-			}
-			next := n.next(time.Now())
-			if nextID == id || runAt != store.Millis(next) || maxAttempts != 3 || key != nightlyKind+":"+next.Format("2006-01-02") {
-				t.Fatalf("next nightly: id %d, run_at %d, attempts %d, key %q", nextID, runAt, maxAttempts, key)
-			}
-			var queued int
-			if err := st.Reader().QueryRowContext(ctx, `SELECT count(*) FROM job WHERE kind = ? AND state = 'queued'`,
-				nightlyKind).Scan(&queued); err != nil || queued != 1 {
-				t.Fatalf("next nightly duplicated: %d, %v", queued, err)
 			}
 		})
+	}
+}
+
+// A night whose run came due while the service was stopped runs at start.
+func TestNightlyMissedRunsAtStart(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	st, err := store.Open(ctx, storetest.Seed(t, filepath.Join(t.TempDir(), "theatarr.db")), store.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	tb := tasks.New(ctx, st, nil)
+	n := &nightly{st: st, q: jobs.NewQueue(st), tasks: tb, log: slog.New(slog.NewTextHandler(io.Discard, nil)), hour: 3}
+	if _, err := st.Writer().ExecContext(ctx, `INSERT INTO task (key, name, next_run, updated_at) VALUES (?, 'x', ?, 0)`,
+		nightlyKind, store.Millis(time.Now().Add(-time.Hour))); err != nil {
+		t.Fatal(err)
+	}
+	lctx, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+	go func() { n.loop(lctx); close(done) }()
+	waitFor(t, "missed night run", func() bool {
+		at, _ := tb.LastStarted(ctx, nightlyKind)
+		return !at.IsZero()
+	})
+	cancel()
+	<-done
+	if next, _ := tb.NextRun(ctx, nightlyKind); !next.Equal(n.next(time.Now())) {
+		t.Errorf("next run %v, want %v", next, n.next(time.Now()))
 	}
 }
 
@@ -274,7 +282,7 @@ func TestProviderSyncSchedule(t *testing.T) {
 	}
 }
 
-func TestNightlyEnqueuesRetentionAfterSuccess(t *testing.T) {
+func TestNightlyStartsRetentionAfterSuccess(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	st, err := store.Open(ctx, storetest.Seed(t, filepath.Join(t.TempDir(), "theatarr.db")), store.Options{})
@@ -285,18 +293,21 @@ func TestNightlyEnqueuesRetentionAfterSuccess(t *testing.T) {
 	if _, err := st.Migrate(ctx); err != nil {
 		t.Fatal(err)
 	}
-	q := jobs.NewQueue(st)
-	n := &nightly{st: st, q: q, log: slog.New(slog.NewTextHandler(io.Discard, nil)), hour: time.Now().Hour()}
-	if err := n.run(ctx, &jobs.Job{}); err != nil {
+	tb := tasks.New(ctx, st, nil)
+	retained := make(chan struct{}, 1)
+	n := &nightly{st: st, q: jobs.NewQueue(st), tasks: tb, log: slog.New(slog.NewTextHandler(io.Discard, nil)),
+		hour: time.Now().Hour(), retain: func(context.Context) error { retained <- struct{}{}; return nil }}
+	defer tb.Register(ctx, n.retentionTask())()
+	if err := n.run(ctx); err != nil {
 		t.Fatal(err)
 	}
-	var priority int
-	var key string
-	if err := st.Reader().QueryRowContext(ctx, `SELECT priority, dedupe_key FROM job WHERE kind = ? AND state = 'queued'`,
-		retention.JobKind).Scan(&priority, &key); err != nil {
-		t.Fatal(err)
+	select {
+	case <-retained:
+	case <-time.After(5 * time.Second):
+		t.Fatal("retention not started")
 	}
-	if priority != retention.Priority || key != retention.JobKind+":"+time.Now().Format("2006-01-02") {
-		t.Fatalf("retention job: priority %d, key %q", priority, key)
-	}
+	waitFor(t, "retention recorded", func() bool {
+		at, _ := tb.LastStarted(ctx, retention.JobKind)
+		return !at.IsZero()
+	})
 }

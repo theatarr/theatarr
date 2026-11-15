@@ -12,15 +12,16 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/theatarr/theatarr/internal/jobs"
 	"github.com/theatarr/theatarr/internal/policy"
-	"github.com/theatarr/theatarr/internal/retention"
 	"github.com/theatarr/theatarr/internal/settings"
 	"github.com/theatarr/theatarr/internal/store"
 	"github.com/theatarr/theatarr/internal/store/storetest"
+	"github.com/theatarr/theatarr/internal/tasks"
 )
 
 // dbOnlyInstall is a database-only install as serve bootstraps it: no YAML in polDir (missing or empty), every
@@ -269,18 +270,18 @@ func TestNightlyBackupFailure(t *testing.T) {
 	notDir := filepath.Join(dir, "policy")
 	os.WriteFile(notDir, []byte("x"), 0o644)
 	q := jobs.NewQueue(st)
+	var retained atomic.Int32
 	n := &nightly{st: st, q: q, pol: &policy.Policy{Dir: notDir}, log: slog.New(slog.NewTextHandler(io.Discard, nil)),
-		dir: backups, keep: 2, hour: 3}
+		dir: backups, keep: 2, hour: 3, retain: func(context.Context) error { retained.Add(1); return nil }}
 	retentionQueued := func() int {
-		var c int
-		st.Reader().QueryRowContext(ctx, `SELECT count(*) FROM job WHERE kind = ?`, retention.JobKind).Scan(&c)
-		return c
+		time.Sleep(20 * time.Millisecond) // the retention task starts in its own goroutine
+		return int(retained.Load())
 	}
 	if _, err := st.Writer().ExecContext(ctx, `INSERT INTO job (kind, state, payload, run_at, created_at, updated_at,
 		finished_at) VALUES ('old', 'done', '{}', 0, 0, 0, 0)`); err != nil {
 		t.Fatal(err)
 	}
-	if err := n.run(ctx, &jobs.Job{Attempt: 1, MaxAttempts: 3}); err == nil {
+	if err := n.run(tasks.WithAttempt(ctx, 1, 3)); err == nil {
 		t.Fatal("a failed backup returned no error")
 	}
 	all, _ := filepath.Glob(filepath.Join(backups, "theatarr-*"))
@@ -295,12 +296,10 @@ func TestNightlyBackupFailure(t *testing.T) {
 	if retentionQueued() != 0 {
 		t.Error("retention was scheduled on an attempt that will be retried")
 	}
-	if err := n.run(ctx, &jobs.Job{Attempt: 3, MaxAttempts: 3}); err == nil {
+	if err := n.run(tasks.WithAttempt(ctx, 3, 3)); err == nil {
 		t.Fatal("a failed backup returned no error")
 	}
-	if retentionQueued() != 1 {
-		t.Error("the last attempt did not schedule retention")
-	}
+	waitFor(t, "the last attempt starts retention", func() bool { return retained.Load() == 1 })
 }
 
 // A secret named in the settings after the start is listed in the next nightly set: the nightly job records the
@@ -346,7 +345,7 @@ func TestNightlyManifestNamesHeadSecrets(t *testing.T) {
 	backups := filepath.Join(dir, "backups")
 	n := &nightly{st: st, q: jobs.NewQueue(st), pol: pol, policyNow: backupPolicyNow("db", polDir, dbPath, pol, log),
 		log: log, dir: backups, keep: 5, hour: 3}
-	if err := n.run(ctx, &jobs.Job{Attempt: 1, MaxAttempts: 3}); err != nil {
+	if err := n.run(tasks.WithAttempt(ctx, 1, 3)); err != nil {
 		t.Fatal(err)
 	}
 	sets, _ := filepath.Glob(filepath.Join(backups, "theatarr-*.manifest.json"))

@@ -11,9 +11,9 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/theatarr/theatarr/internal/jobs"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/store"
+	"github.com/theatarr/theatarr/internal/tasks"
 )
 
 const discordHook = "https://discord.com/api/webhooks/123/token"
@@ -30,13 +30,21 @@ func newDiscordEnv(t *testing.T, enabled bool, edit func(*policy.Policy)) *nenv 
 	return e
 }
 
+// tasks is a fresh tasks table on the test database at the test clock, as a restart has.
+func (e *nenv) tasks() *tasks.Table {
+	tb := tasks.New(context.Background(), e.st, nil)
+	tb.Now = func() time.Time { return e.now }
+	tb.Backoff = func(int) time.Duration { return time.Millisecond }
+	return tb
+}
+
 // rebuild makes a new notifier on the same database, as a restart does.
 func (e *nenv) rebuild() {
 	e.t.Helper()
 	n, err := New(Config{Store: e.st, Policy: e.pol, Doer: e.doer, Payloads: fakePayloads{},
 		Health: func(context.Context) []HealthItem { return e.hlth },
 		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)), Now: func() time.Time { return e.now },
-		Getenv: func(k string) string { return e.env[k] }, Jobs: jobs.NewQueue(e.st)})
+		Getenv: func(k string) string { return e.env[k] }, Tasks: e.tasks()})
 	if err != nil {
 		e.t.Fatal(err)
 	}
@@ -463,42 +471,35 @@ func TestDigest(t *testing.T) {
 	}
 }
 
-func TestDigestJobQueuedOncePerDay(t *testing.T) {
+func TestDigestRunsOncePerDay(t *testing.T) {
 	t.Parallel()
 	e := newDiscordEnv(t, true, func(p *policy.Policy) { p.Notify.DigestAt = "09:30" })
 	ctx := context.Background()
-	jobCount := func() int64 { return e.one(`SELECT COUNT(*) FROM job WHERE kind = ?`, DigestJob) }
+	started := func() bool { at, _ := e.n.tasks.LastStarted(ctx, DigestJob); return !at.IsZero() }
 	e.now = time.Date(2026, 11, 7, 9, 29, 0, 0, time.Local)
-	if err := e.n.queueDigest(ctx); err != nil || jobCount() != 0 {
-		t.Fatalf("queued before 09:30: %v %d", err, jobCount())
+	if err := e.n.runDigest(ctx); err != nil || started() {
+		t.Fatalf("ran before 09:30: %v %v", err, started())
 	}
 	e.now = time.Date(2026, 11, 7, 9, 31, 0, 0, time.Local)
 	for range 2 {
-		if err := e.n.queueDigest(ctx); err != nil {
+		if err := e.n.runDigest(ctx); err != nil {
 			t.Fatal(err)
 		}
-	}
-	if jobCount() != 1 {
-		t.Fatalf("jobs %d", jobCount())
-	}
-	var payload string
-	if err := e.st.Reader().QueryRow(`SELECT payload FROM job WHERE kind = ?`, DigestJob).Scan(&payload); err != nil {
-		t.Fatal(err)
-	}
-	if err := e.n.runDigest(ctx, &jobs.Job{Kind: DigestJob, Payload: json.RawMessage(payload)}); err != nil {
-		t.Fatal(err)
 	}
 	if n := len(e.discordSent()); n != 1 {
 		t.Fatalf("digest %d", n)
 	}
-	// Finished, and after a restart: not queued again today.
-	e.exec(`UPDATE job SET state = 'done' WHERE kind = ?`, DigestJob)
+	// After a restart: not run again today, even when the claim is gone (a run that failed on every try).
+	e.exec(`DELETE FROM notify_event WHERE kind = 'digest'`)
 	e.rebuild()
-	if err := e.n.queueDigest(ctx); err != nil || jobCount() != 1 {
-		t.Errorf("queued again: %v %d", err, jobCount())
+	if err := e.n.runDigest(ctx); err != nil || len(e.discordSent()) != 1 {
+		t.Errorf("run again: %v %d", err, len(e.discordSent()))
 	}
 	e.now = e.now.AddDate(0, 0, 1)
-	if err := e.n.queueDigest(ctx); err != nil || jobCount() != 2 {
-		t.Errorf("next day: %v %d", err, jobCount())
+	if err := e.n.runDigest(ctx); err != nil || len(e.discordSent()) != 2 {
+		t.Errorf("next day: %v %d", err, len(e.discordSent()))
+	}
+	if n := e.one(`SELECT COUNT(*) FROM job`); n != 0 {
+		t.Errorf("job rows %d", n)
 	}
 }

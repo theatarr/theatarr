@@ -295,20 +295,15 @@ func runServe(args []string) error {
 		Reserved: *reserved, Urgent: urgentJobKinds})
 	// Backup sets name the secrets of the settings head at backup time, not of the start (backupPolicyNow).
 	backupPolicy := backupPolicyNow(*settingsSource, *policyDir, *dbPath, pol, log)
-	n := &nightly{st: st, q: q, pol: pol, policyNow: backupPolicy, log: log, dir: *backupDir, keep: *backupKeep,
-		hour: *backupHour}
-	w.Handle(nightlyKind, n.run)
 	keep := retention.Config{History: time.Duration(*retentionDays) * 24 * time.Hour, Runs: time.Duration(*retentionRunDays) * 24 * time.Hour}
-	w.Handle(retention.JobKind, func(ctx context.Context, _ *jobs.Job) error {
-		sum, err := retention.Prune(ctx, st, time.Now(), keep)
-		if len(sum) > 0 {
-			log.Info("retention pruned", "rows", sum)
-		}
-		return err
-	})
-	if err := n.schedule(ctx, time.Now()); err != nil {
-		return err
-	}
+	n := &nightly{st: st, q: q, tasks: tbl, pol: pol, policyNow: backupPolicy, log: log, dir: *backupDir, keep: *backupKeep,
+		hour: *backupHour, retain: func(ctx context.Context) error {
+			sum, err := retention.Prune(ctx, st, time.Now(), keep)
+			if len(sum) > 0 {
+				log.Info("retention pruned", "rows", sum)
+			}
+			return err
+		}}
 	if *backupDir == "" {
 		log.Warn("NIGHTLY BACKUP OFF: --backup-dir off; nothing protects the database")
 	} else {
@@ -638,11 +633,10 @@ func runServe(args []string) error {
 	// Payloads and the Health webhook resolve the arr views of the current settings generation (runtimeArrView).
 	notifyViews := runtimeArrView{manager: runtimeManager, fallback: av}
 	nt, err := notify.New(notify.Config{Store: st, Policy: pol, Doer: gw, Payloads: notifyViews, Health: notifyViews.HealthItems,
-		Logger: log, PolicyFor: runtimePolicy(runtimeManager), Jobs: q})
+		Logger: log, PolicyFor: runtimePolicy(runtimeManager), Tasks: tbl})
 	if err != nil {
 		return err
 	}
-	nt.RegisterJobs(w)
 	av.SetNotifier(nt)
 	nt.LogState()
 	// Title art and metadata: the meta.art job and the /img cache, through the gateway (docs/design/artwork.md).
@@ -799,11 +793,14 @@ func runServe(args []string) error {
 	wg.Add(1)
 	go errinbox.Go("quality-sync", func() { defer wg.Done(); qualitySync.Run(ctx) })()
 	// Planner statistics: PRAGMA optimize after the startup migrations, then daily.
+	// The nightly backup and tidy-up at the backup hour.
+	wg.Add(1)
+	go errinbox.Go("nightly", func() { defer wg.Done(); n.loop(ctx) })()
 	wg.Add(1)
 	go errinbox.Go("store-optimize", func() { defer wg.Done(); runStoreOptimize(ctx, st, log) })()
 	// Scheduled torrent backups: off unless torrents.backup.every is set. Each check reads the settings in force.
 	wg.Add(1)
-	go errinbox.Go("torrents", func() { defer wg.Done(); torrents.RunSchedule(ctx, q, torrentManager, 10*time.Minute) })()
+	go errinbox.Go("torrents", func() { defer wg.Done(); torrents.RunSchedule(ctx, tbl, torrentManager, 10*time.Minute) })()
 	// Health checks turning error go to the error inbox, and recover there automatically.
 	wg.Add(1)
 	go errinbox.Go("errinbox", func() { defer wg.Done(); observeHealth(ctx, hc, inbox, 2*time.Minute) })()
@@ -1036,13 +1033,16 @@ const nightlyKind = "db.nightly"
 var urgentJobKinds = []string{acquire.JobSearch, router.JobResearch, router.JobRoute,
 	router.JobOffer, library.ScanJobKind}
 
-// nightly writes a backup set (database, policy, manifest; backup.go) and keeps the newest sets, prunes finished jobs
-// and the journal's decision rows, and schedules itself for the next night. Each night's job has its own dedupe key,
-// so a restart or a re-run never doubles it.
+// nightly is the db.nightly task at the backup hour: it writes a backup set (database, policy, manifest; backup.go)
+// and keeps the newest sets, prunes finished jobs and the journal's decision rows, then starts the db.retention task.
+// A night missed while the service was stopped runs at start.
 type nightly struct {
-	st  *store.Store
-	q   *jobs.Queue
-	pol *policy.Policy
+	st    *store.Store
+	q     *jobs.Queue
+	tasks *tasks.Table
+	pol   *policy.Policy
+	// retain prunes the other growing tables (the db.retention task).
+	retain func(context.Context) error
 	// policyNow, when set, gives the policy each set records (its secret names) at backup time; else pol.
 	policyNow func(context.Context) *policy.Policy
 	log       *slog.Logger
@@ -1059,21 +1059,46 @@ func (n *nightly) next(now time.Time) time.Time {
 	return t
 }
 
-func (n *nightly) schedule(ctx context.Context, now time.Time) error {
-	at := n.next(now)
-	_, _, err := n.q.Enqueue(ctx, nightlyKind, nil, jobs.EnqueueOptions{
-		RunAt: at, DedupeKey: nightlyKind + ":" + at.Format("2006-01-02"), MaxAttempts: 3,
-	})
-	return err
+// task is the nightly's task: three tries, as its job had.
+func (n *nightly) task() tasks.Task {
+	return tasks.Task{Key: nightlyKind, Name: "Nightly database backup", At: fmt.Sprintf("%02d:00", n.hour), Attempts: 3,
+		Inbox: true, Run: n.run}
 }
 
-func (n *nightly) run(ctx context.Context, j *jobs.Job) (err error) {
-	// Keep the next night scheduled even when this run exhausts its retries.
-	defer func() {
-		scheduleCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
-		defer cancel()
-		err = errors.Join(err, n.schedule(scheduleCtx, time.Now()))
-	}()
+// retentionTask runs after the nightly backup, as its own task.
+func (n *nightly) retentionTask() tasks.Task {
+	return tasks.Task{Key: retention.JobKind, Name: "Tidy old records", At: fmt.Sprintf("%02d:00", n.hour), Attempts: 3,
+		Inbox: true, Run: n.retain}
+}
+
+// loop runs the nightly task at the backup hour until ctx ends; a night whose run was due while the service was
+// stopped runs at once.
+func (n *nightly) loop(ctx context.Context) {
+	next := n.next(time.Now())
+	if due, err := n.tasks.NextRun(ctx, nightlyKind); err == nil && !due.IsZero() && due.Before(time.Now()) {
+		next = time.Now()
+	}
+	task := n.task()
+	task.Next = next
+	defer n.tasks.Register(ctx, task)()
+	if n.retain != nil {
+		defer n.tasks.Register(ctx, n.retentionTask())()
+	}
+	t := time.NewTimer(time.Until(next))
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			_, _ = n.tasks.Run(ctx, task)
+			t.Reset(time.Until(n.next(time.Now())))
+		}
+	}
+}
+
+func (n *nightly) run(ctx context.Context) error {
+	attempt, attempts := tasks.Attempt(ctx)
 	// The journal's own decision rows: in full for 180 days, then trimmed or dropped (journal.Prune).
 	if sum, err := journal.Prune(ctx, n.st, time.Now()); err != nil {
 		n.log.Warn("journal prune", "err", err)
@@ -1093,7 +1118,7 @@ func (n *nightly) run(ctx context.Context, j *jobs.Job) (err error) {
 		if err != nil {
 			backupErr = fmt.Errorf("backup: %w", err)
 			// The error inbox records the nightly job once it fails for good (job source), not each attempt.
-			n.log.ErrorContext(errinbox.Quiet(ctx), "backup failed", "attempt", j.Attempt, "max_attempts", j.MaxAttempts, "err", err)
+			n.log.ErrorContext(errinbox.Quiet(ctx), "backup failed", "attempt", attempt, "max_attempts", attempts, "err", err)
 		} else {
 			n.log.Info("backup written", "set", base, "db_bytes", m.Database.Bytes, "policy_state", m.Policy.State,
 				"policy_revision", m.Policy.Revision, "took_ms", time.Since(start).Milliseconds())
@@ -1107,18 +1132,14 @@ func (n *nightly) run(ctx context.Context, j *jobs.Job) (err error) {
 	} else if pruned > 0 {
 		n.log.Info("finished jobs pruned", "count", pruned)
 	}
-	// The other growing tables (retention package), as their own job below every other: it runs when nothing waits,
-	// and after tonight's backup is written, so pruned rows are still in that backup. A backup that fails on every
-	// attempt does not hold retention back for good: the last attempt schedules it anyway.
-	lastAttempt := j.MaxAttempts > 0 && j.Attempt >= j.MaxAttempts
-	if backupErr == nil || lastAttempt {
+	// The other growing tables (retention package), as their own task started now: after tonight's backup is written,
+	// so pruned rows are still in that backup. A backup that fails on every attempt does not hold retention back for
+	// good: the last attempt starts it anyway.
+	if (backupErr == nil || attempt >= attempts) && n.retain != nil {
 		if backupErr != nil {
 			n.log.Warn("retention runs without tonight's backup", "err", backupErr)
 		}
-		if _, _, err := n.q.Enqueue(ctx, retention.JobKind, nil, jobs.EnqueueOptions{Priority: retention.Priority,
-			DedupeKey: retention.JobKind + ":" + time.Now().Format("2006-01-02"), MaxAttempts: 3}); err != nil {
-			n.log.Warn("retention enqueue", "err", err)
-		}
+		n.tasks.Start(ctx, n.retentionTask())
 	}
 	return backupErr
 }

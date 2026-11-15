@@ -17,6 +17,7 @@ import (
 	"github.com/theatarr/theatarr/internal/provider/adder"
 	"github.com/theatarr/theatarr/internal/store"
 	"github.com/theatarr/theatarr/internal/store/storetest"
+	"github.com/theatarr/theatarr/internal/tasks"
 )
 
 // Hashes used across the tests (invented).
@@ -867,4 +868,37 @@ func TestBackupDue(t *testing.T) {
 	if !e.m.BackupDue() {
 		t.Error("due a day later")
 	}
+}
+
+// The schedule runs a due backup as the torrents.backup task and records it; the task is listed only while
+// torrents.backup.every is set; a backup already running makes the scheduled one wait.
+func TestRunScheduleTask(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	tb := tasks.New(ctx, e.st, nil)
+	resolve := func(context.Context) (*Manager, error) { return e.m, nil }
+	backupMu.Lock() // a manual backup running: the scheduled one waits
+	e.pol.Torrents = &policy.Torrents{Backup: policy.TorrentBackup{Every: policy.Duration(24 * time.Hour)}}
+	done := make(chan struct{})
+	go func() { RunSchedule(ctx, tb, resolve, 10*time.Millisecond); close(done) }()
+	defer func() { cancel(); <-done }()
+	waitTask := func(what string, ok func(tasks.Status) bool) {
+		t.Helper()
+		for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); time.Sleep(5 * time.Millisecond) {
+			if got, _ := tb.List(ctx); len(got) == 1 && ok(got[0]) {
+				return
+			}
+		}
+		t.Fatal(what)
+	}
+	waitTask("a run that waited", func(s tasks.Status) bool { return s.LastFinished != nil && s.EverySeconds == 86400 })
+	if list, _ := e.m.Backups(); len(list) != 0 {
+		t.Fatalf("backed up while another backup ran: %+v", list)
+	}
+	backupMu.Unlock()
+	waitTask("the scheduled backup", func(tasks.Status) bool {
+		list, _ := e.m.Backups()
+		return len(list) == 1 && list[0].Reason == ReasonScheduled
+	})
 }

@@ -5,9 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/theatarr/theatarr/internal/jobs"
+	"github.com/theatarr/theatarr/internal/tasks"
 )
 
 // Job kinds. Backups and restores run as jobs: a backup reads every torrent's detail within a budget, and a restore
@@ -61,7 +63,30 @@ func EnqueueRestore(ctx context.Context, q *jobs.Queue, plan *RestorePlan, req R
 	return id, err
 }
 
-// RegisterJobs registers the backup and restore handlers.
+// backupMu keeps a manual backup (a job) and the scheduled one (a task) from running at the same time.
+var backupMu sync.Mutex
+
+// errBackupBusy is a backup asked for while another runs.
+var errBackupBusy = errors.New("torrents: a backup is already running")
+
+// backup takes one backup and journals it, unless another is running (errBackupBusy).
+func backup(ctx context.Context, m *Manager, p BackupPayload) error {
+	if !backupMu.TryLock() {
+		return errBackupBusy
+	}
+	defer backupMu.Unlock()
+	b, info, err := m.TakeBackup(ctx, BackupOptions{Reason: p.Reason, By: p.By})
+	if err != nil {
+		m.journal(ctx, JournalEntry{Action: "backup", Outcome: "failed", Detail: err.Error(), By: p.By})
+		return err
+	}
+	m.journal(ctx, JournalEntry{Action: "backup", BackupID: b.ID, Outcome: "ok", By: p.By,
+		Detail: fmt.Sprintf("%s: %d torrents", p.Reason, info.Torrents)})
+	return nil
+}
+
+// RegisterJobs registers the backup and restore handlers. A backup asked for while the scheduled one runs waits for
+// it.
 func RegisterJobs(w *jobs.Worker, resolve Resolver) {
 	w.Handle(JobBackup, func(ctx context.Context, j *jobs.Job) error {
 		var p BackupPayload
@@ -72,14 +97,11 @@ func RegisterJobs(w *jobs.Worker, resolve Resolver) {
 		if err != nil {
 			return err
 		}
-		b, info, err := m.TakeBackup(ctx, BackupOptions{Reason: p.Reason, By: p.By})
-		if err != nil {
-			m.journal(ctx, JournalEntry{Action: "backup", Outcome: "failed", Detail: err.Error(), By: p.By})
-			return err
+		err = backup(ctx, m, p)
+		if errors.Is(err, errBackupBusy) {
+			return jobs.Later(30 * time.Second)
 		}
-		m.journal(ctx, JournalEntry{Action: "backup", BackupID: b.ID, Outcome: "ok", By: p.By,
-			Detail: fmt.Sprintf("%s: %d torrents", p.Reason, info.Torrents)})
-		return nil
+		return err
 	})
 	w.Handle(JobRestore, func(ctx context.Context, j *jobs.Job) error {
 		var p RestorePayload
@@ -117,16 +139,27 @@ func (m *Manager) BackupDue() bool {
 	return true
 }
 
-// RunSchedule queues scheduled backups while ctx lives, checking every tick. Off unless torrents.backup.every is
-// set.
-func RunSchedule(ctx context.Context, q *jobs.Queue, resolve Resolver, tick time.Duration) {
+// RunSchedule runs the scheduled backups as the torrents.backup task while ctx lives, checking every tick with the
+// settings in force. Off (and not listed) unless torrents.backup.every is set. A manual backup running then makes the
+// scheduled one wait for the next tick.
+func RunSchedule(ctx context.Context, tb *tasks.Table, resolve Resolver, tick time.Duration) {
 	t := time.NewTicker(tick)
 	defer t.Stop()
+	var every time.Duration
+	unregister := func() {}
+	defer func() { unregister() }()
 	for {
-		if m, err := resolve(ctx); err == nil && m.BackupDue() {
-			if _, err := EnqueueBackup(ctx, q, ReasonScheduled, "schedule"); err != nil {
-				m.log().Warn("torrents: queueing the scheduled backup", "err", err)
+		m, err := resolve(ctx)
+		if err == nil && m.Policy.TorrentBackupEvery() != every {
+			every = m.Policy.TorrentBackupEvery()
+			unregister()
+			unregister = func() {}
+			if every > 0 {
+				unregister = tb.Register(ctx, scheduledTask(resolve, every))
 			}
+		}
+		if err == nil && m.BackupDue() {
+			_, _ = tb.Run(ctx, scheduledTask(resolve, every))
 		}
 		select {
 		case <-ctx.Done():
@@ -134,6 +167,23 @@ func RunSchedule(ctx context.Context, q *jobs.Queue, resolve Resolver, tick time
 		case <-t.C:
 		}
 	}
+}
+
+// scheduledTask is the scheduled backup's task, a backup with the manager in force.
+func scheduledTask(resolve Resolver, every time.Duration) tasks.Task {
+	return tasks.Task{Key: JobBackup, Name: "Back up the debrid torrent lists", Every: every, Inbox: true,
+		Run: func(ctx context.Context) error {
+			m, err := resolve(ctx)
+			if err != nil {
+				return err
+			}
+			err = backup(ctx, m, BackupPayload{Reason: ReasonScheduled, By: "schedule"})
+			if errors.Is(err, errBackupBusy) {
+				m.log().Info("torrents: scheduled backup waits; a backup is running")
+				return nil
+			}
+			return err
+		}}
 }
 
 // restoreJobError is the restore job's error: its failed re-adds, and the torrents still waiting for their file

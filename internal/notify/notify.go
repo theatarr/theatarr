@@ -38,9 +38,9 @@ import (
 	"time"
 
 	"github.com/theatarr/theatarr/internal/gateway"
-	"github.com/theatarr/theatarr/internal/jobs"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/store"
+	"github.com/theatarr/theatarr/internal/tasks"
 )
 
 // Doer is the gateway.
@@ -68,8 +68,8 @@ type Config struct {
 	// PolicyFor is the policy of the settings generation an operation runs under: notify.enabled and the targets
 	// change on a settings reload without a restart. nil, or a nil answer, uses Policy.
 	PolicyFor func(context.Context) *policy.Policy
-	// Jobs queues the daily digest (DigestJob; RegisterJobs registers its handler). nil: no digest.
-	Jobs *jobs.Queue
+	// Tasks runs the daily digest (task DigestJob). nil: no digest.
+	Tasks *tasks.Table
 }
 
 // Notifier records and sends webhooks.
@@ -84,7 +84,7 @@ type Notifier struct {
 	now    func() time.Time
 	getenv func(string) string
 	polFor func(context.Context) *policy.Policy
-	q      *jobs.Queue
+	tasks  *tasks.Table
 }
 
 // New builds the notifier.
@@ -100,7 +100,7 @@ func New(cfg Config) (*Notifier, error) {
 	}
 	return &Notifier{st: cfg.Store, pol: cfg.Policy, set: cfg.Policy.NotifySettings(), doer: cfg.Doer,
 		pay: cfg.Payloads, health: cfg.Health, log: cfg.Logger.With("component", "notify"), now: cfg.Now,
-		getenv: cfg.Getenv, polFor: cfg.PolicyFor, q: cfg.Jobs}, nil
+		getenv: cfg.Getenv, polFor: cfg.PolicyFor, tasks: cfg.Tasks}, nil
 }
 
 func (n *Notifier) enabled(ctx context.Context) bool {
@@ -872,7 +872,20 @@ func (n *Notifier) Run(ctx context.Context) {
 	poll := n.settings(ctx).Poll
 	t := time.NewTicker(poll)
 	defer t.Stop()
+	// The digest's task is listed while notifications are on, at notify.digest_at in force.
+	at, unregister := "", func() {}
+	defer func() { unregister() }()
 	for {
+		if set := n.settings(ctx); n.tasks != nil && digestAt(set, set.Enabled) != at {
+			at = digestAt(set, set.Enabled)
+			unregister()
+			unregister = func() {}
+			if at != "" {
+				task := n.digestTask(at)
+				task.Next = tasks.NextAt(at, n.now())
+				unregister = n.tasks.Register(ctx, task)
+			}
+		}
 		// A saved notify.poll applies from the next round.
 		if next := n.settings(ctx).Poll; next != poll && next > 0 {
 			poll = next
@@ -881,8 +894,8 @@ func (n *Notifier) Run(ctx context.Context) {
 		if err := n.Scan(ctx); err != nil && ctx.Err() == nil {
 			n.log.Warn("webhook scan", "err", err)
 		}
-		if err := n.queueDigest(ctx); err != nil && ctx.Err() == nil {
-			n.log.Warn("digest not queued", "err", err)
+		if err := n.runDigest(ctx); err != nil && ctx.Err() == nil {
+			n.log.Warn("digest not run", "err", err)
 		}
 		if _, err := n.SendDue(ctx, 50); err != nil && ctx.Err() == nil {
 			n.log.Warn("webhook send", "err", err)

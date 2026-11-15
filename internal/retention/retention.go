@@ -41,11 +41,8 @@ import (
 	"github.com/theatarr/theatarr/internal/store"
 )
 
-// JobKind is the retention job, enqueued by the nightly job at a low priority.
+// JobKind is the retention task (internal/tasks), started after the nightly backup.
 const JobKind = "db.retention"
-
-// Priority is below every other job's (they use 0 or more): retention runs when nothing else waits.
-const Priority = -10
 
 // Config is how long each kind of row is kept.
 type Config struct {
