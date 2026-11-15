@@ -983,7 +983,7 @@ func (s *Service) updateTitle(w http.ResponseWriter, r *request) {
 }
 
 // DELETE movie|series/{id}[?deleteFiles&addImportExclusion]: unlinks only this view's versions of the title
-// (docs/design/arrview.md). They are unmonitored and hidden from every view; their rows, arr files and history stay. deleteFiles=true
+// (docs/design/arrview.md). They are unmonitored and hidden from every view; their rows and history stay. deleteFiles=true
 // checks Theatarr's links first (a refusal changes nothing) and moves them to trash after the hide. The title stays for
 // other views. The versions' downloads in hand end in Theatarr's records (router.EndRemoved; never at the provider) in the
 // transaction that hides them, and the links are enumerated after it: an import that committed before the hide has
@@ -1015,9 +1015,6 @@ func (s *Service) deleteTitle(w http.ResponseWriter, r *request) {
 			return
 		}
 		for _, f := range fs {
-			if f.linkID == 0 {
-				continue
-			}
 			if s.library == nil {
 				writeJSON(w, http.StatusConflict, errorBody{Message: "library is unavailable: nothing removed"})
 				return

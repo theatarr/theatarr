@@ -335,7 +335,7 @@ func TestRemovalDeletesBrokenLinks(t *testing.T) {
 		(5, '/lib/Beta/a.mkv', '/mnt/zurg/a.mkv', 'symlink', 2, 'active', ?, ?),
 		(7, '/lib/Beta/b.mkv', '/mnt/zurg/b.mkv', 'symlink', 2, 'dead', ?, ?)`, now, now, now, now)
 	o.exec(`INSERT INTO link_version (link_id, version_id) VALUES (5, 3), (7, 3)`)
-	o.exec(`DELETE FROM version_file WHERE version_id = 3`) // no file of the arr's own: every file is a link
+	o.exec(`DELETE FROM link WHERE id = 902`) // the seed's file: this test's links are the files
 	if code := o.jsonCall("POST", APIBase+"/titles/2/remove", RemoveRequest{Unlink: true}, o.mc, o.mcsrf, nil); code != 200 {
 		t.Fatalf("remove: %d", code)
 	}

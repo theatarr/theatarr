@@ -105,21 +105,22 @@ func newManageEnv(t *testing.T, mutate func(*policy.Policy)) *manageEnv {
 	return m
 }
 
-// seedManage: The Show's tv-2160p was imported from sonarr_4k_debrid;
+// seedManage: The Show's tv-2160p holds files adopted from sonarr_4k_debrid;
 // S01E01 and S01E02 have files below the cutoff; an RSS read upgrades S01E01.
 // Alpha's movie-remux has a file below the cutoff, and a search after it found an upgrade.
 func (e *manageEnv) seedManage() {
-	e.exec(`INSERT INTO version_source (version_id, instance, arr_id) VALUES (10, 'sonarr_4k_debrid', 77)`)
 	e.exec(`UPDATE episode SET air_date = '2020-01-01'`)
 	airAtMidnight(e.exec)
 	e.exec(`UPDATE episode_version_state SET state = 'filled' WHERE episode_id IN (101, 102)`)
-	e.exec(`INSERT INTO version_file (id, version_id, title_id, instance, arr_file_id, path, size_bytes, quality,
-		custom_format_score, added_at, release_title, release_group, media_info) VALUES
-		(900, 10, 10, 'sonarr_4k_debrid', 1, '/tv/Show/S01E01.mkv', 2000000000, 'WEBDL-1080p', 1700, 1000,
-		 'The.Show.S01E01.1080p.WEB-DL-GRP', 'GRP', '{"resolution":"1920x1080","videoCodec":"x265","audioCodec":"EAC3"}'),
-		(901, 10, 10, 'sonarr_4k_debrid', 2, '/tv/Show/S01E02.mkv', 2000000000, 'WEBDL-1080p', 1700, 1000,
-		 'The.Show.S01E02.1080p.WEB-DL-GRP', 'GRP', '{}')`)
-	e.exec(`INSERT INTO version_file_episode (version_file_id, episode_id) VALUES (900, 101), (901, 102)`)
+	e.exec(`INSERT INTO link (id, path, target, title_id, release_title, quality, score, file_metadata, adopted,
+		adopted_media, created_at, updated_at) VALUES
+		(900, '/tv/Show/S01E01.mkv', '/zurg/Show/S01E01.mkv', 10, 'The.Show.S01E01.1080p.WEB-DL-GRP', 'WEBDL-1080p', 1700,
+		 '{"Score":1700,"ReleaseGroup":"GRP","Size":2000000000}', 1,
+		 '{"resolution":"1920x1080","videoCodec":"x265","audioCodec":"EAC3"}', 1000, 1000),
+		(901, '/tv/Show/S01E02.mkv', '/zurg/Show/S01E02.mkv', 10, 'The.Show.S01E02.1080p.WEB-DL-GRP', 'WEBDL-1080p', 1700,
+		 '{"Score":1700,"ReleaseGroup":"GRP","Size":2000000000}', 1, '{}', 1000, 1000)`)
+	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (900, 10), (901, 10)`)
+	e.exec(`INSERT INTO link_episode (link_id, episode_id) VALUES (900, 101), (901, 102)`)
 	e.exec(`INSERT INTO journal_decision (source, title_id, version_key, target, results, accepted, candidates,
 		created_at) VALUES ('rss', 10, 'tv-2160p', 'rss', 1, 1,
 		'[{"release":"The.Show.S01E01.2160p.WEB-DL-BETTER","indexer":"dmm","accepted":true,"upgrade":true,
@@ -127,9 +128,10 @@ func (e *manageEnv) seedManage() {
 		  "episodes":["S01E01"]}]', 5000)`)
 
 	e.exec(`UPDATE version SET state = 'filled' WHERE id = 1`)
-	e.exec(`INSERT INTO version_file (id, version_id, title_id, instance, arr_file_id, path, size_bytes, quality,
-		custom_format_score, added_at, release_title) VALUES (902, 1, 1, 'radarr_4k_debrid', 3, '/movies/Alpha.mkv',
-		9000000000, 'WEBDL-2160p', 1500, 1000, 'Alpha.2020.2160p.WEB-DL-GRP')`)
+	e.exec(`INSERT INTO link (id, path, target, title_id, release_title, quality, score, file_metadata, adopted,
+		created_at, updated_at) VALUES (902, '/movies/Alpha.mkv', '/zurg/Alpha/Alpha.mkv', 1, 'Alpha.2020.2160p.WEB-DL-GRP',
+		'WEBDL-2160p', 1500, '{"Score":1500,"Size":9000000000}', 1, 1000, 1000)`)
+	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (902, 1)`)
 	e.exec(`INSERT INTO journal_decision (source, title_id, version_key, target, results, accepted, candidates,
 		created_at) VALUES ('acquire:9', 1, 'movie-remux', 'movie', 1, 1,
 		'[{"release":"Alpha.2020.2160p.BluRay.REMUX-BEST","accepted":true,"upgrade":true,"quality":"Remux-2160p",
@@ -221,7 +223,8 @@ func TestUpgradeEvidence(t *testing.T) {
 
 	e.exec(`INSERT INTO content (id, info_hash, name, first_seen_at, last_seen_at) VALUES (77, ?, '', 0, 0)`,
 		strings.Repeat("ab", 20))
-	e.exec(`UPDATE version_file SET content_id = 77 WHERE id = 900`)
+	e.exec(`UPDATE link SET file_metadata = json_set(file_metadata, '$.InfoHash', (SELECT info_hash FROM content WHERE id = 77))
+		WHERE id = 900`)
 	var ep EpisodeDetail
 	e.call("GET", APIBase+"/titles/10/episodes/101", nil, 200, &ep)
 	ev := ep.Versions[0]
@@ -268,7 +271,7 @@ func TestUpgradeEvidence(t *testing.T) {
 		t.Errorf("after a search that found nothing better: %+v", u)
 	}
 	// A file newer than the evidence: the evidence judged the old file.
-	e.exec(`UPDATE version_file SET added_at = 9000 WHERE id = 902`)
+	e.exec(`UPDATE link SET created_at = 9000 WHERE id = 902`)
 	m = TitleDetail{}
 	e.call("GET", APIBase+"/titles/1", nil, 200, &m)
 	if mu := m.Versions[0].Upgrade; mu.State != "below_cutoff" || mu.Next != nil {
@@ -397,7 +400,8 @@ func TestManageNoScoresForUsers(t *testing.T) {
 	e := newManageEnv(t, nil)
 	e.exec(`INSERT INTO content (id, info_hash, name, first_seen_at, last_seen_at) VALUES (77, ?, '', 0, 0)`,
 		strings.Repeat("ab", 20))
-	e.exec(`UPDATE version_file SET content_id = 77 WHERE id = 900`)
+	e.exec(`UPDATE link SET file_metadata = json_set(file_metadata, '$.InfoHash', (SELECT info_hash FROM content WHERE id = 77))
+		WHERE id = 900`)
 	mux := e.userMux()
 	do := func(method, path string, body any) (int, string) {
 		var rd io.Reader

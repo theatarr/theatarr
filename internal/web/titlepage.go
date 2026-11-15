@@ -233,7 +233,7 @@ func (w *Web) enrichTitle(ctx context.Context, d *TitleDetail) error {
 		}
 		size := onDisk(current)
 		// The current file's copies, and for a single current file Cached on too, follow the file's own hash, the one
-		// the Torrent link and "Add to other providers" use (linkHashSQL, fileHashSQL).
+		// the Torrent link and "Add to other providers" use (linkHashSQL).
 		var hashes []string
 		for _, v := range byID {
 			if v.Current != nil && v.Current.InfoHash != "" {
@@ -312,36 +312,20 @@ func liveStates(vs []Version) []versionState {
 	return out
 }
 
-// onDisk is the size on disk of the current files of versions, each real file counted once: links by their target,
-// and an old-manager file whose path is a tracked link's path or target is that link's file. It reads what the
-// title page has already loaded (Version.Links, Version.Files).
+// onDisk is the size on disk of the current files of versions, each real file counted once: links by their target.
+// It reads what the title page has already loaded (Version.Links).
 func onDisk(versions []*Version) int64 {
 	sizes := map[string]int64{}
-	add := func(key string, n int64) { sizes[key] = max(sizes[key], n) }
-	byPath := map[string]string{} // a link's path and its target, each to the target
 	for _, v := range versions {
 		for _, l := range v.Links {
 			if l.State != "active" {
 				continue
 			}
-			byPath[l.Path], byPath[l.Target] = l.Target, l.Target
 			var n int64
 			if l.SizeBytes != nil {
 				n = *l.SizeBytes
 			}
-			add("t:"+l.Target, n)
-		}
-	}
-	for _, v := range versions {
-		for _, f := range v.Files {
-			if v.Source != "" && !f.Current {
-				continue // another instance's file: not the version's current one (curFile)
-			}
-			if t, ok := byPath[f.Path]; ok {
-				add("t:"+t, f.SizeBytes)
-			} else {
-				add("p:"+f.Path, f.SizeBytes)
-			}
+			sizes[l.Target] = max(sizes[l.Target], n)
 		}
 	}
 	var size int64
@@ -358,24 +342,6 @@ func currentOf(v *Version, files VersionFiles) *CurrentFile {
 	}
 	c := &CurrentFile{Quality: files.Quality, Files: files.Files, AddedAt: files.AddedAt, SizeBytes: files.SizeBytes,
 		CutoffMet: v.State == "cutoff_met"}
-	var cur []File
-	for _, f := range v.Files {
-		if f.Current {
-			cur = append(cur, f)
-		}
-	}
-	if len(cur) == 0 && v.Source == "" {
-		cur = v.Files
-	}
-	if len(cur) == 1 && len(v.Links) == 0 {
-		f := cur[0]
-		c.Languages, c.Edition, c.Score, c.ReleaseGroup, c.Path, c.InfoHash, c.Instance = f.Languages, f.Edition,
-			f.CustomFormatScore, f.ReleaseGroup, f.Path, f.InfoHash, f.Instance
-		c.ReleaseTitle = f.ReleaseTitle
-		if c.ReleaseTitle == "" {
-			c.ReleaseTitle = f.SceneName
-		}
-	}
 	var active []Link
 	for _, l := range v.Links {
 		if l.State == "active" {

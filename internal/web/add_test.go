@@ -725,8 +725,9 @@ func TestReleasesShadowNoLive(t *testing.T) {
 	if r.Current == nil || r.Current.Held {
 		t.Errorf("no file: current %+v", r.Current)
 	}
-	e.exec(`INSERT INTO version_file (id, version_id, title_id, instance, arr_file_id, path, size_bytes, quality,
-		custom_format_score) VALUES (900, 1, 1, 'r', 900, '/m/alpha.mkv', 1, 'Remux-2160p', 3100)`)
+	e.exec(`INSERT INTO link (id, path, target, title_id, quality, score, file_metadata, created_at, updated_at)
+		VALUES (900, '/m/alpha.mkv', '/zurg/alpha.mkv', 1, 'Remux-2160p', 3100, '{"Score":3100}', 0, 0)`)
+	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (900, 1)`)
 	r = Releases{}
 	e.call("GET", APIBase+"/titles/1/releases?version=movie-remux", nil, 200, &r)
 	if c := r.Current; c == nil || !c.Held || c.Quality != "Remux-2160p" || c.Score == nil || *c.Score != 3100 {

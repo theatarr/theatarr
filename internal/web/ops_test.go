@@ -523,14 +523,14 @@ func TestUnblock(t *testing.T) {
 	}
 }
 
-// TestRemoveCopiesAndTitle: the removal scope names each copy with its links, downloads and Sonarr's or Radarr's own
-// files; a copy an arr still
-// owns is refused; removing a copy hides and unmonitors it, ends its downloads in hand in Theatarr's records only, and
+// TestRemoveCopiesAndTitle: the removal scope names each copy with its links and downloads; a copy an arr still owns
+// is refused; removing a copy hides and unmonitors it, ends its downloads in hand in Theatarr's records only, and
 // with unlink sends its symlinks to Ops (the gate decides); without unlink nothing on disk changes. Removing every
 // copy removes the title.
 func TestRemoveCopiesAndTitle(t *testing.T) {
 	t.Parallel()
 	o := newOpsEnv(t)
+	o.exec(`DELETE FROM link WHERE id = 902`) // the seed's file: this test's links are the files
 	now := store.Millis(testNow)
 	o.exec(`INSERT INTO link (id, path, target, kind, title_id, state, created_at, updated_at) VALUES
 		(5, '/lib/Beta/a.mkv', '/mnt/zurg/a.mkv', 'symlink', 2, 'active', ?, ?),
@@ -567,9 +567,7 @@ func TestRemoveCopiesAndTitle(t *testing.T) {
 	}
 
 	if code := o.jsonCall("GET", APIBase+"/titles/2/removal", nil, o.mc, "", &scope); code != 200 || !scope.Title ||
-		len(scope.Copies) != 1 || scope.Copies[0].Links != 1 || scope.Copies[0].Downloads != 1 ||
-		scope.Copies[0].ArrFiles != 1 {
-		// ArrFiles: the radarr file at /movies, which stays whatever the choices.
+		len(scope.Copies) != 1 || scope.Copies[0].Links != 1 || scope.Copies[0].Downloads != 1 {
 		t.Fatalf("Beta scope: %d %+v", code, scope)
 	}
 	// Beta's only copy is owned by radarr_4k_web, which the example policy does not import: removable.
@@ -600,11 +598,11 @@ func TestRemoveCopiesAndTitle(t *testing.T) {
 		t.Errorf("actions %+v", acts)
 	}
 	// What became of each library's files: Alpha's web copy had none (no file outcome); Beta's symlink went, its
-	// hardlink and the arr's own file (version_file at /movies) stayed.
+	// hardlink stayed.
 	if rm := journal.ParseRemovalDetail(acts[0].Detail); rm.Files != "" || rm.Left != 0 {
 		t.Errorf("copy removal %q", acts[0].Detail)
 	}
-	if rm := journal.ParseRemovalDetail(acts[1].Detail); rm.Files != journal.RemovalFilesPartial || rm.Left != 2 ||
+	if rm := journal.ParseRemovalDetail(acts[1].Detail); rm.Files != journal.RemovalFilesPartial || rm.Left != 1 ||
 		rm.Reason != "not one of Theatarr's symlinks" {
 		t.Errorf("title removal %q", acts[1].Detail)
 	}

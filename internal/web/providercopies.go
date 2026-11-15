@@ -149,7 +149,7 @@ func (w *Web) queueCopiesWith(rw http.ResponseWriter, r *http.Request, c Copier,
 }
 
 // fileTorrent is the torrent hash and name of a library's file exactly as the file objects show them (the movie's
-// current file on the title page, the episode window's file: linkHashSQL, fileHashSQL), so "Cached on", the Torrent
+// current file on the title page, the episode window's file: linkHashSQL), so "Cached on", the Torrent
 // link and this action always name the same torrent. found is false for an unknown title or version.
 func (w *Web) fileTorrent(ctx context.Context, titleID int64, version string, episodeID int64) (hash string,
 	names []string, found bool, err error) {
@@ -167,7 +167,7 @@ func (w *Web) fileTorrent(ctx context.Context, titleID int64, version string, ep
 		if err != nil || f == nil {
 			return "", nil, true, err
 		}
-		return strings.ToLower(f.InfoHash), []string{f.ReleaseTitle, f.SceneName}, true, nil
+		return strings.ToLower(f.InfoHash), []string{f.ReleaseTitle}, true, nil
 	}
 	d, err := w.getTitle(ctx, titleID)
 	if errors.Is(err, sql.ErrNoRows) || err == nil && d == nil {

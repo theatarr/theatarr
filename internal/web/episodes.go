@@ -3,7 +3,6 @@ package web
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"net/http"
 	"sort"
@@ -77,7 +76,7 @@ type EpisodeCell struct {
 	// CachedOn is the cache codes (rd, ad, tb; cacheCodes) of the providers that hold the episode's link's content
 	// now (providerHolds), for callers who see files.
 	CachedOn []string `json:"cached_on,omitempty"`
-	// InfoHash is the current file's torrent, read as the episode window reads it (linkHashSQL, fileHashSQL), for
+	// InfoHash is the current file's torrent, read as the episode window reads it (linkHashSQL), for
 	// callers who see files.
 	InfoHash string `json:"info_hash,omitempty"`
 	// UpgradeSeen: below cutoff, and a better release than its file has been seen.
@@ -212,7 +211,7 @@ func (w *Web) titleEpisodes(ctx context.Context, id int64, season int, seeFiles 
 	}); err != nil {
 		return nil, err
 	}
-	// The current files that hold each episode: arr files, then active links (which win).
+	// The current files that hold each episode: active links.
 	setFile := func(eid, vid int64, quality string, size, score sql.NullInt64, group, release, path, hash string) {
 		i, ok := idx[eid]
 		key := keyOf[vid]
@@ -230,47 +229,19 @@ func (w *Web) titleEpisodes(ctx context.Context, id int64, season int, seeFiles 
 		}
 		all[i].Versions[key] = c
 	}
-	// The torrent hash as the episode window reads it (episodeFile: linkHashSQL, fileHashSQL), over the title's
-	// versions; only for callers who see files.
-	cte, fileHash, fileJoin, linkHash, linkJoin, args := "", "''", "", "''", " ", []any{id}
+	// The torrent hash as the episode window reads it (episodeFile: linkHashSQL); only for callers who see files.
+	linkHash := "''"
 	if seeFiles {
-		vids := make([]int64, 0, len(keyOf))
-		for vid := range keyOf {
-			vids = append(vids, vid)
-		}
-		versions, err := json.Marshal(vids)
-		if err != nil {
-			return nil, err
-		}
-		cte, fileHash, fileJoin, linkHash, linkJoin = uniqueLinkedTargetHash, fileHashSQL, fileHashJoin, linkHashSQL, linkHashJoin
-		args = []any{string(versions), id}
-	}
-	if err := scanAll(ctx, db, cte+`SELECT fe.episode_id, vf.version_id, vf.quality, vf.size_bytes,
-		vf.custom_format_score, vf.release_group, COALESCE(NULLIF(vf.release_title, ''), vf.scene_name), vf.path,
-		`+fileHash+` FROM version_file vf
-		JOIN version_file_episode fe ON fe.version_file_id = vf.id`+fileJoin+`
-		LEFT JOIN version_source vs ON vs.version_id = vf.version_id
-		WHERE vf.version_id IN (SELECT id FROM version WHERE title_id = ?) AND `+curFile,
-		args, func(r *sql.Rows) error {
-			var eid, vid int64
-			var q, group, release, path, hash string
-			var size, score sql.NullInt64
-			if err := r.Scan(&eid, &vid, &q, &size, &score, &group, &release, &path, &hash); err != nil {
-				return err
-			}
-			setFile(eid, vid, q, size, score, group, release, path, hash)
-			return nil
-		}); err != nil {
-		return nil, err
+		linkHash = linkHashSQL
 	}
 	// Links: the release group their file metadata keeps (decide.ExistingFile), and the providers holding their
 	// content now.
 	linkMeta := `CASE WHEN json_valid(l.file_metadata) THEN json_extract(l.file_metadata, '$.ReleaseGroup') END`
-	if err := scanAll(ctx, db, cte+`SELECT le.episode_id, lv.version_id, COALESCE(l.quality, ''), `+
+	if err := scanAll(ctx, db, `SELECT le.episode_id, lv.version_id, COALESCE(l.quality, ''), `+
 		linkSizeSQL+`, `+linkScoreSQL+`, COALESCE(`+linkMeta+`, ''), COALESCE(l.release_title, ''), l.path, `+linkHash+`
 		FROM link l JOIN link_episode le ON le.link_id = l.id JOIN link_version lv ON lv.link_id = l.id
-		LEFT JOIN content_file cf ON cf.id = l.content_file_id`+linkJoin+`WHERE l.title_id = ? AND l.state = 'active'`,
-		args, func(r *sql.Rows) error {
+		LEFT JOIN content_file cf ON cf.id = l.content_file_id WHERE l.title_id = ? AND l.state = 'active'`,
+		[]any{id}, func(r *sql.Rows) error {
 			var eid, vid int64
 			var q, group, release, path, hash string
 			var size, score sql.NullInt64

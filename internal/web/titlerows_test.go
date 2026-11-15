@@ -41,7 +41,7 @@ func seedHeld(e *manageEnv, id int64, hash string) {
 func TestTitleCachedOnAdoptedLink(t *testing.T) {
 	t.Parallel()
 	e := newManageEnv(t, nil)
-	e.exec(`DELETE FROM version_file WHERE version_id = 1`) // a Theatarr library: links only
+	e.exec(`DELETE FROM link WHERE id IN (SELECT link_id FROM link_version WHERE version_id = 1)`) // the seed's file: this test's link is the file
 	hash := strings.Repeat("ab", 20)
 	seedHeld(e, 1, hash)
 	e.exec(`INSERT INTO link (id, path, target, title_id, quality, file_metadata, adopted_from, adopted_source, state,
@@ -89,7 +89,7 @@ func TestTitleCachedOnAdoptedLink(t *testing.T) {
 func TestTitleCurrentFromLink(t *testing.T) {
 	t.Parallel()
 	e := newManageEnv(t, nil)
-	e.exec(`DELETE FROM version_file WHERE version_id = 1`)
+	e.exec(`DELETE FROM link WHERE id IN (SELECT link_id FROM link_version WHERE version_id = 1)`)
 	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, size_bytes,
 		state, created_at, updated_at) VALUES (1, 1, 1, 'movie-remux', 'aa', 'Alpha.2020.IMAX.2160p.WEB-DL-GRP', 'dmm',
 		1000, 'imported', 0, 0)`)
@@ -240,6 +240,7 @@ func TestEpisodeCellFromLink(t *testing.T) {
 	e := newManageEnv(t, nil)
 	hash := strings.Repeat("cd", 20)
 	seedHeld(e, 1, hash)
+	e.exec(`DELETE FROM link WHERE id = 900`) // the seed's adopted S01E01: this test's link replaced it
 	e.exec(`INSERT INTO link (id, path, target, title_id, release_title, quality, file_metadata, state, created_at,
 		updated_at) VALUES (1, '/tv/Show/S01E01.theatarr.mkv', '/mount/S01E01.mkv', 10, 'Show.S01E01.1080p.WEB-DL-NTb',
 		'WEBDL-1080p', ?, 'active', 0, 0)`, `{"InfoHash":"`+hash+`","ReleaseGroup":"NTb","Size":1000}`)
@@ -595,7 +596,7 @@ func TestNameSortTieBreak(t *testing.T) {
 func TestTitleOnDiskCountsSharedFileOnce(t *testing.T) {
 	t.Parallel()
 	e := newManageEnv(t, nil)
-	e.exec(`DELETE FROM version_file WHERE title_id = 1`)
+	e.exec(`DELETE FROM link WHERE id IN (SELECT link_id FROM link_version WHERE version_id = 1)`)
 	e.exec(`INSERT INTO version (id, title_id, policy_key, state, created_at, updated_at) VALUES (98, 1, 'movie-web', 'filled', 0, 0)`)
 	e.exec(`INSERT INTO link (id, path, target, title_id, quality, file_metadata, state, created_at, updated_at) VALUES
 		(1, '/remux/Alpha.mkv', '/mount/Alpha.mkv', 1, 'Remux-2160p', '{"Size":1000}', 'active', 0, 0),
@@ -613,15 +614,6 @@ func TestTitleOnDiskCountsSharedFileOnce(t *testing.T) {
 				t.Errorf("%s link %d size %v, want 1000", v.Key, l.ID, l.SizeBytes)
 			}
 		}
-	}
-
-	// The same file also listed by the old manager, at the tracked link's path: still one file.
-	e.exec(`INSERT INTO version_file (id, version_id, title_id, instance, arr_file_id, path, size_bytes, quality, added_at)
-		VALUES (950, 1, 1, 'radarr', 9, '/remux/Alpha.mkv', 1000, 'Remux-2160p', 0)`)
-	d = TitleDetail{}
-	e.call("GET", APIBase+"/titles/1", nil, 200, &d)
-	if d.SizeBytes == nil || *d.SizeBytes != 1000 {
-		t.Errorf("legacy file and link: on disk %v, want 1000", d.SizeBytes)
 	}
 
 	// A household account gets neither the size, the links nor the newest file's time.

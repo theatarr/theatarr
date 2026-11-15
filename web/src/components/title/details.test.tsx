@@ -39,7 +39,7 @@ describe("Release dates", () => {
 describe("Technical details", () => {
   it("folds the identifiers in words, links the collection, and leaves out empty files and inventory", async () => {
     mockFetch([{ method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["admin"] } }]);
-    renderPage(<Details d={{ id: 70, kind: "movie", name: "Alien", monitored: true, versions: [], registry: [], release_dates: [{ source: "tmdb-art", country: "", type: "theatrical", date: "1979-05-25" }],
+    renderPage(<Details d={{ id: 70, kind: "movie", name: "Alien", monitored: true, versions: [], release_dates: [{ source: "tmdb-art", country: "", type: "theatrical", date: "1979-05-25" }],
       external_ids: [{ source: "tmdb_collection", id: "8091" }, { source: "wikidata", id: "Q103569" }], collection: { tmdb_id: 8091, name: "Alien Collection" } } as never} />);
     const tech = await screen.findByTestId("technical-details");
     expect(tech.hasAttribute("open")).toBe(false);

@@ -205,26 +205,6 @@ func (s *Service) loadEpisodesWith(ctx context.Context, v *View, es []*entry, re
 	if err := closeRows(rows); err != nil {
 		return nil, err
 	}
-	// The arr's files (version_file_episode) give the file id where no link of ours holds the episode.
-	rows, err = db.QueryContext(ctx, `SELECT fe.episode_id, MIN(vf.id), MAX(vf.size_bytes) FROM version_file_episode fe
-		JOIN version_file vf ON vf.id = fe.version_file_id JOIN version v ON v.id = vf.version_id
-		JOIN title t ON t.id = v.title_id WHERE `+where+` `+selectedEpisodeSQL("fe.episode_id", selected)+` GROUP BY fe.episode_id`, selectedEpisodeArgs(args, selected)...)
-	if err != nil {
-		return nil, err
-	}
-	for rows.Next() {
-		var id, fid, size int64
-		if err := rows.Scan(&id, &fid, &size); err != nil {
-			rows.Close()
-			return nil, err
-		}
-		if x := byID[id]; x != nil {
-			x.hasFile, x.fileID, x.size = true, fid, size
-		}
-	}
-	if err := closeRows(rows); err != nil {
-		return nil, err
-	}
 	rows, err = db.QueryContext(ctx, `SELECT le.episode_id, MIN(l.id), MAX(COALESCE(cf.size_bytes, 0))
 		FROM link_episode le JOIN link l ON l.id = le.link_id JOIN link_version lv ON lv.link_id = l.id
 		JOIN version v ON v.id = lv.version_id JOIN title t ON t.id = v.title_id

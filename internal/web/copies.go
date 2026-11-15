@@ -167,11 +167,6 @@ func heldEpisodes(ctx context.Context, db *sql.DB, versionIDs []any) (map[[2]int
 		held[[2]int64{vid, eid}] = true
 		return nil
 	}
-	if err := scanAll(ctx, db, `SELECT vf.version_id, fe.episode_id FROM version_file vf
-		JOIN version_file_episode fe ON fe.version_file_id = vf.id LEFT JOIN version_source vs ON vs.version_id = vf.version_id
-		WHERE vf.version_id IN (`+in+`) AND `+curFile, versionIDs, add); err != nil {
-		return nil, err
-	}
 	err := scanAll(ctx, db, `SELECT lv.version_id, le.episode_id FROM link l JOIN link_version lv ON lv.link_id = l.id
 		JOIN link_episode le ON le.link_id = l.id WHERE lv.version_id IN (`+in+`) AND l.state = 'active'`, versionIDs, add)
 	return held, err
@@ -505,23 +500,16 @@ func qualityRank(col string) string {
 }
 
 // shownQualityRankSQL is the quality rank (qualityRank) of version v's quality as its list cell shows it
-// (briefFiles): of its current arr files and its active links, grouped by quality apart, the group with the most
-// files; arr files first, then the lower quality name, on a tie. NULL without a file with a quality.
+// (briefFiles): of its active links, grouped by quality, the group with the most files; the lower quality name on a
+// tie. NULL without a file with a quality.
 var shownQualityRankSQL = `(SELECT ` + qualityRank("x.q") + ` FROM (
-		SELECT vf.quality AS q, COUNT(*) AS n, 0 AS src FROM version_file vf
-			LEFT JOIN version_source vs ON vs.version_id = vf.version_id
-			WHERE vf.version_id = v.id AND ` + curFile + ` AND vf.quality <> '' GROUP BY vf.quality
-		UNION ALL
-		SELECT l.quality, COUNT(*), 1 FROM link_version lv JOIN link l ON l.id = lv.link_id
+		SELECT l.quality AS q, COUNT(*) AS n FROM link_version lv JOIN link l ON l.id = lv.link_id
 			WHERE lv.version_id = v.id AND l.state = 'active' AND COALESCE(l.quality, '') <> '' GROUP BY l.quality) x
-	ORDER BY x.n DESC, x.src, x.q LIMIT 1)`
+	ORDER BY x.n DESC, x.q LIMIT 1)`
 
-// episodeHeld is true when episode e is held by version v: a current file or an active link.
-const episodeHeld = `(EXISTS (SELECT 1 FROM version_file_episode fe JOIN version_file vf ON vf.id = fe.version_file_id
-		LEFT JOIN version_source vs ON vs.version_id = vf.version_id
-		WHERE fe.episode_id = e.id AND vf.version_id = v.id AND ` + curFile + `)
-	OR EXISTS (SELECT 1 FROM link_episode le JOIN link_version lv ON lv.link_id = le.link_id
-		JOIN link l ON l.id = le.link_id WHERE le.episode_id = e.id AND lv.version_id = v.id AND l.state = 'active'))`
+// episodeHeld is true when episode e is held by version v: an active link.
+const episodeHeld = `EXISTS (SELECT 1 FROM link_episode le JOIN link_version lv ON lv.link_id = le.link_id
+		JOIN link l ON l.id = le.link_id WHERE le.episode_id = e.id AND lv.version_id = v.id AND l.state = 'active')`
 
 // copySortExpr is the per-title expression of the library views' sorts (TitleGridFilter), and its arguments in text
 // order. key narrows completion, quality and activity to one copy; without it they take the title's best copy (any
@@ -546,8 +534,8 @@ func copySortExpr(sort, key string, clock airClock) (string, []any) {
 				` + aired + ` OR ` + episodeHeld + ` THEN 1 ELSE 0 END), 0) FROM episode e WHERE e.title_id = t.id
 				AND e.season > 0) END) FROM version v WHERE v.title_id = t.id AND ` + liveVersion + versionCond + `)`, args
 	case "quality":
-		// The quality each library's cell shows (briefFiles: the quality most of its current files have, arr files
-		// before links on a tie), the best of the libraries.
+		// The quality each library's cell shows (briefFiles: the quality most of its current files have), the
+		// best of the libraries.
 		if key != "" {
 			args = append(args, key)
 		}

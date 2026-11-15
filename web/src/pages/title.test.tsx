@@ -61,9 +61,7 @@ describe("Title page", () => {
     const links = [{ id: 1, path: "/movies/Juniper Signal (2021)/a.mkv", kind: "symlink", state: "active" }, { id: 2, path: "/movies/Juniper Signal (2021)/b.mkv", kind: "symlink", state: "active" }];
     mockFetch([
       { method: "GET", path: "/auth/me", reply: { ...me, permissions: [...me.permissions, "add"] } },
-      // Sonarr's own files (one listed twice, one at a link's path, which is Theatarr's) stay whatever is chosen.
-      { method: "GET", path: "/titles/70", reply: { ...title, kind: "series", monitored: false, versions: [{ id: 5, key: "tv-2160p", state: "filled", monitored: false, removed: true, links,
-        files: [{ path: "/tv/Juniper/S01E01.mkv" }, { path: "/tv/Juniper/S01E01.mkv" }, { path: "/tv/Juniper/S01E02.mkv" }, { path: links[0].path }] }] } },
+      { method: "GET", path: "/titles/70", reply: { ...title, kind: "series", monitored: false, versions: [{ id: 5, key: "tv-2160p", state: "filled", monitored: false, removed: true, links }] } },
       { method: "GET", path: "/add/options", reply: { kind: "series", anime: false, title_id: 70, in_library: false, router_enabled: true, episodes_known: false, can_search: false, seasons: [], versions: [] } },
       { method: "GET", path: "/titles/70/removal", reply: { title_id: 70, name: "Juniper Signal", title: false, copies: [], leftover: [{ key: "tv-2160p", label: "4K", links: 2, downloads: 0 }] } },
     ]);
@@ -77,7 +75,6 @@ describe("Title page", () => {
     );
     expect((await screen.findByTestId("title-readiness")).textContent).toBe("Not in the library");
     expect((await screen.findByTestId("kept-files")).textContent).toBe("2 files kept from before it was removed: Delete them");
-    expect(screen.getByTestId("kept-arr-files").textContent).toBe("2 files that Sonarr or Radarr manages stay.");
     // Delete them: deleting the files is the point, so only the debrid box is offered, and no library is left to share a file.
     await userEvent.setup().click(screen.getByTestId("leftover-remove-tv-2160p"));
     expect(await screen.findByTestId("remove-debrid")).toBeTruthy();

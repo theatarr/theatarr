@@ -73,16 +73,16 @@ func TestRequestNotifications(t *testing.T) {
 			e.exec(`UPDATE version SET monitored = 0 WHERE id = 10`)
 			e.callAs(ann, "POST", APIBase+"/requests", map[string]any{"title_id": 10, "seasons": []int{1}}, 201, &cr)
 			e.callAs(mgr, "POST", fmt.Sprintf("%s/requests/%d/approve", APIBase, cr.Request.ID), nil, 200, nil)
-			e.exec(`INSERT INTO version_file (id, version_id, title_id, instance, arr_file_id, path)
-				VALUES (999, 10, 10, 'sonarr', 999, '/episodes')`)
-			e.exec(`INSERT INTO version_file_episode (version_file_id, episode_id) VALUES (999, 103)`)
+			e.exec(`INSERT INTO link (id, path, target, title_id, created_at, updated_at) VALUES (999, '/episodes', '/zurg/e', 10, 0, 0)`)
+			e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (999, 10)`)
+			e.exec(`INSERT INTO link_episode (link_id, episode_id) VALUES (999, 103)`)
 			if err := e.web.syncRequests(ctx); err != nil {
 				t.Fatal(err)
 			}
 			if slices.Contains(events, notify.RequestPartial) {
 				t.Fatal("unrequested season notified")
 			}
-			e.exec(`INSERT INTO version_file_episode (version_file_id, episode_id) VALUES (999, 101)`)
+			e.exec(`INSERT INTO link_episode (link_id, episode_id) VALUES (999, 101)`)
 			if err := e.web.syncRequests(ctx); err != nil {
 				t.Fatal(err)
 			}
@@ -95,7 +95,7 @@ func TestRequestNotifications(t *testing.T) {
 			if err := restarted.syncRequests(ctx); err != nil {
 				t.Fatal(err)
 			}
-			e.exec(`INSERT INTO version_file_episode (version_file_id, episode_id) VALUES (999, 102)`)
+			e.exec(`INSERT INTO link_episode (link_id, episode_id) VALUES (999, 102)`)
 			e.exec(`UPDATE episode SET air_date = '2020-01-01' WHERE id IN (101, 102)`)
 			e.exec(`UPDATE episode_version_state SET state = 'filled' WHERE episode_id IN (101, 102)`)
 			e.exec(`UPDATE version SET state = 'filled' WHERE id = 10`)

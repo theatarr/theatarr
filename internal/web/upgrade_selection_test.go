@@ -36,7 +36,7 @@ func TestUpgradeEvidenceDecodesOnlySelectedDecisions(t *testing.T) {
 		t.Fatalf("selected evidence: %+v", u)
 	}
 	// LastSearch is independent of the file-time floor, even when no blob needs decoding.
-	e.exec(`UPDATE version_file SET added_at = 9000 WHERE version_id = 1`)
+	e.exec(`UPDATE link SET created_at = 9000 WHERE id = 902`)
 	s, err = e.web.loadUpgrades(context.Background(), e.st.Reader(), vs, false)
 	if err != nil {
 		t.Fatal(err)

@@ -133,8 +133,11 @@ func TestRuddarrRadarrContract(t *testing.T) {
 	if code := c.do("DELETE", "/moviefile/"+strconv.Itoa(LinkFileBase+7), nil, nil, nil); code != 409 {
 		t.Errorf("moviefile delete with the library gate closed: %d", code)
 	}
-	c.must("DELETE", "/movie/"+strconv.Itoa(IDBase+2), url.Values{"deleteFiles": {"true"},
-		"addImportExclusion": {"false"}}, nil, 200, nil) // L77-86
+	// L77-86: Beta's file is a link and the library gate is closed: 409, nothing removed.
+	if code := c.do("DELETE", "/movie/"+strconv.Itoa(IDBase+2), url.Values{"deleteFiles": {"true"},
+		"addImportExclusion": {"false"}}, nil, nil); code != 409 {
+		t.Errorf("movie delete with files and the gate closed: %d", code)
+	}
 }
 
 func TestRuddarrSonarrContract(t *testing.T) {
@@ -156,7 +159,7 @@ func TestRuddarrSonarrContract(t *testing.T) {
 		has(t, "episode", ep, `id seriesId episodeFileId tvdbId seasonNumber episodeNumber hasFile monitored
 			unverifiedSceneNumbering`)
 	}
-	if f, _ := eps[1].(map[string]any)["episodeFile"].(map[string]any); f == nil || f["id"].(float64) != 3 {
+	if f, _ := eps[1].(map[string]any)["episodeFile"].(map[string]any); f == nil || f["id"].(float64) != LinkFileBase+3 {
 		t.Errorf("episode file of S01E01: %v", eps[1])
 	}
 	var rels []any
@@ -192,10 +195,10 @@ func TestRuddarrSonarrContract(t *testing.T) {
 		c.must("POST", "/command", nil, b, 201, nil)
 	}
 	// File deletes go through the library gate (closed here): 409, nothing removed.
-	if code := c.do("DELETE", "/episodefile/3", nil, nil, nil); code != 409 {
+	if code := c.do("DELETE", "/episodefile/"+strconv.Itoa(LinkFileBase+3), nil, nil, nil); code != 409 {
 		t.Errorf("episodefile delete: %d", code)
 	}
-	if code := c.do("DELETE", "/episodefile/bulk", nil, map[string]any{"episodeFileIds": []int{3}}, nil); code != 409 {
+	if code := c.do("DELETE", "/episodefile/bulk", nil, map[string]any{"episodeFileIds": []int{LinkFileBase + 3}}, nil); code != 409 {
 		t.Errorf("episodefile bulk: %d", code)
 	}
 	c.must("DELETE", "/series/"+sid, url.Values{"deleteFiles": {"false"}, "addImportListExclusion": {"false"}}, nil,
@@ -375,8 +378,8 @@ func TestDecypharrRepairContract(t *testing.T) {
 		Size    int64  `json:"size"`
 		MovieID int    `json:"movieId"`
 	}
-	c.must("GET", "/moviefile/1", nil, nil, 200, &mf)
-	if code := c.do("DELETE", "/moviefile/1", nil, nil, nil); code < 300 {
+	c.must("GET", "/moviefile/"+strconv.Itoa(LinkFileBase+1), nil, nil, 200, &mf)
+	if code := c.do("DELETE", "/moviefile/"+strconv.Itoa(LinkFileBase+1), nil, nil, nil); code < 300 {
 		t.Errorf("moviefile delete %d with the gate closed", code)
 	}
 	// Interactive re-acquire (release.go L28-100): GET release, POST the element verbatim.

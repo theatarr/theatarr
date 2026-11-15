@@ -157,6 +157,8 @@ func TestSettingsVersionImportRequiresExactConfirmation(t *testing.T) {
 		t.Fatal(err)
 	}
 	se := newSettingsEnvBase(t, nil, func(p *policy.Policy) { p.Library.Dangling.Roots = []string{area} }, nil)
+	// The fixture's movie-web link would stay at the old root: this test moves an empty library.
+	se.exec(`DELETE FROM link WHERE id = 902`)
 	p, err := se.coord.Current().Policy.Clone()
 	if err != nil {
 		t.Fatal(err)
@@ -382,6 +384,7 @@ func TestSettingsVersionLiveFillsStoredNilRoots(t *testing.T) {
 	t.Parallel()
 	area := t.TempDir()
 	se := newSettingsEnvBase(t, nil, func(p *policy.Policy) { p.Library.Dangling.Roots = []string{area} }, nil)
+	se.exec(`DELETE FROM link WHERE id = 901`) // the fixture's movie-remux link would stay at the old root
 	folder := filepath.Join(area, "remux")
 	if err := os.Mkdir(folder, 0o700); err != nil {
 		t.Fatal(err)

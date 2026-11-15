@@ -150,16 +150,16 @@ func (e *env) seed() {
 	e.exec(`INSERT INTO version (id, title_id, policy_key, state, created_at, updated_at) VALUES
 		(1, 1, 'movie-remux', 'cutoff_met', ?, ?), (2, 1, 'movie-web', 'wanted', ?, ?), (3, 2, 'movie-web', 'filled', ?, ?)`,
 		now, now, now, now, now, now)
-	e.exec(`INSERT INTO version_source (version_id, instance, arr_id) VALUES (1, 'radarr_4k_debrid', 11)`)
 	e.exec(`INSERT INTO content (id, info_hash, name, state, first_seen_at, last_seen_at) VALUES
 		(1, ?, 'Alpha.2020.2160p.REMUX', 'unknown', ?, ?)`, hashA, now, now)
-	e.exec(`INSERT INTO content_version (content_id, version_id, release_title, source, grabbed_at, imported_at) VALUES
-		(1, 1, 'Alpha.2020.2160p.BluRay.REMUX-GRP', 'arr_history', ?, ?)`, now-1000, now)
-	e.exec(`INSERT INTO version_file (version_id, title_id, instance, arr_file_id, path, size_bytes, quality,
-		languages, custom_format_score, release_title, content_id) VALUES
-		(1, 1, 'radarr_4k_debrid', 501, '/movies/Alpha (2020)/Alpha.mkv', 50000000000, 'Remux-2160p', '["English"]', 3200,
-		'Alpha.2020.2160p.BluRay.REMUX-GRP', 1),
-		(3, 2, 'radarr_4k_web', 502, '/movies/Beta (2021)/Beta.mkv', 9000000000, 'WEBDL-2160p', '[]', 1500, NULL, NULL)`)
+	e.exec(`INSERT INTO content_file (id, content_id, path, size_bytes) VALUES (1, 1, 'Alpha.mkv', 50000000000)`)
+	e.exec(`INSERT INTO link (id, path, target, content_file_id, title_id, release_title, quality, score, file_metadata,
+		created_at, updated_at) VALUES
+		(901, '/movies/Alpha (2020)/Alpha.mkv', '/mnt/zurg/Alpha.2020/Alpha.mkv', 1, 1, 'Alpha.2020.2160p.BluRay.REMUX-GRP',
+		'Remux-2160p', 3200, '{"Score":3200,"Languages":["English"]}', ?, ?),
+		(902, '/movies/Beta (2021)/Beta.mkv', '/mnt/zurg/Beta.2021/Beta.mkv', NULL, 2, NULL, 'WEBDL-2160p', 1500,
+		'{"Score":1500,"Size":9000000000}', ?, ?)`, now, now, now, now)
+	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (901, 1), (902, 3)`)
 	e.exec(`INSERT INTO job (kind, state, run_at, created_at, updated_at) VALUES ('db.nightly', 'queued', ?, ?, ?),
 		('db.nightly', 'failed', ?, ?, ?)`, now+3600000, now, now, now, now, now)
 	e.exec(`UPDATE job SET last_error = 'disk full' WHERE state = 'failed'`)
@@ -469,12 +469,8 @@ func TestAPITitles(t *testing.T) {
 	if code := e.getKey(APIBase+"/titles/1", key, &d); code != 200 {
 		t.Fatalf("title 1: %d", code)
 	}
-	if len(d.Versions) != 2 || len(d.Versions[0].Files) != 1 || !d.Versions[0].Files[0].Current ||
-		d.Versions[0].Files[0].InfoHash != hashA || d.Versions[0].Source != "radarr_4k_debrid" {
+	if len(d.Versions) != 2 || len(d.Versions[0].Links) != 1 || d.Versions[0].Links[0].InfoHash != hashA {
 		t.Errorf("title versions: %+v", d.Versions)
-	}
-	if len(d.Registry) != 1 || d.Registry[0].ReleaseTitle != "Alpha.2020.2160p.BluRay.REMUX-GRP" {
-		t.Errorf("title registry: %+v", d.Registry)
 	}
 	if code := e.getKey(APIBase+"/titles/99", key, nil); code != 404 {
 		t.Errorf("missing title: %d", code)
@@ -503,7 +499,7 @@ func TestAPIOther(t *testing.T) {
 	if code := e.getKey(APIBase+"/registry/"+strings.ToUpper(hashA), key, &c); code != 200 {
 		t.Fatalf("registry: %d", code)
 	}
-	if len(c.Versions) != 1 || c.Versions[0].TitleName != "Alpha" || len(c.ArrFiles) != 1 {
+	if len(c.Links) != 1 || c.Links[0].TitleID != 1 {
 		t.Errorf("content: %+v", c)
 	}
 	if code := e.getKey(APIBase+"/registry/xyz", key, nil); code != 400 {

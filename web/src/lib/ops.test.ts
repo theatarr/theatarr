@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   endedByRemoval,
   failedDownloadId,
-  arrFilesStay,
   leftoverOnly,
   grabScope,
   leftoverLinks,
@@ -108,16 +107,6 @@ describe("recovery scopes", () => {
     expect(filesOnly.does).not.toContain(both.does.at(-1));
     expect(filesOnly.keeps).toContain("Its debrid torrents stay");
     expect(filesOnly.cleanup).toBeDefined();
-    // Sonarr's or Radarr's own files stay whatever the choices: one line under what stays.
-    const arr = { ...one, copies: [{ ...one.copies[0], arr_files: 24 }] };
-    expect(removalScope(arr, true).keeps).toEqual([
-      "A file another library of the title uses stays",
-      "24 files that Sonarr or Radarr manages stay",
-      "Its history stays",
-      "Import lists will not restore the removed libraries; add it yourself to bring it back",
-    ]);
-    expect(removalScope(arr, false).keeps).toContain("24 files that Sonarr or Radarr manages stay");
-    expect(arrFilesStay(1)).toBe("1 file that Sonarr or Radarr manages stays");
   });
 
   it("scopes a title removal", () => {

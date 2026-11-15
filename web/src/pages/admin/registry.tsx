@@ -14,8 +14,7 @@ import { TitleLinks, UsageBadge, UsageDetail } from "@/components/torrent-usage"
 import { otherProvidersLine } from "@/lib/provider-copies";
 import { globalDownloadsOff } from "@/lib/version-grab";
 import { Pager } from "@/components/ui/pager";
-import { TitleThumb } from "@/components/poster-card";
-import { Empty, ErrorState, KV, Loading, Mono, PageHeader, Section, VersionTag } from "@/components/page";
+import { Empty, ErrorState, KV, Loading, Mono, PageHeader, Section } from "@/components/page";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -181,20 +180,6 @@ export function RegistryContent() {
           ) : <p className="text-muted-foreground">{noUsageWords(c.state === "present" || (c.providers ?? []).some((p) => p.state !== "absent"))}</p>}
         </Card>
       </Section>
-      {/* Theatarr's own imports recorded with this content; most library links are counted under Used instead. */}
-      {(c.versions ?? []).length > 0 ? (
-        <Section title="Imports">
-          <Card className="p-0"><Table><TableHeader><TableRow><TableHead>Title</TableHead><TableHead>Library</TableHead><TableHead className="hidden md:table-cell">Release</TableHead><TableHead className="hidden sm:table-cell">Imported</TableHead></TableRow></TableHeader>
-            <TableBody>{(c.versions ?? []).map((v, i) => (
-              <TableRow key={i}>
-                <TableCell><span className="flex items-center gap-3"><TitleThumb id={v.title_id} /><span><a className="hover:text-primary" href={`/title/${v.title_id}`}>{v.title_name}</a><div className="text-xs text-muted-foreground">{v.source}</div></span></span></TableCell>
-                <TableCell><VersionTag k={v.version_key ?? "?"} /></TableCell>
-                <TableCell className="hidden max-w-[26rem] break-words text-[13px] md:table-cell">{v.release_title}</TableCell>
-                <TableCell className="hidden whitespace-nowrap sm:table-cell">{v.failed_at ? <Badge tone="negative">failed {fmtTime(v.failed_at)}</Badge> : fmtTime(v.imported_at ?? v.grabbed_at)}</TableCell>
-              </TableRow>))}
-            </TableBody></Table></Card>
-        </Section>
-      ) : null}
       <Section title="Providers">
         {(c.providers ?? []).length === 0 ? <Card><Empty>No provider lists it.</Empty></Card> : (
           <Card className="p-0"><Table>
@@ -210,13 +195,6 @@ export function RegistryContent() {
         )}
         <InventoryCopies hash={c.info_hash ?? hash} providers={c.providers ?? []} />
       </Section>
-      {(c.arr_files ?? []).length > 0 ? (
-        <Section title="Arr files">
-          <Card className="p-0"><Table><TableBody>{(c.arr_files ?? []).map((f, i) => (
-            <TableRow key={i}><TableCell><Mono>{f.instance}</Mono></TableCell><TableCell><VersionTag k={f.version_key ?? "?"} /></TableCell><TableCell className="break-all text-[13px]">{f.path}</TableCell><TableCell className="hidden sm:table-cell">{f.quality}</TableCell></TableRow>
-          ))}</TableBody></Table></Card>
-        </Section>
-      ) : null}
       <Section title="Files">
         {(c.files ?? []).length === 0 ? <Card><Empty>No files recorded.</Empty></Card> : (
           <Card className="p-0"><Table><TableBody>{(c.files ?? []).map((f, i) => (

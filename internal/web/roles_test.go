@@ -197,7 +197,7 @@ func TestUserSeesAvailabilityOnly(t *testing.T) {
 	akey := e.apiKey()
 	// Values only file detail carries.
 	markers := []string{hashA, hashB, "/movies/", "/anime/", "REMUX-GRP", "Secret", "SECRETGRP", "SubsPlease",
-		"radarr_4k_debrid", "sonarr_anime_debrid", "secretindexer", "50000000000", "Alpha.Old"}
+		"secretindexer", "50000000000", "Alpha.Old"}
 	keys := []string{"size_bytes", "providers", "provider", "info_hash", "path", "release_title", "release_group",
 		"score", "instance", "indexer", "arr_records", "links", "registry", "hash"}
 	var paths []string
@@ -283,7 +283,7 @@ func TestUserSeesAvailabilityOnly(t *testing.T) {
 			t.Errorf("GET %s as user: %d, want 403", path, code)
 		}
 	}
-	for _, m := range []string{hashA, "/movies/", "REMUX-GRP", "SECRETGRP", "radarr_4k_debrid", "50000000000"} {
+	for _, m := range []string{hashA, "/movies/", "REMUX-GRP", "SECRETGRP", "50000000000"} {
 		if !adminSaw[m] {
 			t.Errorf("no admin answer shows %q: the fixture does not reach it", m)
 		}

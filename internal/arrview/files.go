@@ -19,8 +19,7 @@ import (
 	"github.com/theatarr/theatarr/internal/store"
 )
 
-// LinkFileBase starts the file ids of our own library links: a movie or episode file id is a version_file id (a
-// file the replaced arr held, as imported) below it, or LinkFileBase + link id.
+// LinkFileBase starts the file ids of our own library links: a movie or episode file id is LinkFileBase + link id.
 const LinkFileBase = 1_000_000_000
 
 // Library is the part of internal/library the views write through: unlinking a file (DELETE moviefile and
@@ -42,84 +41,20 @@ type Library interface {
 	Stat(ctx context.Context, path string) (os.FileInfo, error)
 }
 
-// fileRow is one file of a view's version: an imported arr file or one of our links.
+// fileRow is one file of a view's version: one of our links.
 type fileRow struct {
 	id        int64 // the view's file id
 	titleID   int64
 	versionID int64
 	version   string
-	linkID    int64 // 0 for an arr file
+	linkID    int64
 	adopted   bool
 	f         *vfile
 	episodes  []int64
 }
 
-// viewFiles reads the files of the view's versions (all, or of the titles listed): the imported arr files
-// (version_file) and our active links.
+// viewFiles reads the files of the view's versions (all, or of the titles listed): our active links.
 func (s *Service) viewFiles(ctx context.Context, v *View, titleIDs []int64) ([]*fileRow, error) {
-	where, args := scope(v, titleIDs)
-	db := s.st.Reader()
-	var out []*fileRow
-	rows, err := db.QueryContext(ctx, `SELECT vf.id, vf.version_id, v.policy_key, vf.title_id, vf.instance, vf.path,
-		vf.relative_path, vf.size_bytes, vf.quality, vf.quality_revision, vf.release_group, vf.scene_name, vf.edition,
-		vf.languages, vf.media_info, vf.custom_format_score, vf.indexer_flags, vf.original_file_path,
-		vf.cutoff_not_met, vf.added_at FROM version_file vf JOIN version v ON v.id = vf.version_id
-		JOIN title t ON t.id = v.title_id WHERE `+where+` ORDER BY vf.id`, args...)
-	if err != nil {
-		return nil, err
-	}
-	byVF := map[int64]*fileRow{}
-	for rows.Next() {
-		f := &vfile{}
-		x := &fileRow{f: f}
-		var langs, mi string
-		if err := rows.Scan(&f.id, &x.versionID, &x.version, &x.titleID, &f.instance, &f.path, &f.relPath, &f.size,
-			&f.quality, &f.revision, &f.group, &f.scene, &f.edition, &langs, &mi, &f.cfScore, &f.flags, &f.origPath,
-			&f.cutoffNotMet, &f.added); err != nil {
-			rows.Close()
-			return nil, err
-		}
-		_ = json.Unmarshal([]byte(langs), &f.languages)
-		if mi != "" && mi != "{}" && json.Valid([]byte(mi)) {
-			f.mediaInfo = json.RawMessage(mi)
-		}
-		x.id = f.id
-		byVF[f.id] = x
-		out = append(out, x)
-	}
-	if err := closeRows(rows); err != nil {
-		return nil, err
-	}
-	if v.Flavour == Sonarr && len(byVF) > 0 {
-		rows, err = db.QueryContext(ctx, `SELECT fe.version_file_id, fe.episode_id FROM version_file_episode fe
-			JOIN version_file vf ON vf.id = fe.version_file_id JOIN version v ON v.id = vf.version_id
-			JOIN title t ON t.id = v.title_id WHERE `+where+` ORDER BY fe.episode_id`, args...)
-		if err != nil {
-			return nil, err
-		}
-		for rows.Next() {
-			var fid, eid int64
-			if err := rows.Scan(&fid, &eid); err != nil {
-				rows.Close()
-				return nil, err
-			}
-			if x := byVF[fid]; x != nil {
-				x.episodes = append(x.episodes, eid)
-			}
-		}
-		if err := closeRows(rows); err != nil {
-			return nil, err
-		}
-	}
-	links, err := s.linkFiles(ctx, v, titleIDs)
-	if err != nil {
-		return nil, err
-	}
-	return append(out, links...), nil
-}
-
-// linkFiles reads the active links of the view's versions as files.
-func (s *Service) linkFiles(ctx context.Context, v *View, titleIDs []int64) ([]*fileRow, error) {
 	where, args := scope(v, titleIDs)
 	db := s.st.Reader()
 	rows, err := db.QueryContext(ctx, `SELECT l.id, lv.version_id, v.policy_key, l.title_id, l.path,
@@ -426,7 +361,7 @@ func (s *Service) episodeFiles(w http.ResponseWriter, r *request) {
 // the view's version, as unlinking only (docs/design/arrview.md): the library link is moved to the trash through the library's
 // gate, and what it points at is never touched. While the gate refuses (library disabled, version in shadow), nothing
 // changes and the answer is 409 with the reason, so a client does not go on as if the file were gone. Applied, our
-// records follow: the link row is unlinked, an arr file row is dropped, and the version or its episodes are wanted
+// records follow: the link row is unlinked, and the version or its episodes are wanted
 // again only when no other file remains. 200 with no body ({} for bulk).
 func (s *Service) deleteFiles(w http.ResponseWriter, r *request) {
 	ctx := r.Context()
@@ -525,22 +460,15 @@ func (s *Service) deleteFiles(w http.ResponseWriter, r *request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-// fileGone updates our records once a file was unlinked: an arr file row is dropped; the movie version, or the
-// episodes of a series version the file held, are wanted again only when no other file remains.
+// fileGone updates our records once a file was unlinked: the movie version, or the episodes of a series version the
+// file held, are wanted again only when no other file remains.
 func (s *Service) fileGone(ctx context.Context, x *fileRow) error {
 	now := store.Millis(s.now())
 	return s.st.WriteTx(ctx, func(tx *sqlTx) error {
-		if x.linkID == 0 {
-			if _, err := tx.ExecContext(ctx, `DELETE FROM version_file WHERE id = ?`, x.f.id); err != nil {
-				return err
-			}
-		}
 		if len(x.episodes) == 0 {
 			_, err := tx.ExecContext(ctx, `UPDATE version SET state = 'wanted', updated_at = ? WHERE id = ?
 				AND NOT EXISTS (SELECT 1 FROM link l JOIN link_version lv ON lv.link_id = l.id
-					WHERE lv.version_id = ? AND l.state = 'active')
-				AND NOT EXISTS (SELECT 1 FROM version_file WHERE version_id = ?)`, now, x.versionID, x.versionID,
-				x.versionID)
+					WHERE lv.version_id = ? AND l.state = 'active')`, now, x.versionID, x.versionID)
 			return err
 		}
 		for _, e := range x.episodes {
@@ -548,9 +476,7 @@ func (s *Service) fileGone(ctx context.Context, x *fileRow) error {
 				updated_at = ? WHERE version_id = ? AND episode_id = ?
 				AND NOT EXISTS (SELECT 1 FROM link l JOIN link_version lv ON lv.link_id = l.id
 					JOIN link_episode le ON le.link_id = l.id
-					WHERE lv.version_id = ? AND le.episode_id = ? AND l.state = 'active')
-				AND NOT EXISTS (SELECT 1 FROM version_file vf JOIN version_file_episode fe ON fe.version_file_id = vf.id
-					WHERE vf.version_id = ? AND fe.episode_id = ?)`, now, x.versionID, e, x.versionID, e,
+					WHERE lv.version_id = ? AND le.episode_id = ? AND l.state = 'active')`, now, x.versionID, e,
 				x.versionID, e); err != nil {
 				return err
 			}

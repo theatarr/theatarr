@@ -61,7 +61,7 @@ it("shows a hash's usage with five references and how many more, the providers w
         { provider: "tb", torrent_id: "77", folder_name: "[SoM] Dragon Ball Z", seen_at: "2026-11-01T00:00:00Z", state: "present" },
         { provider: "ad", torrent_id: "848864501", folder_name: "[SoM] Dragon Ball Z", seen_at: "2026-10-01T00:00:00Z", state: "absent", absent_at: "2026-10-26T00:00:00Z" },
       ],
-      files: [], versions: [], arr_files: [], links: [],
+      files: [], links: [],
       usage: { usage: "used", linked_files: 291, refs: { link: 291 }, ref_list: refs, titles: [{ id: 7, name: "Dragon Ball Z" }] },
     } },
   ]);
@@ -76,7 +76,6 @@ it("shows a hash's usage with five references and how many more, the providers w
   expect(rows[0].textContent).toContain("TB");
   expect(rows[0].querySelector("[data-testid=provider-gone]")).toBeNull();
   expect(rows[1].querySelector("[data-testid=provider-gone]")?.textContent).toMatch(/^gone since /);
-  expect(screen.queryByRole("heading", { name: "Arr files" })).toBeNull();
   expect(screen.queryByText("No library points at this content.")).toBeNull();
   expect(screen.getByTestId("add-to-providers")).toBeTruthy();
   // The hash's copies are read when the entry opens.
@@ -85,7 +84,7 @@ it("shows a hash's usage with five references and how many more, the providers w
 
 it("reads the entry again when a copy finishes as added, so Providers lists the new holder", async () => {
   const hash = "f".repeat(40);
-  const entry = (providers: object[]) => ({ info_hash: hash, name: "Copied", state: "present", providers, files: [], versions: [], arr_files: [], links: [],
+  const entry = (providers: object[]) => ({ info_hash: hash, name: "Copied", state: "present", providers, files: [], links: [],
     usage: { usage: "unused", linked_files: 0 } });
   const tb = { provider: "tb", torrent_id: "77", folder_name: "Copied", seen_at: "2026-11-01T00:00:00Z", state: "present" };
   const rd = { provider: "rd", torrent_id: "R1", folder_name: "Copied", seen_at: "2026-11-13T12:00:00Z", state: "present" };
@@ -111,7 +110,7 @@ it("says a hash no account holds has no usage worked out, not unused", async () 
   mockFetch([
     { method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["admin", "see_files"] } },
     { method: "GET", path: "/status", reply: { versions: [] } },
-    { method: "GET", path: `/registry/${hash}`, reply: { info_hash: hash, name: "Gone", state: "gone", providers: [], files: [], versions: [], arr_files: [], links: [] } },
+    { method: "GET", path: `/registry/${hash}`, reply: { info_hash: hash, name: "Gone", state: "gone", providers: [], files: [], links: [] } },
   ]);
   renderPage(<Routes><Route path="/admin/torrents/inventory/:hash" element={<RegistryContent />} /></Routes>, `/admin/torrents/inventory/${hash}`);
   expect((await screen.findByTestId("inventory-usage")).textContent).toBe("No account holds it in the record, so its usage is not worked out.");
@@ -126,7 +125,7 @@ it("says a held hash without usage is not in the last read yet, not that no acco
     { method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["admin", "see_files"] } },
     { method: "GET", path: "/status", reply: { versions: [] } },
     { method: "GET", path: "/torrents/copies", reply: { copies: [] } },
-    { method: "GET", path: `/registry/${hash}`, reply: { info_hash: hash, name: "Fresh", state: "present", files: [], versions: [], arr_files: [], links: [],
+    { method: "GET", path: `/registry/${hash}`, reply: { info_hash: hash, name: "Fresh", state: "present", files: [], links: [],
       providers: [{ provider: "rd", torrent_id: "R9", folder_name: "Fresh", seen_at: "2026-11-14T00:00:00Z", state: "present" }] } },
   ]);
   renderPage(<Routes><Route path="/admin/torrents/inventory/:hash" element={<RegistryContent />} /></Routes>, `/admin/torrents/inventory/${hash}`);

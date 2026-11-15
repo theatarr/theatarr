@@ -24,7 +24,7 @@ func wantProbeMedia(t *testing.T, m *MediaInfo) {
 func TestTitleMediaFromProbe(t *testing.T) {
 	t.Parallel()
 	e := newManageEnv(t, nil)
-	e.exec(`DELETE FROM version_file WHERE version_id = 1`) // a Theatarr library: links only
+	e.exec(`DELETE FROM link WHERE id IN (SELECT link_id FROM link_version WHERE version_id = 1)`) // the seed's file: this test's link is the file
 	e.exec(`INSERT INTO content (id, info_hash, name, state, first_seen_at, last_seen_at) VALUES (1, 'aa', 'Alpha', 'present', 0, 0)`)
 	e.exec(`INSERT INTO content_file (id, content_id, path, size_bytes, probe) VALUES (1, 1, 'Alpha.mkv', 1000, ?)`, mediaProbe)
 	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, size_bytes,
@@ -45,7 +45,7 @@ func TestTitleMediaFromProbe(t *testing.T) {
 func TestTitleMediaFromAdoptedLink(t *testing.T) {
 	t.Parallel()
 	e := newManageEnv(t, nil)
-	e.exec(`DELETE FROM version_file WHERE version_id = 1`) // a Theatarr library: links only
+	e.exec(`DELETE FROM link WHERE id IN (SELECT link_id FROM link_version WHERE version_id = 1)`) // the seed's file: this test's link is the file
 	e.exec(`INSERT INTO link (id, path, target, title_id, release_title, adopted_from, adopted_media, state, created_at,
 		updated_at) VALUES (1, '/theatarr/Alpha (2020)/Alpha.mkv', '/mount/Alpha.mkv', 1, 'Alpha.2020.2160p.WEB-DL-GRP',
 		'radarr /movies/Alpha.mkv', '{"resolution":"3840x2160","videoCodec":"x265","videoDynamicRangeType":"DV HDR10",
@@ -68,6 +68,7 @@ func TestEpisodeMediaFromProbe(t *testing.T) {
 	e.exec(`INSERT INTO content_file (id, content_id, path, size_bytes, probe) VALUES (1, 1, 'S01E01.mkv', 1000, ?)`, mediaProbe)
 	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, size_bytes,
 		state, created_at, updated_at) VALUES (1, 10, 10, 'tv-2160p', 'aa', 'The.Show.S01E01.2160p.WEB-DL-GRP', 'dmm', 1000, 'imported', 0, 0)`)
+	e.exec(`DELETE FROM link WHERE id IN (900)`) // the seed's adopted files: this test's links replaced them
 	e.exec(`INSERT INTO link (id, path, target, content_file_id, title_id, download_id, release_title, state, created_at,
 		updated_at) VALUES (1, '/tv/Show/S01E01.theatarr.mkv', '/mount/S01E01.mkv', 1, 10, 1,
 		'The.Show.S01E01.2160p.WEB-DL-GRP', 'active', 0, 0)`)

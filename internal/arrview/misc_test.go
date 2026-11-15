@@ -33,7 +33,7 @@ func TestCalendarCutoffTagsIndexers(t *testing.T) {
 	e.call("GET", "/sonarr/api/v3/calendar?start=2019-01-01&end=2019-01-31&includeSeries=true&includeEpisodeFile=true",
 		nil, 200, &eps)
 	if len(eps) != 2 || eps[0]["series"].(map[string]any)["title"] != "The Show" ||
-		eps[0]["episodeFile"].(map[string]any)["id"].(float64) != 3 || eps[1]["episodeFile"] != nil {
+		eps[0]["episodeFile"].(map[string]any)["id"].(float64) != LinkFileBase+3 || eps[1]["episodeFile"] != nil {
 		t.Fatalf("sonarr calendar %v", eps)
 	}
 	wantKeys(t, "calendar episode", eps[1], fields(`id seriesId tvdbId episodeFileId seasonNumber episodeNumber title

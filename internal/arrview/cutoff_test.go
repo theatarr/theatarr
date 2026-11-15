@@ -34,13 +34,12 @@ func newCutoffEnv(t *testing.T, mode policy.CutoffMode) *devEnv {
 		(5, 4, 'movie-web', 1, 'filled', ?, ?)`, now, now)
 	e.exec(`INSERT INTO title_release_date (title_id, source, country, type, date) VALUES
 		(4, 'radarr_4k_web', '', 'digital', '2022-03-01'), (2, 'radarr_4k_web', '', 'digital', '2021-03-01')`)
-	e.exec(`INSERT INTO version_file (id, version_id, title_id, instance, arr_file_id, path, relative_path, quality,
-		scene_name, languages, added_at) VALUES
-		(4, 5, 4, 'radarr_4k_web', 504, '/m/Delta (2022)/Delta.mkv', 'Delta.mkv', 'WEBDL-1080p',
-		 'Delta.2022.1080p.WEB-DL-GRP', '[]', ?),
-		(5, 10, 10, 'sonarr_4k_debrid', 902, '/s/The Show - S01E02.mkv', 'The Show - S01E02.mkv', 'WEBDL-1080p',
-		 'The.Show.S01E02.1080p.WEB-DL-GRP', '[]', ?)`, now, now)
-	e.exec(`INSERT INTO version_file_episode (version_file_id, episode_id) VALUES (5, 102)`)
+	e.exec(`INSERT INTO link (id, path, target, title_id, release_title, quality, adopted, created_at, updated_at) VALUES
+		(4, '/m/Delta (2022)/Delta.mkv', '/z/Delta.mkv', 4, 'Delta.2022.1080p.WEB-DL-GRP', 'WEBDL-1080p', 1, ?, ?),
+		(5, '/s/The Show - S01E02.mkv', '/z/e2.mkv', 10, 'The.Show.S01E02.1080p.WEB-DL-GRP', 'WEBDL-1080p', 1, ?, ?)`,
+		now, now, now, now)
+	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (4, 5), (5, 10)`)
+	e.exec(`INSERT INTO link_episode (link_id, episode_id) VALUES (5, 102)`)
 	e.exec(`UPDATE episode_version_state SET state = 'filled' WHERE version_id = 10 AND episode_id IN (101, 102)`)
 	return e
 }

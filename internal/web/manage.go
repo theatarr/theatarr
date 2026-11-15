@@ -295,7 +295,7 @@ func (w *Web) enrichManage(ctx context.Context, db *sql.DB, d *TitleDetail) erro
 		v.Control = w.control(v.Key)
 		v.Control.NextSearchAt, v.Control.NextSearchWhy = nextSearchOf(ns, v.Key, -1)
 		if c := v.Current; c != nil && c.Files == 1 && d.Kind == "movie" {
-			// The version's newest active link first; the arr's file only when the version has none.
+			// The version's newest active link.
 			var pr, am, meta sql.NullString
 			var adopted bool
 			var scene string
@@ -303,22 +303,14 @@ func (w *Web) enrichManage(ctx context.Context, db *sql.DB, d *TitleDetail) erro
 				COALESCE(l.release_title, ''), l.file_metadata FROM link l JOIN link_version lv ON lv.link_id = l.id
 				LEFT JOIN content_file cf ON cf.id = l.content_file_id WHERE lv.version_id = ? AND l.state = 'active'
 				ORDER BY l.created_at DESC, l.id DESC LIMIT 1`, v.ID).Scan(&pr, &am, &adopted, &scene, &meta)
-			if err == nil {
-				c.Media = linkMedia(pr, am, adopted, scene, false)
-				linkFacts(c, meta.String)
+			if errors.Is(err, sql.ErrNoRows) {
 				continue
 			}
-			if !errors.Is(err, sql.ErrNoRows) {
+			if err != nil {
 				return err
 			}
-			var mi string
-			err = db.QueryRowContext(ctx, `SELECT vf.media_info FROM version_file vf LEFT JOIN version_source vs
-				ON vs.version_id = vf.version_id WHERE vf.version_id = ? AND `+curFile+` ORDER BY vf.added_at DESC LIMIT 1`,
-				v.ID).Scan(&mi)
-			if err != nil && !errors.Is(err, sql.ErrNoRows) {
-				return err
-			}
-			c.Media = parseMedia(mi)
+			c.Media = linkMedia(pr, am, adopted, scene, false)
+			linkFacts(c, meta.String)
 		}
 	}
 	return nil
@@ -819,18 +811,13 @@ func (w *Web) searchScoped(rw http.ResponseWriter, r *http.Request, season *int)
 
 // EpisodeFile is the file that holds an episode in one version.
 type EpisodeFile struct {
-	// LinkID is Theatarr's link holding the episode (0 for an arr's file): the target of "Change episodes".
+	// LinkID is Theatarr's link holding the episode: the target of "Change episodes".
 	LinkID       int64      `json:"link_id,omitempty"`
 	Quality      string     `json:"quality,omitempty"`
 	Score        *int64     `json:"score,omitempty"`
 	SizeBytes    *int64     `json:"size_bytes,omitempty"`
 	ReleaseTitle string     `json:"release_title,omitempty"`
-	SceneName    string     `json:"scene_name,omitempty"`
-	ReleaseGroup string     `json:"release_group,omitempty"`
 	Path         string     `json:"path,omitempty"`
-	Instance     string     `json:"instance,omitempty"`
-	Languages    []string   `json:"languages,omitempty"`
-	AddedAt      *time.Time `json:"added_at,omitempty"`
 	Media        *MediaInfo `json:"media,omitempty"`
 	// Episodes lists every episode the file holds (S01E01), for a multi-episode file or a link.
 	Episodes []string `json:"episodes,omitempty"`
@@ -1019,79 +1006,45 @@ func (w *Web) apiEpisode(rw http.ResponseWriter, r *http.Request) {
 	writeJSON(rw, http.StatusOK, out)
 }
 
-// episodeFile reads the current file that holds an episode in a version: an active link wins over the arr's file.
+// episodeFile reads the current file that holds an episode in a version: its newest active link.
 func (w *Web) episodeFile(ctx context.Context, db *sql.DB, versionID, eid int64) (*EpisodeFile, error) {
 	var f EpisodeFile
 	var linkID int64
 	var size, score sql.NullInt64
 	var pr, am sql.NullString
 	var adopted bool
-	// The hash as the title page reads it (linkHashSQL, fileHashSQL), so both screens agree.
-	versions := fmt.Sprintf("[%d]", versionID)
-	err := db.QueryRowContext(ctx, uniqueLinkedTargetHash+`SELECT l.id, COALESCE(l.quality, ''), `+linkScoreSQL+`, `+linkSizeSQL+`, COALESCE(l.release_title, ''),
+	// The hash as the title page reads it (linkHashSQL), so both screens agree.
+	err := db.QueryRowContext(ctx, `SELECT l.id, COALESCE(l.quality, ''), `+linkScoreSQL+`, `+linkSizeSQL+`, COALESCE(l.release_title, ''),
 		l.path, l.created_at, cf.probe, l.adopted_media, l.download_id IS NULL, `+linkHashSQL+` FROM link l
 		JOIN link_version lv ON lv.link_id = l.id JOIN link_episode le ON le.link_id = l.id
-		LEFT JOIN content_file cf ON cf.id = l.content_file_id`+linkHashJoin+`WHERE lv.version_id = ? AND le.episode_id = ?
-		AND l.state = 'active' ORDER BY l.created_at DESC LIMIT 1`, versions, versionID, eid).Scan(&linkID, &f.Quality, &score, &size,
+		LEFT JOIN content_file cf ON cf.id = l.content_file_id WHERE lv.version_id = ? AND le.episode_id = ?
+		AND l.state = 'active' ORDER BY l.created_at DESC LIMIT 1`, versionID, eid).Scan(&linkID, &f.Quality, &score, &size,
 		&f.ReleaseTitle, &f.Path, new(int64), &pr, &am, &adopted, &f.InfoHash)
-	switch {
-	case err == nil:
-		f.LinkID, f.Score, f.SizeBytes, f.Instance = linkID, nullInt(score), nullInt(size), "theatarr"
-		f.Media = linkMedia(pr, am, adopted, f.ReleaseTitle, true)
-		held, err := heldByHash(ctx, db, f.InfoHash)
-		if err != nil {
-			return nil, err
-		}
-		f.CachedOn = w.cacheCodes(held[f.InfoHash])
-		if err := scanAll(ctx, db, `SELECT e.season, e.number FROM link_episode le JOIN episode e ON e.id = le.episode_id
-			WHERE le.link_id = ? ORDER BY e.season, e.number`, []any{linkID}, func(r *sql.Rows) error {
-			var s, n int64
-			if err := r.Scan(&s, &n); err != nil {
-				return err
-			}
-			f.Episodes = append(f.Episodes, episodeCode(s, n))
-			return nil
-		}); err != nil {
-			return nil, err
-		}
-		return &f, nil
-	case !errors.Is(err, sql.ErrNoRows):
-		return nil, err
-	}
-	var fileID int64
-	var langs, media string
-	var added sql.NullInt64
-	var sz int64
-	err = db.QueryRowContext(ctx, uniqueLinkedTargetHash+`SELECT vf.id, vf.quality, vf.custom_format_score, vf.size_bytes,
-		COALESCE(vf.release_title, ''), vf.scene_name, vf.release_group, vf.path, vf.instance, vf.languages, vf.added_at,
-		vf.media_info, `+fileHashSQL+`
-		FROM version_file vf JOIN version_file_episode fe ON fe.version_file_id = vf.id`+fileHashJoin+`
-		LEFT JOIN version_source vs ON vs.version_id = vf.version_id WHERE vf.version_id = ? AND fe.episode_id = ? AND `+
-		curFile+` ORDER BY vf.added_at DESC LIMIT 1`, versions, versionID, eid).Scan(&fileID, &f.Quality, &score, &sz,
-		&f.ReleaseTitle, &f.SceneName, &f.ReleaseGroup, &f.Path, &f.Instance, &langs, &added, &media, &f.InfoHash)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
-	f.Score, f.SizeBytes, f.AddedAt, f.Media = nullInt(score), &sz, nullTS(added), parseMedia(media)
-	_ = json.Unmarshal([]byte(langs), &f.Languages)
+	f.LinkID, f.Score, f.SizeBytes = linkID, nullInt(score), nullInt(size)
+	f.Media = linkMedia(pr, am, adopted, f.ReleaseTitle, true)
 	held, err := heldByHash(ctx, db, f.InfoHash)
 	if err != nil {
 		return nil, err
 	}
 	f.CachedOn = w.cacheCodes(held[f.InfoHash])
-	err = scanAll(ctx, db, `SELECT e.season, e.number FROM version_file_episode fe JOIN episode e ON e.id = fe.episode_id
-		WHERE fe.version_file_id = ? ORDER BY e.season, e.number`, []any{fileID}, func(r *sql.Rows) error {
+	if err := scanAll(ctx, db, `SELECT e.season, e.number FROM link_episode le JOIN episode e ON e.id = le.episode_id
+		WHERE le.link_id = ? ORDER BY e.season, e.number`, []any{linkID}, func(r *sql.Rows) error {
 		var s, n int64
 		if err := r.Scan(&s, &n); err != nil {
 			return err
 		}
 		f.Episodes = append(f.Episodes, episodeCode(s, n))
 		return nil
-	})
-	return &f, err
+	}); err != nil {
+		return nil, err
+	}
+	return &f, nil
 }
 
 // episodeHistory is one episode's history in a version: Theatarr's downloads that held it, newest first, at most

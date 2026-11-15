@@ -14,17 +14,18 @@ import (
 	"github.com/theatarr/theatarr/internal/policy"
 )
 
-// seedSeriesFile gives The Show an arr file for S01E01 (version_file 3) and an active link of ours for movie-web's
-// Alpha (link 7, file id LinkFileBase+7).
+// seedFiles gives The Show an adopted file for S01E01 (link 3, file id LinkFileBase+3) and an active link of ours for
+// movie-web's Alpha (link 7, file id LinkFileBase+7).
 func (e *env) seedFiles() {
 	e.t.Helper()
 	now := ms(testNow)
-	e.exec(`INSERT INTO version_file (id, version_id, title_id, instance, arr_file_id, path, relative_path, size_bytes,
-		quality, release_group, scene_name, languages, media_info, custom_format_score, added_at) VALUES
-		(3, 10, 10, 'sonarr_4k_debrid', 900, '/media/tv/The Show/Season 01/The Show - S01E01.mkv',
-		 'Season 01/The Show - S01E01.mkv', 3000000000, 'WEBDL-2160p', 'GRP', 'The.Show.S01E01.2160p.WEB-DL-GRP',
-		 '["English"]', '{}', 120, ?)`, now)
-	e.exec(`INSERT INTO version_file_episode (version_file_id, episode_id) VALUES (3, 101)`)
+	e.exec(`INSERT INTO link (id, path, target, title_id, release_title, quality, score, file_metadata, adopted,
+		created_at, updated_at) VALUES (3, '/media/tv/The Show/Season 01/The Show - S01E01.mkv',
+		'/mnt/debrid/__all__/Show/e1.mkv', 10, 'The.Show.S01E01.2160p.WEB-DL-GRP', 'WEBDL-2160p', 120,
+		'{"Revision":1,"ReleaseGroup":"GRP","SceneName":"The.Show.S01E01.2160p.WEB-DL-GRP","Languages":["English"],"Size":3000000000,"Score":120}',
+		1, ?, ?)`, now, now)
+	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (3, 10)`)
+	e.exec(`INSERT INTO link_episode (link_id, episode_id) VALUES (3, 101)`)
 	e.exec(`INSERT INTO content (id, info_hash, name, first_seen_at, last_seen_at) VALUES (1, ?, 'Alpha.WEB', ?, ?)`,
 		strings.Repeat("a", 40), now, now)
 	e.exec(`INSERT INTO content_file (id, content_id, path, size_bytes) VALUES (1, 1, 'Alpha.WEB/a.mkv', 9000)`)
@@ -40,10 +41,10 @@ func TestFilesListAndUnlink(t *testing.T) {
 	t.Parallel()
 	e := newDevEnv(t)
 	e.seedFiles()
-	// Radarr: moviefile?movieId= (Ruddarr, LunaSea, upgrade scripts): the arr's remux file and our web link.
+	// Radarr: moviefile?movieId= (Ruddarr, LunaSea, upgrade scripts): the adopted remux file and our web link.
 	var fs []map[string]any
 	e.call("GET", "/radarr/api/v3/moviefile?movieId="+strconv.Itoa(IDBase+1), nil, 200, &fs)
-	if len(fs) != 2 || fs[0]["id"].(float64) != 1 || fs[1]["id"].(float64) != LinkFileBase+7 ||
+	if len(fs) != 2 || fs[0]["id"].(float64) != LinkFileBase+1 || fs[1]["id"].(float64) != LinkFileBase+7 ||
 		fs[1]["size"].(float64) != 9000 || fs[1]["quality"].(map[string]any)["quality"].(map[string]any)["name"] != "WEBDL-2160p" {
 		t.Fatalf("movie files %v", fs)
 	}
@@ -51,7 +52,7 @@ func TestFilesListAndUnlink(t *testing.T) {
 	wantKeys(t, "moviefile", fs[1], fields(`id movieId relativePath path size dateAdded languages quality mediaInfo
 		qualityCutoffNotMet indexerFlags`), "sceneName", "customFormats", "customFormatScore", "releaseGroup")
 	fs = nil
-	e.call("GET", "/radarr/api/v3/moviefile?movieFileIds=1", nil, 200, &fs)
+	e.call("GET", "/radarr/api/v3/moviefile?movieFileIds="+strconv.Itoa(LinkFileBase+1), nil, 200, &fs)
 	if len(fs) != 1 {
 		t.Errorf("by file id %v", fs)
 	}
@@ -68,18 +69,18 @@ func TestFilesListAndUnlink(t *testing.T) {
 	// Sonarr: episodefile?seriesId= (decypharr library.go, upgrade scripts), and the episode's episodeFileId.
 	var efs []map[string]any
 	e.call("GET", "/sonarr/api/v3/episodefile?seriesId="+strconv.Itoa(IDBase+10), nil, 200, &efs)
-	if len(efs) != 1 || efs[0]["id"].(float64) != 3 || efs[0]["seasonNumber"].(float64) != 1 ||
+	if len(efs) != 1 || efs[0]["id"].(float64) != LinkFileBase+3 || efs[0]["seasonNumber"].(float64) != 1 ||
 		efs[0]["customFormatScore"].(float64) != 120 || efs[0]["seriesId"].(float64) != IDBase+10 {
 		t.Fatalf("episode files %v", efs)
 	}
 	var eps []map[string]any
 	e.call("GET", "/sonarr/api/v3/episode?seriesId="+strconv.Itoa(IDBase+10), nil, 200, &eps)
 	for _, x := range eps {
-		if x["id"].(float64) == 101 && x["episodeFileId"].(float64) != 3 {
+		if x["id"].(float64) == 101 && x["episodeFileId"].(float64) != LinkFileBase+3 {
 			t.Errorf("episode 101 file %v", x["episodeFileId"])
 		}
 	}
-	e.call("GET", "/sonarr/api/v3/episodefile/3", nil, 200, &one)
+	e.call("GET", "/sonarr/api/v3/episodefile/"+strconv.Itoa(LinkFileBase+3), nil, 200, &one)
 
 	// DELETE while the library gate refuses (library section missing): 409, nothing changes.
 	rec := e.do("DELETE", "/v/movie-web/radarr/api/v3/moviefile/"+strconv.Itoa(LinkFileBase+7), e.key, nil)
@@ -114,7 +115,7 @@ func TestFilesListAndUnlink(t *testing.T) {
 		t.Error("version not wanted after its last file was removed")
 	}
 	// A shadow version's file (movie-remux) stays: the gate refuses it.
-	rec = e.do("DELETE", "/radarr/api/v3/moviefile/1", e.key, nil)
+	rec = e.do("DELETE", "/radarr/api/v3/moviefile/"+strconv.Itoa(LinkFileBase+1), e.key, nil)
 	if rec.Code != 409 {
 		t.Errorf("shadow delete %d", rec.Code)
 	}

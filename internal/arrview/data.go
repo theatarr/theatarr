@@ -43,7 +43,7 @@ type ver struct {
 	state     string
 	created   int64
 	file      *vfile
-	// path is a file of the version: its first active link's, else its imported file's; "" without one.
+	// path is a file of the version: its first active link's; "" without one.
 	path string
 	// monitorNew is a series version's monitorNewItems intent (series_monitor), "" without a row.
 	monitorNew string
@@ -51,7 +51,7 @@ type ver struct {
 	rule availability.Rule
 }
 
-// vfile is a version_file row: the file an arr holds for a version, as imported.
+// vfile is a file of a version as the views show it (one of our links).
 type vfile struct {
 	id           int64
 	instance     string
@@ -222,43 +222,8 @@ func (s *Service) load(ctx context.Context, v *View, titleIDs []int64) ([]*entry
 		sort.Slice(e.versions, func(i, j int) bool { return rank[e.versions[i].key] < rank[e.versions[j].key] })
 	}
 
-	// Files: per version, the owning instance's file first (version_source), then the oldest row.
-	rows, err = db.QueryContext(ctx, `SELECT vf.id, vf.version_id, vf.instance, vf.path, vf.relative_path,
-		vf.size_bytes, vf.quality, vf.quality_revision, vf.release_group, vf.scene_name, vf.edition, vf.languages,
-		vf.media_info, vf.custom_format_score, vf.indexer_flags, vf.original_file_path, vf.cutoff_not_met, vf.added_at
-		FROM version_file vf JOIN version v ON v.id = vf.version_id JOIN title t ON t.id = v.title_id
-		LEFT JOIN version_source vs ON vs.version_id = v.id
-		WHERE `+where+` ORDER BY (vs.instance IS NOT NULL AND vs.instance = vf.instance) DESC, vf.id`, args...)
-	if err != nil {
-		return nil, err
-	}
-	for rows.Next() {
-		f := &vfile{}
-		var vid int64
-		var langs, mi string
-		if err := rows.Scan(&f.id, &vid, &f.instance, &f.path, &f.relPath, &f.size, &f.quality, &f.revision, &f.group,
-			&f.scene, &f.edition, &langs, &mi, &f.cfScore, &f.flags, &f.origPath, &f.cutoffNotMet, &f.added); err != nil {
-			rows.Close()
-			return nil, err
-		}
-		x := vers[vid]
-		if x == nil || x.file != nil {
-			continue
-		}
-		x.path = f.path
-		_ = json.Unmarshal([]byte(langs), &f.languages)
-		if mi != "" && mi != "{}" && json.Valid([]byte(mi)) {
-			f.mediaInfo = json.RawMessage(mi)
-		}
-		x.file = f
-	}
-	if err := closeRows(rows); err != nil {
-		return nil, err
-	}
-
-	// Our own links: one from an import of ours wins over the arr's file (it is newer); an adopted link (the arr's
-	// file, taken over) only fills a version without a file row.
-	links, err := s.linkFiles(ctx, v, titleIDs)
+	// Our own links: one from an import of ours wins over an adopted link.
+	links, err := s.viewFiles(ctx, v, titleIDs)
 	if err != nil {
 		return nil, err
 	}

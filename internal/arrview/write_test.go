@@ -136,15 +136,15 @@ func TestDeleteUnlinksOnlyTheView(t *testing.T) {
 	if n := e.one(`SELECT COUNT(*) FROM version WHERE title_id = 1`); n != 2 {
 		t.Errorf("%d version rows", n)
 	}
-	// /radarr's DELETE (Seerr's remove) unlinks the rest.
-	e.call("DELETE", "/radarr/api/v3/movie/"+alpha+"?deleteFiles=true&addImportExclusion=false", nil, 200, nil)
+	// /radarr's DELETE (Seerr's remove) unlinks the rest; without deleteFiles the file stays.
+	e.call("DELETE", "/radarr/api/v3/movie/"+alpha+"?deleteFiles=false&addImportExclusion=false", nil, 200, nil)
 	e.call("GET", "/radarr/api/v3/movie/"+alpha, nil, 404, nil)
 	var lk []map[string]any
 	e.call("GET", "/radarr/api/v3/movie/lookup?term=tmdb:101", nil, 200, &lk)
 	if lk[0]["id"] != nil {
 		t.Errorf("lookup after delete still has an id: %v", lk[0]["id"])
 	}
-	if n := e.one(`SELECT COUNT(*) FROM version_file WHERE title_id = 1`); n != 1 {
+	if n := e.one(`SELECT COUNT(*) FROM link WHERE title_id = 1 AND state = 'active'`); n != 1 {
 		t.Errorf("file rows %d", n)
 	}
 	if e.one(`SELECT monitored FROM title WHERE id = 1`) != 0 {

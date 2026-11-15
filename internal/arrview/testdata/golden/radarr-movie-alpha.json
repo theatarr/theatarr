@@ -16,7 +16,7 @@
   "movieFile": {
     "customFormatScore": 3200,
     "dateAdded": "2025-03-05T00:00:00Z",
-    "id": 1,
+    "id": 1000000001,
     "indexerFlags": 0,
     "languages": [
       {
@@ -31,7 +31,6 @@
       "resolution": "3840x2160",
       "videoBitDepth": 0,
       "videoBitrate": 0,
-      "videoDynamicRangeType": "DV HDR10",
       "videoFps": 0
     },
     "movieId": 1000001,
@@ -56,7 +55,7 @@
     "sceneName": "Alpha.2020.2160p.BluRay.REMUX-GRP",
     "size": 60000000000
   },
-  "movieFileId": 1,
+  "movieFileId": 1000000001,
   "originalTitle": "Alpha",
   "path": "/media/movies/Alpha (2020)",
   "popularity": 0,

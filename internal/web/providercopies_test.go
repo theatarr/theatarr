@@ -79,7 +79,7 @@ func TestProviderCopiesAPI(t *testing.T) {
 	}
 }
 
-// J2, J3, K: the action resolves the hash the page shows (an arr file whose torrent hash is its download id), the
+// J2, J3, K: the action resolves the hash the page shows (a link whose torrent hash is in its file metadata), the
 // page shows that file's copies, a Torrents row's every name reaches the router, and GET /torrents/copies reads one
 // torrent's copies for the Torrents page to poll.
 func TestProviderCopiesSameHashAndPoll(t *testing.T) {
@@ -89,7 +89,7 @@ func TestProviderCopiesSameHashAndPoll(t *testing.T) {
 		c.ProviderCopies = func(context.Context) Copier { return f }
 	})
 	const dl = "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
-	e.exec(`UPDATE version_file SET download_id = ? WHERE version_id = 3`, dl)
+	e.exec(`UPDATE link SET file_metadata = json_set(file_metadata, '$.InfoHash', ?) WHERE id = 902`, dl)
 	sess := e.login()
 	csrf := e.csrfFor(sess)
 	if code := e.jsonCall("POST", APIBase+"/titles/2/copies", CopyTitleRequest{Version: "movie-web"}, sess, csrf,
@@ -112,7 +112,7 @@ func TestProviderCopiesSameHashAndPoll(t *testing.T) {
 	}
 }
 
-// One effective hash: an arr file with no content but a v1 download id shows Cached on from that hash, and an
+// One effective hash: a link with no content but a stored hash shows Cached on from that hash, and an
 // adopted link with only a stored hash (no content row) gives the action that hash.
 func TestProviderCopiesOneHash(t *testing.T) {
 	t.Parallel()
@@ -122,7 +122,7 @@ func TestProviderCopiesOneHash(t *testing.T) {
 	})
 	const dl = "cccccccccccccccccccccccccccccccccccccccc"
 	const adopted = "dddddddddddddddddddddddddddddddddddddddd"
-	e.exec(`UPDATE version_file SET download_id = ? WHERE version_id = 3`, dl)
+	e.exec(`UPDATE link SET file_metadata = json_set(file_metadata, '$.InfoHash', ?) WHERE id = 902`, dl)
 	e.exec(`INSERT INTO content (id, info_hash, name, state, first_seen_at, last_seen_at) VALUES (9, ?, 'x', 'present', 0, 0)`, dl)
 	e.exec(`INSERT INTO content_provider (content_id, provider, torrent_id, seen_at, state, progress)
 		VALUES (9, 'tb', '5', 0, 'present', 100)`)
@@ -140,7 +140,7 @@ func TestProviderCopiesOneHash(t *testing.T) {
 	}
 }
 
-// A copy with several files (a series: an arr episode held on RD, a linked episode held on TB) keeps Cached on for
+// A copy with several files (a series: an adopted episode held on RD, a linked episode held on TB) keeps Cached on for
 // all of them; only a single current file follows its own hash.
 func TestProviderCopiesSeriesCachedOn(t *testing.T) {
 	t.Parallel()
@@ -151,12 +151,13 @@ func TestProviderCopiesSeriesCachedOn(t *testing.T) {
 		(12, 'ffffffffffffffffffffffffffffffffffffffff', 'b', 'present', 0, 0)`)
 	e.exec(`INSERT INTO content_provider (content_id, provider, torrent_id, seen_at, state, progress) VALUES
 		(11, 'rd', '1', 0, 'present', 100), (12, 'tb', '2', 0, 'present', 100)`)
-	e.exec(`INSERT INTO version_file (version_id, title_id, instance, arr_file_id, path, size_bytes, quality, languages,
-		content_id) VALUES (9, 3, 'sonarr', 7, '/tv/Gamma/S01E01.mkv', 1, 'WEBDL-2160p', '[]', 11)`)
+	e.exec(`INSERT INTO link (id, path, target, title_id, quality, file_metadata, adopted, created_at, updated_at)
+		VALUES (50, '/tv/Gamma/S01E01.mkv', '/mnt/a/S01E01.mkv', 3, 'WEBDL-2160p',
+		'{"InfoHash":"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee","Size":1}', 1, 0, 0)`)
 	e.exec(`INSERT INTO content_file (id, content_id, path, size_bytes) VALUES (21, 12, 'S01E02.mkv', 1)`)
 	e.exec(`INSERT INTO link (id, path, target, content_file_id, title_id, state, created_at, updated_at)
 		VALUES (51, '/tv/Gamma/S01E02.mkv', '/mnt/b/S01E02.mkv', 21, 3, 'active', 0, 0)`)
-	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (51, 9)`)
+	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (50, 9), (51, 9)`)
 	if body := e.get(APIBase+"/titles/3", e.login()).Body.String(); !strings.Contains(body, `"cached_on":["rd","tb"]`) {
 		t.Fatalf("series Cached on: %s", body)
 	}

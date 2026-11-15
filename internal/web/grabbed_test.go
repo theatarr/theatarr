@@ -261,6 +261,7 @@ func TestEpisodeReleasesScopedToEpisode(t *testing.T) {
 		(10, 10, 10, 'tv-2160p', ?, 'The.Show.S01.2160p.WEB-PACK', 'idx', 'rd', 'imported', 'acquire:50', '[101,102]', ?, ?, ?),
 		(11, 10, 10, 'tv-2160p', ?, 'The.Show.S01E02.2160p.REMUX-UP', 'idx', 'tb', 'imported', 'acquire:51', '[102]', ?, ?, ?)`,
 		hp, now-8900, now-8000, now-8000, hu, now-4900, now-4000, now-4000)
+	e.exec(`DELETE FROM link WHERE id IN (900, 901)`) // the seed's adopted files: this test's links replaced them
 	e.exec(`INSERT INTO link (id, path, target, title_id, download_id, release_title, state, created_at, updated_at) VALUES
 		(10, '/tv/Show/S01E01.mkv', '/mnt/__all__/Pack/E01.mkv', 10, 10, 'The.Show.S01.2160p.WEB-PACK', 'active', ?, ?),
 		(11, '/tv/Show/old/S01E02.mkv', '/mnt/__all__/Pack/E02.mkv', 10, 10, 'The.Show.S01.2160p.WEB-PACK', 'unlinked', ?, ?),
@@ -409,6 +410,7 @@ func TestEpisodeOutcomeFromLinks(t *testing.T) {
 		state, source, episodes, created_at, updated_at, imported_at) VALUES
 		(20, 10, 10, 'tv-2160p', ?, 'The.Show.S01.2160p.WEB-PACK', 'idx', 'rd', 'imported', 'acquire:70', '[101,102]', ?, ?, ?)`,
 		hp, now-8900, now-8000, now-8000)
+	e.exec(`DELETE FROM link WHERE id IN (900)`) // the seed's adopted files: this test's links replaced them
 	e.exec(`INSERT INTO link (id, path, target, title_id, download_id, release_title, state, created_at, updated_at) VALUES
 		(20, '/tv/Show/S01E01.mkv', '/mnt/__all__/Pack/E01.mkv', 10, 20, 'The.Show.S01.2160p.WEB-PACK', 'active', ?, ?)`,
 		now-8000, now-8000)
@@ -494,6 +496,7 @@ func TestEpisodeReplacedInPlace(t *testing.T) {
 		(31, 10, 10, 'tv-2160p', ?, 'The.Show.S01E01.2160p.REMUX-UP', 'idx', 'tb', 'imported', 'ui:grab:alice', '[101]', ?, ?, ?)`,
 		hp, now-8900, now-8000, now-8000, hu, now-4900, now-4000, now-4000)
 	// E01's link, first the pack's, now points at the upgrade (same path).
+	e.exec(`DELETE FROM link WHERE id IN (900)`) // the seed's adopted files: this test's links replaced them
 	e.exec(`INSERT INTO link (id, path, target, title_id, download_id, release_title, state, created_at, updated_at) VALUES
 		(30, '/tv/Show/S01E01.mkv', '/mnt/__all__/Up/E01.mkv', 10, 31, 'The.Show.S01E01.2160p.REMUX-UP', 'active', ?, ?)`,
 		now-8000, now-4000)
@@ -539,6 +542,7 @@ func TestEpisodeEvidenceOwnDownloadOnly(t *testing.T) {
 		(41, 10, 10, 'tv-2160p', ?, 'The.Show.S01E01.2160p.REMUX-UP', 'idx', 'tb', 'imported', 'ui:grab:alice', '[101]', ?, ?, ?),
 		(42, 10, 10, 'tv-2160p', ?, 'The.Show.S01.2160p.WEB-PACK', 'idx', 'rd', 'imported', 'api:manualimport', '[102]', ?, ?, ?)`,
 		hp, now-8900, now-8000, now-8000, hu, now-4900, now-4000, now-4000, hp, now-3000, now-2500, now-2500)
+	e.exec(`DELETE FROM link WHERE id IN (900)`) // the seed's adopted files: this test's links replaced them
 	e.exec(`INSERT INTO link (id, path, target, title_id, download_id, release_title, state, created_at, updated_at) VALUES
 		(40, '/tv/Show/S01E01.mkv', '/mnt/__all__/Up/E01.mkv', 10, 41, 'The.Show.S01E01.2160p.REMUX-UP', 'active', ?, ?)`,
 		now-8000, now-4000)
@@ -569,6 +573,7 @@ func TestEpisodePendingManualChoice(t *testing.T) {
 		(50, 10, 10, 'tv-2160p', ?, 'The.Show.S01E01.2160p.REMUX-UP', 'idx', 'tb', 'imported', 'ui:grab:alice', '[101]', ?, ?, ?),
 		(51, 10, 10, 'tv-2160p', ?, 'The.Show.S01.2160p.WEB-PACK', 'idx', 'rd', 'ready', 'api:manualimport', '[101,102]', ?, ?, NULL)`,
 		hu, now-8000, now-7000, now-7000, hp, now-3000, now-2000)
+	e.exec(`DELETE FROM link WHERE id IN (900)`) // the seed's adopted files: this test's links replaced them
 	e.exec(`INSERT INTO link (id, path, target, title_id, download_id, release_title, state, created_at, updated_at) VALUES
 		(50, '/tv/Show/S01E01.mkv', '/mnt/__all__/Up/E01.mkv', 10, 50, 'The.Show.S01E01.2160p.REMUX-UP', 'active', ?, ?)`,
 		now-7000, now-7000)

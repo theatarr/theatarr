@@ -9,7 +9,6 @@ import (
 	"maps"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -18,7 +17,6 @@ import (
 	"github.com/theatarr/theatarr/internal/auth"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/store"
-	"github.com/theatarr/theatarr/internal/store/storetest"
 )
 
 // seedLibrary adds, on top of seed: TMDb metadata for Alpha, Beta and Gamma; file times; a provider for Alpha's
@@ -30,8 +28,8 @@ func (e *env) seedLibrary() {
 		attempted_at, refresh_after) VALUES (1, '["Drama","Action"]', 7.5, 100, 'R', '2020-05-01', ?, ?, ?),
 		(2, '["Comedy"]', 6.0, 50, 'PG', '2021-03-01', ?, ?, ?), (3, '["Drama"]', NULL, 0, '', '', ?, ?, ?)`,
 		now, now, now, now, now, now, now, now, now)
-	e.exec(`UPDATE version_file SET added_at = ? WHERE arr_file_id = 501`, now-10*day)
-	e.exec(`UPDATE version_file SET added_at = ? WHERE arr_file_id = 502`, now-1*day)
+	e.exec(`UPDATE link SET created_at = ? WHERE id = 901`, now-10*day)
+	e.exec(`UPDATE link SET created_at = ? WHERE id = 902`, now-1*day)
 	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, quality, state,
 		episodes, created_at, updated_at, added_at, imported_at) VALUES
 		(80, 1, 1, 'movie-remux', ?, 'Alpha.Old', 'dmm', 'Remux-2160p', 'imported', '[]', ?, ?, ?, ?),
@@ -55,11 +53,13 @@ func (e *env) seedLibrary() {
 		(44, 4, 2, 1, 'Return', '2026-10-31', 0, 0)`)
 	e.exec(`INSERT INTO episode_version_state (version_id, episode_id, state, updated_at) VALUES
 		(4, 41, 'cutoff_met', 0), (4, 42, 'filled', 0), (4, 43, 'wanted', 0), (4, 40, 'wanted', 0), (4, 44, 'wanted', 0)`)
-	e.exec(`INSERT INTO version_file (id, version_id, title_id, instance, arr_file_id, path, size_bytes, quality, added_at,
-		release_group) VALUES (90, 4, 4, 'sonarr_anime_debrid', 601, '/anime/Delta/S01E01.mkv', 1000000000, 'Bluray-1080p', ?, 'SubsPlease'),
-		(91, 4, 4, 'sonarr_anime_debrid', 602, '/anime/Delta/S01E02.mkv', 1000000000, 'Bluray-1080p', ?, 'SubsPlease')`,
-		now-5*day, now-6*day)
-	e.exec(`INSERT INTO version_file_episode (version_file_id, episode_id) VALUES (90, 41), (91, 42)`)
+	e.exec(`INSERT INTO link (id, path, target, title_id, quality, file_metadata, adopted, created_at, updated_at) VALUES
+		(90, '/anime/Delta/S01E01.mkv', '/zurg/Delta/S01E01.mkv', 4, 'Bluray-1080p',
+		 '{"ReleaseGroup":"SubsPlease","Size":1000000000}', 1, ?, ?),
+		(91, '/anime/Delta/S01E02.mkv', '/zurg/Delta/S01E02.mkv', 4, 'Bluray-1080p',
+		 '{"ReleaseGroup":"SubsPlease","Size":1000000000}', 1, ?, ?)`, now-5*day, now-5*day, now-6*day, now-6*day)
+	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (90, 4), (91, 4)`)
+	e.exec(`INSERT INTO link_episode (link_id, episode_id) VALUES (90, 41), (91, 42)`)
 	airAtMidnight(e.exec)
 }
 
@@ -448,7 +448,7 @@ func TestAiredWithoutInstantOrDate(t *testing.T) {
 	}
 	// S02E01 held before it airs: season 2 has two episodes aired or held in the copy, one of them held.
 	e.exec(`UPDATE episode_version_state SET state = 'filled' WHERE episode_id = 44`)
-	e.exec(`INSERT INTO version_file_episode (version_file_id, episode_id) VALUES (91, 44)`)
+	e.exec(`INSERT INTO link_episode (link_id, episode_id) VALUES (91, 44)`)
 	var held EpisodeList
 	e.getKey(APIBase+"/titles/4/episodes", key, &held)
 	for _, s := range held.Seasons {
@@ -457,7 +457,7 @@ func TestAiredWithoutInstantOrDate(t *testing.T) {
 		}
 	}
 	e.exec(`UPDATE episode_version_state SET state = 'wanted' WHERE episode_id = 44`)
-	e.exec(`DELETE FROM version_file_episode WHERE episode_id = 44`)
+	e.exec(`DELETE FROM link_episode WHERE episode_id = 44`)
 	var d TitleDetail
 	if e.getKey(APIBase+"/titles/4", key, &d); d.Versions[0].Episodes == nil ||
 		!sameCounts(*d.Versions[0].Episodes, 4, 2, 2, 4, 2) {
@@ -938,81 +938,6 @@ func TestNoFilesWithoutSeeFiles(t *testing.T) {
 	}
 }
 
-func TestTitleInfersSharedFileHashOnlyWhenUnique(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	st, err := store.Open(ctx, storetest.Seed(t, filepath.Join(t.TempDir(), "shared-hash.db")), store.Options{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { st.Close() })
-	if _, err := st.Migrate(ctx); err != nil {
-		t.Fatal(err)
-	}
-	now := store.Millis(testNow)
-	sharedTarget := "/debrid/content/Alpha.mkv"
-	exec := func(q string, args ...any) {
-		t.Helper()
-		if _, err := st.Writer().Exec(q, args...); err != nil {
-			t.Fatalf("%s: %v", q, err)
-		}
-	}
-	exec(`INSERT INTO title (id, kind, name, created_at, updated_at) VALUES
-		(1, 'movie', 'Alpha', ?, ?), (2, 'movie', 'Beta', ?, ?)`, now, now, now, now)
-	exec(`INSERT INTO version (id, title_id, policy_key, state, created_at, updated_at) VALUES
-		(1, 1, 'movie-remux', 'cutoff_met', ?, ?), (2, 1, 'movie-web', 'filled', ?, ?),
-		(3, 2, 'movie-web', 'filled', ?, ?)`, now, now, now, now, now, now)
-	exec(`INSERT INTO content (id, info_hash, name, state, first_seen_at, last_seen_at) VALUES
-		(1, ?, 'Alpha.Release', 'present', ?, ?)`, hashA, now, now)
-	exec(`INSERT INTO version_file (id, version_id, title_id, instance, arr_file_id, path, size_bytes, quality,
-		content_id) VALUES
-		(501, 1, 1, 'radarr_4k_debrid', 501, '/movies/Alpha (2020)/Alpha.mkv', 50000000000, 'Remux-2160p', 1),
-		(503, 2, 1, 'radarr_4k_web', 503, '/movies/Alpha Web/Alpha.mkv', 50000000000, 'WEBDL-2160p', NULL)`)
-	exec(`INSERT INTO content_file (id, content_id, path, size_bytes) VALUES (1, 1, 'Alpha.mkv', 50000000000)`)
-	exec(`INSERT INTO link (id, path, target, content_file_id, title_id, created_at, updated_at) VALUES
-		(1, '/movies/Alpha (2020)/Alpha.mkv', ?, 1, 1, ?, ?),
-		(2, '/movies/Alpha Web/Alpha.mkv', ?, NULL, 1, ?, ?)`, sharedTarget, now, now, sharedTarget, now, now)
-	exec(`INSERT INTO link_version (link_id, version_id) VALUES (1, 1), (2, 2)`)
-
-	w := &Web{st: st}
-	versions, err := w.versions(ctx, "v.title_id = ?", []any{1}, 0, 0)
-	if err != nil || len(versions) != 2 {
-		t.Fatalf("title versions: %+v, %v", versions, err)
-	}
-	versions[1].Current = currentOf(&versions[1], VersionFiles{Files: 1})
-	web := versions[1]
-	if len(web.Files) != 1 || web.Files[0].InfoHash != hashA || web.Current == nil || web.Current.InfoHash != hashA ||
-		len(web.Links) != 1 || web.Links[0].InfoHash != hashA {
-		t.Fatalf("shared target did not supply its unique hash: files %+v, current %+v", web.Files, web.Current)
-	}
-
-	const hashB = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-	exec(`INSERT INTO content (id, info_hash, name, state, first_seen_at, last_seen_at) VALUES
-		(2, ?, 'Other.Release', 'present', ?, ?)`, hashB, now, now)
-	exec(`INSERT INTO version_file (id, version_id, title_id, instance, arr_file_id, path, size_bytes, quality,
-		content_id) VALUES (504, 3, 2, 'radarr_4k_beta', 504, '/movies/Beta/Beta.mkv', 9000000000, 'WEBDL-2160p', 2)`)
-	exec(`INSERT INTO content_file (id, content_id, path, size_bytes) VALUES (2, 2, 'Beta.mkv', 9000000000)`)
-	exec(`INSERT INTO link (id, path, target, content_file_id, title_id, created_at, updated_at)
-		VALUES (3, '/movies/Beta/Beta.mkv', ?, 2, 2, ?, ?)`, sharedTarget, now, now)
-	exec(`INSERT INTO link_version (link_id, version_id) VALUES (3, 3)`)
-	versions, err = w.versions(ctx, "v.title_id = ?", []any{1}, 0, 0)
-	if err != nil || len(versions) != 2 {
-		t.Fatalf("title versions with ambiguous target: %+v, %v", versions, err)
-	}
-	versions[1].Current = currentOf(&versions[1], VersionFiles{Files: 1})
-	web = versions[1]
-	if web.Files[0].InfoHash != "" || web.Current == nil || web.Current.InfoHash != "" {
-		t.Errorf("ambiguous target supplied a hash: files %+v, current %+v", web.Files, web.Current)
-	}
-
-	detail := &TitleDetail{Versions: versions}
-	redactTitle(detail)
-	body, err := json.Marshal(detail)
-	if err != nil || strings.Contains(string(body), hashA) || strings.Contains(string(body), hashB) || strings.Contains(string(body), `"info_hash"`) {
-		t.Errorf("title hash inference bypassed see_files redaction: %s, %v", body, err)
-	}
-}
-
 // TestMissingRowHomeRelease: Home's Missing row counts a movie released on its home release, as list rows'
 // home_release, so no movie there reads Upcoming; without canonical dates, the old rule (its US or worldwide
 // digital or disc date, else TMDb's release date plus 90 days).
@@ -1129,7 +1054,8 @@ func TestAdoptedLinkFileSizes(t *testing.T) {
 		VALUES (8, '/anime/Delta/S01E03.mkv', '/zurg/__all__/Delta/e3.mkv', 4, 'Bluray-1080p', '{"Size":3000000000}',
 		'sonarr@s:8989 /anime/Delta/S01E03.mkv', 'active', ?, ?)`, now, now)
 	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (8, 4)`)
-	// The link holds S01E02-E03 (it wins over the arr's file for E02).
+	// The link holds S01E02-E03 (it replaced E02's adopted file).
+	e.exec(`DELETE FROM link WHERE id = 91`)
 	e.exec(`INSERT INTO link_episode (link_id, episode_id) VALUES (8, 42), (8, 43)`)
 	const want = 3000000000
 	list, err := e.web.titleEpisodes(context.Background(), 4, 1, true)
@@ -1148,7 +1074,7 @@ func TestAdoptedLinkFileSizes(t *testing.T) {
 	if !found {
 		t.Fatalf("episode 43 not listed: %+v", list.Episodes)
 	}
-	// The season counts the two-episode link once: E01's arr file (1 GB) and the link (3 GB).
+	// The season counts the two-episode link once: E01's adopted file (1 GB) and the link (3 GB).
 	for _, se := range list.Seasons {
 		if c := se.Versions["anime-tv"]; se.Season == 1 && (c.SizeBytes == nil || *c.SizeBytes != 4000000000) {
 			t.Errorf("season 1 size %+v", c.SizeBytes)
@@ -1172,7 +1098,9 @@ func TestEpisodeCellInfoHash(t *testing.T) {
 	e.exec(`INSERT INTO content (id, info_hash, name, state, first_seen_at, last_seen_at) VALUES
 		(11, 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee', 'a', 'present', 0, 0),
 		(12, 'ffffffffffffffffffffffffffffffffffffffff', 'b', 'present', 0, 0)`)
-	e.exec(`UPDATE version_file SET content_id = 11 WHERE id = 90`)
+	e.exec(`UPDATE link SET file_metadata = json_set(file_metadata, '$.InfoHash', 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee')
+		WHERE id = 90`)
+	e.exec(`DELETE FROM link WHERE id = 91`) // S01E02's file is link 51 below
 	e.exec(`INSERT INTO content_file (id, content_id, path, size_bytes) VALUES (21, 12, 'S01E02.mkv', 1)`)
 	e.exec(`INSERT INTO link (id, path, target, content_file_id, title_id, state, created_at, updated_at)
 		VALUES (51, '/anime/Delta/S01E02.mkv', '/mnt/b/S01E02.mkv', 21, 4, 'active', 0, 0)`)
@@ -1231,8 +1159,10 @@ func TestStatusWords(t *testing.T) {
 		(201, 20, 'tv-2160p', 'filled', 1, 0, 0), (211, 21, 'tv-2160p', 'wanted', 1, 0, 0),
 		(221, 22, 'tv-2160p', 'filled', 1, 0, 0), (222, 22, 'anime-tv', 'wanted', 0, 0, 0),
 		(231, 23, 'tv-2160p', 'wanted', 1, 0, 0)`)
-	e.exec(`INSERT INTO version_file (id, version_id, title_id, instance, arr_file_id, path, size_bytes, quality) VALUES
-		(901, 101, 10, 'r', 901, '/m/10.mkv', 1, 'WEBDL-1080p'), (902, 111, 11, 'r', 902, '/m/11.mkv', 1, 'WEBDL-1080p')`)
+	e.exec(`INSERT INTO link (id, path, target, title_id, quality, file_metadata, created_at, updated_at) VALUES
+		(7901, '/m/10.mkv', '/z/10.mkv', 10, 'WEBDL-1080p', '{"Size":1}', 0, 0),
+		(7902, '/m/11.mkv', '/z/11.mkv', 11, 'WEBDL-1080p', '{"Size":1}', 0, 0)`)
+	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (7901, 101), (7902, 111)`)
 	// Episodes: two aired and one to come for each series; Not Aired has only one to come.
 	e.exec(`INSERT INTO episode (id, title_id, season, number, name, air_date, created_at, updated_at) VALUES
 		(2001, 20, 1, 1, 'a', '2026-01-01', 0, 0), (2002, 20, 1, 2, 'b', '2026-01-08', 0, 0), (2003, 20, 1, 3, 'c', '2026-12-01', 0, 0),
@@ -1251,11 +1181,13 @@ func TestStatusWords(t *testing.T) {
 		(211, 2101, 'filled', 0), (211, 2102, 'wanted', 0),
 		(221, 2201, 'filled', 0), (221, 2202, 'filled', 0), (222, 2201, 'wanted', 0), (222, 2202, 'wanted', 0),
 		(231, 2301, 'wanted', 0)`)
-	e.exec(`INSERT INTO version_file (id, version_id, title_id, instance, arr_file_id, path, size_bytes, quality) VALUES
-		(920, 201, 20, 's', 920, '/t/20.mkv', 1, 'WEBDL-2160p'), (921, 211, 21, 's', 921, '/t/21.mkv', 1, 'WEBDL-2160p'),
-		(922, 221, 22, 's', 922, '/t/22.mkv', 1, 'WEBDL-2160p')`)
-	e.exec(`INSERT INTO version_file_episode (version_file_id, episode_id) VALUES (920, 2001), (920, 2002), (921, 2101),
-		(922, 2201), (922, 2202)`)
+	e.exec(`INSERT INTO link (id, path, target, title_id, quality, file_metadata, created_at, updated_at) VALUES
+		(7920, '/t/20.mkv', '/z/20.mkv', 20, 'WEBDL-2160p', '{"Size":1}', 0, 0),
+		(7921, '/t/21.mkv', '/z/21.mkv', 21, 'WEBDL-2160p', '{"Size":1}', 0, 0),
+		(7922, '/t/22.mkv', '/z/22.mkv', 22, 'WEBDL-2160p', '{"Size":1}', 0, 0)`)
+	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (7920, 201), (7921, 211), (7922, 221)`)
+	e.exec(`INSERT INTO link_episode (link_id, episode_id) VALUES (7920, 2001), (7920, 2002), (7921, 2101),
+		(7922, 2201), (7922, 2202)`)
 	// M Announced has no date at all and TMDb says Post Production: Upcoming, date unknown. M Undated has no date
 	// and no such status: Missing.
 	// M Dated Elsewhere is announced but has a (non-canonical) dated release: not undated, so Missing. M No Meta was

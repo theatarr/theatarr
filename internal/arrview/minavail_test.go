@@ -438,8 +438,6 @@ func TestMinimumAvailabilityDeleteClearsChoice(t *testing.T) {
 			added_at, updated_at) VALUES ('v/movie-web', 1, 0, '/media/movies-web', 'announced', 7, 5),
 			('v/movie-remux', 1, 0, '', 'inCinemas', 0, 5)`)
 		e.pol.Versions["movie-web"].MinimumAvailability = "inCinemas"
-		// No arr owns the remux copy any more, so it can be removed.
-		e.exec(`DELETE FROM version_source WHERE version_id = 1`)
 	})
 	// Through the remux library's own view: its choice goes, the other library's stays.
 	e.call("DELETE", fmt.Sprintf("/v/movie-remux/radarr/api/v3/movie/%d", IDBase+1), nil, 200, nil)

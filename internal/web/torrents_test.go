@@ -66,6 +66,7 @@ func TestTorrentsAPI(t *testing.T) {
 		Now: func() time.Time { return testNow }}
 	e := newEnvWith(t, func(c *Config) { c.Torrents = torrentSource{m} })
 	m.Store = e.st
+	e.exec(`DELETE FROM link WHERE id = 902`) // the seed's hashless link would make every torrent's use unknown
 	e.exec(`INSERT INTO content (info_hash, first_seen_at, last_seen_at) VALUES (?, 0, 0), (?, 0, 0)`, h1, h2)
 	e.exec(`INSERT INTO provider_sync_run (provider, started_at, finished_at, ok) VALUES ('rd', 0, 0, 1)`)
 	sess := e.login()

@@ -124,7 +124,7 @@ export function unblockScope(release: string, copy: string, search: boolean): Sc
 
 // ---- Copies, titles and files ----
 
-export type RemovalCopyLike = { key: string; label: string; links: number; downloads: number; arr_files?: number };
+export type RemovalCopyLike = { key: string; label: string; links: number; downloads: number };
 /** leftover: copies removed before whose library links are still active (an earlier removal's failed moves). */
 export type RemovalScopeLike = { name: string; title: boolean; copies: RemovalCopyLike[]; leftover?: RemovalCopyLike[] };
 
@@ -137,11 +137,6 @@ export function removalLinks(s: RemovalScopeLike): number {
  *  remove, so deleting the files is the point and not a choice. */
 export function leftoverOnly(s: RemovalScopeLike): boolean {
   return s.copies.length === 0 && (s.leftover ?? []).some((c) => c.links > 0);
-}
-
-/** "24 files that Sonarr or Radarr manages stay": their own files, which a removal leaves in place whatever its choices. */
-export function arrFilesStay(n: number): string {
-  return `${plural(n, "file")} that Sonarr or Radarr manages ${n === 1 ? "stays" : "stay"}`;
 }
 
 /** The torrent clean-up a removal does with "Delete it from the debrid providers", and its guard. */
@@ -174,7 +169,6 @@ export function removalScope(s: RemovalScopeLike, files: boolean, debrid = files
     };
   }
   const links = s.copies.reduce((n, c) => n + c.links, 0) + (files ? leftover : 0);
-  const arr = s.copies.reduce((n, c) => n + (c.arr_files ?? 0), 0);
   const downloads = s.copies.reduce((n, c) => n + c.downloads, 0);
   const names = s.copies.map((c) => c.label).join(", ");
   const does: string[] = [];
@@ -189,7 +183,6 @@ export function removalScope(s: RemovalScopeLike, files: boolean, debrid = files
     ...(files
       ? s.title ? [] : [SHARED_FILE_STAYS]
       : links === 0 ? [] : [`${plural(links, "library file")} ${links === 1 ? "stays" : "stay"} linked and playable`]),
-    ...(arr > 0 ? [arrFilesStay(arr)] : []),
     ...torrents,
     "Its history stays",
     REMOVAL_LISTS,

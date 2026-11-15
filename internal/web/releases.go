@@ -199,12 +199,11 @@ func (w *Web) heldFile(ctx context.Context, db *sql.DB, titleID int64, key strin
 	if episode == 0 && kind != "movie" {
 		return nil, nil
 	}
-	// The newest active link, else the current arr file, as the title page and the episode window read them
-	// (episodeFile): of the version, or of its episode.
-	linkEp, fileEp, args := "", "", []any{vid}
+	// The newest active link, as the title page and the episode window read it (episodeFile): of the version, or of
+	// its episode.
+	linkEp, args := "", []any{vid}
 	if episode > 0 {
 		linkEp = ` JOIN link_episode le ON le.link_id = l.id AND le.episode_id = ?`
-		fileEp = ` JOIN version_file_episode fe ON fe.version_file_id = vf.id AND fe.episode_id = ?`
 		args = []any{episode, vid}
 	}
 	h := &HeldFile{Held: true}
@@ -213,12 +212,7 @@ func (w *Web) heldFile(ctx context.Context, db *sql.DB, titleID int64, key strin
 		JOIN link_version lv ON lv.link_id = l.id`+linkEp+` WHERE lv.version_id = ? AND l.state = 'active'
 		ORDER BY l.created_at DESC, l.id DESC LIMIT 1`, args...).Scan(&h.Quality, &score)
 	if errors.Is(err, sql.ErrNoRows) {
-		err = db.QueryRowContext(ctx, `SELECT vf.quality, vf.custom_format_score FROM version_file vf`+fileEp+`
-			LEFT JOIN version_source vs ON vs.version_id = vf.version_id WHERE vf.version_id = ? AND `+curFile+`
-			ORDER BY vf.added_at DESC, vf.id DESC LIMIT 1`, args...).Scan(&h.Quality, &score)
-		if errors.Is(err, sql.ErrNoRows) {
-			return &HeldFile{}, nil
-		}
+		return &HeldFile{}, nil
 	}
 	if err != nil {
 		return nil, err

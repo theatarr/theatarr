@@ -138,8 +138,7 @@ func redactRowWith(r *TitleRow, states []versionState) {
 // history, cutoff or upgrade explanation.
 func redactVersion(v *Version) {
 	v.State = plainState(v.State)
-	v.Source = ""
-	v.Files, v.Links = []File{}, []Link{}
+	v.Links = []Link{}
 	v.Providers, v.CachedOn = nil, nil
 	if c := v.Current; c != nil {
 		*c = CurrentFile{Quality: Resolution(c.Quality), Languages: c.Languages, Edition: c.Edition}
@@ -162,7 +161,6 @@ func redactTitle(d *TitleDetail) {
 	// On the title page added_at is the newest current file's time (enrichTitle), a file fact.
 	d.AddedAt = nil
 	d.AutoSearch = nil
-	d.Registry = []RegistryEntry{}
 	for i := range d.Versions {
 		redactVersion(&d.Versions[i])
 	}

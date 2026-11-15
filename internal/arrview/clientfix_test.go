@@ -14,7 +14,7 @@ import (
 
 func TestDeleteTitleFiles(t *testing.T) {
 	t.Parallel()
-	for _, mode := range []string{"delete files", "keep files", "gate closed", "outside root", "regular file", "no trash", "no library", "arr files only"} {
+	for _, mode := range []string{"delete files", "keep files", "gate closed", "outside root", "regular file", "no trash", "no library", "no files"} {
 		t.Run(mode, func(t *testing.T) {
 			e := newDevEnv(t)
 			e.seedFiles()
@@ -46,11 +46,7 @@ func TestDeleteTitleFiles(t *testing.T) {
 			e.exec(`INSERT INTO link (id, path, target, title_id, state, created_at, updated_at)
 				VALUES (8, ?, ?, 1, 'active', 0, 0)`, paths[1], target)
 			e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (8, 1)`)
-			arrPath := filepath.Join(remux, "arr.mkv")
-			if err := os.WriteFile(arrPath, []byte("arr file"), 0o644); err != nil {
-				t.Fatal(err)
-			}
-			e.exec(`UPDATE version_file SET path = ? WHERE id = 1`, arrPath)
+			e.exec(`DELETE FROM link WHERE id IN (1, 2, 3)`) // only this test's links 7 and 8
 			e.pol.Versions["movie-remux"].Mode = policy.ModeActive
 			e.pol.Versions["movie-remux"].Library = remux
 			e.pol.Versions["movie-web"].Library = web
@@ -65,12 +61,12 @@ func TestDeleteTitleFiles(t *testing.T) {
 			if mode == "no library" {
 				e.svc.library = nil
 			}
-			if mode == "arr files only" {
+			if mode == "no files" {
 				e.exec(`DELETE FROM link_version WHERE link_id IN (7, 8)`)
 				e.exec(`DELETE FROM link WHERE id IN (7, 8)`)
 			}
 			want := 409
-			if mode == "delete files" || mode == "keep files" || mode == "arr files only" {
+			if mode == "delete files" || mode == "keep files" || mode == "no files" {
 				want = 200
 			}
 			deleteFiles := mode != "keep files"
@@ -120,13 +116,11 @@ func TestDeleteTitleFiles(t *testing.T) {
 				e.one(`SELECT COUNT(*) FROM link_trash`) != moved || e.one(`SELECT COUNT(*) FROM link WHERE state = 'unlinked'`) != moved {
 				t.Fatal("wrong removal or trash state")
 			}
-			for path, want := range map[string]string{arrPath: "arr file", target: "mount content"} {
-				if got, err := os.ReadFile(path); err != nil || string(got) != want {
-					t.Fatalf("content changed: %s: %q, %v", path, got, err)
-				}
+			if got, err := os.ReadFile(target); err != nil || string(got) != "mount content" {
+				t.Fatalf("content changed: %s: %q, %v", target, got, err)
 			}
-			if e.one(`SELECT COUNT(*) FROM version_file WHERE title_id = 1`) != 1 || e.one(`SELECT COUNT(*) FROM version WHERE title_id = 1`) != 2 {
-				t.Fatal("arr file or version rows deleted")
+			if e.one(`SELECT COUNT(*) FROM version WHERE title_id = 1`) != 2 {
+				t.Fatal("version rows deleted")
 			}
 		})
 	}

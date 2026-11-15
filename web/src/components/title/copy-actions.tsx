@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Choice, ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Modal } from "@/components/ui/modal";
 import { listToReturnTo } from "@/lib/last-list";
-import { arrFilesStay, leftoverLinks, leftoverOnly, REMOVAL_DEBRID_NEEDS_FILES, removalScope, unlinkable, unlinkScope } from "@/lib/ops";
+import { leftoverLinks, leftoverOnly, REMOVAL_DEBRID_NEEDS_FILES, removalScope, unlinkable, unlinkScope } from "@/lib/ops";
 
 /** The removal confirmation: the server's scope for versions (none: the whole title), with the files choice. Once
  *  done, the outcome is a notice that opens the title's History (the Removed event, with the debrid clean-up's outcome
@@ -183,25 +183,17 @@ export function LeftoverLinks({ titleId, versions, label = "Delete files…", go
 }
 
 /** A title with no library copy left whose removed libraries still have library links: "N files kept from before it
- *  was removed", and for managers Delete them (LeftoverLinks for those libraries). Sonarr's or Radarr's own files of
- *  those libraries (their file rows at a path that is no link of Theatarr's) stay whatever is chosen: "24 files that
- *  Sonarr or Radarr manages stay". */
+ *  was removed", and for managers Delete them (LeftoverLinks for those libraries). */
 export function KeptFiles({ titleId, versions, manage }: { titleId: number; versions: Version[]; manage: boolean }) {
   const kept = versions.filter((v) => v.removed && v.key && leftoverLinks(v.links).length > 0);
   const n = kept.reduce((sum, v) => sum + leftoverLinks(v.links).length, 0);
-  const removed = versions.filter((v) => v.removed);
-  const linked = new Set(removed.flatMap((v) => leftoverLinks(v.links).map((l) => l.path)));
-  const arr = new Set(removed.flatMap((v) => (v.files ?? []).map((f) => f.path ?? "")).filter((p) => p && !linked.has(p))).size;
-  if (n === 0 && arr === 0) return null;
+  if (n === 0) return null;
   return (
     <div className="space-y-1 text-sm text-[var(--ink-2)]">
-      {n > 0 ? (
-        <p data-testid="kept-files">
-          {n === 1 ? "1 file" : `${n} files`} kept from before it was removed
-          {manage ? <>: <LeftoverLinks titleId={titleId} versions={kept.map((v) => v.key ?? "")} label={n === 1 ? "Delete it" : "Delete them"} gone /></> : "."}
-        </p>
-      ) : null}
-      {arr > 0 ? <p data-testid="kept-arr-files">{arrFilesStay(arr)}.</p> : null}
+      <p data-testid="kept-files">
+        {n === 1 ? "1 file" : `${n} files`} kept from before it was removed
+        {manage ? <>: <LeftoverLinks titleId={titleId} versions={kept.map((v) => v.key ?? "")} label={n === 1 ? "Delete it" : "Delete them"} gone /></> : "."}
+      </p>
     </div>
   );
 }

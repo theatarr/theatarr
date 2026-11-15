@@ -44,7 +44,7 @@
 //   - Lookup results set hasFile and monitored from the view (Radarr leaves hasFile out of lookups); id is set only
 //     when the view has the title, so Seerr adds it otherwise.
 //   - A second POST of a title is a 201, not Radarr's "This movie has already been added" 400.
-//   - DELETE keeps version rows and imported arr files; deleteFiles=true moves only Theatarr's links to trash.
+//   - DELETE keeps version rows; deleteFiles=true moves only Theatarr's links to trash.
 //   - The queue lists the router's downloads in hand (download table, queue.go): downloadId is the info hash,
 //     downloadClient "theatarr router (<provider>)", ETA from recent progress or zero/now when complete, omitted when
 //     unknown; Sonarr lists a pack once per episode, with stable episode-specific ids. Removing any member
@@ -56,9 +56,8 @@
 //     plus 2^40 × the episode's position for a Sonarr pack's later episodes).
 //     Plain-array routes remain complete lists. Negative page sizes return 400 instead of SQLite's unlimited LIMIT;
 //     paging uses checked 64-bit offsets instead of the reference repository's overflowing Int32 multiplication.
-//   - Sonarr episode files: an episode has a file when a view version's per-episode state is filled or cutoff_met, an
-//     imported arr file holds it, or an active link of a view version does. File ids are version_file ids, or
-//     LinkFileBase + link id for our links (a link of ours wins over the arr's file: it is newer).
+//   - Sonarr episode files: an episode has a file when a view version's per-episode state is filled or cutoff_met, or an
+//     active link of a view version holds it. File ids are LinkFileBase + link id.
 //   - The decision endpoints (release, release/push, parse, manualimport), file deletes, notifications and the
 //     outbound webhooks are described, with their deviations, in docs/design/devices.md.
 //   - Languages are mapped by name through the view flavour's language list: Sonarr's for Sonarr views, Radarr's for

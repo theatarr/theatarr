@@ -356,11 +356,11 @@ func TestMovies(t *testing.T) {
 	}
 
 	var f map[string]any
-	e.call("GET", "/radarr/api/v3/moviefile/1", nil, 200, &f)
+	e.call("GET", "/radarr/api/v3/moviefile/"+strconv.Itoa(LinkFileBase+1), nil, 200, &f)
 	if f["movieId"].(float64) != IDBase+1 {
 		t.Errorf("moviefile %v", f)
 	}
-	e.call("GET", "/v/movie-web/radarr/api/v3/moviefile/1", nil, 404, nil)
+	e.call("GET", "/v/movie-web/radarr/api/v3/moviefile/"+strconv.Itoa(LinkFileBase+1), nil, 404, nil)
 }
 
 func TestMovieLookup(t *testing.T) {

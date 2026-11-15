@@ -74,10 +74,6 @@ var (
 		"unmonitored": true, "none": true}
 )
 
-// curFile is true when version_file vf is a current file of its version: the owning instance's, or any file of a
-// version that has no owner. vs is the version's version_source row.
-const curFile = `(vs.instance IS NULL OR vs.instance = vf.instance)`
-
 // linkSizeSQL is the size of link l's file: its content file's, else (an adopted or imported link, with no content
 // file) the size its file metadata keeps. cf is the LEFT JOINed content_file.
 const linkSizeSQL = `COALESCE(cf.size_bytes, json_extract(l.file_metadata, '$.Size'))`
@@ -150,16 +146,10 @@ const liveLink = `EXISTS (SELECT 1 FROM link_version lv_l JOIN version v ON v.id
 const (
 	nameExpr = `CASE WHEN t.sort_name = '' THEN lower(t.name) ELSE t.sort_name END`
 	// addedExpr and sizeExpr read the copies in the library (liveVersion, liveLink), as the rows show them.
-	addedExpr = `NULLIF(MAX(
-		COALESCE((SELECT MAX(vf.added_at) FROM version v JOIN version_file vf ON vf.version_id = v.id
-			LEFT JOIN version_source vs ON vs.version_id = v.id WHERE v.title_id = t.id AND ` + liveVersion + ` AND ` +
-		curFile + `), 0),
+	addedExpr = `NULLIF(
 		COALESCE((SELECT MAX(l.created_at) FROM link l WHERE l.title_id = t.id AND l.state = 'active' AND ` + liveLink +
-		`), 0)), 0)`
+		`), 0), 0)`
 	sizeExpr = `NULLIF(
-		COALESCE((SELECT SUM(vf.size_bytes) FROM version v JOIN version_file vf ON vf.version_id = v.id
-			LEFT JOIN version_source vs ON vs.version_id = v.id WHERE v.title_id = t.id AND ` + liveVersion + ` AND ` +
-		curFile + `), 0) +
 		COALESCE((SELECT SUM(COALESCE(` + linkSizeSQL + `, 0)) FROM link l
 			LEFT JOIN content_file cf ON cf.id = l.content_file_id WHERE l.title_id = t.id AND l.state = 'active' AND ` +
 		liveLink + `), 0), 0)`
@@ -370,35 +360,28 @@ func idsJSON(ids map[int64]bool) (string, error) {
 	return string(b), err
 }
 
-// hasQuality is a condition on title t: some current file (arr file or active link) of a copy in the library has the
-// quality given twice as arguments.
+// hasQuality is a condition on title t: some active link of a copy in the library has the quality given as the
+// argument.
 func hasQuality() string { return qualityCond("= ?") }
 
 // hasQualityLike is hasQuality with a LIKE pattern.
 func hasQualityLike() string { return qualityCond("LIKE ?") }
 
 func qualityCond(match string) string {
-	return `(EXISTS (SELECT 1 FROM version v JOIN version_file vf ON vf.version_id = v.id
-		LEFT JOIN version_source vs ON vs.version_id = v.id WHERE v.title_id = t.id AND ` + liveVersion + ` AND ` + curFile +
-		` AND vf.quality ` + match + `)
-		OR EXISTS (SELECT 1 FROM link l WHERE l.title_id = t.id AND l.state = 'active' AND ` + liveLink +
-		` AND l.quality ` + match + `))`
+	return `EXISTS (SELECT 1 FROM link l WHERE l.title_id = t.id AND l.state = 'active' AND ` + liveLink +
+		` AND l.quality ` + match + `)`
 }
 
 // hasProvider is the same for a debrid provider holding the file's content now (providerHolds), with n provider
-// keys given twice as arguments, over the versions in the library. An active link's content is linkContentSQL, as
+// keys as arguments, over the versions in the library. An active link's content is linkContentSQL, as
 // currentFiles and the provider facet read it.
 func hasProvider(n int) string {
 	in := store.Placeholders(n)
-	// CROSS JOIN keeps the title's versions and links as the outer loop: without statistics SQLite would otherwise
-	// scan the provider's rows for every title.
-	return `(EXISTS (SELECT 1 FROM version v CROSS JOIN version_file vf ON vf.version_id = v.id
-		LEFT JOIN version_source vs ON vs.version_id = v.id CROSS JOIN content_provider cp ON cp.content_id = vf.content_id
-		WHERE v.title_id = t.id AND ` + liveVersion + ` AND ` + curFile + ` AND ` + providerHolds + `
-		AND cp.provider IN (` + in + `))
-		OR EXISTS (SELECT 1 FROM link l CROSS JOIN content_provider cp ON cp.content_id = ` + linkContentSQL + `
+	// CROSS JOIN keeps the title's links as the outer loop: without statistics SQLite would otherwise scan the
+	// provider's rows for every title.
+	return `EXISTS (SELECT 1 FROM link l CROSS JOIN content_provider cp ON cp.content_id = ` + linkContentSQL + `
 		WHERE l.title_id = t.id AND l.state = 'active' AND ` + liveLink + ` AND ` + providerHolds + `
-		AND cp.provider IN (` + in + `)))`
+		AND cp.provider IN (` + in + `))`
 }
 
 func (g TitleGridFilter) where(conds []string, args []any) ([]string, []any) {
@@ -421,10 +404,10 @@ func (g TitleGridFilter) where(conds []string, args []any) ([]string, []any) {
 		// A bare resolution (1080p) matches every quality with it: WEBDL-1080p, Bluray-1080p.
 		like := "%" + g.Quality + "%"
 		conds = append(conds, hasQualityLike())
-		args = append(args, like, like)
+		args = append(args, like)
 	case g.Quality != "":
 		conds = append(conds, hasQuality())
-		args = append(args, g.Quality, g.Quality)
+		args = append(args, g.Quality)
 	}
 	if g.Provider != "" {
 		keys := g.providerKeys
@@ -432,10 +415,8 @@ func (g TitleGridFilter) where(conds []string, args []any) ([]string, []any) {
 			keys = []string{g.Provider}
 		}
 		conds = append(conds, hasProvider(len(keys)))
-		for range 2 {
-			for _, k := range keys {
-				args = append(args, k)
-			}
+		for _, k := range keys {
+			args = append(args, k)
 		}
 	}
 	if g.YearFrom > 0 {
@@ -825,12 +806,6 @@ func (w *Web) currentFiles(ctx context.Context, db *sql.DB, ids []any) (map[int6
 		aggs[vid] = append(aggs[vid], a)
 		return nil
 	}
-	if err := scanAll(ctx, db, `SELECT vf.version_id, vf.quality, COUNT(*), COALESCE(SUM(vf.size_bytes), 0),
-		COALESCE(MAX(vf.added_at), 0), '' FROM version_file vf LEFT JOIN version_source vs ON vs.version_id = vf.version_id
-		WHERE vf.version_id IN (`+in+`) AND `+curFile+` GROUP BY vf.version_id, vf.quality ORDER BY vf.version_id, vf.quality`,
-		ids, scan); err != nil {
-		return nil, nil, err
-	}
 	if err := scanAll(ctx, db, `SELECT lv.version_id, COALESCE(l.quality, ''), COUNT(*),
 		COALESCE(SUM(COALESCE(`+linkSizeSQL+`, 0)), 0),
 		COALESCE(MAX(l.created_at), 0), COALESCE(MIN(l.path), '') FROM link_version lv JOIN link l ON l.id = lv.link_id
@@ -838,18 +813,14 @@ func (w *Web) currentFiles(ctx context.Context, db *sql.DB, ids []any) (map[int6
 		GROUP BY lv.version_id, l.quality ORDER BY lv.version_id`, ids, scan); err != nil {
 		return nil, nil, err
 	}
-	provs, err := scanProviders(ctx, db, `SELECT vf.version_id, cp.provider FROM version_file vf
-		LEFT JOIN version_source vs ON vs.version_id = vf.version_id JOIN content_provider cp ON cp.content_id = vf.content_id
-		WHERE vf.version_id IN (`+in+`) AND `+curFile+` AND `+providerHolds+`
-		UNION SELECT lv.version_id, cp.provider FROM link_version lv JOIN link l ON l.id = lv.link_id
-		JOIN content_provider cp ON cp.content_id = `+linkContentSQL+`
-		WHERE lv.version_id IN (`+in+`) AND l.state = 'active' AND `+providerHolds+` ORDER BY 1, 2`,
-		append(append([]any{}, ids...), ids...))
+	provs, err := scanProviders(ctx, db, `SELECT DISTINCT lv.version_id, cp.provider FROM link_version lv
+		JOIN link l ON l.id = lv.link_id JOIN content_provider cp ON cp.content_id = `+linkContentSQL+`
+		WHERE lv.version_id IN (`+in+`) AND l.state = 'active' AND `+providerHolds+` ORDER BY 1, 2`, ids)
 	return aggs, provs, err
 }
 
 // heldByHash lists, by lower-case hash, the providers that hold each torrent complete now (providerHolds): Cached on
-// of a file whose hash is resolved (linkHashSQL, fileHashSQL).
+// of a file whose hash is resolved (linkHashSQL).
 func heldByHash(ctx context.Context, db *sql.DB, hashes ...string) (map[string][]string, error) {
 	out := map[string][]string{}
 	var args []any

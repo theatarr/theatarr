@@ -61,12 +61,13 @@ func upgradeRowsPage(t testing.TB, titles int) *Web {
 				}
 				for _, season := range seasons {
 					fid := vid*10 + int64(season+1)
-					exec(`INSERT INTO version_file(id,version_id,title_id,instance,arr_file_id,path,quality,added_at) VALUES(?,?,?,?,?,?,'WEBDL-2160p',1000)`, fid, vid, tid, kind, fid, fmt.Sprintf("/files/%d", fid))
+					exec(`INSERT INTO link(id,path,target,title_id,quality,created_at,updated_at) VALUES(?,?,?,?,'WEBDL-2160p',1000,1000)`, fid, fmt.Sprintf("/files/%d", fid), fmt.Sprintf("/zurg/%d", fid), tid)
+					exec(`INSERT INTO link_version(link_id,version_id) VALUES(?,?)`, fid, vid)
 					if kind == "series" {
 						eid := tid*10 + int64(season)
 						exec(`INSERT OR IGNORE INTO episode(id,title_id,season,number,name,created_at,updated_at) VALUES(?,?,?,1,'Episode',0,0)`, eid, tid, season)
 						exec(`INSERT INTO episode_version_state(episode_id,version_id,state,monitored,updated_at) VALUES(?,?,'filled',1,0)`, eid, vid)
-						exec(`INSERT INTO version_file_episode(version_file_id,episode_id) VALUES(?,?)`, fid, eid)
+						exec(`INSERT INTO link_episode(link_id,episode_id) VALUES(?,?)`, fid, eid)
 					}
 				}
 				if i%4 == 1 && j == 1 {

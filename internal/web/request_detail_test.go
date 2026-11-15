@@ -137,15 +137,15 @@ func TestRequestDetailRequestedSeasons(t *testing.T) {
 		t.Fatalf("season scope: %+v %+v", d.Progress, d.Versions)
 	}
 	// A partial season is not available; completing the requested season is enough even with season 2 missing.
-	e.exec(`INSERT INTO version_file (id, version_id, title_id, instance, arr_file_id, path)
-		VALUES (999, 10, 10, 'sonarr', 999, '/private/episode')`)
-	e.exec(`INSERT INTO version_file_episode (version_file_id, episode_id) VALUES (999, 101)`)
+	e.exec(`INSERT INTO link (id, path, target, title_id, created_at, updated_at) VALUES (999, '/private/episode', '/zurg/e', 10, 0, 0)`)
+	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (999, 10)`)
+	e.exec(`INSERT INTO link_episode (link_id, episode_id) VALUES (999, 101)`)
 	d = RequestDetail{}
 	e.callAs(key, "GET", path, nil, 200, &d)
 	if *d.Progress[0].Have != 1 || d.Versions[0].Available {
 		t.Fatalf("partial season: %+v", d)
 	}
-	e.exec(`INSERT INTO version_file_episode (version_file_id, episode_id) VALUES (999, 102)`)
+	e.exec(`INSERT INTO link_episode (link_id, episode_id) VALUES (999, 102)`)
 	d = RequestDetail{}
 	e.callAs(key, "GET", path, nil, 200, &d)
 	if *d.Progress[0].Have != 2 || !d.Versions[0].Available || d.Progress[0].Words != "Available" {

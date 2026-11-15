@@ -47,6 +47,7 @@ func TestRemoveRunsTheCleanupAfterTheAnswer(t *testing.T) {
 		now := store.Millis(testNow)
 		o.exec(`INSERT INTO content (info_hash, first_seen_at, last_seen_at) VALUES (?, 0, 0), (?, 0, 0)`, hb, hz)
 		o.exec(`INSERT INTO provider_sync_run (provider, started_at, finished_at, ok) VALUES ('rd', 0, 0, 1)`)
+		o.exec(`DELETE FROM link WHERE id = 902`) // the seed's file: this test's link is the file
 		o.exec(`INSERT INTO link (id, path, target, kind, title_id, state, file_metadata, created_at, updated_at) VALUES
 			(5, '/movies/Beta (2021)/Beta.mkv', '/mnt/zurg/__all__/Beta.2021.2160p.WEB/b.mkv', 'symlink', 2, 'active', ?,
 			?, ?)`, `{"InfoHash":"`+hb+`"}`, now, now)
@@ -92,10 +93,6 @@ func TestRemoveRunsTheCleanupAfterTheAnswer(t *testing.T) {
 				strings.Join(tried, ",") != "rd/20" {
 				t.Errorf("with files: %q, %+v, tried %v", got.Message, rm, tried)
 			}
-			// The arr file at the unlinked path went with it.
-			if n := o.count(`SELECT COUNT(*) FROM version_file WHERE version_id = 3`); n != 0 {
-				t.Errorf("arr files left: %d", n)
-			}
 		} else if !strings.Contains(got.Message, "its files stay linked and its debrid torrents stay") ||
 			rm.Files != journal.RemovalFilesKept || rm.Cleanup != "" || len(tried) != 0 || len(o.ops.unlinks) != 0 {
 			t.Errorf("without files: %q, %+v, tried %v, unlinks %v", got.Message, rm, tried, o.ops.unlinks)
@@ -130,6 +127,7 @@ func TestRemoveFilesKeepsTorrentsWhenAsked(t *testing.T) {
 	o := newOpsEnv(t)
 	const hb = "b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0"
 	now := store.Millis(testNow)
+	o.exec(`DELETE FROM link WHERE id = 902`) // the seed's file: this test's link is the file
 	o.exec(`INSERT INTO link (id, path, target, kind, title_id, state, file_metadata, created_at, updated_at) VALUES
 		(5, '/movies/Beta (2021)/Beta.mkv', '/mnt/zurg/__all__/Beta/b.mkv', 'symlink', 2, 'active', ?, ?, ?)`,
 		`{"InfoHash":"`+hb+`"}`, now, now)
@@ -161,6 +159,7 @@ func TestRemoveFilesKeepsTorrentsWhenAsked(t *testing.T) {
 func TestLeftoverIncludesDeadLinks(t *testing.T) {
 	t.Parallel()
 	o := newOpsEnv(t)
+	o.exec(`DELETE FROM link WHERE id = 902`) // the seed's file: this test's link is the file
 	now := store.Millis(testNow)
 	o.exec(`INSERT INTO link (id, path, target, kind, title_id, state, created_at, updated_at) VALUES
 		(7, '/lib/Beta/b.mkv', '/mnt/zurg/b.mkv', 'symlink', 2, 'dead', ?, ?)`, now, now)

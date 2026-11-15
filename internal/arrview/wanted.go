@@ -19,8 +19,7 @@ func (s *Service) wantedPage(w http.ResponseWriter, r *request, cutoff bool) {
 	where, args := scope(r.v, nil)
 	q := `WITH vv AS (SELECT v.* FROM version v JOIN title t ON t.id=v.title_id WHERE ` + where + `),
  titles AS (SELECT title_id, MAX(monitored) monitored,
- MAX(state IN ('filled','cutoff_met') OR EXISTS(SELECT 1 FROM version_file f WHERE f.version_id=vv.id)
- OR EXISTS(SELECT 1 FROM link_version lv JOIN link l ON l.id=lv.link_id WHERE lv.version_id=vv.id AND l.state='active')) has_file
+ MAX(state IN ('filled','cutoff_met') OR EXISTS(SELECT 1 FROM link_version lv JOIN link l ON l.id=lv.link_id WHERE lv.version_id=vv.id AND l.state='active')) has_file
  FROM vv GROUP BY title_id)`
 	p := r.paging("movieMetadata.sortTitle", "ascending")
 	from := ` FROM titles x JOIN title t ON t.id=x.title_id WHERE x.monitored=?`
@@ -31,8 +30,7 @@ func (s *Service) wantedPage(w http.ResponseWriter, r *request, cutoff bool) {
 		p = r.paging("episodes.airDateUtc", "ascending")
 		q += `, states AS (SELECT s.episode_id, MAX(s.monitored AND v.monitored) monitored,
   MAX(s.state IN ('filled','cutoff_met')) has_file FROM episode_version_state s JOIN vv v ON v.id=s.version_id GROUP BY s.episode_id),
-  files AS (SELECT fe.episode_id FROM version_file_episode fe JOIN version_file f ON f.id=fe.version_file_id JOIN vv v ON v.id=f.version_id
-  UNION SELECT le.episode_id FROM link_episode le JOIN link l ON l.id=le.link_id JOIN link_version lv ON lv.link_id=l.id JOIN vv v ON v.id=lv.version_id WHERE l.state='active')`
+  files AS (SELECT le.episode_id FROM link_episode le JOIN link l ON l.id=le.link_id JOIN link_version lv ON lv.link_id=l.id JOIN vv v ON v.id=lv.version_id WHERE l.state='active')`
 		from = ` FROM episode e JOIN titles x ON x.title_id=e.title_id JOIN title t ON t.id=e.title_id LEFT JOIN states st ON st.episode_id=e.id
   WHERE e.removed_at IS NULL AND (COALESCE(st.monitored,e.monitored AND x.monitored) AND x.monitored)=?`
 		id = "e.id"

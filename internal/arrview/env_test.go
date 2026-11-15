@@ -151,18 +151,18 @@ func (e *env) seed() {
 		(3, 2, 'movie-web', 0, 'filled', ?, ?), (4, 3, 'anime-movie', 1, 'wanted', ?, ?),
 		(10, 10, 'tv-2160p', 1, 'wanted', ?, ?)`,
 		created, created, created, created, created, created, created, created, created, created)
-	e.exec(`INSERT INTO version_source (version_id, instance, arr_id) VALUES (1, 'radarr_4k_debrid', 7),
-		(3, 'radarr_4k_web', 7), (10, 'sonarr_4k_debrid', 3)`)
 	fileAdded := ms(time.Date(2025, 3, 5, 0, 0, 0, 0, time.UTC))
-	e.exec(`INSERT INTO version_file (id, version_id, title_id, instance, arr_file_id, path, relative_path, size_bytes,
-		quality, quality_revision, release_group, scene_name, languages, media_info, custom_format_score,
-		indexer_flags, added_at) VALUES
-		(1, 1, 1, 'radarr_4k_debrid', 501, '/media/movies/Alpha (2020)/Alpha (2020) Remux-2160p.mkv',
-		 'Alpha (2020) Remux-2160p.mkv', 60000000000, 'Remux-2160p', 1, 'GRP', 'Alpha.2020.2160p.BluRay.REMUX-GRP',
-		 '["English"]', '{"resolution":"3840x2160","videoDynamicRangeType":"DV HDR10"}', 3200, 0, ?),
-		(2, 3, 2, 'radarr_4k_web', 502, '/media/movies-web/Beta (2021)/Beta (2021) WEBDL-2160p.mkv',
-		 'Beta (2021) WEBDL-2160p.mkv', 9000000000, 'WEBDL-2160p', 2, 'WEB', '', '[]', '{}', NULL, 0, ?)`,
-		fileAdded, fileAdded)
+	// Files adopted from the arrs (links 1 and 2), with the facts adoption keeps.
+	e.exec(`INSERT INTO link (id, path, target, title_id, release_title, quality, score, file_metadata, adopted,
+		adopted_media, created_at, updated_at) VALUES
+		(1, '/media/movies/Alpha (2020)/Alpha (2020) Remux-2160p.mkv', '/zurg/Alpha/Alpha.mkv', 1,
+		 'Alpha.2020.2160p.BluRay.REMUX-GRP', 'Remux-2160p', 3200,
+		 '{"Revision":1,"ReleaseGroup":"GRP","SceneName":"Alpha.2020.2160p.BluRay.REMUX-GRP","Languages":["English"],"Size":60000000000,"Score":3200}',
+		 1, '{"resolution":"3840x2160","videoDynamicRangeType":"DV HDR10"}', ?, ?),
+		(2, '/media/movies-web/Beta (2021)/Beta (2021) WEBDL-2160p.mkv', '/zurg/Beta/Beta.mkv', 2, NULL, 'WEBDL-2160p',
+		 NULL, '{"Revision":2,"ReleaseGroup":"WEB","Languages":[],"Size":9000000000}', 1, '{}', ?, ?)`,
+		fileAdded, fileAdded, fileAdded, fileAdded)
+	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (1, 1), (2, 3)`)
 	e.exec(`INSERT INTO title_release_date (title_id, source, country, type, date) VALUES
 		(1, 'radarr_4k_debrid', '', 'theatrical', '2020-05-01'), (1, 'radarr_4k_debrid', '', 'digital', '2020-08-01'),
 		(3, 'radarr_anime', '', 'theatrical', '2027-02-01')`)

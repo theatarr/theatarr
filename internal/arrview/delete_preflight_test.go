@@ -14,20 +14,17 @@ func TestBulkDeleteFilesPreflightsEveryRow(t *testing.T) {
 	t.Parallel()
 	e := newDevEnv(t)
 	e.seedFiles()
-	e.exec(`INSERT INTO link (id, path, target, title_id, state, created_at, updated_at)
-		VALUES (9, '/media/movies/Alpha (2020)/Alpha (2020) Remux-2160p.mkv',
-		'/mnt/debrid/__all__/Alpha.Remux/a.mkv', 1, 'active', 0, 0)`)
-	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (9, 1)`)
+	active := e.one(`SELECT COUNT(*) FROM link WHERE state = 'active'`)
 	// movie-web may write; movie-remux is not listed under library.versions (the gate refuses it).
 	e.pol.Library = &policy.Library{Enabled: true, Versions: map[string]*policy.LibraryVersion{
 		"movie-web": {Roots: []string{"/media/movies-web"}}}}
 	e.lib.gate = library.NewGate(e.pol)
 	rec := e.do("DELETE", "/radarr/api/v3/moviefile/bulk", e.key,
-		map[string]any{"movieFileIds": []int{LinkFileBase + 7, LinkFileBase + 9}})
+		map[string]any{"movieFileIds": []int{LinkFileBase + 7, LinkFileBase + 1}})
 	if rec.Code != 409 {
 		t.Errorf("bulk delete with a gated row: %d %s", rec.Code, rec.Body.String())
 	}
-	if len(e.lib.unlinks) != 0 || e.one(`SELECT COUNT(*) FROM link WHERE state = 'active'`) != 2 {
+	if len(e.lib.unlinks) != 0 || e.one(`SELECT COUNT(*) FROM link WHERE state = 'active'`) != active {
 		t.Errorf("a refused bulk delete unlinked %v", e.lib.unlinks)
 	}
 	if len(e.events.events) != 0 {

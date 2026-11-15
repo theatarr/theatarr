@@ -190,17 +190,13 @@ func (w *Web) titleFacets(ctx context.Context, f TitleFilter, seeFiles bool) (Ti
 		})
 		return res, err
 	}
-	twice := append(append([]any{}, args...), args...)
-	qualities := `SELECT t.id AS tid, vf.quality AS q` + titleFrom + ` JOIN version v ON v.title_id = t.id
-			JOIN version_file vf ON vf.version_id = v.id LEFT JOIN version_source vs ON vs.version_id = v.id` +
-		andWhere(where, liveVersion+" AND "+curFile) + `
-		UNION ALL SELECT t.id, COALESCE(l.quality, '')` + titleFrom + ` JOIN link l ON l.title_id = t.id` +
+	qualities := `SELECT t.id AS tid, COALESCE(l.quality, '') AS q` + titleFrom + ` JOIN link l ON l.title_id = t.id` +
 		andWhere(where, "l.state = 'active' AND "+liveLink)
 	if seeFiles {
-		if out.Qualities, err = counts(`SELECT q, COUNT(DISTINCT tid) FROM (`+qualities+`) GROUP BY q`, twice); err != nil {
+		if out.Qualities, err = counts(`SELECT q, COUNT(DISTINCT tid) FROM (`+qualities+`) GROUP BY q`, args); err != nil {
 			return out, err
 		}
-	} else if out.Qualities, err = w.resolutionFacets(ctx, db, `SELECT DISTINCT q, tid FROM (`+qualities+`)`, twice); err != nil {
+	} else if out.Qualities, err = w.resolutionFacets(ctx, db, `SELECT DISTINCT q, tid FROM (`+qualities+`)`, args); err != nil {
 		return out, err
 	}
 	if out.Genres, err = counts(`SELECT g.value, COUNT(*)`+titleFrom+`, json_each(m.genres) g`+where+` GROUP BY g.value`,
@@ -215,14 +211,9 @@ func (w *Web) titleFacets(ctx context.Context, f TitleFilter, seeFiles bool) (Ti
 		// As the rows' pills and the provider filter: providers holding a current file of a version in the library
 		// now (providerHolds; a link's content is linkContentSQL), counted by cache code.
 		titles := map[string]map[int64]bool{}
-		err := scanAll(ctx, db, `SELECT DISTINCT p, tid FROM (
-			SELECT t.id AS tid, cp.provider AS p`+titleFrom+` JOIN version v ON v.title_id = t.id
-				JOIN version_file vf ON vf.version_id = v.id LEFT JOIN version_source vs ON vs.version_id = v.id
-				JOIN content_provider cp ON cp.content_id = vf.content_id`+
-			andWhere(where, liveVersion+" AND "+curFile+" AND "+providerHolds)+`
-			UNION ALL SELECT t.id, cp.provider`+titleFrom+` JOIN link l ON l.title_id = t.id
+		err := scanAll(ctx, db, `SELECT DISTINCT cp.provider AS p, t.id AS tid`+titleFrom+` JOIN link l ON l.title_id = t.id
 				JOIN content_provider cp ON cp.content_id = `+linkContentSQL+
-			andWhere(where, "l.state = 'active' AND "+liveLink+" AND "+providerHolds)+`)`, twice, func(r *sql.Rows) error {
+			andWhere(where, "l.state = 'active' AND "+liveLink+" AND "+providerHolds), args, func(r *sql.Rows) error {
 			var p string
 			var tid int64
 			if err := r.Scan(&p, &tid); err != nil {

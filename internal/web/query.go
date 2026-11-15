@@ -122,9 +122,8 @@ type TitlePage struct {
 	Items  []TitleRow `json:"items"`
 }
 
-// hasFileSQL is true when version v has a file: an arr file or an active link.
-const hasFileSQL = `(EXISTS (SELECT 1 FROM version_file vf WHERE vf.version_id = v.id)
-	OR EXISTS (SELECT 1 FROM link_version lv JOIN link l ON l.id = lv.link_id WHERE lv.version_id = v.id AND l.state = 'active'))`
+// hasFileSQL is true when version v has a file: an active link.
+const hasFileSQL = `EXISTS (SELECT 1 FROM link_version lv JOIN link l ON l.id = lv.link_id WHERE lv.version_id = v.id AND l.state = 'active')`
 
 func (f TitleFilter) where() (string, []any) {
 	// Only titles in the library (a current copy): a removed title is in no list, total or facet.
@@ -267,66 +266,10 @@ func nullInt(n sql.NullInt64) *int64 {
 	return &v
 }
 
-// A target hash is safe to share when every active symlinked version file on that target agrees. Only targets
-// used by the requested versions (one JSON array argument) need evidence, but all versions on those targets vote.
-const uniqueLinkedTargetHash = `WITH requested_versions AS (SELECT value AS id FROM json_each(?)),
-requested_targets AS (
-	SELECT l.target FROM version_file vf CROSS JOIN link l ON l.path = vf.path
-	WHERE vf.version_id IN (SELECT id FROM requested_versions) AND l.state = 'active' AND l.kind = 'symlink'
-	UNION
-	SELECT l.target FROM link l WHERE l.id IN
-		(SELECT link_id FROM link_version WHERE version_id IN (SELECT id FROM requested_versions))
-		AND l.state = 'active' AND l.kind = 'symlink'
-), unique_target_hash AS (
-	SELECT l2.target, MIN(COALESCE(c2.info_hash, c3.info_hash)) AS info_hash
-	FROM version_file vf2 JOIN link l2 ON l2.path = vf2.path AND l2.state = 'active' AND l2.kind = 'symlink'
-	LEFT JOIN content c2 ON c2.id = vf2.content_id
-	LEFT JOIN content_file cf2 ON cf2.id = l2.content_file_id
-	LEFT JOIN content c3 ON c3.id = cf2.content_id
-	WHERE l2.target IN (SELECT target FROM requested_targets)
-		AND COALESCE(c2.info_hash, c3.info_hash) IS NOT NULL AND COALESCE(c2.info_hash, c3.info_hash) != ''
-	GROUP BY l2.target HAVING COUNT(DISTINCT COALESCE(c2.info_hash, c3.info_hash)) = 1
-)
-`
-
 // A file's torrent hash: the one resolution the title page's current file, the episode window's file, their Cached on
-// (heldByHash), the Torrent link and "Add to other providers" all use. A link's: its content file's content, else
-// the hash it records (its download's, the file metadata's InfoHash, the adopted source's), with or without a content
-// row; an arr file's: its content, else its download id when that is a v1 hash (a torrent client's download id); for
-// both, else the unique hash of the symlink target they share (uniqueLinkedTargetHash). linkHashJoin / fileHashJoin
-// bring in uth for link l / version file vf.
-const (
-	linkHashSQL  = `COALESCE(` + router.LinkStoredHashSQL + `, uth.info_hash, '')`
-	linkHashJoin = ` LEFT JOIN unique_target_hash uth ON uth.target = l.target AND l.state = 'active' AND l.kind = 'symlink' `
-	fileHashSQL  = `COALESCE((SELECT c_h.info_hash FROM content c_h WHERE c_h.id = vf.content_id),
-		CASE WHEN length(vf.download_id) = 40 AND lower(vf.download_id) NOT GLOB '*[^0-9a-f]*'
-			THEN lower(vf.download_id) END, uth.info_hash, '')`
-	fileHashJoin = ` LEFT JOIN link vf_link ON vf_link.path = vf.path AND vf_link.state = 'active' AND vf_link.kind = 'symlink'
-		LEFT JOIN unique_target_hash uth ON uth.target = vf_link.target `
-)
-
-// File is a file a version holds, as the arr reported it.
-type File struct {
-	ID                int64      `json:"id"`
-	Instance          string     `json:"instance"`
-	ArrFileID         int64      `json:"arr_file_id"`
-	Path              string     `json:"path"`
-	RelativePath      string     `json:"relative_path"`
-	SizeBytes         int64      `json:"size_bytes"`
-	Quality           string     `json:"quality"`
-	QualityRevision   int64      `json:"quality_revision"`
-	ReleaseGroup      string     `json:"release_group"`
-	SceneName         string     `json:"scene_name"`
-	Edition           string     `json:"edition"`
-	Languages         []string   `json:"languages"`
-	CustomFormatScore *int64     `json:"custom_format_score,omitempty"`
-	CutoffNotMet      bool       `json:"cutoff_not_met"`
-	AddedAt           *time.Time `json:"added_at,omitempty"`
-	ReleaseTitle      string     `json:"release_title,omitempty"`
-	InfoHash          string     `json:"info_hash,omitempty"`
-	// Current is true for the file of the instance that owns the version.
-	Current bool `json:"current"`
-}
+// (heldByHash), the Torrent link and "Add to other providers" all use: link l's content file's content, else the hash
+// it records (its download's, the file metadata's InfoHash, the adopted source's), with or without a content row.
+const linkHashSQL = `COALESCE(` + router.LinkStoredHashSQL + `, '')`
 
 // Link is a library entry.
 type Link struct {
@@ -353,10 +296,8 @@ type Version struct {
 	State     string    `json:"state"`
 	Monitored bool      `json:"monitored"`
 	HasFile   bool      `json:"has_file"`
-	Source    string    `json:"source,omitempty"` // owning arr instance
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
-	Files     []File    `json:"files"`
 	Links     []Link    `json:"links"`
 	// The title page's additions (titlepage.go); empty on other routes.
 	Label     string       `json:"label,omitempty"`
@@ -392,20 +333,6 @@ type Version struct {
 	availState string
 }
 
-// RegistryEntry is a content tied to a version of a title.
-type RegistryEntry struct {
-	InfoHash     string     `json:"info_hash"`
-	Name         string     `json:"name"`
-	State        string     `json:"state"`
-	VersionID    int64      `json:"version_id"`
-	VersionKey   string     `json:"version_key"`
-	ReleaseTitle string     `json:"release_title"`
-	Source       string     `json:"source"`
-	GrabbedAt    *time.Time `json:"grabbed_at,omitempty"`
-	ImportedAt   *time.Time `json:"imported_at,omitempty"`
-	FailedAt     *time.Time `json:"failed_at,omitempty"`
-}
-
 // ExternalID is a further id of a title.
 type ExternalID struct {
 	Source string `json:"source"`
@@ -423,13 +350,12 @@ type ReleaseDate struct {
 // TitleDetail is a title with everything the title page shows.
 type TitleDetail struct {
 	TitleRow
-	SortName     string          `json:"sort_name"`
-	CreatedAt    time.Time       `json:"created_at"`
-	UpdatedAt    time.Time       `json:"updated_at"`
-	ExternalIDs  []ExternalID    `json:"external_ids"`
-	ReleaseDates []ReleaseDate   `json:"release_dates"`
-	Versions     []Version       `json:"versions"`
-	Registry     []RegistryEntry `json:"registry"`
+	SortName     string        `json:"sort_name"`
+	CreatedAt    time.Time     `json:"created_at"`
+	UpdatedAt    time.Time     `json:"updated_at"`
+	ExternalIDs  []ExternalID  `json:"external_ids"`
+	ReleaseDates []ReleaseDate `json:"release_dates"`
+	Versions     []Version     `json:"versions"`
 	// Meta is the title's TMDb metadata; null before the meta.art job first tried the title.
 	Meta *TitleMeta `json:"meta"`
 	// Franchises are the anime franchises that map into the title (titlepage.go).
@@ -451,8 +377,7 @@ type CollectionRef struct {
 
 func (w *Web) getTitle(ctx context.Context, id int64) (*TitleDetail, error) {
 	db := w.st.Reader()
-	d := &TitleDetail{ExternalIDs: []ExternalID{}, ReleaseDates: []ReleaseDate{}, Versions: []Version{},
-		Registry: []RegistryEntry{}}
+	d := &TitleDetail{ExternalIDs: []ExternalID{}, ReleaseDates: []ReleaseDate{}, Versions: []Version{}}
 	var year, tmdb, tvdb sql.NullInt64
 	var created, updated int64
 	err := db.QueryRowContext(ctx, `SELECT id, kind, name, sort_name, year, tmdb_id, tvdb_id, COALESCE(imdb_id, ''),
@@ -538,30 +463,14 @@ func (w *Web) getTitle(ctx context.Context, id int64) (*TitleDetail, error) {
 			d.Versions[i].MinimumAvailability = rules[d.Versions[i].ID].Minimum
 		}
 	}
-	err = scanAll(ctx, db, `SELECT c.info_hash, c.name, c.state, v.id, v.policy_key, cv.release_title, cv.source,
-		cv.grabbed_at, cv.imported_at, cv.failed_at FROM content_version cv JOIN content c ON c.id = cv.content_id
-		JOIN version v ON v.id = cv.version_id WHERE v.title_id = ?
-		ORDER BY COALESCE(cv.imported_at, cv.grabbed_at, cv.failed_at) DESC, c.info_hash`, []any{id},
-		func(r *sql.Rows) error {
-			var e RegistryEntry
-			var g, i, f sql.NullInt64
-			if err := r.Scan(&e.InfoHash, &e.Name, &e.State, &e.VersionID, &e.VersionKey, &e.ReleaseTitle, &e.Source,
-				&g, &i, &f); err != nil {
-				return err
-			}
-			e.GrabbedAt, e.ImportedAt, e.FailedAt = nullTS(g), nullTS(i), nullTS(f)
-			d.Registry = append(d.Registry, e)
-			return nil
-		})
-	return d, err
+	return d, nil
 }
 
-// versions loads versions matching cond with their files, links and arr records. limit 0 means all.
+// versions loads versions matching cond with their links. limit 0 means all.
 func (w *Web) versions(ctx context.Context, cond string, args []any, limit, offset int) ([]Version, error) {
 	db := w.st.Reader()
 	q := `SELECT v.id, v.title_id, t.name, v.policy_key, v.state, v.monitored, ` + hasFileSQL + `,
-		COALESCE(vs.instance, ''), v.created_at, v.updated_at FROM version v JOIN title t ON t.id = v.title_id
-		LEFT JOIN version_source vs ON vs.version_id = v.id WHERE ` + cond + ` ORDER BY v.title_id, v.policy_key`
+		v.created_at, v.updated_at FROM version v JOIN title t ON t.id = v.title_id WHERE ` + cond + ` ORDER BY v.title_id, v.policy_key`
 	if limit > 0 {
 		q += " LIMIT ? OFFSET ?"
 		args = append(args, limit, offset)
@@ -572,12 +481,11 @@ func (w *Web) versions(ctx context.Context, cond string, args []any, limit, offs
 	err := scanAll(ctx, db, q, args, func(r *sql.Rows) error {
 		var v Version
 		var c, u int64
-		if err := r.Scan(&v.ID, &v.TitleID, &v.TitleName, &v.Key, &v.State, &v.Monitored, &v.HasFile, &v.Source,
-			&c, &u); err != nil {
+		if err := r.Scan(&v.ID, &v.TitleID, &v.TitleName, &v.Key, &v.State, &v.Monitored, &v.HasFile, &c, &u); err != nil {
 			return err
 		}
 		v.CreatedAt, v.UpdatedAt = ts(c), ts(u)
-		v.Files, v.Links = []File{}, []Link{}
+		v.Links = []Link{}
 		idx[v.ID] = len(out)
 		ids = append(ids, v.ID)
 		out = append(out, v)
@@ -587,44 +495,11 @@ func (w *Web) versions(ctx context.Context, cond string, args []any, limit, offs
 		return out, err
 	}
 	in := store.Placeholders(len(ids))
-	targetIDs, _ := json.Marshal(ids)
-	targetArgs := append([]any{string(targetIDs)}, ids...)
-	err = scanAll(ctx, db, uniqueLinkedTargetHash+`SELECT vf.version_id, vf.id, vf.instance, vf.arr_file_id, vf.path, vf.relative_path,
-		vf.size_bytes, vf.quality, vf.quality_revision, vf.release_group, vf.scene_name, vf.edition, vf.languages,
-		vf.custom_format_score, vf.cutoff_not_met, vf.added_at, COALESCE(vf.release_title, ''),
-		`+fileHashSQL+`, COALESCE(vs.instance = vf.instance, 0)
-		FROM version_file vf`+fileHashJoin+`
-		LEFT JOIN version_source vs ON vs.version_id = vf.version_id
-		WHERE vf.version_id IN (`+in+`) ORDER BY vf.version_id, vf.instance`, targetArgs, func(r *sql.Rows) error {
-		var vid int64
-		var f File
-		var langs string
-		var score, added sql.NullInt64
-		if err := r.Scan(&vid, &f.ID, &f.Instance, &f.ArrFileID, &f.Path, &f.RelativePath, &f.SizeBytes, &f.Quality,
-			&f.QualityRevision, &f.ReleaseGroup, &f.SceneName, &f.Edition, &langs, &score, &f.CutoffNotMet, &added,
-			&f.ReleaseTitle, &f.InfoHash, &f.Current); err != nil {
-			return err
-		}
-		f.Languages = jsonStrings(langs)
-		f.CustomFormatScore, f.AddedAt = nullInt(score), nullTS(added)
-		v := &out[idx[vid]]
-		v.Files = append(v.Files, f)
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	// A version with one file and no owner: that file is current.
-	for i := range out {
-		if len(out[i].Files) == 1 && out[i].Source == "" {
-			out[i].Files[0].Current = true
-		}
-	}
-	err = scanAll(ctx, db, uniqueLinkedTargetHash+`SELECT lv.version_id, l.id, l.path, l.target, l.kind, l.state, COALESCE(l.release_title, ''),
+	err = scanAll(ctx, db, `SELECT lv.version_id, l.id, l.path, l.target, l.kind, l.state, COALESCE(l.release_title, ''),
 		COALESCE(l.quality, ''), `+linkScoreSQL+`, l.title_id, `+linkHashSQL+`, `+linkSizeSQL+`
 		FROM link_version lv JOIN link l ON l.id = lv.link_id
-		LEFT JOIN content_file cf ON cf.id = l.content_file_id`+linkHashJoin+`
-		WHERE lv.version_id IN (`+in+`) ORDER BY l.path`, targetArgs, func(r *sql.Rows) error {
+		LEFT JOIN content_file cf ON cf.id = l.content_file_id
+		WHERE lv.version_id IN (`+in+`) ORDER BY l.path`, ids, func(r *sql.Rows) error {
 		var vid int64
 		var l Link
 		var score, size sql.NullInt64
@@ -694,8 +569,6 @@ type Content struct {
 	LastSeenAt  time.Time  `json:"last_seen_at"`
 	Providers   []Provider `json:"providers"`
 	Files       []CFile    `json:"files"`
-	Versions    []CVersion `json:"versions"`
-	ArrFiles    []ArrFile  `json:"arr_files"`
 	Links       []Link     `json:"links"`
 	// Usage is the Torrents page's stored answer for this hash (used, unused or unknown, with its references, as of
 	// the record); absent when no account holds it in the record.
@@ -719,28 +592,6 @@ type CFile struct {
 	Probed    bool   `json:"probed"`
 }
 
-// CVersion is a version a content was grabbed or imported for.
-type CVersion struct {
-	TitleID      int64      `json:"title_id"`
-	TitleName    string     `json:"title_name"`
-	VersionID    int64      `json:"version_id"`
-	VersionKey   string     `json:"version_key"`
-	ReleaseTitle string     `json:"release_title"`
-	Source       string     `json:"source"`
-	GrabbedAt    *time.Time `json:"grabbed_at,omitempty"`
-	ImportedAt   *time.Time `json:"imported_at,omitempty"`
-	FailedAt     *time.Time `json:"failed_at,omitempty"`
-}
-
-// ArrFile is an arr file that came from a content.
-type ArrFile struct {
-	TitleID    int64  `json:"title_id"`
-	VersionKey string `json:"version_key"`
-	Instance   string `json:"instance"`
-	Path       string `json:"path"`
-	Quality    string `json:"quality"`
-}
-
 func normHash(h string) string { return strings.ToLower(strings.TrimSpace(h)) }
 
 func validHash(h string) bool {
@@ -758,8 +609,7 @@ func validHash(h string) bool {
 func (w *Web) getContent(ctx context.Context, hash string) (*Content, error) {
 	hash = normHash(hash)
 	db := w.st.Reader()
-	c := &Content{Providers: []Provider{}, Files: []CFile{}, Versions: []CVersion{}, ArrFiles: []ArrFile{},
-		Links: []Link{}}
+	c := &Content{Providers: []Provider{}, Files: []CFile{}, Links: []Link{}}
 	var mount sql.NullString
 	var size sql.NullInt64
 	var first, last int64
@@ -801,28 +651,6 @@ func (w *Web) getContent(ctx context.Context, hash string) (*Content, error) {
 				c.Files = append(c.Files, f)
 				return nil
 			}},
-		{`SELECT t.id, t.name, v.id, v.policy_key, cv.release_title, cv.source, cv.grabbed_at, cv.imported_at, cv.failed_at
-			FROM content_version cv JOIN version v ON v.id = cv.version_id JOIN title t ON t.id = v.title_id
-			WHERE cv.content_id = ? ORDER BY t.name, v.policy_key`, func(r *sql.Rows) error {
-			var v CVersion
-			var g, i, f sql.NullInt64
-			if err := r.Scan(&v.TitleID, &v.TitleName, &v.VersionID, &v.VersionKey, &v.ReleaseTitle, &v.Source,
-				&g, &i, &f); err != nil {
-				return err
-			}
-			v.GrabbedAt, v.ImportedAt, v.FailedAt = nullTS(g), nullTS(i), nullTS(f)
-			c.Versions = append(c.Versions, v)
-			return nil
-		}},
-		{`SELECT vf.title_id, v.policy_key, vf.instance, vf.path, vf.quality FROM version_file vf
-			JOIN version v ON v.id = vf.version_id WHERE vf.content_id = ? ORDER BY vf.path`, func(r *sql.Rows) error {
-			var a ArrFile
-			if err := r.Scan(&a.TitleID, &a.VersionKey, &a.Instance, &a.Path, &a.Quality); err != nil {
-				return err
-			}
-			c.ArrFiles = append(c.ArrFiles, a)
-			return nil
-		}},
 		{`SELECT l.id, l.path, l.target, l.kind, l.state, COALESCE(l.release_title, ''), COALESCE(l.quality, ''),
 			l.score, l.title_id FROM link l JOIN content_file cf ON cf.id = l.content_file_id
 			WHERE cf.content_id = ? ORDER BY l.path`, func(r *sql.Rows) error {
@@ -1156,7 +984,7 @@ func (w *Web) status(ctx context.Context) (Status, error) {
 	if err != nil {
 		return s, err
 	}
-	for _, t := range []string{"title", "version", "version_file", "content", "link", "job"} {
+	for _, t := range []string{"title", "version", "content", "link", "job"} {
 		var n int
 		q := "SELECT COUNT(*) FROM " + t
 		if t == "title" {

@@ -1,13 +1,10 @@
-// The About tab's file inventory includes old-manager files and Theatarr's active library links. Paths are unique in the
-// inventory; when both sources describe one path, keep the file row's fuller metadata.
+// The About tab's file inventory: Theatarr's active library links, one row per path with every library that links it.
 import type { Version } from "@/api/library";
 
 export type FileInventoryRow = {
   key: string;
   versions: string[];
   path: string;
-  instance?: string;
-  current?: boolean;
   quality?: string;
   size_bytes?: number;
   custom_format_score?: number;
@@ -35,23 +32,10 @@ export function fileInventoryRows(versions: Version[]): FileInventoryRow[] {
 
   for (const v of versions) {
     const version = v.key ?? v.label ?? "";
-    for (const f of v.files ?? []) {
-      add(version, {
-        path: f.path,
-        instance: f.instance,
-        current: f.current,
-        quality: f.quality,
-        size_bytes: f.size_bytes,
-        custom_format_score: f.custom_format_score,
-        info_hash: f.info_hash,
-      });
-    }
     for (const l of v.links ?? []) {
       if (l.state !== "active") continue;
-      // Theatarr's own link: no instance word ("theatarr" says nothing here).
       add(version, {
         path: l.path,
-        current: true,
         quality: l.quality ?? "",
         size_bytes: l.size_bytes,
         custom_format_score: l.score,

@@ -512,16 +512,6 @@ func TestSeerrMovieStatusUsesResolutionForLinkedFiles(t *testing.T) {
 		t.Fatalf("Ruddarr movie-file list: %d files", len(files))
 	}
 	checkMediaInfo("Ruddarr movie-file list", files[0].MediaInfo, "3840x2160")
-
-	// A probed value wins even when it conflicts with the parsed release quality.
-	e.exec(`UPDATE version_file SET media_info = '{"resolution":"1280x720","audioBitrate":null,"videoDynamicRangeType":"HDR10"}' WHERE id = 1`)
-	movie = movieStatus{}
-	main := &client{t: t, e: e, base: "/radarr/api/v3"}
-	main.must("GET", "/movie/"+strconv.FormatInt(IDBase+1, 10), nil, nil, 200, &movie)
-	checkMediaInfo("probed movie", movie.MovieFile.MediaInfo, "1280x720")
-	if *movie.MovieFile.MediaInfo.AudioBitrate != 0 || movie.MovieFile.MediaInfo.VideoDynamicRangeType != "HDR10" {
-		t.Errorf("probe metadata was lost: %+v", movie.MovieFile.MediaInfo)
-	}
 }
 
 func TestQualityResolutionText(t *testing.T) {

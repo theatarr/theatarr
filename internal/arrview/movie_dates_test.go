@@ -38,8 +38,7 @@ func TestCachedReleaseGrabSkipsAvailability(t *testing.T) {
 	}
 }
 
-// TestViewPathFromFiles: a title's path is the folder a file of it already has under the root (an imported file or
-// an active link), not the computed "Title (Year)"; the computed one is used only when no folder is known.
+// TestViewPathFromFiles: a title's path is the folder a file of it already has under the root (an active link), not the computed "Title (Year)"; the computed one is used only when no folder is known.
 func TestViewPathFromFiles(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t)
@@ -48,14 +47,15 @@ func TestViewPathFromFiles(t *testing.T) {
 	if s["path"] != "/media/tv/The Show (2019)" {
 		t.Fatalf("no file: path %v", s["path"])
 	}
-	e.exec(`INSERT INTO version_file (id, version_id, title_id, instance, arr_file_id, path, relative_path, size_bytes,
-		quality) VALUES (3, 10, 10, 'sonarr_4k_debrid', 601, '/media/tv/The Show/Season 01/The Show - S01E01.mkv',
-		'Season 01/The Show - S01E01.mkv', 1, 'WEBDL-2160p')`)
+	e.exec(`INSERT INTO link (id, path, target, title_id, quality, adopted, created_at, updated_at) VALUES
+		(3, '/media/tv/The Show/Season 01/The Show - S01E01.mkv', '/mnt/zurg/e1.mkv', 10, 'WEBDL-2160p', 1, 0, 0)`)
+	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (3, 10)`)
 	e.call("GET", fmt.Sprintf("/sonarr/api/v3/series/%d", IDBase+10), nil, 200, &s)
 	if s["path"] != "/media/tv/The Show" || s["rootFolderPath"] != "/media/tv" {
 		t.Fatalf("imported file: path %v root %v", s["path"], s["rootFolderPath"])
 	}
 	// A movie's active link names its folder too.
+	e.exec(`DELETE FROM link WHERE id = 2`) // the seed's adopted Beta file
 	e.exec(`INSERT INTO link (id, path, target, kind, title_id, state, created_at, updated_at) VALUES
 		(7, '/media/movies-web/Beta Old Name/Beta.mkv', '/mnt/zurg/Beta.mkv', 'symlink', 2, 'active', 0, 0)`)
 	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (7, 3)`)
@@ -72,7 +72,7 @@ func TestViewPathFromFiles(t *testing.T) {
 	}
 	// Two libraries: the first version's file lies outside the selected root, so the next one's names the folder,
 	// a nested one whose season folder is left out.
-	e.exec(`UPDATE version_file SET path = '/elsewhere/The Show/Season 01/The Show - S01E01.mkv' WHERE id = 3`)
+	e.exec(`UPDATE link SET path = '/elsewhere/The Show/Season 01/The Show - S01E01.mkv' WHERE id = 3`)
 	e.exec(`INSERT INTO version (id, title_id, policy_key, monitored, state, created_at, updated_at) VALUES
 		(11, 10, 'anime-tv', 1, 'wanted', 0, 0)`)
 	e.exec(`INSERT INTO link (id, path, target, kind, title_id, state, created_at, updated_at) VALUES

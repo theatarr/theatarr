@@ -25,7 +25,7 @@ func TestDeleteFileBadIDUnlinksNothing(t *testing.T) {
 		"movie-web": {Roots: []string{"/media/movies-web"}}, "tv-2160p": {Roots: []string{t.TempDir()}}}}
 	e.lib.gate = library.NewGate(e.pol)
 	active := `SELECT COUNT(*) FROM link WHERE state = 'active'`
-	before, files := e.one(active), e.one(`SELECT COUNT(*) FROM version_file`)
+	before := e.one(active)
 	for _, p := range []string{
 		"/v/movie-web/radarr/api/v3/moviefile/0", "/v/movie-web/radarr/api/v3/moviefile/-1",
 		"/v/movie-web/radarr/api/v3/moviefile/undefined", "/radarr/api/v3/moviefile/null",
@@ -52,7 +52,7 @@ func TestDeleteFileBadIDUnlinksNothing(t *testing.T) {
 	if rec.Code != 400 {
 		t.Errorf("bulk without ids: %d", rec.Code)
 	}
-	if len(e.lib.unlinks) != 0 || e.one(active) != before || e.one(`SELECT COUNT(*) FROM version_file`) != files {
+	if len(e.lib.unlinks) != 0 || e.one(active) != before {
 		t.Fatalf("bad ids unlinked %v", e.lib.unlinks)
 	}
 	if len(e.events.events) != 0 {

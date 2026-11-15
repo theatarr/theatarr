@@ -91,7 +91,7 @@ function Files({ versions }: { versions: Version[] }) {
         </TableHeader>
         <TableBody>
           {rows.slice(0, 300).map((f) => {
-            const facts = [f.instance, f.current ? "current" : "", f.custom_format_score != null ? `profile score ${fmtNumber(f.custom_format_score)}` : ""].filter(Boolean).join(" · ");
+            const facts = f.custom_format_score != null ? `profile score ${fmtNumber(f.custom_format_score)}` : "";
             return (
               <TableRow key={f.key}>
                 <TableCell>{f.versions.map((v) => <VersionTag key={v} k={v} />)}</TableCell>
@@ -186,7 +186,6 @@ export function Details({ d }: { d: TitleDetail }) {
     ids.push(["Metadata", <span key="m">{m.refreshed_at ? `fetched ${fmtTime(m.refreshed_at)}` : "never fetched"}{m.error ? <span className="text-[var(--bad-ink)]"> · {m.error}</span> : null}; next {fmtTime(m.refresh_after)}</span>]);
   }
   const files = fileInventoryRows(versions).length;
-  const registry = d.registry ?? [];
   return (
     <div>
       <Section title="Release dates">
@@ -203,30 +202,6 @@ export function Details({ d }: { d: TitleDetail }) {
         {files > 0 ? (
           <Section title={`Files (${fmtNumber(files)})`}>
             <Files versions={versions} />
-          </Section>
-        ) : null}
-        {registry.length > 0 ? (
-          <Section title="Saved inventory">
-            <Card className="p-0">
-              <Table density="dense">
-                <TableHeader>
-                  <TableRow><TableHead>Release</TableHead><TableHead className="hidden sm:table-cell">Library</TableHead><TableHead className="hidden md:table-cell">Imported</TableHead><TableHead>State</TableHead></TableRow>
-                </TableHeader>
-                <TableBody>
-                  {registry.map((r) => (
-                    <TableRow key={`${r.info_hash}-${r.version_id}`}>
-                      <TableCell>
-                        <Mono className="[overflow-wrap:anywhere]">{r.release_title || r.name}</Mono>
-                        <div><Link className="font-mono text-xs text-primary hover:underline" to={inventoryLink(r.info_hash ?? "")}>{r.info_hash}</Link></div>
-                      </TableCell>
-                      <TableCell className="hidden sm:table-cell"><VersionTag k={r.version_key ?? ""} /></TableCell>
-                      <TableCell className="hidden whitespace-nowrap text-muted-foreground md:table-cell">{fmtTime(r.imported_at ?? r.grabbed_at ?? r.failed_at)}</TableCell>
-                      <TableCell><Badge tone={r.failed_at ? "negative" : r.state === "present" ? "positive" : "neutral"}>{r.failed_at ? "Failed" : r.state === "present" ? "Present" : readableCode(r.state)}</Badge></TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </Card>
           </Section>
         ) : null}
       </details>
