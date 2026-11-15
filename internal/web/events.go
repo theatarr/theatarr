@@ -133,7 +133,7 @@ func (w *Web) runEvents(ctx context.Context) {
 				continue
 			}
 			jobCursor = store.Millis(w.now())
-			taskChanges = w.taskChanges()
+			taskChanges = w.tasks.Changes()
 			lastCounts, _ = json.Marshal(counts)
 			lastGatewayComparable = stripAges(gatewayJSON(gs))
 			w.polls.Add(1)
@@ -152,8 +152,9 @@ func (w *Web) runEvents(ctx context.Context) {
 		}
 		counts, _ := json.Marshal(jc)
 		// A scheduled task that started, finished or moved its next run: pages showing tasks refresh them.
-		tasksChanged := w.taskChanges() != taskChanges
-		taskChanges = w.taskChanges()
+		changes := w.tasks.Changes()
+		tasksChanged := changes != taskChanges
+		taskChanges = changes
 		if len(changed) > 0 || tasksChanged || !bytes.Equal(counts, lastCounts) {
 			lastCounts = counts
 			if changed == nil {
@@ -175,14 +176,6 @@ func (w *Web) runEvents(ctx context.Context) {
 		}
 		w.polls.Add(1)
 	}
-}
-
-// taskChanges is the scheduled tasks' change count (0 without a tasks table).
-func (w *Web) taskChanges() int64 {
-	if w.tasks == nil {
-		return 0
-	}
-	return w.tasks.Changes()
 }
 
 func gatewayJSON(gs GatewayState) []byte {

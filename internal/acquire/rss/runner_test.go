@@ -206,22 +206,55 @@ func waitUntil(t *testing.T, what string, ok func() bool) {
 	t.Fatal(what)
 }
 
-// While Pause is on the RSS task is paused (no next run, no Run now) and a read records no good run.
+// The RSS task is paused (no next run, no Run now) while Pause is on, RSS on or off, and while RSS is on with no Live
+// library reading a feed; with Pause off a read paused by Pause records no good run, and on-demand reads stay allowed.
 func TestRSSTaskPaused(t *testing.T) {
 	t.Parallel()
+	for name, tc := range map[string]struct {
+		edit   func(*env)
+		paused bool
+	}{
+		"pause on":          {func(e *env) { e.pol.Router.Enabled = false }, true},
+		"rss off, pause on": {func(e *env) { no := false; e.pol.Shadow = &policy.Shadow{RSS: &no}; e.pol.Router.Enabled = false }, true},
+		"live but no feed": {func(e *env) {
+			for _, v := range e.pol.Versions {
+				v.Indexers = nil
+			}
+		}, true},
+		"rss off, pause off":      {func(e *env) { no := false; e.pol.Shadow = &policy.Shadow{RSS: &no} }, false},
+		"rss on, live with feeds": {func(*env) {}, false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			e := newEnv(t, true)
+			e.seed(t)
+			tc.edit(e)
+			e.build(nil)
+			ctx, cancel := context.WithCancel(e.ctx)
+			done := make(chan struct{})
+			go func() { e.r.Schedule(ctx, time.Hour); close(done) }()
+			defer func() { cancel(); <-done }()
+			var got []tasks.Status
+			waitUntil(t, "registered", func() bool { got, _ = e.tasks.List(e.ctx); return len(got) == 1 })
+			if got[0].Paused != tc.paused || (tc.paused && got[0].NextRun != nil) {
+				t.Fatalf("task %+v, want paused %v", got[0], tc.paused)
+			}
+			if err := e.tasks.RunNow(KindRSS); tc.paused != errors.Is(err, tasks.ErrPaused) {
+				t.Fatalf("run now: %v", err)
+			}
+			if !tc.paused { // let the read it started end before the store closes
+				waitUntil(t, "run now ended", func() bool {
+					got, _ = e.tasks.List(e.ctx)
+					return got[0].Running == nil && got[0].LastFinished != nil
+				})
+			}
+		})
+	}
 	e := newEnv(t, true)
 	e.seed(t)
 	e.pol.Router.Enabled = false
 	e.build(nil)
-	if task := e.r.task(e.r); !task.Paused {
-		t.Fatalf("not paused: %+v", task)
-	}
 	if err := e.r.read(e.ctx); !errors.Is(err, tasks.ErrSkip) {
 		t.Fatalf("paused read: %v", err)
-	}
-	e.pol.Router.Enabled = true
-	e.build(nil)
-	if task := e.r.task(e.r); task.Paused {
-		t.Fatalf("paused with downloads on: %+v", task)
 	}
 }

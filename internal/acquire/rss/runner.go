@@ -162,13 +162,13 @@ func (r *Runner) read(ctx context.Context) error {
 	return err
 }
 
-// task is the RSS read's task with run's interval, or on demand only (the arr RssSync command) while RSS is off.
-// While Pause is on, or with RSS on but no Live library, it is paused: no next run, no Run now.
-func (r *Runner) task(run *Runner) tasks.Task {
-	t := tasks.Task{Key: KindRSS, Name: "Check RSS feeds", Attempts: 2, Inbox: true, Run: r.read}
+// task is the RSS read's task with run's interval, or on demand only (the arr RssSync command) while RSS is off. It is
+// paused (no next run, no Run now) while Pause is on, or while RSS is on and no Live library has a feed to read.
+func (r *Runner) task(ctx context.Context, run *Runner) tasks.Task {
+	t := tasks.Task{Key: KindRSS, Name: "Check RSS feeds", Attempts: 2, Inbox: true, Run: r.read, Paused: run.paused()}
 	if run.set.RSS {
 		t.Every = run.set.RSSInterval
-		t.Paused = run.paused() || len(run.rssVersions()) == 0
+		t.Paused = t.Paused || !run.eligible(ctx)
 	}
 	return t
 }
@@ -220,7 +220,7 @@ func (r *Runner) Schedule(ctx context.Context, rssDelay time.Duration) {
 		if run.set.RSS {
 			planned = next
 		}
-		unregister = r.tasks.Register(ctx, r.task(run), planned)
+		unregister = r.tasks.Register(ctx, r.task(ctx, run), planned)
 	}
 	register(r)
 	t := time.NewTicker(time.Second)

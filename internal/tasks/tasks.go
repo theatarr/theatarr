@@ -137,7 +137,13 @@ func (tb *Table) SetNext(key string, next time.Time) {
 
 // Changes counts the changes of what List shows (a task registered or gone, a run started or recorded, a next run
 // moved): the event stream tells open pages when it moves.
-func (tb *Table) Changes() int64 { return tb.changes.Load() }
+// A nil table has none.
+func (tb *Table) Changes() int64 {
+	if tb == nil {
+		return 0
+	}
+	return tb.changes.Load()
+}
 
 // Run runs the registered task now in the caller's goroutine and records it with next as its next run (zero: keep
 // the next run as it is), unless a run of it is already going (ran false). The error is the last try's.
