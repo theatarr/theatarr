@@ -120,9 +120,10 @@ export function usePlexLogin() {
           p = await api<Poll>("/auth/plex/poll", { method: "POST", body: invite ? { id: st.id, invite } : { id: st.id }, redirectOn401: false });
         } catch (e) {
           if (e instanceof ApiError) {
-            // The server names the outcome in the body's status when it sends one (taken, invite_gone, ...).
+            // Every refused poll names its outcome in the body (denied, disabled, expired, taken, invite_gone, error); a
+            // plain error body (a throttle, an internal error, a refused request) is an error.
             const named = (e.body as { status?: unknown } | undefined)?.status;
-            const status = typeof named === "string" ? named : e.status === 409 ? "taken" : e.status === 410 ? "expired" : e.status === 403 ? (/disabled/i.test(e.message) ? "disabled" : "denied") : "error";
+            const status = typeof named === "string" ? named : "error";
             throw new PlexSignInError(status, e.message);
           }
           throw e;
