@@ -55,3 +55,27 @@ it("closes the event stream when the page is left, and reopens it and refetches 
   });
   expect(FakeSource.all).toHaveLength(2);
 });
+
+it("refetches once when the stream reconnects after a drop, not on its first open", () => {
+  vi.stubGlobal("EventSource", FakeSource);
+  const qc = new QueryClient();
+  const refetch = vi.spyOn(qc, "invalidateQueries");
+  render(
+    <QueryClientProvider client={qc}>
+      <LiveProvider enabled>
+        <p>page</p>
+      </LiveProvider>
+    </QueryClientProvider>,
+  );
+  const es = FakeSource.all[0];
+  act(() => es.onopen?.());
+  expect(refetch).not.toHaveBeenCalled();
+  // A settings save closes the stream; the browser reconnects the same source.
+  act(() => es.onerror?.());
+  act(() => es.onerror?.());
+  act(() => es.onopen?.());
+  expect(refetch).toHaveBeenCalledTimes(1);
+  expect(refetch).toHaveBeenCalledWith();
+  act(() => es.onopen?.());
+  expect(refetch).toHaveBeenCalledTimes(1);
+});

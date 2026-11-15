@@ -41,10 +41,22 @@ export function LiveProvider({ enabled, seeFiles = false, children }: { enabled:
   nameRef.current = nameOf;
   useEffect(() => {
     if (!enabled || typeof EventSource === "undefined") return;
+    // A stream that dropped (a settings save closes them all; the browser reconnects) missed the events meanwhile:
+    // on reconnecting, what the page shows is read again, once. The first open reads nothing.
+    let lost = false;
     function open(): EventSource {
       const es = new EventSource(`${API_BASE}/events`);
-      es.onopen = () => setLive((l) => ({ ...l, connected: true, connectedAt: Date.now() }));
-      es.onerror = () => setLive((l) => (l.connected || !l.lostAt ? { ...l, connected: false, lostAt: Date.now() } : l));
+      es.onopen = () => {
+        setLive((l) => ({ ...l, connected: true, connectedAt: Date.now() }));
+        if (lost) {
+          lost = false;
+          void qc.invalidateQueries();
+        }
+      };
+      es.onerror = () => {
+        lost = true;
+        setLive((l) => (l.connected || !l.lostAt ? { ...l, connected: false, lostAt: Date.now() } : l));
+      };
       es.addEventListener("jobs", (e) => {
         const d = JSON.parse((e as MessageEvent).data) as { counts?: Record<string, number>; changed?: unknown[] };
         const now = Date.now();
@@ -82,6 +94,7 @@ export function LiveProvider({ enabled, seeFiles = false, children }: { enabled:
     const show = (e: PageTransitionEvent) => {
       if (!e.persisted) return;
       es.close();
+      lost = false;
       es = open();
       void qc.invalidateQueries();
     };

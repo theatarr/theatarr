@@ -726,7 +726,8 @@ including "Imported from Radarr's blocklist" for `arr:<instance>`) and the healt
 - **Live:** a download's change of state refreshes the Activity lists (Home's Continue row among them), the
   Calendar, its title and the lists at once. Progress alone refreshes only what shows progress: the queue and the
   Continue row at most every 5 s per download, its title and the lists at most every 20 s
-  (`web/src/api/live-activity.ts`). A request event refreshes the one title it names.
+  (`web/src/api/live-activity.ts`). A request event refreshes the one title it names. When the event stream
+  reconnects after a drop (a settings save closes the streams), the page reads what it shows again, once.
 
 API fields (all additive): `TitleRow.versions[]` (VersionBrief) gains `control`, `coverage` {have, total, aired,
 upcoming, missing, monitored, in_flight} and `acquisition` {stage, words, progress, download_id, downloads,
