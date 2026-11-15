@@ -210,11 +210,11 @@ func runMovieIntake(ctx context.Context, tb *tasks.Table, interval time.Duration
 		Run: func(ctx context.Context) error {
 			mi := current(ctx)
 			if mi == nil {
-				return nil
+				return tasks.ErrSkip
 			}
 			if intakePaused(mi) {
 				log.Info("movie collections and lists: skipped, Theatarr is paused")
-				return nil
+				return tasks.ErrSkip
 			}
 			_, err := mi.RefreshCollections(ctx)
 			if err != nil {
@@ -230,25 +230,25 @@ func runMovieIntake(ctx context.Context, tb *tasks.Table, interval time.Duration
 		Run: func(ctx context.Context) error {
 			mi := current(ctx)
 			if mi == nil {
-				return nil
+				return tasks.ErrSkip
 			}
 			if intakePaused(mi) {
 				log.Info("lists: arr sync skipped, Theatarr is paused")
-				return nil
+				return tasks.ErrSkip
 			}
 			_, err := mi.SyncArrLists(ctx)
 			return err
 		}}
 	start := time.Now()
-	lists.Next, arr.Next = start.Add(interval), start.Add(catalog.ArrListInterval)
+	first, firstArr := start.Add(interval), start.Add(catalog.ArrListInterval)
 	if now {
-		lists.Next, arr.Next = start, start
+		first, firstArr = start, start
 	}
-	defer tb.Register(ctx, lists)()
-	defer tb.Register(ctx, arr)()
+	defer tb.Register(ctx, lists, first)()
+	defer tb.Register(ctx, arr, firstArr)()
 	if now {
-		_, _ = tb.Run(ctx, lists)
-		_, _ = tb.Run(ctx, arr)
+		_, _ = tb.Run(ctx, lists.Key, start.Add(interval))
+		_, _ = tb.Run(ctx, arr.Key, start.Add(catalog.ArrListInterval))
 	}
 	t := time.NewTicker(interval)
 	defer t.Stop()
@@ -259,9 +259,9 @@ func runMovieIntake(ctx context.Context, tb *tasks.Table, interval time.Duration
 		case <-ctx.Done():
 			return
 		case <-t.C:
-			_, _ = tb.Run(ctx, lists)
+			_, _ = tb.Run(ctx, lists.Key, time.Now().Add(interval))
 		case <-at.C:
-			_, _ = tb.Run(ctx, arr)
+			_, _ = tb.Run(ctx, arr.Key, time.Now().Add(catalog.ArrListInterval))
 		}
 	}
 }

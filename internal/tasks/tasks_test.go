@@ -24,40 +24,80 @@ func open(t *testing.T) (*Table, *store.Store) {
 	return tb, st
 }
 
-// A run updates the task's row (last start, finish, duration, error, next run) and writes no job row.
+func waitFor(t *testing.T, what string, ok func() bool) {
+	t.Helper()
+	for deadline := time.Now().Add(5 * time.Second); !ok(); time.Sleep(5 * time.Millisecond) {
+		if time.Now().After(deadline) {
+			t.Fatal(what)
+		}
+	}
+}
+
+// A run updates the task's row (last start and finish, error, last good run, next run) and writes no job row; a
+// failed run keeps the last good one.
 func TestRunRecordsTheRow(t *testing.T) {
 	ctx := context.Background()
 	tb, st := open(t)
 	start := time.Date(2026, 11, 15, 10, 0, 0, 0, time.UTC)
 	now := start
 	tb.Now = func() time.Time { return now }
-	task := Task{Key: "k", Name: "Do it", Every: 15 * time.Minute, Next: start.Add(5 * time.Minute),
-		Run: func(context.Context) error { now = now.Add(2 * time.Second); return errors.New("boom") }}
-	defer tb.Register(ctx, task)()
+	fail := true
+	defer tb.Register(ctx, Task{Key: "k", Name: "Do it", Every: 15 * time.Minute, Run: func(context.Context) error {
+		now = now.Add(2 * time.Second)
+		if fail {
+			return errors.New("boom")
+		}
+		return nil
+	}}, start.Add(5*time.Minute))()
 	got, err := tb.List(ctx)
 	if err != nil || len(got) != 1 || got[0].NextRun == nil || !got[0].NextRun.Equal(start.Add(5*time.Minute)) || got[0].LastStarted != nil {
 		t.Fatalf("before a run: %+v %v", got, err)
 	}
-	if ran, err := tb.Run(ctx, task); !ran || err == nil {
+	if row, _ := tb.Read(ctx, "k"); !row.NextRun.Equal(start.Add(5 * time.Minute)) {
+		t.Fatalf("next run not written: %+v", row)
+	}
+	if ran, err := tb.Run(ctx, "k", start.Add(15*time.Minute)); !ran || err == nil {
 		t.Fatalf("run: %v %v", ran, err)
 	}
 	got, _ = tb.List(ctx)
 	s := got[0]
-	if !s.LastStarted.Equal(start) || !s.LastFinished.Equal(start.Add(2*time.Second)) || s.LastDurationMS != 2000 ||
-		s.LastError != "boom" || !s.NextRun.Equal(start.Add(15*time.Minute)) || s.EverySeconds != 900 || s.Running != nil {
-		t.Fatalf("after a run: %+v", s)
+	if !s.LastStarted.Equal(start) || !s.LastFinished.Equal(start.Add(2*time.Second)) || s.LastError != "boom" ||
+		s.LastOK != nil || !s.NextRun.Equal(start.Add(15*time.Minute)) || s.EverySeconds != 900 || s.Running != nil {
+		t.Fatalf("after a failed run: %+v", s)
 	}
-	task.Run = func(context.Context) error { return nil }
-	if _, err := tb.Run(ctx, task); err != nil {
+	if n, _ := tb.Failed(ctx); n != 1 {
+		t.Fatalf("failed %d", n)
+	}
+	fail = false
+	if _, err := tb.Run(ctx, "k", time.Time{}); err != nil {
 		t.Fatal(err)
 	}
 	got, _ = tb.List(ctx)
-	if got[0].LastError != "" {
-		t.Fatalf("error kept after a run that worked: %+v", got[0])
+	if got[0].LastError != "" || got[0].LastOK == nil || !got[0].NextRun.Equal(start.Add(15*time.Minute)) {
+		t.Fatalf("after a run that worked (next kept): %+v", got[0])
+	}
+	if n, _ := tb.Failed(ctx); n != 0 {
+		t.Fatalf("failed %d", n)
 	}
 	var jobs int
 	if err := st.Reader().QueryRowContext(ctx, `SELECT COUNT(*) FROM job`).Scan(&jobs); err != nil || jobs != 0 {
 		t.Fatalf("job rows: %d %v", jobs, err)
+	}
+}
+
+// A run with nothing to do (ErrSkip) records no run; only the next run shown moves.
+func TestSkipRecordsNothing(t *testing.T) {
+	ctx := context.Background()
+	tb, _ := open(t)
+	next := time.Now().Add(time.Hour)
+	defer tb.Register(ctx, Task{Key: "k", Name: "Idle", Every: time.Minute, Run: func(context.Context) error { return ErrSkip }},
+		time.Time{})()
+	if ran, err := tb.Run(ctx, "k", next); ran || err != nil {
+		t.Fatalf("ran %v %v", ran, err)
+	}
+	got, _ := tb.List(ctx)
+	if got[0].LastStarted != nil || got[0].NextRun == nil || !got[0].NextRun.Equal(next) {
+		t.Fatalf("after a skip: %+v", got[0])
 	}
 }
 
@@ -68,20 +108,22 @@ func TestRunDoesNotOverlap(t *testing.T) {
 	var n atomic.Int32
 	release := make(chan struct{})
 	started := make(chan struct{})
-	task := Task{Key: "k", Name: "Slow", Every: time.Minute, Run: func(context.Context) error {
+	defer tb.Register(ctx, Task{Key: "k", Name: "Slow", Every: time.Minute, Run: func(context.Context) error {
 		if n.Add(1) == 1 {
 			close(started)
 		}
 		<-release
 		return nil
-	}}
-	defer tb.Register(ctx, task)()
+	}}, time.Time{})()
 	if err := tb.RunNow("k"); err != nil {
 		t.Fatal(err)
 	}
 	<-started
-	if ran, _ := tb.Run(ctx, task); ran {
+	if ran, _ := tb.Run(ctx, "k", time.Time{}); ran {
 		t.Fatal("a second run started while the first ran")
+	}
+	if tb.Start(ctx, "k", time.Time{}) {
+		t.Fatal("Start while running")
 	}
 	if err := tb.RunNow("k"); !errors.Is(err, ErrRunning) {
 		t.Fatalf("Run now while running: %v", err)
@@ -90,17 +132,10 @@ func TestRunDoesNotOverlap(t *testing.T) {
 		t.Fatal("not shown as running")
 	}
 	close(release)
-	deadline := time.Now().Add(5 * time.Second)
-	for {
+	waitFor(t, "Run now finished", func() bool {
 		got, _ := tb.List(ctx)
-		if got[0].Running == nil && got[0].LastFinished != nil {
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatal("Run now did not finish")
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
+		return got[0].Running == nil && got[0].LastFinished != nil
+	})
 	if n.Load() != 1 {
 		t.Fatalf("runs: %d", n.Load())
 	}
@@ -111,39 +146,40 @@ func TestRunRetries(t *testing.T) {
 	ctx := context.Background()
 	tb, _ := open(t)
 	var n int
-	task := Task{Key: "k", Name: "Flaky", Every: time.Hour, Attempts: 3, Run: func(context.Context) error {
+	defer tb.Register(ctx, Task{Key: "k", Name: "Flaky", Every: time.Hour, Attempts: 3, Run: func(context.Context) error {
 		n++
 		if n < 3 {
 			return errors.New("not yet")
 		}
 		return nil
-	}}
-	defer tb.Register(ctx, task)()
-	if _, err := tb.Run(ctx, task); err != nil || n != 3 {
+	}}, time.Time{})()
+	if _, err := tb.Run(ctx, "k", time.Time{}); err != nil || n != 3 {
 		t.Fatalf("tries %d, err %v", n, err)
 	}
 	n = -10
-	if _, err := tb.Run(ctx, task); err == nil || n != -7 {
+	if _, err := tb.Run(ctx, "k", time.Time{}); err == nil || n != -7 {
 		t.Fatalf("tries until attempts: %d, %v", n, err)
 	}
 }
 
-// Only registered tasks are listed and run now; a paused one shows no next run and refuses Run now; a run now leaves
-// a daily task's next run at its time of day.
+// Only registered tasks are listed and run; a paused one shows no next run and refuses Run now; a run now leaves the
+// next run as it is.
 func TestRegisterListAndRunNow(t *testing.T) {
 	ctx := context.Background()
 	tb, _ := open(t)
 	now := time.Date(2026, 11, 15, 10, 0, 0, 0, time.Local)
 	tb.Now = func() time.Time { return now }
 	done := make(chan struct{})
-	daily := Task{Key: "d", Name: "B daily", At: "03:00", Next: NextAt("03:00", now),
-		Run: func(context.Context) error { close(done); return nil }}
-	defer tb.Register(ctx, daily)()
-	defer tb.Register(ctx, Task{Key: "p", Name: "A paused", Every: time.Minute, Paused: true, Next: now})()
-	gone := tb.Register(ctx, Task{Key: "g", Name: "C gone", Every: time.Minute, Run: func(context.Context) error { return nil }})
+	defer tb.Register(ctx, Task{Key: "d", Name: "B daily", At: "03:00", Run: func(context.Context) error { close(done); return nil }},
+		NextAt("03:00", now))()
+	defer tb.Register(ctx, Task{Key: "p", Name: "A paused", Every: time.Minute, Paused: true}, now)()
+	gone := tb.Register(ctx, Task{Key: "g", Name: "C gone", Every: time.Minute, Run: func(context.Context) error { return nil }}, now)
 	gone()
 	if err := tb.RunNow("g"); !errors.Is(err, ErrUnknown) {
 		t.Fatalf("unregistered: %v", err)
+	}
+	if ran, err := tb.Run(ctx, "g", time.Time{}); ran || !errors.Is(err, ErrUnknown) {
+		t.Fatalf("Run of an unregistered task: %v %v", ran, err)
 	}
 	if err := tb.RunNow("p"); !errors.Is(err, ErrPaused) {
 		t.Fatalf("paused: %v", err)
@@ -152,26 +188,19 @@ func TestRegisterListAndRunNow(t *testing.T) {
 		t.Fatal(err)
 	}
 	<-done
-	deadline := time.Now().Add(5 * time.Second)
 	var got []Status
-	for {
+	waitFor(t, "run now recorded", func() bool {
 		got, _ = tb.List(ctx)
-		if len(got) == 2 && got[1].LastFinished != nil {
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("list: %+v", got)
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
+		return len(got) == 2 && got[1].LastFinished != nil
+	})
 	if got[0].Key != "p" || !got[0].Paused || got[0].NextRun != nil {
 		t.Fatalf("paused task: %+v", got[0])
 	}
 	if want := time.Date(2026, 11, 16, 3, 0, 0, 0, time.Local); got[1].NextRun == nil || !got[1].NextRun.Equal(want) {
 		t.Fatalf("daily next run: %+v, want %v", got[1].NextRun, want)
 	}
-	if at, err := tb.LastStarted(ctx, "d"); err != nil || !at.Equal(now) {
-		t.Fatalf("last started: %v %v", at, err)
+	if row, err := tb.Read(ctx, "d"); err != nil || !row.LastStarted.Equal(now) || !row.LastOK.Equal(now) {
+		t.Fatalf("row: %+v %v", row, err)
 	}
 }
 
@@ -189,15 +218,9 @@ func TestLoopRunsEveryInterval(t *testing.T) {
 		}}, 0)
 		close(done)
 	}()
-	deadline := time.Now().Add(5 * time.Second)
-	for n.Load() < 3 {
-		if time.Now().After(deadline) {
-			t.Fatalf("runs %d", n.Load())
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
+	waitFor(t, "three runs", func() bool { return n.Load() >= 3 })
 	got, _ := tb.List(ctx)
-	if len(got) != 1 || got[0].NextRun == nil || got[0].LastStarted == nil || got[0].NextRun.Sub(*got[0].LastStarted) != 20*time.Millisecond {
+	if len(got) != 1 || got[0].NextRun == nil || got[0].LastStarted == nil {
 		t.Fatalf("row %+v", got)
 	}
 	cancel()

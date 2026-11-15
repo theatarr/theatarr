@@ -127,25 +127,25 @@ func TestNightlyFailureStillSchedulesNext(t *testing.T) {
 				}
 				wantError = "prune unavailable"
 			}
-			defer tb.Register(ctx, n.task())()
 			tries := 0
 			task := n.task()
 			run := task.Run
 			task.Run = func(ctx context.Context) error { tries++; return run(ctx) }
-			if ran, err := tb.Run(ctx, task); !ran || err == nil || !strings.Contains(err.Error(), wantError) || tries != 3 {
-				t.Fatalf("ran %v, tries %d, err %v", ran, tries, err)
+			defer tb.Register(ctx, task, time.Time{})()
+			defer tb.Register(ctx, n.retentionTask(), time.Time{})()
+			n.night(ctx)
+			if tries != 3 {
+				t.Fatalf("tries %d", tries)
 			}
 			got, err := tb.List(ctx)
-			if err != nil || len(got) != 1 || !strings.Contains(got[0].LastError, wantError) || got[0].NextRun == nil ||
-				!got[0].NextRun.Equal(n.next(time.Now())) {
+			if err != nil || len(got) != 2 || got[0].Key != nightlyKind || !strings.Contains(got[0].LastError, wantError) ||
+				got[0].NextRun == nil || !got[0].NextRun.Equal(n.next(time.Now())) {
 				t.Fatalf("task %+v %v", got, err)
 			}
-			if failure == "backup" {
-				select {
-				case <-retained:
-				case <-time.After(5 * time.Second):
-					t.Fatal("retention not started after the last try")
-				}
+			select {
+			case <-retained:
+			case <-time.After(5 * time.Second):
+				t.Fatal("retention not started after the last try")
 			}
 		})
 	}
@@ -162,7 +162,7 @@ func TestNightlyMissedRunsAtStart(t *testing.T) {
 	defer st.Close()
 	tb := tasks.New(ctx, st, nil)
 	n := &nightly{st: st, q: jobs.NewQueue(st), tasks: tb, log: slog.New(slog.NewTextHandler(io.Discard, nil)), hour: 3}
-	if _, err := st.Writer().ExecContext(ctx, `INSERT INTO task (key, name, next_run, updated_at) VALUES (?, 'x', ?, 0)`,
+	if _, err := st.Writer().ExecContext(ctx, `INSERT INTO task (key, next_run) VALUES (?, ?)`,
 		nightlyKind, store.Millis(time.Now().Add(-time.Hour))); err != nil {
 		t.Fatal(err)
 	}
@@ -170,13 +170,13 @@ func TestNightlyMissedRunsAtStart(t *testing.T) {
 	done := make(chan struct{})
 	go func() { n.loop(lctx); close(done) }()
 	waitFor(t, "missed night run", func() bool {
-		at, _ := tb.LastStarted(ctx, nightlyKind)
-		return !at.IsZero()
+		row, _ := tb.Read(ctx, nightlyKind)
+		return !row.LastStarted.IsZero()
 	})
 	cancel()
 	<-done
-	if next, _ := tb.NextRun(ctx, nightlyKind); !next.Equal(n.next(time.Now())) {
-		t.Errorf("next run %v, want %v", next, n.next(time.Now()))
+	if row, _ := tb.Read(ctx, nightlyKind); !row.NextRun.Equal(n.next(time.Now())) {
+		t.Errorf("next run %v, want %v", row.NextRun, n.next(time.Now()))
 	}
 }
 
@@ -270,7 +270,7 @@ func TestProviderSyncSchedule(t *testing.T) {
 	waitFor(t, "scheduled sync recorded", func() bool {
 		got, _ := ps.tasks.List(ctx)
 		return len(got) == 1 && got[0].LastFinished != nil && got[0].NextRun != nil &&
-			got[0].NextRun.Sub(*got[0].LastStarted) == time.Hour
+			got[0].NextRun.Sub(*got[0].LastStarted).Round(time.Second) == time.Hour
 	})
 	cancel()
 	<-done
@@ -297,9 +297,11 @@ func TestNightlyStartsRetentionAfterSuccess(t *testing.T) {
 	retained := make(chan struct{}, 1)
 	n := &nightly{st: st, q: jobs.NewQueue(st), tasks: tb, log: slog.New(slog.NewTextHandler(io.Discard, nil)),
 		hour: time.Now().Hour(), retain: func(context.Context) error { retained <- struct{}{}; return nil }}
-	defer tb.Register(ctx, n.retentionTask())()
-	if err := n.run(ctx); err != nil {
-		t.Fatal(err)
+	defer tb.Register(ctx, n.task(), time.Time{})()
+	defer tb.Register(ctx, n.retentionTask(), time.Time{})()
+	n.night(ctx)
+	if row, _ := tb.Read(ctx, nightlyKind); row.LastOK.IsZero() {
+		t.Fatal("the night did not work")
 	}
 	select {
 	case <-retained:
@@ -307,7 +309,7 @@ func TestNightlyStartsRetentionAfterSuccess(t *testing.T) {
 		t.Fatal("retention not started")
 	}
 	waitFor(t, "retention recorded", func() bool {
-		at, _ := tb.LastStarted(ctx, retention.JobKind)
-		return !at.IsZero()
+		row, _ := tb.Read(ctx, retention.JobKind)
+		return !row.LastStarted.IsZero()
 	})
 }

@@ -19,14 +19,20 @@ import (
 // unchanged, no archive fetched) when that commit and its config are the ones of its last successful run. A failed
 // run changes nothing but its own record; health reports it.
 func (s *QualitySync) RunSource(ctx context.Context, source QualitySyncSource, force bool) error {
+	_, err := s.runSource(ctx, source, force)
+	return err
+}
+
+// runSource is RunSource, reporting whether a run started (false: not due).
+func (s *QualitySync) runSource(ctx context.Context, source QualitySyncSource, force bool) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if err := source.Config.validate(); err != nil {
-		return err
+		return false, err
 	}
 	head, err := s.Coordinator.Snapshot(ctx)
 	if err != nil {
-		return err
+		return false, err
 	}
 	found := false
 	for _, current := range head.Records.SyncSources {
@@ -35,7 +41,7 @@ func (s *QualitySync) RunSource(ctx context.Context, source QualitySyncSource, f
 		}
 	}
 	if !found {
-		return ErrConflict
+		return false, ErrConflict
 	}
 	tracked := source.Config.Origin == OriginGitHub
 	digest := configDigest(source.Config)
@@ -59,7 +65,7 @@ func (s *QualitySync) RunSource(ctx context.Context, source QualitySyncSource, f
 		return tx.QueryRowContext(ctx, "INSERT INTO settings_quality_sync_run(source_key,started_at,outcome,config_digest) VALUES(?,?,'running',?) RETURNING id", source.Key, store.Millis(now), digest).Scan(&runID)
 	})
 	if err != nil || runID == 0 {
-		return err
+		return false, err
 	}
 	outcome, commit, review, message := "error", "", int64(0), ""
 	resolved, runErr := s.resolve(ctx, source.Config)
@@ -111,7 +117,7 @@ func (s *QualitySync) RunSource(ctx context.Context, source QualitySyncSource, f
 		_, err := tx.ExecContext(ctx, "UPDATE settings_quality_sync_run SET commit_id=?,outcome=?,review_id=?,error=? WHERE id=?", commit, outcome, id, message, runID)
 		return err
 	})
-	return errors.Join(runErr, finishErr)
+	return true, errors.Join(runErr, finishErr)
 }
 
 type lastRun struct{ commit, digest string }
@@ -133,20 +139,25 @@ func configDigest(c QualitySyncConfig) string {
 	sum := sha256.Sum256(b)
 	return hex.EncodeToString(sum[:])
 }
-func (s *QualitySync) RunDue(ctx context.Context) error {
+
+// RunDue runs every enabled source that is due, and reports whether any ran.
+func (s *QualitySync) RunDue(ctx context.Context) (bool, error) {
 	snap, err := s.Coordinator.Snapshot(ctx)
 	if err != nil {
-		return err
+		return false, err
 	}
 	var errs []error
+	ran := false
 	for _, source := range snap.Records.SyncSources {
 		if source.Config.Enabled {
-			if err := s.RunSource(ctx, source, false); err != nil {
+			did, err := s.runSource(ctx, source, false)
+			ran = ran || did
+			if err != nil {
 				errs = append(errs, err)
 			}
 		}
 	}
-	return errors.Join(errs...)
+	return ran, errors.Join(errs...)
 }
 
 type QualitySyncRun struct {

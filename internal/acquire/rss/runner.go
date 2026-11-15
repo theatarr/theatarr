@@ -11,6 +11,7 @@ package rss
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"slices"
 	"sort"
@@ -158,10 +159,14 @@ func (r *Runner) read(ctx context.Context) error {
 	return err
 }
 
-// task is the RSS read's scheduled task with run's interval; paused while Pause is on or no library is Live.
+// task is the RSS read's task with run's interval, or on demand only (the arr RssSync command) while RSS is off. A
+// read while Pause is on records itself as skipped (rssJob).
 func (r *Runner) task(run *Runner) tasks.Task {
-	return tasks.Task{Key: KindRSS, Name: "Check RSS feeds", Every: run.set.RSSInterval, Attempts: 2, Inbox: true, Run: r.read,
-		Paused: len(run.pol.ActiveVersions()) == 0 || run.paused()}
+	t := tasks.Task{Key: KindRSS, Name: "Check RSS feeds", Attempts: 2, Inbox: true, Run: r.read}
+	if run.set.RSS {
+		t.Every = run.set.RSSInterval
+	}
+	return t
 }
 
 func (r *Runner) forOperation(ctx context.Context) (*Runner, error) {
@@ -202,17 +207,16 @@ func (r *Runner) Schedule(ctx context.Context, rssDelay time.Duration) {
 	}
 	next, every := r.now().Add(rssDelay), r.set.RSSInterval
 	r.log.Info("shadow job scheduled", "kind", KindRSS, "every", every.String(), "first", next.UTC())
-	// The task is listed while RSS is on, with the interval and Pause of the generation in force.
+	// The task is registered with the interval of the generation in force, and runs on demand while RSS is off.
 	unregister := func() {}
 	defer func() { unregister() }()
 	register := func(run *Runner) {
 		unregister()
-		unregister = func() {}
+		var planned time.Time
 		if run.set.RSS {
-			t := r.task(run)
-			t.Next = next
-			unregister = r.tasks.Register(ctx, t)
+			planned = next
 		}
+		unregister = r.tasks.Register(ctx, r.task(run), planned)
 	}
 	register(r)
 	t := time.NewTicker(time.Second)
@@ -228,14 +232,11 @@ func (r *Runner) Schedule(ctx context.Context, rssDelay time.Duration) {
 			register(active)
 		}
 		if !now.Before(next) {
+			next = now.Add(every)
 			if err == nil && active.eligible(ctx) {
-				_, _ = r.tasks.Run(ctx, r.task(active))
+				_, _ = r.tasks.Run(ctx, KindRSS, next)
 			} else if !fresh {
 				r.reloadIndex(ctx)
-			}
-			next = now.Add(every)
-			if err == nil && active.set.RSS {
-				r.tasks.SetNext(ctx, KindRSS, next)
 			}
 		}
 		fresh = false
@@ -264,17 +265,13 @@ func (r *Runner) Covers(ctx context.Context, version string) bool {
 	return slices.ContainsFunc(run.pol.Versions[version].Indexers, func(ik string) bool { return slices.Contains(feeds, ik) })
 }
 
-// QueueRSS starts an RSS read now (the arr RssSync command); one already running is that read. While Pause is on
-// there is nothing to read.
+// QueueRSS starts an RSS read now (the arr RssSync command), automatic RSS on or off; one already running is that
+// read.
 func (r *Runner) QueueRSS(context.Context) error {
-	switch err := r.tasks.RunNow(KindRSS); {
-	case errors.Is(err, tasks.ErrUnknown):
-		return errors.New("shadow: RSS is not scheduled")
-	case errors.Is(err, tasks.ErrRunning), errors.Is(err, tasks.ErrPaused):
-		return nil
-	default:
-		return err
+	if err := r.tasks.RunNow(KindRSS); err != nil && !errors.Is(err, tasks.ErrRunning) {
+		return fmt.Errorf("shadow: RSS read: %w", err)
 	}
+	return nil
 }
 
 // library is the engine's Library over our movies, swapped after each reload (the engine reads it concurrently).

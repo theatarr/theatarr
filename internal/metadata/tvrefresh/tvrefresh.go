@@ -296,10 +296,10 @@ func (s *Service) Run(ctx context.Context, tb *tasks.Table, sweep, scene func(co
 	}
 	next := s.now().Add(s.delay)
 	nextScene := next
-	sweepTask := tasks.Task{Key: JobKind, Name: "Refresh series episodes", Every: s.set.Interval, Inbox: true, Next: next, Run: sweep}
-	sceneTask := tasks.Task{Key: sceneJob, Name: "Read scene names", Every: SceneAge, Attempts: 3, Inbox: true, Next: nextScene, Run: scene}
-	defer tb.Register(ctx, sweepTask)()
-	defer tb.Register(ctx, sceneTask)()
+	defer tb.Register(ctx, tasks.Task{Key: JobKind, Name: "Refresh series episodes", Every: s.set.Interval, Inbox: true,
+		Run: sweep}, next)()
+	defer tb.Register(ctx, tasks.Task{Key: sceneJob, Name: "Read scene names", Every: SceneAge, Attempts: 3, Inbox: true,
+		Run: scene}, nextScene)()
 	t := time.NewTicker(min(s.poll, s.delay))
 	defer t.Stop()
 	for {
@@ -312,12 +312,12 @@ func (s *Service) Run(ctx context.Context, tb *tasks.Table, sweep, scene func(co
 			s.log.Warn("series metadata: new series", "err", err)
 		}
 		if now := s.now(); !now.Before(nextScene) {
-			tb.Start(ctx, sceneTask)
 			nextScene = now.Add(SceneAge)
+			tb.Start(ctx, sceneJob, nextScene)
 		}
 		if now := s.now(); !now.Before(next) {
-			tb.Start(ctx, sweepTask)
 			next = now.Add(s.set.Interval)
+			tb.Start(ctx, JobKind, next)
 		}
 		t.Reset(s.poll)
 	}

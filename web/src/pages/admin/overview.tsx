@@ -15,7 +15,7 @@ import { SETTINGS_PAGES } from "@/lib/settings-map";
 import { type ActivityDownload, useActivityNow } from "@/api/activity";
 import { useDanglingLinks } from "@/api/dangling";
 import { type Gateway, useGateway, useHealth, useStatus } from "@/api/hooks";
-import { useJobCounts, useJobsFiltered } from "@/api/jobs";
+import { useJobCounts, useJobsFiltered, useTasks } from "@/api/jobs";
 import { qk } from "@/api/query-keys";
 import { PRODUCT_NAME } from "@/brand";
 import { DownloadsOffNotice, VersionStatus } from "@/components/version-status";
@@ -88,6 +88,7 @@ export function Overview() {
   const ready = useReady();
   const st = useStatus();
   const failed = useJobsFiltered({ attention: true, limit: 50 });
+  const tasks = useTasks();
   const gw = useGateway();
   const hc = useHealth();
   const now = useActivityNow();
@@ -142,6 +143,17 @@ export function Overview() {
       open: grouped ? "See all" : undefined,
       grouped,
       job: j,
+    });
+  }
+  // A scheduled task whose newest run failed, until a run works.
+  for (const t of (tasks.data?.items ?? []).filter((x) => x.last_error)) {
+    items.push({
+      key: `task-${t.key}`,
+      tone: "bad",
+      title: <>{t.name} failed <Mono className="ml-1 text-[11.5px] text-muted-foreground">{t.key}</Mono></>,
+      effect: <span className="text-[var(--ink-3)]">{t.last_error}</span>,
+      next: "Run it now, or wait for its next run",
+      to: "/admin/system/tasks",
     });
   }
   for (const b of (gw.data?.backoffs ?? []).filter((x) => x.active)) {

@@ -398,7 +398,7 @@ func TestTrashLinkNoStartupOrSyncSideEffects(t *testing.T) {
 	if _, err := NewRuntimeCoordinator(svc.Store, base, head, nil, func(context.Context, *Snapshot, *Runtime) (any, error) { return nil, nil }); err != nil {
 		t.Fatal(err)
 	}
-	if err := svc.RunDue(ctx); err != nil {
+	if _, err := svc.RunDue(ctx); err != nil {
 		t.Fatal(err)
 	}
 	after, err := svc.Coordinator.Snapshot(ctx)

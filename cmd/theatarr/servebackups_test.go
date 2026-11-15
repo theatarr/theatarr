@@ -19,7 +19,9 @@ import (
 	"time"
 
 	"github.com/theatarr/theatarr/internal/policy"
+	"github.com/theatarr/theatarr/internal/provider"
 	"github.com/theatarr/theatarr/internal/store"
+	"github.com/theatarr/theatarr/internal/tasks"
 	"github.com/theatarr/theatarr/internal/web"
 )
 
@@ -131,9 +133,25 @@ func TestStartupApplyRestore(t *testing.T) {
 			if _, err := reopened.Migrate(ctx); err != nil {
 				t.Fatal(err)
 			}
-			// A restore that worked syncs the providers soon after start (providerSync.soon).
-			if result.OK == corrupt {
-				t.Fatalf("restore ok %v with a corrupt set %v", result.OK, corrupt)
+			// A restore that worked runs the provider sync task soon after start, although the restored set synced an
+			// hour ago; a failed restore keeps the sync's schedule.
+			for _, q := range []string{`INSERT INTO provider_sync_run (provider, started_at, finished_at, ok) VALUES ('rd', ?1, ?1, 1)`,
+				`INSERT INTO provider_torrent_read (provider, read_at) VALUES ('rd', ?1)`} {
+				if _, err := reopened.Writer().ExecContext(ctx, q, store.Millis(time.Now())); err != nil {
+					t.Fatal(err)
+				}
+			}
+			tb := tasks.New(ctx, reopened, nil)
+			var syncs atomic.Int32
+			ps := &providerSync{st: reopened, keys: []string{"rd"}, interval: time.Hour, delay: 10 * time.Millisecond,
+				log: log, tasks: tb, sync: func(context.Context) error { syncs.Add(1); return nil }}
+			ps.afterRestore(result)
+			rctx, cancel := context.WithTimeout(ctx, 300*time.Millisecond)
+			ps.run(rctx)
+			cancel()
+			row, _ := tb.Read(ctx, provider.JobKind)
+			if ran := syncs.Load() == 1 && !row.LastOK.IsZero(); ran == corrupt {
+				t.Fatalf("restore ok %v: provider sync ran %v (%d)", result.OK, ran, syncs.Load())
 			}
 		})
 	}

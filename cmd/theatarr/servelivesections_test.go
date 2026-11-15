@@ -485,7 +485,7 @@ func TestMovieIntakeSkipsWhilePaused(t *testing.T) {
 		// The start runs the collections and TMDb lists, then the arr lists; the second current ends the run.
 		runCtx, cancel := context.WithCancel(ctx)
 		calls := 0
-		runMovieIntake(runCtx, nil, time.Hour, true, func(context.Context) *catalog.MovieIntake {
+		runMovieIntake(runCtx, tasks.New(ctx, nil, nil), time.Hour, true, func(context.Context) *catalog.MovieIntake {
 			if calls++; calls == 2 {
 				cancel()
 			}
@@ -505,7 +505,7 @@ func TestMovieIntakeSkipsWhilePaused(t *testing.T) {
 	}
 }
 
-// The intake's two tasks run at start (now) and record their rows; neither writes a job row.
+// The intake's two tasks are registered with their next runs; a run with no intake records nothing.
 func TestMovieIntakeTasksRecorded(t *testing.T) {
 	ctx := context.Background()
 	st, err := store.Open(ctx, storetest.Seed(t, filepath.Join(t.TempDir(), "theatarr.db")), store.Options{})
@@ -524,10 +524,10 @@ func TestMovieIntakeTasksRecorded(t *testing.T) {
 	}, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	var n int
 	if err := st.Reader().QueryRow(`SELECT COUNT(*) FROM task WHERE key IN ('lists.movies', 'lists.arr')
-		AND last_finished IS NOT NULL AND last_error = ''`).Scan(&n); err != nil || n != 2 {
-		t.Fatalf("recorded %d %v", n, err)
+		AND next_run IS NOT NULL AND last_started IS NULL`).Scan(&n); err != nil || n != 2 {
+		t.Fatalf("rows %d %v", n, err)
 	}
-	if err := st.Reader().QueryRow(`SELECT COUNT(*) FROM job`).Scan(&n); err != nil || n != 0 {
-		t.Fatalf("jobs %d %v", n, err)
+	if calls != 2 {
+		t.Fatalf("runs at start %d", calls)
 	}
 }

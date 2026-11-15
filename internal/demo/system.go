@@ -27,15 +27,18 @@ func (s *seeder) system() {
 		return id
 	}
 	// The scheduled tasks' last runs (theatarr serve lists the tasks it schedules; internal/tasks).
-	task := func(key, name string, every time.Duration, at string, last time.Time, took time.Duration, errText string) {
-		s.exec(`INSERT INTO task (key, name, every_s, at, last_started, last_finished, last_duration_ms, last_error,
-			updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, key, name, int64(every/time.Second), at, ms(last),
-			ms(last.Add(took)), took.Milliseconds(), errText, ms(last.Add(took)))
+	task := func(key string, last time.Time, took time.Duration, errText string) {
+		var ok any
+		if errText == "" {
+			ok = ms(last.Add(took))
+		}
+		s.exec(`INSERT INTO task (key, last_started, last_finished, last_error, last_ok) VALUES (?, ?, ?, ?, ?)`, key,
+			ms(last), ms(last.Add(took)), errText, ok)
 	}
-	task("provider.sync", "Sync debrid holdings", 6*time.Hour, "", s.ago(20*time.Minute), 4*time.Second, "")
-	task("shadow.rss", "Check RSS feeds", 15*time.Minute, "", s.ago(5*time.Minute), 3*time.Second, "rss: every indexer is backing off")
-	task("meta.art", "Refresh details and artwork", 24*time.Hour, "", s.ago(time.Hour), 12*time.Second, "")
-	task("db.nightly", "Nightly database backup", 0, "03:00", s.ago(days(0.4)), 2*time.Second, "")
+	task("provider.sync", s.ago(20*time.Minute), 4*time.Second, "")
+	task("shadow.rss", s.ago(5*time.Minute), 3*time.Second, "rss: every indexer is backing off")
+	task("meta.art", s.ago(time.Hour), 12*time.Second, "")
+	task("db.nightly", s.ago(days(0.4)), 2*time.Second, "")
 	for i := int64(1); i <= min(s.runID, 6); i++ {
 		job("acquire.search", jsonOf(map[string]any{"run": i}), "done", s.ago(time.Duration(i)*17*time.Minute), 1, "")
 	}

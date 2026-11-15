@@ -475,30 +475,46 @@ func TestDigestRunsOncePerDay(t *testing.T) {
 	t.Parallel()
 	e := newDiscordEnv(t, true, func(p *policy.Policy) { p.Notify.DigestAt = "09:30" })
 	ctx := context.Background()
-	started := func() bool { at, _ := e.n.tasks.LastStarted(ctx, DigestJob); return !at.IsZero() }
+	defer e.n.registerDigest(ctx, "09:30")()
+	sent := func(want int) {
+		t.Helper()
+		for deadline := time.Now().Add(5 * time.Second); len(e.discordSent()) != want; time.Sleep(5 * time.Millisecond) {
+			if time.Now().After(deadline) {
+				t.Fatalf("digests %d, want %d", len(e.discordSent()), want)
+			}
+		}
+	}
+	started := func() bool { row, _ := e.n.tasks.Read(ctx, DigestJob); return !row.LastStarted.IsZero() }
 	e.now = time.Date(2026, 11, 7, 9, 29, 0, 0, time.Local)
-	if err := e.n.runDigest(ctx); err != nil || started() {
+	if err := e.n.startDigest(ctx); err != nil || started() {
 		t.Fatalf("ran before 09:30: %v %v", err, started())
 	}
 	e.now = time.Date(2026, 11, 7, 9, 31, 0, 0, time.Local)
-	for range 2 {
-		if err := e.n.runDigest(ctx); err != nil {
-			t.Fatal(err)
-		}
+	if err := e.n.startDigest(ctx); err != nil {
+		t.Fatal(err)
 	}
-	if n := len(e.discordSent()); n != 1 {
-		t.Fatalf("digest %d", n)
+	sent(1)
+	for !started() {
+		time.Sleep(5 * time.Millisecond)
+	}
+	if err := e.n.startDigest(ctx); err != nil {
+		t.Fatal(err)
 	}
 	// After a restart: not run again today, even when the claim is gone (a run that failed on every try).
 	e.exec(`DELETE FROM notify_event WHERE kind = 'digest'`)
+	tb := e.n.tasks
 	e.rebuild()
-	if err := e.n.runDigest(ctx); err != nil || len(e.discordSent()) != 1 {
-		t.Errorf("run again: %v %d", err, len(e.discordSent()))
+	e.n.tasks = tb
+	if err := e.n.startDigest(ctx); err != nil {
+		t.Fatal(err)
 	}
+	time.Sleep(50 * time.Millisecond)
+	sent(1)
 	e.now = e.now.AddDate(0, 0, 1)
-	if err := e.n.runDigest(ctx); err != nil || len(e.discordSent()) != 2 {
-		t.Errorf("next day: %v %d", err, len(e.discordSent()))
+	if err := e.n.startDigest(ctx); err != nil {
+		t.Fatal(err)
 	}
+	sent(2)
 	if n := e.one(`SELECT COUNT(*) FROM job`); n != 0 {
 		t.Errorf("job rows %d", n)
 	}

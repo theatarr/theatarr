@@ -21,12 +21,14 @@ export function JobsPage() {
   const counts = useJobCounts(jobs.data);
   const failed = useJobsFiltered({ kind: kind || undefined, state: "failed", dismissed: false, limit: 50 });
   const { dismissResolved } = useJobActions();
+  const tasks = useTasks();
+  const failedTasks = (tasks.data?.items ?? []).filter((t) => t.last_error);
   const open = attentionCount(counts);
   const header = <PageHeader crumb={[{ label: "System", to: "/admin" }]} title="Tasks" description="Background work: what failed and needs a look first, then what runs next." />;
   if (jobs.isPending) return <div>{header}<Loading /></div>;
   if (jobs.error) return <div>{header}<ErrorState error={jobs.error} /></div>;
   const g = groupJobs(failed.data?.items ?? [], jobs.data?.items ?? []);
-  const anyResolved = g.settled.some((j) => j.resolved_by && !j.dismissed_at);
+  const anyResolved = g.settled.some((j) => (j.resolved_by || j.resolved_by_task) && !j.dismissed_at);
   return (
     <div>
       {header}
@@ -45,10 +47,19 @@ export function JobsPage() {
           <ErrorState error={failed.error} />
         ) : failed.isPending ? (
           <Loading />
-        ) : g.attention.length === 0 ? (
+        ) : g.attention.length === 0 && failedTasks.length === 0 ? (
           <Card><Empty icon={CheckCircle2}>No failed task needs attention.</Empty></Card>
         ) : (
-          <JobList items={g.attention} showEffect testid="jobs-attention-list" />
+          <>
+            {failedTasks.length > 0 ? (
+              <Card className="mb-3 p-0">
+                <ul className="divide-y divide-border" data-testid="tasks-failed">
+                  {failedTasks.map((t) => <TaskRow key={t.key} t={t} showError />)}
+                </ul>
+              </Card>
+            ) : null}
+            {g.attention.length > 0 ? <JobList items={g.attention} showEffect testid="jobs-attention-list" /> : null}
+          </>
         )}
       </Section>
       <Section title="Running and queued" aside="running first, then by run time">
@@ -104,7 +115,7 @@ function Scheduled() {
   );
 }
 
-function TaskRow({ t }: { t: Task }) {
+function TaskRow({ t, showError }: { t: Task; showError?: boolean }) {
   const run = useRunTask();
   const busy = !!t.running || (run.isPending && run.variables?.key === t.key);
   return (
@@ -123,6 +134,7 @@ function TaskRow({ t }: { t: Task }) {
           <Play /> Run now
         </Button>
       )}
+      {showError && t.last_error ? <p className="w-full break-words text-[12.5px] text-[var(--bad-ink)]" data-testid="task-error">{t.last_error}</p> : null}
     </li>
   );
 }

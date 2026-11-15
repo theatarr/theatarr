@@ -66,7 +66,7 @@ export function Database() {
           <KV
             items={[
               ["Schema", `${st.data?.schema?.current} of ${st.data?.schema?.target}`],
-              ["Last nightly backup", backups.error ? "Could not load" : backups.isPending ? "Loading…" : nightly?.last_finished ? `${fmtTime(nightly.last_finished)}${nightly.last_error ? " (failed)" : ""}` : "none recorded yet"],
+              ["Last nightly backup", backups.error ? "Could not load" : backups.isPending ? "Loading…" : nightly?.last_ok ? fmtTime(nightly.last_ok) : "none recorded yet"],
               ["How", <span key="h">the <Mono>db.nightly</Mono> task writes a copy to the backup directory</span>],
             ]}
           />

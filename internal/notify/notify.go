@@ -881,9 +881,7 @@ func (n *Notifier) Run(ctx context.Context) {
 			unregister()
 			unregister = func() {}
 			if at != "" {
-				task := n.digestTask(at)
-				task.Next = tasks.NextAt(at, n.now())
-				unregister = n.tasks.Register(ctx, task)
+				unregister = n.registerDigest(ctx, at)
 			}
 		}
 		// A saved notify.poll applies from the next round.
@@ -894,8 +892,9 @@ func (n *Notifier) Run(ctx context.Context) {
 		if err := n.Scan(ctx); err != nil && ctx.Err() == nil {
 			n.log.Warn("webhook scan", "err", err)
 		}
-		if err := n.runDigest(ctx); err != nil && ctx.Err() == nil {
-			n.log.Warn("digest not run", "err", err)
+		// The digest runs on its own, so its retries never hold the webhook sends back.
+		if err := n.startDigest(ctx); err != nil && ctx.Err() == nil {
+			n.log.Warn("digest not started", "err", err)
 		}
 		if _, err := n.SendDue(ctx, 50); err != nil && ctx.Err() == nil {
 			n.log.Warn("webhook send", "err", err)

@@ -17,7 +17,7 @@ export type Task = Schemas["Task"];
 
 /** GET /tasks: the scheduled tasks with their interval, last run, last duration and next run. */
 export const useTasks = () =>
-  useQuery({ queryKey: [...qk.jobs.all, "tasks"], queryFn: () => api<{ items: Task[] }>("/tasks"), refetchInterval: 15_000 });
+  useQuery({ queryKey: [...qk.jobs.all, "tasks"], queryFn: () => api<{ items: Task[] }>("/tasks") });
 
 /** POST /tasks/{key}/run: run a scheduled task now. */
 export function useRunTask() {

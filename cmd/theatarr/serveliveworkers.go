@@ -77,7 +77,8 @@ func (l serveLoops) workers() []serveWorker {
 			l.rss.Schedule(ctx, 3*time.Minute)
 			return nil
 		}},
-		// Watch-order playlist syncs (anime.playlists.interval), each with the syncer in force.
+		// Watch-order playlist syncs (anime.playlists.interval), each with the syncer in force (serve always has one; a
+		// closed playlists gate makes its syncs dry runs).
 		{name: "playlists", key: func(rt *serveRuntime) string {
 			return rt.Policy.PlaylistSettings().Interval.String()
 		}, run: func(ctx context.Context, rt *serveRuntime, _ string) error {
@@ -87,7 +88,7 @@ func (l serveLoops) workers() []serveWorker {
 		// Anime franchise discovery and refresh (metadata.anime and the anime metadata sources); off while auto_build is
 		// off or a source is missing.
 		{name: "anime-build", key: animeWorkerKey, run: func(ctx context.Context, rt *serveRuntime, _ string) error {
-			rt.Anime.Run(ctx)
+			rt.Anime.Run(ctx, l.tasks)
 			return nil
 		}},
 		// meta.art scheduling (metadata.art, metadata.sources.tmdb, ui.images).
@@ -106,7 +107,7 @@ func (l serveLoops) workers() []serveWorker {
 					a = now.Metadata.art
 				}
 				if !a.Enabled() {
-					return nil
+					return tasks.ErrSkip
 				}
 				_, err := a.RunBatch(ctx)
 				return err
@@ -131,14 +132,14 @@ func (l serveLoops) workers() []serveWorker {
 			rt.Metadata.tv.Run(ctx, l.tasks, func(ctx context.Context) error {
 				ctx, s := current(ctx)
 				if !s.Enabled() {
-					return nil
+					return tasks.ErrSkip
 				}
 				_, err := s.Sweep(ctx)
 				return err
 			}, func(ctx context.Context) error {
 				ctx, s := current(ctx)
 				if !s.Enabled() {
-					return nil
+					return tasks.ErrSkip
 				}
 				return s.RefreshScene(ctx)
 			})
@@ -195,7 +196,7 @@ func (l serveLoops) workers() []serveWorker {
 			if prev != "" && was != now {
 				_ = c.store.Refresh(ctx) // logged and kept in the catalog status by the store
 			}
-			c.Run(ctx)
+			c.Run(ctx, l.tasks)
 			return nil
 		}},
 	}
@@ -238,14 +239,10 @@ func egressInterval(e *policy.Egress) time.Duration {
 	return policy.DefaultEgressInterval
 }
 
-// runPlaylists syncs the watch-order playlists every interval (task anime.playlists, listed while playlists are set
-// up), each time with the syncer in force.
+// runPlaylists syncs the watch-order playlists every interval (task anime.playlists), each time with the syncer in
+// force.
 func (l serveLoops) runPlaylists(ctx context.Context, interval time.Duration, fallback *playlists.Syncer) {
-	tb := l.tasks
-	if fallback == nil {
-		tb = nil
-	}
-	tb.Loop(ctx, tasks.Task{Key: "anime.playlists", Name: "Sync watch-order playlists", Every: interval,
+	l.tasks.Loop(ctx, tasks.Task{Key: "anime.playlists", Name: "Sync watch-order playlists", Every: interval,
 		Run: func(ctx context.Context) error {
 			current := fallback
 			syncCtx, rt := l.current(ctx)
@@ -253,7 +250,7 @@ func (l serveLoops) runPlaylists(ctx context.Context, interval time.Duration, fa
 				current = rt.Playlists
 			}
 			if current == nil {
-				return nil
+				return tasks.ErrSkip
 			}
 			_, err := current.Sync(syncCtx, "", false)
 			return err
@@ -263,10 +260,11 @@ func (l serveLoops) runPlaylists(ctx context.Context, interval time.Duration, fa
 // runWanted runs the search round's task every acquire.RoundEvery until ctx ends, the first after 5 minutes, or at
 // once when Pause was just turned off (the due rows waited for it). While Pause is on the task is listed as paused.
 func (l serveLoops) runWanted(ctx context.Context, rt *serveRuntime, prev string) {
-	task := tasks.Task{Key: acquire.TaskWanted, Name: "Search everything wanted", Every: acquire.RoundEvery, Inbox: true}
+	task := tasks.Task{Key: acquire.TaskWanted, Name: "Search everything wanted", Every: acquire.RoundEvery, Inbox: true,
+		Run: l.acquirer.Round}
 	if wantedWorkerKey(rt) == "paused" {
 		task.Paused = true
-		defer l.tasks.Register(ctx, task)()
+		defer l.tasks.Register(ctx, task, time.Time{})()
 		<-ctx.Done()
 		return
 	}
@@ -275,8 +273,7 @@ func (l serveLoops) runWanted(ctx context.Context, rt *serveRuntime, prev string
 	if prev == "paused" {
 		delay = 0
 	}
-	task.Next, task.Run = time.Now().Add(delay), l.acquirer.Round
-	defer l.tasks.Register(ctx, task)()
+	defer l.tasks.Register(ctx, task, time.Now().Add(delay))()
 	t := time.NewTimer(delay)
 	defer t.Stop()
 	for {
@@ -284,9 +281,9 @@ func (l serveLoops) runWanted(ctx context.Context, rt *serveRuntime, prev string
 		case <-ctx.Done():
 			return
 		case <-t.C:
-			start := time.Now()
-			_, _ = l.tasks.Run(ctx, task)
-			t.Reset(time.Until(start.Add(acquire.RoundEvery)))
+			next := time.Now().Add(acquire.RoundEvery)
+			_, _ = l.tasks.Run(ctx, task.Key, next)
+			t.Reset(time.Until(next))
 		}
 	}
 }

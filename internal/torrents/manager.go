@@ -48,6 +48,9 @@ type Manager struct {
 	// between a route's look at the account and its own add, and a delete's per-item usage checks and its deletes
 	// run under it (local reference writers are kept out by reffence). nil (the CLI) relies on the journal row alone.
 	AddLock sync.Locker
+	// BackupLock keeps a manual backup (a job) and the scheduled one (a task) from running at the same time, across
+	// the managers of every settings generation; nil (the CLI, tests): no lock.
+	BackupLock *sync.Mutex
 	// Syncer is the provider sync of this settings generation: Refresh runs it. nil (the CLI): no Refresh.
 	Syncer *provider.Syncer
 	// UsageStale asks for the record's usage to be worked out again (serve's usage worker) after a delete dropped a

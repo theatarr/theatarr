@@ -252,7 +252,7 @@ func (s *serveLibrary) Run(ctx context.Context, tb *tasks.Table) {
 		Run: func(ctx context.Context) error {
 			ctx, current := s.forOperation(ctx)
 			if current.backOff("relink sweep") {
-				return nil
+				return tasks.ErrSkip
 			}
 			_, err := current.lib.Relink(ctx, "", false)
 			return err
@@ -261,7 +261,7 @@ func (s *serveLibrary) Run(ctx context.Context, tb *tasks.Table) {
 		Run: func(ctx context.Context) error {
 			ctx, current := s.forOperation(ctx)
 			if current.backOff("dangling report") {
-				return nil
+				return tasks.ErrSkip
 			}
 			return current.danglingReport(ctx)
 		}}
@@ -275,12 +275,11 @@ func (s *serveLibrary) Run(ctx context.Context, tb *tasks.Table) {
 			return err
 		}}
 	now := time.Now()
-	relink.Next, dangling.Next, trash.Next = now.Add(s.set.RelinkInterval), now, now.Add(24*time.Hour)
-	for _, t := range []tasks.Task{relink, dangling, trash} {
-		defer tb.Register(ctx, t)()
-	}
+	defer tb.Register(ctx, relink, now.Add(s.set.RelinkInterval))()
+	defer tb.Register(ctx, dangling, now)()
+	defer tb.Register(ctx, trash, now.Add(24*time.Hour))()
 	// The dangling report runs at start too.
-	_, _ = tb.Run(ctx, dangling)
+	_, _ = tb.Run(ctx, dangling.Key, now.Add(s.set.DanglingEvery))
 	importTick := time.NewTicker(s.set.PollInterval)
 	relinkTick := time.NewTicker(s.set.RelinkInterval)
 	dailyTick := time.NewTicker(24 * time.Hour)
@@ -321,7 +320,7 @@ func (s *serveLibrary) Run(ctx context.Context, tb *tasks.Table) {
 		case <-ctx.Done():
 			return
 		case <-danglingTick.C:
-			_, _ = tb.Run(ctx, dangling)
+			_, _ = tb.Run(ctx, dangling.Key, time.Now().Add(s.set.DanglingEvery))
 		case <-importTick.C:
 			importPass(ctx)
 		case <-s.readyWake:
@@ -330,11 +329,11 @@ func (s *serveLibrary) Run(ctx context.Context, tb *tasks.Table) {
 		case <-recheck.C:
 			importPass(ctx)
 		case <-rotated:
-			_, _ = tb.Run(ctx, relink)
+			_, _ = tb.Run(ctx, relink.Key, time.Time{})
 		case <-relinkTick.C:
-			_, _ = tb.Run(ctx, relink)
+			_, _ = tb.Run(ctx, relink.Key, time.Now().Add(s.set.RelinkInterval))
 		case <-dailyTick.C:
-			_, _ = tb.Run(ctx, trash)
+			_, _ = tb.Run(ctx, trash.Key, time.Now().Add(24*time.Hour))
 		}
 	}
 }

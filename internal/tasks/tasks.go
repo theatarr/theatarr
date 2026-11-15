@@ -1,12 +1,13 @@
-// Package tasks is the scheduled-tasks table (migration 00133), as Sonarr's System › Tasks: one row per recurring
-// task with its interval or time of day, its last run and its next run.
+// Package tasks is the scheduled-tasks table (migration 00133), as Sonarr's System › Tasks: each recurring task with
+// its interval or time of day, its last run and its next run.
 //
 // Each recurring loop keeps its own timing (start-up delay, Pause, wall-clock slots, settings in force) and registers
-// its task while it runs. When its time comes the loop calls [Table.Run], which runs the task in the loop's goroutine
-// and updates the row: no job row is written. Two runs of one task never overlap: a Run while one is going (the
-// loop's or a Run now) does nothing. A failed run is tried again after the job queue's back-off (10 s, doubling), up
-// to the task's attempts; a run lost to a restart is not resumed, the loop's next time covers it. Whether a task is
-// running is known in this process only, so nothing shows as running after a restart.
+// its task while it runs. When its time comes the loop calls [Table.Run] with the task's key and the next run it
+// plans; the run updates the task's row: no job row is written. Two runs of one task never overlap: a Run while one
+// is going (the loop's or a Run now) does nothing. A failed run is tried again after the job queue's back-off (10 s,
+// doubling), up to the task's attempts; a run lost to a restart is not resumed, the loop's next time covers it.
+// Whether a task is running, and its name and schedule, are known in this process only; the row keeps what outlives
+// a restart: the last run, the last run that worked, and the next run.
 package tasks
 
 import (
@@ -31,28 +32,29 @@ var (
 	ErrRunning = errors.New("tasks: the task is already running")
 	// ErrPaused is a Run now of a task that waits for Pause to be turned off (or a Live library).
 	ErrPaused = errors.New("tasks: the task waits while Pause is on or no library is Live")
+	// ErrSkip is returned by a task's Run that had nothing to do (nothing due, another run holds the work): no run is
+	// recorded, only the next run.
+	ErrSkip = errors.New("tasks: nothing to do")
 )
 
 // Task is one recurring task as its loop registers it.
 type Task struct {
 	Key  string
 	Name string
-	// Every is the interval; At the local time of day ("03:00") of a daily task, whose Every is 0.
+	// Every is the interval; At the local time of day ("03:00") of a daily task. Both zero: run on demand only.
 	Every time.Duration
 	At    string
 	// Attempts is how many tries one run gets (0 or 1: one).
 	Attempts int
-	// Next is the first run the loop has planned, zero when not known.
-	Next time.Time
 	// Paused: the loop waits (Pause on, or no Live library); Run now is refused.
 	Paused bool
 	// Inbox: a failed run goes to the error inbox, as the job the task replaced did. Every failure is logged.
 	Inbox bool
-	// Run is the work. Required unless Paused.
+	// Run is the work.
 	Run func(ctx context.Context) error
 }
 
-// Table holds the registered tasks and writes their rows.
+// Table holds the registered tasks and writes their rows. A table without a store (tests) records nothing.
 type Table struct {
 	st  *store.Store
 	log *slog.Logger
@@ -68,8 +70,9 @@ type Table struct {
 }
 
 type entry struct {
-	t   Task
-	gen uint64
+	t    Task
+	gen  uint64
+	next time.Time // the next run as last written
 }
 
 // New returns a table on st. Run now runs under base (the service's context).
@@ -90,29 +93,17 @@ func backoff(attempt int) time.Duration {
 	return min(d, time.Hour)
 }
 
-// Register adds (or replaces) a task and writes its row's name, schedule and planned next run; its last run is kept.
-// The returned func removes it again (the loop stopped), unless a newer registration replaced it.
-func (tb *Table) Register(ctx context.Context, t Task) (unregister func()) {
-	if tb == nil {
-		return func() {}
-	}
+// Register adds (or replaces) a task with its next run (zero: not known) and writes that next run to its row. The returned
+// func removes it again (the loop stopped), unless a newer registration replaced it.
+func (tb *Table) Register(ctx context.Context, t Task, next time.Time) (unregister func()) {
 	tb.mu.Lock()
 	tb.gen++
 	gen := tb.gen
 	tb.tasks[t.Key] = &entry{t: t, gen: gen}
 	tb.mu.Unlock()
-	now := store.Millis(tb.Now())
-	err := tb.st.WriteTx(ctx, func(tx *sql.Tx) error {
-		_, err := tx.ExecContext(ctx, `INSERT INTO task (key, name, every_s, at, next_run, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?)
-			ON CONFLICT (key) DO UPDATE SET name = excluded.name, every_s = excluded.every_s, at = excluded.at,
-				next_run = excluded.next_run, updated_at = excluded.updated_at`,
-			t.Key, t.Name, int64(t.Every/time.Second), t.At, optMillis(t.Next), now)
-		return err
-	})
-	if err != nil && ctx.Err() == nil {
-		tb.log.Warn("task not recorded", "task", t.Key, "err", err)
-	}
+	tb.SetNext(t.Key, next)
+	tb.write(ctx, t.Key, `INSERT INTO task (key, next_run) VALUES (?1, ?2)
+		ON CONFLICT (key) DO UPDATE SET next_run = excluded.next_run`, t.Key, optMillis(next))
 	return func() {
 		tb.mu.Lock()
 		defer tb.mu.Unlock()
@@ -122,49 +113,64 @@ func (tb *Table) Register(ctx context.Context, t Task) (unregister func()) {
 	}
 }
 
-// SetNext records when the loop runs the task next (a loop whose next run is not the last start plus Every).
-func (tb *Table) SetNext(ctx context.Context, key string, at time.Time) {
-	if tb == nil {
-		return
-	}
-	err := tb.st.WriteTx(ctx, func(tx *sql.Tx) error {
-		_, err := tx.ExecContext(ctx, `UPDATE task SET next_run = ?, updated_at = ? WHERE key = ?`, optMillis(at),
-			store.Millis(tb.Now()), key)
-		return err
-	})
-	if err != nil && ctx.Err() == nil {
-		tb.log.Warn("task next run not recorded", "task", key, "err", err)
+// SetNext changes the next run shown for the task (a loop that moved it after a run); its row gets it with the next
+// run recorded.
+func (tb *Table) SetNext(key string, next time.Time) {
+	tb.mu.Lock()
+	defer tb.mu.Unlock()
+	if e := tb.tasks[key]; e != nil && !next.IsZero() {
+		e.next = next
 	}
 }
 
-// Run runs t now in the caller's goroutine and records it, unless a run of t.Key is already going (ran false). The
-// error is the last try's. A nil table runs t without recording it.
-func (tb *Table) Run(ctx context.Context, t Task) (ran bool, err error) {
-	if tb == nil {
-		return true, try(ctx, t, slog.Default(), backoff)
-	}
+// Run runs the registered task now in the caller's goroutine and records it with next as its next run (zero: keep
+// the next run as it is), unless a run of it is already going (ran false). The error is the last try's.
+func (tb *Table) Run(ctx context.Context, key string, next time.Time) (ran bool, err error) {
 	tb.mu.Lock()
-	if _, busy := tb.running[t.Key]; busy {
+	e := tb.tasks[key]
+	if e == nil {
+		tb.mu.Unlock()
+		return false, ErrUnknown
+	}
+	if _, busy := tb.running[key]; busy {
 		tb.mu.Unlock()
 		return false, nil
 	}
+	t := e.t
 	start := tb.Now()
-	tb.running[t.Key] = start
+	tb.running[key] = start
 	tb.mu.Unlock()
 	defer func() {
 		tb.mu.Lock()
-		delete(tb.running, t.Key)
+		delete(tb.running, key)
 		tb.mu.Unlock()
 	}()
-	err = try(ctx, t, tb.log, tb.Backoff)
-	tb.record(ctx, t, start, err)
+	err = tb.try(ctx, t)
+	if errors.Is(err, ErrSkip) {
+		tb.SetNext(key, next) // shown; written with the next run recorded
+		return false, nil
+	}
+	tb.record(ctx, t, start, next, err)
 	return true, err
+}
+
+// Start is Run in a goroutine of its own, for a loop that must not wait for the work (it keeps polling meanwhile).
+// It reports false when the task is not registered or a run of it is already going.
+func (tb *Table) Start(ctx context.Context, key string, next time.Time) bool {
+	tb.mu.Lock()
+	_, busy := tb.running[key]
+	_, ok := tb.tasks[key]
+	tb.mu.Unlock()
+	if busy || !ok {
+		return false
+	}
+	go errinbox.Go("task "+key, func() { _, _ = tb.Run(ctx, key, next) })()
+	return true
 }
 
 // Loop registers t and runs it every t.Every until ctx ends, the first run after first (0: at once).
 func (tb *Table) Loop(ctx context.Context, t Task, first time.Duration) {
-	t.Next = time.Now().Add(first)
-	defer tb.Register(ctx, t)()
+	defer tb.Register(ctx, t, time.Now().Add(first))()
 	timer := time.NewTimer(first)
 	defer timer.Stop()
 	for {
@@ -173,52 +179,22 @@ func (tb *Table) Loop(ctx context.Context, t Task, first time.Duration) {
 			return
 		case <-timer.C:
 		}
-		start := time.Now()
-		_, _ = tb.Run(ctx, t)
-		timer.Reset(time.Until(start.Add(t.Every)))
+		next := time.Now().Add(t.Every)
+		_, _ = tb.Run(ctx, t.Key, next)
+		timer.Reset(time.Until(next))
 	}
-}
-
-// Start is Run in a goroutine of its own, for a loop that must not wait for the work (it keeps polling meanwhile).
-// It reports false when a run of t.Key is already going.
-func (tb *Table) Start(ctx context.Context, t Task) bool {
-	if tb != nil {
-		tb.mu.Lock()
-		_, busy := tb.running[t.Key]
-		tb.mu.Unlock()
-		if busy {
-			return false
-		}
-	}
-	go errinbox.Go("task "+t.Key, func() { _, _ = tb.Run(ctx, t) })()
-	return true
-}
-
-type attemptKey struct{}
-
-// WithAttempt is ctx for try n of a run of of tries (Attempt reads it).
-func WithAttempt(ctx context.Context, n, of int) context.Context {
-	return context.WithValue(ctx, attemptKey{}, [2]int{n, of})
-}
-
-// Attempt is, inside a run, which try this is (1-based) of how many; 1 of 1 outside one.
-func Attempt(ctx context.Context) (n, of int) {
-	if a, ok := ctx.Value(attemptKey{}).([2]int); ok {
-		return a[0], a[1]
-	}
-	return 1, 1
 }
 
 // try runs t up to its attempts, waiting the back-off between tries.
-func try(ctx context.Context, t Task, log *slog.Logger, wait func(int) time.Duration) error {
+func (tb *Table) try(ctx context.Context, t Task) error {
 	attempts := max(t.Attempts, 1)
 	for attempt := 1; ; attempt++ {
-		err := t.Run(WithAttempt(ctx, attempt, attempts))
-		if err == nil || attempt >= attempts || ctx.Err() != nil {
+		err := t.Run(ctx)
+		if err == nil || errors.Is(err, ErrSkip) || attempt >= attempts || ctx.Err() != nil {
 			return err
 		}
-		log.Warn("task failed; trying again", "task", t.Key, "attempt", attempt, "attempts", attempts, "err", err)
-		timer := time.NewTimer(wait(attempt))
+		tb.log.Warn("task failed; trying again", "task", t.Key, "attempt", attempt, "attempts", attempts, "err", err)
+		timer := time.NewTimer(tb.Backoff(attempt))
 		select {
 		case <-ctx.Done():
 		case <-timer.C:
@@ -227,8 +203,8 @@ func try(ctx context.Context, t Task, log *slog.Logger, wait func(int) time.Dura
 	}
 }
 
-// record writes a finished run: its start, end, duration, error and the next run its schedule gives.
-func (tb *Table) record(ctx context.Context, t Task, start time.Time, runErr error) {
+// record writes a finished run: its start and end, its error (” and the last good run when it worked), and next.
+func (tb *Table) record(ctx context.Context, t Task, start, next time.Time, runErr error) {
 	end := tb.Now()
 	msg := ""
 	if runErr != nil {
@@ -240,38 +216,37 @@ func (tb *Table) record(ctx context.Context, t Task, start time.Time, runErr err
 			errinbox.Report(errinbox.Event{Source: errinbox.SourceJob, Component: t.Key, Message: msg, Context: map[string]string{"task": t.Key}})
 		}
 	}
-	var next time.Time
-	switch {
-	case t.At != "":
-		next = NextAt(t.At, end)
-	case t.Every > 0:
-		next = start.Add(t.Every)
-		if next.Before(end) {
-			next = end
-		}
+	var ok any
+	if runErr == nil {
+		ok = store.Millis(end)
 	}
+	tb.SetNext(t.Key, next)
 	wctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 	defer cancel()
-	err := tb.st.WriteTx(wctx, func(tx *sql.Tx) error {
-		_, err := tx.ExecContext(wctx, `INSERT INTO task (key, name, every_s, at, last_started, last_finished,
-				last_duration_ms, last_error, next_run, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-			ON CONFLICT (key) DO UPDATE SET last_started = excluded.last_started, last_finished = excluded.last_finished,
-				last_duration_ms = excluded.last_duration_ms, last_error = excluded.last_error,
-				next_run = COALESCE(excluded.next_run, task.next_run), updated_at = excluded.updated_at`,
-			t.Key, t.Name, int64(t.Every/time.Second), t.At, store.Millis(start), store.Millis(end),
-			end.Sub(start).Milliseconds(), truncate(msg), optMillis(next), store.Millis(end))
+	tb.write(wctx, t.Key, `INSERT INTO task (key, last_started, last_finished, last_error, last_ok, next_run)
+		VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+		ON CONFLICT (key) DO UPDATE SET last_started = excluded.last_started, last_finished = excluded.last_finished,
+			last_error = excluded.last_error, last_ok = COALESCE(excluded.last_ok, task.last_ok),
+			next_run = COALESCE(excluded.next_run, task.next_run)`,
+		t.Key, store.Millis(start), store.Millis(end), truncate(msg), ok, optMillis(next))
+}
+
+func (tb *Table) write(ctx context.Context, key, q string, args ...any) {
+	if tb.st == nil {
+		return
+	}
+	err := tb.st.WriteTx(ctx, func(tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, q, args...)
 		return err
 	})
-	if err != nil {
-		tb.log.Warn("task run not recorded", "task", t.Key, "err", err)
+	if err != nil && ctx.Err() == nil {
+		tb.log.Warn("task not recorded", "task", key, "err", err)
 	}
 }
 
-// RunNow starts a run of the task in the background (System › Tasks › Run now, the arr commands).
+// RunNow starts a run of the task in the background (System › Tasks › Run now, the arr commands). It leaves the
+// next scheduled run as it is: the loop's timer does not move.
 func (tb *Table) RunNow(key string) error {
-	if tb == nil {
-		return ErrUnknown
-	}
 	tb.mu.Lock()
 	e := tb.tasks[key]
 	_, busy := tb.running[key]
@@ -280,47 +255,40 @@ func (tb *Table) RunNow(key string) error {
 	switch {
 	case e == nil:
 		return ErrUnknown
-	case e.t.Paused || e.t.Run == nil:
+	case e.t.Paused:
 		return ErrPaused
 	case busy:
 		return ErrRunning
 	}
-	// A run now leaves the next scheduled run as it is: the loop's timer does not move.
-	now := e.t
-	now.Every, now.At = 0, ""
 	go errinbox.Go("task "+key, func() {
-		if ran, err := tb.Run(base, now); ran && err == nil {
+		if ran, err := tb.Run(base, key, time.Time{}); ran && err == nil {
 			tb.log.Info("task run now", "task", key)
 		}
 	})()
 	return nil
 }
 
-// NextRun is the task's next run as last recorded (zero for none): read before Register, it is the next run the
-// previous start planned, so a loop can run at once what came due while the service was stopped.
-func (tb *Table) NextRun(ctx context.Context, key string) (time.Time, error) {
-	if tb == nil {
-		return time.Time{}, nil
-	}
-	var at sql.NullInt64
-	err := tb.st.Reader().QueryRowContext(ctx, `SELECT next_run FROM task WHERE key = ?`, key).Scan(&at)
-	if errors.Is(err, sql.ErrNoRows) || (err == nil && !at.Valid) {
-		return time.Time{}, nil
-	}
-	return store.FromMillis(at.Int64), err
+// Row is what the table keeps of a task across restarts.
+type Row struct {
+	// LastStarted is when the newest run started; LastOK when the newest run that worked ended; NextRun the next
+	// run as last planned (read before Register: the previous start's plan). Zero when none.
+	LastStarted, LastOK, NextRun time.Time
 }
 
-// LastStarted is when the task's newest recorded run started (zero for none).
-func (tb *Table) LastStarted(ctx context.Context, key string) (time.Time, error) {
-	if tb == nil {
-		return time.Time{}, nil
+// Read returns the task's row (zero for a task that never ran or was planned).
+func (tb *Table) Read(ctx context.Context, key string) (Row, error) {
+	var r Row
+	if tb.st == nil {
+		return r, nil
 	}
-	var at sql.NullInt64
-	err := tb.st.Reader().QueryRowContext(ctx, `SELECT last_started FROM task WHERE key = ?`, key).Scan(&at)
-	if errors.Is(err, sql.ErrNoRows) || (err == nil && !at.Valid) {
-		return time.Time{}, nil
+	var started, ok, next sql.NullInt64
+	err := tb.st.Reader().QueryRowContext(ctx, `SELECT last_started, last_ok, next_run FROM task WHERE key = ?`, key).
+		Scan(&started, &ok, &next)
+	if errors.Is(err, sql.ErrNoRows) {
+		return r, nil
 	}
-	return store.FromMillis(at.Int64), err
+	r.LastStarted, r.LastOK, r.NextRun = timeOf(started), timeOf(ok), timeOf(next)
+	return r, err
 }
 
 // Status is a registered task with its row, for System › Tasks.
@@ -331,58 +299,69 @@ type Status struct {
 	At           string `json:"at,omitempty"`
 	Paused       bool   `json:"paused,omitempty"`
 	// Running is set while a run goes on, with when it started.
-	Running        *time.Time `json:"running,omitempty"`
-	LastStarted    *time.Time `json:"last_started,omitempty"`
-	LastFinished   *time.Time `json:"last_finished,omitempty"`
-	LastDurationMS int64      `json:"last_duration_ms"`
-	LastError      string     `json:"last_error,omitempty"`
-	NextRun        *time.Time `json:"next_run,omitempty"`
+	Running      *time.Time `json:"running,omitempty"`
+	LastStarted  *time.Time `json:"last_started,omitempty"`
+	LastFinished *time.Time `json:"last_finished,omitempty"`
+	// LastError is the newest run's error (it needs attention until a run works); LastOK when the newest run that
+	// worked ended.
+	LastError string     `json:"last_error,omitempty"`
+	LastOK    *time.Time `json:"last_ok,omitempty"`
+	NextRun   *time.Time `json:"next_run,omitempty"`
 }
 
 // List returns the registered tasks by name.
 func (tb *Table) List(ctx context.Context) ([]Status, error) {
 	tb.mu.Lock()
 	out := make([]Status, 0, len(tb.tasks))
+	byKey := map[string]int{}
 	for _, e := range tb.tasks {
 		s := Status{Key: e.t.Key, Name: e.t.Name, EverySeconds: int64(e.t.Every / time.Second), At: e.t.At, Paused: e.t.Paused}
 		if at, ok := tb.running[e.t.Key]; ok {
 			s.Running = &at
 		}
+		if !e.next.IsZero() && !e.t.Paused {
+			next := e.next
+			s.NextRun = &next
+		}
+		byKey[s.Key] = len(out)
 		out = append(out, s)
 	}
 	tb.mu.Unlock()
-	rows, err := tb.st.Reader().QueryContext(ctx, `SELECT key, last_started, last_finished, COALESCE(last_duration_ms, 0),
-		last_error, next_run FROM task`)
-	if err != nil {
-		return nil, fmt.Errorf("tasks: list: %w", err)
-	}
-	defer rows.Close()
-	byKey := map[string]int{}
-	for i, s := range out {
-		byKey[s.Key] = i
-	}
-	for rows.Next() {
-		var key, lastErr string
-		var started, finished, next sql.NullInt64
-		var dur int64
-		if err := rows.Scan(&key, &started, &finished, &dur, &lastErr, &next); err != nil {
+	if tb.st != nil {
+		rows, err := tb.st.Reader().QueryContext(ctx, `SELECT key, last_started, last_finished, last_error, last_ok FROM task`)
+		if err != nil {
+			return nil, fmt.Errorf("tasks: list: %w", err)
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var key, lastErr string
+			var started, finished, ok sql.NullInt64
+			if err := rows.Scan(&key, &started, &finished, &lastErr, &ok); err != nil {
+				return nil, err
+			}
+			if i, found := byKey[key]; found {
+				s := &out[i]
+				s.LastStarted, s.LastFinished, s.LastError, s.LastOK = optTime(started), optTime(finished), lastErr, optTime(ok)
+			}
+		}
+		if err := rows.Err(); err != nil {
 			return nil, err
 		}
-		i, ok := byKey[key]
-		if !ok {
-			continue
-		}
-		s := &out[i]
-		s.LastStarted, s.LastFinished, s.LastDurationMS, s.LastError = optTime(started), optTime(finished), dur, lastErr
-		if !s.Paused {
-			s.NextRun = optTime(next)
-		}
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
 	}
 	slices.SortFunc(out, func(a, b Status) int { return strings.Compare(a.Name, b.Name) })
 	return out, nil
+}
+
+// Failed counts the registered tasks whose newest run failed: they need attention until a run works.
+func (tb *Table) Failed(ctx context.Context) (int, error) {
+	list, err := tb.List(ctx)
+	n := 0
+	for _, s := range list {
+		if s.LastError != "" {
+			n++
+		}
+	}
+	return n, err
 }
 
 // NextAt is the next local time of day at ("15:04") after now.
@@ -403,6 +382,13 @@ func optMillis(t time.Time) any {
 		return nil
 	}
 	return store.Millis(t)
+}
+
+func timeOf(n sql.NullInt64) time.Time {
+	if !n.Valid {
+		return time.Time{}
+	}
+	return store.FromMillis(n.Int64)
 }
 
 func optTime(n sql.NullInt64) *time.Time {

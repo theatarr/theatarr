@@ -3,8 +3,8 @@ package jobs
 // Managing failed jobs. A failed job needs attention until one of these happens:
 //
 //   - Resolved: a later job (higher id) of the same kind finished done with the same payload, or with the empty
-//     payload {}, which every kind uses for a run over all its subjects (provider.sync of every provider, the art
-//     batch, the nightly backup). Nothing is stored for this; it is read when jobs are listed.
+//     payload {}; or the scheduled task of that key (internal/tasks: provider.sync of every provider, the art batch,
+//     the series sweep) worked after the job failed. Nothing is stored for this; it is read when jobs are listed.
 //   - Retried: Retry queued a fresh job with the same kind, payload, priority, max attempts and dedupe key, linked by
 //     retry_of. The new job carries the attention from then on: if it fails, it needs attention itself; if it
 //     finishes done, it also resolves the old one.
@@ -54,9 +54,11 @@ type Status struct {
 	// RetriedAs is the newest job that re-runs this one, 0 if none.
 	RetriedAs int64 `json:"retried_as,omitempty"`
 	// ResolvedBy is, for a failed job, the first later done job of the same kind and payload (or payload {}).
-	ResolvedBy  int64      `json:"resolved_by,omitempty"`
-	DismissedAt *time.Time `json:"dismissed_at,omitempty"`
-	DismissedBy string     `json:"dismissed_by,omitempty"`
+	ResolvedBy int64 `json:"resolved_by,omitempty"`
+	// ResolvedByTask: the scheduled task of the job's kind worked after the job failed (its sweep covers it).
+	ResolvedByTask bool       `json:"resolved_by_task,omitempty"`
+	DismissedAt    *time.Time `json:"dismissed_at,omitempty"`
+	DismissedBy    string     `json:"dismissed_by,omitempty"`
 	// Attention: failed, and not resolved, retried or dismissed.
 	Attention bool `json:"attention"`
 }
@@ -77,13 +79,15 @@ type ListFilter struct {
 const (
 	resolvedBySQL = `CASE WHEN j.state = 'failed' THEN (SELECT MIN(d.id) FROM job d
 		WHERE d.kind = j.kind AND d.state = 'done' AND d.id > j.id AND (d.payload = j.payload OR d.payload = '{}')) END`
+	resolvedByTaskSQL = `(j.state = 'failed' AND EXISTS (SELECT 1 FROM task t WHERE t.key = j.kind
+		AND t.last_ok > COALESCE(j.finished_at, j.updated_at)))`
 	retriedAsSQL = `(SELECT MAX(r.id) FROM job r WHERE r.retry_of = j.id)`
 	attentionSQL = `(j.state = 'failed' AND j.dismissed_at IS NULL AND ` + retriedAsSQL + ` IS NULL AND ` +
-		resolvedBySQL + ` IS NULL)`
+		resolvedBySQL + ` IS NULL AND NOT ` + resolvedByTaskSQL + `)`
 	statusColumns = `j.id, j.kind, j.state, j.priority, j.attempts, j.max_attempts, j.run_at, COALESCE(j.last_error, ''),
 		COALESCE(j.dedupe_key, ''), j.payload, j.created_at, j.updated_at, j.finished_at, COALESCE(j.retry_of, 0),
 		COALESCE(` + retriedAsSQL + `, 0), COALESCE(` + resolvedBySQL + `, 0), j.dismissed_at, COALESCE(j.dismissed_by, ''),
-		j.started_at`
+		j.started_at, ` + resolvedByTaskSQL
 )
 
 func scanStatus(sc interface{ Scan(...any) error }) (Status, error) {
@@ -93,14 +97,15 @@ func scanStatus(sc interface{ Scan(...any) error }) (Status, error) {
 	var finished, dismissed, started sql.NullInt64
 	err := sc.Scan(&s.ID, &s.Kind, &s.State, &s.Priority, &s.Attempts, &s.MaxAttempts, &runAt, &s.LastError,
 		&s.DedupeKey, &payload, &created, &updated, &finished, &s.RetryOf, &s.RetriedAs, &s.ResolvedBy, &dismissed,
-		&s.DismissedBy, &started)
+		&s.DismissedBy, &started, &s.ResolvedByTask)
 	if err != nil {
 		return s, err
 	}
 	s.Payload = json.RawMessage(payload)
 	s.RunAt, s.CreatedAt, s.UpdatedAt = store.FromMillis(runAt), store.FromMillis(created), store.FromMillis(updated)
 	s.FinishedAt, s.DismissedAt, s.StartedAt = optTime(finished), optTime(dismissed), optTime(started)
-	s.Attention = s.State == StateFailed && s.DismissedAt == nil && s.RetriedAs == 0 && s.ResolvedBy == 0
+	s.Attention = s.State == StateFailed && s.DismissedAt == nil && s.RetriedAs == 0 && s.ResolvedBy == 0 &&
+		!s.ResolvedByTask
 	return s, nil
 }
 
@@ -112,13 +117,16 @@ func optTime(n sql.NullInt64) *time.Time {
 	return &t
 }
 
-// listOrder is List's order, one indexed read per state group: running and queued by run time, then the latest
-// finished (newest first).
+// listOrder is List's order, one indexed read per state group: running and queued by run time (job_ready), then the
+// latest finished, newest first (job_finished).
 var listOrder = []struct{ states, order string }{
 	{`j.state = 'running'`, `j.run_at, j.id`},
 	{`j.state = 'queued'`, `j.run_at, j.id`},
-	{`j.state IN ('done', 'failed')`, `j.id DESC`},
+	{`j.state IN ('done', 'failed')`, `j.finished_at DESC, j.id DESC`},
 }
+
+// stateGroup is the listOrder group a state filter reads.
+var stateGroup = map[string]int{StateRunning: 0, StateQueued: 1, StateDone: 2, StateFailed: 2}
 
 // List returns jobs: running first, then queued by run time, then the latest finished.
 func (q *Queue) List(ctx context.Context, f ListFilter) ([]Status, error) {
@@ -143,7 +151,10 @@ func (q *Queue) List(ctx context.Context, f ListFilter) ([]Status, error) {
 	}
 	where := strings.Join(conds, " AND ")
 	out := []Status{}
-	for _, g := range listOrder {
+	for i, g := range listOrder {
+		if f.State != "" && stateGroup[f.State] != i {
+			continue // a state filter reads its own group only
+		}
 		left := f.Limit - len(out)
 		if left <= 0 {
 			break
@@ -268,7 +279,7 @@ func (q *Queue) DismissResolved(ctx context.Context, by string) (int64, error) {
 	var n int64
 	err := q.st.WriteTx(ctx, func(tx *sql.Tx) error {
 		res, err := tx.ExecContext(ctx, `UPDATE job AS j SET dismissed_at = ?, dismissed_by = ?, updated_at = ?
-			WHERE j.state = 'failed' AND j.dismissed_at IS NULL AND `+resolvedBySQL+` IS NOT NULL`, now, by, now)
+			WHERE j.state = 'failed' AND j.dismissed_at IS NULL AND (`+resolvedBySQL+` IS NOT NULL OR `+resolvedByTaskSQL+`)`, now, by, now)
 		if err != nil {
 			return err
 		}

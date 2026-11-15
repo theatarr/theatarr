@@ -475,8 +475,7 @@ func runServe(args []string) error {
 		return syncProviders(ctx, payload)
 	})
 	ps.tasks, ps.sync = tbl, func(ctx context.Context) error { return syncProviders(ctx, provider.SyncPayload{}) }
-	// After a restore the first sync is soon, whenever the restored set last synced.
-	ps.soon = restoreResult != nil && restoreResult.OK
+	ps.afterRestore(restoreResult)
 
 	// The library: imports of ready downloads, relinks and Plex scans, written only through its gate
 	// (docs/design/library.md).
@@ -795,7 +794,14 @@ func runServe(args []string) error {
 	go errinbox.Go("quality-sync", func() {
 		defer wg.Done()
 		tbl.Loop(ctx, tasks.Task{Key: "quality.sync", Name: "Check quality profile sources", Every: time.Minute,
-			Run: qualitySync.RunDue}, 0)
+			Run: func(ctx context.Context) error {
+				// Recorded only when a source was due and ran.
+				ran, err := qualitySync.RunDue(ctx)
+				if !ran && err == nil {
+					return tasks.ErrSkip
+				}
+				return err
+			}}, 0)
 	})()
 	// Planner statistics: PRAGMA optimize after the startup migrations, then daily.
 	// The nightly backup and tidy-up at the backup hour.
@@ -995,6 +1001,12 @@ func (p *providerSync) first(ctx context.Context, now time.Time) (time.Time, err
 	return next, nil
 }
 
+// afterRestore makes the first sync soon after a restore that worked, whenever the restored set last synced: the
+// accounts may hold other torrents than the set remembers.
+func (p *providerSync) afterRestore(result *web.RestoreResult) {
+	p.soon = result != nil && result.OK
+}
+
 // run syncs every provider when a sync is due, then every interval, until ctx ends, as the provider.sync task (5
 // tries, as the job had). Without providers it does nothing.
 func (p *providerSync) run(ctx context.Context) {
@@ -1013,9 +1025,8 @@ func (p *providerSync) run(ctx context.Context) {
 		next = time.Now().Add(p.delay)
 	}
 	active.log.Info("provider sync scheduled", "providers", active.keys, "interval", active.interval.String(), "next", next.UTC())
-	task := tasks.Task{Key: provider.JobKind, Name: "Sync debrid holdings", Every: active.interval, Attempts: jobs.DefaultMaxAttempts,
-		Inbox: true, Next: next, Run: p.sync}
-	defer p.tasks.Register(ctx, task)()
+	defer p.tasks.Register(ctx, tasks.Task{Key: provider.JobKind, Name: "Sync debrid holdings", Every: active.interval,
+		Attempts: jobs.DefaultMaxAttempts, Inbox: true, Run: p.sync}, next)()
 	t := time.NewTimer(time.Until(next))
 	defer t.Stop()
 	for {
@@ -1027,10 +1038,9 @@ func (p *providerSync) run(ctx context.Context) {
 			if p.runtimeSyncer != nil {
 				active = p.runtimeSyncer()
 			}
-			task.Every = active.interval
-			start := time.Now()
-			_, _ = p.tasks.Run(ctx, task)
-			t.Reset(time.Until(start.Add(active.interval)))
+			next := time.Now().Add(active.interval)
+			_, _ = p.tasks.Run(ctx, provider.JobKind, next)
+			t.Reset(time.Until(next))
 		}
 	}
 }
@@ -1080,18 +1090,16 @@ func (n *nightly) retentionTask() tasks.Task {
 		Inbox: true, Run: n.retain}
 }
 
-// loop runs the nightly task at the backup hour until ctx ends; a night whose run was due while the service was
+// loop runs the night at the backup hour until ctx ends; a night whose run was due while the service was
 // stopped runs at once.
 func (n *nightly) loop(ctx context.Context) {
 	next := n.next(time.Now())
-	if due, err := n.tasks.NextRun(ctx, nightlyKind); err == nil && !due.IsZero() && due.Before(time.Now()) {
+	if row, err := n.tasks.Read(ctx, nightlyKind); err == nil && !row.NextRun.IsZero() && row.NextRun.Before(time.Now()) {
 		next = time.Now()
 	}
-	task := n.task()
-	task.Next = next
-	defer n.tasks.Register(ctx, task)()
+	defer n.tasks.Register(ctx, n.task(), next)()
 	if n.retain != nil {
-		defer n.tasks.Register(ctx, n.retentionTask())()
+		defer n.tasks.Register(ctx, n.retentionTask(), next)()
 	}
 	t := time.NewTimer(time.Until(next))
 	defer t.Stop()
@@ -1100,14 +1108,25 @@ func (n *nightly) loop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-t.C:
-			_, _ = n.tasks.Run(ctx, task)
+			n.night(ctx)
 			t.Reset(time.Until(n.next(time.Now())))
 		}
 	}
 }
 
+// night runs the nightly task (its three tries), then starts the retention task: after tonight's backup is written,
+// so pruned rows are still in that backup. A backup that fails on every try does not hold retention back.
+func (n *nightly) night(ctx context.Context) {
+	next := n.next(time.Now())
+	if _, err := n.tasks.Run(ctx, nightlyKind, next); err != nil && n.retain != nil && ctx.Err() == nil {
+		n.log.Warn("retention runs without tonight's backup", "err", err)
+	}
+	if n.retain != nil {
+		n.tasks.Start(ctx, retention.JobKind, next)
+	}
+}
+
 func (n *nightly) run(ctx context.Context) error {
-	attempt, attempts := tasks.Attempt(ctx)
 	// The journal's own decision rows: in full for 180 days, then trimmed or dropped (journal.Prune).
 	if sum, err := journal.Prune(ctx, n.st, time.Now()); err != nil {
 		n.log.Warn("journal prune", "err", err)
@@ -1127,7 +1146,7 @@ func (n *nightly) run(ctx context.Context) error {
 		if err != nil {
 			backupErr = fmt.Errorf("backup: %w", err)
 			// The error inbox records the nightly job once it fails for good (job source), not each attempt.
-			n.log.ErrorContext(errinbox.Quiet(ctx), "backup failed", "attempt", attempt, "max_attempts", attempts, "err", err)
+			n.log.ErrorContext(errinbox.Quiet(ctx), "backup failed", "err", err)
 		} else {
 			n.log.Info("backup written", "set", base, "db_bytes", m.Database.Bytes, "policy_state", m.Policy.State,
 				"policy_revision", m.Policy.Revision, "took_ms", time.Since(start).Milliseconds())
@@ -1140,15 +1159,6 @@ func (n *nightly) run(ctx context.Context) error {
 		return errors.Join(backupErr, err)
 	} else if pruned > 0 {
 		n.log.Info("finished jobs pruned", "count", pruned)
-	}
-	// The other growing tables (retention package), as their own task started now: after tonight's backup is written,
-	// so pruned rows are still in that backup. A backup that fails on every attempt does not hold retention back for
-	// good: the last attempt starts it anyway.
-	if (backupErr == nil || attempt >= attempts) && n.retain != nil {
-		if backupErr != nil {
-			n.log.Warn("retention runs without tonight's backup", "err", backupErr)
-		}
-		n.tasks.Start(ctx, n.retentionTask())
 	}
 	return backupErr
 }

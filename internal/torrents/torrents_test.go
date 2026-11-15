@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -871,14 +872,16 @@ func TestBackupDue(t *testing.T) {
 }
 
 // The schedule runs a due backup as the torrents.backup task and records it; the task is listed only while
-// torrents.backup.every is set; a backup already running makes the scheduled one wait.
+// torrents.backup.every is set, with its next run; a backup already running makes the scheduled one wait and records
+// nothing.
 func TestRunScheduleTask(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	tb := tasks.New(ctx, e.st, nil)
 	resolve := func(context.Context) (*Manager, error) { return e.m, nil }
-	backupMu.Lock() // a manual backup running: the scheduled one waits
+	e.m.BackupLock = &sync.Mutex{}
+	e.m.BackupLock.Lock() // a manual backup running: the scheduled one waits
 	e.pol.Torrents = &policy.Torrents{Backup: policy.TorrentBackup{Every: policy.Duration(24 * time.Hour)}}
 	done := make(chan struct{})
 	go func() { RunSchedule(ctx, tb, resolve, 10*time.Millisecond); close(done) }()
@@ -892,13 +895,17 @@ func TestRunScheduleTask(t *testing.T) {
 		}
 		t.Fatal(what)
 	}
-	waitTask("a run that waited", func(s tasks.Status) bool { return s.LastFinished != nil && s.EverySeconds == 86400 })
+	waitTask("listed with its next run", func(s tasks.Status) bool { return s.NextRun != nil && s.EverySeconds == 86400 })
+	time.Sleep(50 * time.Millisecond) // a few ticks while the manual backup runs
 	if list, _ := e.m.Backups(); len(list) != 0 {
 		t.Fatalf("backed up while another backup ran: %+v", list)
 	}
-	backupMu.Unlock()
-	waitTask("the scheduled backup", func(tasks.Status) bool {
+	if got, _ := tb.List(ctx); got[0].LastStarted != nil {
+		t.Fatalf("a skipped run recorded: %+v", got[0])
+	}
+	e.m.BackupLock.Unlock()
+	waitTask("the scheduled backup", func(s tasks.Status) bool {
 		list, _ := e.m.Backups()
-		return len(list) == 1 && list[0].Reason == ReasonScheduled
+		return len(list) == 1 && list[0].Reason == ReasonScheduled && s.LastOK != nil
 	})
 }

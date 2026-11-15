@@ -273,15 +273,11 @@ func TestNightlyBackupFailure(t *testing.T) {
 	var retained atomic.Int32
 	n := &nightly{st: st, q: q, pol: &policy.Policy{Dir: notDir}, log: slog.New(slog.NewTextHandler(io.Discard, nil)),
 		dir: backups, keep: 2, hour: 3, retain: func(context.Context) error { retained.Add(1); return nil }}
-	retentionQueued := func() int {
-		time.Sleep(20 * time.Millisecond) // the retention task starts in its own goroutine
-		return int(retained.Load())
-	}
 	if _, err := st.Writer().ExecContext(ctx, `INSERT INTO job (kind, state, payload, run_at, created_at, updated_at,
 		finished_at) VALUES ('old', 'done', '{}', 0, 0, 0, 0)`); err != nil {
 		t.Fatal(err)
 	}
-	if err := n.run(tasks.WithAttempt(ctx, 1, 3)); err == nil {
+	if err := n.run(ctx); err == nil {
 		t.Fatal("a failed backup returned no error")
 	}
 	all, _ := filepath.Glob(filepath.Join(backups, "theatarr-*"))
@@ -293,11 +289,21 @@ func TestNightlyBackupFailure(t *testing.T) {
 	if old != 0 {
 		t.Error("finished jobs were not pruned after a failed backup")
 	}
-	if retentionQueued() != 0 {
-		t.Error("retention was scheduled on an attempt that will be retried")
+	// The night: three tries that fail, retention only after the last.
+	n.tasks = tasks.New(ctx, st, nil)
+	n.tasks.Backoff = func(int) time.Duration { return time.Millisecond }
+	tries, early := 0, false
+	night := n.task()
+	night.Run = func(ctx context.Context) error {
+		tries++
+		early = early || retained.Load() > 0
+		return n.run(ctx)
 	}
-	if err := n.run(tasks.WithAttempt(ctx, 3, 3)); err == nil {
-		t.Fatal("a failed backup returned no error")
+	defer n.tasks.Register(ctx, night, time.Time{})()
+	defer n.tasks.Register(ctx, n.retentionTask(), time.Time{})()
+	n.night(ctx)
+	if tries != 3 || early {
+		t.Errorf("tries %d, retention before the last %v", tries, early)
 	}
 	waitFor(t, "the last attempt starts retention", func() bool { return retained.Load() == 1 })
 }
@@ -345,7 +351,7 @@ func TestNightlyManifestNamesHeadSecrets(t *testing.T) {
 	backups := filepath.Join(dir, "backups")
 	n := &nightly{st: st, q: jobs.NewQueue(st), pol: pol, policyNow: backupPolicyNow("db", polDir, dbPath, pol, log),
 		log: log, dir: backups, keep: 5, hour: 3}
-	if err := n.run(tasks.WithAttempt(ctx, 1, 3)); err != nil {
+	if err := n.run(ctx); err != nil {
 		t.Fatal(err)
 	}
 	sets, _ := filepath.Glob(filepath.Join(backups, "theatarr-*.manifest.json"))

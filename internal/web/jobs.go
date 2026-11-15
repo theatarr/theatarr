@@ -162,6 +162,10 @@ func (w *Web) apiTasks(rw http.ResponseWriter, r *http.Request) {
 // POST /tasks/{key}/run: run the task now, in the background (202).
 func (w *Web) apiTaskRun(rw http.ResponseWriter, r *http.Request) {
 	key := r.PathValue("key")
+	if w.tasks == nil {
+		notFound(rw)
+		return
+	}
 	switch err := w.tasks.RunNow(key); {
 	case errors.Is(err, tasks.ErrUnknown):
 		notFound(rw)

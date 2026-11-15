@@ -574,27 +574,6 @@ func (s *Store) writeStateLocked() error {
 	return os.Rename(tmp, filepath.Join(s.Dir, stateFile))
 }
 
-// Run refreshes when due (every; a failed refresh tries again after retry) until ctx ends.
-func (s *Store) Run(ctx context.Context, every, retry time.Duration) {
-	for {
-		wait := every
-		if s.Due(every) {
-			if err := s.Refresh(ctx); err != nil && retry < every {
-				wait = retry
-			}
-		} else if last := s.Status().LastCheck; !last.IsZero() {
-			wait = max(every-s.clock().Sub(last), time.Minute)
-		}
-		t := time.NewTimer(wait)
-		select {
-		case <-ctx.Done():
-			t.Stop()
-			return
-		case <-t.C:
-		}
-	}
-}
-
 func sortedIDs(m map[string]*storeEntry) []string {
 	out := make([]string, 0, len(m))
 	for k := range m {

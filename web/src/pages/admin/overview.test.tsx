@@ -307,7 +307,9 @@ it("lists the scheduled tasks with how often they run, their last and next run, 
  expect(rec.querySelector("[data-key='notify.digest']")!.textContent).toContain("not run yet");
  expect(rec.querySelector("[data-key='acquire.wanted'] [data-testid='task-paused']")).toBeTruthy();
  expect(rec.querySelector("[data-testid='task-run-acquire.wanted']")).toBeNull();
- fireEvent.click(screen.getByTestId("task-run-shadow.rss"));
+ // A failed task needs attention until a run works.
+ expect(screen.getByTestId("tasks-failed").textContent).toContain("boom");
+ fireEvent.click(screen.getAllByTestId("task-run-shadow.rss")[0]);
  await waitFor(() => expect(api.calls("POST", "/tasks/shadow.rss/run")).toHaveLength(1));
  const group = screen.getByTestId("jobs-done-group");
  expect(group.textContent).toContain("Sync debrid holdings");

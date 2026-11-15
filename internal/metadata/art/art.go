@@ -198,9 +198,8 @@ func (s *Service) Run(ctx context.Context, tb *tasks.Table, batch func(context.C
 		batch = func(ctx context.Context) error { _, err := s.RunBatch(ctx); return err }
 	}
 	next := s.now().Add(s.delay)
-	task := tasks.Task{Key: JobKind, Name: "Refresh details and artwork", Every: s.set.Interval,
-		Attempts: jobs.DefaultMaxAttempts, Inbox: true, Next: next, Run: batch}
-	defer tb.Register(ctx, task)()
+	defer tb.Register(ctx, tasks.Task{Key: JobKind, Name: "Refresh details and artwork", Every: s.set.Interval,
+		Attempts: jobs.DefaultMaxAttempts, Inbox: true, Run: batch}, next)()
 	t := time.NewTicker(min(s.poll, s.delay))
 	defer t.Stop()
 	for {
@@ -222,15 +221,16 @@ func (s *Service) Run(ctx context.Context, tb *tasks.Table, batch func(context.C
 		if !due {
 			continue
 		}
-		run := task
-		if now.Before(next) {
-			run.Every = 0 // a run for new titles leaves the interval's next run as it is
+		// A run for new titles leaves the interval's next run as it is.
+		var planned time.Time
+		if !now.Before(next) {
+			planned = now.Add(s.set.Interval)
 		}
-		if !tb.Start(ctx, run) {
+		if !tb.Start(ctx, JobKind, planned) {
 			continue
 		}
-		if !now.Before(next) {
-			next = now.Add(s.set.Interval)
+		if !planned.IsZero() {
+			next = planned
 		}
 		t.Reset(s.poll)
 	}

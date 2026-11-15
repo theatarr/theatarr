@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/theatarr/theatarr/internal/jobs"
@@ -63,18 +62,17 @@ func EnqueueRestore(ctx context.Context, q *jobs.Queue, plan *RestorePlan, req R
 	return id, err
 }
 
-// backupMu keeps a manual backup (a job) and the scheduled one (a task) from running at the same time.
-var backupMu sync.Mutex
-
 // errBackupBusy is a backup asked for while another runs.
 var errBackupBusy = errors.New("torrents: a backup is already running")
 
 // backup takes one backup and journals it, unless another is running (errBackupBusy).
 func backup(ctx context.Context, m *Manager, p BackupPayload) error {
-	if !backupMu.TryLock() {
-		return errBackupBusy
+	if m.BackupLock != nil {
+		if !m.BackupLock.TryLock() {
+			return errBackupBusy
+		}
+		defer m.BackupLock.Unlock()
 	}
-	defer backupMu.Unlock()
 	b, info, err := m.TakeBackup(ctx, BackupOptions{Reason: p.Reason, By: p.By})
 	if err != nil {
 		m.journal(ctx, JournalEntry{Action: "backup", Outcome: "failed", Detail: err.Error(), By: p.By})
@@ -120,28 +118,34 @@ func RegisterJobs(w *jobs.Worker, resolve Resolver) {
 	})
 }
 
-// BackupDue reports whether a scheduled backup is due: torrents.backup.every is set and the newest scheduled backup
-// is older than it.
-func (m *Manager) BackupDue() bool {
+// NextBackup is when the next scheduled backup is due: torrents.backup.every after the newest scheduled backup, now
+// when there is none; zero while scheduled backups are off.
+func (m *Manager) NextBackup() time.Time {
 	every := m.Policy.TorrentBackupEvery()
 	if every <= 0 {
-		return false
+		return time.Time{}
 	}
 	list, err := m.Backups()
 	if err != nil {
-		return false
+		return time.Time{}
 	}
 	for _, in := range list {
 		if in.Reason == ReasonScheduled {
-			return m.now().Sub(in.CreatedAt) >= every
+			return in.CreatedAt.Add(every)
 		}
 	}
-	return true
+	return m.now()
+}
+
+// BackupDue reports whether a scheduled backup is due (NextBackup has come).
+func (m *Manager) BackupDue() bool {
+	next := m.NextBackup()
+	return !next.IsZero() && !m.now().Before(next)
 }
 
 // RunSchedule runs the scheduled backups as the torrents.backup task while ctx lives, checking every tick with the
 // settings in force. Off (and not listed) unless torrents.backup.every is set. A manual backup running then makes the
-// scheduled one wait for the next tick.
+// scheduled one wait for the next tick, and nothing is recorded.
 func RunSchedule(ctx context.Context, tb *tasks.Table, resolve Resolver, tick time.Duration) {
 	t := time.NewTicker(tick)
 	defer t.Stop()
@@ -155,11 +159,11 @@ func RunSchedule(ctx context.Context, tb *tasks.Table, resolve Resolver, tick ti
 			unregister()
 			unregister = func() {}
 			if every > 0 {
-				unregister = tb.Register(ctx, scheduledTask(resolve, every))
+				unregister = tb.Register(ctx, scheduledTask(resolve, every), m.NextBackup())
 			}
 		}
 		if err == nil && m.BackupDue() {
-			_, _ = tb.Run(ctx, scheduledTask(resolve, every))
+			_, _ = tb.Run(ctx, JobBackup, m.now().Add(every))
 		}
 		select {
 		case <-ctx.Done():
@@ -169,7 +173,7 @@ func RunSchedule(ctx context.Context, tb *tasks.Table, resolve Resolver, tick ti
 	}
 }
 
-// scheduledTask is the scheduled backup's task, a backup with the manager in force.
+// scheduledTask is the scheduled backup's task, a backup with the manager in force; skipped while a manual one runs.
 func scheduledTask(resolve Resolver, every time.Duration) tasks.Task {
 	return tasks.Task{Key: JobBackup, Name: "Back up the debrid torrent lists", Every: every, Inbox: true,
 		Run: func(ctx context.Context) error {
@@ -180,7 +184,7 @@ func scheduledTask(resolve Resolver, every time.Duration) tasks.Task {
 			err = backup(ctx, m, BackupPayload{Reason: ReasonScheduled, By: "schedule"})
 			if errors.Is(err, errBackupBusy) {
 				m.log().Info("torrents: scheduled backup waits; a backup is running")
-				return nil
+				return tasks.ErrSkip
 			}
 			return err
 		}}

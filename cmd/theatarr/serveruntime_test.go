@@ -26,6 +26,7 @@ import (
 	"github.com/theatarr/theatarr/internal/settings"
 	"github.com/theatarr/theatarr/internal/store"
 	"github.com/theatarr/theatarr/internal/store/storetest"
+	"github.com/theatarr/theatarr/internal/tasks"
 )
 
 func TestPreparedDecisionEngineKeepsSharedLibrary(t *testing.T) {
@@ -820,7 +821,7 @@ func TestServeEgressWorkerFollowsTheSection(t *testing.T) {
 		return &serveRuntime{Generation: gen, Policy: pol, Gateway: gw}
 	}
 	var current atomic.Pointer[serveRuntime]
-	workers := newServeWorkers(context.Background(), quiet, egressWorker(nil, func(ctx context.Context) (context.Context, *serveRuntime) {
+	workers := newServeWorkers(context.Background(), quiet, egressWorker(tasks.New(context.Background(), nil, nil), func(ctx context.Context) (context.Context, *serveRuntime) {
 		return ctx, current.Load()
 	}))
 	defer workers.Close()

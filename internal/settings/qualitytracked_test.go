@@ -183,7 +183,7 @@ func TestQualitySyncTrackedDefaultsAndUnchangedCommit(t *testing.T) {
 		t.Fatalf("tracked defaults: %+v", c)
 	}
 	gen := svc.Coordinator.Current().Generation
-	if err := svc.RunDue(ctx); err != nil {
+	if _, err := svc.RunDue(ctx); err != nil {
 		t.Fatal(err)
 	}
 	if r := lastRunOf(t, svc); r.Outcome != "unchanged" || r.Commit != strings.Repeat("a", 40) {
@@ -194,7 +194,7 @@ func TestQualitySyncTrackedDefaultsAndUnchangedCommit(t *testing.T) {
 	}
 	// Weekly: a day later nothing is asked.
 	*now = now.Add(24 * time.Hour)
-	if err := svc.RunDue(ctx); err != nil {
+	if _, err := svc.RunDue(ctx); err != nil {
 		t.Fatal(err)
 	}
 	if lookups, _ := gh.counts(); lookups != 1 {
@@ -202,7 +202,7 @@ func TestQualitySyncTrackedDefaultsAndUnchangedCommit(t *testing.T) {
 	}
 	// A week later the branch has not moved: one lookup, no archive, no log entry, no generation.
 	*now = now.Add(7 * 24 * time.Hour)
-	if err := svc.RunDue(ctx); err != nil {
+	if _, err := svc.RunDue(ctx); err != nil {
 		t.Fatal(err)
 	}
 	runs, _ := svc.Runs(ctx)
@@ -239,7 +239,7 @@ func TestQualitySyncTrackedAppliesDefinitionChanges(t *testing.T) {
 	svc, gh, source, now := trackedService(t, QualitySyncConfig{Kind: "trash", Flavour: "radarr"})
 	tree := t.TempDir()
 	copyTree(t, tree)
-	if err := svc.RunDue(ctx); err != nil {
+	if _, err := svc.RunDue(ctx); err != nil {
 		t.Fatal(err)
 	}
 	gen := svc.Coordinator.Current().Generation
@@ -250,7 +250,7 @@ func TestQualitySyncTrackedAppliesDefinitionChanges(t *testing.T) {
 	commit := strings.Repeat("b", 40)
 	gh.publish(t, tree, commit)
 	*now = now.Add(7 * 24 * time.Hour)
-	if err := svc.RunDue(ctx); err != nil {
+	if _, err := svc.RunDue(ctx); err != nil {
 		t.Fatal(err)
 	}
 	r := lastRunOf(t, svc)
@@ -319,7 +319,7 @@ func TestQualitySyncTrackedKeepsScoresAppliesAddsSkipsRetirements(t *testing.T) 
 			svc, gh, _, now := trackedService(t, tc.config)
 			tree := t.TempDir()
 			copyTree(t, tree)
-			if err := svc.RunDue(ctx); err != nil {
+			if _, err := svc.RunDue(ctx); err != nil {
 				t.Fatal(err)
 			}
 			before, _ := svc.Changes(ctx, 50)
@@ -330,7 +330,7 @@ func TestQualitySyncTrackedKeepsScoresAppliesAddsSkipsRetirements(t *testing.T) 
 			tc.edit(t, tree)
 			gh.publish(t, tree, strings.Repeat("c", 40))
 			*now = now.Add(7 * 24 * time.Hour)
-			if err := svc.RunDue(ctx); err != nil {
+			if _, err := svc.RunDue(ctx); err != nil {
 				t.Fatal(err)
 			}
 			r := lastRunOf(t, svc)
@@ -359,7 +359,7 @@ func TestQualitySyncTrackedKeepsScoresAppliesAddsSkipsRetirements(t *testing.T) 
 	}
 	gh.publish(t, tree, strings.Repeat("e", 40))
 	gen := svc.Coordinator.Current().Generation
-	if err := svc.RunDue(ctx); err != nil {
+	if _, err := svc.RunDue(ctx); err != nil {
 		t.Fatal(err)
 	}
 	changes, _ := svc.Changes(ctx, 50)
@@ -373,7 +373,7 @@ func TestQualitySyncTrackedFetchFailureKeepsState(t *testing.T) {
 	svc, gh, source, now := trackedService(t, QualitySyncConfig{Kind: "trash", Flavour: "radarr"})
 	tree := t.TempDir()
 	copyTree(t, tree)
-	if err := svc.RunDue(ctx); err != nil {
+	if _, err := svc.RunDue(ctx); err != nil {
 		t.Fatal(err)
 	}
 	gen := svc.Coordinator.Current().Generation
@@ -382,7 +382,7 @@ func TestQualitySyncTrackedFetchFailureKeepsState(t *testing.T) {
 	gh.failHead = true
 	gh.mu.Unlock()
 	*now = now.Add(7 * 24 * time.Hour)
-	if err := svc.RunDue(ctx); err == nil {
+	if _, err := svc.RunDue(ctx); err == nil {
 		t.Fatal("failed lookup reported no error")
 	}
 	r := lastRunOf(t, svc)
@@ -398,7 +398,7 @@ func TestQualitySyncTrackedFetchFailureKeepsState(t *testing.T) {
 	gh.failHead = false
 	gh.mu.Unlock()
 	*now = now.Add(time.Hour)
-	_ = svc.RunDue(ctx)
+	_, _ = svc.RunDue(ctx)
 	if runs, _ := svc.Runs(ctx); len(runs) != 2 {
 		t.Fatal("retried within the hour")
 	}
@@ -411,7 +411,7 @@ func TestQualitySyncTrackedFetchFailureKeepsState(t *testing.T) {
 	delete(gh.archives, strings.Repeat("d", 40))
 	gh.mu.Unlock()
 	*now = now.Add(6 * time.Hour)
-	if err := svc.RunDue(ctx); err == nil {
+	if _, err := svc.RunDue(ctx); err == nil {
 		t.Fatal("failed archive reported no error")
 	}
 	if r := lastRunOf(t, svc); r.Outcome != "error" || svc.Coordinator.Current().Generation != gen {
@@ -489,7 +489,7 @@ func TestQualitySyncFailedApplyKeepsState(t *testing.T) {
 	svc, gh, _, now := trackedService(t, QualitySyncConfig{Kind: "trash", Flavour: "radarr"})
 	tree := t.TempDir()
 	copyTree(t, tree)
-	if err := svc.RunDue(ctx); err != nil {
+	if _, err := svc.RunDue(ctx); err != nil {
 		t.Fatal(err)
 	}
 	gen := svc.Coordinator.Current().Generation
@@ -502,7 +502,7 @@ func TestQualitySyncFailedApplyKeepsState(t *testing.T) {
 		return nil, errors.New("fixture prepare failure")
 	}
 	*now = now.Add(7 * 24 * time.Hour)
-	if err := svc.RunDue(ctx); err == nil {
+	if _, err := svc.RunDue(ctx); err == nil {
 		t.Fatal("failed apply reported no error")
 	}
 	changes, _ := svc.Changes(ctx, 50)
@@ -511,7 +511,7 @@ func TestQualitySyncFailedApplyKeepsState(t *testing.T) {
 	}
 	svc.Coordinator.prepare = prepare
 	*now = now.Add(7 * time.Hour)
-	if err := svc.RunDue(ctx); err != nil {
+	if _, err := svc.RunDue(ctx); err != nil {
 		t.Fatal(err)
 	}
 	if changes, _ := svc.Changes(ctx, 50); lastRunOf(t, svc).Outcome != "applied" || len(changes) != 1 || svc.Coordinator.Current().Generation != gen+1 {
@@ -537,7 +537,7 @@ func TestQualitySyncKeepsYourScore(t *testing.T) {
 		t.Helper()
 		gh.publish(t, tree, strings.Repeat(commit, 40))
 		*now = now.Add(7 * 24 * time.Hour)
-		if err := svc.RunDue(ctx); err != nil {
+		if _, err := svc.RunDue(ctx); err != nil {
 			t.Fatal(err)
 		}
 		changes, err := svc.Changes(ctx, 50)
@@ -555,7 +555,7 @@ func TestQualitySyncKeepsYourScore(t *testing.T) {
 	}
 
 	// First run after binding takes TRaSH's scores and remembers them.
-	if err := svc.RunDue(ctx); err != nil {
+	if _, err := svc.RunDue(ctx); err != nil {
 		t.Fatal(err)
 	}
 	if st := source().Config.ScoreState["remux-2160p"]; st.Set != "default" || st.Scores["Remux Tier 01"] != (TrashScoreState{Trash: 1950}) || st.Scores["Remux Tier 02"] != (TrashScoreState{Trash: 1900}) {

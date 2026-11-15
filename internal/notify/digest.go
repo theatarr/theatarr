@@ -60,15 +60,17 @@ func digestAt(set policy.NotifySettings, on bool) string {
 	return fmt.Sprintf("%02d:%02d", set.DigestHour, set.DigestMinute)
 }
 
-// digestTask sends the digest of the day it runs on: three tries, as its job had.
-func (n *Notifier) digestTask(at string) tasks.Task {
-	return tasks.Task{Key: DigestJob, Name: "Send the daily digest", At: at, Attempts: 3, Inbox: true,
-		Run: func(ctx context.Context) error { return n.SendDigest(ctx, n.now()) }}
+// registerDigest registers the digest's task at at ("09:00"): it sends the digest of the day it runs on, with three
+// tries, as its job had.
+func (n *Notifier) registerDigest(ctx context.Context, at string) (unregister func()) {
+	return n.tasks.Register(ctx, tasks.Task{Key: DigestJob, Name: "Send the daily digest", At: at, Attempts: 3,
+		Inbox: true, Run: func(ctx context.Context) error { return n.SendDigest(ctx, n.now()) }}, tasks.NextAt(at, n.now()))
 }
 
-// runDigest runs today's digest task once notify.digest_at has passed and today's digest is not claimed. A day's
-// digest is tried once (a run that failed on every try is not run again that day).
-func (n *Notifier) runDigest(ctx context.Context) error {
+// startDigest starts today's digest task once notify.digest_at has passed and today's digest is not claimed. A day's
+// digest is tried once (a run that failed on every try is not run again that day). Off while the task is not
+// registered (notifications off).
+func (n *Notifier) startDigest(ctx context.Context) error {
 	if n.tasks == nil {
 		return nil
 	}
@@ -83,11 +85,11 @@ func (n *Notifier) runDigest(ctx context.Context) error {
 		AND ref = ?)`, digestDay(now)).Scan(&claimed); err != nil || claimed {
 		return err
 	}
-	if last, err := n.tasks.LastStarted(ctx, DigestJob); err != nil || !last.Before(slot) {
+	if row, err := n.tasks.Read(ctx, DigestJob); err != nil || !row.LastStarted.Before(slot) {
 		return err
 	}
-	_, err := n.tasks.Run(ctx, n.digestTask(digestAt(set, true)))
-	return err
+	n.tasks.Start(ctx, DigestJob, tasks.NextAt(digestAt(set, true), now))
+	return nil
 }
 
 // SendDigest records the digest of day (the 24 hours before now) once.

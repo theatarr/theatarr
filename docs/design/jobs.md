@@ -74,16 +74,21 @@ loaded without an error.
 
 Recurring work is not a job: each recurring task is one row in `task` (migration `00133_task.sql`, code
 `internal/tasks`), as Sonarr's System › Tasks. Its loop keeps its own timing (start-up delay, Pause, the settings in
-force, wall-clock times) and registers the task while it runs; a run updates the row (last start, finish, duration,
-error, next run) and writes no job row. Two runs of one task never overlap (a run while one goes on does nothing);
-a failed run is tried again after the job queue's back-off (10 s, doubling) up to the task's tries; a run lost to a
-restart is not resumed, the next time covers it. Whether a task runs is known in the process only. Tasks that
-replaced a job (`Inbox`) report a failed run to the error inbox as the job did.
+force, wall-clock times) and registers the task (name, schedule) while it runs; a run updates the row (last start
+and finish, error, when the last good run ended, next run) and writes no job row. A run with nothing to do (nothing
+due, the mount backing off, a manual backup running) records nothing. Two runs of one task never overlap (a run
+while one goes on does nothing); a failed run is tried again after the job queue's back-off (10 s, doubling) up to
+the task's tries; a run lost to a restart is not resumed, the next time covers it (the nightly backup, whose next
+run the row keeps, runs at start when it came due while stopped; the upgrade carries a queued nightly's due time).
+Whether a task runs is known in the process only. A task whose newest run failed needs attention (Tasks and Status,
+the attention count) until a run works; tasks that replaced a job report a failed run to the error inbox as the job
+did. A failed one-subject job of a task's kind (one title's art or series refresh, one provider's retry) is resolved
+when that task works after it (`resolved_by_task`), as a later `{}` sweep job resolved it before.
 
 | Task | When | Tries |
 |---|---|---|
 | `acquire.wanted` search round | every 15 min, first 5 min after start (at once when Pause goes off); paused while Pause is on or no library is Live | 1 |
-| `shadow.rss` RSS read | `shadow.rss_interval`, first 3 min after start; listed while RSS is on; paused as above | 2 |
+| `shadow.rss` RSS read | `shadow.rss_interval`, first 3 min after start; on demand only (the arr `RssSync` command, Run now) while RSS is off | 2 |
 | `provider.sync` all providers | `provider_sync.interval` after the oldest provider's last sync (soon after a restore) | 5 |
 | `meta.art` batch | `metadata.art.interval`, and when a title has no details yet | 5 |
 | `meta.series` sweep, `meta.scene` scene names | `metadata.series.interval`; every 3 h | 1; 3 |
@@ -92,22 +97,22 @@ replaced a job (`Inbox`) report a failed run to the error inbox as the job did.
 | `db.nightly` backup and tidy-up, then `db.retention` | daily at `--backup-hour`; a night missed while stopped runs at start | 3; 3 |
 | `notify.digest` | daily at `notify.digest_at`, once a day (its last start), listed while notifications are on | 3 |
 | `library.relink`, `library.dangling`, `library.trash` | `library.relink_interval` (and after zurg's log rotates); `library.dangling_every` and at start; daily | 1 |
-| `quality.sync`, `db.optimize`, `egress.check` | every minute (due sources); daily from start; `egress.interval` from start | 1 |
+| `quality.sync`, `db.optimize`, `egress.check` | every minute (recorded when a source was due); daily from start; `egress.interval` from start | 1 |
+| `cardigann.refresh` indexer definitions | `cardigann.definitions.refresh` after the last check; a failed one again after an hour | 1 |
+| `anime.discover` anime franchise discovery and refresh | every minute, first 2 min after start (recorded when it queued a build job) | 1 |
 
-Not tasks: the download poll, the library's import pass, now playing, the anime build discovery pass (it queues one
-job per franchise), the health hand-off to the error inbox, and the cardigann definitions refresh (its retry lives
-in its store). The per-subject runs of the same kinds stay jobs: one provider's retry, one title's art or series
+Not tasks: the download poll, the library's import pass, now playing, the offer sweep, and the health hand-off to the
+error inbox. The per-subject runs of the same kinds stay jobs: one provider's retry, one title's art or series
 refresh, a manual torrent backup.
 
 `GET tasks` lists the registered tasks (key, name, `every_seconds` or `at`, `paused`, `running`, last start/finish,
-`last_duration_ms`, `last_error`, `next_run`); `POST tasks/{key}/run` runs one now in the background (`202`; `409`
+`last_error`, `last_ok`, `next_run`); `POST tasks/{key}/run` runs one now in the background (`202`; `409`
 while it runs or is paused; `404` for a task not scheduled). The arr `RssSync` command is the RSS task's Run now.
 System › Tasks lists them under "Scheduled" with Run now.
 
 ## Retention (`db.retention`)
 
-Once its backup is written and finished jobs are pruned, the nightly task starts the `db.retention` task (a failed
-nightly run starts none until its last try) and the task deletes in
+Once the nightly task is done (its last try included), it starts the `db.retention` task, which deletes in
 batches of 500 rows, at most 100 batches per table a run, so a backlog drains over a few nights without holding the
 writer. Code: `internal/retention`. The windows:
 

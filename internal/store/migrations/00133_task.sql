@@ -1,28 +1,32 @@
--- The scheduled tasks (docs/design/jobs.md "Scheduled tasks"; internal/tasks): one row per recurring task, as
--- Sonarr's System › Tasks. A run updates its row; it inserts no job row. every_s is the interval in seconds (0 for a
--- daily task at a time of day), at that time ('03:00') when there is one. Times are ms; last_error is '' after a run
--- that worked. next_run is when the task's loop runs it next, NULL while it is not scheduled.
+-- The scheduled tasks (docs/design/jobs.md "Scheduled tasks"; internal/tasks): what a recurring task keeps across a
+-- restart, as Sonarr's System › Tasks. A run updates its row; it inserts no job row. Times are ms. last_error is the
+-- newest run's error ('' when it worked); last_ok is when the newest run that worked ended; next_run is when the
+-- task's loop planned its next run. A task's name and schedule live in the process that registers it.
 -- The job rows the recurring runs left behind go, queued ones too (no handler leases them any more): the whole kinds
 -- that now run only as tasks, and the sweep runs ({} payload, or a scheduled backup) of kinds that also run for one
--- subject.
+-- subject. A queued nightly backup's due time is kept as the nightly task's next run, so an overdue one still runs at
+-- the first start.
+-- job_finished serves the job list's finished rows, newest first.
 -- +goose Up
 CREATE TABLE task (
-    key              TEXT    PRIMARY KEY,
-    name             TEXT    NOT NULL,
-    every_s          INTEGER NOT NULL DEFAULT 0,
-    at               TEXT    NOT NULL DEFAULT '',
-    last_started     INTEGER,
-    last_finished    INTEGER,
-    last_duration_ms INTEGER,
-    last_error       TEXT    NOT NULL DEFAULT '',
-    next_run         INTEGER,
-    updated_at       INTEGER NOT NULL
+    key           TEXT    PRIMARY KEY,
+    last_started  INTEGER,
+    last_finished INTEGER,
+    last_error    TEXT    NOT NULL DEFAULT '',
+    last_ok       INTEGER,
+    next_run      INTEGER
 ) STRICT;
+
+INSERT INTO task (key, next_run)
+SELECT 'db.nightly', MIN(run_at) FROM job WHERE kind = 'db.nightly' AND state IN ('queued', 'running') HAVING COUNT(*) > 0;
 
 DELETE FROM job WHERE (
     kind IN ('acquire.wanted', 'shadow.rss', 'db.nightly', 'db.retention', 'notify.digest', 'meta.scene')
     OR (kind IN ('provider.sync', 'meta.art', 'meta.series') AND payload = '{}')
     OR (kind = 'torrents.backup' AND json_extract(payload, '$.reason') = 'scheduled'));
 
+CREATE INDEX job_finished ON job (finished_at, id) WHERE state IN ('done', 'failed');
+
 -- +goose Down
+DROP INDEX job_finished;
 DROP TABLE task;

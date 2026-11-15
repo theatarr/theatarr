@@ -14,6 +14,7 @@ import (
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/settings"
 	"github.com/theatarr/theatarr/internal/store"
+	"github.com/theatarr/theatarr/internal/tasks"
 )
 
 // cardigannCatalog is theatarr serve's definition catalog (the definitions sync source, docs/design/cardigann.md) and the
@@ -104,13 +105,46 @@ func (c *cardigannCatalog) source(ctx context.Context) settings.QualitySyncConfi
 	return settings.QualitySyncConfig{Repo: d.RepoOrDefault(), Branch: d.BranchOrDefault()}
 }
 
-// Run refreshes the catalog when due until ctx ends, every refresh interval of the settings in force at its start.
-func (c *cardigannCatalog) Run(ctx context.Context) {
+// Run refreshes the catalog when due until ctx ends (task cardigann.refresh), every refresh interval of the settings
+// in force at its start; a failed refresh is tried again after cardigannRetry when that is sooner.
+func (c *cardigannCatalog) Run(ctx context.Context, tb *tasks.Table) {
 	var d *policy.CardigannDefinitions
 	if s := c.settings(ctx); s != nil {
 		d = s.Definitions
 	}
-	c.store.Run(ctx, d.RefreshOrDefault(), cardigannRetry)
+	every := d.RefreshOrDefault()
+	const key = "cardigann.refresh"
+	// wait is how long until the next refresh is due, by the store's last check.
+	wait := func() time.Duration {
+		if c.store.Due(every) {
+			return 0
+		}
+		if last := c.store.Status().LastCheck; !last.IsZero() {
+			return max(every-time.Since(last), time.Minute)
+		}
+		return every
+	}
+	first := wait()
+	defer tb.Register(ctx, tasks.Task{Key: key, Name: "Refresh indexer definitions", Every: every, Run: c.store.Refresh},
+		time.Now().Add(first))()
+	t := time.NewTimer(first)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+		}
+		next := wait()
+		if next == 0 {
+			next = every
+			if _, err := tb.Run(ctx, key, time.Now().Add(every)); err != nil && cardigannRetry < every {
+				next = cardigannRetry
+				tb.SetNext(key, time.Now().Add(next))
+			}
+		}
+		t.Reset(next)
+	}
 }
 
 // cardigannEnsure makes the serve catalog the first time a settings generation configures cardigann.definitions, so

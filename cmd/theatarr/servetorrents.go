@@ -31,6 +31,8 @@ type serveTorrents struct {
 	lib *serveLibrary
 	// addLock is the router's add lock, shared by every settings generation: restores add under it.
 	addLock sync.Locker
+	// backupLock is every generation's Manager.BackupLock.
+	backupLock sync.Mutex
 	// usage works out the record's usage again after a delete (Manager.UsageStale); nil does nothing.
 	usage *torrentUsageWorker
 }
@@ -64,7 +66,7 @@ func (s *serveTorrents) Manager(ctx context.Context) (*torrents.Manager, error) 
 	}
 	adders, _ := router.BuildAddersWithKeys(pol, gw, keys, s.log)
 	m := &torrents.Manager{Store: s.st, Policy: pol, Providers: provs, Adders: adders, Dir: s.dir, Queue: s.q,
-		Log: s.log, AddLock: s.addLock, Syncer: syncer, UsageStale: s.usage.Signal}
+		Log: s.log, AddLock: s.addLock, BackupLock: &s.backupLock, Syncer: syncer, UsageStale: s.usage.Signal}
 	if lib != nil && lib.lib != nil {
 		// The library's own decypharr client (library.mount.decypharr), so its index is read once for both.
 		m.Decypharr = lib.lib.Decypharr()

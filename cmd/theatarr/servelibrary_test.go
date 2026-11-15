@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"github.com/theatarr/theatarr/internal/tasks"
 	"io"
 	"log/slog"
 	"path/filepath"
@@ -88,7 +89,7 @@ func (l *importLoop) start(t *testing.T) {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
-	go func() { defer close(done); l.s.Run(ctx, nil) }()
+	go func() { defer close(done); l.s.Run(ctx, tasks.New(ctx, nil, nil)) }()
 	t.Cleanup(func() { cancel(); <-done })
 }
 

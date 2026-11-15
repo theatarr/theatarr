@@ -158,9 +158,9 @@ func TestAutoBuildOffOrUnconfiguredRunsNothing(t *testing.T) {
 	off := false
 	s := New(Config{Policy: &policy.Policy{Metadata: &policy.Metadata{Anime: &policy.AnimeBuild{AutoBuild: &off}}},
 		Store: st, Queue: jobs.NewQueue(st), Logger: quiet, Sources: func(context.Context) (*anime.Sources, error) { return nil, nil }})
-	s.Run(context.Background()) // returns at once
+	s.Run(context.Background(), nil) // returns at once
 	u := New(Config{Policy: &policy.Policy{}, Store: st, Queue: jobs.NewQueue(st), Logger: quiet, Off: "missing anilist"})
-	u.Run(context.Background())
+	u.Run(context.Background(), nil)
 	if u.Ready() || u.Status().Off != "missing anilist" {
 		t.Fatalf("%+v", u.Status())
 	}

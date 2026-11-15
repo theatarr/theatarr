@@ -13,6 +13,7 @@ export function jobNotes(j: Job): JobNote[] {
   if (j.retry_of) out.push({ key: "retry-of", label: `retry of #${j.retry_of}`, tone: "neutral" });
   if (j.state === "failed") {
     if (j.resolved_by) out.push({ key: "resolved", label: `resolved by #${j.resolved_by}`, tone: "neutral" });
+    else if (j.resolved_by_task) out.push({ key: "resolved", label: "resolved by a later scheduled run", tone: "neutral" });
     if (j.retried_as) out.push({ key: "retried", label: `retried as #${j.retried_as}`, tone: "info" });
     if (j.dismissed_at) out.push({ key: "dismissed", label: "dismissed", tone: "neutral" });
   }
@@ -20,7 +21,7 @@ export function jobNotes(j: Job): JobNote[] {
 }
 
 /** Retry makes sense for a failed job nothing has resolved or retried yet. */
-export const canRetry = (j: Job) => j.state === "failed" && !j.resolved_by && !j.retried_as;
+export const canRetry = (j: Job) => j.state === "failed" && !j.resolved_by && !j.resolved_by_task && !j.retried_as;
 
 /** Dismiss is for a failed job not yet dismissed. */
 export const canDismiss = (j: Job) => j.state === "failed" && !j.dismissed_at;
@@ -86,12 +87,13 @@ export function groupJobs(failed: Job[], latest: Job[]): JobGroups {
 export function needsAttention(j: Job): boolean {
   if (j.state !== "failed") return false;
   if (j.attention !== undefined) return j.attention;
-  return !j.resolved_by && !j.retried_as && !j.dismissed_at;
+  return !j.resolved_by && !j.resolved_by_task && !j.retried_as && !j.dismissed_at;
 }
 
-/** How often a recurring task runs, in words: "every 15 min", "every 6 h", "daily at 09:00", "daily". */
+/** How often a recurring task runs, in words: "every 15 min", "every 6 h", "daily at 09:00", "daily", "on demand". */
 export function everyWords(seconds: number, at?: string): string {
   if (at) return `daily at ${at}`;
+  if (!seconds) return "on demand";
   if (seconds === 86_400) return "daily";
   if (seconds % 3600 === 0) return `every ${seconds / 3600} h`;
   if (seconds % 60 === 0) return `every ${seconds / 60} min`;

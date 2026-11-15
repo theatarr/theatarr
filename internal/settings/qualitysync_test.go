@@ -286,7 +286,7 @@ func TestQualitySyncScheduleAndUnchanged(t *testing.T) {
 	if source.Config.Schedule != "24h" {
 		t.Fatal("sync schedule default changed")
 	}
-	if err := svc.RunDue(ctx); err != nil {
+	if _, err := svc.RunDue(ctx); err != nil {
 		t.Fatal(err)
 	}
 	runs, _ := svc.Runs(ctx)
@@ -294,16 +294,16 @@ func TestQualitySyncScheduleAndUnchanged(t *testing.T) {
 		t.Fatal("unchanged run wrote a generation")
 	}
 	editUpstream(t, svc.TrashRoot, syncFormatID, func(f map[string]any) { f["includeCustomFormatWhenRenaming"] = true })
-	if err := svc.RunDue(ctx); err != nil {
-		t.Fatal(err)
+	if ran, err := svc.RunDue(ctx); err != nil || ran {
+		t.Fatalf("ran %v %v", ran, err)
 	}
 	runs, _ = svc.Runs(ctx)
 	if len(runs) != 1 {
 		t.Fatal("ran before schedule")
 	}
 	now = now.Add(24 * time.Hour)
-	if err := svc.RunDue(ctx); err != nil {
-		t.Fatal(err)
+	if ran, err := svc.RunDue(ctx); err != nil || !ran {
+		t.Fatalf("ran %v %v", ran, err)
 	}
 	runs, _ = svc.Runs(ctx)
 	if len(runs) != 2 || runs[0].Outcome != "applied" || svc.Coordinator.Current().Generation != saved.Generation+1 {

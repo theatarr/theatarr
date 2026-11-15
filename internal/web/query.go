@@ -938,16 +938,18 @@ type Job struct {
 	RetryOf     int64      `json:"retry_of,omitempty"`
 	RetriedAs   int64      `json:"retried_as,omitempty"`
 	ResolvedBy  int64      `json:"resolved_by,omitempty"`
-	DismissedAt *time.Time `json:"dismissed_at,omitempty"`
-	DismissedBy string     `json:"dismissed_by,omitempty"`
-	Attention   bool       `json:"attention,omitempty"`
+	// ResolvedByTask: the scheduled task of the job's kind worked after it failed.
+	ResolvedByTask bool       `json:"resolved_by_task,omitempty"`
+	DismissedAt    *time.Time `json:"dismissed_at,omitempty"`
+	DismissedBy    string     `json:"dismissed_by,omitempty"`
+	Attention      bool       `json:"attention,omitempty"`
 }
 
 func jobFromStatus(s jobs.Status) Job {
 	return Job{ID: s.ID, Kind: s.Kind, State: s.State, Priority: s.Priority, Attempts: s.Attempts,
 		MaxAttempts: s.MaxAttempts, RunAt: s.RunAt, LastError: s.LastError, DedupeKey: s.DedupeKey,
 		CreatedAt: s.CreatedAt, UpdatedAt: s.UpdatedAt, FinishedAt: s.FinishedAt, StartedAt: s.StartedAt, RetryOf: s.RetryOf,
-		RetriedAs: s.RetriedAs, ResolvedBy: s.ResolvedBy, DismissedAt: s.DismissedAt, DismissedBy: s.DismissedBy,
+		RetriedAs: s.RetriedAs, ResolvedBy: s.ResolvedBy, ResolvedByTask: s.ResolvedByTask, DismissedAt: s.DismissedAt, DismissedBy: s.DismissedBy,
 		Attention: s.Attention}
 }
 
@@ -989,7 +991,12 @@ func (w *Web) jobCounts(ctx context.Context) (map[string]int, error) {
 	if err != nil {
 		return counts, err
 	}
-	counts["attention"], err = w.jobs.AttentionCount(ctx)
+	if counts["attention"], err = w.jobs.AttentionCount(ctx); err != nil || w.tasks == nil {
+		return counts, err
+	}
+	// A scheduled task whose newest run failed needs attention too, until a run works.
+	failed, err := w.tasks.Failed(ctx)
+	counts["attention"] += failed
 	return counts, err
 }
 

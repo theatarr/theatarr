@@ -7,18 +7,19 @@ import (
 	"time"
 
 	"github.com/theatarr/theatarr/internal/store"
+	"github.com/theatarr/theatarr/internal/tasks"
 )
 
 // queuedRetry is how long a title stays "queued" without a job before discovery tries it again (its job was lost).
 const queuedRetry = time.Hour
 
-// Run is the discovery and refresh loop of theatarr serve, while auto_build is on and the sources are configured.
-// Each pass, when no anime_build job is queued or running (builds run one at a time, so the loop feeds them one at a
-// time): the next anime series without a franchise that was not tried recently gets a discovery job; else, at most
-// one per refresh_interval / franchises (so rebuilds spread over the interval), of the franchises built more than
-// refresh_interval ago and not waiting for a held refresh's review, the one attempted longest ago gets a rebuild (one
-// whose rebuild failed waits a day).
-func (s *Service) Run(ctx context.Context) {
+// Run is the discovery and refresh loop of theatarr serve (task anime.discover on tb), while auto_build is on and the
+// sources are configured. Each pass, when no anime_build job is queued or running (builds run one at a time, so the
+// loop feeds them one at a time): the next anime series without a franchise that was not tried recently gets a
+// discovery job; else, at most one per refresh_interval / franchises (so rebuilds spread over the interval), of the
+// franchises built more than refresh_interval ago and not waiting for a held refresh's review, the one attempted
+// longest ago gets a rebuild (one whose rebuild failed waits a day). A pass that queued nothing records no run.
+func (s *Service) Run(ctx context.Context, tb *tasks.Table) {
 	if !s.Ready() {
 		s.log.Info("anime: automatic builds off", "reason", s.cfg.Off)
 		return
@@ -28,9 +29,19 @@ func (s *Service) Run(ctx context.Context) {
 		return
 	}
 	s.log.Info("anime: automatic builds on", "refresh_interval", s.set.RefreshInterval.String())
+	var nextRefresh time.Time
+	const key = "anime.discover"
+	defer tb.Register(ctx, tasks.Task{Key: key, Name: "Find and refresh anime franchises", Every: s.cfg.Poll,
+		Run: func(ctx context.Context) error {
+			ReleaseIdle()
+			queued, err := s.pass(ctx, &nextRefresh)
+			if err == nil && !queued {
+				return tasks.ErrSkip
+			}
+			return err
+		}}, time.Now().Add(s.cfg.FirstDelay))()
 	t := time.NewTimer(s.cfg.FirstDelay)
 	defer t.Stop()
-	var nextRefresh time.Time
 	for {
 		select {
 		case <-ctx.Done():
@@ -38,41 +49,44 @@ func (s *Service) Run(ctx context.Context) {
 		case <-t.C:
 		case <-wake:
 		}
-		ReleaseIdle()
-		if err := s.Pass(ctx, &nextRefresh); err != nil && ctx.Err() == nil {
-			s.log.Warn("anime: automatic builds", "err", err)
-		}
+		_, _ = tb.Run(ctx, key, time.Now().Add(s.cfg.Poll))
 		t.Reset(s.cfg.Poll)
 	}
 }
 
 // Pass runs one pass of the loop (Run); nextRefresh paces the rebuilds. It reports nothing when it queued nothing.
 func (s *Service) Pass(ctx context.Context, nextRefresh *time.Time) error {
+	_, err := s.pass(ctx, nextRefresh)
+	return err
+}
+
+// pass is Pass, reporting whether it queued a job.
+func (s *Service) pass(ctx context.Context, nextRefresh *time.Time) (bool, error) {
 	busy, err := s.busy(ctx)
 	if err != nil || busy {
-		return err
+		return false, err
 	}
 	now := s.cfg.Now()
 	titleID, tvdb, err := s.nextUncovered(ctx, now)
 	if err != nil {
-		return err
+		return false, err
 	}
 	if titleID > 0 {
 		_, err := s.enqueueDiscover(ctx, titleID, tvdb)
-		return err
+		return err == nil, err
 	}
 	if now.Before(*nextRefresh) {
-		return nil
+		return false, nil
 	}
 	slug, total, err := s.nextStale(ctx, now)
 	if err != nil || slug == "" {
-		return err
+		return false, err
 	}
 	if _, _, err := s.cfg.Queue.Enqueue(ctx, JobKind, Payload{Slug: slug}, jobOptions(SlugKey(slug))); err != nil {
-		return err
+		return false, err
 	}
 	*nextRefresh = now.Add(s.set.RefreshInterval / time.Duration(max(total, 1)))
-	return nil
+	return true, nil
 }
 
 // busy reports an anime_build job queued (ready) or running.

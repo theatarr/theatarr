@@ -252,3 +252,56 @@ func TestDismissResolved(t *testing.T) {
 		t.Errorf("second pass dismissed %d", n)
 	}
 }
+
+// A failed one-title job is resolved when its kind's scheduled task (the sweep) works after it, not before; and
+// Dismiss all resolved takes it.
+func TestResolvedByTask(t *testing.T) {
+	q, _ := setup(t)
+	st := q.st
+	ctx := context.Background()
+	art := failJob(t, q, "meta.art", sub{7}, EnqueueOptions{})
+	fin := *mustStatus(t, q, art).FinishedAt
+	task := func(ok int64) {
+		if _, err := st.Writer().ExecContext(ctx, `INSERT INTO task (key, last_ok) VALUES ('meta.art', ?)
+			ON CONFLICT (key) DO UPDATE SET last_ok = excluded.last_ok`, ok); err != nil {
+			t.Fatal(err)
+		}
+	}
+	task(fin.UnixMilli() - 1)
+	if s := mustStatus(t, q, art); !s.Attention || s.ResolvedByTask {
+		t.Fatalf("resolved by an earlier sweep: %+v", s)
+	}
+	task(fin.UnixMilli() + 1)
+	if s := mustStatus(t, q, art); s.Attention || !s.ResolvedByTask {
+		t.Fatalf("not resolved by a later sweep: %+v", s)
+	}
+	if n := attention(t, q); n != 0 {
+		t.Fatalf("attention %d", n)
+	}
+	if n, err := q.DismissResolved(ctx, "x"); err != nil || n != 1 {
+		t.Fatalf("dismiss resolved: %d %v", n, err)
+	}
+}
+
+// Finished jobs list newest finish first; a state filter reads only its own rows.
+func TestListFinishedByFinishTime(t *testing.T) {
+	q, _ := setup(t)
+	st := q.st
+	ctx := context.Background()
+	a := runJob(t, q, "k", sub{1}, EnqueueOptions{}, nil)
+	b := runJob(t, q, "k", sub{2}, EnqueueOptions{}, nil)
+	if _, err := st.Writer().ExecContext(ctx, `UPDATE job SET finished_at = finished_at + 60000 WHERE id = ?`, a); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := q.Enqueue(ctx, "k", sub{3}, EnqueueOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	all, err := q.List(ctx, ListFilter{})
+	if err != nil || len(all) != 3 || all[0].State != StateQueued || all[1].ID != a || all[2].ID != b {
+		t.Fatalf("list %+v %v", all, err)
+	}
+	done, err := q.List(ctx, ListFilter{State: StateDone})
+	if err != nil || len(done) != 2 || done[0].ID != a {
+		t.Fatalf("done %+v %v", done, err)
+	}
+}

@@ -52,7 +52,7 @@ func TestQualitySyncScheduledWithoutRootStillFails(t *testing.T) {
 		t.Fatal(err)
 	}
 	svc.TrashRoot = ""
-	_ = svc.RunDue(ctx)
+	_, _ = svc.RunDue(ctx)
 	runs, err := svc.Runs(ctx)
 	if err != nil {
 		t.Fatal(err)

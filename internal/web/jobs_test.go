@@ -182,7 +182,7 @@ func TestTasksListAndRunNow(t *testing.T) {
 	ran := make(chan struct{})
 	release := make(chan struct{})
 	defer tb.Register(ctx, tasks.Task{Key: "shadow.rss", Name: "Check RSS feeds", Every: 15 * time.Minute,
-		Next: testNow.Add(time.Minute), Run: func(context.Context) error { close(ran); <-release; return nil }})()
+		Run: func(context.Context) error { close(ran); <-release; return nil }}, testNow.Add(time.Minute))()
 	var tl TaskList
 	if code := e.getKey(APIBase+"/tasks", key, &tl); code != 200 || len(tl.Items) != 1 {
 		t.Fatalf("tasks: %d %+v", code, tl)
