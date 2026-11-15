@@ -160,7 +160,8 @@ function SearchConfirm({ titles, items, busy, onClose, onConfirm }: { titles: Ti
           "Libraries with nothing missing: they are skipped",
           ...(none ? [`${plural(none, "title")} monitored in no library: not searched`] : []),
         ],
-        blocked: items === 0 ? "None of these titles is monitored in a library" : undefined,
+        // While paused the answer would be POST /wanted/search's 409: its sentence, before the button is pressed.
+        blocked: wanted.data?.downloads_enabled === false ? "Theatarr is paused, so nothing can be searched." : items === 0 ? "None of these titles is monitored in a library" : undefined,
       }}
     >
       <p data-testid="bulk-search-estimate">

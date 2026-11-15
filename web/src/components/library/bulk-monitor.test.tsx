@@ -119,6 +119,17 @@ describe("Bulk Search now", () => {
     expect(api.calls("POST", "/wanted/search")).toHaveLength(1);
   });
 
+  it("says before the button is pressed that nothing is searched while paused", async () => {
+    const api = setup(3, [me(["manage", "admin"]), { ...wanted, reply: { ...wanted.reply, downloads_enabled: false } }]);
+    const user = userEvent.setup();
+    const bar = await screen.findByRole("region", { name: "Bulk edit" });
+    await user.click(await within(bar).findByRole("button", { name: "Search now" }));
+    const dialog = await screen.findByRole("dialog", { name: "Search 3 titles" });
+    expect((await within(dialog).findByTestId("confirm-blocked")).textContent).toBe("Theatarr is paused, so nothing can be searched.");
+    expect(within(dialog).getByRole("button", { name: "Queue 3 searches" })).toHaveProperty("disabled", true);
+    expect(api.calls("POST", "/wanted/search")).toHaveLength(0);
+  });
+
   it("stops at a failed request and says what the earlier ones queued", async () => {
     let n = 0;
     const reply = () => (++n === 1 ? answer({ queued: 200, started: 4, pending: 196 }) : json({ error: "Theatarr is paused, so nothing can be searched." }, 409));
