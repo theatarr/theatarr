@@ -90,8 +90,6 @@ func TestImportRejectedBlocklist(t *testing.T) {
 	for _, blocklisted := range []bool{true, false} {
 		e := newEnv(t)
 		e.seedRoute()
-		// Held for review: the download itself did not fail (a failed download's import has no History row of its own).
-		e.exec(`UPDATE download SET state = 'ready', error = NULL WHERE id = 1`)
 		e.exec(`INSERT INTO library_import (download_id, state, mount_folder, last_error, plan, created_at, updated_at)
 			VALUES (1, 'rejected', '/m/Alpha', 'no file passed the sample guard', ?, ?, ?)`, plan, msOf(testNow), msOf(testNow))
 		want := "the library's guard rejected a file: sample: 60s of 7200s"

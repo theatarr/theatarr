@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -245,8 +246,34 @@ func newTracker(t *testing.T, p *fakePlex, z *fakeZurg, m *fakeMount, c *clock, 
 			}
 			return "", errors.New("not a link")
 		},
-		Report: func(e Problem) { mu.Lock(); *reports = append(*reports, e); mu.Unlock() }})
+		Logger: slog.New(&problemLog{mu: &mu, out: reports})})
 }
+
+// Problem is an error the pre-warm logged: its message and key (the version and episode).
+type Problem struct{ Key, Message string }
+
+// problemLog keeps the error-level records as Problems.
+type problemLog struct {
+	mu  *sync.Mutex
+	out *[]Problem
+}
+
+func (h *problemLog) Enabled(_ context.Context, l slog.Level) bool { return l >= slog.LevelError }
+func (h *problemLog) Handle(_ context.Context, r slog.Record) error {
+	p := Problem{Message: r.Message}
+	r.Attrs(func(a slog.Attr) bool {
+		if a.Key == "key" {
+			p.Key = a.Value.String()
+		}
+		return true
+	})
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	*h.out = append(*h.out, p)
+	return nil
+}
+func (h *problemLog) WithAttrs([]slog.Attr) slog.Handler { return h }
+func (h *problemLog) WithGroup(string) slog.Handler      { return h }
 
 func waitPrewarm(t *testing.T, tr *Tracker) {
 	t.Helper()

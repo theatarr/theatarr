@@ -43,19 +43,6 @@ func (j *Journal) titleCache() map[int64]*titleInfo {
 	return j.titles
 }
 
-// build turns a head into its entry with its stored flags (flag.go); nil when its row is gone.
-func (b *builder) build(h head) (*Entry, error) {
-	e, err := b.load(h)
-	if e == nil || err != nil {
-		return nil, err
-	}
-	if err := b.storedFlags(e); err != nil {
-		return nil, err
-	}
-	finish(e)
-	return e, nil
-}
-
 // load reads a head's entry from its sources, without flags; nil when its row is gone.
 func (b *builder) load(h head) (*Entry, error) {
 	e := &Entry{ID: h.id, At: store.FromMillis(h.at), Kind: h.kind, Version: h.version, Flags: []Flag{}}

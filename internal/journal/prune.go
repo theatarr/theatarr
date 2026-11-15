@@ -18,7 +18,7 @@ import (
 //     (trimmed = 1) for good. A full row is ~3-6 KB (8 accepted and 4 rejected candidates), a trimmed one ~1 KB: at
 //     the wanted loop's cap (10 searches an hour) that is at most ~45 MB for the full window and ~9 MB a year
 //     after; at the expected pace (tens of searches a day) well under 10 MB in all.
-//   - journal_verdict: kept for good (a few hundred bytes each, written by hand).
+//   - the stored flags live on the History rows (flag.go), which are not pruned.
 const DecisionFull = 180 * 24 * time.Hour
 
 // PruneSummary is what Prune did.

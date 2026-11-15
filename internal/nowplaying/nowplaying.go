@@ -11,7 +11,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"maps"
 	"os"
 	"path"
 	"slices"
@@ -91,15 +90,6 @@ type Options struct {
 	Logger                      *slog.Logger
 	Now                         func() time.Time
 	Readlink                    func(string) (string, error)
-	// Report hears a pre-warm problem (logged at error level by default, so it is in Logs).
-	Report func(Problem)
-}
-
-// Problem is a next episode the pre-warm found missing or unreadable. Key names the version and episode.
-type Problem struct {
-	Key     string
-	Message string
-	Context map[string]string
 }
 
 // Tracker holds the current playbacks.
@@ -237,16 +227,6 @@ func New(o Options) *Tracker {
 	}
 	if o.Readlink == nil {
 		o.Readlink = os.Readlink
-	}
-	if o.Report == nil {
-		log := o.Logger
-		o.Report = func(p Problem) {
-			args := []any{"key", p.Key}
-			for _, k := range slices.Sorted(maps.Keys(p.Context)) {
-				args = append(args, k, p.Context[k])
-			}
-			log.Error("nowplaying: "+p.Message, args...)
-		}
 	}
 	if o.AllDir == "" {
 		o.AllDir = "__all__"
@@ -780,12 +760,8 @@ func (t *Tracker) prewarm(ctx context.Context, j *warmJob) {
 	var contentFile sql.NullInt64
 	fail := func(msg string) {
 		set(ep, "failed", msg)
-		ctx := map[string]string{"title": j.title, "version": j.version, "episode": ep}
-		if linkID != 0 {
-			ctx["link_id"] = fmt.Sprint(linkID)
-		}
-		t.o.Report(Problem{Message: "next episode " + msg, Key: fmt.Sprintf("%d:%d", j.versionID, next.ID),
-			Context: ctx})
+		t.o.Logger.Error("nowplaying: next episode "+msg, "key", fmt.Sprintf("%d:%d", j.versionID, next.ID),
+			"title", j.title, "version", j.version, "episode", ep, "link_id", linkID)
 	}
 	err = t.o.Store.Reader().QueryRowContext(ctx, `SELECT l.id, l.target, l.kind, l.content_file_id
 		FROM link l JOIN link_episode le ON le.link_id = l.id JOIN link_version lv ON lv.link_id = l.id
@@ -864,12 +840,8 @@ func (t *Tracker) prewarm(ctx context.Context, j *warmJob) {
 
 // report raises the pre-warm's error in Logs for a next episode (one per version and episode).
 func (t *Tracker) report(nf *nextFile, msg string, linkID int64) {
-	c := map[string]string{"title": nf.title, "version": nf.version, "episode": nf.ep}
-	if linkID != 0 {
-		c["link_id"] = fmt.Sprint(linkID)
-	}
-	t.o.Report(Problem{Message: "next episode " + msg, Key: fmt.Sprintf("%d:%d", nf.versionID, nf.episodeID),
-		Context: c})
+	t.o.Logger.Error("nowplaying: next episode "+msg, "key", fmt.Sprintf("%d:%d", nf.versionID, nf.episodeID),
+		"title", nf.title, "version", nf.version, "episode", nf.ep, "link_id", linkID)
 }
 
 type cacheStart struct {

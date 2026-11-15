@@ -183,3 +183,24 @@ func TestPruneMetadataQueries(t *testing.T) {
 		t.Fatalf("kept %d rows, want 5", n)
 	}
 }
+
+// TestPruneLeavesNoOrphanFlag: a flagged History row whose download or blocklist entry is gone leaves the flagged
+// view (its severity clears); one whose source stays keeps it.
+func TestPruneLeavesNoOrphanFlag(t *testing.T) {
+	t.Parallel()
+	st := openStore(t)
+	exec(t, st, `INSERT INTO title (id, kind, name, created_at, updated_at) VALUES (1, 'movie', 'M', 0, 0)`)
+	exec(t, st, `INSERT INTO version (id, title_id, policy_key, created_at, updated_at) VALUES (1, 1, 'movie-web', 0, 0)`)
+	exec(t, st, `INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, state,
+		created_at, updated_at) VALUES (7, 1, 1, 'movie-web', 'h', 'R', 'x', 'imported', 0, 0)`)
+	exec(t, st, `INSERT INTO history (ref, at, event, kind, download_id, flags, severity) VALUES
+		('dl:7', 0, 'grabbed', 'grab', 7, '[]', 'warn'), ('dl:8:fail', 0, 'failed', 'failure', 8, '[]', 'warn'),
+		('bl:99', 0, 'blocked', 'blocklist', NULL, '[]', 'error')`)
+	if _, err := Prune(context.Background(), st, time.Now(), Defaults); err != nil {
+		t.Fatal(err)
+	}
+	if n := count(t, st, `SELECT COUNT(*) FROM history WHERE severity <> ''`); n != 1 ||
+		count(t, st, `SELECT COUNT(*) FROM history WHERE ref = 'dl:7' AND severity = 'warn'`) != 1 {
+		t.Fatalf("%d rows still flagged", n)
+	}
+}

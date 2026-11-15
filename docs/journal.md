@@ -105,12 +105,17 @@ say at that moment, and stores the result on the row (`history.flags`, `history.
 again: a later change to the release, the title or the size medians leaves them as they were. The journal does this
 for every unchecked row in the background when `theatarr serve` starts (after an upgrade that is every existing row:
 the checks are Go, so the migration leaves them unchecked), and for up to 50 new rows before each journal read (list,
-entry, count). The Flagged filter and the badge are a filter and a `COUNT(*)` on `history`.
+entry, count; a read writes nothing when no row waits, and a batch is one transaction). Only the kinds the checks
+look at are checked (grab, upgrade, failure, stall, import, blocklist); other rows keep `flags` NULL. The Flagged
+filter and the badge are a filter and a `COUNT(*)` on `history`; the Flagged list dates a grab by its entry (when the
+download was created), as the full list does.
 
 Only entries with a History row carry flags: grabs that reached a provider or client, failures, imports that linked
-or were held for review, and blocklist entries. A grab that never reached a provider, an import that is a dry run,
-still waits for the mount, or whose download failed, link and relink actions, searches and actions by hand carry
-none. An entry whose source is gone (a release unblocked since, a library removed) leaves the flagged view.
+or were held for review, and blocklist entries. An import the guard refused together with its download has no row of
+its own: its flags (file checks, `library_guard`) are stored on the download's failure row, and its entry shows them.
+A grab that never reached a provider, an import that is a dry run or still waits for the mount, link and relink
+actions, searches and actions by hand carry none. An entry whose source is gone (a release unblocked since, a library
+removed, a failed download the nightly retention deleted) leaves the flagged view: its row's severity is cleared.
 
 | Code | Fires when | Severity | What to do |
 |---|---|---|---|
@@ -125,7 +130,7 @@ none. An entry whose source is gone (a release unblocked since, a library remove
 | `sample_or_extras` | The release name says sample, trailer, featurettes, extras, bonus, or behind the scenes | warn | Check that the main feature is in it |
 | `upgrade_lower_score` | An upgrade whose format score (scored with today's profile) is below the file it replaced, at the same or lower quality | warn. info for a hand grab | Often a profile change since then. |
 | `upgrade_lower_quality` | An upgrade to a lower quality than the file it replaced | warn. info for a hand grab | Usually wrong, unless the old file was gone |
-| `repeated_failures` | 3 or more failures (5 or more is an error) for the title and library in the 30 days up to this one. Only the latest failure of a run is flagged: a new one takes the flag from the earlier ones of the title and library in its window. | warn, error | Look at the failure messages and the cache evidence. Often the only releases are uncached or dead. |
+| `repeated_failures` | 3 or more failures (5 or more is an error) for the title and library in the 30 days up to this one. Only the latest failure of a run is flagged: every new failure (flagged or not) takes the flag from the earlier ones of the title and library in its window. | warn, error | Look at the failure messages and the cache evidence. Often the only releases are uncached or dead. |
 | `library_guard` | The library's sample, runtime or mislabel guard rejected a file, or the mislabel guard noted one it kept | info | The reason says what the import did: blocklisted (a failed import; the re-search runs later and only while grabbing is on), the rest of the release linked (for a series the refused episodes stay wanted), or neither (held for review). A file skipped as not an upgrade is no guard refusal. A note refused nothing |
 | `unparseable` | The parser can't read the release name | info | — |
 

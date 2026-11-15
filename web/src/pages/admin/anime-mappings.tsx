@@ -7,6 +7,7 @@ import { Link, useParams, useSearchParams } from "react-router";
 import { ApiError } from "@/api/client";
 import { useAnimeBuild, useFranchise, useFranchises, useReview, useUncovered, type Uncovered } from "@/api/hooks";
 import { ReviewCard } from "@/components/anime/review-card";
+import { SettingsPicker } from "@/components/settings/settings-picker";
 import { Empty, ErrorState, Loading, Mono, PageHeader, Section } from "@/components/page";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -72,6 +73,7 @@ export function AnimeMappingsPage() {
     <div>
       <PageHeader crumb={[{ label: "Settings", to: "/admin/settings" }]} title="Anime mappings"
         description="Episode numbering Theatarr could not match on its own. Accept or reject the proposed match." />
+      <SettingsPicker current="/admin/settings/anime-mappings" />
       <AnimeMappings />
     </div>
   );

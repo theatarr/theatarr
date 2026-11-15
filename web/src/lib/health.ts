@@ -36,8 +36,6 @@ export function healthLink(source?: string): string {
       return "/admin/system/backup";
     case "MetadataRefreshCheck":
       return "/admin/system/logs";
-    case "AnimeReviewCheck":
-      return "/admin/settings/anime-mappings";
     default:
       return "/admin";
   }
@@ -76,8 +74,6 @@ export function healthEffect(source?: string): { effect: string; next: string } 
       return { effect: "The database may stop accepting writes.", next: "Free space next to the database." };
     case "MetadataRefreshCheck":
       return { effect: "Titles may show stale or missing details and artwork.", next: "Check the metadata refresh in the logs." };
-    case "AnimeReviewCheck":
-      return { effect: "Those anime episodes keep their numbering until someone decides.", next: "Accept or reject the proposed matches." };
     default:
       return { effect: "", next: "Open the check." };
   }

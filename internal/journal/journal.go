@@ -234,8 +234,11 @@ FROM library_import li JOIN download d ON d.id = li.download_id`},
 // headSQL is the union of every part.
 var headSQL = unionOf(func(string) bool { return true })
 
-// flaggedHeadSQL lists the History rows by their entries, before a severity condition.
-const flaggedHeadSQL = `SELECT ` + entryOfRefSQL + ` AS id, at, title_id, version_key, kind FROM history WHERE `
+// flaggedHeadSQL lists the History rows by their entries, at the entries' own times (a grab's row is dated when a
+// provider took it, its entry when it was created), before a severity condition.
+const flaggedHeadSQL = `SELECT ` + entryOfRefSQL + ` AS id, CASE WHEN kind IN ('grab', 'upgrade') THEN COALESCE((SELECT
+	d.created_at FROM download d WHERE d.id = history.download_id), at) ELSE at END AS at, title_id, version_key, kind
+	FROM history WHERE `
 
 // libHeadSQL is the library part without its filter.
 const libHeadSQL = `SELECT 'lib:' || la.id, la.at, ` + libTitleSQL + `,
@@ -399,10 +402,10 @@ func (j *Journal) List(ctx context.Context, f Filter) (*Page, error) {
 			if len(page.Items) == f.Limit {
 				// cur is the last head looked at: the next page starts after it.
 				page.NextCursor = encodeCursor(head{at: cur.at, id: cur.id})
-				return page, nil
+				return page, b.setFlags(page.Items)
 			}
 			cur = &cursor{at: h.at, id: h.id}
-			e, err := b.build(h)
+			e, err := b.load(h)
 			if err != nil {
 				return nil, err
 			}
@@ -411,7 +414,7 @@ func (j *Journal) List(ctx context.Context, f Filter) (*Page, error) {
 			}
 		}
 		if len(hs) < batch {
-			return page, nil
+			return page, b.setFlags(page.Items)
 		}
 	}
 }
@@ -425,14 +428,15 @@ func (j *Journal) Get(ctx context.Context, id string) (*Entry, error) {
 	if err != nil {
 		return nil, err
 	}
-	e, err := j.newBuilder(ctx).build(h)
+	b := j.newBuilder(ctx)
+	e, err := b.load(h)
 	if err != nil {
 		return nil, err
 	}
 	if e == nil {
 		return nil, ErrNotFound
 	}
-	return e, nil
+	return e, b.setFlags([]*Entry{e})
 }
 
 // headOf finds one entry's head by id.

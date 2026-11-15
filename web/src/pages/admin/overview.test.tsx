@@ -339,3 +339,23 @@ it("leads with Needs attention and Checks; readiness, strips, libraries and diag
  for (const name of ["Readiness", "Downloads", "Tasks", "Libraries", "Diagnostics"]) expect(details.contains(screen.getByRole("heading", { name }))).toBe(true);
  expect(details.contains(screen.getByRole("heading", { name: "Checks" }))).toBe(false);
 });
+
+it.each(["pending", "error"])("Status does not give an all-clear while the flagged count is %s", async state => {
+ mockFetch([
+  ...reviewRoutes.map(r => r.path === "/journal/flagged" ? { ...r, reply: state === "pending" ? () => new Promise(() => {}) : json({ error: "journal down" }, 500) } : r),
+  { method: "GET", path: "/readyz", reply: { status: "ok" } },
+  { method: "GET", path: "/status", reply: status },
+  { method: "GET", path: "/jobs", reply: { items: [], counts: {} } },
+  { method: "GET", path: "/gateway", reply: { egress: { vpn_ok: true } } },
+  { method: "GET", path: "/health", reply: { checks: [] } },
+  { method: "GET", path: "/activity", reply: { now: [] } },
+ ]);
+ renderPage(<Overview />);
+ if (state === "error") {
+  const row = await screen.findByText("Could not load flagged decisions");
+  expect(row.closest("li")?.querySelector("a")?.getAttribute("href")).toBe("/admin/system/journal?suspect=1");
+ } else {
+  await screen.findByText("Needs attention");
+ }
+ expect(screen.queryByText("Nothing needs attention.")).toBeNull();
+});

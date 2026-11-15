@@ -124,11 +124,21 @@ func (e *env) flag() {
 	e.t.Helper()
 	ctx := context.Background()
 	if e.dirty {
+		// The rows are stored again from the sources; a row checked before keeps its stored flags, as an event's
+		// rewrite of its row does, so later fixtures exercise the incremental path.
 		e.dirty = false
-		if _, err := e.st.Writer().ExecContext(ctx, `DELETE FROM history`); err != nil {
-			e.t.Fatal(err)
+		for _, q := range []string{`DROP TABLE IF EXISTS temp.kept`,
+			`CREATE TEMP TABLE kept AS SELECT ref, flags, severity FROM history WHERE flags IS NOT NULL`,
+			`DELETE FROM history`} {
+			if _, err := e.st.Writer().ExecContext(ctx, q); err != nil {
+				e.t.Fatal(err)
+			}
 		}
 		if err := store.BackfillHistory(ctx, e.st.Writer()); err != nil {
+			e.t.Fatal(err)
+		}
+		if _, err := e.st.Writer().ExecContext(ctx, `UPDATE history SET flags = k.flags, severity = k.severity
+			FROM temp.kept k WHERE k.ref = history.ref`); err != nil {
 			e.t.Fatal(err)
 		}
 	}
@@ -601,5 +611,35 @@ func TestPolicyRevision(t *testing.T) {
 	if dl.PolicyRev != e.pol.Revision || dl.Download == nil || dl.Download.PolicyRev != e.pol.Revision ||
 		dl.QueuedPolicyRev != "olderrev0000" {
 		t.Fatalf("download: policy %q queued %q", dl.PolicyRev, dl.QueuedPolicyRev)
+	}
+}
+
+// A run of failures flags its latest failure only: each counted failure takes the flag from the earlier ones, also
+// one that gets no flag itself (days 0, 1, 29 flag day 29; day 32 counts only 29 and 32, and day 29's flag goes).
+// Each failure is checked as it comes, as live.
+func TestRepeatedFailuresIncremental(t *testing.T) {
+	e := newEnv(t)
+	start := testNow.Add(-40 * 24 * time.Hour)
+	fail := func(id int64, day int) {
+		e.dlEvent(id, "failed", start.Add(time.Duration(day)*24*time.Hour), 1, 2, "movie-web",
+			fmt.Sprintf("%040d", id), "Alpha.2020.2160p.WEB-DL-X", "WEBDL-2160p", 0, 0, nil, "dead")
+		e.flag()
+	}
+	flagged := func() []string {
+		var out []string
+		for _, it := range e.list(Filter{Suspect: true, Limit: 50}).Items {
+			out = append(out, it.ID)
+		}
+		return out
+	}
+	fail(1, 0)
+	fail(2, 1)
+	fail(3, 29)
+	if got := flagged(); !slices.Equal(got, []string{"dl:3:fail"}) {
+		t.Fatalf("after day 29: %v", got)
+	}
+	fail(4, 32)
+	if got := flagged(); len(got) != 0 {
+		t.Fatalf("after day 32: %v", got)
 	}
 }

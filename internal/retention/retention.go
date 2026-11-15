@@ -156,6 +156,13 @@ func Prune(ctx context.Context, st *store.Store, now time.Time, cfg Config) (Sum
 			}
 		}
 	}
+	// A flagged History row whose journal entry went with its download or blocklist entry leaves the flagged view
+	// (internal/journal flag.go); the row itself stays.
+	if _, err := st.Writer().ExecContext(ctx, `UPDATE history SET severity = '' WHERE severity <> '' AND (
+		(ref LIKE 'dl:%' AND NOT EXISTS (SELECT 1 FROM download d WHERE d.id = history.download_id))
+		OR (ref LIKE 'bl:%' AND NOT EXISTS (SELECT 1 FROM router_blocklist b WHERE 'bl:' || b.rowid = history.ref)))`); err != nil {
+		return out, fmt.Errorf("retention: history flags: %w", err)
+	}
 	return out, nil
 }
 

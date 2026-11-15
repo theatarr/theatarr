@@ -1,7 +1,7 @@
 -- The journal kept slim (phase K, K8; docs/journal.md "Flags"). A History row stores its journal entry's flags,
 -- worked out once by the journal after the row is written (internal/journal flag.go): flags is the JSON list
--- [{code, severity, reason}] ('[]' when none fired; NULL until the journal has checked the row) and severity the
--- highest one ('' when none). The flagged view and its count read history_flagged. The checks are Go (release-name
+-- [{code, severity, reason}] ('[]' when none fired; NULL until the journal has checked the row, and for the kinds no
+-- check looks at) and severity the highest one ('' when none). The flagged view and its count read history_flagged. The checks are Go (release-name
 -- parsers, title similarity, size medians, the import plan), so existing rows are left NULL here and the journal's
 -- start pass flags them once.
 --
@@ -13,7 +13,8 @@
 ALTER TABLE history ADD COLUMN flags TEXT;
 ALTER TABLE history ADD COLUMN severity TEXT NOT NULL DEFAULT '';
 CREATE INDEX history_flagged ON history (at, ref) WHERE severity IN ('warn', 'error');
-CREATE INDEX history_unchecked ON history (id) WHERE flags IS NULL;
+CREATE INDEX history_unchecked ON history (id)
+    WHERE flags IS NULL AND kind IN ('grab', 'upgrade', 'failure', 'stall', 'import', 'blocklist');
 
 DROP TABLE journal_verdict;
 DROP TABLE error_inbox_state;
