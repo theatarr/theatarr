@@ -211,31 +211,13 @@ func (w *Web) titleEpisodes(ctx context.Context, id int64, season int, seeFiles 
 	}); err != nil {
 		return nil, err
 	}
-	// The current files that hold each episode: active links.
-	setFile := func(eid, vid int64, quality string, size, score sql.NullInt64, group, release, path, hash string) {
-		i, ok := idx[eid]
-		key := keyOf[vid]
-		if !ok || key == "" {
-			return
-		}
-		c, ok := all[i].Versions[key]
-		if !ok {
-			c = EpisodeCell{State: "filled", Monitored: true}
-		}
-		c.HasFile, c.Quality = true, quality
-		if seeFiles {
-			c.SizeBytes, c.Score, c.ReleaseGroup, c.ReleaseTitle, c.Path, c.InfoHash = nullInt(size), nullInt(score), group,
-				release, path, hash
-		}
-		all[i].Versions[key] = c
-	}
 	// The torrent hash as the episode window reads it (episodeFile: linkHashSQL); only for callers who see files.
 	linkHash := "''"
 	if seeFiles {
 		linkHash = linkHashSQL
 	}
-	// Links: the release group their file metadata keeps (decide.ExistingFile), and the providers holding their
-	// content now.
+	// The current files that hold each episode, active links: the release group their file metadata keeps
+	// (decide.ExistingFile), and the providers holding their content now.
 	linkMeta := `CASE WHEN json_valid(l.file_metadata) THEN json_extract(l.file_metadata, '$.ReleaseGroup') END`
 	if err := scanAll(ctx, db, `SELECT le.episode_id, lv.version_id, COALESCE(l.quality, ''), `+
 		linkSizeSQL+`, `+linkScoreSQL+`, COALESCE(`+linkMeta+`, ''), COALESCE(l.release_title, ''), l.path, `+linkHash+`
@@ -248,7 +230,21 @@ func (w *Web) titleEpisodes(ctx context.Context, id int64, season int, seeFiles 
 			if err := r.Scan(&eid, &vid, &q, &size, &score, &group, &release, &path, &hash); err != nil {
 				return err
 			}
-			setFile(eid, vid, q, size, score, group, release, path, hash)
+			i, ok := idx[eid]
+			key := keyOf[vid]
+			if !ok || key == "" {
+				return nil
+			}
+			c, ok := all[i].Versions[key]
+			if !ok {
+				c = EpisodeCell{State: "filled", Monitored: true}
+			}
+			c.HasFile, c.Quality = true, q
+			if seeFiles {
+				c.SizeBytes, c.Score, c.ReleaseGroup, c.ReleaseTitle, c.Path, c.InfoHash = nullInt(size), nullInt(score),
+					group, release, path, hash
+			}
+			all[i].Versions[key] = c
 			return nil
 		}); err != nil {
 		return nil, err

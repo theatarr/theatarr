@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"fmt"
 	"slices"
-	"strings"
 
 	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/indexer"
@@ -47,41 +46,31 @@ func currentFiles(ctx context.Context, db *sql.DB, titleID, versionID int64, epi
 		at       int64
 	}
 	byEp := map[int64]file{}
-	add := func(eid int64, f file) {
-		if len(episodes) > 0 && !slices.Contains(episodes, eid) {
-			return
-		}
-		byEp[eid] = f
-	}
-	scan := func(q string) error {
-		rows, err := db.QueryContext(ctx, q, versionID, titleID)
-		if err != nil {
-			if strings.Contains(err.Error(), "no such table") {
-				return nil
-			}
-			return err
-		}
-		defer rows.Close()
-		for rows.Next() {
-			var eid int64
-			var f file
-			var score sql.NullInt64
-			if err := rows.Scan(&eid, &f.quality, &f.revision, &f.real, &score, &f.at); err != nil {
-				return err
-			}
-			if score.Valid {
-				v := score.Int64
-				f.score = &v
-			}
-			add(eid, f)
-		}
-		return rows.Err()
-	}
-	if err := scan(`SELECT COALESCE(le.episode_id, 0), COALESCE(l.quality, ''),
+	rows, err := db.QueryContext(ctx, `SELECT COALESCE(le.episode_id, 0), COALESCE(l.quality, ''),
 		COALESCE(json_extract(l.file_metadata, '$.Revision'), 0), COALESCE(json_extract(l.file_metadata, '$.Real'), 0),
 		l.score, l.created_at
 		FROM link l JOIN link_version lv ON lv.link_id = l.id LEFT JOIN link_episode le ON le.link_id = l.id
-		WHERE lv.version_id = ? AND l.title_id = ? AND l.state = 'active'`); err != nil {
+		WHERE lv.version_id = ? AND l.title_id = ? AND l.state = 'active'`, versionID, titleID)
+	if err != nil {
+		return itemFiles{}, fmt.Errorf("router: current links: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var eid int64
+		var f file
+		var score sql.NullInt64
+		if err := rows.Scan(&eid, &f.quality, &f.revision, &f.real, &score, &f.at); err != nil {
+			return itemFiles{}, fmt.Errorf("router: current links: %w", err)
+		}
+		if score.Valid {
+			v := score.Int64
+			f.score = &v
+		}
+		if len(episodes) == 0 || slices.Contains(episodes, eid) {
+			byEp[eid] = f
+		}
+	}
+	if err := rows.Err(); err != nil {
 		return itemFiles{}, fmt.Errorf("router: current links: %w", err)
 	}
 	var out itemFiles

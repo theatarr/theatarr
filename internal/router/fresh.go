@@ -637,13 +637,12 @@ func (r *Router) fileScores(ctx context.Context, s *routeState) (map[int64]int64
 // wins, as currentFiles does. Only monitored, present episodes
 // enter the snapshot, including those with no file. Scores are refreshed lazily from the running profile.
 func (r *Router) freshEpisodeFiles(ctx context.Context, s *routeState) (map[int64]itemFiles, error) {
-	rows, err := r.st.Writer().QueryContext(ctx, `WITH files AS (
+	rows, err := r.st.Writer().QueryContext(ctx, `WITH ranked AS (
   SELECT le.episode_id, COALESCE(l.quality, '') AS quality, COALESCE(json_extract(l.file_metadata, '$.Revision'), 0) AS revision,
-   COALESCE(json_extract(l.file_metadata, '$.Real'), 0) AS real, l.score AS score, l.created_at AS at, l.id
+   COALESCE(json_extract(l.file_metadata, '$.Real'), 0) AS real, l.score AS score, l.created_at AS at,
+   ROW_NUMBER() OVER (PARTITION BY le.episode_id ORDER BY l.created_at DESC, l.id DESC) AS rank
   FROM link l JOIN link_version lv ON lv.link_id = l.id JOIN link_episode le ON le.link_id = l.id
   WHERE lv.version_id = ?1 AND l.title_id = ?2 AND l.state = 'active'
- ), ranked AS (
-  SELECT *, ROW_NUMBER() OVER (PARTITION BY episode_id ORDER BY at DESC, id DESC) AS rank FROM files
  ) SELECT e.id, f.quality, f.revision, f.real, f.score, f.at
  FROM episode e LEFT JOIN episode_version_state s ON s.episode_id = e.id AND s.version_id = ?1
  LEFT JOIN ranked f ON f.episode_id = e.id AND f.rank = 1

@@ -146,13 +146,11 @@ const liveLink = `EXISTS (SELECT 1 FROM link_version lv_l JOIN version v ON v.id
 const (
 	nameExpr = `CASE WHEN t.sort_name = '' THEN lower(t.name) ELSE t.sort_name END`
 	// addedExpr and sizeExpr read the copies in the library (liveVersion, liveLink), as the rows show them.
-	addedExpr = `NULLIF(
-		COALESCE((SELECT MAX(l.created_at) FROM link l WHERE l.title_id = t.id AND l.state = 'active' AND ` + liveLink +
-		`), 0), 0)`
-	sizeExpr = `NULLIF(
-		COALESCE((SELECT SUM(COALESCE(` + linkSizeSQL + `, 0)) FROM link l
-			LEFT JOIN content_file cf ON cf.id = l.content_file_id WHERE l.title_id = t.id AND l.state = 'active' AND ` +
-		liveLink + `), 0), 0)`
+	addedExpr = `NULLIF((SELECT MAX(l.created_at) FROM link l WHERE l.title_id = t.id AND l.state = 'active' AND ` +
+		liveLink + `), 0)`
+	sizeExpr = `NULLIF((SELECT SUM(COALESCE(` + linkSizeSQL + `, 0)) FROM link l
+		LEFT JOIN content_file cf ON cf.id = l.content_file_id WHERE l.title_id = t.id AND l.state = 'active' AND ` +
+		liveLink + `), 0)`
 )
 
 // availStateSQL is version v's state as availability reads it (versionState.state). A series copy is decided by its

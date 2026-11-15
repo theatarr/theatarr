@@ -27,11 +27,11 @@ func TestMigrationDropArrFiles(t *testing.T) {
 		`INSERT INTO content (id, info_hash, name, state, first_seen_at, last_seen_at) VALUES
 			(5, 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'Alpha', 'present', 0, 0)`,
 		`INSERT INTO version_file (id, version_id, title_id, instance, arr_file_id, path, size_bytes, quality,
-			scene_name, languages, media_info, added_at, content_id) VALUES
+			scene_name, languages, media_info, added_at, content_id, custom_format_score) VALUES
 			(1, 1, 1, 'radarr', 1, '/movies/Alpha/Alpha.mkv', 9000, 'Remux-2160p', 'Alpha.2020.REMUX', '["English"]',
-			 '{"videoCodec":"x265"}', 1000, 5),
-			(2, 1, 1, 'radarr_old', 2, '/old/Alpha.mkv', 1, 'DVD', '', '[]', '{}', 10, NULL),
-			(3, 2, 2, 'sonarr', 3, '/tv/Show/S01E01E02.mkv', 2000, 'WEBDL-1080p', '', '[]', '{}', 2000, NULL)`,
+			 '{"videoCodec":"x265"}', 1000, 5, 1950),
+			(2, 1, 1, 'radarr_old', 2, '/old/Alpha.mkv', 1, 'DVD', '', '[]', '{}', 10, NULL, 0),
+			(3, 2, 2, 'sonarr', 3, '/tv/Show/S01E01E02.mkv', 2000, 'WEBDL-1080p', '', '[]', '{}', 2000, NULL, NULL)`,
 		`INSERT INTO version_file_episode (version_file_id, episode_id) VALUES (3, 21), (3, 22)`,
 		`INSERT INTO content_version (content_id, version_id, source) VALUES (5, 1, 'arr_history')`,
 		`INSERT INTO arr_frozen_input (instance, flavour, body) VALUES ('radarr', 'radarr', '{}')`,
@@ -53,8 +53,9 @@ func TestMigrationDropArrFiles(t *testing.T) {
 		`SELECT group_concat(path, ' ') FROM (SELECT path FROM link ORDER BY path)`: "/movies/Alpha/Alpha.mkv /tv/Show/S01E01E02.mkv",
 		`SELECT l.kind || ' ' || l.quality || ' ' || l.state || ' ' || lv.version_id || ' ' || l.adopted_from || ' ' ||
 			json_extract(l.file_metadata, '$.InfoHash') || ' ' || json_extract(l.file_metadata, '$.Size') || ' ' ||
-			json_extract(l.adopted_media, '$.videoCodec') || ' ' || l.created_at
-			FROM link l JOIN link_version lv ON lv.link_id = l.id WHERE l.title_id = 1`: "copy Remux-2160p active 1 radarr /movies/Alpha/Alpha.mkv aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa 9000 x265 1000",
+			json_extract(l.adopted_media, '$.videoCodec') || ' ' || l.created_at || ' ' || l.score
+			FROM link l JOIN link_version lv ON lv.link_id = l.id WHERE l.title_id = 1`: "copy Remux-2160p active 1 radarr /movies/Alpha/Alpha.mkv aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa 9000 x265 1000 1950",
+		`SELECT COALESCE(score, 'null') FROM link WHERE title_id = 2`: "null",
 		`SELECT group_concat(le.episode_id, ' ') FROM link l JOIN link_episode le ON le.link_id = l.id
 			JOIN link_version lv ON lv.link_id = l.id AND lv.version_id = 2 WHERE l.title_id = 2`: "21 22",
 		`SELECT title_id FROM library_action`: "2",

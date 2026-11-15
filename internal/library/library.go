@@ -314,14 +314,14 @@ func linkFacts(ctx context.Context, tx *sql.Tx, id int64, path string) relFacts 
 	if id == 0 {
 		where, arg = `path = ?`, path
 	}
-	epsSQL := `SELECT episode_id FROM link_episode WHERE link_id = ? ORDER BY episode_id`
 	err := tx.QueryRowContext(ctx, `SELECT id, release_title, quality, score, title_id FROM link WHERE `+where,
 		arg).Scan(&id, &rel, &q, &f.Score, &f.TitleID)
 	if err != nil {
 		return relFacts{}
 	}
 	f.Release, f.Quality = rel.String, q.String
-	if rows, err := tx.QueryContext(ctx, epsSQL, id); err == nil {
+	if rows, err := tx.QueryContext(ctx, `SELECT episode_id FROM link_episode WHERE link_id = ? ORDER BY episode_id`,
+		id); err == nil {
 		for rows.Next() {
 			var ep int64
 			if rows.Scan(&ep) == nil {

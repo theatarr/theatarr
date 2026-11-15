@@ -263,9 +263,7 @@ FROM library_import li JOIN download d ON d.id = li.download_id`},
 var headSQL = unionOf(func(string) bool { return true }, "")
 
 // libHeadSQL is the library part without its filter.
-const libHeadSQL = `SELECT 'lib:' || la.id, la.at,
-	COALESCE((SELECT title_id FROM download WHERE id = la.download_id), (SELECT title_id FROM link WHERE id = la.link_id),
-		0),
+const libHeadSQL = `SELECT 'lib:' || la.id, la.at, ` + libTitleSQL + `,
 	COALESCE(la.version_key, ''), 'link'
 FROM library_action la `
 

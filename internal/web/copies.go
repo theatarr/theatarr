@@ -502,10 +502,9 @@ func qualityRank(col string) string {
 // shownQualityRankSQL is the quality rank (qualityRank) of version v's quality as its list cell shows it
 // (briefFiles): of its active links, grouped by quality, the group with the most files; the lower quality name on a
 // tie. NULL without a file with a quality.
-var shownQualityRankSQL = `(SELECT ` + qualityRank("x.q") + ` FROM (
-		SELECT l.quality AS q, COUNT(*) AS n FROM link_version lv JOIN link l ON l.id = lv.link_id
-			WHERE lv.version_id = v.id AND l.state = 'active' AND COALESCE(l.quality, '') <> '' GROUP BY l.quality) x
-	ORDER BY x.n DESC, x.q LIMIT 1)`
+var shownQualityRankSQL = `(SELECT ` + qualityRank("l.quality") + ` FROM link_version lv JOIN link l ON l.id = lv.link_id
+	WHERE lv.version_id = v.id AND l.state = 'active' AND COALESCE(l.quality, '') <> '' GROUP BY l.quality
+	ORDER BY COUNT(*) DESC, l.quality LIMIT 1)`
 
 // episodeHeld is true when episode e is held by version v: an active link.
 const episodeHeld = `EXISTS (SELECT 1 FROM link_episode le JOIN link_version lv ON lv.link_id = le.link_id

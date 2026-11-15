@@ -68,7 +68,7 @@ func (s *Service) viewFiles(ctx context.Context, v *View, titleIDs []int64) ([]*
 	var out []*fileRow
 	byLink := map[int64][]*fileRow{}
 	for rows.Next() {
-		f := &vfile{instance: "theatarr", languages: []string{}}
+		f := &vfile{languages: []string{}}
 		x := &fileRow{f: f}
 		var created int64
 		var raw string
@@ -150,7 +150,7 @@ func (s *Service) episodeFileFrom(v *View, e *entry, x *fileRow, seasons map[int
 	r := episodeFileResource{ID: x.id, SeriesID: viewID(x.titleID), RelativePath: f.relPath, Path: f.path,
 		Size: f.size, DateAdded: at(minTime), SceneName: f.scene, ReleaseGroup: f.group,
 		Languages: languagesFrom(Sonarr, f.languages), Quality: qualityModelFor(Sonarr, f.quality, f.revision),
-		CustomFormats: []any{}, MediaInfo: f.mediaInfo, QualityCutoffNotMet: f.cutoffNotMet}
+		CustomFormats: []any{}}
 	r.Quality.Revision.Real, r.Quality.Revision.IsRepack = f.real, f.isRepack
 	if f.added.Valid {
 		r.DateAdded = at(millis(f.added.Int64))
@@ -169,7 +169,7 @@ func (s *Service) episodeFileFrom(v *View, e *entry, x *fileRow, seasons map[int
 			r.ReleaseType = "singleEpisode"
 		}
 	}
-	if x.linkID > 0 && e != nil {
+	if e != nil {
 		if _, sp := s.rootAndPath(v, e); sp != "" {
 			if rel, err := filepath.Rel(sp, f.path); err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 				r.RelativePath = rel

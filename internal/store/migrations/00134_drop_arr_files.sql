@@ -4,7 +4,7 @@
 --
 -- * A current arr file (its version's owning instance's, or any of a version without one) becomes a link record at
 --   its path with its title, library, episodes, quality, release and the arr's facts in file_metadata, its media info
---   in adopted_media and "<instance> <path>" as adopted_from, as adoption records them. The migration cannot read the
+--   in adopted_media, its format score as the link's score and "<instance> <path>" as adopted_from, as adoption records them. The migration cannot read the
 --   disk, so the record is kind 'copy' with the path as its target: the file shows as held, and Theatarr never moves or
 --   unlinks it (as it never touched the arr's file). A path that already holds a link keeps it; the library and
 --   episodes are added to it when it is the same title's.
@@ -15,10 +15,10 @@
 --
 -- Down recreates the tables empty.
 -- +goose Up
-INSERT OR IGNORE INTO link (path, target, kind, title_id, release_title, quality, file_metadata, adopted_from,
+INSERT OR IGNORE INTO link (path, target, kind, title_id, release_title, quality, score, file_metadata, adopted_from,
     adopted_media, state, created_at, updated_at)
 SELECT vf.path, vf.path, 'copy', vf.title_id, NULLIF(COALESCE(NULLIF(vf.scene_name, ''), vf.release_title), ''),
-    NULLIF(vf.quality, ''),
+    NULLIF(vf.quality, ''), vf.custom_format_score,
     json_object('Quality', vf.quality, 'Revision', max(vf.quality_revision, 1), 'SceneName', vf.scene_name,
         'OriginalFilePath', vf.original_file_path, 'RelativePath', vf.relative_path, 'ReleaseGroup', vf.release_group,
         'Edition', vf.edition, 'Languages', json(CASE WHEN json_valid(vf.languages) THEN vf.languages ELSE '[]' END),

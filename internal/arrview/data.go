@@ -3,7 +3,6 @@ package arrview
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"sort"
 	"strings"
 	"time"
@@ -53,25 +52,22 @@ type ver struct {
 
 // vfile is a file of a version as the views show it (one of our links).
 type vfile struct {
-	id           int64
-	instance     string
-	path         string
-	relPath      string
-	size         int64
-	quality      string
-	revision     int
-	real         int
-	isRepack     bool
-	group        string
-	scene        string
-	edition      string
-	languages    []string
-	mediaInfo    json.RawMessage
-	cfScore      sql.NullInt64
-	flags        int
-	origPath     string
-	cutoffNotMet bool
-	added        sql.NullInt64
+	id        int64
+	path      string
+	relPath   string
+	size      int64
+	quality   string
+	revision  int
+	real      int
+	isRepack  bool
+	group     string
+	scene     string
+	edition   string
+	languages []string
+	cfScore   sql.NullInt64
+	flags     int
+	origPath  string
+	added     sql.NullInt64
 }
 
 // viewRec is an arrview_title row.

@@ -954,6 +954,13 @@ release title on read (languages and flags absent from both the name and stored 
   between could have that file overwritten or removed, or a write redirected. Not guarded against; nothing else
   should write in Theatarr's version roots. Followed arr roots are only read.
 
+**Arr files left from before adoption (migration 00134).** An install that still had the old arr-file rows gets each
+current one as an adopted link (episodes, quality, the arr's file record and format score, provenance). Accepted limits:
+- SQL cannot read a symlink target, so such a file is recorded as kind `copy` with its path as target: Theatarr never
+  deletes it (a removal leaves it, as it left the arr's file).
+- In journal entries from before the migration, a download that upgraded such a file reads as a grab, not an upgrade.
+- The arr views show such a file's resolution only (from its quality), not the arr's recorded media info.
+
 ## Deviations and open points
 
 | Design | Here | Why |

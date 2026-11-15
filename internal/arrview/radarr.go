@@ -311,8 +311,7 @@ func movieFileFrom(e *entry, f *vfile, moviePath string) *movieFileResource {
 	r := &movieFileResource{ID: f.id, MovieID: e.viewID(), RelativePath: f.relPath, Path: f.path, Size: f.size,
 		DateAdded: at(minTime), SceneName: f.scene, ReleaseGroup: f.group, Edition: f.edition,
 		Languages: languagesFrom(Radarr, f.languages), Quality: qualityModelFor(Radarr, f.quality, f.revision),
-		MediaInfo: mediaInfoWithResolution(f.mediaInfo, f.quality), OriginalFilePath: f.origPath,
-		QualityCutoffNotMet: f.cutoffNotMet}
+		MediaInfo: mediaInfoWithResolution(f.quality), OriginalFilePath: f.origPath}
 	r.Quality.Revision.Real, r.Quality.Revision.IsRepack = f.real, f.isRepack
 	if r.Path == "" && f.relPath != "" && moviePath != "" {
 		r.Path = path.Join(moviePath, f.relPath)
@@ -330,48 +329,16 @@ func movieFileFrom(e *entry, f *vfile, moviePath string) *movieFileResource {
 	return r
 }
 
-// mediaInfoWithResolution preserves a file's probed resolution, or supplies the parsed quality resolution when none
-// exists. Seerr uses this field to distinguish 4K from non-4K services.
-func mediaInfoWithResolution(raw json.RawMessage, qualityName string) json.RawMessage {
+// mediaInfoWithResolution is a file's media info: the parsed quality's resolution, with the non-nullable values the
+// arr serializer writes and Ruddarr's file model requires; nil when the quality has no resolution. Seerr uses the
+// resolution to distinguish 4K from non-4K services.
+func mediaInfoWithResolution(qualityName string) json.RawMessage {
 	resolution := qualityResolutionText(qualityFor(Radarr, qualityName).Resolution)
-	if len(raw) == 0 && resolution == "" {
+	if resolution == "" {
 		return nil
 	}
-	info := map[string]json.RawMessage{}
-	if len(raw) > 0 {
-		if err := json.Unmarshal(raw, &info); err != nil {
-			return raw
-		}
-		if info == nil {
-			info = map[string]json.RawMessage{}
-		}
-	}
-	changed := len(raw) == 0
-	// These non-nullable values are written by the arr serializer and required by Ruddarr's file model.
-	for key, value := range map[string]any{
-		"audioBitrate": 0, "audioChannels": float64(0), "audioStreamCount": 0,
-		"videoBitDepth": 0, "videoBitrate": 0, "videoFps": float64(0),
-	} {
-		if current, ok := info[key]; !ok || strings.TrimSpace(string(current)) == "null" {
-			info[key], _ = json.Marshal(value)
-			changed = true
-		}
-	}
-	if resolution != "" {
-		var existing string
-		value, ok := info["resolution"]
-		if !ok || json.Unmarshal(value, &existing) != nil || existing == "" {
-			info["resolution"], _ = json.Marshal(resolution)
-			changed = true
-		}
-	}
-	if !changed {
-		return raw
-	}
-	out, err := json.Marshal(info)
-	if err != nil {
-		return raw
-	}
+	out, _ := json.Marshal(map[string]any{"audioBitrate": 0, "audioChannels": 0, "audioStreamCount": 0,
+		"videoBitDepth": 0, "videoBitrate": 0, "videoFps": 0, "resolution": resolution})
 	return out
 }
 
