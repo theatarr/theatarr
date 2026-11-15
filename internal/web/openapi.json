@@ -130,7 +130,7 @@
           { "name": "anime", "in": "query", "description": "Anime titles only (true) or no anime (false)", "schema": { "type": "boolean" } },
           { "name": "monitored", "in": "query", "schema": { "type": "boolean" } },
           { "name": "availability", "in": "query", "schema": { "$ref": "#/components/schemas/Availability" } },
-          { "name": "upgrade", "in": "query", "description": "The quality filter among titles with a file (see_files only): found, some file has a better release found (upgrade_seen: Upgrade found)", "schema": { "type": "string", "enum": ["found"] } },
+          { "name": "upgrade", "in": "query", "description": "The quality filter among titles with a file (see_files only): found, some file has a better release found (upgrade_seen: Upgrade found). Any other value is ignored", "schema": { "type": "string" } },
           { "name": "genre", "in": "query", "description": "TMDb genre names, comma-separated or repeated; any of them", "schema": { "type": "string" } },
           { "name": "quality", "in": "query", "description": "Some current file has this quality (WEBDL-2160p), or this resolution (2160p, 1080p). Without see_files, a resolution only (403 otherwise)", "schema": { "type": "string" } },
           { "name": "provider", "in": "query", "description": "Some current file is held now by this debrid provider: a cache code (rd, ad, tb: every provider of that kind) or a provider key. Needs see_files (403 otherwise)", "schema": { "type": "string" } },

@@ -173,8 +173,10 @@ func (w *Web) apiTitles(rw http.ResponseWriter, r *http.Request) {
 		w.internal(rw, err)
 		return
 	}
-	for i := range page.Items {
-		redactRowFor(perms, &page.Items[i])
+	if !perms.SeeFiles {
+		for i := range page.Items {
+			redactRow(&page.Items[i])
+		}
 	}
 	writeJSON(rw, http.StatusOK, page)
 }

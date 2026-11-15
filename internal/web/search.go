@@ -104,8 +104,10 @@ func (w *Web) apiSearch(rw http.ResponseWriter, r *http.Request) {
 			w.internal(rw, err)
 			return
 		}
-		for i := range page.Items {
-			redactRowFor(w.permsOf(r), &page.Items[i])
+		if !w.permsOf(r).SeeFiles {
+			for i := range page.Items {
+				redactRow(&page.Items[i])
+			}
 		}
 		out.Library, out.LibraryTotal = page.Items, page.Total
 	}
@@ -130,8 +132,10 @@ func (w *Web) apiSearch(rw http.ResponseWriter, r *http.Request) {
 						w.internal(rw, err)
 						return
 					}
-					for i := n; i < len(out.Library); i++ {
-						redactRowFor(w.permsOf(r), &out.Library[i])
+					if !w.permsOf(r).SeeFiles {
+						for i := n; i < len(out.Library); i++ {
+							redactRow(&out.Library[i])
+						}
 					}
 				}
 				if !w.permsOf(r).SeeFiles {

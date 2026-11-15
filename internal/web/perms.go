@@ -134,13 +134,6 @@ func redactRowWith(r *TitleRow, states []versionState) {
 	}
 }
 
-// redactRowFor redacts a list row for a caller: everything file-related without see_files.
-func redactRowFor(p Perms, r *TitleRow) {
-	if !p.SeeFiles {
-		redactRow(r)
-	}
-}
-
 // redactVersion keeps a version's state, its resolution, languages and edition, and its episode counts: no files,
 // history, cutoff or upgrade explanation.
 func redactVersion(v *Version) {

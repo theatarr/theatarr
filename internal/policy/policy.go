@@ -821,6 +821,7 @@ func RevisionOf(dir string) (string, error) {
 }
 
 func decodeBytes(b []byte, out *Policy) error {
+	b = dropLegacyCeiling(b)
 	dec := yaml.NewDecoder(bytes.NewReader(b))
 	dec.KnownFields(true)
 	if err := dec.Decode(out); err != nil {
@@ -834,6 +835,41 @@ func decodeBytes(b []byte, out *Policy) error {
 		return errors.New("more than one YAML document; use one document per file")
 	}
 	return nil
+}
+
+// dropLegacyCeiling removes the source-ceiling key of each version (versions.<key>.ceiling), removed in 0.4.5, so an
+// older file still reads; b is returned unchanged when it has none.
+func dropLegacyCeiling(b []byte) []byte {
+	var doc yaml.Node
+	if yaml.Unmarshal(b, &doc) != nil || len(doc.Content) != 1 || doc.Content[0].Kind != yaml.MappingNode {
+		return b
+	}
+	dropped := false
+	top := doc.Content[0].Content
+	for i := 0; i+1 < len(top); i += 2 {
+		if top[i].Value != "versions" || top[i+1].Kind != yaml.MappingNode {
+			continue
+		}
+		vs := top[i+1].Content
+		for j := 1; j < len(vs); j += 2 {
+			v := vs[j]
+			for k := 0; v.Kind == yaml.MappingNode && k+1 < len(v.Content); k += 2 {
+				if v.Content[k].Value == "ceiling" {
+					v.Content = append(v.Content[:k], v.Content[k+2:]...)
+					dropped = true
+					break
+				}
+			}
+		}
+	}
+	if !dropped {
+		return b
+	}
+	out, err := yaml.Marshal(&doc)
+	if err != nil {
+		return b
+	}
+	return out
 }
 
 // decodeStrict decodes a node with unknown fields refused, for custom unmarshalers (yaml.Node.Decode is lenient).

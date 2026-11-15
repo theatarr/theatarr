@@ -140,7 +140,7 @@ func TestTitlesSortAndFilters(t *testing.T) {
 			t.Errorf("%s: total %d, want %d", q, p.Total, n)
 		}
 	}
-	for _, bad := range []string{"sort=x", "order=up", "availability=x", "availability=upgrade", "upgrade=x", "anime=maybe",
+	for _, bad := range []string{"sort=x", "order=up", "availability=x", "availability=upgrade", "anime=maybe",
 		"year_from=-1"} {
 		if code := e.getKey(APIBase+"/titles?"+bad, key, nil); code != 400 {
 			t.Errorf("%s: %d, want 400", bad, code)

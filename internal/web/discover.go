@@ -104,8 +104,11 @@ func (w *Web) apiDiscover(rw http.ResponseWriter, r *http.Request) {
 }
 
 func redactDiscover(p Perms, row *DiscoverRow) {
+	if p.SeeFiles {
+		return
+	}
 	for i := range row.Items {
-		redactRowFor(p, &row.Items[i].TitleRow)
+		redactRow(&row.Items[i].TitleRow)
 	}
 }
 

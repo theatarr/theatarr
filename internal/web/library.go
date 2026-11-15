@@ -551,8 +551,8 @@ func gridFilter(r *http.Request) (TitleGridFilter, error) {
 	if !availabilities[g.Availability] {
 		return g, errors.New("availability must be available, partial, missing, upcoming, unmonitored or none")
 	}
-	if g.Upgrade != "" && g.Upgrade != "found" {
-		return g, errors.New("upgrade must be found")
+	if g.Upgrade != "found" {
+		g.Upgrade = "" // an old link's best_known (removed in 0.4.5) lists as if unfiltered
 	}
 	return g, nil
 }

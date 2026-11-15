@@ -605,6 +605,22 @@ func TestIndexerByName(t *testing.T) {
 	}
 }
 
+// A versions file from before 0.4.5 with a library's source-ceiling key still reads; the key is ignored.
+func TestLegacyCeilingKeyIgnored(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "versions.yaml"), []byte("versions:\n  normal: {}\n  disc:\n    name: Disc\n    ceiling:\n      disc_only: true\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	p, err := Read(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Versions["disc"] == nil || p.Versions["disc"].Name != "Disc" || p.Versions["normal"] == nil {
+		t.Fatalf("versions: %+v", p.Versions)
+	}
+}
+
 func TestRevision(t *testing.T) {
 	t.Parallel()
 	dir := copyExample(t)
