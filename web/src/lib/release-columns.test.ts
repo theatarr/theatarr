@@ -6,7 +6,10 @@ import {
   scopeTarget,
   searchTargetWords,
   NO_FILTER,
+  CACHED_ANY,
+  columnSortKey,
   episodesText,
+  filterChoices,
   filterReleases,
   fmtAge,
   grabConfirmScope,
@@ -69,8 +72,49 @@ describe("filterReleases", () => {
   });
   it("keeps accepted, cached or packs only", () => {
     expect(ranks(filterReleases(items, { ...NO_FILTER, accepted: true }))).toEqual([1, 3]);
-    expect(ranks(filterReleases(items, { ...NO_FILTER, cached: true }))).toEqual([1]);
+    expect(ranks(filterReleases(items, { ...NO_FILTER, cached: CACHED_ANY }))).toEqual([1]);
     expect(ranks(filterReleases(items, { ...NO_FILTER, packs: true }))).toEqual([1]);
+  });
+  it("keeps one indexer, quality, language or provider, and combines them", () => {
+    const more = [...items, c(4, { indexer: "Nyaa", quality: "WEBDL-2160p", cached_on: ["ad", "tb"], languages: ["English", "Japanese"] })];
+    expect(ranks(filterReleases(more, { ...NO_FILTER, indexer: "Nyaa" }))).toEqual([1, 4]);
+    expect(ranks(filterReleases(more, { ...NO_FILTER, quality: "WEBDL-2160p" }))).toEqual([2, 4]);
+    expect(ranks(filterReleases(more, { ...NO_FILTER, language: "Japanese" }))).toEqual([2, 4]);
+    expect(ranks(filterReleases(more, { ...NO_FILTER, cached: "tb" }))).toEqual([4]);
+    expect(ranks(filterReleases(more, { ...NO_FILTER, cached: CACHED_ANY }))).toEqual([1, 4]);
+    expect(ranks(filterReleases(more, { ...NO_FILTER, indexer: "Nyaa", quality: "WEBDL-2160p" }))).toEqual([4]);
+  });
+  it("offers the values in every release, qualities best first", () => {
+    const xs = [
+      c(1, { indexer: "prowlarr-zeta", quality: "WEBDL-1080p", quality_rank: 5, languages: ["Japanese"], cached_on: ["rd"] }),
+      c(2, { indexer: "alpha", quality: "Remux-2160p", quality_rank: 9, languages: ["English", "Japanese"], cached_on: ["tb", "rd"] }),
+      c(3, { quality: "WEBDL-1080p", quality_rank: 5 }),
+    ];
+    expect(filterChoices(xs)).toEqual({
+      indexer: ["alpha", "prowlarr-zeta"],
+      quality: ["Remux-2160p", "WEBDL-1080p"],
+      language: ["English", "Japanese"],
+      cached: ["rd", "tb"],
+    });
+  });
+});
+
+describe("sorting every column Sonarr sorts", () => {
+  it("sorts Source, Status, Flags and History; Episodes and Formats do not sort", () => {
+    expect(["source", "age", "title", "indexer", "history", "size", "peers", "language", "quality", "score", "flags", "status", "cached"].every((id) => columnSortKey(id as never))).toBe(true);
+    expect(columnSortKey("episodes")).toBeUndefined();
+    expect(columnSortKey("formats")).toBeUndefined();
+    const items = [
+      c(1, { accepted: false, rejections: [{ reason: "A" }, { reason: "B" }], source: "torznab", flags: ["freeleech"], info_hash: "AA" }),
+      c(2, { source: "dmm", info_hash: "bb" }),
+      c(3, { accepted: false, rejections: [{ reason: "A" }], flags: ["freeleech", "internal"] }),
+    ];
+    expect(ranks(sortReleases(items, { key: "status", dir: "asc" }))).toEqual([2, 3, 1]);
+    expect(ranks(sortReleases(items, { key: "source", dir: "asc" }))).toEqual([2, 1, 3]);
+    expect(ranks(sortReleases(items, { key: "flags", dir: "desc" }))).toEqual([3, 1, 2]);
+    const outcomes = { aa: { outcome: "failed" }, bb: { outcome: "imported" } } as never;
+    expect(ranks(sortReleases(items, { key: "history", dir: "asc" }, outcomes))).toEqual([2, 1, 3]);
+    expect(normalizeReleaseColumns({ sort: { key: "status", dir: "asc" } }).sort).toEqual({ key: "status", dir: "asc" });
   });
 });
 

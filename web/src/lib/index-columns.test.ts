@@ -37,6 +37,13 @@ describe("the lists' columns", () => {
     expect(listColumns("movies")).toHaveLength(23);
     expect(listColumns("series")).toHaveLength(22);
   });
+  it("explains Movies' columns without seasons, episodes or series words (Opus C25)", () => {
+    for (const c of [...listColumns("movies"), ...indexColumns("movies", false)]) expect(c.hint).not.toMatch(/season|episode|series|air(ed|ing)|continuing|ended/i);
+    const hint = (list: "movies" | "series" | "anime", id: string) => listColumns(list).find((c) => c.id === id)?.hint;
+    expect(hint("series", "next")).toBe("The next episode's air date");
+    expect(hint("series", "release")).toBe("The first episode's air date");
+    expect(hint("anime", "next")).toBe("The next episode or coming release");
+  });
 
   it("does not offer the file columns without see files, and heads Status Availability", () => {
     const plain = ids(indexColumns("movies", false));

@@ -73,7 +73,7 @@ export function InteractiveSearch({ titleId, version, season, episode, onClose }
   const items = r?.candidates ?? [];
   // The requested film's or episode's own file in this library, as the server reads it now (none for a season).
   const current = r?.current;
-  // A rejection reason picked from the summary: the list keeps those releases; another library starts unfiltered.
+  // A rejection reason picked from the summary: the list keeps those releases; another library or Search again starts unfiltered.
   const [reason, setReason] = useState<string>();
   // Grabs sent in this window, by library and hash: the grid remounts per library, the dialog keeps them.
   const [sent, setSent] = useState<Record<string, ReadonlySet<string>>>({});
@@ -124,7 +124,7 @@ export function InteractiveSearch({ titleId, version, season, episode, onClose }
                   </button>
                 ))}
               </div>
-              <Button size="sm" variant="outline" onClick={() => void q.refetch()} disabled={q.isFetching} data-testid="interactive-again">
+              <Button size="sm" variant="outline" onClick={() => { setReason(undefined); void q.refetch(); }} disabled={q.isFetching} data-testid="interactive-again">
                 <RefreshCw /> Search again
               </Button>
             </div>
@@ -159,10 +159,11 @@ export function InteractiveSearch({ titleId, version, season, episode, onClose }
                     {current.held ? `Current file: ${current.quality || "unknown quality"}${current.score != null ? `, score ${current.score}` : ""}` : "No file held"}
                   </p>
                 ) : null}
+                {/* Each answer gets a fresh grid: a new search (Search again, another library) starts without filters. */}
                 {items.length === 0 ? (
                   <p className="py-4 text-center text-sm text-muted-foreground">No releases found.</p>
                 ) : (
-                  <ReleaseGrid key={lib.key} items={items} outcomes={r.outcomes} kind={kind} grab={grab} capped={r.results > items.length ? r.results : undefined} reason={reason} />
+                  <ReleaseGrid key={`${lib.key}-${q.dataUpdatedAt}`} items={items} outcomes={r.outcomes} kind={kind} grab={grab} capped={r.results > items.length ? r.results : undefined} reason={reason} />
                 )}
               </>
             ) : null}

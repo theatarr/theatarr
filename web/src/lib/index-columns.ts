@@ -43,6 +43,9 @@ type Def = {
   /** The label on Anime when it differs from Series': Anime mixes movies and series. */
   anime?: string;
   hint: string;
+  /** The hint on Movies, or on Series, when it differs: Anime keeps hint, which speaks of both. */
+  movieHint?: string;
+  seriesHint?: string;
   /** The grid sort its header asks for. */
   sort?: string;
   /** File detail: not offered to an account without "see files". */
@@ -57,7 +60,7 @@ const DEFS: Def[] = [
   { id: "status", ...both("Status"), hint: "The poster badge's word; a download in hand, its stage", on: "ms" },
   { id: "libraries", ...both("Libraries"), hint: "One pill per library: its quality, or what it lacks", seeFiles: true, on: "ms" },
   { id: "network", movie: "Studio", series: "Network", anime: "Network / studio", hint: "From the title's metadata", sort: "network", on: "s" },
-  { id: "next", movie: "Next release", series: "Next airing", anime: "Next episode / release", hint: "The next episode or coming release", sort: "next", on: "s" },
+  { id: "next", movie: "Next release", series: "Next airing", anime: "Next episode / release", hint: "The next episode or coming release", movieHint: "The coming cinema, digital or disc release", seriesHint: "The next episode's air date", sort: "next", on: "s" },
   { id: "seasons", series: "Seasons", hint: "Seasons with episodes, specials left out", on: "s" },
   { id: "size", ...both("Size"), hint: "The title's current files in total", sort: "size", seeFiles: true, on: "ms" },
   { id: "added", ...both("Added"), hint: "The day the title was added to Theatarr", sort: "created", on: "m" },
@@ -66,11 +69,11 @@ const DEFS: Def[] = [
   { id: "quality", ...both("Quality"), hint: "Each library's current quality", sort: "quality", seeFiles: true },
   { id: "profile", ...both("Quality profile"), hint: "Each library's quality profile", seeFiles: true },
   { id: "year", ...both("Year"), hint: "The release year", sort: "year" },
-  { id: "release", movie: "Release date", series: "First aired", anime: "Released / first aired", hint: "A movie's first cinema release, else TMDb's date; a series' first air date", sort: "release" },
+  { id: "release", movie: "Release date", series: "First aired", anime: "Released / first aired", hint: "A movie's first cinema release, else TMDb's date; a series' first air date", movieHint: "The first cinema release, else TMDb's date", seriesHint: "The first episode's air date", sort: "release" },
   { id: "in_cinemas", movie: "In cinemas", hint: "The first cinema release" },
   { id: "digital", movie: "Digital release", hint: "The first digital release" },
   { id: "physical", movie: "Physical release", hint: "The first disc release" },
-  { id: "title_status", movie: "Release status", series: "Series status", hint: "Announced, In cinemas, Released / Continuing, Ended, Cancelled, Upcoming" },
+  { id: "title_status", movie: "Release status", series: "Series status", hint: "Announced, In cinemas, Released / Continuing, Ended, Cancelled, Upcoming", movieHint: "Announced, In cinemas or Released", seriesHint: "Continuing, Ended, Cancelled or Upcoming" },
   { id: "series_type", series: "Series type", hint: "Standard, Daily or Anime" },
   { id: "runtime", ...both("Runtime"), hint: "From TMDb", sort: "runtime" },
   { id: "certification", ...both("Certification"), hint: "The age rating", sort: "certification" },
@@ -83,10 +86,11 @@ const DEFS: Def[] = [
 ];
 
 const offered = (d: Def, list: ListId) => (list === "movies" ? d.movie : list === "anime" ? (d.series && (d.anime ?? d.series)) : d.series);
+const hintOf = (d: Def, list: ListId) => (list === "movies" ? d.movieHint : list === "series" ? d.seriesHint : undefined) ?? d.hint;
 
 /** Every column a list has, in the default order (for the stored choice: lib/prefs.ts normalizeColumnPrefs). */
 export function listColumns(list: ListId): ColumnDef<IndexColumnId>[] {
-  return DEFS.filter((d) => offered(d, list)).map((d) => ({ id: d.id, label: offered(d, list)!, hint: d.hint }));
+  return DEFS.filter((d) => offered(d, list)).map((d) => ({ id: d.id, label: offered(d, list)!, hint: hintOf(d, list) }));
 }
 
 /** The columns a list offers this account: without "see files" no file column, and Status is headed Availability. */
@@ -94,7 +98,7 @@ export function indexColumns(list: ListId, seeFiles: boolean): ColumnDef<IndexCo
   return DEFS.filter((d) => offered(d, list) && (seeFiles || !d.seeFiles)).map((d) => ({
     id: d.id,
     label: d.id === "status" && !seeFiles ? "Availability" : offered(d, list)!,
-    hint: d.id === "status" && !seeFiles ? "Whether it can be watched" : d.hint,
+    hint: d.id === "status" && !seeFiles ? "Whether it can be watched" : hintOf(d, list),
   }));
 }
 

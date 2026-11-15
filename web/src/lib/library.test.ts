@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { availabilityFilters, filterChips, gridQuery, isFamily, offeredSorts, POSTER_STATUS_LABEL, posterStatus, qualityWord, relDay, titleWatchWords, UPGRADE_FILTERS, upcomingRelease, utcToday, watchWords, withoutChip } from "./library";
+import { availabilityFilters, filterChips, gridQuery, isFamily, offeredSorts, viewOf, POSTER_STATUS_LABEL, posterStatus, qualityWord, relDay, titleWatchWords, UPGRADE_FILTERS, upcomingRelease, utcToday, watchWords, withoutChip } from "./library";
 import { badgeTone, copyTone } from "./library-status";
 
 const label = (...a: Parameters<typeof posterStatus>) => {
@@ -296,9 +296,21 @@ describe("filter chips", () => {
 describe("offeredSorts", () => {
   const label = (c: Parameters<typeof offeredSorts>[1], id: string) => offeredSorts(true, c).find((s) => s.id === id)?.label;
   it("words the kind-bound sorts per catalog", () => {
-    expect([label("movies", "next"), label("movies", "network"), label("movies", "completion")]).toEqual(["Next release", "Studio", "Completion"]);
+    // Movies have no episodes to complete: no Completion sort (Opus C27).
+    expect([label("movies", "next"), label("movies", "network"), label("movies", "completion")]).toEqual(["Next release", "Studio", undefined]);
     expect([label("series", "next"), label("series", "network"), label("series", "release"), label("series", "completion")]).toEqual(["Next airing", "Network", "First aired", "Completion"]);
     expect([label("anime", "next"), label("anime", "network"), label("anime", "release")]).toEqual(["Next episode / release", "Network / studio", "Released / first aired"]);
-    expect(gridQuery("movies", new URLSearchParams("sort=completion"), true).sort).toBe("completion");
+    expect(gridQuery("movies", new URLSearchParams("sort=completion"), true).sort).toBe("name");
+    expect(gridQuery("series", new URLSearchParams("sort=completion"), true).sort).toBe("completion");
+    expect(label("anime", "completion")).toBe("Completion");
+  });
+});
+
+describe("viewOf", () => {
+  it("takes the address's view, else the remembered one", () => {
+    expect(viewOf(new URLSearchParams("view=table&sort=year"), "grid")).toBe("table");
+    expect(viewOf(new URLSearchParams("view=grid"), "table")).toBe("grid");
+    expect(viewOf(new URLSearchParams("view=bogus"), "table")).toBe("table");
+    expect(viewOf(new URLSearchParams(""), "grid")).toBe("grid");
   });
 });

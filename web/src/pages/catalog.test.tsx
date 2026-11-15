@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useLocation } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Catalog } from "./catalog";
 import { Toaster } from "@/components/toaster";
@@ -315,6 +316,40 @@ describe("Library table", () => {
     renderPage(<Catalog id="series" />, "/series");
     await screen.findAllByText("The Pellbrook Inquiries");
     expect(screen.getByRole("table")).toBeTruthy();
+  });
+
+  // A link carries the view (A15.2): ?view= wins over the remembered one, and picking a view puts it in the address.
+  it("opens the view the address asks for and puts a picked one in the address", async () => {
+    mockFetch(routes());
+    const user = userEvent.setup();
+    let loc = "";
+    const Probe = () => {
+      loc = useLocation().search;
+      return null;
+    };
+    renderPage(<><Catalog id="movies" /><Probe /></>, "/movies?view=grid&sort=year");
+    await screen.findAllByText("The Pellbrook Inquiries");
+    // The remembered view is the table; the address's wins and the remembered one stays.
+    expect(screen.getByTestId("poster-grid")).toBeTruthy();
+    expect(window.localStorage.getItem("theatarr.library.view.movies.7")).toBeNull();
+    await user.click(screen.getByRole("radio", { name: "Table" }));
+    expect(screen.getByRole("table")).toBeTruthy();
+    expect(new URLSearchParams(loc).get("view")).toBe("table");
+    expect(new URLSearchParams(loc).get("sort")).toBe("year");
+    expect(window.localStorage.getItem("theatarr.library.view.movies.7")).toBe('"table"');
+  });
+
+  it("offers Movies no Completion sort; Series keeps it", async () => {
+    mockFetch(routes());
+    const { unmount } = renderPage(<Catalog id="movies" />, "/movies");
+    await screen.findAllByText("The Pellbrook Inquiries");
+    const sorts = () => [...(screen.getByRole("combobox", { name: /Sort/ }) as HTMLSelectElement).options].map((o) => o.textContent);
+    expect(sorts()).not.toContain("Completion");
+    unmount();
+    mockFetch(routes());
+    renderPage(<Catalog id="series" />, "/series");
+    await screen.findAllByText("The Pellbrook Inquiries");
+    expect(sorts()).toContain("Completion");
   });
 
   it("selects titles, previews with unchanged copies apart, and applies with expect", async () => {

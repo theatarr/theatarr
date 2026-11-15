@@ -196,6 +196,8 @@ const PLAIN_AVAILABILITY: { id: Availability; label: string; hint: string }[] = 
 /** The availability filters for a catalog. Without "see files" a movie is never "Some episodes" (it has none), so
  * the movie catalog leaves that one out. */
 export function availabilityFilters(seeFiles: boolean, kind?: string): { id: Availability; label: string; hint: string }[] {
+  // Movies' Partly available speaks of movies only.
+  if (seeFiles && kind === "movie") return AVAILABILITY.map((a) => (a.id === "partial" ? { ...a, hint: "A file is held; a monitored library still lacks one" } : a));
   if (seeFiles) return AVAILABILITY;
   return kind === "movie" ? PLAIN_AVAILABILITY.filter((a) => a.id !== "partial") : PLAIN_AVAILABILITY;
 }
@@ -238,7 +240,8 @@ export const CATALOGS = {
 } as const;
 export type CatalogId = keyof typeof CATALOGS;
 
-/** The Sort menu. Added is the day the title was added (created); Latest file is the newest current file (added). */
+/** The Sort menu. Added is the day the title was added (created); Latest file is the newest current file (added).
+ *  series: not on Movies (a movie has no episodes to complete). */
 export const SORTS = [
   { id: "name", label: "Title" },
   { id: "created", label: "Added" },
@@ -248,7 +251,7 @@ export const SORTS = [
   { id: "rating", label: "Rating" },
   { id: "runtime", label: "Runtime" },
   { id: "size", label: "Size", seeFiles: true },
-  { id: "completion", label: "Completion" },
+  { id: "completion", label: "Completion", series: true },
   { id: "next", label: "Next episode / release" },
   { id: "quality", label: "Quality", seeFiles: true },
   { id: "activity", label: "Latest activity", seeFiles: true },
@@ -272,9 +275,10 @@ export function kindLabel(c: CatalogId | undefined, id: string, label: string): 
   return (c && KIND_LABELS[c][id]) || label;
 }
 
-/** The sorts the Sort menu offers this account on a catalog, with the catalog's words. */
+/** The sorts the Sort menu offers this account on a catalog, with the catalog's words (Movies without the series
+ *  ones). */
 export function offeredSorts(seeFiles: boolean, c?: CatalogId) {
-  return SORTS.filter((s) => !("seeFiles" in s) || seeFiles).map((s) => ({ id: s.id, label: kindLabel(c, s.id, s.label) }));
+  return SORTS.filter((s) => (!("seeFiles" in s) || seeFiles) && (!("series" in s) || c !== "movies")).map((s) => ({ id: s.id, label: kindLabel(c, s.id, s.label) }));
 }
 
 /** The grid's query from the address. A sort the account is not offered (an old link, Latest file without "see files")
@@ -318,6 +322,15 @@ export function gridQuery(c: CatalogId, p: URLSearchParams, seeFiles: boolean): 
     sort_version: sortOK ? str("sort_version") : undefined,
     order: sortOK ? str("order") : undefined,
   };
+}
+
+/** A list's view: posters (grid) or the table. */
+export type ListView = "grid" | "table";
+
+/** The view the address asks for (?view=, so a link opens the list as it was), else the one remembered. */
+export function viewOf(p: URLSearchParams, remembered: ListView): ListView {
+  const v = p.get("view");
+  return v === "grid" || v === "table" ? v : remembered;
 }
 
 export function activeFilters(p: URLSearchParams): number {

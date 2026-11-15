@@ -338,3 +338,51 @@ it("does not carry a filter typed in one library tab to the other", async () => 
   await waitFor(async () => expect(within(await table()).getAllByRole("row")).toHaveLength(3));
   expect((screen.getByTestId("release-filter") as HTMLInputElement).value).toBe("");
 });
+
+// The indexer, quality, language and cached-on filters take every release, not only the first page; they last until a
+// new search (Search again) and the sort they leave the list in is kept.
+it("filters by indexer, quality, language and provider across pages, and a new search starts unfiltered", async () => {
+  const many = Array.from({ length: 80 }, (_, i) => ({ ...rejected, rank: i + 2, info_hash: `h${i}`, release: `Alpha.2020.720p.R${i}`, indexer: i % 2 ? "Other" : "Nyaa", cached_on: i === 79 ? ["tb"] : undefined }));
+  const api = mockFetch([ME, TITLE, CURRENT, CURRENT, { method: "GET", path: "/titles/7/releases",
+    reply: answer("movie-web", { results: 81, candidates: [accepted, ...many] }) }]);
+  renderPage(<InteractiveSearchButton titleId={7} version="movie-web" />);
+  open();
+  const rows = async () => within(await table()).getAllByRole("row").length - 1;
+  expect(await rows()).toBe(50);
+  // The last release (rank 81) is on no shown page, yet the provider filter finds it.
+  fireEvent.change(screen.getByTestId("release-cached-on"), { target: { value: "tb" } });
+  expect(await rows()).toBe(1);
+  expect(within(await table()).getByRole("row", { name: /R79/ })).toBeTruthy();
+  fireEvent.change(screen.getByTestId("release-cached-on"), { target: { value: "" } });
+  fireEvent.change(screen.getByTestId("release-indexer"), { target: { value: "Other" } });
+  expect(await rows()).toBe(40);
+  fireEvent.change(screen.getByTestId("release-quality"), { target: { value: "WEBDL-2160p" } });
+  expect(screen.getByTestId("release-no-match")).toBeTruthy();
+  fireEvent.change(screen.getByTestId("release-indexer"), { target: { value: "" } });
+  expect(await rows()).toBe(1);
+  // One language in the answer: no language filter to offer.
+  expect(screen.queryByTestId("release-language")).toBeNull();
+  fireEvent.click(screen.getByTestId("interactive-again"));
+  await waitFor(() => expect(api.calls("GET", "/titles/7/releases")).toHaveLength(2));
+  await waitFor(async () => expect(await rows()).toBe(50));
+  expect((screen.getByTestId("release-quality") as HTMLSelectElement).value).toBe("");
+});
+
+it("opens a row's matched formats with each one's score from its score", async () => {
+  const formats = [{ name: "HDR", score: 100 }, { name: "Repack", score: 20 }, { name: "x265", score: 0 }];
+  mockFetch([ME, TITLE, CURRENT, CURRENT, { method: "GET", path: "/titles/7/releases",
+    reply: answer("movie-web", { candidates: [{ ...accepted, formats }, rejected] }) }]);
+  renderPage(<InteractiveSearchButton titleId={7} version="movie-web" />);
+  open();
+  const t = await table();
+  expect(within(t).queryByTestId("release-formats-detail")).toBeNull();
+  const score = within(t).getAllByTestId("release-score")[0];
+  fireEvent.click(score);
+  const detail = await within(t).findByTestId("release-formats-detail");
+  expect(detail.textContent).toBe("Matched formats HDR+100Repack+20x2650 Score +120");
+  expect(score.getAttribute("aria-expanded")).toBe("true");
+  // A release with no matched format has no button.
+  expect(within(t).getAllByTestId("release-score")[1].tagName).toBe("SPAN");
+  fireEvent.click(score);
+  expect(within(t).queryByTestId("release-formats-detail")).toBeNull();
+});

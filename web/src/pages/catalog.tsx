@@ -1,8 +1,9 @@
 // Movies, Series and Anime (docs/design/ui.md "Library views"): posters or a table across the full width. The toolbar
 // has the title search and Select (managers) on the left; Columns or Poster options, the view switch, Sort and Filter on
-// the right. Filters open in a sheet at every width and show as removable chips under the toolbar. Filters and sort live
-// in the URL, so links such as /movies?availability=missing open a filtered list; the view, the table's columns and the
-// poster options are kept per list and per user in this browser (lib/prefs.ts). Select (managers) feeds the bulk bar.
+// the right. Filters open in a sheet at every width and show as removable chips under the toolbar. Filters, sort and a
+// picked view (?view=grid|table) live in the URL, so links such as /movies?availability=missing&view=table open that
+// list as it was; without ?view= the list opens in the view last picked, which is kept per list and per user in this
+// browser, as are the table's columns and the poster options (lib/prefs.ts). Select (managers) feeds the bulk bar.
 // Anime has All / Movies / Series (?kind=); Series and Anime have a Monitored shortcut (?monitored=true) in the toolbar.
 import { ArrowDownWideNarrow, ArrowUpNarrowWide, CheckSquare, Columns3, Eye, LayoutGrid, Plus, Rows3, Settings2, SlidersHorizontal, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -23,7 +24,7 @@ import { Modal } from "@/components/ui/modal";
 import { copyColumns, distinctLabels, relabel } from "@/lib/copies";
 import { fmtBytes, plural, pluralWord } from "@/lib/format";
 import { defaultColumns, defaultDesc, indexColumns, listColumns, sortColumn, visibleIndexColumns } from "@/lib/index-columns";
-import { activeFilters, CATALOGS, catalogKind, FILTER_KEYS, filterChips, gridQuery, offeredSorts, withoutChip, type CatalogId } from "@/lib/library";
+import { activeFilters, CATALOGS, catalogKind, FILTER_KEYS, filterChips, gridQuery, offeredSorts, viewOf, withoutChip, type CatalogId, type ListView } from "@/lib/library";
 import { normalizePosters, type PosterPrefs } from "@/lib/poster-options";
 import { prefKey, readPref, useColumnPrefs, writePref } from "@/lib/prefs";
 import { resolutionWords } from "@/lib/upgrade";
@@ -32,7 +33,7 @@ import { cn } from "@/lib/utils";
 /** The view kept before views were per list; read when a list has none of its own. */
 const OLD_VIEW_KEY = "theatarr.catalog.view";
 
-type View = "grid" | "table";
+type View = ListView;
 
 /** The list's Add button opens the top search (it finds every kind), where a result's Add opens the add sheet. */
 const ADD_LABEL: Record<CatalogId, string> = { movies: "Add movie", series: "Add series", anime: "Add anime" };
@@ -101,7 +102,8 @@ export function Catalog({ id }: { id: CatalogId }) {
   const facets = useFacets(kind, cat.anime);
   const [sheet, setSheet] = useState(false);
   const uid = useAuth().data?.id;
-  const [view, setView] = useListPref<View>(`view.${id}`, uid, () => readView(id, uid));
+  const [remembered, remember] = useListPref<View>(`view.${id}`, uid, () => readView(id, uid));
+  const view = viewOf(params, remembered);
   const [postersPref, savePosters] = useListPref<PosterPrefs>(`posters.${id}`, uid, () => readPosters(id, uid));
   const allColumns = useMemo(() => listColumns(id), [id]);
   const [columnsPref, saveColumns] = useColumnPrefs(`columns.${id}`, allColumns, defaultColumns(id));
@@ -276,7 +278,10 @@ export function Catalog({ id }: { id: CatalogId }) {
                 role="radio"
                 aria-checked={view === v}
                 aria-label={v === "grid" ? "Posters" : "Table"}
-                onClick={() => setView(v)}
+                onClick={() => {
+                  remember(v);
+                  set("view", v);
+                }}
                 className={cn("grid size-8 place-items-center rounded-md text-[var(--ink-3)] transition", view === v && "bg-[color-mix(in_srgb,var(--accent)_22%,transparent)] text-[var(--accent-ink)]")}
               >
                 <Icon className="size-4" />

@@ -2,7 +2,7 @@
 // "Interactive search"): which columns there are and what they mean, the per-user column choice and sort (kept in
 // this browser like the library columns, lib/copies.ts prefs), sorting and filtering the rows, the cells' words, and
 // when a grab asks first. Title and Grab are fixed columns, not in the list.
-import type { Candidate } from "@/api/add";
+import type { Candidate, Releases } from "@/api/add";
 import { grabScope, type Scope } from "@/lib/ops";
 import { wordMatcher } from "@/lib/words";
 
@@ -45,7 +45,8 @@ export const RELEASE_COLUMNS: ReleaseColumn[] = [
 /** The columns a kind of title has (Episodes only for a series). */
 export const releaseColumnsFor = (kind: "movie" | "series") => RELEASE_COLUMNS.filter((c) => kind === "series" || !c.series);
 
-export type ReleaseSortKey = "rank" | "age" | "title" | "indexer" | "size" | "peers" | "cached" | "language" | "quality" | "score";
+export type ReleaseSortKey =
+  | "rank" | "source" | "age" | "title" | "indexer" | "history" | "size" | "peers" | "cached" | "language" | "quality" | "score" | "flags" | "status";
 export type ReleaseSort = { key: ReleaseSortKey; dir: "asc" | "desc" };
 export type ReleaseColumnPrefs = { order: ReleaseColumnId[]; shown: ReleaseColumnId[]; sort: ReleaseSort };
 
@@ -59,7 +60,7 @@ export const DEFAULT_RELEASE_COLUMNS: ReleaseColumnPrefs = {
   sort: { key: "rank", dir: "asc" },
 };
 
-const SORT_KEYS: ReleaseSortKey[] = ["rank", "age", "title", "indexer", "size", "peers", "cached", "language", "quality", "score"];
+const SORT_KEYS: ReleaseSortKey[] = ["rank", "source", "age", "title", "indexer", "history", "size", "peers", "cached", "language", "quality", "score", "flags", "status"];
 const isColumn = (x: unknown): x is ReleaseColumnId => RELEASE_COLUMNS.some((c) => c.id === x);
 
 /** Release column prefs read back: unknown ids dropped, columns added since appended (hidden), a bad sort is rank. */
@@ -82,13 +83,18 @@ export function normalizeReleaseColumns(p: unknown): ReleaseColumnPrefs {
 
 /** The direction a header sorts in on its first click: newest, largest, best, A to Z. */
 export function naturalDir(key: ReleaseSortKey): "asc" | "desc" {
-  return key === "size" || key === "peers" || key === "cached" || key === "score" ? "desc" : "asc";
+  return key === "size" || key === "peers" || key === "cached" || key === "score" || key === "flags" ? "desc" : "asc";
 }
 
-/** The sort key a column's header sorts by; none for the columns that do not sort. */
+/** The sort key a column's header sorts by (the columns Sonarr's interactive search sorts); none for Episodes and
+ *  Formats. */
 export function columnSortKey(id: ReleaseColumnId | "title"): ReleaseSortKey | undefined {
   switch (id) {
     case "title":
+    case "source":
+    case "history":
+    case "flags":
+    case "status":
     case "age":
     case "indexer":
     case "size":
@@ -104,11 +110,26 @@ export function columnSortKey(id: ReleaseColumnId | "title"): ReleaseSortKey | u
 
 type Value = number | string | undefined;
 
-/** A row's value for a key, ascending; undefined is unknown and always sorts last. Age ascends from the newest. */
-function valueOf(c: Candidate, key: ReleaseSortKey): Value {
+/** History sorts the current file first, then imported, grabbed, replaced and failed; no history last. */
+const OUTCOME_ORDER = ["current", "imported", "grabbed", "replaced", "failed"];
+
+/** A row's value for a key, ascending; undefined is unknown and always sorts last. Age ascends from the newest;
+ *  Status puts the accepted first, then the fewest reasons. */
+function valueOf(c: Candidate, key: ReleaseSortKey, outcomes?: Releases["outcomes"]): Value {
   switch (key) {
     case "rank":
       return c.rank ?? undefined;
+    case "source":
+      return c.source || undefined;
+    case "history": {
+      const o = c.info_hash ? outcomes?.[c.info_hash.toLowerCase()] : undefined;
+      const i = o ? OUTCOME_ORDER.indexOf(o.outcome ?? "") : -1;
+      return i < 0 ? undefined : i;
+    }
+    case "flags":
+      return c.flags?.length ?? 0;
+    case "status":
+      return c.accepted ? 0 : Math.max(1, c.rejections?.length ?? 0);
     case "age": {
       const t = c.published ? Date.parse(c.published) : NaN;
       return Number.isNaN(t) ? undefined : -t;
@@ -134,12 +155,13 @@ function valueOf(c: Candidate, key: ReleaseSortKey): Value {
   }
 }
 
-/** The rows in the asked order. Stable: ties keep rank order; unknown values go last either way. */
-export function sortReleases(items: Candidate[], sort: ReleaseSort): Candidate[] {
+/** The rows in the asked order, all of them (the grid pages after sorting). Stable: ties keep rank order; unknown
+ *  values go last either way. outcomes: the History column's answers. */
+export function sortReleases(items: Candidate[], sort: ReleaseSort, outcomes?: Releases["outcomes"]): Candidate[] {
   const byRank = items.map((c, i) => ({ c, i })).sort((a, b) => (a.c.rank ?? a.i) - (b.c.rank ?? b.i) || a.i - b.i);
   const sign = sort.dir === "desc" ? -1 : 1;
   return byRank
-    .map((x, i) => ({ c: x.c, i, v: valueOf(x.c, sort.key) }))
+    .map((x, i) => ({ c: x.c, i, v: valueOf(x.c, sort.key, outcomes) }))
     .sort((a, b) => {
       if (a.v === undefined || b.v === undefined) return (a.v === undefined ? 1 : 0) - (b.v === undefined ? 1 : 0) || a.i - b.i;
       const d = typeof a.v === "string" ? a.v.localeCompare(b.v as string) : a.v - (b.v as number);
@@ -148,22 +170,60 @@ export function sortReleases(items: Candidate[], sort: ReleaseSort): Candidate[]
     .map((x) => x.c);
 }
 
-/** reason: a rejection reason code picked from the summary chips (interactive search); "" none. */
-export type ReleaseFilter = { text: string; accepted: boolean; cached: boolean; packs: boolean; reason?: string };
+/** cached: "" any release, CACHED_ANY cached on some provider, else one provider's code. indexer, quality,
+ *  language: one value from the list ("" any). reason: a rejection reason code picked from the summary chips
+ *  (interactive search); "" none. */
+export type ReleaseFilter = {
+  text: string;
+  accepted: boolean;
+  cached: string;
+  packs: boolean;
+  indexer: string;
+  quality: string;
+  language: string;
+  reason?: string;
+};
 
-export const NO_FILTER: ReleaseFilter = { text: "", accepted: false, cached: false, packs: false };
+export const CACHED_ANY = "*";
 
-/** The rows the filters keep: every word in the name, indexer, quality or languages; accepted only; cached only;
- *  packs only; rejected for the picked reason. */
+export const NO_FILTER: ReleaseFilter = { text: "", accepted: false, cached: "", packs: false, indexer: "", quality: "", language: "" };
+
+/** The rows the filters keep: every word in the name, indexer, quality or languages; accepted only; cached (anywhere
+ *  or on one provider); packs only; the picked indexer, quality or language; rejected for the picked reason. */
 export function filterReleases(items: Candidate[], f: ReleaseFilter): Candidate[] {
   const match = wordMatcher(f.text);
   return items.filter((c) => {
     if (f.accepted && !c.accepted) return false;
     if (f.reason && (c.accepted || !(c.rejections ?? []).some((r) => r.reason === f.reason))) return false;
-    if (f.cached && !c.cached_on?.length) return false;
+    if (f.cached === CACHED_ANY ? !c.cached_on?.length : f.cached && !(c.cached_on ?? []).includes(f.cached)) return false;
+    if (f.indexer && c.indexer !== f.indexer) return false;
+    if (f.quality && c.quality !== f.quality) return false;
+    if (f.language && !(c.languages ?? []).includes(f.language)) return false;
     if (f.packs && (c.episodes?.length ?? 0) <= 1) return false;
     return match(c.release, c.indexer, c.quality, ...(c.languages ?? []));
   });
+}
+
+/** The values the indexer, quality, language and cached-on filters offer: those in this search's releases (all of
+ *  them, not only the shown page); qualities best first, the rest A to Z. */
+export function filterChoices(items: Candidate[]): { indexer: string[]; quality: string[]; language: string[]; cached: string[] } {
+  const indexer = new Set<string>();
+  const quality = new Map<string, number>();
+  const language = new Set<string>();
+  const cached = new Set<string>();
+  for (const c of items) {
+    if (c.indexer) indexer.add(c.indexer);
+    if (c.quality) quality.set(c.quality, Math.max(quality.get(c.quality) ?? 0, c.quality_rank ?? 0));
+    for (const l of c.languages ?? []) language.add(l);
+    for (const p of c.cached_on ?? []) cached.add(p);
+  }
+  const az = (s: Set<string>) => [...s].sort((a, b) => a.localeCompare(b));
+  return {
+    indexer: [...indexer].sort((a, b) => indexerWords(a).localeCompare(indexerWords(b))),
+    quality: [...quality].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([q]) => q),
+    language: az(language),
+    cached: az(cached),
+  };
 }
 
 /** How long ago it was published: "12 min", "5 h", "468 d"; "—" when unknown. */
