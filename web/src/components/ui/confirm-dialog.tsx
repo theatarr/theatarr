@@ -40,8 +40,11 @@ export function ConfirmDialog({
   children,
   testid,
   does,
+  top,
 }: {
   scope: Scope;
+  /** A choice the scope depends on (the library a selection is removed from), above "This will". */
+  top?: ReactNode;
   /** Replaces the "This will" list (the settings confirmation groups the server's effects by library). */
   does?: ReactNode;
   /** What the action is about (a title, a release), shown above the heading. */
@@ -78,6 +81,7 @@ export function ConfirmDialog({
         </Button>
       </div>
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4 text-sm">
+        {top}
         <div>
           <div className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.05em] text-[var(--ink-3)]">This will</div>
           {does ?? (

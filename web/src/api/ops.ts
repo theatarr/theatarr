@@ -2,7 +2,7 @@
 // download, unblock a release, remove a copy or a title, unlink a library file. Managers and admins only (the server
 // answers 403 to anyone else); every action is recorded in the journal with who did it. Removal never touches a
 // debrid torrent (they are shared) and an unlink moves only Theatarr's own symlink to the trash.
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, qs, type Schemas } from "./client";
 import { qk, titleChanged } from "./query-keys";
 import { toast } from "@/components/toaster";
@@ -15,6 +15,7 @@ export type RemovalScope = Schemas["RemovalScope"];
 export type RemovalCopy = Schemas["RemovalCopy"];
 export type RemoveRequest = Schemas["RemoveRequest"];
 export type RemoveResult = Schemas["RemoveResult"];
+export type BulkRemovalScope = Schemas["BulkRemovalScope"];
 export type UnlinkResult = Schemas["UnlinkResult"];
 export type ReassignRequest = Schemas["ReassignRequest"];
 export type ReassignResult = Schemas["ReassignResult"];
@@ -24,8 +25,8 @@ export type RetryResult = Schemas["RetryResult"];
 export type UnblockRequest = Schemas["UnblockRequest"];
 export type UnblockResult = Schemas["UnblockResult"];
 
-/** After an action: the title's views, the activity and the journal. */
-function useRefresh() {
+/** After an action: the title's views (every title's lists without one), the activity and the journal. */
+export function useRefresh() {
   const qc = useQueryClient();
   return (titleId?: number) => {
     for (const queryKey of [...titleChanged(titleId || undefined), qk.activity.all, qk.journal.all]) {
@@ -68,6 +69,32 @@ export function useRemove(titleId: number) {
     onSuccess: () => refresh(titleId),
   });
 }
+
+/** POST /titles/removal takes at most this many titles (internal/web maxBulkTitles). */
+const SCOPE_CHUNK = 500;
+
+/** The selection bar's Remove: each title's removal scope (versions: the one library; none: the whole title), read
+ *  once while enabled; the previous answer stays up while the library changes. */
+export function useBulkRemovalScope(titleIds: number[], versions: string[], enabled: boolean) {
+  return useQuery({
+    queryKey: ["bulk-removal", titleIds.join(), versions.join()],
+    queryFn: async () => {
+      const out: BulkRemovalScope = { scopes: [], skipped: [] };
+      for (let i = 0; i < titleIds.length; i += SCOPE_CHUNK) {
+        const r = await api<BulkRemovalScope>("/titles/removal", { method: "POST", body: { title_ids: titleIds.slice(i, i + SCOPE_CHUNK), versions } });
+        out.scopes.push(...r.scopes);
+        out.skipped.push(...r.skipped);
+      }
+      return out;
+    },
+    enabled: enabled && titleIds.length > 0,
+    staleTime: 0,
+    placeholderData: keepPreviousData,
+  });
+}
+
+/** One title's removal, for a loop over a selection (the single dialog's useRemove does the same call). */
+export const removeTitle = (titleId: number, body: RemoveRequest) => api<RemoveResult>(`/titles/${titleId}/remove`, { method: "POST", body });
 
 export function useUnlink(titleId: number) {
   const refresh = useRefresh();

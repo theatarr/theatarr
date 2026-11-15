@@ -372,14 +372,14 @@ describe("Library table", () => {
     expect(within(bar).getByText("2 titles selected")).toBeTruthy();
     // A manager (here also admin) gets Search now.
     expect(within(bar).getByRole("button", { name: "Search now" })).toBeTruthy();
-    await user.selectOptions(within(bar).getByRole("combobox", { name: "Target libraries" }), "tv-2160p");
-    expect(within(bar).getByTestId("bulk-local").textContent).toContain("2 editable libraries");
     expectNamedControls();
-    await user.click(within(bar).getByRole("button", { name: "Review changes" }));
+    await user.click(within(bar).getByRole("button", { name: "Monitor" }));
     const dialog = await screen.findByRole("dialog", { name: "Review bulk edit" });
+    await user.selectOptions(within(dialog).getByRole("combobox", { name: "Libraries" }), "tv-2160p");
+    await waitFor(() => expect(fetch.calls("POST", "/titles/monitor")).toHaveLength(2));
     await within(dialog).findByText("Would monitor 1 library · 1 already monitored");
     expect(within(within(dialog).getByTestId("bulk-same")).getByText("The Pellbrook Inquiries")).toBeTruthy();
-    expect(fetch.calls("POST", "/titles/monitor")[0].body).toEqual({ title_ids: [1, 2], versions: ["tv-2160p"], monitored: true, dry_run: true });
+    expect(fetch.calls("POST", "/titles/monitor")[1].body).toEqual({ title_ids: [1, 2], versions: ["tv-2160p"], monitored: true, dry_run: true });
     await user.click(within(dialog).getByRole("button", { name: "Apply to 1 library" }));
     await within(dialog).findByText("Monitored 1 library · 1 already monitored");
     const calls = fetch.calls("POST", "/titles/monitor");

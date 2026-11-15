@@ -87,6 +87,7 @@ func (w *Web) mountOpsAPI(mux *http.ServeMux) {
 	w.handle(mux, "POST "+b+"/titles/{id}/releases/add", SignedIn, auth.PermAdmin, w.apiAddRelease)
 	w.handle(mux, "GET "+b+"/titles/{id}/removal", SignedIn, auth.PermManage, w.apiRemovalScope)
 	w.handle(mux, "POST "+b+"/titles/{id}/remove", SignedIn, auth.PermManage, w.apiRemove)
+	w.handle(mux, "POST "+b+"/titles/removal", SignedIn, auth.PermManage, w.apiBulkRemovalScope)
 	w.handle(mux, "POST "+b+"/links/{id}/unlink", SignedIn, auth.PermManage, w.apiUnlink)
 	w.handle(mux, "POST "+b+"/activity/downloads/{id}/remove", SignedIn, auth.PermManage, w.apiRemoveDownload)
 	w.handle(mux, "POST "+b+"/activity/downloads/{id}/retry", SignedIn, auth.PermManage, w.apiRetryDownload)
@@ -820,6 +821,64 @@ func (w *Web) apiRemovalScope(rw http.ResponseWriter, r *http.Request) {
 	default:
 		writeJSON(rw, http.StatusOK, s)
 	}
+}
+
+// BulkRemovalRequest is the body of POST /titles/removal: the selection bar's titles, and the library to remove them
+// from (none: every library, the whole title).
+type BulkRemovalRequest struct {
+	TitleIDs []int64  `json:"title_ids"`
+	Versions []string `json:"versions"`
+}
+
+// BulkRemovalSkip is a title the bulk removal leaves out, and why.
+type BulkRemovalSkip struct {
+	TitleID int64  `json:"title_id"`
+	Reason  string `json:"reason"`
+}
+
+// BulkRemovalScope is each title's removal scope, for the selection bar's Remove dialog; its removal then runs title by
+// title through POST /titles/{id}/remove.
+type BulkRemovalScope struct {
+	Scopes  []RemovalScope    `json:"scopes"`
+	Skipped []BulkRemovalSkip `json:"skipped"`
+}
+
+// POST /titles/removal {title_ids, versions}: GET /titles/{id}/removal for each title. A title with nothing to remove
+// (not in that library, in no library, gone) is skipped with the reason.
+func (w *Web) apiBulkRemovalScope(rw http.ResponseWriter, r *http.Request) {
+	var req BulkRemovalRequest
+	if err := decodeJSON(r, &req); err != nil {
+		badRequest(rw, "invalid JSON: "+err.Error())
+		return
+	}
+	ids := slices.Compact(slices.Sorted(slices.Values(req.TitleIDs)))
+	if len(ids) == 0 || len(ids) > maxBulkTitles {
+		badRequest(rw, fmt.Sprintf("title_ids must name 1 to %d titles", maxBulkTitles))
+		return
+	}
+	keys := splitKeys(strings.Join(req.Versions, ","))
+	out := BulkRemovalScope{Scopes: []RemovalScope{}, Skipped: []BulkRemovalSkip{}}
+	none := "in no library"
+	if len(keys) > 0 {
+		none = "not in this library"
+	}
+	for _, id := range ids {
+		s, err := w.removalScope(r.Context(), id, keys)
+		switch {
+		case errors.Is(err, errBadRemoval):
+			out.Skipped = append(out.Skipped, BulkRemovalSkip{TitleID: id, Reason: none})
+		case err != nil:
+			w.internal(rw, err)
+			return
+		case s == nil:
+			out.Skipped = append(out.Skipped, BulkRemovalSkip{TitleID: id, Reason: "no longer exists"})
+		case len(s.Copies) == 0:
+			out.Skipped = append(out.Skipped, BulkRemovalSkip{TitleID: id, Reason: none})
+		default:
+			out.Scopes = append(out.Scopes, *s)
+		}
+	}
+	writeJSON(rw, http.StatusOK, out)
 }
 
 // RemoveRequest is the body of POST /titles/{id}/remove.

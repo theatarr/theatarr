@@ -23,15 +23,14 @@ function setup(n: number, routes: Route[]) {
   return api;
 }
 
-/** Pick the library, press Search now and confirm. */
-async function searchNow(n: number) {
+/** Press Search now and confirm. */
+async function searchNow(n: number, searches = n) {
   const user = userEvent.setup();
-  const bar = screen.getByRole("region", { name: "Bulk edit" });
-  await user.selectOptions(within(bar).getByLabelText("Target libraries"), "movies-hd");
+  const bar = await screen.findByRole("region", { name: "Bulk edit" });
   await user.click(await within(bar).findByRole("button", { name: "Search now" }));
-  const dialog = await screen.findByRole("dialog", { name: `Search ${n} titles in HD` });
+  const dialog = await screen.findByRole("dialog", { name: `Search ${n} titles` });
   await waitFor(() => expect(within(dialog).getByTestId("bulk-search-estimate").textContent).toBe("Searches start as the hourly limit allows: up to 20 an hour."));
-  await user.click(within(dialog).getByRole("button", { name: `Queue ${n} titles` }));
+  await user.click(within(dialog).getByRole("button", { name: `Queue ${searches} searches` }));
   return bar;
 }
 
@@ -41,23 +40,32 @@ describe("Bulk Search now", () => {
     expect(await screen.findByRole("button", { name: "Search now" })).toBeTruthy();
   });
 
-  it("is hidden without manage", async () => {
+  it("has no bar without manage", async () => {
     const api = setup(3, [me(["see_files"])]);
     await waitFor(() => expect(api.calls("GET", "/auth/me")).toHaveLength(1));
     await new Promise((r) => setTimeout(r, 20));
-    const bar = screen.getByRole("region", { name: "Bulk edit" });
-    expect(within(bar).getByRole("button", { name: "Review changes" })).toBeTruthy();
-    expect(within(bar).queryByRole("button", { name: "Search now" })).toBeNull();
-    expect(api.calls("GET", "/wanted")).toHaveLength(0);
+    expect(screen.queryByRole("region", { name: "Bulk edit" })).toBeNull();
   });
 
-  it("needs one library, and asks nothing of the server until confirmed", async () => {
-    const api = setup(3, [me(["manage", "admin"])]);
-    const button = await screen.findByRole("button", { name: "Search now" }) as HTMLButtonElement;
-    expect(button.disabled).toBe(true);
-    expect(screen.getByText("Search now needs one library: pick it above.")).toBeTruthy();
-    expect(screen.getByTestId("bulk-local").textContent).toContain("No search is started.");
-    expect(api.calls("GET", "/wanted")).toHaveLength(0);
+  it("searches every library each title is monitored in, without picking one; a title monitored nowhere is left out", async () => {
+    const titles = [
+      { id: 1, kind: "movie", name: "Film 1", versions: [{ key: "movies-hd", label: "HD", monitored: true }, { key: "movies-4k", label: "4K", monitored: true }] },
+      { id: 2, kind: "movie", name: "Film 2", versions: [{ key: "movies-hd", label: "HD", monitored: false }] },
+      { id: 3, kind: "movie", name: "Film 3", versions: [{ key: "movies-4k", label: "4K", monitored: true }] },
+    ] as unknown as TitleRow[];
+    const api = mockFetch([me(["manage"]), wanted, { method: "POST", path: "/wanted/search", reply: answer({ queued: 3, started: 3 }) }]);
+    renderPage(<BulkBar titles={titles} columns={columns} onClear={() => {}} />);
+    expect(await screen.findByText("3 titles selected")).toBeTruthy();
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Search now" }));
+    const dialog = await screen.findByRole("dialog", { name: "Search 3 titles" });
+    expect(within(dialog).getByTestId("confirm-does").textContent).toContain("for 2 titles in every library each is monitored in (3 searches)");
+    expect(within(dialog).getByTestId("confirm-keeps").textContent).toContain("1 title monitored in no library: not searched");
+    await user.click(within(dialog).getByRole("button", { name: "Queue 3 searches" }));
+    await screen.findByTestId("bulk-search-result");
+    expect(api.calls("POST", "/wanted/search")[0].body).toEqual({ only: "missing", items: [
+      { title_id: 1, version: "movies-hd" }, { title_id: 1, version: "movies-4k" }, { title_id: 3, version: "movies-4k" },
+    ] });
   });
 
   it("sends 3 titles in one request and shows the answer", async () => {
@@ -69,7 +77,7 @@ describe("Bulk Search now", () => {
     expect(posts).toHaveLength(1);
     expect(posts[0].body).toEqual({ only: "missing", items: [1, 2, 3].map((id) => ({ title_id: id, version: "movies-hd" })) });
     expect(result.textContent).toMatch(/^Queued 3 searches\. 2 started now, 1 waiting in the queue\. Wanted$/);
-    expect(within(result).getByRole("link", { name: "Wanted" }).getAttribute("href")).toBe("/wanted?version=movies-hd");
+    expect(within(result).getByRole("link", { name: "Wanted" }).getAttribute("href")).toBe("/wanted");
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
@@ -118,6 +126,6 @@ describe("Bulk Search now", () => {
     const bar = await searchNow(450);
     const result = await within(bar).findByTestId("bulk-search-result");
     expect(api.calls("POST", "/wanted/search")).toHaveLength(2);
-    expect(result.textContent).toBe("Queued 200 searches. 4 started now, 196 waiting in the queue. Stopped after 200 of 450 titles: Theatarr is paused, so nothing can be searched. Wanted");
+    expect(result.textContent).toBe("Queued 200 searches. 4 started now, 196 waiting in the queue. Stopped after 200 of 450 searches: Theatarr is paused, so nothing can be searched. Wanted");
   });
 });

@@ -197,6 +197,48 @@ export function removalScope(s: RemovalScopeLike, files: boolean, debrid = files
   };
 }
 
+/** A short list of names: "Alpha, Beta, Gamma and 9 more". */
+export function someNames(names: readonly string[], shown = 3): string {
+  if (names.length <= shown + 1) return names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}` : (names[0] ?? "");
+  return `${names.slice(0, shown).join(", ")} and ${names.length - shown} more`;
+}
+
+/** The selection bar's Remove: removalScope's lines with the titles' counts summed. library: the one library the
+ *  titles are removed from (Remove from a library); none removes each whole title. */
+export function bulkRemovalScope(scopes: readonly RemovalScopeLike[], files: boolean, debrid = files, library?: string): Scope {
+  debrid = files && debrid;
+  const n = scopes.length;
+  const one = n === 1;
+  const sum = (f: (s: RemovalScopeLike) => number) => scopes.reduce((t, s) => t + f(s), 0);
+  const links = sum((s) => s.copies.reduce((t, c) => t + c.links, 0) + (files ? (s.leftover ?? []).reduce((t, c) => t + c.links, 0) : 0));
+  const arr = sum((s) => s.copies.reduce((t, c) => t + (c.arr_files ?? 0), 0));
+  const downloads = sum((s) => s.copies.reduce((t, c) => t + c.downloads, 0));
+  // Titles the removal takes out of every library: all of them without a library, else those with no other.
+  const whole = scopes.filter((s) => s.title).length;
+  const they = one ? "It is" : "They are";
+  const does = [
+    library
+      ? `${plural(n, "title")} ${one ? "is" : "are"} removed from ${library}: ${one ? "it stops" : "they stop"} being wanted, searched or upgraded there`
+      : `${plural(n, "title")} ${one ? "is" : "are"} removed from every library ${one ? "it is" : "they are"} in: ${one ? "it stops" : "they stop"} being wanted, searched or upgraded`,
+  ];
+  if (library && whole > 0) does.push(`${plural(whole, "title")} ${whole === 1 ? "is in no other library and leaves" : "are in no other library and leave"} the library`);
+  does.push(`${they} hidden from Seerr and the other arr clients`);
+  if (downloads > 0) does.push(`Theatarr stops following ${plural(downloads, "download")} in progress`);
+  if (files && links > 0) does.push(`${plural(links, "library file")} ${links === 1 ? "is" : "are"} deleted from the library (moved to Theatarr's trash), and the folders they leave empty are removed`);
+  if (debrid) does.push(one ? REMOVAL_CLEANUP : "Their debrid torrents are deleted from the providers, after a backup, unless another title or library in Theatarr uses them");
+  const keeps = [
+    ...(files
+      ? whole < n ? [SHARED_FILE_STAYS] : []
+      : links === 0 ? [] : [`${plural(links, "library file")} ${links === 1 ? "stays" : "stay"} linked and playable`]),
+    ...(arr > 0 ? [arrFilesStay(arr)] : []),
+    ...(debrid ? [] : [one ? "Its debrid torrents stay" : "Their debrid torrents stay"]),
+    one ? "Its history stays" : "Their history stays",
+    one ? REMOVAL_LISTS : "Import lists will not restore the removed libraries; add them yourself to bring them back",
+  ];
+  const title = library ? `Remove ${plural(n, "title")} from ${library}` : `Remove ${plural(n, "title")}`;
+  return { title, does, keeps, confirm: title, cleanup: debrid ? undefined : UNUSED_TORRENTS, blocked: n === 0 ? "Nothing to remove" : undefined };
+}
+
 export function unlinkScope(path: string, copy: string): Scope {
   return {
     title: "Unlink this file",

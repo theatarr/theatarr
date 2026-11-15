@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  bulkRemovalScope,
+  someNames,
   endedByRemoval,
   failedDownloadId,
   leftoverOnly,
@@ -185,5 +187,26 @@ describe("recovery scopes", () => {
     const late = grabScope({ release: "Dune.WEB", accepted: true, info_hash: "ab" }, "4K WEB", ["blocklisted"]);
     expect(late.confirm).toBe("Grab anyway");
     expect(grabScope({ release: "x", accepted: true }, "4K").blocked).toMatch(/no info hash/);
+  });
+});
+
+describe("bulkRemovalScope", () => {
+  const s = (name: string, links: number, title = true, leftover = 0) => ({ name, title, copies: [{ key: "hd", label: "HD", links, downloads: 0 }], leftover: leftover ? [{ key: "old", label: "Old", links: leftover, downloads: 0 }] : [] });
+
+  it("sums the files, leftovers included only when the files are deleted", () => {
+    const sc = bulkRemovalScope([s("A", 2), s("B", 3, true, 4)], true);
+    expect(sc.title).toBe("Remove 2 titles");
+    expect(sc.does).toContain("9 library files are deleted from the library (moved to Theatarr's trash), and the folders they leave empty are removed");
+    const keep = bulkRemovalScope([s("A", 2), s("B", 3, true, 4)], false);
+    expect(keep.keeps).toContain("5 library files stay linked and playable");
+    expect(keep.keeps).toContain("Their debrid torrents stay");
+    expect(keep.cleanup?.to).toBe("/admin/torrents?group=unused");
+    expect(bulkRemovalScope([], true).blocked).toBe("Nothing to remove");
+  });
+
+  it("names a few titles and counts the rest", () => {
+    expect(someNames(["A"])).toBe("A");
+    expect(someNames(["A", "B", "C", "D"])).toBe("A, B, C and D");
+    expect(someNames(["A", "B", "C", "D", "E"])).toBe("A, B, C and 2 more");
   });
 });

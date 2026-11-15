@@ -114,11 +114,14 @@ export function useAddTitle() {
   });
 }
 
+/** PUT /titles/{id}/versions/{key}: add the title to a library (monitored), or stop monitoring it there. Never searches. */
+export const setVersion = (titleId: number, key: string, monitored: boolean) =>
+  api<AddedTitle>(`/titles/${titleId}/versions/${encodeURIComponent(key)}`, { method: "PUT", body: { monitored } });
+
 export function useSetVersion(titleId: number) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ key, monitored }: { key: string; monitored: boolean }) =>
-      api<AddedTitle>(`/titles/${titleId}/versions/${encodeURIComponent(key)}`, { method: "PUT", body: { monitored } }),
+    mutationFn: ({ key, monitored }: { key: string; monitored: boolean }) => setVersion(titleId, key, monitored),
     onSuccess: () => refreshTitle(qc, titleId),
   });
 }

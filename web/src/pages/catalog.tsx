@@ -393,7 +393,7 @@ export function Catalog({ id }: { id: CatalogId }) {
         </>
       )}
       {grid.isFetchingNextPage ? <Loading label="Loading more" /> : null}
-      {selecting ? <BulkBar titles={chosenTitles} columns={libraries} onClear={() => setChosen(new Set())} /> : null}
+      {selecting ? <BulkBar titles={chosenTitles} columns={libraries} kinds={kind ? [kind] : ["movie", "series"]} anime={cat.anime} onClear={() => setChosen(new Set())} /> : null}
       {dialog === "columns" ? <ColumnPicker label="Columns" note="Title always stays. On a phone the chosen columns show as lines under each title." columns={offered} prefs={columnsPref} onChange={saveColumns} onClose={() => setDialog(null)} /> : null}
       {dialog === "posters" ? <PosterOptions catalog={id} prefs={postersPref} seeFiles={perms.seeFiles} onChange={savePosters} onClose={() => setDialog(null)} /> : null}
       <FilterSheet open={sheet} onClose={() => setSheet(false)}>
