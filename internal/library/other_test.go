@@ -150,8 +150,8 @@ func TestOtherLibrarySkipped(t *testing.T) {
 	}
 }
 
-// The second library's import fails (its root is gone): the first stays imported, and the second library's download
-// ends failed with its reason, tried once.
+// The second library's import fails (its root is gone): the first stays imported, and the second library is left
+// with no trace: no download, no History.
 func TestOtherLibraryFailureKeepsSource(t *testing.T) {
 	t.Parallel()
 	e, web := otherEnv(t, "movie-state")
@@ -162,6 +162,27 @@ func TestOtherLibraryFailureKeepsSource(t *testing.T) {
 	if _, err := e.lib.Import(e.ctx, 1, false); err != nil {
 		t.Fatal(err)
 	}
+	e.otherLeftNoTrace(t)
+}
+
+// The second library's import is held after probing the file (here a naming collision with another title's link):
+// the second library is left with no trace either.
+func TestOtherLibraryHeldLeavesNoTrace(t *testing.T) {
+	t.Parallel()
+	e, web := otherEnv(t, "movie-state")
+	p := filepath.Join(web, "Amelie The Movie (2001)",
+		"Amelie The Movie (2001) {imdb-tt0211915} - [Remux-2160p][TrueHD Atmos 7.1][HDR10][HEVC]-GRP.mkv")
+	e.exec(`INSERT INTO link (id, path, target, kind, title_id, release_title, state, created_at, updated_at)
+		VALUES (5, ?, '/elsewhere.mkv', 'symlink', 2, 'Show', 'active', 0, 0)`, p)
+	if _, err := e.lib.Import(e.ctx, 1, false); err != nil {
+		t.Fatal(err)
+	}
+	e.otherLeftNoTrace(t)
+}
+
+// otherLeftNoTrace: download 1 imported into movie-remux, and movie-web holds nothing from it.
+func (e *env) otherLeftNoTrace(t *testing.T) {
+	t.Helper()
 	if got := e.one(`SELECT state FROM download WHERE id = 1`); got != "imported" {
 		t.Fatalf("source %s", got)
 	}
@@ -169,13 +190,20 @@ func TestOtherLibraryFailureKeepsSource(t *testing.T) {
 		AND l.state = 'active'`); got != "1" {
 		t.Fatalf("movie-remux links %s", got)
 	}
-	got := e.one(`SELECT state || ' ' || error FROM download WHERE source = 'library:movie-remux'`)
-	if !strings.HasPrefix(got, "failed library: ") {
-		t.Fatalf("other download %s", got)
+	if got := e.one(`SELECT group_concat(id) FROM download`); got != "1" {
+		t.Errorf("downloads %s", got)
 	}
-	if got := e.one(`SELECT group_concat(h.event, ' ') FROM history h JOIN download d ON d.id = h.download_id
-		WHERE d.source = 'library:movie-remux' AND h.ref LIKE '%:fail'`); got != "failed" {
-		t.Errorf("failed history %s", got)
+	if got := e.one(`SELECT COUNT(*) FROM library_import WHERE download_id <> 1`); got != "0" {
+		t.Errorf("other imports %s", got)
+	}
+	if got := e.one(`SELECT COUNT(*) FROM library_action WHERE download_id <> 1`); got != "0" {
+		t.Errorf("other actions %s", got)
+	}
+	if got := e.one(`SELECT COUNT(*) FROM history WHERE download_id <> 1 OR version_key = 'movie-web'`); got != "0" {
+		t.Errorf("other history %s", got)
+	}
+	if got := e.webLinks(); got != "0" {
+		t.Errorf("movie-web links %s", got)
 	}
 }
 

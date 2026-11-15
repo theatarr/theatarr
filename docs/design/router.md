@@ -1451,17 +1451,22 @@ files under B's upgrade setting, prefer-SeaDex's same-torrent rule), `screenUpgr
 a file) and the queue checks (`movieInFlight`, `episodesInFlight`). Accepted: a download of B for the same torrent is
 written ready (`reused`, never our add, source `library:<A>`, with B's quality, score, formats and episodes) and
 imported at once through the ordinary import (`Library.Import`): B's naming and root, its links, version and
-episode states, History (its grabbed row written as a manual import's, then its import or failure row by the
-ordinary writers), requests and Plex scan. Rejected, skipped, busy or unreadable: nothing is stored or
-retried; B's own search or RSS finds what it wants later. B's import is its own and tried once: if it does not go
-through at once (a failure, a mount wait, a partial import) B's download ends failed with its reason, a normal
-failed row in Activity that an admin can Retry; it never undoes or holds A's. A download that was itself linked
+episode states, History (its grabbed row written as a manual import's, then its import row by the ordinary
+writers), requests and Plex scan. Rejected, skipped, busy or unreadable: nothing is stored or retried; B's own search
+or RSS finds what it wants later. B's import is its own and tried once: if it does not end imported at once (a
+failure, a mount wait, or an import held after probing the file: not an upgrade by the file's real facts, a
+prefer-SeaDex file veto, no file matched, a naming collision) B's download is deleted with its import, its library
+actions and its History rows (`dl:<id>`, `:held`, `:import`, `:fail`), so B, which never asked for the grab, keeps
+no trace in Activity or History. Only a partial import (some files linked) ends failed with its reason, a normal
+failed row in Activity that an admin can Retry. A download another run already claimed is left to that run. B's
+import never undoes or holds A's. A download that was itself linked
 this way tries no further library (A's pass covers them all). Files adopted from Sonarr/Radarr are not tried, old
 adopted links with a stored source (`link.adopted_source`) included: since 00134 an adoption records no hash, provider
 or indexer, so nothing can be decided or checked for them; the one-time import is run for each library that should
 have the files. Code: `internal/library/other.go`, the decision
 `router.DecideOther` and `router.ScreenOther`. Tests: `TestOtherLibraryLinkedAtImport`, `TestOtherLibraryRejects`,
-`TestOtherLibrarySkipped`, `TestOtherLibraryFailureKeepsSource`, `TestOtherLibraryRouteRules`,
+`TestOtherLibrarySkipped`, `TestOtherLibraryFailureKeepsSource`, `TestOtherLibraryHeldLeavesNoTrace`,
+`TestOtherLibraryRouteRules`,
 `TestOtherLibrarySeaDexPreferred`.
 
 Until 0.4.5 this was the offer machine (`router_offer`, retries every 15 minutes then daily, planned offers, a

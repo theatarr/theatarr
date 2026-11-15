@@ -23,8 +23,9 @@ import (
 // and not removed, its gate open, nothing in flight and not hold the hash already, nor have blocklisted it. B's own
 // decision judges the release against B's current files; accepted, a download of B for the same torrent is written
 // ready and imported at once through the ordinary import. Nothing is stored for a library that is skipped or
-// rejects it, and nothing is retried: a B download whose import does not go through at once ends failed with its
-// reason (Retry in Activity). B's import never touches A's.
+// rejects it, and nothing is retried: a B download whose import does not go through at once (held after probing
+// the file, files not ready, an error) is deleted with its import and History rows, leaving B no trace; one that
+// linked some files ends failed with its reason. B's import never touches A's.
 
 // OtherSourcePrefix starts the source of a download linked from another library's import: "library:<A's key>".
 const OtherSourcePrefix = "library:"
@@ -161,11 +162,13 @@ func (l *Library) tryOther(ctx context.Context, d *importDownload, t decide.Titl
 			return id, "", nil
 		}
 	}
-	// Tried once: anything but a finished import ends the download failed, with its reason.
+	if errors.Is(err, ErrClaimed) {
+		return id, "", nil // another run is importing it
+	}
+	// Tried once: anything but a finished import leaves B as it was. B never asked for this grab, so its download,
+	// import and History rows go; one that linked some files (partial) ends failed with its reason instead.
 	why = "it did not import at once"
 	switch {
-	case errors.Is(err, ErrClaimed):
-		return id, "", nil // another run is importing it
 	case err != nil:
 		why = err.Error()
 	case plan != nil && plan.Waiting:
@@ -174,6 +177,21 @@ func (l *Library) tryOther(ctx context.Context, d *importDownload, t decide.Titl
 	msg := fmt.Sprintf("library: linking from %s's import: %s", d.Version.Key, why)
 	now := store.Millis(l.now())
 	if ferr := l.st.WriteTx(ctx, func(tx *sql.Tx) error {
+		var linked bool
+		if err := tx.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM link WHERE download_id = ?)`, id).Scan(
+			&linked); err != nil {
+			return err
+		}
+		if !linked {
+			for _, q := range []string{`DELETE FROM history WHERE ref IN ('dl:' || ?1, 'dl:' || ?1 || ':held',
+				'dl:' || ?1 || ':import', 'dl:' || ?1 || ':fail')`, `DELETE FROM library_action WHERE download_id = ?1`,
+				`DELETE FROM download WHERE id = ?1`} {
+				if _, err := tx.ExecContext(ctx, q, id); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
 		if _, err := tx.ExecContext(ctx, `UPDATE download SET state = 'failed', error = ?, updated_at = ?
 			WHERE id = ? AND state IN ('ready', 'importing')`, msg, now, id); err != nil {
 			return err
