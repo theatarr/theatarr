@@ -151,27 +151,6 @@ func (w *Web) inHand(ctx context.Context, db *sql.DB, titleIDs []int64) (copyRea
 	return out, nil
 }
 
-// heldEpisodes are the (version, episode) pairs whose episode a current file or an active link of the version holds,
-// for the versions given.
-func heldEpisodes(ctx context.Context, db *sql.DB, versionIDs []any) (map[[2]int64]bool, error) {
-	held := map[[2]int64]bool{}
-	if len(versionIDs) == 0 {
-		return held, nil
-	}
-	in := store.Placeholders(len(versionIDs))
-	add := func(r *sql.Rows) error {
-		var vid, eid int64
-		if err := r.Scan(&vid, &eid); err != nil {
-			return err
-		}
-		held[[2]int64{vid, eid}] = true
-		return nil
-	}
-	err := scanAll(ctx, db, `SELECT lv.version_id, le.episode_id FROM link l JOIN link_version lv ON lv.link_id = l.id
-		JOIN link_episode le ON le.link_id = l.id WHERE lv.version_id IN (`+in+`) AND l.state = 'active'`, versionIDs, add)
-	return held, err
-}
-
 // fillCopies adds the library views' per-copy reads to list rows: each version's control (ownership), a series
 // copy's coverage and the acquisition in hand, and each title's network and next episode or release. Every query
 // covers the whole page; held is the page's held (version, episode) pairs (versionFiles).
@@ -449,21 +428,12 @@ func (w *Web) fillEpisodeAcquisition(ctx context.Context, db *sql.DB, out *Episo
 }
 
 // fillVersionAcquisition adds the acquisition in hand to the title page's versions, and sets the title's Acquiring
-// as the rows do (fillCopies), before any redaction: it carries no detail of the download.
-func (w *Web) fillVersionAcquisition(ctx context.Context, db *sql.DB, d *TitleDetail) error {
+// as the rows do (fillCopies), before any redaction: it carries no detail of the download. held is the versions'
+// held (version, episode) pairs (versionFiles).
+func (w *Web) fillVersionAcquisition(ctx context.Context, db *sql.DB, d *TitleDetail, held map[[2]int64]bool) error {
 	hand, err := w.inHand(ctx, db, []int64{d.ID})
 	if err != nil {
 		return err
-	}
-	var held map[[2]int64]bool
-	if d.Kind == "series" {
-		var vids []any
-		for _, v := range d.Versions {
-			vids = append(vids, v.ID)
-		}
-		if held, err = heldEpisodes(ctx, db, vids); err != nil {
-			return err
-		}
 	}
 	now := w.now()
 	for i := range d.Versions {
@@ -527,13 +497,14 @@ func copySortExpr(sort, key string, clock airClock) (string, []any) {
 		if key != "" {
 			args = append(args, key)
 		}
+		// The aired count is the title's, read once for all its copies.
 		return `(SELECT MAX(CASE WHEN t.kind = 'movie' THEN (CASE WHEN ` + hasFileSQL + ` THEN 1.0 ELSE 0.0 END) ELSE
-			(SELECT CAST(COUNT(DISTINCT le.episode_id) AS REAL) / NULLIF((SELECT COUNT(*) FROM episode e
-				WHERE e.title_id = t.id AND e.season > 0 AND ` + aired + `) + COUNT(DISTINCT CASE WHEN NOT ` + aired + `
+			(SELECT CAST(COUNT(DISTINCT le.episode_id) AS REAL) / NULLIF(a.n + COUNT(DISTINCT CASE WHEN NOT ` + aired + `
 				THEN le.episode_id END), 0) FROM link_version lv JOIN link l ON l.id = lv.link_id
 				JOIN link_episode le ON le.link_id = lv.link_id JOIN episode e ON e.id = le.episode_id
 				WHERE lv.version_id = v.id AND l.state = 'active' AND e.title_id = t.id AND e.season > 0) END)
-			FROM version v WHERE v.title_id = t.id AND ` + liveVersion + versionCond + `)`, args
+			FROM (SELECT COUNT(*) AS n FROM episode e WHERE e.title_id = t.id AND e.season > 0 AND ` + aired + `) a,
+			version v WHERE v.title_id = t.id AND ` + liveVersion + versionCond + `)`, args
 	case "quality":
 		// The quality each library's cell shows (briefFiles: the quality most of its current files have), the
 		// best of the libraries.

@@ -180,6 +180,7 @@ func (w *Web) enrichTitle(ctx context.Context, d *TitleDetail) error {
 		ids = append(ids, v.ID)
 	}
 	d.Franchises = []FranchiseRef{}
+	var held map[[2]int64]bool // the held (version, episode) pairs (versionFiles)
 	if len(ids) > 0 {
 		if err := scanAll(ctx, db, `SELECT v.id, `+availStateSQL(newAirClock(w.now()))+` FROM version v
 			WHERE v.title_id = ?`, []any{d.ID}, func(r *sql.Rows) error {
@@ -219,6 +220,7 @@ func (w *Web) enrichTitle(ctx context.Context, d *TitleDetail) error {
 			return err
 		}
 		aggs, provs := vf.aggs, vf.provs
+		held = vf.held
 		var added int64
 		var current []*Version
 		for id, v := range byID {
@@ -277,7 +279,7 @@ func (w *Web) enrichTitle(ctx context.Context, d *TitleDetail) error {
 		if err := w.enrichManage(ctx, db, d); err != nil {
 			return err
 		}
-		if err := w.fillVersionAcquisition(ctx, db, d); err != nil {
+		if err := w.fillVersionAcquisition(ctx, db, d, held); err != nil {
 			return err
 		}
 		vids := make([]int64, len(d.Versions))

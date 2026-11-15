@@ -790,7 +790,7 @@ func briefFiles(label string, aggs []fileAgg, provs []string) VersionFiles {
 // versionFiles is what the list rows read of their versions' current files (active links), once per page: the
 // files by quality (fileAgg) and the providers that hold them now, the files per episode (itemFile, as
 // loadItemFiles reads them but without the score: the rows' upgrade state does not use it) and the (version,
-// episode) pairs a file holds (heldEpisodes).
+// episode) pairs a file holds.
 type versionFiles struct {
 	aggs  map[int64][]fileAgg
 	provs map[int64][]string
@@ -930,21 +930,6 @@ func heldByHash(ctx context.Context, db *sql.DB, hashes ...string) (map[string][
 			out[h] = append(out[h], p)
 			return nil
 		})
-	return out, err
-}
-
-// scanProviders runs q, which yields (id, provider key) rows, and groups the keys by id.
-func scanProviders(ctx context.Context, db *sql.DB, q string, args []any) (map[int64][]string, error) {
-	out := map[int64][]string{}
-	err := scanAll(ctx, db, q, args, func(r *sql.Rows) error {
-		var id int64
-		var p string
-		if err := r.Scan(&id, &p); err != nil {
-			return err
-		}
-		out[id] = append(out[id], p)
-		return nil
-	})
 	return out, err
 }
 
