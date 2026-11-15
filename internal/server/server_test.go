@@ -2,6 +2,7 @@ package server
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"io"
@@ -314,5 +315,84 @@ func TestErrorInboxCapture(t *testing.T) {
 	}
 	if !strings.Contains(logs.String(), "handler panicked") {
 		t.Errorf("panic not logged: %s", logs.String())
+	}
+}
+
+// Text answers go out gzipped to a client that accepts it; the event stream, binary, small and already encoded
+// answers go out as they are.
+func TestGzipResponses(t *testing.T) {
+	s := New(Config{Logger: quiet, Registry: NewRegistry("test"), Version: "test"})
+	big := strings.Repeat(`{"title":"Friends"},`, 200)
+	s.Mux().HandleFunc("GET /json", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		io.WriteString(w, big)
+	})
+	s.Mux().HandleFunc("GET /sniffed", func(w http.ResponseWriter, r *http.Request) { io.WriteString(w, "<html>"+big) })
+	s.Mux().HandleFunc("GET /small", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Content-Length", "2")
+		io.WriteString(w, "{}")
+	})
+	s.Mux().HandleFunc("GET /png", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "image/png")
+		io.WriteString(w, big)
+	})
+	s.Mux().HandleFunc("GET /events", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		io.WriteString(w, "retry: 5000\n\n")
+		if err := http.NewResponseController(w).Flush(); err != nil {
+			t.Error(err)
+		}
+	})
+	h := s.Handler()
+	do := func(path, accept string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		if accept != "" {
+			req.Header.Set("Accept-Encoding", accept)
+		}
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		return rec
+	}
+	for _, path := range []string{"/json", "/sniffed"} {
+		rec := do(path, "gzip, deflate, br")
+		if rec.Header().Get("Content-Encoding") != "gzip" || rec.Header().Get("Vary") != "Accept-Encoding" {
+			t.Fatalf("%s: headers %v", path, rec.Header())
+		}
+		zr, err := gzip.NewReader(rec.Body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, _ := io.ReadAll(zr)
+		if !strings.HasSuffix(string(got), big) || rec.Body.Len() > len(big)/4 {
+			t.Fatalf("%s: body %d bytes compressed, %d plain", path, rec.Body.Len(), len(got))
+		}
+		if path == "/sniffed" && !strings.HasPrefix(rec.Header().Get("Content-Type"), "text/html") {
+			t.Fatalf("sniffed type %q", rec.Header().Get("Content-Type"))
+		}
+	}
+	if rec := do("/json", ""); rec.Header().Get("Content-Encoding") != "" || rec.Body.String() != big || rec.Header().Get("Vary") != "Accept-Encoding" {
+		t.Fatalf("no Accept-Encoding: %v", rec.Header())
+	}
+	if rec := do("/json", "gzip;q=0"); rec.Header().Get("Content-Encoding") != "" {
+		t.Fatal("gzip;q=0 compressed")
+	}
+	for _, path := range []string{"/small", "/png", "/events"} {
+		rec := do(path, "gzip")
+		if rec.Header().Get("Content-Encoding") != "" {
+			t.Fatalf("%s compressed", path)
+		}
+	}
+	if rec := do("/events", "gzip"); rec.Body.String() != "retry: 5000\n\n" || !rec.Flushed {
+		t.Fatalf("event stream: %q flushed=%v", rec.Body.String(), rec.Flushed)
+	}
+	// The metrics encode themselves.
+	if rec := do("/metrics", "gzip"); rec.Header().Get("Content-Encoding") != "gzip" {
+		t.Fatalf("metrics: %v", rec.Header())
+	} else if zr, err := gzip.NewReader(rec.Body); err != nil {
+		t.Fatal(err)
+	} else if plain, _ := io.ReadAll(zr); !strings.Contains(string(plain), "go_goroutines") {
+		t.Fatal("metrics encoded twice")
 	}
 }

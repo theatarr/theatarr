@@ -199,7 +199,9 @@ func (s *Server) serve(rec *statusRecorder, r *http.Request) (panicked bool) {
 		}
 		http.Error(rec, "internal error", http.StatusInternalServerError)
 	}()
-	s.mux.ServeHTTP(rec, r)
+	gz := newGzipResponse(rec, r)
+	s.mux.ServeHTTP(gz, r)
+	gz.close()
 	return false
 }
 
