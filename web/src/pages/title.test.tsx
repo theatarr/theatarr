@@ -225,7 +225,7 @@ describe("Title page facts (J5)", () => {
   });
 
   it("names each library's latest event under the status, a failed attempt beside Upgrade found", async () => {
-    const recent = new Date(Date.now() - 3600_000).toISOString();
+    const recent = new Date().toISOString() // now, so it reads "today" at any hour;
     show({ availability: "available", versions: [
       { ...lib, has_file: true, state: "filled", current: { quality: "WEBDL-2160p", files: 1 }, upgrade: { state: "upgrade_available" }, history: [{ event: "failed", date: recent, reason: "miss on every provider", missed_on: ["rd", "tb"], upgrade: true, download_id: 41 }] },
       { ...lib, id: 6, key: "movie-remux", label: "4K Remux", has_file: true, state: "cutoff_met", current: { quality: "Remux-2160p", files: 1 }, history: [{ event: "imported", date: recent }] },
