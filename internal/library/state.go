@@ -116,8 +116,8 @@ func reconcileRemovedLink(ctx context.Context, tx *sql.Tx, linkID int64, now int
 	rows.Close()
 	for _, v := range versions {
 		if v.kind != string(policy.KindSeries) {
-			if _, err := tx.ExecContext(ctx, `UPDATE version SET state = 'wanted', updated_at = ? WHERE id = ?
-				AND NOT EXISTS (SELECT 1 FROM link l JOIN link_version lv ON lv.link_id = l.id
+			if _, err := tx.ExecContext(ctx, `UPDATE version SET state = 'wanted', below_quality_cutoff = 0,
+				updated_at = ? WHERE id = ? AND NOT EXISTS (SELECT 1 FROM link l JOIN link_version lv ON lv.link_id = l.id
 					WHERE lv.version_id = ? AND l.state = 'active')`, now, v.id, v.id); err != nil {
 				return err
 			}
@@ -153,7 +153,7 @@ func reconcileRemovedLink(ctx context.Context, tx *sql.Tx, linkID int64, now int
 func episodesLostFile(ctx context.Context, tx *sql.Tx, versionID int64, episodes []int64, now int64) error {
 	for _, id := range episodes {
 		if _, err := tx.ExecContext(ctx, `UPDATE episode_version_state SET state = 'wanted', cutoff_met = 0,
-			updated_at = ? WHERE version_id = ? AND episode_id = ? AND NOT EXISTS (
+			below_quality_cutoff = 0, updated_at = ? WHERE version_id = ? AND episode_id = ? AND NOT EXISTS (
 				SELECT 1 FROM link l JOIN link_version lv ON lv.link_id = l.id
 				JOIN link_episode le ON le.link_id = l.id
 				WHERE lv.version_id = ? AND le.episode_id = ? AND l.state = 'active')`, now, versionID, id, versionID, id); err != nil {
@@ -234,13 +234,66 @@ type stateVersion struct {
 	key         string
 }
 
-// recomputeVersion is RecomputeLinkStates for one version; true when a state changed. A version that is not mode:
-// active, or no decision engine, is left.
+// recomputeVersion is RecomputeLinkStates for one version, and its files' below-the-quality-cutoff flags
+// (storeCutoff); true when a state changed. A version that is not mode: active, or no decision engine, is left.
 func (l *Library) recomputeVersion(ctx context.Context, v stateVersion) (bool, error) {
 	vp := l.pol.Versions[v.key]
 	if l.engine == nil || vp == nil || vp.Mode != policy.ModeActive {
 		return false, nil
 	}
+	changed, err := l.recomputeVersionState(ctx, v)
+	if err != nil {
+		return changed, err
+	}
+	return changed, l.storeCutoff(ctx, v)
+}
+
+// storeCutoff stores whether version v's files are below the quality cutoff (decide.StoreQualityCutoff). Without a
+// decision engine nothing is stored.
+func (l *Library) storeCutoff(ctx context.Context, v stateVersion) error {
+	lib := l
+	if l.runtime != nil {
+		ctx, lib = l.runtime(ctx)
+	}
+	if lib.engine == nil || lib.pol.Versions[v.key] == nil {
+		return nil
+	}
+	return lib.engine.StoreQualityCutoff(ctx, lib.st.Reader(), lib.st.Writer(), v.titleID, v.id, v.key)
+}
+
+// storeCutoffs is storeCutoff for each version, after a write that changed their files; a failure is logged (the
+// next state pass stores it again).
+func (l *Library) storeCutoffs(ctx context.Context, vs []stateVersion) {
+	for _, v := range vs {
+		if err := l.storeCutoff(ctx, v); err != nil {
+			l.log.Warn("library: below-cutoff flag not stored", "version", v.key, "title", v.titleID, "err", err)
+		}
+	}
+}
+
+// storeLinkCutoffs is storeCutoffs for the versions of link id, after a change to it (an unlink: another active link
+// may still hold its episodes).
+func (l *Library) storeLinkCutoffs(ctx context.Context, id int64) {
+	rows, err := l.st.Reader().QueryContext(ctx, `SELECT v.id, v.title_id, v.policy_key FROM link_version lv
+		JOIN version v ON v.id = lv.version_id WHERE lv.link_id = ?`, id)
+	if err != nil {
+		l.log.Warn("library: below-cutoff flag not stored", "link", id, "err", err)
+		return
+	}
+	var vs []stateVersion
+	for rows.Next() {
+		var v stateVersion
+		if err := rows.Scan(&v.id, &v.titleID, &v.key); err == nil {
+			vs = append(vs, v)
+		}
+	}
+	rows.Close()
+	l.storeCutoffs(ctx, vs)
+}
+
+// recomputeVersionState is recomputeVersion's state part.
+func (l *Library) recomputeVersionState(ctx context.Context, v stateVersion) (bool, error) {
+	vp := l.pol.Versions[v.key]
 	db := l.st.Reader()
 	if vp.PreferSeaDex {
 		var err error
@@ -400,6 +453,7 @@ func (l *Library) recomputeOnce(ctx context.Context) {
 		pol = target.pol
 	}
 	if l.recomputed && l.recomputedRev == pol.Revision {
+		l.storeSeaDexCutoffs(ctx, pol, false)
 		return
 	}
 	prints := versionPrints(pol)
@@ -421,10 +475,52 @@ func (l *Library) recomputeOnce(ctx context.Context) {
 			return
 		}
 	}
+	first := !l.recomputed
 	l.recomputed, l.recomputedRev, l.recomputedPrints = true, pol.Revision, prints
 	if n > 0 {
 		l.log.Info("library: link states recomputed", "versions", n)
 	}
+	l.storeSeaDexCutoffs(ctx, pol, first)
+}
+
+// storeSeaDexCutoffs stores the prefer-SeaDex libraries' below-cutoff flags again when the stored SeaDex standing
+// changed since they were last stored (their quality cutoff reads it). The first pass of a process stored every flag
+// already (first) and only notes the standing.
+func (l *Library) storeSeaDexCutoffs(ctx context.Context, pol *policy.Policy, first bool) {
+	var at int64
+	if err := l.st.Reader().QueryRowContext(ctx, `SELECT COALESCE(MAX(fetched_at), 0) FROM metadata_cache
+		WHERE source = 'seadex-standing'`).Scan(&at); err != nil {
+		l.log.Warn("library: SeaDex standing not read", "err", err)
+		return
+	}
+	if at == l.seaDexAt {
+		return
+	}
+	var keys []string
+	for k, vp := range pol.Versions {
+		if vp != nil && vp.PreferSeaDex && vp.Mode == policy.ModeActive {
+			keys = append(keys, k)
+		}
+	}
+	if !first && len(keys) > 0 {
+		b, _ := json.Marshal(keys)
+		rows, err := l.st.Reader().QueryContext(ctx, `SELECT id, title_id, policy_key FROM version
+			WHERE policy_key IN (SELECT value FROM json_each(?)) ORDER BY id`, string(b))
+		if err != nil {
+			l.log.Warn("library: below-cutoff flags not stored", "err", err)
+			return
+		}
+		var vs []stateVersion
+		for rows.Next() {
+			var v stateVersion
+			if err := rows.Scan(&v.id, &v.titleID, &v.key); err == nil {
+				vs = append(vs, v)
+			}
+		}
+		rows.Close()
+		l.storeCutoffs(ctx, vs)
+	}
+	l.seaDexAt = at
 }
 
 // versionPrints fingerprints, per version key, the settings a file's state is judged under: the version, its

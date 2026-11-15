@@ -121,6 +121,8 @@ type Acquirer struct {
 	// drainMu serialises the rounds, the only searches that check and spend router.wanted.per_hour. So no target
 	// starts twice and two of them never spend the same slot of the hour.
 	drainMu sync.Mutex
+	// judgeCutoff (tests) judges every file for a quality cutoff selection, as before the flags were stored.
+	judgeCutoff bool
 }
 
 // New builds the acquirer.
@@ -444,6 +446,9 @@ func (a *Acquirer) targets(ctx context.Context, sel Selection) ([]target, error)
 				} else {
 					q += ` AND v.state = 'filled'`
 				}
+				if a.storedCutoff(sel) {
+					q += ` AND v.below_quality_cutoff = 1`
+				}
 			}
 		}
 		q += ` ORDER BY v.title_id`
@@ -490,7 +495,7 @@ func (a *Acquirer) targets(ctx context.Context, sel Selection) ([]target, error)
 						continue
 					}
 				}
-				if sel.Only == OnlyCutoff && (sel.QualityCutoff || vp.PreferSeaDex) {
+				if sel.Only == OnlyCutoff && (sel.QualityCutoff || vp.PreferSeaDex) && !a.storedCutoff(sel) {
 					below, err := a.belowCutoff(ctx, k, v.id, v.title, !sel.QualityCutoff)
 					if err != nil {
 						return nil, err
@@ -530,7 +535,8 @@ func (a *Acquirer) seriesTargets(ctx context.Context, db *sql.DB, versionID, tit
 	missingOnly := sel.Only == "" && sel.Season == nil && len(sel.EpisodeIDs) == 0 && !a.upgradesAllowed(key)
 	var keep map[int64]bool  // quality cutoff: the filled episodes whose file is below it
 	pack := map[int64]bool{} // the kept episodes a curated season pack makes wanted: searched by season
-	if sel.Only == OnlyCutoff && (sel.QualityCutoff || vp.PreferSeaDex) {
+	stored := sel.Only == OnlyCutoff && a.storedCutoff(sel)
+	if sel.Only == OnlyCutoff && (sel.QualityCutoff || vp.PreferSeaDex) && !stored {
 		var err error
 		if keep, err = a.cutoffEpisodes(ctx, key, versionID, titleID, !sel.QualityCutoff, pack); err != nil {
 			return nil, err
@@ -538,7 +544,7 @@ func (a *Acquirer) seriesTargets(ctx context.Context, db *sql.DB, versionID, tit
 	}
 	// An episode the metadata source dropped (removed_at; kept for its files or history) is searched only when named.
 	rows, err := db.QueryContext(ctx, `SELECT e.id, e.season, e.number, COALESCE(s.state, 'wanted'), e.air_date_utc_at,
-		COALESCE(s.updated_at, e.created_at), COALESCE(e.air_date, '')
+		COALESCE(s.updated_at, e.created_at), COALESCE(e.air_date, ''), COALESCE(s.below_quality_cutoff, 0)
 		FROM episode e LEFT JOIN episode_version_state s ON s.episode_id = e.id AND s.version_id = ?
 		WHERE e.title_id = ? AND (COALESCE(s.monitored, e.monitored) = 1 OR ?) AND (e.removed_at IS NULL OR ?)
 		ORDER BY e.season, e.number`, versionID, titleID, sel.named(policy.KindSeries), len(sel.EpisodeIDs) > 0)
@@ -558,7 +564,8 @@ func (a *Acquirer) seriesTargets(ctx context.Context, db *sql.DB, versionID, tit
 		var e ep
 		var state string
 		var aired sql.NullInt64
-		if err := rows.Scan(&e.id, &e.season, &e.number, &state, &aired, &e.joinedAt, &e.airDate); err != nil {
+		var below bool
+		if err := rows.Scan(&e.id, &e.season, &e.number, &state, &aired, &e.joinedAt, &e.airDate, &below); err != nil {
 			return nil, err
 		}
 		// The stored air date (the day the episode page shows); the instant's UTC day without one.
@@ -574,7 +581,7 @@ func (a *Acquirer) seriesTargets(ctx context.Context, db *sql.DB, versionID, tit
 			continue
 		case sel.Only == OnlyMissing && state != "wanted", sel.Only == OnlyCutoff && state != "filled" && !(vp.PreferSeaDex && state == "cutoff_met"):
 			continue
-		case keep != nil && !keep[e.id]:
+		case keep != nil && !keep[e.id], stored && !below:
 			continue
 		case missingOnly && state != "wanted":
 			continue
@@ -590,6 +597,17 @@ func (a *Acquirer) seriesTargets(ctx context.Context, db *sql.DB, versionID, tit
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
+	}
+	if stored && vp.PreferSeaDex {
+		var kept []int64
+		for _, s := range seasons {
+			for _, e := range bySeason[s] {
+				kept = append(kept, e.id)
+			}
+		}
+		if err := a.curatorPacks(ctx, key, versionID, titleID, kept, pack); err != nil {
+			return nil, err
+		}
 	}
 	var out []target
 	for _, s := range seasons {
@@ -631,6 +649,42 @@ func (a *Acquirer) upgradesAllowed(key string) bool {
 		return *pr.Upgrades
 	}
 	return true
+}
+
+// storedCutoff says whether a cutoff selection reads the stored below-the-quality-cutoff flags
+// (decide.StoreQualityCutoff): the quality cutoff with a decision engine. The full cutoff (score mode) and a run
+// without an engine judge as before.
+func (a *Acquirer) storedCutoff(sel Selection) bool {
+	return sel.Only == OnlyCutoff && sel.QualityCutoff && a.eng != nil && !a.judgeCutoff
+}
+
+// curatorPacks puts into pack the episodes of ids whose file a curated alternative makes wanted
+// (decide.CuratorWanted, as cutoffEpisodes does): the alternative is a season pack, so their search is a season
+// search even for one episode. Prefer-SeaDex libraries only.
+func (a *Acquirer) curatorPacks(ctx context.Context, key string, versionID, titleID int64, ids []int64,
+	pack map[int64]bool) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	vp := a.pol.Versions[key]
+	ctx, err := decide.WithStoredSeaDex(ctx, a.st.Reader())
+	if err != nil {
+		return err
+	}
+	ctx = decide.WithSeaDexTitle(decide.WithSeaDexPolicy(ctx, a.pol, vp), titleID)
+	t, err := decide.LoadTitle(ctx, a.st.Reader(), titleID)
+	if err != nil {
+		return err
+	}
+	if err := decide.LoadSeriesVersion(ctx, a.st.Reader(), &t, versionID); err != nil {
+		return err
+	}
+	for _, e := range t.Episodes {
+		if e.File != nil && slices.Contains(ids, e.ID) && a.eng.CuratorWanted(&t, decide.Version{ID: versionID, Key: key}, e.File) {
+			pack[e.ID] = true
+		}
+	}
+	return nil
 }
 
 // The quality cutoff of router.wanted.cutoff_unmet: quality. Radarr's MovieCutoffService.MoviesWhereCutoffUnmet and
@@ -1420,13 +1474,7 @@ func (a *Acquirer) inFlight(ctx context.Context, t target) (bool, error) {
 	}
 	// A season still needs its search when only some episodes are in flight. The router skips overlaps with each
 	// candidate's full episode set, so the search criteria and its single indexer query stay intact.
-	for _, id := range t.episodes {
-		busy, err := router.InFlight(ctx, a.st.Reader(), t.titleID, t.versionID, []int64{id})
-		if err != nil || !busy {
-			return false, err
-		}
-	}
-	return true, nil
+	return router.AllInFlight(ctx, a.st.Reader(), t.titleID, t.versionID, t.episodes)
 }
 
 func (a *Acquirer) currentFileBelowCutoff(ctx context.Context, key string, versionID, titleID int64, f *decide.ExistingFile, full bool, titles ...*decide.Title) (bool, error) {

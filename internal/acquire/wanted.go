@@ -98,6 +98,21 @@ type WantedRow struct {
 	SearchBlocked string     `json:"search_blocked,omitempty"`
 	LastRun       *WantedRun `json:"last_run"`
 	DecisionID    *int64     `json:"decision_id"`
+	// BelowCutoff (Cutoff unmet, a season row) are the row's episodes with the quality each holds, and Cutoff the
+	// library's cutoff quality: what Sonarr's Cutoff Unmet lists episode by episode.
+	BelowCutoff []WantedEpisode `json:"below_cutoff,omitempty"`
+	Cutoff      string          `json:"cutoff,omitempty"`
+	// episodeIDs are the row's episodes.
+	episodeIDs []int64
+}
+
+// WantedEpisode is one episode of a Cutoff unmet season row and the quality of its file.
+type WantedEpisode struct {
+	EpisodeID int64  `json:"episode_id"`
+	Season    int    `json:"season"`
+	Number    int    `json:"number"`
+	Name      string `json:"name,omitempty"`
+	Quality   string `json:"quality,omitempty"`
 }
 
 type WantedList struct {
@@ -150,6 +165,11 @@ func (a *Acquirer) WantedList(ctx context.Context, q WantedQuery) (*WantedList, 
 	out.Total = len(rows)
 	if q.Offset < len(rows) {
 		out.Items = rows[q.Offset:min(q.Offset+q.Limit, len(rows))]
+	}
+	if q.Only == OnlyCutoff {
+		if err := a.belowCutoffEpisodes(ctx, out.Items); err != nil {
+			return nil, err
+		}
 	}
 	// A date sort has read the films' dates for every row already.
 	if strings.TrimPrefix(q.Sort, "-") != "date" {
@@ -210,6 +230,83 @@ func (a *Acquirer) wantedRows(ctx context.Context, q WantedQuery, out *WantedLis
 		}
 	}
 	return a.sortWanted(ctx, list, v.last, q.Sort)
+}
+
+// belowCutoffEpisodes fills the season rows' BelowCutoff and Cutoff: each episode with the quality of its file (the
+// newest active link of the row's library, as decide judges it), in season and number order.
+func (a *Acquirer) belowCutoffEpisodes(ctx context.Context, list []WantedRow) error {
+	var eps, vids []int64
+	for _, r := range list {
+		if r.Season != nil {
+			eps = append(eps, r.episodeIDs...)
+			vids = append(vids, r.versionID)
+		}
+	}
+	if len(eps) == 0 {
+		return nil
+	}
+	be, _ := json.Marshal(eps)
+	bv, _ := json.Marshal(vids)
+	db := a.st.Reader()
+	info := map[int64]WantedEpisode{}
+	rows, err := db.QueryContext(ctx, `SELECT id, season, number, name FROM episode
+		WHERE id IN (SELECT value FROM json_each(?))`, string(be))
+	if err != nil {
+		return err
+	}
+	for rows.Next() {
+		var e WantedEpisode
+		if err := rows.Scan(&e.EpisodeID, &e.Season, &e.Number, &e.Name); err != nil {
+			rows.Close()
+			return err
+		}
+		info[e.EpisodeID] = e
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	quality := map[[2]int64]string{} // by version and episode; the newest link last
+	rows, err = db.QueryContext(ctx, `SELECT lv.version_id, le.episode_id, COALESCE(l.quality, '') FROM link l
+		JOIN link_version lv ON lv.link_id = l.id JOIN link_episode le ON le.link_id = l.id
+		WHERE lv.version_id IN (SELECT value FROM json_each(?)) AND le.episode_id IN (SELECT value FROM json_each(?))
+		AND l.state = 'active' ORDER BY l.created_at, l.id`, string(bv), string(be))
+	if err != nil {
+		return err
+	}
+	for rows.Next() {
+		var v, e int64
+		var q string
+		if err := rows.Scan(&v, &e, &q); err != nil {
+			rows.Close()
+			return err
+		}
+		quality[[2]int64{v, e}] = q
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	for i := range list {
+		r := &list[i]
+		if r.Season == nil {
+			continue
+		}
+		if vp := a.pol.Versions[r.Version]; vp != nil {
+			if pr := a.pol.Profiles[vp.Profile]; pr != nil && len(pr.Qualities) > 0 {
+				r.Cutoff = pr.Cutoff
+			}
+		}
+		for _, id := range r.episodeIDs {
+			e := info[id]
+			e.Quality = quality[[2]int64{r.versionID, id}]
+			r.BelowCutoff = append(r.BelowCutoff, e)
+		}
+		slices.SortFunc(r.BelowCutoff, func(x, y WantedEpisode) int {
+			return cmp.Or(cmp.Compare(x.Season, y.Season), cmp.Compare(x.Number, y.Number))
+		})
+	}
+	return nil
 }
 
 // movieDates sets the Date of the film rows that have none: the home release (availability.HomeRelease).
@@ -383,6 +480,9 @@ func (a *Acquirer) wantedRow(ctx context.Context, v *wantedView, only string, gr
 	}
 	if row.Season != nil {
 		row.Episodes = len(episodes)
+		for id := range episodes {
+			row.episodeIDs = append(row.episodeIDs, id)
+		}
 	}
 	row.versionID = group[0].versionID
 	for _, t := range group {

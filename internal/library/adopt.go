@@ -510,7 +510,7 @@ func (l *Library) recordAdopted(ctx context.Context, version string, vp *policy.
 	}
 	source := f.source
 	now := store.Millis(l.now())
-	return l.refWriteTx(ctx, func(tx *sql.Tx) error {
+	err = l.refWriteTx(ctx, func(tx *sql.Tx) error {
 		if err := l.linksHeldTx(ctx, tx); err != nil {
 			return err
 		}
@@ -566,6 +566,10 @@ func (l *Library) recordAdopted(ctx context.Context, version string, vp *policy.
 		}
 		return nil
 	})
+	if err == nil {
+		l.storeCutoffs(ctx, []stateVersion{{id: f.versionID, titleID: f.titleID, key: version}})
+	}
+	return err
 }
 
 func sortedKeys(m map[string]bool) []string {

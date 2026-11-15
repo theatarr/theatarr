@@ -443,3 +443,16 @@ it("searches only the filtered title with Search all", async () => {
   await waitFor(() => expect(fetch.calls("POST", "/wanted/search")).toHaveLength(1));
   expect(fetch.calls("POST", "/wanted/search")[0].body).toEqual({ only: "cutoff", all: { title_id: 1 } });
 });
+
+it("opens a Cutoff unmet season row to its episodes, each with the quality it holds, and the cutoff", async () => {
+  const user = userEvent.setup();
+  const season: Row = { title_id: 2, version: "tv-2160p", targets: ["s01"], reason: "cutoff", waiting: "due", next_at: "2026-11-01T00:00:00Z",
+    last_run: null, decision_id: null, season: 1, episodes: 2, cutoff: "WEBDL-2160p",
+    below_cutoff: [{ episode_id: 11, season: 1, number: 1, name: "Pilot", quality: "WEBDL-1080p" }, { episode_id: 12, season: 1, number: 2, quality: "HDTV-720p" }] };
+  mockFetch([admin, { method: "GET", path: "/wanted", reply: { ...page, items: [season], titles: { "2": "Beta" }, libraries: { "tv-2160p": "4K TV" } } }, status]);
+  renderPage(<WantedPage />, "/wanted/cutoff");
+  const cell = await screen.findByTestId("wanted-below-cutoff");
+  await user.click(within(cell).getByText("S01, 2 episodes"));
+  expect(within(cell).getAllByRole("listitem").map(li => li.textContent)).toEqual(["S01E01 · Pilot · WEBDL-1080p", "S01E02 · HDTV-720p"]);
+  expect(within(cell).getByText("Cutoff: WEBDL-2160p")).toBeTruthy();
+});

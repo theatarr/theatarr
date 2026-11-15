@@ -1,13 +1,24 @@
 package acquire
 
 import (
+	"context"
 	"fmt"
+	"io"
+	"log/slog"
+	"maps"
+	"os"
+	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/theatarr/theatarr/internal/decide"
+	"github.com/theatarr/theatarr/internal/demo"
 	"github.com/theatarr/theatarr/internal/policy"
+	"github.com/theatarr/theatarr/internal/store"
+	"github.com/theatarr/theatarr/internal/store/storetest"
 )
 
 // router.wanted.cutoff_unmet picks the files the wanted loop searches an upgrade for. quality (the default) is the
@@ -115,6 +126,38 @@ func cutoffFixture(t *testing.T, e *env) {
 	} {
 		if _, err := e.st.Writer().ExecContext(e.ctx, q); err != nil {
 			t.Fatalf("%s: %v", q, err)
+		}
+	}
+	e.storeCutoffs()
+}
+
+// storeCutoffs stores every version's below-the-quality-cutoff flags (decide.StoreQualityCutoff), as the library
+// does after its writes and when the SeaDex standing changes: the fixtures write files and standing by hand.
+func (e *env) storeCutoffs() {
+	e.t.Helper()
+	rows, err := e.st.Reader().QueryContext(e.ctx, `SELECT id, title_id, policy_key FROM version ORDER BY id`)
+	if err != nil {
+		e.t.Fatal(err)
+	}
+	type v struct {
+		id, title int64
+		key       string
+	}
+	var vs []v
+	for rows.Next() {
+		var x v
+		if err := rows.Scan(&x.id, &x.title, &x.key); err != nil {
+			e.t.Fatal(err)
+		}
+		vs = append(vs, x)
+	}
+	rows.Close()
+	for _, x := range vs {
+		if e.pol.Versions[x.key] == nil {
+			continue
+		}
+		if err := e.a.eng.StoreQualityCutoff(e.ctx, e.st.Reader(), e.st.Writer(), x.title, x.id, x.key); err != nil {
+			e.t.Fatalf("version %d: %v", x.id, err)
 		}
 	}
 }
@@ -228,4 +271,147 @@ func (e *env) runEpisodes(versionID int64) string {
 		e.t.Fatal(err)
 	}
 	return eps
+}
+
+// The stored below-the-quality-cutoff flags (decide.StoreQualityCutoff, as the demo seed and the library store them)
+// equal the judgement the cutoff selections made before they were stored (BelowQualityCutoff,
+// EpisodesBelowQualityCutoff), for every movie and series library of the demo database, the prefer-SeaDex ones
+// too; and the cutoff targets Wanted and the round search, in quality and score mode, are the same either way.
+func TestStoredCutoffMatchesJudgement(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	dir := t.TempDir()
+	if err := os.CopyFS(dir, os.DirFS(filepath.Join("..", "..", "examples", "policy"))); err != nil {
+		t.Fatal(err)
+	}
+	overlay, _ := filepath.Glob(filepath.Join("..", "..", "examples", "demo", "*.yaml"))
+	for _, f := range overlay {
+		b, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, filepath.Base(f)), b, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	pol, err := policy.Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	st, err := store.Open(ctx, storetest.Seed(t, filepath.Join(t.TempDir(), "theatarr.db")), store.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { st.Close() })
+	if _, err := st.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Date(2026, 10, 26, 12, 0, 0, 0, time.UTC)
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	if _, err := demo.Seed(ctx, st, demo.Options{Policy: pol, Seed: 1, Now: now, Logger: log}); err != nil {
+		t.Fatal(err)
+	}
+	// Every library searched, Watch only ones too, so each is judged.
+	for _, vp := range pol.Versions {
+		vp.Mode = policy.ModeActive
+	}
+	eng, err := decide.New(pol, decide.Options{TrashRoot: filepath.Join("..", "demo", "formats")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := &Acquirer{st: st, pol: pol, eng: eng, set: pol.WantedSettings(), log: log, now: func() time.Time { return now }}
+	rows, err := st.Reader().QueryContext(ctx, `SELECT v.id, v.title_id, v.policy_key, v.below_quality_cutoff
+		FROM version v ORDER BY v.id`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	type version struct {
+		id, title int64
+		key       string
+		below     bool
+	}
+	var vs []version
+	for rows.Next() {
+		var v version
+		if err := rows.Scan(&v.id, &v.title, &v.key, &v.below); err != nil {
+			t.Fatal(err)
+		}
+		vs = append(vs, v)
+	}
+	rows.Close()
+	judged := map[string]int{}
+	for _, v := range vs {
+		vp := pol.Versions[v.key]
+		if vp == nil {
+			continue
+		}
+		kind := string(vp.Kind)
+		if vp.PreferSeaDex {
+			kind += " seadex"
+		}
+		if vp.Kind != policy.KindSeries {
+			want, err := a.BelowQualityCutoff(ctx, v.key, v.id, v.title)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if v.below != want {
+				t.Errorf("version %d (%s): stored %v, judged %v", v.id, v.key, v.below, want)
+			}
+			judged[fmt.Sprintf("%s %v", kind, want)]++
+			continue
+		}
+		want, err := a.EpisodesBelowQualityCutoff(ctx, v.key, v.id, v.title)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := map[int64]bool{}
+		er, err := st.Reader().QueryContext(ctx, `SELECT episode_id FROM episode_version_state WHERE version_id = ?
+			AND below_quality_cutoff = 1`, v.id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for er.Next() {
+			var id int64
+			if err := er.Scan(&id); err != nil {
+				t.Fatal(err)
+			}
+			got[id] = true
+		}
+		er.Close()
+		if !maps.Equal(got, want) {
+			t.Errorf("version %d (%s): stored %v, judged %v", v.id, v.key, got, want)
+		}
+		judged[fmt.Sprintf("%s %v", kind, len(want) > 0)]++
+	}
+	// The demo has files on both sides of the cutoff, in plain and prefer-SeaDex libraries of both kinds.
+	for _, k := range []string{"movie true", "movie false", "series true", "series false", "series seadex true",
+		"series seadex false", "movie seadex false"} {
+		if judged[k] == 0 {
+			t.Errorf("no %s library judged (%v)", k, judged)
+		}
+	}
+	var keys []string
+	for k := range pol.Versions {
+		keys = append(keys, k)
+	}
+	slices.Sort(keys)
+	for _, quality := range []bool{true, false} {
+		sel := Selection{Versions: keys, Only: OnlyCutoff, QualityCutoff: quality}
+		a.judgeCutoff = false
+		stored, err := a.targets(ctx, sel)
+		if err != nil {
+			t.Fatal(err)
+		}
+		a.judgeCutoff = true
+		before, err := a.targets(ctx, sel)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(stored, before) {
+			t.Errorf("quality %v: targets from the flags\n%+v\nwant\n%+v", quality, stored, before)
+		}
+		if quality && len(stored) == 0 {
+			t.Error("no cutoff target")
+		}
+	}
 }

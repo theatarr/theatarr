@@ -55,6 +55,40 @@ func InFlight(ctx context.Context, db *sql.DB, titleID, versionID int64, episode
 	return false, rows.Err()
 }
 
+// AllInFlight reports whether every one of episodes is held by a download of the version in hand (InFlight for
+// each episode, in one read).
+func AllInFlight(ctx context.Context, db *sql.DB, titleID, versionID int64, episodes []int64) (bool, error) {
+	rows, err := db.QueryContext(ctx, `SELECT episodes FROM download WHERE title_id = ? AND version_id = ?
+		AND state IN `+inFlightStates, titleID, versionID)
+	if err != nil {
+		return false, fmt.Errorf("router: in-flight check: %w", err)
+	}
+	defer rows.Close()
+	busy := make(map[int64]bool, len(episodes))
+	for rows.Next() {
+		var js string
+		if err := rows.Scan(&js); err != nil {
+			return false, err
+		}
+		var held []int64
+		if json.Unmarshal([]byte(js), &held) != nil || len(held) == 0 {
+			return true, nil // a download with no episode list holds the whole title, as far as we know
+		}
+		for _, e := range held {
+			busy[e] = true
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return false, err
+	}
+	for _, e := range episodes {
+		if !busy[e] {
+			return false, nil
+		}
+	}
+	return true, nil
+}
+
 // PlanSummary says in one line what a route result or a recorded plan means: "would add X on P", "would wait for a
 // provider", or why nothing would be added.
 func PlanSummary(outcome, release, provider string, steps []Step) string {

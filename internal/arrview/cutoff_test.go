@@ -1,6 +1,7 @@
 package arrview
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -15,15 +16,18 @@ import (
 // mode is router.wanted.cutoff_unmet.
 func newCutoffEnv(t *testing.T, mode policy.CutoffMode) *devEnv {
 	t.Helper()
-	e := buildDevEnv(t, true, func(pol *policy.Policy) *decide.Engine {
+	var eng *decide.Engine
+	var pol *policy.Policy
+	e := buildDevEnv(t, true, func(p *policy.Policy) *decide.Engine {
+		pol = p
 		pol.Router.Wanted = &policy.Wanted{CutoffUnmet: mode}
 		pol.Profiles["cut"] = &policy.Profile{Qualities: []policy.QualityItem{{Name: "WEBDL-2160p"},
 			{Name: "WEBDL-1080p"}}, Cutoff: "WEBDL-2160p", CutoffScore: 100}
 		for _, v := range pol.Versions {
 			v.Profile = "cut"
 		}
-		eng, err := decide.New(pol, decide.Options{})
-		if err != nil {
+		var err error
+		if eng, err = decide.New(pol, decide.Options{}); err != nil {
 			t.Fatal(err)
 		}
 		return eng
@@ -41,6 +45,31 @@ func newCutoffEnv(t *testing.T, mode policy.CutoffMode) *devEnv {
 	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (4, 5), (5, 10)`)
 	e.exec(`INSERT INTO link_episode (link_id, episode_id) VALUES (5, 102)`)
 	e.exec(`UPDATE episode_version_state SET state = 'filled' WHERE version_id = 10 AND episode_id IN (101, 102)`)
+	// The flags the library stores after its writes (decide.StoreQualityCutoff): the cutoff searches read them.
+	rows, err := e.st.Reader().Query(`SELECT id, title_id, policy_key FROM version`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	type version struct {
+		id, title int64
+		key       string
+	}
+	var vs []version
+	for rows.Next() {
+		var v version
+		if err := rows.Scan(&v.id, &v.title, &v.key); err != nil {
+			t.Fatal(err)
+		}
+		vs = append(vs, v)
+	}
+	rows.Close()
+	for _, v := range vs {
+		if pol.Versions[v.key] != nil {
+			if err := eng.StoreQualityCutoff(context.Background(), e.st.Reader(), e.st.Writer(), v.title, v.id, v.key); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
 	return e
 }
 

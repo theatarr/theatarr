@@ -44,6 +44,7 @@ func TestCuratorPackSeasonReachesFeed(t *testing.T) {
 	}
 	body, _ := json.Marshal(snap)
 	e.exec(`INSERT INTO metadata_cache(source,key,status,body,fetched_at,expires_at) VALUES('seadex-standing','1535',200,?,0,253402214400000)`, body)
+	e.storeCutoffs()
 	var mu sync.Mutex
 	var queries []string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

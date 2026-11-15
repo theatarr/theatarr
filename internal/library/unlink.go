@@ -160,6 +160,9 @@ func (l *Library) markUnlinked(ctx context.Context, version string, linkID int64
 	if err == nil && lost {
 		return linkChanged(linkID, path, target, "its row changed during the unlink")
 	}
+	if err == nil && linkID > 0 {
+		l.storeLinkCutoffs(ctx, linkID)
+	}
 	return err
 }
 

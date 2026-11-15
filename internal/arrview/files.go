@@ -466,14 +466,14 @@ func (s *Service) fileGone(ctx context.Context, x *fileRow) error {
 	now := store.Millis(s.now())
 	return s.st.WriteTx(ctx, func(tx *sqlTx) error {
 		if len(x.episodes) == 0 {
-			_, err := tx.ExecContext(ctx, `UPDATE version SET state = 'wanted', updated_at = ? WHERE id = ?
-				AND NOT EXISTS (SELECT 1 FROM link l JOIN link_version lv ON lv.link_id = l.id
+			_, err := tx.ExecContext(ctx, `UPDATE version SET state = 'wanted', below_quality_cutoff = 0, updated_at = ?
+				WHERE id = ? AND NOT EXISTS (SELECT 1 FROM link l JOIN link_version lv ON lv.link_id = l.id
 					WHERE lv.version_id = ? AND l.state = 'active')`, now, x.versionID, x.versionID)
 			return err
 		}
 		for _, e := range x.episodes {
 			if _, err := tx.ExecContext(ctx, `UPDATE episode_version_state SET state = 'wanted', cutoff_met = 0,
-				updated_at = ? WHERE version_id = ? AND episode_id = ?
+				below_quality_cutoff = 0, updated_at = ? WHERE version_id = ? AND episode_id = ?
 				AND NOT EXISTS (SELECT 1 FROM link l JOIN link_version lv ON lv.link_id = l.id
 					JOIN link_episode le ON le.link_id = l.id
 					WHERE lv.version_id = ? AND le.episode_id = ? AND l.state = 'active')`, now, x.versionID, e,

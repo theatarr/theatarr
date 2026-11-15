@@ -289,6 +289,7 @@ func (l *Library) reassignEpisodes(ctx context.Context, linkID int64, episodeIDs
 		}
 		return out, err
 	}
+	l.storeCutoffs(ctx, []stateVersion{{id: v.VersionID, titleID: v.Title.ID, key: v.Key}})
 	for _, c := range conflicts {
 		out.Replaced = append(out.Replaced, c.path)
 		if err := l.EnqueueScan(ctx, v.Key, filepath.Dir(c.path)); err != nil {

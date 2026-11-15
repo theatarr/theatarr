@@ -21,11 +21,13 @@ import (
 	"fmt"
 	"log/slog"
 	"math/rand/v2"
+	"os"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/theatarr/theatarr/internal/auth"
+	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/store"
 )
@@ -147,6 +149,9 @@ func Seed(ctx context.Context, st *store.Store, o Options) (*Result, error) {
 	if err := s.settings(); err != nil {
 		return nil, err
 	}
+	if err := storeCutoffs(ctx, st, o.Policy); err != nil {
+		return nil, err
+	}
 	for _, t := range []string{"title", "episode", "version", "link", "content", "download", "request",
 		"request_user", "journal_decision", "job", "anime_entry", "title_meta", "settings_audit"} {
 		var c int
@@ -156,6 +161,47 @@ func Seed(ctx context.Context, st *store.Store, o Options) (*Result, error) {
 		res.Counts[t] = c
 	}
 	return res, nil
+}
+
+// storeCutoffs stores every library's below-the-quality-cutoff flags (decide.StoreQualityCutoff), as the library
+// does after an import, so Wanted › Cutoff unmet lists the seeded files.
+func storeCutoffs(ctx context.Context, st *store.Store, pol *policy.Policy) error {
+	trash, err := demoTrash()
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(trash)
+	eng, err := decide.New(pol, decide.Options{TrashRoot: trash})
+	if err != nil {
+		return fmt.Errorf("demo: decision engine: %w", err)
+	}
+	rows, err := st.Reader().QueryContext(ctx, `SELECT id, title_id, policy_key FROM version ORDER BY id`)
+	if err != nil {
+		return err
+	}
+	type version struct {
+		id, title int64
+		key       string
+	}
+	var vs []version
+	for rows.Next() {
+		var v version
+		if err := rows.Scan(&v.id, &v.title, &v.key); err != nil {
+			rows.Close()
+			return err
+		}
+		vs = append(vs, v)
+	}
+	rows.Close()
+	for _, v := range vs {
+		if pol.Versions[v.key] == nil {
+			continue
+		}
+		if err := eng.StoreQualityCutoff(ctx, st.Reader(), st.Writer(), v.title, v.id, v.key); err != nil {
+			return fmt.Errorf("demo: version %d: %w", v.id, err)
+		}
+	}
+	return nil
 }
 
 // seeder holds the plan and the open transaction.

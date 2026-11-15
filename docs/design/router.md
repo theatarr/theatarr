@@ -1523,6 +1523,16 @@ The schedule paces by `per_hour` and the router by provider pacing only; there i
   a feed or another search brings a better-scored release.
 - The file judged is the one decide compares against: the newest active link, else the arr's file. Without a
   decision engine the state alone decides, as with `score`. `TestWantedCutoffMode`, `TestQualityCutoffSelection`.
+- The `quality` answer is stored with the file state it judges (`version.below_quality_cutoff` for a film,
+  `episode_version_state.below_quality_cutoff` for an episode; `internal/decide/cutoff_store.go`), so Wanted > Cutoff
+  unmet, its Search all, the arr views' cutoff commands and the schedule's cutoff targets read it instead of judging
+  every file. The library stores it at import, adoption, Change episodes, relink and unlink, with its state
+  recompute (every library at the first pass of a process, then the libraries whose settings changed: a profile's
+  cutoff or qualities), and again for the prefer-SeaDex libraries when the stored SeaDex standing changes (their
+  cutoff reads it). `score`, the re-searches after a failure that use the full cutoff, and the curator's
+  season-pack choice for a prefer-SeaDex series stay judged when they run; the film availability check stays in the
+  Wanted read. `TestStoredCutoffMatchesJudgement`: the stored flags equal the judgement for every library of the
+  demo, and the cutoff targets are the same read either way.
 - The arr views always use the quality cutoff, whatever this setting: `GET wanted/cutoff` and the
   `CutOffUnmetMoviesSearch` / `CutoffUnmetEpisodeSearch` commands list and search what the arr would. The setting
   governs Theatarr's own schedule only. `TestWantedCutoffQualityOnly`, `TestCutoffUnmetCommandsQualityOnly`.

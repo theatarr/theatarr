@@ -61,6 +61,22 @@ export function whatWords(row: Pick<WantedRow, "targets" | "episodes">): string 
   return row.episodes && row.targets.some((t) => /^s\d+$/.test(t)) ? `${words}, ${plural(row.episodes, "episode")}` : words;
 }
 
+/** The What cell; a Cutoff unmet season row opens to its episodes, each with the quality it holds, and the cutoff. */
+function WhatCell({ row }: { row: WantedRow }) {
+  const eps = row.below_cutoff ?? [];
+  if (!eps.length) return <>{whatWords(row)}</>;
+  return <details data-testid="wanted-below-cutoff">
+    <summary className="cursor-pointer">{whatWords(row)}</summary>
+    <ul className="mt-1 space-y-0.5 text-[13px] text-[var(--ink-2)]">
+      {eps.map(e => <li key={e.episode_id} className="sm:whitespace-nowrap">{episodeCode(e)}{e.name ? ` · ${e.name}` : ""} · {e.quality || "Unknown quality"}</li>)}
+    </ul>
+    {row.cutoff ? <p className="mt-1 text-[13px] text-[var(--ink-3)]">Cutoff: {row.cutoff}</p> : null}
+  </details>;
+}
+
+const episodeCode = (e: { season: number; number: number }) =>
+  `S${String(e.season).padStart(2, "0")}E${String(e.number).padStart(2, "0")}`;
+
 export function targetWords(targets: string[]) {
   const names = [...new Set(targets)].sort();
   const words: string[] = [];
@@ -207,7 +223,7 @@ export function WantedPage() {
   const titleLink = (row: WantedRow) => <Link className="font-semibold text-[var(--ink)] hover:text-[var(--accent-ink)] [overflow-wrap:anywhere]" to={`/title/${row.title_id}`}>{name(row)}</Link>;
   const cells: Record<Column, DataColumn<WantedRow>> = {
     library: { id: "library", label: "Library", cell: row => <VersionTag k={row.version} label={d?.libraries[row.version]} /> },
-    what: { id: "what", label: "What", cell: row => whatWords(row) },
+    what: { id: "what", label: "What", cell: row => <WhatCell row={row} /> },
     date: { id: "date", label: "Released", sortable: true, cell: row => row.date ? fmtDay(row.date) : "—" },
     next: { id: "next", label: "Next search", cell: row => <NextSearch row={row} state={states.get(row.version)} off={off} admin={perms.admin} /> },
     // The decision behind the last search sits with it, so the row's actions keep their place.

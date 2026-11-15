@@ -29,6 +29,7 @@ func TestCuratorWantedEpisodeSearchesSeason(t *testing.T) {
 	sel := Selection{Versions: []string{"series"}, Only: OnlyCutoff, QualityCutoff: true}
 	targets := func() []string {
 		t.Helper()
+		e.storeCutoffs()
 		ts, err := e.a.seriesTargets(e.ctx, e.st.Reader(), 201, 10, "series", sel, store.Millis(e.now))
 		if err != nil {
 			t.Fatal(err)
@@ -51,6 +52,7 @@ func TestCuratorWantedEpisodeSearchesSeason(t *testing.T) {
 	}
 	body, _ := json.Marshal(snapshot)
 	e.exec(`INSERT INTO metadata_cache(source,key,status,body,fetched_at,expires_at) VALUES('seadex-standing','1535',200,?,0,253402214400000)`, body)
+	e.storeCutoffs()
 	if got := strings.Join(targets(), " "); got != "s01" {
 		t.Fatalf("curator-wanted S01E02 searched as %q, want the season search s01", got)
 	}
@@ -80,6 +82,7 @@ func TestCuratorWantedEpisodeSeasonCriteria(t *testing.T) {
 	}
 	body, _ := json.Marshal(snapshot)
 	e.exec(`INSERT INTO metadata_cache(source,key,status,body,fetched_at,expires_at) VALUES('seadex-standing','1535',200,?,0,253402214400000)`, body)
+	e.storeCutoffs()
 	ts, err := e.a.seriesTargets(e.ctx, e.st.Reader(), 201, 10, "series", Selection{Versions: []string{"series"},
 		Only: OnlyCutoff, QualityCutoff: true}, store.Millis(e.now))
 	if err != nil || len(ts) != 1 || len(ts[0].episodes) != 1 {
