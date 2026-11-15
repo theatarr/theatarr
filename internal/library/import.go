@@ -1075,7 +1075,7 @@ func (l *Library) holdForReview(ctx context.Context, d *importDownload, plan *Pl
 			d.ID, plan.Folder, reason, string(pj), now, now); err != nil {
 			return err
 		}
-		store.HistoryImport(ctx, tx, d.ID)
+		store.HistoryHeld(ctx, tx, d.ID)
 		return l.record(ctx, tx, action{Kind: "reject", Mode: "applied", Version: d.Version.Key, DownloadID: d.ID,
 			Path: plan.Folder, Detail: reason})
 	})

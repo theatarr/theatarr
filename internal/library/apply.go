@@ -499,9 +499,10 @@ func (l *Library) apply(ctx context.Context, d *importDownload, vn *VersionNamin
 		if err != nil {
 			return err
 		}
-		store.HistoryImport(ctx, tx, d.ID)
 		if dl == "failed" {
 			store.HistoryFailure(ctx, tx, d.ID)
+		} else {
+			store.HistoryImport(ctx, tx, d.ID)
 		}
 		return nil
 	})

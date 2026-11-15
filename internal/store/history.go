@@ -77,65 +77,6 @@ const historyUpsert = ` ON CONFLICT (ref) DO UPDATE SET at = excluded.at, event 
 const historyDownloadFacts = `d.title_id, d.version_key, d.id, d.release_title, d.info_hash, d.indexer,
 	COALESCE(d.size_bytes, 0), d.quality, CASE WHEN d.formats IS NOT NULL OR d.score <> 0 THEN d.score END, d.formats`
 
-// historyGrabSQL writes the grabbed rows of the downloads (alias d) filter selects that reached a provider or client.
-func historyGrabSQL(filter string) string {
-	return `INSERT INTO history (` + historyCols + `)
-		SELECT 'dl:' || d.id, COALESCE(d.added_at, (SELECT MIN(a.attempted_at) FROM download_attempt a
-			WHERE a.download_id = d.id AND a.outcome = 'accepted'), d.created_at), 'grabbed', ` + HistoryGrabKindSQL + `,
-			` + historyDownloadFacts + `, d.episodes, 0, NULL, COALESCE(d.provider, ''), '', '', '', '', ''
-		FROM download d WHERE ` + HistoryGrabbedWhere + ` AND ` + filter + historyUpsert
-}
-
-// historyFailureSQL writes the failed rows of the failed downloads (alias d) filter selects.
-func historyFailureSQL(filter string) string {
-	return `INSERT INTO history (` + historyCols + `)
-		SELECT 'dl:' || d.id || ':fail', d.updated_at, 'failed',
-			CASE WHEN d.error LIKE 'stalled%' THEN 'stall' ELSE 'failure' END,
-			` + historyDownloadFacts + `, d.episodes, 0, NULL, COALESCE(d.provider, ''), COALESCE(d.error, ''), '', '',
-			'', ''
-		FROM download d WHERE d.state = 'failed' AND ` + filter + historyUpsert
-}
-
-// historyImportSQL writes the import rows of the downloads (alias d) filter selects: an import that linked
-// (dl:<id>:import), its episodes those its links held (recorded with each link action, else the link's current
-// episodes), never the ones it asked for; and an import held for review whose download did not fail, its own row
-// (dl:<id>:held), so a later import that links keeps it.
-func historyImportSQL(filter string) []string {
-	return []string{`INSERT INTO history (` + historyCols + `)
-		SELECT 'dl:' || d.id || ':import', li.updated_at, 'imported', 'import', ` + historyDownloadFacts + `,
-			(SELECT json_group_array(DISTINCT j.value) FROM library_action a, json_each(COALESCE(a.episodes,
-				(SELECT json_group_array(le.episode_id) FROM link_episode le WHERE le.link_id = a.link_id))) j
-				WHERE a.kind = 'link' AND a.mode = 'applied' AND a.download_id = d.id),
-			0, NULL, COALESCE(d.provider, ''), '', '', li.state, '', ''
-		FROM library_import li JOIN download d ON d.id = li.download_id
-		WHERE li.state IN ('linked', 'partial') AND ` + filter + historyUpsert,
-		`INSERT INTO history (` + historyCols + `)
-		SELECT 'dl:' || d.id || ':held', li.updated_at, 'failed', 'import', ` + historyDownloadFacts + `, '[]', 0, NULL,
-			COALESCE(d.provider, ''), COALESCE(li.last_error, ''), '', li.state, '', ''
-		FROM library_import li JOIN download d ON d.id = li.download_id
-		WHERE li.state = 'rejected' AND d.state <> 'failed' AND ` + filter + historyUpsert}
-}
-
-// historyBlocklistSQL writes the blocked rows of the blocklist entries (alias b) filter selects: the release as
-// blocked, with the blocked download's indexer, size, quality and score.
-func historyBlocklistSQL(filter string) string {
-	return `INSERT INTO history (` + historyCols + `)
-	SELECT 'bl:' || b.rowid, b.created_at, 'blocked', 'blocklist', COALESCE(b.title_id, 0), b.version_key,
-		b.download_id, b.release_title, b.info_hash, COALESCE(d.indexer, ''), COALESCE(d.size_bytes, 0),
-		COALESCE(d.quality, ''), CASE WHEN d.formats IS NOT NULL OR d.score <> 0 THEN d.score END, NULL, '[]', 0, NULL,
-		'', b.reason, b.source, '', '', ''
-	FROM router_blocklist b LEFT JOIN download d ON d.id = b.download_id WHERE ` + filter + historyUpsert
-}
-
-// historyRemovalSQL writes the title_removed rows of the journal actions (alias a) filter selects (Remove title,
-// Remove copy), with who removed it and what became of its files.
-func historyRemovalSQL(filter string) string {
-	return `INSERT INTO history (` + historyCols + `)
-	SELECT 'act:' || a.id, a.created_at, 'title_removed', 'action', COALESCE(a.title_id, 0), a.version_key, NULL, NULL,
-		'', '', 0, '', NULL, NULL, '[]', 0, NULL, '', '', '', '', a.by, a.detail
-	FROM journal_action a WHERE a.action IN ('remove_title', 'remove_version') AND ` + filter + historyUpsert
-}
-
 // History writes are best effort: a failed one is logged and the event goes on (inside a transaction a failed
 // statement undoes only itself).
 func historyExec(ctx context.Context, ex Execer, q string, args ...any) {
@@ -144,25 +85,17 @@ func historyExec(ctx context.Context, ex Execer, q string, args ...any) {
 	}
 }
 
-func idArgs(ids []int64) (string, []any) {
-	args := make([]any, len(ids))
-	for i, id := range ids {
-		args[i] = id
-	}
-	return `d.id IN (` + Placeholders(len(ids)) + `)`, args
-}
-
-// HistoryGrab writes the grabbed rows of downloads ids once they reached a provider or client (an add, a reused
-// torrent, a client's hash), dated when they got there; a download whose add was unmade (a not-cached add deleted
-// and requeued) and that no provider took before loses its row.
-func HistoryGrab(ctx context.Context, ex Execer, ids ...int64) {
-	if len(ids) == 0 {
-		return
-	}
-	in, args := idArgs(ids)
-	historyExec(ctx, ex, historyGrabSQL(in), args...)
-	historyExec(ctx, ex, `DELETE FROM history WHERE ref IN (SELECT 'dl:' || d.id FROM download d WHERE `+in+`
-		AND NOT `+HistoryGrabbedWhere+`)`, args...)
+// HistoryGrab writes download id's grabbed row once it reached a provider or client (an add, a reused torrent, a
+// client's hash), dated when it got there; a download whose add was unmade (a not-cached add deleted and requeued)
+// and that no provider took before loses its row.
+func HistoryGrab(ctx context.Context, ex Execer, id int64) {
+	historyExec(ctx, ex, `INSERT INTO history (`+historyCols+`)
+		SELECT 'dl:' || d.id, COALESCE(d.added_at, (SELECT MIN(a.attempted_at) FROM download_attempt a
+			WHERE a.download_id = d.id AND a.outcome = 'accepted'), d.created_at), 'grabbed', `+HistoryGrabKindSQL+`,
+			`+historyDownloadFacts+`, d.episodes, 0, NULL, COALESCE(d.provider, ''), '', '', '', '', ''
+		FROM download d WHERE `+HistoryGrabbedWhere+` AND d.id = ?`+historyUpsert, id)
+	historyExec(ctx, ex, `DELETE FROM history WHERE ref = 'dl:' || ?1 AND NOT EXISTS (SELECT 1 FROM download d
+		WHERE d.id = ?1 AND `+HistoryGrabbedWhere+`)`, id)
 }
 
 // HistoryFailure writes the failed rows of downloads ids that are failed.
@@ -170,20 +103,51 @@ func HistoryFailure(ctx context.Context, ex Execer, ids ...int64) {
 	if len(ids) == 0 {
 		return
 	}
-	in, args := idArgs(ids)
-	historyExec(ctx, ex, historyFailureSQL(in), args...)
-}
-
-// HistoryImport writes download id's import row: linked or partly linked, or held for review.
-func HistoryImport(ctx context.Context, ex Execer, id int64) {
-	for _, q := range historyImportSQL(`d.id = ?`) {
-		historyExec(ctx, ex, q, id)
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		args[i] = id
 	}
+	historyExec(ctx, ex, `INSERT INTO history (`+historyCols+`)
+		SELECT 'dl:' || d.id || ':fail', d.updated_at, 'failed',
+			CASE WHEN d.error LIKE 'stalled%' THEN 'stall' ELSE 'failure' END,
+			`+historyDownloadFacts+`, d.episodes, 0, NULL, COALESCE(d.provider, ''), COALESCE(d.error, ''), '', '',
+			'', ''
+		FROM download d WHERE d.state = 'failed' AND d.id IN (`+Placeholders(len(ids))+`)`+historyUpsert, args...)
 }
 
-// HistoryBlocklist writes the blocked row of the blocklist entry (version, key), as router.Blocklist stored it.
+// HistoryImport writes download id's import row once it linked or partly linked (dl:<id>:import), with the episodes
+// its links held (recorded with each link action, else the link's current episodes), never the ones it asked for.
+func HistoryImport(ctx context.Context, ex Execer, id int64) {
+	historyExec(ctx, ex, `INSERT INTO history (`+historyCols+`)
+		SELECT 'dl:' || d.id || ':import', li.updated_at, 'imported', 'import', `+historyDownloadFacts+`,
+			(SELECT json_group_array(DISTINCT j.value) FROM library_action a, json_each(COALESCE(a.episodes,
+				(SELECT json_group_array(le.episode_id) FROM link_episode le WHERE le.link_id = a.link_id))) j
+				WHERE a.kind = 'link' AND a.mode = 'applied' AND a.download_id = d.id),
+			0, NULL, COALESCE(d.provider, ''), '', '', li.state, '', ''
+		FROM library_import li JOIN download d ON d.id = li.download_id
+		WHERE li.state IN ('linked', 'partial') AND d.id = ?`+historyUpsert, id)
+}
+
+// HistoryHeld writes download id's held row (dl:<id>:held): an import held for review whose download did not fail,
+// its own row, so a later import that links keeps it.
+func HistoryHeld(ctx context.Context, ex Execer, id int64) {
+	historyExec(ctx, ex, `INSERT INTO history (`+historyCols+`)
+		SELECT 'dl:' || d.id || ':held', li.updated_at, 'failed', 'import', `+historyDownloadFacts+`, '[]', 0, NULL,
+			COALESCE(d.provider, ''), COALESCE(li.last_error, ''), '', li.state, '', ''
+		FROM library_import li JOIN download d ON d.id = li.download_id
+		WHERE li.state = 'rejected' AND d.state <> 'failed' AND d.id = ?`+historyUpsert, id)
+}
+
+// HistoryBlocklist writes the blocked row of the blocklist entry (version, key), as router.Blocklist stored it: the
+// release as blocked, with the blocked download's indexer, size, quality and score.
 func HistoryBlocklist(ctx context.Context, ex Execer, version, key string) {
-	historyExec(ctx, ex, historyBlocklistSQL(`b.version_key = ? AND b.info_hash = ?`), version, key)
+	historyExec(ctx, ex, `INSERT INTO history (`+historyCols+`)
+		SELECT 'bl:' || b.rowid, b.created_at, 'blocked', 'blocklist', COALESCE(b.title_id, 0), b.version_key,
+			b.download_id, b.release_title, b.info_hash, COALESCE(d.indexer, ''), COALESCE(d.size_bytes, 0),
+			COALESCE(d.quality, ''), CASE WHEN d.formats IS NOT NULL OR d.score <> 0 THEN d.score END, NULL, '[]', 0,
+			NULL, '', b.reason, b.source, '', '', ''
+		FROM router_blocklist b LEFT JOIN download d ON d.id = b.download_id
+		WHERE b.version_key = ? AND b.info_hash = ?`+historyUpsert, version, key)
 }
 
 // HistoryUnblock keeps the blocked row of the blocklist entry (version, key) about to be deleted under a ref of its
@@ -193,9 +157,13 @@ func HistoryUnblock(ctx context.Context, ex Execer, version, key string) {
 		FROM router_blocklist WHERE version_key = ? AND info_hash = ?)`, version, key)
 }
 
-// HistoryRemoval writes the title_removed row of journal action id (a Remove title or Remove copy).
+// HistoryRemoval writes the title_removed row of journal action id (a Remove title or Remove copy), with who removed
+// it and what became of its files.
 func HistoryRemoval(ctx context.Context, ex Execer, id int64) {
-	historyExec(ctx, ex, historyRemovalSQL(`a.id = ?`), id)
+	historyExec(ctx, ex, `INSERT INTO history (`+historyCols+`)
+		SELECT 'act:' || a.id, a.created_at, 'title_removed', 'action', COALESCE(a.title_id, 0), a.version_key, NULL,
+			NULL, '', '', 0, '', NULL, NULL, '[]', 0, NULL, '', '', '', '', a.by, a.detail
+		FROM journal_action a WHERE a.action IN ('remove_title', 'remove_version') AND a.id = ?`+historyUpsert, id)
 }
 
 // HistoryRemovalDetail sets a removal row's detail when its outcome is known (the clean-up).
@@ -203,9 +171,9 @@ func HistoryRemovalDetail(ctx context.Context, ex Execer, id int64, detail strin
 	historyExec(ctx, ex, `UPDATE history SET detail = ? WHERE ref = ?`, detail, fmt.Sprint("act:", id))
 }
 
-// HistoryActionClass is the History row a library action gives: deleted (an upgrade's replaced file), adopted,
+// historyActionClass is the History row a library action gives: deleted (an upgrade's replaced file), adopted,
 // removed (a hand unlink), missing (a dead link), or "" for none; as the Where clauses above say.
-func HistoryActionClass(kind, mode string, downloadID int64, detail string) string {
+func historyActionClass(kind, mode string, downloadID int64, detail string) string {
 	prefix := func(p string) bool { return len(detail) >= len(p) && strings.EqualFold(detail[:len(p)], p) }
 	switch {
 	case mode != "applied":
@@ -257,10 +225,12 @@ type HistoryReplacedFile struct {
 	Episodes json.RawMessage `json:"episodes"`
 }
 
-// HistoryLibraryAction writes the History row of library action id of class (HistoryActionClass): a missing file or
-// a hand unlink is its own row; an upgrade's replaced files are one row per download and library (Upgraded: N files
-// replaced), the action added to its files; adoptions are one row per title, library, release and day.
-func HistoryLibraryAction(ctx context.Context, ex Execer, id int64, class string) {
+// HistoryLibraryAction writes the History row of library action id (its kind, mode, download and detail), when
+// History shows it: a missing file or a hand unlink is its own row; an upgrade's replaced files are one row per
+// download and library (Upgraded: N files replaced), the action added to its files; adoptions are one row per title,
+// library, release and day.
+func HistoryLibraryAction(ctx context.Context, ex Execer, id int64, kind, mode string, downloadID int64, detail string) {
+	class := historyActionClass(kind, mode, downloadID, detail)
 	if class == "" {
 		return
 	}

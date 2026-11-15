@@ -377,7 +377,7 @@ func (r *Router) settleAdding(ctx context.Context, dl int64, attempt sql.NullStr
 	if state == StateFailed {
 		errText = why
 	}
-	hist := histGrab // an adoption, or back to queued
+	hist := histNone // back to queued: nothing reached a provider
 	if state == StateFailed {
 		hist = histFail
 	}

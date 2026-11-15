@@ -204,8 +204,9 @@ records each event, and only for the events that give a row: a grab when a provi
 (`store.HistoryGrab`, from the router's add, client add and reconciliation transitions; an add that is unmade, a
 not-cached trial deleted and requeued, loses its row unless a provider took the download before), a failure
 (`store.HistoryFailure`, from every write that fails a download), an import that links or is held for review
-(`store.HistoryImport`, its own `dl:<id>:held` row, so a later import that links keeps it), a library action
-(`store.HistoryLibraryAction` from `Library.record`, by `HistoryActionClass`), a blocklist entry
+(`store.HistoryImport`; a held one `store.HistoryHeld`, its own `dl:<id>:held` row, so a later import that links
+keeps it), a library action (`store.HistoryLibraryAction` from `Library.record`, which gives a row only for an
+upgrade's replaced file, an adoption, a hand unlink or a missing file), a blocklist entry
 (`store.HistoryBlocklist` from `router.Blocklist`; on Unblock its row moves to `bl:<rowid>:<at>`, so a new entry
 that takes the rowid does not write over it) and a removal (`store.HistoryRemoval` from `RecordAction`, its outcome
 from `SetActionDetail`). History writes are best effort: one that fails is logged and the event goes on.

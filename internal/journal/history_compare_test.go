@@ -226,17 +226,30 @@ func writeHistory(t *testing.T, ctx context.Context, st *store.Store) {
 		store.HistoryGrab(ctx, db, id)
 		store.HistoryFailure(ctx, db, id)
 		store.HistoryImport(ctx, db, id)
+		store.HistoryHeld(ctx, db, id)
 	}
-	for _, id := range ids(`SELECT id FROM library_action ORDER BY id`) {
-		var kind, mode, detail string
-		var dl int64
-		if err := db.QueryRowContext(ctx, `SELECT kind, mode, COALESCE(download_id, 0), detail FROM library_action
-			WHERE id = ?`, id).Scan(&kind, &mode, &dl, &detail); err != nil {
+	type action struct {
+		id, dl             int64
+		kind, mode, detail string
+	}
+	var acts []action
+	rows, err := db.QueryContext(ctx, `SELECT id, kind, mode, COALESCE(download_id, 0), detail FROM library_action
+		ORDER BY id`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for rows.Next() {
+		var a action
+		if err := rows.Scan(&a.id, &a.kind, &a.mode, &a.dl, &a.detail); err != nil {
 			t.Fatal(err)
 		}
-		store.HistoryLibraryAction(ctx, db, id, store.HistoryActionClass(kind, mode, dl, detail))
+		acts = append(acts, a)
 	}
-	rows, err := db.QueryContext(ctx, `SELECT version_key, info_hash FROM router_blocklist`)
+	rows.Close()
+	for _, a := range acts {
+		store.HistoryLibraryAction(ctx, db, a.id, a.kind, a.mode, a.dl, a.detail)
+	}
+	rows, err = db.QueryContext(ctx, `SELECT version_key, info_hash FROM router_blocklist`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -382,7 +395,7 @@ func TestStoredHistoryUpgradeIsOneRow(t *testing.T) {
 			quality, score, title_id, episodes) VALUES (?, ?, 'replace', 'applied', 'tv-2160p', 60, ?, 'moved aside', ?,
 			'WEBDL-1080p', 100, 3, ?)`, 80+i, msOf(at.Add(time.Duration(i)*time.Minute)),
 			fmt.Sprintf("/tv/G/S01E0%d.mkv", i), fmt.Sprintf("Gamma.S01E0%d.1080p.WEB", i), fmt.Sprintf("[%d]", 100+i))
-		store.HistoryLibraryAction(ctx, e.st.Writer(), 80+i, "deleted")
+		store.HistoryLibraryAction(ctx, e.st.Writer(), 80+i, "replace", "applied", 60, "moved aside")
 	}
 	derived := e.history(Filter{Events: []string{EvDeleted}})
 	if len(derived) != 3 {

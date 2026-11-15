@@ -350,10 +350,8 @@ func (l *Library) record(ctx context.Context, tx *sql.Tx, a action) error {
 		if err != nil {
 			return err
 		}
-		if class := store.HistoryActionClass(a.Kind, a.Mode, a.DownloadID, a.Detail); class != "" {
-			if id, err := res.LastInsertId(); err == nil {
-				store.HistoryLibraryAction(ctx, tx, id, class)
-			}
+		if id, err := res.LastInsertId(); err == nil {
+			store.HistoryLibraryAction(ctx, tx, id, a.Kind, a.Mode, a.DownloadID, a.Detail)
 		}
 		return nil
 	}

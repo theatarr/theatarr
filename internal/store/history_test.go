@@ -84,14 +84,15 @@ func TestHistoryHeldImportAndUnblock(t *testing.T) {
 			(8, 1, 1, 'movie-remux', 'h8', 'R8', 'x', 'importing', 1, 1);
 		INSERT INTO library_import (download_id, state, last_error, created_at, updated_at) VALUES
 			(7, 'rejected', 'runtime off', 2, 2), (8, 'rejected', 'sample', 2, 2)`)
-	HistoryImport(ctx, db, 7)
-	HistoryImport(ctx, db, 8)
+	HistoryHeld(ctx, db, 7)
+	HistoryHeld(ctx, db, 8)
 	exec(`UPDATE library_import SET state = 'linked', last_error = NULL, updated_at = 3 WHERE download_id = 7`)
 	for i := 0; i < 2; i++ {
 		HistoryImport(ctx, db, 7)
+		HistoryHeld(ctx, db, 7)
 	}
 	exec(`UPDATE download SET state = 'failed', error = 'library: sample', updated_at = 4 WHERE id = 8`)
-	HistoryImport(ctx, db, 8)
+	HistoryHeld(ctx, db, 8)
 	HistoryFailure(ctx, db, 8)
 	if got := rows(); got != "dl:7:held failed runtime off, dl:7:import imported , dl:8:fail failed library: sample, "+
 		"dl:8:held failed sample" {
