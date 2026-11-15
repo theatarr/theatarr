@@ -240,7 +240,7 @@ function cell(id: IndexColumnId, t: TitleRow, open: () => void): ReactNode {
 
 function TitleCell({ t, seeFiles }: { t: TitleRow; seeFiles: boolean }) {
   return (
-    <span className="flex min-w-0 items-center gap-2.5">
+    <span className="flex min-w-0 max-w-full items-center gap-2.5">
       <TitleThumb id={t.id} className="w-6" />
       {/* The year beside the name tells remakes apart (Aladdin 1992 and 2019) without a Year column. */}
       <span className="flex min-w-0 items-baseline gap-1">
