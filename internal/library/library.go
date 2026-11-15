@@ -39,6 +39,15 @@ import (
 // profile's order. nil means none.
 type RenameFormats func(ctx context.Context, version string, titleID int64, releaseTitle string) []string
 
+type renameMemoKey struct{}
+
+// RenameMemo is where a RenameFormats keeps what it loads for a title and library while one rename preview names
+// all of its links; nil outside a preview.
+func RenameMemo(ctx context.Context) *sync.Map {
+	m, _ := ctx.Value(renameMemoKey{}).(*sync.Map)
+	return m
+}
+
 // MatchedFormats returns the {Custom Formats} names for formats the router's decision matched (stored on the
 // download): those with includeCustomFormatWhenRenaming, in the profile's order. No decision is made again.
 type MatchedFormats func(ctx context.Context, version string, matched []string) []string

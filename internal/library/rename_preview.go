@@ -6,6 +6,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/library/naming"
@@ -48,6 +49,7 @@ func (l *Library) previewRename(ctx context.Context, titleID int64, season *int,
 		pinned, target := l.runtime(ctx)
 		return target.previewRename(pinned, titleID, season, allowed)
 	}
+	ctx = context.WithValue(ctx, renameMemoKey{}, &sync.Map{})
 	out := &RenamePreview{Files: []RenameFile{}}
 	rows, err := l.st.Reader().QueryContext(ctx, `
 		SELECT l.id, l.path, v.id, v.policy_key, t.kind, t.name, COALESCE(t.year, 0), COALESCE(t.imdb_id, ''),

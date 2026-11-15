@@ -1,12 +1,14 @@
 package library
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -174,12 +176,21 @@ func TestRenamePreviewLargeSeries(t *testing.T) {
 		e.exec(`INSERT INTO link_version (link_id,version_id) VALUES (?,20)`, id)
 		e.exec(`INSERT INTO link_episode (link_id,episode_id) VALUES (?,?)`, id, ep)
 	}
+	// The adopted links' formats share one memo per preview (a RenameFormats loads the title and library once).
+	memos := map[*sync.Map]int{}
+	e.lib.formats = func(ctx context.Context, _ string, _ int64, _ string) []string {
+		memos[RenameMemo(ctx)]++
+		return nil
+	}
 	start := time.Now()
 	got, err := e.lib.PreviewRename(e.ctx, 2, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Logf("preview of %d links: %v", n, time.Since(start))
+	if len(memos) != 1 || memos[nil] != 0 {
+		t.Fatalf("rename memos %v", memos)
+	}
 	b, _ := json.MarshalIndent(got, "", " ")
 	b = []byte(strings.ReplaceAll(string(b), e.dir, "DIR"))
 	golden := filepath.Join("testdata", "rename_preview_large.json")

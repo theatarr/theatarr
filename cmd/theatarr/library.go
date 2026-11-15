@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"os"
 	"strings"
+	"sync"
 	"text/tabwriter"
 	"time"
 
@@ -215,17 +216,33 @@ func decideRenameFormats(st *store.Store, pol *policy.Policy, eng *decide.Engine
 		if vp == nil || eng == nil {
 			return nil
 		}
-		t, err := decide.LoadTitle(ctx, st.Reader(), titleID)
-		if err != nil {
-			return nil
+		// A rename preview names every link of the title: the title and library are loaded once for it.
+		type loaded struct {
+			t decide.Title
+			v decide.Version
 		}
-		if err := decide.LoadSeriesVersion(ctx, st.Reader(), &t, 0); err != nil {
-			return nil
+		memo, key := library.RenameMemo(ctx), fmt.Sprint(titleID, "/", version)
+		var l loaded
+		if x, ok := loadMemo(memo, key); ok {
+			l = x.(loaded)
+		} else {
+			t, err := decide.LoadTitle(ctx, st.Reader(), titleID)
+			if err != nil {
+				return nil
+			}
+			if err := decide.LoadSeriesVersion(ctx, st.Reader(), &t, 0); err != nil {
+				return nil
+			}
+			v, err := decide.LoadVersion(ctx, st.Reader(), pol, titleID, version)
+			if err != nil {
+				return nil
+			}
+			l = loaded{t, v}
+			if memo != nil {
+				memo.Store(key, l)
+			}
 		}
-		v, err := decide.LoadVersion(ctx, st.Reader(), pol, titleID, version)
-		if err != nil {
-			return nil
-		}
+		t, v := l.t, l.v
 		d, err := eng.Decide(ctx, decide.Release{Release: indexer.Release{Title: release}}, t, v, nil)
 		if err != nil || d == nil {
 			return nil
@@ -236,6 +253,13 @@ func decideRenameFormats(st *store.Store, pol *policy.Policy, eng *decide.Engine
 		}
 		return renameNames(pol, eng, version, names)
 	}
+}
+
+func loadMemo(m *sync.Map, key string) (any, bool) {
+	if m == nil {
+		return nil, false
+	}
+	return m.Load(key)
 }
 
 // renameProfiles checks that eng built the profile the version's names need. built is what the engine reported on the
