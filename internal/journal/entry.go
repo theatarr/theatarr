@@ -187,8 +187,12 @@ type Entry struct {
 	Source  string   `json:"source"`
 	Title   TitleRef `json:"title"`
 	Version string   `json:"version,omitempty"`
-	// Summary is one line: what was decided or what happened.
+	// Summary is one line in plain words: what was decided or what happened, files by their names (words.go). Label
+	// is the kind in History's words (Grabbed, Upgraded, Imported, Adopted, Removed, ...). Paths are the full paths
+	// of the files the summary names, for a tooltip (accounts that see files).
 	Summary   string     `json:"summary"`
+	Label     string     `json:"label"`
+	Paths     []string   `json:"paths,omitempty"`
 	Release   *Release   `json:"release,omitempty"`
 	Download  *Download  `json:"download,omitempty"`
 	Reasoning *Reasoning `json:"reasoning,omitempty"`

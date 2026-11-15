@@ -27,7 +27,8 @@ func TestActionEntries(t *testing.T) {
 	}
 	en := p.Items[0]
 	if en.ID != "act:1" || en.Kind != KindAction || en.Source != "web" || en.Action == nil || en.Action.By != "mgr" ||
-		en.Release == nil || en.Release.InfoHash != hashC || !strings.HasPrefix(en.Summary, "release unblocked by mgr: ") ||
+		en.Release == nil || en.Release.InfoHash != hashC || en.Label != "Unblocked" ||
+		!strings.HasPrefix(en.Summary, "Unblocked Some.Release · by mgr · was blocked by library: sample") ||
 		strings.Contains(en.Summary, "secret") || !en.At.Equal(testNow) {
 		t.Errorf("entry %+v", en)
 	}

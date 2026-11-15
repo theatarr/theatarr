@@ -8,7 +8,7 @@ journal answers that without reading the code or the raw database. Code: `intern
 
 | How | Use |
 |---|---|
-| **System › Decision journal** (`/admin/system/journal`, admins) | The list in the UI, newest first, with **Flagged** for the entries a check found suspect (the nav badge counts them). An entry opens from its title link. |
+| **System › Decision journal** (`/admin/system/journal`, admins) | The list in the UI, newest first, one line per thing that happened (below, "The list"), with **Flagged** for the entries a check found suspect (the nav badge counts them). An entry opens from its title link. The title page's Journal block (History tab) shows the same lines for the title. |
 | `GET /api/theatarr/v1/journal` | List entries, newest first. Header `X-Api-Key: <key>`. |
 | `GET /api/theatarr/v1/journal/{id}` | Get one entry. |
 | `GET /api/theatarr/v1/journal/flagged` | `{"count": n}`: how many entries carry a `warn` or `error` flag (a count over the stored flags). |
@@ -29,6 +29,31 @@ Filters work the same way in the API and the CLI (`-flag` or `?param=`):
 
 `suspect` and `severity` read the stored flags (below), so a flagged page is as quick as any other. The CLI reads the
 database only: it shows the flags `theatarr serve` stored and works out none itself.
+
+### The list
+
+The list (UI, API and CLI alike) shows one line per thing that happened. An entry another entry's line stands for is
+left out of the list and named in that entry's `after` (What followed), with its own `ref`; it still opens by its id
+(History's Journal links open it as before):
+
+| Line | Stands for |
+|---|---|
+| A download's grab (`dl:<n>`, grab or upgrade) | Its failure (`dl:<n>:fail`), its import (`dl:<n>:import`) and its link and replace actions (`lib:<n>` with the download). The summary says what came of it: "Grabbed <release> on RD · imported, replaced <file>", "… · imported 8 files", "… · failed: <reason>", "… · waiting", "… · waiting for the mount" |
+| An adoption's first file (`lib:<n>`, the first action of its History row: one per title, library, release and day) | The group's other files, and the files the adoption replaced (History's own pairing, "History's folded rows"): "Adopted 8 files of Season 1 from Sonarr (sonarr_4k) · replaced 2 files". Files of one season adopted with a release each are one line each, as in History |
+| A file's removal (`lib:<n>`, a replace without a download) | The hand unlink's action (`act:<n>`, `unlink_file`) of the same file, title and library within the minute after it: "Removed <file> · copy removed by <who> · moved to the trash". The files of one removal (a season taken out with its library) are one line each, beside the copy's own "Removed the copy" line |
+
+An entry is left out only when the line that stands for it matches the same filter (`headParts`' parent column, checked
+in the SQL that pages, so a page boundary never splits them). The parent has the entry's title and library, so only
+`kind` and `since` can tell them apart: `kind=import` lists the imports, `kind=link` a download's link actions (their
+grab is not a link), `kind=action` the unlinks; `since` after a grab lists what came after it on their own lines.
+Flags live on History rows: a grab's line shows its own flags and those of its import and failure (the entry page as
+well). The flagged view (`suspect`, `severity`) folds nothing: each flagged entry is its own line, so the badge's count
+is the number of lines.
+
+Every summary names files by their file names only; the full paths are in `paths` (the UI's tooltip, and listed on the
+entry). `label` is the kind in History's words: Grabbed, Upgraded, Imported, Import held, Import waiting, Dry run,
+Linked, Adopted, Replaced, Removed, Missing, Relinked, Failed, Stalled, Blocked, Search, Search after a failure, and an
+action's own (Grabbed by hand, Download removed, Retried, Unblocked, Copy removed, Title removed, Removed).
 
 A good first pass:
 
@@ -72,7 +97,7 @@ The **id** names the source row. Ids are stable, so they work as keys in your no
 |---|---|
 | `at`, `kind`, `source` | When it happened, and who decided or acted: `theatarr`, `router`, `library`, `journal` or `web` |
 | `title`, `version` | The title and the library |
-| `summary` | One line saying what happened |
+| `summary`, `label`, `paths` | One line saying what happened, in plain words with file names only; the kind in History's words; the full paths of the files the summary names (above, "The list") |
 | `release` | Title, indexer, info hash, size, quality, score, formats, languages, episodes (`S01E02`), and `how` it was found (`Rss`, `Search`, `InteractiveSearch`; `acquire:<run>`, `rss`). A `link` entry for a link action carries the title and quality of its own download when it has one; a replace or a link without a download has none. Activity › History reads the journal in its own way (below) |
 | `reasoning` | Why this release was chosen (next table) |
 | `download` | Theatarr's download: state, provider, cached, reused, error |

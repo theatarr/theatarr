@@ -251,18 +251,21 @@ func TestDownloadEntries(t *testing.T) {
 		t.Errorf("related: %v", g.Related)
 	}
 	f := e.get("dl:1:fail")
-	if f.Kind != KindStall || !strings.HasPrefix(f.Summary, "download failed: stalled") {
+	if f.Kind != KindStall || f.Label != "Stalled" || !strings.HasPrefix(f.Summary, "Download stalled: not ready 10m0s") {
 		t.Errorf("stall: %+v", f)
 	}
 	if b := e.get("bl:1"); b.Kind != KindBlocklist || b.Source != "router" || b.Release.Quality != "Remux-2160p" {
 		t.Errorf("blocklist: %+v", b)
 	}
-	if rs := e.get("run:8"); rs.Kind != KindResearch || !strings.Contains(rs.Summary, "re-search (stalled)") {
+	if rs := e.get("run:8"); rs.Kind != KindResearch || rs.Summary != "Search again after a stalled download: nothing grabbed · no accepted release among 4 results" {
 		t.Errorf("research: %+v", rs)
 	}
-	// Nothing secret in any output, JSON or text.
+	if g.Label != "Grabbed" || !strings.HasPrefix(g.Summary, "Grabbed Alpha.2020.2160p.UHD.BluRay.REMUX-GRP on AD · failed: stalled: not ready 10m0s") {
+		t.Errorf("grab summary: %s %q", g.Label, g.Summary)
+	}
+	// Nothing secret in any output, JSON or text. The failure is on the grab's line.
 	page := e.list(Filter{})
-	if len(page.Items) != 4 {
+	if len(page.Items) != 3 {
 		t.Fatalf("entries: %d", len(page.Items))
 	}
 	b, _ := json.Marshal(page)
@@ -306,7 +309,7 @@ func TestScheduledRunsAreNotFailureResearches(t *testing.T) {
 		t.Errorf("re-searches after the failure: %v", refs)
 	}
 	for _, id := range []string{"run:9", "run:10", "run:11", "run:12"} {
-		if g := e.get(id); g.Kind != KindSearch || strings.Contains(g.Summary, "re-search") {
+		if g := e.get(id); g.Kind != KindSearch || g.Summary != "Wanted search: nothing grabbed · nothing found" {
 			t.Errorf("%s: %s %q", id, g.Kind, g.Summary)
 		}
 	}
@@ -431,7 +434,8 @@ func TestDownloadChecks(t *testing.T) {
 	if p := e.list(Filter{Kinds: []string{KindFailure}, Title: "gam"}); len(p.Items) != 4 {
 		t.Errorf("failures of Gamma: %d", len(p.Items))
 	}
-	if p := e.list(Filter{Version: "tv-2160p", Since: base.Add(33 * time.Hour)}); len(p.Items) != 4 {
+	// Two grabs and their failures, which are on the grabs' lines.
+	if p := e.list(Filter{Version: "tv-2160p", Since: base.Add(33 * time.Hour)}); len(p.Items) != 2 {
 		t.Errorf("since: %d", len(p.Items))
 	}
 	if p := e.list(Filter{Title: "1"}); len(p.Items) != 2 {
@@ -641,5 +645,163 @@ func TestRepeatedFailuresIncremental(t *testing.T) {
 	fail(4, 32)
 	if got := flagged(); len(got) != 0 {
 		t.Fatalf("after day 32: %v", got)
+	}
+}
+
+// ids are a page's entry ids, in order.
+func ids(p *Page) []string {
+	out := []string{}
+	for _, it := range p.Items {
+		out = append(out, it.ID)
+	}
+	return out
+}
+
+// The list shows one line per thing that happened (docs/journal.md "The list"): a download's import and link actions
+// stand under its grab, an adoption's other files and the file it replaced under its first file, a hand unlink's action
+// under its library action. Each still opens, is listed by its own kind or since bound when its line is not, and a
+// flag on one shows on the line that stands for it.
+func TestListFolds(t *testing.T) {
+	e := newEnv(t)
+	at := testNow.Add(-48 * time.Hour)
+	ms := func(d time.Duration) int64 { return msOf(at.Add(d)) }
+	// Alpha movie-remux: download 5 on rd, imported an hour later over the old file.
+	e.dlEvent(5, "imported", at, 1, 1, "movie-remux", hashA, "Alpha.2020.2160p.REMUX-NEW", "Remux-2160p", 9000, 60<<30,
+		nil, "")
+	e.exec(`UPDATE download SET provider = 'rd' WHERE id = 5`)
+	e.exec(`INSERT INTO library_import (download_id, state, mount_folder, plan, created_at, updated_at)
+		VALUES (5, 'linked', '/m/Alpha', '{}', ?, ?)`, ms(time.Hour), ms(time.Hour))
+	e.exec(`INSERT INTO library_action (id, at, kind, mode, version_key, download_id, path, detail) VALUES
+		(1, ?, 'link', 'applied', 'movie-remux', 5, '/movies/Alpha (2020)/Alpha (2020) [Remux-2160p]-NEW.mkv',
+			'linked Alpha.2020.2160p.REMUX-NEW.mkv'),
+		(2, ?, 'replace', 'applied', 'movie-remux', 5, '/movies/Alpha (2020)/Alpha (2020) [Remux-2160p]-OLD.mkv',
+			'moved aside to /trash/movie-remux/2026-10-24/Alpha (2020)/Alpha (2020) [Remux-2160p]-OLD.mkv')`,
+		ms(time.Hour), ms(time.Hour))
+	// Gamma S01E01-E02 adopted from Sonarr (one release, one day); the adoption replaced the old S01E01.
+	e.exec(`INSERT INTO library_action (id, at, kind, mode, version_key, path, detail, release_title, quality, title_id,
+		episodes) VALUES
+		(3, ?, 'link', 'applied', 'tv-2160p', '/tv/Gamma/Season 01/Gamma - S01E01.mkv',
+			'adopted from sonarr_4k_debrid /arr/tv/Gamma/S01E01.mkv', 'Gamma.S01.WEB-ARR', 'WEBDL-2160p', 3, '[101]'),
+		(4, ?, 'replace', 'applied', 'tv-2160p', '/tv/Gamma/Season 01/Gamma - S01E01 old.mkv',
+			'unlinked (deleted in Sonarr), moved aside to /trash/Gamma - S01E01 old.mkv', NULL, NULL, 3, '[101]'),
+		(5, ?, 'link', 'applied', 'tv-2160p', '/tv/Gamma/Season 01/Gamma - S01E02.mkv',
+			'adopted from sonarr_4k_debrid /arr/tv/Gamma/S01E02.mkv', 'Gamma.S01.WEB-ARR', 'WEBDL-2160p', 3, '[102]')`,
+		ms(2*time.Hour), ms(2*time.Hour+5*time.Second), ms(2*time.Hour+10*time.Second))
+	// Alpha movie-web: a file unlinked by hand, then the action that says who did it.
+	e.exec(`INSERT INTO library_action (id, at, kind, mode, version_key, path, detail, title_id) VALUES
+		(6, ?, 'replace', 'applied', 'movie-web', '/movies/Alpha (2020)/Alpha.WEB.mkv',
+			'unlinked (unlinked by mgr), moved aside to /trash/movie-web/Alpha (2020)/Alpha.WEB.mkv', 1)`, ms(3*time.Hour))
+	e.exec(`INSERT INTO journal_action (id, action, title_id, version_key, target, detail, by, created_at) VALUES
+		(1, 'unlink_file', 1, 'movie-web', '/movies/Alpha (2020)/Alpha.WEB.mkv',
+			'moved to /trash/movie-web/Alpha (2020)/Alpha.WEB.mkv', 'mgr', ?)`, ms(3*time.Hour+time.Second))
+	e.flag()
+	// The import is flagged (as a check would have found).
+	if _, err := e.st.Writer().Exec(`UPDATE history SET flags = '[{"code":"file_runtime","severity":"warn","reason":"short"}]',
+		severity = 'warn' WHERE ref = 'dl:5:import'`); err != nil {
+		t.Fatal(err)
+	}
+
+	all := e.list(Filter{})
+	if got := ids(all); !slices.Equal(got, []string{"lib:6", "lib:3", "dl:5"}) {
+		t.Fatalf("lines: %v", got)
+	}
+	want := map[string][2]string{
+		"lib:6": {"Removed", "Removed Alpha.WEB.mkv · unlinked by mgr · moved to the trash"},
+		"lib:3": {"Adopted", "Adopted 2 files of Season 1 from Sonarr (sonarr_4k_debrid) · replaced Gamma - S01E01 old.mkv"},
+		"dl:5":  {"Upgraded", "Grabbed Alpha.2020.2160p.REMUX-NEW on RD · imported, replaced Alpha (2020) [Remux-2160p]-OLD.mkv"},
+	}
+	for _, it := range all.Items {
+		if w := want[it.ID]; it.Label != w[0] || it.Summary != w[1] {
+			t.Errorf("%s: %s %q\nwant %s %q", it.ID, it.Label, it.Summary, w[0], w[1])
+		}
+	}
+	if g := all.Items[2]; hasFlag(g, CheckFileRuntime) == nil || !g.Suspect || !slices.Contains(g.Paths,
+		"/movies/Alpha (2020)/Alpha (2020) [Remux-2160p]-OLD.mkv") {
+		t.Errorf("grab line flags %+v paths %v", g.Flags, g.Paths)
+	}
+	// What followed names every entry a line stands for; each opens, in plain words.
+	refs := func(id string) []string {
+		var out []string
+		for _, ev := range e.get(id).After {
+			out = append(out, ev.Ref)
+		}
+		return out
+	}
+	for id, kids := range map[string][]string{"dl:5": {"dl:5:import", "lib:1", "lib:2"}, "lib:3": {"lib:4", "lib:5"},
+		"lib:6": {"act:1"}} {
+		for _, k := range kids {
+			if !slices.Contains(refs(id), k) {
+				t.Errorf("%s: what followed %v lacks %s", id, refs(id), k)
+			}
+		}
+	}
+	for id, w := range map[string]string{
+		"dl:5:import": "Imported Alpha.2020.2160p.REMUX-NEW",
+		"lib:1":       "Linked Alpha (2020) [Remux-2160p]-NEW.mkv",
+		"lib:2":       "Replaced Alpha (2020) [Remux-2160p]-OLD.mkv · moved to the trash",
+		"lib:4":       "Removed Gamma - S01E01 old.mkv · deleted in Sonarr · moved to the trash",
+		"lib:5":       "Adopted Gamma - S01E02.mkv from Sonarr (sonarr_4k_debrid)",
+		"act:1":       "Removed Alpha.WEB.mkv · by mgr · moved to the trash",
+	} {
+		if g := e.get(id); g.Summary != w || strings.Contains(g.Summary, "/") {
+			t.Errorf("%s: %q, want %q", id, g.Summary, w)
+		}
+	}
+	// Filters: a kind whose parent is not listed shows its own entries; the parent's kind folds them again.
+	for _, c := range []struct {
+		f    Filter
+		want []string
+	}{
+		{Filter{Kinds: []string{KindImport}}, []string{"dl:5:import"}},
+		{Filter{Kinds: []string{KindAction}}, []string{"act:1"}},
+		{Filter{Kinds: []string{KindLink}}, []string{"lib:6", "lib:3", "lib:2", "lib:1"}},
+		{Filter{Kinds: []string{KindGrab, KindImport, KindLink, KindAction}}, []string{"lib:6", "lib:3", "dl:5"}},
+		{Filter{Kinds: []string{KindUpgrade, KindImport}}, []string{"dl:5:import"}},
+		// A since bound after the parent lists what came after it.
+		{Filter{Since: at.Add(30 * time.Minute)}, []string{"lib:6", "lib:3", "lib:2", "lib:1", "dl:5:import"}},
+		{Filter{Since: at.Add(2*time.Hour + 3*time.Second)}, []string{"lib:6", "lib:5", "lib:4"}},
+		{Filter{Title: "Gamma"}, []string{"lib:3"}},
+		{Filter{Version: "movie-web"}, []string{"lib:6"}},
+		{Filter{Restricted: true, Within: []int64{1}}, []string{"lib:6", "dl:5"}},
+		// The flagged view folds nothing: the flagged import is listed, and the badge counts it once.
+		{Filter{Suspect: true}, []string{"dl:5:import"}},
+	} {
+		if got := ids(e.list(c.f)); !slices.Equal(got, c.want) {
+			t.Errorf("%+v: %v, want %v", c.f, got, c.want)
+		}
+	}
+	if n, err := e.j.FlaggedCount(context.Background()); err != nil || n != 1 {
+		t.Errorf("flagged count %d %v", n, err)
+	}
+	// Pages of one: every line once, none split.
+	var paged []string
+	f := Filter{Limit: 1}
+	for {
+		p := e.list(f)
+		paged = append(paged, ids(p)...)
+		if p.NextCursor == "" {
+			break
+		}
+		f.Cursor = p.NextCursor
+	}
+	if !slices.Equal(paged, ids(all)) {
+		t.Errorf("paged %v", paged)
+	}
+}
+
+// Summaries name files, not paths: a path in free text is cut to its file name, a trash path said as the trash.
+func TestPlainDetail(t *testing.T) {
+	for in, want := range map[string]string{
+		"moved aside to /trash/a b (2020)/x [1].mkv":                         "moved to the trash",
+		"moved aside to /trash/x.mkv (renamed during the upgrade)":           "moved to the trash (renamed during the upgrade)",
+		"moved to /trash/tv/S01E08 - x.mkv when its library was removed":     "moved to the trash when its library was removed",
+		`"/media/movies/A (2020)/A.mkv" is not a symlink`:                    `"A.mkv" is not a symlink`,
+		"leftover symlink moved aside to /t/x.mkv: no download holds it":     "leftover symlink moved to the trash: no download holds it",
+		"root /media/tv: permission denied; /media/tv/B/x.mkv is under none": "root tv: permission denied; x.mkv is under none",
+		"stalled: not ready 10m0s after the add":                             "stalled: not ready 10m0s after the add",
+	} {
+		if got := plainDetail(in); got != want {
+			t.Errorf("%q: %q, want %q", in, got, want)
+		}
 	}
 }

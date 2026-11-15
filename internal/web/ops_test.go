@@ -516,7 +516,7 @@ func TestUnblock(t *testing.T) {
 	}
 	p, err := o.web.journal.List(context.Background(), journal.Filter{Kinds: []string{journal.KindAction}})
 	if err != nil || len(p.Items) != 1 || p.Items[0].Action == nil || p.Items[0].Action.Action != journal.ActUnblock ||
-		!strings.Contains(p.Items[0].Summary, "unblocked by mgr") || p.Items[0].Release.InfoHash != hash {
+		!strings.HasPrefix(p.Items[0].Summary, "Unblocked ") || !strings.Contains(p.Items[0].Summary, " · by mgr") || p.Items[0].Release.InfoHash != hash {
 		t.Fatalf("journal entries %+v %v", p, err)
 	}
 }

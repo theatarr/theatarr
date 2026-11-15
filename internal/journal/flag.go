@@ -180,11 +180,23 @@ func flagRefs(id string) []string {
 	return []string{id}
 }
 
+// flagGroups are the History rows of the flags an entry's line shows, a group per entry it stands for (first found of
+// each counts): its own (flagRefs); a grab's line stands for its download's import and failure too (headParts), so
+// it shows their flags as well.
+func flagGroups(id string) [][]string {
+	if strings.HasPrefix(id, "dl:") && strings.Count(id, ":") == 1 {
+		return [][]string{{id}, flagRefs(id + ":import"), {id + ":fail"}}
+	}
+	return [][]string{flagRefs(id)}
+}
+
 // setFlags fills the entries' flags from their stored History rows, in one query.
 func (b *builder) setFlags(es []*Entry) error {
 	var refs []string
 	for _, e := range es {
-		refs = append(refs, flagRefs(e.ID)...)
+		for _, g := range flagGroups(e.ID) {
+			refs = append(refs, g...)
+		}
 	}
 	if len(refs) == 0 {
 		return nil
@@ -208,9 +220,19 @@ func (b *builder) setFlags(es []*Entry) error {
 		return err
 	}
 	for _, e := range es {
-		for _, ref := range flagRefs(e.ID) {
-			if raw, ok := stored[ref]; ok {
-				_ = json.Unmarshal([]byte(raw), &e.Flags)
+		var used []string
+		for _, g := range flagGroups(e.ID) {
+			for _, ref := range g {
+				raw, ok := stored[ref]
+				if !ok {
+					continue
+				}
+				if !slices.Contains(used, ref) {
+					used = append(used, ref)
+					var fs []Flag
+					_ = json.Unmarshal([]byte(raw), &fs)
+					e.Flags = mergeFlags(e.Flags, fs)
+				}
 				break
 			}
 		}
@@ -220,6 +242,20 @@ func (b *builder) setFlags(es []*Entry) error {
 		finish(e)
 	}
 	return nil
+}
+
+// mergeFlags adds fs to into, one flag per code (the higher severity).
+func mergeFlags(into, fs []Flag) []Flag {
+	for _, f := range fs {
+		i := slices.IndexFunc(into, func(g Flag) bool { return g.Code == f.Code })
+		switch {
+		case i < 0:
+			into = append(into, f)
+		case SevRank(f.Severity) > SevRank(into[i].Severity):
+			into[i] = f
+		}
+	}
+	return into
 }
 
 // FlaggedCount counts the flagged entries (a flag of warn or error): the badge.

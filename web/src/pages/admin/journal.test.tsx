@@ -109,3 +109,27 @@ it("starts at the newest page when the filter comes back to one paged before", a
   await screen.findByTestId("journal-row");
   expect(fetch.calls("GET", "/journal").at(-1)!.search).not.toContain("cursor=");
 });
+
+it("lists each line by its label with the file paths as the summary's tooltip, and the entry page names the paths", async () => {
+  mockFetch([
+    { method: "GET", path: "/journal", reply: { items: [{ id: "lib:6", kind: "link", label: "Removed", source: "library", at: "2026-11-15T10:00:00Z",
+      version: "tv-2160p", title: { id: 3, name: "Lanterns" }, summary: "Removed Lanterns - S01E08.mkv · copy removed by mgr · moved to the trash",
+      paths: ["/tv/Lanterns (2026)/Season 01/Lanterns - S01E08.mkv"] }] } },
+    { method: "GET", path: "/status", reply: {} },
+  ]);
+  const page = renderPage(<JournalList />, "/admin/system/journal");
+  const summary = await screen.findByTestId("journal-row-summary");
+  expect(summary.textContent).toBe("Removed Lanterns - S01E08.mkv · copy removed by mgr · moved to the trash");
+  expect(summary.getAttribute("title")).toBe("/tv/Lanterns (2026)/Season 01/Lanterns - S01E08.mkv");
+  expect(within(screen.getByTestId("journal-row")).getAllByText("Removed").length).toBeGreaterThan(0);
+  page.unmount();
+  mockFetch([
+    { method: "GET", path: "/journal/lib%3A6", reply: { id: "lib:6", kind: "link", label: "Removed", summary: "Removed Lanterns - S01E08.mkv",
+      paths: ["/tv/Lanterns (2026)/Season 01/Lanterns - S01E08.mkv"],
+      after: [{ at: "2026-11-15T10:00:01Z", kind: "action", text: "Removed by mgr", ref: "act:4" }] } },
+    { method: "GET", path: "/status", reply: {} },
+  ]);
+  renderPage(<Routes><Route path="/admin/system/journal/:id" element={<JournalEntryPage />} /></Routes>, "/admin/system/journal/lib:6");
+  expect((await screen.findByTestId("journal-paths")).textContent).toBe("/tv/Lanterns (2026)/Season 01/Lanterns - S01E08.mkv");
+  expect(screen.getByRole("link", { name: "Removed by mgr" }).getAttribute("href")).toBe("/admin/system/journal/act%3A4");
+});

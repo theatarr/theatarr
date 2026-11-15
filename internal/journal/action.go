@@ -44,9 +44,19 @@ type Action struct {
 	At         time.Time `json:"at"`
 }
 
+// actionHeadSQL is the actions' part of the list; a hand unlink's parent is its library action (the same file,
+// title and library, recorded just before it).
 const actionHeadSQL = `
 UNION ALL
-SELECT 'act:' || a.id, a.created_at, COALESCE(a.title_id, 0), a.version_key, 'action' FROM journal_action a`
+SELECT 'act:' || a.id, a.created_at, COALESCE(a.title_id, 0), a.version_key, 'action',
+	CASE WHEN a.action = 'unlink_file' THEN (` + unlinkLibSQL + `) END FROM journal_action a`
+
+// unlinkLibSQL is the library action of a hand unlink (alias a): the replace without a download of its file, title
+// and library, within the minute before it.
+const unlinkLibSQL = `SELECT 'lib:' || la.id FROM library_action la WHERE la.at BETWEEN a.created_at - 60000
+	AND a.created_at AND la.kind = 'replace' AND la.mode = 'applied' AND la.download_id IS NULL AND la.path = a.target
+	AND COALESCE(la.version_key, '') = a.version_key AND ` + libTitleSQL + ` = COALESCE(a.title_id, 0)
+	ORDER BY la.id DESC LIMIT 1`
 
 // hasActions reports whether the database has journal_action (migration 00039).
 func (j *Journal) hasActions(ctx context.Context) bool {
@@ -123,14 +133,44 @@ func (j *Journal) Record(ctx context.Context, a Action) (int64, error) {
 	return id, err
 }
 
-var actionWords = map[string]string{
-	ActGrab:           "grabbed by hand",
-	ActRemoveDownload: "download removed",
-	ActRetryDownload:  "download retried",
-	ActUnblock:        "release unblocked",
-	ActRemoveVersion:  "copy removed",
-	ActRemoveTitle:    "title removed",
-	ActUnlinkFile:     "file unlinked",
+// actionWords are each action's label and the start of its summary (the release or file is added after it).
+var actionWords = map[string][2]string{
+	ActGrab:           {"Grabbed by hand", "Grabbed by hand"},
+	ActRemoveDownload: {"Download removed", "Removed the download"},
+	ActRetryDownload:  {"Retried", "Retried"},
+	ActUnblock:        {"Unblocked", "Unblocked"},
+	ActRemoveVersion:  {"Copy removed", "Removed the copy"},
+	ActRemoveTitle:    {"Title removed", "Removed the title"},
+	ActUnlinkFile:     {"Removed", "Removed"},
+}
+
+// actionDetail is an action's detail in plain words.
+func actionDetail(a *Action) string {
+	switch a.Action {
+	case ActRemoveVersion, ActRemoveTitle:
+		r := ParseRemovalDetail(a.Detail)
+		files := map[string]string{RemovalFilesKept: "files kept", RemovalFilesDeleted: "files moved to the trash",
+			RemovalFilesPartial: "some files moved to the trash"}[r.Files]
+		left := ""
+		if r.Left > 0 {
+			left = fmt.Sprintf("%d left in place: %s", r.Left, plainDetail(r.Reason))
+		}
+		cleanup := ""
+		if r.Cleanup != "" {
+			cleanup = "debrid clean-up: " + plainDetail(r.Cleanup)
+		}
+		return join(files, left, cleanup)
+	case ActUnlinkFile:
+		d := plainDetail(a.Detail)
+		if strings.HasSuffix(d, " when its library was removed") {
+			return join(strings.TrimSuffix(d, " when its library was removed"), "library removed")
+		}
+		return d
+	case ActGrab:
+		d := strings.Replace(a.Detail, "routed although rejected", "although rejected", 1)
+		return plainDetail(strings.TrimSuffix(strings.TrimSuffix(d, "routed"), ": "))
+	}
+	return plainDetail(a.Detail)
 }
 
 // actionEntry is an operator action's own entry.
@@ -155,14 +195,23 @@ func (b *builder) actionEntry(e *Entry, rest string) error {
 	if a.DownloadID > 0 {
 		e.Related = append(e.Related, "dl:"+strconv.FormatInt(a.DownloadID, 10))
 	}
-	words := actionWords[a.Action]
-	if words == "" {
-		words = a.Action
+	words, ok := actionWords[a.Action]
+	if !ok {
+		words = [2]string{a.Action, a.Action}
 	}
-	e.Summary = words + " by " + orDash(a.By)
-	if a.Detail != "" {
-		e.Summary += ": " + a.Detail
+	what := clean(a.Release)
+	if a.Action == ActUnlinkFile {
+		what = baseName(a.Target)
+		if a.Target != "" {
+			e.Paths = []string{a.Target}
+		}
 	}
+	head := words[1]
+	if what != "" {
+		head += " " + what
+	}
+	e.Label = words[0]
+	e.Summary = join(head, "by "+orDash(a.By), actionDetail(a))
 	return nil
 }
 

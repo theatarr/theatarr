@@ -212,24 +212,60 @@ func (f *Filter) Validate() error {
 const failureRunSQL = `(` + router.FailureResearchSQL + `)`
 
 const runHeadSQL = `SELECT 'run:' || r.id AS id, r.created_at AS at, r.title_id, r.version_key,
-	CASE WHEN ` + failureRunSQL + ` THEN 'research' ELSE 'search' END AS kind FROM acquire_run r`
+	CASE WHEN ` + failureRunSQL + ` THEN 'research' ELSE 'search' END AS kind, NULL AS parent FROM acquire_run r`
 
 // grabKindSQL is a download's kind (alias d): upgrade when an earlier download of the version had imported a file
 // of its episodes, else grab.
 const grabKindSQL = store.HistoryGrabKindSQL
 
-// headParts are every source's entries as (id, at, title_id, version_key, kind), by id prefix.
+// headParts are every source's entries as (id, at, title_id, version_key, kind, parent), by id prefix. parent is the
+// entry whose line stands for this one in the list (docs/journal.md "The list"), or NULL: a download's failure, import
+// and link/replace actions stand under its grab; the other files of an adoption (its History group) under the
+// group's first; a file an adoption replaced under the adoption; a hand unlink's action under its library action.
+// A parent always has the entry's title and library.
 var headParts = []struct{ prefix, sql string }{
-	{"dl", `SELECT 'dl:' || d.id, d.created_at, d.title_id, d.version_key, ` + grabKindSQL + ` FROM download d`},
+	{"dl", `SELECT 'dl:' || d.id, d.created_at, d.title_id, d.version_key, ` + grabKindSQL + `, NULL FROM download d`},
 	{"dl", `SELECT 'dl:' || d.id || ':fail', d.updated_at, d.title_id, d.version_key,
-	CASE WHEN d.error LIKE 'stalled%' THEN 'stall' ELSE 'failure' END
+	CASE WHEN d.error LIKE 'stalled%' THEN 'stall' ELSE 'failure' END, 'dl:' || d.id
 FROM download d WHERE d.state = 'failed'`},
-	{"dl", `SELECT 'dl:' || li.download_id || ':import', li.updated_at, d.title_id, d.version_key, 'import'
+	{"dl", `SELECT 'dl:' || li.download_id || ':import', li.updated_at, d.title_id, d.version_key, 'import', 'dl:' || d.id
 FROM library_import li JOIN download d ON d.id = li.download_id`},
 	{"lib", libHeadSQL + `WHERE la.kind IN ('link', 'replace', 'relink', 'dead')`},
-	{"bl", `SELECT 'bl:' || b.rowid, b.created_at, COALESCE(b.title_id, 0), b.version_key, 'blocklist' FROM router_blocklist b`},
+	{"bl", `SELECT 'bl:' || b.rowid, b.created_at, COALESCE(b.title_id, 0), b.version_key, 'blocklist', NULL
+FROM router_blocklist b`},
 	{"run", runHeadSQL + ` WHERE ` + failureRunSQL + ` OR r.state IN ('nothing', 'failed')`},
 }
+
+// adoptGroupSQL is the History group row (alias p) of an adoption's action (alias la) that is not the group's first:
+// the same title, library, release and day (store.HistoryLibraryAction's grouping).
+var adoptGroupSQL = `FROM history p WHERE p.event = 'adopted' AND p.title_id = ` + libTitleSQL + `
+		AND p.version_key = COALESCE(la.version_key, '')
+		AND p.at >= la.at / 86400000 * 86400000 AND p.at < la.at / 86400000 * 86400000 + 86400000
+		AND COALESCE(p.release, '') = ` + store.HistoryAdoptReleaseSQL + ` AND p.ref <> 'lib:' || la.id
+		AND NOT EXISTS (SELECT 1 FROM history o WHERE o.ref = 'lib:' || la.id)
+		AND EXISTS (SELECT 1 FROM library_action pa WHERE pa.id = CAST(substr(p.ref, 5) AS INTEGER))`
+
+// libParentSQL is a library action's parent (alias la; headParts).
+var libParentSQL = `CASE
+	WHEN la.download_id IS NOT NULL THEN CASE WHEN la.kind IN ('link', 'replace') THEN (SELECT 'dl:' || d.id
+		FROM download d WHERE d.id = la.download_id AND d.version_key = COALESCE(la.version_key, '')
+		AND (la.title_id IS NULL OR la.title_id = d.title_id)) END
+	WHEN la.kind = 'link' AND la.mode = 'applied' AND la.detail LIKE 'adopted from %' THEN (SELECT p.ref ` +
+	adoptGroupSQL + ` ORDER BY p.id LIMIT 1)
+	WHEN la.kind = 'replace' AND la.mode = 'applied' THEN (SELECT p.ref FROM history JOIN history p ON ` +
+	adoptionOfRemovalSQL(`p.at BETWEEN history.at - 60000 AND history.at + 60000`) + `
+		AND EXISTS (SELECT 1 FROM library_action pa WHERE pa.id = CAST(substr(p.ref, 5) AS INTEGER))
+		WHERE history.ref = 'lib:' || la.id AND history.event = 'removed' ORDER BY p.at, p.ref LIMIT 1)
+END`
+
+// parentAtSQL and parentKindSQL are the time and kind of a head's parent (column parent), for the filter.
+const (
+	parentAtSQL = `COALESCE(CASE WHEN parent LIKE 'dl:%' THEN (SELECT d.created_at FROM download d
+		WHERE d.id = CAST(substr(parent, 4) AS INTEGER)) ELSE (SELECT la.at FROM library_action la
+		WHERE la.id = CAST(substr(parent, 5) AS INTEGER)) END, 0)`
+	parentKindSQL = `CASE WHEN parent LIKE 'dl:%' THEN (SELECT ` + grabKindSQL + ` FROM download d
+		WHERE d.id = CAST(substr(parent, 4) AS INTEGER)) ELSE 'link' END`
+)
 
 // headSQL is the union of every part.
 var headSQL = unionOf(func(string) bool { return true })
@@ -241,13 +277,13 @@ const flaggedHeadSQL = `SELECT ` + entryOfRefSQL + ` AS id, CASE WHEN kind IN ('
 	FROM history WHERE `
 
 // libHeadSQL is the library part without its filter.
-const libHeadSQL = `SELECT 'lib:' || la.id, la.at, ` + libTitleSQL + `,
-	COALESCE(la.version_key, ''), 'link'
+var libHeadSQL = `SELECT 'lib:' || la.id, la.at, ` + libTitleSQL + `,
+	COALESCE(la.version_key, ''), 'link', ` + libParentSQL + `
 FROM library_action la `
 
 // unionOf is the union of the parts keep selects. Its first member only names the columns.
 func unionOf(keep func(prefix string) bool) string {
-	qs := []string{`SELECT '' AS id, 0 AS at, 0 AS title_id, '' AS version_key, '' AS kind WHERE 0`}
+	qs := []string{`SELECT '' AS id, 0 AS at, 0 AS title_id, '' AS version_key, '' AS kind, NULL AS parent WHERE 0`}
 	for _, p := range headParts {
 		if keep(p.prefix) {
 			qs = append(qs, p.sql)
@@ -257,10 +293,13 @@ func unionOf(keep func(prefix string) bool) string {
 }
 
 // heads returns up to n entries' places, newest first, after cur. A flagged listing (Suspect or Severity) reads the
-// flagged History rows (flag.go) instead of every source.
+// flagged History rows (flag.go) instead of every source, and folds nothing. Otherwise an entry whose parent
+// (headParts) matches the filter too is left out: its parent's line stands for it. Title and library are the
+// parent's own, so only the since bound and the kinds can tell them apart; folding does not depend on the page.
 func (j *Journal) heads(ctx context.Context, f Filter, titles []int64, cur *cursor, n int) ([]head, error) {
 	q := headSQL
 	var args []any
+	fold := false
 	switch {
 	case f.Severity == SevError:
 		q = flaggedHeadSQL + `severity = 'error'`
@@ -269,11 +308,29 @@ func (j *Journal) heads(ctx context.Context, f Filter, titles []int64, cur *curs
 	case f.Severity == SevInfo:
 		q = flaggedHeadSQL + `severity <> ''`
 	default:
+		fold = true
 		if j.hasActions(ctx) {
 			q += actionHeadSQL
 		}
 	}
 	q = `SELECT id, at, title_id, version_key, kind FROM (` + q + `) WHERE 1 = 1`
+	if fold {
+		var match []string
+		if !f.Since.IsZero() {
+			match, args = append(match, parentAtSQL+` >= ?`), append(args, store.Millis(f.Since))
+		}
+		if len(f.Kinds) > 0 {
+			match = append(match, parentKindSQL+` IN (`+store.Placeholders(len(f.Kinds))+`)`)
+			for _, k := range f.Kinds {
+				args = append(args, k)
+			}
+		}
+		if len(match) == 0 {
+			q += ` AND parent IS NULL`
+		} else {
+			q += ` AND NOT (parent IS NOT NULL AND ` + strings.Join(match, " AND ") + `)`
+		}
+	}
 	if !f.Since.IsZero() {
 		q += ` AND at >= ?`
 		args = append(args, store.Millis(f.Since))

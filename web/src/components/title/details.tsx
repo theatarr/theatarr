@@ -14,7 +14,7 @@ import { fmtBytes, fmtDayYear, fmtNumber, fmtTime } from "@/lib/format";
 import { readableCode } from "@/lib/code-words";
 import { fileInventoryRows } from "@/lib/file-inventory";
 import { releaseTypeWords } from "@/lib/tmdb-words";
-import { journalKindWords } from "@/lib/journal-words";
+import { journalLabel, journalPathsTip } from "@/lib/journal-words";
 
 function outside(d: TitleDetail): { label: string; url: string }[] {
   const out: { label: string; url: string }[] = [];
@@ -28,7 +28,8 @@ export function outsideLinks(d: TitleDetail) {
   return outside(d);
 }
 
-/** The title's grab journal with a link to the full journal (admins). */
+/** The title's grab journal with a link to the full journal (admins): one line per thing that happened (the server
+ *  folds a download's import and links into its grab's line), its kind as the entry's label. */
 export function TitleJournal({ id }: { id: number }) {
   return (
     <Section title="Journal" aside={<Link to={journalHome(`?title=${id}`)} className="hover:text-foreground">Open in the journal ›</Link>}>
@@ -59,11 +60,11 @@ function Journal({ id }: { id: number }) {
             <TableRow key={e.id}>
               <TableCell className="whitespace-nowrap text-muted-foreground">{fmtTime(e.at)}</TableCell>
               <TableCell>
-                <Badge tone={e.suspect ? "warning" : "neutral"} title={e.kind}>{journalKindWords(e.kind)}</Badge>
+                <Badge tone={e.suspect ? "warning" : "neutral"} title={e.kind}>{journalLabel(e)}</Badge>
               </TableCell>
               <TableCell className="hidden sm:table-cell">{e.version ? <VersionTag k={e.version} /> : "—"}</TableCell>
               <TableCell>
-                <Link to={journalLink(e.id ?? "")} className="hover:text-primary">{e.summary || e.id}</Link>
+                <Link to={journalLink(e.id ?? "")} className="[overflow-wrap:anywhere] hover:text-primary" title={journalPathsTip(e)}>{e.summary || e.id}</Link>
               </TableCell>
             </TableRow>
           ))}

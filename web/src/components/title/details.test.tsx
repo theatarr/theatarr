@@ -13,6 +13,28 @@ describe("Title journal", () => {
     expect((await screen.findByRole("link", { name: "Grabbed" })).getAttribute("href")).toBe("/admin/system/journal/dl%3A4");
     expect(screen.getByRole("link", { name: /Open in the journal/ }).getAttribute("href")).toBe("/admin/system/journal?title=70");
   });
+
+  it("shows each line's label and plain summary, the file paths as the summary's tooltip", async () => {
+    mockFetch([
+      { method: "GET", path: "/journal", reply: { items: [
+        { id: "dl:5", at: "2026-11-15T10:00:00Z", kind: "upgrade", label: "Upgraded", version: "movie-remux", title: { id: 70, name: "Frankenstein" },
+          summary: "Grabbed Frankenstein.2025.UHD.REMUX-FraMeSToR on RD · imported, replaced Frankenstein (2025) [Remux-2160p]-CiNEPHiLES.mkv",
+          paths: ["/movies/Frankenstein (2025)/Frankenstein (2025) [Remux-2160p]-FraMeSToR.mkv", "/movies/Frankenstein (2025)/Frankenstein (2025) [Remux-2160p]-CiNEPHiLES.mkv"] },
+        { id: "lib:9", at: "2026-11-15T09:00:00Z", kind: "link", label: "Adopted", title: { id: 70, name: "Frankenstein" },
+          summary: "Adopted Frankenstein (2025).mkv from Radarr (radarr_4k) · replaced old.mkv" },
+        { id: "act:2", at: "2026-11-15T08:00:00Z", kind: "action", title: { id: 70, name: "Frankenstein" }, summary: "Retried" },
+      ] } },
+    ]);
+    renderPage(<TitleJournal id={70} />);
+    const up = await screen.findByRole("link", { name: /^Grabbed Frankenstein\.2025/ });
+    expect(up.getAttribute("title")).toBe("/movies/Frankenstein (2025)/Frankenstein (2025) [Remux-2160p]-FraMeSToR.mkv\n/movies/Frankenstein (2025)/Frankenstein (2025) [Remux-2160p]-CiNEPHiLES.mkv");
+    expect(screen.getByText("Upgraded").getAttribute("title")).toBe("upgrade");
+    expect(screen.getByText("Adopted")).toBeTruthy();
+    expect(screen.getByRole("link", { name: /^Adopted Frankenstein/ }).getAttribute("title")).toBeNull();
+    // An entry without a label shows its kind in words.
+    expect(screen.getByText("By hand")).toBeTruthy();
+    expect(screen.queryByText(/\/movies\//)).toBeNull();
+  });
 });
 
 describe("Release dates", () => {

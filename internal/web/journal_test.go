@@ -20,9 +20,15 @@ func TestJournalAPI(t *testing.T) {
 	key := e.apiKey()
 
 	var page journal.Page
+	// The failure is on the grab's line; by its own kind it is listed alone.
 	if code := e.getKey(APIBase+"/journal?kind=grab,failure&title=alp&version=movie-web", key, &page); code != 200 ||
-		len(page.Items) != 2 || page.Items[0].ID != "dl:1:fail" || page.Items[1].ID != "dl:1" {
+		len(page.Items) != 1 || page.Items[0].ID != "dl:1" ||
+		page.Items[0].Summary != "Grabbed Alpha.2020.2160p.WEB-DL-GRP · failed: miss on every provider" {
 		t.Fatalf("list: %d %+v", code, page.Items)
+	}
+	if code := e.getKey(APIBase+"/journal?kind=failure", key, &page); code != 200 || len(page.Items) != 1 ||
+		page.Items[0].ID != "dl:1:fail" {
+		t.Fatalf("failures: %d %+v", code, page.Items)
 	}
 	for _, q := range []string{"kind=nope", "severity=high", "suspect=maybe", "since=yesterday", "cursor=bm9wZQ"} {
 		if code := e.getKey(APIBase+"/journal?"+q, key, nil); code != 400 {

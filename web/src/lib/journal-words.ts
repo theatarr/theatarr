@@ -2,21 +2,28 @@
 // checks.go). The raw code stays in the element's title.
 import { wordsFor } from "./code-words";
 
+// In History's words (the server's label on each entry is more precise: a link entry is Adopted, Removed, Linked...).
 const KINDS: Record<string, string> = {
-  grab: "Grab",
-  upgrade: "Upgrade grab",
+  grab: "Grabbed",
+  upgrade: "Upgraded",
   search: "Search",
   research: "Search after a failure",
-  failure: "Failure",
+  failure: "Failed",
   stall: "Stalled",
   blocklist: "Blocked",
-  import: "Import",
-  link: "Link",
+  import: "Imported",
+  link: "Library file",
   action: "By hand",
 };
 
 /** An entry's kind: "research" → "Search after a failure". */
 export const journalKindWords = (k: string | null | undefined) => wordsFor(KINDS, k);
+
+/** An entry's kind as its line shows it: the server's label (Adopted, Removed, ...), else the kind in words. */
+export const journalLabel = (e: { label?: string | null; kind?: string | null }) => e.label || journalKindWords(e.kind);
+
+/** The tooltip of an entry's summary: the full paths of the files it names (accounts that see files). */
+export const journalPathsTip = (e: { paths?: readonly string[] | null }) => (e.paths?.length ? e.paths.join("\n") : undefined);
 
 /** The kinds the list's filter offers, in its order. */
 export const JOURNAL_KINDS = ["grab", "upgrade", "search", "research", "failure", "stall", "blocklist", "import", "link", "action"] as const;

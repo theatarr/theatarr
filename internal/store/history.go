@@ -47,6 +47,10 @@ const (
 	historyDeadLinkSQL  = `(SELECT l.id FROM link l WHERE l.id = la.link_id AND l.state = 'dead')`
 )
 
+// HistoryAdoptReleaseSQL is an adoption's release (alias la), as its History group row was keyed by (the journal's
+// list folds the group into one line).
+var HistoryAdoptReleaseSQL = historyRelSQL(historyAdoptLinkSQL)
+
 // historyRelSQL is a library action's release: recorded, else its fallback link's, else empty.
 func historyRelSQL(linkSQL string) string {
 	return `COALESCE(la.release_title, (SELECT release_title FROM link WHERE id = ` + linkSQL + `), '')`

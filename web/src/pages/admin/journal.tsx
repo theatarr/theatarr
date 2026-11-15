@@ -1,6 +1,8 @@
 // System › Decision journal (admins; /admin/system/journal, an entry at /admin/system/journal/:id): the grab journal
 // (GET /journal, /journal/{id}) with the flags stored when each entry's History row was written; Flagged lists the
-// entries with a warn or error flag. An entry shows what was decided and what followed.
+// entries with a warn or error flag, each on its own. A line is one thing that happened (the server folds a download's
+// import and link actions into its grab, an adoption's files into one); an entry shows what was decided, the full paths
+// of the files its summary names, and what followed, each step linked to its own entry.
 import { useEffect, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 import { useJournal, useJournalEntry, useStatus, type JournalEntry } from "@/api/hooks";
@@ -18,7 +20,7 @@ import { InfoHash } from "@/components/title/info-hash";
 import { Select } from "@/components/ui/select";
 import { toTop } from "@/components/ui/pager";
 import { attemptCodeWords, attemptOutcomeWords } from "@/lib/router-words";
-import { JOURNAL_KINDS, journalFlagWords, journalKindWords, journalSourceWords } from "@/lib/journal-words";
+import { JOURNAL_KINDS, journalFlagWords, journalKindWords, journalLabel, journalPathsTip, journalSourceWords } from "@/lib/journal-words";
 
 type Tone = "neutral" | "positive" | "warning" | "negative" | "info";
 const sevTone = (s?: string): Tone => (s === "error" ? "negative" : s === "warn" ? "warning" : s === "info" ? "info" : "neutral");
@@ -45,9 +47,9 @@ function Flags({ e }: { e: JournalEntry }) {
   );
 }
 
-/** An entry's kind as a badge, the code as its tooltip. */
-function KindBadge({ kind, className }: { kind?: string; className?: string }) {
-  return <Badge tone="outline" className={className} title={kind}>{journalKindWords(kind)}</Badge>;
+/** An entry's kind as a badge (its label, else the kind in words), the code as its tooltip. */
+function KindBadge({ kind, label, className }: { kind?: string; label?: string; className?: string }) {
+  return <Badge tone="outline" className={className} title={kind}>{journalLabel({ kind, label })}</Badge>;
 }
 
 function TitleCell({ e }: { e: JournalEntry }) {
@@ -57,11 +59,11 @@ function TitleCell({ e }: { e: JournalEntry }) {
       <span>
         <Link className="font-medium hover:text-primary" to={journalLink(e.id ?? "")}>{e.title?.name ? nameWithoutYear(e.title.name, e.title.year) : "—"}</Link>
         {e.title?.year ? <span className="text-muted-foreground"> ({e.title.year})</span> : null}
-        <div className="max-w-[30rem] text-xs text-muted-foreground [overflow-wrap:anywhere]">{e.summary}</div>
+        <div className="max-w-[30rem] text-xs text-muted-foreground [overflow-wrap:anywhere]" title={journalPathsTip(e)} data-testid="journal-row-summary">{e.summary}</div>
         {/* Phones and tablets: the columns that hide (when, kind, library, flags) stay inline under the title. */}
         <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground md:hidden" data-testid="journal-inline">
           <span className="sm:hidden">{fmtTime(e.at)}</span>
-          <KindBadge kind={e.kind} className="sm:hidden" />
+          <KindBadge kind={e.kind} label={e.label} className="sm:hidden" />
           {e.version ? <VersionTag k={e.version} /> : null}
           <Flags e={e} />
         </div>
@@ -111,7 +113,7 @@ export function JournalList() {
   const filtered = !!kind || !!urlTitle || cursors.length > 0;
   return (
     <div>
-      <p className="mb-4 text-sm text-muted-foreground">Every grab decision and what followed it, newest first. Flagged shows the entries a check found suspect.</p>
+      <p className="mb-4 text-sm text-muted-foreground">Every grab decision and what followed it, newest first: one line per thing that happened (a download's import and file changes are on its grab's line; open it for each step). Flagged shows the entries a check found suspect.</p>
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <div className="flex gap-1">
           <Button size="xs" variant={suspect ? "ghost" : "secondary"} onClick={() => set("suspect")}>All</Button>
@@ -147,7 +149,7 @@ export function JournalList() {
                 <TableRow key={e.id} data-testid="journal-row">
                   <TableCell className="hidden whitespace-nowrap text-[13px] sm:table-cell">{fmtTime(e.at)}</TableCell>
                   <TableCell><TitleCell e={e} /></TableCell>
-                  <TableCell className="hidden sm:table-cell"><KindBadge kind={e.kind} /><div className="mt-1 text-xs text-muted-foreground" title={e.source}>{journalSourceWords(e.source)}</div></TableCell>
+                  <TableCell className="hidden sm:table-cell"><KindBadge kind={e.kind} label={e.label} /><div className="mt-1 text-xs text-muted-foreground" title={e.source}>{journalSourceWords(e.source)}</div></TableCell>
                   <TableCell className="hidden md:table-cell">{e.version ? <VersionTag k={e.version} /> : null}</TableCell>
                   <TableCell className="hidden md:table-cell"><Flags e={e} /></TableCell>
                 </TableRow>
@@ -179,10 +181,19 @@ export function JournalEntryPage() {
         crumb={crumb}
         docTitle="Decision journal"
         title={<span className="flex items-center gap-4"><TitleThumb id={e.title?.id} className="w-12" /><span>{e.title?.name ? nameWithoutYear(e.title.name, e.title.year) : id}{e.title?.year ? <span className="text-muted-foreground"> ({e.title.year})</span> : null}</span></span>}
-        description={<span className="flex flex-wrap items-center gap-2"><KindBadge kind={e.kind} />{e.version ? <VersionTag k={e.version} /> : null}<span title={e.source}>{journalSourceWords(e.source)}</span><span>{fmtTime(e.at)}</span><PolicyRev e={e} current={status.data?.policy_revision} /></span>}
+        description={<span className="flex flex-wrap items-center gap-2"><KindBadge kind={e.kind} label={e.label} />{e.version ? <VersionTag k={e.version} /> : null}<span title={e.source}>{journalSourceWords(e.source)}</span><span>{fmtTime(e.at)}</span><PolicyRev e={e} current={status.data?.policy_revision} /></span>}
         actions={e.title?.id ? <Button asChild variant="outline" size="sm"><a href={`/title/${e.title.id}`}>Title page</a></Button> : undefined}
       />
-      {e.summary ? <Card className="text-sm leading-relaxed [overflow-wrap:anywhere]" data-testid="journal-summary">{e.summary}</Card> : null}
+      {e.summary ? (
+        <Card className="text-sm leading-relaxed [overflow-wrap:anywhere]" data-testid="journal-summary">
+          {e.summary}
+          {(e.paths ?? []).length > 0 ? (
+            <ul className="mt-2 space-y-0.5 text-xs text-muted-foreground" data-testid="journal-paths">
+              {(e.paths ?? []).map((p) => <li key={p}><Mono className="break-all">{p}</Mono></li>)}
+            </ul>
+          ) : null}
+        </Card>
+      ) : null}
       {e.id?.startsWith("run:") ? (e.related ?? []).filter(id => id.startsWith("dl:")).map(id => <p key={id} className="mt-2 text-sm"><Link className="text-primary hover:underline" to={journalLink(id)}>View download</Link></p>) : null}
 
       {(e.flags ?? []).length > 0 ? (
