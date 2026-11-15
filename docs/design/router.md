@@ -1456,7 +1456,7 @@ writers), requests and Plex scan. Rejected, skipped, busy or unreadable: nothing
 or RSS finds what it wants later. B's import is its own and tried once: if it does not end imported at once (a
 failure, a mount wait, or an import held after probing the file: not an upgrade by the file's real facts, a
 prefer-SeaDex file veto, no file matched, a naming collision) B's download is deleted with its import, its library
-actions and its History rows (`dl:<id>`, `:held`, `:import`, `:fail`), so B, which never asked for the grab, keeps
+actions, a blocklist entry a file guard wrote for it, and its History rows (`dl:<id>`, `:held`, `:import`, `:fail`, `bl:<rowid>`), so B, which never asked for the grab, keeps
 no trace in Activity or History. Only a partial import (some files linked) ends failed with its reason, a normal
 failed row in Activity that an admin can Retry. A download another run already claimed is left to that run. B's
 import never undoes or holds A's. A download that was itself linked
@@ -1466,7 +1466,7 @@ or indexer, so nothing can be decided or checked for them; the one-time import i
 have the files. Code: `internal/library/other.go`, the decision
 `router.DecideOther` and `router.ScreenOther`. Tests: `TestOtherLibraryLinkedAtImport`, `TestOtherLibraryRejects`,
 `TestOtherLibrarySkipped`, `TestOtherLibraryFailureKeepsSource`, `TestOtherLibraryHeldLeavesNoTrace`,
-`TestOtherLibraryRouteRules`,
+`TestOtherLibraryBlocklistLeavesNoTrace`, `TestOtherLibraryRouteRules`,
 `TestOtherLibrarySeaDexPreferred`.
 
 Until 0.4.5 this was the offer machine (`router_offer`, retries every 15 minutes then daily, planned offers, a

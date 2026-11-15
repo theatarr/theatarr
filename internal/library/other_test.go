@@ -180,6 +180,32 @@ func TestOtherLibraryHeldLeavesNoTrace(t *testing.T) {
 	e.otherLeftNoTrace(t)
 }
 
+// A blocklist entry written for the second library's download (as a file guard's reject writes it, with its History
+// row) goes with the rest; another download's entry stays. The guard reads the same file for both libraries, so the
+// entry is laid down here for the download id the second library's attempt takes (2).
+func TestOtherLibraryBlocklistLeavesNoTrace(t *testing.T) {
+	t.Parallel()
+	e, web := otherEnv(t, "movie-state")
+	if err := os.WriteFile(filepath.Join(web, "Amelie The Movie (2001)"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	e.exec(`INSERT INTO router_blocklist (version_key, info_hash, title_id, release_title, reason, source, download_id,
+		created_at) VALUES ('movie-web', 'x2', 1, 'R', 'sample', 'library', 2, 5), ('movie-remux', 'x9', 1, 'R', 'sample',
+		'library', 9, 5)`)
+	e.exec(`INSERT INTO history (ref, at, event, kind, title_id, version_key, download_id, release, info_hash, indexer,
+		size, quality, score, formats, episodes, files, replaced, provider, reason, source, import_state, by, detail)
+		SELECT 'bl:' || rowid, 5, 'blocked', 'blocklist', 1, version_key, NULL, 'R', info_hash, '', 0, '', NULL, NULL,
+		'[]', 0, NULL, '', reason, source, '', '', '' FROM router_blocklist`)
+	if _, err := e.lib.Import(e.ctx, 1, false); err != nil {
+		t.Fatal(err)
+	}
+	e.otherLeftNoTrace(t)
+	if got := e.one(`SELECT group_concat(info_hash) FROM router_blocklist`) + "/" +
+		e.one(`SELECT COUNT(*) FROM history WHERE ref LIKE 'bl:%'`); got != "x9/1" {
+		t.Errorf("blocklist/history %s", got)
+	}
+}
+
 // otherLeftNoTrace: download 1 imported into movie-remux, and movie-web holds nothing from it.
 func (e *env) otherLeftNoTrace(t *testing.T) {
 	t.Helper()

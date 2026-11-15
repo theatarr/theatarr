@@ -166,7 +166,7 @@ func (l *Library) tryOther(ctx context.Context, d *importDownload, t decide.Titl
 		return id, "", nil // another run is importing it
 	}
 	// Tried once: anything but a finished import leaves B as it was. B never asked for this grab, so its download,
-	// import and History rows go; one that linked some files (partial) ends failed with its reason instead.
+	// import, blocklist entry (a file guard's reject) and History rows go; one that linked some files (partial) ends failed with its reason instead.
 	why = "it did not import at once"
 	switch {
 	case err != nil:
@@ -184,8 +184,9 @@ func (l *Library) tryOther(ctx context.Context, d *importDownload, t decide.Titl
 		}
 		if !linked {
 			for _, q := range []string{`DELETE FROM history WHERE ref IN ('dl:' || ?1, 'dl:' || ?1 || ':held',
-				'dl:' || ?1 || ':import', 'dl:' || ?1 || ':fail')`, `DELETE FROM library_action WHERE download_id = ?1`,
-				`DELETE FROM download WHERE id = ?1`} {
+				'dl:' || ?1 || ':import', 'dl:' || ?1 || ':fail') OR ref IN (SELECT 'bl:' || rowid FROM router_blocklist
+				WHERE download_id = ?1)`, `DELETE FROM router_blocklist WHERE download_id = ?1`,
+				`DELETE FROM library_action WHERE download_id = ?1`, `DELETE FROM download WHERE id = ?1`} {
 				if _, err := tx.ExecContext(ctx, q, id); err != nil {
 					return err
 				}
