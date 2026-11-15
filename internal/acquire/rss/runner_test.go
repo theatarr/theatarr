@@ -207,7 +207,7 @@ func waitUntil(t *testing.T, what string, ok func() bool) {
 }
 
 // The RSS task is paused (no next run, no Run now) while Pause is on, RSS on or off, and while RSS is on with no Live
-// library reading a feed; with Pause off a read paused by Pause records no good run, and on-demand reads stay allowed.
+// library; with Pause off a read paused by Pause records no good run, and on-demand reads stay allowed.
 func TestRSSTaskPaused(t *testing.T) {
 	t.Parallel()
 	for name, tc := range map[string]struct {
@@ -220,7 +220,7 @@ func TestRSSTaskPaused(t *testing.T) {
 			for _, v := range e.pol.Versions {
 				v.Indexers = nil
 			}
-		}, true},
+		}, false}, // feeds come and go without a settings change: not part of the paused state
 		"rss off, pause off":      {func(e *env) { no := false; e.pol.Shadow = &policy.Shadow{RSS: &no} }, false},
 		"rss on, live with feeds": {func(*env) {}, false},
 	} {

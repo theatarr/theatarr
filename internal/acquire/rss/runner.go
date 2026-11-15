@@ -163,12 +163,14 @@ func (r *Runner) read(ctx context.Context) error {
 }
 
 // task is the RSS read's task with run's interval, or on demand only (the arr RssSync command) while RSS is off. It is
-// paused (no next run, no Run now) while Pause is on, or while RSS is on and no Live library has a feed to read.
-func (r *Runner) task(ctx context.Context, run *Runner) tasks.Task {
+// paused (no next run, no Run now) while Pause is on, or while RSS is on and no library is Live. Whether a feed is
+// readable is not part of it: that changes without a settings change (a first catalog fetch), and a read with no feed
+// does nothing.
+func (r *Runner) task(_ context.Context, run *Runner) tasks.Task {
 	t := tasks.Task{Key: KindRSS, Name: "Check RSS feeds", Attempts: 2, Inbox: true, Run: r.read, Paused: run.paused()}
 	if run.set.RSS {
 		t.Every = run.set.RSSInterval
-		t.Paused = t.Paused || !run.eligible(ctx)
+		t.Paused = t.Paused || run.idx == nil || len(run.rssVersions()) == 0
 	}
 	return t
 }
