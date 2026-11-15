@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -177,9 +176,9 @@ func TestRenamePreviewLargeSeries(t *testing.T) {
 		e.exec(`INSERT INTO link_episode (link_id,episode_id) VALUES (?,?)`, id, ep)
 	}
 	// The adopted links' formats share one memo per preview (a RenameFormats loads the title and library once).
-	memos := map[*sync.Map]int{}
+	memos := map[string]int{}
 	e.lib.formats = func(ctx context.Context, _ string, _ int64, _ string) []string {
-		memos[RenameMemo(ctx)]++
+		memos[fmt.Sprintf("%p", RenameMemo(ctx))]++
 		return nil
 	}
 	start := time.Now()
@@ -188,7 +187,7 @@ func TestRenamePreviewLargeSeries(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Logf("preview of %d links: %v", n, time.Since(start))
-	if len(memos) != 1 || memos[nil] != 0 {
+	if len(memos) != 1 || memos[fmt.Sprintf("%p", map[string]any(nil))] != 0 {
 		t.Fatalf("rename memos %v", memos)
 	}
 	b, _ := json.MarshalIndent(got, "", " ")
