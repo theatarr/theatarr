@@ -1106,3 +1106,35 @@ func TestSnapshotHeadKeptPerGeneration(t *testing.T) {
 		t.Fatalf("active generation %d, want %d", runtime.Current().Generation, initial.Generation)
 	}
 }
+
+// A save's published snapshot is the next read's head, without a reload, and it reads as a fresh load does.
+func TestSnapshotHeadSeededByPublish(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	s, _, base := setup(t)
+	initial := bootstrap(t, s, base)
+	runtime, err := NewRuntimeCoordinator(s, base, initial, nil, func(_ context.Context, snap *Snapshot, _ *Runtime) (any, error) {
+		return snap.Generation, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := saveRequest(base, initial)
+	req.Records.Budgets[0].Config.Requests++
+	saved, err := runtime.SaveAndApply(ctx, req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	head, err := runtime.Snapshot(ctx)
+	if err != nil || head != runtime.Current().snapshot {
+		t.Fatalf("head after save is not the published snapshot (%v)", err)
+	}
+	loaded, err := s.Load(ctx, base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if head.Generation != saved.Generation || head.Revision != loaded.Revision || head.ProviderEpoch != loaded.ProviderEpoch ||
+		!reflect.DeepEqual(head.Records, loaded.Records) || head.EpochPending() {
+		t.Fatalf("published head %+v differs from a load %+v", head, loaded)
+	}
+}

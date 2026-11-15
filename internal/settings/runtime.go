@@ -185,6 +185,10 @@ func (r *RuntimeCoordinator) publish(next *Runtime) {
 		active.Activate()
 	}
 	r.current.Store(next)
+	// The snapshot just published is the stored head's (at its generation and epoch) for the next read.
+	if s := next.snapshot; s != nil && !s.epochPending {
+		r.head.Store(s)
+	}
 	if active, ok := next.Components.(interface{ AfterPublish() }); ok {
 		active.AfterPublish()
 	}
