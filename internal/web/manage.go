@@ -815,7 +815,7 @@ type EpisodeFile struct {
 	// Episodes lists every episode the file holds (S01E01), for a multi-episode file or a link.
 	Episodes []string `json:"episodes,omitempty"`
 	// CachedOn is the cache codes (rd, ad, tb; cacheCodes) of the providers that hold the file's content now
-	// (providerHolds; a link's content is linkContentSQL).
+	// (heldByHash; a link's torrent is its hash, linkHashSQL).
 	CachedOn []string `json:"cached_on,omitempty"`
 	// InfoHash is the torrent the file's content came from, when known (callers who see files only, as the file).
 	InfoHash string `json:"info_hash,omitempty"`

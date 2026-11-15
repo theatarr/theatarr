@@ -254,9 +254,8 @@ func linkHash(ctx context.Context, db *sql.DB, path string) (string, error) {
 	var hash string
 	err := db.QueryRowContext(ctx, `SELECT COALESCE(NULLIF(c.info_hash, ''), NULLIF(d.info_hash, ''),
 		CASE WHEN json_valid(lk.file_metadata) THEN NULLIF(json_extract(lk.file_metadata, '$.InfoHash'), '') END,
-		(SELECT MIN(pt.info_hash) FROM provider_torrent pt
-		 WHERE pt.provider = d.provider AND pt.torrent_id = d.provider_torrent_id AND length(pt.info_hash) = 40
-		 HAVING COUNT(DISTINCT pt.info_hash) = 1), '')
+		(SELECT pt.info_hash FROM provider_torrent pt
+		 WHERE pt.provider = d.provider AND pt.torrent_id = d.provider_torrent_id AND length(pt.info_hash) = 40), '')
 		FROM link lk LEFT JOIN content_file cf ON cf.id = lk.content_file_id
 		LEFT JOIN content c ON c.id = cf.content_id LEFT JOIN download d ON d.id = lk.download_id
 		WHERE lk.path = ?`, path).Scan(&hash)

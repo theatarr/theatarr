@@ -378,6 +378,7 @@ func runServe(args []string) error {
 				if runtimeMountCheck != nil {
 					next.Router.SetMountCheck(runtimeMountCheck)
 				}
+				next.Router.SetRecordChanged(torrentUsage.Signal)
 				next.Router.SetReadyNotify(notifyReady)
 				if wireRuntimeExtras != nil {
 					if err := wireRuntimeExtras(ctx, next, old); err != nil {
@@ -473,6 +474,7 @@ func runServe(args []string) error {
 		return err
 	}
 	lb.manager, lb.readyWake = runtimeManager, readyWake
+	lb.lib.SetRecordChanged(torrentUsage.Signal)
 	torrentSvc.lib = lb
 	// The mount metrics read the active generation's library: a save that moves the mount starts a fresh guard there.
 	library.RegisterMountMetrics(reg, lb.current)
@@ -490,6 +492,7 @@ func runServe(args []string) error {
 	})
 	lb.LogState()
 	rt.SetMountCheck(lb.lib.MountListed)
+	rt.SetRecordChanged(torrentUsage.Signal)
 	runtimeMountCheck = lb.lib.MountListed
 
 	// Watch-order playlists in Plex, behind the library and playlists gates; closed, a sync only records dry runs
@@ -524,6 +527,7 @@ func runServe(args []string) error {
 		}
 		// Its loops (serveliveworkers.go) resolve each pass's library like the startup one.
 		runtime.Library.manager, runtime.Library.readyWake = runtimeManager, readyWake
+		runtime.Library.lib.SetRecordChanged(torrentUsage.Signal)
 		// The mount guard, helpers and listing floor carry over from the generation being replaced (the startup
 		// library before the first save), so a save neither resets an open breaker nor keeps old mount settings.
 		prevLib := lb.lib
@@ -532,6 +536,7 @@ func runServe(args []string) error {
 		}
 		runtime.Library.lib.InheritMount(prevLib)
 		runtime.Router.SetMountCheck(runtime.Library.lib.MountListed)
+		runtime.Router.SetRecordChanged(torrentUsage.Signal)
 		runtime.Playlists, err = newPlaylistSyncer(ctx, runtime.Policy, st, runtime.Gateway, log)
 		if err != nil {
 			return err

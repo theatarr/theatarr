@@ -209,7 +209,7 @@ func (w *Web) titleFacets(ctx context.Context, f TitleFilter, seeFiles bool) (Ti
 	}
 	if seeFiles {
 		// As the rows' pills and the provider filter: providers holding a current file of a version in the library
-		// now (providerHolds; a link's content is linkContentSQL), counted by cache code.
+		// now (providerHolds; a link's torrent is its hash, heldJoin), counted by cache code.
 		titles := map[string]map[int64]bool{}
 		err := scanAll(ctx, db, `SELECT DISTINCT cp.provider AS p, t.id AS tid`+titleFrom+` JOIN link l ON l.title_id = t.id
 				JOIN `+heldJoin+

@@ -567,6 +567,7 @@ func (r *Router) heldBy(ctx context.Context, hash, provider string, read bool) (
 			}); err != nil {
 				return "", nil, fmt.Errorf("router: registry: %w", err)
 			}
+			r.usageStale()
 		}
 		skip = append(skip, id)
 	}
@@ -574,25 +575,39 @@ func (r *Router) heldBy(ctx context.Context, hash, provider string, read bool) (
 }
 
 // dropRecordRow notes that torrent id is not on provider pk any more (our own add deleted or left behind, or the
-// account no longer holds it): its registry row reads absent and its row leaves the record (provider_torrent), as
-// the next complete listing would have it.
+// account no longer holds it): its registry row reads absent and it leaves the record (provider.DropRecordTorrent),
+// as the next complete listing would have it. The caller signals the usage after the commit (recordChanged).
 func dropRecordRow(ctx context.Context, tx *sql.Tx, now int64, pk, id string) error {
 	if _, err := tx.ExecContext(ctx, `UPDATE content_provider SET state = 'absent', absent_at = ?
 		WHERE provider = ? AND torrent_id = ? AND state = 'present'`, now, pk, id); err != nil {
 		return err
 	}
-	_, err := tx.ExecContext(ctx, `DELETE FROM provider_torrent WHERE provider = ? AND torrent_id = ?`, pk, id)
-	return err
+	return provider.DropRecordTorrent(ctx, tx, pk, id)
 }
 
-// recordPrimaryOrder: provider.RecordPrimaryOrder (knownID's argument provider hides the package).
-const recordPrimaryOrder = provider.RecordPrimaryOrder
+// SetRecordChanged sets what asks for the record's usage to be worked out again after the router dropped a torrent
+// from it (serve's usage worker); nil does nothing.
+func (r *Router) SetRecordChanged(f func()) {
+	r.stateMu.Lock()
+	defer r.stateMu.Unlock()
+	r.recordChanged = f
+}
+
+// usageStale calls the function SetRecordChanged set, if any.
+func (r *Router) usageStale() {
+	r.stateMu.Lock()
+	f := r.recordChanged
+	r.stateMu.Unlock()
+	if f != nil {
+		f()
+	}
+}
 
 // heldReadRetry is the pause before heldBy reads a known torrent id a second time after a failed read.
 var heldReadRetry = 2 * time.Second
 
 // knownID is heldBy's lookup without the read: the registry first, then our downloads, leaving out the ids in skip.
-func (r *Router) knownID(ctx context.Context, hash, provider string, skip []string) (string, bool, error) {
+func (r *Router) knownID(ctx context.Context, hash, pk string, skip []string) (string, bool, error) {
 	not, notArgs := "", []any{}
 	for _, id := range skip {
 		not += " AND %s != ?"
@@ -601,14 +616,14 @@ func (r *Router) knownID(ctx context.Context, hash, provider string, skip []stri
 	var id string
 	err := r.st.Writer().QueryRowContext(ctx, `SELECT torrent_id FROM provider_torrent
 		WHERE info_hash = ? AND provider = ? AND torrent_id != ''`+strings.ReplaceAll(not, "%s", "torrent_id")+`
-		ORDER BY `+recordPrimaryOrder+` LIMIT 1`, append([]any{hash, provider}, notArgs...)...).Scan(&id)
+		ORDER BY `+provider.RecordPrimaryOrder+` LIMIT 1`, append([]any{hash, pk}, notArgs...)...).Scan(&id)
 	if err == nil {
 		return id, true, nil
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
 		return "", false, fmt.Errorf("router: registry: %w", err)
 	}
-	epoch, args := "", []any{hash, provider}
+	epoch, args := "", []any{hash, pk}
 	if r.settingsManaged {
 		epoch, args = " AND provider_epoch = ?", append(args, r.providerEpoch)
 	}

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"net/http"
+	"slices"
 	"sort"
 	"time"
 )
@@ -219,6 +220,9 @@ func (w *Web) titleEpisodes(ctx context.Context, id int64, season int, seeFiles 
 	// The current files that hold each episode, active links: the release group their file metadata keeps
 	// (decide.ExistingFile), and the providers holding their content now.
 	linkMeta := `CASE WHEN json_valid(l.file_metadata) THEN json_extract(l.file_metadata, '$.ReleaseGroup') END`
+	// Every current file's hash per episode and version, for Cached on (heldByHash) below.
+	cellHashes := map[[2]int64][]string{}
+	var hashes []string
 	if err := scanAll(ctx, db, `SELECT le.episode_id, lv.version_id, COALESCE(l.quality, ''), `+
 		linkSizeSQL+`, `+linkScoreSQL+`, COALESCE(`+linkMeta+`, ''), COALESCE(l.release_title, ''), l.path, `+linkHash+`
 		FROM link l JOIN link_episode le ON le.link_id = l.id JOIN link_version lv ON lv.link_id = l.id
@@ -243,6 +247,9 @@ func (w *Web) titleEpisodes(ctx context.Context, id int64, season int, seeFiles 
 			if seeFiles {
 				c.SizeBytes, c.Score, c.ReleaseGroup, c.ReleaseTitle, c.Path, c.InfoHash = nullInt(size), nullInt(score),
 					group, release, path, hash
+				k := [2]int64{eid, vid}
+				cellHashes[k] = append(cellHashes[k], hash)
+				hashes = append(hashes, hash)
 			}
 			all[i].Versions[key] = c
 			return nil
@@ -250,22 +257,20 @@ func (w *Web) titleEpisodes(ctx context.Context, id int64, season int, seeFiles 
 		return nil, err
 	}
 	if seeFiles {
-		held := map[[2]int64][]string{}
-		if err := scanAll(ctx, db, `SELECT DISTINCT le.episode_id, lv.version_id, cp.provider FROM link l
-			JOIN link_episode le ON le.link_id = l.id JOIN link_version lv ON lv.link_id = l.id
-			JOIN `+heldJoin+`
-			WHERE l.title_id = ? AND l.state = 'active' AND `+providerHolds+` ORDER BY 1, 2, 3`,
-			[]any{id}, func(r *sql.Rows) error {
-				var eid, vid int64
-				var p string
-				if err := r.Scan(&eid, &vid, &p); err != nil {
-					return err
-				}
-				k := [2]int64{eid, vid}
-				held[k] = append(held[k], p)
-				return nil
-			}); err != nil {
+		byHash, err := heldByHash(ctx, db, hashes...)
+		if err != nil {
 			return nil, err
+		}
+		held := map[[2]int64][]string{}
+		for k, hs := range cellHashes {
+			for _, h := range hs {
+				for _, p := range byHash[h] {
+					if !slices.Contains(held[k], p) {
+						held[k] = append(held[k], p)
+					}
+				}
+			}
+			slices.Sort(held[k])
 		}
 		for k, ps := range held {
 			i, ok := idx[k[0]]

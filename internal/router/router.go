@@ -85,6 +85,8 @@ type Router struct {
 	// mountHealthy, if set, says whether the debrid mount answers (SetMountCheck); ready deadlines wait while not.
 	// Guarded by stateMu.
 	mountHealthy func(ctx context.Context) error
+	// recordChanged asks for the record's usage to be worked out again (SetRecordChanged); under stateMu.
+	recordChanged func()
 	// readyNotify, if set, is called after a write that records a download as ready (SetReadyNotify). Guarded by
 	// stateMu.
 	readyNotify func()

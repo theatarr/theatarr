@@ -12,6 +12,7 @@ import (
 
 	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/jobs"
+	"github.com/theatarr/theatarr/internal/provider"
 	"github.com/theatarr/theatarr/internal/store"
 )
 
@@ -256,7 +257,9 @@ func (l *Library) apply(ctx context.Context, d *importDownload, vn *VersionNamin
 
 	pj, _ := json.Marshal(plan)
 	var strays []trashed
+	recorded := false // the import put its torrent in the record (RecordChanged after the commit)
 	err = l.refWriteTx(ctx, func(tx *sql.Tx) error {
+		recorded = false
 		if err := holdsClaim(ctx, tx, d); err != nil {
 			return err
 		}
@@ -304,12 +307,22 @@ func (l *Library) apply(ctx context.Context, d *importDownload, vn *VersionNamin
 				return err
 			}
 			// The record (provider_torrent) shows it at once too, for the readers of what the accounts hold (the
-			// router's guards, Cached on); a row the sync wrote stays unless it was unfinished.
+			// router's guards, Cached on). Without a torrent id (a manual or arr import) the provider's next listing
+			// finds it: one sync of that provider is asked for now.
 			if d.TorrentID != "" {
-				if _, err := tx.ExecContext(ctx, `INSERT INTO provider_torrent (provider, torrent_id, info_hash, name,
-					state, progress) VALUES (?, ?, lower(?), ?, 'downloaded', 100)
-					ON CONFLICT (provider, torrent_id) DO UPDATE SET state = 'downloaded', progress = 100
-					WHERE provider_torrent.progress < 100`, d.Provider, d.TorrentID, d.InfoHash, d.Name); err != nil {
+				var size int64
+				if err := tx.QueryRowContext(ctx, `SELECT COALESCE(size_bytes, 0) FROM download WHERE id = ?`, d.ID).
+					Scan(&size); err != nil {
+					return err
+				}
+				if err := provider.RecordImport(ctx, tx, d.Provider, d.TorrentID, d.InfoHash, d.Name, size); err != nil {
+					return err
+				}
+				recorded = true
+			} else if l.queue != nil {
+				if _, _, err := l.queue.EnqueueTx(ctx, tx, provider.JobKind, provider.SyncPayload{
+					Providers: []string{d.Provider}}, jobs.EnqueueOptions{DedupeKey: provider.JobKind + "/import/" +
+					d.Provider, MaxAttempts: 1}); err != nil {
 					return err
 				}
 			}
@@ -520,6 +533,9 @@ func (l *Library) apply(ctx context.Context, d *importDownload, vn *VersionNamin
 	}
 	if err != nil {
 		return err
+	}
+	if recorded && l.recordChanged != nil {
+		l.recordChanged()
 	}
 	l.storeCutoffs(ctx, []stateVersion{{id: v.VersionID, titleID: v.Title.ID, key: v.Key}})
 	for _, m := range strays {

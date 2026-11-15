@@ -158,6 +158,9 @@ func TestStaleRegistryIDNotReused(t *testing.T) {
 			e := newEnv(t, true)
 			e.exec(`INSERT INTO content (id, info_hash, state, first_seen_at, last_seen_at) VALUES (7, ?, 'present', 0, 0)`, h("a"))
 			e.exec(`INSERT INTO provider_torrent (provider, torrent_id, info_hash) VALUES ('rd', 'HELD', ?)`, h("a"))
+			e.exec(`INSERT INTO provider_hash_usage (info_hash, usage) VALUES (?, 'used')`, h("a"))
+			signals := 0
+			e.r.SetRecordChanged(func() { signals++ })
 			tc.setup(e)
 			res, err := e.r.Route(e.ctx, movieReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")))
 			if err != nil {
@@ -172,6 +175,10 @@ func TestStaleRegistryIDNotReused(t *testing.T) {
 			}
 			if res.Reused || res.TorrentID != "rd-aaaa" || e.adds() != 1 || state != 0 {
 				t.Fatalf("%+v: %s; adds %d, present %d", res, steps(res), e.adds(), state)
+			}
+			// It left the record with its hash's stored usage, and the usage is asked for again.
+			if n := e.count(`SELECT COUNT(*) FROM provider_hash_usage`); n != 0 || signals != 1 {
+				t.Errorf("hash usage rows %d, signals %d", n, signals)
 			}
 		})
 	}

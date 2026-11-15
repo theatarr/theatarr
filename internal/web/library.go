@@ -18,6 +18,7 @@ import (
 	"github.com/theatarr/theatarr/internal/indexer"
 	"github.com/theatarr/theatarr/internal/metadata/art"
 	"github.com/theatarr/theatarr/internal/policy"
+	"github.com/theatarr/theatarr/internal/router"
 	"github.com/theatarr/theatarr/internal/store"
 )
 
@@ -78,15 +79,6 @@ var (
 // file) the size its file metadata keeps. cf is the LEFT JOINed content_file.
 const linkSizeSQL = `COALESCE(cf.size_bytes, json_extract(l.file_metadata, '$.Size'))`
 
-// linkContentSQL is the registry content (content.id) of link l's file, or NULL: its content file's content, else
-// the content of the first hash the link records: its download's, the file metadata's InfoHash, the adopted source's
-// hash (an adopted link has no content file). An empty string counts as missing at every step. It reads l only.
-const linkContentSQL = `COALESCE((SELECT cf_c.content_id FROM content_file cf_c WHERE cf_c.id = l.content_file_id),
-	(SELECT c_l.id FROM content c_l WHERE c_l.info_hash = lower(COALESCE(
-		(SELECT NULLIF(d_l.info_hash, '') FROM download d_l WHERE d_l.id = l.download_id),
-		CASE WHEN json_valid(l.file_metadata) THEN NULLIF(json_extract(l.file_metadata, '$.InfoHash'), '') END,
-		CASE WHEN json_valid(l.adopted_source) THEN NULLIF(json_extract(l.adopted_source, '$.hash'), '') END))))`
-
 // linkScoreSQL is link l's format score when the link stored scoring evidence, else NULL: the formats it matched
 // (file_metadata's Formats, decide.ExistingFile; an empty list too, so a calculated 0 stays 0), or a non-zero score
 // its import decision or adoption calculated. A stored 0 without formats is no evidence (migration 00038 backfilled
@@ -101,8 +93,9 @@ const linkScoreSQL = `CASE WHEN json_valid(l.file_metadata) AND (json_type(l.fil
 // downloading or never finished is not counted.
 const providerHolds = `cp.progress >= 100`
 
-// heldJoin joins link l's content (linkContentSQL) to its torrents in the record as cp (providerHolds).
-const heldJoin = `content c_h ON c_h.id = ` + linkContentSQL + ` JOIN provider_torrent cp ON cp.info_hash = c_h.info_hash`
+// heldJoin joins link l to the torrents of its hash (router.LinkStoredHashSQL, as linkHashSQL) in the record as cp
+// (providerHolds).
+const heldJoin = `provider_torrent cp ON cp.info_hash = ` + router.LinkStoredHashSQL
 
 // liveVersion is the condition that version v is in the library: not removed (catalog.Remove lists removed versions
 // in arrview_removed_version and keeps their rows).
@@ -375,14 +368,13 @@ func qualityCond(match string) string {
 }
 
 // hasProvider is the same for a debrid provider holding the file's content now (providerHolds), with n provider
-// keys as arguments, over the versions in the library. An active link's content is linkContentSQL, as
+// keys as arguments, over the versions in the library. An active link's torrent is its hash (heldJoin), as
 // currentFiles and the provider facet read it.
 func hasProvider(n int) string {
 	in := store.Placeholders(n)
 	// CROSS JOIN keeps the title's links as the outer loop: without statistics SQLite would otherwise scan the
 	// provider's rows for every title.
-	return `EXISTS (SELECT 1 FROM link l CROSS JOIN content c_h ON c_h.id = ` + linkContentSQL + `
-		CROSS JOIN provider_torrent cp ON cp.info_hash = c_h.info_hash WHERE l.title_id = t.id AND l.state = 'active' AND ` + liveLink + ` AND ` + providerHolds + `
+	return `EXISTS (SELECT 1 FROM link l CROSS JOIN ` + heldJoin + ` WHERE l.title_id = t.id AND l.state = 'active' AND ` + liveLink + ` AND ` + providerHolds + `
 		AND cp.provider IN (` + in + `))`
 }
 
@@ -803,7 +795,7 @@ type versionFiles struct {
 }
 
 // readVersionFiles reads the current files of versions ids: their active links, the links' episodes and the
-// providers that hold the links' content now (providerHolds; a link's content is linkContentSQL).
+// providers that hold the links' torrents now (heldByHash; a link's torrent is its hash, linkHashSQL).
 func readVersionFiles(ctx context.Context, db *sql.DB, ids []any) (*versionFiles, error) {
 	vf := &versionFiles{aggs: map[int64][]fileAgg{}, provs: map[int64][]string{}, items: map[int64]map[int64]itemFile{},
 		held: map[[2]int64]bool{}}
@@ -811,25 +803,24 @@ func readVersionFiles(ctx context.Context, db *sql.DB, ids []any) (*versionFiles
 		return vf, nil
 	}
 	type row struct {
-		vid     int64
-		f       itemFile
-		path    string
-		content sql.NullInt64
+		vid  int64
+		f    itemFile
+		path string
+		hash string
 	}
 	var rows []row
-	var linkIDs, contentIDs []int64
-	if err := scanAll(ctx, db, `SELECT lv.version_id, l.id, COALESCE(l.quality, ''), COALESCE(`+linkSizeSQL+`, 0), l.created_at, l.path, `+linkContentSQL+` FROM link_version lv
+	var linkIDs []int64
+	var hashes []string
+	if err := scanAll(ctx, db, `SELECT lv.version_id, l.id, COALESCE(l.quality, ''), COALESCE(`+linkSizeSQL+`, 0), l.created_at, l.path, `+linkHashSQL+` FROM link_version lv
 		JOIN link l ON l.id = lv.link_id LEFT JOIN content_file cf ON cf.id = l.content_file_id
 		WHERE lv.version_id IN (`+store.Placeholders(len(ids))+`) AND l.state = 'active'`, ids, func(r *sql.Rows) error {
 		var x row
-		if err := r.Scan(&x.vid, &x.f.key, &x.f.quality, &x.f.size, &x.f.added, &x.path, &x.content); err != nil {
+		if err := r.Scan(&x.vid, &x.f.key, &x.f.quality, &x.f.size, &x.f.added, &x.path, &x.hash); err != nil {
 			return err
 		}
 		rows = append(rows, x)
 		linkIDs = append(linkIDs, x.f.key)
-		if x.content.Valid {
-			contentIDs = append(contentIDs, x.content.Int64)
-		}
+		hashes = append(hashes, x.hash)
 		return nil
 	}); err != nil {
 		return nil, err
@@ -849,23 +840,9 @@ func readVersionFiles(ctx context.Context, db *sql.DB, ids []any) (*versionFiles
 			return nil, err
 		}
 	}
-	holders := map[int64][]string{}
-	if len(contentIDs) > 0 {
-		list, _ := json.Marshal(contentIDs)
-		if err := scanAll(ctx, db, `SELECT DISTINCT c.id, cp.provider FROM content c
-			JOIN provider_torrent cp ON cp.info_hash = c.info_hash
-			WHERE c.id IN (SELECT value FROM json_each(?)) AND `+providerHolds, []any{string(list)},
-			func(r *sql.Rows) error {
-				var cid int64
-				var p string
-				if err := r.Scan(&cid, &p); err != nil {
-					return err
-				}
-				holders[cid] = append(holders[cid], p)
-				return nil
-			}); err != nil {
-			return nil, err
-		}
+	holders, err := heldByHash(ctx, db, hashes...)
+	if err != nil {
+		return nil, err
 	}
 	type group struct {
 		vid     int64
@@ -892,11 +869,9 @@ func readVersionFiles(ctx context.Context, db *sql.DB, ids []any) (*versionFiles
 			vf.items[x.vid][e] = x.f
 			vf.held[[2]int64{x.vid, e}] = true
 		}
-		if x.content.Valid {
-			for _, p := range holders[x.content.Int64] {
-				if !slices.Contains(vf.provs[x.vid], p) {
-					vf.provs[x.vid] = append(vf.provs[x.vid], p)
-				}
+		for _, p := range holders[x.hash] {
+			if !slices.Contains(vf.provs[x.vid], p) {
+				vf.provs[x.vid] = append(vf.provs[x.vid], p)
 			}
 		}
 	}
@@ -925,8 +900,8 @@ func heldByHash(ctx context.Context, db *sql.DB, hashes ...string) (map[string][
 	if len(args) == 0 {
 		return out, nil
 	}
-	err := scanAll(ctx, db, `SELECT DISTINCT c.info_hash, cp.provider FROM content c JOIN provider_torrent cp ON cp.info_hash = c.info_hash
-		WHERE c.info_hash IN (`+store.Placeholders(len(args))+`) AND `+providerHolds+` ORDER BY 1, 2`, args,
+	err := scanAll(ctx, db, `SELECT DISTINCT cp.info_hash, cp.provider FROM provider_torrent cp
+		WHERE cp.info_hash IN (`+store.Placeholders(len(args))+`) AND `+providerHolds+` ORDER BY 1, 2`, args,
 		func(r *sql.Rows) error {
 			var h, p string
 			if err := r.Scan(&h, &p); err != nil {

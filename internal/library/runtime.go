@@ -14,7 +14,14 @@ func (l *Library) WithPolicy(p *policy.Policy, engine *decide.Engine, formats Re
 	w := *l.w
 	w.gate = gate
 	return &Library{st: l.st, pol: p, engine: engine, set: p.LibrarySettings(), gate: gate, w: &w, mount: l.mount, probe: l.probe,
-		formats: formats, matched: matched, queue: l.queue, log: l.log, zurg: l.zurg, decy: l.decy, files: l.files, forget: l.forget, now: l.now}
+		formats: formats, matched: matched, queue: l.queue, log: l.log, zurg: l.zurg, decy: l.decy, files: l.files, forget: l.forget, now: l.now,
+		recordChanged: l.recordChanged}
+}
+
+// SetRecordChanged sets what asks for the record's usage to be worked out again after an import put its torrent in
+// the record (serve's usage worker). Set it before WithPolicy copies the library.
+func (l *Library) SetRecordChanged(f func()) {
+	l.recordChanged = f
 }
 
 // SetRuntimeResolver pins a runtime at the beginning of an import or an explicit rename operation.

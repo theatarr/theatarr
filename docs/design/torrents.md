@@ -25,8 +25,9 @@ Sources (Admin › Connections) and Saved inventory read it instead of the provi
   A failed or discarded listing writes nothing: the previous record and its time stay, and the report names the
   error (`error`, `error_at`: the newest sync run failed after `as_of`). A dry run writes nothing either. A torrent
   a delete removes (or the router finds gone) leaves the record at once (the counts follow; `as_of` stays the last complete read); an import of a
-  debrid download puts its torrent in at once (complete, progress 100) so the readers below need not wait for the
-  sync; restores show up at the next sync or Refresh. A provider account changed or removed in Settings loses its record and
+  debrid download puts its torrent in at once (complete, progress 100, the download's size; its usage is worked out
+  again right after) so the readers below need not wait for the sync, and an import without a torrent id (manual, arr)
+  asks for one sync of that provider instead; a torrent the router finds gone leaves it with its hash's stored usage; restores show up at the next sync or Refresh. A provider account changed or removed in Settings loses its record and
   read time in the same commit that clears its registry rows, so the new account reads "never read" until a sync
   lists it.
 - **Read by** everything that asks what an account holds: the router's ownership guards (cached-only delete, the

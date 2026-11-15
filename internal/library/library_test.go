@@ -762,9 +762,14 @@ func TestImportRecordsProvider(t *testing.T) {
 	e.pol.Providers = map[string]*policy.Provider{"rd": {Kind: "realdebrid", Order: 1}}
 	e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
 	e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
-	e.exec(`UPDATE download SET provider_torrent_id = 'T1' WHERE id = 1`)
+	e.exec(`UPDATE download SET provider_torrent_id = 'T1', size_bytes = 7000 WHERE id = 1`)
+	signals := 0
+	e.lib.SetRecordChanged(func() { signals++ })
 	if _, err := e.lib.Import(e.ctx, 1, false); err != nil {
 		t.Fatal(err)
+	}
+	if signals != 1 || e.one(`SELECT size_bytes || '|' || usage FROM provider_torrent WHERE torrent_id = 'T1'`) != "7000|" {
+		t.Errorf("the record's usage not asked for (%d) or the size not the download's", signals)
 	}
 	want := fmt.Sprintf("present|100.0|T1|%s||%d", movieRelease, store.Millis(e.now))
 	if got := e.cpRow(); got != want {
@@ -790,6 +795,32 @@ func TestImportRecordsProvider(t *testing.T) {
 	}
 	if got := f.one(`SELECT (SELECT count(*) FROM content_provider) + (SELECT count(*) FROM provider_torrent)`); got != "0" {
 		t.Errorf("unconfigured provider recorded: %s rows", got)
+	}
+	// A download with no torrent id (a manual or arr import): nothing to put in the record, so one sync of the
+	// provider is asked for; its listing brings the hash (Cached on) back.
+	g := newEnv(t, true)
+	g.pol.Providers = map[string]*policy.Provider{"rd": {Kind: "realdebrid", Order: 1}}
+	g.release(movieRelease, map[string]float64{"movie.mkv": 7000})
+	g.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
+	if _, err := g.lib.Import(g.ctx, 1, false); err != nil {
+		t.Fatal(err)
+	}
+	if got := g.one(`SELECT count(*) FROM provider_torrent`); got != "0" {
+		t.Errorf("recorded without a torrent id: %s rows", got)
+	}
+	if got := g.one(`SELECT group_concat(payload) FROM job WHERE kind = ?`, provider.JobKind); got != `{"providers":["rd"]}` {
+		t.Fatalf("provider sync asked for: %q", got)
+	}
+	fp := &cpFake{list: []provider.Torrent{{ID: "T7", Hash: hashA, Name: movieRelease, Bytes: 7000,
+		Status: "downloaded", State: provider.StateDownloaded, Progress: 100}}}
+	s := &provider.Syncer{Store: g.st, Providers: map[string]provider.Provider{"rd": fp}, Configured: []string{"rd"}}
+	if _, err := s.Run(g.ctx, provider.SyncOptions{Providers: []string{"rd"}}); err != nil {
+		t.Fatal(err)
+	}
+	if got := g.one(`SELECT count(*) FROM link l JOIN content_file cf ON cf.id = l.content_file_id
+		JOIN content c ON c.id = cf.content_id JOIN provider_torrent cp ON cp.info_hash = c.info_hash
+		WHERE l.download_id = 1 AND cp.provider = 'rd' AND cp.progress >= 100`); got != "1" {
+		t.Errorf("links held by rd after the sync: %s", got)
 	}
 }
 

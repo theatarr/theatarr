@@ -308,12 +308,7 @@ var ErrNoSync = errors.New("torrents: the provider sync is not running")
 // hash: it reads as not worked out yet), and asks for the usage to be worked out again (UsageStale).
 func (m *Manager) forget(ctx context.Context, prov, id, hash string) {
 	err := m.Store.WriteTx(ctx, func(tx *sql.Tx) error {
-		if _, err := tx.ExecContext(ctx, `DELETE FROM provider_torrent WHERE provider = ? AND torrent_id = ?`,
-			prov, id); err != nil {
-			return err
-		}
-		_, err := tx.ExecContext(ctx, `DELETE FROM provider_hash_usage WHERE info_hash = ?`, hash)
-		return err
+		return provider.DropRecordTorrent(ctx, tx, prov, id)
 	})
 	if err != nil {
 		m.log().Error("torrents: removing a deleted torrent from the record", "provider", prov, "id", id, "err", err)

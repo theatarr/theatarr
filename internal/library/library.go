@@ -105,6 +105,9 @@ type Library struct {
 	// decy is Options.Decypharr and files Options.TorrentFiles (decypharr.go); nil without decypharr.
 	decy  *Decypharr
 	files TorrentFilesFunc
+	// recordChanged asks for the record's usage to be worked out again after an import put its torrent in the record
+	// (SetRecordChanged: serve's usage worker); nil does nothing.
+	recordChanged func()
 	// forget clears the mount's cached listing of the release root (Options.ForgetDir); nil when off.
 	forget *rootForget
 	now    func() time.Time

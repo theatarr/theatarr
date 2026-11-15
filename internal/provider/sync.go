@@ -500,6 +500,30 @@ func WriteRecord(ctx context.Context, tx *sql.Tx, key string, list []Torrent, no
 	return err
 }
 
+// RecordImport puts the torrent id of hash that an import linked from in provider key's record at once, complete
+// (progress 100), with the download's name and size, so the readers of what the accounts hold need not wait for the
+// next listing; a row the sync wrote stays unless it was unfinished. Its usage reads "not worked out" until the
+// usage is worked out again (the caller signals that); the next listing replaces the row.
+func RecordImport(ctx context.Context, tx *sql.Tx, key, id, hash, name string, size int64) error {
+	_, err := tx.ExecContext(ctx, `INSERT INTO provider_torrent (provider, torrent_id, info_hash, name, size_bytes,
+		state, progress) VALUES (?, ?, lower(?), ?, ?, 'downloaded', 100)
+		ON CONFLICT (provider, torrent_id) DO UPDATE SET state = 'downloaded', progress = 100
+		WHERE provider_torrent.progress < 100`, key, id, hash, name, size)
+	return err
+}
+
+// DropRecordTorrent removes torrent id from provider key's record (a delete, or a torrent found gone) and the stored
+// usage of its hash (another account may still hold the hash: it reads as not worked out until the usage is worked
+// out again, which the caller asks for).
+func DropRecordTorrent(ctx context.Context, tx *sql.Tx, key, id string) error {
+	if _, err := tx.ExecContext(ctx, `DELETE FROM provider_hash_usage WHERE info_hash IN
+		(SELECT info_hash FROM provider_torrent WHERE provider = ? AND torrent_id = ?)`, key, id); err != nil {
+		return err
+	}
+	_, err := tx.ExecContext(ctx, `DELETE FROM provider_torrent WHERE provider = ? AND torrent_id = ?`, key, id)
+	return err
+}
+
 // ClearRecord removes provider key's record and its read time (an account changed or removed by settings): the
 // account reads "never read" until a sync lists it. The stored usage of its hashes goes too: another account still
 // holding one reads it as not worked out until the usage is worked out again.

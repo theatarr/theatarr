@@ -70,6 +70,7 @@ func (r *Router) requeue(ctx context.Context, x pollRow, reused int, why, failWh
 	if err != nil {
 		return false, fmt.Errorf("router: download %d: %w", x.id, err)
 	}
+	r.usageStale()
 	return true, nil
 }
 
