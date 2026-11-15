@@ -113,8 +113,8 @@ func TestReloadAccountChangeAdvancesEpochAndClearsRegistry(t *testing.T) {
 		(7, ?, 'present', 0, 0), (8, ?, 'present', 0, 0)`, strings.Repeat("c", 40), strings.Repeat("d", 40)); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.Writer().Exec(`INSERT INTO content_provider (content_id, provider, torrent_id, seen_at) VALUES
-		(7, 'rd', 'rd-old', 0), (8, 'tb', 'tb-old', 0)`); err != nil {
+	if _, err := db.Writer().Exec(`INSERT INTO provider_torrent (provider, torrent_id, info_hash) VALUES
+		('rd', 'rd-old', ?), ('tb', 'tb-old', ?)`, strings.Repeat("c", 40), strings.Repeat("d", 40)); err != nil {
 		t.Fatal(err)
 	}
 	if err := manager.Reload(ctx, head.Generation); err != nil {
@@ -127,9 +127,9 @@ func TestReloadAccountChangeAdvancesEpochAndClearsRegistry(t *testing.T) {
 		t.Fatalf("account change through reload: generation=%d epoch=%d db=%d", current.Generation, current.ProviderEpoch,
 			eCount(db, "SELECT provider_epoch FROM settings_runtime_state WHERE id = 1"))
 	}
-	if eCount(db, "SELECT COUNT(*) FROM content_provider WHERE provider = 'rd'") != 0 ||
-		eCount(db, "SELECT COUNT(*) FROM content_provider WHERE provider = 'tb'") != 1 {
-		t.Fatal("reload kept the old account's registry rows or removed another provider's")
+	if eCount(db, "SELECT COUNT(*) FROM provider_torrent WHERE provider = 'rd'") != 0 ||
+		eCount(db, "SELECT COUNT(*) FROM provider_torrent WHERE provider = 'tb'") != 1 {
+		t.Fatal("reload kept the old account's record or removed another provider's")
 	}
 }
 
@@ -164,7 +164,7 @@ func TestProviderSyncDiscardsListingFromOlderEpoch(t *testing.T) {
 	syncer.Providers["rd"] = stallingList{Provider: syncer.Providers["rd"], list: list, during: func() {
 		// Settings switch rd to account B while account A's listing is in flight.
 		if err := db.WriteTx(ctx, func(tx *sql.Tx) error {
-			if _, err := tx.ExecContext(ctx, "DELETE FROM content_provider WHERE provider = 'rd'"); err != nil {
+			if _, err := tx.ExecContext(ctx, "DELETE FROM provider_torrent WHERE provider = 'rd'"); err != nil {
 				return err
 			}
 			return settings.IncrementProviderEpoch(ctx, tx)
@@ -175,7 +175,7 @@ func TestProviderSyncDiscardsListingFromOlderEpoch(t *testing.T) {
 	if _, err := syncer.Run(ctx, provider.SyncOptions{Providers: []string{"rd"}}); err != nil {
 		t.Fatal(err)
 	}
-	if n := eCount(db, "SELECT COUNT(*) FROM content_provider WHERE provider = 'rd'"); n != 0 {
+	if n := eCount(db, "SELECT COUNT(*) FROM provider_torrent WHERE provider = 'rd'"); n != 0 {
 		t.Fatalf("stale listing wrote %d registry rows for the new account", n)
 	}
 	if n := eCount(db, "SELECT COUNT(*) FROM provider_sync_run WHERE provider = 'rd'"); n != 0 {
@@ -194,7 +194,7 @@ func TestProviderSyncDiscardsListingFromOlderEpoch(t *testing.T) {
 	if _, err := next.Providers.syncer.Run(ctx, provider.SyncOptions{Providers: []string{"rd"}}); err != nil {
 		t.Fatal(err)
 	}
-	if n := eCount(db, "SELECT COUNT(*) FROM content_provider WHERE provider = 'rd' AND torrent_id = 'rd-account-b'"); n != 1 {
+	if n := eCount(db, "SELECT COUNT(*) FROM provider_torrent WHERE provider = 'rd' AND torrent_id = 'rd-account-b'"); n != 1 {
 		t.Fatalf("current-epoch sync wrote %d rows, want 1", n)
 	}
 }

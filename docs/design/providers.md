@@ -187,7 +187,7 @@ indexer's `providers` allowlist (`docs/design/router.md`).
 `provider.Syncer.Run` lists each chosen provider in turn, in policy order. It applies each list in its own
 transaction, and then recomputes every content's state. Before acquiring the writer, it loads the listing's
 content rows by hash in one reader query. The write still checks the provider epoch and atomically applies the
-complete list, absence marking and state changes. Concurrently inserted content is reused, and metadata fills
+complete list (the record) and state changes. Concurrently inserted content is reused, and metadata fills
 recheck empty fields in SQL so a stale preload never replaces another writer's name or size.
 
 **Tables** (migration `00006_providers.sql`):
@@ -202,7 +202,7 @@ The same transaction writes the record of the account (migration `00130_provider
 record"): `provider_torrent` gets the complete list, one row per torrent (same-hash duplicates included), and
 `provider_torrent_read` the time. A failed listing leaves both alone. In `theatarr serve` the sync job then signals the usage
 worker, which works out the record's usage outside the job queue (`torrents.Manager.StoreUsage`); a changed or
-removed account loses its record and its hashes' stored usage (`provider.ClearRecord`). `Syncer.Refresh` (the Torrents page's Refresh)
+removed account loses its record (`provider.ClearRecord`). `Syncer.Refresh` (the Torrents page's Refresh)
 runs `Run` for every provider with a key, back-off or not, and schedules the failed ones' retry jobs as `Handle` does.
 
 **Content states:**
@@ -216,11 +216,11 @@ runs `Run` for every provider with a key, back-off or not, and schedules the fai
 | `gone` | Set on purpose later (trumps, nukes). Sync leaves it unless a provider has the hash |
 
 **Rules:**
-- **A provider torrent with no registry row** gets a content row: name, size, first seen at its added date.
+- **A provider torrent with no content row** gets one: name, size, first seen at its added date (when it holds a
+  hash twice, a downloaded torrent first, then the oldest, gives them).
 - **An existing content** only gets an empty name or size filled.
-- **Duplicates:** when a provider holds a hash twice, the row keeps a downloaded torrent first, then the oldest.
-- **A torrent that leaves a provider's list** turns its row `absent` with `absent_at`. Nothing is deleted. If it comes
-  back, the row turns `present` again.
+- **A torrent that leaves a provider's list** leaves the record; its content stays, and its state follows the rule
+  above. (Until 00143 a per-hash table `content_provider` kept `absent` rows; it is gone.)
 - **Idempotent:** every write compares first. A re-run with nothing new changes no row besides its
   `provider_sync_run` row (tested by dumping both tables).
 - **A failed list** (an HTTP error, a refusal, or a list that keeps shifting) writes a failed run row and changes

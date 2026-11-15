@@ -848,7 +848,7 @@ func (s *seeder) arrFiles(t *title, v *version, rel *release) {
 }
 
 // contentFor writes (once) the registry content of a release: the content, its files with their probe, and the
-// provider holding it.
+// provider's torrent holding it in the record.
 func (s *seeder) contentFor(rel *release, provider string) int64 {
 	if id, ok := s.content[rel.hash]; ok {
 		return id
@@ -871,10 +871,16 @@ func (s *seeder) contentFor(rel *release, provider string) int64 {
 		s.exec(`INSERT INTO content_file (content_id, path, size_bytes, probe, probed_at) VALUES (?, ?, ?, ?, ?)`, id,
 			f.name, f.size, jsonOf(probeOf(rel.quality, runtime, anime)), ms(rel.at.Add(10*time.Minute)))
 	}
-	s.exec(`INSERT INTO content_provider (content_id, provider, torrent_id, folder_name, seen_at, state, status,
-		progress, size_bytes, links, added_at) VALUES (?, ?, ?, ?, ?, 'present', 'downloaded', 100, ?, ?, ?)`, id,
-		provider, s.torrentID(provider), rel.name, ms(first), rel.size, len(rel.files), ms(first))
+	s.recordTorrent(provider, rel.hash, rel.name, rel.size, len(rel.files), first)
 	return id
+}
+
+// recordTorrent puts provider's torrent of hash in the record of the accounts (Admin › Torrents), as its last good
+// sync listed it.
+func (s *seeder) recordTorrent(provider, hash, name string, size int64, links int, added time.Time) {
+	s.exec(`INSERT INTO provider_torrent (provider, torrent_id, info_hash, name, size_bytes, status, state, progress,
+		added_at, files, links) VALUES (?, ?, ?, ?, ?, 'downloaded', 'downloaded', 100, ?, -1, ?)`,
+		provider, s.torrentID(provider), hash, name, size, ms(added), links)
 }
 
 func (s *seeder) torrentID(provider string) string {

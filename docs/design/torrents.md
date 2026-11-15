@@ -12,13 +12,14 @@ grab. Reports read the record (below), backups read the providers (GET through t
 ## The record
 
 Like Debrid Media Manager's library, Theatarr keeps a record of what each account holds, and the Torrents page,
-Sources (Admin › Connections) and Saved inventory read it instead of the providers. A refresh reads the accounts.
+Sources (Admin › Connections) read it instead of the providers. A refresh reads the accounts. It is the one list of
+what the accounts hold (K9: Saved inventory and its per-hash table were merged into it); `content` and
+`content_file` stay only as the record of the hashes Theatarr itself uses.
 
 - **What it holds** (`provider_torrent`): one row per torrent of an account, as the provider sync's last successful
   complete listing gave it: provider, torrent id, hash, name, the torrent's own name when the listing gives it
   (TorBox's files), size, status, state, progress, added date, selected file count (`-1` when the listing has none)
-  and download links. Two torrents of one hash on one account are two rows (the registry's `content_provider` keeps
-  one per hash). `provider_torrent_read` holds when that listing ended (`as_of`). Every count the screens show is
+  and download links. Two torrents of one hash on one account are two rows. `provider_torrent_read` holds when that listing ended (`as_of`). Every count the screens show is
   counted from the rows.
 - **Written by the provider sync** (providers.md "Registry sync"), every 6 hours by default and on Refresh: in the
   same transaction as the registry update, a provider's rows are replaced by its complete list and its time is set.
@@ -27,7 +28,7 @@ Sources (Admin › Connections) and Saved inventory read it instead of the provi
   a delete removes (or the router finds gone) leaves the record at once (the counts follow; `as_of` stays the last complete read); an import of a
   debrid download puts its torrent in at once (complete, progress 100, the download's size; its usage is worked out
   again right after) so the readers below need not wait for the sync, and an import without a torrent id (manual, arr)
-  asks for one sync of that provider instead; a torrent the router finds gone leaves it with its hash's stored usage; restores show up at the next sync or Refresh. A provider account changed or removed in Settings loses its record and
+  asks for one sync of that provider instead; a torrent the router finds gone leaves it; restores show up at the next sync or Refresh. A provider account changed or removed in Settings loses its record and
   read time in the same commit that clears its registry rows, so the new account reads "never read" until a sync
   lists it.
 - **Read by** everything that asks what an account holds: the router's ownership guards (cached-only delete, the
@@ -50,19 +51,16 @@ The usage (below) is worked out once after each provider sync (the scheduled job
 and after an account change in Settings, by one background worker of `theatarr serve` outside the job queue (a
 pending signal, so a burst of syncs gives one run, and one run at a time), and by Refresh itself before it answers, from the reference index (library links, downloads in flight, the scan roots' symlinks, the
 mount's listing; `loadRefs`, `StoreUsage`), and stored with the record: per account torrent (`usage`,
-`linked_files`, and the shown file count, references, titles and reasons in `detail`) and per hash
-(`provider_hash_usage`). So "used" is as of the newest sync or Refresh (not always an account's `as_of`, which is when
+`linked_files`, and the shown file count, references, titles and reasons in `detail`). So "used" is as of the newest sync or Refresh (not always an account's `as_of`, which is when
 its list was read: a later sync of another account works out the usage of all): a library link made since shows at
-the next sync or Refresh. The Torrents page, Sources and Saved inventory read that stored answer with plain indexed
+the next sync or Refresh. The Torrents page and Sources read that stored answer with plain indexed
 queries; a page open walks no scan root, reads no mount listing and calls no provider (`TestRecordReadsNothingLive`:
 about 30 ms for a report of 2,750 torrents in the test). `theatarr serve` also works it out once at start when the
-record has rows or hashes without it (a demo seed, or a sync run by `theatarr providers sync`); until then such a
-torrent or hash is unknown ("worked out after the next provider sync"). A delete and an account change drop the
-stored usage of the hashes they touch in the same transaction (another account may still hold one), so those read as
-not worked out until the worker has run. No backfill and no other stored state changes (`content.state` stays the registry's own rule,
-providers.md). A hash's usage (Saved inventory) is used when any account torrent of it is used, with the references
-of all of them united and counted once; else unknown when any is unknown; else unused. A hash no account holds in
-the record has none. Deletes never read the stored usage: they list the provider and check usage live.
+record has rows without it (a demo seed, or a sync run by `theatarr providers sync`); until then such a
+torrent is unknown ("worked out after the next provider sync"). A delete and an account change remove the rows they
+touch in the same transaction and ask the worker to work the usage out again. No backfill and no other stored state changes (`content.state` stays the registry's own rule,
+providers.md, worked out from the record). "Unused" still needs every account's complete listing
+(`provider_sync_run` ok) and the filesystem references (scan roots, mount); a database join alone is not proof. Deletes never read the stored usage: they list the provider and check usage live.
 
 Counts name their unit: `account_torrents` (two of one hash count twice), `unique_hashes`, and `linked_files`
 (links: library links and scanned symlinks into a torrent). Names that arrive URL-encoded (TorBox's
@@ -392,15 +390,9 @@ listed with why, and used or unknown ones with a checkbox naming their reference
 (`#scan-roots`, linked there); other apps on the same accounts are not seen. The provider tab, filter, text and sort
 are in the URL. The torrent journal is below the list.
 
-**Saved inventory** (`/admin/torrents/inventory`) lists known hashes by decoded name with **Used** (the Torrents page's
-answer from the record and the link count; "not worked out" from the row's `usage_reason` like the entry; "—" when
-no account holds the hash) and the inventory's own state in words
-that claim nothing about usage: Held (`present`, also set by a copy); Held, no import recorded (`unreferenced`); On no
-account (`absent`); Removed (`gone`); Not known yet (`unknown`). The state filter uses the same words. The count says
-"N torrents (unique hashes)". A detail shows **Used** (badge, links, references: five, then "and N more"; titles
-linked; or that no account holds it; worked out again after each read or Refresh, as on Torrents), **Imports** only when Theatarr recorded any, **Providers** with a header row
-(Provider, Name, Torrent id, First seen), the RD/AD/TB tag and "gone since <date>" for an account that no longer holds
-it, and files. **System › Backup** holds torrent-list backups: **Back up
+The old Saved inventory addresses (`/admin/torrents/inventory`, an entry `/admin/torrents/inventory/<hash>`, and
+the older `/admin/registry…`, `/registry…`) open Torrents, an entry filtered to its hash (`?q=<hash>`); a file's hash
+on the title page links there too. A row's detail is its usage (titles, references). **System › Backup** holds torrent-list backups: **Back up
 now**, import (Theatarr or DMM, to a chosen provider), the list with download (Theatarr or DMM format) and **Restore…**
 with its preview. Code: `web/src/pages/admin/torrents.tsx`, `web/src/components/backups/torrent-backups.tsx`, `web/src/lib/torrents.ts`.
 

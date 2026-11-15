@@ -215,9 +215,9 @@ describe("torrents page", () => {
     await screen.findByText("Used.Movie");
     expect((screen.getByLabelText("Filter torrents") as HTMLInputElement).value).toBe(h2.slice(0, 12));
     expect(screen.getAllByTestId("torrent-row")).toHaveLength(1);
-    // The titles sit beside the usage without opening it; the hash leads to the Saved inventory entry.
+    // The titles sit beside the usage without opening it; the hash is shown plain (this is its page).
     expect([...screen.getByTestId("torrent-row-titles").querySelectorAll("a")].map((l) => [l.textContent, l.getAttribute("href")])).toEqual([["Used", "/title/7"], ["Also", "/title/8"]]);
-    expect(screen.getByTestId("torrent-hash").getAttribute("href")).toBe(`/admin/torrents/inventory/${h2}`);
+    expect(screen.getByTestId("torrent-hash").textContent).toBe(h2.slice(0, 12));
     fireEvent.click(screen.getByRole("button", { expanded: false }));
     const refs = screen.getByTestId("torrent-refs");
     expect([...refs.querySelectorAll("a")].map((l) => [l.textContent, l.getAttribute("href")])).toEqual([["Used", "/title/7"], ["Also", "/title/8"], ["Used", "/title/7"]]);

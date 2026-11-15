@@ -25,8 +25,6 @@ export type Franchise = Get<"/anime/franchises/{slug}">;
 export type Review = Get<"/anime/review">;
 export type Playlists = Get<"/anime/playlists">;
 export type Uncovered = Get<"/anime/uncovered">;
-export type Registry = Get<"/registry">;
-export type Content = Get<"/registry/{hash}">;
 export type Sources = Get<"/sources">;
 export type Logs = Get<"/logs"> & { skippedTotal?: number; restartTotal?: number };
 export type Titles = Get<"/titles">;
@@ -171,15 +169,6 @@ export function useAnimeBuild() {
 
 export const usePlaylists = () =>
   useQuery({ queryKey: qk.anime.playlists, queryFn: () => api<Playlists>("/anime/playlists") });
-
-export const useRegistry = (q: string, state: string, offset: number) =>
-  useQuery({
-    queryKey: qk.registry.list(q, state, offset),
-    queryFn: () => api<Registry>("/registry" + qs({ q, state, offset, limit: 50 })),
-  });
-
-export const useContent = (hash: string) =>
-  useQuery({ queryKey: qk.registry.content(hash), queryFn: () => api<Content>(`/registry/${encodeURIComponent(hash)}`) });
 
 export const useSources = () => useQuery({ queryKey: qk.sources, queryFn: () => api<Sources>("/sources") });
 

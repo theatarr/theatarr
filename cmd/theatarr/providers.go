@@ -236,15 +236,14 @@ func writeSyncResult(w io.Writer, res *provider.SyncResult) {
 		fmt.Fprintln(w, "DRY RUN: nothing was written")
 	}
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', tabwriter.AlignRight)
-	fmt.Fprintln(tw, "provider\tok\ttorrents\thashes\tdup\tbad hash\tnew\tpresent+\tupdated\tabsent+\tunchanged\tlist s\t")
+	fmt.Fprintln(tw, "provider\tok\ttorrents\thashes\tdup\tbad hash\tnew\tlist s\t")
 	for _, p := range res.Providers {
 		ok := "yes"
 		if !p.OK {
 			ok = "NO"
 		}
-		fmt.Fprintf(tw, "%s\t%s\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%.1f\t\n", p.Provider, ok, p.Torrents, p.Hashes,
-			p.Duplicates, p.InvalidHashes, p.NewContents, p.NowPresent, p.Updated, p.NowAbsent, p.Unchanged,
-			float64(p.ListMS)/1000)
+		fmt.Fprintf(tw, "%s\t%s\t%d\t%d\t%d\t%d\t%d\t%.1f\t\n", p.Provider, ok, p.Torrents, p.Hashes,
+			p.Duplicates, p.InvalidHashes, p.NewContents, float64(p.ListMS)/1000)
 	}
 	tw.Flush()
 	for _, p := range res.Providers {
@@ -347,9 +346,9 @@ func runProvidersStatus(args []string) error {
 	}
 	w := os.Stdout
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "provider\tkind\tpresent\tabsent\tlast sync\tlast complete sync\tretry")
+	fmt.Fprintln(tw, "provider\tkind\ttorrents\tlast sync\tlast complete sync\tretry")
 	for _, p := range st.Providers {
-		fmt.Fprintf(tw, "%s\t%s\t%d\t%d\t%s\t%s\t%s\n", p.Provider, e.pol.Providers[p.Provider].Kind, p.Present, p.Absent,
+		fmt.Fprintf(tw, "%s\t%s\t%d\t%s\t%s\t%s\n", p.Provider, e.pol.Providers[p.Provider].Kind, p.Torrents,
 			runText(p.LastRun), runText(p.LastOK), retryText(p))
 	}
 	tw.Flush()

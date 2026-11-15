@@ -291,24 +291,11 @@ func (l *Library) apply(ctx context.Context, d *importDownload, vn *VersionNamin
 				return err
 			}
 		}
-		// A debrid provider's download linked from the mount: the provider holds the content, complete, now. Its
-		// registry row (content_provider) shows that at once; a row the sync
-		// wrote stays as it is unless it was absent or unfinished. The next sync fills in or corrects the rest.
+		// A debrid provider's download linked from the mount: the provider holds the content, complete, now. The
+		// record (provider_torrent) shows that at once, for the readers of what the accounts hold (the router's
+		// guards, Cached on); a row the sync wrote stays unless it was unfinished. Without a torrent id (a manual or
+		// arr import) the provider's next listing finds it: one sync of that provider is asked for now.
 		if contentID != 0 && len(linked) > 0 && l.pol.Providers[d.Provider] != nil {
-			res, err := tx.ExecContext(ctx, `INSERT INTO content_provider (content_id, provider, torrent_id,
-				folder_name, seen_at, state, progress) VALUES (?, ?, NULLIF(?, ''), NULLIF(?, ''), ?, 'present', 100)
-				ON CONFLICT (content_id, provider) DO UPDATE SET state = 'present', progress = 100, absent_at = NULL,
-					seen_at = excluded.seen_at, torrent_id = COALESCE(excluded.torrent_id, content_provider.torrent_id),
-					folder_name = COALESCE(excluded.folder_name, content_provider.folder_name)
-				WHERE content_provider.state <> 'present' OR content_provider.progress IS NULL
-					OR content_provider.progress < 100`,
-				contentID, d.Provider, d.TorrentID, d.Name, now)
-			if err != nil {
-				return err
-			}
-			// The record (provider_torrent) shows it at once too, for the readers of what the accounts hold (the
-			// router's guards, Cached on). Without a torrent id (a manual or arr import) the provider's next listing
-			// finds it: one sync of that provider is asked for now.
 			if d.TorrentID != "" {
 				if err := provider.RecordImport(ctx, tx, d.Provider, d.TorrentID, d.InfoHash, d.Name, d.Size); err != nil {
 					return err
@@ -322,11 +309,9 @@ func (l *Library) apply(ctx context.Context, d *importDownload, vn *VersionNamin
 				}
 			}
 			// Held by a provider and linked: present, as the sync's recompute (nextState) would set it.
-			if n, _ := res.RowsAffected(); n > 0 {
-				if _, err := tx.ExecContext(ctx, `UPDATE content SET state = 'present' WHERE id = ? AND state <> 'present'`,
-					contentID); err != nil {
-					return err
-				}
+			if _, err := tx.ExecContext(ctx, `UPDATE content SET state = 'present' WHERE id = ? AND state <> 'present'`,
+				contentID); err != nil {
+				return err
 			}
 		}
 		// The old files' release facts, before a link at the same path is overwritten (History, 00129).

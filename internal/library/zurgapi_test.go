@@ -765,8 +765,6 @@ func TestImportOriginalNameReaddedClaim(t *testing.T) {
 	e.exec(`INSERT INTO version (id, title_id, policy_key, created_at, updated_at) VALUES (11, 1, 'movie-second', 0, 0)`)
 	e.exec(`INSERT INTO content (id, info_hash, name, mount_folder, state, first_seen_at, last_seen_at)
 		VALUES (7, ?, ?, ?, 'absent', 0, 0)`, hashB, original, original)
-	e.exec(`INSERT INTO content_provider (content_id, provider, torrent_id, folder_name, state, seen_at, absent_at)
-		VALUES (7, 'rd', 'B', ?, 'absent', 0, 0)`, original)
 	e.release(original, map[string]float64{"movie.mkv": 7000})
 
 	// B is added again and imported from its bare folder.

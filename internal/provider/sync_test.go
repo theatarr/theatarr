@@ -109,7 +109,7 @@ func (e *syncEnv) dump() string {
 	e.t.Helper()
 	var b strings.Builder
 	for _, q := range []string{`SELECT * FROM content ORDER BY id`,
-		`SELECT * FROM content_provider ORDER BY content_id, provider`} {
+		`SELECT * FROM provider_torrent ORDER BY provider, torrent_id`} {
 		rows, err := e.st.Reader().Query(q)
 		if err != nil {
 			e.t.Fatal(err)
@@ -159,20 +159,12 @@ func TestSyncRegistry(t *testing.T) {
 	res := e.run(SyncOptions{Providers: []string{"rd"}})
 	sum := res.Providers[0]
 	if !sum.OK || sum.Torrents != 4 || sum.Hashes != 2 || sum.InvalidHashes != 1 || sum.Duplicates != 1 ||
-		sum.NewContents != 1 || sum.NowPresent != 2 || sum.NamesFilled != 1 {
+		sum.NewContents != 1 || sum.NamesFilled != 1 {
 		t.Errorf("summary: %+v", sum)
 	}
 	// AD was never listed, so Y can't be absent yet.
 	if got := e.states(); got["a"] != "present" || got["b"] != "unreferenced" || got["9"] != "unknown" || got["8"] != "gone" {
 		t.Errorf("states after rd: %v", got)
-	}
-	// The downloaded copy stands for the hash, even though the other is older.
-	var tid string
-	var dups int
-	e.st.Reader().QueryRow(`SELECT torrent_id, duplicates FROM content_provider WHERE provider = 'rd' AND content_id = 1`).
-		Scan(&tid, &dups)
-	if tid != "R2" || dups != 1 {
-		t.Errorf("primary torrent %s with %d duplicates, want R2 with 1", tid, dups)
 	}
 	if res.Transitions["unknown->present"] != 1 || res.Transitions["new->unreferenced"] != 1 {
 		t.Errorf("transitions %v", res.Transitions)
@@ -182,7 +174,7 @@ func TestSyncRegistry(t *testing.T) {
 	before := e.dump()
 	e.now = e.now.Add(time.Hour)
 	res = e.run(SyncOptions{Providers: []string{"rd"}})
-	if !res.Providers[0].RowsUnchanged || res.Providers[0].Unchanged != 2 || e.dump() != before {
+	if !res.Providers[0].RowsUnchanged || e.dump() != before {
 		t.Errorf("re-run changed rows: %+v", res.Providers[0])
 	}
 	if n := e.count(`SELECT count(*) FROM provider_sync_run WHERE provider = 'rd' AND ok = 1`); n != 2 {
@@ -196,17 +188,14 @@ func TestSyncRegistry(t *testing.T) {
 		t.Errorf("states after ad: %v", got)
 	}
 
-	// X leaves RD: its RD row turns absent and X is on no provider.
+	// X leaves RD: its torrents leave the record and X is on no provider.
 	e.rd.list = e.rd.list[1:2]
-	res = e.run(SyncOptions{Providers: []string{"rd"}})
-	if res.Providers[0].NowAbsent != 1 {
-		t.Errorf("now absent %d", res.Providers[0].NowAbsent)
-	}
+	e.run(SyncOptions{Providers: []string{"rd"}})
 	if got := e.states(); got["a"] != "absent" {
 		t.Errorf("X: %s, want absent", got["a"])
 	}
-	if n := e.count(`SELECT count(*) FROM content_provider WHERE provider = 'rd' AND state = 'absent' AND absent_at IS NOT NULL`); n != 1 {
-		t.Errorf("%d absent rd rows", n)
+	if n := e.count(`SELECT count(*) FROM provider_torrent WHERE provider = 'rd' AND info_hash = ?`, h("a")); n != 0 {
+		t.Errorf("%d rd torrents of X left", n)
 	}
 
 	// It comes back: present again, absent_at cleared.
@@ -214,9 +203,6 @@ func TestSyncRegistry(t *testing.T) {
 	e.run(SyncOptions{Providers: []string{"rd"}})
 	if got := e.states(); got["a"] != "present" {
 		t.Errorf("X back: %s", got["a"])
-	}
-	if n := e.count(`SELECT count(*) FROM content_provider WHERE absent_at IS NOT NULL`); n != 0 {
-		t.Errorf("%d rows keep absent_at", n)
 	}
 	if e.count(`SELECT count(*) FROM pragma_foreign_key_check`) != 0 {
 		t.Error("foreign key problems")
@@ -415,7 +401,7 @@ func TestReadStatus(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if st.Providers[0].Present != 1 || st.Providers[0].LastOK == nil || st.Providers[1].LastRun != nil ||
+	if st.Providers[0].Torrents != 1 || st.Providers[0].LastOK == nil || st.Providers[1].LastRun != nil ||
 		len(st.Unlisted) != 1 || st.Unlisted[0] != "ad" || st.Contents["present"] != 1 {
 		t.Errorf("status %+v", st)
 	}
@@ -510,7 +496,7 @@ func TestSyncPreloadConcurrentContent(t *testing.T) {
 	for range 2 {
 		sum := &ProviderSummary{ByState: map[State]int{}}
 		if err := e.st.WriteTx(ctx, func(tx *sql.Tx) error {
-			_, err := applyList(ctx, tx, "rd", list, contents, store.Millis(e.now), sum)
+			_, err := applyList(ctx, tx, list, contents, store.Millis(e.now), sum)
 			return err
 		}); err != nil {
 			t.Fatal(err)
@@ -525,7 +511,7 @@ func TestSyncPreloadConcurrentContent(t *testing.T) {
 	if e.count(`SELECT count(*) FROM content WHERE info_hash = ? AND name = 'other writer' AND size_bytes = 1000`, h("b")) != 1 {
 		t.Fatal("concurrent insert was not reused and filled")
 	}
-	if e.count(`SELECT count(*) FROM content_provider WHERE provider = 'rd' AND state = 'present'`) != 2 {
+	if e.count(`SELECT count(*) FROM content WHERE info_hash IN (?, ?)`, h("a"), h("b")) != 2 {
 		t.Fatal("listing was not applied atomically")
 	}
 }
@@ -556,12 +542,12 @@ func TestSyncEmptySuccessfulInventory(t *testing.T) {
 	if _, err := e.s.Run(context.Background(), SyncOptions{Providers: []string{"rd"}}); err == nil {
 		t.Fatal("listing error accepted")
 	}
-	if n := e.count(`SELECT count(*) FROM content_provider WHERE provider='rd' AND state='present'`); n != 1 {
+	if n := e.count(`SELECT count(*) FROM provider_torrent WHERE provider = 'rd'`); n != 1 {
 		t.Fatalf("failed empty listing marked absent: %d", n)
 	}
 	e.rd.err = nil
 	res := e.run(SyncOptions{Providers: []string{"rd"}})
-	if !res.Providers[0].OK || res.Providers[0].NowAbsent != 1 {
+	if !res.Providers[0].OK || e.count(`SELECT count(*) FROM provider_torrent WHERE provider = 'rd'`) != 0 {
 		t.Fatalf("complete empty inventory: %+v", res.Providers[0])
 	}
 }
@@ -609,10 +595,6 @@ func TestSyncWritesRecord(t *testing.T) {
 	if at, n := readAt("ad"); at != store.Millis(e.now) || n != 0 {
 		t.Fatalf("an empty account is read: %d %d", at, n)
 	}
-	var cp int
-	if err := e.st.Reader().QueryRow(`SELECT count(*) FROM content_provider WHERE provider = 'rd'`).Scan(&cp); err != nil || cp != 2 {
-		t.Fatalf("the registry keeps one row per hash: %d %v", cp, err)
-	}
 
 	first := e.now
 	e.now = e.now.Add(time.Hour)
@@ -641,8 +623,7 @@ func TestSyncWritesRecord(t *testing.T) {
 	}
 }
 
-// An account change clears the account's record and read time, and the stored usage of its hashes, also of one
-// another account still holds (it is worked out again); the other account's rows stay.
+// An account change clears the account's record and read time; the other account's rows stay.
 func TestClearRecord(t *testing.T) {
 	t.Parallel()
 	e := newSyncEnv(t)
@@ -650,17 +631,15 @@ func TestClearRecord(t *testing.T) {
 	e.exec(`INSERT INTO provider_torrent (provider, torrent_id, info_hash) VALUES ('rd', '1', ?), ('ad', '2', ?),
 		('ad', '3', ?)`, h("a"), h("a"), h("b"))
 	e.exec(`INSERT INTO provider_torrent_read (provider, read_at) VALUES ('rd', 1), ('ad', 1)`)
-	e.exec(`INSERT INTO provider_hash_usage (info_hash, usage) VALUES (?, 'used'), (?, 'unused')`, h("a"), h("b"))
 	if err := e.st.WriteTx(ctx, func(tx *sql.Tx) error { return ClearRecord(ctx, tx, "rd") }); err != nil {
 		t.Fatal(err)
 	}
 	var got string
 	if err := e.st.Reader().QueryRow(`SELECT (SELECT group_concat(provider || torrent_id) FROM provider_torrent) || ' ' ||
-		(SELECT group_concat(provider) FROM provider_torrent_read) || ' ' ||
-		(SELECT group_concat(substr(info_hash, 1, 1)) FROM provider_hash_usage)`).Scan(&got); err != nil {
+		(SELECT group_concat(provider) FROM provider_torrent_read)`).Scan(&got); err != nil {
 		t.Fatal(err)
 	}
-	if got != "ad2,ad3 ad b" {
+	if got != "ad2,ad3 ad" {
 		t.Fatalf("after clearing rd: %q", got)
 	}
 }

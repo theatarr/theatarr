@@ -11,7 +11,7 @@ import (
 )
 
 // The relink sweep asks the registry about each healthy link's folder. That lookup must be an index search, not a
-// scan of content or content_provider per link (e2eperf 3).
+// scan of content or the record per link (e2eperf 3).
 func TestIdentityLookupUsesIndexes(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

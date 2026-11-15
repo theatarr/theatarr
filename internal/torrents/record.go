@@ -8,28 +8,26 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
-	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
 
 	"github.com/theatarr/theatarr/internal/indexer"
-	"github.com/theatarr/theatarr/internal/library"
 	"github.com/theatarr/theatarr/internal/provider"
 	"github.com/theatarr/theatarr/internal/store"
 )
 
 // The record (docs/design/torrents.md "The record"): what each account held at the provider sync's last successful
 // complete listing (provider_torrent, provider_torrent_read; written by provider.WriteRecord), with the usage worked
-// out once right after each sync and Refresh (StoreUsage) and stored beside it (provider_torrent's usage columns,
-// provider_hash_usage). The Torrents page, Sources and Saved inventory read the stored answer with plain queries:
+// out once right after each sync and Refresh (StoreUsage) and stored beside it (provider_torrent's usage columns).
+// The Torrents page and Sources read the stored answer with plain queries:
 // no provider call, no reference index, no scan-root walk. A delete never trusts it: it lists the provider again and
 // checks usage live (PlanDelete, Delete).
 
 // reasonNotWorkedOut is the reason of a recorded torrent whose usage was not worked out yet (a sync outside serve).
 const reasonNotWorkedOut = "its usage is worked out after the next provider sync; Refresh works it out now"
 
-// stored is the usage detail kept with a record row (provider_torrent.detail, provider_hash_usage.detail).
+// stored is the usage detail kept with a record row (provider_torrent.detail).
 type stored struct {
 	Files    int            `json:"files"`
 	Refs     map[string]int `json:"refs,omitempty"`
@@ -144,50 +142,7 @@ func (m *Manager) readRecord(ctx context.Context) (map[string]*recorded, error) 
 	return out, nil
 }
 
-// hashTorrent is one account torrent of a hash, with its own usage, for hashUsage.
-type hashTorrent struct {
-	t       provider.Torrent
-	usage   Usage
-	reasons []string
-}
-
-// hashUsage is a hash's usage across its account torrents: used when any is used, with the references to the hash
-// and to every folder any of them may be under, united and counted once (then cut to maxRefList); else unknown when
-// any is unknown (their reasons); else unused.
-func (ix *refIndex) hashUsage(h string, ts []hashTorrent) (Usage, stored) {
-	var reasons []string
-	used, unknown := false, false
-	for _, x := range ts {
-		switch x.usage {
-		case Used:
-			used = true
-		case Unknown:
-			unknown = true
-			for _, r := range x.reasons {
-				if !slices.Contains(reasons, r) {
-					reasons = append(reasons, r)
-				}
-			}
-		}
-	}
-	if used {
-		var folders []string
-		for _, x := range ts {
-			folders = append(folders, torrentFolders(ix.decy, nil, h, x.t)...)
-		}
-		if z, ok := ix.zurg.Name(h); ok {
-			folders = append(folders, library.ReleaseFolderNames(h, z)...)
-		}
-		counts, refs, titles := ix.refsOf(h, folders)
-		return Used, stored{Refs: counts, RefList: refs, Titles: titles}
-	}
-	if unknown {
-		return Unknown, stored{Reasons: reasons}
-	}
-	return Unused, stored{}
-}
-
-// StoreUsage works out the usage of every recorded torrent and hash from the reference index (the database's
+// StoreUsage works out the usage of every recorded torrent from the reference index (the database's
 // references, the scan roots' walk, the mount's listing) and stores it with the record. serve runs it after each
 // provider sync, and Refresh after its sync: the screens' "used" is as of then.
 func (m *Manager) StoreUsage(ctx context.Context) error {
@@ -231,8 +186,6 @@ func (m *Manager) StoreUsage(ctx context.Context) error {
 		linked                       int
 	}
 	var ups []update
-	byHash := map[string][]hashTorrent{}
-	var hashes []string
 	for _, r := range list {
 		t := ix.torrent(r.key, r.lt, r.files, now)
 		b, err := json.Marshal(stored{Files: t.Files, Refs: t.Refs, RefList: t.RefList, Titles: t.Titles,
@@ -241,12 +194,6 @@ func (m *Manager) StoreUsage(ctx context.Context) error {
 			return err
 		}
 		ups = append(ups, update{r.key, r.lt.ID, r.lt.Hash, string(t.Usage), string(b), t.LinkedFiles})
-		if h := indexer.NormalizeHash(r.lt.Hash); h != "" {
-			if byHash[h] == nil {
-				hashes = append(hashes, h)
-			}
-			byHash[h] = append(byHash[h], hashTorrent{t: r.lt, usage: t.Usage, reasons: t.Reasons})
-		}
 	}
 	unknown, err := json.Marshal(append([]string{}, ix.unknown...))
 	if err != nil {
@@ -261,25 +208,6 @@ func (m *Manager) StoreUsage(ctx context.Context) error {
 		defer up.Close()
 		for _, u := range ups {
 			if _, err := up.ExecContext(ctx, u.usage, u.linked, u.detail, u.key, u.id, u.hash); err != nil {
-				return err
-			}
-		}
-		if _, err := tx.ExecContext(ctx, `DELETE FROM provider_hash_usage`); err != nil {
-			return err
-		}
-		ins, err := tx.PrepareContext(ctx, `INSERT INTO provider_hash_usage (info_hash, usage, linked_files, detail)
-			VALUES (?, ?, ?, ?)`)
-		if err != nil {
-			return err
-		}
-		defer ins.Close()
-		for _, h := range hashes {
-			u, s := ix.hashUsage(h, byHash[h])
-			b, err := json.Marshal(s)
-			if err != nil {
-				return err
-			}
-			if _, err := ins.ExecContext(ctx, h, string(u), s.Refs[RefLink]+s.Refs[RefScan], string(b)); err != nil {
 				return err
 			}
 		}
@@ -304,8 +232,7 @@ func (m *Manager) Refresh(ctx context.Context) error {
 // ErrNoSync: no provider sync runs in this process (Refresh is unavailable).
 var ErrNoSync = errors.New("torrents: the provider sync is not running")
 
-// forget removes a deleted torrent from the record and its hash's stored usage (another account may still hold the
-// hash: it reads as not worked out yet), and asks for the usage to be worked out again (UsageStale).
+// forget removes a deleted torrent from the record and asks for the usage to be worked out again (UsageStale).
 func (m *Manager) forget(ctx context.Context, prov, id string) {
 	err := m.Store.WriteTx(ctx, func(tx *sql.Tx) error {
 		return provider.DropRecordTorrent(ctx, tx, prov, id)
@@ -353,67 +280,6 @@ func ReadProviderRecord(ctx context.Context, db *sql.DB, key string) (ProviderRe
 		FROM provider_torrent WHERE provider = ?`, key).Scan(&pr.AccountTorrents, &pr.Bytes, &pr.UniqueHashes,
 		&pr.Usage.Used, &pr.Usage.Unused, &pr.Usage.UnusedBytes, &pr.Usage.Unknown, &pr.Usage.UnknownBytes)
 	return pr, err
-}
-
-// HashUsage is a hash's stored usage (provider_hash_usage): used when any account torrent of it is used, with the
-// references united across them; else unknown when any is unknown; else unused.
-type HashUsage struct {
-	Usage       Usage          `json:"usage"`
-	LinkedFiles int            `json:"linked_files"`
-	Refs        map[string]int `json:"refs,omitempty"`
-	RefList     []Ref          `json:"ref_list,omitempty"`
-	Titles      []LinkedTitle  `json:"titles,omitempty"`
-	Reasons     []string       `json:"reasons,omitempty"`
-}
-
-// HashUsages reads the stored usage of hashes (normalized v1, lower case) for Saved inventory; a hash no account
-// holds in the record is absent, and one an account holds whose usage is not worked out (yet, or again) is unknown.
-func HashUsages(ctx context.Context, db *sql.DB, hashes []string) (map[string]HashUsage, error) {
-	out := map[string]HashUsage{}
-	if len(hashes) == 0 {
-		return out, nil
-	}
-	b, err := json.Marshal(hashes)
-	if err != nil {
-		return nil, err
-	}
-	rows, err := db.QueryContext(ctx, `SELECT info_hash, usage, linked_files, detail FROM provider_hash_usage
-		WHERE info_hash IN (SELECT value FROM json_each(?))`, string(b))
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var h, u, detail string
-		var hu HashUsage
-		if err := rows.Scan(&h, &u, &hu.LinkedFiles, &detail); err != nil {
-			return nil, err
-		}
-		var s stored
-		_ = json.Unmarshal([]byte(detail), &s)
-		hu.Usage, hu.Refs, hu.RefList, hu.Titles, hu.Reasons = Usage(u), s.Refs, s.RefList, s.Titles, s.Reasons
-		out[h] = hu
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	rows.Close()
-	held, err := db.QueryContext(ctx, `SELECT DISTINCT info_hash FROM provider_torrent
-		WHERE info_hash IN (SELECT value FROM json_each(?))`, string(b))
-	if err != nil {
-		return nil, err
-	}
-	defer held.Close()
-	for held.Next() {
-		var h string
-		if err := held.Scan(&h); err != nil {
-			return nil, err
-		}
-		if _, ok := out[h]; !ok {
-			out[h] = HashUsage{Usage: Unknown, Reasons: []string{reasonNotWorkedOut}}
-		}
-	}
-	return out, held.Err()
 }
 
 // pctEscape is a percent-encoded byte.

@@ -5,13 +5,11 @@
 // (torrents.scan_roots, which the usage check reads) and the backup schedule are settings: Settings › Download clients ›
 // Torrents; a line beside the filters says what "Not used" checks and links there. The provider, filter, text and sort
 // live in the URL (?provider=, ?group=, ?q=, ?sort=), so Back and a reload keep them.
-import { TorrentTabs } from "./torrent-tabs";
 import { useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { useTorrentActions, useTorrentJournal, useTorrentReport } from "@/api/torrents";
 import { Empty, ErrorState, Loading, PageHeader, Section } from "@/components/page";
 import { ProviderPills, ProviderTag, providerLabel } from "@/components/provider-pills";
-import { inventoryLink } from "@/lib/admin-links";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -141,7 +139,6 @@ export function TorrentsPage() {
           </Button>
         }
       />
-      <TorrentTabs />
       {report.isPending ? (
         <Loading />
       ) : report.error ? (
@@ -283,7 +280,7 @@ function TorrentRow({ t, checked, onToggle, code }: { t: Torrent; checked: boole
           <div className="line-clamp-2 text-xs text-muted-foreground [overflow-wrap:anywhere]" title={t.parsed || undefined} data-testid="torrent-second-line">
             {/* Below 640 px the size sits here, not in its column, so the table fits a phone. */}
             <span className="sm:hidden">{fmtBytes(t.bytes)} · </span>
-            {t.parsed ? `${t.parsed}${t.quality ? ` · ${t.quality}` : ""} · ` : ""}<Link to={inventoryLink(t.hash)} className="font-mono text-[12.5px] text-primary hover:underline" title="See this torrent in Saved inventory" data-testid="torrent-hash">{t.hash.slice(0, 12)}</Link>
+            {t.parsed ? `${t.parsed}${t.quality ? ` · ${t.quality}` : ""} · ` : ""}<span className="font-mono text-[12.5px]" title={t.hash} data-testid="torrent-hash">{t.hash.slice(0, 12)}</span>
             {t.files >= 0 ? ` · ${t.files} file${t.files === 1 ? "" : "s"}` : ""}
             {t.added_by_theatarr ? " · added by Theatarr" : ""}
           </div>

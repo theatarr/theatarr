@@ -93,7 +93,7 @@ func TestTorrentsAPI(t *testing.T) {
 		rep.Providers[0].Usage.Unused != 2 || prov.lists != 0 {
 		t.Fatalf("report from the record, no provider call: %d %d %+v", code, prov.lists, rep)
 	}
-	// Sources and Saved inventory say "used" from the same record and reference index.
+	// Sources says "used" from the same record and reference index.
 	var src Sources
 	if code := e.getKey(APIBase+"/sources", key, &src); code != 200 {
 		t.Fatalf("sources: %d", code)
@@ -103,44 +103,8 @@ func TestTorrentsAPI(t *testing.T) {
 			t.Errorf("sources rd: %+v", p.Record)
 		}
 	}
-	var inv struct {
-		Items []ContentRow `json:"items"`
-	}
-	if code := e.getKey(APIBase+"/registry", key, &inv); code != 200 {
-		t.Fatalf("inventory: %d", code)
-	}
-	for _, it := range inv.Items {
-		if want := map[string]torrents.Usage{h1: torrents.Unused, h2: torrents.Unused}[it.InfoHash]; it.Usage != want {
-			t.Errorf("inventory %s: %q, want %q (none for a hash no account holds)", it.Name, it.Usage, want)
-		}
-	}
-	// A used hash names its titles in the list, so a row can link to them.
-	e.exec(`UPDATE provider_hash_usage SET usage = 'used', detail = ? WHERE info_hash = ?`, `{"titles":[{"id":7,"name":"Alpha"}]}`, h1)
-	if code := e.getKey(APIBase+"/registry", key, &inv); code != 200 {
-		t.Fatalf("inventory: %d", code)
-	}
-	for _, it := range inv.Items {
-		if got := len(it.Titles); (it.InfoHash == h1) != (got == 1) || got == 1 && (it.Titles[0].ID != 7 || it.Titles[0].Name != "Alpha") {
-			t.Errorf("inventory %s titles: %+v", it.InfoHash, it.Titles)
-		}
-	}
-	e.exec(`UPDATE provider_hash_usage SET usage = 'unused', detail = '{}' WHERE info_hash = ?`, h1)
-	var c Content
-	if code := e.getKey(APIBase+"/registry/"+h1, key, &c); code != 200 || c.Usage == nil || c.Usage.Usage != torrents.Unused {
-		t.Errorf("inventory entry: %d %+v", code, c.Usage)
-	}
-	// A hash whose usage is not worked out yet says why in the list, as its entry does.
-	e.exec(`DELETE FROM provider_hash_usage WHERE info_hash = ?`, h2)
-	if code := e.getKey(APIBase+"/registry", key, &inv); code != 200 {
-		t.Fatalf("inventory: %d", code)
-	}
-	for _, it := range inv.Items {
-		if pending := it.InfoHash == h2; (it.UsageReason != "") != pending || pending && it.Usage != torrents.Unknown {
-			t.Errorf("inventory %s: %q %q", it.InfoHash, it.Usage, it.UsageReason)
-		}
-	}
 	if prov.lists != 0 {
-		t.Errorf("sources and inventory call no provider: %d", prov.lists)
+		t.Errorf("sources calls no provider: %d", prov.lists)
 	}
 
 	// Backups: none yet; an import of a DMM backup needs the provider.

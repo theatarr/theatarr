@@ -249,8 +249,6 @@ func TestDemoScreens(t *testing.T) {
 	_ = st.Reader().QueryRow(`SELECT id FROM title WHERE kind = 'series' AND anime = 0 ORDER BY id LIMIT 1`).Scan(&seriesID)
 	_ = st.Reader().QueryRow(`SELECT id FROM title WHERE name = 'Aokaze Requiem'`).Scan(&animeID)
 	_ = st.Reader().QueryRow(`SELECT id FROM title WHERE kind = 'movie' ORDER BY id LIMIT 1`).Scan(&movieID)
-	var hash string
-	_ = st.Reader().QueryRow(`SELECT info_hash FROM content WHERE state = 'present' ORDER BY id LIMIT 1`).Scan(&hash)
 	var journalID string
 	{
 		_, v := get(web.APIBase + "/journal?suspect=1")
@@ -293,8 +291,6 @@ func TestDemoScreens(t *testing.T) {
 		"/journal/" + journalID:                      {"flags"},
 		"/jobs":                                      {"items", "counts"},
 		"/jobs?attention=1":                          {"items"},
-		"/registry":                                  {"items"},
-		"/registry/" + hash:                          {"links"},
 		"/anime/franchises":                          {"items"},
 		"/anime/franchises/" + demo.FranchiseSlug:    {"orders", "mappings", "numbering"},
 		"/anime/review":                              {"items"},

@@ -15,8 +15,8 @@ describe("old admin URLs", () => {
       ["/admin/sources", "/admin/settings/downloads"],
       ["/admin/policy", "/admin/settings"],
       ["/admin/keys", "/admin/users"],
-      ["/admin/registry", "/admin/torrents/inventory"],
-      ["/admin/registry/abcdef", "/admin/torrents/inventory/abcdef"],
+      ["/admin/registry", "/admin/torrents"],
+      ["/admin/registry/abcdef", "/admin/torrents?q=abcdef"],
       ["/admin/journal", "/admin/system/journal"],
       ["/admin/journal/dl:7", "/admin/system/journal/dl:7"],
       ["/admin/journal/dl%3A3", "/admin/system/journal/dl%3A3"],
@@ -26,7 +26,10 @@ describe("old admin URLs", () => {
       ["/admin/advanced/journal/dl%3A3", "/admin/system/journal/dl%3A3"],
       ["/admin/advanced/journal/a%2Fb", "/admin/system/journal/a%2Fb"],
       ["/admin/advanced/manual-import", "/wanted/manual-import"],
-      ["/admin/registry/a%2Fb%3Ac", "/admin/torrents/inventory/a%2Fb%3Ac"],
+      ["/admin/registry/a%2Fb%3Ac", "/admin/torrents?q=a%2Fb%3Ac"],
+      // K9: Saved inventory merged into Torrents; an entry opens Torrents filtered to its hash.
+      ["/admin/torrents/inventory", "/admin/torrents"],
+      ["/admin/torrents/inventory/abcdef", "/admin/torrents?q=abcdef"],
       ["/admin/logs", "/admin/system/logs"],
       // Phase J: the journal left Activity for System, the import lists Collections for Settings.
       ["/activity/journal", "/admin/system/journal"],
@@ -37,6 +40,7 @@ describe("old admin URLs", () => {
     for (const [from, to] of cases) expect(legacyTarget(from)).toBe(to);
     expect(legacyTarget("/admin/journal", "?title=4", "#x")).toBe("/admin/system/journal?title=4#x");
     expect(legacyTarget("/admin/advanced/journal", "?suspect=1", "#x")).toBe("/admin/system/journal?suspect=1#x");
+    expect(legacyTarget("/admin/torrents/inventory/abcdef", "?x=1", "#y")).toBe("/admin/torrents?q=abcdef&x=1#y");
   });
   it("leaves current URLs alone", () => {
     for (const p of ["/admin", "/admin/system/tasks", "/admin/users", "/admin/reviews/anime/x", "/admin/system/journal", "/admin/system/journal/dl:7", "/admin/settings/import-lists", "/collections", "/collections/12", "/wanted/manual-import", "/movies"]) {
@@ -54,7 +58,8 @@ it("preserves edit, raw and anchors for all moved settings routes", () => {
 it("preserves query and hash for every legacy route including details", () => {
  for (const [from, to] of LEGACY_ROUTES) {
   const path = from.replace(/:\w+/g, "example");
-  expect(legacyTarget(path, "?x=1", "#y")).toBe(to.replace(/:\w+/g, "example") + "?x=1#y");
+  const target = to.replace(/:\w+/g, "example");
+  expect(legacyTarget(path, "?x=1", "#y")).toBe(target + (target.includes("?") ? "&" : "?") + "x=1#y");
  }
 });
 it.each(["tasks", "backup", "errors", "logs", "journal"])("system parent aliases do not shadow /admin/system/%s", page => {
@@ -71,10 +76,8 @@ it.each([
  ["/admin/system/database", "/admin/system/backup"],
  ["/admin/metadata", "/admin/reviews/anime"],
  ["/admin/metadata/example", "/admin/reviews/anime/example"],
- ["/admin/advanced/inventory", "/admin/torrents/inventory"],
- ["/admin/advanced/inventory/abc", "/admin/torrents/inventory/abc"],
- ["/admin/registry", "/admin/torrents/inventory"],
- ["/admin/registry/abc", "/admin/torrents/inventory/abc"],
+ ["/admin/advanced/inventory", "/admin/torrents"],
+ ["/admin/registry", "/admin/torrents"],
  ["/admin/setup/migrate", "/admin/arr-import"],
  ["/admin/advanced/arr", "/admin/arr-import"],
  ["/admin/advanced/arr/migrate", "/admin/arr-import"],

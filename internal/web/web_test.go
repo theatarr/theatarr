@@ -525,31 +525,9 @@ func TestAPIOther(t *testing.T) {
 		t.Errorf("version 3: %d %+v", code, v)
 	}
 
-	var c Content
-	if code := e.getKey(APIBase+"/registry/"+strings.ToUpper(hashA), key, &c); code != 200 {
-		t.Fatalf("registry: %d", code)
-	}
-	if len(c.Links) != 1 || c.Links[0].TitleID != 1 {
-		t.Errorf("content: %+v", c)
-	}
-	if code := e.getKey(APIBase+"/registry/xyz", key, nil); code != 400 {
-		t.Errorf("bad hash: %d", code)
-	}
-	if code := e.getKey(APIBase+"/registry/"+strings.Repeat("b", 40), key, nil); code != 404 {
-		t.Errorf("unknown hash: %d", code)
-	}
-	var rl struct {
-		Total int
-		Items []ContentRow
-	}
-	if code := e.getKey(APIBase+"/registry?q=aaaa", key, &rl); code != 200 || rl.Total != 1 {
-		t.Errorf("registry list: %d %+v", code, rl)
-	}
-	// Every word: in the name, or a hash prefix.
-	for q, want := range map[string]int{"remux+alpha": 1, "AAAA+2160p": 1, "alpha+zzz": 0} {
-		if code := e.getKey(APIBase+"/registry?q="+q, key, &rl); code != 200 || rl.Total != want {
-			t.Errorf("registry q=%s: %d total %d, want %d", q, code, rl.Total, want)
-		}
+	// Saved inventory is gone: its API answers 404 (the pages redirect to Torrents).
+	if code := e.getKey(APIBase+"/registry/"+hashA, key, nil); code != 404 {
+		t.Errorf("registry: %d", code)
 	}
 
 	var jl JobList

@@ -1,6 +1,6 @@
 // The title page's details for admins (under About): the release dates, then one folded "Technical details" with the
-// identifiers in words (the TMDb collection linked to its page), every file per version and the saved inventory
-// entries, each only when it has something; the outside links are About's buttons, not repeated here. The grab
+// identifiers in words (the TMDb collection linked to its page), every file per version with its torrent
+// (a link to Torrents filtered to it), each only when it has something; the outside links are About's buttons, not repeated here. The grab
 // journal for the title (GET /journal?title=<id>) is TitleJournal, on the History tab.
 import { ChevronRight } from "lucide-react";
 import { Link } from "react-router";
@@ -9,7 +9,7 @@ import { Empty, ErrorState, KV, Loading, Mono, Section, VersionTag } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { inventoryLink, journalHome, journalLink } from "@/lib/admin-links";
+import { journalHome, journalLink, torrentsLink } from "@/lib/admin-links";
 import { fmtBytes, fmtDayYear, fmtNumber, fmtTime } from "@/lib/format";
 import { readableCode } from "@/lib/code-words";
 import { fileInventoryRows } from "@/lib/file-inventory";
@@ -96,7 +96,7 @@ function Files({ versions }: { versions: Version[] }) {
                   <Mono className="break-all">{f.path}</Mono>
                   <div className="text-xs text-muted-foreground">
                     {facts}
-                    {f.info_hash ? <>{facts ? " · " : ""}<Link className="font-mono text-primary hover:underline" to={inventoryLink(f.info_hash)}>{f.info_hash.slice(0, 12)}</Link></> : null}
+                    {f.info_hash ? <>{facts ? " · " : ""}<Link className="font-mono text-primary hover:underline" to={torrentsLink(f.info_hash)}>{f.info_hash.slice(0, 12)}</Link></> : null}
                   </div>
                 </TableCell>
                 <TableCell className="hidden whitespace-nowrap md:table-cell">{f.quality || "—"}</TableCell>

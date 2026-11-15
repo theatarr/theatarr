@@ -26,8 +26,9 @@ func TestOldPathsRedirect(t *testing.T) {
 		"/library?without=movie-web":        "/movies?without=movie-web",
 		"/library?kind=series&state=wanted": "/series?state=wanted",
 		"/titles/7":                         "/title/7",
-		"/registry?q=abc":                   "/admin/torrents/inventory?q=abc",
-		"/registry/" + hashA:                "/admin/torrents/inventory/" + hashA,
+		"/registry?q=abc":                   "/admin/torrents?q=abc",
+		"/registry/" + hashA:                "/admin/torrents?q=" + hashA,
+		"/registry/" + hashA + "?x=1":       "/admin/torrents?q=" + hashA + "&x=1",
 		"/settings":                         "/admin/settings",
 		"/anime/re-zero":                    "/admin/reviews/anime/re-zero",
 	} {
@@ -79,10 +80,6 @@ func TestAPISourcesLogsMe(t *testing.T) {
 	e := newEnv(t)
 	key := e.apiKey()
 	now := testNow.UnixMilli()
-	e.exec(`INSERT INTO content_provider (content_id, provider, seen_at, state) VALUES (1, 'rd', ?, 'present')`, now)
-	e.exec(`INSERT INTO content (id, info_hash, name, state, first_seen_at, last_seen_at) VALUES
-		(2, ?, 'Orphan', 'unreferenced', ?, ?)`, strings.Repeat("c", 40), now, now)
-	e.exec(`INSERT INTO content_provider (content_id, provider, seen_at, state) VALUES (2, 'rd', ?, 'present')`, now)
 	e.exec(`INSERT INTO provider_sync_run (provider, started_at, finished_at, ok, error, summary) VALUES
 		('ad', ?, ?, 0, 'AUTH_BLOCKED', '{}'), ('rd', ?, ?, 1, NULL, '{"present":2}')`, now-2000, now-1000, now-2000, now-1000)
 	e.exec(`INSERT INTO router_pacing (provider, window_adds, backoff_until, failures, reason, updated_at) VALUES
@@ -96,7 +93,7 @@ func TestAPISourcesLogsMe(t *testing.T) {
 		t.Fatalf("sources: %+v", s)
 	}
 	rd := s.Providers[0]
-	if rd.Counts["present"] != 2 || rd.Record == nil || !rd.Record.NeverRead || rd.LastSync == nil || !rd.LastSync.OK ||
+	if rd.Record == nil || !rd.Record.NeverRead || rd.LastSync == nil || !rd.LastSync.OK ||
 		rd.LastOKSync == nil || rd.Pacing == nil || rd.Pacing.WindowAdds != 2 || rd.Pacing.BackoffUntil == nil ||
 		len(rd.Versions) == 0 {
 		t.Errorf("rd: %+v", rd)

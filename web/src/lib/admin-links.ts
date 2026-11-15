@@ -1,10 +1,6 @@
-// Links into admin-only pages (Provider inventory, Decision journal) from screens managers see too. A manager has
+// Links into admin-only pages (Torrents, Decision journal) from screens managers see too. A manager has
 // "see files" but no admin pages, so such a link would open "Not for your account": callers render the text plain
 // (an info hash copyable) when adminLink answers undefined.
-
-export function inventoryLink(hash: string): string {
-  return `/admin/torrents/inventory/${encodeURIComponent(hash)}`;
-}
 
 /** Admin › Torrents filtered to one torrent: the first 12 hex of its hash, which the filter matches as a prefix. */
 export function torrentsLink(hash: string): string {

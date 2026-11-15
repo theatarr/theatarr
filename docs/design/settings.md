@@ -612,7 +612,7 @@ which may differ from the proxy's.
 - **Reload is a provider transition.** `RuntimeCoordinator.Reload` goes through the same apply path as save and
   import: prepare against the active runtime, then a commit transaction that rechecks the head generation (409 if it
   moved), runs the provider continuity hook (orphan refusal unless `orphan_active_downloads`, failing orphaned
-  downloads, clearing the changed accounts' `content_provider` rows) and advances the provider epoch when an account
+  downloads, clearing the changed accounts' record rows) and advances the provider epoch when an account
   is removed or changed, then publishes. Reloading the head after a startup fallback therefore cannot swap a
   provider account silently. A reload writes no new generation and no audit row.
 - **Torrent ids are per account.** Migration 00062 adds `download.provider_epoch`; the router records the

@@ -538,19 +538,19 @@ func (r *Router) recordedEpoch() any {
 // to the read's error (after one retry, heldReadRetry later), and the caller does not reuse it (a route defers the provider, reconciliation asks the
 // account's list instead). Otherwise a route queued again after a provider outage
 // (endUnavailable) would go straight back to the provider that was down.
-func (r *Router) heldBy(ctx context.Context, hash, provider string, read bool) (id string, unread, err error) {
+func (r *Router) heldBy(ctx context.Context, hash, pk string, read bool) (id string, unread, err error) {
 	var skip []string
 	for range 8 {
-		id, registry, err := r.knownID(ctx, hash, provider, skip)
+		id, registry, err := r.knownID(ctx, hash, pk, skip)
 		if err != nil || id == "" || !read {
 			return id, nil, err
 		}
-		why, rerr := r.stillHeld(ctx, provider, id, hash)
+		why, rerr := r.stillHeld(ctx, pk, id, hash)
 		if rerr != nil && ctx.Err() == nil {
 			// One more read after a short pause: a single glitch must not send the hash to another provider as a
 			// second add. The pause respects ctx (a pass's deadline).
 			if r.sleep(ctx, heldReadRetry) == nil {
-				why, rerr = r.stillHeld(ctx, provider, id, hash)
+				why, rerr = r.stillHeld(ctx, pk, id, hash)
 			}
 		}
 		if rerr != nil {
@@ -559,11 +559,12 @@ func (r *Router) heldBy(ctx context.Context, hash, provider string, read bool) (
 		if why == "" {
 			return id, nil, nil
 		}
-		r.log.Info("known torrent id not reused", "provider", provider, "torrent", id, "hash", hash, "why", why,
+		r.log.Info("known torrent id not reused", "provider", pk, "torrent", id, "hash", hash, "why", why,
 			"registry", registry)
 		if registry {
+			// Not on the account any more: it leaves the record, as the next complete listing would have it.
 			if err := r.st.WriteTx(ctx, func(tx *sql.Tx) error {
-				return dropRecordRow(ctx, tx, store.Millis(r.now()), provider, id)
+				return provider.DropRecordTorrent(ctx, tx, pk, id)
 			}); err != nil {
 				return "", nil, fmt.Errorf("router: registry: %w", err)
 			}
@@ -572,17 +573,6 @@ func (r *Router) heldBy(ctx context.Context, hash, provider string, read bool) (
 		skip = append(skip, id)
 	}
 	return "", nil, nil
-}
-
-// dropRecordRow notes that torrent id is not on provider pk any more (our own add deleted or left behind, or the
-// account no longer holds it): its registry row reads absent and it leaves the record (provider.DropRecordTorrent),
-// as the next complete listing would have it. The caller signals the usage after the commit (recordChanged).
-func dropRecordRow(ctx context.Context, tx *sql.Tx, now int64, pk, id string) error {
-	if _, err := tx.ExecContext(ctx, `UPDATE content_provider SET state = 'absent', absent_at = ?
-		WHERE provider = ? AND torrent_id = ? AND state = 'present'`, now, pk, id); err != nil {
-		return err
-	}
-	return provider.DropRecordTorrent(ctx, tx, pk, id)
 }
 
 // SetRecordChanged sets what asks for the record's usage to be worked out again after the router dropped a torrent

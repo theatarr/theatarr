@@ -12,10 +12,9 @@ import (
 type ProviderStatus struct {
 	Provider string `json:"provider"`
 	// LastRun is the newest sync run, LastOK the newest complete one (nil if none).
-	LastRun *RunInfo `json:"last_run,omitempty"`
-	LastOK  *RunInfo `json:"last_ok,omitempty"`
-	Present int      `json:"present"` // content_provider rows present
-	Absent  int      `json:"absent"`  // rows whose torrent left the list
+	LastRun  *RunInfo `json:"last_run,omitempty"`
+	LastOK   *RunInfo `json:"last_ok,omitempty"`
+	Torrents int      `json:"torrents"` // torrents of the account in the record (provider_torrent)
 	// Failures counts the failed runs since the last complete one; RetryAt is when the provider is tried again
 	// (its back-off, retry.go). Both empty when it is not failing.
 	Failures int        `json:"failures,omitempty"`
@@ -62,9 +61,8 @@ func ReadStatus(ctx context.Context, db *sql.DB, configured []string) (*Status, 
 		if rs.Failures > 0 {
 			ps.Failures, ps.RetryAt = rs.Failures, &rs.RetryAt
 		}
-		if err := db.QueryRowContext(ctx, `SELECT
-			COALESCE(SUM(state = 'present'), 0), COALESCE(SUM(state = 'absent'), 0)
-			FROM content_provider WHERE provider = ?`, k).Scan(&ps.Present, &ps.Absent); err != nil {
+		if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM provider_torrent WHERE provider = ?`, k).
+			Scan(&ps.Torrents); err != nil {
 			return nil, err
 		}
 		st.Providers = append(st.Providers, ps)

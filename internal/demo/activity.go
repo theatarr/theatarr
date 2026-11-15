@@ -22,14 +22,12 @@ func (s *seeder) registry() {
 		id := s.exec(`INSERT INTO content (info_hash, name, mount_folder, size_bytes, state, first_seen_at, last_seen_at)
 			VALUES (?, ?, ?, ?, ?, ?, ?)`, h, name, name, gib(9+i), st, ms(at), ms(s.ago(days(0.25))))
 		s.exec(`INSERT INTO content_file (content_id, path, size_bytes) VALUES (?, ?, ?)`, id, name+".mkv", gib(9+i))
-		pst, absent := "present", any(nil)
-		if st == "absent" || st == "gone" {
-			pst, absent = "absent", ms(s.ago(days(4)))
-		}
 		p := []string{"rd", "ad", "tb"}[i%3]
-		s.exec(`INSERT INTO content_provider (content_id, provider, torrent_id, folder_name, seen_at, state, status,
-			progress, size_bytes, links, added_at, absent_at, duplicates) VALUES (?, ?, ?, ?, ?, ?, 'downloaded', 100, ?, 1, ?, ?, ?)`,
-			id, p, s.torrentID(p), name, ms(at), pst, gib(9+i), ms(at), absent, i%2)
+		if st == "absent" || st == "gone" {
+			s.torrentID(p) // the torrent that left the account had its own id
+			continue
+		}
+		s.recordTorrent(p, h, name, gib(9+i), 1, at)
 	}
 	for _, p := range []string{"rd", "ad", "tb"} {
 		for k := range 4 {
@@ -38,26 +36,20 @@ func (s *seeder) registry() {
 			if p == "ad" && k == 0 {
 				ok, errText = 0, "alldebrid: AUTH_BLOCKED: approve this location in your account"
 			}
-			var present, absent int
-			_ = s.tx.QueryRowContext(s.ctx, `SELECT COUNT(*) FROM content_provider WHERE provider = ? AND state = 'present'`, p).Scan(&present)
-			_ = s.tx.QueryRowContext(s.ctx, `SELECT COUNT(*) FROM content_provider WHERE provider = ? AND state = 'absent'`, p).Scan(&absent)
+			var present int
+			_ = s.tx.QueryRowContext(s.ctx, `SELECT COUNT(*) FROM provider_torrent WHERE provider = ?`, p).Scan(&present)
 			s.exec(`INSERT INTO provider_sync_run (provider, started_at, finished_at, ok, error, summary) VALUES (?, ?, ?, ?, ?, ?)`,
 				p, ms(start), ms(start.Add(time.Duration(2+s.r.IntN(9))*time.Second)), ok, errText, jsonOf(map[string]any{
-					"provider": p, "torrents": present + absent + 40 + k, "present": present, "absent": absent,
+					"provider": p, "torrents": present + 40 + k, "hashes": present,
 					"new": k % 3, "requests": 1 + k%2}))
 		}
 	}
 }
 
-// record writes the record of the accounts (Admin › Torrents): every present torrent as of the provider's last good
-// sync. It runs after the downloads, which add registry rows too.
+// record sets when each account's record (Admin › Torrents; its torrents are written with their contents,
+// recordTorrent) was read: the provider's last good sync.
 func (s *seeder) record() {
 	for _, p := range []string{"rd", "ad", "tb"} {
-		// The record of the account (Admin › Torrents): its present torrents as of the last good sync.
-		s.exec(`INSERT INTO provider_torrent (provider, torrent_id, info_hash, name, size_bytes, status, state, progress,
-			added_at, files, links) SELECT cp.provider, cp.torrent_id, c.info_hash, cp.folder_name, COALESCE(cp.size_bytes, 0),
-			'downloaded', 'downloaded', 100, cp.added_at, -1, COALESCE(cp.links, -1) FROM content_provider cp
-			JOIN content c ON c.id = cp.content_id WHERE cp.provider = ? AND cp.state = 'present'`, p)
 		s.exec(`INSERT INTO provider_torrent_read (provider, read_at) SELECT ?, MAX(finished_at) FROM provider_sync_run
 			WHERE provider = ? AND ok = 1`, p, p)
 	}
@@ -641,8 +633,7 @@ func (s *seeder) deadLinks() {
 		rel.old = true
 		s.link(t, v, rel, 0, at, "dead")
 		s.exec(`UPDATE content SET state = 'gone' WHERE info_hash = ?`, rel.hash)
-		s.exec(`UPDATE content_provider SET state = 'absent', absent_at = ? WHERE content_id = ?`, ms(s.ago(days(3))),
-			s.content[rel.hash])
+		s.exec(`DELETE FROM provider_torrent WHERE info_hash = ?`, rel.hash)
 		var lid int64
 		_ = s.tx.QueryRowContext(s.ctx, `SELECT MAX(id) FROM link`).Scan(&lid)
 		var p, tg string

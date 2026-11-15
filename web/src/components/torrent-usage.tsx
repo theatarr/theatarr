@@ -1,6 +1,6 @@
 // A torrent's or hash's usage as the Torrents page works it out (docs/design/torrents.md "Used, one answer"): the
 // badge, the titles its references belong to and the references themselves (the first five, then "and N more").
-// Used by Admin › Torrents and Saved inventory.
+// Used by Admin › Torrents.
 import { Link } from "react-router";
 import { Badge } from "@/components/ui/badge";
 import { fmtNumber } from "@/lib/format";

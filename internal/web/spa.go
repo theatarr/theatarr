@@ -3,6 +3,7 @@ package web
 import (
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/theatarr/theatarr/internal/webui"
 )
@@ -11,8 +12,8 @@ import (
 var pageRedirects = []struct{ from, to string }{
 	{"/library", "/movies"}, // see libraryRedirect
 	{"/titles/{id}", "/title/{id}"},
-	{"/registry", "/admin/torrents/inventory"},
-	{"/registry/{hash}", "/admin/torrents/inventory/{hash}"},
+	{"/registry", "/admin/torrents"},
+	{"/registry/{hash}", "/admin/torrents?q={hash}"},
 	{"/settings", "/admin/settings"},
 	{"/anime/{slug}", "/admin/reviews/anime/{slug}"},
 }
@@ -51,7 +52,11 @@ func (w *Web) mountPageRedirects(mux *http.ServeMux) {
 				}
 			}
 			if r.URL.RawQuery != "" {
-				to += "?" + r.URL.RawQuery
+				if strings.Contains(to, "?") {
+					to += "&" + r.URL.RawQuery
+				} else {
+					to += "?" + r.URL.RawQuery
+				}
 			}
 			http.Redirect(rw, r, to, http.StatusFound)
 		})

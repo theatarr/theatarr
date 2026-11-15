@@ -107,12 +107,11 @@ func (u *torrentUsageWorker) run(ctx context.Context, s *serveTorrents, capture 
 	}
 }
 
-// torrentUsageMissing: some recorded torrent, or some v1 hash an account holds, has no usage worked out.
+// torrentUsageMissing: some recorded torrent has no usage worked out.
 func torrentUsageMissing(ctx context.Context, st *store.Store) bool {
 	var missing bool
-	err := st.Reader().QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM provider_torrent WHERE usage = '')
-		OR EXISTS (SELECT 1 FROM provider_torrent pt WHERE length(pt.info_hash) = 40
-			AND NOT EXISTS (SELECT 1 FROM provider_hash_usage hu WHERE hu.info_hash = pt.info_hash))`).Scan(&missing)
+	err := st.Reader().QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM provider_torrent WHERE usage = '')`).
+		Scan(&missing)
 	return err == nil && missing
 }
 

@@ -48,9 +48,7 @@ const JournalEntryPage = lazyPage(() => import("./pages/admin/journal").then((m)
 const JournalPage = lazyPage(() => import("./pages/admin/journal").then((m) => m.JournalPage));
 const ReviewsPage = lazyPage(() => import("./pages/admin/reviews").then((m) => m.ReviewsPage));
 const MetadataFranchise = lazyPage(() => import("./pages/admin/anime-mappings").then((m) => m.MetadataFranchise));
-const Registry = lazyPage(() => import("./pages/admin/registry").then((m) => m.Registry));
 const ManualImport = lazyPage(() => import("./pages/admin/manual-import").then((m) => m.ManualImportPage));
-const RegistryContent = lazyPage(() => import("./pages/admin/registry").then((m) => m.RegistryContent));
 const UsersPage = lazyPage(() => import("./pages/admin/users").then((m) => m.UsersAdmin));
 const RequestsPage = lazyPage(() => import("./pages/requests").then((m) => m.RequestsPage));
 const ProfilePage = lazyPage(() => import("./pages/profile").then((m) => m.Profile));
@@ -214,8 +212,6 @@ export const routes: RouteObject[] = [
           ...["", "/quality", "/anime", "/indexers", "/decisions"].map(tab => ({ path: `/admin/reviews${tab}`, element: <ReviewsPage /> })),
           { path: "/admin/reviews/anime/:slug", element: <MetadataFranchise /> },
           { path: "/admin/advanced", element: <AdvancedPage /> },
-          { path: "/admin/torrents/inventory", element: <Registry /> },
-          { path: "/admin/torrents/inventory/:hash", element: <RegistryContent /> },
           { path: "/admin/system/logs", element: <Logs /> },
           { path: "/admin/system/backup", element: <BackupPage /> },
         ],

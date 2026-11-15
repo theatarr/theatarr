@@ -31,8 +31,6 @@ func (w *Web) mountAPI(mux *http.ServeMux) {
 	w.handle(mux, "GET "+b+"/titles/{id}", SignedIn, auth.PermBrowse, w.apiTitle)
 	w.handle(mux, "GET "+b+"/versions", SignedIn, auth.PermBrowse, w.apiVersions)
 	w.handle(mux, "GET "+b+"/versions/{id}", SignedIn, auth.PermBrowse, w.apiVersion)
-	w.handle(mux, "GET "+b+"/registry", SignedIn, auth.PermAdmin, w.apiRegistryList)
-	w.handle(mux, "GET "+b+"/registry/{hash}", SignedIn, auth.PermAdmin, w.apiRegistry)
 	w.handle(mux, "GET "+b+"/gateway", SignedIn, auth.PermAdmin, w.apiGateway)
 	w.handle(mux, "GET "+b+"/policy", SignedIn, auth.PermAdmin, w.apiPolicy)
 	w.handle(mux, "GET "+b+"/policy/validate", SignedIn, auth.PermAdmin, w.apiPolicyValidate)
@@ -95,7 +93,6 @@ var (
 	titleKinds    = map[string]bool{"": true, "movie": true, "series": true}
 	versionStates = map[string]bool{"": true, "wanted": true, "filled": true, "cutoff_met": true}
 	jobStates     = map[string]bool{"": true, "queued": true, "running": true, "done": true, "failed": true}
-	contentStates = map[string]bool{"": true, "present": true, "absent": true, "unreferenced": true, "gone": true, "unknown": true}
 )
 
 // titleFilter reads the library filters; the API and the library page share it.
@@ -278,48 +275,6 @@ func (w *Web) apiVersion(rw http.ResponseWriter, r *http.Request) {
 		redactVersion(&vs[0])
 	}
 	writeJSON(rw, http.StatusOK, vs[0])
-}
-
-func (w *Web) apiRegistryList(rw http.ResponseWriter, r *http.Request) {
-	q := r.URL.Query()
-	if !contentStates[q.Get("state")] {
-		badRequest(rw, "state must be present, absent, unreferenced, gone or unknown")
-		return
-	}
-	limit, err := intParam(r, "limit", 100)
-	if err != nil {
-		badRequest(rw, err.Error())
-		return
-	}
-	offset, err := intParam(r, "offset", 0)
-	if err != nil {
-		badRequest(rw, err.Error())
-		return
-	}
-	items, total, err := w.listContent(r.Context(), q.Get("q"), q.Get("state"), limit, offset)
-	if err != nil {
-		w.internal(rw, err)
-		return
-	}
-	writeJSON(rw, http.StatusOK, map[string]any{"total": total, "items": items})
-}
-
-func (w *Web) apiRegistry(rw http.ResponseWriter, r *http.Request) {
-	h := normHash(r.PathValue("hash"))
-	if !validHash(h) {
-		badRequest(rw, "hash must be a 40-character hex info hash")
-		return
-	}
-	c, err := w.getContent(r.Context(), h)
-	if errors.Is(err, errNotFound) {
-		notFound(rw)
-		return
-	}
-	if err != nil {
-		w.internal(rw, err)
-		return
-	}
-	writeJSON(rw, http.StatusOK, c)
 }
 
 func (w *Web) apiGateway(rw http.ResponseWriter, r *http.Request) {

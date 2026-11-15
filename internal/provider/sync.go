@@ -101,13 +101,9 @@ type ProviderSummary struct {
 	Duplicates    int           `json:"duplicates,omitempty"` // extra torrents for a hash already listed
 	ByState       map[State]int `json:"by_state"`
 	// Registry changes for this provider.
-	NewContents   int  `json:"new_contents"`   // provider torrents with no registry row before
+	NewContents   int  `json:"new_contents"`   // provider torrents with no content row before
 	NamesFilled   int  `json:"names_filled"`   // contents that had no name or size
-	NowPresent    int  `json:"now_present"`    // content_provider rows inserted or back from absent
-	Updated       int  `json:"updated"`        // present rows whose torrent id, status, progress or size changed
-	NowAbsent     int  `json:"now_absent"`     // present rows whose torrent left the list
-	Unchanged     int  `json:"unchanged"`      // present rows with nothing new
-	RowsUnchanged bool `json:"rows_unchanged"` // nothing in the registry changed (besides the run row)
+	RowsUnchanged bool `json:"rows_unchanged"` // no content row or state changed (the record is rewritten each time)
 	// Discarded: the provider settings changed while the list was read (Syncer.SettingsManaged); nothing was written,
 	// not even a run row, and no retry is scheduled.
 	Discarded bool `json:"discarded,omitempty"`
@@ -241,7 +237,7 @@ func (s *Syncer) syncOne(ctx context.Context, key string, p Provider, dry bool, 
 			return err
 		}
 		now := store.Millis(s.now())
-		created, err := applyList(ctx, tx, key, list, contents, now, sum)
+		created, err := applyList(ctx, tx, list, contents, now, sum)
 		if err != nil {
 			return err
 		}
@@ -251,8 +247,7 @@ func (s *Syncer) syncOne(ctx context.Context, key string, p Provider, dry bool, 
 		if err := recompute(ctx, tx, s.Configured, key, created, localTr); err != nil {
 			return err
 		}
-		sum.RowsUnchanged = sum.NewContents+sum.NamesFilled+sum.NowPresent+sum.Updated+sum.NowAbsent == 0 &&
-			len(localTr) == 0
+		sum.RowsUnchanged = sum.NewContents+sum.NamesFilled == 0 && len(localTr) == 0
 		id, err := insertRun(ctx, tx, sum, started, s.now())
 		if err != nil {
 			return err
@@ -274,8 +269,7 @@ func (s *Syncer) syncOne(ctx context.Context, key string, p Provider, dry bool, 
 	for k, v := range localTr {
 		tr[k] += v
 	}
-	log.Info("provider synced", "torrents", sum.Torrents, "new_contents", sum.NewContents,
-		"now_present", sum.NowPresent, "updated", sum.Updated, "now_absent", sum.NowAbsent, "dry_run", dry)
+	log.Info("provider synced", "torrents", sum.Torrents, "new_contents", sum.NewContents, "dry_run", dry)
 	return sum, nil
 }
 
@@ -330,19 +324,12 @@ func better(a, b *Torrent) bool {
 	return a.ID < b.ID
 }
 
-type cpRow struct {
-	torrentID, folder, state, status sql.NullString
-	progress                         sql.NullFloat64
-	size, links, added               sql.NullInt64
-	dups                             int
-}
-
-// applyList writes one provider's complete list into content and content_provider. Every write compares first.
-// It returns the ids of the contents it created.
-func applyList(ctx context.Context, tx *sql.Tx, key string, list []Torrent, contents map[string]contentRow, now int64, sum *ProviderSummary) (map[int64]bool, error) {
+// applyList gives every valid hash of one provider's complete list a content row (contentFor; names and sizes are
+// only filled in). It returns the ids of the contents it created.
+func applyList(ctx context.Context, tx *sql.Tx, list []Torrent, contents map[string]contentRow, now int64,
+	sum *ProviderSummary) (map[int64]bool, error) {
 	sum.Torrents = len(list)
 	primary := map[string]*Torrent{}
-	dups := map[string]int{}
 	for i := range list {
 		t := &list[i]
 		sum.ByState[t.State]++
@@ -351,7 +338,6 @@ func applyList(ctx context.Context, tx *sql.Tx, key string, list []Torrent, cont
 			continue
 		}
 		if cur := primary[t.Hash]; cur != nil {
-			dups[t.Hash]++
 			sum.Duplicates++
 			if better(t, cur) {
 				primary[t.Hash] = t
@@ -361,95 +347,21 @@ func applyList(ctx context.Context, tx *sql.Tx, key string, list []Torrent, cont
 		primary[t.Hash] = t
 	}
 	sum.Hashes = len(primary)
-
-	existing := map[int64]cpRow{}
-	rows, err := tx.QueryContext(ctx, `SELECT content_id, torrent_id, folder_name, state, status, progress, size_bytes,
-		links, added_at, duplicates FROM content_provider WHERE provider = ?`, key)
-	if err != nil {
-		return nil, err
-	}
-	for rows.Next() {
-		var id int64
-		var r cpRow
-		if err := rows.Scan(&id, &r.torrentID, &r.folder, &r.state, &r.status, &r.progress, &r.size, &r.links,
-			&r.added, &r.dups); err != nil {
-			rows.Close()
-			return nil, err
-		}
-		existing[id] = r
-	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-
 	hashes := make([]string, 0, len(primary))
 	for h := range primary {
 		hashes = append(hashes, h)
 	}
 	sort.Strings(hashes)
-	listed := make(map[int64]bool, len(hashes))
 	created := map[int64]bool{}
 	for _, h := range hashes {
-		t := primary[h]
 		n := sum.NewContents
-		cid, err := contentFor(ctx, tx, t, contents, now, sum)
+		cid, err := contentFor(ctx, tx, primary[h], contents, now, sum)
 		if err != nil {
 			return nil, err
 		}
 		if sum.NewContents > n {
 			created[cid] = true
 		}
-		listed[cid] = true
-		var added any
-		if !t.Added.IsZero() {
-			added = store.Millis(t.Added)
-		}
-		var links any
-		if t.Links >= 0 {
-			links = t.Links
-		}
-		cur, ok := existing[cid]
-		switch {
-		case !ok:
-			if _, err := tx.ExecContext(ctx, `INSERT INTO content_provider (content_id, provider, torrent_id, folder_name,
-				seen_at, state, status, progress, size_bytes, links, duplicates, added_at)
-				VALUES (?, ?, ?, ?, ?, 'present', ?, ?, ?, ?, ?, ?)`, cid, key, t.ID, t.Name, now, t.Status, t.Progress,
-				t.Bytes, links, dups[h], added); err != nil {
-				return nil, err
-			}
-			sum.NowPresent++
-		case cur.state.String != "present":
-			if _, err := tx.ExecContext(ctx, `UPDATE content_provider SET torrent_id = ?, folder_name = ?, seen_at = ?,
-				state = 'present', status = ?, progress = ?, size_bytes = ?, links = ?, duplicates = ?, added_at = ?,
-				absent_at = NULL WHERE content_id = ? AND provider = ?`, t.ID, t.Name, now, t.Status, t.Progress,
-				t.Bytes, links, dups[h], added, cid, key); err != nil {
-				return nil, err
-			}
-			sum.NowPresent++
-		case cur.torrentID.String != t.ID || cur.folder.String != t.Name || cur.status.String != t.Status ||
-			cur.progress.Float64 != t.Progress || !cur.progress.Valid || cur.size.Int64 != t.Bytes ||
-			!eqNullInt(cur.links, links) || cur.dups != dups[h] || !eqNullInt(cur.added, added):
-			if _, err := tx.ExecContext(ctx, `UPDATE content_provider SET torrent_id = ?, folder_name = ?, status = ?,
-				progress = ?, size_bytes = ?, links = ?, duplicates = ?, added_at = ?
-				WHERE content_id = ? AND provider = ?`, t.ID, t.Name, t.Status, t.Progress, t.Bytes, links, dups[h],
-				added, cid, key); err != nil {
-				return nil, err
-			}
-			sum.Updated++
-		default:
-			sum.Unchanged++
-		}
-	}
-	for cid, r := range existing {
-		if listed[cid] || r.state.String != "present" {
-			continue
-		}
-		if _, err := tx.ExecContext(ctx, `UPDATE content_provider SET state = 'absent', absent_at = ?
-			WHERE content_id = ? AND provider = ?`, now, cid, key); err != nil {
-			return nil, err
-		}
-		sum.NowAbsent++
 	}
 	return created, nil
 }
@@ -512,24 +424,17 @@ func RecordImport(ctx context.Context, tx *sql.Tx, key, id, hash, name string, s
 	return err
 }
 
-// DropRecordTorrent removes torrent id from provider key's record (a delete, or a torrent found gone) and the stored
-// usage of its hash (another account may still hold the hash: it reads as not worked out until the usage is worked
-// out again, which the caller asks for).
+// DropRecordTorrent removes torrent id from provider key's record (a delete, or a torrent found gone); the caller asks
+// for the usage to be worked out again.
 func DropRecordTorrent(ctx context.Context, tx *sql.Tx, key, id string) error {
-	if _, err := tx.ExecContext(ctx, `DELETE FROM provider_hash_usage WHERE info_hash IN
-		(SELECT info_hash FROM provider_torrent WHERE provider = ? AND torrent_id = ?)`, key, id); err != nil {
-		return err
-	}
 	_, err := tx.ExecContext(ctx, `DELETE FROM provider_torrent WHERE provider = ? AND torrent_id = ?`, key, id)
 	return err
 }
 
 // ClearRecord removes provider key's record and its read time (an account changed or removed by settings): the
-// account reads "never read" until a sync lists it. The stored usage of its hashes goes too: another account still
-// holding one reads it as not worked out until the usage is worked out again.
+// account reads "never read" until a sync lists it.
 func ClearRecord(ctx context.Context, tx *sql.Tx, key string) error {
 	for _, q := range []string{
-		`DELETE FROM provider_hash_usage WHERE info_hash IN (SELECT info_hash FROM provider_torrent WHERE provider = ?)`,
 		`DELETE FROM provider_torrent WHERE provider = ?`,
 		`DELETE FROM provider_torrent_read WHERE provider = ?`} {
 		if _, err := tx.ExecContext(ctx, q, key); err != nil {
@@ -537,19 +442,6 @@ func ClearRecord(ctx context.Context, tx *sql.Tx, key string) error {
 		}
 	}
 	return nil
-}
-
-func eqNullInt(n sql.NullInt64, v any) bool {
-	if v == nil {
-		return !n.Valid
-	}
-	switch x := v.(type) {
-	case int:
-		return n.Valid && n.Int64 == int64(x)
-	case int64:
-		return n.Valid && n.Int64 == x
-	}
-	return false
 }
 
 // contentRow is immutable across WriteTx retries; only the reader preload owns this map.

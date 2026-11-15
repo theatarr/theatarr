@@ -760,11 +760,9 @@ func TestDelete(t *testing.T) {
 		!strings.Contains(left, "1") {
 		t.Errorf("the deleted torrent left the record, the refused ones stay: %q %v", left, err)
 	}
-	// tb 90 still holds hF: its stored usage went with the delete and is worked out again.
-	us, err := HashUsages(ctx, e.st.Reader(), []string{hF})
-	if err != nil || us[hF].Usage != Unknown || len(us[hF].Reasons) != 1 || us[hF].Reasons[0] != reasonNotWorkedOut ||
-		stale != 1 {
-		t.Errorf("hF not worked out after the delete (stale %d): %+v %v", stale, us[hF], err)
+	// The usage is worked out again after the delete.
+	if stale != 1 {
+		t.Errorf("usage not asked for again after the delete: %d", stale)
 	}
 }
 

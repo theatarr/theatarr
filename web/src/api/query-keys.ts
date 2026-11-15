@@ -34,10 +34,6 @@ export const qk = {
     playlists: ["anime", "playlists"] as const,
     uncovered: ["anime", "uncovered"] as const,
   },
-  registry: {
-    list: (q: string, state: string, offset: number) => ["registry", q, state, offset] as const,
-    content: (hash: string) => ["registry", "content", hash] as const,
-  },
   torrents: {
     all: ["torrents"] as const,
     report: ["torrents", "report"] as const,

@@ -61,8 +61,6 @@ type ProviderSource struct {
 	Order    int      `json:"order"`
 	Budget   string   `json:"budget,omitempty"`
 	Versions []string `json:"versions"`
-	// Counts are the registry's hashes for this provider by content_provider.state: present and absent.
-	Counts map[string]int `json:"counts"`
 	// Record is the account in the record (the Torrents page's): when it was read, its account torrents and unique
 	// hashes, and their stored usage (worked out after the same sync).
 	Record     *torrents.ProviderRecord `json:"record,omitempty"`
@@ -145,21 +143,9 @@ func (w *Web) sources(ctx context.Context) (Sources, error) {
 	for _, k := range sortedKeys(w.pol.Providers) {
 		p := w.pol.Providers[k]
 		ps := ProviderSource{Key: k, Kind: p.Kind, Order: p.Order, Budget: p.Budget,
-			Versions: usedBy(func(_, pr []string) []string { return pr }, k),
-			Counts:   map[string]int{"present": 0, "absent": 0}, Attempts24h: map[string]int{},
-			Backoff: backoff("provider:" + k), BudgetUse: budget(p.Budget)}
-		if err := scanAll(ctx, db, `SELECT state, COUNT(*) FROM content_provider WHERE provider = ? GROUP BY state`,
-			[]any{k}, func(r *sql.Rows) error {
-				var s string
-				var n int
-				if err := r.Scan(&s, &n); err != nil {
-					return err
-				}
-				ps.Counts[s] = n
-				return nil
-			}); err != nil {
-			return out, err
-		}
+			Versions:    usedBy(func(_, pr []string) []string { return pr }, k),
+			Attempts24h: map[string]int{},
+			Backoff:     backoff("provider:" + k), BudgetUse: budget(p.Budget)}
 		rec, rerr := torrents.ReadProviderRecord(ctx, db, k)
 		if rerr != nil {
 			return out, rerr

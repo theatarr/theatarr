@@ -1,6 +1,7 @@
 // Old admin URLs and where they live since the Admin regrouping (docs/design/ui.md): bookmarks and links from other
 // screens keep working. The Decision journal and Manual import left Admin › Advanced for Activity and Wanted; the journal
-// then moved on to System, and Collections › Lists to Settings › Import lists (phase J). Each old address goes straight to
+// then moved on to System, and Collections › Lists to Settings › Import lists (phase J); Saved inventory merged into
+// Torrents (K9: an entry opens Torrents filtered to its hash). Each old address goes straight to
 // where the page lives now. The query string and hash are kept; path parameters carry over by name, exactly as they
 // appear in the old address (already URL-encoded there, so not encoded again).
 import { matchPath } from "react-router";
@@ -14,8 +15,10 @@ export const LEGACY_ROUTES: [from: string, to: string][] = [
   ["/admin/advanced/arr/migrate", "/admin/arr-import"],
   ["/admin/advanced/imports", "/admin/arr-import"],
   ["/admin/advanced/arr/imports", "/admin/arr-import"],
-  ["/admin/advanced/inventory", "/admin/torrents/inventory"],
-  ["/admin/advanced/inventory/:hash", "/admin/torrents/inventory/:hash"],
+  ["/admin/advanced/inventory", "/admin/torrents"],
+  ["/admin/advanced/inventory/:hash", "/admin/torrents?q=:hash"],
+  ["/admin/torrents/inventory", "/admin/torrents"],
+  ["/admin/torrents/inventory/:hash", "/admin/torrents?q=:hash"],
   ["/admin/metadata", "/admin/reviews/anime"],
   ["/admin/metadata/:slug", "/admin/reviews/anime/:slug"],
   ["/admin/jobs", "/admin/system/tasks"],
@@ -49,8 +52,8 @@ export const LEGACY_ROUTES: [from: string, to: string][] = [
   ["/admin/sources", "/admin/settings/downloads"],
   ["/admin/policy", "/admin/settings"],
   ["/admin/keys", "/admin/users"],
-  ["/admin/registry", "/admin/torrents/inventory"],
-  ["/admin/registry/:hash", "/admin/torrents/inventory/:hash"],
+  ["/admin/registry", "/admin/torrents"],
+  ["/admin/registry/:hash", "/admin/torrents?q=:hash"],
   ["/admin/journal", "/admin/system/journal"],
   ["/admin/journal/:id", "/admin/system/journal/:id"],
   ["/admin/advanced/journal", "/admin/system/journal"],
@@ -92,7 +95,9 @@ export function legacyTarget(pathname: string, search = "", hash = ""): string |
     const raw = pathname.replace(/\/+$/, "").split("/");
     const params: Record<string, string> = {};
     from.split("/").forEach((seg, i) => { if (seg.startsWith(":")) params[seg.slice(1)] = raw[i] ?? ""; });
-    return to.replace(/:(\w+)/g, (_, k: string) => params[k] ?? "") + search + hash;
+    const path = to.replace(/:(\w+)/g, (_, k: string) => params[k] ?? "");
+    // A target with its own query (Saved inventory's entry: Torrents filtered to the hash) takes the old one after it.
+    return path + (path.includes("?") && search ? "&" + search.slice(1) : search) + hash;
   }
   return null;
 }

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/theatarr/theatarr/internal/provider"
 
 	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/indexer"
@@ -60,7 +61,7 @@ func (r *Router) requeue(ctx context.Context, x pollRow, reused int, why, failWh
 			return nil // moved on meanwhile
 		}
 		store.HistoryGrab(ctx, tx, x.id)
-		if err := dropRecordRow(ctx, tx, now, x.pk, x.tid); err != nil {
+		if err := provider.DropRecordTorrent(ctx, tx, x.pk, x.tid); err != nil {
 			return err
 		}
 		p := routePayload{Request: *req}

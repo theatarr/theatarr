@@ -1,12 +1,12 @@
-// A torrent's info hash on a copy card (docs/design/ui.md, Title page): for admins a link to Provider inventory, for
-// everyone else who sees files (managers) plain selectable text with a copy button, since the inventory is an admin
+// A torrent's info hash on a copy card (docs/design/ui.md, Title page): for admins a link to Torrents filtered to it,
+// for everyone else who sees files (managers) plain selectable text with a copy button, since Torrents is an admin
 // page they cannot open. The copy falls back to selecting the text where the browser has no clipboard (plain HTTP).
 import { Check, Copy } from "lucide-react";
 import { useRef, useState } from "react";
 import { Link } from "react-router";
 import { usePerms } from "@/api/library";
 import { Button } from "@/components/ui/button";
-import { adminLink, inventoryLink, torrentsLink } from "@/lib/admin-links";
+import { adminLink, torrentsLink } from "@/lib/admin-links";
 
 /** "Torrent": the file's torrent on Admin › Torrents, beside Cached on; admins only (the page is admin-only). */
 export function TorrentLink({ hash }: { hash?: string | null }) {
@@ -23,7 +23,7 @@ export function TorrentLink({ hash }: { hash?: string | null }) {
 export function InfoHash({ hash, admin }: { hash: string; admin: boolean }) {
   const text = useRef<HTMLSpanElement>(null);
   const [copied, setCopied] = useState(false);
-  const to = adminLink(admin, inventoryLink(hash));
+  const to = adminLink(admin, torrentsLink(hash));
   if (to) {
     return (
       <Link to={to} className="break-all font-mono text-[12.5px] text-primary hover:underline" data-testid="info-hash-link">

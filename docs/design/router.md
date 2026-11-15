@@ -1647,7 +1647,7 @@ active and grabs; until then it is not consumed but queued again an hour later (
 counted), so the replacement searches retry hourly and run once grabbing is on; a search it already started that
 finds grabbing off by then waits the same way (`TestGatedResearchRunNotASearch`), subject to the normal search budget
 (`router.wanted.per_hour` defers them like any re-search). Other re-searches are
-dropped while off. Nothing is deleted: rows keep their history, `content_provider`
-ownership is untouched, and nothing is sent to any provider. Manual rows need a fresh selection by a person. Rows
+dropped while off. Nothing is deleted: rows keep their history, the record of the
+accounts is untouched, and nothing is sent to any provider. Manual rows need a fresh selection by a person. Rows
 past `queued` (adding, added, downloading) are not touched. Runbook: [migration.md](../migration.md#before-the-trial), step 5
 (before `router.enabled: true`).
