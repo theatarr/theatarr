@@ -25,6 +25,7 @@ import (
 	"github.com/theatarr/theatarr/internal/router"
 	"github.com/theatarr/theatarr/internal/store"
 	"github.com/theatarr/theatarr/internal/store/storetest"
+	"github.com/theatarr/theatarr/internal/tasks"
 )
 
 // The test network: .test host names map to local httptest servers through the gateway's DialContext, so every
@@ -328,6 +329,7 @@ type env struct {
 	r      *Runner
 	reg    *prometheus.Registry
 	q      *jobs.Queue
+	tasks  *tasks.Table
 	mu     sync.Mutex
 	now    time.Time
 	gw     *gateway.Gateway
@@ -397,6 +399,8 @@ func newEnv(t *testing.T, withQueue bool) *env {
 	if withQueue {
 		e.q = jobs.NewQueue(st)
 		e.q.SetClock(e.clock)
+		e.tasks = tasks.New(ctx, st, log)
+		e.tasks.Now = e.clock
 	}
 	e.eng, e.svc, e.log = eng, svc, log
 	e.build(nil)
@@ -409,7 +413,7 @@ func (e *env) build(rt Router) {
 		rt = e.rec
 	}
 	e.reg = prometheus.NewRegistry()
-	e.r = New(Config{Store: e.st, Policy: e.pol, Engine: e.eng, Queue: e.q, Indexers: e.svc, Budgets: e.gw,
+	e.r = New(Config{Store: e.st, Policy: e.pol, Engine: e.eng, Queue: e.q, Tasks: e.tasks, Indexers: e.svc, Budgets: e.gw,
 		Router: rt, Logger: e.log, Registerer: e.reg, Now: e.clock})
 }
 

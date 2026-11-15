@@ -28,13 +28,11 @@ import (
 	"github.com/theatarr/theatarr/internal/router"
 	"github.com/theatarr/theatarr/internal/settings"
 	"github.com/theatarr/theatarr/internal/store"
+	"github.com/theatarr/theatarr/internal/tasks"
 )
 
-// KindRSS is the RSS sync's job kind.
+// KindRSS is the RSS sync's scheduled task (internal/tasks).
 const KindRSS = "shadow.rss"
-
-// priorityRSS is below the default 0 of the other jobs.
-const priorityRSS = -20
 
 // BudgetSource is the gateway's state, for skipping indexers whose budget is spent or backing off.
 type BudgetSource interface {
@@ -64,6 +62,8 @@ type Config struct {
 	Engine *decide.Engine
 	// Queue is required for scheduling; nil runs nothing on a schedule (tests).
 	Queue *jobs.Queue
+	// Tasks records the scheduled reads and runs one now (System › Tasks, the arr RssSync command).
+	Tasks *tasks.Table
 	// Indexers runs the RSS reads; nil turns them off.
 	Indexers *indexer.Service
 	// Budgets, when set, lets the runner skip indexers whose budget is capped or backing off.
@@ -88,6 +88,7 @@ type Runner struct {
 	pol     *policy.Policy
 	eng     *decide.Engine
 	q       *jobs.Queue
+	tasks   *tasks.Table
 	idx     *indexer.Service
 	budgets BudgetSource
 	log     *slog.Logger
@@ -111,7 +112,7 @@ func New(cfg Config) *Runner {
 	if cfg.Now == nil {
 		cfg.Now = time.Now
 	}
-	r := &Runner{st: cfg.Store, pol: cfg.Policy, eng: cfg.Engine, q: cfg.Queue, idx: cfg.Indexers, budgets: cfg.Budgets,
+	r := &Runner{st: cfg.Store, pol: cfg.Policy, eng: cfg.Engine, q: cfg.Queue, tasks: cfg.Tasks, idx: cfg.Indexers, budgets: cfg.Budgets,
 		log: cfg.Logger.With("component", "shadow"), now: cfg.Now, set: cfg.Policy.ShadowSettings(),
 		lib: &library{}, m: newMetrics(cfg.Registerer), active: map[string]bool{}, rt: cfg.Router, runtime: cfg.Runtime}
 	r.setVersions(cfg.Policy, cfg.Engine, cfg.Router)
@@ -147,16 +148,20 @@ func (r *Runner) rssVersions() map[string]bool { return r.active }
 // paused is whether downloads are paused: router.enabled false in the pinned policy, the router gate's own switch.
 func (r *Runner) paused() bool { return !r.pol.RouterSettings().Enabled }
 
-// RegisterJobs adds the RSS handler to w.
-func (r *Runner) RegisterJobs(w *jobs.Worker) {
-	w.Handle(KindRSS, func(ctx context.Context, j *jobs.Job) error {
-		run, err := r.forOperation(ctx)
-		if err != nil {
-			return err
-		}
-		_, err = run.rssJob(run.pin(ctx))
+// read is one RSS read with the settings in force: the task's run.
+func (r *Runner) read(ctx context.Context) error {
+	run, err := r.forOperation(ctx)
+	if err != nil {
 		return err
-	})
+	}
+	_, err = run.rssJob(run.pin(ctx))
+	return err
+}
+
+// task is the RSS read's scheduled task with run's interval; paused while Pause is on or no library is Live.
+func (r *Runner) task(run *Runner) tasks.Task {
+	return tasks.Task{Key: KindRSS, Name: "Check RSS feeds", Every: run.set.RSSInterval, Attempts: 2, Run: r.read,
+		Paused: len(run.pol.ActiveVersions()) == 0 || run.paused()}
 }
 
 func (r *Runner) forOperation(ctx context.Context) (*Runner, error) {
@@ -197,6 +202,19 @@ func (r *Runner) Schedule(ctx context.Context, rssDelay time.Duration) {
 	}
 	next, every := r.now().Add(rssDelay), r.set.RSSInterval
 	r.log.Info("shadow job scheduled", "kind", KindRSS, "every", every.String(), "first", next.UTC())
+	// The task is listed while RSS is on, with the interval and Pause of the generation in force.
+	unregister := func() {}
+	defer func() { unregister() }()
+	register := func(run *Runner) {
+		unregister()
+		unregister = func() {}
+		if run.set.RSS {
+			t := r.task(run)
+			t.Next = next
+			unregister = r.tasks.Register(ctx, t)
+		}
+	}
+	register(r)
 	t := time.NewTicker(time.Second)
 	defer t.Stop()
 	for {
@@ -207,14 +225,20 @@ func (r *Runner) Schedule(ctx context.Context, rssDelay time.Duration) {
 			generation = active.generation
 			every = active.set.RSSInterval
 			next = now
+			register(active)
 		}
 		if !now.Before(next) {
 			if err == nil && active.eligible(ctx) {
-				r.enqueue(ctx, KindRSS, nil, jobs.EnqueueOptions{DedupeKey: KindRSS, Priority: priorityRSS, MaxAttempts: 2})
+				if _, err := r.tasks.Run(ctx, r.task(active)); err != nil && ctx.Err() == nil {
+					r.log.Warn("rss read", "err", err)
+				}
 			} else if !fresh {
 				r.reloadIndex(ctx)
 			}
 			next = now.Add(every)
+			if err == nil && active.set.RSS {
+				r.tasks.SetNext(ctx, KindRSS, next)
+			}
 		}
 		fresh = false
 		select {
@@ -242,22 +266,16 @@ func (r *Runner) Covers(ctx context.Context, version string) bool {
 	return slices.ContainsFunc(run.pol.Versions[version].Indexers, func(ik string) bool { return slices.Contains(feeds, ik) })
 }
 
-// QueueRSS queues an RSS read now (the arr RssSync command), deduped with the scheduled one so two never overlap.
-func (r *Runner) QueueRSS(ctx context.Context) error {
-	if r.q == nil {
-		return errors.New("shadow: no job queue")
-	}
-	_, _, err := r.q.Enqueue(ctx, KindRSS, nil, jobs.EnqueueOptions{DedupeKey: KindRSS, Priority: priorityRSS, MaxAttempts: 2})
-	return err
-}
-
-func (r *Runner) enqueue(ctx context.Context, kind string, payload any, o jobs.EnqueueOptions) {
-	id, created, err := r.q.Enqueue(ctx, kind, payload, o)
-	switch {
-	case err != nil:
-		r.log.Warn("enqueue", "kind", kind, "err", err)
-	case !created:
-		r.log.Debug("already queued or running; not enqueued again", "kind", kind, "job", id)
+// QueueRSS starts an RSS read now (the arr RssSync command); one already running is that read. While Pause is on
+// there is nothing to read.
+func (r *Runner) QueueRSS(context.Context) error {
+	switch err := r.tasks.RunNow(KindRSS); {
+	case errors.Is(err, tasks.ErrUnknown):
+		return errors.New("shadow: RSS is not scheduled")
+	case errors.Is(err, tasks.ErrRunning), errors.Is(err, tasks.ErrPaused):
+		return nil
+	default:
+		return err
 	}
 }
 

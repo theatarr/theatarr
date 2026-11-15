@@ -76,16 +76,6 @@ func (s *serveAcquirer) RegisterJobs(w *jobs.Worker) {
 		ctx, ac := s.forOperation(ctx)
 		return ac.RunJob(ctx, p)
 	})
-	w.Handle(acquire.JobWanted, func(ctx context.Context, j *jobs.Job) error {
-		if len(j.Payload) > 0 {
-			if err := j.Decode(&struct{}{}); err != nil {
-				return jobs.Permanent(err)
-			}
-		}
-		ctx, ac := s.forOperation(ctx)
-		_, err := ac.Round(ctx, nil)
-		return err
-	})
 	w.Handle(router.JobResearch, func(ctx context.Context, j *jobs.Job) error {
 		var p router.ResearchRequest
 		if err := j.Decode(&p); err != nil {
@@ -94,6 +84,13 @@ func (s *serveAcquirer) RegisterJobs(w *jobs.Worker) {
 		ctx, ac := s.forOperation(ctx)
 		return ac.Research(ctx, p)
 	})
+}
+
+// Round runs a full search round with the acquirer in force (the search round's task).
+func (s *serveAcquirer) Round(ctx context.Context) error {
+	ctx, ac := s.forOperation(ctx)
+	_, err := ac.Round(ctx, nil)
+	return err
 }
 
 func (s *serveAcquirer) WantedList(ctx context.Context, q acquire.WantedQuery) (*acquire.WantedList, error) {

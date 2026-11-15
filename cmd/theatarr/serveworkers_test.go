@@ -18,6 +18,7 @@ import (
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/store"
 	"github.com/theatarr/theatarr/internal/store/storetest"
+	"github.com/theatarr/theatarr/internal/tasks"
 )
 
 // fakeWorker records its runs: how many started, how many ran at once, and the prev key each start got.
@@ -309,5 +310,35 @@ func TestWantedWorkerFollowsTheRouterSwitch(t *testing.T) {
 	rt.Policy.Router.Enabled = true
 	if k := key(rt); k != "on" {
 		t.Fatalf("key %q with downloads on", k)
+	}
+}
+
+// While Pause is on the search round's task is listed as paused, with no next run, and Run now is refused; it is no
+// longer listed once the worker stops.
+func TestWantedTaskPaused(t *testing.T) {
+	ctx := context.Background()
+	st, err := store.Open(ctx, storetest.Seed(t, filepath.Join(t.TempDir(), "theatarr.db")), store.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { st.Close() })
+	tb := tasks.New(ctx, st, nil)
+	l := serveLoops{tasks: tb, log: slog.New(slog.NewTextHandler(io.Discard, nil))}
+	rt := &serveRuntime{Acquirer: &acquire.Acquirer{}, Policy: &policy.Policy{Router: &policy.Router{},
+		Versions: map[string]*policy.VersionPolicy{"movie": {Mode: policy.ModeActive}}}}
+	wctx, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+	go func() { l.runWanted(wctx, rt, ""); close(done) }()
+	waitFor(t, "paused task listed", func() bool {
+		got, _ := tb.List(ctx)
+		return len(got) == 1 && got[0].Key == acquire.TaskWanted && got[0].Paused && got[0].NextRun == nil
+	})
+	if err := tb.RunNow(acquire.TaskWanted); !errors.Is(err, tasks.ErrPaused) {
+		t.Fatalf("run now while paused: %v", err)
+	}
+	cancel()
+	<-done
+	if got, _ := tb.List(ctx); len(got) != 0 {
+		t.Fatalf("listed after the worker stopped: %+v", got)
 	}
 }

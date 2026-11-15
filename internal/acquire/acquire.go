@@ -36,10 +36,10 @@ import (
 	"github.com/theatarr/theatarr/internal/store"
 )
 
-// Job kinds.
+// JobSearch is the job kind of one search; TaskWanted the scheduled task of the search round (internal/tasks).
 const (
-	JobSearch = "acquire.search"
-	JobWanted = "acquire.wanted"
+	JobSearch  = "acquire.search"
+	TaskWanted = "acquire.wanted"
 )
 
 // Sources of a run.
@@ -176,10 +176,6 @@ func (a *Acquirer) SetMetadata(m MetadataWait) { a.meta = m }
 // RegisterJobs adds the handlers to w.
 func (a *Acquirer) RegisterJobs(w *jobs.Worker) {
 	w.Handle(JobSearch, a.handleSearch)
-	w.Handle(JobWanted, func(ctx context.Context, _ *jobs.Job) error {
-		_, err := a.Round(ctx, nil)
-		return err
-	})
 	w.Handle(router.JobResearch, a.handleResearch)
 }
 

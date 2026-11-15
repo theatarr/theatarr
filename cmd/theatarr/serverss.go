@@ -12,13 +12,14 @@ import (
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/settings"
 	"github.com/theatarr/theatarr/internal/store"
+	"github.com/theatarr/theatarr/internal/tasks"
 )
 
 // newRSSRunner builds the RSS sync theatarr serve runs (job shadow.rss, docs/design/rss.md): the Live libraries' feeds,
 // their accepted items to the router rt. It is the decision engine's film index.
-func newRSSRunner(pol *policy.Policy, st *store.Store, q *jobs.Queue, gw *gateway.Gateway, reg prometheus.Registerer,
+func newRSSRunner(pol *policy.Policy, st *store.Store, q *jobs.Queue, tbl *tasks.Table, gw *gateway.Gateway, reg prometheus.Registerer,
 	log *slog.Logger, rt rss.Router, prepared *serveRuntime, runtime rss.RuntimeSource) *rss.Runner {
-	r := rss.New(rss.Config{Store: st, Policy: pol, Engine: prepared.Engine, Queue: q, Indexers: prepared.Indexers,
+	r := rss.New(rss.Config{Store: st, Policy: pol, Engine: prepared.Engine, Queue: q, Tasks: tbl, Indexers: prepared.Indexers,
 		Budgets: gw, Router: rt, Logger: log, Registerer: reg, Runtime: runtime})
 	log.Info("rss runner", "rss_to_router", r.ActiveVersions())
 	return r

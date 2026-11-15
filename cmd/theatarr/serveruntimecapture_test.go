@@ -721,15 +721,14 @@ func TestServeRoundStartsDueRows(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := q.Enqueue(ctx, acquire.JobWanted, struct{}{}, jobs.EnqueueOptions{DedupeKey: acquire.JobWanted}); err != nil {
+	sa := &serveAcquirer{fallback: ac}
+	if err := sa.Round(ctx); err != nil {
 		t.Fatal(err)
 	}
 	w := jobs.NewWorker(q, jobs.WorkerOptions{Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
-	(&serveAcquirer{fallback: ac}).RegisterJobs(w)
-	for range 2 {
-		if ran, err := w.RunOne(ctx); err != nil || !ran {
-			t.Fatalf("job: ran=%v err=%v", ran, err)
-		}
+	sa.RegisterJobs(w)
+	if ran, err := w.RunOne(ctx); err != nil || !ran {
+		t.Fatalf("job: ran=%v err=%v", ran, err)
 	}
 	var state, research, why string
 	if err := db.Reader().QueryRowContext(ctx, `SELECT state, research FROM acquire_run`).Scan(&state, &research); err != nil ||

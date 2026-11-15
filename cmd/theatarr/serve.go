@@ -445,8 +445,7 @@ func runServe(args []string) error {
 	// The RSS sync (docs/design/rss.md): the Live libraries' feeds, their accepted items to the router. It is the
 	// decision engine's film index.
 	eng, idx := serveSnapshot.Engine, serveSnapshot.Indexers
-	rssRunner := newRSSRunner(pol, st, q, gw, reg, log, routeService, serveSnapshot, rssRuntimeSource{manager: runtimeManager})
-	rssRunner.RegisterJobs(w)
+	rssRunner := newRSSRunner(pol, st, q, tbl, gw, reg, log, routeService, serveSnapshot, rssRuntimeSource{manager: runtimeManager})
 
 	// The torrent manager (docs/design/torrents.md): backups and restores run as jobs; deletes only on request.
 	torrentSvc := &serveTorrents{manager: runtimeManager, st: st, q: q, dir: torrentBackupDir(*dbPath), log: log,
@@ -809,7 +808,7 @@ func runServe(args []string) error {
 	// The loops whose schedule or source is a settings section run as workers: a published generation that changes
 	// their settings stops and restarts them (serveliveworkers.go).
 	startRuntime := serveSnapshot
-	loops := serveLoops{router: rt, sync: ps, rss: rssRunner, log: log, current: func(ctx context.Context) (context.Context, *serveRuntime) {
+	loops := serveLoops{router: rt, sync: ps, rss: rssRunner, tasks: tbl, acquirer: acService, log: log, current: func(ctx context.Context) (context.Context, *serveRuntime) {
 		ctx = runtimeManager.Capture(ctx)
 		if runtime, err := runtimeForSearch(ctx, runtimeManager); err == nil {
 			return ctx, runtime
@@ -1033,7 +1032,7 @@ const nightlyKind = "db.nightly"
 
 // urgentJobKinds are the acquisition and import jobs: leased before other kinds, and the only ones the reserved
 // worker slots run (jobs.WorkerOptions.Urgent).
-var urgentJobKinds = []string{acquire.JobSearch, acquire.JobWanted, router.JobResearch, router.JobRoute,
+var urgentJobKinds = []string{acquire.JobSearch, router.JobResearch, router.JobRoute,
 	router.JobOffer, library.ScanJobKind}
 
 // nightly writes a backup set (database, policy, manifest; backup.go) and keeps the newest sets, prunes finished jobs

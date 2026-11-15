@@ -7,22 +7,27 @@ import (
 	"strings"
 	"time"
 
+	"github.com/theatarr/theatarr/internal/acquire"
 	"github.com/theatarr/theatarr/internal/acquire/rss"
 	"github.com/theatarr/theatarr/internal/catalog"
 	"github.com/theatarr/theatarr/internal/metadata/anime/playlists"
 	"github.com/theatarr/theatarr/internal/metadata/tvrefresh"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/router"
+	"github.com/theatarr/theatarr/internal/tasks"
 )
 
 // serveLoops is what the serve workers run on: the startup services, which resolve the settings generation in force
 // for each operation, and current, which captures that generation and returns its services.
 type serveLoops struct {
-	router  *router.Router
-	sync    *providerSync
-	rss     *rss.Runner
-	current func(context.Context) (context.Context, *serveRuntime)
-	log     *slog.Logger
+	router *router.Router
+	sync   *providerSync
+	rss    *rss.Runner
+	tasks  *tasks.Table
+	// acquirer runs the search round with the acquirer in force.
+	acquirer *serveAcquirer
+	current  func(context.Context) (context.Context, *serveRuntime)
+	log      *slog.Logger
 }
 
 // Workers are keyed on the settings each loop schedules with; a save that leaves a key alone leaves the loop running.
@@ -63,15 +68,7 @@ func (l serveLoops) workers() []serveWorker {
 		// The search schedule's rounds (internal/acquire Round), while a library is Live and Pause is off; the first
 		// round 5 minutes after start, or at once when Pause is turned off (the due rows waited for it).
 		{name: "wanted", key: wantedWorkerKey, run: func(ctx context.Context, rt *serveRuntime, prev string) error {
-			if wantedWorkerKey(rt) == "paused" {
-				<-ctx.Done()
-				return nil
-			}
-			delay := 5 * time.Minute
-			if prev == "paused" {
-				delay = 0
-			}
-			rt.Acquirer.Run(ctx, delay)
+			l.runWanted(ctx, rt, prev)
 			return nil
 		}},
 		// shadow.rss scheduling: always on; the schedule follows each generation's shadow.rss, rss_interval and
@@ -231,6 +228,38 @@ func (l serveLoops) runPlaylists(ctx context.Context, interval time.Duration, fa
 			if _, err := current.Sync(syncCtx, "", false); err != nil {
 				l.log.Warn("playlists: sync failed", "err", err)
 			}
+		}
+	}
+}
+
+// runWanted runs the search round's task every acquire.RoundEvery until ctx ends, the first after 5 minutes, or at
+// once when Pause was just turned off (the due rows waited for it). While Pause is on the task is listed as paused.
+func (l serveLoops) runWanted(ctx context.Context, rt *serveRuntime, prev string) {
+	task := tasks.Task{Key: acquire.TaskWanted, Name: "Search for wanted items", Every: acquire.RoundEvery}
+	if wantedWorkerKey(rt) == "paused" {
+		task.Paused = true
+		defer l.tasks.Register(ctx, task)()
+		<-ctx.Done()
+		return
+	}
+	rt.Acquirer.LogSchedule()
+	delay := 5 * time.Minute
+	if prev == "paused" {
+		delay = 0
+	}
+	task.Next, task.Run = time.Now().Add(delay), l.acquirer.Round
+	defer l.tasks.Register(ctx, task)()
+	t := time.NewTimer(delay)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			if _, err := l.tasks.Run(ctx, task); err != nil && ctx.Err() == nil {
+				l.log.Warn("search round", "err", err)
+			}
+			t.Reset(acquire.RoundEvery)
 		}
 	}
 }

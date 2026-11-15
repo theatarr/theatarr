@@ -2,7 +2,6 @@ package rss
 
 import (
 	"context"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -15,22 +14,6 @@ type fixedRuntimeSource struct{ generation int64 }
 func (s fixedRuntimeSource) CurrentGeneration() int64 { return s.generation }
 func (fixedRuntimeSource) Resolve(context.Context, int64) (Runtime, bool) {
 	return Runtime{}, false
-}
-
-func TestQueueRSSDoesNotPersistRuntimeGeneration(t *testing.T) {
-	t.Parallel()
-	e := newEnv(t, true)
-	e.r.runtime = fixedRuntimeSource{generation: 12}
-	if err := e.r.QueueRSS(e.ctx); err != nil {
-		t.Fatal(err)
-	}
-	var payload string
-	if err := e.st.Reader().QueryRowContext(e.ctx, `SELECT payload FROM job WHERE kind = ?`, KindRSS).Scan(&payload); err != nil {
-		t.Fatal(err)
-	}
-	if strings.Contains(payload, `"generation"`) {
-		t.Fatalf("RSS job persisted a generation: %s", payload)
-	}
 }
 
 type runtimeSnapshotSource struct {
@@ -90,7 +73,7 @@ func TestRSSSchedulerUsesCurrentRuntimeEligibility(t *testing.T) {
 	var count int
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
-		if err := e.st.Reader().QueryRowContext(e.ctx, `SELECT COUNT(*) FROM job WHERE kind = ?`, KindRSS).Scan(&count); err != nil {
+		if err := e.st.Reader().QueryRowContext(e.ctx, `SELECT COUNT(*) FROM task WHERE key = ? AND last_started IS NOT NULL`, KindRSS).Scan(&count); err != nil {
 			t.Fatal(err)
 		}
 		if count > 0 {
@@ -101,9 +84,9 @@ func TestRSSSchedulerUsesCurrentRuntimeEligibility(t *testing.T) {
 	cancel()
 	<-done
 	if count == 0 {
-		t.Fatal("RSS scheduler did not enqueue promptly after the runtime enabled its first feed")
+		t.Fatal("RSS scheduler did not read promptly after the runtime enabled its first feed")
 	}
-	if _, err := e.st.Writer().ExecContext(e.ctx, `DELETE FROM job WHERE kind = ?`, KindRSS); err != nil {
+	if _, err := e.st.Writer().ExecContext(e.ctx, `UPDATE task SET last_started = NULL WHERE key = ?`, KindRSS); err != nil {
 		t.Fatal(err)
 	}
 	off = false
@@ -122,10 +105,10 @@ func TestRSSSchedulerUsesCurrentRuntimeEligibility(t *testing.T) {
 	cancel2()
 	<-done2
 	var idle int
-	if err := e.st.Reader().QueryRowContext(e.ctx, `SELECT COUNT(*) FROM job WHERE kind = ?`, KindRSS).Scan(&idle); err != nil {
+	if err := e.st.Reader().QueryRowContext(e.ctx, `SELECT COUNT(*) FROM task WHERE key = ? AND last_started IS NOT NULL`, KindRSS).Scan(&idle); err != nil {
 		t.Fatal(err)
 	}
 	if idle != 0 {
-		t.Fatal("RSS scheduler queued work after all feeds were disabled")
+		t.Fatal("RSS scheduler read after all feeds were disabled")
 	}
 }

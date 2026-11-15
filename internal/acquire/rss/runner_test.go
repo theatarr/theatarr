@@ -3,13 +3,10 @@ package rss
 import (
 	"context"
 	"fmt"
-	"io"
-	"log/slog"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/theatarr/theatarr/internal/jobs"
 	"github.com/theatarr/theatarr/internal/policy"
 )
 
@@ -79,26 +76,35 @@ func TestRSSSeesFilmAddedAfterFirstRun(t *testing.T) {
 	}
 }
 
-// The worker handles shadow.rss: a queued read runs and leaves its run row.
-func TestRegisterJobsHandlesRSS(t *testing.T) {
+// The schedule registers the RSS task: a scheduled read runs as the task and records its row (last run, next run
+// an interval on) without a job row; Run now (the arr RssSync command) reads again.
+func TestScheduleRunsTheRSSTask(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, true)
 	e.seed(t)
 	e.prow.setRSS(item{title: alienWebRel, hash: hAlienWeb, size: 20e9, pub: t0})
-	w := jobs.NewWorker(e.q, jobs.WorkerOptions{Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
-	e.r.RegisterJobs(w)
-	if err := e.r.QueueRSS(e.ctx); err != nil {
-		t.Fatal(err)
+	ctx, cancel := context.WithCancel(e.ctx)
+	done := make(chan struct{})
+	go func() { e.r.Schedule(ctx, 0); close(done) }()
+	defer func() { cancel(); <-done }()
+	rows := func() int {
+		return one[int](t, e.st, `SELECT COUNT(*) FROM shadow_run WHERE kind = ? AND ok = 1`, KindRSS)
 	}
-	if ran, err := w.RunOne(e.ctx); err != nil || !ran {
-		t.Fatalf("ran %v err %v", ran, err)
-	}
-	if n := one[int](t, e.st, `SELECT COUNT(*) FROM shadow_run WHERE kind = ? AND ok = 1`, KindRSS); n != 1 {
-		t.Fatalf("%d run rows", n)
+	waitUntil(t, "scheduled read", func() bool { return rows() == 1 })
+	waitUntil(t, "task row", func() bool {
+		return one[int](t, e.st, `SELECT COUNT(*) FROM task WHERE key = ? AND last_finished IS NOT NULL AND next_run = ?`,
+			KindRSS, e.clock().Add(e.r.set.RSSInterval).UnixMilli()) == 1
+	})
+	if n := one[int](t, e.st, `SELECT COUNT(*) FROM job WHERE kind = ?`, KindRSS); n != 0 {
+		t.Fatalf("%d RSS jobs", n)
 	}
 	if got := e.rec.candidates(); len(got) != 2 {
 		t.Errorf("routed %v", got)
 	}
+	if err := e.r.QueueRSS(e.ctx); err != nil {
+		t.Fatal(err)
+	}
+	waitUntil(t, "read run now", func() bool { return rows() == 2 })
 }
 
 // While downloads are paused (router.enabled false) a run, scheduled, queued or manual, reads and routes nothing and
@@ -145,9 +151,9 @@ func TestRSSSkipsWatchOnlySchedule(t *testing.T) {
 	e.build(nil)
 	ctx, cancel := context.WithTimeout(e.ctx, 1500*time.Millisecond)
 	defer cancel()
-	e.r.Schedule(ctx, 0) // runs until ctx ends, queuing nothing: no Live library reads a feed
-	if n := one[int](t, e.st, `SELECT COUNT(*) FROM job WHERE kind = ?`, KindRSS); n != 0 {
-		t.Fatalf("%d RSS jobs", n)
+	e.r.Schedule(ctx, 0) // runs until ctx ends, reading nothing: no Live library reads a feed
+	if n := one[int](t, e.st, `SELECT COUNT(*) FROM task WHERE key = ? AND last_started IS NOT NULL`, KindRSS); n != 0 {
+		t.Fatalf("%d RSS reads", n)
 	}
 }
 
@@ -181,8 +187,8 @@ func TestFilmIndexWithoutRSS(t *testing.T) {
 			e.seed(t, alien)
 			e.advance(e.r.set.RSSInterval)
 			waitUntil(t, "film added after start known after the tick", func() bool { return known(alien) })
-			if n := one[int](t, e.st, `SELECT COUNT(*) FROM job WHERE kind = ?`, KindRSS); n != 0 {
-				t.Errorf("%d RSS jobs", n)
+			if n := one[int](t, e.st, `SELECT COUNT(*) FROM task WHERE key = ? AND last_started IS NOT NULL`, KindRSS); n != 0 {
+				t.Errorf("%d RSS reads", n)
 			}
 		})
 	}

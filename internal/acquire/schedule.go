@@ -11,7 +11,6 @@ import (
 
 	"github.com/theatarr/theatarr/internal/availability"
 	"github.com/theatarr/theatarr/internal/decide"
-	"github.com/theatarr/theatarr/internal/jobs"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/store"
 )
@@ -530,22 +529,8 @@ func (a *Acquirer) Round(ctx context.Context, scope []int64) (*WantedSummary, er
 	return sum, nil
 }
 
-// Run enqueues a full round every RoundEvery until ctx ends; the first after delay. The serve worker runs it while
-// a library is Live and Pause is off.
-func (a *Acquirer) Run(ctx context.Context, delay time.Duration) {
+// LogSchedule logs the search schedule a round follows (theatarr serve, when the round's task starts).
+func (a *Acquirer) LogSchedule() {
 	a.log.Info("search schedule", "per_hour", a.set.PerHour, "again_after", a.set.AgainAfter.String(),
 		"missing", a.switchOn(OnlyMissing), "cutoff_unmet", a.switchOn(OnlyCutoff), "active_versions", a.pol.ActiveVersions())
-	t := time.NewTimer(delay)
-	defer t.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-t.C:
-			if _, _, err := a.q.Enqueue(ctx, JobWanted, struct{}{}, jobs.EnqueueOptions{DedupeKey: JobWanted, MaxAttempts: 1}); err != nil {
-				a.log.Warn("enqueue search round", "err", err)
-			}
-			t.Reset(RoundEvery)
-		}
-	}
 }
