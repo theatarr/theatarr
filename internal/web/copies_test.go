@@ -384,6 +384,9 @@ func TestListRowFacts(t *testing.T) {
 		(30, 'radarr_4k_debrid', 'digital', '2026-10-05'),
 		(31, 'tmdb', 'theatrical', '2026-08-01'), (31, 'tmdb', 'digital', '2026-10-01'), (31, 'tmdb', 'physical', '2026-12-01'),
 		(32, 'tmdb', 'theatrical', '2026-09-26'), (33, 'tmdb', 'theatrical', '2026-07-18')`)
+	// Cinema's primary release (the US), which its refreshed dates are shown from.
+	e.exec(`INSERT INTO title_release_date (title_id, source, country, type, date) VALUES
+		(30, 'tmdb', 'US', 'theatrical', '2026-10-01'), (30, 'tmdb', 'US', 'digital', '2026-11-20')`)
 	// Cinema downloading; Disc's download is blocked at import.
 	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, quality,
 		episodes, progress, state, created_at, updated_at) VALUES

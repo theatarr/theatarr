@@ -40,42 +40,48 @@ type CalendarItem struct {
 var CalendarTypes = []string{"theatrical", "digital", "physical"}
 
 // The release-date choice (docs/design/ui.md "Release dates"), one rule for Home's Upcoming row, the calendar, the
-// lists' Next release and Release date and their sorts, and the title page's dates: per movie and release type (in cinemas, digital,
-// physical), the type's first date, from the canonical dates (country '', the successful TMDb refresh when there is
-// one, else the arrs' dates), else from TMDb's US dates while the title has no refresh. Later dates of a type (a
-// re-release, a streaming service picking an old film up) are never the type's date. Display only: what may be
-// fetched reads availability.Dates.
+// lists' Next release and Release date and their sorts, and the title page's dates: per movie and release type (in
+// cinemas, digital, physical) the primary release's first date. A title with a successful TMDb refresh takes its
+// primary country's rows (source tmdb, a country: the only country stored, tmdb.PrimaryCountry), in cinemas falling
+// back to that country's limited release and then to the canonical cinema date (the first anywhere, never a
+// re-release); digital and physical never come from another country. A title without a refresh takes the canonical
+// dates (the arrs'), else its stored TMDb country rows. Later dates of a type (a re-release, a streaming service
+// picking an old film up) are never the type's date. Display only: what may be fetched reads availability.Dates.
 
-// releaseDatesSQL aggregates title_release_date d per title and release type (CalendarTypes), the rows narrowed by
-// cond (an SQL condition on d, such as "d.title_id = t.id"): canon is the type's first canonical date (country empty,
-// the successful TMDb refresh when there is one, else the arrs' dates: availability.Dates' choice), us its first TMDb
-// US date while the title has no refresh. One pass over the rows; YYYY-MM-DD.
+// releaseDatesSQL aggregates title_release_date d per title and release type (CalendarTypes; a limited cinema
+// release counts as theatrical), the rows narrowed by cond (an SQL condition on d, such as "d.title_id = t.id"):
+// canon is the type's first canonical date (country empty, the successful TMDb refresh when there is one, else the
+// arrs' dates: availability.Dates' choice) and first the release-date choice. One pass over the rows; YYYY-MM-DD.
 func releaseDatesSQL(cond string) string {
-	return `SELECT d.title_id, d.type, ` + canonSQL + ` AS canon, ` + usSQL + ` AS us
+	return `SELECT d.title_id, CASE d.type WHEN 'theatrical_limited' THEN 'theatrical' ELSE d.type END AS type,
+		` + canonSQL + ` AS canon, CASE WHEN MAX(fm.movie_dates_at) IS NOT NULL THEN ` + primarySQL + `
+		ELSE COALESCE(` + canonSQL + `, ` + primarySQL + `) END AS first
 		FROM title_release_date d LEFT JOIN title_meta fm ON fm.title_id = d.title_id
-		WHERE d.type IN ('theatrical', 'digital', 'physical') AND d.country IN ('', 'US') AND (` + cond + `)
-		GROUP BY d.title_id, d.type`
+		WHERE d.type IN ('theatrical', 'theatrical_limited', 'digital', 'physical') AND (` + cond + `)
+		GROUP BY 1, 2`
 }
 
-// canonSQL and usSQL are releaseDatesSQL's two aggregates over d, with fm the title's title_meta row.
+// canonSQL and primarySQL are releaseDatesSQL's aggregates over d, with fm the title's title_meta row: primarySQL is
+// the primary country's first date of the type (wide before limited), a cinema date else the canonical one.
 const (
-	canonSQL = `MIN(CASE WHEN d.country = '' AND (d.source = 'tmdb-art' OR fm.movie_dates_at IS NULL) THEN substr(d.date, 1, 10) END)`
-	usSQL    = `MIN(CASE WHEN d.source = 'tmdb' AND d.country = 'US' AND fm.movie_dates_at IS NULL THEN substr(d.date, 1, 10) END)`
+	canonSQL = `MIN(CASE WHEN d.country = '' AND d.type <> 'theatrical_limited'
+		AND (d.source = 'tmdb-art' OR fm.movie_dates_at IS NULL) THEN substr(d.date, 1, 10) END)`
+	primarySQL = `COALESCE(
+		MIN(CASE WHEN d.source = 'tmdb' AND d.country <> '' AND d.type <> 'theatrical_limited' THEN substr(d.date, 1, 10) END),
+		MIN(CASE WHEN d.source = 'tmdb' AND d.country <> '' AND d.type = 'theatrical_limited' THEN substr(d.date, 1, 10) END),
+		CASE WHEN MAX(d.type) LIKE 'theatrical%' THEN ` + canonSQL + ` END)`
 )
 
 // FirstReleaseOfSQL is the release-date choice of one type for title title (an SQL expression such as "t.id") as one
-// scalar value: a flat aggregate, NULL without a date.
+// scalar value, NULL without a date.
 func FirstReleaseOfSQL(title, typ string) string {
-	return `(SELECT COALESCE(` + canonSQL + `, ` + usSQL + `) FROM title_release_date d
-		LEFT JOIN title_meta fm ON fm.title_id = d.title_id
-		WHERE d.title_id = ` + title + ` AND d.type = '` + typ + `' AND d.country IN ('', 'US'))`
+	return `(SELECT x.date FROM (` + FirstReleasesSQL("d.title_id = "+title) + `) x WHERE x.type = '` + typ + `')`
 }
 
 // FirstReleasesSQL selects title_id, type and date of the release-date choice for the rows cond narrows
-// (releaseDatesSQL): per type the canonical first date, else the US one.
+// (releaseDatesSQL).
 func FirstReleasesSQL(cond string) string {
-	return `SELECT title_id, type, COALESCE(canon, us) AS date FROM (` + releaseDatesSQL(cond) + `)
-		WHERE COALESCE(canon, us) IS NOT NULL`
+	return `SELECT title_id, type, first AS date FROM (` + releaseDatesSQL(cond) + `) WHERE first IS NOT NULL`
 }
 
 // FirstReleasesBetweenSQL selects title_id, type and date of every chosen release date (FirstReleasesSQL) from the
@@ -101,8 +107,8 @@ func ReadMovieDates(ctx context.Context, db *sql.DB, ids []any) (map[int64]Movie
 		for rows.Next() {
 			var id int64
 			var typ string
-			var canon, us sql.NullString
-			if err := rows.Scan(&id, &typ, &canon, &us); err != nil {
+			var canon, first sql.NullString
+			if err := rows.Scan(&id, &typ, &canon, &first); err != nil {
 				rows.Close()
 				return nil, err
 			}
@@ -111,13 +117,13 @@ func ReadMovieDates(ctx context.Context, db *sql.DB, ids []any) (map[int64]Movie
 				m = MovieDates{First: map[string]string{}, Canonical: map[string]time.Time{}}
 				out[id] = m
 			}
+			if first.Valid {
+				m.First[typ] = first.String
+			}
 			if canon.Valid {
-				m.First[typ] = canon.String
 				if d, err := time.Parse(time.DateOnly, canon.String); err == nil {
 					m.Canonical[typ] = d
 				}
-			} else if us.Valid {
-				m.First[typ] = us.String
 			}
 		}
 		if err := rows.Close(); err != nil {

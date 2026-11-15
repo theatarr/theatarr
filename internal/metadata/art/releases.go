@@ -26,8 +26,10 @@ func writeMovieDates(ctx context.Context, tx *sql.Tx, titleID int64, m *tmdb.Mov
 			return err
 		}
 	}
+	// Only the primary release's country is kept: the display reads it, and nothing reads the other countries.
+	primary := m.PrimaryCountry()
 	for _, c := range m.ReleaseDates.Results {
-		if c.Country == "" {
+		if c.Country == "" || c.Country != primary {
 			continue
 		}
 		for _, r := range c.Releases {

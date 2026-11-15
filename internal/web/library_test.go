@@ -39,8 +39,7 @@ func (e *env) seedLibrary() {
 		(1, 'rd', 'T1', ?, 'downloaded', 100)`, now)
 	e.exec(`INSERT INTO title_release_date (title_id, source, country, type, date) VALUES
 		(1, 'tmdb', 'US', 'digital', '2020-08-01'), (1, 'tmdb', 'US', 'digital', '2026-11-01'),
-		(2, 'tmdb', 'US', 'digital', '2026-11-05'),
-		(2, 'tmdb', 'FR', 'digital', '2026-10-28')`)
+		(2, 'tmdb', 'US', 'digital', '2026-11-05')`)
 	e.exec(`UPDATE title SET monitored = 0 WHERE id = 3`)
 
 	e.exec(`INSERT INTO title (id, kind, name, year, tvdb_id, anime, created_at, updated_at) VALUES
@@ -1191,17 +1190,20 @@ func TestStatusWords(t *testing.T) {
 	// M Announced has no date at all and TMDb says Post Production: Upcoming, date unknown. M Undated has no date
 	// and no such status: Missing.
 	// M Dated Elsewhere is announced but has a (non-canonical) dated release: not undated, so Missing. M No Meta was
-	// just added: no metadata, no date: Upcoming, date unknown.
+	// just added: no metadata, no date: Upcoming, date unknown. M Release Date Only is refreshed and announced, and
+	// keeps no release date rows (its primary country has none), but TMDb's release date dates it: Missing.
 	e.exec(`INSERT INTO title (id, kind, name, year, created_at, updated_at) VALUES (16, 'movie', 'M Announced', NULL, 0, 0),
-		(17, 'movie', 'M Undated', NULL, 0, 0), (18, 'movie', 'M Dated Elsewhere', NULL, 0, 0), (19, 'movie', 'M No Meta', NULL, 0, 0)`)
-	e.exec(`INSERT INTO title_meta (title_id, release_date, status, attempted_at, refresh_after) VALUES
-		(16, '', 'Post Production', 0, 0), (17, '', 'Released', 0, 0), (18, '', 'announced', 0, 0)`)
+		(17, 'movie', 'M Undated', NULL, 0, 0), (18, 'movie', 'M Dated Elsewhere', NULL, 0, 0), (19, 'movie', 'M No Meta', NULL, 0, 0),
+		(60, 'movie', 'M Release Date Only', NULL, 0, 0)`)
+	e.exec(`INSERT INTO title_meta (title_id, release_date, status, movie_dates_at, attempted_at, refresh_after) VALUES
+		(16, '', 'Post Production', NULL, 0, 0), (17, '', 'Released', NULL, 0, 0), (18, '', 'announced', NULL, 0, 0),
+		(60, '2020-05-01', 'announced', 1, 0, 0)`)
 	e.exec(`INSERT INTO title_release_date (title_id, source, country, type, date) VALUES (18, 'tmdb', 'FR', 'theatrical', '2020-01-01')`)
 	e.exec(`INSERT INTO version (id, title_id, policy_key, state, monitored, created_at, updated_at) VALUES
 		(161, 16, 'movie-web', 'wanted', 1, 0, 0), (171, 17, 'movie-web', 'wanted', 1, 0, 0), (181, 18, 'movie-web', 'wanted', 1, 0, 0),
-		(191, 19, 'movie-web', 'wanted', 1, 0, 0)`)
+		(191, 19, 'movie-web', 'wanted', 1, 0, 0), (601, 60, 'movie-web', 'wanted', 1, 0, 0)`)
 	want := map[string]string{
-		"M Announced": "upcoming", "M Undated": "missing", "M Dated Elsewhere": "missing", "M No Meta": "upcoming",
+		"M Release Date Only": "missing", "M Announced": "upcoming", "M Undated": "missing", "M Dated Elsewhere": "missing", "M No Meta": "upcoming",
 		"M Partial": "partial", "M Off Gap": "available", "M Missing": "missing", "M Upcoming": "upcoming",
 		"M Digital": "upcoming", "M Unmonitored": "unmonitored", "S Full": "available", "S Gap": "partial",
 		"S Off Gap": "available", "S Not Aired": "upcoming", "S None": "none", "S Tonight": "upcoming",

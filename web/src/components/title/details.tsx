@@ -3,19 +3,16 @@
 // entries, each only when it has something; the outside links are About's buttons, not repeated here. The grab
 // journal for the title (GET /journal?title=<id>) is TitleJournal, on the History tab.
 import { ChevronRight } from "lucide-react";
-import { useState } from "react";
 import { Link } from "react-router";
 import { useTitleJournal, type TitleDetail, type Version } from "@/api/library";
 import { Empty, ErrorState, KV, Loading, Mono, Section, VersionTag } from "@/components/page";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { inventoryLink, journalHome, journalLink } from "@/lib/admin-links";
 import { fmtBytes, fmtDayYear, fmtNumber, fmtTime } from "@/lib/format";
 import { readableCode } from "@/lib/code-words";
 import { fileInventoryRows } from "@/lib/file-inventory";
-import { chosenReleaseRows } from "@/lib/release-dates";
 import { releaseTypeWords } from "@/lib/tmdb-words";
 import { journalKindWords } from "@/lib/journal-words";
 
@@ -130,38 +127,28 @@ export function idLabel(source: string): string {
   return ID_LABELS[source] ?? readableCode(source);
 }
 
-/** The summary: the stored rows behind the release-date choice the calendar, Home and the lists use, one per type
- *  (chosenReleaseRows), and "Show all" for every stored row, which runs to a hundred and more for a big film. With no
- *  chosen date every row shows. */
-function ReleaseDates({ rows, chosen }: { rows: ReleaseDate[]; chosen: Pick<TitleDetail, "in_cinemas" | "digital_release" | "physical_release"> }) {
-  const [all, setAll] = useState(false);
-  const summary = chosenReleaseRows(rows, chosen);
-  const shown = all || summary.length === 0 ? rows : summary;
+/** The rows behind the release-date choice the calendar, Home and the lists use: a refreshed title's primary release
+ *  (one country, named once under the table), else the arrs' dates. */
+function ReleaseDates({ rows }: { rows: ReleaseDate[] }) {
   if (rows.length === 0) return <Card><Empty>No release dates.</Empty></Card>;
+  const countries = [...new Set(rows.map((r) => r.country).filter(Boolean))];
   return (
     <Card className="p-0" data-testid="release-dates">
       <Table density="dense">
         <TableHeader>
-          <TableRow><TableHead>Date</TableHead><TableHead>Type</TableHead><TableHead>Country</TableHead><TableHead className="hidden sm:table-cell">Source</TableHead></TableRow>
+          <TableRow><TableHead>Date</TableHead><TableHead>Type</TableHead><TableHead className="hidden sm:table-cell">Source</TableHead></TableRow>
         </TableHeader>
         <TableBody>
-          {shown.map((r, i) => (
+          {rows.map((r, i) => (
             <TableRow key={i}>
               <TableCell className="whitespace-nowrap">{fmtDayYear(r.date)}</TableCell>
               <TableCell title={r.type}>{releaseTypeWords(r.type)}</TableCell>
-              <TableCell>{r.country || "—"}</TableCell>
               <TableCell className="hidden sm:table-cell" title={r.source}>{releaseSourceWords(r.source)}</TableCell>
             </TableRow>
           ))}
         </TableBody>
       </Table>
-      {shown.length < rows.length || all ? (
-        <div className="border-t border-[var(--line)] px-3 py-2">
-          <Button size="xs" variant="ghost" onClick={() => setAll(!all)} data-testid="release-dates-all">
-            {all ? "Show fewer" : `Show all (${fmtNumber(rows.length)})`}
-          </Button>
-        </div>
-      ) : null}
+      {countries.length ? <p className="border-t border-[var(--line)] px-3 py-2 text-xs text-muted-foreground" data-testid="release-dates-country">Release in {countries.join(", ")}</p> : null}
     </Card>
   );
 }
@@ -189,7 +176,7 @@ export function Details({ d }: { d: TitleDetail }) {
   return (
     <div>
       <Section title="Release dates">
-        <ReleaseDates rows={d.release_dates ?? []} chosen={d} />
+        <ReleaseDates rows={d.release_dates ?? []} />
       </Section>
       <details className="group mt-8" data-testid="technical-details">
         <summary className="flex cursor-pointer list-none items-center gap-2 text-[16px] font-semibold text-[var(--ink)] [&::-webkit-details-marker]:hidden">

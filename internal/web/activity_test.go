@@ -29,11 +29,12 @@ func TestCalendar(t *testing.T) {
 	e := newEnv(t)
 	key := e.apiKey()
 	now := store.Millis(testNow)
-	// Alpha: the arr's digital date in the window, TMDb's US one ignored (the arr's wins); Beta: only TMDb US dates.
+	// Alpha: the arr's digital date in the window, TMDb's US one ignored (the arr's wins); Beta: only TMDb US dates
+	// (the primary country's: no other country is stored).
 	e.exec(`INSERT INTO title_release_date (title_id, source, country, type, date) VALUES
 		(1, 'radarr_4k_debrid', '', 'digital', '2026-11-03'), (1, 'tmdb', 'US', 'digital', '2026-11-01'),
 		(1, 'radarr_4k_debrid', '', 'theatrical', '2026-01-01'),
-		(2, 'tmdb', 'US', 'physical', '2026-11-10'), (2, 'tmdb', 'FR', 'physical', '2026-11-02')`)
+		(2, 'tmdb', 'US', 'physical', '2026-11-10')`)
 	// Gamma (series): two episodes in the window, one unmonitored.
 	e.exec(`INSERT INTO episode (id, title_id, season, number, name, air_date, air_date_utc_at, monitored, created_at,
 		updated_at) VALUES (1, 3, 1, 1, 'One', '2026-11-04', ?, 1, ?, ?), (2, 3, 1, 2, 'Two', '2026-11-11', NULL, 0, ?, ?)`,
@@ -917,8 +918,10 @@ func TestHistoryCopyWords(t *testing.T) {
 }
 
 // TestReleaseDateChoice: Home's Upcoming row, the calendar, the lists' Next release (and its sort) and the title page
-// give a movie the same dates (activity.FirstReleaseSQL): the refreshed TMDb date over the arr's and TMDb's US ones,
-// and only the first date of a type (a later US re-release or a limited run is not the next release).
+// give a movie the same dates (activity.FirstReleaseSQL): the primary release (TMDb's US rows) of a refreshed title
+// over the arr's, the canonical dates of one without a refresh, and only the first date of a type (a later US
+// re-release or a limited run is not the next release). A digital date the canonical schedule took from another
+// country's re-release is not shown, while acquisition's dates keep it.
 func TestReleaseDateChoice(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t)
@@ -929,7 +932,8 @@ func TestReleaseDateChoice(t *testing.T) {
 		(1, 'radarr_4k_debrid', '', 'theatrical', '1968-04-02'), (1, 'tmdb', 'US', 'theatrical_limited', '2026-11-16'),
 		(1, 'tmdb', 'US', 'theatrical', '2026-11-21'), (1, 'radarr_4k_debrid', '', 'digital', '2026-11-22'),
 		(2, 'radarr_4k_debrid', '', 'theatrical', '2026-11-18'), (2, 'tmdb-art', '', 'theatrical', '2026-11-20'),
-		(2, 'tmdb', 'US', 'theatrical', '2026-11-19'), (2, 'tmdb-art', '', 'digital', '2027-02-01')`)
+		(2, 'tmdb', 'US', 'theatrical_limited', '2026-11-12'), (2, 'tmdb', 'US', 'theatrical', '2026-11-20'),
+		(2, 'tmdb-art', '', 'digital', '2026-11-25')`)
 	want := "Beta theatrical 2026-11-20|Alpha digital 2026-11-22"
 
 	var d Discover
@@ -961,8 +965,8 @@ func TestReleaseDateChoice(t *testing.T) {
 	if got := strings.Join(next, "|"); got != want {
 		t.Errorf("Next sort and cells: %s, want %s", got, want)
 	}
-	if b := rowOf(t, p, 2); b.InCinemas != "2026-11-20" || b.DigitalRelease != "2027-02-01" {
-		t.Errorf("Beta's list dates: %s, %s", b.InCinemas, b.DigitalRelease)
+	if b := rowOf(t, p, 2); b.InCinemas != "2026-11-20" || b.DigitalRelease != "" || b.HomeRelease != "2026-11-25" {
+		t.Errorf("Beta's list dates: %s, %s, home release %s", b.InCinemas, b.DigitalRelease, b.HomeRelease)
 	}
 	var td TitleDetail
 	e.getKey(APIBase+"/titles/1", key, &td)

@@ -206,19 +206,25 @@ episode window, cell tooltips, the Libraries table and Why?.
   released minimum waits for, `availability.HomeRelease`) strictly after today, else, for a row without one, its TMDb
   release date strictly after today (the UTC day, as the server's Missing row and fetching count it). A film in cinemas with its digital release to come reads Upcoming until that
   day. It is still wanted; only the word changes, and Wanted's counts do not. `home_release` is per title.
-- **Release dates**: one choice of a movie's dates (`activity.FirstReleaseSQL`, `internal/activity/calendar.go`) for
+- **Release dates**: one choice of a movie's dates (`activity.FirstReleasesSQL`, `internal/activity/calendar.go`) for
   Home's Upcoming row, the Calendar, the lists' **Next release** and **Release date** columns and their sorts, the **In
-  cinemas**, **Digital release** and **Physical release** columns and the title page's About facts (and the summary of
-  Details › Release dates, every other stored row behind Show all): per release type (in cinemas, digital,
-  physical) the type's **first** date, from the canonical dates (the successful TMDb refresh when there is one, else
-  the arrs' dates), else TMDb's US date while the title has no refresh. A later date of a type (a re-release, a
-  streaming service picking an old film up) and limited, premiere or TV releases are never a type's date, so an old
-  film gets no "next release". A movie's next release is the earliest of its three dates today or later (in cinemas
-  first on a shared day); TMDb's release date stands in only for a movie with no chosen date at all; the **Next** sort
-  orders by exactly that day. A movie's **Release date** (lists) and About's **Released** are its first cinema date,
-  else TMDb's release date (**Releases** while still to come). On the Calendar a movie's cinema date alone is never
-  Missing; joined with a digital or disc date of the same day it is.
-  Display only: what may be fetched reads `availability.Dates` and `home_release` (above), unchanged.
+  cinemas**, **Digital release** and **Physical release** columns and the title page's About facts and Details ›
+  Release dates. It is the **primary release**, as Radarr has it: a movie's primary country is the US when TMDb lists
+  a US cinema, digital or physical date, otherwise the country with the earliest of those dates (the original
+  release). In cinemas is that country's first wide cinema date (else its first limited one, else the first cinema
+  date anywhere, which a re-release never is); digital and physical are that country's first date of each type and
+  never another country's, so a country re-release does not put an old film on the Calendar or give it a next
+  release. A title without a TMDb refresh shows the arrs' dates (country empty), else TMDb's stored rows. A later date
+  of a type (a re-release, a streaming service picking an old film up) and premiere or TV releases are never a type's
+  date. A movie's next release is the earliest of its three dates today or later (in cinemas first on a shared day);
+  TMDb's release date stands in only for a movie with no chosen date at all; the **Next** sort orders by exactly
+  that day. A movie's **Release date** (lists) and About's **Released** are its first cinema date, else TMDb's
+  release date (**Releases** while still to come). On the Calendar a movie's cinema date alone is never Missing;
+  joined with a digital or disc date of the same day it is. Only the primary country's TMDb rows are stored
+  (`title_release_date`, source `tmdb`); Details › Release dates lists them (with the arrs' rows for a title not
+  refreshed), the country named once under the table.
+  Display only: what may be fetched reads `availability.Dates` (the `tmdb-art` schedule, `tmdb.ReleaseSchedule`) and
+  `home_release` (above), unchanged; the arr-compatible API's dates are those too.
 - **Added and Latest file**: **Added** is the day the title was added to Theatarr (lists' Added column and sort,
   poster detail); **Latest file** is when the newest current file came (lists' Latest file column and sort, Home's
   **Latest files** row with "File added …", About's Latest file). The **Quality** sort orders by the quality each
@@ -421,8 +427,8 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   to come, and **Latest file** ("see files" only: when the newest current file came; when the title was added is under Details, "Added
   to Theatarr"); **On disk** counts a file two libraries share once. About's Files inventory includes old-manager
   files (with their instance) and active native library links (with their size, no instance word), deduplicated by
-  path. Release dates show the rows behind the release-date choice (one per type: the
-  theatrical, digital and physical dates the calendar, Home and the lists use) with **Show all (N)** for every stored row; type and source in words, the raw value as tooltip.
+  path. Release dates list the primary release's stored rows (Library and activity
+  pages, Release dates), the country named once under the table; type and source in words, the raw value as tooltip.
   Old `?tab=seasons|details` links open Episodes and About; `?tab=versions|copies` open the first tab.
 - **Minimum availability and series type.** A movie's Libraries table shows **Minimum availability** (a column, or
   the row's Details when the column is hidden), the value in

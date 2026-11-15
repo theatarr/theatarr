@@ -406,7 +406,13 @@ func (w *Web) getTitle(ctx context.Context, id int64) (*TitleDetail, error) {
 		}); err != nil {
 		return nil, err
 	}
-	if err := scanAll(ctx, db, `SELECT source, country, type, date FROM title_release_date WHERE title_id = ?
+	// The rows behind the release-date choice (activity.FirstReleasesSQL): a refreshed title's primary release (its
+	// cinema date, without one there, the canonical one), else the stored rows (the arrs').
+	if err := scanAll(ctx, db, `SELECT source, country, type, date FROM title_release_date d WHERE title_id = ?
+		AND CASE WHEN EXISTS (SELECT 1 FROM title_meta m WHERE m.title_id = d.title_id AND m.movie_dates_at IS NOT NULL)
+		THEN (d.source = 'tmdb' AND d.country <> '') OR (d.source = 'tmdb-art' AND d.type = 'theatrical' AND NOT EXISTS
+			(SELECT 1 FROM title_release_date p WHERE p.title_id = d.title_id AND p.source = 'tmdb' AND p.country <> ''
+			AND p.type IN ('theatrical', 'theatrical_limited'))) ELSE 1 END
 		ORDER BY date, type`, []any{id}, func(r *sql.Rows) error {
 		var e ReleaseDate
 		if err := r.Scan(&e.Source, &e.Country, &e.Type, &e.Date); err != nil {

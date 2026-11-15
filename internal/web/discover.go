@@ -284,7 +284,7 @@ func (w *Web) upcomingPicks(ctx context.Context, db *sql.DB) ([]pick, error) {
 // missingPicks: released movies and aired episodes (airClock) that are monitored and wanted, newest first; an
 // episode's day is its air date, else the UTC day of its air instant. A movie is released
 // on its home release (availability.HomeRelease over the canonical dates, as list rows' home_release); without one,
-// on its earliest US or worldwide digital or disc date, else TMDb's release date plus 90 days, else at the end of its
+// on its earliest stored digital or disc date (worldwide or the primary country's), else TMDb's release date plus 90 days, else at the end of its
 // year.
 func (w *Web) missingPicks(ctx context.Context, db *sql.DB) ([]pick, error) {
 	now := w.now().UTC()
@@ -292,8 +292,7 @@ func (w *Web) missingPicks(ctx context.Context, db *sql.DB) ([]pick, error) {
 	var missing, movies []pick
 	var ids []any
 	err := scanAll(ctx, db, `SELECT t.id, group_concat(v.policy_key), COALESCE(
-			(SELECT MIN(d.date) FROM title_release_date d WHERE d.title_id = t.id AND d.type IN ('digital', 'physical')
-				AND d.country IN ('', 'US')),
+			(SELECT MIN(d.date) FROM title_release_date d WHERE d.title_id = t.id AND d.type IN ('digital', 'physical')),
 			CASE WHEN m.release_date <> '' THEN date(m.release_date, '+90 days') END,
 			CASE WHEN t.year IS NOT NULL THEN printf('%04d-12-31', t.year) END, '')`+titleFrom+`
 		JOIN version v ON v.title_id = t.id AND v.state = 'wanted' AND v.monitored = 1

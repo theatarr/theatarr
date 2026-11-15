@@ -39,3 +39,30 @@ func (m *Movie) ReleaseSchedule() map[string]time.Time {
 	delete(dates, "theatrical_limited")
 	return dates
 }
+
+// PrimaryCountry is the country of the movie's primary release (docs/design/ui.md "Release dates"), the dates the
+// display shows: the US when TMDb lists a US cinema, digital or physical date, else the country with the earliest of
+// those dates (the original release; the first country by code on a shared day); "" without any.
+func (m *Movie) PrimaryCountry() string {
+	best, bestDay := "", ""
+	for _, c := range m.ReleaseDates.Results {
+		for _, r := range c.Releases {
+			switch TypeName(r.Type) {
+			case "theatrical", "theatrical_limited", "digital", "physical":
+			default:
+				continue
+			}
+			if r.Date.IsZero() || c.Country == "" {
+				continue
+			}
+			if c.Country == "US" {
+				return "US"
+			}
+			day := r.Date.UTC().Format(time.DateOnly)
+			if best == "" || day < bestDay || (day == bestDay && c.Country < best) {
+				best, bestDay = c.Country, day
+			}
+		}
+	}
+	return best
+}

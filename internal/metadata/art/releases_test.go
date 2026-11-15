@@ -113,3 +113,56 @@ func TestRefreshMovieDates(t *testing.T) {
 		t.Fatalf("stale calendar: %+v %v", items, err)
 	}
 }
+
+// TestPrimaryReleaseDates (K12): an old US film whose only digital date is a German re-release. Acquisition's dates
+// (availability.Dates over the tmdb-art schedule) keep that digital date as before; only the US rows are stored, and the
+// calendar does not list the film on the re-release's day. Without a US date the earliest country is the primary one.
+func TestPrimaryReleaseDates(t *testing.T) {
+	e := newTestEnv(t)
+	ctx := context.Background()
+	e.seed(t)
+	day := func(d string) time.Time {
+		v, err := time.Parse(time.DateOnly, d)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return v
+	}
+	m := &tmdb.Movie{ReleaseDates: tmdb.ReleaseDates{Results: []tmdb.CountryReleases{
+		{Country: "DE", Releases: []tmdb.Release{{Type: 3, Date: day("1985-08-01")}, {Type: 4, Date: day("2026-12-01")}}},
+		{Country: "US", Releases: []tmdb.Release{{Type: 3, Date: day("1985-07-03")}, {Type: 1, Date: day("1985-06-01")}}},
+	}}}
+	if got := m.PrimaryCountry(); got != "US" {
+		t.Errorf("primary country %q", got)
+	}
+	e.exec(t, `INSERT OR IGNORE INTO title_meta (title_id, attempted_at, refresh_after) VALUES (1, 1, 1)`)
+	if err := e.st.WriteTx(ctx, func(tx *sql.Tx) error { return writeMovieDates(ctx, tx, 1, m, testNow) }); err != nil {
+		t.Fatal(err)
+	}
+	dates, err := availability.Dates(ctx, e.st.Reader(), 1)
+	if err != nil || dates["theatrical"].Format(time.DateOnly) != "1985-07-03" ||
+		dates["digital"].Format(time.DateOnly) != "2026-12-01" {
+		t.Fatalf("acquisition's dates changed: %v %v", dates, err)
+	}
+	var rows string
+	if err := e.st.Reader().QueryRow(`SELECT group_concat(country || type, ' ') FROM (SELECT * FROM title_release_date
+		WHERE title_id = 1 AND source = 'tmdb' ORDER BY type)`).Scan(&rows); err != nil || rows != "USpremiere UStheatrical" {
+		t.Errorf("stored country rows %q %v", rows, err)
+	}
+	items, err := activity.Calendar(ctx, e.st.Reader(), "2026-01-01", "2027-12-31", true)
+	if err != nil || len(items) != 0 {
+		t.Errorf("the re-release is on the calendar: %+v %v", items, err)
+	}
+	items, err = activity.Calendar(ctx, e.st.Reader(), "1985-01-01", "1985-12-31", true)
+	if err != nil || len(items) != 1 || items[0].Type != "theatrical" || items[0].Date != "1985-07-03" {
+		t.Errorf("cinema date: %+v %v", items, err)
+	}
+	fr := &tmdb.Movie{ReleaseDates: tmdb.ReleaseDates{Results: []tmdb.CountryReleases{
+		{Country: "GB", Releases: []tmdb.Release{{Type: 5, Date: day("2025-03-01")}}},
+		{Country: "FR", Releases: []tmdb.Release{{Type: 3, Date: day("2001-04-25")}, {Type: 1, Date: day("2000-01-01")}}},
+		{Country: "BE", Releases: []tmdb.Release{{Type: 3, Date: day("2001-04-25")}}},
+	}}}
+	if got := fr.PrimaryCountry(); got != "BE" {
+		t.Errorf("primary country without the US %q (the first by code on the earliest day)", got)
+	}
+}

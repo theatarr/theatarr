@@ -24,11 +24,13 @@ Arr-sourced aliases are preserved, and a failed refresh keeps the last good meta
   `include_image_language=en,null`. These calls skip the response cache, because `title_meta` is their cache. The
   client paces them at 4 per second.
 - **What a run takes.** Titles with no row come first, then due rows, up to `per_run`.
-- **Movie release dates.** The metadata transaction replaces TMDb's country details and canonical cinema/digital/physical
-  dates (US first, earliest worldwide fallback per type; wide theatrical before limited, no premiere/TV date, primary
-  movie date as a last cinema fallback). Canonical dates have source `tmdb-art`, so arr enrichment cannot remove them;
-  country details keep source `tmdb`. Date-derived status and the refresh marker let acquisition, Radarr and the
-  calendar use corrected dates; fetch errors preserve the last successful dates and imported sources stay intact.
+- **Movie release dates.** The metadata transaction replaces TMDb's canonical cinema/digital/physical dates, which
+  acquisition and the arr API read (US first, earliest worldwide fallback per type; wide theatrical before limited, no
+  premiere/TV date, primary movie date as a last cinema fallback), and the primary release's rows: only the primary
+  country's TMDb dates (`tmdb.PrimaryCountry`: the US when TMDb has a US cinema, digital or physical date, else the
+  country of the earliest one), which the display reads (ui.md "Release dates"); other countries are not stored.
+  Canonical dates have source `tmdb-art`, so arr enrichment cannot remove them; the primary country's rows keep source
+  `tmdb`. Date-derived status and the refresh marker let acquisition, Radarr and the calendar use corrected dates; fetch errors preserve the last successful dates and imported sources stay intact.
 - **When it runs.** About a minute after start, then every `interval`. It also runs within about 2 minutes of a title
   appearing with no row, so new titles from the arr views, imports and the UI fill on their own.
 - **Refresh age:**

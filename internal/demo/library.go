@@ -475,10 +475,6 @@ func (s *seeder) releaseDates(t *title) {
 			VALUES (?, 'tmdb-art', '', ?, ?, ?)`, t.id, d.typ, date(d.at), ms(s.now))
 	}
 	s.exec(`UPDATE title_meta SET movie_dates_at = ? WHERE title_id = ?`, ms(s.now), t.id)
-	if t.scenario != scUpcoming {
-		s.exec(`INSERT INTO title_release_date (title_id, source, country, type, date) VALUES (?, 'tmdb', 'GB', 'theatrical', ?)`,
-			t.id, date(t.first.AddDate(0, 0, 7)))
-	}
 }
 
 // release is one release a file came from.
