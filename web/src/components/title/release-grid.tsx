@@ -85,11 +85,13 @@ function Status({ c }: { c: Candidate }) {
   if (c.accepted) {
     return (
       <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--ok-ink)]">
-        <CheckCircle2 className="size-3.5" /> Accepted{c.upgrade ? " · upgrade" : ""}
+        <CheckCircle2 className="size-3.5" /> Accepted{c.upgrade ? <span title={c.upgrade_reason || undefined}> · upgrade</span> : ""}
       </span>
     );
   }
-  const all = (c.rejections ?? []).map((r) => r.message || r.reason || "").filter(Boolean);
+  // The file's format score is the more specific of the two reasons against the file held: the quality one goes.
+  const both = (c.rejections ?? []).some((r) => r.reason === "DiskCustomFormatScore");
+  const all = (c.rejections ?? []).filter((r) => !(both && r.reason === "DiskHigherPreference")).map((r) => r.message || r.reason || "").filter(Boolean);
   return (
     <span className="flex flex-col gap-0.5" title={all.join("\n")} data-testid="release-status">
       {all.slice(0, 2).map((m, i) => (

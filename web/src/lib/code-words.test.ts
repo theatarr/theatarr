@@ -22,7 +22,7 @@ describe("readableCode (the fallback for a code no map knows)", () => {
 
 describe("rejection reasons", () => {
   it("in words, with a readable fallback", () => {
-    expect(rejectionWords("DiskHigherPreference")).toBe("Not better than the file held");
+    expect(rejectionWords("DiskHigherPreference")).toBe("The file held has a better quality");
     expect(rejectionWords("CustomFormatMinimumScore")).toBe("Format score too low");
     expect(rejectionWords("UnknownMovie")).toBe("Movie not recognised");
     expect(rejectionWords("UnknownSeries")).toBe("Series not recognised");
