@@ -1020,8 +1020,9 @@ func AnimeReviews(st *store.Store) Func {
 	}
 }
 
-// WatchOnlyNotice explains the Watch only conversion (migration 00137) once on Status: a notice naming the libraries it
-// converted while Pause is still on. Once Pause is off it shows nothing.
+// WatchOnlyNotice explains the Watch only conversion (migration 00137) on Status: a warning naming the libraries it
+// converted while Pause is still on. An install that converted none has no row; once Pause is off the stored names
+// are deleted, so the warning never comes back.
 func WatchOnlyNotice(st *store.Store) Func {
 	return func(ctx context.Context) Result {
 		var names string
@@ -1032,10 +1033,16 @@ func WatchOnlyNotice(st *store.Store) Func {
 		if err != nil {
 			return fail("Settings not readable: %v", err)
 		}
-		if names == "" || !paused.Bool {
-			return Result{Type: OK, Message: "No library waits after the Watch only conversion"}
+		if names == "" {
+			return Result{Hidden: true}
 		}
-		return Result{Type: Notice, Detail: map[string]any{"libraries": names}, Message: "These libraries were Watch only " +
+		if !paused.Bool {
+			if _, err := st.Writer().ExecContext(ctx, `DELETE FROM notify_state WHERE key = 'watch_only_libraries'`); err != nil {
+				return fail("Settings not writable: %v", err)
+			}
+			return Result{Hidden: true}
+		}
+		return Result{Type: Warning, Detail: map[string]any{"libraries": names}, Message: "These libraries were Watch only " +
 			"before 0.4.5: " + names + ". Their titles are now not monitored and Pause was turned on. Monitor what you " +
 			"want in them, then turn Pause off."}
 	}

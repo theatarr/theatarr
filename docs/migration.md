@@ -227,7 +227,8 @@ The database migrations run at start; nothing needs doing first. What an install
 - **Watch only is gone** (migration 00137). Every library is live; the global **Pause**, each title's **Monitored**
   switch in a library and `THEATARR_FORCE_OFF` are what hold downloads. A library that was Watch only does not
   start grabbing: every title in it is set not monitored, arr clients no longer add to it (`enable: request`), Pause
-  is switched on, and **System › Status** names those libraries in a notice while Pause stays on. Lists, collections and accounts' request
+  is switched on, and **System › Status** names those libraries in a warning (Needs attention) while Pause stays on; once
+  Pause is off the warning is gone for good. Lists, collections and accounts' request
   libraries stop targeting them: a list or collection left with no target is turned off, one that used the
   defaults gets the other libraries of its kind as targets, and an account's request libraries become the other
   libraries when they named none or only those. Monitor what should download there, check

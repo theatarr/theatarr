@@ -56,6 +56,8 @@ type Result struct {
 	CheckedAt time.Time `json:"checked_at"`
 	// TookMS is how long the check ran.
 	TookMS int64 `json:"took_ms"`
+	// Hidden leaves the result out of Results: the check has nothing to say on this install.
+	Hidden bool `json:"-"`
 }
 
 // Func runs one check. It sets Type, Message and Detail; the Checker fills the rest. A check that cannot read what
@@ -121,7 +123,7 @@ func (c *Checker) Results(ctx context.Context) []Result {
 	defer c.mu.Unlock()
 	now := c.opts.Now()
 	if !c.at.IsZero() && now.Sub(c.at) < c.opts.TTL {
-		return slices.Clone(c.results)
+		return shown(slices.Clone(c.results))
 	}
 	out := make([]Result, len(c.checks))
 	var wg sync.WaitGroup
@@ -138,7 +140,12 @@ func (c *Checker) Results(ctx context.Context) []Result {
 	if ctx.Err() == nil {
 		c.results, c.at = out, c.opts.Now()
 	}
-	return slices.Clone(out)
+	return shown(slices.Clone(out))
+}
+
+// shown is rs without the hidden results.
+func shown(rs []Result) []Result {
+	return slices.DeleteFunc(rs, func(r Result) bool { return r.Hidden })
 }
 
 // Refresh drops the cache, so the next Results runs every check.

@@ -608,23 +608,39 @@ func TestDanglingCountsLibraryRootsOnly(t *testing.T) {
 	}
 }
 
-// The Watch only conversion explains itself on Status while Pause stays on, and goes once Pause is off.
+// The Watch only conversion warns on Status while Pause stays on; an install that converted nothing has no row, and
+// once Pause is off the stored names go and the row never comes back.
 func TestWatchOnlyNotice(t *testing.T) {
 	st := openStore(t)
 	ctx := context.Background()
-	f := WatchOnlyNotice(st)
-	if r := f(ctx); r.Type != OK {
+	hc := New(Options{})
+	hc.Add("WatchOnlyCheck", "Watch only libraries", WatchOnlyNotice(st))
+	result := func() *Result {
+		t.Helper()
+		hc.Refresh()
+		rs := hc.Results(ctx)
+		if len(rs) == 0 {
+			return nil
+		}
+		return &rs[0]
+	}
+	if r := result(); r != nil {
 		t.Errorf("nothing converted: %+v", r)
 	}
 	exec(t, st, `INSERT INTO notify_state (key, value, updated_at) VALUES ('watch_only_libraries', 'anime-tv, watch', 0)`)
 	exec(t, st, `INSERT INTO setting_global_switches (key, config, created_at, updated_at)
 		VALUES ('global', '{"paused":true}', 0, 0) ON CONFLICT (key) DO UPDATE SET config = excluded.config`)
-	if r := f(ctx); r.Type != Notice || r.Message != "These libraries were Watch only before 0.4.5: anime-tv, watch. "+
-		"Their titles are now not monitored and Pause was turned on. Monitor what you want in them, then turn Pause off." {
+	if r := result(); r == nil || r.Type != Warning || r.Message != "These libraries were Watch only before 0.4.5: "+
+		"anime-tv, watch. Their titles are now not monitored and Pause was turned on. Monitor what you want in them, "+
+		"then turn Pause off." {
 		t.Errorf("paused: %+v", r)
 	}
 	exec(t, st, `UPDATE setting_global_switches SET config = '{"paused":false}' WHERE key = 'global'`)
-	if r := f(ctx); r.Type != OK {
+	if r := result(); r != nil {
 		t.Errorf("Pause off: %+v", r)
+	}
+	exec(t, st, `UPDATE setting_global_switches SET config = '{"paused":true}' WHERE key = 'global'`)
+	if r := result(); r != nil {
+		t.Errorf("paused again: %+v", r)
 	}
 }
