@@ -69,6 +69,20 @@ export function useLibraryKeyTip(): (key: string) => string | undefined {
   return useCallback((key: string) => (keys ? key : undefined), [keys]);
 }
 
+/** Fixed places for the codes when auth/me lists no providers (an account that does not see files). */
+const CODE_ORDER = ["rd", "ad", "tb"];
+
+/** A function that puts provider cache codes in the order Settings lists the providers (auth/me's fallback order);
+ * a code it does not list goes after them, RD, AD, TB first, then by name. */
+export function useProviderSort(): (codes: readonly string[]) => string[] {
+  const { codes } = useContext(Names);
+  return useCallback((list: readonly string[]) => {
+    const order = [...new Set([...codes.values(), ...CODE_ORDER].map((c) => c.toLowerCase()))];
+    const at = (c: string) => { const i = order.indexOf(c.toLowerCase()); return i < 0 ? order.length : i; };
+    return [...list].sort((a, b) => at(a) - at(b) || a.localeCompare(b));
+  }, [codes]);
+}
+
 /** A function that gives a provider account key's cache code (a custom "realdebrid" is rd), for the provider tag
  * (providerLabel, ProviderPills); a key the server does not list is its own code. */
 export function useProviderCode(): (key: string) => string {

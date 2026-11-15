@@ -2,7 +2,7 @@
 // code (rd → RD, ad → AD, tb → TB, anything else upper-cased); "—" or the given empty node when there is none.
 import type { ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
-import { useProviderCode } from "@/lib/library-names";
+import { useProviderCode, useProviderSort } from "@/lib/library-names";
 
 const LABELS: Record<string, string> = { rd: "RD", ad: "AD", tb: "TB" };
 
@@ -11,11 +11,13 @@ export function providerLabel(code?: string | null): string {
   return LABELS[c.toLowerCase()] ?? c.toUpperCase();
 }
 
+/** The pills in the order Settings lists the providers, the same on every screen. */
 export function ProviderPills({ codes, empty, testid }: { codes?: readonly string[] | null; empty?: ReactNode; testid?: string }) {
+  const sorted = useProviderSort();
   if (!codes?.length) return <>{empty ?? <span className="text-[var(--ink-3)]">—</span>}</>;
   return (
     <span className="flex flex-wrap gap-1">
-      {codes.map((c) => (
+      {sorted(codes).map((c) => (
         <Badge key={c} tone="ok" data-testid={testid}>
           {providerLabel(c)}
         </Badge>

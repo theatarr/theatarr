@@ -56,7 +56,8 @@ type Me struct {
 	KeyID           int64    `json:"key_id,omitempty"`
 	KeyName         string   `json:"key_name,omitempty"`
 	// Providers gives each configured provider account's cache code (rd, ad, tb), for accounts that see files, so
-	// the SPA shows an account key (a custom "realdebrid") as its RD/AD/TB tag.
+	// the SPA shows an account key (a custom "realdebrid") as its RD/AD/TB tag; in the fallback order, which the
+	// SPA's provider pills follow.
 	Providers []ProviderCode `json:"providers,omitempty"`
 	// Libraries names every library in the settings, in key order (libraryNames), so the SPA labels a library key
 	// the same way everywhere. The names never contain a key, for every account.
@@ -88,7 +89,10 @@ func (w *Web) apiMe(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if w.pol != nil && w.perms(id).SeeFiles {
-		for _, k := range sortedKeys(w.pol.Providers) {
+		// In the fallback order Settings lists them in, so provider pills read the same everywhere.
+		keys := sortedKeys(w.pol.Providers)
+		slices.SortStableFunc(keys, func(a, b string) int { return w.pol.Providers[a].Order - w.pol.Providers[b].Order })
+		for _, k := range keys {
 			out.Providers = append(out.Providers, ProviderCode{Key: k, Code: w.providerCode(k)})
 		}
 	}
