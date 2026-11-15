@@ -172,6 +172,7 @@ func TestFirstLibraryTopLevelRoot(t *testing.T) {
 		t.Skip("no top-level directory to use")
 	}
 	root := dirs[0]
+	needWritable(t, root)
 	if _, err := st.ValidateRoot(context.Background(), base, "movies", root); err != nil {
 		t.Fatalf("check root: %v", err)
 	}
@@ -202,6 +203,7 @@ func TestTopLevelLibraryThenDeeperRoot(t *testing.T) {
 	if len(dirs) == 0 {
 		t.Skip("no top-level directory to use")
 	}
+	needWritable(t, dirs[0])
 	saved, err := addLibrary(t, m, base, snap, movie, "movies", dirs[0])
 	if err != nil {
 		t.Fatal(err)

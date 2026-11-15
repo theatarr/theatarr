@@ -1108,6 +1108,9 @@ const listGolden = "testdata/lists.golden.json"
 // every sort, both orders and every filter (the list queries' rewrites keep their results).
 // THEATARR_UPDATE_GOLDEN=1 rewrites the file.
 func TestDemoListGolden(t *testing.T) {
+	if raceDetector {
+		t.Skip("byte comparison of responses; the race detector adds nothing here and makes it take many minutes")
+	}
 	t.Parallel()
 	ctx := context.Background()
 	pol := loadPolicy(t)
