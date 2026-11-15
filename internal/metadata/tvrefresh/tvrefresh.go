@@ -46,6 +46,7 @@ import (
 	"github.com/theatarr/theatarr/internal/metadata/tvdb"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/store"
+	"github.com/theatarr/theatarr/internal/tasks"
 )
 
 // JobKind refreshes one series (Payload.TitleID) or runs a sweep over the due ones.
@@ -164,16 +165,15 @@ func (s *Service) Enabled() bool {
 	return s != nil && s.set.Enabled && (s.tvdb != nil || s.tmdb != nil)
 }
 
-// RegisterJobs registers the series and scene handlers when the refresh is enabled.
+// RegisterJobs registers the series handler when the refresh is enabled.
 func (s *Service) RegisterJobs(w *jobs.Worker) {
 	if !s.Enabled() {
 		return
 	}
 	w.Handle(JobKind, s.handle)
-	w.Handle(sceneJob, func(ctx context.Context, _ *jobs.Job) error { return s.RefreshScene(ctx) })
 }
 
-// RegisterRuntimeJobs registers the series and scene handlers for theatarr serve with settings in the database: each
+// RegisterRuntimeJobs registers the series handler for theatarr serve with settings in the database: each
 // job runs on the service of the settings generation current when it starts, and a job that starts while the
 // refresh is off is dropped.
 func RegisterRuntimeJobs(w *jobs.Worker, resolve func(context.Context) (context.Context, *Service)) {
@@ -183,13 +183,6 @@ func RegisterRuntimeJobs(w *jobs.Worker, resolve func(context.Context) (context.
 			return nil
 		}
 		return s.handle(ctx, j)
-	})
-	w.Handle(sceneJob, func(ctx context.Context, _ *jobs.Job) error {
-		ctx, s := resolve(ctx)
-		if !s.Enabled() {
-			return nil
-		}
-		return s.RefreshScene(ctx)
 	})
 }
 
@@ -284,17 +277,29 @@ func (s *Service) Changed(ctx context.Context, tvdbIDs []int) (int, error) {
 	return n, nil
 }
 
-// Run schedules refreshes until ctx ends: every Poll, a refresh for each series added since its last try; a sweep
-// FirstDelay after start and then every metadata.series.interval; scene augmentation every three hours.
-func (s *Service) Run(ctx context.Context) {
+// Run schedules refreshes until ctx ends: every Poll, a refresh job for each series added since its last try; the
+// sweep (task meta.series) FirstDelay after start and then every metadata.series.interval; scene augmentation (task
+// meta.scene) every three hours. sweep and scene are the runs (theatarr serve: the service in force); nil runs Sweep
+// and RefreshScene.
+func (s *Service) Run(ctx context.Context, tb *tasks.Table, sweep, scene func(context.Context) error) {
 	if !s.Enabled() || s.q == nil {
 		s.log.Info("series metadata refresh off", "tvdb", s.tvdb != nil, "tmdb", s.tmdb != nil, "enabled", s.set.Enabled)
 		return
 	}
 	s.log.Info("series metadata refresh scheduled", "interval", s.set.Interval.String(), "per_run", s.set.PerRun,
 		"tvdb", s.tvdb != nil, "tmdb", s.tmdb != nil)
+	if sweep == nil {
+		sweep = func(ctx context.Context) error { _, err := s.Sweep(ctx); return err }
+	}
+	if scene == nil {
+		scene = s.RefreshScene
+	}
 	next := s.now().Add(s.delay)
 	nextScene := next
+	sweepTask := tasks.Task{Key: JobKind, Name: "Refresh series episodes", Every: s.set.Interval, Inbox: true, Next: next, Run: sweep}
+	sceneTask := tasks.Task{Key: sceneJob, Name: "Read scene names", Every: SceneAge, Attempts: 3, Inbox: true, Next: nextScene, Run: scene}
+	defer tb.Register(ctx, sweepTask)()
+	defer tb.Register(ctx, sceneTask)()
 	t := time.NewTicker(min(s.poll, s.delay))
 	defer t.Stop()
 	for {
@@ -307,18 +312,11 @@ func (s *Service) Run(ctx context.Context) {
 			s.log.Warn("series metadata: new series", "err", err)
 		}
 		if now := s.now(); !now.Before(nextScene) {
-			if _, _, err := s.q.Enqueue(ctx, sceneJob, Payload{}, jobs.EnqueueOptions{DedupeKey: sceneJob, MaxAttempts: 3}); err != nil {
-				s.log.Warn("scene refresh: enqueue", "err", err)
-			} else {
-				nextScene = now.Add(SceneAge)
-			}
+			tb.Start(ctx, sceneTask)
+			nextScene = now.Add(SceneAge)
 		}
 		if now := s.now(); !now.Before(next) {
-			if _, _, err := s.q.Enqueue(ctx, JobKind, Payload{}, jobs.EnqueueOptions{DedupeKey: JobKind,
-				MaxAttempts: 1}); err != nil {
-				s.log.Warn("series metadata: enqueue sweep", "err", err)
-				continue
-			}
+			tb.Start(ctx, sweepTask)
 			next = now.Add(s.set.Interval)
 		}
 		t.Reset(s.poll)

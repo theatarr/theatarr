@@ -23,6 +23,7 @@ import (
 	"github.com/theatarr/theatarr/internal/settings"
 	"github.com/theatarr/theatarr/internal/store"
 	"github.com/theatarr/theatarr/internal/store/storetest"
+	"github.com/theatarr/theatarr/internal/tasks"
 )
 
 // liveFixture is a settings database with every section seeded (as theatarr serve's first start does) and a runtime
@@ -484,7 +485,7 @@ func TestMovieIntakeSkipsWhilePaused(t *testing.T) {
 		// The start runs the collections and TMDb lists, then the arr lists; the second current ends the run.
 		runCtx, cancel := context.WithCancel(ctx)
 		calls := 0
-		runMovieIntake(runCtx, time.Hour, true, func(context.Context) *catalog.MovieIntake {
+		runMovieIntake(runCtx, nil, time.Hour, true, func(context.Context) *catalog.MovieIntake {
 			if calls++; calls == 2 {
 				cancel()
 			}
@@ -501,5 +502,32 @@ func TestMovieIntakeSkipsWhilePaused(t *testing.T) {
 		if !paused && (src.reads.Load() == 0 || titles == 0 || searches.Load() == 0) {
 			t.Fatalf("unpaused: reads=%d titles=%d searches=%d, want the intake to add and search", src.reads.Load(), titles, searches.Load())
 		}
+	}
+}
+
+// The intake's two tasks run at start (now) and record their rows; neither writes a job row.
+func TestMovieIntakeTasksRecorded(t *testing.T) {
+	ctx := context.Background()
+	st, err := store.Open(ctx, storetest.Seed(t, filepath.Join(t.TempDir(), "theatarr.db")), store.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { st.Close() })
+	tb := tasks.New(ctx, st, nil)
+	runCtx, cancel := context.WithCancel(ctx)
+	calls := 0
+	runMovieIntake(runCtx, tb, time.Hour, true, func(context.Context) *catalog.MovieIntake {
+		if calls++; calls == 2 {
+			cancel()
+		}
+		return nil
+	}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	var n int
+	if err := st.Reader().QueryRow(`SELECT COUNT(*) FROM task WHERE key IN ('lists.movies', 'lists.arr')
+		AND last_finished IS NOT NULL AND last_error = ''`).Scan(&n); err != nil || n != 2 {
+		t.Fatalf("recorded %d %v", n, err)
+	}
+	if err := st.Reader().QueryRow(`SELECT COUNT(*) FROM job`).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("jobs %d %v", n, err)
 	}
 }

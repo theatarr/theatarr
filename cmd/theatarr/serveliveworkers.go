@@ -98,7 +98,19 @@ func (l serveLoops) workers() []serveWorker {
 			}
 			return rt.Metadata.artKey
 		}, run: func(ctx context.Context, rt *serveRuntime, _ string) error {
-			rt.Metadata.art.Run(ctx)
+			rt.Metadata.art.Run(ctx, l.tasks, func(ctx context.Context) error {
+				// Each run on the service in force; dropped while TMDb is off.
+				ctx, now := l.current(ctx)
+				a := rt.Metadata.art
+				if now != nil && now.Metadata != nil {
+					a = now.Metadata.art
+				}
+				if !a.Enabled() {
+					return nil
+				}
+				_, err := a.RunBatch(ctx)
+				return err
+			})
 			return nil
 		}},
 		// The series metadata refresh (metadata.series and its sources).
@@ -108,7 +120,28 @@ func (l serveLoops) workers() []serveWorker {
 			}
 			return rt.Metadata.tvKey
 		}, run: func(ctx context.Context, rt *serveRuntime, _ string) error {
-			rt.Metadata.tv.Run(ctx)
+			// Each run on the service in force; dropped while the refresh is off.
+			current := func(ctx context.Context) (context.Context, *tvrefresh.Service) {
+				ctx, now := l.current(ctx)
+				if now != nil && now.Metadata != nil {
+					return ctx, now.Metadata.tv
+				}
+				return ctx, rt.Metadata.tv
+			}
+			rt.Metadata.tv.Run(ctx, l.tasks, func(ctx context.Context) error {
+				ctx, s := current(ctx)
+				if !s.Enabled() {
+					return nil
+				}
+				_, err := s.Sweep(ctx)
+				return err
+			}, func(ctx context.Context) error {
+				ctx, s := current(ctx)
+				if !s.Enabled() {
+					return nil
+				}
+				return s.RefreshScene(ctx)
+			})
 			return nil
 		}},
 		// TVDB's hourly /updates read (metadata.sources.tvdb).
@@ -118,7 +151,7 @@ func (l serveLoops) workers() []serveWorker {
 			}
 			return rt.Metadata.tvdbKey
 		}, run: func(ctx context.Context, rt *serveRuntime, _ string) error {
-			runTVDBUpdates(ctx, rt.Metadata.tvc, func(ctx context.Context) *tvrefresh.Service {
+			runTVDBUpdates(ctx, l.tasks, rt.Metadata.tvc, func(ctx context.Context) *tvrefresh.Service {
 				if _, rt := l.current(ctx); rt.Metadata != nil {
 					return rt.Metadata.tv
 				}
@@ -135,7 +168,7 @@ func (l serveLoops) workers() []serveWorker {
 			return rt.Metadata.tmdbKey + " every " + rt.Metadata.listInterval.String()
 		}, run: func(ctx context.Context, rt *serveRuntime, prev string) error {
 			source, _, _ := strings.Cut(prev, " every ")
-			runMovieIntake(ctx, rt.Metadata.listInterval, source != rt.Metadata.tmdbKey,
+			runMovieIntake(ctx, l.tasks, rt.Metadata.listInterval, source != rt.Metadata.tmdbKey,
 				func(ctx context.Context) *catalog.MovieIntake {
 					if _, rt := l.current(ctx); rt.Metadata != nil {
 						return rt.Metadata.intake
@@ -209,7 +242,25 @@ func egressInterval(e *policy.Egress) time.Duration {
 	return policy.DefaultEgressInterval
 }
 
+// runPlaylists syncs the watch-order playlists every interval (task anime.playlists, listed while playlists are
+// set up), each time with the syncer in force.
 func (l serveLoops) runPlaylists(ctx context.Context, interval time.Duration, fallback *playlists.Syncer) {
+	task := tasks.Task{Key: "anime.playlists", Name: "Sync watch-order playlists", Every: interval,
+		Next: time.Now().Add(interval), Run: func(ctx context.Context) error {
+			current := fallback
+			syncCtx, rt := l.current(ctx)
+			if rt.Playlists != nil {
+				current = rt.Playlists
+			}
+			if current == nil {
+				return nil
+			}
+			_, err := current.Sync(syncCtx, "", false)
+			return err
+		}}
+	if fallback != nil {
+		defer l.tasks.Register(ctx, task)()
+	}
 	t := time.NewTicker(interval)
 	defer t.Stop()
 	for {
@@ -217,17 +268,7 @@ func (l serveLoops) runPlaylists(ctx context.Context, interval time.Duration, fa
 		case <-ctx.Done():
 			return
 		case <-t.C:
-			current := fallback
-			syncCtx, rt := l.current(ctx)
-			if rt.Playlists != nil {
-				current = rt.Playlists
-			}
-			if current == nil {
-				continue
-			}
-			if _, err := current.Sync(syncCtx, "", false); err != nil {
-				l.log.Warn("playlists: sync failed", "err", err)
-			}
+			_, _ = l.tasks.Run(ctx, task)
 		}
 	}
 }
@@ -235,7 +276,7 @@ func (l serveLoops) runPlaylists(ctx context.Context, interval time.Duration, fa
 // runWanted runs the search round's task every acquire.RoundEvery until ctx ends, the first after 5 minutes, or at
 // once when Pause was just turned off (the due rows waited for it). While Pause is on the task is listed as paused.
 func (l serveLoops) runWanted(ctx context.Context, rt *serveRuntime, prev string) {
-	task := tasks.Task{Key: acquire.TaskWanted, Name: "Search everything wanted", Every: acquire.RoundEvery}
+	task := tasks.Task{Key: acquire.TaskWanted, Name: "Search everything wanted", Every: acquire.RoundEvery, Inbox: true}
 	if wantedWorkerKey(rt) == "paused" {
 		task.Paused = true
 		defer l.tasks.Register(ctx, task)()
@@ -257,9 +298,7 @@ func (l serveLoops) runWanted(ctx context.Context, rt *serveRuntime, prev string
 			return
 		case <-t.C:
 			start := time.Now()
-			if _, err := l.tasks.Run(ctx, task); err != nil && ctx.Err() == nil {
-				l.log.Warn("search round", "err", err)
-			}
+			_, _ = l.tasks.Run(ctx, task)
 			t.Reset(time.Until(start.Add(acquire.RoundEvery)))
 		}
 	}

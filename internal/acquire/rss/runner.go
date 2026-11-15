@@ -160,7 +160,7 @@ func (r *Runner) read(ctx context.Context) error {
 
 // task is the RSS read's scheduled task with run's interval; paused while Pause is on or no library is Live.
 func (r *Runner) task(run *Runner) tasks.Task {
-	return tasks.Task{Key: KindRSS, Name: "Check RSS feeds", Every: run.set.RSSInterval, Attempts: 2, Run: r.read,
+	return tasks.Task{Key: KindRSS, Name: "Check RSS feeds", Every: run.set.RSSInterval, Attempts: 2, Inbox: true, Run: r.read,
 		Paused: len(run.pol.ActiveVersions()) == 0 || run.paused()}
 }
 
@@ -229,9 +229,7 @@ func (r *Runner) Schedule(ctx context.Context, rssDelay time.Duration) {
 		}
 		if !now.Before(next) {
 			if err == nil && active.eligible(ctx) {
-				if _, err := r.tasks.Run(ctx, r.task(active)); err != nil && ctx.Err() == nil {
-					r.log.Warn("rss read", "err", err)
-				}
+				_, _ = r.tasks.Run(ctx, r.task(active))
 			} else if !fresh {
 				r.reloadIndex(ctx)
 			}

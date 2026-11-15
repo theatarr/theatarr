@@ -1008,7 +1008,7 @@ func (p *providerSync) run(ctx context.Context) {
 	}
 	active.log.Info("provider sync scheduled", "providers", active.keys, "interval", active.interval.String(), "next", next.UTC())
 	task := tasks.Task{Key: provider.JobKind, Name: "Sync debrid holdings", Every: active.interval, Attempts: jobs.DefaultMaxAttempts,
-		Next: next, Run: p.sync}
+		Inbox: true, Next: next, Run: p.sync}
 	defer p.tasks.Register(ctx, task)()
 	t := time.NewTimer(time.Until(next))
 	defer t.Stop()
@@ -1023,9 +1023,7 @@ func (p *providerSync) run(ctx context.Context) {
 			}
 			task.Every = active.interval
 			start := time.Now()
-			if _, err := p.tasks.Run(ctx, task); err != nil && ctx.Err() == nil {
-				active.log.Warn("provider sync", "err", err)
-			}
+			_, _ = p.tasks.Run(ctx, task)
 			t.Reset(time.Until(start.Add(active.interval)))
 		}
 	}

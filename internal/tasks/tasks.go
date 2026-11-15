@@ -46,6 +46,8 @@ type Task struct {
 	Next time.Time
 	// Paused: the loop waits (Pause on, or no Live library); Run now is refused.
 	Paused bool
+	// Inbox: a failed run goes to the error inbox, as the job the task replaced did. Every failure is logged.
+	Inbox bool
 	// Run is the work. Required unless Paused.
 	Run func(ctx context.Context) error
 }
@@ -139,7 +141,7 @@ func (tb *Table) SetNext(ctx context.Context, key string, at time.Time) {
 // error is the last try's. A nil table runs t without recording it.
 func (tb *Table) Run(ctx context.Context, t Task) (ran bool, err error) {
 	if tb == nil {
-		return true, try(ctx, t, nil, backoff)
+		return true, try(ctx, t, slog.Default(), backoff)
 	}
 	tb.mu.Lock()
 	if _, busy := tb.running[t.Key]; busy {
@@ -159,6 +161,21 @@ func (tb *Table) Run(ctx context.Context, t Task) (ran bool, err error) {
 	return true, err
 }
 
+// Start is Run in a goroutine of its own, for a loop that must not wait for the work (it keeps polling meanwhile).
+// It reports false when a run of t.Key is already going.
+func (tb *Table) Start(ctx context.Context, t Task) bool {
+	if tb != nil {
+		tb.mu.Lock()
+		_, busy := tb.running[t.Key]
+		tb.mu.Unlock()
+		if busy {
+			return false
+		}
+	}
+	go errinbox.Go("task "+t.Key, func() { _, _ = tb.Run(ctx, t) })()
+	return true
+}
+
 // try runs t up to its attempts, waiting the back-off between tries.
 func try(ctx context.Context, t Task, log *slog.Logger, wait func(int) time.Duration) error {
 	attempts := max(t.Attempts, 1)
@@ -167,9 +184,7 @@ func try(ctx context.Context, t Task, log *slog.Logger, wait func(int) time.Dura
 		if err == nil || attempt >= attempts || ctx.Err() != nil {
 			return err
 		}
-		if log != nil {
-			log.Warn("task failed; trying again", "task", t.Key, "attempt", attempt, "attempts", attempts, "err", err)
-		}
+		log.Warn("task failed; trying again", "task", t.Key, "attempt", attempt, "attempts", attempts, "err", err)
 		timer := time.NewTimer(wait(attempt))
 		select {
 		case <-ctx.Done():
@@ -187,6 +202,8 @@ func (tb *Table) record(ctx context.Context, t Task, start time.Time, runErr err
 		msg = runErr.Error()
 		if ctx.Err() == nil {
 			tb.log.Warn("task failed", "task", t.Key, "err", runErr)
+		}
+		if t.Inbox && ctx.Err() == nil {
 			errinbox.Report(errinbox.Event{Source: errinbox.SourceJob, Component: t.Key, Message: msg, Context: map[string]string{"task": t.Key}})
 		}
 	}

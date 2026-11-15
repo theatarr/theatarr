@@ -43,13 +43,11 @@ import (
 	"github.com/theatarr/theatarr/internal/metadata/tmdb"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/store"
+	"github.com/theatarr/theatarr/internal/tasks"
 )
 
 // JobKind is the job that fills title_meta.
 const JobKind = "meta.art"
-
-// batchKey dedupes scheduled runs: at most one is queued or running.
-const batchKey = JobKind
 
 // Payload is a meta.art job's payload: one title (TitleID set) or a run over new and due titles.
 type Payload struct {
@@ -186,16 +184,23 @@ func (s *Service) Refresh(ctx context.Context, titleID int64) (int64, error) {
 	return id, err
 }
 
-// Run schedules runs until ctx ends: one FirstDelay after start, then every interval, and one whenever a title has
-// no row yet (checked every NewPoll). Without a TMDb client it returns at once.
-func (s *Service) Run(ctx context.Context) {
-	if s.tmdb == nil || s.q == nil {
+// Run schedules batch runs as the meta.art task on tb until ctx ends: one FirstDelay after start, then every
+// interval, and one whenever a title has no row yet (checked every NewPoll). batch is the run (theatarr serve: the
+// service in force); nil runs RunBatch. Without a TMDb client it returns at once.
+func (s *Service) Run(ctx context.Context, tb *tasks.Table, batch func(context.Context) error) {
+	if s.tmdb == nil {
 		s.log.Info("meta.art off: no TMDb key")
 		return
 	}
 	s.log.Info("meta.art scheduled", "interval", s.set.Interval.String(), "per_run", s.set.PerRun,
 		"prewarm", s.set.Prewarm, "images", s.images != nil)
+	if batch == nil {
+		batch = func(ctx context.Context) error { _, err := s.RunBatch(ctx); return err }
+	}
 	next := s.now().Add(s.delay)
+	task := tasks.Task{Key: JobKind, Name: "Refresh details and artwork", Every: s.set.Interval,
+		Attempts: jobs.DefaultMaxAttempts, Inbox: true, Next: next, Run: batch}
+	defer tb.Register(ctx, task)()
 	t := time.NewTicker(min(s.poll, s.delay))
 	defer t.Stop()
 	for {
@@ -217,8 +222,11 @@ func (s *Service) Run(ctx context.Context) {
 		if !due {
 			continue
 		}
-		if err := s.enqueueBatch(ctx); err != nil {
-			s.log.Warn("meta.art: enqueue", "err", err)
+		run := task
+		if now.Before(next) {
+			run.Every = 0 // a run for new titles leaves the interval's next run as it is
+		}
+		if !tb.Start(ctx, run) {
 			continue
 		}
 		if !now.Before(next) {
@@ -226,11 +234,6 @@ func (s *Service) Run(ctx context.Context) {
 		}
 		t.Reset(s.poll)
 	}
-}
-
-func (s *Service) enqueueBatch(ctx context.Context) error {
-	_, _, err := s.q.Enqueue(ctx, JobKind, Payload{}, jobs.EnqueueOptions{DedupeKey: batchKey})
-	return err
 }
 
 // missing counts titles in the library with no title_meta row.

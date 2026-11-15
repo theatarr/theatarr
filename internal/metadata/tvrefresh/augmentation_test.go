@@ -16,6 +16,7 @@ import (
 	"github.com/theatarr/theatarr/internal/gateway"
 	"github.com/theatarr/theatarr/internal/jobs"
 	"github.com/theatarr/theatarr/internal/policy"
+	"github.com/theatarr/theatarr/internal/tasks"
 )
 
 func TestPeriodicSceneRefresh(t *testing.T) {
@@ -367,30 +368,39 @@ func TestSceneSchedule(t *testing.T) {
 	e.svc.set.Interval = 24 * time.Hour
 	e.svc.q = jobs.NewQueue(e.st)
 	ctx, cancel := context.WithCancel(context.Background())
+	tb := tasks.New(ctx, e.st, nil)
+	var scenes, sweeps atomic.Int32
 	done := make(chan struct{})
-	go func() { e.svc.Run(ctx); close(done) }()
+	go func() {
+		e.svc.Run(ctx, tb, func(context.Context) error { sweeps.Add(1); return nil },
+			func(context.Context) error { scenes.Add(1); return nil })
+		close(done)
+	}()
 	defer func() { cancel(); <-done }()
-	wait := func() {
+	wait := func(n int32) {
 		t.Helper()
 		deadline := time.Now().Add(5 * time.Second)
 		for time.Now().Before(deadline) {
-			if e.count(t, `SELECT COUNT(*) FROM job WHERE kind=?`, sceneJob) == 1 {
+			if scenes.Load() == n {
 				return
 			}
 			time.Sleep(5 * time.Millisecond)
 		}
-		t.Fatal("scene refresh not scheduled")
+		t.Fatalf("scene refresh ran %d times, want %d", scenes.Load(), n)
 	}
-	wait()
-	if _, err := e.st.Writer().Exec(`DELETE FROM job WHERE kind=?`, sceneJob); err != nil {
-		t.Fatal(err)
-	}
+	wait(1)
 	offset.Store(int64(SceneAge - time.Minute))
-	// A normal series poll does not queue scene reads before three hours have passed.
+	// A normal series poll does not read scene names before three hours have passed.
 	time.Sleep(25 * time.Millisecond)
-	if e.count(t, `SELECT COUNT(*) FROM job WHERE kind=?`, sceneJob) != 0 {
-		t.Fatal("scene refresh scheduled early")
+	if scenes.Load() != 1 {
+		t.Fatal("scene refresh run early")
 	}
 	offset.Store(int64(SceneAge))
-	wait()
+	wait(2)
+	if sweeps.Load() != 1 {
+		t.Errorf("sweeps %d, want the first one only", sweeps.Load())
+	}
+	if n := e.count(t, `SELECT COUNT(*) FROM job WHERE kind IN (?, ?)`, sceneJob, JobKind); n != 0 {
+		t.Errorf("%d scene or sweep jobs", n)
+	}
 }

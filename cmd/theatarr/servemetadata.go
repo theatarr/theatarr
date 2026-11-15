@@ -5,6 +5,8 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"log/slog"
 	"path/filepath"
 	"time"
@@ -20,6 +22,7 @@ import (
 	"github.com/theatarr/theatarr/internal/metadata/tvrefresh"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/store"
+	"github.com/theatarr/theatarr/internal/tasks"
 	"github.com/theatarr/theatarr/internal/web"
 )
 
@@ -193,48 +196,59 @@ func movieIntakeSearch(ac *serveAcquirer) func(context.Context, int64, []string,
 	}
 }
 
-// runMovieIntake refreshes Radarr collections and TMDb import lists every interval, and Radarr and Sonarr lists every
-// catalog.ArrListInterval, with the intake of the settings in force at each refresh, and once at start when now is true.
-// While Theatarr is paused (router.enabled false, as for RSS) a run adds nothing and skips whole: its add-time searches
-// would be spent on grabs Pause blocks. The next run after Pause is turned off adds and searches as usual.
-func runMovieIntake(ctx context.Context, interval time.Duration, now bool, current func(context.Context) *catalog.MovieIntake,
-	log *slog.Logger) {
+// runMovieIntake refreshes Radarr collections and TMDb import lists every interval (task lists.movies), and Radarr
+// and Sonarr lists every catalog.ArrListInterval (task lists.arr), with the intake of the settings in force at each
+// refresh, and once at start when now is true. While Theatarr is paused (router.enabled false, as for RSS) a run adds
+// nothing and skips whole: its add-time searches would be spent on grabs Pause blocks. The next run after Pause is
+// turned off adds and searches as usual.
+func runMovieIntake(ctx context.Context, tb *tasks.Table, interval time.Duration, now bool,
+	current func(context.Context) *catalog.MovieIntake, log *slog.Logger) {
 	if interval <= 0 {
 		interval = policy.DefaultListInterval
 	}
-	refresh := func() {
-		mi := current(ctx)
-		if mi == nil {
-			return
-		}
-		if intakePaused(mi) {
-			log.Info("movie collections and lists: skipped, Theatarr is paused")
-			return
-		}
-		if _, err := mi.RefreshCollections(ctx); err != nil && ctx.Err() == nil {
-			log.Warn("movie collections: refresh failed", "err", err)
-		}
-		if _, err := mi.SyncLists(ctx); err != nil && ctx.Err() == nil {
-			log.Warn("movie lists: sync failed", "err", err)
-		}
-	}
+	lists := tasks.Task{Key: "lists.movies", Name: "Refresh movie collections and lists", Every: interval,
+		Run: func(ctx context.Context) error {
+			mi := current(ctx)
+			if mi == nil {
+				return nil
+			}
+			if intakePaused(mi) {
+				log.Info("movie collections and lists: skipped, Theatarr is paused")
+				return nil
+			}
+			_, err := mi.RefreshCollections(ctx)
+			if err != nil {
+				err = fmt.Errorf("movie collections: %w", err)
+			}
+			if _, lerr := mi.SyncLists(ctx); lerr != nil {
+				err = errors.Join(err, fmt.Errorf("movie lists: %w", lerr))
+			}
+			return err
+		}}
 	// Radarr and Sonarr lists sync on their own, shorter cadence.
-	arrLists := func() {
-		mi := current(ctx)
-		if mi == nil {
-			return
-		}
-		if intakePaused(mi) {
-			log.Info("lists: arr sync skipped, Theatarr is paused")
-			return
-		}
-		if _, err := mi.SyncArrLists(ctx); err != nil && ctx.Err() == nil {
-			log.Warn("lists: arr sync failed", "err", err)
-		}
-	}
+	arr := tasks.Task{Key: "lists.arr", Name: "Sync Radarr and Sonarr lists", Every: catalog.ArrListInterval,
+		Run: func(ctx context.Context) error {
+			mi := current(ctx)
+			if mi == nil {
+				return nil
+			}
+			if intakePaused(mi) {
+				log.Info("lists: arr sync skipped, Theatarr is paused")
+				return nil
+			}
+			_, err := mi.SyncArrLists(ctx)
+			return err
+		}}
+	start := time.Now()
+	lists.Next, arr.Next = start.Add(interval), start.Add(catalog.ArrListInterval)
 	if now {
-		refresh()
-		arrLists()
+		lists.Next, arr.Next = start, start
+	}
+	defer tb.Register(ctx, lists)()
+	defer tb.Register(ctx, arr)()
+	if now {
+		_, _ = tb.Run(ctx, lists)
+		_, _ = tb.Run(ctx, arr)
 	}
 	t := time.NewTicker(interval)
 	defer t.Stop()
@@ -245,9 +259,9 @@ func runMovieIntake(ctx context.Context, interval time.Duration, now bool, curre
 		case <-ctx.Done():
 			return
 		case <-t.C:
-			refresh()
+			_, _ = tb.Run(ctx, lists)
 		case <-at.C:
-			arrLists()
+			_, _ = tb.Run(ctx, arr)
 		}
 	}
 }
@@ -257,9 +271,27 @@ func intakePaused(mi *catalog.MovieIntake) bool {
 	return mi.Policy != nil && !mi.Policy.RouterSettings().Enabled
 }
 
-// runTVDBUpdates reads TVDB's /updates every hour through tvc and queues a refresh of the changed series with the
-// series refresh in force.
-func runTVDBUpdates(ctx context.Context, tvc *tvdb.Client, current func(context.Context) *tvrefresh.Service, log *slog.Logger) {
+// runTVDBUpdates reads TVDB's /updates every hour through tvc (task tvdb.updates) and queues a refresh of the changed
+// series with the series refresh in force.
+func runTVDBUpdates(ctx context.Context, tb *tasks.Table, tvc *tvdb.Client, current func(context.Context) *tvrefresh.Service,
+	log *slog.Logger) {
+	task := tasks.Task{Key: "tvdb.updates", Name: "Read TVDB's changed series", Every: time.Hour,
+		Next: time.Now().Add(time.Hour), Run: func(ctx context.Context) error {
+			res, err := tvc.Refresh(ctx)
+			if err != nil {
+				return fmt.Errorf("tvdb: refresh: %w", err)
+			}
+			// Our series TVDB names as changed are refreshed now rather than at their next sweep.
+			n, err := current(ctx).Changed(ctx, res.SeriesIDs)
+			if err != nil {
+				return fmt.Errorf("series metadata: changed series: %w", err)
+			}
+			if n > 0 {
+				log.Info("series metadata: changed series queued", "series", n)
+			}
+			return nil
+		}}
+	defer tb.Register(ctx, task)()
 	t := time.NewTicker(time.Hour)
 	defer t.Stop()
 	for {
@@ -267,17 +299,7 @@ func runTVDBUpdates(ctx context.Context, tvc *tvdb.Client, current func(context.
 		case <-ctx.Done():
 			return
 		case <-t.C:
-			res, err := tvc.Refresh(ctx)
-			if err != nil {
-				log.Warn("tvdb: refresh failed", "err", err)
-				continue
-			}
-			// Our series TVDB names as changed are refreshed now rather than at their next sweep.
-			if n, err := current(ctx).Changed(ctx, res.SeriesIDs); err != nil {
-				log.Warn("series metadata: changed series", "err", err)
-			} else if n > 0 {
-				log.Info("series metadata: changed series queued", "series", n)
-			}
+			_, _ = tb.Run(ctx, task)
 		}
 	}
 }

@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -25,6 +26,7 @@ import (
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/store"
 	"github.com/theatarr/theatarr/internal/store/storetest"
+	"github.com/theatarr/theatarr/internal/tasks"
 )
 
 const testKey = "tmdb-test-key-0123"
@@ -404,31 +406,37 @@ func TestRefreshJob(t *testing.T) {
 	}
 }
 
-// Run enqueues a run soon after start and when a title has no row.
+// Run runs the meta.art task soon after start and when a title has no row, and records it.
 func TestRunSchedules(t *testing.T) {
 	e := newTestEnv(t)
 	e.svc.delay, e.svc.poll, e.svc.now = 5*time.Millisecond, 5*time.Millisecond, time.Now
 	ctx, cancel := context.WithCancel(context.Background())
+	tb := tasks.New(ctx, e.st, nil)
+	var runs atomic.Int32
 	done := make(chan struct{})
-	go func() { e.svc.Run(ctx); close(done) }()
+	go func() {
+		e.svc.Run(ctx, tb, func(context.Context) error { runs.Add(1); return nil })
+		close(done)
+	}()
 	defer func() { cancel(); <-done }()
-	waitJob := func() {
+	waitRun := func(n int32) {
 		t.Helper()
 		deadline := time.Now().Add(5 * time.Second)
 		for time.Now().Before(deadline) {
-			var n int
-			e.st.Reader().QueryRow(`SELECT COUNT(*) FROM job WHERE kind = ? AND state = 'queued'`, JobKind).Scan(&n)
-			if n > 0 {
+			if runs.Load() >= n {
 				return
 			}
 			time.Sleep(5 * time.Millisecond)
 		}
-		t.Fatal("no meta.art job queued")
+		t.Fatalf("meta.art ran %d times, want %d", runs.Load(), n)
 	}
-	waitJob() // the first run, due after the delay
-	e.exec(t, `DELETE FROM job`)
-	e.seed(t) // new titles: queued again although the interval has not passed
-	waitJob()
+	waitRun(1) // the first run, due after the delay
+	e.seed(t)  // new titles: run again although the interval has not passed
+	waitRun(2)
+	got, err := tb.List(ctx)
+	if err != nil || len(got) != 1 || got[0].Key != JobKind || got[0].LastFinished == nil {
+		t.Fatalf("task %+v %v", got, err)
+	}
 }
 
 func TestRefreshAge(t *testing.T) {
