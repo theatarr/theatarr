@@ -521,7 +521,8 @@ func (r *Runner) seenKey(rel indexer.Release) string {
 // seenItem is a feed item: its indexer and seenKey.
 type seenItem struct{ indexer, key string }
 
-// seenBefore is which of the items an earlier read saw (and decided).
+// seenBefore is which of the items an earlier read saw (and decided). The marks are committed at the end of each run
+// (markSeen), so the reader sees them all.
 func (r *Runner) seenBefore(ctx context.Context, items []seenItem) (map[seenItem]bool, error) {
 	out := map[seenItem]bool{}
 	if len(items) == 0 {
@@ -532,7 +533,7 @@ func (r *Runner) seenBefore(ctx context.Context, items []seenItem) (map[seenItem
 		pairs[i] = [2]string{it.indexer, it.key}
 	}
 	list, _ := json.Marshal(pairs)
-	rows, err := r.st.Writer().QueryContext(ctx, `SELECT indexer, item_key FROM shadow_rss_seen
+	rows, err := r.st.Reader().QueryContext(ctx, `SELECT indexer, item_key FROM shadow_rss_seen
 		WHERE (indexer, item_key) IN (SELECT value ->> 0, value ->> 1 FROM json_each(?))`, string(list))
 	if err != nil {
 		return nil, err
