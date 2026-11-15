@@ -892,9 +892,11 @@ func readVersionFiles(ctx context.Context, db *sql.DB, ids []any) (*versionFiles
 func heldByHash(ctx context.Context, db *sql.DB, hashes ...string) (map[string][]string, error) {
 	out := map[string][]string{}
 	var args []any
+	seen := map[string]bool{}
 	for _, h := range hashes {
-		if h != "" {
-			args = append(args, strings.ToLower(h))
+		if h = strings.ToLower(h); h != "" && !seen[h] {
+			seen[h] = true
+			args = append(args, h)
 		}
 	}
 	if len(args) == 0 {

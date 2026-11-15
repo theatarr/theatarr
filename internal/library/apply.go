@@ -310,12 +310,7 @@ func (l *Library) apply(ctx context.Context, d *importDownload, vn *VersionNamin
 			// router's guards, Cached on). Without a torrent id (a manual or arr import) the provider's next listing
 			// finds it: one sync of that provider is asked for now.
 			if d.TorrentID != "" {
-				var size int64
-				if err := tx.QueryRowContext(ctx, `SELECT COALESCE(size_bytes, 0) FROM download WHERE id = ?`, d.ID).
-					Scan(&size); err != nil {
-					return err
-				}
-				if err := provider.RecordImport(ctx, tx, d.Provider, d.TorrentID, d.InfoHash, d.Name, size); err != nil {
+				if err := provider.RecordImport(ctx, tx, d.Provider, d.TorrentID, d.InfoHash, d.Name, d.Size); err != nil {
 					return err
 				}
 				recorded = true

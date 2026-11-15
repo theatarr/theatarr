@@ -306,7 +306,7 @@ var ErrNoSync = errors.New("torrents: the provider sync is not running")
 
 // forget removes a deleted torrent from the record and its hash's stored usage (another account may still hold the
 // hash: it reads as not worked out yet), and asks for the usage to be worked out again (UsageStale).
-func (m *Manager) forget(ctx context.Context, prov, id, hash string) {
+func (m *Manager) forget(ctx context.Context, prov, id string) {
 	err := m.Store.WriteTx(ctx, func(tx *sql.Tx) error {
 		return provider.DropRecordTorrent(ctx, tx, prov, id)
 	})

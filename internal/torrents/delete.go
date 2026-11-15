@@ -371,7 +371,7 @@ func (m *Manager) execute(ctx context.Context, plan *DeletePlan, by string, o ex
 		default:
 			it.Outcome = "deleted"
 			plan.Deleted++
-			m.forget(ctx, it.Provider, it.ID, it.Hash)
+			m.forget(ctx, it.Provider, it.ID)
 		}
 		m.journal(ctx, JournalEntry{Action: "delete", Provider: it.Provider, TorrentID: it.ID, Hash: it.Hash,
 			Name: it.Name, Bytes: it.Bytes, BackupID: b.ID, Outcome: it.Outcome, Detail: deleteDetail(it), By: by})

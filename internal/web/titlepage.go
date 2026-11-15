@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"slices"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/theatarr/theatarr/internal/activity"
@@ -231,30 +230,6 @@ func (w *Web) enrichTitle(ctx context.Context, d *TitleDetail) error {
 			}
 		}
 		size := onDisk(current)
-		// For a single current file, Cached on follows the file's own hash, the one the Torrent link uses
-		// (linkHashSQL).
-		var hashes []string
-		for _, v := range byID {
-			if v.Current != nil && v.Current.InfoHash != "" {
-				hashes = append(hashes, v.Current.InfoHash)
-			}
-		}
-		if len(hashes) > 0 {
-			held, err := heldByHash(ctx, db, hashes...)
-			if err != nil {
-				return err
-			}
-			for _, v := range byID {
-				if v.Current == nil || v.Current.InfoHash == "" {
-					continue
-				}
-				h := strings.ToLower(v.Current.InfoHash)
-				if v.Current.Files == 1 {
-					// Only a single current file's Cached on follows its hash; several files keep the aggregate.
-					v.Providers, v.CachedOn = held[h], w.cacheCodes(held[h])
-				}
-			}
-		}
 		if size > 0 {
 			d.SizeBytes = &size
 		}

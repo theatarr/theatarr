@@ -536,7 +536,6 @@ func runServe(args []string) error {
 		}
 		runtime.Library.lib.InheritMount(prevLib)
 		runtime.Router.SetMountCheck(runtime.Library.lib.MountListed)
-		runtime.Router.SetRecordChanged(torrentUsage.Signal)
 		runtime.Playlists, err = newPlaylistSyncer(ctx, runtime.Policy, st, runtime.Gateway, log)
 		if err != nil {
 			return err
