@@ -54,6 +54,8 @@ type MovieList struct {
 	Versions            []string   `json:"versions"`
 	MinimumAvailability string     `json:"minimum_availability"`
 	LastSyncAt          *time.Time `json:"last_sync_at,omitempty"`
+	// LastError is why the list's last sync failed, in whole or in part; empty after a sync without failures.
+	LastError string `json:"last_error,omitempty"`
 	// View is the arr view whose client made the list; empty for a list made here.
 	View string `json:"view,omitempty"`
 	// Libraries are the libraries this list may add to: every movie library (every series library for a Sonarr
@@ -316,14 +318,14 @@ func (w *Web) listLibraries(view, media string) []string {
 }
 
 const listColumns = `id, name, list_type, media, tmdb_id, url, api_key <> '', enabled, enable_auto, monitor,
-	search_on_add, versions, minimum_availability, last_sync_at, view, COALESCE(rule, '')`
+	search_on_add, versions, minimum_availability, last_sync_at, view, COALESCE(rule, ''), COALESCE(last_error, '')`
 
 func (w *Web) scanList(row interface{ Scan(...any) error }) (MovieList, error) {
 	var l MovieList
 	var versions, rule string
 	var synced sql.NullInt64
 	if err := row.Scan(&l.ID, &l.Name, &l.ListType, &l.Kind, &l.TmdbID, &l.URL, &l.APIKeySet, &l.Enabled, &l.EnableAuto, &l.Monitor,
-		&l.SearchOnAdd, &versions, &l.MinimumAvailability, &synced, &l.View, &rule); err != nil {
+		&l.SearchOnAdd, &versions, &l.MinimumAvailability, &synced, &l.View, &rule, &l.LastError); err != nil {
 		return l, err
 	}
 	if rule != "" {

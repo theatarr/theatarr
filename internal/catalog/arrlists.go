@@ -69,10 +69,11 @@ func (s *MovieIntake) readArr(ctx context.Context, cfg movieIntakeConfig, v any)
 
 // syncRadarr adds the instance's movies through addMovie, so every movie list rule holds: exclusions, a library row
 // that exists is left as it is, TMDb details for a new movie, availability, search only for monitored adds.
-func (s *MovieIntake) syncRadarr(ctx context.Context, cfg movieIntakeConfig, out *IntakeResult) (soft []error) {
+// readErr: the instance could not be read (nothing added).
+func (s *MovieIntake) syncRadarr(ctx context.Context, cfg movieIntakeConfig, out *IntakeResult) (soft []error, readErr error) {
 	var movies []arrMovie
 	if err := s.readArr(ctx, cfg, &movies); err != nil {
-		return []error{fmt.Errorf("list %d: %w", cfg.id, err)}
+		return nil, err
 	}
 	for _, m := range movies {
 		if m.TmdbID <= 0 {
@@ -89,13 +90,13 @@ func (s *MovieIntake) syncRadarr(ctx context.Context, cfg movieIntakeConfig, out
 			out.Skipped++
 		}
 	}
-	return soft
+	return soft, nil
 }
 
-func (s *MovieIntake) syncSonarr(ctx context.Context, cfg movieIntakeConfig, out *IntakeResult) (soft []error) {
+func (s *MovieIntake) syncSonarr(ctx context.Context, cfg movieIntakeConfig, out *IntakeResult) (soft []error, readErr error) {
 	var series []arrSeries
 	if err := s.readArr(ctx, cfg, &series); err != nil {
-		return []error{fmt.Errorf("list %d: %w", cfg.id, err)}
+		return nil, err
 	}
 	for _, it := range series {
 		if it.TvdbID <= 0 {
@@ -112,7 +113,7 @@ func (s *MovieIntake) syncSonarr(ctx context.Context, cfg movieIntakeConfig, out
 			out.Skipped++
 		}
 	}
-	return soft
+	return soft, nil
 }
 
 // addSeries adds a Sonarr list's series to the list's libraries that fit it and that it has no row in (a row in any

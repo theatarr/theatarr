@@ -451,8 +451,12 @@ func TestDiscoverListsAPI(t *testing.T) {
 	if rec := e.sendCollection("PUT", path, `{"url":"http://10.0.0.5:7878","api_key":"k"}`, key, ""); rec.Code != 400 {
 		t.Errorf("url on a discover list %d", rec.Code)
 	}
+	if _, err := e.st.Writer().Exec(`UPDATE import_list SET last_error = 'The list could not be read: HTTP 502' WHERE id = ?`, l.ID); err != nil {
+		t.Fatal(err)
+	}
 	var page ListsPage
-	if code := e.getKey(APIBase+"/lists", key, &page); code != 200 || len(page.Lists) != 2 {
+	if code := e.getKey(APIBase+"/lists", key, &page); code != 200 || len(page.Lists) != 2 ||
+		page.Lists[1].LastError != "The list could not be read: HTTP 502" || page.Lists[0].LastError != "" {
 		t.Fatalf("GET %d %+v", code, page)
 	}
 }

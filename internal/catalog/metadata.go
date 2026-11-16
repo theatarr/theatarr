@@ -345,41 +345,61 @@ func (s *MovieIntake) SyncList(ctx context.Context, id int64) (IntakeResult, err
 	return out, errors.Join(soft...)
 }
 
-// syncList is one list's import, counted in out; last_sync_at moves only on a pass without failures. soft and err
-// are as for refreshCollection. A list that cannot be read adds nothing.
+// syncList is one list's import, counted in out; last_sync_at moves only on a pass without failures, and last_error
+// says the list's own last result: cleared by a pass without failures, else why the list could not be read or how
+// many of its titles failed (the first one's error). soft and err are as for refreshCollection. A list that cannot be
+// read adds nothing.
 func (s *MovieIntake) syncList(ctx context.Context, cfg movieIntakeConfig, out *IntakeResult) (soft []error, err error) {
 	out.Lists++
 	cfg.monitored = cfg.monitor != "none"
 	cfg.later = true
+	var readErr error
 	switch cfg.listType {
 	case "radarr":
-		soft = s.syncRadarr(ctx, cfg, out)
+		soft, readErr = s.syncRadarr(ctx, cfg, out)
 	case "sonarr":
-		soft = s.syncSonarr(ctx, cfg, out)
+		soft, readErr = s.syncSonarr(ctx, cfg, out)
 	case "tmdb_discover":
-		items, err := s.discover(ctx, cfg)
-		if err != nil {
-			return []error{fmt.Errorf("list %d: %w", cfg.id, err)}, nil
+		var items []tmdb.MovieSummary
+		if items, readErr = s.discover(ctx, cfg); readErr == nil {
+			soft = s.addItems(ctx, cfg, items, out)
 		}
-		soft = s.addItems(ctx, cfg, items, out)
 	case "json":
-		items, unresolved, err := s.jsonItems(ctx, cfg)
-		if err != nil {
-			return []error{fmt.Errorf("list %d: %w", cfg.id, err)}, nil
+		var items []tmdb.MovieSummary
+		var unresolved int
+		if items, unresolved, readErr = s.jsonItems(ctx, cfg); readErr == nil {
+			out.Skipped += unresolved
+			soft = s.addItems(ctx, cfg, items, out)
 		}
-		out.Skipped += unresolved
-		soft = s.addItems(ctx, cfg, items, out)
 	default:
-		l, err := s.TMDb.List(ctx, int(cfg.tmdbID))
-		if err != nil {
-			return []error{fmt.Errorf("list %d: %w", cfg.id, err)}, nil
+		var l *tmdb.List
+		if l, readErr = s.TMDb.List(ctx, int(cfg.tmdbID)); readErr == nil {
+			soft = s.addItems(ctx, cfg, l.Items, out)
 		}
-		soft = s.addItems(ctx, cfg, l.Items, out)
+	}
+	if readErr != nil {
+		soft = []error{fmt.Errorf("list %d: %w", cfg.id, readErr)}
+	}
+	if ctx.Err() != nil {
+		return soft, nil // stopped: the list's last result stays as it was
 	}
 	if len(soft) == 0 {
-		if _, err := s.Store.Writer().ExecContext(ctx, `UPDATE import_list SET last_sync_at=? WHERE id=?`, store.Millis(s.Now()), cfg.id); err != nil {
-			return nil, err
-		}
+		_, err = s.Store.Writer().ExecContext(ctx, `UPDATE import_list SET last_sync_at=?, last_error=NULL WHERE id=?`,
+			store.Millis(s.Now()), cfg.id)
+		return nil, err
+	}
+	var msg string
+	if readErr != nil {
+		msg = "The list could not be read: " + readErr.Error()
+	} else {
+		first := strings.TrimPrefix(soft[0].Error(), fmt.Sprintf("list %d ", cfg.id))
+		msg = fmt.Sprintf("%d of its titles could not be added; the first: %s", len(soft), first)
+	}
+	if r := []rune(msg); len(r) > 500 {
+		msg = string(r[:500]) + "…"
+	}
+	if _, err := s.Store.Writer().ExecContext(ctx, `UPDATE import_list SET last_error=? WHERE id=?`, msg, cfg.id); err != nil {
+		return nil, err
 	}
 	return soft, nil
 }

@@ -697,9 +697,34 @@ func TestListReadFailureIsNotASync(t *testing.T) {
 		t.Fatalf("scheduled sync of an unreadable list: %+v %v", got, err)
 	}
 	var synced int64
-	if err := st.Reader().QueryRow(`SELECT last_sync_at FROM import_list WHERE id=1`).Scan(&synced); err != nil || synced != 5 {
-		t.Fatalf("last_sync_at %d: %v", synced, err)
+	var lastErr sql.NullString
+	if err := st.Reader().QueryRow(`SELECT last_sync_at, last_error FROM import_list WHERE id=1`).Scan(&synced, &lastErr); err != nil ||
+		synced != 5 || lastErr.String != "The list could not be read: tmdb: GET /list/9?page=2: HTTP 502" {
+		t.Fatalf("last_sync_at %d, last_error %q: %v", synced, lastErr.String, err)
 	}
+	// A title that fails is the list's last result too; a pass without failures clears it.
+	s.TMDb = failingMovieSource{intakeSource{list: &tmdb.List{Items: []tmdb.MovieSummary{{ID: 101, MediaType: "movie"}}}}}
+	if _, err := s.SyncList(ctx, 1); err == nil {
+		t.Fatal("a failed title was not reported")
+	}
+	if err := st.Reader().QueryRow(`SELECT last_error FROM import_list WHERE id=1`).Scan(&lastErr); err != nil ||
+		lastErr.String != "1 of its titles could not be added; the first: movie 101: TMDb is down" {
+		t.Fatalf("last_error %q: %v", lastErr.String, err)
+	}
+	s.TMDb = intakeSource{list: &tmdb.List{Items: []tmdb.MovieSummary{{ID: 101, MediaType: "movie"}}}}
+	if _, err := s.SyncList(ctx, 1); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.Reader().QueryRow(`SELECT last_sync_at, last_error FROM import_list WHERE id=1`).Scan(&synced, &lastErr); err != nil ||
+		synced == 5 || lastErr.Valid {
+		t.Fatalf("after a clean pass: last_sync_at %d, last_error %v: %v", synced, lastErr, err)
+	}
+}
+
+type failingMovieSource struct{ intakeSource }
+
+func (failingMovieSource) MovieDetails(context.Context, int) (*tmdb.Movie, error) {
+	return nil, errors.New("TMDb is down")
 }
 
 // A list's new movie is searched on add per library: the list's minimum with each library's own availability delay,

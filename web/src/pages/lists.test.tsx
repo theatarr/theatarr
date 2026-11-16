@@ -12,6 +12,7 @@ const libraries = { "movie-remux": "4K Remux", "movie-web": "4K WEB" };
 const mine: Schemas["MovieList"] = { id: 1, name: "Favourites", list_type: "tmdb", kind: "movie", api_key_set: false, tmdb_id: 9, enabled: true, enable_auto: true, monitor: "movieOnly",
   search_on_add: true, versions: ["movie-remux"], minimum_availability: "released", libraries: ["movie-remux", "movie-web"] };
 const arr: Schemas["MovieList"] = { ...mine, id: 2, name: "From Radarr", tmdb_id: 12, view: "radarr-4k", enable_auto: false, versions: ["movie-web"], libraries: ["movie-web"] };
+const failing: Schemas["MovieList"] = { ...mine, id: 6, name: "Failing", last_error: "The list could not be read: HTTP 502" };
 
 it("reads the TMDb list id from digits or a pasted address", () => {
   expect(listIDFrom(" 8136 ")).toBe(8136);
@@ -72,6 +73,7 @@ it("edits, enables, syncs and deletes lists, and labels one an arr client made",
   const row = () => within(screen.getByTestId("list-1"));
   const other = within(await screen.findByTestId("list-2"));
   expect(other.getByText("Created through the radarr-4k view")).toBeTruthy();
+  expect(screen.queryByTestId("list-error-2")).toBeNull();
 
   await user.click(row().getByRole("switch", { name: "Enable Favourites" }));
   await waitFor(() => expect(fetch.calls("PUT", "/lists/1")[0]?.body).toEqual({ enabled: false }));
@@ -300,4 +302,13 @@ it("adds a JSON list by its address", async () => {
   expect(fetch.calls("POST", "/lists")[0].body).toEqual({ list_type: "json", name: "StevenLu", versions: ["movie-web"], monitor: "movieOnly", search_on_add: true,
     minimum_availability: "released", enabled: true, url: "https://s3.amazonaws.com/popular-movies/movies.json" });
   expect(within(await screen.findByTestId("list-5")).getByText("JSON list, movies, at https://s3.amazonaws.com/popular-movies/movies.json")).toBeTruthy();
+});
+
+it("says a list's last sync failure under its last sync", async () => {
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: manager },
+    { method: "GET", path: "/lists", reply: { lists: [failing], libraries, can_sync: true } },
+  ]);
+  renderPage(<ListsPage />, "/admin/settings/import-lists");
+  expect((await screen.findByTestId("list-error-6")).textContent).toBe("Last sync failed: The list could not be read: HTTP 502");
 });

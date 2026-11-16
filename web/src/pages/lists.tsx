@@ -278,6 +278,7 @@ function ListRow({ l, libraries, seriesLibraries, canSync, m, edit, remove, sync
         <span>· Search on add: {l.search_on_add ? "on" : "off"}</span>
         <span>· Last sync: {l.last_sync_at ? fmtAgo(l.last_sync_at) : "never"}</span>
       </div>
+      {l.last_error ? <p className="text-xs text-[var(--bad-ink)] [overflow-wrap:anywhere]" data-testid={`list-error-${l.id}`}>Last sync failed: {l.last_error}</p> : null}
       {preview ? <div className="space-y-1 text-xs" data-testid={`list-preview-${l.id}`}>
         <p className="text-[var(--ink)]">{previewWords(preview)}</p>
         {adds.length > 0 ? <ul className="list-inside list-disc text-muted-foreground">
