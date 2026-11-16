@@ -81,17 +81,20 @@ const outcomeOf = (c: Candidate, outcomes?: Releases["outcomes"]) => (c.info_has
 
 const signed = (n: number) => (n > 0 ? `+${n}` : String(n));
 
+/** An accepted pack that replaces no held file, only fills episodes with none: the decision's upgrade reason is then
+ *  only "fills N episode(s) with no file" (internal/decide/episodes.go); one that also replaces a file starts with
+ *  why that file is bettered. */
+const fillsOnly = (c: Candidate) => !!c.upgrade_reason?.startsWith("fills ");
+
 function Status({ c }: { c: Candidate }) {
   if (c.accepted) {
     return (
       <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--ok-ink)]">
-        <CheckCircle2 className="size-3.5" /> Accepted{c.upgrade ? <span title={c.upgrade_reason || undefined}> · upgrade</span> : ""}
+        <CheckCircle2 className="size-3.5" /> Accepted{c.upgrade ? <span title={c.upgrade_reason || undefined}> · {fillsOnly(c) ? "fills missing episodes" : "upgrade"}</span> : ""}
       </span>
     );
   }
-  // The file's format score is the more specific of the two reasons against the file held: the quality one goes.
-  const both = (c.rejections ?? []).some((r) => r.reason === "DiskCustomFormatScore");
-  const all = (c.rejections ?? []).filter((r) => !(both && r.reason === "DiskHigherPreference")).map((r) => r.message || r.reason || "").filter(Boolean);
+  const all = (c.rejections ?? []).map((r) => r.message || r.reason || "").filter(Boolean);
   return (
     <span className="flex flex-col gap-0.5" title={all.join("\n")} data-testid="release-status">
       {all.slice(0, 2).map((m, i) => (

@@ -76,11 +76,11 @@ const CODE_ORDER = ["rd", "ad", "tb"];
  * a code it does not list goes after them, RD, AD, TB first, then by name. */
 export function useProviderSort(): (codes: readonly string[]) => string[] {
   const { codes } = useContext(Names);
+  const order = useMemo(() => [...new Set([...codes.values(), ...CODE_ORDER].map((c) => c.toLowerCase()))], [codes]);
   return useCallback((list: readonly string[]) => {
-    const order = [...new Set([...codes.values(), ...CODE_ORDER].map((c) => c.toLowerCase()))];
     const at = (c: string) => { const i = order.indexOf(c.toLowerCase()); return i < 0 ? order.length : i; };
     return [...list].sort((a, b) => at(a) - at(b) || a.localeCompare(b));
-  }, [codes]);
+  }, [order]);
 }
 
 /** A function that gives a provider account key's cache code (a custom "realdebrid" is rd), for the provider tag

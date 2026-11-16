@@ -196,6 +196,18 @@ it("a manager has no Add by magnet or hash", async () => {
   expect(screen.queryByTestId("add-by-hash")).toBeNull();
 });
 
+it("labels an accepted release that betters a held file an upgrade, and a pack that only fills episodes as such", () => {
+  mockFetch([ME]);
+  renderPage(<ReleaseGrid kind="series" items={[
+    { ...cand(1, "aaa"), upgrade: true, upgrade_reason: "better quality: Bluray-2160p over WEBDL-2160p; fills 2 episode(s) with no file" },
+    { ...cand(2, "bbb"), upgrade: true, upgrade_reason: "fills 3 episode(s) with no file" },
+  ]} />);
+  const table = screen.getByTestId("releases-table");
+  const up = within(table).getByText("· upgrade");
+  expect(up.getAttribute("title")).toBe("better quality: Bluray-2160p over WEBDL-2160p; fills 2 episode(s) with no file");
+  expect(within(table).getByText("· fills missing episodes").getAttribute("title")).toBe("fills 3 episode(s) with no file");
+});
+
 it("shows the indexer without its prowlarr- prefix, the key as tooltip, and a short filter hint", () => {
   mockFetch([ME]);
   renderPage(<ReleaseGrid kind="movie" items={[{ ...cand(1, "aaa"), indexer: "prowlarr-therarbg" }]} />);
