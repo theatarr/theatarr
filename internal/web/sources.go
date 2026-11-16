@@ -236,9 +236,10 @@ func (w *Web) apiSources(rw http.ResponseWriter, r *http.Request) {
 	writeJSON(rw, http.StatusOK, s)
 }
 
-// mountAdminAPI registers the sources and logs admin routes.
+// mountAdminAPI registers the sources, indexer statistics and logs admin routes.
 func (w *Web) mountAdminAPI(mux *http.ServeMux) {
 	w.handle(mux, "GET "+APIBase+"/sources", SignedIn, auth.PermAdmin, w.apiSources)
+	w.handle(mux, "GET "+APIBase+"/indexers/stats", SignedIn, auth.PermAdmin, w.apiIndexerStats)
 	w.handle(mux, "GET "+APIBase+"/logs", SignedIn, auth.PermAdmin, w.apiLogs)
 	w.handle(mux, "GET "+APIBase+"/logs/files", SignedIn, auth.PermAdmin, w.apiLogFiles)
 	w.handle(mux, "GET "+APIBase+"/logs/files/{name}", SignedIn, auth.PermAdmin, w.apiLogFile)

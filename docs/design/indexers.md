@@ -80,6 +80,17 @@ A shared upstream search's requests count under the first caller's purpose, and 
 today and over the last 7 UTC days, by purpose (interactive, missing, upgrade, RSS, shadow, tests, other), beside its
 budget.
 
+### Statistics
+
+`GET /indexers/stats?days=7|30|90` (admin; 7 when omitted) gives every configured indexer's numbers over the last
+7, 30 or 90 UTC days, today included, like Prowlarr's indexer statistics: `requests` (HTTP requests from
+`gateway_indexer_request`, settings tests left out; pages, redirects and cache checks count, a search answered from
+the result cache sends none), `failed` and `average_ms` over the `measured` requests only (absent when none was
+measured: counts from before migration 00148 have no measurement and must not read as "0 failed, 0 ms"), and
+`grabbed`, `imported` and `failed_downloads`: distinct downloads with that History event in the range, manual adds
+left out. `measured_since` is the first UTC day with a measured request. Settings › Indexers shows it as the
+Statistics table under Status.
+
 ## Search planner
 
 `PlanSearch(policy, service, title)` takes the versions that apply to a title (same kind; `anime` matching), unions
