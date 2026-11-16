@@ -455,7 +455,7 @@ func TestEpisodeReleasesCountsFromKeptCandidates(t *testing.T) {
 	if r.Results != 2 || r.Accepted != 2 || len(r.Rejections) != 0 {
 		t.Errorf("E01 all kept: results %d accepted %d rejections %v", r.Results, r.Accepted, r.Rejections)
 	}
-	// Two copies of one torrent in a season search's sample are one row, counted once.
+	// Two copies of one torrent in a season search's sample are one row; the count is of copies.
 	h := strings.Repeat("e", 40)
 	e.exec(`INSERT INTO journal_decision (id, source, title_id, version_key, target, results, accepted, candidates,
 		rejections, created_at) VALUES (96, 'acquire:63', 10, 'tv-2160p', 's01', 18, 18, ?, '{}', ?)`,
@@ -463,7 +463,7 @@ func TestEpisodeReleasesCountsFromKeptCandidates(t *testing.T) {
 		  {"rank":2,"release":"The.Show.S01E01.2160p.WEB-A","indexer":"b","info_hash":"`+h+`","accepted":true,"episodes":["S01E01"]}]`, now-6000)
 	r = Releases{}
 	e.call("GET", APIBase+"/titles/10/episodes/101/releases", nil, 200, &r)
-	if r.Results != 1 || r.Accepted != 1 || len(r.Candidates) != 1 || !slices.Equal(r.Candidates[0].Indexers, []string{"a", "b"}) {
+	if r.Results != 2 || r.Accepted != 2 || len(r.Candidates) != 1 || !slices.Equal(r.Candidates[0].Indexers, []string{"a", "b"}) {
 		t.Errorf("E01 merged: results %d accepted %d candidates %+v", r.Results, r.Accepted, r.Candidates)
 	}
 	// An episode search's candidates all cover the episode: the stored counts stand.

@@ -257,6 +257,11 @@ export function indexersText(c: Pick<Candidate, "indexer" | "indexers">): string
   return all.slice(0, 2).join(", ") + (all.length > 2 ? ` +${all.length - 2}` : "");
 }
 
+/** Every indexer of a row by its short name, for the narrow cards, which have no tooltip ("tpb, therarbg, dmm"). */
+export function allIndexersText(c: Pick<Candidate, "indexer" | "indexers">): string {
+  return rowIndexers(c).map(indexerWords).join(", ");
+}
+
 /** The Indexer cell's tooltip: each copy's indexer and release name, the shown copy first; the indexer's key alone
  *  when there is one copy. */
 export function indexersTitle(c: Pick<Candidate, "indexer" | "release" | "copies">): string | undefined {

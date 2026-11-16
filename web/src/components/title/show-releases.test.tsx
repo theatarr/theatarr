@@ -38,7 +38,7 @@ it("shows one row per torrent with every indexer, each copy in the tooltip, and 
   expect(cells.map((c) => c.textContent)).toEqual(["tpb, therarbg +1", "nyaa"]);
   expect(cells[0].getAttribute("title")).toBe("prowlarr-tpb: Alpha.2020.2160p.WEB-1\ntherarbg: Alpha 2020 2160p WEB 1\ndmm: alpha.2020.2160p.web-1");
   expect(within(table).getAllByTestId("release-peers")[0].textContent).toBe("90 / 10");
-  expect(within(screen.getByTestId("releases-list")).getAllByRole("listitem")[0].textContent).toContain("tpb, therarbg +1");
+  expect(within(screen.getByTestId("releases-list")).getAllByRole("listitem")[0].textContent).toContain("tpb, therarbg, dmm");
   fireEvent.change(screen.getByTestId("release-indexer"), { target: { value: "dmm" } });
   expect(within(table).getAllByTestId("release-indexers").map((c) => c.textContent)).toEqual(["tpb, therarbg +1"]);
 });

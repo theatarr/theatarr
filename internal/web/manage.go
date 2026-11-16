@@ -1138,13 +1138,13 @@ func (w *Web) storedEpisodeReleases(ctx context.Context, out *Releases, it evIte
 		if len(keep) == 0 && s.target == "rss" {
 			return
 		}
-		rows := mergeCopies(keep)
 		target := strings.ToLower(s.target)
 		oneEpisode := strings.HasPrefix(target, "s") && strings.Contains(target, "e")
 		if !oneEpisode {
 			// A season, series or RSS search: its stored counts are the whole search's, so count the episode's own.
-			s.results, s.accepted, s.rejections = len(rows), 0, map[string]int{}
-			for _, c := range rows {
+			// The counts are of indexer copies, as the stored ones are; only the shown rows are merged.
+			s.results, s.accepted, s.rejections = len(keep), 0, map[string]int{}
+			for _, c := range keep {
 				if c.Accepted {
 					s.accepted++
 					continue
@@ -1158,7 +1158,7 @@ func (w *Web) storedEpisodeReleases(ctx context.Context, out *Releases, it evIte
 				}
 			}
 		}
-		s.cands, s.rows = nil, rows
+		s.cands, s.rows = nil, mergeCopies(keep)
 		if best == nil || s.at > best.at {
 			best = &s
 		}

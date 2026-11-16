@@ -27,6 +27,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { readPref, writePref } from "@/lib/copies";
 import { fmtBytes } from "@/lib/format";
 import {
+  allIndexersText,
   BEST_MATCH,
   CACHED_ANY,
   FLAG_LABEL,
@@ -471,7 +472,7 @@ export function ReleaseGrid({
                   <Score c={c} />
                 </div>
                 <div className="mt-1 text-xs text-[var(--ink-2)]">
-                  {[c.quality || "—", c.size ? fmtBytes(c.size) : "", fmtAge(c.published) !== "—" ? fmtAge(c.published) : "", `${peersText(c)} peers`, indexersText(c)].filter(Boolean).join(" · ")}
+                  {[c.quality || "—", c.size ? fmtBytes(c.size) : "", fmtAge(c.published) !== "—" ? fmtAge(c.published) : "", `${peersText(c)} peers`, allIndexersText(c)].filter(Boolean).join(" · ")}
                 </div>
                 {kind === "series" && c.episodes?.length ? <div className="mt-1 font-mono text-[12px] text-[var(--ink-2)]" data-testid="release-card-episodes">{episodesText(c.episodes)}</div> : null}
                 {c.formats?.length ? <div className="mt-1.5" data-testid="release-card-formats"><Formats c={c} zeros /></div> : null}
