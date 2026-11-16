@@ -83,7 +83,7 @@ func backup(ctx context.Context, m *Manager, p BackupPayload) error {
 	return nil
 }
 
-// RegisterJobs registers the backup and restore handlers. A backup asked for while the scheduled one runs waits for
+// RegisterJobs registers the backup, restore and copy handlers. A backup asked for while the scheduled one runs waits for
 // it.
 func RegisterJobs(w *jobs.Worker, resolve Resolver) {
 	w.Handle(JobBackup, func(ctx context.Context, j *jobs.Job) error {
@@ -116,6 +116,23 @@ func RegisterJobs(w *jobs.Worker, resolve Resolver) {
 		}
 		return restoreJobError(plan, len(p.Confirmed))
 	})
+	copyJob := func(ctx context.Context, j *jobs.Job) error {
+		var p CopyPayload
+		if err := j.Decode(&p); err != nil {
+			return jobs.Permanent(err)
+		}
+		m, err := resolve(ctx)
+		if err != nil {
+			return err
+		}
+		// Every outcome is final and journaled; the job itself ends done.
+		if _, err := m.Copy(ctx, p); err != nil {
+			return jobs.Permanent(err)
+		}
+		return nil
+	}
+	w.Handle(JobCopy, copyJob)
+	w.Handle(JobCopyAuto, copyJob)
 }
 
 // NextBackup is when the next scheduled backup is due: torrents.backup.every after the newest scheduled backup, now

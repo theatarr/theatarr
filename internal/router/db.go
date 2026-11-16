@@ -486,7 +486,12 @@ func (r *Router) setCache(ctx context.Context, hash, provider, state, source str
 // (router:check, check:*), which keeps its own shorter life.
 func (r *Router) setCacheSource(ctx context.Context, hash, provider, state, source string, expires,
 	now time.Time) error {
-	_, err := r.st.Writer().ExecContext(ctx, `INSERT INTO provider_cache (info_hash, provider, state, source,
+	return writeCache(ctx, r.st.Writer(), hash, provider, state, source, expires, now)
+}
+
+// writeCache is setCacheSource's write (RecordCacheEvidence's too).
+func writeCache(ctx context.Context, db *sql.DB, hash, provider, state, source string, expires, now time.Time) error {
+	_, err := db.ExecContext(ctx, `INSERT INTO provider_cache (info_hash, provider, state, source,
 		checked_at, expires_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (info_hash, provider) DO UPDATE SET
 		state = excluded.state, source = excluded.source, checked_at = excluded.checked_at,
 		expires_at = excluded.expires_at

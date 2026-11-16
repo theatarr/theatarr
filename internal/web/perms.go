@@ -139,7 +139,7 @@ func redactRowWith(r *TitleRow, states []versionState) {
 func redactVersion(v *Version) {
 	v.State = plainState(v.State)
 	v.Links = []Link{}
-	v.Providers, v.CachedOn = nil, nil
+	v.Providers, v.CachedOn, v.AddTo = nil, nil, nil
 	if c := v.Current; c != nil {
 		*c = CurrentFile{Quality: Resolution(c.Quality), Languages: c.Languages, Edition: c.Edition}
 	}

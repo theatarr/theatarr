@@ -259,6 +259,59 @@ again and adds only hashes in the confirmed set that are still missing.
   apart in `theatarr serve`, and the router treats an entry whose hash a restore sent since its look as not its own
   (`router.RestoredSince`, from any process; `TestRestoreAddIsAnnouncedAndLocked`).
 
+## Add to other providers
+
+A grab goes to one provider: the first of the library's providers with the release cached. **Add to other
+providers** adds the file's torrent to the other accounts that have it cached. It is a button on a file Theatarr holds
+whose torrent is not complete on every provider with a key: a movie's file (the library row's Details on the title
+page), an episode's file (the episode window's Details) and a row of Admin › Torrents (its expanded part). Managers and
+admins on the title page (`POST /torrents/copy {hash}`, `GET /torrents/copy/{hash}`: manage permission); the Torrents
+page stays admin. The server says where it may add: the file facts and the Torrents report rows carry `add_to`, the
+tags of the providers with a key that do not hold the hash complete (`Manager.CopyTargets`); the button shows when it is
+not empty. Any hash a file shows counts, the folder hash of a file taken over from Sonarr/Radarr too: good enough to add a
+torrent, never proof for a delete. A hash Theatarr does not know (no record row, active link or download not failed) is
+404. No confirmation: nothing is lost by it.
+
+The click queues job `torrents.copy` (dedupe per hash, one attempt; the automatic copy below has its own kind and key,
+so it never swallows a click) and the page asks `GET /torrents/copy/{hash}` every 3 s while it is queued or running.
+The job runs alone among restores and deletes (`opMu`) and, for every provider with a key in fallback order, makes one
+bounded attempt, all of it under the router's add lock (released between providers), so a route's add of the hash cannot
+land between the copy's look at the account and its add:
+
+1. A fresh list of the account. It fails: `failed` ("could not read the account"), nothing sent. The hash is there:
+   `present`, left alone; complete, it goes into the record at once (`provider.RecordImport`), so the file's tags show
+   it; still downloading, "still downloading (12%)"; failed there, "failed there", and no record row.
+2. Real-Debrid: the names the record and our downloads have for the hash against its name rule
+   (`indexer.RealDebridRefuses`): refused, `refused`, nothing sent.
+3. Pacing as a route's add (`router.ReserveAdd`); a provider paced, backed off or held is `skipped` with the time it
+   takes adds again (the copy waits at most 5 s, for `min_gap`). The journal row is written as `sending` first; then a
+   bare magnet (`adder.Restore`) with `OnlyIfCached` (TorBox refuses an uncached add itself, nothing made).
+4. The add is read back as a route's is (`router.ReadBackAdd`, the router's own read-back): through Real-Debrid's magnet
+   conversion, every playable file selected (`router.PlayableIDs`, never nfo, text or images) unless a selected video's
+   own name is one Real-Debrid refuses (`refused`), and one `router.cached_grace` before calling it not cached.
+   Complete: `added`, the record row as in 1, cached evidence (`provider_cache`, source `add:<key>`). Otherwise
+   `not_cached` (uncached evidence for `miss_ttl`), or `failed` ("Real-Debrid cannot serve this file type") when nothing
+   is playable.
+5. An add that ended anything but `added` is our own new entry and is deleted again on Real-Debrid and AllDebrid
+   (`adder.Deleter.DeleteOwnUncachedAdd`, by the `*adder.Added` the add returned; proof: the hash was not on the fresh
+   list, and on AllDebrid the returned id was not on it either). On AllDebrid too, whatever
+   `router.alldebrid_delete_uncached` says: an uncached add of our own is always deleted. A delete that fails: `failed`,
+   "not cached, and our add could not be removed from X: …; remove it on the Torrents page". No retry, no owed delete.
+6. Every outcome counts in the provider's pacing (`router.RecordAddOutcome`), an uncached add as one.
+
+Each provider's outcome is a row of the torrent journal (action `copy`, migration 00149), and the page shows one line
+under the button until it is left, one part per provider in the tags it already uses: "Added to TB · Not cached on
+RD"; "Already on AD" (", still downloading (12%)"; ", but failed there"); "RD refuses this release name"; "TB is busy
+until 14:32, try again then"; "Could not add to X: …". After "Added to X" the file's tags include X. Pause does not
+stop it: it is the person's own action, as a restore is. A route's guard treats an entry the copy sent as not its own
+(`router.RestoredSince` reads `restore` and `copy` rows).
+
+It only adds the torrent to the accounts: the library's link is not changed and it is not playback failover. A restart
+in the middle of a copy can leave one uncached torrent of ours on an account; accepted (rare), the Torrents page shows
+and deletes it. Tests: `TestCopyAddsWhereCached`, `TestCopyDeletesOwnUncachedAdd`, `TestCopyLeavesExistingEntries`,
+`TestCopySkipsPacedAndRefused`, `TestCopyRealDebridSelection`, `TestCopyKnownHashAndTargets`, `TestReportAddTo`,
+`web.TestTorrentCopyAPI`.
+
 ## Delete selected
 
 `POST /torrents/delete/preview`, then `POST /torrents/delete` with the preview's `confirmation_token` (a session

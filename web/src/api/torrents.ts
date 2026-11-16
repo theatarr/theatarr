@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, qs, type Schemas } from "./client";
 import { qk } from "./query-keys";
 import type { DeletePlan, DeleteSelection, RestorePlan } from "@/lib/torrents";
+import { COPY_POLL_MS, type CopyState } from "@/lib/add-to-providers";
 
 export type TorrentBackups = Schemas["TorrentBackupList"];
 export type TorrentJournal = { entries: Schemas["TorrentJournalEntry"][] };
@@ -58,3 +59,16 @@ export function useTorrentActions() {
   });
   return { refreshRecord, backupNow, importBackup, restorePreview, restore, deletePreview, del };
 }
+
+/** "Add to other providers": queue the copy of a file's torrent; the answer's since is the server's time of it. */
+export const useStartCopy = () =>
+  useMutation({ mutationFn: (hash: string) => api<{ job: number; since: string }>("/torrents/copy", { method: "POST", body: { hash } }) });
+
+/** A torrent's copy state, asked while enabled and again every COPY_POLL_MS while the copy runs. */
+export const useCopyState = (hash: string, enabled: boolean) =>
+  useQuery({
+    queryKey: qk.torrents.copy(hash),
+    queryFn: () => api<CopyState>(`/torrents/copy/${encodeURIComponent(hash)}`),
+    enabled,
+    refetchInterval: (q) => (q.state.data?.running ? COPY_POLL_MS : false),
+  });

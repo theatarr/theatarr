@@ -225,6 +225,13 @@ func (r *Router) readBack(ctx context.Context, pv *policy.Provider, pk string, a
 	if rp == nil {
 		return cvUnknown, nil, "no read-only client for " + pk
 	}
+	return readBack(ctx, rp, pv.Kind, a, r.set.CachedGrace, r.sleep, selectFiles)
+}
+
+// readBack is Router.readBack's reads of provider rp (of kind), with the grace and sleep given: ReadBackAdd's too.
+func readBack(ctx context.Context, rp provider.Provider, kind string, a *adder.Added, grace time.Duration,
+	sleep func(ctx context.Context, d time.Duration) error,
+	selectFiles func(t *provider.Torrent) (string, error)) (cacheVerdict, *provider.Torrent, string) {
 	graced, selected := false, false
 	var t *provider.Torrent
 	// limit: a selection sent at the last read gets one more read after its grace.
@@ -239,7 +246,7 @@ func (r *Router) readBack(ctx context.Context, pv *policy.Provider, pk string, a
 		switch {
 		case t.State == provider.StateDownloaded:
 			return cvCached, t, "status " + t.Status
-		case pv.Kind == provider.KindRealDebrid && t.Status == rdWaitingFiles && !selected:
+		case kind == provider.KindRealDebrid && t.Status == rdWaitingFiles && !selected:
 			why, err := selectFiles(t)
 			if nr := (*nameRefusedError)(nil); errors.As(err, &nr) {
 				return cvNameRefused, t, nr.Error()
@@ -254,26 +261,26 @@ func (r *Router) readBack(ctx context.Context, pv *policy.Provider, pk string, a
 				limit++ // selected on the last read (after a slow conversion): read the outcome once more
 			}
 			selected, graced = true, true
-			if err := r.sleep(ctx, r.set.CachedGrace); err != nil {
+			if err := sleep(ctx, grace); err != nil {
 				return cvUnknown, nil, err.Error()
 			}
 		case t.State == provider.StateDownloading || t.State == provider.StateQueued:
 			// Real-Debrid still converting (no selection sent): no verdict until the last read.
-			if pv.Kind == provider.KindRealDebrid && t.State == provider.StateQueued && !selected && graced {
+			if kind == provider.KindRealDebrid && t.State == provider.StateQueued && !selected && graced {
 				if last {
 					return cvUncached, t, "status " + t.Status + " (still converting) after " +
-						(time.Duration(i) * r.set.CachedGrace).String()
+						(time.Duration(i) * grace).String()
 				}
-				if err := r.sleep(ctx, r.set.CachedGrace); err != nil {
+				if err := sleep(ctx, grace); err != nil {
 					return cvUnknown, nil, err.Error()
 				}
 				continue
 			}
 			if graced {
-				return cvUncached, t, "status " + t.Status + " after " + r.set.CachedGrace.String()
+				return cvUncached, t, "status " + t.Status + " after " + grace.String()
 			}
 			graced = true
-			if err := r.sleep(ctx, r.set.CachedGrace); err != nil {
+			if err := sleep(ctx, grace); err != nil {
 				return cvUnknown, nil, err.Error()
 			}
 		default:

@@ -236,7 +236,8 @@ The database migrations run at start; nothing needs doing first. What an install
   plans and the RSS run log are dropped; `versions.<key>.mode` in a policy file is ignored.
 - **One download, several libraries, at the import** (migration 00139). "Add to other providers" (the button and
   `router.copy_to_providers`) is gone; torrents it added stay on the accounts as ordinary torrents, and its History
-  events stay. The offer retry is gone too: when a download is imported for one library, the title's other monitored
+  events stay. A smaller "Add to other providers" came back in 0.4.5.6: a button that adds a file's torrent where it
+  is cached, with no table or History events of its own ([torrents.md](design/torrents.md), "Add to other providers"). The offer retry is gone too: when a download is imported for one library, the title's other monitored
   libraries are tried once, in the same import, by their own rules ([router.md](design/router.md), "Other libraries at import");
   nothing is remembered or retried, and each library's own search or RSS covers the rest.
 - **One parser.** Every library uses the same release parser and pack rule. Picks can differ from before on installs

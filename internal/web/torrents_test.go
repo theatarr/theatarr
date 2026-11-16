@@ -233,3 +233,63 @@ func TestTorrentsDeleteAndRestoreWithKey(t *testing.T) {
 		}
 	}
 }
+
+// "Add to other providers": the title page names the keyed providers that do not hold the movie's torrent (add_to);
+// managers queue the copy of a hash Theatarr knows (404 otherwise), a plain user may not; the status says it is queued.
+func TestTorrentCopyAPI(t *testing.T) {
+	t.Parallel()
+	pol := &policy.Policy{Providers: map[string]*policy.Provider{
+		"rd": {Kind: provider.KindRealDebrid, Order: 1}, "tb": {Kind: provider.KindTorBox, Order: 2},
+		"ad": {Kind: provider.KindAllDebrid, Order: 3}}}
+	m := &torrents.Manager{Policy: pol, Providers: map[string]provider.Provider{"rd": &torrentProvider{},
+		"tb": &torrentProvider{}}, Log: slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Now: func() time.Time { return testNow }}
+	e := newEnvWith(t, func(c *Config) { c.Torrents = torrentSource{m} })
+	m.Store = e.st
+	e.exec(`INSERT INTO provider_torrent (provider, torrent_id, info_hash, name, state, progress)
+		VALUES ('tb', 't1', ?, 'Alpha', 'downloaded', 100)`, hashA)
+	key := e.apiKey()
+	var title struct {
+		Versions []struct {
+			Key      string   `json:"key"`
+			CachedOn []string `json:"cached_on"`
+			AddTo    []string `json:"add_to"`
+		} `json:"versions"`
+	}
+	if code := e.getKey(APIBase+"/titles/1", key, &title); code != 200 {
+		t.Fatalf("title: %d", code)
+	}
+	for _, v := range title.Versions {
+		// ad has no key (no read client): never a target.
+		if v.Key == "movie-remux" && (strings.Join(v.CachedOn, ",") != "tb" || strings.Join(v.AddTo, ",") != "rd") {
+			t.Errorf("movie-remux: cached_on %v add_to %v", v.CachedOn, v.AddTo)
+		}
+	}
+	mgr, _, err := e.auth.CreateKey(context.Background(), "copy-manager",
+		e.account("copy-manager", auth.RoleManager, auth.StatusActive, false))
+	if err != nil {
+		t.Fatal(err)
+	}
+	usr, _, err := e.auth.CreateKey(context.Background(), "copy-user",
+		e.account("copy-user", auth.RoleUser, auth.StatusActive, false))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if code, _ := e.postKeyJSON(APIBase+"/torrents/copy", usr, `{"hash":"`+hashA+`"}`); code != 403 {
+		t.Errorf("user: %d", code)
+	}
+	if code, _ := e.postKeyJSON(APIBase+"/torrents/copy", mgr, `{"hash":"`+strings.Repeat("9", 40)+`"}`); code != 404 {
+		t.Errorf("unknown hash: %d", code)
+	}
+	code, out := e.postKeyJSON(APIBase+"/torrents/copy", mgr, `{"hash":"`+hashA+`"}`)
+	if code != 202 || out["job"] == nil || out["since"] == nil {
+		t.Fatalf("copy: %d %v", code, out)
+	}
+	var st torrents.CopyState
+	if code := e.getKey(APIBase+"/torrents/copy/"+hashA, mgr, &st); code != 200 || !st.Running || len(st.Results) != 0 {
+		t.Fatalf("status: %d %+v", code, st)
+	}
+	if code := e.getKey(APIBase+"/torrents/copy/"+hashA, usr, nil); code != 403 {
+		t.Errorf("user status: %d", code)
+	}
+}

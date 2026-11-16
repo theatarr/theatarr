@@ -1,5 +1,5 @@
 // The Torrents page's codes in words: a torrent's normalised state (internal/provider State) and the torrents
-// journal's actions (internal/torrents: backup, delete, restore) and who ran them. The provider's own status word
+// journal's actions (internal/torrents: backup, delete, restore, copy) and who ran them. The provider's own status word
 // stays in the title.
 import { wordsFor } from "./code-words";
 
@@ -18,7 +18,7 @@ export function torrentStateWords(state: string | null | undefined, progress?: n
 }
 
 // The outcomes internal/torrents writes per action: backup ok/failed; delete deleted/failed/skipped; restore
-// added/uncached/incomplete/failed/skipped/sending.
+// added/uncached/incomplete/failed/skipped/sending; copy added/present/not_cached/refused/skipped/failed/sending.
 const ACTIONS: Record<string, Record<string, string>> = {
   backup: { ok: "Backed up", failed: "Backup failed" },
   delete: { deleted: "Deleted", failed: "Delete failed", skipped: "Not deleted" },
@@ -29,6 +29,16 @@ const ACTIONS: Record<string, Record<string, string>> = {
     failed: "Restore failed",
     skipped: "Not restored",
     sending: "Restoring",
+  },
+  // "Add to other providers" (copy.go): one row per provider tried.
+  copy: {
+    added: "Added",
+    present: "Already there",
+    not_cached: "Not cached",
+    refused: "Name refused",
+    skipped: "Not added",
+    failed: "Add failed",
+    sending: "Adding",
   },
 };
 

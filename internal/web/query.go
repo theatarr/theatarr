@@ -337,7 +337,10 @@ type Version struct {
 	Current   *CurrentFile `json:"current,omitempty"`
 	Providers []string     `json:"providers,omitempty"`
 	// CachedOn is Providers as cache codes (rd, ad, tb; cacheCodes), the codes list rows and releases carry.
-	CachedOn []string       `json:"cached_on,omitempty"`
+	CachedOn []string `json:"cached_on,omitempty"`
+	// AddTo is, for a movie's current file with a torrent hash, the cache codes of the providers with a key that do
+	// not hold it complete ("Add to other providers"; copyTargets).
+	AddTo    []string       `json:"add_to,omitempty"`
 	Episodes *EpisodeCounts `json:"episodes,omitempty"`
 	History  []HistoryEvent `json:"history,omitempty"`
 	// Upgrade explains the state against the cutoff; Control says what the title page's controls may do (manage.go).

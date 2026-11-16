@@ -33,6 +33,7 @@ export const qk = {
     report: ["torrents", "report"] as const,
     backups: ["torrents", "backups"] as const,
     journal: (limit: number) => ["torrents", "journal", limit] as const,
+    copy: (hash: string) => ["torrents", "copy", hash] as const,
   },
   nowPlaying: ["nowplaying"] as const,
   sources: ["sources"] as const,

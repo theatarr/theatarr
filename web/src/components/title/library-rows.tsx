@@ -14,6 +14,7 @@ import { usePerms, type TitleDetail, type Version } from "@/api/library";
 import { CopyDot, StageLink, useMinWidth } from "@/components/library/copy-bits";
 import { KV, Mono } from "@/components/page";
 import { ProviderPills } from "@/components/provider-pills";
+import { AddToProviders } from "@/components/title/add-to-providers";
 import { CopyActions, LeftoverLinks, RemoveDialog } from "@/components/title/copy-actions";
 import { InfoHash, TorrentLink } from "@/components/title/info-hash";
 import { InteractiveSearch } from "@/components/title/interactive-search";
@@ -209,6 +210,7 @@ function RowDetails({ v, kind, minimumShown, statusShown, onRemove }: { v: Versi
   return (
     <div className="space-y-3" data-testid={`library-row-details-${key}`}>
       <KV items={rows} />
+      {kind === "movie" && perms.manage && v.has_file ? <AddToProviders hash={c?.info_hash} addTo={v.add_to} /> : null}
       <ControlNote c={v.control} kind="both" globalSaid verdictSaid={!!v.control?.grab_state} />
       <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
         {listed && (v.state === "wanted" || !!v.episodes?.missing) ? <Link className="text-primary hover:underline" to={`/wanted?version=${encodeURIComponent(key)}${titleId ? `&title=${titleId}` : ""}`}>See in Wanted</Link> : null}

@@ -468,8 +468,8 @@ a converting Real-Debrid magnet the remaining reads, as its poller does not judg
   own uncached adds, and the once-per-route skip below bounds them. `uncached_adds_per_hour` stays unset on `ad` and
   `rd` (see "Pacing"): a reached cap would block cached adds too.
 - **uncached, not provably Theatarr's** (the guard found the hash, the AD list could not be read, the id was there before,
-  on AllDebrid or TorBox a torrent manager restore of the hash journaled since the guard's look less `addSettle`
-  (`RestoredSince`: a restore's row is written as `sending` before its add, from any process;
+  on AllDebrid or TorBox a torrent manager restore or "Add to other providers" of the hash journaled since the guard's
+  look less `addSettle` (`RestoredSince`: their row is written as `sending` before the add, from any process;
   `TestRestoreInFlightIsNeverOurAdd`)), or Theatarr's own with the delete blocked or failed (the delete is then owed:
   "Unfinished checks" below): nothing deleted now, `accepted/uncached_kept_shared` with the reason, logged at WARN;
   the download waits for it as before.

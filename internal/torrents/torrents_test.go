@@ -106,8 +106,10 @@ type fakeAdder struct {
 	selected  map[string][]string
 	deleted   int
 	deleteErr error
-	onAdd     func(id, hash string)
-	onDelete  func()
+	// ownDeleted are the ids of our own uncached adds deleted (copy_test.go).
+	ownDeleted []string
+	onAdd      func(id, hash string)
+	onDelete   func()
 }
 
 func (a *fakeAdder) Key() string        { return a.key }

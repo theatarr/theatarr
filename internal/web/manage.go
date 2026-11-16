@@ -17,6 +17,7 @@ import (
 	"github.com/theatarr/theatarr/internal/auth"
 	"github.com/theatarr/theatarr/internal/catalog"
 	"github.com/theatarr/theatarr/internal/decide"
+	"github.com/theatarr/theatarr/internal/indexer"
 	"github.com/theatarr/theatarr/internal/journal"
 	"github.com/theatarr/theatarr/internal/journal/snapshot"
 	"github.com/theatarr/theatarr/internal/library/probe"
@@ -818,6 +819,9 @@ type EpisodeFile struct {
 	CachedOn []string `json:"cached_on,omitempty"`
 	// InfoHash is the torrent the file's content came from, when known (callers who see files only, as the file).
 	InfoHash string `json:"info_hash,omitempty"`
+	// AddTo is the cache codes of the providers with a key that do not hold the torrent complete: "Add to other
+	// providers" shows when it is not empty (copyTargets).
+	AddTo []string `json:"add_to,omitempty"`
 }
 
 // EpisodeVersionDetail is one version of an episode.
@@ -1003,6 +1007,9 @@ func (w *Web) episodeFile(ctx context.Context, db *sql.DB, versionID, eid int64)
 		return nil, err
 	}
 	f.CachedOn = w.cacheCodes(held[f.InfoHash])
+	if indexer.NormalizeHash(f.InfoHash) != "" {
+		f.AddTo = w.copyTargets(ctx)(held[f.InfoHash])
+	}
 	if err := scanAll(ctx, db, `SELECT e.season, e.number FROM link_episode le JOIN episode e ON e.id = le.episode_id
 		WHERE le.link_id = ? ORDER BY e.season, e.number`, []any{linkID}, func(r *sql.Rows) error {
 		var s, n int64

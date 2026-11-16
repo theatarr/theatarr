@@ -14,6 +14,7 @@ import (
 	"github.com/theatarr/theatarr/internal/activity"
 	"github.com/theatarr/theatarr/internal/availability"
 	"github.com/theatarr/theatarr/internal/decide"
+	"github.com/theatarr/theatarr/internal/indexer"
 	"github.com/theatarr/theatarr/internal/journal/snapshot"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/store"
@@ -234,10 +235,14 @@ func (w *Web) enrichTitle(ctx context.Context, d *TitleDetail) error {
 		held = vf.held
 		var added int64
 		var current []*Version
+		targets := w.copyTargets(ctx)
 		for id, v := range byID {
 			v.Providers = provs[id]
 			v.CachedOn = w.cacheCodes(provs[id])
 			v.Current = currentOf(v, briefFiles(v.Label, aggs[id], nil))
+			if d.Kind == "movie" && v.Current != nil && indexer.NormalizeHash(v.Current.InfoHash) != "" {
+				v.AddTo = targets(provs[id])
+			}
 			if v.Current != nil && !v.Removed {
 				current = append(current, v)
 				if v.Current.AddedAt != nil {

@@ -72,6 +72,9 @@ type Torrent struct {
 	// the other torrents of its hash in the record that are complete (progress 100, not failed), rd, ad, tb first. Only what the
 	// record shows: not which copy the mount plays.
 	ServedBy []string `json:"served_by,omitempty"`
+	// AddTo is the cache codes of the providers with a key whose record does not hold the hash complete: "Add to other
+	// providers" shows when it is not empty (Manager.CopyTargets).
+	AddTo []string `json:"add_to,omitempty"`
 
 	titleKey string
 }
@@ -200,6 +203,7 @@ func (m *Manager) Report(ctx context.Context) (*Report, error) {
 		r.Providers = append(r.Providers, pr)
 	}
 	r.servedBy(m.cacheCode)
+	m.addTo(r)
 	r.group()
 	return r, nil
 }
@@ -210,6 +214,32 @@ func (m *Manager) cacheCode(key string) string {
 		return c
 	}
 	return key
+}
+
+// addTo sets AddTo on each torrent with a v1 hash: the codes of CopyTargets for the providers that hold its hash
+// complete (progress 100, not failed) in the record.
+func (m *Manager) addTo(r *Report) {
+	held := map[string][]string{}
+	for _, pr := range r.Providers {
+		for _, t := range pr.Torrents {
+			if t.Progress >= 100 && t.State != provider.StateError && !slices.Contains(held[t.Hash], pr.Provider) {
+				held[t.Hash] = append(held[t.Hash], pr.Provider)
+			}
+		}
+	}
+	for p := range r.Providers {
+		for i := range r.Providers[p].Torrents {
+			t := &r.Providers[p].Torrents[i]
+			if indexer.NormalizeHash(t.Hash) == "" {
+				continue
+			}
+			for _, k := range m.CopyTargets(held[t.Hash]) {
+				if c := m.cacheCode(k); !slices.Contains(t.AddTo, c) {
+					t.AddTo = append(t.AddTo, c)
+				}
+			}
+		}
+	}
 }
 
 // servedBy sets ServedBy on each failed torrent with library-link references: the codes (code) of the other

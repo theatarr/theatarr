@@ -20,6 +20,7 @@ import { settingHref } from "@/lib/settings-map";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { fmtAgo, fmtBytes, fmtNumber, fmtTime, plural } from "@/lib/format";
 import { TitleLinks, UsageBadge, UsageDetail } from "@/components/torrent-usage";
+import { AddToProviders } from "@/components/title/add-to-providers";
 import {
   GROUPS,
   deleteScope,
@@ -315,6 +316,9 @@ function TorrentRow({ t, checked, onToggle, code }: { t: Torrent; checked: boole
                 <ul className="mt-1 space-y-0.5">{(t.recorded_files ?? []).map((f) => <li key={f.path} className="[overflow-wrap:anywhere]">{f.path} · {fmtBytes(f.size)}</li>)}</ul>
               </details>
             ) : null}
+            <div className="mt-2 text-foreground">
+              <AddToProviders hash={t.hash} addTo={t.add_to} pack={t.files > 1} testid="torrent-add-to-providers" />
+            </div>
           </TableCell>
         </TableRow>
       ) : null}

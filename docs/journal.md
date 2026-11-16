@@ -239,7 +239,8 @@ A row keeps its source's journal id (`ref`: `dl:<id>`, `dl:<id>:fail`, `dl:<id>:
 `lib:<id>`, `bl:<rowid>`, `act:<id>`, `copy:<id>`) and is rewritten when the same event happens again (a download
 failing again, a release blocked again). Rows are a log: a requeued download keeps its failure row, an unblocked
 release its blocked row, a held import its held row; they are not pruned. The migration backfilled the rows once from
-the same sources (provider copies included; no new copy rows are written since "Add to other providers" was removed in 0.4.5);
+the same sources (provider copies included; no new copy rows are written since "Add to other providers" was removed in 0.4.5; the action that came back in
+0.4.5.6 writes the torrent journal, not History);
 `store.BackfillHistory` runs the migration's statements for the demo seed; a test holds the event writers and the
 backfill to the same rows (`internal/journal/history_compare_test.go`). Before the readers were cut over, the stored
 rows were compared with the old reader (which derived History from the sources at read time) row for row on a copy

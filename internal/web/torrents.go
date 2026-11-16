@@ -17,7 +17,7 @@ type TorrentsSource interface {
 	Manager(ctx context.Context) (*torrents.Manager, error)
 }
 
-// The torrent manager API (docs/design/torrents.md), admin only. Reports and backups read; a restore and a delete write
+// The torrent manager API (docs/design/torrents.md), admin only but for "Add to other providers" (manage). Reports and backups read; a restore and a delete write
 // to the providers and need the confirmation token of their preview: an HMAC (per-process key) of the caller's
 // confirmer and the plan digest, so it is bound to the exact set and to the session or API key that previewed. As
 // with settings, an admin's API key confirms like a session (docs/design/settings.md "Who confirms").
@@ -34,6 +34,9 @@ func (w *Web) mountTorrentsAPI(mux *http.ServeMux) {
 	w.handle(mux, "POST "+b+"/delete/preview", SignedIn, auth.PermAdmin, w.apiTorrentDeletePreview)
 	w.handle(mux, "POST "+b+"/delete", SignedIn, auth.PermAdmin, w.apiTorrentDelete)
 	w.handle(mux, "GET "+b+"/journal", SignedIn, auth.PermAdmin, w.apiTorrentJournal)
+	// "Add to other providers": whoever may manage titles (Remove, Replace file) on the title page.
+	w.handle(mux, "POST "+b+"/copy", SignedIn, auth.PermManage, w.apiTorrentCopy)
+	w.handle(mux, "GET "+b+"/copy/{hash}", SignedIn, auth.PermManage, w.apiTorrentCopyStatus)
 }
 
 func (w *Web) torrentManager(rw http.ResponseWriter, r *http.Request) *torrents.Manager {
@@ -293,6 +296,61 @@ func (w *Web) apiTorrentJournal(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(rw, http.StatusOK, map[string]any{"entries": list})
+}
+
+// POST /torrents/copy {hash}: queue "Add to other providers" for a torrent Theatarr knows (404 otherwise). It answers
+// the job and the server's time, from which GET /torrents/copy/{hash}'s results are this click's.
+func (w *Web) apiTorrentCopy(rw http.ResponseWriter, r *http.Request) {
+	m := w.torrentManager(rw, r)
+	if m == nil {
+		return
+	}
+	var body struct {
+		Hash string `json:"hash"`
+	}
+	if err := decodeJSON(r, &body); err != nil {
+		badRequest(rw, "invalid JSON: "+err.Error())
+		return
+	}
+	known, err := m.KnownHash(r.Context(), body.Hash)
+	if err != nil {
+		w.internal(rw, err)
+		return
+	}
+	if !known {
+		notFound(rw)
+		return
+	}
+	since := w.now()
+	id, err := torrents.EnqueueCopy(r.Context(), w.jobs, torrents.CopyPayload{Hash: body.Hash, By: actor(r)})
+	if err != nil {
+		w.internal(rw, err)
+		return
+	}
+	writeJSON(rw, http.StatusAccepted, map[string]any{"job": id, "since": since})
+}
+
+// GET /torrents/copy/{hash}: whether a copy of the torrent is queued or running, and each provider's newest outcome.
+func (w *Web) apiTorrentCopyStatus(rw http.ResponseWriter, r *http.Request) {
+	m := w.torrentManager(rw, r)
+	if m == nil {
+		return
+	}
+	known, err := m.KnownHash(r.Context(), r.PathValue("hash"))
+	if err != nil {
+		w.internal(rw, err)
+		return
+	}
+	if !known {
+		notFound(rw)
+		return
+	}
+	st, err := m.CopyStatus(r.Context(), r.PathValue("hash"))
+	if err != nil {
+		w.internal(rw, err)
+		return
+	}
+	writeJSON(rw, http.StatusOK, st)
 }
 
 // torrentError answers an error of the manager: a missing backup is 404, the rest of the caller's making 400.

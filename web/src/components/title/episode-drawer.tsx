@@ -26,6 +26,7 @@ import { InteractiveSearchButton } from "@/components/title/interactive-search";
 import { ReleaseGrid } from "@/components/title/release-grid";
 import { Summary } from "@/components/title/show-releases";
 import { ChangeEpisodes } from "@/components/title/change-episodes";
+import { AddToProviders } from "@/components/title/add-to-providers";
 import { ReportProblemButton } from "@/components/report/report-sheet";
 import { ProgressBar } from "@/components/activity-bits";
 import { EpisodeHistoryRows } from "@/components/activity/history-tab";
@@ -208,6 +209,11 @@ function DetailsPart({ titleId, eid, epCode, d, aired, manage, admin, single, ac
       {rows.length > 0 ? (
         <div className="rounded-[5px] border border-[var(--line)] p-3" data-testid="episode-file">
           <KV items={rows} />
+          {manage && d.file ? (
+            <div className="mt-3">
+              <AddToProviders hash={d.file.info_hash} addTo={d.file.add_to} pack="maybe" />
+            </div>
+          ) : null}
           {admin && d.file?.link_id ? (
             <div className="mt-3">
               <ChangeEpisodes titleId={titleId} linkId={d.file.link_id} path={d.file.path ?? ""} copy={d.label || nameOf(d.key)} held={d.file.episodes ?? []} />

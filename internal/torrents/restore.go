@@ -328,26 +328,9 @@ func (m *Manager) restoreAdd(ctx context.Context, it *RestoreItem, trackers []st
 		return nil, nil
 	}
 	if err != nil {
-		// A transport error means the provider is down, as the router classifies it (an outage blocks reuse there).
-		o := router.AddOutcome{Reason: "error", Down: ctx.Err() == nil}
-		var e *adder.Error
-		if errors.As(err, &e) {
-			o.Reason, o.RetryAt = string(e.Code), e.RetryAt
-			o.Down = router.ProviderDown(e)
-			switch e.Code {
-			case adder.CodeNotCached:
-				o = router.AddOutcome{OK: true, Uncached: true}
-			case adder.CodeBlocked, adder.CodeInvalid:
-				o = router.AddOutcome{OK: true}
-			case adder.CodeTrafficExceeded, adder.CodeAuth:
-				o.ToMax = true
-				stopped[it.Target] = err.Error()
-			case adder.CodeAccountHold:
-				// A 451 fails this torrent; a hold it starts (451s on different hashes) paces the next restore.
-				o.Hold, o.Hash = true, it.Hash
-			case adder.CodeTooManyActive, adder.CodeRateLimited:
-				stopped[it.Target] = err.Error()
-			}
+		o, stop := failedAddOutcome(ctx, err, it.Hash)
+		if stop {
+			stopped[it.Target] = err.Error()
 		}
 		_ = router.RecordAddOutcome(ctx, m.Store, it.Target, pv.EffectivePacing(), m.now(), o)
 		it.Outcome, it.Error = OutFailed, err.Error()
@@ -387,6 +370,33 @@ func (m *Manager) restoreAdd(ctx context.Context, it *RestoreItem, trackers []st
 		}
 	}
 	return nil, nil
+}
+
+// failedAddOutcome is how a refused or failed add counts in the provider's pacing (router.RecordAddOutcome), and
+// whether the provider takes no more adds for now (stop). A transport error means the provider is down, as the router
+// classifies it (an outage blocks reuse there).
+func failedAddOutcome(ctx context.Context, err error, hash string) (o router.AddOutcome, stop bool) {
+	o = router.AddOutcome{Reason: "error", Down: ctx.Err() == nil}
+	var e *adder.Error
+	if !errors.As(err, &e) {
+		return o, false
+	}
+	o.Reason, o.RetryAt = string(e.Code), e.RetryAt
+	o.Down = router.ProviderDown(e)
+	switch e.Code {
+	case adder.CodeNotCached:
+		o = router.AddOutcome{OK: true, Uncached: true}
+	case adder.CodeBlocked, adder.CodeInvalid:
+		o = router.AddOutcome{OK: true}
+	case adder.CodeTrafficExceeded, adder.CodeAuth:
+		o.ToMax, stop = true, true
+	case adder.CodeAccountHold:
+		// A 451 fails this torrent; a hold it starts (451s on different hashes) paces the next add.
+		o.Hold, o.Hash = true, hash
+	case adder.CodeTooManyActive, adder.CodeRateLimited:
+		stop = true
+	}
+	return o, stop
 }
 
 // OutSending is a restore journal row's outcome while its add is sent: the router reads it (router.RestoredSince).
