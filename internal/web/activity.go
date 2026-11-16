@@ -532,13 +532,20 @@ func (w *Web) downloadViews(ctx context.Context, ds []activity.Download, admin b
 		return nil, err
 	}
 	var evidence map[int64]*downloadEvidence
-	var blocked map[int64]string
+	var extras map[int64]failureFacts
 	if admin {
 		evidence, err = w.activityEvidence(ctx, ds)
 		if err != nil {
 			return nil, err
 		}
-		if blocked, err = blockedReasons(ctx, w.st.Reader(), downloadIDs(ds)); err != nil {
+		// What the reason of a failed or refused download rests on (failureWords), for those only.
+		var failed []int64
+		for i := range ds {
+			if d := &ds[i]; (d.State == "failed" && d.NotStarted() == "") || d.ImportState == "rejected" || d.ImportState == "failed" {
+				failed = append(failed, d.ID)
+			}
+		}
+		if extras, err = failureExtras(ctx, w.st.Reader(), failed); err != nil {
 			return nil, err
 		}
 	}
@@ -610,12 +617,13 @@ func (w *Web) downloadViews(ctx context.Context, ds []activity.Download, admin b
 				x.Error = activityMessage(d.ImportErr)
 			}
 			if failed := d.State == "failed" && notStarted == ""; failed || d.ImportState == "rejected" || d.ImportState == "failed" {
-				f := failureFacts{ImportState: d.ImportState, ImportErr: d.ImportErr, Blocked: blocked[d.ID], Provider: d.Provider}
+				f := extras[d.ID]
+				f.ImportState, f.ImportErr, f.Provider = d.ImportState, d.ImportErr, d.Provider
 				if failed {
 					f.Err = d.Error
 				}
 				if e := evidence[d.ID]; e != nil {
-					f.MissedOn = attemptMisses(e.attempts, w.providerCode)
+					f.MissedOn = w.attemptMisses(e.attempts)
 				}
 				h, dt := failureWords(f, w.providerTag)
 				x.Reason, x.ReasonDetail = activityMessage(h), activityMessage(dt)
@@ -627,35 +635,6 @@ func (w *Web) downloadViews(ctx context.Context, ds []activity.Download, admin b
 		out = append(out, x)
 	}
 	return out, nil
-}
-
-// downloadIDs are the downloads' ids.
-func downloadIDs(ds []activity.Download) []int64 {
-	out := make([]int64, 0, len(ds))
-	for _, d := range ds {
-		out = append(out, d.ID)
-	}
-	return out
-}
-
-// blockedReasons reads the blocklist row's reason of each download that has one, by download id.
-func blockedReasons(ctx context.Context, db *sql.DB, ids []int64) (map[int64]string, error) {
-	out := map[int64]string{}
-	if len(ids) == 0 {
-		return out, nil
-	}
-	b, _ := json.Marshal(ids)
-	err := scanAll(ctx, db, `SELECT download_id, reason FROM router_blocklist
-		WHERE download_id IN (SELECT value FROM json_each(?))`, []any{string(b)}, func(r *sql.Rows) error {
-		var id int64
-		var reason string
-		if err := r.Scan(&id, &reason); err != nil {
-			return err
-		}
-		out[id] = reason
-		return nil
-	})
-	return out, err
 }
 
 // waitTimes are when a waiting download began its wait and when Theatarr next retries it, each nil when not known.
@@ -729,6 +708,19 @@ func (w *Web) historyEvents(ctx context.Context, hs []*journal.HistoryRow, admin
 	if err != nil {
 		return nil, err
 	}
+	// A Failed row's reason rests on its download's import and blocklist facts, as the queue's (failureWords).
+	var extras map[int64]failureFacts
+	if admin {
+		var ids []int64
+		for _, h := range hs {
+			if id := failedDownloadID(h); id > 0 {
+				ids = append(ids, id)
+			}
+		}
+		if extras, err = failureExtras(ctx, w.st.Reader(), ids); err != nil {
+			return nil, err
+		}
+	}
 	out := []ActivityEvent{}
 	for _, h := range hs {
 		t := activityTitle(h.Title.ID, h.Title.Name, h.Title.Year, h.Title.Kind, h.Anime, posters)
@@ -743,6 +735,9 @@ func (w *Web) historyEvents(ctx context.Context, hs []*journal.HistoryRow, admin
 		if admin {
 			x.Files, x.Provider = h.Files, h.Provider
 			x.Reason = historyReason(h, notStarted, w.providerTag)
+			if r := w.historyFailure(h, extras); r != "" && notStarted == "" {
+				x.Reason = r // failureWords' headline (m-reasons), as the queue says it
+			}
 			if notStarted != "" {
 				x.Summary = activity.NotStartedMessage(notStarted)
 			}
@@ -763,6 +758,37 @@ func (w *Web) historyEvents(ctx context.Context, hs []*journal.HistoryRow, admin
 		out = append(out, x)
 	}
 	return out, nil
+}
+
+// heldPrefix starts a held import's History reason (journal history.go).
+const heldPrefix = "Import held for review: "
+
+// failedDownloadID is the download of a Failed History row (dl:<id>:fail, dl:<id>:held), 0 for any other row.
+func failedDownloadID(h *journal.HistoryRow) int64 {
+	if h.Event != journal.EvFailed {
+		return 0
+	}
+	rest, ok := strings.CutPrefix(h.ID, "dl:")
+	if !ok {
+		return 0
+	}
+	id, _ := strconv.ParseInt(strings.SplitN(rest, ":", 2)[0], 10, 64)
+	return id
+}
+
+// historyFailure is a Failed row's reason (failureWords' headline) from its stored text and its download's facts
+// (failureExtras); a held import's row reads as the queue's held row.
+func (w *Web) historyFailure(h *journal.HistoryRow, extras map[int64]failureFacts) string {
+	if h.Event != journal.EvFailed || h.Reason == "" {
+		return ""
+	}
+	f := extras[failedDownloadID(h)]
+	f.Err, f.Provider, f.MissedOn = h.Reason, h.Provider, w.attemptMisses(h.Attempts)
+	if held, ok := strings.CutPrefix(h.Reason, heldPrefix); ok {
+		f.Err, f.ImportState, f.ImportErr = "", "rejected", held
+	}
+	r, _ := failureWords(f, w.providerTag)
+	return r
 }
 
 // historyNotStarted is the not-started reason of a failed download's row (as activity.Download.NotStarted: a gate
@@ -838,10 +864,7 @@ func historyReason(h *journal.HistoryRow, notStarted string, tag func(string) st
 		if notStarted != "" || h.Reason == "" {
 			return ""
 		}
-		// failureWords' headline (m-reasons), with the providers the attempts found it not cached on.
-		r, _ := failureWords(failureFacts{Err: h.Reason, Provider: h.Provider,
-			MissedOn: attemptMisses(h.Attempts, tag)}, tag)
-		return r
+		return strings.ToUpper(h.Reason[:1]) + h.Reason[1:]
 	case journal.EvBlocked:
 		if h.Reason == "" {
 			return blockWords(h.Source)

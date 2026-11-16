@@ -195,11 +195,12 @@ A failed or refused download says why in one wording everywhere: the queue row a
 "Last upgrade attempt <date>: <headline in lower case>" line and its attempt **Details**, System › Status, the
 Blocklist's second line and History's Failed rows. One server function (`failureWords`, `internal/web/grabbed.go`)
 turns what is stored (the download's error, the library import's state and reason, the blocklist row's reason, the
-providers the download's own attempts found it not cached on) into a headline and, when it is stored, a detail:
+first file refusal the import's plan saved, the providers the download's own attempts found it not cached on) into a headline and, when it is stored, a detail:
 
 | Stored | Headline | Detail |
 |---|---|---|
 | not an upgrade (`not an upgrade for the existing files`, or an upgrade-check rejection inside the old `no file passed the sample guard (…)`) | Not imported: these files do not improve on the files you have | "This release scores 1,202, yours 6,200. Nothing was replaced." (scores or qualities when stored) |
+| a coverage refusal ("Episode file on disk contains more episodes …": replacing would lose episodes) | Not imported: the files you have cover more episodes | Nothing was replaced. |
 | a sample or short runtime | Not imported: the file is a sample or too short | the measure: "The file runs 4 min, under the 10 min minimum." |
 | `mislabelled …`, a resolution that contradicts the label | Not imported: the video does not match its quality label | "Labelled 2160p, but the video is 1920x1080." |
 | runtime of 0 | Not imported: not a valid video file | |

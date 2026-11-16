@@ -1208,22 +1208,38 @@ func TestActivityRefusedReason(t *testing.T) {
 	if !found {
 		t.Errorf("title page has no failed event: %+v", td.Versions)
 	}
-	hs, err := e.web.historyEvents(context.Background(), []*journal.HistoryRow{{Kind: journal.KindFailure,
-		Event: journal.EvFailed, Title: journal.TitleRef{ID: 1}, Provider: "rd", Reason: "miss on every provider",
-		Attempts: []journal.Attempt{{Provider: "rd", Code: "miss"}, {Provider: "tb", Code: "uncached_deleted"}}}}, true)
-	if err != nil || len(hs) != 1 || hs[0].Reason != "Not cached on RD and TB" {
-		t.Errorf("history: %+v, %v", hs, err)
+	// History's Failed row reads the same: its stored error with the import's and the blocklist's facts.
+	store.HistoryFailure(context.Background(), e.st.Writer(), 1)
+	failedRow := func(id string) *ActivityEvent {
+		var h ActivityPage
+		e.getKey(APIBase+"/activity?state=history&title_id=1", key, &h)
+		for i := range h.History {
+			if h.History[i].ID == id {
+				return &h.History[i]
+			}
+		}
+		t.Fatalf("history lacks %s: %+v", id, h.History)
+		return nil
+	}
+	if r := failedRow("dl:1:fail"); r.Reason != head {
+		t.Errorf("history failed row %q", r.Reason)
 	}
 	// Held for review (in hand): a household account sees the row, without reason or stored text.
 	e.exec(`UPDATE download SET state = 'ready', error = NULL WHERE id = 1`)
-	e.exec(`UPDATE library_import SET last_error = 'not an upgrade for the existing files' WHERE download_id = 1`)
+	e.exec(`DELETE FROM router_blocklist`)
+	e.exec(`UPDATE library_import SET last_error = 'not an upgrade for the existing files', plan = ? WHERE download_id = 1`,
+		`{"rejected":[{"rel":"a.mkv","reason":"`+cf+`","not_upgrade":true}]}`)
+	store.HistoryHeld(context.Background(), e.st.Writer(), 1)
+	if r := failedRow("dl:1:held"); r.Reason != head {
+		t.Errorf("history held row %q", r.Reason)
+	}
 	var u ActivityPage
 	e.getKey(APIBase+"/activity?state=now&as=user", key, &u)
 	if len(u.Now) != 1 || u.Now[0].Reason != "" || u.Now[0].ReasonDetail != "" || u.Now[0].Error != "" {
 		t.Errorf("user view %+v", u.Now)
 	}
 	e.getKey(APIBase+"/activity?state=now", key, &p)
-	if len(p.Now) != 1 || p.Now[0].Reason != head || p.Now[0].ReasonDetail != "Nothing was replaced." {
+	if len(p.Now) != 1 || p.Now[0].Reason != head || p.Now[0].ReasonDetail != detail {
 		t.Errorf("held %+v", p.Now)
 	}
 }

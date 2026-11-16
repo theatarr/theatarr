@@ -132,7 +132,7 @@ func downloadEvents(out []HistoryEvent, h HistoryEvent, state string, created, d
 		if r := activity.NotStarted(errText); notStarted && r != "" {
 			h.Event, h.Date, h.Reason = "not_started", ts(done), activity.NotStartedHistory(r)
 		} else {
-			h.Event, h.Date, h.Reason, h.MissedOn, h.Upgrade = "failed", ts(done), shortReason(errText, h.Provider), missed, upgrade
+			h.Event, h.Date, h.Reason, h.MissedOn, h.Upgrade = "failed", ts(done), failureHeadline(errText, h.Provider, missed), missed, upgrade
 		}
 		out = append(out, h)
 	}
@@ -340,21 +340,24 @@ func (w *Web) versionHistory(ctx context.Context, db *sql.DB, titleID int64, kin
 		CASE WHEN state = 'failed' AND COALESCE(error, '') GLOB 'miss on every provider*' THEN (SELECT json_group_array(DISTINCT a.provider) FROM download_attempt a
 			WHERE a.download_id = download.id AND a.code IN (`+missCodes+`)) END,
 		CASE WHEN state = 'failed' THEN (SELECT b.reason FROM router_blocklist b WHERE b.download_id = download.id
-			ORDER BY b.created_at DESC LIMIT 1) END
+			ORDER BY b.created_at DESC LIMIT 1) END,
+		CASE WHEN state = 'failed' THEN (SELECT json_extract(j.value, '$.reason') FROM library_import li,
+			json_each(CASE WHEN json_valid(li.plan) THEN li.plan ELSE '{}' END, '$.rejected') j
+			WHERE li.download_id = download.id LIMIT 1) END
 		FROM download WHERE title_id = ? ORDER BY created_at, id`,
 		[]any{titleID}, func(r *sql.Rows) error {
 			var dlID, vid, created, done, score int64
 			var state, source, errText string
 			var notStarted bool
-			var missed, blocked sql.NullString
+			var missed, blocked, refusal sql.NullString
 			var upgrade bool
 			var h HistoryEvent
 			if err := r.Scan(&dlID, &vid, &state, &created, &done, &h.ReleaseTitle, &h.InfoHash, &h.Source, &h.Quality,
-				&score, &source, &errText, &notStarted, &upgrade, &missed, &blocked); err != nil {
+				&score, &source, &errText, &notStarted, &upgrade, &missed, &blocked, &refusal); err != nil {
 				return err
 			}
-			// The library's refusal is read from its blocklist row, which names the file's rejection (failureWords).
-			errText = storedFailure(failureFacts{Err: errText, Blocked: blocked.String})
+			// The library's refusal is read from its blocklist row, or the file refusal its plan saved (failureWords).
+			errText = storedFailure(failureFacts{Err: errText, Blocked: blocked.String, Refusal: refusal.String})
 			if missed.Valid {
 				var provs []string
 				_ = json.Unmarshal([]byte(missed.String), &provs)

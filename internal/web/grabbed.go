@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"slices"
@@ -41,17 +42,52 @@ const maxReason = 120
 // shortReason is a download's failure in plain words (failureWords' headline) from its stored error alone, with the
 // provider named by its key in upper case: "miss on every provider" reads "No provider accepted this release".
 func shortReason(err, provider string) string {
-	h, _ := failureWords(failureFacts{Err: err, Provider: provider}, strings.ToUpper)
+	return failureHeadline(err, provider, nil)
+}
+
+// failureHeadline is shortReason with the cache codes of the providers the download's attempts found it not cached
+// on: "Not cached on RD, AD and TB".
+func failureHeadline(err, provider string, missed []string) string {
+	h, _ := failureWords(failureFacts{Err: err, Provider: provider, MissedOn: missed}, strings.ToUpper)
 	return h
 }
 
 // failureFacts is what is stored about a download that failed or that the library refused: the download's error, its
-// library import's state and reason, the blocklist row's reason, its provider (a key) and the cache codes (rd, ad,
-// tb) of the providers its own attempts found it not cached on (missCodes).
+// library import's state and reason, the blocklist row's reason, the first file refusal the import's plan saved
+// (Refusal), its provider (a key) and the cache codes (rd, ad, tb) of the providers its own attempts found it not
+// cached on (missCodes).
 type failureFacts struct {
-	Err, ImportState, ImportErr, Blocked string
-	Provider                             string
-	MissedOn                             []string
+	Err, ImportState, ImportErr, Blocked, Refusal string
+	Provider                                      string
+	MissedOn                                      []string
+}
+
+// failureExtrasSQL selects, for the download ids in its one argument (a JSON array), what failureFacts needs beyond
+// the download's own error: its import's state and reason, its blocklist row's reason and the first file refusal its
+// import's plan saved (library.Plan.Rejected).
+const failureExtrasSQL = `SELECT d.id, COALESCE(li.state, ''), COALESCE(li.last_error, ''),
+	COALESCE((SELECT b.reason FROM router_blocklist b WHERE b.download_id = d.id ORDER BY b.created_at DESC LIMIT 1), ''),
+	COALESCE((SELECT json_extract(j.value, '$.reason') FROM json_each(CASE WHEN json_valid(li.plan) THEN li.plan
+		ELSE '{}' END, '$.rejected') j LIMIT 1), '')
+	FROM download d LEFT JOIN library_import li ON li.download_id = d.id WHERE d.id IN (SELECT value FROM json_each(?))`
+
+// failureExtras reads failureExtrasSQL for the downloads ids, by id; Err and the provider are the caller's.
+func failureExtras(ctx context.Context, db *sql.DB, ids []int64) (map[int64]failureFacts, error) {
+	out := map[int64]failureFacts{}
+	if len(ids) == 0 {
+		return out, nil
+	}
+	b, _ := json.Marshal(ids)
+	err := scanAll(ctx, db, failureExtrasSQL, []any{string(b)}, func(r *sql.Rows) error {
+		var id int64
+		var f failureFacts
+		if err := r.Scan(&id, &f.ImportState, &f.ImportErr, &f.Blocked, &f.Refusal); err != nil {
+			return err
+		}
+		out[id] = f
+		return nil
+	})
+	return out, err
 }
 
 // storedFailure is the fullest stored text of a failure: the download's error, the library import's reason when the
@@ -73,12 +109,20 @@ func storedFailure(f failureFacts) string {
 			s = strings.TrimSuffix(s, inner) + b
 		}
 	}
+	// A refusal that names no file's rejection: the one the import's plan saved says which.
+	if r := strings.TrimSpace(f.Refusal); r != "" {
+		if inner := strings.TrimPrefix(s, "library: "); inner == sampleGuardWords || inner == notUpgradeReason {
+			s += " (" + r + ")"
+		}
+	}
 	return s
 }
 
 // The headlines failureWords gives the library's refusals; a retry of the same release ends the same way.
 const (
 	notUpgradeWords  = "Not imported: these files do not improve on the files you have"
+	coverWords       = "Not imported: the files you have cover more episodes"
+	notUpgradeReason = "not an upgrade for the existing files"
 	sampleWords      = "Not imported: the file is a sample or too short"
 	mislabelWords    = "Not imported: the video does not match its quality label"
 	invalidWords     = "Not imported: not a valid video file"
@@ -161,8 +205,12 @@ func importWords(s string) (headline, detail string, ok bool) {
 			return h, d, true
 		}
 		return notCheckedWords, "", true
-	case "not an upgrade for the existing files":
-		return notUpgradeWords, notUpgradeDetail(inner), true
+	case notUpgradeReason:
+		// The file's refusal says whether it was not better or would lose episodes the files you have hold.
+		if h, d, ok := fileWords(inner); ok {
+			return h, d, true
+		}
+		return notUpgradeWords, nothingReplaced, true
 	case "no file matched the download's episodes":
 		return noMatchWords, "", true
 	}
@@ -175,8 +223,11 @@ func fileWords(r string) (headline, detail string, ok bool) {
 	case r == "":
 		return "", "", false
 	case strings.HasPrefix(r, "Not a Custom Format upgrade"), strings.HasPrefix(r, "Not an upgrade for existing file"),
-		strings.HasPrefix(r, "Not a quality revision upgrade"), strings.HasPrefix(r, "Episode file on disk contains more episodes"):
+		strings.HasPrefix(r, "Not a quality revision upgrade"):
 		return notUpgradeWords, notUpgradeDetail(r), true
+	case strings.HasPrefix(r, "Episode file on disk contains more episodes"):
+		// Sonarr's SameEpisodesImportSpecification: replacing it would lose episodes.
+		return coverWords, nothingReplaced, true
 	case strings.HasPrefix(r, "runtime of 0"):
 		return invalidWords, "", true
 	case strings.HasPrefix(r, "mislabelled "):
@@ -243,26 +294,18 @@ func providerList(codes []string) string {
 }
 
 // attemptMisses are the cache codes (rd, ad, tb; missCodes) of the providers a download's attempts found it not
-// cached on, in the order the title page lists them; code gives a provider key's cache code.
-func attemptMisses(as []journal.Attempt, code func(string) string) []string {
-	var out []string
+// cached on, as the title page lists them (cacheCodes).
+func (w *Web) attemptMisses(as []journal.Attempt) []string {
+	var keys []string
 	for _, a := range as {
 		switch a.Code {
 		case "miss", "known_uncached", "uncached_deleted", "uncached_kept":
-			if c := strings.ToLower(code(a.Provider)); c != "" && !slices.Contains(out, c) {
-				out = append(out, c)
+			if a.Provider != "" && !slices.Contains(keys, a.Provider) {
+				keys = append(keys, a.Provider)
 			}
 		}
 	}
-	order := map[string]int{"rd": 0, "ad": 1, "tb": 2}
-	rank := func(c string) int {
-		if r, ok := order[c]; ok {
-			return r
-		}
-		return len(order)
-	}
-	slices.SortStableFunc(out, func(a, b string) int { return rank(a) - rank(b) })
-	return out
+	return w.cacheCodes(keys)
 }
 
 // durationWords is a stored duration in words: "6 hours", "2 days", "90 minutes".

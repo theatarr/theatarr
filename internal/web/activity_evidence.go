@@ -136,10 +136,8 @@ func (w *Web) apiActivityAttempts(rw http.ResponseWriter, r *http.Request) {
 	var f failureFacts
 	var state string
 	err = w.st.Reader().QueryRowContext(r.Context(), `SELECT d.state, COALESCE(d.error, ''), COALESCE(d.provider, ''),
-		COALESCE(li.state, ''), COALESCE(li.last_error, ''), COALESCE((SELECT b.reason FROM router_blocklist b
-		WHERE b.download_id = d.id ORDER BY b.created_at DESC LIMIT 1), '')
-		FROM download d LEFT JOIN library_import li ON li.download_id = d.id WHERE d.id = ?`, id).
-		Scan(&state, &f.Err, &f.Provider, &f.ImportState, &f.ImportErr, &f.Blocked)
+		COALESCE(li.state, '') FROM download d LEFT JOIN library_import li ON li.download_id = d.id WHERE d.id = ?`, id).
+		Scan(&state, &f.Err, &f.Provider, &f.ImportState)
 	if errors.Is(err, sql.ErrNoRows) {
 		notFound(rw)
 		return
@@ -172,7 +170,14 @@ func (w *Web) apiActivityAttempts(rw http.ResponseWriter, r *http.Request) {
 		if !failed {
 			f.Err = ""
 		}
-		f.MissedOn = attemptMisses(out.Attempts, w.providerCode)
+		ex, err := failureExtras(r.Context(), w.st.Reader(), []int64{id})
+		if err != nil {
+			w.internal(rw, err)
+			return
+		}
+		e := ex[id]
+		f.ImportErr, f.Blocked, f.Refusal = e.ImportErr, e.Blocked, e.Refusal
+		f.MissedOn = w.attemptMisses(out.Attempts)
 		h, d := failureWords(f, w.providerTag)
 		out.Reason, out.ReasonDetail, out.Error = activityMessage(h), activityMessage(d), activityMessage(storedFailure(f))
 	}

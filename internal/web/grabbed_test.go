@@ -65,6 +65,18 @@ func TestFailureWords(t *testing.T) {
 		{"held, quality", failureFacts{ImportState: "rejected", ImportErr: "not an upgrade for the existing files (" +
 			"Not an upgrade for existing file(s). Existing quality: Bluray-1080p. New Quality WEBDL-1080p.)"},
 			notUpgradeWords, "This release is WEBDL-1080p, yours Bluray-1080p. Nothing was replaced."},
+		// A coverage refusal is not a worse file: it says why nothing was replaced.
+		{"wrapper, coverage", failureFacts{Err: "library: no file passed the sample guard",
+			Blocked: "no file passed the sample guard (Episode file on disk contains more episodes than this file contains: /lib/S01E01-E02.mkv)"},
+			coverWords, "Nothing was replaced."},
+		{"held, coverage (the saved file refusal)", failureFacts{ImportState: "rejected", ImportErr: "not an upgrade for the existing files",
+			Refusal: "Episode file on disk contains more episodes than this file contains: /lib/S01E01-E02.mkv"},
+			coverWords, "Nothing was replaced."},
+		{"held, scores (the saved file refusal)", failureFacts{ImportState: "rejected", ImportErr: "not an upgrade for the existing files",
+			Refusal: cf}, notUpgradeWords, "This release scores 1,202, yours 6,200. Nothing was replaced."},
+		{"failed wrapper, sample (the saved file refusal)", failureFacts{Err: "library: no file passed the sample guard",
+			ImportState: "rejected", ImportErr: "no file passed the sample guard", Refusal: "sample: runtime 240s is under 600s"},
+			sampleWords, "The file runs 4 min, under the 10 min minimum."},
 		{"held, no match", failureFacts{ImportState: "rejected", ImportErr: "no file matched the download's episodes"},
 			noMatchWords, ""},
 		{"held, other", failureFacts{ImportState: "rejected", ImportErr: "naming collision: two titles name S01E01 alike"},
@@ -665,5 +677,15 @@ func TestEpisodePendingManualChoice(t *testing.T) {
 	}
 	if o := r.Outcomes[hu]; o.Outcome != "current" {
 		t.Errorf("E01's file: %+v", o)
+	}
+}
+
+// TestTitlePageMissReason: the title page's failed event already says which providers did not have the release.
+func TestTitlePageMissReason(t *testing.T) {
+	t.Parallel()
+	evs := downloadEvents(nil, HistoryEvent{Source: "rd", MissedOn: []string{"rd", "tb"}}, "failed", 0, 0, "wanted",
+		"miss on every provider", false, nil)
+	if last := evs[len(evs)-1]; last.Event != "failed" || last.Reason != "Not cached on RD and TB" {
+		t.Errorf("title page failure %+v", last)
 	}
 }
