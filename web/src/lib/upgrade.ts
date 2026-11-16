@@ -89,26 +89,35 @@ export function releaseOutcome(history: readonly HistoryEvent[], release: string
   return top;
 }
 
+/** The decision engine's stored upgrade reason in plain words and readable numbers: "better format score: 6200 over
+ *  4500" → "better format score, 6,200 over 4,500"; "fills 1 episode(s) with no file" → "fills 1 episode with no file". */
+export function reasonWords(r: string): string {
+  return r
+    .replace(/:\s*/, ", ")
+    .replace(/\b\d{4,}\b/g, (n) => fmtNumber(Number(n)))
+    .replace(/\b(\d+) (\w+)\(s\)/g, (_, n: string, w: string) => `${n} ${n === "1" ? w : `${w}s`}`);
+}
+
 /**
- * The better release seen and what came of it, or that none was seen: "Better release found 4 d ago:
- * <release> (WEBDL-2160p, score 6,200; yours 4,500). Not downloaded yet."; when the library's history (given) has a
- * failed download of it: "Better release found Nov 12: … Tried Nov 12: not cached on RD, AD and TB. Your file is
- * unchanged." (the failure as the history row says it, failureWords); without the history nothing is said about
- * downloading. "No better release seen yet (last search 2 d ago)." otherwise.
+ * The better release seen, why it is better (the reason stored with the search that saw it, about the file it was
+ * judged against) and what came of it, or that none was seen: "Better release found 4 d ago: <release> (WEBDL-2160p,
+ * score 6,200): better format score, 6,200 over 4,500."; when the library's history (given) has a failed download of
+ * it, "… Tried Nov 12: not cached on RD, AD and TB. Your file is unchanged." (the failure as the history row says it,
+ * failureWords). The history on the page is capped, so a missing attempt is not read as "not downloaded".
+ * "No better release seen yet (last search 2 d ago)." otherwise.
  */
 export function nextLine(u: UpgradeInfo | undefined | null, now: Date = new Date(), history?: readonly HistoryEvent[] | null): string {
   if (!u || (u.state !== "below_cutoff" && u.state !== "upgrade_available")) return "";
   const n = u.next;
   if (n) {
     const facts = [n.quality, `score ${fmtNumber(n.score)}`].filter(Boolean).join(", ");
-    const yours = u.score !== undefined && u.score !== null ? `; yours ${fmtNumber(u.score)}` : "";
-    const what = `${n.release} (${facts}${yours})`;
+    const what = `${n.release} (${facts})${n.reason ? `: ${reasonWords(n.reason)}` : ""}`;
     const last = history ? releaseOutcome(history, n.release) : undefined;
     if (last?.event === "failed") {
       const why = failureWords(last);
       return `Better release found ${dayWords(n.seen_at, now)}: ${what}. Tried ${dayWords(last.date, now)}${why ? `: ${why}` : ""}. Your file is unchanged.`;
     }
-    return `Better release found ${fmtAgo(n.seen_at, now)}: ${what}.${history && !last ? " Not downloaded yet." : ""}`;
+    return `Better release found ${fmtAgo(n.seen_at, now)}: ${what}.`;
   }
   if (u.seen && u.seen > 0) return `A better release was seen for ${fmtNumber(u.seen)} of ${fmtNumber(u.below)} episodes.`;
   const last = u.last_search ? ` (last search ${fmtAgo(u.last_search, now)})` : "";

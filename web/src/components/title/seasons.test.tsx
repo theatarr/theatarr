@@ -502,6 +502,23 @@ describe("One status vocabulary", () => {
     expect(within(dialog).getByText("Not monitored")).toBeTruthy();
     expect(within(dialog).queryByText("Missing")).toBeNull();
   });
+
+  it("gives a library that does not monitor the title no Upgrade found, and keeps its closed-link warning in the window", async () => {
+    const held = { ...words, episodes: words.episodes.map((e) => ({ ...e, versions: { ...e.versions, "anime-off": cell(true, { state: "filled", upgrade_seen: true }) } })) };
+    const linksOff = { ...managed, grab_state: { paused: false, pause_forced: false, will_grab: true, library_writes: false } };
+    const win = { ...window101, versions: [window101.versions[0], { ...window101.versions[1], has_file: true, state: "filled", control: linksOff }] };
+    mockFetch([routes[0], { method: "GET", path: "/titles/1/episodes", reply: held }, { method: "GET", path: "/titles/1/episodes/101", reply: win }]);
+    const user = userEvent.setup();
+    renderPage(<Seasons id="1" anime={false} />, "/title/1");
+    await screen.findByText("One");
+    await user.click(screen.getByRole("radio", { name: "Anime old" }));
+    await screen.findByText("One");
+    expect(screen.queryByTestId("cell-upgrade")).toBeNull();
+    await user.click(screen.getByRole("button", { name: /^Episode 1:/ }));
+    const dialog = await screen.findByRole("dialog");
+    expect((await within(dialog).findByTestId("episode-library-off")).textContent).toContain("Anime old is not monitored for this title");
+    expect(within(dialog).getByTestId("links-off")).toBeTruthy();
+  });
 });
 
 describe("Seasons order and kept monitoring (J5)", () => {

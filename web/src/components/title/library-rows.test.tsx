@@ -310,7 +310,7 @@ describe("Library files (J5)", () => {
     const v = {
       ...web, current: { ...web.current, info_hash: "ab".repeat(20) },
       upgrade: { state: "upgrade_available", quality: "WEBDL-2160p", score: 4500, quality_met: true, cutoff: { quality: "WEBDL-2160p", score: 10000, upgrades: true },
-        next: { release, quality: "WEBDL-2160p", score: 6200, source: "search", seen_at: seen } },
+        next: { release, quality: "WEBDL-2160p", score: 6200, reason: "better format score: 6200 over 4500", source: "search", seen_at: seen } },
       history: [{ event: "failed", date: seen, release_title: release, missed_on: ["rd", "ad", "tb"], upgrade: true }],
     };
     renderPage(<LibraryRows title={title as never} versions={[v] as never} />);
@@ -318,7 +318,7 @@ describe("Library files (J5)", () => {
     const lines = [...within(await screen.findByTestId("upgrade-why-dialog")).getByTestId("why-lines").querySelectorAll("p")].map((p) => p.textContent);
     expect(lines[0]).toBe("You have: WEBDL-2160p, score 4,500.");
     expect(lines[1]).toBe("Upgrades stop at: WEBDL-2160p and a score of 10,000.");
-    expect(lines[2]).toMatch(new RegExp(`^The quality is reached, the score is not\\. Better release found .+: ${release.replace(/\./g, "\\.")} \\(WEBDL-2160p, score 6,200; yours 4,500\\)\\. Tried .+: not cached on RD, AD and TB\\. Your file is unchanged\\.$`));
+    expect(lines[2]).toMatch(new RegExp(`^The quality is reached, the score is not\\. Better release found .+: ${release.replace(/\./g, "\\.")} \\(WEBDL-2160p, score 6,200\\): better format score, 6,200 over 4,500\\. Tried .+: not cached on RD, AD and TB\\. Your file is unchanged\\.$`));
     await user.click(screen.getByRole("button", { name: "Close" }));
     // Details: one Upgrade line with the same sentence; the library key and the hash last.
     await user.click(screen.getByTestId("copy-details-movie-web"));

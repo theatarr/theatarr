@@ -153,7 +153,7 @@ function DetailsPart({ titleId, eid, epCode, d, aired, manage, admin, single, ac
     <section className={cn("space-y-3", !single && "rounded-xl border border-[var(--line)] p-3")} data-episode-version={d.key}>
       <div className="flex flex-wrap items-center gap-2">
         <VersionTag k={d.key} label={d.label} />
-        {c?.grab_state && d.library_monitored !== false ? <VersionStatus state={c.grab_state} settingsKey={d.key} canManage={admin} quiet /> : null}
+        {c?.grab_state ? <VersionStatus state={c.grab_state} settingsKey={d.key} canManage={admin} quiet /> : null}
         <Badge tone={badge.tone}>{badge.label}</Badge>
       </div>
       {d.library_monitored === false ? (

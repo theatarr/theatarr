@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { mediaLine } from "./media";
 import { availabilityFilters, posterStatus } from "./library";
-import { UPGRADE_WORDS, availableIn, belowCount, haveLine, nextLine, plainUpgrade, resolutionWords, sourceWords, stopLine, upgradeBadge, verdictLine, whyLines } from "./upgrade";
+import { UPGRADE_WORDS, availableIn, belowCount, haveLine, nextLine, plainUpgrade, reasonWords, resolutionWords, sourceWords, stopLine, upgradeBadge, verdictLine, whyLines } from "./upgrade";
 
 const cutoff = { quality: "Remux-2160p", score: 10000, upgrades: true };
 
@@ -84,17 +84,24 @@ describe("upgrade words", () => {
     expect(stopLine(null)).toBe("");
     // The score at the cutoff: the quality verdict alone does not claim a score shortfall.
     expect(verdictLine({ quality_met: true }, 10000, cutoff)).toBe("");
-    // A better release found, not downloaded; tried and failed (the failure as the history row says it).
-    const u = { state: "upgrade_available" as const, quality: "WEBDL-2160p", score: 4500, next: { release: "Conclave.2024.2160p.WEB-DL", quality: "WEBDL-2160p", score: 6200, source: "search" as const, seen_at: seen } };
-    expect(nextLine(u, now, [])).toBe("Better release found 4 d ago: Conclave.2024.2160p.WEB-DL (WEBDL-2160p, score 6,200; yours 4,500). Not downloaded yet.");
+    // A better release found, with the reason stored with the search that saw it (about the file it was judged
+    // against: for a series not the row's representative score, which may be another episode's).
+    const u = { state: "upgrade_available" as const, quality: "WEBDL-2160p", score: 9000, next: { release: "Conclave.2024.2160p.WEB-DL", quality: "WEBDL-2160p", score: 6200, reason: "better format score: 6200 over 4500", source: "search" as const, seen_at: seen } };
+    const found = "Better release found 4 d ago: Conclave.2024.2160p.WEB-DL (WEBDL-2160p, score 6,200): better format score, 6,200 over 4,500.";
+    // No attempt on the page (the history there is capped): nothing is claimed about downloading.
+    expect(nextLine(u, now, [])).toBe(found);
+    expect(nextLine(u, now, [])).not.toContain("9,000");
     const failed = { event: "failed" as const, date: "2026-11-12T09:00:00Z", release_title: "Conclave.2024.2160p.WEB-DL", missed_on: ["rd", "ad", "tb"] };
     const grabbed = { event: "grabbed" as const, date: "2026-11-12T08:00:00Z", release_title: "Conclave.2024.2160p.WEB-DL" };
     expect(nextLine(u, now, [failed, grabbed])).toBe(
-      "Better release found Nov 11: Conclave.2024.2160p.WEB-DL (WEBDL-2160p, score 6,200; yours 4,500). Tried Nov 12: not cached on RD, AD and TB. Your file is unchanged.",
+      "Better release found Nov 11: Conclave.2024.2160p.WEB-DL (WEBDL-2160p, score 6,200): better format score, 6,200 over 4,500. Tried Nov 12: not cached on RD, AD and TB. Your file is unchanged.",
     );
     // A download in hand for it: nothing said about downloading; without the history neither.
-    expect(nextLine(u, now, [grabbed])).toBe("Better release found 4 d ago: Conclave.2024.2160p.WEB-DL (WEBDL-2160p, score 6,200; yours 4,500).");
-    expect(nextLine(u, now)).toBe("Better release found 4 d ago: Conclave.2024.2160p.WEB-DL (WEBDL-2160p, score 6,200; yours 4,500).");
+    expect(nextLine(u, now, [grabbed])).toBe(found);
+    expect(nextLine(u, now)).toBe(found);
+    expect(nextLine({ ...u, next: { ...u.next, reason: undefined } }, now)).toBe("Better release found 4 d ago: Conclave.2024.2160p.WEB-DL (WEBDL-2160p, score 6,200).");
+    expect(reasonWords("fills 2 episode(s) with no file")).toBe("fills 2 episodes with no file");
+    expect(reasonWords("better quality: Bluray-1080p over WEBDL-1080p")).toBe("better quality, Bluray-1080p over WEBDL-1080p");
     expect(nextLine({ state: "cutoff_met" }, now)).toBe("");
   });
   it("keeps users to plain words", () => {

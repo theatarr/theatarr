@@ -116,7 +116,7 @@ export function libraryStatus(v: Version, t: ToneTitle, day?: string): LibrarySt
     // A library that monitors none of its episodes says so once: "291 of 291 episodes available, not monitored",
     // "37 of 37 episodes · none monitored".
     const none = unmonitoredCoverage(e, v.monitored !== false);
-    if (none) return { label: none, tone };
+    if (none) return { label: a?.stage === "blocked" ? `${none}, a download is blocked` : none, tone };
     // A monitored library with the monitored counts: "44 of 46 monitored episodes", then "2 missing · 30 not monitored".
     if (e && v.monitored && e.monitored != null && e.total > 0) {
       const off = Math.max(0, e.total - e.monitored);

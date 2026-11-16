@@ -332,7 +332,7 @@ function ColumnCell({ id, e, c, seeFiles, day, off = false }: { id: EpisodeColum
       const s = cellStatus(c, aired(e), off);
       return (
         <TableCell title={cellTitle(c)} data-col="status">
-          <StatusText st={{ s, label: statusWords(s, seeFiles).label, upgrade: cellUpgrade(c, seeFiles) }} manage={false} />
+          <StatusText st={{ s, label: statusWords(s, seeFiles).label, upgrade: cellUpgrade(c, seeFiles) && !off }} manage={false} />
           <CellStage cell={c} />
         </TableCell>
       );
