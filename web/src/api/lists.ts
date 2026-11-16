@@ -21,11 +21,11 @@ const KEY = ["lists"] as const;
 export const useLists = (enabled = true) =>
   useQuery({ queryKey: KEY, queryFn: ({ signal }) => api<ListsPage>("/lists", { signal }), enabled });
 
-/** GET /lists/lookup: the TMDb list behind an id (0: nothing to look up). */
-export const useListLookup = (tmdbID: number) =>
+/** GET /lists/lookup: the TMDb list behind an id (0: nothing to look up); added says whether it is a list of media. */
+export const useListLookup = (tmdbID: number, media: "movie" | "series" = "movie") =>
   useQuery({
-    queryKey: [...KEY, "lookup", tmdbID],
-    queryFn: ({ signal }) => api<ListLookup>("/lists/lookup" + qs({ tmdb_id: tmdbID }), { signal }),
+    queryKey: [...KEY, "lookup", tmdbID, media],
+    queryFn: ({ signal }) => api<ListLookup>("/lists/lookup" + qs({ tmdb_id: tmdbID, media }), { signal }),
     enabled: tmdbID > 0,
     retry: false,
   });

@@ -27,6 +27,7 @@ import { cn } from "@/lib/utils";
 import { Forbidden } from "./library";
 
 type ListType = MovieList["list_type"];
+type Media = MovieList["kind"];
 type Monitor = NonNullable<ListAdd["monitor"]>;
 const MONITOR: Record<ListType, readonly (readonly [Monitor, string])[]> = {
   tmdb: [["movieOnly", "Movies"], ["movieAndCollection", "Movies and their collections"], ["none", "Nothing (added unmonitored)"]],
@@ -35,18 +36,25 @@ const MONITOR: Record<ListType, readonly (readonly [Monitor, string])[]> = {
 };
 const SOURCES = [["tmdb", "TMDb list"], ["radarr", "Radarr"], ["sonarr", "Sonarr"]] as const;
 const APP: Record<string, string> = { radarr: "Radarr", sonarr: "Sonarr" };
+const MEDIA = [["movie", "Movies"], ["series", "Series"]] as const;
+/** The monitor choices of a list: a series list's are a Sonarr list's. */
+const monitorsOf = (t: ListType, media: Media) => MONITOR[media === "series" ? "sonarr" : t];
+/** What a list adds: a Sonarr list series and a Radarr list movies, whatever media says. */
+const mediaOf = (t: ListType, media: Media): Media => t === "sonarr" ? "series" : t === "radarr" ? "movie" : media;
 type Mutations = ReturnType<typeof useListMutations>;
 
 /** Add a list (no list given) or edit one. */
 function ListDialog({ list, libraries, seriesLibraries, canSync, m, onClose }: { list?: MovieList; libraries: Record<string, string>; seriesLibraries: Record<string, string>; canSync: boolean; m: Mutations; onClose: () => void }) {
   const [listType, setListType] = useState<ListType>(list?.list_type ?? "tmdb");
-  const arr = listType !== "tmdb";
+  const arr = listType === "radarr" || listType === "sonarr";
+  const [pickedMedia, setPickedMedia] = useState<Media>(list?.kind ?? "movie");
+  const media = mediaOf(listType, pickedMedia);
   const [source, setSource] = useState("");
   const [address, setAddress] = useState(list?.url ?? "");
   const [apiKey, setApiKey] = useState("");
   const check = useListCheck();
   const [name, setName] = useState(list?.name ?? "");
-  const shown = listType === "sonarr" ? seriesLibraries : libraries;
+  const shown = media === "series" ? seriesLibraries : libraries;
   const keys = list ? list.libraries : Object.keys(shown);
   const [versions, setVersions] = useState<string[]>(list?.versions ?? (keys.length === 1 ? keys : []));
   const [monitor, setMonitor] = useState<Monitor>(list?.monitor ?? "movieOnly");
@@ -54,28 +62,30 @@ function ListDialog({ list, libraries, seriesLibraries, canSync, m, onClose }: {
   const [minimum, setMinimum] = useState<NonNullable<ListAdd["minimum_availability"]>>(list?.minimum_availability ?? "released");
   const [enabled, setEnabled] = useState(list?.enabled ?? true);
   const tmdbID = listIDFrom(useDebounced(source, 300));
-  const lookup = useListLookup(list || !canSync ? 0 : tmdbID);
+  const lookup = useListLookup(list || !canSync ? 0 : tmdbID, media);
   const found = lookup.data;
   const title = name.trim() || (arr ? APP[listType] : found?.name) || "";
   const mutation = list ? m.set : m.add;
   const newAddress = list ? normalListURL(address) !== normalListURL(list.url ?? "") : true;
   const ready = title !== "" && versions.length > 0 && (arr ? address.trim() !== "" && (!newAddress || apiKey.trim() !== "")
     : list ? true : listIDFrom(source) > 0 && !found?.added);
-  const pickType = (t: ListType) => {
+  const pick = (t: ListType, m: Media) => {
     setListType(t);
-    const k = Object.keys(t === "sonarr" ? seriesLibraries : libraries);
+    setPickedMedia(m);
+    const series = mediaOf(t, m) === "series";
+    const k = Object.keys(series ? seriesLibraries : libraries);
     setVersions(k.length === 1 ? k : []);
-    setMonitor(t === "sonarr" ? "all" : "movieOnly");
+    setMonitor(series ? "all" : "movieOnly");
     check.reset();
   };
   const runCheck = () => check.mutate(list && !newAddress && apiKey.trim() === "" ? { id: list.id }
     : { list_type: listType as "radarr" | "sonarr", url: address, api_key: apiKey });
   const submit = () => {
-    const body = { name: title, versions, monitor, search_on_add: searchOnAdd, ...(listType === "sonarr" ? {} : { minimum_availability: minimum }), enabled };
+    const body = { name: title, versions, monitor, search_on_add: searchOnAdd, ...(media === "series" ? {} : { minimum_availability: minimum }), enabled };
     const instance = arr ? { ...(newAddress ? { url: address } : {}), ...(apiKey.trim() ? { api_key: apiKey } : {}) } : {};
     if (list) m.set.mutate({ id: list.id, ...body, ...instance }, { onSuccess: onClose });
     else if (arr) m.add.mutate({ list_type: listType, ...body, ...instance }, { onSuccess: onClose });
-    else m.add.mutate({ tmdb_id: listIDFrom(source), ...body }, { onSuccess: onClose });
+    else m.add.mutate({ tmdb_id: listIDFrom(source), ...(media === "series" ? { media } : {}), ...body }, { onSuccess: onClose });
   };
   const checked = check.data;
   const heading = list ? `Edit ${list.name}` : "Add list";
@@ -89,8 +99,13 @@ function ListDialog({ list, libraries, seriesLibraries, canSync, m, onClose }: {
     </div>
     <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4 text-sm">
       {list ? null : <label className="flex items-center gap-2"><span className="font-medium text-[var(--ink)]">Source</span>
-        <Select className="w-auto" value={listType} onChange={e => pickType(e.target.value as ListType)}>
+        <Select className="w-auto" value={listType} onChange={e => pick(e.target.value as ListType, pickedMedia)}>
           {SOURCES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+        </Select>
+      </label>}
+      {list || arr ? null : <label className="flex items-center gap-2"><span className="font-medium text-[var(--ink)]">Media</span>
+        <Select className="w-auto" aria-label="Media" value={media} onChange={e => pick(listType, e.target.value as Media)}>
+          {MEDIA.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
         </Select>
       </label>}
       {arr ? <div className="space-y-4">
@@ -117,7 +132,7 @@ function ListDialog({ list, libraries, seriesLibraries, canSync, m, onClose }: {
             : source.trim() && tmdbID === 0 && listIDFrom(source) === 0 ? <span className="block text-xs text-muted-foreground">Enter the number of a TMDb list, or paste its address (themoviedb.org/list/...).</span>
             : lookup.isFetching ? <span className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="size-3.5 animate-spin" aria-hidden />Looking the list up on TMDb</span>
             : lookup.error ? <ErrorState error={lookup.error} />
-            : found ? <span className="block text-xs text-muted-foreground" data-testid="list-found">{found.added ? `${found.name} is already added.` : `${found.name}: ${found.movies} ${found.movies === 1 ? "movie" : "movies"}.`}{found.description ? ` ${found.description}` : ""}</span> : null}
+            : found ? <span className="block text-xs text-muted-foreground" data-testid="list-found">{found.added ? `${found.name} is already added for ${media === "series" ? "series" : "movies"}.` : `${found.name}: ${found.movies} ${found.movies === 1 ? "movie" : "movies"}${found.series ? `, ${found.series} series` : ""}.`}{found.description ? ` ${found.description}` : ""}</span> : null}
         </label>}
       <label className="block space-y-1.5"><span className="font-medium text-[var(--ink)]">Name</span>
         <Input aria-label="List name" placeholder={arr ? APP[listType] : found?.name ?? ""} value={name} onChange={e => setName(e.target.value)} />
@@ -129,17 +144,17 @@ function ListDialog({ list, libraries, seriesLibraries, canSync, m, onClose }: {
           return <button key={key} type="button" aria-pressed={on} title={key} onClick={() => setVersions(on ? versions.filter(k => k !== key) : [...versions, key])}
             className={cn("rounded-[3px] border px-2 py-0.5 text-xs", on ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent-ink)]" : "border-[var(--line-2)] text-[var(--ink-3)]")}>{shown[key] ?? key}</button>;
         })}
-        {keys.length === 0 ? <span className="text-xs text-muted-foreground">There is no {listType === "sonarr" ? "series" : "movie"} library to add to.</span>
+        {keys.length === 0 ? <span className="text-xs text-muted-foreground">There is no {media === "series" ? "series" : "movie"} library to add to.</span>
           : arr ? <span className="block w-full text-xs text-muted-foreground">Each title goes to the chosen libraries that take it (anime to anime libraries).</span>
-          : versions.length === 0 ? <span className="text-xs text-muted-foreground">Choose at least one. Each movie goes to the chosen libraries that take it.</span> : null}
+          : versions.length === 0 ? <span className="text-xs text-muted-foreground">Choose at least one. Each {media === "series" ? "series" : "movie"} goes to the chosen libraries that take it.</span> : null}
       </fieldset>
       <div className="flex flex-wrap items-center gap-4">
         <label className="flex items-center gap-2">Monitor
           <Select className="w-auto" value={monitor} onChange={e => setMonitor(e.target.value as typeof monitor)}>
-            {MONITOR[listType].map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            {monitorsOf(listType, media).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
           </Select>
         </label>
-        {listType === "sonarr" ? null : <label className="flex items-center gap-2">Minimum availability
+        {media === "series" ? null : <label className="flex items-center gap-2">Minimum availability
           <Select className="w-auto" value={minimum} onChange={e => setMinimum(e.target.value as typeof minimum)}>
             {AVAILABILITY.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
             {minimum === "tba" ? <option value="tba">TBA</option> : null}
@@ -172,15 +187,15 @@ function ListRow({ l, libraries, seriesLibraries, canSync, m, edit, remove, sync
   const adds = preview?.titles.filter(t => t.change !== "skipped") ?? [];
   const skipped = preview?.titles.filter(t => t.change === "skipped") ?? [];
   const busy = syncing || (m.set.isPending && m.set.variables?.id === l.id);
-  const labels = l.list_type === "sonarr" ? seriesLibraries : libraries;
-  const monitorLabel = MONITOR[l.list_type]?.find(([v]) => v === l.monitor)?.[1] ?? l.monitor;
+  const labels = l.kind === "series" ? seriesLibraries : libraries;
+  const monitorLabel = monitorsOf(l.list_type, l.kind)?.find(([v]) => v === l.monitor)?.[1] ?? l.monitor;
   const sync = () => m.sync.mutate(l.id, { onSuccess: r => synced(`${r.list.name}: ${r.added} ${r.added === 1 ? "title" : "titles"} added, ${r.skipped} skipped (already in the library or excluded).${r.sync_error ? ` ${r.sync_error}` : ""}`) });
   return <li className="flex min-w-0 flex-wrap items-start gap-3 px-3 py-3" data-testid={`list-${l.id}`}>
     <Switch className="mt-0.5" checked={l.enabled} disabled={busy} aria-label={`Enable ${l.name}`} onCheckedChange={enabled => m.set.mutate({ id: l.id, enabled })} />
     <div className="min-w-0 flex-1 space-y-1.5">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <h2 className="min-w-0 font-semibold text-[var(--ink)] [overflow-wrap:anywhere]">{l.name}</h2>
-        {l.list_type === "tmdb" ? <a className="text-xs text-primary hover:underline" href={`https://www.themoviedb.org/list/${l.tmdb_id}`} target="_blank" rel="noreferrer">TMDb list {l.tmdb_id}</a>
+        {l.list_type === "tmdb" ? <a className="text-xs text-primary hover:underline" href={`https://www.themoviedb.org/list/${l.tmdb_id}`} target="_blank" rel="noreferrer">TMDb list {l.tmdb_id}{l.kind === "series" ? " (series)" : ""}</a>
           : <span className="text-xs text-muted-foreground [overflow-wrap:anywhere]">{APP[l.list_type]} at {l.url}</span>}
         {l.view ? <Chip tone="ghost">Created through the {l.view} view</Chip> : null}
       </div>

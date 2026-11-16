@@ -343,6 +343,9 @@ type oneCollection struct{ c tmdb.Collection }
 
 func (f oneCollection) Collection(context.Context, int) (*tmdb.Collection, error) { return &f.c, nil }
 func (f oneCollection) List(context.Context, int) (*tmdb.List, error)             { return &tmdb.List{}, nil }
+func (f oneCollection) TVDetails(context.Context, int) (*tmdb.TV, error) {
+	return nil, tmdb.ErrNotFound
+}
 func (f oneCollection) MovieDetails(_ context.Context, id int) (*tmdb.Movie, error) {
 	return &tmdb.Movie{ID: id, Title: "Movie " + strconv.Itoa(id), ReleaseDate: "2020-01-01"}, nil
 }

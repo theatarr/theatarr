@@ -135,13 +135,16 @@ type Movie struct {
 	Images Images `json:"images"`
 }
 
-// MovieSummary is a movie returned as a collection part or list item.
+// MovieSummary is a movie returned as a collection part or list item. A list's TV item (MediaType tv) has its name
+// and first air date in Name and FirstAirDate instead.
 type MovieSummary struct {
-	ID          int    `json:"id"`
-	Title       string `json:"title"`
-	ReleaseDate string `json:"release_date"`
-	Overview    string `json:"overview"`
-	MediaType   string `json:"media_type,omitempty"`
+	ID           int    `json:"id"`
+	Title        string `json:"title"`
+	Name         string `json:"name,omitempty"`
+	ReleaseDate  string `json:"release_date"`
+	FirstAirDate string `json:"first_air_date,omitempty"`
+	Overview     string `json:"overview"`
+	MediaType    string `json:"media_type,omitempty"`
 	// PosterPath is TMDb's poster file ("/abc.jpg"); the Collections page shows the first part's.
 	PosterPath string `json:"poster_path,omitempty"`
 }

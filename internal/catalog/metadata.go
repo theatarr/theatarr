@@ -19,11 +19,13 @@ import (
 	"github.com/theatarr/theatarr/internal/store"
 )
 
-// MovieMetadataSource is the gateway-backed TMDb client used by movie intake.
+// MovieMetadataSource is the gateway-backed TMDb client used by movie intake (and by series lists: TVDetails gives a
+// TMDb series its TVDB id).
 type MovieMetadataSource interface {
 	Collection(context.Context, int) (*tmdb.Collection, error)
 	List(context.Context, int) (*tmdb.List, error)
 	MovieDetails(context.Context, int) (*tmdb.Movie, error)
+	TVDetails(context.Context, int) (*tmdb.TV, error)
 }
 
 // MovieIntake refreshes collections and lists through the shared catalog add path.
@@ -107,14 +109,14 @@ type movieIntakeConfig struct {
 	// later: the add's search goes on the search schedule (OnAdd's later).
 	later bool
 	// listType is an import list's source (tmdb, radarr, sonarr); "" for a collection. url and apiKey are a Radarr
-	// or Sonarr list's instance.
-	listType, url, apiKey string
+	// or Sonarr list's instance. media is what the list adds: movie or series (a Sonarr list, a TMDb series list).
+	listType, url, apiKey, media string
 }
 
 const (
-	collectionConfigs = `SELECT tmdb_id,tmdb_id,versions,minimum_availability,'movieOnly',view,root_folder_path,quality_profile_id,search_on_add,monitored,'','',''
+	collectionConfigs = `SELECT tmdb_id,tmdb_id,versions,minimum_availability,'movieOnly',view,root_folder_path,quality_profile_id,search_on_add,monitored,'','','','movie'
   FROM movie_collection`
-	listConfigs = `SELECT id,tmdb_id,versions,minimum_availability,monitor,view,root_folder_path,quality_profile_id,search_on_add,1,list_type,url,api_key
+	listConfigs = `SELECT id,tmdb_id,versions,minimum_availability,monitor,view,root_folder_path,quality_profile_id,search_on_add,1,list_type,url,api_key,media
   FROM import_list`
 )
 
@@ -129,7 +131,7 @@ func (s *MovieIntake) configs(ctx context.Context, q string, args ...any) ([]mov
 	for rows.Next() {
 		var c movieIntakeConfig
 		if err := rows.Scan(&c.id, &c.tmdbID, &c.versions, &c.minimum, &c.monitor, &c.view, &c.root, &c.profile, &c.search, &c.monitored,
-			&c.listType, &c.url, &c.apiKey); err != nil {
+			&c.listType, &c.url, &c.apiKey, &c.media); err != nil {
 			return nil, err
 		}
 		out = append(out, c)
@@ -288,9 +290,10 @@ func (s *MovieIntake) collectionTargets(cfg movieIntakeConfig) (string, error) {
 	return string(b), err
 }
 
-// SyncLists imports enabled automatic TMDb lists. Existing titles and their monitoring choices are left alone.
+// SyncLists imports enabled automatic lists of every kind but Radarr and Sonarr (SyncArrLists). Existing titles and
+// their monitoring choices are left alone.
 func (s *MovieIntake) SyncLists(ctx context.Context) (IntakeResult, error) {
-	return s.syncLists(ctx, listConfigs+` WHERE enabled=1 AND enable_auto=1 AND list_type='tmdb' ORDER BY id`)
+	return s.syncLists(ctx, listConfigs+` WHERE enabled=1 AND enable_auto=1 AND list_type NOT IN ('radarr','sonarr') ORDER BY id`)
 }
 
 // SyncArrLists imports enabled Radarr and Sonarr lists, every ArrListInterval.
@@ -349,18 +352,7 @@ func (s *MovieIntake) syncList(ctx context.Context, cfg movieIntakeConfig, out *
 		if err != nil {
 			return []error{fmt.Errorf("list %d: %w", cfg.id, err)}, nil
 		}
-		for _, m := range l.Items {
-			n, err := s.addMovie(ctx, m, cfg, 0)
-			if err != nil {
-				soft = append(soft, fmt.Errorf("list %d movie %d: %w", cfg.id, m.ID, err))
-				continue
-			}
-			if n {
-				out.Added++
-			} else {
-				out.Skipped++
-			}
-		}
+		soft = s.addItems(ctx, cfg, l.Items, out)
 	}
 	if len(soft) == 0 {
 		if _, err := s.Store.Writer().ExecContext(ctx, `UPDATE import_list SET last_sync_at=? WHERE id=?`, store.Millis(s.Now()), cfg.id); err != nil {
@@ -370,6 +362,74 @@ func (s *MovieIntake) syncList(ctx context.Context, cfg movieIntakeConfig, out *
 	return soft, nil
 }
 
+// addItems adds a TMDb list's items of the list's media, counted in out: a movie list its movies (addMovie), a
+// series list its TV items (addTMDbSeries); the other media's items are skipped.
+func (s *MovieIntake) addItems(ctx context.Context, cfg movieIntakeConfig, items []tmdb.MovieSummary, out *IntakeResult) (soft []error) {
+	for _, m := range items {
+		var n bool
+		var err error
+		what := "movie"
+		if cfg.media == "series" {
+			what = "series"
+			n, err = s.addTMDbSeries(ctx, m, cfg)
+		} else {
+			n, err = s.addMovie(ctx, m, cfg, 0)
+		}
+		if err != nil {
+			soft = append(soft, fmt.Errorf("list %d %s %d: %w", cfg.id, what, m.ID, err))
+			continue
+		}
+		if n {
+			out.Added++
+		} else {
+			out.Skipped++
+		}
+	}
+	return soft
+}
+
+// addTMDbSeries adds a TMDb list's TV item through the Sonarr list path (addSeries: exclusions, fitting libraries,
+// a library row in any state left alone). A series Theatarr holds keeps its own ids and anime flag; a new one is
+// resolved to its TVDB id with TMDb's details (one request), anime by LooksAnime. An item with no TVDB id is skipped
+// (counted, not added): a series without one gets no episodes.
+func (s *MovieIntake) addTMDbSeries(ctx context.Context, item tmdb.MovieSummary, cfg movieIntakeConfig) (bool, error) {
+	if item.ID <= 0 || item.MediaType != "tv" {
+		return false, nil
+	}
+	it := arrSeries{TmdbID: int64(item.ID), Title: item.Name}
+	var tvdb sql.NullInt64
+	err := s.Store.Reader().QueryRowContext(ctx, `SELECT tvdb_id FROM title WHERE kind='series' AND tmdb_id=?`, item.ID).
+		Scan(&tvdb)
+	switch {
+	case err == nil && tvdb.Valid && tvdb.Int64 > 0:
+		it.TvdbID = tvdb.Int64
+	case err != nil && !errors.Is(err, sql.ErrNoRows):
+		return false, err
+	default:
+		t, err := s.TMDb.TVDetails(ctx, item.ID)
+		if err != nil {
+			return false, err
+		}
+		if t.ExternalIDs.TVDbID <= 0 {
+			s.Log.Info("series list: skipped, TMDb has no TVDB id for it", "list", cfg.id, "tmdb", item.ID, "name", t.Name)
+			return false, nil
+		}
+		it.TvdbID, it.ImdbID, it.Title = int64(t.ExternalIDs.TVDbID), t.ExternalIDs.IMDbID, t.Name
+		if len(t.FirstAirDate) >= 4 {
+			it.Year, _ = strconv.Atoi(t.FirstAirDate[:4])
+		}
+		genres := make([]int, 0, len(t.Genres))
+		for _, g := range t.Genres {
+			genres = append(genres, g.ID)
+		}
+		if tmdb.LooksAnime(t.OriginalLanguage, genres) {
+			it.SeriesType = "anime"
+		}
+	}
+	_, added, err := s.addSeries(ctx, it, cfg)
+	return added, err
+}
+
 func intakeSkip(ctx context.Context, q Querier, id int) (bool, error) {
 	var skip bool
 	err := q.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM movie_exclusion WHERE tmdb_id=?) OR
@@ -377,10 +437,10 @@ func intakeSkip(ctx context.Context, q Querier, id int) (bool, error) {
 	return skip, err
 }
 
-// intakeVersions are the versions an intake's targets (keys; none: the policy's defaults) turn on for a movie:
-// profiles choose fitting versions first and fall back to their explicit targets, as arr movie adds do. An explicit
-// anime root or all-anime targets make the movie anime, as for an arr movie add; the returned flag says so.
-func (s *MovieIntake) intakeVersions(keys []string, anime bool, root string) ([]string, bool, error) {
+// intakeVersions are the versions an intake's targets (keys; none: the policy's defaults) turn on for a title of
+// kind: profiles choose fitting versions first and fall back to their explicit targets, as arr movie adds do. An
+// explicit anime root or all-anime targets make the title anime, as for an arr movie add; the returned flag says so.
+func (s *MovieIntake) intakeVersions(keys []string, anime bool, root string, kind policy.Kind) ([]string, bool, error) {
 	allAnime := len(keys) > 0
 	for _, key := range keys {
 		vp := s.Policy.Versions[key]
@@ -396,33 +456,34 @@ func (s *MovieIntake) intakeVersions(keys []string, anime bool, root string) ([]
 	}
 	var fit, valid []string
 	for _, key := range keys {
-		if vp := s.Policy.Versions[key]; vp != nil && vp.Kind == policy.KindMovie {
+		if vp := s.Policy.Versions[key]; vp != nil && vp.Kind == kind {
 			valid = append(valid, key)
-			if Fits(vp, policy.KindMovie, anime) {
+			if Fits(vp, kind, anime) {
 				fit = append(fit, key)
 			}
 		}
 	}
 	if len(keys) == 0 {
-		fit = DefaultVersions(s.Policy, policy.KindMovie, anime)
+		fit = DefaultVersions(s.Policy, kind, anime)
 	}
 	if len(fit) == 0 {
 		fit = valid
 	}
 	if len(fit) == 0 {
-		return nil, anime, errors.New("catalog: movie intake has no target versions")
+		return nil, anime, errors.New("catalog: " + string(kind) + " intake has no target versions")
 	}
 	slices.Sort(fit)
 	return fit, anime, nil
 }
 
-// fitVersions are the versions a list's or collection's targets turn on for a title. TMDb lists and collections take
-// intakeVersions, fallbacks included. A Radarr or Sonarr list takes only its chosen libraries that fit the title (its
-// kind, and anime or not); none when none fits, and the title is skipped.
+// fitVersions are the versions a list's or collection's targets turn on for a title of kind. TMDb lists (movie or
+// series libraries, by the list's media) and collections take intakeVersions, fallbacks included. A Radarr or Sonarr
+// list takes only its chosen libraries that fit the title (its kind, and anime or not); none when none fits, and the
+// title is skipped.
 func (s *MovieIntake) fitVersions(cfg movieIntakeConfig, keys []string, anime bool, kind policy.Kind) ([]string, bool,
 	error) {
 	if cfg.listType != "radarr" && cfg.listType != "sonarr" {
-		return s.intakeVersions(keys, anime, cfg.root)
+		return s.intakeVersions(keys, anime, cfg.root, kind)
 	}
 	var fit []string
 	for _, k := range keys {

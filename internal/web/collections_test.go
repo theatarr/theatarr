@@ -161,6 +161,12 @@ func (f *fakeIntakeTMDb) List(_ context.Context, id int) (*tmdb.List, error) {
 		{ID: 903, Title: "Listed", ReleaseDate: "2020-01-01", MediaType: "movie"}, {ID: 950, Title: "A show", MediaType: "tv"}}}, nil
 }
 
+func (f *fakeIntakeTMDb) TVDetails(_ context.Context, id int) (*tmdb.TV, error) {
+	t := &tmdb.TV{ID: id, Name: "Show " + strconv.Itoa(id), FirstAirDate: "2019-01-01"}
+	t.ExternalIDs.TVDbID = 7000 + id
+	return t, nil
+}
+
 func (f *fakeIntakeTMDb) MovieDetails(_ context.Context, id int) (*tmdb.Movie, error) {
 	if f.fail {
 		return nil, fmt.Errorf("tmdb: movie %d: unavailable", id)

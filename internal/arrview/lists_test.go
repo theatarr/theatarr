@@ -264,3 +264,19 @@ func TestCollectionPutTargets(t *testing.T) {
 	// Unmonitoring needs no target.
 	e.call("PUT", "/radarr/api/v3/collection", map[string]any{"tmdbId": 80, "monitored": false}, 202, nil)
 }
+
+// A TMDb series list made in Theatarr is no Radarr import list: a Radarr client neither sees it nor counts it as a
+// duplicate of its own list of the same TMDb id.
+func TestRadarrImportListsAreMovieOnly(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	e.exec(`INSERT INTO import_list(name,tmdb_id,media,view,monitor,versions,created_at,updated_at) VALUES('Shows',42,'series','radarr','all','["tv-2160p"]',0,0)`)
+	base := "/radarr/api/v3"
+	var lists []map[string]any
+	e.call("GET", base+"/importlist", nil, 200, &lists)
+	if len(lists) != 0 {
+		t.Fatalf("a series list in a Radarr view: %v", lists)
+	}
+	body := map[string]any{"name": "List", "implementation": "TmdbList", "fields": []any{map[string]any{"name": "listId", "value": 42}}}
+	e.call("POST", base+"/importlist", body, 201, nil)
+}

@@ -43,7 +43,7 @@ it("adds a list from a pasted address after looking it up", async () => {
   expect(dialog.getByRole("button", { name: "Add" }).hasAttribute("disabled")).toBe(true);
   await user.type(dialog.getByLabelText("TMDb list id or URL"), "https://www.themoviedb.org/list/9-favourites");
   expect((await dialog.findByTestId("list-found")).textContent).toBe("Favourites: 12 movies. The good ones");
-  expect(fetch.calls("GET", "/lists/lookup").at(-1)?.search).toBe("?tmdb_id=9");
+  expect(fetch.calls("GET", "/lists/lookup").at(-1)?.search).toBe("?tmdb_id=9&media=movie");
   // The name comes from TMDb unless one is typed; a library must be chosen.
   expect(dialog.getByRole("button", { name: "Add" }).hasAttribute("disabled")).toBe(true);
   await user.click(dialog.getByRole("button", { name: "4K Remux" }));
@@ -225,4 +225,28 @@ it("lists the exclusions by name and removes one", async () => {
   await user.click(show.getByRole("button", { name: "Remove" }));
   await waitFor(() => expect(fetch.calls("DELETE", "/lists/exclusions/series/300")).toHaveLength(1));
   await waitFor(() => expect(block.queryByTestId("exclusion-series-300")).toBeNull());
+});
+
+it("adds a TMDb list for series: Media picks series libraries and Sonarr's monitor choices", async () => {
+  const user = userEvent.setup();
+  const shows: Schemas["MovieList"] = { ...mine, id: 3, name: "Shows", kind: "series", monitor: "all", versions: ["tv"], libraries: ["tv"] };
+  let lists: Schemas["MovieList"][] = [];
+  const fetch = mockFetch([
+    { method: "GET", path: "/auth/me", reply: manager },
+    { method: "GET", path: "/lists", reply: () => ({ lists, libraries, series_libraries: { tv: "TV" }, can_sync: true }) },
+    { method: "GET", path: "/lists/lookup", reply: { tmdb_id: 9, name: "Mixed", movies: 2, series: 3, added: false } },
+    { method: "POST", path: "/lists", reply: () => { lists = [shows]; return { status: 201, body: shows }; } },
+  ]);
+  renderPage(<ListsPage />, "/admin/settings/import-lists");
+  await user.click(await screen.findByRole("button", { name: "Add list" }));
+  const dialog = within(screen.getByTestId("list-dialog"));
+  await user.selectOptions(dialog.getByLabelText("Media"), "series");
+  await user.type(dialog.getByLabelText("TMDb list id or URL"), "9");
+  expect((await dialog.findByTestId("list-found")).textContent).toBe("Mixed: 2 movies, 3 series.");
+  expect(fetch.calls("GET", "/lists/lookup").at(-1)?.search).toBe("?tmdb_id=9&media=series");
+  expect(dialog.queryByText("Minimum availability")).toBeNull();
+  await user.click(dialog.getByRole("button", { name: "Add" }));
+  await waitFor(() => expect(fetch.calls("POST", "/lists")).toHaveLength(1));
+  expect(fetch.calls("POST", "/lists")[0].body).toEqual({ tmdb_id: 9, media: "series", name: "Mixed", versions: ["tv"], monitor: "all", search_on_add: true, enabled: true });
+  expect(within(await screen.findByTestId("list-3")).getByRole("link", { name: "TMDb list 9 (series)" })).toBeTruthy();
 });

@@ -451,6 +451,11 @@ func (s *pauseIntakeSource) List(context.Context, int) (*tmdb.List, error) {
 	return &tmdb.List{Items: []tmdb.MovieSummary{{ID: 201}}}, nil
 }
 
+func (s *pauseIntakeSource) TVDetails(context.Context, int) (*tmdb.TV, error) {
+	s.reads.Add(1)
+	return nil, tmdb.ErrNotFound
+}
+
 func (s *pauseIntakeSource) MovieDetails(_ context.Context, id int) (*tmdb.Movie, error) {
 	s.reads.Add(1)
 	return &tmdb.Movie{ID: id, Title: "Movie", ReleaseDate: "2020-01-01"}, nil

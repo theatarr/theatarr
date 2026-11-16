@@ -28,6 +28,15 @@ type intakeSource struct {
 	collections map[int]*tmdb.Collection
 	list        *tmdb.List
 	movies      map[int]*tmdb.Movie
+	// tv answers TVDetails by TMDb id; a missing id is TMDb's not found.
+	tv map[int]*tmdb.TV
+}
+
+func (f intakeSource) TVDetails(_ context.Context, id int) (*tmdb.TV, error) {
+	if t := f.tv[id]; t != nil {
+		return t, nil
+	}
+	return nil, tmdb.ErrNotFound
 }
 
 func (f intakeSource) Collection(_ context.Context, id int) (*tmdb.Collection, error) {
@@ -986,5 +995,70 @@ func TestIntakeLaterByEntryPoint(t *testing.T) {
 	}
 	if !slices.Equal(calls, []bool{true, false}) {
 		t.Fatalf("later per call %v, want list sync later, one collection at once", calls)
+	}
+}
+
+// A TMDb list row of media series imports the list's TV items and skips its movies (a movie row of the same list the
+// other way round): a new series gets its TVDB id from TMDb's details (anime by LooksAnime) and goes to the list's
+// series libraries that fit it; a series Theatarr holds keeps its own ids and is not looked up; one TMDb has no TVDB
+// id for, and an excluded one, are skipped. Preview counts the same without detail calls.
+func TestTMDbSeriesList(t *testing.T) {
+	t.Parallel()
+	anime := &tmdb.TV{ID: 502, Name: "Anime Show", OriginalLanguage: "ja", FirstAirDate: "2021-04-01",
+		Genres: []tmdb.Genre{{ID: tmdb.GenreAnimation}}}
+	anime.ExternalIDs.TVDbID = 402
+	plain := &tmdb.TV{ID: 501, Name: "Plain Show", FirstAirDate: "2020-01-01"}
+	plain.ExternalIDs.TVDbID, plain.ExternalIDs.IMDbID = 401, "tt401"
+	excluded := &tmdb.TV{ID: 505, Name: "Excluded"}
+	excluded.ExternalIDs.TVDbID = 405
+	src := intakeSource{
+		list: intakeFixture[tmdb.List](t, `{"items":[{"id":101,"title":"A movie","media_type":"movie","release_date":"2020-01-01"},
+			{"id":501,"name":"Plain Show","media_type":"tv","first_air_date":"2020-01-01"},
+			{"id":502,"name":"Anime Show","media_type":"tv"},
+			{"id":503,"name":"No TVDB","media_type":"tv"},
+			{"id":504,"name":"Held","media_type":"tv"},
+			{"id":505,"name":"Excluded","media_type":"tv"}]}`),
+		tv: map[int]*tmdb.TV{501: plain, 502: anime, 503: {ID: 503, Name: "No TVDB"}, 505: excluded},
+	}
+	s, st := newIntake(t, src)
+	yes, no := true, false
+	s.Policy.Versions["tv"] = &policy.VersionPolicy{Kind: policy.KindSeries, Anime: &no}
+	s.Policy.Versions["anime-tv"] = &policy.VersionPolicy{Kind: policy.KindSeries, Anime: &yes}
+	for _, q := range []string{
+		`INSERT INTO import_list(id,name,tmdb_id,media,versions,monitor,created_at,updated_at) VALUES
+			(1,'Shows',9,'series','["anime-tv","tv"]','all',0,0),(2,'Movies',9,'movie','["movie-web"]','movieOnly',0,0)`,
+		// Held under its TMDb id with its TVDB id: no lookup.
+		`INSERT INTO title(id,kind,name,tmdb_id,tvdb_id,created_at,updated_at) VALUES(74,'series','Held',504,404,0,0)`,
+		`INSERT INTO series_exclusion(tvdb_id,created_at) VALUES(405,0)`,
+	} {
+		if _, err := st.Writer().Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	p, err := s.PreviewList(context.Background(), 1)
+	if err != nil || p.AddTitle != 4 || p.AddLibrary != 1 || p.Excluded != 0 || p.Present != 0 {
+		t.Fatalf("preview %+v %v", p, err)
+	}
+	got, err := s.SyncList(context.Background(), 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Plain, Anime and Held (to tv) added; the movie, No TVDB and Excluded skipped.
+	if got.Added != 3 || got.Skipped != 3 {
+		t.Fatalf("sync %+v", got)
+	}
+	for q, want := range map[string]int{
+		`SELECT count(*) FROM title WHERE kind='series' AND tvdb_id=401 AND tmdb_id=501 AND imdb_id='tt401' AND year=2020 AND anime=0`:     1,
+		`SELECT count(*) FROM title t JOIN version v ON v.title_id=t.id WHERE t.tvdb_id=401 AND v.policy_key='tv' AND v.add_method='list'`: 1,
+		`SELECT count(*) FROM title t JOIN version v ON v.title_id=t.id WHERE t.tvdb_id=402 AND t.anime=1 AND v.policy_key='anime-tv'`:     1,
+		`SELECT count(*) FROM version WHERE title_id=74 AND policy_key='tv'`:                                                               1,
+		`SELECT count(*) FROM title WHERE tmdb_id IN (503,505) OR kind='movie'`:                                                            0,
+	} {
+		if n := countRows(t, st, q); n != want {
+			t.Errorf("%s: %d, want %d", q, n, want)
+		}
+	}
+	if got, err = s.SyncList(context.Background(), 2); err != nil || got.Added != 1 || got.Skipped != 5 {
+		t.Fatalf("movie row of the same list: %+v %v", got, err)
 	}
 }

@@ -33,7 +33,7 @@ type MovieList struct {
 	Name string `json:"name"`
 	// ListType: tmdb, radarr or sonarr.
 	ListType string `json:"list_type"`
-	// Kind is what the list adds: movie, or series for a Sonarr list.
+	// Kind is what the list adds (its media): movie, or series for a Sonarr list or a TMDb series list.
 	Kind   string `json:"kind"`
 	TmdbID int64  `json:"tmdb_id"`
 	// URL is a Radarr or Sonarr list's instance address; APIKeySet says its API key is stored (it is never answered).
@@ -70,7 +70,10 @@ type ListsPage struct {
 // ListAdd is POST /lists.
 type ListAdd struct {
 	// ListType: tmdb (default), radarr or sonarr. A TMDb list takes TmdbID; a Radarr or Sonarr list URL and APIKey.
-	ListType string   `json:"list_type"`
+	ListType string `json:"list_type"`
+	// Media is what a TMDb list adds: movie (default) or series (its TV items). A Radarr list adds movies and a
+	// Sonarr list series whatever is sent.
+	Media    string   `json:"media"`
 	URL      string   `json:"url"`
 	APIKey   string   `json:"api_key"`
 	TmdbID   int64    `json:"tmdb_id"`
@@ -110,9 +113,11 @@ type ListLookup struct {
 	TmdbID      int64  `json:"tmdb_id"`
 	Name        string `json:"name"`
 	Description string `json:"description,omitempty"`
-	// Movies are the list's movies; other items (series) are never imported.
+	// Movies are the list's movies, Series its TV items: a list adds one media, so a mixed list is added once per
+	// media.
 	Movies int `json:"movies"`
-	// Added: this TMDb list is already an import list.
+	Series int `json:"series"`
+	// Added: this TMDb list is already an import list of the media asked for.
 	Added bool `json:"added"`
 }
 
@@ -225,10 +230,10 @@ func (w *Web) kindLibraries(kind policy.Kind) []string {
 	return out
 }
 
-// listLibraries are the libraries a list of view may add to: view's movie versions, or all of them without a view;
-// every series library for a Sonarr list.
-func (w *Web) listLibraries(view, listType string) []string {
-	if listType == "sonarr" {
+// listLibraries are the libraries a list of view and media may add to: view's movie versions, or all of them without
+// a view; every series library for a series list.
+func (w *Web) listLibraries(view, media string) []string {
+	if media == string(policy.KindSeries) {
 		return w.kindLibraries(policy.KindSeries)
 	}
 	all := w.movieLibraries()
@@ -250,15 +255,15 @@ func (w *Web) listLibraries(view, listType string) []string {
 	return out
 }
 
-const listColumns = `id, name, list_type, tmdb_id, url, api_key <> '', enabled, enable_auto, monitor, search_on_add,
-	versions, minimum_availability, last_sync_at, view`
+const listColumns = `id, name, list_type, media, tmdb_id, url, api_key <> '', enabled, enable_auto, monitor,
+	search_on_add, versions, minimum_availability, last_sync_at, view`
 
 func (w *Web) scanList(row interface{ Scan(...any) error }) (MovieList, error) {
 	var l MovieList
 	var versions string
 	var synced sql.NullInt64
-	if err := row.Scan(&l.ID, &l.Name, &l.ListType, &l.TmdbID, &l.URL, &l.APIKeySet, &l.Enabled, &l.EnableAuto, &l.Monitor, &l.SearchOnAdd,
-		&versions, &l.MinimumAvailability, &synced, &l.View); err != nil {
+	if err := row.Scan(&l.ID, &l.Name, &l.ListType, &l.Kind, &l.TmdbID, &l.URL, &l.APIKeySet, &l.Enabled, &l.EnableAuto, &l.Monitor,
+		&l.SearchOnAdd, &versions, &l.MinimumAvailability, &synced, &l.View); err != nil {
 		return l, err
 	}
 	if err := json.Unmarshal([]byte(versions), &l.Versions); err != nil {
@@ -271,11 +276,7 @@ func (w *Web) scanList(row interface{ Scan(...any) error }) (MovieList, error) {
 		t := store.FromMillis(synced.Int64)
 		l.LastSyncAt = &t
 	}
-	l.Kind = string(policy.KindMovie)
-	if l.ListType == "sonarr" {
-		l.Kind = string(policy.KindSeries)
-	}
-	l.Libraries = w.listLibraries(l.View, l.ListType)
+	l.Libraries = w.listLibraries(l.View, l.Kind)
 	return l, nil
 }
 
@@ -302,19 +303,22 @@ func (w *Web) apiLists(rw http.ResponseWriter, r *http.Request) {
 	writeJSON(rw, http.StatusOK, out)
 }
 
-// listExists reports whether the TMDb list (of any view), or the Radarr or Sonarr instance at the normalised
-// address u, is already an import list: each is added once.
-func (w *Web) listExists(ctx context.Context, listType string, tmdbID int64, u string) (bool, error) {
+// listExists reports whether the TMDb list (of any view) for media, or the Radarr or Sonarr instance at the
+// normalised address u, is already an import list: each is added once (a TMDb list once per media).
+func (w *Web) listExists(ctx context.Context, listType, media string, tmdbID int64, u string) (bool, error) {
 	var exists bool
-	q, args := `SELECT EXISTS(SELECT 1 FROM import_list WHERE list_type = 'tmdb' AND tmdb_id = ?)`, []any{tmdbID}
+	q, args := `SELECT EXISTS(SELECT 1 FROM import_list WHERE list_type = 'tmdb' AND tmdb_id = ? AND media = ?)`,
+		[]any{tmdbID, media}
 	if listType != "tmdb" {
-		q, args = `SELECT EXISTS(SELECT 1 FROM import_list WHERE list_type = ? AND url = ?)`, []any{listType, u}
+		q, args = `SELECT EXISTS(SELECT 1 FROM import_list WHERE list_type = ? AND url = ? AND media = ?)`,
+			[]any{listType, u, media}
 	}
 	err := w.st.Reader().QueryRowContext(ctx, q, args...).Scan(&exists)
 	return exists, err
 }
 
-// GET /lists/lookup?tmdb_id=: the list's name, description and movie count on TMDb, to confirm it before adding.
+// GET /lists/lookup?tmdb_id=[&media=]: the list's name, description and movie and series counts on TMDb, to confirm
+// it before adding; added says whether it is already a list of media (movie by default).
 func (w *Web) apiLookupList(rw http.ResponseWriter, r *http.Request) {
 	if w.noTMDb(rw) {
 		return
@@ -337,27 +341,39 @@ func (w *Web) apiLookupList(rw http.ResponseWriter, r *http.Request) {
 	}
 	out := ListLookup{TmdbID: id, Name: l.Name, Description: shortText(l.Description, overviewShort)}
 	for _, m := range l.Items {
-		if m.ID > 0 && (m.MediaType == "" || m.MediaType == "movie") {
+		switch {
+		case m.ID <= 0:
+		case m.MediaType == "" || m.MediaType == "movie":
 			out.Movies++
+		case m.MediaType == "tv":
+			out.Series++
 		}
 	}
-	if out.Added, err = w.listExists(ctx, "tmdb", id, ""); err != nil {
+	media := r.URL.Query().Get("media")
+	if media != string(policy.KindSeries) {
+		media = string(policy.KindMovie)
+	}
+	if out.Added, err = w.listExists(ctx, "tmdb", media, id, ""); err != nil {
 		w.internal(rw, err)
 		return
 	}
 	writeJSON(rw, http.StatusOK, out)
 }
 
-// listMonitors are the monitor values of each list type.
+// listMonitors are the monitor values of each list type (a series list's: all or none, as a Sonarr list's).
 var listMonitors = map[string][]string{
 	"tmdb":   {"movieOnly", "movieAndCollection", "none"},
 	"radarr": {"movieOnly", "none"},
 	"sonarr": {"all", "none"},
 }
 
-func checkListMonitor(listType, v string) error {
-	if !slices.Contains(listMonitors[listType], v) {
-		return errors.New("monitor must be one of " + strings.Join(listMonitors[listType], ", ") + " for a " + listType + " list")
+func checkListMonitor(listType, media, v string) error {
+	allowed := listMonitors[listType]
+	if media == string(policy.KindSeries) {
+		allowed = listMonitors["sonarr"]
+	}
+	if !slices.Contains(allowed, v) {
+		return errors.New("monitor must be one of " + strings.Join(allowed, ", ") + " for a " + listType + " " + media + " list")
 	}
 	return nil
 }
@@ -411,9 +427,19 @@ func (w *Web) apiAddList(rw http.ResponseWriter, r *http.Request) {
 	if in.ListType == "" {
 		in.ListType = "tmdb"
 	}
+	switch {
+	case in.ListType == "sonarr":
+		in.Media = string(policy.KindSeries)
+	case in.ListType == "radarr" || in.Media == "":
+		in.Media = string(policy.KindMovie)
+	}
+	if in.Media != string(policy.KindMovie) && in.Media != string(policy.KindSeries) {
+		badRequest(rw, "media must be movie or series")
+		return
+	}
 	if in.Monitor == "" {
 		in.Monitor = "movieOnly"
-		if in.ListType == "sonarr" {
+		if in.Media == string(policy.KindSeries) {
 			in.Monitor = "all"
 		}
 	}
@@ -444,7 +470,7 @@ func (w *Web) apiAddList(rw http.ResponseWriter, r *http.Request) {
 		badRequest(rw, "minimum_availability must be tba, announced, inCinemas or released")
 		return
 	}
-	if err := checkListMonitor(in.ListType, in.Monitor); err != nil {
+	if err := checkListMonitor(in.ListType, in.Media, in.Monitor); err != nil {
 		badRequest(rw, err.Error())
 		return
 	}
@@ -456,24 +482,21 @@ func (w *Web) apiAddList(rw http.ResponseWriter, r *http.Request) {
 		}
 		in.URL, in.APIKey = u, strings.TrimSpace(in.APIKey)
 	}
-	kind := "movie"
-	if in.ListType == "sonarr" {
-		kind = "series"
-	}
-	versions, err := checkListVersions(in.Versions, w.listLibraries("", in.ListType), "", kind)
+	kind := in.Media
+	versions, err := checkListVersions(in.Versions, w.listLibraries("", kind), "", kind)
 	if err != nil {
 		badRequest(rw, err.Error())
 		return
 	}
 	ctx := r.Context()
-	if exists, err := w.listExists(ctx, in.ListType, in.TmdbID, in.URL); err != nil {
+	if exists, err := w.listExists(ctx, in.ListType, kind, in.TmdbID, in.URL); err != nil {
 		w.internal(rw, err)
 		return
 	} else if exists && arrList {
 		writeJSON(rw, http.StatusConflict, apiError{Error: "this instance is already a list"})
 		return
 	} else if exists {
-		writeJSON(rw, http.StatusConflict, apiError{Error: "this TMDb list is already added"})
+		writeJSON(rw, http.StatusConflict, apiError{Error: "this TMDb list is already added for " + kind})
 		return
 	}
 	enabled := in.Enabled == nil || *in.Enabled
@@ -545,7 +568,7 @@ func (w *Web) apiSetList(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if in.Monitor != nil {
-		if err := checkListMonitor(cur.ListType, *in.Monitor); err != nil {
+		if err := checkListMonitor(cur.ListType, cur.Kind, *in.Monitor); err != nil {
 			badRequest(rw, err.Error())
 			return
 		}
@@ -589,7 +612,7 @@ func (w *Web) apiSetList(rw http.ResponseWriter, r *http.Request) {
 				badRequest(rw, "enter the API key again for a new address")
 				return
 			}
-			if exists, err := w.listExists(ctx, cur.ListType, 0, u); err != nil {
+			if exists, err := w.listExists(ctx, cur.ListType, cur.Kind, 0, u); err != nil {
 				w.internal(rw, err)
 				return
 			} else if exists {

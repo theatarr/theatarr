@@ -366,3 +366,50 @@ func TestArrListsAPI(t *testing.T) {
 		t.Errorf("preview of no list %d", rec.Code)
 	}
 }
+
+// A TMDb list is added once per media: its series row takes series libraries and the series monitor values, and Sync
+// now adds its TV items (TVDB id from TMDb's details); lookup counts both media and says which is added.
+func TestTMDbSeriesListsAPI(t *testing.T) {
+	t.Parallel()
+	e := newEnvWith(t, withIntake(&fakeIntakeTMDb{}))
+	key := e.apiKey()
+	var look ListLookup
+	if code := e.getKey(APIBase+"/lists/lookup?tmdb_id=9&media=series", key, &look); code != 200 || look.Movies != 1 ||
+		look.Series != 1 || look.Added {
+		t.Fatalf("lookup %d %+v", code, look)
+	}
+	for _, body := range []string{
+		`{"tmdb_id":9,"media":"series","name":"Shows","versions":["movie-web"]}`,                      // movie library
+		`{"tmdb_id":9,"media":"series","name":"Shows","versions":["tv-2160p"],"monitor":"movieOnly"}`, // movie monitor
+		`{"tmdb_id":9,"media":"other","name":"Shows","versions":["tv-2160p"]}`,                        // media
+	} {
+		if rec := e.sendCollection("POST", "/lists", body, key, ""); rec.Code != 400 {
+			t.Errorf("%s: %d %s", body, rec.Code, rec.Body)
+		}
+	}
+	var l MovieList
+	rec := e.sendCollection("POST", "/lists", `{"tmdb_id":9,"media":"series","name":"Shows","versions":["tv-2160p"]}`, key, "")
+	if rec.Code != 201 || json.Unmarshal(rec.Body.Bytes(), &l) != nil || l.Kind != "series" || l.Monitor != "all" ||
+		strings.Join(l.Libraries, ",") != "anime-tv,tv-2160p" {
+		t.Fatalf("POST %d %s", rec.Code, rec.Body)
+	}
+	if rec := e.sendCollection("POST", "/lists", `{"tmdb_id":9,"media":"series","name":"Again","versions":["tv-2160p"]}`, key, ""); rec.Code != 409 {
+		t.Errorf("duplicate series row %d", rec.Code)
+	}
+	if rec := e.sendCollection("POST", "/lists", `{"tmdb_id":9,"name":"Movies","versions":["movie-web"]}`, key, ""); rec.Code != 201 {
+		t.Errorf("movie row of the same list %d %s", rec.Code, rec.Body)
+	}
+	if code := e.getKey(APIBase+"/lists/lookup?tmdb_id=9&media=series", key, &look); code != 200 || !look.Added {
+		t.Errorf("lookup after adding %d %+v", code, look)
+	}
+	var synced ListSynced
+	e.web.pol.Router.Enabled = true
+	rec = e.sendCollection("POST", "/lists/"+strconv.FormatInt(l.ID, 10)+"/sync", ``, key, "")
+	if rec.Code != 200 || json.Unmarshal(rec.Body.Bytes(), &synced) != nil || synced.Added != 1 || synced.Skipped != 1 {
+		t.Fatalf("sync %d %s", rec.Code, rec.Body)
+	}
+	var n int
+	if err := e.st.Reader().QueryRow(`SELECT count(*) FROM title WHERE kind='series' AND tmdb_id=950 AND tvdb_id=7950`).Scan(&n); err != nil || n != 1 {
+		t.Errorf("series added %d %v", n, err)
+	}
+}

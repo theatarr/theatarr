@@ -351,22 +351,45 @@ func (s *MovieIntake) PreviewList(ctx context.Context, id int64) (ListPreview, e
 		if err != nil {
 			return out, err
 		}
-		for _, m := range l.Items {
-			if m.ID <= 0 || m.MediaType != "" && m.MediaType != "movie" {
-				continue
-			}
-			t := PreviewTitle{Name: m.Title, TmdbID: int64(m.ID)}
-			if d, err := time.Parse(time.DateOnly, m.ReleaseDate); err == nil {
-				t.Year = d.Year()
-			}
-			if t.Change, _, err = s.previewMovie(ctx, cfg, keys, int64(m.ID)); err != nil {
-				return out, err
-			}
-			note(t)
+		if err := s.previewItems(ctx, cfg, keys, l.Items, note); err != nil {
+			return out, err
 		}
 	}
 	out.Note = "A movie not in Theatarr yet is counted here as not anime; Sync now decides it from TMDb."
+	if cfg.media == "series" {
+		out.Note = "A series not in Theatarr yet is counted here as not anime; Sync now decides it from TMDb, and skips one TMDb has no TVDB id for."
+	}
 	return out, nil
+}
+
+// previewItems classifies a TMDb list's items of the list's media (as addItems takes them) with note.
+func (s *MovieIntake) previewItems(ctx context.Context, cfg movieIntakeConfig, keys []string, items []tmdb.MovieSummary,
+	note func(PreviewTitle)) error {
+	for _, m := range items {
+		series := cfg.media == "series"
+		if m.ID <= 0 || series && m.MediaType != "tv" || !series && m.MediaType != "" && m.MediaType != "movie" {
+			continue
+		}
+		t := PreviewTitle{Name: m.Title, TmdbID: int64(m.ID)}
+		date := m.ReleaseDate
+		if series {
+			t.Name, date = m.Name, m.FirstAirDate
+		}
+		if d, err := time.Parse(time.DateOnly, date); err == nil {
+			t.Year = d.Year()
+		}
+		var err error
+		if series {
+			t.Change, _, err = s.previewSeries(ctx, cfg, keys, arrSeries{TmdbID: int64(m.ID), Title: m.Name})
+		} else {
+			t.Change, _, err = s.previewMovie(ctx, cfg, keys, int64(m.ID))
+		}
+		if err != nil {
+			return err
+		}
+		note(t)
+	}
+	return nil
 }
 
 // previewMovie and previewSeries classify a title as a sync would (previewChange); titleID is its id in Theatarr,
@@ -392,11 +415,9 @@ func (s *MovieIntake) previewMovie(ctx context.Context, cfg movieIntakeConfig, k
 func (s *MovieIntake) previewSeries(ctx context.Context, cfg movieIntakeConfig, keys []string, it arrSeries) (
 	change string, titleID int64, err error) {
 	r := s.Store.Reader()
-	if excluded, err := seriesExcluded(ctx, r, it.TvdbID); err != nil || excluded {
-		return "excluded", 0, err
-	}
 	var id int64
 	var anime bool
+	var tvdb sql.NullInt64
 	found := false
 	for _, q := range []struct {
 		col string
@@ -405,13 +426,23 @@ func (s *MovieIntake) previewSeries(ctx context.Context, cfg movieIntakeConfig, 
 		if q.v <= 0 {
 			continue
 		}
-		err := r.QueryRowContext(ctx, `SELECT id, anime FROM title WHERE kind='series' AND `+q.col+`=?`, q.v).Scan(&id, &anime)
+		err := r.QueryRowContext(ctx, `SELECT id, anime, tvdb_id FROM title WHERE kind='series' AND `+q.col+`=?`, q.v).
+			Scan(&id, &anime, &tvdb)
 		if err == nil {
 			found = true
 			break
 		}
 		if !errors.Is(err, sql.ErrNoRows) {
 			return "", 0, err
+		}
+	}
+	// A TMDb list's item has no TVDB id until Sync reads it: a series Theatarr holds is checked by its own.
+	if excludeID := it.TvdbID; excludeID > 0 || tvdb.Valid {
+		if excludeID <= 0 {
+			excludeID = tvdb.Int64
+		}
+		if excluded, err := seriesExcluded(ctx, r, excludeID); err != nil || excluded {
+			return "excluded", 0, err
 		}
 	}
 	if !found {
