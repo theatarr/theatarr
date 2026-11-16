@@ -90,8 +90,9 @@ upstream search, whose requests count under the first caller's purpose; a cached
 Each counted request is also measured for the indexer statistics (migration 00148): `measured` (the hops counted with
 an answer or a transport error), `failures` (one for a transport error or an answer of HTTP 400 or more) and `took_ms`
 (the time to the answer's headers, as logged). An answer of HTTP 200 that is an error or no feed (a Torznab `<error>`,
-such as a refused key, or a page that is no Torznab document) is reported by the Torznab adapter with
-`Gateway.CountIndexerFailure`, which adds a failure to the request already counted. Rows from before 00148 have a
+such as a refused key, or a page that is no Torznab document; or an answer a Cardigann definition's error block
+recognizes, such as a refused login) is reported by the adapter with `Gateway.CountIndexerFailure`, which adds a
+failure to the request already counted. Rows from before 00148 have a
 count and no measurement.
 
 Counts are kept 90 UTC days (today included) in memory and in `gateway_indexer_request`. A request only counts in

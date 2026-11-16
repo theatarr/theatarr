@@ -70,7 +70,8 @@ func (c *cardigannSearcher) Search(ctx context.Context, q Query) (*Result, error
 		}
 	}
 	var requests atomic.Int64
-	inst.Transport = &gatewayTransport{gw: c.gw, target: c.target(), count: &requests}
+	inst.Transport = &gatewayTransport{gw: c.gw, target: c.target(), count: &requests,
+		failed: func() { c.answerFailed(ctx) }}
 	inst.Solver = &gatewayTransport{gw: c.gw, target: c.solverTarget(), count: &requests}
 	tiers, ok := cardigannRequests(q, def)
 	if !ok {
@@ -390,6 +391,16 @@ type gatewayTransport struct {
 	gw     Gateway
 	target gateway.Target
 	count  *atomic.Int64
+	// failed counts an answer the definition recognizes as an error (AnswerFailed); nil for none.
+	failed func()
+}
+
+// AnswerFailed is called by the engine for an answer under HTTP 400 that the definition recognizes as an error (a
+// refused login): a failure for the indexer statistics.
+func (t *gatewayTransport) AnswerFailed() {
+	if t.failed != nil {
+		t.failed()
+	}
 }
 
 func (t *gatewayTransport) RoundTrip(req *http.Request) (*http.Response, error) {

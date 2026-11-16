@@ -287,6 +287,22 @@ func (s *cgSession) checkLoginResponse(resp *cgResponse, vars *tmplVars) error {
 	return nil
 }
 
+// answerFailer is an Instance.Transport that counts an answer the definition recognizes as an error (the indexer's
+// statistics): the gateway counted its request as a success.
+type answerFailer interface{ AnswerFailed() }
+
+// answerFailed reports resp, an answer under HTTP 400 that the definition recognizes as an error, to the transport.
+func (s *cgSession) answerFailed(resp *cgResponse) {
+	if resp.status >= 400 {
+		return // the gateway counted it failed already
+	}
+	if site, _ := s.transports(); site != nil {
+		if f, ok := site.(answerFailer); ok {
+			f.AnswerFailed()
+		}
+	}
+}
+
 // findError checks a page against a definition's error blocks.
 func (s *cgSession) findError(blocks []ErrorBlock, resp *cgResponse, vars *tmplVars) (string, bool, error) {
 	if len(blocks) == 0 || len(bytes.TrimSpace(resp.body)) == 0 {
@@ -325,6 +341,7 @@ func (s *cgSession) findError(blocks []ErrorBlock, resp *cgResponse, vars *tmplV
 		if msg == "" {
 			msg = "the site reported an error"
 		}
+		s.answerFailed(resp)
 		return msg, true, nil
 	}
 	return "", false, nil

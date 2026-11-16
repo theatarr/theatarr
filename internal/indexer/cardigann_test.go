@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -227,5 +228,59 @@ func TestCardigannKeywords(t *testing.T) {
 	}
 	if (&cardigannSearcher{}).Supports(Query{Type: QueryMovie, IMDb: "tt0133093"}) {
 		t.Error("an id-only movie search is not a keyword search")
+	}
+}
+
+// A login the site answers with HTTP 200 and the error the definition recognizes (a changed or expired password) is a
+// failed answer for the indexer statistics: reported once, not for a search that only found nothing.
+func TestCardigannLoginErrorCountsAsFailure(t *testing.T) {
+	n := newNet(t)
+	empty := false
+	n.serve("site.test", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/login" && !empty:
+			io.WriteString(w, `<html><body><div class="error">Wrong password</div></body></html>`)
+		case r.URL.Path == "/login":
+			io.WriteString(w, `<html><body>Welcome</body></html>`)
+		default:
+			w.Header().Set("Content-Type", "application/json")
+			io.WriteString(w, `{"results":[]}`)
+		}
+	}))
+	def := strings.Replace(fmt.Sprintf(siteDef, "private"), "\nsearch:\n", `
+login:
+  path: login
+  method: post
+  inputs:
+    username: "{{ .Config.username }}"
+    password: "{{ .Config.password }}"
+  error:
+    - selector: div.error
+search:
+`, 1)
+	h := cardigannHarness(t, n, "private", nil, map[string]string{"site": `{"username":"alice","password":"old"}`}, false)
+	m := cardigann.NewManager(testDefs{"site": def}, nil)
+	m.DefaultDelay = time.Millisecond
+	cf := &countingGW{Gateway: h.gw}
+	p := testPolicy()
+	p.Indexers["site"] = &policy.Indexer{Kind: "cardigann", Definition: "site", URL: "http://site.test/",
+		Privacy: policy.PrivacyPrivate}
+	svc, err := New(p, cf, Options{Cardigann: m, CacheTTL: -1, APIKeys: map[string]string{"site": `{"username":"alice","password":"old"}`}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = svc.Search(context.Background(), "site", Query{Type: QueryText, Title: "Show"})
+	if err == nil || !strings.Contains(err.Error(), "Wrong password") {
+		t.Fatalf("search with a refused login: %v", err)
+	}
+	if cf.failed != 1 {
+		t.Fatalf("%d failures reported for the refused login, want 1", cf.failed)
+	}
+	empty = true
+	if _, err := svc.Search(context.Background(), "site", Query{Type: QueryText, Title: "Other"}); err != nil {
+		t.Fatal(err)
+	}
+	if cf.failed != 1 {
+		t.Fatalf("%d failures reported after an empty answer, want 1", cf.failed)
 	}
 }
