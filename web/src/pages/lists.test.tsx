@@ -32,7 +32,7 @@ it("adds a list from a pasted address after looking it up", async () => {
   ]);
   renderPage(<ListsPage />, "/admin/settings/import-lists");
   expect(await screen.findByText("No lists yet. Add a TMDb list by its id or address, or a Radarr or Sonarr instance by its address and API key.")).toBeTruthy();
-  expect(screen.getByText("A list is a TMDb list, a TMDb discover rule, or the titles of a Radarr or Sonarr instance.")).toBeTruthy();
+  expect(screen.getByText("A list is a TMDb list, a TMDb discover rule, a JSON list, or the titles of a Radarr or Sonarr instance.")).toBeTruthy();
   // A Settings page now: no Collections tabs; a manager gets no Settings breadcrumb or page picker.
   expect(screen.getByRole("heading", { name: "Import lists" })).toBeTruthy();
   expect(screen.queryByRole("tab")).toBeNull();
@@ -276,4 +276,28 @@ it("adds a TMDb discover list with its rule and shows the rule in its row", asyn
   expect(fetch.calls("POST", "/lists")[0].body).toEqual({ list_type: "tmdb_discover", rule: { year_from: 2010, year_to: 0, min_rating: 0, min_votes: 200, genres: [16], language: "ja", limit: 100 },
     name: "Popular anime", versions: ["movie-remux"], monitor: "movieOnly", search_on_add: true, minimum_availability: "released", enabled: true });
   expect((await screen.findByTestId("list-rule-4")).textContent).toBe("TMDb discover, movies: from 2010 · 200+ votes · Animation · ja · the 100 most popular");
+});
+
+it("adds a JSON list by its address", async () => {
+  const user = userEvent.setup();
+  const stevenlu: Schemas["MovieList"] = { ...mine, id: 5, name: "StevenLu", list_type: "json", tmdb_id: 0, url: "https://s3.amazonaws.com/popular-movies/movies.json" };
+  let lists: Schemas["MovieList"][] = [];
+  const fetch = mockFetch([
+    { method: "GET", path: "/auth/me", reply: manager },
+    { method: "GET", path: "/lists", reply: () => ({ lists, libraries, can_sync: true }) },
+    { method: "POST", path: "/lists", reply: () => { lists = [stevenlu]; return { status: 201, body: stevenlu }; } },
+  ]);
+  renderPage(<ListsPage />, "/admin/settings/import-lists");
+  await user.click(await screen.findByRole("button", { name: "Add list" }));
+  const dialog = within(screen.getByTestId("list-dialog"));
+  await user.selectOptions(dialog.getByRole("combobox", { name: /Source/ }), "json");
+  expect(dialog.getByText(/Enter the direct address: one that redirects is not followed./)).toBeTruthy();
+  await user.type(dialog.getByLabelText("JSON list address"), "https://s3.amazonaws.com/popular-movies/movies.json");
+  await user.type(dialog.getByLabelText("List name"), "StevenLu");
+  await user.click(dialog.getByRole("button", { name: "4K WEB" }));
+  await user.click(dialog.getByRole("button", { name: "Add" }));
+  await waitFor(() => expect(fetch.calls("POST", "/lists")).toHaveLength(1));
+  expect(fetch.calls("POST", "/lists")[0].body).toEqual({ list_type: "json", name: "StevenLu", versions: ["movie-web"], monitor: "movieOnly", search_on_add: true,
+    minimum_availability: "released", enabled: true, url: "https://s3.amazonaws.com/popular-movies/movies.json" });
+  expect(within(await screen.findByTestId("list-5")).getByText("JSON list, movies, at https://s3.amazonaws.com/popular-movies/movies.json")).toBeTruthy();
 });

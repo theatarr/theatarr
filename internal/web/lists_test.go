@@ -456,3 +456,54 @@ func TestDiscoverListsAPI(t *testing.T) {
 		t.Fatalf("GET %d %+v", code, page)
 	}
 }
+
+// A JSON list takes a public https address (once per media), no key; Preview and Sync read it through the intake's
+// fetch and resolve its entries.
+func TestJSONListsAPI(t *testing.T) {
+	t.Parallel()
+	tm := &fakeIntakeTMDb{}
+	e := newEnvWith(t, func(c *Config) {
+		mi := &catalog.MovieIntake{Store: c.Store, Policy: c.Policy, TMDb: tm, Now: c.Now, Log: c.Logger,
+			Fetch: func(context.Context, string) ([]byte, error) {
+				return []byte(`[{"title":"Listed","imdb_id":"tt0903"},{"title":"Nobody"}]`), nil
+			}}
+		c.Add.Collections = testIntake{mi, tm}
+	})
+	key := e.apiKey()
+	for _, body := range []string{
+		`{"list_type":"json","name":"J","versions":["movie-web"]}`,                                                    // no url
+		`{"list_type":"json","name":"J","versions":["movie-web"],"url":"http://lists.example/l.json"}`,                // not https
+		`{"list_type":"json","name":"J","versions":["movie-web"],"url":"https://192.168.1.5/l.json"}`,                 // LAN
+		`{"list_type":"json","name":"J","versions":["movie-web"],"url":"https://lists.example/l.json","api_key":"k"}`, // key
+	} {
+		if rec := e.sendCollection("POST", "/lists", body, key, ""); rec.Code != 400 {
+			t.Errorf("%s: %d %s", body, rec.Code, rec.Body)
+		}
+	}
+	var l MovieList
+	rec := e.sendCollection("POST", "/lists", `{"list_type":"json","name":"J","versions":["movie-web"],"url":" https://Lists.Example/l.json?k=v "}`, key, "")
+	if rec.Code != 201 || json.Unmarshal(rec.Body.Bytes(), &l) != nil || l.URL != "https://lists.example/l.json?k=v" || l.Kind != "movie" {
+		t.Fatalf("POST %d %s", rec.Code, rec.Body)
+	}
+	if rec := e.sendCollection("POST", "/lists", `{"list_type":"json","name":"J","versions":["movie-web"],"url":"https://lists.example/l.json?k=v"}`, key, ""); rec.Code != 409 {
+		t.Errorf("duplicate %d", rec.Code)
+	}
+	if rec := e.sendCollection("POST", "/lists", `{"list_type":"json","media":"series","name":"J","versions":["tv-2160p"],"url":"https://lists.example/l.json?k=v"}`, key, ""); rec.Code != 201 {
+		t.Errorf("series row of the same address %d %s", rec.Code, rec.Body)
+	}
+	id := strconv.FormatInt(l.ID, 10)
+	var p ListPreview
+	rec = e.sendCollection("POST", "/lists/"+id+"/preview", ``, key, "")
+	if rec.Code != 200 || json.Unmarshal(rec.Body.Bytes(), &p) != nil || p.AddTitle != 1 {
+		t.Fatalf("preview %d %s", rec.Code, rec.Body)
+	}
+	e.web.pol.Router.Enabled = true
+	var synced ListSynced
+	rec = e.sendCollection("POST", "/lists/"+id+"/sync", ``, key, "")
+	if rec.Code != 200 || json.Unmarshal(rec.Body.Bytes(), &synced) != nil || synced.Added != 1 || synced.Skipped != 1 {
+		t.Fatalf("sync %d %s", rec.Code, rec.Body)
+	}
+	if rec := e.sendCollection("PUT", "/lists/"+id, `{"url":"https://other.example/l.json"}`, key, ""); rec.Code != 200 {
+		t.Errorf("new address without a key %d %s", rec.Code, rec.Body)
+	}
+}

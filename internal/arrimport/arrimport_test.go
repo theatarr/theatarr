@@ -57,8 +57,10 @@ type fakeTMDb struct{}
 func (fakeTMDb) Collection(context.Context, int) (*tmdb.Collection, error) {
 	return nil, errors.New("none")
 }
-func (fakeTMDb) List(context.Context, int) (*tmdb.List, error)    { return nil, errors.New("none") }
-func (fakeTMDb) TVDetails(context.Context, int) (*tmdb.TV, error) { return nil, errors.New("none") }
+func (fakeTMDb) List(context.Context, int) (*tmdb.List, error)     { return nil, errors.New("none") }
+func (fakeTMDb) TVDetails(context.Context, int) (*tmdb.TV, error)  { return nil, errors.New("none") }
+func (fakeTMDb) FindByIMDb(context.Context, string) (int, error)   { return 0, errors.New("none") }
+func (fakeTMDb) FindTVByIMDb(context.Context, string) (int, error) { return 0, errors.New("none") }
 func (fakeTMDb) DiscoverMovies(context.Context, tmdb.Discover) ([]tmdb.MovieSummary, error) {
 	return nil, errors.New("none")
 }

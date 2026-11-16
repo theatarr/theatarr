@@ -314,6 +314,8 @@ func (s *MovieIntake) PreviewList(ctx context.Context, id int64) (ListPreview, e
 			out.Titles = append(out.Titles, t)
 		}
 	}
+	// unresolved: entries of a JSON list that name no title TMDb knows (Sync skips them; the note says how many).
+	unresolved := 0
 	switch cfg.listType {
 	case "sonarr":
 		var series []arrSeries
@@ -346,8 +348,13 @@ func (s *MovieIntake) PreviewList(ctx context.Context, id int64) (ListPreview, e
 			}
 			note(t)
 		}
-	case "tmdb_discover":
-		items, err := s.discover(ctx, cfg)
+	case "tmdb_discover", "json":
+		var items []tmdb.MovieSummary
+		if cfg.listType == "json" {
+			items, unresolved, err = s.jsonItems(ctx, cfg)
+		} else {
+			items, err = s.discover(ctx, cfg)
+		}
 		if err != nil {
 			return out, err
 		}
@@ -366,6 +373,9 @@ func (s *MovieIntake) PreviewList(ctx context.Context, id int64) (ListPreview, e
 	out.Note = "A movie not in Theatarr yet is counted here as not anime; Sync now decides it from TMDb."
 	if cfg.media == "series" {
 		out.Note = "A series not in Theatarr yet is counted here as not anime; Sync now decides it from TMDb, and skips one TMDb has no TVDB id for."
+	}
+	if unresolved > 0 {
+		out.Note += fmt.Sprintf(" %d of the list's entries name no title TMDb knows, and are skipped.", unresolved)
 	}
 	return out, nil
 }

@@ -17,7 +17,7 @@ const CardigannDefinitionsBudget = "cardigann-definitions"
 // definitions fetch's own budget.
 func (g *Gateway) CardigannCommit(ctx context.Context, base *policy.Policy, commitURL string) (string, error) {
 	res, err := g.syncGet(ctx, base, CardigannDefinitionsBudget, commitURL, 4<<10, "application/vnd.github.sha",
-		&g.runtime.cardigannOnce, &g.runtime.cardigannBucket)
+		&g.runtime.cardigannOnce, &g.runtime.cardigannBucket, syncBudget)
 	if err != nil {
 		return "", err
 	}
@@ -39,7 +39,7 @@ func (g *Gateway) CardigannCommit(ctx context.Context, base *policy.Policy, comm
 // CardigannArchive fetches the definitions repository archive of one commit (at most maxBytes).
 func (g *Gateway) CardigannArchive(ctx context.Context, base *policy.Policy, archiveURL string, maxBytes int64) ([]byte, error) {
 	res, err := g.syncGet(ctx, base, CardigannDefinitionsBudget, archiveURL, maxBytes, "",
-		&g.runtime.cardigannOnce, &g.runtime.cardigannBucket)
+		&g.runtime.cardigannOnce, &g.runtime.cardigannBucket, syncBudget)
 	if err != nil {
 		return nil, err
 	}

@@ -57,14 +57,18 @@ func (g *Gateway) QualityCommit(ctx context.Context, base *policy.Policy, commit
 }
 
 func (g *Gateway) qualityGet(ctx context.Context, base *policy.Policy, rawURL string, maxBytes int64, accept string) (*http.Response, error) {
-	return g.syncGet(ctx, base, QualitySyncBudget, rawURL, maxBytes, accept, &g.runtime.qualityOnce, &g.runtime.qualityBucket)
+	return g.syncGet(ctx, base, QualitySyncBudget, rawURL, maxBytes, accept, &g.runtime.qualityOnce, &g.runtime.qualityBucket,
+		syncBudget)
 }
 
-// syncGet fetches from an upstream repository (the quality sync's TRaSH archives, the cardigann definitions) as the
-// indexer-class target key: VPN-guarded, through the probe's destination checks, charged to its own budget that
-// every runtime generation shares, and following no redirect.
+// syncBudget is the budget of each upstream repository fetch (syncGet): 2 a minute, 24 a day.
+var syncBudget = policy.Budget{Requests: 2, Per: policy.Duration(time.Minute), Burst: 2, Daily: 24}
+
+// syncGet fetches from an upstream repository (the quality sync's TRaSH archives, the cardigann definitions) or a
+// JSON import list as the indexer-class target key: VPN-guarded, through the probe's destination checks, charged to
+// its own budget b that every runtime generation shares, and following no redirect.
 func (g *Gateway) syncGet(ctx context.Context, base *policy.Policy, key, rawURL string, maxBytes int64, accept string,
-	once *sync.Once, shared **bucketState) (*http.Response, error) {
+	once *sync.Once, shared **bucketState, b policy.Budget) (*http.Response, error) {
 	p, err := base.Clone()
 	if err != nil {
 		return nil, err
@@ -76,13 +80,13 @@ func (g *Gateway) syncGet(ctx context.Context, base *policy.Policy, key, rawURL 
 		p.Budgets = map[string]*policy.Budget{}
 	}
 	p.Indexers[key] = &policy.Indexer{Kind: "torznab", URL: rawURL, Privacy: policy.Privacy("public"), Budget: key}
-	p.Budgets[key] = &policy.Budget{Requests: 2, Per: policy.Duration(time.Minute), Burst: 2, Daily: 24}
+	p.Budgets[key] = &b
 	target := Target{Class: ClassIndexer, Key: key, MaxBytes: maxBytes}
 	pg, err := g.Probe(ctx, p, ProbeOptions{Target: target, Budget: key, Candidate: true})
 	if err != nil {
 		return nil, err
 	}
-	once.Do(func() { *shared = &bucketState{tokens: 2, last: g.now()} })
+	once.Do(func() { *shared = &bucketState{tokens: float64(b.Burst), last: g.now()} })
 	pg.buckets[key].state = *shared
 	// No redirect is followed: the commits API and codeload answer directly, and a hop could otherwise reach any host
 	// of the live allowlist copied into the probe (an arr or Plex on the LAN).

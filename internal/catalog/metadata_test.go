@@ -34,6 +34,8 @@ type intakeSource struct {
 	// discovered answers DiscoverMovies and DiscoverTV; rules records the rules asked for.
 	discovered []tmdb.MovieSummary
 	rules      *[]tmdb.Discover
+	// imdb answers FindByIMDb and FindTVByIMDb.
+	imdb map[string]int
 }
 
 func (f intakeSource) DiscoverMovies(_ context.Context, d tmdb.Discover) ([]tmdb.MovieSummary, error) {
@@ -41,6 +43,17 @@ func (f intakeSource) DiscoverMovies(_ context.Context, d tmdb.Discover) ([]tmdb
 		*f.rules = append(*f.rules, d)
 	}
 	return f.discovered, nil
+}
+
+func (f intakeSource) FindByIMDb(_ context.Context, imdb string) (int, error) {
+	if id := f.imdb[imdb]; id > 0 {
+		return id, nil
+	}
+	return 0, tmdb.ErrNotFound
+}
+
+func (f intakeSource) FindTVByIMDb(ctx context.Context, imdb string) (int, error) {
+	return f.FindByIMDb(ctx, imdb)
 }
 
 func (f intakeSource) DiscoverTV(ctx context.Context, d tmdb.Discover) ([]tmdb.MovieSummary, error) {
@@ -1103,5 +1116,45 @@ func TestDiscoverListSync(t *testing.T) {
 	}
 	if n := countRows(t, st, `SELECT count(*) FROM title WHERE kind='movie' AND tmdb_id IN (101,102)`); n != 2 {
 		t.Errorf("%d movies added", n)
+	}
+}
+
+// A JSON list is read through Fetch and its entries resolve by TMDb id (a number or a string), else by IMDb id;
+// an entry TMDb does not know, or with no id, is skipped and counted. More than 1,000 entries, or an answer that is
+// not a JSON array, fails the list and adds nothing.
+func TestJSONListSync(t *testing.T) {
+	t.Parallel()
+	s, st := newIntake(t, intakeSource{imdb: map[string]int{"tt0102": 102}})
+	body := `[{"title":"One","tmdb_id":101},{"title":"Two","imdb_id":"tt0102"},{"title":"Three","tmdb_id":"103"},
+		{"title":"Unknown","imdb_id":"tt9999"},{"title":"None"},{"tmdb_id":101}]`
+	var fetched []string
+	s.Fetch = func(_ context.Context, u string) ([]byte, error) {
+		fetched = append(fetched, u)
+		return []byte(body), nil
+	}
+	if _, err := st.Writer().Exec(`INSERT INTO import_list(id,name,list_type,url,versions,created_at,updated_at) VALUES
+		(1,'Popular','json','https://lists.example/movies.json','["movie-web"]',0,0)`); err != nil {
+		t.Fatal(err)
+	}
+	p, err := s.PreviewList(context.Background(), 1)
+	if err != nil || p.AddTitle != 3 || p.Skipped != 0 || len(p.Titles) == 0 || p.Titles[0].Name != "One" ||
+		!strings.HasSuffix(p.Note, " 2 of the list's entries name no title TMDb knows, and are skipped.") {
+		t.Fatalf("preview %+v %v", p, err)
+	}
+	got, err := s.SyncLists(context.Background())
+	if err != nil || got.Added != 3 || got.Skipped != 2 {
+		t.Fatalf("sync %+v %v", got, err)
+	}
+	if len(fetched) != 2 || fetched[0] != "https://lists.example/movies.json" {
+		t.Fatalf("fetched %v", fetched)
+	}
+	if n := countRows(t, st, `SELECT count(*) FROM title WHERE kind='movie' AND tmdb_id IN (101,102,103)`); n != 3 {
+		t.Errorf("%d movies added", n)
+	}
+	for _, bad := range []string{`{"items":[]}`, "[" + strings.Repeat(`{"tmdb_id":1},`, MaxJSONListItems) + `{"tmdb_id":1}]`} {
+		body = bad
+		if got, err := s.SyncList(context.Background(), 1); err == nil || got.Added != 0 {
+			t.Errorf("%.20s: %+v %v", bad, got, err)
+		}
 	}
 }

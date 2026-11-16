@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"time"
 
 	"github.com/theatarr/theatarr/internal/arrview"
@@ -23,7 +24,11 @@ func newServeMovieIntake(pol *policy.Policy, st *store.Store, gw *gateway.Gatewa
 	if err != nil {
 		return nil, err
 	}
-	return &catalog.MovieIntake{Store: st, Policy: pol, TMDb: c}, nil
+	// A JSON list is read through the gateway's list fetch: public addresses only, its own budget, no redirect.
+	fetch := func(ctx context.Context, u string) ([]byte, error) {
+		return gw.ListGet(ctx, pol, u, catalog.MaxJSONListBytes)
+	}
+	return &catalog.MovieIntake{Store: st, Policy: pol, TMDb: c, Fetch: fetch}, nil
 }
 
 // serveMovieIntake is what the Collections page uses of a generation's movie intake (web.MovieIntake): the intake's

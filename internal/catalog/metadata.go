@@ -29,6 +29,9 @@ type MovieMetadataSource interface {
 	// DiscoverMovies and DiscoverTV read a discover list's rule (tmdb_discover).
 	DiscoverMovies(context.Context, tmdb.Discover) ([]tmdb.MovieSummary, error)
 	DiscoverTV(context.Context, tmdb.Discover) ([]tmdb.MovieSummary, error)
+	// FindByIMDb and FindTVByIMDb resolve a JSON list's IMDb ids (ErrNotFound when TMDb has none).
+	FindByIMDb(context.Context, string) (int, error)
+	FindTVByIMDb(context.Context, string) (int, error)
 }
 
 // MovieIntake refreshes collections and lists through the shared catalog add path.
@@ -44,6 +47,8 @@ type MovieIntake struct {
 	OnAdd func(ctx context.Context, titleID int64, versions []string, later bool) error
 	// Arr opens the read-only client of a Radarr or Sonarr list's instance; nil: arr.New with the default options.
 	Arr func(url, key string) (ArrReader, error)
+	// Fetch reads a JSON list's address through the gateway (gateway.ListGet); nil: JSON lists cannot be read.
+	Fetch func(ctx context.Context, url string) ([]byte, error)
 
 	skipLogged sync.Map // collection targets skipped, logged once: "tmdb id:keys"
 }
@@ -356,6 +361,13 @@ func (s *MovieIntake) syncList(ctx context.Context, cfg movieIntakeConfig, out *
 		if err != nil {
 			return []error{fmt.Errorf("list %d: %w", cfg.id, err)}, nil
 		}
+		soft = s.addItems(ctx, cfg, items, out)
+	case "json":
+		items, unresolved, err := s.jsonItems(ctx, cfg)
+		if err != nil {
+			return []error{fmt.Errorf("list %d: %w", cfg.id, err)}, nil
+		}
+		out.Skipped += unresolved
 		soft = s.addItems(ctx, cfg, items, out)
 	default:
 		l, err := s.TMDb.List(ctx, int(cfg.tmdbID))

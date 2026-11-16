@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"slices"
 	"strconv"
@@ -31,12 +32,13 @@ import (
 type MovieList struct {
 	ID   int64  `json:"id"`
 	Name string `json:"name"`
-	// ListType: tmdb, tmdb_discover, radarr or sonarr.
+	// ListType: tmdb, tmdb_discover, json, radarr or sonarr.
 	ListType string `json:"list_type"`
 	// Kind is what the list adds (its media): movie, or series for a Sonarr list or a TMDb series list.
 	Kind   string `json:"kind"`
 	TmdbID int64  `json:"tmdb_id"`
-	// URL is a Radarr or Sonarr list's instance address; APIKeySet says its API key is stored (it is never answered).
+	// URL is a Radarr or Sonarr list's instance address, or a JSON list's address; APIKeySet says a Radarr or Sonarr
+	// list's API key is stored (it is never answered).
 	URL       string `json:"url,omitempty"`
 	APIKeySet bool   `json:"api_key_set"`
 	// Rule is a TMDb discover list's rule.
@@ -71,8 +73,8 @@ type ListsPage struct {
 
 // ListAdd is POST /lists.
 type ListAdd struct {
-	// ListType: tmdb (default), tmdb_discover, radarr or sonarr. A TMDb list takes TmdbID; a discover list Rule; a
-	// Radarr or Sonarr list URL and APIKey.
+	// ListType: tmdb (default), tmdb_discover, json, radarr or sonarr. A TMDb list takes TmdbID; a discover list Rule;
+	// a JSON list URL (a public https address); a Radarr or Sonarr list URL and APIKey.
 	ListType string `json:"list_type"`
 	// Media is what a TMDb list adds: movie (default) or series (its TV items). A Radarr list adds movies and a
 	// Sonarr list series whatever is sent.
@@ -428,6 +430,7 @@ func (w *Web) apiLookupList(rw http.ResponseWriter, r *http.Request) {
 var listMonitors = map[string][]string{
 	"tmdb":          {"movieOnly", "movieAndCollection", "none"},
 	"tmdb_discover": {"movieOnly", "movieAndCollection", "none"},
+	"json":          {"movieOnly", "movieAndCollection", "none"},
 	"radarr":        {"movieOnly", "none"},
 	"sonarr":        {"all", "none"},
 }
@@ -459,6 +462,24 @@ func normalListURL(raw string) (string, error) {
 	}
 	u.Scheme, u.Host = strings.ToLower(u.Scheme), strings.ToLower(u.Host)
 	u.Path, u.RawPath = strings.TrimRight(u.Path, "/"), ""
+	return u.String(), nil
+}
+
+// normalJSONListURL checks a JSON list's address: a public https address, written one way (no surrounding space,
+// lower-case host). A query is kept (some lists take one); credentials and a LAN address are refused.
+func normalJSONListURL(raw string) (string, error) {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || u.Host == "" || !strings.EqualFold(u.Scheme, "https") {
+		return "", errors.New("url must be an https address")
+	}
+	if u.User != nil {
+		return "", errors.New("url must not carry credentials")
+	}
+	if ip, err := netip.ParseAddr(strings.Trim(u.Hostname(), "[]")); err == nil &&
+		(ip.IsPrivate() || ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsUnspecified() || !ip.IsGlobalUnicast()) {
+		return "", errors.New("url must be an address on the internet, not on your network")
+	}
+	u.Scheme, u.Host, u.Fragment = "https", strings.ToLower(u.Host), ""
 	return u.String(), nil
 }
 
@@ -513,15 +534,19 @@ func (w *Web) apiAddList(rw http.ResponseWriter, r *http.Request) {
 	}
 	arrList := in.ListType == "radarr" || in.ListType == "sonarr"
 	discover := in.ListType == "tmdb_discover"
+	jsonList := in.ListType == "json"
 	switch {
-	case !arrList && !discover && in.ListType != "tmdb":
-		badRequest(rw, "list_type must be tmdb, tmdb_discover, radarr or sonarr")
+	case !arrList && !discover && !jsonList && in.ListType != "tmdb":
+		badRequest(rw, "list_type must be tmdb, tmdb_discover, json, radarr or sonarr")
 		return
 	case in.ListType == "tmdb" && in.TmdbID <= 0:
 		badRequest(rw, "tmdb_id is required")
 		return
-	case !arrList && (in.URL != "" || in.APIKey != ""):
+	case !arrList && !jsonList && (in.URL != "" || in.APIKey != ""):
 		badRequest(rw, "a TMDb list takes no url or api_key")
+		return
+	case jsonList && in.APIKey != "":
+		badRequest(rw, "a JSON list takes no api_key")
 		return
 	case in.ListType != "tmdb" && in.TmdbID != 0:
 		badRequest(rw, "a "+in.ListType+" list takes no tmdb_id")
@@ -551,6 +576,14 @@ func (w *Web) apiAddList(rw http.ResponseWriter, r *http.Request) {
 		}
 		in.URL, in.APIKey = u, strings.TrimSpace(in.APIKey)
 	}
+	if jsonList {
+		u, err := normalJSONListURL(in.URL)
+		if err != nil {
+			badRequest(rw, err.Error())
+			return
+		}
+		in.URL = u
+	}
 	var rule any // NULL but for a discover list
 	if discover {
 		d, err := discoverRule(in.Rule)
@@ -573,6 +606,9 @@ func (w *Web) apiAddList(rw http.ResponseWriter, r *http.Request) {
 		return
 	} else if exists && arrList {
 		writeJSON(rw, http.StatusConflict, apiError{Error: "this instance is already a list"})
+		return
+	} else if exists && jsonList {
+		writeJSON(rw, http.StatusConflict, apiError{Error: "this address is already a list for " + kind})
 		return
 	} else if exists && !discover {
 		writeJSON(rw, http.StatusConflict, apiError{Error: "this TMDb list is already added for " + kind})
@@ -691,15 +727,23 @@ func (w *Web) apiSetList(rw http.ResponseWriter, r *http.Request) {
 		}
 		set, args = append(set, "rule = ?"), append(args, rule)
 	}
+	if key != "" && cur.ListType == "json" {
+		badRequest(rw, "a JSON list takes no api_key")
+		return
+	}
 	if in.URL != nil {
-		u, err := normalListURL(*in.URL)
+		normal := normalListURL
+		if cur.ListType == "json" {
+			normal = normalJSONListURL
+		}
+		u, err := normal(*in.URL)
 		if err != nil {
 			badRequest(rw, err.Error())
 			return
 		}
 		if u != cur.URL {
 			// The stored key is never sent to a new address.
-			if key == "" {
+			if key == "" && cur.ListType != "json" {
 				badRequest(rw, "enter the API key again for a new address")
 				return
 			}
@@ -707,7 +751,7 @@ func (w *Web) apiSetList(rw http.ResponseWriter, r *http.Request) {
 				w.internal(rw, err)
 				return
 			} else if exists {
-				writeJSON(rw, http.StatusConflict, apiError{Error: "this instance is already a list"})
+				writeJSON(rw, http.StatusConflict, apiError{Error: "this address is already a list"})
 				return
 			}
 			set, args = append(set, "url = ?"), append(args, u)

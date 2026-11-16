@@ -220,6 +220,9 @@ type runtimeSet struct {
 	// The cardigann definitions fetch has a budget of its own, also shared by every generation.
 	cardigannOnce   sync.Once
 	cardigannBucket *bucketState
+	// JSON import lists (ListGet) have one too.
+	listsOnce   sync.Once
+	listsBucket *bucketState
 	// lineages: every generation's checks of each egress path (egressLineage).
 	lineageMu sync.Mutex
 	lineages  map[lineageKey]*egressLineage

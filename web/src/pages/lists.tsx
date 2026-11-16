@@ -32,10 +32,11 @@ type Monitor = NonNullable<ListAdd["monitor"]>;
 const MONITOR: Record<ListType, readonly (readonly [Monitor, string])[]> = {
   tmdb: [["movieOnly", "Movies"], ["movieAndCollection", "Movies and their collections"], ["none", "Nothing (added unmonitored)"]],
   tmdb_discover: [["movieOnly", "Movies"], ["movieAndCollection", "Movies and their collections"], ["none", "Nothing (added unmonitored)"]],
+  json: [["movieOnly", "Movies"], ["movieAndCollection", "Movies and their collections"], ["none", "Nothing (added unmonitored)"]],
   radarr: [["movieOnly", "Movies"], ["none", "Nothing (added unmonitored)"]],
   sonarr: [["all", "Series"], ["none", "Nothing (added unmonitored)"]],
 };
-const SOURCES = [["tmdb", "TMDb list"], ["tmdb_discover", "TMDb discover"], ["radarr", "Radarr"], ["sonarr", "Sonarr"]] as const;
+const SOURCES = [["tmdb", "TMDb list"], ["tmdb_discover", "TMDb discover"], ["json", "JSON list"], ["radarr", "Radarr"], ["sonarr", "Sonarr"]] as const;
 const APP: Record<string, string> = { radarr: "Radarr", sonarr: "Sonarr" };
 const MEDIA = [["movie", "Movies"], ["series", "Series"]] as const;
 /** The monitor choices of a list: a series list's are a Sonarr list's. */
@@ -106,6 +107,7 @@ function ListDialog({ list, libraries, seriesLibraries, canSync, m, onClose }: {
   const [listType, setListType] = useState<ListType>(list?.list_type ?? "tmdb");
   const arr = listType === "radarr" || listType === "sonarr";
   const discover = listType === "tmdb_discover";
+  const jsonList = listType === "json";
   const [rule, setRule] = useState<RuleForm>(ruleForm(list?.rule));
   const [pickedMedia, setPickedMedia] = useState<Media>(list?.kind ?? "movie");
   const media = mediaOf(listType, pickedMedia);
@@ -124,11 +126,11 @@ function ListDialog({ list, libraries, seriesLibraries, canSync, m, onClose }: {
   const tmdbID = listIDFrom(useDebounced(source, 300));
   const lookup = useListLookup(list || !canSync ? 0 : tmdbID, media);
   const found = lookup.data;
-  const title = name.trim() || (arr ? APP[listType] : discover ? "TMDb discover" : found?.name) || "";
+  const title = name.trim() || (arr ? APP[listType] : discover ? "TMDb discover" : jsonList ? "JSON list" : found?.name) || "";
   const mutation = list ? m.set : m.add;
   const newAddress = list ? normalListURL(address) !== normalListURL(list.url ?? "") : true;
   const ready = title !== "" && versions.length > 0 && (arr ? address.trim() !== "" && (!newAddress || apiKey.trim() !== "")
-    : list || discover ? true : listIDFrom(source) > 0 && !found?.added);
+    : jsonList ? address.trim() !== "" : list || discover ? true : listIDFrom(source) > 0 && !found?.added);
   const pick = (t: ListType, m: Media) => {
     setListType(t);
     setPickedMedia(m);
@@ -142,9 +144,11 @@ function ListDialog({ list, libraries, seriesLibraries, canSync, m, onClose }: {
     : { list_type: listType as "radarr" | "sonarr", url: address, api_key: apiKey });
   const submit = () => {
     const body = { name: title, versions, monitor, search_on_add: searchOnAdd, ...(media === "series" ? {} : { minimum_availability: minimum }), enabled };
-    const instance = arr ? { ...(newAddress ? { url: address } : {}), ...(apiKey.trim() ? { api_key: apiKey } : {}) } : {};
+    const instance = arr ? { ...(newAddress ? { url: address } : {}), ...(apiKey.trim() ? { api_key: apiKey } : {}) }
+      : jsonList && (!list || address.trim() !== list.url) ? { url: address.trim() } : {};
     if (list) m.set.mutate({ id: list.id, ...body, ...instance, ...(discover ? { rule: ruleBody(rule) } : {}) }, { onSuccess: onClose });
     else if (arr) m.add.mutate({ list_type: listType, ...body, ...instance }, { onSuccess: onClose });
+    else if (jsonList) m.add.mutate({ list_type: listType, ...(media === "series" ? { media } : {}), ...body, ...instance }, { onSuccess: onClose });
     else if (discover) m.add.mutate({ list_type: listType, ...(media === "series" ? { media } : {}), rule: ruleBody(rule), ...body }, { onSuccess: onClose });
     else m.add.mutate({ tmdb_id: listIDFrom(source), ...(media === "series" ? { media } : {}), ...body }, { onSuccess: onClose });
   };
@@ -196,6 +200,10 @@ function ListDialog({ list, libraries, seriesLibraries, canSync, m, onClose }: {
             : found ? <span className="block text-xs text-muted-foreground" data-testid="list-found">{found.added ? `${found.name} is already added for ${media === "series" ? "series" : "movies"}.` : `${found.name}: ${found.movies} ${found.movies === 1 ? "movie" : "movies"}${found.series ? `, ${found.series} series` : ""}.`}{found.description ? ` ${found.description}` : ""}</span> : null}
         </label>}
       {discover ? <DiscoverFields f={rule} set={setRule} media={media} /> : null}
+      {jsonList ? <label className="block space-y-1.5"><span className="font-medium text-[var(--ink)]">Address</span>
+        <Input aria-label="JSON list address" placeholder="https://example.org/list.json" value={address} onChange={e => setAddress(e.target.value)} />
+        <span className="block text-xs text-muted-foreground">An https address that answers a JSON array of entries with imdb_id or tmdb_id, such as the StevenLu lists; at most 1,000 entries. Enter the direct address: one that redirects is not followed.</span>
+      </label> : null}
       <label className="block space-y-1.5"><span className="font-medium text-[var(--ink)]">Name</span>
         <Input aria-label="List name" placeholder={arr ? APP[listType] : discover ? "TMDb discover" : found?.name ?? ""} value={name} onChange={e => setName(e.target.value)} />
       </label>
@@ -258,6 +266,7 @@ function ListRow({ l, libraries, seriesLibraries, canSync, m, edit, remove, sync
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <h2 className="min-w-0 font-semibold text-[var(--ink)] [overflow-wrap:anywhere]">{l.name}</h2>
         {l.list_type === "tmdb" ? <a className="text-xs text-primary hover:underline" href={`https://www.themoviedb.org/list/${l.tmdb_id}`} target="_blank" rel="noreferrer">TMDb list {l.tmdb_id}{l.kind === "series" ? " (series)" : ""}</a>
+          : l.list_type === "json" ? <span className="text-xs text-muted-foreground [overflow-wrap:anywhere]">JSON list, {l.kind === "series" ? "series" : "movies"}, at {l.url}</span>
           : l.list_type === "tmdb_discover" && l.rule ? <span className="text-xs text-muted-foreground [overflow-wrap:anywhere]" data-testid={`list-rule-${l.id}`}>TMDb discover, {l.kind === "series" ? "series" : "movies"}: {ruleWords(l.rule, l.kind)}</span>
           : <span className="text-xs text-muted-foreground [overflow-wrap:anywhere]">{APP[l.list_type]} at {l.url}</span>}
         {l.view ? <Chip tone="ghost">Created through the {l.view} view</Chip> : null}
@@ -340,7 +349,7 @@ export function ListsPage() {
         keeps: ["The titles it already added, and their files", ...(APP[removing.list_type] ? [`Everything in the ${APP[removing.list_type]} instance itself`] : []),
           ...(removing.view ? [`Nothing in the ${removing.view} client itself: delete it there too if it should not come back`] : [])] }} /> : null}
     {q.isLoading ? <Loading /> : q.error ? <ErrorState error={q.error} /> : d ? <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">A list is a TMDb list, a TMDb discover rule, or the titles of a Radarr or Sonarr instance.{d.can_sync ? "" : " TMDb is not set up, so lists do not sync."}</p>
+      <p className="text-sm text-muted-foreground">A list is a TMDb list, a TMDb discover rule, a JSON list, or the titles of a Radarr or Sonarr instance.{d.can_sync ? "" : " TMDb is not set up, so lists do not sync."}</p>
       {done ? <p role="status" className="text-sm text-[var(--ink)]" data-testid="lists-done">{done}</p> : null}
       {m.sync.error ? <ErrorState error={m.sync.error} /> : null}
       {m.set.error && !dialog ? <ErrorState error={m.set.error} /> : null}
