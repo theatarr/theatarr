@@ -138,7 +138,7 @@ references, also those past the listed 20, read with the references themselves (
 - **failed** (the provider's error states), **stalled** (queued or downloading for over a day), **largest** (25).
 
 A failed torrent that library links reference carries `served_by`: the cache codes (rd, ad, tb) of the other torrents
-of its hash (compared lower case) in the report that are complete (progress 100, as Cached on counts a provider). It
+of its hash (compared lower case) in the report that are complete (progress 100, as Cached on counts a provider, and not in an error state). It
 says only what the record shows, not which copy the mount plays; a torrent that matches only by folder name gets
 none. Usage, groups, delete rules and override tokens do not change.
 

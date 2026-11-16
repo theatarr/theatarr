@@ -1008,11 +1008,15 @@ func TestReportServedBy(t *testing.T) {
 	}
 	cC := complete
 	cC.ID, cC.Hash = "12", hC
-	e.tb.list = []provider.Torrent{complete, incomplete, cC}
-	for _, h := range []string{hA, hB} {
+	// rd 4's other copy reads progress 100 but is failed itself: not a complete copy.
+	failedFull := tor("13", hD, "Movie.D.2018.1080p", 100, old, provider.StateError)
+	failedFull.Progress = 100
+	e.rd.list = append(e.rd.list, tor("4", hD, "Movie.D.2018.1080p", 100, old, provider.StateError))
+	e.tb.list = []provider.Torrent{complete, incomplete, cC, failedFull}
+	for _, h := range []string{hA, hB, hD} {
 		e.content(h, 1)
 	}
-	for _, h := range []string{hA, hB} {
+	for _, h := range []string{hA, hB, hD} {
 		var file int64
 		if err := e.st.Reader().QueryRow(`SELECT f.id FROM content_file f JOIN content c ON c.id = f.content_id
 			WHERE c.info_hash = ?`, h).Scan(&file); err != nil {
@@ -1033,6 +1037,9 @@ func TestReportServedBy(t *testing.T) {
 	}
 	if got := find(r, "rd", "3").ServedBy; got != nil {
 		t.Errorf("rd 3 has no library link: served by %v", got)
+	}
+	if got := find(r, "rd", "4").ServedBy; got != nil {
+		t.Errorf("rd 4's other copy is failed: served by %v", got)
 	}
 	if got := find(r, "tb", "10").ServedBy; got != nil {
 		t.Errorf("a complete copy is not failed: served by %v", got)

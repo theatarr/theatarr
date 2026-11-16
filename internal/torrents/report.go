@@ -69,7 +69,7 @@ type Torrent struct {
 	// RecordedFiles are the files Theatarr recorded for its hash (content_file: imported or probed), by path.
 	RecordedFiles []RecordedFile `json:"recorded_files,omitempty"`
 	// ServedBy is set on a failed torrent (GroupFailed) that library links reference: the cache codes (rd, ad, tb) of
-	// the other torrents of its hash in the record that are complete (progress 100), rd, ad, tb first. Only what the
+	// the other torrents of its hash in the record that are complete (progress 100, not failed), rd, ad, tb first. Only what the
 	// record shows: not which copy the mount plays.
 	ServedBy []string `json:"served_by,omitempty"`
 
@@ -213,13 +213,13 @@ func (m *Manager) cacheCode(key string) string {
 }
 
 // servedBy sets ServedBy on each failed torrent with library-link references: the codes (code) of the other
-// torrents of its hash that are complete.
+// torrents of its hash that are complete: progress 100 and not in an error state.
 func (r *Report) servedBy(code func(key string) string) {
 	type at struct{ p, i int }
 	complete := map[string][]at{}
 	for p := range r.Providers {
 		for i, t := range r.Providers[p].Torrents {
-			if t.Progress >= 100 {
+			if t.Progress >= 100 && t.State != provider.StateError {
 				complete[t.Hash] = append(complete[t.Hash], at{p, i})
 			}
 		}
