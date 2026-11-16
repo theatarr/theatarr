@@ -66,8 +66,9 @@ from ordinary matching loads.
 - **Parser and season packs** (every series library, no setting): release names parse as v4plus, the Sonarr v4
   port with the Sonarr v5 parser changes chosen one by one and a few fixes of our own (the table in
   `internal/decide/parser/sonarr/parser_v4plus.go`): multi-episode anime ranges with a subgroup, more language tags,
-  `WEB` with `EAC3` as WEB-DL. Multi-season packs, packs named by a season title, original titles and partial seasons
-  are not read (v5's mapping is not ported). A season pack, or any multi-episode release, is taken when it fills or
+  `WEB` with `EAC3` as WEB-DL, a bit depth written `10 bits` / `8 bits` / `10-bits` (not an episode number).
+  Multi-season packs, packs named by a season title, original titles and partial seasons are not read (v5's mapping
+  is not ported). A season pack, or any multi-episode release, is taken when it fills or
   upgrades at least one episode (the actuallyevan fork's `ACCEPT_RELEASE_ANY_UPGRADABLE`); episodes that already have
   a better file keep it: the import upgrade check (library.md) leaves their files in place. The decision's upgrade
   reason ends `; N episode(s) keep their file`.
@@ -87,8 +88,8 @@ non-removed episode reaches its stored UTC air time, without fetching metadata.
   mapping with a scene season, alias, pack ranking), daily, the database loading, Levenshtein.
 - `internal/decide/profile`: the Sonarr fixtures above.
 - `internal/decide`: `TestSeasonPackRule` and `TestDefaultSeriesLibraryRules` (the pack rule and the v4plus range on
-  a library with no settings); `internal/decide/parser/sonarr`: `TestV4Plus` (each v4plus change against the v4 base)
-  and `TestExportedParserIsV4Plus`.
+  a library with no settings); `internal/decide/parser/sonarr`: `TestV4Plus` (each v4plus change against the v4 base),
+  `TestV4PlusBitDepth` and `TestExportedParserIsV4Plus`.
 - `internal/acquire/rss`: an RSS TV item routed by scene mapping name (`TestRSSSeriesBySceneName`), series batch
   coverage and partly in-flight series.
 

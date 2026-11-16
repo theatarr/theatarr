@@ -158,3 +158,37 @@ func TestExportedParserIsV4Plus(t *testing.T) {
 		t.Errorf("Ger Eng DL: %s, want German,English", g)
 	}
 }
+
+// TestV4PlusBitDepth: "10 bits", "8 bits" and "10-bits" are a bit depth, not an episode number (ours); a number
+// next to "bits" that is not a standalone 8 or 10 bit depth parses as in v4.
+func TestV4PlusBitDepth(t *testing.T) {
+	t.Parallel()
+	slime := "[EMBER] That Time I Got Reincarnated as a Slime (2019-2021) (Season 1+2+OVA+Specials) & The Slime Diaries [BDRip] [1080p Dual Asudio HEVC 10 bits] (Tensei shitara Slime Datta Ken + Tensura Nikki) (Batch)"
+	if p := v4d.parseTitle(slime); p == nil || fmt.Sprint(p.AbsoluteEpisodeNumbers) != "[10]" {
+		t.Errorf("v4 %q: %v, want absolute episode 10", slime, p)
+	}
+	if p := ParseTitle(slime); p != nil && fmt.Sprint(p.AbsoluteEpisodeNumbers) == "[10]" {
+		t.Errorf("v4plus %q still reads absolute episode 10", slime)
+	}
+	for _, s := range []string{
+		"[Miaou] Series Title 02 VOSTFR FHD 10 bits",
+		"[Group] Series Title - 05 [1080p HEVC 10-bits]",
+		"[Group] Series Title - 05 [1080p HEVC 8 bits]",
+	} {
+		if p := ParseTitle(s); p == nil || fmt.Sprint(p.AbsoluteEpisodeNumbers) == "[10]" || fmt.Sprint(p.AbsoluteEpisodeNumbers) == "[8]" {
+			t.Errorf("v4plus %q: %v", s, p)
+		}
+	}
+	for _, s := range []string{
+		"Doctor.Who.1x8.Bits.and.Pieces.720p.WEB-DL-GRP",
+		"Show 18 bits S01E02 720p WEB-DL-GRP",
+		"8bitdo Show S01E02 720p WEB-DL-GRP",
+	} {
+		if got, want := summarizeV4Plus(ParseTitle(s)), summarizeV4Plus(v4d.parseTitle(s)); got != want {
+			t.Errorf("%q: v4plus %s, v4 %s", s, got, want)
+		}
+		if p := ParseTitle(s); p == nil || p.SeriesTitle != v4d.parseTitle(s).SeriesTitle {
+			t.Errorf("%q: series title changed: %v", s, p)
+		}
+	}
+}

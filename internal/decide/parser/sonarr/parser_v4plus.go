@@ -20,6 +20,7 @@ package sonarr
 // | TAoE, QxR, Vialle as groups; encoders are not  | 83b2c9e97, b00229e53, 5eb18fe27      | exception group patterns   |
 // | -GER/-FRA/-FRE/-ITA and 10-bit are not groups  | 9e5ebdc62, 3e2e8e938, d09e7893b, 350dea10d | releaseGroupRegex4p  |
 // | WEB with EAC3 is WEB-DL                        | 6421bb621 (#8923)                    | sourceRegex4p              |
+// | "10 bits", "8 bits", "10-bits" are a bit depth | ours                                 | simpleTitleRegex4p         |
 //
 // Left out on purpose (each behind a regression on the corpus, or needing v5's mapping): the pattern order of
 // 7b0db46c2 (E12.2020 read as S20E20), the seven new languages 47-53 (romaji "ka" read as Georgian, "Uzbekistan" as
@@ -84,6 +85,14 @@ var (
 	// Tigole, RZeroX) are no longer read as groups (b00229e53); `... Silence) [QxR]` is QxR.
 	exceptionReleaseGroupRegex4p = re(`(?<=[._ \[])(?<releasegroup>(Joy|ImE|UTR|t3nzin|Anime Time|Project Angel|Hakata Ramen|HONE|Vyndros|SEV|Garshasp|Kappa|Natty|RCVR|SAMPA|YOGI|r00t|EDGE2020)(?=\]|\)))`, optI)
 
+	// simpleTitleRegex4p is v4's SimpleTitleRegex that also removes a bit depth written "10 bits", "8 bits" or
+	// "10-bits" (ours): v4 removes only 10bit, 10b and 10-bit, so `[1080p Dual Audio HEVC 10 bits]` was read as
+	// absolute episode 10. The token stands alone: "1x8 Bits and Pieces", "18 bits" and "8bitdo" are kept.
+	simpleTitleRegex4p = regexReplace{
+		re:     patched(simpleTitleRegex.re, optI, `(?:(480|`, `(?:(?<![a-f0-9x])(8|10)[ -]?bits?(?![a-z0-9])|(480|`),
+		format: simpleTitleRegex.format,
+	}
+
 	// sourceRegex4p is v4's source pattern with EAC3 after [. ]WEB[. ] (6421bb621): `HDR.WEB.EAC3` is WEB-DL.
 	sourceRegex4p = patched(sourceRegex, optI|optX, `|AVC|HEVC|DDP?5[. ]1)`, `|AVC|HEVC|EAC3|DDP?5[. ]1)`)
 
@@ -117,6 +126,7 @@ var v4plusd = func() *dialect {
 	d := *v4d
 	d.v4plus = true
 	d.reportTitle = reportTitleRegex4p
+	d.simpleTitle = simpleTitleRegex4p
 	d.releaseGroup = releaseGroupRegex4p
 	d.exceptionReleaseGroup = exceptionReleaseGroupRegex4p
 	d.exceptionReleaseGroupExact = exceptionReleaseGroupRegexExact4p
