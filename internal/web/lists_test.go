@@ -413,3 +413,46 @@ func TestTMDbSeriesListsAPI(t *testing.T) {
 		t.Errorf("series added %d %v", n, err)
 	}
 }
+
+// A discover list is added with its rule (min_votes 200 and limit 100 by default), checked, changed with PUT, and
+// answered with the rule as stored; it takes no TMDb id and is not a duplicate of another rule.
+func TestDiscoverListsAPI(t *testing.T) {
+	t.Parallel()
+	e := newEnvWith(t, withIntake(&fakeIntakeTMDb{}))
+	key := e.apiKey()
+	for _, body := range []string{
+		`{"list_type":"tmdb_discover","name":"D","versions":["movie-web"]}`,                                          // no rule
+		`{"list_type":"tmdb_discover","name":"D","versions":["movie-web"],"tmdb_id":9,"rule":{}}`,                    // tmdb id
+		`{"list_type":"tmdb_discover","name":"D","versions":["movie-web"],"rule":{"year_from":2020,"year_to":2010}}`, // years
+		`{"list_type":"tmdb_discover","name":"D","versions":["movie-web"],"rule":{"limit":501}}`,                     // limit
+		`{"list_type":"tmdb_discover","name":"D","versions":["movie-web"],"rule":{"min_rating":11}}`,                 // rating
+		`{"list_type":"tmdb_discover","name":"D","versions":["movie-web"],"rule":{"language":"japanese"}}`,           // language
+		`{"tmdb_id":9,"name":"D","versions":["movie-web"],"rule":{}}`,                                                // rule on a TMDb list
+	} {
+		if rec := e.sendCollection("POST", "/lists", body, key, ""); rec.Code != 400 {
+			t.Errorf("%s: %d %s", body, rec.Code, rec.Body)
+		}
+	}
+	var l MovieList
+	rec := e.sendCollection("POST", "/lists", `{"list_type":"tmdb_discover","name":"Anime","media":"series","versions":["anime-tv"],
+		"rule":{"year_from":2010,"genres":[16,16],"language":"JA"}}`, key, "")
+	if rec.Code != 201 || json.Unmarshal(rec.Body.Bytes(), &l) != nil || l.Rule == nil || l.Kind != "series" || l.Monitor != "all" ||
+		l.Rule.MinVotes != 200 || l.Rule.Limit != 100 || l.Rule.Language != "ja" || len(l.Rule.Genres) != 1 || l.Rule.YearFrom != 2010 {
+		t.Fatalf("POST %d %s", rec.Code, rec.Body)
+	}
+	if rec := e.sendCollection("POST", "/lists", `{"list_type":"tmdb_discover","name":"Again","media":"series","versions":["anime-tv"],"rule":{}}`, key, ""); rec.Code != 201 {
+		t.Errorf("a second rule %d %s", rec.Code, rec.Body)
+	}
+	path := "/lists/" + strconv.FormatInt(l.ID, 10)
+	rec, l = e.sendCollection("PUT", path, `{"rule":{"min_votes":0,"limit":500}}`, key, ""), MovieList{}
+	if rec.Code != 200 || json.Unmarshal(rec.Body.Bytes(), &l) != nil || l.Rule.MinVotes != 0 || l.Rule.Limit != 500 || l.Rule.YearFrom != 0 {
+		t.Fatalf("PUT %d %s", rec.Code, rec.Body)
+	}
+	if rec := e.sendCollection("PUT", path, `{"url":"http://10.0.0.5:7878","api_key":"k"}`, key, ""); rec.Code != 400 {
+		t.Errorf("url on a discover list %d", rec.Code)
+	}
+	var page ListsPage
+	if code := e.getKey(APIBase+"/lists", key, &page); code != 200 || len(page.Lists) != 2 {
+		t.Fatalf("GET %d %+v", code, page)
+	}
+}

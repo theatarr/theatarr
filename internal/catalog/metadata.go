@@ -26,6 +26,9 @@ type MovieMetadataSource interface {
 	List(context.Context, int) (*tmdb.List, error)
 	MovieDetails(context.Context, int) (*tmdb.Movie, error)
 	TVDetails(context.Context, int) (*tmdb.TV, error)
+	// DiscoverMovies and DiscoverTV read a discover list's rule (tmdb_discover).
+	DiscoverMovies(context.Context, tmdb.Discover) ([]tmdb.MovieSummary, error)
+	DiscoverTV(context.Context, tmdb.Discover) ([]tmdb.MovieSummary, error)
 }
 
 // MovieIntake refreshes collections and lists through the shared catalog add path.
@@ -110,13 +113,14 @@ type movieIntakeConfig struct {
 	later bool
 	// listType is an import list's source (tmdb, radarr, sonarr); "" for a collection. url and apiKey are a Radarr
 	// or Sonarr list's instance. media is what the list adds: movie or series (a Sonarr list, a TMDb series list).
-	listType, url, apiKey, media string
+	// rule is a discover list's rule (tmdb.Discover as JSON).
+	listType, url, apiKey, media, rule string
 }
 
 const (
-	collectionConfigs = `SELECT tmdb_id,tmdb_id,versions,minimum_availability,'movieOnly',view,root_folder_path,quality_profile_id,search_on_add,monitored,'','','','movie'
+	collectionConfigs = `SELECT tmdb_id,tmdb_id,versions,minimum_availability,'movieOnly',view,root_folder_path,quality_profile_id,search_on_add,monitored,'','','','movie',''
   FROM movie_collection`
-	listConfigs = `SELECT id,tmdb_id,versions,minimum_availability,monitor,view,root_folder_path,quality_profile_id,search_on_add,1,list_type,url,api_key,media
+	listConfigs = `SELECT id,tmdb_id,versions,minimum_availability,monitor,view,root_folder_path,quality_profile_id,search_on_add,1,list_type,url,api_key,media,COALESCE(rule,'')
   FROM import_list`
 )
 
@@ -131,7 +135,7 @@ func (s *MovieIntake) configs(ctx context.Context, q string, args ...any) ([]mov
 	for rows.Next() {
 		var c movieIntakeConfig
 		if err := rows.Scan(&c.id, &c.tmdbID, &c.versions, &c.minimum, &c.monitor, &c.view, &c.root, &c.profile, &c.search, &c.monitored,
-			&c.listType, &c.url, &c.apiKey, &c.media); err != nil {
+			&c.listType, &c.url, &c.apiKey, &c.media, &c.rule); err != nil {
 			return nil, err
 		}
 		out = append(out, c)
@@ -347,6 +351,12 @@ func (s *MovieIntake) syncList(ctx context.Context, cfg movieIntakeConfig, out *
 		soft = s.syncRadarr(ctx, cfg, out)
 	case "sonarr":
 		soft = s.syncSonarr(ctx, cfg, out)
+	case "tmdb_discover":
+		items, err := s.discover(ctx, cfg)
+		if err != nil {
+			return []error{fmt.Errorf("list %d: %w", cfg.id, err)}, nil
+		}
+		soft = s.addItems(ctx, cfg, items, out)
 	default:
 		l, err := s.TMDb.List(ctx, int(cfg.tmdbID))
 		if err != nil {
@@ -360,6 +370,18 @@ func (s *MovieIntake) syncList(ctx context.Context, cfg movieIntakeConfig, out *
 		}
 	}
 	return soft, nil
+}
+
+// discover reads a discover list's titles: its rule's movies or series, by the list's media.
+func (s *MovieIntake) discover(ctx context.Context, cfg movieIntakeConfig) ([]tmdb.MovieSummary, error) {
+	var d tmdb.Discover
+	if err := json.Unmarshal([]byte(cfg.rule), &d); err != nil {
+		return nil, fmt.Errorf("discover rule: %w", err)
+	}
+	if cfg.media == "series" {
+		return s.TMDb.DiscoverTV(ctx, d)
+	}
+	return s.TMDb.DiscoverMovies(ctx, d)
 }
 
 // addItems adds a TMDb list's items of the list's media, counted in out: a movie list its movies (addMovie), a

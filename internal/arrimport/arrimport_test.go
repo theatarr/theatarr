@@ -59,6 +59,12 @@ func (fakeTMDb) Collection(context.Context, int) (*tmdb.Collection, error) {
 }
 func (fakeTMDb) List(context.Context, int) (*tmdb.List, error)    { return nil, errors.New("none") }
 func (fakeTMDb) TVDetails(context.Context, int) (*tmdb.TV, error) { return nil, errors.New("none") }
+func (fakeTMDb) DiscoverMovies(context.Context, tmdb.Discover) ([]tmdb.MovieSummary, error) {
+	return nil, errors.New("none")
+}
+func (fakeTMDb) DiscoverTV(context.Context, tmdb.Discover) ([]tmdb.MovieSummary, error) {
+	return nil, errors.New("none")
+}
 func (fakeTMDb) MovieDetails(_ context.Context, id int) (*tmdb.Movie, error) {
 	return &tmdb.Movie{ID: id, Title: fmt.Sprintf("Film %d", id), ReleaseDate: "2001-04-25", Runtime: 120}, nil
 }

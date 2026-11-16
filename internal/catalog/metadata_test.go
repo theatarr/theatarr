@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/url"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -30,6 +31,20 @@ type intakeSource struct {
 	movies      map[int]*tmdb.Movie
 	// tv answers TVDetails by TMDb id; a missing id is TMDb's not found.
 	tv map[int]*tmdb.TV
+	// discovered answers DiscoverMovies and DiscoverTV; rules records the rules asked for.
+	discovered []tmdb.MovieSummary
+	rules      *[]tmdb.Discover
+}
+
+func (f intakeSource) DiscoverMovies(_ context.Context, d tmdb.Discover) ([]tmdb.MovieSummary, error) {
+	if f.rules != nil {
+		*f.rules = append(*f.rules, d)
+	}
+	return f.discovered, nil
+}
+
+func (f intakeSource) DiscoverTV(ctx context.Context, d tmdb.Discover) ([]tmdb.MovieSummary, error) {
+	return f.DiscoverMovies(ctx, d)
 }
 
 func (f intakeSource) TVDetails(_ context.Context, id int) (*tmdb.TV, error) {
@@ -1060,5 +1075,33 @@ func TestTMDbSeriesList(t *testing.T) {
 	}
 	if got, err = s.SyncList(context.Background(), 2); err != nil || got.Added != 1 || got.Skipped != 5 {
 		t.Fatalf("movie row of the same list: %+v %v", got, err)
+	}
+}
+
+// A discover list reads its rule's titles from TMDb at each sync (the stored rule as it is) and adds them as a TMDb
+// list's items; the scheduled sync takes it, and Preview reads the same titles.
+func TestDiscoverListSync(t *testing.T) {
+	t.Parallel()
+	var rules []tmdb.Discover
+	s, st := newIntake(t, intakeSource{rules: &rules, discovered: []tmdb.MovieSummary{
+		{ID: 101, Title: "One", ReleaseDate: "2020-01-01", MediaType: "movie"}, {ID: 102, Title: "Two", MediaType: "movie"}}})
+	if _, err := st.Writer().Exec(`INSERT INTO import_list(id,name,list_type,rule,versions,created_at,updated_at) VALUES
+		(1,'Popular','tmdb_discover','{"year_from":2010,"min_votes":200,"genres":[16],"limit":50}','["movie-web"]',0,0)`); err != nil {
+		t.Fatal(err)
+	}
+	p, err := s.PreviewList(context.Background(), 1)
+	if err != nil || p.AddTitle != 2 {
+		t.Fatalf("preview %+v %v", p, err)
+	}
+	got, err := s.SyncLists(context.Background())
+	if err != nil || got.Lists != 1 || got.Added != 2 {
+		t.Fatalf("sync %+v %v", got, err)
+	}
+	want := tmdb.Discover{YearFrom: 2010, MinVotes: 200, Genres: []int{16}, Limit: 50}
+	if len(rules) != 2 || !reflect.DeepEqual(rules[1], want) {
+		t.Fatalf("rules asked %+v", rules)
+	}
+	if n := countRows(t, st, `SELECT count(*) FROM title WHERE kind='movie' AND tmdb_id IN (101,102)`); n != 2 {
+		t.Errorf("%d movies added", n)
 	}
 }

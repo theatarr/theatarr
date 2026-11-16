@@ -31,10 +31,11 @@ type Media = MovieList["kind"];
 type Monitor = NonNullable<ListAdd["monitor"]>;
 const MONITOR: Record<ListType, readonly (readonly [Monitor, string])[]> = {
   tmdb: [["movieOnly", "Movies"], ["movieAndCollection", "Movies and their collections"], ["none", "Nothing (added unmonitored)"]],
+  tmdb_discover: [["movieOnly", "Movies"], ["movieAndCollection", "Movies and their collections"], ["none", "Nothing (added unmonitored)"]],
   radarr: [["movieOnly", "Movies"], ["none", "Nothing (added unmonitored)"]],
   sonarr: [["all", "Series"], ["none", "Nothing (added unmonitored)"]],
 };
-const SOURCES = [["tmdb", "TMDb list"], ["radarr", "Radarr"], ["sonarr", "Sonarr"]] as const;
+const SOURCES = [["tmdb", "TMDb list"], ["tmdb_discover", "TMDb discover"], ["radarr", "Radarr"], ["sonarr", "Sonarr"]] as const;
 const APP: Record<string, string> = { radarr: "Radarr", sonarr: "Sonarr" };
 const MEDIA = [["movie", "Movies"], ["series", "Series"]] as const;
 /** The monitor choices of a list: a series list's are a Sonarr list's. */
@@ -42,11 +43,70 @@ const monitorsOf = (t: ListType, media: Media) => MONITOR[media === "series" ? "
 /** What a list adds: a Sonarr list series and a Radarr list movies, whatever media says. */
 const mediaOf = (t: ListType, media: Media): Media => t === "sonarr" ? "series" : t === "radarr" ? "movie" : media;
 type Mutations = ReturnType<typeof useListMutations>;
+type Rule = NonNullable<MovieList["rule"]>;
+
+/** TMDb's genres (stable ids), for a discover rule. */
+const GENRES: Record<Media, readonly (readonly [number, string])[]> = {
+  movie: [[28, "Action"], [12, "Adventure"], [16, "Animation"], [35, "Comedy"], [80, "Crime"], [99, "Documentary"], [18, "Drama"], [10751, "Family"],
+    [14, "Fantasy"], [36, "History"], [27, "Horror"], [10402, "Music"], [9648, "Mystery"], [10749, "Romance"], [878, "Science Fiction"], [10770, "TV Movie"],
+    [53, "Thriller"], [10752, "War"], [37, "Western"]],
+  series: [[10759, "Action & Adventure"], [16, "Animation"], [35, "Comedy"], [80, "Crime"], [99, "Documentary"], [18, "Drama"], [10751, "Family"],
+    [10762, "Kids"], [9648, "Mystery"], [10763, "News"], [10764, "Reality"], [10765, "Sci-Fi & Fantasy"], [10766, "Soap"], [10767, "Talk"],
+    [10768, "War & Politics"], [37, "Western"]],
+};
+
+/** A discover rule in one line: "2010–2020 · rating 7+ · 200+ votes · Animation · ja · the 100 most popular". */
+export function ruleWords(r: Rule, media: Media): string {
+  const years = r.year_from && r.year_to ? `${r.year_from}–${r.year_to}` : r.year_from ? `from ${r.year_from}` : r.year_to ? `to ${r.year_to}` : "";
+  const genres = (r.genres ?? []).map(g => GENRES[media].find(([id]) => id === g)?.[1] ?? `genre ${g}`).join(" or ");
+  return [years, r.min_rating ? `rating ${r.min_rating}+` : "", r.min_votes ? `${r.min_votes}+ votes` : "", genres, r.language ?? "",
+    `the ${r.limit} most popular`].filter(Boolean).join(" · ");
+}
+
+/** The discover rule's fields; numbers as typed ("" for none). */
+type RuleForm = { from: string; to: string; rating: string; votes: string; genres: number[]; language: string; limit: string };
+const ruleForm = (r?: Rule | null): RuleForm => ({ from: r?.year_from ? String(r.year_from) : "", to: r?.year_to ? String(r.year_to) : "",
+  rating: r?.min_rating ? String(r.min_rating) : "", votes: String(r?.min_votes ?? 200), genres: r?.genres ?? [], language: r?.language ?? "", limit: String(r?.limit ?? 100) });
+const ruleBody = (f: RuleForm) => ({ year_from: Number(f.from) || 0, year_to: Number(f.to) || 0, min_rating: Number(f.rating) || 0, min_votes: Number(f.votes) || 0,
+  genres: f.genres, language: f.language.trim(), limit: Number(f.limit) || 100 });
+
+function DiscoverFields({ f, set, media }: { f: RuleForm; set: (f: RuleForm) => void; media: Media }) {
+  const num = (label: string, key: "from" | "to" | "rating" | "votes" | "limit", placeholder: string, step?: string) =>
+    <label className="flex items-center gap-2">{label}
+      <Input aria-label={label} className="w-24" type="number" inputMode="numeric" step={step} placeholder={placeholder} value={f[key]} onChange={e => set({ ...f, [key]: e.target.value })} />
+    </label>;
+  return <fieldset className="space-y-3" data-testid="discover-fields">
+    <legend className="mb-1.5 font-medium text-[var(--ink)]">Rule</legend>
+    <div className="flex flex-wrap items-center gap-4">
+      {num("Year from", "from", "Any")}
+      {num("Year to", "to", "Any")}
+      {num("Minimum rating", "rating", "0", "0.1")}
+      {num("Minimum votes", "votes", "200")}
+    </div>
+    <div className="flex flex-wrap items-center gap-1.5">
+      <span className="mr-1 text-[var(--ink)]">Genres, any of</span>
+      {GENRES[media].map(([id, label]) => {
+        const on = f.genres.includes(id);
+        return <button key={id} type="button" aria-pressed={on} onClick={() => set({ ...f, genres: on ? f.genres.filter(g => g !== id) : [...f.genres, id] })}
+          className={cn("rounded-[3px] border px-2 py-0.5 text-xs", on ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent-ink)]" : "border-[var(--line-2)] text-[var(--ink-3)]")}>{label}</button>;
+      })}
+    </div>
+    <div className="flex flex-wrap items-center gap-4">
+      <label className="flex items-center gap-2">Original language
+        <Input aria-label="Original language" className="w-20" maxLength={2} placeholder="Any" value={f.language} onChange={e => set({ ...f, language: e.target.value })} />
+      </label>
+      {num("Take the first", "limit", "100")}
+    </div>
+    <p className="text-xs text-muted-foreground">TMDb's most popular titles that match, read again at each sync: at most 500. The language is a two-letter code, such as en or ja.</p>
+  </fieldset>;
+}
 
 /** Add a list (no list given) or edit one. */
 function ListDialog({ list, libraries, seriesLibraries, canSync, m, onClose }: { list?: MovieList; libraries: Record<string, string>; seriesLibraries: Record<string, string>; canSync: boolean; m: Mutations; onClose: () => void }) {
   const [listType, setListType] = useState<ListType>(list?.list_type ?? "tmdb");
   const arr = listType === "radarr" || listType === "sonarr";
+  const discover = listType === "tmdb_discover";
+  const [rule, setRule] = useState<RuleForm>(ruleForm(list?.rule));
   const [pickedMedia, setPickedMedia] = useState<Media>(list?.kind ?? "movie");
   const media = mediaOf(listType, pickedMedia);
   const [source, setSource] = useState("");
@@ -64,11 +124,11 @@ function ListDialog({ list, libraries, seriesLibraries, canSync, m, onClose }: {
   const tmdbID = listIDFrom(useDebounced(source, 300));
   const lookup = useListLookup(list || !canSync ? 0 : tmdbID, media);
   const found = lookup.data;
-  const title = name.trim() || (arr ? APP[listType] : found?.name) || "";
+  const title = name.trim() || (arr ? APP[listType] : discover ? "TMDb discover" : found?.name) || "";
   const mutation = list ? m.set : m.add;
   const newAddress = list ? normalListURL(address) !== normalListURL(list.url ?? "") : true;
   const ready = title !== "" && versions.length > 0 && (arr ? address.trim() !== "" && (!newAddress || apiKey.trim() !== "")
-    : list ? true : listIDFrom(source) > 0 && !found?.added);
+    : list || discover ? true : listIDFrom(source) > 0 && !found?.added);
   const pick = (t: ListType, m: Media) => {
     setListType(t);
     setPickedMedia(m);
@@ -83,8 +143,9 @@ function ListDialog({ list, libraries, seriesLibraries, canSync, m, onClose }: {
   const submit = () => {
     const body = { name: title, versions, monitor, search_on_add: searchOnAdd, ...(media === "series" ? {} : { minimum_availability: minimum }), enabled };
     const instance = arr ? { ...(newAddress ? { url: address } : {}), ...(apiKey.trim() ? { api_key: apiKey } : {}) } : {};
-    if (list) m.set.mutate({ id: list.id, ...body, ...instance }, { onSuccess: onClose });
+    if (list) m.set.mutate({ id: list.id, ...body, ...instance, ...(discover ? { rule: ruleBody(rule) } : {}) }, { onSuccess: onClose });
     else if (arr) m.add.mutate({ list_type: listType, ...body, ...instance }, { onSuccess: onClose });
+    else if (discover) m.add.mutate({ list_type: listType, ...(media === "series" ? { media } : {}), rule: ruleBody(rule), ...body }, { onSuccess: onClose });
     else m.add.mutate({ tmdb_id: listIDFrom(source), ...(media === "series" ? { media } : {}), ...body }, { onSuccess: onClose });
   };
   const checked = check.data;
@@ -126,7 +187,7 @@ function ListDialog({ list, libraries, seriesLibraries, canSync, m, onClose }: {
         <p className="text-xs text-muted-foreground" data-testid="list-arr-note">Theatarr only reads this instance. It adds the titles it does not have yet to the libraries below, with their own monitoring and search settings. Files, monitoring changes and blocklists are not copied, and a title you remove in Theatarr is not added back. Theatarr does not report back to this instance: apps that ask it, such as Seerr, do not see what Theatarr has.</p>
       </div> : null}
       {list ? list.view ? <p className="text-xs text-muted-foreground" data-testid="list-view">Created through the {list.view} view: it stays that client's list, and only that view's libraries can be chosen. Automatic adding is {list.enable_auto ? "on" : "off"} there.</p> : null
-        : arr ? null : <label className="block space-y-1.5"><span className="font-medium text-[var(--ink)]">TMDb list</span>
+        : listType !== "tmdb" ? null : <label className="block space-y-1.5"><span className="font-medium text-[var(--ink)]">TMDb list</span>
           <Input aria-label="TMDb list id or URL" placeholder="List id, or its themoviedb.org address" value={source} onChange={e => setSource(e.target.value)} />
           {!canSync ? <span className="block text-xs text-muted-foreground">TMDb is not set up, so the list cannot be checked or synced yet.</span>
             : source.trim() && tmdbID === 0 && listIDFrom(source) === 0 ? <span className="block text-xs text-muted-foreground">Enter the number of a TMDb list, or paste its address (themoviedb.org/list/...).</span>
@@ -134,8 +195,9 @@ function ListDialog({ list, libraries, seriesLibraries, canSync, m, onClose }: {
             : lookup.error ? <ErrorState error={lookup.error} />
             : found ? <span className="block text-xs text-muted-foreground" data-testid="list-found">{found.added ? `${found.name} is already added for ${media === "series" ? "series" : "movies"}.` : `${found.name}: ${found.movies} ${found.movies === 1 ? "movie" : "movies"}${found.series ? `, ${found.series} series` : ""}.`}{found.description ? ` ${found.description}` : ""}</span> : null}
         </label>}
+      {discover ? <DiscoverFields f={rule} set={setRule} media={media} /> : null}
       <label className="block space-y-1.5"><span className="font-medium text-[var(--ink)]">Name</span>
-        <Input aria-label="List name" placeholder={arr ? APP[listType] : found?.name ?? ""} value={name} onChange={e => setName(e.target.value)} />
+        <Input aria-label="List name" placeholder={arr ? APP[listType] : discover ? "TMDb discover" : found?.name ?? ""} value={name} onChange={e => setName(e.target.value)} />
       </label>
       <fieldset className="flex flex-wrap items-center gap-1.5">
         <legend className="mb-1.5 font-medium text-[var(--ink)]">Libraries</legend>
@@ -196,6 +258,7 @@ function ListRow({ l, libraries, seriesLibraries, canSync, m, edit, remove, sync
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <h2 className="min-w-0 font-semibold text-[var(--ink)] [overflow-wrap:anywhere]">{l.name}</h2>
         {l.list_type === "tmdb" ? <a className="text-xs text-primary hover:underline" href={`https://www.themoviedb.org/list/${l.tmdb_id}`} target="_blank" rel="noreferrer">TMDb list {l.tmdb_id}{l.kind === "series" ? " (series)" : ""}</a>
+          : l.list_type === "tmdb_discover" && l.rule ? <span className="text-xs text-muted-foreground [overflow-wrap:anywhere]" data-testid={`list-rule-${l.id}`}>TMDb discover, {l.kind === "series" ? "series" : "movies"}: {ruleWords(l.rule, l.kind)}</span>
           : <span className="text-xs text-muted-foreground [overflow-wrap:anywhere]">{APP[l.list_type]} at {l.url}</span>}
         {l.view ? <Chip tone="ghost">Created through the {l.view} view</Chip> : null}
       </div>
@@ -274,10 +337,10 @@ export function ListsPage() {
     {removing ? <ConfirmDialog testid="list-delete" subject={removing.name} busy={m.remove.isPending} error={m.remove.error} onClose={() => setRemoving(null)}
       onConfirm={() => m.remove.mutate(removing.id, { onSuccess: () => setRemoving(null) })}
       scope={{ title: "Delete this list?", does: ["Stop adding titles from this list"], confirm: "Delete list",
-        keeps: ["The titles it already added, and their files", ...(removing.list_type !== "tmdb" ? [`Everything in the ${APP[removing.list_type]} instance itself`] : []),
+        keeps: ["The titles it already added, and their files", ...(APP[removing.list_type] ? [`Everything in the ${APP[removing.list_type]} instance itself`] : []),
           ...(removing.view ? [`Nothing in the ${removing.view} client itself: delete it there too if it should not come back`] : [])] }} /> : null}
     {q.isLoading ? <Loading /> : q.error ? <ErrorState error={q.error} /> : d ? <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">A list is a TMDb movie list, or the titles of a Radarr or Sonarr instance.{d.can_sync ? "" : " TMDb is not set up, so lists do not sync."}</p>
+      <p className="text-sm text-muted-foreground">A list is a TMDb list, a TMDb discover rule, or the titles of a Radarr or Sonarr instance.{d.can_sync ? "" : " TMDb is not set up, so lists do not sync."}</p>
       {done ? <p role="status" className="text-sm text-[var(--ink)]" data-testid="lists-done">{done}</p> : null}
       {m.sync.error ? <ErrorState error={m.sync.error} /> : null}
       {m.set.error && !dialog ? <ErrorState error={m.set.error} /> : null}

@@ -451,6 +451,16 @@ func (s *pauseIntakeSource) List(context.Context, int) (*tmdb.List, error) {
 	return &tmdb.List{Items: []tmdb.MovieSummary{{ID: 201}}}, nil
 }
 
+func (s *pauseIntakeSource) DiscoverMovies(context.Context, tmdb.Discover) ([]tmdb.MovieSummary, error) {
+	s.reads.Add(1)
+	return nil, nil
+}
+
+func (s *pauseIntakeSource) DiscoverTV(context.Context, tmdb.Discover) ([]tmdb.MovieSummary, error) {
+	s.reads.Add(1)
+	return nil, nil
+}
+
 func (s *pauseIntakeSource) TVDetails(context.Context, int) (*tmdb.TV, error) {
 	s.reads.Add(1)
 	return nil, tmdb.ErrNotFound

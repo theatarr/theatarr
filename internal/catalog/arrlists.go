@@ -346,6 +346,14 @@ func (s *MovieIntake) PreviewList(ctx context.Context, id int64) (ListPreview, e
 			}
 			note(t)
 		}
+	case "tmdb_discover":
+		items, err := s.discover(ctx, cfg)
+		if err != nil {
+			return out, err
+		}
+		if err := s.previewItems(ctx, cfg, keys, items, note); err != nil {
+			return out, err
+		}
 	default:
 		l, err := s.TMDb.List(ctx, int(cfg.tmdbID))
 		if err != nil {

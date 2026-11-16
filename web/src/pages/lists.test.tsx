@@ -32,7 +32,7 @@ it("adds a list from a pasted address after looking it up", async () => {
   ]);
   renderPage(<ListsPage />, "/admin/settings/import-lists");
   expect(await screen.findByText("No lists yet. Add a TMDb list by its id or address, or a Radarr or Sonarr instance by its address and API key.")).toBeTruthy();
-  expect(screen.getByText("A list is a TMDb movie list, or the titles of a Radarr or Sonarr instance.")).toBeTruthy();
+  expect(screen.getByText("A list is a TMDb list, a TMDb discover rule, or the titles of a Radarr or Sonarr instance.")).toBeTruthy();
   // A Settings page now: no Collections tabs; a manager gets no Settings breadcrumb or page picker.
   expect(screen.getByRole("heading", { name: "Import lists" })).toBeTruthy();
   expect(screen.queryByRole("tab")).toBeNull();
@@ -249,4 +249,31 @@ it("adds a TMDb list for series: Media picks series libraries and Sonarr's monit
   await waitFor(() => expect(fetch.calls("POST", "/lists")).toHaveLength(1));
   expect(fetch.calls("POST", "/lists")[0].body).toEqual({ tmdb_id: 9, media: "series", name: "Mixed", versions: ["tv"], monitor: "all", search_on_add: true, enabled: true });
   expect(within(await screen.findByTestId("list-3")).getByRole("link", { name: "TMDb list 9 (series)" })).toBeTruthy();
+});
+
+it("adds a TMDb discover list with its rule and shows the rule in its row", async () => {
+  const user = userEvent.setup();
+  const rule = { year_from: 2010, min_votes: 200, genres: [16], language: "ja", limit: 100 };
+  const popular: Schemas["MovieList"] = { ...mine, id: 4, name: "Popular anime", list_type: "tmdb_discover", tmdb_id: 0, rule };
+  let lists: Schemas["MovieList"][] = [];
+  const fetch = mockFetch([
+    { method: "GET", path: "/auth/me", reply: manager },
+    { method: "GET", path: "/lists", reply: () => ({ lists, libraries, can_sync: true }) },
+    { method: "POST", path: "/lists", reply: () => { lists = [popular]; return { status: 201, body: popular }; } },
+  ]);
+  renderPage(<ListsPage />, "/admin/settings/import-lists");
+  await user.click(await screen.findByRole("button", { name: "Add list" }));
+  const dialog = within(screen.getByTestId("list-dialog"));
+  await user.selectOptions(dialog.getByRole("combobox", { name: /Source/ }), "tmdb_discover");
+  expect(dialog.queryByLabelText("TMDb list id or URL")).toBeNull();
+  await user.type(dialog.getByLabelText("Year from"), "2010");
+  await user.click(dialog.getByRole("button", { name: "Animation" }));
+  await user.type(dialog.getByLabelText("Original language"), "ja");
+  await user.type(dialog.getByLabelText("List name"), "Popular anime");
+  await user.click(dialog.getByRole("button", { name: "4K Remux" }));
+  await user.click(dialog.getByRole("button", { name: "Add" }));
+  await waitFor(() => expect(fetch.calls("POST", "/lists")).toHaveLength(1));
+  expect(fetch.calls("POST", "/lists")[0].body).toEqual({ list_type: "tmdb_discover", rule: { year_from: 2010, year_to: 0, min_rating: 0, min_votes: 200, genres: [16], language: "ja", limit: 100 },
+    name: "Popular anime", versions: ["movie-remux"], monitor: "movieOnly", search_on_add: true, minimum_availability: "released", enabled: true });
+  expect((await screen.findByTestId("list-rule-4")).textContent).toBe("TMDb discover, movies: from 2010 · 200+ votes · Animation · ja · the 100 most popular");
 });

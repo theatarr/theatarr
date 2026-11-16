@@ -31,7 +31,7 @@ import (
 type MovieList struct {
 	ID   int64  `json:"id"`
 	Name string `json:"name"`
-	// ListType: tmdb, radarr or sonarr.
+	// ListType: tmdb, tmdb_discover, radarr or sonarr.
 	ListType string `json:"list_type"`
 	// Kind is what the list adds (its media): movie, or series for a Sonarr list or a TMDb series list.
 	Kind   string `json:"kind"`
@@ -39,6 +39,8 @@ type MovieList struct {
 	// URL is a Radarr or Sonarr list's instance address; APIKeySet says its API key is stored (it is never answered).
 	URL       string `json:"url,omitempty"`
 	APIKeySet bool   `json:"api_key_set"`
+	// Rule is a TMDb discover list's rule.
+	Rule *tmdb.Discover `json:"rule,omitempty"`
 	// Enabled: the scheduled sync imports this list. For a list an arr client made, it also needs EnableAuto, which
 	// only that client changes.
 	Enabled    bool `json:"enabled"`
@@ -69,16 +71,18 @@ type ListsPage struct {
 
 // ListAdd is POST /lists.
 type ListAdd struct {
-	// ListType: tmdb (default), radarr or sonarr. A TMDb list takes TmdbID; a Radarr or Sonarr list URL and APIKey.
+	// ListType: tmdb (default), tmdb_discover, radarr or sonarr. A TMDb list takes TmdbID; a discover list Rule; a
+	// Radarr or Sonarr list URL and APIKey.
 	ListType string `json:"list_type"`
 	// Media is what a TMDb list adds: movie (default) or series (its TV items). A Radarr list adds movies and a
 	// Sonarr list series whatever is sent.
-	Media    string   `json:"media"`
-	URL      string   `json:"url"`
-	APIKey   string   `json:"api_key"`
-	TmdbID   int64    `json:"tmdb_id"`
-	Name     string   `json:"name"`
-	Versions []string `json:"versions"`
+	Media    string        `json:"media"`
+	URL      string        `json:"url"`
+	APIKey   string        `json:"api_key"`
+	TmdbID   int64         `json:"tmdb_id"`
+	Rule     *DiscoverRule `json:"rule"`
+	Name     string        `json:"name"`
+	Versions []string      `json:"versions"`
 	// Monitor defaults to movieOnly (all for a Sonarr list), MinimumAvailability to released, Enabled to true.
 	Monitor             string `json:"monitor"`
 	SearchOnAdd         bool   `json:"search_on_add"`
@@ -98,6 +102,60 @@ type ListUpdate struct {
 	// one.
 	URL    *string `json:"url"`
 	APIKey *string `json:"api_key"`
+	// Rule replaces a discover list's rule.
+	Rule *DiscoverRule `json:"rule"`
+}
+
+// DiscoverRule is a TMDb discover list's rule as it is sent: the titles of the list's media that match it, in TMDb's
+// popularity order, the first Limit of them (default 100, at most 500). MinVotes defaults to 200.
+type DiscoverRule struct {
+	YearFrom  int     `json:"year_from"`
+	YearTo    int     `json:"year_to"`
+	MinRating float64 `json:"min_rating"`
+	MinVotes  *int    `json:"min_votes"`
+	// Genres are TMDb genre ids: a title with any of them matches.
+	Genres []int `json:"genres"`
+	// Language is an original language (ISO 639-1, two letters).
+	Language string `json:"language"`
+	Limit    int    `json:"limit"`
+}
+
+// discoverRule checks a rule and writes it as it is stored.
+func discoverRule(in *DiscoverRule) (string, error) {
+	if in == nil {
+		return "", errors.New("rule is required for a discover list")
+	}
+	d := tmdb.Discover{YearFrom: in.YearFrom, YearTo: in.YearTo, MinRating: in.MinRating, MinVotes: tmdb.DefaultDiscoverVotes,
+		Language: strings.ToLower(strings.TrimSpace(in.Language)), Limit: in.Limit}
+	if in.MinVotes != nil {
+		d.MinVotes = *in.MinVotes
+	}
+	if d.Limit == 0 {
+		d.Limit = tmdb.DefaultDiscover
+	}
+	year := func(y int) bool { return y == 0 || y >= 1870 && y <= 2100 }
+	for _, g := range in.Genres {
+		if g <= 0 {
+			return "", errors.New("genres must be TMDb genre ids")
+		}
+		if !slices.Contains(d.Genres, g) {
+			d.Genres = append(d.Genres, g)
+		}
+	}
+	switch {
+	case !year(d.YearFrom) || !year(d.YearTo) || d.YearFrom > 0 && d.YearTo > 0 && d.YearFrom > d.YearTo:
+		return "", errors.New("the years must be from 1870 to 2100, from no later than to")
+	case d.MinRating < 0 || d.MinRating > 10:
+		return "", errors.New("min_rating must be from 0 to 10")
+	case d.MinVotes < 0:
+		return "", errors.New("min_votes must not be negative")
+	case d.Limit < 1 || d.Limit > tmdb.MaxDiscover:
+		return "", errors.New("limit must be from 1 to " + strconv.Itoa(tmdb.MaxDiscover))
+	case d.Language != "" && (len(d.Language) != 2 || strings.Trim(d.Language, "abcdefghijklmnopqrstuvwxyz") != ""):
+		return "", errors.New("language must be a two-letter language code, such as en or ja")
+	}
+	b, err := json.Marshal(d)
+	return string(b), err
 }
 
 // ListCheck is POST /lists/check: an instance by list_type, url and api_key, or a stored list by id.
@@ -256,15 +314,21 @@ func (w *Web) listLibraries(view, media string) []string {
 }
 
 const listColumns = `id, name, list_type, media, tmdb_id, url, api_key <> '', enabled, enable_auto, monitor,
-	search_on_add, versions, minimum_availability, last_sync_at, view`
+	search_on_add, versions, minimum_availability, last_sync_at, view, COALESCE(rule, '')`
 
 func (w *Web) scanList(row interface{ Scan(...any) error }) (MovieList, error) {
 	var l MovieList
-	var versions string
+	var versions, rule string
 	var synced sql.NullInt64
 	if err := row.Scan(&l.ID, &l.Name, &l.ListType, &l.Kind, &l.TmdbID, &l.URL, &l.APIKeySet, &l.Enabled, &l.EnableAuto, &l.Monitor,
-		&l.SearchOnAdd, &versions, &l.MinimumAvailability, &synced, &l.View); err != nil {
+		&l.SearchOnAdd, &versions, &l.MinimumAvailability, &synced, &l.View, &rule); err != nil {
 		return l, err
+	}
+	if rule != "" {
+		l.Rule = &tmdb.Discover{}
+		if err := json.Unmarshal([]byte(rule), l.Rule); err != nil {
+			return l, err
+		}
 	}
 	if err := json.Unmarshal([]byte(versions), &l.Versions); err != nil {
 		return l, err
@@ -362,9 +426,10 @@ func (w *Web) apiLookupList(rw http.ResponseWriter, r *http.Request) {
 
 // listMonitors are the monitor values of each list type (a series list's: all or none, as a Sonarr list's).
 var listMonitors = map[string][]string{
-	"tmdb":   {"movieOnly", "movieAndCollection", "none"},
-	"radarr": {"movieOnly", "none"},
-	"sonarr": {"all", "none"},
+	"tmdb":          {"movieOnly", "movieAndCollection", "none"},
+	"tmdb_discover": {"movieOnly", "movieAndCollection", "none"},
+	"radarr":        {"movieOnly", "none"},
+	"sonarr":        {"all", "none"},
 }
 
 func checkListMonitor(listType, media, v string) error {
@@ -447,18 +512,22 @@ func (w *Web) apiAddList(rw http.ResponseWriter, r *http.Request) {
 		in.MinimumAvailability = "released"
 	}
 	arrList := in.ListType == "radarr" || in.ListType == "sonarr"
+	discover := in.ListType == "tmdb_discover"
 	switch {
-	case !arrList && in.ListType != "tmdb":
-		badRequest(rw, "list_type must be tmdb, radarr or sonarr")
+	case !arrList && !discover && in.ListType != "tmdb":
+		badRequest(rw, "list_type must be tmdb, tmdb_discover, radarr or sonarr")
 		return
-	case !arrList && in.TmdbID <= 0:
+	case in.ListType == "tmdb" && in.TmdbID <= 0:
 		badRequest(rw, "tmdb_id is required")
 		return
 	case !arrList && (in.URL != "" || in.APIKey != ""):
 		badRequest(rw, "a TMDb list takes no url or api_key")
 		return
-	case arrList && in.TmdbID != 0:
+	case in.ListType != "tmdb" && in.TmdbID != 0:
 		badRequest(rw, "a "+in.ListType+" list takes no tmdb_id")
+		return
+	case !discover && in.Rule != nil:
+		badRequest(rw, "only a discover list takes a rule")
 		return
 	case arrList && strings.TrimSpace(in.APIKey) == "":
 		badRequest(rw, "api_key is required")
@@ -482,6 +551,15 @@ func (w *Web) apiAddList(rw http.ResponseWriter, r *http.Request) {
 		}
 		in.URL, in.APIKey = u, strings.TrimSpace(in.APIKey)
 	}
+	var rule any // NULL but for a discover list
+	if discover {
+		d, err := discoverRule(in.Rule)
+		if err != nil {
+			badRequest(rw, err.Error())
+			return
+		}
+		rule = d
+	}
 	kind := in.Media
 	versions, err := checkListVersions(in.Versions, w.listLibraries("", kind), "", kind)
 	if err != nil {
@@ -489,22 +567,23 @@ func (w *Web) apiAddList(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ctx := r.Context()
+	// A discover list has no source to be added twice.
 	if exists, err := w.listExists(ctx, in.ListType, kind, in.TmdbID, in.URL); err != nil {
 		w.internal(rw, err)
 		return
 	} else if exists && arrList {
 		writeJSON(rw, http.StatusConflict, apiError{Error: "this instance is already a list"})
 		return
-	} else if exists {
+	} else if exists && !discover {
 		writeJSON(rw, http.StatusConflict, apiError{Error: "this TMDb list is already added for " + kind})
 		return
 	}
 	enabled := in.Enabled == nil || *in.Enabled
 	now := store.Millis(w.now())
-	res, err := w.st.Writer().ExecContext(ctx, `INSERT INTO import_list (name, list_type, media, tmdb_id, url, api_key,
-		enabled, enable_auto, monitor, search_on_add, versions, minimum_availability, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		in.Name, in.ListType, kind, in.TmdbID, in.URL, in.APIKey, enabled, enabled, in.Monitor, in.SearchOnAdd, versions,
+	res, err := w.st.Writer().ExecContext(ctx, `INSERT INTO import_list (name, list_type, media, tmdb_id, rule, url,
+		api_key, enabled, enable_auto, monitor, search_on_add, versions, minimum_availability, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		in.Name, in.ListType, kind, in.TmdbID, rule, in.URL, in.APIKey, enabled, enabled, in.Monitor, in.SearchOnAdd, versions,
 		in.MinimumAvailability, now, now)
 	if err != nil {
 		w.internal(rw, errors.New(arr.Mask(err.Error(), in.APIKey)))
@@ -596,9 +675,21 @@ func (w *Web) apiSetList(rw http.ResponseWriter, r *http.Request) {
 	if in.APIKey != nil {
 		key = strings.TrimSpace(*in.APIKey)
 	}
-	if (in.URL != nil || key != "") && cur.ListType == "tmdb" {
+	if (in.URL != nil || key != "") && (cur.ListType == "tmdb" || cur.ListType == "tmdb_discover") {
 		badRequest(rw, "a TMDb list takes no url or api_key")
 		return
+	}
+	if in.Rule != nil {
+		if cur.ListType != "tmdb_discover" {
+			badRequest(rw, "only a discover list takes a rule")
+			return
+		}
+		rule, err := discoverRule(in.Rule)
+		if err != nil {
+			badRequest(rw, err.Error())
+			return
+		}
+		set, args = append(set, "rule = ?"), append(args, rule)
 	}
 	if in.URL != nil {
 		u, err := normalListURL(*in.URL)
