@@ -220,7 +220,6 @@ func (w *Web) titleEpisodes(ctx context.Context, id int64, season int, seeFiles 
 		return nil, err
 	}
 	// The torrent hash as the episode window reads it (episodeFile: linkHashSQL); only for callers who see files.
-	// So are the file's probe, adopted media and file metadata (media, languages, formats).
 	// So are the file's probe, adopted media and file metadata (release group, languages, formats: linkFacts).
 	linkHash, fileFacts := "''", "NULL, NULL, 0, NULL"
 	if seeFiles {
@@ -228,8 +227,7 @@ func (w *Web) titleEpisodes(ctx context.Context, id int64, season int, seeFiles 
 	}
 	// The current files that hold each episode, active links, oldest first: a cell with more than one file ends with
 	// the newest link's facts and hash (for Cached on, heldByHash below), the file the episode window shows
-	// (episodeFile). A link holding several episodes (a season pack) is parsed once.
-	cellHash := map[[2]int64]string{}
+	// (episodeFile). A link holding several episodes (a season pack) is parsed once, and only for the season asked for.
 	type facts struct {
 		media *MediaInfo
 		file  CurrentFile
@@ -263,7 +261,7 @@ func (w *Web) titleEpisodes(ctx context.Context, id int64, season int, seeFiles 
 			c.HasFile, c.Quality = true, q
 			if seeFiles {
 				f, ok := parsed[lid]
-				if !ok {
+				if !ok && (season < 0 || all[i].Season == int64(season)) {
 					linkFacts(&f.file, meta.String)
 					f.media = linkMedia(pr, am, adopted, release, true)
 					parsed[lid] = f
@@ -271,7 +269,6 @@ func (w *Web) titleEpisodes(ctx context.Context, id int64, season int, seeFiles 
 				c.SizeBytes, c.Score, c.ReleaseGroup, c.ReleaseTitle, c.Path, c.InfoHash = nullInt(size), nullInt(score),
 					f.file.ReleaseGroup, release, path, hash
 				c.Media, c.Languages, c.Formats = f.media, f.file.Languages, f.file.Formats
-				cellHash[[2]int64{eid, vid}] = hash
 			}
 			all[i].Versions[key] = c
 			return nil
@@ -279,19 +276,23 @@ func (w *Web) titleEpisodes(ctx context.Context, id int64, season int, seeFiles 
 		return nil, err
 	}
 	if seeFiles {
-		hashes := make([]string, 0, len(cellHash))
-		for _, h := range cellHash {
-			hashes = append(hashes, h)
+		var hashes []string
+		for _, e := range all {
+			for _, c := range e.Versions {
+				hashes = append(hashes, c.InfoHash)
+			}
 		}
 		byHash, err := heldByHash(ctx, db, hashes...)
 		if err != nil {
 			return nil, err
 		}
-		for k, h := range cellHash {
-			i, key := idx[k[0]], keyOf[k[1]]
-			c := all[i].Versions[key]
-			c.CachedOn = w.cacheCodes(byHash[h])
-			all[i].Versions[key] = c
+		for _, e := range all {
+			for k, c := range e.Versions {
+				if c.HasFile {
+					c.CachedOn = w.cacheCodes(byHash[c.InfoHash])
+					e.Versions[k] = c
+				}
+			}
 		}
 	}
 
