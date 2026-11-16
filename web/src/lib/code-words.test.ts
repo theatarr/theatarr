@@ -99,6 +99,7 @@ describe("torrent words", () => {
     expect(torrentJournalWords("prune", "ok")).toBe("Prune");
     expect(torrentJournalWords("prune", "partial")).toBe("Prune partial");
     expect(torrentJournalBy("schedule")).toBe("Scheduled");
+    expect(torrentJournalBy("auto")).toBe("Automatic");
     expect(torrentJournalBy("nathan")).toBe("nathan");
   });
 });

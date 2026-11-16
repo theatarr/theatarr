@@ -111,6 +111,7 @@ func settingsSchema() SettingsSchema {
 				}},
 				{Name: "stalled_after", Type: "duration", Nullable: true, Help: "This provider's stall timeout (router.stalled_after). Default: AllDebrid at least 25m (healthy uncached jobs sit at zero for about 10 minutes), the others the router's value; 0s off, else 1m to 24h."},
 				{Name: "magnet_limit", Type: "integer", Nullable: true, Kinds: []string{"alldebrid"}, Default: "5000", Help: "How many magnets the account may hold, for Admin › Torrents and a health warning at 90%. Report only. Default 5000, 1 to 1000000."},
+				{Name: "also_add", Type: "boolean", Label: "Also add torrents here", Help: "After a download is imported, its torrent is also added to this account when this provider has it cached. Other providers' downloads only; nothing is added that is not cached."},
 			}},
 		Budgets: SchemaEntity{
 			Record: []SchemaField{},

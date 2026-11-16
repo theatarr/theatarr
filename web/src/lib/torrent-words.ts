@@ -50,5 +50,6 @@ export function torrentJournalWords(action: string | null | undefined, outcome: 
   return [wordsFor({}, action), outcome && outcome !== "ok" ? wordsFor({}, outcome).toLowerCase() : ""].filter(Boolean).join(" ");
 }
 
-/** Who ran it: "schedule" → "Scheduled", else the account name as stored. */
-export const torrentJournalBy = (by: string | null | undefined) => (by === "schedule" ? "Scheduled" : by ?? "");
+/** Who ran it: "schedule" → "Scheduled", "auto" (an automatic Add to other providers) → "Automatic", else the account
+ *  name as stored. */
+export const torrentJournalBy = (by: string | null | undefined) => (by === "schedule" ? "Scheduled" : by === "auto" ? "Automatic" : by ?? "");

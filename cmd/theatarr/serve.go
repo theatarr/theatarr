@@ -460,6 +460,18 @@ func runServe(args []string) error {
 	}
 	lb.manager, lb.readyWake = runtimeManager, readyWake
 	lb.lib.SetRecordChanged(torrentUsage.Signal)
+	// After an import from a debrid provider: the automatic "Add to other providers" (providers set to also add, where
+	// the torrent is known cached; torrents.md).
+	autoCopy := func(ctx context.Context, from, hash string) {
+		m, err := torrentManager(ctx)
+		if err == nil {
+			_, err = m.QueueAutoCopy(ctx, from, hash)
+		}
+		if err != nil {
+			log.Warn("torrents: automatic copy not queued", "provider", from, "hash", hash, "err", err)
+		}
+	}
+	lb.lib.SetImported(autoCopy)
 	torrentSvc.lib = lb
 	// The mount metrics read the active generation's library: a save that moves the mount starts a fresh guard there.
 	library.RegisterMountMetrics(reg, lb.current)
@@ -513,6 +525,7 @@ func runServe(args []string) error {
 		// Its loops (serveliveworkers.go) resolve each pass's library like the startup one.
 		runtime.Library.manager, runtime.Library.readyWake = runtimeManager, readyWake
 		runtime.Library.lib.SetRecordChanged(torrentUsage.Signal)
+		runtime.Library.lib.SetImported(autoCopy)
 		// The mount guard, helpers and listing floor carry over from the generation being replaced (the startup
 		// library before the first save), so a save neither resets an open breaker nor keeps old mount settings.
 		prevLib := lb.lib

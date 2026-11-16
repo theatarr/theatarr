@@ -1482,6 +1482,12 @@
         ],
         "help": "How many magnets the account may hold, for Admin › Torrents and a health warning at 90%. Report only. Default 5000, 1 to 1000000.",
         "nullable": true
+      },
+      {
+        "name": "also_add",
+        "label": "Also add torrents here",
+        "type": "boolean",
+        "help": "After a download is imported, its torrent is also added to this account when this provider has it cached. Other providers' downloads only; nothing is added that is not cached."
       }
     ],
     "tests": true

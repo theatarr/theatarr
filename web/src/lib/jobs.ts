@@ -54,6 +54,7 @@ const JOB_KINDS: Record<string, { name: string; effect: string }> = {
   "torrents.backup": { name: "Back up the debrid torrent lists", effect: "The latest torrent backup may be missing." },
   "torrents.restore": { name: "Restore torrents from a backup", effect: "Torrents from a backup were not added back." },
   "torrents.copy": { name: "Add a torrent to other providers", effect: "A torrent was not added to the other providers." },
+  "torrents.copy.auto": { name: "Add an imported torrent to other providers", effect: "An imported torrent was not added to the providers set to also add." },
   "notify.digest": { name: "Send the daily digest", effect: "Today's digest was not sent." },
 };
 

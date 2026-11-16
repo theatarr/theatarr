@@ -93,6 +93,40 @@ func (m *Manager) KnownHash(ctx context.Context, hash string) (bool, error) {
 	return ok, err
 }
 
+// QueueAutoCopy queues the automatic copy after an import of hash from provider from: to every other provider with a
+// key and also_add on that has live cached evidence for the hash (provider_cache cached, not expired: DMM's lists,
+// TorBox's check, an earlier add) and does not hold it complete in the record. No evidence, nothing queued: the
+// automatic copy never tries an add of something not known cached. Nothing while paused (or the router off). It
+// answers the job's id, 0 when nothing was queued.
+func (m *Manager) QueueAutoCopy(ctx context.Context, from, hash string) (int64, error) {
+	h := indexer.NormalizeHash(hash)
+	if h == "" || !m.Policy.RouterSettings().Enabled {
+		return 0, nil
+	}
+	var targets []string
+	for _, k := range m.keys() {
+		pv := m.Policy.Providers[k]
+		if k == from || !pv.AlsoAdd || m.Providers[k] == nil {
+			continue
+		}
+		var ok bool
+		if err := m.Store.Reader().QueryRowContext(ctx, `SELECT
+			EXISTS (SELECT 1 FROM provider_cache WHERE info_hash = ?1 AND provider = ?2 AND state = 'cached'
+				AND (expires_at IS NULL OR expires_at > ?3))
+			AND NOT EXISTS (SELECT 1 FROM provider_torrent WHERE info_hash = ?1 AND provider = ?2 AND progress >= 100
+				AND state <> 'error')`, h, k, store.Millis(m.now())).Scan(&ok); err != nil {
+			return 0, err
+		}
+		if ok {
+			targets = append(targets, k)
+		}
+	}
+	if len(targets) == 0 {
+		return 0, nil
+	}
+	return EnqueueCopy(ctx, m.Queue, CopyPayload{Hash: h, By: "auto", Auto: true, Providers: targets})
+}
+
 // CopyTargets lists the providers with a key, in fallback order, that are not among held (provider keys): where
 // "Add to other providers" may add the torrent.
 func (m *Manager) CopyTargets(held []string) []string {
@@ -107,7 +141,8 @@ func (m *Manager) CopyTargets(held []string) []string {
 
 // Copy runs a copy job: for every provider p names (every provider with a key when none), in fallback order, one
 // bounded attempt (copyOne), journaled. It runs alone among restores and deletes (opMu). Pause does not stop the
-// button's copy (the person's own action, as a restore); an automatic one is skipped while paused.
+// button's copy (the person's own action, as a restore); an automatic one is skipped while paused, and also at an
+// account at its torrent-limit warning share. A paced provider ends skipped in both: the button remains.
 func (m *Manager) Copy(ctx context.Context, p CopyPayload) ([]JournalEntry, error) {
 	h := indexer.NormalizeHash(p.Hash)
 	if h == "" {

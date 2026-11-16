@@ -517,6 +517,9 @@ func (l *Library) apply(ctx context.Context, d *importDownload, vn *VersionNamin
 	if recorded && l.recordChanged != nil {
 		l.recordChanged()
 	}
+	if recorded && l.imported != nil {
+		l.imported(ctx, d.Provider, d.InfoHash)
+	}
 	l.storeCutoffs(ctx, []stateVersion{{id: v.VersionID, titleID: v.Title.ID, key: v.Key}})
 	for _, m := range strays {
 		l.moveStray(ctx, d, root, m)

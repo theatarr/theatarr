@@ -844,6 +844,8 @@ export function hasAdvancedValues(entity: Entity, ent: SchemaEntity, record: Set
       const v = config[f.name];
       if (f.type === "object") return set(f.fields ?? [], v && typeof v === "object" ? (v as Record<string, unknown>) : {});
       if (v === undefined || v === null || v === "" || (Array.isArray(v) && v.length === 0) || (typeof v === "object" && Object.keys(v).length === 0)) return false;
+      // Shown before Advanced options (record-form), so it does not open them.
+      if (entity === "providers" && f.name === "also_add") return false;
       if (f.name === "url") return entity === "providers" && v !== PROVIDER_SERVICES[kind]?.url;
       return f.default === undefined || String(v) !== f.default;
     });

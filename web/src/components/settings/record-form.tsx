@@ -166,6 +166,9 @@ function ProviderAllowlist({ value, saved, providers, only, setOnly, onChange, d
   );
 }
 
+/** The provider field shown before Advanced options. */
+const UP_FRONT_PROVIDER_FIELD = "also_add";
+
 export function RecordFormView(p: RecordFormProps) {
   const { entity, ent, record, state: st, onState, errors, readOnly } = p;
   const disabled = !!readOnly || p.saving || p.deleting;
@@ -173,10 +176,11 @@ export function RecordFormView(p: RecordFormProps) {
   const set = (patch: Partial<EditorState>) => onState({ ...st, ...patch });
   const fields = editorFields(entity, ent, st.kind);
   // An indexer's required fields (its URL) come before Show advanced with the name; the rest is tuning. An indexer's
-  // provider allowlist is named checkboxes instead of a comma-separated field.
+  // provider allowlist is named checkboxes instead of a comma-separated field. A provider's "Also add torrents here"
+  // switch is a choice, not tuning: it shows up front too.
   const allowlist = entity === "indexers" ? fields.find((f) => f.name === "providers" && f.type === "list") : undefined;
   const upFront = entity === "indexers";
-  const required = upFront ? fields.filter((f) => f.required) : [];
+  const required = upFront ? fields.filter((f) => f.required) : entity === "providers" ? fields.filter((f) => f.name === UP_FRONT_PROVIDER_FIELD) : [];
   const tuning = fields.filter((f) => !required.includes(f) && f !== allowlist);
   // "Only these providers" with none ticked would save as Any, so the save is refused with an inline error instead.
   const [onlyChoice, setOnlyChoice] = useState<boolean | null>(null);

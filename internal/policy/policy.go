@@ -441,6 +441,10 @@ type Provider struct {
 	// at TorrentLimitWarnPercent (docs/design/torrents.md "Account limit"). AllDebrid only; unset is
 	// DefaultAllDebridMagnetLimit. Only reported: nothing is deleted or refused because of it.
 	MagnetLimit *int `yaml:"magnet_limit"`
+	// AlsoAdd: after a download from another provider is imported, its torrent is also added to this account when
+	// this provider has it cached by live evidence (docs/design/torrents.md "Add to other providers", automatically).
+	// Default off; omitted when off.
+	AlsoAdd bool `yaml:"also_add,omitempty" json:",omitempty"`
 }
 
 // Pacing limits adds to a provider.

@@ -764,8 +764,13 @@ func TestImportRecordsProvider(t *testing.T) {
 	e.exec(`UPDATE download SET provider_torrent_id = 'T1', size_bytes = 7000 WHERE id = 1`)
 	signals := 0
 	e.lib.SetRecordChanged(func() { signals++ })
+	var imported []string // the automatic "Add to other providers" is told (SetImported)
+	e.lib.SetImported(func(_ context.Context, p, h string) { imported = append(imported, p+"|"+h) })
 	if _, err := e.lib.Import(e.ctx, 1, false); err != nil {
 		t.Fatal(err)
+	}
+	if len(imported) != 1 || imported[0] != "rd|"+hashA {
+		t.Errorf("import hook: %v", imported)
 	}
 	if signals != 1 || e.one(`SELECT size_bytes || '|' || usage FROM provider_torrent WHERE torrent_id = 'T1'`) != "7000|" {
 		t.Errorf("the record's usage not asked for (%d) or the size not the download's", signals)
@@ -796,6 +801,7 @@ func TestImportRecordsProvider(t *testing.T) {
 	g.pol.Providers = map[string]*policy.Provider{"rd": {Kind: "realdebrid", Order: 1}}
 	g.release(movieRelease, map[string]float64{"movie.mkv": 7000})
 	g.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
+	g.lib.SetImported(func(context.Context, string, string) { t.Error("import hook for a download without a torrent id") })
 	if _, err := g.lib.Import(g.ctx, 1, false); err != nil {
 		t.Fatal(err)
 	}

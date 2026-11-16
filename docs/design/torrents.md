@@ -312,6 +312,27 @@ and deletes it. Tests: `TestCopyAddsWhereCached`, `TestCopyDeletesOwnUncachedAdd
 `TestCopySkipsPacedAndRefused`, `TestCopyRealDebridSelection`, `TestCopyKnownHashAndTargets`, `TestReportAddTo`,
 `web.TestTorrentCopyAPI`.
 
+### Automatically, per provider, where it is cached
+
+Settings › Download clients: each debrid provider has a switch **Also add torrents here** (`providers.<key>.also_add`,
+off by default, shown before Advanced options): "After a download is imported, its torrent is also added to this
+account when this provider has it cached. Other providers' downloads only; nothing is added that is not cached."
+
+After the import of a download from a debrid provider (one with its torrent id: not a file adopted from an arr, not a
+download client), right after the import's commit, the library tells the torrent manager (`Library.SetImported`, wired
+in `cmd/theatarr/serve.go`; `internal/torrents` imports `internal/library`, so it is a hook). `Manager.QueueAutoCopy`
+queues job `torrents.copy.auto` (by `auto`, key `torrents.copy.auto/<hash>`) for exactly the other providers with a
+key and the switch on that have live cached evidence for the hash (`provider_cache` state `cached`, not expired: DMM's
+lists and availability, TorBox's check, an earlier add) and do not hold it complete in the record. No evidence, nothing
+queued: the automatic path never tries an add of something not known cached; the button is there for that. Nothing is
+queued while Pause is on (or the router is off), and a queued one that runs while paused ends `skipped` ("paused"). The
+job is the button's, but an account at the torrent-limit warning share of its limit (`TorrentLimitWarnPercent` of
+AllDebrid's `magnet_limit`, from the fresh list) is `skipped`, and a paced provider ends `skipped` as for the button
+(no hand-back). Evidence justifies the attempt, it does not guarantee it: a wrong one ends `not_cached` with our add
+deleted. New imports only; the existing library is not swept. A crash between the import's commit and the hook loses
+that one automatic copy (accepted). It shows in the file's provider tags and the torrent journal (action `copy`, by
+"Automatic"). Tests: `TestAutoCopy`, `library.TestImportRecordsProvider`.
+
 ## Delete selected
 
 `POST /torrents/delete/preview`, then `POST /torrents/delete` with the preview's `confirmation_token` (a session

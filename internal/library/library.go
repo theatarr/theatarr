@@ -107,6 +107,9 @@ type Library struct {
 	// recordChanged asks for the record's usage to be worked out again after an import put its torrent in the record
 	// (SetRecordChanged: serve's usage worker); nil does nothing.
 	recordChanged func()
+	// imported is told, after an import's commit, that a debrid provider's download (with its torrent id) was
+	// imported (SetImported: serve queues the automatic "Add to other providers"); nil does nothing.
+	imported func(ctx context.Context, provider, hash string)
 	// forget clears the mount's cached listing of the release root (Options.ForgetDir); nil when off.
 	forget *rootForget
 	now    func() time.Time

@@ -2,13 +2,16 @@ package torrents
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
+	"github.com/theatarr/theatarr/internal/jobs"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/provider"
 	"github.com/theatarr/theatarr/internal/provider/adder"
 	"github.com/theatarr/theatarr/internal/router"
+	"github.com/theatarr/theatarr/internal/store"
 )
 
 // DeleteOwnUncachedAdd makes the fake an adder.Deleter: it records our own deletes and refuses one without the proof.
@@ -283,5 +286,78 @@ func TestReportAddTo(t *testing.T) {
 	}
 	if got := find(rep, "tb", "t1").AddTo; len(got) != 2 || got[0] != "rd" || got[1] != "ad" {
 		t.Errorf("add_to %v", got)
+	}
+}
+
+// The automatic copy after an import from AllDebrid: queued for TorBox only with also_add on, live cached evidence and
+// no complete TorBox entry; never while paused. Its job skips an account at its torrent-limit warning share and, while
+// paused, every provider.
+func TestAutoCopy(t *testing.T) {
+	t.Parallel()
+	e, ad, _ := copyEnv(t)
+	ctx := context.Background()
+	e.m.Queue = jobs.NewQueue(e.st)
+	e.pol.Router = &policy.Router{Enabled: true}
+	queued := func() string {
+		var p string
+		_ = e.st.Reader().QueryRow(`SELECT COALESCE(group_concat(payload), '') FROM job WHERE kind = ?`, JobCopyAuto).Scan(&p)
+		e.exec(`DELETE FROM job`)
+		return p
+	}
+	evidence := func(prov string, expires time.Time) {
+		e.exec(`INSERT OR REPLACE INTO provider_cache (info_hash, provider, state, source, checked_at, expires_at)
+			VALUES (?, ?, 'cached', 'dmm', 0, ?)`, hA, prov, store.Millis(expires))
+	}
+	// Switch off: nothing.
+	evidence("tb", e.now.Add(time.Hour))
+	if _, err := e.m.QueueAutoCopy(ctx, "ad", hA); err != nil || queued() != "" {
+		t.Fatal("queued with the switch off")
+	}
+	e.pol.Providers["tb"].AlsoAdd = true
+	e.pol.Providers["rd"].AlsoAdd = true // no evidence on rd
+	if _, err := e.m.QueueAutoCopy(ctx, "ad", hA); err != nil {
+		t.Fatal(err)
+	}
+	if got := queued(); got != `{"hash":"`+hA+`","by":"auto","auto":true,"providers":["tb"]}` {
+		t.Fatalf("queued %q", got)
+	}
+	// Expired evidence, or TorBox already holding it: nothing.
+	evidence("tb", e.now.Add(-time.Minute))
+	if _, _ = e.m.QueueAutoCopy(ctx, "ad", hA); queued() != "" {
+		t.Error("queued on expired evidence")
+	}
+	evidence("tb", e.now.Add(time.Hour))
+	e.exec(`INSERT INTO provider_torrent (provider, torrent_id, info_hash, name, state, progress)
+		VALUES ('tb', 't1', ?, 'A', 'downloaded', 100)`, hA)
+	if _, _ = e.m.QueueAutoCopy(ctx, "ad", hA); queued() != "" {
+		t.Error("queued for a provider that holds it")
+	}
+	e.exec(`DELETE FROM provider_torrent`)
+	e.pol.Router.Enabled = false
+	if _, _ = e.m.QueueAutoCopy(ctx, "ad", hA); queued() != "" {
+		t.Error("queued while paused")
+	}
+
+	// The job: paused, every provider skipped; at the limit warning share, skipped there; nothing sent.
+	if _, err := e.m.Copy(ctx, CopyPayload{Hash: hA, Auto: true, Providers: []string{"tb", "ad"}}); err != nil {
+		t.Fatal(err)
+	}
+	if rows := e.copyRows(hA); rows["tb"].Detail != "paused" || rows["ad"].Detail != "paused" {
+		t.Fatalf("paused: %+v", rows)
+	}
+	e.pol.Router.Enabled = true
+	limit := 10
+	e.pol.Providers["ad"].MagnetLimit = &limit
+	for i := range 9 {
+		ad.list = append(ad.list, tor(fmt.Sprintf("x%d", i), fmt.Sprintf("%040d", i), "X", 1, e.now, provider.StateDownloaded))
+	}
+	if _, err := e.m.Copy(ctx, CopyPayload{Hash: hA, Auto: true, Providers: []string{"ad"}}); err != nil {
+		t.Fatal(err)
+	}
+	if r := e.copyRows(hA)["ad"]; r.Outcome != CopySkipped || r.Detail != "the account holds 9 of its 10 torrents" {
+		t.Fatalf("limit: %+v", r)
+	}
+	if len(e.atb.added) != 0 {
+		t.Fatal("an add was sent")
 	}
 }
