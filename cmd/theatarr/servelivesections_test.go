@@ -313,6 +313,10 @@ func TestLiveMetadataServicesFollowTheirInputs(t *testing.T) {
 	if images.intake == on.intake || images.intake.Policy != next || images.intake.TMDb != on.intake.TMDb {
 		t.Fatal("intake not rebuilt on its generation's policy")
 	}
+	// JSON lists keep their gateway fetch on the kept TMDb client too.
+	if on.intake.Fetch == nil || images.intake.Fetch == nil {
+		t.Fatalf("JSON list fetch lost on a reload: before %t, after %t", on.intake.Fetch != nil, images.intake.Fetch != nil)
+	}
 	// The Collections page gets the intake of its generation, though search and add's TMDb client was kept.
 	if c, ok := images.add.Collections.(serveMovieIntake); !ok || c.MovieIntake != images.intake || on.add.Collections == nil {
 		t.Fatal("the web layer's movie intake is not its generation's")

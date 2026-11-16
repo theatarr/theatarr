@@ -160,7 +160,7 @@ func prepareServeMetadata(prev *serveMetadata, pol *policy.Policy, gw *gateway.G
 	// The intake reads the versions too, so each generation gets its own; its TMDb client is kept while the source is.
 	if k.intake != "" {
 		if prev.intake != nil && prev.tmdbKey == k.tmdb {
-			m.intake = &catalog.MovieIntake{Store: d.st, Policy: pol, TMDb: prev.intake.TMDb}
+			m.intake = &catalog.MovieIntake{Store: d.st, Policy: pol, TMDb: prev.intake.TMDb, Fetch: jsonListFetch(pol, gw)}
 		} else if m.intake, err = newServeMovieIntake(pol, d.st, gw); err != nil {
 			return nil, err
 		}
