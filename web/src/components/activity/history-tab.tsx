@@ -165,11 +165,11 @@ function ReplacedLine({ e }: { e: ActivityEvent }) {
   const name = files.length === 1 ? f.release || fileName(f.path) : "";
   const words = files.length === 1 ? ["Replaced: " + (name || "a file not recorded"), ...facts].join(" · ") : `Replaced ${files.length} files`;
   return (
-    <span className="flex min-w-0 text-xs text-muted-foreground max-sm:flex-wrap" title={words} data-testid="history-replaced-line">
+    <span className="flex min-w-0 flex-wrap text-xs text-muted-foreground" title={words} data-testid="history-replaced-line">
       {name ? (
         <>
           <span className="shrink-0">Replaced:&nbsp;</span>
-          <span className="min-w-0 font-mono max-sm:break-all sm:truncate">{name}</span>
+          <span className="min-w-0 flex-[1_1_4rem] font-mono max-sm:flex-auto max-sm:break-all sm:truncate">{name}</span>
           {facts.length ? <span className="shrink-0 whitespace-pre">{" · " + facts.join(" · ")}</span> : null}
         </>
       ) : words}
@@ -330,7 +330,10 @@ const EPISODE_COLUMNS: HistoryColumnId[] = ["quality", "score", "date", "release
  *  endpoint reads them with the same reader and words), in the same table. */
 export function EpisodeHistoryRows({ events, episode }: { events: ActivityEvent[]; episode: string }) {
   if (events.length === 0) return <p className="text-sm text-muted-foreground">No history yet.</p>;
-  const columns = tight([...historyFixed(false, episode), ...EPISODE_COLUMNS.map((id) => HISTORY_OPTIONAL[id])]);
+  // Narrower than the page's, so the table fits the window without scrolling sideways.
+  const columns = tight([...historyFixed(false, episode), ...EPISODE_COLUMNS.map((id) => HISTORY_OPTIONAL[id])]).map((c) =>
+    c.id === "release" ? { ...c, cellClassName: "px-2 max-w-[9rem]" } : c.id === "event" ? { ...c, cellClassName: "px-2 min-w-[7rem] max-w-[10rem]" } : c,
+  );
   return <HistoryTable items={events} columns={columns} withTitle={false} except={episode} />;
 }
 
