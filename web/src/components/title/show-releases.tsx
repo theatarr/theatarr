@@ -179,7 +179,7 @@ function Panel({ titleId, kind, initialVersion, focus, labels }: { titleId: numb
               <VersionTag k={k} label={labels?.[k]} className="text-[12px]" />
             </button>
           ))}
-          {r ? <VersionStatus state={r.grab_state} settingsKey={r.version} canManage={perms.admin} /> : null}
+          {r ? <VersionStatus state={r.grab_state} settingsKey={r.version} canManage={perms.admin} quiet /> : null}
         </div>
         {r?.live_allowed && perms.manage ? (
           // A series is searched per season or per episode, never as a whole.
