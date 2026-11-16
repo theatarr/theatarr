@@ -82,6 +82,45 @@ func TestTitleCachedOnAdoptedLink(t *testing.T) {
 	}
 }
 
+// TestTitleCachedOnSkipsFailedCopy: a hash complete on rd and in the error state at 100% on tb (a failed TorBox copy
+// keeps its progress) is cached on rd only: the title page, the list's pills, the provider filter and the facet do
+// not count the failed copy, as the Torrents page does not.
+func TestTitleCachedOnSkipsFailedCopy(t *testing.T) {
+	t.Parallel()
+	e := newManageEnv(t, nil)
+	e.exec(`DELETE FROM link WHERE id IN (SELECT link_id FROM link_version WHERE version_id = 1)`)
+	hash := strings.Repeat("9a", 20)
+	e.exec(`INSERT INTO provider_torrent (provider, torrent_id, info_hash, status, state, progress) VALUES
+		('rd', 'R1', ?1, 'downloaded', 'downloaded', 100), ('tb', 'T1', ?1, 'error', 'error', 100)`, hash)
+	e.exec(`INSERT INTO link (id, path, target, title_id, quality, file_metadata, state, created_at, updated_at)
+		VALUES (1, '/theatarr/Alpha (2020)/Alpha.mkv', '/mount/Alpha.mkv', 1, 'Remux-2160p', ?, 'active', 0, 0)`,
+		`{"InfoHash":"`+hash+`","Size":1000}`)
+	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (1, 1)`)
+
+	var d TitleDetail
+	e.call("GET", APIBase+"/titles/1", nil, 200, &d)
+	if v := d.Versions[0]; !slices.Equal(v.CachedOn, []string{"rd"}) || !slices.Equal(v.Providers, []string{"rd"}) {
+		t.Errorf("title page: cached_on %v providers %v, want [rd]", v.CachedOn, v.Providers)
+	}
+	var p TitlePage
+	e.call("GET", APIBase+"/titles?kind=movie&q=Alpha", nil, 200, &p)
+	if len(p.Items) != 1 || !slices.Equal(p.Items[0].Versions[0].Providers, []string{"rd"}) {
+		t.Errorf("list row: %+v", p.Items)
+	}
+	for q, want := range map[string]int{"provider=rd": 1, "provider=tb": 0} {
+		p = TitlePage{}
+		e.call("GET", APIBase+"/titles?kind=movie&"+q, nil, 200, &p)
+		if p.Total != want {
+			t.Errorf("%s: %d titles, want %d", q, p.Total, want)
+		}
+	}
+	var f TitleFacets
+	e.call("GET", APIBase+"/titles/facets?kind=movie", nil, 200, &f)
+	if len(f.Providers) != 1 || f.Providers[0] != (FacetCount{Value: "rd", Count: 1}) {
+		t.Errorf("provider facet: %+v", f.Providers)
+	}
+}
+
 // TestTitleCachedOnFolderHash: a link that records no hash shows the hash its mount folder points to (link.folder_hash,
 // display only) in Cached on, the list's pills, the provider filter and facet; a hash it records wins. A caller
 // without "see files" still gets no providers or hash.

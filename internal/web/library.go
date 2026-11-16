@@ -18,6 +18,7 @@ import (
 	"github.com/theatarr/theatarr/internal/indexer"
 	"github.com/theatarr/theatarr/internal/metadata/art"
 	"github.com/theatarr/theatarr/internal/policy"
+	"github.com/theatarr/theatarr/internal/provider"
 	"github.com/theatarr/theatarr/internal/store"
 )
 
@@ -88,9 +89,10 @@ const linkScoreSQL = `CASE WHEN json_valid(l.file_metadata) AND (json_type(l.fil
 
 // providerHolds is the condition on provider_torrent cp (the record, docs/design/torrents.md) that the provider holds
 // the content now, complete: listed on the account by its last complete listing (or put there by an import since)
-// and downloaded there (progress 100; the provider sync stores every provider's progress as 0-100). A torrent still
-// downloading or never finished is not counted.
-const providerHolds = `cp.progress >= 100`
+// and downloaded there (progress 100; the provider sync stores every provider's progress as 0-100) and not in the
+// error state (a failed copy can keep progress 100; the Torrents page counts it failed too, torrents.Report servedBy).
+// A torrent still downloading or never finished is not counted; a row with an empty state counts by its progress.
+const providerHolds = `(cp.progress >= 100 AND cp.state <> '` + string(provider.StateError) + `')`
 
 // heldJoin joins link l to the torrents of its hash (linkShownHashSQL, as linkHashSQL: with the folder hash) in the
 // record as cp (providerHolds).
