@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
-import { act } from "react";
-import { beforeEach, expect, it, vi } from "vitest";
+import { beforeEach, expect, it } from "vitest";
 import { mockFetch, renderPage, type Route } from "@/test/page";
 import { InteractiveSearchButton } from "./interactive-search";
 import { LibraryNamesProvider } from "@/lib/library-names";
@@ -420,14 +419,17 @@ it("shows what came of each release now over the search's own outcome: progress,
   expect(within(b).queryByTestId("release-grab")).toBeNull();
 });
 
-it("a failure a grab now would route gets Try again; one missed on every provider waits for its time", async () => {
-  const later = new Date(Date.now() + 3_600_000).toISOString();
+it("a failed release says what each provider answered and offers Try again at once", async () => {
   mockFetch([
     ME, TITLE, CURRENT,
     { method: "GET", path: "/titles/7/releases", reply: answer() },
     outcomesRoute({ outcomes: {
       aaa: { outcome: "failed", provider: "rd", download: 3, reason: "RD status error" },
-      bbb: { outcome: "failed", download: 2, reason: "No provider accepted this release", retry_at: later },
+      bbb: { outcome: "failed", download: 2, reason: "Not cached on AD and TB", attempts: [
+        { provider: "RD", outcome: "skipped", code: "rd_name_rule", message: "Real-Debrid refuses this name" },
+        { provider: "AD", outcome: "refused", code: "uncached_deleted" },
+        { provider: "TB", outcome: "skipped", code: "known_uncached" },
+      ] },
     } }),
   ]);
   renderPage(<InteractiveSearchButton titleId={7} version="movie-web" />);
@@ -435,10 +437,15 @@ it("a failure a grab now would route gets Try again; one missed on every provide
   await waitFor(async () => expect(within(await rowOf("bbb")).queryByTestId("release-failed")).toBeTruthy());
   const a = await rowOf("aaa");
   expect(within(a).getByTestId("release-failed").textContent).toBe("Failed");
+  expect(within(a).queryByTestId("release-answers")).toBeNull();
   expect(within(a).getByTestId("release-grab").textContent).toContain("Try again");
   const b = await rowOf("bbb");
-  expect(within(b).getByTestId("release-failed").getAttribute("title")).toContain("Not cached on any provider when tried; it can be tried again after");
-  expect(within(b).queryByTestId("release-grab")).toBeNull();
+  const line = within(b).getByTestId("release-answers");
+  expect(line.textContent).toBe("RD: refused by Real-Debrid's name rule · AD: not cached, our add deleted · TB: known not cached");
+  expect(line.getAttribute("title")).toContain("RD: refused by Real-Debrid's name rule (Real-Debrid refuses this name)");
+  expect(within(b).getByTestId("release-failed").getAttribute("title")).toContain("Not cached on AD and TB");
+  expect(within(b).getByTestId("release-outcome").getAttribute("title")).toContain("AD: not cached, our add deleted");
+  expect(within(b).getByTestId("release-grab").textContent).toContain("Try again");
 });
 
 it("after Try again says Sent until a new download answers, then its progress; an imported release says Imported", async () => {
@@ -487,24 +494,3 @@ it("keeps Show more open when the outcomes refresh after a grab further down", a
   expect(within(await table()).getAllByRole("row").filter((r) => r.dataset.releaseHash)).toHaveLength(60);
 });
 
-it("brings the button back at retry_at, without a new read", async () => {
-  vi.useFakeTimers({ shouldAdvanceTime: true });
-  try {
-    const at = new Date(Date.now() + 60_000).toISOString();
-    const api = mockFetch([
-      ME, TITLE, CURRENT,
-      { method: "GET", path: "/titles/7/releases", reply: answer() },
-      outcomesRoute({ outcomes: { aaa: { outcome: "failed", download: 3, reason: "No provider accepted this release", retry_at: at } } }),
-    ]);
-    renderPage(<InteractiveSearchButton titleId={7} version="movie-web" />);
-    open();
-    await waitFor(async () => expect(within(await rowOf("aaa")).getByTestId("release-failed").getAttribute("title")).toContain("tried again after"));
-    expect(within(await rowOf("aaa")).queryByTestId("release-grab")).toBeNull();
-    const reads = api.calls("GET", "/titles/7/release-outcomes").length;
-    await act(() => vi.advanceTimersByTimeAsync(61_000));
-    expect(within(await rowOf("aaa")).getByTestId("release-grab").textContent).toContain("Try again");
-    expect(api.calls("GET", "/titles/7/release-outcomes")).toHaveLength(reads);
-  } finally {
-    vi.useRealTimers();
-  }
-});

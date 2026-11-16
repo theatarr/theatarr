@@ -26,6 +26,8 @@ const CODES: Record<string, string> = {
   known_miss: "known not cached",
   known_uncached: "known not cached",
   torrent_not_cached: "not cached",
+  not_cached: "not cached",
+  infringing_file: "refused as an infringing file",
   uncached_deleted: "not cached, our add deleted",
   uncached_kept: "not cached, our add kept",
   uncached_kept_shared: "not cached, kept (may not be ours)",
@@ -38,6 +40,8 @@ const CODES: Record<string, string> = {
   reconciled: "settled from the account",
   upgrades_off: "upgrades are off",
   rd_name_rule: "refused by Real-Debrid's name rule",
+  rd_name_refused: "a file name Real-Debrid refuses",
+  title_451: "the provider refuses this title",
   torrent_blocked: "refused by the provider",
   account_hold: "Real-Debrid holds the account",
   too_many_active: "too many active downloads",
@@ -128,6 +132,23 @@ export function attemptMessageWords(m: string | null | undefined): string {
   if ((x = /^adds_per_minute (\d+) used$/.exec(m))) return `All ${x[1]} adds a minute are used; waiting for the next minute`;
   if ((x = /^uncached_adds_per_hour (\d+) used$/.exec(m))) return `All ${x[1]} uncached adds an hour are used; waiting for the next hour`;
   if (m === "known uncached here and cached_only is on") return "Skipped: known not cached here, and Only add cached releases is on";
-  if (m === "missed on every provider, or refused here with a 451, within miss_ttl") return "Skipped: it missed on every provider (or was refused here) within the time uncached results are remembered";
+  if (m === "missed on every provider, or refused here with a 451, within miss_ttl" || m === "missed on every provider, or refused here with a 451 or for a file name, within miss_ttl") return "Skipped: it missed on every provider (or was refused here) within the time uncached results are remembered";
   return m;
+}
+
+/** A provider's answer for a failed release (ReleaseOutcome.attempts): its tag and the raw attempt. */
+export type ProviderAnswer = { provider: string; outcome: string; code?: string; message?: string };
+
+/** What each provider answered, in the attempt words: line is one short part per provider
+ *  ("RD: refused by Real-Debrid's name rule · AD: not cached, our add deleted"), full the same with each message,
+ *  one provider a line. Both empty without answers. */
+export function providerAnswersWords(answers: readonly ProviderAnswer[] | null | undefined): { line: string; full: string } {
+  const parts = (answers ?? []).map((a) => {
+    const words = a.code ? attemptCodeWords(a.code) : attemptOutcomeWords(a.outcome).toLowerCase();
+    return { short: `${a.provider}: ${words}`, msg: attemptMessageWords(a.message) };
+  });
+  return {
+    line: parts.map((p) => p.short).join(" · "),
+    full: parts.map((p) => (p.msg ? `${p.short} (${p.msg})` : p.short)).join("\n"),
+  };
 }

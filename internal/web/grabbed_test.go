@@ -1,6 +1,7 @@
 package web
 
 import (
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -232,7 +233,7 @@ func TestReleaseOutcomesAndHistory(t *testing.T) {
 		t.Errorf("outcomes %+v", r.Outcomes)
 	}
 	for h, o := range want {
-		if r.Outcomes[h] != o {
+		if !reflect.DeepEqual(r.Outcomes[h], o) {
 			t.Errorf("outcome of %s: %+v, want %+v", h[:4], r.Outcomes[h], o)
 		}
 	}
@@ -806,35 +807,35 @@ func TestReleaseOutcomesLive(t *testing.T) {
 	if g := o[hAgain]; g.Outcome != "grabbed" || g.State != "queued" || g.Words != "Queued" {
 		t.Errorf("a newer download in flight over the current file: %+v", g)
 	}
-	// The router's stored cache evidence: hMiss missed on every provider of the library, one row lapsing early (the
-	// time the router tries it again); hOld's rows have lapsed.
+	// What each provider answered for hMiss: its last attempt per provider, in the order they were first tried; only
+	// explicit uncached answers make the headline (a plain miss may be a 451 or a refused file name).
 	provs := e.pol.Versions["movie-remux"].Providers
-	if len(provs) == 0 {
-		t.Fatal("movie-remux has no providers")
+	if len(provs) < 2 {
+		t.Fatal("movie-remux has fewer than two providers")
 	}
-	for i, pk := range provs {
-		exp := now + 6*3600000
-		if i == len(provs)-1 {
-			exp = now + 29*60000
-		}
-		e.exec(`INSERT INTO provider_cache (info_hash, provider, state, source, checked_at, expires_at)
-			VALUES (?, ?, 'miss', 'router:miss', ?, ?), (?, ?, 'miss', 'router:miss', ?, ?)`,
-			hMiss, pk, now-60000, exp, hOld, pk, now-7*3600000, now-3600000)
-	}
+	e.exec(`INSERT INTO download_attempt (download_id, provider, outcome, code, message, attempted_at) VALUES
+		(32, ?, 'skipped', 'miss', 'missed on every provider', ?), (32, ?, 'refused', 'uncached_deleted', 'uncached', ?),
+		(32, ?, 'skipped', 'title_451', 'refused', ?), (32, '', 'skipped', 'cached_first', 'x', ?),
+		(33, ?, 'skipped', 'miss', 'x', ?)`,
+		provs[0], now-60000, provs[1], now-59000, provs[0], now-58000, now-57000, provs[0], now-7*3600000)
 	r = ReleaseOutcomes{}
 	e.call("GET", APIBase+"/titles/1/release-outcomes?version=movie-remux", nil, 200, &r)
 	o = r.Outcomes
-	wantAt := store.FromMillis(now + 29*60000)
-	if g := o[hMiss]; g.Outcome != "failed" || g.RetryAt == nil || !g.RetryAt.Equal(wantAt) || g.Blocklisted {
-		t.Errorf("recent miss: %+v", g)
+	tag := func(pk string) string { return strings.ToUpper(e.web.cacheCodes([]string{pk})[0]) }
+	want := []ReleaseAttempt{{Provider: tag(provs[0]), Outcome: "skipped", Code: "title_451", Message: "refused"},
+		{Provider: tag(provs[1]), Outcome: "refused", Code: "uncached_deleted", Message: "uncached"}}
+	if g := o[hMiss]; g.Outcome != "failed" || g.Blocklisted || !slices.Equal(g.Attempts, want) ||
+		g.Reason != "Not cached on "+tag(provs[1]) {
+		t.Errorf("failed with answers: %+v", g)
 	}
-	if g := o[hOld]; g.Outcome != "failed" || g.Blocklisted || g.RetryAt != nil {
-		t.Errorf("miss older than miss_ttl: %+v", g)
+	if g := o[hOld]; g.Outcome != "failed" || g.Blocklisted || g.Reason != "No provider accepted this release" ||
+		len(g.Attempts) != 1 {
+		t.Errorf("a plain miss: %+v", g)
 	}
-	if g := o[hBlock]; g.Outcome != "failed" || !g.Blocklisted || g.RetryAt != nil {
+	if g := o[hBlock]; g.Outcome != "failed" || !g.Blocklisted {
 		t.Errorf("blocklisted: %+v", g)
 	}
-	if g := o[hStall]; g.Outcome != "failed" || g.Blocklisted || g.RetryAt != nil || g.Reason == "" {
+	if g := o[hStall]; g.Outcome != "failed" || g.Blocklisted || g.Reason == "" || g.Attempts != nil {
 		t.Errorf("stalled: %+v", g)
 	}
 

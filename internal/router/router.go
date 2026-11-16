@@ -980,7 +980,7 @@ func (r *Router) knownMiss(ctx context.Context, s *routeState, c *Candidate, has
 			whys = append(whys, why)
 			continue
 		}
-		if neg, _, err := missEvidence(ctx, r.st.Writer(), hash, pk, r.set.CachedOnly, now, s.req.ManualSince); err != nil {
+		if neg, err := missEvidence(ctx, r.st.Writer(), hash, pk, r.set.CachedOnly, now, s.req.ManualSince); err != nil {
 			return false, "", err
 		} else if !neg {
 			return false, "", nil
@@ -991,46 +991,20 @@ func (r *Router) knownMiss(ctx context.Context, s *routeState, c *Candidate, has
 
 // missEvidence says whether provider_cache holds live negative evidence for hash at provider, as knownMiss counts
 // it: a miss, or uncached when cachedOnly, that a route asked for by hand at since does not ask past (asksAgain).
-// until is when that row lapses (zero: never).
 func missEvidence(ctx context.Context, db *sql.DB, hash, provider string, cachedOnly bool, now, since time.Time) (bool,
-	time.Time, error) {
+	error) {
 	var state, source string
 	var checked int64
-	var exp sql.NullInt64
-	err := db.QueryRowContext(ctx, `SELECT state, source, checked_at, expires_at FROM provider_cache WHERE info_hash = ?
+	err := db.QueryRowContext(ctx, `SELECT state, source, checked_at FROM provider_cache WHERE info_hash = ?
 		AND provider = ? AND (expires_at IS NULL OR expires_at > ?)`, hash, provider, store.Millis(now)).
-		Scan(&state, &source, &checked, &exp)
+		Scan(&state, &source, &checked)
 	if errors.Is(err, sql.ErrNoRows) {
-		return false, time.Time{}, nil
+		return false, nil
 	}
 	if err != nil {
-		return false, time.Time{}, fmt.Errorf("router: cache state: %w", err)
+		return false, fmt.Errorf("router: cache state: %w", err)
 	}
-	if state != "miss" && !(state == "uncached" && cachedOnly) || asksAgain(since, source, checked) {
-		return false, time.Time{}, nil
-	}
-	if exp.Valid {
-		return true, store.FromMillis(exp.Int64), nil
-	}
-	return true, time.Time{}, nil
-}
-
-// MissUntil reads from the stored cache evidence alone whether the router would skip hash as a known miss
-// (knownMiss): every one of providers has live negative evidence for it (missEvidence). until is when the first of
-// those rows lapses, when the router tries it again (zero: none lapses). What knownMiss decides from state that is not
-// stored (adders, a Real-Debrid name refusal, a title's 451s) is not counted: without the evidence it is not known.
-func MissUntil(ctx context.Context, db *sql.DB, providers []string, hash string, cachedOnly bool, now time.Time) (
-	until time.Time, known bool, err error) {
-	for _, pk := range providers {
-		neg, exp, err := missEvidence(ctx, db, hash, pk, cachedOnly, now, time.Time{})
-		if err != nil || !neg {
-			return time.Time{}, false, err
-		}
-		if !exp.IsZero() && (until.IsZero() || exp.Before(until)) {
-			until = exp
-		}
-	}
-	return until, len(providers) > 0, nil
+	return (state == "miss" || state == "uncached" && cachedOnly) && !asksAgain(since, source, checked), nil
 }
 
 // MissOnEveryProvider is a download's error when every usable provider missed its release: the hash is then a

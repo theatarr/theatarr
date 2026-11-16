@@ -43,15 +43,54 @@ type ReleaseOutcome struct {
 	// Idle, for grabbed: nothing is working on it now (an import held for review, a download waiting for its retry
 	// time), so the list shows no working spinner.
 	Idle bool `json:"idle,omitempty"`
-	// Blocklisted and RetryAt, for failed: a grab of it now would not be routed while it is on the library's
-	// blocklist, or until RetryAt while the stored cache evidence the router reads makes it a known miss on every
-	// provider (router.MissUntil: when the first of those rows lapses); with neither, it can be grabbed again.
-	Blocklisted bool       `json:"blocklisted,omitempty"`
-	RetryAt     *time.Time `json:"retry_at,omitempty"`
+	// Blocklisted, for failed: a grab of it now would not be routed while it is on the library's blocklist;
+	// otherwise a grab by hand tries it again at once (it asks the providers again: router.Request.ManualSince).
+	Blocklisted bool `json:"blocklisted,omitempty"`
+	// Attempts, for failed: what each provider answered, the newest download's last attempt per provider in the
+	// order they were first tried, raw for the UI's attempt words (as Activity's attempts).
+	Attempts []ReleaseAttempt `json:"attempts,omitempty"`
 	// replaced: an import of it was the file and another release's is now, whatever its newest download did.
 	replaced bool
 	// current: its file is the version's current one, whatever its newest download does (a re-grab in flight).
 	current bool
+}
+
+// ReleaseAttempt is one provider's last answer for a failed release (download_attempt): Provider is its tag as the
+// failure headline names it ("RD"), the rest the attempt's raw outcome, step code and message.
+type ReleaseAttempt struct {
+	Provider string `json:"provider"`
+	Outcome  string `json:"outcome"`
+	Code     string `json:"code,omitempty"`
+	Message  string `json:"message,omitempty"`
+}
+
+// lastAttempts reads the provider attempts of the downloads ids and keeps each download's last one per provider, in
+// the order the providers were first tried. Steps for the release as a whole (no provider) are left out.
+func lastAttempts(ctx context.Context, db *sql.DB, ids []int64) (map[int64][]journal.Attempt, error) {
+	out := map[int64][]journal.Attempt{}
+	if len(ids) == 0 {
+		return out, nil
+	}
+	b, _ := json.Marshal(ids)
+	rows, err := db.QueryContext(ctx, `SELECT download_id, provider, outcome, code, message, retry_at, attempted_at
+		FROM download_attempt WHERE download_id IN (SELECT value FROM json_each(?)) AND provider <> '' ORDER BY id`, string(b))
+	if err != nil {
+		return nil, err
+	}
+	for rows.Next() {
+		id, a, err := scanActivityAttempt(rows)
+		if err != nil {
+			rows.Close()
+			return nil, err
+		}
+		as := out[id]
+		if i := slices.IndexFunc(as, func(x journal.Attempt) bool { return x.Provider == a.Provider }); i >= 0 {
+			as[i] = a
+		} else {
+			out[id] = append(as, a)
+		}
+	}
+	return out, closeActivityRows(rows)
 }
 
 // maxReason caps a failure's headline when it is the stored text itself (failureWords' last rule), in characters.
@@ -388,8 +427,9 @@ func providerList(codes []string) string {
 func (w *Web) attemptMisses(as []journal.Attempt) []string {
 	var keys []string
 	for _, a := range as {
+		// Explicit uncached answers only: a plain miss also covers a 451 and a file name Real-Debrid refused.
 		switch a.Code {
-		case "miss", "known_uncached", "uncached_deleted", "uncached_kept":
+		case "known_uncached", "torrent_not_cached", "uncached_deleted", "uncached_kept":
 			if a.Provider != "" && !slices.Contains(keys, a.Provider) {
 				keys = append(keys, a.Provider)
 			}
@@ -649,6 +689,16 @@ func (w *Web) releaseOutcomes(ctx context.Context, db *sql.DB, titleID int64, ve
 		}
 	}
 	now := w.now()
+	var failed []int64
+	for _, d := range newest {
+		if d.state == "failed" {
+			failed = append(failed, d.id)
+		}
+	}
+	answers, err := lastAttempts(ctx, db, failed)
+	if err != nil {
+		return nil, err
+	}
 	var blocked router.BlockedSet // read once, at the first failure
 	out := map[string]ReleaseOutcome{}
 	for h, d := range newest {
@@ -664,25 +714,22 @@ func (w *Web) releaseOutcomes(ctx context.Context, db *sql.DB, titleID int64, ve
 			o.Outcome = "current"
 		case d.state == "failed":
 			// The newest attempt's failure, over an older import's replacement.
-			o.Outcome, o.Reason = "failed", shortReason(d.err, d.provider)
+			as := answers[d.id]
+			o.Outcome, o.Reason = "failed", failureHeadline(d.err, d.provider, w.attemptMisses(as))
+			for _, a := range as {
+				tag := strings.ToUpper(a.Provider)
+				if c := w.cacheCodes([]string{a.Provider}); len(c) == 1 {
+					tag = strings.ToUpper(c[0])
+				}
+				o.Attempts = append(o.Attempts, ReleaseAttempt{Provider: tag, Outcome: a.Outcome, Code: a.Code,
+					Message: a.Message})
+			}
 			if blocked == nil {
 				if blocked, err = router.VersionBlocklist(ctx, db, version); err != nil {
 					return nil, err
 				}
 			}
-			if blocked.Has(h, d.release) {
-				o.Blocklisted = true
-			} else if w.pol != nil {
-				// A known miss in the stored cache evidence the router reads: tried again when its first row lapses.
-				until, known, err := router.MissUntil(ctx, db, w.pol.ReleaseProviders(w.pol.Versions[version], d.indexer), h,
-					w.pol.RouterSettings().CachedOnly, now)
-				if err != nil {
-					return nil, err
-				}
-				if known && !until.IsZero() {
-					o.RetryAt = &until
-				}
-			}
+			o.Blocklisted = blocked.Has(h, d.release)
 		case o.replaced:
 			o.Outcome, o.ReplacedBy = "replaced", replacedBy
 		case d.state == "imported" && episode > 0 && !imported[h]:

@@ -27,7 +27,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { readPref, writePref } from "@/lib/copies";
-import { fmtBytes, fmtClock, fmtTime, localDay } from "@/lib/format";
+import { fmtBytes } from "@/lib/format";
 import {
   allIndexersText,
   BEST_MATCH,
@@ -56,6 +56,7 @@ import {
   type ReleaseSort,
   type ReleaseSortKey,
 } from "@/lib/release-columns";
+import { providerAnswersWords } from "@/lib/router-words";
 import { cn } from "@/lib/utils";
 
 /** What came of a release for this library, by its hash (Releases.outcomes): grabbed (with the download's words, as
@@ -70,7 +71,7 @@ export function Outcome({ o }: { o?: ReleaseOutcome }) {
     case "current":
       return <Badge tone="ok" data-testid="release-outcome">Current file</Badge>;
     case "failed":
-      return <Badge tone="bad" className="max-w-full" title={o.reason} data-testid="release-outcome"><span className="truncate">Failed{o.reason ? ` · ${o.reason}` : ""}</span></Badge>;
+      return <Badge tone="bad" className="max-w-full" title={[o.reason, providerAnswersWords(o.attempts).full].filter(Boolean).join("\n") || undefined} data-testid="release-outcome"><span className="truncate">Failed{o.reason ? ` · ${o.reason}` : ""}</span></Badge>;
     case "replaced":
       return (
         <span className="inline-flex flex-wrap items-baseline gap-1">
@@ -84,16 +85,11 @@ export function Outcome({ o }: { o?: ReleaseOutcome }) {
 
 const outcomeOf = (c: Candidate, outcomes?: Releases["outcomes"]) => (c.info_hash ? outcomes?.[c.info_hash.toLowerCase()] : undefined);
 
-/** Why a failed release has no Grab button: on the library's blocklist (the router refuses it even with the override),
- *  or a known miss on every provider in the stored cache evidence (the router skips it until retry_at). undefined (neither): it
- *  can be grabbed again. */
-export function noRetryNote(o: ReleaseOutcome, now: Date = new Date()): string | undefined {
+/** Why a failed release has no Grab button: on the library's blocklist (the router refuses it even with the override).
+ *  undefined: Try again (a grab by hand asks the providers again). */
+export function noRetryNote(o: ReleaseOutcome): string | undefined {
   if (o.blocklisted) return "Blocklisted: unblock it under Activity › Blocklist to try again";
-  if (!o.retry_at) return undefined;
-  const at = new Date(o.retry_at);
-  if (at <= now) return undefined;
-  const when = localDay(o.retry_at) === localDay(now.toISOString()) ? fmtClock(at) : fmtTime(o.retry_at, now);
-  return `Not cached on any provider when tried; it can be tried again after ${when}`;
+  return undefined;
 }
 
 const signed = (n: number) => (n > 0 ? `+${n}` : String(n));
@@ -209,7 +205,7 @@ function Cell({ id, c, outcomes }: { id: ReleaseColumnId; c: Candidate; outcomes
  *  (then one confirmation overrides). sentFrom: sent in this window, with the id of the download its outcome showed
  *  then (0: none); "Sent" stands until an outcome of another download answers. In flight: the download's words, with
  *  a spinner while something works on it; imported or current: Imported; failed: Failed, with the button back
- *  ("Try again") unless it is blocklisted or waits for its retry_at; replaced or nothing: the button. */
+ *  ("Try again") and what each provider answered, unless it is blocklisted; replaced or nothing: the button. */
 export function GrabCell({ c, target, o, sentFrom, onSent }: { c: Candidate; target: GrabTarget; o?: ReleaseOutcome; sentFrom?: number; onSent: () => void }) {
   const grab = useGrab(target.titleId);
   const [dialog, setDialog] = useState<{ late?: string[] }>();
@@ -238,15 +234,7 @@ export function GrabCell({ c, target, o, sentFrom, onSent }: { c: Candidate; tar
   const failed = grab.isError && !lateRejections(grab.error);
   const fresh = o && (sentFrom === undefined || (o.download ?? 0) !== sentFrom) ? o : undefined;
   const note = fresh?.outcome === "failed" ? noRetryNote(fresh) : undefined;
-  // A failure that may be tried again at retry_at: one render then brings the button back (no polling).
-  const [, setTick] = useState(0);
-  const until = note && !fresh?.blocklisted && fresh?.retry_at ? Date.parse(fresh.retry_at) : NaN;
-  useEffect(() => {
-    const ms = until - Date.now();
-    if (!(ms > 0)) return;
-    const t = window.setTimeout(() => setTick((n) => n + 1), ms + 1);
-    return () => window.clearTimeout(t);
-  }, [until]);
+  const answers = fresh?.outcome === "failed" ? providerAnswersWords(fresh.attempts) : undefined;
   let state: React.ReactNode = null;
   if (fresh?.outcome === "grabbed") {
     state = (
@@ -268,8 +256,15 @@ export function GrabCell({ c, target, o, sentFrom, onSent }: { c: Candidate; tar
     );
   }
   const failure = fresh?.outcome === "failed" ? (
-    <span className="text-xs font-medium text-[var(--bad-ink)]" title={[fresh.reason, note].filter(Boolean).join("\n") || undefined} data-testid="release-failed">
-      Failed
+    <span className="flex min-w-0 max-w-[18rem] flex-col">
+      <span className="text-xs font-medium text-[var(--bad-ink)]" title={[fresh.reason, answers?.full, note].filter(Boolean).join("\n") || undefined} data-testid="release-failed">
+        Failed
+      </span>
+      {answers?.line ? (
+        <span className="truncate text-[11px] text-[var(--ink-3)]" title={answers.full} data-testid="release-answers">
+          {answers.line}
+        </span>
+      ) : null}
     </span>
   ) : null;
   const button = (
