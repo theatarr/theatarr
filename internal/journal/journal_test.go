@@ -258,7 +258,8 @@ func TestDownloadEntries(t *testing.T) {
 	if b := e.get("bl:1"); b.Kind != KindBlocklist || b.Source != "router" || b.Release.Quality != "Remux-2160p" {
 		t.Errorf("blocklist: %+v", b)
 	}
-	// The re-search mark says a search ran only when one is recorded after it.
+	// The re-search mark says a search was asked for only when its request is recorded: the queued
+	// acquire.research job of that blocklist row (router/research.go), whatever its state.
 	researchText := func() string {
 		for _, ev := range e.get("bl:1").After {
 			if ev.Kind == "research" {
@@ -267,8 +268,16 @@ func TestDownloadEntries(t *testing.T) {
 		}
 		return ""
 	}
+	if got := researchText(); got != "Not recorded whether a new search ran" {
+		t.Errorf("re-search without a request: %q", got)
+	}
+	at := testNow.Add(-2 * time.Hour) // seedRoute's
+	e.exec(`INSERT INTO job (kind, payload, dedupe_key, state, priority, run_at, max_attempts, created_at, updated_at)
+		VALUES ('acquire.research', '{}', ?, 'queued', 0, ?, 1, ?, ?)`,
+		fmt.Sprintf("acquire.research/movie-remux/1/stalled/1/%d", msOf(at.Add(16*time.Minute))),
+		msOf(at.Add(16*time.Minute)), msOf(at.Add(16*time.Minute)), msOf(at.Add(16*time.Minute)))
 	if got := researchText(); got != "Search again requested" {
-		t.Errorf("re-search with a run: %q", got)
+		t.Errorf("re-search still waiting: %q", got)
 	}
 	if rs := e.get("run:8"); rs.Kind != KindResearch || rs.Summary != "Search again after a stalled download: nothing grabbed · no accepted release among 4 results" {
 		t.Errorf("research: %+v", rs)
@@ -295,10 +304,6 @@ func TestDownloadEntries(t *testing.T) {
 	}
 	if !strings.Contains(text.String(), "chosen Alpha.2020.2160p.UHD.BluRay.REMUX-GRP (Remux-2160p 8550)") {
 		t.Errorf("text:\n%s", text.String())
-	}
-	e.exec(`DELETE FROM acquire_run WHERE id = 8`)
-	if got := researchText(); got != "Not recorded whether a new search ran" {
-		t.Errorf("re-search without a run: %q", got)
 	}
 }
 
