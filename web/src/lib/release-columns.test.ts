@@ -12,6 +12,9 @@ import {
   filterChoices,
   filterReleases,
   fmtAge,
+  indexersText,
+  indexersTitle,
+  rowIndexers,
   grabConfirmScope,
   needsConfirm,
   normalizeReleaseColumns,
@@ -98,6 +101,27 @@ describe("filterReleases", () => {
     // One value: offered when some release lacks it, not when every release has it.
     expect(filterChoices([c(1, { languages: ["English"] }), c(2)]).language).toEqual(["English"]);
     expect(filterChoices([c(1, { indexer: "Nyaa" }), c(2, { indexer: "Nyaa" })]).indexer).toEqual([]);
+  });
+});
+
+describe("one row per torrent", () => {
+  const merged = c(1, {
+    release: "Show.S02E01.2160p-A", indexer: "prowlarr-tpb", indexers: ["prowlarr-tpb", "therarbg", "dmm"],
+    copies: [{ indexer: "therarbg", release: "Show S02E01 2160p A" }, { indexer: "dmm", release: "show.s02e01.2160p.a" }],
+  });
+  const single = c(2, { release: "Show.S02E01.720p", indexer: "nyaa" });
+  it("names the first two indexers, then +N, with each copy in the tooltip", () => {
+    expect(indexersText(merged)).toBe("tpb, therarbg +1");
+    expect(indexersTitle(merged)).toBe("prowlarr-tpb: Show.S02E01.2160p-A\ntherarbg: Show S02E01 2160p A\ndmm: show.s02e01.2160p.a");
+    expect(indexersText(single)).toBe("nyaa");
+    expect(indexersTitle(single)).toBe("nyaa");
+    expect(rowIndexers(c(3))).toEqual([]);
+  });
+  it("filters and offers every indexer of a row, and sorts by the first", () => {
+    expect(ranks(filterReleases([merged, single], { ...NO_FILTER, indexer: "dmm" }))).toEqual([1]);
+    expect(ranks(filterReleases([merged, single], { ...NO_FILTER, text: "therarbg" }))).toEqual([1]);
+    expect(filterChoices([merged, single]).indexer).toEqual(["dmm", "nyaa", "therarbg", "prowlarr-tpb"]);
+    expect(ranks(sortReleases([merged, single], { key: "indexer", dir: "asc" }))).toEqual([2, 1]);
   });
 });
 

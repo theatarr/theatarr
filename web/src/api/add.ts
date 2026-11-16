@@ -15,7 +15,8 @@ export type AddResult = Schemas["AddResult"];
 export type AddedTitle = Schemas["AddedTitle"];
 export type SearchOutcome = Schemas["SearchOutcome"];
 export type Releases = Schemas["Releases"];
-export type Candidate = Schemas["JournalCandidate"];
+/** A release list row: one torrent, shown as its best-ranked copy, with every indexer that returned it. */
+export type Candidate = Schemas["ReleaseRow"];
 export type ReleaseOutcome = Schemas["ReleaseOutcome"];
 
 /** value, once it has stopped changing for ms. */

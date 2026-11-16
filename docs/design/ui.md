@@ -517,7 +517,11 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   in a closed **Technical details**. A library that may not search live says why: "The acquirer is not running". The page's header explains the page once: the card
   repeats no hint and the action bar has no Interactive search. The grid's filter box reads "Filter releases" (what it
   matches in its tooltip); an indexer is shown without the "prowlarr-" prefix of a linked Prowlarr indexer's key, the
-  key as tooltip. A live search no indexer answered is a failed search ("Live search failed",
+  key as tooltip. The list has one row per torrent (info hash), where Sonarr and Radarr list each indexer's copy: the
+  best-ranked copy stands for it, the Indexer cell names every indexer that returned it (the first two, then "+N"; the
+  tooltip gives each copy's indexer and name), Peers is the copy with the most seeders and Cached on the union; the
+  Indexer filter and the text filter match any of its indexers. A live answer counts rows; a stored one keeps its
+  search's own count ("N releases returned by the indexers"). A live search no indexer answered is a failed search ("Live search failed",
   the stored list shown), and a live search is never retried on its own. `?hash=` picks out the followed release's row, or says it is not in the list.
 - **Interactive search** (`components/title/interactive-search.tsx`, the grid `release-grid.tsx`, columns
   `lib/release-columns.ts`): a wide window (a full-height sheet on phones) that searches the indexers the moment it

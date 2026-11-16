@@ -28,6 +28,21 @@ it("badges each row by what came of its release", () => {
   expect(within(table).getByText("by Alpha.2020.2160p.REMUX-X")).toBeTruthy();
 });
 
+it("shows one row per torrent with every indexer, each copy in the tooltip, and filters by any of them", () => {
+  mockFetch([ME]);
+  const merged = { ...cand(1, "aaa"), indexer: "prowlarr-tpb", indexers: ["prowlarr-tpb", "therarbg", "dmm"], seeders: 90, leechers: 10,
+    copies: [{ indexer: "therarbg", release: "Alpha 2020 2160p WEB 1" }, { indexer: "dmm", release: "alpha.2020.2160p.web-1" }] };
+  renderPage(<ReleaseGrid kind="movie" items={[merged, { ...cand(2, "bbb"), indexer: "nyaa", indexers: ["nyaa"] }]} />);
+  const table = screen.getByTestId("releases-table");
+  const cells = within(table).getAllByTestId("release-indexers");
+  expect(cells.map((c) => c.textContent)).toEqual(["tpb, therarbg +1", "nyaa"]);
+  expect(cells[0].getAttribute("title")).toBe("prowlarr-tpb: Alpha.2020.2160p.WEB-1\ntherarbg: Alpha 2020 2160p WEB 1\ndmm: alpha.2020.2160p.web-1");
+  expect(within(table).getAllByTestId("release-peers")[0].textContent).toBe("90 / 10");
+  expect(within(screen.getByTestId("releases-list")).getAllByRole("listitem")[0].textContent).toContain("tpb, therarbg +1");
+  fireEvent.change(screen.getByTestId("release-indexer"), { target: { value: "dmm" } });
+  expect(within(table).getAllByTestId("release-indexers").map((c) => c.textContent)).toEqual(["tpb, therarbg +1"]);
+});
+
 it("says what the shown search did and picks out the followed release", async () => {
   mockFetch([
     { method: "GET", path: "/auth/me", reply: { permissions: ["browse", "see_files", "manage"] } },
@@ -47,7 +62,7 @@ it("says what the shown search did and picks out the followed release", async ()
   expect(screen.queryByTestId("releases-focus-missing")).toBeNull();
   // A library whose acquirer is down says so; the facts are one text run.
   expect(screen.getByTestId("releases-no-live").textContent).toBe("The acquirer is not running");
-  expect(screen.getByTestId("releases-facts").textContent).toBe("12 results, 2 accepted");
+  expect(screen.getByTestId("releases-facts").textContent).toBe("12 releases returned by the indexers, 2 accepted");
   expect(screen.getByTestId("releases-notes").textContent).toBe("Indexers: seadex: dropped 1 entry: private tracker; dropped 1 single-file entry; dropped 1 recent entry not filed under one of our titles; dropped 2 entries with an excluded tag");
   expect(screen.queryByText("the last search Theatarr decided for each library")).toBeNull();
 });

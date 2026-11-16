@@ -29,7 +29,7 @@ export const RELEASE_COLUMNS: ReleaseColumn[] = [
   { id: "age", label: "Age", hint: "How long ago the indexer published it" },
   // Status (accepted, or why not) right after Title, so the verdict stays in view when the table scrolls sideways.
   { id: "status", label: "Status", hint: "Accepted, or why Theatarr rejects it" },
-  { id: "indexer", label: "Indexer", hint: "The indexer that returned it" },
+  { id: "indexer", label: "Indexer", hint: "The indexers that returned it; point at it for each copy's name" },
   { id: "history", label: "History", hint: "What came of this release before: grabbed, imported, failed or replaced" },
   { id: "size", label: "Size", hint: "Size" },
   { id: "peers", label: "Peers", hint: "Seeders / leechers" },
@@ -133,8 +133,10 @@ function valueOf(c: Candidate, key: ReleaseSortKey, outcomes?: Releases["outcome
     }
     case "title":
       return (c.release ?? "").toLowerCase();
-    case "indexer":
-      return c.indexer ? c.indexer.toLowerCase() : undefined;
+    case "indexer": {
+      const first = rowIndexers(c)[0];
+      return first ? first.toLowerCase() : undefined;
+    }
     case "size":
       return c.size || undefined;
     case "peers": {
@@ -185,7 +187,7 @@ export const CACHED_ANY = "*";
 
 export const NO_FILTER: ReleaseFilter = { text: "", accepted: false, cached: "", packs: false, indexer: "", quality: "", language: "" };
 
-/** The rows the filters keep: every word in the name, indexer, quality or languages; accepted only; cached (anywhere
+/** The rows the filters keep: every word in the name, any of its indexers, quality or languages; accepted only; cached (anywhere
  *  or on one provider); packs only; the picked indexer, quality or language; rejected for the picked reason. */
 export function filterReleases(items: Candidate[], f: ReleaseFilter): Candidate[] {
   const match = wordMatcher(f.text);
@@ -193,11 +195,11 @@ export function filterReleases(items: Candidate[], f: ReleaseFilter): Candidate[
     if (f.accepted && !c.accepted) return false;
     if (f.reason && (c.accepted || !(c.rejections ?? []).some((r) => r.reason === f.reason))) return false;
     if (f.cached === CACHED_ANY ? !c.cached_on?.length : f.cached && !(c.cached_on ?? []).includes(f.cached)) return false;
-    if (f.indexer && c.indexer !== f.indexer) return false;
+    if (f.indexer && !rowIndexers(c).includes(f.indexer)) return false;
     if (f.quality && c.quality !== f.quality) return false;
     if (f.language && !(c.languages ?? []).includes(f.language)) return false;
     if (f.packs && (c.episodes?.length ?? 0) <= 1) return false;
-    return match(c.release, c.indexer, c.quality, ...(c.languages ?? []));
+    return match(c.release, ...rowIndexers(c), c.quality, ...(c.languages ?? []));
   });
 }
 
@@ -210,7 +212,7 @@ export function filterChoices(items: Candidate[]): { indexer: string[]; quality:
   const language = new Set<string>();
   const cached = new Set<string>();
   for (const c of items) {
-    if (c.indexer) indexer.add(c.indexer);
+    for (const i of rowIndexers(c)) indexer.add(i);
     if (c.quality) quality.set(c.quality, Math.max(quality.get(c.quality) ?? 0, c.quality_rank ?? 0));
     for (const l of c.languages ?? []) language.add(l);
     for (const p of c.cached_on ?? []) cached.add(p);
@@ -218,7 +220,7 @@ export function filterChoices(items: Candidate[]): { indexer: string[]; quality:
   const az = (s: Set<string>) => [...s].sort((a, b) => a.localeCompare(b));
   const narrows = (vs: string[], has: (c: Candidate) => boolean) => (vs.length > 1 || items.some((c) => !has(c)) ? vs : []);
   return {
-    indexer: narrows([...indexer].sort((a, b) => indexerWords(a).localeCompare(indexerWords(b))), (c) => !!c.indexer),
+    indexer: narrows([...indexer].sort((a, b) => indexerWords(a).localeCompare(indexerWords(b))), (c) => rowIndexers(c).length > 0),
     quality: narrows([...quality].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([q]) => q), (c) => !!c.quality),
     language: narrows(az(language), (c) => !!c.languages?.length),
     cached: narrows(az(cached), (c) => !!c.cached_on?.length),
@@ -241,6 +243,25 @@ export function fmtAge(published: string | undefined, now: Date | number = Date.
  *  reads "therarbg"); the key stays in the tooltip. */
 export function indexerWords(key: string | null | undefined): string {
   return (key ?? "").replace(/^prowlarr-/, "");
+}
+
+/** The indexers that returned a row's torrent, the shown copy's first (an answer without the list: its one indexer). */
+export function rowIndexers(c: Pick<Candidate, "indexer" | "indexers">): string[] {
+  if (c.indexers?.length) return c.indexers;
+  return c.indexer ? [c.indexer] : [];
+}
+
+/** The Indexer cell: the first two indexers' short names, then "+N" for the rest ("therarbg, dmm +1"). */
+export function indexersText(c: Pick<Candidate, "indexer" | "indexers">): string {
+  const all = rowIndexers(c).map(indexerWords);
+  return all.slice(0, 2).join(", ") + (all.length > 2 ? ` +${all.length - 2}` : "");
+}
+
+/** The Indexer cell's tooltip: each copy's indexer and release name, the shown copy first; the indexer's key alone
+ *  when there is one copy. */
+export function indexersTitle(c: Pick<Candidate, "indexer" | "release" | "copies">): string | undefined {
+  if (!c.copies?.length) return c.indexer || undefined;
+  return [{ indexer: c.indexer, release: c.release }, ...c.copies].map((x) => `${x.indexer || "—"}: ${x.release ?? ""}`).join("\n");
 }
 
 /** What a stored decision's search target was, after "from": "RSS", "a search", "a search for S01" (the server's

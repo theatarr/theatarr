@@ -70,6 +70,13 @@ export function searchIncomplete(notes: string): string {
   return `Search incomplete: ${[...words].map(([name, w]) => `${name} ${w}`).join(", ")}.`;
 }
 
+/** The count in the facts line. A live answer counts its rows (one per torrent); a stored one keeps the search's own
+ *  count of every indexer's copy, so it says so rather than read as the number of rows. */
+function resultsWords(r: Releases): string {
+  const n = r.results ?? 0;
+  return r.source === "journal" ? `${plural(n, "release")} returned by the indexers` : plural(n, "result");
+}
+
 /** The search's facts and rejection counts. With onReason (interactive search) each count is a toggle that keeps
  *  the list to the releases rejected for it. */
 export function Summary({ r, reason, onReason }: { r: Releases; reason?: string; onReason?: (code: string | undefined) => void }) {
@@ -81,7 +88,7 @@ export function Summary({ r, reason, onReason }: { r: Releases; reason?: string;
         <Badge tone={r.source === "live" ? "info" : r.source === "none" ? "neutral" : "accent"} data-testid="releases-source">{SOURCE[r.source] ?? r.source}</Badge>
         {/* One text run, so a wrapped line never starts with a separator; what the search covered is in the message. */}
         <span className="text-muted-foreground" data-testid="releases-facts">
-          {[r.at ? fmtAgo(r.at) : "", `${plural(r.results ?? 0, "result")}, ${fmtNumber(r.accepted ?? 0)} accepted`].filter(Boolean).join(" · ")}
+          {[r.at ? fmtAgo(r.at) : "", `${resultsWords(r)}, ${fmtNumber(r.accepted ?? 0)} accepted`].filter(Boolean).join(" · ")}
         </span>
       </div>
       {r.message ? <p className="text-xs text-[var(--ink-3)]" data-testid="releases-message">{r.message}</p> : null}
