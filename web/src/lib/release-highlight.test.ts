@@ -26,6 +26,9 @@ const NAMES: [string, string[]][] = [
     ["res:UHD", "source:BluRay", "res:2160p", "audio:DTS-HD MA 5 1", "source:REMUX"],
   ],
   ["Movie.2019.1080p.BluRay.DD5.1.HDR10+.x264-GRP", ["res:1080p", "source:BluRay", "audio:DD5.1", "hdr:HDR10+"]],
+  // A title's Opus is plain; the codec after the resolution is coloured.
+  ["Magnum.Opus.2022.1080p.WEB-DL.Opus.2.0.H.264-GRP", ["res:1080p", "source:WEB-DL", "audio:Opus.2.0"]],
+  ["Mr.Hollands.Opus.1995.DVDRip.XviD-GRP", ["source:DVDRip"]],
   ["Some.Show.S03E04.Episode.Name.x265-GRP", []],
 ];
 

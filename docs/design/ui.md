@@ -540,7 +540,7 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   and Flags, then Grab. The release name keeps its text and font; the facts in it are coloured, text only
   (`lib/release-highlight.ts`, `components/title/release-name.tsx`, the `--rel-*` tokens): dynamic range (DV, HDR10+,
   HLG …), audio with its channels (Atmos, TrueHD 7.1, DDP5.1 …), resolution (2160p, UHD …) and source (REMUX, BluRay,
-  WEB-DL; a bare WEB only after a resolution, so a title's Web stays plain). Last search and the episode window's list
+  WEB-DL; a bare WEB, and Opus, only after a resolution, so a title's Web or Opus stays plain). Last search and the episode window's list
   use the same grid; the journal's stored lists, History and Activity stay plain. Every column but Episodes and Formats sorts (the columns Sonarr's sorts; Status puts the
   accepted first, History the current file first), can be hidden and reordered (Columns); the column choice is kept
   per user in this browser (`localStorage` `theatarr.library.release-columns.<user>`). Filters: text, Accepted only,

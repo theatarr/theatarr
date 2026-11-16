@@ -2,8 +2,8 @@
 // range (DV, HDR10+ …), audio (Atmos, TrueHD 7.1, DDP5.1 …), resolution (2160p, UHD …) and source (REMUX, WEB-DL …).
 // Only whole tokens count: a token is bounded by the ends of the name or one of ". _ - space [ ] ( ) , +" (the "+" of
 // HDR10+ and DD+ is part of the token); a word of two parts matches across one ". _ - space". At each place the longest
-// match wins (HDR10+ over HDR10 over HDR). A bare WEB is a source only after a resolution token, so the film Madame Web
-// keeps its title plain. Everything else (title, year, episode, codec, group) stays plain; the segments join to the name.
+// match wins (HDR10+ over HDR10 over HDR). A bare WEB (a source) and Opus (audio) count only after a resolution token, so
+// the film Madame Web keeps its title plain. Everything else (title, year, episode, codec, group) stays plain; the segments join to the name.
 
 export type ReleaseFact = "hdr" | "audio" | "res" | "source";
 export interface ReleaseSegment {
@@ -47,8 +47,9 @@ const RULES: { kind: ReleaseFact; re: RegExp; afterRes?: boolean }[] = [
     "AAC",
     "FLAC",
     "LPCM",
-    "Opus",
   ].map((p) => ({ kind: "audio" as const, p: `${p}${CH}?` })),
+  // Opus is a title word too (Magnum Opus): an audio codec only after a resolution token, as a bare WEB.
+  { kind: "audio" as const, p: `Opus${CH}?`, afterRes: true },
   // DD alone says nothing; with a channel count (DD5.1) it is Dolby Digital.
   { kind: "audio" as const, p: `DD${CH}` },
   ...["2160p", "4K", "UHD", "1080p", "1080i", "720p", "576p", "480p"].map((p) => ({ kind: "res" as const, p })),
