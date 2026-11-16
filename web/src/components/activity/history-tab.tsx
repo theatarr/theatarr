@@ -334,7 +334,12 @@ export function EpisodeHistoryRows({ events, episode }: { events: ActivityEvent[
   const columns = tight([...historyFixed(false, episode), ...EPISODE_COLUMNS.map((id) => HISTORY_OPTIONAL[id])]).map((c) =>
     c.id === "release" ? { ...c, cellClassName: "px-2 max-w-[9rem]" } : c.id === "event" ? { ...c, cellClassName: "px-2 min-w-[7rem] max-w-[10rem]" } : c,
   );
-  return <HistoryTable items={events} columns={columns} withTitle={false} except={episode} />;
+  // The window is its own scroll box: the header sticks at its top, not under the page's top bar (--top).
+  return (
+    <div className="[--top:0px]">
+      <HistoryTable items={events} columns={columns} withTitle={false} except={episode} />
+    </div>
+  );
 }
 
 function HistoryList({ q, admin, prefs, filtered, withTitle }: { q: ReturnType<typeof useActivityHistory>; admin: boolean; prefs: { order: HistoryColumnId[]; shown: HistoryColumnId[] }; filtered: boolean; withTitle: boolean }) {
