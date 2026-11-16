@@ -23,10 +23,10 @@ import (
 // written for it. Releases of any privacy label are asked about, only for rd and ad. No imdbId is sent: unscoped,
 // DMM listed about a quarter more hashes in a measurement.
 const (
-	availabilityBatch = 100 // DMM's limit per call
-	// availabilityCalls bounds the calls of one search (rd and ad together); availabilityTimeout bounds the whole
-	// pass, budget waits included: DMM shares its budget with the searches, and the pass must not hold one up.
-	availabilityCalls   = 4
+	// availabilityBatch is DMM's limit per call and the most hashes one search asks about per provider kind: one call
+	// for rd, one for ad. availabilityTimeout bounds the whole pass, budget waits included: DMM shares its budget with
+	// the searches, and the pass must not hold one up.
+	availabilityBatch   = 100
 	availabilityTimeout = 15 * time.Second
 	// availabilityAskedTTL is how long an answered hash is not asked again, about as long as a search answer is
 	// reused: a title's versions search the same releases one after another.
@@ -129,11 +129,13 @@ func (s *Service) availabilitySource() availabilityAsker {
 
 // CheckAvailability asks DMM's availability, after ApplyCachedOn, about the hashed releases of one search that have no
 // rd or ad evidence yet, whatever their privacy label, for the providers (rd, ad) a debrid version in versions may send
-// them to. Listed hashes gain the provider in rs and are stored like a DMM cached feed's; nothing else changes. A
-// manual search's pass (gateway.PurposeInteractive) does not wait for the DMM budget's pace: a call whose token is not
-// due is not made and ends the pass quietly. A failed or slow call ends the pass with one log line; each call's answer
-// stands on its own, so the hashes of the calls that answered keep their marks (applied and stored) and only the failed
-// call's stay unmarked. It reports how many hashes gained a provider.
+// them to. rs is in the caller's order of preference (a library search's ranking): per provider kind, after the skips,
+// only the first availabilityBatch hashes are asked, in one call, rd then ad. Listed hashes gain the provider in rs
+// (every release of the hash) and are stored like a DMM cached feed's; nothing else changes. A manual search's pass
+// (gateway.PurposeInteractive) does not wait for the DMM budget's pace: a call whose token is not due is not made and
+// ends the pass quietly. A failed or slow call ends the pass with one log line; each call's answer stands on its own,
+// so the hashes of a call that answered keep their marks (applied and stored) and only the failed call's stay
+// unmarked. It reports how many releases gained a provider.
 func (s *Service) CheckAvailability(ctx context.Context, versions []*policy.VersionPolicy, rs []Release) int {
 	e := s.evidence()
 	if e == nil {
@@ -148,7 +150,7 @@ func (s *Service) CheckAvailability(ctx context.Context, versions []*policy.Vers
 
 func (e *Evidence) availability(ctx context.Context, src availabilityAsker, versions []*policy.VersionPolicy,
 	rs []Release) int {
-	// Candidates per code, in release order: hashed, from an indexer a debrid version being searched sends to that
+	// Candidates per code, in the order of rs: hashed, from an indexer a debrid version being searched sends to that
 	// provider kind, with no evidence for it yet. Privacy is a label and plays no part.
 	wanted := map[string][]string{}
 	picked := map[string]bool{}
@@ -208,46 +210,37 @@ func (e *Evidence) availability(ctx context.Context, src availabilityAsker, vers
 		ctx = gateway.WithoutBudgetWait(ctx)
 	}
 	listed := map[string][]string{} // hash -> codes
-	calls, asked := 0, 0
-	// rd and ad take turns, a batch each, so the call bound shares them.
-	for b := 0; calls < availabilityCalls; b++ {
-		more := false
-		for _, c := range []string{"rd", "ad"} {
-			hs := wanted[c]
-			if b*availabilityBatch >= len(hs) || calls >= availabilityCalls {
-				continue
-			}
-			more = true
-			batch := hs[b*availabilityBatch : min((b+1)*availabilityBatch, len(hs))]
-			calls++
-			got, err := src.availability(ctx, c, batch)
-			if err != nil {
-				if r := (*gateway.Refused)(nil); errors.As(err, &r) && r.Pace {
-					e.log.Debug("DMM availability: no budget token due; the manual search goes on without the rest",
-						"indexer", src.Key(), "asked", asked)
-				} else {
-					e.log.Info("DMM availability not checked; the search goes on without it", "indexer", src.Key(),
-						"err", err)
-				}
-				more = false
-				break
-			}
-			asked += len(batch)
-			at := e.now()
-			e.mu.Lock()
-			if e.asked == nil {
-				e.asked = map[string]time.Time{}
-			}
-			for _, h := range batch {
-				e.asked[c+h] = at
-			}
-			e.mu.Unlock()
-			for _, h := range got {
-				listed[h] = append(listed[h], c)
-			}
+	asked := 0
+	// One call per code, rd then ad: the first availabilityBatch hashes left after the skips.
+	for _, c := range []string{"rd", "ad"} {
+		hs := wanted[c]
+		if len(hs) == 0 {
+			continue
 		}
-		if !more {
+		batch := hs[:min(availabilityBatch, len(hs))]
+		got, err := src.availability(ctx, c, batch)
+		if err != nil {
+			if r := (*gateway.Refused)(nil); errors.As(err, &r) && r.Pace {
+				e.log.Debug("DMM availability: no budget token due; the manual search goes on without the rest",
+					"indexer", src.Key(), "asked", asked)
+			} else {
+				e.log.Info("DMM availability not checked; the search goes on without it", "indexer", src.Key(),
+					"err", err)
+			}
 			break
+		}
+		asked += len(batch)
+		at := e.now()
+		e.mu.Lock()
+		if e.asked == nil {
+			e.asked = map[string]time.Time{}
+		}
+		for _, h := range batch {
+			e.asked[c+h] = at
+		}
+		e.mu.Unlock()
+		for _, h := range got {
+			listed[h] = append(listed[h], c)
 		}
 	}
 	if len(listed) == 0 {

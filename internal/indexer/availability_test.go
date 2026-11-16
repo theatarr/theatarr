@@ -256,7 +256,9 @@ func TestDMMAvailabilityFollowsVersionProviders(t *testing.T) {
 	}
 }
 
-// Hashes go 100 a call, rd and ad taking turns, at most availabilityCalls calls a search.
+// One call per provider kind, rd then ad: the first 100 hashes in the order given that are left after the skips.
+// Nothing beyond them is asked. Hashes asked lately do not use up the 100: the next search asks the next ones. A
+// release with rd evidence is asked about on ad only; a release with evidence for both is not asked about.
 func TestDMMAvailabilityBatches(t *testing.T) {
 	n := newNet(t)
 	dmm := &availServer{}
@@ -269,29 +271,48 @@ func TestDMMAvailabilityBatches(t *testing.T) {
 		rs = append(rs, Release{Indexer: "torrentio", InfoHash: fmt.Sprintf("%040x", i+1), Privacy: policy.PrivacyPublic})
 	}
 	ctx := context.Background()
+	calls := func(from int) []string {
+		var out []string
+		for _, r := range dmm.requests()[from:] {
+			out = append(out, fmt.Sprintf("%s:%d:%s", r.service, len(r.hashes), r.hashes[0][36:]))
+		}
+		return out
+	}
 	h.svc.CheckAvailability(ctx, availVersions("rd"), rs)
-	var sizes []int
-	for _, r := range dmm.requests() {
-		sizes = append(sizes, len(r.hashes))
+	if got := calls(0); !slices.Equal(got, []string{"rd:100:0001"}) {
+		t.Fatalf("rd calls %v", got)
 	}
-	if !slices.Equal(sizes, []int{100, 100, 50}) {
-		t.Fatalf("rd batches %v", sizes)
-	}
-	if got := dmm.requests()[1].hashes[0]; got != fmt.Sprintf("%040x", 101) {
-		t.Fatalf("second batch starts at %s", got)
+	// The first 100 were just asked on rd: the next search asks the next 100, on rd; ad is new.
+	h.svc.CheckAvailability(ctx, availVersions("rd", "ad"), rs)
+	if got := calls(1); !slices.Equal(got, []string{"rd:100:0065", "ad:100:0001"}) { // 0x65 = 101
+		t.Fatalf("calls after the skips %v", got)
 	}
 
-	// Both providers, fresh hashes: rd, ad, rd, ad, then the bound.
+	// Fresh hashes, in reverse: the order given is the order asked.
+	slices.Reverse(rs)
 	for i := range rs {
 		rs[i].InfoHash = fmt.Sprintf("%040x", 1000+i)
 	}
+	rs[0].CachedOn = []string{"rd"}
+	rs[1].CachedOn = []string{"rd", "ad"}
 	h.svc.CheckAvailability(ctx, availVersions("rd", "ad"), rs)
-	var order []string
-	for _, r := range dmm.requests()[3:] {
-		order = append(order, fmt.Sprintf("%s:%d", r.service, len(r.hashes)))
+	reqs := dmm.requests()[3:]
+	if len(reqs) != 2 || reqs[0].service != "rd" || reqs[1].service != "ad" {
+		t.Fatalf("calls %+v", reqs)
 	}
-	if !slices.Equal(order, []string{"rd:100", "ad:100", "rd:100", "ad:100"}) {
-		t.Fatalf("calls %v", order)
+	if rd, ad := reqs[0].hashes, reqs[1].hashes; len(rd) != 100 || len(ad) != 100 || rd[0] != rs[2].InfoHash ||
+		ad[0] != rs[0].InfoHash || ad[1] != rs[2].InfoHash || slices.Contains(rd, rs[0].InfoHash) ||
+		slices.Contains(rd, rs[1].InfoHash) || slices.Contains(ad, rs[1].InfoHash) {
+		t.Fatalf("rd %v\nad %v", rd[:3], ad[:3])
+	}
+
+	// Nothing lacks evidence: nothing is asked.
+	for i := range rs {
+		rs[i].CachedOn = []string{"rd", "ad"}
+	}
+	h.svc.CheckAvailability(ctx, availVersions("rd", "ad"), rs)
+	if got := len(dmm.requests()); got != 5 {
+		t.Fatalf("%d calls with every hash known, want none more", got-5)
 	}
 }
 
@@ -530,15 +551,15 @@ func TestDMMAvailabilityManualSkipsPaceWait(t *testing.T) {
 		t.Error("a cap refusal did not log the usual line")
 	}
 
-	// Automatic: ten tokens a second, burst one; the pass waits for each of its four calls.
+	// Automatic: ten tokens a second, burst one; the pass waits for the token of its second call.
 	dmm, h, _ = setup(&policy.Budget{Requests: 10, Per: policy.Duration(time.Second), Burst: 1})
 	start = time.Now()
 	h.svc.CheckAvailability(gateway.WithPurpose(context.Background(), gateway.PurposeWanted), availVersions("rd", "ad"),
 		releases(1))
-	if got := len(dmm.requests()); got != 4 {
-		t.Fatalf("automatic: %d calls, want 4", got)
+	if got := len(dmm.requests()); got != 2 {
+		t.Fatalf("automatic: %d calls, want 2", got)
 	}
-	if d := time.Since(start); d < 250*time.Millisecond {
+	if d := time.Since(start); d < 50*time.Millisecond {
 		t.Errorf("automatic pass took %v: it did not wait for its tokens", d)
 	}
 }

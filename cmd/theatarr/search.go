@@ -166,8 +166,9 @@ func runSearch(args []string, out io.Writer, dial func(context.Context, string, 
 }
 
 // cacheEvidence fills CachedOn across every indexer's results (one search), asks DMM's availability, then runs the
-// TorBox check on the releases printed, in print order. Every version counts: a hash goes to DMM or TorBox only when
-// a debrid version that lists its indexer allows that provider kind.
+// TorBox check on the releases printed, in print order. Both checks take the printed releases first, so DMM's bounded
+// calls ask about them before the rest. Every version counts: a hash goes to DMM or TorBox only when a debrid version
+// that lists its indexer allows that provider kind.
 func cacheEvidence(ctx context.Context, pol *policy.Policy, svc *indexer.Service, results []*indexer.Result, limit int) {
 	var all []indexer.Release
 	for _, r := range results {
@@ -178,7 +179,6 @@ func cacheEvidence(ctx context.Context, pol *policy.Policy, svc *indexer.Service
 		versions = append(versions, pol.Versions[k])
 	}
 	svc.ApplyCachedOn(ctx, all)
-	svc.CheckAvailability(ctx, versions, all)
 	var shown, rest []*indexer.Release
 	n := 0
 	for _, r := range results {
@@ -191,6 +191,16 @@ func cacheEvidence(ctx context.Context, pol *policy.Policy, svc *indexer.Service
 			}
 		}
 		n += len(r.Releases)
+	}
+	order := append(slices.Clone(shown), rest...)
+	ordered := make([]indexer.Release, len(order))
+	for i, r := range order {
+		ordered[i] = *r
+	}
+	if svc.CheckAvailability(ctx, versions, ordered) > 0 {
+		for i, r := range order {
+			*r = ordered[i]
+		}
 	}
 	svc.CheckCached(ctx, versions, shown, rest)
 }

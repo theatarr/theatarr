@@ -278,7 +278,6 @@ func SearchRequests(ctx context.Context, eng *decide.Engine, svc *indexer.Servic
 		searched.NoAnswer = len(refs[target.ID]) > 0 && answered == 0
 		indexer.MarkSeaDex(rels)
 		svc.ApplyCachedOn(ctx, rels)
-		svc.CheckAvailability(ctx, []*policy.VersionPolicy{target.Version.Policy}, rels)
 		ctx := decide.WithSeaDex(ctx, snapshots)
 		byDecision := map[*decide.Decision]indexer.Release{}
 		byCriteria := map[string][]*decide.SeriesSearch{}
@@ -299,13 +298,19 @@ func SearchRequests(ctx context.Context, eng *decide.Engine, svc *indexer.Servic
 			ds = append(ds, d)
 		}
 		searched.Ranked = decide.Rank(ds)
-		if checkTop(ctx, svc, target.Version.Policy, searched.Ranked, byDecision) {
-			// The check's positives feed the ranking's cache tie-break: rank again, so the order shown is the order
-			// the route tries.
+		// Each check's positives feed the ranking's cache tie-break: rank again after either, so the TorBox check
+		// sees the best releases with DMM's marks, and the order shown is the order the route tries.
+		rerank := func() {
 			for _, d := range ds {
 				eng.Recache(d, target.Version, byDecision[d])
 			}
 			searched.Ranked = decide.Rank(ds)
+		}
+		if checkAvailable(ctx, svc, target.Version.Policy, searched.Ranked, byDecision) {
+			rerank()
+		}
+		if checkTop(ctx, svc, target.Version.Policy, searched.Ranked, byDecision) {
+			rerank()
 		}
 		searched.Releases = byDecision
 		searched.Request = Request{TitleID: tt.ID, VersionID: target.Version.ID, Version: target.Version.Key,
@@ -411,6 +416,28 @@ func appendCriteria(cs []*decide.SeriesSearch, more ...*decide.SeriesSearch) []*
 		}
 	}
 	return cs
+}
+
+// checkAvailable runs DMM's availability on the releases in rank order (accepted first, then the rejected ones), so its
+// bounded calls ask about the releases the library would take first, and copies the marks into byDecision. It
+// reports whether any release gained evidence.
+func checkAvailable(ctx context.Context, svc *indexer.Service, v *policy.VersionPolicy, ranked []*decide.Decision,
+	byDecision map[*decide.Decision]indexer.Release) bool {
+	rels := make([]indexer.Release, 0, len(ranked))
+	ds := make([]*decide.Decision, 0, len(ranked))
+	for _, d := range ranked {
+		if rel, ok := byDecision[d]; ok {
+			rels = append(rels, rel)
+			ds = append(ds, d)
+		}
+	}
+	if svc.CheckAvailability(ctx, []*policy.VersionPolicy{v}, rels) == 0 {
+		return false
+	}
+	for i, d := range ds {
+		byDecision[d] = rels[i]
+	}
+	return true
 }
 
 // checkTop runs the bounded TorBox cache check on the best accepted releases for version v (rank order) and copies a
