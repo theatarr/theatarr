@@ -76,6 +76,15 @@ describe("theme contrast (WCAG AA)", () => {
       pairs.push([`${name} ${s} mark on the surface`, rgb(token(theme, `--${s}`)), surface(theme), 3]);
     }
     pairs.push([`${name} accent text on its tint`, rgb(token(theme, "--accent-ink")), rgb(token(theme, "--accent-soft")), 4.5]);
+    // The facts in a release name: on the row, the hovered and the focused row, and on a rejected row drawn at 80%.
+    for (const fact of ["--rel-hdr", "--rel-audio", "--rel-res", "--rel-source"]) {
+      const fg = rgb(token(theme, fact));
+      for (const bg of ["--surface", "--bg", "--hover", "--accent-soft"]) pairs.push([`${name} ${fact} on ${bg}`, fg, rgb(token(theme, bg)), 4.5]);
+      for (const bg of ["--surface", "--bg"]) {
+        const under = rgb(token(theme, bg));
+        pairs.push([`${name} ${fact} at 80% on ${bg}`, fg.map((v, i) => 0.8 * v + 0.2 * under[i]) as RGB, under, 4.5]);
+      }
+    }
   }
   it.each(pairs)("%s", (_name, fg, bg, need) => {
     expect(contrast(fg, bg)).toBeGreaterThanOrEqual(need);

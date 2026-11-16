@@ -17,6 +17,7 @@ import { useGrab } from "@/api/ops";
 import { ColumnPicker } from "@/components/library/view-options";
 import { ProviderPills, ProviderTag, providerLabel } from "@/components/provider-pills";
 import { GrabDialog, lateRejections, type GrabTarget } from "@/components/title/release-grab";
+import { ReleaseName } from "@/components/title/release-name";
 import { toast } from "@/components/toaster";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -435,7 +436,7 @@ export function ReleaseGrid({
                       </TableCell>
                     ))}
                     <TableCell className="min-w-64 align-top">
-                      <div className="font-mono text-[12px] text-[var(--ink)] [overflow-wrap:anywhere]">{c.release}</div>
+                      <div className="font-mono text-[12px] text-[var(--ink)] [overflow-wrap:anywhere]"><ReleaseName name={c.release} /></div>
                     </TableCell>
                     {after.map((id) => (
                       // Status keeps a readable width (the table scrolls) rather than wrapping its reasons a word a line.
@@ -468,7 +469,7 @@ export function ReleaseGrid({
             {visible.map((c) => (
               <li key={key(c)} data-release-hash={c.info_hash?.toLowerCase()} data-focus={picked(c) || undefined} className={cn("rounded-[5px] border border-[var(--line)] bg-[var(--surface)] p-3", picked(c) && "border-[var(--accent)] bg-[var(--accent-soft)]")}>
                 <div className="flex items-start justify-between gap-3">
-                  <span className="font-mono text-[12px] text-[var(--ink)] [overflow-wrap:anywhere]">{c.release}</span>
+                  <span className="font-mono text-[12px] text-[var(--ink)] [overflow-wrap:anywhere]"><ReleaseName name={c.release} /></span>
                   <Score c={c} />
                 </div>
                 <div className="mt-1 text-xs text-[var(--ink-2)]">
