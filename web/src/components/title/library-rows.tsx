@@ -203,13 +203,16 @@ function RowDetails({ v, kind, minimumShown, statusShown, onRemove }: { v: Versi
   if (perms.admin) rows.push(["Library key", <Mono key="k">{key}</Mono>]);
   if (c?.info_hash) rows.push(["Hash", <InfoHash key="h" hash={c.info_hash} admin={perms.admin} />]);
   const active = perms.manage && !!v.control;
+  // Wanted lists monitored libraries only; Cutoff unmet lists a file under the preferred quality, so not one whose
+  // quality is met (score mode lists those too, but the mode is not on this page: no link then).
+  const listed = active && v.monitored !== false;
   return (
     <div className="space-y-3" data-testid={`library-row-details-${key}`}>
       <KV items={rows} />
       <ControlNote c={v.control} kind="both" globalSaid verdictSaid={!!v.control?.grab_state} />
       <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
-        {active && (v.state === "wanted" || !!v.episodes?.missing) ? <Link className="text-primary hover:underline" to={`/wanted?version=${encodeURIComponent(key)}${titleId ? `&title=${titleId}` : ""}`}>See in Wanted</Link> : null}
-        {active && (v.state === "filled" || !!v.upgrade?.below) ? <Link className="text-primary hover:underline" to={`/wanted/cutoff?version=${encodeURIComponent(key)}${titleId ? `&title=${titleId}` : ""}`}>See in Cutoff unmet</Link> : null}
+        {listed && (v.state === "wanted" || !!v.episodes?.missing) ? <Link className="text-primary hover:underline" to={`/wanted?version=${encodeURIComponent(key)}${titleId ? `&title=${titleId}` : ""}`}>See in Wanted</Link> : null}
+        {listed && v.upgrade?.quality_met !== true && (v.state === "filled" || !!v.upgrade?.below) ? <Link className="text-primary hover:underline" to={`/wanted/cutoff?version=${encodeURIComponent(key)}${titleId ? `&title=${titleId}` : ""}`}>See in Cutoff unmet</Link> : null}
         {perms.manage && titleId ? <Link className="text-primary hover:underline" to={releasesHref(titleId, key)}>Last search results</Link> : null}
       </div>
       {perms.manage ? <CopyActions v={v} label={nameOf(v)} onRemove={onRemove} /> : null}

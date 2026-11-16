@@ -444,7 +444,7 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   quality word with Why? when no Status cell gives it, the episodes under the preferred quality, and the better
   release found), minimum availability when its column is hidden, then the library key (admins) and the hash, the
   library's
-  restriction notes, **See in Wanted** / **See in Cutoff unmet** (managers, libraries), **Last search results**
+  restriction notes, **See in Wanted** / **See in Cutoff unmet** (managers, monitored libraries; Cutoff unmet not once the quality is met), **Last search results**
   (managers), each library link with **Unlink**, and **Remove from this library** (managers). Below 768 px each
   library is a stacked block: switch, name, tag and status; quality · score · size, and the provider pills when any
   provider holds the file; the file name; then

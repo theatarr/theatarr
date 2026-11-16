@@ -102,6 +102,21 @@ describe("Libraries table", () => {
 });
 
 describe("row details", () => {
+  it("links no Wanted list that would not list the library: not monitored, or its quality met", async () => {
+    manager();
+    const user = userEvent.setup();
+    const met = { ...web, upgrade: { state: "below_cutoff", quality: "WEBDL-2160p", score: 1500, quality_met: true, below: 1 } };
+    const off = { ...web, id: 3, key: "movie-1080", label: "1080p", monitored: false, has_file: false, state: "wanted", current: undefined };
+    const offHeld = { ...remux, monitored: false };
+    renderPage(<LibraryRows title={title as never} versions={[met, off, offHeld] as never} />);
+    for (const key of ["movie-web", "movie-1080", "movie-remux"]) await user.click(await screen.findByTestId(`copy-details-${key}`));
+    for (const key of ["movie-web", "movie-1080", "movie-remux"]) {
+      const panel = screen.getByTestId(`library-row-details-${key}`);
+      expect(within(panel).queryByRole("link", { name: "See in Wanted" })).toBeNull();
+      expect(within(panel).queryByRole("link", { name: "See in Cutoff unmet" })).toBeNull();
+    }
+  });
+
   it("changes the minimum availability from the details panel, and hands missing and cutoff copies to Wanted", async () => {
     const fetch = manager([
       { method: "POST", path: "/titles/minimum-availability", reply: { changed: 1 } },
