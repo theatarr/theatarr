@@ -58,7 +58,7 @@ func TestProblemReports(t *testing.T) {
 	}
 	mu.Lock()
 	if len(sent) != 1 || sent[0].Kind != notify.ProblemReported || sent[0].Problem.Name != "Alpha (2020)" ||
-		sent[0].Problem.Reporter.Username != "usr" {
+		sent[0].Problem.Reporter.Username != "usr" || !slices.Equal(sent[0].Problem.Versions, []string{"movie-remux"}) {
 		t.Errorf("notifications %+v", sent)
 	}
 	mu.Unlock()

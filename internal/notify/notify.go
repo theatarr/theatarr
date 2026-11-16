@@ -249,6 +249,11 @@ func (n *Notifier) deliveries(ctx context.Context, ev Event) ([]delivery, error)
 				continue
 			}
 		}
+		if len(t.Versions) > 0 && ev.Problem != nil && !slices.ContainsFunc(ev.Problem.Versions, func(k string) bool {
+			return slices.Contains(t.Versions, k)
+		}) {
+			continue
+		}
 		if isDiscord {
 			if discord == nil {
 				b, err := n.discordPayload(ctx, ev)

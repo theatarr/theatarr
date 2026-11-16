@@ -466,3 +466,21 @@ func TestProblemReportedMessage(t *testing.T) {
 		t.Errorf("%d arr view or grab-only deliveries", n)
 	}
 }
+
+// TestProblemReportedLibraryFilter: a target limited to other libraries gets no problem report about a file in a
+// library it does not follow, as with request-ready; an unfiltered target still gets it.
+func TestProblemReportedLibraryFilter(t *testing.T) {
+	t.Parallel()
+	e := newDiscordEnv(t, true, func(p *policy.Policy) {
+		p.Notify.Targets["chan"].Versions = []string{"tv-2160p"}
+	})
+	ctx := context.Background()
+	e.n.Emit(ctx, Event{Kind: ProblemReported, TitleID: 1, Problem: &Problem{ID: 3, Name: "Alpha (2020)",
+		Kind: "picture", Label: "Picture", Versions: []string{"movie-web"}, Reporter: RequestUser{Username: "ann"}}})
+	if got := e.discordSent(); len(got) != 0 {
+		t.Errorf("filtered target got %+v", got)
+	}
+	if n := e.one(`SELECT COUNT(*) FROM notify_delivery WHERE target = 'policy:automation'`); n != 1 {
+		t.Errorf("unfiltered target deliveries %d", n)
+	}
+}

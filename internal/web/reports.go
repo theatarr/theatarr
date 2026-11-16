@@ -326,7 +326,7 @@ func (w *Web) apiCreateReport(rw http.ResponseWriter, r *http.Request) {
 	change := "updated"
 	if created {
 		change = "created"
-		w.problemNotification(p)
+		w.problemNotification(ctx, p)
 	}
 	w.problemChanged(*p, change)
 	w.log.Info("problem report "+change, "report", id, "title", p.TitleID, "episode", p.EpisodeID, "kind", p.Kind,
@@ -341,9 +341,26 @@ func (w *Web) apiCreateReport(rw http.ResponseWriter, r *http.Request) {
 	writeJSON(rw, code, p)
 }
 
-// problemNotification sends a new report to the notification targets (OnProblem).
-func (w *Web) problemNotification(p *ProblemReport) {
+// problemNotification sends a new report to the notification targets (OnProblem), with the libraries whose file of
+// the movie or episode was reported, so a target's library filter applies as it does to request messages.
+func (w *Web) problemNotification(ctx context.Context, p *ProblemReport) {
 	if w.onProblem == nil {
+		return
+	}
+	q, args := `SELECT DISTINCT v.policy_key FROM link l JOIN link_version x ON x.link_id = l.id
+		JOIN version v ON v.id = x.version_id WHERE l.title_id = ? AND l.state = 'active'`, []any{p.TitleID}
+	if p.EpisodeID > 0 {
+		q += ` AND EXISTS (SELECT 1 FROM link_episode e WHERE e.link_id = l.id AND e.episode_id = ?)`
+		args = append(args, p.EpisodeID)
+	}
+	versions := []string{}
+	if err := scanAll(ctx, w.st.Reader(), q+` ORDER BY v.policy_key`, args, func(rows *sql.Rows) error {
+		var k string
+		err := rows.Scan(&k)
+		versions = append(versions, k)
+		return err
+	}); err != nil {
+		w.log.Warn("problem report notification", "report", p.ID, "err", err)
 		return
 	}
 	name := p.Name
@@ -356,7 +373,7 @@ func (w *Web) problemNotification(p *ProblemReport) {
 	}
 	ev := notify.Event{Kind: notify.ProblemReported, At: p.CreatedAt, TitleID: p.TitleID,
 		Problem: &notify.Problem{ID: p.ID, Name: name, Episode: p.Episode, Kind: p.Kind, Label: p.KindLabel,
-			Note: p.Note, Reporter: who}}
+			Note: p.Note, Reporter: who, Versions: versions}}
 	if p.EpisodeID > 0 {
 		ev.Episodes = []int64{p.EpisodeID}
 	}

@@ -91,6 +91,8 @@ type Problem struct {
 	Label    string      `json:"label"`
 	Note     string      `json:"note,omitempty"`
 	Reporter RequestUser `json:"reportedBy"`
+	// Versions are the libraries whose file of the movie or episode was reported: a target's versions filter applies.
+	Versions []string `json:"versions"`
 }
 
 // Request is the request data included in native request notifications.
