@@ -3,6 +3,8 @@ package web
 import (
 	"context"
 	"testing"
+
+	"github.com/theatarr/theatarr/internal/store"
 )
 
 func TestUpgradeEvidenceDecodesOnlySelectedDecisions(t *testing.T) {
@@ -128,5 +130,51 @@ func TestUpgradeFoundClearsAfterAFailedTry(t *testing.T) {
 	e.exec(`UPDATE download SET version_key = 'movie-web' WHERE info_hash = 'BBBB'`)
 	if u := explain(); u.State != "upgrade_available" || u.Next.Release != "Second" {
 		t.Fatalf("other library: %+v", u)
+	}
+}
+
+// Only a real try clears Upgrade found, timed when it failed: a download never started (Pause was on) or ended by a
+// removal is no try, as History and Why? say; one created before the sighting that failed after it is one; the
+// failure's time is its History row's, so a later touch of the download does not move it.
+func TestUpgradeFoundCountsOnlyARealTryWhenItFailed(t *testing.T) {
+	t.Parallel()
+	e := newManageEnv(t, nil)
+	e.exec(`INSERT INTO journal_decision (source,title_id,version_key,target,created_at,candidates) VALUES
+		('search',1,'movie-remux','movie',2500,'[{"release":"Best","info_hash":"aaaa","accepted":true,"upgrade":true,"score":9000}]')`)
+	fail := func(why string, created, failed int64) int64 {
+		t.Helper()
+		e.exec(`INSERT INTO download (title_id, version_id, version_key, info_hash, release_title, indexer, state, error,
+			created_at, updated_at) VALUES (1, 1, 'movie-remux', 'aaaa', 'r', 'x', 'failed', ?, ?, ?)`, why, created, failed)
+		var id int64
+		if err := e.st.Reader().QueryRow(`SELECT MAX(id) FROM download`).Scan(&id); err != nil {
+			t.Fatal(err)
+		}
+		store.HistoryFailure(context.Background(), e.st.Writer(), id)
+		return id
+	}
+	v := upgradeVersion{id: 1, titleID: 1, key: "movie-remux", kind: "movie", state: "filled"}
+	state := func() string {
+		t.Helper()
+		s, err := e.web.loadUpgrades(context.Background(), e.st.Reader(), []upgradeVersion{v}, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return s.explain(v, 0).State
+	}
+	fail("route ended: router: downloads are paused", 2600, 2600)
+	fail("copy removed by admin", 2600, 2600)
+	if got := state(); got != "upgrade_available" {
+		t.Fatalf("not started and removal-ended: %s, want upgrade_available", got)
+	}
+	// Failed before the sighting; a later touch of the row (updated_at) does not make it a try since.
+	id := fail("miss on every provider", 2000, 2400)
+	e.exec(`UPDATE download SET updated_at = 3000 WHERE id = ?`, id)
+	if got := state(); got != "upgrade_available" {
+		t.Fatalf("failed before the sighting: %s, want upgrade_available", got)
+	}
+	// Started before the sighting, failed after it: tried.
+	fail("miss on every provider", 2400, 2600)
+	if got := state(); got != "below_cutoff" {
+		t.Fatalf("failed after the sighting: %s, want below_cutoff", got)
 	}
 }

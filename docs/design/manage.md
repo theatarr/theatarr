@@ -48,8 +48,10 @@ Per item below cutoff (a movie version's file, or one episode's file):
 3. RSS sightings (journal RSS reads) newer than both the file and that search add to it.
 4. A release counts when it was accepted and marked an upgrade over the file (`upgrade` on the stored candidate),
    and maps to the item.
-5. A release with a failed download of the same title and library at or after its sighting (the candidate's hash
-   against `download.info_hash`) was tried and failed: it is not found. The best of the others is chosen; when
+5. A release with a download of the same title and library that failed at or after its sighting (the candidate's
+   hash against `download.info_hash`; the failure's time is its History row's, else `updated_at`) was tried and
+   failed: it is not found. A download never started (Pause was on) or ended by a removal is no try, as History and
+   Why? say. The best of the others is chosen; when
    every counted release was tried, the best tried one is still the answer's `next` (Why?: "Better release found …
    Tried …: not cached … Your file is unchanged.") while the state stays `below_cutoff`. A later sighting of it
    (a newer search, or DMM's newly cached list) counts again. Display only: nothing is written or deleted.

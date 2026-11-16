@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/theatarr/theatarr/internal/activity"
 	"github.com/theatarr/theatarr/internal/store"
 )
 
@@ -212,15 +213,20 @@ func judgeUpgrade(it evItem, recs []evRecord, failed map[string]int64) (*Upgrade
 // found reports whether a judged release counts as an upgrade found: seen and not tried since.
 func (n *UpgradeNext) found() bool { return n != nil && !n.tried }
 
-// loadFailedHashes reads, per title and library, the newest failed download time of each hash. Display only.
+// loadFailedHashes reads, per title and library, the newest time a download of each hash failed. Display only. Only
+// a real try counts, as History and Why? say it: a download never started (Pause was on, activity.NotStartedSQL) or
+// ended by a removal (activity.EndedByRemovalSQL) is not one. The time is its History failed row's (when it failed;
+// a Dismiss later does not move it), else the download's updated_at.
 func loadFailedHashes(ctx context.Context, db *sql.DB, titleIDs []int64) (map[titleKey]map[string]int64, error) {
 	out := map[titleKey]map[string]int64{}
 	if len(titleIDs) == 0 {
 		return out, nil
 	}
 	list, _ := json.Marshal(titleIDs)
-	err := scanAll(ctx, db, `SELECT title_id, version_key, LOWER(info_hash), MAX(created_at) FROM download
+	err := scanAll(ctx, db, `SELECT title_id, version_key, LOWER(info_hash),
+		MAX(COALESCE((SELECT h.at FROM history h WHERE h.ref = 'dl:' || download.id || ':fail'), updated_at)) FROM download
 		WHERE state = 'failed' AND COALESCE(info_hash, '') <> '' AND title_id IN (SELECT value FROM json_each(?))
+		AND NOT `+activity.NotStartedSQL+` AND NOT `+activity.EndedByRemovalSQL+`
 		GROUP BY title_id, version_key, LOWER(info_hash)`, []any{string(list)}, func(r *sql.Rows) error {
 		var k titleKey
 		var hash string

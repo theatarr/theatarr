@@ -52,7 +52,15 @@ var NativeQueueFailureSQL = `d.state='failed' AND d.dismissed_at IS NULL AND d.u
 // endedByRemovalSQL is a download a removal ended (router.EndRemoved), by its reason: the web UI's "copy removed by
 // …" (internal/web ops.go) or an arr view's "deleted through … by …" (internal/arrview write.go). The copy is gone,
 // so there is nothing to retry: History says what happened.
-const endedByRemovalSQL = `(COALESCE(d.error, '') GLOB 'copy removed by *' OR COALESCE(d.error, '') GLOB 'deleted through * by *')`
+var endedByRemovalSQL = endedByRemovalOn("d")
+
+// EndedByRemovalSQL is endedByRemovalSQL on the table download (unaliased), as NotStartedSQL.
+var EndedByRemovalSQL = endedByRemovalOn("download")
+
+// endedByRemovalOn is endedByRemovalSQL on the download table or alias t.
+func endedByRemovalOn(t string) string {
+	return "(COALESCE(" + t + ".error, '') GLOB 'copy removed by *' OR COALESCE(" + t + ".error, '') GLOB 'deleted through * by *')"
+}
 
 // EndedByRemoval is endedByRemovalSQL for a download's stored reason (error).
 func EndedByRemoval(reason string) bool {
