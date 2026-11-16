@@ -1054,7 +1054,8 @@ func TestIntakeLaterByEntryPoint(t *testing.T) {
 // A TMDb list row of media series imports the list's TV items and skips its movies (a movie row of the same list the
 // other way round): a new series gets its TVDB id from TMDb's details (anime by LooksAnime) and goes to the list's
 // series libraries that fit it; a series Theatarr holds keeps its own ids and is not looked up; one TMDb has no TVDB
-// id for, and an excluded one, are skipped. Preview counts the same without detail calls.
+// id for, and an excluded one, are skipped. Preview reads a new series' TVDB id while there are series exclusions, so
+// it says excluded where Sync skips.
 func TestTMDbSeriesList(t *testing.T) {
 	t.Parallel()
 	anime := &tmdb.TV{ID: 502, Name: "Anime Show", OriginalLanguage: "ja", FirstAirDate: "2021-04-01",
@@ -1089,7 +1090,7 @@ func TestTMDbSeriesList(t *testing.T) {
 		}
 	}
 	p, err := s.PreviewList(context.Background(), 1)
-	if err != nil || p.AddTitle != 4 || p.AddLibrary != 1 || p.Excluded != 0 || p.Present != 0 {
+	if err != nil || p.AddTitle != 3 || p.AddLibrary != 1 || p.Excluded != 1 || p.Present != 0 {
 		t.Fatalf("preview %+v %v", p, err)
 	}
 	got, err := s.SyncList(context.Background(), 1)

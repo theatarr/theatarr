@@ -381,9 +381,18 @@ func (s *MovieIntake) PreviewList(ctx context.Context, id int64) (ListPreview, e
 	return out, nil
 }
 
-// previewItems classifies a TMDb list's items of the list's media (as addItems takes them) with note.
+// previewItems classifies a TMDb list's items of the list's media (as addItems takes them) with note. A series new to
+// Theatarr is read from TMDb for its TVDB id only while the series exclusion list holds any, so Preview says excluded
+// where Sync would skip it, and costs no TMDb request otherwise.
 func (s *MovieIntake) previewItems(ctx context.Context, cfg movieIntakeConfig, keys []string, items []tmdb.MovieSummary,
 	note func(PreviewTitle)) error {
+	var exclusions bool
+	if cfg.media == "series" {
+		if err := s.Store.Reader().QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM series_exclusion)`).
+			Scan(&exclusions); err != nil {
+			return err
+		}
+	}
 	for _, m := range items {
 		series := cfg.media == "series"
 		if m.ID <= 0 || series && m.MediaType != "tv" || !series && m.MediaType != "" && m.MediaType != "movie" {
@@ -399,7 +408,13 @@ func (s *MovieIntake) previewItems(ctx context.Context, cfg movieIntakeConfig, k
 		}
 		var err error
 		if series {
-			t.Change, _, err = s.previewSeries(ctx, cfg, keys, arrSeries{TmdbID: int64(m.ID), Title: m.Name})
+			it := arrSeries{TmdbID: int64(m.ID), Title: m.Name}
+			if exclusions {
+				if it.TvdbID, err = s.previewTVDB(ctx, m.ID); err != nil {
+					return err
+				}
+			}
+			t.Change, _, err = s.previewSeries(ctx, cfg, keys, it)
 		} else {
 			t.Change, _, err = s.previewMovie(ctx, cfg, keys, int64(m.ID))
 		}
@@ -409,6 +424,28 @@ func (s *MovieIntake) previewItems(ctx context.Context, cfg movieIntakeConfig, k
 		note(t)
 	}
 	return nil
+}
+
+// previewTVDB is the TVDB id of a TMDb series, as Sync resolves it: the stored one, else TMDb's details; 0 when TMDb
+// has none.
+func (s *MovieIntake) previewTVDB(ctx context.Context, tmdbID int) (int64, error) {
+	var tvdb sql.NullInt64
+	err := s.Store.Reader().QueryRowContext(ctx, `SELECT tvdb_id FROM title WHERE kind='series' AND tmdb_id=?`, tmdbID).
+		Scan(&tvdb)
+	switch {
+	case err == nil && tvdb.Valid && tvdb.Int64 > 0:
+		return tvdb.Int64, nil
+	case err != nil && !errors.Is(err, sql.ErrNoRows):
+		return 0, err
+	}
+	t, err := s.TMDb.TVDetails(ctx, tmdbID)
+	if errors.Is(err, tmdb.ErrNotFound) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, err
+	}
+	return int64(t.ExternalIDs.TVDbID), nil
 }
 
 // previewMovie and previewSeries classify a title as a sync would (previewChange); titleID is its id in Theatarr,

@@ -134,7 +134,8 @@ accepts.
   (every fitting library has a row, in any state), `excluded`, and `skipped` (a Radarr or Sonarr list's title that
   fits none of its libraries), with the first 200 titles that would change or are skipped. A title not in Theatarr
   yet is fitted as not anime there; Sync now decides it from TMDb (`TestListPreviewWritesNothing`). Preview works for
-  every kind; a TMDb series item new to Theatarr has no TVDB id yet, so its exclusion is checked by Sync.
+  every kind; while the series exclusion list holds any, it reads a TMDb series new to Theatarr from TMDb for its TVDB
+  id, so an excluded one shows as excluded.
 
 **Radarr and Sonarr lists.** `list_type` `radarr` or `sonarr`, with the instance's `url` and `api_key` on the row
 (stored like `setting_secret`, plain in the 0600 database; `GET /lists` answers only `api_key_set`, and errors and logs
