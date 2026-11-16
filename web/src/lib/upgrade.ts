@@ -36,18 +36,28 @@ export const BELOW_PREFERRED = "Preferred quality not met";
 export const PREFERRED_MET = "Preferred quality met";
 
 /**
+ * Whether a copy below its cutoff has the wanted quality and falls short only on the score (the server's
+ * quality_met), with no better release found: it reads "Preferred quality met", while its state stays below_cutoff
+ * (searches, Cutoff unmet and the lists' filters are unchanged).
+ */
+export function scoreOnly(u: Pick<UpgradeInfo, "state" | "quality_met"> | undefined | null): boolean {
+  return u?.state === "below_cutoff" && u.quality_met === true;
+}
+
+/**
  * The quality word for an upgrade state (docs/design/ui.md "Status words"), said beside the status (Available, Partly
  * available) and never in its place; null for none or no state. Three words: "Upgrade found" once a better release
- * was actually found, "Preferred quality met" at the preferred quality, and "Preferred quality not met" (never a
- * warning) for every other copy with a file: nothing better has been found for its profile. The longer wording is the
- * line under Why?'s heading (UPGRADE_WORDS).
+ * was actually found, "Preferred quality met" at the preferred quality, or at the wanted quality with only the score
+ * short of the target (scoreOnly), and "Preferred quality not met" (never a warning) for every other copy with a
+ * file: nothing better has been found for its profile. The longer wording is the line under Why?'s heading
+ * (UPGRADE_WORDS).
  */
-export function upgradeBadge(u: Pick<UpgradeInfo, "state"> | undefined | null): { label: string; short: string; tone: Tone } | null {
+export function upgradeBadge(u: Pick<UpgradeInfo, "state" | "quality_met"> | undefined | null): { label: string; short: string; tone: Tone } | null {
   if (!u?.state || u.state === "none") return null;
   const words = UPGRADE_WORDS[u.state];
   if (!words) return null;
   if (u.state === "upgrade_available") return { ...words, label: "Upgrade found", short: "Upgrade found" };
-  if (u.state === "cutoff_met") return { ...words, label: PREFERRED_MET, short: PREFERRED_MET };
+  if (u.state === "cutoff_met" || scoreOnly(u)) return { ...UPGRADE_WORDS.cutoff_met, label: PREFERRED_MET, short: PREFERRED_MET };
   return { ...words, label: BELOW_PREFERRED, short: BELOW_PREFERRED, tone: "neutral" };
 }
 
@@ -104,9 +114,14 @@ export function reasonWords(r: string): string {
  * score 6,200): better format score, 6,200 over 4,500."; when the library's history (given) has a failed download of
  * it, "… Tried Nov 12: not cached on RD, AD and TB. Your file is unchanged." (the failure as the history row says it,
  * failureWords). The history on the page is capped, so a missing attempt is not read as "not downloaded".
- * "No better release seen yet (last search 2 d ago)." otherwise.
+ * "No better release seen yet (last search 2 d ago)." otherwise. "" for a copy that reads Preferred quality met
+ * (scoreOnly); Why? still says it (whyLines).
  */
 export function nextLine(u: UpgradeInfo | undefined | null, now: Date = new Date(), history?: readonly HistoryEvent[] | null): string {
+  return scoreOnly(u) ? "" : foundLine(u, now, history);
+}
+
+function foundLine(u: UpgradeInfo | undefined | null, now: Date, history?: readonly HistoryEvent[] | null): string {
   if (!u || (u.state !== "below_cutoff" && u.state !== "upgrade_available")) return "";
   const n = u.next;
   if (n) {
@@ -126,7 +141,7 @@ export function nextLine(u: UpgradeInfo | undefined | null, now: Date = new Date
 
 /** Why?'s three lines: the file held, where upgrades stop, and the verdict with what was found (nextLine). */
 export function whyLines(u: UpgradeInfo, score: number | undefined | null, cutoff: Cutoff | undefined | null, history?: readonly HistoryEvent[] | null, now: Date = new Date()): string[] {
-  const third = [verdictLine(u, score, cutoff), nextLine(u, now, history)].filter(Boolean).join(" ");
+  const third = [verdictLine(u, score, cutoff), foundLine(u, now, history)].filter(Boolean).join(" ");
   return [haveLine(u.quality, score), stopLine(cutoff), third].filter(Boolean);
 }
 
@@ -143,9 +158,10 @@ export function plainUpgrade(u: UpgradeInfo | undefined | null): string {
   return "";
 }
 
-/** Episodes under the preferred quality in a series version: "23 episodes under preferred quality · 1 upgrade found". */
+/** Episodes under the preferred quality in a series version: "23 episodes under preferred quality · 1 upgrade found".
+ *  "" for a copy that reads Preferred quality met (scoreOnly): its count is of score-only shortfalls. */
 export function belowCount(u: UpgradeInfo | undefined | null): string {
-  if (!u?.below) return "";
+  if (!u?.below || scoreOnly(u)) return "";
   const seen = u.seen ? ` · ${fmtNumber(u.seen)} upgrade${u.seen === 1 ? "" : "s"} found` : "";
   return `${fmtNumber(u.below)} episode${u.below === 1 ? "" : "s"} under preferred quality${seen}`;
 }

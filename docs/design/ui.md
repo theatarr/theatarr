@@ -171,7 +171,12 @@ The quality word, beside the status word of something with a file and never in i
 |---|---|---|---|
 | a better release was found (`upgrade_available`) | **Upgrade found** | accent | posters' year line, table Status (second line), library rows, season headers, episode cells, episode window, quality filter, Home's row |
 | a file below its preferred quality, nothing better found (`below_cutoff`) | **Preferred quality not met** | neutral | title page: library rows, season headers, episode window |
-| every file at its preferred quality (`cutoff_met`) | **Preferred quality met** | green | title page: library rows, season headers, episode window |
+| every file at its preferred quality (`cutoff_met`), or at the wanted quality with only the score under the target (`below_cutoff` with `quality_met`), nothing better found | **Preferred quality met** | green | title page: library rows, season headers, episode window |
+
+A file at the wanted quality whose format score is under the profile's score target stays `below_cutoff` on the
+server (searches, Wanted › Cutoff unmet and the lists' filters are unchanged); only the word changes. It keeps Why?
+("The quality is reached, the score is not."), its episode tooltip has no quality word, and a series library row
+leaves out "N episodes under preferred quality" and the found line beside it.
 
 List rows and posters say only **Upgrade found** (lib/library.ts qualityWord); the other two words are the title page's.
 A library that does not monitor the title shows no quality word on its seasons and episodes (nothing is searched
@@ -422,7 +427,7 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   **Status:** a download in hand and no file reads its stage ("Downloading · 37%", "Waiting for mount", "Blocked"),
   linked to Activity; a movie without a file "Not monitored", "Upcoming · Jan 14" (not out at home yet, the posters'
   rule) or "Missing"; a held movie "Available" with the quality word beside it (Upgrade found, Preferred quality not
-  met or Preferred quality met; Why? unless it is at its preferred quality; Status words), with
+  met or Preferred quality met; Why? unless it is at its cutoff; Status words), with
   "Upgrade downloading · 37%" under it while one is in hand; a series "44 of 46 monitored episodes" with "2 missing ·
   30 not monitored" under it; a library that monitors none of them says it once: "291 of 291 episodes available, not
   monitored" (the library is not monitored) or "37 of 37 episodes · none monitored" (no episode is). A missing

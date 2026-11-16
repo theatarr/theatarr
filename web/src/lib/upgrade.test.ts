@@ -26,6 +26,25 @@ describe("upgrade words", () => {
     expect(Object.keys(UPGRADE_WORDS).sort()).toEqual(table.map(([s]) => s).sort());
     expect(upgradeBadge({ state: "none" })).toBeNull();
   });
+  it("reads Preferred quality met when only the score is short", () => {
+    // The wanted quality held, the score under the target, nothing better found: met, positive.
+    expect(upgradeBadge({ state: "below_cutoff", quality_met: true })).toEqual({ ...UPGRADE_WORDS.cutoff_met, label: "Preferred quality met", short: "Preferred quality met" });
+    // The quality itself short, or not judged (prefer-SeaDex): unchanged.
+    expect(upgradeBadge({ state: "below_cutoff", quality_met: false })?.label).toBe("Preferred quality not met");
+    expect(upgradeBadge({ state: "below_cutoff" })?.label).toBe("Preferred quality not met");
+    // Upgrade found still wins.
+    expect(upgradeBadge({ state: "upgrade_available", quality_met: true })?.label).toBe("Upgrade found");
+    // No count of score-only shortfalls and no found line beside it; Why? keeps its three lines.
+    const u = { state: "below_cutoff" as const, quality: "Remux-2160p", quality_met: true, below: 23, last_search: "2026-11-13T12:00:00Z" };
+    expect(belowCount(u)).toBe("");
+    expect(nextLine(u)).toBe("");
+    expect(belowCount({ ...u, quality_met: false })).toBe("23 episodes under preferred quality");
+    expect(whyLines(u, 8575, cutoff, null, new Date("2026-11-15T12:00:00Z"))).toEqual([
+      "You have: Remux-2160p, score 8,575.",
+      "Upgrades stop at: Remux-2160p and a score of 10,000.",
+      "The quality is reached, the score is not. No better release seen yet (last search 2 d ago).",
+    ]);
+  });
   it("never says Below cutoff to anyone", () => {
     const words = [
       ...Object.values(UPGRADE_WORDS).flatMap((w) => [w.label, w.short]),

@@ -15,8 +15,8 @@ import { cn } from "@/lib/utils";
 type HistoryEvent = Schemas["HistoryEvent"];
 
 /**
- * The status badge, and a Why? button when the caller sees files and there is something to explain: not on a
- * Preferred quality met copy.
+ * The status badge, and a Why? button when the caller sees files and there is something to explain: not on a copy
+ * at its cutoff (cutoff_met). A copy with only the score short reads Preferred quality met and keeps Why?.
  */
 export function UpgradeStatus({
   u,

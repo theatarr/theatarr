@@ -40,7 +40,7 @@ import { InteractiveSearchButton } from "@/components/title/interactive-search";
 import { MonitorSwitch } from "@/components/title/manage-bits";
 import { ProgressBar } from "@/components/activity-bits";
 import { UpgradeStatus } from "@/components/title/upgrade-why";
-import { BELOW_PREFERRED } from "@/lib/upgrade";
+import { BELOW_PREFERRED, scoreOnly } from "@/lib/upgrade";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -128,11 +128,12 @@ function statusOf(e: Episode, copies: { key: string; monitored?: boolean }[], me
   return { s, label: statusWords(s, seeFiles).label, quality: seeFiles && c?.has_file ? c.quality : undefined, cell: c, upgrade: cellUpgrade(c, seeFiles) && !off.has(keys[0]) };
 }
 
-/** A cell's tooltip: the quality word (none in a library that does not monitor the title, off), release group, size,
- *  score (when scored) and monitoring. */
+/** A cell's tooltip: the quality word (none in a library that does not monitor the title, off, and none at the
+ *  preferred quality or with only the score short, scoreOnly), release group, size, score (when scored) and
+ *  monitoring. */
 function cellTitle(c: Cell | undefined, off = false): string | undefined {
   if (!c) return undefined;
-  const quality = c.has_file && !off ? (c.upgrade_seen ? UPGRADE_FOUND : c.state === "filled" ? BELOW_PREFERRED : undefined) : undefined;
+  const quality = c.has_file && !off ? (c.upgrade_seen ? UPGRADE_FOUND : c.state === "filled" && !scoreOnly(c.upgrade) ? BELOW_PREFERRED : undefined) : undefined;
   const parts = [quality, c.release_group, c.size_bytes ? fmtBytes(c.size_bytes) : undefined, c.score != null ? `profile score ${fmtNumber(c.score)}` : undefined, c.monitored ? "monitored" : "not monitored"];
   return parts.filter(Boolean).join(" · ") || undefined;
 }
