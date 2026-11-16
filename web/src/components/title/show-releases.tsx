@@ -26,30 +26,48 @@ const SOURCE: Record<string, string> = {
   none: "Nothing stored",
 };
 
-// What each indexer's notes say went wrong, worst first; a note that matches none is information, not a failure.
-const PROBLEMS: [RegExp, string][] = [
+// The notes a search stores (internal/router/search.go and the indexers' Notes) that are information, not trouble:
+// kept/dropped/added counts, the page cap, a pack-size caveat, a name-only query that did answer.
+const INFO = [
+  /^dropped \d+ /, /^ignored the expanded records/, /^title search added \d+/, /^season search: kept/, /^page_cap \d+ reached/,
+  /^no episode counts for this series$/, /^pack sizes are file sizes$/, /^no AniList id maps to this title/,
+  /only a plain keyword query$/, /^no episode criteria$/, /^\d+ results from \d+ indexers$/,
+];
+// Every other note is trouble, in these words (the first that matches); anything else "had an error".
+const TROUBLE: [RegExp, string][] = [
   [/budget|rate.?limit|too many requests|\b429\b|next token/i, "was rate-limited"],
   [/deadline exceeded|timed? ?out|waited too long/i, "did not answer in time"],
-  [/fail|error|refused|unreachable|status \d{3}/i, "failed"],
+  [/\b40[13]\b|unauthori[sz]ed|forbidden/i, "refused the sign-in"],
+  [/\b5\d\d\b|service unavailable|bad gateway/i, "was unavailable"],
   [/partial answer/i, "answered only in part"],
-  [/only a plain keyword query/i, "could only be searched by name"],
 ];
+// Unprefixed failure notes only one indexer writes.
+const OWNER: [RegExp, string][] = [[/^title search failed, IMDb results only/, "zilean"], [/^episode counts: /, "torrentio"]];
 
-/** One line for the indexers that did not answer fully, from the search's notes ("indexer x: …" or "x: …", joined
- *  by "; "): "Search incomplete: therarbg was rate-limited, nyaa did not answer in time." Empty when no note names a
- *  problem. The raw notes stay under Technical details. */
+/** One line for the indexers that did not answer fully, from the search's notes (joined by "; "): "Search incomplete:
+ *  therarbg was rate-limited, nyaa did not answer in time." Empty when every note is information. A note is named by
+ *  its "indexer x:" / "x:" prefix, by the "indexer:x" a gateway note carries, or by its known owner; an unnamed piece
+ *  right after a named failure is the rest of that failure. The raw notes stay under Technical details. */
 export function searchIncomplete(notes: string): string {
-  const worst = new Map<string, number>();
-  for (const note of notes.split("; ")) {
-    const m = /^(?:indexer )?([\w.-]+): (.+)$/.exec(note.trim());
-    if (!m) continue;
-    const i = PROBLEMS.findIndex(([re]) => re.test(m[2]));
-    if (i < 0) continue;
-    const prev = worst.get(m[1]);
-    if (prev === undefined || i < prev) worst.set(m[1], i);
+  const words = new Map<string, string>();
+  let last = "";
+  for (const raw of notes.split("; ")) {
+    const note = raw.trim();
+    if (!note) continue;
+    const prefixed = /^(?:indexer )?([\w.-]+): (.+)$/.exec(note);
+    const body = prefixed ? prefixed[2] : note;
+    if (INFO.some((re) => re.test(body) || re.test(note))) { last = ""; continue; }
+    const name = /indexer:([\w.-]+)/.exec(note)?.[1] ?? (prefixed && prefixed[1] !== "gateway" ? prefixed[1] : undefined)
+      ?? OWNER.find(([re]) => re.test(note))?.[1] ?? (last || "an indexer");
+    const word = TROUBLE.find(([re]) => re.test(note))?.[1] ?? "had an error";
+    const prev = words.get(name);
+    // One phrase per indexer: a named cause wins over "answered only in part" and "had an error".
+    const weak = (w?: string) => w === undefined || w === "had an error" || w === "answered only in part";
+    if (prev === undefined || (weak(prev) && !weak(word))) words.set(name, word);
+    last = name;
   }
-  if (worst.size === 0) return "";
-  return `Search incomplete: ${[...worst].map(([name, i]) => `${name} ${PROBLEMS[i][1]}`).join(", ")}.`;
+  if (words.size === 0) return "";
+  return `Search incomplete: ${[...words].map(([name, w]) => `${name} ${w}`).join(", ")}.`;
 }
 
 /** The search's facts and rejection counts. With onReason (interactive search) each count is a toggle that keeps

@@ -256,3 +256,16 @@ it("names the indexers that did not answer fully in one line, the raw notes kept
   expect(raw.closest("details")?.open).toBe(false);
   expect(raw.textContent).toBe(`Indexers: ${notes}`);
 });
+
+it("leaves no failure out of the line: HTTP errors, unprefixed fallbacks and gateway notes name their indexer", () => {
+  // Real 401 and 503 answers, and Zilean's title search failing behind an IMDb answer that still gave releases.
+  expect(searchIncomplete("prowlarr-tpb: torznab: HTTP 401 Unauthorized; dmm: request failed: HTTP 503 Service Unavailable; title search failed, IMDb results only: zilean: HTTP 500")).toBe(
+    "Search incomplete: prowlarr-tpb refused the sign-in, dmm was unavailable, zilean was unavailable.");
+  // A gateway note belongs to the indexer it names, not to "gateway".
+  expect(searchIncomplete("one: partial answer; gateway: budget exhausted: indexer:one: budget one: next token in 2s")).toBe(
+    "Search incomplete: one was rate-limited.");
+  // Anything that is not a known piece of information is trouble.
+  expect(searchIncomplete("nyaa: unexpected EOF")).toBe("Search incomplete: nyaa had an error.");
+  // The known information stays out, the name-only fallback included.
+  expect(searchIncomplete("zilean: only a plain keyword query; no episode criteria; page_cap 200 reached after 2 pages; season search: kept 4 packs, dropped 2 single episodes; no episode counts for this series; pack sizes are file sizes; dropped 3 releases with conflicting or unverifiable torrent identities; no AniList id maps to this title: nothing to ask SeaDex")).toBe("");
+});
