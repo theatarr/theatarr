@@ -44,7 +44,7 @@ func newMetrics(g *Gateway) *metrics {
 			Buckets: []float64{0, .1, .5, 1, 2, 5, 10, 30, 60},
 		}, []string{"budget"}),
 		budgetRefused: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Name: "theatarr_gateway_budget_refused_total", Help: "Requests a budget refused, by budget and reason (budget, backoff, cap).",
+			Name: "theatarr_gateway_budget_refused_total", Help: "Requests a budget refused, by budget and reason (budget, backoff, cap, pace: a request that chose not to wait).",
 		}, []string{"budget", "reason"}),
 		budgetBackoffs: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "theatarr_gateway_budget_backoffs_total", Help: "Back-offs set on a budget after a 429 or Retry-After.",

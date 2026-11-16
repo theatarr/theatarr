@@ -616,6 +616,11 @@ func (g *Gateway) backedOff(subject string, now time.Time) (time.Time, string, b
 
 func (g *Gateway) refuse(class Class, target string, req *http.Request, r *Refused) error {
 	g.metrics.refused.WithLabelValues(target, string(r.Reason)).Inc()
+	if r.Pace {
+		// Not a failure: the caller chose not to wait for the budget's next token.
+		g.log.Debug("request not sent: budget pace", "target", target, "detail", g.redact.String(r.Detail))
+		return r
+	}
 	g.log.Warn("request refused", "target", target, "url", g.redact.TargetURL(class, req.URL), "reason", r.Reason,
 		"detail", g.redact.String(r.Detail))
 	return r

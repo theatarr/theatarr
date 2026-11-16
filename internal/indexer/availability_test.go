@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/theatarr/theatarr/internal/gateway"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/store"
 )
@@ -459,5 +460,85 @@ func TestAvailabilityEvidenceKeepsFirstPartyRows(t *testing.T) {
 		"cccc/rd": "cached feed:dmm/availability"}
 	if got := cacheRows(t, st); fmt.Sprint(got) != fmt.Sprint(want) {
 		t.Fatalf("provider_cache %v, want %v", got, want)
+	}
+}
+
+// A manual search's pass (PurposeInteractive) does not wait for the DMM budget's pace: with one token it makes one
+// call and stops, with none it makes no call; the hashes not asked stay unasked, and nothing logs a refusal. A cap
+// still ends the pass with today's line, and an automatic pass still waits for its tokens.
+func TestDMMAvailabilityManualSkipsPaceWait(t *testing.T) {
+	releases := func(from int) []Release {
+		var rs []Release
+		for i := range 150 {
+			rs = append(rs, Release{Indexer: "torrentio", InfoHash: fmt.Sprintf("%040x", from+i), Privacy: policy.PrivacyPublic})
+		}
+		return rs
+	}
+	setup := func(b *policy.Budget) (*availServer, *harness, *testNet) {
+		n := newNet(t)
+		dmm := &availServer{}
+		dmm.serve(t, n)
+		p := evidencePolicy()
+		p.Budgets["dmm-key"] = b
+		h := newHarness(t, n, p, false)
+		h.svc.SetEvidence(NewEvidence(EvidenceConfig{Store: openStore(t), Policy: p, Now: h.clock,
+			Logger: slog.New(slog.NewJSONHandler(&n.logs, &slog.HandlerOptions{Level: slog.LevelDebug}))}))
+		return dmm, h, n
+	}
+	manual := gateway.WithPurpose(context.Background(), gateway.PurposeInteractive)
+	asked := func(h *harness) int {
+		e := h.svc.evidence()
+		e.mu.Lock()
+		defer e.mu.Unlock()
+		return len(e.asked)
+	}
+
+	// One token per 1.5 s (within the gateway's wait bound): the first call is made, the next is not due, and the
+	// pass ends at once instead of waiting.
+	dmm, h, n := setup(&policy.Budget{Requests: 1, Per: policy.Duration(1500 * time.Millisecond), Burst: 1})
+	start := time.Now()
+	h.svc.CheckAvailability(manual, availVersions("rd", "ad"), releases(1))
+	if got := len(dmm.requests()); got != 1 {
+		t.Fatalf("one token: %d calls, want 1", got)
+	}
+	if got := asked(h); got != 100 {
+		t.Fatalf("one token: %d hashes marked asked, want the first call's 100", got)
+	}
+	// The bucket is empty: no call, nothing marked.
+	h.svc.CheckAvailability(manual, availVersions("rd"), releases(1000))
+	if got := len(dmm.requests()); got != 1 {
+		t.Fatalf("empty bucket: %d calls, want none more", got-1)
+	}
+	if got := asked(h); got != 100 {
+		t.Fatalf("empty bucket: %d hashes marked asked", got)
+	}
+	if d := time.Since(start); d > time.Second {
+		t.Errorf("the manual passes took %v", d)
+	}
+	logs := n.logs.String()
+	if strings.Contains(logs, "DMM availability not checked") || strings.Contains(logs, "request refused") {
+		t.Errorf("a pace skip logged as a refusal: %s", logs)
+	}
+
+	// An hourly cap of one: the second call is refused for the cap and logs as today.
+	dmm, h, n = setup(&policy.Budget{Requests: 600, Per: policy.Duration(time.Minute), Burst: 100, Hourly: 1})
+	h.svc.CheckAvailability(manual, availVersions("rd", "ad"), releases(1))
+	if got := len(dmm.requests()); got != 1 {
+		t.Fatalf("cap: %d calls, want 1", got)
+	}
+	if !strings.Contains(n.logs.String(), "DMM availability not checked") {
+		t.Error("a cap refusal did not log the usual line")
+	}
+
+	// Automatic: ten tokens a second, burst one; the pass waits for each of its four calls.
+	dmm, h, _ = setup(&policy.Budget{Requests: 10, Per: policy.Duration(time.Second), Burst: 1})
+	start = time.Now()
+	h.svc.CheckAvailability(gateway.WithPurpose(context.Background(), gateway.PurposeWanted), availVersions("rd", "ad"),
+		releases(1))
+	if got := len(dmm.requests()); got != 4 {
+		t.Fatalf("automatic: %d calls, want 4", got)
+	}
+	if d := time.Since(start); d < 250*time.Millisecond {
+		t.Errorf("automatic pass took %v: it did not wait for its tokens", d)
 	}
 }

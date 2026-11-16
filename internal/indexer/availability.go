@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -11,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/theatarr/theatarr/internal/gateway"
 	"github.com/theatarr/theatarr/internal/policy"
 )
 
@@ -126,10 +128,12 @@ func (s *Service) availabilitySource() availabilityAsker {
 }
 
 // CheckAvailability asks DMM's availability, after ApplyCachedOn, about the hashed releases of one search that have no
-// rd or ad evidence yet, whatever their privacy label, for the providers (rd, ad) a debrid version in versions may send them to. Listed hashes gain the provider in rs and are stored like a DMM cached feed's;
-// nothing else changes. A failed or slow call ends the pass with one log line; each call's answer stands on its own, so
-// the hashes of the calls that answered keep their marks (applied and stored) and only the failed call's stay unmarked.
-// It reports how many hashes gained a provider.
+// rd or ad evidence yet, whatever their privacy label, for the providers (rd, ad) a debrid version in versions may send
+// them to. Listed hashes gain the provider in rs and are stored like a DMM cached feed's; nothing else changes. A
+// manual search's pass (gateway.PurposeInteractive) does not wait for the DMM budget's pace: a call whose token is not
+// due is not made and ends the pass quietly. A failed or slow call ends the pass with one log line; each call's answer
+// stands on its own, so the hashes of the calls that answered keep their marks (applied and stored) and only the failed
+// call's stay unmarked. It reports how many hashes gained a provider.
 func (s *Service) CheckAvailability(ctx context.Context, versions []*policy.VersionPolicy, rs []Release) int {
 	e := s.evidence()
 	if e == nil {
@@ -199,6 +203,10 @@ func (e *Evidence) availability(ctx context.Context, src availabilityAsker, vers
 
 	ctx, cancel := context.WithTimeout(ctx, availabilityTimeout)
 	defer cancel()
+	if gateway.PurposeOf(ctx) == gateway.PurposeInteractive {
+		// A person is waiting on a manual search: a call whose budget token is not due is not made.
+		ctx = gateway.WithoutBudgetWait(ctx)
+	}
 	listed := map[string][]string{} // hash -> codes
 	calls, asked := 0, 0
 	// rd and ad take turns, a batch each, so the call bound shares them.
@@ -214,8 +222,13 @@ func (e *Evidence) availability(ctx context.Context, src availabilityAsker, vers
 			calls++
 			got, err := src.availability(ctx, c, batch)
 			if err != nil {
-				e.log.Info("DMM availability not checked; the search goes on without it", "indexer", src.Key(),
-					"err", err)
+				if r := (*gateway.Refused)(nil); errors.As(err, &r) && r.Pace {
+					e.log.Debug("DMM availability: no budget token due; the manual search goes on without the rest",
+						"indexer", src.Key(), "asked", asked)
+				} else {
+					e.log.Info("DMM availability not checked; the search goes on without it", "indexer", src.Key(),
+						"err", err)
+				}
 				more = false
 				break
 			}

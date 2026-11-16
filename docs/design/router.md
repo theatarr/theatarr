@@ -342,9 +342,11 @@ debrid key to a third party (keys leaked through a third-party proxy before), so
   availability) on the same releases, and `Service.CheckCached` on the accepted decisions in rank order after ranking
   (rejected decisions of the same hash get the answer too). `theatarr search` applies all three to the releases it
   prints, every version counting (`-torbox-check=false` skips the TorBox check). A failed, refused or slow
-  availability call ends that pass with one log line; the search goes on without it. Each call's answer stands on its
-  own: positives from the calls that answered before it are kept (applied and stored), and only the failed call's
-  hashes stay unmarked, to be asked again by the next search. Storing a pass's positives is bounded (5 s): when the
+  availability call ends that pass with one log line; the search goes on without it. A manual search's pass (the
+  `interactive` purpose) does not wait for the DMM budget's pace: a call whose token is not due is not made
+  (`gateway.WithoutBudgetWait`) and ends the pass at Debug; caps and back-offs apply as to any call. Each call's
+  answer stands on its own: positives from the calls that answered before it are kept (applied and stored), and only
+  the failed or skipped call's hashes stay unmarked, to be asked again by the next search. Storing a pass's positives is bounded (5 s): when the
   writer is busy the search keeps its marks in memory and nothing is stored. Availability
   evidence, like every other kind, orders providers, fills the cached badges and breaks ties between releases of
   equal quality and format score ("Cache tie-break"): it never skips an add or a check and never puts a release

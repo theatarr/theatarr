@@ -151,6 +151,10 @@ func (g *Gateway) acquire(ctx context.Context, ti *targetInfo) (time.Duration, e
 			return waited, nil
 		} else {
 			reason, detail = ReasonBudget, fmt.Sprintf("budget %s: next token in %v", b.key, wait.Round(time.Millisecond))
+			if withoutBudgetWait(ctx) {
+				g.metrics.budgetRefused.WithLabelValues(b.key, "pace").Inc()
+				return 0, &Refused{Reason: reason, Target: ti.name, Detail: detail, RetryAt: now.Add(wait), Pace: true}
+			}
 		}
 		if now.Add(wait).After(start.Add(g.maxWait)) || deadlineBefore(ctx, now.Add(wait)) {
 			g.metrics.budgetRefused.WithLabelValues(b.key, string(reason)).Inc()
@@ -160,6 +164,20 @@ func (g *Gateway) acquire(ctx context.Context, ti *targetInfo) (time.Duration, e
 			return 0, err
 		}
 	}
+}
+
+type noBudgetWaitKey struct{}
+
+// WithoutBudgetWait marks the requests sent with the returned context as not waiting for their budget's pace: when
+// the budget's next token is not due yet, the request is refused at once (a *Refused with Pace set, logged at Debug)
+// instead of waiting for it. Caps and back-offs apply as always.
+func WithoutBudgetWait(ctx context.Context) context.Context {
+	return context.WithValue(ctx, noBudgetWaitKey{}, true)
+}
+
+func withoutBudgetWait(ctx context.Context) bool {
+	v, _ := ctx.Value(noBudgetWaitKey{}).(bool)
+	return v
 }
 
 func deadlineBefore(ctx context.Context, t time.Time) bool {

@@ -10,7 +10,8 @@ import (
 
 // Purpose is why an indexer request was sent. The caller that starts a search tags its context (WithPurpose); the
 // gateway counts every indexer request it sends per indexer, purpose and UTC day. Accounting only: no purpose changes
-// what a request may do.
+// what a request may do. One exception outside the gateway: a manual search's DMM availability pass
+// (PurposeInteractive) does not wait for the budget's pace (WithoutBudgetWait).
 type Purpose string
 
 // Purposes.

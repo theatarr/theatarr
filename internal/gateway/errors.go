@@ -54,6 +54,9 @@ type Refused struct {
 	Detail string
 	// RetryAt, when set, is the earliest time the same request could pass.
 	RetryAt time.Time
+	// Pace reports a budget refusal for pace only (the next token was not due) of a request that was not to wait for
+	// it (WithoutBudgetWait). It is not a failure: no cap was reached and nothing backs off.
+	Pace bool
 }
 
 func (r *Refused) Error() string {

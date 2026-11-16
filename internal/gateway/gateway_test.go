@@ -514,6 +514,55 @@ func TestBudgetRefusesLongWaits(t *testing.T) {
 	}
 }
 
+// WithoutBudgetWait: a request whose budget token is not due is refused at once for pace (logged at Debug, not as a
+// refusal); a cap refusal is not marked as pace and logs as before; without the mark the request waits.
+func TestWithoutBudgetWait(t *testing.T) {
+	e := newEnv(t)
+	e.serve("dmm.test", okHandler("ok"))
+	p := testPolicy()
+	p.Budgets["paced"] = &policy.Budget{Requests: 1, Per: policy.Duration(10 * time.Second), Hourly: 3}
+	p.Indexers["dmm"].Budget = "paced"
+	g := e.gateway(p, nil)
+	g.CheckEgress(context.Background())
+	ctx := WithoutBudgetWait(context.Background())
+	if resp, err := g.Get(ctx, dmm, "http://dmm.test/"); err != nil {
+		t.Fatal(err)
+	} else {
+		resp.Body.Close()
+	}
+	start := e.clock()
+	_, err := g.Get(ctx, dmm, "http://dmm.test/")
+	var r *Refused
+	if !errors.Is(err, ErrBudget) || !errors.As(err, &r) || !r.Pace || e.clock() != start {
+		t.Fatalf("not due: %v (waited %v)", err, e.clock().Sub(start))
+	}
+	if strings.Contains(e.logs.String(), "request refused") || !strings.Contains(e.logs.String(), "budget pace") {
+		t.Errorf("pace refusal logs: %s", e.logs.String())
+	}
+	if resp, err := g.Get(context.Background(), dmm, "http://dmm.test/"); err != nil {
+		t.Fatalf("without the mark: %v", err)
+	} else {
+		resp.Body.Close()
+	}
+	if waited := e.clock().Sub(start); waited != 10*time.Second {
+		t.Errorf("without the mark waited %v, want 10s", waited)
+	}
+	e.advance(10 * time.Second)
+	if resp, err := g.Get(ctx, dmm, "http://dmm.test/"); err != nil {
+		t.Fatal(err)
+	} else {
+		resp.Body.Close()
+	}
+	e.advance(10 * time.Second)
+	_, err = g.Get(ctx, dmm, "http://dmm.test/")
+	if !errors.As(err, &r) || r.Pace || !strings.Contains(err.Error(), "cap 3 reached") {
+		t.Fatalf("cap: %v", err)
+	}
+	if !strings.Contains(e.logs.String(), "request refused") {
+		t.Error("a cap refusal did not log as a refusal")
+	}
+}
+
 func TestDailyCapSurvivesRestart(t *testing.T) {
 	e := newEnv(t)
 	e.serve("dmm.test", okHandler("ok"))

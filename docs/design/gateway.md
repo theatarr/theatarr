@@ -72,7 +72,9 @@ added to the outbound hosts.
 The gateway counts every request it sends to an indexer (each redirect hop sent is one, the hop before a refused
 redirect included; a refused request is not sent and not counted) per indexer key, purpose and UTC day.
 The code that starts a search tags its context with `gateway.WithPurpose`; an untagged request counts as `other`.
-Accounting only: a purpose changes no limit, budget or share.
+Accounting only: a purpose changes no limit, budget or share. One exception outside the gateway: a manual search's
+DMM availability pass marks its calls `WithoutBudgetWait`, so a call whose budget token is not due is refused at once
+(`Refused.Pace`, logged at Debug, metric reason `pace`) instead of waiting; caps and back-offs are unchanged.
 
 | Purpose | Set by |
 |---|---|
