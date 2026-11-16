@@ -663,6 +663,8 @@ func TestPackEpisodeCount(t *testing.T) {
 		{"Show S01-S02", 3, 8}, // range doesn't hold the season: that season's count
 		{"Show Complete Series 1080p", 1, 30},
 		{"Show.S05.1080p", 5, 0},
+		{"Show.S01.S02.S03.1080p", 2, 30}, // a list of seasons: the three seasons' episodes
+		{"Show.S01.S03.1080p", 3, 8},      // a list that does not prove the seasons between: that season's count
 	} {
 		if got := packEpisodeCount(c.name, c.season, seasons); got != c.want {
 			t.Errorf("%q S%d: %d, want %d", c.name, c.season, got, c.want)

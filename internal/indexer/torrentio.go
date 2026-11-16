@@ -272,21 +272,15 @@ func packEpisodeCount(name string, season int, seasons map[int]int) int {
 			total += c
 		}
 	}
-	if m := packRangeRE.FindStringSubmatch(name); m != nil {
-		lo, hi := atoiOr(m[1], 0), atoiOr(m[2], 0)
-		if lo > hi {
-			lo, hi = hi, lo
+	if lo, hi, ok := PackSeasons(name); ok && lo <= season && season <= hi {
+		n := 0
+		for s, c := range regular {
+			if lo <= s && s <= hi {
+				n += c
+			}
 		}
-		if lo <= season && season <= hi {
-			n := 0
-			for s, c := range regular {
-				if lo <= s && s <= hi {
-					n += c
-				}
-			}
-			if n > 0 {
-				return n
-			}
+		if n > 0 {
+			return n
 		}
 	}
 	if packCompleteRE.MatchString(name) && total > 0 {
