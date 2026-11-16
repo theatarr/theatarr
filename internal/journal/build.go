@@ -989,8 +989,19 @@ func (b *builder) blocklist(e *Entry, rest string) error {
 		}
 	}
 	if researched.Valid {
-		e.After = append(e.After, Event{At: store.FromMillis(researched.Int64), Kind: "research",
-			Text: "re-search requested (or the version could not write)"})
+		// The row is marked whether or not a search was queued (a library that may not write, a release added by
+		// hand): a search after a failure for the library within a day of the mark says one was.
+		text := "Not recorded whether a new search ran"
+		var ran bool
+		if err := b.db.QueryRowContext(b.ctx, `SELECT EXISTS (SELECT 1 FROM acquire_run r WHERE title_id = ? AND
+			version_key = ? AND `+failureRunSQL+` AND created_at BETWEEN ? AND ?)`, titleID.Int64, e.Version,
+			researched.Int64-60_000, researched.Int64+24*3600_000).Scan(&ran); err != nil {
+			return err
+		}
+		if ran {
+			text = "Search again requested"
+		}
+		e.After = append(e.After, Event{At: store.FromMillis(researched.Int64), Kind: "research", Text: text})
 	}
 	return b.failures(e, titleID.Int64, e.Version, store.Millis(e.At))
 }

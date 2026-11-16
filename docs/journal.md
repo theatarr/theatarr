@@ -58,6 +58,10 @@ action's own (Grabbed by hand, Download removed, Retried, Unblocked, Title remov
 failed, else Grabbed. An import refused together with its failed download reads Import failed, not Import held.
 What followed lists every link and replace action of the download, dry runs and failed attempts too; only applied ones
 count in the line's "imported N files" and "replaced".
+A blocklist entry's What followed says "Search again requested" once its row was marked for a re-search and a search
+after a failure for that library is recorded within a day; a marked row with no such search (a library that could not
+write, a release added by hand) reads "Not recorded whether a new search ran". On the entry page a provider attempt's
+reason is a second line under its outcome on a phone.
 
 A good first pass:
 

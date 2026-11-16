@@ -258,6 +258,18 @@ func TestDownloadEntries(t *testing.T) {
 	if b := e.get("bl:1"); b.Kind != KindBlocklist || b.Source != "router" || b.Release.Quality != "Remux-2160p" {
 		t.Errorf("blocklist: %+v", b)
 	}
+	// The re-search mark says a search ran only when one is recorded after it.
+	researchText := func() string {
+		for _, ev := range e.get("bl:1").After {
+			if ev.Kind == "research" {
+				return ev.Text
+			}
+		}
+		return ""
+	}
+	if got := researchText(); got != "Search again requested" {
+		t.Errorf("re-search with a run: %q", got)
+	}
 	if rs := e.get("run:8"); rs.Kind != KindResearch || rs.Summary != "Search again after a stalled download: nothing grabbed · no accepted release among 4 results" {
 		t.Errorf("research: %+v", rs)
 	}
@@ -283,6 +295,10 @@ func TestDownloadEntries(t *testing.T) {
 	}
 	if !strings.Contains(text.String(), "chosen Alpha.2020.2160p.UHD.BluRay.REMUX-GRP (Remux-2160p 8550)") {
 		t.Errorf("text:\n%s", text.String())
+	}
+	e.exec(`DELETE FROM acquire_run WHERE id = 8`)
+	if got := researchText(); got != "Not recorded whether a new search ran" {
+		t.Errorf("re-search without a run: %q", got)
 	}
 }
 

@@ -133,3 +133,15 @@ it("lists each line by its label with the file paths as the summary's tooltip, a
   expect((await screen.findByTestId("journal-paths")).textContent).toBe("/tv/Lanterns (2026)/Season 01/Lanterns - S01E08.mkv");
   expect(screen.getByRole("link", { name: "Removed by mgr" }).getAttribute("href")).toBe("/admin/system/journal/act%3A4");
 });
+
+it("keeps a provider attempt's reason on a second line for phones", async () => {
+  mockFetch([
+    { method: "GET", path: "/journal/dl%3A3", reply: { id: "dl:3", kind: "failure", attempts: [
+      { at: "2026-11-12T03:24:00Z", provider: "ad", outcome: "refused", code: "not_cached", message: "not cached on AD" },
+    ] } },
+  ]);
+  renderPage(<Routes><Route path="/admin/system/journal/:id" element={<JournalEntryPage />} /></Routes>, "/admin/system/journal/dl:3");
+  const line = await screen.findByTestId("attempt-reason-phone");
+  expect(line.textContent).toBe("not cached on AD");
+  expect(line.className).toContain("sm:hidden");
+});
