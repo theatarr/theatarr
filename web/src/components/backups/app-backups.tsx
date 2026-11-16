@@ -68,6 +68,7 @@ export function AppBackups() {
               <TableCell className="min-w-0">
                 <div className="whitespace-nowrap">{fmtTime(set.created_at)}</div>
                 <div className="font-mono text-xs text-muted-foreground [overflow-wrap:anywhere]">{set.name}</div>
+                {set.kind === "before-upgrade" && <div className="text-xs">Before upgrade to schema {set.schema_to}</div>}
                 <div className="text-xs text-muted-foreground sm:hidden">{fmtAgo(set.created_at)} · {fmtBytes(set.bytes)}</div>
               </TableCell>
               <TableCell className="hidden whitespace-nowrap sm:table-cell">{fmtAgo(set.created_at)}</TableCell>

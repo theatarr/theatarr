@@ -20,6 +20,10 @@ type BackupSet struct {
 	Complete    bool      `json:"complete"`
 	Restorable  bool      `json:"restorable"`
 	WhyNot      string    `json:"why_not"`
+	// Kind is "before-upgrade" for a set written at start before pending migrations ran; SchemaTo is the schema that
+	// upgrade migrated to. Both are omitted for other sets.
+	Kind     string `json:"kind,omitempty"`
+	SchemaTo int64  `json:"schema_to,omitempty"`
 }
 
 type RestoreResult struct {

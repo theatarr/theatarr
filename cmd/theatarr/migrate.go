@@ -5,7 +5,9 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"log/slog"
 	"os"
+	"path/filepath"
 	"text/tabwriter"
 	"time"
 
@@ -23,10 +25,12 @@ func init() {
 func runMigrate(args []string) error {
 	fs := flag.NewFlagSet("migrate", flag.ContinueOnError)
 	fs.Usage = func() {
-		fmt.Fprint(fs.Output(), "usage: theatarr migrate [--db path] up|status\n\n")
+		fmt.Fprint(fs.Output(), "usage: theatarr migrate [--db path] [--backup-dir dir] up|status\n\n")
 		fs.PrintDefaults()
 	}
 	db := fs.String("db", defaultDBPath(), "database file (env THEATARR_DB)")
+	backupDir := fs.String("backup-dir", envOr("THEATARR_BACKUP_DIR", ""), "where up writes a database backup before "+
+		"pending migrations run, as serve does; default backups/ next to the database, off for none (env THEATARR_BACKUP_DIR)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -43,6 +47,16 @@ func runMigrate(args []string) error {
 
 	switch fs.Arg(0) {
 	case "up":
+		dir := *backupDir
+		switch dir {
+		case "":
+			dir = filepath.Join(filepath.Dir(*db), "backups")
+		case "off":
+			dir = ""
+		}
+		if err := backupBeforeUpgrade(ctx, s, dir, time.Now(), slog.Default()); err != nil {
+			return err
+		}
 		res, err := s.Migrate(ctx)
 		for _, r := range res {
 			fmt.Printf("applied %05d %s (%s)\n", r.Source.Version, r.Source.Path, r.Duration.Round(time.Millisecond))

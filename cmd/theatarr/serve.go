@@ -239,6 +239,9 @@ func runServe(args []string) error {
 		return err
 	}
 	defer st.Close()
+	if err := backupBeforeUpgrade(ctx, st, *backupDir, time.Now(), log); err != nil {
+		return err
+	}
 	applied, err := st.Migrate(ctx)
 	for _, r := range applied {
 		log.Info("migration applied", "version", r.Source.Version, "file", r.Source.Path, "took_ms", r.Duration.Milliseconds())

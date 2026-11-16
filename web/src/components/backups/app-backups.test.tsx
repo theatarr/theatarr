@@ -29,6 +29,11 @@ describe("AppBackups", () => {
     // On a phone the age and size sit under the name, in the shared table.
     expect(screen.getByTestId("app-backups").textContent).toMatch(/ago · 4\.0 KiB/);
   });
+  it("names a set written before an upgrade", async () => {
+    list.sets[0].kind = "before-upgrade"; list.sets[0].schema_to = 104;
+    mount();
+    expect(await screen.findByText("Before upgrade to schema 104")).toBeTruthy();
+  });
   it("says how old a day-old backup is", async () => {
     list.sets[0].created_at = new Date(Date.now() - 30 * 3600_000).toISOString();
     mount();

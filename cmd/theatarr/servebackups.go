@@ -145,6 +145,7 @@ func (b *serveBackups) List(ctx context.Context) (*web.BackupList, error) {
 			m, err := readManifest(base)
 			if err == nil {
 				item.CreatedAt, item.Schema, item.Bytes, item.PolicyState = m.CreatedAt, m.Schema, m.Database.Bytes+m.Policy.Bytes, m.Policy.State
+				item.Kind, item.SchemaTo = m.Kind, m.SchemaTo
 				err = completeBrowserBackup(base, m)
 				item.Complete = err == nil
 				if err == nil {

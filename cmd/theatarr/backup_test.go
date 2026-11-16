@@ -5,13 +5,17 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/pressly/goose/v3"
+	"github.com/pressly/goose/v3/database"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/store"
 	"github.com/theatarr/theatarr/internal/store/storetest"
@@ -193,5 +197,235 @@ func TestReadEnvNames(t *testing.T) {
 	got, err := readEnvNames(p)
 	if err != nil || !got["THEATARR_A"] || !got["THEATARR_B"] || got["THEATARR_EMPTY"] || got["THEATARR_Q"] || len(got) != 2 {
 		t.Errorf("names %v %v", got, err)
+	}
+}
+
+// olderDatabase writes a database at path migrated to one below this binary's newest schema, so migrations are
+// pending, and returns both versions.
+func olderDatabase(t *testing.T, path string) (from, to int64) {
+	t.Helper()
+	ctx := context.Background()
+	st, err := store.Open(ctx, path, store.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	if _, to, err = st.SchemaVersion(ctx); err == nil {
+		t.Fatal("a new database has a schema")
+	}
+	p, err := goose.NewProvider(database.DialectSQLite3, st.Writer(), os.DirFS("../../internal/store/migrations"),
+		goose.WithTableName(store.MigrationTable), goose.WithDisableGlobalRegistry(true))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.UpTo(ctx, to-1); err != nil {
+		t.Fatal(err)
+	}
+	if from, _, err = st.SchemaVersion(ctx); err != nil || from >= to {
+		t.Fatalf("schema %d, want below %d: %v", from, to, err)
+	}
+	return from, to
+}
+
+func schemaOf(t *testing.T, db string) int64 {
+	t.Helper()
+	fp, err := fingerprint(context.Background(), db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return fp["schema"].(int64)
+}
+
+func upgradeSets(t *testing.T, dir string) []string {
+	t.Helper()
+	files, _ := filepath.Glob(filepath.Join(dir, "theatarr-*.manifest.json"))
+	var out []string
+	for _, f := range files {
+		base := strings.TrimSuffix(f, ".manifest.json")
+		if m, err := readManifest(base); err == nil && m.Kind == kindBeforeUpgrade {
+			out = append(out, base)
+		}
+	}
+	return out
+}
+
+// Before pending migrations run, migrate up (as serve) writes a database-only set of the old schema; nothing pending,
+// a fresh database or backups off write none; a copy that cannot be written stops before anything is migrated.
+func TestBackupBeforeUpgrade(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	db := filepath.Join(root, "data", "theatarr.db")
+	from, to := olderDatabase(t, db)
+	backups := filepath.Join(root, "data", "backups")
+
+	// The copy cannot be written: the backup folder is a file. The start stops naming the folder; nothing migrated.
+	blocked := filepath.Join(root, "blocked")
+	if err := os.WriteFile(blocked, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	err := runMigrate([]string{"-db", db, "-backup-dir", blocked, "up"})
+	if err == nil || !strings.Contains(err.Error(), blocked) || !strings.Contains(err.Error(), "nothing was migrated") ||
+		strings.Count(err.Error(), "\n") != 0 {
+		t.Fatalf("blocked backup: %v", err)
+	}
+	if got := schemaOf(t, db); got != from {
+		t.Fatalf("migrated to %d without its backup", got)
+	}
+
+	// The default folder (backups/ next to the database): the set is written, then the database is migrated.
+	if err := runMigrate([]string{"-db", db, "up"}); err != nil {
+		t.Fatal(err)
+	}
+	sets := upgradeSets(t, backups)
+	if len(sets) != 1 {
+		t.Fatalf("before-upgrade sets %v", sets)
+	}
+	m, err := readManifest(sets[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.Schema != from || m.SchemaTo != to || m.Policy.State != policyAbsent || m.Secrets != nil || m.Policy.File != "" {
+		t.Fatalf("manifest %+v", m)
+	}
+	if _, err := os.Stat(sets[0] + ".policy.tar"); !os.IsNotExist(err) {
+		t.Fatalf("policy archive: %v", err)
+	}
+	if got := schemaOf(t, sets[0]+".db"); got != from {
+		t.Fatalf("set schema %d, want %d", got, from)
+	}
+	if got := schemaOf(t, db); got != to {
+		t.Fatalf("database schema %d, want %d", got, to)
+	}
+	var out bytes.Buffer
+	if err := listBackups(&out, backups); err != nil || !strings.Contains(out.String(), "before upgrade to schema") {
+		t.Fatalf("list: %v\n%s", err, out.String())
+	}
+
+	// Nothing pending: no second set.
+	if err := runMigrate([]string{"-db", db, "up"}); err != nil {
+		t.Fatal(err)
+	}
+	if n := len(upgradeSets(t, backups)); n != 1 {
+		t.Fatalf("%d sets after a start with nothing pending", n)
+	}
+
+	// A fresh database writes nothing.
+	fresh := filepath.Join(root, "fresh", "theatarr.db")
+	if err := runMigrate([]string{"-db", fresh, "up"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "fresh", "backups")); !os.IsNotExist(err) {
+		t.Fatalf("fresh database: backups folder %v", err)
+	}
+
+	// Backups off: migrated with no copy.
+	off := filepath.Join(root, "off", "theatarr.db")
+	olderDatabase(t, off)
+	if err := runMigrate([]string{"-db", off, "-backup-dir", "off", "up"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "off", "backups")); !os.IsNotExist(err) {
+		t.Fatalf("backups off: backups folder %v", err)
+	}
+	if got := schemaOf(t, off); got != to {
+		t.Fatalf("backups off: schema %d", got)
+	}
+
+	// Restored from the command line under a policy directory with files: the database goes back, the policy files
+	// stay as they are.
+	pol := copyTree(t, "../../examples/policy")
+	rev, err := policy.RevisionOf(pol)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out.Reset()
+	if err := restoreBackup(ctx, &out, sets[0], db, pol, true, func(string) string { return "" }, time.Now()); err != nil {
+		t.Fatalf("restore: %v\n%s", err, out.String())
+	}
+	if got := schemaOf(t, db); got != from {
+		t.Fatalf("restored schema %d, want %d", got, from)
+	}
+	if got, err := policy.RevisionOf(pol); err != nil || got != rev {
+		t.Fatalf("policy revision %s, want %s: %v", got, rev, err)
+	}
+
+	// The browser lists it by its kind and may restore it.
+	list, err := (&serveBackups{dir: backups, dbPath: db}).List(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var found bool
+	for _, s := range list.Sets {
+		if s.Name == filepath.Base(sets[0]) {
+			found = s.Kind == kindBeforeUpgrade && s.SchemaTo == to && s.Restorable
+		}
+	}
+	if !found {
+		t.Fatalf("browser list %+v", list.Sets)
+	}
+
+	// Restored from the browser (at the next start) with the service's policy directory: the same.
+	if err := runMigrate([]string{"-db", db, "-backup-dir", "off", "up"}); err != nil {
+		t.Fatal(err)
+	}
+	req := restoreRequest{Set: filepath.Base(sets[0]), RequestedBy: "admin", RequestedAt: time.Now()}
+	if err := writeRestoreJSON(filepath.Join(filepath.Dir(db), "restore-request.json"), req); err != nil {
+		t.Fatal(err)
+	}
+	res, err := applyRestoreRequest(ctx, slog.New(slog.DiscardHandler), io.Discard, backups, db, pol, time.Now())
+	if err != nil || res == nil || !res.OK || res.PolicyOut != "" {
+		t.Fatalf("browser restore: %+v %v", res, err)
+	}
+	if got := schemaOf(t, db); got != from {
+		t.Fatalf("browser restore: schema %d, want %d", got, from)
+	}
+	if got, err := policy.RevisionOf(pol); err != nil || got != rev {
+		t.Fatalf("browser restore: policy revision %s, want %s: %v", got, rev, err)
+	}
+}
+
+// The nightly pruning neither counts nor removes sets written before an upgrade; only the last 3 of those are kept.
+func TestPruneKeepsUpgradeSetsApart(t *testing.T) {
+	ctx := context.Background()
+	st := storetest.Open(t)
+	dir := t.TempDir()
+	day := time.Date(2026, 11, 1, 3, 0, 0, 0, time.UTC)
+	var upgrades []string
+	for i := range 5 {
+		base, err := writeUpgradeSet(ctx, st, dir, 144, 145, day.Add(time.Duration(i)*time.Hour))
+		if err != nil {
+			t.Fatal(err)
+		}
+		upgrades = append(upgrades, base)
+	}
+	pol, err := databasePolicyBase(filepath.Join(dir, "no-policy"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var nightly []string
+	for i := range 3 {
+		base, _, err := writeBackupSet(ctx, st, pol, dir, day.Add(time.Duration(10+i)*time.Hour))
+		if err != nil {
+			t.Fatal(err)
+		}
+		nightly = append(nightly, base)
+	}
+	exists := func(base string) bool { _, err := os.Stat(base + ".db"); return err == nil }
+	if err := pruneBackups(dir, 1); err != nil {
+		t.Fatal(err)
+	}
+	for _, b := range upgrades {
+		if !exists(b) {
+			t.Fatalf("nightly pruning removed %s", b)
+		}
+	}
+	if exists(nightly[0]) || exists(nightly[1]) || !exists(nightly[2]) {
+		t.Fatal("nightly pruning counted the before-upgrade sets")
+	}
+	if err := pruneSets(dir, upgradeKeep, kindBeforeUpgrade); err != nil {
+		t.Fatal(err)
+	}
+	if exists(upgrades[0]) || exists(upgrades[1]) || !exists(upgrades[2]) || !exists(upgrades[4]) || !exists(nightly[2]) {
+		t.Fatal("want the last 3 before-upgrade sets and the nightly one")
 	}
 }

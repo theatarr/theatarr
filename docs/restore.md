@@ -24,7 +24,8 @@ warning. `theatarr backup now` writes a set at once, with the same code.
 The manifest is written last: a set without one is incomplete and `theatarr backup restore` refuses it. A backup that
 fails part-way removes what it wrote, so no incomplete set is left behind. A failed nightly run still prunes old
 sets and finished jobs, and retries. A migration checkpoint (written by migration apply) is the same set plus
-`theatarr-<UTC stamp>.settings.yaml`, the settings export; pruning removes it with its set.
+`theatarr-<UTC stamp>.settings.yaml`, the settings export; pruning removes it with its set. A set written before a database
+upgrade is the database alone ([Upgrades and image rollback](#upgrades-and-image-rollback)).
 
 **Database-only installs.** Theatarr runs without any YAML: everything set in Settings lives in the database. The
 manifest says what the policy directory held (`policy.state`, manifest format 2):
@@ -156,30 +157,34 @@ migrations.
 
 ## Upgrades and image rollback
 
-Before every upgrade, take a backup set **while the old image still runs**, and keep the old image:
+The backup before an upgrade is automatic. When `theatarr serve` starts (or `theatarr migrate up` runs) on a
+database that has a schema and migrations are pending, it first writes a database-only set into the backup folder,
+then migrates. Its manifest says `"kind": "before-upgrade"` with the schema it came from and the one it migrates to;
+it has no policy archive and no secrets list (the settings are not loaded yet). System › Backup lists it as
+"Before upgrade to schema N", and `backup list` as "before upgrade to schema N". The last 3 such sets are kept; the
+nightly pruning neither counts nor deletes them. If the copy cannot be written (no space, folder not writable) the
+start stops with one line naming the cause and the folder, and nothing is migrated. With `--backup-dir off` no copy
+is made and the log says so. A fresh database, or a start with nothing pending, writes nothing.
 
-```sh
-docker compose exec theatarr theatarr backup now
-docker compose exec theatarr theatarr backup list
-docker tag theatarr:local theatarr:previous    # built from source only; a released image keeps its version tag
-```
+Keep the old image (`docker tag theatarr:local theatarr:previous` when built from source; a released image keeps its
+version tag) and the old policy directory if you bind one. Then set `THEATARR_VERSION` to the new release and restart
+(`docker compose up -d`; built from source: `docker compose up -d --build`), wait for `/readyz`, and run `migrate
+status` and `errors list -status open` as in step 5, then `theatarr preflight`. Read the startup logs and
+**System › Status** before you go on. A ready image is no reason to turn grabbing on.
 
-Note the set name and keep it out of nightly pruning for the rollback window (copy it elsewhere). Keep the old
-policy directory too, if you bind one. Then set `THEATARR_VERSION` to the new release and restart (`docker compose up -d`; built from source: rebuild
-with `docker compose up -d --build`), wait for
-`/readyz`, and run `migrate status` and `errors list -status open` as in step 5, then `theatarr preflight`. Read
-the startup logs and **System › Status** before you go on. A ready image is no reason to turn grabbing on.
+To roll back: stop the service and restore the **before-upgrade set with the old image** (`THEATARR_VERSION` back
+at the old release, or `image: theatarr:previous` when built from source, or `docker run` on that tag with the same
+volumes) as in step 3: `theatarr backup restore -from /data/backups/theatarr-<stamp> -db /data/theatarr.db -force`, or System ›
+Backup in the old image. Restoring it puts the database back and leaves the policy files as they are (give
+`-policy-out` your policy directory to have the restored settings checked against it; nothing is unpacked there).
+An image older than this release reads the set as a database-only set: give it no `-policy-out` when your policy
+directory has files. Then start the old image with `THEATARR_FORCE_OFF=router,library,notify` until you have
+reconciled. Never start the old image against the migrated database or try to downgrade it in place: startup and
+restore refuse that downgrade.
 
-To roll back: stop the service, restore the **pre-upgrade set with the old image** (step 3, with
-`THEATARR_VERSION` back at the old release, or `image: theatarr:previous` in the compose file when built from
-source, or `docker run` on that tag with the same volumes), install its
-policy if you bind one, then start the old image and wait for readiness. Start with
-`THEATARR_FORCE_OFF=router,library,notify` until you have reconciled. Never start the old image against the migrated
-database or try to downgrade it in place: startup and restore refuse that downgrade.
-
-Sets written by the new image may use a newer schema or manifest format that the old image cannot restore. They are
-recovery sets for the new image, not the rollback set. Restoring the pre-upgrade set loses the Theatarr records and
-settings written since; provider files and library links stay on disk and need the reconciliation in step 6.
+Sets written by the new image after the upgrade use the newer schema, which the old image cannot restore. Restoring
+the before-upgrade set loses the Theatarr records and settings written since; provider files and library links stay
+on disk and need the reconciliation in step 6.
 
 ## Restore drill
 

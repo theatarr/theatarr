@@ -71,14 +71,18 @@ const (
 )
 
 type backupManifest struct {
-	Format          int            `json:"format"`
-	CreatedAt       time.Time      `json:"created_at"`
-	TheatarrVersion string         `json:"theatarr_version"`
-	Schema          int64          `json:"schema_version"`
-	Database        backupFile     `json:"database"`
-	Policy          backupPolicy   `json:"policy"`
-	Secrets         []backupSecret `json:"secrets"`
-	Restore         string         `json:"restore"`
+	Format          int       `json:"format"`
+	CreatedAt       time.Time `json:"created_at"`
+	TheatarrVersion string    `json:"theatarr_version"`
+	Schema          int64     `json:"schema_version"`
+	// Kind is kindBeforeUpgrade for a set written at start before pending migrations ran; empty for every other set.
+	Kind string `json:"kind,omitempty"`
+	// SchemaTo is the schema the upgrade after a before-upgrade set migrates to.
+	SchemaTo int64          `json:"schema_to,omitempty"`
+	Database backupFile     `json:"database"`
+	Policy   backupPolicy   `json:"policy"`
+	Secrets  []backupSecret `json:"secrets"`
+	Restore  string         `json:"restore"`
 }
 
 type backupFile struct {
@@ -138,18 +142,104 @@ func secretsOf(pol *policy.Policy, getenv func(string) string, held func(user st
 	return out
 }
 
+// kindBeforeUpgrade marks a set written at start before pending migrations ran (backupBeforeUpgrade): the database
+// only, kept apart from the nightly sets (the last upgradeKeep of them), and restored without touching the policy
+// files. An older Theatarr ignores the kind and reads it as a database-only set.
+const (
+	kindBeforeUpgrade = "before-upgrade"
+	upgradeKeep       = 3
+)
+
+// newSetBase is a new set's path without a suffix. Two sets in the same second (a checkpoint beside the nightly run)
+// must not clean up each other's files.
+func newSetBase(dir string, now time.Time) (string, error) {
+	base := filepath.Join(dir, "theatarr-"+now.UTC().Format("20060102-150405"))
+	for _, sfx := range []string{".db", ".policy.tar", ".manifest.json"} {
+		if _, err := os.Lstat(base + sfx); err == nil {
+			return "", fmt.Errorf("%s already exists", base+sfx)
+		} else if !errors.Is(err, fs.ErrNotExist) {
+			return "", err
+		}
+	}
+	return base, nil
+}
+
+// pendingUpgrade reports the schema of a database that already has one and the newest this binary knows; pending
+// when migrations would run. A fresh database (no version table yet) has none. It looks at sqlite_schema first, as
+// MigrationStatus would create the version table.
+func pendingUpgrade(ctx context.Context, st *store.Store) (from, to int64, pending bool, err error) {
+	var exists bool
+	if err := st.Reader().QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = ?)`,
+		store.MigrationTable).Scan(&exists); err != nil || !exists {
+		return 0, 0, false, err
+	}
+	from, to, err = st.SchemaVersion(ctx)
+	return from, to, err == nil && from > 0 && from < to, err
+}
+
+// backupBeforeUpgrade writes a database-only set into dir before serve or migrate up applies pending migrations
+// (docs/restore.md, Upgrades and image rollback) and keeps the last upgradeKeep of them. With backups off (dir
+// empty) it writes nothing and says so. When the copy cannot be written it returns the one line the start stops with.
+func backupBeforeUpgrade(ctx context.Context, st *store.Store, dir string, now time.Time, log *slog.Logger) error {
+	from, to, pending, err := pendingUpgrade(ctx, st)
+	if err != nil || !pending {
+		return err
+	}
+	if dir == "" {
+		log.Warn("no backup before the database upgrade: backups are off (--backup-dir off)", "from", from, "to", to)
+		return nil
+	}
+	base, err := writeUpgradeSet(ctx, st, dir, from, to, now)
+	if err != nil {
+		return fmt.Errorf("the backup before the database upgrade (schema %d to %d) could not be written in %s: %w; "+
+			"nothing was migrated", from, to, dir, err)
+	}
+	log.Info("backup before the database upgrade written", "set", base, "from", from, "to", to)
+	if err := pruneSets(dir, upgradeKeep, kindBeforeUpgrade); err != nil {
+		log.Warn("backup prune", "err", err)
+	}
+	return nil
+}
+
+// writeUpgradeSet writes the database and a manifest that says what the set is: before the upgrade from schema from
+// to to, no policy archive, no secrets list (the settings are not loaded yet).
+func writeUpgradeSet(ctx context.Context, st *store.Store, dir string, from, to int64, now time.Time) (_ string, err error) {
+	base, err := newSetBase(dir, now)
+	if err != nil {
+		return "", err
+	}
+	defer func() {
+		if err != nil {
+			os.Remove(base + ".db")
+			os.Remove(base + ".manifest.json")
+		}
+	}()
+	if err := st.Backup(ctx, base+".db"); err != nil {
+		return "", err
+	}
+	m := &backupManifest{Format: manifestFormat, CreatedAt: now.UTC(), TheatarrVersion: buildinfo.String(),
+		Kind: kindBeforeUpgrade, Schema: from, SchemaTo: to,
+		Policy: backupPolicy{State: policyAbsent, Revision: emptyRevision()}, Restore: "docs/restore.md"}
+	if m.Database, err = describeFile(base + ".db"); err != nil {
+		return "", err
+	}
+	b, err := json.MarshalIndent(m, "", "  ")
+	if err != nil {
+		return "", err
+	}
+	if err := writeAtomic(base+".manifest.json", append(b, '\n')); err != nil {
+		return "", err
+	}
+	return base, nil
+}
+
 // writeBackupSet writes one backup set into dir and returns its path without a suffix. A policy directory that does
 // not exist (a database-only install) is recorded as absent and no archive is written. On an error nothing of the
 // set is left behind, so an incomplete set never counts towards the kept ones.
 func writeBackupSet(ctx context.Context, st *store.Store, pol *policy.Policy, dir string, now time.Time) (_ string, _ *backupManifest, err error) {
-	base := filepath.Join(dir, "theatarr-"+now.UTC().Format("20060102-150405"))
-	// Two sets in the same second (a checkpoint beside the nightly run) must not clean up each other's files.
-	for _, sfx := range []string{".db", ".policy.tar", ".manifest.json"} {
-		if _, err := os.Lstat(base + sfx); err == nil {
-			return "", nil, fmt.Errorf("%s already exists", base+sfx)
-		} else if !errors.Is(err, fs.ErrNotExist) {
-			return "", nil, err
-		}
+	base, err := newSetBase(dir, now)
+	if err != nil {
+		return "", nil, err
 	}
 	defer func() {
 		if err != nil {
@@ -353,11 +443,28 @@ func untar(src, dir string) error {
 }
 
 // pruneBackups keeps the newest keep sets in dir (by their theatarr-*.db files, whose names sort by time) and removes the
-// older ones with their policy archives, manifests and migration settings exports.
-func pruneBackups(dir string, keep int) error {
-	files, err := filepath.Glob(filepath.Join(dir, "theatarr-*.db"))
-	if err != nil || keep <= 0 || len(files) <= keep {
+// older ones with their policy archives, manifests and migration settings exports. Sets written before an upgrade
+// are neither counted nor removed (backupBeforeUpgrade keeps those).
+func pruneBackups(dir string, keep int) error { return pruneSets(dir, keep, "") }
+
+// pruneSets is pruneBackups for the sets of one kind (a set whose manifest does not read is an ordinary one).
+func pruneSets(dir string, keep int, kind string) error {
+	all, err := filepath.Glob(filepath.Join(dir, "theatarr-*.db"))
+	if err != nil || keep <= 0 {
 		return err
+	}
+	var files []string
+	for _, f := range all {
+		k := ""
+		if m, err := readManifest(strings.TrimSuffix(f, ".db")); err == nil {
+			k = m.Kind
+		}
+		if k == kind {
+			files = append(files, f)
+		}
+	}
+	if len(files) <= keep {
+		return nil
 	}
 	sort.Strings(files)
 	var errs []error
@@ -632,10 +739,12 @@ func listBackups(out io.Writer, dir string) error {
 			}
 		}
 		pol := fmt.Sprintf("policy %s (%d files)", m.Policy.Revision, len(m.Policy.Files))
-		switch m.Policy.State {
-		case policyAbsent:
+		switch {
+		case m.Kind == kindBeforeUpgrade:
+			pol = fmt.Sprintf("before upgrade to schema %d (database only)", m.SchemaTo)
+		case m.Policy.State == policyAbsent:
 			pol = "no policy directory (database only)"
-		case policyEmpty:
+		case m.Policy.State == policyEmpty:
 			pol = "no policy files (database only)"
 		}
 		fmt.Fprintf(out, "%s  %s  schema %d  %s  %d secret(s) named, %d unset at backup\n", base,
@@ -703,8 +812,9 @@ func restoreBackupFor(ctx context.Context, out io.Writer, from, dbPath, policyOu
 		} else if err != nil && !errors.Is(err, fs.ErrNotExist) {
 			return err
 		}
-	case policyOut != "":
-		// Nothing is unpacked, so policy files already there would sit under the restored settings.
+	case policyOut != "" && m.Kind != kindBeforeUpgrade:
+		// Nothing is unpacked, so policy files already there would sit under the restored settings. A set written
+		// before an upgrade goes back under the policy files the install has (left as they are).
 		if rev, err := policy.RevisionOf(policyOut); err == nil && rev != m.Policy.Revision {
 			return fmt.Errorf("%s holds policy files and the set has none (a database-only install): give an empty or "+
 				"missing directory", policyOut)
@@ -749,7 +859,12 @@ func restoreBackupFor(ctx context.Context, out io.Writer, from, dbPath, policyOu
 	if err := integrityCheck(ctx, tmp); err != nil {
 		return err
 	}
-	yamlAuthority, note, made, atSource, err := checkRestoredConfig(ctx, tmp, stage, configured, m.Policy, dbPath+".validate")
+	check := configured
+	if m.Kind == kindBeforeUpgrade && check == "" {
+		// Checked as the service will load it: over the policy directory the install has (-policy-out), unchanged.
+		check = policyOut
+	}
+	yamlAuthority, note, made, atSource, err := checkRestoredConfig(ctx, tmp, stage, check, m.Policy, dbPath+".validate")
 	if err != nil {
 		return err
 	}
@@ -803,14 +918,20 @@ func restoreBackupFor(ctx context.Context, out io.Writer, from, dbPath, policyOu
 
 	polLine := fmt.Sprintf("%s (revision %s, %d files)", policyOut, m.Policy.Revision, len(m.Policy.Files))
 	polFlag := policyOut
-	switch m.Policy.State {
-	case policyAbsent:
+	switch {
+	case m.Kind == kindBeforeUpgrade:
+		polLine = "left as it is: the set was written before an upgrade and holds the database only"
+		polFlag = "<your policy directory>"
+		if policyOut != "" {
+			polFlag = policyOut
+		}
+	case m.Policy.State == policyAbsent:
 		polLine = "none: the set is of a database-only install (no policy directory); nothing was unpacked"
 		polFlag = "<an empty or missing directory>"
 		if policyOut != "" {
 			polFlag = policyOut
 		}
-	case policyEmpty:
+	case m.Policy.State == policyEmpty:
 		polLine = fmt.Sprintf("%s (no policy files, %d other file(s); the settings are in the database)", policyOut,
 			len(m.Policy.Files))
 	}
@@ -822,7 +943,12 @@ func restoreBackupFor(ctx context.Context, out io.Writer, from, dbPath, policyOu
 	if note != "" {
 		fmt.Fprintf(out, "  note     %s\n", note)
 	}
-	printSecrets(out, m.Secrets, getenv)
+	if m.Kind == kindBeforeUpgrade {
+		fmt.Fprintln(out, "  secrets  not listed (written before the settings loaded): the same environment variables as "+
+			"before the upgrade; "+backupHoldsCredentials)
+	} else {
+		printSecrets(out, m.Secrets, getenv)
+	}
 	if yamlAuthority {
 		// Serve reads no settings from the policy files: without an import it would start with none or an incomplete set.
 		fmt.Fprintf(out, "next: the set has no complete settings generation: import its policy before starting serve:\n"+
