@@ -98,12 +98,14 @@ describe("onDownloadEvent", () => {
       return qc.getQueryState(key)?.isInvalidated;
     };
     const t0 = 3_000_000;
-    // The first progress of the title refreshes the whole title (libraryRefresh), the outcomes with it.
+    // The first progress of the title refreshes the whole title (libraryRefresh), the outcomes with it: that is their
+    // refresh for the next 5 s too.
     expect(progress(21, t0)).toBe(true);
-    expect(progress(22, t0 + 1000)).toBe(true);
+    expect(progress(22, t0 + 1000)).toBe(false);
     expect(progress(21, t0 + 2000)).toBe(false);
     expect(progress(23, t0 + 4000)).toBe(false);
-    expect(progress(22, t0 + 1000 + PROGRESS_LIVE_MS)).toBe(true);
+    expect(progress(22, t0 + PROGRESS_LIVE_MS)).toBe(true);
+    expect(progress(21, t0 + PROGRESS_LIVE_MS + 1000)).toBe(false);
   });
 });
 

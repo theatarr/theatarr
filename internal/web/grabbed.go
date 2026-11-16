@@ -44,15 +44,16 @@ type ReleaseOutcome struct {
 	// Idle, for grabbed: nothing is working on it now (an import held for review, a download waiting for its retry
 	// time), so the list shows no working spinner.
 	Idle bool `json:"idle,omitempty"`
-	// Retry, for failed: a grab of it now would be routed. False while it is on the library's blocklist
-	// (Blocklisted), or while its miss on every provider is younger than router.miss_ttl (RetryAt: then it can be
-	// tried again). This mirrors the router's skips by reason and time, not by their full rule: a provider added or a
-	// cache state changed meanwhile is not seen until the time passes.
-	Retry       bool       `json:"retry,omitempty"`
+	// Blocklisted and RetryAt, for failed: a grab of it now would not be routed while it is on the library's
+	// blocklist, or until RetryAt when its miss on every provider is younger than router.miss_ttl; with neither, it
+	// can be grabbed again. This mirrors the router's skips by reason and time, not by their full rule: a provider
+	// added or a cache state changed meanwhile is not seen until the time passes.
 	Blocklisted bool       `json:"blocklisted,omitempty"`
 	RetryAt     *time.Time `json:"retry_at,omitempty"`
 	// replaced: an import of it was the file and another release's is now, whatever its newest download did.
 	replaced bool
+	// current: its file is the version's current one, whatever its newest download does (a re-grab in flight).
+	current bool
 }
 
 // maxReason caps a failure's headline when it is the stored text itself (failureWords' last rule), in characters.
@@ -655,9 +656,10 @@ func (w *Web) releaseOutcomes(ctx context.Context, db *sql.DB, titleID int64, ve
 	if w.pol != nil {
 		missTTL = w.pol.RouterSettings().MissTTL
 	}
+	var blocked router.BlockedSet // read once, at the first failure
 	out := map[string]ReleaseOutcome{}
 	for h, d := range newest {
-		o := ReleaseOutcome{Provider: d.provider, Download: d.id, replaced: !current[h] && imported[h] && len(titles) > 0}
+		o := ReleaseOutcome{Provider: d.provider, Download: d.id, current: current[h], replaced: !current[h] && imported[h] && len(titles) > 0}
 		switch {
 		case inFlight[d.id] != nil:
 			// The newest download in flight wins over an older import's evidence (a pack partly imported).
@@ -669,16 +671,17 @@ func (w *Web) releaseOutcomes(ctx context.Context, db *sql.DB, titleID int64, ve
 			o.Outcome = "current"
 		case d.state == "failed":
 			// The newest attempt's failure, over an older import's replacement.
-			o.Outcome, o.Reason, o.Retry = "failed", shortReason(d.err, d.provider), true
-			blocked, err := router.Blocklisted(ctx, db, version, h, d.release)
-			if err != nil {
-				return nil, err
+			o.Outcome, o.Reason = "failed", shortReason(d.err, d.provider)
+			if blocked == nil {
+				if blocked, err = router.VersionBlocklist(ctx, db, version); err != nil {
+					return nil, err
+				}
 			}
-			if blocked {
-				o.Retry, o.Blocklisted = false, true
+			if blocked.Has(h, d.release) {
+				o.Blocklisted = true
 			} else if at := store.FromMillis(d.updated).Add(missTTL); missTTL > 0 &&
 				strings.HasPrefix(d.err, router.MissOnEveryProvider) && at.After(now) {
-				o.Retry, o.RetryAt = false, &at
+				o.RetryAt = &at
 			}
 		case o.replaced:
 			o.Outcome, o.ReplacedBy = "replaced", replacedBy
@@ -802,7 +805,7 @@ func searchSummary(dls []runDownload, cands []snapshot.Candidate, outcomes map[s
 		s += " → imported"
 	case "imported":
 		switch {
-		case o.Outcome == "current":
+		case o.Outcome == "current" || o.current:
 			s += " → imported (the current file)"
 		case o.replaced:
 			s += " → imported, later replaced"

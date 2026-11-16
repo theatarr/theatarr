@@ -224,7 +224,7 @@ func TestReleaseOutcomesAndHistory(t *testing.T) {
 		t.Fatalf("releases %d", code)
 	}
 	want := map[string]ReleaseOutcome{
-		h1: {Outcome: "failed", Provider: "rd", Reason: "RD reported an error", Download: 2, Retry: true},
+		h1: {Outcome: "failed", Provider: "rd", Reason: "RD reported an error", Download: 2},
 		h2: {Outcome: "current", Provider: "rd", Download: 3},
 		h3: {Outcome: "grabbed", Provider: "tb", Download: 4, State: "downloading", Words: "Downloading (0%)"},
 		h4: {Outcome: "replaced", Provider: "rd", ReplacedBy: "Alpha.2020.2160p.WEB-TWO", Download: 1},
@@ -808,16 +808,16 @@ func TestReleaseOutcomesLive(t *testing.T) {
 		t.Errorf("a newer download in flight over the current file: %+v", g)
 	}
 	wantAt := store.FromMillis(now - 60000).Add(6 * time.Hour)
-	if g := o[hMiss]; g.Outcome != "failed" || g.Retry || g.RetryAt == nil || !g.RetryAt.Equal(wantAt) || g.Blocklisted {
+	if g := o[hMiss]; g.Outcome != "failed" || g.RetryAt == nil || !g.RetryAt.Equal(wantAt) || g.Blocklisted {
 		t.Errorf("recent miss: %+v", g)
 	}
-	if g := o[hOld]; g.Outcome != "failed" || !g.Retry || g.RetryAt != nil {
+	if g := o[hOld]; g.Outcome != "failed" || g.Blocklisted || g.RetryAt != nil {
 		t.Errorf("miss older than miss_ttl: %+v", g)
 	}
-	if g := o[hBlock]; g.Outcome != "failed" || g.Retry || !g.Blocklisted || g.RetryAt != nil {
+	if g := o[hBlock]; g.Outcome != "failed" || !g.Blocklisted || g.RetryAt != nil {
 		t.Errorf("blocklisted: %+v", g)
 	}
-	if g := o[hStall]; g.Outcome != "failed" || !g.Retry || g.Reason == "" {
+	if g := o[hStall]; g.Outcome != "failed" || g.Blocklisted || g.RetryAt != nil || g.Reason == "" {
 		t.Errorf("stalled: %+v", g)
 	}
 

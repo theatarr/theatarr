@@ -52,7 +52,8 @@ const lastProgress = new Map<number, number>();
 const lastOutcomes = new Map<string, number>();
 
 /** Whether progress alone refreshes the title's release outcomes now (and notes when it did): at most every
- *  PROGRESS_LIVE_MS per title, however many of its downloads move. A change of state refreshes the whole title. */
+ *  PROGRESS_LIVE_MS per title, however many of its downloads move, counting a refresh of the whole title (a change
+ *  of state, or progress every 20 s) as one. */
 export function outcomesRefresh(ev: Pick<DownloadEvent, "title">, now: number): boolean {
   const key = String(ev.title?.id ?? "");
   if (!key || now - (lastOutcomes.get(key) ?? -Infinity) < PROGRESS_LIVE_MS) return false;
@@ -78,9 +79,14 @@ export function onDownloadEvent(qc: QueryClient, raw: string, now: number = Date
     qc.invalidateQueries({ queryKey: [...qk.activity.all, "continue"] });
   }
   const r = libraryRefresh(ev, now);
-  if (r.title) qc.invalidateQueries({ queryKey: qk.title(ev.title.id) });
-  // Only the mounted lists' outcomes are read again (an invalidation refetches active queries only).
-  else if (!changed && outcomesRefresh(ev, now)) qc.invalidateQueries({ queryKey: [...qk.title(ev.title.id), "release-outcomes"] });
+  if (r.title) {
+    // The title's refresh reads its outcomes too: that counts as their refresh.
+    lastOutcomes.set(String(ev.title.id), now);
+    qc.invalidateQueries({ queryKey: qk.title(ev.title.id) });
+  } else if (!changed && outcomesRefresh(ev, now)) {
+    // Only the mounted lists' outcomes are read again (an invalidation refetches active queries only).
+    qc.invalidateQueries({ queryKey: [...qk.title(ev.title.id), "release-outcomes"] });
+  }
   if (r.lists) qc.invalidateQueries({ queryKey: qk.titles.all });
   const t = downloadToast(ev, seeFiles, nameOf);
   if (t) toast({ ...t, to: "/activity", image: ev.title.poster });

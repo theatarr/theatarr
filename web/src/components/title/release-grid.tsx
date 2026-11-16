@@ -85,11 +85,11 @@ export function Outcome({ o }: { o?: ReleaseOutcome }) {
 const outcomeOf = (c: Candidate, outcomes?: Releases["outcomes"]) => (c.info_hash ? outcomes?.[c.info_hash.toLowerCase()] : undefined);
 
 /** Why a failed release has no Grab button: on the library's blocklist (the router refuses it even with the override),
- *  or missed on every provider within router.miss_ttl (the router skips it until retry_at). undefined: it can be
- *  grabbed again. */
+ *  or missed on every provider within router.miss_ttl (the router skips it until retry_at). undefined (neither): it
+ *  can be grabbed again. */
 export function noRetryNote(o: ReleaseOutcome, now: Date = new Date()): string | undefined {
   if (o.blocklisted) return "Blocklisted: unblock it under Activity › Blocklist to try again";
-  if (o.retry || !o.retry_at) return undefined;
+  if (!o.retry_at) return undefined;
   const at = new Date(o.retry_at);
   if (at <= now) return undefined;
   const when = localDay(o.retry_at) === localDay(now.toISOString()) ? fmtClock(at) : fmtTime(o.retry_at, now);
@@ -209,7 +209,7 @@ function Cell({ id, c, outcomes }: { id: ReleaseColumnId; c: Candidate; outcomes
  *  (then one confirmation overrides). sentFrom: sent in this window, with the id of the download its outcome showed
  *  then (0: none); "Sent" stands until an outcome of another download answers. In flight: the download's words, with
  *  a spinner while something works on it; imported or current: Imported; failed: Failed, with the button back
- *  ("Try again") when a grab now would be routed; replaced or nothing: the button. */
+ *  ("Try again") unless it is blocklisted or waits for its retry_at; replaced or nothing: the button. */
 export function GrabCell({ c, target, o, sentFrom, onSent }: { c: Candidate; target: GrabTarget; o?: ReleaseOutcome; sentFrom?: number; onSent: () => void }) {
   const grab = useGrab(target.titleId);
   const [dialog, setDialog] = useState<{ late?: string[] }>();
@@ -238,6 +238,15 @@ export function GrabCell({ c, target, o, sentFrom, onSent }: { c: Candidate; tar
   const failed = grab.isError && !lateRejections(grab.error);
   const fresh = o && (sentFrom === undefined || (o.download ?? 0) !== sentFrom) ? o : undefined;
   const note = fresh?.outcome === "failed" ? noRetryNote(fresh) : undefined;
+  // A failure that may be tried again at retry_at: one render then brings the button back (no polling).
+  const [, setTick] = useState(0);
+  const until = note && !fresh?.blocklisted && fresh?.retry_at ? Date.parse(fresh.retry_at) : NaN;
+  useEffect(() => {
+    const ms = until - Date.now();
+    if (!(ms > 0)) return;
+    const t = window.setTimeout(() => setTick((n) => n + 1), ms + 1);
+    return () => window.clearTimeout(t);
+  }, [until]);
   let state: React.ReactNode = null;
   if (fresh?.outcome === "grabbed") {
     state = (
@@ -358,7 +367,11 @@ export function ReleaseGrid({
   // The sort lasts as long as the grid (one answer): a new search starts in the best-match order.
   const [sort, setSort] = useState<ReleaseSort>(BEST_MATCH);
   const { key: sortKey, dir: sortDir } = sort;
-  const rows = useMemo(() => sortReleases(filterReleases(items, { ...filter, reason }), { key: sortKey, dir: sortDir }, outcomes), [items, filter, reason, sortKey, sortDir, outcomes]);
+  // The live outcomes (a grab's progress) change the order only when History sorts it.
+  const sortOutcomes = sortKey === "history" ? outcomes : undefined;
+  const rows = useMemo(() => sortReleases(filterReleases(items, { ...filter, reason }), { key: sortKey, dir: sortDir }, sortOutcomes), [items, filter, reason, sortKey, sortDir, sortOutcomes]);
+  // The list as Show more counts it: a new one for other items, filter, reason or sort, never for a fresh outcome.
+  const list = useMemo(() => ({ items, filter, reason, sortKey, sortDir }), [items, filter, reason, sortKey, sortDir]);
   const choices = useMemo(() => filterChoices(items), [items]);
   // The rows whose matched formats are open (the table), by row key.
   const [opened, setOpened] = useState<ReadonlySet<string>>(new Set());
@@ -367,11 +380,11 @@ export function ReleaseGrid({
     toggle: () => setOpened((s) => { const n = new Set(s); if (!n.delete(key(c))) n.add(key(c)); return n; }),
   });
   const picked = (c: Candidate) => !!focus && !!c.info_hash && c.info_hash.toLowerCase() === focus.toLowerCase();
-  // The first RELEASE_PAGE rows, more with each Show more; a new list (other items, filter, reason or sort: rows is
+  // The first RELEASE_PAGE rows, more with each Show more; a new list (other items, filter, reason or sort: list is
   // memoised on their values) starts again. A focused release further down is shown with the rows above it.
-  const [more, setMore] = useState<{ rows: Candidate[]; n: number }>({ rows, n: RELEASE_PAGE });
+  const [more, setMore] = useState<{ list: object; n: number }>({ list, n: RELEASE_PAGE });
   const focusAt = focus ? rows.findIndex(picked) : -1;
-  const limit = Math.max(more.rows === rows ? more.n : RELEASE_PAGE, focusAt + 1);
+  const limit = Math.max(more.list === list ? more.n : RELEASE_PAGE, focusAt + 1);
   const visible = rows.length > limit ? rows.slice(0, limit) : rows;
   const filtered = rows.length !== items.length;
   useEffect(() => {
@@ -520,7 +533,7 @@ export function ReleaseGrid({
           </ul>
           {visible.length < rows.length ? (
             <div className="flex justify-center">
-              <Button size="sm" variant="outline" onClick={() => setMore({ rows, n: limit + RELEASE_PAGE })} data-testid="release-more">
+              <Button size="sm" variant="outline" onClick={() => setMore({ list, n: limit + RELEASE_PAGE })} data-testid="release-more">
                 Show more ({rows.length - visible.length} left)
               </Button>
             </div>

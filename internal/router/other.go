@@ -148,6 +148,32 @@ func Blocklisted(ctx context.Context, db *sql.DB, version, hash, release string)
 	return n > 0, err
 }
 
+// BlockedSet is a version's blocklist keys (router_blocklist.info_hash), read once for many releases.
+type BlockedSet map[string]bool
+
+// Has is Blocklisted for one release of the set's version.
+func (b BlockedSet) Has(hash, release string) bool {
+	return b[BlocklistKey(hash, "")] || b[BlocklistKey("", release)]
+}
+
+// VersionBlocklist reads version's blocklist keys in one query (Blocklisted for many releases).
+func VersionBlocklist(ctx context.Context, db *sql.DB, version string) (BlockedSet, error) {
+	rows, err := db.QueryContext(ctx, `SELECT info_hash FROM router_blocklist WHERE version_key = ?`, version)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := BlockedSet{}
+	for rows.Next() {
+		var k string
+		if err := rows.Scan(&k); err != nil {
+			return nil, err
+		}
+		out[k] = true
+	}
+	return out, rows.Err()
+}
+
 // seriesSearchFor is the search for a release's episodes, in TVDB numbering (the scene criteria are derived from it).
 func seriesSearchFor(t *decide.Title, ids []int64) *decide.SeriesSearch {
 	if len(ids) == 0 {

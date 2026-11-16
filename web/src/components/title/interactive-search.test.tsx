@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
-import { beforeEach, expect, it } from "vitest";
+import { act } from "react";
+import { beforeEach, expect, it, vi } from "vitest";
 import { mockFetch, renderPage, type Route } from "@/test/page";
 import { InteractiveSearchButton } from "./interactive-search";
 import { LibraryNamesProvider } from "@/lib/library-names";
@@ -425,7 +426,7 @@ it("a failure a grab now would route gets Try again; one missed on every provide
     ME, TITLE, CURRENT,
     { method: "GET", path: "/titles/7/releases", reply: answer() },
     outcomesRoute({ outcomes: {
-      aaa: { outcome: "failed", provider: "rd", download: 3, reason: "RD status error", retry: true },
+      aaa: { outcome: "failed", provider: "rd", download: 3, reason: "RD status error" },
       bbb: { outcome: "failed", download: 2, reason: "No provider accepted this release", retry_at: later },
     } }),
   ]);
@@ -442,7 +443,7 @@ it("a failure a grab now would route gets Try again; one missed on every provide
 
 it("after Try again says Sent until a new download answers, then its progress; an imported release says Imported", async () => {
   let reads = 0;
-  const failedA = { outcome: "failed", provider: "rd", download: 3, reason: "RD status error", retry: true };
+  const failedA = { outcome: "failed", provider: "rd", download: 3, reason: "RD status error" };
   const importedB = { outcome: "imported", provider: "rd", download: 1 };
   mockFetch([
     ME, TITLE, CURRENT,
@@ -467,4 +468,43 @@ it("after Try again says Sent until a new download answers, then its progress; a
   await waitFor(async () => expect(within(await table()).getAllByTestId("release-grab")).toHaveLength(2));
   fireEvent.click(screen.getByRole("tab", { name: "WEB" }));
   await waitFor(async () => expect(within(await rowOf("aaa")).getByTestId("release-progress").textContent).toContain("Queued"));
+});
+
+it("keeps Show more open when the outcomes refresh after a grab further down", async () => {
+  const many = Array.from({ length: 60 }, (_, i) => ({ ...accepted, rank: i + 1, release: `Alpha.2020.2160p.WEB-DL-G${i}`, info_hash: `h${String(i).padStart(2, "0")}` }));
+  let grabbed = false;
+  mockFetch([
+    ME, TITLE, CURRENT,
+    { method: "GET", path: "/titles/7/releases", reply: answer("movie-web", { candidates: many, results: 60, accepted: 60, outcomes: {} }) },
+    outcomesRoute(() => ({ outcomes: grabbed ? { h55: { outcome: "grabbed", download: 9, state: "queued", words: "Queued" } } : {} })),
+    { method: "POST", path: "/titles/7/releases/grab", reply: () => { grabbed = true; return { ...sent, info_hash: "h55" }; } },
+  ]);
+  renderPage(<InteractiveSearchButton titleId={7} version="movie-web" />);
+  open();
+  fireEvent.click(await screen.findByTestId("release-more"));
+  fireEvent.click(within(await rowOf("h55")).getByTestId("release-grab"));
+  await waitFor(async () => expect(within(await rowOf("h55")).getByTestId("release-progress").textContent).toContain("Queued"));
+  expect(within(await table()).getAllByRole("row").filter((r) => r.dataset.releaseHash)).toHaveLength(60);
+});
+
+it("brings the button back at retry_at, without a new read", async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  try {
+    const at = new Date(Date.now() + 60_000).toISOString();
+    const api = mockFetch([
+      ME, TITLE, CURRENT,
+      { method: "GET", path: "/titles/7/releases", reply: answer() },
+      outcomesRoute({ outcomes: { aaa: { outcome: "failed", download: 3, reason: "No provider accepted this release", retry_at: at } } }),
+    ]);
+    renderPage(<InteractiveSearchButton titleId={7} version="movie-web" />);
+    open();
+    await waitFor(async () => expect(within(await rowOf("aaa")).getByTestId("release-failed").getAttribute("title")).toContain("tried again after"));
+    expect(within(await rowOf("aaa")).queryByTestId("release-grab")).toBeNull();
+    const reads = api.calls("GET", "/titles/7/release-outcomes").length;
+    await act(() => vi.advanceTimersByTimeAsync(61_000));
+    expect(within(await rowOf("aaa")).getByTestId("release-grab").textContent).toContain("Try again");
+    expect(api.calls("GET", "/titles/7/release-outcomes")).toHaveLength(reads);
+  } finally {
+    vi.useRealTimers();
+  }
 });
