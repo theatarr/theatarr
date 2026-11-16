@@ -17,7 +17,6 @@ import (
 	"github.com/theatarr/theatarr/internal/journal/snapshot"
 	"github.com/theatarr/theatarr/internal/library"
 	"github.com/theatarr/theatarr/internal/router"
-	"github.com/theatarr/theatarr/internal/store"
 )
 
 // What came of a version's releases, in the words the title page's history and the releases panel share
@@ -45,9 +44,8 @@ type ReleaseOutcome struct {
 	// time), so the list shows no working spinner.
 	Idle bool `json:"idle,omitempty"`
 	// Blocklisted and RetryAt, for failed: a grab of it now would not be routed while it is on the library's
-	// blocklist, or until RetryAt when its miss on every provider is younger than router.miss_ttl; with neither, it
-	// can be grabbed again. This mirrors the router's skips by reason and time, not by their full rule: a provider
-	// added or a cache state changed meanwhile is not seen until the time passes.
+	// blocklist, or until RetryAt while the stored cache evidence the router reads makes it a known miss on every
+	// provider (router.MissUntil: when the first of those rows lapses); with neither, it can be grabbed again.
 	Blocklisted bool       `json:"blocklisted,omitempty"`
 	RetryAt     *time.Time `json:"retry_at,omitempty"`
 	// replaced: an import of it was the file and another release's is now, whatever its newest download did.
@@ -566,21 +564,20 @@ func runOrigins(ctx context.Context, db *sql.DB, titleID int64) (map[int64]runOr
 // grabbed, with its words, whatever older evidence of the hash says.
 func (w *Web) releaseOutcomes(ctx context.Context, db *sql.DB, titleID int64, version string, episode int64) (map[string]ReleaseOutcome, error) {
 	type dl struct {
-		id                            int64
-		state, provider, err, release string
-		updated                       int64
+		id                                     int64
+		state, provider, err, release, indexer string
 	}
 	newest := map[string]dl{}
 	imported := map[string]bool{}
 	err := scanAll(ctx, db, `SELECT id, LOWER(info_hash), state, COALESCE(provider, ''), COALESCE(error, ''),
-		release_title, updated_at
+		release_title, indexer
 		FROM download WHERE title_id = ? AND version_key = ? AND info_hash <> ''
 		AND (? = 0 OR EXISTS (SELECT 1 FROM json_each(download.episodes) j WHERE j.value = ?)) ORDER BY id`,
 		[]any{titleID, version, episode, episode},
 		func(r *sql.Rows) error {
 			var h string
 			var d dl
-			if err := r.Scan(&d.id, &h, &d.state, &d.provider, &d.err, &d.release, &d.updated); err != nil {
+			if err := r.Scan(&d.id, &h, &d.state, &d.provider, &d.err, &d.release, &d.indexer); err != nil {
 				return err
 			}
 			newest[h] = d
@@ -652,10 +649,6 @@ func (w *Web) releaseOutcomes(ctx context.Context, db *sql.DB, titleID int64, ve
 		}
 	}
 	now := w.now()
-	var missTTL time.Duration
-	if w.pol != nil {
-		missTTL = w.pol.RouterSettings().MissTTL
-	}
 	var blocked router.BlockedSet // read once, at the first failure
 	out := map[string]ReleaseOutcome{}
 	for h, d := range newest {
@@ -679,9 +672,16 @@ func (w *Web) releaseOutcomes(ctx context.Context, db *sql.DB, titleID int64, ve
 			}
 			if blocked.Has(h, d.release) {
 				o.Blocklisted = true
-			} else if at := store.FromMillis(d.updated).Add(missTTL); missTTL > 0 &&
-				strings.HasPrefix(d.err, router.MissOnEveryProvider) && at.After(now) {
-				o.RetryAt = &at
+			} else if w.pol != nil {
+				// A known miss in the stored cache evidence the router reads: tried again when its first row lapses.
+				until, known, err := router.MissUntil(ctx, db, w.pol.ReleaseProviders(w.pol.Versions[version], d.indexer), h,
+					w.pol.RouterSettings().CachedOnly, now)
+				if err != nil {
+					return nil, err
+				}
+				if known && !until.IsZero() {
+					o.RetryAt = &until
+				}
 			}
 		case o.replaced:
 			o.Outcome, o.ReplacedBy = "replaced", replacedBy

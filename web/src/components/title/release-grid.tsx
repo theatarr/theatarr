@@ -85,7 +85,7 @@ export function Outcome({ o }: { o?: ReleaseOutcome }) {
 const outcomeOf = (c: Candidate, outcomes?: Releases["outcomes"]) => (c.info_hash ? outcomes?.[c.info_hash.toLowerCase()] : undefined);
 
 /** Why a failed release has no Grab button: on the library's blocklist (the router refuses it even with the override),
- *  or missed on every provider within router.miss_ttl (the router skips it until retry_at). undefined (neither): it
+ *  or a known miss on every provider in the stored cache evidence (the router skips it until retry_at). undefined (neither): it
  *  can be grabbed again. */
 export function noRetryNote(o: ReleaseOutcome, now: Date = new Date()): string | undefined {
   if (o.blocklisted) return "Blocklisted: unblock it under Activity › Blocklist to try again";

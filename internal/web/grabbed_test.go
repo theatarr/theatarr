@@ -4,7 +4,6 @@ import (
 	"slices"
 	"strings"
 	"testing"
-	"time"
 	"unicode/utf8"
 
 	"github.com/theatarr/theatarr/internal/policy"
@@ -807,7 +806,25 @@ func TestReleaseOutcomesLive(t *testing.T) {
 	if g := o[hAgain]; g.Outcome != "grabbed" || g.State != "queued" || g.Words != "Queued" {
 		t.Errorf("a newer download in flight over the current file: %+v", g)
 	}
-	wantAt := store.FromMillis(now - 60000).Add(6 * time.Hour)
+	// The router's stored cache evidence: hMiss missed on every provider of the library, one row lapsing early (the
+	// time the router tries it again); hOld's rows have lapsed.
+	provs := e.pol.Versions["movie-remux"].Providers
+	if len(provs) == 0 {
+		t.Fatal("movie-remux has no providers")
+	}
+	for i, pk := range provs {
+		exp := now + 6*3600000
+		if i == len(provs)-1 {
+			exp = now + 29*60000
+		}
+		e.exec(`INSERT INTO provider_cache (info_hash, provider, state, source, checked_at, expires_at)
+			VALUES (?, ?, 'miss', 'router:miss', ?, ?), (?, ?, 'miss', 'router:miss', ?, ?)`,
+			hMiss, pk, now-60000, exp, hOld, pk, now-7*3600000, now-3600000)
+	}
+	r = ReleaseOutcomes{}
+	e.call("GET", APIBase+"/titles/1/release-outcomes?version=movie-remux", nil, 200, &r)
+	o = r.Outcomes
+	wantAt := store.FromMillis(now + 29*60000)
 	if g := o[hMiss]; g.Outcome != "failed" || g.RetryAt == nil || !g.RetryAt.Equal(wantAt) || g.Blocklisted {
 		t.Errorf("recent miss: %+v", g)
 	}
