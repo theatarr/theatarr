@@ -35,7 +35,7 @@ export type LatestEvent = { event: "imported" | "failed"; date: string; words: s
 
 /**
  * A library's latest relevant event: its newest import or failed download. "Imported today", "Upgraded today" for an
- * import that replaced a file;
+ * import that replaced a file ("Re-downloaded today" when it fetched the same release again: the server's redownload);
  * a failure of a download that was to replace a file held now (the server's upgrade flag, per movie or per
  * episode) "Last upgrade attempt Nov 13: not cached on RD, AD and TB", any other "Last download failed Nov 13: …".
  * Nothing when the library has neither (searches and grabs in flight are said elsewhere).
@@ -49,7 +49,7 @@ export function latestEvent(v: Pick<Version, "history">, now: Date = new Date())
   if (!top) return undefined;
   const day = dayWords(top.date, now);
   // An import that replaced a file (the server's upgraded) is an upgrade, as History's Upgraded row.
-  if (top.event !== "failed") return { event: "imported", date: top.date, words: `${top.event === "upgraded" ? "Upgraded" : "Imported"} ${day}`, tone: "positive" };
+  if (top.event !== "failed") return { event: "imported", date: top.date, words: `${top.event === "upgraded" ? (top.redownload ? "Re-downloaded" : "Upgraded") : "Imported"} ${day}`, tone: "positive" };
   const why = failureWords(top);
   const what = top.upgrade ? "Last upgrade attempt" : "Last download failed";
   return { event: "failed", date: top.date, words: `${what} ${day}${why ? `: ${why}` : ""}`, tone: "warning", downloadId: top.download_id };

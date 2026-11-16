@@ -1166,6 +1166,7 @@
         "properties": {
           "decision_id": {"type":"integer"}, "run_id": {"type":"integer"}, "download_id": { "type": "integer", "description": "A Theatarr download's grabbed, imported or failed event: its id (GET /activity/downloads/{id}/attempts)" },
           "event": { "type": "string", "enum": ["grabbed", "imported", "upgraded", "failed", "not_started", "deleted", "renamed", "ignored", "searched", "adopted"], "description": "not_started: a download never tried because downloads were off when its turn came (reason says why, in Activity's words); failed otherwise. adopted (the episode window): a file taken over from Sonarr/Radarr, source its instance" },
+          "redownload": { "type": "boolean", "description": "An upgraded event: every file it replaced was the same release, by name (a lost file fetched again): Re-downloaded, as History says it" },
           "date": { "type": "string", "format": "date-time" }, "quality": { "type": "string" }, "episode": { "type": "string", "description": "S01E02" },
           "source": { "type": "string", "description": "see_files only: the arr instance, or theatarr" }, "release_title": { "type": "string", "description": "see_files only" },
           "score": { "type": "integer", "description": "see_files only" }, "info_hash": { "type": "string", "description": "see_files only; a searched event: the first release it grabbed" },

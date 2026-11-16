@@ -61,9 +61,12 @@ type HistoryEvent struct {
 	DownloadID int64 `json:"download_id,omitempty"`
 	// Event is grabbed, imported, upgraded (an import that replaced a file), failed, not_started (a download never
 	// tried because downloads were off; Reason says why), deleted, renamed, ignored or searched.
-	Event   string    `json:"event"`
-	Date    time.Time `json:"date"`
-	Quality string    `json:"quality,omitempty"`
+	Event string `json:"event"`
+	// Redownload (an upgraded event): every file it replaced was the same release, by name (a lost file fetched
+	// again): "Re-downloaded", as History says it (journal HistoryRow.Redownload).
+	Redownload bool      `json:"redownload,omitempty"`
+	Date       time.Time `json:"date"`
+	Quality    string    `json:"quality,omitempty"`
 	// Episode is S01E02 for a series event about one episode.
 	Episode string `json:"episode,omitempty"`
 	// For callers who see files: where it came from (an arr instance, or Theatarr), the release and its hash.
@@ -109,6 +112,14 @@ const heldNowSQL = `(CASE WHEN json_array_length(COALESCE(download.episodes, '[]
 // notStartedCol is a column of a query on the table download (unaliased): the download failed without ever being
 // tried, because downloads were off when its turn came (activity.NotStartedSQL, as Activity reads it).
 var notStartedCol = `(state = 'failed' AND ` + activity.NotStartedSQL + `)`
+
+// redownloadSQL is whether download's upgrade rows (history, deleted) fetched the same release again: some file was
+// replaced and every replaced file has a release name, the row's own (journal HistoryRow.Redownload).
+const redownloadSQL = `(EXISTS (SELECT 1 FROM history x, json_each(COALESCE(x.replaced, '[]')) WHERE x.download_id = download.id
+		AND x.event = 'deleted')
+	AND NOT EXISTS (SELECT 1 FROM history x, json_each(COALESCE(x.replaced, '[]')) f WHERE x.download_id = download.id
+		AND x.event = 'deleted' AND (COALESCE(json_extract(f.value, '$.release'), '') = ''
+			OR json_extract(f.value, '$.release') IS NOT x.release)))`
 
 // downloadEvents appends a Theatarr download's events: grabbed, then imported or failed; a download that was never
 // tried (notStarted, notStartedCol) ends with not_started and Activity's words as the reason, not failed. h carries
@@ -344,6 +355,7 @@ func (w *Web) versionHistory(ctx context.Context, db *sql.DB, titleID int64, kin
 		CASE WHEN state = 'failed' THEN `+heldNowSQL+`
 			WHEN state = 'imported' THEN EXISTS (SELECT 1 FROM history x WHERE x.download_id = download.id
 				AND x.event = 'deleted') ELSE 0 END,
+		CASE WHEN state = 'imported' THEN `+redownloadSQL+` ELSE 0 END,
 		CASE WHEN state = 'failed' AND COALESCE(error, '') GLOB 'miss on every provider*' THEN (SELECT json_group_array(DISTINCT a.provider) FROM download_attempt a
 			WHERE a.download_id = download.id AND a.code IN (`+missCodes+`)) END,
 		CASE WHEN state = 'failed' THEN (SELECT b.reason FROM router_blocklist b WHERE b.download_id = download.id
@@ -357,10 +369,10 @@ func (w *Web) versionHistory(ctx context.Context, db *sql.DB, titleID int64, kin
 			var state, source, errText string
 			var notStarted bool
 			var missed, blocked, refusal sql.NullString
-			var upgrade bool
+			var upgrade, redownload bool
 			var h HistoryEvent
 			if err := r.Scan(&dlID, &vid, &state, &created, &done, &h.ReleaseTitle, &h.InfoHash, &h.Source, &h.Quality,
-				&score, &source, &errText, &notStarted, &upgrade, &missed, &blocked, &refusal); err != nil {
+				&score, &source, &errText, &notStarted, &upgrade, &redownload, &missed, &blocked, &refusal); err != nil {
 				return err
 			}
 			if missed.Valid {
@@ -388,6 +400,9 @@ func (w *Web) versionHistory(ctx context.Context, db *sql.DB, titleID int64, kin
 			}
 			h.Score, h.DownloadID, h.Upgrade = &score, dlID, upgrade
 			v.History = downloadEvents(v.History, h, state, created, done, source, errText, notStarted, run)
+			if last := &v.History[len(v.History)-1]; last.Event == "upgraded" {
+				last.Redownload = redownload
+			}
 			if last := &v.History[len(v.History)-1]; last.Event == "failed" {
 				last.Reason, _ = failureWords(fail, strings.ToUpper)
 			}

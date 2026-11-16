@@ -25,6 +25,7 @@ export const EVENT_MEANINGS: { words: string; meaning: string }[] = [
   { words: "Imported", meaning: "The release's files were linked into the library." },
   { words: "Adopted", meaning: "Taken over from Sonarr/Radarr's library; Theatarr did not download it." },
   { words: "Upgraded", meaning: "A better release was imported; \"Replaced\" says which files it took the place of." },
+  { words: "Re-downloaded", meaning: "The same release was fetched again for a file that went missing." },
   { words: "Removed", meaning: "This file was taken out of the library by hand (or by Sonarr/Radarr deleting it)." },
   { words: "Removed from library", meaning: "The title was removed from this library by hand; the reason says who removed it and whether its files were kept." },
   { words: "File missing", meaning: "The file behind a library link is gone and could not be found again." },

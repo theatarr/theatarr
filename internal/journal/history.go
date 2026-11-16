@@ -102,6 +102,20 @@ type HistoryRow struct {
 	Entry string
 }
 
+// Redownload reports whether an upgrade's row (deleted) fetched the same release again: every file it replaced has
+// a release name, the row's own (a lost file fetched again). History says "Re-downloaded" for it, not "Upgraded".
+func (h *HistoryRow) Redownload() bool {
+	if h.Event != EvDeleted || h.Release == nil || h.Release.Title == "" || len(h.Replaced) == 0 {
+		return false
+	}
+	for _, f := range h.Replaced {
+		if f.Release == nil || f.Release.Title != h.Release.Title {
+			return false
+		}
+	}
+	return true
+}
+
 // ReplacedFile is one file an upgrade replaced: its path, its release (title, quality, score; nil when not known) and
 // the episodes it held.
 type ReplacedFile struct {

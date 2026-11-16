@@ -584,3 +584,31 @@ func TestHistoryHousehold(t *testing.T) {
 		t.Errorf("paged:\n got %q\nwant %q", paged, want)
 	}
 }
+
+// An upgrade's row is a re-download when every file it replaced has a release name, its own.
+func TestHistoryRedownload(t *testing.T) {
+	rel := func(title string) *Release { return &Release{Title: title} }
+	row := func(r *Release, replaced ...*Release) *HistoryRow {
+		h := &HistoryRow{Event: EvDeleted, Release: r}
+		for _, f := range replaced {
+			h.Replaced = append(h.Replaced, ReplacedFile{Release: f})
+		}
+		return h
+	}
+	for _, c := range []struct {
+		name string
+		h    *HistoryRow
+		want bool
+	}{
+		{"same release", row(rel("A"), rel("A"), rel("A")), true},
+		{"one differs", row(rel("A"), rel("A"), rel("B")), false},
+		{"one unnamed", row(rel("A"), rel("A"), rel("")), false},
+		{"one unknown", row(rel("A"), rel("A"), nil), false},
+		{"nothing replaced", row(rel("A")), false},
+		{"not an upgrade", &HistoryRow{Event: EvImported, Release: rel("A"), Replaced: []ReplacedFile{{Release: rel("A")}}}, false},
+	} {
+		if got := c.h.Redownload(); got != c.want {
+			t.Errorf("%s: %v, want %v", c.name, got, c.want)
+		}
+	}
+}

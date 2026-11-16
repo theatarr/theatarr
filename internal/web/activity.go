@@ -820,7 +820,8 @@ func historyWords(h *journal.HistoryRow) (words, tone string) {
 	return entryWords(h, historyNotStarted(h), strings.ToUpper)
 }
 
-// entryWords is a History row's words, like Radarr's: Grabbed, Imported, Adopted, Upgraded, Removed,
+// entryWords is a History row's words, like Radarr's: Grabbed, Imported, Adopted, Upgraded (Re-downloaded for the same
+// release fetched again, HistoryRow.Redownload), Removed,
 // Failed, Blocked, Added to <provider>, Not cached on <provider>. notStarted is the row's historyNotStarted reason;
 // tag names a provider account.
 func entryWords(h *journal.HistoryRow, notStarted string, tag func(string) string) (words, tone string) {
@@ -835,10 +836,14 @@ func entryWords(h *journal.HistoryRow, notStarted string, tag func(string) strin
 	case journal.EvAdopted:
 		return "Adopted", "ok"
 	case journal.EvDeleted:
-		if h.Import == "partial" {
-			return "Upgraded", "warn"
+		words := "Upgraded"
+		if h.Redownload() {
+			words = "Re-downloaded"
 		}
-		return "Upgraded", "ok"
+		if h.Import == "partial" {
+			return words, "warn"
+		}
+		return words, "ok"
 	case journal.EvRemoved:
 		return "Removed", "info"
 	case journal.EvMissing:

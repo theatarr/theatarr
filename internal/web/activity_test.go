@@ -1357,4 +1357,26 @@ func TestHistoryFilterMatrix(t *testing.T) {
 	if !slices.Contains(evs, "upgraded") || slices.Contains(evs, "imported") {
 		t.Errorf("title history events: %q", evs)
 	}
+	for _, h := range d.Versions[0].History {
+		if h.Redownload {
+			t.Errorf("another release replaced, said re-downloaded: %+v", h)
+		}
+	}
+	// The same release fetched again for the file it replaced: Re-downloaded, in History and on the title page.
+	e.exec(`UPDATE library_action SET release_title = 'Gamma.S01.2160p.WEB' WHERE path = '/tv/G/S01E01.old.mkv'`)
+	if got, _ := words(base + "&events=imported,deleted"); !slices.Equal(got, []string{"Re-downloaded"}) {
+		t.Errorf("same release: %q", got)
+	}
+	if got, _ := words(base + "&events=imported,deleted&as=user"); !slices.Equal(got, []string{"Re-downloaded"}) {
+		t.Errorf("same release, household: %q", got)
+	}
+	d = TitleDetail{}
+	e.getKey(APIBase+"/titles/3", key, &d)
+	redownload := false
+	for _, h := range d.Versions[0].History {
+		redownload = redownload || (h.Event == "upgraded" && h.Redownload)
+	}
+	if !redownload {
+		t.Errorf("title history: %+v", d.Versions[0].History)
+	}
 }
