@@ -53,7 +53,7 @@ import { stageCounts, stageTone, stageWords } from "@/lib/copies";
 import { DEFAULT_EPISODE_COLUMNS, EPISODE_COLUMNS, EPISODE_COLUMNS_PREF, type EpisodeColumnId } from "@/lib/episode-columns";
 import { dayFormatter, fmtBytes, fmtNumber } from "@/lib/format";
 import { fmtRuntime } from "@/lib/library";
-import { audioWords, languages, subsList, subsShort } from "@/lib/media";
+import { audioWords, languageNames, shortList, subsNames } from "@/lib/media";
 import { nextSearch } from "@/lib/library-rows";
 import { useColumnPrefs } from "@/lib/prefs";
 import {
@@ -340,6 +340,9 @@ const COLUMN_HEAD: Record<EpisodeColumnId, { label: string; className?: string }
 /** A chosen column's cell for the library in view. Blank, never "0" or "None", for a fact the file lacks. */
 function ColumnCell({ id, e, c, seeFiles, day, off = false }: { id: EpisodeColumnId; e: Episode; c: Cell | undefined; seeFiles: boolean; day: (d: string) => string; off?: boolean }) {
   const file = c?.has_file ? c : undefined;
+  // A list on one line, never wrapped: the first shown names and "+N"; the tooltip has them all.
+  const oneLine = (names: string[] | null | undefined, shown: number) =>
+    names?.length ? <span title={names.join(", ")}>{shortList(names, shown)}</span> : null;
   const long = (v: string | undefined) => (v ? <span className="block max-w-[22rem] truncate" title={v}><Mono className="text-[11.5px]">{v}</Mono></span> : null);
   switch (id) {
     case "air":
@@ -377,13 +380,14 @@ function ColumnCell({ id, e, c, seeFiles, day, off = false }: { id: EpisodeColum
     case "audio":
       return <TableCell className="whitespace-nowrap">{audioWords(file?.media)}</TableCell>;
     case "alang":
-      return <TableCell>{languages(file?.media?.audio_languages)}</TableCell>;
+      return <TableCell className="whitespace-nowrap">{oneLine(languageNames(file?.media?.audio_languages), 3)}</TableCell>;
     case "subs":
-      return <TableCell><span title={subsList(file?.media?.subtitles) || undefined}>{subsShort(file?.media?.subtitles)}</span></TableCell>;
+      return <TableCell className="whitespace-nowrap">{oneLine(subsNames(file?.media?.subtitles), 2)}</TableCell>;
     case "langs":
-      return <TableCell>{file?.languages?.join(", ") ?? ""}</TableCell>;
+      return <TableCell className="whitespace-nowrap">{oneLine(file?.languages, 3)}</TableCell>;
     case "formats":
-      return <TableCell>{file ? <Formats c={file} /> : null}</TableCell>;
+      // Badges never wrap inside themselves; the cell is wide enough for them to flow in rows.
+      return <TableCell className="min-w-[20rem] [&_span]:whitespace-nowrap">{file ? <Formats c={file} /> : null}</TableCell>;
   }
 }
 

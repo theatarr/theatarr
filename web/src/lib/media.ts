@@ -27,7 +27,18 @@ export function languageName(code: string): string {
 
 /** "jpn/eng" as "Japanese, English". */
 export function languages(list: string | undefined | null): string {
-  return (list ?? "").split("/").filter(Boolean).map(languageName).join(", ");
+  return languageNames(list).join(", ");
+}
+
+/** "jpn/eng" as ["Japanese", "English"]. */
+export function languageNames(list: string | undefined | null): string[] {
+  return (list ?? "").split("/").filter(Boolean).map(languageName);
+}
+
+/** The first shown names and how many more: "English, Arabic +34". */
+export function shortList(names: string[], shown: number): string {
+  const more = names.length - shown;
+  return `${names.slice(0, shown).join(", ")}${more > 0 ? ` +${more}` : ""}`;
 }
 
 export function mediaLine(m: MediaInfo | undefined | null): string {
@@ -48,7 +59,12 @@ const SUBS_SHOWN = 4;
 
 /** Every subtitle language once, in order, by name: "English, Arabic, Chinese". */
 export function subsList(subtitles: string | undefined | null): string {
-  return subsCodes(subtitles).map(languageName).join(", ");
+  return subsNames(subtitles).join(", ");
+}
+
+/** Every subtitle language once, in order, by name. */
+export function subsNames(subtitles: string | undefined | null): string[] {
+  return subsCodes(subtitles).map(languageName);
 }
 
 function subsCodes(subtitles: string | undefined | null): string[] {
@@ -57,10 +73,7 @@ function subsCodes(subtitles: string | undefined | null): string[] {
 
 /** "English, Arabic, Chinese, Croatian +23": the first SUBS_SHOWN subtitle languages and how many more. */
 export function subsShort(subtitles: string | undefined | null): string {
-  const all = subsCodes(subtitles);
-  if (!all.length) return "";
-  const more = all.length - SUBS_SHOWN;
-  return `${all.slice(0, SUBS_SHOWN).map(languageName).join(", ")}${more > 0 ? ` +${more}` : ""}`;
+  return shortList(subsNames(subtitles), SUBS_SHOWN);
 }
 
 /** "subtitles English, Arabic, Chinese, Croatian +23". */

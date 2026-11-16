@@ -299,13 +299,44 @@ describe("Acting on the libraries in view", () => {
     };
     const want: Record<string, string> = {
       "Video codec": "x265", "Dynamic range": "DV HDR10", Audio: "EAC3 Atmos 5.1", "Audio languages": "English, Korean",
-      Subtitles: "English, French, Spanish, German +2", Languages: "English, Korean", Formats: "DV Boost+1500",
+      Subtitles: "English, French +4", Languages: "English, Korean", Formats: "DV Boost+1500",
     };
     for (const name of added) {
       expect(at("1x12", name).textContent, name).toBe(want[name]);
       expect(at("1x13", name).textContent, name).toBe("");
     }
     expect(within(at("1x12", "Subtitles")).getByTitle("English, French, Spanish, German, Japanese, Korean")).toBeTruthy();
+  });
+
+  it("keeps a row short: five formats flow in a wide cell, long language lists stay on one line with +N", async () => {
+    const subs = ["eng", "ara", "bul", "zho", "hrv", "ces", "dan", "nld", "est", "fin", "fre", "ger", "ell", "heb", "hun", "ind", "ita", "jpn", "kor", "lav", "lit", "may", "nor", "pol", "por", "rum", "rus", "srp", "slk", "slv", "spa", "swe", "tha", "tur", "ukr", "vie"];
+    const media = { audio_languages: "eng/fre/ger/spa/ita", subtitles: subs.join("/") };
+    const formats = ["DV Boost", "HDR10 Boost", "Atmos", "Streaming Service", "Repack/Proper"].map((name) => ({ name, score: 100 }));
+    const facts = { media, languages: ["English", "French", "German", "Spanish"], formats };
+    const withMedia = { ...episodes, episodes: episodes.episodes.map((e) => ({ ...e, versions: { ...e.versions, "anime-web": cell(true, e.id === 101 ? facts : {}) } })) };
+    mockFetch([routes[0], { method: "GET", path: "/titles/1/episodes", reply: withMedia }]);
+    const user = userEvent.setup();
+    renderPage(<Seasons id="1" anime />, "/title/1");
+    await user.click(await screen.findByRole("radio", { name: "Anime WEB" }));
+    await user.click(screen.getByTestId("episode-columns"));
+    const list = screen.getByTestId("column-list");
+    // The column choice is kept between tests: tick only the ones still off.
+    for (const name of ["Audio languages", "Subtitles", "Languages", "Formats"]) {
+      const box = within(list).getByRole("checkbox", { name: new RegExp(`^${name} ?The `) });
+      if (!(box as HTMLInputElement).checked && box.getAttribute("aria-checked") !== "true") await user.click(box);
+    }
+    await user.click(screen.getByRole("button", { name: "Done" }));
+    const table = screen.getByTestId("episode-table");
+    const heads = within(table).getAllByRole("columnheader").map((h) => h.textContent);
+    const at = (head: string) => (table.querySelector('[data-episode="1x12"]') as HTMLElement).querySelectorAll("td")[heads.indexOf(head)] as HTMLElement;
+    expect(at("Subtitles").textContent).toBe("English, Arabic +34");
+    expect(within(at("Subtitles")).getByTitle(/^English, Arabic, Bulgarian, .*, Vietnamese$/)).toBeTruthy();
+    expect(at("Audio languages").textContent).toBe("English, French, German +2");
+    expect(at("Languages").textContent).toBe("English, French, German +1");
+    for (const head of ["Subtitles", "Audio languages", "Languages"]) expect(at(head).className, head).toContain("whitespace-nowrap");
+    expect(at("Formats").className).toContain("min-w-[20rem]");
+    expect(at("Formats").className).toContain("[&_span]:whitespace-nowrap");
+    expect(at("Formats").textContent).toBe(formats.map((f) => `${f.name}+100`).join(""));
   });
 
   it("links an episode's Cached on to its torrent for admins, as the episode window does", async () => {
