@@ -178,6 +178,10 @@ server (searches, Wanted › Cutoff unmet and the lists' filters are unchanged);
 ("The quality is reached, the score is not."), its episode tooltip has no quality word, and a series library row
 leaves out "N episodes under preferred quality" and the found line beside it.
 
+A better release that was tried after it was seen and failed (on every provider, or refused) is no longer
+**Upgrade found** anywhere (title page, Home, the lists' Upgrade found filter); another untried better release still
+is. Why? keeps "Better release found …" with "Tried …" for it (docs/design/manage.md, the upgrade-evidence rule).
+
 List rows and posters say only **Upgrade found** (lib/library.ts qualityWord); the other two words are the title page's.
 A library that does not monitor the title shows no quality word on its seasons and episodes (nothing is searched
 there); a season with nothing held that nothing monitors reads **Not monitored**, not "0 / 10"; and the episode window

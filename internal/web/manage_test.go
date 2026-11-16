@@ -75,7 +75,7 @@ func TestJudgeUpgrade(t *testing.T) {
 				{at: 2001, target: "rss", cands: []evCand{up("Newer.RSS", 5000)}}}, want: "Newer.RSS", last: 2000},
 	}
 	for _, c := range cases {
-		next, last := judgeUpgrade(c.it, c.recs)
+		next, last := judgeUpgrade(c.it, c.recs, nil)
 		got := ""
 		if next != nil {
 			got = next.Release

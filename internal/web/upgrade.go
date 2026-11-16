@@ -25,6 +25,9 @@ import (
 //   - RSS sightings (journal RSS reads) newer than both the file and that search add to it;
 //   - a release counts when it was accepted and marked an upgrade over the file, and it maps to the item (a
 //     candidate's episodes, or a search target's season and episode);
+//   - a release with a failed download of the title and library newer than the sighting (by its hash) was tried and
+//     failed: it is not found, so the best of the others is chosen; when every counted release was tried, the best
+//     tried one is still said (Why?'s "Tried …") without being found;
 //   - the best counted release (highest score, then newest) is what Theatarr would take next, with the engine's reason.
 
 // Cutoff is what a version's file is measured against: the profile that decides its state.
@@ -52,6 +55,9 @@ type UpgradeNext struct {
 	Source   string    `json:"source"`
 	SeenAt   time.Time `json:"seen_at"`
 	Episodes []string  `json:"episodes,omitempty"`
+	// tried: the release has a failed download of the title and library newer than the sighting (judgeUpgrade). It
+	// is said (Why?: "Tried …") but is not found: the state stays below_cutoff.
+	tried bool
 }
 
 // UpgradeInfo explains a version's (or one episode's) state against its cutoff.
@@ -89,6 +95,7 @@ func redactUpgrade(u *UpgradeInfo) {
 type evCand struct {
 	Release    string   `json:"release"`
 	Indexer    string   `json:"indexer"`
+	InfoHash   string   `json:"info_hash"`
 	Accepted   bool     `json:"accepted"`
 	Quality    string   `json:"quality"`
 	Score      int      `json:"score"`
@@ -178,9 +185,10 @@ func upgradeEvidencePool(it evItem, recs []evRecord) ([]*evRecord, int64) {
 	return pool, lastSearch
 }
 
-// judgeUpgrade applies the rule above to one item. It returns the best release seen (nil when none) and the time of
-// the newest search that covered the item (0 when none).
-func judgeUpgrade(it evItem, recs []evRecord) (*UpgradeNext, int64) {
+// judgeUpgrade applies the rule above to one item. failed is the newest failed download time per hash (lower case)
+// of the item's title and library. It returns the best release seen (nil when none; tried when every one was tried
+// after it was seen) and the time of the newest search that covered the item (0 when none).
+func judgeUpgrade(it evItem, recs []evRecord, failed map[string]int64) (*UpgradeNext, int64) {
 	pool, lastSearch := upgradeEvidencePool(it, recs)
 	var best *UpgradeNext
 	for _, r := range pool {
@@ -188,13 +196,45 @@ func judgeUpgrade(it evItem, recs []evRecord) (*UpgradeNext, int64) {
 			if !c.Accepted || !c.Upgrade || !candCovers(c, it) {
 				continue
 			}
-			if best == nil || c.Score > best.Score || (c.Score == best.Score && r.at > best.SeenAt.UnixMilli()) {
+			at, ok := failed[strings.ToLower(c.InfoHash)]
+			tried := c.InfoHash != "" && ok && at >= r.at
+			better := best == nil || (best.tried && !tried) ||
+				(best.tried == tried && (c.Score > best.Score || (c.Score == best.Score && r.at > best.SeenAt.UnixMilli())))
+			if better {
 				best = &UpgradeNext{Release: c.Release, Indexer: c.Indexer, Quality: c.Quality, Score: c.Score,
-					Reason: c.UpgradeWhy, Source: r.source, SeenAt: ts(r.at), Episodes: c.Episodes}
+					Reason: c.UpgradeWhy, Source: r.source, SeenAt: ts(r.at), Episodes: c.Episodes, tried: tried}
 			}
 		}
 	}
 	return best, lastSearch
+}
+
+// found reports whether a judged release counts as an upgrade found: seen and not tried since.
+func (n *UpgradeNext) found() bool { return n != nil && !n.tried }
+
+// loadFailedHashes reads, per title and library, the newest failed download time of each hash. Display only.
+func loadFailedHashes(ctx context.Context, db *sql.DB, titleIDs []int64) (map[titleKey]map[string]int64, error) {
+	out := map[titleKey]map[string]int64{}
+	if len(titleIDs) == 0 {
+		return out, nil
+	}
+	list, _ := json.Marshal(titleIDs)
+	err := scanAll(ctx, db, `SELECT title_id, version_key, LOWER(info_hash), MAX(created_at) FROM download
+		WHERE state = 'failed' AND COALESCE(info_hash, '') <> '' AND title_id IN (SELECT value FROM json_each(?))
+		GROUP BY title_id, version_key, LOWER(info_hash)`, []any{string(list)}, func(r *sql.Rows) error {
+		var k titleKey
+		var hash string
+		var at int64
+		if err := r.Scan(&k.titleID, &k.key, &hash, &at); err != nil {
+			return err
+		}
+		if out[k] == nil {
+			out[k] = map[string]int64{}
+		}
+		out[k][hash] = at
+		return nil
+	})
+	return out, err
 }
 
 type titleKey struct {
@@ -332,7 +372,9 @@ type upgradeSet struct {
 	files    map[int64]map[int64]itemFile
 	episodes map[int64][]upgradeEpisode
 	evidence map[titleKey][]evRecord
-	cutoffs  map[int64]*Cutoff
+	// failed is the newest failed download time per hash of each title and library (loadFailedHashes).
+	failed  map[titleKey]map[string]int64
+	cutoffs map[int64]*Cutoff
 	// With cutoffs: the versions whose quality-cutoff flags are stored (not prefer-SeaDex, a cutoff known), and a
 	// movie version's flag (version.below_quality_cutoff).
 	qualityJudged map[int64]bool
@@ -412,6 +454,9 @@ func (w *Web) upgradesWith(ctx context.Context, db *sql.DB, vs []upgradeVersion,
 	if s.evidence, err = loadEvidence(ctx, db, titles, items); err != nil {
 		return nil, err
 	}
+	if s.failed, err = loadFailedHashes(ctx, db, titles); err != nil {
+		return nil, err
+	}
 	if cutoffs {
 		s.cutoffs = w.loadCutoffs(vs)
 		if err := w.loadQualityFlags(ctx, db, vs, s); err != nil {
@@ -459,11 +504,13 @@ func (s *upgradeSet) explain(v upgradeVersion, episode int64) *UpgradeInfo {
 	u := &UpgradeInfo{State: "none", Cutoff: s.cutoffs[v.id]}
 	files := s.files[v.id]
 	recs := s.evidence[titleKey{v.titleID, v.key}]
+	failed := s.failed[titleKey{v.titleID, v.key}]
 	var lastSearch int64
 	belowQuality := false
+	// A found release wins over a tried one, then the higher score.
 	note := func(next *UpgradeNext, at int64) {
 		lastSearch = max(lastSearch, at)
-		if next != nil && (u.Next == nil || next.Score > u.Next.Score) {
+		if next != nil && (u.Next == nil || (u.Next.tried && !next.tried) || (u.Next.tried == next.tried && next.Score > u.Next.Score)) {
 			u.Next = next
 		}
 	}
@@ -479,7 +526,7 @@ func (s *upgradeSet) explain(v upgradeVersion, episode int64) *UpgradeInfo {
 		case "filled":
 			u.State = "below_cutoff"
 			belowQuality = s.belowQuality[v.id]
-			next, at := judgeUpgrade(evItem{fileAt: f.added}, recs)
+			next, at := judgeUpgrade(evItem{fileAt: f.added}, recs, failed)
 			note(next, at)
 		}
 	} else {
@@ -514,8 +561,8 @@ func (s *upgradeSet) explain(v upgradeVersion, episode int64) *UpgradeInfo {
 			if counts[k] > counts[best] {
 				best = k
 			}
-			next, at := judgeUpgrade(evItem{episodeID: e.id, season: e.season, number: e.number, fileAt: f.added}, recs)
-			if next != nil {
+			next, at := judgeUpgrade(evItem{episodeID: e.id, season: e.season, number: e.number, fileAt: f.added}, recs, failed)
+			if next.found() {
 				u.Seen++
 			}
 			note(next, at)
@@ -550,7 +597,7 @@ func (s *upgradeSet) explain(v upgradeVersion, episode int64) *UpgradeInfo {
 			}
 		}
 	}
-	if u.Next != nil {
+	if u.Next.found() {
 		u.State = "upgrade_available"
 	}
 	if s.qualityJudged[v.id] && u.State != "none" && u.State != "cutoff_met" {
@@ -571,12 +618,13 @@ func (s *upgradeSet) episodeSeen(v upgradeVersion) map[int64]bool {
 	if len(recs) == 0 {
 		return out
 	}
+	failed := s.failed[titleKey{v.titleID, v.key}]
 	for _, e := range s.episodes[v.id] {
 		f, ok := s.files[v.id][e.id]
 		if !ok || e.state != "filled" {
 			continue
 		}
-		if next, _ := judgeUpgrade(evItem{episodeID: e.id, season: e.season, number: e.number, fileAt: f.added}, recs); next != nil {
+		if next, _ := judgeUpgrade(evItem{episodeID: e.id, season: e.season, number: e.number, fileAt: f.added}, recs, failed); next.found() {
 			out[e.id] = true
 		}
 	}

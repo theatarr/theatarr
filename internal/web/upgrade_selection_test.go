@@ -87,3 +87,46 @@ func TestUpgradeEvidenceSelectsEachEpisodesCoveringHistory(t *testing.T) {
 		}
 	}
 }
+
+// A better release tried and failed after it was seen is not "Upgrade found"; another untried one still is, and the
+// tried one stays the sighting Why? tells when nothing else is left. Nothing is written.
+func TestUpgradeFoundClearsAfterAFailedTry(t *testing.T) {
+	t.Parallel()
+	e := newManageEnv(t, nil)
+	e.exec(`INSERT INTO journal_decision (source,title_id,version_key,target,created_at,candidates) VALUES
+		('search',1,'movie-remux','movie',2500,'[{"release":"Best","info_hash":"AAAA","accepted":true,"upgrade":true,"score":9000},
+		  {"release":"Second","info_hash":"bbbb","accepted":true,"upgrade":true,"score":5000}]')`)
+	fail := func(hash string, at int64) {
+		e.exec(`INSERT INTO download (title_id, version_id, version_key, info_hash, release_title, indexer, state, error,
+			created_at, updated_at) VALUES (1, 1, 'movie-remux', ?, 'r', 'x', 'failed', 'miss on every provider', ?, ?)`, hash, at, at)
+	}
+	v := upgradeVersion{id: 1, titleID: 1, key: "movie-remux", kind: "movie", state: "filled"}
+	explain := func() *UpgradeInfo {
+		t.Helper()
+		s, err := e.web.loadUpgrades(context.Background(), e.st.Reader(), []upgradeVersion{v}, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return s.explain(v, 0)
+	}
+	// A failure before the sighting does not count: the release may be cached since.
+	fail("aaaa", 1500)
+	if u := explain(); u.State != "upgrade_available" || u.Next.Release != "Best" {
+		t.Fatalf("older failure: %+v", u)
+	}
+	// Tried after the sighting (the hash in any case): the other release is found instead.
+	fail("aaaa", 2600)
+	if u := explain(); u.State != "upgrade_available" || u.Next.Release != "Second" {
+		t.Fatalf("one tried: %+v", u)
+	}
+	// Both tried: no upgrade found, the best one is still said.
+	fail("BBBB", 2700)
+	if u := explain(); u.State != "below_cutoff" || u.Next == nil || u.Next.Release != "Best" {
+		t.Fatalf("both tried: %+v", u)
+	}
+	// Another library's failure is not this library's.
+	e.exec(`UPDATE download SET version_key = 'movie-web' WHERE info_hash = 'BBBB'`)
+	if u := explain(); u.State != "upgrade_available" || u.Next.Release != "Second" {
+		t.Fatalf("other library: %+v", u)
+	}
+}
