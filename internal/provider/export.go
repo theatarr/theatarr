@@ -6,3 +6,7 @@ func CleanMessage(s string) string { return cleanMessage(s) }
 
 // CleanCode keeps a provider error code to a short token.
 func CleanCode(s string) string { return cleanCode(s) }
+
+// NormalizeMessage is CleanMessage without the length cut, for a page that shows a stored message in full (the
+// journal's entry page).
+func NormalizeMessage(s string) string { return normalizeMessage(s) }

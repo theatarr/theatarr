@@ -29,7 +29,13 @@ type builder struct {
 	// list: building a page of the list, where an adoption's line counts its group's files from its History row
 	// instead of reading them (they are listed on its entry).
 	list bool
+	// full: building the entry page, which shows stored messages and details in full; the list and the flags keep
+	// the short form (cleanText).
+	full bool
 }
+
+func (b *builder) msg(s string) string   { return cleanText(s, b.full) }
+func (b *builder) plain(s string) string { return plainText(s, b.full) }
 
 func (j *Journal) newBuilder(ctx context.Context) *builder {
 	return &builder{j: j, pol: j.policy(ctx), ctx: ctx, db: j.st.Reader(), titles: j.titleCache()}
@@ -187,7 +193,7 @@ func (b *builder) download(e *Entry, rest string) error {
 	}
 	e.Download = &Download{ID: d.id, State: d.state, Provider: d.provider, TorrentID: d.torrentID, Name: clean(d.name),
 		Cached: boolp(d.cached), Reused: d.reused, OwnAdd: boolp(d.ownAdd), Progress: d.progress,
-		Error: cleanMessage(d.errText), Source: d.source, CreatedAt: store.FromMillis(d.created), AddedAt: ms(d.added),
+		Error: b.msg(d.errText), Source: d.source, CreatedAt: store.FromMillis(d.created), AddedAt: ms(d.added),
 		ReadyAt: ms(d.ready), ImportedAt: ms(d.imported), PolicyRev: d.policyRev}
 	if run, ok := strings.CutPrefix(d.source, "acquire:"); ok {
 		// The revision the acquire run was queued under; finish keeps it only when it differs.
@@ -228,14 +234,14 @@ func (b *builder) download(e *Entry, rest string) error {
 		case d.state == "failed":
 			e.Label = "Failed"
 		}
-		outcome := grabOutcome(d.state, d.errText, len(linked), len(replaced), baseName(firstOf(replaced)))
+		outcome := grabOutcome(d.state, d.errText, len(linked), len(replaced), baseName(firstOf(replaced)), b.full)
 		if d.state == "ready" || d.state == "importing" {
 			// Its import's state, when it waits or was held.
 			st, why := d.liState.String, d.liErr.String
 			if st != "" && st != "linked" {
 				_, outcome = importWords(st, false)
 				if why != "" && st != "dry_run" {
-					outcome += ": " + plainDetail(why)
+					outcome += ": " + b.plain(why)
 				}
 			}
 		}
@@ -247,7 +253,7 @@ func (b *builder) download(e *Entry, rest string) error {
 			return err
 		}
 		for _, k := range kids {
-			e.After = append(e.After, Event{At: store.FromMillis(k.at), Kind: KindLink, Text: k.words(),
+			e.After = append(e.After, Event{At: store.FromMillis(k.at), Kind: KindLink, Text: k.words(b),
 				Ref: "lib:" + strconv.FormatInt(k.id, 10)})
 		}
 	case "fail":
@@ -255,9 +261,9 @@ func (b *builder) download(e *Entry, rest string) error {
 			return sql.ErrNoRows
 		}
 		e.Label = "Failed"
-		e.Summary = "Download failed: " + plainDetail(e.Download.Error)
+		e.Summary = "Download failed: " + b.plain(e.Download.Error)
 		if e.Kind == KindStall {
-			e.Label, e.Summary = "Stalled", "Download stalled: "+plainDetail(strings.TrimPrefix(e.Download.Error, "stalled: "))
+			e.Label, e.Summary = "Stalled", "Download stalled: "+b.plain(strings.TrimPrefix(e.Download.Error, "stalled: "))
 		}
 		e.Related = append(e.Related, "dl:"+idS)
 		if err := b.failures(e, d.titleID, d.version, d.updated); err != nil {
@@ -288,7 +294,7 @@ func (b *builder) attempts(e *Entry, dl int64) error {
 		if err := rows.Scan(&a.Provider, &a.Outcome, &a.Code, &a.Message, &retry, &at); err != nil {
 			return err
 		}
-		a.Message, a.At, a.RetryAt = cleanMessage(a.Message), store.FromMillis(at), ms(retry)
+		a.Message, a.At, a.RetryAt = b.msg(a.Message), store.FromMillis(at), ms(retry)
 		e.Attempts = append(e.Attempts, a)
 	}
 	return rows.Err()
@@ -446,7 +452,7 @@ func (b *builder) downloadAfter(e *Entry, d *dlRow, sub string) error {
 		if strings.HasPrefix(d.errText, "stalled") {
 			k = "stall"
 		}
-		add(sql.NullInt64{Int64: d.updated, Valid: true}, k, cleanMessage(d.errText), base+":fail")
+		add(sql.NullInt64{Int64: d.updated, Valid: true}, k, b.msg(d.errText), base+":fail")
 	}
 	if d.liState.Valid && sub != "import" {
 		_, words := importWords(d.liState.String, d.state == "failed")
@@ -468,7 +474,7 @@ func (b *builder) downloadAfter(e *Entry, d *dlRow, sub string) error {
 			rows.Close()
 			return err
 		}
-		bls = append(bls, Event{At: store.FromMillis(at), Kind: "blocklist", Text: src + ": " + cleanMessage(reason),
+		bls = append(bls, Event{At: store.FromMillis(at), Kind: "blocklist", Text: src + ": " + b.msg(reason),
 			Ref: "bl:" + strconv.FormatInt(id, 10)})
 	}
 	rows.Close()
@@ -507,7 +513,7 @@ func (b *builder) researchAfter(e *Entry, titleID int64, version string, after i
 	}
 	rows.Close()
 	for _, x := range evs {
-		add(sql.NullInt64{Int64: x.at, Valid: true}, "research", x.why+": "+x.state+" "+cleanMessage(x.text),
+		add(sql.NullInt64{Int64: x.at, Valid: true}, "research", x.why+": "+x.state+" "+b.msg(x.text),
 			"run:"+strconv.FormatInt(x.id, 10))
 	}
 	return rows.Err()
@@ -570,7 +576,7 @@ func (b *builder) libraryImport(e *Entry, d *dlRow) error {
 		d.id).Scan(&state, &errText, &plan); err != nil {
 		return err
 	}
-	im := &Import{State: state, Error: cleanMessage(errText.String)}
+	im := &Import{State: state, Error: b.msg(errText.String)}
 	var p planJSON
 	_ = json.Unmarshal([]byte(plan), &p)
 	for _, f := range p.Files {
@@ -601,7 +607,7 @@ func (b *builder) libraryImport(e *Entry, d *dlRow) error {
 		im.Files = append(im.Files, file)
 	}
 	for _, r := range p.Rejected {
-		why := cleanMessage(r.Reason)
+		why := b.msg(r.Reason)
 		if len(r.Episodes) > 0 {
 			why += " (" + strings.Join(r.Episodes, ", ") + ")"
 		}
@@ -646,9 +652,9 @@ func (b *builder) libraryImport(e *Entry, d *dlRow) error {
 	why := ""
 	switch {
 	case p.Refused != "":
-		why = plainDetail(p.Refused)
+		why = b.plain(p.Refused)
 	case im.Error != "":
-		why = plainDetail(im.Error)
+		why = b.plain(im.Error)
 	}
 	var linked []string
 	for _, l := range im.Links {
@@ -684,22 +690,22 @@ type libKid struct {
 }
 
 // words is the action as a line of the grab's "What followed".
-func (k libKid) words() string {
+func (k libKid) words(b *builder) string {
 	verb := map[string]string{"link": "link", "replace": "replace"}[k.kind]
 	switch k.mode {
 	case "applied":
 	case "dry_run":
-		return join("Dry run: would "+verb+" "+baseName(k.path), plainDetail(k.detail))
+		return join("Dry run: would "+verb+" "+baseName(k.path), b.plain(k.detail))
 	default:
-		return join("Could not "+verb+" "+baseName(k.path), plainDetail(k.detail))
+		return join("Could not "+verb+" "+baseName(k.path), b.plain(k.detail))
 	}
 	if k.kind == "link" {
 		return "Linked " + baseName(k.path)
 	}
 	if strings.HasPrefix(k.detail, "import undone") {
-		return join("Import undone for "+baseName(k.path), plainDetail(strings.TrimPrefix(k.detail, "import undone: ")))
+		return join("Import undone for "+baseName(k.path), b.plain(strings.TrimPrefix(k.detail, "import undone: ")))
 	}
-	return join("Replaced "+baseName(k.path), plainDetail(k.detail))
+	return join("Replaced "+baseName(k.path), b.plain(k.detail))
 }
 
 // downloadLinks are download id's applied link and replace actions, oldest first.
@@ -768,9 +774,9 @@ func (b *builder) libWords(e *Entry, id int64, kind, mode, path, detail string, 
 	verbs := map[string]string{"link": "link", "replace": "replace", "relink": "relink", "dead": "mark missing"}
 	switch {
 	case mode == "dry_run":
-		e.Label, e.Summary = "Dry run", join("Dry run: would "+verbs[kind]+" "+name, plainDetail(detail))
+		e.Label, e.Summary = "Dry run", join("Dry run: would "+verbs[kind]+" "+name, b.plain(detail))
 	case mode != "applied":
-		e.Label, e.Summary = "Not done", join("Could not "+verbs[kind]+" "+name, plainDetail(detail))
+		e.Label, e.Summary = "Not done", join("Could not "+verbs[kind]+" "+name, b.plain(detail))
 	case kind == "link" && withDownload:
 		e.Label, e.Summary = "Linked", "Linked "+name
 	case kind == "link" && strings.HasPrefix(strings.ToLower(detail), "adopted from "):
@@ -779,15 +785,15 @@ func (b *builder) libWords(e *Entry, id int64, kind, mode, path, detail string, 
 		if strings.HasPrefix(detail, "linked ") {
 			detail = "" // the file it links to, on the entry
 		}
-		e.Label, e.Summary = "Linked", join("Linked "+name, plainDetail(detail))
+		e.Label, e.Summary = "Linked", join("Linked "+name, b.plain(detail))
 	case kind == "replace" && withDownload:
 		k := libKid{kind: kind, mode: mode, path: path, detail: detail}
-		e.Label, e.Summary = "Replaced", k.words()
+		e.Label, e.Summary = "Replaced", k.words(b)
 		if strings.HasPrefix(detail, "import undone") {
 			e.Label = "Import undone"
 		}
 	case kind == "replace" && strings.HasPrefix(detail, "change of episodes failed"):
-		e.Label, e.Summary = "Put back", join(name, plainDetail(detail))
+		e.Label, e.Summary = "Put back", join(name, b.plain(detail))
 	case kind == "replace":
 		e.Label = "Removed"
 		if r, ok := strings.CutPrefix(detail, "unlinked ("); ok {
@@ -795,24 +801,24 @@ func (b *builder) libWords(e *Entry, id int64, kind, mode, path, detail string, 
 			rest = strings.TrimPrefix(rest, " to ")
 			trash := "moved to the trash"
 			if _, more, ok := strings.Cut(rest, "; "); ok {
-				trash = join(trash, plainDetail(more))
+				trash = join(trash, b.plain(more))
 			} else if rest == "" {
 				trash = "already gone"
 			}
-			e.Summary = join("Removed "+name, plainDetail(byWhom(why)), trash)
+			e.Summary = join("Removed "+name, b.plain(byWhom(why)), trash)
 		} else {
-			e.Summary = join("Removed "+name, plainDetail(detail))
+			e.Summary = join("Removed "+name, b.plain(detail))
 		}
 		return b.unlinkAction(e, path)
 	case kind == "relink":
-		e.Label, e.Summary = "Relinked", join("Relinked "+name, plainDetail(detail))
+		e.Label, e.Summary = "Relinked", join("Relinked "+name, b.plain(detail))
 	case kind == "dead":
 		if missingHash.MatchString(detail) {
 			detail = "" // only the file's hash
 		}
-		e.Label, e.Summary = "Missing", join("Missing "+name, plainDetail(detail))
+		e.Label, e.Summary = "Missing", join("Missing "+name, b.plain(detail))
 	default:
-		e.Label, e.Summary = kind, join(name, plainDetail(detail))
+		e.Label, e.Summary = kind, join(name, b.plain(detail))
 	}
 	return nil
 }
@@ -839,6 +845,9 @@ func (b *builder) unlinkAction(e *Entry, path string) error {
 	return nil
 }
 
+// tipFiles is how many of an adoption's files the list's tooltip names before "and N more".
+const tipFiles = 5
+
 // adoption words an adoption's action. The first file of its History group (one row per title, library, release and
 // day) stands for the group's other files and for the files the adoption replaced (History's own pairing):
 // "Adopted 8 files of Season 1 from Sonarr (sonarr_4k) · replaced 2 files".
@@ -849,9 +858,27 @@ func (b *builder) adoption(e *Entry, id int64, name, detail string) error {
 	e.Summary = "Adopted " + name + from
 	ref := "lib:" + strconv.FormatInt(id, 10)
 	var pAt, files int64
-	var rel, eps string
-	err := b.db.QueryRowContext(b.ctx, `SELECT at, COALESCE(release, ''), episodes, files FROM history WHERE ref = ?
-		AND event = 'adopted'`, ref).Scan(&pAt, &rel, &eps, &files)
+	var rel, eps, more string
+	// The list's tooltip names the group's first files: up to tipFiles-1 more besides this one, read in the same
+	// statement (the group's other actions follow its first, on the day of the group's row; the entry reads them all
+	// below).
+	moreSQL := `'[]'`
+	if b.list {
+		moreSQL = `(SELECT json_group_array(path) FROM (SELECT COALESCE(la.path, '') AS path FROM library_action la
+			WHERE la.at >= (SELECT at FROM library_action WHERE id = ?2) AND la.at < h.at / 86400000 * 86400000 + 86400000
+			AND la.id <> ?2 AND la.kind = 'link'
+			AND la.mode = 'applied' AND la.download_id IS NULL AND la.detail LIKE 'adopted from %'
+			AND ` + libTitleSQL + ` = ?3 AND COALESCE(la.version_key, '') = ?4
+			AND ` + store.HistoryAdoptReleaseSQL + ` = COALESCE(h.release, '')
+			AND NOT EXISTS (SELECT 1 FROM history o WHERE o.ref = 'lib:' || la.id) ORDER BY la.at, la.id LIMIT ` +
+			strconv.Itoa(tipFiles-1) + `))`
+	}
+	args := []any{ref}
+	if b.list {
+		args = append(args, id, e.Title.ID, e.Version)
+	}
+	err := b.db.QueryRowContext(b.ctx, `SELECT at, COALESCE(release, ''), episodes, files, `+moreSQL+` FROM history h
+		WHERE ref = ?1 AND event = 'adopted'`, args...).Scan(&pAt, &rel, &eps, &files, &more)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil // one of a group's other files, or no History row
 	}
@@ -910,7 +937,7 @@ func (b *builder) adoption(e *Entry, id int64, name, detail string) error {
 		if r, ok := strings.CutPrefix(d, "unlinked ("); ok {
 			why, _, _ = strings.Cut(r, "), moved aside")
 		}
-		f.what = join("Removed "+baseName(f.path), plainDetail(byWhom(why)))
+		f.what = join("Removed "+baseName(f.path), b.plain(byWhom(why)))
 		replaced = append(replaced, f)
 	}
 	rows.Close()
@@ -934,6 +961,14 @@ func (b *builder) adoption(e *Entry, id int64, name, detail string) error {
 			names = append(names, baseName(f.path))
 		}
 		e.Summary = join(e.Summary, "replaced "+filesWord(names))
+	}
+	if b.list {
+		var paths []string
+		_ = json.Unmarshal([]byte(more), &paths)
+		e.Paths = append(e.Paths, paths...)
+		if left := n - 1 - len(paths); left > 0 && len(paths) == tipFiles-1 {
+			e.Paths = append(e.Paths, fmt.Sprintf("and %d more", left))
+		}
 	}
 	for _, f := range append(members, replaced...) {
 		e.Paths = append(e.Paths, f.path)
@@ -978,7 +1013,7 @@ func (b *builder) blocklist(e *Entry, rest string) error {
 	}
 	e.Release = &Release{Title: clean(release), InfoHash: hash}
 	e.Label = "Blocked"
-	e.Summary = "Blocked " + e.Release.Title + ": " + plainDetail(reason)
+	e.Summary = "Blocked " + e.Release.Title + ": " + b.plain(reason)
 	if dl.Valid {
 		ref := "dl:" + strconv.FormatInt(dl.Int64, 10)
 		e.Related = append(e.Related, ref)
@@ -992,8 +1027,7 @@ func (b *builder) blocklist(e *Entry, rest string) error {
 		// The row is marked whether or not a search was asked for (a library that may not write, a release added by
 		// hand). The ask is the acquire.research job router/research.go queues for this row just before the mark,
 		// keyed "acquire.research/<library>/<title>/<source>/<download>/<ms>"; it stays recorded while it waits
-		// (Pause, the hourly allowance) and until finished jobs are pruned.
-		text := "Not recorded whether a new search ran"
+		// (Pause, the hourly allowance) and until finished jobs are pruned. Only a recorded ask gets a line.
 		prefix := router.JobResearch + "/" + e.Version + "/" + strconv.FormatInt(titleID.Int64, 10) + "/" + source + "/" +
 			strconv.FormatInt(dl.Int64, 10) + "/"
 		var asked bool
@@ -1003,9 +1037,9 @@ func (b *builder) blocklist(e *Entry, rest string) error {
 			return err
 		}
 		if asked {
-			text = "Search again requested"
+			e.After = append(e.After, Event{At: store.FromMillis(researched.Int64), Kind: "research",
+				Text: "Search again requested"})
 		}
-		e.After = append(e.After, Event{At: store.FromMillis(researched.Int64), Kind: "research", Text: text})
 	}
 	return b.failures(e, titleID.Int64, e.Version, store.Millis(e.At))
 }
@@ -1032,7 +1066,7 @@ func (b *builder) run(e *Entry, rest string) error {
 	if failure {
 		e.Label, why = "Search after a failure", research.String
 	}
-	e.Summary = searchWords(source, target, state, why, message)
+	e.Summary = searchWords(source, target, state, why, message, b.full)
 	r, err := b.snapshotFor("acquire:"+rest, e.Title.ID, e.Version, created+24*3600*1000)
 	if err != nil {
 		return err

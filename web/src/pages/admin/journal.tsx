@@ -271,7 +271,7 @@ export function JournalEntryPage() {
                 <li key={i} className="flex flex-wrap items-baseline gap-2 px-4 py-2">
                   <span className="whitespace-nowrap text-[13px] text-muted-foreground">{fmtTime(a.at)}</span>
                   <KindBadge kind={a.kind} />
-                  {a.ref ? <Link className="hover:text-primary" to={journalLink(a.ref)}>{a.text}</Link> : <span>{a.text}</span>}
+                  {a.ref ? <Link className="min-w-0 [overflow-wrap:anywhere] hover:text-primary" to={journalLink(a.ref)}>{a.text}</Link> : <span className="min-w-0 [overflow-wrap:anywhere]">{a.text}</span>}
                 </li>
               ))}
             </ul>

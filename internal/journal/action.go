@@ -144,8 +144,8 @@ var actionWords = map[string][2]string{
 	ActUnlinkFile:     {"Removed", "Removed"},
 }
 
-// actionDetail is an action's detail in plain words.
-func actionDetail(a *Action) string {
+// actionDetail is an action's detail in plain words (in full for the entry page).
+func actionDetail(a *Action, full bool) string {
 	switch a.Action {
 	case ActRemoveVersion, ActRemoveTitle:
 		r := ParseRemovalDetail(a.Detail)
@@ -153,24 +153,24 @@ func actionDetail(a *Action) string {
 			RemovalFilesPartial: "some files moved to the trash"}[r.Files]
 		left := ""
 		if r.Left > 0 {
-			left = fmt.Sprintf("%d left in place: %s", r.Left, plainDetail(r.Reason))
+			left = fmt.Sprintf("%d left in place: %s", r.Left, plainText(r.Reason, full))
 		}
 		cleanup := ""
 		if r.Cleanup != "" {
-			cleanup = "debrid clean-up: " + plainDetail(r.Cleanup)
+			cleanup = "debrid clean-up: " + plainText(r.Cleanup, full)
 		}
 		return join(files, left, cleanup)
 	case ActUnlinkFile:
-		d := plainDetail(a.Detail)
+		d := plainText(a.Detail, full)
 		if strings.HasSuffix(d, " when its library was removed") {
 			return join(strings.TrimSuffix(d, " when its library was removed"), "library removed")
 		}
 		return d
 	case ActGrab:
 		d := strings.Replace(a.Detail, "routed although rejected", "although rejected", 1)
-		return plainDetail(strings.TrimSuffix(strings.TrimSuffix(d, "routed"), ": "))
+		return plainText(strings.TrimSuffix(strings.TrimSuffix(d, "routed"), ": "), full)
 	}
-	return plainDetail(a.Detail)
+	return plainText(a.Detail, full)
 }
 
 // actionEntry is an operator action's own entry.
@@ -211,7 +211,7 @@ func (b *builder) actionEntry(e *Entry, rest string) error {
 		head += " " + what
 	}
 	e.Label = words[0]
-	e.Summary = join(head, "by "+orDash(a.By), actionDetail(a))
+	e.Summary = join(head, "by "+orDash(a.By), actionDetail(a, b.full))
 	return nil
 }
 

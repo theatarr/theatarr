@@ -58,9 +58,12 @@ func filesWord(names []string) string {
 var pathEnds = []string{`"`, ": ", "; ", ", "}
 
 // plainDetail is a free-text detail with every path cut to its file name and "moved aside to <trash path>" said as
-// "moved to the trash".
-func plainDetail(s string) string {
-	s = strings.ReplaceAll(cleanMessage(s), "moved aside to the trash", "moved to the trash")
+// "moved to the trash", in the short form (plainText).
+func plainDetail(s string) string { return plainText(s, false) }
+
+// plainText is plainDetail, in full when full is set (cleanText).
+func plainText(s string, full bool) string {
+	s = strings.ReplaceAll(cleanText(s, full), "moved aside to the trash", "moved to the trash")
 	for _, p := range []string{"moved aside to ", "moved to "} {
 		for i := 0; ; {
 			k := strings.Index(s[i:], p)
@@ -114,7 +117,7 @@ func join(parts ...string) string {
 }
 
 // grabOutcome is what became of a download, in words: imported (with the files it replaced), failed, or where it is.
-func grabOutcome(state, errText string, linked, replaced int, replacedName string) string {
+func grabOutcome(state, errText string, linked, replaced int, replacedName string, full bool) string {
 	switch state {
 	case "imported":
 		s := "imported"
@@ -132,7 +135,7 @@ func grabOutcome(state, errText string, linked, replaced int, replacedName strin
 		if errText == "" {
 			return "failed"
 		}
-		return "failed: " + plainDetail(errText)
+		return "failed: " + plainText(errText, full)
 	case "queued":
 		return "waiting"
 	case "adding", "added":
@@ -171,7 +174,7 @@ func importWords(state string, failed bool) (label, words string) {
 }
 
 // searchWords is a search run in words: who searched, what for, and what came of it.
-func searchWords(source, target, state, research, message string) string {
+func searchWords(source, target, state, research, message string, full bool) string {
 	who := "Search"
 	switch source {
 	case "wanted":
@@ -191,7 +194,7 @@ func searchWords(source, target, state, research, message string) string {
 	if target != "" && target != "movie" {
 		who += " (" + target + ")"
 	}
-	message = plainDetail(message)
+	message = plainText(message, full)
 	switch state {
 	case "nothing":
 		return join(who+": nothing grabbed", message)

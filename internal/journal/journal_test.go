@@ -259,7 +259,7 @@ func TestDownloadEntries(t *testing.T) {
 		t.Errorf("blocklist: %+v", b)
 	}
 	// The re-search mark says a search was asked for only when its request is recorded: the queued
-	// acquire.research job of that blocklist row (router/research.go), whatever its state.
+	// acquire.research job of that blocklist row (router/research.go), whatever its state; without one, no line.
 	researchText := func() string {
 		for _, ev := range e.get("bl:1").After {
 			if ev.Kind == "research" {
@@ -268,7 +268,7 @@ func TestDownloadEntries(t *testing.T) {
 		}
 		return ""
 	}
-	if got := researchText(); got != "Not recorded whether a new search ran" {
+	if got := researchText(); got != "" {
 		t.Errorf("re-search without a request: %q", got)
 	}
 	at := testNow.Add(-2 * time.Hour) // seedRoute's
@@ -741,6 +741,11 @@ func TestListFolds(t *testing.T) {
 		"/movies/Alpha (2020)/Alpha (2020) [Remux-2160p]-OLD.mkv") {
 		t.Errorf("grab line flags %+v paths %v", g.Flags, g.Paths)
 	}
+	// The adoption's tooltip names its files and the one it replaced.
+	if g := all.Items[1]; !slices.Equal(g.Paths, []string{"/tv/Gamma/Season 01/Gamma - S01E01.mkv",
+		"/tv/Gamma/Season 01/Gamma - S01E02.mkv", "/tv/Gamma/Season 01/Gamma - S01E01 old.mkv"}) {
+		t.Errorf("adoption line paths %v", g.Paths)
+	}
 	// What followed names every entry a line stands for; each opens, in plain words.
 	refs := func(id string) []string {
 		var out []string
@@ -925,6 +930,45 @@ func TestListAdoptionAfterPrune(t *testing.T) {
 	}
 	if got := ids(e.list(Filter{})); !slices.Equal(got, []string{"lib:1"}) {
 		t.Errorf("after the prune: %v", got)
+	}
+}
+
+// A large adoption's line names its first five files and how many more; its entry lists them all.
+func TestListAdoptionPaths(t *testing.T) {
+	e := newEnv(t)
+	at := testNow.Add(-2 * time.Hour)
+	var want []string
+	for i := 1; i <= 7; i++ {
+		p := fmt.Sprintf("/tv/Gamma/Season 01/Gamma - S01E%02d.mkv", i)
+		want = append(want, p)
+		e.exec(`INSERT INTO library_action (id, at, kind, mode, version_key, path, detail, release_title, quality,
+			title_id, episodes) VALUES (?, ?, 'link', 'applied', 'tv-2160p', ?, 'adopted from sonarr_4k /a/x.mkv', 'G.S01',
+			'WEBDL-2160p', 3, ?)`, i, msOf(at.Add(time.Duration(i)*time.Second)), p, fmt.Sprintf("[%d]", 100+i))
+	}
+	line := e.list(Filter{})
+	if len(line.Items) != 1 || !slices.Equal(line.Items[0].Paths, append(slices.Clone(want[:5]), "and 2 more")) {
+		t.Fatalf("line: %q %q", line.Items[0].Summary, line.Items[0].Paths)
+	}
+	if got := e.get("lib:1").Paths; !slices.Equal(got, want) {
+		t.Errorf("entry paths %v", got)
+	}
+}
+
+// A long stored message is cut on the list and shown in full on the entry, redacted the same way.
+func TestEntryFullText(t *testing.T) {
+	e := newEnv(t)
+	long := "Import refused: " + strings.Repeat("Gamma (2019-2021) Season 1+2 ", 8) + "see https://x.example/?apikey=abc123 end"
+	e.exec(`INSERT INTO library_action (id, at, kind, mode, version_key, path, detail, title_id) VALUES
+		(1, ?, 'link', 'failed', 'tv-2160p', '/tv/Gamma/Season 01/Gamma - S01E01.mkv', ?, 3)`,
+		msOf(testNow.Add(-time.Hour)), long)
+	list := e.list(Filter{}).Items[0].Summary
+	full := e.get("lib:1").Summary
+	if !strings.HasSuffix(list, "…") || !strings.HasSuffix(full, "[redacted] end") ||
+		!strings.Contains(full, strings.Repeat("Gamma (2019-2021) Season 1+2 ", 8)) {
+		t.Errorf("list %q\nfull %q", list, full)
+	}
+	if strings.Contains(full, "abc123") || strings.Contains(full, "apikey") {
+		t.Errorf("secret in %q", full)
 	}
 }
 

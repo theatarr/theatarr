@@ -51,7 +51,11 @@ well). The flagged view (`suspect`, `severity`) folds nothing: each flagged entr
 is the number of lines.
 
 Every summary names files by their file names only; the full paths are in `paths` (the UI's tooltip, and listed on the
-entry). `label` is the kind in History's words: Grabbed, Upgraded, Imported, Import held, Import waiting, Dry run,
+entry). On the list an adoption's line carries its first five files' paths and then "and N more" (read in the statement
+that reads its History row, so no query is added per line); the entry lists them all. Stored messages and details
+(failure and block reasons, import errors, provider attempts) are cut to 120 characters on the list and the stored
+flags, and shown in full on the entry (`GET /journal/{id}`, `theatarr journal -id`), redacted the same way; text that
+was stored already cut stays cut. `label` is the kind in History's words: Grabbed, Upgraded, Imported, Import held, Import waiting, Dry run,
 Linked, Adopted, Replaced, Removed, Missing, Relinked, Failed, Stalled, Blocked, Search, Search after a failure, and an
 action's own (Grabbed by hand, Download removed, Retried, Unblocked, Title removed, Removed; a copy's removal reads
 "Removed from the library"). A grab's line reads Upgraded only once its download replaced a file, Failed when the download
@@ -60,8 +64,8 @@ What followed lists every link and replace action of the download, dry runs and 
 count in the line's "imported N files" and "replaced".
 A blocklist entry's What followed says "Search again requested" once its row was marked for a re-search and the
 search it asked for is recorded (the queued `acquire.research` job of that row, waiting or run, until finished jobs are
-pruned); a marked row without one (a library that could not write, a release added by hand, a pruned job) reads "Not
-recorded whether a new search ran". The entry page only: the list does not look it up. On the entry page a provider attempt's
+pruned); a marked row without one (a library that could not write, a release added by hand, a pruned job) has no such
+line. The entry page only: the list does not look it up. On the entry page a provider attempt's
 reason is a second line under its outcome on a phone.
 
 A good first pass:

@@ -158,6 +158,15 @@ func clean(s string) string {
 // length).
 func cleanMessage(s string) string { return clean(provider.CleanMessage(s)) }
 
+// cleanText is cleanMessage, cut to the short form unless full (the entry page shows a message in full; the
+// redaction is the same either way).
+func cleanText(s string, full bool) string {
+	if full {
+		return clean(provider.NormalizeMessage(s))
+	}
+	return cleanMessage(s)
+}
+
 func cleanCandidate(c *snapshot.Candidate) {
 	c.Release, c.Indexer = clean(c.Release), clean(c.Indexer)
 	for i := range c.Rejections {

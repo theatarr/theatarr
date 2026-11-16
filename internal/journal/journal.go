@@ -501,6 +501,7 @@ func (j *Journal) Get(ctx context.Context, id string) (*Entry, error) {
 		return nil, err
 	}
 	b := j.newBuilder(ctx)
+	b.full = true
 	e, err := b.load(h)
 	if err != nil {
 		return nil, err
