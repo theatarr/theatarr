@@ -201,7 +201,7 @@ file refusals the import's plan saved, the providers the download's own attempts
 |---|---|---|
 | not an upgrade (`not an upgrade for the existing files`, or an upgrade-check rejection inside the old `no file passed the sample guard (…)`) | Not imported: these files do not improve on the files you have | "This release scores 1,202, yours 6,200. Nothing was replaced." (scores or qualities when stored) |
 | a coverage refusal ("Episode file on disk contains more episodes …": replacing would lose episodes) | Not imported: the files you have cover more episodes | Nothing was replaced. |
-| several files refused for different reasons (every refusal the import's plan saved is read; scores only for one comparison) | Not imported: the library refused its files | Different files were refused for different reasons. |
+| several files refused for different reasons (every refusal the import's plan saved is read; a pack's extras refused as samples are left out when other files were refused for another reason; the scores are shown when every file compared the same) | Not imported: the library refused its files | Different files were refused for different reasons. |
 | a sample or short runtime | Not imported: the file is a sample or too short | the measure: "The file runs 4 min, under the 10 min minimum." |
 | `mislabelled …`, a resolution that contradicts the label | Not imported: the video does not match its quality label | "Labelled 2160p, but the video is 1920x1080." |
 | runtime of 0 | Not imported: not a valid video file | |

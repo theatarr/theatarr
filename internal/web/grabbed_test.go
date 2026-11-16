@@ -79,9 +79,20 @@ func TestFailureWords(t *testing.T) {
 		{"failed wrapper, sample (the saved file refusal)", failureFacts{Err: "library: no file passed the sample guard",
 			ImportState: "rejected", ImportErr: "no file passed the sample guard", Refusals: []string{"sample: runtime 240s is under 600s"}},
 			sampleWords, "The file runs 4 min, under the 10 min minimum."},
-		// Every saved refusal counts: one class reads as it (scores only for one comparison); mixed ones say so.
-		{"two comparisons", failureFacts{Err: "library: no file passed the sample guard",
-			Blocked: "no file passed the sample guard (" + cf + ")", Refusals: []string{cf, cf}}, notUpgradeWords, "Nothing was replaced."},
+		// Every saved refusal counts: one class reads as it (its scores when every file compared the same); a pack's
+		// short extras refused as samples do not hide why its episodes were refused; mixed ones say so.
+		{"two comparisons, the same scores", failureFacts{Err: "library: no file passed the sample guard",
+			Blocked: "no file passed the sample guard (" + cf + ")", Refusals: []string{cf, cf}}, notUpgradeWords,
+			"This release scores 1,202, yours 6,200. Nothing was replaced."},
+		{"two comparisons, different scores", failureFacts{Err: "library: no file passed the sample guard",
+			Blocked: "no file passed the sample guard (" + cf + ")", Refusals: []string{cf, strings.Replace(cf, "(1202)", "(900)", 1)}},
+			notUpgradeWords, "Nothing was replaced."},
+		{"comparisons and sample extras", failureFacts{Err: "library: no file passed the sample guard",
+			Blocked: "no file passed the sample guard (" + cf + ")", Refusals: []string{cf, cf, "sample: runtime 90s is under 600s"}},
+			notUpgradeWords, "This release scores 1,202, yours 6,200. Nothing was replaced."},
+		{"only samples", failureFacts{Err: "library: no file passed the sample guard", ImportState: "rejected",
+			ImportErr: "no file passed the sample guard", Refusals: []string{"sample: runtime 90s is under 600s", "sample: runtime 300s is under 600s"}},
+			sampleWords, ""},
 		{"comparison and coverage", failureFacts{Err: "library: no file passed the sample guard",
 			Blocked: "no file passed the sample guard (" + cf + ")", Refusals: []string{cf,
 				"Episode file on disk contains more episodes than this file contains: /lib/S01E01-E02.mkv"}},

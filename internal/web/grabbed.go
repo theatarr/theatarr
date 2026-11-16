@@ -217,26 +217,44 @@ func failureSentences(f failureFacts, tag func(string) string) (headline, detail
 }
 
 // refusalsWords reads every file refusal the import's plan saved, for a refusal whose own text names one file at
-// most (the wrappers "no file passed the sample guard" and "not an upgrade for the existing files"): one class reads
-// as that class (its detail when one file was refused, else the class's own), different classes as mixedWords. ok is
-// false when there is nothing to read: no saved refusal, another text, or a lone refusal fileWords does not know.
+// most (the wrappers "no file passed the sample guard" and "not an upgrade for the existing files"). A pack's short
+// extras refused as samples are not why its episodes were not imported: they are left out when other files were
+// refused for another reason. One class then reads as that class, with its detail when every file's detail is the
+// same (one comparison, or the same scores for each episode) and the class's own otherwise; different classes read
+// as mixedWords. ok is false when there is nothing to read: no saved refusal, another text, or a lone refusal
+// fileWords does not know.
 func refusalsWords(s string, refusals []string) (headline, detail string, ok bool) {
 	reason, _, _ := strings.Cut(s, " (")
 	if (reason != sampleGuardWords && reason != notUpgradeReason) || len(refusals) == 0 {
 		return "", "", false
 	}
-	for i, r := range refusals {
+	type words struct{ headline, detail string }
+	var all, others []words
+	for _, r := range refusals {
 		h, d, known := fileWords(r)
 		switch {
 		case !known && len(refusals) == 1:
 			return "", "", false
-		case !known, i > 0 && h != headline:
+		case !known:
 			return mixedWords, mixedDetail, true
-		case i == 0:
-			headline, detail = h, d
+		}
+		all = append(all, words{h, d})
+		if h != sampleWords {
+			others = append(others, words{h, d})
 		}
 	}
-	if len(refusals) > 1 {
+	if len(others) > 0 {
+		all = others
+	}
+	headline, detail = all[0].headline, all[0].detail
+	same := true
+	for _, x := range all[1:] {
+		if x.headline != headline {
+			return mixedWords, mixedDetail, true
+		}
+		same = same && x.detail == detail
+	}
+	if !same {
 		detail = ""
 		if headline == notUpgradeWords || headline == coverWords {
 			detail = nothingReplaced
