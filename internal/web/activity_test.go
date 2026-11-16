@@ -1230,7 +1230,8 @@ func TestActivityRefusedReason(t *testing.T) {
 	e.exec(`UPDATE library_import SET last_error = 'not an upgrade for the existing files', plan = ? WHERE download_id = 1`,
 		`{"rejected":[{"rel":"a.mkv","reason":"`+cf+`","not_upgrade":true}]}`)
 	store.HistoryHeld(context.Background(), e.st.Writer(), 1)
-	if r := failedRow("dl:1:held"); r.Reason != head {
+	held := "Held for review: these files do not improve on the files you have"
+	if r := failedRow("dl:1:held"); r.Reason != held {
 		t.Errorf("history held row %q", r.Reason)
 	}
 	var u ActivityPage
@@ -1239,7 +1240,7 @@ func TestActivityRefusedReason(t *testing.T) {
 		t.Errorf("user view %+v", u.Now)
 	}
 	e.getKey(APIBase+"/activity?state=now", key, &p)
-	if len(p.Now) != 1 || p.Now[0].Reason != head || p.Now[0].ReasonDetail != detail {
+	if len(p.Now) != 1 || p.Now[0].Reason != held || p.Now[0].ReasonDetail != detail {
 		t.Errorf("held %+v", p.Now)
 	}
 }

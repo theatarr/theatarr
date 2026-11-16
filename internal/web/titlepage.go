@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"slices"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/theatarr/theatarr/internal/activity"
@@ -341,9 +342,9 @@ func (w *Web) versionHistory(ctx context.Context, db *sql.DB, titleID int64, kin
 			WHERE a.download_id = download.id AND a.code IN (`+missCodes+`)) END,
 		CASE WHEN state = 'failed' THEN (SELECT b.reason FROM router_blocklist b WHERE b.download_id = download.id
 			ORDER BY b.created_at DESC LIMIT 1) END,
-		CASE WHEN state = 'failed' THEN (SELECT json_extract(j.value, '$.reason') FROM library_import li,
+		CASE WHEN state = 'failed' THEN (SELECT json_group_array(json_extract(j.value, '$.reason')) FROM library_import li,
 			json_each(CASE WHEN json_valid(li.plan) THEN li.plan ELSE '{}' END, '$.rejected') j
-			WHERE li.download_id = download.id LIMIT 1) END
+			WHERE li.download_id = download.id) END
 		FROM download WHERE title_id = ? ORDER BY created_at, id`,
 		[]any{titleID}, func(r *sql.Rows) error {
 			var dlID, vid, created, done, score int64
@@ -356,8 +357,10 @@ func (w *Web) versionHistory(ctx context.Context, db *sql.DB, titleID int64, kin
 				&score, &source, &errText, &notStarted, &upgrade, &missed, &blocked, &refusal); err != nil {
 				return err
 			}
-			// The library's refusal is read from its blocklist row, or the file refusal its plan saved (failureWords).
-			errText = storedFailure(failureFacts{Err: errText, Blocked: blocked.String, Refusal: refusal.String})
+			// The library's refusal is read from its blocklist row and the file refusals its plan saved (failureWords).
+			fail := failureFacts{Err: errText, Blocked: blocked.String, Refusals: refusalList(refusal.String),
+				Provider: h.Source, MissedOn: h.MissedOn}
+			errText = storedFailure(fail)
 			if missed.Valid {
 				var provs []string
 				_ = json.Unmarshal([]byte(missed.String), &provs)
@@ -379,6 +382,9 @@ func (w *Web) versionHistory(ctx context.Context, db *sql.DB, titleID int64, kin
 			}
 			h.Score, h.DownloadID, h.Upgrade = &score, dlID, upgrade
 			v.History = downloadEvents(v.History, h, state, created, done, source, errText, notStarted, run)
+			if last := &v.History[len(v.History)-1]; last.Event == "failed" {
+				last.Reason, _ = failureWords(fail, strings.ToUpper)
+			}
 			return nil
 		})
 	if err != nil {

@@ -124,7 +124,8 @@ describe("failedLead", () => {
     const notUpgrade = "Not imported: these files do not improve on the files you have";
     expect(failedLead({ state: "failed", error: "library: no file passed the sample guard", import_state: "rejected", reason: notUpgrade, reason_detail: "This release scores 1,202, yours 6,200. Nothing was replaced." }))
       .toBe(`${notUpgrade}. This release scores 1,202, yours 6,200. Nothing was replaced. Dismiss clears it from the queue; Interactive search lets you choose another.`);
-    expect(failedLead({ state: "ready", import_state: "rejected", reason: notUpgrade }, false)).toBe(`${notUpgrade}. Remove takes it out of the queue.`);
+    const held = "Held for review: these files do not improve on the files you have";
+    expect(failedLead({ state: "ready", import_state: "rejected", reason: held }, false)).toBe(`${held}. Remove takes it out of the queue.`);
     expect(failedLead({ state: "failed", error: "stalled: x", reason: "Download stalled", reason_detail: "Deleted from RD." }))
       .toBe("Download stalled. Deleted from RD. Retry sends the same release again; Interactive search lets you choose another.");
   });

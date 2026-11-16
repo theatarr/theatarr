@@ -176,7 +176,7 @@ func (w *Web) apiActivityAttempts(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 		e := ex[id]
-		f.ImportErr, f.Blocked, f.Refusal = e.ImportErr, e.Blocked, e.Refusal
+		f.ImportErr, f.Blocked, f.Refusals = e.ImportErr, e.Blocked, e.Refusals
 		f.MissedOn = w.attemptMisses(out.Attempts)
 		h, d := failureWords(f, w.providerTag)
 		out.Reason, out.ReasonDetail, out.Error = activityMessage(h), activityMessage(d), activityMessage(storedFailure(f))

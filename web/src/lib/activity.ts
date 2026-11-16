@@ -139,8 +139,9 @@ export const failedRow = (d: Pick<ActivityDownload, "state" | "import_state" | "
   (d.state === "failed" && !d.not_started) || d.import_state === "rejected" || d.import_state === "failed";
 
 /** Whether a retry of the same release must end as this one did: the library refused its files (the server's
- *  failureWords headlines "Not imported: …": not an upgrade, a sample, no file matched, a wrong label). */
-export const retryEndsSame = (reason?: string | null) => !!reason?.startsWith("Not imported: ");
+ *  failureWords headlines "Not imported: …", or "Held for review: …" while the download waits: not an upgrade, a
+ *  sample, no file matched, a wrong label). */
+export const retryEndsSame = (reason?: string | null) => !!reason && /^(Not imported|Held for review): /.test(reason);
 
 /** A failed download's Inspect panel opens with these sentences (admins): why, in the server's words (reason and
  *  reason_detail, from internal/web failureWords), and what helps. A refusal a retry would repeat offers Dismiss (Remove while it is held)

@@ -53,22 +53,23 @@ func failureHeadline(err, provider string, missed []string) string {
 }
 
 // failureFacts is what is stored about a download that failed or that the library refused: the download's error, its
-// library import's state and reason, the blocklist row's reason, the first file refusal the import's plan saved
-// (Refusal), its provider (a key) and the cache codes (rd, ad, tb) of the providers its own attempts found it not
-// cached on (missCodes).
+// library import's state and reason, the blocklist row's reason, the file refusals the import's plan saved
+// (Refusals, one per refused file), its provider (a key) and the cache codes (rd, ad, tb) of the providers its own
+// attempts found it not cached on (missCodes). Err empty with the import rejected is an import held for review.
 type failureFacts struct {
-	Err, ImportState, ImportErr, Blocked, Refusal string
-	Provider                                      string
-	MissedOn                                      []string
+	Err, ImportState, ImportErr, Blocked string
+	Refusals                             []string
+	Provider                             string
+	MissedOn                             []string
 }
 
 // failureExtrasSQL selects, for the download ids in its one argument (a JSON array), what failureFacts needs beyond
-// the download's own error: its import's state and reason, its blocklist row's reason and the first file refusal its
-// import's plan saved (library.Plan.Rejected).
+// the download's own error: its import's state and reason, its blocklist row's reason and the file refusals its
+// import's plan saved (library.Plan.Rejected, a JSON array of their reasons).
 const failureExtrasSQL = `SELECT d.id, COALESCE(li.state, ''), COALESCE(li.last_error, ''),
 	COALESCE((SELECT b.reason FROM router_blocklist b WHERE b.download_id = d.id ORDER BY b.created_at DESC LIMIT 1), ''),
-	COALESCE((SELECT json_extract(j.value, '$.reason') FROM json_each(CASE WHEN json_valid(li.plan) THEN li.plan
-		ELSE '{}' END, '$.rejected') j LIMIT 1), '')
+	(SELECT json_group_array(json_extract(j.value, '$.reason')) FROM json_each(CASE WHEN json_valid(li.plan) THEN li.plan
+		ELSE '{}' END, '$.rejected') j)
 	FROM download d LEFT JOIN library_import li ON li.download_id = d.id WHERE d.id IN (SELECT value FROM json_each(?))`
 
 // failureExtras reads failureExtrasSQL for the downloads ids, by id; Err and the provider are the caller's.
@@ -81,13 +82,28 @@ func failureExtras(ctx context.Context, db *sql.DB, ids []int64) (map[int64]fail
 	err := scanAll(ctx, db, failureExtrasSQL, []any{string(b)}, func(r *sql.Rows) error {
 		var id int64
 		var f failureFacts
-		if err := r.Scan(&id, &f.ImportState, &f.ImportErr, &f.Blocked, &f.Refusal); err != nil {
+		var refusals sql.NullString
+		if err := r.Scan(&id, &f.ImportState, &f.ImportErr, &f.Blocked, &refusals); err != nil {
 			return err
 		}
+		f.Refusals = refusalList(refusals.String)
 		out[id] = f
 		return nil
 	})
 	return out, err
+}
+
+// refusalList is a JSON array of saved file refusals, without the empty ones.
+func refusalList(js string) []string {
+	var all []*string
+	_ = json.Unmarshal([]byte(js), &all)
+	var out []string
+	for _, r := range all {
+		if r != nil && strings.TrimSpace(*r) != "" {
+			out = append(out, strings.TrimSpace(*r))
+		}
+	}
+	return out
 }
 
 // storedFailure is the fullest stored text of a failure: the download's error, the library import's reason when the
@@ -109,12 +125,6 @@ func storedFailure(f failureFacts) string {
 			s = strings.TrimSuffix(s, inner) + b
 		}
 	}
-	// A refusal that names no file's rejection: the one the import's plan saved says which.
-	if r := strings.TrimSpace(f.Refusal); r != "" {
-		if inner := strings.TrimPrefix(s, "library: "); inner == sampleGuardWords || inner == notUpgradeReason {
-			s += " (" + r + ")"
-		}
-	}
 	return s
 }
 
@@ -122,6 +132,8 @@ func storedFailure(f failureFacts) string {
 const (
 	notUpgradeWords  = "Not imported: these files do not improve on the files you have"
 	coverWords       = "Not imported: the files you have cover more episodes"
+	mixedWords       = "Not imported: the library refused its files"
+	mixedDetail      = "Different files were refused for different reasons."
 	notUpgradeReason = "not an upgrade for the existing files"
 	sampleWords      = "Not imported: the file is a sample or too short"
 	mislabelWords    = "Not imported: the video does not match its quality label"
@@ -152,11 +164,24 @@ var (
 // rejection is what is read; any other text is shown as stored, without its "library: " or "provider " prefix. tag
 // names a provider key (RD).
 func failureWords(f failureFacts, tag func(string) string) (headline, detail string) {
+	h, d := failureSentences(f, tag)
+	if rest, ok := strings.CutPrefix(h, "Not imported: "); ok && f.Err == "" && f.ImportState == "rejected" {
+		// The download is ready and waits for review: the same sentence, said as held.
+		h = "Held for review: " + rest
+	}
+	return h, d
+}
+
+// failureSentences is failureWords before a held import is said as held.
+func failureSentences(f failureFacts, tag func(string) string) (headline, detail string) {
 	s := storedFailure(f)
 	if s == "" {
 		return "", ""
 	}
 	rest := strings.TrimPrefix(s, "library: ")
+	if h, d, ok := refusalsWords(rest, f.Refusals); ok {
+		return h, d
+	}
 	if h, d, ok := importWords(rest); ok {
 		return h, d
 	}
@@ -189,6 +214,35 @@ func failureWords(f failureFacts, tag func(string) string) (headline, detail str
 		return who + " reported an error", "Its status: " + strings.TrimPrefix(s, "provider status ") + "."
 	}
 	return storedWords(strings.TrimPrefix(rest, "provider ")), ""
+}
+
+// refusalsWords reads every file refusal the import's plan saved, for a refusal whose own text names one file at
+// most (the wrappers "no file passed the sample guard" and "not an upgrade for the existing files"): one class reads
+// as that class (its detail when one file was refused, else the class's own), different classes as mixedWords. ok is
+// false when there is nothing to read: no saved refusal, another text, or a lone refusal fileWords does not know.
+func refusalsWords(s string, refusals []string) (headline, detail string, ok bool) {
+	reason, _, _ := strings.Cut(s, " (")
+	if (reason != sampleGuardWords && reason != notUpgradeReason) || len(refusals) == 0 {
+		return "", "", false
+	}
+	for i, r := range refusals {
+		h, d, known := fileWords(r)
+		switch {
+		case !known && len(refusals) == 1:
+			return "", "", false
+		case !known, i > 0 && h != headline:
+			return mixedWords, mixedDetail, true
+		case i == 0:
+			headline, detail = h, d
+		}
+	}
+	if len(refusals) > 1 {
+		detail = ""
+		if headline == notUpgradeWords || headline == coverWords {
+			detail = nothingReplaced
+		}
+	}
+	return headline, detail, true
 }
 
 // importWords maps the library's refusals (internal/library import.go, mislabel.go; decide importupgrade.go): the

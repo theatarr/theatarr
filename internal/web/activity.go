@@ -861,10 +861,7 @@ func entryWords(h *journal.HistoryRow, notStarted string, tag func(string) strin
 func historyReason(h *journal.HistoryRow, notStarted string, tag func(string) string) string {
 	switch h.Event {
 	case journal.EvFailed:
-		if notStarted != "" || h.Reason == "" {
-			return ""
-		}
-		return strings.ToUpper(h.Reason[:1]) + h.Reason[1:]
+		return "" // historyFailure says why (failureWords)
 	case journal.EvBlocked:
 		if h.Reason == "" {
 			return blockWords(h.Source)
