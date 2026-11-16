@@ -6,7 +6,7 @@ import { Empty, ErrorState, KV, Loading, Mono, Section, VersionTag } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { fmtAgo, fmtNumber, fmtTime } from "@/lib/format";
+import { fmtAgo, fmtNumber, fmtTime, plural } from "@/lib/format";
 import { PeriodUse } from "@/components/settings/sources";
 import { adapterWord } from "@/components/settings/record-form";
 import { premiumEnd } from "@/lib/health";
@@ -53,7 +53,7 @@ export function SourcesPanel({ kind }: { kind?: "providers" | "indexers" }) {
                       ["Last good sync", fmtTime(p.last_ok_sync)],
                       ["Account", !p.record ? "—" : p.record.never_read ? "never read" : `${fmtNumber(p.record.account_torrents)} torrents (${fmtNumber(p.record.unique_hashes)} unique hashes) · ${fmtNumber(p.record.usage.used)} used · ${fmtNumber(p.record.usage.unused)} unused${p.record.usage.unknown ? ` · ${fmtNumber(p.record.usage.unknown)} unknown` : ""} · as of ${fmtTime(p.record.as_of)}`],
                       ["Router, 24 h", Object.keys(p.attempts_24h).length === 0 ? "no attempts" : Object.entries(p.attempts_24h).map(([k, v]) => `${v} ${k}`).join(" · ")],
-                      ["Pacing", p.pacing ? `${p.pacing.window_adds} adds this minute · ${p.pacing.hour_uncached} uncached this hour${p.pacing.failures ? ` · ${p.pacing.failures} failures` : ""}${p.pacing.reason ? ` (${p.pacing.reason})` : ""}` : "—"],
+                      ["Pacing", p.pacing ? `${plural(p.pacing.window_adds ?? 0, "add")} this minute · ${fmtNumber(p.pacing.hour_uncached ?? 0)} uncached this hour${p.pacing.failures ? ` · ${plural(p.pacing.failures, "failure")}` : ""}${p.pacing.reason ? ` (${p.pacing.reason})` : ""}` : "—"],
                     ]} />
                   </div>
                   <div className="mt-3 flex flex-wrap gap-1">{p.versions.map((v) => <VersionTag key={v} k={v} />)}</div>
@@ -84,7 +84,7 @@ export function SourcesPanel({ kind }: { kind?: "providers" | "indexers" }) {
                   <TableCell className="hidden md:table-cell">
                     <Mono>{ix.budget ?? "—"}</Mono>
                     {shared.length ? <span className="text-xs text-muted-foreground"> · shared with {shared.join(", ")}</span> : null}
-                    {ix.budget_use ? <span className="text-xs text-muted-foreground"> · <PeriodUse used={ix.budget_use.used_hour} cap={ix.budget_use.hourly} per="hourly" /> this hour · <PeriodUse used={ix.budget_use.used_day} cap={ix.budget_use.daily} per="daily" /> today</span> : null}
+                    {ix.budget_use ? <span className="text-xs text-muted-foreground"> · <PeriodUse used={ix.budget_use.used_hour} cap={ix.budget_use.hourly} per="hourly" suffix=" this hour" /> · <PeriodUse used={ix.budget_use.used_day} cap={ix.budget_use.daily} per="daily" suffix=" today" /></span> : null}
                   </TableCell>
                   <TableCell className="max-w-[22rem] text-[13px]">
                     {ix.backoff ? (

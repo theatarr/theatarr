@@ -331,7 +331,7 @@ describe("test and test-all", () => {
     expect(html).toMatch(/data-col="day"><span[^>]*>Today <\/span>140</);
     // Without caps the gateway counts nothing: no 0 (or stale number) that reads as a count.
     const uncapped = render(h(BudgetsView, { records: [budget], onEdit: noop }));
-    expect(uncapped).toMatch(/data-col="hour"><span[^>]*>This hour <\/span><span[^>]*>not counted</);
+    expect(uncapped).toMatch(/data-col="hour"><span[^>]*>This hour <\/span><span[^>]*>no hourly limit</);
   });
 });
 

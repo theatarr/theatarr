@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 	"testing/fstest"
+	"time"
 
 	"github.com/theatarr/theatarr/internal/auth"
 	"github.com/theatarr/theatarr/internal/logring"
@@ -82,8 +83,12 @@ func TestAPISourcesLogsMe(t *testing.T) {
 	now := testNow.UnixMilli()
 	e.exec(`INSERT INTO provider_sync_run (provider, started_at, finished_at, ok, error, summary) VALUES
 		('ad', ?, ?, 0, 'AUTH_BLOCKED', '{}'), ('rd', ?, ?, 1, NULL, '{"present":2}')`, now-2000, now-1000, now-2000, now-1000)
-	e.exec(`INSERT INTO router_pacing (provider, window_adds, backoff_until, failures, reason, updated_at) VALUES
-		('rd', 2, ?, 1, 'HTTP 503', ?)`, now+60000, now)
+	e.exec(`INSERT INTO router_pacing (provider, window_start, window_adds, hour_start, hour_uncached, backoff_until,
+		failures, reason, updated_at) VALUES ('rd', ?, 2, ?, 1, ?, 1, 'HTTP 503', ?)`, now-1000,
+		testNow.UTC().Truncate(time.Hour).UnixMilli(), now+60000, now)
+	// A minute and an hour that are over count nothing in the answer; the stored row keeps its counts.
+	e.exec(`INSERT INTO router_pacing (provider, window_start, window_adds, hour_start, hour_uncached, updated_at) VALUES
+		('ad', ?, 3, ?, 4, ?)`, now-5*3600000, testNow.UTC().Truncate(time.Hour).Add(-5*time.Hour).UnixMilli(), now)
 
 	var s Sources
 	if code := e.getKey(APIBase+"/sources", key, &s); code != 200 {
@@ -94,12 +99,14 @@ func TestAPISourcesLogsMe(t *testing.T) {
 	}
 	rd := s.Providers[0]
 	if rd.Record == nil || !rd.Record.NeverRead || rd.LastSync == nil || !rd.LastSync.OK ||
-		rd.LastOKSync == nil || rd.Pacing == nil || rd.Pacing.WindowAdds != 2 || rd.Pacing.BackoffUntil == nil ||
+		rd.LastOKSync == nil || rd.Pacing == nil || rd.Pacing.WindowAdds != 2 || rd.Pacing.HourUncached != 1 ||
+		rd.Pacing.BackoffUntil == nil ||
 		len(rd.Versions) == 0 {
 		t.Errorf("rd: %+v", rd)
 	}
 	for _, p := range s.Providers {
-		if p.Key == "ad" && (p.LastSync == nil || p.LastSync.OK || p.LastSync.Error != "AUTH_BLOCKED" || p.LastOKSync != nil) {
+		if p.Key == "ad" && (p.LastSync == nil || p.LastSync.OK || p.LastSync.Error != "AUTH_BLOCKED" || p.LastOKSync != nil ||
+			p.Pacing == nil || p.Pacing.WindowAdds != 0 || p.Pacing.HourUncached != 0) {
 			t.Errorf("ad: %+v", p)
 		}
 	}

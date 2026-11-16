@@ -75,7 +75,7 @@ it("takes budget use from the live gateway state, not the settings read", async 
   expect(row.querySelector('[data-col="day"]')?.textContent).toContain("900");
 });
 
-// The gateway counts a period only when the budget caps it: an uncapped period reads "not counted", not 0.
+// The gateway counts a period only when the budget caps it: an uncapped period reads "no daily limit", not 0.
 it("says an uncapped period is not counted instead of showing 0, and names one-connection components", () => {
   const rec = {
     key: "seadex", config: { requests: 1, per: "1s", hourly: 100 },
@@ -84,7 +84,7 @@ it("says an uncapped period is not counted instead of showing 0, and names one-c
   render(<BudgetsView records={[rec]} onEdit={() => {}} />);
   const row = document.querySelector<HTMLElement>('[data-record="seadex"]')!;
   expect(row.querySelector('[data-col="hour"]')?.textContent).toBe("This hour 4");
-  expect(row.querySelector('[data-col="day"]')?.textContent).toBe("Today not counted");
+  expect(row.querySelector('[data-col="day"]')?.textContent).toBe("Today no daily limit");
   expect(row.textContent).toContain("Plex server, Zurg API, Zurg log reader, Indexer seadex");
 });
 

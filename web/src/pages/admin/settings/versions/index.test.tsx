@@ -903,6 +903,16 @@ describe("Library rows", () => {
     expect(within(r).getAllByTestId("library-where").map((line) => line.textContent)).toContain("debrid · symlink");
   });
 
+  it("names the download client only for a library that sends grabs to it", async () => {
+    mockFetch(withConfig({ client: "decypharr" }));
+    const { unmount } = renderPage(<VersionsPage />);
+    expect(within(await row()).getAllByTestId("library-where").map((line) => line.textContent)).toContain("debrid · symlink");
+    unmount();
+    mockFetch(withConfig({ client: "decypharr", add_via: "client" }));
+    renderPage(<VersionsPage />);
+    expect(within(await row()).getAllByTestId("library-where").map((line) => line.textContent)).toContain("debrid · decypharr · symlink");
+  });
+
   it("saves an untouched form unchanged", async () => {
     const fetch = mockFetch([...withConfig({}), put()]);
     const user = userEvent.setup();

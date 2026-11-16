@@ -346,3 +346,14 @@ it("boxes field groups only when a panel has several, and marks a seedbox client
  expect(screen.getByText("seedbox", { selector: "summary" }).textContent).toContain("not used yet");
 });
 
+
+it("names the upgrade search choices in words and still stores quality, score or off", () => {
+  const field = { name: "cutoff_unmet", label: "Search for upgrades", type: "enum", enum: ["quality", "score", "off"], help: "" } as SchemaField;
+  const changes: unknown[] = [];
+  render(<FieldInput field={field} value="off" path="router.wanted.cutoff_unmet" onChange={(v) => changes.push(v)} />);
+  const select = screen.getByRole("combobox", { name: "Search for upgrades" }) as HTMLSelectElement;
+  expect([...select.options].map((o) => o.textContent)).toEqual(["Default", "Files below the preferred quality", "Files below the preferred quality or score", "Off (RSS still picks up better releases)"]);
+  expect(select.value).toBe("off");
+  fireEvent.change(select, { target: { value: "score" } });
+  expect(changes).toEqual(["score"]);
+});

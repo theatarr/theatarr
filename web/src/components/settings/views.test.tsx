@@ -312,3 +312,11 @@ it("checks a new app's key as typed and holds Save while it is not one", async (
   expect((within(sheet).getByRole("button", { name: "Save" }) as HTMLButtonElement).disabled).toBe(false);
 });
 
+
+it("says an app without its own key uses the admin API keys, with its address", async () => {
+  mockFetch(routes([{ ...radarr, secret_set: false }]));
+  renderPage(<GeneralSettingsPage />);
+  const row = (await screen.findByText("uses admin API keys")).closest("li") as HTMLElement;
+  expect(row.textContent).toContain("/radarr");
+  expect(within(row).queryByText("no API key")).toBeNull();
+});

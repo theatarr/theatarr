@@ -84,6 +84,11 @@ type FieldInputProps = {
    *  them is marked "library removed" and can be removed. Undefined while they load. */
   libraryKeys?: string[];
 };
+// Words for stored enum values that do not say by themselves what they do; the stored values stay as they are.
+const ENUM_WORDS: Record<string, Record<string, string>> = {
+  "router.wanted.cutoff_unmet": { quality: "Files below the preferred quality", score: "Files below the preferred quality or score", off: "Off (RSS still picks up better releases)" },
+};
+const enumWord = (path: string, v: string) => ENUM_WORDS[path]?.[v] ?? v;
 const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 
 /** Shared recursive inputs use YAML-shaped values; untouched keys never pass through a coercion. */
@@ -136,7 +141,7 @@ export function FieldInput(p: FieldInputProps) {
     // A switch with its state in words; "(default)" while nothing is stored, so an untouched field stays unset.
     case "boolean": control = <div className="flex items-center gap-2"><Switch aria-label={label} {...describe} checked={checked === true} disabled={disabled} onCheckedChange={(next) => onChange(next)} /><span className="text-sm" data-testid="switch-state">{checked === true ? "On" : "Off"}{value === undefined || value === null ? " (default)" : ""}</span></div>; break;
     case "integer": case "number": control = input("number"); break;
-    case "enum": control = <select aria-label={label} {...describe} className={SELECT_CLASS} disabled={disabled} value={String(value ?? "")} onChange={(e) => onChange(e.target.value || undefined)}><option value="">Default{f.default ? ` (${f.default})` : ""}</option>{f.enum?.map((v) => <option key={v}>{v}</option>)}</select>; break;
+    case "enum": control = <select aria-label={label} {...describe} className={SELECT_CLASS} disabled={disabled} value={String(value ?? "")} onChange={(e) => onChange(e.target.value || undefined)}><option value="">Default{f.default ? ` (${enumWord(path, f.default)})` : ""}</option>{f.enum?.map((v) => <option key={v} value={v}>{enumWord(path, v)}</option>)}</select>; break;
     case "duration": control = <DurationControl f={f} label={label} describe={describe} path={path} disabled={disabled} value={value} stored={stored} onChange={onChange} raw={input} />; break;
     case "bytes": control = <BytesControl f={f} label={label} describe={describe} disabled={disabled} value={value} stored={stored} onChange={onChange} />; break;
     // An object the saved settings did not have goes back to absent once its last key is undone, so Undo returns the

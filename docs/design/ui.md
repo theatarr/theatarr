@@ -816,14 +816,14 @@ and reload/confirmation behavior. Each page says its intro once, as its descript
 | Libraries | `/admin/settings/libraries` | Libraries · Naming · File management |
 | Profiles | `/admin/settings/profiles` | Profiles · Check a release |
 | Custom formats | `/admin/settings/formats` | Rules that match releases and influence quality scores. |
-| Quality sync | `/admin/settings/quality-sync` | Sources, preview (a dry run), run, link, update log and recent runs. How sync works is folded. |
-| Indexers | `/admin/settings/indexers` | Indexers · VPN · Catalog · Search & RSS (Automatic search, stored as `router.wanted.*`, then RSS feed checks; `/rss`) |
-| Download clients | `/admin/settings/downloads` | Debrid providers (with Provider account sync above their status) · Other clients · Behaviour (what to grab, cache checks, retries) · Torrents (torrent-list backups schedule, other libraries' folders; `/torrents`) |
+| Quality sync | `/admin/settings/quality-sync` | Sources, preview (a dry run), run, link, update log and recent runs (a logged run that changed nothing reads "No profile or format changes"). How sync works is folded. |
+| Indexers | `/admin/settings/indexers` | Indexers · VPN · Catalog · Search & RSS (Automatic search, stored as `router.wanted.*`, then RSS feed checks; `/rss`). **Search for upgrades** names its stored values `quality`, `score`, `off` as "Files below the preferred quality", "Files below the preferred quality or score", "Off (RSS still picks up better releases)". |
+| Download clients | `/admin/settings/downloads` | Debrid providers (with Provider account sync above their status; a status card's Pacing counts adds in the current minute and uncached adds in the current hour, 0 once that minute or hour is over, "1 add") · Other clients · Behaviour (what to grab, cache checks, retries) · Torrents (torrent-list backups schedule, other libraries' folders; `/torrents`) |
 | Import lists | `/admin/settings/import-lists` | TMDb lists and Radarr or Sonarr instances (below, Collections). Managers open it too; it has its own screen, not settings panels. |
 | Notifications | `/admin/settings/notifications` | Where and when Theatarr sends messages. |
 | Plex & playback | `/admin/settings/plex` | Plex connections, playback and playlists; read-only Playlists Theatarr keeps below the playlists panel, folded with its count ("90 playlists, 8 empty"). |
 | Metadata & artwork | `/admin/settings/metadata` | Metadata services, refresh schedules and the artwork cache. |
-| Connected apps | `/admin/settings/apps` | Compatible endpoints for Seerr and other apps: each app's libraries, profiles and API key. Replace a library puts a new library in an old one's place in the app's libraries and every profile, in the draft; Save sends both. |
+| Connected apps | `/admin/settings/apps` | Compatible endpoints for Seerr and other apps: each app's libraries, profiles and API key (an app without its own key reads "uses admin API keys" beside its path). Replace a library puts a new library in an old one's place in the app's libraries and every profile, in the draft; Save sends both. |
 
 Other libraries' folders (`#scan-roots`) and the torrent-list backup schedule (`#torrent-backups`) are on Download
 clients › Torrents; Torrents says beside its filters what "Not used by Theatarr" checks and links the folders, and
@@ -870,7 +870,9 @@ Previous admin URLs redirect with their query string and hash intact.
 On phones (below `md`) the side list is hidden, so the top of each Settings page has one labelled **Settings page**
 select that moves between the pages and their tabs (grouped by page, in place of the route tabs' Section select), with
 Show advanced settings under it. Request limits lists each budget once, in the editable table, with its cap bars and
-who uses it by name ("Provider AD", "Indexer prowlarr-tpb"), its use read from the live gateway state; the status part below keeps the back-offs.
+who uses it by name ("Provider AD", "Indexer prowlarr-tpb"), its use read from the live gateway state ("no hourly limit"
+/ "no daily limit" for a period the budget does not cap, which the gateway does not count); the status part below keeps
+the back-offs.
 
 **Settings forms.** Panels (`section-panel.tsx`, through `field-input.tsx`) and record sheets
 (`record-form.tsx`) share one pattern: an edited field is marked **Changed** with **Undo** back to the saved value;

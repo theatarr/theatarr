@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { overview } from "@/components/settings/fixtures";
 import { json, mockFetch, renderPage } from "@/test/page";
 import { QualityPanel } from ".";
-import { SyncSources } from "./sync";
+import { changeLine, SyncSources } from "./sync";
 
 const preview = {
   id: 0, generation: 4, source: "trash-main", commit: "abc123", state: "pending",
@@ -148,4 +148,9 @@ it.each([409, 503])("says why quality sync is unavailable on %s", async (status)
   ]);
   renderPage(<SyncSources records={[]} generation={1} onChanged={async () => {}} />);
   expect(await screen.findByText(status === 409 ? "Quality sync is not available while settings come from YAML" : "Quality sync is not running")).toBeTruthy();
+});
+
+it("says a run that changed nothing changed no profile or format", () => {
+  const nothing = { ...preview, added: [], spec_changed: [], retired: [], profiles_changed: [], scores: [], held: [], applied_at: undefined };
+  expect(changeLine(nothing as never)).toBe(" · trash-main · abc123: No profile or format changes");
 });

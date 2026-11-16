@@ -19,7 +19,7 @@ import { ExplainBox, SecretField } from "./parts";
 
 export const SECTION_LABELS: Record<string, { label: string; help: string }> = {
   metadata: { label: "Metadata sources", help: "TMDb, TVDB, image hosts and their keys." },
-  library: { label: "Library and Plex", help: "Mount, link path, trash, dangling roots, zurg log and API, Plex. Library roots are set per library; the on/off switch is in Libraries." },
+  library: { label: "Library and Plex", help: "Mount, link path, trash, dangling roots, zurg log and API, Plex. Library roots are set per library; to stop library changes, use Pause in the top bar." },
   notify: { label: "Notifications", help: "Targets, events and formats. The on/off switch is in Notifications." },
   clients: { label: "Download clients", help: "Download clients: decypharr, which calls a view back and takes the grabs of libraries that send them to a download client. A seedbox qBittorrent client is not supported yet." },
   egress: { label: "VPN guard", help: "The check URL, VPN addresses and what must go through the VPN." },

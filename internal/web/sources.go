@@ -176,13 +176,23 @@ func (w *Web) sources(ctx context.Context) (Sources, error) {
 		}
 		ps.LastOKSync = nullTS(last)
 		var pc ProviderPacing
-		var cool, back, upd, lastAdd int64
-		err = db.QueryRowContext(ctx, `SELECT window_adds, hour_uncached, cooldown_until, backoff_until, failures, reason,
-			updated_at, last_add_at, hold_level FROM router_pacing WHERE provider = ?`, k).Scan(&pc.WindowAdds,
-			&pc.HourUncached, &cool, &back, &pc.Failures, &pc.Reason, &upd, &lastAdd, &pc.HoldLevel)
+		var cool, back, upd, lastAdd, winStart, hourStart int64
+		err = db.QueryRowContext(ctx, `SELECT window_start, window_adds, hour_start, hour_uncached, cooldown_until,
+			backoff_until, failures, reason, updated_at, last_add_at, hold_level FROM router_pacing WHERE provider = ?`,
+			k).Scan(&winStart, &pc.WindowAdds, &hourStart, &pc.HourUncached, &cool, &back, &pc.Failures, &pc.Reason, &upd,
+			&lastAdd, &pc.HoldLevel)
 		switch {
 		case err == nil:
 			pc.UpdatedAt = ts(upd)
+			// The stored counts are those of the last add's minute and hour; once that minute or hour is over they
+			// no longer count (router/pacing.go starts a new window then), so the answer says 0. The row is untouched.
+			now := w.now()
+			if ws := ts(winStart); now.Sub(ws) >= time.Minute || ws.After(now) {
+				pc.WindowAdds = 0
+			}
+			if hourStart == 0 || !ts(hourStart).UTC().Truncate(time.Hour).Equal(now.UTC().Truncate(time.Hour)) {
+				pc.HourUncached = 0
+			}
 			if cool > 0 {
 				t := ts(cool)
 				pc.CooldownUntil = &t

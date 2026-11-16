@@ -46,11 +46,12 @@ const useSyncChanges = (generation: number) => useQuery({
   }, refetchInterval: 60_000,
 });
 
-// One log line: "<date> · <source> · <commit 12>: <n> formats updated, ..." with zero counts left out.
+// One log line: "<date> · <source> · <commit 12>: <n> formats updated, ..." with zero counts left out; a run that
+// changed nothing (only the remembered upstream values moved) says "No profile or format changes".
 export function changeLine(p: Preview): string {
-  const counts = ([[p.spec_changed.length, "formats updated"], [p.added.length, "added"], [p.scores.length, "scores changed"], [p.fields?.length ?? 0, "profile values changed"], [(p.held?.length ?? 0) + (p.held_fields?.length ?? 0), "kept yours"]] as const)
+  const counts = ([[p.spec_changed.length, "formats updated"], [p.added.length, "added"], [p.scores.length, "scores changed"], [p.fields?.length ?? 0, "profile values changed"], [(p.held?.length ?? 0) + (p.held_fields?.length ?? 0), "kept yours"], [p.retired.length, "no longer in the source"], [p.profiles_changed.length, "other profiles changed"]] as const)
     .filter(([n]) => n > 0).map(([n, label]) => `${n} ${label}`);
-  return `${p.applied_at ? fmtTime(p.applied_at) : ""} · ${p.source} · ${p.commit.slice(0, 12)}: ${counts.join(", ") || "remembered values updated"}`;
+  return `${p.applied_at ? fmtTime(p.applied_at) : ""} · ${p.source} · ${p.commit.slice(0, 12)}: ${counts.join(", ") || "No profile or format changes"}`;
 }
 
 // What a preview or a log entry changes, as lists.

@@ -647,7 +647,7 @@ export function BudgetsView({ records, readOnly, onEdit, selected }: BudgetsView
   return (
     <div data-testid="budgets-list">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <p className="text-[13px] text-muted-foreground">Request budgets shared by the sources that name them; use is live from the gateway (this hour · today). The gateway counts a period only when the budget caps it: “not counted” is not zero.</p>
+        <p className="text-[13px] text-muted-foreground">Request budgets shared by the sources that name them; use is live from the gateway (this hour · today). The gateway counts a period only when the budget caps it: “no hourly limit” means not counted, not zero.</p>
         <Button size="sm" onClick={() => onEdit("new")} disabled={!!readOnly} data-testid="add">
           <Plus /> Add budget
         </Button>
@@ -699,11 +699,12 @@ export function BudgetsView({ records, readOnly, onEdit, selected }: BudgetsView
   );
 }
 
-/** A budget's use in one period: the gateway counts only capped periods (gateway/snapshot.go), so an uncapped one is
- * "not counted", never a 0 that reads as no requests. */
-export function PeriodUse({ used, cap, per }: { used?: number; cap?: number; per: "hourly" | "daily" }) {
-  if (!cap) return <span className="text-muted-foreground" title={`Not counted: this budget has no ${per} cap`} data-testid="use-untracked">not counted</span>;
-  return <>{used === undefined ? "—" : fmtNumber(used)}</>;
+/** A budget's use in one period: the gateway counts only capped periods (gateway/snapshot.go), so an uncapped one
+ * reads "no hourly limit" / "no daily limit", never a 0 that reads as no requests. suffix (" this hour") follows a
+ * count only. */
+export function PeriodUse({ used, cap, per, suffix = "" }: { used?: number; cap?: number; per: "hourly" | "daily"; suffix?: string }) {
+  if (!cap) return <span className="text-muted-foreground" title={`Not counted: this budget has no ${per} cap`} data-testid="use-untracked">no {per} limit</span>;
+  return <>{used === undefined ? "—" : fmtNumber(used)}{suffix}</>;
 }
 
 // What a budget is used by, from the gateway's class:key ("provider:ad", "indexer:prowlarr-tpb"): "Provider AD",
