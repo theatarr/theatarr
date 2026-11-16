@@ -325,6 +325,32 @@ it("lists the scheduled tasks with how often they run, their last and next run, 
  expect(screen.getAllByTestId("job-name").map((n) => n.textContent)).toContain("Ask Plex to scan");
 });
 
+it("says under Search everything wanted that only the searches without a backlog switch run while both are off", async () => {
+ const tasks = { method: "GET", path: "/tasks", reply: { items: [
+  { key: "acquire.wanted", name: "Search everything wanted", every_seconds: 900, last_duration_ms: 0 },
+  { key: "shadow.rss", name: "Check RSS feeds", every_seconds: 900, last_duration_ms: 0 },
+ ] } };
+ const jobs = { method: "GET", path: "/jobs", reply: { counts: {}, items: [] } };
+ const router = (wanted: Record<string, unknown>) => ({ method: "GET", path: "/settings/sections", reply: { source: "db", generation: 1, sections: [{ key: "router", live: true, config: { wanted }, secrets: [] }] } });
+ mockFetch([jobs, tasks, router({ missing: false, cutoff_unmet: "off" })]);
+ const { unmount } = renderPage(<JobsPage />);
+ const note = await screen.findByTestId("task-note");
+ expect(note.textContent).toBe("Backlog searching is off: only requested searches, new additions, searches after a failed download and new-release retries run.");
+ expect(note.closest("[data-key]")?.getAttribute("data-key")).toBe("acquire.wanted");
+ expect(screen.getAllByTestId("task-note")).toHaveLength(1);
+ unmount();
+ // A backlog switch on (missing unset is on): no line.
+ for (const wanted of [{ missing: true, cutoff_unmet: "off" }, { cutoff_unmet: "off" }, { missing: false, cutoff_unmet: "quality" }, { missing: false }]) {
+  const api = mockFetch([jobs, tasks, router(wanted)]);
+  const r = renderPage(<JobsPage />);
+  await screen.findByTestId("tasks");
+  await waitFor(() => expect(api.calls("GET", "/settings/sections")).toHaveLength(1));
+  await new Promise((done) => setTimeout(done, 30));
+  expect(screen.queryByTestId("task-note")).toBeNull();
+  r.unmount();
+ }
+});
+
 it("leads with Needs attention and Checks; readiness, strips, libraries and diagnostics fold under Details", async () => {
  mockFetch([...reviewRoutes,
   { method: "GET", path: "/readyz", reply: { status: "ok" } },

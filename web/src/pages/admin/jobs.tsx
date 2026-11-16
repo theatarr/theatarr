@@ -7,6 +7,7 @@
 import { useSearchParams } from "react-router";
 import { CheckCircle2, EyeOff, Play, RotateCcw } from "lucide-react";
 import { type Task, useJobActions, useJobCounts, useJobsFiltered, useRunTask, useTasks } from "@/api/jobs";
+import { useSettingsSections } from "@/api/settings";
 import { Empty, ErrorState, Fold, JobState, Loading, Mono, PageHeader, Section, Strip } from "@/components/page";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -105,15 +106,27 @@ export function JobsPage() {
   );
 }
 
+/** The note under "Search everything wanted" when both backlog switches (router.wanted.missing, cutoff_unmet) are
+ *  off: the round still runs, for what Theatarr searches whatever they say (internal/acquire/schedule.go Round). */
+export const backlogOffNote = "Backlog searching is off: only requested searches, new additions, searches after a failed download and new-release retries run.";
+
+/** Whether both backlog switches are off in the stored router section (unset: missing on, cutoff quality). */
+function useBacklogOff(): boolean {
+  const sections = useSettingsSections();
+  const wanted = (sections.data?.sections.find((x) => x.key === "router")?.config as { wanted?: { missing?: boolean | null; cutoff_unmet?: string } } | undefined)?.wanted;
+  return !!wanted && wanted.missing === false && wanted.cutoff_unmet === "off";
+}
+
 /** The scheduled tasks: how often each runs, its last run and how long it took, its next run, and Run now. */
 function Scheduled({ run }: { run: RunTask }) {
   const q = useTasks();
+  const backlogOff = useBacklogOff();
   return (
     <Section title="Scheduled" aside="how often each runs, from the settings in force">
       {q.error ? <ErrorState error={q.error} /> : q.isPending ? <Loading /> : (
         <Card className="p-0">
           <ul className="divide-y divide-border" data-testid="tasks">
-            {q.data.items.map((t) => <TaskRow key={t.key} t={t} run={run} />)}
+            {q.data.items.map((t) => <TaskRow key={t.key} t={t} run={run} note={backlogOff && t.key === "acquire.wanted" ? backlogOffNote : undefined} />)}
           </ul>
         </Card>
       )}
@@ -123,11 +136,16 @@ function Scheduled({ run }: { run: RunTask }) {
 
 type RunTask = ReturnType<typeof useRunTask>;
 
-function TaskRow({ t, run, showError }: { t: Task; run: RunTask; showError?: boolean }) {
+function TaskRow({ t, run, showError, note }: { t: Task; run: RunTask; showError?: boolean; note?: string }) {
   const busy = !!t.running || (run.isPending && run.variables?.key === t.key);
   return (
     <li className="flex flex-wrap items-center gap-x-3 gap-y-0.5 px-4 py-2.5" data-key={t.key}>
-      <span className="min-w-0 font-medium text-[var(--ink)] sm:w-64">{t.name}</span>
+      {note ? (
+        <span className="min-w-0 sm:w-64">
+          <span className="block font-medium text-[var(--ink)]">{t.name}</span>
+          <span className="block text-[12.5px] text-muted-foreground" data-testid="task-note">{note}</span>
+        </span>
+      ) : <span className="min-w-0 font-medium text-[var(--ink)] sm:w-64">{t.name}</span>}
       <span className="text-sm text-muted-foreground sm:w-28" data-testid="task-every">{everyWords(t.every_seconds, t.at)}</span>
       {t.paused ? <Badge tone="warning" title="Pause is on, or no library is set up" data-testid="task-paused">paused</Badge> : null}
       <span className="w-full min-w-0 text-sm text-muted-foreground sm:w-auto sm:flex-1" data-testid="task-last">
