@@ -28,6 +28,7 @@ import { versionFetching } from "@/lib/request-state";
 import { Badge, Tag } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { fmtAgo, fmtTime, nameWithoutYear } from "@/lib/format";
 import { approvalWords, requestTimeline } from "@/lib/request-timeline";
@@ -218,6 +219,7 @@ function RequestRow({ r, manager, detail }: { r: Request; manager: boolean; deta
   const [mode, setMode] = useState<"" | "edit" | "decline">("");
   const approve = useApproveRequest();
   const cancel = useCancelRequest();
+  const [cancelling, setCancelling] = useState(false);
   const err = approve.error ?? cancel.error;
   const title = (
     <>
@@ -271,12 +273,17 @@ function RequestRow({ r, manager, detail }: { r: Request; manager: boolean; deta
                 <Button
                   size="sm"
                   variant="ghost"
-                  onClick={() => { if (window.confirm(`Cancel your request for ${r.name}?`)) cancel.mutate(r.id); }}
+                  onClick={() => setCancelling(true)}
                   disabled={cancel.isPending}
                   data-testid="request-cancel"
                 >
                   Cancel
                 </Button>
+              ) : null}
+              {cancelling ? (
+                <ConfirmDialog testid="request-cancel-confirm" busy={cancel.isPending} error={cancel.error} onClose={() => setCancelling(false)}
+                  onConfirm={() => cancel.mutate(r.id, { onSuccess: () => setCancelling(false) })}
+                  scope={{ title: `Cancel your request for ${r.name}?`, does: [], keeps: [], confirm: "Cancel request" }} />
               ) : null}
             </div>
           </div>

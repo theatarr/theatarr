@@ -11,6 +11,7 @@ import { useAuth } from "@/api/auth";
 import { useCreateInvite, useEndSessions, usePatchUser, useRevokeInvite, useSetUserSettings, useUsers, type User, type UserPatch, type UsersPage } from "@/api/users";
 import { Empty, ErrorState, Loading, PageHeader, Section } from "@/components/page";
 import { Avatar, KeysPanel } from "@/components/users/keys";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -200,6 +201,7 @@ function InviteCard({ approval, plex }: { approval: boolean; plex: boolean }) {
 /** An invite not redeemed yet: who it is for, the role, when the link expires, and Revoke. */
 function InviteRow({ u }: { u: User }) {
   const revoke = useRevokeInvite();
+  const [asking, setAsking] = useState(false);
   const name = u.display_name || "Unnamed invite";
   const expired = !!u.invite_expires_at && new Date(u.invite_expires_at).getTime() <= Date.now();
   const role = ROLES.find((r) => r.id === u.role)?.label ?? u.role;
@@ -217,9 +219,14 @@ function InviteRow({ u }: { u: User }) {
           {expired ? `Expired ${fmtTime(u.invite_expires_at)}` : `Link works until ${fmtTime(u.invite_expires_at)}`} · made {fmtAgo(u.created_at)}
         </div>
       </div>
-      <Button size="sm" variant="ghost" className="text-[var(--bad-ink)]" disabled={revoke.isPending} onClick={() => { if (window.confirm(`Revoke the invite${u.display_name ? ` for ${u.display_name}` : ""}? Its link stops working.`)) revoke.mutate(u.id); }} data-testid="invite-revoke">
+      <Button size="sm" variant="ghost" className="text-[var(--bad-ink)]" disabled={revoke.isPending} onClick={() => setAsking(true)} data-testid="invite-revoke">
         <Trash2 /> Revoke
       </Button>
+      {asking ? (
+        <ConfirmDialog testid="invite-revoke-confirm" busy={revoke.isPending} error={revoke.error} onClose={() => setAsking(false)}
+          onConfirm={() => revoke.mutate(u.id, { onSuccess: () => setAsking(false) })}
+          scope={{ title: `Revoke the invite${u.display_name ? ` for ${u.display_name}` : ""}?`, does: ["Its link stops working."], keeps: [], confirm: "Revoke" }} />
+      ) : null}
     </Card>
   );
 }
@@ -229,6 +236,7 @@ function UserCard({ u, page }: { u: User; page: UsersPage }) {
   const patch = usePatchUser();
   const end = useEndSessions();
   const [open, setOpen] = useState(false);
+  const [ask, setAsk] = useState<"end" | "disable">();
   const self = me.data?.id === u.id;
   const set = (p: UserPatch) => patch.mutate({ id: u.id, patch: p });
   const extra = u.extra_permissions ?? [];
@@ -309,11 +317,11 @@ function UserCard({ u, page }: { u: User; page: UsersPage }) {
             <KeysPanel user={u.id} idPrefix={`user-${u.id}-key`} />
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button size="sm" variant="outline" disabled={end.isPending || u.sessions === 0} onClick={() => { if (window.confirm(`Sign ${name} out everywhere?`)) end.mutate(u.id); }}>
+            <Button size="sm" variant="outline" disabled={end.isPending || u.sessions === 0} onClick={() => setAsk("end")} data-testid="user-end-sessions">
               <LogOut /> Sign out everywhere ({u.sessions})
             </Button>
             {u.status === "active" && !self ? (
-              <Button size="sm" variant="ghost" className="text-[var(--bad-ink)]" onClick={() => { if (window.confirm(`Disable ${name}? Their sessions end and their keys stop working.`)) set({ status: "disabled" }); }} data-testid="user-disable">
+              <Button size="sm" variant="ghost" className="text-[var(--bad-ink)]" onClick={() => setAsk("disable")} data-testid="user-disable">
                 <UserX /> Disable
               </Button>
             ) : u.status === "disabled" ? (
@@ -322,6 +330,15 @@ function UserCard({ u, page }: { u: User; page: UsersPage }) {
               </Button>
             ) : null}
           </div>
+          {ask === "end" ? (
+            <ConfirmDialog testid="user-end-sessions-confirm" danger={false} busy={end.isPending} error={end.error} onClose={() => setAsk(undefined)}
+              onConfirm={() => end.mutate(u.id, { onSuccess: () => setAsk(undefined) })}
+              scope={{ title: `Sign ${name} out everywhere?`, does: [], keeps: [], confirm: "Sign out everywhere" }} />
+          ) : ask === "disable" ? (
+            <ConfirmDialog testid="user-disable-confirm" busy={patch.isPending} error={patch.error} onClose={() => setAsk(undefined)}
+              onConfirm={() => patch.mutate({ id: u.id, patch: { status: "disabled" } }, { onSuccess: () => setAsk(undefined) })}
+              scope={{ title: `Disable ${name}?`, does: ["Their sessions end and their keys stop working."], keeps: [], confirm: "Disable" }} />
+          ) : null}
         </div>
       ) : null}
     </Card>

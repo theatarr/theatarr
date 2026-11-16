@@ -621,6 +621,10 @@ will" / "Stays as it is"), except grabbing an accepted release from Interactive 
 
 There is no arr-shaped `DELETE blocklist/{id}` (the arr views serve no blocklist list to take ids from).
 
+Revoking an invite or an API key, signing an account out everywhere, disabling it and cancelling your own request ask
+in the same dialog (`ConfirmDialog`), never the browser's confirm box: the question as its heading, its consequence
+under "This will"; a heading with nothing under it is left out.
+
 **Request state everywhere** (`web/src/lib/request-state.ts`). For an account that requests,
 search cards, the title page (hero button and request card) and the request sheet show one action from the same
 rule: **View request** when the caller has an open request (pending, approved, processing) for the title, linked to

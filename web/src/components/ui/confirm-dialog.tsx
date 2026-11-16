@@ -63,6 +63,8 @@ export function ConfirmDialog({
   testid?: string;
 }) {
   const cancel = useRef<HTMLButtonElement>(null);
+  // A plain question (window.confirm's former callers) may have nothing to list: empty headings, and an empty body,
+  // are left out.
   return (
     <Modal
       label={scope.title}
@@ -80,9 +82,9 @@ export function ConfirmDialog({
           <X className="size-4" />
         </Button>
       </div>
-      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4 text-sm">
+      {top || does || scope.does.length > 0 || scope.keeps.length > 0 || scope.cleanup || children || scope.blocked || error || done ? <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4 text-sm">
         {top}
-        <div>
+        {does || scope.does.length > 0 ? <div>
           <div className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.05em] text-[var(--ink-3)]">This will</div>
           {does ?? (
             <ul className="space-y-1.5" data-testid="confirm-does">
@@ -94,8 +96,8 @@ export function ConfirmDialog({
               ))}
             </ul>
           )}
-        </div>
-        <div>
+        </div> : null}
+        {scope.keeps.length > 0 || scope.cleanup ? <div>
           <div className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.05em] text-[var(--ink-3)]">Stays as it is</div>
           <ul className="space-y-1.5" data-testid="confirm-keeps">
             {scope.keeps.map((l, i) => (
@@ -106,7 +108,7 @@ export function ConfirmDialog({
             ))}
           </ul>
           {scope.cleanup ? <Cleanup cleanup={scope.cleanup} /> : null}
-        </div>
+        </div> : null}
         {children ? <div className="space-y-2 border-t border-[var(--line)] pt-3">{children}</div> : null}
         {scope.blocked ? (
           <p className="rounded-md border border-[var(--th-warning-border)] bg-[var(--warn-soft)] px-3 py-2 text-[var(--warn-ink)]" data-testid="confirm-blocked">
@@ -134,7 +136,7 @@ export function ConfirmDialog({
             {done}
           </p>
         ) : null}
-      </div>
+      </div> : null}
       <div className="flex justify-end gap-2 border-t sm:rounded-b-[8px] border-[var(--line)] bg-[var(--bg)] p-3">
         <Button ref={cancel} variant="ghost" size="sm" onClick={onClose} data-testid="confirm-cancel">
           {done ? "Close" : "Cancel"}

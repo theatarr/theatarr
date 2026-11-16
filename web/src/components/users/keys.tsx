@@ -10,6 +10,7 @@ import { Empty, ErrorState, Loading, Mono } from "@/components/page";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -25,6 +26,7 @@ export function KeysPanel({ user, owner = false, create = true, idPrefix = "key"
   const keys = useKeysOf(user);
   const make = useCreateKeyFor();
   const revoke = useRevokeKeyAny();
+  const [revoking, setRevoking] = useState<{ id: number; name: string }>();
   const [name, setName] = useState("");
   const [created, setCreated] = useState<{ name: string; key: string } | null>(null);
   const [err, setErr] = useState("");
@@ -130,7 +132,7 @@ export function KeysPanel({ user, owner = false, create = true, idPrefix = "key"
                   <TableCell className="text-right">
                     {k.revoked_at ? <Badge>revoked</Badge> : (
                       <Button size="sm" variant="ghost" className="text-[var(--bad-ink)]" disabled={revoke.isPending}
-                        onClick={() => { if (window.confirm(`Revoke key ${k.name}? Clients using it stop working.`)) revoke.mutate(k.id ?? 0); }}>
+                        onClick={() => setRevoking({ id: k.id ?? 0, name: k.name ?? "" })} data-testid="key-revoke">
                         Revoke
                       </Button>
                     )}
@@ -141,6 +143,11 @@ export function KeysPanel({ user, owner = false, create = true, idPrefix = "key"
           </Table>
         </Card>
       )}
+      {revoking ? (
+        <ConfirmDialog testid="key-revoke-confirm" busy={revoke.isPending} error={revoke.error} onClose={() => setRevoking(undefined)}
+          onConfirm={() => revoke.mutate(revoking.id, { onSuccess: () => setRevoking(undefined) })}
+          scope={{ title: `Revoke key ${revoking.name}?`, does: ["Clients using it stop working."], keeps: [], confirm: "Revoke" }} />
+      ) : null}
     </div>
   );
 }

@@ -72,3 +72,46 @@ it("leads with an invite link, shown once after it is made, keeps the sign-in pa
  expect(mine.disabled).toBe(true);
  expect(ann.disabled).toBe(false);
 });
+
+it("asks in the app's own dialog before revoking an invite or a key, signing an account out everywhere or disabling it", async () => {
+ const { mockFetch, renderPage } = await import("@/test/page");
+ const { UsersAdmin } = await import("./users");
+ const me = { ...user(), id: 1, username: "admin", display_name: "Admin", role: "admin", local: true };
+ const invited = { ...user(), id: 9, username: "invite-ab12", display_name: "Bea", status: "invited", invite_expires_at: "2099-01-08T00:00:00Z" };
+ const api = mockFetch([
+  { method: "GET", path: "/auth/me", reply: { kind: "session", id: 1, username: "admin", permissions: ["admin", "users"], csrf_token: "t" } },
+  { method: "GET", path: "/users", reply: { items: [me, { ...user(), sessions: 2 }, invited], settings: { plex_new_users: "pending", plex_enabled: true }, versions: [] } },
+  { method: "GET", path: "/keys", reply: { items: [{ id: 5, name: "Phone", prefix: "th_ab", created_at: "2026-11-01T00:00:00Z" }] } },
+  { method: "DELETE", path: "/users/9/invite", reply: { status: 204 } },
+  { method: "DELETE", path: "/users/3/sessions", reply: { ended: 2 } },
+  { method: "PATCH", path: "/users/3", reply: { ...user(), status: "disabled" } },
+  { method: "DELETE", path: "/keys/5", reply: { status: 204 } },
+ ]);
+ const ue = userEvent.setup();
+ renderPage(<UsersAdmin />, "/admin/users");
+ const confirm = async (open: () => Promise<void>, testid: string, title: string, line?: string) => {
+  await open();
+  const d = await screen.findByTestId(testid);
+  expect(d.querySelector("h2")?.textContent).toBe(title);
+  if (line) expect(within(d).getByTestId("confirm-does").textContent).toBe(line);
+  else expect(within(d).queryByTestId("confirm-does")).toBeNull();
+  // Nothing is listed as kept: the heading is left out.
+  expect(within(d).queryByTestId("confirm-keeps")).toBeNull();
+  await ue.click(within(d).getByTestId("confirm-ok"));
+ };
+ // Cancel sends nothing.
+ await ue.click(await screen.findByTestId("invite-revoke"));
+ await ue.click(within(await screen.findByTestId("invite-revoke-confirm")).getByTestId("confirm-cancel"));
+ expect(screen.queryByTestId("invite-revoke-confirm")).toBeNull();
+ expect(api.calls("DELETE", "/users/9/invite")).toHaveLength(0);
+ await confirm(() => ue.click(screen.getByTestId("invite-revoke")), "invite-revoke-confirm", "Revoke the invite for Bea?", "Its link stops working.");
+ await vi.waitFor(() => expect(api.calls("DELETE", "/users/9/invite")).toHaveLength(1));
+ const ann = screen.getAllByTestId("user-row").find(r => r.getAttribute("data-username") === "ann")!;
+ await ue.click(within(ann).getByTestId("user-edit"));
+ await confirm(() => ue.click(within(ann).getByTestId("user-end-sessions")), "user-end-sessions-confirm", "Sign Ann out everywhere?");
+ await vi.waitFor(() => expect(api.calls("DELETE", "/users/3/sessions")).toHaveLength(1));
+ await confirm(() => ue.click(within(ann).getByTestId("user-disable")), "user-disable-confirm", "Disable Ann?", "Their sessions end and their keys stop working.");
+ await vi.waitFor(() => expect(api.calls("PATCH", "/users/3")[0]?.body).toEqual({ status: "disabled" }));
+ await confirm(async () => ue.click(await within(ann).findByTestId("key-revoke")), "key-revoke-confirm", "Revoke key Phone?", "Clients using it stop working.");
+ await vi.waitFor(() => expect(api.calls("DELETE", "/keys/5")).toHaveLength(1));
+});

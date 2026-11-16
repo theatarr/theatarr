@@ -52,6 +52,23 @@ describe("a request the user joined", () => {
     expect(timeline.textContent).toContain("Someone else asked first; you joined");
     expect(timeline.textContent).not.toMatch(/\bBy /);
   });
+  it("asks in the app's own dialog before cancelling your request", async () => {
+    const api = mockFetch([
+      { method: "GET", path: "/auth/me", reply: { username: "joiner", permissions: ["browse", "request"], csrf_token: "fixture" } },
+      { method: "GET", path: "/requests/1", reply: json(detail()) },
+      { method: "DELETE", path: "/requests/1", reply: { status: 204 } },
+    ]);
+    renderPage(<Routes><Route path="/requests/:tab" element={<RequestsPage />} /></Routes>, "/requests/1");
+    const ue = userEvent.setup();
+    await ue.click(await screen.findByTestId("request-cancel"));
+    const d = await screen.findByTestId("request-cancel-confirm");
+    expect(d.querySelector("h2")?.textContent).toBe("Cancel your request for Alpha?");
+    await ue.click(within(d).getByTestId("confirm-cancel"));
+    expect(api.calls("DELETE", "/requests/1")).toHaveLength(0);
+    await ue.click(screen.getByTestId("request-cancel"));
+    await ue.click(within(await screen.findByTestId("request-cancel-confirm")).getByTestId("confirm-ok"));
+    await waitFor(() => expect(api.calls("DELETE", "/requests/1")).toHaveLength(1));
+  });
   it("still names the requester when the server sends one", async () => {
     show(detail({ id: 9, username: "joiner", display_name: "Joiner" }));
     const timeline = await screen.findByTestId("request-timeline");
