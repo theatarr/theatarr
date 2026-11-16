@@ -269,6 +269,7 @@ func (t *torznab) searchPaged(ctx context.Context, key string, q Query, c *caps,
 		items, total, err := parseTorznab(body)
 		t.keyRefused(ctx, err)
 		if err != nil {
+			t.answerFailed(ctx)
 			if page > 1 {
 				res.Truncated, res.failed = true, true
 				res.Notes = append(res.Notes, fmt.Sprintf("paging stopped at offset %d: %v", offset, err))
@@ -856,6 +857,7 @@ func (t *torznab) capabilities(ctx context.Context, key string, res *Result) (*c
 	}
 	c, err := parseCaps(body)
 	if err != nil {
+		t.answerFailed(ctx)
 		return nil, fmt.Errorf("indexer %s: caps: %w", t.key, err)
 	}
 	t.caps, t.capsAt = c, t.now()

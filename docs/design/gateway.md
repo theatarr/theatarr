@@ -87,7 +87,14 @@ Accounting only: a purpose changes no limit, budget or share.
 instead of counting as `other`. Single-flight ([indexers.md](indexers.md)): concurrent identical searches share one
 upstream search, whose requests count under the first caller's purpose; a cached answer sends nothing.
 
-Counts are kept 30 UTC days (today included) in memory and in `gateway_indexer_request`. A request only counts in
+Each counted request is also measured for the indexer statistics (migration 00148): `measured` (the hops counted with
+an answer or a transport error), `failures` (one for a transport error or an answer of HTTP 400 or more) and `took_ms`
+(the time to the answer's headers, as logged). An answer of HTTP 200 that is an error or no feed (a Torznab `<error>`,
+such as a refused key, or a page that is no Torznab document) is reported by the Torznab adapter with
+`Gateway.CountIndexerFailure`, which adds a failure to the request already counted. Rows from before 00148 have a
+count and no measurement.
+
+Counts are kept 90 UTC days (today included) in memory and in `gateway_indexer_request`. A request only counts in
 memory; `theatarr serve` writes the new counts every minute and when it stops (`RunRequestFlush`; the last write comes after the HTTP server
 and the workers have stopped, so a search finishing during shutdown keeps its count; a search still running when the HTTP server's shutdown grace ends, or one cancelled mid-request by the shutdown, may not be counted: by choice, no more shutdown machinery for accounting), keeping counts whose write
 failed for the next try, and `theatarr search` writes its own as they exit. A crash loses at most the

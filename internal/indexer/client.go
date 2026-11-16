@@ -171,6 +171,19 @@ func (b *base) get(ctx context.Context, rawURL, accept string) ([]byte, error) {
 	return body, nil
 }
 
+// failureCounter is *gateway.Gateway's CountIndexerFailure.
+type failureCounter interface {
+	CountIndexerFailure(ctx context.Context, t gateway.Target)
+}
+
+// answerFailed counts a failure for the indexer statistics: an answer of HTTP 200 that is an error or no feed (a
+// Torznab <error>, such as a refused key), which the gateway counted as a success.
+func (b *base) answerFailed(ctx context.Context) {
+	if c, ok := b.gw.(failureCounter); ok {
+		c.CountIndexerFailure(ctx, b.target())
+	}
+}
+
 // stamp fills the fields every release from this source shares.
 func (b *base) stamp(ctx context.Context, r *Release) {
 	r.Indexer, r.Kind = b.key, b.kind

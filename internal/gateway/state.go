@@ -26,7 +26,7 @@ type state struct {
 	// pruned (0: none), both written by flushRequests, which flushMu runs one at a time.
 	requests   map[requestKey]int
 	requestDay int64
-	pending    map[requestKey]int
+	pending    map[requestKey]requestCount
 	requestCut int64
 	flushMu    sync.Mutex
 	// seq numbers back-off changes. A request notes it when it is sent (mark), and its success clears only a

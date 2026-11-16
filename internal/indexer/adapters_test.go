@@ -285,10 +285,19 @@ func TestTorznabErrors(t *testing.T) {
 		w.Write(fixtureBytes("torznab_error.xml"))
 	}))
 	h := newHarness(t, n, testPolicy(), false, func(_ *gateway.Options, o *Options) { o.CacheTTL = -1 })
-	_, err := h.svc.Search(context.Background(), "prowlarr", Query{Type: QueryText, Title: "x"})
+	// The error answer is counted as a failure for the indexer statistics; the HTTP 500 below the gateway counts.
+	cf := &countingGW{Gateway: h.gw}
+	svc, err := New(testPolicy(), cf, Options{CacheTTL: -1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = svc.Search(context.Background(), "prowlarr", Query{Type: QueryText, Title: "x"})
 	var te *TorznabError
 	if !errors.As(err, &te) || te.Code != "100" {
 		t.Fatalf("error answer: %v", err)
+	}
+	if cf.failed != 1 {
+		t.Fatalf("%d failures reported, want 1", cf.failed)
 	}
 	fail.Store(1)
 	_, err = h.svc.Search(context.Background(), "prowlarr", Query{Type: QueryText, Title: "y"})
@@ -789,3 +798,14 @@ func TestUnknownKindAndBadQuery(t *testing.T) {
 }
 
 func tioSize(f float64, unit string) int64 { return int64(f * tioUnits[unit]) }
+
+// countingGW records the failures an adapter reports to the gateway.
+type countingGW struct {
+	*gateway.Gateway
+	failed int
+}
+
+func (c *countingGW) CountIndexerFailure(ctx context.Context, t gateway.Target) {
+	c.failed++
+	c.Gateway.CountIndexerFailure(ctx, t)
+}

@@ -3,6 +3,7 @@ package gateway
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"io"
 	"io/fs"
 	"maps"
@@ -69,7 +70,7 @@ func wantRequests(t *testing.T, g *Gateway, key string, today, week map[Purpose]
 }
 
 // Every indexer request sent is counted per indexer, purpose and UTC day; untagged ones as other, other classes not at
-// all. The counts survive a restart, roll over at UTC midnight, and are kept 30 days.
+// all. The counts survive a restart, roll over at UTC midnight, and are kept 90 days.
 func TestIndexerRequestsByPurpose(t *testing.T) {
 	e := newEnv(t)
 	e.serve("dmm.test", okHandler("ok"))
@@ -113,7 +114,7 @@ func TestIndexerRequestsByPurpose(t *testing.T) {
 	}
 	wantRequests(t, g, "dmm", map[Purpose]int{PurposeRSS: 1}, map[Purpose]int{PurposeOther: 1, PurposeRSS: 3, PurposeInteractive: 1})
 
-	// Seven days on, day 1 has left the week but is still kept; 30 days on it is pruned, in memory and stored.
+	// Seven days on, day 1 has left the week but is still kept; 90 days on it is pruned, in memory and stored.
 	e.advance(6 * 24 * time.Hour)
 	wantRequests(t, g, "dmm", nil, map[Purpose]int{PurposeRSS: 1})
 	var rows int
@@ -128,7 +129,7 @@ func TestIndexerRequestsByPurpose(t *testing.T) {
 	if n := countRows(); n != 5 {
 		t.Fatalf("%d stored rows, want 5", n)
 	}
-	e.advance(23 * 24 * time.Hour) // 30 days after day 1: it is no longer kept
+	e.advance(83 * 24 * time.Hour) // 90 days after day 1: it is no longer kept
 	g.CheckEgress(ctx)
 	if err := getWith(WithPurpose(ctx, PurposeTest), g, dmm, "http://dmm.test/"); err != nil {
 		t.Fatal(err)
@@ -139,7 +140,7 @@ func TestIndexerRequestsByPurpose(t *testing.T) {
 		t.Fatal(err)
 	}
 	if n := countRows(); n != 2 || store.FromMillis(oldest).Day() != 26 {
-		t.Fatalf("after 30 days: %d rows, oldest %v; want day 2's rss and today's test", n, store.FromMillis(oldest))
+		t.Fatalf("after 90 days: %d rows, oldest %v; want day 2's rss and today's test", n, store.FromMillis(oldest))
 	}
 	g.state.mu.Lock()
 	kept := len(g.state.requests)
@@ -355,5 +356,51 @@ func TestRedirectHopsCounted(t *testing.T) {
 		t.Fatal(err)
 	}
 	want[PurposeTest] = 2
+	wantRequests(t, g, "dmm", want, want)
+}
+
+// Each counted request is also measured: its time, and a failure for a transport error or HTTP 400 or more. An error
+// the indexer reports inside an HTTP 200 answer adds a failure to the request already counted.
+func TestIndexerRequestsMeasured(t *testing.T) {
+	e := newEnv(t)
+	e.serve("dmm.test", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/bad" {
+			http.Error(w, "no", http.StatusUnauthorized)
+			return
+		}
+		io.WriteString(w, "ok")
+	}))
+	st := openStore(t, filepath.Join(t.TempDir(), "theatarr.db"))
+	g := e.gateway(testPolicy(), st)
+	ctx := WithPurpose(context.Background(), PurposeRSS)
+	g.CheckEgress(ctx)
+	for _, u := range []string{"http://dmm.test/", "http://dmm.test/", "http://dmm.test/bad"} {
+		getWith(ctx, g, dmm, u)
+	}
+	g.CountIndexerFailure(ctx, dmm)
+	if err := getWith(ctx, g, Target{Class: ClassIndexer, Key: "tracker"}, "http://tracker.test/api"); err == nil {
+		t.Fatal("tracker.test answered")
+	}
+	g.CountIndexerFailure(ctx, Target{Class: ClassMetadata, Key: "tmdb"}) // no indexer: not counted
+	flush(t, g)
+	rows, err := st.Reader().Query(`SELECT indexer, count, measured, failures FROM gateway_indexer_request ORDER BY indexer`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var got []string
+	for rows.Next() {
+		var ix string
+		var n, m, f int
+		if err := rows.Scan(&ix, &n, &m, &f); err != nil {
+			t.Fatal(err)
+		}
+		got = append(got, fmt.Sprintf("%s %d/%d/%d", ix, n, m, f))
+	}
+	if want := []string{"dmm 3/3/2", "tracker 1/1/1"}; !slices.Equal(got, want) {
+		t.Fatalf("count/measured/failures %v, want %v", got, want)
+	}
+	// A failure reported alone adds no request to the counts shown per purpose.
+	want := map[Purpose]int{PurposeRSS: 3}
 	wantRequests(t, g, "dmm", want, want)
 }

@@ -48,13 +48,29 @@ func PurposeOf(ctx context.Context) Purpose {
 	return PurposeOther
 }
 
-// requestDays is how many UTC days of request counts are kept (today included).
-const requestDays = 30
+// requestDays is how many UTC days of request counts are kept (today included): the indexer statistics show up to
+// 90 days.
+const requestDays = 90
 
 type requestKey struct {
 	indexer string
 	purpose Purpose
 	day     int64 // UTC day start, Unix ms
+}
+
+// requestCount is what one request adds to its row: count hops sent; of them measured (an answer or a transport error
+// with the time it took), failures and tookMs. An error the indexer reports inside an HTTP 200 answer adds only a
+// failure (CountIndexerFailure): its request was counted already.
+type requestCount struct {
+	count, measured, failures int
+	tookMs                    int64
+}
+
+func (c *requestCount) add(o requestCount) {
+	c.count += o.count
+	c.measured += o.measured
+	c.failures += o.failures
+	c.tookMs += o.tookMs
 }
 
 // IndexerRequests is one indexer's requests by purpose: today (UTC) and the last 7 UTC days, today included. Purposes
@@ -70,16 +86,35 @@ func dayStart(t time.Time) int64 {
 }
 
 // countRequest counts the hops of one request sent to an indexer target: each redirect hop the client sent is one
-// request. A source probe counts only a tagged request: the quality sync and the cardigann definitions fetch are probes
-// of indexer-class targets that are no indexer.
-func (g *Gateway) countRequest(ctx context.Context, ti *targetInfo, hops int) {
-	if ti.class != ClassIndexer || hops <= 0 {
+// request, measured with the time the request took; failed is a transport error or HTTP 400 or more. A source probe
+// counts only a tagged request: the quality sync and the cardigann definitions fetch are probes of indexer-class
+// targets that are no indexer.
+func (g *Gateway) countRequest(ctx context.Context, ti *targetInfo, hops int, failed bool, took time.Duration) {
+	if hops <= 0 || !g.counts(ctx, ti) {
 		return
 	}
-	if _, tagged := ctx.Value(purposeKey{}).(Purpose); g.probe != nil && !tagged {
-		return
+	c := requestCount{count: hops, measured: hops, tookMs: took.Milliseconds()}
+	if failed {
+		c.failures = 1
 	}
-	g.state.countRequest(ti.key, PurposeOf(ctx), hops, g.now())
+	g.state.countRequest(ti.key, PurposeOf(ctx), c, g.now())
+}
+
+func (g *Gateway) counts(ctx context.Context, ti *targetInfo) bool {
+	if ti == nil || ti.class != ClassIndexer {
+		return false
+	}
+	_, tagged := ctx.Value(purposeKey{}).(Purpose)
+	return g.probe == nil || tagged
+}
+
+// CountIndexerFailure counts a failure of a request to indexer target t that the gateway saw answer: an error the
+// indexer reported inside an HTTP 200 answer (a Torznab <error>, such as a refused key).
+func (g *Gateway) CountIndexerFailure(ctx context.Context, t Target) {
+	g = g.forContext(ctx)
+	if ti := g.targets[t.String()]; g.counts(ctx, ti) {
+		g.state.countRequest(ti.key, PurposeOf(ctx), requestCount{failures: 1}, g.now())
+	}
 }
 
 // hopsKey carries a request's count of the hops its client sent (guard.RoundTrip adds one per hop).
@@ -88,9 +123,9 @@ type hopsKey struct{}
 // requestFlushInterval is how often the request counts are written to the database (RunRequestFlush).
 const requestFlushInterval = time.Minute
 
-// countRequest counts n requests in memory only; flushRequests writes them. The first count of a new day drops days
+// countRequest counts c in memory only; flushRequests writes it. The first count of a new day drops days
 // older than requestDays, and the next flush drops their rows.
-func (s *state) countRequest(indexer string, p Purpose, n int, now time.Time) {
+func (s *state) countRequest(indexer string, p Purpose, c requestCount, now time.Time) {
 	day := dayStart(now)
 	cut := day - (requestDays-1)*24*time.Hour.Milliseconds()
 	s.mu.Lock()
@@ -99,11 +134,15 @@ func (s *state) countRequest(indexer string, p Purpose, n int, now time.Time) {
 		s.requests = map[requestKey]int{}
 	}
 	if s.pending == nil {
-		s.pending = map[requestKey]int{}
+		s.pending = map[requestKey]requestCount{}
 	}
 	k := requestKey{indexer, p, day}
-	s.requests[k] += n
-	s.pending[k] += n
+	if c.count > 0 {
+		s.requests[k] += c.count
+	}
+	n := s.pending[k]
+	n.add(c)
+	s.pending[k] = n
 	if day > s.requestDay {
 		s.requestDay = day
 		s.requestCut = cut
@@ -133,9 +172,12 @@ func (s *state) flushRequests(ctx context.Context) error {
 	err := s.st.WriteTx(ctx, func(tx *sql.Tx) error {
 		for k, n := range pending {
 			if _, err := tx.ExecContext(ctx, `
-				INSERT INTO gateway_indexer_request (indexer, purpose, day_start_at, count) VALUES (?, ?, ?, ?)
-				ON CONFLICT (indexer, purpose, day_start_at) DO UPDATE SET count = count + excluded.count`,
-				k.indexer, string(k.purpose), k.day, n); err != nil {
+				INSERT INTO gateway_indexer_request (indexer, purpose, day_start_at, count, measured, failures, took_ms)
+				VALUES (?, ?, ?, ?, ?, ?, ?)
+				ON CONFLICT (indexer, purpose, day_start_at) DO UPDATE SET count = count + excluded.count,
+					measured = measured + excluded.measured, failures = failures + excluded.failures,
+					took_ms = took_ms + excluded.took_ms`,
+				k.indexer, string(k.purpose), k.day, n.count, n.measured, n.failures, n.tookMs); err != nil {
 				return err
 			}
 		}
@@ -148,10 +190,12 @@ func (s *state) flushRequests(ctx context.Context) error {
 	if err != nil {
 		s.mu.Lock()
 		if s.pending == nil {
-			s.pending = map[requestKey]int{}
+			s.pending = map[requestKey]requestCount{}
 		}
 		for k, n := range pending {
-			s.pending[k] += n
+			c := s.pending[k]
+			c.add(n)
+			s.pending[k] = c
 		}
 		s.requestCut = max(s.requestCut, cut)
 		s.mu.Unlock()

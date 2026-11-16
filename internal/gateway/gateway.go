@@ -646,7 +646,7 @@ func (g *Gateway) send(ctx context.Context, ti *targetInfo, t Target, req *http.
 	resp, err := client.Do(req)
 	took := time.Since(start)
 	now := g.now()
-	g.countRequest(ctx, ti, int(hops.Load()))
+	g.countRequest(ctx, ti, int(hops.Load()), err != nil || resp.StatusCode >= 400, took)
 	bg := context.WithoutCancel(ctx)
 	attrs := []any{"target", ti.name, "method", req.Method, "url", g.redact.TargetURL(ti.class, req.URL),
 		"egress", ti.path.name, "took_ms", took.Milliseconds()}
