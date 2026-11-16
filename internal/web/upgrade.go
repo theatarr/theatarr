@@ -454,7 +454,16 @@ func (w *Web) upgradesWith(ctx context.Context, db *sql.DB, vs []upgradeVersion,
 	if s.evidence, err = loadEvidence(ctx, db, titles, items); err != nil {
 		return nil, err
 	}
-	if s.failed, err = loadFailedHashes(ctx, db, titles); err != nil {
+	// Failed tries matter only to titles with stored sightings to judge.
+	seen := map[int64]bool{}
+	var judged []int64
+	for k := range s.evidence {
+		if !seen[k.titleID] {
+			seen[k.titleID] = true
+			judged = append(judged, k.titleID)
+		}
+	}
+	if s.failed, err = loadFailedHashes(ctx, db, judged); err != nil {
 		return nil, err
 	}
 	if cutoffs {
