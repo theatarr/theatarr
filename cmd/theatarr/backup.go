@@ -828,9 +828,10 @@ func restoreBackupFor(ctx context.Context, out io.Writer, from, dbPath, policyOu
 		return fmt.Errorf("%s exists: give -force to replace it (the old one is kept beside it)", dbPath)
 	}
 
-	// Stage the policy beside its target (an empty directory for a database-only set).
+	// Stage the policy beside its target (an empty directory beside the database for a set with no policy archive:
+	// a before-upgrade set's -policy-out is the install's policy directory, whose parent may not be writable).
 	stageParent := filepath.Dir(dbPath)
-	if policyOut != "" {
+	if policyOut != "" && unpack {
 		stageParent = filepath.Dir(policyOut)
 	}
 	if err := os.MkdirAll(stageParent, 0o755); err != nil {

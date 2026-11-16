@@ -172,15 +172,14 @@ version tag) and the old policy directory if you bind one. Then set `THEATARR_VE
 status` and `errors list -status open` as in step 5, then `theatarr preflight`. Read the startup logs and
 **System › Status** before you go on. A ready image is no reason to turn grabbing on.
 
-To roll back: stop the service and restore the **before-upgrade set with the old image** (`THEATARR_VERSION` back
-at the old release, or `image: theatarr:previous` when built from source, or `docker run` on that tag with the same
-volumes) as in step 3: `theatarr backup restore -from /data/backups/theatarr-<stamp> -db /data/theatarr.db -force`, or System ›
-Backup in the old image. Restoring it puts the database back and leaves the policy files as they are (give
-`-policy-out` your policy directory to have the restored settings checked against it; nothing is unpacked there).
-An image older than this release reads the set as a database-only set: give it no `-policy-out` when your policy
-directory has files. Then start the old image with `THEATARR_FORCE_OFF=router,library,notify` until you have
-reconciled. Never start the old image against the migrated database or try to downgrade it in place: startup and
-restore refuse that downgrade.
+To roll back: stop the service and restore the before-upgrade set **with the new image** (the one that wrote it), in
+a one-off container as in step 3, giving `-policy-out` your existing policy directory:
+`theatarr backup restore -from /data/backups/theatarr-<stamp> -db /data/theatarr.db -policy-out /config/policy -force`
+(`/config/policy` is the policy directory the service runs with; read-only is fine). The database goes back to the
+old schema; the policy files are checked against it and left as they are. Then start the
+old image (`THEATARR_VERSION` back at the old release, or `image: theatarr:previous` when built from source) with
+`THEATARR_FORCE_OFF=router,library,notify` until you have reconciled. Never start the old image against the migrated
+database or try to downgrade it in place: startup and restore refuse that downgrade.
 
 Sets written by the new image after the upgrade use the newer schema, which the old image cannot restore. Restoring
 the before-upgrade set loses the Theatarr records and settings written since; provider files and library links stay

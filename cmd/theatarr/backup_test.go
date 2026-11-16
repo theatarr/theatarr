@@ -429,3 +429,39 @@ func TestPruneKeepsUpgradeSetsApart(t *testing.T) {
 		t.Fatal("want the last 3 before-upgrade sets and the nightly one")
 	}
 }
+
+// A before-upgrade set of settings with a relative overrides_dir restores with the image that wrote it, given the
+// install's policy directory: checked against it, its files left as they are.
+func TestBeforeUpgradeSetRestoresUnderPolicyDirectory(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	polDir := importPolicyDir(t, root)
+	db := filepath.Join(root, "theatarr.db")
+	var out bytes.Buffer
+	if err := runSettings([]string{"import", "-policy", polDir, "-db", db, "-confirm"}, &out); err != nil {
+		t.Fatal(err)
+	}
+	st, err := store.Open(ctx, db, store.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	from, to, err := st.SchemaVersion(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	set, err := writeUpgradeSet(ctx, st, filepath.Join(root, "backups"), from, to, time.Now())
+	st.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	rev, err := policy.RevisionOf(polDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := restoreBackup(ctx, &out, set, db, polDir, true, func(string) string { return "" }, time.Now()); err != nil {
+		t.Fatalf("restore: %v\n%s", err, out.String())
+	}
+	if got, err := policy.RevisionOf(polDir); err != nil || got != rev {
+		t.Fatalf("policy revision %s, want %s: %v", got, rev, err)
+	}
+}
