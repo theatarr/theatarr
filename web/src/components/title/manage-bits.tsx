@@ -4,6 +4,7 @@ import { usePerms } from "@/api/library";
 import { downloadReason, downloadSettings, verdict } from "@/lib/version-grab";
 import { Lock, Search } from "lucide-react";
 import { Link } from "react-router";
+import type { Schemas } from "@/api/client";
 import type { UpgradeInfo, VersionControl } from "@/api/manage";
 import { UpgradeStatus } from "@/components/title/upgrade-why";
 import { availableIn, nextLine, upgradeBadge } from "@/lib/upgrade";
@@ -87,6 +88,7 @@ export function UpgradeBlock({
   seeFiles,
   releases,
   what,
+  history,
 }: {
   u: UpgradeInfo | undefined | null;
   quality?: string;
@@ -95,13 +97,15 @@ export function UpgradeBlock({
   releases?: string | (() => void);
   /** What the status is about, for the Why? heading. */
   what: string;
+  /** The library's history for the episode: what came of the better release found (nextLine). */
+  history?: readonly Schemas["HistoryEvent"][] | null;
 }) {
   const badge = upgradeBadge(u);
   if (!u || !badge) return null;
   const q = quality ?? u.quality;
   if (!seeFiles) return <p className="text-sm">{availableIn(q)}</p>;
   const below = u.state === "below_cutoff" || u.state === "upgrade_available";
-  const next = nextLine(u);
+  const next = nextLine(u, undefined, history);
   return (
     <div
       className={cn(
@@ -111,7 +115,7 @@ export function UpgradeBlock({
       data-testid="upgrade-block"
       data-state={u.state}
     >
-      <UpgradeStatus u={u} what={what} />
+      <UpgradeStatus u={u} what={what} history={history} />
       {below && next ? (
         <p className={cn("mt-1 text-xs [overflow-wrap:anywhere]", u.state === "upgrade_available" ? "text-[var(--accent-ink)]" : "text-[var(--ink-3)]")} data-testid="upgrade-next">
           {next}

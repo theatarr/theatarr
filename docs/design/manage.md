@@ -24,10 +24,10 @@ status word (Available, Partly available: docs/design/ui.md, Status words), neve
   better release was actually found. **Preferred quality not met**: the copy holds a file below its profile's cutoff
   and nothing better has been found (a movie with Remux-1080p whose profile prefers WEBDL-2160p, after a search that
   found nothing better); it is neutral, never a warning. **Preferred quality met** at the preferred quality.
-- The quality word opens **Why?**, headed by that same word with the state's wording under it, led by the profile
-  score when it falls short (for every state short of the preferred quality, so a copy with current and preferred
-  quality equal says "Score 7,555 of 10,000."), then the cutoff line ("WEBDL-2160p · profile score 2,244 / 2,000 ·
-  cutoff Remux-2160p") and what Theatarr would take next.
+- The quality word opens **Why?**, headed by that same word, in three plain lines (docs/design/ui.md, Status
+  words): "You have: WEBDL-2160p, score 2,244.", "Upgrades stop at: Remux-2160p and a score of 2,000.", and the
+  verdict from the server's `quality_met` ("Below the wanted quality." / "The quality is reached, the score is not.")
+  with the better release found and what came of it, or "No better release seen yet (last search 2 d ago).".
 - List rows carry `upgrade_state` for a title with a file; posters show "Upgrade found" on the year line, and so does
   the table's Status, under the status word (J2: "Preferred quality not met" and "Preferred quality met" are
   the title page's). The grid's quality filter is **Upgrade found** (`upgrade=found`); the status filter

@@ -1,10 +1,14 @@
 // Upgrade words (docs/design/manage.md, Words): one vocabulary for the grid, the title page, season headers and episodes,
 // for managers. The API's states map onto it (UPGRADE_WORDS); "Below cutoff" is never shown: it stays an internal
-// state and filter key. Scores and the cutoff arithmetic ("Bluray-1080p · 6,302 / 10,000 · cutoff Remux-2160p") live
-// in the Why? explanation (components/title/upgrade-why.tsx). People without "see files" get availability and
-// resolution only, since the API leaves states, scores and releases out for them.
+// state and filter key. Scores and the cutoff ("You have: …", "Upgrades stop at: …") live in the Why? explanation
+// (components/title/upgrade-why.tsx, whyLines). People without "see files" get availability and resolution only, since
+// the API leaves states, scores and releases out for them.
+import type { Schemas } from "@/api/client";
 import type { Cutoff, UpgradeInfo, VersionControl } from "@/api/manage";
 import { fmtAgo, fmtNumber } from "./format";
+import { dayWords, failureWords } from "./title-facts";
+
+type HistoryEvent = Schemas["HistoryEvent"];
 
 export type Tone = "positive" | "warning" | "negative" | "neutral" | "info";
 
@@ -47,56 +51,74 @@ export function upgradeBadge(u: Pick<UpgradeInfo, "state"> | undefined | null): 
   return { ...words, label: BELOW_PREFERRED, short: BELOW_PREFERRED, tone: "neutral" };
 }
 
-/** "Bluray-1080p · profile score 6,302 / 10,000 · cutoff Remux-2160p"; the score part only when known. */
-export function cutoffLine(quality: string | undefined, score: number | undefined | null, cutoff: Cutoff | undefined | null): string {
-  const parts: string[] = [];
-  if (quality) parts.push(quality);
-  if (score !== undefined && score !== null) {
-    parts.push(cutoff?.score !== undefined && cutoff.score !== null ? `profile score ${fmtNumber(score)} / ${fmtNumber(cutoff.score)}` : `profile score ${fmtNumber(score)}`);
-  } else if (cutoff?.score !== undefined && cutoff.score !== null) {
-    parts.push(`cutoff score ${fmtNumber(cutoff.score)}`);
-  }
-  if (cutoff?.quality) parts.push(`cutoff ${cutoff.quality}`);
-  if (cutoff && !cutoff.upgrades) parts.push("upgrades off");
-  return parts.join(" · ");
+/** Why?'s first line: the file held, "You have: Remux-2160p, score 8,575."; "" without a quality. */
+export function haveLine(quality: string | undefined | null, score: number | undefined | null): string {
+  if (!quality) return "";
+  return score !== undefined && score !== null ? `You have: ${quality}, score ${fmtNumber(score)}.` : `You have: ${quality}.`;
 }
 
-const SOURCE: Record<string, string> = {
-  search: "Theatarr's search",
-  rss: "Theatarr's RSS",
-};
+/** Why?'s second line: where upgrades stop, in the profile's own names, "Upgrades stop at: Remux-2160p and a score of
+ *  10,000."; "Upgrades are off in this library's profile." when it allows none; "" without a cutoff. */
+export function stopLine(cutoff: Cutoff | undefined | null): string {
+  if (!cutoff) return "";
+  if (!cutoff.upgrades) return "Upgrades are off in this library's profile.";
+  const score = cutoff.score !== undefined && cutoff.score !== null ? fmtNumber(cutoff.score) : "";
+  if (!cutoff.quality) return score ? `Upgrades stop at a score of ${score}.` : "";
+  return score ? `Upgrades stop at: ${cutoff.quality} and a score of ${score}.` : `Upgrades stop at: ${cutoff.quality}.`;
+}
 
 /**
- * Why?'s first line: the profile score that falls short, with its numbers ("Score 8,550 of 10,000."); "" when it does
- * not fall short or is not known. The quality part is not judged here: the API does not say whether the file's quality
- * meets a cutoff that is a group (WEBDL-2160p in "WEB 2160p"), so the source lines and the cutoff line say it.
+ * Why?'s verdict, from the server's quality_met (the stored quality-cutoff judging; quality names are never compared
+ * here, since a cutoff can be a group): "Below the wanted quality.", or "The quality is reached, the score is not."
+ * when the score is known to fall short; "" when the server does not say (a prefer-SeaDex library).
  */
-export function shortfall(score: number | undefined | null, cutoff: Cutoff | undefined | null): string {
-  if (score === undefined || score === null || cutoff?.score === undefined || cutoff.score === null || score >= cutoff.score) return "";
-  return `Score ${fmtNumber(score)} of ${fmtNumber(cutoff.score)}.`;
+export function verdictLine(u: Pick<UpgradeInfo, "quality_met">, score: number | undefined | null, cutoff: Cutoff | undefined | null): string {
+  if (u.quality_met === false) return "Below the wanted quality.";
+  const short = score !== undefined && score !== null && cutoff?.score !== undefined && cutoff.score !== null && score < cutoff.score;
+  return u.quality_met === true && short ? "The quality is reached, the score is not." : "";
 }
 
-/** The decision engine's reason in readable numbers and plurals: "better format score: 6,200 over 4,500",
- *  "fills 1 episode with no file". */
-export function reasonWords(r: string): string {
-  return r
-    .replace(/\b\d{4,}\b/g, (n) => fmtNumber(Number(n)))
-    .replace(/\b(\d+) (\w+)\(s\)/g, (_, n: string, w: string) => `${n} ${n === "1" ? w : `${w}s`}`);
+/** What came of a release in the library's history on the page: its newest download event (grabbed, imported or
+ *  failed), undefined when it was never downloaded. */
+export function releaseOutcome(history: readonly HistoryEvent[], release: string): HistoryEvent | undefined {
+  let top: HistoryEvent | undefined;
+  for (const h of history) {
+    if (h.release_title !== release || (h.event !== "grabbed" && h.event !== "failed" && h.event !== "imported" && h.event !== "upgraded")) continue;
+    if (!top || h.date > top.date) top = h;
+  }
+  return top;
 }
 
-/** What Theatarr would take next and why, or why there is nothing to take. */
-export function nextLine(u: UpgradeInfo | undefined | null, now: Date = new Date()): string {
+/**
+ * The better release seen and what came of it, or that none was seen: "Better release found 4 d ago:
+ * <release> (WEBDL-2160p, score 6,200; yours 4,500). Not downloaded yet."; when the library's history (given) has a
+ * failed download of it: "Better release found Nov 12: … Tried Nov 12: not cached on RD, AD and TB. Your file is
+ * unchanged." (the failure as the history row says it, failureWords); without the history nothing is said about
+ * downloading. "No better release seen yet (last search 2 d ago)." otherwise.
+ */
+export function nextLine(u: UpgradeInfo | undefined | null, now: Date = new Date(), history?: readonly HistoryEvent[] | null): string {
   if (!u || (u.state !== "below_cutoff" && u.state !== "upgrade_available")) return "";
   const n = u.next;
   if (n) {
-    const q = [n.quality, fmtNumber(n.score)].filter(Boolean).join(" · ");
-    // The engine's reason is from the search that saw the release, not now: said so.
-    const why = n.reason ? `; reason at that search: ${reasonWords(n.reason)}` : "";
-    return `Would take ${n.release} (${q})${why}. Seen ${fmtAgo(n.seen_at, now)} by ${SOURCE[n.source] ?? n.source}.`;
+    const facts = [n.quality, `score ${fmtNumber(n.score)}`].filter(Boolean).join(", ");
+    const yours = u.score !== undefined && u.score !== null ? `; yours ${fmtNumber(u.score)}` : "";
+    const what = `${n.release} (${facts}${yours})`;
+    const last = history ? releaseOutcome(history, n.release) : undefined;
+    if (last?.event === "failed") {
+      const why = failureWords(last);
+      return `Better release found ${dayWords(n.seen_at, now)}: ${what}. Tried ${dayWords(last.date, now)}${why ? `: ${why}` : ""}. Your file is unchanged.`;
+    }
+    return `Better release found ${fmtAgo(n.seen_at, now)}: ${what}.${history && !last ? " Not downloaded yet." : ""}`;
   }
   if (u.seen && u.seen > 0) return `A better release was seen for ${fmtNumber(u.seen)} of ${fmtNumber(u.below)} episodes.`;
-  const last = u.last_search ? `; last search ${fmtAgo(u.last_search, now)}` : "";
+  const last = u.last_search ? ` (last search ${fmtAgo(u.last_search, now)})` : "";
   return `No better release seen yet${last}.`;
+}
+
+/** Why?'s three lines: the file held, where upgrades stop, and the verdict with what was found (nextLine). */
+export function whyLines(u: UpgradeInfo, score: number | undefined | null, cutoff: Cutoff | undefined | null, history?: readonly HistoryEvent[] | null, now: Date = new Date()): string[] {
+  const third = [verdictLine(u, score, cutoff), nextLine(u, now, history)].filter(Boolean).join(" ");
+  return [haveLine(u.quality, score), stopLine(cutoff), third].filter(Boolean);
 }
 
 /** For people without "see files": one sentence with no release names or scores. */
@@ -166,26 +188,4 @@ export function sourceWords(quality: string | undefined | null): string {
   if (!res && !src) return quality;
   if (src === "DVD" && !res) return "DVD";
   return [res, src].filter(Boolean).join(" ");
-}
-
-/** What the Why? explanation says, as lines (lib so it is tested; upgrade-why.tsx lays it out). */
-export type Why = {
-  /** The quality word, as the badge that opened Why? says it (upgradeBadge). */
-  headline: string;
-  /** The state's longer wording (UPGRADE_WORDS), when it says more than the headline. */
-  detail?: string;
-  current: string;
-  preferred: string;
-};
-
-/** The Why? explanation of an upgrade state: the quality word, and current against preferred source. */
-export function whyOf(u: UpgradeInfo): Why {
-  const w = u.state === "none" ? undefined : UPGRADE_WORDS[u.state];
-  const b = upgradeBadge(u);
-  return {
-    headline: b?.label ?? "",
-    detail: w && w.label !== b?.label ? w.label : undefined,
-    current: sourceWords(u.quality) || "No file",
-    preferred: sourceWords(u.cutoff?.quality) || "Not set",
-  };
 }

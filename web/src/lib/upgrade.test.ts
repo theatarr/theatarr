@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { mediaLine } from "./media";
 import { availabilityFilters, posterStatus } from "./library";
-import { UPGRADE_WORDS, availableIn, belowCount, cutoffLine, nextLine, plainUpgrade, resolutionWords, reasonWords, shortfall, sourceWords, upgradeBadge, whyOf } from "./upgrade";
+import { UPGRADE_WORDS, availableIn, belowCount, haveLine, nextLine, plainUpgrade, resolutionWords, sourceWords, stopLine, upgradeBadge, verdictLine, whyLines } from "./upgrade";
 
 const cutoff = { quality: "Remux-2160p", score: 10000, upgrades: true };
 
@@ -55,38 +55,46 @@ describe("upgrade words", () => {
     expect(sourceWords("Unknown")).toBe("Unknown");
     expect(sourceWords(undefined)).toBe("");
   });
-  it("explains Why", () => {
-    const base = { quality: "WEBDL-2160p", cutoff: { quality: "Remux-2160p", upgrades: true, score: 10000 }, score: 1500 };
-    // The heading is the badge's quality word; the state's longer wording is the line under it.
-    const plain = whyOf({ ...base, state: "below_cutoff" });
-    expect(plain).toEqual({ headline: "Preferred quality not met", detail: "Preferred quality not met; no better copy found", current: "4K WEB", preferred: "4K Remux" });
-    expect(whyOf({ ...base, state: "upgrade_available" })).toMatchObject({ headline: "Upgrade found", detail: undefined });
-  });
-  it("writes the cutoff line", () => {
-    expect(cutoffLine("Bluray-1080p", 6302, cutoff)).toBe("Bluray-1080p · profile score 6,302 / 10,000 · cutoff Remux-2160p");
-    // A user: no scores at all.
-    expect(cutoffLine("Bluray-1080p", undefined, { quality: "Remux-2160p", upgrades: true })).toBe("Bluray-1080p · cutoff Remux-2160p");
-    expect(cutoffLine("WEBDL-2160p", 1500, { ...cutoff, upgrades: false })).toContain("upgrades off");
-  });
-  it("says what falls short", () => {
-    // The score that falls short leads; a quality cutoff that is a group is not judged by name.
-    expect(shortfall(6302, cutoff)).toBe("Score 6,302 of 10,000.");
-    expect(shortfall(12000, cutoff)).toBe("");
-    expect(shortfall(undefined, cutoff)).toBe("");
-    // A cutoff score of zero or below still counts.
-    expect(shortfall(-50, { ...cutoff, score: 0 })).toBe("Score -50 of 0.");
-  });
-  it("says what Theatarr would take next, or that nothing was seen", () => {
-    const now = new Date("2026-10-26T12:00:00Z");
-    expect(nextLine({ state: "below_cutoff", last_search: "2026-10-23T12:00:00Z" }, now)).toBe("No better release seen yet; last search 3 d ago.");
-    expect(nextLine({ state: "below_cutoff" }, now)).toBe("No better release seen yet.");
-    const line = nextLine({
-      state: "upgrade_available",
-      next: { release: "X.S01.Remux", quality: "Bluray-1080p Remux", score: 5000, reason: "better format score: 5000 over 1400", source: "rss", seen_at: "2026-10-26T10:00:00Z" },
-    }, now);
-    expect(line).toBe("Would take X.S01.Remux (Bluray-1080p Remux · 5,000); reason at that search: better format score: 5,000 over 1,400. Seen 2 h ago by Theatarr's RSS.");
-    expect(reasonWords("fills 2 episode(s) with no file")).toBe("fills 2 episodes with no file");
-    expect(reasonWords("fills 1 episode(s) with no file")).toBe("fills 1 episode with no file");
+  it("explains Why in three plain lines", () => {
+    const now = new Date("2026-11-15T12:00:00Z");
+    const seen = "2026-11-11T10:00:00Z";
+    // The quality is reached, the score is not.
+    expect(whyLines({ state: "below_cutoff", quality: "Remux-2160p", quality_met: true, last_search: "2026-11-13T12:00:00Z" }, 8575, cutoff, null, now)).toEqual([
+      "You have: Remux-2160p, score 8,575.",
+      "Upgrades stop at: Remux-2160p and a score of 10,000.",
+      "The quality is reached, the score is not. No better release seen yet (last search 2 d ago).",
+    ]);
+    // Below the wanted quality: the server's judging, never a comparison of names (a cutoff can be a group).
+    const group = { quality: "WEB 2160p", score: 10000, upgrades: true };
+    expect(whyLines({ state: "below_cutoff", quality: "WEBDL-1080p", quality_met: false }, 600, group, null, now)).toEqual([
+      "You have: WEBDL-1080p, score 600.",
+      "Upgrades stop at: WEB 2160p and a score of 10,000.",
+      "Below the wanted quality. No better release seen yet.",
+    ]);
+    // A prefer-SeaDex library holding the release it recommends: the server does not judge the quality, so no
+    // verdict; nothing is said about SeaDex.
+    expect(whyLines({ state: "below_cutoff", quality: "Bluray-1080p", last_search: "2026-11-08T12:00:00Z" }, 6200, cutoff, null, now)).toEqual([
+      "You have: Bluray-1080p, score 6,200.",
+      "Upgrades stop at: Remux-2160p and a score of 10,000.",
+      "No better release seen yet (last search 7 d ago).",
+    ]);
+    // A score never recorded, a profile without upgrades.
+    expect(haveLine("DVD", undefined)).toBe("You have: DVD.");
+    expect(stopLine({ ...cutoff, upgrades: false })).toBe("Upgrades are off in this library's profile.");
+    expect(stopLine(null)).toBe("");
+    // The score at the cutoff: the quality verdict alone does not claim a score shortfall.
+    expect(verdictLine({ quality_met: true }, 10000, cutoff)).toBe("");
+    // A better release found, not downloaded; tried and failed (the failure as the history row says it).
+    const u = { state: "upgrade_available" as const, quality: "WEBDL-2160p", score: 4500, next: { release: "Conclave.2024.2160p.WEB-DL", quality: "WEBDL-2160p", score: 6200, source: "search" as const, seen_at: seen } };
+    expect(nextLine(u, now, [])).toBe("Better release found 4 d ago: Conclave.2024.2160p.WEB-DL (WEBDL-2160p, score 6,200; yours 4,500). Not downloaded yet.");
+    const failed = { event: "failed" as const, date: "2026-11-12T09:00:00Z", release_title: "Conclave.2024.2160p.WEB-DL", missed_on: ["rd", "ad", "tb"] };
+    const grabbed = { event: "grabbed" as const, date: "2026-11-12T08:00:00Z", release_title: "Conclave.2024.2160p.WEB-DL" };
+    expect(nextLine(u, now, [failed, grabbed])).toBe(
+      "Better release found Nov 11: Conclave.2024.2160p.WEB-DL (WEBDL-2160p, score 6,200; yours 4,500). Tried Nov 12: not cached on RD, AD and TB. Your file is unchanged.",
+    );
+    // A download in hand for it: nothing said about downloading; without the history neither.
+    expect(nextLine(u, now, [grabbed])).toBe("Better release found 4 d ago: Conclave.2024.2160p.WEB-DL (WEBDL-2160p, score 6,200; yours 4,500).");
+    expect(nextLine(u, now)).toBe("Better release found 4 d ago: Conclave.2024.2160p.WEB-DL (WEBDL-2160p, score 6,200; yours 4,500).");
     expect(nextLine({ state: "cutoff_met" }, now)).toBe("");
   });
   it("keeps users to plain words", () => {
