@@ -196,6 +196,27 @@ func TestUpgradeEvidence(t *testing.T) {
 		mu.Cutoff.From != "policy" {
 		t.Fatalf("movie upgrade: %+v %+v", mu, mu.Cutoff)
 	}
+	// Whether the quality cutoff itself is met: the stored flag (decide.StoreQualityCutoff), per movie and per
+	// series (every file below the cutoff) and per episode.
+	if mu.QualityMet == nil || !*mu.QualityMet || u.QualityMet == nil || !*u.QualityMet {
+		t.Fatalf("quality met, flags clear: movie %v series %v", mu.QualityMet, u.QualityMet)
+	}
+	e.exec(`UPDATE version SET below_quality_cutoff = 1 WHERE title_id = 1`)
+	e.exec(`UPDATE episode_version_state SET below_quality_cutoff = 1 WHERE episode_id = 101`)
+	m, d = TitleDetail{}, TitleDetail{}
+	e.call("GET", APIBase+"/titles/1", nil, 200, &m)
+	e.call("GET", APIBase+"/titles/10", nil, 200, &d)
+	if q := m.Versions[0].Upgrade.QualityMet; q == nil || *q {
+		t.Errorf("movie below the quality cutoff: %v", q)
+	}
+	if q := d.Versions[0].Upgrade.QualityMet; q == nil || *q {
+		t.Errorf("series with one episode below the quality cutoff: %v", q)
+	}
+	var e102 EpisodeDetail
+	e.call("GET", APIBase+"/titles/10/episodes/102", nil, 200, &e102)
+	if q := e102.Versions[0].Upgrade.QualityMet; q == nil || !*q {
+		t.Errorf("episode 102 at the quality cutoff: %v", q)
+	}
 
 	var l EpisodeList
 	e.call("GET", APIBase+"/titles/10/episodes", nil, 200, &l)
@@ -425,7 +446,7 @@ func TestManageNoScoresForUsers(t *testing.T) {
 	}
 	secret := []string{`"score"`, `"next"`, `"size_bytes"`, `"release_title"`, `"path"`, "BETTER", "REMUX-BEST",
 		"WEB-DL-GRP", "4k Preferred", "sonarr_4k_debrid", `"last_search"`, `"journal"`, `"media"`, "10000",
-		`"info_hash"`, "abababab"}
+		`"info_hash"`, "abababab", `"quality_met"`}
 	for _, p := range []string{"/titles/10", "/titles/1", "/titles/10/episodes", "/titles/10/episodes/101", "/titles",
 		"/discover"} {
 		code, body := do("GET", APIBase+p, nil)

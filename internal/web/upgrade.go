@@ -68,6 +68,10 @@ type UpgradeInfo struct {
 	Score      *int64       `json:"score,omitempty"`
 	Next       *UpgradeNext `json:"next,omitempty"`
 	LastSearch *time.Time   `json:"last_search,omitempty"`
+	// QualityMet (below cutoff or upgrade available, for callers who see files): whether the file's quality reaches
+	// the cutoff quality, from the stored judging (decide.StoreQualityCutoff; for a series, every file below the
+	// cutoff). Absent where it is not stored: a prefer-SeaDex library, or a profile without qualities of its own.
+	QualityMet *bool `json:"quality_met,omitempty"`
 }
 
 // redactUpgrade keeps the state, the qualities and the counts.
@@ -75,7 +79,7 @@ func redactUpgrade(u *UpgradeInfo) {
 	if u == nil {
 		return
 	}
-	u.Score, u.Next, u.LastSearch = nil, nil, nil
+	u.Score, u.Next, u.LastSearch, u.QualityMet = nil, nil, nil, nil
 	if c := u.Cutoff; c != nil {
 		*c = Cutoff{Quality: c.Quality, Upgrades: c.Upgrades}
 	}
@@ -319,6 +323,8 @@ type upgradeVersion struct {
 type upgradeEpisode struct {
 	id, season, number int64
 	state              string
+	// belowQuality is the stored quality-cutoff flag of the episode's file (episode_version_state.below_quality_cutoff).
+	belowQuality bool
 }
 
 // upgradeSet explains versions: their items below cutoff and the evidence about them.
@@ -327,6 +333,10 @@ type upgradeSet struct {
 	episodes map[int64][]upgradeEpisode
 	evidence map[titleKey][]evRecord
 	cutoffs  map[int64]*Cutoff
+	// With cutoffs: the versions whose quality-cutoff flags are stored (not prefer-SeaDex, a cutoff known), and a
+	// movie version's flag (version.below_quality_cutoff).
+	qualityJudged map[int64]bool
+	belowQuality  map[int64]bool
 }
 
 // upgradeLoadChunk is how many versions loadUpgrades reads files and episodes for at once (bound parameters).
@@ -369,12 +379,12 @@ func (w *Web) upgradesWith(ctx context.Context, db *sql.DB, vs []upgradeVersion,
 	}
 	var err error
 	for chunk := range slices.Chunk(series, upgradeLoadChunk) {
-		err = scanAll(ctx, db, `SELECT s.version_id, e.id, e.season, e.number, s.state FROM episode_version_state s
-			JOIN episode e ON e.id = s.episode_id WHERE s.version_id IN (`+store.Placeholders(len(chunk))+`)
-			ORDER BY e.season, e.number`, chunk, func(r *sql.Rows) error {
+		err = scanAll(ctx, db, `SELECT s.version_id, e.id, e.season, e.number, s.state, s.below_quality_cutoff
+			FROM episode_version_state s JOIN episode e ON e.id = s.episode_id
+			WHERE s.version_id IN (`+store.Placeholders(len(chunk))+`) ORDER BY e.season, e.number`, chunk, func(r *sql.Rows) error {
 			var vid int64
 			var e upgradeEpisode
-			if err := r.Scan(&vid, &e.id, &e.season, &e.number, &e.state); err != nil {
+			if err := r.Scan(&vid, &e.id, &e.season, &e.number, &e.state, &e.belowQuality); err != nil {
 				return err
 			}
 			s.episodes[vid] = append(s.episodes[vid], e)
@@ -404,8 +414,44 @@ func (w *Web) upgradesWith(ctx context.Context, db *sql.DB, vs []upgradeVersion,
 	}
 	if cutoffs {
 		s.cutoffs = w.loadCutoffs(vs)
+		if err := w.loadQualityFlags(ctx, db, vs, s); err != nil {
+			return nil, err
+		}
 	}
 	return s, nil
+}
+
+// loadQualityFlags notes which versions have their quality-cutoff flags stored and reads a movie version's flag.
+func (w *Web) loadQualityFlags(ctx context.Context, db *sql.DB, vs []upgradeVersion, s *upgradeSet) error {
+	s.qualityJudged, s.belowQuality = map[int64]bool{}, map[int64]bool{}
+	if w.pol == nil {
+		return nil
+	}
+	var movies []any
+	for _, v := range vs {
+		if vp := w.pol.Versions[v.key]; s.cutoffs[v.id] != nil && vp != nil && !vp.PreferSeaDex {
+			s.qualityJudged[v.id] = true
+			if v.kind != "series" {
+				movies = append(movies, v.id)
+			}
+		}
+	}
+	for chunk := range slices.Chunk(movies, upgradeLoadChunk) {
+		err := scanAll(ctx, db, `SELECT id, below_quality_cutoff FROM version WHERE id IN (`+
+			store.Placeholders(len(chunk))+`)`, chunk, func(r *sql.Rows) error {
+			var id int64
+			var below bool
+			if err := r.Scan(&id, &below); err != nil {
+				return err
+			}
+			s.belowQuality[id] = below
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // explain builds a version's UpgradeInfo; episode > 0 explains that one episode of a series version.
@@ -414,6 +460,7 @@ func (s *upgradeSet) explain(v upgradeVersion, episode int64) *UpgradeInfo {
 	files := s.files[v.id]
 	recs := s.evidence[titleKey{v.titleID, v.key}]
 	var lastSearch int64
+	belowQuality := false
 	note := func(next *UpgradeNext, at int64) {
 		lastSearch = max(lastSearch, at)
 		if next != nil && (u.Next == nil || next.Score > u.Next.Score) {
@@ -431,6 +478,7 @@ func (s *upgradeSet) explain(v upgradeVersion, episode int64) *UpgradeInfo {
 			u.State = "cutoff_met"
 		case "filled":
 			u.State = "below_cutoff"
+			belowQuality = s.belowQuality[v.id]
 			next, at := judgeUpgrade(evItem{fileAt: f.added}, recs)
 			note(next, at)
 		}
@@ -457,6 +505,7 @@ func (s *upgradeSet) explain(v upgradeVersion, episode int64) *UpgradeInfo {
 				continue
 			}
 			u.Below++
+			belowQuality = belowQuality || e.belowQuality
 			k := qs{q: f.quality}
 			if f.score != nil {
 				k.s, k.has = *f.score, true
@@ -503,6 +552,10 @@ func (s *upgradeSet) explain(v upgradeVersion, episode int64) *UpgradeInfo {
 	}
 	if u.Next != nil {
 		u.State = "upgrade_available"
+	}
+	if s.qualityJudged[v.id] && u.State != "none" && u.State != "cutoff_met" {
+		met := !belowQuality
+		u.QualityMet = &met
 	}
 	if lastSearch > 0 {
 		t := ts(lastSearch)
