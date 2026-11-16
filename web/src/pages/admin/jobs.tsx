@@ -32,6 +32,8 @@ export function JobsPage() {
   // already takes them in (internal/web query.go jobCounts), so they are not added again. That count covers every
   // kind: with ?kind= the strip counts the rows shown instead.
   const open = kind ? g.attention.length + failedTasks.length : attentionCount(counts);
+  // Filtered, every total in the strip is counted from the rows of that kind, not the server's all-kind counts.
+  const shown = kind ? (jobs.data?.items ?? []).reduce<Record<string, number>>((m, j) => ({ ...m, [j.state ?? ""]: (m[j.state ?? ""] ?? 0) + 1 }), {}) : counts;
   const anyResolved = g.settled.some((j) => (j.resolved_by || j.resolved_by_task) && !j.dismissed_at);
   return (
     <div>
@@ -40,10 +42,10 @@ export function JobsPage() {
       <Strip
         items={[
           { label: "need attention", value: fmtNumber(open), tone: open > 0 ? "bad" : undefined, testid: "jobs-attention" },
-          { label: "running", value: fmtNumber(counts.running ?? 0), testid: "jobs-running" },
-          { label: "queued", value: fmtNumber(counts.queued ?? 0), testid: "jobs-queued" },
-          { label: "failed, resolved ones included", value: fmtNumber((counts.failed ?? 0) + failedTasks.length), testid: "jobs-failed" },
-          { label: "done", value: fmtNumber(counts.done ?? 0), testid: "jobs-done" },
+          { label: "running", value: fmtNumber(shown.running ?? 0), testid: "jobs-running" },
+          { label: "queued", value: fmtNumber(shown.queued ?? 0), testid: "jobs-queued" },
+          { label: "failed, resolved ones included", value: fmtNumber((shown.failed ?? 0) + failedTasks.length), testid: "jobs-failed" },
+          { label: "done", value: fmtNumber(shown.done ?? 0), testid: "jobs-done" },
         ]}
       />
       <Section title="Needs attention" className="mt-5">

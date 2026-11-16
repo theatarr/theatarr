@@ -269,3 +269,8 @@ it("leaves no failure out of the line: HTTP errors, unprefixed fallbacks and gat
   // The known information stays out, the name-only fallback included.
   expect(searchIncomplete("zilean: only a plain keyword query; no episode criteria; page_cap 200 reached after 2 pages; season search: kept 4 packs, dropped 2 single episodes; no episode counts for this series; pack sizes are file sizes; dropped 3 releases with conflicting or unverifiable torrent identities; no AniList id maps to this title: nothing to ask SeaDex")).toBe("");
 });
+
+it("names a fallback note by the indexer it carries before its usual owner", () => {
+  expect(searchIncomplete("title search failed, IMDb results only: indexer my-zilean: upstream answered HTTP 503 Service Unavailable")).toBe(
+    "Search incomplete: my-zilean was unavailable.");
+});

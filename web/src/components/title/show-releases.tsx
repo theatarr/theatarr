@@ -46,7 +46,7 @@ const OWNER: [RegExp, string][] = [[/^title search failed, IMDb results only/, "
 
 /** One line for the indexers that did not answer fully, from the search's notes (joined by "; "): "Search incomplete:
  *  therarbg was rate-limited, nyaa did not answer in time." Empty when every note is information. A note is named by
- *  its "indexer x:" / "x:" prefix, by the "indexer:x" a gateway note carries, or by its known owner; an unnamed piece
+ *  the "indexer:x" a gateway note carries, the "indexer x:" inside it, its "x:" prefix, or its known owner; an unnamed piece
  *  right after a named failure is the rest of that failure. The raw notes stay under Technical details. */
 export function searchIncomplete(notes: string): string {
   const words = new Map<string, string>();
@@ -57,7 +57,7 @@ export function searchIncomplete(notes: string): string {
     const prefixed = /^(?:indexer )?([\w.-]+): (.+)$/.exec(note);
     const body = prefixed ? prefixed[2] : note;
     if (INFO.some((re) => re.test(body) || re.test(note))) { last = ""; continue; }
-    const name = /indexer:([\w.-]+)/.exec(note)?.[1] ?? (prefixed && prefixed[1] !== "gateway" ? prefixed[1] : undefined)
+    const name = /indexer:([\w.-]+)/.exec(note)?.[1] ?? /\bindexer ([\w.-]+): /.exec(note)?.[1] ?? (prefixed && prefixed[1] !== "gateway" ? prefixed[1] : undefined)
       ?? OWNER.find(([re]) => re.test(note))?.[1] ?? (last || "an indexer");
     const word = TROUBLE.find(([re]) => re.test(note))?.[1] ?? "had an error";
     const prev = words.get(name);
