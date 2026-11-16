@@ -616,7 +616,8 @@ func TestTitlePage(t *testing.T) {
 	for _, h := range v.History {
 		events = append(events, h.Event)
 	}
-	if got := strings.Join(events, ","); got != "upgraded,grabbed,imported,grabbed" {
+	// The second import recorded no replaced file: an import, not an upgrade.
+	if got := strings.Join(events, ","); got != "imported,grabbed,imported,grabbed" {
 		t.Errorf("history: %s", got)
 	}
 	if d.Versions[1].Current != nil || d.Availability != "partial" || d.AddedAt == nil {

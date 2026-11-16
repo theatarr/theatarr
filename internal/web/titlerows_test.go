@@ -634,3 +634,34 @@ func TestTitleOnDiskCountsSharedFileOnce(t *testing.T) {
 		}
 	}
 }
+
+// A movie import is an upgrade only when History recorded it replacing a file: a file removed, then a later download
+// imported, reads imported; an import that replaced the file reads upgraded.
+func TestTitleHistoryUpgradeOnlyWhenReplaced(t *testing.T) {
+	t.Parallel()
+	e := newManageEnv(t, nil)
+	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, size_bytes,
+		state, episodes, created_at, updated_at, imported_at) VALUES
+		(1, 1, 1, 'movie-remux', 'aa', 'Alpha.First', 'dmm', 1, 'imported', '[]', 10, 20, 20),
+		(2, 1, 1, 'movie-remux', 'bb', 'Alpha.Again', 'dmm', 1, 'imported', '[]', 30, 40, 40)`)
+	events := func() []string {
+		t.Helper()
+		var d TitleDetail
+		e.call("GET", APIBase+"/titles/1", nil, 200, &d)
+		var out []string
+		for _, h := range d.Versions[0].History {
+			if h.Event == "imported" || h.Event == "upgraded" {
+				out = append(out, h.ReleaseTitle+":"+h.Event)
+			}
+		}
+		return out
+	}
+	if got := events(); !slices.Equal(got, []string{"Alpha.Again:imported", "Alpha.First:imported"}) {
+		t.Errorf("re-download after a removal: %q", got)
+	}
+	e.exec(`INSERT INTO history (ref, at, event, kind, title_id, version_key, download_id, episodes, files)
+		VALUES ('lib:9', 41, 'deleted', 'link', 1, 'movie-remux', 2, '[]', 1)`)
+	if got := events(); !slices.Equal(got, []string{"Alpha.Again:upgraded", "Alpha.First:imported"}) {
+		t.Errorf("a recorded replacement: %q", got)
+	}
+}

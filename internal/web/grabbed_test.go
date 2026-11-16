@@ -252,7 +252,8 @@ func TestReleaseOutcomesAndHistory(t *testing.T) {
 	}
 	wantEv := []ev{
 		{"grabbed", "manual grab by alice", "tb", "", ""},
-		{"upgraded", "search again after a failure", "rd", "", ""},
+		// A second import with no recorded replacement is an import, not an upgrade.
+		{"imported", "search again after a failure", "rd", "", ""},
 		{"grabbed", "search again after a failure", "rd", "", ""},
 		{"searched", "search again after a failure", "rd", "", "Grabbed #1 via RD → imported (the current file)"},
 		{"failed", "automatic search", "rd", "RD reported an error", ""},

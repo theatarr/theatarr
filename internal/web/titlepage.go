@@ -400,18 +400,6 @@ func (w *Web) versionHistory(ctx context.Context, db *sql.DB, titleID int64, kin
 	for _, v := range byID {
 		h := v.History
 		sort.SliceStable(h, func(i, j int) bool { return h[i].Date.Before(h[j].Date) })
-		// A movie import after an earlier one replaced a file: an upgrade.
-		if kind == "movie" {
-			imported := false
-			for i := range h {
-				if h[i].Event == "imported" {
-					if imported {
-						h[i].Event = "upgraded"
-					}
-					imported = true
-				}
-			}
-		}
 		// Newest first, at most historyLimit.
 		for i, j := 0, len(h)-1; i < j; i, j = i+1, j-1 {
 			h[i], h[j] = h[j], h[i]
