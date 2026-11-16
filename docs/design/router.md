@@ -525,6 +525,24 @@ it imports, and nothing is deleted. `theatarr router status` prints the number o
 check `CachedOnlyCheck` warns when one has been open more than 30 minutes after its add. Tests: `TestCachedCheck*`
 (`cachedcheck_test.go`), `TestUnfinishedCacheChecks`.
 
+**A file name Real-Debrid refuses** (with `cached_only` on or off). Real-Debrid applies its name rule
+(`indexer.RealDebridRefuses`) to each selected file's own name when the file is read (zurg's `refused_files`): a clean
+pack with one refused file name is accepted, and that file can then not be read. So before the selection of a fresh
+Real-Debrid add (`waiting_files_selection`, nothing selected, not reused), `applyStatus` checks the base name of every
+video it would select (the selection's own exclusions: `.nfo`, samples and other unselected files are not judged).
+When one matches, nothing is selected and the release is a **miss on Real-Debrid**, not an uncached verdict:
+`provider_cache` `miss`, source `router:rd_name`, for the content's miss TTL; not counted as an uncached add, not
+cache evidence, nothing blocklisted. The add is deleted only when the uncached verdict's proof says it is Theatarr's
+own (the route's `proof`, the poller's `ownRDAdd`), through the same journaled delete (`deleteOwnAdd`,
+`deleteOwnPolled`); so the before-the-add guard now runs for every Real-Debrid add, also with `cached_only` and the
+stall timeout off (it reads only the record; `download.own_add` is then set on every Real-Debrid add). Not provably
+Theatarr's: nothing is deleted and nothing held for review; the torrent stays. The download's reason and the log say
+"Real-Debrid refuses a file name in this release (<file>)". In a route (`settle`, or `trySelect` with `cached_only`
+off) the add is taken back (`unmarkAdded`) and the next provider tried, `refused/rd_name_refused`; the largest-video
+second add (altRetry) is not tried. From the poller the download is routed again (`requeue`); a delete that waits for
+the gate or failed is tried at the next poll. A reused torrent is not checked and never deleted. Tests:
+`TestRDRefusedFileNameInRoute`, `TestRDRefusedFileNameNotOurs`, `TestRDRefusedFileNameFromPoller`.
+
 - **One second selection on Real-Debrid (movies).** Real-Debrid caches per selected file
   set, so an uncached answer is a verdict on the set tried, not on the torrent. When a movie's every playable file
   comes back uncached on RD and Theatarr's add was deleted (`uncached_deleted`, its message ending "adding it once more with

@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"path"
+	"slices"
 	"strings"
 	"time"
 
@@ -36,20 +38,26 @@ const (
 const rdWaitingFiles = "waiting_files_selection"
 
 // trySelect reads a Real-Debrid torrent once and selects its files when RD waits for that. Failures are logged and
-// left for the poller.
-func (r *Router) trySelect(ctx context.Context, dl int64, version string, kind policy.Kind, pk, id string) {
+// left for the poller. A video name Real-Debrid refuses is returned with the read, for the route (settleNameRefused).
+func (r *Router) trySelect(ctx context.Context, dl int64, version string, kind policy.Kind, pk,
+	id string) (*provider.Torrent, *nameRefusedError) {
 	rp := r.provs[pk]
 	if rp == nil {
-		return
+		return nil, nil
 	}
 	t, err := rp.Torrent(ctx, id)
 	if err != nil {
 		r.log.Info("status read after add failed; the poller retries", "provider", pk, "torrent", id, "err", err)
-		return
+		return nil, nil
 	}
-	if _, err := r.applyStatus(ctx, dl, version, kind, pk, t, false); err != nil {
+	_, err = r.applyStatus(ctx, dl, version, kind, pk, t, false)
+	if nr := (*nameRefusedError)(nil); errors.As(err, &nr) {
+		return t, nr
+	}
+	if err != nil {
 		r.log.Warn("after add", "download", dl, "err", err)
 	}
+	return nil, nil
 }
 
 // PollSummary is what one poll did.
@@ -550,6 +558,9 @@ func (r *Router) pollOne(ctx context.Context, x pollRow, t *provider.Torrent, er
 		return r.failStalled(ctx, x, t, now, why)
 	}
 	sel, err := r.applyStatus(ctx, x.id, x.version, kind, x.pk, t, true)
+	if nr := (*nameRefusedError)(nil); errors.As(err, &nr) {
+		return r.pollNameRefused(ctx, x, t, nr, now, sum)
+	}
 	if err != nil {
 		sum.Errors++
 		r.log.Warn("poll", "download", x.id, "err", err)
@@ -711,6 +722,29 @@ func (r *Router) downloadState(ctx context.Context, id int64) (string, error) {
 	return s, err
 }
 
+// nameRefusedError is applyStatus's answer when a video it would select on Real-Debrid has a name Real-Debrid's name
+// rule refuses (indexer.RealDebridRefuses): Real-Debrid applies the rule to each file's own name when it is read, so
+// the download would end at the import with a file that cannot be read.
+type nameRefusedError struct{ file string }
+
+func (e *nameRefusedError) Error() string {
+	return "Real-Debrid refuses a file name in this release (" + e.file + ")"
+}
+
+// rdRefusedPick is the base name of the first selected video (ids of files) whose name Real-Debrid's name rule
+// refuses, or "". Unselected files (an .nfo, samples) are not judged.
+func rdRefusedPick(files []provider.File, ids []string) string {
+	for _, f := range files {
+		if !slices.Contains(ids, f.ID) || !indexer.PlayableVideo(f.Path) {
+			continue
+		}
+		if name := path.Base(f.Path); indexer.RealDebridRefuses(name, false) {
+			return name
+		}
+	}
+	return ""
+}
+
 // applyStatus records a provider's view of a download and selects Real-Debrid files for non-reused torrents waiting
 // for them; it reports whether it selected files. The selection is ChooseFiles', or altPick's for the torrent of a
 // cached-only route's second add (select_alt_torrent, altRetry): recorded with the torrent, so the poller and a
@@ -776,6 +810,11 @@ func (r *Router) applyStatus(ctx context.Context, dl int64, version string, kind
 		ad := r.adders[pk]
 		if ad == nil || !ad.SelectsFiles() {
 			return false, nil
+		}
+		if name := rdRefusedPick(t.Files, ids); name != "" {
+			// Real-Debrid would take the add and then refuse to read that file: nothing is selected, and the caller
+			// takes the release as a miss on pk (settleNameRefused, pollNameRefused).
+			return false, &nameRefusedError{file: name}
 		}
 		wctx, cancel := context.WithTimeout(ctx, providerWriteLimit)
 		err := ad.SelectFiles(wctx, t.ID, ids)

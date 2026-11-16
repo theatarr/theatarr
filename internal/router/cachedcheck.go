@@ -129,9 +129,11 @@ func (r *Router) resumeCachedCheck(ctx context.Context, x pollRow, t *provider.T
 			"download", x.id, "provider", x.pk, "torrent", x.tid, "err", err)
 		return checkHold, nil
 	}
-	del, ok := r.adders[x.pk].(adder.StalledDeleter)
-	if why == "" && !ok {
-		why = "the adder for " + x.pk + " cannot delete"
+	done := false
+	if why == "" {
+		if done, why, err = r.deleteOwnPolled(ctx, x); err != nil {
+			return checkGoOn, err
+		}
 	}
 	if why != "" {
 		why = "uncached add kept: " + why + "; review it"
@@ -139,15 +141,29 @@ func (r *Router) resumeCachedCheck(ctx context.Context, x pollRow, t *provider.T
 			"provider", x.pk, "torrent", x.tid, "why", why)
 		return checkGoOn, r.dropCachedCheck(ctx, x, why)
 	}
-	if err := r.mayWrite(x.version); err != nil {
-		r.log.Info("cached-only: the delete of our uncached add waits for the gate", "download", x.id,
-			"provider", x.pk, "torrent", x.tid, "why", err)
+	if !done {
 		return checkHold, nil
 	}
-	// The route's journaled delete (settle): a crash after it, or an answer that does not say, leaves the journal,
-	// and the poller that then finds the torrent gone takes it as our delete (owedDeleted).
+	return checkDone, r.owedDeleted(ctx, x, now, sum)
+}
+
+// deleteOwnPolled sends the route's journaled delete (settle) of download x's torrent, our own Real-Debrid add as
+// ownRDAdd proved it (resumeCachedCheck, pollNameRefused): a crash after it, or an answer that does not say, leaves
+// the journal, and the poller that then finds the torrent gone takes it as our delete (owedDeleted). done: it is gone.
+// Otherwise why says why it cannot be deleted at all, or is "" when it waits for the gate or the delete failed: it is
+// tried again at the next poll.
+func (r *Router) deleteOwnPolled(ctx context.Context, x pollRow) (done bool, why string, err error) {
+	del, ok := r.adders[x.pk].(adder.StalledDeleter)
+	if !ok {
+		return false, "the adder for " + x.pk + " cannot delete", nil
+	}
+	if err := r.mayWrite(x.version); err != nil {
+		r.log.Info("the delete of our add waits for the gate", "download", x.id, "provider", x.pk,
+			"torrent", x.tid, "why", err)
+		return false, "", nil
+	}
 	if err := r.noteDeleting(ctx, x.id, x.pk, x.tid); err != nil {
-		return checkGoOn, err
+		return false, "", err
 	}
 	wctx, cancel := context.WithTimeout(ctx, providerWriteLimit)
 	err = del.DeleteOwnStalledAdd(wctx, x.tid, adder.OwnAdd{NotOnAccountBefore: true, NewEntry: true})
@@ -155,19 +171,57 @@ func (r *Router) resumeCachedCheck(ctx context.Context, x pollRow, t *provider.T
 	if err != nil {
 		gone, present := r.readAfterDelete(ctx, x.pk, x.tid)
 		if !gone {
-			r.log.Warn("cached-only: the delete of our uncached add failed; tried again at the next poll",
-				"download", x.id, "provider", x.pk, "torrent", x.tid, "err", err, "still_there", present)
+			r.log.Warn("the delete of our add failed; tried again at the next poll", "download", x.id,
+				"provider", x.pk, "torrent", x.tid, "err", err, "still_there", present)
 			if present {
 				// Not deleted: the journal ends. Otherwise it stays, for a later not-found.
 				if _, err := r.st.Writer().ExecContext(ctx, `UPDATE download SET error = NULL WHERE id = ?
 					AND error LIKE ?`, x.id, deletingPrefix+"%"); err != nil {
-					return checkGoOn, fmt.Errorf("router: download %d: %w", x.id, err)
+					return false, "", fmt.Errorf("router: download %d: %w", x.id, err)
 				}
 			}
-			return checkHold, nil
+			return false, "", nil
 		}
 	}
-	return checkDone, r.owedDeleted(ctx, x, now, sum)
+	return true, "", nil
+}
+
+// pollNameRefused is settleNameRefused from the poller: download x, our Real-Debrid add waiting for its selection,
+// would select a video Real-Debrid refuses by name (nr). It is deleted when ownRDAdd proves it ours (deleteOwnPolled;
+// one that waits for the gate or failed is tried again at the next poll) and kept otherwise, with nothing held for
+// review; the miss is recorded for the content's miss TTL and the download routed again (requeue), nothing
+// blocklisted.
+func (r *Router) pollNameRefused(ctx context.Context, x pollRow, t *provider.Torrent, nr *nameRefusedError,
+	now time.Time, sum *PollSummary) error {
+	why, err := r.ownRDAdd(ctx, x, t, "")
+	if err != nil {
+		r.log.Warn("checking the torrent id failed; tried again at the next poll", "download", x.id,
+			"provider", x.pk, "torrent", x.tid, "err", err)
+		return nil
+	}
+	if why == "" {
+		done, no, err := r.deleteOwnPolled(ctx, x)
+		if err != nil || (!done && no == "") {
+			return err
+		}
+		why = no
+	}
+	done := "deleted"
+	if why != "" {
+		done = "kept (" + why + ")"
+	}
+	rctx := context.WithoutCancel(ctx)
+	if err := r.setCache(rctx, x.hash, x.pk, "miss", "rd_name", now.Add(r.downloadMissTTL(rctx, x, now)), now); err != nil {
+		return err
+	}
+	r.log.Warn(nr.Error()+"; a miss on "+x.pk+", the release is routed again", "download", x.id, "provider", x.pk,
+		"torrent", x.tid, "our_add", done)
+	queued, err := r.requeue(rctx, x, 0, nr.Error()+"; our add was "+done,
+		nr.Error()+"; our add was "+done+"; not blocklisted (no route queue)")
+	if err == nil && !queued {
+		sum.Failed++
+	}
+	return err
 }
 
 // owedDeleted records an owed delete of our uncached add as done: the miss (provider_cache uncached for the content's
@@ -175,19 +229,7 @@ func (r *Router) resumeCachedCheck(ctx context.Context, x pollRow, t *provider.T
 // nothing blocklisted.
 func (r *Router) owedDeleted(ctx context.Context, x pollRow, now time.Time, sum *PollSummary) error {
 	rctx := context.WithoutCancel(ctx)
-	ttl := r.set.MissTTL
-	if vp := r.pol.Versions[x.version]; vp != nil {
-		var title int64
-		var eps string
-		if err := r.st.Reader().QueryRowContext(rctx, `SELECT COALESCE(title_id, 0), COALESCE(episodes, '[]')
-			FROM download WHERE id = ?`, x.id).Scan(&title, &eps); err != nil {
-			return fmt.Errorf("router: download %d: %w", x.id, err)
-		}
-		var ids []int64
-		_ = json.Unmarshal([]byte(eps), &ids)
-		ttl = r.missTTL(rctx, vp.Kind, title, ids, now)
-	}
-	if err := r.setCache(rctx, x.hash, x.pk, "uncached", "add", now.Add(ttl), now); err != nil {
+	if err := r.setCache(rctx, x.hash, x.pk, "uncached", "add", now.Add(r.downloadMissTTL(rctx, x, now)), now); err != nil {
 		return err
 	}
 	if x.state == StateAdded {
@@ -201,6 +243,24 @@ func (r *Router) owedDeleted(ctx context.Context, x pollRow, now time.Time, sum 
 		sum.Failed++
 	}
 	return err
+}
+
+// downloadMissTTL is the miss TTL of download x's content (missTTL), miss_ttl when its row cannot be read.
+func (r *Router) downloadMissTTL(ctx context.Context, x pollRow, now time.Time) time.Duration {
+	vp := r.pol.Versions[x.version]
+	if vp == nil {
+		return r.set.MissTTL
+	}
+	var title int64
+	var eps string
+	if err := r.st.Reader().QueryRowContext(ctx, `SELECT COALESCE(title_id, 0), COALESCE(episodes, '[]')
+		FROM download WHERE id = ?`, x.id).Scan(&title, &eps); err != nil {
+		r.log.Warn("download not read; the miss keeps miss_ttl", "download", x.id, "err", err)
+		return r.set.MissTTL
+	}
+	var ids []int64
+	_ = json.Unmarshal([]byte(eps), &ids)
+	return r.missTTL(ctx, vp.Kind, title, ids, now)
 }
 
 // unfinishedChecksSQL counts the downloads with an unfinished cached-only check (router status).

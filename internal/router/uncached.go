@@ -188,6 +188,9 @@ const (
 	cvUnknown  cacheVerdict = iota // could not tell, or the provider reports an error: as before, no delete
 	cvCached                       // downloaded at once (or within the grace)
 	cvUncached                     // still converting, queued or downloading after the grace
+	// cvNameRefused: a video to be selected has a name Real-Debrid refuses (applyStatus, nameRefusedError): a miss on
+	// Real-Debrid, not a cache verdict (settleNameRefused).
+	cvNameRefused
 )
 
 // readAfterAdd reads a fresh add back: decypharr's CheckStatus (RD: select files when RD waits for that, then the
@@ -238,6 +241,9 @@ func (r *Router) readBack(ctx context.Context, pv *policy.Provider, pk string, a
 			return cvCached, t, "status " + t.Status
 		case pv.Kind == provider.KindRealDebrid && t.Status == rdWaitingFiles && !selected:
 			why, err := selectFiles(t)
+			if nr := (*nameRefusedError)(nil); errors.As(err, &nr) {
+				return cvNameRefused, t, nr.Error()
+			}
 			if err != nil {
 				return cvUnknown, nil, "selecting files: " + err.Error()
 			}
@@ -281,6 +287,9 @@ func (r *Router) readBack(ctx context.Context, pv *policy.Provider, pk string, a
 func (r *Router) settle(ctx context.Context, s *routeState, pv *policy.Provider, pk, hash string, ad adder.Adder,
 	a *adder.Added, g *ownGuard) (verdict, time.Time, Step, error) {
 	cv, t, why := r.readAfterAdd(ctx, s, pv, pk, hash, a)
+	if cv == cvNameRefused {
+		return r.settleNameRefused(ctx, s, pv, pk, hash, ad, a, g, t, why)
+	}
 	apply := func() error {
 		if t == nil {
 			return nil
@@ -330,24 +339,8 @@ func (r *Router) settle(ctx context.Context, s *routeState, pv *policy.Provider,
 	// (download.cached_check uncached, cachedcheck.go).
 	owed, journal := false, false
 	if notOurs == "" && !keep {
-		if err := r.mayWrite(s.req.Version); err != nil {
-			notOurs, owed = err.Error(), true
-		} else if err := jobs.Fence(ctx); err != nil {
-			notOurs, owed = "the route lost its job lease: "+err.Error(), true
-		} else if err := r.noteDeleting(ctx, s.dlID, pk, a.ID); err != nil {
+		if notOurs, owed, journal, err = r.deleteOwnAdd(ctx, s, pk, del, a, proof); err != nil {
 			return 0, time.Time{}, Step{}, err
-		} else if err := del.DeleteOwnUncachedAdd(ctx, a, proof); err != nil {
-			// The provider may have deleted it before the answer was lost. Only a definite not-found, read twice
-			// router.cached_grace apart, proves the delete completed: a single not-found is not trusted (the
-			// poller needs repeated misses too, missingPolls), and a present torrent or another failed read keeps
-			// the add.
-			gone, present := r.readAfterDelete(ctx, pk, a.ID)
-			if !gone {
-				notOurs, owed = "the delete failed: "+err.Error(), true
-				// The reads could not tell: the delete may have gone through, so its journal stays for the poller
-				// (a later not-found is our delete: owedDeleted).
-				journal = !present
-			}
 		}
 	}
 	if notOurs != "" {
@@ -407,6 +400,81 @@ func (r *Router) settle(ctx context.Context, s *routeState, pv *policy.Provider,
 		msg += "; adding it once more with the largest video alone selected"
 	}
 	return vContent, time.Time{}, Step{Outcome: "refused", Code: code, Message: msg}, nil
+}
+
+// deleteOwnAdd sends the journaled delete of our own add a on pk, proven ours (proof), for settle and
+// settleNameRefused. It reports why the add is still there ("" when deleted); owed when the delete was blocked (the
+// stop switch, the job lease) or failed, and journal when the reads after a failed delete could not tell whether it
+// went through (its journal stays for the poller).
+func (r *Router) deleteOwnAdd(ctx context.Context, s *routeState, pk string, del adder.Deleter, a *adder.Added,
+	proof adder.OwnAdd) (notDone string, owed, journal bool, err error) {
+	if err := r.mayWrite(s.req.Version); err != nil {
+		return err.Error(), true, false, nil
+	}
+	if err := jobs.Fence(ctx); err != nil {
+		return "the route lost its job lease: " + err.Error(), true, false, nil
+	}
+	if err := r.noteDeleting(ctx, s.dlID, pk, a.ID); err != nil {
+		return "", false, false, err
+	}
+	if err := del.DeleteOwnUncachedAdd(ctx, a, proof); err != nil {
+		// The provider may have deleted it before the answer was lost. Only a definite not-found, read twice
+		// router.cached_grace apart, proves the delete completed: a single not-found is not trusted (the
+		// poller needs repeated misses too, missingPolls), and a present torrent or another failed read keeps
+		// the add.
+		gone, present := r.readAfterDelete(ctx, pk, a.ID)
+		if !gone {
+			// The reads could not tell: the delete may have gone through, so its journal stays for the poller
+			// (a later not-found is our delete: owedDeleted).
+			return "the delete failed: " + err.Error(), true, !present, nil
+		}
+	}
+	return "", false, false, nil
+}
+
+// codeNameRefused: a video of the release has a name Real-Debrid refuses (settleNameRefused).
+const codeNameRefused = "rd_name_refused"
+
+// settleNameRefused ends our fresh Real-Debrid add whose selection would hold a video Real-Debrid refuses by name
+// (applyStatus's nameRefusedError, why its message): a miss on pk for the content's miss TTL (provider_cache miss,
+// source router:rd_name), never an uncached verdict, and nothing is blocklisted. The add is deleted with the uncached
+// verdict's proof and journaled delete (deleteOwnAdd) only when it is provably ours; otherwise, or when the delete
+// was blocked or failed, it stays and nothing is held for review. Either way the download is taken back
+// (unmarkAdded) and the route tries the next provider; the largest-video second add (altRetry) is not tried.
+func (r *Router) settleNameRefused(ctx context.Context, s *routeState, pv *policy.Provider, pk, hash string,
+	ad adder.Adder, a *adder.Added, g *ownGuard, t *provider.Torrent, why string) (verdict, time.Time, Step, error) {
+	notOurs := "the add was not guarded"
+	if g != nil {
+		proof, no, err := r.proof(ctx, g, pv, pk, hash, s.dlID, a, t)
+		if err != nil {
+			return 0, time.Time{}, Step{}, err
+		}
+		notOurs = no
+		if del, ok := ad.(adder.Deleter); notOurs == "" && !ok {
+			notOurs = "the adder for " + pk + " cannot delete"
+		} else if notOurs == "" {
+			if notOurs, _, _, err = r.deleteOwnAdd(ctx, s, pk, del, a, proof); err != nil {
+				return 0, time.Time{}, Step{}, err
+			}
+		}
+	}
+	rctx := context.WithoutCancel(ctx)
+	now := r.now()
+	done := "deleted"
+	if notOurs != "" {
+		done = "kept (" + notOurs + ")"
+	}
+	r.log.Warn(why+"; a miss on "+pk+", trying the next provider", "provider", pk, "hash", hash, "torrent", a.ID,
+		"download", s.dlID, "our_add", done)
+	if err := r.setCache(rctx, hash, pk, "miss", "rd_name", now.Add(r.verdictTTL(rctx, s, now)), now); err != nil {
+		return 0, time.Time{}, Step{}, err
+	}
+	if err := r.unmarkAdded(rctx, s.dlID, pk, a.ID, why+"; our add was "+done); err != nil {
+		return 0, time.Time{}, Step{}, err
+	}
+	s.res.TorrentID = ""
+	return vContent, time.Time{}, Step{Outcome: "refused", Code: codeNameRefused,
+		Message: why + "; our add " + a.ID + " was " + done}, nil
 }
 
 // altKey names a release on a provider in routeState.alt.

@@ -942,3 +942,134 @@ func reusedStep(res *Result) string {
 	}
 	return res.Provider + "/accepted/reused; "
 }
+
+// rdRefusedFiles is a clean pack with one video whose own name Real-Debrid's name rule refuses (HDTV.x264); the
+// sample and the .nfo are refused names too but are never selected, so they are not judged.
+var rdRefusedFiles = []rdFile{{1, "/Movie/Movie.2024.2160p.BluRay.x265-GRP.mkv", 9000},
+	{2, "/Movie/Extra.720p.HDTV.x264-GRP.mkv", 900}, {3, "/Movie/Sample/WEB-DL.sample.mkv", 9}, {4, "/Movie/WEB-DL.nfo", 1}}
+
+const rdRefusedWhy = "Real-Debrid refuses a file name in this release (Extra.720p.HDTV.x264-GRP.mkv)"
+
+// A fresh Real-Debrid add whose selection would hold a video Real-Debrid refuses by name is a miss there, with
+// cached-only on or off: provably ours, it is deleted with nothing selected, the miss is recorded (not uncached, not
+// counted, nothing blocklisted) and the next provider is tried; the next route skips Real-Debrid for it.
+func TestRDRefusedFileNameInRoute(t *testing.T) {
+	t.Parallel()
+	for _, cachedOnly := range []bool{true, false} {
+		e, f, _ := newDebridEnv(t, true, cachedOnly)
+		f.rdFiles = rdRefusedFiles
+		f.cached["ad:"+h("a")] = true
+		res, err := e.r.Route(e.ctx, movieReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")))
+		if err != nil || res.Provider != "ad" || res.Outcome != OutcomeAdded ||
+			!strings.HasPrefix(steps(res), "aaaa/rd/refused/rd_name_refused; aaaa/ad/accepted/") {
+			t.Fatalf("cached_only %v: %+v %v: %s", cachedOnly, res, err, steps(res))
+		}
+		if msg := res.Steps[0].Message; !strings.HasPrefix(msg, rdRefusedWhy+"; our add RD1001 was deleted") {
+			t.Errorf("cached_only %v: message %q", cachedOnly, msg)
+		}
+		if f.count("rd.test DELETE /rest/1.0/torrents/delete/RD1001") != 1 || len(f.rd) != 0 ||
+			f.count("rd.test POST /rest/1.0/torrents/selectFiles") != 0 {
+			t.Errorf("cached_only %v: rd requests %v", cachedOnly, f.list())
+		}
+		if n := e.count(`SELECT COUNT(*) FROM provider_cache WHERE info_hash = ? AND provider = 'rd' AND state = 'miss'
+			AND source = 'router:rd_name' AND expires_at = ?`, h("a"), e.clock.Add(6*time.Hour).UnixMilli()); n != 1 {
+			t.Errorf("cached_only %v: rd miss not recorded for miss_ttl", cachedOnly)
+		}
+		if p, _ := loadPace(e.ctx, e.st.Reader(), "rd"); p.HourUncached != 0 {
+			t.Errorf("cached_only %v: counted as an uncached add", cachedOnly)
+		}
+		if n := e.count(`SELECT COUNT(*) FROM router_blocklist`); n != 0 {
+			t.Errorf("cached_only %v: blocklisted", cachedOnly)
+		}
+		// No add/delete loop: a later route of the release skips Real-Debrid as a miss.
+		if st, _ := e.r.cacheState(e.ctx, h("a"), "rd", e.clock); st != "miss" {
+			t.Errorf("cached_only %v: rd state %q", cachedOnly, st)
+		}
+	}
+}
+
+// Not provably ours (another record knows the id Real-Debrid returned): nothing is deleted and nothing held for
+// review; the miss is recorded and the route goes on. A reused torrent is not checked and never touched.
+func TestRDRefusedFileNameNotOurs(t *testing.T) {
+	t.Parallel()
+	e, f, _ := newDebridEnv(t, true, false)
+	f.rdFiles = rdRefusedFiles
+	e.exec(`INSERT INTO content (id, info_hash, state, first_seen_at, last_seen_at) VALUES (8, ?, 'present', 0, 0)`, h("b"))
+	e.exec(`INSERT INTO provider_torrent (provider, torrent_id, info_hash) VALUES ('rd', 'RD1001', ?)`, h("b"))
+	res, err := e.r.Route(e.ctx, movieReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")))
+	if err != nil || res.Provider != "ad" || !strings.HasPrefix(steps(res), "aaaa/rd/refused/rd_name_refused; aaaa/ad/accepted/") {
+		t.Fatalf("%+v %v: %s", res, err, steps(res))
+	}
+	if msg := res.Steps[0].Message; !strings.Contains(msg, "our add RD1001 was kept (torrent RD1001 is known already") {
+		t.Errorf("message %q", msg)
+	}
+	if f.deletes() != 0 || len(f.rd) != 1 {
+		t.Errorf("deleted a torrent not provably ours: %v", f.list())
+	}
+	if n := e.count(`SELECT COUNT(*) FROM provider_cache WHERE info_hash = ? AND provider = 'rd' AND state = 'miss'
+		AND source = 'router:rd_name'`, h("a")); n != 1 {
+		t.Error("miss not recorded")
+	}
+	if n := e.count(`SELECT COUNT(*) FROM download WHERE id = ? AND provider = 'ad'`, res.DownloadID); n != 1 {
+		t.Error("the route did not go on")
+	}
+
+	// Reused: already on the account and selected; not checked, nothing deleted, no miss.
+	e, f, _ = newDebridEnv(t, true, true)
+	f.rdFiles = rdRefusedFiles
+	e.exec(`INSERT INTO content (id, info_hash, state, first_seen_at, last_seen_at) VALUES (7, ?, 'present', 0, 0)`, h("a"))
+	e.exec(`INSERT INTO provider_torrent (provider, torrent_id, info_hash) VALUES ('rd', 'HELD', ?)`, h("a"))
+	f.rd["HELD"] = &fakeRD{hash: h("a"), status: "downloaded", selected: true, sel: "1,2"}
+	res, err = e.r.Route(e.ctx, movieReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")))
+	if err != nil || !res.Reused || res.Provider != "rd" {
+		t.Fatalf("%+v %v: %s", res, err, steps(res))
+	}
+	if _, err := e.r.Poll(e.ctx); err != nil {
+		t.Fatal(err)
+	}
+	if f.deletes() != 0 || len(f.rd) != 1 || e.count(`SELECT COUNT(*) FROM provider_cache WHERE state = 'miss'`) != 0 {
+		t.Errorf("the reused torrent was touched: %v", f.list())
+	}
+}
+
+// From the poller: the route's read after the add failed, so the poller meets the waiting selection. Our add is
+// deleted, the miss recorded and the download routed again (to AllDebrid), nothing blocklisted; cached-only on or off.
+func TestRDRefusedFileNameFromPoller(t *testing.T) {
+	t.Parallel()
+	for _, cachedOnly := range []bool{true, false} {
+		e, f, _ := newDebridEnv(t, true, cachedOnly)
+		w := withWorker(e)
+		f.rdFiles = rdRefusedFiles
+		f.cached["ad:"+h("a")] = true
+		f.rdInfoFails = 1
+		res, err := e.r.Route(e.ctx, movieReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")))
+		if err != nil || res.Outcome != OutcomeAdded || res.Provider != "rd" {
+			t.Fatalf("cached_only %v: %+v %v: %s", cachedOnly, res, err, steps(res))
+		}
+		dl := res.DownloadID
+		if _, err := e.r.Poll(e.ctx); err != nil {
+			t.Fatal(err)
+		}
+		if f.count("rd.test DELETE /rest/1.0/torrents/delete/RD1001") != 1 || len(f.rd) != 0 ||
+			f.count("rd.test POST /rest/1.0/torrents/selectFiles") != 0 {
+			t.Fatalf("cached_only %v: rd requests %v", cachedOnly, f.list())
+		}
+		if n := e.count(`SELECT COUNT(*) FROM download WHERE id = ? AND state = 'queued' AND provider IS NULL
+			AND error = ?`, dl, rdRefusedWhy+"; our add was deleted"); n != 1 {
+			t.Errorf("cached_only %v: download not queued again", cachedOnly)
+		}
+		if n := e.count(`SELECT COUNT(*) FROM provider_cache WHERE info_hash = ? AND provider = 'rd' AND state = 'miss'
+			AND source = 'router:rd_name'`, h("a")); n != 1 {
+			t.Errorf("cached_only %v: miss not recorded", cachedOnly)
+		}
+		if ran, err := w.RunOne(e.ctx); err != nil || !ran {
+			t.Fatalf("route job: %v %v", ran, err)
+		}
+		if n := e.count(`SELECT COUNT(*) FROM download WHERE id = ? AND state = 'added' AND provider = 'ad'`, dl); n != 1 {
+			t.Errorf("cached_only %v: download not routed to ad: %s", cachedOnly, attempts(e, dl))
+		}
+		if n := e.count(`SELECT COUNT(*) FROM router_blocklist`); n != 0 {
+			t.Errorf("cached_only %v: blocklisted", cachedOnly)
+		}
+	}
+}

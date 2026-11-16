@@ -1076,7 +1076,7 @@ func (r *Router) provider(ctx context.Context, s *routeState, c *Candidate, m ad
 	switch {
 	case state == "miss":
 		return vContent, time.Time{}, Step{Outcome: "skipped", Code: "miss",
-			Message: "missed on every provider, or refused here with a 451, within miss_ttl"}, nil
+			Message: "missed on every provider, or refused here with a 451 or for a file name, within miss_ttl"}, nil
 	// The second add of altRetry is the one exception: the uncached verdict was on the other selection.
 	case state == "uncached" && r.set.CachedOnly && !s.alt[altKey(pk, hash)]:
 		return vContent, time.Time{}, Step{Outcome: "skipped", Code: "known_uncached",
@@ -1180,9 +1180,10 @@ func (r *Router) provider(ctx context.Context, s *routeState, c *Candidate, m ad
 	// Cached-only on Real-Debrid and AllDebrid (uncached.go): note whether the hash is on the account before the add,
 	// so an uncached add is deleted only when it is provably our own new entry.
 	// The stall timeout (stalled.go) deletes a stalled Real-Debrid add only when this guard proved it ours at the add
-	// (download.own_add).
+	// (download.own_add), and so does a file name Real-Debrid refuses (settleNameRefused): every Real-Debrid add is
+	// guarded (a read of the record only; Real-Debrid needs no list).
 	var guard *ownGuard
-	if settles(pv.Kind) && (r.set.CachedOnly || (r.stallAfter(pk) > 0 && pv.Kind == provider.KindRealDebrid)) {
+	if settles(pv.Kind) && (r.set.CachedOnly || pv.Kind == provider.KindRealDebrid) {
 		if guard, err = r.guardBefore(ctx, pv, pk, hash, s.dlID, r.set.CachedOnly); err != nil {
 			return 0, time.Time{}, Step{}, err
 		}
@@ -1358,7 +1359,9 @@ func (r *Router) provider(ctx context.Context, s *routeState, c *Candidate, m ad
 	}
 	// Real-Debrid waits for a file selection; one status read now saves a poll when the files are known at once.
 	if ad.SelectsFiles() {
-		r.trySelect(ctx, s.dlID, s.req.Version, s.vp.Kind, pk, added.ID)
+		if t, nr := r.trySelect(ctx, s.dlID, s.req.Version, s.vp.Kind, pk, added.ID); nr != nil {
+			return r.settleNameRefused(ctx, s, pv, pk, hash, ad, added, guard, t, nr.Error())
+		}
 	}
 	return vAccepted, time.Time{}, st, nil
 }
