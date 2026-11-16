@@ -679,7 +679,7 @@ func permanentRSS(d *decide.Decision) bool {
 
 var rssEpisodeRE = regexp.MustCompile(`(?i)\b(?:S\d+[ ._-]*E\d+|\d+x\d+)\b`)
 
-var rssBatchRE = regexp.MustCompile(`(?i)\b(?:batch|complete\s+(?:series|season))\b`)
+var rssBatchRE = regexp.MustCompile(`(?i)\b(?:batch|complete\s+(?:series|season)|all\s+seasons|the\s+complete\s+collection)\b`)
 
 // animeEpisodeItem distinguishes series releases within TV/Anime from standalone anime movies.
 func animeEpisodeItem(ctx context.Context, rel indexer.Release) bool {

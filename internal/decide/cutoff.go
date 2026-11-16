@@ -163,7 +163,7 @@ func curatedReleaseAllowed(title *Title, p *Profile, candidate cutoffCandidate) 
 	var err error
 	if fl == format.Sonarr {
 		parsed := ParseSeriesRelease(ctx, rel.Title)
-		if parsed == nil {
+		if parsed == nil || parsed.CompleteSeries && title.SeriesType == "anime" {
 			return false
 		}
 		var eps []adapt.Episode

@@ -114,6 +114,25 @@ var seriesParseResult *sonarr.ParsedEpisodeInfo
 
 // BenchmarkSearchParse models 300 releases, three versions and two criteria per version. Read the release
 // fixture from a scratch SQLite database, then time only parsing; every iteration starts a fresh search memo.
+// The complete-series reading: a name the parser cannot read is a complete-series S01 pack with its own title; bare
+// "Complete" and a name the parser reads keep the parser's answer.
+func TestParseSeriesReleaseCompleteSeries(t *testing.T) {
+	t.Parallel()
+	for _, ctx := range []context.Context{context.Background(), WithParseMemo(context.Background())} {
+		name := "Show.Complete.Series.1080p.BluRay.x264-GRP"
+		p := ParseSeriesRelease(ctx, name)
+		if p == nil || !p.CompleteSeries || !p.FullSeason || p.SeasonNumber != 1 || p.SeriesTitle != "Show" || p.ReleaseTitle != name {
+			t.Fatalf("complete series: %+v", p)
+		}
+		if p := ParseSeriesRelease(ctx, "Series Title (2018) Complete 360p HDTV AAC H.264-NEXT"); p != nil {
+			t.Errorf("bare Complete parsed: %+v", p)
+		}
+		if p := ParseSeriesRelease(ctx, "Show.S02.All.Seasons.1080p"); p == nil || p.CompleteSeries || p.SeasonNumber != 2 {
+			t.Errorf("a season pack with the phrase: %+v", p)
+		}
+	}
+}
+
 func BenchmarkSearchParse(b *testing.B) {
 	dir, err := os.MkdirTemp("/tmp", "cx-opt6-parse-")
 	if err != nil {

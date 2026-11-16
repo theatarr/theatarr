@@ -136,6 +136,9 @@ type ParsedEpisodeInfo struct {
 	SeasonPart                    int              `json:"seasonPart"`
 	ReleaseTokens                 string           `json:"releaseTokens"`
 	DailyPart                     *int             `json:"dailyPart,omitempty"`
+	// CompleteSeries is set by decide's complete-series reading ("Show.Complete.Series.1080p" read as an S01 pack),
+	// never by the parser; it is not part of the arr's output.
+	CompleteSeries bool `json:"-"`
 }
 
 // NewParsedEpisodeInfo is new ParsedEpisodeInfo(): empty arrays, an empty language list and an Unknown quality.

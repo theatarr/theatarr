@@ -3,10 +3,12 @@ package decide
 import (
 	"context"
 	"slices"
+	"strings"
 	"sync"
 
 	"github.com/theatarr/theatarr/internal/decide/parser/radarr"
 	"github.com/theatarr/theatarr/internal/decide/parser/sonarr"
+	"github.com/theatarr/theatarr/internal/indexer"
 )
 
 type parseMemoKey struct{}
@@ -63,7 +65,7 @@ func ParseMovieRelease(ctx context.Context, title string) *radarr.ParsedMovieInf
 func ParseSeriesRelease(ctx context.Context, title string) *sonarr.ParsedEpisodeInfo {
 	m := releaseParseMemo(ctx)
 	if m == nil {
-		return sonarr.ParseTitle(title)
+		return parseSeriesTitle(title)
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -72,7 +74,7 @@ func ParseSeriesRelease(ctx context.Context, title string) *sonarr.ParsedEpisode
 	}
 	p, ok := m.series[title]
 	if !ok {
-		p = sonarr.ParseTitle(title)
+		p = parseSeriesTitle(title)
 		m.series[title] = p
 	}
 	if p == nil {
@@ -90,6 +92,28 @@ func ParseSeriesRelease(ctx context.Context, title string) *sonarr.ParsedEpisode
 		out.SeriesTitleInfo = &info
 	}
 	return &out
+}
+
+// parseSeriesTitle is the Sonarr parse with the complete-series reading: a name with "Complete Series", "All
+// Seasons" or "The Complete Collection" that does not parse, or parses to absolute numbers only (a year read as an
+// episode), is parsed again with the phrase read as "S01"; a season pack from that is a complete-series pack
+// (CompleteSeries). Anime series do not use it (series.parseRelease). Bare "Complete" is not read.
+func parseSeriesTitle(title string) *sonarr.ParsedEpisodeInfo {
+	p := sonarr.ParseTitle(title)
+	if p != nil && (len(p.AbsoluteEpisodeNumbers) == 0 || len(p.EpisodeNumbers) > 0 || p.FullSeason) {
+		return p
+	}
+	named, ok := indexer.CompleteSeriesName(title, "S01")
+	if !ok {
+		return p
+	}
+	c := sonarr.ParseTitle(named)
+	if c == nil || !c.FullSeason || c.IsMultiSeason || len(c.EpisodeNumbers) > 0 || c.SeasonNumber != 1 ||
+		strings.TrimSpace(c.SeriesTitle) == "" {
+		return p
+	}
+	c.ReleaseTitle, c.CompleteSeries = title, true
+	return c
 }
 
 func copyParsePointer[T any](p *T) *T {
