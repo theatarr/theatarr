@@ -945,6 +945,8 @@ describe("list shortcuts and names (phase J)", () => {
     expect(panel.getByText("Monitoring")).toBeTruthy();
     expect(within(panel.getByRole("group", { name: "Monitoring" })).getAllByRole("button").map((b) => b.textContent?.replace(/\d/g, ""))).toEqual(["On", "Off"]);
     expect(panel.getAllByRole("button", { name: /Not monitored/ })).toHaveLength(1);
+    // The status option says it counts titles without a file, so it is not read as Monitoring Off.
+    expect(panel.getAllByRole("group", { name: "Status" }).flatMap((g) => within(g).getAllByRole("button").map((b) => b.textContent?.replace(/\d/g, "")))).toContain("Not monitored, no file");
   });
 
   it("shows the year beside the title in the table", async () => {

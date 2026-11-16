@@ -702,7 +702,8 @@ including "Imported from Radarr's blocklist" for `arr:<instance>`) and the healt
   availability word, `Has 4K`, `Lacks 4K`, `Quality: WEBDL-2160p`, `Provider: RD`, `2019–2024` (or `From 2019`,
   `Up to 2024`), one per genre. Without See files there is no library, provider or state chip. With nothing found:
   "No titles match these filters." and **Clear filters**. The sheet heads its first group **Monitoring** (On, Off:
-  whether a library monitors the title); the status **Not monitored** (no file and nothing monitors it) is apart. Filters, sort and a picked
+  whether a library monitors the title); the status **Not monitored** (no file and nothing monitors it) is apart,
+  its option named **Not monitored, no file** so its count is not read as Monitoring Off's. Filters, sort and a picked
   view (`?view=grid|table`) stay in the address, so a link opens the list as it was; a sort the account
   is not offered falls back to Title (Movies offer no Completion, and their column hints speak of movies only).
 - **Colour rule** (`copyTone`, `lib/library-status.ts`), one for bars, dots and pills: green (a movie library has a
