@@ -138,6 +138,9 @@ function ListDialog({ list, libraries, seriesLibraries, canSync, m, onClose }: {
     const k = Object.keys(series ? seriesLibraries : libraries);
     setVersions(k.length === 1 ? k : []);
     setMonitor(series ? "all" : "movieOnly");
+    // A discover genre the media lacks would filter unseen: it goes.
+    const genres = GENRES[mediaOf(t, m)];
+    setRule(r => ({ ...r, genres: r.genres.filter(g => genres.some(([id]) => id === g)) }));
     check.reset();
   };
   const runCheck = () => check.mutate(list && !newAddress && apiKey.trim() === "" ? { id: list.id }

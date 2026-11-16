@@ -312,3 +312,22 @@ it("says a list's last sync failure under its last sync", async () => {
   renderPage(<ListsPage />, "/admin/settings/import-lists");
   expect((await screen.findByTestId("list-error-6")).textContent).toBe("Last sync failed: The list could not be read: HTTP 502");
 });
+
+it("drops a discover genre the newly chosen media does not have", async () => {
+  const user = userEvent.setup();
+  const fetch = mockFetch([
+    { method: "GET", path: "/auth/me", reply: manager },
+    { method: "GET", path: "/lists", reply: { lists: [], libraries, series_libraries: { tv: "TV" }, can_sync: true } },
+    { method: "POST", path: "/lists", reply: { status: 201, body: mine } },
+  ]);
+  renderPage(<ListsPage />, "/admin/settings/import-lists");
+  await user.click(await screen.findByRole("button", { name: "Add list" }));
+  const dialog = within(screen.getByTestId("list-dialog"));
+  await user.selectOptions(dialog.getByRole("combobox", { name: /Source/ }), "tmdb_discover");
+  await user.click(dialog.getByRole("button", { name: "Action" }));
+  await user.click(dialog.getByRole("button", { name: "Animation" }));
+  await user.selectOptions(dialog.getByLabelText("Media"), "series");
+  await user.click(dialog.getByRole("button", { name: "Add" }));
+  await waitFor(() => expect(fetch.calls("POST", "/lists")).toHaveLength(1));
+  expect((fetch.calls("POST", "/lists")[0].body as { rule: { genres: number[] } }).rule.genres).toEqual([16]);
+});
