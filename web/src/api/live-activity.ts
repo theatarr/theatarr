@@ -1,7 +1,8 @@
 // What the live stream's download and title events do (docs/design/ui.md, live updates). A download's change of state
 // refreshes the activity lists (Home's Continue row among them), the calendar, its title and the library lists, whose
 // copies show the acquisition stage, and toasts. Progress alone refreshes quietly only what shows progress: the queue
-// and the Continue row at most every 5 s per download, its title and the lists at most every 20 s.
+// and the Continue row at most every 5 s per download, a release list's outcomes (useReleaseOutcomes) at most every
+// 5 s per title, its title and the lists at most every 20 s.
 import type { QueryClient } from "@tanstack/react-query";
 import { toast, type ToastTone } from "@/components/toaster";
 import type { DownloadEvent, TitleEvent } from "./activity";
@@ -48,6 +49,17 @@ export function libraryRefresh(ev: Pick<DownloadEvent, "state" | "previous" | "t
 export const PROGRESS_LIVE_MS = 5_000;
 const lastProgress = new Map<number, number>();
 
+const lastOutcomes = new Map<string, number>();
+
+/** Whether progress alone refreshes the title's release outcomes now (and notes when it did): at most every
+ *  PROGRESS_LIVE_MS per title, however many of its downloads move. A change of state refreshes the whole title. */
+export function outcomesRefresh(ev: Pick<DownloadEvent, "title">, now: number): boolean {
+  const key = String(ev.title?.id ?? "");
+  if (!key || now - (lastOutcomes.get(key) ?? -Infinity) < PROGRESS_LIVE_MS) return false;
+  lastOutcomes.set(key, now);
+  return true;
+}
+
 export function onDownloadEvent(qc: QueryClient, raw: string, now: number = Date.now(), seeFiles = true, nameOf?: (key: string) => string) {
   let ev: DownloadEvent;
   try {
@@ -67,6 +79,8 @@ export function onDownloadEvent(qc: QueryClient, raw: string, now: number = Date
   }
   const r = libraryRefresh(ev, now);
   if (r.title) qc.invalidateQueries({ queryKey: qk.title(ev.title.id) });
+  // Only the mounted lists' outcomes are read again (an invalidation refetches active queries only).
+  else if (!changed && outcomesRefresh(ev, now)) qc.invalidateQueries({ queryKey: [...qk.title(ev.title.id), "release-outcomes"] });
   if (r.lists) qc.invalidateQueries({ queryKey: qk.titles.all });
   const t = downloadToast(ev, seeFiles, nameOf);
   if (t) toast({ ...t, to: "/activity", image: ev.title.poster });

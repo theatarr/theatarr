@@ -393,3 +393,78 @@ it("opens a row's matched formats with each one's score from its score", async (
   fireEvent.click(score);
   expect(within(t).queryByTestId("release-formats-detail")).toBeNull();
 });
+
+const outcomesRoute = (reply: Route["reply"]): Route => ({ method: "GET", path: "/titles/7/release-outcomes", reply });
+const rowOf = async (hash: string) => within(await table()).getAllByRole("row").find((r) => r.dataset.releaseHash === hash)!;
+
+it("shows what came of each release now over the search's own outcome: progress, a blocklisted failure without Grab", async () => {
+  const api = mockFetch([
+    ME, TITLE, CURRENT,
+    { method: "GET", path: "/titles/7/releases", reply: answer() },
+    outcomesRoute({ outcomes: {
+      aaa: { outcome: "grabbed", provider: "ad", download: 4, state: "downloading", words: "Downloading (43%)" },
+      bbb: { outcome: "failed", provider: "rd", download: 2, reason: "Stalled", blocklisted: true },
+    } }),
+  ]);
+  renderPage(<InteractiveSearchButton titleId={7} version="movie-web" />);
+  open();
+  await waitFor(async () => expect(within(await rowOf("aaa")).queryByTestId("release-progress")).toBeTruthy());
+  expect(api.calls("GET", "/titles/7/release-outcomes").map((g) => g.search)).toEqual(["?version=movie-web"]);
+  const a = await rowOf("aaa");
+  expect(within(a).getByTestId("release-progress").textContent).toContain("Downloading (43%)");
+  expect(within(a).queryByTestId("release-grab")).toBeNull();
+  expect(within(a).getByTestId("release-outcome").textContent).toContain("Downloading (43%)");
+  const b = await rowOf("bbb");
+  expect(within(b).getByTestId("release-failed").getAttribute("title")).toContain("Blocklisted: unblock it under Activity › Blocklist to try again");
+  expect(within(b).queryByTestId("release-grab")).toBeNull();
+});
+
+it("a failure a grab now would route gets Try again; one missed on every provider waits for its time", async () => {
+  const later = new Date(Date.now() + 3_600_000).toISOString();
+  mockFetch([
+    ME, TITLE, CURRENT,
+    { method: "GET", path: "/titles/7/releases", reply: answer() },
+    outcomesRoute({ outcomes: {
+      aaa: { outcome: "failed", provider: "rd", download: 3, reason: "RD status error", retry: true },
+      bbb: { outcome: "failed", download: 2, reason: "No provider accepted this release", retry_at: later },
+    } }),
+  ]);
+  renderPage(<InteractiveSearchButton titleId={7} version="movie-web" />);
+  open();
+  await waitFor(async () => expect(within(await rowOf("bbb")).queryByTestId("release-failed")).toBeTruthy());
+  const a = await rowOf("aaa");
+  expect(within(a).getByTestId("release-failed").textContent).toBe("Failed");
+  expect(within(a).getByTestId("release-grab").textContent).toContain("Try again");
+  const b = await rowOf("bbb");
+  expect(within(b).getByTestId("release-failed").getAttribute("title")).toContain("Not cached on any provider when tried; it can be tried again after");
+  expect(within(b).queryByTestId("release-grab")).toBeNull();
+});
+
+it("after Try again says Sent until a new download answers, then its progress; an imported release says Imported", async () => {
+  let reads = 0;
+  const failedA = { outcome: "failed", provider: "rd", download: 3, reason: "RD status error", retry: true };
+  const importedB = { outcome: "imported", provider: "rd", download: 1 };
+  mockFetch([
+    ME, TITLE, CURRENT,
+    { method: "GET", path: "/titles/7/releases", reply: (r: { search: string }) => answer(new URLSearchParams(r.search).get("version") ?? "") },
+    outcomesRoute((r: { search: string }) => {
+      if (!r.search.includes("movie-web")) return { outcomes: {} };
+      reads++;
+      return { outcomes: { aaa: reads <= 2 ? failedA : { outcome: "grabbed", download: 4, state: "queued", words: "Queued" }, bbb: importedB } };
+    }),
+    { method: "POST", path: "/titles/7/releases/grab", reply: sent },
+  ]);
+  renderPage(<InteractiveSearchButton titleId={7} version="movie-web" />);
+  open();
+  await waitFor(async () => expect(within(await rowOf("bbb")).queryByTestId("release-imported")).toBeTruthy());
+  expect(within(await rowOf("bbb")).queryByTestId("release-grab")).toBeNull();
+  fireEvent.click(within(await rowOf("aaa")).getByTestId("release-grab"));
+  // The read after the grab still shows the earlier failure: the release was sent, nothing new answered yet.
+  await waitFor(() => expect(reads).toBe(2));
+  expect(await within(await rowOf("aaa")).findByTestId("release-sent")).toBeTruthy();
+  // The next read (here: back on the library) has the new download.
+  fireEvent.click(screen.getByRole("tab", { name: "Remux" }));
+  await waitFor(async () => expect(within(await table()).getAllByTestId("release-grab")).toHaveLength(2));
+  fireEvent.click(screen.getByRole("tab", { name: "WEB" }));
+  await waitFor(async () => expect(within(await rowOf("aaa")).getByTestId("release-progress").textContent).toContain("Queued"));
+});

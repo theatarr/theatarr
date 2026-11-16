@@ -149,6 +149,19 @@ export function useReleases(titleId: number, version: string | undefined, live: 
   });
 }
 
+/** What came of each release of one library (or one episode of it) now, by lower-case info hash: the release lists'
+ *  outcomes read again, so a list shows a grab's progress (docs/design/ui.md "Interactive search"). Refetched when a
+ *  download event refreshes the title (api/live-activity.ts), never polled; undefined until it answers, when the list's
+ *  own outcomes stand in. */
+export function useReleaseOutcomes(titleId: number, version: string | undefined, episode?: number, enabled = true) {
+  return useQuery({
+    queryKey: qk.releaseOutcomes(titleId, version ?? "", episode),
+    queryFn: () => api<{ outcomes: Releases["outcomes"] }>(`/titles/${titleId}/release-outcomes` + qs({ version, episode })),
+    enabled: enabled && !!version,
+    refetchOnWindowFocus: false,
+  });
+}
+
 /** An interactive search: a live search of the indexers for one library, of the whole title, one season or one
  *  episode. session is new each time the window opens, so every opening searches afresh while a library already
  *  answered in this opening is not searched again. The request is cancelled when nothing shows it any more (the

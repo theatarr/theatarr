@@ -72,6 +72,9 @@ export const qk = {
   /** One title: its page, its episodes and anything else keyed under it. */
   title: (t: Id) => ["title", id(t)] as const,
   episodes: (t: Id, season?: number) => ["title", id(t), "episodes", season ?? "all"] as const,
+  /** What came of each release of one library (or one episode of it) now: under the title, so the download events
+   *  that refresh the title refresh it. */
+  releaseOutcomes: (t: Id, version: string, episode?: number) => ["title", id(t), "release-outcomes", version, episode ?? 0] as const,
   // Not under title(): a live answer is an indexer search, which an invalidation of the title must never re-run.
   releases: (t: Id, version: string, live: boolean) => ["releases", id(t), version, live] as const,
   /** One interactive search (one opening of the window, one library and scope): never refetched by an invalidation.

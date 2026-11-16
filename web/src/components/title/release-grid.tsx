@@ -27,7 +27,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { readPref, writePref } from "@/lib/copies";
-import { fmtBytes } from "@/lib/format";
+import { fmtBytes, fmtClock, fmtTime, localDay } from "@/lib/format";
 import {
   allIndexersText,
   BEST_MATCH,
@@ -58,13 +58,13 @@ import {
 } from "@/lib/release-columns";
 import { cn } from "@/lib/utils";
 
-/** What came of a release for this library, by its hash (Releases.outcomes): grabbed, imported, current, failed or
- *  replaced. */
+/** What came of a release for this library, by its hash (Releases.outcomes): grabbed (with the download's words, as
+ *  Activity says them), imported, current, failed or replaced. */
 export function Outcome({ o }: { o?: ReleaseOutcome }) {
   if (!o) return null;
   switch (o.outcome) {
     case "grabbed":
-      return <Badge tone="info" data-testid="release-outcome">Grabbed{o.provider ? <> · <ProviderTag account={o.provider} /></> : null}</Badge>;
+      return <Badge tone="info" data-testid="release-outcome">{o.words || "Grabbed"}{o.provider ? <> · <ProviderTag account={o.provider} /></> : null}</Badge>;
     case "imported":
       return <Badge tone="ok" data-testid="release-outcome">Imported</Badge>;
     case "current":
@@ -83,6 +83,18 @@ export function Outcome({ o }: { o?: ReleaseOutcome }) {
 }
 
 const outcomeOf = (c: Candidate, outcomes?: Releases["outcomes"]) => (c.info_hash ? outcomes?.[c.info_hash.toLowerCase()] : undefined);
+
+/** Why a failed release has no Grab button: on the library's blocklist (the router refuses it even with the override),
+ *  or missed on every provider within router.miss_ttl (the router skips it until retry_at). undefined: it can be
+ *  grabbed again. */
+export function noRetryNote(o: ReleaseOutcome, now: Date = new Date()): string | undefined {
+  if (o.blocklisted) return "Blocklisted: unblock it under Activity › Blocklist to try again";
+  if (o.retry || !o.retry_at) return undefined;
+  const at = new Date(o.retry_at);
+  if (at <= now) return undefined;
+  const when = localDay(o.retry_at) === localDay(now.toISOString()) ? fmtClock(at) : fmtTime(o.retry_at, now);
+  return `Not cached on any provider when tried; it can be tried again after ${when}`;
+}
 
 const signed = (n: number) => (n > 0 ? `+${n}` : String(n));
 
@@ -192,9 +204,13 @@ function Cell({ id, c, outcomes }: { id: ReleaseColumnId; c: Candidate; outcomes
   }
 }
 
-/** Grab for one row. An accepted release is sent at once; one that asks first (needsConfirm) opens the confirmation,
- *  as does a send the server refuses with its reasons (then one confirmation overrides). */
-function GrabCell({ c, target, sent, onSent }: { c: Candidate; target: GrabTarget; sent: boolean; onSent: () => void }) {
+/** Grab for one row, or what came of the release (o, the live outcome of its hash). An accepted release is sent at
+ *  once; one that asks first (needsConfirm) opens the confirmation, as does a send the server refuses with its reasons
+ *  (then one confirmation overrides). sentFrom: sent in this window, with the id of the download its outcome showed
+ *  then (0: none); "Sent" stands until an outcome of another download answers. In flight: the download's words, with
+ *  a spinner while something works on it; imported or current: Imported; failed: Failed, with the button back
+ *  ("Try again") when a grab now would be routed; replaced or nothing: the button. */
+export function GrabCell({ c, target, o, sentFrom, onSent }: { c: Candidate; target: GrabTarget; o?: ReleaseOutcome; sentFrom?: number; onSent: () => void }) {
   const grab = useGrab(target.titleId);
   const [dialog, setDialog] = useState<{ late?: string[] }>();
   const library = target.label ?? target.version;
@@ -220,24 +236,48 @@ function GrabCell({ c, target, sent, onSent }: { c: Candidate; target: GrabTarge
     );
   };
   const failed = grab.isError && !lateRejections(grab.error);
+  const fresh = o && (sentFrom === undefined || (o.download ?? 0) !== sentFrom) ? o : undefined;
+  const note = fresh?.outcome === "failed" ? noRetryNote(fresh) : undefined;
+  let state: React.ReactNode = null;
+  if (fresh?.outcome === "grabbed") {
+    state = (
+      <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--accent-ink)]" data-testid="release-progress">
+        {fresh.idle ? null : <Loader2 className="size-3.5 animate-spin" />} {fresh.words || "Grabbed"}
+      </span>
+    );
+  } else if (fresh?.outcome === "imported" || fresh?.outcome === "current") {
+    state = (
+      <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--ok-ink)]" data-testid="release-imported">
+        <Check className="size-3.5" /> Imported
+      </span>
+    );
+  } else if (!fresh && sentFrom !== undefined) {
+    state = (
+      <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--ok-ink)]" data-testid="release-sent">
+        <Check className="size-3.5" /> Sent
+      </span>
+    );
+  }
+  const failure = fresh?.outcome === "failed" ? (
+    <span className="text-xs font-medium text-[var(--bad-ink)]" title={[fresh.reason, note].filter(Boolean).join("\n") || undefined} data-testid="release-failed">
+      Failed
+    </span>
+  ) : null;
+  const button = (
+    <Button
+      size="xs"
+      variant={c.accepted ? "outline" : "ghost"}
+      onClick={click}
+      disabled={!c.info_hash || grab.isPending}
+      title={!c.info_hash ? "No info hash" : failed ? errText(grab.error) : ask ? "Asks first" : "Send this release to the router"}
+      data-testid="release-grab"
+    >
+      {grab.isPending ? <Loader2 className="animate-spin" /> : <Download />} {failed ? "Not sent" : failure ? "Try again" : ask ? "Grab…" : "Grab"}
+    </Button>
+  );
   return (
     <>
-      {sent ? (
-        <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--ok-ink)]" data-testid="release-sent">
-          <Check className="size-3.5" /> Sent
-        </span>
-      ) : (
-        <Button
-          size="xs"
-          variant={c.accepted ? "outline" : "ghost"}
-          onClick={click}
-          disabled={!c.info_hash || grab.isPending}
-          title={!c.info_hash ? "No info hash" : failed ? errText(grab.error) : ask ? "Asks first" : "Send this release to the router"}
-          data-testid="release-grab"
-        >
-          {grab.isPending ? <Loader2 className="animate-spin" /> : <Download />} {failed ? "Not sent" : ask ? "Grab…" : "Grab"}
-        </Button>
-      )}
+      {state ?? (failure ? <span className="inline-flex flex-wrap items-center gap-2">{failure}{note ? null : button}</span> : button)}
       {dialog ? (
         <GrabDialog
           c={c}
@@ -288,8 +328,9 @@ export function ReleaseGrid({
   outcomes?: Releases["outcomes"];
   kind: "movie" | "series";
   /** Grab for each row (interactive search, managers); none: no Grab column. sent holds the hashes (lower case)
-   *  already sent for this library, kept by the dialog so they survive a library switch; onSent adds one. */
-  grab?: GrabTarget & { sent: ReadonlySet<string>; onSent: (hash: string) => void };
+   *  already sent for this library, each with the download id its outcome showed then (0: none), kept by the dialog
+   *  so they survive a library switch; onSent adds one. */
+  grab?: GrabTarget & { sent: ReadonlyMap<string, number>; onSent: (hash: string, download: number) => void };
   /** A hash to pick out and scroll to. */
   focus?: string;
   /** The search's result count, when the answer holds only the best of them. */
@@ -342,8 +383,8 @@ export function ReleaseGrid({
   }, [focus, items]);
   const sortBy = (key: ReleaseSortKey) =>
     setSort(sort.key === key ? { key, dir: sort.dir === "asc" ? "desc" : "asc" } : { key, dir: naturalDir(key) });
-  const markSent = (c: Candidate) => () => grab?.onSent((c.info_hash ?? "").toLowerCase());
-  const isSent = (c: Candidate) => !!c.info_hash && !!grab?.sent.has(c.info_hash.toLowerCase());
+  const markSent = (c: Candidate) => () => grab?.onSent((c.info_hash ?? "").toLowerCase(), outcomeOf(c, outcomes)?.download ?? 0);
+  const sentFrom = (c: Candidate) => (c.info_hash ? grab?.sent.get(c.info_hash.toLowerCase()) : undefined);
   const label = (id: ReleaseColumnId | "title") => (id === "title" ? "Title" : columns.find((c) => c.id === id)?.label ?? id);
   const head = (id: ReleaseColumnId | "title") => {
     const key = columnSortKey(id);
@@ -431,7 +472,7 @@ export function ReleaseGrid({
                     ))}
                     {grab ? (
                       <TableCell className="align-top text-right">
-                        <GrabCell c={c} target={grab} sent={isSent(c)} onSent={markSent(c)} />
+                        <GrabCell c={c} target={grab} o={outcomeOf(c, outcomes)} sentFrom={sentFrom(c)} onSent={markSent(c)} />
                       </TableCell>
                     ) : null}
                   </TableRow>
@@ -473,7 +514,7 @@ export function ReleaseGrid({
                   <Status c={c} />
                   <Outcome o={outcomeOf(c, outcomes)} />
                 </div>
-                {grab ? <div className="mt-2"><GrabCell c={c} target={grab} sent={isSent(c)} onSent={markSent(c)} /></div> : null}
+                {grab ? <div className="mt-2"><GrabCell c={c} target={grab} o={outcomeOf(c, outcomes)} sentFrom={sentFrom(c)} onSent={markSent(c)} /></div> : null}
               </li>
             ))}
           </ul>

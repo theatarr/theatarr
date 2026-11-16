@@ -8,7 +8,7 @@
 import { Loader2, RefreshCw, UserSearch, X } from "lucide-react";
 import { useEffect, useState, type KeyboardEvent, type MouseEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useLiveSearch } from "@/api/add";
+import { useLiveSearch, useReleaseOutcomes } from "@/api/add";
 import { qk } from "@/api/query-keys";
 import { usePerms, useTitle } from "@/api/library";
 import { useRemovalScope } from "@/api/ops";
@@ -75,12 +75,16 @@ export function InteractiveSearch({ titleId, version, season, episode, onClose }
   const current = r?.current;
   // A rejection reason picked from the summary: the list keeps those releases; another library or Search again starts unfiltered.
   const [reason, setReason] = useState<string>();
-  // Grabs sent in this window, by library and hash: the grid remounts per library, the dialog keeps them.
-  const [sent, setSent] = useState<Record<string, ReadonlySet<string>>>({});
+  // Grabs sent in this window, by library and hash, with the download each one's outcome showed then: the grid
+  // remounts per library, the dialog keeps them.
+  const [sent, setSent] = useState<Record<string, ReadonlyMap<string, number>>>({});
   const grab = r && live && r.grab && perms.manage && lib ? {
-    titleId, version: r.version, label: library, sent: sent[r.version] ?? new Set<string>(),
-    onSent: (hash: string) => setSent((s) => ({ ...s, [r.version]: new Set(s[r.version]).add(hash) })),
+    titleId, version: r.version, label: library, sent: sent[r.version] ?? new Map<string, number>(),
+    onSent: (hash: string, download: number) => setSent((s) => ({ ...s, [r.version]: new Map(s[r.version]).set(hash, download) })),
   } : undefined;
+  // What came of each release now (a grab's progress); the search's own outcomes until it answers.
+  const oc = useReleaseOutcomes(titleId, r?.version, episode?.id, !!r);
+  const outcomes = oc.data?.outcomes ?? r?.outcomes;
   return (
     <Modal
       label="Interactive search"
@@ -163,7 +167,7 @@ export function InteractiveSearch({ titleId, version, season, episode, onClose }
                 {items.length === 0 ? (
                   <p className="py-4 text-center text-sm text-muted-foreground">No releases found.</p>
                 ) : (
-                  <ReleaseGrid key={`${lib.key}-${q.dataUpdatedAt}`} items={items} outcomes={r.outcomes} kind={kind} grab={grab} capped={r.results > items.length ? r.results : undefined} reason={reason} />
+                  <ReleaseGrid key={`${lib.key}-${q.dataUpdatedAt}`} items={items} outcomes={outcomes} kind={kind} grab={grab} capped={r.results > items.length ? r.results : undefined} reason={reason} />
                 )}
               </>
             ) : null}

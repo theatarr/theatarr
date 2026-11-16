@@ -15,7 +15,7 @@
 import { Activity, Loader2, Search, X } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { Link } from "react-router";
-import type { SearchOutcome } from "@/api/add";
+import { useReleaseOutcomes, type SearchOutcome } from "@/api/add";
 import type { Schemas } from "@/api/client";
 import { usePerms } from "@/api/library";
 import { useEpisode, useEpisodeReleases, useMonitor, useScopedSearch, type EpisodeDetail, type EpisodeVersionDetail, type ManageOutcome } from "@/api/manage";
@@ -62,6 +62,8 @@ function stateBadge(d: EpisodeVersionDetail, aired: boolean): { label: string; t
 function Releases({ titleId, eid, d }: { titleId: number; eid: number; d: EpisodeVersionDetail }) {
   const q = useEpisodeReleases(titleId, eid, d.key, false, true);
   const r = q.data;
+  // What came of each release now; the list's own outcomes until it answers.
+  const oc = useReleaseOutcomes(titleId, r?.version, eid, !!r);
   return (
     <div className="space-y-3" data-testid="episode-releases">
       {d.control?.live_releases ? null : (
@@ -74,7 +76,7 @@ function Releases({ titleId, eid, d }: { titleId: number; eid: number; d: Episod
       ) : r ? (
         <>
           <Summary r={r} />
-          {(r.candidates ?? []).length === 0 ? <Empty>No releases stored for this episode.</Empty> : <ReleaseGrid items={r.candidates ?? []} kind="series" outcomes={r.outcomes} />}
+          {(r.candidates ?? []).length === 0 ? <Empty>No releases stored for this episode.</Empty> : <ReleaseGrid items={r.candidates ?? []} kind="series" outcomes={oc.data?.outcomes ?? r.outcomes} />}
         </>
       ) : null}
     </div>

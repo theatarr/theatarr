@@ -89,6 +89,22 @@ describe("onDownloadEvent", () => {
     expect(progress(12, t0 + 1000).now).toBe(true);
     expect(progress(11, t0 + PROGRESS_LIVE_MS).now).toBe(true);
   });
+  it("refreshes a title's release outcomes on progress at most every 5 s per title, however many of its downloads move", () => {
+    const key = qk.releaseOutcomes(88, "movie-web");
+    const qc = new QueryClient();
+    const progress = (id: number, at: number) => {
+      qc.setQueryData(key, { outcomes: {} });
+      onDownloadEvent(qc, JSON.stringify({ ...base, id, title: { ...base.title, id: 88 }, state: "downloading", previous: "downloading", progress: 40 }), at);
+      return qc.getQueryState(key)?.isInvalidated;
+    };
+    const t0 = 3_000_000;
+    // The first progress of the title refreshes the whole title (libraryRefresh), the outcomes with it.
+    expect(progress(21, t0)).toBe(true);
+    expect(progress(22, t0 + 1000)).toBe(true);
+    expect(progress(21, t0 + 2000)).toBe(false);
+    expect(progress(23, t0 + 4000)).toBe(false);
+    expect(progress(22, t0 + 1000 + PROGRESS_LIVE_MS)).toBe(true);
+  });
 });
 
 describe("onTitleEvent", () => {

@@ -6,7 +6,7 @@
 // (release-grab.tsx, AddByHash).
 import { ChevronDown, ChevronRight, Loader2, Search } from "lucide-react";
 import { useState } from "react";
-import { useReleases, type Releases } from "@/api/add";
+import { useReleaseOutcomes, useReleases, type Releases } from "@/api/add";
 import { usePerms } from "@/api/library";
 import { VersionStatus } from "@/components/version-status";
 import { Empty, ErrorState, VersionTag } from "@/components/page";
@@ -166,6 +166,8 @@ function Panel({ titleId, kind, initialVersion, focus, labels }: { titleId: numb
   const [version, setVersion] = useState<string | undefined>(initialVersion);
   const q = useReleases(titleId, version, false);
   const r: Releases | undefined = q.data;
+  // What came of each release now; the list's own outcomes until it answers.
+  const oc = useReleaseOutcomes(titleId, r?.version, undefined, !!r);
   const versions = r?.versions ?? [];
   const items = r?.candidates ?? [];
   // The followed release is picked out in the library it was followed for only.
@@ -205,7 +207,7 @@ function Panel({ titleId, kind, initialVersion, focus, labels }: { titleId: numb
           {shownFocus && !items.some((c) => c.info_hash?.toLowerCase() === shownFocus.toLowerCase()) ? (
             <p className="text-xs text-[var(--ink-3)]" data-testid="releases-focus-missing">The release you followed is not in this list: only the newest search's releases are kept here.</p>
           ) : null}
-          {items.length === 0 ? <Empty>No releases to show for {labels?.[r.version] || nameOf(r.version)}.</Empty> : <ReleaseGrid key={r.version} items={items} kind={kind} outcomes={r.outcomes} focus={shownFocus} />}
+          {items.length === 0 ? <Empty>No releases to show for {labels?.[r.version] || nameOf(r.version)}.</Empty> : <ReleaseGrid key={r.version} items={items} kind={kind} outcomes={oc.data?.outcomes ?? r.outcomes} focus={shownFocus} />}
         </>
       ) : null}
       {r && perms.admin ? <AddByHash key={r.version} titleId={titleId} version={r.version} label={labels?.[r.version]} /> : null}
