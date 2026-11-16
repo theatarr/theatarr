@@ -195,7 +195,7 @@ function DetailsPart({ titleId, eid, epCode, d, aired, manage, admin, single, ac
       {msg ? <p className="text-xs text-[var(--accent-ink)]">{msg}</p> : null}
       {/* No quality word where the library does not monitor the title: nothing is searched for it. */}
       {d.library_monitored !== false ? (
-        <UpgradeBlock u={d.upgrade} seeFiles releases={onReleases} what={`This episode · ${d.label || nameOf(d.key)}`} history={d.history} />
+        <UpgradeBlock u={d.upgrade} seeFiles releases={onReleases} what={`This episode · ${d.label || nameOf(d.key)}`} history={d.history ?? []} />
       ) : null}
       {rows.length > 0 ? (
         <div className="rounded-[5px] border border-[var(--line)] p-3" data-testid="episode-file">

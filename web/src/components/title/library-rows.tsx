@@ -89,7 +89,7 @@ function StatusCell({ v, title, kind }: { v: Version; title: TitleDetail; kind: 
       ) : s.upgrade ? (
         <span className="inline-flex flex-wrap items-center gap-1.5">
           <Badge tone={s.tone}>{s.label}</Badge>
-          <UpgradeStatus u={v.upgrade} what={nameOf(v)} releases={releasesHref(titleId, v.key ?? "")} history={v.history} />
+          <UpgradeStatus u={v.upgrade} what={nameOf(v)} releases={releasesHref(titleId, v.key ?? "")} history={v.history ?? []} />
         </span>
       ) : (
         <Badge tone={s.tone}>{s.label}</Badge>
@@ -187,11 +187,11 @@ function RowDetails({ v, kind, minimumShown, statusShown, onRemove }: { v: Versi
   // better release found with what came of it (nextLine).
   const badge = v.has_file && (kind === "series" || !statusShown) && v.upgrade && v.upgrade.state !== "none";
   const below = belowCount(v.upgrade);
-  const next = nextLine(v.upgrade, undefined, v.history);
+  const next = nextLine(v.upgrade, undefined, v.history ?? []);
   if (badge || below || next) {
     rows.push(["Upgrade", (
       <span key="u" className="flex flex-col items-start gap-0.5 [overflow-wrap:anywhere]" data-testid="row-upgrade">
-        {badge ? <UpgradeStatus u={v.upgrade} what={nameOf(v)} releases={releasesHref(titleId, key)} history={v.history} /> : null}
+        {badge ? <UpgradeStatus u={v.upgrade} what={nameOf(v)} releases={releasesHref(titleId, key)} history={v.history ?? []} /> : null}
         {below ? <span>{below}</span> : null}
         {next ? <span>{next}</span> : null}
       </span>
