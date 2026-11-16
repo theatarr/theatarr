@@ -765,6 +765,87 @@ func TestReleasesStoredAnswer(t *testing.T) {
 	e.call("GET", APIBase+"/titles/99/releases", nil, 404, nil)
 }
 
+// TestReleasesOneRowPerTorrent: a release list has one row per info hash: the best-ranked copy shown, every indexer
+// listed, the most seeders, the union of cached-on; a release without a hash stays a row of its own; the counts and
+// the cap count rows. A stored answer merges its kept sample and keeps its stored counts.
+func TestReleasesOneRowPerTorrent(t *testing.T) {
+	t.Parallel()
+	h := strings.Repeat("a", 40)
+	dec := func(name string, ok bool) *decide.Decision {
+		d := &decide.Decision{Release: name, Accepted: ok}
+		if !ok {
+			d.Rejections = []decide.Rejection{{Reason: "quality"}}
+		}
+		return d
+	}
+	best, second, third := dec("Alpha.2020.2160p-A", true), dec("Alpha 2020 2160p A", true), dec("alpha.2020.2160p.a", false)
+	other, bare := dec("Alpha.2020.720p-B", false), dec("Alpha.2020.1080p-NOHASH", false)
+	sr := &router.Searched{Ranked: []*decide.Decision{best, second, third, other, bare}, Indexers: 3,
+		Releases: map[*decide.Decision]indexer.Release{
+			best:   {Indexer: "prowlarr-tpb", InfoHash: h, Seeders: 4, Peers: 5, Extras: map[string]string{"cached_on": "rd"}},
+			second: {Indexer: "therarbg", InfoHash: strings.ToUpper(h), Seeders: 90, Peers: 100},
+			third:  {Indexer: "dmm", InfoHash: h, Seeders: -1, Extras: map[string]string{"cached_on": "ad"}},
+			other:  {Indexer: "dmm", InfoHash: strings.Repeat("b", 40), Seeders: -1},
+			bare:   {Indexer: "therarbg", Seeders: -1},
+		}}
+	var out Releases
+	out.Rejections = map[string]int{}
+	rankedInto(&out, sr, time.Unix(0, 0))
+	if out.Results != 3 || out.Accepted != 1 || out.Rejections["quality"] != 2 || len(out.Candidates) != 3 {
+		t.Fatalf("results %d accepted %d rejections %v rows %d", out.Results, out.Accepted, out.Rejections, len(out.Candidates))
+	}
+	r := out.Candidates[0]
+	if r.Release != best.Release || r.Rank != 1 || !r.Accepted || r.Indexer != "prowlarr-tpb" ||
+		!slices.Equal(r.Indexers, []string{"prowlarr-tpb", "therarbg", "dmm"}) || r.Seeders != 90 || r.Leechers == nil ||
+		*r.Leechers != 10 || !slices.Equal(r.CachedOn, []string{"rd", "ad"}) ||
+		!slices.Equal(r.Copies, []ReleaseCopy{{"therarbg", second.Release}, {"dmm", third.Release}}) {
+		t.Errorf("merged row %+v", r)
+	}
+	if r := out.Candidates[1]; r.Seeders != -1 || r.Leechers != nil || len(r.Copies) != 0 || !slices.Equal(r.Indexers, []string{"dmm"}) {
+		t.Errorf("one copy, unknown peers: %+v", r)
+	}
+	if r := out.Candidates[2]; r.Release != bare.Release || r.InfoHash != "" {
+		t.Errorf("hashless row %+v", r)
+	}
+	// An accepted and a rejected copy of one hash make an accepted row.
+	ok, no := dec("Beta-A", true), dec("Beta-B", false)
+	out = Releases{Rejections: map[string]int{}}
+	rankedInto(&out, &router.Searched{Ranked: []*decide.Decision{ok, no}, Releases: map[*decide.Decision]indexer.Release{
+		ok: {Indexer: "x", InfoHash: h}, no: {Indexer: "y", InfoHash: h}}}, time.Unix(0, 0))
+	if out.Results != 1 || out.Accepted != 1 || len(out.Rejections) != 0 || len(out.Candidates) != 1 || !out.Candidates[0].Accepted {
+		t.Errorf("accepted and rejected copy: %+v", out)
+	}
+	// The cap counts rows: 301 torrents of two copies each are 301 results, 300 shown.
+	sr = &router.Searched{Releases: map[*decide.Decision]indexer.Release{}}
+	for i := range maxLiveCandidates + 1 {
+		for _, ix := range []string{"x", "y"} {
+			d := dec(fmt.Sprintf("R%d-%s", i, ix), true)
+			sr.Ranked = append(sr.Ranked, d)
+			sr.Releases[d] = indexer.Release{Indexer: ix, InfoHash: fmt.Sprintf("%040x", i+1)}
+		}
+	}
+	out = Releases{Rejections: map[string]int{}}
+	rankedInto(&out, sr, time.Unix(0, 0))
+	if out.Results != maxLiveCandidates+1 || out.Accepted != maxLiveCandidates+1 || len(out.Candidates) != maxLiveCandidates ||
+		len(out.Candidates[maxLiveCandidates-1].Indexers) != 2 {
+		t.Errorf("cap: results %d accepted %d rows %d", out.Results, out.Accepted, len(out.Candidates))
+	}
+
+	// Stored: the kept sample is merged, the stored counts stay.
+	e := newAddEnv(t, nil)
+	e.exec(`INSERT INTO journal_decision (source, title_id, version_key, target, results, accepted, candidates,
+		rejections, created_at) VALUES ('rss', 1, 'movie-remux', 'rss', 9, 2, ?, '{"size":7}', 3000)`,
+		`[{"rank":1,"release":"Alpha.2020.REMUX-C","indexer":"tpb","info_hash":"`+h+`","seeders":3,"accepted":true},
+		  {"rank":2,"release":"Alpha 2020 REMUX C","indexer":"rarbg","info_hash":"`+h+`","seeders":8,"accepted":true},
+		  {"rank":3,"release":"Alpha.2020.REMUX-D","indexer":"rarbg","accepted":false}]`)
+	var st Releases
+	e.call("GET", APIBase+"/titles/1/releases?version=movie-remux", nil, 200, &st)
+	if st.Results != 9 || st.Accepted != 2 || len(st.Candidates) != 2 || st.Candidates[0].Seeders != 8 ||
+		!slices.Equal(st.Candidates[0].Indexers, []string{"tpb", "rarbg"}) || !slices.Equal(st.Candidates[1].Indexers, []string{"rarbg"}) {
+		t.Errorf("stored: %+v", st)
+	}
+}
+
 func (f *fakeAcquirer) WantedList(context.Context, acquire.WantedQuery) (*acquire.WantedList, error) {
 	return &acquire.WantedList{Items: []acquire.WantedRow{}, Counts: map[string]int{}}, nil
 }

@@ -6,6 +6,7 @@ import (
 	"github.com/theatarr/theatarr/internal/acquire"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -301,6 +302,11 @@ func TestGrabFromLiveSearch(t *testing.T) {
 	if code := o.jsonCall("GET", b+"/releases?version=movie-web&live=1", nil, o.mc, "", &rel); code != 200 ||
 		rel.Source != "live" || !rel.Grab {
 		t.Fatalf("live releases: %d %+v", code, rel)
+	}
+	// The two copies of the hash are one row, shown as the better ranked copy, the one a grab routes.
+	if len(rel.Candidates) != 1 || rel.Results != 1 || rel.Candidates[0].Indexer != "prowlarr-public" ||
+		!slices.Equal(rel.Candidates[0].Indexers, []string{"prowlarr-public", "dmm"}) {
+		t.Errorf("one row per torrent: %+v", rel.Candidates)
 	}
 	var got GrabResult
 	if code := o.jsonCall("POST", b+"/releases/grab", GrabRequest{Version: "movie-web", InfoHash: strings.ToUpper(hash)},

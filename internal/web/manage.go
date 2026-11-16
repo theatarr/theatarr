@@ -1065,7 +1065,7 @@ func (w *Web) apiEpisodeReleases(rw http.ResponseWriter, r *http.Request) {
 	}
 	vp := w.pol.Versions[key]
 	out := Releases{GrabState: versionGrabState(w.pol, key), TitleID: t.id, Version: key, Versions: have,
-		Candidates: []snapshot.Candidate{}, Rejections: map[string]int{}, Source: "none"}
+		Candidates: []ReleaseRow{}, Rejections: map[string]int{}, Source: "none"}
 	var season, number int64
 	if err := w.st.Reader().QueryRowContext(ctx, `SELECT season, number FROM episode WHERE id = ?`, eid).Scan(&season,
 		&number); err != nil {
@@ -1120,6 +1120,7 @@ func (w *Web) storedEpisodeReleases(ctx context.Context, out *Releases, it evIte
 		results, accepted int
 		notes             string
 		cands             []snapshot.Candidate
+		rows              []ReleaseRow
 		rejections        map[string]int
 	}
 	var best *stored
@@ -1137,12 +1138,13 @@ func (w *Web) storedEpisodeReleases(ctx context.Context, out *Releases, it evIte
 		if len(keep) == 0 && s.target == "rss" {
 			return
 		}
+		rows := mergeCopies(keep)
 		target := strings.ToLower(s.target)
 		oneEpisode := strings.HasPrefix(target, "s") && strings.Contains(target, "e")
 		if !oneEpisode {
 			// A season, series or RSS search: its stored counts are the whole search's, so count the episode's own.
-			s.results, s.accepted, s.rejections = len(keep), 0, map[string]int{}
-			for _, c := range keep {
+			s.results, s.accepted, s.rejections = len(rows), 0, map[string]int{}
+			for _, c := range rows {
 				if c.Accepted {
 					s.accepted++
 					continue
@@ -1156,7 +1158,7 @@ func (w *Web) storedEpisodeReleases(ctx context.Context, out *Releases, it evIte
 				}
 			}
 		}
-		s.cands = keep
+		s.cands, s.rows = nil, rows
 		if best == nil || s.at > best.at {
 			best = &s
 		}
@@ -1192,8 +1194,8 @@ func (w *Web) storedEpisodeReleases(ctx context.Context, out *Releases, it evIte
 	if best.target != "" {
 		out.Target = best.target
 	}
-	if best.cands != nil {
-		out.Candidates = best.cands
+	if best.rows != nil {
+		out.Candidates = best.rows
 	}
 	if best.rejections != nil {
 		out.Rejections = best.rejections

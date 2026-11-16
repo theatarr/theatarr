@@ -6,11 +6,13 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/theatarr/theatarr/internal/decide"
+	"github.com/theatarr/theatarr/internal/indexer"
 	"github.com/theatarr/theatarr/internal/journal/snapshot"
 	"github.com/theatarr/theatarr/internal/router"
 	"github.com/theatarr/theatarr/internal/store"
@@ -30,14 +32,14 @@ type Releases struct {
 	// LiveAllowed: live=1 would search the indexers (the acquirer runs).
 	LiveAllowed bool `json:"live_allowed"`
 	// Source is live, journal or none.
-	Source     string               `json:"source"`
-	At         *time.Time           `json:"at,omitempty"`
-	Target     string               `json:"target,omitempty"`
-	Results    int                  `json:"results"`
-	Accepted   int                  `json:"accepted"`
-	Candidates []snapshot.Candidate `json:"candidates"`
-	Rejections map[string]int       `json:"rejections"`
-	Notes      string               `json:"notes,omitempty"`
+	Source     string         `json:"source"`
+	At         *time.Time     `json:"at,omitempty"`
+	Target     string         `json:"target,omitempty"`
+	Results    int            `json:"results"`
+	Accepted   int            `json:"accepted"`
+	Candidates []ReleaseRow   `json:"candidates"`
+	Rejections map[string]int `json:"rejections"`
+	Notes      string         `json:"notes,omitempty"`
 	// Indexers counts the indexers a live search asked; absent for a stored answer.
 	Indexers int `json:"indexers,omitempty"`
 	// Message says why nothing live was searched, or what the stored answer is.
@@ -52,6 +54,68 @@ type Releases struct {
 	// Current is the file the requested film or episode holds in this library now (interactive search's "Current
 	// file" line); absent for a season or a whole series.
 	Current *HeldFile `json:"current,omitempty"`
+}
+
+// ReleaseRow is one row of a release list: one torrent (info hash), shown as its first copy in the list's ranked
+// order, with every indexer that returned it. A release without an info hash is a row of its own. Only the native
+// answer merges copies: the journal's stored rows, the grab cache and the Sonarr/Radarr-compatible list keep one
+// release per indexer.
+type ReleaseRow struct {
+	snapshot.Candidate
+	// Indexers are the indexers that returned the torrent: the shown copy's first, then in list order.
+	Indexers []string `json:"indexers"`
+	// Copies are the torrent's other copies, in list order.
+	Copies []ReleaseCopy `json:"copies,omitempty"`
+}
+
+// ReleaseCopy is another indexer's copy of a row's torrent.
+type ReleaseCopy struct {
+	Indexer string `json:"indexer,omitempty"`
+	Release string `json:"release"`
+}
+
+// mergeCopies makes one row per info hash of cs, which is in ranked order: the first copy stands for the row, the
+// peers are those of the copy with the most seeders, cached on is the union.
+func mergeCopies(cs []snapshot.Candidate) []ReleaseRow {
+	out := make([]ReleaseRow, 0, len(cs))
+	at := map[string]int{}
+	for _, c := range cs {
+		h := indexer.NormalizeHash(c.InfoHash)
+		if i, ok := at[h]; ok && h != "" {
+			r := &out[i]
+			r.Copies = append(r.Copies, ReleaseCopy{Indexer: c.Indexer, Release: c.Release})
+			if c.Indexer != "" && !slices.Contains(r.Indexers, c.Indexer) {
+				r.Indexers = append(r.Indexers, c.Indexer)
+			}
+			if c.Seeders > r.Seeders {
+				r.Seeders, r.Leechers = c.Seeders, c.Leechers
+			}
+			for _, p := range c.CachedOn {
+				if !slices.Contains(r.CachedOn, p) {
+					r.CachedOn = append(slices.Clip(r.CachedOn), p)
+				}
+			}
+			continue
+		}
+		if h != "" {
+			at[h] = len(out)
+		}
+		row := ReleaseRow{Candidate: c, Indexers: []string{}}
+		if c.Indexer != "" {
+			row.Indexers = append(row.Indexers, c.Indexer)
+		}
+		out = append(out, row)
+	}
+	return out
+}
+
+// candidatesOf is the rows' shown copies.
+func candidatesOf(rows []ReleaseRow) []snapshot.Candidate {
+	out := make([]snapshot.Candidate, len(rows))
+	for i, r := range rows {
+		out[i] = r.Candidate
+	}
+	return out
 }
 
 // HeldFile is the file a film or an episode holds in a library now: none (Held false), or its quality and score
@@ -125,7 +189,7 @@ func (w *Web) apiReleases(rw http.ResponseWriter, r *http.Request) {
 		badRequest(rw, "the title was removed from library "+strconv.Quote(key)+": add it there again first")
 		return
 	}
-	out := Releases{GrabState: versionGrabState(w.pol, key), TitleID: id, Version: key, Versions: have, Candidates: []snapshot.Candidate{},
+	out := Releases{GrabState: versionGrabState(w.pol, key), TitleID: id, Version: key, Versions: have, Candidates: []ReleaseRow{},
 		Rejections: map[string]int{}, Source: "none"}
 	if out.Versions == nil {
 		out.Versions = []string{}
@@ -250,35 +314,41 @@ func noAnswer(sr *router.Searched) error {
 	return errors.New("no indexer answered")
 }
 
-// rankedInto fills a live answer from a search's ranked decisions.
+// rankedInto fills a live answer from a search's ranked decisions, one row per torrent (mergeCopies): the counts
+// describe the rows, and the list keeps the best maxLiveCandidates of them.
 func rankedInto(out *Releases, sr *router.Searched, now time.Time) {
-	ranked := sr.Ranked
-	out.Source, out.Results = "live", len(ranked)
 	now = now.UTC()
-	out.At = &now
-	for i, d := range ranked {
+	out.Source, out.At = "live", &now
+	var cands []snapshot.Candidate
+	for i, d := range sr.Ranked {
 		if d == nil {
 			continue
 		}
-		if d.Accepted {
-			out.Accepted++
-		} else {
-			seen := map[string]bool{}
-			for _, rj := range d.Rejections {
-				if !seen[rj.Reason] {
-					seen[rj.Reason] = true
-					out.Rejections[rj.Reason]++
-				}
-			}
+		cs, _ := snapshot.Candidates([]*decide.Decision{d}, sr.Releases)
+		if len(cs) == 1 {
+			cs[0].Rank = i + 1
+			cands = append(cands, cs[0])
 		}
-		if len(out.Candidates) < maxLiveCandidates {
-			cs, _ := snapshot.Candidates([]*decide.Decision{d}, sr.Releases)
-			if len(cs) == 1 {
-				cs[0].Rank = i + 1
-				out.Candidates = append(out.Candidates, cs[0])
+	}
+	rows := mergeCopies(cands)
+	out.Results = len(rows)
+	for _, c := range rows {
+		if c.Accepted {
+			out.Accepted++
+			continue
+		}
+		seen := map[string]bool{}
+		for _, rj := range c.Rejections {
+			if !seen[rj.Reason] {
+				seen[rj.Reason] = true
+				out.Rejections[rj.Reason]++
 			}
 		}
 	}
+	if len(rows) > maxLiveCandidates {
+		rows = rows[:maxLiveCandidates]
+	}
+	out.Candidates = rows
 	out.Notes = strings.Join(sr.Notes, "; ")
 	out.Indexers = sr.Indexers
 }
@@ -300,7 +370,10 @@ func (w *Web) storedReleases(ctx context.Context, out *Releases) error {
 		out.Source, out.Target, out.Results, out.Accepted, out.Notes = "journal", target, results, accepted, notes
 		at := store.FromMillis(jAt)
 		out.At = &at
-		_ = json.Unmarshal([]byte(cj), &out.Candidates)
+		// The stored counts stay the search's (every indexer copy); its kept sample is shown one row per torrent.
+		var cands []snapshot.Candidate
+		_ = json.Unmarshal([]byte(cj), &cands)
+		out.Candidates = mergeCopies(cands)
 		_ = json.Unmarshal([]byte(rj), &out.Rejections)
 		if out.Message == "" {
 			out.Message = "From " + sourceWord(target)
@@ -312,7 +385,7 @@ func (w *Web) storedReleases(ctx context.Context, out *Releases) error {
 		out.Message = "No search result is stored for this library yet"
 	}
 	if out.Candidates == nil {
-		out.Candidates = []snapshot.Candidate{}
+		out.Candidates = []ReleaseRow{}
 	}
 	if out.Rejections == nil {
 		out.Rejections = map[string]int{}
@@ -400,7 +473,7 @@ func (w *Web) storedGrabbed(ctx context.Context, out *Releases, run sql.NullInt6
 			}
 		}
 	}
-	out.Grabbed = searchSummary(dls, out.Candidates, oc, state, message, w.providerTag)
+	out.Grabbed = searchSummary(dls, candidatesOf(out.Candidates), oc, state, message, w.providerTag)
 	return nil
 }
 
