@@ -19,7 +19,7 @@ workaround, it is here too.
   from Sonarr or Radarr does not bring them over. Quality profiles and custom formats cover most of
   what release profiles are used for.
 - **Anime packs across seasons, and a whole-series search.** A standard or daily series takes a pack of several
-  seasons ("S01-S05", "Season 1-4", "S01.S02.S03") or a complete series ("Complete Series", "All Seasons", "The
+  seasons ("S01-S05", "Season 1-4", "S01 to S03", "S01.S02.S03") or a complete series ("Complete Series", "All Seasons", "The
   Complete Collection") that a season search finds, which Sonarr does not. Anime series still reject packs across
   seasons, and so does any pack whose name does not prove the seasons between ("S01.S03"). There is no search for a
   whole series: searches stay per season, and such packs come from the sources that answer a season search with them.

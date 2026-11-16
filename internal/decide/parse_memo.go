@@ -2,6 +2,7 @@ package decide
 
 import (
 	"context"
+	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -95,16 +96,19 @@ func ParseSeriesRelease(ctx context.Context, title string) *sonarr.ParsedEpisode
 }
 
 // parseSeriesTitle is the Sonarr parse with the complete-series reading: a name with "Complete Series", "All
-// Seasons" or "The Complete Collection" that does not parse, or parses to absolute numbers only (a year read as an
-// episode), is parsed again with the phrase read as "S01"; a season pack from that is a complete-series pack
-// (CompleteSeries). Anime series do not use it (series.parseRelease). Bare "Complete" is not read.
+// Seasons" or "The Complete Collection" is parsed again with the phrase read as "S01" when the parser cannot read it,
+// reads absolute numbers only, or reads a year standing next to the phrase as numbers (2010 as S20E10 or season 2010)
+// in a name with no season or episode marker; a season pack from that is a complete-series pack (CompleteSeries).
+// Anime series do not use it (series.parseRelease). Bare "Complete" is not read.
 func parseSeriesTitle(title string) *sonarr.ParsedEpisodeInfo {
 	p := sonarr.ParseTitle(title)
-	if p != nil && (len(p.AbsoluteEpisodeNumbers) == 0 || len(p.EpisodeNumbers) > 0 || p.FullSeason) {
+	named, ok := indexer.CompleteSeriesName(title)
+	if !ok {
 		return p
 	}
-	named, ok := indexer.CompleteSeriesName(title, "S01")
-	if !ok {
+	absoluteOnly := p != nil && len(p.AbsoluteEpisodeNumbers) > 0 && len(p.EpisodeNumbers) == 0 && !p.FullSeason
+	yearNextToPhrase := !seasonMarkerRE.MatchString(title) && yearBesidePhraseRE.MatchString(named)
+	if p != nil && !absoluteOnly && !yearNextToPhrase {
 		return p
 	}
 	c := sonarr.ParseTitle(named)
@@ -115,6 +119,13 @@ func parseSeriesTitle(title string) *sonarr.ParsedEpisodeInfo {
 	c.ReleaseTitle, c.CompleteSeries = title, true
 	return c
 }
+
+var (
+	// seasonMarkerRE is a real season or episode marker: S01, S01E02, Season 1, 1x02.
+	seasonMarkerRE = regexp.MustCompile(`(?i)\b(?:S\d{1,2}(?:E\d{1,3})?|Season[ ._]?\d{1,2}|\d{1,2}x\d{2,3})\b`)
+	// yearBesidePhraseRE is a year directly before or after the phrase, once read as S01.
+	yearBesidePhraseRE = regexp.MustCompile(`\b(?:19|20)\d{2}[ ._]S01\b|\bS01[ ._](?:19|20)\d{2}\b`)
+)
 
 func copyParsePointer[T any](p *T) *T {
 	if p == nil {

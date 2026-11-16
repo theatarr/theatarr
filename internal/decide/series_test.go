@@ -387,6 +387,16 @@ func TestMultiSeasonPacks(t *testing.T) {
 			reasons: "FullSeason"},
 		{name: "an unmonitored season on RSS", release: "The.Show.S01-S03.2160p.WEB-DL.DDP5.1.H.265-GRP",
 			setup: func(t *Title) { ep(t, 532).Monitored = false }, reasons: "EpisodeNotMonitored"},
+		{name: "range with to", release: "The.Show.S01.to.S03.2160p.WEB-DL.DDP5.1.H.265-GRP",
+			search: &SeriesSearch{Kind: profile.SearchSeason, Season: 2, Episodes: []int64{521, 522}}, episodes: all},
+		{name: "range with spaced to", release: "The Show S01 to S03 2160p WEB-DL DDP5.1 H.265-GRP",
+			search: &SeriesSearch{Kind: profile.SearchSeason, Season: 2, Episodes: []int64{521, 522}}, episodes: all},
+		{name: "one season", release: "The.Show.S01.2160p.WEB-DL.DDP5.1.H.265-GRP", episodes: "S01E01,S01E02"},
+		{name: "year before the phrase", release: "The.Show.2018.Complete.Series.2160p.WEB-DL.DDP5.1.H.265-GRP",
+			episodes: all, seasons: []int{1, 2, 3}},
+		{name: "year before the collection", release: "The.Show.2018.The.Complete.Collection.2160p.WEB-DL.DDP5.1.H.265-GRP",
+			episodes: all},
+		{name: "year after the phrase", release: "The.Show.Complete.Series.2018.2160p.WEB-DL.DDP5.1.H.265-GRP", episodes: all},
 		{name: "an unaired episode", release: "The.Show.Complete.Series.2160p.WEB-DL.DDP5.1.H.265-GRP",
 			setup: func(t *Title) { ep(t, 532).AirDateUTC = nil }, reasons: "FullSeasonNotAired"},
 	}
@@ -432,7 +442,8 @@ func TestMultiSeasonPacks(t *testing.T) {
 	}
 	// Anime keeps today's rule: a multi-season batch is rejected, a complete-series name does not parse.
 	for name, want := range map[string]string{"Isekai.Story.S01-S02.1080p.BluRay.x264-GRP": "MultiSeason",
-		"Isekai.Story.Complete.Series.1080p.BluRay.x264-GRP": "UnableToParse"} {
+		"Isekai.Story.Complete.Series.1080p.BluRay.x264-GRP":      "UnableToParse",
+		"Isekai.Story.2021.Complete.Series.1080p.BluRay.x264-GRP": "UnknownEpisode"} { // as today
 		d, err := e.Decide(ctx, rel(name, "public", 20*gb), anime(), tvVersion(e, "anime-tv"), nil)
 		if err != nil {
 			t.Fatal(err)

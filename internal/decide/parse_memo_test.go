@@ -130,6 +130,19 @@ func TestParseSeriesReleaseCompleteSeries(t *testing.T) {
 		if p := ParseSeriesRelease(ctx, "Show.S02.All.Seasons.1080p"); p == nil || p.CompleteSeries || p.SeasonNumber != 2 {
 			t.Errorf("a season pack with the phrase: %+v", p)
 		}
+		// A year next to the phrase is not an episode number (S20E10) or a season (2010).
+		for _, n := range []string{"Show.2010.Complete.Series.1080p.BluRay-GRP", "Show.2010.The.Complete.Collection.720p",
+			"Show.Complete.Series.2010.1080p.BluRay-GRP"} {
+			if p := ParseSeriesRelease(ctx, n); p == nil || !p.CompleteSeries || p.SeasonNumber != 1 {
+				t.Errorf("%s: %+v", n, p)
+			}
+		}
+		for _, n := range []string{"Show.S20E10.1080p", "Show.2010.1080p", "Show.S20E10.Complete.Series.2010.1080p"} {
+			if p, want := ParseSeriesRelease(ctx, n), sonarr.ParseTitle(n); p == nil || p.CompleteSeries ||
+				p.SeasonNumber != want.SeasonNumber || !reflect.DeepEqual(p.EpisodeNumbers, want.EpisodeNumbers) {
+				t.Errorf("%s changed: %+v", n, p)
+			}
+		}
 	}
 }
 

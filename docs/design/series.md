@@ -69,11 +69,13 @@ from ordinary matching loads.
   `WEB` with `EAC3` as WEB-DL, a bit depth written `10 bits` / `8 bits` / `10-bits` (not an episode number).
   Packs named by a season title, original titles and partial seasons are not read (v5's mapping is not ported).
   **Multi-season and complete-series packs** (standard and daily series; departs from Sonarr, which rejects every
-  multi-season release): a release the parser marks multi-season is read for its span (`indexer.PackSeasons`): an
-  ascending range (`S01-S05`, `Season 1-4`) or a list in steps of one (`S01.S02.S03`), from the parsed first season to
-  at most the series' last season; anything else (`S01.S03`, `S01 S04`) keeps `MultiSeason`. A name with "Complete
-  Series", "All Seasons" or "The Complete Collection" that does not parse, or parses to absolute numbers only, is
-  parsed again with the phrase read as `S01` (`decide.ParseSeriesRelease`, also RSS's title lookup): a season pack
+  multi-season release): a season pack's name is read for its span (`indexer.PackSeasons`): an ascending range
+  (`S01-S05`, `Season 1-4`, `S01 to S03`, which the parser reads as a pack of season 1) or a list in steps of one
+  (`S01.S02.S03`), from the parsed season to at most the series' last season; a multi-season release with anything
+  else (`S01.S03`, `S01 S04`) keeps `MultiSeason`. A name with "Complete Series", "All Seasons" or "The Complete
+  Collection" that does not parse, parses to absolute numbers only, or (with no `S01`, `S01E02`, `Season 1` or `1x02`
+  marker) has a year directly before or after the phrase (`Show.2010.Complete.Series`, read by the parser as S20E10)
+  is parsed again with the phrase read as `S01` (`decide.ParseSeriesRelease`, also RSS's title lookup): a season pack
   from that is a complete-series pack, every season above 0 (bare "Complete" stays unparsed). The span maps to every
   episode of each season, each through its own scene mapping (specials never); the decision's season is the first,
   its episodes all of them, its release type `seasonPack` as before. A season search accepts a span that holds the

@@ -476,39 +476,45 @@ func (s *series) mapRelease(p *sonarr.ParsedEpisodeInfo, tvdbID int, imdbID stri
 }
 
 // packSeasons is the span of a multi-season or complete-series pack being decided (not an import's file), nil for
-// any other release or one whose span is not proven: a multi-season name must read as an ascending range or a list
-// in steps of one (indexer.PackSeasons) from the parsed first season to at most the series' last season; a
-// complete-series pack spans every season above 0. Anime series keep the multi-season rejection.
+// any other release or one whose span is not proven. A season pack whose name reads as an ascending range or a list
+// in steps of one (indexer.PackSeasons) from the parsed season to at most the series' last season spans those
+// seasons, whether or not the parser marked it multi-season ("S01 to S03" is not); a complete-series pack spans
+// every season above 0. A multi-season release without a span keeps MultiSeason; anime series keep the rule.
 func (s *series) packSeasons(p *sonarr.ParsedEpisodeInfo) []int {
 	if s.known || s.typ == sonarr.SeriesTypeAnime || !p.FullSeason || len(p.EpisodeNumbers) > 0 {
 		return nil
 	}
-	last := 0
-	seasons := map[int]bool{}
-	for _, e := range s.episodes() {
-		if e.Season > 0 {
-			seasons[e.Season] = true
+	if p.CompleteSeries {
+		seasons := map[int]bool{}
+		for _, e := range s.episodes() {
+			if e.Season > 0 {
+				seasons[e.Season] = true
+			}
 		}
+		out := make([]int, 0, len(seasons))
+		for n := range seasons {
+			out = append(out, n)
+		}
+		sort.Ints(out)
+		return out
+	}
+	first, end, ok := indexer.PackSeasons(p.ReleaseTitle)
+	if !ok || first < 1 || first != p.SeasonNumber {
+		return nil
+	}
+	last := 0
+	for _, e := range s.episodes() {
 		last = max(last, e.Season)
 		if s.t.UseSceneNumbering && e.SceneSeason != nil {
 			last = max(last, *e.SceneSeason)
 		}
 	}
+	if end > last {
+		return nil
+	}
 	var out []int
-	switch {
-	case p.CompleteSeries:
-		for n := range seasons {
-			out = append(out, n)
-		}
-		sort.Ints(out)
-	case p.IsMultiSeason:
-		first, end, ok := indexer.PackSeasons(p.ReleaseTitle)
-		if !ok || first < 1 || first != p.SeasonNumber || end > last {
-			return nil
-		}
-		for n := first; n <= end; n++ {
-			out = append(out, n)
-		}
+	for n := first; n <= end; n++ {
+		out = append(out, n)
 	}
 	return out
 }

@@ -221,8 +221,8 @@ func (t *torrentio) release(ctx context.Context, s *tioStream, q Query) (r Relea
 
 // packEpisodeCount: how many episodes a pack holds, given the season searched.
 var (
-	packRangeRE    = regexp.MustCompile(`(?i)\bS(?:eason)?[ ._]?(\d{1,2})\s?(?:-|to|~|–)\s?S?(?:eason)?[ ._]?(\d{1,2})\b`)
-	packCompleteRE = regexp.MustCompile(`(?i)\b(complete[ ._]series|all[ ._]seasons|the[ ._]complete[ ._]collection)\b`)
+	packRangeRE    = regexp.MustCompile(`(?i)\bS(?:eason)?[ ._]?(\d{1,2})[\s._]?(?:-|to|~|–)[\s._]?S?(?:eason)?[ ._]?(\d{1,2})\b`)
+	packCompleteRE = regexp.MustCompile(`(?i)\b(?:the[ ._])?(complete[ ._]series|all[ ._]seasons|the[ ._]complete[ ._]collection)\b`)
 )
 
 // packListRE is a list of seasons ("S01.S02.S03"), packNumRE its numbers.
@@ -252,19 +252,15 @@ func PackSeasons(name string) (first, last int, ok bool) {
 	return atoiOr(nums[0], 0), atoiOr(nums[len(nums)-1], 0), true
 }
 
-// CompleteSeriesName replaces a name's complete-series phrase ("Complete Series", "All Seasons", "The Complete
-// Collection", with a leading "The") by with. ok is false when the name holds none.
-func CompleteSeriesName(name, with string) (string, bool) {
+// CompleteSeriesName reads a name's complete-series phrase ("Complete Series", "All Seasons", "The Complete
+// Collection", with a leading "The") as season 1: "Show.Complete.Series.1080p" -> "Show.S01.1080p". ok is false when
+// the name holds none.
+func CompleteSeriesName(name string) (string, bool) {
 	loc := packCompleteRE.FindStringIndex(name)
 	if loc == nil {
 		return name, false
 	}
-	start := loc[0]
-	if start >= 4 && strings.EqualFold(name[start-4:start-1], "the") && strings.ContainsRune(" ._", rune(name[start-1])) &&
-		(start == 4 || strings.ContainsRune(" ._-[(", rune(name[start-5]))) {
-		start -= 4
-	}
-	return name[:start] + with + name[loc[1]:], true
+	return name[:loc[0]] + "S01" + name[loc[1]:], true
 }
 
 func packEpisodeCount(name string, season int, seasons map[int]int) int {
