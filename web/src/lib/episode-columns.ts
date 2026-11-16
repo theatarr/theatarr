@@ -4,7 +4,8 @@
 // columns, not in the list; the all-libraries matrix has no chosen columns.
 import type { ColumnDef } from "@/lib/prefs";
 
-export type EpisodeColumnId = "air" | "status" | "quality" | "size" | "cached" | "score" | "group" | "release" | "file" | "runtime";
+export type EpisodeColumnId = "air" | "status" | "quality" | "size" | "cached" | "score" | "group" | "release" | "file" | "runtime"
+  | "vcodec" | "hdr" | "audio" | "alang" | "subs" | "langs" | "formats";
 
 export const EPISODE_COLUMNS: ColumnDef<EpisodeColumnId>[] = [
   { id: "air", label: "Air date", hint: "When the episode aired or airs" },
@@ -17,6 +18,13 @@ export const EPISODE_COLUMNS: ColumnDef<EpisodeColumnId>[] = [
   { id: "release", label: "Release", hint: "The release name of the file" },
   { id: "file", label: "File", hint: "The file's path in the library" },
   { id: "runtime", label: "Runtime", hint: "The episode's running time" },
+  { id: "vcodec", label: "Video codec", hint: "The file's video codec" },
+  { id: "hdr", label: "Dynamic range", hint: "The file's HDR format; blank for SDR" },
+  { id: "audio", label: "Audio", hint: "The file's audio codec and channels" },
+  { id: "alang", label: "Audio languages", hint: "The languages of the file's audio tracks" },
+  { id: "subs", label: "Subtitles", hint: "The languages of the file's subtitles" },
+  { id: "langs", label: "Languages", hint: "The release's languages as decided at import" },
+  { id: "formats", label: "Formats", hint: "The custom formats the file matched, with their scores" },
 ];
 
 export const DEFAULT_EPISODE_COLUMNS: EpisodeColumnId[] = ["air", "status", "quality", "size", "cached"];

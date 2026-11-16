@@ -278,6 +278,36 @@ describe("Acting on the libraries in view", () => {
     expect(within(screen.getByTestId("episode-table")).getAllByText("NTb")).toHaveLength(3);
   });
 
+  it("offers the file's media, languages and formats as columns, blank for a file without them", async () => {
+    const media = { video_codec: "x265", video_dynamic_range: "DV HDR10", audio_codec: "EAC3 Atmos", audio_channels: 5.1, audio_languages: "eng/kor", subtitles: "eng/fre/spa/ger/jpn/kor" };
+    const facts = { media, languages: ["English", "Korean"], formats: [{ name: "DV Boost", score: 1500 }] };
+    const withMedia = { ...episodes, episodes: episodes.episodes.map((e) => ({ ...e, versions: { ...e.versions, "anime-web": cell(true, e.id === 101 ? facts : {}) } })) };
+    mockFetch([routes[0], { method: "GET", path: "/titles/1/episodes", reply: withMedia }]);
+    const user = userEvent.setup();
+    renderPage(<Seasons id="1" anime />, "/title/1");
+    await user.click(await screen.findByRole("radio", { name: "Anime WEB" }));
+    await user.click(screen.getByTestId("episode-columns"));
+    const added = ["Video codec", "Dynamic range", "Audio", "Audio languages", "Subtitles", "Languages", "Formats"];
+    const list = screen.getByTestId("column-list");
+    for (const name of added) await user.click(within(list).getByRole("checkbox", { name: new RegExp(`^${name} ?The `) }));
+    await user.click(screen.getByRole("button", { name: "Done" }));
+    const table = screen.getByTestId("episode-table");
+    const heads = within(table).getAllByRole("columnheader").map((h) => h.textContent);
+    const at = (ep: string, head: string) => {
+      const row = table.querySelector(`[data-episode="${ep}"]`) as HTMLElement;
+      return row.querySelectorAll("td")[heads.indexOf(head)] as HTMLElement;
+    };
+    const want: Record<string, string> = {
+      "Video codec": "x265", "Dynamic range": "DV HDR10", Audio: "EAC3 Atmos 5.1", "Audio languages": "English, Korean",
+      Subtitles: "English, French, Spanish, German +2", Languages: "English, Korean", Formats: "DV Boost+1500",
+    };
+    for (const name of added) {
+      expect(at("1x12", name).textContent, name).toBe(want[name]);
+      expect(at("1x13", name).textContent, name).toBe("");
+    }
+    expect(within(at("1x12", "Subtitles")).getByTitle("English, French, Spanish, German, Japanese, Korean")).toBeTruthy();
+  });
+
   it("links an episode's Cached on to its torrent for admins, as the episode window does", async () => {
     const hash = "a".repeat(40);
     const withHash = { ...episodes, episodes: episodes.episodes.map((e) => ({ ...e, versions: { ...e.versions, "anime-web": cell(true, { cached_on: ["rd"], info_hash: hash }) } })) };

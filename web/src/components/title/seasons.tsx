@@ -37,6 +37,7 @@ import { ErrorState, Loading, Mono } from "@/components/page";
 import { ProviderPills } from "@/components/provider-pills";
 import { toast } from "@/components/toaster";
 import { EpisodeOverview } from "@/components/title/episode-drawer";
+import { Formats } from "@/components/title/formats";
 import { InteractiveSearchButton } from "@/components/title/interactive-search";
 import { MonitorSwitch } from "@/components/title/manage-bits";
 import { ProgressBar } from "@/components/activity-bits";
@@ -52,6 +53,7 @@ import { stageCounts, stageTone, stageWords } from "@/lib/copies";
 import { DEFAULT_EPISODE_COLUMNS, EPISODE_COLUMNS, EPISODE_COLUMNS_PREF, type EpisodeColumnId } from "@/lib/episode-columns";
 import { dayFormatter, fmtBytes, fmtNumber } from "@/lib/format";
 import { fmtRuntime } from "@/lib/library";
+import { audioWords, languages, subsList, subsShort } from "@/lib/media";
 import { nextSearch } from "@/lib/library-rows";
 import { useColumnPrefs } from "@/lib/prefs";
 import {
@@ -326,6 +328,13 @@ const COLUMN_HEAD: Record<EpisodeColumnId, { label: string; className?: string }
   release: { label: "Release" },
   file: { label: "File" },
   runtime: { label: "Runtime", className: "w-20" },
+  vcodec: { label: "Video codec", className: "w-24" },
+  hdr: { label: "Dynamic range", className: "w-28" },
+  audio: { label: "Audio", className: "w-32" },
+  alang: { label: "Audio languages" },
+  subs: { label: "Subtitles" },
+  langs: { label: "Languages" },
+  formats: { label: "Formats" },
 };
 
 /** A chosen column's cell for the library in view. Blank, never "0" or "None", for a fact the file lacks. */
@@ -361,6 +370,20 @@ function ColumnCell({ id, e, c, seeFiles, day, off = false }: { id: EpisodeColum
       return <TableCell>{long(file?.path)}</TableCell>;
     case "runtime":
       return <TableCell className="whitespace-nowrap text-muted-foreground">{fmtRuntime(e.runtime_minutes) ?? ""}</TableCell>;
+    case "vcodec":
+      return <TableCell className="whitespace-nowrap">{file?.media?.video_codec ?? ""}</TableCell>;
+    case "hdr":
+      return <TableCell className="whitespace-nowrap">{file?.media?.video_dynamic_range ?? ""}</TableCell>;
+    case "audio":
+      return <TableCell className="whitespace-nowrap">{audioWords(file?.media)}</TableCell>;
+    case "alang":
+      return <TableCell>{languages(file?.media?.audio_languages)}</TableCell>;
+    case "subs":
+      return <TableCell><span title={subsList(file?.media?.subtitles) || undefined}>{subsShort(file?.media?.subtitles)}</span></TableCell>;
+    case "langs":
+      return <TableCell>{file?.languages?.join(", ") ?? ""}</TableCell>;
+    case "formats":
+      return <TableCell>{file ? <Formats c={file} /> : null}</TableCell>;
   }
 }
 

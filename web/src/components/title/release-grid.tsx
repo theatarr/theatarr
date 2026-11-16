@@ -16,6 +16,7 @@ import { useAuth } from "@/api/auth";
 import { useGrab } from "@/api/ops";
 import { ColumnPicker } from "@/components/library/view-options";
 import { ProviderPills, ProviderTag, providerLabel } from "@/components/provider-pills";
+import { Formats } from "@/components/title/formats";
 import { GrabDialog, lateRejections, type GrabTarget } from "@/components/title/release-grab";
 import { ReleaseName } from "@/components/title/release-name";
 import { toast } from "@/components/toaster";
@@ -149,22 +150,6 @@ function Languages({ c }: { c: Candidate }) {
   const ls = c.languages ?? [];
   if (ls.length === 0) return <span className="text-[var(--ink-3)]">—</span>;
   return <span title={ls.join(", ")}>{ls.slice(0, 2).join(", ")}{ls.length > 2 ? ` +${ls.length - 2}` : ""}</span>;
-}
-
-/** The matched formats with their scores; zeros: also a 0 score (the opened detail and the cards). */
-function Formats({ c, zeros = false }: { c: Candidate; zeros?: boolean }) {
-  const fs = c.formats ?? [];
-  if (fs.length === 0) return null;
-  return (
-    <span className="flex flex-wrap gap-1">
-      {fs.map((f, i) => (
-        <span key={i} className="rounded border border-[var(--line)] px-1 text-[10.5px] text-[var(--ink-3)]">
-          {f.name}
-          {f.score || zeros ? <span className={cn("ml-1 tabular-nums", (f.score ?? 0) < 0 ? "text-[var(--bad-ink)]" : (f.score ?? 0) > 0 ? "text-[var(--ok-ink)]" : undefined)}>{signed(f.score ?? 0)}</span> : null}
-        </span>
-      ))}
-    </span>
-  );
 }
 
 function Cell({ id, c, outcomes }: { id: ReleaseColumnId; c: Candidate; outcomes?: Releases["outcomes"] }) {

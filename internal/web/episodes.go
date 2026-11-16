@@ -8,6 +8,8 @@ import (
 	"slices"
 	"sort"
 	"time"
+
+	"github.com/theatarr/theatarr/internal/decide"
 )
 
 // GET titles/{id}/episodes?season=: a series' seasons with counts per version, and its episodes (all, or one
@@ -84,6 +86,12 @@ type EpisodeCell struct {
 	UpgradeSeen bool `json:"upgrade_seen,omitempty"`
 	// Acquisition is the download in hand for the episode in this version (copies.go), for callers who see files.
 	Acquisition *Acquisition `json:"acquisition,omitempty"`
+	// Media is the file's media info (linkMedia: Theatarr's probe, else an adopted file's arr media info); Languages
+	// and Formats are the languages and matched custom formats its link's file metadata keeps (linkFacts). For
+	// callers who see files; with more than one file, all from the newest link.
+	Media     *MediaInfo           `json:"media,omitempty"`
+	Languages []string             `json:"languages,omitempty"`
+	Formats   []decide.FormatScore `json:"formats,omitempty"`
 }
 
 // Episode is one episode with its cells by version key.
@@ -213,25 +221,32 @@ func (w *Web) titleEpisodes(ctx context.Context, id int64, season int, seeFiles 
 		return nil, err
 	}
 	// The torrent hash as the episode window reads it (episodeFile: linkHashSQL); only for callers who see files.
-	linkHash := "''"
+	// So are the file's probe, adopted media and file metadata (media, languages, formats).
+	linkHash, fileFacts := "''", "NULL, NULL, 0, NULL"
 	if seeFiles {
-		linkHash = linkHashSQL
+		linkHash, fileFacts = linkHashSQL, "cf.probe, l.adopted_media, l.download_id IS NULL, l.file_metadata"
 	}
 	// The current files that hold each episode, active links: the release group their file metadata keeps
 	// (decide.ExistingFile), and the providers holding their content now.
 	linkMeta := `CASE WHEN json_valid(l.file_metadata) THEN json_extract(l.file_metadata, '$.ReleaseGroup') END`
-	// Every current file's hash per episode and version, for Cached on (heldByHash) below.
+	// Every current file's hash per episode and version, for Cached on (heldByHash) below. Oldest link first, so a
+	// cell with more than one file ends with the newest link's facts, the file the episode window shows (episodeFile).
 	cellHashes := map[[2]int64][]string{}
 	var hashes []string
 	if err := scanAll(ctx, db, `SELECT le.episode_id, lv.version_id, COALESCE(l.quality, ''), `+
-		linkSizeSQL+`, `+linkScoreSQL+`, COALESCE(`+linkMeta+`, ''), COALESCE(l.release_title, ''), l.path, `+linkHash+`
+		linkSizeSQL+`, `+linkScoreSQL+`, COALESCE(`+linkMeta+`, ''), COALESCE(l.release_title, ''), l.path, `+linkHash+`,
+		`+fileFacts+`
 		FROM link l JOIN link_episode le ON le.link_id = l.id JOIN link_version lv ON lv.link_id = l.id
-		LEFT JOIN content_file cf ON cf.id = l.content_file_id WHERE l.title_id = ? AND l.state = 'active'`,
+		LEFT JOIN content_file cf ON cf.id = l.content_file_id WHERE l.title_id = ? AND l.state = 'active'
+		ORDER BY l.created_at ASC, l.id ASC`,
 		[]any{id}, func(r *sql.Rows) error {
 			var eid, vid int64
 			var q, group, release, path, hash string
 			var size, score sql.NullInt64
-			if err := r.Scan(&eid, &vid, &q, &size, &score, &group, &release, &path, &hash); err != nil {
+			var pr, am, meta sql.NullString
+			var adopted bool
+			if err := r.Scan(&eid, &vid, &q, &size, &score, &group, &release, &path, &hash, &pr, &am, &adopted,
+				&meta); err != nil {
 				return err
 			}
 			i, ok := idx[eid]
@@ -247,6 +262,9 @@ func (w *Web) titleEpisodes(ctx context.Context, id int64, season int, seeFiles 
 			if seeFiles {
 				c.SizeBytes, c.Score, c.ReleaseGroup, c.ReleaseTitle, c.Path, c.InfoHash = nullInt(size), nullInt(score),
 					group, release, path, hash
+				var f CurrentFile
+				linkFacts(&f, meta.String)
+				c.Media, c.Languages, c.Formats = linkMedia(pr, am, adopted, release, true), f.Languages, f.Formats
 				k := [2]int64{eid, vid}
 				cellHashes[k] = append(cellHashes[k], hash)
 				hashes = append(hashes, hash)

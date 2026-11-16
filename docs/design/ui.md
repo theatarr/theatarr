@@ -588,7 +588,12 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
     Upgrade found beside it; Missing, Not aired, Not monitored, which a gap in a library that is not monitored reads
     too; the download under it), Quality, Size and **Cached on** (with the admins'
     **Torrent** link, as the episode window, on one line) by default;
-    Score, Release group, Release, File and Runtime on offer.
+    Score, Release group, Release, File and Runtime on offer, and from the file (blank without one or without the
+    fact; see files only): Video codec, Dynamic range (blank for SDR), Audio (codec and channels), Audio languages,
+    Subtitles (the first four, all in the tooltip), Languages (as decided at import) and Formats (the matched custom
+    formats with their scores, as in the release list). The media is Theatarr's own probe, else the arr's media info
+    of an adopted file; with more than one file for the episode, every fact is the newest link's. Phone rows show none
+    of the chosen columns.
   - **All libraries:** a column per library (the matrix), each cell a word, Available (Upgrade found beside it) /
     Missing / Not aired / Not monitored, with the quality beside it and the monitored mark; each row ends in the Search and
     Interactive search icons. No Columns button.

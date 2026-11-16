@@ -26,16 +26,22 @@ export function languageName(code: string): string {
 }
 
 /** "jpn/eng" as "Japanese, English". */
-function languages(list: string | undefined | null): string {
+export function languages(list: string | undefined | null): string {
   return (list ?? "").split("/").filter(Boolean).map(languageName).join(", ");
 }
 
 export function mediaLine(m: MediaInfo | undefined | null): string {
   if (!m) return "";
   const video = [m.video_codec, m.video_bit_depth && m.video_bit_depth > 8 ? `${m.video_bit_depth}-bit` : ""].filter(Boolean).join(" ");
-  const audio = [m.audio_codec, m.audio_channels ? String(m.audio_channels) : ""].filter(Boolean).join(" ");
+  const audio = audioWords(m);
   const subs = subsWords(m.subtitles);
   return [m.resolution, video, m.video_dynamic_range, audio, languages(m.audio_languages), subs, m.run_time].filter(Boolean).join(" · ");
+}
+
+/** The audio codec and channels: "EAC3 Atmos 5.1". */
+export function audioWords(m: MediaInfo | undefined | null): string {
+  if (!m) return "";
+  return [m.audio_codec, m.audio_channels ? String(m.audio_channels) : ""].filter(Boolean).join(" ");
 }
 
 const SUBS_SHOWN = 4;
@@ -49,10 +55,16 @@ function subsCodes(subtitles: string | undefined | null): string[] {
   return (subtitles ?? "").split("/").filter((s, i, all) => s && all.indexOf(s) === i);
 }
 
-/** "subtitles English, Arabic, Chinese, Croatian +23": the first SUBS_SHOWN languages and how many more. */
-function subsWords(subtitles: string | undefined | null): string {
+/** "English, Arabic, Chinese, Croatian +23": the first SUBS_SHOWN subtitle languages and how many more. */
+export function subsShort(subtitles: string | undefined | null): string {
   const all = subsCodes(subtitles);
   if (!all.length) return "";
   const more = all.length - SUBS_SHOWN;
-  return `subtitles ${all.slice(0, SUBS_SHOWN).map(languageName).join(", ")}${more > 0 ? ` +${more}` : ""}`;
+  return `${all.slice(0, SUBS_SHOWN).map(languageName).join(", ")}${more > 0 ? ` +${more}` : ""}`;
+}
+
+/** "subtitles English, Arabic, Chinese, Croatian +23". */
+function subsWords(subtitles: string | undefined | null): string {
+  const s = subsShort(subtitles);
+  return s ? `subtitles ${s}` : "";
 }
