@@ -30,6 +30,7 @@ type availServer struct {
 	listed map[string][]string // service -> hashes
 	status int                 // non-zero: every availability call answers this
 	fail   string              // a service whose calls answer 500
+	items  map[string]string   // service+hash -> the answer's row, instead of the default one
 }
 
 func (s *availServer) serve(t *testing.T, n *testNet) {
@@ -63,7 +64,9 @@ func (s *availServer) serve(t *testing.T, n *testNet) {
 		}
 		var items []string
 		for _, h := range body.Hashes {
-			if slices.Contains(s.listed[body.Service], h) {
+			if row, ok := s.items[body.Service+h]; ok {
+				items = append(items, row)
+			} else if slices.Contains(s.listed[body.Service], h) {
 				items = append(items, fmt.Sprintf(`{"hash": %q, "files": [{"file_id": 1, "path": "/a.mkv", "bytes": 1}]}`, h))
 			}
 		}
@@ -80,6 +83,44 @@ func (s *availServer) requests() []availReq {
 func availVersions(providers ...string) []*policy.VersionPolicy {
 	return []*policy.VersionPolicy{{Storage: policy.StorageDebrid, Indexers: []string{"dmm", "torrentio", "prowlarr", "tracker"},
 		Providers: providers}}
+}
+
+// A hash DMM lists on rd gains no rd evidence when Real-Debrid's name rule refuses its root name (filename or
+// originalFilename) or a video the selection takes; samples, non-video files and the ad answer are not judged.
+func TestDMMAvailabilityRDNames(t *testing.T) {
+	n := newNet(t)
+	row := func(c, filename, original string, paths ...string) string {
+		var files []string
+		for i, p := range paths {
+			files = append(files, fmt.Sprintf(`{"file_id": %d, "path": %q, "bytes": 1}`, i+1, p))
+		}
+		return fmt.Sprintf(`{"hash": %q, "filename": %q, "originalFilename": %q, "files": [%s]}`, hx(c), filename,
+			original, strings.Join(files, ","))
+	}
+	clean := "Show.S01.1080p.BluRay.x265"
+	dmm := &availServer{items: map[string]string{
+		"rd" + hx("1"): row("1", "Movie.2020.1080p.WEB-DL.mkv", clean, "/Movie.mkv"),
+		"rd" + hx("2"): row("2", clean, "Movie.2020.720p.WEBRip.x264", "/Movie.mkv"),
+		"rd" + hx("3"): row("3", clean, clean, "/Show/S01E01.mkv", "/Show/Show.S01E02.HDTV.x264.mkv"),
+		"rd" + hx("4"): row("4", clean, clean, "/Show/S01E01.mkv", "/Show/Sample/WEB-DL.sample.mkv", "/Show/WEB-DL.nfo"),
+		"rd" + hx("5"): row("5", clean, clean),
+		"ad" + hx("1"): row("1", "Movie.2020.1080p.WEB-DL.mkv", "Movie.2020.1080p.WEB-DL.mkv", "/Movie.WEB-DL.mkv"),
+	}}
+	dmm.serve(t, n)
+	h := newHarness(t, n, evidencePolicy(), false)
+	src := h.svc.availabilitySource()
+	if src == nil {
+		t.Fatal("no availability source")
+	}
+	hashes := []string{hx("1"), hx("2"), hx("3"), hx("4"), hx("5")}
+	got, err := src.availability(context.Background(), "rd", hashes)
+	if err != nil || !slices.Equal(got, []string{hx("4"), hx("5")}) {
+		t.Errorf("rd: %v %v", got, err)
+	}
+	got, err = src.availability(context.Background(), "ad", hashes)
+	if err != nil || !slices.Equal(got, []string{hx("1")}) {
+		t.Errorf("ad: %v %v", got, err)
+	}
 }
 
 // DMM's availability: the releases without rd or ad evidence are asked about, with DMM's key and no IMDb id

@@ -2,9 +2,9 @@ package router
 
 import (
 	"path"
-	"regexp"
 	"strings"
 
+	"github.com/theatarr/theatarr/internal/indexer"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/provider"
 )
@@ -25,25 +25,8 @@ import (
 // So both a movie and a series get every playable file, never the non-playable ones: an nfo, a text file, an image
 // or an executable selected with them can make Real-Debrid pack the torrent into one RAR, which cannot be streamed.
 //
-// playableExt follows DMM's isVideo, the list the cached sets on Real-Debrid were most often selected by: the video
-// extensions it ships enabled plus its three audio ones. .vob and .iso are left out (DMM marks .vob "not yet
-// confirmed working" on Real-Debrid and has no .iso; decypharr has no .iso either, and the library cannot stream an
-// image). Subtitles are left out as both DMM and decypharr leave them: selecting them gives a set the cache was
-// not filled with, and the library imports no subtitle files from a release.
-var playableVideo = map[string]bool{".avi": true, ".flv": true, ".m2ts": true, ".m4v": true, ".mkv": true,
-	".mov": true, ".mp4": true, ".mpg": true, ".mpeg": true, ".ts": true, ".webm": true, ".wmv": true}
-
-// playableAudio is selected with the videos (DMM's isVideo takes them), never on its own: a torrent with audio and
-// no video holds nothing to import.
-var playableAudio = map[string]bool{".mp3": true, ".flac": true, ".m4a": true}
-
-// sampleRE is DMM's sample and trailer rule (the words sample and trailer anywhere in the path).
-var sampleRE = regexp.MustCompile(`(?i)\b(sample|trailer)\b`)
-
-// rarbgPromo is a file at the torrent's root named rarbg* (the RARBG.com.mp4 promo, RARBG.txt): DMM leaves it out.
-func rarbgPromo(p string) bool {
-	return strings.HasPrefix(strings.ToLower(strings.TrimPrefix(p, "/")), "rarbg")
-}
+// The extensions, the sample rule and the rarbg promo are the indexer package's (indexer.PlayableVideo,
+// PlayableAudio, SampleOrTrailer, RARBGPromo), which judges Real-Debrid's file names by the same rule.
 
 // Playable is the selection a Real-Debrid torrent gets: every video that is no sample or trailer, with the audio
 // files beside them. Samples and trailers count only when nothing else is a video. nil when no file is a video (an
@@ -51,14 +34,13 @@ func rarbgPromo(p string) bool {
 func Playable(files []provider.File) []provider.File {
 	var videos, samples, audio []provider.File
 	for _, f := range files {
-		ext := strings.ToLower(path.Ext(f.Path))
 		switch {
-		case f.ID == "" || rarbgPromo(f.Path):
-		case playableVideo[ext] && sampleRE.MatchString(f.Path):
+		case f.ID == "" || indexer.RARBGPromo(f.Path):
+		case indexer.PlayableVideo(f.Path) && indexer.SampleOrTrailer(f.Path):
 			samples = append(samples, f)
-		case playableVideo[ext]:
+		case indexer.PlayableVideo(f.Path):
 			videos = append(videos, f)
-		case playableAudio[ext] && !sampleRE.MatchString(f.Path):
+		case indexer.PlayableAudio(f.Path) && !indexer.SampleOrTrailer(f.Path):
 			audio = append(audio, f)
 		}
 	}
@@ -93,8 +75,7 @@ var presentVideo = map[string]bool{".vob": true, ".iso": true}
 // Debrid's selection limits; whether Real-Debrid can select a set is Playable's.
 func HasVideo(files []provider.File) bool {
 	for _, f := range files {
-		ext := strings.ToLower(path.Ext(f.Path))
-		if (playableVideo[ext] || presentVideo[ext]) && !rarbgPromo(f.Path) {
+		if (indexer.PlayableVideo(f.Path) || presentVideo[strings.ToLower(path.Ext(f.Path))]) && !indexer.RARBGPromo(f.Path) {
 			return true
 		}
 	}
@@ -132,7 +113,7 @@ func AltFiles(kind policy.Kind, files []provider.File) []string {
 	}
 	var best *provider.File
 	for i := range p {
-		if !playableVideo[strings.ToLower(path.Ext(p[i].Path))] {
+		if !indexer.PlayableVideo(p[i].Path) {
 			continue
 		}
 		if best == nil || p[i].Bytes > best.Bytes {

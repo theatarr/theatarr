@@ -76,6 +76,12 @@ func (t *torznab) availability(ctx context.Context, service string, hashes []str
 	var ans struct {
 		Available []struct {
 			Hash string `json:"hash"`
+			// Real-Debrid's names, in the rd answer: the torrent's root names and its files.
+			Filename         string `json:"filename"`
+			OriginalFilename string `json:"originalFilename"`
+			Files            []struct {
+				Path string `json:"path"`
+			} `json:"files"`
 		} `json:"available"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&ans); err != nil {
@@ -83,9 +89,23 @@ func (t *torznab) availability(ctx context.Context, service string, hashes []str
 	}
 	var out []string
 	for _, a := range ans.Available {
-		if h := NormalizeHash(a.Hash); h != "" && slices.Contains(hashes, h) && !slices.Contains(out, h) {
-			out = append(out, h)
+		h := NormalizeHash(a.Hash)
+		if h == "" || !slices.Contains(hashes, h) || slices.Contains(out, h) {
+			continue
 		}
+		if service == "rd" {
+			paths := make([]string, len(a.Files))
+			for i, f := range a.Files {
+				paths[i] = f.Path
+			}
+			if RealDebridRefuses(a.Filename, false) || RealDebridRefuses(a.OriginalFilename, false) ||
+				RealDebridRefusedFile(paths) != "" {
+				// Real-Debrid refuses an add by this name, or a selected file could not be read: no rd evidence (DMM's
+				// own rd feed leaves such rows out). The router checks the files again after an add.
+				continue
+			}
+		}
+		out = append(out, h)
 	}
 	return out, nil
 }
