@@ -89,6 +89,7 @@ func TestIndexerStats(t *testing.T) {
 		{"dmm", "interactive", today.AddDate(0, 0, -6), 5, 0, 0, 0}, // before the measurement
 		{"dmm", "rss", today.AddDate(0, 0, -7), 50, 50, 50, 1},      // outside 7 days, inside 30
 		{"zilean", "wanted", today.AddDate(0, 0, -1), 4, 0, 0, 0},
+		{"torrentio", "wanted", today, 2, 2, 5, 400}, // failures recorded without a measured request (a solver fetch)
 	} {
 		se.exec(`INSERT INTO gateway_indexer_request (indexer, purpose, day_start_at, count, measured, failures, took_ms)
 			VALUES (?, ?, ?, ?, ?, ?, ?)`, r.indexer, r.purpose, store.Millis(r.day), r.n, r.measured, r.f, r.took)
@@ -134,6 +135,10 @@ func TestIndexerStats(t *testing.T) {
 	}
 	if want := (IndexerStatsItem{Key: "zilean", Requests: 4}); !reflect.DeepEqual(week["zilean"], want) {
 		t.Fatalf("zilean, 7 days: %+v (no measured request: no failed or average)", week["zilean"])
+	}
+	// Failed never reads above the measured requests (100%).
+	if want := (IndexerStatsItem{Key: "torrentio", Requests: 2, Measured: 2, Failed: ptr(2), AverageMS: ms(200)}); !reflect.DeepEqual(week["torrentio"], want) {
+		t.Fatalf("torrentio, 7 days: %+v", week["torrentio"])
 	}
 	month := stats("?days=30")["dmm"]
 	if month.Requests != 65 || *month.Failed != 52 || *month.AverageMS != 83 || month.Grabbed != 3 {

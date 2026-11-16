@@ -20,7 +20,7 @@ type IndexerStats struct {
 }
 
 // IndexerStatsItem is one configured indexer's statistics. Requests are HTTP requests (each redirect hop is one).
-// Failed and AverageMS are over the measured requests only and absent when none was measured (rows from before the
+// Failed (at most Measured) and AverageMS are over the measured requests only and absent when none was measured (rows from before the
 // measurement have a count only).
 type IndexerStatsItem struct {
 	Key       string `json:"key"`
@@ -125,7 +125,9 @@ func (w *Web) indexerStats(ctx context.Context, days int) (IndexerStats, error) 
 			it.Requests, it.Measured = c.requests, c.measured
 			it.Grabbed, it.Imported, it.FailedDownloads = c.grabbed, c.imported, c.failed
 			if c.measured > 0 {
-				f, avg := c.failures, c.took/int64(c.measured)
+				// A failure can be recorded with no measured request on the same key (a Cardigann error answer
+				// fetched through the solver): never more failed than measured.
+				f, avg := min(c.failures, c.measured), c.took/int64(c.measured)
 				it.Failed, it.AverageMS = &f, &avg
 			}
 		}
