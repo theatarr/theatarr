@@ -280,6 +280,31 @@ it("adds a TMDb discover list with its rule and shows the rule in its row", asyn
   expect((await screen.findByTestId("list-rule-4")).textContent).toBe("TMDb discover, movies: from 2010 · 200+ votes · Animation · ja · the 100 most popular");
 });
 
+it("sends no minimum votes for an emptied field, so the default applies; a typed 0 stays 0", async () => {
+  const user = userEvent.setup();
+  const popular: Schemas["MovieList"] = { ...mine, id: 4, name: "Popular", list_type: "tmdb_discover", tmdb_id: 0, rule: { min_votes: 200, limit: 100 } };
+  const fetch = mockFetch([
+    { method: "GET", path: "/auth/me", reply: manager },
+    { method: "GET", path: "/lists", reply: () => ({ lists: [], libraries, can_sync: true }) },
+    { method: "POST", path: "/lists", reply: () => ({ status: 201, body: popular }) },
+  ]);
+  renderPage(<ListsPage />, "/admin/settings/import-lists");
+  for (const votes of ["", "0"]) {
+    await user.click(await screen.findByRole("button", { name: "Add list" }));
+    const dialog = within(screen.getByTestId("list-dialog"));
+    await user.selectOptions(dialog.getByRole("combobox", { name: /Source/ }), "tmdb_discover");
+    await user.clear(dialog.getByLabelText("Minimum votes"));
+    if (votes) await user.type(dialog.getByLabelText("Minimum votes"), votes);
+    await user.type(dialog.getByLabelText("List name"), "Popular");
+    await user.click(dialog.getByRole("button", { name: "4K Remux" }));
+    await user.click(dialog.getByRole("button", { name: "Add" }));
+    await waitFor(() => expect(screen.queryByTestId("list-dialog")).toBeNull());
+  }
+  const [empty, zero] = fetch.calls("POST", "/lists").map(c => (c.body as { rule: Record<string, unknown> }).rule);
+  expect("min_votes" in empty).toBe(false);
+  expect(zero.min_votes).toBe(0);
+});
+
 it("adds a JSON list by its address", async () => {
   const user = userEvent.setup();
   const stevenlu: Schemas["MovieList"] = { ...mine, id: 5, name: "StevenLu", list_type: "json", tmdb_id: 0, url: "https://s3.amazonaws.com/popular-movies/movies.json" };

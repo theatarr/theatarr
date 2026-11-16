@@ -68,8 +68,9 @@ export function ruleWords(r: Rule, media: Media): string {
 type RuleForm = { from: string; to: string; rating: string; votes: string; genres: number[]; language: string; limit: string };
 const ruleForm = (r?: Rule | null): RuleForm => ({ from: r?.year_from ? String(r.year_from) : "", to: r?.year_to ? String(r.year_to) : "",
   rating: r?.min_rating ? String(r.min_rating) : "", votes: String(r?.min_votes ?? 200), genres: r?.genres ?? [], language: r?.language ?? "", limit: String(r?.limit ?? 100) });
-const ruleBody = (f: RuleForm) => ({ year_from: Number(f.from) || 0, year_to: Number(f.to) || 0, min_rating: Number(f.rating) || 0, min_votes: Number(f.votes) || 0,
-  genres: f.genres, language: f.language.trim(), limit: Number(f.limit) || 100 });
+/** An empty "Minimum votes" is left out, so the server's default (200) applies; a typed 0 is no minimum. */
+const ruleBody = (f: RuleForm) => ({ year_from: Number(f.from) || 0, year_to: Number(f.to) || 0, min_rating: Number(f.rating) || 0,
+  ...(f.votes.trim() === "" ? {} : { min_votes: Number(f.votes) || 0 }), genres: f.genres, language: f.language.trim(), limit: Number(f.limit) || 100 });
 
 function DiscoverFields({ f, set, media }: { f: RuleForm; set: (f: RuleForm) => void; media: Media }) {
   const num = (label: string, key: "from" | "to" | "rating" | "votes" | "limit", placeholder: string, step?: string) =>
