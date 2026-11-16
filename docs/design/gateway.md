@@ -39,7 +39,11 @@ The back-off row's subject is `budget:<key>` or the target (`indexer:<key>`, …
 with `ErrBackoff` instead of waiting. Metrics: `theatarr_gateway_budget_backoffs_total{budget}` or
 `theatarr_gateway_target_backoffs_total{target}`, and `theatarr_gateway_backoff_seconds{subject}` for either.
 `Gateway.BackOff(ctx, target, until, reason)` lets a caller back a target off itself, for example a provider on
-`too_many_active_downloads` or `traffic_exceeded`.
+`too_many_active_downloads` or `traffic_exceeded`. A back-off whose reason holds `KeyRefusedReason` ("refused the API
+key", set by a DMM indexer whose key DMM refused) lets a source test (`PurposeTest`) through and is not cleared by an HTTP success (DMM refuses with HTTP 200);
+`Gateway.ClearKeyRefused` ends it when the runtime is prepared with a changed key for that indexer, or when a test of
+the saved source parsed without the refusal (a test of an unsaved candidate does not end it). While it runs, a
+temporary failure on the target (a 5xx, a 429) keeps its reason, so it stays recognisable.
 
 `Gateway.State()` is a read-only snapshot from memory: the egress summary and paths, every budget (rate, burst,
 caps, tokens now, this hour's and today's use, users, its own back-off) and every back-off row (active or not, with

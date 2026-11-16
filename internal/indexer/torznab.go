@@ -267,6 +267,7 @@ func (t *torznab) searchPaged(ctx context.Context, key string, q Query, c *caps,
 			return err
 		}
 		items, total, err := parseTorznab(body)
+		t.keyRefused(ctx, err)
 		if err != nil {
 			if page > 1 {
 				res.Truncated, res.failed = true, true
@@ -733,6 +734,44 @@ type tzDoc struct {
 		} `xml:"response"`
 		Items []tzItem `xml:"item"`
 	} `xml:"channel"`
+}
+
+// dmmKeyRefusedBackoff is how long a DMM indexer that refused its key is left alone.
+const dmmKeyRefusedBackoff = time.Hour
+
+// keyBackOffer is the gateway's refused-key back-off (gateway.Gateway.BackOff, ClearKeyRefused).
+type keyBackOffer interface {
+	BackOff(ctx context.Context, t gateway.Target, until time.Time, reason string)
+	ClearKeyRefused(ctx context.Context, t gateway.Target)
+}
+
+// keyRefused backs a DMM indexer off for an hour when DMM refused its key (Torznab error 100, 101 or 102): asking again
+// gets the same answer. A settings test never sets it: it is how the key is checked; a test answered without the
+// refusal (err nil) ends it.
+func (t *torznab) keyRefused(ctx context.Context, err error) {
+	if !t.dmm {
+		return
+	}
+	if gateway.PurposeOf(ctx) == gateway.PurposeTest {
+		if c, ok := t.gw.(keyBackOffer); ok && err == nil {
+			c.ClearKeyRefused(ctx, t.target())
+		}
+		return
+	}
+	var tzErr *TorznabError
+	if !errors.As(err, &tzErr) {
+		return
+	}
+	switch tzErr.Code {
+	case "100", "101", "102":
+	default:
+		return
+	}
+	// The gateway's clock, not the indexer's.
+	if b, ok := t.gw.(keyBackOffer); ok {
+		b.BackOff(ctx, t.target(), time.Now().Add(dmmKeyRefusedBackoff), fmt.Sprintf("DMM %s (error %s): check the key "+
+			"under Settings › Indexers", gateway.KeyRefusedReason, tzErr.Code))
+	}
 }
 
 // TorznabError is an <error code description/> answer.

@@ -51,6 +51,16 @@ made by listing the indexer in a version (`versions.<key>.indexers`) and optiona
 | `seadex` | `<url>/api/collections/entries/records?filter=alID=<id>&expand=trs&page=1&perPage=100`; RSS sorts by `-updated` | Movie or series with an AniList id; RSS | One request | Nyaa entries only (public); other trackers, `Incomplete` tags and missing hashes are dropped with a note. SeaDex titles use the mapped movie/year or series/season plus record id. Quality comes from agreeing feature filenames; mixed/unidentified files stay Unknown, independently of curator preference. Size is the sum of files; `Link` the Nyaa `.torrent` (no key); flags `seadex`, `seadex-best`; extras group, tags, dual audio, features, AniList |
 | `cardigann` | the site at the policy URL, driven by the catalog definition `definition` ([cardigann.md](cardigann.md): synced from Prowlarr/Indexers, or the operator's own in `<data dir>/cardigann/definitions/custom/`, which wins on the same id); the engine's requests go through the gateway one hop at a time, with the indexer's own budget, and may reach the hosts in `hosts` | By id first where the definition's `caps.modes` lists the id (IMDb then TMDb for movies; TVDB, IMDb, TMDb for series, with season and episode), then keywords when the id found nothing (rows of an id request that are not about the title are dropped first, see [Id searches and padding](#id-searches-and-padding)): movie `title year`, series criteria with scene names: `title SxxEyy` / `title Sxx`, daily `title YYYY MM DD`, anime `title NN` plus standard numbering; text and RSS (no keywords). Categories 2000 (movie), 5000 (series), plus 5070 (anime) unless overridden | One search (login and the definition's paths as needed); bounded at 60 s, 150 s with FlareSolverr | Definition fields: title, size, seeders/leechers (-1 when the site gives none), date, categories, infohash, magnet, download link (in memory), IMDb, volume factors, minimum ratio and seed time, grabs, files, TMDb, TVDB, the Internal flag. Privacy (a label) is the stricter of the policy and the definition's `type` |
 
+**A DMM key refusal backs the indexer off for an hour.** DMM answers a refused key with a Torznab error (HTTP 200)
+100, 101 or 102, and asking again gets the same answer. The DMM indexer then backs itself off for an hour through
+`Gateway.BackOff`, reason "DMM refused the API key (error 100): check the key under Settings › Indexers", which
+Settings › Indexers and the Indexers health check show. Its availability calls (unknown meanwhile) and its RSS (the
+cursor stays) wait with it. A settings test never sets it and is not refused by it; saving a changed key ends it, and
+so does a test of the saved settings whose answer parses without that error (a test of an unsaved key does not end it;
+saving that key does). A temporary failure meanwhile does not change the back-off's reason. Nothing else ends it before the hour runs out: DMM
+refuses a key with HTTP 200, so unlike other back-offs an HTTP success does not clear it, and a failed test leaves it. Other Torznab indexers and other
+error codes are unchanged.
+
 Response shapes without a live sample were written from the source: Prowlarr `NewznabResults.cs` @ 12c3278 (torznab),
 the releases.moe API's records (SeaDex), riven's `plugin-torrentio` (Torrentio) and Zilean's API. Each fixture says where its shape comes from.
 

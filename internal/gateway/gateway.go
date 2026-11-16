@@ -517,7 +517,8 @@ func (g *Gateway) do(ctx context.Context, t Target, req *http.Request) (*http.Re
 		return nil, g.refuse(ti.class, ti.name, req, err)
 	}
 	now := g.now()
-	if until, why, ok := g.backedOff(ti.name, now); ok {
+	if until, why, ok := g.backedOff(ti.name, now); ok && !(PurposeOf(ctx) == PurposeTest && holdsKeyRefused(why)) {
+		// A source test goes through a refused key's back-off: it is how a fixed key is checked.
 		if !g.beginHealthCheck(ctx, ti.name, now) {
 			return nil, g.refuse(ti.class, ti.name, req, &Refused{Reason: ReasonBackoff, Target: ti.name,
 				Detail: "backing off: " + why, RetryAt: until})
@@ -581,6 +582,22 @@ func (g *Gateway) BackOff(ctx context.Context, t Target, until time.Time, reason
 	g = g.forContext(ctx)
 	g.state.setBackoff(ctx, t.String(), until, reason, false, g.now())
 	g.log.Warn("back-off set", "subject", t.String(), "until", until.UTC(), "reason", reason)
+}
+
+// KeyRefusedReason is in the reason of a back-off set because a source refused its key (an indexer that answered DMM's
+// Torznab error 100, 101 or 102). A source test (PurposeTest) goes through such a back-off, and ClearKeyRefused ends it.
+const KeyRefusedReason = "refused the API key"
+
+// ClearKeyRefused ends t's back-off if it is a refused key's (KeyRefusedReason): its key was changed, or a test of the
+// saved source was answered without the refusal (a candidate probe's call does nothing). Nothing else ends it before
+// its hour runs out: an HTTP success does not, and a temporary failure meanwhile keeps its reason.
+func (g *Gateway) ClearKeyRefused(ctx context.Context, t Target) {
+	if g.probe != nil && g.health != g.state {
+		return // a test of an unsaved candidate saves nothing: saving its key clears it
+	}
+	if g.state.clearKeyRefused(ctx, t.String()) {
+		g.log.Info("back-off cleared: the key changed or a test passed", "subject", t.String())
+	}
 }
 
 // backedOff reports an active back-off on subject: the live one, and for a candidate probe also its own.

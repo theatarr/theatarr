@@ -176,7 +176,9 @@ func (s *state) backOff(ctx context.Context, subject string, until time.Time, re
 	if until.After(b.until) {
 		b.until = until
 	}
-	b.reason = reason
+	if !holdsKeyRefused(b.reason) || !b.until.After(now) || holdsKeyRefused(reason) {
+		b.reason = reason // a running refused-key back-off keeps its marker (ClearKeyRefused, the test bypass)
+	}
 	b.updated = now
 	s.seq++
 	b.seq = s.seq
@@ -184,6 +186,24 @@ func (s *state) backOff(ctx context.Context, subject string, until time.Time, re
 	s.mu.Unlock()
 	s.persist(ctx, subject)
 	return n
+}
+
+// holdsKeyRefused reports whether a back-off reason is a refused key's (KeyRefusedReason).
+func holdsKeyRefused(why string) bool { return strings.Contains(why, KeyRefusedReason) }
+
+// clearKeyRefused removes subject's back-off when its reason is a refused key's (KeyRefusedReason).
+func (s *state) clearKeyRefused(ctx context.Context, subject string) bool {
+	s.mu.Lock()
+	b := s.backoffs[subject]
+	if b == nil || !holdsKeyRefused(b.reason) {
+		s.mu.Unlock()
+		return false
+	}
+	delete(s.backoffs, subject)
+	s.seq++
+	s.mu.Unlock()
+	s.persist(ctx, subject)
+	return true
 }
 
 // failure counts one failure on subject without setting a back-off yet, and returns the count.
@@ -195,7 +215,9 @@ func (s *state) failure(ctx context.Context, subject, reason string, now time.Ti
 		s.backoffs[subject] = b
 	}
 	b.failures++
-	b.reason = reason
+	if !holdsKeyRefused(b.reason) || !b.until.After(now) {
+		b.reason = reason // a running refused-key back-off keeps its marker
+	}
 	b.updated = now
 	s.seq++
 	b.seq = s.seq
@@ -218,7 +240,8 @@ func (s *state) mark() uint64 {
 func (s *state) success(ctx context.Context, subject string, sent uint64) {
 	s.mu.Lock()
 	b := s.backoffs[subject]
-	if b == nil || b.seq > sent {
+	// A refused key's back-off (KeyRefusedReason) is not ended by an HTTP success: DMM refuses a key with HTTP 200.
+	if b == nil || b.seq > sent || holdsKeyRefused(b.reason) {
 		s.mu.Unlock()
 		return
 	}

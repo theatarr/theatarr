@@ -304,6 +304,223 @@ func TestTorznabErrors(t *testing.T) {
 	}
 }
 
+// A DMM indexer that refuses its key (Torznab error 100, 101 or 102 with HTTP 200) is backed off for an hour; a
+// settings test never sets it and goes through it, and a changed key ends it. A Prowlarr feed's error 100 and DMM's
+// other error codes back nothing off.
+func TestDMMKeyRefusedBacksOff(t *testing.T) {
+	loadFixtures(t, "prowlarr_caps.xml")
+	n := newNet(t)
+	var dmmReqs atomic.Int32
+	var code atomic.Value
+	code.Store("100")
+	n.serve("dmm.test", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		dmmReqs.Add(1)
+		fmt.Fprintf(w, `<?xml version="1.0" encoding="UTF-8"?><error code="%s" description="Invalid API Key"/>`, code.Load())
+	}))
+	n.serve("prowlarr.test", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("t") == "caps" {
+			w.Write(fixtureBytes("prowlarr_caps.xml"))
+			return
+		}
+		fmt.Fprint(w, `<error code="100" description="Invalid API Key"/>`)
+	}))
+	h := newHarness(t, n, testPolicy(), false, func(_ *gateway.Options, o *Options) { o.CacheTTL = -1 })
+	dmm := gateway.Target{Class: gateway.ClassIndexer, Key: "dmm"}
+	backoff := func(subject string) (gateway.BackoffState, bool) {
+		for _, b := range h.gw.State().Backoffs {
+			if b.Subject == subject && b.Active {
+				return b, true
+			}
+		}
+		return gateway.BackoffState{}, false
+	}
+	q := Query{Type: QueryMovie, IMDb: "tt0133093"}
+	ctx := context.Background()
+	test := gateway.WithPurpose(ctx, gateway.PurposeTest)
+	var te *TorznabError
+	// Prowlarr's error 100 and DMM's other codes are unchanged.
+	if _, err := h.svc.Search(ctx, "prowlarr", Query{Type: QueryText, Title: "x"}); !errors.As(err, &te) {
+		t.Fatalf("prowlarr: %v", err)
+	}
+	code.Store("200")
+	if _, err := h.svc.Search(ctx, "dmm", q); !errors.As(err, &te) || te.Code != "200" {
+		t.Fatalf("dmm 200: %v", err)
+	}
+	if b, ok := backoff("indexer:prowlarr"); ok {
+		t.Errorf("prowlarr backed off: %+v", b)
+	}
+	if b, ok := backoff("indexer:dmm"); ok {
+		t.Errorf("dmm backed off on error 200: %+v", b)
+	}
+	// A settings test never sets it.
+	code.Store("100")
+	if _, err := h.svc.Search(test, "dmm", q); !errors.As(err, &te) || te.Code != "100" {
+		t.Fatalf("test: %v", err)
+	}
+	if b, ok := backoff("indexer:dmm"); ok {
+		t.Errorf("a settings test backed dmm off: %+v", b)
+	}
+	// A search does, for an hour, with the reason in plain words; the next search waits.
+	if _, err := h.svc.Search(ctx, "dmm", q); !errors.As(err, &te) {
+		t.Fatalf("search: %v", err)
+	}
+	b, ok := backoff("indexer:dmm")
+	if left := time.Until(b.Until); !ok || left <= 59*time.Minute || left > time.Hour ||
+		b.Reason != "DMM refused the API key (error 100): check the key under Settings › Indexers" {
+		t.Fatalf("back-off %+v (ok %v)", b, ok)
+	}
+	before := dmmReqs.Load()
+	var refused *gateway.Refused
+	if _, err := h.svc.Search(ctx, "dmm", Query{Type: QueryMovie, IMDb: "tt0111161"}); !errors.As(err, &refused) ||
+		refused.Reason != gateway.ReasonBackoff || dmmReqs.Load() != before {
+		t.Fatalf("search during the back-off: %v (%d requests)", err, dmmReqs.Load()-before)
+	}
+	// A settings test of that indexer is not refused by it.
+	if _, err := h.svc.Search(test, "dmm", q); !errors.As(err, &te) || dmmReqs.Load() != before+1 {
+		t.Fatalf("test during the back-off: %v", err)
+	}
+	// A changed key ends it (the failed test above did not).
+	if _, ok := backoff("indexer:dmm"); !ok {
+		t.Fatal("a failed test ended the back-off")
+	}
+	h.gw.ClearKeyRefused(ctx, dmm)
+	if b, ok := backoff("indexer:dmm"); ok {
+		t.Errorf("a changed key left the back-off: %+v", b)
+	}
+	// Errors 101 and 102 back it off too.
+	for _, c := range []string{"101", "102"} {
+		h.gw.ClearKeyRefused(ctx, dmm)
+		code.Store(c)
+		h.svc.Search(ctx, "dmm", q)
+		if b, ok := backoff("indexer:dmm"); !ok || !strings.Contains(b.Reason, "(error "+c+")") {
+			t.Errorf("error %s: %+v", c, b)
+		}
+	}
+}
+
+// A settings test of a DMM indexer backed off for a refused key: one that is refused again (HTTP 200, error 100) leaves
+// the back-off; only one whose answer parses without that error ends it. Searches stay refused meanwhile.
+func TestDMMKeyRefusedFailedTestKeepsBackOff(t *testing.T) {
+	n := newNet(t)
+	var refuse atomic.Bool
+	refuse.Store(true)
+	n.serve("dmm.test", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if refuse.Load() {
+			fmt.Fprint(w, `<?xml version="1.0" encoding="UTF-8"?><error code="100" description="Invalid API Key"/>`)
+			return
+		}
+		fmt.Fprint(w, feedOf(0, 1, 1, " {imdb-tt0133093}"))
+	}))
+	h := newHarness(t, n, testPolicy(), false, func(_ *gateway.Options, o *Options) { o.CacheTTL = -1 })
+	ctx := context.Background()
+	test := gateway.WithPurpose(ctx, gateway.PurposeTest)
+	q := Query{Type: QueryMovie, IMDb: "tt0133093"}
+	active := func() bool {
+		for _, b := range h.gw.State().Backoffs {
+			if b.Subject == "indexer:dmm" && b.Active {
+				return true
+			}
+		}
+		return false
+	}
+	if _, err := h.svc.Search(ctx, "dmm", q); err == nil || !active() {
+		t.Fatalf("not backed off: %v", err)
+	}
+	var te *TorznabError
+	if _, err := h.svc.Search(test, "dmm", q); !errors.As(err, &te) {
+		t.Fatalf("test: %v", err)
+	}
+	if !active() {
+		t.Fatal("a failed settings test ended the back-off")
+	}
+	var refused *gateway.Refused
+	if _, err := h.svc.Search(ctx, "dmm", Query{Type: QueryMovie, IMDb: "tt0111161"}); !errors.As(err, &refused) {
+		t.Fatalf("search after a failed test: %v", err)
+	}
+	refuse.Store(false)
+	if _, err := h.svc.Search(test, "dmm", q); err != nil {
+		t.Fatalf("test: %v", err)
+	}
+	if active() {
+		t.Error("a passing settings test left the back-off")
+	}
+	if _, err := h.svc.Search(ctx, "dmm", Query{Type: QueryMovie, IMDb: "tt0111161"}); err != nil {
+		t.Errorf("search after a passing test: %v", err)
+	}
+}
+
+// During a refused-key back-off, a temporary failure (a settings test answered 500) keeps the refused-key marker, so a
+// changed key still ends it; a passing test of an unsaved candidate leaves the live back-off (nothing is saved) until
+// the changed key is saved.
+func TestDMMKeyRefusedSurvivesFailureAndCandidate(t *testing.T) {
+	n := newNet(t)
+	var mode atomic.Int32 // 0 refuse, 1 HTTP 500, 2 a feed
+	n.serve("dmm.test", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch mode.Load() {
+		case 0:
+			fmt.Fprint(w, `<?xml version="1.0" encoding="UTF-8"?><error code="100" description="Invalid API Key"/>`)
+		case 1:
+			http.Error(w, "boom", http.StatusInternalServerError)
+		default:
+			fmt.Fprint(w, feedOf(0, 1, 1, " {imdb-tt0133093}"))
+		}
+	}))
+	pol := testPolicy()
+	h := newHarness(t, n, pol, false, func(_ *gateway.Options, o *Options) { o.CacheTTL = -1 })
+	ctx := context.Background()
+	test := gateway.WithPurpose(ctx, gateway.PurposeTest)
+	dmm := gateway.Target{Class: gateway.ClassIndexer, Key: "dmm"}
+	q := Query{Type: QueryMovie, IMDb: "tt0133093"}
+	active := func() bool {
+		for _, b := range h.gw.State().Backoffs {
+			if b.Subject == "indexer:dmm" && b.Active {
+				return true
+			}
+		}
+		return false
+	}
+	h.svc.Search(ctx, "dmm", q)
+	if !active() {
+		t.Fatal("not backed off")
+	}
+	// A test answered 500, then the key changes: the back-off ends and searches go through.
+	mode.Store(1)
+	h.svc.Search(test, "dmm", q)
+	h.gw.ClearKeyRefused(ctx, dmm)
+	if active() {
+		t.Fatal("a 500 during the back-off kept it past a changed key")
+	}
+	mode.Store(2)
+	if _, err := h.svc.Search(ctx, "dmm", q); err != nil {
+		t.Fatalf("search after the changed key: %v", err)
+	}
+	// Refused again; a passing candidate test leaves the live back-off; saving the key ends it.
+	mode.Store(0)
+	h.svc.Search(ctx, "dmm", q)
+	if !active() {
+		t.Fatal("not backed off again")
+	}
+	mode.Store(2)
+	pg, err := h.gw.Probe(ctx, pol, gateway.ProbeOptions{Target: dmm, Budget: "dmm-key", Candidate: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cand, err := New(pol, pg, Options{CacheTTL: -1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := cand.Search(test, "dmm", q); err != nil {
+		t.Fatalf("candidate test: %v", err)
+	}
+	if !active() {
+		t.Error("a candidate test ended the live back-off")
+	}
+	h.gw.ClearKeyRefused(ctx, dmm)
+	if active() {
+		t.Error("saving the changed key left the back-off")
+	}
+}
+
 func TestPrivateIndexerReleases(t *testing.T) {
 	loadFixtures(t, "prowlarr_caps.xml", "prowlarr_movie.xml")
 	n := newNet(t)

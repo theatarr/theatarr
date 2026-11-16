@@ -39,6 +39,8 @@ type serveRuntime struct {
 	Acquirer      *acquire.Acquirer
 	Router        *router.Router
 	ProviderKeys  map[string]string
+	// IndexerKeys are the enabled indexers' keys: a changed one ends a refused key's back-off.
+	IndexerKeys map[string]string
 	// ReadyIndexers and ReadyProviders count the sources that would run (settings.Snapshot.Ready), for SetupCheck.
 	ReadyIndexers, ReadyProviders int
 	Continuity                    *providerContinuity
@@ -395,6 +397,14 @@ func prepareServeRuntime(ctx context.Context, snap *settings.Snapshot, previous 
 	if err != nil {
 		return nil, err
 	}
+	if previous != nil {
+		// A changed key is worth asking with again: the back-off set because the old one was refused ends.
+		for key, value := range apiKeys {
+			if previous.IndexerKeys[key] != value {
+				gw.ClearKeyRefused(ctx, gateway.Target{Class: gateway.ClassIndexer, Key: key})
+			}
+		}
+	}
 	ps, err := newProviderSyncFromSettings(snap, st, q, gw, log, os.LookupEnv)
 	if err != nil {
 		return nil, err
@@ -448,7 +458,7 @@ func prepareServeRuntime(ctx context.Context, snap *settings.Snapshot, previous 
 	}
 	readyIndexers, readyProviders := snap.Ready(os.LookupEnv)
 	return &serveRuntime{Generation: snap.Generation, ProviderEpoch: epoch, Policy: pol, Gateway: gw, Indexers: idx, Providers: ps, Engine: eng,
-		Router: rt, ProviderKeys: providerKeys, ReadyIndexers: readyIndexers, ReadyProviders: readyProviders,
+		Router: rt, ProviderKeys: providerKeys, IndexerKeys: apiKeys, ReadyIndexers: readyIndexers, ReadyProviders: readyProviders,
 		Continuity: continuity}, nil
 }
 
