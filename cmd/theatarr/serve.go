@@ -488,6 +488,10 @@ func runServe(args []string) error {
 		return ctx, current.lib
 	})
 	lb.LogState()
+	// One re-read of the stored HEVC probes an older reader made (library reprobe.go); it does nothing when none is left.
+	if err := lb.lib.EnqueueReprobe(ctx); err != nil {
+		log.Warn("library: could not queue the re-read of stored probes", "err", err)
+	}
 	rt.SetMountCheck(lb.lib.MountListed)
 	rt.SetRecordChanged(torrentUsage.Signal)
 	runtimeMountCheck = lb.lib.MountListed

@@ -171,6 +171,12 @@ probes a sparse 50 GB file and a 20 GB MP4 with `moov` at the end reading under 
   (core, ES, 96/24, HD HRA, HD MA, DTS:X), and HDR10+ and mastering SEI for every HDR base layer: PQ (container or
   SPS) or Dolby Vision with compatibility id 1 or 6 (Matroska; MP4 samples are not read). Tests:
   `TestHEVCSPSColour` (built SPS records and two real x265 ones), `TestMatroskaColourFromSPS`, `TestMP4ColourFromSPS`.
+- Version mark and one re-read: every probe carries `"v": 2` (`probe.Version`). After start-up one `library.reprobe`
+  job reads the content files of active links whose stored probe is HEVC without the mark again, one file about
+  every two seconds through the mount as an import's probe reads (`Mount.ProbeFile`), and replaces only
+  `content_file.probe` and `probed_at` (a probe an import stored meanwhile is not overwritten): no rename, no link
+  change, no decision. It waits while the library is off (Pause, forced off) or the mount does not answer; a file
+  that cannot be read keeps its probe until the next start. With none left it does nothing (`TestReprobe`).
 - Limits: no H.264 VUI; the Atmos and DTS:X bit checks follow the specs and were
   checked on synthetic streams only. `theatarr library verify` compares Theatarr's names with the arrs' on
   real files.

@@ -173,6 +173,8 @@ func (s *serveLibrary) LogState() {
 }
 
 func (s *serveLibrary) RegisterJobs(w *jobs.Worker) {
+	// The re-read of stored HEVC probes takes the current generation itself, before each file (the runtime resolver).
+	s.lib.RegisterReprobeJob(w)
 	if s.manager != nil {
 		w.Handle(library.ScanJobKind, func(ctx context.Context, j *jobs.Job) error {
 			ctx, current := s.forOperation(ctx)

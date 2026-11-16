@@ -885,3 +885,57 @@ func TestImportProviderRowAndSync(t *testing.T) {
 		t.Errorf("content state after re-import %s", got)
 	}
 }
+
+func TestReprobe(t *testing.T) {
+	e := newEnv(t, true)
+	reprobeGap = 0
+	t.Cleanup(func() { reprobeGap = 2 * time.Second })
+	e.exec(`INSERT INTO content (id, info_hash, first_seen_at, last_seen_at) VALUES (1, ?, 0, 0)`, hashA)
+	stored := map[int64]string{
+		1: `{"container":"matroska","video":{"codec":"hevc","bit_depth":8,"dovi_compat":-1}}`,        // unmarked HEVC
+		2: `{"container":"matroska","video":{"codec":"hevc","bit_depth":10,"dovi_compat":-1},"v":2}`, // marked
+		3: `{"container":"matroska","video":{"codec":"h264","bit_depth":8,"dovi_compat":-1}}`,        // H.264
+		4: `{"container":"matroska","video":{"codec":"hevc","bit_depth":8,"dovi_compat":-1}}`,        // unreadable
+		5: `{"container":"matroska","video":{"codec":"hevc","bit_depth":8,"dovi_compat":-1}}`,        // no active link
+	}
+	for id, p := range stored {
+		name := fmt.Sprintf("f%d.mkv", id)
+		e.exec(`INSERT INTO content_file (id, content_id, path, size_bytes, probe, probed_at) VALUES (?, 1, ?, 5, ?, 1)`, id, name, p)
+		target := filepath.Join(e.mount, "__all__", "Rel", name)
+		if id != 4 {
+			e.release("Rel", map[string]float64{name: 7200})
+		}
+		state := "active"
+		if id == 5 {
+			state = "dead"
+		}
+		e.exec(`INSERT INTO link (path, target, content_file_id, title_id, state, created_at, updated_at) VALUES (?, ?, ?, 1, ?, 0, 0)`,
+			filepath.Join(e.movies, name), target, id, state)
+	}
+	if err := e.lib.HandleReprobe(e.ctx, nil); err != nil {
+		t.Fatal(err)
+	}
+	if got := e.one(`SELECT json_extract(probe, '$.v') || ' ' || json_extract(probe, '$.video.transfer') || ' ' || probed_at FROM content_file WHERE id = 1`); got != fmt.Sprintf("2 smpte2084 %d", store.Millis(e.now)) {
+		t.Errorf("unmarked HEVC probe: %s", got)
+	}
+	for id := int64(2); id <= 5; id++ {
+		if got := e.one(`SELECT probe || ' ' || probed_at FROM content_file WHERE id = ?`, id); got != stored[id]+" 1" {
+			t.Errorf("file %d changed: %s", id, got)
+		}
+	}
+	// Nothing left: a second run reads nothing.
+	delete(e.probes, filepath.Join(e.mount, "__all__", "Rel", "f1.mkv"))
+	if err := e.lib.HandleReprobe(e.ctx, nil); err != nil {
+		t.Fatal(err)
+	}
+	// Paused: the job waits and reads nothing.
+	e.exec(`UPDATE content_file SET probe = ? WHERE id = 1`, stored[1])
+	off := newEnv(t, false)
+	off.st, off.lib.st = e.st, e.st
+	if err := off.lib.HandleReprobe(e.ctx, nil); err == nil {
+		t.Error("paused: want a later run")
+	}
+	if got := e.one(`SELECT probe FROM content_file WHERE id = 1`); got != stored[1] {
+		t.Errorf("paused: %s", got)
+	}
+}
