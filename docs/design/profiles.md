@@ -140,6 +140,6 @@ with its facts on `Subject` or on the `Engine`.
 | ReleaseRestrictions | Release profiles (required and ignored terms) | policy, reusing netregex |
 | HardcodeSubs (Radarr) | Parsed hardcoded subs and the allow setting | parser adapter field plus a policy flag |
 | RssSync/Proper, RssSync/IndexerTag, RssSync/Monitored, RssSync/Availability (Radarr) | File dates, tags, monitored and availability state | version state ([overview.md](overview.md)) |
-| Search/* (Movie, Series, Season and episode matching), FullSeason, MultiSeason, SeasonPackOnly, SplitEpisode, SameEpisodes(Grab), SceneMapping | Episode mapping and search criteria | the metadata engine's EpisodeNumber resolution ([tv-metadata.md](tv-metadata.md)) |
+| Search/* (Movie, Series, Season and episode matching), FullSeason, MultiSeason, SeasonPackOnly, SplitEpisode, SameEpisodes(Grab), SceneMapping | Episode mapping and search criteria | the metadata engine's EpisodeNumber resolution ([tv-metadata.md](tv-metadata.md)); MultiSeason rejects only a multi-season release whose span is not read, and anime ([series.md](series.md)) |
 
 The comparer's protocol step needs delay profiles too; the caller sets `Config.PreferredProtocol` instead.

@@ -123,6 +123,9 @@ func (b *builder) checkName(e *Entry, ti *titleInfo) {
 
 func (b *builder) checkSeriesName(e *Entry, ti *titleInfo, name string) {
 	p := sonarr.ParseTitle(name)
+	if ti.t.SeriesType != "anime" {
+		p = decide.ParseSeriesRelease(context.Background(), name) // with the complete-series reading
+	}
 	if p == nil {
 		e.flag(CheckUnparsed, SevInfo, "the series parser cannot read the release name")
 		return
@@ -158,12 +161,12 @@ func (b *builder) checkSeriesName(e *Entry, ti *titleInfo, name string) {
 		return
 	}
 	s := p.SeasonNumber
-	if s > 0 && ti.counts[s] == 0 && !p.IsMultiSeason {
+	if s > 0 && ti.counts[s] == 0 && !p.IsMultiSeason && !p.CompleteSeries {
 		e.flag(CheckEpisodes, sev(SevError), "the release is season %d; the series has seasons up to %d", s, ti.maxS)
 		return
 	}
 	if p.FullSeason {
-		if len(filed) > 0 && !filed[s] {
+		if len(filed) > 0 && !filed[s] && !p.IsMultiSeason && !p.CompleteSeries { // a span files under each season
 			e.flag(CheckEpisodes, sev(SevError), "a season %d pack filed under %s", s, strings.Join(seasonList(filed), ", "))
 		}
 		return

@@ -67,8 +67,20 @@ from ordinary matching loads.
   port with the Sonarr v5 parser changes chosen one by one and a few fixes of our own (the table in
   `internal/decide/parser/sonarr/parser_v4plus.go`): multi-episode anime ranges with a subgroup, more language tags,
   `WEB` with `EAC3` as WEB-DL, a bit depth written `10 bits` / `8 bits` / `10-bits` (not an episode number).
-  Multi-season packs, packs named by a season title, original titles and partial seasons are not read (v5's mapping
-  is not ported). A season pack, or any multi-episode release, is taken when it fills or
+  Packs named by a season title, original titles and partial seasons are not read (v5's mapping is not ported).
+  **Multi-season and complete-series packs** (standard and daily series; departs from Sonarr, which rejects every
+  multi-season release): a release the parser marks multi-season is read for its span (`indexer.PackSeasons`): an
+  ascending range (`S01-S05`, `Season 1-4`) or a list in steps of one (`S01.S02.S03`), from the parsed first season to
+  at most the series' last season; anything else (`S01.S03`, `S01 S04`) keeps `MultiSeason`. A name with "Complete
+  Series", "All Seasons" or "The Complete Collection" that does not parse, or parses to absolute numbers only, is
+  parsed again with the phrase read as `S01` (`decide.ParseSeriesRelease`, also RSS's title lookup): a season pack
+  from that is a complete-series pack, every season above 0 (bare "Complete" stays unparsed). The span maps to every
+  episode of each season, each through its own scene mapping (specials never); the decision's season is the first,
+  its episodes all of them, its release type `seasonPack` as before. A season search accepts a span that holds the
+  searched season; a single-episode or daily episode search rejects it as a season pack (`FullSeason`). The other
+  specifications apply over the whole span: every episode aired, every episode monitored on RSS and automatic
+  searches, at least one missing or upgradable episode, size by the summed runtime; a single-season pack still ranks
+  first at equal quality and score. Anime series keep the rule: no span, no complete-series reading. A season pack, or any multi-episode release, is taken when it fills or
   upgrades at least one episode (the actuallyevan fork's `ACCEPT_RELEASE_ANY_UPGRADABLE`); episodes that already have
   a better file keep it: the import upgrade check (library.md) leaves their files in place. The decision's upgrade
   reason ends `; N episode(s) keep their file`.

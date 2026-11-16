@@ -405,6 +405,11 @@ func TestDownloadChecks(t *testing.T) {
 			fmt.Sprintf("%040d", 60+i), "Gamma.S01E01.2160p", "WEBDL-2160p", 0, 0, []int64{101},
 			"see https://tracker.example/announce?passkey=SECRETKEY5")
 	}
+	// Gamma: a multi-season and a complete-series pack filed under season 2 only (season 1 had its files).
+	e.dlEvent(51, "added", base.Add(-30*time.Hour), 3, 3, "tv-2160p", fmt.Sprintf("%040d", 51),
+		"Gamma.S01-S02.2160p.WEB-DL-X", "WEBDL-2160p", 100, 40<<30, []int64{201, 202}, "")
+	e.dlEvent(52, "added", base.Add(-29*time.Hour), 3, 3, "tv-2160p", fmt.Sprintf("%040d", 52),
+		"Gamma.Complete.Series.2160p.WEB-DL-X", "WEBDL-2160p", 100, 40<<30, []int64{201, 202}, "")
 	up := e.get("dl:3")
 	if up.Kind != KindUpgrade || up.Source != "theatarr" {
 		t.Fatalf("upgrade: %+v", up)
@@ -426,6 +431,11 @@ func TestDownloadChecks(t *testing.T) {
 	pack := e.get("dl:50")
 	if f := hasFlag(pack, CheckEpisodes); f == nil || f.Severity != SevError || len(pack.Release.Episodes) != 2 {
 		t.Errorf("pack: %+v %+v", pack.Flags, pack.Release)
+	}
+	for _, id := range []string{"dl:51", "dl:52"} {
+		if span := e.get(id); hasFlag(span, CheckEpisodes) != nil || hasFlag(span, CheckUnparsed) != nil {
+			t.Errorf("%s: a span filed under one of its seasons is flagged: %+v", id, span.Flags)
+		}
 	}
 	// Only the latest failure of the run is flagged.
 	if f := hasFlag(e.get("dl:63:fail"), CheckFailures); f == nil || f.Severity != SevWarn {
