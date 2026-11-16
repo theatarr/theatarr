@@ -12,6 +12,7 @@ import type { ColumnDef } from "./prefs";
 import { upgradeBadge, type Tone } from "./upgrade";
 import { fmtNumber } from "./format";
 import { searchingWords, unmonitoredCoverage } from "./title-facts";
+import { HELD_ON, HELD_ON_TIP } from "@/lib/held-on";
 
 type Acquisition = Schemas["Acquisition"];
 type VersionBrief = Schemas["VersionBrief"];
@@ -43,7 +44,7 @@ export const LIBRARY_COLUMNS: readonly (ColumnDef<LibraryColumn> & { kinds: read
   { id: "quality", label: "Quality", hint: "Quality", kinds: ["movie", "series"] },
   { id: "score", label: "Score", hint: "Score", kinds: ["movie"] },
   { id: "size", label: "Size", hint: "Size", kinds: ["movie", "series"] },
-  { id: "cached_on", label: "Cached on", hint: "Debrid providers that hold the file now", kinds: ["movie", "series"] },
+  { id: "cached_on", label: HELD_ON, hint: HELD_ON_TIP, kinds: ["movie", "series"] },
   { id: "file", label: "File", hint: "File", kinds: ["movie"] },
   { id: "preferred", label: "Preferred quality", hint: "The profile's cutoff: upgrades stop there", kinds: ["movie", "series"] },
   { id: "minimum_availability", label: "Minimum availability", hint: "Minimum availability", kinds: ["movie"] },

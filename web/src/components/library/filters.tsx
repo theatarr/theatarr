@@ -23,6 +23,7 @@ import {
 import { useEffect, useState, type ReactNode } from "react";
 import type { TitleFacets } from "@/api/library";
 import { providerLabel } from "@/components/provider-pills";
+import { HELD_ON, HELD_ON_TIP } from "@/lib/held-on";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SELECT_CLASS } from "@/components/ui/select";
@@ -308,8 +309,8 @@ export function FiltersPanel({
         </label>
         {seeFiles ? (
           <label className="min-w-0">
-            <FilterLabel icon={<HardDrive />}>Provider</FilterLabel>
-            <select aria-label="Provider" className={SELECT} value={values.provider ?? ""} onChange={(e) => set("provider", e.target.value || undefined)}>
+            <FilterLabel icon={<HardDrive />}><span title={HELD_ON_TIP}>{HELD_ON}</span></FilterLabel>
+            <select aria-label={HELD_ON} title={HELD_ON_TIP} className={SELECT} value={values.provider ?? ""} onChange={(e) => set("provider", e.target.value || undefined)}>
               <option value="">Any provider</option>
               {(facets?.providers ?? []).map((p) => (
                 <option key={p.value} value={p.value}>

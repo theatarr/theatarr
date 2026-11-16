@@ -4,7 +4,7 @@
 // dialog); then, for callers who see files, three tabs:
 // Details (per copy its state against the cutoff with Why? and what Theatarr would take next, the download in hand,
 // the monitor switch and Search now for managers, read-only with the reason while an arr manages the copy,
-// Interactive search for a library that may search, and the file's facts with Cached on, shown openly), History (per
+// Interactive search for a library that may search, and the file's facts with Held on, shown openly), History (per
 // copy the title History's rows for the episode, the same table and words; its count the rows shown) and Last search
 // (the stored decision, read-only). Accounts without "see files" get
 // one availability line across copies and nothing else (the API sends no file, history or states for them). An
@@ -31,6 +31,7 @@ import { ReportProblemButton } from "@/components/report/report-sheet";
 import { ProgressBar } from "@/components/activity-bits";
 import { EpisodeHistoryRows } from "@/components/activity/history-tab";
 import { ProviderPills } from "@/components/provider-pills";
+import { HELD_ON, HELD_ON_TIP } from "@/lib/held-on";
 import { TorrentLink } from "@/components/title/info-hash";
 import { useLibraryName } from "@/lib/library-names";
 import { Badge } from "@/components/ui/badge";
@@ -87,7 +88,7 @@ function fileRows(f: EpisodeVersionDetail["file"]): [React.ReactNode, React.Reac
   if (f.quality) rows.push(["Quality", f.quality]);
   if (f.score !== undefined && f.score !== null) rows.push(["Profile score", fmtNumber(f.score)]);
   if (f.size_bytes) rows.push(["Size", fmtBytes(f.size_bytes)]);
-  rows.push(["Cached on", <span key="c" className="flex flex-wrap items-center gap-x-2 gap-y-1"><ProviderPills codes={f.cached_on} /><TorrentLink hash={f.info_hash} /></span>]);
+  rows.push([<span key="l" title={HELD_ON_TIP}>{HELD_ON}</span>, <span key="c" className="flex flex-wrap items-center gap-x-2 gap-y-1"><ProviderPills codes={f.cached_on} /><TorrentLink hash={f.info_hash} /></span>]);
   const media = mediaLine(f.media);
   if (media) rows.push(["Media", <span key="m" title={f.media?.subtitles ? `Subtitles: ${subsList(f.media.subtitles)}` : undefined}>{media}</span>]);
   if (f.episodes && f.episodes.length > 1) rows.push(["In the file", f.episodes.join(", ")]);

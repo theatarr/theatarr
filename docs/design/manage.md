@@ -113,7 +113,7 @@ routes answer 403. The permission check is `canManage` in
   Specials included.
 - **Episode overview** (a shared-Modal dialog): the episode's synopsis under its air date, then three tabs: **Details** (per version the state, monitor switch,
   search now, Interactive search for managers and a version that searches live, the download in hand, the upgrade
-  block and the file's facts with Cached on), **History** (the title History's rows that hold the episode, the same table and words; no journal lines; its count the rows shown) and **Last search** (the stored decision
+  block and the file's facts with Held on), **History** (the title History's rows that hold the episode, the same table and words; no journal lines; its count the rows shown) and **Last search** (the stored decision
   scoped to the episode, read-only).
 
 ## Checked

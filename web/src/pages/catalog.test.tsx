@@ -628,7 +628,7 @@ describe("Household view (no See files)", () => {
     const dialog = await screen.findByRole("dialog", { name: "Columns" });
     const offered = within(dialog).getAllByRole("button", { name: / up$/ }).map((b) => b.getAttribute("aria-label")!.slice(5, -3));
     expect(offered).toContain("Availability");
-    for (const file of ["Libraries", "Quality", "Quality profile", "Size", "Latest file", "Minimum availability", "Provider", "Folder"]) expect(offered).not.toContain(file);
+    for (const file of ["Libraries", "Quality", "Quality profile", "Size", "Latest file", "Minimum availability", "Held on", "Folder"]) expect(offered).not.toContain(file);
     await user.click(within(dialog).getByRole("button", { name: "Done" }));
     const sorts = [...(screen.getByRole("combobox", { name: "Sort by" }) as HTMLSelectElement).options].map((o) => o.textContent);
     expect(sorts).toContain("Added");

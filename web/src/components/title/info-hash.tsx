@@ -8,7 +8,7 @@ import { usePerms } from "@/api/library";
 import { Button } from "@/components/ui/button";
 import { adminLink, torrentsLink } from "@/lib/admin-links";
 
-/** "Torrent": the file's torrent on Admin › Torrents, beside Cached on; admins only (the page is admin-only). */
+/** "Torrent": the file's torrent on Admin › Torrents, beside Held on; admins only (the page is admin-only). */
 export function TorrentLink({ hash }: { hash?: string | null }) {
   const perms = usePerms();
   const to = hash ? adminLink(perms.admin, torrentsLink(hash)) : undefined;

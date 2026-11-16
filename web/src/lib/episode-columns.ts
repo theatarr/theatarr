@@ -3,6 +3,7 @@
 // theatarr.library.episode-columns.<user>). The checkbox, monitor switch, number, title and the search icons are fixed
 // columns, not in the list; the all-libraries matrix has no chosen columns.
 import type { ColumnDef } from "@/lib/prefs";
+import { HELD_ON, HELD_ON_TIP } from "@/lib/held-on";
 
 export type EpisodeColumnId = "air" | "status" | "quality" | "size" | "cached" | "score" | "group" | "release" | "file" | "runtime"
   | "vcodec" | "hdr" | "audio" | "alang" | "subs" | "langs" | "formats";
@@ -12,7 +13,7 @@ export const EPISODE_COLUMNS: ColumnDef<EpisodeColumnId>[] = [
   { id: "status", label: "Status", hint: "Available, Upgrade found, Missing, Not aired or Not monitored; the download under it" },
   { id: "quality", label: "Quality", hint: "The file's quality" },
   { id: "size", label: "Size", hint: "The file's size" },
-  { id: "cached", label: "Cached on", hint: "Debrid providers that hold the file's content now" },
+  { id: "cached", label: HELD_ON, hint: HELD_ON_TIP },
   { id: "score", label: "Score", hint: "The file's custom format score" },
   { id: "group", label: "Release group", hint: "The group that made the release" },
   { id: "release", label: "Release", hint: "The release name of the file" },

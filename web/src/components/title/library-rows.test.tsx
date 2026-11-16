@@ -77,7 +77,7 @@ describe("Libraries table", () => {
     await user.click(screen.getByTestId("library-columns"));
     // A column whose hint would only repeat its name shows the name alone.
     expect(within(screen.getByTestId("column-list")).getByText("Quality").parentElement?.textContent).toBe("Quality");
-    expect(within(screen.getByTestId("column-list")).getByText("Debrid providers that hold the file now")).toBeTruthy();
+    expect(within(screen.getByTestId("column-list")).getByText("Complete torrents on your accounts, as last checked; not necessarily the one playback uses.")).toBeTruthy();
     await user.click(within(screen.getByTestId("column-list")).getByRole("checkbox", { name: /^Size/ }));
     await user.click(screen.getByRole("button", { name: "Done" }));
     expect(rowOf("movie-web").querySelector('[data-column="size"]')).toBeNull();
@@ -282,7 +282,7 @@ describe("fix round 1", () => {
     await waitFor(() => expect(rowOf("movie-web").querySelector('[data-column="minimum_availability"]')?.textContent).toBe("In cinemas"));
     expect(screen.queryByTestId("version-minimum-availability-movie-web")).toBeNull();
   });
-  it("links an admin from Cached on to the file's torrent on Admin › Torrents; a manager gets no link", async () => {
+  it("links an admin from Held on to the file's torrent on Admin › Torrents; a manager gets no link", async () => {
     const hash = "abcdef0123456789abcdef0123456789abcdef01";
     const versions = [{ ...web, current: { ...web.current, info_hash: hash } }];
     mockFetch([{ method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["browse", "see_files", "manage", "admin"] } }]);

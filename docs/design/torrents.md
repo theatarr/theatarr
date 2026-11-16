@@ -473,7 +473,7 @@ group filters (unused, duplicate
 hash, duplicate title, failed, stalled, largest), a name or hash filter (every word in the name or parsed title, in
 any order, or the text as a hash prefix; `?q=` in the address fills it, so other pages link to one torrent: a title's
 **Torrent** link sends the hash's first 12), sort by size, age or name, under "All providers" a **Provider** column
-with the account's tag (RD, AD, TB, as **Cached on** shows it; the account key as tooltip), a usage column whose
+with the account's tag (RD, AD, TB, as **Held on** shows it; the account key as tooltip), a usage column whose
 references show on hover and expand on click (the expanded references link their titles to the title page; the
 first five references, then "and N more" counted from all of them), names decoded (the provider's own name as
 tooltip), a failed torrent with `served_by` one muted line under its status, which also starts its usage hover

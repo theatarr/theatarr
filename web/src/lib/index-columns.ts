@@ -3,6 +3,7 @@
 // words some cells read (release and series status, series type, minimum availability, language). Title is fixed and
 // not in this list, nor is the managers' last column of row actions (title-table.tsx RowActions). The choice is kept per list and per user (lib/prefs.ts useColumnPrefs, key columns.<list>).
 import type { ColumnDef } from "@/lib/prefs";
+import { HELD_ON, HELD_ON_TIP } from "@/lib/held-on";
 
 export type ListId = "movies" | "series" | "anime";
 
@@ -81,7 +82,7 @@ const DEFS: Def[] = [
   { id: "genres", ...both("Genres"), hint: "The first three" },
   { id: "language", ...both("Original language"), hint: "From TMDb" },
   { id: "min_availability", movie: "Minimum availability", hint: "When a movie may be fetched; per library when they differ", seeFiles: true },
-  { id: "provider", ...both("Provider"), hint: "The debrid services that hold the files", seeFiles: true },
+  { id: "provider", ...both(HELD_ON), hint: HELD_ON_TIP, seeFiles: true },
   { id: "folder", ...both("Folder"), hint: "The title's folder in each library", seeFiles: true },
 ];
 

@@ -282,7 +282,7 @@ existing redaction applies). Household accounts get none of it.
   library's cell shows (the one most of its files have), the best of the libraries, not the best single file.
 - **Family view**: accounts without See files get the table's Status column headed **Availability** (Available,
   Some episodes available, Not available, Upcoming, Getting ready) and are not offered the Libraries, Quality,
-  Quality profile, Size, Latest file, Minimum availability, Provider or Folder columns; posters show the badge only,
+  Quality profile, Size, Latest file, Minimum availability, Held on or Folder columns; posters show the badge only,
   without bars or library pills; on a series' Episodes tab each season shows one combined summary. Accounts that
   see files keep the per-library detail. A missing title with a download in hand (the row's `acquiring`: a copy's acquisition that
   is not blocked and not an upgrade; the title page's `acquiring` too) reads **Getting ready** there, on posters and
@@ -417,12 +417,12 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   only when it adds something: **Downloads off** with its small **?**, or "New files won't be linked") and the row
   actions. **Columns** picks the rest ("Monitored, Library and the actions always stay. Kept for your account in this
   browser."; `theatarr.library.title-libraries.<user>`). On by default: **Status**, **Quality**, **Score**, **Size**,
-  **Cached on** and **File** (the file name, the full path as tooltip). On offer: Preferred quality (the profile's
+  **Held on** and **File** (the file name, the full path as tooltip). On offer: Preferred quality (the profile's
   cutoff, "· upgrades off" when so), Minimum availability, Release, Release group, Languages, Video / audio, Formats,
-  Added, Last search, Next search and Path. A series row offers Status, Quality, Size, Cached on, Preferred quality,
+  Added, Last search, Next search and Path. A series row offers Status, Quality, Size, Held on, Preferred quality,
   Added and Last search. The switch column is headed **Monitored**. Quality is the technical name ("WEBDL-2160p").
   Score shows with the matched formats as its tooltip; a file whose score was never recorded (an adopted file
-  Theatarr did not score) shows "—" (tooltip "Not scored"), as History does; a recorded 0 stays "0". **Cached on** has a
+  Theatarr did not score) shows "—" (tooltip "Not scored"), as History does; a recorded 0 stays "0". **Held on** (until 0.4.5.6 "Cached on"; tooltip "Complete torrents on your accounts, as last checked; not necessarily the one playback uses."; release lists keep **Cached on**, what a provider has in its cache) has a
   pill per debrid provider that holds the file complete now and not failed (RD, AD, TB), adopted files included (found through the
   hash their link records, else the hash its mount folder points to: torrents.md "Folder hash", display only),
   "—" when none does. For admins a small **Torrent** link beside it (and beside the hash in
@@ -588,7 +588,7 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
     columns and the actions (Search and Interactive search icons). **Columns** ("The number, title, monitor switch and
     search buttons always show."; `theatarr.library.episode-columns.<user>`): Air date, Status (Available, with
     Upgrade found beside it; Missing, Not aired, Not monitored, which a gap in a library that is not monitored reads
-    too; the download under it), Quality, Size and **Cached on** (with the admins'
+    too; the download under it), Quality, Size and **Held on** (with the admins'
     **Torrent** link, as the episode window, on one line) by default;
     Score, Release group, Release, File and Runtime on offer, and from the file (blank without one or without the
     fact; see files only): Video codec, Dynamic range (blank for SDR), Audio (codec and channels), Audio languages,
@@ -608,7 +608,7 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
     account: it is public metadata, as Sonarr's episode dialog shows it); then three tabs. **Details**: per library its state in the
     upgrade vocabulary, monitor switch and Search now (managers), Interactive search for that episode in that library
     (managers, a library that searches live), the download in hand, the upgrade block with Why?, and the file's facts
-    (release, quality, score, size, group, **Cached on** with the admins' **Torrent** link,
+    (release, quality, score, size, group, **Held on** with the admins' **Torrent** link,
     languages, media with at most four subtitle languages and "+N" (all of them as tooltip), added, "From" the arr
     instance for an arr's file (none for Theatarr's own link), path), shown openly. **History**:
     per library the title History's rows that hold the episode (`EpisodeVersionDetail.history`, read by
@@ -753,7 +753,7 @@ including "Imported from Radarr's blocklist" for `arr:<instance>`) and the healt
   Missing", "4K · 13/17" (a series has no count before anything aired); a click opens the title's Libraries dialog
   (each library's file, state, stage and monitor switch; search and files stay on the title page). **Added** is the
   day the title was added (sort `created`); **Latest file** is when the newest current file came (sort `added`).
-  Provider shows RD, AD, TB pills. Managers get a fixed last column (not in **Columns**) with **Search now** (the
+  **Held on** (until 0.4.5.6 "Provider"; its filter too) shows RD, AD, TB pills: the accounts holding the files' torrents complete. Managers get a fixed last column (not in **Columns**) with **Search now** (the
   title page's: every monitored library, missing and upgrades; the answer is a toast) and, for a movie,
   **Interactive search** in its first library, for a series **Choose season or episode** (a link to the Episodes
   tab). Each is disabled from the row's own data with the reason as tooltip: Pause, "No library is monitored.", else each monitored library's verdict; on a phone they end the card with their words. Headers sort where the server can: Title, Studio / Network, Next, Size, Added,
@@ -764,7 +764,7 @@ including "Imported from Radarr's blocklist" for `arr:<instance>`) and the healt
   title sorts last by Release date. A sort whose column is not chosen (Next
   release, Latest file, Quality) shows that column first while the sort lasts, so the order follows a visible cell. Below 640 px rows
   are cards: thumbnail, title with Status on its own line under it, then the pills, then each chosen column as a line. Without See files the
-  Libraries, Quality, Quality profile, Size, Latest file, Minimum availability, Provider and Folder columns are not
+  Libraries, Quality, Quality profile, Size, Latest file, Minimum availability, Held on and Folder columns are not
   offered and Status is headed **Availability** with the watchability words.
 - **Posters:** one status badge, top right: the server's status word (Status words: Available, Partly available,
   Missing, Not monitored, Upcoming), and "Upgrade found" on the year line when a better release was found. **Partly

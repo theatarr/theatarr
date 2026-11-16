@@ -35,6 +35,7 @@ import type { Schemas } from "@/api/client";
 import { useMonitor, useScopedSearch, type ManageOutcome } from "@/api/manage";
 import { ErrorState, Loading, Mono } from "@/components/page";
 import { ProviderPills } from "@/components/provider-pills";
+import { HELD_ON, HELD_ON_TIP } from "@/lib/held-on";
 import { toast } from "@/components/toaster";
 import { EpisodeOverview } from "@/components/title/episode-drawer";
 import { Formats } from "@/components/title/formats";
@@ -322,7 +323,7 @@ const COLUMN_HEAD: Record<EpisodeColumnId, { label: string; className?: string }
   status: { label: "Status", className: "w-40" },
   quality: { label: "Quality", className: "w-32" },
   size: { label: "Size", className: "w-20 text-right" },
-  cached: { label: "Cached on", className: "w-36" },
+  cached: { label: HELD_ON, className: "w-36" },
   score: { label: "Score", className: "w-16 text-right" },
   group: { label: "Release group", className: "w-28" },
   release: { label: "Release" },
@@ -406,7 +407,7 @@ function LibraryTable({ episodes, copies, anime, manage, seeFiles, selected, onS
           <TableHead className={anime ? "w-36" : "w-14"}>#</TableHead>
           <TableHead className="min-w-40">Title</TableHead>
           {columns.map((id) => (
-            <TableHead key={id} className={cn("whitespace-nowrap", COLUMN_HEAD[id].className)} data-col={id}>
+            <TableHead key={id} className={cn("whitespace-nowrap", COLUMN_HEAD[id].className)} data-col={id} title={id === "cached" ? HELD_ON_TIP : undefined}>
               {COLUMN_HEAD[id].label}
             </TableHead>
           ))}

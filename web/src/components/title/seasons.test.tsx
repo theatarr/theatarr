@@ -339,7 +339,7 @@ describe("Acting on the libraries in view", () => {
     expect(at("Formats").textContent).toBe(formats.map((f) => `${f.name}+100`).join(""));
   });
 
-  it("links an episode's Cached on to its torrent for admins, as the episode window does", async () => {
+  it("links an episode's Held on to its torrent for admins, as the episode window does", async () => {
     const hash = "a".repeat(40);
     const withHash = { ...episodes, episodes: episodes.episodes.map((e) => ({ ...e, versions: { ...e.versions, "anime-web": cell(true, { cached_on: ["rd"], info_hash: hash }) } })) };
     mockFetch([{ ...routes[0], reply: { ...routes[0].reply, permissions: ["see_files", "manage", "admin"] } }, { method: "GET", path: "/titles/1/episodes", reply: withHash }]);
@@ -473,7 +473,7 @@ describe("Acting on the libraries in view", () => {
 });
 
 describe("Episode window", () => {
-  it("has Details, History and Last search tabs, with the file's facts and Cached on open in Details", async () => {
+  it("has Details, History and Last search tabs, with the file's facts and Held on open in Details", async () => {
     const withFile = { ...detail, versions: [detail.versions[0], { ...detail.versions[1], file: { quality: "WEBDL-1080p", release_title: "Tsukikage.Signal.S01E13.1080p.WEB-DL-NTb", cached_on: ["rd"], score: 4200, instance: "theatarr" }, history: [] }] };
     mockFetch([routes[0], routes[1], { method: "GET", path: "/titles/1/episodes/102", reply: withFile }]);
     const user = userEvent.setup();
@@ -482,7 +482,7 @@ describe("Episode window", () => {
     expect((await within(dialog).findAllByRole("tab")).map((t) => t.textContent)).toEqual(["Details", "History", "Last search"]);
     const file = await within(dialog).findByTestId("episode-file");
     expect(within(file).getByText("Tsukikage.Signal.S01E13.1080p.WEB-DL-NTb")).toBeTruthy();
-    expect(within(file).getByText("Cached on")).toBeTruthy();
+    expect(within(file).getByText("Held on")).toBeTruthy();
     expect(within(file).getByText("RD")).toBeTruthy();
     // The score through the number format; Theatarr's own link has no "From" row.
     expect(within(file).getByText("4,200")).toBeTruthy();
