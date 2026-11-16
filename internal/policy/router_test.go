@@ -151,7 +151,7 @@ func TestCacheEvidenceSettings(t *testing.T) {
 	}
 	def := (&Policy{}).CacheEvidenceSettings()
 	if def.TTL != 14*24*time.Hour || def.UncachedTTL != 6*time.Hour || !def.CheckEnabled || def.CheckTop != 10 ||
-		def.CheckPerHour != 60 {
+		def.CheckPerHour != 300 {
 		t.Errorf("defaults %+v", def)
 	}
 	if got := p.CacheEvidenceSettings(); got != def {

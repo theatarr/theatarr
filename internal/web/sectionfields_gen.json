@@ -198,7 +198,7 @@
   },
   "TorBoxCheck": {
     "enabled": "This turns it on. Default true; it does nothing without a TorBox provider whose key is set.",
-    "per_hour": "This caps checkcached requests in any hour. Default 60, 1 to 1000.",
+    "per_hour": "This caps checkcached requests in any hour. Default 300, 1 to 1000.",
     "top": "This is how many hashes of one search are checked, best first. Default 10, 1 to 100."
   },
   "TorrentBackup": {

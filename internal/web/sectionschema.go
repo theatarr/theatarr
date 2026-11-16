@@ -236,7 +236,7 @@ var sectionAnnotations = map[string]SchemaField{
 	"router.wanted.per_hour":                      bounds(1, policy.MaxWantedPerHour, "10"),
 	"router.cache_evidence.ttl":                   durationBounds(policy.MinCacheEvidenceTTL, policy.MaxCacheEvidenceTTL, "336h"),
 	"router.cache_evidence.torbox_check.top":      bounds(1, policy.MaxTorBoxCheckTop, "10"),
-	"router.cache_evidence.torbox_check.per_hour": bounds(1, policy.MaxTorBoxCheckHour, "60"),
+	"router.cache_evidence.torbox_check.per_hour": bounds(1, policy.MaxTorBoxCheckHour, "300"),
 }
 
 func floatPtr(v float64) *float64 { return &v }
@@ -426,7 +426,7 @@ var sectionHelp = map[string]string{
 	"router.stalled_after":                        "This fails a download that was accepted but has fetched nothing this long after its add, as stalled: its release is blocklisted for the library, our own Real-Debrid add is deleted, and the title is searched again. Default 10m, 1m to 24h; Off turns it off. AllDebrid waits at least 25m.",
 	"router.downloading_timeout":                  "This fails a download whose provider progress has not risen for this long (a dead swarm, a magnet that never leaves the provider's queue): its release is blocklisted for the library, our own Real-Debrid add is deleted, and the title is searched again. Default 24h, 1h to 7 days; Off turns it off.",
 	"router.ready_timeout":                        "This fails a download the provider finished that is still not imported this long after, blocklists it and searches again. Default 6h, 1m to 7 days. No torrent is deleted on the provider.",
-	"router.cache_evidence.torbox_check.per_hour": "This caps TorBox cache checks in any hour. Default 60, 1 to 1000.",
+	"router.cache_evidence.torbox_check.per_hour": "This caps TorBox cache checks in any hour. Default 300, 1 to 1000.",
 	"egress.vpn_ips":                              "These and the VPN address ranges are the expected exit addresses. At least one entry is required.",
 	"shadow.rss":                                  "This turns the RSS feed checks on or off. Default on.",
 	"shadow.rss_interval":                         "This is how often the RSS feeds of the libraries' indexers are read. Default 15m, the arrs' default RSS sync interval; minimum 10m.",

@@ -1120,10 +1120,10 @@
                 "name": "per_hour",
                 "min": 1,
                 "max": 1000,
-                "default": "60",
+                "default": "300",
                 "label": "Cache checks per hour",
                 "type": "integer",
-                "help": "This caps TorBox cache checks in any hour. Default 60, 1 to 1000."
+                "help": "This caps TorBox cache checks in any hour. Default 300, 1 to 1000."
               }
             ]
           }

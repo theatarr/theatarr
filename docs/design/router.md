@@ -380,7 +380,7 @@ debrid key to a third party (keys leaked through a third-party proxy before), so
   release that does arrive with `tb` in `cached_on` is skipped by the check: a candidate whose `CachedOn` has `tb` (its own DMM tag, or the same hash in a DMM result of
   that search, applied by `ApplyCachedOn` before ranking) is never asked, nor a hash with a live TorBox row
   (`knownOnTorBox`: any live `cached` row, or a first-party one). What DMM lists without `tb` is not stored as
-  uncached (feeds store positives only), so those hashes can still be asked. The `torbox_check` budget (60 an hour,
+  uncached (feeds store positives only), so those hashes can still be asked. The `torbox_check` budget (300 an hour,
   top 10) therefore goes to hashes DMM did not show on TorBox: Torrentio, Prowlarr, Zilean and SeaDex releases DMM
   does not list, DMM-listed releases held only on RD or AD, and TorBox holders DMM's probe bound left untagged.
 - **Real-Debrid and AllDebrid** have no first-party cache check. RD's `instantAvailability` answers
@@ -895,8 +895,10 @@ Each provider's `pacing` in the policy:
   add to that provider, cached ones too, until the hour ends. AD deletes Theatarr's uncached adds with
   `router.alldebrid_delete_uncached`, and the once-per-route skip bounds the kept ones.
 - **Limits:** apart from RD's 20 s spacing above, none of the providers limits adds separately; decypharr and zurg only pace all API calls
-  (RD 250/min, zurg 75/min for the torrent list; AD 600/min; TorBox 300/min, its download-link endpoint about 100
-  before a 5-minute lockout). The example's `adds_per_minute` is 0 (off) and the gateway budgets cap the requests.
+  (RD 250/min, zurg 75/min for the torrent list; AD 600/min). TorBox, as zurg measured it on 2026-11-02 (`docs/torbox-limits.md`, `7ced30c`): 100 calls a
+  minute per endpoint per key, each endpoint its own window; a 429 clears within 61 s; uncached creates are still 60
+  an hour. `torbox_check.per_hour` (default 300, 5 a minute, a twentieth of that for `checkcached`) caps batched
+  cache-check requests, not torrent creates. The example's `adds_per_minute` is 0 (off) and the gateway budgets cap the requests.
 - **`backoff_max`:** caps the exponential back-off, 1 h by default.
 - **Back-off kind** (`router_pacing.backoff_down`, migration 00095): a back-off is marked *down* when the
   failure says the provider is down: no answer (transport error), a 5xx, its own unavailable code (RD 6 and 25, AD
@@ -1242,7 +1244,7 @@ router:
     torbox_check:
       enabled: true    # nothing without a TorBox key
       top: 10          # hashes of one search, best first; 1 to 100
-      per_hour: 60     # checkcached requests in any hour; 1 to 1000
+      per_hour: 300    # checkcached requests in any hour; 1 to 1000
   wanted:              # the search schedule ("The search schedule"); nothing is searched while paused
     per_hour: 10       # searches in any hour; 1 to 200
     again_after: 24h   # older items are searched again after this; 1h to 30d

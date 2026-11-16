@@ -79,7 +79,7 @@ type TorBoxCheck struct {
 	Enabled *bool `yaml:"enabled"`
 	// Top is how many hashes of one search are checked, best first. Default 10, 1 to 100.
 	Top int `yaml:"top"`
-	// PerHour caps checkcached requests in any hour. Default 60, 1 to 1000.
+	// PerHour caps checkcached requests in any hour. Default 300, 1 to 1000.
 	PerHour int `yaml:"per_hour"`
 }
 
@@ -176,7 +176,7 @@ const (
 	MaxCacheEvidenceTTL     = 30 * 24 * time.Hour
 	DefaultTorBoxCheckTop   = 10
 	MaxTorBoxCheckTop       = 100
-	DefaultTorBoxCheckHour  = 60
+	DefaultTorBoxCheckHour  = 300
 	MaxTorBoxCheckHour      = 1000
 )
 

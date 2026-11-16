@@ -29,7 +29,7 @@ router:
     torbox_check:      # TorBox checkcached with our key, through the gateway and its torbox-api budget
       enabled: true    # does nothing without a TorBox key
       top: 10          # best hashes of one search checked; 1 to 100
-      per_hour: 60     # checkcached requests in any hour; 1 to 1000
+      per_hour: 300    # checkcached requests in any hour; 1 to 1000
   # The search schedule (internal/acquire): each missing or cutoff-unmet item of a library has a next search
   # time. New releases that are not found are tried again after 1, 2, 4, 8 and 16 hours, then daily for a week; older
   # items every again_after. A failed download and Search now make an item due at once. Nothing is searched while
