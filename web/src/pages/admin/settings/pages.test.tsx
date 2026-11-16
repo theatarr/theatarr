@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { fireEvent, screen } from "@testing-library/react";
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
 import { mockFetch, renderPage } from "@/test/page";
 import { overview } from "@/components/settings/fixtures";
 import schema from "@/components/settings/testdata/schema.json";
@@ -157,4 +157,25 @@ it("puts Automatic search with RSS under Indexers and leaves Behaviour to grabbi
  renderPage(<SettingsPage />, "/admin/settings/downloads/behaviour");
  await screen.findByRole("heading", { name: "What to grab" });
  expect(screen.queryByRole("heading", { name: "Automatic search" })).toBeNull();
+});
+it("shows indexer statistics under Status with a 7 / 30 / 90 days choice", async () => {
+ const { IndexerStatus } = await import("@/pages/admin/sources");
+ const fetch = mockFetch([
+  { method: "GET", path: "/sources", reply: { providers: [], indexers: [] } },
+  { method: "GET", path: "/indexers/stats", reply: (r: { search: string }) => ({ days: r.search.includes("30") ? 30 : 7, measured_since: "2026-11-16", indexers: [
+   { key: "dmm", requests: 15, measured: 10, failed: 2, average_ms: 1250, grabbed: 2, imported: 1, failed_downloads: 1 },
+   { key: "zilean", requests: 4, measured: 0, grabbed: 0, imported: 0, failed_downloads: 0 },
+  ] }) },
+ ]);
+ renderPage(<IndexerStatus />);
+ await screen.findByTestId("indexer-stats-help");
+ const cells = (key: string) => [...document.querySelectorAll(`[data-testid="indexer-stats"] [data-indexer="${key}"] td`)].map(c => c.textContent);
+ expect(cells("dmm")).toEqual(["dmm", "15", "2 (20%)", "1.3 s", "2", "1", "1"]);
+ // No measured request (counts from before the upgrade): no failed count or time.
+ expect(cells("zilean")).toEqual(["zilean", "4", "—", "—", "0", "0", "0"]);
+ expect(screen.getByTestId("indexer-stats-help").textContent).toContain("Measured since Nov 16");
+ expect(screen.queryByText(/not tracked yet/)).toBeNull();
+ fireEvent.click(screen.getByRole("button", { name: "30 days" }));
+ await screen.findByRole("button", { name: "30 days", pressed: true });
+ await vi.waitFor(() => expect(fetch.calls("GET", "/indexers/stats").map(r => r.search)).toContain("?days=30"));
 });

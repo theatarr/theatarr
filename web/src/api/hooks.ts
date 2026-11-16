@@ -26,6 +26,7 @@ export type Review = Get<"/anime/review">;
 export type Playlists = Get<"/anime/playlists">;
 export type Uncovered = Get<"/anime/uncovered">;
 export type Sources = Get<"/sources">;
+export type IndexerStats = Get<"/indexers/stats">;
 export type Logs = Get<"/logs"> & { skippedTotal?: number; restartTotal?: number };
 export type Titles = Get<"/titles">;
 
@@ -171,6 +172,9 @@ export const usePlaylists = () =>
   useQuery({ queryKey: qk.anime.playlists, queryFn: () => api<Playlists>("/anime/playlists") });
 
 export const useSources = () => useQuery({ queryKey: qk.sources, queryFn: () => api<Sources>("/sources") });
+
+export const useIndexerStats = (days: number) =>
+  useQuery({ queryKey: qk.indexerStats(days), queryFn: () => api<IndexerStats>(`/indexers/stats?days=${days}`) });
 
 export function useLogs(level: string, component: string) {
   const qc = useQueryClient();

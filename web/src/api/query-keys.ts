@@ -36,6 +36,8 @@ export const qk = {
   },
   nowPlaying: ["nowplaying"] as const,
   sources: ["sources"] as const,
+  /** GET /indexers/stats over 7, 30 or 90 days; under sources, so a settings write refreshes it too. */
+  indexerStats: (days: number) => ["sources", "indexer-stats", days] as const,
   /** The settings admin API (docs/design/settings.md): every write invalidates settings.all. */
   settings: {
     all: ["settings"] as const,

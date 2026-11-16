@@ -1197,6 +1197,7 @@ All under `/api/theatarr/v1` unless noted. Every list pages with `limit` (≤ 20
 | `GET logs/files`, `GET logs/files/{name}` | list/download persistent JSON logs, current file and numbered rotations (admin) |
 | `GET logs/level`, `PUT logs/level` | read/change the service threshold; body `{"level":"debug"}` (debug/info/warn/error), audited, admin and session CSRF on PUT |
 | `GET sources` | indexers and providers with state: last result, back-off, last sync, counts |
+| `GET indexers/stats?days=7\|30\|90` | per indexer: requests (settings tests left out), failed and average response over the measured requests, grabbed, imported and failed downloads from History; Settings › Indexers shows it as the Statistics table under Status (admin; [indexers.md](indexers.md) "Statistics") |
 | `GET events` | event types beside `jobs` and `gateway`: `download`, `request`, `title` (art or state changed), `toast` |
 
 ## 7. Logs

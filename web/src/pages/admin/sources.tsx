@@ -1,12 +1,14 @@
 import { Link } from "react-router";
 // Admin › Connections › Providers & indexers (GET /sources): each provider's sync, registry counts, router pacing and attempts;
-// each indexer's budget and its last failure or back-off from the gateway.
-import { useHealth, useSources } from "@/api/hooks";
+// each indexer's budget and its last failure or back-off from the gateway, then its statistics (GET /indexers/stats).
+import { useState } from "react";
+import { useHealth, useIndexerStats, useSources } from "@/api/hooks";
 import { Empty, ErrorState, KV, Loading, Mono, Section, VersionTag } from "@/components/page";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { fmtAgo, fmtNumber, fmtTime, plural } from "@/lib/format";
+import { fmtAgo, fmtDay, fmtNumber, fmtTime, plural } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import { PeriodUse } from "@/components/settings/sources";
 import { adapterWord } from "@/components/settings/record-form";
 import { premiumEnd } from "@/lib/health";
@@ -63,7 +65,7 @@ export function SourcesPanel({ kind }: { kind?: "providers" | "indexers" }) {
           </div>
         )}
       </Section> : null}
-      {kind !== "providers" ? <Section title="Status" aside="Last result: the gateway records failures and back-offs; successful searches are not tracked yet.">
+      {kind !== "providers" ? <Section title="Status" aside="Last result: the gateway records failures and back-offs.">
         <Card className="p-0">
           <Table>
             <TableHeader>
@@ -100,6 +102,74 @@ export function SourcesPanel({ kind }: { kind?: "providers" | "indexers" }) {
           </Table>
         </Card>
       </Section> : null}
+      {kind !== "providers" ? <IndexerStatistics /> : null}
     </div>
+  );
+}
+
+const STAT_DAYS = [7, 30, 90] as const;
+
+/** "850 ms", "1.2 s". */
+function fmtMs(ms: number): string {
+  return ms < 1000 ? `${fmtNumber(ms)} ms` : `${(ms / 1000).toFixed(1)} s`;
+}
+
+// Per indexer over 7, 30 or 90 days, like Prowlarr's indexer statistics. Failed and Average response are over the
+// measured requests only: an indexer with none (counts from before the upgrade) shows "—" there.
+function IndexerStatistics() {
+  const [days, setDays] = useState<number>(7);
+  const q = useIndexerStats(days);
+  const choice = (
+    <div className="flex gap-2" role="group" aria-label="Days">
+      {STAT_DAYS.map((d) => (
+        <button key={d} type="button" onClick={() => setDays(d)} aria-pressed={days === d}
+          className={cn("rounded-[4px] border px-2.5 py-1 text-[13px] font-medium transition",
+            days === d ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent-ink)]"
+              : "border-[var(--line)] text-muted-foreground hover:bg-[var(--hover)] hover:text-foreground")}>
+          {d} days
+        </button>
+      ))}
+    </div>
+  );
+  const s = q.data;
+  return (
+    <Section title="Statistics" aside={choice}>
+      {q.isPending ? <Loading /> : q.error ? <ErrorState error={q.error} /> : !s ? null : (
+        <>
+          <Card className="p-0">
+            <Table data-testid="indexer-stats">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Indexer</TableHead>
+                  <TableHead className="text-right">Requests</TableHead>
+                  <TableHead className="text-right">Failed</TableHead>
+                  <TableHead className="text-right">Average response</TableHead>
+                  <TableHead className="text-right">Grabbed</TableHead>
+                  <TableHead className="text-right">Imported</TableHead>
+                  <TableHead className="text-right">Failed downloads</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {s.indexers.map((ix) => (
+                  <TableRow key={ix.key} data-indexer={ix.key}>
+                    <TableCell><Mono className="[overflow-wrap:anywhere]">{ix.key}</Mono></TableCell>
+                    <TableCell className="text-right">{fmtNumber(ix.requests)}</TableCell>
+                    <TableCell className="whitespace-nowrap text-right">{ix.failed === undefined ? "—" : `${fmtNumber(ix.failed)} (${Math.round((100 * ix.failed) / Math.max(ix.measured, 1))}%)`}</TableCell>
+                    <TableCell className="text-right">{ix.average_ms === undefined ? "—" : fmtMs(ix.average_ms)}</TableCell>
+                    <TableCell className="text-right">{fmtNumber(ix.grabbed)}</TableCell>
+                    <TableCell className="text-right">{fmtNumber(ix.imported)}</TableCell>
+                    <TableCell className="text-right">{fmtNumber(ix.failed_downloads)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </Card>
+          <p className="mt-2 text-[13px] text-muted-foreground" data-testid="indexer-stats-help">
+            Requests are HTTP requests (pages, redirects and cache checks count; a search answered from the 15-minute cache makes none).
+            {s.measured_since ? ` Measured since ${fmtDay(s.measured_since)}.` : ""}
+          </p>
+        </>
+      )}
+    </Section>
   );
 }
