@@ -104,7 +104,13 @@ export function FieldInput(p: FieldInputProps) {
     const changed = p.tracked && v !== (typeof p.saved === "string" ? p.saved : "");
     return (
           <Field changed={changed} onUndo={() => onChange(p.saved ?? "")} disabled={disabled} name={recordLabel(f)} label={<>{recordLabel(f)}{f.required ? <span className="text-[var(--bad-ink)]"> *</span> : null}</>} help={recordHelp(f)} error={p.errors?.[path]} wide={f.name === "url" || f.type === "list" || f.type === "map" || f.type === "string_map"}>
-            {f.type === "enum" ? (
+            {f.type === "boolean" ? (
+              // A record's switch (a provider's Also add torrents here): its value is "true" or "false" as text.
+              <div className="flex h-9 items-center gap-2">
+                <Switch aria-label={recordLabel(f)} checked={v === "true"} disabled={disabled} onCheckedChange={(next) => onChange(next ? "true" : "false")} data-field={path} />
+                <span className="text-sm">{v === "true" ? "On" : "Off"}</span>
+              </div>
+            ) : f.type === "enum" ? (
               <select className={SELECT_CLASS} value={v} disabled={disabled} onChange={(e) => onChange(e.target.value)} data-field={path}>
                 {f.required ? null : <option value="">(unset)</option>}
                 {(f.enum ?? []).map((o) => <option key={o} value={o}>{o}</option>)}

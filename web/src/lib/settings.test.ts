@@ -270,6 +270,13 @@ describe("forms from the schema", () => {
     const bad = configFromForm(fields, { url: "", page_cap: "lots", privacy: "nope", seadex: { tags: "HDR", best: "" } }, undefined);
     expect(Object.keys(bad.errors).sort()).toEqual(["page_cap", "privacy", "seadex.tags", "url"]);
   });
+  it("reads a record's switch (a provider's also_add) as true or false", () => {
+    const sw: SchemaField[] = [{ name: "also_add", type: "boolean", help: "" }];
+    expect(formFromConfig(sw, { also_add: true })).toEqual({ also_add: "true" });
+    expect(configFromForm(sw, { also_add: "true" }, undefined).config).toEqual({ also_add: true });
+    expect(configFromForm(sw, { also_add: "false" }, { also_add: true }).config).toEqual({ also_add: false });
+    expect(configFromForm(sw, { also_add: "" }, undefined).config).toEqual({});
+  });
   it("reads a cardigann indexer's settings as name=value text", () => {
     const settings: SchemaField[] = [{ name: "settings", type: "string_map", help: "" }];
     expect(configFromForm(settings, { settings: "sort=seeders, type=desc\nfreeleech=true" }, undefined).config).toEqual({ settings: { sort: "seeders", type: "desc", freeleech: "true" } });

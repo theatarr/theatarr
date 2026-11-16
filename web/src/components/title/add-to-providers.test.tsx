@@ -55,7 +55,7 @@ describe("the button", () => {
   it("says how each provider ended once it is done", async () => {
     const api = mockFetch([
       { method: "POST", path: "/torrents/copy", reply: { job: 3, since: "2026-11-16T12:00:00Z" } },
-      { method: "GET", path: `/torrents/copy/${H}`, reply: { running: false, results: [r({}), r({ provider: "rd", code: "rd", outcome: "not_cached" })] } },
+      { method: "GET", path: `/torrents/copy/${H}`, reply: { running: false, results: [r({ provider: "rd", code: "rd", outcome: "not_cached" }), r({})] } },
     ]);
     renderPage(<AddToProviders hash={H} addTo={["tb", "rd"]} />);
     fireEvent.click(screen.getByTestId("add-to-providers"));

@@ -43,7 +43,8 @@ export function copyPart(r: CopyResult): string {
 export function copyResults(st: CopyState | undefined, since: string | null): CopyResult[] {
   if (!since) return [];
   const from = Date.parse(since) - 1;
-  return (st?.results ?? []).filter((r) => Date.parse(r.at) >= from).sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
+  // The server lists newest first; within one millisecond, its order reversed is the order they ran.
+  return (st?.results ?? []).filter((r) => Date.parse(r.at) >= from).reverse().sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
 }
 
 /** The line under the button: "Added to TB · Not cached on RD"; "" for none. */

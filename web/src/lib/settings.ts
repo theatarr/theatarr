@@ -370,6 +370,8 @@ function zero(f: SchemaField): unknown {
   switch (f.type) {
     case "integer":
       return 0;
+    case "boolean":
+      return false;
     case "list":
       return [];
     case "map":
@@ -410,6 +412,9 @@ export function configFromForm(
       continue;
     }
     switch (f.type) {
+      case "boolean":
+        config[f.name] = text === "true";
+        break;
       case "integer":
         if (!/^-?\d+$/.test(text)) errors[name] = "must be a whole number";
         else config[f.name] = Number(text);
