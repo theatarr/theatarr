@@ -1116,7 +1116,13 @@ Routing: the SPA catch-all serves `index.html` for application GET and HEAD requ
 and `/title/{id}`. API, image, asset, arr-view and service routes keep their own handlers; `/classic/`
 and `/static/` paths return 404. `index.html` gets `Cache-Control: no-cache`;
 hashed assets get a year, immutable. Unknown API paths return JSON 404;
-other application paths retain SPA fallback.
+other application paths retain SPA fallback. The admin screens and other rarely used pages load on first use
+(`lazyPage` in `web/src/router.tsx`), so a tab opened before an update asks for hashed files that are gone: the
+first failed load reloads the page once at the address being opened, which fetches the current build (a
+sessionStorage guard stops a second reload for the same address within 10 seconds). When that did not help, or a
+screen throws while rendering, every root route shows Theatarr's own error screen ("This page could not be
+loaded.", the reason, and Reload; `web/src/components/route-error.tsx`) instead of the router's default page; it
+does not need the signed-in shell.
 
 ## 5. Artwork and metadata
 

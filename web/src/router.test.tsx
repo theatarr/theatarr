@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
 // The real route table for the admin pages that live under Activity and Wanted: who may open them, and "View as a user".
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { createMemoryRouter, RouterProvider } from "react-router";
-import { expect, it, vi } from "vitest";
-import { routes } from "./router";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { lazyPage, routes } from "./router";
+import { browser, RELOAD_GUARD, RouteError } from "./components/route-error";
 import { mockFetch } from "@/test/page";
 
 vi.mock("@/api/events", () => ({ LiveProvider: ({ children }: { children: ReactNode }) => children, useLive: () => ({}) }));
@@ -132,4 +133,52 @@ it("renders Status for an admin while the Setup check has not answered", async (
   render(<QueryClientProvider client={client}><RouterProvider router={router} /></QueryClientProvider>);
   expect(await screen.findByRole("heading", { name: "Status" })).toBeTruthy();
   expect(router.state.location.pathname).toBe("/admin");
+});
+
+// A tab opened before an update asks for screen files that are gone: one reload, then the error screen.
+describe("a screen that cannot be loaded", () => {
+  const here = () => window.location.pathname + window.location.search + window.location.hash;
+  const failing = () => Promise.reject(new TypeError("Failed to fetch dynamically imported module: /assets/activity-old.js"));
+  function show(element: ReactNode) {
+    const router = createMemoryRouter([{ path: "/", element, errorElement: <RouteError /> }], { initialEntries: ["/"] });
+    render(<RouterProvider router={router} />);
+  }
+  afterEach(() => { cleanup(); vi.restoreAllMocks(); sessionStorage.clear(); });
+
+  it("gives every root route the error screen", () => {
+    for (const r of routes) expect(r.errorElement).toBeTruthy();
+  });
+
+  it("reloads once when the import fails and notes the address", async () => {
+    sessionStorage.clear();
+    const reload = vi.spyOn(browser, "reload").mockImplementation(() => {});
+    const Page = lazyPage(failing);
+    show(<Page />);
+    await waitFor(() => expect(reload).toHaveBeenCalledTimes(1));
+    expect(JSON.parse(sessionStorage.getItem(RELOAD_GUARD)!).to).toBe(here());
+    expect(screen.getByRole("status").textContent).toContain("Loading");
+    expect(screen.queryByTestId("route-error")).toBeNull();
+  });
+
+  it("shows the error screen with Reload when the import fails again just after a reload", async () => {
+    sessionStorage.setItem(RELOAD_GUARD, JSON.stringify({ to: here(), at: Date.now() - 2000 }));
+    const reload = vi.spyOn(browser, "reload").mockImplementation(() => {});
+    const Page = lazyPage(failing);
+    show(<Page />);
+    expect(await screen.findByRole("heading", { name: "This page could not be loaded." })).toBeTruthy();
+    expect(screen.getByText("Theatarr may have been updated or is restarting.")).toBeTruthy();
+    expect(screen.queryByText(/activity-old/)).toBeNull();
+    expect(reload).not.toHaveBeenCalled();
+    screen.getByRole("button", { name: "Reload" }).click();
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows the error screen with the message for an error thrown while rendering", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    function Broken(): ReactNode { throw new Error("Something broke"); }
+    show(<Broken />);
+    expect(await screen.findByRole("heading", { name: "This page could not be loaded." })).toBeTruthy();
+    expect(screen.getByText("Something broke")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Reload" })).toBeTruthy();
+  });
 });

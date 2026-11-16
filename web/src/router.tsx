@@ -20,11 +20,13 @@ import { SearchPage } from "./pages/search";
 import { DiscoverPage } from "./pages/discover";
 import { Loading } from "./components/page";
 import { useSetup } from "./api/setup";
+import { loadPage, RouteError } from "./components/route-error";
 
 
-// The admin screens load on first use, so the library screens stay small.
-function lazyPage(load: () => Promise<ComponentType>) {
-  const C = lazy(async () => ({ default: await load() }));
+// The admin screens load on first use, so the library screens stay small. A tab opened before an update asks for
+// files that are gone: loadPage reloads once (components/route-error.tsx).
+export function lazyPage(load: () => Promise<ComponentType>) {
+  const C = lazy(async () => ({ default: await loadPage(load) }));
   return function LazyPage() {
     return (
       <Suspense fallback={<Loading />}>
@@ -152,8 +154,8 @@ function LegacyRedirect() {
   return <Navigate to={legacyTarget(loc.pathname, loc.search, loc.hash) ?? "/admin"} replace />;
 }
 
-/** The route table (exported for router.test.tsx). */
-export const routes: RouteObject[] = [
+/** The route table (exported for router.test.tsx). Every root route shows RouteError instead of the router's own error page. */
+export const routes: RouteObject[] = ([
   { path: "/login", element: <Login /> },
   { path: "/login/plex/loading", element: <PlexPopup /> },
   { path: "/login/plex/done", element: <PlexPopup done /> },
@@ -217,6 +219,6 @@ export const routes: RouteObject[] = [
       { path: "*", element: <NotFound /> },
     ],
   },
-];
+] satisfies RouteObject[]).map((r) => ({ ...r, errorElement: <RouteError /> }));
 
 export const router = createBrowserRouter(routes);
