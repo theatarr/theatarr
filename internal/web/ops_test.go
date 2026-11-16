@@ -38,6 +38,8 @@ type fakeOps struct {
 	unlinkErr error
 	// onUnlinkRemoved runs after each UnlinkRemoved that went through.
 	onUnlinkRemoved func(id int64)
+	// onUnlink, when set, runs after each UnlinkLink that went through.
+	onUnlink func()
 }
 
 func (f *fakeOps) PreviewRename(context.Context, int64, *int) (*library.RenamePreview, error) {
@@ -127,6 +129,9 @@ func (f *fakeOps) UnlinkLink(_ context.Context, id int64, _ string) (*UnlinkedLi
 		return nil, err
 	}
 	f.unlinks = append(f.unlinks, id)
+	if f.onUnlink != nil {
+		f.onUnlink()
+	}
 	return &UnlinkedLink{TitleID: 2, Path: "/lib/Beta/" + strings.Repeat("x", int(id)), Versions: []string{"movie-web"},
 		Trash: "/lib/.trash/x"}, nil
 }

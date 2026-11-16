@@ -639,6 +639,8 @@ func (w *Web) apiReplaceReported(rw http.ResponseWriter, r *http.Request) {
 		w.opsError(rw, err)
 		return
 	}
+	// The file is gone: the blocklist and the search finish even when the tab closes now.
+	ctx = context.WithoutCancel(ctx)
 	at := store.Millis(w.now())
 	if err := w.st.WriteTx(ctx, func(tx *sql.Tx) error {
 		for _, k := range f.Versions {

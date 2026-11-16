@@ -1,7 +1,11 @@
 package web
 
 import (
+	"bytes"
+	"context"
+	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"slices"
 	"strings"
 	"sync"
@@ -193,6 +197,30 @@ func TestReplaceReportedFile(t *testing.T) {
 		!slices.Equal(subs[0].EpisodeIDs, []int64{41, 43}) {
 		t.Errorf("searches %+v", subs)
 	}
+	// The tab closes right after the file is removed: the blocklist and the search still happen.
+	o.exec(`DELETE FROM router_blocklist`)
+	o.acq.mu.Lock()
+	o.acq.submits = nil
+	o.acq.mu.Unlock()
+	o.ops.unlinks = nil
+	ctx, cancel := context.WithCancel(t.Context())
+	o.ops.onUnlink = cancel
+	b, _ := json.Marshal(ReplaceReported{LinkID: 90})
+	r := httptest.NewRequestWithContext(ctx, "POST", APIBase+"/reports/1/replace", bytes.NewReader(b))
+	r.Header.Set("Content-Type", "application/json")
+	r.AddCookie(o.mc)
+	r.Header.Set(auth.CSRFHeader, o.mcsrf)
+	o.do(r)
+	o.ops.onUnlink = nil
+	if !slices.Equal(o.ops.unlinks, []int64{90}) || blocked() != 1 {
+		t.Errorf("cancelled after the unlink: unlinks %v, blocklist rows %d", o.ops.unlinks, blocked())
+	}
+	o.acq.mu.Lock()
+	if len(o.acq.submits) != 1 {
+		t.Errorf("cancelled after the unlink: searches %+v", o.acq.submits)
+	}
+	o.acq.mu.Unlock()
+
 	// The report stays open; a household account may not replace.
 	var after ProblemReport
 	if p2, _ := o.web.getReport(t.Context(), 1); p2 == nil || p2.Status != ReportOpen {

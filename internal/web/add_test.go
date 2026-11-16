@@ -56,7 +56,10 @@ func (f *fakeAcquirer) NextSearches(_ context.Context, titleID int64) ([]acquire
 	return f.next, nil
 }
 
-func (f *fakeAcquirer) Submit(_ context.Context, _ int64, sel acquire.Selection) (int, int, error) {
+func (f *fakeAcquirer) Submit(ctx context.Context, _ int64, sel acquire.Selection) (int, int, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, 0, err // the real queue writes with the context
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.submits = append(f.submits, sel)
