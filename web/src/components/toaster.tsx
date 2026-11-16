@@ -88,13 +88,15 @@ function ToastCard({ t }: { t: Toast }) {
   );
 }
 
+/** The toasts, above every dialog and sheet (z-[70] to z-[85], with their scrims) and below the skip link
+ *  (z-[100]); the stack lets clicks through, each toast takes its own. */
 export function Toaster() {
   const list = useSyncExternalStore(subscribe, () => toasts, () => toasts);
   if (list.length === 0) return null;
   return (
     <div
       aria-live="polite"
-      className="pointer-events-none fixed inset-x-4 bottom-20 z-50 flex flex-col items-stretch gap-2 sm:inset-x-auto sm:right-5 sm:bottom-5 sm:w-[360px] md:bottom-5"
+      className="pointer-events-none fixed inset-x-4 bottom-20 z-[95] flex flex-col items-stretch gap-2 sm:inset-x-auto sm:right-5 sm:bottom-5 sm:w-[360px] md:bottom-5"
     >
       {list.map((t) => (
         <ToastCard key={t.id} t={t} />

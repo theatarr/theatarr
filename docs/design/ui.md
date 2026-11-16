@@ -70,7 +70,9 @@ calls them. The UI shares two things with them (§3, §6): the add path (`catalo
   @fontsource packages, nothing loads from another origin: IBM Plex Sans for the interface, IBM Plex Mono for keys,
   release names, paths and numbers, Newsreader for page and title names (one token, `--f-display`, so headings can
   switch to Plex Sans). The primitives (button, input, select, switch, checkbox, chip, tag, table, dialog, sheet,
-  tabs, toast, skeleton, empty state) live in `web/src/components/ui`.
+  tabs, toast, skeleton, empty state) live in `web/src/components/ui`. Toasts stack above every dialog and sheet (z-[95]; dialogs and sheets are z-[70] to z-[85],
+  the skip link z-[100]), so a grab's "Sent to the router" or "Not sent" shows over Interactive search; the stack
+  lets clicks through and each toast takes its own.
 - **Phone:** a bottom tab bar: Home, Browse (a sheet with Movies, Series, Anime, Collections for managers), Activity,
   Requests (with its badge), More (a sheet with Wanted (managers and admins; Manual import admins only), Now playing,
   Calendar and the admin pages the account may open, top level only). Search stays in the header.

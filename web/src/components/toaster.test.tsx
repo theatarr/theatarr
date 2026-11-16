@@ -23,3 +23,18 @@ it("keeps a toast 6 s, or as long as its duration says (the removal notice: 10 s
   act(() => vi.advanceTimersByTime(3_500));
   expect(screen.queryAllByTestId("toast")).toHaveLength(0);
 });
+
+it("stacks the toasts above the dialogs and sheets (z-[70] to z-[85]) without taking the clicks around them", () => {
+  render(
+    <MemoryRouter>
+      <Toaster />
+    </MemoryRouter>,
+  );
+  act(() => {
+    toast({ tone: "bad", title: "Not sent", body: "Already downloading" });
+  });
+  const card = screen.getAllByTestId("toast").at(-1)!;
+  expect(card.parentElement!.className).toContain("z-[95]");
+  expect(card.parentElement!.className).toContain("pointer-events-none");
+  expect(card.className).toContain("pointer-events-auto");
+});

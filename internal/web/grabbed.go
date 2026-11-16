@@ -717,11 +717,7 @@ func (w *Web) releaseOutcomes(ctx context.Context, db *sql.DB, titleID int64, ve
 			as := answers[d.id]
 			o.Outcome, o.Reason = "failed", failureHeadline(d.err, d.provider, w.attemptMisses(as))
 			for _, a := range as {
-				tag := strings.ToUpper(a.Provider)
-				if c := w.cacheCodes([]string{a.Provider}); len(c) == 1 {
-					tag = strings.ToUpper(c[0])
-				}
-				o.Attempts = append(o.Attempts, ReleaseAttempt{Provider: tag, Outcome: a.Outcome, Code: a.Code,
+				o.Attempts = append(o.Attempts, ReleaseAttempt{Provider: w.providerTag(a.Provider), Outcome: a.Outcome, Code: a.Code,
 					Message: a.Message})
 			}
 			if blocked == nil {
