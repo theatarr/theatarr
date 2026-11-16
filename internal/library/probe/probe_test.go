@@ -58,7 +58,7 @@ func f64(id int64, v float64) []byte {
 func testHvcC() []byte {
 	b := make([]byte, 23)
 	b[0] = 1
-	b[19] = 0xF8 | 2 // bitDepthLumaMinus8 = 2
+	b[17] = 0xF8 | 2 // bitDepthLumaMinus8 = 2
 	b[21] = 0x0F     // lengthSizeMinusOne = 3
 	return b
 }
@@ -432,6 +432,26 @@ func TestMP4AC3Channels(t *testing.T) {
 		}
 		if len(r.Audio) != 1 || r.Audio[0].Channels != c.channels || r.Audio[0].Tag != c.tag {
 			t.Errorf("%s: audio %+v, want %d channels tag %q", c.name, r.Audio, c.channels, c.tag)
+		}
+	}
+}
+
+func TestModelLiftsHdrBitDepth(t *testing.T) {
+	for _, c := range []struct {
+		v    Video
+		want string
+	}{
+		{Video{Codec: "hevc", BitDepth: 8, DoviCompat: 1, DoviProfile: 8}, "DV HDR10"},
+		{Video{Codec: "hevc", BitDepth: 8, DoviCompat: 6, DoviProfile: 7}, "DV HDR10"},
+		{Video{Codec: "hevc", BitDepth: 8, DoviCompat: 0, DoviProfile: 5}, "DV"},
+		{Video{Codec: "hevc", BitDepth: 8, DoviCompat: -1, Primaries: "bt2020", Transfer: "smpte2084"}, "PQ"},
+		{Video{Codec: "hevc", BitDepth: 8, DoviCompat: -1, Primaries: "bt2020", Transfer: "smpte2084", Mastering: true}, "HDR10"},
+		{Video{Codec: "hevc", BitDepth: 8, DoviCompat: -1, Primaries: "bt709", Transfer: "bt709"}, ""},
+		{Video{Codec: "h264", BitDepth: 8, DoviCompat: 1, DoviProfile: 9}, ""},
+	} {
+		v := c.v
+		if got := naming.FormatVideoDynamicRangeType((&Result{Video: &v}).Model(), false); got != c.want {
+			t.Errorf("%+v: %q, want %q", c.v, got, c.want)
 		}
 	}
 }

@@ -82,7 +82,7 @@ func parseHvcC(b []byte) (hevcConfig, bool) {
 	if len(b) < 23 {
 		return hevcConfig{}, false
 	}
-	c := hevcConfig{bitDepth: int(b[19]&7) + 8, lengthSize: int(b[21]&3) + 1}
+	c := hevcConfig{bitDepth: int(b[17]&7) + 8, lengthSize: int(b[21]&3) + 1}
 	n := int(b[22])
 	p := 23
 	for i := 0; i < n && p+3 <= len(b); i++ {

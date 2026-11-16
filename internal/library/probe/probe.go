@@ -207,6 +207,12 @@ func (r *Result) Model() *naming.Model {
 		if m.VideoBitDepth == 0 {
 			m.VideoBitDepth = 8
 		}
+		// The header probe rarely learns the depth; Dolby Vision profile 5, 7 or 8 and BT.2020 with PQ or HLG are
+		// never 8-bit, so a lower recorded depth is taken as 10.
+		if m.VideoBitDepth < 10 && (v.DoviCompat >= 0 && (v.DoviProfile == 5 || v.DoviProfile == 7 || v.DoviProfile == 8) ||
+			v.Primaries == "bt2020" && (v.Transfer == "smpte2084" || v.Transfer == "arib-std-b67")) {
+			m.VideoBitDepth = 10
+		}
 		m.VideoMultiViewCount = 1
 		if v.MultiView > 1 {
 			m.VideoMultiViewCount = v.MultiView
