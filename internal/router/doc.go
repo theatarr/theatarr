@@ -26,7 +26,8 @@
 //     - Real-Debrid and its name rule refuses the title (indexer.RealDebridRefusesRelease): skipped, a miss there;
 //     - a live miss for the hash at the provider (provider_cache): skipped, a miss; known uncached and
 //     router.cached_only: skipped, a miss (a later listing on DMM's newly cached RSS reopens our own uncached
-//     verdict once: indexer put);
+//     verdict once: indexer put); a grab by hand asks again past a row checked before its click, except a 451 or a
+//     file name Real-Debrid refused (Request.ManualSince, asksAgain);
 //     - the provider already holds the hash (registry from the provider sync, or a download of ours): the download
 //     points at that torrent and nothing is added;
 //     - paced or backing off (router_pacing): deferred until it is free;

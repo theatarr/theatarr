@@ -68,7 +68,7 @@ func (r *Router) clientSkip(ctx context.Context, s *routeState, rel *indexer.Rel
 		return codeClientIndexer, fmt.Sprintf("indexer %s keeps its releases on the providers it lists "+
 			"(indexers.%s.providers); client %s picks its own account", rel.Indexer, rel.Indexer, s.vp.Client), nil
 	}
-	state, err := r.cacheState(ctx, hash, clientCacheKey(s.vp.Client), r.now())
+	state, err := r.cacheState(ctx, hash, clientCacheKey(s.vp.Client), r.now(), s.req.ManualSince)
 	if err != nil {
 		return "", "", err
 	}

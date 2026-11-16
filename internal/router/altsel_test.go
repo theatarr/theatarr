@@ -72,7 +72,7 @@ func TestCachedOnlyAltSelection(t *testing.T) {
 		AND provider_torrent_id = 'RD1002'`, res.DownloadID); n != 1 {
 		t.Error("download not on the second add")
 	}
-	if st, _ := e.r.cacheState(e.ctx, h("a"), "rd", e.clock); st != "cached" {
+	if st, _ := e.r.cacheState(e.ctx, h("a"), "rd", e.clock, time.Time{}); st != "cached" {
 		t.Errorf("rd cache state %q", st)
 	}
 }
@@ -100,7 +100,7 @@ func TestCachedOnlyAltSelectionOnce(t *testing.T) {
 	if p, _ := loadPace(e.ctx, e.st.Reader(), "rd"); p.HourUncached != 2 {
 		t.Errorf("rd uncached adds %d", p.HourUncached)
 	}
-	if st, _ := e.r.cacheState(e.ctx, h("a"), "rd", e.clock); st != "uncached" {
+	if st, _ := e.r.cacheState(e.ctx, h("a"), "rd", e.clock, time.Time{}); st != "uncached" {
 		t.Errorf("rd cache state %q", st)
 	}
 

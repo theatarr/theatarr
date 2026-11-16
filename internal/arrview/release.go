@@ -711,6 +711,11 @@ func (s *Service) routeRelease(ctx context.Context, f *found, ds []*decide.Decis
 			Formats: append([]decide.FormatScore{}, d.Formats...), EpisodeMap: d.EpisodeMapping()}
 		req := router.Request{TitleID: f.titleID, VersionID: d.VersionID, Version: d.Version,
 			Candidates: []router.Candidate{c}, Source: source}
+		if userInvoked {
+			// POST release is a person's grab: it asks the providers again (router.Request.ManualSince); a
+			// release push is not.
+			req.ManualSince = s.now()
+		}
 		job, err := s.router.Enqueue(ctx, req, time.Time{})
 		if err != nil {
 			return fmt.Errorf("arrview: routing %s for %s: %w", f.rel.Title, d.Version, err)

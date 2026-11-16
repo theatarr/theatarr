@@ -460,18 +460,32 @@ func b2i(b bool) int {
 	return 0
 }
 
-// cacheState reads provider_cache for a hash at a provider: "miss", "uncached", "cached" or "" (nothing live).
-func (r *Router) cacheState(ctx context.Context, hash, provider string, now time.Time) (string, error) {
-	var state string
-	err := r.st.Writer().QueryRowContext(ctx, `SELECT state FROM provider_cache WHERE info_hash = ? AND provider = ?
-		AND (expires_at IS NULL OR expires_at > ?)`, hash, provider, store.Millis(now)).Scan(&state)
+// cacheState reads provider_cache for a hash at a provider: "miss", "uncached", "cached" or "" (nothing live). A
+// negative row a manual route asks past (asksAgain, since: Request.ManualSince) reads as "".
+func (r *Router) cacheState(ctx context.Context, hash, provider string, now, since time.Time) (string, error) {
+	var state, source string
+	var checked int64
+	err := r.st.Writer().QueryRowContext(ctx, `SELECT state, source, checked_at FROM provider_cache WHERE info_hash = ?
+		AND provider = ? AND (expires_at IS NULL OR expires_at > ?)`, hash, provider, store.Millis(now)).
+		Scan(&state, &source, &checked)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", nil
 	}
 	if err != nil {
 		return "", fmt.Errorf("router: cache state: %w", err)
 	}
+	if state != "cached" && asksAgain(since, source, checked) {
+		return "", nil
+	}
 	return state, nil
+}
+
+// asksAgain reports whether a route asked for by hand at since (Request.ManualSince; zero: not by hand) asks a
+// provider again past a stored negative row (a miss or uncached) with source, checked at checked (Unix ms): the row
+// was checked before the click. A single-hash 451 (router:451) and a file name Real-Debrid refused (router:rd_name)
+// stand: asking again cannot change them.
+func asksAgain(since time.Time, source string, checked int64) bool {
+	return !since.IsZero() && checked < store.Millis(since) && source != "router:451" && source != "router:rd_name"
 }
 
 // setCache writes a provider_cache row (docs/design/providers.md).

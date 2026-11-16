@@ -84,18 +84,20 @@ func (r *Router) requestOf(ctx context.Context, dl int64) (*Request, error) {
 // evidence and extras the provider order uses), the decision's quality, score, formats, episodes and episode mapping,
 // its source and the policy revision it was decided under, resuming dl. The kind and privacy label are the indexer's in
 // pol when it knows the indexer. nil when the row is gone. A
-// retry by hand (arrview) routes the same release as a new download.
+// retry by hand (arrview) routes the same release as a new download. A download a person grabbed by hand
+// (manualSource) keeps Request.ManualSince at its creation.
 func DownloadRequest(ctx context.Context, db *sql.DB, pol *policy.Policy, dl int64) (*Request, error) {
 	var req Request
 	var c Candidate
 	var data, eps string
 	var formats, epMap, source sql.NullString
 	var size sql.NullInt64
+	var created int64
 	err := db.QueryRowContext(ctx, `SELECT title_id, version_id, version_key, source, info_hash,
 		release_title, indexer, quality, score, size_bytes, episodes, formats, episode_map, COALESCE(release_data, ''),
-		COALESCE(policy_rev, '') FROM download WHERE id = ?`, dl).Scan(&req.TitleID, &req.VersionID, &req.Version, &source,
+		COALESCE(policy_rev, ''), created_at FROM download WHERE id = ?`, dl).Scan(&req.TitleID, &req.VersionID, &req.Version, &source,
 		&c.Release.InfoHash, &c.Release.Title, &c.Release.Indexer, &c.Quality, &c.Score, &size, &eps, &formats, &epMap,
-		&data, &req.DecisionRev) // the revision the row's candidate was decided under
+		&data, &req.DecisionRev, &created) // DecisionRev: the revision the row's candidate was decided under
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -135,5 +137,9 @@ func DownloadRequest(ctx context.Context, db *sql.DB, pol *policy.Policy, dl int
 		}
 	}
 	req.Candidates, req.Source, req.DownloadID = []Candidate{c}, source.String, dl
+	if manualSource(req.Source) {
+		// A grab by hand resumed: it keeps honouring the answers it got since its download was opened.
+		req.ManualSince = store.FromMillis(created)
+	}
 	return &req, nil
 }

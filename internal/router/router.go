@@ -969,7 +969,7 @@ func (r *Router) knownMiss(ctx context.Context, s *routeState, c *Candidate, has
 			whys = append(whys, why)
 			continue
 		}
-		if neg, _, err := missEvidence(ctx, r.st.Writer(), hash, pk, r.set.CachedOnly, now); err != nil {
+		if neg, _, err := missEvidence(ctx, r.st.Writer(), hash, pk, r.set.CachedOnly, now, s.req.ManualSince); err != nil {
 			return false, "", err
 		} else if !neg {
 			return false, "", nil
@@ -979,20 +979,23 @@ func (r *Router) knownMiss(ctx context.Context, s *routeState, c *Candidate, has
 }
 
 // missEvidence says whether provider_cache holds live negative evidence for hash at provider, as knownMiss counts
-// it: a miss, or uncached when cachedOnly. until is when that row lapses (zero: never).
-func missEvidence(ctx context.Context, db *sql.DB, hash, provider string, cachedOnly bool, now time.Time) (bool,
+// it: a miss, or uncached when cachedOnly, that a route asked for by hand at since does not ask past (asksAgain).
+// until is when that row lapses (zero: never).
+func missEvidence(ctx context.Context, db *sql.DB, hash, provider string, cachedOnly bool, now, since time.Time) (bool,
 	time.Time, error) {
-	var state string
+	var state, source string
+	var checked int64
 	var exp sql.NullInt64
-	err := db.QueryRowContext(ctx, `SELECT state, expires_at FROM provider_cache WHERE info_hash = ? AND provider = ?
-		AND (expires_at IS NULL OR expires_at > ?)`, hash, provider, store.Millis(now)).Scan(&state, &exp)
+	err := db.QueryRowContext(ctx, `SELECT state, source, checked_at, expires_at FROM provider_cache WHERE info_hash = ?
+		AND provider = ? AND (expires_at IS NULL OR expires_at > ?)`, hash, provider, store.Millis(now)).
+		Scan(&state, &source, &checked, &exp)
 	if errors.Is(err, sql.ErrNoRows) {
 		return false, time.Time{}, nil
 	}
 	if err != nil {
 		return false, time.Time{}, fmt.Errorf("router: cache state: %w", err)
 	}
-	if state != "miss" && !(state == "uncached" && cachedOnly) {
+	if state != "miss" && !(state == "uncached" && cachedOnly) || asksAgain(since, source, checked) {
 		return false, time.Time{}, nil
 	}
 	if exp.Valid {
@@ -1008,7 +1011,7 @@ func missEvidence(ctx context.Context, db *sql.DB, hash, provider string, cached
 func MissUntil(ctx context.Context, db *sql.DB, providers []string, hash string, cachedOnly bool, now time.Time) (
 	until time.Time, known bool, err error) {
 	for _, pk := range providers {
-		neg, exp, err := missEvidence(ctx, db, hash, pk, cachedOnly, now)
+		neg, exp, err := missEvidence(ctx, db, hash, pk, cachedOnly, now, time.Time{})
 		if err != nil || !neg {
 			return time.Time{}, false, err
 		}
@@ -1020,7 +1023,8 @@ func MissUntil(ctx context.Context, db *sql.DB, providers []string, hash string,
 }
 
 // MissOnEveryProvider is a download's error when every usable provider missed its release: the hash is then a
-// known miss for miss_ttl (knownMiss), and a grab of it opens no download until that passes.
+// known miss for miss_ttl (knownMiss), and an automatic grab of it opens no download until that passes (a grab by
+// hand asks again: Request.ManualSince).
 const MissOnEveryProvider = "miss on every provider"
 
 // movedOn ends a candidate whose download was ended (removed from the queue, blocklisted) or taken by another route
@@ -1112,7 +1116,7 @@ func (r *Router) provider(ctx context.Context, s *routeState, c *Candidate, m ad
 		return vContent, time.Time{}, Step{Outcome: "skipped", Code: codeTitle451, Message: why}, nil
 	}
 	// Known misses and known uncached releases.
-	state, err := r.cacheState(ctx, hash, pk, now)
+	state, err := r.cacheState(ctx, hash, pk, now, s.req.ManualSince)
 	if err != nil {
 		return 0, time.Time{}, Step{}, err
 	}

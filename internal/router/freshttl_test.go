@@ -48,7 +48,7 @@ func TestFreshContentMissLivesAnHour(t *testing.T) {
 		if _, err := e.r.Route(e.ctx, series(epCand(q.hash, q.ep))); err != nil {
 			t.Fatal(err)
 		}
-		if st, _ := e.r.cacheState(e.ctx, q.hash, "rd", e.clock); st != "miss" {
+		if st, _ := e.r.cacheState(e.ctx, q.hash, "rd", e.clock, time.Time{}); st != "miss" {
 			t.Fatalf("rd %q", st)
 		}
 		if got := expires(q.hash, "rd"); got != q.want {

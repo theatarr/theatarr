@@ -67,7 +67,7 @@ func TestDMMListingRetriesUncachedOnce(t *testing.T) {
 	// DMM lists it cached on RD 15 minutes later; the next RSS sync reads it, then routes it: RD is asked again.
 	e.clock = t0.Add(20 * time.Minute)
 	rss()
-	if st, _ := e.r.cacheState(e.ctx, h("a"), "rd", e.clock); st != "cached" {
+	if st, _ := e.r.cacheState(e.ctx, h("a"), "rd", e.clock, time.Time{}); st != "cached" {
 		t.Fatalf("rd state after the listing %q", st)
 	}
 	res = route()
@@ -75,7 +75,7 @@ func TestDMMListingRetriesUncachedOnce(t *testing.T) {
 		t.Fatalf("retry: adds %d, deletes %d: %s", f.count(adds), f.count(deletes), steps(res))
 	}
 	// RD was the only provider: the retry's miss is the all-provider miss, newer than the listing.
-	if st, _ := e.r.cacheState(e.ctx, h("a"), "rd", e.clock); st != "miss" {
+	if st, _ := e.r.cacheState(e.ctx, h("a"), "rd", e.clock, time.Time{}); st != "miss" {
 		t.Fatalf("rd state after the retry %q", st)
 	}
 	// The same listing on the next sync: a known miss, no third request.

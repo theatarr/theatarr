@@ -37,6 +37,10 @@ func TestGrabReleaseByHand(t *testing.T) {
 	if src := e.str(`SELECT source FROM download WHERE info_hash = ?`, good.InfoHash); src != "ui:grab:test" {
 		t.Errorf("download source %q", src)
 	}
+	// A grab by hand asks the providers again (router.Request.ManualSince).
+	if n := e.str(`SELECT COUNT(*) FROM job WHERE kind = 'router.route' AND payload LIKE '%"manual_since":%'`); n != "1" {
+		t.Errorf("%s route jobs asked by hand", n)
+	}
 
 	bad := good
 	bad.Title, bad.InfoHash = "Alpha.2020.1080p.WEB-DL-GRP", strings.Repeat("8", 40)
@@ -197,6 +201,9 @@ func TestRetryDownload(t *testing.T) {
 	e.drain()
 	if !slices.Contains(e.adds(), hash) || e.str(`SELECT COUNT(*) FROM download WHERE info_hash = ?`, hash) != "2" {
 		t.Errorf("retry did not open a new download: adds %v", e.adds())
+	}
+	if n := e.str(`SELECT COUNT(*) FROM job WHERE kind = 'router.route' AND payload LIKE '%"manual_since":%'`); n != "1" {
+		t.Errorf("%s route jobs asked by hand: Retry asks the providers again", n)
 	}
 
 	if _, err := e.svc.RetryDownload(ctx, 51, "ui:retry:51"); !isRefused(err) || !strings.Contains(err.Error(), "old-indexer") {

@@ -55,6 +55,10 @@ func TestReleaseSearchAndGrab(t *testing.T) {
 	if n := e.one(`SELECT COUNT(*) FROM download WHERE version_key = 'movie-remux'`); n != 1 {
 		t.Errorf("movie-remux download rows %d", n)
 	}
+	// POST release is a person's grab: it asks the providers again (router.Request.ManualSince).
+	if n := e.one(`SELECT COUNT(*) FROM job WHERE kind = 'router.route' AND payload LIKE '%"manual_since":%'`); n != 2 {
+		t.Errorf("%d route jobs asked by hand, want 2", n)
+	}
 	// The grab shows in history with our guid (decypharr's reconcile reads data.guid).
 	var p struct{ Records []map[string]any }
 	e.call("GET", "/radarr/api/v3/history?eventType=1", nil, 200, &p)
@@ -169,6 +173,9 @@ func TestReleasePush(t *testing.T) {
 	e.drain()
 	if adds := e.adds(); len(adds) != 1 || adds[0] != strings.Repeat("7", 40) {
 		t.Errorf("adds %v", adds)
+	}
+	if n := e.one(`SELECT COUNT(*) FROM job WHERE kind = 'router.route' AND payload LIKE '%manual_since%'`); n != 0 {
+		t.Errorf("a release push asked the providers again (%d route jobs)", n)
 	}
 	// A .torrent link only: decided, but never routed (no hash).
 	out = push("/v/movie-web/radarr/api/v3/release/push", map[string]any{"title": "Alpha.2020.2160p.WEB-DL.H265-GRP",

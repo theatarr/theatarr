@@ -440,7 +440,7 @@ func TestCachedOnlyUncachedAddDeleted(t *testing.T) {
 	if f.requests() != before || !strings.Contains(res.Steps[0].Message, "ad (add:ad)") {
 		t.Errorf("plan: %s %+v", steps(res), res.Steps)
 	}
-	if st, _ := e.r.cacheState(e.ctx, h("a"), "rd", e.clock); st != "uncached" {
+	if st, _ := e.r.cacheState(e.ctx, h("a"), "rd", e.clock, time.Time{}); st != "uncached" {
 		t.Errorf("rd state %q", st)
 	}
 
@@ -982,7 +982,7 @@ func TestRDRefusedFileNameInRoute(t *testing.T) {
 			t.Errorf("cached_only %v: blocklisted", cachedOnly)
 		}
 		// No add/delete loop: a later route of the release skips Real-Debrid as a miss.
-		if st, _ := e.r.cacheState(e.ctx, h("a"), "rd", e.clock); st != "miss" {
+		if st, _ := e.r.cacheState(e.ctx, h("a"), "rd", e.clock, time.Time{}); st != "miss" {
 			t.Errorf("cached_only %v: rd state %q", cachedOnly, st)
 		}
 	}

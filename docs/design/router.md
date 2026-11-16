@@ -59,6 +59,21 @@ router has.
 cache miss, uncached under `cached_only`, or a release Real-Debrid refuses) is skipped with step `known_miss` and
 opens no download row (`TestKnownMissOpensNoDownload`).
 
+**A grab by hand asks the providers again** (owner, 2026-11-16: "if i am manually doing it then i should be able to
+force it to try again on providers"). The Interactive search grab and its Try again, Add by magnet or hash,
+Activity's Retry and the compatible API's `POST release` set `Request.ManualSince` to the time of the click
+(`release/push`, automatic searches, RSS, lists and the router's own retries do not). A stored negative
+`provider_cache` row checked before that time skips nothing: not the `known_miss` skip before a download is opened,
+not a client's `known_miss`, not a provider's `miss` or `known_uncached` (`asksAgain`). Each provider is really
+tried as on a first attempt: TorBox by its cache check under `cached_only`, RD and AD by an add whose read-back
+decides, our own uncached add deleted as always. Rows written at or after the click (its own answers) are honoured,
+so a route that defers and continues, or the one largest-video retry, asks no provider twice for one click; a
+download found again after a restart (`DownloadRequest`) keeps `ManualSince` at its creation when its source is a
+grab by hand. What asking again cannot change stands: a single-hash 451 (`router:451`) and a file name RD refused
+(`router:rd_name`), RD's release-name rule, a title's 451s, pacing, back-off and limits, the blocklist and the
+in-flight checks. A manual grab that every provider misses fails as before and is not blocklisted by it. Tests:
+`TestManualGrabAsksAgain` (the same request with and without `ManualSince`), `TestManualGrabKeepsStandingRefusals`.
+
 **Policy changes while a route waits**: every route job carries the policy revision it was decided
 under (`decision_rev`). A deferred automatic route that runs under another revision decides its candidates again
 with the running decision engine: a candidate now rejected is skipped (`rejected_now`), an accepted one carries the

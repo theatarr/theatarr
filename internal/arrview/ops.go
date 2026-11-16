@@ -143,8 +143,9 @@ func (s *Service) grab(ctx context.Context, titleID int64, version string, rel i
 	if vp := s.pol.Versions[version]; len(c.Episodes) == 0 && vp != nil && vp.Kind == policy.KindSeries {
 		return out, refused("the release matches no episode of the title")
 	}
+	// A grab by hand asks the providers again: stored negative cache evidence from before now skips none.
 	req := router.Request{TitleID: titleID, VersionID: d.VersionID, Version: version,
-		Candidates: []router.Candidate{c}, Source: source}
+		Candidates: []router.Candidate{c}, Source: source, ManualSince: s.now()}
 	out.Job, err = s.router.Enqueue(ctx, req, time.Time{})
 	if err != nil {
 		return out, fmt.Errorf("arrview: routing %s for %s: %w", rel.Title, version, err)
@@ -296,7 +297,7 @@ func (s *Service) RetryDownload(ctx context.Context, id int64, source string) (*
 		!policy.IsManualAdd(req.Candidates[0].Release.Indexer) && !slices.Contains(vp.Indexers, req.Candidates[0].Release.Indexer) {
 		return out, refused("indexer %s is not one of version %s's indexers", req.Candidates[0].Release.Indexer, out.Version)
 	}
-	req.DownloadID, req.DecisionRev, req.Source = 0, "", source
+	req.DownloadID, req.DecisionRev, req.Source, req.ManualSince = 0, "", source, s.now()
 	out.Job, err = s.router.Enqueue(ctx, *req, time.Time{})
 	if err != nil {
 		return out, fmt.Errorf("arrview: retrying download %d: %w", id, err)

@@ -93,6 +93,12 @@ type Request struct {
 	// DecisionRev is the policy revision the candidates were decided under, set when the route is queued. An
 	// automatic route that runs under another revision decides its candidates again.
 	DecisionRev string `json:"decision_rev,omitempty"`
+	// ManualSince is when a person asked for this route by hand (the Interactive search grab and its Try again, an
+	// add by magnet or hash, Activity's Retry, the compatible API's POST release); zero for every other source. Stored
+	// negative cache evidence checked before it does not skip a provider: the route asks the providers again
+	// (asksAgain). Evidence written at or after it, this click's own answers, is honoured, so a route that defers and
+	// continues asks each provider once.
+	ManualSince time.Time `json:"manual_since,omitzero"`
 	// deferrals is how often the route job running this request was deferred already after an add, and
 	// waitingSince since when it waits (routePayload).
 	deferrals    int

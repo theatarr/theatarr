@@ -40,7 +40,7 @@ func TestCheckUncachedLivesThirtyMinutes(t *testing.T) {
 		want     string
 	}{{h("a"), "tb", 29 * time.Minute, "uncached"}, {h("a"), "tb", 31 * time.Minute, ""},
 		{h("b"), "rd", 31 * time.Minute, "uncached"}} {
-		if st, _ := e.r.cacheState(e.ctx, q.hash, q.pk, t0.Add(q.after)); st != q.want {
+		if st, _ := e.r.cacheState(e.ctx, q.hash, q.pk, t0.Add(q.after), time.Time{}); st != q.want {
 			t.Errorf("%s after %v: %q, want %q", q.pk, q.after, st, q.want)
 		}
 	}
