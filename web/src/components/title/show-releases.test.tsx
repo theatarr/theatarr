@@ -3,7 +3,7 @@ import { fireEvent, screen, within } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 import { mockFetch, renderPage } from "@/test/page";
 import { ReleaseGrid } from "./release-grid";
-import { ShowReleases } from "./show-releases";
+import { searchIncomplete, ShowReleases } from "./show-releases";
 import { LibraryNamesProvider } from "@/lib/library-names";
 
 const cand = (rank: number, hash: string, accepted = true) => ({ rank, release: `Alpha.2020.2160p.WEB-${rank}`, info_hash: hash, accepted, score: 100 - rank, quality: "WEBDL-2160p" });
@@ -236,4 +236,23 @@ it("does not carry a filter from one library tab to the other", async () => {
   fireEvent.click(screen.getByRole("tab", { name: "WEB" }));
   await vi.waitFor(async () => expect(await rows()).toBe(2));
   expect((screen.getByTestId("release-filter") as HTMLInputElement).value).toBe("");
+});
+
+it("names the indexers that did not answer fully in one line, the raw notes kept under Technical details", async () => {
+  const notes = "therarbg: partial answer; indexer therarbg: therarbg: request failed: gateway: budget exhausted: indexer:therarbg: budget therarbg: next token in 5.786s (retry at 2026-11-14T03:22:08Z); nyaa: partial answer; indexer nyaa: nyaa: waited too long for the site's previous search to finish: context deadline exceeded; page_cap 200 reached after 2 pages; season search: kept 44 packs, dropped 42 single episodes; title search added 0, dropped 0 for another IMDb id";
+  expect(searchIncomplete(notes)).toBe("Search incomplete: therarbg was rate-limited, nyaa did not answer in time.");
+  expect(searchIncomplete("title search added 1, dropped 0 for another IMDb id")).toBe("");
+  expect(searchIncomplete("seadex: dropped 1 entries: private tracker; dropped 2 entries with an excluded tag")).toBe("");
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: { permissions: ["browse", "see_files", "manage"] } },
+    { method: "GET", path: "/titles/7/releases", reply: {
+      title_id: 7, version: "movie-web", versions: ["movie-web"], live_allowed: false, source: "journal", results: 0, accepted: 0,
+      candidates: [], rejections: {}, outcomes: {}, grabbed: "Nothing grabbed", grab: false, notes,
+    } },
+  ]);
+  renderPage(<LibraryNamesProvider keys><ShowReleases titleId={7} defaultOpen initialVersion="movie-web" /></LibraryNamesProvider>);
+  expect((await screen.findByTestId("releases-incomplete")).textContent).toBe("Search incomplete: therarbg was rate-limited, nyaa did not answer in time.");
+  const raw = screen.getByTestId("releases-notes");
+  expect(raw.closest("details")?.open).toBe(false);
+  expect(raw.textContent).toBe(`Indexers: ${notes}`);
 });

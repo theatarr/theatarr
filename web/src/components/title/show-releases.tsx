@@ -4,7 +4,7 @@
 // may search offers Interactive search (interactive-search.tsx), which does both. Mounted by /title/{id}/releases as
 // <ShowReleases titleId />. Admins also get "Add by magnet or hash" under the list, for the shown library
 // (release-grab.tsx, AddByHash).
-import { ChevronDown, Loader2, Search } from "lucide-react";
+import { ChevronDown, ChevronRight, Loader2, Search } from "lucide-react";
 import { useState } from "react";
 import { useReleases, type Releases } from "@/api/add";
 import { usePerms } from "@/api/library";
@@ -26,10 +26,37 @@ const SOURCE: Record<string, string> = {
   none: "Nothing stored",
 };
 
+// What each indexer's notes say went wrong, worst first; a note that matches none is information, not a failure.
+const PROBLEMS: [RegExp, string][] = [
+  [/budget|rate.?limit|too many requests|\b429\b|next token/i, "was rate-limited"],
+  [/deadline exceeded|timed? ?out|waited too long/i, "did not answer in time"],
+  [/fail|error|refused|unreachable|status \d{3}/i, "failed"],
+  [/partial answer/i, "answered only in part"],
+  [/only a plain keyword query/i, "could only be searched by name"],
+];
+
+/** One line for the indexers that did not answer fully, from the search's notes ("indexer x: …" or "x: …", joined
+ *  by "; "): "Search incomplete: therarbg was rate-limited, nyaa did not answer in time." Empty when no note names a
+ *  problem. The raw notes stay under Technical details. */
+export function searchIncomplete(notes: string): string {
+  const worst = new Map<string, number>();
+  for (const note of notes.split("; ")) {
+    const m = /^(?:indexer )?([\w.-]+): (.+)$/.exec(note.trim());
+    if (!m) continue;
+    const i = PROBLEMS.findIndex(([re]) => re.test(m[2]));
+    if (i < 0) continue;
+    const prev = worst.get(m[1]);
+    if (prev === undefined || i < prev) worst.set(m[1], i);
+  }
+  if (worst.size === 0) return "";
+  return `Search incomplete: ${[...worst].map(([name, i]) => `${name} ${PROBLEMS[i][1]}`).join(", ")}.`;
+}
+
 /** The search's facts and rejection counts. With onReason (interactive search) each count is a toggle that keeps
  *  the list to the releases rejected for it. */
 export function Summary({ r, reason, onReason }: { r: Releases; reason?: string; onReason?: (code: string | undefined) => void }) {
   const rej = Object.entries(r.rejections ?? {}).sort((a, b) => b[1] - a[1]);
+  const incomplete = searchIncomplete(r.notes ?? "");
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -57,7 +84,16 @@ export function Summary({ r, reason, onReason }: { r: Releases; reason?: string;
           })}
         </div>
       ) : null}
-      {r.notes ? <p className="text-[11.5px] text-[var(--ink-3)]" data-testid="releases-notes">Indexers: {r.notes.replace(/\b1 ([\w-]+ )?entries\b/g, "1 $1entry")}</p> : null}
+      {incomplete ? <p className="text-xs text-[var(--ink-2)]" data-testid="releases-incomplete">{incomplete}</p> : null}
+      {r.notes ? (
+        <details className="group text-[11.5px] text-[var(--ink-3)]">
+          <summary className="flex cursor-pointer list-none items-center gap-1 [&::-webkit-details-marker]:hidden">
+            <ChevronRight className="size-3 transition-transform group-open:rotate-90" aria-hidden />
+            Technical details
+          </summary>
+          <p className="mt-1 break-words" data-testid="releases-notes">Indexers: {r.notes.replace(/\b1 ([\w-]+ )?entries\b/g, "1 $1entry")}</p>
+        </details>
+      ) : null}
     </div>
   );
 }

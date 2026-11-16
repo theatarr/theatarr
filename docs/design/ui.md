@@ -453,7 +453,10 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   grabbed: <reason>" ("Nothing grabbed for this episode" when a season search routed only others); it describes
   the downloads that search opened. The source badge, the age and "12 results, 2 accepted" sit in one line; under it
   the message says what the stored search came from ("From RSS", "From a search", "From a search for S01"; an
-  episode adds ", which covered S01E05"). A library that may not search live says why: "The acquirer is not running". The page's header explains the page once: the card
+  episode adds ", which covered S01E05"). A search that ran routed with no download says "A release was chosen, but no
+  download was started.". The indexers' notes are one line naming what went wrong per indexer ("Search incomplete:
+  therarbg was rate-limited, nyaa did not answer in time."; nothing when every indexer answered), with the raw notes
+  in a closed **Technical details**. A library that may not search live says why: "The acquirer is not running". The page's header explains the page once: the card
   repeats no hint and the action bar has no Interactive search. The grid's filter box reads "Filter releases" (what it
   matches in its tooltip); an indexer is shown without the "prowlarr-" prefix of a linked Prowlarr indexer's key, the
   key as tooltip. A live search no indexer answered is a failed search ("Live search failed",

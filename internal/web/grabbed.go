@@ -335,7 +335,7 @@ func searchSummary(dls []runDownload, cands []snapshot.Candidate, outcomes map[s
 	if len(dls) == 0 {
 		switch state {
 		case "routed":
-			return "Sent to download; no download opened"
+			return "A release was chosen, but no download was started."
 		case "queued", "searching":
 			return "Searching"
 		}
