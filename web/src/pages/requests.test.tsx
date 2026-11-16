@@ -126,3 +126,22 @@ describe("the request queue", () => {
     expect(screen.queryByText("Nothing waits for a decision.")).toBeNull();
   });
 });
+
+describe("problem reports", () => {
+  it("lets a manager switch from the open reports to their own, fixed ones with the reply", async () => {
+    const user = userEvent.setup();
+    const report = (id: number, status: string, reply = "") => ({ id, title_id: 5, title_kind: "movie", name: `Film ${id}`, episode_id: 0, kind: "picture", kind_label: "Picture", status, reply, mine: id === 2, created_at: "2026-10-30T12:00:00Z", updated_at: "2026-10-30T12:00:00Z" });
+    const fetch = mockFetch([
+      { method: "GET", path: "/auth/me", reply: { username: "mgr", permissions: ["browse", "request", "manage_requests"], csrf_token: "fixture" } },
+      { method: "GET", path: "/reports", reply: (r: { search: string }) => ({ items: new URLSearchParams(r.search).get("mine") ? [report(2, "fixed", "New copy in place")] : [report(1, "open")] }) },
+    ]);
+    renderPage(<Routes><Route path="/requests/:tab?" element={<RequestsPage />} /></Routes>, "/requests/problems");
+    await screen.findAllByText("Film 1");
+    expect(screen.getByRole("button", { name: "Open" }).getAttribute("aria-pressed")).toBe("true");
+    await user.click(screen.getByRole("button", { name: "My reports" }));
+    expect((await screen.findByTestId("problem-reply")).textContent).toBe("New copy in place");
+    expect(screen.queryAllByText("Film 1")).toHaveLength(0);
+    expect(screen.queryByTestId("problem-fix")).toBeNull();
+    expect(fetch.requests.some((r) => r.path === "/reports" && new URLSearchParams(r.search).get("mine") === "1")).toBe(true);
+  });
+});

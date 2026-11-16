@@ -2,7 +2,8 @@
 // reports with the status and the manager's reply. Managers (manage_requests) see every open report: what is wrong,
 // the note, who and when, and for those who see files the files the title's libraries hold for it now, with Replace
 // file… (unlink, blocklist the release in each library that loses it, search again; offered only when that search can
-// run, else the row says why and links to the title page) and Mark fixed with an optional reply.
+// run, else the row says why and links to the title page) and Mark fixed with an optional reply; a choice above the
+// list (Open, My reports) shows a manager their own reports, fixed ones too.
 import { Check, CheckCircle2, Flag, Loader2, RefreshCw, Send } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router";
@@ -16,31 +17,55 @@ import { Card } from "@/components/ui/card";
 import { ConfirmDialog, errText } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { fmtAgo, nameWithoutYear } from "@/lib/format";
+import { cn } from "@/lib/utils";
 
 export function ProblemsList() {
   const perms = usePerms();
-  const manager = perms.manageRequests;
-  const q = useReports();
+  // Managers choose between every open report and their own reports (open and fixed, with the reply).
+  const [mine, setMine] = useState(false);
+  const manager = perms.manageRequests && !mine;
+  const q = useReports(mine);
   const items = q.data?.items ?? [];
-  if (q.isPending) return <Loading />;
-  if (q.error) return <ErrorState error={q.error} />;
-  if (items.length === 0) {
-    return (
-      <Card>
-        <Empty icon={manager ? CheckCircle2 : Flag}>
-          {manager ? "No open problem reports." : "No problem reports. Use Report a problem on a movie or an episode that does not play right."}
-        </Empty>
-      </Card>
-    );
-  }
   return (
-    <ul className="space-y-3" data-testid="problem-list">
-      {items.map((r) => (
-        <li key={r.id}>
-          <ProblemRow r={r} manager={manager} />
-        </li>
-      ))}
-    </ul>
+    <>
+      {perms.manageRequests ? (
+        <div className="mb-4 flex flex-wrap gap-1.5" role="group" aria-label="Which reports">
+          {[{ id: false, label: "Open" }, { id: true, label: "My reports" }].map((c) => (
+            <button
+              key={c.label}
+              type="button"
+              aria-pressed={mine === c.id}
+              onClick={() => setMine(c.id)}
+              className={cn(
+                "rounded-[4px] border border-[var(--line)] px-2.5 py-1 text-[13px] font-medium text-[var(--ink-3)] transition hover:border-[var(--line-2)]",
+                mine === c.id && "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent-ink)]",
+              )}
+            >
+              {c.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+      {q.isPending ? (
+        <Loading />
+      ) : q.error ? (
+        <ErrorState error={q.error} />
+      ) : items.length === 0 ? (
+        <Card>
+          <Empty icon={manager ? CheckCircle2 : Flag}>
+            {manager ? "No open problem reports." : "No problem reports. Use Report a problem on a movie or an episode that does not play right."}
+          </Empty>
+        </Card>
+      ) : (
+        <ul className="space-y-3" data-testid="problem-list">
+          {items.map((r) => (
+            <li key={r.id}>
+              <ProblemRow r={r} manager={manager} />
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
   );
 }
 
