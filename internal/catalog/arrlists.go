@@ -382,14 +382,14 @@ func (s *MovieIntake) PreviewList(ctx context.Context, id int64) (ListPreview, e
 }
 
 // previewItems classifies a TMDb list's items of the list's media (as addItems takes them) with note. A series new to
-// Theatarr is read from TMDb for its TVDB id only while the series exclusion list holds any, so Preview says excluded
-// where Sync would skip it, and costs no TMDb request otherwise.
+// Theatarr is excluded when its TMDb id is one of the series exclusions' (excludedTMDbSeries), so Preview says
+// excluded where Sync would skip it without reading each series' details.
 func (s *MovieIntake) previewItems(ctx context.Context, cfg movieIntakeConfig, keys []string, items []tmdb.MovieSummary,
 	note func(PreviewTitle)) error {
-	var exclusions bool
+	var excluded map[int]bool
 	if cfg.media == "series" {
-		if err := s.Store.Reader().QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM series_exclusion)`).
-			Scan(&exclusions); err != nil {
+		var err error
+		if excluded, err = s.excludedTMDbSeries(ctx); err != nil {
 			return err
 		}
 	}
@@ -409,13 +409,11 @@ func (s *MovieIntake) previewItems(ctx context.Context, cfg movieIntakeConfig, k
 		var err error
 		var titleID int64
 		if series {
-			it := arrSeries{TmdbID: int64(m.ID), Title: m.Name}
-			if exclusions {
-				if it.TvdbID, err = s.previewTVDB(ctx, m.ID); err != nil {
-					return err
-				}
+			t.Change, titleID, err = s.previewSeries(ctx, cfg, keys, arrSeries{TmdbID: int64(m.ID), Title: m.Name})
+			// A series new to Theatarr has no TVDB id here: the exclusions' TMDb ids say whether Sync would skip it.
+			if err == nil && titleID == 0 && t.Change != "excluded" && excluded[m.ID] {
+				t.Change = "excluded"
 			}
-			t.Change, titleID, err = s.previewSeries(ctx, cfg, keys, it)
 		} else {
 			t.Change, titleID, err = s.previewMovie(ctx, cfg, keys, int64(m.ID))
 		}
@@ -433,26 +431,37 @@ func (s *MovieIntake) previewItems(ctx context.Context, cfg movieIntakeConfig, k
 	return nil
 }
 
-// previewTVDB is the TVDB id of a TMDb series, as Sync resolves it: the stored one, else TMDb's details; 0 when TMDb
-// has none.
-func (s *MovieIntake) previewTVDB(ctx context.Context, tmdbID int) (int64, error) {
-	var tvdb sql.NullInt64
-	err := s.Store.Reader().QueryRowContext(ctx, `SELECT tvdb_id FROM title WHERE kind='series' AND tmdb_id=?`, tmdbID).
-		Scan(&tvdb)
-	switch {
-	case err == nil && tvdb.Valid && tvdb.Int64 > 0:
-		return tvdb.Int64, nil
-	case err != nil && !errors.Is(err, sql.ErrNoRows):
-		return 0, err
-	}
-	t, err := s.TMDb.TVDetails(ctx, tmdbID)
-	if errors.Is(err, tmdb.ErrNotFound) {
-		return 0, nil
-	}
+// excludedTMDbSeries are the TMDb ids of the series exclusions, by TMDb's cached find by TVDB id, read once per
+// Preview. An exclusion TMDb cannot resolve is left out: Sync still skips it by its TVDB id.
+func (s *MovieIntake) excludedTMDbSeries(ctx context.Context) (map[int]bool, error) {
+	rows, err := s.Store.Reader().QueryContext(ctx, `SELECT tvdb_id FROM series_exclusion`)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
-	return int64(t.ExternalIDs.TVDbID), nil
+	var tvdbIDs []int
+	for rows.Next() {
+		var id int
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		tvdbIDs = append(tvdbIDs, id)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	out := map[int]bool{}
+	for _, id := range tvdbIDs {
+		tmdbID, err := s.TMDb.FindTVByTVDB(ctx, id)
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		if err == nil && tmdbID > 0 {
+			out[tmdbID] = true
+		}
+	}
+	return out, nil
 }
 
 // previewMovie and previewSeries classify a title as a sync would (previewChange); titleID is its id in Theatarr,

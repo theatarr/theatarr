@@ -32,6 +32,8 @@ type MovieMetadataSource interface {
 	// FindByIMDb and FindTVByIMDb resolve a JSON list's IMDb ids (ErrNotFound when TMDb has none).
 	FindByIMDb(context.Context, string) (int, error)
 	FindTVByIMDb(context.Context, string) (int, error)
+	// FindTVByTVDB resolves a series exclusion for Preview (cached).
+	FindTVByTVDB(context.Context, int) (int, error)
 }
 
 // MovieIntake refreshes collections and lists through the shared catalog add path.

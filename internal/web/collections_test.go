@@ -168,6 +168,8 @@ func (f *fakeIntakeTMDb) FindByIMDb(_ context.Context, imdb string) (int, error)
 	return 0, tmdb.ErrNotFound
 }
 
+func (f *fakeIntakeTMDb) FindTVByTVDB(context.Context, int) (int, error) { return 0, tmdb.ErrNotFound }
+
 func (f *fakeIntakeTMDb) FindTVByIMDb(context.Context, string) (int, error) {
 	return 0, tmdb.ErrNotFound
 }

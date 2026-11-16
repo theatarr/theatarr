@@ -460,6 +460,11 @@ func (s *pauseIntakeSource) FindByIMDb(context.Context, string) (int, error) {
 	return 0, tmdb.ErrNotFound
 }
 
+func (s *pauseIntakeSource) FindTVByTVDB(context.Context, int) (int, error) {
+	s.reads.Add(1)
+	return 0, tmdb.ErrNotFound
+}
+
 func (s *pauseIntakeSource) FindTVByIMDb(context.Context, string) (int, error) {
 	s.reads.Add(1)
 	return 0, tmdb.ErrNotFound

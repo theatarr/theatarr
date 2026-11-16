@@ -344,6 +344,7 @@ type oneCollection struct{ c tmdb.Collection }
 func (f oneCollection) Collection(context.Context, int) (*tmdb.Collection, error) { return &f.c, nil }
 func (f oneCollection) List(context.Context, int) (*tmdb.List, error)             { return &tmdb.List{}, nil }
 func (f oneCollection) FindByIMDb(context.Context, string) (int, error)           { return 0, tmdb.ErrNotFound }
+func (f oneCollection) FindTVByTVDB(context.Context, int) (int, error)            { return 0, tmdb.ErrNotFound }
 func (f oneCollection) FindTVByIMDb(context.Context, string) (int, error)         { return 0, tmdb.ErrNotFound }
 func (f oneCollection) DiscoverMovies(context.Context, tmdb.Discover) ([]tmdb.MovieSummary, error) {
 	return nil, nil

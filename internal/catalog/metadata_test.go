@@ -29,8 +29,11 @@ type intakeSource struct {
 	collections map[int]*tmdb.Collection
 	list        *tmdb.List
 	movies      map[int]*tmdb.Movie
-	// tv answers TVDetails by TMDb id; a missing id is TMDb's not found.
-	tv map[int]*tmdb.TV
+	// tv answers TVDetails by TMDb id; a missing id is TMDb's not found. tvCalls counts the calls.
+	tv      map[int]*tmdb.TV
+	tvCalls *int
+	// tvdbTMDb answers FindTVByTVDB.
+	tvdbTMDb map[int]int
 	// discovered answers DiscoverMovies and DiscoverTV; rules records the rules asked for.
 	discovered []tmdb.MovieSummary
 	rules      *[]tmdb.Discover
@@ -56,11 +59,21 @@ func (f intakeSource) FindTVByIMDb(ctx context.Context, imdb string) (int, error
 	return f.FindByIMDb(ctx, imdb)
 }
 
+func (f intakeSource) FindTVByTVDB(_ context.Context, tvdb int) (int, error) {
+	if id := f.tvdbTMDb[tvdb]; id > 0 {
+		return id, nil
+	}
+	return 0, tmdb.ErrNotFound
+}
+
 func (f intakeSource) DiscoverTV(ctx context.Context, d tmdb.Discover) ([]tmdb.MovieSummary, error) {
 	return f.DiscoverMovies(ctx, d)
 }
 
 func (f intakeSource) TVDetails(_ context.Context, id int) (*tmdb.TV, error) {
+	if f.tvCalls != nil {
+		*f.tvCalls++
+	}
 	if t := f.tv[id]; t != nil {
 		return t, nil
 	}
@@ -1072,7 +1085,9 @@ func TestTMDbSeriesList(t *testing.T) {
 			{"id":503,"name":"No TVDB","media_type":"tv"},
 			{"id":504,"name":"Held","media_type":"tv"},
 			{"id":505,"name":"Excluded","media_type":"tv"}]}`),
-		tv: map[int]*tmdb.TV{501: plain, 502: anime, 503: {ID: 503, Name: "No TVDB"}, 505: excluded},
+		tv:       map[int]*tmdb.TV{501: plain, 502: anime, 503: {ID: 503, Name: "No TVDB"}, 505: excluded},
+		tvCalls:  new(int),
+		tvdbTMDb: map[int]int{405: 505},
 	}
 	s, st := newIntake(t, src)
 	yes, no := true, false
@@ -1092,6 +1107,10 @@ func TestTMDbSeriesList(t *testing.T) {
 	p, err := s.PreviewList(context.Background(), 1)
 	if err != nil || p.AddTitle != 3 || p.AddLibrary != 1 || p.Excluded != 1 || p.Present != 0 {
 		t.Fatalf("preview %+v %v", p, err)
+	}
+	// The exclusions are looked up by their TVDB ids (cached), not each new series by its details.
+	if *src.tvCalls != 0 {
+		t.Fatalf("Preview read %d series' details", *src.tvCalls)
 	}
 	got, err := s.SyncList(context.Background(), 1)
 	if err != nil {
