@@ -277,7 +277,7 @@ it("renders the first 50 releases, shows more on asking, and filters by a reject
   expect(screen.getByTestId("release-capped").textContent).toBe("Showing the best 121 of 500.");
   fireEvent.click(screen.getByTestId("release-more"));
   expect(await rows()).toBe(100);
-  const chip = screen.getAllByTestId("releases-reason").find((b) => b.textContent?.startsWith("The file held has a better quality"))!;
+  const chip = screen.getAllByTestId("releases-reason").find((b) => b.textContent?.startsWith("The file held is preferred"))!;
   fireEvent.click(chip);
   expect(chip.getAttribute("aria-pressed")).toBe("true");
   expect(await rows()).toBe(30);

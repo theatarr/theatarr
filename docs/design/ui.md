@@ -622,7 +622,7 @@ table wider than its frame scrolls inside the frame, and while columns are hidde
 fades. On a phone, a title page and Home's "See all" lists highlight **Browse**.
 
 **Codes in words** (`web/src/lib/code-words.ts` and one file per domain): a stored code is never printed as it is.
-Rejection reasons (`rejection-words.ts`: "DiskHigherPreference" reads "The file held has a better quality"), TMDb statuses and release types
+Rejection reasons (`rejection-words.ts`: "DiskHigherPreference" reads "The file held is preferred"), TMDb statuses and release types
 (`tmdb-words.ts`: "inCinemas" reads "In cinemas", "theatrical_limited" "Limited cinema release" or, in the Movies
 "Next" line, "Limited release"), anime formats, mapping statuses, roles, sources and order kinds (`anime-words.ts`:
 "TVDB_SPECIAL" reads "TVDB special", "heuristic" "Matched by date and title"), the router's attempt outcomes, step

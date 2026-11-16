@@ -54,7 +54,7 @@ const REJECTIONS: Record<string, string> = {
   NotSeasonPack: "Not a season pack",
   ExistingFileHasMoreEpisodes: "The file held has more episodes",
   // Against the file held.
-  DiskHigherPreference: "The file held has a better quality",
+  DiskHigherPreference: "The file held is preferred",
   DiskHigherRevision: "The file held is a newer revision",
   DiskCutoffMet: "The file held meets the cutoff",
   DiskCustomFormatCutoffMet: "The file held meets the format cutoff",
