@@ -181,6 +181,13 @@ old image (`THEATARR_VERSION` back at the old release, or `image: theatarr:previ
 `THEATARR_FORCE_OFF=router,library,notify` until you have reconciled. Never start the old image against the migrated
 database or try to downgrade it in place: startup and restore refuse that downgrade.
 
+If a migration itself fails, the restore with the new image can refuse too: it migrates a scratch copy of the restored
+database to check the configuration, and the same migration fails there. When that restore refuses, or the new image
+does not start at all, roll back by hand; no Theatarr command is needed. Stop the container; in the data volume copy
+the set's database over the live one (`cp /data/backups/theatarr-<stamp>.db /data/theatarr.db`); delete
+`/data/theatarr.db-wal` and `/data/theatarr.db-shm` if they are there; then start the old image as above, with
+`THEATARR_FORCE_OFF=router,library,notify` until you have reconciled. The policy directory is left as it is.
+
 Sets written by the new image after the upgrade use the newer schema, which the old image cannot restore. Restoring
 the before-upgrade set loses the Theatarr records and settings written since; provider files and library links stay
 on disk and need the reconciliation in step 6.
