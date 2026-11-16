@@ -164,7 +164,11 @@ func hevcSPSColour(nal []byte) (primaries, transfer uint64, ok bool) {
 	for i := 0; i < 6; i++ {
 		r.ue() // coding and transform block sizes, transform hierarchy depths
 	}
-	if r.bit() == 1 && r.bit() == 1 { // scaling_list_enabled_flag, sps_scaling_list_data_present_flag
+	scalingData := false
+	if r.bit() == 1 { // scaling_list_enabled_flag
+		scalingData = r.bit() == 1 // sps_scaling_list_data_present_flag
+	}
+	if scalingData {
 		for sizeID := 0; sizeID < 4; sizeID++ {
 			step := 1
 			if sizeID == 3 {
@@ -251,8 +255,10 @@ func readSTRPS(r *bitReader, sets []stRPS, idx int) bool {
 		n := len(ref.s0) + len(ref.s1)
 		use := make([]bool, n+1)
 		for j := 0; j <= n; j++ {
-			used := r.bit() == 1
-			use[j] = used || r.bit() == 1 // use_delta_flag, inferred 1 when used_by_curr_pic_flag is set
+			use[j] = true     // use_delta_flag, inferred 1 when used_by_curr_pic_flag is set
+			if r.bit() == 0 { // used_by_curr_pic_flag
+				use[j] = r.bit() == 1 // use_delta_flag
+			}
 		}
 		if r.over {
 			return false
