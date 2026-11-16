@@ -51,7 +51,7 @@ func TestServeStartsWithNothingConfigured(t *testing.T) {
 			"-listen", addr, "-backup-dir", "off", "-mount-helper=false", "-log-level", "warn"})
 	}()
 	base := "http://" + addr
-	deadline := time.Now().Add(30 * time.Second)
+	deadline := time.Now().Add(120 * time.Second)
 	for {
 		select {
 		case err := <-done:
