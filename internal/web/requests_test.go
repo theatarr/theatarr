@@ -590,8 +590,9 @@ func TestActivityScopedToRequestedCopies(t *testing.T) {
 		slices.Sort(out)
 		return out
 	}
-	if got := versions(ann); !slices.Equal(got, []string{"movie-remux", "tv-2160p", "tv-2160p"}) {
-		t.Errorf("ann's history versions %v", got)
+	// A household account's History has no Grabbed rows (journal.Filter.Household).
+	if got := versions(ann); len(got) != 0 {
+		t.Errorf("ann's history versions %v, want no Grabbed rows", got)
 	}
 	if got := versions(mgr); !slices.Equal(got, []string{"movie-remux", "movie-web", "tv-2160p", "tv-2160p"}) {
 		t.Errorf("manager's history versions %v", got)

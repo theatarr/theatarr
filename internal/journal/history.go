@@ -37,6 +37,10 @@ import (
 //     removed it and what became of its files (Removal).
 //
 // Searches, dry runs, mount waits, repaired links and plans stay in the journal only.
+//
+// For an account without "see files" (Filter.Household) the rows carry no release or library, so one event would read
+// as several identical rows: there are no Grabbed rows, and the rows of one title, the same episodes, the same event
+// and the same day are one row, the latest (before paging).
 
 // History events.
 const (
@@ -155,7 +159,7 @@ func (j *Journal) history(ctx context.Context, f Filter, episode int64) (*Histor
 	err = l.query(`SELECT ref, at, title_id, version_key, kind, event, download_id, release, info_hash, indexer, size,
 		quality, score, formats, episodes, files, replaced, provider, reason, source, import_state, by, detail,
 		`+adoptedUnscoredSQL+`
-		FROM history WHERE `+where+` ORDER BY at DESC, ref DESC LIMIT ?`, append(wargs, f.Limit+1),
+		FROM `+where+` ORDER BY at DESC, ref DESC LIMIT ?`, append(wargs, f.Limit+1),
 		func(r *sql.Rows) error {
 			var s stored
 			if err := r.Scan(&s.h.id, &s.h.at, &s.h.titleID, &s.h.version, &s.h.kind, &s.event, &s.dl, &s.release,
@@ -479,7 +483,8 @@ func idNum(id string) int64 {
 	return n
 }
 
-// historyFilter checks f and sets its page size; the WHERE clause of its rows, or none when no row can match.
+// historyFilter checks f and sets its page size; the source and WHERE clause of its rows ("history WHERE …", the
+// household's merged rows for Filter.Household), or none when no row can match.
 func (j *Journal) historyFilter(ctx context.Context, f *Filter, episode int64) (string, []any, bool, error) {
 	if err := f.Validate(); err != nil {
 		return "", nil, false, err
@@ -502,8 +507,30 @@ func (j *Journal) historyFilter(ctx context.Context, f *Filter, episode int64) (
 		return "", nil, true, nil
 	}
 	cur, _ := decodeCursor(f.Cursor)
-	where, args := historyWhere(*f, titles, cur, episode)
-	return where, args, false, nil
+	where, args := historyWhere(*f, titles, episode)
+	var curWhere string
+	var curArgs []any
+	if cur != nil {
+		curWhere, curArgs = `(at < ? OR (at = ? AND ref < ?))`, []any{cur.at, cur.at, cur.id}
+	}
+	if !f.Household {
+		if cur != nil {
+			where, args = where+` AND `+curWhere, append(args, curArgs...)
+		}
+		return `history WHERE ` + where, args, false, nil
+	}
+	// The household's rows (Filter.Household): the latest of each title, episodes (as a set), event and day (UTC, as
+	// an adoption's rows are grouped), chosen before paging so a page never shows a row its group's newer one stands
+	// for. Nothing is merged across days or events; the rows kept are read as they are.
+	src := `(SELECT * FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY title_id, event, ep_set, at / 86400000
+			ORDER BY at DESC, ref DESC) AS merged_rn
+		FROM (SELECT history.*, (SELECT json_group_array(value) FROM (SELECT DISTINCT value FROM json_each(history.episodes)
+				ORDER BY value)) AS ep_set
+			FROM history WHERE ` + where + ` AND event <> 'grabbed')) WHERE merged_rn = 1) AS history`
+	if cur != nil {
+		return src + ` WHERE ` + curWhere, append(args, curArgs...), false, nil
+	}
+	return src, args, false, nil
 }
 
 // historyWhere is the filter of the history rows, with the rows another row stands for left out (docs/journal.md
@@ -512,7 +539,7 @@ func (j *Journal) historyFilter(ctx context.Context, f *Filter, episode int64) (
 // Imported; a file an adoption replaced is never Removed on its own); only a since bound or a kinds filter that leaves
 // the partner out lists them, so a page never shows half of a pair. The partner shares the row's title and library.
 // episode (the episode window) keeps the rows that hold it; an upgrade's row also by its import's episodes.
-func historyWhere(f Filter, titles []int64, cur *cursor, episode int64) (string, []any) {
+func historyWhere(f Filter, titles []int64, episode int64) (string, []any) {
 	w, args := historyMatch(f, titles)
 	if episode > 0 {
 		w = append(w, `(EXISTS (SELECT 1 FROM json_each(history.episodes) WHERE value = ?)
@@ -536,9 +563,6 @@ func historyWhere(f Filter, titles []int64, cur *cursor, episode int64) (string,
 		w = append(w, `NOT (event = 'removed' AND EXISTS (SELECT 1 FROM history p WHERE `+
 			adoptionOfRemovalSQL(`p.at BETWEEN history.at - 60000 AND history.at + 60000`)+since+held+`))`)
 		args = append(append(args, sinceArgs...), heldArgs...)
-	}
-	if cur != nil {
-		w, args = append(w, `(at < ? OR (at = ? AND ref < ?))`), append(args, cur.at, cur.at, cur.id)
 	}
 	return strings.Join(w, " AND "), args
 }

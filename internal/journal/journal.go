@@ -144,6 +144,9 @@ type Filter struct {
 	Limit int
 	// Events keeps these History events (History only, history.go).
 	Events []string
+	// Household is History for an account without "see files" (History only, history.go): no Grabbed rows, and the
+	// rows of one title, episodes, event and day are one row, the latest.
+	Household bool
 }
 
 // Page is one page of entries, newest first.

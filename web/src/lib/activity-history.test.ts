@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   clearHistoryFilters,
   historyFilterCount,
+  historyEventsFor,
   historyFiltersFor,
   historyParams,
   NO_HISTORY_FILTERS,
@@ -47,6 +48,11 @@ describe("activity history filters", () => {
     // The household view has no library selector, so a library in the URL filters nothing there.
     expect(historyFiltersFor({ ...NO_HISTORY_FILTERS, copy: "movie-web" }, false).copy).toBe("");
     expect(historyFiltersFor({ ...NO_HISTORY_FILTERS, copy: "movie-web" }, true).copy).toBe("movie-web");
+    // Household History has no Grabbed rows: no Grabbed filter, and an old Grabbed link reads All events.
+    expect(historyEventsFor(false).map((e) => e.id)).not.toContain("grabbed");
+    expect(historyEventsFor(true).map((e) => e.id)).toContain("grabbed");
+    expect(historyFiltersFor({ ...NO_HISTORY_FILTERS, event: "grabbed" }, false).event).toBe("all");
+    expect(historyFiltersFor({ ...NO_HISTORY_FILTERS, event: "grabbed" }, true).event).toBe("grabbed");
     // Since is local midnight of that day.
     expect(new Date(p.since!).getTime()).toBe(new Date(2026, 9, 1).getTime());
     expect(historyFilterCount({ title: "A", copy: "", event: "all", since: "2026-10-01" })).toBe(2);

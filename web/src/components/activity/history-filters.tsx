@@ -11,8 +11,8 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import {
   clearHistoryFilters,
-  HISTORY_EVENTS,
   historyFilterCount,
+  historyEventsFor,
   historyFiltersFor,
   parseHistoryFilters,
   withHistoryFilter,
@@ -73,8 +73,8 @@ export function HistoryFilters({ tools, admin = false }: { tools?: ReactNode; ad
         ))}
         {f.copy && !copies.some((v) => v.key === f.copy) ? <option value={f.copy}>{known(f.copy) ? nameOf(f.copy) : "Removed library"}</option> : null}
       </Select> : null}
-      <Select aria-label="Event" value={f.event} onChange={(e) => set("event", e.target.value)} className="min-w-0 sm:w-auto" data-testid="history-event">
-        {HISTORY_EVENTS.map((e) => (
+      <Select aria-label="Event" value={historyFiltersFor(f, admin).event} onChange={(e) => set("event", e.target.value)} className="min-w-0 sm:w-auto" data-testid="history-event">
+        {historyEventsFor(admin).map((e) => (
           <option key={e.id} value={e.id}>{e.label}</option>
         ))}
       </Select>

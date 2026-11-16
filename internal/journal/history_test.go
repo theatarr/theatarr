@@ -533,3 +533,54 @@ func TestHistoryAdoptedUnscored(t *testing.T) {
 		t.Errorf("rows:\n got %q\nwant %q", got, want)
 	}
 }
+
+// Household History (no "see files"): no Grabbed rows, and one row per title, episodes (as a set), event and day,
+// the latest, chosen before paging. Nothing is merged across days or events; the admin view keeps every row.
+func TestHistoryHousehold(t *testing.T) {
+	e := newEnv(t)
+	day := testNow.Add(-24 * time.Hour)
+	ms := func(d time.Duration) int64 { return msOf(day.Add(d)) }
+	e.exec(`INSERT INTO history (ref, at, event, kind, title_id, version_key, release, episodes) VALUES
+		('dl:1', ?, 'grabbed', 'grab', 1, 'movie-web', 'web', '[]'),
+		('dl:1:import', ?, 'imported', 'import', 1, 'movie-web', 'web', '[]'),
+		('dl:2:import', ?, 'imported', 'import', 1, 'movie-remux', 'remux', '[]'),
+		('dl:3:fail', ?, 'failed', 'grab', 1, 'movie-web', 'failed', '[]'),
+		('dl:4:import', ?, 'imported', 'import', 1, 'movie-web', 'next day', '[]'),
+		('dl:5:import', ?, 'imported', 'import', 3, 'tv-2160p', 'tv a', '[101,102]'),
+		('dl:6:import', ?, 'imported', 'import', 3, 'tv-1080p', 'tv b', '[102,101]'),
+		('dl:7:import', ?, 'imported', 'import', 3, 'tv-1080p', 'tv c', '[101]')`,
+		ms(time.Hour), ms(2*time.Hour), ms(3*time.Hour), ms(4*time.Hour), ms(24*time.Hour),
+		ms(5*time.Hour), ms(6*time.Hour), ms(7*time.Hour))
+	got := e.history(Filter{Household: true})
+	want := []string{
+		"imported next day ",
+		"imported tv c  [S01E01]",
+		"imported tv b  [S01E01,S01E02]",
+		"failed failed ",
+		"imported remux ",
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("household rows:\n got %q\nwant %q", got, want)
+	}
+	if all := e.history(Filter{}); len(all) != 8 {
+		t.Errorf("admin rows: %q", all)
+	}
+	// Paging walks the merged rows: a page never shows a row its group's newer one stands for.
+	var paged []string
+	cursor := ""
+	for range 10 {
+		p, err := e.j.History(context.Background(), Filter{Household: true, Limit: 2, Cursor: cursor})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, x := range p.Items {
+			paged = append(paged, histRow(x))
+		}
+		if cursor = p.NextCursor; cursor == "" {
+			break
+		}
+	}
+	if !slices.Equal(paged, want) {
+		t.Errorf("paged:\n got %q\nwant %q", paged, want)
+	}
+}

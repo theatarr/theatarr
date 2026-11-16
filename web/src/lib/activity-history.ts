@@ -71,7 +71,12 @@ export function historyParams(f: HistoryFilters): { title?: string; version?: st
 }
 
 /** The filters as a view can use them: without "see files" the library filter is dropped (the view has no library
- *  selector). */
+ *  selector), and so is Grabbed (the server lists no Grabbed rows there). */
 export function historyFiltersFor(f: HistoryFilters, admin: boolean): HistoryFilters {
-  return admin ? f : { ...f, copy: "" };
+  return admin ? f : { ...f, copy: "", event: f.event === "grabbed" ? "all" : f.event };
+}
+
+/** The event types a view offers: without "see files" there is no Grabbed. */
+export function historyEventsFor(admin: boolean): typeof HISTORY_EVENTS {
+  return admin ? HISTORY_EVENTS : HISTORY_EVENTS.filter((e) => e.id !== "grabbed");
 }

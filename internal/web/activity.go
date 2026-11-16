@@ -386,6 +386,8 @@ func (w *Web) apiActivity(rw http.ResponseWriter, r *http.Request) {
 		} else if !admin {
 			f.Events = allowed
 		}
+		// Household rows have no release or library: one row per title and change, no Grabbed (journal.Filter).
+		f.Household = !admin
 		jp, err := w.journal.History(ctx, f)
 		if errors.Is(err, journal.ErrBadFilter) {
 			badRequest(rw, strings.TrimPrefix(err.Error(), "journal: "))

@@ -349,7 +349,14 @@ func TestActivityReleaseFacts(t *testing.T) {
 
 	var u ActivityPage
 	e.getKey(APIBase+"/activity?state=history&as=user", key, &u)
-	if len(u.History) != len(h.History) {
+	// The same rows but Grabbed (household History has none).
+	grabs := 0
+	for _, x := range h.History {
+		if x.Event == "grabbed" {
+			grabs++
+		}
+	}
+	if grabs == 0 || len(u.History) != len(h.History)-grabs {
 		t.Fatalf("user history: %+v", u.History)
 	}
 	for _, x := range u.History {
@@ -609,9 +616,10 @@ func TestActivityHistoryPagesOverOwnTitles(t *testing.T) {
 	now := store.Millis(testNow)
 	// Newest first: four entries for Beta (not the user's), then three for Alpha (theirs), then two for Gamma.
 	at := now
+	// A day apart: household rows of one title, event and day are one row.
 	add := func(title int64, n int) {
 		for i := 0; i < n; i++ {
-			at -= 1000
+			at -= 86400000
 			e.exec(`INSERT INTO router_blocklist (version_key, info_hash, title_id, release_title, reason, source, created_at)
 				VALUES ('movie-web', ?, ?, 'R', 'bad', 'router', ?)`, fmt.Sprintf("%040x", at), title, at)
 		}
@@ -863,7 +871,8 @@ func TestHistorySameForTitle(t *testing.T) {
 	}
 	var u ActivityPage
 	e.getKey(APIBase+"/activity?state=history&title_id=1&as=user", key, &u)
-	if len(u.History) != 2 || u.History[0].Event != "imported" {
+	// No Grabbed row in household History.
+	if len(u.History) != 1 || u.History[0].Event != "imported" {
 		t.Errorf("user history: %+v", u.History)
 	}
 	if code := e.getKey(APIBase+"/activity?state=history&events=copy_added&as=user", key, nil); code != 400 {
@@ -901,7 +910,8 @@ func TestHistorySeriesRedaction(t *testing.T) {
 		t.Fatalf("admin series history: %+v", a.History)
 	}
 	e.getKey(APIBase+"/activity?state=history&title_id=3&as=user", key, &u)
-	if len(u.History) != 2 {
+	// No Grabbed row in household History: the import alone.
+	if len(u.History) != 1 || u.History[0].Event != "imported" {
 		t.Fatalf("user series history: %+v", u.History)
 	}
 	// Household rows carry the episode labels (S01E01), not file details.
@@ -1297,6 +1307,10 @@ func TestHistoryFilterMatrix(t *testing.T) {
 			"&events=imported":                      nil,
 			"&events=removed,missing,title_removed": {"Removed"},
 		} {
+			if as != "" {
+				// Household History has no Grabbed rows.
+				want = slices.DeleteFunc(slices.Clone(want), func(w string) bool { return w == "Grabbed" })
+			}
 			if got, _ := words(base + filter + as); !slices.Equal(got, want) {
 				t.Errorf("%s%s: %q, want %q", filter, as, got, want)
 			}
