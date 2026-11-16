@@ -345,7 +345,7 @@ export function TitlePage() {
               <RequestMoreSeasons target={target} />
             </div>
           ) : null}
-          <Seasons id={id} anime={!!d.anime} franchises={franchises} />
+          <Seasons id={id} anime={!!d.anime} franchises={franchises} history={Object.fromEntries(all.map((v) => [v.key ?? "", v.history]))} />
         </>
       ) : null}
       {tab === "order" ? <AnimeOrder franchises={franchises} admin={perms.admin} /> : null}

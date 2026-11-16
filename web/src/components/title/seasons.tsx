@@ -31,6 +31,7 @@ import { useEffect, useState, type KeyboardEvent, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router";
 import type { SearchOutcome } from "@/api/add";
 import { usePerms, useEpisodes, type Episode, type EpisodeList } from "@/api/library";
+import type { Schemas } from "@/api/client";
 import { useMonitor, useScopedSearch, type ManageOutcome } from "@/api/manage";
 import { ErrorState, Loading, Mono } from "@/components/page";
 import { ProviderPills } from "@/components/provider-pills";
@@ -80,6 +81,10 @@ import { cn } from "@/lib/utils";
 import { TorrentLink } from "@/components/title/info-hash";
 
 type SeasonT = EpisodeList["seasons"][number];
+type HistoryEvent = Schemas["HistoryEvent"];
+/** Each library's history on the title page (TitleDetail versions[].history), by library key: a season's Why? says a
+ *  failed try of the release found, as the Libraries row does. */
+type Histories = Record<string, readonly HistoryEvent[] | null | undefined>;
 type VersionT = EpisodeList["versions"][number];
 
 /** Desktop from the md breakpoint: All libraries and tables; below it, rows for one library. */
@@ -641,7 +646,7 @@ function SeasonCount({ season, v }: { season: SeasonT; v: VersionT }) {
   );
 }
 
-function OneLibraryFacts({ season, v, seeFiles }: { season: SeasonT; v: VersionT; seeFiles: boolean }) {
+function OneLibraryFacts({ season, v, seeFiles, history }: { season: SeasonT; v: VersionT; seeFiles: boolean; history?: readonly HistoryEvent[] | null }) {
   const c = season.versions[v.key];
   // The quality word with Why? (UpgradeStatus) says Upgrade found once; the count is said only without it. None in a
   // library that does not monitor the title: nothing is searched there.
@@ -658,7 +663,7 @@ function OneLibraryFacts({ season, v, seeFiles }: { season: SeasonT; v: VersionT
       {facts.length ? <span className="min-w-0 truncate text-xs text-muted-foreground" data-testid="season-facts">{facts.join(" · ")}</span> : null}
       {quality && c ? (
         <span onClick={(e) => e.stopPropagation()} className="contents">
-          <UpgradeStatus u={c.upgrade} what={`Season ${season.season} · ${v.label}`} score={c.score} cutoff={v.cutoff} />
+          <UpgradeStatus u={c.upgrade} what={`Season ${season.season} · ${v.label}`} score={c.score} cutoff={v.cutoff} history={history} />
         </span>
       ) : null}
     </>
@@ -684,6 +689,7 @@ function SeasonBlock({
   columns,
   filter,
   onFilter,
+  history,
 }: {
   titleId: number;
   season: SeasonT;
@@ -705,6 +711,7 @@ function SeasonBlock({
   /** The season's filter (kept by Seasons, which acts only on ticked episodes the filters show). */
   filter: EpisodeFilter;
   onFilter: (f: EpisodeFilter) => void;
+  history?: Histories;
 }) {
   const actions = useSeasonActions(titleId, scope);
   const keys = copies.map((v) => v.key);
@@ -754,7 +761,7 @@ function SeasonBlock({
         {one && seeFiles ? <SeasonCount season={season} v={one} /> : null}
         <span className="flex min-w-0 items-center gap-2 max-md:order-last max-md:basis-full max-md:flex-wrap md:flex-1">
           {one && seeFiles ? (
-            <OneLibraryFacts season={season} v={one} seeFiles={seeFiles} />
+            <OneLibraryFacts season={season} v={one} seeFiles={seeFiles} history={history?.[one.key]} />
           ) : (
             <>
               {seeFiles && !merged ? copies.map((v) => <LibraryBadge key={v.key} v={v} season={season} />) : null}
@@ -883,7 +890,7 @@ export function newestFirst<T extends { season: number }>(seasons: readonly T[])
   return [...seasons].sort((a, b) => (a.season === 0 ? 1 : b.season === 0 ? -1 : b.season - a.season));
 }
 
-export function Seasons({ id, anime, franchises = [] }: { id: string; anime: boolean; franchises?: { slug: string; name: string }[] }) {
+export function Seasons({ id, anime, franchises = [], history }: { id: string; anime: boolean; franchises?: { slug: string; name: string }[]; history?: Histories }) {
   const list = useEpisodes(id);
   const perms = usePerms();
   const wide = useWide();
@@ -1010,6 +1017,7 @@ export function Seasons({ id, anime, franchises = [] }: { id: string; anime: boo
           columns={columns}
           filter={filters[s.season] ?? "all"}
           onFilter={(f) => setFilters({ ...filters, [s.season]: f })}
+          history={history}
         />
       ))}
       <p className="pt-1 text-xs text-muted-foreground">

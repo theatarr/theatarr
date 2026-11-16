@@ -503,6 +503,23 @@ describe("One status vocabulary", () => {
     expect(within(dialog).queryByText("Missing")).toBeNull();
   });
 
+  it("says in the season's Why? that the season pack found was tried, from the library's history", async () => {
+    const release = "Tsukikage.Signal.S01.2160p.WEB-DL-GRP";
+    const seen = new Date(Date.now() - 2 * 86400000).toISOString();
+    const found = { ...below, state: "upgrade_available", next: { release, quality: "WEBDL-2160p", score: 6200, seen_at: seen } };
+    const pack = { ...words, seasons: [{ ...words.seasons[0], versions: { ...words.seasons[0].versions, "anime-web": { ...words.seasons[0].versions["anime-web"], upgrade: found } } }] };
+    mockFetch([routes[0], { method: "GET", path: "/titles/1/episodes", reply: pack }]);
+    const user = userEvent.setup();
+    const history = { "anime-web": [{ event: "failed", date: seen, release_title: release, reason: "Not cached on RD, AD and TB", missed_on: ["rd", "ad", "tb"], upgrade: true }] };
+    renderPage(<Seasons id="1" anime={false} history={history as never} />, "/title/1");
+    await screen.findByText("One");
+    await user.click(screen.getByRole("radio", { name: "Anime WEB" }));
+    await user.click(within(screen.getByTestId("season-header")).getByTestId("upgrade-why"));
+    const why = await screen.findByTestId("upgrade-why-dialog");
+    const lines = [...within(why).getByTestId("why-lines").querySelectorAll("p")].map((p) => p.textContent);
+    expect(lines[2]).toMatch(/Better release found .+: Tsukikage\.Signal\.S01\.2160p\.WEB-DL-GRP \(WEBDL-2160p, score 6,200\)\. Tried .+: not cached on RD, AD and TB\. Your file is unchanged\.$/);
+  });
+
   it("gives a library that does not monitor the title no Upgrade found, and keeps its closed-link warning in the window", async () => {
     const held = { ...words, episodes: words.episodes.map((e) => ({ ...e, versions: { ...e.versions, "anime-off": cell(true, { state: "filled", upgrade_seen: true }) } })) };
     const linksOff = { ...managed, grab_state: { paused: false, pause_forced: false, will_grab: true, library_writes: false } };
