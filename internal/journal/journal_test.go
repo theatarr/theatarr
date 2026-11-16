@@ -410,6 +410,8 @@ func TestDownloadChecks(t *testing.T) {
 		"Gamma.S01-S02.2160p.WEB-DL-X", "WEBDL-2160p", 100, 40<<30, []int64{201, 202}, "")
 	e.dlEvent(52, "added", base.Add(-29*time.Hour), 3, 3, "tv-2160p", fmt.Sprintf("%040d", 52),
 		"Gamma.Complete.Series.2160p.WEB-DL-X", "WEBDL-2160p", 100, 40<<30, []int64{201, 202}, "")
+	e.dlEvent(53, "added", base.Add(-28*time.Hour), 3, 3, "tv-2160p", fmt.Sprintf("%040d", 53),
+		"Gamma.S01.to.S02.2160p.WEB-DL-X", "WEBDL-2160p", 100, 40<<30, []int64{201, 202}, "")
 	up := e.get("dl:3")
 	if up.Kind != KindUpgrade || up.Source != "theatarr" {
 		t.Fatalf("upgrade: %+v", up)
@@ -432,7 +434,7 @@ func TestDownloadChecks(t *testing.T) {
 	if f := hasFlag(pack, CheckEpisodes); f == nil || f.Severity != SevError || len(pack.Release.Episodes) != 2 {
 		t.Errorf("pack: %+v %+v", pack.Flags, pack.Release)
 	}
-	for _, id := range []string{"dl:51", "dl:52"} {
+	for _, id := range []string{"dl:51", "dl:52", "dl:53"} {
 		if span := e.get(id); hasFlag(span, CheckEpisodes) != nil || hasFlag(span, CheckUnparsed) != nil {
 			t.Errorf("%s: a span filed under one of its seasons is flagged: %+v", id, span.Flags)
 		}

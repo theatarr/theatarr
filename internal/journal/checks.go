@@ -14,6 +14,7 @@ import (
 	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/decide/parser/radarr"
 	"github.com/theatarr/theatarr/internal/decide/parser/sonarr"
+	"github.com/theatarr/theatarr/internal/indexer"
 )
 
 // Check codes. docs/journal.md says what each means and what to do about it.
@@ -163,12 +164,17 @@ func (b *builder) checkSeriesName(e *Entry, ti *titleInfo, name string) {
 		return
 	}
 	s := p.SeasonNumber
-	if s > 0 && ti.counts[s] == 0 && !p.IsMultiSeason && !p.CompleteSeries {
+	// A span files under each of its seasons: a multi-season or complete pack, or a season pack whose name proves a
+	// range from its season ("S01 to S03"), as the decision reads it (not for anime).
+	first, last, ranged := indexer.PackSeasons(name)
+	span := p.IsMultiSeason || p.CompleteSeries || ranged && ti.t.SeriesType != "anime" && p.FullSeason &&
+		len(p.EpisodeNumbers) == 0 && first == s && last <= ti.maxS
+	if s > 0 && ti.counts[s] == 0 && !span {
 		e.flag(CheckEpisodes, sev(SevError), "the release is season %d; the series has seasons up to %d", s, ti.maxS)
 		return
 	}
 	if p.FullSeason {
-		if len(filed) > 0 && !filed[s] && !p.IsMultiSeason && !p.CompleteSeries { // a span files under each season
+		if len(filed) > 0 && !filed[s] && !span {
 			e.flag(CheckEpisodes, sev(SevError), "a season %d pack filed under %s", s, strings.Join(seasonList(filed), ", "))
 		}
 		return
