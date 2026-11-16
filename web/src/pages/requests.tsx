@@ -18,6 +18,7 @@ import {
   useDeclineRequest,
   useRequest,
   useRequests,
+  useRequestSummary,
   type Request,
   type RequestDetail,
 } from "@/api/requests";
@@ -125,6 +126,8 @@ function RequestTimeline({ r }: { r: RequestDetail }) {
 
 /** The tabs: To decide, All, Mine and Problems for managers; My requests and Problems for everyone else. */
 function RequestTabs({ active, manager }: { active: string; manager: boolean }) {
+  // A manager's open problem reports: part of the Requests badge, so the tab says how many.
+  const problems = useRequestSummary().data?.problems ?? 0;
   const tabs = manager
     ? [
         { id: "queue", label: "To decide", to: "/requests" },
@@ -132,7 +135,7 @@ function RequestTabs({ active, manager }: { active: string; manager: boolean }) 
         { id: "mine", label: "Mine", to: "/requests/mine" },
       ]
     : [{ id: "mine", label: "My requests", to: "/requests" }];
-  return <RouteTabs active={active} tabs={[...tabs, { id: "problems", label: "Problems", to: "/requests/problems" }]} />;
+  return <RouteTabs active={active} tabs={[...tabs, { id: "problems", label: "Problems", to: "/requests/problems", count: manager ? problems : 0 }]} />;
 }
 
 function ProblemsTab() {

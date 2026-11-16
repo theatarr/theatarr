@@ -87,7 +87,8 @@ export function Overview() {
   const [details, setDetails] = useState(false);
   const holdsQ = useCardigannHolds();
   const holds = holdsQ.data?.length ?? 0;
-  const problems = useRequestSummary().data?.problems ?? 0;
+  const summary = useRequestSummary();
+  const problems = summary.data?.problems ?? 0;
   const setup = useSetup();
   const ready = useReady();
   const st = useStatus();
@@ -203,6 +204,7 @@ export function Overview() {
     { key: "gateway", name: "the gateway (VPN egress and back-offs)", q: gw, to: "/admin/advanced/limits" },
     { key: "downloads", name: "downloads", q: now, to: "/activity" },
     { key: "holds", name: "indexer definition updates", q: holdsQ, to: "/admin/settings/indexers" },
+    { key: "problems", name: "problem reports", q: summary, to: "/requests/problems" },
   ];
   for (const { key, name, q, to } of sources.filter((x) => x.q.error)) {
     items.push({ key: `unavailable-${key}`, tone: "warn", title: `Could not load ${name}`, effect: <>Alerts from it are unknown. <span className="text-[var(--ink-3)]">{q.error instanceof Error ? q.error.message : String(q.error)}</span></>, next: "Reload the page; check the server if it keeps failing", to });

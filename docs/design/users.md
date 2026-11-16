@@ -194,7 +194,8 @@ A household member says a film or an episode is broken without leaving the app; 
   threads, no automatic closing.
 - **Requests › Problems** (`/requests/problems`): the reporter's own reports with the status and the reply; for
   managers every open report, oldest first: title and episode, what is wrong, the note, who and when, and for accounts
-  that see files the files the title's libraries hold for it now.
+  that see files the files the title's libraries hold for it now. For managers the tab shows the open count, the part
+  of the Requests badge that is problem reports.
 - **Replace file…** per file. Unlinking a file takes it out of every library and every episode it serves
   (`Ops.UnlinkLink`), so the row and the confirmation name exactly those: "The file is removed now and a new one is
   searched. Until one is found it is missing in <libraries>.", the episodes that lose it, and for a file from a pack

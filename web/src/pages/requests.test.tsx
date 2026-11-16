@@ -144,4 +144,15 @@ describe("problem reports", () => {
     expect(screen.queryByTestId("problem-fix")).toBeNull();
     expect(fetch.requests.some((r) => r.path === "/reports" && new URLSearchParams(r.search).get("mine") === "1")).toBe(true);
   });
+
+  it("shows a manager the open count on the Problems tab, the number the Requests badge adds", async () => {
+    mockFetch([
+      { method: "GET", path: "/auth/me", reply: { username: "mgr", permissions: ["browse", "request", "manage_requests"], csrf_token: "fixture" } },
+      { method: "GET", path: "/requests/summary", reply: { pending: 0, problems: 2, mine_open: 0, badge: 2 } },
+      { method: "GET", path: "/requests", reply: { items: [], counts: {}, total: 0 } },
+    ]);
+    renderPage(<Routes><Route path="/requests/:tab?" element={<RequestsPage />} /></Routes>, "/requests");
+    await waitFor(() => expect(screen.getByRole("tab", { name: /Problems/ }).textContent).toBe("Problems2"));
+    expect(screen.getByRole("option", { name: "Problems (2)" })).toBeTruthy();
+  });
 });

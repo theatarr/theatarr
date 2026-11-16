@@ -166,13 +166,13 @@ export function Mono({ children, className }: { children: ReactNode; className?:
   return <span className={cn("font-mono text-[12.5px] tracking-[-0.01em]", className)}>{children}</span>;
 }
 
-/** Underlined sub-navigation tabs bound to routes (Scryer's settings tabs look). */
-export function RouteTabs({ tabs, active }: { tabs: { id: string; label: string; to: string }[]; active: string }) {
+/** Underlined sub-navigation tabs bound to routes (Scryer's settings tabs look); a tab's count, when above 0, follows its label. */
+export function RouteTabs({ tabs, active }: { tabs: { id: string; label: string; to: string; count?: number }[]; active: string }) {
   const navigate = useNavigate();
   return (<>
     <label className="mb-5 flex items-center gap-2 text-[13px] font-medium sm:hidden">Section
       <Select className="min-w-0 flex-1" value={active} onChange={e => { const tab = tabs.find(t => t.id === e.target.value); if (tab) void navigate(tab.to); }}>
-        {tabs.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+        {tabs.map(t => <option key={t.id} value={t.id}>{t.count ? `${t.label} (${t.count})` : t.label}</option>)}
       </Select>
     </label>
     <div className="mb-5 hidden gap-5 overflow-x-auto border-b border-[var(--line)] [scrollbar-width:none] sm:flex" role="tablist">
@@ -186,6 +186,7 @@ export function RouteTabs({ tabs, active }: { tabs: { id: string; label: string;
           className="-mb-px flex h-[38px] items-center whitespace-nowrap border-b-2 border-transparent text-[13.5px] text-[var(--ink-3)] transition-colors hover:text-[var(--ink)] data-[active=true]:border-[var(--ink)] data-[active=true]:font-medium data-[active=true]:text-[var(--ink)]"
         >
           {t.label}
+          {t.count ? <span className="ml-1.5 font-mono text-[12px] tabular-nums text-[var(--warn-ink)]">{t.count}</span> : null}
         </Link>
       ))}
     </div>

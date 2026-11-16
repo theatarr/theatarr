@@ -12,6 +12,7 @@ const reviewRoutes = [
  { method: "GET", path: "/settings/sync/changes", reply: [] },
  { method: "GET", path: "/cardigann/holds", reply: [] },
  { method: "GET", path: "/journal/flagged", reply: { count: 0 } },
+ { method: "GET", path: "/requests/summary", reply: { pending: 0, problems: 0, mine_open: 0, badge: 0 } },
 ];
 const status = { schema: { current: 1, target: 1 } };
 
