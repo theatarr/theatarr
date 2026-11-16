@@ -56,7 +56,6 @@ export const qk = {
     all: ["journal"] as const,
     list: (f: unknown) => ["journal", "list", f] as const,
     entry: (e: string) => ["journal", "entry", e] as const,
-    flagged: ["journal", "flagged"] as const,
     title: (t: Id) => ["journal", "title", id(t)] as const,
   },
 

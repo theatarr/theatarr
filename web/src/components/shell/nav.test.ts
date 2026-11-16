@@ -105,7 +105,8 @@ it("opens System children only on Status and System pages and keeps child badges
  for (const path of ["/admin", "/admin/system/logs"]) expect(itemActive(path, system)).toBe(true);
  expect(itemActive("/admin/torrents", system)).toBe(false);
  expect(system.children?.find(c => c.label === "Tasks")?.badge).toBe("jobs");
- expect(system.children?.find(c => c.label === "Decision journal")?.badge).toBe("journal");
+ // Flagged decisions are no badge: nothing asks for an action (the journal's Flagged filter keeps them).
+ expect(system.children?.find(c => c.label === "Decision journal")?.badge).toBeUndefined();
 });
 
 vi.mock("@/api/events", () => ({ useLive: () => ({ jobCounts: { attention: 3, failed: 10 } }) }));
@@ -152,7 +153,7 @@ it("the phone's More lists top-level pages; System, Settings and Advanced open o
  expect(system.badge).toBe("system");
  expect(system.children?.find(i => i.label === "Status")?.badge).toBe("system");
  expect(system.children?.find(i => i.label === "Tasks")?.badge).toBe("jobs");
- expect(system.children?.find(i => i.label === "Decision journal")?.badge).toBe("journal");
+ expect(system.children?.find(i => i.label === "Decision journal")?.badge).toBeUndefined();
  expect(admin.find(i => i.label === "Settings")?.children?.[0]).toMatchObject({ to: "/admin/settings", label: "All settings" });
  expect(admin.find(i => i.label === "Advanced")?.children?.[0]).toMatchObject({ to: "/admin/advanced", label: "Advanced overview" });
  expect(admin.filter(i => i.label !== "System" && i.label !== "Settings" && i.label !== "Advanced").every(i => !i.children?.length)).toBe(true);

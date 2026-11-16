@@ -41,7 +41,7 @@ import {
 } from "lucide-react";
 
 export type NavNeed = "admin" | "users" | "manage";
-export type NavBadge = "requests" | "jobs" | "system" | "journal";
+export type NavBadge = "requests" | "jobs" | "system";
 export type NavItem = {
   /** The page; a parent without one only groups its children (Library). */
   to?: string;
@@ -91,7 +91,7 @@ const ADMIN: NavGroup = {
       { to: "/admin/system/tasks", label: "Tasks", icon: ListTodo, badge: "jobs" },
       { to: "/admin/system/backup", label: "Backup", icon: Database },
       { to: "/admin/system/logs", label: "Logs", icon: ScrollText },
-      { to: "/admin/system/journal", label: "Decision journal", icon: BookOpen, badge: "journal" },
+      { to: "/admin/system/journal", label: "Decision journal", icon: BookOpen },
     ] },
     { to: "/admin/torrents", label: "Torrents", icon: HardDrive, need: "admin" },
     { to: "/admin/settings", label: "Settings", icon: SlidersHorizontal, need: "admin", children: SETTINGS, childrenWhenActive: true },

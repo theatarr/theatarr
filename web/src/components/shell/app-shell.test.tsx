@@ -3,7 +3,7 @@ import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, it, vi } from "vitest";
 import { mockFetch, renderPage } from "@/test/page";
-import { AppShell, JournalBadge } from "./app-shell";
+import { AppShell } from "./app-shell";
 vi.mock("@/components/search/search-context", () => ({ useSearchUI: () => ({ openOverlay: vi.fn() }) }));
 vi.mock("./account-menu", () => ({ AccountMenu: () => null, ThemeSwitch: () => null }));
 vi.mock("@/api/useSetupProgress", () => ({ useSetupProgress: () => ({ unfinished: false }) }));
@@ -95,9 +95,3 @@ it("phone: tabs Home, Browse, Activity, Requests, More; More opens System only o
   expect([...sheet.querySelectorAll("a[href]")].map((a) => a.getAttribute("href")).filter((h) => h !== "/")).toEqual(["/now-playing", "/calendar"]);
 });
 
-it("counts the flagged decisions on an admin page only, from the stored count", async () => {
-  const fetch = mockFetch([{ method: "GET", path: "/journal/flagged", reply: { count: 2 } }]);
-  renderPage(<JournalBadge />, "/admin/system/tasks");
-  expect((await screen.findByTestId("journal-badge")).textContent).toBe("2");
-  expect(fetch.calls("GET", "/journal")).toHaveLength(0);
-});

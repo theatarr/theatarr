@@ -14,7 +14,6 @@ import { PRODUCT_NAME } from "@/brand";
 import { cn } from "@/lib/utils";
 import { AccountMenu, ThemeSwitch } from "./account-menu";
 import { allowed, isActive, itemActive, LIBRARY, moreFor, navFor, tabFor, TABS, type NavBadge, type NavGroup, type NavItem } from "./nav";
-import { useFlaggedCount } from "@/api/hooks";
 import { useSetupProgress } from "@/api/useSetupProgress";
 import { useLive } from "@/api/events";
 import { attentionCount } from "@/lib/jobs";
@@ -75,17 +74,7 @@ function JobsBadge() {
   );
 }
 
-/** The flagged decisions (GET /journal/flagged, a stored count), read on admin pages only. */
-function useFlagged() {
-  return useFlaggedCount(useLocation().pathname.startsWith("/admin")).data?.count ?? 0;
-}
-
-export function JournalBadge() {
-  const n = useFlagged();
-  return n > 0 ? <span data-testid="journal-badge" className={COUNT}>{n > 99 ? "99+" : n}</span> : null;
-}
-
-/** System: the jobs and tasks needing attention, as before 0.4.5; the flagged decisions are the journal's own badge. */
+/** System: the jobs and tasks needing attention, as before 0.4.5. */
 export function SystemBadge() {
   const live = useLive();
   const n = attentionCount(live.jobCounts);
@@ -96,7 +85,6 @@ function NavBadgeFor({ badge }: { badge?: NavBadge }) {
   if (badge === "system") return <SystemBadge />;
   if (badge === "requests") return <RequestsBadge />;
   if (badge === "jobs") return <JobsBadge />;
-  if (badge === "journal") return <JournalBadge />;
   return null;
 }
 

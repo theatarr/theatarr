@@ -8,10 +8,10 @@ journal answers that without reading the code or the raw database. Code: `intern
 
 | How | Use |
 |---|---|
-| **System › Decision journal** (`/admin/system/journal`, admins) | The list in the UI, newest first, one line per thing that happened (below, "The list"), with **Flagged** for the entries a check found suspect (the nav badge counts them). An entry opens from its title link. The title page's Journal block (History tab) shows the same lines for the title. |
+| **System › Decision journal** (`/admin/system/journal`, admins) | The list in the UI, newest first, one line per thing that happened (below, "The list"), with **Flagged** for the entries a check found suspect (no badge or Status notice counts them: they ask for no action). An entry opens from its title link. The title page's Journal block (History tab) shows the same lines for the title. |
 | `GET /api/theatarr/v1/journal` | List entries, newest first. Header `X-Api-Key: <key>`. |
 | `GET /api/theatarr/v1/journal/{id}` | Get one entry. |
-| `GET /api/theatarr/v1/journal/flagged` | `{"count": n}`: how many entries carry a `warn` or `error` flag (a count over the stored flags). |
+| `GET /api/theatarr/v1/journal/flagged` | `{"count": n}`: how many entries carry a `warn` or `error` flag (a count over the stored flags). The UI does not read it. |
 | `theatarr journal [flags]` | The same list on a database file. Output is JSONL (one entry per line, then `{"next_cursor": ...}` when there are more). `-format text` gives a few lines per entry. `-id ID` prints one entry. `-all` follows the cursor to the end. |
 
 Filters work the same way in the API and the CLI (`-flag` or `?param=`):
@@ -47,7 +47,7 @@ in the SQL that pages, so a page boundary never splits them). The parent has the
 `kind` and `since` can tell them apart: `kind=import` lists the imports, `kind=link` a download's link actions (their
 grab is not a link), `kind=action` the unlinks; `since` after a grab lists what came after it on their own lines.
 Flags live on History rows: a grab's line shows its own flags and those of its import and failure (the entry page as
-well). The flagged view (`suspect`, `severity`) folds nothing: each flagged entry is its own line, so the badge's count
+well). The flagged view (`suspect`, `severity`) folds nothing: each flagged entry is its own line, so the endpoint's count
 is the number of lines.
 
 Every summary names files by their file names only; the full paths are in `paths` (the UI's tooltip, and listed on the
@@ -147,7 +147,7 @@ for every unchecked row in the background when `theatarr serve` starts (after an
 the checks are Go, so the migration leaves them unchecked), and for up to 50 new rows before each journal read (list,
 entry, count; a read writes nothing when no row waits, and a batch is one transaction). Only the kinds the checks
 look at are checked (grab, upgrade, failure, stall, import, blocklist); other rows keep `flags` NULL. The Flagged
-filter and the badge are a filter and a `COUNT(*)` on `history`; the Flagged list dates a grab by its entry (when the
+filter and the count endpoint are a filter and a `COUNT(*)` on `history`; the Flagged list dates a grab by its entry (when the
 download was created), as the full list does.
 
 Only entries with a History row carry flags: grabs that reached a provider or client, failures, imports that linked

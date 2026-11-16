@@ -123,7 +123,7 @@ it("filters Tasks by the kind query and can show all again", async () => {
  expect(screen.getByTestId("jobs-attention").textContent).toBe("2");
 });
 
-it("lists the flagged decisions and the held indexer definitions under Needs attention", async () => {
+it("lists the held indexer definitions under Needs attention, and no flagged decisions", async () => {
  mockFetch([
   ...reviewRoutes.map(r => r.path === "/journal/flagged" ? { ...r, reply: { count: 3 } } : r.path === "/cardigann/holds" ? { ...r, reply: [{ id: "tpb", reasons: [], detail: [], commit: "abc", since: "2026-11-01T00:00:00Z" }] } : r),
   { method: "GET", path: "/readyz", reply: { status: "ok" } },
@@ -134,9 +134,9 @@ it("lists the flagged decisions and the held indexer definitions under Needs att
   { method: "GET", path: "/activity", reply: { now: [] } },
  ]);
  renderPage(<Overview />);
- await screen.findByText("Needs attention (2)");
- const flagged = await screen.findByText("3 flagged decisions");
- expect(flagged.closest("li")?.querySelector("a")?.getAttribute("href")).toBe("/admin/system/journal?suspect=1");
+ await screen.findByText("Needs attention (1)");
+ // The flags are after-the-fact checks with nothing to do: the journal's Flagged filter keeps them.
+ expect(screen.queryByText(/flagged decision/)).toBeNull();
  const holds = screen.getByText("1 indexer definition update waiting");
  expect(holds.closest("li")?.querySelector("a")?.getAttribute("href")).toBe("/admin/settings/indexers");
 });
@@ -374,26 +374,6 @@ it("leads with Needs attention and Checks; readiness, strips, libraries and diag
  expect(await screen.findByRole("heading", { name: "Readiness" })).toBeTruthy();
  for (const name of ["Readiness", "Downloads", "Tasks", "Libraries", "Diagnostics"]) expect(details.contains(screen.getByRole("heading", { name }))).toBe(true);
  expect(details.contains(screen.getByRole("heading", { name: "Checks" }))).toBe(false);
-});
-
-it.each(["pending", "error"])("Status does not give an all-clear while the flagged count is %s", async state => {
- mockFetch([
-  ...reviewRoutes.map(r => r.path === "/journal/flagged" ? { ...r, reply: state === "pending" ? () => new Promise(() => {}) : json({ error: "journal down" }, 500) } : r),
-  { method: "GET", path: "/readyz", reply: { status: "ok" } },
-  { method: "GET", path: "/status", reply: status },
-  { method: "GET", path: "/jobs", reply: { items: [], counts: {} } },
-  { method: "GET", path: "/gateway", reply: { egress: { vpn_ok: true } } },
-  { method: "GET", path: "/health", reply: { checks: [] } },
-  { method: "GET", path: "/activity", reply: { now: [] } },
- ]);
- renderPage(<Overview />);
- if (state === "error") {
-  const row = await screen.findByText("Could not load flagged decisions");
-  expect(row.closest("li")?.querySelector("a")?.getAttribute("href")).toBe("/admin/system/journal?suspect=1");
- } else {
-  await screen.findByText("Needs attention");
- }
- expect(screen.queryByText("Nothing needs attention.")).toBeNull();
 });
 
 it("says a failed download's reason in plain words, and a debrid account's premium end by its provider's name", async () => {
