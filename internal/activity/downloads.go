@@ -29,8 +29,10 @@ const QueueFailureSQL = `d.state='failed' AND d.dismissed_at IS NULL AND d.updat
 
 // NativeQueueFailureSQL selects the failed downloads Activity's queue and System › Status still show (the arr queue
 // keeps QueueFailureSQL). The download alias is d and its title t (Downloads joins it); its one argument is the 7-day
-// cutoff (ms). A miss on every provider, a download never started (NotStarted) and one a removal ended (endedByRemovalSQL)
-// belong to History only. Any other
+// cutoff (ms). A miss on every provider, a download never started (NotStarted), one a removal ended (endedByRemovalSQL)
+// and one the library refused and blocklisted (failed with its import rejected: the media check found a sample or a
+// mislabelled file; a new search is asked for and Retry is refused, so nothing is left to do) belong to History only. A
+// download held for review keeps its ready state and stays in the queue. Any other
 // failure (stalled, refused by the library, not imported in time, a provider error) shows until it is covered, for at
 // most 7 days: a movie when its title and library hold an active link from an imported download newer than the
 // failure; a series download when each of its episodes (download.episodes, and a manual import's download_file
@@ -39,6 +41,7 @@ const QueueFailureSQL = `d.state='failed' AND d.dismissed_at IS NULL AND d.updat
 // untouched.
 var NativeQueueFailureSQL = `d.state='failed' AND d.dismissed_at IS NULL AND d.updated_at > ?
  AND COALESCE(d.error, '') NOT GLOB 'miss on every provider*'
+ AND NOT EXISTS (SELECT 1 FROM library_import rj WHERE rj.download_id = d.id AND rj.state = 'rejected')
  AND NOT ` + notStartedSQL("d") + `
  AND NOT ` + endedByRemovalSQL + `
  AND ((t.kind = 'movie' AND NOT EXISTS (` + newerLinkSQL + `))

@@ -1179,11 +1179,20 @@ func TestActivityRefusedReason(t *testing.T) {
 		"no file passed the sample guard ("+cf+")", now)
 	const head, detail = "Not imported: these files do not improve on the files you have",
 		"This release scores 1,202, yours 6,200. Nothing was replaced."
+	// Refused and blocklisted, it is not in the queue (nothing is left to do); its row reads the same where shown.
 	var p ActivityPage
-	if code := e.getKey(APIBase+"/activity?state=now", key, &p); code != 200 || len(p.Now) != 1 {
+	if code := e.getKey(APIBase+"/activity?state=now", key, &p); code != 200 || len(p.Now) != 0 {
 		t.Fatalf("queue: %d %+v", code, p)
 	}
-	d := p.Now[0]
+	ds, err := activity.Downloads(context.Background(), e.st.Reader(), activity.Filter{IDs: []int64{1}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	views, err := e.web.downloadViews(context.Background(), ds, true)
+	if err != nil || len(views) != 1 {
+		t.Fatalf("download view: %v %+v", err, views)
+	}
+	d := views[0]
 	if d.Reason != head || d.ReasonDetail != detail || d.Error != "library: no file passed the sample guard" {
 		t.Errorf("queue reason %q / %q / %q", d.Reason, d.ReasonDetail, d.Error)
 	}
@@ -1378,5 +1387,61 @@ func TestHistoryFilterMatrix(t *testing.T) {
 	}
 	if !redownload {
 		t.Errorf("title history: %+v", d.Versions[0].History)
+	}
+}
+
+// A download the library refused and blocklisted (failed, its import rejected) leaves Activity's queue and its count by
+// itself: nothing is left to do. A held-for-review row (still ready, its import rejected) and an ordinary failed
+// download stay; the arr-compatible queue keeps the refused one; History still lists it. Reading changes no row.
+func TestActivityRefusedBlocklistedLeavesQueue(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	key := e.apiKey()
+	now := store.Millis(testNow)
+	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, state, error,
+		created_at, updated_at) VALUES
+		(1, 1, 2, 'movie-web', ?1, 'Alpha.Sample', 'dmm', 'failed', 'library: no file passed the sample guard', ?4, ?4),
+		(2, 1, 1, 'movie-remux', ?2, 'Alpha.Held', 'dmm', 'ready', NULL, ?4, ?4),
+		(3, 1, 2, 'movie-web', ?3, 'Alpha.Stalled', 'dmm', 'failed', 'stalled: not ready 10m0s after the add', ?4, ?4)`,
+		hashA, hashB, fmt.Sprintf("%040x", 3), now)
+	e.exec(`INSERT INTO library_import (download_id, state, mount_folder, last_error, plan, created_at, updated_at) VALUES
+		(1, 'rejected', 'Alpha.Sample', 'no file passed the sample guard', '{}', ?1, ?1),
+		(2, 'rejected', 'Alpha.Held', 'not an upgrade for the existing files', '{}', ?1, ?1)`, now)
+	e.exec(`INSERT INTO router_blocklist (version_key, info_hash, title_id, release_title, reason, source, download_id,
+		created_at) VALUES ('movie-web', ?, 1, 'Alpha.Sample', 'no file passed the sample guard', 'library', 1, ?)`, hashA, now)
+	var p ActivityPage
+	if code := e.getKey(APIBase+"/activity?state=now", key, &p); code != 200 {
+		t.Fatalf("queue: %d", code)
+	}
+	var got []int64
+	for _, d := range p.Now {
+		got = append(got, d.ID)
+	}
+	if !slices.Equal(got, []int64{3, 2}) || p.Total != 2 {
+		t.Errorf("queue %v (total %d), want the stalled and the held download", got, p.Total)
+	}
+	arr, err := activity.Downloads(context.Background(), e.st.Reader(), activity.Filter{ArrQueueAt: testNow})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var arrIDs []int64
+	for _, d := range arr {
+		arrIDs = append(arrIDs, d.ID)
+	}
+	if !slices.Contains(arrIDs, 1) {
+		t.Errorf("arr queue %v lost the refused download", arrIDs)
+	}
+	var h ActivityPage
+	e.getKey(APIBase+"/activity?state=history&title_id=1", key, &h)
+	found := false
+	for _, x := range h.History {
+		found = found || x.ID == "dl:1:fail"
+	}
+	if !found {
+		t.Errorf("history lacks the refused download: %+v", h.History)
+	}
+	var b ActivityPage
+	if e.getKey(APIBase+"/activity?state=blocked", key, &b); len(b.Blocked) != 1 {
+		t.Errorf("blocklist %+v", b.Blocked)
 	}
 }
