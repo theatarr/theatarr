@@ -136,10 +136,9 @@ func (d *Download) Words(provider string) string {
 		case "partial":
 			return "Partly imported (retrying)"
 		case "rejected":
-			if d.ImportErr != "" {
-				return "Import blocked: " + d.ImportErr
-			}
-			return "Import blocked"
+			// Without the stored reason: it can name library paths, and household accounts read these words.
+			// The admin queue row carries the reason (web failureWords).
+			return "Held for review"
 		case "failed":
 			return "Linking failed, retrying"
 		case "dry_run":
