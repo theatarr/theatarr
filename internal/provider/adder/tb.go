@@ -121,6 +121,9 @@ func (t *torBox) err(status int, ecode, detail string, ra time.Duration) *Error 
 	case ecode == "INVALID_OPTION", ecode == "BAD_REQUEST":
 		// These describe the request, not invalid torrent content. Never blocklist the release.
 		code = CodeUnknown
+	case status == http.StatusForbidden && ecode == "":
+		// A 403 with no TorBox error code is an edge (Cloudflare) block, not a rejected key.
+		code = CodeUnavailable
 	case ecode == "AUTH_ERROR", ecode == "BAD_TOKEN", ecode == "NO_AUTH", ecode == "PLAN_RESTRICTED_FEATURE",
 		status == http.StatusUnauthorized, status == http.StatusForbidden:
 		code = CodeAuth

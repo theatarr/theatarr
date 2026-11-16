@@ -393,6 +393,9 @@ func TestTorBoxAdd(t *testing.T) {
 		{400, "tb/too_large.json", CodeBlocked},
 		{429, "", CodeRateLimited},
 		{500, "", CodeUnavailable},
+		// An edge (Cloudflare) 403 has no TorBox error code: temporary, not a rejected key.
+		{403, "", CodeUnavailable},
+		{401, "", CodeAuth},
 	} {
 		status, file = tc.status, tc.file
 		_, err := f.adder("tb").AddMagnet(ctx, magnet(t, h("c"), "x"), AddOptions{OnlyIfCached: true})
