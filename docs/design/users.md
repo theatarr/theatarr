@@ -29,12 +29,12 @@ A role is a preset of bits (`internal/auth/perms.go`); an admin can add `auto_ap
 | Bit | What it opens | admin | manager | user |
 |---|---|---|---|---|
 | `browse` | library, title pages, calendar, search, own activity, own requests | yes | yes | yes |
-| `request` | `POST /requests`, cancel own | yes | yes | yes |
+| `request` | `POST /requests`, cancel own, `POST /reports` (report a problem) | yes | yes | yes |
 | `auto_approve` | own requests are approved at once | yes | yes | optional |
 | `add` | `POST /titles`, `PUT /titles/{id}/versions/{key}` | yes | yes | no |
-| `manage_requests` | every request, approve, decline | yes | yes | no |
+| `manage_requests` | every request, approve, decline; every open problem report, mark fixed | yes | yes | no |
 | `see_files` | paths, hashes, release names, scores, providers in activity and title pages | yes | yes | no |
-| `manage` | search now, show releases, Wanted, refresh art | yes | yes | no |
+| `manage` | search now, show releases, Wanted, refresh art, replace a reported file | yes | yes | no |
 | `own_keys` | own API keys | yes | yes | optional |
 | `admin` | admin panel APIs (status, jobs, gateway, shadow, registry, policy, logs, journal, imports, metadata review, decide, sources) | yes | no | no |
 | `users` | users, their settings, everyone's keys | yes | no | no |
@@ -175,9 +175,53 @@ and no other-requester list or count.
   shared request and checks the JSON for those fields and values (source labels, "cutoff", file counts, history,
   requester ids, the request event too); `TestManagerSeesFileDetail` checks a manager gets them.
 
+## Report a problem
+
+A household member says a film or an episode is broken without leaving the app; a manager fixes it in one step
+(`internal/web/reports.go`, table `problem_report`, migration 00147).
+
+| Route | Permission | |
+|---|---|---|
+| `GET /reports` | browse | own reports, open and fixed; every open report with `manage_requests` (`?mine=1` for your own) |
+| `POST /reports` | request | report a movie or an episode that has a file: `kind` (picture, sound, subtitles, wont_play, other) and an optional note |
+| `POST /reports/{id}/fix` | manage_requests | mark fixed, with an optional reply the reporter sees |
+| `POST /reports/{id}/replace` | manage | replace one of the reported files: unlink, blocklist, search again |
+
+- **Reporting**: "Report a problem" beside a movie's status on its title page when it has a file, and under the
+  synopsis in the episode window for an episode with a file, for every account that may request. Without a file there
+  is nothing to report (409: that is a request). One open report per account, title and episode (`episode_id` 0 for a
+  movie, one unique index); a second report updates it. Note and reply are at most 500 characters. No quotas, no
+  threads, no automatic closing.
+- **Requests › Problems** (`/requests/problems`): the reporter's own reports with the status and the reply; for
+  managers every open report, oldest first: title and episode, what is wrong, the note, who and when, and for accounts
+  that see files the files the title's libraries hold for it now.
+- **Replace file…** per file. Unlinking a file takes it out of every library and every episode it serves
+  (`Ops.UnlinkLink`), so the row and the confirmation name exactly those: "The file is removed now and a new one is
+  searched. Until one is found it is missing in <libraries>.", the episodes that lose it, and for a file from a pack
+  (its release holds more episodes, or other files of the same content) that the whole pack is excluded there. On
+  confirm the link goes to the trash (the debrid torrent and every other file are untouched), the release is
+  blocklisted in each of those libraries (`router.Blocklist`, source `ui`) and a search is asked for the movie or
+  every episode the file held in those libraries. It is offered only when that search can run: Theatarr's own
+  symlink, its release known (a hash or a release name, so the blocklist keeps it out), searching running, Pause off,
+  and each of those libraries monitored for the movie or each of those episodes. Otherwise the row says why and links
+  to the title page; the server refuses the same cases (409) before anything changes. The report stays open. The
+  journal records it as an unlink with "replaced for problem report N".
+- **Mark fixed** with an optional reply: the reporter's list shows it, and the reporter gets an in-app toast (SSE
+  `problem` event, to managers and the reporter, whose copy says `mine`).
+- **Notice**: the Requests sidebar count includes the open reports for managers (`GET /requests/summary` `problems`,
+  added to `badge`); System › Status "Needs attention" shows "N problem reports" for admins, linking to the tab. A new
+  report sends one message (`notify.ProblemReported`) to the targets that get request messages: Discord and ntfy
+  ("Problem reported: <Title> S01E02", what is wrong, who, the note) and native targets (`theatarr.problem_reported`
+  with `problem`); the policy event name is `request_ready`, so a target filtered to requests gets it too. Arr
+  webhooks and installed arr-view notifications get nothing.
+- Household accounts see no file, release, provider, indexer or library detail here: their list carries no `files`,
+  `user` or `resolved_by`. Tests: `web.TestProblemReports`, `web.TestReplaceReportedFile`,
+  `notify.TestProblemReportedMessage`.
+
 ## Screens
 
-Login (Sign in with Plex; local login folded below), Requests (user: Mine; manager/admin: To decide, All, Mine),
+Login (Sign in with Plex; local login folded below), Requests (user: My requests, Problems; manager/admin: To decide,
+All, Mine, Problems),
 Request sheet in search and on title pages in place of Add, Admin › Users (roles, status, pending approvals, extra
 permissions, request versions, auto-approve, the new-Plex-users setting, each user's keys), Profile (name, theme,
 password for local accounts, own keys). API keys are managed in Users and Profile.

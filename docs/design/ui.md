@@ -1039,6 +1039,8 @@ Managers keep inline queue Approve/Decline and see what approval does per reques
 5. The request then follows the versions: `approved` → `processing` (a download exists) → `available` (every
    requested version is filled) or `failed`. Users get an SSE event and, later, a notification (`internal/notify`).
 
+**Problems** (`/requests/problems`, a tab beside the request tabs for every account; docs/design/users.md "Report a problem"): a household member's own problem reports with the status and the manager's reply; for managers every open report with what is wrong, the note, who and when, the files the title's libraries hold for it now with **Replace file…** (or why it is not offered, with a link to the title page), and **Mark fixed** with an optional reply. "Report a problem" sits beside a movie's status on its title page, and under the synopsis in the episode window, when there is a file. The Requests count includes open reports for managers; System › Status "Needs attention" shows "N problem reports" for admins.
+
 Seerr stays supported as a client of the arr views. Built-in requests are for people who use Theatarr directly.
 
 Approved and processing request text and timelines use the effective grab gates of their applicable versions.

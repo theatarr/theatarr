@@ -52,6 +52,7 @@ func (w *Web) mountAPI(mux *http.ServeMux) {
 	w.mountPlexLogin(mux)
 	w.mountInviteAPI(mux)
 	w.mountRequestsAPI(mux)
+	w.mountReportsAPI(mux)
 }
 
 func (w *Web) internal(rw http.ResponseWriter, err error) {

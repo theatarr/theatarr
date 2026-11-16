@@ -3,7 +3,8 @@
 // Request rows follow Seerr's RequestCard and RequestList (MIT, github.com/seerr-team/seerr src/components/
 // RequestList @ c167958): poster, title, status badge, requested by and when, the decision; ours adds a chip per
 // version that turns green when that version is in the library. /requests/<id> opens its timeline; old
-// ?request=<id> links redirect there. The server answers only a request the caller may see.
+// ?request=<id> links redirect there. The server answers only a request the caller may see. /requests/problems is the
+// Problems tab (problems.tsx): everyone's own problem reports, and for managers every open one.
 import { Check, CheckCircle2, Inbox, Loader2, Pencil, Send, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, Navigate, useParams, useSearchParams } from "react-router";
@@ -34,6 +35,7 @@ import { fmtAgo, fmtTime, nameWithoutYear } from "@/lib/format";
 import { approvalWords, requestTimeline } from "@/lib/request-timeline";
 import { cn } from "@/lib/utils";
 import { Pager } from "@/components/ui/pager";
+import { ProblemsList } from "@/pages/problems";
 
 const FILTERS = [
   { id: "open", label: "Open" },
@@ -61,6 +63,7 @@ export function RequestsPage() {
   const legacyId = Number(params.get("request"));
   if (Number.isSafeInteger(legacyId) && legacyId > 0) return <Navigate to={`/requests/${legacyId}`} replace />;
   if (tab && /^\d+$/.test(tab)) return <RequestDetailPage id={Number(tab)} />;
+  if (tab === "problems") return <ProblemsTab />;
   // A new component per tab: the status filter starts over on each (Pending on To decide, Open on All and Mine).
   return <RequestQueue key={tab ?? "queue"} />;
 }
@@ -120,6 +123,36 @@ function RequestTimeline({ r }: { r: RequestDetail }) {
   );
 }
 
+/** The tabs: To decide, All, Mine and Problems for managers; My requests and Problems for everyone else. */
+function RequestTabs({ active, manager }: { active: string; manager: boolean }) {
+  const tabs = manager
+    ? [
+        { id: "queue", label: "To decide", to: "/requests" },
+        { id: "all", label: "All", to: "/requests/all" },
+        { id: "mine", label: "Mine", to: "/requests/mine" },
+      ]
+    : [{ id: "mine", label: "My requests", to: "/requests" }];
+  return <RouteTabs active={active} tabs={[...tabs, { id: "problems", label: "Problems", to: "/requests/problems" }]} />;
+}
+
+function ProblemsTab() {
+  const manager = usePerms().manageRequests;
+  return (
+    <div>
+      <PageHeader
+        title="Requests"
+        description={
+          manager
+            ? "Problems the household reported with a file. Replace the file or mark the report fixed; the reporter sees your reply."
+            : "Problems you reported with a movie or an episode, and what was done."
+        }
+      />
+      <RequestTabs active="problems" manager={manager} />
+      <ProblemsList />
+    </div>
+  );
+}
+
 /** Requests per page of the queue. */
 const REQUEST_PAGE = 50;
 
@@ -153,16 +186,7 @@ function RequestQueue() {
             : "What you asked for, and where it is. Find something new with the search box and press Request."
         }
       />
-      {manager ? (
-        <RouteTabs
-          active={tab}
-          tabs={[
-            { id: "queue", label: "To decide", to: "/requests" },
-            { id: "all", label: "All", to: "/requests/all" },
-            { id: "mine", label: "Mine", to: "/requests/mine" },
-          ]}
-        />
-      ) : null}
+      <RequestTabs active={tab} manager={manager} />
       {tab !== "queue" ? (
         <div className="mb-4 flex flex-wrap gap-1.5" role="group" aria-label="Status">
           {FILTERS.map((f) => {

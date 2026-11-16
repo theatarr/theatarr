@@ -8,7 +8,8 @@
 // and History.
 // A title in no library (every copy removed) reads as a search result: "Not in the library", Add, About and History,
 // and the files kept from before its removal with Delete them; no action bar, Libraries table or episode list.
-// Family accounts (no "see files") get readiness, languages and their requests, no copy management. The backdrop
+// Family accounts (no "see files") get readiness, languages and their requests, no copy management. A movie with a
+// file has "Report a problem" beside its status for every account that may request (report-sheet.tsx). The backdrop
 // fading into the theme's background and the poster/title arrangement are adapted from Seerr
 // (github.com/seerr-team/seerr) src/components/MovieDetails/index.tsx and src/styles/globals.css (.media-page,
 // .media-header, .media-poster, .media-title, .media-attributes, .media-facts) @ c167958a, MIT (Copyright (c) 2020
@@ -30,6 +31,7 @@ import { KeptFiles } from "@/components/title/copy-actions";
 import { TitleToolbar, inEveryLibrary, monitorOnly } from "@/components/title/title-toolbar";
 import { RequestMoreSeasons, TitleRequest, TitleRequestButton } from "@/components/title/title-request";
 import { SeriesTypeControl } from "@/components/title/title-choices";
+import { ReportProblemButton } from "@/components/report/report-sheet";
 import { HistoryTab } from "@/components/activity/history-tab";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/badge";
@@ -283,6 +285,7 @@ export function TitlePage() {
             {stageBeside ? <Chip tone="info" data-testid="title-stage">{stageBeside}</Chip> : null}
             {audio.length > 0 ? <span className="text-xs text-muted-foreground">Audio: {audio.join(", ")}</span> : null}
             {perms.seeFiles && !gone && !d.monitored && d.availability !== "unmonitored" ? <Chip tone="ghost">Not monitored</Chip> : null}
+            {!series && !gone && anyHeld ? <ReportProblemButton target={{ titleId: Number(id), subject: titleWithYear(d.name, d.year) }} className="h-7" /> : null}
           </div>
           {events.length > 0 ? (
             <ul className="space-y-0.5 text-[12.5px] text-[var(--ink-2)]" data-testid="title-events">

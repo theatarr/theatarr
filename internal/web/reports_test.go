@@ -1,0 +1,177 @@
+package web
+
+import (
+	"net/http"
+	"slices"
+	"strings"
+	"testing"
+
+	"github.com/theatarr/theatarr/internal/auth"
+)
+
+// TestProblemReports: a household member reports a movie with a file; a second report of it updates the open one;
+// there is nothing to report without a file. The reporter sees their own report without file detail or names; a
+// manager sees every open one with its file, and Mark fixed reaches the reporter with the reply.
+func TestProblemReports(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	uid := e.account("usr", auth.RoleUser, auth.StatusActive, true)
+	mid := e.account("mgr", auth.RoleManager, auth.StatusActive, false)
+	uc, ucsrf := e.session(uid)
+	mc, mcsrf := e.session(mid)
+	b := APIBase + "/reports"
+
+	var p ProblemReport
+	if code := e.jsonCall("POST", b, CreateReport{TitleID: 1, Kind: "picture", Note: "green blocks"}, uc, ucsrf,
+		&p); code != http.StatusCreated || p.Status != ReportOpen || !p.Mine || p.User != nil {
+		t.Fatalf("report: %d %+v", code, p)
+	}
+	var again ProblemReport
+	if code := e.jsonCall("POST", b, CreateReport{TitleID: 1, Kind: "sound"}, uc, ucsrf, &again); code != http.StatusOK ||
+		again.ID != p.ID || again.Kind != "sound" || again.Note != "" {
+		t.Fatalf("second report: %d %+v", code, again)
+	}
+	for _, tc := range []struct {
+		body CreateReport
+		code int
+	}{
+		{CreateReport{TitleID: 3, EpisodeID: 1, Kind: "picture"}, http.StatusConflict}, // Gamma has no file
+		{CreateReport{TitleID: 1, EpisodeID: 5, Kind: "picture"}, http.StatusBadRequest},
+		{CreateReport{TitleID: 1, Kind: "smell"}, http.StatusBadRequest},
+		{CreateReport{TitleID: 1, Kind: "other", Note: strings.Repeat("é", 501)}, http.StatusBadRequest},
+		{CreateReport{TitleID: 99, Kind: "other"}, http.StatusNotFound},
+	} {
+		if code := e.jsonCall("POST", b, tc.body, uc, ucsrf, nil); code != tc.code {
+			t.Errorf("%+v: %d, want %d", tc.body, code, tc.code)
+		}
+	}
+	// The reporter's list: no file, release or names.
+	rec := e.get(b, uc)
+	if rec.Code != http.StatusOK || strings.Contains(rec.Body.String(), "/movies/") ||
+		strings.Contains(rec.Body.String(), "REMUX") || strings.Contains(rec.Body.String(), `"user"`) {
+		t.Fatalf("user list: %d %s", rec.Code, rec.Body.String())
+	}
+	var mine ReportPage
+	if code := e.jsonCall("GET", b, nil, mc, "", &mine); code != http.StatusOK || len(mine.Items) != 1 ||
+		mine.Items[0].User == nil || len(mine.Items[0].Files) != 1 {
+		t.Fatalf("manager list: %d %+v", code, mine)
+	}
+	f := mine.Items[0].Files[0]
+	if f.LinkID != 901 || !slices.Equal(f.Versions, []string{"movie-remux"}) || len(f.Libraries) != 1 || f.Replace ||
+		f.Why == "" {
+		t.Errorf("file %+v", f)
+	}
+	if code := e.jsonCall("POST", b+"/1/fix", FixReport{Reply: "x"}, uc, ucsrf, nil); code != http.StatusForbidden {
+		t.Errorf("user fixes: %d", code)
+	}
+	if code := e.jsonCall("POST", b+"/1/fix", FixReport{Reply: "Swapped the file"}, mc, mcsrf, &p); code != 200 ||
+		p.Status != ReportFixed || p.ResolvedBy == nil {
+		t.Fatalf("fix: %d %+v", code, p)
+	}
+	if code := e.jsonCall("POST", b+"/1/fix", FixReport{}, mc, mcsrf, nil); code != http.StatusConflict {
+		t.Errorf("fix again: %d", code)
+	}
+	mine = ReportPage{}
+	if code := e.jsonCall("GET", b, nil, uc, "", &mine); code != 200 || len(mine.Items) != 1 ||
+		mine.Items[0].Status != ReportFixed || mine.Items[0].Reply != "Swapped the file" {
+		t.Errorf("reporter after the fix: %+v", mine)
+	}
+	// After the fix a new report of the same movie is a new one.
+	if code := e.jsonCall("POST", b, CreateReport{TitleID: 1, Kind: "picture"}, uc, ucsrf, &again); code != http.StatusCreated ||
+		again.ID == p.ID {
+		t.Errorf("report after the fix: %d %+v", code, again)
+	}
+}
+
+// TestReplaceReportedFile: Replace file unlinks the file, blocklists its release in every library that loses it and
+// searches those libraries for every episode the file held; the file list names those libraries and episodes. It
+// never runs without the search after it: paused, a library or an episode not monitored, or a release Theatarr does
+// not know refuse before anything changes. Nothing else of the provider's is touched (no grab, no retry).
+func TestReplaceReportedFile(t *testing.T) {
+	t.Parallel()
+	o := newOpsEnv(t)
+	o.seedLibrary()
+	uid := o.account("reporter", auth.RoleUser, auth.StatusActive, true)
+	uc, ucsrf := o.session(uid)
+	// Link 90 holds S01E01 and S01E03 of Delta, from a known release.
+	o.exec(`UPDATE link SET release_title = 'Delta.S01.1080p.BluRay-GRP' WHERE id = 90`)
+	o.exec(`INSERT INTO link_episode (link_id, episode_id) VALUES (90, 43)`)
+	var p ProblemReport
+	if code := o.jsonCall("POST", APIBase+"/reports", CreateReport{TitleID: 4, EpisodeID: 41, Kind: "wont_play"}, uc,
+		ucsrf, &p); code != http.StatusCreated || p.Episode != "S01E01" {
+		t.Fatalf("report: %d %+v", code, p)
+	}
+	files := func() []ReportFile {
+		var page ReportPage
+		if code := o.jsonCall("GET", APIBase+"/reports", nil, o.mc, "", &page); code != 200 || len(page.Items) != 1 {
+			t.Fatalf("list: %d %+v", code, page)
+		}
+		return page.Items[0].Files
+	}
+	replace := func() int {
+		return o.jsonCall("POST", APIBase+"/reports/1/replace", ReplaceReported{LinkID: 90}, o.mc, o.mcsrf, nil)
+	}
+	blocked := func() int { return o.count(`SELECT COUNT(*) FROM router_blocklist WHERE title_id = 4`) }
+
+	// Paused: offered nowhere, refused.
+	if fs := files(); len(fs) != 1 || fs[0].Replace || !slices.Equal(fs[0].Episodes, []string{"S01E01", "S01E03"}) {
+		t.Fatalf("paused files %+v", fs)
+	}
+	if code := replace(); code != http.StatusConflict || len(o.ops.unlinks) != 0 || blocked() != 0 {
+		t.Fatalf("replace while paused: %d unlinks %v", code, o.ops.unlinks)
+	}
+	o.activate("anime-tv")
+	// An episode the file holds is not monitored: no search would follow for it.
+	o.exec(`UPDATE episode_version_state SET monitored = 0 WHERE episode_id = 43`)
+	if fs := files(); fs[0].Replace || !strings.Contains(fs[0].Why, "S01E03") {
+		t.Fatalf("unmonitored episode %+v", fs[0])
+	}
+	if code := replace(); code != http.StatusConflict || len(o.ops.unlinks) != 0 {
+		t.Fatalf("replace with an unmonitored episode: %d", code)
+	}
+	o.exec(`UPDATE episode_version_state SET monitored = 1 WHERE episode_id = 43`)
+	// The library is not monitored.
+	o.exec(`UPDATE version SET monitored = 0 WHERE id = 4`)
+	if fs := files(); fs[0].Replace {
+		t.Fatalf("unmonitored library %+v", fs[0])
+	}
+	o.exec(`UPDATE version SET monitored = 1 WHERE id = 4`)
+	// A release Theatarr does not know: blocklisting could not keep it out.
+	o.exec(`UPDATE link SET release_title = NULL WHERE id = 90`)
+	if fs := files(); fs[0].Replace {
+		t.Fatalf("unknown release %+v", fs[0])
+	}
+	o.exec(`UPDATE link SET release_title = 'Delta.S01.1080p.BluRay-GRP' WHERE id = 90`)
+
+	fs := files()
+	if !fs[0].Replace || fs[0].Why != "" || !slices.Equal(fs[0].Versions, []string{"anime-tv"}) || len(fs[0].Libraries) != 1 {
+		t.Fatalf("replaceable file %+v", fs[0])
+	}
+	var got ReplaceResult
+	if code := o.jsonCall("POST", APIBase+"/reports/1/replace", ReplaceReported{LinkID: 90}, o.mc, o.mcsrf,
+		&got); code != 200 || got.Search == nil || !got.Search.Started {
+		t.Fatalf("replace: %d %+v", code, got)
+	}
+	if !slices.Equal(o.ops.unlinks, []int64{90}) || len(o.ops.grabs) != 0 || len(o.ops.retries) != 0 {
+		t.Errorf("ops: unlinks %v grabs %v retries %v", o.ops.unlinks, o.ops.grabs, o.ops.retries)
+	}
+	if n := o.count(`SELECT COUNT(*) FROM router_blocklist WHERE title_id = 4 AND version_key = 'anime-tv'
+		AND source = 'ui' AND release_title = 'Delta.S01.1080p.BluRay-GRP'`); n != 1 {
+		t.Errorf("blocklist rows %d", n)
+	}
+	o.acq.mu.Lock()
+	subs := slices.Clone(o.acq.submits)
+	o.acq.mu.Unlock()
+	if len(subs) != 1 || !slices.Equal(subs[0].Versions, []string{"anime-tv"}) || !slices.Equal(subs[0].TitleIDs, []int64{4}) ||
+		!slices.Equal(subs[0].EpisodeIDs, []int64{41, 43}) {
+		t.Errorf("searches %+v", subs)
+	}
+	// The report stays open; a household account may not replace.
+	var after ProblemReport
+	if p2, _ := o.web.getReport(t.Context(), 1); p2 == nil || p2.Status != ReportOpen {
+		t.Errorf("report after replace %+v", p2)
+	}
+	if code := o.jsonCall("POST", APIBase+"/reports/1/replace", ReplaceReported{LinkID: 90}, uc, ucsrf, &after); code != http.StatusForbidden {
+		t.Errorf("user replace: %d", code)
+	}
+}

@@ -7,7 +7,8 @@
 // Interactive search for a library that may search, and the file's facts with Cached on, shown openly), History (per
 // copy the title History's rows for the episode, the same table and words; its count the rows shown) and Last search
 // (the stored decision, read-only). Accounts without "see files" get
-// one availability line across copies and nothing else (the API sends no file, history or states for them).
+// one availability line across copies and nothing else (the API sends no file, history or states for them). An
+// episode with a file has "Report a problem" under its synopsis for every account that may request.
 // What it holds follows Scryer (github.com/scryer-media/scryer)
 // apps/scryer-web/components/views/series-overview/episode-details-panel.tsx and episode-panel-content.tsx
 // @ 2ef7757c, GPL-3.0 (episode header, the files on disk with their media facts, the history list); the look is ours.
@@ -25,6 +26,7 @@ import { InteractiveSearchButton } from "@/components/title/interactive-search";
 import { ReleaseGrid } from "@/components/title/release-grid";
 import { Summary } from "@/components/title/show-releases";
 import { ChangeEpisodes } from "@/components/title/change-episodes";
+import { ReportProblemButton } from "@/components/report/report-sheet";
 import { ProgressBar } from "@/components/activity-bits";
 import { EpisodeHistoryRows } from "@/components/activity/history-tab";
 import { ProviderPills } from "@/components/provider-pills";
@@ -347,6 +349,9 @@ export function EpisodeOverview({
           <p className="mt-2 text-sm leading-snug text-[var(--ink-2)] [overflow-wrap:anywhere]" data-testid="episode-synopsis">
             {d.overview}
           </p>
+        ) : null}
+        {e && Object.values(e.versions).some((c) => c?.has_file) ? (
+          <ReportProblemButton target={{ titleId, episodeId: e.id, subject: `${d?.title_name ?? ""} ${code(e.season, e.number)}`.trim() }} className="mt-3" />
         ) : null}
         <button type="button" onClick={onClose} aria-label="Close" className="absolute right-3 top-3 grid size-8 place-items-center rounded-lg text-[var(--ink-3)] hover:bg-[var(--hover)]">
           <X className="size-4" />
