@@ -3,7 +3,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, it } from "vitest";
 import { useLocation } from "react-router";
-import { CollectionsPage } from "./collections";
+import { addMissingLabel, CollectionsPage } from "./collections";
 import { mockFetch, renderPage } from "@/test/page";
 import type { Schemas } from "@/api/client";
 
@@ -174,4 +174,10 @@ it("counts removed films apart and says Add missing movies now leaves them out",
   await user.click(row.getByRole("button", { name: "Add missing movies now" }));
   await waitFor(() => expect(screen.getByTestId("collections-done").textContent)
     .toBe("Alien Collection: 0 movies added, 1 already in the library or excluded. 1 removed film not added; add it from its page."));
+});
+
+it("names the add-missing button for a collection whose movies are all in the library", () => {
+  expect(addMissingLabel({ held: 2, total: 6 })).toBe("Add missing movies now");
+  expect(addMissingLabel({ held: 6, total: 6 })).toBe("Refresh and add missing movies");
+  expect(addMissingLabel({ held: 0, total: 0 })).toBe("Add missing movies now");
 });

@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { AVAILABILITY } from "@/components/collections/add-collection";
 import { posterStatus } from "@/lib/library";
+import { addMissingLabel } from "./collections";
 import { Forbidden } from "./library";
 
 function PartCard({ p }: { p: CollectionPart }) {
@@ -52,7 +53,7 @@ export function CollectionPage() {
       description={c ? (c.name ? collectionCounts(c) : "Name and movies arrive with the next list refresh.") : undefined}
       actions={c ? <>
         {c.monitored && d?.can_add ? <Button variant="outline" disabled={refresh.isPending}
-          onClick={() => refresh.mutate(c.tmdb_id, { onSuccess: r => setDone(refreshWords(r)) })}>Add missing movies now</Button> : null}
+          onClick={() => refresh.mutate(c.tmdb_id, { onSuccess: r => setDone(refreshWords(r)) })}>{addMissingLabel(c)}</Button> : null}
         <Button variant="outline" onClick={() => setEditing(true)}><Pencil aria-hidden />Edit</Button>
       </> : null} />
     {q.isLoading ? <Loading /> : q.error ? <ErrorState error={q.error} /> : d && c ? <div className="space-y-4">

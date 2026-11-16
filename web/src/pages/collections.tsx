@@ -21,6 +21,11 @@ import { Forbidden } from "./library";
 import { wordMatcher } from "@/lib/words";
 import { plural } from "@/lib/format";
 
+/** The add-missing button's words: a collection whose movies are all in the library has none missing, but the button
+ *  still refreshes it and can add a held film to another target library, so it stays with words that say so. */
+export const addMissingLabel = (c: Pick<Collection, "held" | "total">) =>
+  c.total > 0 && c.held >= c.total ? "Refresh and add missing movies" : "Add missing movies now";
+
 /** One collection on the list: its name opens its page (the films; settings behind Edit there). */
 function CollectionRow({ c, busy, refresh }: { c: Collection; busy: boolean;
   /** Add missing movies now; absent when TMDb is not set up. */
@@ -36,7 +41,7 @@ function CollectionRow({ c, busy, refresh }: { c: Collection; busy: boolean;
       </span>
     </Link>
     <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-      {c.monitored && refresh ? <Button variant="outline" size="xs" disabled={busy} onClick={refresh}>Add missing movies now</Button> : null}
+      {c.monitored && refresh ? <Button variant="outline" size="xs" disabled={busy} onClick={refresh}>{addMissingLabel(c)}</Button> : null}
       <Chip tone={c.monitored ? "ok" : "ghost"}>{c.monitored ? "Monitored" : "Not monitored"}</Chip>
     </div>
   </li>;
