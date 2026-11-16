@@ -369,3 +369,24 @@ it.each(["pending", "error"])("Status does not give an all-clear while the flagg
  }
  expect(screen.queryByText("Nothing needs attention.")).toBeNull();
 });
+
+it("says a failed download's reason in plain words, and a debrid account's premium end by its provider's name", async () => {
+ const failed = { id: 7, title: { id: 3, name: "The Dangers in My Heart" }, version: "anime", state: "failed", step: "", steps: [], words: "", progress: 0, created_at: "2026-11-01T12:00:00Z", updated_at: "2026-11-01T12:00:00Z", error: "library: no file passed the sample guard", reason: "Not imported: these files do not improve on the files you have" };
+ const expires = new Date(Date.now() + 43 * 3_600_000).toISOString();
+ mockFetch([...reviewRoutes,
+  { method: "GET", path: "/readyz", reply: { status: "ok" } },
+  { method: "GET", path: "/status", reply: status },
+  { method: "GET", path: "/jobs", reply: { items: [], counts: {} } },
+  { method: "GET", path: "/gateway", reply: { egress: { vpn_ok: true }, backoffs: [] } },
+  { method: "GET", path: "/health", reply: { checks: [{ source: "ProviderAccountCheck", name: "Debrid accounts", type: "warning", message: "Debrid account needs attention: tb: premium ends Nov 17 (in 43h)", detail: { tb: { premium: true, expires } }, checked_at: "2026-11-14T10:00:00Z" }] } },
+  { method: "GET", path: "/activity", reply: { now: [failed] } },
+ ]);
+ renderPage(<Overview />);
+ const row = await screen.findByTestId("attention-download-7");
+ expect(row.textContent).toContain("Not imported: these files do not improve on the files you have");
+ expect(row.textContent).not.toContain("sample guard");
+ const acct = await screen.findByTestId("attention-check-ProviderAccountCheck");
+ expect(acct.textContent).toMatch(/TorBox premium ends .+ \(in 43 h\)\./);
+ expect(acct.textContent).toContain("Next: Renew at TorBox to keep premium access.");
+ expect(acct.textContent).not.toContain("API key");
+});

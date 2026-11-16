@@ -3,6 +3,7 @@ package web
 import (
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/store"
@@ -11,16 +12,92 @@ import (
 func TestShortReason(t *testing.T) {
 	t.Parallel()
 	for _, c := range []struct{ err, provider, want string }{
-		{"provider status error", "rd", "RD status error"},
-		{"provider status magnet_error", "", "provider status magnet_error"},
-		{"stalled: not ready 6h0m0s after the add (provider status downloading)", "tb", "stalled"},
-		{"miss on every provider", "rd", "miss on every provider"},
-		{"no video file in the torrent; the finished torrent was kept on rd", "rd", "no video file in the torrent"},
+		{"provider status error", "rd", "RD reported an error"},
+		{"provider status magnet_error", "", "The provider reported an error"},
+		{"stalled: not ready 6h0m0s after the add (provider status downloading)", "tb", "Download stalled"},
+		{"miss on every provider", "rd", "No provider accepted this release"},
+		{"no video file in the torrent; the finished torrent was kept on rd", "rd", "No video file in the torrent; the finished torrent was kept on rd"},
+		{"library: no file passed the sample guard", "rd", "Not imported: no file passed the library's checks"},
 		{"", "rd", ""},
 	} {
 		if got := shortReason(c.err, c.provider); got != c.want {
 			t.Errorf("shortReason(%q, %q) = %q, want %q", c.err, c.provider, got, c.want)
 		}
+	}
+}
+
+// TestFailureWords: every failure text the router and the library store (and the old library wrapper still stored on
+// live) reads as a plain headline and, when it is stored, a detail.
+func TestFailureWords(t *testing.T) {
+	t.Parallel()
+	const cf = "Not a Custom Format upgrade for existing file(s). New: [Anime BD Tier 03 (SeaDex Muxers) - Notifiarr, v2 - " +
+		"Notifiarr] (1202) do not improve on Existing: [10bit - Notifiarr, Anime BD Tier 03 (SeaDex Muxers) - Notifiarr, " +
+		"Seadex] (6200)"
+	for _, c := range []struct {
+		name         string
+		f            failureFacts
+		head, detail string
+	}{
+		// The old wrapper: the rejection inside the blocklist row says what failed.
+		{"old wrapper, not an upgrade", failureFacts{Err: "library: no file passed the sample guard",
+			ImportState: "rejected", ImportErr: "no file passed the sample guard",
+			Blocked: "no file passed the sample guard (" + cf + ")"},
+			notUpgradeWords, "This release scores 1,202, yours 6,200. Nothing was replaced."},
+		{"old wrapper alone", failureFacts{Err: "library: no file passed the sample guard"}, notCheckedWords, ""},
+		{"wrapper, sample", failureFacts{Err: "library: no file passed the sample guard",
+			Blocked: "no file passed the sample guard (sample: runtime 240s is under 600s)"},
+			sampleWords, "The file runs 4 min, under the 10 min minimum."},
+		{"wrapper, short", failureFacts{Err: "library: no file passed the sample guard",
+			Blocked: "no file passed the sample guard (runtime 40 min is under 50% of the expected 128 min)"},
+			sampleWords, "The file runs 40 min, under 50% of the expected 128 min."},
+		{"wrapper, resolution", failureFacts{Err: "library: no file passed the sample guard",
+			Blocked: "no file passed the sample guard (resolution 1280x720 contradicts the release's 2160p)"},
+			mislabelWords, "Labelled 2160p, but the video is 1280x720."},
+		{"wrapper, invalid", failureFacts{Err: "library: no file passed the sample guard",
+			Blocked: "no file passed the sample guard (runtime of 0: not a valid video file)"}, invalidWords, ""},
+		{"mislabel 2160p", failureFacts{Err: "library: mislabelled 2160p: the video is 1920x1080"},
+			mislabelWords, "Labelled 2160p, but the video is 1920x1080."},
+		{"mislabel remux", failureFacts{Err: "library: mislabelled remux: x264 encode with crf=18 (disc video is never CRF)"},
+			mislabelWords, "Labelled Remux, but it is an x264 encode with crf=18 (disc video is never CRF)."},
+		// Held for review: the download row has no error; the import's reason speaks.
+		{"held, not an upgrade", failureFacts{ImportState: "rejected", ImportErr: "not an upgrade for the existing files"},
+			notUpgradeWords, "Nothing was replaced."},
+		{"held, quality", failureFacts{ImportState: "rejected", ImportErr: "not an upgrade for the existing files (" +
+			"Not an upgrade for existing file(s). Existing quality: Bluray-1080p. New Quality WEBDL-1080p.)"},
+			notUpgradeWords, "This release is WEBDL-1080p, yours Bluray-1080p. Nothing was replaced."},
+		{"held, no match", failureFacts{ImportState: "rejected", ImportErr: "no file matched the download's episodes"},
+			noMatchWords, ""},
+		{"held, other", failureFacts{ImportState: "rejected", ImportErr: "naming collision: two titles name S01E01 alike"},
+			"Naming collision: two titles name S01E01 alike", ""},
+		{"miss, attempts known", failureFacts{Err: "miss on every provider", MissedOn: []string{"rd", "ad", "tb"}},
+			"Not cached on RD, AD and TB", ""},
+		{"miss, one known", failureFacts{Err: "miss on every provider", MissedOn: []string{"rd"}}, "Not cached on RD", ""},
+		{"miss, none known", failureFacts{Err: "miss on every provider"}, noProviderWords, ""},
+		{"stalled, deleted", failureFacts{Err: "stalled: not ready 10m0s after the add (provider status magnet_conversion); " +
+			"our add was deleted on rd", Provider: "rd"}, stalledWords, "Deleted from RD."},
+		{"stalled, kept", failureFacts{Err: "stalled: no progress for 2h0m0s while downloading (provider status downloading, " +
+			"12.0%); kept on tb: this reused torrent is shared and was not deleted"}, stalledWords, "Kept on TB."},
+		{"stalled, old", failureFacts{Err: "stalled: not ready 10m0s after the add (provider status magnet_conversion)"},
+			stalledWords, ""},
+		{"ready timeout", failureFacts{Err: "ready timeout: not imported after 6h0m0s"},
+			"Finished at the provider, but its files could not be imported within 6 hours", ""},
+		{"ready timeout, days", failureFacts{Err: "ready timeout: not imported after 48h0m0s"},
+			"Finished at the provider, but its files could not be imported within 2 days", ""},
+		{"provider status", failureFacts{Err: "provider status magnet_error", Provider: "rd"},
+			"RD reported an error", "Its status: magnet_error."},
+		{"provider prefix", failureFacts{Err: "provider returned a different torrent for this ID"},
+			"Returned a different torrent for this ID", ""},
+		{"other", failureFacts{Err: "the torrent is no longer on rd"}, "The torrent is no longer on rd", ""},
+		{"library other", failureFacts{Err: "library: [link failed]"}, "[link failed]", ""},
+		{"empty", failureFacts{}, "", ""},
+	} {
+		h, d := failureWords(c.f, strings.ToUpper)
+		if h != c.head || d != c.detail {
+			t.Errorf("%s: %q / %q, want %q / %q", c.name, h, d, c.head, c.detail)
+		}
+	}
+	if got, _ := failureWords(failureFacts{Err: strings.Repeat("x", 200)}, strings.ToUpper); utf8.RuneCountInString(got) != maxReason+1 {
+		t.Errorf("long text not cut: %d", utf8.RuneCountInString(got))
 	}
 }
 
@@ -110,7 +187,7 @@ func TestReleaseOutcomesAndHistory(t *testing.T) {
 		t.Fatalf("releases %d", code)
 	}
 	want := map[string]ReleaseOutcome{
-		h1: {Outcome: "failed", Provider: "rd", Reason: "RD status error"},
+		h1: {Outcome: "failed", Provider: "rd", Reason: "RD reported an error"},
 		h2: {Outcome: "current", Provider: "rd"},
 		h3: {Outcome: "grabbed", Provider: "tb"},
 		h4: {Outcome: "replaced", Provider: "rd", ReplacedBy: "Alpha.2020.2160p.WEB-TWO"},
@@ -154,9 +231,9 @@ func TestReleaseOutcomesAndHistory(t *testing.T) {
 		{"upgraded", "search again after a failure", "rd", "", ""},
 		{"grabbed", "search again after a failure", "rd", "", ""},
 		{"searched", "search again after a failure", "rd", "", "Grabbed #1 via RD → imported (the current file)"},
-		{"failed", "automatic search", "rd", "RD status error", ""},
+		{"failed", "automatic search", "rd", "RD reported an error", ""},
 		{"grabbed", "automatic search", "rd", "", ""},
-		{"searched", "automatic search", "rd", "", "Grabbed #1 via RD → failed (RD status error)"},
+		{"searched", "automatic search", "rd", "", "Grabbed #1 via RD → failed (RD reported an error)"},
 		{"searched", "Seerr request", "", "", "Nothing grabbed: no accepted release among 0 results"},
 		{"searched", "manual search", "", "", "Nothing grabbed: no accepted release among 4 results"},
 		{"imported", "RSS", "rd", "", ""},
@@ -203,7 +280,7 @@ func TestSearchSummaryKeepsItsOwnDownload(t *testing.T) {
 		'Alpha.2020.2160p.WEB-FIVE', 'unlinked', ?, ?)`, now-2500, now-2500, now-19000, now-2500)
 	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (1, 2), (2, 2)`)
 
-	const want = "Grabbed #1 via RD → failed (RD status error)"
+	const want = "Grabbed #1 via RD → failed (RD reported an error)"
 	var r Releases
 	if code := e.getKey(APIBase+"/titles/1/releases?version=movie-web", key, &r); code != 200 {
 		t.Fatalf("releases %d", code)
@@ -214,7 +291,7 @@ func TestSearchSummaryKeepsItsOwnDownload(t *testing.T) {
 	if o := r.Outcomes[h1]; o.Outcome != "current" || o.Provider != "tb" {
 		t.Errorf("retried release: %+v", o)
 	}
-	if o := r.Outcomes[h5]; o.Outcome != "failed" || o.Reason != "RD timeout" {
+	if o := r.Outcomes[h5]; o.Outcome != "failed" || o.Reason != "Timeout: no answer" {
 		t.Errorf("replaced, then failed again: %+v", o)
 	}
 	var d TitleDetail

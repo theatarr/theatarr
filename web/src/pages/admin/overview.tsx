@@ -27,8 +27,9 @@ import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
 import { downloadHref, needsAttention, showCounts, stageLabel, timing } from "@/lib/activity";
 import { fmtAgo, fmtNumber, fmtTime } from "@/lib/format";
-import { danglingNext, healthAttention, healthBadgeTone, healthEffect, healthLink, healthStatTone } from "@/lib/health";
+import { accountNotice, danglingNext, healthAttention, healthBadgeTone, healthEffect, healthLink, healthStatTone } from "@/lib/health";
 import { attentionCount, jobEffect, jobName, type Job } from "@/lib/jobs";
+import { useProviderCode } from "@/lib/library-names";
 import { JobActions } from "./jobs";
 import { backoffWords } from "@/lib/router-words";
 
@@ -96,6 +97,7 @@ export function Overview() {
   const hc = useHealth();
   const now = useActivityNow();
   const counts = useJobCounts(failed.data);
+  const providerCode = useProviderCode();
   const header = <PageHeader crumb={[{ label: "System" }]} title="Status" actions={setupUnfinished(setup.data) ? <Link to="/admin/setup">Setup checklist</Link> : undefined} description="What needs attention first, then how downloads and background work are doing." />;
   if (ready.isPending || st.isPending) return <div>{header}<Loading /></div>;
   if (st.error) return <div>{header}<ErrorState error={st.error} /></div>;
@@ -121,12 +123,14 @@ export function Overview() {
   }
   for (const c of healthAttention(hc.data?.checks)) {
     const e = healthEffect(c.source);
+    // The debrid accounts by provider name, with what to do (renew, or check the key).
+    const acct = c.source === "ProviderAccountCheck" ? accountNotice(c, providerCode) : null;
     items.push({
       key: `check-${c.source}`,
       tone: c.type === "error" ? "bad" : "warn",
       title: c.name ?? c.source ?? "Health check",
-      effect: e.effect ? <>{e.effect} <span className="text-[var(--ink-3)]">{c.message}</span></> : c.message,
-      next: e.next,
+      effect: acct ? acct.effect : e.effect ? <>{e.effect} <span className="text-[var(--ink-3)]">{c.message}</span></> : c.message,
+      next: acct ? acct.next : e.next,
       to: healthLink(c.source),
     });
   }
@@ -177,7 +181,7 @@ export function Overview() {
     const eps = episodesWords(d.episodes);
     // A failure says its error; otherwise whether some files are in (partly linked) or none yet (whether the title
     // already has one, an upgrade, is not said here).
-    const what = failedDl ? d.error || "No error recorded" : d.import_state === "partial" ? "Some files linked" : "No file from this download yet";
+    const what = failedDl ? d.reason || d.error || "No error recorded" : d.import_state === "partial" ? "Some files linked" : "No file from this download yet";
     items.push({
       key: `download-${d.id}`,
       tone: failedDl ? "bad" : "warn",

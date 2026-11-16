@@ -514,6 +514,15 @@ func TestAccounts(t *testing.T) {
 			t.Errorf("%s: %s %q, want %s %q", tc.name, r.Type, r.Message, tc.typ, tc.msg)
 		}
 	}
+	// The detail says which account refused its key (Status keeps the advice to check the key for it only).
+	r := run(map[string]AccountReader{"rd": refused, "tb": down})
+	d, _ := r.Detail.(map[string]any)
+	if rd, _ := d["rd"].(map[string]any); rd["refused"] != true {
+		t.Errorf("refused detail %+v", d)
+	}
+	if tb, _ := d["tb"].(map[string]any); tb["refused"] != nil {
+		t.Errorf("unreadable detail %+v", d)
+	}
 }
 
 // sources gives each client its credential's fingerprint (keys[k]).

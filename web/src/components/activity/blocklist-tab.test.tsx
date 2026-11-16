@@ -101,3 +101,18 @@ it("says when a blocked release was searched again", async () => {
   renderPage(<BlocklistTab />, "/activity/blocklist");
   expect((await screen.findByTestId("blocked-researched")).textContent).toMatch(/^searched again 3 d(ays)? ago$/);
 });
+
+it("says why a release was blocked in plain words under the source's words", async () => {
+  const reason = "Not imported: these files do not improve on the files you have. This release scores 1,202, yours 6,200. Nothing was replaced.";
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: me },
+    { method: "GET", path: "/titles/facets", reply: {} },
+    { method: "GET", path: "/activity", reply: { state: "blocked", admin: true, total: 2, blocked: [{ ...blocked(1), reason }, { ...blocked(2), reason: "", source: "arr:sonarr_4k", words: "Imported from Sonarr's blocklist" }] } },
+  ]);
+  renderPage(<BlocklistTab />, "/activity/blocklist");
+  const rows = await screen.findAllByTestId("blocked-row");
+  expect(rows[0].textContent).toContain("Failed the library check");
+  expect(rows[0].textContent).toContain(reason);
+  expect(rows[1].textContent).toContain("Imported from Sonarr's blocklist");
+  expect(rows[1].textContent).not.toContain("arr blocklist");
+});

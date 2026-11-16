@@ -134,24 +134,36 @@ export function stageLabel(d: D): string {
   return d.state;
 }
 
-/** A failed download's Inspect panel opens with this sentence (admins): what happened and what helps, from its error
- *  text (internal/router: "stalled: …", "ready timeout: …", "library: …"). A miss on every provider never reaches the
- *  queue (activity.NativeQueueFailureSQL). search: whether the panel offers Interactive search (its library searches
- *  the indexers and the caller may grab); without it the sentence does not mention it. "" for a row that did not fail. */
 /** Whether a row's panel opens with failedLead: it failed (and was started), or the library refused or failed it. */
 export const failedRow = (d: Pick<ActivityDownload, "state" | "import_state" | "not_started">) =>
   (d.state === "failed" && !d.not_started) || d.import_state === "rejected" || d.import_state === "failed";
 
-export function failedLead(d: Pick<ActivityDownload, "state" | "error" | "import_state" | "not_started">, search = true): string {
-  const refused = d.import_state === "rejected" || d.import_state === "failed";
+/** Whether a retry of the same release must end as this one did: the library refused its files (the server's
+ *  failureWords headlines "Not imported: …": not an upgrade, a sample, no file matched, a wrong label). */
+export const retryEndsSame = (reason?: string | null) => !!reason?.startsWith("Not imported: ");
+
+/** A failed download's Inspect panel opens with these sentences (admins): why, in the server's words (reason and
+ *  reason_detail, from internal/web failureWords), and what helps. A refusal a retry would repeat offers Dismiss (Remove while it is held)
+ *  and Interactive search, not Retry. Without a reason (an older server) the error text's kind says what happened
+ *  (internal/router: "stalled: …", "ready timeout: …", "library: …"). A miss on every provider never reaches the queue
+ *  (activity.NativeQueueFailureSQL). search: whether the panel offers Interactive search (its library searches the
+ *  indexers and the caller may grab); without it the sentence does not mention it. "" for a row that did not fail. */
+export function failedLead(d: Pick<ActivityDownload, "state" | "error" | "import_state" | "not_started" | "reason" | "reason_detail">, search = true): string {
   if (!failedRow(d)) return "";
+  const held = d.state !== "failed";
+  const pick = (first: string) => (search ? `${first}; Interactive search lets you choose another.` : `${first}.`);
+  if (d.reason) {
+    const why = `${d.reason}.${d.reason_detail ? ` ${d.reason_detail}` : ""}`;
+    if (retryEndsSame(d.reason)) return `${why} ${pick(held ? "Remove takes it out of the queue" : "Dismiss clears it from the queue")}`;
+    return `${why} ${pick(held ? "Import now tries again" : "Retry sends the same release again")}`;
+  }
+  const refused = d.import_state === "rejected" || d.import_state === "failed";
   const e = d.error ?? "";
-  const again = d.state === "failed" ? "Retry sends the same release again" : "Import now tries again";
-  const pick = search ? `${again}; Interactive search lets you choose another.` : `${again}.`;
-  if (refused || e.startsWith("library:")) return `The library did not take its files. ${pick}`;
-  if (e.startsWith("stalled")) return `It stalled at the provider and was dropped. ${pick}`;
-  if (e.startsWith("ready timeout")) return `It finished at the provider but was not linked in time. ${pick}`;
-  return `The download failed. ${pick}`;
+  const again = pick(held ? "Import now tries again" : "Retry sends the same release again");
+  if (refused || e.startsWith("library:")) return `The library did not take its files. ${again}`;
+  if (e.startsWith("stalled")) return `It stalled at the provider and was dropped. ${again}`;
+  if (e.startsWith("ready timeout")) return `It finished at the provider but was not linked in time. ${again}`;
+  return `The download failed. ${again}`;
 }
 
 /** The interactive search a failed download's panel offers: its library, and its one episode, or its season when

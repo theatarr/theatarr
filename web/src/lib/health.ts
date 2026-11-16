@@ -79,6 +79,56 @@ export function healthEffect(source?: string): { effect: string; next: string } 
   }
 }
 
+const PROVIDER_NAMES: Record<string, string> = { rd: "Real-Debrid", ad: "AllDebrid", tb: "TorBox" };
+
+/** "in 43 h" under two days, else "in 3 d". */
+function inWords(ms: number): string {
+  const h = Math.max(1, Math.round(ms / 3_600_000));
+  return h < 48 ? `in ${h} h` : `in ${Math.round(h / 24)} d`;
+}
+
+/**
+ * The debrid-account check (internal/health Accounts) as Status's notice: each account that needs attention by its
+ * provider's name, and what to do. A premium plan that ends or ended says to renew it at the provider; a refused key
+ * or an account that could not be read keeps the advice to check the key. code gives an account key's cache code (rd,
+ * ad, tb: useProviderCode); null when the check's detail names no account that needs attention.
+ */
+export function accountNotice(c: HealthCheck, code: (key: string) => string = (k) => k, now: Date = new Date()): { effect: string; next: string } | null {
+  const detail = (c.detail ?? {}) as Record<string, { expires?: string; premium?: boolean; error?: string; refused?: boolean } | undefined>;
+  const lines: string[] = [];
+  const renew: string[] = [];
+  let key = false;
+  for (const k of Object.keys(detail).sort()) {
+    const d = detail[k];
+    if (!d || typeof d !== "object") continue;
+    const name = PROVIDER_NAMES[code(k).toLowerCase()] ?? k;
+    const at = d.expires ? new Date(d.expires) : null;
+    const left = at && !Number.isNaN(at.getTime()) ? at.getTime() - now.getTime() : null;
+    if (d.refused) {
+      lines.push(`${name} refused the API key.`);
+      key = true;
+    } else if (d.error) {
+      lines.push(`${name}'s account could not be read.`);
+      key = true;
+    } else if (left !== null && left <= 0) {
+      lines.push(`${name} premium ended ${fmtDay(d.expires!, now)}.`);
+      renew.push(name);
+    } else if (d.premium === false) {
+      lines.push(`${name} account is not premium.`);
+      renew.push(name);
+    } else if (left !== null && left < 7 * 86_400_000) {
+      lines.push(`${name} premium ends ${fmtDay(d.expires!, now)} (${inWords(left)}).`);
+      renew.push(name);
+    }
+  }
+  if (lines.length === 0) return null;
+  const next = [
+    ...renew.map((n) => `Renew at ${n} to keep premium access.`),
+    key ? "Check the account and its API key under Settings › Download clients." : "",
+  ].filter(Boolean).join(" ");
+  return { effect: lines.join(" "), next };
+}
+
 const listedElsewhere = new Set(["VpnEgressCheck", "FailedJobsCheck"]);
 
 /** The checks that join Needs attention: warnings and errors, worst first, not those it lists already. */

@@ -60,7 +60,9 @@ export function ProgressBar({ pct, tone, className }: { pct: number; tone: Downl
 
 /** The five steps as dots joined by a line; the current one pulses, a failed one is red. */
 export function StepTrack({ steps, compact = false }: { steps: ActivityDownload["steps"]; compact?: boolean }) {
-  return (
+  // On a phone the labels under the dots are hidden; the step it stopped at or is on is named under the track.
+  const at = steps.find((s) => s.state === "failed") ?? steps.find((s) => s.state === "current");
+  const track = (
     <ol className="flex w-full items-center" aria-label="Steps">
       {steps.map((s, i) => (
         <li key={s.key} className={cn("flex items-start", i > 0 && "flex-1")} aria-current={s.state === "current" ? "step" : undefined}>
@@ -97,6 +99,13 @@ export function StepTrack({ steps, compact = false }: { steps: ActivityDownload[
         </li>
       ))}
     </ol>
+  );
+  if (compact || !at) return track;
+  return (
+    <div>
+      {track}
+      <p className={cn("mt-1 text-[11px] font-medium sm:hidden", at.state === "failed" ? "text-[var(--bad-ink)]" : "text-foreground")} data-testid="step-now">{at.label}</p>
+    </div>
   );
 }
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { backupCheck, danglingNext, healthAttention, healthBadgeTone, healthEffect, healthLink, healthStatTone, premiumEnd, type HealthCheck } from "./health";
+import { accountNotice, backupCheck, danglingNext, healthAttention, healthBadgeTone, healthEffect, healthLink, healthStatTone, premiumEnd, type HealthCheck } from "./health";
 
 const c = (source: string, type: HealthCheck["type"]): HealthCheck => ({ source, name: source, type, message: source });
 
@@ -80,5 +80,22 @@ describe("premiumEnd", () => {
     expect(premiumEnd(checks, "rd", now)).toBeNull();
     expect(premiumEnd(checks, "x", now)).toBeNull();
     expect(premiumEnd(undefined, "tb", now)).toBeNull();
+  });
+});
+
+describe("accountNotice", () => {
+  const now = new Date("2026-11-15T17:00:00Z");
+  const check = (detail: object) => ({ source: "ProviderAccountCheck", name: "Debrid accounts", type: "warning", message: "", detail }) as HealthCheck;
+  it("names the provider and says to renew a premium that ends or ended", () => {
+    expect(accountNotice(check({ tb: { premium: true, expires: "2026-11-17T12:00:00Z" }, rd: { premium: true, expires: "2027-03-01T00:00:00Z" } }), (k) => k, now))
+      .toEqual({ effect: "TorBox premium ends Nov 17 (in 43 h).", next: "Renew at TorBox to keep premium access." });
+    expect(accountNotice(check({ "ad-main": { premium: false, expires: "2026-11-10T00:00:00Z" } }), () => "ad", now))
+      .toEqual({ effect: "AllDebrid premium ended Nov 10.", next: "Renew at AllDebrid to keep premium access." });
+  });
+  it("keeps the API-key advice for a refused key or an unreadable account", () => {
+    const n = accountNotice(check({ rd: { error: "provider: authentication refused", refused: true }, tb: { premium: true, expires: "2026-11-17T12:00:00Z" } }), (k) => k, now);
+    expect(n?.effect).toBe("Real-Debrid refused the API key. TorBox premium ends Nov 17 (in 43 h).");
+    expect(n?.next).toBe("Renew at TorBox to keep premium access. Check the account and its API key under Settings › Download clients.");
+    expect(accountNotice(check({ rd: { premium: true, expires: "2027-03-01T00:00:00Z" } }), (k) => k, now)).toBeNull();
   });
 });

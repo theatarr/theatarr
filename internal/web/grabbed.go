@@ -4,10 +4,14 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"regexp"
+	"slices"
 	"strconv"
 	"strings"
+	"time"
 	"unicode/utf8"
 
+	"github.com/theatarr/theatarr/internal/journal"
 	"github.com/theatarr/theatarr/internal/journal/snapshot"
 	"github.com/theatarr/theatarr/internal/library"
 )
@@ -31,23 +35,277 @@ type ReleaseOutcome struct {
 	replaced bool
 }
 
-// maxReason caps a short failure reason, in characters.
-const maxReason = 80
+// maxReason caps a failure's headline when it is the stored text itself (failureWords' last rule), in characters.
+const maxReason = 120
 
-// shortReason cuts a download's failure to its first clause, and names the provider in a provider's status:
-// "provider status error" from rd reads "RD status error".
+// shortReason is a download's failure in plain words (failureWords' headline) from its stored error alone, with the
+// provider named by its key in upper case: "miss on every provider" reads "No provider accepted this release".
 func shortReason(err, provider string) string {
-	s := strings.TrimSpace(err)
-	if i := strings.IndexAny(s, ":(;"); i > 0 {
-		s = strings.TrimSpace(s[:i])
+	h, _ := failureWords(failureFacts{Err: err, Provider: provider}, strings.ToUpper)
+	return h
+}
+
+// failureFacts is what is stored about a download that failed or that the library refused: the download's error, its
+// library import's state and reason, the blocklist row's reason, its provider (a key) and the cache codes (rd, ad,
+// tb) of the providers its own attempts found it not cached on (missCodes).
+type failureFacts struct {
+	Err, ImportState, ImportErr, Blocked string
+	Provider                             string
+	MissedOn                             []string
+}
+
+// storedFailure is the fullest stored text of a failure: the download's error, the library import's reason when the
+// download row has none (an import held for review), and the blocklist row's reason when it says more (the library
+// blocklists "no file passed the sample guard (<the first file's rejection>)").
+func storedFailure(f failureFacts) string {
+	s := strings.TrimSpace(f.Err)
+	if s == "" && (f.ImportState == "rejected" || f.ImportState == "failed") && f.ImportErr != "" {
+		s = "library: " + strings.TrimSpace(f.ImportErr)
 	}
-	if rest, ok := strings.CutPrefix(s, "provider "); ok && provider != "" {
-		s = strings.ToUpper(provider) + " " + rest
-	}
-	if utf8.RuneCountInString(s) > maxReason {
-		s = string([]rune(s)[:maxReason]) + "…"
+	b := strings.TrimSpace(f.Blocked)
+	switch {
+	case b == "":
+	case s == "":
+		s = b
+	default:
+		inner := strings.TrimPrefix(s, "library: ")
+		if len(b) > len(inner) && strings.HasPrefix(b, inner) {
+			s = strings.TrimSuffix(s, inner) + b
+		}
 	}
 	return s
+}
+
+// The headlines failureWords gives the library's refusals; a retry of the same release ends the same way.
+const (
+	notUpgradeWords  = "Not imported: these files do not improve on the files you have"
+	sampleWords      = "Not imported: the file is a sample or too short"
+	mislabelWords    = "Not imported: the video does not match its quality label"
+	invalidWords     = "Not imported: not a valid video file"
+	noMatchWords     = "Not imported: none of its files matched the wanted episodes"
+	notCheckedWords  = "Not imported: no file passed the library's checks"
+	noProviderWords  = "No provider accepted this release"
+	stalledWords     = "Download stalled"
+	nothingReplaced  = "Nothing was replaced."
+	sampleGuardWords = "no file passed the sample guard"
+)
+
+var (
+	// decide.importupgrade's custom-format refusal: "… New: [a, b] (1202) do not improve on Existing: [c] (6200)".
+	cfScoresRe = regexp.MustCompile(`\((-?\d+)\) do not improve on Existing: \[.*\] \((-?\d+)\)`)
+	// Its quality refusal: "Not an upgrade for existing file(s). Existing quality: X. New Quality Y."
+	qualityRe = regexp.MustCompile(`Existing quality: (.+?)\. New Quality (.+?)\.?$`)
+	// library sampleCheck: "sample: runtime 240s is under 600s", "runtime 40 min is under 50% of the expected 128 min",
+	// "resolution 1280x720 contradicts the release's 2160p".
+	sampleRe     = regexp.MustCompile(`^sample: runtime (\d+)s is under (\d+)s`)
+	shortRe      = regexp.MustCompile(`^runtime (\d+) min is under (\d+)% of the expected (\d+) min`)
+	resolutionRe = regexp.MustCompile(`^resolution (\S+) contradicts the release's (\S+)`)
+)
+
+// failureWords turns a failed or refused download's stored outcome (failureFacts) into a headline and a detail, both
+// plain sentences without a final stop in the headline (docs/design/ui.md "Failure reasons"). It maps the texts the
+// router and the library write, plus the older library wrapper "no file passed the sample guard (…)", whose inner
+// rejection is what is read; any other text is shown as stored, without its "library: " or "provider " prefix. tag
+// names a provider key (RD).
+func failureWords(f failureFacts, tag func(string) string) (headline, detail string) {
+	s := storedFailure(f)
+	if s == "" {
+		return "", ""
+	}
+	rest := strings.TrimPrefix(s, "library: ")
+	if h, d, ok := importWords(rest); ok {
+		return h, d
+	}
+	switch {
+	case strings.HasPrefix(s, "miss on every provider"):
+		if len(f.MissedOn) > 0 {
+			return "Not cached on " + providerList(f.MissedOn), ""
+		}
+		return noProviderWords, ""
+	case strings.HasPrefix(s, "stalled"):
+		if _, pk, ok := strings.Cut(s, "; our add was deleted on "); ok {
+			return stalledWords, "Deleted from " + tag(strings.TrimSpace(pk)) + "."
+		}
+		if _, kept, ok := strings.Cut(s, "; kept on "); ok {
+			pk, _, _ := strings.Cut(kept, ":")
+			return stalledWords, "Kept on " + tag(strings.TrimSpace(pk)) + "."
+		}
+		return stalledWords, ""
+	case strings.HasPrefix(s, "ready timeout: not imported after "):
+		d, err := time.ParseDuration(strings.Fields(strings.TrimPrefix(s, "ready timeout: not imported after "))[0])
+		if err != nil || d <= 0 {
+			return "Finished at the provider, but its files could not be imported in time", ""
+		}
+		return "Finished at the provider, but its files could not be imported within " + durationWords(d), ""
+	case strings.HasPrefix(s, "provider status "):
+		who := "The provider"
+		if f.Provider != "" {
+			who = tag(f.Provider)
+		}
+		return who + " reported an error", "Its status: " + strings.TrimPrefix(s, "provider status ") + "."
+	}
+	return storedWords(strings.TrimPrefix(rest, "provider ")), ""
+}
+
+// importWords maps the library's refusals (internal/library import.go, mislabel.go; decide importupgrade.go): the
+// import's own reasons and the per-file rejections inside the old wrapper. ok is false for any other text.
+func importWords(s string) (headline, detail string, ok bool) {
+	reason, inner := s, ""
+	if i := strings.Index(s, " ("); i > 0 && strings.HasSuffix(s, ")") {
+		reason, inner = s[:i], s[i+2:len(s)-1]
+	}
+	switch reason {
+	case sampleGuardWords:
+		// The wrapper does not prove a sample: the rejection recorded inside it says what failed.
+		if h, d, ok := fileWords(inner); ok {
+			return h, d, true
+		}
+		return notCheckedWords, "", true
+	case "not an upgrade for the existing files":
+		return notUpgradeWords, notUpgradeDetail(inner), true
+	case "no file matched the download's episodes":
+		return noMatchWords, "", true
+	}
+	return fileWords(s)
+}
+
+// fileWords maps one file's rejection by the sample, fake and mislabel guards or the upgrade check.
+func fileWords(r string) (headline, detail string, ok bool) {
+	switch {
+	case r == "":
+		return "", "", false
+	case strings.HasPrefix(r, "Not a Custom Format upgrade"), strings.HasPrefix(r, "Not an upgrade for existing file"),
+		strings.HasPrefix(r, "Not a quality revision upgrade"), strings.HasPrefix(r, "Episode file on disk contains more episodes"):
+		return notUpgradeWords, notUpgradeDetail(r), true
+	case strings.HasPrefix(r, "runtime of 0"):
+		return invalidWords, "", true
+	case strings.HasPrefix(r, "mislabelled "):
+		label, what, _ := strings.Cut(strings.TrimPrefix(r, "mislabelled "), ": ")
+		switch {
+		case what == "":
+			return mislabelWords, "", true
+		case label == "remux":
+			// "x264 encode with crf=18 (disc video is never CRF)"
+			return mislabelWords, "Labelled Remux, but it is an " + what + ".", true
+		}
+		return mislabelWords, "Labelled " + label + ", but " + what + ".", true
+	}
+	if m := resolutionRe.FindStringSubmatch(r); m != nil {
+		return mislabelWords, "Labelled " + m[2] + ", but the video is " + m[1] + ".", true
+	}
+	if m := sampleRe.FindStringSubmatch(r); m != nil {
+		got, _ := strconv.Atoi(m[1])
+		least, _ := strconv.Atoi(m[2])
+		return sampleWords, "The file runs " + secondsWords(got) + ", under the " + secondsWords(least) + " minimum.", true
+	}
+	if m := shortRe.FindStringSubmatch(r); m != nil {
+		return sampleWords, "The file runs " + m[1] + " min, under " + m[2] + "% of the expected " + m[3] + " min.", true
+	}
+	return "", "", false
+}
+
+// notUpgradeDetail says what the upgrade check compared, when the stored rejection has it.
+func notUpgradeDetail(r string) string {
+	if m := cfScoresRe.FindStringSubmatch(r); m != nil {
+		n, _ := strconv.Atoi(m[1])
+		c, _ := strconv.Atoi(m[2])
+		return "This release scores " + thousands(n) + ", yours " + thousands(c) + ". " + nothingReplaced
+	}
+	if m := qualityRe.FindStringSubmatch(r); m != nil {
+		return "This release is " + m[2] + ", yours " + m[1] + ". " + nothingReplaced
+	}
+	return nothingReplaced
+}
+
+// storedWords is a stored text as a headline: its first letter in upper case, cut to maxReason.
+func storedWords(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return ""
+	}
+	r := []rune(s)
+	if len(r) > maxReason {
+		r = append(r[:maxReason], '…')
+	}
+	return strings.ToUpper(string(r[:1])) + string(r[1:])
+}
+
+// providerList is cache codes as tags: "RD, AD and TB".
+func providerList(codes []string) string {
+	up := make([]string, len(codes))
+	for i, c := range codes {
+		up[i] = strings.ToUpper(c)
+	}
+	if len(up) < 2 {
+		return strings.Join(up, "")
+	}
+	return strings.Join(up[:len(up)-1], ", ") + " and " + up[len(up)-1]
+}
+
+// attemptMisses are the cache codes (rd, ad, tb; missCodes) of the providers a download's attempts found it not
+// cached on, in the order the title page lists them; code gives a provider key's cache code.
+func attemptMisses(as []journal.Attempt, code func(string) string) []string {
+	var out []string
+	for _, a := range as {
+		switch a.Code {
+		case "miss", "known_uncached", "uncached_deleted", "uncached_kept":
+			if c := strings.ToLower(code(a.Provider)); c != "" && !slices.Contains(out, c) {
+				out = append(out, c)
+			}
+		}
+	}
+	order := map[string]int{"rd": 0, "ad": 1, "tb": 2}
+	rank := func(c string) int {
+		if r, ok := order[c]; ok {
+			return r
+		}
+		return len(order)
+	}
+	slices.SortStableFunc(out, func(a, b string) int { return rank(a) - rank(b) })
+	return out
+}
+
+// durationWords is a stored duration in words: "6 hours", "2 days", "90 minutes".
+func durationWords(d time.Duration) string {
+	unit := func(n int64, one string) string {
+		if n == 1 {
+			return "1 " + one
+		}
+		return strconv.FormatInt(n, 10) + " " + one + "s"
+	}
+	switch {
+	case d%(24*time.Hour) == 0:
+		return unit(int64(d/(24*time.Hour)), "day")
+	case d%time.Hour == 0:
+		return unit(int64(d/time.Hour), "hour")
+	}
+	return unit(int64(d.Round(time.Minute)/time.Minute), "minute")
+}
+
+// secondsWords is a runtime in seconds in words: "45 s", "4 min".
+func secondsWords(s int) string {
+	if s < 60 {
+		return strconv.Itoa(s) + " s"
+	}
+	return strconv.Itoa((s+30)/60) + " min"
+}
+
+// thousands is n with comma separators: 6200 reads "6,200".
+func thousands(n int) string {
+	s := strconv.Itoa(n)
+	neg := strings.HasPrefix(s, "-")
+	s = strings.TrimPrefix(s, "-")
+	var b strings.Builder
+	for i, r := range s {
+		if i > 0 && (len(s)-i)%3 == 0 {
+			b.WriteByte(',')
+		}
+		b.WriteRune(r)
+	}
+	if neg {
+		return "-" + b.String()
+	}
+	return b.String()
 }
 
 // runOrigin is what started an acquire run: acquire_run's source, reason and research, and for a search asked

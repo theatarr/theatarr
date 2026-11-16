@@ -81,7 +81,7 @@ function DownloadDetails({ d }: { d: ActivityDownload }) {
         ) : null}
         {d.error ? (
           <div>
-            <Label>Message</Label>
+            <Label>{failedWhy(d) ? "Technical details" : "Message"}</Label>
             <p className="mt-1 whitespace-pre-wrap break-words text-sm text-[var(--warn-ink)]">{d.error}</p>
           </div>
         ) : null}
@@ -141,8 +141,9 @@ const failedWhy = (d: ActivityDownload) => (d.state === "failed" && !d.not_start
 function Stage({ d, admin, attention }: { d: ActivityDownload; admin: boolean; attention: boolean }) {
   const label = stageLabel(d);
   const tone = attention && toneOf(d) !== "bad" ? "warn" : toneOf(d);
-  // A failure names its reason ("miss on every provider"), not "Download failed" again.
-  const reason = admin && d.error && failedWhy(d) ? d.error : "";
+  // A failure names its reason in plain words (the server's reason; the stored error from an older server), not
+  // "Download failed" again.
+  const reason = admin && failedWhy(d) ? d.reason || d.error || "" : "";
   const words = reason || (admin && d.detail ? d.detail : d.words);
   return (
     <div className="min-w-0">

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -113,8 +114,13 @@ func activityMessage(s string) string {
 }
 
 // ActivityAttempts is the full history loaded when a download's Inspect/Details panel opens.
+// For a failed or refused download, its reason in plain sentences (failureWords: Reason, ReasonDetail) and the stored
+// text (Error), for the title page's attempt Details.
 type ActivityAttempts struct {
-	Attempts []journal.Attempt `json:"attempts"`
+	Attempts     []journal.Attempt `json:"attempts"`
+	Reason       string            `json:"reason,omitempty"`
+	ReasonDetail string            `json:"reason_detail,omitempty"`
+	Error        string            `json:"error,omitempty"`
 }
 
 func (w *Web) apiActivityAttempts(rw http.ResponseWriter, r *http.Request) {
@@ -127,13 +133,19 @@ func (w *Web) apiActivityAttempts(rw http.ResponseWriter, r *http.Request) {
 		badRequest(rw, "invalid download id")
 		return
 	}
-	var exists bool
-	if err := w.st.Reader().QueryRowContext(r.Context(), "SELECT EXISTS(SELECT 1 FROM download WHERE id=?)", id).Scan(&exists); err != nil {
-		w.internal(rw, err)
+	var f failureFacts
+	var state string
+	err = w.st.Reader().QueryRowContext(r.Context(), `SELECT d.state, COALESCE(d.error, ''), COALESCE(d.provider, ''),
+		COALESCE(li.state, ''), COALESCE(li.last_error, ''), COALESCE((SELECT b.reason FROM router_blocklist b
+		WHERE b.download_id = d.id ORDER BY b.created_at DESC LIMIT 1), '')
+		FROM download d LEFT JOIN library_import li ON li.download_id = d.id WHERE d.id = ?`, id).
+		Scan(&state, &f.Err, &f.Provider, &f.ImportState, &f.ImportErr, &f.Blocked)
+	if errors.Is(err, sql.ErrNoRows) {
+		notFound(rw)
 		return
 	}
-	if !exists {
-		notFound(rw)
+	if err != nil {
+		w.internal(rw, err)
 		return
 	}
 	rows, err := w.st.Reader().QueryContext(r.Context(), `SELECT download_id,provider,outcome,code,message,retry_at,attempted_at FROM download_attempt WHERE download_id=? ORDER BY id`, id)
@@ -154,6 +166,15 @@ func (w *Web) apiActivityAttempts(rw http.ResponseWriter, r *http.Request) {
 	if err := rows.Err(); err != nil {
 		w.internal(rw, err)
 		return
+	}
+	failed := state == "failed" && activity.NotStarted(f.Err) == ""
+	if failed || f.ImportState == "rejected" || f.ImportState == "failed" {
+		if !failed {
+			f.Err = ""
+		}
+		f.MissedOn = attemptMisses(out.Attempts, w.providerCode)
+		h, d := failureWords(f, w.providerTag)
+		out.Reason, out.ReasonDetail, out.Error = activityMessage(h), activityMessage(d), activityMessage(storedFailure(f))
 	}
 	writeJSON(rw, http.StatusOK, out)
 }

@@ -832,6 +832,9 @@ func Accounts(accounts func(ctx context.Context) map[string]AccountSource, o Acc
 			}
 			if r.err != nil {
 				d["error"] = short(r.err.Error())
+				if errors.Is(r.err, provider.ErrAuth) {
+					d["refused"] = true // the provider refused the key (Status says to check it)
+				}
 			} else {
 				d["premium"] = r.account.Premium
 				if !r.account.Expires.IsZero() {

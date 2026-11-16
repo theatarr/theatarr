@@ -338,19 +338,23 @@ func (w *Web) versionHistory(ctx context.Context, db *sql.DB, titleID int64, kin
 		info_hash, COALESCE(provider, ''), quality, score, source, COALESCE(error, ''), `+notStartedCol+`,
 		CASE WHEN state = 'failed' THEN `+heldNowSQL+` ELSE 0 END,
 		CASE WHEN state = 'failed' AND COALESCE(error, '') GLOB 'miss on every provider*' THEN (SELECT json_group_array(DISTINCT a.provider) FROM download_attempt a
-			WHERE a.download_id = download.id AND a.code IN (`+missCodes+`)) END
+			WHERE a.download_id = download.id AND a.code IN (`+missCodes+`)) END,
+		CASE WHEN state = 'failed' THEN (SELECT b.reason FROM router_blocklist b WHERE b.download_id = download.id
+			ORDER BY b.created_at DESC LIMIT 1) END
 		FROM download WHERE title_id = ? ORDER BY created_at, id`,
 		[]any{titleID}, func(r *sql.Rows) error {
 			var dlID, vid, created, done, score int64
 			var state, source, errText string
 			var notStarted bool
-			var missed sql.NullString
+			var missed, blocked sql.NullString
 			var upgrade bool
 			var h HistoryEvent
 			if err := r.Scan(&dlID, &vid, &state, &created, &done, &h.ReleaseTitle, &h.InfoHash, &h.Source, &h.Quality,
-				&score, &source, &errText, &notStarted, &upgrade, &missed); err != nil {
+				&score, &source, &errText, &notStarted, &upgrade, &missed, &blocked); err != nil {
 				return err
 			}
+			// The library's refusal is read from its blocklist row, which names the file's rejection (failureWords).
+			errText = storedFailure(failureFacts{Err: errText, Blocked: blocked.String})
 			if missed.Valid {
 				var provs []string
 				_ = json.Unmarshal([]byte(missed.String), &provs)

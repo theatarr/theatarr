@@ -1148,3 +1148,82 @@ func TestHistoryPartialUpgradeWords(t *testing.T) {
 		t.Errorf("reason %q", r)
 	}
 }
+
+// TestActivityRefusedReason: a download the library refused as not an upgrade (the old wrapper, with the file's
+// rejection in its blocklist row) reads the same plain reason in the queue, its attempt details, the Blocklist, the
+// title page and History; the stage line ticks Download complete and crosses Not imported; the stored text stays as
+// technical details; a household account's queue row carries none of it.
+func TestActivityRefusedReason(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	key := e.apiKey()
+	now := store.Millis(testNow)
+	const cf = "Not a Custom Format upgrade for existing file(s). New: [A] (1202) do not improve on Existing: [B] (6200)"
+	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, provider,
+		state, error, added_at, ready_at, created_at, updated_at) VALUES (1, 1, 2, 'movie-web', ?1, 'Alpha.Release', 'dmm',
+		'rd', 'failed', 'library: no file passed the sample guard', ?2, ?2, ?2, ?2)`, hashA, now)
+	e.exec(`INSERT INTO library_import (download_id, state, mount_folder, last_error, plan, created_at, updated_at)
+		VALUES (1, 'rejected', 'Alpha.Release', 'no file passed the sample guard', '{}', ?1, ?1)`, now)
+	e.exec(`INSERT INTO router_blocklist (version_key, info_hash, title_id, release_title, reason, source, download_id,
+		created_at) VALUES ('movie-web', ?, 1, 'Alpha.Release', ?, 'library', 1, ?)`, hashA,
+		"no file passed the sample guard ("+cf+")", now)
+	const head, detail = "Not imported: these files do not improve on the files you have",
+		"This release scores 1,202, yours 6,200. Nothing was replaced."
+	var p ActivityPage
+	if code := e.getKey(APIBase+"/activity?state=now", key, &p); code != 200 || len(p.Now) != 1 {
+		t.Fatalf("queue: %d %+v", code, p)
+	}
+	d := p.Now[0]
+	if d.Reason != head || d.ReasonDetail != detail || d.Error != "library: no file passed the sample guard" {
+		t.Errorf("queue reason %q / %q / %q", d.Reason, d.ReasonDetail, d.Error)
+	}
+	if len(d.Steps) != 5 || d.Steps[3].State != "done" || d.Steps[4].State != "failed" || d.Steps[4].Label != "Not imported" ||
+		d.Step != "ready" {
+		t.Errorf("steps %s %+v", d.Step, d.Steps)
+	}
+	var a ActivityAttempts
+	if code := e.getKey(APIBase+"/activity/downloads/1/attempts", key, &a); code != 200 || a.Reason != head ||
+		a.ReasonDetail != detail || !strings.HasPrefix(a.Error, "library: no file passed the sample guard (Not a Custom") {
+		t.Errorf("attempts: %d %+v", code, a)
+	}
+	var b ActivityPage
+	if e.getKey(APIBase+"/activity?state=blocked", key, &b); len(b.Blocked) != 1 || b.Blocked[0].Reason != head+". "+detail {
+		t.Errorf("blocklist %+v", b.Blocked)
+	}
+	var td TitleDetail
+	if code := e.getKey(APIBase+"/titles/1", key, &td); code != 200 {
+		t.Fatalf("title: %d", code)
+	}
+	found := false
+	for _, v := range td.Versions {
+		for _, h := range v.History {
+			if h.Event == "failed" {
+				found = true
+				if h.Reason != head {
+					t.Errorf("title page reason %q", h.Reason)
+				}
+			}
+		}
+	}
+	if !found {
+		t.Errorf("title page has no failed event: %+v", td.Versions)
+	}
+	hs, err := e.web.historyEvents(context.Background(), []*journal.HistoryRow{{Kind: journal.KindFailure,
+		Event: journal.EvFailed, Title: journal.TitleRef{ID: 1}, Provider: "rd", Reason: "miss on every provider",
+		Attempts: []journal.Attempt{{Provider: "rd", Code: "miss"}, {Provider: "tb", Code: "uncached_deleted"}}}}, true)
+	if err != nil || len(hs) != 1 || hs[0].Reason != "Not cached on RD and TB" {
+		t.Errorf("history: %+v, %v", hs, err)
+	}
+	// Held for review (in hand): a household account sees the row, without reason or stored text.
+	e.exec(`UPDATE download SET state = 'ready', error = NULL WHERE id = 1`)
+	e.exec(`UPDATE library_import SET last_error = 'not an upgrade for the existing files' WHERE download_id = 1`)
+	var u ActivityPage
+	e.getKey(APIBase+"/activity?state=now&as=user", key, &u)
+	if len(u.Now) != 1 || u.Now[0].Reason != "" || u.Now[0].ReasonDetail != "" || u.Now[0].Error != "" {
+		t.Errorf("user view %+v", u.Now)
+	}
+	e.getKey(APIBase+"/activity?state=now", key, &p)
+	if len(p.Now) != 1 || p.Now[0].Reason != head || p.Now[0].ReasonDetail != "Nothing was replaced." {
+		t.Errorf("held %+v", p.Now)
+	}
+}

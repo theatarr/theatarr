@@ -238,3 +238,29 @@ it("offers no Interactive search of another library when the failed download's l
   expect(lead.textContent).toBe("It stalled at the provider and was dropped. Retry sends the same release again.");
   expect(within(lead).queryByTestId("interactive-search-open")).toBeNull();
 });
+
+it("says why the library refused a download in plain words, offers Dismiss not Retry, and keeps the stored text under Technical details", async () => {
+  const refused = { ...base, id: 60, title: { id: 7, name: "Eta", kind: "anime", poster: "" }, version: "anime", state: "failed", words: "Failed", step: "ready",
+    steps: [{ key: "queued", label: "Queued", state: "done" }, { key: "adding", label: "Adding", state: "done" }, { key: "downloading", label: "Downloading", state: "done" }, { key: "ready", label: "Download complete", state: "done" }, { key: "linked", label: "Not imported", state: "failed" }],
+    error: "library: no file passed the sample guard", import_state: "rejected", reason: "Not imported: these files do not improve on the files you have",
+    reason_detail: "This release scores 1,202, yours 6,200. Nothing was replaced.", release: "Eta.S02.1080p.Remux", info_hash: "ab" };
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: me },
+    { method: "GET", path: "/activity", reply: { state: "now", admin: true, total: 1, now: [refused] } },
+    { method: "GET", path: "/activity/downloads/60/attempts", reply: { attempts: [] } },
+    { method: "GET", path: "/titles/7", reply: { id: 7, name: "Eta", kind: "series", versions: [{ key: "anime", label: "Anime", control: { live_releases: true } }] } },
+    { method: "GET", path: "/titles/7/removal", reply: { copies: [{ key: "anime" }] } },
+  ]);
+  renderPage(<QueueTab admin show="all" onShow={() => {}} />, "/activity?open=60");
+  const row = await screen.findByTestId("download");
+  expect(within(row).getByTestId("words").textContent).toBe("Not imported: these files do not improve on the files you have");
+  const lead = await screen.findByTestId("failed-lead");
+  await within(lead).findByTestId("interactive-search-open");
+  expect(lead.textContent).toContain("Not imported: these files do not improve on the files you have. This release scores 1,202, yours 6,200. Nothing was replaced. Dismiss clears it from the queue; Interactive search lets you choose another.");
+  expect(lead.textContent).not.toContain("Retry sends");
+  const panel = screen.getByTestId("download-open");
+  expect(within(panel).getAllByText("Not imported").length).toBeGreaterThan(0);
+  const details = screen.getByTestId("failed-details");
+  expect(within(details).getByText("Technical details")).toBeTruthy();
+  expect(within(details).getByText("library: no file passed the sample guard")).toBeTruthy();
+});

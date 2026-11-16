@@ -23,8 +23,9 @@ type Blocked struct {
 	DownloadID int64
 	Created    time.Time
 	Researched time.Time // zero when no re-search followed yet
-	Quality    string    // the blocked download's quality and indexer; "" when not known
+	Quality    string    // the blocked download's quality, indexer and provider; "" when not known
 	Indexer    string
+	Provider   string
 }
 
 // BlockedFilter narrows the blocklist. Empty fields match every row.
@@ -54,7 +55,7 @@ func BlockedReleases(ctx context.Context, db *sql.DB, f BlockedFilter, limit, of
 	rows, err := db.QueryContext(ctx, `SELECT b.version_key, b.info_hash, COALESCE(b.title_id, 0), COALESCE(t.name, ''),
 		COALESCE(t.year, 0), COALESCE(t.kind, ''), COALESCE(t.anime, 0), b.release_title, b.reason, b.source,
 		COALESCE(b.download_id, 0), b.created_at, COALESCE(b.researched_at, 0), COALESCE(d.quality, ''),
-		COALESCE(d.indexer, '')`+from+` LEFT JOIN download d ON d.id = b.download_id`+where+`
+		COALESCE(d.indexer, ''), COALESCE(d.provider, '')`+from+` LEFT JOIN download d ON d.id = b.download_id`+where+`
 		ORDER BY b.created_at DESC, b.info_hash LIMIT ? OFFSET ?`, append(args, limit, offset)...)
 	if err != nil {
 		return nil, 0, err
@@ -65,7 +66,7 @@ func BlockedReleases(ctx context.Context, db *sql.DB, f BlockedFilter, limit, of
 		var b Blocked
 		var created, researched int64
 		if err := rows.Scan(&b.Version, &b.Hash, &b.TitleID, &b.TitleName, &b.TitleYear, &b.TitleKind, &b.Anime,
-			&b.Release, &b.Reason, &b.Source, &b.DownloadID, &created, &researched, &b.Quality, &b.Indexer); err != nil {
+			&b.Release, &b.Reason, &b.Source, &b.DownloadID, &created, &researched, &b.Quality, &b.Indexer, &b.Provider); err != nil {
 			return nil, 0, err
 		}
 		b.Created, b.Researched = at(created), at(researched)
