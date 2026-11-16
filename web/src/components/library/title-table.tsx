@@ -32,7 +32,7 @@ import {
   sortColumn,
   type IndexColumnId,
 } from "@/lib/index-columns";
-import { badgeTone, copyTone, copyWords, type CopyTone } from "@/lib/library-status";
+import { badgeTone, copyTone, copyWords, monitoredHeldWords, type CopyTone } from "@/lib/library-status";
 import { fmtDay, fmtRuntime, notAiredYet, POSTER_STATUS_LABEL, posterStatus, qualityWord, statusDay, titleWatchWords, undatedUpcoming, upcomingRelease, type PosterStatus } from "@/lib/library";
 import { cn } from "@/lib/utils";
 import { StageLink, useMinWidth } from "./copy-bits";
@@ -108,12 +108,17 @@ function StatusCell({ t, words = false }: { t: TitleRow; words?: boolean }) {
   const day = s === "upcoming" ? (home ?? (notAiredYet(t) ? t.next_up?.date : undefined)) : undefined;
   const undated = s === "upcoming" && !day && undatedUpcoming(t);
   const q = qualityWord(t);
+  // A series Available with episodes it does not monitor says what Available counts ("6 of 6 monitored · 22
+  // episodes"): under the word for one library, in its tooltip for several.
+  const held = t.kind === "series" && s === "available" ? (t.versions ?? []).map((v) => [v.label || v.key || "", monitoredHeldWords(v)]).filter(([, w]) => w) : [];
+  const sub = held.length && (t.versions ?? []).length === 1 ? held[0][1] : "";
   const word = (
-    <span className="inline-flex min-w-0 flex-col">
+    <span className="inline-flex min-w-0 flex-col" title={held.length && !sub ? held.map(([l, w]) => `${l}: ${w}`).join("\n") : undefined}>
       <span data-testid="status-cell" className={cn("text-[13px] font-medium", TONE_INK[badgeTone(s)])}>
         {POSTER_STATUS_LABEL[s]}
         {day ? ` · ${home ? statusDay(t, home) : fmtDay(day)}` : undated ? ", date unknown" : ""}
       </span>
+      {sub ? <span data-testid="status-held" className="text-[11.5px] text-[var(--ink-3)]">{sub}</span> : null}
       {q ? <span data-testid="status-quality" className={cn("text-[11.5px]", QUALITY_INK[q.tone])}>{q.label}</span> : null}
     </span>
   );

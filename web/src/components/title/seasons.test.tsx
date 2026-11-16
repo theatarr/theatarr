@@ -484,10 +484,12 @@ describe("One status vocabulary", () => {
     await user.click(within(header).getByTestId("upgrade-why"));
     const why = await screen.findByTestId("upgrade-why-dialog");
     expect(within(why).getByRole("heading").textContent).toBe("Preferred quality not met");
-    // Current and preferred quality are equal: Why? leads with the score that falls short, and the equal source
-    // lines are folded.
-    expect(within(why).getByTestId("why-short").textContent).toBe("Score 1,500 of 10,000.");
-    expect(within(why).getByTestId("why-sources").hasAttribute("open")).toBe(false);
+    // Three plain lines: the file held, where upgrades stop, and what was found.
+    expect([...within(why).getByTestId("why-lines").querySelectorAll("p")].map((p) => p.textContent)).toEqual([
+      "You have: WEBDL-1080p, score 1,500.",
+      "Upgrades stop at: WEBDL-1080p and a score of 10,000.",
+      "No better release seen yet.",
+    ]);
     await user.click(within(why).getByRole("button", { name: "Close" }));
     // The episode window says what the row says: Available, then the quality word with Why?; Not monitored for the
     // library that is not monitored.

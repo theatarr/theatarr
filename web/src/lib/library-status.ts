@@ -4,7 +4,9 @@
 import type { Schemas } from "@/api/client";
 import type { TitleRow } from "@/api/library";
 import { chipWords, copyBar } from "@/lib/copies";
+import { fmtNumber } from "@/lib/format";
 import { notAiredYet, undatedUpcoming, upcomingRelease, type PosterStatus } from "@/lib/library";
+import { unmonitoredCoverage } from "@/lib/title-facts";
 
 type VersionBrief = Schemas["VersionBrief"];
 
@@ -86,4 +88,21 @@ export function copyWords(v: VersionBrief, t: ToneTitle, day?: string): string {
   if (v.monitored === false) return "not monitored";
   if (upcomingRelease(t, day) || undatedUpcoming(t)) return "not released yet";
   return "missing";
+}
+
+/**
+ * A monitored series library that holds every monitored episode but not every episode, so "Available" beside "6/22"
+ * does not read as a contradiction: "6 of 6 monitored · 22 episodes", or, while monitored episodes are still to air
+ * (the monitored count then includes them), "6 of 22 episodes · 16 not monitored"; a library monitoring none
+ * "6 of 22 episodes · none monitored". "" when it holds them all or misses a monitored one. For callers who see files
+ * (the monitored count is theirs).
+ */
+export function monitoredHeldWords(v: VersionBrief): string {
+  const c = v.coverage;
+  if (!c || v.monitored === false || (c.missing ?? 0) > 0 || c.have >= c.total) return "";
+  const monitored = c.monitored ?? 0;
+  const none = unmonitoredCoverage({ ...c, monitored }, true);
+  if (none) return none;
+  if (!c.upcoming) return `${fmtNumber(monitored)} of ${fmtNumber(monitored)} monitored · ${fmtNumber(c.total)} episodes`;
+  return `${fmtNumber(c.have)} of ${fmtNumber(c.total)} episodes · ${fmtNumber(c.total - c.have)} not monitored`;
 }

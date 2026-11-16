@@ -6,7 +6,7 @@ import { Link } from "react-router";
 import { Badge } from "@/components/ui/badge";
 import { closedGates, globalDownloadsOff, linksOff, stateWords, verdict, type VersionGrabState } from "@/lib/version-grab";
 
-export function VersionStatus({ state, words = false, settingsKey, canManage = false, why = true }: {
+export function VersionStatus({ state, words = false, settingsKey, canManage = false, why = true, quiet = false }: {
   state?: VersionGrabState;
   /** Settings › Libraries: one plain phrase ("Downloads held by the server") in place of the verdict. Why? stays. */
   words?: boolean;
@@ -15,9 +15,13 @@ export function VersionStatus({ state, words = false, settingsKey, canManage = f
   /** false: dense rows (library tables, request chips). Why? is a small "?" button and the list opens in a popover
    * instead of pushing the row open; reachable by keyboard and touch, Escape closes it and returns focus. */
   why?: boolean;
+  /** Rows and windows: nothing while downloads are on and new files are linked; the pill only when it says something
+   * (Paused, Downloads off, New files won't be linked). Setup and Settings › Libraries keep the positive word. */
+  quiet?: boolean;
 }) {
   const id = useId();
   const [open, setOpen] = useState(false);
+  if (quiet && (!state || (verdict(state).word === "Downloads on" && !linksOff(state)))) return null;
   if (!state) return words ? <Badge tone="neutral" data-testid="state-words">{stateWords(undefined).text}</Badge> : null;
   const v = verdict(state);
   const gates = closedGates(state, settingsKey);

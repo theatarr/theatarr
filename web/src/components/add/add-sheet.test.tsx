@@ -39,13 +39,15 @@ it("lists every library with its state, counts the ticked ones and sends the sam
   // The key is no text of its own: an admin finds it as the name's tooltip.
   expect(within(web).queryByText("movie-web")).toBeNull();
   expect(within(web).getByText(long).getAttribute("title")).toBe("movie-web");
-  expect(within(web).getByText("Downloads on")).toBeTruthy();
+  // Downloads on is not said on every row: the state shows only when it says something.
+  expect(within(web).queryByText("Downloads on")).toBeNull();
   expect(within(screen.getByTestId("add-version-movie-remux")).getByText("Downloads off")).toBeTruthy();
   expect(within(screen.getByTestId("add-version-movie-1080")).getByText("Downloads off")).toBeTruthy();
   expect(within(screen.getByTestId("add-version-movie-hdr")).getByTestId("links-off")).toBeTruthy();
   // The checkbox is named by the library and described by its state.
   const box = within(web).getByRole("checkbox", { name: new RegExp(long) });
-  expect(document.getElementById(box.getAttribute("aria-describedby") ?? "")?.textContent).toContain("Downloads on");
+  expect(document.getElementById(box.getAttribute("aria-describedby") ?? "")?.textContent).toBe("");
+  expect(document.getElementById(within(screen.getByTestId("add-version-movie-remux")).getByRole("checkbox").getAttribute("aria-describedby") ?? "")?.textContent).toContain("Downloads off");
   // Six ticked by default.
   expect(screen.getByTestId("add-count").textContent).toBe("6 libraries");
   await user.click(within(screen.getByTestId("add-version-movie-sd")).getByRole("checkbox"));

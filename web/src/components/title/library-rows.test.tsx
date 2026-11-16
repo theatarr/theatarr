@@ -40,7 +40,8 @@ describe("Libraries table", () => {
     expect(a.getByTestId("library-file").getAttribute("title")).toBe(web.current.path);
     expect(a.getByText("1,500").getAttribute("title")).toBe("DV HDR10 +1,500");
     const b = rowOf("movie-remux");
-    expect(b.querySelector('[data-column="score"]')?.textContent).toBe("");
+    // A score never recorded reads "—", as History says it.
+    expect(b.querySelector('[data-column="score"]')?.textContent).toBe("—");
     expect(b.querySelector('[data-column="cached_on"]')?.textContent).toBe("—");
     expect(within(b).getByText("Preferred quality not met")).toBeTruthy();
   });
@@ -221,7 +222,7 @@ describe("fix round 1", () => {
     expect(within(rowOf("movie-web")).queryByTestId("upgrade-why")).toBeNull();
   });
 
-  it("shows the score the server sends, formats or not, and leaves a missing one blank", async () => {
+  it("shows the score the server sends, formats or not, and a missing one as —", async () => {
     // The server leaves out a score with no scoring evidence (linkScoreSQL); an adopted file's calculated score, with no
     // formats stored, stays.
     manager();
@@ -229,7 +230,8 @@ describe("fix round 1", () => {
     await waitFor(() => expect(rowOf("movie-web").querySelector('[data-column="score"]')?.textContent).toBe("1,500"));
     page.unmount();
     renderPage(<LibraryRows title={title as never} versions={[{ ...web, current: { ...web.current, formats: undefined, score: undefined } }] as never} />);
-    await waitFor(() => expect(rowOf("movie-web").querySelector('[data-column="score"]')?.textContent).toBe(""));
+    await waitFor(() => expect(rowOf("movie-web").querySelector('[data-column="score"]')?.textContent).toBe("—"));
+    expect(screen.getByTestId("score-not-recorded").getAttribute("title")).toBe("Not scored");
   });
 
   it("offers Why? in Details when the Status column is hidden, and on a series row", async () => {
@@ -298,5 +300,39 @@ describe("Library files (J5)", () => {
     expect(within(files).getAllByTestId("library-file-path").map((p) => p.textContent)).toEqual(links.map((l) => l.path));
     // The row details no longer repeat it.
     expect(within(screen.getByTestId("library-row-details-movie-web")).queryByText("Path")).toBeNull();
+  });
+
+  it("says in Why? and Details that the better release found was tried, with the history row's reason", async () => {
+    mockFetch([{ method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["admin", "browse", "see_files", "manage"] } }]);
+    const user = userEvent.setup();
+    const seen = new Date(Date.now() - 4 * 86400e3).toISOString();
+    const release = "Alpha.2020.2160p.WEB-DL-BETTER";
+    const v = {
+      ...web, current: { ...web.current, info_hash: "ab".repeat(20) },
+      upgrade: { state: "upgrade_available", quality: "WEBDL-2160p", score: 4500, quality_met: true, cutoff: { quality: "WEBDL-2160p", score: 10000, upgrades: true },
+        next: { release, quality: "WEBDL-2160p", score: 6200, source: "search", seen_at: seen } },
+      history: [{ event: "failed", date: seen, release_title: release, missed_on: ["rd", "ad", "tb"], upgrade: true }],
+    };
+    renderPage(<LibraryRows title={title as never} versions={[v] as never} />);
+    await user.click(await screen.findByTestId("upgrade-why"));
+    const lines = [...within(await screen.findByTestId("upgrade-why-dialog")).getByTestId("why-lines").querySelectorAll("p")].map((p) => p.textContent);
+    expect(lines[0]).toBe("You have: WEBDL-2160p, score 4,500.");
+    expect(lines[1]).toBe("Upgrades stop at: WEBDL-2160p and a score of 10,000.");
+    expect(lines[2]).toMatch(new RegExp(`^The quality is reached, the score is not\\. Better release found .+: ${release.replace(/\./g, "\\.")} \\(WEBDL-2160p, score 6,200; yours 4,500\\)\\. Tried .+: not cached on RD, AD and TB\\. Your file is unchanged\\.$`));
+    await user.click(screen.getByRole("button", { name: "Close" }));
+    // Details: one Upgrade line with the same sentence; the library key and the hash last.
+    await user.click(screen.getByTestId("copy-details-movie-web"));
+    const panel = screen.getByTestId("library-row-details-movie-web");
+    expect(within(panel).getByTestId("row-upgrade").textContent).toContain("Tried");
+    const labels = [...panel.querySelectorAll("dt")].map((d) => d.textContent);
+    expect(labels.filter((l) => l?.startsWith("Upgrade"))).toEqual(["Upgrade"]);
+    expect(labels.slice(-2)).toEqual(["Library key", "Hash"]);
+  });
+
+  it("heads the switch column Monitored", async () => {
+    manager();
+    renderPage(<LibraryRows title={title as never} versions={[web] as never} />);
+    await waitFor(() => expect(screen.getAllByTestId("library-row")).toHaveLength(1));
+    expect(screen.getByRole("columnheader", { name: "Monitored" })).toBeTruthy();
   });
 });

@@ -64,23 +64,24 @@ function LibraryName({ v, wrap = false }: { v: Version; wrap?: boolean }) {
 }
 
 /** Why a library is missing and what comes next (a monitored library with nothing in hand that is missing a movie or
- *  aired episodes): the last targeted search or "Never searched", and whether Theatarr searches by itself. */
-export function whyMissing(v: Version, title: TitleDetail, kind: Kind): string {
+ *  aired episodes): the last targeted search or "Not searched yet", and whether Theatarr searches by itself. */
+export function whyMissing(v: Version, title: TitleDetail, kind: Kind, canSearch = false): string {
   if (!v.monitored || v.acquisition || !v.control) return "";
   const missing = kind === "series" ? (v.episodes?.missing ?? 0) > 0 : !v.has_file && !upcomingRelease({ ...title, kind }) && !undatedUpcoming({ ...title, kind });
   if (!missing) return "";
   const n = nextSearchOf(v);
   const next = n && title.auto_search?.enabled ? ` Next search ${nextSearch(n)}.` : "";
-  return missingLine(v, title.auto_search) + next;
+  return missingLine(v, title.auto_search, undefined, canSearch && !!v.control.can_search) + next;
 }
 
 /** The Status cell: the stage linked to Activity, the upgrade badge with Why?, or the words; a second line under it,
  *  then a failed attempt (beside Upgrade found, never instead of it) and why a missing library is missing. */
 function StatusCell({ v, title, kind }: { v: Version; title: TitleDetail; kind: Kind }) {
+  const perms = usePerms();
   const s = libraryStatus(v, { ...title, kind });
   const titleId = v.title_id ?? 0;
   const last = latestEvent(v);
-  const why = whyMissing(v, title, kind);
+  const why = whyMissing(v, title, kind, perms.manage);
   return (
     <span className="flex flex-col items-start gap-0.5" data-testid="library-status">
       {s.stage ? (
@@ -88,7 +89,7 @@ function StatusCell({ v, title, kind }: { v: Version; title: TitleDetail; kind: 
       ) : s.upgrade ? (
         <span className="inline-flex flex-wrap items-center gap-1.5">
           <Badge tone={s.tone}>{s.label}</Badge>
-          <UpgradeStatus u={v.upgrade} what={nameOf(v)} releases={releasesHref(titleId, v.key ?? "")} />
+          <UpgradeStatus u={v.upgrade} what={nameOf(v)} releases={releasesHref(titleId, v.key ?? "")} history={v.history} />
         </span>
       ) : (
         <Badge tone={s.tone}>{s.label}</Badge>
@@ -104,6 +105,9 @@ function StatusCell({ v, title, kind }: { v: Version; title: TitleDetail; kind: 
 
 const blank = null;
 
+/** A file whose score was never recorded (an adopted file Theatarr did not score). */
+const NOT_SCORED = "Not scored";
+
 /** One optional column's cell. Blank, never "0" or "None", for a fact the file does not have. */
 function cellOf(id: LibraryColumn, v: Version, kind: Kind, title: TitleDetail): ReactNode {
   const c = v.current;
@@ -114,11 +118,12 @@ function cellOf(id: LibraryColumn, v: Version, kind: Kind, title: TitleDetail): 
     case "quality":
       return held && c?.quality ? <span className="whitespace-nowrap">{c.quality}</span> : blank;
     case "score":
-      // A score only with scoring evidence: the server leaves it out for a link Theatarr never scored; a calculated 0
-      // stays (internal/web linkScoreSQL).
-      return held && c?.score != null ? (
+      // A score only with scoring evidence: the server leaves it out for a link Theatarr never scored ("—", as
+      // History says it); a calculated 0 stays (internal/web linkScoreSQL).
+      if (!held || !c) return blank;
+      return c.score != null ? (
         <span className="tabular-nums" title={c.formats?.length ? c.formats.map((f) => `${f.name} ${f.score >= 0 ? "+" : ""}${fmtNumber(f.score)}`).join(", ") : undefined}>{fmtNumber(c.score)}</span>
-      ) : blank;
+      ) : <span className="text-[var(--ink-3)]" title={NOT_SCORED} data-testid="score-not-recorded">—</span>;
     case "size":
       return held && c?.size_bytes ? <span className="whitespace-nowrap tabular-nums">{fmtBytes(c.size_bytes)}</span> : blank;
     case "cached_on":
@@ -169,26 +174,34 @@ function RowDetails({ v, kind, minimumShown, statusShown, onRemove }: { v: Versi
   const c = v.current;
   const key = v.key ?? "";
   const titleId = v.title_id ?? 0;
-  const rows: [ReactNode, ReactNode][] = perms.admin ? [["Library key", <Mono key="k">{key}</Mono>]] : [];
+  const rows: [ReactNode, ReactNode][] = [];
   // The path once: Library files lists each linked file's; a file with no link (an arr's) shows it here.
   if (c?.path && unlinkable(v.links).length === 0) rows.push(["Path", <Mono key="p" className="text-muted-foreground [overflow-wrap:anywhere]">{c.path}</Mono>]);
-  // For admins the hash itself opens Torrents filtered to it (InfoHash), so no separate Torrent link here.
-  if (c?.info_hash) rows.push(["Hash", <InfoHash key="h" hash={c.info_hash} admin={perms.admin} />]);
   if (c?.edition) rows.push(["Edition", c.edition]);
   if (kind === "series" && v.episodes) {
     const e = v.episodes;
     rows.push(["Episodes", coverageWords(e, !!v.monitored)]);
   }
-  // The upgrade explanation (Why?) when no Status cell offers it: a series row
-  // always (its status is an episode count), a movie when the Status column is hidden.
-  if (v.has_file && (kind === "series" || !statusShown) && v.upgrade && v.upgrade.state !== "none") {
-    rows.push(["Upgrade status", <UpgradeStatus key="u" u={v.upgrade} what={nameOf(v)} releases={releasesHref(titleId, key)} />]);
-  }
+  // One Upgrade line: the quality word with Why? when no Status cell offers it (a series row always, its status being
+  // an episode count; a movie when the Status column is hidden), the episodes under the preferred quality, and the
+  // better release found with what came of it (nextLine).
+  const badge = v.has_file && (kind === "series" || !statusShown) && v.upgrade && v.upgrade.state !== "none";
   const below = belowCount(v.upgrade);
-  if (below) rows.push(["Upgrades", below]);
-  const next = nextLine(v.upgrade);
-  if (next) rows.push(["Upgrade", <span key="n" className="[overflow-wrap:anywhere]">{next}</span>]);
+  const next = nextLine(v.upgrade, undefined, v.history);
+  if (badge || below || next) {
+    rows.push(["Upgrade", (
+      <span key="u" className="flex flex-col items-start gap-0.5 [overflow-wrap:anywhere]" data-testid="row-upgrade">
+        {badge ? <UpgradeStatus u={v.upgrade} what={nameOf(v)} releases={releasesHref(titleId, key)} history={v.history} /> : null}
+        {below ? <span>{below}</span> : null}
+        {next ? <span>{next}</span> : null}
+      </span>
+    )]);
+  }
   if (v.minimum_availability && !minimumShown) rows.push(["Minimum availability", <MinimumAvailabilityControl key="m" v={v} label={nameOf(v)} />]);
+  // Identifiers last: the library key (admins) and the torrent's hash, which for admins opens Torrents filtered to it
+  // (InfoHash), so no separate Torrent link here.
+  if (perms.admin) rows.push(["Library key", <Mono key="k">{key}</Mono>]);
+  if (c?.info_hash) rows.push(["Hash", <InfoHash key="h" hash={c.info_hash} admin={perms.admin} />]);
   const active = perms.manage && !!v.control;
   return (
     <div className="space-y-3" data-testid={`library-row-details-${key}`}>
@@ -282,7 +295,7 @@ export function LibraryRows({ title, versions }: { title: TitleDetail; versions:
   };
 
   const columns: DataColumn<Version>[] = [
-    { id: "monitored", label: "Monitored", header: <span className="sr-only">Monitored</span>, cell: monitor, headClassName: "w-px", card: "none" },
+    { id: "monitored", label: "Monitored", cell: monitor, headClassName: "w-px whitespace-nowrap", card: "none" },
     { id: "library", label: "Library", cell: (v) => <LibraryName v={v} />, card: "none" },
     ...shown.map((id): DataColumn<Version> => ({
       id,
@@ -294,10 +307,14 @@ export function LibraryRows({ title, versions }: { title: TitleDetail; versions:
     })),
   ];
 
-  // The phone block: switch, name, tag and status; quality · size · providers; the file name.
+  // The phone block: switch, name, tag and status; quality · score · size · providers (when any); the file name.
   const cardHead = (v: Version) => {
     const c = v.current;
-    const facts = [v.has_file ? c?.quality : "", v.has_file && c?.size_bytes ? fmtBytes(c.size_bytes) : ""].filter(Boolean).join(" · ");
+    const facts = [
+      v.has_file ? c?.quality : "",
+      v.has_file && c?.score != null ? `score ${fmtNumber(c.score)}` : "",
+      v.has_file && c?.size_bytes ? fmtBytes(c.size_bytes) : "",
+    ].filter(Boolean).join(" · ");
     return (
       <div className="space-y-1.5">
         {/* The status moves under the name when both do not fit, so the name is never cut to a letter. */}
@@ -308,8 +325,8 @@ export function LibraryRows({ title, versions }: { title: TitleDetail; versions:
         </div>
         {v.has_file ? (
           <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--ink-2)]">
-            {facts ? <span>{facts}</span> : null}
-            <ProviderPills codes={v.cached_on} testid="cached-on" />
+            {facts ? <span className="tabular-nums">{facts}</span> : null}
+            {v.cached_on?.length ? <ProviderPills codes={v.cached_on} testid="cached-on" /> : null}
             <TorrentLink hash={c?.info_hash} />
           </div>
         ) : null}

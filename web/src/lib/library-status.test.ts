@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Schemas } from "@/api/client";
-import { badgeTone, copyTone, copyWords } from "./library-status";
+import { badgeTone, copyTone, copyWords, monitoredHeldWords } from "./library-status";
 import { posterStatus } from "./library";
 
 type V = Schemas["VersionBrief"];
@@ -102,5 +102,19 @@ describe("a series library with no episodes known", () => {
     expect(copyWords(v, old, day)).toBe("no episode information yet");
     expect(posterStatus("missing", true, { ...old, versions: [v] })).toBe("not_available");
     expect(copyTone(v, old, day)).toBe("idle");
+  });
+});
+
+describe("monitoredHeldWords", () => {
+  const cov = (o: Partial<NonNullable<V["coverage"]>>) => ({ key: "tv", monitored: true, coverage: { have: 6, total: 22, aired: 22, upcoming: 0, missing: 0, monitored: 6, ...o } }) as V;
+  it("says what Available counts for a series with episodes it does not monitor", () => {
+    expect(monitoredHeldWords(cov({}))).toBe("6 of 6 monitored · 22 episodes");
+    // Monitored episodes still to air are in the monitored count: the episodes not held are said instead.
+    expect(monitoredHeldWords(cov({ upcoming: 2, monitored: 8 }))).toBe("6 of 22 episodes · 16 not monitored");
+    expect(monitoredHeldWords(cov({ monitored: undefined }))).toBe("6 of 22 episodes · none monitored");
+    // Nothing to explain: every episode held, a monitored one missing, or the library not monitored.
+    expect(monitoredHeldWords(cov({ have: 22 }))).toBe("");
+    expect(monitoredHeldWords(cov({ missing: 1 }))).toBe("");
+    expect(monitoredHeldWords({ ...cov({}), monitored: false })).toBe("");
   });
 });

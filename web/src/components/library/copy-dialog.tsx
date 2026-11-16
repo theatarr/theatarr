@@ -90,7 +90,7 @@ export function CopyDialog({ t, seeFiles, manage, onClose }: { t: TitleRow; seeF
                 <CopyDot vkey={v.key} />
                 <span className="truncate">{v.label}</span>
               </h3>
-              {v.control?.grab_state ? <VersionStatus state={v.control.grab_state} /> : null}
+              {v.control?.grab_state ? <VersionStatus state={v.control.grab_state} quiet /> : null}
               <div>
                 <div className="text-[11px] font-bold uppercase tracking-[0.05em] text-[var(--ink-3)]">Current file</div>
                 <div>{v.has_file ? q || "Held" : "No current file"}</div>

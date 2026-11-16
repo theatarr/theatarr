@@ -108,7 +108,7 @@ function RequestTimeline({ r }: { r: RequestDetail }) {
             {s.key === "ready" && (s.state === "current" || r.status === "failed") ? r.progress.map((p, i) => <div key={`${p.key}-${i}`} className="rounded-[5px] border border-[var(--line)] p-2">
               <p className="font-medium">{r.versions.find((v) => v.key === p.key)?.label || p.key}</p>
               <p>{p.words}</p>
-              <VersionStatus state={versions.find((v) => v.key === p.key)?.grab_state} settingsKey={p.key} canManage={perms.admin} />
+              <VersionStatus state={versions.find((v) => v.key === p.key)?.grab_state} settingsKey={p.key} canManage={perms.admin} quiet />
               {p.episodes_total !== undefined ? <p>{p.episodes_available} of {p.episodes_total} requested episodes available</p> : null}
               {p.updated_at ? <p className="text-xs text-[var(--ink-3)]">Updated {fmtTime(p.updated_at)}</p> : null}
             </div>) : null}
@@ -295,7 +295,7 @@ function RequestRow({ r, manager, detail }: { r: Request; manager: boolean; deta
               >
                 {v.available ? <Check className="size-3" /> : null}
                 {v.label}
-                {!v.available ? <VersionStatus state={v.grab_state} why={false} canManage={admin} settingsKey={v.key} /> : null}
+                {!v.available ? <VersionStatus state={v.grab_state} why={false} canManage={admin} settingsKey={v.key} quiet /> : null}
               </span>
             ))}
             {seasonsText(r) ? <span className="text-xs text-[var(--ink-3)]">{seasonsText(r)}</span> : null}

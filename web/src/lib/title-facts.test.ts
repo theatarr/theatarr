@@ -28,9 +28,13 @@ describe("missingLine", () => {
   const auto = { missing: false, upgrades: true, enabled: true };
   const run = (state: string, results?: number, accepted?: number) => ({ at: "2026-11-12T10:00:00Z", run_id: 1, state, results, accepted }) as never;
   it("says the last targeted search by its state, and whether Theatarr searches by itself", () => {
-    expect(missingLine({ rss: true }, auto, now)).toBe("Never searched. Automatic search for missing items is off; new releases are still picked up from RSS.");
+    expect(missingLine({ rss: true }, auto, now)).toBe("Not searched yet. Automatic backlog searching is off; new releases are still picked up from RSS.");
     // No RSS feed covers the library: the RSS sentence is left out.
-    expect(missingLine({}, auto, now)).toBe("Never searched. Automatic search for missing items is off.");
+    expect(missingLine({}, auto, now)).toBe("Not searched yet. Automatic backlog searching is off.");
+    // An account that can search is told what to do, only for an item never searched.
+    expect(missingLine({}, auto, now, true)).toBe("Not searched yet. Automatic backlog searching is off. Use Search now to request a search.");
+    expect(missingLine({ last_search: run("nothing", 0, 0) }, auto, now, true)).toBe("Last searched Nov 12: nothing found. Automatic backlog searching is off.");
+    expect(missingLine({}, { ...auto, enabled: false }, now, true)).toBe("Not searched yet. Paused: nothing is searched or downloaded.");
     expect(missingLine({ last_search: run("nothing", 12, 0) }, { ...auto, missing: true }, now)).toBe("Last searched Nov 12: 12 results, none accepted. Theatarr searches for it automatically.");
     expect(missingLine({ last_search: run("nothing", 0, 0) }, null, now)).toBe("Last searched Nov 12: nothing found");
     // A failed or skipped search found nothing because it did not search: said so.
@@ -60,5 +64,9 @@ describe("coverageWords", () => {
   it("counts against the monitored episodes and says the rest", () => {
     expect(coverageWords({ total: 76, have: 44, missing: 2, monitored: 46, monitored_have: 44 })).toBe("44 of 46 monitored episodes, 2 missing; 30 not monitored");
     expect(coverageWords({ total: 8, have: 8, missing: 0 })).toBe("8 of 8 episodes");
+  });
+  it("says once that nothing is monitored", () => {
+    expect(coverageWords({ total: 37, have: 37, missing: 0, monitored: 0, monitored_have: 0 })).toBe("37 of 37 episodes · none monitored");
+    expect(coverageWords({ total: 291, have: 291, missing: 0, monitored: 291, monitored_have: 291 }, false)).toBe("291 of 291 episodes available, not monitored");
   });
 });

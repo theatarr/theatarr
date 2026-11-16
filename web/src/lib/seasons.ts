@@ -256,12 +256,15 @@ export function copiesInView(l: Layout, versions: EpisodeList["versions"], picke
 
 /**
  * A library's badge on a season header: "8 / 10" held of aired-or-held (the whole season while none has aired or is
- * held); bad when something is missing, ok when nothing is, neutral while there is nothing to hold yet.
+ * held); bad when something is missing, ok when nothing is, neutral while there is nothing to hold yet. "Not
+ * monitored" for a season with nothing held that no episode, or the library itself (libraryOff), monitors.
  */
-export function seasonBadge(c: { have: number; missing: number; total?: number } | undefined, season: { episodes: number; aired?: number }): { text: string; tone: "ok" | "bad" | "neutral" } {
+export function seasonBadge(c: { have: number; missing: number; total?: number; monitored?: number } | undefined, season: { episodes: number; aired?: number }, libraryOff = false): { text: string; tone: "ok" | "bad" | "neutral" } {
   const have = c?.have ?? 0;
   // A season with nothing aired and nothing held says so, rather than "0 / 1".
   if (season.aired === 0 && have === 0) return { text: "Not aired", tone: "neutral" };
+  // Nothing held and nothing monitors it (no episode, or the library itself): "Not monitored", not "0 / 10".
+  if (have === 0 && (libraryOff || c?.monitored === 0)) return { text: "Not monitored", tone: "neutral" };
   const total = c?.total || season.episodes;
   const tone = (c?.missing ?? 0) > 0 ? "bad" : have > 0 ? "ok" : "neutral";
   return { text: `${fmtNumber(have)} / ${fmtNumber(total)}`, tone };

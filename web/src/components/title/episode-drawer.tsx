@@ -40,7 +40,7 @@ import { mediaLine, subsList } from "@/lib/media";
 import { cellStatus, episodeNumber, mergedStatus, offCopies, plainAvailable, statusWords } from "@/lib/seasons";
 import { activityHref, stageTone, stageWords } from "@/lib/copies";
 import { cn } from "@/lib/utils";
-import { missingLine } from "@/lib/title-facts";
+import { libraryOffWords, missingLine } from "@/lib/title-facts";
 
 type Acquisition = Schemas["Acquisition"];
 
@@ -153,13 +153,16 @@ function DetailsPart({ titleId, eid, epCode, d, aired, manage, admin, single, ac
     <section className={cn("space-y-3", !single && "rounded-xl border border-[var(--line)] p-3")} data-episode-version={d.key}>
       <div className="flex flex-wrap items-center gap-2">
         <VersionTag k={d.key} label={d.label} />
-        {c?.grab_state ? <VersionStatus state={c.grab_state} settingsKey={d.key} canManage={admin} /> : null}
+        {c?.grab_state && d.library_monitored !== false ? <VersionStatus state={c.grab_state} settingsKey={d.key} canManage={admin} quiet /> : null}
         <Badge tone={badge.tone}>{badge.label}</Badge>
       </div>
+      {d.library_monitored === false ? (
+        <p className="text-xs text-[var(--ink-2)]" data-testid="episode-library-off">{libraryOffWords(d.label || nameOf(d.key))}</p>
+      ) : null}
       {acquisition ? <AcquisitionPart a={acquisition} /> : null}
       {/* Why it is missing and what next: the season's last targeted search in this library, and the switches. */}
       {!acquisition && !d.has_file && aired && d.monitored && d.library_monitored && c ? (
-        <p className="text-xs text-[var(--ink-2)]" data-testid="episode-why">{missingLine(d, auto)}</p>
+        <p className="text-xs text-[var(--ink-2)]" data-testid="episode-why">{missingLine(d, auto, undefined, manage && c.can_search)}</p>
       ) : null}
       {manage && c ? (
         <div className="flex flex-wrap items-center gap-3">
@@ -190,7 +193,10 @@ function DetailsPart({ titleId, eid, epCode, d, aired, manage, admin, single, ac
       ) : null}
       {manage ? <ControlNote c={c} kind="both" /> : null}
       {msg ? <p className="text-xs text-[var(--accent-ink)]">{msg}</p> : null}
-      <UpgradeBlock u={d.upgrade} seeFiles releases={onReleases} what={`This episode · ${d.label || nameOf(d.key)}`} />
+      {/* No quality word where the library does not monitor the title: nothing is searched for it. */}
+      {d.library_monitored !== false ? (
+        <UpgradeBlock u={d.upgrade} seeFiles releases={onReleases} what={`This episode · ${d.label || nameOf(d.key)}`} history={d.history} />
+      ) : null}
       {rows.length > 0 ? (
         <div className="rounded-[5px] border border-[var(--line)] p-3" data-testid="episode-file">
           <KV items={rows} />

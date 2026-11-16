@@ -114,17 +114,18 @@ const PHONE_ICON_WRAP = "contents max-md:[&_button]:size-9";
 type StatusOf = { s: Status; label: string; quality?: string; cell?: Cell; upgrade?: boolean };
 
 /** What one place (a copy's cell, or the merged column) says about an episode: the status word, Upgrade found beside
- *  it, and the quality for managers. A gap in a library that is not monitored reads Not monitored. */
+ *  it, and the quality for managers. A gap in a library that is not monitored reads Not monitored, and such a library
+ *  gives no Upgrade found (nothing is searched there). */
 function statusOf(e: Episode, copies: { key: string; monitored?: boolean }[], merged: boolean, seeFiles: boolean): StatusOf {
   const keys = copies.map((v) => v.key);
   const off = offCopies(copies, seeFiles);
   if (merged) {
     const s = mergedStatus(e, keys, off);
-    return { s, label: s === "available" && !seeFiles ? plainAvailable(e, keys) : statusWords(s, seeFiles).label, upgrade: mergedUpgrade(e, keys, seeFiles) };
+    return { s, label: s === "available" && !seeFiles ? plainAvailable(e, keys) : statusWords(s, seeFiles).label, upgrade: mergedUpgrade(e, keys.filter((k) => !off.has(k)), seeFiles) };
   }
   const c = e.versions[keys[0]];
   const s = cellStatus(c, aired(e), off.has(keys[0]));
-  return { s, label: statusWords(s, seeFiles).label, quality: seeFiles && c?.has_file ? c.quality : undefined, cell: c, upgrade: cellUpgrade(c, seeFiles) };
+  return { s, label: statusWords(s, seeFiles).label, quality: seeFiles && c?.has_file ? c.quality : undefined, cell: c, upgrade: cellUpgrade(c, seeFiles) && !off.has(keys[0]) };
 }
 
 /** A cell's tooltip: the quality word, release group, size, score (when scored) and monitoring. */
@@ -616,7 +617,7 @@ function nextSearchText(c: object | undefined): string {
 
 /** A library's badge in All: its colour, name and "8 / 10" in the badge's tone. */
 function LibraryBadge({ v, season }: { v: VersionT; season: SeasonT }) {
-  const b = seasonBadge(season.versions[v.key], season);
+  const b = seasonBadge(season.versions[v.key], season, v.monitored === false);
   return (
     <span data-vkey={v.key} data-tone={b.tone} data-testid="season-badge" className="inline-flex h-[22px] items-center gap-1.5 whitespace-nowrap rounded-[3px] px-1.5 text-xs shadow-[inset_0_0_0_1px_var(--line-2)]">
       <span className="size-2 rounded-[2px] bg-[var(--vc)]" />
@@ -630,7 +631,7 @@ function LibraryBadge({ v, season }: { v: VersionT; season: SeasonT }) {
  *  upgrade status with Why?; the next search when sent. */
 /** A season's "8 / 10" in one library, on the header's first line beside the name. */
 function SeasonCount({ season, v }: { season: SeasonT; v: VersionT }) {
-  const b = seasonBadge(season.versions[v.key], season);
+  const b = seasonBadge(season.versions[v.key], season, v.monitored === false);
   return (
     <Badge tone={b.tone === "neutral" ? "neutral" : b.tone} data-testid="season-badge" className="shrink-0 tabular-nums">
       {b.text}
@@ -640,11 +641,12 @@ function SeasonCount({ season, v }: { season: SeasonT; v: VersionT }) {
 
 function OneLibraryFacts({ season, v, seeFiles }: { season: SeasonT; v: VersionT; seeFiles: boolean }) {
   const c = season.versions[v.key];
-  // The quality word with Why? (UpgradeStatus) says Upgrade found once; the count is said only without it.
-  const quality = seeFiles && !!c && c.have > 0 && !!c.upgrade;
+  // The quality word with Why? (UpgradeStatus) says Upgrade found once; the count is said only without it. None in a
+  // library that does not monitor the title: nothing is searched there.
+  const quality = seeFiles && !!c && c.have > 0 && !!c.upgrade && v.monitored !== false;
   const facts = [
     c?.missing ? `${fmtNumber(c.missing)} missing` : "",
-    seeFiles && c?.upgrade_seen && !(quality && c.upgrade?.state === "upgrade_available") ? `${fmtNumber(c.upgrade_seen)} upgrade${c.upgrade_seen === 1 ? "" : "s"} found` : "",
+    seeFiles && c?.upgrade_seen && v.monitored !== false && !(quality && c.upgrade?.state === "upgrade_available") ? `${fmtNumber(c.upgrade_seen)} upgrade${c.upgrade_seen === 1 ? "" : "s"} found` : "",
     seeFiles ? stageCounts(c?.stages) : "",
     c?.size_bytes ? fmtBytes(c.size_bytes) : "",
     nextSearchText(c),

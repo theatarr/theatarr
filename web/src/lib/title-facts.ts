@@ -87,16 +87,26 @@ export function searchingWords(s: string | undefined | null): string {
 
 /**
  * Why a missing library (or episode) is missing and what comes next, in one line: the search under way, else the last
- * targeted search or "Never searched", then whether Theatarr searches for missing items by itself. With it off, RSS
- * still picks up new releases, and the line says so. Search now sits beside the line (the caller's button).
+ * targeted search or "Not searched yet", then whether Theatarr searches for missing items by itself. With it off, RSS
+ * still picks up new releases where the library's RSS read covers it, and the line says so; an item never searched
+ * also says what to do ("Use Search now to request a search.") when the account can search (canSearch). Search now
+ * sits beside the line (the caller's button).
  */
-export function missingLine(f: { last_search?: LastSearch | null; searching?: string | null; rss?: boolean }, auto: AutoSearch | undefined | null, now: Date = new Date()): string {
-  const first = searchingWords(f.searching) || lastSearchWords(f.last_search, now);
+export function missingLine(f: { last_search?: LastSearch | null; searching?: string | null; rss?: boolean }, auto: AutoSearch | undefined | null, now: Date = new Date(), canSearch = false): string {
+  const never = !f.searching && !f.last_search;
+  const first = searchingWords(f.searching) || (never ? "Not searched yet" : lastSearchWords(f.last_search, now));
   if (!auto) return first;
   if (!auto.enabled) return `${first}. Paused: nothing is searched or downloaded.`;
-  // RSS only where the library's RSS read covers it (the server's rss).
-  if (!auto.missing) return `${first}. Automatic search for missing items is off${f.rss ? "; new releases are still picked up from RSS" : ""}.`;
+  if (!auto.missing) {
+    const ask = never && canSearch ? " Use Search now to request a search." : "";
+    return `${first}. Automatic backlog searching is off${f.rss ? "; new releases are still picked up from RSS" : ""}.${ask}`;
+  }
   return `${first}. Theatarr searches for it automatically.`;
+}
+
+/** The episode window's line for a library that does not monitor the title, in place of its download state. */
+export function libraryOffWords(library: string): string {
+  return `${library} is not monitored for this title: nothing is searched by itself. The switch keeps your choice.`;
 }
 
 /** The hero's word for an acquisition in hand: "Waiting to start", "Downloading · 37%" or "Importing". */
@@ -137,11 +147,25 @@ export function acquiringStatus(versions: readonly Pick<Version, "has_file" | "a
 }
 
 /**
+ * A series library that monitors none of the episodes it has, said once: "291 of 291 episodes available, not
+ * monitored" (the library itself is not monitored), "37 of 37 episodes · none monitored" (no episode is); "" otherwise.
+ */
+export function unmonitoredCoverage(e: { total: number; have: number; monitored?: number } | undefined | null, libraryMonitored: boolean): string {
+  if (!e || e.total <= 0) return "";
+  const count = `${fmtNumber(e.have)} of ${fmtNumber(e.total)} ${e.total === 1 ? "episode" : "episodes"}`;
+  if (!libraryMonitored) return `${count} available, not monitored`;
+  return e.monitored === 0 ? `${count} · none monitored` : "";
+}
+
+/**
  * A series library's coverage in words: "44 of 46 monitored episodes, 2 missing; 30 not monitored" (monitored counts
- * from the server); without them, "44 of 76 episodes". Specials are left out, as the counts are.
+ * from the server); without them, "44 of 76 episodes"; a library monitoring none of them unmonitoredCoverage.
+ * Specials are left out, as the counts are.
  */
 export function coverageWords(e: { total: number; have: number; missing: number; monitored?: number; monitored_have?: number } | undefined | null, libraryMonitored = true): string {
   if (!e) return "";
+  const none = unmonitoredCoverage(e, libraryMonitored);
+  if (none) return none;
   if (e.monitored === undefined && e.monitored_have === undefined) return `${fmtNumber(e.have)} of ${fmtNumber(e.total)} episodes`;
   const mon = e.monitored ?? 0;
   const off = Math.max(0, e.total - mon);

@@ -250,7 +250,7 @@ describe("Title page facts (J5)", () => {
 
   it("says why a missing film is missing and what next", async () => {
     show({ availability: "missing", release_date: "2020-01-01", auto_search: { missing: false, upgrades: true, enabled: true }, versions: [{ ...lib, rss: true }] });
-    expect((await screen.findAllByTestId("library-why"))[0].textContent).toBe("Never searched. Automatic search for missing items is off; new releases are still picked up from RSS.");
+    expect((await screen.findAllByTestId("library-why"))[0].textContent).toBe("Not searched yet. Automatic backlog searching is off; new releases are still picked up from RSS. Use Search now to request a search.");
   });
 
   it("links a film to its collection on About", async () => {

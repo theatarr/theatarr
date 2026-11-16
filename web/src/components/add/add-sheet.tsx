@@ -96,7 +96,7 @@ function LibraryRow({ v, checked, disabled, onChange, note, admin }: {
         </label>
         {fetchesWords(v) ? <p className="text-xs text-[var(--ink-2)]" title={admin && v.profile ? `Profile key ${v.profile}` : undefined} data-testid="add-fetches">{fetchesWords(v)}</p> : null}
         {note ? <p className="text-xs text-[var(--ink-3)]">{note}</p> : null}
-        <div id={`${id}-state`}><VersionStatus state={v.grab_state} settingsKey={v.key} canManage={admin} /></div>
+        <div id={`${id}-state`}><VersionStatus state={v.grab_state} settingsKey={v.key} canManage={admin} quiet /></div>
       </div>
     </div>
   );

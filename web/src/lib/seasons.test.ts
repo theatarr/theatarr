@@ -176,5 +176,9 @@ describe("layout", () => {
     expect(seasonBadge(undefined, { episodes: 6 })).toEqual({ text: "0 / 6", tone: "neutral" });
     // A season with nothing aired says so.
     expect(seasonBadge({ have: 0, missing: 0, total: 0 }, { episodes: 1, aired: 0 })).toEqual({ text: "Not aired", tone: "neutral" });
+    // Nothing held and nothing monitors it: said, not "0 / 10"; a held season keeps its count.
+    expect(seasonBadge({ have: 0, missing: 0, total: 10, monitored: 0 }, { episodes: 10 })).toEqual({ text: "Not monitored", tone: "neutral" });
+    expect(seasonBadge({ have: 0, missing: 0, total: 10, monitored: 10 }, { episodes: 10 }, true)).toEqual({ text: "Not monitored", tone: "neutral" });
+    expect(seasonBadge({ have: 4, missing: 0, total: 10, monitored: 0 }, { episodes: 10 })).toEqual({ text: "4 / 10", tone: "ok" });
   });
 });

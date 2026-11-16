@@ -72,6 +72,10 @@ describe("library status while searching and by monitored episodes", () => {
     // Not monitored: the index's words, with no monitored count.
     expect(libraryStatus(v({ monitored: false, episodes: { have: 0, total: 17, missing: 0, monitored: 17, monitored_have: 0 } }), series, DAY).label).toMatch(/not monitored/);
   });
+  it("says once that a library monitors none of its episodes", () => {
+    expect(libraryStatus(v({ has_file: true, episodes: { have: 37, total: 37, missing: 0, monitored: 0, monitored_have: 0 } }), series, DAY)).toMatchObject({ label: "37 of 37 episodes · none monitored" });
+    expect(libraryStatus(v({ monitored: false, has_file: true, episodes: { have: 291, total: 291, missing: 0, monitored: 291, monitored_have: 291 } }), series, DAY).label).toBe("291 of 291 episodes available, not monitored");
+  });
 });
 
 describe("library columns", () => {

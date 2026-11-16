@@ -92,7 +92,10 @@ calls them. The UI shares two things with them (§3, §6): the add path (`catalo
 ### Library state
 
 Every page that shows a library (title copies, the add drawer, Setup, Libraries settings and its tables, policy,
-Status, Requests, Wanted) shows the same library state (`components/version-status.tsx` over `lib/version-grab.ts`):
+Status, Requests, Wanted) shows the same library state (`components/version-status.tsx` over `lib/version-grab.ts`).
+Setup and Settings › Libraries always show it; rows and windows elsewhere (the episode window, the add drawer, the
+libraries window, Requests, Status, Advanced › Policy, Connected apps) show it only when it says something (`quiet`):
+Paused, Downloads off or "New files won't be linked", never a "Downloads on" on every row:
 
 - one **verdict**, decided by the server's `will_grab`: **Downloads on** when it grabs; otherwise **Paused** (Pause on, or forced by `THEATARR_FORCE_OFF`) or **Downloads off** (a server hold, or a library not set
   up);
@@ -171,12 +174,25 @@ The quality word, beside the status word of something with a file and never in i
 | every file at its preferred quality (`cutoff_met`) | **Preferred quality met** | green | title page: library rows, season headers, episode window |
 
 List rows and posters say only **Upgrade found** (lib/library.ts qualityWord); the other two words are the title page's.
+A library that does not monitor the title shows no quality word on its seasons and episodes (nothing is searched
+there); a season with nothing held that nothing monitors reads **Not monitored**, not "0 / 10"; and the episode window
+says "<Library> is not monitored for this title: nothing is searched by itself. The switch keeps your choice." in
+place of the library's download state. In the series table, a series **Available** that holds every monitored episode
+but not every episode says what Available counts under the word ("6 of 6 monitored · 22 episodes"; "6 of 22 episodes
+· 16 not monitored" while monitored episodes are still to air), in the word's tooltip when it has several libraries.
 
-**Why?** is headed by the quality word that opened it. For every state short of the preferred quality whose profile
-score falls short, the first line under the heading is that score with its numbers ("Score 8,550 of 10,000.", any
-configured cutoff score, zero or below included); the quality part is not judged there (the API does not say whether
-a file's quality meets a cutoff that is a group), the source lines and the cutoff line say it. The state's longer wording (`UPGRADE_WORDS`, such as "Preferred quality not met; no better copy found") follows. When
-current and preferred source are the same, those lines are folded under "Source: 4K Remux, the preferred one".
+**Why?** is headed by the quality word that opened it, then three plain lines (`whyLines` in `lib/upgrade.ts`), the
+same layout everywhere: "You have: Remux-2160p, score 8,575." (the file's quality name; no score when never
+recorded); "Upgrades stop at: Remux-2160p and a score of 10,000." (the profile's own cutoff name, a group's name as
+it is; "Upgrades are off in this library's profile." when it allows none); then the verdict and what was found. The
+verdict comes from the server's `quality_met` (the stored quality-cutoff judging, so quality names are never compared
+in the page): "Below the wanted quality." or, when the score falls short, "The quality is reached, the score is
+not."; nothing for a prefer-SeaDex library, which the server does not judge that way. What was found: "No better
+release seen yet (last search 2 d ago)."; "Better release found 4 d ago: <release> (WEBDL-2160p, score 6,200; yours
+4,500). Not downloaded yet."; or, when the library's history has a failed download of that release, "Better release
+found Nov 12: … Tried Nov 12: not cached on RD, AD and TB. Your file is unchanged." (the failure as the history row
+says it). **Show releases** follows. The Libraries table's Details and the episode window say the same "Better
+release found …" sentence.
 
 Filters on Movies, Series and Anime (those who see files): **Available**, **Partly available**, **Missing**, **Not
 monitored**, **Upcoming** (`availability=`), and apart from them **Upgrade found**
@@ -394,8 +410,9 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   **Cached on** and **File** (the file name, the full path as tooltip). On offer: Preferred quality (the profile's
   cutoff, "· upgrades off" when so), Minimum availability, Release, Release group, Languages, Video / audio, Formats,
   Added, Last search, Next search and Path. A series row offers Status, Quality, Size, Cached on, Preferred quality,
-  Added and Last search. Quality is the technical name ("WEBDL-2160p"). Score shows only with the matched formats
-  (its tooltip): a file Theatarr adopted stores none, and then Score and Formats are both blank. **Cached on** has a
+  Added and Last search. The switch column is headed **Monitored**. Quality is the technical name ("WEBDL-2160p").
+  Score shows with the matched formats as its tooltip; a file whose score was never recorded (an adopted file
+  Theatarr did not score) shows "—" (tooltip "Not scored"), as History does; a recorded 0 stays "0". **Cached on** has a
   pill per debrid provider that holds the file complete now (RD, AD, TB), adopted files included (found through the
   hash their link records), "—" when none does. For admins a small **Torrent** link beside it (and beside the hash in
   Details) opens Admin › Torrents filtered to the file's torrent (`?q=` the hash's first 12) when the row has one file
@@ -404,15 +421,22 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   linked to Activity; a movie without a file "Not monitored", "Upcoming · Jan 14" (not out at home yet, the posters'
   rule) or "Missing"; a held movie "Available" with the quality word beside it (Upgrade found, Preferred quality not
   met or Preferred quality met; Why? unless it is at its preferred quality; Status words), with
-  "Upgrade downloading · 37%" under it while one is in hand; a series "42 / 48 episodes" (green when complete, red
-  when none, amber between; "Nothing aired yet" before any episode), with "6 missing" under it.
+  "Upgrade downloading · 37%" under it while one is in hand; a series "44 of 46 monitored episodes" with "2 missing ·
+  30 not monitored" under it; a library that monitors none of them says it once: "291 of 291 episodes available, not
+  monitored" (the library is not monitored) or "37 of 37 episodes · none monitored" (no episode is). A missing
+  library's line under the status says why and what next: the last search, or "Not searched yet. Automatic backlog
+  searching is off; new releases are still picked up from RSS." (the RSS clause where the library's RSS read covers
+  it), with "Use Search now to request a search." for an account that can search an item never searched.
   **Row actions:** **Search now** (icon, managers; disabled with the reason; when other libraries want the
   title, its tooltip says they may use the results too), **Interactive search** (icon, a movie's library) and
-  **Details**, which opens a panel under the row: library key, path, hash, edition, a series' episode counts, the
-  upgrade explanation when no Status cell gives it, minimum availability when its column is hidden, the library's
+  **Details**, which opens a panel under the row: path, edition, a series' episode counts, one **Upgrade** line (the
+  quality word with Why? when no Status cell gives it, the episodes under the preferred quality, and the better
+  release found), minimum availability when its column is hidden, then the library key (admins) and the hash, the
+  library's
   restriction notes, **See in Wanted** / **See in Cutoff unmet** (managers, libraries), **Last search results**
   (managers), each library link with **Unlink**, and **Remove from this library** (managers). Below 768 px each
-  library is a stacked block: switch, name, tag and status; quality · size · provider pills; the file name; then
+  library is a stacked block: switch, name, tag and status; quality · score · size, and the provider pills when any
+  provider holds the file; the file name; then
   Search now, Interactive search and Details with their words. There is no Columns button there. A library the
   title was removed from has no row; if it still has links, one line under the table says "Still linked from a
   library this title was removed from: <library> (N files)." with **Delete files…** (managers). With no library:

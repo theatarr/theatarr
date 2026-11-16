@@ -72,7 +72,7 @@ export function ViewsCard({ readOnly }: { readOnly: boolean }) {
                   {v.versions.map((key) => (
                     <li key={key} className="flex flex-wrap items-center gap-2 text-[12.5px]">
                       <span className="[overflow-wrap:anywhere]">{nameOf(key)}</span><span className="font-mono text-muted-foreground [overflow-wrap:anywhere]">{key}</span>
-                      {libraries.data?.versions.some((l) => l.key === key) ? <VersionStatus why={false} state={stateOf(libraries.data, key)} /> : null}
+                      {libraries.data?.versions.some((l) => l.key === key) ? <VersionStatus why={false} state={stateOf(libraries.data, key)} quiet /> : null}
                     </li>
                   ))}
                 </ul>

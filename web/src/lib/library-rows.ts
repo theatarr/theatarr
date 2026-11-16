@@ -11,7 +11,7 @@ import { copyTone, copyWords, TONE, type ToneTitle } from "./library-status";
 import type { ColumnDef } from "./prefs";
 import { upgradeBadge, type Tone } from "./upgrade";
 import { fmtNumber } from "./format";
-import { searchingWords } from "./title-facts";
+import { searchingWords, unmonitoredCoverage } from "./title-facts";
 
 type Acquisition = Schemas["Acquisition"];
 type VersionBrief = Schemas["VersionBrief"];
@@ -96,9 +96,10 @@ export function versionBrief(v: Version): VersionBrief {
 }
 
 /**
- * The status of a library row, in the index's colours (copyTone) for every row. A series: the index's words
- * (copyWords: "20 of 24 episodes linked", "nothing aired yet" or "no episode information yet"), with "6 missing" under
- * them. A movie without a file: the stage words ("Downloading · 37%"), else "Not monitored", else "Upcoming · Jan 14"
+ * The status of a library row, in the index's colours (copyTone) for every row. A series: "44 of 46 monitored
+ * episodes" with "2 missing · 30 not monitored" under it, a library monitoring none of them unmonitoredCoverage, else
+ * the index's words (copyWords: "20 of 24 episodes linked", "nothing aired yet" or "no episode information yet"),
+ * with "6 missing" under them. A movie without a file: the stage words ("Downloading · 37%"), else "Not monitored", else "Upcoming · Jan 14"
  * when not out at home yet, else "Missing" (the poster badge words). A held movie: "Available", with the quality word
  * beside it (upgrade: "Upgrade found", "Preferred quality not met" or "Preferred quality met", with Why?) and "Upgrade
  * downloading · 37%" under it when one is in hand.
@@ -112,6 +113,10 @@ export function libraryStatus(v: Version, t: ToneTitle, day?: string): LibrarySt
     // Nothing held yet and a download in hand: its stage, not "0 of 8".
     if (a && !e?.have && a.stage !== "blocked") return { label: stageWords(a), tone: "info", stage: a };
     const missing = e?.missing ?? 0;
+    // A library that monitors none of its episodes says so once: "291 of 291 episodes available, not monitored",
+    // "37 of 37 episodes · none monitored".
+    const none = unmonitoredCoverage(e, v.monitored !== false);
+    if (none) return { label: none, tone };
     // A monitored library with the monitored counts: "44 of 46 monitored episodes", then "2 missing · 30 not monitored".
     if (e && v.monitored && e.monitored != null && e.total > 0) {
       const off = Math.max(0, e.total - e.monitored);
