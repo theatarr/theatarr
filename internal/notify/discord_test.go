@@ -443,3 +443,26 @@ func TestDigestRunsOncePerDay(t *testing.T) {
 		t.Errorf("job rows %d", n)
 	}
 }
+
+// TestProblemReportedMessage: a new problem report goes to the message targets (Discord here) and native targets, as
+// request messages do; never to an arr view's payloads, and not to a target whose events leave requests out.
+func TestProblemReportedMessage(t *testing.T) {
+	t.Parallel()
+	e := newDiscordEnv(t, true, nil)
+	ctx := context.Background()
+	e.n.Emit(ctx, Event{Kind: ProblemReported, TitleID: 1, Problem: &Problem{ID: 3, Name: "Alpha (2020)",
+		Kind: "wont_play", Label: "Won't play", Note: "stops at *10 min*", Reporter: RequestUser{ID: 2, Username: "ann",
+			DisplayName: "Ann"}}})
+	got := e.discordSent()
+	if len(got) != 1 || len(got[0].Embeds) != 1 || got[0].Embeds[0].Title != "Problem reported: Alpha (2020)" ||
+		got[0].Embeds[0].Description != "Won't play · reported by Ann\nstops at \\*10 min\\*" {
+		t.Fatalf("discord %+v", got)
+	}
+	if n := e.one(`SELECT COUNT(*) FROM notify_delivery WHERE target = 'policy:automation' AND view = ''
+		AND event = 'theatarr.problem_reported' AND payload LIKE '%"reportedBy"%'`); n != 1 {
+		t.Errorf("native deliveries %d", n)
+	}
+	if n := e.one(`SELECT COUNT(*) FROM notify_delivery WHERE view <> '' OR target = 'policy:grabs-only'`); n != 0 {
+		t.Errorf("%d arr view or grab-only deliveries", n)
+	}
+}

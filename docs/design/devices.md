@@ -221,6 +221,10 @@ SignalR, Sonarr v5, `downloadclient`.
     deliveries, so a day is sent once even across a restart.
   - Request ready: "**Title (year)** is ready in Plex, requested by Ann (@Ann)" (partly ready for a partial series),
     mentioning each requester with a Discord user id (`web_user.discord_id`, docs/design/users.md).
+  - Problem reported: an amber embed "Problem reported: <Title (year)> S01E02" with what is wrong, who reported it and
+    the note (docs/design/users.md "Report a problem"); its policy event name is `request_ready`, so it reaches the
+    targets that get request messages. Native targets get `theatarr.problem_reported` with `problem`; arr webhooks
+    nothing. Test: `notify.TestProblemReportedMessage`.
   - Policy event names for filters: `health`, `health_restored`, `error`, `digest`, `request_ready`, `test`.
   - theatarr.* targets get no error or digest events (Discord and ntfy targets do).
   - Send test: `POST /api/theatarr/v1/settings/notify/targets/{name}/test` (admin) sends a test to the saved target now, through
@@ -244,7 +248,7 @@ SignalR, Sonarr v5, `downloadclient`.
     (`Bearer tk_...`, `Basic ...`) is sent as it is; a bare token is sent as `Bearer <token>`. No secret: no header.
   - Priority and tags: priority 4 (high) and tag `warning` for a failing health check and an error; priority 3
     (default) otherwise, with tag `warning` for a check eased to a warning or a digest with problems, and
-    `white_check_mark` for a check OK again and request ready.
+    `white_check_mark` for a check OK again and request ready; tag `warning` for a problem report.
   - Text: no markdown and no Discord mention; request ready names the requesters ("Alpha (2020) is ready in Plex,
     requested by Ann and bob"). The title is kept to 250 bytes and the message to 3800 bytes; lines that do not fit
     become "and N more".

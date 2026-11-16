@@ -70,6 +70,12 @@ func (n *Notifier) discordPayload(ctx context.Context, ev Event) (discordMessage
 		return fitDiscord("", []embedLines{{title: title, lines: lines, color: discordColor[level]}}, nil, at), nil
 	case RequestAvailable, RequestPartial:
 		return n.discordRequest(ctx, ev)
+	case ProblemReported:
+		title, lines := problemText(ev.Problem)
+		for i := range lines {
+			lines[i] = escapeDiscord(lines[i])
+		}
+		return fitDiscord("", []embedLines{{title: title, lines: lines, color: discordAmber}}, nil, at), nil
 	case Test:
 		return fitDiscord("Theatarr test message: this channel gets Theatarr's notifications.", nil, nil, at), nil
 	}

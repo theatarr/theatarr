@@ -488,9 +488,11 @@ func (w *Web) apiRequests(rw http.ResponseWriter, r *http.Request) {
 	writeJSON(rw, http.StatusOK, page)
 }
 
-// RequestSummary is the sidebar badge: pending requests to decide (managers) and the caller's open ones.
+// RequestSummary is the sidebar badge: pending requests to decide and open problem reports (managers), and the
+// caller's open requests.
 type RequestSummary struct {
 	Pending  int `json:"pending"`
+	Problems int `json:"problems"`
 	MineOpen int `json:"mine_open"`
 	Badge    int `json:"badge"`
 }
@@ -506,6 +508,11 @@ func (w *Web) apiRequestSummary(rw http.ResponseWriter, r *http.Request) {
 			w.internal(rw, err)
 			return
 		}
+		var err error
+		if s.Problems, err = w.openReports(ctx); err != nil {
+			w.internal(rw, err)
+			return
+		}
 	}
 	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM request r WHERE r.status IN ('pending', 'approved',
 		'processing') AND `+requestMine, id.UserID, id.UserID).Scan(&s.MineOpen); err != nil {
@@ -514,7 +521,7 @@ func (w *Web) apiRequestSummary(rw http.ResponseWriter, r *http.Request) {
 	}
 	s.Badge = s.MineOpen
 	if manager {
-		s.Badge = s.Pending
+		s.Badge = s.Pending + s.Problems
 	}
 	writeJSON(rw, http.StatusOK, s)
 }

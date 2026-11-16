@@ -50,7 +50,7 @@ function readCollapsed(): string[] {
 /** A nav count: a plain mono figure, amber because each one asks for you. */
 const COUNT = "ml-auto font-mono text-[12px] font-medium leading-none tabular-nums text-[var(--warn-ink)]";
 
-/** The Requests badge: pending requests for managers, your open ones for everyone else. */
+/** The Requests badge: pending requests and open problem reports for managers, your open requests for everyone else. */
 function RequestsBadge() {
   const s = useRequestSummary();
   const n = s.data?.badge ?? 0;

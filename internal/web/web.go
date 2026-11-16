@@ -46,6 +46,7 @@ import (
 	"github.com/theatarr/theatarr/internal/jobs"
 	"github.com/theatarr/theatarr/internal/journal"
 	"github.com/theatarr/theatarr/internal/logring"
+	"github.com/theatarr/theatarr/internal/notify"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/settings"
 	"github.com/theatarr/theatarr/internal/store"
@@ -103,6 +104,8 @@ type Config struct {
 	// OnRequest, when set, hears every request change (created, approved, declined, canceled, status moved); the
 	// hook queues notifications in internal/notify. It runs after the change is stored.
 	OnRequest func(RequestEvent)
+	// OnProblem, when set, hears every new problem report (its notification); the hook queues it in internal/notify.
+	OnProblem func(notify.Event)
 	// Jobs is the queue the workers run, so a retry wakes them at once; nil builds one on Store (workers then find
 	// retries on their next poll).
 	Jobs *jobs.Queue
@@ -210,6 +213,7 @@ type Web struct {
 	ops               Ops
 	live              liveCache
 	onRequest         func(RequestEvent)
+	onProblem         func(notify.Event)
 	torrents          TorrentsSource
 	background        context.Context
 	cleanups          sync.WaitGroup // removals' debrid clean-ups still running (StartCleanup)
@@ -268,7 +272,7 @@ func New(cfg Config) (*Web, error) {
 	return &Web{st: cfg.Store, jobs: cfg.Jobs, tasks: cfg.Tasks, auth: cfg.Auth, pol: cfg.Policy, policyDir: cfg.PolicyDir, egress: cfg.Egress,
 		log: cfg.Logger.With("component", "web"), version: cfg.Version, now: cfg.Now, poll: cfg.PollInterval,
 		hub: newHub(), devices: cfg.Devices, art: cfg.Art, journal: cfg.Journal, ui: cfg.UI, logs: cfg.Logs, add: cfg.Add, rss: cfg.RSS,
-		perms: cfg.Perms, plex: cfg.Plex, health: cfg.Health, ops: cfg.Ops, onRequest: cfg.OnRequest,
+		perms: cfg.Perms, plex: cfg.Plex, health: cfg.Health, ops: cfg.Ops, onRequest: cfg.OnRequest, onProblem: cfg.OnProblem,
 		logLevel: cfg.LogLevel, logDir: cfg.LogDir, reloadSettings: cfg.ReloadSettings,
 		captureRuntime: cfg.CaptureRuntime, settings: cfg.Settings, settingsTester: cfg.SettingsTester, qualitySync: cfg.QualitySync, trashRoot: cfg.TrashRoot,
 		settingsTests: cfg.SettingsTests, settingsLookup: cfg.SettingsLookup, cardigann: cfg.Cardigann, preflight: cfg.Preflight,

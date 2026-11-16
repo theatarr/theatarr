@@ -183,7 +183,7 @@ func (n *Notifier) deliveries(ctx context.Context, ev Event) ([]delivery, error)
 	if ev.Kind == Health || ev.Kind == HealthRestored || ev.Kind == SeriesAdd || ev.Kind == MovieAdded || ev.Kind == Rename {
 		ev.Reason = ""
 	}
-	if ev.Request == nil && ev.Digest == nil && n.pay != nil && !(ev.Kind == Test && ev.Target != "") {
+	if ev.Request == nil && ev.Digest == nil && ev.Problem == nil && n.pay != nil && !(ev.Kind == Test && ev.Target != "") {
 		ps, err := n.pay.Payloads(ctx, ev)
 		if err != nil {
 			return nil, err
@@ -329,6 +329,9 @@ func (n *Notifier) nativePayload(ctx context.Context, ev Event) (map[string]any,
 	}
 	if ev.Request != nil {
 		requestPayload(b, ev)
+	}
+	if ev.Problem != nil {
+		b["problem"] = ev.Problem
 	}
 	if len(ev.Health) > 0 || ev.Kind == Health {
 		b["health"] = append([]HealthItem{}, ev.Health...)

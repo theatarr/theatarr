@@ -26,7 +26,7 @@ const (
 
 // messageKinds are the events a message target gets.
 var messageKinds = map[Kind]bool{Health: true, HealthRestored: true, Digest: true,
-	RequestAvailable: true, RequestPartial: true, Test: true}
+	RequestAvailable: true, RequestPartial: true, ProblemReported: true, Test: true}
 
 // messageWants reports whether message target t gets ev: its kinds, and health only for checks in error (an alert
 // when one fails, and one when it leaves error: no longer failing but still a warning, or OK again). A target with
@@ -76,6 +76,20 @@ func messageText(ev Event, markdown bool) (string, []string, messageLevel) {
 		return digestText(ev.Digest, markdown)
 	}
 	return "", nil, levelInfo
+}
+
+// problemText is a problem report's message: "Problem reported: <Title> S01E02", and "<what> · reported by <name>"
+// with the note on a line of its own.
+func problemText(p *Problem) (string, []string) {
+	subject := p.Name
+	if p.Episode != "" {
+		subject += " " + p.Episode
+	}
+	lines := []string{p.Label + " · reported by " + requesterName(p.Reporter)}
+	if p.Note != "" {
+		lines = append(lines, p.Note)
+	}
+	return "Problem reported: " + subject, lines
 }
 
 // digestText lays out the daily digest.

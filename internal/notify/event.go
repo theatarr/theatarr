@@ -28,6 +28,8 @@ const (
 	RequestAvailable          Kind = "request_available"
 	RequestPartial            Kind = "request_partial_available"
 	RequestFailed             Kind = "request_failed"
+	// ProblemReported is a new problem report (Report a problem): message and native targets only, never arr webhooks.
+	ProblemReported Kind = "problem_reported"
 	// Digest is the daily summary (Discord and ntfy targets only).
 	Digest Kind = "digest"
 )
@@ -37,7 +39,8 @@ func (k Kind) PolicyEvent() string {
 	switch k {
 	case FileDelete:
 		return "delete"
-	case RequestAvailable, RequestPartial:
+	case RequestAvailable, RequestPartial, ProblemReported:
+		// A problem report goes to the targets that get request messages: no event name of its own to choose.
 		return "request_ready"
 	}
 	return string(k)
@@ -74,6 +77,20 @@ type Event struct {
 	Request *Request
 	// Digest is the Digest event's summary.
 	Digest *DigestSummary
+	// Problem is a new problem report (ProblemReported).
+	Problem *Problem
+}
+
+// Problem is a problem report as its notification names it: the title (with the episode code), what is wrong, the
+// note and who reported it. No file or release detail.
+type Problem struct {
+	ID       int64       `json:"id"`
+	Name     string      `json:"name"`
+	Episode  string      `json:"episode,omitempty"`
+	Kind     string      `json:"kind"`
+	Label    string      `json:"label"`
+	Note     string      `json:"note,omitempty"`
+	Reporter RequestUser `json:"reportedBy"`
 }
 
 // Request is the request data included in native request notifications.

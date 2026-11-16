@@ -3,7 +3,7 @@
 // replace the cached query; download and title events refresh the activity, Continue row and calendar (progress alone
 // only what shows progress), and a download's state change shows a toast (live-activity.ts); request events refresh
 // the requests and the one title they name, and tell the
-// requester in a toast; users events refresh the users screen. The server sends each listener only the events its
+// requester in a toast; problem events refresh the problem reports and tell the reporter when one is fixed; users events refresh the users screen. The server sends each listener only the events its
 // account may see (jobs and gateway to admins). The browser reconnects on its own (retry: 5000).
 import { useQueryClient } from "@tanstack/react-query";
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
@@ -12,6 +12,7 @@ import type { Gateway } from "./hooks";
 import { qk } from "./query-keys";
 import { onDownloadEvent, onTitleEvent } from "./live-activity";
 import { requestToast, type RequestEvent } from "./requests";
+import { problemToast, type ProblemEvent } from "./reports";
 import { toast, Toaster } from "@/components/toaster";
 import { useLibraryName } from "@/lib/library-names";
 
@@ -83,7 +84,14 @@ export function LiveProvider({ enabled, seeFiles = false, children }: { enabled:
         const t = ev.mine ? requestToast(ev) : null;
         if (t) toast({ ...t, to: "/requests" });
       });
-      es.addEventListener("users", () => void qc.invalidateQueries({ queryKey: ["users"] }));
+      es.addEventListener("problem", (e) => {
+        const ev = JSON.parse((e as MessageEvent).data) as ProblemEvent;
+        void qc.invalidateQueries({ queryKey: ["reports"] });
+        void qc.invalidateQueries({ queryKey: ["requests", "summary"] });
+        const t = ev.mine ? problemToast(ev) : null;
+        if (t) toast({ ...t, to: "/requests/problems" });
+      });
+      es.addEventListener("users",() => void qc.invalidateQueries({ queryKey: ["users"] }));
       return es;
     }
     let es = open();

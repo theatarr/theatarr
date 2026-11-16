@@ -681,11 +681,12 @@ func runServe(args []string) error {
 			nt.Emit(context.WithoutCancel(ctx), *ev.Notification)
 		}
 	}
+	problemNotify := func(ev notify.Event) { nt.Emit(context.WithoutCancel(ctx), ev) }
 	backupSvc := &serveBackups{st: st, dir: *backupDir, dbPath: *dbPath, source: *settingsSource,
 		keep: *backupKeep, hour: *backupHour, policyNow: backupPolicy, now: time.Now}
 	uiConfig := web.Config{Backups: backupSvc, Restart: stop, Store: st, Auth: au, Policy: pol, PolicyDir: *policyDir, Egress: serveEgressSource{manager: runtimeManager, fallback: gw}, Logger: log,
 		Version: version, Devices: av, Art: refresher, Journal: jr, Logs: logs, Add: add, RSS: rssRunner, Jobs: q, Tasks: tbl, Plex: pl, Health: hc,
-		Ops: serveOps{av}, OnRequest: requestNotify, LogLevel: logLevel, LogDir: *logDir, ReloadSettings: runtimeManager.Reload,
+		Ops: serveOps{av}, OnRequest: requestNotify, OnProblem: problemNotify, LogLevel: logLevel, LogDir: *logDir, ReloadSettings: runtimeManager.Reload,
 		CaptureRuntime: captureRuntime, SettingsTests: newSettingsTestLimits(), SettingsLookup: os.LookupEnv, TrashRoot: os.Getenv("THEATARR_TRASH"),
 		Torrents: torrentSvc, Background: ctx, NowPlaying: nowPlayingSnapshot, ArrImport: serveArrImport{manager: runtimeManager, st: st, log: log},
 		RcloneTestGateway: rcloneTestGateway(runtimeManager, gw, log), NotifyTest: nt.SendTest,

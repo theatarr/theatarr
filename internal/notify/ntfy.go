@@ -64,6 +64,9 @@ func (n *Notifier) ntfyPayload(ctx context.Context, ev Event) (ntfyMessage, erro
 			title = "Request partly ready"
 		}
 		return fitNtfy(title, []string{line}, levelGood), nil
+	case ProblemReported:
+		title, lines := problemText(ev.Problem)
+		return fitNtfy(title, lines, levelWarn), nil
 	case Test:
 		return fitNtfy("Theatarr test message", []string{"This topic gets Theatarr's notifications."}, levelInfo), nil
 	}

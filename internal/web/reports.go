@@ -18,6 +18,7 @@ import (
 	"github.com/theatarr/theatarr/internal/auth"
 	"github.com/theatarr/theatarr/internal/catalog"
 	"github.com/theatarr/theatarr/internal/journal"
+	"github.com/theatarr/theatarr/internal/notify"
 	"github.com/theatarr/theatarr/internal/router"
 	"github.com/theatarr/theatarr/internal/store"
 )
@@ -325,6 +326,7 @@ func (w *Web) apiCreateReport(rw http.ResponseWriter, r *http.Request) {
 	change := "updated"
 	if created {
 		change = "created"
+		w.problemNotification(p)
 	}
 	w.problemChanged(*p, change)
 	w.log.Info("problem report "+change, "report", id, "title", p.TitleID, "episode", p.EpisodeID, "kind", p.Kind,
@@ -337,6 +339,28 @@ func (w *Web) apiCreateReport(rw http.ResponseWriter, r *http.Request) {
 		code = http.StatusCreated
 	}
 	writeJSON(rw, code, p)
+}
+
+// problemNotification sends a new report to the notification targets (OnProblem).
+func (w *Web) problemNotification(p *ProblemReport) {
+	if w.onProblem == nil {
+		return
+	}
+	name := p.Name
+	if p.Year != nil && *p.Year > 0 {
+		name += " (" + strconv.FormatInt(*p.Year, 10) + ")"
+	}
+	who := notify.RequestUser{Username: "someone"}
+	if p.User != nil {
+		who = notify.RequestUser{ID: p.User.ID, Username: p.User.Username, DisplayName: p.User.DisplayName}
+	}
+	ev := notify.Event{Kind: notify.ProblemReported, At: p.CreatedAt, TitleID: p.TitleID,
+		Problem: &notify.Problem{ID: p.ID, Name: name, Episode: p.Episode, Kind: p.Kind, Label: p.KindLabel,
+			Note: p.Note, Reporter: who}}
+	if p.EpisodeID > 0 {
+		ev.Episodes = []int64{p.EpisodeID}
+	}
+	w.onProblem(ev)
 }
 
 // problemChanged tells managers' screens and the reporter that a report changed.
@@ -662,4 +686,11 @@ func anys[T any](xs []T) []any {
 		out[i] = x
 	}
 	return out
+}
+
+// openReports counts the open problem reports (the managers' Requests badge and System › Status).
+func (w *Web) openReports(ctx context.Context) (int, error) {
+	var n int
+	err := w.st.Reader().QueryRowContext(ctx, `SELECT COUNT(*) FROM problem_report WHERE status = 'open'`).Scan(&n)
+	return n, err
 }

@@ -8,6 +8,7 @@ import { AlertTriangle, CheckCircle2 } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { Link } from "react-router";
 import { useCardigannHolds } from "@/api/cardigann";
+import { useRequestSummary } from "@/api/requests";
 import { useSettings, useSettingsSections } from "@/api/settings";
 import { useSetup, setupUnfinished } from "@/api/setup";
 import { useAppBackups } from "@/api/backups";
@@ -86,6 +87,7 @@ export function Overview() {
   const [details, setDetails] = useState(false);
   const holdsQ = useCardigannHolds();
   const holds = holdsQ.data?.length ?? 0;
+  const problems = useRequestSummary().data?.problems ?? 0;
   const setup = useSetup();
   const ready = useReady();
   const st = useStatus();
@@ -115,6 +117,7 @@ export function Overview() {
 
   const items: Attention[] = [];
   if (holds > 0) items.push({ key: "holds", tone: "warn", title: `${fmtNumber(holds)} indexer ${holds === 1 ? "definition update" : "definition updates"} waiting`, effect: "An updated definition is used once you approve it.", next: "Review them in Settings › Indexers", to: "/admin/settings/indexers" });
+  if (problems > 0) items.push({ key: "problems", tone: "warn", title: `${fmtNumber(problems)} problem ${problems === 1 ? "report" : "reports"}`, effect: "Someone says a movie or an episode does not play right.", next: "Open Requests › Problems", to: "/requests/problems" });
   if (vpn === false || vpnOptional) {
     items.push({ key: "vpn", tone: vpnOptional ? "warn" : "bad", title: egress?.mode === "off" ? "VPN guard off" : egress?.mode === "monitor-only" ? "VPN monitor-only" : "VPN egress not confirmed", effect: vpnOptional ? "Requests do not require a VPN check." : `Requests requiring VPN (${(egress?.require_vpn_for ?? []).join(", ")}) wait until the VPN check passes.`, next: "Check the egress paths", to: "/admin/settings/indexers/vpn" });
   }

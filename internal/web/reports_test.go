@@ -4,17 +4,28 @@ import (
 	"net/http"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/theatarr/theatarr/internal/auth"
+	"github.com/theatarr/theatarr/internal/notify"
 )
 
 // TestProblemReports: a household member reports a movie with a file; a second report of it updates the open one;
 // there is nothing to report without a file. The reporter sees their own report without file detail or names; a
-// manager sees every open one with its file, and Mark fixed reaches the reporter with the reply.
+// manager sees every open one with its file, the badge counts it, and Mark fixed reaches the reporter with the reply.
+// Only a new report is notified.
 func TestProblemReports(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t)
+	var mu sync.Mutex
+	var sent []notify.Event
+	e := newEnvWith(t, func(c *Config) {
+		c.OnProblem = func(ev notify.Event) {
+			mu.Lock()
+			defer mu.Unlock()
+			sent = append(sent, ev)
+		}
+	})
 	uid := e.account("usr", auth.RoleUser, auth.StatusActive, true)
 	mid := e.account("mgr", auth.RoleManager, auth.StatusActive, false)
 	uc, ucsrf := e.session(uid)
@@ -45,6 +56,13 @@ func TestProblemReports(t *testing.T) {
 			t.Errorf("%+v: %d, want %d", tc.body, code, tc.code)
 		}
 	}
+	mu.Lock()
+	if len(sent) != 1 || sent[0].Kind != notify.ProblemReported || sent[0].Problem.Name != "Alpha (2020)" ||
+		sent[0].Problem.Reporter.Username != "usr" {
+		t.Errorf("notifications %+v", sent)
+	}
+	mu.Unlock()
+
 	// The reporter's list: no file, release or names.
 	rec := e.get(b, uc)
 	if rec.Code != http.StatusOK || strings.Contains(rec.Body.String(), "/movies/") ||
@@ -61,6 +79,11 @@ func TestProblemReports(t *testing.T) {
 		f.Why == "" {
 		t.Errorf("file %+v", f)
 	}
+	var sum RequestSummary
+	if code := e.jsonCall("GET", APIBase+"/requests/summary", nil, mc, "", &sum); code != 200 || sum.Problems != 1 ||
+		sum.Badge != 1 {
+		t.Errorf("manager summary %+v", sum)
+	}
 	if code := e.jsonCall("POST", b+"/1/fix", FixReport{Reply: "x"}, uc, ucsrf, nil); code != http.StatusForbidden {
 		t.Errorf("user fixes: %d", code)
 	}
@@ -75,6 +98,10 @@ func TestProblemReports(t *testing.T) {
 	if code := e.jsonCall("GET", b, nil, uc, "", &mine); code != 200 || len(mine.Items) != 1 ||
 		mine.Items[0].Status != ReportFixed || mine.Items[0].Reply != "Swapped the file" {
 		t.Errorf("reporter after the fix: %+v", mine)
+	}
+	sum = RequestSummary{}
+	if e.jsonCall("GET", APIBase+"/requests/summary", nil, mc, "", &sum); sum.Problems != 0 {
+		t.Errorf("summary after the fix %+v", sum)
 	}
 	// After the fix a new report of the same movie is a new one.
 	if code := e.jsonCall("POST", b, CreateReport{TitleID: 1, Kind: "picture"}, uc, ucsrf, &again); code != http.StatusCreated ||
