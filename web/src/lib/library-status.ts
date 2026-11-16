@@ -81,7 +81,8 @@ export function copyWords(v: VersionBrief, t: ToneTitle, day?: string): string {
     // A library that is not monitored: the title page row's words ("291 of 291 episodes available, not monitored").
     const linked = `${bar.have} of ${bar.total} episode${bar.total === 1 ? "" : "s"} ${off ? "available" : "linked"}`;
     const going = blocked ? "a download is blocked" : bar.flight ? `${bar.flight} in progress` : "";
-    return [linked, going, off].filter(Boolean).join(", ");
+    // The title page row's order (lib/library-rows.ts): coverage, not monitored, then the download.
+    return [linked, off, going].filter(Boolean).join(", ");
   }
   if (v.has_file) return blocked ? "has a file, upgrade download blocked" : "has a file";
   if (blocked) return "download blocked";

@@ -188,10 +188,11 @@ it is; "Upgrades are off in this library's profile." when it allows none); then 
 verdict comes from the server's `quality_met` (the stored quality-cutoff judging, so quality names are never compared
 in the page): "Below the wanted quality." or, when the score falls short, "The quality is reached, the score is
 not."; nothing for a prefer-SeaDex library, which the server does not judge that way. What was found: "No better
-release seen yet (last search 2 d ago)."; "Better release found 4 d ago: <release> (WEBDL-2160p, score 6,200; yours
-4,500). Not downloaded yet."; or, when the library's history has a failed download of that release, "Better release
-found Nov 12: … Tried Nov 12: not cached on RD, AD and TB. Your file is unchanged." (the failure as the history row
-says it). **Show releases** follows. The Libraries table's Details and the episode window say the same "Better
+release seen yet (last search 2 d ago)."; "Better release found 4 d ago: <release> (WEBDL-2160p, score 6,200): better
+format score, 6,200 over 4,500." (the reason stored with the search that saw it, about the file it was judged
+against); or, when the library's history on the page has a failed download of that release, "… Tried Nov 12: not
+cached on RD, AD and TB. Your file is unchanged." (the failure as the history row says it). Without such a row
+nothing is said about downloading: the history on the page is capped. **Show releases** follows. The Libraries table's Details and the episode window say the same "Better
 release found …" sentence.
 
 Filters on Movies, Series and Anime (those who see files): **Available**, **Partly available**, **Missing**, **Not

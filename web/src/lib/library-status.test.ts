@@ -51,6 +51,7 @@ describe("copyTone", () => {
     expect(copyTone({ monitored: false, coverage: cov(13, 17, { missing: 4 }) }, series)).toBe("ok");
     expect(copyTone({ monitored: false, coverage: cov(13, 17, { missing: 4 }), acquisition: acq("blocked") }, series)).toBe("ok");
     expect(copyWords({ monitored: false, coverage: cov(0, 17, { missing: 17 }) }, series)).toBe("0 of 17 episodes available, not monitored");
+    expect(copyWords({ monitored: false, acquisition: acq("blocked"), coverage: cov(1, 3) }, series)).toBe("1 of 3 episodes available, not monitored, a download is blocked");
     expect(copyTone({ monitored: true, coverage: cov(0, 17, { in_flight: 3 }) }, series)).toBe("progress");
   });
 
