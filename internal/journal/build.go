@@ -347,6 +347,7 @@ func (b *builder) snapshotFor(source string, titleID int64, version string, at i
 	}
 	var cands []snapshot.Candidate
 	_ = json.Unmarshal([]byte(cj), &cands)
+	snapshot.DropPublicVolumeFlags(cands)
 	_ = json.Unmarshal([]byte(rj), &r.Rejections)
 	for i := range cands {
 		cleanCandidate(&cands[i])

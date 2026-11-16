@@ -63,3 +63,12 @@ func TestCandidatesCarrySourceFlagsPeers(t *testing.T) {
 		t.Errorf("public flags = %v, want %v", got[0].Flags, want)
 	}
 }
+
+func TestDropPublicVolumeFlags(t *testing.T) {
+	cs := []Candidate{{Privacy: "public", Flags: []string{"freeleech", "seadex", "DoubleUpload"}},
+		{Privacy: "private", Flags: []string{"freeleech", "seadex"}}}
+	DropPublicVolumeFlags(cs)
+	if !slices.Equal(cs[0].Flags, []string{"seadex"}) || !slices.Equal(cs[1].Flags, []string{"freeleech", "seadex"}) {
+		t.Errorf("flags: %v %v", cs[0].Flags, cs[1].Flags)
+	}
+}

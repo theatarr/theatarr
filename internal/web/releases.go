@@ -373,6 +373,7 @@ func (w *Web) storedReleases(ctx context.Context, out *Releases) error {
 		// The stored counts stay the search's (every indexer copy); its kept sample is shown one row per torrent.
 		var cands []snapshot.Candidate
 		_ = json.Unmarshal([]byte(cj), &cands)
+		snapshot.DropPublicVolumeFlags(cands)
 		out.Candidates = mergeCopies(cands)
 		_ = json.Unmarshal([]byte(rj), &out.Rejections)
 		if out.Message == "" {

@@ -725,3 +725,39 @@ func TestTitlePageMissReason(t *testing.T) {
 		t.Errorf("title page failure %+v", last)
 	}
 }
+
+func TestStoredReleasesDropPublicVolumeFlags(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	e.exec(`INSERT INTO journal_decision (id, source, title_id, version_key, target, results, accepted, candidates,
+		created_at) VALUES (81, 'acquire:31', 1, 'movie-web', 'movie', 2, 0, ?, ?)`,
+		`[{"rank":1,"release":"Alpha.2020.2160p.WEB-PUB","info_hash":"1111111111111111111111111111111111111111",
+		   "privacy":"public","flags":["freeleech","seadex"]},
+		  {"rank":2,"release":"Alpha.2020.2160p.WEB-PRIV","info_hash":"2222222222222222222222222222222222222222",
+		   "privacy":"private","flags":["freeleech","seadex"]}]`, store.Millis(testNow))
+	var r Releases
+	if code := e.getKey(APIBase+"/titles/1/releases?version=movie-web", e.apiKey(), &r); code != 200 {
+		t.Fatalf("releases %d", code)
+	}
+	if len(r.Candidates) != 2 || !slices.Equal(r.Candidates[0].Flags, []string{"seadex"}) ||
+		!slices.Equal(r.Candidates[1].Flags, []string{"freeleech", "seadex"}) {
+		t.Errorf("flags: %+v", r.Candidates)
+	}
+}
+
+func TestEpisodeReleasesDropPublicVolumeFlags(t *testing.T) {
+	t.Parallel()
+	e := newManageEnv(t, nil)
+	e.exec(`INSERT INTO journal_decision (id, source, title_id, version_key, target, results, accepted, candidates,
+		rejections, created_at) VALUES (97, 'acquire:60', 10, 'tv-2160p', 's01e01', 2, 2, ?, '{}', ?)`,
+		`[{"rank":1,"release":"The.Show.S01E01.2160p.WEB-PUB","accepted":true,"episodes":["S01E01"],
+		   "privacy":"public","flags":["freeleech","seadex"]},
+		  {"rank":2,"release":"The.Show.S01E01.2160p.WEB-PRIV","accepted":true,"episodes":["S01E01"],
+		   "privacy":"private","flags":["freeleech","seadex"]}]`, store.Millis(addNow)-9000)
+	var r Releases
+	e.call("GET", APIBase+"/titles/10/episodes/101/releases", nil, 200, &r)
+	if len(r.Candidates) != 2 || !slices.Equal(r.Candidates[0].Flags, []string{"seadex"}) ||
+		!slices.Equal(r.Candidates[1].Flags, []string{"freeleech", "seadex"}) {
+		t.Errorf("flags: %+v", r.Candidates)
+	}
+}

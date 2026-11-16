@@ -1176,6 +1176,7 @@ func (w *Web) storedEpisodeReleases(ctx context.Context, out *Releases, it evIte
 				return nil
 			}
 			_ = json.Unmarshal([]byte(cj), &s.cands)
+			snapshot.DropPublicVolumeFlags(s.cands)
 			_ = json.Unmarshal([]byte(rj), &s.rejections)
 			consider(s)
 			return nil

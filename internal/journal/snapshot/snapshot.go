@@ -174,18 +174,43 @@ func releaseFlags(rel indexer.Release) []string {
 	}
 	switch factor("downloadvolumefactor") {
 	case 0:
-		add("freeleech")
+		add(flagFreeleech)
 	case 0.5:
-		add("halfleech")
+		add(flagHalfleech)
 	case 0.75:
-		add("freeleech25")
+		add(flagFreeleech25)
 	case 0.25:
-		add("freeleech75")
+		add(flagFreeleech75)
 	}
 	if factor("uploadvolumefactor") == 2 {
-		add("doubleupload")
+		add(flagDoubleUpload)
 	}
 	return out
+}
+
+// The flags releaseFlags gives from the volume factors.
+const (
+	flagFreeleech    = "freeleech"
+	flagHalfleech    = "halfleech"
+	flagFreeleech25  = "freeleech25"
+	flagFreeleech75  = "freeleech75"
+	flagDoubleUpload = "doubleupload"
+)
+
+// volumeFlags are the flags releaseFlags gives from the volume factors.
+var volumeFlags = []string{flagFreeleech, flagHalfleech, flagFreeleech25, flagFreeleech75, flagDoubleUpload}
+
+// DropPublicVolumeFlags removes the volume-factor flags from the public candidates of a stored list: decisions
+// stored before public releases stopped getting them still carry them. Their other flags stay.
+func DropPublicVolumeFlags(cs []Candidate) {
+	for i := range cs {
+		if cs[i].Privacy != string(policy.PrivacyPublic) || len(cs[i].Flags) == 0 {
+			continue
+		}
+		cs[i].Flags = slices.DeleteFunc(cs[i].Flags, func(f string) bool {
+			return slices.ContainsFunc(volumeFlags, func(v string) bool { return strings.EqualFold(v, f) })
+		})
+	}
 }
 
 // Record writes one search. An empty search has no journal candidate sample.
