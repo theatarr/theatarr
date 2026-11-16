@@ -122,8 +122,10 @@ func (b *builder) checkName(e *Entry, ti *titleInfo) {
 }
 
 func (b *builder) checkSeriesName(e *Entry, ti *titleInfo, name string) {
-	p := sonarr.ParseTitle(name)
-	if ti.t.SeriesType != "anime" {
+	var p *sonarr.ParsedEpisodeInfo
+	if ti.t.SeriesType == "anime" {
+		p = sonarr.ParseTitle(name)
+	} else {
 		p = decide.ParseSeriesRelease(context.Background(), name) // with the complete-series reading
 	}
 	if p == nil {
