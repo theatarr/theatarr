@@ -551,9 +551,20 @@ func TestHistoryHousehold(t *testing.T) {
 		('dl:7:import', ?, 'imported', 'import', 3, 'tv-1080p', 'tv c', '[101]')`,
 		ms(time.Hour), ms(2*time.Hour), ms(3*time.Hour), ms(4*time.Hour), ms(24*time.Hour),
 		ms(5*time.Hour), ms(6*time.Hour), ms(7*time.Hour))
+	// Two same-day upgrades that both replaced E01's file, one importing E01, one E01-E02: the rows show their
+	// imports' episodes (folded), so they are two rows, grouped by what they show, not by the replaced files.
+	e.exec(`INSERT INTO history (ref, at, event, kind, title_id, version_key, download_id, release, episodes, replaced)
+		VALUES
+		('lib:801', ?, 'deleted', 'link', 3, 'tv-2160p', 8, 'up a', '[101]', '[{"id":801,"release":"old","episodes":[101]}]'),
+		('dl:8:import', ?, 'imported', 'import', 3, 'tv-2160p', 8, 'up a', '[101]', NULL),
+		('lib:901', ?, 'deleted', 'link', 3, 'tv-1080p', 9, 'up b', '[101]', '[{"id":901,"release":"old","episodes":[101]}]'),
+		('dl:9:import', ?, 'imported', 'import', 3, 'tv-1080p', 9, 'up b', '[101,102]', NULL)`,
+		ms(8*time.Hour), ms(8*time.Hour-time.Minute), ms(9*time.Hour), ms(9*time.Hour-time.Minute))
 	got := e.history(Filter{Household: true})
 	want := []string{
 		"imported next day ",
+		"deleted up b  [S01E01,S01E02] replaced old",
+		"deleted up a  [S01E01] replaced old",
 		"imported tv c  [S01E01]",
 		"imported tv b  [S01E01,S01E02]",
 		"failed failed ",
@@ -562,26 +573,28 @@ func TestHistoryHousehold(t *testing.T) {
 	if !slices.Equal(got, want) {
 		t.Errorf("household rows:\n got %q\nwant %q", got, want)
 	}
-	if all := e.history(Filter{}); len(all) != 8 {
+	if all := e.history(Filter{}); len(all) != 10 {
 		t.Errorf("admin rows: %q", all)
 	}
 	// Paging walks the merged rows: a page never shows a row its group's newer one stands for.
-	var paged []string
-	cursor := ""
-	for range 10 {
-		p, err := e.j.History(context.Background(), Filter{Household: true, Limit: 2, Cursor: cursor})
-		if err != nil {
-			t.Fatal(err)
+	for _, limit := range []int{1, 2} {
+		var paged []string
+		cursor := ""
+		for range 20 {
+			p, err := e.j.History(context.Background(), Filter{Household: true, Limit: limit, Cursor: cursor})
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, x := range p.Items {
+				paged = append(paged, histRow(x))
+			}
+			if cursor = p.NextCursor; cursor == "" {
+				break
+			}
 		}
-		for _, x := range p.Items {
-			paged = append(paged, histRow(x))
+		if !slices.Equal(paged, want) {
+			t.Errorf("paged by %d:\n got %q\nwant %q", limit, paged, want)
 		}
-		if cursor = p.NextCursor; cursor == "" {
-			break
-		}
-	}
-	if !slices.Equal(paged, want) {
-		t.Errorf("paged:\n got %q\nwant %q", paged, want)
 	}
 }
 

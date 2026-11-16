@@ -538,7 +538,7 @@ func (j *Journal) historyFilter(ctx context.Context, f *Filter, episode int64) (
 	// for. Nothing is merged across days or events; the rows kept are read as they are.
 	src := `(SELECT * FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY title_id, event, ep_set, at / 86400000
 			ORDER BY at DESC, ref DESC) AS merged_rn
-		FROM (SELECT history.*, (SELECT json_group_array(value) FROM (SELECT DISTINCT value FROM json_each(history.episodes)
+		FROM (SELECT history.*, (SELECT json_group_array(value) FROM (SELECT DISTINCT value FROM json_each(` + householdEpisodesSQL + `)
 				ORDER BY value)) AS ep_set
 			FROM history WHERE ` + where + ` AND event <> 'grabbed')) WHERE merged_rn = 1) AS history`
 	if cur != nil {
@@ -546,6 +546,12 @@ func (j *Journal) historyFilter(ctx context.Context, f *Filter, episode int64) (
 	}
 	return src, args, false, nil
 }
+
+// householdEpisodesSQL is the episodes a household row is grouped by: the episodes it shows. An upgrade's row
+// (deleted) shows its import's episodes (the fold in history), not the replaced files' it stores; without that import
+// row, its own.
+const householdEpisodesSQL = `COALESCE(CASE WHEN history.event = 'deleted' THEN (SELECT i.episodes FROM history i
+	WHERE i.ref = 'dl:' || history.download_id || ':import' AND i.version_key = history.version_key) END, history.episodes)`
 
 // historyWhere is the filter of the history rows, with the rows another row stands for left out (docs/journal.md
 // "History's folded rows"): an upgrade's import, and a removal its adoption replaced, show on their partner's row
