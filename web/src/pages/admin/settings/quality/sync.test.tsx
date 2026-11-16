@@ -153,4 +153,6 @@ it.each([409, 503])("says why quality sync is unavailable on %s", async (status)
 it("says a run that changed nothing changed no profile or format", () => {
   const nothing = { ...preview, added: [], spec_changed: [], retired: [], profiles_changed: [], scores: [], held: [], applied_at: undefined };
   expect(changeLine(nothing as never)).toBe(" · trash-main · abc123: No profile or format changes");
+  // A retired format may only have been renamed upstream: the count says both.
+  expect(changeLine({ ...nothing, retired: preview.retired } as never)).toBe(" · trash-main · abc123: 1 formats removed or renamed");
 });

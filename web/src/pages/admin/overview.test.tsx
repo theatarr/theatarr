@@ -108,13 +108,16 @@ it("groups repeated failures by kind, keeps the newest error and retries only th
  await waitFor(() => expect(fetch.calls("POST", "/jobs/1/retry")).toHaveLength(1));
 });
 it("filters Tasks by the kind query and can show all again", async () => {
- const fetch = mockFetch([{ method: "GET", path: "/jobs", reply: (r: { search: string }) => ({ counts: {}, items: [{ id: 1, kind: "provider.sync", state: "failed", last_error: "provider error" }, { id: 2, kind: "arr.import", state: "failed", last_error: "arr error" }].filter(j => !new URLSearchParams(r.search).has("kind") || j.kind === new URLSearchParams(r.search).get("kind")) }) }]);
+ const fetch = mockFetch([{ method: "GET", path: "/jobs", reply: (r: { search: string }) => ({ counts: { attention: 2 }, items: [{ id: 1, kind: "provider.sync", state: "failed", last_error: "provider error" }, { id: 2, kind: "arr.import", state: "failed", last_error: "arr error" }].filter(j => !new URLSearchParams(r.search).has("kind") || j.kind === new URLSearchParams(r.search).get("kind")) }) }]);
  renderPage(<JobsPage />, "/admin/system/tasks?kind=provider.sync");
  expect(await screen.findByText("provider error")).toBeTruthy();
  expect(screen.queryByText("arr error")).toBeNull();
+ // The server's attention count covers every kind; filtered, the strip counts the rows shown.
+ expect(screen.getByTestId("jobs-attention").textContent).toBe("1");
  expect(fetch.calls("GET", "/jobs").every(r => new URLSearchParams(r.search).get("kind") === "provider.sync")).toBe(true);
  fireEvent.click(screen.getByRole("button", { name: "Show all tasks" }));
  expect(await screen.findByText("arr error")).toBeTruthy();
+ expect(screen.getByTestId("jobs-attention").textContent).toBe("2");
 });
 
 it("lists the flagged decisions and the held indexer definitions under Needs attention", async () => {
