@@ -172,8 +172,9 @@ func recordedFiles(ctx context.Context, db *sql.DB, rec map[string]*recorded) er
 }
 
 // StoreUsage works out the usage of every recorded torrent from the reference index (the database's
-// references, the scan roots' walk, the mount's listing) and stores it with the record. serve runs it after each
-// provider sync, and Refresh after its sync: the screens' "used" is as of then.
+// references, the scan roots' walk, the mount's listing) and stores it with the record, with the links' folder hashes
+// (folderHashChanges). serve runs it after each provider sync, and Refresh after its sync: the screens' "used" is as
+// of then.
 func (m *Manager) StoreUsage(ctx context.Context) error {
 	ix, err := m.loadRefs(ctx)
 	if err != nil {
@@ -228,7 +229,19 @@ func (m *Manager) StoreUsage(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	// The links' folder hashes (folderhash.go), for display only.
+	torrents := make([]provider.Torrent, len(list))
+	for i, r := range list {
+		torrents[i] = r.lt
+	}
+	folders, err := m.folderHashChanges(ctx, ix, torrents)
+	if err != nil {
+		return err
+	}
 	return m.Store.WriteTx(ctx, func(tx *sql.Tx) error {
+		if err := writeFolderHashes(ctx, tx, folders); err != nil {
+			return err
+		}
 		up, err := tx.PrepareContext(ctx, `UPDATE provider_torrent SET usage = ?, linked_files = ?, detail = ?
 			WHERE provider = ? AND torrent_id = ? AND info_hash = ?`)
 		if err != nil {

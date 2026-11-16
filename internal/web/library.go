@@ -18,7 +18,6 @@ import (
 	"github.com/theatarr/theatarr/internal/indexer"
 	"github.com/theatarr/theatarr/internal/metadata/art"
 	"github.com/theatarr/theatarr/internal/policy"
-	"github.com/theatarr/theatarr/internal/router"
 	"github.com/theatarr/theatarr/internal/store"
 )
 
@@ -93,9 +92,9 @@ const linkScoreSQL = `CASE WHEN json_valid(l.file_metadata) AND (json_type(l.fil
 // downloading or never finished is not counted.
 const providerHolds = `cp.progress >= 100`
 
-// heldJoin joins link l to the torrents of its hash (router.LinkStoredHashSQL, as linkHashSQL) in the record as cp
-// (providerHolds).
-const heldJoin = `provider_torrent cp ON cp.info_hash = ` + router.LinkStoredHashSQL
+// heldJoin joins link l to the torrents of its hash (linkShownHashSQL, as linkHashSQL: with the folder hash) in the
+// record as cp (providerHolds).
+const heldJoin = `provider_torrent cp ON cp.info_hash = ` + linkShownHashSQL
 
 // liveVersion is the condition that version v is in the library: not removed (catalog.Remove lists removed versions
 // in arrview_removed_version and keeps their rows).

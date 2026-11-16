@@ -68,6 +68,10 @@ type Torrent struct {
 	Groups  []string `json:"groups,omitempty"`
 	// RecordedFiles are the files Theatarr recorded for its hash (content_file: imported or probed), by path.
 	RecordedFiles []RecordedFile `json:"recorded_files,omitempty"`
+	// ServedBy is set on a failed torrent (GroupFailed) that library links reference: the cache codes (rd, ad, tb) of
+	// the other torrents of its hash in the record that are complete (progress 100), rd, ad, tb first. Only what the
+	// record shows: not which copy the mount plays.
+	ServedBy []string `json:"served_by,omitempty"`
 
 	titleKey string
 }
@@ -195,8 +199,61 @@ func (m *Manager) Report(ctx context.Context) (*Report, error) {
 		pr.NearLimit = policy.NearTorrentLimit(pr.AccountTorrents, pr.Limit)
 		r.Providers = append(r.Providers, pr)
 	}
+	r.servedBy(m.cacheCode)
 	r.group()
 	return r, nil
+}
+
+// cacheCode is a provider account's cache code (rd, ad, tb) by its kind, or the key itself for a kind with none.
+func (m *Manager) cacheCode(key string) string {
+	if c := indexer.CacheCode(m.kind(key)); c != "" {
+		return c
+	}
+	return key
+}
+
+// servedBy sets ServedBy on each failed torrent with library-link references: the codes (code) of the other
+// torrents of its hash that are complete.
+func (r *Report) servedBy(code func(key string) string) {
+	type at struct{ p, i int }
+	complete := map[string][]at{}
+	for p := range r.Providers {
+		for i, t := range r.Providers[p].Torrents {
+			if t.Progress >= 100 {
+				complete[t.Hash] = append(complete[t.Hash], at{p, i})
+			}
+		}
+	}
+	order := map[string]int{"rd": 1, "ad": 2, "tb": 3}
+	for p := range r.Providers {
+		for i := range r.Providers[p].Torrents {
+			t := &r.Providers[p].Torrents[i]
+			if t.State != provider.StateError || t.Refs[RefLink] == 0 {
+				continue
+			}
+			var codes []string
+			for _, x := range complete[t.Hash] {
+				if x == (at{p, i}) {
+					continue
+				}
+				if c := code(r.Providers[x.p].Torrents[x.i].Provider); !slices.Contains(codes, c) {
+					codes = append(codes, c)
+				}
+			}
+			// rd, ad, tb first; other keys after them in the order met.
+			slices.SortStableFunc(codes, func(a, b string) int {
+				oa, ob := order[a], order[b]
+				if oa == 0 {
+					oa = 4
+				}
+				if ob == 0 {
+					ob = 4
+				}
+				return oa - ob
+			})
+			t.ServedBy = codes
+		}
+	}
 }
 
 // torrent is lt (with files, its selected file count from the listing, -1 when it had none) with its usage and its

@@ -82,6 +82,48 @@ func TestTitleCachedOnAdoptedLink(t *testing.T) {
 	}
 }
 
+// TestTitleCachedOnFolderHash: a link that records no hash shows the hash its mount folder points to (link.folder_hash,
+// display only) in Cached on, the list's pills, the provider filter and facet; a hash it records wins. A caller
+// without "see files" still gets no providers or hash.
+func TestTitleCachedOnFolderHash(t *testing.T) {
+	t.Parallel()
+	e := newManageEnv(t, nil)
+	e.exec(`DELETE FROM link WHERE id IN (SELECT link_id FROM link_version WHERE version_id = 1)`)
+	hash := strings.Repeat("cd", 20)
+	seedHeld(e, 1, hash)
+	e.exec(`INSERT INTO link (id, path, target, title_id, quality, file_metadata, adopted_from, folder_hash, state,
+		created_at, updated_at) VALUES (1, '/theatarr/Alpha (2020)/Alpha.mkv', '/mount/__all__/Alpha/Alpha.mkv', 1,
+		'Remux-2160p', '{"Size":1000}', 'radarr /movies/Alpha.mkv', ?, 'active', 0, 0)`, hash)
+	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (1, 1)`)
+
+	var d TitleDetail
+	e.call("GET", APIBase+"/titles/1", nil, 200, &d)
+	if v := d.Versions[0]; !slices.Equal(v.CachedOn, []string{"rd"}) || v.Current == nil || v.Current.InfoHash != hash {
+		t.Errorf("title page: cached_on %v current %+v, want [rd] and %s", v.CachedOn, v.Current, hash)
+	}
+	var p TitlePage
+	e.call("GET", APIBase+"/titles?kind=movie&provider=rd", nil, 200, &p)
+	if p.Total != 1 || !slices.Equal(p.Items[0].Versions[0].Providers, []string{"rd"}) {
+		t.Errorf("provider filter and pills: %+v", p.Items)
+	}
+	var f TitleFacets
+	e.call("GET", APIBase+"/titles/facets?kind=movie", nil, 200, &f)
+	if len(f.Providers) != 1 || f.Providers[0] != (FacetCount{Value: "rd", Count: 1}) {
+		t.Errorf("provider facet: %+v", f.Providers)
+	}
+	if body := e.userBody(APIBase + "/titles/1"); strings.Contains(body, `"cached_on"`) || strings.Contains(body, hash) {
+		t.Errorf("user title page: %s", body)
+	}
+	// A recorded hash comes first: the folder hash is only the last fallback.
+	other := strings.Repeat("ef", 20)
+	e.exec(`UPDATE link SET file_metadata = ? WHERE id = 1`, `{"InfoHash":"`+other+`","Size":1000}`)
+	d = TitleDetail{}
+	e.call("GET", APIBase+"/titles/1", nil, 200, &d)
+	if v := d.Versions[0]; len(v.CachedOn) != 0 || v.Current == nil || v.Current.InfoHash != other {
+		t.Errorf("recorded hash: cached_on %v current %+v, want none and %s", v.CachedOn, v.Current, other)
+	}
+}
+
 // TestTitleCurrentFromLink: a movie's current file takes group, languages, edition and formats from its Theatarr
 // link's file metadata; an adopted link, which stores no formats, shows no score either. A caller without "see
 // files" keeps the languages and edition only.

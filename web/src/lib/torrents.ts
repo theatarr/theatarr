@@ -104,11 +104,22 @@ export function refSummary(refs?: Record<string, number>): string {
     .join(", ");
 }
 
-/** What the usage badge's hover says: the references (or why it is unknown). */
-export function usageDetail(t: { usage?: string; refs?: Record<string, number>; ref_list?: { kind: string; detail: string }[]; reasons?: string[] }): string {
+/** A failed copy that library links use, when the record holds another complete copy of its hash (served_by:
+ *  their cache codes): "This copy failed. Another complete copy is on TB." ("on RD and TB" for two). Only what the
+ *  record shows, not which copy the mount plays; "" without one. */
+export function servedByLine(t: { served_by?: string[] }): string {
+  const names = (t.served_by ?? []).map((c) => c.toUpperCase());
+  if (names.length === 0) return "";
+  const list = names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+  return `This copy failed. Another complete copy is on ${list}.`;
+}
+
+/** What the usage badge's hover says: the references (or why it is unknown), after servedByLine when there is one. */
+export function usageDetail(t: { usage?: string; refs?: Record<string, number>; ref_list?: { kind: string; detail: string }[]; reasons?: string[]; served_by?: string[] }): string {
+  const served = servedByLine(t);
   if (t.usage === "used") {
     const lines = (t.ref_list ?? []).map((r) => `${REF_LABEL[r.kind] ?? r.kind}: ${r.detail}`);
-    return [refSummary(t.refs), ...lines].join("\n");
+    return [...(served ? [served] : []), refSummary(t.refs), ...lines].join("\n");
   }
   if (t.usage === "unknown") return (t.reasons ?? []).join("\n");
   return "No file of it is referenced";

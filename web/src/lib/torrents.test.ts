@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { fmtTime } from "./format";
-import { deleteScope, providerProblem, usageWord, deleteSelection, filterTorrents, groupKeys, refSummary, restoreScope, sortTorrents, usageDetail, type DeletePlan, type Torrent, type TorrentReport } from "./torrents";
+import { deleteScope, providerProblem, usageWord, deleteSelection, filterTorrents, groupKeys, refSummary, restoreScope, servedByLine, sortTorrents, usageDetail, type DeletePlan, type Torrent, type TorrentReport } from "./torrents";
 
 const t = (provider: string, id: string, name: string, bytes: number, added: string, extra: Partial<Torrent> = {}): Torrent => ({
   provider,
@@ -61,6 +61,14 @@ describe("usage", () => {
     expect(usageDetail(B)).toContain("2 library links");
     expect(usageDetail(C)).toBe("not in the registry yet");
     expect(usageDetail(A)).toMatch(/No file/);
+  });
+
+  it("says when a failed copy has a complete copy elsewhere, and only then", () => {
+    expect(servedByLine({ served_by: ["tb"] })).toBe("This copy failed. Another complete copy is on TB.");
+    expect(servedByLine({ served_by: ["rd", "tb"] })).toBe("This copy failed. Another complete copy is on RD and TB.");
+    expect(servedByLine({})).toBe("");
+    expect(usageDetail({ ...B, served_by: ["tb"] }).split("\n")[0]).toBe("This copy failed. Another complete copy is on TB.");
+    expect(usageDetail(B)).not.toContain("This copy failed");
   });
 });
 

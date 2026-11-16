@@ -294,8 +294,15 @@ func nullInt(n sql.NullInt64) *int64 {
 
 // A file's torrent hash: the one resolution the title page's current file, the episode window's file, their Cached on
 // (heldByHash) and the Torrent link use: link l's content file's content, else the hash
-// it records (its download's, the file metadata's InfoHash, the adopted source's), with or without a content row.
-const linkHashSQL = `COALESCE(` + router.LinkStoredHashSQL + `, '')`
+// it records (its download's, the file metadata's InfoHash, the adopted source's), with or without a content row;
+// else the hash its mount folder points to (linkShownHashSQL).
+const linkHashSQL = `COALESCE(` + linkShownHashSQL + `, '')`
+
+// linkShownHashSQL is the hash the screens show for link l, lower case, or NULL: the one it records
+// (router.LinkStoredHashSQL), else its folder hash (link.folder_hash, migration 00145: the one torrent of the record
+// its mount folder names, worked out by the torrents manager). The folder hash is an inference, so it is for display
+// and list filtering only: removal, the router and the torrents usage read router.LinkStoredHashSQL.
+const linkShownHashSQL = `COALESCE(` + router.LinkStoredHashSQL + `, NULLIF(l.folder_hash, ''))`
 
 // Link is a library entry.
 type Link struct {

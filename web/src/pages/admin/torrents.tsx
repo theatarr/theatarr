@@ -29,6 +29,7 @@ import {
   providerCodes,
   providerProblem,
   refSummary,
+  servedByLine,
   sortTorrents,
   usageDetail,
   type DeletePlan,
@@ -287,7 +288,10 @@ function TorrentRow({ t, checked, onToggle, code }: { t: Torrent; checked: boole
         </TableCell>
         <TableCell className="hidden whitespace-nowrap text-right tabular-nums sm:table-cell">{fmtBytes(t.bytes)}</TableCell>
         <TableCell className="hidden whitespace-nowrap sm:table-cell" title={t.added ? fmtTime(t.added) : undefined}>{t.added ? fmtAgo(t.added) : "—"}</TableCell>
-        <TableCell className="hidden md:table-cell" title={t.status ? `The provider says: ${t.status}` : undefined}>{torrentStateWords(t.state, t.progress)}</TableCell>
+        <TableCell className="hidden md:table-cell">
+          <div title={t.status ? `The provider says: ${t.status}` : undefined}>{torrentStateWords(t.state, t.progress)}</div>
+          {servedByLine(t) ? <div className="max-w-[16rem] text-xs text-muted-foreground" data-testid="torrent-served-by">{servedByLine(t)}</div> : null}
+        </TableCell>
         <TableCell>
           <button type="button" onClick={() => setOpen((o) => !o)} title={usageDetail(t)} aria-expanded={open} className="text-left">
             <UsageBadge u={t} />
@@ -301,6 +305,8 @@ function TorrentRow({ t, checked, onToggle, code }: { t: Torrent; checked: boole
         <TableRow>
           <TableCell />
           <TableCell colSpan={code === undefined ? 5 : 6} className="text-xs text-muted-foreground [overflow-wrap:anywhere]" data-testid="torrent-refs">
+            {/* Below 768 px the Status column, and its served-by line, is hidden: the line opens the details instead. */}
+            {servedByLine(t) ? <p className="mb-1 md:hidden">{servedByLine(t)}</p> : null}
             <UsageDetail u={t} />
             {/* The files Theatarr recorded for the hash (imported or probed), folded: a pack can hold hundreds. */}
             {(t.recorded_files ?? []).length > 0 ? (

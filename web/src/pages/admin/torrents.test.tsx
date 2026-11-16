@@ -52,6 +52,20 @@ describe("torrents page", () => {
     expect(screen.getByTestId("usage-as-of").textContent).not.toMatch(/same time/);
   });
 
+  it("a failed copy with a complete copy elsewhere says so under its status and first in the usage hover", async () => {
+    const failed = torrent("2", h2, "Used.Movie", "used", { state: "error", status: "error", progress: 0, refs: { link: 1 }, served_by: ["tb"] });
+    mockFetch([
+      { method: "GET", path: "/torrents/report", reply: { ...report, providers: [{ ...report.providers[0], torrents: [report.providers[0].torrents[0], failed] }] } },
+      { method: "GET", path: "/torrents/journal", reply: { entries: [] } },
+      { method: "GET", path: "/status", reply: { versions: [] } },
+    ]);
+    renderPage(<TorrentsPage />);
+    const line = await screen.findByTestId("torrent-served-by");
+    expect(line.textContent).toBe("This copy failed. Another complete copy is on TB.");
+    expect(screen.getAllByTestId("torrent-served-by")).toHaveLength(1);
+    expect(line.closest("tr")?.querySelector("button[title]")?.getAttribute("title")).toMatch(/^This copy failed\. Another complete copy is on TB\.\n/);
+  });
+
   it("keeps showing the earlier record of an account whose read failed, and says so", async () => {
     const failed = { ...report.providers[0], error: "rd: HTTP 500", error_at: "2026-10-29T11:30:00Z" };
     mockFetch([

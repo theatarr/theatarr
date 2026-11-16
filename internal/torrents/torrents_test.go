@@ -6,8 +6,10 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -906,4 +908,133 @@ func TestRunScheduleTask(t *testing.T) {
 		list, _ := e.m.Backups()
 		return len(list) == 1 && list[0].Reason == ReasonScheduled && s.LastOK != nil
 	})
+}
+
+// folderHashes reads link.folder_hash by link path ("" for NULL).
+func (e *env) folderHashes() map[string]string {
+	e.t.Helper()
+	out := map[string]string{}
+	rows, err := e.st.Reader().Query(`SELECT path, COALESCE(folder_hash, '') FROM link`)
+	if err != nil {
+		e.t.Fatal(err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var p, h string
+		if err := rows.Scan(&p, &h); err != nil {
+			e.t.Fatal(err)
+		}
+		out[p] = h
+	}
+	return out
+}
+
+// The folder hash (display only): with every input read, a hashless active link gets the one hash of the record's
+// torrents (any provider, any state) under its mount folder; none or several, a stored hash or an inactive link get
+// NULL. With an unsynced provider nothing changes. The usage index does not read it.
+func TestStoreUsageFolderHash(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	e.synced("rd")
+	old := e.now.Add(-72 * time.Hour)
+	e.rd.list = []provider.Torrent{
+		tor("1", strings.ToUpper(hA), "Show.A.S01.1080p", 100, old, provider.StateError),
+		tor("2", hB, "Same.Name.S01", 100, old, provider.StateDownloaded),
+	}
+	e.tb.list = []provider.Torrent{tor("9", hC, "Same.Name.S01", 100, old, provider.StateDownloaded)}
+	link := func(path, folder, meta, state string, fh any) {
+		e.exec(`INSERT INTO link (path, target, title_id, created_at, updated_at, file_metadata, state, folder_hash)
+			VALUES (?, ?, 1, 0, 0, ?, ?, ?)`, path, mountPath+"/__all__/"+folder+"/e.mkv", meta, state, fh)
+	}
+	link("/lib/one", "Show.A.S01.1080p", "", "active", nil)
+	link("/lib/two", "Same.Name.S01", "", "active", nil)
+	link("/lib/stored", "Show.A.S01.1080p", `{"InfoHash":"`+hD+`"}`, "active", hA)
+	link("/lib/dead", "Show.A.S01.1080p", "", "dead", hA)
+	link("/lib/none", "Nothing.Here", "", "active", hE)
+	link("/lib/zzz", "Unrelated", "", "active", hF)
+
+	// tb never synced: an unread account could hold a second hash for a folder, so nothing changes.
+	if _, err := e.report(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if got := e.folderHashes(); got["/lib/one"] != "" || got["/lib/stored"] != hA || got["/lib/zzz"] != hF {
+		t.Fatalf("incomplete inputs changed the folder hashes: %v", got)
+	}
+
+	e.synced("tb")
+	r, err := e.report(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]string{"/lib/one": hA, "/lib/two": "", "/lib/stored": "", "/lib/dead": "", "/lib/none": "",
+		"/lib/zzz": ""}
+	if got := e.folderHashes(); !maps.Equal(got, want) {
+		t.Errorf("folder hashes %v, want %v", got, want)
+	}
+	// Settled: a second pass has nothing to write.
+	ix, err := e.m.loadRefs(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var list []provider.Torrent
+	for _, p := range []*fakeProvider{e.rd, e.tb} {
+		list = append(list, p.list...)
+	}
+	if ch, err := e.m.folderHashChanges(context.Background(), ix, list); err != nil || len(ch) != 0 {
+		t.Errorf("second pass changes %v (%v), want none", ch, err)
+	}
+	// The usage index reads the stored hashes and folders only: rd 1 is used by its folder, as before.
+	if got := find(r, "rd", "1"); got.Usage != Used || got.Refs[RefLink] != 3 {
+		t.Errorf("rd 1 usage %s refs %v, want used by its folder's three links", got.Usage, got.Refs)
+	}
+}
+
+// A failed torrent that library links use names the providers holding another complete copy of its hash; one with no
+// complete copy, or no library link, names none.
+func TestReportServedBy(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	e.synced("rd")
+	e.synced("tb")
+	old := e.now.Add(-72 * time.Hour)
+	incomplete := tor("11", hB, "Movie.B.2021.1080p", 100, old, provider.StateDownloading)
+	incomplete.Progress = 40
+	complete := tor("10", hA, "Movie.A.2020.1080p", 100, old, provider.StateDownloaded)
+	complete.Progress = 100
+	e.rd.list = []provider.Torrent{
+		tor("1", hA, "Movie.A.2020.1080p", 100, old, provider.StateError),
+		tor("2", hB, "Movie.B.2021.1080p", 100, old, provider.StateError),
+		tor("3", hC, "Movie.C.2019.1080p", 100, old, provider.StateError),
+	}
+	cC := complete
+	cC.ID, cC.Hash = "12", hC
+	e.tb.list = []provider.Torrent{complete, incomplete, cC}
+	for _, h := range []string{hA, hB} {
+		e.content(h, 1)
+	}
+	for _, h := range []string{hA, hB} {
+		var file int64
+		if err := e.st.Reader().QueryRow(`SELECT f.id FROM content_file f JOIN content c ON c.id = f.content_id
+			WHERE c.info_hash = ?`, h).Scan(&file); err != nil {
+			t.Fatal(err)
+		}
+		e.exec(`INSERT INTO link (path, target, content_file_id, title_id, created_at, updated_at)
+			VALUES (?, '/elsewhere/x.mkv', ?, 1, 0, 0)`, "/lib/"+h[:1]+".mkv", file)
+	}
+	r, err := e.report(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := find(r, "rd", "1").ServedBy; !slices.Equal(got, []string{"tb"}) {
+		t.Errorf("rd 1 served by %v, want [tb]", got)
+	}
+	if got := find(r, "rd", "2").ServedBy; got != nil {
+		t.Errorf("rd 2's other copy is not complete: served by %v", got)
+	}
+	if got := find(r, "rd", "3").ServedBy; got != nil {
+		t.Errorf("rd 3 has no library link: served by %v", got)
+	}
+	if got := find(r, "tb", "10").ServedBy; got != nil {
+		t.Errorf("a complete copy is not failed: served by %v", got)
+	}
 }

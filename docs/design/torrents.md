@@ -62,6 +62,23 @@ touch in the same transaction and ask the worker to work the usage out again. No
 providers.md, worked out from the record). "Unused" still needs every account's complete listing
 (`provider_sync_run` ok) and the filesystem references (scan roots, mount); a database join alone is not proof. Deletes never read the stored usage: they list the provider and check usage live.
 
+### Folder hash
+
+Files adopted from Sonarr/Radarr often record no torrent hash, so **Cached on** had nothing to look up, although the
+usage ties the same links to their torrents by mount folder. With the usage, `StoreUsage` works out each link's
+`folder_hash` (migration 00145; `internal/torrents/folderhash.go`): for an active link that records no hash
+(`router.LinkStoredHashSQL` gives none) and whose target is in a mount folder, the one hash of the record's torrents
+(every account, every state) whose folders (`torrentFolders`: the providers' names, the original name, zurg's name and
+decypharr's index) include that folder; none or several give NULL, and so does every link that records a hash or is not
+active. It runs only with every input read: each configured account listed completely, zurg's listing when zurg is
+configured (and a link is known only by its folder), decypharr's index on decypharr's mount; otherwise it changes
+nothing (an unread account could hold a second hash for the folder). Only rows whose value changes are written, in
+the usage's transaction; a relinked or re-adopted file is corrected by the next pass. A folder match is an inference,
+not proof (folder names are aliases), so the folder hash is for display only: the screens' hash readers (`linkHashSQL`,
+`heldJoin` in `internal/web`: Cached on, the provider pills, the provider filter and facet, the file's hash and its
+**Torrent** link) use it as their last fallback. The usage index, removal (which torrents a Remove deletes or keeps),
+`router.HoldsHash` and every other reader of `router.LinkStoredHashSQL` never read it.
+
 Counts name their unit: `account_torrents` (two of one hash count twice), `unique_hashes`, and `linked_files`
 (links: library links and scanned symlinks into a torrent). Names that arrive URL-encoded (TorBox's
 `[SoM]%20Dragon%20Ball…`: a `%XX` escape and no space) are decoded for display and parsing (`name`, with the
@@ -119,6 +136,11 @@ references, also those past the listed 20, read with the references themselves (
   series result is nothing but the movie parser's year (1900 to next year) under the same title, and the name has no
   explicit series marker (`S01`, `S01E02`, `1x02`, "season", a daily date) and does not start with a `[Group]` tag;
 - **failed** (the provider's error states), **stalled** (queued or downloading for over a day), **largest** (25).
+
+A failed torrent that library links reference carries `served_by`: the cache codes (rd, ad, tb) of the other torrents
+of its hash (compared lower case) in the report that are complete (progress 100, as Cached on counts a provider). It
+says only what the record shows, not which copy the mount plays; a torrent that matches only by folder name gets
+none. Usage, groups, delete rules and override tokens do not change.
 
 An account whose last listing failed is reported with its error and the record from before it; an account never
 listed is `never_read`, its torrents are not guessed.
@@ -380,7 +402,9 @@ any order, or the text as a hash prefix; `?q=` in the address fills it, so other
 with the account's tag (RD, AD, TB, as **Cached on** shows it; the account key as tooltip), a usage column whose
 references show on hover and expand on click (the expanded references link their titles to the title page; the
 first five references, then "and N more" counted from all of them), names decoded (the provider's own name as
-tooltip), one
+tooltip), a failed torrent with `served_by` one muted line under its status, which also starts its usage hover
+("This copy failed. Another complete copy is on TB.", "on RD and TB" for two; below 768 px, where Status hides, the
+line opens the expanded row), one
 table at every width (below 640 px Added, Status and the Size column hide; the size leads the name's second line),
 multi-select and **Delete selected**: the preview opens a
 confirmation with the count, size and the backup it takes first; refused torrents are
