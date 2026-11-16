@@ -217,6 +217,58 @@ func (w *Web) apiReleases(rw http.ResponseWriter, r *http.Request) {
 	w.writeReleases(ctx, rw, &out, 0)
 }
 
+// ReleaseOutcomes is the answer of GET /titles/{id}/release-outcomes.
+type ReleaseOutcomes struct {
+	Outcomes map[string]ReleaseOutcome `json:"outcomes"`
+}
+
+// GET /titles/{id}/release-outcomes?version=KEY[&episode=ID]: what came of each release of the version (or of one
+// episode of it) now, by lower-case info hash: the release lists' outcomes (releaseOutcomes), read again so a list
+// shows a grab's progress. The same permission and checks as the release lists.
+func (w *Web) apiReleaseOutcomes(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	id, ok := pathID(r)
+	if !ok {
+		notFound(rw)
+		return
+	}
+	t, err := w.findTitle(ctx, id, "", 0)
+	if err != nil {
+		w.internal(rw, err)
+		return
+	}
+	if t == nil || !t.inLib {
+		notFound(rw)
+		return
+	}
+	key := r.URL.Query().Get("version")
+	var live bool
+	err = w.st.Reader().QueryRowContext(ctx, `SELECT `+liveVersion+` FROM version v WHERE v.title_id = ?
+		AND v.policy_key = ?`, id, key).Scan(&live)
+	if errors.Is(err, sql.ErrNoRows) || err == nil && !live {
+		badRequest(rw, "the title has no library "+strconv.Quote(key))
+		return
+	}
+	if err != nil {
+		w.internal(rw, err)
+		return
+	}
+	var episode int64
+	if s := r.URL.Query().Get("episode"); s != "" {
+		episode, err = strconv.ParseInt(s, 10, 64)
+		if err != nil || episode <= 0 || w.episodesOf(ctx, id, []int64{episode}) != nil {
+			notFound(rw)
+			return
+		}
+	}
+	oc, err := w.releaseOutcomes(ctx, w.st.Reader(), id, key, episode)
+	if err != nil {
+		w.internal(rw, err)
+		return
+	}
+	writeJSON(rw, http.StatusOK, ReleaseOutcomes{Outcomes: oc})
+}
+
 // writeReleases answers with the outcome of each of the version's releases filled in; episode > 0 scopes them to
 // that episode (releaseOutcomes).
 func (w *Web) writeReleases(ctx context.Context, rw http.ResponseWriter, out *Releases, episode int64) {
@@ -229,7 +281,7 @@ func (w *Web) writeReleases(ctx context.Context, rw http.ResponseWriter, out *Re
 		out.Current = cur
 	}
 	if out.Outcomes == nil {
-		oc, err := releaseOutcomes(ctx, w.st.Reader(), out.TitleID, out.Version, episode)
+		oc, err := w.releaseOutcomes(ctx, w.st.Reader(), out.TitleID, out.Version, episode)
 		if err != nil {
 			w.internal(rw, err)
 			return
@@ -399,7 +451,7 @@ func (w *Web) storedReleases(ctx context.Context, out *Releases) error {
 // the downloads and files of that episode.
 func (w *Web) storedGrabbed(ctx context.Context, out *Releases, run sql.NullInt64, source string, at, episode int64) error {
 	db := w.st.Reader()
-	oc, err := releaseOutcomes(ctx, db, out.TitleID, out.Version, episode)
+	oc, err := w.releaseOutcomes(ctx, db, out.TitleID, out.Version, episode)
 	if err != nil {
 		return err
 	}

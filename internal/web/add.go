@@ -78,6 +78,7 @@ func (w *Web) mountAddAPI(mux *http.ServeMux) {
 	w.handle(mux, "PUT "+b+"/titles/{id}/versions/{key}", SignedIn, auth.PermAdd, w.apiSetVersion)
 	w.handle(mux, "POST "+b+"/titles/{id}/search", SignedIn, auth.PermManage, w.apiSearchNow)
 	w.handle(mux, "GET "+b+"/titles/{id}/releases", SignedIn, auth.PermManage, w.apiReleases)
+	w.handle(mux, "GET "+b+"/titles/{id}/release-outcomes", SignedIn, auth.PermManage, w.apiReleaseOutcomes)
 }
 
 // VersionOption is one version an add sheet offers.

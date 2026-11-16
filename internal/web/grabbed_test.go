@@ -4,6 +4,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 	"unicode/utf8"
 
 	"github.com/theatarr/theatarr/internal/policy"
@@ -223,10 +224,10 @@ func TestReleaseOutcomesAndHistory(t *testing.T) {
 		t.Fatalf("releases %d", code)
 	}
 	want := map[string]ReleaseOutcome{
-		h1: {Outcome: "failed", Provider: "rd", Reason: "RD reported an error"},
-		h2: {Outcome: "current", Provider: "rd"},
-		h3: {Outcome: "grabbed", Provider: "tb"},
-		h4: {Outcome: "replaced", Provider: "rd", ReplacedBy: "Alpha.2020.2160p.WEB-TWO"},
+		h1: {Outcome: "failed", Provider: "rd", Reason: "RD reported an error", Download: 2, Retry: true},
+		h2: {Outcome: "current", Provider: "rd", Download: 3},
+		h3: {Outcome: "grabbed", Provider: "tb", Download: 4, State: "downloading", Words: "Downloading (0%)"},
+		h4: {Outcome: "replaced", Provider: "rd", ReplacedBy: "Alpha.2020.2160p.WEB-TWO", Download: 1},
 	}
 	if len(r.Outcomes) != len(want) {
 		t.Errorf("outcomes %+v", r.Outcomes)
@@ -760,4 +761,74 @@ func TestEpisodeReleasesDropPublicVolumeFlags(t *testing.T) {
 		!slices.Equal(r.Candidates[1].Flags, []string{"freeleech", "seadex"}) {
 		t.Errorf("flags: %+v", r.Candidates)
 	}
+}
+
+// GET /titles/{id}/release-outcomes reads what came of each release now: an in-flight download with the words
+// Activity shows (over an older import of the same hash), an import held for review without the working spinner, and
+// a failure with whether a grab of it now would be routed.
+func TestReleaseOutcomesLive(t *testing.T) {
+	t.Parallel()
+	e := newManageEnv(t, nil)
+	now := store.Millis(addNow)
+	const (
+		hDl, hHeld, hMiss    = "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1", "a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2", "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3"
+		hOld, hBlock, hStall = "a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4", "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5", "a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6"
+		hAgain               = "a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7"
+	)
+	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, provider,
+		state, error, progress, source, episodes, created_at, updated_at) VALUES
+		(30, 1, 1, 'movie-remux', ?, 'Alpha.DL', 'idx', 'ad', 'downloading', NULL, 43.4, 'ui', '[]', ?, ?),
+		(31, 1, 1, 'movie-remux', ?, 'Alpha.HELD', 'idx', 'rd', 'ready', NULL, 100, 'ui', '[]', ?, ?),
+		(32, 1, 1, 'movie-remux', ?, 'Alpha.MISS', 'idx', NULL, 'failed', 'miss on every provider', 0, 'ui', '[]', ?, ?),
+		(33, 1, 1, 'movie-remux', ?, 'Alpha.OLDMISS', 'idx', NULL, 'failed', 'miss on every provider', 0, 'ui', '[]', ?, ?),
+		(34, 1, 1, 'movie-remux', ?, 'Alpha.BLOCK', 'idx', 'rd', 'failed', 'miss on every provider', 0, 'ui', '[]', ?, ?),
+		(35, 1, 1, 'movie-remux', ?, 'Alpha.STALL', 'idx', 'rd', 'failed', 'stalled: nothing fetched', 0, 'ui', '[]', ?, ?),
+		(36, 1, 1, 'movie-remux', ?, 'Alpha.AGAIN', 'idx', 'rd', 'imported', NULL, 100, 'ui', '[]', ?, ?),
+		(37, 1, 1, 'movie-remux', ?, 'Alpha.AGAIN', 'idx', NULL, 'queued', NULL, 0, 'ui', '[]', ?, ?)`,
+		hDl, now-60000, now-1000, hHeld, now-60000, now-1000, hMiss, now-60000, now-60000,
+		hOld, now-9*3600000, now-7*3600000, hBlock, now-60000, now-60000, hStall, now-60000, now-60000,
+		hAgain, now-90000, now-80000, hAgain, now-2000, now-2000)
+	e.exec(`INSERT INTO library_import (download_id, state, last_error, created_at, updated_at) VALUES (31, 'rejected', 'sample', ?, ?)`, now, now)
+	e.exec(`INSERT INTO router_blocklist (version_key, info_hash, title_id, release_title, reason, source, created_at)
+		VALUES ('movie-remux', ?, 1, 'Alpha.BLOCK', 'stalled', 'router', ?)`, hBlock, now)
+	e.exec(`INSERT INTO link (id, path, target, title_id, download_id, release_title, state, created_at, updated_at) VALUES
+		(40, '/movies/Alpha/Alpha.mkv', '/mnt/__all__/Alpha/Alpha.mkv', 1, 36, 'Alpha.AGAIN', 'active', ?, ?)`, now, now)
+	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (40, 1)`)
+
+	var r ReleaseOutcomes
+	e.call("GET", APIBase+"/titles/1/release-outcomes?version=movie-remux", nil, 200, &r)
+	o := r.Outcomes
+	if g := o[hDl]; g.Outcome != "grabbed" || g.State != "downloading" || g.Words != "Downloading (43%)" || g.Idle {
+		t.Errorf("downloading: %+v", g)
+	}
+	if g := o[hHeld]; g.Outcome != "grabbed" || g.Words != "Held for review" || !g.Idle {
+		t.Errorf("held import: %+v", g)
+	}
+	if g := o[hAgain]; g.Outcome != "grabbed" || g.State != "queued" || g.Words != "Queued" {
+		t.Errorf("a newer download in flight over the current file: %+v", g)
+	}
+	wantAt := store.FromMillis(now - 60000).Add(6 * time.Hour)
+	if g := o[hMiss]; g.Outcome != "failed" || g.Retry || g.RetryAt == nil || !g.RetryAt.Equal(wantAt) || g.Blocklisted {
+		t.Errorf("recent miss: %+v", g)
+	}
+	if g := o[hOld]; g.Outcome != "failed" || !g.Retry || g.RetryAt != nil {
+		t.Errorf("miss older than miss_ttl: %+v", g)
+	}
+	if g := o[hBlock]; g.Outcome != "failed" || g.Retry || !g.Blocklisted || g.RetryAt != nil {
+		t.Errorf("blocklisted: %+v", g)
+	}
+	if g := o[hStall]; g.Outcome != "failed" || !g.Retry || g.Reason == "" {
+		t.Errorf("stalled: %+v", g)
+	}
+
+	// The release lists give the same outcomes.
+	var rl Releases
+	e.call("GET", APIBase+"/titles/1/releases?version=movie-remux", nil, 200, &rl)
+	if rl.Outcomes[hDl].Words != "Downloading (43%)" || rl.Outcomes[hAgain].Outcome != "grabbed" {
+		t.Errorf("release list outcomes: %+v", rl.Outcomes)
+	}
+	// The route's checks: a version the title lacks, an episode of another title.
+	e.call("GET", APIBase+"/titles/1/release-outcomes?version=tv-2160p", nil, 400, nil)
+	e.call("GET", APIBase+"/titles/10/release-outcomes?version=tv-2160p&episode=999999", nil, 404, nil)
+	e.call("GET", APIBase+"/titles/10/release-outcomes?version=tv-2160p&episode=101", nil, 200, &r)
 }

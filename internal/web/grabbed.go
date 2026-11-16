@@ -12,9 +12,12 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/theatarr/theatarr/internal/activity"
 	"github.com/theatarr/theatarr/internal/journal"
 	"github.com/theatarr/theatarr/internal/journal/snapshot"
 	"github.com/theatarr/theatarr/internal/library"
+	"github.com/theatarr/theatarr/internal/router"
+	"github.com/theatarr/theatarr/internal/store"
 )
 
 // What came of a version's releases, in the words the title page's history and the releases panel share
@@ -32,6 +35,22 @@ type ReleaseOutcome struct {
 	Reason string `json:"reason,omitempty"`
 	// ReplacedBy names the release that replaced it, when the version has one current release.
 	ReplacedBy string `json:"replaced_by,omitempty"`
+	// Download is the newest download's id (a list tells a new attempt from the one it showed before a grab).
+	Download int64 `json:"download,omitempty"`
+	// State and Words, for grabbed: the download's state and the words Activity shows for it (activity
+	// Download.Words, with the percentage while downloading).
+	State string `json:"state,omitempty"`
+	Words string `json:"words,omitempty"`
+	// Idle, for grabbed: nothing is working on it now (an import held for review, a download waiting for its retry
+	// time), so the list shows no working spinner.
+	Idle bool `json:"idle,omitempty"`
+	// Retry, for failed: a grab of it now would be routed. False while it is on the library's blocklist
+	// (Blocklisted), or while its miss on every provider is younger than router.miss_ttl (RetryAt: then it can be
+	// tried again). This mirrors the router's skips by reason and time, not by their full rule: a provider added or a
+	// cache state changed meanwhile is not seen until the time passes.
+	Retry       bool       `json:"retry,omitempty"`
+	Blocklisted bool       `json:"blocklisted,omitempty"`
+	RetryAt     *time.Time `json:"retry_at,omitempty"`
 	// replaced: an import of it was the file and another release's is now, whatever its newest download did.
 	replaced bool
 }
@@ -186,7 +205,7 @@ func failureSentences(f failureFacts, tag func(string) string) (headline, detail
 		return h, d
 	}
 	switch {
-	case strings.HasPrefix(s, "miss on every provider"):
+	case strings.HasPrefix(s, router.MissOnEveryProvider):
 		if len(f.MissedOn) > 0 {
 			return "Not cached on " + providerList(f.MissedOn), ""
 		}
@@ -542,22 +561,25 @@ func runOrigins(ctx context.Context, db *sql.DB, titleID int64) (map[int64]runOr
 // releaseOutcomes reads what came of each release of the title's version, by lower-case info hash: the newest
 // download per hash, and the version's current files (active links). episode > 0 scopes both to that episode: the
 // downloads aimed at it, and whether the newest download imported a file for the episode (episodeFiles); without
-// that evidence an imported download of a pack has no badge for the episode.
-func releaseOutcomes(ctx context.Context, db *sql.DB, titleID int64, version string, episode int64) (map[string]ReleaseOutcome, error) {
+// that evidence an imported download of a pack has no badge for the episode. A newest download still in flight is
+// grabbed, with its words, whatever older evidence of the hash says.
+func (w *Web) releaseOutcomes(ctx context.Context, db *sql.DB, titleID int64, version string, episode int64) (map[string]ReleaseOutcome, error) {
 	type dl struct {
-		id                   int64
-		state, provider, err string
+		id                            int64
+		state, provider, err, release string
+		updated                       int64
 	}
 	newest := map[string]dl{}
 	imported := map[string]bool{}
-	err := scanAll(ctx, db, `SELECT id, LOWER(info_hash), state, COALESCE(provider, ''), COALESCE(error, '')
+	err := scanAll(ctx, db, `SELECT id, LOWER(info_hash), state, COALESCE(provider, ''), COALESCE(error, ''),
+		release_title, updated_at
 		FROM download WHERE title_id = ? AND version_key = ? AND info_hash <> ''
 		AND (? = 0 OR EXISTS (SELECT 1 FROM json_each(download.episodes) j WHERE j.value = ?)) ORDER BY id`,
 		[]any{titleID, version, episode, episode},
 		func(r *sql.Rows) error {
 			var h string
 			var d dl
-			if err := r.Scan(&d.id, &h, &d.state, &d.provider, &d.err); err != nil {
+			if err := r.Scan(&d.id, &h, &d.state, &d.provider, &d.err, &d.release, &d.updated); err != nil {
 				return err
 			}
 			newest[h] = d
@@ -611,15 +633,53 @@ func releaseOutcomes(ctx context.Context, db *sql.DB, titleID int64, version str
 			replacedBy = t
 		}
 	}
+	// The in-flight downloads' words, read as Activity reads them (with their library import and retry time).
+	var flying []int64
+	for _, d := range newest {
+		if d.state != "imported" && d.state != "failed" {
+			flying = append(flying, d.id)
+		}
+	}
+	inFlight := map[int64]*activity.Download{}
+	if len(flying) > 0 {
+		ds, err := activity.Downloads(ctx, db, activity.Filter{IDs: flying})
+		if err != nil {
+			return nil, err
+		}
+		for i := range ds {
+			inFlight[ds[i].ID] = &ds[i]
+		}
+	}
+	now := w.now()
+	var missTTL time.Duration
+	if w.pol != nil {
+		missTTL = w.pol.RouterSettings().MissTTL
+	}
 	out := map[string]ReleaseOutcome{}
 	for h, d := range newest {
-		o := ReleaseOutcome{Provider: d.provider, replaced: !current[h] && imported[h] && len(titles) > 0}
+		o := ReleaseOutcome{Provider: d.provider, Download: d.id, replaced: !current[h] && imported[h] && len(titles) > 0}
 		switch {
+		case inFlight[d.id] != nil:
+			// The newest download in flight wins over an older import's evidence (a pack partly imported).
+			a := inFlight[d.id]
+			o.Outcome, o.State, o.Words = "grabbed", a.State, a.Words("")
+			o.Idle = a.State == "queued" && a.RetryAt.After(now) ||
+				a.State == "ready" && a.ImportState == "rejected"
 		case current[h]:
 			o.Outcome = "current"
 		case d.state == "failed":
 			// The newest attempt's failure, over an older import's replacement.
-			o.Outcome, o.Reason = "failed", shortReason(d.err, d.provider)
+			o.Outcome, o.Reason, o.Retry = "failed", shortReason(d.err, d.provider), true
+			blocked, err := router.Blocklisted(ctx, db, version, h, d.release)
+			if err != nil {
+				return nil, err
+			}
+			if blocked {
+				o.Retry, o.Blocklisted = false, true
+			} else if at := store.FromMillis(d.updated).Add(missTTL); missTTL > 0 &&
+				strings.HasPrefix(d.err, router.MissOnEveryProvider) && at.After(now) {
+				o.Retry, o.RetryAt = false, &at
+			}
 		case o.replaced:
 			o.Outcome, o.ReplacedBy = "replaced", replacedBy
 		case d.state == "imported" && episode > 0 && !imported[h]:

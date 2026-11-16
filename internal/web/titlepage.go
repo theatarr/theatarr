@@ -468,7 +468,7 @@ func (w *Web) versionHistory(ctx context.Context, db *sql.DB, titleID int64, kin
 		oc, ok := outcomes[vid]
 		if !ok {
 			var err error
-			if oc, err = releaseOutcomes(ctx, db, titleID, key, 0); err != nil {
+			if oc, err = w.releaseOutcomes(ctx, db, titleID, key, 0); err != nil {
 				return err
 			}
 			outcomes[vid] = oc

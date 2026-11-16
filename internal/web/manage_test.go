@@ -468,7 +468,8 @@ func TestManageNoScoresForUsers(t *testing.T) {
 	}
 	before := e.state()
 	for _, c := range []struct{ method, path string }{{"PUT", "/titles/10/seasons/1/monitor"}, {"PUT", "/titles/10/episodes/monitor"},
-		{"POST", "/titles/10/seasons/1/search"}, {"POST", "/titles/10/episodes/search"}, {"GET", "/titles/10/episodes/101/releases"}} {
+		{"POST", "/titles/10/seasons/1/search"}, {"POST", "/titles/10/episodes/search"}, {"GET", "/titles/10/episodes/101/releases"},
+		{"GET", "/titles/10/release-outcomes?version=tv-2160p"}} {
 		if code, _ := do(c.method, APIBase+c.path, map[string]any{"monitored": false, "episode_ids": []int64{101}}); code != 403 {
 			t.Errorf("%s %s as a user: %d", c.method, c.path, code)
 		}

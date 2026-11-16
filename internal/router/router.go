@@ -913,7 +913,7 @@ func (r *Router) candidate(ctx context.Context, s *routeState, c *Candidate) (ve
 		return vContent, time.Time{}, nil
 	case content == usable:
 		// A miss on every provider (docs/design/router.md): cached as a miss for miss_ttl; the next candidate is tried.
-		msg := "miss on every provider"
+		msg := MissOnEveryProvider
 		step(Step{Outcome: "miss", Code: "miss", Message: msg})
 		if !s.dry {
 			if err := r.recordMiss(ctx, hash, provs, s.skipProvider, now, r.verdictTTL(ctx, s, now)); err != nil {
@@ -979,6 +979,10 @@ func (r *Router) knownMiss(ctx context.Context, s *routeState, c *Candidate, has
 	}
 	return usable > 0, strings.Join(whys, "; "), nil
 }
+
+// MissOnEveryProvider is a download's error when every usable provider missed its release: the hash is then a
+// known miss for miss_ttl (knownMiss), and a grab of it opens no download until that passes.
+const MissOnEveryProvider = "miss on every provider"
 
 // movedOn ends a candidate whose download was ended (removed from the queue, blocklisted) or taken by another route
 // while this route ran: nothing more is tried for it, and the route stops (vCancelled).
