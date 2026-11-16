@@ -311,7 +311,7 @@ describe("Library files (J5)", () => {
       ...web, current: { ...web.current, info_hash: "ab".repeat(20) },
       upgrade: { state: "upgrade_available", quality: "WEBDL-2160p", score: 4500, quality_met: true, cutoff: { quality: "WEBDL-2160p", score: 10000, upgrades: true },
         next: { release, quality: "WEBDL-2160p", score: 6200, reason: "better format score: 6200 over 4500", source: "search", seen_at: seen } },
-      history: [{ event: "failed", date: seen, release_title: release, missed_on: ["rd", "ad", "tb"], upgrade: true }],
+      history: [{ event: "failed", date: seen, release_title: release, reason: "Not cached on RD, AD and TB", missed_on: ["rd", "ad", "tb"], upgrade: true }],
     };
     renderPage(<LibraryRows title={title as never} versions={[v] as never} />);
     await user.click(await screen.findByTestId("upgrade-why"));

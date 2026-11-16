@@ -9,7 +9,7 @@ describe("latestEvent", () => {
     expect(latestEvent({ history: [ev("grabbed", "2026-11-14T09:00:00Z"), ev("imported", "2026-11-14T10:00:00Z")] }, now)?.words).toBe("Imported today");
     // An import that replaced a file.
     expect(latestEvent({ history: [ev("upgraded", "2026-11-13T10:00:00Z"), ev("imported", "2026-11-01T10:00:00Z")] }, now)?.words).toBe("Upgraded yesterday");
-    const failed = latestEvent({ history: [ev("imported", "2026-11-01T10:00:00Z"), ev("failed", "2026-11-13T20:07:00Z", { reason: "miss on every provider", missed_on: ["rd", "ad", "tb"], upgrade: true, download_id: 9 })] }, now);
+    const failed = latestEvent({ history: [ev("imported", "2026-11-01T10:00:00Z"), ev("failed", "2026-11-13T20:07:00Z", { reason: "Not cached on RD, AD and TB", missed_on: ["rd", "ad", "tb"], upgrade: true, download_id: 9 })] }, now);
     expect(failed).toMatchObject({ event: "failed", tone: "warning", words: "Last upgrade attempt yesterday: not cached on RD, AD and TB", downloadId: 9 });
     // Not an upgrade (nothing it was for was held): the download failed; the server's reason without known providers.
     expect(latestEvent({ history: [ev("failed", "2026-11-10T10:00:00Z", { reason: "Stalled" })] }, now)?.words).toBe("Last download failed Nov 10: stalled");
@@ -20,7 +20,8 @@ describe("latestEvent", () => {
   it("names days plainly", () => {
     expect(dayWords("2026-11-14T08:00:00Z", now)).toBe("today");
     expect(dayWords("2026-11-02T08:00:00Z", now)).toBe("Nov 2");
-    expect(failureWords({ missed_on: ["rd"] })).toBe("not cached on RD");
+    expect(failureWords({ reason: "Not cached on RD" })).toBe("not cached on RD");
+    expect(failureWords({ reason: "No provider accepted this release" })).toBe("no provider accepted this release");
   });
 });
 

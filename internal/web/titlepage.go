@@ -363,10 +363,6 @@ func (w *Web) versionHistory(ctx context.Context, db *sql.DB, titleID int64, kin
 				&score, &source, &errText, &notStarted, &upgrade, &missed, &blocked, &refusal); err != nil {
 				return err
 			}
-			// The library's refusal is read from its blocklist row and the file refusals its plan saved (failureWords).
-			fail := failureFacts{Err: errText, Blocked: blocked.String, Refusals: refusalList(refusal.String),
-				Provider: h.Source, MissedOn: h.MissedOn}
-			errText = storedFailure(fail)
 			if missed.Valid {
 				var provs []string
 				_ = json.Unmarshal([]byte(missed.String), &provs)
@@ -374,6 +370,10 @@ func (w *Web) versionHistory(ctx context.Context, db *sql.DB, titleID int64, kin
 				slices.Sort(provs)
 				h.MissedOn = w.cacheCodes(provs)
 			}
+			// The library's refusal is read from its blocklist row and the file refusals its plan saved (failureWords).
+			fail := failureFacts{Err: errText, Blocked: blocked.String, Refusals: refusalList(refusal.String),
+				Provider: h.Source, MissedOn: h.MissedOn}
+			errText = storedFailure(fail)
 			v := byID[vid]
 			if v == nil {
 				return nil

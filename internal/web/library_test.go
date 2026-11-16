@@ -674,6 +674,10 @@ func TestTitlePageSearchFacts(t *testing.T) {
 	if failed == nil || strings.Join(failed.MissedOn, ",") != "rd" || failed.DownloadID != 85 || !failed.Upgrade {
 		t.Errorf("failed miss: %+v", failed)
 	}
+	// The server's reason names the providers too (the page shows it as it is).
+	if failed != nil && failed.Reason != "Not cached on RD" {
+		t.Errorf("failed miss reason: %q, want %q", failed.Reason, "Not cached on RD")
+	}
 	if v := d.Versions[0]; v.LastSearch != nil || v.Searching != "" {
 		t.Errorf("remux was never searched: %+v %q", v.LastSearch, v.Searching)
 	}

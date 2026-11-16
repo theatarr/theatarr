@@ -91,7 +91,7 @@ describe("upgrade words", () => {
     // No attempt on the page (the history there is capped): nothing is claimed about downloading.
     expect(nextLine(u, now, [])).toBe(found);
     expect(nextLine(u, now, [])).not.toContain("9,000");
-    const failed = { event: "failed" as const, date: "2026-11-12T09:00:00Z", release_title: "Conclave.2024.2160p.WEB-DL", missed_on: ["rd", "ad", "tb"] };
+    const failed = { event: "failed" as const, date: "2026-11-12T09:00:00Z", release_title: "Conclave.2024.2160p.WEB-DL", reason: "Not cached on RD, AD and TB", missed_on: ["rd", "ad", "tb"] };
     const grabbed = { event: "grabbed" as const, date: "2026-11-12T08:00:00Z", release_title: "Conclave.2024.2160p.WEB-DL" };
     expect(nextLine(u, now, [failed, grabbed])).toBe(
       "Better release found Nov 11: Conclave.2024.2160p.WEB-DL (WEBDL-2160p, score 6,200): better format score, 6,200 over 4,500. Tried Nov 12: not cached on RD, AD and TB. Your file is unchanged.",

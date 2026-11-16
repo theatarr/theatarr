@@ -24,16 +24,9 @@ export function dayWords(iso: string, now: Date = new Date()): string {
   return fmtDay(day, now);
 }
 
-/** "RD, AD and TB" for cache codes. */
-function providerList(codes: readonly string[]): string {
-  const up = codes.map((c) => c.toUpperCase());
-  return up.length < 2 ? up.join("") : `${up.slice(0, -1).join(", ")} and ${up[up.length - 1]}`;
-}
-
-/** Why a download failed, in a few words: "not cached on RD, AD and TB" for a miss on every provider whose providers
- *  are known, else the server's short reason in lower case ("miss on every provider", "stalled"). */
-export function failureWords(h: Pick<HistoryEvent, "missed_on" | "reason">): string {
-  if (h.missed_on?.length) return `not cached on ${providerList(h.missed_on)}`;
+/** Why a download failed, in a few words: the server's short reason in lower case ("not cached on RD, AD and TB",
+ *  "stalled"). */
+export function failureWords(h: Pick<HistoryEvent, "reason">): string {
   const r = h.reason?.trim() ?? "";
   return r ? r.charAt(0).toLowerCase() + r.slice(1) : "";
 }

@@ -445,7 +445,8 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   "This title is in no library yet."
 - **Latest event** under the status (`latestEvent`, `web/src/lib/title-facts.ts`, from the title response's
   per-library `history`): "4K Remux: Imported yesterday", "Upgraded yesterday" for an import that replaced a file (the
-  server's `upgraded`: History has an Upgraded row for that download), or the last failed download.
+  server's `upgraded`: History has an Upgraded row for that download), or the last failed download with the server's
+  reason, the same sentence as History ("Last upgrade attempt Nov 13: not cached on RD and TB").
 - **Next search:** a movie's Libraries table can show a **Next search** column, and a series season with
   one library in view adds "Next search: in 3 h (new release)" to its facts. Both read the same time as the Wanted
   page: "now" when due, else the time, with why it is early ("new release", "Search now", "after a failed
