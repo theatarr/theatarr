@@ -225,6 +225,48 @@ var (
 	packCompleteRE = regexp.MustCompile(`(?i)\b(complete[ ._]series|all[ ._]seasons|the[ ._]complete[ ._]collection)\b`)
 )
 
+// packListRE is a list of seasons ("S01.S02.S03"), packNumRE its numbers.
+var (
+	packListRE = regexp.MustCompile(`(?i)\bS\d{1,2}(?:[ ._]S\d{1,2})+\b`)
+	packNumRE  = regexp.MustCompile(`\d{1,2}`)
+)
+
+// PackSeasons reads the seasons a multi-season pack's name spans: an explicit range ("S01-S05", "Season 1-4",
+// "S01 to S03") or a list in steps of one ("S01.S02.S03"). ok is false for anything else: a descending range, a
+// range of one season, or a list that does not prove the seasons between ("S01.S03", "S01 S04").
+func PackSeasons(name string) (first, last int, ok bool) {
+	if m := packRangeRE.FindStringSubmatch(name); m != nil {
+		first, last = atoiOr(m[1], 0), atoiOr(m[2], 0)
+		return first, last, first < last
+	}
+	m := packListRE.FindString(name)
+	if m == "" {
+		return 0, 0, false
+	}
+	nums := packNumRE.FindAllString(m, -1)
+	for i, n := range nums {
+		if atoiOr(n, 0) != atoiOr(nums[0], 0)+i {
+			return 0, 0, false
+		}
+	}
+	return atoiOr(nums[0], 0), atoiOr(nums[len(nums)-1], 0), true
+}
+
+// CompleteSeriesName replaces a name's complete-series phrase ("Complete Series", "All Seasons", "The Complete
+// Collection", with a leading "The") by with. ok is false when the name holds none.
+func CompleteSeriesName(name, with string) (string, bool) {
+	loc := packCompleteRE.FindStringIndex(name)
+	if loc == nil {
+		return name, false
+	}
+	start := loc[0]
+	if start >= 4 && strings.EqualFold(name[start-4:start-1], "the") && strings.ContainsRune(" ._", rune(name[start-1])) &&
+		(start == 4 || strings.ContainsRune(" ._-[(", rune(name[start-5]))) {
+		start -= 4
+	}
+	return name[:start] + with + name[loc[1]:], true
+}
+
 func packEpisodeCount(name string, season int, seasons map[int]int) int {
 	regular := map[int]int{}
 	total := 0

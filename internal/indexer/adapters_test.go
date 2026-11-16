@@ -444,6 +444,32 @@ func TestPackEpisodeCount(t *testing.T) {
 	}
 }
 
+func TestPackSeasons(t *testing.T) {
+	for name, want := range map[string][2]int{
+		"Show.S01-S05.1080p": {1, 5}, "Show S01 - S07 1080p": {1, 7}, "Show.Season.1-4.1080p": {1, 4},
+		"Show S01 to S03 1080p": {1, 3}, "Show.S01-03.COMPLETE": {1, 3}, "Show.S01.S02.S03.1080p": {1, 3},
+		"Show.S01.S03.1080p": {}, "Show S01 S04 1080p": {}, "Show.S03-S01.1080p": {}, "Show.S02.1080p": {},
+	} {
+		first, last, ok := PackSeasons(name)
+		if ok != (want != [2]int{}) || ok && (first != want[0] || last != want[1]) {
+			t.Errorf("%q: %d-%d %v, want %v", name, first, last, ok, want)
+		}
+	}
+	for name, want := range map[string]string{
+		"Show.Complete.Series.1080p":         "Show.S01.1080p",
+		"Show.The.Complete.Series.1080p":     "Show.S01.1080p",
+		"Show (2010) All Seasons 1080p":      "Show (2010) S01 1080p",
+		"Show.The.Complete.Collection.720p":  "Show.S01.720p",
+		"Theatre.Complete.Series.720p":       "Theatre.S01.720p",
+		"Show (2018) Complete 360p HDTV AAC": "",
+	} {
+		got, ok := CompleteSeriesName(name, "S01")
+		if ok != (want != "") || ok && got != want {
+			t.Errorf("%q: %q %v, want %q", name, got, ok, want)
+		}
+	}
+}
+
 func TestZileanMerge(t *testing.T) {
 	loadFixtures(t, "zilean_imdb.json", "zilean_title.json")
 	n := newNet(t)
