@@ -139,6 +139,12 @@ function CopyBlock({ d, single, children, testid }: { d: EpisodeVersionDetail; s
   );
 }
 
+/** The episode's History rows as the upgrade explanation reads them (nextLine: a failed download of the release
+ *  found, with its reason as History says it). */
+function attempts(rows: EpisodeVersionDetail["history"]): Schemas["HistoryEvent"][] {
+  return (rows ?? []).map((h) => ({ event: h.event as Schemas["HistoryEvent"]["event"], date: h.at, release_title: h.release, reason: h.reason }));
+}
+
 /** One copy's Details, for callers who see files: state, controls, the download in hand, the upgrade and the file. */
 function DetailsPart({ titleId, eid, epCode, d, aired, manage, admin, single, acquisition, onReleases, auto }: { titleId: number; eid: number; epCode: string; d: EpisodeVersionDetail; aired: boolean; manage: boolean; admin: boolean; single: boolean; acquisition?: Acquisition; onReleases: () => void; auto?: EpisodeDetail["auto_search"] }) {
   const monitor = useMonitor(titleId);
@@ -195,7 +201,7 @@ function DetailsPart({ titleId, eid, epCode, d, aired, manage, admin, single, ac
       {msg ? <p className="text-xs text-[var(--accent-ink)]">{msg}</p> : null}
       {/* No quality word where the library does not monitor the title: nothing is searched for it. */}
       {d.library_monitored !== false ? (
-        <UpgradeBlock u={d.upgrade} seeFiles releases={onReleases} what={`This episode · ${d.label || nameOf(d.key)}`} history={d.history ?? []} />
+        <UpgradeBlock u={d.upgrade} seeFiles releases={onReleases} what={`This episode · ${d.label || nameOf(d.key)}`} history={attempts(d.history)} />
       ) : null}
       {rows.length > 0 ? (
         <div className="rounded-[5px] border border-[var(--line)] p-3" data-testid="episode-file">
