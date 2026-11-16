@@ -59,7 +59,8 @@ it("Today sets Since to today and clears it again; adoption is its own event", a
   await user.click(todayButton);
   await waitFor(() => expect(since.value).toBe(""));
   const events = [...(screen.getByTestId("history-event") as HTMLSelectElement).options].map((o) => o.textContent);
-  expect(events).toContain("Imported");
+  expect(events).toContain("Imported and upgraded");
+  expect(events).toContain("Removed and missing");
   expect(events).toContain("Adopted (files found in the library)");
 });
 

@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/theatarr/theatarr/internal/acquire"
-	"github.com/theatarr/theatarr/internal/activity"
 	"github.com/theatarr/theatarr/internal/auth"
 	"github.com/theatarr/theatarr/internal/catalog"
 	"github.com/theatarr/theatarr/internal/decide"
@@ -832,10 +831,9 @@ type EpisodeVersionDetail struct {
 	HasFile          bool            `json:"has_file"`
 	Upgrade          *UpgradeInfo    `json:"upgrade,omitempty"`
 	Control          *VersionControl `json:"control"`
-	// For callers who see files: the file, and the journal's entries about the episode (newest first).
-	File    *EpisodeFile     `json:"file,omitempty"`
-	History []HistoryEvent   `json:"history,omitzero"`
-	Journal []*journal.Entry `json:"journal,omitempty"`
+	// For callers who see files: the file, and History's rows that hold the episode (episodeHistory), newest first.
+	File    *EpisodeFile    `json:"file,omitempty"`
+	History []ActivityEvent `json:"history,omitzero"`
 	// LastSearch and Searching: the library's last targeted search of the episode's season (absent: never) and a
 	// search of it under way (searchFacts). For callers who see files.
 	LastSearch *LastSearch `json:"last_search,omitempty"`
@@ -856,9 +854,6 @@ type EpisodeDetail struct {
 	Overview string `json:"overview,omitempty"`
 }
 
-// episodeJournalLimit caps the journal entries listed per version of an episode.
-const episodeJournalLimit = 20
-
 func (w *Web) episodePath(rw http.ResponseWriter, r *http.Request) (*titleBits, int64, bool) {
 	t := w.seriesTitle(rw, r, false)
 	if t == nil {
@@ -876,8 +871,8 @@ func (w *Web) episodePath(rw http.ResponseWriter, r *http.Request) (*titleBits, 
 	return t, eid, true
 }
 
-// GET titles/{id}/episodes/{eid}: one episode with, per version, its state, upgrade explanation, controls, file,
-// history and journal entries.
+// GET titles/{id}/episodes/{eid}: one episode with, per version, its state, upgrade explanation, controls, file and
+// History's rows.
 func (w *Web) apiEpisode(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	t, eid, ok := w.episodePath(rw, r)
@@ -922,7 +917,6 @@ func (w *Web) apiEpisode(rw http.ResponseWriter, r *http.Request) {
 		w.internal(rw, err)
 		return
 	}
-	code := episodeCode(int64(season), out.Episode.Number)
 	// Named apart among the title's copies as the title page names them.
 	named := make([]copyName, len(mvs))
 	for i, v := range mvs {
@@ -945,18 +939,11 @@ func (w *Web) apiEpisode(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	var history map[string][]HistoryEvent
-	if seeFiles {
-		if history, err = w.episodeHistory(ctx, db, t.id, eid); err != nil {
-			w.internal(rw, err)
-			return
-		}
-	}
 	for i, v := range mvs {
 		c := out.Episode.Versions[v.key]
 		d := EpisodeVersionDetail{Key: v.key, Label: labels[v.key], State: c.State, Monitored: c.Monitored,
 			LibraryMonitored: on[v.key], HasFile: c.HasFile, Upgrade: us.explain(vs[i], eid), Control: w.control(v.key),
-			History: []HistoryEvent{}}
+			History: []ActivityEvent{}}
 		if d.State == "" {
 			d.State = "wanted"
 		}
@@ -967,27 +954,14 @@ func (w *Web) apiEpisode(rw http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if seeFiles {
-			if h := history[v.key]; h != nil {
-				d.History = h
+			if d.History, err = w.episodeHistory(ctx, t.id, v.key, eid); err != nil {
+				w.internal(rw, err)
+				return
 			}
 			if f := facts[v.id]; f != nil {
 				d.LastSearch, d.Searching = f.last, f.searching
 			}
 			d.RSS = w.readsRSS(ctx, v.key)
-		}
-		if seeFiles && w.journal != nil {
-			page, err := w.journal.List(ctx, journal.Filter{Title: strconv.FormatInt(t.id, 10), Version: v.key, Limit: 200})
-			if err != nil {
-				w.log.Warn("episode journal", "title", t.id, "version", v.key, "err", err)
-			} else {
-				for _, e := range page.Items {
-					if e.Release != nil && slices.ContainsFunc(e.Release.Episodes, func(s string) bool {
-						return strings.EqualFold(s, code)
-					}) && len(d.Journal) < episodeJournalLimit {
-						d.Journal = append(d.Journal, e)
-					}
-				}
-			}
 		}
 		if !seeFiles {
 			// Availability only (perms.go): no upgrade explanation or history.
@@ -1043,84 +1017,19 @@ func (w *Web) episodeFile(ctx context.Context, db *sql.DB, versionID, eid int64)
 	return &f, nil
 }
 
-// episodeHistory is one episode's history in each library of the title, by library key, newest first, at most
-// historyLimit each: History's stored rows that hold it (internal/store history.go): Theatarr's downloads (grabbed,
-// then imported or failed) and files taken over from Sonarr/Radarr (adopted).
-func (w *Web) episodeHistory(ctx context.Context, db *sql.DB, titleID, eid int64) (map[string][]HistoryEvent, error) {
-	byKey := map[string][]HistoryEvent{}
-	origins, err := runOrigins(ctx, db, titleID)
+// episodeHistory is one episode's History in one library of the title, newest first, at most historyLimit rows:
+// the rows title History shows (journal.EpisodeHistory, the same folds and words, historyEvents), those that hold
+// the episode. For callers who see files.
+func (w *Web) episodeHistory(ctx context.Context, titleID int64, version string, eid int64) ([]ActivityEvent, error) {
+	if w.journal == nil {
+		return []ActivityEvent{}, nil
+	}
+	jp, err := w.journal.EpisodeHistory(ctx, journal.Filter{Title: strconv.FormatInt(titleID, 10), Version: version,
+		Limit: historyLimit}, eid)
 	if err != nil {
 		return nil, err
 	}
-	err = scanAll(ctx, db, `SELECT h.version_key, h.at, h.event, COALESCE(h.release, ''), h.info_hash, h.provider,
-		h.quality, h.score, h.reason, h.detail, COALESCE(download.source, ''),
-		COALESCE(download.state = 'failed' AND `+activity.NotStartedSQL+`, 0)
-		FROM history h LEFT JOIN download ON download.id = h.download_id
-		WHERE h.title_id = ? AND (h.event IN ('grabbed', 'imported', 'adopted') OR h.ref GLOB 'dl:*:fail')
-		AND EXISTS (SELECT 1 FROM json_each(h.episodes) j WHERE j.value = ?)`, []any{titleID, eid},
-		func(r *sql.Rows) error {
-			var key, event, provider, reason, detail, source string
-			var at int64
-			var score sql.NullInt64
-			var notStarted bool
-			var h HistoryEvent
-			if err := r.Scan(&key, &at, &event, &h.ReleaseTitle, &h.InfoHash, &provider, &h.Quality, &score, &reason,
-				&detail, &source, &notStarted); err != nil {
-				return err
-			}
-			h.Event, h.Date = event, ts(at)
-			if event == "adopted" {
-				if score.Valid {
-					h.Score = &score.Int64
-				}
-				if from, _, _ := strings.Cut(strings.TrimPrefix(detail, "adopted from "), " "); from != "" {
-					h.Source = from
-				}
-				byKey[key] = append(byKey[key], h)
-				return nil
-			}
-			// A download's event: its provider, where it came from and what started it.
-			h.Score = &score.Int64
-			h.Provider, h.Source = provider, "theatarr"
-			if provider != "" {
-				h.Source = "theatarr via " + provider
-			}
-			var run *runOrigin
-			if o, ok := origins[runIDOf(source)]; ok {
-				run = &o
-			}
-			h.Trigger = grabWords(source, run)
-			if event == "failed" {
-				if nr := activity.NotStarted(reason); notStarted && nr != "" {
-					h.Event, h.Reason = "not_started", activity.NotStartedHistory(nr)
-				} else {
-					h.Reason = shortReason(reason, provider)
-				}
-			}
-			byKey[key] = append(byKey[key], h)
-			return nil
-		})
-	if err != nil {
-		return nil, err
-	}
-	for key, out := range byKey {
-		slices.SortStableFunc(out, func(a, b HistoryEvent) int { return b.Date.Compare(a.Date) })
-		// An import after an earlier import of the same episode replaced its file: an upgrade.
-		imports := 0
-		for i := len(out) - 1; i >= 0; i-- {
-			if out[i].Event == "imported" {
-				if imports > 0 {
-					out[i].Event = "upgraded"
-				}
-				imports++
-			}
-		}
-		if len(out) > historyLimit {
-			out = out[:historyLimit]
-		}
-		byKey[key] = out
-	}
-	return byKey, nil
+	return w.historyEvents(ctx, jp.Items, true)
 }
 
 // GET titles/{id}/episodes/{eid}/releases?version=&live=: the releases panel for one episode. live=1 searches the

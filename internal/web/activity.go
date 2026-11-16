@@ -754,6 +754,10 @@ func (w *Web) historyEvents(ctx context.Context, hs []*journal.HistoryRow, admin
 			}
 			x.Entry = h.Entry
 			x.By, x.Removal = h.By, h.Removal
+			if h.Event == journal.EvAdopted {
+				// The instance, for the "From Sonarr" line's tooltip.
+				x.Source = h.Source
+			}
 		}
 		out = append(out, x)
 	}
@@ -873,7 +877,16 @@ func historyReason(h *journal.HistoryRow, notStarted string, tag func(string) st
 			return "Partly imported; the rest is tried again"
 		}
 	case journal.EvRemoved:
-		return h.Reason
+		return removedByWords(h.Reason)
+	case journal.EvAdopted:
+		// Taken over from Sonarr (a series) or Radarr (a movie); the instance is the row's Source.
+		if h.Source == "" {
+			return ""
+		}
+		if h.Title.Kind == "movie" {
+			return "From Radarr"
+		}
+		return "From Sonarr"
 	case journal.EvTitleRemoved:
 		return removalWords(h)
 	case journal.EvCopyAdded, journal.EvCopyAlready, journal.EvCopyNotCached:
@@ -882,6 +895,19 @@ func historyReason(h *journal.HistoryRow, notStarted string, tag func(string) st
 		}
 	}
 	return ""
+}
+
+// removedByWords is a removed file's reason with who removed it in words: "copy removed by key:<name>" (an API key,
+// ops.go actor) is "Removed by <name> (API key)", "copy removed by <user>" "Removed by <user>"; any other as stored.
+func removedByWords(reason string) string {
+	who, ok := strings.CutPrefix(reason, "copy removed by ")
+	if !ok {
+		return reason
+	}
+	if key, ok := strings.CutPrefix(who, "key:"); ok {
+		return "Removed by " + key + " (API key)"
+	}
+	return "Removed by " + who
 }
 
 // removalWords is a title_removed row's reason: who removed it, what became of the files, and the debrid

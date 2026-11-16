@@ -82,7 +82,7 @@ type HistoryRow struct {
 	Files    int
 	Provider string
 	// Reason: a failure's error, a block's reason, an unlink's reason, a held import's, a copy's message (cleaned).
-	// Source: a block's source. Import: an import row's library_import state. Attempts: a failed download's.
+	// Source: a block's source, an adoption's Sonarr/Radarr instance. Import: an import row's library_import state. Attempts: a failed download's.
 	Reason   string
 	Source   string
 	Import   string
@@ -116,11 +116,22 @@ type HistoryPage struct {
 const libTitleSQL = store.HistoryLibTitleSQL
 
 // History returns one page of History, newest first. Every filter applies to the stored rows; Suspect and Severity
-// do not apply. A folded row (an upgrade's import, a removal an adoption replaced) is left out only when the row
-// that stands for it matches the same filter, so paging and filters never show half of a pair.
+// do not apply. A folded row (an upgrade's import, a removal an adoption replaced) is not a row of its own while the
+// row that stands for it is there, whatever events are asked for (historyWhere), so a row reads the same under every
+// event filter and paging never shows half of a pair.
 func (j *Journal) History(ctx context.Context, f Filter) (*HistoryPage, error) {
+	return j.history(ctx, f, 0)
+}
+
+// EpisodeHistory is History's rows that hold episode id (the episode window), as History reads them; an upgrade's
+// row holds its import's episodes too.
+func (j *Journal) EpisodeHistory(ctx context.Context, f Filter, episode int64) (*HistoryPage, error) {
+	return j.history(ctx, f, episode)
+}
+
+func (j *Journal) history(ctx context.Context, f Filter, episode int64) (*HistoryPage, error) {
 	page := &HistoryPage{Items: []*HistoryRow{}}
-	where, wargs, none, err := j.historyFilter(ctx, &f)
+	where, wargs, none, err := j.historyFilter(ctx, &f, episode)
 	if err != nil {
 		return nil, err
 	}
@@ -136,19 +147,25 @@ func (j *Journal) History(ctx context.Context, f Filter) (*HistoryPage, error) {
 		source, importSt, by, detail                 string
 		dl, score                                    sql.NullInt64
 		size, files                                  int64
+		unscored                                     bool
 		episodes                                     []int64
 		replacedFiles                                []store.HistoryReplacedFile
 	}
 	var rows []*stored
 	err = l.query(`SELECT ref, at, title_id, version_key, kind, event, download_id, release, info_hash, indexer, size,
-		quality, score, formats, episodes, files, replaced, provider, reason, source, import_state, by, detail
+		quality, score, formats, episodes, files, replaced, provider, reason, source, import_state, by, detail,
+		`+adoptedUnscoredSQL+`
 		FROM history WHERE `+where+` ORDER BY at DESC, ref DESC LIMIT ?`, append(wargs, f.Limit+1),
 		func(r *sql.Rows) error {
 			var s stored
 			if err := r.Scan(&s.h.id, &s.h.at, &s.h.titleID, &s.h.version, &s.h.kind, &s.event, &s.dl, &s.release,
 				&s.hash, &s.indexer, &s.size, &s.quality, &s.score, &s.formats, &s.eps, &s.files, &s.replaced,
-				&s.provider, &s.reason, &s.source, &s.importSt, &s.by, &s.detail); err != nil {
+				&s.provider, &s.reason, &s.source, &s.importSt, &s.by, &s.detail, &s.unscored); err != nil {
 				return err
+			}
+			if s.unscored {
+				// An adopted file Theatarr never scored: no score, not 0.
+				s.score = sql.NullInt64{}
 			}
 			// A grab's kind is grab unless kinds are filtered (the journal's grab/upgrade split).
 			if s.h.kind == "upgrade" && len(f.Kinds) == 0 {
@@ -338,6 +355,12 @@ func (j *Journal) History(ctx context.Context, f Filter) (*HistoryPage, error) {
 		if strings.HasSuffix(x.ID, ":fail") && s.dl.Valid {
 			x.Attempts = attempts[s.dl.Int64]
 		}
+		if x.Event == EvAdopted {
+			// "adopted from <instance> <path>"
+			if r, ok := strings.CutPrefix(s.detail, "adopted from "); ok {
+				x.Source, _, _ = strings.Cut(r, " ")
+			}
+		}
 		if x.Event == EvTitleRemoved {
 			rm := ParseRemovalDetail(s.detail)
 			x.Removal = &rm
@@ -457,7 +480,7 @@ func idNum(id string) int64 {
 }
 
 // historyFilter checks f and sets its page size; the WHERE clause of its rows, or none when no row can match.
-func (j *Journal) historyFilter(ctx context.Context, f *Filter) (string, []any, bool, error) {
+func (j *Journal) historyFilter(ctx context.Context, f *Filter, episode int64) (string, []any, bool, error) {
 	if err := f.Validate(); err != nil {
 		return "", nil, false, err
 	}
@@ -479,38 +502,53 @@ func (j *Journal) historyFilter(ctx context.Context, f *Filter) (string, []any, 
 		return "", nil, true, nil
 	}
 	cur, _ := decodeCursor(f.Cursor)
-	where, args := historyWhere(*f, titles, cur)
+	where, args := historyWhere(*f, titles, cur, episode)
 	return where, args, false, nil
 }
 
 // historyWhere is the filter of the history rows, with the rows another row stands for left out (docs/journal.md
-// "History's folded rows"): an upgrade's import, and a removal its adoption replaced, are shown on their partner's row
-// when that row is listed too, so a page or a filter never shows half of a pair. The partner shares the row's title
-// and library, so of the filter only the event, kind and since bounds can tell them apart.
-func historyWhere(f Filter, titles []int64, cur *cursor) (string, []any) {
+// "History's folded rows"): an upgrade's import, and a removal its adoption replaced, show on their partner's row
+// only. They are left out under every event filter, so a row reads the same under each (an upgrade is Upgraded, never
+// Imported; a file an adoption replaced is never Removed on its own); only a since bound or a kinds filter that leaves
+// the partner out lists them, so a page never shows half of a pair. The partner shares the row's title and library.
+// episode (the episode window) keeps the rows that hold it; an upgrade's row also by its import's episodes.
+func historyWhere(f Filter, titles []int64, cur *cursor, episode int64) (string, []any) {
 	w, args := historyMatch(f, titles)
-	// listed: a partner row (kind link) with event ev can be listed under f's events and kinds.
-	listed := func(ev string) bool {
-		return (len(f.Events) == 0 || slices.Contains(f.Events, ev)) && (len(f.Kinds) == 0 || slices.Contains(f.Kinds, KindLink))
+	if episode > 0 {
+		w = append(w, `(EXISTS (SELECT 1 FROM json_each(history.episodes) WHERE value = ?)
+			OR (event = 'deleted' AND EXISTS (SELECT 1 FROM history i, json_each(i.episodes) ie
+				WHERE i.ref = 'dl:' || history.download_id || ':import' AND ie.value = ?)))`)
+		args = append(args, episode, episode)
 	}
 	since, sinceArgs := "", []any{}
 	if !f.Since.IsZero() {
 		since, sinceArgs = ` AND p.at >= ?`, []any{store.Millis(f.Since)}
 	}
-	if listed(EvDeleted) {
+	// The partners are link rows: a kinds filter without link lists none.
+	if len(f.Kinds) == 0 || slices.Contains(f.Kinds, KindLink) {
 		w = append(w, `NOT (event = 'imported' AND EXISTS (SELECT 1 FROM history p WHERE `+upgradeOfImportSQL+since+`))`)
 		args = append(args, sinceArgs...)
-	}
-	if listed(EvAdopted) {
+		// In the episode window the adoption must hold the episode too, or the removal would show nowhere there.
+		held, heldArgs := "", []any{}
+		if episode > 0 {
+			held, heldArgs = ` AND EXISTS (SELECT 1 FROM json_each(p.episodes) WHERE value = ?)`, []any{episode}
+		}
 		w = append(w, `NOT (event = 'removed' AND EXISTS (SELECT 1 FROM history p WHERE `+
-			adoptionOfRemovalSQL(`p.at BETWEEN history.at - 60000 AND history.at + 60000`)+since+`))`)
-		args = append(args, sinceArgs...)
+			adoptionOfRemovalSQL(`p.at BETWEEN history.at - 60000 AND history.at + 60000`)+since+held+`))`)
+		args = append(append(args, sinceArgs...), heldArgs...)
 	}
 	if cur != nil {
 		w, args = append(w, `(at < ? OR (at = ? AND ref < ?))`), append(args, cur.at, cur.at, cur.id)
 	}
 	return strings.Join(w, " AND "), args
 }
+
+// adoptedUnscoredSQL is whether an adopted row's score of 0 was never recorded: its file's link has no scoring
+// evidence (stored formats or a non-zero score in its file metadata, as the Libraries table's linkScoreSQL reads it).
+const adoptedUnscoredSQL = `(event = 'adopted' AND COALESCE(score, 0) = 0 AND EXISTS (SELECT 1 FROM library_action la
+	JOIN link l ON l.id = la.link_id WHERE la.id = CAST(substr(history.ref, 5) AS INTEGER)
+	AND NOT COALESCE(json_valid(l.file_metadata) AND (json_type(l.file_metadata, '$.Formats') = 'array'
+		OR (json_type(l.file_metadata, '$.Score') IN ('integer', 'real') AND json_extract(l.file_metadata, '$.Score') <> 0)), 0)))`
 
 // The upgrade row (deleted, alias p) of an import (history): the same download and library.
 const upgradeOfImportSQL = `p.event = 'deleted' AND p.download_id = history.download_id

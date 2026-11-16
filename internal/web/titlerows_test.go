@@ -409,8 +409,13 @@ func TestHistoryNotStarted(t *testing.T) {
 	}
 	var ep EpisodeDetail
 	e.call("GET", APIBase+"/titles/10/episodes/101", nil, 200, &ep)
-	if got := ends(ep.Versions[0].History); got["Show.S01E01.Untried"] != "not_started:Not started: downloads were off" {
-		t.Errorf("episode history: %v", got)
+	// The episode window reads History's rows, worded as Activity's.
+	var rows []string
+	for _, h := range ep.Versions[0].History {
+		rows = append(rows, h.Release+":"+h.Words)
+	}
+	if !slices.Contains(rows, "Show.S01E01.Untried:Not started: downloads were off") {
+		t.Errorf("episode history: %v", rows)
 	}
 }
 

@@ -35,9 +35,13 @@ describe("activity history filters", () => {
   it("turns the filters into API parameters", () => {
     expect(historyParams(NO_HISTORY_FILTERS)).toEqual({ title: undefined, version: undefined, events: undefined, since: undefined });
     const p = historyParams({ title: "Alpha", copy: "movie-web", event: "imported", since: "2026-10-01" });
-    expect(p).toMatchObject({ title: "Alpha", version: "movie-web", events: "imported" });
+    expect(p).toMatchObject({ title: "Alpha", version: "movie-web", events: "imported,deleted" });
     expect(historyParams({ title: "", copy: "", event: "adopted", since: "" }).events).toBe("adopted");
-    expect(historyParams({ ...NO_HISTORY_FILTERS, event: "deleted" }).events).toBe("deleted,removed,missing,title_removed");
+    // Upgrades are listed with the imports (as Upgraded), not with the removals.
+    expect(historyParams({ ...NO_HISTORY_FILTERS, event: "imported" }).events).toBe("imported,deleted");
+    expect(historyParams({ ...NO_HISTORY_FILTERS, event: "removed" }).events).toBe("removed,missing,title_removed");
+    // A bookmark of the old Deleted and removed filter.
+    expect(parseHistoryFilters(new URLSearchParams("event=deleted")).event).toBe("removed");
     // The Other providers filter is gone: an old bookmark shows All events.
     expect(parseHistoryFilters(new URLSearchParams("event=copies")).event).toBe("all");
     // The household view has no library selector, so a library in the URL filters nothing there.

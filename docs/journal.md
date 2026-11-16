@@ -201,7 +201,7 @@ takes about a millisecond.
 ## History
 
 Activity › History, the title page's History tab and the episode window's History are what happened to a title's
-files (`Journal.History`, `internal/journal/history.go`; the episode window in `internal/web` episodeHistory), read
+files (`Journal.History`, `internal/journal/history.go`; the episode window `Journal.EpisodeHistory`, the same rows that hold its episode), read
 from the rows stored when each event happened (below), worded like Radarr's: grabbed (a download that reached a
 provider or client, dated by `added_at` or its accepted attempt; grab and upgrade alike, classified only when `kinds`
 is filtered), imported (one row per import, with the episodes its links held), adopted (adoption link actions grouped
@@ -213,6 +213,9 @@ runs, mount waits and repaired links are journal entries only; the journal's own
 Each row names its journal entry for the Journal link (`journal.EntryOf`: a held import's is `dl:<id>:import`; a copy
 and a release unblocked since have none). A History row carries its entry's stored flags (above). The release facts of library actions
 are those recorded with the action (migration 00129); older actions were stored with what a link row still held then.
+An adopted row's score of 0 whose link has no scoring evidence (no stored formats and no non-zero score in its file
+metadata, as the Libraries table reads it) is read as no score: the file was never scored. An adopted row names its
+Sonarr/Radarr instance (`Source`, from "adopted from <instance> <path>").
 
 ### Stored History rows (migration 00140)
 
@@ -242,7 +245,9 @@ library (`Replaced` lists the files: action, time, path, release, episodes), not
 ### History's folded rows
 
 One change of a file is one History row, folded when it is read (`historyWhere` and `Journal.History`; nothing stored
-changes, and the episode window, which shows no upgrade or removal rows, is unchanged):
+changes). The episode window reads the same rows (`Journal.EpisodeHistory`): those whose episodes hold its episode,
+an upgrade's row also by its import's episodes (an episode the upgrade brought new), and a removal is folded there
+only into an adoption that holds the episode too:
 
 - An upgrade: the `deleted` row of a download and library stands for that download's import (`dl:<id>:import`, the
   same download and library). It shows the new release (its quality, score, and the import's hash, indexer, size and
@@ -255,9 +260,9 @@ changes, and the episode window, which shows no upgrade or removal rows, is unch
   Removed, and so does the removal of the adopted file itself (its link arrived within that minute; an adoption
   that takes over a link at the same path keeps the link's creation time, so that replacement still folds).
 
-A row is left out only when the row that stands for it matches the same filter, checked in the SQL that pages (the
-partner shares the row's title and library, so only the event and kind filters, decided in Go, and the since bound,
-in the SQL, can tell them apart), so a page boundary or a filter never shows half of a pair: with
-the Imported filter an upgrade's import is listed as Imported (the upgrade row is not), with Deleted and removed a
-removal its adoption replaced is listed as Removed. Rows at the same time keep their order: newest first by time, then
+A folded row is left out whatever events are asked for, checked in the SQL that pages, so a row reads the same under
+every event filter as under all events and a page boundary never shows half of a pair: an upgrade's import is never
+listed as Imported (Activity's "Imported and upgraded" asks for imported and deleted; imported alone lists no upgrade),
+and a removal its adoption replaced is never Removed. Only what can leave the partner out lists the folded row on its
+own: a `kinds` filter without `link`, and the since bound (the partner shares the row's title and library). Rows at the same time keep their order: newest first by time, then
 by journal id, so an upgrade or import shows above its grab.

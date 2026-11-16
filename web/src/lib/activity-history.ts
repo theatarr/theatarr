@@ -3,21 +3,23 @@
 // (?title=, ?copy=, ?event=, ?since=) so a filtered history can be bookmarked and shared. The server filters History's
 // rows (GET /activity?state=history&title=&version=&events=&since=), so paging stays right.
 
-export type HistoryEventId = "all" | "grabbed" | "imported" | "adopted" | "deleted" | "failed";
+export type HistoryEventId = "all" | "grabbed" | "imported" | "adopted" | "removed" | "failed";
 
-/** The event types, in the words the history rows use, and the History events behind each. The copies to other
- *  providers (removed in 0.4.5) have no filter of their own; their old rows show under All events. */
+/** The event types, in the words the history rows use, and the History events behind each. A row reads the same under
+ *  each as under All events (the server folds an upgrade's import into its Upgraded row whatever the filter), so
+ *  upgrades (deleted) are listed with the imports, not with the removals. The copies to other providers (removed in
+ *  0.4.5) have no filter of their own; their old rows show under All events. */
 export const HISTORY_EVENTS: { id: HistoryEventId; label: string; events: string[] }[] = [
   { id: "all", label: "All events", events: [] },
   { id: "grabbed", label: "Grabbed", events: ["grabbed"] },
-  { id: "imported", label: "Imported", events: ["imported"] },
+  { id: "imported", label: "Imported and upgraded", events: ["imported", "deleted"] },
   { id: "adopted", label: "Adopted (files found in the library)", events: ["adopted"] },
-  { id: "deleted", label: "Deleted and removed", events: ["deleted", "removed", "missing", "title_removed"] },
+  { id: "removed", label: "Removed and missing", events: ["removed", "missing", "title_removed"] },
   { id: "failed", label: "Failed and blocked", events: ["failed", "blocked"] },
 ];
 
 /** Event filters of bookmarks from before Radarr's words, and the filter each now is. */
-const OLD_EVENTS: Record<string, HistoryEventId> = { grabs: "grabbed", upgrades: "grabbed", imports: "imported", failures: "failed" };
+const OLD_EVENTS: Record<string, HistoryEventId> = { grabs: "grabbed", upgrades: "grabbed", imports: "imported", failures: "failed", deleted: "removed" };
 
 export type HistoryFilters = { title: string; copy: string; event: HistoryEventId; since: string };
 

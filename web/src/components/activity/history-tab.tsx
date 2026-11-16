@@ -7,7 +7,8 @@
 // (lib/activity-history.ts), newest first, 50 a page with Load more. Accounts that see files get a table (DataTable):
 // Event (with its episodes on the title tab, and its reason) and Title, the columns they chose
 // (lib/activity-history-columns.ts), and Retry on a failed download and the journal link. Household accounts and
-// "View as a user" keep the simple rows grouped by day: no library key, no release.
+// "View as a user" keep the simple rows grouped by day: no library key, no release. The episode window shows the
+// same rows for one episode (EpisodeHistoryRows, from the episode endpoint) in the same table.
 import { Columns3, History as HistoryIcon, NotebookPen } from "lucide-react";
 import { createContext, useContext, useState } from "react";
 import { Link } from "react-router";
@@ -51,9 +52,9 @@ const titleName = (e: ActivityEvent) => titleWithYear(e.title.name, e.title.year
 /** Events whose file may be unknown on rows from before their facts were recorded. */
 const FILE_EVENTS = new Set(["adopted", "deleted", "removed", "missing"]);
 
-/** A row's episodes in short, the full list on hover. */
-function Episodes({ e }: { e: ActivityEvent }) {
-  if (!e.episodes?.length) return null;
+/** A row's episodes in short, the full list on hover; none when they are only the episode the window is about. */
+function Episodes({ e, except }: { e: ActivityEvent; except?: string }) {
+  if (!e.episodes?.length || (except && e.episodes.length === 1 && e.episodes[0] === except)) return null;
   return <p className="truncate text-xs text-muted-foreground" title={e.episodes.join(" ")} data-testid="history-episodes">{episodesWords(e.episodes)}</p>;
 }
 
@@ -110,7 +111,7 @@ function ReplacedToggle({ e }: { e: ActivityEvent }) {
   const shown = open.has(e.id);
   return (
     <button type="button" className="mt-0.5 block text-xs text-primary hover:underline" aria-expanded={shown} onClick={() => toggle(e.id)} data-testid="history-replaced-toggle">
-      {shown ? (n === 1 ? "Hide the file" : "Hide the files") : n === 1 ? "Show the file" : `Show the ${n} files`}
+      {shown ? (n === 1 ? "Hide the replaced file" : "Hide the replaced files") : n === 1 ? "Show the replaced file" : `Show the ${n} replaced files`}
     </button>
   );
 }
@@ -135,6 +136,7 @@ function ReplacedList({ e }: { e: ActivityEvent }) {
   const named = files.some((f) => f.release);
   return (
     <div className="text-xs text-muted-foreground" data-testid="history-replaced">
+      <p className="mb-1 font-semibold text-[var(--ink-2)]" data-testid="history-replaced-head">{files.length === 1 ? "Replaced file" : "Replaced files"}</p>
       {named ? null : <p className="mb-1">Release names not recorded.</p>}
       <ul className="space-y-2">
         {files.map((f, i) => (
@@ -175,13 +177,20 @@ function ReplacedLine({ e }: { e: ActivityEvent }) {
   );
 }
 
+/** A row's reason; an adoption's ("From Sonarr") names its instance on hover. */
+function Reason({ e, className }: { e: ActivityEvent; className?: string }) {
+  if (!e.reason) return null;
+  const tip = e.event === "adopted" && e.source ? e.source : e.reason;
+  return <p className={cn("text-xs text-muted-foreground", className)} title={tip} data-testid="history-reason">{e.reason}</p>;
+}
+
 /** The Event cell: the words, the episodes when no Title column shows them, the reason and an upgrade's files toggle. */
-function EventCell({ e, episodes }: { e: ActivityEvent; episodes: boolean }) {
+function EventCell({ e, episodes, except }: { e: ActivityEvent; episodes: boolean; except?: string }) {
   return (
     <div className="min-w-0">
       <EventWords e={e} />
-      {episodes ? <Episodes e={e} /> : null}
-      {e.reason ? <p className="mt-0.5 text-xs text-muted-foreground max-sm:break-words sm:line-clamp-2" title={e.reason} data-testid="history-reason">{e.reason}</p> : null}
+      {episodes ? <Episodes e={e} except={except} /> : null}
+      <Reason e={e} className="mt-0.5 max-sm:break-words sm:line-clamp-2" />
       <ReplacedToggle e={e} />
     </div>
   );
@@ -198,21 +207,27 @@ function TitleCell({ e }: { e: ActivityEvent }) {
   );
 }
 
-/** The release ("Name not recorded" for a file event from before its facts were recorded) and, for an upgrade or an
+/** The release ("File name not recorded" for a file event from before its facts were recorded) and, for an upgrade or an
  *  adoption, what it replaced. */
 function ReleaseCell({ e }: { e: ActivityEvent }) {
   return (
     <div className="min-w-0">
       {e.release ? (
         <span className="block font-mono text-[12px] max-sm:break-all sm:truncate" title={e.release}>{e.release}</span>
-      ) : FILE_EVENTS.has(e.event) ? <span className="text-[var(--ink-3)]">Name not recorded</span> : <Dash />}
+      ) : FILE_EVENTS.has(e.event) ? <span className="text-[var(--ink-3)]">File name not recorded</span> : <Dash />}
       <ReplacedLine e={e} />
     </div>
   );
 }
 
-function historyFixed(withTitle: boolean): DataColumn<ActivityEvent>[] {
-  const event: DataColumn<ActivityEvent> = { id: "event", label: "Event", card: "none", cellClassName: withTitle ? "min-w-[8rem] max-w-[10rem]" : "min-w-[9rem] max-w-[14rem]", cell: (e) => <EventCell e={e} episodes={!withTitle} /> };
+/** The score; an adopted file Theatarr never scored has none (a recorded 0 stays 0). */
+function ScoreCell({ e }: { e: ActivityEvent }) {
+  if (e.score !== undefined && e.score !== null) return <>{fmtNumber(e.score)}</>;
+  return e.event === "adopted" ? <span className="text-[var(--ink-3)]" title="Adopted file; not scored" data-testid="history-unscored">—</span> : <Dash />;
+}
+
+function historyFixed(withTitle: boolean, except?: string): DataColumn<ActivityEvent>[] {
+  const event: DataColumn<ActivityEvent> = { id: "event", label: "Event", card: "none", cellClassName: withTitle ? "min-w-[8rem] max-w-[10rem]" : "min-w-[9rem] max-w-[14rem]", cell: (e) => <EventCell e={e} episodes={!withTitle} except={except} /> };
   if (!withTitle) return [event];
   return [event, { id: "title", label: "Title", card: "none", cellClassName: "max-w-[12rem]", cell: (e) => <TitleCell e={e} /> }];
 }
@@ -220,7 +235,7 @@ function historyFixed(withTitle: boolean): DataColumn<ActivityEvent>[] {
 const HISTORY_OPTIONAL: Record<HistoryColumnId, DataColumn<ActivityEvent>> = {
   library: { id: "library", label: "Library", cell: (e) => (e.version ? <VersionTag k={e.version} className="text-[11px]" /> : <Dash />) },
   quality: { id: "quality", label: "Quality", cellClassName: "whitespace-nowrap", cell: (e) => e.quality || <Dash /> },
-  score: { id: "score", label: "Score", cellClassName: "tabular-nums", cell: (e) => (e.score !== undefined && e.score !== null ? fmtNumber(e.score) : <Dash />) },
+  score: { id: "score", label: "Score", cellClassName: "tabular-nums", cell: (e) => <ScoreCell e={e} /> },
   date: { id: "date", label: "Date", card: "none", cellClassName: "whitespace-nowrap tabular-nums", cell: (e) => fmtTime(e.at) },
   release: { id: "release", label: "Release", cellClassName: "max-w-[13rem]", cell: (e) => <ReleaseCell e={e} /> },
   provider: { id: "provider", label: "Provider", cellClassName: "whitespace-nowrap", cell: (e) => (e.provider ? <ProviderTag account={e.provider} /> : <Dash />) },
@@ -277,9 +292,50 @@ export function HistoryTab({ admin, as, titleId }: { admin: boolean; as?: "user"
   );
 }
 
+/** The table of History rows for those who see files (Activity, the title tab, the episode window), each row's
+ *  replaced files opening under it. except: the episode the episode window is about. */
+function HistoryTable({ items, columns, withTitle, except }: { items: ActivityEvent[]; columns: DataColumn<ActivityEvent>[]; withTitle: boolean; except?: string }) {
+  const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
+  const toggle = (id: string) => setOpen((o) => { const n = new Set(o); if (!n.delete(id)) n.add(id); return n; });
+  return (
+    <FilesOpen.Provider value={{ open, toggle }}>
+      <DataTable
+        rows={items}
+        rowKey={(e) => e.id}
+        columns={columns}
+        testid="history-table"
+        rowProps={() => ({ "data-testid": "history-row" })}
+        cardHead={(e) => (
+          <>
+            <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+              <EventWords e={e} />
+              <span className="text-xs tabular-nums text-muted-foreground">{fmtTime(e.at)}</span>
+            </div>
+            {withTitle ? <TitleCell e={e} /> : <Episodes e={e} except={except} />}
+            <Reason e={e} />
+            <ReplacedToggle e={e} />
+          </>
+        )}
+        actions={(e) => <HistoryActions e={e} />}
+        expanded={(e) => (open.has(e.id) && e.replaced?.length ? <ReplacedList e={e} /> : null)}
+      />
+    </FilesOpen.Provider>
+  );
+}
+
+/** The episode window's columns: the window heads each library, and has no column choice. */
+const EPISODE_COLUMNS: HistoryColumnId[] = ["quality", "score", "date", "release"];
+
+/** One episode's History in one library (the episode window): the rows the title's History shows for it (the episode
+ *  endpoint reads them with the same reader and words), in the same table. */
+export function EpisodeHistoryRows({ events, episode }: { events: ActivityEvent[]; episode: string }) {
+  if (events.length === 0) return <p className="text-sm text-muted-foreground">No history yet.</p>;
+  const columns = tight([...historyFixed(false, episode), ...EPISODE_COLUMNS.map((id) => HISTORY_OPTIONAL[id])]);
+  return <HistoryTable items={events} columns={columns} withTitle={false} except={episode} />;
+}
+
 function HistoryList({ q, admin, prefs, filtered, withTitle }: { q: ReturnType<typeof useActivityHistory>; admin: boolean; prefs: { order: HistoryColumnId[]; shown: HistoryColumnId[] }; filtered: boolean; withTitle: boolean }) {
   const items = q.data?.pages.flatMap((p) => p.history ?? []) ?? [];
-  const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
   if (items.length === 0) {
     return (
       <Card>
@@ -305,33 +361,11 @@ function HistoryList({ q, admin, prefs, filtered, withTitle }: { q: ReturnType<t
   ) : null;
   if (admin) {
     const columns = tight([...historyFixed(withTitle), ...prefs.order.filter((id) => prefs.shown.includes(id)).map((id) => HISTORY_OPTIONAL[id])]);
-    const toggle = (id: string) => setOpen((o) => { const n = new Set(o); if (!n.delete(id)) n.add(id); return n; });
     return (
-      <FilesOpen.Provider value={{ open, toggle }}>
       <div className="space-y-4">
-        <DataTable
-          rows={items}
-          rowKey={(e) => e.id}
-          columns={columns}
-          testid="history-table"
-          rowProps={() => ({ "data-testid": "history-row" })}
-          cardHead={(e) => (
-            <>
-              <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-                <EventWords e={e} />
-                <span className="text-xs tabular-nums text-muted-foreground">{fmtTime(e.at)}</span>
-              </div>
-              {withTitle ? <TitleCell e={e} /> : <Episodes e={e} />}
-              {e.reason ? <p className="text-xs text-muted-foreground" data-testid="history-reason">{e.reason}</p> : null}
-              <ReplacedToggle e={e} />
-            </>
-          )}
-          actions={(e) => <HistoryActions e={e} />}
-          expanded={(e) => (open.has(e.id) && e.replaced?.length ? <ReplacedList e={e} /> : null)}
-        />
+        <HistoryTable items={items} columns={columns} withTitle={withTitle} />
         {more}
       </div>
-      </FilesOpen.Provider>
     );
   }
   const groups: { day: string; items: ActivityEvent[] }[] = [];

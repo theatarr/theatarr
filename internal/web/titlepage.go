@@ -59,8 +59,8 @@ type HistoryEvent struct {
 	// DownloadID is a Theatarr download's id on its grabbed, imported and failed events (its provider attempts:
 	// GET activity/downloads/{id}/attempts).
 	DownloadID int64 `json:"download_id,omitempty"`
-	// Event is grabbed, imported, upgraded, failed, not_started (a download never tried because downloads were off;
-	// Reason says why), deleted, renamed, ignored, searched or adopted (a file taken over from an arr: the episode window).
+	// Event is grabbed, imported, upgraded (an import that replaced a file), failed, not_started (a download never
+	// tried because downloads were off; Reason says why), deleted, renamed, ignored or searched.
 	Event   string    `json:"event"`
 	Date    time.Time `json:"date"`
 	Quality string    `json:"quality,omitempty"`
@@ -127,7 +127,11 @@ func downloadEvents(out []HistoryEvent, h HistoryEvent, state string, created, d
 	out = append(out, h)
 	switch state {
 	case "imported":
+		// An import that replaced a file (History's Upgraded row) is an upgrade.
 		h.Event, h.Date = "imported", ts(done)
+		if upgrade {
+			h.Event = "upgraded"
+		}
 		out = append(out, h)
 	case "failed":
 		if r := activity.NotStarted(errText); notStarted && r != "" {
@@ -337,7 +341,9 @@ func (w *Web) versionHistory(ctx context.Context, db *sql.DB, titleID int64, kin
 	runDLs := map[int64][]runDownload{}
 	err = scanAll(ctx, db, `SELECT id, version_id, state, created_at, COALESCE(imported_at, updated_at), release_title,
 		info_hash, COALESCE(provider, ''), quality, score, source, COALESCE(error, ''), `+notStartedCol+`,
-		CASE WHEN state = 'failed' THEN `+heldNowSQL+` ELSE 0 END,
+		CASE WHEN state = 'failed' THEN `+heldNowSQL+`
+			WHEN state = 'imported' THEN EXISTS (SELECT 1 FROM history x WHERE x.download_id = download.id
+				AND x.event = 'deleted') ELSE 0 END,
 		CASE WHEN state = 'failed' AND COALESCE(error, '') GLOB 'miss on every provider*' THEN (SELECT json_group_array(DISTINCT a.provider) FROM download_attempt a
 			WHERE a.download_id = download.id AND a.code IN (`+missCodes+`)) END,
 		CASE WHEN state = 'failed' THEN (SELECT b.reason FROM router_blocklist b WHERE b.download_id = download.id

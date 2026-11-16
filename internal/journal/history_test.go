@@ -152,9 +152,22 @@ func TestHistoryRows(t *testing.T) {
 	if len(ids) != 3 || slices.Contains(ids, "dl:20:import") {
 		t.Errorf("pages: %q", ids)
 	}
-	got = e.history(Filter{Title: "1", Events: []string{EvImported}})
-	if want := []string{"imported Alpha.2020.2160p.WEB-DL-FLUX WEBDL-2160p 5000"}; !slices.Equal(got, want) {
-		t.Errorf("imports only:\n got %q\nwant %q", got, want)
+	// Under an event filter a row reads as under all events: the upgrade's import is never Imported on its own (the
+	// Imported and upgraded filter asks for both); the removals' filter does not list upgrades.
+	if got := e.history(Filter{Title: "1", Events: []string{EvImported}}); len(got) != 0 {
+		t.Errorf("imports only: %q", got)
+	}
+	got = e.history(Filter{Title: "1", Events: []string{EvImported, EvDeleted}})
+	if want := []string{"deleted Alpha.2020.2160p.WEB-DL-FLUX WEBDL-2160p 5000 replaced Alpha.2020.2160p.WEB-OLD"}; !slices.Equal(got, want) {
+		t.Errorf("imports and upgrades:\n got %q\nwant %q", got, want)
+	}
+	if got := e.history(Filter{Title: "1", Events: []string{EvRemoved, EvMissing, EvTitleRemoved}}); len(got) != 0 {
+		t.Errorf("removals: %q", got)
+	}
+	// A page of one row under that filter ends after the upgrade, its import inside the pair: no second page.
+	if p, err := e.j.History(context.Background(), Filter{Title: "1", Events: []string{EvImported, EvDeleted},
+		Limit: 1}); err != nil || len(p.Items) != 1 || p.Items[0].Event != EvDeleted || p.NextCursor != "" {
+		t.Errorf("one-row page: %+v %v", p, err)
 	}
 
 	// A hand unlink of the new file: Removed, with its reason and release.
@@ -359,11 +372,11 @@ func TestHistoryAdoptionReplaced(t *testing.T) {
 		"Bluray-2160p" || *r[0].Release.Score != 6650 {
 		t.Errorf("replaced: %+v", r)
 	}
+	// The file the adoption replaced is never Removed on its own, under any filter.
 	got = e.history(Filter{Title: "2", Events: []string{EvRemoved}})
 	want = []string{
 		"removed Beta.2021.Remux-C Remux-2160p 7000 (deleted in Radarr)",
 		"removed Beta.2021.Remux-B Remux-2160p 6500 (deleted in Radarr)",
-		"removed Beta.2021.Bluray-A Bluray-2160p 6650 (deleted in Radarr)",
 	}
 	if !slices.Equal(got, want) {
 		t.Errorf("removals only:\n got %q\nwant %q", got, want)
@@ -430,5 +443,93 @@ func TestHistoryPackUpgrade(t *testing.T) {
 	}
 	if x := p.Items[0]; x.Import != "partial" || strings.Join(x.Replaced[0].Episodes, ",") != "S01E01" {
 		t.Errorf("upgrade row: import %q, replaced %+v", x.Import, x.Replaced)
+	}
+}
+
+// episodeHistory is the episode window's rows in brief.
+func (e *env) episodeHistory(f Filter, episode int64) []string {
+	e.t.Helper()
+	e.flag()
+	p, err := e.j.EpisodeHistory(context.Background(), f, episode)
+	if err != nil {
+		e.t.Fatal(err)
+	}
+	var out []string
+	for _, x := range p.Items {
+		out = append(out, histRow(x))
+	}
+	return out
+}
+
+// The episode window reads History's rows that hold the episode, folded as the title's: a pack upgrade is one
+// Upgraded row for the episode it replaced and for one it brought new; an episode the import did not bring has the
+// grab only; an adoption that replaced an episode's file is one Adopted row.
+func TestEpisodeHistory(t *testing.T) {
+	e := newEnv(t)
+	at := testNow.Add(-time.Hour)
+	e.dlEvent(60, "imported", at, 3, 3, "tv-2160p", hashC, "Gamma.S01.2160p.NEW", "WEBDL-2160p", 2000, 9<<30,
+		[]int64{101, 102, 103, 104}, "")
+	e.exec(`INSERT INTO library_import (download_id, state, mount_folder, plan, created_at, updated_at)
+		VALUES (60, 'partial', '/m/G', '{}', ?, ?)`, msOf(at.Add(time.Minute)), msOf(at.Add(time.Minute)))
+	for i, ep := range []int64{101, 102, 103} {
+		e.exec(`INSERT INTO library_action (at, kind, mode, version_key, download_id, link_id, path, title_id, episodes)
+			VALUES (?, 'link', 'applied', 'tv-2160p', 60, ?, ?, 3, ?)`, msOf(at.Add(time.Minute)), 70+i,
+			fmt.Sprintf("/tv/G/new%d.mkv", ep), fmt.Sprintf("[%d]", ep))
+	}
+	e.exec(`INSERT INTO library_action (at, kind, mode, version_key, download_id, path, detail, release_title, quality,
+		score, title_id, episodes) VALUES (?, 'replace', 'applied', 'tv-2160p', 60, '/tv/G/S01E01.old.mkv',
+		'moved aside to /trash/g', 'Gamma.S01E01.OLD', 'WEBDL-1080p', 500, 3, '[101]')`, msOf(at.Add(time.Minute))+1)
+	f := Filter{Title: "3", Version: "tv-2160p"}
+	up := "deleted Gamma.S01.2160p.NEW WEBDL-2160p 2000 [S01E01,S01E02,S01E03] replaced Gamma.S01E01.OLD"
+	grab := "grabbed Gamma.S01.2160p.NEW WEBDL-2160p 2000 [S01E01,S01E02,S01E03,S01E04]"
+	for ep, want := range map[int64][]string{101: {up, grab}, 102: {up, grab}, 104: {grab}} {
+		if got := e.episodeHistory(f, ep); !slices.Equal(got, want) {
+			t.Errorf("episode %d:\n got %q\nwant %q", ep, got, want)
+		}
+	}
+	// Sonarr replaced S01E05's file: the new file adopted, the old one unlinked a second later.
+	e.exec(`INSERT INTO link (id, path, target, title_id, release_title, quality, score, adopted_from, state,
+		created_at, updated_at) VALUES (80, '/tv/G/S01E05.old.mkv', '/t', 3, 'Gamma.S01E05.OLD', 'WEBDL-1080p', 400,
+		'sonarr_4k /arr/old.mkv', 'unlinked', ?, ?)`, msOf(at.Add(-24*time.Hour)), msOf(at.Add(-24*time.Hour)))
+	e.exec(`INSERT INTO link (id, path, target, title_id, release_title, quality, score, adopted_from, state,
+		created_at, updated_at) VALUES (81, '/tv/G/S01E05.mkv', '/t', 3, 'Gamma.S01E05.NEW', 'WEBDL-2160p', 900,
+		'sonarr_4k /arr/new.mkv', 'active', ?, ?)`, msOf(at.Add(2*time.Hour)), msOf(at.Add(2*time.Hour)))
+	e.exec(`INSERT INTO library_action (at, kind, mode, version_key, link_id, path, detail, release_title, quality,
+		score, title_id, episodes) VALUES (?, 'link', 'applied', 'tv-2160p', 81, '/tv/G/S01E05.mkv',
+		'adopted from sonarr_4k /arr/new.mkv', 'Gamma.S01E05.NEW', 'WEBDL-2160p', 900, 3, '[105]')`,
+		msOf(at.Add(2*time.Hour)))
+	e.exec(`INSERT INTO library_action (at, kind, mode, version_key, link_id, path, detail, release_title, quality,
+		score, title_id, episodes) VALUES (?, 'replace', 'applied', 'tv-2160p', 80, '/tv/G/S01E05.old.mkv',
+		'unlinked (deleted in Sonarr), moved aside to /trash/x', 'Gamma.S01E05.OLD', 'WEBDL-1080p', 400, 3, '[105]')`,
+		msOf(at.Add(2*time.Hour))+1000)
+	got := e.episodeHistory(f, 105)
+	if want := []string{"adopted Gamma.S01E05.NEW WEBDL-2160p 900 [S01E05] replaced Gamma.S01E05.OLD"}; !slices.Equal(got, want) {
+		t.Errorf("episode 105:\n got %q\nwant %q", got, want)
+	}
+	p, err := e.j.EpisodeHistory(context.Background(), f, 105)
+	if err != nil || len(p.Items) != 1 || p.Items[0].Source != "sonarr_4k" {
+		t.Errorf("adoption's instance: %+v %v", p, err)
+	}
+	if got := e.episodeHistory(Filter{Title: "3", Version: "tv-2160p", Events: []string{EvRemoved}}, 105); len(got) != 0 {
+		t.Errorf("removals of episode 105: %q", got)
+	}
+}
+
+// An adopted file Theatarr never scored has no score in History; one scored 0 keeps its 0.
+func TestHistoryAdoptedUnscored(t *testing.T) {
+	e := newEnv(t)
+	at := testNow.Add(-time.Hour)
+	for i, meta := range []string{`{}`, `{"Formats":[]}`} {
+		e.exec(`INSERT INTO link (id, path, target, title_id, release_title, quality, score, adopted_from, state,
+			file_metadata, created_at, updated_at) VALUES (?, ?, '/t', 2, ?, 'Remux-2160p', 0, 'radarr_4k /a', 'active', ?, ?, ?)`,
+			90+i, fmt.Sprintf("/m/B%d.mkv", i), fmt.Sprintf("Beta.%d", i), meta, msOf(at), msOf(at))
+		e.exec(`INSERT INTO library_action (at, kind, mode, version_key, link_id, path, detail, release_title, quality,
+			score, title_id) VALUES (?, 'link', 'applied', 'movie-remux', ?, ?, 'adopted from radarr_4k /a', ?,
+			'Remux-2160p', 0, 2)`, msOf(at.Add(time.Duration(i)*48*time.Hour)), 90+i, fmt.Sprintf("/m/B%d.mkv", i),
+			fmt.Sprintf("Beta.%d", i))
+	}
+	got := e.history(Filter{Title: "2"})
+	if want := []string{"adopted Beta.1 Remux-2160p 0", "adopted Beta.0 Remux-2160p"}; !slices.Equal(got, want) {
+		t.Errorf("rows:\n got %q\nwant %q", got, want)
 	}
 }

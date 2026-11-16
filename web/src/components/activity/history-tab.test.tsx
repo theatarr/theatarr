@@ -3,7 +3,7 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, it } from "vitest";
 import { mockFetch, renderPage } from "@/test/page";
-import { HistoryTab } from "./history-tab";
+import { EpisodeHistoryRows, HistoryTab } from "./history-tab";
 
 const me = { id: 9, username: "manager", permissions: ["browse", "see_files", "manage"], csrf_token: "t" };
 const title = { id: 1, name: "Alpha", year: 2026, kind: "movie" };
@@ -41,7 +41,7 @@ const rows = [
   { id: "copy:2", at: "2026-11-12T16:00:00Z", kind: "copy", event: "copy_not_cached", title: series, words: "Not cached on AD", tone: "info", provider: "ad", release: "Gamma.S01.2160p.WEB-GRP", reason: "Not cached on AD; our add was deleted" },
   { id: "lib:9", at: "2026-11-12T15:00:00Z", kind: "link", event: "deleted", title: series, version: "tv-2160p", words: "Upgraded", tone: "ok", episodes: eps, files: 2, release: "Gamma.S01.2160p.WEB-GRP", quality: "WEBDL-2160p", score: 2400, replaced: [{ path: "/tv/Gamma/S01E02.mkv", episodes: ["S01E02"] }, { path: "/tv/Gamma/S01E01.mkv", release: "Gamma.S01.1080p.WEB-OLD", quality: "WEBDL-1080p", score: 900, episodes: ["S01E01"] }], entry: "dl:5:import" },
   { id: "lib:5", at: "2026-11-01T09:00:00Z", kind: "link", event: "adopted", title: series, version: "tv-2160p", words: "Adopted", tone: "ok", episodes: ["S01E07"], files: 1, release: "Gamma.S01E07.2160p.WEB-NEW", quality: "WEBDL-2160p", score: 1800, replaced: [{ path: "/tv/Gamma/S01E07.old.mkv", release: "Gamma.S01E07.1080p.WEB-OLD", quality: "WEBDL-1080p", score: 600, episodes: ["S01E07"] }] },
-  { id: "lib:4", at: "2026-10-27T09:00:00Z", kind: "link", event: "adopted", title: series, version: "tv-2160p", words: "Adopted", tone: "ok", episodes: ["S01E08"] },
+  { id: "lib:4", at: "2026-10-27T09:00:00Z", kind: "link", event: "adopted", title: series, version: "tv-2160p", words: "Adopted", tone: "ok", episodes: ["S01E08"], reason: "From Sonarr", source: "Sonarr_anime_zurg" },
   { id: "lib:12", at: "2026-10-25T09:00:00Z", kind: "link", event: "deleted", title: series, version: "tv-2160p", words: "Upgraded", tone: "ok", files: 2, release: "Gamma.S02.WEB-NEW", replaced: [{ path: "/tv/Gamma/S02E01.mkv", release: "Gamma.S02E01.WEB" }, { path: "/tv/Gamma/S02E02.mkv", release: "Gamma.S02E02.WEB" }] },
   { id: "dl:6:fail", at: "2026-10-20T09:00:00Z", kind: "failure", event: "failed", title: series, version: "tv-2160p", words: "Failed", tone: "bad", release: "Gamma.S01E08.WEB", reason: "Provider refused: too many active" },
 ];
@@ -70,25 +70,32 @@ it("words rows like Radarr's: an upgrade's one row with the new release and what
   expect(got[1].querySelector('[data-column="score"]')?.textContent).toBe("2,400");
   // The files open under the row, across it, in episode order, each part labelled.
   const toggle = got[1].querySelector<HTMLButtonElement>('[data-testid="history-replaced-toggle"]');
-  expect(toggle?.textContent).toBe("Show the 2 files");
+  expect(toggle?.textContent).toBe("Show the 2 replaced files");
   expect(screen.queryByTestId("history-replaced")).toBeNull();
   await userEvent.setup().click(toggle!);
   const files = await screen.findByTestId("history-replaced");
   expect(files.closest("tr")?.hasAttribute("data-expanded")).toBe(true);
+  expect(files.querySelector('[data-testid="history-replaced-head"]')?.textContent).toBe("Replaced files");
   expect([...files.querySelectorAll("li")].map(parts)).toEqual([
     ["File: S01E01.mkv", "Release: Gamma.S01.1080p.WEB-OLD", "Quality: WEBDL-1080p", "Score: 900", "Episodes: S01E01"],
     ["File: S01E02.mkv", "Release: Name not recorded", "Episodes: S01E02"],
   ]);
   expect(files.querySelector('[title="/tv/Gamma/S01E01.mkv"]')?.textContent).toBe("S01E01.mkv");
-  expect(toggle?.textContent).toBe("Hide the files");
+  expect(toggle?.textContent).toBe("Hide the replaced files");
   expect(got[0].querySelector('[data-testid="history-replaced-toggle"]')).toBeNull();
   // An adoption that replaced the file before: the new file's facts, the old one's under them; what Adopted means.
   const line = got[2].querySelector('[data-testid="history-replaced-line"]');
   expect(text(line)).toBe("Replaced: Gamma.S01E07.1080p.WEB-OLD · WEBDL-1080p · 600");
   expect(got[2].querySelector('[data-column="score"]')?.textContent).toBe("1,800");
   expect(got[2].querySelector('[data-testid="history-words"]')?.parentElement?.getAttribute("title")).toBe("Taken over from Sonarr/Radarr's library; Theatarr did not download it.");
-  expect(got[3].querySelector('[data-column="release"]')?.textContent).toBe("Name not recorded");
+  expect(got[3].querySelector('[data-column="release"]')?.textContent).toBe("File name not recorded");
   expect(got[3].querySelector('[data-column="quality"]')?.textContent).toBe("—");
+  // An adopted file never scored: a dash that says so (a recorded 0 would read 0); where it came from, the instance on
+  // hover.
+  expect(got[3].querySelector('[data-testid="history-unscored"]')?.getAttribute("title")).toBe("Adopted file; not scored");
+  const from = got[3].querySelector('[data-testid="history-reason"]');
+  expect(from?.textContent).toBe("From Sonarr");
+  expect(from?.getAttribute("title")).toBe("Sonarr_anime_zurg");
   expect(got[3].querySelector('[data-testid="history-replaced-line"]')).toBeNull();
   expect(text(got[4].querySelector('[data-column="release"]'))).toBe("Gamma.S02.WEB-NEWReplaced 2 files");
   expect(got[5].querySelector('[data-testid="history-reason"]')?.textContent).toBe("Provider refused: too many active");
@@ -117,9 +124,24 @@ it("says once that no replaced file has a release name", async () => {
     { method: "GET", path: "/activity", reply: { state: "history", admin: true, history: [up] } },
   ]);
   renderPage(<HistoryTab admin titleId={3} />, "/title/3?tab=history");
-  await userEvent.setup().click(await screen.findByRole("button", { name: "Show the 3 files" }));
+  await userEvent.setup().click(await screen.findByRole("button", { name: "Show the 3 replaced files" }));
   const files = await screen.findByTestId("history-replaced");
   expect(files.textContent).not.toContain("Name not recorded");
-  expect(files.querySelector("p")?.textContent).toBe("Release names not recorded.");
+  expect([...files.querySelectorAll("p")].map((p) => p.textContent)).toEqual(["Replaced files", "Release names not recorded."]);
   expect([...files.querySelectorAll("li")].map(parts)).toEqual([["File: S01E09.mkv", "Episodes: S01E09"], ["File: S01E10.mkv", "Episodes: S01E10"], ["File: b.mkv"]]);
+});
+
+it("shows the episode window's rows in the same table and words, without the episode it is about or a Library column", async () => {
+  mockFetch([{ method: "GET", path: "/auth/me", reply: me }]);
+  const up = { ...rows[1], id: "lib:30", episodes: ["S01E02"], replaced: [{ path: "/tv/Gamma/S01E02.mkv", release: "Gamma.S01E02.1080p.WEB-OLD", quality: "WEBDL-1080p", score: 900, episodes: ["S01E02"] }] };
+  const pack = { ...grab, id: "dl:31", title: series, episodes: ["S01E01", "S01E02"] };
+  renderPage(<EpisodeHistoryRows events={[up, pack] as never} episode="S01E02" />);
+  const got = await screen.findAllByTestId("history-row");
+  expect(got.map((r) => r.querySelector('[data-testid="history-words"]')?.textContent)).toEqual(["Upgraded", "Grabbed"]);
+  expect(text(got[0].querySelector('[data-testid="history-replaced-line"]'))).toBe("Replaced: Gamma.S01E02.1080p.WEB-OLD · WEBDL-1080p · 900");
+  expect(got[0].querySelector('[data-testid="history-replaced-toggle"]')?.textContent).toBe("Show the replaced file");
+  expect(got[0].querySelector('[data-testid="history-episodes"]')).toBeNull();
+  expect(got[1].querySelector('[data-testid="history-episodes"]')?.textContent).toBe("S01E01 S01E02");
+  expect(got[0].querySelector('[data-column="library"]')).toBeNull();
+  expect(got[0].querySelector('[data-column="date"]')).toBeTruthy();
 });

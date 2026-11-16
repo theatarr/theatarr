@@ -1244,3 +1244,103 @@ func TestActivityRefusedReason(t *testing.T) {
 		t.Errorf("held %+v", p.Now)
 	}
 }
+
+// Every History view shows the same rows: an upgrade is one Upgraded row under All events and under Imported and
+// upgraded, never an Imported row (Imported alone lists nothing), and it is not among Removed and missing; a page
+// ending inside the pair holds the Upgraded row only; a removal by an API key says who in words; household rows get the
+// same words and none of the admin facts. The episode window reads the same rows for its episode.
+func TestHistoryFilterMatrix(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	key := e.apiKey()
+	now := store.Millis(testNow)
+	e.exec(`INSERT INTO version (id, title_id, policy_key, state, created_at, updated_at) VALUES (9, 3, 'tv-2160p', 'filled', ?, ?)`,
+		now, now)
+	e.exec(`INSERT INTO episode (id, title_id, season, number, created_at, updated_at) VALUES (31, 3, 1, 1, ?, ?),
+		(32, 3, 1, 2, ?, ?)`, now, now, now, now)
+	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, quality,
+		score, episodes, state, created_at, updated_at, added_at, imported_at) VALUES
+		(5, 3, 9, 'tv-2160p', 'f5', 'Gamma.S01.2160p.WEB', 'dmm', 'WEBDL-2160p', 700, '[31,32]', 'imported', ?, ?, ?, ?)`,
+		now, now+5, now, now+5)
+	e.exec(`INSERT INTO library_import (download_id, state, mount_folder, plan, created_at, updated_at) VALUES
+		(5, 'linked', '/m/g', '{}', ?, ?)`, now+5, now+5)
+	e.exec(`INSERT INTO link (id, path, target, title_id, download_id, state, created_at, updated_at) VALUES
+		(80, '/tv/G/S01E01.mkv', '/t1', 3, 5, 'active', ?, ?), (81, '/tv/G/S01E02.mkv', '/t2', 3, 5, 'unlinked', ?, ?)`,
+		now, now, now, now)
+	e.exec(`INSERT INTO link_episode (link_id, episode_id) VALUES (80, 31), (81, 32)`)
+	e.exec(`INSERT INTO library_action (at, kind, mode, version_key, download_id, link_id, path, title_id, episodes,
+		release_title, quality, score, detail) VALUES
+		(?, 'link', 'applied', 'tv-2160p', 5, 80, '/tv/G/S01E01.mkv', 3, '[31]', NULL, NULL, NULL, ''),
+		(?, 'link', 'applied', 'tv-2160p', 5, 81, '/tv/G/S01E02.mkv', 3, '[32]', NULL, NULL, NULL, ''),
+		(?, 'replace', 'applied', 'tv-2160p', 5, NULL, '/tv/G/S01E01.old.mkv', 3, '[31]', 'Gamma.S01E01.OLD',
+			'WEBDL-1080p', 300, 'moved aside to /trash/o'),
+		(?, 'replace', 'applied', 'tv-2160p', NULL, 81, '/tv/G/S01E02.mkv', 3, '[32]', 'Gamma.S01.2160p.WEB',
+			'WEBDL-2160p', 700, 'unlinked (copy removed by key:claude-automation), moved aside to /trash/r')`,
+		now+5, now+5, now+6, now+60000)
+	words := func(path string) ([]string, ActivityPage) {
+		t.Helper()
+		var p ActivityPage
+		if code := e.getKey(APIBase+path, key, &p); code != 200 {
+			t.Fatalf("%s: %d", path, code)
+		}
+		var out []string
+		for _, x := range p.History {
+			out = append(out, x.Words)
+		}
+		return out, p
+	}
+	const base = "/activity?state=history&title_id=3"
+	for _, as := range []string{"", "&as=user"} {
+		for filter, want := range map[string][]string{
+			"":                                      {"Removed", "Upgraded", "Grabbed"},
+			"&events=imported,deleted":              {"Upgraded"},
+			"&events=imported":                      nil,
+			"&events=removed,missing,title_removed": {"Removed"},
+		} {
+			if got, _ := words(base + filter + as); !slices.Equal(got, want) {
+				t.Errorf("%s%s: %q, want %q", filter, as, got, want)
+			}
+		}
+		got, p := words(base + "&events=imported,deleted&limit=1" + as)
+		if !slices.Equal(got, []string{"Upgraded"}) || p.NextCursor != "" {
+			t.Errorf("one-row page%s: %q next %q", as, got, p.NextCursor)
+		}
+	}
+	_, a := words(base)
+	if r := a.History[0]; r.Reason != "Removed by claude-automation (API key)" {
+		t.Errorf("removal reason: %q", r.Reason)
+	}
+	if up := a.History[1]; up.Release != "Gamma.S01.2160p.WEB" || len(up.Replaced) != 1 ||
+		up.Replaced[0].Release != "Gamma.S01E01.OLD" || up.Entry != "dl:5:import" {
+		t.Errorf("upgrade row: %+v", up)
+	}
+	_, u := words(base + "&as=user")
+	for _, x := range u.History {
+		if x.Reason != "" || x.Source != "" || x.Release != "" || x.Replaced != nil || x.Provider != "" || x.Entry != "" {
+			t.Errorf("household row: %+v", x)
+		}
+	}
+	// The episode window: S01E01's rows are the title's that hold it, the upgrade folded.
+	var ep EpisodeDetail
+	if code := e.getKey(APIBase+"/titles/3/episodes/31", key, &ep); code != 200 || len(ep.Versions) != 1 {
+		t.Fatalf("episode: %d %+v", code, ep)
+	}
+	var got []string
+	for _, x := range ep.Versions[0].History {
+		got = append(got, x.Words)
+	}
+	if h := ep.Versions[0].History; !slices.Equal(got, []string{"Upgraded", "Grabbed"}) || len(h[0].Replaced) != 1 ||
+		h[0].Replaced[0].Release != "Gamma.S01E01.OLD" {
+		t.Errorf("episode window rows: %q %+v", got, h)
+	}
+	// The title page's latest event: the import that replaced a file is an upgrade.
+	var d TitleDetail
+	e.getKey(APIBase+"/titles/3", key, &d)
+	var evs []string
+	for _, h := range d.Versions[0].History {
+		evs = append(evs, h.Event)
+	}
+	if !slices.Contains(evs, "upgraded") || slices.Contains(evs, "imported") {
+		t.Errorf("title history events: %q", evs)
+	}
+}

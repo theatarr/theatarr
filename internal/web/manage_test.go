@@ -261,8 +261,9 @@ func TestUpgradeEvidence(t *testing.T) {
 		(5001, 'link', 'applied', 'anime-tv', 70, '/media/tv/The Show/S01E02.mkv', 'adopted from sonarr_anime')`)
 	ep = EpisodeDetail{}
 	e.call("GET", APIBase+"/titles/10/episodes/102", nil, 200, &ep)
-	if h := ep.Versions[0].History; len(h) != 1 || h[0].Event != "adopted" || h[0].Source != "sonarr_4k" ||
-		h[0].ReleaseTitle != "The.Show.S01E02.1080p.WEB-DL" || h[0].Quality != "WEBDL-1080p" {
+	if h := ep.Versions[0].History; len(h) != 1 || h[0].Event != "adopted" || h[0].Words != "Adopted" ||
+		h[0].Source != "sonarr_4k" || h[0].Reason != "From Sonarr" || h[0].Release != "The.Show.S01E02.1080p.WEB-DL" ||
+		h[0].Quality != "WEBDL-1080p" {
 		t.Errorf("episode 102 history: %+v", h)
 	}
 

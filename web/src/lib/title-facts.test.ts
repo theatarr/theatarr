@@ -7,6 +7,8 @@ const ev = (event: string, date: string, extra: object = {}) => ({ event, date, 
 describe("latestEvent", () => {
   it("says the newest import, or a failed attempt with the providers it missed on", () => {
     expect(latestEvent({ history: [ev("grabbed", "2026-11-14T09:00:00Z"), ev("imported", "2026-11-14T10:00:00Z")] }, now)?.words).toBe("Imported today");
+    // An import that replaced a file.
+    expect(latestEvent({ history: [ev("upgraded", "2026-11-13T10:00:00Z"), ev("imported", "2026-11-01T10:00:00Z")] }, now)?.words).toBe("Upgraded yesterday");
     const failed = latestEvent({ history: [ev("imported", "2026-11-01T10:00:00Z"), ev("failed", "2026-11-13T20:07:00Z", { reason: "miss on every provider", missed_on: ["rd", "ad", "tb"], upgrade: true, download_id: 9 })] }, now);
     expect(failed).toMatchObject({ event: "failed", tone: "warning", words: "Last upgrade attempt yesterday: not cached on RD, AD and TB", downloadId: 9 });
     // Not an upgrade (nothing it was for was held): the download failed; the server's reason without known providers.

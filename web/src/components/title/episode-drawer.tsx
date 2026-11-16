@@ -5,7 +5,8 @@
 // Details (per copy its state against the cutoff with Why? and what Theatarr would take next, the download in hand,
 // the monitor switch and Search now for managers, read-only with the reason while an arr manages the copy,
 // Interactive search for a library that may search, and the file's facts with Cached on, shown openly), History (per
-// copy its history and journal) and Last search (the stored decision, read-only). Accounts without "see files" get
+// copy the title History's rows for the episode, the same table and words; its count the rows shown) and Last search
+// (the stored decision, read-only). Accounts without "see files" get
 // one availability line across copies and nothing else (the API sends no file, history or states for them).
 // What it holds follows Scryer (github.com/scryer-media/scryer)
 // apps/scryer-web/components/views/series-overview/episode-details-panel.tsx and episode-panel-content.tsx
@@ -19,14 +20,13 @@ import { usePerms } from "@/api/library";
 import { useEpisode, useEpisodeReleases, useMonitor, useScopedSearch, type EpisodeDetail, type EpisodeVersionDetail, type ManageOutcome } from "@/api/manage";
 import { VersionStatus } from "@/components/version-status";
 import { Empty, ErrorState, KV, Mono, VersionTag } from "@/components/page";
-import { JournalList } from "@/components/title/journal-list";
 import { ControlNote, MonitorSwitch, UpgradeBlock } from "@/components/title/manage-bits";
 import { InteractiveSearchButton } from "@/components/title/interactive-search";
 import { ReleaseGrid } from "@/components/title/release-grid";
 import { Summary } from "@/components/title/show-releases";
 import { ChangeEpisodes } from "@/components/title/change-episodes";
 import { ProgressBar } from "@/components/activity-bits";
-import { History } from "@/components/title/versions";
+import { EpisodeHistoryRows } from "@/components/activity/history-tab";
 import { ProviderPills } from "@/components/provider-pills";
 import { TorrentLink } from "@/components/title/info-hash";
 import { useLibraryName } from "@/lib/library-names";
@@ -206,18 +206,11 @@ function DetailsPart({ titleId, eid, epCode, d, aired, manage, admin, single, ac
 }
 
 
-/** One copy's history and journal. */
-function HistoryPart({ titleId, d, single }: { titleId: number; d: EpisodeVersionDetail; single: boolean }) {
-  const journal = d.journal ?? [];
+/** One copy's History: the title History's rows for the episode. */
+function HistoryPart({ d, single, epCode }: { d: EpisodeVersionDetail; single: boolean; epCode: string }) {
   return (
     <CopyBlock d={d} single={single} testid="episode-history">
-      <History events={d.history ?? []} titleId={titleId} version={d.key} />
-      {journal.length > 0 ? (
-        <div data-testid="episode-journal">
-          <div className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.05em] text-[var(--ink-3)]">Journal</div>
-          <JournalList items={journal} empty="No journal entries about this episode." />
-        </div>
-      ) : null}
+      <EpisodeHistoryRows events={d.history ?? []} episode={epCode} />
     </CopyBlock>
   );
 }
@@ -227,7 +220,7 @@ function CopyTabs({ titleId, d, aired, manage, admin, acquisitions }: { titleId:
   const [tab, setTab] = useState<Tab>("details");
   const single = d.versions.length === 1;
   const epCode = code(d.episode.season, d.episode.number);
-  const events = d.versions.reduce((n, v) => n + (v.history?.length ?? 0) + (v.journal?.length ?? 0), 0);
+  const events = d.versions.reduce((n, v) => n + (v.history?.length ?? 0), 0);
   return (
     <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)} className="flex min-h-0 flex-1 flex-col">
       <TabsList className="shrink-0 overflow-x-auto px-4 [scrollbar-width:none]" aria-label="Episode">
@@ -246,7 +239,7 @@ function CopyTabs({ titleId, d, aired, manage, admin, acquisitions }: { titleId:
         </TabsContent>
         <TabsContent value="history" className="mt-0 space-y-4">
           {d.versions.map((v) => (
-            <HistoryPart key={v.key} titleId={titleId} d={v} single={single} />
+            <HistoryPart key={v.key} d={v} single={single} epCode={epCode} />
           ))}
         </TabsContent>
         <TabsContent value="releases" className="mt-0 space-y-4">
