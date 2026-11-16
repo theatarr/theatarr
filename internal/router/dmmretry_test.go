@@ -87,3 +87,72 @@ func TestDMMListingRetriesUncachedOnce(t *testing.T) {
 		t.Fatalf("same listing again: %d requests, %s", f.requests()-before, steps(res))
 	}
 }
+
+// Real-Debrid refuses a selected file name (router:rd_name) and the version has no other provider: the all-provider
+// miss keeps the rd_name row, so a newer DMM cached listing does not reopen it and the next route skips Real-Debrid
+// (no second add and delete of the same torrent).
+func TestDMMListingKeepsRDNameMiss(t *testing.T) {
+	e, f, _ := newDebridEnv(t, true, true)
+	f.rdFiles = rdRefusedFiles
+	t0 := e.clock
+	listed := t0.Add(15 * time.Minute)
+	const title = "Movie.2024.2160p.WEB.H265-GRP"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, `<?xml version="1.0" encoding="UTF-8"?><rss version="2.0" xmlns:torznab="http://torznab.com/schemas/2015/feed"><channel>`+
+			`<torznab:response offset="0" total="1"/><item><title>%s</title><guid>d1</guid><size>%d</size><pubDate>%s</pubDate>`+
+			`<torznab:attr name="infohash" value="%s"/><torznab:attr name="seeders" value="1"/></item></channel></rss>`,
+			title, 10<<30, listed.Format(time.RFC1123), h("a"))
+	}))
+	defer srv.Close()
+	t.Setenv("THEATARR_TEST_DMM_KEY", "dmm-test-key")
+	e.pol.Indexers["dmm"] = &policy.Indexer{Kind: "dmm", URL: srv.URL + "/api/torznab/rd/cached", APIKeyEnv: "THEATARR_TEST_DMM_KEY",
+		Privacy: policy.PrivacyPublic}
+	e.pol.Versions["movie"].Indexers = []string{"dmm"}
+	e.pol.Versions["movie"].Providers = []string{"rd"}
+	idx, err := indexer.New(e.pol, &searchGateway{}, indexer.Options{CacheTTL: -1, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
+	if err != nil {
+		t.Fatal(err)
+	}
+	idx.SetEvidence(indexer.NewEvidence(indexer.EvidenceConfig{Store: e.st, Policy: e.pol, Now: func() time.Time { return e.clock },
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil))}))
+	route := func() *Result {
+		t.Helper()
+		c := cand(h("a"), title)
+		c.Release.Indexer, c.Release.Kind = "dmm", "dmm"
+		res, err := e.r.Route(e.ctx, grabReq(c))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return res
+	}
+	const adds = "rd.test POST /rest/1.0/torrents/addMagnet"
+	rdName := `SELECT COUNT(*) FROM provider_cache WHERE info_hash = ? AND provider = 'rd' AND state = 'miss'
+		AND source = 'router:rd_name'`
+
+	res := route()
+	if f.count(adds) != 1 || !hasStep(res, "rd_name_refused") {
+		t.Fatalf("first route: adds %d: %s", f.count(adds), steps(res))
+	}
+	if n := e.count(rdName, h("a")); n != 1 {
+		t.Fatalf("the all-provider miss replaced the rd_name row: %v", cacheRow(e, h("a")))
+	}
+	e.clock = t0.Add(20 * time.Minute)
+	if res, err := idx.Search(e.ctx, "dmm", indexer.Query{Type: indexer.QueryRSS, RSSLimit: 100}); err != nil || len(res.Releases) != 1 {
+		t.Fatalf("rss: %v %+v", err, res)
+	}
+	if n := e.count(rdName, h("a")); n != 1 {
+		t.Fatalf("the listing reopened the rd_name row: %v", cacheRow(e, h("a")))
+	}
+	before := f.count(adds)
+	res = route()
+	if f.count(adds) != before || !hasStep(res, "known_miss") {
+		t.Fatalf("next route: adds %d: %s", f.count(adds)-before, steps(res))
+	}
+}
+
+// cacheRow is the rd provider_cache row for a hash as "state source".
+func cacheRow(e *env, hash string) string {
+	var s, src string
+	_ = e.st.Reader().QueryRow(`SELECT state, source FROM provider_cache WHERE info_hash = ? AND provider = 'rd'`, hash).Scan(&s, &src)
+	return s + " " + src
+}

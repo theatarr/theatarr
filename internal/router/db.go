@@ -481,7 +481,8 @@ func (r *Router) setCache(ctx context.Context, hash, provider, state, source str
 
 // setCacheSource is setCache with the source as given (add:<provider> for an add the provider had at once).
 // An all-provider miss leaves a live 451 row as it is (source, checked_at, expiry), so a later account hold can
-// explain and lift it and a shorter miss never shortens it; and a live uncached answer of a read-only cache check
+// explain and lift it and a shorter miss never shortens it; a live Real-Debrid file-name refusal (router:rd_name), so
+// a newer DMM cached listing cannot reopen it and add the same torrent again; and a live uncached answer of a read-only cache check
 // (router:check, check:*), which keeps its own shorter life.
 func (r *Router) setCacheSource(ctx context.Context, hash, provider, state, source string, expires,
 	now time.Time) error {
@@ -490,7 +491,7 @@ func (r *Router) setCacheSource(ctx context.Context, hash, provider, state, sour
 		state = excluded.state, source = excluded.source, checked_at = excluded.checked_at,
 		expires_at = excluded.expires_at
 		WHERE excluded.source <> 'router:miss' OR provider_cache.expires_at <= excluded.checked_at
-		   OR NOT (provider_cache.state = 'miss' AND provider_cache.source = 'router:451'
+		   OR NOT (provider_cache.state = 'miss' AND provider_cache.source IN ('router:451', 'router:rd_name')
 		           OR provider_cache.state = 'uncached'
 		              AND (provider_cache.source = 'router:check' OR provider_cache.source LIKE 'check:%'))`,
 		hash, provider, state, source, store.Millis(now), store.Millis(expires))
