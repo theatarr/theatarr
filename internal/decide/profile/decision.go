@@ -250,6 +250,9 @@ type Release struct {
 	EpisodeNumbers []int
 	MultiSeason    bool
 	SplitEpisode   bool
+	// Seasons is the span of a multi-season or complete-series pack the mapping read (every season it holds), nil
+	// for any other release; a multi-season release without one stays rejected.
+	Seasons []int
 	// SeasonSearchMaximumSingleEpisodeAge is the indexer's setting (days, 0 off).
 	SeasonSearchMaximumSingleEpisodeAge int
 }

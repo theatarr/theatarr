@@ -175,7 +175,8 @@ func (e *Engine) decideSeries(ctx context.Context, d *Decision, p *Profile, rel 
 		Indexer: rel.Indexer, MinimumSeeders: e.minimumSeeders(rel.Indexer), InfoHash: rel.InfoHash,
 		IndexerPriority: prio, IndexerFlags: flags, PublishDate: rel.PublishDate, Protocol: profile.ProtocolTorrent,
 		FullSeason: parsed.FullSeason, Special: parsed.Special, SeasonNumber: parsed.SeasonNumber,
-		EpisodeNumbers: parsed.EpisodeNumbers, MultiSeason: parsed.IsMultiSeason, SplitEpisode: parsed.IsSplitEpisode}
+		EpisodeNumbers: parsed.EpisodeNumbers, MultiSeason: parsed.IsMultiSeason, SplitEpisode: parsed.IsSplitEpisode,
+		Seasons: r.seasons}
 	if parsed.ReleaseGroup != nil {
 		pr.ReleaseGroup = *parsed.ReleaseGroup
 	}

@@ -2,6 +2,7 @@ package decide
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -332,5 +333,112 @@ func TestDefaultSeriesLibraryRules(t *testing.T) {
 	}
 	if !d.Accepted || strings.Join(d.Episodes, ",") != "S01E01,S01E02,S01E03" {
 		t.Errorf("S01E01-03: accepted %v %v, episodes %v", d.Accepted, d.Rejections, d.Episodes)
+	}
+}
+
+// ended is a standard series with three aired seasons of two episodes and a special.
+func ended() Title {
+	t := Title{ID: 4, Kind: policy.KindSeries, Name: "The Show", Year: 2018, TVDB: 1004, SeriesType: "standard",
+		Runtime: 45, Monitored: true, OriginalLanguage: "English"}
+	t.Episodes = append(t.Episodes, Episode{ID: 500, Season: 0, Number: 1, Title: "Extra", Runtime: 45, Monitored: true,
+		AirDate: "2018-01-01", AirDateUTC: day("2018-01-01")})
+	for s := 1; s <= 3; s++ {
+		for n := 1; n <= 2; n++ {
+			aired := fmt.Sprintf("%d-03-%02d", 2017+s, n)
+			t.Episodes = append(t.Episodes, Episode{ID: int64(500 + 10*s + n), Season: s, Number: n, Title: "Episode",
+				Runtime: 45, Monitored: true, AirDate: aired, AirDateUTC: day(aired)})
+		}
+	}
+	return t
+}
+
+// Multi-season and complete-series packs: a proven span maps to every episode of its seasons (no specials); a span
+// that is not proven, or an anime series, keeps the arr's rejection.
+func TestMultiSeasonPacks(t *testing.T) {
+	t.Parallel()
+	e := seriesEngine(t)
+	ctx := context.Background()
+	v := tvVersion(e, "tv")
+	all := "S01E01,S01E02,S02E01,S02E02,S03E01,S03E02"
+	cases := []struct {
+		name, release string
+		setup         func(*Title)
+		search        *SeriesSearch
+		reasons       string
+		episodes      string
+		seasons       []int
+	}{
+		{name: "range", release: "The.Show.S01-S03.2160p.WEB-DL.DDP5.1.H.265-GRP", episodes: all, seasons: []int{1, 2, 3}},
+		{name: "season words", release: "The Show Season 2-3 2160p WEB-DL DDP5.1 H.265-GRP", episodes: "S02E01,S02E02,S03E01,S03E02"},
+		{name: "list in steps of one", release: "The.Show.S01.S02.S03.2160p.WEB-DL.DDP5.1.H.265-GRP", episodes: all},
+		{name: "list with a gap", release: "The.Show.S01.S03.2160p.WEB-DL.DDP5.1.H.265-GRP", reasons: "MultiSeason"},
+		{name: "past the last season", release: "The.Show.S01-S05.2160p.WEB-DL.DDP5.1.H.265-GRP", reasons: "MultiSeason"},
+		{name: "complete series", release: "The.Show.Complete.Series.2160p.WEB-DL.DDP5.1.H.265-GRP", episodes: all,
+			seasons: []int{1, 2, 3}},
+		{name: "the complete series", release: "The.Show.The.Complete.Series.2160p.WEB-DL.DDP5.1.H.265-GRP", episodes: all},
+		{name: "all seasons", release: "The Show (2018) All Seasons 2160p WEB-DL DDP5.1 H.265-GRP", episodes: all},
+		{name: "season search inside the span", release: "The.Show.S01-S03.2160p.WEB-DL.DDP5.1.H.265-GRP",
+			search: &SeriesSearch{Kind: profile.SearchSeason, Season: 2, Episodes: []int64{521, 522}}, episodes: all},
+		{name: "season search outside the span", release: "The.Show.S02-S03.2160p.WEB-DL.DDP5.1.H.265-GRP",
+			search:  &SeriesSearch{Kind: profile.SearchSeason, Season: 1, Episodes: []int64{511, 512}},
+			reasons: "WrongEpisode,WrongSeason"},
+		{name: "single-episode search", release: "The.Show.S01-S03.2160p.WEB-DL.DDP5.1.H.265-GRP",
+			search:  &SeriesSearch{Kind: profile.SearchSingleEpisode, Season: 2, Episode: 1, Episodes: []int64{521}},
+			reasons: "FullSeason"},
+		{name: "an unmonitored season on RSS", release: "The.Show.S01-S03.2160p.WEB-DL.DDP5.1.H.265-GRP",
+			setup: func(t *Title) { ep(t, 532).Monitored = false }, reasons: "EpisodeNotMonitored"},
+		{name: "an unaired episode", release: "The.Show.Complete.Series.2160p.WEB-DL.DDP5.1.H.265-GRP",
+			setup: func(t *Title) { ep(t, 532).AirDateUTC = nil }, reasons: "FullSeasonNotAired"},
+	}
+	for _, c := range cases {
+		tt := ended()
+		if c.setup != nil {
+			c.setup(&tt)
+		}
+		d, err := e.DecideSearch(ctx, rel(c.release, "public", 40*gb), tt, v, c.search)
+		if err != nil {
+			t.Fatalf("%s: %v", c.name, err)
+		}
+		if got := reasons(d); got != c.reasons || d.Accepted != (c.reasons == "") {
+			t.Errorf("%s: accepted %v, reasons %s, want %q", c.name, d.Accepted, got, c.reasons)
+		}
+		if got := strings.Join(d.Episodes, ","); c.episodes != "" && got != c.episodes {
+			t.Errorf("%s: episodes %s, want %s", c.name, got, c.episodes)
+		}
+		if c.seasons != nil && (d.Season == nil || *d.Season != c.seasons[0] || d.ReleaseType != "seasonPack") {
+			t.Errorf("%s: season %v, type %s", c.name, d.Season, d.ReleaseType)
+		}
+	}
+	// A single-season pack still ranks above a span at equal quality and score.
+	one, _ := e.Decide(ctx, rel("The.Show.S02.2160p.WEB-DL.DDP5.1.H.265-GRP", "public", 15*gb), ended(), v, nil)
+	span, _ := e.Decide(ctx, rel("The.Show.S01-S03.2160p.WEB-DL.DDP5.1.H.265-GRP", "public", 40*gb), ended(), v, nil)
+	if r := Rank([]*Decision{span, one}); r[0] != one {
+		t.Errorf("rank: %s first", r[0].Release)
+	}
+	// A daily episode search rejects a span as a single-episode search rejects a season pack.
+	d1, d2 := time.Date(2023, 3, 5, 23, 0, 0, 0, time.UTC), time.Date(2024, 3, 5, 23, 0, 0, 0, time.UTC)
+	daily := Title{ID: 3, Kind: policy.KindSeries, Name: "Late Talk", Year: 2015, TVDB: 3003, SeriesType: "daily",
+		Runtime: 45, Monitored: true, Episodes: []Episode{
+			{ID: 401, Season: 2023, Number: 40, AirDate: "2023-03-05", AirDateUTC: &d1, Runtime: 45, Monitored: true},
+			{ID: 402, Season: 2024, Number: 40, AirDate: "2024-03-05", AirDateUTC: &d2, Runtime: 45, Monitored: true}}}
+	dailyPack := rel("Late.Talk.Complete.Series.2160p.WEB-DL-GRP", "public", 8*gb)
+	if d, _ := e.Decide(ctx, dailyPack, daily, v, nil); !d.Accepted || strings.Join(d.Episodes, ",") != "S2023E40,S2024E40" {
+		t.Errorf("daily complete series: %v %s %s", d.Accepted, d.Episodes, reasons(d))
+	}
+	d, _ := e.DecideSearch(ctx, dailyPack, daily, v, &SeriesSearch{Kind: profile.SearchDaily, Season: 2024, Episode: 40,
+		Episodes: []int64{402}})
+	if reasons(d) != "FullSeason" {
+		t.Errorf("daily episode search: %s", reasons(d))
+	}
+	// Anime keeps today's rule: a multi-season batch is rejected, a complete-series name does not parse.
+	for name, want := range map[string]string{"Isekai.Story.S01-S02.1080p.BluRay.x264-GRP": "MultiSeason",
+		"Isekai.Story.Complete.Series.1080p.BluRay.x264-GRP": "UnableToParse"} {
+		d, err := e.Decide(ctx, rel(name, "public", 20*gb), anime(), tvVersion(e, "anime-tv"), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(reasons(d), want) || d.Accepted {
+			t.Errorf("anime %s: %v %s", name, d.Accepted, reasons(d))
+		}
 	}
 }

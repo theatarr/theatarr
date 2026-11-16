@@ -6,6 +6,7 @@ package profile
 // SingleEpisodeSearchMatch}. Search/SeriesSpecification is the caller's: a decision is always for one series.
 
 import (
+	"slices"
 	"time"
 )
 
@@ -96,9 +97,10 @@ func fullSeason(e *Engine, s *Subject) Decision {
 	return Accept()
 }
 
-// multiSeason is MultiSeasonSpecification.
+// multiSeason is MultiSeasonSpecification, for a multi-season release whose span was not read (Release.Seasons):
+// one with a proven span is decided as a pack of all its seasons.
 func multiSeason(e *Engine, s *Subject) Decision {
-	if s.Release.MultiSeason {
+	if s.Release.MultiSeason && len(s.Release.Seasons) == 0 {
 		return Reject(ReasonMultiSeason, "Multi-season releases are not supported")
 	}
 	return Accept()
@@ -216,8 +218,11 @@ func seasonMatch(e *Engine, s *Subject) Decision {
 	return Accept()
 }
 
-// seasonMatches is the season test of SeasonMatch and SingleEpisodeSearchMatch: the parsed season.
-func (r *Release) seasonMatches(season int) bool { return season == r.SeasonNumber }
+// seasonMatches is the season test of SeasonMatch and SingleEpisodeSearchMatch: the parsed season, or a season of
+// a pack's span.
+func (r *Release) seasonMatches(season int) bool {
+	return season == r.SeasonNumber || slices.Contains(r.Seasons, season)
+}
 
 // singleEpisodeSearchMatch is Search/SingleEpisodeSearchMatchSpecification.
 func singleEpisodeSearchMatch(e *Engine, s *Subject) Decision {
@@ -241,6 +246,10 @@ func singleEpisodeSearchMatch(e *Engine, s *Subject) Decision {
 		return Reject(ReasonWrongEpisode, "Wrong episode")
 	case SearchAnimeEpisode:
 		if s.Release.FullSeason {
+			return Reject(ReasonFullSeason, "Full season pack")
+		}
+	case SearchDaily:
+		if len(s.Release.Seasons) > 0 {
 			return Reject(ReasonFullSeason, "Full season pack")
 		}
 	}
