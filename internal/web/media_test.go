@@ -123,13 +123,20 @@ func TestEpisodeListFileFacts(t *testing.T) {
 	e.exec(`INSERT INTO link (id, path, target, content_file_id, title_id, download_id, release_title, quality,
 		file_metadata, state, created_at, updated_at) VALUES (1, '/tv/Show/S01E01.theatarr.mkv', '/mount/S01E01.mkv', 1, 10, 1,
 		'The.Show.S01E01.2160p.WEB-DL-NEW', 'WEBDL-2160p', '{"ReleaseGroup":"NEW","Languages":["English","Japanese"],
-		"Formats":[{"name":"HDR10","score":500},{"name":"WEB Tier 01","score":1700}]}', 'active', 2000, 2000)`)
+		"Formats":[{"name":"HDR10","score":500},{"name":"WEB Tier 01","score":1700}]}', 'active', 2000,
+		2000)`)
+	// The older file's torrent is held on one provider, the newer one's on another: Cached on is the newer's alone.
+	e.exec(`UPDATE link SET file_metadata = json_set(file_metadata, '$.InfoHash', ?) WHERE id = 900`, strings.Repeat("bb", 20))
+	e.exec(`INSERT INTO provider_torrent (provider, torrent_id, info_hash, status, state, progress) VALUES
+		('old-acct', 't1', ?, 'downloaded', 'ready', 100), ('new-acct', 't2', ?, 'downloaded', 'ready', 100)`,
+		strings.Repeat("bb", 20), "aa")
 	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (1, 10)`)
 	e.exec(`INSERT INTO link_episode (link_id, episode_id) VALUES (1, 101)`)
 	c1, _ = cells()
 	wantProbeMedia(t, c1.Media)
 	if c1.ReleaseGroup != "NEW" || c1.Quality != "WEBDL-2160p" || !slices.Equal(c1.Languages, []string{"English", "Japanese"}) ||
-		len(c1.Formats) != 2 || c1.Formats[0].Name != "HDR10" || c1.Formats[0].Score != 500 || c1.Formats[1].Name != "WEB Tier 01" {
+		len(c1.Formats) != 2 || c1.Formats[0].Name != "HDR10" || c1.Formats[0].Score != 500 || c1.Formats[1].Name != "WEB Tier 01" ||
+		c1.InfoHash != "aa" || !slices.Equal(c1.CachedOn, []string{"new-acct"}) {
 		t.Errorf("newest S01E01 %+v", c1)
 	}
 	// A household caller sees none of it.

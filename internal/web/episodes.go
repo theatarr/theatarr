@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"net/http"
-	"slices"
 	"sort"
 	"time"
 
@@ -222,30 +221,33 @@ func (w *Web) titleEpisodes(ctx context.Context, id int64, season int, seeFiles 
 	}
 	// The torrent hash as the episode window reads it (episodeFile: linkHashSQL); only for callers who see files.
 	// So are the file's probe, adopted media and file metadata (media, languages, formats).
+	// So are the file's probe, adopted media and file metadata (release group, languages, formats: linkFacts).
 	linkHash, fileFacts := "''", "NULL, NULL, 0, NULL"
 	if seeFiles {
 		linkHash, fileFacts = linkHashSQL, "cf.probe, l.adopted_media, l.download_id IS NULL, l.file_metadata"
 	}
-	// The current files that hold each episode, active links: the release group their file metadata keeps
-	// (decide.ExistingFile), and the providers holding their content now.
-	linkMeta := `CASE WHEN json_valid(l.file_metadata) THEN json_extract(l.file_metadata, '$.ReleaseGroup') END`
-	// Every current file's hash per episode and version, for Cached on (heldByHash) below. Oldest link first, so a
-	// cell with more than one file ends with the newest link's facts, the file the episode window shows (episodeFile).
-	cellHashes := map[[2]int64][]string{}
-	var hashes []string
-	if err := scanAll(ctx, db, `SELECT le.episode_id, lv.version_id, COALESCE(l.quality, ''), `+
-		linkSizeSQL+`, `+linkScoreSQL+`, COALESCE(`+linkMeta+`, ''), COALESCE(l.release_title, ''), l.path, `+linkHash+`,
+	// The current files that hold each episode, active links, oldest first: a cell with more than one file ends with
+	// the newest link's facts and hash (for Cached on, heldByHash below), the file the episode window shows
+	// (episodeFile). A link holding several episodes (a season pack) is parsed once.
+	cellHash := map[[2]int64]string{}
+	type facts struct {
+		media *MediaInfo
+		file  CurrentFile
+	}
+	parsed := map[int64]facts{}
+	if err := scanAll(ctx, db, `SELECT l.id, le.episode_id, lv.version_id, COALESCE(l.quality, ''), `+
+		linkSizeSQL+`, `+linkScoreSQL+`, COALESCE(l.release_title, ''), l.path, `+linkHash+`,
 		`+fileFacts+`
 		FROM link l JOIN link_episode le ON le.link_id = l.id JOIN link_version lv ON lv.link_id = l.id
 		LEFT JOIN content_file cf ON cf.id = l.content_file_id WHERE l.title_id = ? AND l.state = 'active'
 		ORDER BY l.created_at ASC, l.id ASC`,
 		[]any{id}, func(r *sql.Rows) error {
-			var eid, vid int64
-			var q, group, release, path, hash string
+			var lid, eid, vid int64
+			var q, release, path, hash string
 			var size, score sql.NullInt64
 			var pr, am, meta sql.NullString
 			var adopted bool
-			if err := r.Scan(&eid, &vid, &q, &size, &score, &group, &release, &path, &hash, &pr, &am, &adopted,
+			if err := r.Scan(&lid, &eid, &vid, &q, &size, &score, &release, &path, &hash, &pr, &am, &adopted,
 				&meta); err != nil {
 				return err
 			}
@@ -260,14 +262,16 @@ func (w *Web) titleEpisodes(ctx context.Context, id int64, season int, seeFiles 
 			}
 			c.HasFile, c.Quality = true, q
 			if seeFiles {
+				f, ok := parsed[lid]
+				if !ok {
+					linkFacts(&f.file, meta.String)
+					f.media = linkMedia(pr, am, adopted, release, true)
+					parsed[lid] = f
+				}
 				c.SizeBytes, c.Score, c.ReleaseGroup, c.ReleaseTitle, c.Path, c.InfoHash = nullInt(size), nullInt(score),
-					group, release, path, hash
-				var f CurrentFile
-				linkFacts(&f, meta.String)
-				c.Media, c.Languages, c.Formats = linkMedia(pr, am, adopted, release, true), f.Languages, f.Formats
-				k := [2]int64{eid, vid}
-				cellHashes[k] = append(cellHashes[k], hash)
-				hashes = append(hashes, hash)
+					f.file.ReleaseGroup, release, path, hash
+				c.Media, c.Languages, c.Formats = f.media, f.file.Languages, f.file.Formats
+				cellHash[[2]int64{eid, vid}] = hash
 			}
 			all[i].Versions[key] = c
 			return nil
@@ -275,31 +279,19 @@ func (w *Web) titleEpisodes(ctx context.Context, id int64, season int, seeFiles 
 		return nil, err
 	}
 	if seeFiles {
+		hashes := make([]string, 0, len(cellHash))
+		for _, h := range cellHash {
+			hashes = append(hashes, h)
+		}
 		byHash, err := heldByHash(ctx, db, hashes...)
 		if err != nil {
 			return nil, err
 		}
-		held := map[[2]int64][]string{}
-		for k, hs := range cellHashes {
-			for _, h := range hs {
-				for _, p := range byHash[h] {
-					if !slices.Contains(held[k], p) {
-						held[k] = append(held[k], p)
-					}
-				}
-			}
-			slices.Sort(held[k])
-		}
-		for k, ps := range held {
-			i, ok := idx[k[0]]
-			key := keyOf[k[1]]
-			if !ok || key == "" {
-				continue
-			}
-			if c, ok := all[i].Versions[key]; ok {
-				c.CachedOn = w.cacheCodes(ps)
-				all[i].Versions[key] = c
-			}
+		for k, h := range cellHash {
+			i, key := idx[k[0]], keyOf[k[1]]
+			c := all[i].Versions[key]
+			c.CachedOn = w.cacheCodes(byHash[h])
+			all[i].Versions[key] = c
 		}
 	}
 
