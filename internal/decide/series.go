@@ -14,6 +14,7 @@ import (
 
 	"github.com/theatarr/theatarr/internal/decide/parser/sonarr"
 	"github.com/theatarr/theatarr/internal/decide/profile"
+	"github.com/theatarr/theatarr/internal/indexer"
 )
 
 // MatchAlias is SeriesMatchType.Alias: the release's series title is one of the series' scene mappings.
@@ -42,9 +43,11 @@ type remoteEpisode struct {
 	parsed       *sonarr.ParsedEpisodeInfo
 	sceneMapping *SceneMapping
 	mappedSeason int
-	matched      bool
-	matchType    MatchType
-	episodes     []*Episode
+	// seasons is the span of a multi-season or complete-series pack (packSeasons), nil otherwise.
+	seasons   []int
+	matched   bool
+	matchType MatchType
+	episodes  []*Episode
 }
 
 // series is the one series the mapping knows, with its lookups.
@@ -455,22 +458,14 @@ func (s *series) parseSpecialFor(p *sonarr.ParsedEpisodeInfo, releaseTitle strin
 
 // mapRelease is ParsingService.Map(parsedEpisodeInfo, tvdbId, tvRageId, imdbId, searchCriteria).
 func (s *series) mapRelease(p *sonarr.ParsedEpisodeInfo, tvdbID int, imdbID string, search *SeriesSearch) (*remoteEpisode, error) {
-	sm := s.findSceneMapping(p.SeriesTitle, p.SeasonNumber)
-	r := &remoteEpisode{parsed: p, sceneMapping: sm, mappedSeason: p.SeasonNumber}
-	sceneSource := true
-	if sm != nil {
-		if sm.SeasonNumber != nil && *sm.SeasonNumber >= 0 && sm.SceneSeasonNumber != nil &&
-			*sm.SceneSeasonNumber <= p.SeasonNumber {
-			r.mappedSeason += *sm.SeasonNumber - *sm.SceneSeasonNumber
-		}
-		if sm.SceneOrigin == "tvdb" {
-			sceneSource = false
-		}
-		// The arr's XEM rule (mapping type XemService, parsed season 1) needs the mapping type, which the API does
-		// not expose (deviation).
-	}
+	sm, mapped, sceneSource := s.seasonMapping(p.SeriesTitle, p.SeasonNumber)
+	r := &remoteEpisode{parsed: p, sceneMapping: sm, mappedSeason: mapped}
 	r.matched, r.matchType = s.findSeries(p, tvdbID, imdbID, sm, search)
 	if r.matched && sonarr.ValidateForSeriesType(p, s.typ) {
+		if r.seasons = s.packSeasons(p); r.seasons != nil {
+			r.episodes = s.packEpisodes(p, r.seasons, search)
+			return r, nil
+		}
 		eps, err := s.getEpisodes(p, r.mappedSeason, sceneSource, search)
 		if err != nil {
 			return nil, err
@@ -478,6 +473,88 @@ func (s *series) mapRelease(p *sonarr.ParsedEpisodeInfo, tvdbID int, imdbID stri
 		r.episodes = eps
 	}
 	return r, nil
+}
+
+// packSeasons is the span of a multi-season or complete-series pack being decided (not an import's file), nil for
+// any other release or one whose span is not proven: a multi-season name must read as an ascending range or a list
+// in steps of one (indexer.PackSeasons) from the parsed first season to at most the series' last season; a
+// complete-series pack spans every season above 0. Anime series keep the multi-season rejection.
+func (s *series) packSeasons(p *sonarr.ParsedEpisodeInfo) []int {
+	if s.known || s.typ == sonarr.SeriesTypeAnime || !p.FullSeason || len(p.EpisodeNumbers) > 0 {
+		return nil
+	}
+	last := 0
+	seasons := map[int]bool{}
+	for _, e := range s.episodes() {
+		if e.Season > 0 {
+			seasons[e.Season] = true
+		}
+		last = max(last, e.Season)
+		if s.t.UseSceneNumbering && e.SceneSeason != nil {
+			last = max(last, *e.SceneSeason)
+		}
+	}
+	var out []int
+	switch {
+	case p.CompleteSeries:
+		for n := range seasons {
+			out = append(out, n)
+		}
+		sort.Ints(out)
+	case p.IsMultiSeason:
+		first, end, ok := indexer.PackSeasons(p.ReleaseTitle)
+		if !ok || first < 1 || first != p.SeasonNumber || end > last {
+			return nil
+		}
+		for n := first; n <= end; n++ {
+			out = append(out, n)
+		}
+	}
+	return out
+}
+
+// packEpisodes maps a pack's span: every episode of each season, each season through its own scene mapping as a
+// single-season pack is mapped; a complete-series pack takes every episode above season 0. Specials never count.
+func (s *series) packEpisodes(p *sonarr.ParsedEpisodeInfo, seasons []int, search *SeriesSearch) []*Episode {
+	var out []*Episode
+	if p.CompleteSeries {
+		for _, e := range s.episodes() {
+			if e.Season > 0 {
+				out = append(out, e)
+			}
+		}
+		return out
+	}
+	seen := map[int64]bool{}
+	for _, n := range seasons {
+		_, mapped, sceneSource := s.seasonMapping(p.SeriesTitle, n)
+		eps, _ := s.getEpisodes(p, mapped, sceneSource, search) // a full season: no lookup that fails
+		for _, e := range eps {
+			if e.Season > 0 && !seen[e.ID] {
+				seen[e.ID] = true
+				out = append(out, e)
+			}
+		}
+	}
+	return out
+}
+
+// seasonMapping is Map's scene mapping for a parsed season: the mapping, the mapped season and whether the
+// numbering is the scene's.
+func (s *series) seasonMapping(seriesTitle string, season int) (*SceneMapping, int, bool) {
+	sm := s.findSceneMapping(seriesTitle, season)
+	mapped, sceneSource := season, true
+	if sm != nil {
+		if sm.SeasonNumber != nil && *sm.SeasonNumber >= 0 && sm.SceneSeasonNumber != nil && *sm.SceneSeasonNumber <= season {
+			mapped += *sm.SeasonNumber - *sm.SceneSeasonNumber
+		}
+		if sm.SceneOrigin == "tvdb" {
+			sceneSource = false
+		}
+		// The arr's XEM rule (mapping type XemService, parsed season 1) needs the mapping type, which the API does
+		// not expose (deviation).
+	}
+	return sm, mapped, sceneSource
 }
 
 // mapKnown is mapRelease with the series given, as an import maps it (Map(parsedEpisodeInfo, 0, 0, null, series,
