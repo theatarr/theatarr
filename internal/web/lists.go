@@ -136,6 +136,75 @@ func (w *Web) mountListsAPI(mux *http.ServeMux) {
 	w.handle(mux, "POST "+b+"/{id}/sync", SignedIn, auth.PermManage, w.apiSyncList)
 	w.handle(mux, "POST "+b+"/check", SignedIn, auth.PermManage, w.apiCheckList)
 	w.handle(mux, "POST "+b+"/{id}/preview", SignedIn, auth.PermManage, w.apiPreviewList)
+	w.handle(mux, "GET "+b+"/exclusions", SignedIn, auth.PermManage, w.apiListExclusions)
+	w.handle(mux, "DELETE "+b+"/exclusions/{kind}/{id}", SignedIn, auth.PermManage, w.apiDeleteListExclusion)
+}
+
+// ListExclusion is one title lists do not add (docs/design/arrview.md, Lists): a movie by TMDb id or a series by
+// TVDB id. Requests and adds by hand ignore it.
+type ListExclusion struct {
+	// Kind: movie or series; ID its TMDb id (movie) or TVDB id (series).
+	Kind string `json:"kind"`
+	ID   int64  `json:"id"`
+	// Name is the name it was excluded under, else the title's name in Theatarr, else "TMDb <id>" or "TVDB <id>".
+	Name string `json:"name"`
+	Year int    `json:"year,omitempty"`
+}
+
+// ListExclusions answers GET /lists/exclusions.
+type ListExclusions struct {
+	Exclusions []ListExclusion `json:"exclusions"`
+}
+
+// GET /lists/exclusions: the movie and series list exclusions, by name.
+func (w *Web) apiListExclusions(rw http.ResponseWriter, r *http.Request) {
+	out := ListExclusions{Exclusions: []ListExclusion{}}
+	err := scanAll(r.Context(), w.st.Reader(), `SELECT 'movie', e.tmdb_id, COALESCE(e.title, t.name, ''),
+			COALESCE(e.year, t.year, 0) FROM movie_exclusion e
+			LEFT JOIN title t ON t.kind = 'movie' AND t.tmdb_id = e.tmdb_id
+		UNION ALL SELECT 'series', e.tvdb_id, COALESCE(e.title, t.name, ''), COALESCE(e.year, t.year, 0)
+			FROM series_exclusion e LEFT JOIN title t ON t.kind = 'series' AND t.tvdb_id = e.tvdb_id`, nil,
+		func(rows *sql.Rows) error {
+			var x ListExclusion
+			if err := rows.Scan(&x.Kind, &x.ID, &x.Name, &x.Year); err != nil {
+				return err
+			}
+			if x.Name == "" {
+				x.Name = map[string]string{"movie": "TMDb ", "series": "TVDB "}[x.Kind] + strconv.FormatInt(x.ID, 10)
+			}
+			out.Exclusions = append(out.Exclusions, x)
+			return nil
+		})
+	if err != nil {
+		w.internal(rw, err)
+		return
+	}
+	slices.SortStableFunc(out.Exclusions, func(a, b ListExclusion) int {
+		return strings.Compare(strings.ToLower(a.Name), strings.ToLower(b.Name))
+	})
+	writeJSON(rw, http.StatusOK, out)
+}
+
+// DELETE /lists/exclusions/{kind}/{id}: lists may add the title again. A library it was removed from is not brought
+// back (adding it by hand does that).
+func (w *Web) apiDeleteListExclusion(rw http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	q := map[string]string{"movie": `DELETE FROM movie_exclusion WHERE tmdb_id = ?`,
+		"series": `DELETE FROM series_exclusion WHERE tvdb_id = ?`}[r.PathValue("kind")]
+	if err != nil || q == "" {
+		notFound(rw)
+		return
+	}
+	res, err := w.st.Writer().ExecContext(r.Context(), q, id)
+	if err != nil {
+		w.internal(rw, err)
+		return
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		notFound(rw)
+		return
+	}
+	rw.WriteHeader(http.StatusNoContent)
 }
 
 // movieLibraries are the libraries a list made here may add to: every movie version, as an add offers them

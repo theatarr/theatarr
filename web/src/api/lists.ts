@@ -1,5 +1,6 @@
 // The Lists tab of Collections (docs/design/arrview.md, Lists): GET/POST /lists, GET /lists/lookup, POST /lists/check,
-// PUT/DELETE /lists/{id}, POST /lists/{id}/sync and POST /lists/{id}/preview.
+// PUT/DELETE /lists/{id}, POST /lists/{id}/sync and POST /lists/{id}/preview; the list exclusions, GET
+// /lists/exclusions and DELETE /lists/exclusions/{kind}/{id}.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, qs, type Schemas } from "./client";
 
@@ -12,6 +13,7 @@ export type ListSynced = Schemas["ListSynced"];
 export type ListCheck = Schemas["ListCheck"];
 export type ListCheckResult = Schemas["ListCheckResult"];
 export type ListPreview = Schemas["ListPreview"];
+export type ListExclusion = Schemas["ListExclusion"];
 
 const KEY = ["lists"] as const;
 
@@ -61,4 +63,17 @@ export function normalListURL(text: string): string {
   } catch {
     return t.replace(/\/+$/, "");
   }
+}
+
+/** GET /lists/exclusions: the movies and series no list adds. */
+export const useListExclusions = (enabled = true) =>
+  useQuery({ queryKey: [...KEY, "exclusions"], queryFn: ({ signal }) => api<Schemas["ListExclusions"]>("/lists/exclusions", { signal }), enabled });
+
+/** DELETE /lists/exclusions/{kind}/{id}: lists may add the title again. */
+export function useRemoveExclusion() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (x: ListExclusion) => api<void>(`/lists/exclusions/${x.kind}/${x.id}`, { method: "DELETE" }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: [...KEY, "exclusions"] }),
+  });
 }

@@ -835,7 +835,8 @@ func TestSonarrListAddsSeries(t *testing.T) {
 		{"tvdbId":402,"title":"Anime","seriesType":"anime"},
 		{"tvdbId":403,"title":"Kept","seriesType":"anime"},
 		{"tvdbId":404,"title":"Elsewhere"},
-		{"tvdbId":405,"tmdbId":505,"title":"By TMDb id","seriesType":"anime"}]`}})
+		{"tvdbId":405,"tmdbId":505,"title":"By TMDb id","seriesType":"anime"},
+		{"tvdbId":406,"title":"Excluded"}]`}})
 	var searched []string
 	s.OnAdd = func(_ context.Context, id int64, keys []string, later bool) error {
 		if !later {
@@ -851,6 +852,7 @@ func TestSonarrListAddsSeries(t *testing.T) {
 		// Stored without a TVDB id and not anime, though the instance calls it anime.
 		`INSERT INTO title(id,kind,name,tmdb_id,anime,created_at,updated_at) VALUES(75,'series','By TMDb id',505,0,0,0)`,
 		`INSERT INTO version(id,title_id,policy_key,monitored,state,created_at,updated_at) VALUES(83,73,'tv',0,'wanted',0,0),(84,74,'tv-4k',1,'wanted',0,0)`,
+		`INSERT INTO series_exclusion(tvdb_id,created_at) VALUES(406,0)`,
 	} {
 		if _, err := st.Writer().Exec(q); err != nil {
 			t.Fatal(err)
@@ -859,14 +861,14 @@ func TestSonarrListAddsSeries(t *testing.T) {
 	// A stored title's own anime flag wins over the instance's series type, in Preview as in Sync: Kept (stored not
 	// anime, its tv row there) is present, not missing the anime library.
 	p, err := s.PreviewList(context.Background(), 1)
-	if err != nil || p.Present != 1 || p.AddTitle != 2 || p.AddLibrary != 2 || p.Skipped != 0 {
+	if err != nil || p.Present != 1 || p.AddTitle != 2 || p.AddLibrary != 2 || p.Skipped != 0 || p.Excluded != 1 {
 		t.Fatalf("preview %+v %v", p, err)
 	}
 	got, err := s.SyncArrLists(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Added != 4 || got.Skipped != 1 {
+	if got.Added != 4 || got.Skipped != 2 || countRows(t, st, `SELECT count(*) FROM title WHERE tvdb_id=406`) != 0 {
 		t.Fatalf("sync %+v", got)
 	}
 	versions := func(tvdb int64) string {

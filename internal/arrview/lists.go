@@ -656,7 +656,9 @@ func (s *Service) exclusions(w http.ResponseWriter, r *request) {
 		return
 	}
 	var in struct {
-		TmdbID int64 `json:"tmdbId"`
+		TmdbID int64  `json:"tmdbId"`
+		Title  string `json:"movieTitle"`
+		Year   int    `json:"movieYear"`
 	}
 	if err := decodeBody(r, &in); err != nil {
 		badRequest(w, "", err.Error(), nil)
@@ -666,9 +668,116 @@ func (s *Service) exclusions(w http.ResponseWriter, r *request) {
 		badRequest(w, "tmdbId", "A positive TMDb id is required", nil)
 		return
 	}
-	if _, err := s.st.Writer().ExecContext(r.Context(), `INSERT INTO movie_exclusion(tmdb_id,created_at) VALUES(?,?) ON CONFLICT DO NOTHING`, in.TmdbID, store.Millis(s.now())); err != nil {
+	// The title and year Radarr sends are kept for the Import lists page; an exclusion already there stays as it is.
+	if _, err := s.st.Writer().ExecContext(r.Context(), `INSERT INTO movie_exclusion(tmdb_id,title,year,created_at) VALUES(?,?,?,?) ON CONFLICT DO NOTHING`,
+		in.TmdbID, nullText(in.Title), nullYear(in.Year), store.Millis(s.now())); err != nil {
 		s.internal(w, r, err)
 		return
 	}
 	writeJSON(w, http.StatusCreated, map[string]any{"id": in.TmdbID, "tmdbId": in.TmdbID})
+}
+
+// seriesExclusions serves Sonarr's importlistexclusion: the series exclusion list (series_exclusion, by TVDB id, for
+// every view), which Sonarr lists, TMDb series lists and the one-time import skip. A resource's id is its TVDB id, as
+// a Radarr exclusion's is its TMDb id. PUT moves an exclusion to the body's TVDB id and title.
+func (s *Service) seriesExclusions(w http.ResponseWriter, r *request) {
+	ctx := r.Context()
+	type resource struct {
+		ID     int64  `json:"id"`
+		TvdbID int64  `json:"tvdbId"`
+		Title  string `json:"title"`
+	}
+	read := func(id int64) ([]resource, error) {
+		q, args := `SELECT tvdb_id, COALESCE(title,'') FROM series_exclusion ORDER BY tvdb_id`, []any{}
+		if id > 0 {
+			q, args = `SELECT tvdb_id, COALESCE(title,'') FROM series_exclusion WHERE tvdb_id=?`, []any{id}
+		}
+		rows, err := s.st.Reader().QueryContext(ctx, q, args...)
+		if err != nil {
+			return nil, err
+		}
+		defer rows.Close()
+		out := []resource{}
+		for rows.Next() {
+			var x resource
+			if err := rows.Scan(&x.TvdbID, &x.Title); err != nil {
+				return nil, err
+			}
+			x.ID = x.TvdbID
+			out = append(out, x)
+		}
+		return out, rows.Err()
+	}
+	id, _ := r.pathID(1)
+	if len(r.seg) == 2 && id == 0 {
+		notFound(w, "exclusion not found")
+		return
+	}
+	switch r.Method {
+	case http.MethodGet, http.MethodHead:
+		out, err := read(id)
+		if err != nil {
+			s.internal(w, r, err)
+			return
+		}
+		if len(r.seg) == 1 {
+			writeJSON(w, http.StatusOK, out)
+		} else if len(out) == 0 {
+			notFound(w, "exclusion not found")
+		} else {
+			writeJSON(w, http.StatusOK, out[0])
+		}
+		return
+	case http.MethodDelete:
+		if _, err := s.st.Writer().ExecContext(ctx, `DELETE FROM series_exclusion WHERE tvdb_id=?`, id); err != nil {
+			s.internal(w, r, err)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	var in resource
+	if err := decodeBody(r, &in); err != nil {
+		badRequest(w, "", err.Error(), nil)
+		return
+	}
+	if in.TvdbID <= 0 {
+		badRequest(w, "tvdbId", "A positive TVDB id is required", nil)
+		return
+	}
+	now := store.Millis(s.now())
+	err := s.st.WriteTx(ctx, func(tx *sqlTx) error {
+		if id > 0 && id != in.TvdbID {
+			if _, err := tx.ExecContext(ctx, `DELETE FROM series_exclusion WHERE tvdb_id=?`, id); err != nil {
+				return err
+			}
+		}
+		_, err := tx.ExecContext(ctx, `INSERT INTO series_exclusion(tvdb_id,title,created_at) VALUES(?,?,?)
+			ON CONFLICT(tvdb_id) DO UPDATE SET title=COALESCE(excluded.title,title)`, in.TvdbID, nullText(in.Title), now)
+		return err
+	})
+	if err != nil {
+		s.internal(w, r, err)
+		return
+	}
+	status := http.StatusCreated
+	if r.Method == http.MethodPut {
+		status = http.StatusAccepted
+	}
+	writeJSON(w, status, resource{ID: in.TvdbID, TvdbID: in.TvdbID, Title: in.Title})
+}
+
+// nullText and nullYear store an exclusion's title and year, NULL when not known.
+func nullText(v string) any {
+	if v = strings.TrimSpace(v); v == "" {
+		return nil
+	}
+	return v
+}
+
+func nullYear(y int) any {
+	if y <= 0 {
+		return nil
+	}
+	return y
 }

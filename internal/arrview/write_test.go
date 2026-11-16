@@ -403,13 +403,49 @@ func TestDeleteAddImportExclusion(t *testing.T) {
 			}
 		})
 	}
-	// Sonarr has no such list: both spellings of the flag are ignored.
+	// Sonarr's addImportListExclusion=true puts the series on the series exclusion list, with its name and year;
+	// Radarr's spelling is ignored there, and false writes nothing.
+	for _, c := range []struct {
+		query string
+		want  int64
+	}{{"?addImportListExclusion=false&addImportExclusion=true", 0}, {"?addImportListExclusion=true", 1}} {
+		e := newEnv(t)
+		e.start()
+		show := strconv.Itoa(IDBase + 10)
+		e.call("DELETE", "/sonarr/api/v3/series/"+show+c.query, nil, 200, nil)
+		if n := e.one(`SELECT COUNT(*) FROM movie_exclusion`); n != 0 {
+			t.Fatalf("%d movie exclusion rows after a series delete", n)
+		}
+		if n := e.one(`SELECT COUNT(*) FROM series_exclusion WHERE tvdb_id = 201 AND title = 'The Show' AND year = 2019`); n != c.want {
+			t.Fatalf("%s: %d series exclusion rows, want %d", c.query, n, c.want)
+		}
+	}
+}
+
+// TestSonarrImportListExclusions: Sonarr's importlistexclusion lists, adds, moves and deletes series exclusions by
+// TVDB id; Radarr views do not serve it.
+func TestSonarrImportListExclusions(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t)
 	e.start()
-	show := strconv.Itoa(IDBase + 10)
-	e.call("DELETE", "/sonarr/api/v3/series/"+show+"?addImportListExclusion=true&addImportExclusion=true", nil, 200,
-		nil)
-	if n := e.one(`SELECT COUNT(*) FROM movie_exclusion`); n != 0 {
-		t.Fatalf("%d exclusion rows after a series delete", n)
+	b := "/sonarr/api/v3/importlistexclusion"
+	var got map[string]any
+	e.call("POST", b, map[string]any{"tvdbId": 300, "title": "Show"}, 201, &got)
+	if got["id"].(float64) != 300 || got["title"] != "Show" {
+		t.Fatalf("POST answered %v", got)
 	}
+	e.call("POST", b, map[string]any{"tvdbId": 0}, 400, nil)
+	e.call("PUT", b+"/300", map[string]any{"id": 300, "tvdbId": 301, "title": "Moved"}, 202, nil)
+	var all []map[string]any
+	e.call("GET", b, nil, 200, &all)
+	if len(all) != 1 || all[0]["tvdbId"].(float64) != 301 || all[0]["title"] != "Moved" {
+		t.Fatalf("GET answered %v", all)
+	}
+	e.call("GET", b+"/301", nil, 200, nil)
+	e.call("GET", b+"/300", nil, 404, nil)
+	e.call("DELETE", b+"/301", nil, 200, nil)
+	if n := e.one(`SELECT COUNT(*) FROM series_exclusion`); n != 0 {
+		t.Fatalf("%d rows after DELETE", n)
+	}
+	e.call("POST", "/v/movie-web/radarr/api/v3/importlistexclusion", map[string]any{"tvdbId": 300}, 404, nil)
 }

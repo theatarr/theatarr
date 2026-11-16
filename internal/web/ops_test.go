@@ -6,6 +6,7 @@ import (
 	"github.com/theatarr/theatarr/internal/acquire"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -550,6 +551,11 @@ func TestRemoveCopiesAndTitle(t *testing.T) {
 	if code := o.jsonCall("GET", APIBase+"/titles/1/removal?versions=tv-2160p", nil, o.mc, "", nil); code != 400 {
 		t.Errorf("unknown copy: %d", code)
 	}
+	// Don't add it again from lists is for the whole title only.
+	if code := o.jsonCall("POST", APIBase+"/titles/1/remove", RemoveRequest{Versions: []string{"movie-web"}, Exclude: true},
+		o.mc, o.mcsrf, nil); code != 400 {
+		t.Errorf("exclude with one copy: %d", code)
+	}
 	// Alpha's web copy alone: not the whole title; its files stay.
 	var got RemoveResult
 	if code := o.jsonCall("POST", APIBase+"/titles/1/remove", RemoveRequest{Versions: []string{"movie-web"}}, o.mc,
@@ -570,9 +576,22 @@ func TestRemoveCopiesAndTitle(t *testing.T) {
 	}
 	// Beta's only copy is owned by radarr_4k_web, which the example policy does not import: removable.
 	got = RemoveResult{}
-	if code := o.jsonCall("POST", APIBase+"/titles/2/remove", RemoveRequest{Unlink: true}, o.mc, o.mcsrf, &got); code != 200 ||
+	if code := o.jsonCall("POST", APIBase+"/titles/2/remove", RemoveRequest{Unlink: true, Exclude: true}, o.mc, o.mcsrf, &got); code != 200 ||
 		!got.Title || got.DownloadsEnded != 1 || len(got.Unlinked) != 1 {
 		t.Fatalf("remove title: %d %+v", code, got)
+	}
+	// Excluded with its name; the exclusions block lists it and Remove takes it off.
+	var ex ListExclusions
+	if code := o.jsonCall("GET", APIBase+"/lists/exclusions", nil, o.mc, "", &ex); code != 200 || len(ex.Exclusions) != 1 ||
+		ex.Exclusions[0].Kind != "movie" || ex.Exclusions[0].Name != "Beta" {
+		t.Fatalf("exclusions: %d %+v", code, ex)
+	}
+	exURL := APIBase + "/lists/exclusions/movie/" + strconv.FormatInt(ex.Exclusions[0].ID, 10)
+	if code := o.jsonCall("DELETE", exURL, nil, o.mc, o.mcsrf, nil); code != 204 {
+		t.Errorf("delete exclusion: %d", code)
+	}
+	if code := o.jsonCall("DELETE", exURL, nil, o.mc, o.mcsrf, nil); code != 404 {
+		t.Errorf("delete exclusion again: %d", code)
 	}
 	if len(o.ops.unlinks) != 1 || o.ops.unlinks[0] != 5 {
 		t.Errorf("unlinked %v (the hardlink must stay)", o.ops.unlinks)

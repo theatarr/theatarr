@@ -116,7 +116,7 @@ func (s *MovieIntake) syncSonarr(ctx context.Context, cfg movieIntakeConfig, out
 }
 
 // addSeries adds a Sonarr list's series to the list's libraries that fit it and that it has no row in (a row in any
-// state is a choice already made). Monitoring is Theatarr's own for a series added to a library: the list's monitor
+// state is a choice already made); a series on the exclusion list is skipped. Monitoring is Theatarr's own for a series added to a library: the list's monitor
 // says only whether it is monitored at all; the seasons monitored in the instance are not copied. titleID is the
 // series' id when added.
 func (s *MovieIntake) addSeries(ctx context.Context, it arrSeries, cfg movieIntakeConfig) (int64, bool, error) {
@@ -129,6 +129,9 @@ func (s *MovieIntake) addSeries(ctx context.Context, it arrSeries, cfg movieInta
 	var added []string
 	err := s.Store.WriteTx(ctx, func(tx *sql.Tx) error {
 		titleID, added = 0, nil
+		if excluded, err := seriesExcluded(ctx, tx, it.TvdbID); err != nil || excluded {
+			return err
+		}
 		id, stored, found, err := find(ctx, tx, Input{Kind: policy.KindSeries, TvdbID: it.TvdbID, TmdbID: it.TmdbID})
 		if err != nil {
 			return err
@@ -183,6 +186,14 @@ func (s *MovieIntake) addSeries(ctx context.Context, it arrSeries, cfg movieInta
 		return titleID, true, s.OnAdd(ctx, titleID, added, cfg.later)
 	}
 	return titleID, true, nil
+}
+
+// seriesExcluded says whether the series is on the series exclusion list (by TVDB id): lists and the one-time
+// import skip it; requests and adds by hand do not read the list.
+func seriesExcluded(ctx context.Context, q Querier, tvdbID int64) (bool, error) {
+	var excluded bool
+	err := q.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM series_exclusion WHERE tvdb_id=?)`, tvdbID).Scan(&excluded)
+	return excluded, err
 }
 
 // missingVersions are the keys of fit the title (found or not) has no version row for.
@@ -381,6 +392,9 @@ func (s *MovieIntake) previewMovie(ctx context.Context, cfg movieIntakeConfig, k
 func (s *MovieIntake) previewSeries(ctx context.Context, cfg movieIntakeConfig, keys []string, it arrSeries) (
 	change string, titleID int64, err error) {
 	r := s.Store.Reader()
+	if excluded, err := seriesExcluded(ctx, r, it.TvdbID); err != nil || excluded {
+		return "excluded", 0, err
+	}
 	var id int64
 	var anime bool
 	found := false

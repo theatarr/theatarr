@@ -943,6 +943,9 @@ type RemoveRequest struct {
 	// Debrid also deletes their debrid torrents nothing else in Theatarr uses (the dialog's "Delete it from the debrid
 	// providers"); it needs Unlink (deleting a torrent would break kept files). Omitted: as Unlink.
 	Debrid *bool `json:"debrid,omitempty"`
+	// Exclude also puts the title on the list exclusions (the dialog's "Don't add it again from lists"): a movie by
+	// TMDb id, a series by TVDB id. Only with the whole title removed.
+	Exclude bool `json:"exclude,omitempty"`
 }
 
 // KeptLink is a link a removal left in place, and why (or, in RemoveResult.Failed, the error that kept it).
@@ -1014,6 +1017,10 @@ func (w *Web) apiRemove(rw http.ResponseWriter, r *http.Request) {
 		writeJSON(rw, http.StatusConflict, apiError{Error: msg})
 		return
 	}
+	if req.Exclude && !scope.Title {
+		badRequest(rw, "only a removal of the whole title can keep lists from adding it again")
+		return
+	}
 	var keys []string
 	for _, c := range scope.Copies {
 		keys = append(keys, c.Key)
@@ -1029,6 +1036,12 @@ func (w *Web) apiRemove(rw http.ResponseWriter, r *http.Request) {
 	if req.Unlink {
 		for _, c := range scope.Leftover {
 			spec.Leftover = append(spec.Leftover, c.Key)
+		}
+	}
+	if req.Exclude {
+		spec.Extra = func(ctx context.Context, tx *sql.Tx) error {
+			_, err := catalog.ExcludeTitle(ctx, tx, id, w.now())
+			return err
 		}
 	}
 	res, err := removal.Run(ctx, w.removalDeps(), spec)

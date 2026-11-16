@@ -4,7 +4,8 @@
 // (the action bar). Each confirmation spells out the scope the server reports (copies, links, downloads in progress)
 // and what stays. The removal's two choices are on by default: "Delete the files" (Theatarr's own symlinks go to its
 // trash) and "Delete it from the debrid providers" (after a backup, the torrents no other title or library in
-// Theatarr uses; only with the files deleted). An unlink moves only Theatarr's own symlink to the trash.
+// Theatarr uses; only with the files deleted). Removing the whole title also offers "Don't add it again from lists"
+// (off by default: the title goes on the list exclusions). An unlink moves only Theatarr's own symlink to the trash.
 import { FileX2, Loader2, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router";
@@ -33,6 +34,7 @@ export function RemoveDialog({ titleId, versions, onClose, kind, anime, gone = f
   const q = useRemovalScope(titleId, versions, !started);
   const [files, setFiles] = useState(true);
   const [debrid, setDebrid] = useState(true);
+  const [exclude, setExclude] = useState(false);
   if (!q.data) {
     return (
       <Modal label="Remove" onClose={onClose} testid="remove-dialog" className="z-[85] flex items-center justify-center p-6"
@@ -46,6 +48,8 @@ export function RemoveDialog({ titleId, versions, onClose, kind, anime, gone = f
   const s = q.data;
   // Deleting the kept files of removed libraries is that dialog's point, not a choice: only the debrid box is offered.
   const only = leftoverOnly(s);
+  // Remove title (no libraries named) offers to keep lists from adding it again; a library's own Remove does not.
+  const whole = versions === undefined && s.title && !only;
   return (
     <ConfirmDialog
       scope={removalScope(s, files, debrid, gone)}
@@ -62,6 +66,7 @@ export function RemoveDialog({ titleId, versions, onClose, kind, anime, gone = f
             versions: versions ?? [],
             unlink: files,
             debrid: files && debrid,
+            ...(whole && exclude ? { exclude: true } : {}),
           },
           {
             onSuccess: (r) => {
@@ -92,6 +97,11 @@ export function RemoveDialog({ titleId, versions, onClose, kind, anime, gone = f
         Delete it from the debrid providers
       </Choice>
       {!files ? <p className="pl-6 text-xs text-[var(--ink-3)]" data-testid="remove-debrid-why">{REMOVAL_DEBRID_NEEDS_FILES}.</p> : null}
+      {whole ? (
+        <Choice checked={exclude} onChange={setExclude} testid="remove-exclude">
+          Don't add it again from lists
+        </Choice>
+      ) : null}
     </ConfirmDialog>
   );
 }

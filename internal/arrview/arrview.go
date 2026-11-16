@@ -485,6 +485,9 @@ func (s *Service) route(w http.ResponseWriter, r *request) {
 		s.exclusions(w, r)
 	case fl == Radarr && at(1, "exclusions") && m == "GET":
 		s.exclusions(w, r)
+	case fl == Sonarr && (at(1, "importlistexclusion") && (m == "GET" || m == "POST") ||
+		at(2, "importlistexclusion", "*") && (m == "GET" || m == "PUT" || m == "DELETE")):
+		s.seriesExclusions(w, r)
 	case (at(1, "extrafile") || at(1, "credit") || at(1, "exclusions") || at(1, "importlistexclusion") ||
 		at(2, "importlist", "movie")) && m == "GET":
 		s.emptyList(w, r)

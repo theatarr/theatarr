@@ -9,7 +9,7 @@ import { ListVideo, Loader2, Plus, X } from "lucide-react";
 import { useAuth } from "@/api/auth";
 import { useDebounced } from "@/api/add";
 import { permsOf } from "@/api/library";
-import { listIDFrom, normalListURL, useListCheck, useListLookup, useListMutations, useLists, type ListAdd, type ListPreview, type MovieList } from "@/api/lists";
+import { listIDFrom, normalListURL, useListCheck, useListExclusions, useListLookup, useListMutations, useLists, useRemoveExclusion, type ListAdd, type ListPreview, type MovieList } from "@/api/lists";
 import { AVAILABILITY } from "@/components/collections/add-collection";
 import { SettingsPicker } from "@/components/settings/settings-picker";
 import { Empty, ErrorState, Loading, PageHeader } from "@/components/page";
@@ -216,6 +216,29 @@ function ListRow({ l, libraries, seriesLibraries, canSync, m, edit, remove, sync
   </li>;
 }
 
+/** List exclusions: the movies and series no list adds (a title removed with "Don't add it again from lists", or
+ *  excluded through an arr client), each with Remove. */
+function Exclusions() {
+  const q = useListExclusions();
+  const remove = useRemoveExclusion();
+  const list = q.data?.exclusions ?? [];
+  return <section className="space-y-2" data-testid="list-exclusions">
+    <h2 className="font-heading text-lg font-medium text-[var(--ink)]">List exclusions</h2>
+    <p className="text-sm text-muted-foreground">Lists never add these titles. Removing an exclusion lets lists add the title again, but does not bring back a library it was removed from; adding it by hand does.</p>
+    {q.isLoading ? <Loading /> : q.error ? <ErrorState error={q.error} /> : list.length === 0
+      ? <p className="text-sm text-muted-foreground">No exclusions. Remove a title with "Don't add it again from lists" to add one.</p>
+      : <Card className="p-0"><ul className="divide-y divide-[var(--line)]">{list.map(x => {
+        const busy = remove.isPending && remove.variables?.kind === x.kind && remove.variables.id === x.id;
+        return <li key={`${x.kind}-${x.id}`} className="flex min-w-0 items-center gap-3 px-3 py-2 text-sm" data-testid={`exclusion-${x.kind}-${x.id}`}>
+          <span className="min-w-0 flex-1 text-[var(--ink)] [overflow-wrap:anywhere]">{titleWithYear(x.name, x.year)}</span>
+          <Chip tone="ghost">{x.kind === "series" ? "Series" : "Movie"}</Chip>
+          <Button variant="outline" size="sm" disabled={busy} onClick={() => remove.mutate(x)}>{busy ? <Loader2 className="animate-spin" aria-hidden /> : null}Remove</Button>
+        </li>;
+      })}</ul></Card>}
+    {remove.error ? <ErrorState error={remove.error} /> : null}
+  </section>;
+}
+
 export function ListsPage() {
   const me = useAuth();
   const perms = permsOf(me.data?.permissions);
@@ -246,6 +269,7 @@ export function ListsPage() {
       {d.lists.length === 0 ? <Card><Empty icon={ListVideo}>No lists yet. Add a TMDb list by its id or address, or a Radarr or Sonarr instance by its address and API key.</Empty></Card> :
         <Card className="p-0"><ul className="divide-y divide-[var(--line)]">{d.lists.map(l => <ListRow key={l.id} l={l} libraries={d.libraries} seriesLibraries={d.series_libraries ?? {}} canSync={d.can_sync} m={m}
           edit={() => open(l)} remove={() => { m.remove.reset(); setRemoving(l); }} synced={setDone} />)}</ul></Card>}
+      <Exclusions />
     </div> : null}
   </div>;
 }

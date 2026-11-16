@@ -177,6 +177,8 @@ describe("fix round 1", () => {
     expect(box.checked).toBe(true);
     expect((screen.getByTestId("remove-debrid") as HTMLInputElement).checked).toBe(true);
     expect(screen.getByTestId("remove-dialog").textContent).toContain("Import lists will not restore the removed libraries; add it yourself to bring it back");
+    // Remove from this library never offers the list exclusion, even for the title's last library.
+    expect(screen.queryByTestId("remove-exclude")).toBeNull();
     await user.click(screen.getByTestId("confirm-ok"));
     await waitFor(() => expect(fetch.calls("POST", "/titles/7/remove")).toHaveLength(1));
     expect(fetch.calls("POST", "/titles/7/remove")[0].body).toEqual({ versions: ["movie-web"], unlink: true, debrid: true });

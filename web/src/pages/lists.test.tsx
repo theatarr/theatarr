@@ -205,3 +205,24 @@ it("says next to Check why it is off when TMDb is not set up", async () => {
   expect(dialog.getByRole("button", { name: "Check" }).hasAttribute("disabled")).toBe(true);
   expect(dialog.getByTestId("list-check-off").textContent).toBe("TMDb is not set up, so the instance cannot be checked or synced yet.");
 });
+
+it("lists the exclusions by name and removes one", async () => {
+  const user = userEvent.setup();
+  let exclusions: Schemas["ListExclusion"][] = [{ kind: "series", id: 300, name: "The Show", year: 2019 }, { kind: "movie", id: 12345, name: "TMDb 12345" }];
+  const fetch = mockFetch([
+    { method: "GET", path: "/auth/me", reply: manager },
+    { method: "GET", path: "/lists", reply: { lists: [], libraries, can_sync: true } },
+    { method: "GET", path: "/lists/exclusions", reply: () => ({ exclusions }) },
+    { method: "DELETE", path: "/lists/exclusions/series/300", reply: () => { exclusions = exclusions.slice(1); return { status: 204 }; } },
+  ]);
+  renderPage(<ListsPage />, "/admin/settings/import-lists");
+  const block = within(await screen.findByTestId("list-exclusions"));
+  expect(block.getByText("Lists never add these titles. Removing an exclusion lets lists add the title again, but does not bring back a library it was removed from; adding it by hand does.")).toBeTruthy();
+  const show = within(await block.findByTestId("exclusion-series-300"));
+  expect(show.getByText("The Show (2019)")).toBeTruthy();
+  expect(show.getByText("Series")).toBeTruthy();
+  expect(within(block.getByTestId("exclusion-movie-12345")).getByText("TMDb 12345")).toBeTruthy();
+  await user.click(show.getByRole("button", { name: "Remove" }));
+  await waitFor(() => expect(fetch.calls("DELETE", "/lists/exclusions/series/300")).toHaveLength(1));
+  await waitFor(() => expect(block.queryByTestId("exclusion-series-300")).toBeNull());
+});

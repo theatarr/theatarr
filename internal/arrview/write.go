@@ -994,7 +994,8 @@ func (s *Service) updateTitle(w http.ResponseWriter, r *request) {
 // 200, no body, like the arrs.
 // addImportExclusion=true on a Radarr view also puts the movie on the exclusion list (movie_exclusion, by TMDb id, for
 // every view, as the exclusions POST does), so lists and collections do not add it again; Sonarr's
-// addImportListExclusion is ignored (there is no series exclusion list).
+// addImportListExclusion=true puts the series on the series exclusion list (series_exclusion, by TVDB id), as its
+// importlistexclusion POST does.
 func (s *Service) deleteTitle(w http.ResponseWriter, r *request) {
 	ctx := r.Context()
 	id, _ := r.pathID(1)
@@ -1037,6 +1038,9 @@ func (s *Service) deleteTitle(w http.ResponseWriter, r *request) {
 	}
 	// Radarr's addImportExclusion=true: the movie also goes on the exclusion list, with the remove.
 	exclude := r.v.Flavour == Radarr && e.kind == "movie" && e.tmdb > 0 && r.queryBool("addImportExclusion", false)
+	// Sonarr's addImportListExclusion=true: the series goes on the series exclusion list.
+	excludeSeries := r.v.Flavour == Sonarr && e.kind == "series" && e.tvdb > 0 &&
+		r.queryBool("addImportListExclusion", false)
 	deleteFiles := r.queryBool("deleteFiles", false)
 	keys := e.versionKeys()
 	// The whole title when no other library of it stays current.
@@ -1074,8 +1078,14 @@ func (s *Service) deleteTitle(w http.ResponseWriter, r *request) {
 			}
 			if exclude {
 				// The statement of the exclusions POST (lists.go): lists and collections skip the movie from now on.
-				if _, err := tx.ExecContext(ctx, `INSERT INTO movie_exclusion(tmdb_id,created_at) VALUES(?,?)
-					ON CONFLICT DO NOTHING`, e.tmdb, now); err != nil {
+				if _, err := tx.ExecContext(ctx, `INSERT INTO movie_exclusion(tmdb_id,title,year,created_at)
+					VALUES(?,?,?,?) ON CONFLICT DO NOTHING`, e.tmdb, nullText(e.name), nullYear(e.year), now); err != nil {
+					return err
+				}
+			}
+			if excludeSeries {
+				if _, err := tx.ExecContext(ctx, `INSERT INTO series_exclusion(tvdb_id,title,year,created_at)
+					VALUES(?,?,?,?) ON CONFLICT DO NOTHING`, e.tvdb, nullText(e.name), nullYear(e.year), now); err != nil {
 					return err
 				}
 			}

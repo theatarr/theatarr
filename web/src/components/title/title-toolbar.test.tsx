@@ -168,3 +168,23 @@ it("shows Search now disabled while the add options load, and no Interactive sea
   expect(search.hasAttribute("disabled")).toBe(true);
   expect(screen.queryByTestId("interactive-search-open")).toBeNull();
 });
+
+it("offers Don't add it again from lists, off by default, when removing the whole title", async () => {
+  const api = mockFetch([
+    { method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["manage"] } },
+    options([]),
+    { method: "GET", path: "/titles/7/removal", reply: { title_id: 7, name: "Alpha", title: true, leftover: [], copies: [{ key: "movie-web", label: "WEB", links: 0, downloads: 0 }] } },
+    { method: "POST", path: "/titles/7/remove", reply: { title: true, cleanup: false, failed: [], kept: [], removed: ["movie-web"], unlinked: [], downloads_ended: 0, message: "Removed Alpha from the library." } },
+    { method: "GET", path: "/titles/7", reply: {} },
+  ]);
+  renderPage(<SearchProvider><TitleToolbar titleId={7} name="Alpha" kind="movie" versions={[{ id: 1, key: "movie-web", label: "WEB", control: control(false) }] as never} /></SearchProvider>);
+  const user = userEvent.setup();
+  await user.click(await screen.findByTestId("title-remove"));
+  const box = (await screen.findByTestId("remove-exclude")) as HTMLInputElement;
+  expect(box.checked).toBe(false);
+  expect(screen.getByTestId("remove-dialog").textContent).toContain("Don't add it again from lists");
+  await user.click(box);
+  await user.click(screen.getByTestId("confirm-ok"));
+  await waitFor(() => expect(api.calls("POST", "/titles/7/remove")).toHaveLength(1));
+  expect(api.calls("POST", "/titles/7/remove")[0].body).toEqual({ versions: [], unlink: true, debrid: true, exclude: true });
+});
