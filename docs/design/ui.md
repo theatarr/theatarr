@@ -537,7 +537,8 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   columns Source (indexer kind, private trackers marked), Age, Title, Status (right after Title by default, so the
   verdict stays in view when the table scrolls sideways; it keeps a readable width), Indexer, History (what came of
   the release before), Size, Peers, Cached on (provider pills), Episodes (series), Language, Quality, Score, Formats
-  and Flags, then Grab. The release name keeps its text and font; the facts in it are coloured, text only
+  and Flags (a public release shows only the flags its indexer names, no freeleech from the volume factors that
+  public feeds send for every torrent), then Grab. The release name keeps its text and font; the facts in it are coloured, text only
   (`lib/release-highlight.ts`, `components/title/release-name.tsx`, the `--rel-*` tokens): dynamic range (DV, HDR10+,
   HLG …), audio with its channels (Atmos, TrueHD 7.1, DDP5.1 …), resolution (2160p, UHD …) and source (REMUX, BluRay,
   WEB-DL; a bare WEB, and Opus, only after a resolution, so a title's Web or Opus stays plain). Last search and the episode window's list

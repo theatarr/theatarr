@@ -58,8 +58,8 @@ type Candidate struct {
 	Privacy string `json:"privacy,omitempty"`
 	// Leechers is peers minus seeders; nil when the source gave no peer count.
 	Leechers *int `json:"leechers,omitempty"`
-	// Flags are the indexer flags (Release.Flags) plus those the volume factors give, as the decision engine reads
-	// them: freeleech, halfleech, freeleech25, freeleech75, doubleupload.
+	// Flags are the indexer flags (Release.Flags) plus, for a release that is not public, those the volume factors
+	// give, as the decision engine reads them: freeleech, halfleech, freeleech25, freeleech75, doubleupload.
 	Flags []string `json:"flags,omitempty"`
 	// QualityRank is Decision.ProfileRank: 1 is the profile's best quality, 0 not allowed by the profile.
 	QualityRank int `json:"quality_rank,omitempty"`
@@ -150,9 +150,15 @@ func summarize(rank int, d *decide.Decision, rel indexer.Release) Candidate {
 }
 
 // releaseFlags is a copy of the release's flags plus the ones its volume factors give, read as the decision engine
-// reads them (decide's indexerFlags: the Extras downloadvolumefactor and uploadvolumefactor, as float32).
+// reads them (decide's indexerFlags: the Extras downloadvolumefactor and uploadvolumefactor, as float32). A public
+// release gets none from its factors: public feeds (DMM, Prowlarr, public cardigann sites) send
+// downloadvolumefactor=0 for every torrent, which says nothing. Display only; the decision engine reads the factors
+// itself.
 func releaseFlags(rel indexer.Release) []string {
 	out := slices.Clone(rel.Flags)
+	if rel.Privacy == policy.PrivacyPublic {
+		return out
+	}
 	add := func(f string) {
 		if !slices.ContainsFunc(out, func(s string) bool { return strings.EqualFold(s, f) }) {
 			out = append(out, f)

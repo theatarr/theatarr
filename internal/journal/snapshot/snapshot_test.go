@@ -52,4 +52,14 @@ func TestCandidatesCarrySourceFlagsPeers(t *testing.T) {
 	if want := []string{"halfleech"}; !slices.Equal(got[0].Flags, want) {
 		t.Errorf("flags = %v, want %v", got[0].Flags, want)
 	}
+
+	// A public release (DMM, a Prowlarr feed) sends downloadvolumefactor=0 for every torrent: no freeleech from it,
+	// while the flags its indexer names itself stay.
+	rel.Privacy = policy.PrivacyPublic
+	rel.Flags = []string{"seadex"}
+	rel.Extras = map[string]string{"downloadvolumefactor": "0", "uploadvolumefactor": "2"}
+	got, _ = Candidates([]*decide.Decision{d}, map[*decide.Decision]indexer.Release{d: rel})
+	if want := []string{"seadex"}; !slices.Equal(got[0].Flags, want) {
+		t.Errorf("public flags = %v, want %v", got[0].Flags, want)
+	}
 }
