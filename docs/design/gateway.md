@@ -61,6 +61,12 @@ indexer's `hosts` join the outbound hosts (and a probe's allowlist; a private ad
 one), as does `cardigann.flaresolverr_url`. The definitions fetch (`CardigannCommit`, `CardigannArchive`) has its
 own `cardigann-definitions` budget, like the quality sync's.
 
+**JSON import lists** ([arrview.md](arrview.md), Lists). `ListGet` reads a JSON list's address through the same path
+as those fetches (an indexer-class probe target, VPN-guarded, no redirect followed), on its own `import-lists`
+budget (10 a minute, 300 a day) that every generation shares. Unlike a probe it reaches public addresses only: a
+private, loopback or link-local address is refused before any dial, even one the live allowlist holds. No host is
+added to the outbound hosts.
+
 ### Indexer requests by purpose
 
 The gateway counts every request it sends to an indexer (each redirect hop sent is one, the hop before a refused

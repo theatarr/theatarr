@@ -1,6 +1,6 @@
 // Settings › Import lists (/admin/settings/import-lists; /collections/lists redirects here): the import lists
-// (docs/design/arrview.md, Lists), as Radarr's Settings › Import Lists: TMDb movie lists, and Radarr or Sonarr instances
-// whose titles are added. Managers open it too: their Admin group links it, as they have no other Settings. An enabled list adds its new titles to its
+// (docs/design/arrview.md, Lists), as Radarr's Settings › Import Lists: TMDb lists and discover rules, JSON lists, and
+// Radarr or Sonarr instances whose titles are added, each for movies or series; then the list exclusions. Managers open it too: their Admin group links it, as they have no other Settings. An enabled list adds its new titles to its
 // libraries at each sync and on Sync now; search on add starts the usual add-time search, which the download router
 // gates. A list an arr client made is shown with its view and stays that client's. Managers and admins (GET/POST
 // /lists, POST /lists/check, PUT/DELETE /lists/{id}, POST /lists/{id}/sync and /preview).

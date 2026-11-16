@@ -22,7 +22,8 @@ import (
 )
 
 // Lists (docs/design/arrview.md, Lists): the import_list rows movie intake syncs (internal/catalog MovieIntake), for
-// the Lists tab of the Collections page. A list is a TMDb movie list, or the titles of a Radarr or Sonarr instance.
+// the Lists tab of the Collections page. A list is a TMDb list (movies or series), a TMDb discover rule, a JSON list,
+// or the titles of a Radarr or Sonarr instance; the list exclusions are read and removed here too.
 // A list made here has no view, so no arr view lists it; a list an arr client made (TMDb only) keeps its view, profile
 // and root whatever is changed here, so that client still sees it. An enabled TMDb list adds its new movies at every
 // intake refresh (metadata.lists.interval), a Radarr or Sonarr list every catalog.ArrListInterval, and any list on

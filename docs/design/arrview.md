@@ -79,12 +79,37 @@ Known limits, kept as they are:
 ### Lists
 
 The same `import_list` rows (`movie_import_list` until migration 00116) back the **Lists** tab of the Collections page
-(Settings › Import lists, `/admin/settings/import-lists`, managers and admins). A list is a TMDb movie list, or the titles of a Radarr or Sonarr instance
-(below); other providers are not supported. `GET /lists` shows every row, of
-any view; `GET /lists/lookup?tmdb_id=` reads a list's name, description and movie count from TMDb so the form can
-confirm it (the form takes the id or a pasted themoviedb.org list address); `POST /lists`, `PUT /lists/{id}` and
-`DELETE /lists/{id}` manage them, and `POST /lists/{id}/sync` imports one list now, enabled or not, through
-`MovieIntake.SyncList`, the one-list form of the scheduled sync (one TMDb request per new movie, in the request).
+(Settings › Import lists, `/admin/settings/import-lists`, managers and admins). A list (migration 00146) has a
+`list_type`: `tmdb` (a TMDb list), `tmdb_discover` (a TMDb discover rule), `json` (a JSON list), `radarr` or
+`sonarr` (the titles of an instance, below); and a `media`: `movie` or `series` (a Radarr row is always movie, a
+Sonarr row series). IMDb lists and other providers are not supported ([not-supported.md](../not-supported.md)).
+`GET /lists` shows every row, of any view; `GET /lists/lookup?tmdb_id=&media=` reads a list's name, description and
+movie and series counts from TMDb so the form can confirm it (the form takes the id or a pasted themoviedb.org list
+address); `POST /lists`, `PUT /lists/{id}` and `DELETE /lists/{id}` manage them, and `POST /lists/{id}/sync`
+imports one list now, enabled or not, through `MovieIntake.SyncList`, the one-list form of the scheduled sync (one
+TMDb request per new title, in the request). The scheduled `SyncLists` (`metadata.lists.interval`) runs every kind but
+Radarr and Sonarr, which have their own interval (below).
+
+- **Media.** A TMDb list adds only the items of its media: a movie row its movies, a series row its TV items, so a
+  mixed list is added once per media (unique per TMDb id and media). A TV item is resolved to its TVDB id with TMDb's
+  details (`TVDetails`, one request; anime by `LooksAnime`), then added through the Sonarr list path (`addSeries`:
+  exclusions, a library row in any state left alone); a series Theatarr holds is found by its TMDb id and keeps its
+  own ids and anime flag. An item TMDb has no TVDB id for is skipped and counted: a series without one gets no
+  episodes. A series row takes series libraries, picked as a movie row's (`intakeVersions` by kind), and monitors
+  `all` or `none` as a Sonarr list (`TestTMDbSeriesList`).
+- **Discover** (`tmdb_discover`, `rule` JSON): year from and to, minimum rating, minimum votes (default 200), genres
+  (any of), original language, and the first N results of TMDb's popularity order (default 100, at most 500;
+  `tmdb.Client.DiscoverMovies` / `DiscoverTV`, read fresh, not cached). Its titles are added as a TMDb list's items.
+  It has no TMDb id or URL, so two rules never collide (`TestDiscoverListSync`, `TestDiscoverListsAPI`).
+- **JSON list** (`json`): a public https address answering a JSON array of objects with `imdb_id` and/or `tmdb_id`
+  (the StevenLu shape; `title` only names an entry in Preview), at most 1,000 entries and 5 MB, one row per address
+  and media. It is fetched through the gateway (`gateway.ListGet`: the repository fetch's path, VPN-guarded like an
+  indexer, its own budget of 10 a minute and 300 a day, public addresses only, no redirect followed: the error asks
+  for the direct address). An entry resolves by TMDb id, else by IMDb id (`FindByIMDb` / `FindTVByIMDb`, cached);
+  one TMDb does not know is skipped and counted (`TestJSONListSync`, `TestListGetPublicOnlyNoRedirect`).
+- **Last error.** Each sync sets `last_error` on the row when the list could not be read ("The list could not be
+  read: …") or titles failed ("N of its titles could not be added; the first: …"), and clears it after a pass
+  without failures; the page shows it under Last sync. The scheduled task still fails as before.
 
 A list is read in full: TMDb pages its lists, and both the scheduled sync and Sync now fetch every page (one paced
 request per page, by `total_pages`, or `item_count` where TMDb sends none) before adding anything. A page that fails
@@ -95,8 +120,9 @@ accepts.
 - A list made on the page is a **native row**: `view = ''`, no profile, no root, and `enable_auto` equal to
   `enabled`. Its `versions` are chosen explicitly from the movie libraries (any movie version, as an add offers them;
   at least one), and intake picks the ones that fit each movie. No arr view lists it (`readImportLists` filters by
-  view), and the views' duplicate check still refuses a second row for the same TMDb list, as `POST /lists` does with
-  a 409 for a list any view already has.
+  view), and the views' duplicate check still refuses a second movie row for the same TMDb list, as `POST /lists`
+  does with a 409 for a list any view already has. The Radarr view reads, checks and writes `media = 'movie'` rows
+  only, so a series row never reaches a Radarr client (`TestRadarrImportListsAreMovieOnly`).
 - A list an arr client made keeps its `view`, `quality_profile_id` and `root_folder_path`: `PUT /lists/{id}` never
   writes them, so that view keeps listing it with its profile mapping (`TestListsKeepArrView`). It may change the
   name, `enabled`, monitor, search on add, minimum availability and the libraries, which must stay within the view's
@@ -106,8 +132,9 @@ accepts.
 - `POST /lists/{id}/preview` reads the list as a sync does and classifies each title without writing and without TMDb
   detail calls: `add_title` (not in Theatarr), `add_library` (a fitting library of the list lacks it), `present`
   (every fitting library has a row, in any state), `excluded`, and `skipped` (a Radarr or Sonarr list's title that
-  fits none of its libraries), with the first 200 titles that would change or are skipped. A movie not in Theatarr yet
-  is fitted as not anime there; Sync now decides it from TMDb (`TestListPreviewWritesNothing`).
+  fits none of its libraries), with the first 200 titles that would change or are skipped. A title not in Theatarr
+  yet is fitted as not anime there; Sync now decides it from TMDb (`TestListPreviewWritesNothing`). Preview works for
+  every kind; a TMDb series item new to Theatarr has no TVDB id yet, so its exclusion is checked by Sync.
 
 **Radarr and Sonarr lists.** `list_type` `radarr` or `sonarr`, with the instance's `url` and `api_key` on the row
 (stored like `setting_secret`, plain in the 0600 database; `GET /lists` answers only `api_key_set`, and errors and logs
@@ -123,7 +150,7 @@ key or by a stored list's id.
   TMDb id through the movie list path (exclusions, "a library row that exists is left as it is", TMDb details for a
   new movie, availability; `TestRadarrListAddsMissingMovies`). A Sonarr list reads `GET series` and adds each series
   with a TVDB id (found by TVDB id, else TMDb id) to the list's libraries it has no row in, through `catalog.Add`
-  (`TestSonarrListAddsSeries`). There is no series exclusion list.
+  (`TestSonarrListAddsSeries`). A series on the series exclusion list is skipped.
 - Libraries: a title goes only to the list's chosen libraries that fit it (series or movie; anime or not: a Sonarr
   `seriesType` of `anime`, a movie by TMDb's language and genre, a stored title by its own flag). A title that fits
   none is skipped and Preview shows it as skipped. TMDb lists keep their rules above (the fallback to the chosen
@@ -138,6 +165,16 @@ key or by a stored list's id.
   need TMDb set up, as before. No Radarr/Sonarr list filters (profile, tag, root folder).
 - To bring an instance's monitoring and existing debrid-mount files in once, use the one-time import
   ([migration.md](../migration.md#import-from-sonarrradarr)); a list then keeps adding what is added there later.
+
+**List exclusions.** Two lists for the whole install: `movie_exclusion` (by TMDb id) and `series_exclusion` (by TVDB
+id, 00146), each with the title and year it was excluded under when known. Lists, collections and the one-time arr
+import skip an excluded title; requests and adds by hand ignore them. They are written by Remove title's "Don't add it
+again from lists" (`exclude` on `POST /titles/{id}/remove`, the whole title only, in the removal's transaction), by
+the Radarr view's `exclusions` POST and `addImportExclusion`, and by the Sonarr view's `importlistexclusion` and
+`addImportListExclusion`. `GET /lists/exclusions` lists both by name (the stored one, else the title's, else "TMDb
+*id*" or "TVDB *id*"), and `DELETE /lists/exclusions/{kind}/{id}` removes one: lists may add the title again, but a
+library it was removed from is not brought back (adding it by hand does). The page shows them under **List
+exclusions** with **Remove**.
 
 ## Views
 
@@ -382,7 +419,8 @@ Left as before, on purpose:
   title uses (`internal/removal`), with the client's own flags. On a Radarr view `addImportExclusion=true` also
   puts the movie on the exclusion list (`movie_exclusion`, by TMDb id, one list for every view, the row the
   `exclusions` POST writes) in the transaction of the remove, so list and collection intake skip it afterwards;
-  `false` or absent writes none. Sonarr's `addImportListExclusion` is ignored: there is no series exclusion list.
+  `false` or absent writes none. On a Sonarr view `addImportListExclusion=true` puts the series on the series
+  exclusion list (`series_exclusion`, by TVDB id), as its `importlistexclusion` POST does.
   `deleteFiles` omitted or `false` keeps the files and the torrents (as Radarr and Sonarr default); `true` (Seerr
   sends it) is the web UI's removal with both "Delete the files" and "Delete it from the debrid providers": Theatarr links in
   the versions' own library roots go through the library trash gate, dead ones too, and the folders they leave

@@ -68,9 +68,6 @@ events it gets, or turn on the `native` option for Theatarr's own events. Then t
 
 The Radarr- and Sonarr-compatible views do not answer every call of the arr APIs. Known gaps:
 
-- **Sonarr's "add import list exclusion" on a series delete** (`addImportListExclusion`). LunaSea and Ruddarr can
-  send it. The series is still removed, but the switch does nothing: Theatarr has no series exclusion list for it to
-  act on. A Sonarr list does not add a removed series back: the removal keeps the series' library row. Radarr's `addImportExclusion` on a movie delete is supported.
 - **`PUT episode/{id}`**, **`DELETE queue/bulk`**, **`DELETE blocklist/bulk`** and the **iCal calendar feed**. No
   client we checked calls them: they set episode monitoring with `PUT episode/monitor`, remove queue and blocklist
   entries one at a time, and read the calendar as JSON, all of which work.
@@ -82,7 +79,8 @@ The Radarr- and Sonarr-compatible views do not answer every call of the arr APIs
   been tested on real hardware (an ARM VPS, Raspberry Pi, ARM NAS), and neither has a build from source on an
   arm64 host. Reports are welcome. 32-bit ARM is not built.
 - **No update notice.** Theatarr does not check for new versions; `theatarr version` prints the build you run.
-- **Import lists.** Only TMDb movie lists (**Settings › Import lists**, or the Radarr-compatible API). There are no
-  series lists and no other list providers yet.
+- **IMDb lists.** IMDb answers a plain HTTP client with an empty page (a bot challenge), and Sonarr and Radarr read
+  IMDb lists through their own hosted service. Use a **JSON list** made from the IMDb list instead (**Settings ›
+  Import lists**). Trakt, Plex watchlist and the other arr list providers are not offered either.
 - **Tags.** There is no tag-based routing; each library lists its indexers and providers instead
   ([arr-map.md](arr-map.md)).

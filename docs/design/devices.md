@@ -63,7 +63,7 @@ Hooks in other packages:
 | `GET health` | `RouterDisabledCheck` (warning) while `router.enabled` is off (or the policy has no `router`); then the service's failing health checks, worst first (`MountCheck`, `BackupCheck`, ...: [readiness.md](readiness.md)). `wikiUrl` is always written, `""` (see below) |
 | `GET indexer[/{id}]` | The policy indexers the view's versions search, read-only. Ids are the sorted keys' positions (1-based); no URL or key is written |
 | `GET episode?includeEpisodeFile=true` | Embeds `episodeFile` |
-| `GET extrafile`, `credit`, `exclusions`, `importlistexclusion`, `importlist/movie`, `filesystem`, `language`, `qualitydefinition`, `languageprofile` (Sonarr) | Empty or static answers in the arrs' shape, so the phone apps' screens load |
+| `GET extrafile`, `credit`, `exclusions` (Sonarr), `importlistexclusion` (Radarr), `importlist/movie`, `filesystem`, `language`, `qualitydefinition`, `languageprofile` (Sonarr) | Empty or static answers in the arrs' shape, so the phone apps' screens load. Radarr's `exclusions` and Sonarr's `importlistexclusion` are the real list exclusions (arrview.md, Lists) |
 
 Not served: `customformat` / `qualityprofile` writes and `indexer` CRUD (used by recyclarr and Prowlarr sync),
 SignalR, Sonarr v5, `downloadclient`.
