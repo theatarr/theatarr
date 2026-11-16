@@ -550,16 +550,23 @@ func (w *Web) replaceBlocked(ctx context.Context, f ReportFile, kind string, on 
 		return "", nil
 	}
 	// Each episode the file holds is monitored in each library (an episode's own switch, else its default).
+	args := append(anys(f.episodeIDs), anys(f.Versions)...)
+	monitored := map[int64]bool{}
+	if err := scanAll(ctx, w.st.Reader(), `SELECT e.id FROM episode e JOIN version v ON v.title_id = e.title_id
+		LEFT JOIN episode_version_state s ON s.version_id = v.id AND s.episode_id = e.id
+		WHERE e.id IN (`+store.Placeholders(len(f.episodeIDs))+`) AND v.policy_key IN (`+
+		store.Placeholders(len(f.Versions))+`) AND COALESCE(s.monitored, e.monitored) = 1
+		GROUP BY e.id HAVING COUNT(*) = ?`, append(args, len(f.Versions)), func(rows *sql.Rows) error {
+		var id int64
+		err := rows.Scan(&id)
+		monitored[id] = true
+		return err
+	}); err != nil {
+		return "", err
+	}
 	var codes []string
 	for i, eid := range f.episodeIDs {
-		var n int
-		if err := w.st.Reader().QueryRowContext(ctx, `SELECT COUNT(*) FROM version v JOIN episode e ON e.id = ?
-			LEFT JOIN episode_version_state s ON s.version_id = v.id AND s.episode_id = e.id
-			WHERE v.title_id = e.title_id AND v.policy_key IN (`+placeholders(len(f.Versions))+`)
-			AND COALESCE(s.monitored, e.monitored) = 1`, append([]any{eid}, anys(f.Versions)...)...).Scan(&n); err != nil {
-			return "", err
-		}
-		if n < len(f.Versions) {
+		if !monitored[eid] {
 			codes = append(codes, f.Episodes[i])
 		}
 	}
@@ -662,39 +669,22 @@ func (w *Web) apiReplaceReported(rw http.ResponseWriter, r *http.Request) {
 }
 
 // searchReplaced asks the search for the movie, or every episode the replaced file held, in its libraries.
+// replaceBlocked has already found every library searchable in this request.
 func (w *Web) searchReplaced(ctx context.Context, titleID int64, f ReportFile) (*SearchOutcome, error) {
 	if len(f.episodeIDs) == 0 {
 		return w.searchNow(ctx, titleID, f.Versions)
 	}
-	active, skipped := catalog.Searchable(w.pol, f.Versions)
-	out := &SearchOutcome{Versions: active, Skipped: skipped}
-	if out.Versions == nil {
-		out.Versions = []string{}
-	}
-	if out.Skipped == nil {
-		out.Skipped = []catalog.Skip{}
-	}
-	if len(active) == 0 {
-		out.Message = "Nothing searched: " + skipWords(skipped)
-		return out, nil
-	}
-	queued, found, err := w.add.Acquirer.Submit(ctx, 0, acquire.Selection{Versions: active, TitleIDs: []int64{titleID},
-		EpisodeIDs: f.episodeIDs})
+	queued, found, err := w.add.Acquirer.Submit(ctx, 0, acquire.Selection{Versions: f.Versions,
+		TitleIDs: []int64{titleID}, EpisodeIDs: f.episodeIDs})
 	if err != nil {
 		return nil, err
 	}
-	out.Queued, out.Found, out.Started = queued, found, queued > 0
+	out := &SearchOutcome{Versions: f.Versions, Skipped: []catalog.Skip{}, Queued: queued, Found: found,
+		Started: queued > 0, Message: "Searching " + strings.Join(f.Episodes, ", ") + " in " + w.labelList(f.Versions)}
 	if queued == 0 {
 		out.Message = "Nothing to search: no monitored episode in " + strings.Join(f.Episodes, ", ")
-	} else {
-		out.Message = "Searching " + strings.Join(f.Episodes, ", ") + " in " + w.labelList(active)
 	}
 	return out, nil
-}
-
-// placeholders is n question marks for an IN list.
-func placeholders(n int) string {
-	return strings.TrimSuffix(strings.Repeat("?, ", n), ", ")
 }
 
 func anys[T any](xs []T) []any {
