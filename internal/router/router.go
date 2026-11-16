@@ -788,7 +788,8 @@ func (r *Router) candidate(ctx context.Context, s *routeState, c *Candidate) (ve
 				step(Step{Client: s.vp.Client, Outcome: "skipped", Code: code, Message: msg})
 				return vContent, time.Time{}, nil
 			}
-		} else if s.req.DownloadID == 0 {
+		} else if s.req.DownloadID == 0 && s.req.ManualSince.IsZero() {
+			// A grab by hand always opens its download: each provider's own guards answer, as attempts.
 			if known, why, err := r.knownMiss(ctx, s, c, hash); err != nil {
 				return 0, time.Time{}, err
 			} else if known {

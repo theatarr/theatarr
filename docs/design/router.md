@@ -63,19 +63,25 @@ opens no download row (`TestKnownMissOpensNoDownload`).
 force it to try again on providers"). The Interactive search grab and its Try again, Add by magnet or hash,
 Activity's Retry and the compatible API's `POST release` set `Request.ManualSince` to the time of the click
 (`release/push`, automatic searches, RSS, lists and the router's own retries do not). A stored negative
-`provider_cache` row checked before that time skips nothing: not the `known_miss` skip before a download is opened,
-not a client's `known_miss`, not a provider's `miss` or `known_uncached` (`asksAgain`). Each provider is really
+`provider_cache` row checked before that time skips nothing: not a client's `known_miss`, not a provider's `miss` or
+`known_uncached` (`asksAgain`). The `known_miss` skip before a download is opened does not run for it at all: a grab
+by hand always opens its download, and each provider's own guards record their answers as its attempts (an RD-only
+library and a name RD refuses: one `rd_name_rule` attempt, then "miss on every provider"). Each provider is really
 tried as on a first attempt: TorBox by its cache check under `cached_only`, RD and AD by an add whose read-back
 decides, our own uncached add deleted as always. Rows written at or after the click (its own answers) are honoured,
-so a route that defers and continues, or the one largest-video retry, asks no provider twice for one click; a
+so a route that defers and continues asks a provider once per click for each file selection, while that answer is
+within its TTL: RD's one largest-video second add (altRetry) runs for a grab by hand as for any route, and an answer
+that expires during a long deferral is asked again, as for automatic grabs; a
 download found again after a restart (`DownloadRequest`) keeps `ManualSince` at its creation when its source is a
 grab by hand. What asking again cannot change stands: a single-hash 451 (`router:451`) and a file name RD refused
 (`router:rd_name`), RD's release-name rule, a title's 451s, pacing, back-off and limits, the blocklist and the
 in-flight checks. A manual grab that every provider misses fails as before and is not blocklisted by it. Tests:
-`TestManualGrabAsksAgain` (the same request with and without `ManualSince`), `TestManualGrabKeepsStandingRefusals`.
+`TestManualGrabAsksAgain` (the same request with and without `ManualSince`), `TestManualGrabKeepsStandingRefusals`,
+`TestManualGrabOpensDownloadWhenNothingCanBeAsked`, `TestScreenManualResumesStranded`.
 Before the Interactive search grab or Add by magnet or hash is queued, `router.ScreenManual` runs the route's own
 screens that open no download on it (the version not routed, `upgrades: off` with a file there, a series' episodes
-held by another download, the blocklist, the same hash in flight, a client-routed version's indexer rule), and the
+held by another download, the blocklist, the same hash in flight unless its queued row is stranded and the route would resume it, a client-routed version's
+indexer rule), and the
 grab is refused with the reason ("Blocklisted for <library>: unblock it under Activity › Blocklist", "Already
 downloading: <release>"), shown as the "Not sent" toast; a movie grab of another release while one downloads stays
 allowed (`TestGrabSaysWhyNothingStarts`).

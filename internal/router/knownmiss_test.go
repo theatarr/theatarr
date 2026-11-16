@@ -96,14 +96,19 @@ func TestManualGrabAsksAgain(t *testing.T) {
 		store.Millis(e.clock)); n != 3 {
 		t.Errorf("%d fresh evidence rows, want 3", n)
 	}
-	// The same click again (a continuation, the selection retry): the fresh answers stand.
+	// The same click again (a continuation, the selection retry): the fresh answers stand; it opens its download,
+	// which fails with each provider's answer, and asks no provider.
 	e.clock = e.clock.Add(time.Minute)
 	n := f.requests()
 	if res, err = e.r.Route(e.ctx, manual); err != nil {
 		t.Fatal(err)
 	}
-	if res.DownloadID != 0 || !hasStep(res, "known_miss") || f.requests() != n || len(e.pr["tb"].checked) != 1 {
+	if res.DownloadID == 0 || hasStep(res, "known_miss") || f.requests() != n || len(e.pr["tb"].checked) != 1 ||
+		e.ad["tb"].writes() != 0 {
 		t.Errorf("same click again: %+v: %s", res, steps(res))
+	}
+	if got := attempts(e, res.DownloadID); got != "rd/skipped/miss; ad/skipped/miss; tb/skipped/known_uncached; " {
+		t.Errorf("same click again: attempts %s", got)
 	}
 }
 
@@ -160,5 +165,61 @@ func TestManualGrabKeepsStandingRefusals(t *testing.T) {
 		VALUES ('movie', ?, 'x', 'rejected', 'library', 0)`, h("c"))
 	if res = manual(cand(h("c"), "Movie.2024.2160p.WEB.H265-GRP")); res.DownloadID != 0 || !hasStep(res, "blocklisted") {
 		t.Errorf("blocklisted: %+v: %s", res, steps(res))
+	}
+}
+
+// A grab by hand always opens its download, even when no provider can be asked: an RD-only library and a release
+// name RD refuses fails the download with RD's answer as its attempt, where an automatic route skips it as before.
+func TestManualGrabOpensDownloadWhenNothingCanBeAsked(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true)
+	e.pol.Versions["movie"].Providers = []string{"rd"}
+	c := cand(h("a"), "Movie.2024.2160p.WEB-DL.DDP5.1-GRP")
+	e.putEvidence(h("a"), "rd", "miss", "router:miss", e.clock.Add(-time.Minute))
+	res, err := e.r.Route(e.ctx, grabReq(c))
+	if err != nil || res.DownloadID != 0 || !hasStep(res, "known_miss") {
+		t.Fatalf("automatic: %+v %v: %s", res, err, steps(res))
+	}
+	manual := grabReq(c)
+	manual.ManualSince = e.clock
+	if res, err = e.r.Route(e.ctx, manual); err != nil || res.DownloadID == 0 {
+		t.Fatalf("manual: %+v %v: %s", res, err, steps(res))
+	}
+	if got := attempts(e, res.DownloadID); got != "rd/skipped/rd_name_rule; " {
+		t.Errorf("attempts %s", got)
+	}
+	if n := e.count(`SELECT COUNT(*) FROM download WHERE id = ? AND state = 'failed' AND error = ?`, res.DownloadID,
+		MissOnEveryProvider); n != 1 {
+		t.Error("the download did not fail as a miss on every provider")
+	}
+	if e.writes() != 0 {
+		t.Errorf("%d provider writes", e.writes())
+	}
+}
+
+// ScreenManual lets a grab of a hash through when its queued download is stranded (no route job will pick it up): the
+// route resumes that row. One a route job holds is in flight.
+func TestScreenManualResumesStranded(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true)
+	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, quality,
+		score, episodes, state, created_at, updated_at) VALUES (5, 1, 10, 'movie', ?, 'Movie.HELD', 'pub', 'WEBDL-2160p',
+		100, '[]', 'queued', 0, 0)`, h("a"))
+	screen := func() *Unstartable {
+		t.Helper()
+		u, err := ScreenManual(e.ctx, e.st, e.pol, nil, func() time.Time { return e.clock },
+			grabReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return u
+	}
+	if u := screen(); u != nil {
+		t.Errorf("stranded queued row: %+v", u)
+	}
+	e.exec(`INSERT INTO job (kind, payload, dedupe_key, state, run_at, created_at, updated_at) VALUES (?, '{}', ?, 'queued', 0, 0, 0)`,
+		JobRoute, routeJobKey(5))
+	if u := screen(); u == nil || u.Code != "in_flight" || u.Release != "Movie.HELD" {
+		t.Errorf("queued row with its route job: %+v", u)
 	}
 }
