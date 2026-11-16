@@ -52,6 +52,11 @@ describe("copyTone", () => {
     expect(copyTone({ monitored: false, coverage: cov(13, 17, { missing: 4 }), acquisition: acq("blocked") }, series)).toBe("ok");
     expect(copyWords({ monitored: false, coverage: cov(0, 17, { missing: 17 }) }, series)).toBe("0 of 17 episodes available, not monitored");
     expect(copyWords({ monitored: false, acquisition: acq("blocked"), coverage: cov(1, 3) }, series)).toBe("1 of 3 episodes available, not monitored, a download is blocked");
+    expect(copyWords({ monitored: false, coverage: cov(1, 3, { in_flight: 1 }) }, series)).toBe("1 of 3 episodes available, not monitored, 1 in progress");
+    // A monitored library with none of its episodes monitored, where the count is sent (the title page).
+    expect(copyWords({ monitored: true, coverage: cov(3, 3, { monitored: 0 }) }, series)).toBe("3 of 3 episodes · none monitored");
+    // Without the count (list rows leave 0 out): the plain coverage.
+    expect(copyWords({ monitored: true, coverage: cov(3, 3) }, series)).toBe("3 of 3 episodes linked");
     expect(copyTone({ monitored: true, coverage: cov(0, 17, { in_flight: 3 }) }, series)).toBe("progress");
   });
 

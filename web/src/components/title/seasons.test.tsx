@@ -514,6 +514,8 @@ describe("One status vocabulary", () => {
     await user.click(screen.getByRole("radio", { name: "Anime old" }));
     await screen.findByText("One");
     expect(screen.queryByTestId("cell-upgrade")).toBeNull();
+    // Nor in the cell's tooltip.
+    for (const cellEl of document.querySelectorAll('[data-col="status"]')) expect(cellEl.getAttribute("title") ?? "").not.toMatch(/Upgrade found|Preferred quality/);
     await user.click(screen.getByRole("button", { name: /^Episode 1:/ }));
     const dialog = await screen.findByRole("dialog");
     expect((await within(dialog).findByTestId("episode-library-off")).textContent).toContain("Anime old is not monitored for this title");

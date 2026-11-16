@@ -17,6 +17,18 @@ describe("VersionStatus", () => {
     expect(screen.queryByTestId("links-off")).toBeNull();
   });
 
+  it("quiet: says nothing while all is well, and never Downloads on beside a closed gate", () => {
+    const { container } = render(<VersionStatus state={on} quiet />);
+    expect(container.textContent).toBe("");
+    cleanup();
+    render(<MemoryRouter><VersionStatus state={{ ...on, will_grab: true, library_writes: false }} quiet /></MemoryRouter>);
+    expect(screen.getByTestId("links-off")).toBeTruthy();
+    expect(screen.queryByText("Downloads on")).toBeNull();
+    cleanup();
+    render(<MemoryRouter><VersionStatus state={{ ...on, paused: true }} quiet /></MemoryRouter>);
+    expect(screen.getByText("Paused")).toBeTruthy();
+  });
+
   const cases: [Partial<typeof on & { will_grab: boolean }>, string, string[]][] = [
     [{ paused: true }, "Paused", ["Paused: turn Pause off at the top of the page"]],
     [{ paused: true, pause_forced: true }, "Paused", ["Paused by the environment (THEATARR_FORCE_OFF)"]],

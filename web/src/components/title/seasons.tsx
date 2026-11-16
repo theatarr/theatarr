@@ -128,10 +128,11 @@ function statusOf(e: Episode, copies: { key: string; monitored?: boolean }[], me
   return { s, label: statusWords(s, seeFiles).label, quality: seeFiles && c?.has_file ? c.quality : undefined, cell: c, upgrade: cellUpgrade(c, seeFiles) && !off.has(keys[0]) };
 }
 
-/** A cell's tooltip: the quality word, release group, size, score (when scored) and monitoring. */
-function cellTitle(c: Cell | undefined): string | undefined {
+/** A cell's tooltip: the quality word (none in a library that does not monitor the title, off), release group, size,
+ *  score (when scored) and monitoring. */
+function cellTitle(c: Cell | undefined, off = false): string | undefined {
   if (!c) return undefined;
-  const quality = c.has_file ? (c.upgrade_seen ? UPGRADE_FOUND : c.state === "filled" ? BELOW_PREFERRED : undefined) : undefined;
+  const quality = c.has_file && !off ? (c.upgrade_seen ? UPGRADE_FOUND : c.state === "filled" ? BELOW_PREFERRED : undefined) : undefined;
   const parts = [quality, c.release_group, c.size_bytes ? fmtBytes(c.size_bytes) : undefined, c.score != null ? `profile score ${fmtNumber(c.score)}` : undefined, c.monitored ? "monitored" : "not monitored"];
   return parts.filter(Boolean).join(" · ") || undefined;
 }
@@ -331,7 +332,7 @@ function ColumnCell({ id, e, c, seeFiles, day, off = false }: { id: EpisodeColum
     case "status": {
       const s = cellStatus(c, aired(e), off);
       return (
-        <TableCell title={cellTitle(c)} data-col="status">
+        <TableCell title={cellTitle(c, off)} data-col="status">
           <StatusText st={{ s, label: statusWords(s, seeFiles).label, upgrade: cellUpgrade(c, seeFiles) && !off }} manage={false} />
           <CellStage cell={c} />
         </TableCell>
@@ -502,7 +503,7 @@ function MatrixTable({ episodes, copies, merged, anime, manage, seeFiles, select
               copies.map((v) => {
                 const st = statusOf(e, [v], false, seeFiles);
                 return (
-                  <TableCell key={v.key} title={cellTitle(st.cell)} data-state={st.s}>
+                  <TableCell key={v.key} title={cellTitle(st.cell, seeFiles && v.monitored === false)} data-state={st.s}>
                     <StatusText st={st} manage={manage} />
                     <CellStage cell={st.cell} />
                   </TableCell>

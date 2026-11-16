@@ -91,7 +91,7 @@ export function versionBrief(v: Version): VersionBrief {
   const e = v.episodes;
   return {
     key: v.key, label: v.label, state: v.state, monitored: v.monitored, has_file: v.has_file, acquisition: v.acquisition,
-    coverage: e ? { have: e.have, total: e.total, aired: e.total, upcoming: 0, missing: e.missing } : undefined,
+    coverage: e ? { have: e.have, total: e.total, aired: e.total, upcoming: 0, missing: e.missing, monitored: e.monitored } : undefined,
   };
 }
 
@@ -115,8 +115,11 @@ export function libraryStatus(v: Version, t: ToneTitle, day?: string): LibrarySt
     const missing = e?.missing ?? 0;
     // A library that monitors none of its episodes says so once: "291 of 291 episodes available, not monitored",
     // "37 of 37 episodes · none monitored".
-    const none = unmonitoredCoverage(e, v.monitored !== false);
-    if (none) return { label: a?.stage === "blocked" ? `${none}, a download is blocked` : none, tone };
+    // with the download in hand, in the same words as the libraries window (copyWords).
+    if (unmonitoredCoverage(e, v.monitored !== false)) {
+      const words = copyWords(b, t, day);
+      return { label: words.charAt(0).toUpperCase() + words.slice(1), tone };
+    }
     // A monitored library with the monitored counts: "44 of 46 monitored episodes", then "2 missing · 30 not monitored".
     if (e && v.monitored && e.monitored != null && e.total > 0) {
       const off = Math.max(0, e.total - e.monitored);

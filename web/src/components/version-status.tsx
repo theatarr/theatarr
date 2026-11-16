@@ -22,6 +22,8 @@ export function VersionStatus({ state, words = false, settingsKey, canManage = f
   const id = useId();
   const [open, setOpen] = useState(false);
   if (quiet && (!state || (verdict(state).word === "Downloads on" && !linksOff(state)))) return null;
+  // Quiet: the verdict badge only when it says something (Paused, Downloads off), never "Downloads on".
+  const hideOn = quiet && !!state && verdict(state).word === "Downloads on";
   if (!state) return words ? <Badge tone="neutral" data-testid="state-words">{stateWords(undefined).text}</Badge> : null;
   const v = verdict(state);
   const gates = closedGates(state, settingsKey);
@@ -36,7 +38,7 @@ export function VersionStatus({ state, words = false, settingsKey, canManage = f
     <Badge tone={phrase.tone} data-testid="state-words" title={!why && gates.length ? gates.map((g) => g.text).join(". ") + "." : undefined}>{phrase.text}</Badge>
     {linksOff(state) && phrase.text !== "New files won't be linked" ? <Badge tone="ghost" data-testid="links-off">New files won't be linked</Badge> : null}
   </> : <>
-    <Badge tone={v.tone} title={!why && gates.length ? gates.map((g) => g.text).join(". ") + "." : undefined}>{v.word}</Badge>
+    {hideOn ? null : <Badge tone={v.tone} title={!why && gates.length ? gates.map((g) => g.text).join(". ") + "." : undefined}>{v.word}</Badge>}
     {linksOff(state) ? <Badge tone="ghost" data-testid="links-off">New files won't be linked</Badge> : null}
   </>;
   if (!why) {

@@ -78,6 +78,9 @@ describe("library status while searching and by monitored episodes", () => {
     // A blocked download is still said beside them.
     const blocked = { stage: "blocked", words: "", download_id: 1, downloads: 1, updated_at: "" } as never;
     expect(libraryStatus(v({ monitored: false, has_file: true, acquisition: blocked, episodes: { have: 1, total: 3, missing: 0, monitored: 3, monitored_have: 1 } }), series, DAY).label).toBe("1 of 3 episodes available, not monitored, a download is blocked");
+    // Any download in hand, not only a blocked one, in the libraries window's words.
+    const going = { stage: "downloading", progress: 37, episodes: 1, words: "", download_id: 1, downloads: 1, updated_at: "" } as never;
+    expect(libraryStatus(v({ monitored: false, has_file: true, acquisition: going, episodes: { have: 1, total: 3, missing: 0, monitored: 3, monitored_have: 1 } }), series, DAY).label).toBe("1 of 3 episodes available, not monitored, 1 in progress");
   });
 });
 
