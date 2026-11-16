@@ -14,9 +14,10 @@ const ADD_FAILED = "the add failed";
 /** How often the button asks again while the copy runs. */
 export const COPY_POLL_MS = 3000;
 
-/** The button's tooltip; pack: the torrent holds more than this file, and the whole pack is added. */
+/** The button's tooltip; pack: the torrent may hold more than this file (an episode's, a Torrents row of several
+ *  files), and then the whole pack is added. */
 export const addToTooltip = (pack = false) =>
-  `Adds this file's torrent${pack ? " (the whole pack)" : ""} to the other providers that have it cached. An add that is not cached is removed again.`;
+  `Adds this file's torrent${pack ? " (the whole pack, when it came in one)" : ""} to the other providers that have it cached. An add that is not cached is removed again.`;
 
 /** One provider's part of the line. */
 export function copyPart(r: CopyResult): string {

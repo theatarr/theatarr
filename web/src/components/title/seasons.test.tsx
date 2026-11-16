@@ -491,6 +491,14 @@ describe("Episode window", () => {
     expect(within(dialog).getAllByTestId("episode-history")).toHaveLength(2);
     expect(within(dialog).queryByTestId("episode-file")).toBeNull();
   });
+
+  it("says an episode's Add to other providers adds the whole pack when the file came in one", async () => {
+    const withFile = { ...detail, versions: [detail.versions[0], { ...detail.versions[1], file: { quality: "WEBDL-1080p", cached_on: ["rd"], add_to: ["tb"], info_hash: "a".repeat(40) }, history: [] }] };
+    mockFetch([routes[0], routes[1], { method: "GET", path: "/titles/1/episodes/102", reply: withFile }]);
+    renderPage(<Seasons id="1" anime />, "/title/1?episode=102");
+    const file = await within(await screen.findByRole("dialog")).findByTestId("episode-file");
+    expect(within(file).getByTestId("add-to-providers").getAttribute("title")).toContain("this file's torrent (the whole pack, when it came in one) to");
+  });
 });
 
 describe("One status vocabulary", () => {

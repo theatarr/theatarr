@@ -212,7 +212,7 @@ function DetailsPart({ titleId, eid, epCode, d, aired, manage, admin, single, ac
           <KV items={rows} />
           {manage && d.file ? (
             <div className="mt-3">
-              <AddToProviders hash={d.file.info_hash} addTo={d.file.add_to} />
+              <AddToProviders hash={d.file.info_hash} addTo={d.file.add_to} pack />
             </div>
           ) : null}
           {admin && d.file?.link_id ? (

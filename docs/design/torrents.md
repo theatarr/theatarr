@@ -270,7 +270,9 @@ page stays admin. The server says where it may add: the file facts and the Torre
 tags of the providers with a key that do not hold the hash complete (`Manager.CopyTargets`); the button shows when it is
 not empty. Any hash a file shows counts, the folder hash of a file taken over from Sonarr/Radarr too: good enough to add a
 torrent, never proof for a delete. A hash Theatarr does not know (no record row, active link or download not failed) is
-404. No confirmation: nothing is lost by it.
+404. No confirmation: nothing is lost by it. Its tooltip: "Adds this file's torrent to the other providers that have it
+cached. An add that is not cached is removed again."; in the episode window and on a Torrents row of several files it
+says "this file's torrent (the whole pack, when it came in one)": an episode from a season pack adds the season.
 
 The click queues job `torrents.copy` (dedupe key `torrents.copy/<hash>`, one attempt; the automatic copy below has its
 own key, so it never swallows a click) and the page asks `GET /torrents/copy/{hash}` every 3 s while it is queued or running.

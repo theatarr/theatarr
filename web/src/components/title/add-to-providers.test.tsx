@@ -31,7 +31,7 @@ describe("the result words", () => {
   });
   it("names the whole pack when the file came in one", () => {
     expect(addToTooltip()).toBe("Adds this file's torrent to the other providers that have it cached. An add that is not cached is removed again.");
-    expect(addToTooltip(true)).toContain("this file's torrent (the whole pack) to");
+    expect(addToTooltip(true)).toContain("this file's torrent (the whole pack, when it came in one) to");
   });
 });
 
