@@ -9,7 +9,7 @@ describe("liveSummary", () => {
   it("shows optional VPN modes as warnings and still counts failed jobs", () => {
     for (const mode of ["off", "monitor-only"] as const) {
       const live: Live = { connected: true, gatewayAt: 120, gateway: { egress: { mode, vpn_ok: false } }, jobsAt: 120, jobCounts: { attention: 2 } };
-      expect(liveSummary(live)).toMatchObject({ tone: "warn", label: `${mode === "off" ? "VPN guard off" : "VPN monitor-only"} · 2 failed jobs` });
+      expect(liveSummary(live)).toMatchObject({ tone: "warn", label: `${mode === "off" ? "VPN guard off" : "VPN monitor-only"} · 2 failed tasks` });
     }
   });
   it("is connecting before anything arrived", () => {
@@ -38,6 +38,6 @@ describe("liveSummary", () => {
   });
   it("counts failed jobs from the current connection", () => {
     const live: Live = { connected: true, connectedAt: 100, gateway: gw(true), gatewayAt: 120, jobsAt: 130, jobCounts: { attention: 2, failed: 3 } };
-    expect(liveSummary(live)).toMatchObject({ tone: "warn", label: "VPN up · 2 failed jobs" });
+    expect(liveSummary(live)).toMatchObject({ tone: "warn", label: "VPN up · 2 failed tasks" });
   });
 });

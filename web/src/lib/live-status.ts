@@ -33,7 +33,9 @@ export function liveSummary(live: Live, now = Date.now()): LiveSummary {
   const jobsCurrent = live.jobsAt !== undefined && (live.connectedAt === undefined || live.jobsAt >= live.connectedAt);
   const failed = jobsCurrent ? attentionCount(live.jobCounts) : 0;
   const parts = [mode === "off" ? "VPN guard off" : mode === "monitor-only" ? "VPN monitor-only" : vpn === true ? "VPN up" : "VPN unknown"];
-  if (failed > 0) parts.push(`${failed} failed job${failed === 1 ? "" : "s"}`);
+  // The count is what System › Tasks lists under Needs attention (failed queue jobs and failed scheduled tasks), named
+  // as that page names them; System › Status's "Failed jobs" check counts queue jobs only.
+  if (failed > 0) parts.push(`${failed} failed task${failed === 1 ? "" : "s"}`);
   const tone: LiveTone = optional || vpn !== true || failed > 0 ? "warn" : "ok";
   return {
     tone,

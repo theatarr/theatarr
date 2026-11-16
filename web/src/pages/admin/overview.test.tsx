@@ -284,7 +284,8 @@ it("counts a download held for review or with a failed link under need attention
 it("lists the scheduled tasks with how often they run, their last and next run, and folds identical finished tasks into one row", async () => {
  const done = (id: number, at: string) => ({ id, kind: "provider.sync", state: "done", attempts: 1, max_attempts: 3, finished_at: at });
  const api = mockFetch([
-  { method: "GET", path: "/jobs", reply: { counts: {}, items: [done(1, "2026-11-14T10:00:00Z"), done(2, "2026-11-14T10:05:00Z"), done(3, "2026-11-14T10:01:00Z"), { id: 4, kind: "plex.scan", state: "done", attempts: 1, max_attempts: 3, finished_at: "2026-11-14T09:00:00Z" }] } },
+  // The server's attention count takes in the failed task (query.go jobCounts).
+  { method: "GET", path: "/jobs", reply: { counts: { attention: 1 }, items: [done(1, "2026-11-14T10:00:00Z"), done(2, "2026-11-14T10:05:00Z"), done(3, "2026-11-14T10:01:00Z"), { id: 4, kind: "plex.scan", state: "done", attempts: 1, max_attempts: 3, finished_at: "2026-11-14T09:00:00Z" }] } },
   { method: "GET", path: "/tasks", reply: { items: [
    { key: "shadow.rss", name: "Check RSS feeds", every_seconds: 900, last_started: "2026-11-14T09:59:00Z", last_finished: "2026-11-14T10:00:00Z", last_duration_ms: 60000, last_error: "boom", next_run: "2026-11-14T10:14:00Z" },
    { key: "notify.digest", name: "Send the daily digest", every_seconds: 0, at: "09:00", last_duration_ms: 0 },
@@ -306,8 +307,8 @@ it("lists the scheduled tasks with how often they run, their last and next run, 
  expect(rec.querySelector("[data-testid='task-run-acquire.wanted']")).toBeNull();
  // A failed task needs attention until a run works.
  expect(screen.getByTestId("tasks-failed").textContent).toContain("boom");
- // The summary counts it, as Needs attention shows it.
- expect(screen.getByTestId("jobs-attention").textContent).toContain("1");
+ // The summary counts it once, as Needs attention shows it.
+ expect(screen.getByTestId("jobs-attention").textContent).toBe("1");
  expect(screen.getByTestId("jobs-failed").textContent).toContain("1");
  fireEvent.click(screen.getAllByTestId("task-run-shadow.rss")[0]);
  await waitFor(() => expect(api.calls("POST", "/tasks/shadow.rss/run")).toHaveLength(1));

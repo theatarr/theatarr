@@ -24,8 +24,9 @@ export function JobsPage() {
   const tasks = useTasks();
   const runTask = useRunTask();
   const failedTasks = (tasks.data?.items ?? []).filter((t) => t.last_error && (!kind || t.key === kind));
-  // The failed scheduled tasks are listed under Needs attention with the failed jobs, so the counts take them in.
-  const open = attentionCount(counts) + failedTasks.length;
+  // The failed scheduled tasks are listed under Needs attention with the failed jobs; the server's attention count
+  // already takes them in (internal/web query.go jobCounts), so they are not added again.
+  const open = attentionCount(counts);
   const header = <PageHeader crumb={[{ label: "System", to: "/admin" }]} title="Tasks" description="Background work: what failed and needs a look first, then what runs next." />;
   if (jobs.isPending) return <div>{header}<Loading /></div>;
   if (jobs.error) return <div>{header}<ErrorState error={jobs.error} /></div>;
