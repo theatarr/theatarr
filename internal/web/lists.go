@@ -409,10 +409,10 @@ func (w *Web) apiAddList(rw http.ResponseWriter, r *http.Request) {
 	}
 	enabled := in.Enabled == nil || *in.Enabled
 	now := store.Millis(w.now())
-	res, err := w.st.Writer().ExecContext(ctx, `INSERT INTO import_list (name, list_type, tmdb_id, url, api_key, enabled,
-		enable_auto, monitor, search_on_add, versions, minimum_availability, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		in.Name, in.ListType, in.TmdbID, in.URL, in.APIKey, enabled, enabled, in.Monitor, in.SearchOnAdd, versions,
+	res, err := w.st.Writer().ExecContext(ctx, `INSERT INTO import_list (name, list_type, media, tmdb_id, url, api_key,
+		enabled, enable_auto, monitor, search_on_add, versions, minimum_availability, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		in.Name, in.ListType, kind, in.TmdbID, in.URL, in.APIKey, enabled, enabled, in.Monitor, in.SearchOnAdd, versions,
 		in.MinimumAvailability, now, now)
 	if err != nil {
 		w.internal(rw, errors.New(arr.Mask(err.Error(), in.APIKey)))

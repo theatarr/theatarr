@@ -845,8 +845,8 @@ func TestSonarrListAddsSeries(t *testing.T) {
 		return nil
 	}
 	for _, q := range []string{
-		`INSERT INTO import_list(id,name,list_type,url,api_key,versions,monitor,search_on_add,created_at,updated_at) VALUES
-			(1,'Sonarr','sonarr','http://10.0.0.7:8989','secret','["anime-tv","tv"]','all',1,0,0)`,
+		`INSERT INTO import_list(id,name,list_type,media,url,api_key,versions,monitor,search_on_add,created_at,updated_at) VALUES
+			(1,'Sonarr','sonarr','series','http://10.0.0.7:8989','secret','["anime-tv","tv"]','all',1,0,0)`,
 		`INSERT INTO title(id,kind,name,tvdb_id,created_at,updated_at) VALUES(73,'series','Kept',403,0,0),(74,'series','Elsewhere',404,0,0)`,
 		// Stored without a TVDB id and not anime, though the instance calls it anime.
 		`INSERT INTO title(id,kind,name,tmdb_id,anime,created_at,updated_at) VALUES(75,'series','By TMDb id',505,0,0,0)`,
