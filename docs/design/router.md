@@ -73,6 +73,12 @@ grab by hand. What asking again cannot change stands: a single-hash 451 (`router
 (`router:rd_name`), RD's release-name rule, a title's 451s, pacing, back-off and limits, the blocklist and the
 in-flight checks. A manual grab that every provider misses fails as before and is not blocklisted by it. Tests:
 `TestManualGrabAsksAgain` (the same request with and without `ManualSince`), `TestManualGrabKeepsStandingRefusals`.
+Before the Interactive search grab or Add by magnet or hash is queued, `router.ScreenManual` runs the route's own
+screens that open no download on it (the version not routed, `upgrades: off` with a file there, a series' episodes
+held by another download, the blocklist, the same hash in flight, a client-routed version's indexer rule), and the
+grab is refused with the reason ("Blocklisted for <library>: unblock it under Activity › Blocklist", "Already
+downloading: <release>"), shown as the "Not sent" toast; a movie grab of another release while one downloads stays
+allowed (`TestGrabSaysWhyNothingStarts`).
 
 **Policy changes while a route waits**: every route job carries the policy revision it was decided
 under (`decision_rev`). A deferred automatic route that runs under another revision decides its candidates again

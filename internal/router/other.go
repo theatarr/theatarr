@@ -128,6 +128,76 @@ func ScreenOther(ctx context.Context, st *store.Store, pol *policy.Policy, profi
 	return c, "", nil
 }
 
+// Unstartable is why a grab by hand would open no download: Code is the step code the route would record
+// (blocklisted, in_flight, upgrades_off, client_indexer, not_debrid) and Message its words; for in_flight, Download
+// and Release name the download that holds the release or its episodes already.
+type Unstartable struct {
+	Code, Message string
+	Download      int64
+	Release       string
+}
+
+// ScreenManual runs on the one candidate of a grab by hand (req) the route's own screens that open no download,
+// with the same functions, so the grab can say why before it is queued: the version not routed (notRouted), upgrades
+// off with a file there (screenUpgrades), a series' episodes held by another download (episodesInFlight), the
+// blocklist (blocklisted), the same hash in flight (inFlight) and, for a client-routed version, an indexer that keeps
+// its releases on providers (clientIndexer). A movie grab by hand is not held back by another release in flight, as
+// in the route. nil when the route would try it. It writes nothing.
+func ScreenManual(ctx context.Context, st *store.Store, pol *policy.Policy, profiles ProfileFunc, now func() time.Time,
+	req Request) (*Unstartable, error) {
+	vp := pol.Versions[req.Version]
+	if vp == nil || len(req.Candidates) != 1 {
+		return nil, nil
+	}
+	if why := notRouted(vp); why != "" {
+		return &Unstartable{Code: codeNotDebrid, Message: why}, nil
+	}
+	r := &Router{st: st, pol: pol, set: pol.RouterSettings(), log: slog.New(slog.DiscardHandler), now: now,
+		profiles: profiles}
+	req.DownloadID = 0
+	s := &routeState{req: req, vp: vp, res: &Result{Version: req.Version, Steps: []Step{}}, pace: map[string]pace{}}
+	cands, err := r.screenUpgrades(ctx, s, req.Candidates)
+	if err != nil {
+		return nil, err
+	}
+	if len(cands) == 0 {
+		return &Unstartable{Code: codeUpgradesOff, Message: s.res.Steps[len(s.res.Steps)-1].Message}, nil
+	}
+	c := &cands[0]
+	hash := indexer.NormalizeHash(c.Release.InfoHash)
+	held := func(id int64) (*Unstartable, error) {
+		u := &Unstartable{Code: "in_flight", Download: id, Message: fmt.Sprintf("download %d holds it already", id)}
+		err := st.Reader().QueryRowContext(ctx, `SELECT release_title FROM download WHERE id = ?`, id).Scan(&u.Release)
+		return u, err
+	}
+	if vp.Kind == policy.KindSeries {
+		if id, err := r.episodesInFlight(ctx, s.req, c, false); err != nil || id != 0 {
+			if err != nil {
+				return nil, err
+			}
+			return held(id)
+		}
+	}
+	if why, err := r.blocklisted(ctx, req.Version, hash, c.Release.Title); err != nil || why != "" {
+		if err != nil {
+			return nil, err
+		}
+		return &Unstartable{Code: "blocklisted", Message: why}, nil
+	}
+	if id, ok, err := r.inFlight(ctx, s.req, hash); err != nil || ok {
+		if err != nil {
+			return nil, err
+		}
+		return held(id)
+	}
+	if vp.ViaClient() {
+		if code, msg := r.clientIndexer(vp, &c.Release); code != "" {
+			return &Unstartable{Code: code, Message: msg}, nil
+		}
+	}
+	return nil, nil
+}
+
 // HoldsHash reports whether a version already has the hash: an active link of ours, or a download of it that did not
 // fail.
 func HoldsHash(ctx context.Context, db *sql.DB, versionID int64, hash string) (bool, error) {

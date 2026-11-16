@@ -269,3 +269,32 @@ func TestUnlinkLink(t *testing.T) {
 		t.Errorf("unknown link: %v", err)
 	}
 }
+
+// TestGrabSaysWhyNothingStarts: a grab by hand the route would skip without opening a download is refused before it is
+// queued, in words and without the rejections that offer "Grab anyway": blocklisted for the library, or a download
+// already holding it.
+func TestGrabSaysWhyNothingStarts(t *testing.T) {
+	t.Parallel()
+	e := newDevEnv(t)
+	ctx := context.Background()
+	rel := indexer.Release{Indexer: "prowlarr-public", Kind: "torznab", Privacy: policy.PrivacyPublic,
+		Title: "Alpha.2020.2160p.WEB-DL.H265-GRP", InfoHash: strings.Repeat("9", 40), Size: 10 << 30}
+	lib := policy.LibraryNames(e.pol)["movie-web"]
+	e.exec(`INSERT INTO router_blocklist (version_key, info_hash, title_id, release_title, reason, source, created_at)
+		VALUES ('movie-web', ?, 1, 'x', 'sample', 'library', 0)`, rel.InfoHash)
+	g, err := e.svc.GrabRelease(ctx, 1, "movie-web", rel, false, "ui:grab:test")
+	if !isRefused(err) || g != nil || err.Error() != "Blocklisted for "+lib+": unblock it under Activity › Blocklist" {
+		t.Fatalf("blocklisted: %+v %v", g, err)
+	}
+	e.exec(`DELETE FROM router_blocklist`)
+	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, quality,
+		score, episodes, state, created_at, updated_at) VALUES (70, 1, 2, 'movie-web', ?, 'Alpha.2020.2160p.WEB-DL-HELD',
+		'prowlarr-public', 'WEBDL-2160p', 50, '[]', 'downloading', 0, 0)`, rel.InfoHash)
+	g, err = e.svc.AddRelease(ctx, 1, "movie-web", rel, false, "ui:grab:test")
+	if !isRefused(err) || g != nil || err.Error() != "Already downloading: Alpha.2020.2160p.WEB-DL-HELD" {
+		t.Fatalf("in flight: %+v %v", g, err)
+	}
+	if n := e.str(`SELECT COUNT(*) FROM job WHERE kind = 'router.route'`); n != "0" {
+		t.Errorf("%s routes queued for grabs that cannot start", n)
+	}
+}

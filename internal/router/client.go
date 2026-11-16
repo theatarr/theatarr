@@ -64,9 +64,8 @@ func BuildClients(pol *policy.Policy, d qbit.Doer, getenv func(string) string, l
 // or the client missed the hash within miss_ttl. "" when it may.
 func (r *Router) clientSkip(ctx context.Context, s *routeState, rel *indexer.Release, hash string) (code, msg string,
 	err error) {
-	if ix := r.pol.Indexers[rel.Indexer]; ix != nil && len(ix.Providers) > 0 {
-		return codeClientIndexer, fmt.Sprintf("indexer %s keeps its releases on the providers it lists "+
-			"(indexers.%s.providers); client %s picks its own account", rel.Indexer, rel.Indexer, s.vp.Client), nil
+	if code, msg := r.clientIndexer(s.vp, rel); code != "" {
+		return code, msg, nil
 	}
 	state, err := r.cacheState(ctx, hash, clientCacheKey(s.vp.Client), r.now(), s.req.ManualSince)
 	if err != nil {
@@ -76,6 +75,16 @@ func (r *Router) clientSkip(ctx context.Context, s *routeState, rel *indexer.Rel
 		return "known_miss", "client " + s.vp.Client + " did not have it cached within miss_ttl", nil
 	}
 	return "", "", nil
+}
+
+// clientIndexer is clientSkip's indexer rule: an indexer that lists providers keeps its releases off a client-routed
+// version vp. "" when it does not.
+func (r *Router) clientIndexer(vp *policy.VersionPolicy, rel *indexer.Release) (code, msg string) {
+	if ix := r.pol.Indexers[rel.Indexer]; ix != nil && len(ix.Providers) > 0 {
+		return codeClientIndexer, fmt.Sprintf("indexer %s keeps its releases on the providers it lists "+
+			"(indexers.%s.providers); client %s picks its own account", rel.Indexer, rel.Indexer, vp.Client)
+	}
+	return "", ""
 }
 
 // viaClient places one release of a client-routed version on its client, in place of the provider loop: it adopts

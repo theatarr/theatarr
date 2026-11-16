@@ -517,9 +517,8 @@ func (r *Router) route(ctx context.Context, s *routeState, req Request, dry bool
 		req.Candidates = cands
 		s.req.Candidates = cands
 	}
-	if vp.Storage != policy.StorageDebrid || (len(vp.Providers) == 0 && !vp.ViaClient()) {
-		s.res.Steps = append(s.res.Steps, Step{Outcome: "skipped", Code: "not_debrid",
-			Message: "the version stores on " + string(vp.Storage) + "; only debrid versions are routed"})
+	if why := notRouted(vp); why != "" {
+		s.res.Steps = append(s.res.Steps, Step{Outcome: "skipped", Code: codeNotDebrid, Message: why})
 		return s.res, nil
 	}
 	// At most max_candidates releases are tried. A release skipped without a request to any provider (a live miss
@@ -622,6 +621,18 @@ func (r *Router) route(ctx context.Context, s *routeState, req Request, dry bool
 		return chosen, nil
 	}
 	return s.res, nil
+}
+
+// codeNotDebrid: the version is not routed (notRouted).
+const codeNotDebrid = "not_debrid"
+
+// notRouted says why the router routes nothing for version vp: it does not store on debrid, or it has no provider
+// and no client. "" when it routes.
+func notRouted(vp *policy.VersionPolicy) string {
+	if vp.Storage != policy.StorageDebrid || (len(vp.Providers) == 0 && !vp.ViaClient()) {
+		return "the version stores on " + string(vp.Storage) + "; only debrid versions are routed"
+	}
+	return ""
 }
 
 // Episode overlap selection follows Sonarr src/NzbDrone.Core/Download/ProcessDownloadDecisions.cs @ cab419a.

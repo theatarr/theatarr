@@ -146,6 +146,14 @@ func (s *Service) grab(ctx context.Context, titleID int64, version string, rel i
 	// A grab by hand asks the providers again: stored negative cache evidence from before now skips none.
 	req := router.Request{TitleID: titleID, VersionID: d.VersionID, Version: version,
 		Candidates: []router.Candidate{c}, Source: source, ManualSince: s.now()}
+	// What the route would skip without opening a download is said now, as a plain refusal (no rejections: nothing
+	// to grab anyway).
+	if why, err := s.unstartable(ctx, req); err != nil || why != "" {
+		if err != nil {
+			return nil, err
+		}
+		return nil, refused("%s", why)
+	}
 	out.Job, err = s.router.Enqueue(ctx, req, time.Time{})
 	if err != nil {
 		return out, fmt.Errorf("arrview: routing %s for %s: %w", rel.Title, version, err)
@@ -153,6 +161,29 @@ func (s *Service) grab(ctx context.Context, titleID int64, version string, rel i
 	s.log.Info("release grabbed by hand", "title", titleID, "version", version, "release", rel.Title,
 		"accepted", d.Accepted, "job", out.Job, "source", source)
 	return out, nil
+}
+
+// unstartable says in words why a grab by hand would open no download (router.ScreenManual); "" when it would try.
+func (s *Service) unstartable(ctx context.Context, req router.Request) (string, error) {
+	var profiles router.ProfileFunc
+	if s.engine != nil {
+		profiles = s.engine.Profile
+	}
+	u, err := router.ScreenManual(ctx, s.st, s.pol, profiles, s.now, req)
+	if err != nil || u == nil {
+		return "", err
+	}
+	lib := policy.LibraryNames(s.pol)[req.Version]
+	switch u.Code {
+	case "blocklisted":
+		return "Blocklisted for " + lib + ": unblock it under Activity › Blocklist", nil
+	case "in_flight":
+		return "Already downloading: " + u.Release, nil
+	case "upgrades_off":
+		_, files, _ := strings.Cut(u.Message, ": ")
+		return "Upgrades are off for " + lib + ": " + files, nil
+	}
+	return "Not started: " + u.Message, nil
 }
 
 // rejectionText joins a decision's rejection messages.
