@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/theatarr/theatarr/internal/gateway"
 	"github.com/theatarr/theatarr/internal/indexer"
 	"github.com/theatarr/theatarr/internal/jobs"
 	"github.com/theatarr/theatarr/internal/policy"
@@ -24,13 +25,18 @@ import (
 // fresh list read under the lock) and is deleted again on Real-Debrid and AllDebrid; TorBox refuses it itself. Nothing
 // that was on an account before is ever deleted. The library's links are not changed.
 
-// Job kinds of a copy: the button's (every provider with a key) and the one queued after an import (only the
-// providers set to also add, where the torrent is known cached). Their dedupe keys differ, so a queued automatic copy
-// never swallows a click.
-const (
-	JobCopy     = "torrents.copy"
-	JobCopyAuto = "torrents.copy.auto"
-)
+// JobCopy is a copy's job: the button's (every provider with a key) or, with CopyPayload.Auto, the one queued after an
+// import (only the providers set to also add, where the torrent is known cached). The two modes have their own dedupe
+// keys (copyDedupe), so a queued automatic copy never swallows a click.
+const JobCopy = "torrents.copy"
+
+// copyDedupe is a copy job's dedupe key: torrents.copy/<hash> for the button, torrents.copy.auto/<hash> automatically.
+func copyDedupe(hash string, auto bool) string {
+	if auto {
+		return JobCopy + ".auto/" + hash
+	}
+	return JobCopy + "/" + hash
+}
 
 // Copy outcomes (torrent_journal.outcome of action copy; OutSending while the add is out).
 const (
@@ -68,11 +74,7 @@ func EnqueueCopy(ctx context.Context, q *jobs.Queue, p CopyPayload) (int64, erro
 		return 0, errors.New("torrents: not a v1 info hash")
 	}
 	p.Hash = h
-	kind := JobCopy
-	if p.Auto {
-		kind = JobCopyAuto
-	}
-	id, _, err := q.Enqueue(ctx, kind, p, jobs.EnqueueOptions{DedupeKey: kind + "/" + h, MaxAttempts: 1})
+	id, _, err := q.Enqueue(ctx, JobCopy, p, jobs.EnqueueOptions{DedupeKey: copyDedupe(h, p.Auto), MaxAttempts: 1})
 	return id, err
 }
 
@@ -103,21 +105,17 @@ func (m *Manager) QueueAutoCopy(ctx context.Context, from, hash string) (int64, 
 	if h == "" || !m.Policy.RouterSettings().Enabled {
 		return 0, nil
 	}
+	// The providers with live cached evidence for the hash that do not hold it complete, in one read.
+	var cached []string
+	if err := scanStrings(ctx, m.Store.Reader(), `SELECT provider FROM provider_cache WHERE info_hash = ?1
+		AND state = 'cached' AND (expires_at IS NULL OR expires_at > ?2)
+		AND provider NOT IN (SELECT provider FROM provider_torrent WHERE info_hash = ?1 AND progress >= 100
+			AND state <> 'error')`, []any{h, store.Millis(m.now())}, func(k string) { cached = append(cached, k) }); err != nil {
+		return 0, err
+	}
 	var targets []string
 	for _, k := range m.keys() {
-		pv := m.Policy.Providers[k]
-		if k == from || !pv.AlsoAdd || m.Providers[k] == nil {
-			continue
-		}
-		var ok bool
-		if err := m.Store.Reader().QueryRowContext(ctx, `SELECT
-			EXISTS (SELECT 1 FROM provider_cache WHERE info_hash = ?1 AND provider = ?2 AND state = 'cached'
-				AND (expires_at IS NULL OR expires_at > ?3))
-			AND NOT EXISTS (SELECT 1 FROM provider_torrent WHERE info_hash = ?1 AND provider = ?2 AND progress >= 100
-				AND state <> 'error')`, h, k, store.Millis(m.now())).Scan(&ok); err != nil {
-			return 0, err
-		}
-		if ok {
+		if pv := m.Policy.Providers[k]; k != from && pv.AlsoAdd && m.Providers[k] != nil && slices.Contains(cached, k) {
 			targets = append(targets, k)
 		}
 	}
@@ -183,7 +181,7 @@ func (m *Manager) hashNames(ctx context.Context, h string) (string, []string) {
 	var names []string
 	if err := scanStrings(ctx, m.Store.Reader(), `SELECT name FROM provider_torrent WHERE info_hash = ?1 AND name <> ''
 		UNION ALL SELECT release_title FROM download WHERE lower(info_hash) = ?1 AND COALESCE(release_title, '') <> ''`,
-		h, func(s string) {
+		[]any{h}, func(s string) {
 			if !slices.Contains(names, s) {
 				names = append(names, s)
 			}
@@ -196,8 +194,8 @@ func (m *Manager) hashNames(ctx context.Context, h string) (string, []string) {
 	return names[0], names
 }
 
-func scanStrings(ctx context.Context, db *sql.DB, q string, arg any, f func(string)) error {
-	rows, err := db.QueryContext(ctx, q, arg)
+func scanStrings(ctx context.Context, db *sql.DB, q string, args []any, f func(string)) error {
+	rows, err := db.QueryContext(ctx, q, args...)
 	if err != nil {
 		return err
 	}
@@ -226,14 +224,6 @@ func (m *Manager) copyOne(ctx context.Context, je *JournalEntry, names []string,
 		je.Outcome, je.Detail = CopySkipped, "paused"
 		return
 	}
-	if pv.Kind == provider.KindRealDebrid {
-		for _, n := range names {
-			if indexer.RealDebridRefuses(n, false) {
-				je.Outcome, je.Detail = CopyRefused, n
-				return
-			}
-		}
-	}
 	rs := m.Policy.RouterSettings()
 	mag, err := adder.Restore(h, rs.Trackers)
 	if err != nil {
@@ -251,7 +241,7 @@ func (m *Manager) copyOne(ctx context.Context, je *JournalEntry, names []string,
 		list, err := rp.Torrents(ctx)
 		if err != nil {
 			lock.Unlock()
-			je.Outcome, je.Detail = CopyFailed, "could not read the account: "+err.Error()
+			busy(je, err, copyReadFailed+": ")
 			return
 		}
 		before = make(map[string]bool, len(list))
@@ -266,6 +256,14 @@ func (m *Manager) copyOne(ctx context.Context, je *JournalEntry, names []string,
 			lock.Unlock()
 			m.copyPresent(ctx, je, on)
 			return
+		}
+		// Real-Debrid's name rule guards only a new add: an entry already there was handled above.
+		if pv.Kind == provider.KindRealDebrid {
+			if n := refusedName(names); n != "" {
+				lock.Unlock()
+				je.Outcome, je.Detail = CopyRefused, n
+				return
+			}
 		}
 		if auto && policy.NearTorrentLimit(len(list), pv.TorrentLimit()) {
 			lock.Unlock()
@@ -313,7 +311,7 @@ func (m *Manager) copyOne(ctx context.Context, je *JournalEntry, names []string,
 			je.Outcome, je.Detail = CopyNotCached, err.Error()
 			return
 		}
-		je.Outcome, je.Detail = CopyFailed, err.Error()
+		busy(je, err, copyAddFailed+": ")
 		return
 	}
 	je.TorrentID = added.ID
@@ -352,6 +350,42 @@ func (m *Manager) copyOne(ctx context.Context, je *JournalEntry, names []string,
 		je.Detail = fmt.Sprintf("not cached, and our add could not be removed from %s: %v; remove it on the "+
 			"Torrents page", key, err)
 	}
+}
+
+// Failure details the page words without the provider's own text (that stays in the journal).
+const (
+	copyReadFailed = "could not read the account"
+	copyAddFailed  = "the add failed"
+)
+
+// busy ends je for err: skipped with the time ("until <time>: ...") when err is a back-off, hold, rate limit or
+// pacing that says when the provider takes requests again (the gateway's or the provider's own), else failed with
+// prefix and err's words.
+func busy(je *JournalEntry, err error, prefix string) {
+	var at time.Time
+	var refused *gateway.Refused
+	var ae *adder.Error
+	switch {
+	case errors.As(err, &refused):
+		at = refused.RetryAt
+	case errors.As(err, &ae):
+		at = ae.RetryAt
+	}
+	if !at.IsZero() {
+		je.Outcome, je.Detail = CopySkipped, "until "+at.UTC().Format(time.RFC3339)+": "+prefix+err.Error()
+		return
+	}
+	je.Outcome, je.Detail = CopyFailed, prefix+err.Error()
+}
+
+// refusedName is the first of names Real-Debrid's name rule refuses, or "".
+func refusedName(names []string) string {
+	for _, n := range names {
+		if indexer.RealDebridRefuses(n, false) {
+			return n
+		}
+	}
+	return ""
 }
 
 // copyPresent ends a provider that already has the hash: present, never touched. A complete entry goes into the record
@@ -441,7 +475,7 @@ func (m *Manager) CopyStatus(ctx context.Context, hash string) (*CopyState, erro
 	out := &CopyState{Results: []CopyResult{}}
 	db := m.Store.Reader()
 	if err := db.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM job WHERE dedupe_key IN (?, ?)
-		AND state IN ('queued', 'running'))`, JobCopy+"/"+h, JobCopyAuto+"/"+h).Scan(&out.Running); err != nil {
+		AND state IN ('queued', 'running'))`, copyDedupe(h, false), copyDedupe(h, true)).Scan(&out.Running); err != nil {
 		return nil, err
 	}
 	rows, err := db.QueryContext(ctx, `SELECT provider, outcome, detail, by, created_at FROM torrent_journal

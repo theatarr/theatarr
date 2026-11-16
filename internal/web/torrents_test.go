@@ -52,6 +52,10 @@ type torrentSource struct{ m *torrents.Manager }
 
 func (s torrentSource) Manager(context.Context) (*torrents.Manager, error) { return s.m, nil }
 
+func (s torrentSource) KeyedProviders(context.Context) ([]string, error) {
+	return s.m.CopyTargets(nil), nil
+}
+
 func TestTorrentsAPI(t *testing.T) {
 	t.Parallel()
 	const h1, h2 = "1111111111111111111111111111111111111111", "2222222222222222222222222222222222222222"

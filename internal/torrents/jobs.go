@@ -132,7 +132,6 @@ func RegisterJobs(w *jobs.Worker, resolve Resolver) {
 		return nil
 	}
 	w.Handle(JobCopy, copyJob)
-	w.Handle(JobCopyAuto, copyJob)
 }
 
 // NextBackup is when the next scheduled backup is due: torrents.backup.every after the newest scheduled backup, now

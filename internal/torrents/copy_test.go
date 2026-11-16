@@ -2,10 +2,13 @@ package torrents
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/theatarr/theatarr/internal/gateway"
 	"github.com/theatarr/theatarr/internal/jobs"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/provider"
@@ -300,7 +303,7 @@ func TestAutoCopy(t *testing.T) {
 	e.pol.Router = &policy.Router{Enabled: true}
 	queued := func() string {
 		var p string
-		_ = e.st.Reader().QueryRow(`SELECT COALESCE(group_concat(payload), '') FROM job WHERE kind = ?`, JobCopyAuto).Scan(&p)
+		_ = e.st.Reader().QueryRow(`SELECT COALESCE(group_concat(payload), '') FROM job WHERE kind = ? AND dedupe_key LIKE '%.auto/%'`, JobCopy).Scan(&p)
 		e.exec(`DELETE FROM job`)
 		return p
 	}
@@ -359,5 +362,46 @@ func TestAutoCopy(t *testing.T) {
 	}
 	if len(e.atb.added) != 0 {
 		t.Fatal("an add was sent")
+	}
+}
+
+// An entry already on Real-Debrid is handled before the name rule: complete, it is present (a record row), never
+// "refused". A provider whose read is refused by the gateway's back-off with a time is skipped until then; one whose
+// read fails without a time is failed with the read named, never with the add.
+func TestCopyReadsBeforeNameRuleAndBusy(t *testing.T) {
+	t.Parallel()
+	e, ad, _ := copyEnv(t)
+	ctx := context.Background()
+	const name = "Movie.2020.1080p.WEB-DL.x264-GRP"
+	e.exec(`INSERT INTO provider_torrent (provider, torrent_id, info_hash, name, state, progress)
+		VALUES ('tb', 't1', ?, ?, 'downloaded', 100)`, hA, name)
+	held := tor("r1", hA, name, 10, e.now, provider.StateDownloaded)
+	held.Progress = 100
+	e.rd.list = []provider.Torrent{held}
+	retry := e.now.Add(30 * time.Minute)
+	ad.listErr = fmt.Errorf("ad: %w", &gateway.Refused{Reason: "backoff", Target: "provider:ad", RetryAt: retry})
+	e.tb.listErr = errors.New("connection reset")
+	if _, err := e.m.Copy(ctx, CopyPayload{Hash: hA}); err != nil {
+		t.Fatal(err)
+	}
+	st, err := e.m.CopyStatus(ctx, hA)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]CopyResult{}
+	for _, r := range st.Results {
+		got[r.Provider] = r
+	}
+	if r := got["rd"]; r.Outcome != CopyPresent || !e.recorded("rd", hA) {
+		t.Errorf("rd %+v", r)
+	}
+	if r := got["ad"]; r.Outcome != CopySkipped || r.Until == nil || !r.Until.Equal(retry) {
+		t.Errorf("ad %+v", r)
+	}
+	if r := got["tb"]; r.Outcome != CopyFailed || !strings.HasPrefix(r.Detail, copyReadFailed) {
+		t.Errorf("tb %+v", r)
+	}
+	if len(e.ard.added) != 0 {
+		t.Error("an add was sent")
 	}
 }

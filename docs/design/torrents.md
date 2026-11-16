@@ -272,17 +272,19 @@ not empty. Any hash a file shows counts, the folder hash of a file taken over fr
 torrent, never proof for a delete. A hash Theatarr does not know (no record row, active link or download not failed) is
 404. No confirmation: nothing is lost by it.
 
-The click queues job `torrents.copy` (dedupe per hash, one attempt; the automatic copy below has its own kind and key,
-so it never swallows a click) and the page asks `GET /torrents/copy/{hash}` every 3 s while it is queued or running.
+The click queues job `torrents.copy` (dedupe key `torrents.copy/<hash>`, one attempt; the automatic copy below has its
+own key, so it never swallows a click) and the page asks `GET /torrents/copy/{hash}` every 3 s while it is queued or running.
 The job runs alone among restores and deletes (`opMu`) and, for every provider with a key in fallback order, makes one
 bounded attempt, all of it under the router's add lock (released between providers), so a route's add of the hash cannot
 land between the copy's look at the account and its add:
 
-1. A fresh list of the account. It fails: `failed` ("could not read the account"), nothing sent. The hash is there:
+1. A fresh list of the account. It fails: `skipped` until the time a gateway back-off, hold or rate limit names
+   ("X is busy until 14:32, try again then"), else `failed` ("Could not read X's account just now"; the provider's
+   own words stay in the journal row), nothing sent. The hash is there:
    `present`, left alone; complete, it goes into the record at once (`provider.RecordImport`), so the file's tags show
    it; still downloading, "still downloading (12%)"; failed there, "failed there", and no record row.
-2. Real-Debrid: the names the record and our downloads have for the hash against its name rule
-   (`indexer.RealDebridRefuses`): refused, `refused`, nothing sent.
+2. Real-Debrid, only for a new add (an entry already there was handled in 1): the names the record and our downloads
+   have for the hash against its name rule (`indexer.RealDebridRefuses`): refused, `refused`, nothing sent.
 3. Pacing as a route's add (`router.ReserveAdd`); a provider paced, backed off or held is `skipped` with the time it
    takes adds again (the copy waits at most 5 s, for `min_gap`). The journal row is written as `sending` first; then a
    bare magnet (`adder.Restore`) with `OnlyIfCached` (TorBox refuses an uncached add itself, nothing made).
@@ -302,14 +304,15 @@ land between the copy's look at the account and its add:
 Each provider's outcome is a row of the torrent journal (action `copy`, migration 00149), and the page shows one line
 under the button until it is left, one part per provider in the tags it already uses: "Added to TB · Not cached on
 RD"; "Already on AD" (", still downloading (12%)"; ", but failed there"); "RD refuses this release name"; "TB is busy
-until 14:32, try again then"; "Could not add to X: …". After "Added to X" the file's tags include X. Pause does not
+until 14:32, try again then" (also for an add the provider refused with a retry time); "Could not add to X just now"
+(an add that failed without one); "Could not add to X: …" (our own reason, such as a delete that failed). After "Added to X" the file's tags include X. Pause does not
 stop it: it is the person's own action, as a restore is. A route's guard treats an entry the copy sent as not its own
 (`router.RestoredSince` reads `restore` and `copy` rows).
 
 It only adds the torrent to the accounts: the library's link is not changed and it is not playback failover. A restart
 in the middle of a copy can leave one uncached torrent of ours on an account; accepted (rare), the Torrents page shows
 and deletes it. Tests: `TestCopyAddsWhereCached`, `TestCopyDeletesOwnUncachedAdd`, `TestCopyLeavesExistingEntries`,
-`TestCopySkipsPacedAndRefused`, `TestCopyRealDebridSelection`, `TestCopyKnownHashAndTargets`, `TestReportAddTo`,
+`TestCopySkipsPacedAndRefused`, `TestCopyReadsBeforeNameRuleAndBusy`, `TestCopyRealDebridSelection`, `TestCopyKnownHashAndTargets`, `TestReportAddTo`,
 `web.TestTorrentCopyAPI`.
 
 ### Automatically, per provider, where it is cached
@@ -321,7 +324,7 @@ account when this provider has it cached. Other providers' downloads only; nothi
 After the import of a download from a debrid provider (one with its torrent id: not a file adopted from an arr, not a
 download client), right after the import's commit, the library tells the torrent manager (`Library.SetImported`, wired
 in `cmd/theatarr/serve.go`; `internal/torrents` imports `internal/library`, so it is a hook). `Manager.QueueAutoCopy`
-queues job `torrents.copy.auto` (by `auto`, key `torrents.copy.auto/<hash>`) for exactly the other providers with a
+queues job `torrents.copy` (`auto`, by `auto`, key `torrents.copy.auto/<hash>`) for exactly the other providers with a
 key and the switch on that have live cached evidence for the hash (`provider_cache` state `cached`, not expired: DMM's
 lists and availability, TorBox's check, an earlier add) and do not hold it complete in the record. No evidence, nothing
 queued: the automatic path never tries an add of something not known cached; the button is there for that. Nothing is

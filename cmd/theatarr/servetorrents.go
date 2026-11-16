@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"os"
+	"sort"
 	"sync"
 
 	"github.com/theatarr/theatarr/internal/gateway"
@@ -35,6 +36,34 @@ type serveTorrents struct {
 	backupLock sync.Mutex
 	// usage works out the record's usage again after a delete (Manager.UsageStale); nil does nothing.
 	usage *torrentUsageWorker
+}
+
+// KeyedProviders lists the providers whose key is set in the settings generation ctx runs under (its provider sync's
+// read clients), sorted, without building adders.
+func (s *serveTorrents) KeyedProviders(ctx context.Context) ([]string, error) {
+	provs := s.ps.syncer.Providers
+	if s.manager != nil {
+		rt := settings.ContextRuntime(ctx)
+		if rt == nil {
+			rt = s.manager.Current()
+		}
+		var active *serveRuntime
+		if rt != nil {
+			active, _ = rt.Components.(*serveRuntime)
+		}
+		if active == nil || active.Providers == nil {
+			return nil, errors.New("torrents: the active settings runtime is unavailable")
+		}
+		provs = active.Providers.syncer.Providers
+	}
+	out := make([]string, 0, len(provs))
+	for k, p := range provs {
+		if p != nil {
+			out = append(out, k)
+		}
+	}
+	sort.Strings(out)
+	return out, nil
 }
 
 func (s *serveTorrents) Manager(ctx context.Context) (*torrents.Manager, error) {

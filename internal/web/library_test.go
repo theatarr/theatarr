@@ -1084,7 +1084,7 @@ func TestAdoptedLinkFileSizes(t *testing.T) {
 			t.Errorf("season 1 size %+v", c.SizeBytes)
 		}
 	}
-	if f, err := e.web.episodeFile(context.Background(), e.st.Reader(), 4, 43); err != nil || f == nil || f.SizeBytes == nil || *f.SizeBytes != want {
+	if f, err := e.web.episodeFile(context.Background(), e.st.Reader(), 4, 43, func([]string) []string { return nil }); err != nil || f == nil || f.SizeBytes == nil || *f.SizeBytes != want {
 		t.Errorf("episode file %+v %v", f, err)
 	}
 	files, err := loadItemFiles(context.Background(), e.st.Reader(), []any{int64(4)}, true)

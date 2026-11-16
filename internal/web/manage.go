@@ -943,6 +943,10 @@ func (w *Web) apiEpisode(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	targets := func([]string) []string { return nil }
+	if seeFiles {
+		targets = w.copyTargets(ctx)
+	}
 	for i, v := range mvs {
 		c := out.Episode.Versions[v.key]
 		d := EpisodeVersionDetail{Key: v.key, Label: labels[v.key], State: c.State, Monitored: c.Monitored,
@@ -952,7 +956,7 @@ func (w *Web) apiEpisode(rw http.ResponseWriter, r *http.Request) {
 			d.State = "wanted"
 		}
 		if seeFiles {
-			if d.File, err = w.episodeFile(ctx, db, v.id, eid); err != nil {
+			if d.File, err = w.episodeFile(ctx, db, v.id, eid, targets); err != nil {
 				w.internal(rw, err)
 				return
 			}
@@ -981,7 +985,8 @@ func (w *Web) apiEpisode(rw http.ResponseWriter, r *http.Request) {
 }
 
 // episodeFile reads the current file that holds an episode in a version: its newest active link.
-func (w *Web) episodeFile(ctx context.Context, db *sql.DB, versionID, eid int64) (*EpisodeFile, error) {
+func (w *Web) episodeFile(ctx context.Context, db *sql.DB, versionID, eid int64,
+	targets func(held []string) []string) (*EpisodeFile, error) {
 	var f EpisodeFile
 	var linkID int64
 	var size, score sql.NullInt64
@@ -1008,7 +1013,7 @@ func (w *Web) episodeFile(ctx context.Context, db *sql.DB, versionID, eid int64)
 	}
 	f.CachedOn = w.cacheCodes(held[f.InfoHash])
 	if indexer.NormalizeHash(f.InfoHash) != "" {
-		f.AddTo = w.copyTargets(ctx)(held[f.InfoHash])
+		f.AddTo = targets(held[f.InfoHash])
 	}
 	if err := scanAll(ctx, db, `SELECT e.season, e.number FROM link_episode le JOIN episode e ON e.id = le.episode_id
 		WHERE le.link_id = ? ORDER BY e.season, e.number`, []any{linkID}, func(r *sql.Rows) error {

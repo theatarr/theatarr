@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { errText } from "@/components/ui/confirm-dialog";
 import { addToTooltip, copyLine, copyResults } from "@/lib/add-to-providers";
 
-export function AddToProviders({ hash, addTo, pack, testid = "add-to-providers" }: { hash?: string | null; addTo?: readonly string[] | null; pack?: boolean | "maybe"; testid?: string }) {
+export function AddToProviders({ hash, addTo, pack, testid = "add-to-providers" }: { hash?: string | null; addTo?: readonly string[] | null; pack?: boolean; testid?: string }) {
   const [since, setSince] = useState<string | null>(null);
   const start = useStartCopy();
   const state = useCopyState(hash ?? "", !!hash && !!since);
@@ -26,26 +26,22 @@ export function AddToProviders({ hash, addTo, pack, testid = "add-to-providers" 
   }, [done, qc]);
   if (!hash || (!addTo?.length && !since)) return null;
   const line = done ? copyLine(copyResults(state.data, since)) : "";
+  const click = () =>
+    start.mutate(hash, {
+      onSuccess: (r) => {
+        // A copy before this one left its answer cached: ask afresh.
+        qc.removeQueries({ queryKey: qk.torrents.copy(hash) });
+        setSince(r.since);
+      },
+    });
   return (
     <span className="flex flex-col items-start gap-1">
-      <Button
-        size="sm"
-        variant="outline"
-        disabled={running}
-        title={addToTooltip(pack)}
-        onClick={() =>
-          start.mutate(hash, {
-            onSuccess: (r) => {
-              // A copy before this one left its answer cached: ask afresh.
-              qc.removeQueries({ queryKey: qk.torrents.copy(hash) });
-              setSince(r.since);
-            },
-          })
-        }
-        data-testid={testid}
-      >
-        {running ? <Loader2 className="animate-spin" /> : <CopyPlus />} Add to other providers
-      </Button>
+      {/* The button goes once every provider with a key holds it (the refreshed add_to); this click's line stays. */}
+      {addTo?.length || running ? (
+        <Button size="sm" variant="outline" disabled={running} title={addToTooltip(pack)} onClick={click} data-testid={testid}>
+          {running ? <Loader2 className="animate-spin" /> : <CopyPlus />} Add to other providers
+        </Button>
+      ) : null}
       {line ? <span className="text-xs text-[var(--ink-2)] [overflow-wrap:anywhere]" data-testid={`${testid}-result`}>{line}</span> : null}
       {start.error ? <span className="text-xs text-[var(--bad-ink)]" role="alert">{errText(start.error)}</span> : null}
       {state.error ? <span className="text-xs text-[var(--bad-ink)]" role="alert">{errText(state.error)}</span> : null}

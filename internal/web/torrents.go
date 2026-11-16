@@ -15,6 +15,9 @@ import (
 // TorrentsSource gives the torrent manager of the current settings generation.
 type TorrentsSource interface {
 	Manager(ctx context.Context) (*torrents.Manager, error)
+	// KeyedProviders lists the providers whose key is set, without building clients: where "Add to other
+	// providers" may add (the file facts' add_to).
+	KeyedProviders(ctx context.Context) ([]string, error)
 }
 
 // The torrent manager API (docs/design/torrents.md), admin only but for "Add to other providers" (manage). Reports and backups read; a restore and a delete write

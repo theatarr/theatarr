@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { useState } from "react";
 import { describe, expect, it } from "vitest";
 import { mockFetch, renderPage } from "@/test/page";
 import { addToTooltip, copyLine, copyPart, copyResults, type CopyResult } from "@/lib/add-to-providers";
@@ -19,6 +20,8 @@ describe("the result words", () => {
     expect(copyPart(r({ outcome: "refused", code: "rd" }))).toBe("RD refuses this release name");
     expect(copyPart(r({ outcome: "skipped", until: "2026-11-16T14:32:00Z" }))).toMatch(/^TB is busy until .+, try again then$/);
     expect(copyPart(r({ outcome: "failed", detail: "boom" }))).toBe("Could not add to TB: boom");
+    expect(copyPart(r({ outcome: "failed", detail: "could not read the account: tb: gateway: dial tcp" }))).toBe("Could not read TB's account just now");
+    expect(copyPart(r({ outcome: "failed", detail: "the add failed: tb: 503" }))).toBe("Could not add to TB just now");
     expect(copyLine([r({}), r({ outcome: "not_cached", code: "rd" })])).toBe("Added to TB · Not cached on RD");
   });
   it("keeps this click's results only", () => {
@@ -61,5 +64,23 @@ describe("the button", () => {
     fireEvent.click(screen.getByTestId("add-to-providers"));
     expect((await screen.findByTestId("add-to-providers-result")).textContent).toBe("Added to TB · Not cached on RD");
     expect(api.calls("POST", "/torrents/copy")[0].body).toEqual({ hash: H });
+  });
+
+  it("goes once every provider holds the torrent, and keeps this click's line", async () => {
+    mockFetch([
+      { method: "POST", path: "/torrents/copy", reply: { job: 3, since: "2026-11-16T12:00:00Z" } },
+      { method: "GET", path: `/torrents/copy/${H}`, reply: { running: false, results: [r({})] } },
+    ]);
+    // The page's refreshed add_to, empty once TB holds it.
+    function Page() {
+      const [addTo, setAddTo] = useState(["tb"]);
+      return <><button type="button" onClick={() => setAddTo([])}>refresh</button><AddToProviders hash={H} addTo={addTo} /></>;
+    }
+    renderPage(<Page />);
+    fireEvent.click(screen.getByTestId("add-to-providers"));
+    expect((await screen.findByTestId("add-to-providers-result")).textContent).toBe("Added to TB");
+    fireEvent.click(screen.getByRole("button", { name: "refresh" }));
+    expect(screen.queryByTestId("add-to-providers")).toBeNull();
+    expect(screen.getByTestId("add-to-providers-result").textContent).toBe("Added to TB");
   });
 });

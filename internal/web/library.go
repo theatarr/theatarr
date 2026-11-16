@@ -961,6 +961,8 @@ func (w *Web) cacheCodes(keys []string) []string {
 // copyTargets gives, for the provider keys that hold a file's torrent complete, the cache codes of the providers with
 // a key that do not: where "Add to other providers" may add it (torrents.Manager.CopyTargets). Without the torrent
 // manager it gives nil (no button).
+//
+// It reads the keyed providers once (TorrentsSource.KeyedProviders: no clients are built); call it once per request.
 func (w *Web) copyTargets(ctx context.Context) func(held []string) []string {
 	none := func([]string) []string { return nil }
 	if w.torrents == nil {
@@ -969,11 +971,19 @@ func (w *Web) copyTargets(ctx context.Context) func(held []string) []string {
 	if w.captureRuntime != nil {
 		ctx = w.captureRuntime(ctx)
 	}
-	m, err := w.torrents.Manager(ctx)
-	if err != nil {
+	keyed, err := w.torrents.KeyedProviders(ctx)
+	if err != nil || len(keyed) == 0 {
 		return none
 	}
-	return func(held []string) []string { return w.cacheCodes(m.CopyTargets(held)) }
+	return func(held []string) []string {
+		var out []string
+		for _, k := range keyed {
+			if !slices.Contains(held, k) {
+				out = append(out, k)
+			}
+		}
+		return w.cacheCodes(out)
+	}
 }
 
 // providerKeys is what a provider filter value stands for: the keys of every provider whose kind has that cache

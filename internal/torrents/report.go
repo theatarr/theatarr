@@ -227,13 +227,17 @@ func (m *Manager) addTo(r *Report) {
 			}
 		}
 	}
+	keyed := m.CopyTargets(nil)
 	for p := range r.Providers {
 		for i := range r.Providers[p].Torrents {
 			t := &r.Providers[p].Torrents[i]
 			if indexer.NormalizeHash(t.Hash) == "" {
 				continue
 			}
-			for _, k := range m.CopyTargets(held[t.Hash]) {
+			for _, k := range keyed {
+				if slices.Contains(held[t.Hash], k) {
+					continue
+				}
 				if c := m.cacheCode(k); !slices.Contains(t.AddTo, c) {
 					t.AddTo = append(t.AddTo, c)
 				}

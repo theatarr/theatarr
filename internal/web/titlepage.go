@@ -235,7 +235,10 @@ func (w *Web) enrichTitle(ctx context.Context, d *TitleDetail) error {
 		held = vf.held
 		var added int64
 		var current []*Version
-		targets := w.copyTargets(ctx)
+		targets := func([]string) []string { return nil }
+		if d.Kind == "movie" {
+			targets = w.copyTargets(ctx)
+		}
 		for id, v := range byID {
 			v.Providers = provs[id]
 			v.CachedOn = w.cacheCodes(provs[id])

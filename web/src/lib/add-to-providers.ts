@@ -7,13 +7,16 @@ import { fmtClock } from "@/lib/format";
 export type CopyResult = Schemas["TorrentCopyResult"];
 export type CopyState = Schemas["TorrentCopyState"];
 
+// The detail prefixes of a failed account read and a failed add (internal/torrents copy.go).
+const READ_FAILED = "could not read the account";
+const ADD_FAILED = "the add failed";
+
 /** How often the button asks again while the copy runs. */
 export const COPY_POLL_MS = 3000;
 
-/** The button's tooltip. pack: the torrent holds more than this file (the whole pack is added); "maybe" where the page
- *  cannot tell (an episode's file). */
-export const addToTooltip = (pack: boolean | "maybe" = false) =>
-  `Adds this file's torrent${pack === "maybe" ? " (the whole pack, when it came in one)" : pack ? " (the whole pack)" : ""} to the other providers that have it cached. An add that is not cached is removed again.`;
+/** The button's tooltip; pack: the torrent holds more than this file, and the whole pack is added. */
+export const addToTooltip = (pack = false) =>
+  `Adds this file's torrent${pack ? " (the whole pack)" : ""} to the other providers that have it cached. An add that is not cached is removed again.`;
 
 /** One provider's part of the line. */
 export function copyPart(r: CopyResult): string {
@@ -34,6 +37,9 @@ export function copyPart(r: CopyResult): string {
     case "sending":
       return `Adding to ${x}…`;
     default:
+      // The provider's own words stay in the torrent journal: a failed read or add is said plainly.
+      if (r.detail?.startsWith(READ_FAILED)) return `Could not read ${x}'s account just now`;
+      if (r.detail?.startsWith(ADD_FAILED)) return `Could not add to ${x} just now`;
       return `Could not add to ${x}${r.detail ? `: ${r.detail}` : ""}`;
   }
 }
