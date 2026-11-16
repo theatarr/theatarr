@@ -13,6 +13,7 @@ import (
 	"github.com/theatarr/theatarr/internal/metadata/anime"
 	"github.com/theatarr/theatarr/internal/metadata/tvdb"
 	"github.com/theatarr/theatarr/internal/policy"
+	"github.com/theatarr/theatarr/internal/router"
 )
 
 func seriesPolicy(anime bool) func(*policy.Policy) {
@@ -345,4 +346,89 @@ func (e *environment) seriesAvailable(id int64, wantEpisodes, wantFiles int) map
 		must(e.t, err)
 	}
 	return files
+}
+
+// A multi-season pack found by a season-2 search is grabbed for all three seasons: the other seasons' episodes are
+// in flight meanwhile, the import files each season in its own folder, and an episode with a better file keeps it.
+func TestSeriesMultiSeasonPack(t *testing.T) {
+	t.Parallel()
+	e := newEnvironment(t, seriesPolicy(false))
+	var eps []tvdb.Episode
+	for s := 1; s <= 3; s++ {
+		for n := 1; n <= 2; n++ {
+			name, aired, runtime := fmt.Sprintf("Episode %d", n), fmt.Sprintf("%d-03-%02d", 2018+s, n), 50
+			eps = append(eps, tvdb.Episode{ID: 950000 + 10*s + n, SeriesID: 424242, Name: &name, Aired: &aired,
+				Runtime: &runtime, SeasonNumber: s, Number: n})
+		}
+	}
+	e.edge.tvdb["/series/424242/extended"] = encode(t, map[string]any{"status": "success", "data": tvdb.Series{ID: 424242,
+		Name: "Ended Show", Year: "2019", OriginalLanguage: "eng", Status: tvdb.Status{Name: "Ended"}}})
+	e.edge.tvdb["/series/424242/episodes/default?page=0"] = episodeResponse(t, eps)
+	e.edge.tvdb["/series/424242/episodes/absolute?page=0"] = episodeResponse(t, eps)
+
+	remux := release{name: "Ended.Show.S01E01.2160p.UHD.BluRay.REMUX.HEVC-GRP", hash: fmt.Sprintf("%040x", 30), season: 1,
+		files: []string{"Ended.Show.S01E01.2160p.UHD.BluRay.REMUX.HEVC-GRP.mkv"}}
+	e.edge.set(remux)
+	e.mountRelease(remux)
+	id := e.addSeries(424242, "Ended Show", "standard", 1, 2, 3)
+	e.refreshBeforeSearch(id, 6)
+	e.drain()
+	e.finish(1)
+	before := e.seriesAvailable(id, 1, 1)["S01E01"]
+
+	pack := release{name: "Ended.Show.S01-S03.2160p.WEB.H265-GRP", hash: fmt.Sprintf("%040x", 31), season: 2}
+	for _, ep := range eps {
+		pack.files = append(pack.files, fmt.Sprintf("Ended.Show.S%02dE%02d.2160p.WEB.H265-GRP.mkv", ep.SeasonNumber, ep.Number))
+	}
+	e.edge.set(pack) // answered to a season-2 query only
+	e.mountRelease(pack)
+	e.now = e.now.Add(48 * time.Hour)
+	e.wanted()
+	var episodesJSON string
+	if err := e.st.Reader().QueryRowContext(e.ctx, `SELECT episodes FROM download WHERE release_title=?`, pack.name).Scan(&episodesJSON); err != nil {
+		t.Fatalf("pack not grabbed: %v\n%s", err, e.logs.String())
+	}
+	var ids []int64
+	must(t, json.Unmarshal([]byte(episodesJSON), &ids))
+	if len(ids) != 5 { // S01E01 keeps its better file
+		t.Fatalf("pack download episodes=%v, want the five without a better file", ids)
+	}
+	var versionID, s3 int64
+	must(t, e.st.Reader().QueryRowContext(e.ctx, `SELECT id FROM version WHERE title_id=? AND policy_key='tv'`, id).Scan(&versionID))
+	must(t, e.st.Reader().QueryRowContext(e.ctx, `SELECT id FROM episode WHERE title_id=? AND season=3 AND number=2`, id).Scan(&s3))
+	if in, err := router.InFlight(e.ctx, e.st.Reader(), id, versionID, []int64{s3}); err != nil || !in {
+		t.Fatalf("season 3 not in flight with the pack: %v %v", in, err)
+	}
+	if _, err := e.ac.Round(e.ctx, nil); err != nil {
+		t.Fatal(err)
+	}
+	e.drain()
+	if n := e.count(`SELECT count(*) FROM download`); n != 2 {
+		t.Fatalf("downloads=%d, want the remux and the pack only", n)
+	}
+	_, err := e.rt.Poll(e.ctx)
+	must(t, err)
+	var downloadID int64
+	must(t, e.st.Reader().QueryRowContext(e.ctx, `SELECT id FROM download WHERE release_title=? AND state='ready'`, pack.name).Scan(&downloadID))
+	plan, err := e.lib.Import(e.ctx, downloadID, false)
+	must(t, err)
+	if len(plan.Unmatched) != 1 || plan.Unmatched[0] != pack.files[0] { // S01E01 is not the download's: left alone
+		t.Fatalf("pack import unmatched=%v", plan.Unmatched)
+	}
+	folders := map[string]int{}
+	for _, l := range plan.Links {
+		if !l.Done {
+			t.Fatalf("link not imported: %+v", l)
+		}
+		folders[filepath.Base(filepath.Dir(l.Path))]++
+	}
+	e.now = e.now.Add(2 * time.Second)
+	e.drain()
+	if folders["Season 01"] != 1 || folders["Season 02"] != 2 || folders["Season 03"] != 2 {
+		t.Fatalf("pack links by folder=%v", folders)
+	}
+	files := e.seriesAvailable(id, 6, 6)
+	if files["S01E01"] != before {
+		t.Fatalf("S01E01's better file was replaced: %d -> %d", before, files["S01E01"])
+	}
 }
