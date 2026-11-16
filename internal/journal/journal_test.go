@@ -20,6 +20,7 @@ import (
 	"github.com/theatarr/theatarr/internal/jobs"
 	"github.com/theatarr/theatarr/internal/journal/snapshot"
 	"github.com/theatarr/theatarr/internal/policy"
+	"github.com/theatarr/theatarr/internal/retention"
 	"github.com/theatarr/theatarr/internal/store"
 	"github.com/theatarr/theatarr/internal/store/storetest"
 )
@@ -879,5 +880,50 @@ func TestListFollowUps(t *testing.T) {
 		if ev.Ref == "dl:3:import" && strings.Contains(ev.Text, "held") {
 			t.Errorf("refused import in what followed: %q", ev.Text)
 		}
+	}
+}
+
+// An adoption group whose first file was replaced since still lists as one line after retention has run past the
+// window: the first action, which History's group row names, is kept with that row.
+func TestListAdoptionAfterPrune(t *testing.T) {
+	e := newEnv(t)
+	at := testNow.Add(-400 * 24 * time.Hour)
+	e.exec(`INSERT INTO link (id, path, target, title_id, state, created_at, updated_at) VALUES
+		(1, '/tv/Gamma/S01E01.mkv', '/t/1', 3, 'unlinked', ?, ?), (2, '/tv/Gamma/S01E02.mkv', '/t/2', 3, 'active', ?, ?)`,
+		msOf(at), msOf(at), msOf(at), msOf(at))
+	e.exec(`INSERT INTO library_action (id, at, kind, mode, version_key, link_id, path, detail, release_title, quality,
+		title_id, episodes) VALUES
+		(1, ?, 'link', 'applied', 'tv-2160p', 1, '/tv/Gamma/S01E01.mkv', 'adopted from sonarr_4k /a/1.mkv', 'G.S01', 'WEBDL-2160p', 3, '[101]'),
+		(2, ?, 'link', 'applied', 'tv-2160p', 2, '/tv/Gamma/S01E02.mkv', 'adopted from sonarr_4k /a/2.mkv', 'G.S01', 'WEBDL-2160p', 3, '[102]')`,
+		msOf(at), msOf(at.Add(time.Second)))
+	if got := ids(e.list(Filter{})); !slices.Equal(got, []string{"lib:1"}) {
+		t.Fatalf("before: %v", got)
+	}
+	if _, err := retention.Prune(context.Background(), e.st, testNow, retention.Defaults); err != nil {
+		t.Fatal(err)
+	}
+	if got := ids(e.list(Filter{})); !slices.Equal(got, []string{"lib:1"}) {
+		t.Errorf("after the prune: %v", got)
+	}
+}
+
+// A hold fixed by a later import that linked: the grab's line shows the import's own flags, not the held row's.
+func TestGrabFlagsAfterResolvedHold(t *testing.T) {
+	e := newEnv(t)
+	e.dlEvent(5, "imported", testNow.Add(-time.Hour), 1, 1, "movie-remux", hashA, "Alpha.2020.REMUX-A", "Remux-2160p",
+		9000, 60<<30, nil, "")
+	e.exec(`INSERT INTO library_import (download_id, state, mount_folder, plan, created_at, updated_at)
+		VALUES (5, 'linked', '/m/A', '{}', ?, ?)`, msOf(testNow), msOf(testNow))
+	e.flag()
+	if _, err := e.st.Writer().Exec(`INSERT INTO history (ref, at, event, kind, title_id, version_key, download_id, flags,
+		severity) VALUES ('dl:5:held', ?, 'failed', 'import', 1, 'movie-remux', 5,
+		'[{"code":"library_guard","severity":"info","reason":"held"}]', '')`, msOf(testNow.Add(-time.Minute))); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.st.Writer().Exec(`UPDATE history SET flags = '[]', severity = '' WHERE ref = 'dl:5:import'`); err != nil {
+		t.Fatal(err)
+	}
+	if g := e.get("dl:5"); hasFlag(g, CheckGuard) != nil {
+		t.Errorf("grab line flags %+v", g.Flags)
 	}
 }

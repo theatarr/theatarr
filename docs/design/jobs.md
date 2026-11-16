@@ -126,7 +126,9 @@ that read TRaSH), and runs still running; pending deliveries; every download tha
 an import still waiting for the mount or partial, a router blocklist entry or a
 queued or running job refers to (a finished import or an expired claim does not keep it); applied
 `link`/`replace` library actions whose download is kept or whose path is still an active or dead link (the
-superseded check reads them; adoption provenance lives on `link.adopted_from`); acquire
+superseded check reads them; adoption provenance lives on `link.adopted_from`), and any library action a History row
+names (`lib:<id>`: an adoption group's first file stands for the group in the journal's list, and History's Journal
+link opens it); acquire
 runs that are not finished, the latest run of each version and target (the search schedule's "last searched") and runs a
 queued or running job refers to, and a run whose children are kept; the current settings generation's audit rows.
 

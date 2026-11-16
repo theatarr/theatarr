@@ -107,7 +107,8 @@ var rules = []rule{
 			OR json_extract(j.payload, '$.source') = 'acquire:' || acquire_run.id))`},
 	{table: "library_action", where: `at < ?1 AND NOT (mode = 'applied' AND kind IN ('link', 'replace') AND (
 		EXISTS (SELECT 1 FROM download d WHERE d.id = library_action.download_id)
-		OR EXISTS (SELECT 1 FROM link l WHERE l.path = library_action.path AND l.state IN ('active', 'dead'))))`},
+		OR EXISTS (SELECT 1 FROM link l WHERE l.path = library_action.path AND l.state IN ('active', 'dead'))))
+		AND NOT EXISTS (SELECT 1 FROM history h WHERE h.ref = 'lib:' || library_action.id)`},
 	{table: "settings_audit", where: `created_at < ?1 AND generation < (SELECT MAX(generation) FROM settings_generation)`},
 }
 

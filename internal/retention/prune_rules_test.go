@@ -3,6 +3,7 @@ package retention
 import (
 	"context"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -72,6 +73,10 @@ func TestPruneKeepsLibraryActionsInUse(t *testing.T) {
 		act("replace", "applied", nil, "/l/gone.mkv"): 0,
 		act("scan", "applied", nil, ""):               0,
 	}
+	// An action a History row names (an adoption group's first file, whose link went since) stays with the row.
+	named := act("link", "applied", nil, "/l/replaced.mkv")
+	exec(t, st, `INSERT INTO history (ref, at, event, kind) VALUES (?, ?, 'adopted', 'link')`, "lib:"+strconv.FormatInt(named, 10), old)
+	want[named] = 1
 	if _, err := Prune(context.Background(), st, now, Defaults); err != nil {
 		t.Fatal(err)
 	}

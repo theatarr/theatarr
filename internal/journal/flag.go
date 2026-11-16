@@ -173,7 +173,8 @@ func clearFailures(ctx context.Context, tx *sql.Tx, id, title int64, version str
 
 // flagRefs are the History rows that may hold an entry's flags: its own; for an import, its held row, then its failed
 // download's row (an import refused with the download), the first found counting; for a grab, whose line stands for
-// its download's import and failure too (headParts), its own, its import's and its failure's, all merged.
+// its download's import and failure too (headParts), its own, its import's (its held row's only when the import row
+// holds no flags of its own) and its failure's, all merged.
 func flagRefs(id string) (refs []string, all bool) {
 	if dl, ok := strings.CutSuffix(id, ":import"); ok {
 		return []string{id, dl + ":held", dl + ":fail"}, false
@@ -218,6 +219,11 @@ func (b *builder) setFlags(es []*Entry) error {
 			raw, ok := stored[ref]
 			if !ok {
 				continue
+			}
+			if dl, held := strings.CutSuffix(ref, ":held"); held && all {
+				if _, ok := stored[dl+":import"]; ok {
+					continue // the import's own flags stand
+				}
 			}
 			var fs []Flag
 			_ = json.Unmarshal([]byte(raw), &fs)
