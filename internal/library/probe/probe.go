@@ -21,15 +21,16 @@
 // and audio tracks from the first clusters. MP4: moov (mvhd, tkhd, mdhd, hdlr, stsd with hvcC/avcC/av1C, dvcC/dvvC,
 // colr, mdcv, clli, dec3, ddts/udts). The first frames are read for what the arrs' bundled ffprobe reports from
 // the bitstream: TrueHD and E-AC-3 Atmos ("thd+", "ec+3"), the DTS profile (core, ES, 96/24, HD HRA, HD MA, DTS:X),
-// and, for a PQ video stream as Radarr does, HDR10+ (SMPTE 2094-40) and mastering metadata in the first frame's SEI.
+// and, for an HDR base layer (PQ, or Dolby Vision with an HDR10-compatible base layer: compatibility id 1 or 6),
+// HDR10+ (SMPTE 2094-40) and mastering metadata in the first frame's SEI.
 // For every H.264 and HEVC stream the first frame's user-data SEI is read for an x264/x265 encoder and its rate
 // control, which the import's mislabel guard reads (at most 64 KiB of a non-PQ frame: the SEI precede the slices).
 // MP4 reads only what hvcC carries, not the first sample.
 //
 // # Known limits
 //
-//   - Colour primaries and transfer come from the container (Matroska Colour, MP4 colr), not from the HEVC/AVC VUI.
-//     mkvmerge copies them from the bitstream; a file without them is read as SDR unless it carries Dolby Vision.
+//   - Colour primaries and transfer come from the container (Matroska Colour, MP4 colr) and, for HEVC when the
+//     container has none, from the SPS's VUI in hvcC (as ffprobe reads it). H.264's VUI is not read.
 //   - Run time is the container duration; ffprobe prefers the video stream's own duration (equal in practice).
 //   - The Atmos and DTS:X checks follow the bitstream specifications; they are to be compared with the arrs' names
 //     (theatarr library verify reports names that differ).
@@ -96,7 +97,13 @@ type Result struct {
 	Subtitles      []string `json:"subtitles,omitempty"`
 	Title          string   `json:"title,omitempty"`
 	BytesRead      int64    `json:"bytes_read"`
+	// V is the reader's version mark (Version), set on every probe; a stored probe without it is older.
+	V int `json:"v,omitempty"`
 }
+
+// Version marks a probe made by this reader: colour from the HEVC SPS and the first frame read for every HDR base
+// layer. The library re-reads stored HEVC probes without it once (library.reprobe).
+const Version = 2
 
 // File probes the file at path, reading at most maxBytes (DefaultMaxBytes when 0).
 func File(path string, maxBytes int64) (*Result, error) {
@@ -135,6 +142,7 @@ func Reader(r io.ReaderAt, size, maxBytes int64) (*Result, error) {
 	}
 	if res != nil {
 		res.BytesRead = maxBytes - br.left
+		res.V = Version
 	}
 	return res, err
 }

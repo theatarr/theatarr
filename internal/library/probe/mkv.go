@@ -479,11 +479,12 @@ func probeMatroska(b *budgetReader) (*Result, error) {
 	if video != nil {
 		res.Video = mkvVideo(video)
 	}
-	// First frames: the audio codec's profile and Atmos marks, and the video's SEI: HDR metadata when it is PQ, the
-	// encoder's settings for any H.264 or HEVC stream.
+	// First frames: the audio codec's profile and Atmos marks, and the video's SEI: HDR metadata for an HDR base
+	// layer (PQ from the container or the SPS, or a Dolby Vision configuration with an HDR10-compatible base layer:
+	// compatibility id 1 or 6), the encoder's settings for any H.264 or HEVC stream.
 	hevc := res.Video != nil && video.codecID == "V_MPEGH/ISO/HEVC"
 	avc := res.Video != nil && video.codecID == "V_MPEG4/ISO/AVC"
-	pq := hevc && res.Video.Transfer == "smpte2084"
+	pq := hevc && (res.Video.Transfer == "smpte2084" || res.Video.DoviCompat == 1 || res.Video.DoviCompat == 6)
 	needVideo := hevc || avc
 	needAudio := audio != nil && (audio.codecID == "A_TRUEHD" || audio.codecID == "A_EAC3" || strings.HasPrefix(audio.codecID, "A_DTS"))
 	if (needVideo || needAudio) && firstCluster > 0 {
@@ -614,6 +615,7 @@ func mkvVideo(t *mkvTrack) *Video {
 		v.Codec = "hevc"
 		if c, ok := parseHvcC(t.private); ok {
 			v.BitDepth = c.bitDepth
+			hevcColour(v, c.nals)
 			var sf seiFindings
 			for _, nal := range c.nals {
 				scanHEVCNAL(nal, &sf)

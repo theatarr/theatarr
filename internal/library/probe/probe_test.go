@@ -3,6 +3,7 @@ package probe
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/hex"
 	"errors"
 	"math"
 	"testing"
@@ -453,5 +454,321 @@ func TestModelLiftsHdrBitDepth(t *testing.T) {
 		if got := naming.FormatVideoDynamicRangeType((&Result{Video: &v}).Model(), false); got != c.want {
 			t.Errorf("%+v: %q, want %q", c.v, got, c.want)
 		}
+	}
+}
+
+// ue writes an unsigned Exp-Golomb code.
+func (w *bitWriter) ue(v uint32) {
+	n := v + 1
+	bits := 0
+	for x := n; x > 0; x >>= 1 {
+		bits++
+	}
+	w.put(0, bits-1)
+	w.put(n, bits)
+}
+
+// escapeRBSP adds emulation prevention bytes, as an encoder does.
+func escapeRBSP(b []byte) []byte {
+	var out []byte
+	zeros := 0
+	for _, c := range b {
+		if zeros >= 2 && c <= 3 {
+			out = append(out, 3)
+			zeros = 0
+		}
+		out = append(out, c)
+		if c == 0 {
+			zeros++
+		} else {
+			zeros = 0
+		}
+	}
+	return out
+}
+
+type spsOpts struct {
+	subLayers               int // sps_max_sub_layers_minus1
+	scaling, sets, longTerm bool
+	noVUI, noColour         bool
+	primaries, transfer     uint32
+}
+
+// testSPS builds an HEVC SPS NAL unit (ITU-T H.265 7.3.2.2) with the parts that are easy to get wrong when asked.
+func testSPS(o spsOpts) []byte {
+	w := &bitWriter{}
+	w.put(0, 4)
+	w.put(uint32(o.subLayers), 3)
+	w.put(1, 1)
+	// general profile_tier_level: Main 10, level 5.1 (96 bits)
+	w.put(2, 8)
+	w.put(0x20000000, 32)
+	w.put(0xB, 4)
+	w.put(0, 32)
+	w.put(0, 12)
+	w.put(153, 8)
+	for i := 0; i < o.subLayers; i++ {
+		w.put(uint32(1-i%2), 1) // sub_layer_profile_present_flag on even layers
+		w.put(1, 1)             // sub_layer_level_present_flag
+	}
+	if o.subLayers > 0 {
+		w.put(0, 2*(8-o.subLayers))
+	}
+	for i := 0; i < o.subLayers; i++ {
+		if i%2 == 0 {
+			w.put(0x5AAAAAAA, 32)
+			w.put(0x55555555, 32)
+			w.put(0xA5A5A5, 24)
+		}
+		w.put(120, 8)
+	}
+	w.ue(0)    // sps_seq_parameter_set_id
+	w.ue(1)    // chroma_format_idc
+	w.ue(3840) // width
+	w.ue(2160) // height
+	w.put(1, 1)
+	w.ue(0)
+	w.ue(0)
+	w.ue(0)
+	w.ue(4)
+	w.ue(2) // bit depths
+	w.ue(2)
+	w.ue(4) // log2_max_pic_order_cnt_lsb_minus4: 8 bits
+	w.put(1, 1)
+	for i := 0; i <= o.subLayers; i++ {
+		w.ue(4)
+		w.ue(2)
+		w.ue(0)
+	}
+	for _, v := range []uint32{0, 2, 0, 3, 1, 1} {
+		w.ue(v)
+	}
+	if o.scaling {
+		w.put(1, 1)
+		w.put(1, 1)
+		for sizeID := 0; sizeID < 4; sizeID++ {
+			step := 1
+			if sizeID == 3 {
+				step = 3
+			}
+			for m := 0; m < 6; m += step {
+				if m%2 == 0 {
+					w.put(0, 1)
+					w.ue(uint32(m % 3))
+					continue
+				}
+				w.put(1, 1)
+				if sizeID > 1 {
+					w.ue(5)
+				}
+				for i := 0; i < min(64, 1<<(4+sizeID<<1)); i++ {
+					w.ue(uint32(i % 3))
+				}
+			}
+		}
+	} else {
+		w.put(0, 1)
+	}
+	w.put(3, 2) // amp, sao
+	if o.scaling {
+		w.put(1, 1) // pcm
+		w.put(0x77, 8)
+		w.ue(0)
+		w.ue(1)
+		w.put(1, 1)
+	} else {
+		w.put(0, 1)
+	}
+	if o.sets {
+		w.ue(5)
+		// 0: S0 -1 -3, S1 +1
+		w.ue(2)
+		w.ue(1)
+		w.ue(0)
+		w.put(1, 1)
+		w.ue(1)
+		w.put(1, 1)
+		w.ue(0)
+		w.put(1, 1)
+		// 1: predicted from 0 with deltaRps -1 (4 flag pairs): S0 -1 -2 -4
+		w.put(1, 1)
+		w.put(1, 1)
+		w.ue(0)
+		w.put(1, 1)    // j0 used
+		w.put(0b01, 2) // j1 use_delta
+		w.put(0b00, 2) // j2 dropped
+		w.put(1, 1)    // j3 used
+		// 2: predicted from 1 with deltaRps +3 (4 flag pairs): S0 -1, S1 1 2 3
+		w.put(1, 1)
+		w.put(0, 1)
+		w.ue(2)
+		w.put(0b1111, 4)
+		// 3: predicted from 2 with deltaRps -1: 5 flag pairs (NumDeltaPocs[2] = 4), all use_delta
+		w.put(1, 1)
+		w.put(1, 1)
+		w.ue(0)
+		w.put(0b0101010101, 10)
+		// 4: explicit, one negative picture
+		w.put(0, 1)
+		w.ue(1)
+		w.ue(0)
+		w.ue(0)
+		w.put(1, 1)
+	} else {
+		w.ue(0)
+	}
+	if o.longTerm {
+		w.put(1, 1)
+		w.ue(2)
+		w.put(0xAB, 8)
+		w.put(1, 1)
+		w.put(0x12, 8)
+		w.put(0, 1)
+	} else {
+		w.put(0, 1)
+	}
+	w.put(3, 2) // temporal mvp, strong intra smoothing
+	if o.noVUI {
+		w.put(0, 1)
+	} else {
+		w.put(1, 1)
+		w.put(1, 1) // aspect_ratio_info_present_flag
+		w.put(255, 8)
+		w.put(1, 16)
+		w.put(1, 16)
+		w.put(0, 1) // overscan
+		w.put(1, 1) // video_signal_type_present_flag
+		w.put(5, 3)
+		w.put(0, 1)
+		if o.noColour {
+			w.put(0, 1)
+		} else {
+			w.put(1, 1)
+			w.put(o.primaries, 8)
+			w.put(o.transfer, 8)
+			w.put(9, 8)
+		}
+		w.put(0, 7) // the rest of the VUI's flags off
+	}
+	w.put(0, 1) // sps_extension_present_flag
+	w.put(1, 1) // rbsp_stop_one_bit
+	return append([]byte{33 << 1, 1}, escapeRBSP(w.b)...)
+}
+
+// hvcCWith is testHvcC with one array per NAL unit.
+func hvcCWith(nals ...[]byte) []byte {
+	b := testHvcC()
+	b[22] = byte(len(nals))
+	for _, n := range nals {
+		b = append(b, 0x80|(n[0]>>1)&0x3F, 0, 1, byte(len(n)>>8), byte(len(n)))
+		b = append(b, n...)
+	}
+	return b
+}
+
+func TestHEVCSPSColour(t *testing.T) {
+	complexSPS := spsOpts{subLayers: 3, scaling: true, sets: true, longTerm: true, primaries: 9, transfer: 16}
+	for name, c := range map[string]struct {
+		o         spsOpts
+		prim, trc uint64
+		ok        bool
+	}{
+		"pq":                 {spsOpts{primaries: 9, transfer: 16}, 9, 16, true},
+		"hlg":                {spsOpts{primaries: 9, transfer: 18}, 9, 18, true},
+		"bt709":              {spsOpts{primaries: 1, transfer: 1}, 1, 1, true},
+		"sublayers and sets": {complexSPS, 9, 16, true},
+		"one sub-layer":      {spsOpts{subLayers: 1, sets: true, primaries: 9, transfer: 18}, 9, 18, true},
+		"no vui":             {spsOpts{noVUI: true}, 0, 0, false},
+		"no colour":          {spsOpts{noColour: true, sets: true}, 0, 0, false},
+	} {
+		p, tr, ok := hevcSPSColour(testSPS(c.o))
+		if p != c.prim || tr != c.trc || ok != c.ok {
+			t.Errorf("%s: %d %d %v", name, p, tr, ok)
+		}
+	}
+	// Truncated anywhere: never a panic, never a wrong value.
+	full := testSPS(complexSPS)
+	for n := 0; n < len(full); n++ {
+		p, tr, ok := hevcSPSColour(full[:n])
+		if ok && (p != 9 || tr != 16) {
+			t.Errorf("cut at %d: %d %d", n, p, tr)
+		}
+		if n < len(full)/2 && ok {
+			t.Errorf("cut at %d of %d still read", n, len(full))
+		}
+	}
+	// Real SPS units written by x265 (ffmpeg 4.4 libx265, 320x180): one 10-bit with BT.2020 PQ, one 8-bit with
+	// BT.709 primaries and HLG; ffprobe reads them as bt2020/smpte2084 and bt709/arib-std-b67.
+	for _, c := range []struct {
+		hex       string
+		prim, trc uint64
+	}{
+		{"42010102200000030090000003000003003ca00a080b9f6d96566924caf016a122012080000003008000000c04", 9, 16},
+		{"42010101600000030090000003000003003ca00a080b9f796566924caf016a02240208000003000800000300c040", 1, 18},
+	} {
+		nal, _ := hex.DecodeString(c.hex)
+		if p, tr, ok := hevcSPSColour(nal); !ok || p != c.prim || tr != c.trc {
+			t.Errorf("x265 SPS %s: %d %d %v", c.hex[:12], p, tr, ok)
+		}
+	}
+}
+
+// hevcMKV is a 2160p HEVC Matroska file with the given hvcC, Colour children, Dolby Vision record and first frame.
+func hevcMKV(hvcc, colour, dovi, frame []byte) []byte {
+	vparts := [][]byte{u(idPixelWidth, 3840), u(idPixelHeight, 2160)}
+	if colour != nil {
+		vparts = append(vparts, el(idColour, colour))
+	}
+	parts := [][]byte{u(idTrackNumber, 1), u(idTrackType, 1), str(idCodecID, "V_MPEGH/ISO/HEVC"),
+		el(idCodecPrivate, hvcc), el(idVideo, vparts...)}
+	if dovi != nil {
+		parts = append(parts, el(idBlockAddMapping, u(idBlockAddIDType, 0x64767643), el(idBlockAddIDExtra, dovi)))
+	}
+	video := el(idTrackEntry, parts...)
+	info := el(idInfo, u(idTimestampScale, 1000000), f64(idDuration, 7_200_000))
+	cluster := unknownEl(idCluster, u(0xE7, 0), simpleBlock(1, frame))
+	return append(el(idEBML, u(0x4286, 1)), unknownEl(idSegment, info, el(idTracks, video), cluster)...)
+}
+
+func TestMatroskaColourFromSPS(t *testing.T) {
+	pq := testSPS(spsOpts{sets: true, primaries: 9, transfer: 16})
+	for name, c := range map[string]struct {
+		data []byte
+		want string
+	}{
+		// no container colour: the SPS says PQ, the first frame HDR10+
+		"sps pq":  {hevcMKV(hvcCWith(pq), nil, nil, hdr10PlusFrame()), "HDR10Plus"},
+		"sps hlg": {hevcMKV(hvcCWith(testSPS(spsOpts{primaries: 9, transfer: 18})), nil, nil, hdr10PlusFrame()), "HLG"},
+		// the container stays first
+		"container sdr": {hevcMKV(hvcCWith(pq), append(u(idTransfer, 1), u(idPrimaries, 1)...), nil, hdr10PlusFrame()), ""},
+		// Dolby Vision with an HDR10-compatible base layer and no colour anywhere: the first frame is read
+		"dv compat 1": {hevcMKV(testHvcC(), nil, []byte{1, 0, 8 << 1, 0x10<<3 | 0x5, 1 << 4}, hdr10PlusFrame()), "DV HDR10Plus"},
+		"no colour":   {hevcMKV(testHvcC(), nil, nil, hdr10PlusFrame()), ""},
+	} {
+		r, err := Reader(bytes.NewReader(c.data), int64(len(c.data)), 0)
+		if err != nil {
+			t.Fatal(name, err)
+		}
+		if got := naming.FormatVideoDynamicRangeType(r.Model(), false); got != c.want {
+			t.Errorf("%s: %q, video %+v", name, got, r.Video)
+		}
+		if r.V != Version {
+			t.Errorf("%s: version mark %d", name, r.V)
+		}
+	}
+}
+
+func TestMP4ColourFromSPS(t *testing.T) {
+	pq := hvcCWith(testSPS(spsOpts{primaries: 9, transfer: 16}))
+	v := &Video{DoviCompat: -1}
+	mp4VideoEntry(v, "hvc1", box("hvcC", pq))
+	if v.Primaries != "bt2020" || v.Transfer != "smpte2084" {
+		t.Errorf("no colr: %+v", v)
+	}
+	nclx := []byte{'n', 'c', 'l', 'x', 0, 1, 0, 1, 0, 1, 0}
+	v = &Video{DoviCompat: -1}
+	mp4VideoEntry(v, "hvc1", append(box("hvcC", pq), box("colr", nclx)...))
+	if v.Primaries != "bt709" || v.Transfer != "bt709" {
+		t.Errorf("colr after hvcC stays first: %+v", v)
 	}
 }

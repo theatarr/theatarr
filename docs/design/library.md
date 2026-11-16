@@ -164,10 +164,14 @@ probes a sparse 50 GB file and a 20 GB MP4 with `moov` at the end reading under 
   against the debrid provider; and it is GPL-2.0+. go-mp4 is not
   needed for the few boxes read. No ffprobe binary.
 - It reports what the arrs' ffprobe gives (`naming.Model`): codecs, size, bit depth (hvcC, avcC + SPS, av1C),
-  colour from the container, Dolby Vision compatibility id (BlockAdditionMapping / dvcC), and from the first frames:
-  TrueHD Atmos (`thd+`), E-AC-3 JOC (`ec+3`, full bsi parse), the DTS profile (core, ES, 96/24, HD HRA, HD MA, DTS:X),
-  and for PQ video HDR10+ and mastering SEI, as Radarr reads frames only for PQ.
-- Limits: colour from the container only (not the VUI); the Atmos and DTS:X bit checks follow the specs and were
+  colour primaries and transfer from the container and, for HEVC when the container has none, from the SPS's VUI in
+  hvcC (walked to `colour_description` as ITU-T H.265 7.3.2.2 lays it out; an SPS that cannot be walked to the end
+  gives nothing; Matroska and MP4 alike, H.264 left alone), Dolby Vision compatibility id (BlockAdditionMapping /
+  dvcC), and from the first frames: TrueHD Atmos (`thd+`), E-AC-3 JOC (`ec+3`, full bsi parse), the DTS profile
+  (core, ES, 96/24, HD HRA, HD MA, DTS:X), and HDR10+ and mastering SEI for every HDR base layer: PQ (container or
+  SPS) or Dolby Vision with compatibility id 1 or 6 (Matroska; MP4 samples are not read). Tests:
+  `TestHEVCSPSColour` (built SPS records and two real x265 ones), `TestMatroskaColourFromSPS`, `TestMP4ColourFromSPS`.
+- Limits: no H.264 VUI; the Atmos and DTS:X bit checks follow the specs and were
   checked on synthetic streams only. `theatarr library verify` compares Theatarr's names with the arrs' on
   real files.
 

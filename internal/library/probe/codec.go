@@ -33,6 +33,9 @@ func (r *bitReader) bits(n int) uint32 {
 
 func (r *bitReader) skip(n int) { r.pos += n }
 
+// ok reports whether every read so far stayed inside the data.
+func (r *bitReader) ok() bool { return !r.over && r.pos <= len(r.b)*8 }
+
 // ue is an unsigned Exp-Golomb code.
 func (r *bitReader) ue() uint32 {
 	zeros := 0
@@ -99,6 +102,233 @@ func parseHvcC(b []byte) (hevcConfig, bool) {
 		}
 	}
 	return c, true
+}
+
+// hevcSPSColour walks an HEVC sequence parameter set NAL unit (with its two header bytes) to the VUI's
+// colour_description, ITU-T H.265 section 7.3.2.2 (seq_parameter_set_rbsp, profile_tier_level, scaling_list_data,
+// st_ref_pic_set, vui_parameters), and returns colour_primaries and transfer_characteristics. ok is false when the
+// SPS carries no colour description or cannot be walked to it (truncated, out of range, not the base layer).
+func hevcSPSColour(nal []byte) (primaries, transfer uint64, ok bool) {
+	if len(nal) < 3 || (nal[0]>>1)&0x3F != 33 || (nal[0]&1)<<5|nal[1]>>3 != 0 {
+		return 0, 0, false
+	}
+	r := &bitReader{b: unescapeRBSP(nal[2:])}
+	r.skip(4) // sps_video_parameter_set_id
+	maxSubLayersMinus1 := int(r.bits(3))
+	r.skip(1) // sps_temporal_id_nesting_flag
+	// profile_tier_level(1, sps_max_sub_layers_minus1)
+	r.skip(96) // general profile space .. general_level_idc
+	var profilePresent, levelPresent [8]bool
+	for i := 0; i < maxSubLayersMinus1; i++ {
+		profilePresent[i] = r.bit() == 1
+		levelPresent[i] = r.bit() == 1
+	}
+	if maxSubLayersMinus1 > 0 {
+		r.skip(2 * (8 - maxSubLayersMinus1)) // reserved_zero_2bits
+	}
+	for i := 0; i < maxSubLayersMinus1; i++ {
+		if profilePresent[i] {
+			r.skip(88)
+		}
+		if levelPresent[i] {
+			r.skip(8)
+		}
+	}
+	r.ue() // sps_seq_parameter_set_id
+	if r.ue() == 3 {
+		r.skip(1) // separate_colour_plane_flag
+	}
+	r.ue()            // pic_width_in_luma_samples
+	r.ue()            // pic_height_in_luma_samples
+	if r.bit() == 1 { // conformance_window_flag
+		r.ue()
+		r.ue()
+		r.ue()
+		r.ue()
+	}
+	r.ue() // bit_depth_luma_minus8
+	r.ue() // bit_depth_chroma_minus8
+	log2MaxPocLsb := int(r.ue()) + 4
+	if log2MaxPocLsb > 16 {
+		return 0, 0, false
+	}
+	first := maxSubLayersMinus1
+	if r.bit() == 1 { // sps_sub_layer_ordering_info_present_flag
+		first = 0
+	}
+	for i := first; i <= maxSubLayersMinus1; i++ {
+		r.ue() // sps_max_dec_pic_buffering_minus1
+		r.ue() // sps_max_num_reorder_pics
+		r.ue() // sps_max_latency_increase_plus1
+	}
+	for i := 0; i < 6; i++ {
+		r.ue() // coding and transform block sizes, transform hierarchy depths
+	}
+	if r.bit() == 1 && r.bit() == 1 { // scaling_list_enabled_flag, sps_scaling_list_data_present_flag
+		for sizeID := 0; sizeID < 4; sizeID++ {
+			step := 1
+			if sizeID == 3 {
+				step = 3
+			}
+			for matrixID := 0; matrixID < 6; matrixID += step {
+				if r.bit() == 0 { // scaling_list_pred_mode_flag
+					r.ue() // scaling_list_pred_matrix_id_delta
+					continue
+				}
+				if sizeID > 1 {
+					r.ue() // scaling_list_dc_coef_minus8 (se)
+				}
+				for i := 0; i < min(64, 1<<(4+sizeID<<1)); i++ {
+					r.ue() // scaling_list_delta_coef (se)
+				}
+			}
+		}
+	}
+	r.skip(2)         // amp_enabled_flag, sample_adaptive_offset_enabled_flag
+	if r.bit() == 1 { // pcm_enabled_flag
+		r.skip(8) // pcm sample bit depths
+		r.ue()
+		r.ue()
+		r.skip(1) // pcm_loop_filter_disabled_flag
+	}
+	numSets := int(r.ue())
+	if numSets > 64 {
+		return 0, 0, false
+	}
+	sets := make([]stRPS, numSets)
+	for i := range sets {
+		if !readSTRPS(r, sets, i) {
+			return 0, 0, false
+		}
+	}
+	if r.bit() == 1 { // long_term_ref_pics_present_flag
+		n := int(r.ue())
+		if n > 32 {
+			return 0, 0, false
+		}
+		r.skip(n * (log2MaxPocLsb + 1)) // lt_ref_pic_poc_lsb_sps, used_by_curr_pic_lt_sps_flag
+	}
+	r.skip(2)         // sps_temporal_mvp_enabled_flag, strong_intra_smoothing_enabled_flag
+	if r.bit() == 0 { // vui_parameters_present_flag
+		return 0, 0, false
+	}
+	if r.bit() == 1 { // aspect_ratio_info_present_flag
+		if r.bits(8) == 255 {
+			r.skip(32) // sar_width, sar_height
+		}
+	}
+	if r.bit() == 1 { // overscan_info_present_flag
+		r.skip(1)
+	}
+	if r.bit() == 0 { // video_signal_type_present_flag
+		return 0, 0, false
+	}
+	r.skip(4)         // video_format, video_full_range_flag
+	if r.bit() == 0 { // colour_description_present_flag
+		return 0, 0, false
+	}
+	primaries, transfer = uint64(r.bits(8)), uint64(r.bits(8))
+	if !r.ok() {
+		return 0, 0, false
+	}
+	return primaries, transfer, true
+}
+
+// stRPS is a short-term reference picture set: DeltaPocS0 and DeltaPocS1 (H.265 7.4.8).
+type stRPS struct{ s0, s1 []int }
+
+// readSTRPS reads st_ref_pic_set(idx) of the SPS into sets[idx]. With inter_ref_pic_set_prediction_flag the set is
+// derived from sets[idx-1] (in an SPS, delta_idx_minus1 is absent and RefRpsIdx is idx-1), one flag pair for each of
+// its NumDeltaPocs entries plus one (equations 7-61 and 7-62).
+func readSTRPS(r *bitReader, sets []stRPS, idx int) bool {
+	if idx > 0 && r.bit() == 1 { // inter_ref_pic_set_prediction_flag
+		ref := sets[idx-1]
+		sign := r.bit()
+		deltaRps := int(r.ue()) + 1
+		if sign == 1 {
+			deltaRps = -deltaRps
+		}
+		n := len(ref.s0) + len(ref.s1)
+		use := make([]bool, n+1)
+		for j := 0; j <= n; j++ {
+			used := r.bit() == 1
+			use[j] = used || r.bit() == 1 // use_delta_flag, inferred 1 when used_by_curr_pic_flag is set
+		}
+		if r.over {
+			return false
+		}
+		var s stRPS
+		for j := len(ref.s1) - 1; j >= 0; j-- {
+			s.neg(ref.s1[j]+deltaRps, use[len(ref.s0)+j])
+		}
+		s.neg(deltaRps, use[n])
+		for j := 0; j < len(ref.s0); j++ {
+			s.neg(ref.s0[j]+deltaRps, use[j])
+		}
+		for j := len(ref.s0) - 1; j >= 0; j-- {
+			s.pos(ref.s0[j]+deltaRps, use[j])
+		}
+		s.pos(deltaRps, use[n])
+		for j := 0; j < len(ref.s1); j++ {
+			s.pos(ref.s1[j]+deltaRps, use[len(ref.s0)+j])
+		}
+		if len(s.s0) > 16 || len(s.s1) > 16 {
+			return false
+		}
+		sets[idx] = s
+		return true
+	}
+	negative, positive := int(r.ue()), int(r.ue())
+	if r.over || negative > 16 || positive > 16 {
+		return false
+	}
+	var s stRPS
+	poc := 0
+	for i := 0; i < negative; i++ {
+		poc -= int(r.ue()) + 1 // delta_poc_s0_minus1
+		r.skip(1)              // used_by_curr_pic_s0_flag
+		s.s0 = append(s.s0, poc)
+	}
+	poc = 0
+	for i := 0; i < positive; i++ {
+		poc += int(r.ue()) + 1 // delta_poc_s1_minus1
+		r.skip(1)              // used_by_curr_pic_s1_flag
+		s.s1 = append(s.s1, poc)
+	}
+	sets[idx] = s
+	return !r.over
+}
+
+// neg and pos add a derived entry to S0 or S1 when its flag is set and its sign fits.
+func (b *stRPS) neg(d int, use bool) {
+	if d < 0 && use {
+		b.s0 = append(b.s0, d)
+	}
+}
+
+func (b *stRPS) pos(d int, use bool) {
+	if d > 0 && use {
+		b.s1 = append(b.s1, d)
+	}
+}
+
+// hevcColour fills the video's primaries and transfer from the SPS in hvcC's NAL units where the container gave
+// none: the container's values stay first.
+func hevcColour(v *Video, nals [][]byte) {
+	if v.Primaries != "" && v.Transfer != "" {
+		return
+	}
+	for _, nal := range nals {
+		if p, t, ok := hevcSPSColour(nal); ok {
+			if v.Primaries == "" {
+				v.Primaries = mkvPrimaries[p]
+			}
+			if v.Transfer == "" {
+				v.Transfer = mkvTransfer[t]
+			}
+			return
+		}
+	}
 }
 
 // avcConfig is what avcC (and its SPS) gives.

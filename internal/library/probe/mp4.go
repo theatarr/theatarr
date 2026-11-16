@@ -246,11 +246,13 @@ func mp4VideoEntry(v *Video, format string, ext []byte) {
 	default:
 		v.Codec = strings.ToLower(strings.TrimSpace(format))
 	}
+	var hevcNALs [][]byte
 	memBoxes(ext, func(typ string, d []byte) {
 		switch typ {
 		case "hvcC":
 			if c, ok := parseHvcC(d); ok {
 				v.BitDepth = c.bitDepth
+				hevcNALs = c.nals
 				var sf seiFindings
 				for _, nal := range c.nals {
 					scanHEVCNAL(nal, &sf)
@@ -282,6 +284,8 @@ func mp4VideoEntry(v *Video, format string, ext []byte) {
 			v.MultiView = 2
 		}
 	})
+	// The SPS's colour when colr gave none (colr may follow hvcC). MP4 reads no first sample.
+	hevcColour(v, hevcNALs)
 }
 
 func mp4AudioEntry(a *Audio, format string, ext []byte) {
