@@ -1158,14 +1158,21 @@ func TestJSONListSync(t *testing.T) {
 		fetched = append(fetched, u)
 		return []byte(body), nil
 	}
-	if _, err := st.Writer().Exec(`INSERT INTO import_list(id,name,list_type,url,versions,created_at,updated_at) VALUES
-		(1,'Popular','json','https://lists.example/movies.json','["movie-web"]',0,0)`); err != nil {
-		t.Fatal(err)
+	for _, q := range []string{`INSERT INTO import_list(id,name,list_type,url,versions,created_at,updated_at) VALUES
+		(1,'Popular','json','https://lists.example/movies.json','["movie-web"]',0,0)`,
+		`INSERT INTO title(id,kind,name,tmdb_id,created_at,updated_at) VALUES(71,'movie','Held One',101,0,0)`} {
+		if _, err := st.Writer().Exec(q); err != nil {
+			t.Fatal(err)
+		}
 	}
+	// Preview names an entry by the title Theatarr holds, else by its id; the entry's own title is not used.
 	p, err := s.PreviewList(context.Background(), 1)
-	if err != nil || p.AddTitle != 3 || p.Skipped != 0 || len(p.Titles) == 0 || p.Titles[0].Name != "One" ||
+	if err != nil || p.AddTitle != 2 || p.AddLibrary != 1 || p.Skipped != 0 || len(p.Titles) != 3 ||
 		!strings.HasSuffix(p.Note, " 2 of the list's entries name no title TMDb knows, and are skipped.") {
 		t.Fatalf("preview %+v %v", p, err)
+	}
+	if names := []string{p.Titles[0].Name, p.Titles[1].Name, p.Titles[2].Name}; strings.Join(names, ",") != "Held One,IMDb tt0102,TMDb 103" {
+		t.Fatalf("preview names %v", names)
 	}
 	got, err := s.SyncLists(context.Background())
 	if err != nil || got.Added != 3 || got.Skipped != 2 {
@@ -1174,7 +1181,7 @@ func TestJSONListSync(t *testing.T) {
 	if len(fetched) != 2 || fetched[0] != "https://lists.example/movies.json" {
 		t.Fatalf("fetched %v", fetched)
 	}
-	if n := countRows(t, st, `SELECT count(*) FROM title WHERE kind='movie' AND tmdb_id IN (101,102,103)`); n != 3 {
+	if n := countRows(t, st, `SELECT count(*) FROM version v JOIN title t ON t.id=v.title_id WHERE t.tmdb_id IN (101,102,103)`); n != 3 {
 		t.Errorf("%d movies added", n)
 	}
 	for _, bad := range []string{`{"items":[]}`, "[" + strings.Repeat(`{"tmdb_id":1},`, MaxJSONListItems) + `{"tmdb_id":1}]`} {

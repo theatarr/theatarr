@@ -102,7 +102,8 @@ Radarr and Sonarr, which have their own interval (below).
   `tmdb.Client.DiscoverMovies` / `DiscoverTV`, read fresh, not cached). Its titles are added as a TMDb list's items.
   It has no TMDb id or URL, so two rules never collide (`TestDiscoverListSync`, `TestDiscoverListsAPI`).
 - **JSON list** (`json`): a public https address answering a JSON array of objects with `imdb_id` and/or `tmdb_id`
-  (the StevenLu shape; `title` only names an entry in Preview), at most 1,000 entries and 5 MB, one row per address
+  (the StevenLu shape; `title` and other fields are ignored: Preview names an entry by the title Theatarr holds,
+  else "TMDb *id*" or "IMDb *id*"), at most 1,000 entries and 5 MB, one row per address
   and media. It is fetched through the gateway (`gateway.ListGet`: the repository fetch's path, VPN-guarded like an
   indexer, its own budget of 10 a minute and 300 a day, public addresses only, no redirect followed: the error asks
   for the direct address). An entry resolves by TMDb id, else by IMDb id (`FindByIMDb` / `FindTVByIMDb`, cached);

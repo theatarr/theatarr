@@ -13,7 +13,7 @@ import (
 )
 
 // JSON lists (list_type json; docs/design/arrview.md, Lists): a public https address answering a JSON array of
-// objects with imdb_id and/or tmdb_id (the StevenLu shape; title only names an entry in Preview). The list's
+// objects with imdb_id and/or tmdb_id (the StevenLu shape; other fields, title among them, are ignored). The list's
 // media says what the ids are: movies, or series (a TMDb TV id, or a series' IMDb id). Read through the gateway
 // (Fetch), never another HTTP client.
 
@@ -25,7 +25,6 @@ const (
 
 // jsonListItem is one entry of a JSON list. tmdb_id may be a number or a string.
 type jsonListItem struct {
-	Title  string          `json:"title"`
 	IMDbID string          `json:"imdb_id"`
 	TMDbID json.RawMessage `json:"tmdb_id"`
 }
@@ -65,7 +64,10 @@ func (s *MovieIntake) jsonItems(ctx context.Context, cfg movieIntakeConfig) (ite
 	seen := map[int]bool{}
 	for _, e := range entries {
 		id := e.tmdbID()
+		// Preview's name for an entry Theatarr does not hold: the id it was named by.
+		name := "TMDb " + strconv.Itoa(id)
 		if imdb := strings.TrimSpace(e.IMDbID); id == 0 && strings.HasPrefix(imdb, "tt") {
+			name = "IMDb " + imdb
 			find := s.TMDb.FindByIMDb
 			if media == "tv" {
 				find = s.TMDb.FindTVByIMDb
@@ -84,7 +86,7 @@ func (s *MovieIntake) jsonItems(ctx context.Context, cfg movieIntakeConfig) (ite
 		}
 		if !seen[id] {
 			seen[id] = true
-			items = append(items, tmdb.MovieSummary{ID: id, MediaType: media, Title: e.Title, Name: e.Title})
+			items = append(items, tmdb.MovieSummary{ID: id, MediaType: media, Title: name, Name: name})
 		}
 	}
 	return items, unresolved, nil

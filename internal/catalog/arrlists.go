@@ -407,6 +407,7 @@ func (s *MovieIntake) previewItems(ctx context.Context, cfg movieIntakeConfig, k
 			t.Year = d.Year()
 		}
 		var err error
+		var titleID int64
 		if series {
 			it := arrSeries{TmdbID: int64(m.ID), Title: m.Name}
 			if exclusions {
@@ -414,9 +415,15 @@ func (s *MovieIntake) previewItems(ctx context.Context, cfg movieIntakeConfig, k
 					return err
 				}
 			}
-			t.Change, _, err = s.previewSeries(ctx, cfg, keys, it)
+			t.Change, titleID, err = s.previewSeries(ctx, cfg, keys, it)
 		} else {
-			t.Change, _, err = s.previewMovie(ctx, cfg, keys, int64(m.ID))
+			t.Change, titleID, err = s.previewMovie(ctx, cfg, keys, int64(m.ID))
+		}
+		// A JSON list's entry carries only its id: a title Theatarr holds is shown by its name and year.
+		if err == nil && titleID > 0 && cfg.listType == "json" {
+			var year sql.NullInt64
+			err = s.Store.Reader().QueryRowContext(ctx, `SELECT name, year FROM title WHERE id=?`, titleID).Scan(&t.Name, &year)
+			t.Year = int(year.Int64)
 		}
 		if err != nil {
 			return err
