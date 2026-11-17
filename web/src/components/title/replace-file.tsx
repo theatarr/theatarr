@@ -2,12 +2,14 @@
 // library row and of the episode window. The same operation, refusal and confirmation scope as Requests › Problems
 // (replaceScope), without a report: the file is unlinked to the trash, its release is blocklisted in every library
 // that loses it (a pack as a whole) and those libraries are searched again. Offered only when that search can run;
-// otherwise the server's reason shows in its place.
+// otherwise the server's reason shows in its place. The outcome (what was removed, whether the search was queued) is a
+// notice: the title's refresh takes the row away with the file.
 import { RefreshCw } from "lucide-react";
 import { useState } from "react";
 import type { Schemas } from "@/api/client";
 import { useReplaceLink } from "@/api/ops";
 import { replaceScope } from "@/api/reports";
+import { toast } from "@/components/toaster";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
@@ -31,13 +33,19 @@ export function ReplaceFile({ titleId, linkId, path, scope }: { titleId: number;
           scope={replaceScope(scope, false)}
           busy={replace.isPending}
           error={replace.error}
-          done={replace.data?.message}
-          doneWarning={replace.data ? !replace.data.search?.started : false}
           onClose={() => {
             setOpen(false);
             replace.reset();
           }}
-          onConfirm={() => replace.mutate(linkId)}
+          onConfirm={() =>
+            replace.mutate(linkId, {
+              // The title refreshes and this row goes with the file: the outcome is a notice, not this dialog.
+              onSuccess: (r) => {
+                toast({ tone: r.search?.started ? "ok" : "warn", title: `Replaced ${name}`, body: r.message, duration: 10_000 });
+                setOpen(false);
+              },
+            })
+          }
         />
       ) : null}
     </>

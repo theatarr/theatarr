@@ -94,6 +94,19 @@ func languageChoices(fl format.Flavour) []string {
 	return out
 }
 
+// languageOptions are the languages the form offers for a file: the languages it is stored with that manual import
+// does not offer (Unknown, Original), so they are kept as they are, then the flavour's (languageChoices).
+func languageOptions(fl format.Flavour, stored []string) []string {
+	all := languageChoices(fl)
+	var out []string
+	for _, l := range stored {
+		if !slices.ContainsFunc(all, func(c string) bool { return strings.EqualFold(c, l) }) && !slices.Contains(out, l) {
+			out = append(out, l)
+		}
+	}
+	return append(out, all...)
+}
+
 // GET /links/{id}/facts: one active link's stored facts, with the form's choices.
 func (w *Web) apiFileFacts(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -129,7 +142,7 @@ func (w *Web) apiFileFacts(rw http.ResponseWriter, r *http.Request) {
 	for _, q := range profile.Qualities(fl) {
 		out.QualityChoices = append(out.QualityChoices, q.Name)
 	}
-	out.LanguageChoices = languageChoices(fl)
+	out.LanguageChoices = languageOptions(fl, out.Languages)
 	writeJSON(rw, http.StatusOK, out)
 }
 
@@ -156,9 +169,10 @@ func (w *Web) apiEditFileFacts(rw http.ResponseWriter, r *http.Request) {
 		badRequest(rw, "revision: 1 to 9")
 		return
 	}
-	var kind string
-	err := w.st.Reader().QueryRowContext(ctx, `SELECT t.kind FROM link l JOIN title t ON t.id = l.title_id
-		WHERE l.id = ?`, id).Scan(&kind)
+	var raw, kind, release, quality string
+	err := w.st.Reader().QueryRowContext(ctx, `SELECT COALESCE(l.file_metadata, '{}'), t.kind,
+		COALESCE(l.release_title, ''), COALESCE(l.quality, '') FROM link l JOIN title t ON t.id = l.title_id
+		WHERE l.id = ?`, id).Scan(&raw, &kind, &release, &quality)
 	if errors.Is(err, sql.ErrNoRows) {
 		notFound(rw)
 		return
@@ -174,7 +188,12 @@ func (w *Web) apiEditFileFacts(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	body.Quality = q.Name
-	choices := languageChoices(fl)
+	stored, err := decide.LinkFileInputs([]byte(raw), kind, release, quality)
+	if err != nil {
+		w.internal(rw, err)
+		return
+	}
+	choices := languageOptions(fl, stored.Languages)
 	langs := []string{}
 	for _, l := range body.Languages {
 		i := slices.IndexFunc(choices, func(c string) bool { return strings.EqualFold(c, l) })

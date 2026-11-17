@@ -22,10 +22,6 @@ type ReplaceScope struct {
 	Why       string   `json:"why,omitempty"`
 }
 
-func replaceScopeOf(f ReportFile) *ReplaceScope {
-	return &ReplaceScope{Libraries: f.Libraries, Episodes: f.Episodes, Pack: f.Pack, Replace: f.Replace, Why: f.Why}
-}
-
 // linkScopes is the Replace file scope of the title's active links (those holding episodeID when it is not 0), by
 // link id.
 func (w *Web) linkScopes(ctx context.Context, titleID, episodeID int64) (map[int64]*ReplaceScope, error) {
@@ -35,7 +31,7 @@ func (w *Web) linkScopes(ctx context.Context, titleID, episodeID int64) (map[int
 	}
 	out := make(map[int64]*ReplaceScope, len(files))
 	for _, f := range files {
-		out[f.LinkID] = replaceScopeOf(f)
+		out[f.LinkID] = &f.ReplaceScope
 	}
 	return out, nil
 }

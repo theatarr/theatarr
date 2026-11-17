@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, it } from "vitest";
 import { Seasons } from "./seasons";
 import { mockFetch, renderPage } from "@/test/page";
+import { Toaster } from "@/components/toaster";
 
 const managed = { can_edit: true, can_search: true, live_releases: true };
 const cell = (has: boolean) => ({ state: has ? "cutoff_met" : "wanted", monitored: true, has_file: has });
@@ -23,13 +24,13 @@ const detail = (scope: object) => ({
 const me = { method: "GET", path: "/auth/me", reply: { id: 1, username: "owner", permissions: ["manage", "see_files"], csrf_token: "t" } };
 
 async function drawer() {
-  renderPage(<Seasons id="1" anime={false} />, "/title/1?episode=201");
+  renderPage(<><Seasons id="1" anime={false} /><Toaster /></>, "/title/1?episode=201");
   const d = await screen.findByRole("dialog");
   await within(d).findByTestId("episode-file");
   return d;
 }
 
-it("replaces an episode's file with the Problems page's scope, without a report", async () => {
+it("replaces an episode's file with the Problems page's scope, without a report, and says what came of it in a notice", async () => {
   const scope = { libraries: ["TV", "TV 4K"], episodes: ["S01E01", "S01E02"], pack: true, replace: true };
   const done = { message: "Removed x.mkv; the release is blocklisted in TV and TV 4K. Searching S01E01, S01E02 in TV and TV 4K", search: { started: true, queued: 2, found: 0, versions: ["tv", "tv4k"], skipped: [], message: "" } };
   const api = mockFetch([me, { method: "GET", path: "/titles/1/episodes", reply: episodes }, { method: "GET", path: "/titles/1/episodes/201", reply: detail(scope) }, { method: "POST", path: "/links/9/replace", reply: done }]);
@@ -42,7 +43,10 @@ it("replaces an episode's file with the Problems page's scope, without a report"
   expect(within(dialog).getByText(/the whole pack is excluded in TV and TV 4K/)).toBeTruthy();
   expect(within(dialog).queryByText(/report stays open/)).toBeNull();
   await user.click(within(dialog).getByRole("button", { name: "Replace file" }));
-  expect(await within(dialog).findByText(done.message)).toBeTruthy();
+  // The outcome is a notice: the dialog closes, as the row it belongs to goes with the file.
+  await waitFor(() => expect(screen.queryByTestId("replace-confirm")).toBeNull());
+  const notice = screen.getAllByTestId("toast").at(-1) as HTMLElement;
+  expect(notice.textContent).toContain(done.message);
   expect(api.calls("POST", "/links/9/replace")).toHaveLength(1);
 });
 

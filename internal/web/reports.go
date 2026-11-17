@@ -91,16 +91,10 @@ type ReportFile struct {
 	Path         string `json:"path"`
 	ReleaseTitle string `json:"release_title,omitempty"`
 	Quality      string `json:"quality,omitempty"`
-	// Versions are the libraries that hold the file (keys), Libraries their names: unlinking takes it out of all.
-	Versions  []string `json:"versions"`
-	Libraries []string `json:"libraries"`
-	// Episodes are every episode the file holds (S01E02), which all lose it.
-	Episodes []string `json:"episodes,omitempty"`
-	// Pack: the file came from a release that holds more than this file; the blocklist excludes the whole release.
-	Pack bool `json:"pack"`
-	// Replace: Replace file may run now. Why says why not.
-	Replace bool   `json:"replace"`
-	Why     string `json:"why,omitempty"`
+	// Versions are the libraries that hold the file (keys): unlinking takes it out of all.
+	Versions []string `json:"versions"`
+	// The scope: the libraries' names, every episode the file holds, pack, and whether Replace may run now.
+	ReplaceScope
 
 	episodeIDs []int64
 	hash       string
@@ -497,11 +491,16 @@ func (w *Web) linkFiles(ctx context.Context, titleID, episodeID, linkID int64) (
 	if err != nil {
 		return nil, err
 	}
-	// The libraries and episodes of the title's active links, in one read each.
-	active := `SELECT id FROM link WHERE title_id = ? AND state = 'active'`
+	// The libraries and episodes of those links, in one read each.
+	ids := make([]int64, len(out))
+	for i, f := range out {
+		ids[i] = f.LinkID
+	}
+	idList, _ := json.Marshal(ids)
+	active := `SELECT value FROM json_each(?)`
 	versions := map[int64][]string{}
 	if err := scanAll(ctx, db, `SELECT x.link_id, v.policy_key FROM link_version x JOIN version v ON v.id = x.version_id
-		WHERE x.link_id IN (`+active+`) ORDER BY x.link_id, v.policy_key`, []any{titleID}, func(rows *sql.Rows) error {
+		WHERE x.link_id IN (`+active+`) ORDER BY x.link_id, v.policy_key`, []any{string(idList)}, func(rows *sql.Rows) error {
 		var id int64
 		var k string
 		err := rows.Scan(&id, &k)
@@ -517,7 +516,7 @@ func (w *Web) linkFiles(ctx context.Context, titleID, episodeID, linkID int64) (
 	episodes := map[int64][]ep{}
 	if err := scanAll(ctx, db, `SELECT x.link_id, e.id, e.season, e.number FROM link_episode x
 		JOIN episode e ON e.id = x.episode_id WHERE x.link_id IN (`+active+`) ORDER BY e.season, e.number`,
-		[]any{titleID}, func(rows *sql.Rows) error {
+		[]any{string(idList)}, func(rows *sql.Rows) error {
 			var link, id, s, n int64
 			err := rows.Scan(&link, &id, &s, &n)
 			episodes[link] = append(episodes[link], ep{id, episodeCode(s, n)})
@@ -531,7 +530,7 @@ func (w *Web) linkFiles(ctx context.Context, titleID, episodeID, linkID int64) (
 		if err := scanAll(ctx, db, `SELECT e.id, v.policy_key FROM episode e JOIN version v ON v.title_id = e.title_id
 			LEFT JOIN episode_version_state s ON s.version_id = v.id AND s.episode_id = e.id
 			WHERE e.title_id = ? AND COALESCE(s.monitored, e.monitored) = 1 AND e.id IN (SELECT x.episode_id
-				FROM link_episode x WHERE x.link_id IN (`+active+`))`, []any{titleID, titleID}, func(rows *sql.Rows) error {
+				FROM link_episode x WHERE x.link_id IN (`+active+`))`, []any{titleID, string(idList)}, func(rows *sql.Rows) error {
 			var k episodeKey
 			err := rows.Scan(&k.id, &k.version)
 			monitored[k] = true

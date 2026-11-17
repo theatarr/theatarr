@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/theatarr/theatarr/internal/auth"
@@ -50,6 +51,20 @@ func TestFileFactsAPI(t *testing.T) {
 		got.Message != "Saved: Remux-2160p → Bluray-1080p Proper; languages — → French; release group — → NEW. Score: "+
 			o.web.versionLabel("movie-remux")+" 120." || len(got.Scores) != 1 || got.Scores[0].Score != 120 {
 		t.Fatalf("edit: %d %+v", code, got)
+	}
+	// A language manual import does not offer (Unknown) round-trips: offered in the form, accepted unchanged when
+	// only the release group changes.
+	o.exec(`UPDATE link SET file_metadata = '{"Score":3200,"Languages":["Unknown"]}' WHERE id = 901`)
+	facts = FileFacts{}
+	if code := o.jsonCall("GET", APIBase+"/links/901/facts", nil, o.mc, "", &facts); code != 200 ||
+		!slices.Equal(facts.Languages, []string{"Unknown"}) || facts.LanguageChoices[0] != "Unknown" {
+		t.Fatalf("unknown language facts: %d %+v", code, facts)
+	}
+	got = FileFactsResult{}
+	if code := o.jsonCall("PATCH", APIBase+"/links/901/facts", FileFactsEdit{Quality: facts.Quality, Revision: facts.Revision,
+		Languages: facts.Languages, ReleaseGroup: "ONLY"}, o.mc, o.mcsrf, &got); code != 200 ||
+		!strings.Contains(got.Message, "languages — → Unknown") {
+		t.Fatalf("unknown language kept: %d %+v", code, got)
 	}
 	if n := o.count(`SELECT COUNT(*) FROM journal_action WHERE action = 'edit_file' AND title_id = 1
 		AND detail LIKE 'Remux-2160p → Bluray-1080p Proper;%' AND by <> ''`); n != 1 {
