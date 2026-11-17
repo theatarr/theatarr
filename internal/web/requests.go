@@ -1493,13 +1493,15 @@ func (w *Web) requestStatus(ctx context.Context, r *Request) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		filled := filledState(state)
+		var filled bool
 		if r.Kind == string(policy.KindSeries) && len(r.Seasons) > 0 {
 			// The requested seasons' aired episodes decide, whatever the whole version's state: it can be filled from
 			// before the request, or wanted for a gap in a season the request did not ask for.
 			if filled, err = w.seasonsFilled(ctx, vid, r.Seasons); err != nil {
 				return "", err
 			}
+		} else {
+			filled = filledState(state)
 		}
 		if !filled {
 			all = false

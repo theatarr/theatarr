@@ -74,7 +74,10 @@ func (w *Web) requestDetail(ctx context.Context, r *Request) (*RequestDetail, er
 				}
 			}
 			p.Have, p.Total = &have, &total
-			v.Available = total > 0 && have == total
+			if len(r.Seasons) == 0 {
+				// A request naming seasons keeps fillRequests' badge: every aired episode of its seasons, as its status.
+				v.Available = total > 0 && have == total
+			}
 		}
 		// Keep all concurrent acquisitions: a series can be downloading several requested episodes at once.
 		var latest *activity.Download

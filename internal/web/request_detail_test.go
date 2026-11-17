@@ -140,6 +140,9 @@ func TestRequestDetailRequestedSeasons(t *testing.T) {
 		t.Fatalf("partial season: %+v", d)
 	}
 	e.exec(`INSERT INTO link_episode (link_id, episode_id) VALUES (999, 102)`)
+	// The badge is the request's: every aired episode of its seasons imported.
+	e.exec(`UPDATE episode SET air_date = '2020-01-01' WHERE id IN (101, 102)`)
+	e.exec(`UPDATE episode_version_state SET state = 'filled' WHERE episode_id IN (101, 102)`)
 	d = RequestDetail{}
 	e.callAs(key, "GET", path, nil, 200, &d)
 	if *d.Progress[0].Have != 2 || !d.Versions[0].Available || d.Progress[0].Words != "Available" {

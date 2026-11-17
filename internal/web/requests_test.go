@@ -969,9 +969,13 @@ func TestSeasonRequestAvailableDespiteOtherSeasonGap(t *testing.T) {
 	e.exec(`INSERT INTO request (id, user_id, kind, title_id, name, versions, seasons, status, created_at, updated_at)
 		VALUES (501, ?, 'series', 10, 'The Show', '["tv-2160p"]', '[1]', 'approved', ?, ?),
 		(502, ?, 'series', 10, 'The Show', '["tv-2160p"]', '[2]', 'approved', ?, ?)`, annID, now, now, annID, now, now)
-	// Season 1 complete, season 2's aired episode missing: the copy stays wanted.
+	// Season 1 complete with one episode not aired yet, season 2's aired episode missing: the copy stays wanted.
 	e.exec(`UPDATE episode SET air_date = '2020-01-01' WHERE id IN (101, 102, 103)`)
 	e.exec(`UPDATE episode_version_state SET state = 'filled' WHERE episode_id IN (101, 102)`)
+	e.exec(`INSERT INTO episode (id, title_id, season, number, name, monitored, air_date, created_at, updated_at)
+		VALUES (106, 10, 1, 3, 'Later', 1, '2099-01-01', ?, ?)`, now, now)
+	e.exec(`INSERT INTO episode_version_state (version_id, episode_id, monitored, state, updated_at)
+		VALUES (10, 106, 1, 'wanted', ?)`, now)
 	for range 2 {
 		if err := e.web.syncRequests(ctx); err != nil {
 			t.Fatal(err)
@@ -994,5 +998,13 @@ func TestSeasonRequestAvailableDespiteOtherSeasonGap(t *testing.T) {
 	}
 	if !badge[501] || badge[502] || len(badge) != 2 {
 		t.Errorf("library badges: %v", badge)
+	}
+	// The detail gives the same badge as the list.
+	for _, id := range []int64{501, 502} {
+		var d RequestDetail
+		e.callAs(mgr, "GET", fmt.Sprintf("%s/requests/%d", APIBase, id), nil, 200, &d)
+		if d.Versions[0].Available != badge[id] {
+			t.Errorf("request %d: detail badge %v, list %v", id, d.Versions[0].Available, badge[id])
+		}
 	}
 }
