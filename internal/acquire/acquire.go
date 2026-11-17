@@ -204,6 +204,9 @@ type Selection struct {
 	// cutoff (state filled).
 	QualityCutoff bool
 	userInvoked   bool
+	// Searched, when set, is filled by Submit with the versions its queued searches are for (sorted): a title search
+	// that names versions can be served by others (Submit widens it), and the caller may say where it went.
+	Searched *[]string
 	// requested are the versions the caller named when Submit widened a title search to the titles' other active
 	// versions (nil: every version searched was named). Only these take the user-invoked semantics.
 	requested []string
@@ -307,11 +310,21 @@ func (a *Acquirer) Submit(ctx context.Context, commandID int64, sel Selection) (
 		groups = groupTargets(ts)
 		groups = groups[:MaxBulk]
 	}
+	var searched []string
 	for _, group := range groups {
 		if err := a.startRuns(ctx, SourceCommand, commandID, group); err != nil {
 			return queued, found, err
 		}
 		queued++
+		for _, t := range group {
+			if !slices.Contains(searched, t.key) {
+				searched = append(searched, t.key)
+			}
+		}
+	}
+	if sel.Searched != nil {
+		slices.Sort(searched)
+		*sel.Searched = searched
 	}
 	return queued, found, nil
 }

@@ -783,6 +783,8 @@ func (w *Web) searchScoped(rw http.ResponseWriter, r *http.Request, season *int)
 		out.Message = "Nothing searched: the acquirer is not running"
 	default:
 		sel.Versions = active
+		var searched []string
+		sel.Searched = &searched
 		queued, found, err := w.add.Acquirer.Submit(ctx, 0, sel)
 		if err != nil {
 			w.internal(rw, err)
@@ -790,14 +792,11 @@ func (w *Web) searchScoped(rw http.ResponseWriter, r *http.Request, season *int)
 		}
 		out.Queued, out.Found, out.Started = queued, found, queued > 0
 		where := w.labelList(active)
-		if season != nil && req.Versions != nil {
-			// A picked library that monitors none of the season: the search goes to the libraries that do.
-			if mon, err := w.seasonMonitored(ctx, t.id, *season, active); err != nil {
-				w.internal(rw, err)
-				return
-			} else if !mon {
-				where = "the libraries that monitor this season"
-			}
+		if season != nil && len(searched) > 0 && !slices.ContainsFunc(active, func(k string) bool {
+			return slices.Contains(searched, k)
+		}) {
+			// The picked library has nothing to search in the season: the search went to the libraries that do.
+			where = "the libraries that monitor this season"
 		}
 		if queued == 0 {
 			out.Message = "Nothing to search: no monitored episode in " + scope
@@ -810,20 +809,6 @@ func (w *Web) searchScoped(rw http.ResponseWriter, r *http.Request, season *int)
 		w.log.Info("search now", "title", t.id, "scope", scope, "versions", strings.Join(active, ","), "queued", queued)
 	}
 	writeJSON(rw, http.StatusOK, out)
-}
-
-// seasonMonitored reports whether any of the title's libraries keys monitors an episode of season.
-func (w *Web) seasonMonitored(ctx context.Context, titleID int64, season int, keys []string) (bool, error) {
-	args := []any{titleID, season}
-	for _, k := range keys {
-		args = append(args, k)
-	}
-	var on bool
-	err := w.st.Reader().QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM episode_version_state s
-		JOIN version v ON v.id = s.version_id JOIN episode e ON e.id = s.episode_id
-		WHERE v.title_id = ? AND e.season = ? AND s.monitored = 1 AND v.policy_key IN (`+
-		store.Placeholders(len(keys))+`))`, args...).Scan(&on)
-	return on, err
 }
 
 // EpisodeFile is the file that holds an episode in one version.

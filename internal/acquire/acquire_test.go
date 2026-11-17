@@ -816,3 +816,21 @@ func TestTitleSearchFanoutSkipsUnmonitoredAndRemovedVersions(t *testing.T) {
 		t.Fatalf("runs %s, want %s", strings.Join(got, " "), want)
 	}
 }
+
+// A season search that names a library monitoring none of the season's searchable episodes (its one monitored
+// episode was dropped by the metadata source) is served by the library that monitors the season: Submit says so in
+// Searched, which the title page's toast reads.
+func TestSeasonSearchSearchedVersions(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true, nil)
+	e.pol.Versions["series-shadow"] = e.pol.Versions["series"]
+	e.exec(`UPDATE episode_version_state SET monitored = (episode_id = 1001) WHERE version_id = 201`)
+	e.exec(`UPDATE episode SET removed_at = 1 WHERE id = 1001`)
+	season := 1
+	var searched []string
+	queued, _, err := e.a.Submit(e.ctx, 0, Selection{Versions: []string{"series"}, TitleIDs: []int64{10}, Season: &season,
+		Searched: &searched})
+	if err != nil || queued != 1 || !slices.Equal(searched, []string{"series-shadow"}) {
+		t.Fatalf("queued %d, searched %v, err %v; want series-shadow only", queued, searched, err)
+	}
+}

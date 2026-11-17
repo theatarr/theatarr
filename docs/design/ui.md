@@ -620,8 +620,9 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
     search takes monitored episodes only, and the server widens it to the title's other monitored libraries), and
     with "<Library> does not monitor this series" when the picked library does not monitor the series;
     Interactive search stays. When no library in view monitors the season but another library that searches does,
-    the button says "Search season N now in the libraries that monitor this season" and the toast "Searching season
-    N in the libraries that monitor this season" (the search goes to those, not to the picked library). An episode's Search (row, episode window, selection) stays enabled for unmonitored episodes: a
+    the button says "Search season N now in the libraries that monitor this season" and, when the acquirer's
+    searches went only to other libraries (`acquire.Selection.Searched`), the toast "Searching season N in the
+    libraries that monitor this season". An episode's Search (row, episode window, selection) stays enabled for unmonitored episodes: a
     search that names its episodes takes them unmonitored too, as Sonarr's does.
   - **Jump to** (a series with more than 8 seasons, specials not counted): a select "Jump to season" above the
     seasons, newest first and Specials last; picking one opens that season and moves the focus to its heading, which
