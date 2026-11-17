@@ -507,7 +507,7 @@ func (s *Service) editor(w http.ResponseWriter, r *request) {
 					if err != nil && err != errNoVersion {
 						return err
 					}
-					created, sp, err := s.turnOn(ctx, tx, v, e.id, keys, mon)
+					created, sp, err := s.turnOn(ctx, tx, v, e.id, keys, mon, true)
 					if err != nil {
 						return err
 					}

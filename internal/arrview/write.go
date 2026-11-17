@@ -278,8 +278,9 @@ func (s *Service) decideAnime(ctx context.Context, v *View, in *titleIn, ext int
 // reclassify asks again about a title whose anime check could not reach TMDb (anime_source unknown in this view's
 // record). Once TMDb answers, every unknown record of the title takes the answer; an anime answer flags
 // the title anime and turns on the view's versions for it (chooseVersions with the record's profile and root),
-// monitored as the title is. The view's other versions stay.
-func (s *Service) reclassify(ctx context.Context, v *View, titleID int64) error {
+// monitored as the title is. The view's other versions stay. restore is TurnOnSynced's: a person's add or edit
+// brings a removed copy in sync back; a Refresh (restore false) only adds missing ones.
+func (s *Service) reclassify(ctx context.Context, v *View, titleID int64, restore bool) error {
 	var src, root string
 	var qp, tmdbID, tvdbID int64
 	err := s.st.Reader().QueryRowContext(ctx, `SELECT a.anime_source, a.quality_profile_id, a.root_folder_path,
@@ -321,7 +322,7 @@ func (s *Service) reclassify(ctx context.Context, v *View, titleID int64) error 
 			titleID).Scan(&mon); err != nil {
 			return err
 		}
-		created, partners, err := s.turnOn(ctx, tx, v, titleID, keys, mon)
+		created, partners, err := s.turnOn(ctx, tx, v, titleID, keys, mon, restore)
 		if err != nil {
 			return err
 		}
@@ -371,13 +372,14 @@ func (s *Service) heldSeriesType(ctx context.Context, in *titleIn, ext int64) (s
 }
 
 // turnOn makes sure the title has each version, monitored as asked: a new version starts wanted; a removed one is
-// restored; one that gains a copy brings the libraries in sync with it (catalog.TurnOnSynced). It returns the keys
+// restored; one that gains a copy brings the libraries in sync with it (catalog.TurnOnSynced; restore brings a
+// removed copy in sync back too). It returns the keys
 // of the versions it created for keys, and the libraries in sync it created (partners, outside the view as a rule).
 // The caller of an edit that names no seasons gives the partners their named copy's season choices
 // (catalog.PartnerSeasonIntent).
 func (s *Service) turnOn(ctx context.Context, tx *sqlTx, v *View, titleID int64, keys []string,
-	monitored bool) (created []string, partners catalog.Partners, err error) {
-	created, partners, err = catalog.TurnOnSynced(ctx, tx, s.pol, titleID, keys, monitored, true, s.now())
+	monitored, restore bool) (created []string, partners catalog.Partners, err error) {
+	created, partners, err = catalog.TurnOnSynced(ctx, tx, s.pol, titleID, keys, monitored, restore, s.now())
 	for _, k := range created {
 		s.log.Info("version turned on", "view", v.Key, "title", titleID, "version", k)
 	}
@@ -763,7 +765,7 @@ func (s *Service) addTitle(w http.ResponseWriter, r *request) {
 				return
 			}
 		}
-		if err := s.reclassify(ctx, v, titleID); err != nil {
+		if err := s.reclassify(ctx, v, titleID, true); err != nil {
 			s.internal(w, r, err)
 			return
 		}
@@ -899,7 +901,7 @@ func (s *Service) updateTitle(w http.ResponseWriter, r *request) {
 				return err
 			}
 			picked = keys
-			created, sp, err := s.turnOn(ctx, tx, v, e.id, keys, mon)
+			created, sp, err := s.turnOn(ctx, tx, v, e.id, keys, mon, true)
 			if err != nil {
 				return err
 			}
@@ -952,7 +954,7 @@ func (s *Service) updateTitle(w http.ResponseWriter, r *request) {
 		s.internal(w, r, err)
 		return
 	}
-	if err := s.reclassify(ctx, v, e.id); err != nil {
+	if err := s.reclassify(ctx, v, e.id, true); err != nil {
 		s.internal(w, r, err)
 		return
 	}

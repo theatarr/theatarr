@@ -1039,7 +1039,7 @@ monitored like the named copy, keeping its own saved minimum availability, which
 overwrite: owner, 2026-11-17, "if they are supposed to be in sync then they should stay in
 sync"). Known limit: a copy whose removal cleared its per-library minimum availability (removing the whole title, or
 removing it through a Radarr client) comes back with its library's default. The one exception is collections and import lists (`catalog.Input.AddMethod` list or collection) and the
-intake's missing-library fill, which never restore a removed copy, and Bring in sync, which leaves removed copies
+intake's missing-library fill and a compatible Refresh whose anime check now answers (it adds missing copies only), which never restore a removed copy, and Bring in sync, which leaves removed copies
 removed; every add a person makes (the add sheet, the library switch and bulk add, requests and their approval, the
 compatible API) restores it (`restore` on `catalog.SyncPartners` and `TurnOnSynced`). Monitoring an existing copy
 again brings nothing. The new copy takes the add's monitored flag and, for a series, its seasons, preset and monitor-new

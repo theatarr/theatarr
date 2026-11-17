@@ -96,8 +96,9 @@ func (s *Service) queueMaintenance(ctx context.Context, v *View, name string, bo
 		}
 		var refs []int64
 		for _, id := range ids {
-			// A title whose anime check failed at its add is asked about again.
-			if err := s.reclassify(ctx, v, id); err != nil {
+			// A title whose anime check failed at its add is asked about again; a refresh brings back no removed
+			// copy in sync.
+			if err := s.reclassify(ctx, v, id, false); err != nil {
 				return nil, err
 			}
 			job, err := s.metadata.Refresh(ctx, id)
