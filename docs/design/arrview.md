@@ -347,7 +347,8 @@ Left as before, on purpose:
 
 A version these writes create or restore (an add, a profile change in `PUT`, the mass editor, an anime reclassify)
 brings the libraries kept in sync with it (docs/design/ui.md "Keep in sync"), with the request's monitored flag and,
-for a series, its seasons and `monitorNewItems`; the view's own record (profile, root folder, tags) and its answer
+for a series, its seasons and `monitorNewItems`. An add's `seriesType` is stored (for a series with none) before the
+versions are turned on, so an anime type counts for which libraries in sync fit; the view's own record (profile, root folder, tags) and its answer
 stay the view's.
 
 - **`POST movie|series`** (Seerr's add): the title is found by TMDb (movies) or TVDB (series) id, or created with the

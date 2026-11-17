@@ -691,6 +691,9 @@ func (s *Service) addTitle(w http.ResponseWriter, r *request) {
 			ci.TvdbID = ext
 			ci.SeasonVersions = v.Versions
 			ci.MonitorNew = in.MonitorNewItems.value("all", "none")
+			// An add gives a series its type only when it has none (catalog.AddSeriesType), before its libraries are
+			// turned on: the type is part of whether a library in sync fits.
+			ci.SeriesType = in.SeriesType.value(seriesTypes...)
 			for _, se := range in.Seasons {
 				ci.Seasons = append(ci.Seasons, catalog.Season{Number: se.SeasonNumber, Monitored: se.Monitored})
 			}
@@ -714,12 +717,6 @@ func (s *Service) addTitle(w http.ResponseWriter, r *request) {
 			return err
 		}
 		titleID = res.TitleID
-		if v.Flavour == Sonarr {
-			// An add gives a series its type only when it has none: a later add never changes a stored one.
-			if err := catalog.AddSeriesType(ctx, tx, titleID, in.SeriesType.value(seriesTypes...)); err != nil {
-				return err
-			}
-		}
 		if v.Flavour == Radarr {
 			if err := s.chooseTurnedOn(ctx, tx, titleID, on, res.Versions, minAvail); err != nil {
 				return err

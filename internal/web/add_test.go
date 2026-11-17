@@ -1742,6 +1742,29 @@ func TestSyncGroupsReaddedSeriesType(t *testing.T) {
 	}
 }
 
+// A series with no stored type, every copy removed, added again through the Sonarr-compatible API as anime: the type
+// counts for the libraries in sync, so the anime-only partner of the anime library gets its copy too.
+func TestSyncGroupsCompatibleReaddSeriesType(t *testing.T) {
+	t.Parallel()
+	e := newAddEnv(t, func(p *policy.Policy) {
+		a2 := *p.Versions["anime-tv"]
+		a2.Library = "/media/anime-2"
+		p.Versions["anime-tv-2"] = &a2
+		p.Library.SyncGroups = [][]string{{"anime-tv", "anime-tv-2"}}
+	})
+	e.exec(`INSERT INTO arrview_removed_version (version_id, view, removed_at) VALUES (10, 'ui', 0)`)
+	e.call("POST", "/v/anime-tv/sonarr/api/v3/series", map[string]any{"title": "The Show", "tvdbId": 201,
+		"seriesType": "anime", "monitored": true}, 201, nil)
+	for _, k := range []string{"anime-tv", "anime-tv-2"} {
+		if n := e.count(`SELECT COUNT(*) FROM version WHERE title_id = 10 AND policy_key = ?`, k); n != 1 {
+			t.Errorf("%s: %d copies, want 1", k, n)
+		}
+	}
+	if n := e.count(`SELECT COUNT(*) FROM title WHERE id = 10 AND series_type = 'anime'`); n != 1 {
+		t.Error("the add's series type is not stored")
+	}
+}
+
 // One answer to "which libraries in sync would gain a copy" (catalog.SyncPartners) serves the add options, the title
 // page's library switch and a request's stored libraries: a partner the title has a copy of, removed or not, is
 // never listed, and a request stores the partners next to the libraries it asks for.
