@@ -227,7 +227,7 @@ describe("fix round 1", () => {
 
   it("removes a library with the one kept in sync with it: names it, its files and torrents with the boxes, and offers the list exclusion when nothing is left", async () => {
     const fetch = manager([
-      { method: "GET", path: "/titles/7/removal", reply: { title_id: 7, name: "Alpha", title: true, links: 1, unlink_links: 1, leftover: [], copies: [
+      { method: "GET", path: "/titles/7/removal", reply: { title_id: 7, name: "Alpha", title: true, leftover: [], copies: [
         { key: "movie-remux", label: "Remux", links: 1, downloads: 0, sync_of: "movie-web" }, { key: "movie-web", label: "WEB", links: 1, downloads: 0 }] } },
       { method: "POST", path: "/titles/7/remove", reply: { title: true, cleanup: false, failed: [], kept: [], message: "Removed Alpha from the library." } },
       { method: "GET", path: "/titles/7", reply: {} },
@@ -238,12 +238,13 @@ describe("fix round 1", () => {
     await user.click(screen.getByTestId("copy-remove-movie-web"));
     const does = () => screen.getByTestId("confirm-does").textContent;
     await waitFor(() => expect(does()).toContain("Remux is kept in sync with WEB and is removed too, its files and debrid torrents too"));
-    // The file the two libraries share is one deletion.
-    expect(does()).toContain("1 library file is deleted from the library");
+    // Each library with its own files; which lose their files, with no total.
+    expect(does()).toContain("Alpha is removed from every library it is in (Remux (1 file), WEB (1 file))");
+    expect(does()).toContain("The library files of Remux and WEB are deleted from the library");
     await user.click(screen.getByTestId("remove-files"));
     expect(does()).toContain("Remux is kept in sync with WEB and is removed too");
     expect(does()).not.toContain("its files");
-    expect(screen.getByTestId("confirm-keeps").textContent).toContain("1 library file stays linked and playable");
+    expect(screen.getByTestId("confirm-keeps").textContent).toContain("The library files of Remux and WEB stay linked");
     await user.click(screen.getByTestId("remove-files"));
     await user.click(screen.getByTestId("remove-exclude"));
     await user.click(screen.getByTestId("confirm-ok"));

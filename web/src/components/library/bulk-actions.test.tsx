@@ -75,7 +75,7 @@ describe("Bulk Remove", () => {
     const does = within(dialog).getByTestId("confirm-does").textContent;
     expect(does).toContain("4 titles are removed from every library they are in");
     expect(does).toContain("Theatarr stops following 1 download in progress");
-    expect(does).toContain("16 library files are deleted from the library");
+    expect(does).toContain("Their library files are deleted from the library");
     expect(does).toContain("Their debrid torrents are deleted from the providers");
     expect(within(dialog).getByTestId("bulk-remove-skipped").textContent).toBe("Skipped 1 title: in no library.");
     expect(within(dialog).getByText("Delete them from the debrid providers")).toBeTruthy();
@@ -86,10 +86,10 @@ describe("Bulk Remove", () => {
     await user.click(within(dialog).getByTestId("remove-files"));
     await user.click(within(dialog).getByRole("button", { name: "Remove 4 titles" }));
     await screen.findByText("Removed 4 titles");
-    // Each title with exactly the libraries its preview showed.
-    expect([1, 2, 3, 4].map((id) => api.calls("POST", `/titles/${id}/remove`)[0]?.body)).toEqual([["hd", "uhd"], ["hd"], ["uhd"], ["tv"]].map(
-      (versions) => ({ versions, unlink: true, debrid: true })));
-    expect(api.calls("GET", "/titles/1/removal")[0].search).toBe("?versions=hd%2Cuhd");
+    // Each whole title (no library named), checked against its preview first.
+    expect([1, 2, 3, 4].map((id) => api.calls("POST", `/titles/${id}/remove`)[0]?.body)).toEqual([1, 2, 3, 4].map(
+      () => ({ versions: [], unlink: true, debrid: true })));
+    expect(api.calls("GET", "/titles/1/removal")).toHaveLength(1);
     expect(screen.getByText("Their debrid torrents are being cleaned up; each title's History shows the outcome.")).toBeTruthy();
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(cleared()).toBe(1);
@@ -126,10 +126,10 @@ describe("Bulk Remove", () => {
     const user = userEvent.setup();
     await user.click(await within(await bar()).findByRole("button", { name: "Remove from a library" }));
     let dialog = await screen.findByRole("dialog", { name: "Remove 3 titles from HD" });
-    expect(within(dialog).getByTestId("confirm-does").textContent).toContain("1 title keeps a copy in another library and stays visible to apps that include it; 2 are in no other library and are hidden from Seerr and the other arr clients");
+    expect(within(dialog).getByTestId("confirm-does").textContent).toContain("1 title keeps a copy in another library and stays visible to apps that include it; 2 have no copy left and are hidden from Seerr and the other arr clients");
     await user.selectOptions(within(dialog).getByRole("combobox", { name: "Library" }), "uhd");
     dialog = await screen.findByRole("dialog", { name: "Remove 2 titles from 4K" });
-    expect(within(dialog).getByTestId("confirm-does").textContent).toContain("1 title keeps a copy in another library and stays visible to apps that include it; 1 is in no other library and is hidden from Seerr and the other arr clients");
+    expect(within(dialog).getByTestId("confirm-does").textContent).toContain("1 title keeps a copy in another library and stays visible to apps that include it; 1 has no copy left and is hidden from Seerr and the other arr clients");
     expect(within(dialog).getByTestId("bulk-remove-skipped").textContent).toBe("Skipped 3 titles: not in this library.");
     expect(within(dialog).getByTestId("confirm-keeps").textContent).toContain("A file another library of the title uses stays");
     await user.click(within(dialog).getByRole("button", { name: "Remove 2 titles from 4K" }));
@@ -142,7 +142,7 @@ describe("Bulk Remove", () => {
 describe("Bulk Remove in a sync group", () => {
   it("posts the chosen library only, and the dialog names the library kept in sync with it", async () => {
     const partner = { ...copy("uhd", "4K", 2), sync_of: "hd" };
-    const alpha = { ...scope(1, "Alpha", [copy("hd", "HD", 3), partner]), links: 4, unlink_links: 4 };
+    const alpha = scope(1, "Alpha", [copy("hd", "HD", 3), partner]);
     const { api } = setup([
       { method: "POST", path: "/titles/removal", reply: { scopes: [alpha], skipped: [2, 3, 4, 5].map((id) => ({ title_id: id, reason: "not in this library" })) } },
       { method: "GET", path: "/titles/1/removal", reply: alpha },
@@ -153,8 +153,8 @@ describe("Bulk Remove in a sync group", () => {
     const dialog = await screen.findByRole("dialog", { name: "Remove 1 title from HD" });
     const does = within(dialog).getByTestId("confirm-does").textContent;
     expect(does).toContain("4K is kept in sync with HD and is removed too, its files and debrid torrents too");
-    // A file both libraries link is deleted once.
-    expect(does).toContain("4 library files are deleted from the library");
+    expect(does).toContain("Its library files are deleted from the library");
+    expect(does).toContain("1 title has no copy left and leaves the library");
     await user.click(within(dialog).getByRole("button", { name: "Remove 1 title from HD" }));
     await screen.findByText("Removed 1 title from HD");
     // The person's choice, not the preview's libraries: the server adds the one kept in sync again.
@@ -179,10 +179,10 @@ describe("Bulk Remove after the preview", () => {
     await user.click(within(dialog).getByRole("button", { name: "Remove 2 titles" }));
     await screen.findByText("Removed 1 of 2 titles");
     expect(screen.getByText(/^1 title not removed \(Alpha\): changed since the preview\./)).toBeTruthy();
-    // Alpha's check asked for the previewed library only, and Alpha was not removed.
-    expect(api.calls("GET", "/titles/1/removal")[0].search).toBe("?versions=hd");
+    // Alpha's check read the whole title again, as the preview did, and Alpha was not removed.
+    expect(api.calls("GET", "/titles/1/removal")).toHaveLength(1);
     expect(api.calls("POST", "/titles/1/remove")).toHaveLength(0);
-    expect(api.calls("POST", "/titles/2/remove")[0].body).toEqual({ versions: ["hd"], unlink: true, debrid: true });
+    expect(api.calls("POST", "/titles/2/remove")[0].body).toEqual({ versions: [], unlink: true, debrid: true });
   });
 
   it("stops after the title in hand when the dialog is closed, and leaves the bar and a newer dialog alone", async () => {

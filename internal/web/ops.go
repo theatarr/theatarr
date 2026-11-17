@@ -784,8 +784,8 @@ func (w *Web) apiUnblock(rw http.ResponseWriter, r *http.Request) {
 type RemovalCopy struct {
 	Key   string `json:"key"`
 	Label string `json:"label"`
-	// Links are the copy's active library symlinks (unlinked only when asked); Downloads its downloads in hand,
-	// whose records end (the provider's copies are left alone).
+	// Links are the copy's library symlinks, active or dead (a removal with unlink moves both); Downloads its
+	// downloads in hand, whose records end (the provider's copies are left alone).
 	Links     int `json:"links"`
 	Downloads int `json:"downloads"`
 	// SyncOf is the named library this copy is kept in sync with, when it goes because of it (catalog.SyncRemovals);
@@ -804,10 +804,6 @@ type RemovalScope struct {
 	// with unlink whose file moves failed part way, or one without unlink): a removal with unlink moves their links to
 	// the trash too, and finishes the earlier one.
 	Leftover []RemovalCopy `json:"leftover"`
-	// Links are the copies' distinct active library symlinks (a file two copies share counts once); UnlinkLinks the
-	// distinct links a removal with unlink moves: those and the leftover copies' links.
-	Links       int `json:"links"`
-	UnlinkLinks int `json:"unlink_links"`
 }
 
 // removalScope reads what removing keys (every copy when empty) of a title would touch.
@@ -827,7 +823,7 @@ type scopeRead struct {
 	err   error
 }
 
-// removalScopes reads removalScope for many titles in four queries (the selection bar's Remove). Named keys bring
+// removalScopes reads removalScope for many titles in three queries (the selection bar's Remove). Named keys bring
 // the copies kept in sync with them (catalog.SyncRemovals) before the scope says whether the title goes; the bad-key
 // check and the leftover copies stay on the keys named.
 func (w *Web) removalScopes(ctx context.Context, ids []int64, keys []string) (map[int64]scopeRead, error) {
@@ -853,7 +849,7 @@ func (w *Web) removalScopes(ctx context.Context, ids []int64, keys []string) (ma
 	named := map[int64][]copyName{}
 	err = scanAll(ctx, w.st.Reader(), `SELECT v.title_id, v.policy_key,
 		(SELECT COUNT(*) FROM link l JOIN link_version lv ON lv.link_id = l.id WHERE lv.version_id = v.id
-			AND l.state = 'active' AND l.kind = 'symlink'),
+			AND l.state IN ('active', 'dead') AND l.kind = 'symlink'),
 		(SELECT COUNT(*) FROM download d WHERE d.version_id = v.id AND d.state NOT IN ('failed', 'imported'))
 		FROM version v WHERE v.title_id IN `+where+`
 		AND NOT EXISTS (SELECT 1 FROM arrview_removed_version r WHERE r.version_id = v.id) ORDER BY v.policy_key`,
@@ -891,30 +887,6 @@ func (w *Web) removalScopes(ctx context.Context, ids []int64, keys []string) (ma
 	if err != nil {
 		return nil, err
 	}
-	// Each library symlink with its copy, for the distinct counts: active ones of live copies, active or dead ones of
-	// removed copies.
-	type keyLink struct {
-		key     string
-		link    int64
-		removed bool
-	}
-	links := map[int64][]keyLink{}
-	err = scanAll(ctx, w.st.Reader(), `SELECT v.title_id, v.policy_key, l.id,
-		EXISTS (SELECT 1 FROM arrview_removed_version r WHERE r.version_id = v.id) AS removed
-		FROM version v JOIN link_version lv ON lv.version_id = v.id JOIN link l ON l.id = lv.link_id
-		WHERE v.title_id IN `+where+` AND l.kind = 'symlink' AND (l.state = 'active' OR l.state = 'dead' AND
-		EXISTS (SELECT 1 FROM arrview_removed_version r WHERE r.version_id = v.id))`, in, func(r *sql.Rows) error {
-		var id int64
-		var x keyLink
-		if err := r.Scan(&id, &x.key, &x.link, &x.removed); err != nil {
-			return err
-		}
-		links[id] = append(links[id], x)
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
 	out := make(map[int64]scopeRead, len(ids))
 	for _, id := range ids {
 		s := scopes[id]
@@ -947,16 +919,6 @@ func (w *Web) removalScopes(ctx context.Context, ids []int64, keys []string) (ma
 			}
 		}
 		s.Title = len(live[id]) > 0 && len(s.Copies) == len(live[id])
-		copyLinks, allLinks := map[int64]bool{}, map[int64]bool{}
-		for _, x := range links[id] {
-			switch {
-			case !x.removed && slices.ContainsFunc(s.Copies, func(c RemovalCopy) bool { return c.Key == x.key }):
-				copyLinks[x.link], allLinks[x.link] = true, true
-			case x.removed && slices.ContainsFunc(s.Leftover, func(c RemovalCopy) bool { return c.Key == x.key }):
-				allLinks[x.link] = true
-			}
-		}
-		s.Links, s.UnlinkLinks = len(copyLinks), len(allLinks)
 		out[id] = scopeRead{scope: s, err: bad}
 	}
 	return out, nil

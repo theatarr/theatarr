@@ -83,12 +83,12 @@ describe("recovery scopes", () => {
     const keep = removalScope(one, false);
     expect(keep.title).toBe("Remove from 4K WEB");
     expect(keep.does).toEqual([
-      "Dune is removed from 4K WEB: this copy stops being wanted, searched or upgraded",
+      "Dune is removed from 4K WEB (2 files, 1 download in progress): this copy stops being wanted, searched or upgraded",
       "4K WEB loses its copy. Apps whose libraries include a remaining copy still show Dune",
       "Theatarr stops following 1 download in progress",
     ]);
     expect(keep.keeps).toEqual([
-      "2 library files stay linked and playable",
+      "The library files of 4K WEB stay linked",
       "Its debrid torrents stay",
       "Its history stays",
       "Import lists will not restore the removed libraries; add it yourself to bring it back",
@@ -97,7 +97,7 @@ describe("recovery scopes", () => {
     // The torrents cannot go while the files are kept.
     expect(removalScope(one, false, true).does).toEqual(keep.does);
     const both = removalScope(one, true, true);
-    expect(both.does).toContain("2 library files are deleted from the library (moved to Theatarr's trash), and the folders they leave empty are removed");
+    expect(both.does).toContain("The library files of 4K WEB are deleted from the library (moved to Theatarr's trash), and the folders they leave empty are removed");
     expect(both.does).toContain("Its debrid torrents are deleted from the providers, after a backup, unless another title or library in Theatarr uses them");
     expect(both.keeps).toEqual([
       "A file another library of the title uses stays",
@@ -124,7 +124,7 @@ describe("recovery scopes", () => {
     };
     const s = removalScope(all, true);
     expect(s.title).toBe("Remove Dune");
-    expect(s.does[0]).toBe("Dune is removed from every library it is in (4K Remux, 4K WEB): it stops being wanted, searched or upgraded there");
+    expect(s.does[0]).toBe("Dune is removed from every library it is in (4K Remux (1 file), 4K WEB): it stops being wanted, searched or upgraded there");
     expect(s.confirm).toBe("Remove title");
     expect(s.blocked).toBeUndefined();
     // The last copy takes the title out of Seerr and every arr client.
@@ -134,27 +134,29 @@ describe("recovery scopes", () => {
     expect(removalScope({ name: "X", title: false, copies: [] }, false).blocked).toBe("Nothing to remove");
   });
 
-  it("lists a library kept in sync as removed too, names its files and torrents with the boxes, and counts a shared file once", () => {
-    const s = { name: "Dune", title: true, links: 2, unlink_links: 2, copies: [
-      { key: "movie-hd", label: "HD", links: 2, downloads: 0, sync_of: "movie-web" },
+  it("lists a library kept in sync as removed too, with each library's own files and downloads, and names its files and torrents with the boxes", () => {
+    const s = { name: "Dune", title: true, copies: [
+      { key: "movie-hd", label: "HD", links: 2, downloads: 1, sync_of: "movie-web" },
       { key: "movie-web", label: "4K WEB", links: 1, downloads: 0 },
     ] };
     const both = removalScope(s, true, true);
+    expect(both.does[0]).toBe("Dune is removed from every library it is in (HD (2 files, 1 download in progress), 4K WEB (1 file)): it stops being wanted, searched or upgraded there");
     expect(both.does).toContain("HD is kept in sync with 4K WEB and is removed too, its files and debrid torrents too");
-    // The file both libraries link is one deletion, not two.
-    expect(both.does).toContain("2 library files are deleted from the library (moved to Theatarr's trash), and the folders they leave empty are removed");
+    // No total: a file two libraries share is in both counts.
+    expect(both.does).toContain("The library files of HD and 4K WEB are deleted from the library (moved to Theatarr's trash), and the folders they leave empty are removed");
     expect(removalScope(s, true, false).does).toContain("HD is kept in sync with 4K WEB and is removed too, its files too");
     const keep = removalScope(s, false);
     expect(keep.does).toContain("HD is kept in sync with 4K WEB and is removed too");
-    expect(keep.keeps).toContain("2 library files stay linked and playable");
-    // The bulk dialog: the pair once, with its number of titles; links summed per title, each distinct.
-    const other = { name: "Arrival", title: false, links: 1, unlink_links: 1, copies: [
+    expect(keep.keeps).toContain("The library files of HD and 4K WEB stay linked");
+    // The bulk dialog: the pair once, with its number of titles; a title with no copy left says so.
+    const other = { name: "Arrival", title: true, copies: [
       { key: "movie-hd", label: "HD", links: 1, downloads: 0, sync_of: "movie-web" },
       { key: "movie-web", label: "4K WEB", links: 1, downloads: 0 },
     ] };
     const bulk = bulkRemovalScope([s, other], true, true, "4K WEB");
     expect(bulk.does).toContain("HD is kept in sync with 4K WEB and is removed too for 2 titles, their files and debrid torrents too");
-    expect(bulk.does).toContain("3 library files are deleted from the library (moved to Theatarr's trash), and the folders they leave empty are removed");
+    expect(bulk.does).toContain("2 titles have no copy left and leave the library");
+    expect(bulk.does.some((d) => d.includes("no other library"))).toBe(false);
     expect(bulkRemovalScope([s], false, false, "4K WEB").does).toContain("HD is kept in sync with 4K WEB and is removed too");
   });
 
@@ -175,8 +177,8 @@ describe("recovery scopes", () => {
     expect(leftoverOnly({ name: "Dune", title: false, copies: [], leftover: [left] })).toBe(true);
     const one = { name: "Dune", title: true, copies: [{ key: "movie-remux", label: "4K Remux", links: 1, downloads: 0 }], leftover: [left] };
     expect(removalLinks(one)).toBe(3);
-    expect(removalScope(one, true).does).toContain("3 library files are deleted from the library (moved to Theatarr's trash), and the folders they leave empty are removed");
-    expect(removalScope(one, false).keeps).toContain("1 library file stays linked and playable");
+    expect(removalScope(one, true).does).toContain("The library files of 4K Remux and 4K WEB are deleted from the library (moved to Theatarr's trash), and the folders they leave empty are removed");
+    expect(removalScope(one, false).keeps).toContain("The library files of 4K Remux stay linked");
   });
 
   it("counts a removed library's dead symlinks among the files Delete files takes", () => {
@@ -234,9 +236,9 @@ describe("bulkRemovalScope", () => {
   it("sums the files, leftovers included only when the files are deleted", () => {
     const sc = bulkRemovalScope([s("A", 2), s("B", 3, true, 4)], true);
     expect(sc.title).toBe("Remove 2 titles");
-    expect(sc.does).toContain("9 library files are deleted from the library (moved to Theatarr's trash), and the folders they leave empty are removed");
+    expect(sc.does).toContain("Their library files are deleted from the library (moved to Theatarr's trash), and the folders they leave empty are removed");
     const keep = bulkRemovalScope([s("A", 2), s("B", 3, true, 4)], false);
-    expect(keep.keeps).toContain("5 library files stay linked and playable");
+    expect(keep.keeps).toContain("Their library files stay linked");
     expect(keep.keeps).toContain("Their debrid torrents stay");
     expect(keep.cleanup?.to).toBe("/admin/torrents?group=unused");
     expect(bulkRemovalScope([], true).blocked).toBe("Nothing to remove");
@@ -245,7 +247,7 @@ describe("bulkRemovalScope", () => {
   it("says a title leaves the apps only when the library held its last copy (T2)", () => {
     // A keeps another copy; B is in no other library.
     const from = bulkRemovalScope([s("A", 1, false), s("B", 1)], false, false, "HD");
-    expect(from.does).toContain("1 title keeps a copy in another library and stays visible to apps that include it; 1 is in no other library and is hidden from Seerr and the other arr clients");
+    expect(from.does).toContain("1 title keeps a copy in another library and stays visible to apps that include it; 1 has no copy left and is hidden from Seerr and the other arr clients");
     expect(from.does.some((d) => d.includes("still show them"))).toBe(false);
     expect(bulkRemovalScope([s("A", 1, false), s("C", 1, false)], false, false, "HD").does).toContain("HD loses their copies. Apps whose libraries include a remaining copy still show them");
     expect(from.does).not.toContain("They are hidden from Seerr and the other arr clients");

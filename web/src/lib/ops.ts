@@ -3,6 +3,7 @@
 // file deleted (only Theatarr's own symlinks move to the trash), or a debrid torrent deleted that anything else still
 // uses (only a title removal with its files deletes torrents, and only those nothing else uses).
 import { plural } from "./format";
+import { namesList } from "./sync-groups";
 
 export type Scope = {
   /** The dialog's heading. */
@@ -127,20 +128,19 @@ export function unblockScope(release: string, copy: string, search: boolean): Sc
 /** sync_of: the named library a copy is kept in sync with, when it goes because of it (Keep in sync). */
 export type RemovalCopyLike = { key: string; label: string; links: number; downloads: number; sync_of?: string };
 /** leftover: copies removed before whose library links are still active (an earlier removal's failed moves).
- *  links / unlink_links: the server's distinct counts (a file two libraries share counts once) of the copies' links,
- *  and of those with the leftover copies'; without them, the per-library counts are summed. */
-export type RemovalScopeLike = { name: string; title: boolean; copies: RemovalCopyLike[]; leftover?: RemovalCopyLike[]; links?: number; unlink_links?: number };
+ *  A copy's links are its library links, active or dead (a removal with the files moves both). */
+export type RemovalScopeLike = { name: string; title: boolean; copies: RemovalCopyLike[]; leftover?: RemovalCopyLike[] };
 
 /** The library links a removal with the files deleted takes out: its copies' and the leftover copies'. */
 export function removalLinks(s: RemovalScopeLike): number {
-  return s.unlink_links ?? [...s.copies, ...(s.leftover ?? [])].reduce((n, c) => n + c.links, 0);
+  return [...s.copies, ...(s.leftover ?? [])].reduce((n, c) => n + c.links, 0);
 }
 
-/** The library links of a removal's copies (files: with the leftover copies', which only a removal with the files
- *  takes), each file once. */
-function scopeLinks(s: RemovalScopeLike, files: boolean): number {
-  if (files) return removalLinks(s);
-  return s.links ?? s.copies.reduce((n, c) => n + c.links, 0);
+/** A library with what it holds, as the removal dialog lists it: "4K WEB (2 files, 1 download in progress)". The
+ *  counts are the library's own: a file two libraries share is in both. */
+function withCounts(c: RemovalCopyLike): string {
+  const parts = [c.links ? plural(c.links, "file") : "", c.downloads ? `${plural(c.downloads, "download")} in progress` : ""].filter(Boolean);
+  return parts.length ? `${c.label} (${parts.join(", ")})` : c.label;
 }
 
 /** "<Partner> is kept in sync with <Library> and is removed too", per partner pair of the scopes (with the number of
@@ -204,25 +204,27 @@ export function removalScope(s: RemovalScopeLike, files: boolean, debrid = files
       blocked: files ? undefined : "Nothing to do: the files are kept",
     };
   }
-  const links = scopeLinks(s, files);
+  // Which libraries lose their files; no total is promised (a file two libraries share is in both).
+  const withFiles = [...s.copies, ...(files ? (s.leftover ?? []) : [])].filter((c) => c.links > 0).map((c) => c.label);
   const downloads = s.copies.reduce((n, c) => n + c.downloads, 0);
   const names = s.copies.map((c) => c.label).join(", ");
+  const counted = s.copies.map(withCounts).join(", ");
   const does: string[] = [];
-  if (s.title) does.push(`${s.name} is removed from every library it is in (${names}): it stops being wanted, searched or upgraded there`);
-  else does.push(`${s.name} is removed from ${names}: ${s.copies.length === 1 ? "this copy stops" : "these copies stop"} being wanted, searched or upgraded`);
+  if (s.title) does.push(`${s.name} is removed from every library it is in (${counted}): it stops being wanted, searched or upgraded there`);
+  else does.push(`${s.name} is removed from ${counted}: ${s.copies.length === 1 ? "this copy stops" : "these copies stop"} being wanted, searched or upgraded`);
   does.push(...syncLines([s], files, debrid));
   // The title leaves Seerr and the arr clients only with its last copy; an app whose view covers a library it stays in
   // (a view can cover several) still shows it.
   if (s.title) does.push("It is hidden from Seerr and the other arr clients");
   else does.push(`${names} ${s.copies.length === 1 ? "loses its copy" : "lose their copies"}. ${REMAINING_COPY} ${s.name}`);
   if (downloads > 0) does.push(`Theatarr stops following ${plural(downloads, "download")} in progress`);
-  if (files && links > 0) does.push(`${plural(links, "library file")} ${links === 1 ? "is" : "are"} deleted from the library (moved to Theatarr's trash), and the folders they leave empty are removed`);
+  if (files && withFiles.length) does.push(`The library files of ${namesList(withFiles)} are deleted from the library (moved to Theatarr's trash), and the folders they leave empty are removed`);
   if (debrid) does.push(REMOVAL_CLEANUP);
   const keeps = [
     // A file can be shared only with a library the title stays in.
     ...(files
       ? s.title ? [] : [SHARED_FILE_STAYS]
-      : links === 0 ? [] : [`${plural(links, "library file")} ${links === 1 ? "stays" : "stay"} linked and playable`]),
+      : withFiles.length === 0 ? [] : [`The library files of ${namesList(withFiles)} stay linked`]),
     ...torrents,
     "Its history stays",
     REMOVAL_LISTS,
@@ -250,7 +252,7 @@ export function bulkRemovalScope(scopes: readonly RemovalScopeLike[], files: boo
   const n = scopes.length;
   const one = n === 1;
   const sum = (f: (s: RemovalScopeLike) => number) => scopes.reduce((t, s) => t + f(s), 0);
-  const links = sum((s) => scopeLinks(s, files));
+  const links = sum((s) => [...s.copies, ...(files ? (s.leftover ?? []) : [])].reduce((t, c) => t + c.links, 0));
   const downloads = sum((s) => s.copies.reduce((t, c) => t + c.downloads, 0));
   // Titles the removal takes out of every library: all of them without a library, else those with no other.
   const whole = scopes.filter((s) => s.title).length;
@@ -269,19 +271,19 @@ export function bulkRemovalScope(scopes: readonly RemovalScopeLike[], files: boo
     const kept = n - whole;
     does.push(
       `${plural(kept, "title")} ${kept === 1 ? "keeps a copy in another library and stays" : "keep a copy in another library and stay"} visible to apps that include it; ` +
-        `${whole} ${whole === 1 ? "is in no other library and is" : "are in no other library and are"} hidden from Seerr and the other arr clients`,
+        `${whole} ${whole === 1 ? "has no copy left and is" : "have no copy left and are"} hidden from Seerr and the other arr clients`,
     );
   }
-  if (library && !partly && whole > 0) does.push(`${plural(whole, "title")} ${whole === 1 ? "is in no other library and leaves" : "are in no other library and leave"} the library`);
+  if (library && !partly && whole > 0) does.push(`${plural(whole, "title")} ${whole === 1 ? "has no copy left and leaves" : "have no copy left and leave"} the library`);
   if (!partly) does.push(`${they} hidden from Seerr and the other arr clients`);
   does.push(...syncLines(scopes, files, debrid));
   if (downloads > 0) does.push(`Theatarr stops following ${plural(downloads, "download")} in progress`);
-  if (files && links > 0) does.push(`${plural(links, "library file")} ${links === 1 ? "is" : "are"} deleted from the library (moved to Theatarr's trash), and the folders they leave empty are removed`);
+  if (files && links > 0) does.push(`${one ? "Its" : "Their"} library files are deleted from the library (moved to Theatarr's trash), and the folders they leave empty are removed`);
   if (debrid) does.push(one ? REMOVAL_CLEANUP : "Their debrid torrents are deleted from the providers, after a backup, unless another title or library in Theatarr uses them");
   const keeps = [
     ...(files
       ? whole < n ? [SHARED_FILE_STAYS] : []
-      : links === 0 ? [] : [`${plural(links, "library file")} ${links === 1 ? "stays" : "stay"} linked and playable`]),
+      : links === 0 ? [] : [`${one ? "Its" : "Their"} library files stay linked`]),
     ...(debrid ? [] : [one ? "Its debrid torrents stay" : "Their debrid torrents stay"]),
     one ? "Its history stays" : "Their history stays",
     one ? REMOVAL_LISTS : "Import lists will not restore the removed libraries; add them yourself to bring them back",

@@ -828,7 +828,7 @@ func (f *opsAcquirer) WantedList(context.Context, acquire.WantedQuery) (*acquire
 
 // syncOpsEnv is newOpsEnv with a third movie library, movie-hd (a 4K WEB copy elsewhere), and the libraries of group
 // kept in sync; Alpha (1) also has a movie-hd copy (version 4) that shares Alpha's Remux file (link 901) and has a
-// file of its own (link 903).
+// dead link of its own (903), which a removal with the files moves too.
 func syncOpsEnv(t *testing.T, group ...string) *opsEnv {
 	o := newOpsEnvPolicy(t, func(p *policy.Policy) {
 		hd := *p.Versions["movie-web"]
@@ -840,7 +840,7 @@ func syncOpsEnv(t *testing.T, group ...string) *opsEnv {
 	o.exec(`INSERT INTO version (id, title_id, policy_key, state, created_at, updated_at) VALUES
 		(4, 1, 'movie-hd', 'filled', ?, ?)`, now, now)
 	o.exec(`INSERT INTO link (id, path, target, kind, title_id, state, created_at, updated_at) VALUES
-		(903, '/hd/Alpha (2020)/Alpha.mkv', '/mnt/zurg/Alpha.WEB/Alpha.mkv', 'symlink', 1, 'active', ?, ?)`, now, now)
+		(903, '/hd/Alpha (2020)/Alpha.mkv', '/mnt/zurg/Alpha.WEB/Alpha.mkv', 'symlink', 1, 'dead', ?, ?)`, now, now)
 	o.exec(`INSERT INTO link_version (link_id, version_id) VALUES (901, 4), (903, 4)`)
 	return o
 }
@@ -874,8 +874,8 @@ func TestRemoveSyncGroupOfThree(t *testing.T) {
 		copyKeys(scope) != "movie-hd<movie-web movie-remux<movie-web movie-web" || !scope.Title {
 		t.Fatalf("scope: %d %s %+v", code, copyKeys(scope), scope)
 	}
-	// Per library: hd 2 files, remux 1; 901 is theirs both: 2 distinct.
-	if scope.Copies[0].Links != 2 || scope.Copies[1].Links != 1 || scope.Links != 2 || scope.UnlinkLinks != 2 {
+	// Per library, with its dead links (they go too): hd 2 files, remux 1.
+	if scope.Copies[0].Links != 2 || scope.Copies[1].Links != 1 {
 		t.Errorf("links: %+v", scope)
 	}
 	var got RemoveResult
@@ -950,12 +950,12 @@ func TestRemoveSyncGroupOfTwo(t *testing.T) {
 		(904, '/hd/Beta (2021)/Beta.mkv', '/mnt/zurg/Beta/Beta.mkv', 'symlink', 2, 'active', ?, ?)`, now, now)
 	o.exec(`INSERT INTO link_version (link_id, version_id) VALUES (904, 5)`)
 	if code := o.jsonCall("GET", APIBase+"/titles/2/removal?versions=movie-hd", nil, o.mc, "", fresh(&scope)); code != 200 ||
-		len(scope.Copies) != 0 || len(scope.Leftover) != 1 || scope.UnlinkLinks != 1 {
+		len(scope.Copies) != 0 || len(scope.Leftover) != 1 || scope.Leftover[0].Links != 1 {
 		t.Fatalf("leftover only: %d %+v", code, scope)
 	}
 	// Removing movie-web with its files leaves the partner's kept files alone (not named).
 	if code := o.jsonCall("GET", APIBase+"/titles/2/removal?versions=movie-web", nil, o.mc, "", fresh(&scope)); code != 200 ||
-		copyKeys(scope) != "movie-web" || len(scope.Leftover) != 0 || !scope.Title || scope.UnlinkLinks != 1 {
+		copyKeys(scope) != "movie-web" || len(scope.Leftover) != 0 || !scope.Title {
 		t.Fatalf("Beta web: %d %s %+v", code, copyKeys(scope), scope)
 	}
 	o.ops.unlinks = nil
