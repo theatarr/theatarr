@@ -25,6 +25,7 @@ import { Switch } from "@/components/ui/switch";
 import { fmtAgo, titleWithYear } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Forbidden } from "./library";
+import { SyncNotes } from "@/components/sync-note";
 
 type ListType = MovieList["list_type"];
 type Media = MovieList["kind"];
@@ -104,7 +105,7 @@ function DiscoverFields({ f, set, media }: { f: RuleForm; set: (f: RuleForm) => 
 }
 
 /** Add a list (no list given) or edit one. */
-function ListDialog({ list, libraries, seriesLibraries, canSync, m, onClose }: { list?: MovieList; libraries: Record<string, string>; seriesLibraries: Record<string, string>; canSync: boolean; m: Mutations; onClose: () => void }) {
+function ListDialog({ list, libraries, seriesLibraries, syncGroups, canSync, m, onClose }: { list?: MovieList; libraries: Record<string, string>; seriesLibraries: Record<string, string>; syncGroups?: string[][]; canSync: boolean; m: Mutations; onClose: () => void }) {
   const [listType, setListType] = useState<ListType>(list?.list_type ?? "tmdb");
   const arr = listType === "radarr" || listType === "sonarr";
   const discover = listType === "tmdb_discover";
@@ -221,6 +222,7 @@ function ListDialog({ list, libraries, seriesLibraries, canSync, m, onClose }: {
         {keys.length === 0 ? <span className="text-xs text-muted-foreground">There is no {media === "series" ? "series" : "movie"} library to add to.</span>
           : arr ? <span className="block w-full text-xs text-muted-foreground">Each title goes to the chosen libraries that take it (anime to anime libraries).</span>
           : versions.length === 0 ? <span className="text-xs text-muted-foreground">Choose at least one. Each {media === "series" ? "series" : "movie"} goes to the chosen libraries that take it.</span> : null}
+        <SyncNotes groups={syncGroups} keys={versions} nameOf={(k) => shown[k] ?? k} className="basis-full" />
       </fieldset>
       <div className="flex flex-wrap items-center gap-4">
         <label className="flex items-center gap-2">Monitor
@@ -254,7 +256,7 @@ function previewWords(p: ListPreview): string {
   return `Sync now would add ${n} ${n === 1 ? "title" : "titles"} (${p.add_title} new, ${p.add_library} to libraries they are not in yet); ${p.present} ${p.present === 1 ? "is" : "are"} already there${p.excluded ? `, ${p.excluded} excluded` : ""}${p.skipped ? `, ${p.skipped} skipped (they fit none of the list's libraries)` : ""}.`;
 }
 
-function ListRow({ l, libraries, seriesLibraries, canSync, m, edit, remove, synced }: { l: MovieList; libraries: Record<string, string>; seriesLibraries: Record<string, string>; canSync: boolean; m: Mutations; edit: () => void; remove: () => void; synced: (words: string) => void }) {
+function ListRow({ l, libraries, seriesLibraries, syncGroups, canSync, m, edit, remove, synced }: { l: MovieList; libraries: Record<string, string>; seriesLibraries: Record<string, string>; syncGroups?: string[][]; canSync: boolean; m: Mutations; edit: () => void; remove: () => void; synced: (words: string) => void }) {
   const syncing = m.sync.isPending && m.sync.variables === l.id;
   const previewing = m.preview.isPending && m.preview.variables === l.id;
   const preview = m.preview.variables === l.id ? m.preview.data : undefined;
@@ -282,6 +284,7 @@ function ListRow({ l, libraries, seriesLibraries, canSync, m, edit, remove, sync
         <span>· Search on add: {l.search_on_add ? "on" : "off"}</span>
         <span>· Last sync: {l.last_sync_at ? fmtAgo(l.last_sync_at) : "never"}</span>
       </div>
+      <SyncNotes groups={syncGroups} keys={l.versions} nameOf={(k) => labels[k] ?? k} />
       {l.last_error ? <p className="text-xs text-[var(--bad-ink)] [overflow-wrap:anywhere]" data-testid={`list-error-${l.id}`}>Last sync failed: {l.last_error}</p> : null}
       {preview ? <div className="space-y-1 text-xs" data-testid={`list-preview-${l.id}`}>
         <p className="text-[var(--ink)]">{previewWords(preview)}</p>
@@ -347,7 +350,7 @@ export function ListsPage() {
     <PageHeader crumb={perms.admin ? [{ label: "Admin", to: "/admin" }, { label: "Settings", to: "/admin/settings" }] : undefined} title="Import lists" description="Lists add titles by themselves: every title on an enabled list is added to the list's libraries at each sync, or with Sync now. Search on add then searches for them through the download settings, so nothing downloads while downloads are off."
       actions={d ? <Button onClick={() => open("add")}><Plus aria-hidden />Add list</Button> : null} />
     {perms.admin ? <SettingsPicker current="/admin/settings/import-lists" /> : null}
-    {dialog && d ? <ListDialog key={dialog === "add" ? "add" : dialog.id} list={dialog === "add" ? undefined : dialog} libraries={d.libraries} seriesLibraries={d.series_libraries ?? {}} canSync={d.can_sync} m={m} onClose={() => setDialog(null)} /> : null}
+    {dialog && d ? <ListDialog key={dialog === "add" ? "add" : dialog.id} list={dialog === "add" ? undefined : dialog} libraries={d.libraries} seriesLibraries={d.series_libraries ?? {}} syncGroups={d.sync_groups} canSync={d.can_sync} m={m} onClose={() => setDialog(null)} /> : null}
     {removing ? <ConfirmDialog testid="list-delete" subject={removing.name} busy={m.remove.isPending} error={m.remove.error} onClose={() => setRemoving(null)}
       onConfirm={() => m.remove.mutate(removing.id, { onSuccess: () => setRemoving(null) })}
       scope={{ title: "Delete this list?", does: ["Stop adding titles from this list"], confirm: "Delete list",
@@ -359,7 +362,7 @@ export function ListsPage() {
       {m.sync.error ? <ErrorState error={m.sync.error} /> : null}
       {m.set.error && !dialog ? <ErrorState error={m.set.error} /> : null}
       {d.lists.length === 0 ? <Card><Empty icon={ListVideo}>No lists yet. Add a TMDb list by its id or address, or a Radarr or Sonarr instance by its address and API key.</Empty></Card> :
-        <Card className="p-0"><ul className="divide-y divide-[var(--line)]">{d.lists.map(l => <ListRow key={l.id} l={l} libraries={d.libraries} seriesLibraries={d.series_libraries ?? {}} canSync={d.can_sync} m={m}
+        <Card className="p-0"><ul className="divide-y divide-[var(--line)]">{d.lists.map(l => <ListRow key={l.id} l={l} libraries={d.libraries} seriesLibraries={d.series_libraries ?? {}} syncGroups={d.sync_groups} canSync={d.can_sync} m={m}
           edit={() => open(l)} remove={() => { m.remove.reset(); setRemoving(l); }} synced={setDone} />)}</ul></Card>}
       <Exclusions />
     </div> : null}

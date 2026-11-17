@@ -13,13 +13,15 @@ import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { Select } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { SyncNotes } from "@/components/sync-note";
 
 export const AVAILABILITY = [["announced", "Announced"], ["inCinemas", "In cinemas"], ["released", "Released"]] as const;
 
 export const NO_LIBRARY = "None: only a movie library can take a collection's movies";
 
-export function AddCollectionDialog({ libraries, onClose, onAdded, onExisting }: {
+export function AddCollectionDialog({ libraries, syncGroups, onClose, onAdded, onExisting }: {
   libraries: Record<string, string>;
+  syncGroups?: string[][];
   onClose: () => void;
   onAdded: (r: CollectionRefreshed) => void;
   /** An already added collection was chosen: show its row. */
@@ -68,6 +70,7 @@ export function AddCollectionDialog({ libraries, onClose, onAdded, onExisting }:
               className={cn("rounded-[3px] border px-2 py-0.5 text-xs", on ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent-ink)]" : "border-[var(--line-2)] text-[var(--ink-3)]")}>{libraries[key]}</button>;
           })}
           {keys.length === 0 ? <span className="text-xs text-muted-foreground">{NO_LIBRARY}. The collection can still be added without monitoring.</span> : null}
+          <SyncNotes groups={syncGroups} keys={versions} nameOf={(k) => libraries[k] ?? k} className="basis-full" />
         </fieldset>
         <div className="flex flex-wrap items-center gap-4">
           <label className="flex items-center gap-2">

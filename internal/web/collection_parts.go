@@ -18,6 +18,8 @@ type CollectionDetail struct {
 	Parts      []CollectionPart  `json:"parts"`
 	Libraries  map[string]string `json:"libraries"`
 	CanAdd     bool              `json:"can_add"`
+	// SyncGroups are the libraries kept in sync (library.sync_groups): an add to one adds to its partners.
+	SyncGroups [][]string `json:"sync_groups,omitempty"`
 }
 
 // CollectionPart is one film of a collection, in release order (undated last).
@@ -64,7 +66,8 @@ func (w *Web) apiCollection(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	targets := w.collectionTargets()
-	out := CollectionDetail{Parts: []CollectionPart{}, Libraries: w.keyLabels(targets), CanAdd: w.add.Collections != nil}
+	out := CollectionDetail{Parts: []CollectionPart{}, Libraries: w.keyLabels(targets), CanAdd: w.add.Collections != nil,
+		SyncGroups: w.syncGroups()}
 	tmdbIDs := []any{}
 	for _, p := range parts {
 		tmdbIDs = append(tmdbIDs, p.ID)

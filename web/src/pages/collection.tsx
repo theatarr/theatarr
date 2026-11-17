@@ -19,6 +19,7 @@ import { AVAILABILITY } from "@/components/collections/add-collection";
 import { posterStatus } from "@/lib/library";
 import { addMissingLabel } from "./collections";
 import { Forbidden } from "./library";
+import { SyncNotes } from "@/components/sync-note";
 
 function PartCard({ p }: { p: CollectionPart }) {
   const { openAdd, canAdd, canRequest } = useSearchUI();
@@ -63,13 +64,14 @@ export function CollectionPage() {
           : c.monitored ? <span>Adds missing movies to {libs.join(", ")}{c.search_on_add ? " and searches for them" : ""}; minimum availability {availability}.</span>
           : <span>Missing movies are not added by themselves.</span>}
       </p>
+      {c.monitored ? <SyncNotes groups={d.sync_groups} keys={c.versions} nameOf={(k) => d.libraries[k] ?? k} /> : null}
       {done ? <p role="status" className="text-sm text-[var(--ink)]" data-testid="collections-done">{done}</p> : null}
       {refresh.error ? <ErrorState error={refresh.error} /> : null}
       {d.parts.length === 0 ? <Card><Empty icon={Library}>No movies known yet. They arrive with the next list refresh.</Empty></Card> :
         <ul className="grid grid-cols-[repeat(auto-fill,minmax(132px,1fr))] gap-4 sm:grid-cols-[repeat(auto-fill,minmax(150px,1fr))]" aria-label={`Movies in ${name}`}>
           {d.parts.map(p => <li key={p.tmdb_id} data-testid={`part-${p.tmdb_id}`}><PartCard p={p} /></li>)}
         </ul>}
-      {editing ? <CollectionSettings c={c} libraries={d.libraries} onClose={() => setEditing(false)} /> : null}
+      {editing ? <CollectionSettings c={c} libraries={d.libraries} syncGroups={d.sync_groups} onClose={() => setEditing(false)} /> : null}
     </div> : null}
   </div>;
 }

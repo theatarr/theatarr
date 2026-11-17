@@ -10,6 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Modal } from "@/components/ui/modal";
 import { Select } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { SyncNotes } from "@/components/sync-note";
 
 export const collectionName = (c: Pick<Collection, "name" | "tmdb_id">) => c.name || `Collection ${c.tmdb_id}`;
 
@@ -17,7 +18,7 @@ export const collectionName = (c: Pick<Collection, "name" | "tmdb_id">) => c.nam
 export const collectionCounts = (c: Pick<Collection, "held" | "total" | "removed" | "available">) =>
   `${c.held} of ${c.total} in the library${c.removed ? ` (${c.removed} removed)` : ""} · ${c.available} available`;
 
-export function CollectionSettings({ c, libraries, onClose }: { c: Collection; libraries: Record<string, string>; onClose: () => void }) {
+export function CollectionSettings({ c, libraries, syncGroups, onClose }: { c: Collection; libraries: Record<string, string>; syncGroups?: string[][]; onClose: () => void }) {
   const set = useSetCollection();
   const busy = set.isPending;
   const save = (u: CollectionUpdate) => set.mutate({ id: c.tmdb_id, ...u });
@@ -50,6 +51,7 @@ export function CollectionSettings({ c, libraries, onClose }: { c: Collection; l
         })}
         {Object.keys(libraries).length === 0 ? <span className="text-xs text-muted-foreground">{NO_LIBRARY}</span>
           : c.versions.length === 0 ? <span className="text-xs text-muted-foreground">Choose a library to monitor this collection</span> : null}
+        <SyncNotes groups={syncGroups} keys={c.versions} nameOf={(k) => libraries[k] ?? k} className="basis-full" />
       </fieldset>
       <div className="flex flex-wrap items-center gap-4">
         <label className="flex items-center gap-2">

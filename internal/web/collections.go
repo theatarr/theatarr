@@ -54,6 +54,8 @@ type CollectionsPage struct {
 	Libraries   map[string]string `json:"libraries"`
 	// CanAdd: TMDb is set up, so collections can be searched, added and refreshed now.
 	CanAdd bool `json:"can_add"`
+	// SyncGroups are the libraries kept in sync (library.sync_groups): an add to one adds to its partners.
+	SyncGroups [][]string `json:"sync_groups,omitempty"`
 }
 
 // CollectionHit is one TMDb collection of GET /collections/search.
@@ -153,7 +155,8 @@ func (w *Web) apiCollections(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	targets := w.collectionTargets()
-	out := CollectionsPage{Collections: []Collection{}, Libraries: w.keyLabels(targets), CanAdd: w.add.Collections != nil}
+	out := CollectionsPage{Collections: []Collection{}, Libraries: w.keyLabels(targets), CanAdd: w.add.Collections != nil,
+		SyncGroups: w.syncGroups()}
 	err = scanAll(ctx, w.st.Reader(), `SELECT tmdb_id, name, monitored, versions, search_on_add, minimum_availability,
 		movies FROM movie_collection ORDER BY monitored DESC, name = '', name COLLATE NOCASE, tmdb_id`, nil,
 		func(rows *sql.Rows) error {

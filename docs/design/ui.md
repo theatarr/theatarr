@@ -1008,7 +1008,9 @@ titles/{id}/versions/{key}` returns the keys it added as `synced` (as `POST titl
 <library>", and send only what was ticked (the server adds the partners); a partner that would not gain a copy
 (removed, or held unmonitored) stays an ordinary box, and unticking the named library frees it. Bulk add says once
 "Also added to <partners> where a title has no copy there." and its toast counts the copies added in sync; the title
-page's library switch toasts "Also added to <libraries> (in sync)".
+page's library switch toasts "Also added to <libraries> (in sync)". Collections, import lists and Settings › Connected
+apps say under a chosen or shown library that is in a group "Titles added to <library> are also added to <partners>
+(in sync)." naming the partners not chosen there too (their pages carry `sync_groups`).
 
 Advanced includes **YAML settings**
 (`/admin/advanced/config`, with Policy files, Sections and Import & export tabs), **Settings history**

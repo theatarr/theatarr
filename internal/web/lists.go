@@ -72,6 +72,8 @@ type ListsPage struct {
 	SeriesLibraries map[string]string `json:"series_libraries"`
 	// CanSync: TMDb is set up, so lists can be looked up and synced.
 	CanSync bool `json:"can_sync"`
+	// SyncGroups are the libraries kept in sync (library.sync_groups): an add to one adds to its partners.
+	SyncGroups [][]string `json:"sync_groups,omitempty"`
 }
 
 // ListAdd is POST /lists.
@@ -355,7 +357,7 @@ func (w *Web) list(ctx context.Context, id int64) (MovieList, error) {
 }
 
 func (w *Web) apiLists(rw http.ResponseWriter, r *http.Request) {
-	out := ListsPage{Lists: []MovieList{}, Libraries: w.keyLabels(w.movieLibraries()),
+	out := ListsPage{Lists: []MovieList{}, Libraries: w.keyLabels(w.movieLibraries()), SyncGroups: w.syncGroups(),
 		SeriesLibraries: w.keyLabels(w.kindLibraries(policy.KindSeries)), CanSync: w.add.Collections != nil}
 	err := scanAll(r.Context(), w.st.Reader(), `SELECT `+listColumns+` FROM import_list ORDER BY name COLLATE NOCASE, id`,
 		nil, func(rows *sql.Rows) error {

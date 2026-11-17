@@ -25,6 +25,7 @@ import { type Explained, type SecretAction } from "@/lib/settings";
 import { useLibraryName } from "@/lib/library-names";
 import { useSettingsEditor } from "./use-settings-editor";
 import { ExplainBox, Field, NamedChoices, SecretField, SELECT_CLASS } from "./parts";
+import { SyncNotes } from "@/components/sync-note";
 
 /** The library choices: every library in the settings, or (before they load) just the saved ones. */
 /** The libraries to tick, by name with the key the app sees beside it. */
@@ -82,6 +83,7 @@ export function ViewsCard({ readOnly }: { readOnly: boolean }) {
                   ))}
                 </ul>
               ) : <p className="text-[12.5px] text-muted-foreground">no libraries</p>}
+              <SyncNotes groups={libraries.data?.sync_groups} keys={v.versions} nameOf={nameOf} className="mt-1" />
             </div>
             <Button type="button" size="xs" variant="outline" onClick={() => { setNotice(undefined); setOpen(v.key); }}>
               {writable ? "Edit" : "View"} <span className="sr-only">{v.key}</span>
@@ -228,6 +230,7 @@ export function ViewSheet({ view: opened, generation: openedAt, readOnly, onClos
           <Field label="Path" help="Where the view answers, e.g. /radarr."><Input value={path} onChange={(e) => setPath(e.target.value)} disabled={off || !seeded} /></Field>
           <NamedChoices legend="Libraries" help="What the app sees, in the order ticked." testid="view-libraries"
             options={libraryOptions(libraries.data, versions, nameOf)} value={versions} onChange={setVersions} disabled={off} />
+          <SyncNotes groups={libraries.data?.sync_groups} keys={versions} nameOf={nameOf} className="sm:col-span-2" />
           {off ? null : (
             <div className="flex min-w-0 flex-col gap-2 sm:col-span-2" data-testid="view-replace">
               <p className="text-sm font-medium text-[var(--ink)]">Replace a library</p>
