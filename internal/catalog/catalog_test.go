@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -220,5 +221,193 @@ func TestAddMethod(t *testing.T) {
 				t.Fatalf("repeat changed method to %q: %v", got, err)
 			}
 		})
+	}
+}
+
+// syncPolicy is the example policy with a third movie library and a second series library, kept in sync as
+// {movie-remux, movie-web, movie-hd} and {tv-2160p, tv-1080p}; the policy validates with them.
+func syncPolicy(t *testing.T) *policy.Policy {
+	t.Helper()
+	_, pol := setup(t)
+	hd := *pol.Versions["movie-web"]
+	hd.Library = "/media/movies-hd"
+	pol.Versions["movie-hd"] = &hd
+	tv := *pol.Versions["tv-2160p"]
+	tv.Library = "/media/tv-1080p"
+	pol.Versions["tv-1080p"] = &tv
+	pol.Library.SyncGroups = [][]string{{"movie-remux", "movie-web", "movie-hd"}, {"tv-2160p", "tv-1080p"}}
+	if err := pol.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	return pol
+}
+
+// copies are the title's versions as "key:monitored[:removed]", sorted.
+func copies(t *testing.T, st *store.Store, titleID int64) string {
+	t.Helper()
+	rows, err := st.Reader().Query(`SELECT v.policy_key, v.monitored, EXISTS (SELECT 1 FROM arrview_removed_version r
+		WHERE r.version_id = v.id) FROM version v WHERE v.title_id = ? ORDER BY v.policy_key`, titleID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var k string
+		var mon, removed bool
+		if err := rows.Scan(&k, &mon, &removed); err != nil {
+			t.Fatal(err)
+		}
+		s := k + ":" + map[bool]string{true: "on", false: "off"}[mon]
+		if removed {
+			s += ":removed"
+		}
+		out = append(out, s)
+	}
+	return strings.Join(out, " ")
+}
+
+// The sync groups' rule, one route at a time through catalog.Add and TurnOnSynced: a library in sync gets a copy
+// only when the add did not name it and the title has no copy of it in any state, and only when the named copy is
+// new or restored.
+func TestSyncGroupsAdd(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	st, _ := setup(t)
+	pol := syncPolicy(t)
+	movie := func(tmdb int64, keys ...string) *Result {
+		return add(t, st, Input{Kind: policy.KindMovie, TmdbID: tmdb, Title: "M", Monitored: true, Versions: fixed(keys...),
+			Policy: pol, Source: "test"})
+	}
+	// held gives title id the copies, as "key" (monitored), "key-" (unmonitored) or "key!" (removed).
+	held := func(id int64, kind string, cs ...string) {
+		t.Helper()
+		execAll(t, st, `INSERT INTO title (id, kind, name, tmdb_id, created_at, updated_at) VALUES (`+
+			strconv.FormatInt(id, 10)+`, '`+kind+`', 'H', `+strconv.FormatInt(id, 10)+`, 0, 0)`)
+		for _, c := range cs {
+			k, mon := strings.TrimRight(c, "-!"), 1
+			if strings.HasSuffix(c, "-") || strings.HasSuffix(c, "!") {
+				mon = 0
+			}
+			execAll(t, st, `INSERT INTO version (title_id, policy_key, monitored, state, created_at, updated_at) VALUES (`+
+				strconv.FormatInt(id, 10)+`, '`+k+`', `+strconv.Itoa(mon)+`, 'wanted', 0, 0)`)
+			if strings.HasSuffix(c, "!") {
+				execAll(t, st, `INSERT INTO arrview_removed_version (version_id, view, removed_at) SELECT id, 'ui', 0 FROM version
+					WHERE title_id = `+strconv.FormatInt(id, 10)+` AND policy_key = '`+k+`'`)
+			}
+		}
+	}
+
+	// An add to one library of a group gives the others a copy, reported as new and as synced.
+	r := movie(1001, "movie-remux")
+	if got := copies(t, st, r.TitleID); got != "movie-hd:on movie-remux:on movie-web:on" {
+		t.Errorf("new title: %s", got)
+	}
+	if !slices.Equal(r.Synced, []string{"movie-hd", "movie-web"}) || len(r.New) != 3 || len(r.Versions) != 3 {
+		t.Errorf("result %+v", r)
+	}
+	// Unmonitored add: the partners are unmonitored too.
+	r = add(t, st, Input{Kind: policy.KindMovie, TmdbID: 1002, Monitored: false, Versions: fixed("movie-web"), Policy: pol})
+	if got := copies(t, st, r.TitleID); got != "movie-hd:off movie-remux:off movie-web:off" {
+		t.Errorf("unmonitored add: %s", got)
+	}
+	// A removed copy in a partner stays removed; the third library gets one.
+	held(2001, "movie", "movie-web!")
+	r = add(t, st, Input{Kind: policy.KindMovie, TitleID: 2001, Monitored: true, Versions: fixed("movie-remux"), Policy: pol})
+	if got := copies(t, st, 2001); got != "movie-hd:on movie-remux:on movie-web:off:removed" || !slices.Equal(r.Synced, []string{"movie-hd"}) {
+		t.Errorf("removed partner: %s %+v", got, r)
+	}
+	// An unmonitored copy in a partner stays unmonitored.
+	held(2002, "movie", "movie-web-")
+	movie(2002, "movie-remux")
+	if got := copies(t, st, 2002); got != "movie-hd:on movie-remux:on movie-web:off" {
+		t.Errorf("unmonitored partner: %s", got)
+	}
+	// Naming the removed library restores it.
+	held(2003, "movie", "movie-web!")
+	movie(2003, "movie-remux", "movie-web")
+	if got := copies(t, st, 2003); got != "movie-hd:on movie-remux:on movie-web:on" {
+		t.Errorf("named removed: %s", got)
+	}
+	// Restoring a removed copy brings the partners it lacks.
+	held(2004, "movie", "movie-remux!")
+	movie(2004, "movie-remux")
+	if got := copies(t, st, 2004); got != "movie-hd:on movie-remux:on movie-web:on" {
+		t.Errorf("restored: %s", got)
+	}
+	// Monitoring an existing unmonitored copy again creates nothing, through Add or TurnOnSynced.
+	held(2005, "movie", "movie-remux-")
+	if r := movie(2005, "movie-remux"); len(r.Synced) != 0 {
+		t.Errorf("monitored again: %+v", r)
+	}
+	if got := copies(t, st, 2005); got != "movie-remux:on" {
+		t.Errorf("monitored again: %s", got)
+	}
+	execAll(t, st, `UPDATE version SET monitored = 0 WHERE title_id = 2005`)
+	if err := st.WriteTx(ctx, func(tx *sql.Tx) error {
+		_, partners, err := TurnOnSynced(ctx, tx, pol, 2005, []string{"movie-remux"}, true, now)
+		if len(partners) != 0 {
+			t.Errorf("TurnOnSynced on an existing copy: %v", partners)
+		}
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// An anime movie named into a library of a non-anime group: no copy where it does not fit.
+	yes := true
+	r = add(t, st, Input{Kind: policy.KindMovie, TmdbID: 1003, Anime: &yes, Monitored: true, Versions: fixed("movie-remux"),
+		Policy: pol})
+	if got := copies(t, st, r.TitleID); got != "movie-remux:on" {
+		t.Errorf("anime title: %s", got)
+	}
+	// A library outside every group widens nothing; no policy widens nothing.
+	r = movie(1004, "anime-movie")
+	if got := copies(t, st, r.TitleID); got != "anime-movie:on" {
+		t.Errorf("ungrouped: %s", got)
+	}
+	r = add(t, st, Input{Kind: policy.KindMovie, TmdbID: 1005, Monitored: true, Versions: fixed("movie-remux")})
+	if got := copies(t, st, r.TitleID); got != "movie-remux:on" || r.Synced != nil {
+		t.Errorf("no policy: %s %+v", got, r)
+	}
+}
+
+// A series added to one library with seasons 1 and 2 gets the same seasons, and its monitor-new choice, in the
+// library in sync; also when the add's season scope is a compatible view's own library.
+func TestSyncGroupsSeriesSeasons(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	st, _ := setup(t)
+	pol := syncPolicy(t)
+	for i, scope := range [][]string{nil, {"tv-2160p"}} {
+		id := int64(3001 + i)
+		ids := strconv.FormatInt(id, 10)
+		execAll(t, st, `INSERT INTO title (id, kind, name, tvdb_id, created_at, updated_at) VALUES (`+ids+`, 'series', 'S', `+ids+`, 0, 0)`,
+			`INSERT INTO episode (title_id, season, number, air_date_utc_at, created_at, updated_at) VALUES (`+ids+`, 1, 1, 0, 0, 0),
+				(`+ids+`, 2, 1, 0, 0, 0), (`+ids+`, 3, 1, 0, 0, 0)`)
+		r := add(t, st, Input{Kind: policy.KindSeries, TitleID: id, Monitored: true, Versions: fixed("tv-2160p"),
+			SeasonVersions: scope, MonitorNew: MonitorNone, Policy: pol,
+			Seasons: []Season{{Number: 1, Monitored: true}, {Number: 2, Monitored: true}, {Number: 3, Monitored: false}}})
+		if !slices.Equal(r.Synced, []string{"tv-1080p"}) {
+			t.Fatalf("scope %v: %+v", scope, r)
+		}
+		for _, k := range []string{"tv-2160p", "tv-1080p"} {
+			var seasons string
+			if err := st.Reader().QueryRow(`SELECT group_concat(e.season, ',') FROM episode_version_state s
+				JOIN version v ON v.id = s.version_id JOIN episode e ON e.id = s.episode_id
+				WHERE v.title_id = ? AND v.policy_key = ? AND s.monitored = 1 ORDER BY e.season`, id, k).Scan(&seasons); err != nil {
+				t.Fatal(err)
+			}
+			var vid int64
+			if err := st.Reader().QueryRow(`SELECT id FROM version WHERE title_id = ? AND policy_key = ?`, id, k).Scan(&vid); err != nil {
+				t.Fatal(err)
+			}
+			m, err := LoadMonitor(ctx, st.Reader(), vid)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if seasons != "1,2" || m.New != MonitorNone || !m.Seasons[1] || !m.Seasons[2] || m.Seasons[3] {
+				t.Errorf("scope %v %s: monitored seasons %q, intent %+v", scope, k, seasons, m)
+			}
+		}
 	}
 }

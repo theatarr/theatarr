@@ -912,6 +912,14 @@ and renaming an active library asks for no confirmation. The field is left out o
 record when it is empty, so a library without a name is stored as before; a build from before the field refuses to
 load settings that hold a name (the policy decoder is strict), until the name is cleared.
 
+Sync groups (`library.sync_groups`, docs/design/ui.md "Keep in sync") belong to the library section but are edited
+with the libraries: `GET /settings/versions` returns `sync_groups`, and a version save's optional `sync_with` (the
+other libraries kept in sync with it; empty takes it out of its group) sets the library's group in the same save. A
+version save or delete, and a YAML import, prune the stored groups first: a library no longer in the records, or
+whose kind or anime setting differs from the rule most of its group shares, leaves it, and a group left with one
+library is dropped. The save carries the library section only when its groups change. The section's own form does
+not show the field and keeps it as stored.
+
 The Libraries settings page is `/admin/settings/libraries`; it links to Connected apps for view bindings and to the naming editor
 (`/admin/settings/libraries/naming`). Admin APIs under `/api/theatarr/v1/settings` provide version CRUD, `versions/validate-root`,
 `versions/confirm`, view-binding list/update and `import/confirm`. Session writes require CSRF; writes require the

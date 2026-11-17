@@ -23,8 +23,10 @@ import { explainError } from "@/lib/settings";
 import { libraryLabel } from "@/lib/library-label";
 import { useLibraryName } from "@/lib/library-names";
 
+/** A library being edited: its record, and sync, the other libraries kept in sync with it (sorted). */
+type Draft = VersionRecord & { sync?: string[] };
 /** saved: the record as stored (a new library: its first draft), for the changed marks, the count and Discard. */
-type Session = { record: VersionRecord; saved: VersionRecord; generation: number; create: boolean; draftID: number };
+type Session = { record: Draft; saved: Draft; generation: number; create: boolean; draftID: number };
 /** create: the body adds a library; inSheet: it came from the edit sheet. */
 type Pending = { body: VersionBody; effects: Confirmation["effects"]; proof?: Confirmation; create: boolean; inSheet: boolean };
 /** The arr flavour whose TRaSH defaults fit a library kind. */
@@ -61,10 +63,23 @@ function Field({ label, children, changed, onUndo, name, error, help }: { label:
  * the key has been typed in. */
 const newKeyProblem = (session: Session) => session.create ? keyProblem(session.record.key) : undefined;
 
-export function libraryChanges(record: VersionRecord, saved: VersionRecord): number {
-  const view = (r: VersionRecord) => ({ key: r.key, config: r.config, roots: r.roots ?? [] });
+export function libraryChanges(record: Draft, saved: Draft): number {
+  const view = (r: Draft) => ({ key: r.key, config: r.config, roots: r.roots ?? [], sync: (r.sync ?? []).join(",") });
   return changedPaths(view(record), view(saved)).length;
 }
+
+/** The other libraries in key's sync group, sorted; none when it is in no group. */
+export function syncPartners(groups: string[][] | undefined, key: string): string[] {
+  return (groups ?? []).find((g) => g.includes(key))?.filter((k) => k !== key).sort() ?? [];
+}
+
+const ANIME_RULE = (anime: boolean | null | undefined) => anime === true ? "anime only" : anime === false ? "not anime" : "anime and not";
+
+/** Whether other can be kept in sync with a library of config: the same kind and the same anime rule. */
+const sameRule = (a: VersionConfig, b: VersionConfig) => a.kind === b.kind && (a.anime ?? null) === (b.anime ?? null);
+
+/** with a draft: its record with the stored sync group. */
+const withSync = (record: VersionRecord, data: VersionList): Draft => ({ ...record, sync: syncPartners(data.sync_groups, record.key) });
 
 function Pick({ value, options, onChange, disabled, labels }: { value: string; options: string[]; onChange: (value: string) => void; disabled?: boolean; labels?: Record<string, string> }) {
   return <select className={SELECT_CLASS} value={value} onChange={(event) => onChange(event.target.value)} disabled={disabled}>{options.map((option) => <option key={option} value={option}>{labels?.[option] ?? (option || "None")}</option>)}</select>;
@@ -104,8 +119,9 @@ function profileOrigin(p: ProfileSummary | undefined): string {
   return "our own profile";
 }
 
-function VersionGroup({ title, versions, switches, selected, readOnly, onOpen }: { title: string; versions: VersionRecord[]; switches: VersionList["switches"]; selected?: string; readOnly: boolean; onOpen: (record: VersionRecord) => void }) {
+function VersionGroup({ title, versions, all, groups, switches, selected, readOnly, onOpen }: { title: string; versions: VersionRecord[]; all: VersionRecord[]; groups: string[][]; switches: VersionList["switches"]; selected?: string; readOnly: boolean; onOpen: (record: VersionRecord) => void }) {
   const nameOf = useLibraryName();
+  const label = (key: string) => { const c = all.find((r) => r.key === key)?.config; return nameOf(key, libraryLabel(key, c?.profile ?? "", c?.name, c?.kind)); };
   return <section className="space-y-2" aria-label={title}>
     <h2 className="text-base font-semibold">{title}</h2>
     <Card className="p-0">
@@ -129,6 +145,7 @@ function VersionGroup({ title, versions, switches, selected, readOnly, onOpen }:
               <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5"><span className="text-[13.5px] font-medium [overflow-wrap:anywhere]" data-testid="library-name">{nameOf(record.key, libraryLabel(record.key, c.profile, c.name, c.kind))}</span><span className="font-mono text-[12px] text-muted-foreground [overflow-wrap:anywhere]" data-testid="library-key">{record.key}</span></div>
               <div className="mt-1 flex flex-wrap items-center gap-1.5" data-testid="library-state-row"><VersionStatus words settingsKey={record.key} canManage state={switches.versions.find((v) => v.key === record.key)?.grab_state} /></div>
               <div className="text-xs text-muted-foreground">{c.anime === null ? "anime and regular" : ""}</div>
+              {syncPartners(groups, record.key).length ? <div className="text-xs text-muted-foreground [overflow-wrap:anywhere]" data-testid="library-sync">In sync with {syncPartners(groups, record.key).map(label).join(", ")}</div> : null}
               <div className="mt-1.5 space-y-1.5 md:hidden"><div><div className="text-[11px] text-muted-foreground">Where</div>{where}</div><div><div className="text-[11px] text-muted-foreground">Profile</div>{profile}</div></div>
               <div className="mt-1.5 lg:hidden"><div className="text-[11px] text-muted-foreground">Sources</div>{sources}</div>
             </TableCell>
@@ -174,7 +191,7 @@ export function VersionsPage({ embedded = false }: { embedded?: boolean }) {
   function start(record: VersionRecord | undefined) {
     if (!data) return;
     stopped.current = false;
-    const first = record ?? blank(data, defaults);
+    const first: Draft = record ? withSync(record, data) : { ...blank(data, defaults), sync: [] };
     setSession({ record: copy(first), saved: copy(first), generation: data.generation, create: !record, draftID: Date.now() });
     setError(undefined);
     setPending(undefined);
@@ -202,10 +219,10 @@ export function VersionsPage({ embedded = false }: { embedded?: boolean }) {
     const refreshed = await query.refetch();
     if (!refreshed.data || !session) return;
     const record = refreshed.data.versions.find((version) => version.key === session.record.key);
-    if (keep) setSession({ ...session, saved: record && !session.create ? copy(record) : session.saved, generation: refreshed.data.generation });
+    if (keep) setSession({ ...session, saved: record && !session.create ? copy(withSync(record, refreshed.data)) : session.saved, generation: refreshed.data.generation });
     else {
       if (!record && !session.create) { close(); return; }
-      const first = copy(record ?? blank(refreshed.data, defaults));
+      const first = copy<Draft>(record ? withSync(record, refreshed.data) : { ...blank(refreshed.data, defaults), sync: [] });
       setSession({ record: first, saved: copy(first), generation: refreshed.data.generation, create: session.create, draftID: Date.now() });
     }
     setError(undefined);
@@ -277,7 +294,10 @@ export function VersionsPage({ embedded = false }: { embedded?: boolean }) {
     try {
       const current = deleting ? session : await withPresetProfile(session, confirmed);
       if (!current) return;
-      const body: VersionBody = { generation: current.generation, key: current.record.key, ...(deleting ? { delete: true } : { config: current.record.config, roots: current.record.roots ?? [] }) };
+      // Keep in sync goes along only when it changed: a save of what was loaded sends the library alone.
+      const sync = current.record.sync ?? [];
+      const syncChanged = sync.join(",") !== (current.saved.sync ?? []).join(",");
+      const body: VersionBody = { generation: current.generation, key: current.record.key, ...(deleting ? { delete: true } : { config: current.record.config, roots: current.record.roots ?? [], ...(syncChanged ? { sync_with: sync } : {}) }) };
       if (!deleting) {
         await apply(body, current.create, true);
         return;
@@ -312,7 +332,7 @@ export function VersionsPage({ embedded = false }: { embedded?: boolean }) {
       <Button ref={addButton} onClick={() => open(undefined)} disabled={readOnly}>Add library</Button>
       {GROUPS.map((group) => {
         const list = data.versions.filter((record) => categoryOf(record.config.kind, record.config.anime) === group);
-        return list.length ? <VersionGroup key={group} title={CATEGORY_LABEL[group]} versions={list} switches={data.switches} selected={session && !session.create ? session.record.key : undefined} readOnly={readOnly} onOpen={open} /> : null;
+        return list.length ? <VersionGroup key={group} title={CATEGORY_LABEL[group]} versions={list} all={data.versions} groups={data.sync_groups ?? []} switches={data.switches} selected={session && !session.create ? session.record.key : undefined} readOnly={readOnly} onOpen={open} /> : null;
       })}
       {session ? <Sheet label={session.create ? "New library" : `Edit library ${nameOf(session.record.key, libraryLabel(session.record.key, session.saved.config.profile, session.saved.config.name, session.saved.config.kind))}`} onClose={close} initialFocus={heading} returnFocus={() => (stopped.current ? addButton.current : undefined)}>
         <SheetLayout key={session.draftID} testid="version-form" headingRef={heading} onClose={close} changes={readOnly ? 0 : libraryChanges(session.record, session.saved)}
@@ -340,7 +360,7 @@ function Part({ title, help, children }: { title: string; help: string; children
   </section>;
 }
 
-function VersionForm({ session, data, defaults, profiles, error, onChange }: { session: Session; data: VersionList; defaults: Record<string, string>; profiles: Map<string, ProfileSummary>; error?: unknown; onChange: (record: VersionRecord) => void }) {
+function VersionForm({ session, data, defaults, profiles, error, onChange }: { session: Session; data: VersionList; defaults: Record<string, string>; profiles: Map<string, ProfileSummary>; error?: unknown; onChange: (record: Draft) => void }) {
   const { record, generation, saved } = session;
   const config = record.config;
   const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
@@ -377,7 +397,9 @@ function VersionForm({ session, data, defaults, profiles, error, onChange }: { s
       else if (!pickedByHand.current && flavourOf(next.kind) !== flavourOf(config.kind)) next = { ...next, profile: fits };
     }
     if (flavourOf(next.kind) !== flavourOf(config.kind)) setProfileFrom(next.profile && next.profile === config.profile && !profileFrom ? config.kind : undefined);
-    onChange({ ...record, config: next });
+    // Libraries of another kind or anime setting cannot stay in sync with it.
+    const sync = (record.sync ?? []).filter((key) => { const other = data.versions.find((v) => v.key === key); return other && sameRule(other.config, next); });
+    onChange({ ...record, config: next, sync });
   };
   useEffect(() => {
     if (data.source !== "db" || !record.key || !config.library) { setRootStatus(""); return; }
@@ -478,6 +500,7 @@ function VersionForm({ session, data, defaults, profiles, error, onChange }: { s
         <Field label="Availability delay (days)" help="Days to wait after that date before searching; negative starts earlier. Empty means none." changed={(config.availability_delay ?? 0) !== (saved.config.availability_delay ?? 0)} onUndo={() => setDelay(saved.config.availability_delay ? String(saved.config.availability_delay) : "")} error={fieldError("availability_delay")}><Input value={delayText} onChange={(event) => setDelay(event.target.value)} /></Field>
       </> : null}
     </Part>
+    <SyncPart record={record} saved={saved} data={data} onChange={onChange} />
     <Part title="Sources" help="Where it searches and which debrid providers it adds through, in fallback order.">
       <div className="space-y-1"><Multi label="Indexers" choices={data.indexers} values={config.indexers ?? []} onChange={(values) => update("indexers", values)} />{mark("indexers").changed ? <ChangedMark name="Indexers" onUndo={mark("indexers").onUndo} /> : null}</div>
       {viaClient ? <p className="text-sm text-muted-foreground">Grabs go to download client {config.client || "(none picked)"}, which adds them to its own debrid account and decides cached-only, pacing and stalled downloads itself; the providers below are not used.</p> : null}
@@ -485,4 +508,33 @@ function VersionForm({ session, data, defaults, profiles, error, onChange }: { s
       {viaClient ? null : <div className="flex flex-col gap-1"><Field label="Provider preference" {...mark("provider_preference")}><Pick value={config.provider_preference || "ordered"} options={["ordered", "none"]} labels={{ ordered: "Fallback order", none: "No preference" }} onChange={(value) => update("provider_preference", value as VersionConfig["provider_preference"])} /></Field><span className="text-xs text-muted-foreground">Among releases of equal quality and format score, the one cached on more providers wins. Fallback order first prefers the release cached on an earlier provider; No preference only counts providers. Providers are tried in fallback order either way.</span></div>}
     </Part>
   </div>;
+}
+
+/** Keep in sync: the libraries of the same kind and anime setting this one is kept in sync with. One in another
+ * group, or of another anime setting, is not offered, and the list says why; libraries of the other kind are left
+ * out. The group is saved with the library. */
+function SyncPart({ record, saved, data, onChange }: { record: Draft; saved: Draft; data: VersionList; onChange: (record: Draft) => void }) {
+  const nameOf = useLibraryName();
+  const config = record.config;
+  const label = (r: VersionRecord) => nameOf(r.key, libraryLabel(r.key, r.config.profile, r.config.name, r.config.kind));
+  const others = data.versions.filter((r) => r.key !== record.key && r.config.kind === config.kind);
+  const groups = data.sync_groups ?? [];
+  // The libraries in another group than this library's stored one.
+  const elsewhere = (key: string) => { const g = groups.find((group) => group.includes(key)); return g && !g.includes(record.key) ? g : undefined; };
+  const offered = others.filter((r) => sameRule(r.config, config) && !elsewhere(r.key));
+  const refused = others.filter((r) => !offered.includes(r)).map((r) => {
+    const g = elsewhere(r.key);
+    const why = !sameRule(r.config, config) ? ANIME_RULE(r.config.anime) : `in sync with ${(g ?? []).filter((k) => k !== r.key).map((k) => { const o = data.versions.find((v) => v.key === k); return o ? label(o) : k; }).join(", ")}`;
+    return `${label(r)} (${why})`;
+  });
+  const sync = record.sync ?? [];
+  const changed = sync.join(",") !== (saved.sync ?? []).join(",");
+  const toggle = (key: string, on: boolean) => onChange({ ...record, sync: (on ? [...sync, key] : sync.filter((k) => k !== key)).sort() });
+  return <section className="space-y-3" aria-label="Keep in sync" data-testid="library-sync-part">
+    <div><h3 className="font-semibold">Keep in sync</h3><p className="text-xs text-muted-foreground">A title added to one of these libraries is added to the others too, unless it was removed from them. Monitoring, removals and files stay each library's own. Only libraries of the same kind and anime setting can be kept in sync.</p></div>
+    {offered.length ? <fieldset className="space-y-1"><legend className="sr-only">Keep in sync with</legend><div className="flex flex-wrap gap-3">{offered.map((r) => <label key={r.key} className="flex items-center gap-1 text-sm"><input type="checkbox" checked={sync.includes(r.key)} onChange={(event) => toggle(r.key, event.target.checked)} />{label(r)}</label>)}</div></fieldset>
+      : <p className="text-sm text-muted-foreground">No other library can be kept in sync with this one.</p>}
+    {refused.length ? <p className="text-xs text-muted-foreground [overflow-wrap:anywhere]" data-testid="library-sync-refused">Not offered: {refused.join("; ")}.</p> : null}
+    {changed ? <ChangedMark name="Keep in sync" onUndo={() => onChange({ ...record, sync: saved.sync ?? [] })} /> : null}
+  </section>;
 }

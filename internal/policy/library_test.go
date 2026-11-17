@@ -179,6 +179,13 @@ func TestLibraryValidation(t *testing.T) {
 		{"library:\n  mount: {link_path: /mnt/decypharr, decypharr: {url: \"http://decypharr:8282\", direct: true}}\n", ""},
 		{"library:\n  mount: {path: /mnt/decypharr/., link_path: /mnt/decypharr, decypharr: {url: \"http://decypharr:8282\", direct: true}}\n", ""},
 		{"library:\n  mount: {path: /mnt/other, link_path: /mnt/decypharr, decypharr: {url: \"http://decypharr:8282\", direct: true}}\n", "library.mount.path"},
+		{"library:\n  sync_groups: [[movie-remux, movie-web]]\n", ""},
+		{"library:\n  sync_groups: [[movie-remux]]\n", "two or more libraries"},
+		{"library:\n  sync_groups: [[movie-remux, nope]]\n", "unknown library \"nope\""},
+		{"library:\n  sync_groups: [[movie-remux, movie-remux]]\n", "listed twice"},
+		{"library:\n  sync_groups: [[movie-remux, movie-web], [movie-web, anime-movie]]\n", "already in sync group 1"},
+		{"library:\n  sync_groups: [[movie-remux, tv-2160p]]\n", "is a series library; the group holds movie libraries"},
+		{"library:\n  sync_groups: [[movie-remux, anime-movie]]\n", "another anime setting"},
 	} {
 		dir := copyExample(t)
 		os.Remove(filepath.Join(dir, "library.yaml"))
@@ -281,5 +288,19 @@ func TestLibraryDecypharrHostAndSecrets(t *testing.T) {
 	p.Library.Mount.Decypharr = &LibraryDecypharr{URL: "http://decypharr:8282"}
 	if host, envs := named(p); !host || envs != 0 {
 		t.Fatalf("decypharr without credentials: host %v, %d secret names", host, envs)
+	}
+}
+
+// Unset, anime only and not anime are three anime rules: a sync group holds one of them.
+func TestSameAnimeRule(t *testing.T) {
+	t.Parallel()
+	yes, no := true, false
+	for _, c := range []struct {
+		a, b *bool
+		same bool
+	}{{nil, nil, true}, {&yes, &yes, true}, {&no, &no, true}, {nil, &no, false}, {&yes, nil, false}, {&yes, &no, false}} {
+		if SameAnimeRule(c.a, c.b) != c.same {
+			t.Errorf("%v %v: want %v", c.a, c.b, c.same)
+		}
 	}
 }

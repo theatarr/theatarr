@@ -384,3 +384,43 @@ func TestSettingsVersionEditFillsStoredNilRoots(t *testing.T) {
 		t.Fatalf("gate roots: %v", roots)
 	}
 }
+
+// Keep in sync, saved with a library: sync_with sets the library's group and the list carries the groups; a
+// library of another kind is refused; deleting a library drops it from its group, and the group left with one.
+func TestSettingsVersionSyncWith(t *testing.T) {
+	t.Parallel()
+	area := t.TempDir()
+	se := newSettingsEnvBase(t, nil, func(p *policy.Policy) { p.Library.Dangling.Roots = []string{area} }, nil)
+	if groups := se.want(se.call("GET", "/versions", nil), 200, "list")["sync_groups"]; fmt.Sprint(groups) != "[]" {
+		t.Fatalf("no groups: %v", groups)
+	}
+	config := se.want(se.call("GET", "/versions/movie-web", nil), 200, "get")["record"].(map[string]any)["config"].(map[string]any)
+	root := filepath.Join(area, "test-version")
+	if err := os.Mkdir(root, 0700); err != nil {
+		t.Fatal(err)
+	}
+	config["library"] = root
+	se.want(se.call("POST", "/versions", map[string]any{"generation": se.generation(), "key": "test-version", "config": config,
+		"roots": []string{root}, "sync_with": []string{"movie-web"}}), 200, "create in sync")
+	if groups := se.want(se.call("GET", "/versions", nil), 200, "list")["sync_groups"]; fmt.Sprint(groups) != "[[test-version movie-web]]" {
+		t.Fatalf("groups: %v", groups)
+	}
+	if got := se.coord.Current().Policy.SyncGroup("movie-web"); !slices.Equal(got, []string{"test-version", "movie-web"}) {
+		t.Fatalf("runtime policy group %v", got)
+	}
+	se.want(se.call("PUT", "/versions/test-version", map[string]any{"generation": se.generation(), "key": "test-version",
+		"config": config, "sync_with": []string{"tv-2160p"}}), 422, "series library refused")
+	// A save without sync_with keeps the group.
+	se.want(se.call("PUT", "/versions/test-version", map[string]any{"generation": se.generation(), "key": "test-version",
+		"config": config}), 200, "edit")
+	if got := se.coord.Current().Policy.SyncGroup("test-version"); len(got) != 2 {
+		t.Fatalf("edit dropped the group: %v", got)
+	}
+	path := fmt.Sprintf("/versions/test-version?generation=%d", se.generation())
+	refusal := se.want(se.call("DELETE", path, nil), 422, "unconfirmed delete")
+	token := confirmRefusal(t, refusal, "Library test-version is removed")
+	se.want(confirmedDelete(se, path, token), 200, "delete")
+	if lib := se.coord.Current().Policy.Library; len(lib.SyncGroups) != 0 {
+		t.Fatalf("deleted library's group kept: %v", lib.SyncGroups)
+	}
+}

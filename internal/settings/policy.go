@@ -334,6 +334,10 @@ func importOver(write *SaveRequest, current Records) ([]string, error) {
 	}
 	sort.Strings(filled)
 	write.Records.Sections = mergeSections(write.Records.Sections, current.Sections)
+	// The stored sync groups follow the imported libraries.
+	if err := PruneSyncGroups(&write.Records); err != nil {
+		return nil, err
+	}
 	write.Records.SyncSources = current.SyncSources
 	if current.Switches != nil {
 		write.Records.Switches = current.Switches

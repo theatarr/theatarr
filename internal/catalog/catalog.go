@@ -72,6 +72,10 @@ type Input struct {
 	Source string
 	// AddMethod is Radarr's movie add method: manual (default), list or collection.
 	AddMethod string
+	// Policy's sync groups widen the add (TurnOnSynced): the libraries in sync with one that gains a copy get one
+	// too, with the same monitoring and, for a series, the same season choices. Nil: no widening (the one-time
+	// import from an arr).
+	Policy *policy.Policy
 }
 
 // Result is what an add did.
@@ -81,8 +85,10 @@ type Result struct {
 	Created bool
 	Anime   bool
 	// Versions are the keys turned on (new, restored or already there); New are the version rows this add created.
+	// Both include Synced, the libraries the sync groups added (TurnOnSynced).
 	Versions []string
 	New      []string
+	Synced   []string
 }
 
 // ErrNoID is returned for an input with neither a title id nor a TMDb or TVDB id.
@@ -131,9 +137,16 @@ func Add(ctx context.Context, tx *sql.Tx, in Input, now time.Time, log *slog.Log
 	if err != nil {
 		return nil, err
 	}
-	if res.New, err = TurnOn(ctx, tx, titleID, keys, in.Monitored, now); err != nil {
+	if in.Kind == policy.KindSeries {
+		// Before the libraries are turned on: the series type is part of whether a library in sync fits.
+		if err := AddSeriesType(ctx, tx, titleID, in.SeriesType); err != nil {
+			return nil, err
+		}
+	}
+	if res.New, res.Synced, err = TurnOnSynced(ctx, tx, in.Policy, titleID, keys, in.Monitored, now); err != nil {
 		return nil, err
 	}
+	res.New = append(res.New, res.Synced...)
 	for _, k := range res.New {
 		method := in.AddMethod
 		if method != "list" && method != "collection" {
@@ -146,16 +159,20 @@ func Add(ctx context.Context, tx *sql.Tx, in Input, now time.Time, log *slog.Log
 		log.Info("version turned on", "source", in.Source, "title", titleID, "version", k)
 	}
 	res.Versions = keys
+	if len(res.Synced) > 0 {
+		res.Versions = append(slices.Clone(keys), res.Synced...)
+		keys = res.Versions
+	}
 	if in.Kind == policy.KindSeries {
-		if err := AddSeriesType(ctx, tx, titleID, in.SeriesType); err != nil {
-			return nil, err
-		}
 		if err := SetMonitorNew(ctx, tx, titleID, keys, in.MonitorNew, now); err != nil {
 			return nil, err
 		}
 		sv := in.SeasonVersions
 		if sv == nil {
 			sv = keys
+		} else if len(res.Synced) > 0 {
+			// The libraries in sync take the add's seasons as the ones it names.
+			sv = append(slices.Clone(sv), res.Synced...)
 		}
 		for _, se := range in.Seasons {
 			if err := SetSeasonMonitored(ctx, tx, titleID, sv, se.Number, se.Monitored, now); err != nil {
@@ -302,6 +319,66 @@ func TurnOn(ctx context.Context, tx *sql.Tx, titleID int64, keys []string, monit
 		}
 	}
 	return created, nil
+}
+
+// TurnOnSynced is TurnOn for every route that gives a title a copy, plus the sync groups (policy library.sync_groups,
+// docs/design/ui.md "Keep in sync"): a key that gains a copy here (created, or restored after a removal) brings the
+// other libraries of its group that fit the title (by kind, and anime by the title's flag or series type) and that
+// the title has no copy of in any state, created with the same monitored flag. A partner the title has a copy of,
+// removed or unmonitored, is left as it is; one named in keys is turned on as named. Monitoring an existing copy
+// again brings nothing. created are the named keys' new rows (as TurnOn returns them); partners the rows created for
+// the groups. A nil policy, or one without groups, is TurnOn.
+func TurnOnSynced(ctx context.Context, tx *sql.Tx, pol *policy.Policy, titleID int64, keys []string, monitored bool,
+	now time.Time) (created, partners []string, err error) {
+	var gains []string
+	if pol != nil && pol.Library != nil && len(pol.Library.SyncGroups) > 0 {
+		for _, k := range keys {
+			if pol.SyncGroup(k) == nil {
+				continue
+			}
+			var gain bool
+			if err := tx.QueryRowContext(ctx, `SELECT NOT EXISTS (SELECT 1 FROM version v WHERE v.title_id = ?
+				AND v.policy_key = ? AND NOT EXISTS (SELECT 1 FROM arrview_removed_version r
+				WHERE r.version_id = v.id))`, titleID, k).Scan(&gain); err != nil {
+				return nil, nil, err
+			}
+			if gain {
+				gains = append(gains, k)
+			}
+		}
+	}
+	if created, err = TurnOn(ctx, tx, titleID, keys, monitored, now); err != nil || len(gains) == 0 {
+		return created, nil, err
+	}
+	var kind policy.Kind
+	var anime bool
+	if err := tx.QueryRowContext(ctx, `SELECT t.kind, t.anime OR `+store.SeriesTypeSQL("t")+` = 'anime' FROM title t
+		WHERE t.id = ?`, titleID).Scan(&kind, &anime); err != nil {
+		return nil, nil, err
+	}
+	for _, k := range gains {
+		for _, p := range pol.SyncGroup(k) {
+			if slices.Contains(keys, p) || slices.Contains(partners, p) || !Fits(pol.Versions[p], kind, anime) {
+				continue
+			}
+			var has bool
+			if err := tx.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM version WHERE title_id = ? AND policy_key = ?)`,
+				titleID, p).Scan(&has); err != nil {
+				return nil, nil, err
+			}
+			if !has {
+				partners = append(partners, p)
+			}
+		}
+	}
+	if len(partners) == 0 {
+		return created, nil, nil
+	}
+	slices.Sort(partners)
+	if _, err := TurnOn(ctx, tx, titleID, partners, monitored, now); err != nil {
+		return nil, nil, err
+	}
+	return created, partners, nil
 }
 
 // versionIDs are the ids of the title's versions with these keys that are not removed from the views.

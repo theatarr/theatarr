@@ -954,6 +954,25 @@ imported value) and **Availability delay (days)** (`availability_delay`, whole d
 for none). Like the name, each is left out of the request while unset and sent empty or 0 only to clear a stored
 value, so a save that does not touch them stores the library unchanged; a library changed to series drops both.
 
+**Keep in sync.** The library editor's "Keep in sync" ticks the other libraries this one is kept in sync with: a
+title that gains a copy in one library of a group gains one in each other library of the group that fits it, unless
+the title has a copy there already in any state (one removed from the library stays removed, an unmonitored one stays
+unmonitored); only an add that names that library itself restores a removed copy. Monitoring an existing copy again
+brings nothing. The new copy takes the add's monitored flag and, for a series, its seasons, preset and monitor-new
+choice; quality, profile, naming and providers are each library's own, and monitoring, removals and files stay each
+copy's own afterwards (files are not copied: the copy is wanted and searched by its own library's rules). The rule
+holds for every route that gives a title a copy (`catalog.TurnOnSynced`, beside `catalog.TurnOn`): the add sheet and
+`POST titles`, request approval, the title page's library switch and bulk add (`PUT titles/{id}/versions/{key}`),
+collections and import lists (searched on add like the library they name), and the compatible API's add, edits,
+mass editor and anime reclassify. The one-time import from an arr adds to its one library only. A group holds two or
+more libraries of one kind and one anime rule (unset, anime only and not anime are three rules), a library is in at
+most one group; the editor offers only those, lists the same-kind libraries it does not offer with the reason (their
+anime setting, or the group they are in), and saves the group with the library (`sync_with`). Each library's row on
+Settings › Libraries says "In sync with …". Stored as `library.sync_groups` (lists of library keys) in the library
+settings section, which its form leaves as stored; a library that is deleted, or whose kind or anime setting no
+longer matches its group, leaves the group in the same save (also on a YAML import), and a group left with one
+library goes. Saving a group adds nothing to titles already in the library.
+
 Advanced includes **YAML settings**
 (`/admin/advanced/config`, with Policy files, Sections and Import & export tabs), **Settings history**
 (`/admin/advanced/history`) and **Request limits** (`/admin/advanced/limits`, including back-offs and budgets).
@@ -1214,8 +1233,8 @@ All under `/api/theatarr/v1` unless noted. Every list pages with `limit` (≤ 20
 | `GET calendar?from=&to=` | releases and episodes in a window (shares code with the arr view's `calendar`); each entry says `monitored`, `available` (a movie: the title's status word is Available or Partly available, `partial` for the latter), `acquiring` (a download in hand for the movie, or for that very episode; one read for the page) and `stage` (the furthest stage in hand, see files only) |
 | `GET activity/continue?limit=` | Home's Getting ready row: titles with a download in hand, each with its library's `version` key and `label` (numbered, never a key, for accounts without See files) |
 | `GET search?q=&kind=&offset=` | `{library: [...], library_total, tmdb: [...]}`; the kind applies before the limit, `offset` pages the library part; TMDb results through the gateway and `tmdb` budget, cached 1 day, marked `in_library` and `requested` |
-| `POST titles` | add `{kind, tmdb_id, tvdb_id?, versions[], seasons?, monitored, search}`, or `{title_id, versions[], …}` for a title already in the library (also one known only by its TVDB id); runs `catalog.Add` (§3); 201 with the title |
-| `PUT titles/{id}/versions/{key}` | turn a version on/off, monitor |
+| `POST titles` | add `{kind, tmdb_id, tvdb_id?, versions[], seasons?, monitored, search}`, or `{title_id, versions[], …}` for a title already in the library (also one known only by its TVDB id); runs `catalog.Add` (§3); 201 with the title; `versions` and `new` include `synced`, the libraries added because they are kept in sync with one named |
+| `PUT titles/{id}/versions/{key}` | turn a version on/off, monitor; one created or restored brings the libraries kept in sync with it (§2 "Keep in sync") |
 | `POST titles/{id}/search` | search now for versions (records a command like the arr views' `MoviesSearch`) |
 | `GET activity?state=now|history|blocked&title_id=&title=&version=&offset=&user=` | download rows with plain-words state, progress, provider, attempts (admin), library import results and (admin) `formats`; history rows (journal History, `history.go`) with `event` and `words`, and (admin) `episodes`, `files`, the row's `release`, `quality`, `score` (absent when unknown, never 0), `indexer`, `size`, `formats`, `reason` and a deleted file's `replaced_by`; `events=` filters them (the copy events only for callers who see files); blocked rows filtered by part of the title's name (`title`) and library (`version`), `total` the filtered count, each with the blocked download's `quality` and `indexer` when known; from `download`, `download_attempt`, `library_import`, `router_plan`, `acquire_run`, `router_blocklist` (moved out of `arrview/queue.go` into a shared reader) |
 | `GET titles/{id}/releases?version=&live=&season=` | Interactive search (`live=1`) and the stored "Last search" (decision engine results with reasons; manager) |

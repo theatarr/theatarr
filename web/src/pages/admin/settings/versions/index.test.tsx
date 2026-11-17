@@ -26,6 +26,26 @@ const effects = [
 ];
 
 describe("Versions page", () => {
+  it("keeps libraries in sync: names the group on the row, offers only libraries that qualify and saves the group with the library", async () => {
+    const lib = (key: string, name: string, anime = false) => ({ ...version(), key, config: { ...version().config, name, anime } });
+    const data = { ...versions(), versions: [lib("movie-web", "Web"), lib("movie-remux", "Remux"), lib("anime-movie", "Anime", true), lib("movie-hd", "HD"), lib("movie-uhd", "UHD")],
+      sync_groups: [["movie-web", "movie-remux"], ["movie-hd", "movie-uhd"]] };
+    const fetch = mockFetch([...getRoutes(data), { method: "PUT", path: "/settings/versions/movie-web", reply: json({ generation: 5 }) }]);
+    const user = userEvent.setup();
+    const page = renderPage(<VersionsPage />);
+    const row = () => page.container.querySelector<HTMLElement>('[data-record="movie-web"]')!;
+    await waitFor(() => expect(row()).toBeTruthy());
+    expect(within(row()).getByTestId("library-sync").textContent).toBe("In sync with Remux");
+    await user.click(within(row()).getByRole("button", { name: "Edit" }));
+    const part = await screen.findByTestId("library-sync-part");
+    expect((within(part).getByRole("checkbox", { name: "Remux" }) as HTMLInputElement).checked).toBe(true);
+    expect(within(part).queryByRole("checkbox", { name: "HD" })).toBeNull();
+    expect(within(part).getByTestId("library-sync-refused").textContent).toBe("Not offered: Anime (anime only); HD (in sync with UHD); UHD (in sync with HD).");
+    await user.click(within(part).getByRole("checkbox", { name: "Remux" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(fetch.calls("PUT", "/settings/versions/movie-web")).toHaveLength(1));
+    expect(fetch.calls("PUT", "/settings/versions/movie-web")[0].body).toMatchObject({ sync_with: [] });
+  });
   it("saves curator preference separately from quality and grab settings", async () => {
     const fetch = mockFetch([...getRoutes(), { method: "PUT", path: "/settings/versions/movie-web", reply: json({ generation: 5 }) }]);
     const user = userEvent.setup();
@@ -35,6 +55,7 @@ describe("Versions page", () => {
     await user.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() => expect(fetch.calls("PUT", "/settings/versions/movie-web")).toHaveLength(1));
     expect(fetch.calls("PUT", "/settings/versions/movie-web")[0].body).toMatchObject({ config: { prefer_seadex: true, profile: "web" } });
+    expect(fetch.calls("PUT", "/settings/versions/movie-web")[0].body).not.toHaveProperty("sync_with");
   });
   it("saves the provider preference of the cache tie-break", async () => {
     const fetch = mockFetch([...getRoutes(), { method: "PUT", path: "/settings/versions/movie-web", reply: json({ generation: 5 }) }]);

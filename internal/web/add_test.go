@@ -1456,3 +1456,58 @@ func TestSearchLibraryNames(t *testing.T) {
 		t.Errorf("an In library hit must reach the library group: total %d, %+v", s.LibraryTotal, s.Library)
 	}
 }
+
+// Libraries kept in sync ({movie-web, movie-hd}, {tv-2160p, tv-1080p}) through the native add, the title page's
+// library switch and a compatible view of one library: the partner gets its copy when the named one is new, the
+// add's result lists it, and a series' partner gets the add's seasons; monitoring a copy again brings nothing.
+func TestSyncGroupsRoutes(t *testing.T) {
+	t.Parallel()
+	e := newAddEnv(t, func(p *policy.Policy) {
+		hd := *p.Versions["movie-web"]
+		hd.Library = "/media/movies-hd"
+		p.Versions["movie-hd"] = &hd
+		tv := *p.Versions["tv-2160p"]
+		tv.Library = "/media/tv-1080p"
+		p.Versions["tv-1080p"] = &tv
+		p.Library.SyncGroups = [][]string{{"movie-web", "movie-hd"}, {"tv-2160p", "tv-1080p"}}
+	})
+	var at AddedTitle
+	e.call("PUT", APIBase+"/titles/1/versions/movie-web", map[string]any{"monitored": true}, 200, &at)
+	if n := e.count(`SELECT COUNT(*) FROM version WHERE title_id = 1 AND policy_key = 'movie-hd' AND monitored = 1`); n != 1 {
+		t.Errorf("library switch: movie-hd copies %d, want 1", n)
+	}
+	e.exec(`UPDATE version SET monitored = 0 WHERE title_id = 1 AND policy_key IN ('movie-web', 'movie-hd')`)
+	e.call("PUT", APIBase+"/titles/1/versions/movie-web", map[string]any{"monitored": true}, 200, &at)
+	if n := e.count(`SELECT COUNT(*) FROM version WHERE title_id = 1 AND policy_key = 'movie-hd' AND monitored = 0`); n != 1 {
+		t.Error("monitoring movie-web again touched movie-hd")
+	}
+	var res AddResult
+	e.call("POST", APIBase+"/titles", map[string]any{"kind": "movie", "tmdb_id": 105, "title": "Epsilon",
+		"versions": []string{"movie-web"}}, 201, &res)
+	if !slices.Equal(res.Synced, []string{"movie-hd"}) || !slices.Equal(res.New, []string{"movie-web", "movie-hd"}) ||
+		!slices.Equal(res.Versions, []string{"movie-web", "movie-hd"}) {
+		t.Errorf("native add: %+v", res)
+	}
+	// A series the catalogue has with its episodes and no library yet, added through the view of tv-2160p alone.
+	e.exec(`INSERT INTO title (id, kind, name, sort_name, tvdb_id, anime, created_at, updated_at) VALUES
+		(20, 'series', 'Lambda', 'lambda', 401, 0, 0, 0)`)
+	e.exec(`INSERT INTO episode (id, title_id, season, number, name, monitored, created_at, updated_at) VALUES
+		(200, 20, 1, 1, 'One', 1, 0, 0), (201, 20, 2, 1, 'Two', 1, 0, 0)`)
+	e.call("POST", "/v/tv-2160p/sonarr/api/v3/series", map[string]any{"title": "Lambda", "tvdbId": 401,
+		"seasons": []map[string]any{{"seasonNumber": 1, "monitored": true}, {"seasonNumber": 2, "monitored": false}}}, 201, nil)
+	for _, k := range []string{"tv-2160p", "tv-1080p"} {
+		if n := e.count(`SELECT COUNT(*) FROM episode_version_state s JOIN version v ON v.id = s.version_id
+			JOIN episode ep ON ep.id = s.episode_id WHERE v.title_id = 20 AND v.policy_key = ? AND s.monitored = 1
+			AND ep.season = 1`, k); n != 1 {
+			t.Errorf("compatible add: %s has %d monitored season 1 episodes, want 1", k, n)
+		}
+		if n := e.count(`SELECT COUNT(*) FROM episode_version_state s JOIN version v ON v.id = s.version_id
+			JOIN episode ep ON ep.id = s.episode_id WHERE v.title_id = 20 AND v.policy_key = ? AND s.monitored = 1
+			AND ep.season = 2`, k); n != 0 {
+			t.Errorf("compatible add: %s monitors season 2", k)
+		}
+	}
+	if s, i := e.acq.counts(); s+i != 0 {
+		t.Errorf("searches: %d %d", s, i)
+	}
+}

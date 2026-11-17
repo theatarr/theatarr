@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"slices"
 	"time"
 
 	"github.com/theatarr/theatarr/internal/arr"
@@ -154,7 +155,7 @@ func (s *MovieIntake) addSeries(ctx context.Context, it arrSeries, cfg movieInta
 		// gets its TVDB id for the episode refresh) and never replaces stored ones.
 		in := Input{Kind: policy.KindSeries, TvdbID: it.TvdbID, TmdbID: it.TmdbID, ImdbID: it.ImdbID, Title: it.Title,
 			Year: it.Year, Versions: func(bool) ([]string, error) { return missing, nil }, Monitored: cfg.monitored,
-			Source: "series-list", AddMethod: "list"}
+			Source: "series-list", AddMethod: "list", Policy: s.syncPolicy(cfg)}
 		if found {
 			in.TitleID = id
 		} else {
@@ -164,7 +165,8 @@ func (s *MovieIntake) addSeries(ctx context.Context, it arrSeries, cfg movieInta
 		if err != nil {
 			return err
 		}
-		titleID, added = res.TitleID, missing
+		// The libraries in sync count as added: their search follows the others'.
+		titleID, added = res.TitleID, append(slices.Clone(missing), res.Synced...)
 		views := []string{cfg.view}
 		if cfg.view == "" {
 			views = nil

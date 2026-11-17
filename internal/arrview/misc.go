@@ -473,6 +473,7 @@ func (s *Service) editor(w http.ResponseWriter, r *request) {
 	err = s.st.WriteTx(ctx, func(tx *sqlTx) error {
 		now := store.Millis(s.now())
 		for _, e := range es {
+			var partners []string // the libraries in sync this edit created
 			mon := e.monitored()
 			if in.Monitored != nil {
 				mon = *in.Monitored
@@ -499,7 +500,7 @@ func (s *Service) editor(w http.ResponseWriter, r *request) {
 					if err != nil && err != errNoVersion {
 						return err
 					}
-					if _, err := s.turnOn(ctx, tx, v, e.id, keys, mon); err != nil {
+					if _, partners, err = s.turnOn(ctx, tx, v, e.id, keys, mon); err != nil {
 						return err
 					}
 				}
@@ -527,7 +528,8 @@ func (s *Service) editor(w http.ResponseWriter, r *request) {
 			}
 			// monitorNewItems is the versions' intent too, as in PUT series (applySeasons).
 			if mn := in.MonitorNewItems.value("all", "none"); v.Flavour == Sonarr && mn != "" {
-				if err := catalog.SetMonitorNew(ctx, tx, e.id, v.Versions, mn, s.now()); err != nil {
+				if err := catalog.SetMonitorNew(ctx, tx, e.id, append(slices.Clone(v.Versions), partners...), mn,
+					s.now()); err != nil {
 					return err
 				}
 			}

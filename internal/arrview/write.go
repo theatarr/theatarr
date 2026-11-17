@@ -321,12 +321,13 @@ func (s *Service) reclassify(ctx context.Context, v *View, titleID int64) error 
 			titleID).Scan(&mon); err != nil {
 			return err
 		}
-		created, err := s.turnOn(ctx, tx, v, titleID, keys, mon)
+		created, partners, err := s.turnOn(ctx, tx, v, titleID, keys, mon)
 		if err != nil {
 			return err
 		}
 		if v.Flavour == Sonarr {
-			if err := s.copySeasonIntent(ctx, tx, v, titleID, created); err != nil {
+			// The libraries in sync take the same season monitoring as the view's new copies.
+			if err := s.copySeasonIntent(ctx, tx, v, titleID, append(created, partners...)); err != nil {
 				return err
 			}
 		}
@@ -415,14 +416,18 @@ func (s *Service) heldSeriesType(ctx context.Context, in *titleIn, ext int64) (s
 }
 
 // turnOn makes sure the title has each version, monitored as asked: a new version starts wanted; a removed one is
-// restored (catalog.TurnOn). It returns the keys of the versions it created.
+// restored; one that gains a copy brings the libraries in sync with it (catalog.TurnOnSynced). It returns the keys
+// of the versions it created for keys, and the libraries in sync it created (partners, outside the view as a rule).
 func (s *Service) turnOn(ctx context.Context, tx *sqlTx, v *View, titleID int64, keys []string,
-	monitored bool) ([]string, error) {
-	created, err := catalog.TurnOn(ctx, tx, titleID, keys, monitored, s.now())
+	monitored bool) (created, partners []string, err error) {
+	created, partners, err = catalog.TurnOnSynced(ctx, tx, s.pol, titleID, keys, monitored, s.now())
 	for _, k := range created {
 		s.log.Info("version turned on", "view", v.Key, "title", titleID, "version", k)
 	}
-	return created, err
+	for _, k := range partners {
+		s.log.Info("version turned on", "view", v.Key, "title", titleID, "version", k, "in_sync", true)
+	}
+	return created, partners, err
 }
 
 // offVersions is which of the keys the title has no active version for: none yet, removed from the views, or
@@ -612,11 +617,17 @@ func (s *Service) reportedSeasons(ctx context.Context, v *View, e *entry) (map[i
 // it echoes as monitored must keep its unmonitored episodes. A season the view does not report (no episodes yet)
 // only records the choice. Versions this PUT turned on (fresh: new, restored or unmonitored before) take every season of the body.
 // A version the PUT's newly chosen profile selects (picked) that was already on takes a season the body monitors
-// when none of its episodes of that season is monitored (another copy reported the season monitored).
+// when none of its episodes of that season is monitored (another copy reported the season monitored). The libraries
+// in sync that the PUT created (partners) take every season of the body and its monitorNewItems, as fresh ones do.
 func (s *Service) applySeasons(ctx context.Context, tx *sqlTx, v *View, titleID int64, in *titleIn,
-	reported map[int]bool, fresh, picked []string) error {
+	reported map[int]bool, fresh, picked, partners []string) error {
+	scope := v.Versions
+	if len(partners) > 0 {
+		scope = append(slices.Clone(v.Versions), partners...)
+		fresh = append(slices.Clone(fresh), partners...)
+	}
 	for _, se := range in.Seasons {
-		keys := v.Versions
+		keys := scope
 		if cur, ok := reported[se.SeasonNumber]; ok && cur == se.Monitored {
 			keys = slices.Clone(fresh)
 			if se.Monitored {
@@ -643,7 +654,7 @@ func (s *Service) applySeasons(ctx context.Context, tx *sqlTx, v *View, titleID 
 		}
 	}
 	if mn := in.MonitorNewItems.value("all", "none"); mn != "" {
-		return catalog.SetMonitorNew(ctx, tx, titleID, v.Versions, mn, s.now())
+		return catalog.SetMonitorNew(ctx, tx, titleID, scope, mn, s.now())
 	}
 	return nil
 }
@@ -719,7 +730,7 @@ func (s *Service) addTitle(w http.ResponseWriter, r *request) {
 	var titleID int64
 	err := s.st.WriteTx(ctx, func(tx *sqlTx) error {
 		ci := catalog.Input{Kind: v.kind(), Title: in.Title, Year: in.Year, ImdbID: in.ImdbID,
-			Anime: anime, Monitored: in.monitored(true), Source: v.Key,
+			Anime: anime, Monitored: in.monitored(true), Source: v.Key, Policy: s.pol,
 			Versions: func(anime bool) ([]string, error) { return s.chooseVersions(v, &in, anime) }}
 		if v.Flavour == Sonarr {
 			ci.TvdbID = ext
@@ -913,7 +924,7 @@ func (s *Service) updateTitle(w http.ResponseWriter, r *request) {
 				after = typ
 			}
 		}
-		var fresh, picked []string
+		var fresh, picked, partners []string
 		if p := v.profileByID(in.profile()); p != nil && p.ID != qualityProfileID(v, e) {
 			// Anime as acquisition will see the title after this PUT: its flag, or its type.
 			anime := e.anime || after == "anime"
@@ -930,7 +941,7 @@ func (s *Service) updateTitle(w http.ResponseWriter, r *request) {
 				return err
 			}
 			picked = keys
-			if _, err = s.turnOn(ctx, tx, v, e.id, keys, mon); err != nil {
+			if _, partners, err = s.turnOn(ctx, tx, v, e.id, keys, mon); err != nil {
 				return err
 			}
 		}
@@ -965,7 +976,7 @@ func (s *Service) updateTitle(w http.ResponseWriter, r *request) {
 			}
 		}
 		if v.Flavour == Sonarr {
-			if err := s.applySeasons(ctx, tx, v, e.id, &in, reported, fresh, picked); err != nil {
+			if err := s.applySeasons(ctx, tx, v, e.id, &in, reported, fresh, picked, partners); err != nil {
 				return err
 			}
 		}

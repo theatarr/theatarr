@@ -42,7 +42,8 @@ func TestSectionSchemaCoverage(t *testing.T) {
 					}
 					full := path + "." + name
 					owned := full == "library.enabled" || full == "router.enabled" || full == "library.versions.example.roots" ||
-						full == "library.mount.decypharr" // no control yet
+						full == "library.mount.decypharr" || // no control yet
+						full == "library.sync_groups" // edited on Settings › Libraries
 					n := slices.IndexFunc(fields, func(sf SchemaField) bool { return sf.Name == name })
 					if owned {
 						if n >= 0 {

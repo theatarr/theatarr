@@ -122,6 +122,17 @@ type movieIntakeConfig struct {
 	// or Sonarr list's instance. media is what the list adds: movie or series (a Sonarr list, a TMDb series list).
 	// rule is a discover list's rule (tmdb.Discover as JSON).
 	listType, url, apiKey, media, rule string
+	// importOnly: the one-time import from an arr (importConfig), which adds to its one library only: the sync
+	// groups do not widen it.
+	importOnly bool
+}
+
+// syncPolicy is the policy whose sync groups widen the intake's adds (Input.Policy); nil for the one-time import.
+func (s *MovieIntake) syncPolicy(cfg movieIntakeConfig) *policy.Policy {
+	if cfg.importOnly {
+		return nil
+	}
+	return s.Policy
 }
 
 const (
@@ -553,7 +564,8 @@ func (s *MovieIntake) fitVersions(cfg movieIntakeConfig, keys []string, anime bo
 
 // addMissingVersions gives a movie the catalog already holds the intake's target versions it has no row for:
 // another list or collection may target other versions than the one that added it. A version the
-// title has in any state (unmonitored, removed from the views) is a choice already made and stays as it is.
+// title has in any state (unmonitored, removed from the views) is a choice already made and stays as it is. A
+// version it creates brings the libraries in sync with it (TurnOnSynced), added and searched like it.
 func (s *MovieIntake) addMissingVersions(ctx context.Context, titleID int64, anime bool, cfg movieIntakeConfig,
 	collectionID int64) (bool, error) {
 	var keys []string
@@ -589,15 +601,9 @@ func (s *MovieIntake) addMissingVersions(ctx context.Context, titleID int64, ani
 		if len(added) == 0 {
 			return nil
 		}
-		if _, err := TurnOn(ctx, tx, titleID, added, cfg.monitored, now); err != nil {
+		_, synced, err := TurnOnSynced(ctx, tx, s.syncPolicy(cfg), titleID, added, cfg.monitored, now)
+		if err != nil {
 			return err
-		}
-		for _, k := range added {
-			if _, err := tx.ExecContext(ctx, `UPDATE version SET add_method=? WHERE title_id=? AND policy_key=?`,
-				method, titleID, k); err != nil {
-				return err
-			}
-			s.Log.Info("version turned on", "source", "movie-list", "title", titleID, "version", k)
 		}
 		views := []string{cfg.view}
 		if cfg.view == "" {
@@ -605,6 +611,15 @@ func (s *MovieIntake) addMissingVersions(ctx context.Context, titleID int64, ani
 			for _, key := range added {
 				views = append(views, "v/"+key)
 			}
+		}
+		// The libraries in sync count as added: their minimum availability and their search follow the others'.
+		added = append(added, synced...)
+		for _, k := range added {
+			if _, err := tx.ExecContext(ctx, `UPDATE version SET add_method=? WHERE title_id=? AND policy_key=?`,
+				method, titleID, k); err != nil {
+				return err
+			}
+			s.Log.Info("version turned on", "source", "movie-list", "title", titleID, "version", k)
 		}
 		// The view's record holds the profile and root folder only; the minimum availability is a choice of each
 		// library added, on its own row, so it never reaches a copy the movie already had.
@@ -724,7 +739,8 @@ func (s *MovieIntake) addNewMovie(ctx context.Context, summary tmdb.MovieSummary
 			method = "collection"
 		}
 		result, err = Add(ctx, tx, Input{Kind: policy.KindMovie, TmdbID: int64(m.ID), ImdbID: m.IMDbID, Title: m.Title, Year: year, Anime: &anime,
-			Versions: func(bool) ([]string, error) { return fit, nil }, Monitored: cfg.monitored, Source: "movie-list", AddMethod: method}, now, s.Log)
+			Versions: func(bool) ([]string, error) { return fit, nil }, Monitored: cfg.monitored, Source: "movie-list", AddMethod: method,
+			Policy: s.syncPolicy(cfg)}, now, s.Log)
 		if err != nil {
 			return err
 		}

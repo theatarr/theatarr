@@ -400,9 +400,11 @@ type AddedTitle struct {
 type AddResult struct {
 	Title   AddedTitle `json:"title"`
 	Created bool       `json:"created"`
-	// Versions are the keys turned on; New the version rows this add created.
+	// Versions are the keys turned on; New the version rows this add created. Both include Synced, the libraries
+	// added because they are in sync with one the add named (library.sync_groups).
 	Versions []string `json:"versions"`
 	New      []string `json:"new"`
+	Synced   []string `json:"synced,omitempty"`
 	// Search is what the search asked for did; absent when none was asked for.
 	Search *SearchOutcome `json:"search,omitempty"`
 }
@@ -604,6 +606,7 @@ func (w *Web) addTitle(ctx context.Context, req AddRequest, source string) (*Add
 	in := catalog.Input{Kind: kind, TitleID: req.TitleID, TmdbID: req.TMDbID, TvdbID: req.TVDbID, ImdbID: strings.TrimSpace(req.IMDbID),
 		Title: req.Title, Year: req.Year, Anime: req.Anime, Monitored: monitored, Seasons: req.Seasons, Source: source,
 		MonitorNew: req.MonitorNew, Monitor: req.Monitor, SeriesType: req.SeriesType, SeasonVersions: req.seasonVersions,
+		Policy: w.pol,
 		Versions: func(anime bool) ([]string, error) {
 			if req.Versions != nil {
 				return req.Versions, nil
@@ -703,7 +706,7 @@ func (w *Web) addTitle(ctx context.Context, req AddRequest, source string) (*Add
 			w.log.Warn("add: art refresh not queued", "title", res.TitleID, "err", err)
 		}
 	}
-	out := &AddResult{Created: res.Created, Versions: res.Versions, New: res.New}
+	out := &AddResult{Created: res.Created, Versions: res.Versions, New: res.New, Synced: res.Synced}
 	if out.New == nil {
 		out.New = []string{}
 	}
@@ -854,7 +857,8 @@ func (w *Web) apiSearchNow(rw http.ResponseWriter, r *http.Request) {
 }
 
 // PUT /titles/{id}/versions/{key} {monitored}: turn a version on (created wanted, or restored and monitored) or off
-// (unmonitored; its rows, files and links stay). Never searches. 200 with the title.
+// (unmonitored; its rows, files and links stay). A version created or restored brings the libraries in sync with it
+// (catalog.TurnOnSynced); one monitored again brings none. Never searches. 200 with the title.
 func (w *Web) apiSetVersion(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	id, ok := pathID(r)
@@ -894,12 +898,15 @@ func (w *Web) apiSetVersion(rw http.ResponseWriter, r *http.Request) {
 	now := w.now()
 	err = w.st.WriteTx(ctx, func(tx *sql.Tx) error {
 		if *req.Monitored {
-			created, err := catalog.TurnOn(ctx, tx, id, []string{key}, true, now)
+			created, synced, err := catalog.TurnOnSynced(ctx, tx, w.pol, id, []string{key}, true, now)
 			if err != nil {
 				return err
 			}
 			if len(created) > 0 {
 				w.log.Info("version turned on", "source", "ui", "title", id, "version", key)
+			}
+			for _, k := range synced {
+				w.log.Info("version turned on", "source", "ui", "title", id, "version", k, "in_sync_with", key)
 			}
 		} else if _, err := tx.ExecContext(ctx, `UPDATE version SET monitored = 0, updated_at = ? WHERE title_id = ?
 			AND policy_key = ? AND monitored <> 0`, store.Millis(now), id, key); err != nil {

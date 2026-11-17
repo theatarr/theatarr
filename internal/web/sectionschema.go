@@ -57,6 +57,11 @@ func sectionFields(t reflect.Type, path string, docs map[string]map[string]strin
 		if full == "library.mount.decypharr" {
 			continue
 		}
+		// library.sync_groups is edited on Settings › Libraries ("Keep in sync"), as the libraries are; the section's
+		// form keeps it as stored.
+		if full == "library.sync_groups" {
+			continue
+		}
 		sf := sectionType(f.Type, full, name, docs)
 		sf.Help = docs[t.Name()][name]
 		if help, ok := sectionHelp[full]; ok {

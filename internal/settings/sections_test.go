@@ -617,3 +617,84 @@ func TestSectionShadowLoadsAfterComparisonDrop(t *testing.T) {
 		t.Fatalf("shadow section %+v", got)
 	}
 }
+
+// The sync groups follow the libraries: a deleted library leaves its group, one whose kind or anime setting changed
+// leaves the group the others share, and a group left with one library goes. SetSyncGroup sets one library's group,
+// keeps the library section's other fields, and refuses a library of another kind or anime rule.
+func TestSyncGroupRecords(t *testing.T) {
+	t.Parallel()
+	no, yes := false, true
+	lib := func(key string, kind policy.Kind, anime *bool) Version {
+		return Version{Record: Record{Key: key}, Config: policy.VersionPolicy{Kind: kind, Anime: anime}}
+	}
+	records := func(groups string) *Records {
+		return &Records{Versions: []Version{lib("a", policy.KindMovie, &no), lib("b", policy.KindMovie, &no),
+			lib("c", policy.KindMovie, &no), lib("d", policy.KindMovie, &no), lib("s", policy.KindSeries, &no)},
+			Sections: []Section{{Record: Record{Key: "library"}, Config: json.RawMessage(`{"mount":{"path":"/m"}` + groups + `}`)}}}
+	}
+	stored := func(r *Records) string {
+		t.Helper()
+		groups, _, err := syncGroups(r)
+		if err != nil {
+			t.Fatal(err)
+		}
+		b, _ := json.Marshal(groups)
+		if !strings.Contains(string(r.Sections[0].Config), `"mount":{"path":"/m"}`) {
+			t.Errorf("library section lost its other fields: %s", r.Sections[0].Config)
+		}
+		return string(b)
+	}
+
+	r := records(`,"sync_groups":[["a","b","c"],["d","s"]]`)
+	if err := PruneSyncGroups(r); err != nil {
+		t.Fatal(err)
+	}
+	if got := stored(r); got != `[["a","b","c"]]` {
+		t.Errorf("mixed kinds: %s", got)
+	}
+	r.Versions = slices.DeleteFunc(r.Versions, func(v Version) bool { return v.Key == "b" })
+	r.Versions[0].Config.Anime = &yes
+	if err := PruneSyncGroups(r); err != nil {
+		t.Fatal(err)
+	}
+	if got := stored(r); got != `null` || strings.Contains(string(r.Sections[0].Config), "sync_groups") {
+		t.Errorf("deleted and changed: %s (%s)", got, r.Sections[0].Config)
+	}
+	r = records(`,"sync_groups":[["a","b","c"]]`)
+	r.Versions[0].Config.Anime = nil
+	if err := PruneSyncGroups(r); err != nil {
+		t.Fatal(err)
+	}
+	if got := stored(r); got != `[["b","c"]]` {
+		t.Errorf("anime both is another rule: %s", got)
+	}
+	r = records(``)
+	before := string(r.Sections[0].Config)
+	if err := PruneSyncGroups(r); err != nil || string(r.Sections[0].Config) != before {
+		t.Errorf("no groups: %s %v", r.Sections[0].Config, err)
+	}
+
+	r = records(`,"sync_groups":[["a","b","c"]]`)
+	if err := SetSyncGroup(r, "d", []string{"a"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := stored(r); got != `[["b","c"],["d","a"]]` {
+		t.Errorf("join: %s", got)
+	}
+	if err := SetSyncGroup(r, "b", nil); err != nil {
+		t.Fatal(err)
+	}
+	if got := stored(r); got != `[["d","a"]]` {
+		t.Errorf("leave: %s", got)
+	}
+	if err := SetSyncGroup(r, "a", []string{"s"}); err == nil {
+		t.Error("a series library joined a movie library")
+	}
+	r = records(``)
+	if err := SetSyncGroup(r, "a", []string{"b", "c"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := stored(r); got != `[["a","b","c"]]` {
+		t.Errorf("new group: %s", got)
+	}
+}

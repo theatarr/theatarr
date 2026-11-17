@@ -345,6 +345,11 @@ Left as before, on purpose:
 
 ## Writes
 
+A version these writes create or restore (an add, a profile change in `PUT`, the mass editor, an anime reclassify)
+brings the libraries kept in sync with it (docs/design/ui.md "Keep in sync"), with the request's monitored flag and,
+for a series, its seasons and `monitorNewItems`; the view's own record (profile, root folder, tags) and its answer
+stay the view's.
+
 - **`POST movie|series`** (Seerr's add): the title is found by TMDb (movies) or TVDB (series) id, or created with the
   body's title and year. Then the versions are turned on (a new version row starts `wanted`, monitored as the body
   says, default true; a version the views removed is restored):

@@ -59,6 +59,7 @@
     "probe": "This bounds the header probe.",
     "relink_interval": "This is how often theatarr serve looks for dangling links and repoints them. Default 1h, minimum 10m.",
     "sample": "This tunes the sample and fake guard.",
+    "sync_groups": "This are the libraries kept in sync (settings › Libraries, \"keep in sync\"): each group lists the keys of two or more libraries of the same kind and anime rule, a library in at most one group.",
     "trash": "This is where replaced links are moved aside (upgrades, relinks). Required once Pause is off.",
     "versions": "This lists, per version key, where the library may write and which plex section shows it. A version not listed here never gets a write."
   },

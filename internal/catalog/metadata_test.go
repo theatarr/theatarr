@@ -1210,3 +1210,62 @@ func TestJSONListSync(t *testing.T) {
 		}
 	}
 }
+
+// Collections and the one-time arr import with a sync group {movie-web, movie-remux}: a collection's movie already
+// held in movie-web gets nothing new (no copy is created, so none brings its partner); a new movie the collection
+// adds to movie-web gets movie-remux too, reported to OnAdd with it so its search on add is the same; the one-time
+// import adds to its one library only.
+func TestSyncGroupsIntake(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	src := intakeSource{collection: intakeFixture[tmdb.Collection](t, `{"id":7,"name":"Collection","parts":[{"id":101,"title":"Held","release_date":"2020-01-01"},{"id":102,"title":"New","release_date":"2020-01-01"}]}`)}
+	s, st := newIntake(t, src)
+	s.Policy.Versions["movie-remux"] = &policy.VersionPolicy{Kind: policy.KindMovie, Enable: "default"}
+	s.Policy.Library = &policy.Library{SyncGroups: [][]string{{"movie-web", "movie-remux"}}}
+	var searched [][]string
+	s.OnAdd = func(_ context.Context, _ int64, keys []string, later bool) error {
+		searched = append(searched, keys)
+		return nil
+	}
+	execAll(t, st, `INSERT INTO title(id,kind,name,tmdb_id,created_at,updated_at) VALUES(50,'movie','Held',101,0,0)`,
+		`INSERT INTO version(title_id,policy_key,monitored,state,created_at,updated_at) VALUES(50,'movie-web',1,'wanted',0,0)`,
+		`INSERT INTO movie_collection(tmdb_id,monitored,versions,search_on_add,updated_at) VALUES(7,1,'["movie-web"]',1,0)`)
+	if _, err := s.RefreshCollection(ctx, 7); err != nil {
+		t.Fatal(err)
+	}
+	if n := countRows(t, st, `SELECT count(*) FROM version WHERE title_id=50`); n != 1 {
+		t.Errorf("held movie: %d copies, want its movie-web copy only", n)
+	}
+	var id int64
+	if err := st.Reader().QueryRow(`SELECT id FROM title WHERE tmdb_id=102`).Scan(&id); err != nil {
+		t.Fatal(err)
+	}
+	if n := countRows(t, st, `SELECT count(*) FROM version WHERE title_id=? AND monitored=1 AND add_method='collection'`, id); n != 2 {
+		t.Errorf("new movie: %d monitored copies, want movie-web and movie-remux", n)
+	}
+	if len(searched) != 1 || !slices.Equal(searched[0], []string{"movie-remux", "movie-web"}) && !slices.Equal(searched[0], []string{"movie-web", "movie-remux"}) {
+		t.Errorf("search on add %v, want both libraries of the new movie", searched)
+	}
+	// A list giving a movie held only outside the group a copy in movie-web gives it movie-remux too, searched alike.
+	execAll(t, st, `INSERT INTO title(id,kind,name,tmdb_id,created_at,updated_at) VALUES(60,'movie','Other',103,0,0)`,
+		`INSERT INTO version(title_id,policy_key,monitored,state,created_at,updated_at) VALUES(60,'movie-hd',1,'wanted',0,0)`,
+		`INSERT INTO title_release_date(title_id,source,country,type,date,fetched_at) VALUES(60,'tmdb','','digital','2020-01-01',0)`)
+	searched = nil
+	cfg := movieIntakeConfig{versions: `["movie-web"]`, monitored: true, search: true, listType: "tmdb"}
+	if added, err := s.addMissingVersions(ctx, 60, false, cfg, 0); err != nil || !added {
+		t.Fatalf("addMissingVersions %v %v", added, err)
+	}
+	if n := countRows(t, st, `SELECT count(*) FROM version WHERE title_id=60 AND policy_key IN ('movie-web','movie-remux') AND add_method='list'`); n != 2 {
+		t.Errorf("held elsewhere: %d copies of the group, want 2", n)
+	}
+	if len(searched) != 1 || len(searched[0]) != 2 {
+		t.Errorf("held elsewhere: search on add %v, want both libraries", searched)
+	}
+
+	// The one-time import adds to its library only.
+	change, imported := importTitle(t, s, "movie-web", ArrImportTitle{Kind: policy.KindMovie, TmdbID: 104, Name: "Imported",
+		Monitored: true}, false)
+	if change != "add_title" || countRows(t, st, `SELECT count(*) FROM version WHERE title_id=?`, imported) != 1 {
+		t.Errorf("import: %s, %d copies, want one", change, countRows(t, st, `SELECT count(*) FROM version WHERE title_id=?`, imported))
+	}
+}

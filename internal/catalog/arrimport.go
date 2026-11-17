@@ -47,7 +47,8 @@ func importConfig(key string, t ArrImportTitle) (movieIntakeConfig, error) {
 	if err != nil {
 		return movieIntakeConfig{}, err
 	}
-	cfg := movieIntakeConfig{versions: string(versions), monitor: "movieOnly", minimum: "released", listType: "radarr"}
+	cfg := movieIntakeConfig{versions: string(versions), monitor: "movieOnly", minimum: "released", listType: "radarr",
+		importOnly: true}
 	if t.Kind == policy.KindSeries {
 		cfg.listType = "sonarr"
 	}

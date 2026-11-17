@@ -1,6 +1,7 @@
 package web
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -26,6 +27,8 @@ type versionSettingsBody struct {
 	Roots             *[]string       `json:"roots"`
 	ConfirmationToken string          `json:"confirmation_token"`
 	Delete            bool            `json:"delete"`
+	// SyncWith, when given, sets the library's sync group: the other libraries kept in sync with it (empty: none).
+	SyncWith *[]string `json:"sync_with"`
 }
 
 func (w *Web) mountVersionSettingsAPI(mux *http.ServeMux, base string) {
@@ -82,9 +85,13 @@ func (w *Web) apiSettingsVersions(rw http.ResponseWriter, r *http.Request) {
 	if snap != nil {
 		gen, source = snap.Generation, "db"
 	}
+	syncGroups := [][]string{}
+	if pol != nil && pol.Library != nil && pol.Library.SyncGroups != nil {
+		syncGroups = pol.Library.SyncGroups
+	}
 	writeJSON(rw, http.StatusOK, map[string]any{"source": source, "generation": gen, "versions": records,
 		"profiles": profiles, "format_sets": formatSets, "clients": clients, "indexers": indexers, "providers": providers,
-		"switches": w.settingsSwitches()})
+		"switches": w.settingsSwitches(), "sync_groups": syncGroups})
 }
 
 func (w *Web) apiSettingsVersion(rw http.ResponseWriter, r *http.Request) {
@@ -126,7 +133,8 @@ func versionSettingsRequest(snap *settings.Snapshot, body versionSettingsBody, c
 		if req.Records.Naming != nil {
 			req.Records.Naming = slices.DeleteFunc(req.Records.Naming, func(n settings.VersionNaming) bool { return n.Key == body.Key })
 		}
-		return req, nil
+		// And its place in a sync group.
+		return req, syncGroupsFollow(snap, &req, body)
 	}
 	if create {
 		record.Record = settings.Record{Key: body.Key}
@@ -165,7 +173,35 @@ func versionSettingsRequest(snap *settings.Snapshot, body versionSettingsBody, c
 	} else {
 		req.Records.Versions[index] = record
 	}
-	return req, nil
+	return req, syncGroupsFollow(snap, &req, body)
+}
+
+// syncGroupsFollow keeps the stored sync groups (library.sync_groups) in step with a library save: a deleted library
+// leaves its group, as does one whose new kind or anime setting no longer matches the group; then sync_with, when
+// given, sets the library's group. The save carries the library section only when its groups change.
+func syncGroupsFollow(snap *settings.Snapshot, req *settings.SaveRequest, body versionSettingsBody) error {
+	i := slices.IndexFunc(snap.Records.Sections, func(s settings.Section) bool { return s.Key == "library" })
+	if i < 0 && body.SyncWith == nil {
+		return nil
+	}
+	records := settings.Records{Versions: req.Records.Versions}
+	var before []byte
+	if i >= 0 {
+		records.Sections = []settings.Section{snap.Records.Sections[i]}
+		before = snap.Records.Sections[i].Config
+	}
+	if err := settings.PruneSyncGroups(&records); err != nil {
+		return err
+	}
+	if body.SyncWith != nil && !body.Delete {
+		if err := settings.SetSyncGroup(&records, body.Key, *body.SyncWith); err != nil {
+			return err
+		}
+	}
+	if len(records.Sections) == 1 && !bytes.Equal(records.Sections[0].Config, before) {
+		req.Records.Sections = append(req.Records.Sections, records.Sections[0])
+	}
+	return nil
 }
 
 func (w *Web) versionBody(rw http.ResponseWriter, r *http.Request) (*settings.Snapshot, settings.SaveRequest, bool) {

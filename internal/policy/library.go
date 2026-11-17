@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/url"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 )
@@ -35,6 +36,11 @@ type Library struct {
 	RelinkInterval Duration `yaml:"relink_interval"`
 	// Dangling configures the read-only report of dangling links into the mount.
 	Dangling LibraryDangling `yaml:"dangling"`
+	// SyncGroups are the libraries kept in sync (Settings › Libraries, "Keep in sync"): each group lists the keys of
+	// two or more libraries of the same kind and anime rule, a library in at most one group. A title that gains a copy
+	// in one library of a group gains one in each other library of the group that fits it and has no copy of it in any
+	// state (catalog.TurnOnSynced). Default: none.
+	SyncGroups [][]string `yaml:"sync_groups,omitempty" json:",omitempty"`
 }
 
 // LibraryDangling is the dangling-link report: a read-only walk of the version roots, plus Roots, recorded in the
@@ -93,6 +99,58 @@ type LibraryMount struct {
 	// included, can make it replace a Real-Debrid torrent with a new copy. Over this connection Theatarr only
 	// reads. Off when unset.
 	Decypharr *LibraryDecypharr `yaml:"decypharr,omitempty" json:",omitempty"`
+}
+
+// SyncGroup is the sync group (library.sync_groups) that holds the library key; nil when it is in none.
+func (p *Policy) SyncGroup(key string) []string {
+	if p == nil || p.Library == nil {
+		return nil
+	}
+	for _, g := range p.Library.SyncGroups {
+		if slices.Contains(g, key) {
+			return g
+		}
+	}
+	return nil
+}
+
+// SameAnimeRule reports whether two libraries' anime settings are the same rule: unset (both), anime only and not
+// anime are three different rules.
+func SameAnimeRule(a, b *bool) bool {
+	return a == nil && b == nil || a != nil && b != nil && *a == *b
+}
+
+// validateSyncGroups checks library.sync_groups: each group two or more distinct libraries of the policy, of one kind
+// and one anime rule; a library in at most one group.
+func (p *Policy) validateSyncGroups(e *Errors) {
+	seen := map[string]int{}
+	for i, g := range p.Library.SyncGroups {
+		path := fmt.Sprintf("library.sync_groups[%d]", i)
+		if len(g) < 2 {
+			e.add(path, "a group needs two or more libraries")
+		}
+		var first *VersionPolicy
+		for _, k := range g {
+			vp := p.Versions[k]
+			switch prev, dup := seen[k]; {
+			case vp == nil:
+				e.add(path, "unknown library %q", k)
+			case dup && prev == i:
+				e.add(path, "%q is listed twice", k)
+			case dup:
+				e.add(path, "%q is already in sync group %d", k, prev+1)
+			case first == nil:
+				first = vp
+			case vp.Kind != first.Kind:
+				e.add(path, "%q is a %s library; the group holds %s libraries", k, vp.Kind, first.Kind)
+			case !SameAnimeRule(vp.Anime, first.Anime):
+				e.add(path, "%q has another anime setting than the group's libraries", k)
+			}
+			if _, dup := seen[k]; !dup {
+				seen[k] = i
+			}
+		}
+	}
 }
 
 // LibraryDecypharr is decypharr as the debrid mount (library.mount.decypharr): its browse API and WebDAV, read-only.
@@ -446,6 +504,7 @@ func (p *Policy) validateLibrary(e *Errors) {
 		}
 		return true
 	}
+	p.validateSyncGroups(e)
 	mountOK := abs("library.mount.path", l.Mount.Path, l.Enabled)
 	abs("library.mount.link_path", l.Mount.LinkPath, false)
 	if strings.ContainsAny(l.Mount.AllDir, "/\\") {
