@@ -3,6 +3,7 @@ package arrview
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"net/http"
 	"sort"
 	"strconv"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/theatarr/theatarr/internal/metadata/tvdb"
+	"github.com/theatarr/theatarr/internal/metadata/tvrefresh"
 	"github.com/theatarr/theatarr/internal/store"
 )
 
@@ -439,7 +441,8 @@ func (s *Service) series(w http.ResponseWriter, r *request) {
 }
 
 // GET series/lookup?term= (SeriesLookupController.Search): the view's resource when it has the series, else the
-// title as not added, else metadata from TVDB/TMDb, falling back to a stub with the TVDB id.
+// title as not added, else metadata from TVDB/TMDb: none when the source has no such series, 503 when it cannot be
+// reached, a stub with the TVDB id when metadata is off.
 func (s *Service) seriesLookup(w http.ResponseWriter, r *request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
@@ -519,8 +522,13 @@ func (s *Service) seriesLookup(w http.ResponseWriter, r *request) {
 					sr.Seasons = append(sr.Seasons, seasonResource{SeasonNumber: n, Monitored: n > 0})
 				}
 			default:
-				// Keep the local answer when the metadata source is unavailable.
 				s.log.Warn("series lookup failed", "view", r.v.Key, "tvdb", b.tvdb, "err", err)
+				// A tvdb: term for a series the catalog lacks has nothing else to answer with: not found, or the
+				// source is unavailable (a stub without seasons would make Seerr add the series with none). With
+				// metadata off there is nothing to ask, so the stub stays.
+				if prefix == "tvdb" && !errors.Is(err, tvrefresh.ErrOff) {
+					return seriesResource{}, lookupFailed{err}
+				}
 			}
 		}
 		if sr.Title != "" {
@@ -547,7 +555,16 @@ func (s *Service) seriesLookup(w http.ResponseWriter, r *request) {
 	seen := map[int64]bool{}
 	for _, b := range bs {
 		sr, err := hydrate(ctx, b, true)
-		if err != nil {
+		var failed lookupFailed
+		switch {
+		case errors.As(err, &failed) && tvrefresh.IsNotFound(failed.err):
+			writeJSON(w, http.StatusOK, []any{})
+			return
+		case errors.As(err, &failed):
+			writeJSON(w, http.StatusServiceUnavailable,
+				errorBody{Message: "Series lookup failed: the metadata source is unavailable"})
+			return
+		case err != nil:
 			s.internal(w, r, err)
 			return
 		}
@@ -575,6 +592,11 @@ func (s *Service) seriesLookup(w http.ResponseWriter, r *request) {
 	}
 	writeJSON(w, http.StatusOK, out)
 }
+
+// lookupFailed is a tvdb: series lookup the metadata source could not answer.
+type lookupFailed struct{ err error }
+
+func (e lookupFailed) Error() string { return e.err.Error() }
 
 // outsideHydrate is how many of TVDB's name-search hits the catalog lacks a series lookup asks TVDB the details
 // (seasons) of, in TVDB's order: one request each, one after another, in the search's shared time budget. The rest

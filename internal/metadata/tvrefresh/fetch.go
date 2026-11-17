@@ -65,6 +65,12 @@ type slot struct{ season, number int }
 // errNotFound: no source has the series. It is recorded on the series, not retried.
 var errNotFound = errors.New("not found")
 
+// IsNotFound reports whether a lookup failed because no source has the series (rather than a source being
+// unreachable).
+func IsNotFound(err error) bool {
+	return errors.Is(err, errNotFound) || errors.Is(err, tvdb.ErrNotFound) || errors.Is(err, tmdb.ErrNotFound)
+}
+
 // fromTVDB builds the show from TVDB's extended record and default-order episodes.
 func fromTVDB(s *tvdb.Series, eps []tvdb.Episode) *show {
 	sh := &show{source: SourceTVDB, id: s.ID, name: s.TranslatedName("eng"), status: s.Status.Name,

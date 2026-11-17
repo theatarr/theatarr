@@ -544,8 +544,11 @@ deleting a label removes it from every version. Rows from before 00105 were copi
 - **Uncatalogued TVDB id lookups** fetch default-order seasons and series fields through the existing TVDB/TMDb
   metadata gateway clients, bounded to five seconds, cached five minutes (thirty seconds for failures; at most 64
   entries). Free text without a local match searches TVDB by name (`/search?query=…&type=series`), with the whole
-  lookup bounded to five seconds; metadata failures keep the local answer (the TVDB id stub or an empty name search),
-  never an HTTP error. Without a metadata source the local answer stays. Seerr's lookup → POST
+  lookup bounded to five seconds; a failed name search or detail fetch keeps the local answer. A `tvdb:N` lookup
+  for a series the catalog lacks answers `[]` when no source has it and 503 ("Series lookup failed: the metadata
+  source is unavailable") when the source cannot be reached, so Seerr's request fails and can be retried instead of
+  adding the series with no seasons (`TestSeerrLookupMetadataFailure`). Without a metadata source (or with
+  `metadata.series` off) the TVDB id stub stays. Seerr's lookup → POST
   carries selected and unselected seasons, stored as durable monitoring intent that metadata refresh preserves. Other
   external-id lookups remain local.
 - **Movie lookup by name** (`movie/lookup?term=` with free text, as Ruddarr, LunaSea and Seerr search): catalog titles

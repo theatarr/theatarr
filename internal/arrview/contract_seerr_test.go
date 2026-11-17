@@ -190,30 +190,51 @@ func TestSeerrUncataloguedSeriesSeasons(t *testing.T) {
 	}
 }
 
-// Metadata failures keep the local id stub and never add a catalog title.
+// A tvdb: lookup for a series the catalog lacks fails with 503 when the metadata source is down (failures cached for
+// thirty seconds), never adds a catalog title, and keeps the id-only stub only when metadata is off.
 func TestSeerrLookupMetadataFailure(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t)
 	f := &seerrTVDB{t: t, fail: true}
 	seerrMetadata(t, e, f)
-	var body []seriesResource
-	e.call("GET", "/sonarr/api/v3/series/lookup?term=tvdb:900001", nil, 200, &body)
-	if len(body) != 1 || body[0].TvdbID != 900001 || body[0].ID != 0 || body[0].Title != "" {
-		t.Fatalf("failed metadata lookup: %+v", body)
+	// An uncatalogued TVDB id the metadata source cannot answer: 503 with the arr error body, never a stub
+	// without seasons (Seerr would add the series with none).
+	rec := e.call("GET", "/sonarr/api/v3/series/lookup?term=tvdb:900001", nil, 503, nil)
+	var body errorBody
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil ||
+		body.Message != "Series lookup failed: the metadata source is unavailable" {
+		t.Fatalf("failed metadata lookup: %s", rec.Body.String())
 	}
 	calls := f.calls
-	e.call("GET", "/sonarr/api/v3/series/lookup?term=tvdb:900001", nil, 200, nil)
+	e.call("GET", "/sonarr/api/v3/series/lookup?term=tvdb:900001", nil, 503, nil)
 	if f.calls != calls {
 		t.Fatal("failure cache missed")
 	}
 	e.now = e.now.Add(31 * time.Second)
-	e.call("GET", "/sonarr/api/v3/series/lookup?term=tvdb:900001", nil, 200, nil)
+	e.call("GET", "/sonarr/api/v3/series/lookup?term=tvdb:900001", nil, 503, nil)
 	if f.calls == calls {
 		t.Fatal("failure cache did not expire")
+	}
+	// A series the catalog holds answers from the catalog with the source down.
+	var known []seriesResource
+	e.call("GET", "/sonarr/api/v3/series/lookup?term=tvdb:201", nil, 200, &known)
+	if len(known) != 1 || known[0].ID != IDBase+10 {
+		t.Fatalf("catalogued lookup with the source down: %+v", known)
 	}
 	var n int
 	if err := e.st.Reader().QueryRow(`SELECT COUNT(*) FROM title WHERE tvdb_id = 900001`).Scan(&n); err != nil || n != 0 {
 		t.Fatalf("titles %d, %v", n, err)
+	}
+	// Metadata off (no source configured): nothing to ask, the id-only stub as before.
+	off, err := tvrefresh.New(tvrefresh.Config{Store: e.st, Policy: e.pol, Now: func() time.Time { return e.now }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.svc.tvmeta = off
+	var stub []seriesResource
+	e.call("GET", "/sonarr/api/v3/series/lookup?term=tvdb:900001", nil, 200, &stub)
+	if len(stub) != 1 || stub[0].TvdbID != 900001 || stub[0].ID != 0 || stub[0].Title != "" || len(stub[0].Seasons) != 0 {
+		t.Fatalf("metadata off: %+v", stub)
 	}
 }
 
@@ -248,9 +269,10 @@ func TestSeriesLookupName(t *testing.T) {
 			}
 			if mode == "not found" {
 				out = nil
+				// No source has the series: no answer, as the arrs give for an unknown id.
 				e.call("GET", "/sonarr/api/v3/series/lookup?term=tvdb:900001", nil, 200, &out)
-				if len(out) != 1 || out[0].TvdbID != 900001 || out[0].ID != 0 {
-					t.Fatalf("missing id fallback: %+v", out)
+				if out == nil || len(out) != 0 {
+					t.Fatalf("missing id: %+v", out)
 				}
 			}
 			if n := e.one(`SELECT COUNT(*) FROM title WHERE tvdb_id = 900001`); n != 0 {
