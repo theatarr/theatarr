@@ -11,8 +11,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { activityHref, chipWords, copyBar, nextWords, titleAcquisition, type PosterPrefs } from "@/lib/copies";
 import { badgeTone, copyTone, copyWords, hasBlocked } from "@/lib/library-status";
 import { fmtAgo, fmtBytes } from "@/lib/format";
-import { kindOf, posterStatus, qualityWord, utcToday, type CatalogId, type PosterStatus } from "@/lib/library";
-import { sortLine } from "@/lib/sort-line";
+import { kindOf, posterStatus, qualityWord, utcToday, type PosterStatus } from "@/lib/library";
+import { SORT_DETAIL, sortLineFor } from "@/lib/sort-line";
 import { cn } from "@/lib/utils";
 import { LibraryPill, StatusBar } from "./library-pill";
 import type { Selection } from "./title-table";
@@ -31,8 +31,9 @@ export function useEndReached(onEnd: (() => void) | undefined, active: boolean) 
 
 /** The library's poster details (Poster options): year is on the card itself; next up, network, each library's
  * quality, the title's size, the day it was added, its rating. */
-function PosterDetails({ t, prefs, seeFiles, sort, catalog }: { t: TitleRow; prefs: PosterPrefs; seeFiles: boolean; sort?: string; catalog?: CatalogId }) {
-  const has = (d: PosterPrefs["details"][number]) => prefs.details.includes(d);
+function PosterDetails({ t, prefs, seeFiles, sortLine, sortDetail }: { t: TitleRow; prefs: PosterPrefs; seeFiles: boolean; sortLine?: (t: TitleRow) => string; sortDetail?: string }) {
+  // The active sort's line replaces the detail that says the same (lib/sort-line.ts SORT_DETAIL).
+  const has = (d: PosterPrefs["details"][number]) => prefs.details.includes(d) && d !== sortDetail;
   const vs = t.versions ?? [];
   const next = has("next") ? nextWords(t.next_up, t.kind) : "";
   const quality =
@@ -43,7 +44,7 @@ function PosterDetails({ t, prefs, seeFiles, sort, catalog }: { t: TitleRow; pre
       : "";
   const lines = [
     // The active sort's value first, so the order follows a visible line (lib/sort-line.ts).
-    sort ? sortLine(sort, t, { seeFiles, catalog, details: prefs.details }) : "",
+    sortLine?.(t) ?? "",
     next,
     has("network") ? t.network : "",
     quality,
@@ -121,11 +122,12 @@ export function PosterGrid<T extends TitleRow>({
   caption?: (t: T) => ReactNode;
   /** The library's posters (Movies, Series, Anime): status bars and library pills, the in-flight chip, the details and
    *  select mode; sort: the list's sort, whose value shows as a line under each poster (lib/sort-line.ts). */
-  library?: { prefs: PosterPrefs; select?: Selection; sort?: string; catalog?: CatalogId };
+  library?: { prefs: PosterPrefs; select?: Selection; sort?: string };
 }) {
   const end = useEndReached(onMore, more);
   const perms = usePerms();
   const day = utcToday();
+  const sortLine = library?.sort ? sortLineFor(library.sort, perms.seeFiles) : undefined;
   return (
     <div className="poster-grid-container">
       <div data-testid="poster-grid" className={cn("poster-grid-responsive grid gap-3.5 sm:gap-4", library && `poster-size-${library.prefs.size}`)}>
@@ -166,7 +168,7 @@ export function PosterGrid<T extends TitleRow>({
                 overview={t.overview}
                 extraLabel={status?.words}
                 bars={status?.lines}
-                details={<PosterDetails t={t} prefs={library.prefs} seeFiles={perms.seeFiles} sort={library.sort} catalog={library.catalog} />}
+                details={<PosterDetails t={t} prefs={library.prefs} seeFiles={perms.seeFiles} sortLine={sortLine} sortDetail={sortLine && library.sort ? SORT_DETAIL[library.sort] : undefined} />}
               />
               {/* Over the art (2:3, the card's full width), as siblings of the card's link: no control inside a link. */}
               <div className="pointer-events-none absolute inset-x-0 top-0 aspect-[2/3]">

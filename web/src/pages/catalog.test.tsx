@@ -868,6 +868,14 @@ describe("Library posters", () => {
     expect(screen.queryAllByTestId("poster-details")).toHaveLength(0);
   });
 
+  it("shows one Added line with the table's day while sorted by Added, even with the Added detail on", async () => {
+    window.localStorage.setItem("theatarr.library.posters.series.7", JSON.stringify({ size: "medium", details: ["added"] }));
+    mockFetch(routes());
+    renderPage(<Catalog id="series" />, "/series?sort=created");
+    await screen.findAllByText("The Pellbrook Inquiries");
+    expect(screen.getAllByTestId("poster-details")[0].textContent).toBe("Added Oct 1, 2025");
+  });
+
   it("selects on posters into the same bulk bar", async () => {
     mockFetch(routes());
     const user = userEvent.setup();
