@@ -260,7 +260,37 @@ export const SORTS = [
 ] as const;
 
 /** The filter keys the URL carries (the grid's own; kind and anime come from the catalog). */
-export const FILTER_KEYS = ["q", "with", "without", "state", "availability", "upgrade", "genre", "quality", "provider", "year_from", "year_to", "monitored"] as const;
+export const FILTER_KEYS = ["q", "with", "without", "state", "availability", "upgrade", "genre", "quality", "provider", "year_from", "year_to", "monitored", "series_status"] as const;
+
+/** The Series status filter (series_status=): series only; on Anime it is dropped while Movies is shown. */
+export const SERIES_STATUSES = [
+  { id: "continuing", label: "Continuing", hint: "Still airing: TMDb Returning Series, TVDB Continuing" },
+  { id: "ended", label: "Ended", hint: "Ended or cancelled" },
+] as const;
+
+/** What a saved filter keeps: the filters, the sort and, on Anime, the kind shown. Anything else in the address (the
+ *  view) is not part of it. */
+const savedKeys = (anime: boolean): readonly string[] => [...FILTER_KEYS, "sort", "sort_version", "order", ...(anime ? ["kind"] : [])];
+
+/** A saved filter's query string: the recognised filter and sort fields of the address, in a fixed order. */
+export function savedQuery(p: URLSearchParams, anime: boolean): string {
+  const out = new URLSearchParams();
+  for (const k of savedKeys(anime)) {
+    const v = p.get(k);
+    if (v) out.set(k, v);
+  }
+  return out.toString();
+}
+
+/** The address with a saved filter applied: its filters and sort replace the current ones; a field it does not
+ *  recognise (from an older version) is ignored; the rest of the address (the view) stays. */
+export function applySaved(p: URLSearchParams, query: string, anime: boolean): URLSearchParams {
+  const keys = savedKeys(anime);
+  const n = new URLSearchParams(p);
+  for (const k of keys) n.delete(k);
+  for (const [k, v] of new URLSearchParams(query)) if (keys.includes(k) && v) n.set(k, v);
+  return n;
+}
 
 /** The words a list uses for the sorts and poster details whose meaning follows the kind: Movies have studios and
  *  releases, Series networks and airings; Anime mixes both. */
@@ -318,6 +348,7 @@ export function gridQuery(c: CatalogId, p: URLSearchParams, seeFiles: boolean): 
     year_from: num("year_from"),
     year_to: num("year_to"),
     monitored: mon === "true" ? true : mon === "false" ? false : undefined,
+    series_status: catalogKind(c, p) !== "movie" ? str("series_status") : undefined,
     sort: sortOK ? asked : "name",
     sort_version: sortOK ? str("sort_version") : undefined,
     order: sortOK ? str("order") : undefined,
@@ -378,6 +409,8 @@ export function filterChips(
   if (from && to) out.push({ key: "years", label: `${from}–${to}` });
   else if (from) out.push({ key: "year_from", label: `From ${from}` });
   else if (to) out.push({ key: "year_to", label: `Up to ${to}` });
+  const ss = o.kind !== "movie" && get("series_status");
+  if (ss) out.push({ key: "series_status", label: `Series status: ${SERIES_STATUSES.find((x) => x.id === ss)?.label ?? ss}` });
   const genres = (get("genre") ?? "").split(",").filter(Boolean);
   for (const g of genres) {
     const rest = genres.filter((x) => x !== g).join(",");

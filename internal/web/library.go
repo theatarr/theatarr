@@ -43,6 +43,8 @@ type TitleGridFilter struct {
 	Provider  string   // some current file is held by this debrid provider: a cache code (rd) or a provider key (see files only)
 	YearFrom  int
 	YearTo    int
+	// SeriesStatus is a series' status (seriesStatusSQL): continuing or ended; it matches series only.
+	SeriesStatus string
 	// Availability is the title's availability (titleAvailabilitySQL): available, partial, missing, upcoming,
 	// unmonitored or none; Upgrade the quality filter: found (some library's file has a better release found).
 	Availability, Upgrade string
@@ -73,7 +75,25 @@ var (
 	versionKeyRE   = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,63}$`)
 	availabilities = map[string]bool{"": true, "available": true, "partial": true, "missing": true, "upcoming": true,
 		"unmonitored": true, "none": true}
+	// seriesStatuses are the Series status filter's values and the stored statuses each stands for, lower case:
+	// TMDb's (title_meta) and TVDB's (series_meta); Canceled is Ended, as tvrefresh and Sonarr take it.
+	seriesStatuses = map[string][]string{
+		"continuing": {"returning series", "continuing"},
+		"ended":      {"ended", "canceled", "cancelled"},
+	}
 )
+
+// seriesStatusSQL is a series' status, lower case: the title metadata's (TMDb), else the series metadata's (TVDB).
+const seriesStatusSQL = `lower(COALESCE(NULLIF(m.status, ''), (SELECT sm.status FROM series_meta sm WHERE sm.title_id = t.id), ''))`
+
+// seriesStatusIn is the condition that t is a series whose status is one of what the filter value stands for.
+func seriesStatusIn(value string) (string, []any) {
+	var args []any
+	for _, s := range seriesStatuses[value] {
+		args = append(args, s)
+	}
+	return "t.kind = 'series' AND " + seriesStatusSQL + " IN (" + store.Placeholders(len(args)) + ")", args
+}
 
 // linkSizeSQL is the size of link l's file: its content file's, else (an adopted or imported link, with no content
 // file) the size its file metadata keeps. cf is the LEFT JOINed content_file.
@@ -428,6 +448,11 @@ func (g TitleGridFilter) where(conds []string, args []any) ([]string, []any) {
 		conds = append(conds, titleAvailabilitySQL(g.clock)+" = ?")
 		args = append(args, g.Availability)
 	}
+	if g.SeriesStatus != "" {
+		c, a := seriesStatusIn(g.SeriesStatus)
+		conds = append(conds, "("+c+")")
+		args = append(args, a...)
+	}
 	if g.Upgrade == "found" {
 		conds = append(conds, "("+upgradeFoundCond(g.clock)+")")
 		args = append(args, g.upgradeFound)
@@ -492,7 +517,7 @@ func boolParam(r *http.Request, name string) (*bool, error) {
 func gridFilter(r *http.Request) (TitleGridFilter, error) {
 	q := r.URL.Query()
 	g := TitleGridFilter{Quality: q.Get("quality"), Provider: q.Get("provider"), Availability: q.Get("availability"),
-		Upgrade: q.Get("upgrade"), Sort: q.Get("sort"), Order: q.Get("order")}
+		Upgrade: q.Get("upgrade"), Sort: q.Get("sort"), Order: q.Get("order"), SeriesStatus: q.Get("series_status")}
 	var err error
 	if g.Anime, err = boolParam(r, "anime"); err != nil {
 		return g, err
@@ -526,6 +551,9 @@ func gridFilter(r *http.Request) (TitleGridFilter, error) {
 	}
 	if !availabilities[g.Availability] {
 		return g, errors.New("availability must be available, partial, missing, upcoming, unmonitored or none")
+	}
+	if _, ok := seriesStatuses[g.SeriesStatus]; g.SeriesStatus != "" && !ok {
+		return g, errors.New("series_status must be continuing or ended")
 	}
 	if g.Upgrade != "found" {
 		g.Upgrade = "" // an old link's best_known (removed in 0.4.5) lists as if unfiltered

@@ -7,6 +7,8 @@
 // CSP); token prefix --scry- renamed --th-.
 import {
   CalendarDays,
+  CircleCheck,
+  CirclePlay,
   Eye,
   EyeOff,
   Film,
@@ -27,7 +29,7 @@ import { HELD_ON, HELD_ON_TIP } from "@/lib/held-on";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SELECT_CLASS } from "@/components/ui/select";
-import { availabilityFilters, UPGRADE_FILTERS } from "@/lib/library";
+import { availabilityFilters, SERIES_STATUSES, UPGRADE_FILTERS } from "@/lib/library";
 
 /** The status filters in rows of two. */
 function availabilityRows(seeFiles: boolean, kind?: string) {
@@ -175,6 +177,7 @@ export function FiltersPanel({
   facets,
   seeFiles,
   kind,
+  saved,
   onClose,
   className,
 }: {
@@ -186,6 +189,8 @@ export function FiltersPanel({
   seeFiles: boolean;
   /** The catalog's kind (movie or series): movies get no episode-only filter. */
   kind?: string;
+  /** The Saved filters menu (saved-filters.tsx), under the header. */
+  saved?: ReactNode;
   onClose?: () => void;
   className?: string;
 }) {
@@ -225,6 +230,8 @@ export function FiltersPanel({
 
       <p className="mb-4 text-xs text-[var(--ink-3)]">Counts are for the whole list, before other filters.</p>
 
+      {saved}
+
       <div className="mb-4 space-y-1.5 border-b border-[var(--line)] pb-4">
         <FilterLabel>Monitoring</FilterLabel>
         <div role="group" aria-label="Monitoring" className={SPLIT_GROUP}>
@@ -251,6 +258,24 @@ export function FiltersPanel({
             ))}
           </div>
         ))}
+        {/* Series and Anime: whether a series still airs (the status About shows), apart from the file status. */}
+        {kind !== "movie" ? <div className="pt-2"><FilterLabel>Series status</FilterLabel></div> : null}
+        {kind !== "movie" ? (
+          <div role="group" aria-label="Series status" className={SPLIT_GROUP}>
+            {SERIES_STATUSES.map((x, j) => (
+              <FilterButton
+                key={x.id}
+                selected={values.series_status === x.id}
+                onClick={() => toggle("series_status", x.id)}
+                icon={x.id === "continuing" ? <CirclePlay /> : <CircleCheck />}
+                label={x.label}
+                title={x.hint}
+                count={facets?.series_status?.[x.id]}
+                className={segment(values.series_status === x.id, j > 0)}
+              />
+            ))}
+          </div>
+        ) : null}
         {/* Quality, apart from the status: among titles with a file (file detail). */}
         {seeFiles ? <div className="pt-2"><FilterLabel>Upgrades</FilterLabel></div> : null}
         {seeFiles ? (

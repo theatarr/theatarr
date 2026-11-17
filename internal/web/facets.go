@@ -37,6 +37,8 @@ type TitleFacets struct {
 	Unmonitored int `json:"unmonitored"`
 	// Availability counts titles per status word (titleAvailabilitySQL); without see files, per watchability.
 	Availability map[string]int `json:"availability"`
+	// SeriesStatus counts series per Series status (continuing, ended); absent for movies.
+	SeriesStatus map[string]int `json:"series_status,omitempty"`
 	// Upgrades counts titles per quality filter (found); see files only.
 	Upgrades  map[string]int `json:"upgrades,omitempty"`
 	Versions  []VersionFacet `json:"versions"`
@@ -202,6 +204,17 @@ func (w *Web) titleFacets(ctx context.Context, f TitleFilter, seeFiles bool) (Ti
 	if out.Genres, err = counts(`SELECT g.value, COUNT(*)`+titleFrom+`, json_each(m.genres) g`+where+` GROUP BY g.value`,
 		args); err != nil {
 		return out, err
+	}
+	if f.Kind != "movie" {
+		out.SeriesStatus = map[string]int{}
+		for v := range seriesStatuses {
+			c, a := seriesStatusIn(v)
+			var n int
+			if err := db.QueryRowContext(ctx, `SELECT COUNT(*)`+titleFrom+andWhere(where, c), append(append([]any{}, args...), a...)...).Scan(&n); err != nil {
+				return out, err
+			}
+			out.SeriesStatus[v] = n
+		}
 	}
 	if out.Certifications, err = counts(`SELECT COALESCE(m.certification, ''), COUNT(*)`+titleFrom+where+
 		` GROUP BY 1`, args); err != nil {

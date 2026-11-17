@@ -536,6 +536,55 @@ describe("Toolbar and filters", () => {
     await waitFor(() => expect(screen.queryByTestId("active-filters")).toBeNull());
   });
 
+  it("saves the filters and sort under a name, applies, updates and deletes them, per list in this browser", async () => {
+    const fetch = mockFetch(routes());
+    const user = userEvent.setup();
+    renderPage(<Catalog id="series" />, "/series?series_status=ended&sort=year&view=table");
+    await screen.findAllByText("The Pellbrook Inquiries");
+    const last = () => fetch.calls("GET", "/titles").at(-1)!.search;
+    expect(within(screen.getByTestId("active-filters")).getByRole("button", { name: "Remove filter: Series status: Ended" })).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Filter, 1 active" }));
+    let sheet = await screen.findByTestId("filters-panel");
+    expect(within(sheet).getByRole("button", { name: /^Ended/ }).getAttribute("aria-pressed")).toBe("true");
+    await user.click(within(sheet).getByRole("button", { name: "Save as…" }));
+    await user.type(within(sheet).getByRole("textbox", { name: "Name" }), "Finished{Enter}");
+    expect(JSON.parse(window.localStorage.getItem("theatarr.library.saved-filters.series.7")!)).toEqual([{ name: "Finished", query: "series_status=ended&sort=year" }]);
+    expectNamedControls();
+    // Clear, then pick it again: its filters and sort come back.
+    await user.click(within(sheet).getByRole("button", { name: "Clear all" }));
+    await waitFor(() => expect(last()).not.toContain("series_status"));
+    await user.selectOptions(within(sheet).getByRole("combobox", { name: "Saved filters" }), "Finished");
+    await waitFor(() => expect(last()).toContain("series_status=ended"));
+    expect(last()).toContain("sort=year");
+    // Update keeps the current ones under the picked name.
+    await user.click(within(sheet).getByRole("button", { name: /^Continuing/ }));
+    await user.click(within(sheet).getByRole("button", { name: "Update" }));
+    expect(JSON.parse(window.localStorage.getItem("theatarr.library.saved-filters.series.7")!)).toEqual([{ name: "Finished", query: "series_status=continuing&sort=year" }]);
+    await user.click(within(sheet).getByRole("button", { name: "Delete" }));
+    expect(JSON.parse(window.localStorage.getItem("theatarr.library.saved-filters.series.7")!)).toEqual([]);
+    // Movies keeps its own (none).
+    await user.click(within(sheet).getByRole("button", { name: "Close filters" }));
+    window.localStorage.setItem("theatarr.library.saved-filters.series.7", JSON.stringify([{ name: "Old", query: "colour=red&monitored=true" }]));
+    renderPage(<Catalog id="movies" />, "/movies");
+    await user.click((await screen.findAllByRole("button", { name: "Filter" })).at(-1)!);
+    sheet = (await screen.findAllByTestId("filters-panel")).at(-1)!;
+    expect(within(sheet).queryByRole("combobox", { name: "Saved filters" })).toBeNull();
+    expect(within(sheet).queryByRole("group", { name: "Series status" })).toBeNull();
+  });
+
+  it("applies an old saved filter's known fields and ignores the rest", async () => {
+    window.localStorage.setItem("theatarr.library.saved-filters.series.7", JSON.stringify([{ name: "Old", query: "colour=red&monitored=true&view=grid" }]));
+    const fetch = mockFetch(routes());
+    const user = userEvent.setup();
+    renderPage(<Catalog id="series" />, "/series?genre=Drama");
+    await screen.findAllByText("The Pellbrook Inquiries");
+    await user.click(screen.getByRole("button", { name: "Filter, 1 active" }));
+    const sheet = await screen.findByTestId("filters-panel");
+    await user.selectOptions(within(sheet).getByRole("combobox", { name: "Saved filters" }), "Old");
+    await waitFor(() => expect(fetch.calls("GET", "/titles").at(-1)!.search).toContain("monitored=true"));
+    expect(fetch.calls("GET", "/titles").at(-1)!.search).not.toMatch(/colour|genre/);
+  });
+
   it("offers Clear filters when nothing matches", async () => {
     mockFetch(routes().map((r) => (r.path === "/titles" ? { ...r, reply: { items: [], total: 0, offset: 0 } } : r)));
     const user = userEvent.setup();
@@ -989,6 +1038,17 @@ describe("list shortcuts and names (phase J)", () => {
     await waitFor(() => expect(fetch.calls("GET", "/titles").some((c) => c.search.includes("kind=movie") && c.search.includes("anime=true"))).toBe(true));
     await waitFor(() => expect(fetch.calls("GET", "/titles/facets").some((c) => c.search.includes("kind=movie"))).toBe(true));
     expect(kinds.getByRole("radio", { name: "Movies" }).getAttribute("aria-checked")).toBe("true");
+  });
+
+  it("Anime drops the Series status when switching to Movies", async () => {
+    const fetch = mockFetch(routes());
+    renderPage(<Catalog id="anime" />, "/anime?series_status=continuing");
+    const kinds = within(await screen.findByTestId("anime-kind"));
+    await waitFor(() => expect(fetch.calls("GET", "/titles")[0]?.search).toContain("series_status=continuing"));
+    await userEvent.setup().click(kinds.getByRole("radio", { name: "Movies" }));
+    await waitFor(() => expect(fetch.calls("GET", "/titles").at(-1)!.search).toContain("kind=movie"));
+    expect(fetch.calls("GET", "/titles").at(-1)!.search).not.toContain("series_status");
+    expect(screen.queryByTestId("active-filters")).toBeNull();
   });
 
   it("Series has a visible Monitored shortcut; Movies has none; nothing is filtered by default", async () => {

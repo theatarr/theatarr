@@ -113,8 +113,13 @@ func titleFilter(r *http.Request) (TitleFilter, error) {
 	if f.Offset, err = intParam(r, "offset", 0); err != nil {
 		return f, err
 	}
-	f.TitleGridFilter, err = gridFilter(r)
-	return f, err
+	if f.TitleGridFilter, err = gridFilter(r); err != nil {
+		return f, err
+	}
+	if f.Kind == "movie" && f.SeriesStatus != "" {
+		return f, errors.New("series_status is for series")
+	}
+	return f, nil
 }
 
 func (w *Web) apiStatus(rw http.ResponseWriter, r *http.Request) {

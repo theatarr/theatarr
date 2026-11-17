@@ -37,6 +37,8 @@ export type GridQuery = {
   year_from?: number;
   year_to?: number;
   monitored?: boolean;
+  /** Series status: continuing or ended (series only). */
+  series_status?: string;
   sort?: string;
   /** The copy (version key) completion, quality and activity sorts read. */
   sort_version?: string;

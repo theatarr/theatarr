@@ -165,6 +165,57 @@ func TestTitlesSortAndFilters(t *testing.T) {
 	}
 }
 
+// Series status: the title metadata's (TMDb) status, else the series metadata's (TVDB); series only.
+func TestSeriesStatus(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	e.seedLibrary()
+	key := e.apiKey()
+	e.exec(`UPDATE title_meta SET status = CASE title_id WHEN 3 THEN 'Returning Series' WHEN 1 THEN 'Released' ELSE status END`)
+	e.exec(`INSERT INTO series_meta (title_id, status) VALUES (4, 'Ended')`)
+	for q, want := range map[string]string{
+		"series_status=continuing":            "Gamma",
+		"series_status=ended":                 "Delta",
+		"kind=series&series_status=ended":     "Delta",
+		"anime=true&series_status=continuing": "",
+	} {
+		var p TitlePage
+		if code := e.getKey(APIBase+"/titles?"+q, key, &p); code != 200 {
+			t.Errorf("%s: %d", q, code)
+			continue
+		}
+		if got := names(p); got != want {
+			t.Errorf("%s: %q, want %q", q, got, want)
+		}
+	}
+	// A TMDb Canceled counts as Ended, and wins over the series metadata's status.
+	e.exec(`INSERT INTO title_meta (title_id, status, refreshed_at, attempted_at, refresh_after) VALUES (4, 'Canceled', 0, 0, 0)`)
+	e.exec(`UPDATE series_meta SET status = 'Continuing' WHERE title_id = 4`)
+	var p TitlePage
+	if e.getKey(APIBase+"/titles?series_status=ended", key, &p); names(p) != "Delta" {
+		t.Errorf("Canceled: %q", names(p))
+	}
+	for _, bad := range []string{"series_status=x", "kind=movie&series_status=ended"} {
+		if code := e.getKey(APIBase+"/titles?"+bad, key, nil); code != 400 {
+			t.Errorf("%s: %d, want 400", bad, code)
+		}
+	}
+	var f TitleFacets
+	if e.getKey(APIBase+"/titles/facets?kind=movie", key, &f); f.SeriesStatus != nil {
+		t.Errorf("movie facets carry a series status: %v", f.SeriesStatus)
+	}
+	for scope, want := range map[string]map[string]int{
+		"":                        {"continuing": 1, "ended": 1},
+		"kind=series&anime=false": {"continuing": 1, "ended": 0},
+		"anime=true":              {"continuing": 0, "ended": 1},
+	} {
+		f = TitleFacets{}
+		if e.getKey(APIBase+"/titles/facets?"+scope, key, &f); !maps.Equal(f.SeriesStatus, want) {
+			t.Errorf("%q: series status %v, want %v", scope, f.SeriesStatus, want)
+		}
+	}
+}
+
 func TestVersionLabels(t *testing.T) {
 	t.Parallel()
 	for _, c := range []struct {

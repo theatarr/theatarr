@@ -736,10 +736,18 @@ including "Imported from Radarr's blocklist" for `arr:<instance>`) and the healt
   are for the whole list, before other filters."). Active filters show as chips under the toolbar, each a button that
   removes it ("Remove filter: Missing"), then **Clear all**: `Title: “dune”`, `Monitoring: on`, `Monitoring: off`, the
   availability word, `Has 4K`, `Lacks 4K`, `Quality: WEBDL-2160p`, `Provider: RD`, `2019–2024` (or `From 2019`,
-  `Up to 2024`), one per genre. Without See files there is no library, provider or state chip. With nothing found:
+  `Up to 2024`), one per genre, `Series status: Ended`. Without See files there is no library, provider or state chip. With nothing found:
   "No titles match these filters." and **Clear filters**. The sheet heads its first group **Monitoring** (On, Off:
   whether a library monitors the title); the status **Not monitored** (no file and nothing monitors it) is apart,
-  its option named **Not monitored, no file** so its count is not read as Monitoring Off's. Filters, sort and a picked
+  its option named **Not monitored, no file** so its count is not read as Monitoring Off's. Series and Anime have
+  **Series status** (Continuing: TMDb Returning Series or TVDB Continuing; Ended: Ended or Canceled; the title
+  metadata's status, else the series metadata's; `series_status=`, refused for movies; on Anime it matches series
+  and is dropped when switching to Movies). **Saved filters** at the top of the sheet: **Save as…** keeps the
+  list's filters and sort (on Anime also All / Movies / Series, never the view) under a name, the same name
+  replacing that one; picking one applies it; **Update** overwrites the picked one with the current filters and
+  sort; **Delete** forgets it. They are kept per list and per user in this browser (`localStorage`
+  `theatarr.library.saved-filters.<list>.<user>`, the address's query string under a name); a field an old saved
+  filter has that the list no longer knows is ignored. Filters, sort and a picked
   view (`?view=grid|table`) stay in the address, so a link opens the list as it was; a sort the account
   is not offered falls back to Title (Movies offer no Completion, and their column hints speak of movies only).
 - **Colour rule** (`copyTone`, `lib/library-status.ts`), one for bars, dots and pills: green (a movie library has a
@@ -1226,8 +1234,8 @@ All under `/api/theatarr/v1` unless noted. Every list pages with `limit` (≤ 20
 
 | Route | Purpose |
 |---|---|
-| `GET titles?…&sort=added|created|name|year|release|rating|runtime|certification|network|size|completion|next|quality|activity&order=asc|desc&genre=&quality=&provider=&year_from=&year_to=&anime=` | grids; items gain `poster`, `backdrop` (image URLs), `overview` (short), `rating`, `certification`, `runtime`, `genres`, `added_at` (newest current file), `title_added_at`, `status`, `original_language`, the movie release dates, `series_type`, `season_count`, `previous_airing`, and per version `quality`, `size`, `providers` (cache codes), `profile`, `minimum_availability`, `folder` (see **Library views**) |
-| `GET titles/facets?kind=` | counts per version key and state, per quality, per genre and (see files) per provider cache code, for the filter sheet |
+| `GET titles?…&sort=added|created|name|year|release|rating|runtime|certification|network|size|completion|next|quality|activity&order=asc|desc&genre=&quality=&provider=&year_from=&year_to=&anime=&series_status=continuing|ended` | grids; items gain `poster`, `backdrop` (image URLs), `overview` (short), `rating`, `certification`, `runtime`, `genres`, `added_at` (newest current file), `title_added_at`, `status`, `original_language`, the movie release dates, `series_type`, `season_count`, `previous_airing`, and per version `quality`, `size`, `providers` (cache codes), `profile`, `minimum_availability`, `folder` (see **Library views**) |
+| `GET titles/facets?kind=` | counts per version key and state, per quality, per genre, per Series status (not for movies) and (see files) per provider cache code, for the filter sheet |
 | `GET titles/{id}` | includes `meta` (§5), `art`, and per version `history` (grabs, imports, upgrades, failures with `reason`, searches with `results`, `accepted`, `summary`, `latest`; every event's `trigger`, Theatarr's `provider`), `providers` (keys) and `cached_on` (cache codes) of the providers that hold the file now, `current.formats` (a movie file's matched formats with scores; none for an adopted file), and `removed` for a copy removed from the library (counted in none of the title's rollups); fields for files and hashes only with "see files" |
 | `GET titles/{id}/episodes?season=` | seasons with episode lists and a state per version per episode (`episode_version_state`, `link_episode`); a removed copy has no column; cells carry `release_title`, `release_group` and `cached_on` (see files) |
 | `GET /img/t/{id}/{kind}/{size}`, `GET /img/tmdb/{size}/{file}` | image proxy (§5) |

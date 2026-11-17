@@ -14,6 +14,7 @@ import { useFacets, usePerms, useTitleGrid } from "@/api/library";
 import { BulkBar } from "@/components/library/bulk-monitor";
 import { FiltersPanel, SELECT, TitleSearch, type FilterValues } from "@/components/library/filters";
 import { PosterGrid } from "@/components/library/poster-grid";
+import { SavedFilters } from "@/components/library/saved-filters";
 import { TitleTable, type Selection } from "@/components/library/title-table";
 import { ColumnPicker, PosterOptions } from "@/components/library/view-options";
 import { Empty, ErrorState, Loading, PageHeader } from "@/components/page";
@@ -25,7 +26,7 @@ import { Modal } from "@/components/ui/modal";
 import { copyColumns, distinctLabels, relabel } from "@/lib/copies";
 import { fmtBytes, plural, pluralWord } from "@/lib/format";
 import { defaultColumns, defaultDesc, indexColumns, listColumns, sortColumn, visibleIndexColumns } from "@/lib/index-columns";
-import { activeFilters, CATALOGS, catalogKind, FILTER_KEYS, filterChips, gridQuery, offeredSorts, viewOf, withoutChip, type CatalogId, type ListView } from "@/lib/library";
+import { activeFilters, applySaved, CATALOGS, catalogKind, FILTER_KEYS, filterChips, gridQuery, offeredSorts, savedQuery, viewOf, withoutChip, type CatalogId, type ListView } from "@/lib/library";
 import { normalizePosters, type PosterPrefs } from "@/lib/poster-options";
 import { prefKey, readPref, useColumnPrefs, writePref } from "@/lib/prefs";
 import { resolutionWords } from "@/lib/upgrade";
@@ -269,7 +270,19 @@ export function Catalog({ id }: { id: CatalogId }) {
         {cat.anime ? (
           <div role="radiogroup" aria-label="Kind" className="flex rounded-lg border border-[var(--line)] p-0.5" data-testid="anime-kind">
             {([[undefined, "All"], ["movie", "Movies"], ["series", "Series"]] as const).map(([k, label]) => (
-              <button key={label} type="button" role="radio" aria-checked={kind === k} onClick={() => set("kind", k)}
+              <button key={label} type="button" role="radio" aria-checked={kind === k} onClick={() =>
+                  // Series status is for series: switching to Movies drops it.
+                  setParams(
+                    (p) => {
+                      const n = new URLSearchParams(p);
+                      if (k) n.set("kind", k);
+                      else n.delete("kind");
+                      if (k === "movie") n.delete("series_status");
+                      return n;
+                    },
+                    { replace: true },
+                  )
+                }
                 className={cn("h-8 rounded-md px-2.5 text-[13px] font-medium text-[var(--ink-3)] transition", kind === k && "bg-[color-mix(in_srgb,var(--accent)_22%,transparent)] text-[var(--accent-ink)]")}>
                 {label}
               </button>
@@ -439,7 +452,8 @@ export function Catalog({ id }: { id: CatalogId }) {
       {dialog === "columns" ? <ColumnPicker label="Columns" note="Title always stays. On a phone the chosen columns show as lines under each title." columns={offered} prefs={columnsPref} onChange={saveColumns} onClose={() => setDialog(null)} /> : null}
       {dialog === "posters" ? <PosterOptions catalog={id} prefs={postersPref} seeFiles={perms.seeFiles} onChange={savePosters} onClose={() => setDialog(null)} /> : null}
       <FilterSheet open={sheet} onClose={() => setSheet(false)}>
-        <FiltersPanel values={values} set={set} clear={clear} facets={facetsShown} seeFiles={perms.seeFiles} kind={kind} onClose={() => setSheet(false)} />
+        <FiltersPanel values={values} set={set} clear={clear} facets={facetsShown} seeFiles={perms.seeFiles} kind={kind} onClose={() => setSheet(false)}
+          saved={<SavedFilters list={id} uid={uid} current={savedQuery(params, cat.anime)} apply={(q) => setParams((p) => applySaved(p, q, cat.anime), { replace: true })} />} />
       </FilterSheet>
     </div>
   );

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { availabilityFilters, filterChips, gridQuery, isFamily, offeredSorts, viewOf, POSTER_STATUS_LABEL, posterStatus, qualityWord, relDay, titleWatchWords, UPGRADE_FILTERS, upcomingRelease, utcToday, watchWords, withoutChip } from "./library";
+import { applySaved, availabilityFilters, filterChips, gridQuery, isFamily, offeredSorts, savedQuery, viewOf, POSTER_STATUS_LABEL, posterStatus, qualityWord, relDay, titleWatchWords, UPGRADE_FILTERS, upcomingRelease, utcToday, watchWords, withoutChip } from "./library";
 import { badgeTone, copyTone } from "./library-status";
 
 const label = (...a: Parameters<typeof posterStatus>) => {
@@ -49,6 +49,22 @@ describe("the quality word", () => {
   });
   it("names the quality filters by the same words", () => {
     expect(UPGRADE_FILTERS.map((u) => u.label)).toEqual(["Upgrade found"]);
+  });
+});
+
+describe("Series status and saved filters", () => {
+  it("asks for the Series status on series lists only", () => {
+    expect(gridQuery("series", new URLSearchParams("series_status=ended"), false).series_status).toBe("ended");
+    expect(gridQuery("anime", new URLSearchParams("series_status=ended"), false).series_status).toBe("ended");
+    expect(gridQuery("anime", new URLSearchParams("series_status=ended&kind=movie"), false).series_status).toBeUndefined();
+    expect(gridQuery("movies", new URLSearchParams("series_status=ended"), false).series_status).toBeUndefined();
+    expect(filterChips(new URLSearchParams("series_status=continuing"), { seeFiles: false, kind: "series" }).map((c) => c.label)).toEqual(["Series status: Continuing"]);
+  });
+  it("keeps the filters and sort, not the view; the kind on Anime only", () => {
+    const p = new URLSearchParams("view=table&genre=Drama&sort=year&order=asc&kind=series&page=2");
+    expect(savedQuery(p, false)).toBe("genre=Drama&sort=year&order=asc");
+    expect(savedQuery(p, true)).toBe("genre=Drama&sort=year&order=asc&kind=series");
+    expect(applySaved(p, "monitored=true&unknown=1", false).toString()).toBe("view=table&kind=series&page=2&monitored=true");
   });
 });
 
