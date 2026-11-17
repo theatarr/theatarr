@@ -29,6 +29,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   vi.useRealTimers();
+  vi.restoreAllMocks();
   window.localStorage.clear();
 });
 
@@ -234,4 +235,18 @@ it("says a day's entries are hidden by the filters instead of nothing on this da
   expect(screen.getAllByText("Quiet").length).toBeGreaterThan(0);
   await user.click(screen.getByRole("button", { name: /^Thursday, November 19/ }));
   expect(screen.getByText("Nothing on this day.")).toBeTruthy();
+});
+
+it("starts the month's weeks on the browser language's first day and fetches the whole grid", async () => {
+  vi.spyOn(navigator, "language", "get").mockReturnValue("de-DE");
+  window.localStorage.setItem("theatarr.calendar.view", "month");
+  const fetch = mockFetch(routes(["see_files"]));
+  const { container } = renderPage(<CalendarPageView />, "/calendar");
+  await screen.findByText("Gamma");
+  expect([...container.querySelectorAll(".theatarr-cal-head .hidden")].map((h) => h.textContent)).toEqual(["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]);
+  const now = new Date();
+  const grid = monthDays(now.getFullYear(), now.getMonth(), 1).map(ymd);
+  expect(grid.length % 7).toBe(0);
+  const q = new URLSearchParams(fetch.calls("GET", "/calendar")[0].search);
+  expect(q.get("from")! <= grid[0] && q.get("to")! >= grid.at(-1)!).toBe(true);
 });

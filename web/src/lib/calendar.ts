@@ -1,4 +1,4 @@
-// Date helpers for the calendar: local dates as YYYY-MM-DD and the weeks of a month grid (weeks start on Sunday).
+// Date helpers for the calendar: local dates as YYYY-MM-DD and the weeks of a month grid (weeks start on the browser locale's first day).
 import type { Stage } from "@/lib/copies";
 import { stageWords } from "@/lib/copies";
 import { utcToday, watchWords } from "@/lib/library";
@@ -48,14 +48,35 @@ export function placeEntries<T extends Dated>(items: T[], from: string, to: stri
     .map(({ day, e }) => ({ day, e }));
 }
 
-/** The days shown for a month: from the Sunday on or before the 1st to the Saturday on or after the last day. */
-export function monthDays(year: number, month: number): Date[] {
+type WeekInfo = { firstDay?: number };
+/** Intl.Locale's week data: getWeekInfo() in newer browsers, the weekInfo property in older ones. */
+export type WeekLocale = { getWeekInfo?: () => WeekInfo | undefined; weekInfo?: WeekInfo };
+
+/** A locale's first day of the week as Date.getDay() numbers it (0 Sunday; Intl says 7 for Sunday); Sunday when the
+ *  locale cannot say. */
+export function firstDayOf(loc: WeekLocale): number {
+  const first = loc.getWeekInfo?.()?.firstDay ?? loc.weekInfo?.firstDay;
+  return first ? first % 7 : 0;
+}
+
+/** The first day of the week in this browser's language (0 Sunday); Sunday when the browser cannot say. */
+export function weekStart(): number {
+  try {
+    return firstDayOf(new Intl.Locale(navigator.language) as WeekLocale);
+  } catch {
+    return 0;
+  }
+}
+
+/** The days shown for a month: whole weeks starting on weekday start (0 Sunday), from the one holding the 1st to the
+ *  one holding the last day. */
+export function monthDays(year: number, month: number, start = 0): Date[] {
   const first = new Date(year, month, 1);
   const last = new Date(year, month + 1, 0);
-  const start = new Date(year, month, 1 - first.getDay());
-  const end = new Date(year, month + 1, 0 + (6 - last.getDay()));
+  const begin = new Date(year, month, 1 - ((first.getDay() - start + 7) % 7));
+  const end = new Date(year, month + 1, (start + 6 - last.getDay() + 7) % 7);
   const out: Date[] = [];
-  for (let d = start; d <= end; d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)) out.push(d);
+  for (let d = begin; d <= end; d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)) out.push(d);
   return out;
 }
 

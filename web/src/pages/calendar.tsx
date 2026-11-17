@@ -18,7 +18,7 @@ import { Chip } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { calendarHref, calendarLegend, calendarTone, episodeCode, joinReleases, monthDays, parseYmd, placeEntries, releaseLabel, shiftDay, ymd } from "@/lib/calendar";
+import { calendarHref, calendarLegend, calendarTone, episodeCode, joinReleases, monthDays, parseYmd, placeEntries, releaseLabel, shiftDay, weekStart, ymd } from "@/lib/calendar";
 import { cn } from "@/lib/utils";
 import "@/styles/calendar.css";
 import { fmtClock, plural, titleWithYear } from "@/lib/format";
@@ -246,7 +246,7 @@ function MonthGrid({
   return (
     <div className="theatarr-cal-grid">
       <div className="grid grid-cols-7">
-        {WEEKDAYS.map((w) => (
+        {days.slice(0, 7).map((d) => WEEKDAYS[d.getDay()]).map((w) => (
           <div key={w} className="theatarr-cal-head">
             <span className="sm:hidden">{w[0]}</span>
             <span className="hidden sm:inline">{w}</span>
@@ -330,7 +330,9 @@ export function CalendarPageView() {
     dayPanel.current?.focus({ preventScroll: true });
   }, [reveal]);
   const agendaTop = useRef<HTMLDivElement>(null);
-  const days = useMemo(() => monthDays(anchor.y, anchor.m), [anchor]);
+  // Weeks start on the browser language's first day (Sunday when it cannot say); the headings follow the grid.
+  const start = useMemo(() => weekStart(), []);
+  const days = useMemo(() => monthDays(anchor.y, anchor.m, start), [anchor, start]);
   const from = view === "month" ? ymd(days[0]) : ymd(new Date(anchor.y, anchor.m, 1));
   const to = view === "month" ? ymd(days[days.length - 1]) : ymd(new Date(anchor.y, anchor.m + 1, 0));
   // One day wider on each side: an episode's air moment can fall on the day before or after the network's here.

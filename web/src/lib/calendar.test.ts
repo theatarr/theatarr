@@ -1,5 +1,5 @@
-import { afterEach, describe, expect, it } from "vitest";
-import { calendarHref, calendarLegend, calendarTone, entryDay, episodeCode, joinReleases, monthDays, placeEntries, shiftDay, ymd } from "./calendar";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { calendarHref, calendarLegend, calendarTone, entryDay, episodeCode, firstDayOf, joinReleases, monthDays, placeEntries, shiftDay, weekStart, ymd } from "./calendar";
 
 describe("monthDays", () => {
   it("covers whole weeks around the month", () => {
@@ -12,6 +12,37 @@ describe("monthDays", () => {
   it("spans six weeks when needed", () => {
     const days = monthDays(2026, 7); // August 2026 starts on a Saturday
     expect(days.length).toBe(42);
+  });
+  it("starts weeks on Monday when asked, still covering the whole month", () => {
+    const days = monthDays(2026, 9, 1); // October 2026: Thursday 1st to Saturday 31st
+    expect(ymd(days[0])).toBe("2026-09-28");
+    expect(days[0].getDay()).toBe(1);
+    expect(ymd(days[days.length - 1])).toBe("2026-11-01");
+    expect(days.length).toBe(35);
+    const feb = monthDays(2027, 1, 1); // February 2027 starts on a Monday and ends on a Sunday
+    expect([ymd(feb[0]), ymd(feb[feb.length - 1]), feb.length]).toEqual(["2027-02-01", "2027-02-28", 28]);
+    const mar = monthDays(2026, 2, 1); // March 2026 starts on a Sunday: the week before is shown
+    expect(ymd(mar[0])).toBe("2026-02-23");
+  });
+});
+
+describe("week start", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  it("reads Intl's first day, with its Sunday 7 as 0, from either form; Sunday without one", () => {
+    expect(firstDayOf({ getWeekInfo: () => ({ firstDay: 1 }) })).toBe(1);
+    expect(firstDayOf({ weekInfo: { firstDay: 7 } })).toBe(0);
+    expect(firstDayOf({ getWeekInfo: () => ({ firstDay: 6 }), weekInfo: { firstDay: 1 } })).toBe(6);
+    expect(firstDayOf({})).toBe(0);
+  });
+  it("follows the browser's language, Sunday when it reports none", () => {
+    class Loc { constructor(readonly tag: string) { if (!tag) throw new RangeError("no tag"); } get weekInfo() { return { firstDay: this.tag === "de-DE" ? 1 : 7 }; } }
+    vi.stubGlobal("Intl", { ...Intl, Locale: Loc });
+    vi.stubGlobal("navigator", { language: "de-DE" });
+    expect(weekStart()).toBe(1);
+    vi.stubGlobal("navigator", { language: "en-US" });
+    expect(weekStart()).toBe(0);
+    vi.stubGlobal("navigator", { language: "" });
+    expect(weekStart()).toBe(0);
   });
 });
 
