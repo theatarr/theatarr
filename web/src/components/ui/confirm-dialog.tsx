@@ -33,6 +33,7 @@ export function ConfirmDialog({
   onConfirm,
   onClose,
   busy,
+  disabled,
   error,
   done,
   doneWarning = false,
@@ -52,6 +53,8 @@ export function ConfirmDialog({
   onConfirm: () => void;
   onClose: () => void;
   busy?: boolean;
+  /** The confirm button is disabled with nothing said (a choice above still has to be made). */
+  disabled?: boolean;
   error?: unknown;
   /** The server's answer once done: shown in place of the buttons. */
   done?: string;
@@ -145,7 +148,7 @@ export function ConfirmDialog({
           <Button
             variant={danger ? "destructive" : "default"}
             size="sm"
-            disabled={busy || !!scope.blocked}
+            disabled={busy || disabled || !!scope.blocked}
             onClick={onConfirm}
             data-testid="confirm-ok"
           >

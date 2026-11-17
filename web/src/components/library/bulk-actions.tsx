@@ -44,6 +44,7 @@ function LibrarySelect({ label, value, onChange, groups }: { label: string; valu
     <label className="block text-sm">
       <span className="mb-1 block text-[11px] font-bold uppercase tracking-[0.05em] text-[var(--ink-3)]">{label}</span>
       <select aria-label={label} className={cn(SELECT, "w-full")} value={value} onChange={(e) => onChange(e.target.value)}>
+        {value === "" ? <option value="" disabled>Choose a library</option> : null}
         {groups.map((g) =>
           g.label ? (
             <optgroup key={g.label} label={g.label}>
@@ -182,10 +183,12 @@ export function BulkAddDialog({ titles, kinds, anime, onClose, onDone }: { title
   };
   const loading = movies.isPending && kinds.includes("movie") || series.isPending && kinds.includes("series");
   const inLib = (t: TitleRow, key: string) => (t.versions ?? []).some((v) => v.key === key && v.monitored);
-  // Preselected: the first library that would add at least one of the selected titles.
+  // Preselected: the first fitting library that would add at least one of the selected titles; none when no fitting
+  // library would (a library that does not fit is only ever picked by hand).
   const adds = (v: VersionOption) => titles.some((t) => t.kind === v.kind && !inLib(t, v.key));
-  const lib = libs.find((v) => v.key === key) ?? libs.find(adds) ?? libs[0];
-  if (!lib) {
+  const lib = libs.find((v) => v.key === key) ?? libs.find((v) => v.fits && adds(v));
+  const select = <LibrarySelect label="Library" value={lib?.key ?? ""} onChange={setKey} groups={groups.map((g) => ({ label: g.label, libs: g.libs.map((v) => ({ key: v.key, label: v.label || v.key })) }))} />;
+  if (libs.length === 0) {
     const error = movies.error ?? series.error;
     return (
       <Modal label="Add to a library" onClose={close} testid="bulk-add" className="z-[85] flex items-center justify-center p-6"
@@ -195,6 +198,10 @@ export function BulkAddDialog({ titles, kinds, anime, onClose, onDone }: { title
         <div className="mt-3 flex justify-end"><Button size="sm" variant="ghost" onClick={close}>Close</Button></div>
       </Modal>
     );
+  }
+  if (!lib) {
+    const all = plural(titles.length, "title");
+    return <ConfirmDialog scope={{ title: `Add ${all} to a library`, does: [], keeps: [], confirm: `Add ${all}` }} danger={false} disabled onClose={close} onConfirm={() => {}} testid="bulk-add" top={select} />;
   }
   const name = lib.label || lib.key;
   const inIt = (t: TitleRow) => inLib(t, lib.key);
@@ -250,7 +257,7 @@ export function BulkAddDialog({ titles, kinds, anime, onClose, onDone }: { title
       onClose={close}
       onConfirm={() => void run()}
       testid="bulk-add"
-      top={<LibrarySelect label="Library" value={lib.key} onChange={setKey} groups={groups.map((g) => ({ label: g.label, libs: g.libs.map((v) => ({ key: v.key, label: v.label || v.key })) }))} />}
+      top={select}
     >
       {progress !== null ? <p role="status" className="text-[var(--ink-2)]" data-testid="bulk-progress">Adding {progress + 1} of {n}…</p> : null}
     </ConfirmDialog>

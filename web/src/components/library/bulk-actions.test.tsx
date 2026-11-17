@@ -240,6 +240,39 @@ describe("Bulk Add to a library", () => {
     await user.click(await within(await bar()).findByRole("button", { name: "Add to a library" }));
     expect(await screen.findByRole("dialog", { name: "Add 1 title to 4K" })).toBeTruthy();
   });
+
+  // HD and 4K fit the list; Anime movies does not.
+  const mixed = { method: "GET", path: "/add/options", reply: { kind: "movie", anime: false, router_enabled: true, seasons: [], versions: [
+    { key: "am", label: "Anime movies", kind: "movie", fits: false },
+    { key: "hd", label: "HD", kind: "movie", fits: true },
+    { key: "uhd", label: "4K", kind: "movie", fits: true },
+  ] } };
+
+  it("preselects a fitting library that adds a title, never one that does not fit", async () => {
+    mockFetch([me(["manage", "add"]), mixed]);
+    renderPage(<BulkBar titles={titles.slice(0, 2)} columns={columns} kinds={["movie"]} onClear={() => {}} />);
+    const user = userEvent.setup();
+    await user.click(await within(await bar()).findByRole("button", { name: "Add to a library" }));
+    const dialog = await screen.findByRole("dialog", { name: "Add 1 title to 4K" });
+    expect((within(dialog).getByRole("combobox", { name: "Library" }) as HTMLSelectElement).value).toBe("uhd");
+  });
+
+  it("preselects nothing when the selection is in every fitting library; a library that does not fit can still be picked", async () => {
+    mockFetch([me(["manage", "add"]), mixed, { method: "PUT", path: "/titles/1/versions/am", reply: {} }]);
+    renderPage(<BulkBar titles={titles.slice(0, 1)} columns={columns} kinds={["movie"]} onClear={() => {}} />);
+    const user = userEvent.setup();
+    await user.click(await within(await bar()).findByRole("button", { name: "Add to a library" }));
+    let dialog = await screen.findByRole("dialog", { name: "Add 1 title to a library" });
+    const select = within(dialog).getByRole("combobox", { name: "Library" }) as HTMLSelectElement;
+    expect(select.value).toBe("");
+    expect(within(dialog).getByRole("option", { name: "Choose a library" })).toBeTruthy();
+    expect(within(dialog).queryByText("This will")).toBeNull();
+    expect(within(dialog).queryByTestId("confirm-keeps")).toBeNull();
+    expect((within(dialog).getByTestId("confirm-ok") as HTMLButtonElement).disabled).toBe(true);
+    await user.selectOptions(select, "am");
+    dialog = await screen.findByRole("dialog", { name: "Add 1 title to Anime movies" });
+    expect((within(dialog).getByRole("button", { name: "Add 1 title" }) as HTMLButtonElement).disabled).toBe(false);
+  });
 });
 
 describe("Bulk Monitor", () => {

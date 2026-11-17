@@ -812,7 +812,9 @@ including "Imported from Radarr's blocklist" for `arr:<instance>`) and the healt
     titles not in it are skipped and counted; a title in no other library leaves the library, as on its page.
   - **Add to a library** picks one library of the list's kinds (Anime: movie and series libraries) and turns it on
     for each title through `PUT titles/{id}/versions/{key}` (monitored), as the add sheet does; titles of the other
-    kind and titles already monitored there are skipped and counted. Nothing is searched. There is no bulk profile:
+    kind and titles already monitored there are skipped and counted. The library preselected is the first one that
+    fits the list (anime or not) and would add a selected title; when none would, nothing is preselected ("Choose a
+    library", confirm disabled) and any library can still be picked. Nothing is searched. There is no bulk profile:
     a library's profile is how a title's quality changes, so moving a title between libraries is the way.
 - **Series page:** an episode cell shows its stage (and progress while downloading); an **In progress** filter sits
   beside Missing; the episode overview shows each library's acquisition (words, progress, last update, waits,
