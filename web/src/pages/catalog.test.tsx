@@ -447,7 +447,7 @@ describe("Library table", () => {
       let release = () => {};
       const held = new Promise<void>((r) => (release = r));
       const fetch = mockFetch([routes()[0], { ...pages, reply: async (r: { search: string }) => {
-        if (new URLSearchParams(r.search).get("offset") === "480") await held;
+        if (new URLSearchParams(r.search).get("offset") === "240") await held;
         return pages.reply(r);
       } }, routes()[2]]);
       const user = userEvent.setup();
@@ -455,11 +455,14 @@ describe("Library table", () => {
       await screen.findAllByText("Film 1");
       await user.click(screen.getByRole("button", { name: "Select" }));
       await user.click(screen.getByRole("button", { name: "Select all 524 matches" }));
-      await waitFor(() => expect(fetch.calls("GET", "/titles").some((c) => c.search.includes("offset=480"))).toBe(true));
+      await waitFor(() => expect(fetch.calls("GET", "/titles").some((c) => c.search.includes("offset=240"))).toBe(true));
       await user.click(screen.getByRole("button", { name: how }));
       release();
       await waitFor(() => expect(screen.queryByTestId("bulk-loading")).toBeNull());
-      await screen.findAllByText("Film 524");
+      // The page asked for before the cancel comes in; no page after it is asked for.
+      await screen.findAllByText("Film 300");
+      await new Promise((r) => setTimeout(r, 50));
+      expect(fetch.calls("GET", "/titles").map((c) => new URLSearchParams(c.search).get("offset"))).toEqual(["0", "60", "120", "180", "240"]);
       expect(screen.queryByRole("region", { name: "Bulk edit" })).toBeNull();
       if (how === "Done") {
         await user.click(screen.getByRole("button", { name: "Select" }));
@@ -562,6 +565,22 @@ describe("Toolbar and filters", () => {
     expect(fetch.requests.filter((r) => r.path === "/titles").at(-1)!.search).not.toContain("Drama");
     await user.click(within(line).getByRole("button", { name: "Clear all" }));
     await waitFor(() => expect(screen.queryByTestId("active-filters")).toBeNull());
+  });
+
+  it("keeps the saved filter the list showed on opening as Update's and Delete's target while the filters change", async () => {
+    window.localStorage.setItem("theatarr.library.saved-filters.series.7", JSON.stringify([{ name: "Finished", query: "series_status=ended" }]));
+    const fetch = mockFetch(routes());
+    const user = userEvent.setup();
+    renderPage(<Catalog id="series" />, "/series?series_status=ended");
+    await screen.findAllByText("The Pellbrook Inquiries");
+    await user.click(screen.getByRole("button", { name: "Filter, 1 active" }));
+    const sheet = await screen.findByTestId("filters-panel");
+    expect((within(sheet).getByRole("combobox", { name: "Saved filters" }) as HTMLSelectElement).value).toBe("Finished");
+    await user.click(within(sheet).getByRole("button", { name: /^Continuing/ }));
+    await waitFor(() => expect(fetch.calls("GET", "/titles").at(-1)!.search).toContain("series_status=continuing"));
+    expect(within(sheet).getByRole("button", { name: "Delete “Finished”" })).toBeTruthy();
+    await user.click(within(sheet).getByRole("button", { name: "Update “Finished”" }));
+    expect(JSON.parse(window.localStorage.getItem("theatarr.library.saved-filters.series.7")!)).toEqual([{ name: "Finished", query: "series_status=continuing" }]);
   });
 
   it("saves the filters and sort under a name, applies, updates and deletes them, per list in this browser", async () => {

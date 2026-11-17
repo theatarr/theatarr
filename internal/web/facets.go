@@ -4,11 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"net/http"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
-
-	"github.com/theatarr/theatarr/internal/store"
 )
 
 // GET titles/facets: counts for the grid's filter chips, over the titles of one grid (kind and anime). The counts
@@ -210,27 +209,19 @@ func (w *Web) titleFacets(ctx context.Context, f TitleFilter, seeFiles bool) (Ti
 		return out, err
 	}
 	if f.Kind != "movie" {
-		// One pass: each series' status word, counted per Series status value.
-		out.SeriesStatus = map[string]int{}
-		value := "CASE"
-		var vargs []any
-		for _, v := range []string{"continuing", "ended"} {
-			out.SeriesStatus[v] = 0
-			value += " WHEN " + seriesStatusSQL + " IN (" + store.Placeholders(len(seriesStatuses[v])) + ") THEN '" + v + "'"
-			for _, s := range seriesStatuses[v] {
-				vargs = append(vargs, s)
-			}
-		}
-		value += " ELSE '' END"
-		if err := scanAll(ctx, db, `SELECT `+value+` AS st, COUNT(*)`+titleFrom+andWhere(where, "t.kind = 'series'")+` GROUP BY st`,
-			append(vargs, args...), func(r *sql.Rows) error {
-				var v string
+		// Series per stored status (lower case), summed into the Series status values.
+		out.SeriesStatus = map[string]int{"continuing": 0, "ended": 0}
+		if err := scanAll(ctx, db, `SELECT `+seriesStatusSQL+`, COUNT(*)`+titleFrom+andWhere(where, "t.kind = 'series'")+` GROUP BY 1`,
+			args, func(r *sql.Rows) error {
+				var st string
 				var n int
-				if err := r.Scan(&v, &n); err != nil {
+				if err := r.Scan(&st, &n); err != nil {
 					return err
 				}
-				if v != "" {
-					out.SeriesStatus[v] = n
+				for v, sts := range seriesStatuses {
+					if slices.Contains(sts, st) {
+						out.SeriesStatus[v] += n
+					}
 				}
 				return nil
 			}); err != nil {

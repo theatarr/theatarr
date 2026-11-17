@@ -750,8 +750,8 @@ including "Imported from Radarr's blocklist" for `arr:<instance>`) and the healt
   library. **Saved filters** at the top of the sheet: **Save as…** keeps the
   list's filters and sort (on Anime also All / Movies / Series, never the view) under a name, the same name
   replacing that one; picking one applies it, and the menu names it only while the list shows it (after a change it
-  shows its placeholder, so picking it again applies it again); **Update “name”** overwrites the last one picked with
-  the current filters and sort; **Delete “name”** forgets it. They are kept per list and per user in this browser (`localStorage`
+  shows its placeholder, so picking it again applies it again); **Update “name”** overwrites the last one picked (else
+  the one the list showed when the sheet opened) with the current filters and sort; **Delete “name”** forgets it. They are kept per list and per user in this browser (`localStorage`
   `theatarr.library.saved-filters.<list>.<user>`, the address's query string under a name); a field an old saved
   filter has that the list no longer knows is ignored. Filters, sort and a picked
   view (`?view=grid|table`) stay in the address, so a link opens the list as it was; a sort the account

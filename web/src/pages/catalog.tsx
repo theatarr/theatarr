@@ -7,7 +7,7 @@
 // "Select all N matches" loads the remaining pages of the same query first.
 // Anime has All / Movies / Series (?kind=); Series and Anime have a Monitored shortcut (?monitored=true) in the toolbar.
 import { ArrowDownWideNarrow, ArrowUpNarrowWide, CheckSquare, Columns3, Eye, LayoutGrid, Loader2, Plus, Rows3, Settings2, SlidersHorizontal, X } from "lucide-react";
-import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
 import { useAuth } from "@/api/auth";
 import { useFacets, usePerms, useTitleGrid } from "@/api/library";
@@ -128,6 +128,11 @@ export function Catalog({ id }: { id: CatalogId }) {
   const [selecting, setSelecting] = useState(false);
   const [{ chosen, loadingFor }, pick] = useReducer(selectionStep, { chosen: new Set<number>(), loadingFor: null });
   const loadingAll = loadingFor !== null;
+  // The pending select-all as the paging loop reads it between pages.
+  const pending = useRef<string | null>(null);
+  useEffect(() => {
+    pending.current = loadingFor;
+  }, [loadingFor]);
   // A selection belongs to one catalog.
   useEffect(() => {
     setSelecting(false);
@@ -209,8 +214,10 @@ export function Catalog({ id }: { id: CatalogId }) {
   const queryKey = JSON.stringify(query);
   const selectAllMatches = async () => {
     pick({ t: "start", key: queryKey });
+    pending.current = queryKey;
     let r = await grid.fetchNextPage();
-    while (r.hasNextPage && !r.isError) r = await grid.fetchNextPage();
+    // One page at a time, and only while it is still pending: a cancel stops the paging.
+    while (r.hasNextPage && !r.isError && pending.current === queryKey) r = await grid.fetchNextPage();
     const ids = r.isError ? null : (r.data?.pages ?? []).flatMap((p) => p.items ?? []).map((t) => t.id ?? 0);
     pick({ t: "loaded", key: queryKey, ids });
   };

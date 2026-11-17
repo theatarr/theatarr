@@ -5,7 +5,7 @@
 // replaces that one). A saved filter is the list's query string
 // (lib/library savedQuery); a field it no longer recognises is ignored when it is applied.
 import { Bookmark } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SELECT_CLASS } from "@/components/ui/select";
@@ -30,9 +30,14 @@ export function SavedFilters({ list, uid, current, apply }: {
 }) {
   const what = `saved-filters.${list}`;
   const [saved, store] = useListPref<SavedFilter[]>(what, uid, () => readPref(what, uid, normalizeSaved));
-  // The saved filter Update and Delete act on: the last one picked or saved here, else the one the list shows now.
+  // The saved filter Update and Delete act on: the last one picked or saved here, else the one the list showed when
+  // the sheet opened (or when the user's saved filters loaded). It stays the target while the filters are edited.
   const [picked, setPicked] = useState<string | null>(null);
   const [naming, setNaming] = useState<string | null>(null);
+  const opened = saved.find((s) => s.query === current)?.name ?? null;
+  useEffect(() => {
+    setPicked((p) => p ?? opened);
+  }, [uid]); // eslint-disable-line react-hooks/exhaustive-deps
   const pick = saved.find((s) => s.name === picked) ?? saved.find((s) => s.query === current);
   // The menu names it only while the list shows it, so picking it again after a change applies it again.
   const shown = pick && pick.query === current ? pick.name : "";
