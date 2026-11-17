@@ -214,6 +214,9 @@ func (w *Web) apiReleases(rw http.ResponseWriter, r *http.Request) {
 		w.internal(rw, err)
 		return
 	}
+	if out.Source == "none" { // nothing stored: do not promise a stored decision (as the episode answer)
+		out.Message = strings.TrimSuffix(out.Message, "; showing the last stored decision")
+	}
 	w.writeReleases(ctx, rw, &out, 0)
 }
 

@@ -600,6 +600,10 @@ func TestLiveReleasesNoAnswer(t *testing.T) {
 	if r.Source == "live" || !strings.HasPrefix(r.Message, "Live search failed: no indexer answered (dmm: timeout)") {
 		t.Errorf("movie: %q %q", r.Source, r.Message)
 	}
+	// Nothing stored for the library: no promise of a stored decision.
+	if r.Source != "none" || strings.Contains(r.Message, "showing the last stored decision") {
+		t.Errorf("movie with nothing stored: %q %q", r.Source, r.Message)
+	}
 	r = Releases{}
 	e.call("GET", APIBase+"/titles/10/episodes/101/releases?live=1", nil, 200, &r)
 	if r.Source == "live" || !strings.HasPrefix(r.Message, "Live search failed: no indexer answered") {

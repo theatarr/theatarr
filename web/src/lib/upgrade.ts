@@ -41,6 +41,12 @@ export function mixedPack(u: Pick<UpgradeInfo, "next"> | undefined | null): bool
   return !!u?.next?.reason?.includes("keep their file");
 }
 
+/** The word of an upgrade found, the one choice for every badge, cell and tooltip: "Better pack found" for a mixed
+ *  pack (mixedPack), else "Upgrade found". */
+export function upgradeFoundWord(u: Pick<UpgradeInfo, "next"> | undefined | null): string {
+  return mixedPack(u) ? BETTER_PACK : "Upgrade found";
+}
+
 /** The short label of a copy that holds a file below its preferred quality when nothing better has been found. */
 export const BELOW_PREFERRED = "Preferred quality not met";
 
@@ -69,7 +75,7 @@ export function upgradeBadge(u: Pick<UpgradeInfo, "state" | "quality_met" | "nex
   const words = UPGRADE_WORDS[u.state];
   if (!words) return null;
   if (u.state === "upgrade_available") {
-    const found = mixedPack(u) ? BETTER_PACK : "Upgrade found";
+    const found = upgradeFoundWord(u);
     return { ...words, label: found, short: found };
   }
   if (u.state === "cutoff_met" || scoreOnly(u)) return { ...UPGRADE_WORDS.cutoff_met, label: PREFERRED_MET, short: PREFERRED_MET };

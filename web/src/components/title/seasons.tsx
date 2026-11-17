@@ -43,7 +43,7 @@ import { InteractiveSearchButton } from "@/components/title/interactive-search";
 import { MonitorSwitch } from "@/components/title/manage-bits";
 import { ProgressBar } from "@/components/activity-bits";
 import { UpgradeStatus } from "@/components/title/upgrade-why";
-import { BELOW_PREFERRED, BETTER_PACK, mixedPack, scoreOnly } from "@/lib/upgrade";
+import { BELOW_PREFERRED, scoreOnly, upgradeFoundWord } from "@/lib/upgrade";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -73,7 +73,6 @@ import {
   seasonBadge,
   seasonSummary,
   statusWords,
-  UPGRADE_FOUND,
   type Cell,
   type EpisodeFilter,
   type Layout,
@@ -141,7 +140,7 @@ function statusOf(e: Episode, copies: { key: string; monitored?: boolean }[], me
  *  monitoring. */
 function cellTitle(c: Cell | undefined, off = false): string | undefined {
   if (!c) return undefined;
-  const quality = c.has_file && !off ? (c.upgrade_seen ? (mixedPack(c.upgrade) ? BETTER_PACK : UPGRADE_FOUND) : c.state === "filled" && !scoreOnly(c.upgrade) ? BELOW_PREFERRED : undefined) : undefined;
+  const quality = c.has_file && !off ? (c.upgrade_seen ? upgradeFoundWord(c.upgrade) : c.state === "filled" && !scoreOnly(c.upgrade) ? BELOW_PREFERRED : undefined) : undefined;
   const parts = [quality, c.release_group, c.size_bytes ? fmtBytes(c.size_bytes) : undefined, c.score != null ? `profile score ${fmtNumber(c.score)}` : undefined, c.monitored ? "monitored" : "not monitored"];
   return parts.filter(Boolean).join(" · ") || undefined;
 }

@@ -8,7 +8,7 @@ import { downloadReason, downloadSettings } from "@/lib/version-grab";
 import type { Episode, EpisodeList } from "@/api/library";
 import type { VersionControl } from "@/api/manage";
 import { fmtNumber } from "./format";
-import { availableIn, BETTER_PACK, mixedPack } from "./upgrade";
+import { availableIn, BETTER_PACK, upgradeFoundWord } from "./upgrade";
 
 export type Cell = Episode["versions"][string];
 
@@ -48,9 +48,6 @@ export function statusWords(s: Status, seeFiles: boolean): { label: string; tone
   }
 }
 
-/** The quality word beside an Available episode, for those who see files. */
-export const UPGRADE_FOUND = "Upgrade found";
-
 /** Whether an episode has aired: the server's flag (its air instant has passed; the day of air_date only when it has no instant), never worked out here. */
 export function aired(e: Pick<Episode, "aired">): boolean {
   return !!e.aired;
@@ -73,7 +70,7 @@ export function cellUpgrade(c: Cell | undefined, seeFiles: boolean): boolean {
  *  episodes' files (mixedPack), else "Upgrade found"; undefined when none was found. */
 export function cellUpgradeWord(c: Cell | undefined, seeFiles: boolean): string | undefined {
   if (!cellUpgrade(c, seeFiles)) return undefined;
-  return mixedPack(c?.upgrade) ? BETTER_PACK : UPGRADE_FOUND;
+  return upgradeFoundWord(c?.upgrade);
 }
 
 /**
@@ -96,9 +93,13 @@ export function mergedUpgrade(e: Episode, keys: string[], seeFiles: boolean): bo
 
 /** The word across copies: "Better pack found" only when every copy's find is such a pack. */
 export function mergedUpgradeWord(e: Episode, keys: string[], seeFiles: boolean): string | undefined {
-  const words = keys.map((k) => cellUpgradeWord(e.versions[k], seeFiles)).filter(Boolean);
-  if (words.length === 0) return undefined;
-  return words.every((w) => w === BETTER_PACK) ? BETTER_PACK : UPGRADE_FOUND;
+  let word: string | undefined;
+  for (const k of keys) {
+    const w = cellUpgradeWord(e.versions[k], seeFiles);
+    if (w && w !== BETTER_PACK) return w;
+    word ??= w;
+  }
+  return word;
 }
 
 /** "Available in 4K" for accounts without "see files": the best resolution any copy holds, else "Available". */
