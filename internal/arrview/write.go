@@ -318,12 +318,11 @@ func (s *Service) reclassify(ctx context.Context, v *View, titleID int64, restor
 			return err
 		}
 		if !restore {
-			// A Refresh adds only the libraries the title has no copy in: removed and unmonitored copies stay.
-			held, err := catalog.LoadCopies(ctx, tx, titleID)
-			if err != nil {
+			// A Refresh adds only the picked libraries the title has no copy in: removed and unmonitored copies stay.
+			// Nothing to add: the classification above is all it changes.
+			if keys, err = missingVersions(ctx, tx, titleID, keys); err != nil || len(keys) == 0 {
 				return err
 			}
-			keys = slices.DeleteFunc(keys, func(k string) bool { _, ok := held[k]; return ok })
 		}
 		var mon bool
 		if err := tx.QueryRowContext(ctx, `SELECT COALESCE(MAX(monitored), 1) FROM version WHERE title_id = ?`,
@@ -395,6 +394,22 @@ func (s *Service) turnOn(ctx context.Context, tx *sqlTx, v *View, titleID int64,
 		s.log.Info("version turned on", "view", v.Key, "title", titleID, "version", k, "in_sync", true)
 	}
 	return created, partners, err
+}
+
+// missingVersions is which of the keys the title has no version row for, in any state.
+func missingVersions(ctx context.Context, tx *sqlTx, titleID int64, keys []string) ([]string, error) {
+	var out []string
+	for _, k := range keys {
+		var has bool
+		if err := tx.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM version WHERE title_id = ? AND policy_key = ?)`,
+			titleID, k).Scan(&has); err != nil {
+			return nil, err
+		}
+		if !has {
+			out = append(out, k)
+		}
+	}
+	return out, nil
 }
 
 // offVersions is which of the keys the title has no active version for: none yet, removed from the views, or
