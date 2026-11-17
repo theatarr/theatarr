@@ -352,34 +352,27 @@ export function EpisodeHistoryRows({ events, episode }: { events: ActivityEvent[
 
 function HistoryList({ q, admin, prefs, filtered, withTitle }: { q: ReturnType<typeof useActivityHistory>; admin: boolean; prefs: { order: HistoryColumnId[]; shown: HistoryColumnId[] }; filtered: boolean; withTitle: boolean }) {
   const items = q.data?.pages.flatMap((p) => p.history ?? []) ?? [];
+  // The next page: Load more (Look further back under an empty page); a failed one keeps the rows and its Retry reads
+  // the next page again.
+  const more = q.isFetchNextPageError ? (
+    <StaleNotice className="" onRetry={() => void q.fetchNextPage()} retrying={q.isFetchingNextPage} />
+  ) : q.hasNextPage ? (
+    <div className="flex justify-center">
+      <Button variant="outline" onClick={() => q.fetchNextPage()} disabled={q.isFetchingNextPage}>
+        {q.isFetchingNextPage ? "Loading…" : items.length === 0 ? "Look further back" : "Load more"}
+      </Button>
+    </div>
+  ) : null;
   if (items.length === 0) {
     return (
       <Card>
         <Empty icon={HistoryIcon}>
           {filtered ? (q.hasNextPage ? "Nothing matches on this page." : "Nothing matches these filters.") : "Nothing has happened yet."}
         </Empty>
-        {q.isFetchNextPageError ? (
-          <div className="px-4 pb-4"><StaleNotice className="" onRetry={() => void q.fetchNextPage()} retrying={q.isFetchingNextPage} /></div>
-        ) : q.hasNextPage ? (
-          <div className="flex justify-center pb-4">
-            <Button variant="outline" onClick={() => q.fetchNextPage()} disabled={q.isFetchingNextPage}>
-              {q.isFetchingNextPage ? "Loading…" : "Look further back"}
-            </Button>
-          </div>
-        ) : null}
+        {more ? <div className="px-4 pb-4">{more}</div> : null}
       </Card>
     );
   }
-  // A failed Load more keeps the rows; its Retry reads the next page again.
-  const more = q.isFetchNextPageError ? (
-    <StaleNotice className="" onRetry={() => void q.fetchNextPage()} retrying={q.isFetchingNextPage} />
-  ) : q.hasNextPage ? (
-    <div className="flex justify-center">
-      <Button variant="outline" onClick={() => q.fetchNextPage()} disabled={q.isFetchingNextPage}>
-        {q.isFetchingNextPage ? "Loading…" : "Load more"}
-      </Button>
-    </div>
-  ) : null;
   if (admin) {
     const columns = tight([...historyFixed(withTitle), ...prefs.order.filter((id) => prefs.shown.includes(id)).map((id) => HISTORY_OPTIONAL[id])]);
     return (

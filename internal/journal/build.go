@@ -574,8 +574,12 @@ type planJSON struct {
 func (b *builder) libraryImport(e *Entry, d *dlRow) error {
 	var state, plan string
 	var errText sql.NullString
-	if err := b.db.QueryRowContext(b.ctx, `SELECT state, last_error, plan FROM library_import WHERE download_id = ?`,
-		d.id).Scan(&state, &errText, &plan); err != nil {
+	// recorded: the files the import linked, as it recorded them (the distinct links of its applied link actions; a
+	// retry or an anime relink records a link again).
+	var recorded int
+	if err := b.db.QueryRowContext(b.ctx, `SELECT state, last_error, plan, (SELECT COUNT(DISTINCT link_id)
+		FROM library_action WHERE download_id = ?1 AND kind = 'link' AND mode = 'applied') FROM library_import
+		WHERE download_id = ?1`, d.id).Scan(&state, &errText, &plan, &recorded); err != nil {
 		return err
 	}
 	im := &Import{State: state, Error: b.msg(errText.String)}
@@ -664,14 +668,9 @@ func (b *builder) libraryImport(e *Entry, d *dlRow) error {
 			linked = append(linked, l.Path)
 		}
 	}
-	// How many files the import linked, as it recorded them (its applied link actions): a later upgrade at the same
-	// path moves the link row to the newer download (library apply), so today's rows can hold fewer.
+	// How many files the import linked, as it recorded them: a later upgrade at the same path moves the link row to the
+	// newer download (library apply), so today's rows can hold fewer.
 	n := len(linked)
-	var recorded int
-	if err := b.db.QueryRowContext(b.ctx, `SELECT COUNT(*) FROM library_action WHERE download_id = ? AND kind = 'link'
-		AND mode = 'applied'`, d.id).Scan(&recorded); err != nil {
-		return err
-	}
 	if recorded > 0 {
 		n = recorded
 	}

@@ -1033,6 +1033,18 @@ func TestImportSummaryLeftOut(t *testing.T) {
 	if g := e.get("dl:5:import").Summary; g != want {
 		t.Errorf("after the upgrade %q, want %q", g, want)
 	}
+	// A retry after a partial import records E01's link again; accepting an anime mapping relinks E02 and records it
+	// again (library apply, reassign): still two files.
+	for _, c := range []struct {
+		name string
+		link int
+	}{{"retry", 1}, {"relink", 2}} {
+		e.exec(`INSERT INTO library_action (at, kind, mode, version_key, download_id, link_id, path, title_id) VALUES
+			(?, 'link', 'applied', 'tv-2160p', 5, ?, '/tv/G/E0x.mkv', 3)`, msOf(testNow), c.link)
+		if g := e.get("dl:5:import").Summary; g != want {
+			t.Errorf("after the %s %q, want %q", c.name, g, want)
+		}
+	}
 }
 
 // A replacement chosen as the preferred SeaDex release keeps its quality drop as an info flag that says why; any other
