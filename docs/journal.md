@@ -259,11 +259,14 @@ only into an adoption that holds the episode too:
   formats), the import's episodes (what the new release brought; the old files' are in `Replaced`) and state (a
   partial import says so, as on Imported), the replaced files in `Replaced`, and links to the import's journal entry;
   the import's own row is left out. A first import (nothing replaced) is one Imported row (its grab folded, below).
-- A grab: a `grabbed` row is left out when a row of the same download and library with event `imported`, `deleted`
-  (an upgrade) or `failed`, dated at or after it, passes the same filters (event, kind, title, library, since, and in
-  the episode window holds the episode, an upgrade's by its import's episodes). That row says when it was grabbed
-  (`HistoryRow.Grabbed`, the API's `grabbed_at`, admins only), read for the page's rows by download. Pairing is by
-  download id only, never by release or hash. "At or after" keeps a retried download's new grab its own row while it
+- A grab: a `grabbed` row is left out when a row of the same download with event `imported`, `deleted` (an upgrade)
+  or `failed`, dated at or after it, is itself listed: it passes the event and kind filters (title, library and since
+  follow from the download and the date), it is not an import folded into its upgrade (so Grabbed with Imported
+  lists an upgraded download's grab), and in the episode window it holds the episode (an upgrade's by its import's
+  episodes). That row says when it was grabbed (`HistoryRow.Grabbed`, the API's `grabbed_at`, admins only), read in
+  the page's query from the grab's row (`dl:<id>`); a manual import's (indexer `import`: a file already on the mount)
+  stored grab row is folded the same way but gives no time, since nothing was grabbed. Pairing is by download id
+  only, never by release or hash. "At or after" keeps a retried download's new grab its own row while it
   runs; a grab with no outcome yet (still running) stays Grabbed. A Grabbed-only filter lists the grabs (no outcome
   passes it). The cursor bounds the grab, not its outcome, so a page boundary never shows a download twice.
   Household History, the compatible API's history and indexer statistics read the stored rows unchanged.

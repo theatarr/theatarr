@@ -100,8 +100,8 @@ type HistoryRow struct {
 	// Entry is the row's journal entry (its Journal link): its id, a held import's import entry; "" for a copy, a
 	// release unblocked since, and a row whose source is gone (retention).
 	Entry string
-	// Grabbed is when an outcome's download (imported, deleted, failed) was grabbed: its grab's row of the same library,
-	// dated at or before it, which the outcome's row stands for (historyWhere); zero when none, and for Filter.Household.
+	// Grabbed is when an outcome's download (imported, deleted, failed) was grabbed (grabbedAtSQL): its grab's row,
+	// which the outcome's row stands for (historyWhere); zero when none, for a manual import, and for Filter.Household.
 	Grabbed time.Time
 }
 
@@ -166,7 +166,7 @@ func (j *Journal) history(ctx context.Context, f Filter, episode int64) (*Histor
 		event, hash, indexer, quality, eps, provider string
 		reason                                       string
 		source, importSt, by, detail                 string
-		dl, score                                    sql.NullInt64
+		dl, score, grabbed                           sql.NullInt64
 		size, files                                  int64
 		unscored                                     bool
 		episodes                                     []int64
@@ -175,13 +175,13 @@ func (j *Journal) history(ctx context.Context, f Filter, episode int64) (*Histor
 	var rows []*stored
 	err = l.query(`SELECT ref, at, title_id, version_key, kind, event, download_id, release, info_hash, indexer, size,
 		quality, score, formats, episodes, files, replaced, provider, reason, source, import_state, by, detail,
-		`+adoptedUnscoredSQL+`
+		`+adoptedUnscoredSQL+`, `+grabbedAtSQL+`
 		FROM `+where+` ORDER BY at DESC, ref DESC LIMIT ?`, append(wargs, f.Limit+1),
 		func(r *sql.Rows) error {
 			var s stored
 			if err := r.Scan(&s.h.id, &s.h.at, &s.h.titleID, &s.h.version, &s.h.kind, &s.event, &s.dl, &s.release,
 				&s.hash, &s.indexer, &s.size, &s.quality, &s.score, &s.formats, &s.eps, &s.files, &s.replaced,
-				&s.provider, &s.reason, &s.source, &s.importSt, &s.by, &s.detail, &s.unscored); err != nil {
+				&s.provider, &s.reason, &s.source, &s.importSt, &s.by, &s.detail, &s.unscored, &s.grabbed); err != nil {
 				return err
 			}
 			if s.unscored {
@@ -284,34 +284,6 @@ func (j *Journal) history(ctx context.Context, f Filter, episode int64) (*Histor
 		}
 	}
 
-	// The grab each outcome's row stands for: when it was grabbed, by download and library.
-	type grabKey struct {
-		dl      int64
-		version string
-	}
-	grabbed := map[grabKey]int64{}
-	var outcomeDls []int64
-	for _, s := range rows {
-		if s.dl.Valid && !f.Household && (s.event == EvImported || s.event == EvDeleted || s.event == EvFailed) {
-			outcomeDls = append(outcomeDls, s.dl.Int64)
-		}
-	}
-	if len(outcomeDls) > 0 {
-		in, args := inList(outcomeDls)
-		if err := l.query(`SELECT download_id, COALESCE(version_key, ''), at FROM history
-			WHERE event = 'grabbed' AND download_id IN (`+in+`)`, args, func(r *sql.Rows) error {
-			var k grabKey
-			var at int64
-			if err := r.Scan(&k.dl, &k.version, &at); err != nil {
-				return err
-			}
-			grabbed[k] = at
-			return nil
-		}); err != nil {
-			return nil, fmt.Errorf("journal: history: %w", err)
-		}
-	}
-
 	var titleIDs, failed []int64
 	for _, s := range rows {
 		titleIDs = append(titleIDs, s.h.titleID)
@@ -404,10 +376,8 @@ func (j *Journal) history(ctx context.Context, f Filter, episode int64) (*Histor
 		if strings.HasSuffix(x.ID, ":fail") && s.dl.Valid {
 			x.Attempts = attempts[s.dl.Int64]
 		}
-		if s.dl.Valid && (s.event == EvImported || s.event == EvDeleted || s.event == EvFailed) {
-			if at, ok := grabbed[grabKey{s.dl.Int64, s.h.version}]; ok && at <= s.h.at {
-				x.Grabbed = store.FromMillis(at)
-			}
+		if s.grabbed.Valid && !f.Household {
+			x.Grabbed = store.FromMillis(s.grabbed.Int64)
 		}
 		if x.Event == EvAdopted {
 			// "adopted from <instance> <path>"
@@ -620,30 +590,56 @@ func historyWhere(f Filter, titles []int64, episode int64) (string, []any) {
 			adoptionOfRemovalSQL(`p.at BETWEEN history.at - 60000 AND history.at + 60000`)+since+held+`))`)
 		args = append(append(args, sinceArgs...), heldArgs...)
 	}
-	// A grab whose download has an outcome (imported, an upgrade, failed) in the same library, dated at or after it, is
-	// that outcome's row (its details say when it was grabbed), when the outcome passes the same filters: the filter's
-	// conditions read the outcome's columns (alias p) and, in the episode window, the outcome holds the episode too
-	// (an upgrade's by its import's episodes), or a pack's left-out episode would lose its only row. A Grabbed-only
-	// filter lists the grabs. The cursor bounds the grab only, so a page boundary never shows a download twice.
-	// Pairing is by download id only.
-	outcome, outcomeArgs := historyMatch(f, titles)
+	// A grab whose download has an outcome (imported, an upgrade, failed), dated at or after it, is that outcome's row
+	// (which says when it was grabbed, grabbedAtSQL) when the outcome is itself listed: it passes the event and kind
+	// filters (title, library and since follow from the download and the date), it is not an import folded into its
+	// upgrade, and in the episode window it holds the episode (an upgrade's by its import's episodes), or a pack's
+	// left-out episode would lose its only row. A Grabbed-only filter lists the grabs. The cursor bounds the grab only,
+	// so a page boundary never shows a download twice. Pairing is by download id only.
+	var outcome []string
+	var outcomeArgs []any
+	if len(f.Events) > 0 {
+		outcome = append(outcome, `p.event IN (`+store.Placeholders(len(f.Events))+`)`)
+		for _, ev := range f.Events {
+			outcomeArgs = append(outcomeArgs, ev)
+		}
+	}
+	if len(f.Kinds) > 0 {
+		outcome = append(outcome, `p.kind IN (`+store.Placeholders(len(f.Kinds))+`)`)
+		for _, k := range f.Kinds {
+			outcomeArgs = append(outcomeArgs, k)
+		}
+	}
+	if len(f.Kinds) == 0 || slices.Contains(f.Kinds, KindLink) {
+		// The import an upgrade stands for (the fold above) is not listed; the upgrade's row is.
+		outcome = append(outcome, `NOT (p.event = 'imported' AND EXISTS (SELECT 1 FROM history u
+			WHERE u.event = 'deleted' AND u.download_id = p.download_id AND u.version_key IS p.version_key`+
+			strings.ReplaceAll(since, "p.at", "u.at")+`))`)
+		outcomeArgs = append(outcomeArgs, sinceArgs...)
+	}
 	if episode > 0 {
 		outcome = append(outcome, `(EXISTS (SELECT 1 FROM json_each(p.episodes) WHERE value = ?)
 			OR (p.event = 'deleted' AND EXISTS (SELECT 1 FROM history i, json_each(i.episodes) ie
 				WHERE i.ref = 'dl:' || p.download_id || ':import' AND ie.value = ?)))`)
 		outcomeArgs = append(outcomeArgs, episode, episode)
 	}
-	w = append(w, `NOT (event = 'grabbed' AND EXISTS (SELECT 1 FROM history p WHERE `+grabOutcomeSQL+`
-		AND `+strings.Join(outcome, " AND ")+`))`)
+	w = append(w, `NOT (event = 'grabbed' AND EXISTS (SELECT 1 FROM history p WHERE p.download_id = history.download_id
+		AND p.event IN ('imported', 'deleted', 'failed') AND p.at >= history.at`+
+		strings.Join(append([]string{""}, outcome...), " AND ")+`))`)
 	args = append(args, outcomeArgs...)
 	return strings.Join(w, " AND "), args
 }
 
-// grabOutcomeSQL is the outcome (alias p) of a grab (history): a row of the same download and library that imported
-// it, upgraded with it or failed, dated at or after the grab (a retried download's new grab stays its own row while it
-// runs). historyMatch's conditions, unqualified, read p's columns inside it.
-const grabOutcomeSQL = `p.download_id = history.download_id AND p.version_key IS history.version_key
-	AND p.event IN ('imported', 'deleted', 'failed') AND p.at >= history.at`
+// grabbedAtSQL is when an outcome's download (imported, deleted, failed) was grabbed: its grab's row (dl:<id>, the
+// same library, dated at or before it), which the outcome's row stands for (historyWhere). A manual import's download
+// (indexer import: a file already on the mount, arrview insertImport) was never grabbed; its stored grab row is
+// folded all the same, but says nothing.
+const grabbedAtSQL = `CASE WHEN event IN ('imported', 'deleted', 'failed') THEN (SELECT g.at FROM history g
+	WHERE g.ref = 'dl:' || history.download_id AND g.event = 'grabbed' AND g.version_key IS history.version_key
+	AND g.at <= history.at AND g.indexer <> '` + manualImportIndexer + `') END`
+
+// manualImportIndexer is a manual import's download's indexer (arrview insertImport).
+const manualImportIndexer = "import"
 
 // adoptedUnscoredSQL is whether an adopted row's score of 0 was never recorded: its file's link has no scoring
 // evidence (stored formats or a non-zero score in its file metadata, as the Libraries table's linkScoreSQL reads it).

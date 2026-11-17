@@ -159,6 +159,11 @@ func TestHistoryRows(t *testing.T) {
 	if want := []string{"deleted Alpha.2020.2160p.WEB-DL-FLUX WEBDL-2160p 5000 replaced Alpha.2020.2160p.WEB-OLD"}; !slices.Equal(got, want) {
 		t.Errorf("imports and upgrades:\n got %q\nwant %q", got, want)
 	}
+	// Grabbed with Imported: the import is the upgrade's row, which is not asked for, so the grab is listed.
+	got = e.history(Filter{Title: "1", Events: []string{EvGrabbed, EvImported}})
+	if want := []string{"grabbed Alpha.2020.2160p.WEB-DL-FLUX WEBDL-2160p 5000"}; !slices.Equal(got, want) {
+		t.Errorf("grabs and imports:\n got %q\nwant %q", got, want)
+	}
 	if got := e.history(Filter{Title: "1", Events: []string{EvRemoved, EvMissing, EvTitleRemoved}}); len(got) != 0 {
 		t.Errorf("removals: %q", got)
 	}
@@ -622,8 +627,8 @@ func TestHistoryRedownload(t *testing.T) {
 	}
 }
 
-// One row per download: a grab is folded into its outcome (Imported, Failed), which says when it was grabbed; a
-// retried download's new grab shows while it runs; the Grabbed filter lists the grabs; paging across a fold boundary
+// One row per download: a grab is folded into its outcome (Imported, Failed), which says when it was grabbed (a
+// manual import, never grabbed, says nothing); a retried download's new grab shows while it runs; the Grabbed filter lists the grabs; paging across a fold boundary
 // shows each download once.
 func TestHistoryGrabFolds(t *testing.T) {
 	e := newEnv(t)
@@ -643,6 +648,14 @@ func TestHistoryGrabFolds(t *testing.T) {
 	e.exec(`INSERT INTO router_blocklist (version_key, info_hash, title_id, release_title, reason, source, download_id,
 		created_at) VALUES ('movie-remux', ?, 2, 'Beta.2021.Remux-B', 'stalled: no seeders', 'stalled', 11, ?)`, hashB,
 		msOf(at.Add(2*time.Hour+11*time.Minute)))
+	// Beta movie-remux: a manual import (a file already on the mount: indexer import), imported at once.
+	e.dlEvent(13, "imported", at.Add(30*time.Minute), 2, 4, "movie-remux", hashC, "Beta.2021.Manual", "Remux-2160p", 0,
+		1<<30, nil, "")
+	e.exec(`UPDATE download SET indexer = 'import' WHERE id = 13`)
+	e.exec(`INSERT INTO library_import (download_id, state, mount_folder, plan, created_at, updated_at)
+		VALUES (13, 'linked', '/m/B', '{}', ?, ?)`, msOf(at.Add(30*time.Minute)), msOf(at.Add(30*time.Minute)))
+	e.exec(`INSERT INTO library_action (at, kind, mode, version_key, download_id, link_id, path, title_id) VALUES
+		(?, 'link', 'applied', 'movie-remux', 13, 2, '/movies/B.mkv', 2)`, msOf(at.Add(30*time.Minute)))
 	// Gamma tv-2160p: grabbed and still downloading.
 	e.dlEvent(12, "downloading", at.Add(3*time.Hour), 3, 3, "tv-2160p", hashC, "Gamma.S01E01.WEB", "WEBDL-2160p", 300,
 		3<<30, []int64{101}, "")
@@ -653,6 +666,7 @@ func TestHistoryGrabFolds(t *testing.T) {
 		"blocked Beta.2021.Remux-B Remux-2160p 200 (stalled: no seeders)",
 		"failed Beta.2021.Remux-B Remux-2160p 200 (stalled: no seeders)",
 		"imported Alpha.2020.2160p.WEB-A WEBDL-2160p 100",
+		"imported Beta.2021.Manual Remux-2160p",
 	}
 	if !slices.Equal(got, want) {
 		t.Errorf("rows:\n got %q\nwant %q", got, want)
@@ -678,6 +692,7 @@ func TestHistoryGrabFolds(t *testing.T) {
 	want = []string{
 		"grabbed Gamma.S01E01.WEB WEBDL-2160p 300 [S01E01]",
 		"grabbed Beta.2021.Remux-B Remux-2160p 200",
+		"grabbed Beta.2021.Manual Remux-2160p",
 		"grabbed Alpha.2020.2160p.WEB-A WEBDL-2160p 100",
 	}
 	if !slices.Equal(got, want) {
@@ -701,7 +716,7 @@ func TestHistoryGrabFolds(t *testing.T) {
 				break
 			}
 		}
-		if want := []string{"dl:12", "bl:1", "dl:11:fail", "dl:10:import"}; !slices.Equal(ids, want) {
+		if want := []string{"dl:12", "bl:1", "dl:11:fail", "dl:10:import", "dl:13:import"}; !slices.Equal(ids, want) {
 			t.Errorf("pages of %d: %q, want %q", limit, ids, want)
 		}
 	}
@@ -722,7 +737,7 @@ func TestHistoryGrabFolds(t *testing.T) {
 			t.Errorf("failure before the new grab: grabbed %v", x.Grabbed)
 		}
 	}
-	if want := []string{"dl:11", "dl:12", "bl:1", "dl:11:fail", "dl:10:import"}; !slices.Equal(ids, want) {
+	if want := []string{"dl:11", "dl:12", "bl:1", "dl:11:fail", "dl:10:import", "dl:13:import"}; !slices.Equal(ids, want) {
 		t.Errorf("after the retry: %q, want %q", ids, want)
 	}
 }
