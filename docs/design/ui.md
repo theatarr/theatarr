@@ -295,7 +295,7 @@ existing redaction applies). Household accounts get none of it.
   sort, About's **Released** and the posters' Release date line show: a movie's earliest stored cinema date of any
   kind (limited or wide, any source or country) or TMDb's release date, whichever is earlier, so a wide re-release
   never makes an old film read new (Akira 1988, not its 2026 US release); a series' first air date. It takes no part in
-  the choice above (**Releases** while still to come; **In cinemas** for a film whose day to come is its cinema date, so About's
+  the choice above (**Releases** while still to come; **In cinemas** for a film whose day to come a stored cinema date, limited or wide, supplied (the row's `released_cinema`), so About's
   "In cinemas Dec 18" is not read as the home release the libraries wait for). On the Calendar a movie's cinema date alone is never Missing;
   joined with a digital or disc date of the same day it is. Only the primary country's TMDb rows are stored
   (`title_release_date`, source `tmdb`); Details › Release dates lists them (with the arrs' rows for a title not

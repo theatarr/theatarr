@@ -116,6 +116,9 @@ type TitleRow struct {
 	// release date, whichever is earlier; a series' first air date. What the Released column, its sort and the title
 	// page's About show; in_cinemas and release_date keep their own meaning.
 	Released string `json:"released,omitempty"`
+	// ReleasedCinema: a stored cinema date (theatrical or theatrical_limited) supplied Released; About says "In
+	// cinemas" for such a day still to come.
+	ReleasedCinema bool `json:"released_cinema,omitempty"`
 	// SeasonCount is how many seasons (specials left out) a series has episodes in; PreviousAiring is the latest
 	// aired episode's day (YYYY-MM-DD). Series only.
 	SeasonCount    int    `json:"season_count,omitempty"`
@@ -260,7 +263,7 @@ func (w *Web) libraryKind(key string) string {
 
 // titleCols and titleFrom are the list row's columns and tables; m is the title's title_meta row, if any.
 var titleCols = `t.id, t.kind, t.name, t.year, t.tmdb_id, t.tvdb_id, COALESCE(t.imdb_id, ''), t.anime, t.monitored,
-	t.created_at, ` + store.SeriesTypeSQL("t")
+	t.created_at, ` + store.SeriesTypeSQL("t") + `, COALESCE(` + releasedSQL + `, ''), ` + releasedCinemaSQL
 
 const titleFrom = ` FROM title t LEFT JOIN title_meta m ON m.title_id = t.id`
 
@@ -271,7 +274,7 @@ func (w *Web) titleRows(ctx context.Context, db *sql.DB, q string, args []any) (
 		var r TitleRow
 		var year, tmdb, tvdb, created sql.NullInt64
 		if err := rows.Scan(&r.ID, &r.Kind, &r.Name, &year, &tmdb, &tvdb, &r.IMDbID, &r.Anime, &r.Monitored, &created,
-			&r.SeriesType); err != nil {
+			&r.SeriesType, &r.Released, &r.ReleasedCinema); err != nil {
 			return err
 		}
 		r.Year, r.TMDbID, r.TVDbID, r.TitleAddedAt = nullInt(year), nullInt(tmdb), nullInt(tvdb), nullTS(created)
@@ -290,13 +293,6 @@ func (w *Web) titleRows(ctx context.Context, db *sql.DB, q string, args []any) (
 	}
 	if err := w.fillArt(ctx, db, items); err != nil {
 		return items, err
-	}
-	released, err := readReleased(ctx, db, ids)
-	if err != nil {
-		return items, err
-	}
-	for i := range items {
-		items[i].Released = released[items[i].ID]
 	}
 	err = scanAll(ctx, db, `SELECT v.title_id, v.id, v.policy_key, v.state, v.monitored, `+hasFileSQL+`, `+
 		availStateSQL(newAirClock(w.now()))+` FROM version v WHERE v.title_id IN (`+store.Placeholders(len(ids))+`) AND `+
@@ -484,9 +480,10 @@ func (w *Web) getTitle(ctx context.Context, id int64) (*TitleDetail, error) {
 	d := &TitleDetail{ExternalIDs: []ExternalID{}, ReleaseDates: []ReleaseDate{}, Versions: []Version{}}
 	var year, tmdb, tvdb sql.NullInt64
 	var created, updated int64
-	err := db.QueryRowContext(ctx, `SELECT id, kind, name, sort_name, year, tmdb_id, tvdb_id, COALESCE(imdb_id, ''),
-		anime, monitored, created_at, updated_at FROM title WHERE id = ?`, id).Scan(&d.ID, &d.Kind, &d.Name, &d.SortName,
-		&year, &tmdb, &tvdb, &d.IMDbID, &d.Anime, &d.Monitored, &created, &updated)
+	err := db.QueryRowContext(ctx, `SELECT t.id, t.kind, t.name, t.sort_name, t.year, t.tmdb_id, t.tvdb_id,
+		COALESCE(t.imdb_id, ''), t.anime, t.monitored, t.created_at, t.updated_at, COALESCE(`+releasedSQL+`, ''), `+
+		releasedCinemaSQL+titleFrom+` WHERE t.id = ?`, id).Scan(&d.ID, &d.Kind, &d.Name, &d.SortName,
+		&year, &tmdb, &tvdb, &d.IMDbID, &d.Anime, &d.Monitored, &created, &updated, &d.Released, &d.ReleasedCinema)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, errNotFound
 	}
@@ -499,11 +496,6 @@ func (w *Web) getTitle(ctx context.Context, id int64) (*TitleDetail, error) {
 	if d.TitleArt, d.TitleFacts, d.Meta, err = w.titleMeta(ctx, db, id); err != nil {
 		return nil, err
 	}
-	released, err := readReleased(ctx, db, []any{id})
-	if err != nil {
-		return nil, err
-	}
-	d.Released = released[id]
 
 	if err := scanAll(ctx, db, `SELECT source, external_id FROM title_external_id WHERE title_id = ? ORDER BY source, external_id`,
 		[]any{id}, func(r *sql.Rows) error {

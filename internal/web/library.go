@@ -470,35 +470,22 @@ func (g TitleGridFilter) where(conds []string, args []any) ([]string, []any) {
 	return conds, args
 }
 
+// cinemaFirstSQL is a movie's earliest stored cinema date (title_release_date, theatrical or theatrical_limited, any
+// source or country), YYYY-MM-DD, over title t; NULL without one.
+const cinemaFirstSQL = `(SELECT MIN(substr(d.date, 1, 10)) FROM title_release_date d WHERE d.title_id = t.id
+	AND d.type IN ('theatrical', 'theatrical_limited'))`
+
 // releasedSQL is a title's general release day (YYYY-MM-DD, NULL when undated), over title t and its title_meta m:
-// a movie's earliest stored cinema date (title_release_date, theatrical or theatrical_limited, any source or
-// country) or TMDb's release date, whichever is earlier, so a re-release never moves it later; a series' first air
-// date. The Released cell, its sort, the title page's About and the posters' Released line read it; the In cinemas
-// column, Upcoming, the calendar and home availability keep their own dates.
-const releasedSQL = `CASE WHEN t.kind = 'movie' THEN (SELECT MIN(x) FROM (SELECT substr(d.date, 1, 10) AS x
-	FROM title_release_date d WHERE d.title_id = t.id AND d.type IN ('theatrical', 'theatrical_limited')
+// a movie's earliest stored cinema date (cinemaFirstSQL) or TMDb's release date, whichever is earlier, so a
+// re-release never moves it later; a series' first air date. The Released cell, its sort, the title page's About and
+// the posters' Release date line read it; the In cinemas column, Upcoming, the calendar and home availability keep
+// their own dates.
+const releasedSQL = `CASE WHEN t.kind = 'movie' THEN (SELECT MIN(x) FROM (SELECT ` + cinemaFirstSQL + ` AS x
 	UNION ALL SELECT NULLIF(substr(m.release_date, 1, 10), ''))) ELSE NULLIF(substr(m.release_date, 1, 10), '') END`
 
-// readReleased reads releasedSQL for the titles ids; undated titles are left out.
-func readReleased(ctx context.Context, db *sql.DB, ids []any) (map[int64]string, error) {
-	out := map[int64]string{}
-	if len(ids) == 0 {
-		return out, nil
-	}
-	err := scanAll(ctx, db, `SELECT t.id, `+releasedSQL+titleFrom+` WHERE t.id IN (`+store.Placeholders(len(ids))+`)`,
-		ids, func(r *sql.Rows) error {
-			var id int64
-			var day sql.NullString
-			if err := r.Scan(&id, &day); err != nil {
-				return err
-			}
-			if day.Valid {
-				out[id] = day.String
-			}
-			return nil
-		})
-	return out, err
-}
+// releasedCinemaSQL is true when a stored cinema date supplied releasedSQL's day (About then says "In cinemas" for one
+// still to come).
+const releasedCinemaSQL = `(t.kind = 'movie' AND COALESCE(` + cinemaFirstSQL + ` = (` + releasedSQL + `), 0))`
 
 func (g TitleGridFilter) orderBy() (string, []any) {
 	expr := ""

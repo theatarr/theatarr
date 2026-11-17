@@ -1080,6 +1080,7 @@
           "status": { "type": "string", "description": "The stored status: a movie's announced, inCinemas or released; a series' TMDb status (Returning Series, Ended, Canceled, In Production, Planned, Pilot)" },
           "original_language": { "type": "string", "description": "TMDb's original language (ISO 639-1)" },
           "released": { "type": "string", "description": "The general release day, YYYY-MM-DD: a movie's earliest stored cinema date of any kind (limited or wide, any country) or TMDb's release date, whichever is earlier; a series' first air date. What the Released column, its sort and the title page's About show" },
+          "released_cinema": { "type": "boolean", "description": "A stored cinema date (limited or wide) supplied released; the title page's About says In cinemas for such a day still to come" },
           "in_cinemas": { "type": "string", "description": "List rows, movies: the first cinema release, YYYY-MM-DD" },
           "digital_release": { "type": "string", "description": "List rows, movies: the first digital release, YYYY-MM-DD" },
           "physical_release": { "type": "string", "description": "List rows, movies: the first physical release, YYYY-MM-DD" },

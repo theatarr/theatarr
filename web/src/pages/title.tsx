@@ -121,9 +121,9 @@ function About({ d }: { d: TitleDetail }) {
   const digital = series ? undefined : d.digital_release;
   // The general release day (lib/released.ts): a movie's earliest cinema date or TMDb's date, a series' first air date.
   const releasedDay = d.released;
-  // A film still to come names the milestone when its cinema date supplied the day ("In cinemas Dec 18"), so it is not
-  // read as the home release its libraries wait for.
-  const cinemaDay = !series && !!releasedDay && releasedDay === d.in_cinemas && releasedLabel(false, releasedDay) === "Releases";
+  // A film still to come names the milestone when a stored cinema date supplied the day (the server's
+  // released_cinema: "In cinemas Dec 18"), so it is not read as the home release its libraries wait for.
+  const cinemaDay = !series && !!releasedDay && !!d.released_cinema && releasedLabel(false, releasedDay) === "Releases";
   const links = outsideLinks(d);
   return (
     <div data-testid="title-about">
