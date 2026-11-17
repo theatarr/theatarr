@@ -214,6 +214,18 @@ func TestSeriesStatus(t *testing.T) {
 			t.Errorf("%q: series status %v, want %v", scope, f.SeriesStatus, want)
 		}
 	}
+	// TMDb's In Production, Planned and Pilot count as Continuing, in the filter and its counts.
+	for _, st := range []string{"In Production", "Planned", "Pilot"} {
+		e.exec(`UPDATE title_meta SET status = ? WHERE title_id = 4`, st)
+		p = TitlePage{}
+		if e.getKey(APIBase+"/titles?series_status=continuing&q=Delta", key, &p); names(p) != "Delta" {
+			t.Errorf("%s: %q", st, names(p))
+		}
+		f = TitleFacets{}
+		if e.getKey(APIBase+"/titles/facets", key, &f); !maps.Equal(f.SeriesStatus, map[string]int{"continuing": 2, "ended": 0}) {
+			t.Errorf("%s: series status %v", st, f.SeriesStatus)
+		}
+	}
 }
 
 // Tags: the labels on the title's copies in the library, shown, counted and filtered for callers who see files only.
