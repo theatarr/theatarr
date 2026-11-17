@@ -1014,7 +1014,11 @@ title that gains a copy in one library of a group gains one in each other librar
 the title has a copy there already in any state (one removed from the library stays removed, an unmonitored one stays
 unmonitored); only an add that names that library itself restores a removed copy. Monitoring an existing copy again
 brings nothing. The new copy takes the add's monitored flag and, for a series, its seasons, preset and monitor-new
-choice; quality, profile, naming and providers are each library's own, and monitoring, removals and files stay each
+choice; when the add names no seasons (the library switch, bulk add, an add or restore without season choices) and
+the named copy was there before with season or episode choices of its own, the new copy takes those, as Bring in sync
+does (`catalog.PartnerSeasonIntent`: `CopySeasonIntent` with the episode rows filled in), so it does not monitor every
+season at the next refresh; a partner created beside a brand-new copy follows the add, and nothing is copied onto a
+partner copy that already exists; quality, profile, naming and providers are each library's own, and monitoring, removals and files stay each
 copy's own afterwards (files are not copied: the copy is wanted and searched by its own library's rules). The rule
 holds for every route that gives a title a copy (`catalog.TurnOnSynced`, beside `catalog.TurnOn`): the add sheet and
 `POST titles`, request approval, the title page's library switch and bulk add (`PUT titles/{id}/versions/{key}`),

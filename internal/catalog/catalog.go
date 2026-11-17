@@ -146,6 +146,12 @@ func Add(ctx context.Context, tx *sql.Tx, in Input, now time.Time, log *slog.Log
 	if res.New, res.Synced, err = TurnOnSynced(ctx, tx, in.Policy, titleID, keys, in.Monitored, now); err != nil {
 		return nil, err
 	}
+	if in.Kind == policy.KindSeries && len(in.Seasons) == 0 && in.Monitor == "" {
+		// An add that names no seasons: the partners follow the named copy's own season choices.
+		if err := PartnerSeasonIntent(ctx, tx, titleID, keys, res.New, res.Synced, now); err != nil {
+			return nil, err
+		}
+	}
 	res.New = append(res.New, res.Synced...)
 	for _, k := range res.New {
 		method := in.AddMethod
@@ -352,6 +358,39 @@ func TurnOnSynced(ctx context.Context, tx *sql.Tx, pol *policy.Policy, titleID i
 		return nil, nil, err
 	}
 	return created, partners, nil
+}
+
+// PartnerSeasonIntent gives the partners just created in sync with keys (TurnOnSynced) the season and episode choices
+// of the first named copy that was there before (not in created) and has some stored, as Bring in sync does
+// (CopySeasonIntent with fill). For a turn-on that names no seasons; a partner beside a brand-new copy is left as it
+// is, and nothing is copied onto a copy that already existed.
+func PartnerSeasonIntent(ctx context.Context, tx *sql.Tx, titleID int64, keys, created, partners []string,
+	now time.Time) error {
+	if len(partners) == 0 {
+		return nil
+	}
+	var had []string
+	for _, k := range keys {
+		if !slices.Contains(created, k) {
+			had = append(had, k)
+		}
+	}
+	src, err := SeasonSource(ctx, tx, titleID, had, partners)
+	if err != nil || src == 0 {
+		return err
+	}
+	m, err := LoadMonitor(ctx, tx, src)
+	if err != nil {
+		return err
+	}
+	if len(m.Seasons) == 0 {
+		var states bool
+		if err := tx.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM episode_version_state WHERE version_id = ?)`,
+			src).Scan(&states); err != nil || !states {
+			return err
+		}
+	}
+	return CopySeasonIntent(ctx, tx, titleID, src, partners, true, now)
 }
 
 // Copies are a title's version rows, in any state: library key → removed from the views.

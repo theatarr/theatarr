@@ -886,3 +886,42 @@ func TestSeriesOriginalLanguageAtRelease(t *testing.T) {
 		t.Errorf("empty answer: %q", ti.OriginalLanguage)
 	}
 }
+
+// A series whose tv-2160p copy keeps only season 1, removed and added again through that library alone with
+// tv-2160p and tv-1080p kept in sync: the partner tv-1080p is created with season 1 only, and keeps it after a
+// refresh.
+func TestSyncPartnerFollowsSeasonChoices(t *testing.T) {
+	t.Parallel()
+	e := setup(t)
+	seasons := []catalog.Season{{Number: 1, Monitored: true}}
+	for n := 2; n <= 6; n++ {
+		seasons = append(seasons, catalog.Season{Number: n})
+	}
+	id := e.add(t, catalog.Input{TvdbID: 372264, Title: "Slow Horses", Seasons: seasons})
+	e.refresh(t, id)
+	if _, err := e.st.Writer().Exec(`INSERT INTO arrview_removed_version (version_id, view, removed_at)
+		SELECT id, 'ui', 0 FROM version WHERE title_id = ? AND policy_key = 'tv-2160p'`, id); err != nil {
+		t.Fatal(err)
+	}
+	pol := *e.pol
+	pol.Library.SyncGroups = [][]string{{"tv-2160p", "tv-1080p"}}
+	e.add(t, catalog.Input{TvdbID: 372264, Title: "Slow Horses", Policy: &pol})
+	check := func(when string) {
+		t.Helper()
+		for _, k := range []string{"tv-2160p", "tv-1080p"} {
+			on := e.count(t, `SELECT COUNT(*) FROM episode_version_state s JOIN version v ON v.id = s.version_id
+				JOIN episode ep ON ep.id = s.episode_id WHERE v.title_id = ? AND v.policy_key = ? AND s.monitored = 1
+				AND ep.season = 1`, id, k)
+			all := e.count(t, `SELECT COUNT(*) FROM episode e WHERE e.title_id = ? AND e.season = 1`, id)
+			other := e.count(t, `SELECT COUNT(*) FROM episode_version_state s JOIN version v ON v.id = s.version_id
+				JOIN episode ep ON ep.id = s.episode_id WHERE v.title_id = ? AND v.policy_key = ? AND s.monitored = 1
+				AND ep.season <> 1`, id, k)
+			if on == 0 || on != all || other != 0 {
+				t.Errorf("%s: %s monitors %d of %d season 1 episodes and %d others", when, k, on, all, other)
+			}
+		}
+	}
+	check("added")
+	e.refresh(t, id)
+	check("refreshed")
+}

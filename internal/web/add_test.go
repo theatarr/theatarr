@@ -1653,6 +1653,55 @@ func TestSyncGroupsRoutes(t *testing.T) {
 	}
 }
 
+// The Show's tv-2160p copy keeps only season 1; removed and turned on again by the title page's library switch (bulk
+// add's route too) with tv-2160p and tv-1080p in sync: tv-1080p is created with season 1 only, as Bring in sync
+// would; an existing partner is not touched.
+func TestSyncPartnerTakesSeasonChoices(t *testing.T) {
+	t.Parallel()
+	e := newAddEnv(t, func(p *policy.Policy) {
+		tv := *p.Versions["tv-2160p"]
+		tv.Library = "/media/tv-1080p"
+		p.Versions["tv-1080p"] = &tv
+		p.Library.SyncGroups = [][]string{{"tv-2160p", "tv-1080p"}}
+	})
+	e.exec(`INSERT INTO series_monitor (version_id, monitor_new, seasons, updated_at) VALUES (10, 'all',
+		'{"0":false,"1":true,"2":false}', 0)`)
+	e.exec(`UPDATE episode_version_state SET monitored = 0 WHERE version_id = 10 AND episode_id = 103`)
+	e.exec(`INSERT INTO arrview_removed_version (version_id, view, removed_at) VALUES (10, 'ui', 0)`)
+	var vs VersionSet
+	e.call("PUT", APIBase+"/titles/10/versions/tv-2160p", map[string]any{"monitored": true}, 200, &vs)
+	if !slices.Equal(vs.Synced, []string{"tv-1080p"}) {
+		t.Fatalf("synced %v", vs.Synced)
+	}
+	monitored := func(k string) string {
+		var out []string
+		_ = scanAll(context.Background(), e.st.Reader(), `SELECT s.episode_id FROM episode_version_state s
+			JOIN version v ON v.id = s.version_id WHERE v.title_id = 10 AND v.policy_key = ? AND s.monitored = 1
+			ORDER BY s.episode_id`, []any{k}, func(r *sql.Rows) error {
+			var s string
+			out = append(out, s)
+			return r.Scan(&out[len(out)-1])
+		})
+		return strings.Join(out, ",")
+	}
+	if got := monitored("tv-1080p"); got != "101,102" {
+		t.Errorf("tv-1080p monitors %q, want 101,102", got)
+	}
+	if n := e.count(`SELECT COUNT(*) FROM series_monitor m JOIN version v ON v.id = m.version_id WHERE v.title_id = 10
+		AND v.policy_key = 'tv-1080p' AND m.seasons = '{"0":false,"1":true,"2":false}'`); n != 1 {
+		t.Error("tv-1080p lacks the season intent")
+	}
+	// The partner exists now: removing and restoring tv-2160p again copies nothing onto it.
+	e.exec(`UPDATE episode_version_state SET monitored = 1 WHERE episode_id = 103 AND version_id =
+		(SELECT id FROM version WHERE title_id = 10 AND policy_key = 'tv-1080p')`)
+	e.exec(`INSERT INTO arrview_removed_version (version_id, view, removed_at) VALUES (10, 'ui', 0)`)
+	vs = VersionSet{}
+	e.call("PUT", APIBase+"/titles/10/versions/tv-2160p", map[string]any{"monitored": true}, 200, &vs)
+	if got := monitored("tv-1080p"); len(vs.Synced) != 0 || got != "101,102,103" {
+		t.Errorf("existing partner: synced %v, monitors %q", vs.Synced, got)
+	}
+}
+
 // The Sonarr mass editor that makes a standard series anime and picks the anime profile creates the anime copy and
 // its anime-only partner: the edited type is stored before the copies are turned on.
 func TestSyncGroupsEditorSeriesType(t *testing.T) {
