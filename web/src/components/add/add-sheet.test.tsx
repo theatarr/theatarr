@@ -410,3 +410,43 @@ it("says what each library fetches, offers Monitor for one held unmonitored, and
   expect(fetch.calls("POST", "/titles")[0].body).toMatchObject({ title_id: 9, versions: ["movie-web"], search: true });
   await waitFor(() => expect(closed).toHaveBeenCalled());
 });
+
+it("shows a library kept in sync with a ticked one ticked and disabled, and sends only what was ticked", async () => {
+  const synced = [
+    { key: "movie-a", label: "A", grab_state: { ...gates, will_grab: true }, synced: ["movie-b"] },
+    { key: "movie-b", label: "B", grab_state: { ...gates, will_grab: true }, synced: ["movie-a"] },
+    { key: "movie-c", label: "C", grab_state: { ...gates, will_grab: true } },
+  ].map((v) => ({ ...v, kind: "movie", enable: "", fits: true, default: true, on: false, searchable: true }));
+  const fetch = mockFetch([
+    { method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["admin", "add"] } },
+    { method: "GET", path: "/add/options", reply: { ...options, versions: synced } },
+    { method: "POST", path: "/titles", reply: json({ created: true, new: ["movie-a", "movie-b"], synced: ["movie-b"], title: { id: 9, name: "Alpha", versions: [] } }) },
+  ]);
+  const user = userEvent.setup();
+  renderPage(<AddSheet target={{ kind: "movie", name: "Alpha", year: 2024, tmdb_id: 7 }} onClose={() => {}} />);
+  await screen.findByTestId("add-versions");
+  const row = (k: string) => screen.getByTestId(`add-version-${k}`);
+  const box = (k: string) => within(row(k)).getByRole("checkbox") as HTMLInputElement;
+  // Both pre-ticked: two ordinary boxes.
+  expect(screen.queryByTestId("add-synced-with")).toBeNull();
+  await user.click(box("movie-b"));
+  expect(box("movie-b").checked && box("movie-b").disabled).toBe(true);
+  expect(within(row("movie-b")).getByTestId("add-synced-with").textContent).toBe("in sync with A");
+  await user.click(box("movie-c"));
+  expect(screen.getByTestId("add-count").textContent).toBe("2 libraries");
+  await user.click(screen.getByTestId("add-submit"));
+  await waitFor(() => expect(fetch.calls("POST", "/titles")).toHaveLength(1));
+  expect((fetch.calls("POST", "/titles")[0].body as { versions: string[] }).versions).toEqual(["movie-a"]);
+  // Unticking the named library frees the partner.
+  cleanup();
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["admin", "add"] } },
+    { method: "GET", path: "/add/options", reply: { ...options, versions: synced } },
+  ]);
+  renderPage(<AddSheet target={{ kind: "movie", name: "Alpha", year: 2024, tmdb_id: 7 }} onClose={() => {}} />);
+  await screen.findByTestId("add-versions");
+  await user.click(box("movie-b"));
+  await user.click(box("movie-a"));
+  expect(box("movie-a").checked || box("movie-b").checked || box("movie-b").disabled).toBe(false);
+  expect(screen.queryByTestId("add-synced-with")).toBeNull();
+});

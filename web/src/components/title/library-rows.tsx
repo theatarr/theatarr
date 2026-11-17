@@ -34,6 +34,9 @@ import { leftoverLinks, unlinkable } from "@/lib/ops";
 import { useColumnPrefs } from "@/lib/prefs";
 import { belowCount, nextLine } from "@/lib/upgrade";
 import { cn } from "@/lib/utils";
+import { useLibraryName } from "@/lib/library-names";
+import { namesList } from "@/lib/sync-groups";
+import { toast } from "@/components/toaster";
 import { downloadReason, linksOff, verdict } from "@/lib/version-grab";
 import { mediaLine, subsList } from "@/lib/media";
 import { coverageWords, latestEvent, missingLine } from "@/lib/title-facts";
@@ -236,6 +239,7 @@ export function LibraryRows({ title, versions }: { title: TitleDetail; versions:
   const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
   const wide = useMinWidth(768);
   const setVersion = useSetVersion(titleId);
+  const libName = useLibraryName();
   const searchNow = useSearchNow(titleId);
   const [interactive, setInteractive] = useState<string | null>(null);
   // The removal dialog lives here, not in the row: it stays open while the row goes.
@@ -253,7 +257,11 @@ export function LibraryRows({ title, versions }: { title: TitleDetail; versions:
     return (
       <MonitorSwitch on={!!v.monitored} disabled={!c.can_edit || setVersion.isPending} reason={c.edit_reason}
         label={`${v.monitored ? "Unmonitor" : "Monitor"} ${nameOf(v)}`}
-        onChange={(m) => setVersion.mutate({ key: v.key ?? "", monitored: m })} testid={`version-monitor-${v.key}`} />
+        onChange={(m) => setVersion.mutate({ key: v.key ?? "", monitored: m }, {
+          onSuccess: (r) => {
+            if (r.synced?.length) toast({ tone: "ok", title: `Also added to ${namesList(r.synced.map((k) => libName(k)))} (in sync)` });
+          },
+        })} testid={`version-monitor-${v.key}`} />
     );
   };
 

@@ -30,6 +30,7 @@ import { cn } from "@/lib/utils";
 import { useLibraryName } from "@/lib/library-names";
 import { nameWithoutYear } from "@/lib/format";
 import { readableCode } from "@/lib/code-words";
+import { syncedBy } from "@/lib/sync-groups";
 
 function CheckRow({
   checked,
@@ -78,25 +79,27 @@ function SwitchRow({ on, onChange, title, detail, testid }: { on: boolean; onCha
 
 /** One library in the add drawer: the checkbox, then identity (name, key, kind) and the explanation on
  * their own wrapping rows, then the library state, so long names and narrow phones never overlap. */
-function LibraryRow({ v, checked, disabled, onChange, note, admin }: {
+function LibraryRow({ v, checked, disabled, onChange, note, admin, syncedWith }: {
   v: VersionOption;
   checked: boolean;
   disabled?: boolean;
   onChange: (v: boolean) => void;
   note?: string;
   admin: boolean;
+  /** The ticked library this one is added with because they are kept in sync: shown ticked and disabled. */
+  syncedWith?: string;
 }) {
   const id = useId();
   const nameOf = useLibraryName();
   return (
-    <div data-testid={`add-version-${v.key}`} data-checked={checked || undefined} className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 border-b border-[var(--line)] py-2.5 last:border-b-0">
+    <div data-testid={`add-version-${v.key}`} data-checked={checked || undefined} data-synced={syncedWith ? true : undefined} className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 border-b border-[var(--line)] py-2.5 last:border-b-0">
       <Checkbox id={id} checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} aria-describedby={`${id}-state`} className="mt-0.5" />
       <div className="min-w-0 space-y-1">
         <label htmlFor={id} className={cn("flex flex-wrap items-baseline gap-x-2 gap-y-0.5", !disabled && "cursor-pointer")}>
           <span className="text-sm font-medium text-[var(--ink)] [overflow-wrap:anywhere]" title={admin ? v.key : undefined}>{v.label || nameOf(v.key)}</span>
         </label>
         {fetchesWords(v) ? <p className="text-xs text-[var(--ink-2)]" title={admin && v.profile ? `Profile key ${v.profile}` : undefined} data-testid="add-fetches">{fetchesWords(v)}</p> : null}
-        {note ? <p className="text-xs text-[var(--ink-3)]">{note}</p> : null}
+        {syncedWith ? <p className="text-xs text-[var(--ink-3)]" data-testid="add-synced-with">in sync with {syncedWith}</p> : note ? <p className="text-xs text-[var(--ink-3)]">{note}</p> : null}
         <div id={`${id}-state`}><VersionStatus state={v.grab_state} settingsKey={v.key} canManage={admin} quiet /></div>
       </div>
     </div>
@@ -181,9 +184,17 @@ export function AddSheet({ target, onClose }: { target: AddTarget; onClose: () =
   // Ticked: what the user set, else the default (fits the title), else already on.
   const isOn = (v: VersionOption) => (v.on ? true : picked[v.key] ?? v.default);
   const chosen = versions.filter((v) => !v.on && isOn(v)).map((v) => v.key);
+  // The libraries kept in sync with a ticked one that gain a copy with it (the server's answer): shown ticked and
+  // disabled, and left out of the request (the server adds them).
+  const synced = syncedBy(versions, (k) => chosen.includes(k));
+  const isShown = (v: VersionOption) => isOn(v) || synced[v.key] !== undefined;
+  const syncedWith = (v: VersionOption) => {
+    const by = synced[v.key];
+    return by === undefined ? undefined : versions.find((x) => x.key === by)?.label || nameOf(by);
+  };
   const fitting = versions.filter((v) => v.fits || v.on);
   const other = versions.filter((v) => !v.fits && !v.on);
-  const selected = versions.filter(isOn);
+  const selected = versions.filter(isShown);
   // The summary counts what this click adds (the newly ticked libraries); a change of seasons alone, the libraries it
   // applies to.
   const counted = chosen.length > 0 ? selected.filter((v) => !v.on) : selected;
@@ -287,7 +298,8 @@ export function AddSheet({ target, onClose }: { target: AddTarget; onClose: () =
                     <DownloadsOffNotice off={globalOff} canManage={perms.admin} className="mb-2" />
                     <div className="border-t border-[var(--line)]" data-testid="add-versions">
                       {fitting.map((v) => (
-                        <LibraryRow key={v.key} v={v} checked={isOn(v)} disabled={v.on} admin={perms.admin} onChange={(c) => setPicked((p) => ({ ...p, [v.key]: c }))} note={heldNote(v)} />
+                        <LibraryRow key={v.key} v={v} checked={isShown(v)} disabled={v.on || syncedWith(v) !== undefined} admin={perms.admin} onChange={(c) => setPicked((p) => ({ ...p, [v.key]: c }))} note={heldNote(v)}
+                          syncedWith={syncedWith(v)} />
                       ))}
                       {fitting.length === 0 ? <p className="text-sm text-muted-foreground">No library of the policy fits this title; pick one below.</p> : null}
                     </div>
@@ -299,7 +311,8 @@ export function AddSheet({ target, onClose }: { target: AddTarget; onClose: () =
                         {showOther ? (
                           <div className="mt-2 border-t border-[var(--line)]">
                             {other.map((v) => (
-                              <LibraryRow key={v.key} v={v} checked={isOn(v)} admin={perms.admin} onChange={(c) => setPicked((p) => ({ ...p, [v.key]: c }))} note={v.anime ? "For anime titles" : "Not for anime titles"} />
+                              <LibraryRow key={v.key} v={v} checked={isShown(v)} disabled={syncedWith(v) !== undefined} admin={perms.admin} onChange={(c) => setPicked((p) => ({ ...p, [v.key]: c }))} note={v.anime ? "For anime titles" : "Not for anime titles"}
+                                syncedWith={syncedWith(v)} />
                             ))}
                           </div>
                         ) : null}

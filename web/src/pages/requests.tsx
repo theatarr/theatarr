@@ -35,6 +35,7 @@ import { Input } from "@/components/ui/input";
 import { fmtAgo, fmtTime, nameWithoutYear } from "@/lib/format";
 import { approvalWords, requestTimeline } from "@/lib/request-timeline";
 import { cn } from "@/lib/utils";
+import { syncedBy } from "@/lib/sync-groups";
 import { Pager } from "@/components/ui/pager";
 import { ProblemsList } from "@/pages/problems";
 
@@ -366,6 +367,13 @@ function ApproveEditor({ r, onDone }: { r: Request; onDone: () => void }) {
   const chosenSeasons = seasons ?? (r.seasons.length > 0 ? r.seasons : all);
   const toggle = <T,>(list: T[], v: T) => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
   const choices = (opts.data?.versions ?? []).filter((v) => v.fits || versions.includes(v.key) || v.on);
+  // A library kept in sync with a ticked one that gains a copy with it and is not on the request itself: shown ticked
+  // and disabled (the approval adds it).
+  const synced = syncedBy(opts.data?.versions ?? [], (k) => versions.includes(k));
+  const syncedName = (k: string) => {
+    const by = choices.find((v) => v.key === synced[k]);
+    return by ? by.label || by.key : synced[k];
+  };
   // Seasons edited down to none: [] on the wire means every season, so it cannot be sent for none.
   const noSeason = r.kind === "series" && seasons !== null && seasons.length === 0;
   return (
@@ -378,16 +386,17 @@ function ApproveEditor({ r, onDone }: { r: Request; onDone: () => void }) {
             <button
               key={v.key}
               type="button"
-              aria-pressed={versions.includes(v.key)}
-              disabled={v.on}
+              aria-pressed={versions.includes(v.key) || synced[v.key] !== undefined}
+              disabled={v.on || synced[v.key] !== undefined}
+              data-synced={synced[v.key] !== undefined || undefined}
               onClick={() => setVersions((l) => toggle(l, v.key))}
               className={cn(
                 "rounded-md border border-[var(--line)] px-2.5 py-1 text-xs font-medium text-[var(--ink-3)] disabled:opacity-60",
-                (versions.includes(v.key) || v.on) && "border-[var(--th-baccent)] bg-[color-mix(in_srgb,var(--accent)_14%,transparent)] text-[var(--accent-ink)]",
+                (versions.includes(v.key) || v.on || synced[v.key] !== undefined) && "border-[var(--th-baccent)] bg-[color-mix(in_srgb,var(--accent)_14%,transparent)] text-[var(--accent-ink)]",
               )}
             >
               {v.label || v.key}
-              {v.on ? " · in library" : ""}
+              {v.on ? " · in library" : synced[v.key] !== undefined ? ` · in sync with ${syncedName(v.key)}` : ""}
             </button>
           ))}
         </div>

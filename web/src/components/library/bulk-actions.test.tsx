@@ -275,6 +275,28 @@ describe("Bulk Add to a library", () => {
   });
 });
 
+describe("Bulk Add to a library kept in sync", () => {
+  it("says what else is added and counts the copies added in sync", async () => {
+    mockFetch([me(["manage", "add"]), { method: "GET", path: "/add/options", reply: { kind: "movie", anime: false, router_enabled: true, seasons: [], versions: [
+      { key: "hd", label: "HD", kind: "movie", fits: true },
+      { key: "uhd", label: "4K", kind: "movie", fits: true, synced: ["hd"] },
+    ] } },
+    { method: "PUT", path: "/titles/2/versions/uhd", reply: { synced: [] } },
+    { method: "PUT", path: "/titles/3/versions/uhd", reply: { synced: ["hd"] } },
+    { method: "PUT", path: "/titles/5/versions/uhd", reply: {} }]);
+    renderPage(<><BulkBar titles={titles} columns={columns} kinds={["movie"]} onClear={() => {}} /><Toaster /></>);
+    const user = userEvent.setup();
+    await user.click(await within(await bar()).findByRole("button", { name: "Add to a library" }));
+    let dialog = await screen.findByRole("dialog", { name: "Add 1 title to HD" });
+    expect(within(dialog).queryByTestId("bulk-add-synced")).toBeNull();
+    await user.selectOptions(within(dialog).getByRole("combobox", { name: "Library" }), "uhd");
+    dialog = await screen.findByRole("dialog", { name: "Add 3 titles to 4K" });
+    expect(within(dialog).getByTestId("bulk-add-synced").textContent).toBe("Also added to HD where a title has no copy there.");
+    await user.click(within(dialog).getByRole("button", { name: "Add 3 titles" }));
+    expect(await screen.findByText("Added 3 titles to 4K and 1 also added to HD")).toBeTruthy();
+  });
+});
+
 describe("Bulk Monitor", () => {
   it("previews every library, then the library picked in the review", async () => {
     const preview = { dry_run: true, changed: 1, unchanged: 0, missing: 0, stale: 0, message: "Would unmonitor 1 library", items: [] };

@@ -17,6 +17,7 @@ import type { CopyColumn } from "@/lib/copies";
 import { plural } from "@/lib/format";
 import { bulkRemovalScope, REMOVAL_DEBRID_NEEDS_FILES, someNames, type Scope } from "@/lib/ops";
 import { cn } from "@/lib/utils";
+import { namesList } from "@/lib/sync-groups";
 
 /** The titles a loop over the selection could not do, by the server's reason: "2 titles not removed (Alpha and
  *  Beta): …". */
@@ -210,6 +211,9 @@ export function BulkAddDialog({ titles, kinds, anime, onClose, onDone }: { title
   const todo = titles.filter((t) => t.kind === lib.kind && !inIt(t));
   const n = todo.length;
   const kindWord = lib.kind === "series" ? "series" : "movies";
+  // The libraries kept in sync with this one (the server's answer for a title that has none of them).
+  const label = (k: string) => libs.find((v) => v.key === k)?.label || k;
+  const partners = (lib.synced ?? []).map(label);
   const scope: Scope = {
     title: `Add ${plural(n, "title")} to ${name}`,
     does: [`${plural(n, "title")} ${n === 1 ? "is" : "are"} added to ${name} and monitored there: ${n === 1 ? "it is" : "they are"} wanted in that library from now on`],
@@ -227,11 +231,13 @@ export function BulkAddDialog({ titles, kinds, anime, onClose, onDone }: { title
     const failed = new Map<string, string[]>();
     let added = 0;
     let done = 0;
+    const alsoAdded: Record<string, number> = {};
     for (const t of todo) {
       if (stop.current) break;
       setProgress(done);
       try {
-        await setVersion(t.id ?? 0, lib.key, true);
+        const r = await setVersion(t.id ?? 0, lib.key, true);
+        for (const k of r.synced ?? []) alsoAdded[k] = (alsoAdded[k] ?? 0) + 1;
         added++;
       } catch (e) {
         addFailure(failed, e, t.name ?? `#${t.id}`);
@@ -240,9 +246,10 @@ export function BulkAddDialog({ titles, kinds, anime, onClose, onDone }: { title
     }
     refresh();
     const body = [...failedWords(failed, "added"), ...(done < n ? [`Stopped after ${done} of ${plural(n, "title")}.`] : [])];
+    const also = Object.entries(alsoAdded).map(([k, c]) => `${c} also added to ${label(k)}`);
     toast({
       tone: failed.size ? "warn" : "ok",
-      title: `Added ${added === n ? plural(added, "title") : `${added} of ${plural(n, "title")}`} to ${name}`,
+      title: `Added ${added === n ? plural(added, "title") : `${added} of ${plural(n, "title")}`} to ${name}${also.length ? ` and ${namesList(also)}` : ""}`,
       body: body.join(" ") || undefined,
       duration: 10_000,
     });
@@ -259,6 +266,7 @@ export function BulkAddDialog({ titles, kinds, anime, onClose, onDone }: { title
       testid="bulk-add"
       top={select}
     >
+      {partners.length > 0 ? <p className="text-xs text-[var(--ink-3)]" data-testid="bulk-add-synced">Also added to {namesList(partners)} where a title has no copy there.</p> : null}
       {progress !== null ? <p role="status" className="text-[var(--ink-2)]" data-testid="bulk-progress">Adding {progress + 1} of {n}…</p> : null}
     </ConfirmDialog>
   );
