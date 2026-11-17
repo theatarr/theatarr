@@ -33,6 +33,10 @@ function addFailure(failed: Map<string, string[]>, e: unknown, name: string) {
 /** The libraries a title's preview showed: its copies and the removed libraries whose files are left. */
 const previewKeys = (s: RemovalScope) => [...s.copies, ...s.leftover].map((c) => c.key);
 
+/** What a title's removal names: the one library chosen (the server adds the libraries kept in sync with it again),
+ *  else every library its preview showed. */
+const removalKeys = (s: RemovalScope, versions: string[]) => (versions.length ? versions : previewKeys(s));
+
 /** Whether a title still holds what its preview showed: the same libraries with the same files, and the same answer
  *  to whether it leaves the library. */
 function sameScope(was: RemovalScope, now: RemovalScope): boolean {
@@ -106,8 +110,9 @@ export function BulkRemoveDialog({ titles, libraries, onClose, onDone }: { title
       setProgress(done);
       const name = s.name;
       try {
-        // Exactly the libraries the preview showed, and only while the title still holds what it showed.
-        const keys = previewKeys(s);
+        // What the person chose (the libraries in sync follow on the server, as the preview showed), and only while
+        // the title still holds what it showed.
+        const keys = removalKeys(s, versions);
         if (!sameScope(s, await removalScopeOf(s.title_id, keys))) {
           addFailure(failed, "changed since the preview", name);
           done++;

@@ -51,8 +51,9 @@ export function RemoveDialog({ titleId, versions, onClose, kind, anime, gone = f
   const s = q.data;
   // Deleting the kept files of removed libraries is that dialog's point, not a choice: only the debrid box is offered.
   const only = leftoverOnly(s);
-  // Remove title (no libraries named) offers to keep lists from adding it again; a library's own Remove does not.
-  const whole = versions === undefined && s.title && !only;
+  // A removal that takes the title's last copies (Remove title, or a library whose libraries in sync go with it)
+  // offers to keep lists from adding it again; one that leaves a copy does not.
+  const whole = s.title && !only;
   return (
     <ConfirmDialog
       scope={removalScope(s, files, debrid, gone)}

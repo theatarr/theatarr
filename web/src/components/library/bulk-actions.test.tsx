@@ -139,6 +139,30 @@ describe("Bulk Remove", () => {
   });
 });
 
+describe("Bulk Remove in a sync group", () => {
+  it("posts the chosen library only, and the dialog names the library kept in sync with it", async () => {
+    const partner = { ...copy("uhd", "4K", 2), sync_of: "hd" };
+    const alpha = { ...scope(1, "Alpha", [copy("hd", "HD", 3), partner]), links: 4, unlink_links: 4 };
+    const { api } = setup([
+      { method: "POST", path: "/titles/removal", reply: { scopes: [alpha], skipped: [2, 3, 4, 5].map((id) => ({ title_id: id, reason: "not in this library" })) } },
+      { method: "GET", path: "/titles/1/removal", reply: alpha },
+      { method: "POST", path: "/titles/1/remove", reply: removed() },
+    ]);
+    const user = userEvent.setup();
+    await user.click(await within(await bar()).findByRole("button", { name: "Remove from a library" }));
+    const dialog = await screen.findByRole("dialog", { name: "Remove 1 title from HD" });
+    const does = within(dialog).getByTestId("confirm-does").textContent;
+    expect(does).toContain("4K is kept in sync with HD and is removed too, its files and debrid torrents too");
+    // A file both libraries link is deleted once.
+    expect(does).toContain("4 library files are deleted from the library");
+    await user.click(within(dialog).getByRole("button", { name: "Remove 1 title from HD" }));
+    await screen.findByText("Removed 1 title from HD");
+    // The person's choice, not the preview's libraries: the server adds the one kept in sync again.
+    expect(api.calls("GET", "/titles/1/removal")[0].search).toBe("?versions=hd");
+    expect(api.calls("POST", "/titles/1/remove")[0].body).toEqual({ versions: ["hd"], unlink: true, debrid: true });
+  });
+});
+
 describe("Bulk Remove after the preview", () => {
   it("removes only what the preview showed: a title that changed since is skipped and said so", async () => {
     // Previewed: Alpha in HD with no files, Beta in HD. Since then Alpha got a 4K library and a file.

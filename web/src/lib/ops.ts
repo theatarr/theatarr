@@ -124,13 +124,45 @@ export function unblockScope(release: string, copy: string, search: boolean): Sc
 
 // ---- Copies, titles and files ----
 
-export type RemovalCopyLike = { key: string; label: string; links: number; downloads: number };
-/** leftover: copies removed before whose library links are still active (an earlier removal's failed moves). */
-export type RemovalScopeLike = { name: string; title: boolean; copies: RemovalCopyLike[]; leftover?: RemovalCopyLike[] };
+/** sync_of: the named library a copy is kept in sync with, when it goes because of it (Keep in sync). */
+export type RemovalCopyLike = { key: string; label: string; links: number; downloads: number; sync_of?: string };
+/** leftover: copies removed before whose library links are still active (an earlier removal's failed moves).
+ *  links / unlink_links: the server's distinct counts (a file two libraries share counts once) of the copies' links,
+ *  and of those with the leftover copies'; without them, the per-library counts are summed. */
+export type RemovalScopeLike = { name: string; title: boolean; copies: RemovalCopyLike[]; leftover?: RemovalCopyLike[]; links?: number; unlink_links?: number };
 
 /** The library links a removal with the files deleted takes out: its copies' and the leftover copies'. */
 export function removalLinks(s: RemovalScopeLike): number {
-  return [...s.copies, ...(s.leftover ?? [])].reduce((n, c) => n + c.links, 0);
+  return s.unlink_links ?? [...s.copies, ...(s.leftover ?? [])].reduce((n, c) => n + c.links, 0);
+}
+
+/** The library links of a removal's copies (files: with the leftover copies', which only a removal with the files
+ *  takes), each file once. */
+function scopeLinks(s: RemovalScopeLike, files: boolean): number {
+  if (files) return removalLinks(s);
+  return s.links ?? s.copies.reduce((n, c) => n + c.links, 0);
+}
+
+/** "<Partner> is kept in sync with <Library> and is removed too", per partner pair of the scopes (with the number of
+ *  titles when there are several), naming its files and debrid torrents when the boxes take them. */
+function syncLines(scopes: readonly RemovalScopeLike[], files: boolean, debrid: boolean): string[] {
+  const pairs = new Map<string, { partner: string; named: string; n: number }>();
+  for (const s of scopes) {
+    for (const c of s.copies) {
+      if (!c.sync_of) continue;
+      const named = s.copies.find((x) => x.key === c.sync_of)?.label ?? c.sync_of;
+      const k = `${c.label}\u0000${named}`;
+      const p = pairs.get(k) ?? { partner: c.label, named, n: 0 };
+      p.n++;
+      pairs.set(k, p);
+    }
+  }
+  const many = scopes.length > 1;
+  return [...pairs.values()].map(({ partner, named, n }) => {
+    const its = many && n > 1 ? "their" : "its";
+    const tail = files ? (debrid ? `, ${its} files and debrid torrents too` : `, ${its} files too`) : "";
+    return `${partner} is kept in sync with ${named} and is removed too${many ? ` for ${plural(n, "title")}` : ""}${tail}`;
+  });
 }
 
 /** Whether a removal only deletes the files libraries removed before kept (the Delete files… dialog): no copy to
@@ -155,7 +187,7 @@ const SHARED_FILE_STAYS = "A file another library of the title uses stays";
  *  a file. */
 export function removalScope(s: RemovalScopeLike, files: boolean, debrid = files, gone = false): Scope {
   debrid = files && debrid;
-  const leftover = (s.leftover ?? []).reduce((n, c) => n + c.links, 0);
+  const leftover = removalLinks(s);
   const torrents = debrid ? [] : ["Its debrid torrents stay"];
   if (leftoverOnly(s)) {
     // Only the files libraries removed before kept: deleting them takes their torrents along when asked, with the
@@ -172,12 +204,13 @@ export function removalScope(s: RemovalScopeLike, files: boolean, debrid = files
       blocked: files ? undefined : "Nothing to do: the files are kept",
     };
   }
-  const links = s.copies.reduce((n, c) => n + c.links, 0) + (files ? leftover : 0);
+  const links = scopeLinks(s, files);
   const downloads = s.copies.reduce((n, c) => n + c.downloads, 0);
   const names = s.copies.map((c) => c.label).join(", ");
   const does: string[] = [];
   if (s.title) does.push(`${s.name} is removed from every library it is in (${names}): it stops being wanted, searched or upgraded there`);
   else does.push(`${s.name} is removed from ${names}: ${s.copies.length === 1 ? "this copy stops" : "these copies stop"} being wanted, searched or upgraded`);
+  does.push(...syncLines([s], files, debrid));
   // The title leaves Seerr and the arr clients only with its last copy; an app whose view covers a library it stays in
   // (a view can cover several) still shows it.
   if (s.title) does.push("It is hidden from Seerr and the other arr clients");
@@ -217,7 +250,7 @@ export function bulkRemovalScope(scopes: readonly RemovalScopeLike[], files: boo
   const n = scopes.length;
   const one = n === 1;
   const sum = (f: (s: RemovalScopeLike) => number) => scopes.reduce((t, s) => t + f(s), 0);
-  const links = sum((s) => s.copies.reduce((t, c) => t + c.links, 0) + (files ? (s.leftover ?? []).reduce((t, c) => t + c.links, 0) : 0));
+  const links = sum((s) => scopeLinks(s, files));
   const downloads = sum((s) => s.copies.reduce((t, c) => t + c.downloads, 0));
   // Titles the removal takes out of every library: all of them without a library, else those with no other.
   const whole = scopes.filter((s) => s.title).length;
@@ -241,6 +274,7 @@ export function bulkRemovalScope(scopes: readonly RemovalScopeLike[], files: boo
   }
   if (library && !partly && whole > 0) does.push(`${plural(whole, "title")} ${whole === 1 ? "is in no other library and leaves" : "are in no other library and leave"} the library`);
   if (!partly) does.push(`${they} hidden from Seerr and the other arr clients`);
+  does.push(...syncLines(scopes, files, debrid));
   if (downloads > 0) does.push(`Theatarr stops following ${plural(downloads, "download")} in progress`);
   if (files && links > 0) does.push(`${plural(links, "library file")} ${links === 1 ? "is" : "are"} deleted from the library (moved to Theatarr's trash), and the folders they leave empty are removed`);
   if (debrid) does.push(one ? REMOVAL_CLEANUP : "Their debrid torrents are deleted from the providers, after a backup, unless another title or library in Theatarr uses them");

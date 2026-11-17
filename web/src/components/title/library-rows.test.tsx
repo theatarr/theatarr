@@ -177,8 +177,8 @@ describe("fix round 1", () => {
     expect(box.checked).toBe(true);
     expect((screen.getByTestId("remove-debrid") as HTMLInputElement).checked).toBe(true);
     expect(screen.getByTestId("remove-dialog").textContent).toContain("Import lists will not restore the removed libraries; add it yourself to bring it back");
-    // Remove from this library never offers the list exclusion, even for the title's last library.
-    expect(screen.queryByTestId("remove-exclude")).toBeNull();
+    // Removing the title's last library offers the list exclusion, off by default (phase X: by the scope's title).
+    expect((screen.getByTestId("remove-exclude") as HTMLInputElement).checked).toBe(false);
     await user.click(screen.getByTestId("confirm-ok"));
     await waitFor(() => expect(fetch.calls("POST", "/titles/7/remove")).toHaveLength(1));
     expect(fetch.calls("POST", "/titles/7/remove")[0].body).toEqual({ versions: ["movie-web"], unlink: true, debrid: true });
@@ -223,6 +223,33 @@ describe("fix round 1", () => {
     await waitFor(() => expect(screen.queryByTestId("remove-dialog")).toBeNull());
     expect(screen.getByTestId("where").textContent).toBe("/title/7");
     expect(screen.getAllByTestId("toast").at(-1)?.textContent).toContain("its debrid torrents stay");
+  });
+
+  it("removes a library with the one kept in sync with it: names it, its files and torrents with the boxes, and offers the list exclusion when nothing is left", async () => {
+    const fetch = manager([
+      { method: "GET", path: "/titles/7/removal", reply: { title_id: 7, name: "Alpha", title: true, links: 1, unlink_links: 1, leftover: [], copies: [
+        { key: "movie-remux", label: "Remux", links: 1, downloads: 0, sync_of: "movie-web" }, { key: "movie-web", label: "WEB", links: 1, downloads: 0 }] } },
+      { method: "POST", path: "/titles/7/remove", reply: { title: true, cleanup: false, failed: [], kept: [], message: "Removed Alpha from the library." } },
+      { method: "GET", path: "/titles/7", reply: {} },
+    ]);
+    const user = userEvent.setup();
+    renderPage(<><LibraryRows title={title as never} versions={[web, remux] as never} /><Toaster /></>, "/title/7");
+    await user.click(await screen.findByTestId("copy-details-movie-web"));
+    await user.click(screen.getByTestId("copy-remove-movie-web"));
+    const does = () => screen.getByTestId("confirm-does").textContent;
+    await waitFor(() => expect(does()).toContain("Remux is kept in sync with WEB and is removed too, its files and debrid torrents too"));
+    // The file the two libraries share is one deletion.
+    expect(does()).toContain("1 library file is deleted from the library");
+    await user.click(screen.getByTestId("remove-files"));
+    expect(does()).toContain("Remux is kept in sync with WEB and is removed too");
+    expect(does()).not.toContain("its files");
+    expect(screen.getByTestId("confirm-keeps").textContent).toContain("1 library file stays linked and playable");
+    await user.click(screen.getByTestId("remove-files"));
+    await user.click(screen.getByTestId("remove-exclude"));
+    await user.click(screen.getByTestId("confirm-ok"));
+    await waitFor(() => expect(fetch.calls("POST", "/titles/7/remove")).toHaveLength(1));
+    // The named library only: the server takes the one in sync again.
+    expect(fetch.calls("POST", "/titles/7/remove")[0].body).toEqual({ versions: ["movie-web"], unlink: true, debrid: true, exclude: true });
   });
 
   it("says a row's search may serve the title's other Live libraries", async () => {

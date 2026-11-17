@@ -134,6 +134,30 @@ describe("recovery scopes", () => {
     expect(removalScope({ name: "X", title: false, copies: [] }, false).blocked).toBe("Nothing to remove");
   });
 
+  it("lists a library kept in sync as removed too, names its files and torrents with the boxes, and counts a shared file once", () => {
+    const s = { name: "Dune", title: true, links: 2, unlink_links: 2, copies: [
+      { key: "movie-hd", label: "HD", links: 2, downloads: 0, sync_of: "movie-web" },
+      { key: "movie-web", label: "4K WEB", links: 1, downloads: 0 },
+    ] };
+    const both = removalScope(s, true, true);
+    expect(both.does).toContain("HD is kept in sync with 4K WEB and is removed too, its files and debrid torrents too");
+    // The file both libraries link is one deletion, not two.
+    expect(both.does).toContain("2 library files are deleted from the library (moved to Theatarr's trash), and the folders they leave empty are removed");
+    expect(removalScope(s, true, false).does).toContain("HD is kept in sync with 4K WEB and is removed too, its files too");
+    const keep = removalScope(s, false);
+    expect(keep.does).toContain("HD is kept in sync with 4K WEB and is removed too");
+    expect(keep.keeps).toContain("2 library files stay linked and playable");
+    // The bulk dialog: the pair once, with its number of titles; links summed per title, each distinct.
+    const other = { name: "Arrival", title: false, links: 1, unlink_links: 1, copies: [
+      { key: "movie-hd", label: "HD", links: 1, downloads: 0, sync_of: "movie-web" },
+      { key: "movie-web", label: "4K WEB", links: 1, downloads: 0 },
+    ] };
+    const bulk = bulkRemovalScope([s, other], true, true, "4K WEB");
+    expect(bulk.does).toContain("HD is kept in sync with 4K WEB and is removed too for 2 titles, their files and debrid torrents too");
+    expect(bulk.does).toContain("3 library files are deleted from the library (moved to Theatarr's trash), and the folders they leave empty are removed");
+    expect(bulkRemovalScope([s], false, false, "4K WEB").does).toContain("HD is kept in sync with 4K WEB and is removed too");
+  });
+
   it("offers to delete the files removed libraries kept, with or without their torrents", () => {
     const left = { key: "movie-web", label: "4K WEB", links: 2, downloads: 0 };
     const s = removalScope({ name: "Dune", title: false, copies: [], leftover: [left] }, true);
