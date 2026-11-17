@@ -310,7 +310,9 @@ existing redaction applies). Household accounts get none of it.
   library without a file, "Not in the library yet" in none), small-caps fact rows; the action bar and the **Libraries**
   table sit under the hero. Pause is said once for the page, under the action bar, and the Episodes tab leaves it to that notice.
 - **Activity**: for accounts that see files, Queue, History and Blocklist are tables (shared `DataTable`) whose rows
-  open into their details in place; household accounts and "View as a user" keep the simple rows. **Downloading**
+  open into their details in place; household accounts and "View as a user" keep the simple rows. When a background refresh of the Queue or History fails, the rows already shown stay, under "Could not refresh.
+  Showing the list from HH:MM." with **Retry**, and their actions stay enabled (the server checks each by id); the full
+  error shows only when nothing was loaded yet (`StaleNotice`, `components/activity/row-bits.tsx`). **Downloading**
   counts only provider transfers in progress; starting (the provider add) and linking count under **Waiting**, the
   filter their library stage links open; failures count under **Needs attention**. On phones the tables become
   cards and the History filters stack one per line with the date input full width.

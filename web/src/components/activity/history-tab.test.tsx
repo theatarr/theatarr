@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
-import { screen, waitFor } from "@testing-library/react";
+import { cleanup, screen, waitFor, within } from "@testing-library/react";
+import { focusManager } from "@tanstack/react-query";
 import userEvent from "@testing-library/user-event";
 import { expect, it } from "vitest";
-import { mockFetch, renderPage } from "@/test/page";
+import { json, mockFetch, renderPage } from "@/test/page";
 import { EpisodeHistoryRows, HistoryTab } from "./history-tab";
 
 const me = { id: 9, username: "manager", permissions: ["browse", "see_files", "manage"], csrf_token: "t" };
@@ -146,4 +147,32 @@ it("shows the episode window's rows in the same table and words, without the epi
   expect(got[1].querySelector('[data-testid="history-episodes"]')?.textContent).toBe("S01E01 S01E02");
   expect(got[0].querySelector('[data-column="library"]')).toBeNull();
   expect(got[0].querySelector('[data-column="date"]')).toBeTruthy();
+});
+
+it("keeps the last rows with a notice and Retry when a refresh fails; the full error only with no rows", async () => {
+  let fail = false;
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: me },
+    { method: "GET", path: "/activity", reply: () => (fail ? json({ error: "boom" }, 500) : { state: "history", admin: true, history: [grab] }) },
+  ]);
+  renderPage(<HistoryTab admin titleId={1} />, "/title/1?tab=history");
+  expect(await screen.findAllByTestId("history-row")).toHaveLength(1);
+  fail = true;
+  focusManager.setFocused(false);
+  focusManager.setFocused(true);
+  const notice = await screen.findByTestId("stale-notice");
+  expect(notice.textContent).toMatch(/^Could not refresh\. Showing the list from .+\.Retry$/);
+  expect(screen.getAllByTestId("history-row")).toHaveLength(1);
+  expect(screen.queryByText("Could not load this")).toBeNull();
+  fail = false;
+  await userEvent.setup().click(within(notice).getByRole("button", { name: "Retry" }));
+  await waitFor(() => expect(screen.queryByTestId("stale-notice")).toBeNull());
+  cleanup();
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: me },
+    { method: "GET", path: "/activity", reply: json({ error: "boom" }, 500) },
+  ]);
+  renderPage(<HistoryTab admin titleId={1} />, "/title/1?tab=history");
+  expect(await screen.findByText("Could not load this")).toBeTruthy();
+  expect(screen.queryByTestId("stale-notice")).toBeNull();
 });

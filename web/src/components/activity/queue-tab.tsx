@@ -13,7 +13,7 @@ import { useAuth } from "@/api/auth";
 import { usePerms } from "@/api/library";
 import { BulkDialog, SelectionLine, useChosen } from "@/components/activity/bulk";
 import { DownloadActions } from "@/components/activity/download-actions";
-import { Dash, episodesWords, FormatPills, Poster, tight, TitleLine } from "@/components/activity/row-bits";
+import { Dash, episodesWords, FormatPills, Poster, StaleNotice, tight, TitleLine } from "@/components/activity/row-bits";
 import { ProgressBar, StepTrack, toneOf } from "@/components/activity-bits";
 import { Empty, ErrorState, Loading, VersionTag } from "@/components/page";
 import { Badge } from "@/components/ui/badge";
@@ -519,7 +519,8 @@ export function QueueTab({ admin, as, show, onShow }: { admin: boolean; as?: "us
   const [dialog, setDialog] = useState<"columns" | "meanings" | null>(null);
   const [sp] = useSearchParams();
   if (q.isPending) return <Loading />;
-  if (q.error) return <ErrorState error={q.error} />;
+  // A failed background refresh keeps the last rows (StaleNotice); the full error only when there are none.
+  if (q.error && !q.data) return <ErrorState error={q.error} />;
   const all = q.data.now ?? [];
   const counts = showCounts(all, now);
   const items = filterDownloads(all, show, now);
@@ -563,6 +564,7 @@ export function QueueTab({ admin, as, show, onShow }: { admin: boolean; as?: "us
           </>
         ) : null}
       </div>
+      {q.error ? <StaleNotice at={q.dataUpdatedAt} onRetry={() => void q.refetch()} retrying={q.isFetching} /> : null}
       {deepWhere ? (
         <p role="status" className="mb-3 text-sm text-muted-foreground" data-testid="open-missing">
           {deepWhere === "hidden" ? (

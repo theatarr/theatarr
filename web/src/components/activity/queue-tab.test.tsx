@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { focusManager } from "@tanstack/react-query";
 import { afterEach, expect, it } from "vitest";
 import { Toaster } from "@/components/toaster";
-import { mockFetch, renderPage } from "@/test/page";
+import { json, mockFetch, renderPage } from "@/test/page";
 import { QueueTab } from "./queue-tab";
 
 const me = { id: 9, username: "manager", permissions: ["browse", "see_files", "manage"], csrf_token: "t" };
@@ -263,4 +263,33 @@ it("says why the library refused a download in plain words, offers Dismiss not R
   const details = screen.getByTestId("failed-details");
   expect(within(details).getByText("Technical details")).toBeTruthy();
   expect(within(details).getByText("library: no file passed the sample guard")).toBeTruthy();
+});
+
+it("keeps the last rows with a notice and Retry when a refresh fails, actions still enabled; the full error only with no rows", async () => {
+  let fail = false;
+  const fetch = mockFetch([
+    { method: "GET", path: "/auth/me", reply: me },
+    { method: "GET", path: "/activity", reply: () => (fail ? json({ error: "boom" }, 500) : { state: "now", admin: true, total: 1, now: [downloading(21, "Delta")] }) },
+  ]);
+  renderPage(<QueueTab admin show="all" onShow={() => {}} />, "/activity");
+  expect(await screen.findByText("Delta")).toBeTruthy();
+  fail = true;
+  refetch();
+  const notice = await screen.findByTestId("stale-notice");
+  expect(notice.textContent).toMatch(/^Could not refresh\. Showing the list from .+\.Retry$/);
+  expect(screen.getByText("Delta")).toBeTruthy();
+  expect(screen.queryByText("Could not load this")).toBeNull();
+  expect(screen.getByRole("checkbox", { name: "Select all 1 shown" })).not.toHaveProperty("disabled", true);
+  fail = false;
+  await userEvent.setup().click(within(notice).getByRole("button", { name: "Retry" }));
+  await waitFor(() => expect(screen.queryByTestId("stale-notice")).toBeNull());
+  expect(fetch.calls("GET", "/activity").length).toBe(3);
+  cleanup();
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: me },
+    { method: "GET", path: "/activity", reply: json({ error: "boom" }, 500) },
+  ]);
+  renderPage(<QueueTab admin show="all" onShow={() => {}} />, "/activity");
+  expect(await screen.findByText("Could not load this")).toBeTruthy();
+  expect(screen.queryByTestId("stale-notice")).toBeNull();
 });

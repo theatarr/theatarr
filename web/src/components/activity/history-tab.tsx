@@ -16,7 +16,7 @@ import { useActivityHistory, type ActivityEvent } from "@/api/activity";
 import { usePerms } from "@/api/library";
 import { HistoryRetry } from "@/components/activity/download-actions";
 import { HistoryFilters, useHistoryFilters } from "@/components/activity/history-filters";
-import { Dash, episodesWords, FormatPills, Poster, tight } from "@/components/activity/row-bits";
+import { Dash, episodesWords, FormatPills, Poster, StaleNotice, tight } from "@/components/activity/row-bits";
 import { Empty, ErrorState, Loading, VersionTag } from "@/components/page";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -268,6 +268,9 @@ export function HistoryTab({ admin, as, titleId }: { admin: boolean; as?: "user"
   const q = useActivityHistory({ as }, titleId ? { title_id: titleId } : historyParams(filters));
   const [prefs, savePrefs] = useColumnPrefs("activity-history", HISTORY_COLUMNS, HISTORY_DEFAULT);
   const [picking, setPicking] = useState(false);
+  // A failed background refresh keeps the last rows of these filters (StaleNotice); the full error only when there
+  // are none (a first load, or new filters still showing the old ones' rows).
+  const failed = q.error && (!q.data || q.isPlaceholderData);
   const columns = admin ? (
     <Button variant="outline" size="sm" aria-label="Columns" onClick={() => setPicking(true)}>
       <Columns3 />
@@ -277,7 +280,12 @@ export function HistoryTab({ admin, as, titleId }: { admin: boolean; as?: "user"
   return (
     <div>
       {titleId ? (columns ? <div className="mb-3 flex justify-end">{columns}</div> : null) : <HistoryFilters admin={admin} tools={columns} />}
-      {q.isPending ? <Loading /> : q.error ? <ErrorState error={q.error} /> : <HistoryList q={q} admin={admin} prefs={prefs} filtered={!titleId && historyFilterCount(filters) > 0} withTitle={!titleId} />}
+      {q.isPending ? <Loading /> : failed ? <ErrorState error={q.error} /> : (
+        <>
+          {q.error ? <StaleNotice at={q.dataUpdatedAt} onRetry={() => void q.refetch()} retrying={q.isFetching} /> : null}
+          <HistoryList q={q} admin={admin} prefs={prefs} filtered={!titleId && historyFilterCount(filters) > 0} withTitle={!titleId} />
+        </>
+      )}
       {picking ? (
         <ColumnPicker
           label="History columns"

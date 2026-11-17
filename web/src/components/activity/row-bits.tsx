@@ -1,11 +1,13 @@
 // Small pieces the Activity tabs share (pages/activity.tsx): the poster thumbnail, a download's title line, the
 // episodes in short, the matched formats as pills, and the dash an unknown value shows.
+import { AlertTriangle, Loader2, RotateCcw } from "lucide-react";
 import { Link } from "react-router";
 import type { ActivityDownload } from "@/api/activity";
 import type { DataColumn } from "@/components/ui/data-table";
 import { kindLabel } from "@/components/activity-bits";
 import { cn } from "@/lib/utils";
-import { nameWithoutYear, plural } from "@/lib/format";
+import { Button } from "@/components/ui/button";
+import { fmtClock, nameWithoutYear, plural } from "@/lib/format";
 
 export function Poster({ src, className }: { src: string; className?: string }) {
   return (
@@ -71,4 +73,19 @@ export function FormatPills({ formats }: { formats?: readonly { name: string; sc
 /** Tighter cells than the kit's, so the default columns fit a 1400 px window beside the sidebar. */
 export function tight<T>(columns: readonly DataColumn<T>[]): DataColumn<T>[] {
   return columns.map((c) => ({ ...c, headClassName: cn("px-2", c.headClassName), cellClassName: cn("px-2", c.cellClassName) }));
+}
+
+/** A background refresh failed while rows are shown: they stay, under this notice with Retry (the Queue and History;
+ *  the full error only when nothing was loaded yet). at: when the rows were read (the query's dataUpdatedAt). */
+export function StaleNotice({ at, onRetry, retrying }: { at: number; onRetry: () => void; retrying: boolean }) {
+  return (
+    <div role="status" data-testid="stale-notice" className="mb-3 flex flex-wrap items-center gap-3 rounded-[5px] border border-l-[3px] border-[var(--line)] border-l-[var(--warn)] bg-[var(--surface)] px-4 py-2 text-[13px] text-[var(--ink-2)]">
+      <AlertTriangle className="size-4 shrink-0 text-[var(--warn)]" aria-hidden />
+      <span className="min-w-0 flex-1">Could not refresh. Showing the list from {fmtClock(new Date(at))}.</span>
+      <Button variant="outline" size="sm" onClick={onRetry} disabled={retrying}>
+        {retrying ? <Loader2 className="animate-spin" /> : <RotateCcw />}
+        Retry
+      </Button>
+    </div>
+  );
 }
