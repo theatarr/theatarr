@@ -118,6 +118,9 @@ type VersionOption struct {
 	// Searchable: a search would run for it (router on); Reason says why not.
 	Searchable bool   `json:"searchable"`
 	Reason     string `json:"reason,omitempty"`
+	// Synced: the libraries that would gain a copy too if the add ticks this one, because they are in sync with it
+	// (catalog.SyncPartners: removed and existing copies are left out); absent when none.
+	Synced []string `json:"synced,omitempty"`
 }
 
 // SeasonOption is a season of a series in the add sheet.
@@ -240,6 +243,8 @@ func (w *Web) apiAddOptions(rw http.ResponseWriter, r *http.Request) {
 	anime, _ := strconv.ParseBool(q.Get("anime"))
 	seeFiles := w.permsOf(r).SeeFiles
 	var on, held []string
+	var copies catalog.Copies
+	fitAnime := anime // whether a library in sync fits, as catalog.TurnOnSynced reads it
 	if t != nil {
 		kind = t.kind
 		// A title every copy of which was removed is added like a new one: the anime choice the sheet sends decides.
@@ -250,6 +255,15 @@ func (w *Web) apiAddOptions(rw http.ResponseWriter, r *http.Request) {
 			w.internal(rw, err)
 			return
 		}
+		var typeAnime bool
+		if copies, err = catalog.LoadCopies(ctx, w.st.Reader(), t.id); err == nil {
+			_, typeAnime, err = catalog.TitleFit(ctx, w.st.Reader(), t.id)
+		}
+		if err != nil {
+			w.internal(rw, err)
+			return
+		}
+		fitAnime = anime || typeAnime
 		if tmdbID == 0 {
 			tmdbID = t.tmdbID
 		}
@@ -310,6 +324,9 @@ func (w *Web) apiAddOptions(rw http.ResponseWriter, r *http.Request) {
 		}
 		if o.Default && o.Searchable {
 			out.CanSearch = true
+		}
+		if o.Fits {
+			o.Synced = catalog.SyncPartners(w.pol, kind, fitAnime, copies, []string{k})
 		}
 		out.Versions = append(out.Versions, o)
 	}
@@ -444,6 +461,13 @@ type AddedTitle struct {
 	Monitored bool           `json:"monitored"`
 	Versions  []VersionBrief `json:"versions"`
 	TitleArt
+}
+
+// VersionSet is the answer to PUT /titles/{id}/versions/{key}: the title, and Synced, the libraries the change added
+// because they are in sync with the key (as AddResult's).
+type VersionSet struct {
+	AddedTitle
+	Synced []string `json:"synced,omitempty"`
 }
 
 // AddResult is the answer to POST /titles.
@@ -915,7 +939,8 @@ func (w *Web) apiSearchNow(rw http.ResponseWriter, r *http.Request) {
 
 // PUT /titles/{id}/versions/{key} {monitored}: turn a version on (created wanted, or restored and monitored) or off
 // (unmonitored; its rows, files and links stay). A version created or restored brings the libraries in sync with it
-// (catalog.TurnOnSynced); one monitored again brings none. Never searches. 200 with the title.
+// (catalog.TurnOnSynced); one monitored again brings none. Never searches. 200 with the title and the keys added in
+// sync (VersionSet).
 func (w *Web) apiSetVersion(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	id, ok := pathID(r)
@@ -953,9 +978,13 @@ func (w *Web) apiSetVersion(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	now := w.now()
+	var synced []string
 	err = w.st.WriteTx(ctx, func(tx *sql.Tx) error {
+		synced = nil
 		if *req.Monitored {
-			created, synced, err := catalog.TurnOnSynced(ctx, tx, w.pol, id, []string{key}, true, now)
+			var created []string
+			var err error
+			created, synced, err = catalog.TurnOnSynced(ctx, tx, w.pol, id, []string{key}, true, now)
 			if err != nil {
 				return err
 			}
@@ -980,5 +1009,5 @@ func (w *Web) apiSetVersion(rw http.ResponseWriter, r *http.Request) {
 		w.internal(rw, fmt.Errorf("version: reading title %d back: %v", id, err))
 		return
 	}
-	writeJSON(rw, http.StatusOK, out)
+	writeJSON(rw, http.StatusOK, VersionSet{AddedTitle: *out, Synced: synced})
 }

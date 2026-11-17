@@ -117,7 +117,7 @@ export function useAddTitle() {
 
 /** PUT /titles/{id}/versions/{key}: add the title to a library (monitored), or stop monitoring it there. Never searches. */
 export const setVersion = (titleId: number, key: string, monitored: boolean) =>
-  api<AddedTitle>(`/titles/${titleId}/versions/${encodeURIComponent(key)}`, { method: "PUT", body: { monitored } });
+  api<Schemas["VersionSet"]>(`/titles/${titleId}/versions/${encodeURIComponent(key)}`, { method: "PUT", body: { monitored } });
 
 export function useSetVersion(titleId: number) {
   const qc = useQueryClient();

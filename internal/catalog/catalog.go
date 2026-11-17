@@ -322,65 +322,89 @@ func TurnOn(ctx context.Context, tx *sql.Tx, titleID int64, keys []string, monit
 }
 
 // TurnOnSynced is TurnOn for every route that gives a title a copy, plus the sync groups (policy library.sync_groups,
-// docs/design/ui.md "Keep in sync"): a key that gains a copy here (created, or restored after a removal) brings the
-// other libraries of its group that fit the title (by kind, and anime by the title's flag or series type) and that
-// the title has no copy of in any state, created with the same monitored flag. A partner the title has a copy of,
-// removed or unmonitored, is left as it is; one named in keys is turned on as named. Monitoring an existing copy
-// again brings nothing. created are the named keys' new rows (as TurnOn returns them); partners the rows created for
-// the groups. A nil policy, or one without groups, is TurnOn.
+// docs/design/ui.md "Keep in sync"): the partners SyncPartners answers for the title's copies before this call are
+// created with the same monitored flag. created are the named keys' new rows (as TurnOn returns them); partners the
+// rows created for the groups. A nil policy, or one without groups, is TurnOn.
 func TurnOnSynced(ctx context.Context, tx *sql.Tx, pol *policy.Policy, titleID int64, keys []string, monitored bool,
 	now time.Time) (created, partners []string, err error) {
-	var gains []string
-	held := map[string]bool{} // the title's copies before this call: key → removed
 	if slices.ContainsFunc(keys, func(k string) bool { return pol.SyncGroup(k) != nil }) {
-		rows, err := tx.QueryContext(ctx, `SELECT v.policy_key, EXISTS (SELECT 1 FROM arrview_removed_version r
-			WHERE r.version_id = v.id) FROM version v WHERE v.title_id = ?`, titleID)
+		held, err := LoadCopies(ctx, tx, titleID)
 		if err != nil {
 			return nil, nil, err
 		}
-		for rows.Next() {
-			var k string
-			var removed bool
-			if err := rows.Scan(&k, &removed); err != nil {
-				rows.Close()
-				return nil, nil, err
-			}
-			held[k] = removed
-		}
-		if err := rows.Close(); err != nil {
+		kind, anime, err := TitleFit(ctx, tx, titleID)
+		if err != nil {
 			return nil, nil, err
 		}
-		for _, k := range keys {
-			if removed, has := held[k]; pol.SyncGroup(k) != nil && (!has || removed) {
-				gains = append(gains, k)
-			}
-		}
+		partners = SyncPartners(pol, kind, anime, held, keys)
 	}
-	if created, err = TurnOn(ctx, tx, titleID, keys, monitored, now); err != nil || len(gains) == 0 {
+	if created, err = TurnOn(ctx, tx, titleID, keys, monitored, now); err != nil || len(partners) == 0 {
 		return created, nil, err
 	}
-	var kind policy.Kind
-	var anime bool
-	if err := tx.QueryRowContext(ctx, `SELECT t.kind, t.anime OR `+store.SeriesTypeSQL("t")+` = 'anime' FROM title t
-		WHERE t.id = ?`, titleID).Scan(&kind, &anime); err != nil {
+	if _, err := TurnOn(ctx, tx, titleID, partners, monitored, now); err != nil {
 		return nil, nil, err
 	}
-	for _, k := range gains {
-		for _, p := range pol.SyncGroup(k) {
+	return created, partners, nil
+}
+
+// Copies are a title's version rows, in any state: library key → removed from the views.
+type Copies map[string]bool
+
+// RowsQuerier runs a query that returns rows (a *sql.Tx or *sql.DB).
+type RowsQuerier interface {
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+}
+
+// LoadCopies reads the title's version rows (Copies).
+func LoadCopies(ctx context.Context, q RowsQuerier, titleID int64) (Copies, error) {
+	rows, err := q.QueryContext(ctx, `SELECT v.policy_key, EXISTS (SELECT 1 FROM arrview_removed_version r
+		WHERE r.version_id = v.id) FROM version v WHERE v.title_id = ?`, titleID)
+	if err != nil {
+		return nil, err
+	}
+	out := Copies{}
+	for rows.Next() {
+		var k string
+		var removed bool
+		if err := rows.Scan(&k, &removed); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		out[k] = removed
+	}
+	return out, rows.Close()
+}
+
+// TitleFit is what decides whether a library fits the title: its kind, and anime by the title's flag or a series
+// type of anime.
+func TitleFit(ctx context.Context, q Querier, titleID int64) (kind policy.Kind, anime bool, err error) {
+	err = q.QueryRowContext(ctx, `SELECT t.kind, t.anime OR `+store.SeriesTypeSQL("t")+` = 'anime' FROM title t
+		WHERE t.id = ?`, titleID).Scan(&kind, &anime)
+	return kind, anime, err
+}
+
+// SyncPartners answers, without writing, which libraries would gain a copy because they are in sync with keys
+// (policy library.sync_groups, docs/design/ui.md "Keep in sync") when a title of this kind and anime rule, holding
+// held (nil or empty: a title not in the catalogue), gains copies in keys: a named key that gains a copy (none yet, or
+// a removed one restored) brings each other library of its group that fits the title, is not named itself and of
+// which the title has no copy in any state. A removed or unmonitored partner copy is left as it is; monitoring an
+// existing copy again brings nothing. Sorted; nil when none. This is the one place of the rule.
+func SyncPartners(pol *policy.Policy, kind policy.Kind, anime bool, held Copies, keys []string) []string {
+	var partners []string
+	for _, k := range keys {
+		g := pol.SyncGroup(k)
+		if removed, has := held[k]; g == nil || has && !removed {
+			continue
+		}
+		for _, p := range g {
 			if _, has := held[p]; !has && !slices.Contains(keys, p) && !slices.Contains(partners, p) &&
 				Fits(pol.Versions[p], kind, anime) {
 				partners = append(partners, p)
 			}
 		}
 	}
-	if len(partners) == 0 {
-		return created, nil, nil
-	}
 	slices.Sort(partners)
-	if _, err := TurnOn(ctx, tx, titleID, partners, monitored, now); err != nil {
-		return nil, nil, err
-	}
-	return created, partners, nil
+	return partners
 }
 
 // ChoiceKeys are the libraries of keys an add stores its minimum availability choice for: every one it names, and
