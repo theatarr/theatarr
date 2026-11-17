@@ -943,7 +943,7 @@
         "default": "true",
         "label": "Only add cached releases",
         "type": "boolean",
-        "help": "This skips a provider where a release is known to be uncached (an earlier refusal, a cache check) and asks TorBox to add only if cached.",
+        "help": "This skips a provider known not to have the release cached. TorBox refuses an uncached add; Real-Debrid and AllDebrid add to check, then delete an uncached add Theatarr just made (AllDebrid: if \"Delete uncached AllDebrid adds\" is on).",
         "nullable": true
       },
       {

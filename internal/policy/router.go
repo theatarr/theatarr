@@ -15,10 +15,11 @@ type Router struct {
 	// Enabled lets the router write to debrid providers (add a magnet, select files). With database settings it is
 	// derived from Pause (true when Pause is off). False: every route is a dry run.
 	Enabled bool `yaml:"enabled"`
-	// CachedOnly skips a provider where a release is known to be uncached (an earlier refusal, a cache check) and asks
-	// TorBox to add only if cached. On Real-Debrid and AllDebrid an add is read back at once: one that is not ready
-	// within CachedGrace is deleted again when it is provably ours (on AllDebrid only with AllDebridDeleteUncached),
-	// and the next provider is tried. Default true.
+	// CachedOnly skips a provider known not to have the release cached. TorBox refuses an uncached add; Real-Debrid
+	// and AllDebrid add to check, then delete an uncached add Theatarr just made (AllDebrid: if "Delete uncached
+	// AllDebrid adds" is on). In detail: a release is known uncached from an earlier refusal or a cache check; on
+	// Real-Debrid and AllDebrid an add is read back at once, one not ready within CachedGrace is deleted when it is
+	// provably ours (on AllDebrid only with AllDebridDeleteUncached), and the next provider is tried. Default true.
 	CachedOnly *bool `yaml:"cached_only"`
 	// AllDebridDeleteUncached lets "Only add cached releases" delete an uncached AllDebrid add the router believes is
 	// its own. Off: the add is kept, it finishes downloading on AllDebrid, and the next provider is tried. Default on

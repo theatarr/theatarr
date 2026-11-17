@@ -446,7 +446,7 @@ may use is never deleted. Code: `internal/router/uncached.go`, `internal/provide
 
 decypharr (`pkg/manager/processor.go` `SubmitMagnet`, the providers' `CheckStatus`) with `download_uncached: false`
 adds, reads the status, takes `downloaded` as cached and anything still fetching as not cached, deletes that torrent
-id (`TorrentNotCachedError`) and tries the next debrid. Theatarr does the same with `router.cached_only`, on RD and AD:
+id (`TorrentNotCachedError`) and tries the next debrid. Theatarr does the same with `router.cached_only` (Settings label "Only add cached releases"; its help says TorBox refuses an uncached add, Real-Debrid and AllDebrid add to check, then delete an uncached add Theatarr just made, AllDebrid only while "Delete uncached AllDebrid adds" is on), on RD and AD:
 
 **Before the add (the guard).** Is the hash already on that account?
 - a torrent of the hash in the record (`provider_torrent`: the provider sync's last complete listing of the account,

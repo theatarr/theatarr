@@ -177,7 +177,7 @@
     "alldebrid_delete_uncached": "This lets \"Only add cached releases\" delete an uncached AllDebrid add the router believes is its own. Off: the add is kept, it finishes downloading on AllDebrid, and the next provider is tried.",
     "cache_evidence": "This is what the router and the release views know about which providers hold a release cached.",
     "cached_grace": "This is how long the router waits before reading a fresh Real-Debrid or AllDebrid add again when the first read shows it still converting or downloading (one re-read; on Real-Debrid also after selecting files), before it calls the add…",
-    "cached_only": "This skips a provider where a release is known to be uncached (an earlier refusal, a cache check) and asks TorBox to add only if cached.",
+    "cached_only": "This skips a provider known not to have the release cached. TorBox refuses an uncached add; Real-Debrid and AllDebrid add to check, then delete an uncached add Theatarr just made (AllDebrid: if \"Delete uncached AllDebrid adds\" is on).",
     "downloading_timeout": "This fails a download in state downloading whose provider progress has not risen for this long (a dead swarm, a magnet that never leaves the provider's queue): its hash is blocklisted for the version, our own Real-Debrid add is deleted…",
     "enabled": "This lets the router write to debrid providers (add a magnet, select files). With database settings it is derived from Pause (true when Pause is off). False: every route is a dry run.",
     "max_candidates": "This caps how many accepted releases of one search are tried, best first. Default 5, 1 to 50.",
