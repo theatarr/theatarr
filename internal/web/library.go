@@ -856,11 +856,12 @@ func readVersionFiles(ctx context.Context, db *sql.DB, ids []any) (*versionFiles
 	var rows []row
 	var linkIDs []int64
 	var hashes []string
-	if err := scanAll(ctx, db, `SELECT lv.version_id, l.id, COALESCE(l.quality, ''), COALESCE(`+linkSizeSQL+`, 0), l.created_at, l.path, `+linkHashSQL+` FROM link_version lv
+	if err := scanAll(ctx, db, `SELECT lv.version_id, l.id, COALESCE(l.quality, ''), COALESCE(`+linkSizeSQL+`, 0), l.created_at, l.path, `+linkHashSQL+`, `+itemFileUpgradeSQL+` FROM link_version lv
 		JOIN link l ON l.id = lv.link_id LEFT JOIN content_file cf ON cf.id = l.content_file_id
+		LEFT JOIN download d ON d.id = l.download_id
 		WHERE lv.version_id IN (`+store.Placeholders(len(ids))+`) AND l.state = 'active'`, ids, func(r *sql.Rows) error {
 		var x row
-		if err := r.Scan(&x.vid, &x.f.key, &x.f.quality, &x.f.size, &x.f.added, &x.path, &x.hash); err != nil {
+		if err := r.Scan(&x.vid, &x.f.key, &x.f.quality, &x.f.size, &x.f.added, &x.path, &x.hash, &x.f.since, &x.f.hash); err != nil {
 			return err
 		}
 		rows = append(rows, x)

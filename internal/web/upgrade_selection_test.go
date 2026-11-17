@@ -178,3 +178,76 @@ func TestUpgradeFoundCountsOnlyARealTryWhenItFailed(t *testing.T) {
 		t.Fatalf("failed after the sighting: %s, want below_cutoff", got)
 	}
 }
+
+// seriesUpgrades explains The Show's tv-2160p through both file readers (the title page's and the list rows'): per
+// episode whether an upgrade was found, and the version's Seen count.
+func seriesUpgrades(t *testing.T, e *manageEnv) (map[int64]bool, int) {
+	t.Helper()
+	v := upgradeVersion{id: 10, titleID: 10, key: "tv-2160p", kind: "series", state: "filled"}
+	s, err := e.web.loadUpgrades(context.Background(), e.st.Reader(), []upgradeVersion{v}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	vf, err := readVersionFiles(context.Background(), e.st.Reader(), []any{int64(10)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows, err := e.web.upgradesWith(context.Background(), e.st.Reader(), []upgradeVersion{v}, vf.items, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := s.episodeSeen(v)
+	if got := rows.episodeSeen(v); len(got) != len(seen) || got[101] != seen[101] || got[102] != seen[102] {
+		t.Fatalf("the two file readers differ: %v and %v", seen, got)
+	}
+	return seen, s.explain(v, 0).Seen
+}
+
+// T32: a sighting of the torrent an episode's file came from is no upgrade of that episode; another episode of the
+// same pack still counts it.
+func TestUpgradeSkipsTheHeldTorrent(t *testing.T) {
+	t.Parallel()
+	e := newManageEnv(t, nil)
+	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, state,
+		created_at, updated_at) VALUES (77, 10, 10, 'tv-2160p', 'ffff', 'The.Show.S01.2160p.WEB-DL-FLUX', 'x', 'imported', 900, 900)`)
+	e.exec(`UPDATE link SET download_id = 77 WHERE id = 900`)
+	e.exec(`INSERT INTO journal_decision (source,title_id,version_key,target,created_at,candidates) VALUES
+		('search',10,'tv-2160p','s01',6000,'[{"release":"The.Show.S01.2160p.WEB-DL-FLUX","info_hash":"FFFF","accepted":true,
+		  "upgrade":true,"score":3375,"upgrade_reason":"better format score: 3375 over 3225","episodes":["S01E01","S01E02"]}]')`)
+	seen, n := seriesUpgrades(t, e)
+	if seen[101] || !seen[102] || n != 1 {
+		t.Fatalf("held torrent: seen %v, count %d; want S01E02 only", seen, n)
+	}
+}
+
+// T32: an import that replaced the file at the same path keeps the link's created time; a sighting older than the
+// download of the file now there judged the old file and does not count. A newer better release still does.
+func TestUpgradeEvidenceFloorIsTheCurrentDownload(t *testing.T) {
+	t.Parallel()
+	e := newManageEnv(t, nil)
+	v := upgradeVersion{id: 1, titleID: 1, key: "movie-remux", kind: "movie", state: "filled"}
+	state := func() *UpgradeInfo {
+		t.Helper()
+		s, err := e.web.loadUpgrades(context.Background(), e.st.Reader(), []upgradeVersion{v}, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return s.explain(v, 0)
+	}
+	if u := state(); u.State != "upgrade_available" {
+		t.Fatalf("seeded sighting: %+v", u)
+	}
+	// The file at Alpha's path now comes from a download made at 3000; the link still says 1000.
+	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, state,
+		created_at, updated_at) VALUES (78, 1, 1, 'movie-remux', 'cccc', 'Alpha.2020.2160p.WEB-DL-NEW', 'x', 'imported', 3000, 3000)`)
+	e.exec(`UPDATE link SET download_id = 78 WHERE id = 902`)
+	if u := state(); u.State != "below_cutoff" || u.Next != nil {
+		t.Fatalf("sighting older than the current download: %+v", u)
+	}
+	e.exec(`INSERT INTO journal_decision (source,title_id,version_key,target,created_at,candidates) VALUES
+		('search',1,'movie-remux','movie',4000,'[{"release":"Alpha.2020.2160p.WEB-DL-NEW","info_hash":"CCCC","accepted":true,"upgrade":true,"score":9000},
+		  {"release":"Alpha.2020.2160p.BluRay.REMUX-NEWER","info_hash":"dddd","accepted":true,"upgrade":true,"score":4000}]')`)
+	if u := state(); u.State != "upgrade_available" || u.Next.Release != "Alpha.2020.2160p.BluRay.REMUX-NEWER" {
+		t.Fatalf("newer better release: %+v", u)
+	}
+}

@@ -42,12 +42,15 @@ status word (Available, Partly available: docs/design/ui.md, Status words), neve
 
 Per item below cutoff (a movie version's file, or one episode's file):
 
-1. Only evidence newer than the item's current file counts.
+1. Only evidence newer than the item's current file counts: newer than the later of its link's created time and
+   its download's (an import that replaces a file at the same path keeps the link's first created time, which the
+   badge readers leave alone).
 2. The newest search after the file that covers the item (a journal search of the title, its season or
    episode) stands for every earlier search.
 3. RSS sightings (journal RSS reads) newer than both the file and that search add to it.
 4. A release counts when it was accepted and marked an upgrade over the file (`upgrade` on the stored candidate),
-   and maps to the item.
+   and maps to the item. A sighting of the torrent the item's file came from (the candidate's hash equals the
+   file's download hash) is not a better release of that item; other episodes of the same pack still count it.
 5. A release with a download of the same title and library that failed at or after its sighting (the candidate's
    hash against `download.info_hash`; the failure's time is its History row's, else `updated_at`) was tried and
    failed: it is not found. A download never started (Pause was on) or ended by a removal is no try, as History and

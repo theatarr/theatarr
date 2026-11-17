@@ -20,7 +20,11 @@ import (
 // accepted and upgrade flags). Nothing here searches.
 //
 // The rule, per item (a movie version's file, or one episode's file in a series version), for an item below cutoff:
-//   - only evidence newer than the item's current file counts (an older decision judged an older file);
+//   - only evidence newer than the item's current file counts (an older decision judged an older file): newer than
+//     the later of its link's created time and its download's (an import that replaces a file at the same path keeps
+//     the link's first created time);
+//   - a sighting of the torrent the item's file came from (its download's hash) is not a better release of it; other
+//     episodes of the same pack still count it;
 //   - the newest search after the file that covers the item stands for every earlier search: its accepted
 //     upgrades count, and when it found none, older finds no longer count;
 //   - RSS sightings (journal RSS reads) newer than both the file and that search add to it;
@@ -121,7 +125,19 @@ type evItem struct {
 	episodeID int64
 	season    int64
 	number    int64
-	fileAt    int64
+	// fileAt is the evidence floor: the later of the file's link and download created times.
+	fileAt int64
+	// hash is the file's download hash, lower case ("" when unknown).
+	hash string
+}
+
+// fileItem is the item of a current file: a movie's (e nil) or one episode's.
+func fileItem(f itemFile, e *upgradeEpisode) evItem {
+	it := evItem{fileAt: f.since, hash: f.hash}
+	if e != nil {
+		it.episodeID, it.season, it.number = e.id, e.season, e.number
+	}
+	return it
 }
 
 func (it evItem) code() string { return episodeCode(it.season, it.number) }
@@ -194,7 +210,8 @@ func judgeUpgrade(it evItem, recs []evRecord, failed map[string]int64) (*Upgrade
 	var best *UpgradeNext
 	for _, r := range pool {
 		for _, c := range r.cands {
-			if !c.Accepted || !c.Upgrade || !candCovers(c, it) {
+			if !c.Accepted || !c.Upgrade || !candCovers(c, it) ||
+				(it.hash != "" && strings.EqualFold(c.InfoHash, it.hash)) {
 				continue
 			}
 			at, ok := failed[strings.ToLower(c.InfoHash)]
@@ -322,7 +339,14 @@ type itemFile struct {
 	score   *int64
 	size    int64
 	added   int64
+	// For the upgrade evidence (evItem): the later of the link's and its download's created times, and the
+	// download's hash, lower case.
+	since int64
+	hash  string
 }
+
+// itemFileUpgradeSQL selects itemFile's since and hash for link l joined to its download d.
+const itemFileUpgradeSQL = `MAX(l.created_at, COALESCE(d.created_at, 0)), LOWER(COALESCE(d.info_hash, ''))`
 
 // loadItemFiles reads the current files of versions, per episode (0 for a movie): their active links. Without
 // scores each file's score is left out.
@@ -337,13 +361,14 @@ func loadItemFiles(ctx context.Context, db *sql.DB, versionIDs []any, scores boo
 		score = linkScoreSQL
 	}
 	err := scanAll(ctx, db, `SELECT l.id, lv.version_id, COALESCE(le.episode_id, 0), COALESCE(l.quality, ''), `+score+`,
-		COALESCE(`+linkSizeSQL+`, 0), l.created_at FROM link l JOIN link_version lv ON lv.link_id = l.id
+		COALESCE(`+linkSizeSQL+`, 0), l.created_at, `+itemFileUpgradeSQL+` FROM link l JOIN link_version lv ON lv.link_id = l.id
 		LEFT JOIN link_episode le ON le.link_id = l.id LEFT JOIN content_file cf ON cf.id = l.content_file_id
+		LEFT JOIN download d ON d.id = l.download_id
 		WHERE lv.version_id IN (`+in+`) AND l.state = 'active'`, versionIDs, func(r *sql.Rows) error {
 		var vid, eid int64
 		var f itemFile
 		var score sql.NullInt64
-		if err := r.Scan(&f.key, &vid, &eid, &f.quality, &score, &f.size, &f.added); err != nil {
+		if err := r.Scan(&f.key, &vid, &eid, &f.quality, &score, &f.size, &f.added, &f.since, &f.hash); err != nil {
 			return err
 		}
 		f.score = nullInt(score)
@@ -447,13 +472,13 @@ func (w *Web) upgradesWith(ctx context.Context, db *sql.DB, vs []upgradeVersion,
 		k := titleKey{v.titleID, v.key}
 		if v.kind != "series" {
 			if f, ok := s.files[v.id][0]; ok && v.state == "filled" {
-				items[k] = append(items[k], evItem{fileAt: f.added})
+				items[k] = append(items[k], fileItem(f, nil))
 			}
 			continue
 		}
 		for _, e := range s.episodes[v.id] {
 			if f, ok := s.files[v.id][e.id]; ok && e.state == "filled" {
-				items[k] = append(items[k], evItem{episodeID: e.id, season: e.season, number: e.number, fileAt: f.added})
+				items[k] = append(items[k], fileItem(f, &e))
 			}
 		}
 	}
@@ -541,7 +566,7 @@ func (s *upgradeSet) explain(v upgradeVersion, episode int64) *UpgradeInfo {
 		case "filled":
 			u.State = "below_cutoff"
 			belowQuality = s.belowQuality[v.id]
-			next, at := judgeUpgrade(evItem{fileAt: f.added}, recs, failed)
+			next, at := judgeUpgrade(fileItem(f, nil), recs, failed)
 			note(next, at)
 		}
 	} else {
@@ -576,7 +601,7 @@ func (s *upgradeSet) explain(v upgradeVersion, episode int64) *UpgradeInfo {
 			if counts[k] > counts[best] {
 				best = k
 			}
-			next, at := judgeUpgrade(evItem{episodeID: e.id, season: e.season, number: e.number, fileAt: f.added}, recs, failed)
+			next, at := judgeUpgrade(fileItem(f, &e), recs, failed)
 			if next.found() {
 				u.Seen++
 			}
@@ -639,7 +664,7 @@ func (s *upgradeSet) episodeSeen(v upgradeVersion) map[int64]bool {
 		if !ok || e.state != "filled" {
 			continue
 		}
-		if next, _ := judgeUpgrade(evItem{episodeID: e.id, season: e.season, number: e.number, fileAt: f.added}, recs, failed); next.found() {
+		if next, _ := judgeUpgrade(fileItem(f, &e), recs, failed); next.found() {
 			out[e.id] = true
 		}
 	}
