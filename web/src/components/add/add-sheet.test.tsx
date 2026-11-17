@@ -223,6 +223,47 @@ it("hides the season ticks when a preset is chosen and sends no seasons", async 
   expect("seasons" in (body as object)).toBe(false);
 });
 
+it("offers Choose seasons for a new series with its own seasons: specials off, every shown season sent, no preset", async () => {
+  const own = { ...seriesOptions, own_seasons: true, seasons: [{ season: 0 }, { season: 1 }, { season: 2 }] };
+  const fetch = mockFetch(routes(own));
+  const user = userEvent.setup();
+  renderPage(<AddSheet target={{ kind: "series", name: "Kappa", year: 2025, tmdb_id: 8 }} onClose={() => {}} />);
+  const select = await screen.findByTestId("add-monitor");
+  expect(screen.queryByTestId("add-seasons")).toBeNull();
+  expect(screen.getByTestId("add-seasons-note").textContent).toMatch(/^2 seasons\./);
+  await user.selectOptions(select, "choose");
+  const ticks = within(screen.getByTestId("add-seasons")).getAllByRole("checkbox");
+  expect(ticks.map((c) => (c as HTMLInputElement).checked)).toEqual([false, true, true]);
+  expect(screen.getByTestId("add-seasons").textContent).not.toMatch(/ep\./);
+  expect(screen.queryByText(/This choice decides/)).toBeNull();
+  await user.click(ticks[2]);
+  await user.click(screen.getByTestId("add-monitor-new"));
+  await user.click(screen.getByTestId("add-submit"));
+  const body = await bodyOf(fetch);
+  expect(JSON.stringify(body)).toBe(
+    '{"kind":"series","tmdb_id":8,"title":"Kappa","year":2025,"anime":false,"versions":["tv-web"],"seasons":[{"season":0,"monitored":false},{"season":1,"monitored":true},{"season":2,"monitored":false}],"search":false,"monitor_new":"none"}',
+  );
+});
+
+it("sends a preset and no seasons for a new series with its own seasons, and offers no Choose seasons without them", async () => {
+  const own = { ...seriesOptions, own_seasons: true, seasons: [{ season: 1 }, { season: 2 }] };
+  const fetch = mockFetch(routes(own));
+  const user = userEvent.setup();
+  renderPage(<AddSheet target={{ kind: "series", name: "Kappa", year: 2025, tmdb_id: 8 }} onClose={() => {}} />);
+  const select = await screen.findByTestId("add-monitor");
+  await user.selectOptions(select, "choose");
+  await user.selectOptions(select, "lastSeason");
+  expect(screen.queryByTestId("add-seasons")).toBeNull();
+  await user.click(screen.getByTestId("add-submit"));
+  expect(JSON.stringify(await bodyOf(fetch))).toBe(
+    '{"kind":"series","tmdb_id":8,"title":"Kappa","year":2025,"anime":false,"versions":["tv-web"],"search":false,"monitor":"lastSeason"}',
+  );
+  cleanup();
+  mockFetch(routes(seriesOptions));
+  renderPage(<AddSheet target={{ kind: "series", name: "Kappa", year: 2025, tmdb_id: 8 }} onClose={() => {}} />);
+  expect(within(await screen.findByTestId("add-monitor")).queryByRole("option", { name: "Choose seasons" })).toBeNull();
+});
+
 it("offers neither series choice for a series already in the library", async () => {
   const inLibrary = { ...seriesOptions, title_id: 10, episodes_known: true, seasons: [{ season: 1, episodes: 8, monitored: true }], versions: [{ ...tv, key: "tv-old", on: true, default: false }, tv] };
   const fetch = mockFetch(routes(inLibrary));

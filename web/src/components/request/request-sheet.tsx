@@ -7,7 +7,8 @@
 // title, or everything it could ask for is in the library or monitored, the sheet says so with a direct link (View
 // request, View availability) in place of a disabled Request button (request-state.ts). For a series the library has,
 // the seasons already monitored in every wanted version show as such and only the others can be picked ("Request more
-// seasons"; approval monitors just those).
+// seasons"; approval monitors just those). A series not in the library shows its own seasons, numbered as its episodes
+// will be (GET /add/options, the add sheet's source), without episode counts; none when they cannot be read.
 import { AlertTriangle, ArrowUpRight, CheckCircle2, Clock, Inbox, Loader2, Send, X } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router";
@@ -164,7 +165,7 @@ export function RequestSheet({ target, onClose }: { target: AddTarget; onClose: 
                             >
                               <input type="checkbox" className="size-4 accent-[var(--accent)]" disabled={here} checked={seasonOn(s.season)} onChange={(e) => setSeasons((p) => ({ ...p, [s.season]: e.target.checked }))} />
                               <span className="font-medium">{seasonLabel(s.season)}</span>
-                              <span className="text-xs text-[var(--ink-3)]">{here ? "Already monitored" : `${s.episodes} ep.`}</span>
+                              {here || s.episodes ? <span className="text-xs text-[var(--ink-3)]">{here ? "Already monitored" : `${s.episodes} ep.`}</span> : null}
                             </label>
                           );
                         })}

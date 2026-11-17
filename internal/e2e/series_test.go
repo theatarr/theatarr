@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"github.com/theatarr/theatarr/internal/metadata/tvdb"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/router"
+	"github.com/theatarr/theatarr/internal/web"
 )
 
 func seriesPolicy(anime bool) func(*policy.Policy) {
@@ -151,6 +153,68 @@ func TestSeriesImportUpdatesEpisodeStateAndWantedSet(t *testing.T) {
 	must(t, json.Unmarshal([]byte(episodesJSON), &episodes))
 	if len(episodes) != 2 || episodes[0] == episodeID || episodes[1] == episodeID {
 		t.Fatalf("season missing search still includes imported episode %d: %v", episodeID, episodes)
+	}
+}
+
+// TestNewSeriesChosenSeasons: a new series added from the add sheet with chosen seasons (season 1 on, season 2 and
+// the specials off, no preset), whose seasons the sheet took from the series' own seasons, gets on its first refresh
+// (TVDB numbering, seasons 0, 1 and 2) season 1's episodes monitored and season 2's and the specials' not; the held
+// search looks for season 1 only.
+func TestNewSeriesChosenSeasons(t *testing.T) {
+	t.Parallel()
+	e := newEnvironment(t, seriesPolicy(false))
+	for _, suffix := range []string{"series", "default_0", "absolute_0"} {
+		b, err := os.ReadFile("../metadata/tvrefresh/testdata/371980_" + suffix + ".json")
+		must(t, err)
+		path := "/series/371980/extended"
+		if suffix != "series" {
+			var doc struct {
+				Data struct {
+					Episodes []tvdb.Episode `json:"episodes"`
+				} `json:"data"`
+			}
+			must(t, json.Unmarshal(b, &doc))
+			var eps []tvdb.Episode
+			for _, ep := range doc.Data.Episodes {
+				if ep.SeasonNumber == 0 && ep.Number == 11 || ep.SeasonNumber == 1 && ep.Number <= 2 ||
+					ep.SeasonNumber == 2 && ep.Number <= 2 {
+					eps = append(eps, ep)
+				}
+			}
+			b = episodeResponse(t, eps)
+			path = "/series/371980/episodes/" + strings.TrimSuffix(suffix, "_0") + "?page=0"
+		}
+		e.edge.tvdb[path] = b
+	}
+	// The add sheet's options: the series' own seasons, by the TVDB id TMDb names.
+	var opts web.AddOptions
+	e.request("GET", web.APIBase+"/add/options?kind=series&tmdb_id=95396", nil, &opts)
+	var nums []int
+	for _, s := range opts.Seasons {
+		nums = append(nums, s.Number)
+	}
+	if !opts.OwnSeasons || !slices.Equal(nums, []int{0, 1, 2}) {
+		t.Fatalf("add options: %+v", opts)
+	}
+	// What the sheet sends with chosen seasons: every shown season's choice and no preset.
+	var res web.AddResult
+	e.request("POST", web.APIBase+"/titles", map[string]any{"kind": "series", "tmdb_id": 95396, "title": "Severance",
+		"year": 2022, "anime": false, "versions": []string{"tv"}, "search": true, "seasons": []map[string]any{
+			{"season": 0, "monitored": false}, {"season": 1, "monitored": true}, {"season": 2, "monitored": false}}}, &res)
+	id := res.Title.ID
+	e.refreshBeforeSearch(id, 5)
+	e.drain()
+	for season, want := range map[int]int{0: 0, 1: 2, 2: 0} {
+		if n := e.count(`SELECT count(*) FROM episode_version_state s JOIN episode ep ON ep.id = s.episode_id
+			WHERE ep.title_id = ? AND ep.season = ? AND s.monitored = 1`, id, season); n != want {
+			t.Errorf("season %d: %d episodes monitored, want %d", season, n, want)
+		}
+	}
+	if n := e.count(`SELECT count(*) FROM acquire_run WHERE title_id = ?`, id); n == 0 {
+		t.Fatalf("the held search did not run\n%s", e.logs.String())
+	}
+	if n := e.count(`SELECT count(*) FROM acquire_run WHERE title_id = ? AND COALESCE(season, -1) <> 1`, id); n != 0 {
+		t.Errorf("%d searches beyond season 1", n)
 	}
 }
 

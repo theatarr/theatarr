@@ -195,6 +195,10 @@ func (f *edges) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		w.WriteHeader(404)
 		fmt.Fprint(w, `{"status":"failure","message":"NotFoundException"}`)
+	case r.URL.Path == "/tmdb/tv/95396/external_ids":
+		fmt.Fprint(w, `{"id":95396,"tvdb_id":371980,"imdb_id":"tt11280740"}`)
+	case r.URL.Path == "/tmdb/tv/95396":
+		fmt.Fprint(w, `{"id":95396,"name":"Severance","first_air_date":"2022-02-17","external_ids":{"tvdb_id":371980,"imdb_id":"tt11280740"}}`)
 	case r.URL.Path == "/tmdb/movie/329865":
 		fmt.Fprint(w, `{"id":329865,"title":"Arrival","release_date":"2016-11-11","imdb_id":"tt2543164","runtime":116,"original_language":"en"}`)
 	case r.URL.Path == "/plex/library/sections/18/refresh":
@@ -385,7 +389,7 @@ func newEnvironment(t *testing.T, configure func(*policy.Policy)) *environment {
 	e.av = av
 	av.SetMaintenance(e.q, nil)
 	av.RegisterJobs(e.worker)
-	ui, err := web.New(web.Config{Store: e.st, Auth: au, Policy: e.pol, Logger: log, Now: clock, Devices: av, Add: web.AddConfig{Acquirer: e.ac, TMDb: tm}, Jobs: e.q, Ops: viewOps{av}})
+	ui, err := web.New(web.Config{Store: e.st, Auth: au, Policy: e.pol, Logger: log, Now: clock, Devices: av, Add: web.AddConfig{Acquirer: e.ac, TMDb: tm}, SeriesLookup: e.tv, Jobs: e.q, Ops: viewOps{av}})
 	must(t, err)
 	e.mux = http.NewServeMux()
 	av.Mount(e.mux)

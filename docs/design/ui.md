@@ -121,7 +121,13 @@ libraries whose `will_grab` is true).
 The add drawer's other choices each start at the value that sends the request of a plain add, so leaving them
 alone changes nothing. A series not yet in the library gets **Monitor** (a select: the season ticks as picked, or a
 preset: all, future or missing episodes, first or latest season, pilot only, none; a preset hides the ticks and
-sends `monitor` without `seasons`, and a series without episodes yet takes it at its first refresh) and **Monitor
+sends `monitor` without `seasons`, and a series without episodes yet takes it at its first refresh; a new series
+whose own seasons `GET /add/options` read, `own_seasons`, also gets **Choose seasons**, which shows a tick per season,
+all on but the specials, without episode counts, and sends every shown season's choice and no preset, so its first
+refresh monitors exactly those. The seasons are the series' own, TVDB's default order as its episodes will be
+numbered, read through the series lookup the Sonarr view's lookup uses, by the TVDB id TMDb names, within about 2
+seconds; when they cannot be read the select offers the presets only. A request uses the same seasons: the request
+sheet lists them, and approval stores the seasons not asked for as unmonitored) and **Monitor
 seasons that appear later** (on; off sends `monitor_new: none`). A new series has no episodes until its first
 refresh, so `monitor_new: none` alone would leave the seasons that refresh finds unmonitored too; with no preset
 and no season ticks the drawer therefore sends `monitor: all` with it, and only seasons that appear after the first
@@ -1089,7 +1095,8 @@ Managers keep inline queue Approve/Decline and see what approval does per reques
 
 1. A user finds a title (library or TMDb); Theatarr applies the account’s request versions (by default every version that
    fits the title) without asking them to pick copies. The sheet says whether approval is needed; for a series they
-   choose seasons, and may add a note.
+   choose seasons (for a series not in the library, its own seasons, the add sheet's **Choose seasons** source,
+   without episode counts; none listed when they cannot be read, which asks for every season), and may add a note.
 2. Theatarr stores a `request` row, `pending` (or `approved` at once with `auto_approve`). Duplicates merge: a second request
    for the same title and version adds the user to the existing one; an `auto_approve` ask approves a pending one it
    joins only when the request asks for nothing beyond that ask (docs/design/users.md), and the sheet says so.

@@ -67,6 +67,16 @@ describe("add sheet request", () => {
     // Later seasons on: no monitor of its own.
     expect("monitor" in addRequest(series, { kind: "series" }, { ...choice, seasons: undefined, monitorNew: true })).toBe(false);
   });
+  it("sends a new series' chosen seasons, specials included, without a preset, and a preset without seasons", () => {
+    const series = { kind: "series" as const, name: "Kaiju", year: 2023, tmdb_id: 4321 };
+    const chosen = [{ season: 0, monitored: false }, { season: 1, monitored: true }, { season: 2, monitored: false }];
+    expect(JSON.stringify(addRequest(series, { kind: "series" }, { ...choice, seasons: chosen, monitor: undefined }))).toBe(
+      '{"kind":"series","tmdb_id":4321,"title":"Kaiju","year":2023,"anime":false,"versions":["tv-2160p"],"seasons":[{"season":0,"monitored":false},{"season":1,"monitored":true},{"season":2,"monitored":false}],"search":false}',
+    );
+    expect(JSON.stringify(addRequest(series, { kind: "series" }, { ...choice, seasons: undefined, monitor: "firstSeason" }))).toBe(
+      '{"kind":"series","tmdb_id":4321,"title":"Kaiju","year":2023,"anime":false,"versions":["tv-2160p"],"search":false,"monitor":"firstSeason"}',
+    );
+  });
   it("sends a new series' type and a movie's minimum availability only when set", () => {
     const series = { kind: "series" as const, name: "Kaiju", year: 2023, tmdb_id: 4321 };
     expect(addRequest(series, { kind: "series" }, { ...choice, seriesType: "daily", minimumAvailability: "announced" })).toEqual({

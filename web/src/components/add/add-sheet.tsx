@@ -1,6 +1,7 @@
 import { usePerms } from "@/api/library";
 // The add sheet: versions to turn on (every version that fits the title ticked), seasons
-// for a series whose episodes the library knows, and the footer's "Add" and "Add and search", the second offered only
+// for a series whose episodes the library knows, a new series' preset or its chosen seasons (the series' own seasons,
+// numbered as its episodes will be), and the footer's "Add" and "Add and search", the second offered only
 // when a search would run (a ticked version while Pause is off). It posts to POST /titles, the same add path as the arr views.
 // A side sheet on desktop and a bottom sheet on phones, in our Modal (components/ui/modal.tsx: focus trap, inert page,
 // focus restore, shared scroll lock), since Radix Dialog's scroll lock injects a <style> element the CSP refuses. Layout follows Scryer (github.com/scryer-media/scryer) apps/scryer-web/components/root/
@@ -117,6 +118,10 @@ export function heldNote(v: Pick<VersionOption, "on" | "held">): string | undefi
   return undefined;
 }
 
+function seasonCount(n: number) {
+  return n === 1 ? "1 season" : `${n} seasons`;
+}
+
 function seasonLabel(n: number) {
   return n === 0 ? "Specials" : `Season ${n}`;
 }
@@ -138,6 +143,8 @@ function SelectRow({ label, detail, value, onChange, options, testid }: { label:
 }
 
 type MonitorPreset = NonNullable<AddChoice["monitor"]>;
+/** The Monitor select's value for a new series' own seasons, ticked one by one: no preset is sent. */
+const CHOOSE_SEASONS = "choose";
 /** The presets offered for a new series (Sonarr's add options; existing and recent are left out to keep it short). */
 const MONITOR_PRESETS: readonly (readonly [MonitorPreset, string])[] = [
   ["all", "All episodes"], ["future", "Future episodes"], ["missing", "Missing episodes"], ["firstSeason", "First season"],
@@ -158,7 +165,8 @@ export function AddSheet({ target, onClose }: { target: AddTarget; onClose: () =
   const add = useAddTitle();
   const [picked, setPicked] = useState<Record<string, boolean>>({});
   const [seasons, setSeasons] = useState<Record<number, boolean>>({});
-  const [monitor, setMonitor] = useState<MonitorPreset | "">("");
+  // "choose": a new series' own seasons, ticked one by one (CHOOSE_SEASONS).
+  const [monitor, setMonitor] = useState<MonitorPreset | "" | typeof CHOOSE_SEASONS>("");
   const [monitorNew, setMonitorNew] = useState(true);
   const [minimum, setMinimum] = useState<AddChoice["minimumAvailability"]>();
   const [monitored, setMonitored] = useState(true);
@@ -182,8 +190,14 @@ export function AddSheet({ target, onClose }: { target: AddTarget; onClose: () =
   const globalOff = globalDownloadsOff(versions.map((v) => v.grab_state));
   const canSearch = selected.some((v) => v.searchable);
   const seasonOn = (n: number, def: boolean) => seasons[n] ?? def;
-  const seasonsChanged = (o?.seasons ?? []).some((s) => seasons[s.season] !== undefined && seasons[s.season] !== (s.monitored ?? true));
+  // A season's tick before any click: its state in the library, else on, specials aside.
+  const seasonDefault = (s: { season: number; monitored?: boolean }) => s.monitored ?? s.season > 0;
+  const seasonsChanged = (o?.seasons ?? []).some((s) => seasons[s.season] !== undefined && seasons[s.season] !== seasonDefault(s));
   const epKnown = Boolean(o?.episodes_known);
+  // A new series whose own seasons the options carry can choose them; a preset decides otherwise.
+  const ownSeasons = !current && !epKnown && Boolean(o?.own_seasons);
+  const choosing = ownSeasons && monitor === CHOOSE_SEASONS;
+  const preset = monitor && monitor !== CHOOSE_SEASONS ? monitor : undefined;
   // Two buttons, "Add" and "Add and search", when something new is ticked and a ticked library can search; a change of
   // seasons alone keeps its one "Save seasons".
   // A new movie added unmonitored is not searched: only "Add" is offered.
@@ -194,14 +208,15 @@ export function AddSheet({ target, onClose }: { target: AddTarget; onClose: () =
 
   const submit = (search: boolean) => {
     if (!o) return;
-    const seasonList = o.kind === "series" && epKnown ? (o.seasons ?? []).map((s) => ({ season: s.season, monitored: seasonOn(s.season, s.monitored ?? true) })) : undefined;
+    // Chosen seasons send every shown season's choice, specials included, and no preset.
+    const seasonList = o.kind === "series" && (epKnown || choosing) ? (o.seasons ?? []).map((s) => ({ season: s.season, monitored: seasonOn(s.season, seasonDefault(s)) })) : undefined;
     add.mutate(
       addRequest(target, o, {
         versions: [...chosen, ...versions.filter((v) => v.on).map((v) => v.key)],
         seasons: seasonList,
         search: canSearch && search,
         anime,
-        monitor: monitor || undefined,
+        monitor: preset,
         monitorNew,
         seriesType: seriesType === typeDefault ? undefined : seriesType,
         minimumAvailability: chosen.length > 0 ? minimum : undefined,
@@ -297,29 +312,28 @@ export function AddSheet({ target, onClose }: { target: AddTarget; onClose: () =
                         <div className="mb-2">
                           <SelectRow
                             label="Monitor"
-                            detail={monitor ? `This choice decides which episodes are monitored${epKnown ? "" : ", once the library knows the episodes"}.` : undefined}
+                            detail={preset ? `This choice decides which episodes are monitored${epKnown ? "" : ", once the library knows the episodes"}.` : undefined}
                             value={monitor}
-                            onChange={(v) => setMonitor(v as MonitorPreset | "")}
-                            options={[["", epKnown ? "Seasons I pick below" : "Every season"], ...MONITOR_PRESETS]}
+                            onChange={(v) => setMonitor(v as typeof monitor)}
+                            options={[["", epKnown ? "Seasons I pick below" : "Every season"], ...(ownSeasons ? [[CHOOSE_SEASONS, "Choose seasons"] as const] : []), ...MONITOR_PRESETS]}
                             testid="add-monitor"
                           />
                         </div>
                       ) : null}
-                      {monitor && !current ? null : epKnown ? (
+                      {choosing || (epKnown && !(preset && !current)) ? (
                         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2" data-testid="add-seasons">
                           {(o.seasons ?? []).map((s) => (
-                            <CheckRow key={s.season} checked={seasonOn(s.season, s.monitored ?? true)} onChange={(c) => setSeasons((p) => ({ ...p, [s.season]: c }))}>
+                            <CheckRow key={s.season} checked={seasonOn(s.season, seasonDefault(s))} onChange={(c) => setSeasons((p) => ({ ...p, [s.season]: c }))}>
                               <span className="text-sm font-medium">{seasonLabel(s.season)}</span>
-                              <span className="ml-1.5 text-xs text-[var(--ink-3)]">{s.episodes} ep.</span>
+                              {s.episodes ? <span className="ml-1.5 text-xs text-[var(--ink-3)]">{s.episodes} ep.</span> : null}
                             </CheckRow>
                           ))}
                         </div>
-                      ) : (
+                      ) : preset && !current ? null : (
                         <p className="rounded-[5px] border border-dashed border-[var(--line)] px-3 py-2.5 text-xs leading-5 text-[var(--ink-3)]" data-testid="add-seasons-note">
-                          {(o.seasons ?? []).length > 0
-                            ? `${(o.seasons ?? []).filter((s) => s.season > 0).length} seasons on TMDb. `
-                            : ""}
-                          Every season is monitored. Season choices apply once the library knows the episodes; change them on the title page then.
+                          {ownSeasons
+                            ? `${seasonCount((o.seasons ?? []).filter((s) => s.season > 0).length)}. Every one is monitored, specials aside. To pick them, use Choose seasons above.`
+                            : "Every season is monitored. Season choices apply once the library knows the episodes; change them on the title page then."}
                         </p>
                       )}
                       {!current ? (
