@@ -738,6 +738,7 @@ describe("Jump to season (H6)", () => {
     await user.selectOptions(jump, "3");
     await vi.waitFor(() => expect(document.activeElement).toBe(head(3)));
     expect(head(3).getAttribute("aria-expanded")).toBe("true");
+    expect(head(3).id).toBe("season-heading-3");
     expect(screen.getByText("Opener 3")).toBeTruthy();
     // The latest season stays open; the selector is back on its prompt.
     expect(head(10).getAttribute("aria-expanded")).toBe("true");

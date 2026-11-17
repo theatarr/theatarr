@@ -777,7 +777,7 @@ function SeasonBlock({
   return (
     <div className="overflow-hidden rounded-lg border border-border bg-background/40" data-season={season.season}>
       <div className="flex cursor-pointer flex-wrap items-center gap-x-2 gap-y-1 bg-card/60 px-2 py-1.5 transition hover:bg-accent/40 md:flex-nowrap" onClick={onToggle} data-testid="season-header">
-        <button type="button" onClick={(e) => { e.stopPropagation(); onToggle(); }} aria-expanded={open} aria-label={name} className={cn("grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-accent", PHONE_ICON)}>
+        <button type="button" id={seasonHeadingId(season.season)} onClick={(e) => { e.stopPropagation(); onToggle(); }} aria-expanded={open} aria-label={name} className={cn("grid size-7 shrink-0 scroll-mt-[calc(var(--top)+0.5rem)] place-items-center rounded-md text-muted-foreground hover:bg-accent", PHONE_ICON)}>
           <Chevron className="size-4" />
         </button>
         {act ? (
@@ -923,6 +923,9 @@ function LibrarySelector({ versions, all, view, wide, onPick }: { versions: Vers
   );
 }
 
+/** The id of a season's heading (its open/close button), which Jump to focuses. */
+const seasonHeadingId = (season: number) => `season-heading-${season}`;
+
 /** A series with more seasons than this gets Jump to above its seasons. */
 const JUMP_AFTER = 8;
 
@@ -967,15 +970,6 @@ export function Seasons({ id, anime, franchises = [], history }: { id: string; a
   const [picked, setPicked] = useState<Picked>(null);
   const [picker, setPicker] = useState(false);
   const [colPrefs, setColPrefs] = useColumnPrefs(EPISODE_COLUMNS_PREF, EPISODE_COLUMNS, DEFAULT_EPISODE_COLUMNS);
-  // The season picked in Jump to: once it is open, its heading takes the focus and comes into view.
-  const [jump, setJump] = useState<number | null>(null);
-  useEffect(() => {
-    if (jump === null) return;
-    const head = document.querySelector<HTMLElement>(`[data-season="${jump}"] [data-testid=season-header] button[aria-expanded]`);
-    head?.focus();
-    head?.scrollIntoView?.({ block: "start" });
-    setJump(null);
-  }, [jump]);
   const titleId = Number(id);
   const episode = Number(params.get("episode")) || null;
   const openEpisode = (eid: number | null) => {
@@ -1031,6 +1025,7 @@ export function Seasons({ id, anime, franchises = [], history }: { id: string; a
   // About the libraries in view only: one picked library's notice never speaks of another.
   const limits = manage ? restrictions(one ? [one] : l.versions, { globalSaid: true }) : [];
   const watchOrder = anime ? franchises : [];
+  const ordered = newestFirst(l.seasons);
   return (
     <div className={cn("space-y-2.5", manage && selected.size > 0 && "pb-16")}>
       {watchOrder.length > 0 ? (
@@ -1072,14 +1067,18 @@ export function Seasons({ id, anime, franchises = [], history }: { id: string; a
       ) : null}
       {l.seasons.filter((s) => s.season > 0).length > JUMP_AFTER ? (
         <SeasonJump
-          seasons={newestFirst(l.seasons)}
+          seasons={ordered}
           onJump={(s) => {
             if (!opened.includes(s)) setOpen([...opened, s]);
-            setJump(s);
+            // The heading exists while the season is collapsed: it takes the focus and comes into view below the
+            // sticky header (its scroll margin).
+            const head = document.getElementById(seasonHeadingId(s));
+            head?.focus();
+            head?.scrollIntoView?.({ block: "start" });
           }}
         />
       ) : null}
-      {newestFirst(l.seasons).map((s) => (
+      {ordered.map((s) => (
         <SeasonBlock
           key={s.season}
           titleId={titleId}

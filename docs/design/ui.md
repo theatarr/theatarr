@@ -613,8 +613,8 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
     Interactive search stays. An episode's Search (row, episode window, selection) stays enabled for unmonitored episodes: a
     search that names its episodes takes them unmonitored too, as Sonarr's does.
   - **Jump to** (a series with more than 8 seasons, specials not counted): a select "Jump to season" above the
-    seasons, newest first and Specials last; picking one opens that season and moves the focus to its heading. No
-    route or stored state.
+    seasons, newest first and Specials last; picking one opens that season and moves the focus to its heading, which
+    scrolls into view below the sticky header. No route or stored state.
   - **Restrictions once:** read-only monitoring and disabled search are one note above the seasons, a line per
     distinct reason, naming the libraries only when not all share it. The controls stay disabled with the reason as
     their title.
