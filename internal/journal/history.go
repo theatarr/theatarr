@@ -160,6 +160,11 @@ func (j *Journal) history(ctx context.Context, f Filter, episode int64) (*Histor
 		return page, nil
 	}
 	l := &historyLoader{ctx: ctx, db: j.st.Reader()}
+	// Household rows carry no grab time.
+	grabbedAt := grabbedAtSQL
+	if f.Household {
+		grabbedAt = "NULL"
+	}
 	type stored struct {
 		h                                            head
 		release, formats, replaced                   sql.NullString
@@ -175,7 +180,7 @@ func (j *Journal) history(ctx context.Context, f Filter, episode int64) (*Histor
 	var rows []*stored
 	err = l.query(`SELECT ref, at, title_id, version_key, kind, event, download_id, release, info_hash, indexer, size,
 		quality, score, formats, episodes, files, replaced, provider, reason, source, import_state, by, detail,
-		`+adoptedUnscoredSQL+`, `+grabbedAtSQL+`
+		`+adoptedUnscoredSQL+`, `+grabbedAt+`
 		FROM `+where+` ORDER BY at DESC, ref DESC LIMIT ?`, append(wargs, f.Limit+1),
 		func(r *sql.Rows) error {
 			var s stored
@@ -376,7 +381,7 @@ func (j *Journal) history(ctx context.Context, f Filter, episode int64) (*Histor
 		if strings.HasSuffix(x.ID, ":fail") && s.dl.Valid {
 			x.Attempts = attempts[s.dl.Int64]
 		}
-		if s.grabbed.Valid && !f.Household {
+		if s.grabbed.Valid {
 			x.Grabbed = store.FromMillis(s.grabbed.Int64)
 		}
 		if x.Event == EvAdopted {
@@ -596,7 +601,8 @@ func historyWhere(f Filter, titles []int64, episode int64) (string, []any) {
 	// upgrade, and in the episode window it holds the episode (an upgrade's by its import's episodes), or a pack's
 	// left-out episode would lose its only row. A Grabbed-only filter lists the grabs. The cursor bounds the grab only,
 	// so a page boundary never shows a download twice. Pairing is by download id only.
-	var outcome []string
+	outcome := []string{`p.download_id = history.download_id`, `p.event IN ('imported', 'deleted', 'failed')`,
+		`p.at >= history.at`}
 	var outcomeArgs []any
 	if len(f.Events) > 0 {
 		outcome = append(outcome, `p.event IN (`+store.Placeholders(len(f.Events))+`)`)
@@ -623,20 +629,18 @@ func historyWhere(f Filter, titles []int64, episode int64) (string, []any) {
 				WHERE i.ref = 'dl:' || p.download_id || ':import' AND ie.value = ?)))`)
 		outcomeArgs = append(outcomeArgs, episode, episode)
 	}
-	w = append(w, `NOT (event = 'grabbed' AND EXISTS (SELECT 1 FROM history p WHERE p.download_id = history.download_id
-		AND p.event IN ('imported', 'deleted', 'failed') AND p.at >= history.at`+
-		strings.Join(append([]string{""}, outcome...), " AND ")+`))`)
+	w = append(w, `NOT (event = 'grabbed' AND EXISTS (SELECT 1 FROM history p WHERE `+strings.Join(outcome, " AND ")+`))`)
 	args = append(args, outcomeArgs...)
 	return strings.Join(w, " AND "), args
 }
 
-// grabbedAtSQL is when an outcome's download (imported, deleted, failed) was grabbed: its grab's row (dl:<id>, the
-// same library, dated at or before it), which the outcome's row stands for (historyWhere). A manual import's download
-// (indexer import: a file already on the mount, arrview insertImport) was never grabbed; its stored grab row is
-// folded all the same, but says nothing.
+// grabbedAtSQL is when an outcome's download (imported, deleted, failed) was grabbed: its grab's row (dl:<id>, dated
+// at or before it), which the outcome's row stands for (historyWhere). A manual import's download (indexer import: a
+// file already on the mount, arrview insertImport) was never grabbed; its stored grab row is folded all the same, but
+// says nothing.
 const grabbedAtSQL = `CASE WHEN event IN ('imported', 'deleted', 'failed') THEN (SELECT g.at FROM history g
-	WHERE g.ref = 'dl:' || history.download_id AND g.event = 'grabbed' AND g.version_key IS history.version_key
-	AND g.at <= history.at AND g.indexer <> '` + manualImportIndexer + `') END`
+	WHERE g.ref = 'dl:' || history.download_id AND g.event = 'grabbed' AND g.at <= history.at
+		AND g.indexer <> '` + manualImportIndexer + `') END`
 
 // manualImportIndexer is a manual import's download's indexer (arrview insertImport).
 const manualImportIndexer = "import"
