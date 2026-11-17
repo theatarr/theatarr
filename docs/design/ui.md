@@ -295,7 +295,8 @@ existing redaction applies). Household accounts get none of it.
   sort, About's **Released** and the posters' Release date line show: a movie's earliest stored cinema date of any
   kind (limited or wide, any source or country) or TMDb's release date, whichever is earlier, so a wide re-release
   never makes an old film read new (Akira 1988, not its 2026 US release); a series' first air date. It takes no part in
-  the choice above (**Releases** while still to come). On the Calendar a movie's cinema date alone is never Missing;
+  the choice above (**Releases** while still to come; **In cinemas** for a film whose day to come is its cinema date, so About's
+  "In cinemas Dec 18" is not read as the home release the libraries wait for). On the Calendar a movie's cinema date alone is never Missing;
   joined with a digital or disc date of the same day it is. Only the primary country's TMDb rows are stored
   (`title_release_date`, source `tmdb`); Details › Release dates lists them (with the arrs' rows for a title not
   refreshed), the country named once under the table; a refreshed title's cinema date taken from the first release
@@ -458,7 +459,8 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   Details) opens Admin › Torrents filtered to the file's torrent (`?q=` the hash's first 12) when the row has one file
   with a known hash; a series row of several files has none (the episode window has it per episode). A fact the file does not have is blank, never 0.
   **Status:** a download in hand and no file reads its stage ("Downloading · 37%", "Waiting for mount", "Blocked"),
-  linked to Activity; a movie without a file "Not monitored", "Upcoming · Jan 14" (not out at home yet, the posters'
+  linked to Activity; a movie without a file "Not monitored", "Upcoming · home release Jan 14" ("home release" only when the
+  home release supplied the day, not TMDb's date standing in; not out at home yet, the posters'
   rule) or "Missing"; a held movie "Available" with the quality word beside it (Upgrade found, Preferred quality not
   met or Preferred quality met; Why? unless it is at its cutoff; Status words), with
   "Upgrade downloading · 37%" under it while one is in hand; a series "44 of 46 monitored episodes" with "2 missing ·

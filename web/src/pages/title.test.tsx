@@ -53,8 +53,15 @@ describe("Title page", () => {
     expect(facts.textContent).toContain("Latest file");
     expect(facts.textContent).not.toMatch(/Added/);
     old.unmount();
-    page({ year: 2027, release_date: "2999-06-18", released: "2999-06-18" });
+    const coming = page({ year: 2027, release_date: "2999-06-18", released: "2999-06-18" });
     expect((await screen.findByTestId("title-facts")).textContent).toContain("Releases");
+    coming.unmount();
+    // A cinema date to come names its milestone; the libraries' line names the home release.
+    page({ year: 2999, release_date: "2999-12-18", in_cinemas: "2999-12-18", released: "2999-12-18", home_release: "3000-03-18", monitored: true,
+      versions: [{ id: 1, key: "movie-web", label: "WEB", monitored: true, has_file: false, state: "wanted" }] });
+    const cinema = await screen.findByTestId("title-facts");
+    expect(cinema.textContent).toContain("In cinemas");
+    expect(cinema.textContent).not.toContain("Releases");
   });
 
   it("reads a title every copy of which was removed as one not in the library, with Add and its kept files", async () => {

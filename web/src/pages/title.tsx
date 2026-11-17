@@ -121,6 +121,9 @@ function About({ d }: { d: TitleDetail }) {
   const digital = series ? undefined : d.digital_release;
   // The general release day (lib/released.ts): a movie's earliest cinema date or TMDb's date, a series' first air date.
   const releasedDay = d.released;
+  // A film still to come names the milestone when its cinema date supplied the day ("In cinemas Dec 18"), so it is not
+  // read as the home release its libraries wait for.
+  const cinemaDay = !series && !!releasedDay && releasedDay === d.in_cinemas && releasedLabel(false, releasedDay) === "Releases";
   const links = outsideLinks(d);
   return (
     <div data-testid="title-about">
@@ -144,7 +147,7 @@ function About({ d }: { d: TitleDetail }) {
           <div className="overflow-hidden rounded-[8px] border border-[var(--line)] bg-card text-sm" data-testid="title-facts">
             {m?.status ? <Fact label="Status"><span title={m.status}>{titleStatusWords(m.status)}</span></Fact> : null}
             {series && perms.seeFiles && d.id && d.series_type ? <Fact label="Series type"><SeriesTypeControl titleId={d.id} value={d.series_type} anime={d.anime} versions={currentLibraries((d.versions ?? []) as Version[])} /></Fact> : null}
-            {releasedDay ? <Fact label={releasedLabel(series, releasedDay)}>{releasedText(d)}</Fact> : null}
+            {releasedDay ? <Fact label={cinemaDay ? "In cinemas" : releasedLabel(series, releasedDay)}>{releasedText(d)}</Fact> : null}
             {!series && digital ? <Fact label="Digital">{fmtDay(digital)}</Fact> : null}
             {air ? <Fact label={air.label}>{fmtDay(air.day)}</Fact> : null}
             {runtime ? <Fact label="Runtime">{runtime}</Fact> : null}

@@ -136,7 +136,10 @@ export function libraryStatus(v: Version, t: ToneTitle, day?: string): LibrarySt
     // A search the server says is under way (Search now waiting for its round, or running).
     if (v.searching) return { label: searchingWords(v.searching), tone: "info" };
     const upcoming = upcomingRelease(t, day);
-    if (upcoming) return { label: `Upcoming · ${statusDay(t, upcoming)}`, tone };
+    // Named only when the home release supplied the day (TMDb's date stands in without one), so it is not read as
+    // the cinema date About shows.
+    const home = !!t.home_release && t.home_release.slice(0, 10) === upcoming;
+    if (upcoming) return { label: `Upcoming · ${home ? "home release " : ""}${statusDay(t, upcoming)}`, tone };
     if (undatedUpcoming(t)) return { label: "Upcoming, date unknown", tone };
     return { label: "Missing", tone };
   }

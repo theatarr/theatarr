@@ -14,9 +14,11 @@ describe("library status", () => {
   it("says what a movie without a file is waiting for", () => {
     expect(libraryStatus(v({}), { ...movie, release_date: "2020-01-01" }, DAY)).toMatchObject({ label: "Missing", tone: "negative" });
     expect(libraryStatus(v({ monitored: false }), movie, DAY)).toMatchObject({ label: "Not monitored", tone: "neutral" });
-    expect(libraryStatus(v({}), { ...movie, home_release: "2026-12-31", digital_release: "2026-12-31" }, DAY)).toMatchObject({ label: "Upcoming · Dec 31", tone: "neutral" });
+    expect(libraryStatus(v({}), { ...movie, home_release: "2026-12-31", digital_release: "2026-12-31" }, DAY)).toMatchObject({ label: "Upcoming · home release Dec 31", tone: "neutral" });
     // No digital or disc date: the home release is the cinema date plus 90 days, an estimate.
-    expect(libraryStatus(v({}), { ...movie, home_release: "2027-03-18" }, DAY)).toMatchObject({ label: "Upcoming · ~Mar 18, 2027 (estimate)", tone: "neutral" });
+    expect(libraryStatus(v({}), { ...movie, home_release: "2027-03-18" }, DAY)).toMatchObject({ label: "Upcoming · home release ~Mar 18, 2027 (estimate)", tone: "neutral" });
+    // Without a home release TMDb's date stands in: no milestone is named.
+    expect(libraryStatus(v({}), { ...movie, release_date: "2027-01-05" }, DAY)).toMatchObject({ label: "Upcoming · Jan 5, 2027", tone: "neutral" });
     // No date at all, announced or still being made: Upcoming, date unknown; released without a date stays Missing.
     expect(libraryStatus(v({}), { ...movie, status: "Planned" }, DAY)).toMatchObject({ label: "Upcoming, date unknown", tone: "neutral" });
     expect(libraryStatus(v({}), { ...movie, status: "Released" }, DAY)).toMatchObject({ label: "Missing", tone: "negative" });
