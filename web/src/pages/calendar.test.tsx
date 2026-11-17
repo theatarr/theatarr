@@ -185,6 +185,33 @@ it("brings a busy day's list into view and focus on +N more", async () => {
   expect(screen.getAllByTestId("agenda-item")).toHaveLength(4);
 });
 
+it("folds a series' consecutive episodes of a day into one month slot; the day's list keeps each episode", async () => {
+  vi.setSystemTime(new Date(2026, 10, 20, 12));
+  window.localStorage.setItem("theatarr.calendar.view", "month");
+  const user = userEvent.setup();
+  const drop = [1, 2, 3].map((n): Entry => ({ ...ep(60 + n, nov(17), "Drop"), title: title(6, "Drop", "series"), season: 2, number: n, available: n === 1 }));
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["see_files"] } },
+    { method: "GET", path: "/calendar", reply: { from: nov(1), to: nov(30), items: [...drop, ep(71, nov(17), "Other"), ep(72, nov(17), "Third")] } },
+  ]);
+  renderPage(<CalendarPageView />, "/calendar");
+  const chip = (await screen.findByText("S02E01–E03")).closest("a")!;
+  expect(chip.getAttribute("href")).toBe("/title/6?tab=episodes&episode=61");
+  // One slot is still missing two episodes: the folded chip says so.
+  expect(chip.dataset.tone).toBe("bad");
+  expect(chip.getAttribute("title")).toContain("S02E01 · Available");
+  expect(chip.getAttribute("title")).toContain("S02E03 · Missing");
+  // Three slots: the fold, Other and Third; no "+N more".
+  expect(screen.getAllByTestId("cal-event")).toHaveLength(3);
+  expect(screen.queryByRole("button", { name: /more$/ })).toBeNull();
+  await user.click(screen.getByRole("button", { name: /: 5 items$/ }));
+  const list = screen.getAllByTestId("agenda-item");
+  expect(list).toHaveLength(5);
+  expect(list.slice(0, 3).map((a) => a.getAttribute("href"))).toEqual(["/title/6?tab=episodes&episode=61", "/title/6?tab=episodes&episode=62", "/title/6?tab=episodes&episode=63"]);
+  expect(list[0].dataset.tone).toBe("ok");
+  expect(list[1].dataset.tone).toBe("bad");
+});
+
 it("does not say no entries match while earlier ones of the month are behind Show earlier", async () => {
   vi.setSystemTime(new Date(2026, 10, 14, 12));
   const movie = { ...items[1], date: nov(3), title: title(1, "Alpha", "movie") };

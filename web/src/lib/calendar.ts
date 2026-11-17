@@ -87,6 +87,40 @@ export function episodeCode(season?: number, number?: number): string {
   return season === undefined ? e : `S${String(season).padStart(2, "0")}${e}`;
 }
 
+/**
+ * The month grid's slots for one day: a series' consecutive episodes of the same season fold into one slot, in the
+ * place of the first, so a season dropped at once takes one slot, not three ("S02E01–E03": foldCode). Gaps start a
+ * new slot; everything else is a slot of its own, in order. The day's list keeps every episode.
+ */
+export function foldEpisodes<T extends { kind: string; title: { id: number }; season?: number; number?: number }>(day: readonly T[]): T[][] {
+  const slots: T[][] = [];
+  const bySeason = new Map<string, T[]>();
+  for (const e of day) {
+    if (e.kind !== "episode" || e.number === undefined) { slots.push([e]); continue; }
+    const key = `${e.title.id}:${e.season ?? ""}`;
+    const group = bySeason.get(key);
+    if (group) group.push(e);
+    else { const g = [e]; bySeason.set(key, g); slots.push(g); }
+  }
+  return slots.flatMap((slot) => {
+    if (slot.length < 2) return [slot];
+    const sorted = [...slot].sort((a, b) => a.number! - b.number!);
+    const runs: T[][] = [];
+    for (const e of sorted) {
+      const run = runs.at(-1);
+      if (run && e.number === run.at(-1)!.number! + 1) run.push(e);
+      else runs.push([e]);
+    }
+    return runs;
+  });
+}
+
+/** A folded slot's code: "S02E01–E03", or the one episode's code. */
+export function foldCode(slot: readonly { season?: number; number?: number }[]): string {
+  const first = slot[0], last = slot.at(-1)!;
+  return slot.length < 2 ? episodeCode(first.season, first.number) : `${episodeCode(first.season, first.number)}–${episodeCode(undefined, last.number)}`;
+}
+
 /** A release type in words (tmdb-words.ts). */
 export const releaseLabel = (type: string) => releaseTypeWords(type);
 

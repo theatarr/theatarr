@@ -18,7 +18,7 @@ import { Chip } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { calendarHref, calendarLegend, calendarTone, episodeCode, joinReleases, monthDays, parseYmd, placeEntries, releaseLabel, shiftDay, weekStart, ymd } from "@/lib/calendar";
+import { calendarHref, calendarLegend, calendarTone, episodeCode, foldCode, foldEpisodes, joinReleases, monthDays, parseYmd, placeEntries, releaseLabel, shiftDay, weekStart, ymd } from "@/lib/calendar";
 import { cn } from "@/lib/utils";
 import "@/styles/calendar.css";
 import { fmtClock, plural, titleWithYear } from "@/lib/format";
@@ -100,6 +100,35 @@ function EventChip({ e, plain, now }: { e: Entry; plain: boolean; now: Date }) {
       <div className="theatarr-cal-event-meta">
         <span className="theatarr-cal-event-badge">{badgeOf(e)}</span>
         {e.available ? <Check className="size-3 shrink-0 text-[var(--ok)]" aria-label={s.label} /> : null}
+        {time ? <span className="theatarr-cal-event-time">{time}</span> : null}
+      </div>
+    </Link>
+  );
+}
+
+/** Which tone a folded slot shows when its episodes differ: the one most in need of a look. */
+const TONE_RANK: Record<string, number> = { bad: 0, progress: 1, neutral: 2, idle: 3, ok: 4 };
+
+/** A series' consecutive episodes of one day as one chip ("S02E01–E03"), linked to the first; its tooltip lists each
+ * episode with its own status, and the day's list keeps every episode with its own link. */
+function FoldedChip({ slot, plain, now }: { slot: Entry[]; plain: boolean; now: Date }) {
+  const e = slot[0];
+  const tones = slot.map((x) => calendarTone(x, now, plain));
+  const s = tones.reduce((a, b) => (TONE_RANK[b.tone] < TONE_RANK[a.tone] ? b : a));
+  const time = airTime(e);
+  const title = [titleWithYear(e.title.name, e.title.year), ...slot.map((x, i) => `${episodeCode(x.season, x.number)}${x.episode ? ` · ${x.episode}` : ""} · ${tones[i].label}`)].join("\n");
+  return (
+    <Link
+      to={calendarHref(e)}
+      title={title}
+      data-testid="cal-event"
+      data-tone={s.tone}
+      className={cn("theatarr-cal-event", `theatarr-cal-tone-${s.tone}`, slot.every((x) => !x.monitored) && "is-unmonitored")}
+    >
+      <div className="theatarr-cal-event-title">{e.title.name}</div>
+      <div className="theatarr-cal-event-meta">
+        <span className="theatarr-cal-event-badge">{foldCode(slot)}</span>
+        {slot.every((x) => x.available) ? <Check className="size-3 shrink-0 text-[var(--ok)]" aria-label={s.label} /> : null}
         {time ? <span className="theatarr-cal-event-time">{time}</span> : null}
       </div>
     </Link>
@@ -257,7 +286,10 @@ function MonthGrid({
         {days.map((d) => {
           const key = ymd(d);
           const items = byDay.get(key) ?? [];
-          const shown = items.slice(0, 3);
+          // A series' consecutive episodes take one slot (foldEpisodes) before the three-slot limit.
+          const slots = foldEpisodes(items);
+          const shown = slots.slice(0, 3);
+          const more = slots.slice(3).reduce((n, slot) => n + slot.length, 0);
           return (
             <div
               key={key}
@@ -274,12 +306,10 @@ function MonthGrid({
                 <span className="theatarr-cal-day-pill">{d.getDate()}</span>
               </button>
               <div className="hidden sm:block">
-                {shown.map((e, i) => (
-                  <EventChip key={i} e={e} plain={plain} now={now} />
-                ))}
-                {items.length > shown.length ? (
+                {shown.map((slot, i) => (slot.length > 1 ? <FoldedChip key={i} slot={slot} plain={plain} now={now} /> : <EventChip key={i} e={slot[0]} plain={plain} now={now} />))}
+                {more > 0 ? (
                   <button type="button" className="theatarr-cal-more" onClick={() => onSelect(key)}>
-                    +{items.length - shown.length} more
+                    +{more} more
                   </button>
                 ) : null}
               </div>

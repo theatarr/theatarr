@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { calendarHref, calendarLegend, calendarTone, entryDay, episodeCode, firstDayOf, joinReleases, monthDays, placeEntries, shiftDay, weekStart, ymd } from "./calendar";
+import { calendarHref, calendarLegend, calendarTone, entryDay, episodeCode, firstDayOf, foldCode, foldEpisodes, joinReleases, monthDays, placeEntries, shiftDay, weekStart, ymd } from "./calendar";
 
 describe("monthDays", () => {
   it("covers whole weeks around the month", () => {
@@ -186,5 +186,21 @@ describe("joinReleases", () => {
       "2026-11-18 1 theatrical",
       "2026-11-18 3 episode",
     ]);
+  });
+});
+
+describe("foldEpisodes", () => {
+  type E = { kind: string; title: { id: number }; season?: number; number?: number };
+  const ep = (title: number, season: number, number: number): E => ({ kind: "episode", title: { id: title }, season, number });
+  const movie: E = { kind: "movie", title: { id: 9 } };
+  it("folds a series' consecutive episodes of one season into one slot, in the place of the first", () => {
+    const day = [ep(1, 2, 2), movie, ep(1, 2, 1), ep(1, 2, 3), ep(2, 1, 5)];
+    const slots = foldEpisodes(day);
+    expect(slots.map((s) => s.map((e) => e.kind === "episode" ? `${e.title.id}:${e.number}` : "movie"))).toEqual([["1:1", "1:2", "1:3"], ["movie"], ["2:5"]]);
+    expect(foldCode(slots[0])).toBe("S02E01–E03");
+  });
+  it("keeps a gap, another season and another series apart", () => {
+    const slots = foldEpisodes([ep(1, 2, 1), ep(1, 2, 2), ep(1, 2, 4), ep(1, 3, 3), ep(2, 2, 3)]);
+    expect(slots.map((s) => foldCode(s))).toEqual(["S02E01–E02", "S02E04", "S03E03", "S02E03"]);
   });
 });
