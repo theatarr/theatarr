@@ -220,6 +220,21 @@ func TestUpgradeSkipsTheHeldTorrent(t *testing.T) {
 	}
 }
 
+// An adopted episode file has no download: the hash its link stores (router.LinkStoredHashSQL, here the adopted
+// source's) is the torrent it came from, and a sighting of it is no upgrade of it either.
+func TestUpgradeSkipsTheAdoptedTorrent(t *testing.T) {
+	t.Parallel()
+	e := newManageEnv(t, nil)
+	e.exec(`UPDATE link SET download_id = NULL, adopted = 1, adopted_source = '{"hash":"ffff"}' WHERE id = 900`)
+	e.exec(`INSERT INTO journal_decision (source,title_id,version_key,target,created_at,candidates) VALUES
+		('search',10,'tv-2160p','s01',6000,'[{"release":"The.Show.S01.2160p.WEB-DL-FLUX","info_hash":"FFFF","accepted":true,
+		  "upgrade":true,"score":3375,"upgrade_reason":"better format score: 3375 over 3225","episodes":["S01E01","S01E02"]}]')`)
+	seen, n := seriesUpgrades(t, e)
+	if seen[101] || !seen[102] || n != 1 {
+		t.Fatalf("adopted torrent: seen %v, count %d; want S01E02 only", seen, n)
+	}
+}
+
 // T32: an import that replaced the file at the same path keeps the link's created time; a sighting older than the
 // download of the file now there judged the old file and does not count. A newer better release still does.
 func TestUpgradeEvidenceFloorIsTheCurrentDownload(t *testing.T) {

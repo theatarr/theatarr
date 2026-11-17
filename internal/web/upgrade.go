@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/theatarr/theatarr/internal/activity"
+	"github.com/theatarr/theatarr/internal/router"
 	"github.com/theatarr/theatarr/internal/store"
 )
 
@@ -23,8 +24,8 @@ import (
 //   - only evidence newer than the item's current file counts (an older decision judged an older file): newer than
 //     the later of its link's created time and its download's (an import that replaces a file at the same path keeps
 //     the link's first created time);
-//   - a sighting of the torrent the item's file came from (its download's hash) is not a better release of it; other
-//     episodes of the same pack still count it;
+//   - a sighting of the torrent the item's file came from (the hash its link stores: its download's, or an adopted
+//     file's) is not a better release of it; other episodes of the same pack still count it;
 //   - the newest search after the file that covers the item stands for every earlier search: its accepted
 //     upgrades count, and when it found none, older finds no longer count;
 //   - RSS sightings (journal RSS reads) newer than both the file and that search add to it;
@@ -128,7 +129,7 @@ type evItem struct {
 	number    int64
 	// fileAt is the evidence floor: the later of the file's link and download created times.
 	fileAt int64
-	// hash is the file's download hash ("" when unknown), compared in any case.
+	// hash is the hash the file's link stores ("" when unknown), compared in any case.
 	hash string
 }
 
@@ -341,13 +342,14 @@ type itemFile struct {
 	size    int64
 	added   int64
 	// For the upgrade evidence (evItem): the later of the link's and its download's created times, and the
-	// download's hash (judgeUpgrade compares it in any case).
+	// hash the link stores (router.LinkStoredHashSQL: its download's, or an adopted file's; judgeUpgrade compares
+	// it in any case).
 	since int64
 	hash  string
 }
 
 // itemFileUpgradeSQL selects itemFile's since and hash for link l joined to its download d.
-const itemFileUpgradeSQL = `MAX(l.created_at, COALESCE(d.created_at, 0)), COALESCE(d.info_hash, '')`
+const itemFileUpgradeSQL = `MAX(l.created_at, COALESCE(d.created_at, 0)), COALESCE(` + router.LinkStoredHashSQL + `, '')`
 
 // loadItemFiles reads the current files of versions, per episode (0 for a movie): their active links. Without
 // scores each file's score is left out.
