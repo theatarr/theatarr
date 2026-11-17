@@ -126,10 +126,10 @@ describe("Bulk Remove", () => {
     const user = userEvent.setup();
     await user.click(await within(await bar()).findByRole("button", { name: "Remove from a library" }));
     let dialog = await screen.findByRole("dialog", { name: "Remove 3 titles from HD" });
-    expect(within(dialog).getByTestId("confirm-does").textContent).toContain("2 titles are in no other library and leave the library");
+    expect(within(dialog).getByTestId("confirm-does").textContent).toContain("1 title keeps a copy in another library and stays visible to apps that include it; 2 are in no other library and are hidden from Seerr and the other arr clients");
     await user.selectOptions(within(dialog).getByRole("combobox", { name: "Library" }), "uhd");
     dialog = await screen.findByRole("dialog", { name: "Remove 2 titles from 4K" });
-    expect(within(dialog).getByTestId("confirm-does").textContent).toContain("1 title is in no other library and leaves the library");
+    expect(within(dialog).getByTestId("confirm-does").textContent).toContain("1 title keeps a copy in another library and stays visible to apps that include it; 1 is in no other library and is hidden from Seerr and the other arr clients");
     expect(within(dialog).getByTestId("bulk-remove-skipped").textContent).toBe("Skipped 3 titles: not in this library.");
     expect(within(dialog).getByTestId("confirm-keeps").textContent).toContain("A file another library of the title uses stays");
     await user.click(within(dialog).getByRole("button", { name: "Remove 2 titles from 4K" }));

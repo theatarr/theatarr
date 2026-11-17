@@ -230,11 +230,16 @@ export function bulkRemovalScope(scopes: readonly RemovalScopeLike[], files: boo
   // Titles that keep another copy stay in the apps whose libraries include it; only those in no other library leave
   // Seerr and the arr clients.
   const partly = library !== undefined && whole < n;
-  if (partly) does.push(`${library} loses ${one ? "its copy" : "their copies"}. ${REMAINING_COPY} ${one ? "it" : "them"}`);
-  if (library && whole > 0) {
-    const leave = `${plural(whole, "title")} ${whole === 1 ? "is in no other library and leaves" : "are in no other library and leave"} the library`;
-    does.push(partly ? `${leave}: ${whole === 1 ? "it is" : "they are"} hidden from Seerr and the other arr clients` : leave);
+  if (partly && whole === 0) does.push(`${library} loses ${one ? "its copy" : "their copies"}. ${REMAINING_COPY} ${one ? "it" : "them"}`);
+  else if (partly) {
+    // A mixed selection: each group by its count.
+    const kept = n - whole;
+    does.push(
+      `${plural(kept, "title")} ${kept === 1 ? "keeps a copy in another library and stays" : "keep a copy in another library and stay"} visible to apps that include it; ` +
+        `${whole} ${whole === 1 ? "is in no other library and is" : "are in no other library and are"} hidden from Seerr and the other arr clients`,
+    );
   }
+  if (library && !partly && whole > 0) does.push(`${plural(whole, "title")} ${whole === 1 ? "is in no other library and leaves" : "are in no other library and leave"} the library`);
   if (!partly) does.push(`${they} hidden from Seerr and the other arr clients`);
   if (downloads > 0) does.push(`Theatarr stops following ${plural(downloads, "download")} in progress`);
   if (files && links > 0) does.push(`${plural(links, "library file")} ${links === 1 ? "is" : "are"} deleted from the library (moved to Theatarr's trash), and the folders they leave empty are removed`);

@@ -209,8 +209,9 @@ describe("bulkRemovalScope", () => {
   it("says a title leaves the apps only when the library held its last copy (T2)", () => {
     // A keeps another copy; B is in no other library.
     const from = bulkRemovalScope([s("A", 1, false), s("B", 1)], false, false, "HD");
-    expect(from.does).toContain("HD loses their copies. Apps whose libraries include a remaining copy still show them");
-    expect(from.does).toContain("1 title is in no other library and leaves the library: it is hidden from Seerr and the other arr clients");
+    expect(from.does).toContain("1 title keeps a copy in another library and stays visible to apps that include it; 1 is in no other library and is hidden from Seerr and the other arr clients");
+    expect(from.does.some((d) => d.includes("still show them"))).toBe(false);
+    expect(bulkRemovalScope([s("A", 1, false), s("C", 1, false)], false, false, "HD").does).toContain("HD loses their copies. Apps whose libraries include a remaining copy still show them");
     expect(from.does).not.toContain("They are hidden from Seerr and the other arr clients");
     expect(bulkRemovalScope([s("A", 1, false)], false, false, "HD").does).toContain("HD loses its copy. Apps whose libraries include a remaining copy still show it");
     // Every title leaves with its last copy, and so does every whole-title removal.
