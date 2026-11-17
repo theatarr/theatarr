@@ -220,7 +220,16 @@ function RequestQueue() {
       ) : items.length === 0 ? (
         <Card>
           <Empty icon={tab === "queue" ? CheckCircle2 : Inbox}>
-            {tab === "queue" ? "Nothing waits for a decision." : "No requests here."}
+            {tab === "queue" ? (
+              "Nothing waits for a decision."
+            ) : filter !== "all" && Object.values(counts).some((n) => n > 0) ? (
+              // Requests exist, just none with this status: one press shows them all (still only this tab's own).
+              <>No requests match. <button type="button" className="text-primary hover:underline" onClick={() => setFilter("all")}>Show all</button></>
+            ) : tab === "mine" ? (
+              <>You have not requested anything yet. <Link to="/search" className="text-primary hover:underline">Find a title</Link></>
+            ) : (
+              "No requests here."
+            )}
           </Empty>
         </Card>
       ) : (

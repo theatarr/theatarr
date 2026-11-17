@@ -127,6 +127,38 @@ describe("the request queue", () => {
   });
 });
 
+describe("an empty request list", () => {
+  const member = { username: "kid", permissions: ["request"], csrf_token: "fixture" };
+  it("offers Show all when the status filter hides one's requests, still only one's own", async () => {
+    const user = userEvent.setup();
+    const fetch = mockFetch([
+      { method: "GET", path: "/auth/me", reply: member },
+      { method: "GET", path: "/requests", reply: (r: { search: string }) => new URLSearchParams(r.search).get("status") === "all"
+        ? { items: [{ id: 3, kind: "movie", name: "Film 3", anime: false, tmdb_id: 3, status: "available", mine: true, seasons: [], versions: [], created_at: "2026-10-30T12:00:00Z", updated_at: "2026-10-30T12:00:00Z" }], total: 1, counts: { available: 1 } }
+        : { items: [], total: 0, counts: { available: 1 } } },
+    ]);
+    renderPage(<Routes><Route path="/requests/:tab?" element={<RequestsPage />} /></Routes>, "/requests");
+    expect(await screen.findByText(/No requests match\./)).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Find a title" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Show all" }));
+    expect(await screen.findAllByText("Film 3")).not.toHaveLength(0);
+    const last = fetch.requests.filter((r) => r.path === "/requests").at(-1)!;
+    expect(new URLSearchParams(last.search).get("status")).toBe("all");
+    expect(new URLSearchParams(last.search).get("mine")).toBe("1");
+  });
+
+  it("points to Search when one has no requests at all", async () => {
+    mockFetch([
+      { method: "GET", path: "/auth/me", reply: member },
+      { method: "GET", path: "/requests", reply: { items: [], total: 0, counts: {} } },
+    ]);
+    renderPage(<Routes><Route path="/requests/:tab?" element={<RequestsPage />} /></Routes>, "/requests");
+    const find = await screen.findByRole("link", { name: "Find a title" });
+    expect(find.getAttribute("href")).toBe("/search");
+    expect(screen.queryByRole("button", { name: "Show all" })).toBeNull();
+  });
+});
+
 describe("problem reports", () => {
   it("lets a manager switch from the open reports to their own, fixed ones with the reply", async () => {
     const user = userEvent.setup();
