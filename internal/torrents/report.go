@@ -468,12 +468,31 @@ func seriesName(ep *sonarr.ParsedEpisodeInfo) (key, label, quality string) {
 		for _, e := range ep.AbsoluteEpisodeNumbers {
 			es = append(es, fmt.Sprint(e))
 		}
-		label = fmt.Sprintf("%s %s", ep.SeriesTitle, strings.Join(es, "-"))
+		label = fmt.Sprintf("%s %s", ep.SeriesTitle, numberRanges(ep.AbsoluteEpisodeNumbers))
 		key = "series:" + norm(ep.SeriesTitle) + ":abs" + strings.Join(es, "-")
 	default:
 		key += ":pack"
 	}
 	return key, label, ep.Quality.Quality.Name
+}
+
+// numberRanges is a label's episode numbers with each run of consecutive numbers as one range: "1–291", and a pack
+// with gaps as "1–12, 14–26". Only the label; the duplicate-title key keeps every number.
+func numberRanges(ns []int) string {
+	var parts []string
+	for i := 0; i < len(ns); {
+		j := i
+		for j+1 < len(ns) && ns[j+1] == ns[j]+1 {
+			j++
+		}
+		if j > i {
+			parts = append(parts, fmt.Sprintf("%d–%d", ns[i], ns[j]))
+		} else {
+			parts = append(parts, fmt.Sprint(ns[i]))
+		}
+		i = j + 1
+	}
+	return strings.Join(parts, ", ")
 }
 
 // norm is a title folded for comparison: letters and digits, lower case.

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"maps"
@@ -15,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/theatarr/theatarr/internal/decide/parser/sonarr"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/provider"
 	"github.com/theatarr/theatarr/internal/provider/adder"
@@ -500,6 +502,43 @@ func TestParseNameFilmYear(t *testing.T) {
 	}
 	if key, _, _ := parseName("The.Dark.Knight.Rises.2012.1080p.BluRay", 2026); key != "movie:thedarkknightrises:2012" {
 		t.Errorf("duplicate-title key of a film: %q", key)
+	}
+}
+
+// A contiguous absolute-numbered pack reads as one range and gaps as separate ranges; the duplicate-title key keeps
+// every number, so packs that differed before still differ.
+func TestSeriesNameAbsoluteRanges(t *testing.T) {
+	t.Parallel()
+	seq := func(from, to int, skip ...int) []int {
+		var ns []int
+		for n := from; n <= to; n++ {
+			if !slices.Contains(skip, n) {
+				ns = append(ns, n)
+			}
+		}
+		return ns
+	}
+	ep := func(ns []int) *sonarr.ParsedEpisodeInfo {
+		return &sonarr.ParsedEpisodeInfo{SeriesTitle: "Dragon Ball Z", AbsoluteEpisodeNumbers: ns}
+	}
+	full, fullLabel, _ := seriesName(ep(seq(1, 291)))
+	if fullLabel != "Dragon Ball Z 1–291" {
+		t.Errorf("contiguous pack: %q", fullLabel)
+	}
+	gaps, gapsLabel, _ := seriesName(ep(seq(1, 26, 13, 20)))
+	if gapsLabel != "Dragon Ball Z 1–12, 14–19, 21–26" {
+		t.Errorf("pack with gaps: %q", gapsLabel)
+	}
+	if _, one, _ := seriesName(ep([]int{5})); one != "Dragon Ball Z 5" {
+		t.Errorf("one episode: %q", one)
+	}
+	if want := "series:dragonballz:abs" + strings.Trim(strings.Join(strings.Fields(fmt.Sprint(seq(1, 291))), "-"), "[]"); full != want {
+		t.Errorf("key changed: %q", full)
+	}
+	// Two packs whose numbers differ keep different keys even where a label could read alike.
+	other, _, _ := seriesName(ep(seq(1, 26, 13)))
+	if gaps == other || full == gaps {
+		t.Errorf("keys collapsed: %q %q %q", full, gaps, other)
 	}
 }
 
