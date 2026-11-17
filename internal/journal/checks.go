@@ -420,7 +420,13 @@ func (b *builder) checkUpgrade(e *Entry) {
 	}
 	pq, cq := qualityRank(e.f.prevQuality), qualityRank(quality)
 	if pq > 0 && cq > 0 && cq < pq {
-		e.flag(CheckLowerQual, sev, "the upgrade lowers the quality: %s → %s%s", e.f.prevQuality, quality, hand)
+		qsev, why := sev, hand
+		if r := e.Reasoning; hand == "" && r != nil && r.Chosen != nil &&
+			strings.HasPrefix(r.Chosen.UpgradeWhy, "preferred SeaDex release") {
+			// Chosen for its SeaDex standing (decide.upgradeOf): said, not warned about; the drop stays visible.
+			qsev, why = SevInfo, " (preferred SeaDex release)"
+		}
+		e.flag(CheckLowerQual, qsev, "the upgrade lowers the quality: %s → %s%s", e.f.prevQuality, quality, why)
 		return
 	}
 	if cur != nil && e.f.prevScore != nil && *cur < *e.f.prevScore && (pq == 0 || cq <= pq) {

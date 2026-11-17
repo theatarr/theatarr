@@ -19,7 +19,7 @@ import { ProviderTag } from "@/components/provider-pills";
 import { InfoHash } from "@/components/title/info-hash";
 import { Select } from "@/components/ui/select";
 import { toTop } from "@/components/ui/pager";
-import { attemptCodeWords, attemptOutcomeWords } from "@/lib/router-words";
+import { attemptCodeWords, attemptMessageWords, attemptOutcomeWords } from "@/lib/router-words";
 import { JOURNAL_KINDS, journalFlagWords, journalKindWords, journalLabel, journalPathsTip, journalSourceWords } from "@/lib/journal-words";
 
 type Tone = "neutral" | "positive" | "warning" | "negative" | "info";
@@ -252,9 +252,9 @@ export function JournalEntryPage() {
                     <TableCell>
                       <Badge tone={a.outcome === "accepted" ? "positive" : "warning"} title={[a.outcome, a.code].filter(Boolean).join(" · ")}>{a.code === "reused" ? "Reused" : attemptOutcomeWords(a.outcome)}</Badge>
                       {/* On a phone the reason is a second line under the outcome; wider screens give it its own column. */}
-                      <div className="mt-1 break-words text-[12.5px] text-muted-foreground sm:hidden" data-testid="attempt-reason-phone">{a.message || attemptCodeWords(a.code)}</div>
+                      <div className="mt-1 break-words text-[12.5px] text-muted-foreground sm:hidden" data-testid="attempt-reason-phone">{attemptMessageWords(a.message) || attemptCodeWords(a.code)}</div>
                     </TableCell>
-                    <TableCell className="hidden break-words text-[13px] text-muted-foreground sm:table-cell">{a.message || attemptCodeWords(a.code)}</TableCell>
+                    <TableCell className="hidden break-words text-[13px] text-muted-foreground sm:table-cell">{attemptMessageWords(a.message) || attemptCodeWords(a.code)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

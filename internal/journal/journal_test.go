@@ -1022,3 +1022,25 @@ func TestImportSummaryLeftOut(t *testing.T) {
 		t.Errorf("summary %q, want %q", g, w)
 	}
 }
+
+// A replacement chosen as the preferred SeaDex release keeps its quality drop as an info flag that says why; any other
+// drop stays a warning.
+func TestLowerQualitySeaDexIsInfo(t *testing.T) {
+	up := func(why string) *Entry {
+		e := &Entry{Kind: KindUpgrade, Release: &Release{Quality: "WEBDL-720p"},
+			Reasoning: &Reasoning{Chosen: &snapshot.Candidate{Score: 600, UpgradeWhy: why}}}
+		zero := 0
+		e.f.prevScore, e.f.prevQuality = &zero, "Bluray-1080p"
+		(&builder{}).checkUpgrade(e)
+		return e
+	}
+	f := hasFlag(up("preferred SeaDex release; actual quality WEBDL-720p over Bluray-1080p"), CheckLowerQual)
+	if f == nil || f.Severity != SevInfo ||
+		f.Reason != "the upgrade lowers the quality: Bluray-1080p → WEBDL-720p (preferred SeaDex release)" {
+		t.Errorf("SeaDex: %+v", f)
+	}
+	if f := hasFlag(up("better format score: 600 over 0"), CheckLowerQual); f == nil || f.Severity != SevWarn ||
+		strings.Contains(f.Reason, "SeaDex") {
+		t.Errorf("other: %+v", f)
+	}
+}

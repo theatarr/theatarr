@@ -145,3 +145,14 @@ it("keeps a provider attempt's reason on a second line for phones", async () => 
   expect(line.textContent).toBe("not cached on AD");
   expect(line.className).toContain("sm:hidden");
 });
+
+it("says a pacing attempt's message in words", async () => {
+  mockFetch([
+    { method: "GET", path: "/journal/dl%3A4", reply: { id: "dl:4", kind: "grab", attempts: [
+      { at: "2026-11-12T03:24:00Z", provider: "rd", outcome: "deferred", code: "paced", message: "min_gap 20s since the last add" },
+    ] } },
+  ]);
+  renderPage(<Routes><Route path="/admin/system/journal/:id" element={<JournalEntryPage />} /></Routes>, "/admin/system/journal/dl:4");
+  expect((await screen.findByTestId("attempt-reason-phone")).textContent).toBe("Waiting for the 20 s minimum gap between adds");
+  expect(screen.queryByText(/min_gap/)).toBeNull();
+});
