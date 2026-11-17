@@ -30,9 +30,10 @@ export function languages(list: string | undefined | null): string {
   return languageNames(list).join(", ");
 }
 
-/** "jpn/eng" as ["Japanese", "English"]. */
+/** "jpn/eng" as ["Japanese", "English"]: each language once, in first-seen order (a file with seven Russian tracks
+ *  reads "Russian" once). */
 export function languageNames(list: string | undefined | null): string[] {
-  return (list ?? "").split("/").filter(Boolean).map(languageName);
+  return (list ?? "").split("/").filter(Boolean).map(languageName).filter((n, i, all) => all.indexOf(n) === i);
 }
 
 /** The first shown names and how many more: "English, Arabic +34". */

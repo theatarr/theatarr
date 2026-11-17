@@ -647,7 +647,8 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
     upgrade vocabulary, monitor switch and Search now (managers), Interactive search for that episode in that library
     (managers, a library that searches live), the download in hand, the upgrade block with Why?, and the file's facts
     (release, quality, score, size, group, **Held on** with the admins' **Torrent** link,
-    languages, media with at most four subtitle languages and "+N" (all of them as tooltip), added, "From" the arr
+    languages, media (each audio language once, in first-seen order, however many tracks carry it) with at most
+    four subtitle languages and "+N" (all of them as tooltip), added, "From" the arr
     instance for an arr's file (none for Theatarr's own link), path), shown openly. **History**:
     per library the title History's rows that hold the episode (`EpisodeVersionDetail.history`, read by
     `Journal.EpisodeHistory`: the same folds, words and table as the title's History tab, without the Library column

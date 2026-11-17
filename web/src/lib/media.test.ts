@@ -12,6 +12,8 @@ describe("mediaLine", () => {
   it("names audio languages and keeps codes it does not know", () => {
     expect(mediaLine({ audio_codec: "EAC3", audio_channels: 6, audio_languages: "jpn/eng" })).toBe("EAC3 6 · Japanese, English");
     expect(languageName("fre")).toBe("French");
+    // Each language once, first-seen order, however many tracks carry it (T35).
+    expect(mediaLine({ audio_languages: "rus/rus/rus/rus/rus/rus/rus/eng/ru" })).toBe("Russian, English");
     expect(languageName("und")).toBe("und");
     expect(languageName("qqq")).toBe("qqq");
   });
