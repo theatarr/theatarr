@@ -82,7 +82,7 @@ describe("recovery scopes", () => {
     expect(keep.title).toBe("Remove from 4K WEB");
     expect(keep.does).toEqual([
       "Dune is removed from 4K WEB: this copy stops being wanted, searched or upgraded",
-      "Seerr and the arr clients connected to 4K WEB no longer show it; apps connected to another library still show Dune",
+      "4K WEB loses its copy. Apps whose libraries include a remaining copy still show Dune",
       "Theatarr stops following 1 download in progress",
     ]);
     expect(keep.keeps).toEqual([
@@ -204,6 +204,18 @@ describe("bulkRemovalScope", () => {
     expect(keep.keeps).toContain("Their debrid torrents stay");
     expect(keep.cleanup?.to).toBe("/admin/torrents?group=unused");
     expect(bulkRemovalScope([], true).blocked).toBe("Nothing to remove");
+  });
+
+  it("says a title leaves the apps only when the library held its last copy (T2)", () => {
+    // A keeps another copy; B is in no other library.
+    const from = bulkRemovalScope([s("A", 1, false), s("B", 1)], false, false, "HD");
+    expect(from.does).toContain("HD loses their copies. Apps whose libraries include a remaining copy still show them");
+    expect(from.does).toContain("1 title is in no other library and leaves the library: it is hidden from Seerr and the other arr clients");
+    expect(from.does).not.toContain("They are hidden from Seerr and the other arr clients");
+    expect(bulkRemovalScope([s("A", 1, false)], false, false, "HD").does).toContain("HD loses its copy. Apps whose libraries include a remaining copy still show it");
+    // Every title leaves with its last copy, and so does every whole-title removal.
+    expect(bulkRemovalScope([s("B", 1)], false, false, "HD").does).toContain("It is hidden from Seerr and the other arr clients");
+    expect(bulkRemovalScope([s("A", 1, false), s("B", 1)], false).does).toContain("They are hidden from Seerr and the other arr clients");
   });
 
   it("names a few titles and counts the rest", () => {

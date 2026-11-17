@@ -146,6 +146,8 @@ export const REMOVAL_LISTS = "Import lists will not restore the removed librarie
 export const REMOVAL_EXCLUDE = "Also keep lists from adding it to any other library";
 /** Why "Delete it from the debrid providers" is off while the files are kept. */
 export const REMOVAL_DEBRID_NEEDS_FILES = "Deleting the torrents needs the files deleted too: kept files would stop playing";
+/** After a copy goes while others stay: what the apps show (followed by the title, or "it" / "them"). */
+const REMAINING_COPY = "Apps whose libraries include a remaining copy still show";
 const SHARED_FILE_STAYS = "A file another library of the title uses stays";
 
 /** The removal dialog's scope. files: "Delete the files"; debrid: "Delete it from the debrid providers" (only with
@@ -176,9 +178,10 @@ export function removalScope(s: RemovalScopeLike, files: boolean, debrid = files
   const does: string[] = [];
   if (s.title) does.push(`${s.name} is removed from every library it is in (${names}): it stops being wanted, searched or upgraded there`);
   else does.push(`${s.name} is removed from ${names}: ${s.copies.length === 1 ? "this copy stops" : "these copies stop"} being wanted, searched or upgraded`);
-  // The title leaves Seerr and the arr clients only with its last copy; apps connected to a library it stays in keep it.
+  // The title leaves Seerr and the arr clients only with its last copy; an app whose view covers a library it stays in
+  // (a view can cover several) still shows it.
   if (s.title) does.push("It is hidden from Seerr and the other arr clients");
-  else does.push(`Seerr and the arr clients connected to ${names} no longer show it; apps connected to another library still show ${s.name}`);
+  else does.push(`${names} ${s.copies.length === 1 ? "loses its copy" : "lose their copies"}. ${REMAINING_COPY} ${s.name}`);
   if (downloads > 0) does.push(`Theatarr stops following ${plural(downloads, "download")} in progress`);
   if (files && links > 0) does.push(`${plural(links, "library file")} ${links === 1 ? "is" : "are"} deleted from the library (moved to Theatarr's trash), and the folders they leave empty are removed`);
   if (debrid) does.push(REMOVAL_CLEANUP);
@@ -224,8 +227,15 @@ export function bulkRemovalScope(scopes: readonly RemovalScopeLike[], files: boo
       ? `${plural(n, "title")} ${one ? "is" : "are"} removed from ${library}: ${one ? "it stops" : "they stop"} being wanted, searched or upgraded there`
       : `${plural(n, "title")} ${one ? "is" : "are"} removed from every library ${one ? "it is" : "they are"} in: ${one ? "it stops" : "they stop"} being wanted, searched or upgraded`,
   ];
-  if (library && whole > 0) does.push(`${plural(whole, "title")} ${whole === 1 ? "is in no other library and leaves" : "are in no other library and leave"} the library`);
-  does.push(`${they} hidden from Seerr and the other arr clients`);
+  // Titles that keep another copy stay in the apps whose libraries include it; only those in no other library leave
+  // Seerr and the arr clients.
+  const partly = library !== undefined && whole < n;
+  if (partly) does.push(`${library} loses ${one ? "its copy" : "their copies"}. ${REMAINING_COPY} ${one ? "it" : "them"}`);
+  if (library && whole > 0) {
+    const leave = `${plural(whole, "title")} ${whole === 1 ? "is in no other library and leaves" : "are in no other library and leave"} the library`;
+    does.push(partly ? `${leave}: ${whole === 1 ? "it is" : "they are"} hidden from Seerr and the other arr clients` : leave);
+  }
+  if (!partly) does.push(`${they} hidden from Seerr and the other arr clients`);
   if (downloads > 0) does.push(`Theatarr stops following ${plural(downloads, "download")} in progress`);
   if (files && links > 0) does.push(`${plural(links, "library file")} ${links === 1 ? "is" : "are"} deleted from the library (moved to Theatarr's trash), and the folders they leave empty are removed`);
   if (debrid) does.push(one ? REMOVAL_CLEANUP : "Their debrid torrents are deleted from the providers, after a backup, unless another title or library in Theatarr uses them");
