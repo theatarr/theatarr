@@ -387,6 +387,77 @@ describe("Library table", () => {
     expect(fetch.requests.filter((r) => r.method !== "GET").every((r) => r.path === "/titles/monitor")).toBe(true);
   });
 
+  // 524 movies, served 60 at a time as GET /titles pages them.
+  const many = Array.from({ length: 524 }, (_, i) => ({
+    id: i + 1, kind: "movie", name: `Film ${i + 1}`, year: 2020, monitored: true,
+    versions: [{ id: 1000 + i, key: "movie-4k", label: "4K", monitored: false, has_file: false, state: "wanted", control: managed }],
+  }));
+  const pages = { method: "GET", path: "/titles", reply: (r: { search: string }) => {
+    const q = new URLSearchParams(r.search);
+    const offset = Number(q.get("offset") ?? 0);
+    return { items: many.slice(offset, offset + Number(q.get("limit"))), total: many.length, offset };
+  } };
+  const monitorReply = (fail?: number) => (r: { body?: { title_ids: number[]; dry_run?: boolean } }) => {
+    const ids = r.body?.title_ids ?? [];
+    if (fail !== undefined && !r.body?.dry_run && ids[0] === fail) return { status: 500, body: { error: "database is locked" } };
+    const items = ids.map((id) => ({ title_id: id, title: `Film ${id}`, version: "movie-4k", label: "4K", outcome: "changed", from: false, to: true }));
+    return { dry_run: !!r.body?.dry_run, changed: ids.length, unchanged: 0, missing: 0, stale: 0, message: `Would monitor ${ids.length} libraries`, items };
+  };
+  // The list loads the next page as its end scrolls into view; here only Select all N matches loads more.
+  const noScroll = () => vi.stubGlobal("IntersectionObserver", class { observe() {} disconnect() {} });
+  const selectAllMatches = async (fail?: number) => {
+    noScroll();
+    const fetch = mockFetch([routes()[0], pages, routes()[2], { method: "POST", path: "/titles/monitor", reply: monitorReply(fail) }]);
+    const user = userEvent.setup();
+    renderPage(<Catalog id="movies" />, "/movies");
+    await screen.findAllByText("Film 1");
+    await user.click(screen.getByRole("button", { name: "Select" }));
+    await user.click(screen.getByRole("button", { name: "Select all 524 matches" }));
+    const bar = await screen.findByRole("region", { name: "Bulk edit" });
+    await within(bar).findByText("524 titles selected");
+    expect(screen.queryByRole("button", { name: "Select all 524 matches" })).toBeNull();
+    // The rest of the same query, page after page, and nothing else.
+    expect(fetch.calls("GET", "/titles").map((c) => new URLSearchParams(c.search).get("offset"))).toEqual(["0", "60", "120", "180", "240", "300", "360", "420", "480"]);
+    await user.click(within(bar).getByRole("button", { name: "Monitor" }));
+    const dialog = await screen.findByRole("dialog", { name: "Review bulk edit" });
+    await within(dialog).findByText("Would monitor 524 libraries");
+    await user.click(within(dialog).getByRole("button", { name: "Apply to 524 libraries" }));
+    return { fetch, dialog };
+  };
+
+  // 524 rows: slow under a full parallel run.
+  it("selects all matches: loads the remaining pages, counts them all, and monitors in groups of 500 with the same ids", { timeout: 30_000 }, async () => {
+    const { fetch, dialog } = await selectAllMatches();
+    await within(dialog).findByText("Monitored 524 libraries");
+    const calls = fetch.calls("POST", "/titles/monitor").map((c) => c.body as { title_ids: number[]; dry_run?: boolean; expect?: { title_id: number }[] });
+    expect(calls.map((c) => [c.title_ids.length, !!c.dry_run])).toEqual([[500, true], [24, true], [500, false], [24, false]]);
+    expect(calls[2].title_ids).toEqual(calls[0].title_ids);
+    expect(calls[3].title_ids).toEqual(calls[1].title_ids);
+    expect(calls[3].expect?.map((e) => e.title_id)).toEqual(calls[1].title_ids);
+  });
+
+  it("says what was done and what was not when a later group of the apply fails", { timeout: 30_000 }, async () => {
+    const { dialog } = await selectAllMatches(501);
+    await within(dialog).findByText("Monitored 500 libraries for the first 500 of 524 titles; the other 24 were not changed: database is locked");
+  });
+
+  it("previews Remove for all matches in groups of 500", { timeout: 30_000 }, async () => {
+    noScroll();
+    const fetch = mockFetch([routes()[0], pages, routes()[2], { method: "POST", path: "/titles/removal", reply: (r: { body?: { title_ids: number[] } }) => ({
+      scopes: (r.body?.title_ids ?? []).map((id) => ({ title_id: id, name: `Film ${id}`, title: true, copies: [{ key: "movie-4k", label: "4K", links: 0, downloads: 0 }], leftover: [] })), skipped: [],
+    }) }]);
+    const user = userEvent.setup();
+    renderPage(<Catalog id="movies" />, "/movies");
+    await screen.findAllByText("Film 1");
+    await user.click(screen.getByRole("button", { name: "Select" }));
+    await user.click(screen.getByRole("button", { name: "Select all 524 matches" }));
+    const bar = await screen.findByRole("region", { name: "Bulk edit" });
+    await within(bar).findByText("524 titles selected");
+    await user.click(within(bar).getByRole("button", { name: "Remove" }));
+    await waitFor(() => expect(fetch.calls("POST", "/titles/removal")).toHaveLength(2));
+    expect(fetch.calls("POST", "/titles/removal").map((c) => (c.body as { title_ids: number[] }).title_ids.length)).toEqual([500, 24]);
+  });
+
   it("opens a title's copies in a dialog with each copy's file, stage and monitoring", async () => {
     const movie = {
       id: 9, kind: "movie", name: "Saltglass Meridian", year: 2018, monitored: true,

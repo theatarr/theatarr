@@ -788,13 +788,16 @@ including "Imported from Radarr's blocklist" for `arr:<instance>`) and the healt
   across, the others two) and the details under each poster: Year (the default), Next release / Next airing, Studio /
   Network (Anime: "Next episode / release", "Network / studio"), Quality ("4K: Remux-2160p · WEB: WEBDL-2160p"), Size (the title's total), Added (the day the title was
   added) and Rating; Quality and Size need See files. Without See files a poster has the badge only.
-- **Select** (managers) works on both: tick titles ("Select all 60 shown" selects the loaded rows); the bar counts
-  titles ("12 titles selected") and offers Monitor, Unmonitor, Search now, Add to a library (with the add
+- **Select** (managers) works on both: tick titles ("Select all 60 shown" selects the loaded rows; with more matches
+  than loaded, "Select all 524 matches" loads the remaining pages of the same query with a spinner, the bar waiting
+  until they are in, then selects every title); the bar counts titles ("12 titles selected") and offers Monitor, Unmonitor, Search now, Add to a library (with the add
   permission), Remove from a library and Remove. Household accounts have no Select.
   - **Monitor / Unmonitor** open a review: the library (**Every library** by default, or one) is picked there, and
     each change asks `POST titles/monitor` with `dry_run`, listing what changes, what is already set and what is
     excluded (titles without the copy); **Apply** sends the preview's values as `expect`, so a copy changed since is
-    skipped as stale, and lists each outcome. It only sets `monitored` on existing copies: nothing is searched or
+    skipped as stale, and lists each outcome. Both go in groups of 500 titles (the route's limit), the apply with
+    the preview's groups; an apply group that fails says what the groups before it changed and that the rest was not
+    changed. It only sets `monitored` on existing copies: nothing is searched or
     grabbed. The Libraries dialog's switch uses the same route for one copy.
   - **Search now** confirms, then sends one item per title and library it is monitored in to `POST wanted/search`
     (`only: "missing"`, 200 items a request, one request after another): no library is picked first, and a title
@@ -804,7 +807,7 @@ including "Imported from Radarr's blocklist" for `arr:<instance>`) and the healt
     a link to Wanted. A refused request (409 while new downloads are off) shows the server's message and stops the
     rest.
   - **Remove** is the title page's removal dialog for the selection: `POST titles/removal {title_ids, versions}`
-    reads each title's removal scope (the per-title `GET titles/{id}/removal`, for up to 500 titles in the selection's
+    reads each title's removal scope (the per-title `GET titles/{id}/removal`, in groups of 500 titles in the selection's
     order; an unknown library is refused; a title with nothing to remove is skipped with the reason), and the dialog
     sums the counts ("Remove 12 titles": libraries, downloads, library files), names the first titles ("Alpha, Beta,
     Gamma and 9 more") and has the same two choices, both on. Confirming handles each title in turn: it reads the

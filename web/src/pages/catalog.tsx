@@ -3,10 +3,11 @@
 // the right. Filters open in a sheet at every width and show as removable chips under the toolbar. Filters, sort and a
 // picked view (?view=grid|table) live in the URL, so links such as /movies?availability=missing&view=table open that
 // list as it was; without ?view= the list opens in the view last picked, which is kept per list and per user in this
-// browser, as are the table's columns and the poster options (lib/prefs.ts). Select (managers) feeds the bulk bar.
+// browser, as are the table's columns and the poster options (lib/prefs.ts). Select (managers) feeds the bulk bar;
+// "Select all N matches" loads the remaining pages of the same query first.
 // Anime has All / Movies / Series (?kind=); Series and Anime have a Monitored shortcut (?monitored=true) in the toolbar.
-import { ArrowDownWideNarrow, ArrowUpNarrowWide, CheckSquare, Columns3, Eye, LayoutGrid, Plus, Rows3, Settings2, SlidersHorizontal, X } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { ArrowDownWideNarrow, ArrowUpNarrowWide, CheckSquare, Columns3, Eye, LayoutGrid, Loader2, Plus, Rows3, Settings2, SlidersHorizontal, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
 import { useAuth } from "@/api/auth";
 import { useFacets, usePerms, useTitleGrid } from "@/api/library";
@@ -110,10 +111,15 @@ export function Catalog({ id }: { id: CatalogId }) {
   const [dialog, setDialog] = useState<"columns" | "posters" | null>(null);
   const [selecting, setSelecting] = useState(false);
   const [chosen, setChosen] = useState<ReadonlySet<number>>(new Set());
+  // "Select all N matches" while it loads the remaining pages: the query it loads for (the bulk bar waits).
+  const [loadingAll, setLoadingAll] = useState(false);
+  const loadingFor = useRef<string | null>(null);
   // A selection belongs to one catalog.
   useEffect(() => {
     setSelecting(false);
     setChosen(new Set());
+    loadingFor.current = null;
+    setLoadingAll(false);
   }, [id]);
 
   const set = useCallback(
@@ -192,6 +198,27 @@ export function Catalog({ id }: { id: CatalogId }) {
         all: (on) => setChosen(on ? new Set(titles.map((t) => t.id ?? 0)) : new Set()),
       }
     : undefined;
+  // Select all N matches: the remaining pages of the same query, then every title of it. Stops when the list's query
+  // changes meanwhile (the pages would be another list's).
+  const selectAllMatches = async () => {
+    const key = JSON.stringify(query);
+    loadingFor.current = key;
+    setLoadingAll(true);
+    let r = await grid.fetchNextPage();
+    while (r.hasNextPage && !r.isError && loadingFor.current === key) r = await grid.fetchNextPage();
+    if (loadingFor.current !== key) return;
+    loadingFor.current = null;
+    setLoadingAll(false);
+    if (!r.isError) setChosen(new Set((r.data?.pages ?? []).flatMap((p) => p.items ?? []).map((t) => t.id ?? 0)));
+  };
+  const queryKey = JSON.stringify(query);
+  useEffect(() => {
+    if (loadingFor.current !== null && loadingFor.current !== queryKey) {
+      loadingFor.current = null;
+      setLoadingAll(false);
+    }
+  }, [queryKey]);
+  const moreMatches = total !== undefined && total > titles.length;
   const chosenTitles = titles.filter((t) => chosen.has(t.id ?? 0));
   const n = activeFilters(params);
   const chips = filterChips(params, {
@@ -369,31 +396,46 @@ export function Catalog({ id }: { id: CatalogId }) {
             </Empty>
           )}
         </Card>
-      ) : view === "table" ? (
-        <TitleTable
-          titles={titles}
-          more={more}
-          onMore={onMore}
-          seeFiles={perms.seeFiles}
-          manage={perms.manage}
-          columns={shown}
-          sort={{ sort, sortVersion: query.sort_version, desc }}
-          onSort={(s) => setSort(s, true)}
-          select={select}
-        />
       ) : (
         <>
           {select ? (
-            <div className="mb-3 flex flex-wrap gap-3 text-sm">
+            <div className="mb-3 flex flex-wrap items-center gap-3 text-sm" data-testid="select-line">
               <button type="button" className="text-[var(--accent-ink)] hover:underline" onClick={() => select.all(true)}>Select all {titles.length} shown</button>
+              {moreMatches || loadingAll ? (
+                <button type="button" className="inline-flex items-center gap-1.5 text-[var(--accent-ink)] hover:underline disabled:no-underline disabled:opacity-70" disabled={loadingAll}
+                  onClick={() => void selectAllMatches()} data-testid="select-all-matches">
+                  {loadingAll ? <Loader2 className="size-3.5 animate-spin" /> : null}
+                  Select all {total} matches
+                </button>
+              ) : null}
               <button type="button" className="text-[var(--accent-ink)] hover:underline" onClick={() => select.all(false)}>Clear selection</button>
             </div>
           ) : null}
-          <PosterGrid titles={titles} more={more} onMore={onMore} library={{ prefs: postersPref, select }} />
+          {view === "table" ? (
+            <TitleTable
+              titles={titles}
+              more={more && !loadingAll}
+              onMore={onMore}
+              seeFiles={perms.seeFiles}
+              manage={perms.manage}
+              columns={shown}
+              sort={{ sort, sortVersion: query.sort_version, desc }}
+              onSort={(s) => setSort(s, true)}
+              select={select}
+            />
+          ) : (
+            <PosterGrid titles={titles} more={more && !loadingAll} onMore={onMore} library={{ prefs: postersPref, select }} />
+          )}
         </>
       )}
       {grid.isFetchingNextPage ? <Loading label="Loading more" /> : null}
-      {selecting ? <BulkBar titles={chosenTitles} columns={libraries} kinds={kind ? [kind] : ["movie", "series"]} anime={cat.anime} onClear={() => setChosen(new Set())} /> : null}
+      {selecting && loadingAll ? (
+        <section aria-label="Bulk edit" data-testid="bulk-loading"
+          className="sticky bottom-[calc(env(safe-area-inset-bottom)+4.5rem)] z-30 mt-4 flex items-center gap-2 rounded-xl border border-[var(--th-baccent)] bg-[var(--surface)] p-3 text-sm shadow-[var(--shadow-2)] md:bottom-3">
+          <Loader2 className="size-4 animate-spin" />
+          <span role="status">Loading all {total} matches…</span>
+        </section>
+      ) : selecting ? <BulkBar titles={chosenTitles} columns={libraries} kinds={kind ? [kind] : ["movie", "series"]} anime={cat.anime} onClear={() => setChosen(new Set())} /> : null}
       {dialog === "columns" ? <ColumnPicker label="Columns" note="Title always stays. On a phone the chosen columns show as lines under each title." columns={offered} prefs={columnsPref} onChange={saveColumns} onClose={() => setDialog(null)} /> : null}
       {dialog === "posters" ? <PosterOptions catalog={id} prefs={postersPref} seeFiles={perms.seeFiles} onChange={savePosters} onClose={() => setDialog(null)} /> : null}
       <FilterSheet open={sheet} onClose={() => setSheet(false)}>

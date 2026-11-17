@@ -12,8 +12,19 @@ export type BulkItem = BulkMonitorResult["items"][number];
 /** POST /titles/monitor takes at most this many titles (internal/web maxBulkTitles). */
 const MONITOR_GROUP = 500;
 
+/** The sums of joined answers, worded as the server words one answer (internal/web bulkWords). */
+function sumWords(out: BulkMonitorResult, to: boolean): string {
+  const verb = out.dry_run ? (to ? "Would monitor" : "Would unmonitor") : to ? "Monitored" : "Unmonitored";
+  const parts = [`${verb} ${out.changed === 1 ? "1 library" : `${out.changed} libraries`}`];
+  if (out.unchanged > 0) parts.push(`${out.unchanged} already ${to ? "monitored" : "not monitored"}`);
+  if (out.missing > 0) parts.push(`${out.missing} missing`);
+  if (out.stale > 0) parts.push(`${out.stale} changed since the preview`);
+  return parts.join(" · ");
+}
+
 /** The bulk monitor in groups of 500 titles, one after another; the answers are joined in the selection's order and
- *  the message is said again for the sums, as the server words it (internal/web bulkWords). */
+ *  the message is said again for the sums. An apply that fails after a group went through says what was done and
+ *  that the rest was not changed. */
 export async function bulkMonitor(body: BulkMonitorRequest): Promise<BulkMonitorResult> {
   const ids = body.title_ids;
   if (ids.length <= MONITOR_GROUP) return api<BulkMonitorResult>("/titles/monitor", { method: "POST", body });
@@ -21,7 +32,14 @@ export async function bulkMonitor(body: BulkMonitorRequest): Promise<BulkMonitor
   for (let i = 0; i < ids.length; i += MONITOR_GROUP) {
     const group = new Set(ids.slice(i, i + MONITOR_GROUP));
     const expect = body.expect?.filter((e) => group.has(e.title_id));
-    const r = await api<BulkMonitorResult>("/titles/monitor", { method: "POST", body: { ...body, title_ids: [...group], ...(expect ? { expect } : {}) } });
+    let r: BulkMonitorResult;
+    try {
+      r = await api<BulkMonitorResult>("/titles/monitor", { method: "POST", body: { ...body, title_ids: [...group], ...(expect ? { expect } : {}) } });
+    } catch (e) {
+      if (body.dry_run || i === 0) throw e;
+      const why = e instanceof Error ? e.message : String(e);
+      throw new Error(`${sumWords(out, body.monitored)} for the first ${i} of ${ids.length} titles; the other ${ids.length - i} were not changed: ${why}`);
+    }
     out.dry_run = r.dry_run;
     out.items.push(...r.items);
     out.changed += r.changed;
@@ -29,13 +47,7 @@ export async function bulkMonitor(body: BulkMonitorRequest): Promise<BulkMonitor
     out.missing += r.missing;
     out.stale += r.stale;
   }
-  const to = body.monitored;
-  const verb = out.dry_run ? (to ? "Would monitor" : "Would unmonitor") : to ? "Monitored" : "Unmonitored";
-  const parts = [`${verb} ${out.changed === 1 ? "1 library" : `${out.changed} libraries`}`];
-  if (out.unchanged > 0) parts.push(`${out.unchanged} already ${to ? "monitored" : "not monitored"}`);
-  if (out.missing > 0) parts.push(`${out.missing} missing`);
-  if (out.stale > 0) parts.push(`${out.stale} changed since the preview`);
-  out.message = parts.join(" · ");
+  out.message = sumWords(out, body.monitored);
   return out;
 }
 
@@ -44,8 +56,9 @@ export function useBulkMonitor() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: bulkMonitor,
-    onSuccess: (r) => {
-      if (r.dry_run) return;
+    // Also after a failed apply: a group before the failure may have gone through.
+    onSettled: (_r, _e, body) => {
+      if (body.dry_run) return;
       for (const queryKey of titleChanged()) void qc.invalidateQueries({ queryKey });
       void qc.invalidateQueries({ queryKey: ["title"] });
     },
