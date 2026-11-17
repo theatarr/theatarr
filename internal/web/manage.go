@@ -1209,10 +1209,7 @@ func (w *Web) storedEpisodeReleases(ctx context.Context, out *Releases, it evIte
 		return err
 	}
 	if best == nil {
-		if out.Message == "" {
-			out.Message = "No search result is stored for " + it.code() + " in this library yet"
-		}
-		return nil
+		return nil // source none: the badge "Nothing stored" says it; a live-search failure keeps its message
 	}
 	at := ts(best.at)
 	out.Source, out.At, out.Results, out.Accepted, out.Notes = best.source, &at, best.results, best.accepted, best.notes

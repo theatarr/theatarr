@@ -220,7 +220,8 @@ format score, 6,200 over 4,500." (the reason stored with the search that saw it,
 against); or, when the library's history on the page has a failed download of that release, "… Tried Nov 12: not
 cached on RD, AD and TB. Your file is unchanged." (the failure as the history row says it). A pack that keeps some
 episodes' files (its reason says "… keep their file") was judged once for the whole pack, so it reads "Better pack
-found for some episodes 4 d ago: …". The reason reads in plain words: "1 episode keeps its file", "2 episodes keep their file", and an older
+found for some episodes 4 d ago: …", and its badge (the episode cell's word, the Details badge and Why?'s heading)
+reads "Better pack found" instead of "Upgrade found". The reason reads in plain words: "1 episode keeps its file", "2 episodes keep their file", and an older
 reason's pack-policy suffix ("(packs: any_upgradable)") is left out; the stored reason is unchanged. Without such a row
 nothing is said about downloading: the history on the page is capped. **Show releases** follows. The Libraries table's Details and the episode window say the same "Better
 release found …" sentence.
@@ -549,7 +550,7 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   tooltip gives each copy's indexer and name; a narrow card lists them all), Peers is the copy with the most seeders and Cached on the union; the
   Indexer filter and the text filter match any of its indexers. A live answer counts rows; a stored one keeps its
   search's own count ("N releases returned by the indexers"). The badge says what the answer is: "Live search", "Last decided search", "Last
-  RSS match" for a stored RSS read (the episode window too), or "Nothing stored" alone, with no counts; a stored
+  RSS match" for a stored RSS read (the episode window too), or "Nothing stored" alone, with no counts, no message and no empty-list line (a live-search failure still says why); a stored
   search that returned nothing keeps its "0 releases returned by the indexers, 0 accepted". An episode an RSS match grabbed nothing
   for reads "No new grab for this episode from this RSS match". A live search no indexer answered is a failed search ("Live search failed",
   the stored list shown), and a live search is never retried on its own. `?hash=` picks out the followed release's row, or says it is not in the list.

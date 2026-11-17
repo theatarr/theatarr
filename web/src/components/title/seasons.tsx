@@ -43,7 +43,7 @@ import { InteractiveSearchButton } from "@/components/title/interactive-search";
 import { MonitorSwitch } from "@/components/title/manage-bits";
 import { ProgressBar } from "@/components/activity-bits";
 import { UpgradeStatus } from "@/components/title/upgrade-why";
-import { BELOW_PREFERRED, scoreOnly } from "@/lib/upgrade";
+import { BELOW_PREFERRED, BETTER_PACK, mixedPack, scoreOnly } from "@/lib/upgrade";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -63,10 +63,10 @@ import {
   copiesInView,
   episodeLayout,
   episodeNumber,
-  cellUpgrade,
+  cellUpgradeWord,
   matchesFilter,
   mergedStatus,
-  mergedUpgrade,
+  mergedUpgradeWord,
   offCopies,
   plainAvailable,
   restrictions,
@@ -119,7 +119,7 @@ const TONE: Record<Status, { text: string; dot: string }> = {
 const PHONE_ICON = "max-md:size-9";
 const PHONE_ICON_WRAP = "contents max-md:[&_button]:size-9";
 
-type StatusOf = { s: Status; label: string; quality?: string; cell?: Cell; upgrade?: boolean };
+type StatusOf = { s: Status; label: string; quality?: string; cell?: Cell; upgrade?: string };
 
 /** What one place (a copy's cell, or the merged column) says about an episode: the status word, Upgrade found beside
  *  it, and the quality for managers. A gap in a library that is not monitored reads Not monitored, and such a library
@@ -129,11 +129,11 @@ function statusOf(e: Episode, copies: { key: string; monitored?: boolean }[], me
   const off = offCopies(copies, seeFiles);
   if (merged) {
     const s = mergedStatus(e, keys, off);
-    return { s, label: s === "available" && !seeFiles ? plainAvailable(e, keys) : statusWords(s, seeFiles).label, upgrade: mergedUpgrade(e, keys.filter((k) => !off.has(k)), seeFiles) };
+    return { s, label: s === "available" && !seeFiles ? plainAvailable(e, keys) : statusWords(s, seeFiles).label, upgrade: mergedUpgradeWord(e, keys.filter((k) => !off.has(k)), seeFiles) };
   }
   const c = e.versions[keys[0]];
   const s = cellStatus(c, aired(e), off.has(keys[0]));
-  return { s, label: statusWords(s, seeFiles).label, quality: seeFiles && c?.has_file ? c.quality : undefined, cell: c, upgrade: cellUpgrade(c, seeFiles) && !off.has(keys[0]) };
+  return { s, label: statusWords(s, seeFiles).label, quality: seeFiles && c?.has_file ? c.quality : undefined, cell: c, upgrade: off.has(keys[0]) ? undefined : cellUpgradeWord(c, seeFiles) };
 }
 
 /** A cell's tooltip: the quality word (none in a library that does not monitor the title, off, and none at the
@@ -141,7 +141,7 @@ function statusOf(e: Episode, copies: { key: string; monitored?: boolean }[], me
  *  monitoring. */
 function cellTitle(c: Cell | undefined, off = false): string | undefined {
   if (!c) return undefined;
-  const quality = c.has_file && !off ? (c.upgrade_seen ? UPGRADE_FOUND : c.state === "filled" && !scoreOnly(c.upgrade) ? BELOW_PREFERRED : undefined) : undefined;
+  const quality = c.has_file && !off ? (c.upgrade_seen ? (mixedPack(c.upgrade) ? BETTER_PACK : UPGRADE_FOUND) : c.state === "filled" && !scoreOnly(c.upgrade) ? BELOW_PREFERRED : undefined) : undefined;
   const parts = [quality, c.release_group, c.size_bytes ? fmtBytes(c.size_bytes) : undefined, c.score != null ? `profile score ${fmtNumber(c.score)}` : undefined, c.monitored ? "monitored" : "not monitored"];
   return parts.filter(Boolean).join(" · ") || undefined;
 }
@@ -155,7 +155,7 @@ function StatusText({ st, manage, className }: { st: StatusOf; manage: boolean; 
       ) : null}
       <span className={cn("size-2 shrink-0 rounded-full", t.dot)} aria-hidden />
       <span className={cn("whitespace-nowrap font-medium", t.text)}>{st.label}</span>
-      {st.upgrade ? <span className="whitespace-nowrap text-[11.5px] font-medium text-[var(--accent-ink)]" data-testid="cell-upgrade">{UPGRADE_FOUND}</span> : null}
+      {st.upgrade ? <span className="whitespace-nowrap text-[11.5px] font-medium text-[var(--accent-ink)]" data-testid="cell-upgrade">{st.upgrade}</span> : null}
       {st.quality ? <span className="truncate text-[11.5px] text-muted-foreground">{st.quality}</span> : null}
     </span>
   );
@@ -352,7 +352,7 @@ function ColumnCell({ id, e, c, seeFiles, day, off = false }: { id: EpisodeColum
       const s = cellStatus(c, aired(e), off);
       return (
         <TableCell title={cellTitle(c, off)} data-col="status">
-          <StatusText st={{ s, label: statusWords(s, seeFiles).label, upgrade: cellUpgrade(c, seeFiles) && !off }} manage={false} />
+          <StatusText st={{ s, label: statusWords(s, seeFiles).label, upgrade: off ? undefined : cellUpgradeWord(c, seeFiles) }} manage={false} />
           <CellStage cell={c} />
         </TableCell>
       );

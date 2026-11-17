@@ -492,6 +492,18 @@ describe("Episode window", () => {
     expect(within(dialog).queryByTestId("episode-file")).toBeNull();
   });
 
+  it("says Nothing stored once on Last search when no result is stored", async () => {
+    const none = { title_id: 1, version: "anime-web", versions: ["anime-web"], live_allowed: false, source: "none", results: 0, accepted: 0, candidates: [], rejections: {}, outcomes: {}, grab: false,
+      grab_state: { paused: false, pause_forced: false, will_grab: false } };
+    mockFetch([routes[0], routes[1], { method: "GET", path: "/titles/1/episodes/102", reply: detail }, { method: "GET", path: "/titles/1/episodes/102/releases", reply: none }]);
+    const user = userEvent.setup();
+    renderPage(<Seasons id="1" anime />, "/title/1?episode=102");
+    const dialog = await screen.findByRole("dialog");
+    await user.click(await within(dialog).findByRole("tab", { name: "Last search" }));
+    expect((await within(dialog).findAllByText("Nothing stored")).length).toBeGreaterThan(0);
+    expect(within(dialog).queryByText("No releases stored for this episode.")).toBeNull();
+  });
+
   it("says an episode's Add to other providers adds the whole pack when the file came in one", async () => {
     const withFile = { ...detail, versions: [detail.versions[0], { ...detail.versions[1], file: { quality: "WEBDL-1080p", cached_on: ["rd"], add_to: ["tb"], info_hash: "a".repeat(40) }, history: [] }] };
     mockFetch([routes[0], routes[1], { method: "GET", path: "/titles/1/episodes/102", reply: withFile }]);
@@ -587,6 +599,17 @@ describe("One status vocabulary", () => {
     const why = await screen.findByTestId("upgrade-why-dialog");
     const lines = [...within(why).getByTestId("why-lines").querySelectorAll("p")].map((p) => p.textContent);
     expect(lines[2]).toMatch(/Better release found .+: Tsukikage\.Signal\.S01\.2160p\.WEB-DL-GRP \(WEBDL-2160p, score 6,200\)\. Tried .+: not cached on RD, AD and TB\. Your file is unchanged\.$/);
+  });
+
+  it("says Better pack found beside an episode whose find is a pack that keeps some episodes' files", async () => {
+    const mixed = { ...below, state: "upgrade_available", next: { release: "Tsukikage.Signal.S01.2160p.WEB-DL-MIX", quality: "WEBDL-2160p", score: 4000,
+      reason: "better quality: WEBDL-2160p over WEBDL-1080p; 1 episode(s) keep their file", seen_at: new Date().toISOString() } };
+    const pack = { ...words, episodes: words.episodes.map((e) => e.id === 102 ? { ...e, versions: { ...e.versions, "anime-web": cell(true, { state: "filled", upgrade_seen: true, upgrade: mixed }) } } : e) };
+    mockFetch([routes[0], { method: "GET", path: "/titles/1/episodes", reply: pack }]);
+    renderPage(<Seasons id="1" anime={false} />, "/title/1");
+    await screen.findByText("One");
+    const row = screen.getByRole("button", { name: /^Episode 2:/ });
+    expect(within(row).getByTestId("cell-upgrade").textContent).toBe("Better pack found");
   });
 
   it("gives a library that does not monitor the title no Upgrade found, and keeps its closed-link warning in the window", async () => {

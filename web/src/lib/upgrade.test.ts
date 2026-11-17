@@ -25,6 +25,10 @@ describe("upgrade words", () => {
     }
     expect(Object.keys(UPGRADE_WORDS).sort()).toEqual(table.map(([s]) => s).sort());
     expect(upgradeBadge({ state: "none" })).toBeNull();
+    // A pack that keeps some episodes' files: the badge says so.
+    const next = { release: "Show.S01.2160p", score: 1, source: "search" as const, seen_at: "2026-11-01T00:00:00Z" };
+    expect(upgradeBadge({ state: "upgrade_available", next: { ...next, reason: "better quality: A over B; 2 episode(s) keep their file" } })?.label).toBe("Better pack found");
+    expect(upgradeBadge({ state: "upgrade_available", next: { ...next, reason: "better quality: A over B" } })?.label).toBe("Upgrade found");
   });
   it("reads Preferred quality met when only the score is short", () => {
     // The wanted quality held, the score under the target, nothing better found: met, positive.

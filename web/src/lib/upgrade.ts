@@ -29,6 +29,18 @@ export const UPGRADE_WORDS: Record<Exclude<UpgradeState, "none">, { label: strin
   below_cutoff: { label: "Preferred quality not met; no better copy found", short: "Preferred quality not met", tone: "warning" },
 };
 
+/** The badge of an upgrade found that is a pack keeping some episodes' files (mixedPack). */
+export const BETTER_PACK = "Better pack found";
+
+/**
+ * Whether the release found is a pack that upgrades some episodes and keeps others' files (its stored reason says
+ * "… keep their file"): it is judged once for the whole pack, so it may keep this file. Its badge reads "Better pack
+ * found" and Why? says "Better pack found for some episodes …". Nothing is stored for it.
+ */
+export function mixedPack(u: Pick<UpgradeInfo, "next"> | undefined | null): boolean {
+  return !!u?.next?.reason?.includes("keep their file");
+}
+
 /** The short label of a copy that holds a file below its preferred quality when nothing better has been found. */
 export const BELOW_PREFERRED = "Preferred quality not met";
 
@@ -52,11 +64,14 @@ export function scoreOnly(u: Pick<UpgradeInfo, "state" | "quality_met"> | undefi
  * file: nothing better has been found for its profile. The longer wording is the line under Why?'s heading
  * (UPGRADE_WORDS).
  */
-export function upgradeBadge(u: Pick<UpgradeInfo, "state" | "quality_met"> | undefined | null): { label: string; short: string; tone: Tone } | null {
+export function upgradeBadge(u: Pick<UpgradeInfo, "state" | "quality_met" | "next"> | undefined | null): { label: string; short: string; tone: Tone } | null {
   if (!u?.state || u.state === "none") return null;
   const words = UPGRADE_WORDS[u.state];
   if (!words) return null;
-  if (u.state === "upgrade_available") return { ...words, label: "Upgrade found", short: "Upgrade found" };
+  if (u.state === "upgrade_available") {
+    const found = mixedPack(u) ? BETTER_PACK : "Upgrade found";
+    return { ...words, label: found, short: found };
+  }
   if (u.state === "cutoff_met" || scoreOnly(u)) return { ...UPGRADE_WORDS.cutoff_met, label: PREFERRED_MET, short: PREFERRED_MET };
   return { ...words, label: BELOW_PREFERRED, short: BELOW_PREFERRED, tone: "neutral" };
 }
@@ -133,7 +148,7 @@ function foundLine(u: UpgradeInfo | undefined | null, now: Date, history?: reado
     const facts = [n.quality, `score ${fmtNumber(n.score)}`].filter(Boolean).join(", ");
     const what = `${n.release} (${facts})${n.reason ? `: ${reasonWords(n.reason)}` : ""}`;
     // A pack that keeps some episodes' files is judged once for the whole pack: it may keep this file.
-    const found = n.reason?.includes("keep their file") ? "Better pack found for some episodes" : "Better release found";
+    const found = mixedPack(u) ? "Better pack found for some episodes" : "Better release found";
     const last = history ? releaseOutcome(history, n.release) : undefined;
     if (last?.event === "failed") {
       const why = failureWords(last);

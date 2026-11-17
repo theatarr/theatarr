@@ -8,7 +8,7 @@ import { downloadReason, downloadSettings } from "@/lib/version-grab";
 import type { Episode, EpisodeList } from "@/api/library";
 import type { VersionControl } from "@/api/manage";
 import { fmtNumber } from "./format";
-import { availableIn } from "./upgrade";
+import { availableIn, BETTER_PACK, mixedPack } from "./upgrade";
 
 export type Cell = Episode["versions"][string];
 
@@ -69,6 +69,13 @@ export function cellUpgrade(c: Cell | undefined, seeFiles: boolean): boolean {
   return seeFiles && !!c?.has_file && !!c.upgrade_seen;
 }
 
+/** The word beside a copy's file with a better release found: "Better pack found" for a pack that keeps some
+ *  episodes' files (mixedPack), else "Upgrade found"; undefined when none was found. */
+export function cellUpgradeWord(c: Cell | undefined, seeFiles: boolean): string | undefined {
+  if (!cellUpgrade(c, seeFiles)) return undefined;
+  return mixedPack(c?.upgrade) ? BETTER_PACK : UPGRADE_FOUND;
+}
+
 /**
  * An episode across the given copies: watchability first (a file in any copy is Available), then Not aired, Missing
  * (some monitored copy wants it) and Not monitored.
@@ -85,6 +92,13 @@ export function mergedStatus(e: Episode, keys: string[], off: OffCopies = new Se
 /** Whether some copy in view holds the episode with an upgrade found. */
 export function mergedUpgrade(e: Episode, keys: string[], seeFiles: boolean): boolean {
   return keys.some((k) => cellUpgrade(e.versions[k], seeFiles));
+}
+
+/** The word across copies: "Better pack found" only when every copy's find is such a pack. */
+export function mergedUpgradeWord(e: Episode, keys: string[], seeFiles: boolean): string | undefined {
+  const words = keys.map((k) => cellUpgradeWord(e.versions[k], seeFiles)).filter(Boolean);
+  if (words.length === 0) return undefined;
+  return words.every((w) => w === BETTER_PACK) ? BETTER_PACK : UPGRADE_FOUND;
 }
 
 /** "Available in 4K" for accounts without "see files": the best resolution any copy holds, else "Available". */

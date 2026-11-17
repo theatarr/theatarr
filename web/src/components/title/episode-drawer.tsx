@@ -79,7 +79,7 @@ function Releases({ titleId, eid, d }: { titleId: number; eid: number; d: Episod
       ) : r ? (
         <>
           <Summary r={r} />
-          {(r.candidates ?? []).length === 0 ? <Empty>No releases stored for this episode.</Empty> : <ReleaseGrid items={r.candidates ?? []} kind="series" outcomes={oc.data?.outcomes ?? r.outcomes} />}
+          {(r.candidates ?? []).length === 0 ? (r.source === "none" ? null : <Empty>No releases stored for this episode.</Empty>) : <ReleaseGrid items={r.candidates ?? []} kind="series" outcomes={oc.data?.outcomes ?? r.outcomes} />}
         </>
       ) : null}
     </div>

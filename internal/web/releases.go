@@ -434,9 +434,8 @@ func (w *Web) storedReleases(ctx context.Context, out *Releases) error {
 		if err := w.storedGrabbed(ctx, out, run, jSource, jAt, 0); err != nil {
 			return err
 		}
-	} else if out.Message == "" {
-		out.Message = "No search result is stored for this library yet"
 	}
+	// Nothing stored: the badge "Nothing stored" says it; a live-search failure keeps its message.
 	if out.Candidates == nil {
 		out.Candidates = []ReleaseRow{}
 	}

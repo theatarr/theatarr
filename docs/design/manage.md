@@ -54,8 +54,8 @@ Per item below cutoff (a movie version's file, or one episode's file):
    pack that only fills episodes with no file (its stored reason starts "fills ") is not an upgrade of a held file,
    though it carries `upgrade` so it stays accepted for the missing episodes; a pack that upgrades and also fills
    ("…; fills …") counts. A mixed pack (upgrades some files, keeps others: "… keep their file") is recorded with one
-   comparison, so its badge can sit on an episode it would keep; Why? words it at pack level ("Better pack found for
-   some episodes …").
+   comparison, so its badge can sit on an episode it would keep; the badge reads "Better pack found" and Why? words it
+   at pack level ("Better pack found for some episodes …").
 5. A release with a download of the same title and library that failed at or after its sighting (the candidate's
    hash against `download.info_hash`; the failure's time is its History row's, else `updated_at`) was tried and
    failed: it is not found. A download never started (Pause was on) or ended by a removal is no try, as History and

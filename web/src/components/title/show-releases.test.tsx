@@ -297,7 +297,7 @@ it("names a stored RSS read as such, and says nothing about counts when nothing 
   expect(screen.getByTestId("releases-source").textContent).toBe("Last RSS match");
   expect(screen.getByTestId("releases-facts").textContent).toBe("3 releases returned by the indexers, 1 accepted");
   unmount();
-  const none = renderPage(<Summary r={{ ...base, source: "none", results: 0, accepted: 0, message: "No search result is stored for this library yet" }} />);
+  const none = renderPage(<Summary r={{ ...base, source: "none", results: 0, accepted: 0 }} />);
   expect(screen.getByTestId("releases-source").textContent).toBe("Nothing stored");
   expect(screen.queryByTestId("releases-facts")).toBeNull();
   none.unmount();

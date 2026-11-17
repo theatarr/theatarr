@@ -857,8 +857,13 @@ func TestReleasesStoredAnswer(t *testing.T) {
 	e.exec(`INSERT INTO version (title_id, policy_key, state, created_at, updated_at) VALUES (1, 'movie-web', 'wanted', 0, 0)`)
 	var r Releases
 	e.call("GET", APIBase+"/titles/1/releases?version=movie-remux", nil, 200, &r)
-	if r.Source != "none" || len(r.Candidates) != 0 {
-		t.Fatalf("nothing stored: %+v", r)
+	if r.Source != "none" || len(r.Candidates) != 0 || r.Message != "" {
+		t.Fatalf("nothing stored (the badge says it, no message): %+v", r)
+	}
+	var ep Releases
+	e.call("GET", APIBase+"/titles/10/episodes/101/releases?version=tv-2160p", nil, 200, &ep)
+	if ep.Source != "none" || ep.Message != "" {
+		t.Fatalf("episode with nothing stored: %+v", ep)
 	}
 	// The film's own file in the library, whatever the candidates compared against: none yet, then its arr file.
 	if r.Current == nil || r.Current.Held {

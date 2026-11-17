@@ -128,7 +128,7 @@ type evItem struct {
 	number    int64
 	// fileAt is the evidence floor: the later of the file's link and download created times.
 	fileAt int64
-	// hash is the file's download hash, lower case ("" when unknown).
+	// hash is the file's download hash ("" when unknown), compared in any case.
 	hash string
 }
 
@@ -341,13 +341,13 @@ type itemFile struct {
 	size    int64
 	added   int64
 	// For the upgrade evidence (evItem): the later of the link's and its download's created times, and the
-	// download's hash, lower case.
+	// download's hash (judgeUpgrade compares it in any case).
 	since int64
 	hash  string
 }
 
 // itemFileUpgradeSQL selects itemFile's since and hash for link l joined to its download d.
-const itemFileUpgradeSQL = `MAX(l.created_at, COALESCE(d.created_at, 0)), LOWER(COALESCE(d.info_hash, ''))`
+const itemFileUpgradeSQL = `MAX(l.created_at, COALESCE(d.created_at, 0)), COALESCE(d.info_hash, '')`
 
 // loadItemFiles reads the current files of versions, per episode (0 for a movie): their active links. Without
 // scores each file's score is left out.
