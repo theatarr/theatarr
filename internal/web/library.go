@@ -13,7 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/theatarr/theatarr/internal/activity"
 	"github.com/theatarr/theatarr/internal/auth"
 	"github.com/theatarr/theatarr/internal/indexer"
 	"github.com/theatarr/theatarr/internal/metadata/art"
@@ -471,6 +470,36 @@ func (g TitleGridFilter) where(conds []string, args []any) ([]string, []any) {
 	return conds, args
 }
 
+// releasedSQL is a title's general release day (YYYY-MM-DD, NULL when undated), over title t and its title_meta m:
+// a movie's earliest stored cinema date (title_release_date, theatrical or theatrical_limited, any source or
+// country) or TMDb's release date, whichever is earlier, so a re-release never moves it later; a series' first air
+// date. The Released cell, its sort, the title page's About and the posters' Released line read it; the In cinemas
+// column, Upcoming, the calendar and home availability keep their own dates.
+const releasedSQL = `CASE WHEN t.kind = 'movie' THEN (SELECT MIN(x) FROM (SELECT substr(d.date, 1, 10) AS x
+	FROM title_release_date d WHERE d.title_id = t.id AND d.type IN ('theatrical', 'theatrical_limited')
+	UNION ALL SELECT NULLIF(substr(m.release_date, 1, 10), ''))) ELSE NULLIF(substr(m.release_date, 1, 10), '') END`
+
+// readReleased reads releasedSQL for the titles ids; undated titles are left out.
+func readReleased(ctx context.Context, db *sql.DB, ids []any) (map[int64]string, error) {
+	out := map[int64]string{}
+	if len(ids) == 0 {
+		return out, nil
+	}
+	err := scanAll(ctx, db, `SELECT t.id, `+releasedSQL+titleFrom+` WHERE t.id IN (`+store.Placeholders(len(ids))+`)`,
+		ids, func(r *sql.Rows) error {
+			var id int64
+			var day sql.NullString
+			if err := r.Scan(&id, &day); err != nil {
+				return err
+			}
+			if day.Valid {
+				out[id] = day.String
+			}
+			return nil
+		})
+	return out, err
+}
+
 func (g TitleGridFilter) orderBy() (string, []any) {
 	expr := ""
 	var args []any
@@ -480,10 +509,8 @@ func (g TitleGridFilter) orderBy() (string, []any) {
 	case "year":
 		expr = "t.year"
 	case "release":
-		// What the Release date cell shows: a movie's first cinema date of the release-date choice, else TMDb's date;
-		// an undated title (the cell "—") sorts last.
-		expr = "COALESCE(CASE WHEN t.kind = 'movie' THEN " + activity.FirstReleaseOfTheatricalSQL("t.id") +
-			" END, NULLIF(m.release_date, ''))"
+		// What the Released cell shows (releasedSQL); an undated title (the cell "—") sorts last.
+		expr = releasedSQL
 	case "rating":
 		expr = "CASE WHEN m.rating_votes > 0 THEN m.rating END"
 	case "size":

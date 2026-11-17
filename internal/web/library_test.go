@@ -1484,3 +1484,46 @@ func TestEpisodeScoreEvidence(t *testing.T) {
 		}
 	}
 }
+
+// TestReleasedEarliestDate: a film's general release (the Released cell, its sort, About) is its earliest stored
+// cinema date of any kind or TMDb's date, so a 2026 wide re-release of a 1988 film reads and sorts as 1988; a film
+// with only TMDb's date keeps it; a series keeps its first air date; in_cinemas and release_date keep their meaning.
+func TestReleasedEarliestDate(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	e.seedLibrary()
+	key := e.apiKey()
+	now := store.Millis(testNow)
+	e.exec(`INSERT INTO title (id, kind, name, year, tmdb_id, monitored, created_at, updated_at) VALUES
+		(60, 'movie', 'Akira', 1988, 660, 1, ?, ?), (61, 'movie', 'Plain', 2010, 661, 1, ?, ?)`, now, now, now, now)
+	// Akira as on live: the release-date choice (in_cinemas) and TMDb's date are the US wide re-release.
+	e.exec(`INSERT INTO title_meta (title_id, release_date, movie_dates_at, attempted_at, refresh_after) VALUES
+		(60, '2026-09-04', 1, 1, 1), (61, '2010-02-02', NULL, 1, 1), (4, '2026-01-01', NULL, 1, 1)`)
+	e.exec(`INSERT INTO title_release_date (title_id, source, country, type, date) VALUES
+		(60, 'tmdb-art', '', 'theatrical', '1988-07-16'), (60, 'tmdb', 'US', 'theatrical_limited', '1989-12-25'),
+		(60, 'tmdb', 'US', 'theatrical', '2026-09-04'), (60, 'tmdb', 'US', 'digital', '2027-01-01')`)
+	var p TitlePage
+	if code := e.getKey(APIBase+"/titles?sort=release&order=asc", key, &p); code != 200 {
+		t.Fatalf("titles: %d", code)
+	}
+	got := map[string]TitleRow{}
+	for _, it := range p.Items {
+		got[it.Name] = it
+	}
+	if r := got["Akira"]; r.Released != "1988-07-16" || r.ReleaseDate != "2026-09-04" || r.InCinemas != "2026-09-04" {
+		t.Errorf("Akira released %q, release_date %q, in_cinemas %q", r.Released, r.ReleaseDate, r.InCinemas)
+	}
+	if r := got["Plain"]; r.Released != "2010-02-02" {
+		t.Errorf("Plain released %q, want TMDb's date", r.Released)
+	}
+	if r := got["Delta"]; r.Released != "2026-01-01" {
+		t.Errorf("Delta (series) released %q, want its first air date", r.Released)
+	}
+	if n := names(p); !strings.HasPrefix(n, "Akira,Plain,Alpha,Beta,Delta") {
+		t.Errorf("sort=release asc: %s", n)
+	}
+	var d TitleDetail
+	if e.getKey(APIBase+"/titles/60", key, &d); d.Released != "1988-07-16" {
+		t.Errorf("title page released %q", d.Released)
+	}
+}

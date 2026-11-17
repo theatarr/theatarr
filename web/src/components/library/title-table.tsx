@@ -34,6 +34,7 @@ import {
 } from "@/lib/index-columns";
 import { badgeTone, copyTone, copyWords, monitoredHeldWords, type CopyTone } from "@/lib/library-status";
 import { fmtDay, fmtRuntime, notAiredYet, POSTER_STATUS_LABEL, posterStatus, qualityWord, statusDay, titleWatchWords, undatedUpcoming, upcomingRelease, type PosterStatus } from "@/lib/library";
+import { releasedText } from "@/lib/released";
 import { cn } from "@/lib/utils";
 import { StageLink, useMinWidth } from "./copy-bits";
 import { CopyDialog } from "./copy-dialog";
@@ -210,8 +211,8 @@ function cell(id: IndexColumnId, t: TitleRow, open: () => void): ReactNode {
     case "year":
       return or(t.year, "tabular-nums");
     case "release":
-      // A movie's first cinema date (the release-date choice, as About and the sort), else TMDb's date.
-      return or(dayOf((t.kind === "movie" ? t.in_cinemas : undefined) || t.release_date));
+      // The general release day (lib/released.ts), as its sort, About and the posters' sort line.
+      return or(releasedText(t));
     case "in_cinemas":
       return or(dayOf(t.in_cinemas));
     case "digital":

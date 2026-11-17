@@ -257,6 +257,18 @@ describe("Library table", () => {
     expect(row.querySelector('[data-column="latest_file"]')?.textContent).toMatch(/ago$/);
   });
 
+  it("shows a film's general release day in Released, not a later wide re-release", async () => {
+    const akira = { id: 9, kind: "movie", name: "Akira", year: 1988, monitored: true, release_date: "2026-09-04", in_cinemas: "2026-09-04", released: "1988-07-16", versions: [] };
+    window.localStorage.setItem("theatarr.library.columns.movies.7", JSON.stringify({ order: ["release", "in_cinemas"], shown: ["release", "in_cinemas"] }));
+    mockFetch([{ method: "GET", path: "/auth/me", reply: me }, { method: "GET", path: "/titles", reply: { items: [akira], total: 1, offset: 0 } }, { method: "GET", path: "/titles/facets", reply: {} }]);
+    renderPage(<Catalog id="movies" />, "/movies?sort=release");
+    const link = await screen.findByRole("link", { name: "Akira" });
+    const row = link.closest("tr") as HTMLElement;
+    expect(row.querySelector('[data-column="release"]')?.textContent).toBe("Jul 16, 1988");
+    // In cinemas keeps the release-date choice.
+    expect(row.querySelector('[data-column="in_cinemas"]')?.textContent).toMatch(/^Sep 4/);
+  });
+
   it("keeps a sort picked from the menu, dropping the copy and the order with it", async () => {
     const fetch = mockFetch(routes());
     const user = userEvent.setup();

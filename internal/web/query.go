@@ -108,6 +108,10 @@ type TitleRow struct {
 	InCinemas       string `json:"in_cinemas,omitempty"`
 	DigitalRelease  string `json:"digital_release,omitempty"`
 	PhysicalRelease string `json:"physical_release,omitempty"`
+	// Released is the title's general release day (releasedSQL), YYYY-MM-DD: a movie's earliest cinema date or TMDb's
+	// release date, whichever is earlier; a series' first air date. What the Released column, its sort and the title
+	// page's About show; in_cinemas and release_date keep their own meaning.
+	Released string `json:"released,omitempty"`
 	// SeasonCount is how many seasons (specials left out) a series has episodes in; PreviousAiring is the latest
 	// aired episode's day (YYYY-MM-DD). Series only.
 	SeasonCount    int    `json:"season_count,omitempty"`
@@ -266,6 +270,13 @@ func (w *Web) titleRows(ctx context.Context, db *sql.DB, q string, args []any) (
 	}
 	if err := w.fillArt(ctx, db, items); err != nil {
 		return items, err
+	}
+	released, err := readReleased(ctx, db, ids)
+	if err != nil {
+		return items, err
+	}
+	for i := range items {
+		items[i].Released = released[items[i].ID]
 	}
 	err = scanAll(ctx, db, `SELECT v.title_id, v.id, v.policy_key, v.state, v.monitored, `+hasFileSQL+`, `+
 		availStateSQL(newAirClock(w.now()))+` FROM version v WHERE v.title_id IN (`+store.Placeholders(len(ids))+`) AND `+
@@ -468,6 +479,11 @@ func (w *Web) getTitle(ctx context.Context, id int64) (*TitleDetail, error) {
 	if d.TitleArt, d.TitleFacts, d.Meta, err = w.titleMeta(ctx, db, id); err != nil {
 		return nil, err
 	}
+	released, err := readReleased(ctx, db, []any{id})
+	if err != nil {
+		return nil, err
+	}
+	d.Released = released[id]
 
 	if err := scanAll(ctx, db, `SELECT source, external_id FROM title_external_id WHERE title_id = ? ORDER BY source, external_id`,
 		[]any{id}, func(r *sql.Rows) error {

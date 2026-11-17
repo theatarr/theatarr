@@ -9,7 +9,8 @@ catalog,title}.tsx`, `web/src/components/{library,title}/`.
   release, rating, runtime, certification, network, size, completion, next, quality, activity), `order`, and the
   filters `anime`, `monitored`, `availability`, `genre` (any of, comma-separated), `quality`, `provider` (see files
   only; a cache code `rd`, `ad`, `tb` or a provider key), `year_from` and `year_to`. Rows carry genres, rating,
-  certification, runtime, release date, `availability` (the poster badge), `added_at` (newest current file),
+  certification, runtime, release date, `released` (the general release day: a movie's earliest cinema date or TMDb's
+  date, whichever is earlier; a series' first air date; what `sort=release` orders by), `availability` (the poster badge), `added_at` (newest current file),
   `title_added_at`, `status`, `original_language`, a movie's `in_cinemas`, `digital_release` and `physical_release`,
   a series' `series_type`, `season_count` and `previous_airing`, and `size_bytes`; each version carries `label` ("4K
   WEB"), `quality`, `files`, `added_at`, `size_bytes`, `providers` (cache codes of the providers that hold a current

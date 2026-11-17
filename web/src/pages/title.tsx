@@ -38,6 +38,7 @@ import { Chip } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { fmtAgo, fmtBytes, nameWithoutYear, plural, titleWithYear } from "@/lib/format";
 import { fmtDay, fmtRuntime, undatedUpcoming } from "@/lib/library";
+import { releasedText } from "@/lib/released";
 import { currentLibraries } from "@/lib/library-rows";
 import { airFact, readiness, releasedLabel, resolveTab, titleStatus, titleTabs, type TitleTab } from "@/lib/title-layout";
 import { acquiringStatus, latestEvent } from "@/lib/title-facts";
@@ -118,8 +119,8 @@ function About({ d }: { d: TitleDetail }) {
   const runtime = fmtRuntime(d.runtime_minutes ?? m?.runtime_minutes);
   const air = series ? airFact(m) : undefined;
   const digital = series ? undefined : d.digital_release;
-  // A movie is released on its first cinema date of the release-date choice (as the calendar and the lists), else TMDb's date.
-  const releasedDay = (series ? undefined : d.in_cinemas) || d.release_date;
+  // The general release day (lib/released.ts): a movie's earliest cinema date or TMDb's date, a series' first air date.
+  const releasedDay = d.released;
   const links = outsideLinks(d);
   return (
     <div data-testid="title-about">
@@ -143,7 +144,7 @@ function About({ d }: { d: TitleDetail }) {
           <div className="overflow-hidden rounded-[8px] border border-[var(--line)] bg-card text-sm" data-testid="title-facts">
             {m?.status ? <Fact label="Status"><span title={m.status}>{titleStatusWords(m.status)}</span></Fact> : null}
             {series && perms.seeFiles && d.id && d.series_type ? <Fact label="Series type"><SeriesTypeControl titleId={d.id} value={d.series_type} anime={d.anime} versions={currentLibraries((d.versions ?? []) as Version[])} /></Fact> : null}
-            {releasedDay ? <Fact label={releasedLabel(series, releasedDay)}>{fmtDay(releasedDay)}</Fact> : null}
+            {releasedDay ? <Fact label={releasedLabel(series, releasedDay)}>{releasedText(d)}</Fact> : null}
             {!series && digital ? <Fact label="Digital">{fmtDay(digital)}</Fact> : null}
             {air ? <Fact label={air.label}>{fmtDay(air.day)}</Fact> : null}
             {runtime ? <Fact label="Runtime">{runtime}</Fact> : null}

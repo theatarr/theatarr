@@ -279,7 +279,7 @@ existing redaction applies). Household accounts get none of it.
   release date strictly after today (the UTC day, as the server's Missing row and fetching count it). A film in cinemas with its digital release to come reads Upcoming until that
   day. It is still wanted; only the word changes, and Wanted's counts do not. `home_release` is per title.
 - **Release dates**: one choice of a movie's dates (`activity.FirstReleasesSQL`, `internal/activity/calendar.go`) for
-  Home's Upcoming row, the Calendar, the lists' **Next release** and **Release date** columns and their sorts, the **In
+  Home's Upcoming row, the Calendar, the lists' **Next release** column and its sort, the **In
   cinemas**, **Digital release** and **Physical release** columns and the title page's About facts and Details ›
   Release dates. It is the **primary release**, as Radarr has it: a movie's primary country is the US when TMDb lists
   a US cinema, digital or physical date, otherwise the country with the earliest of those dates (the original
@@ -290,8 +290,12 @@ existing redaction applies). Household accounts get none of it.
   of a type (a re-release, a streaming service picking an old film up) and premiere or TV releases are never a type's
   date. A movie's next release is the earliest of its three dates today or later (in cinemas first on a shared day);
   TMDb's release date stands in only for a movie with no chosen date at all; the **Next** sort orders by exactly
-  that day. A movie's **Release date** (lists) and About's **Released** are its first cinema date, else TMDb's
-  release date (**Releases** while still to come). On the Calendar a movie's cinema date alone is never Missing;
+  that day. A title's **general release day** (the row's `released`, `releasedSQL` in
+  `internal/web/library.go`, formatted by `web/src/lib/released.ts`) is what the lists' **Release date** column, its
+  sort, About's **Released** and the posters' Release date line show: a movie's earliest stored cinema date of any
+  kind (limited or wide, any source or country) or TMDb's release date, whichever is earlier, so a wide re-release
+  never makes an old film read new (Akira 1988, not its 2026 US release); a series' first air date. It takes no part in
+  the choice above (**Releases** while still to come). On the Calendar a movie's cinema date alone is never Missing;
   joined with a digital or disc date of the same day it is. Only the primary country's TMDb rows are stored
   (`title_release_date`, source `tmdb`); Details › Release dates lists them (with the arrs' rows for a title not
   refreshed), the country named once under the table; a refreshed title's cinema date taken from the first release
