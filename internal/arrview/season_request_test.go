@@ -66,3 +66,28 @@ func TestSeasonRequestForMonitoredCopyWithSeasonOff(t *testing.T) {
 		t.Fatalf("re-requested season 1 left S01E02 of the copy unmonitored: %d", got)
 	}
 }
+
+// The anime copy a recovered check turns on takes the season intent only: episode flags are copied to the state rows
+// it has, and it gets no rows of its own here, so its episodes follow the intent at the next refresh.
+func TestAnimeRecoveryCopiesNoEpisodeRows(t *testing.T) {
+	e := newEnv(t)
+	f := &fakeTMDb{fail: true, tvByTVDB: map[int]int{302: 902}, tv: map[int]string{902: `{"id":902,"name":"Anime Two",
+		"original_language":"ja","genres":[{"id":16,"name":"Animation"}]}`}}
+	e.withTMDb(f)
+	body := map[string]any{"title": "Anime Two", "tvdbId": 302, "qualityProfileId": e.profileID("sonarr", "Rules default"),
+		"rootFolderPath": "/media/tv-uhd", "monitored": true}
+	var got map[string]any
+	e.call("POST", "/sonarr/api/v3/series", body, 201, &got)
+	tid := int64(got["id"].(float64)) - IDBase
+	e.exec(fmt.Sprintf(`INSERT INTO episode (title_id, season, number, created_at, updated_at) VALUES (%d, 1, 1, 0, 0)`, tid))
+	e.exec(fmt.Sprintf(`INSERT INTO episode_version_state (version_id, episode_id, monitored, state, updated_at)
+		SELECT v.id, ep.id, 0, 'wanted', 0 FROM version v JOIN episode ep ON ep.title_id = v.title_id WHERE v.title_id = %d`, tid))
+	f.mu.Lock()
+	f.fail = false
+	f.mu.Unlock()
+	e.call("POST", "/sonarr/api/v3/series", body, 201, &got)
+	vid := e.one(`SELECT id FROM version WHERE title_id = ? AND policy_key = 'anime-tv'`, tid)
+	if n := e.one(`SELECT COUNT(*) FROM episode_version_state WHERE version_id = ?`, vid); n != 0 {
+		t.Fatalf("the anime copy got %d episode rows copied", n)
+	}
+}

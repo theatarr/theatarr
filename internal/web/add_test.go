@@ -1675,6 +1675,7 @@ func TestSyncGroupsAnswers(t *testing.T) {
 	if got := keysOf(cr.Request); !slices.Equal(got, []string{"movie-hd", "movie-web"}) {
 		t.Errorf("request: %v", got)
 	}
+	zeta := cr.Request.ID
 	e.exec(`INSERT INTO title (id, kind, name, sort_name, tmdb_id, anime, created_at, updated_at) VALUES
 		(30, 'movie', 'Mu', 'mu', 130, 0, 0, 0)`)
 	e.exec(`INSERT INTO version (title_id, policy_key, monitored, state, created_at, updated_at) VALUES
@@ -1682,6 +1683,58 @@ func TestSyncGroupsAnswers(t *testing.T) {
 	e.callAs(ann, "POST", APIBase+"/requests", map[string]any{"title_id": 30}, 201, &cr)
 	if got := keysOf(cr.Request); !slices.Equal(got, []string{"movie-web"}) {
 		t.Errorf("request with an unmonitored partner: %v", got)
+	}
+	// An approval edited down to movie-web still adds movie-hd in sync, and the request keeps following it.
+	var ap ApproveResult
+	e.call("POST", fmt.Sprintf("%s/requests/%d/approve", APIBase, zeta), map[string]any{"versions": []string{"movie-web"}},
+		200, &ap)
+	if got := keysOf(ap.Request); !slices.Equal(got, []string{"movie-hd", "movie-web"}) {
+		t.Errorf("edited approval: %v", got)
+	}
+}
+
+// A request for a series the catalogue has by TVDB id only looks it up as its approval will: its removed copy in a
+// library in sync is not stored as a partner, and the approval leaves it removed. A series whose stored type is anime
+// offers the anime library's partner in the add options.
+func TestSyncGroupsSeriesByTVDB(t *testing.T) {
+	t.Parallel()
+	e := newAddEnv(t, func(p *policy.Policy) {
+		tv := *p.Versions["tv-2160p"]
+		tv.Library = "/media/tv-1080p"
+		p.Versions["tv-1080p"] = &tv
+		a2 := *p.Versions["anime-tv"]
+		a2.Library = "/media/anime-2"
+		p.Versions["anime-tv-2"] = &a2
+		p.Library.SyncGroups = [][]string{{"tv-2160p", "tv-1080p"}, {"anime-tv", "anime-tv-2"}}
+	})
+	e.exec(`INSERT INTO title (id, kind, name, sort_name, tvdb_id, anime, created_at, updated_at) VALUES
+		(40, 'series', 'Omega', 'omega', 940, 0, 0, 0)`)
+	e.exec(`INSERT INTO version (id, title_id, policy_key, monitored, state, created_at, updated_at) VALUES
+		(40, 40, 'tv-2160p', 0, 'wanted', 0, 0)`)
+	e.exec(`INSERT INTO arrview_removed_version (version_id, view, removed_at) VALUES (40, 'ui', 0)`)
+	annID, ann := e.user("ann", auth.RoleUser)
+	hd := []string{"tv-1080p"}
+	if err := e.au.UpdateUser(context.Background(), annID, auth.UserPatch{RequestVersions: &hd}); err != nil {
+		t.Fatal(err)
+	}
+	var cr CreateResult
+	e.callAs(ann, "POST", APIBase+"/requests", map[string]any{"kind": "series", "tvdb_id": 940, "name": "Omega"}, 201, &cr)
+	if got := keysOf(cr.Request); !slices.Equal(got, hd) {
+		t.Errorf("request: %v", got)
+	}
+	var ap ApproveResult
+	e.call("POST", fmt.Sprintf("%s/requests/%d/approve", APIBase, cr.Request.ID), map[string]any{}, 200, &ap)
+	if n := e.count(`SELECT COUNT(*) FROM arrview_removed_version WHERE version_id = 40`); n != 1 {
+		t.Error("approval restored the removed tv-2160p copy")
+	}
+	// The Show (10) with a stored anime type: ticking anime-tv brings anime-tv-2.
+	e.exec(`UPDATE title SET series_type = 'anime' WHERE id = 10`)
+	var o AddOptions
+	e.call("GET", APIBase+"/add/options?title_id=10", nil, 200, &o)
+	for _, v := range o.Versions {
+		if v.Key == "anime-tv" && !slices.Equal(v.Synced, []string{"anime-tv-2"}) {
+			t.Errorf("anime-tv of an anime-type series: synced %v", v.Synced)
+		}
 	}
 }
 

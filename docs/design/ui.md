@@ -1002,7 +1002,8 @@ longer matches its group, leaves the group in the same save (also on a YAML impo
 library goes. Saving a group adds nothing to titles already in the library.
 
 Which libraries in sync would gain a copy is one read-only answer, `catalog.SyncPartners` (also used by
-`TurnOnSynced`): each add option carries it as `synced` (for that library ticked alone), `PUT
+`TurnOnSynced`): each add option carries it as `synced` (for that library ticked alone, with the anime reading the
+add will use: the stored flag and series type for a title the catalogue has), `PUT
 titles/{id}/versions/{key}` returns the keys it added as `synced` (as `POST titles` does), and a request stores it
 (users.md). The add sheet and "Add libraries" show a partner of a ticked library ticked and disabled, "in sync with
 <library>", and send only what was ticked (the server adds the partners); a partner that would not gain a copy
@@ -1019,11 +1020,13 @@ gain copies in the others by the add rule (`catalog.SyncGains`, as if the title'
 and existing unmonitored copies are left out). The dialog names per library the count and the first five titles
 ("and 495 more") and "Each new copy is monitored like the title's first monitored copy in the group, or its first
 copy."; a series' new copy takes that copy's season and episode monitoring and monitor-new choice
-(`catalog.CopySeasonIntent`, also used by the compatible API's anime reclassify), and a movie's its explicit minimum
+(`catalog.CopySeasonIntent` with its episode rows filled in; the compatible API's anime reclassify uses the same helper
+without filling, so there the episodes follow the intent at the next refresh), and a movie's its explicit minimum
 availability unless the library has its own (`catalog.ChoiceKeys`). The action runs in one transaction
-(`catalog.BringInSync`). "Search for the new copies" is off by default ("No search queued by this action"); ticked,
+(`catalog.BringInSync`). "Search for the new copies" is off by default ("No search queued by this action"), and disabled with the
+Pause words while Pause is on; ticked,
 the new copies of a monitored source go on the paced search schedule (`RequestSearchLater`, the hourly budget,
-cancellable on Wanted), never an immediate search. A toast gives the per-library counts.
+cancellable on Wanted), never an immediate search. A toast gives the per-library copy counts.
 
 Advanced includes **YAML settings**
 (`/admin/advanced/config`, with Policy files, Sections and Import & export tabs), **Settings history**

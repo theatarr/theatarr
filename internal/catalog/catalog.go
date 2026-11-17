@@ -209,12 +209,19 @@ func find(ctx context.Context, tx *sql.Tx, in Input) (id int64, anime, found boo
 		}
 		return id, anime, err == nil, err
 	}
+	return Lookup(ctx, tx, in.Kind, in.TmdbID, in.TvdbID)
+}
+
+// Lookup finds a title by its ids as an add without a title id does: a movie by TMDb id; a series by TVDB id, then
+// by TMDb id.
+func Lookup(ctx context.Context, q Querier, kind policy.Kind, tmdbID, tvdbID int64) (id int64, anime, found bool,
+	err error) {
 	try := func(col string, v int64) error {
 		if v <= 0 || found {
 			return nil
 		}
-		q := `SELECT id, anime FROM title WHERE kind = ? AND ` + col + ` = ?`
-		err := tx.QueryRowContext(ctx, q, string(in.Kind), v).Scan(&id, &anime)
+		err := q.QueryRowContext(ctx, `SELECT id, anime FROM title WHERE kind = ? AND `+col+` = ?`, string(kind),
+			v).Scan(&id, &anime)
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil
 		}
@@ -223,12 +230,12 @@ func find(ctx context.Context, tx *sql.Tx, in Input) (id int64, anime, found boo
 		}
 		return err
 	}
-	if in.Kind == policy.KindSeries {
-		if err = try("tvdb_id", in.TvdbID); err != nil {
+	if kind == policy.KindSeries {
+		if err = try("tvdb_id", tvdbID); err != nil {
 			return
 		}
 	}
-	err = try("tmdb_id", in.TmdbID)
+	err = try("tmdb_id", tmdbID)
 	return
 }
 
@@ -637,9 +644,10 @@ func Searchable(pol *policy.Policy, keys []string) (active []string, skipped []S
 
 // CopySeasonIntent gives the title's series versions with keys to (just created) the season monitoring of its first
 // version in from that is not in to and not removed: its series_monitor intent (seasons and monitor new) and its
-// episodes' monitored flags, as wanted state rows. Nothing when from holds no such version. Used where a copy follows
-// another: a compatible view's reclassify, and Bring in sync.
-func CopySeasonIntent(ctx context.Context, tx *sql.Tx, titleID int64, from, to []string, now time.Time) error {
+// episodes' monitored flags. fill also creates the wanted state rows the new copy lacks (Bring in sync); without it
+// only existing rows take the flags, and the rest come with the next metadata refresh from the intent (a compatible
+// view's reclassify). Nothing when from holds no such version.
+func CopySeasonIntent(ctx context.Context, tx *sql.Tx, titleID int64, from, to []string, fill bool, now time.Time) error {
 	if len(to) == 0 {
 		return nil
 	}
@@ -675,10 +683,18 @@ func CopySeasonIntent(ctx context.Context, tx *sql.Tx, titleID int64, from, to [
 		if err := SaveMonitor(ctx, tx, id, m, now); err != nil {
 			return err
 		}
-		if _, err := tx.ExecContext(ctx, `INSERT INTO episode_version_state (version_id, episode_id, monitored, state,
-			updated_at) SELECT ?, s.episode_id, s.monitored, 'wanted', ? FROM episode_version_state s
-			WHERE s.version_id = ? ON CONFLICT (version_id, episode_id) DO UPDATE SET monitored = excluded.monitored,
-			updated_at = excluded.updated_at WHERE monitored <> excluded.monitored`, id, ms, src); err != nil {
+		q := `UPDATE episode_version_state SET monitored = s.monitored, updated_at = ? FROM episode_version_state s
+			WHERE s.version_id = ? AND s.episode_id = episode_version_state.episode_id
+			AND episode_version_state.version_id = ?`
+		args := []any{ms, src, id}
+		if fill {
+			q = `INSERT INTO episode_version_state (version_id, episode_id, monitored, state, updated_at)
+				SELECT ?, s.episode_id, s.monitored, 'wanted', ? FROM episode_version_state s WHERE s.version_id = ?
+				ON CONFLICT (version_id, episode_id) DO UPDATE SET monitored = excluded.monitored,
+				updated_at = excluded.updated_at WHERE monitored <> excluded.monitored`
+			args = []any{id, ms, src}
+		}
+		if _, err := tx.ExecContext(ctx, q, args...); err != nil {
 			return err
 		}
 	}

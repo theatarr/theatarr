@@ -327,7 +327,8 @@ func (s *Service) reclassify(ctx context.Context, v *View, titleID int64) error 
 		}
 		if v.Flavour == Sonarr {
 			// The libraries in sync take the same season monitoring as the view's new copies.
-			if err := catalog.CopySeasonIntent(ctx, tx, titleID, v.Versions, append(created, partners...), s.now()); err != nil {
+			if err := catalog.CopySeasonIntent(ctx, tx, titleID, v.Versions, append(created, partners...), false,
+				s.now()); err != nil {
 				return err
 			}
 		}

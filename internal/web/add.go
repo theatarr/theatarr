@@ -244,7 +244,11 @@ func (w *Web) apiAddOptions(rw http.ResponseWriter, r *http.Request) {
 	seeFiles := w.permsOf(r).SeeFiles
 	var on, held []string
 	var copies catalog.Copies
-	fitAnime := anime // whether a library in sync fits, as catalog.TurnOnSynced reads it
+	// Whether a library in sync fits, as the add will read it (catalog.TurnOnSynced): the sheet's choice for a new
+	// title; the stored flag and series type for one the catalogue has, and for a series every copy of which was
+	// removed also the sheet's anime type, which the add stores first.
+	fitAnime := anime
+	grouped := len(w.syncGroups()) > 0
 	if t != nil {
 		kind = t.kind
 		// A title every copy of which was removed is added like a new one: the anime choice the sheet sends decides.
@@ -255,15 +259,14 @@ func (w *Web) apiAddOptions(rw http.ResponseWriter, r *http.Request) {
 			w.internal(rw, err)
 			return
 		}
-		var typeAnime bool
-		if copies, err = catalog.LoadCopies(ctx, w.st.Reader(), t.id); err == nil {
-			_, typeAnime, err = catalog.TitleFit(ctx, w.st.Reader(), t.id)
+		if grouped {
+			var stored bool
+			if copies, stored, err = w.syncFit(ctx, t.id); err != nil {
+				w.internal(rw, err)
+				return
+			}
+			fitAnime = stored || !t.inLib && kind == policy.KindSeries && anime
 		}
-		if err != nil {
-			w.internal(rw, err)
-			return
-		}
-		fitAnime = anime || typeAnime
 		if tmdbID == 0 {
 			tmdbID = t.tmdbID
 		}
@@ -325,7 +328,7 @@ func (w *Web) apiAddOptions(rw http.ResponseWriter, r *http.Request) {
 		if o.Default && o.Searchable {
 			out.CanSearch = true
 		}
-		if o.Fits {
+		if grouped {
 			o.Synced = catalog.SyncPartners(w.pol, kind, fitAnime, copies, []string{k})
 		}
 		out.Versions = append(out.Versions, o)

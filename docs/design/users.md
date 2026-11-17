@@ -120,8 +120,10 @@ and no other-requester list or count.
 - Libraries kept in sync (`library.sync_groups`, ui.md "Keep in sync"): at creation, before the joining rule runs,
   the request's libraries are widened by the libraries in sync with them that would gain a copy
   (`catalog.SyncPartners`: not one the title has a copy of in any state, removed or unmonitored), and the result is
-  stored in `request.versions`. Readiness, status and the library badges use that stored scope; nothing widens it
-  when it is read. The approval editor shows the stored libraries as ordinary ticked boxes, and a library in sync with
+  stored in `request.versions`. The title is looked up as the approval will find it (`catalog.Lookup`: a series by
+  TVDB id, then TMDb id), so a removed copy is never stored as a partner. An approval stores the libraries it was
+  given plus those its add created in sync (`synced`), so an edited approval keeps following a partner it adds.
+  Readiness, status and the library badges use that stored scope; nothing widens it when it is read. The approval editor shows the stored libraries as ordinary ticked boxes, and a library in sync with
   a ticked one that is not stored ticked and disabled, "in sync with …" (approval adds it). "Requests ask for" offers
   a group as one choice ("4K Remux + 4K WEB") whose tick stores every member's key; a stored set holding only part of
   a group (saved before the group existed) shows that group as its members. A stored member key is never read as

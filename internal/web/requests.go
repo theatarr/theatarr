@@ -756,22 +756,25 @@ func (w *Web) apiCreateRequest(rw http.ResponseWriter, r *http.Request) {
 	}
 	// The libraries in sync with the asked ones that would gain a copy are part of the request from the start
 	// (catalog.SyncPartners), so its readiness and badges cover them.
-	var copies catalog.Copies
-	fitAnime := anime
-	if t != nil {
-		var typeAnime bool
-		if copies, err = catalog.LoadCopies(ctx, w.st.Reader(), t.id); err == nil {
-			_, typeAnime, err = catalog.TitleFit(ctx, w.st.Reader(), t.id)
-		}
+	// The title is the one the approval will add to: catalog.Add finds it by the request's ids, not by title id.
+	if len(w.syncGroups()) > 0 {
+		id, _, found, err := catalog.Lookup(ctx, w.st.Reader(), kind, tmdbID, tvdbID)
 		if err != nil {
 			w.internal(rw, err)
 			return
 		}
-		fitAnime = anime || typeAnime
-	}
-	if synced := catalog.SyncPartners(w.pol, kind, fitAnime, copies, keys); len(synced) > 0 {
-		keys = append(keys, synced...)
-		slices.Sort(keys)
+		var copies catalog.Copies
+		fitAnime := anime
+		if found {
+			if copies, fitAnime, err = w.syncFit(ctx, id); err != nil {
+				w.internal(rw, err)
+				return
+			}
+		}
+		if synced := catalog.SyncPartners(w.pol, kind, fitAnime, copies, keys); len(synced) > 0 {
+			keys = append(keys, synced...)
+			slices.Sort(keys)
+		}
 	}
 
 	res, ev, err := w.createRequest(ctx, viewer.UserID, newRequest{kind: kind, anime: anime, tmdbID: tmdbID,
@@ -1087,6 +1090,13 @@ func (w *Web) approve(ctx context.Context, id, by int64, versions []string, seas
 	add, err := w.addTitle(ctx, ar, "request:"+strconv.FormatInt(id, 10))
 	if err != nil {
 		return nil, err
+	}
+	if len(add.Synced) > 0 {
+		// The libraries the add gave a copy because they are in sync are part of the request, also when an edited
+		// approval left them out.
+		keys = append(keys, add.Synced...)
+		slices.Sort(keys)
+		keys = slices.Compact(keys)
 	}
 	if len(ss) == 0 && len(ar.moreSeasons) > 0 {
 		// More seasons of a series: the request names them, so its status and progress follow just those.

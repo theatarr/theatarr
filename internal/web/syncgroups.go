@@ -145,3 +145,14 @@ func (w *Web) apiBringInSync(rw http.ResponseWriter, r *http.Request) {
 	w.log.Info("bring in sync", "group", group, "titles", out.Titles, "search", req.Search, "searched", out.Searched)
 	writeJSON(rw, http.StatusOK, out)
 }
+
+// syncFit is what catalog.SyncPartners needs about a title of the catalogue an add will find: its copies in any state,
+// and whether it counts as anime for the libraries in sync (catalog.TitleFit, as catalog.TurnOnSynced reads it).
+func (w *Web) syncFit(ctx context.Context, titleID int64) (catalog.Copies, bool, error) {
+	copies, err := catalog.LoadCopies(ctx, w.st.Reader(), titleID)
+	if err != nil {
+		return nil, false, err
+	}
+	_, anime, err := catalog.TitleFit(ctx, w.st.Reader(), titleID)
+	return copies, anime, err
+}
