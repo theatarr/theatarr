@@ -20,6 +20,7 @@ import { Sheet, SheetCancel, SheetLayout, useEditParam } from "@/components/ui/s
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { explainError } from "@/lib/settings";
+import { sectionsQuery } from "@/api/settings";
 import { libraryLabel } from "@/lib/library-label";
 import { useLibraryName } from "@/lib/library-names";
 
@@ -252,6 +253,8 @@ export function VersionsPage({ embedded = false }: { embedded?: boolean }) {
       await query.refetch();
       // Stopping a library drops it from the arr apps that served it (Settings › Connected apps).
       void qc.invalidateQueries({ queryKey: ["settings", "view-bindings"] });
+      // Keep in sync, and a deleted library leaving its group, change the library section.
+      void qc.invalidateQueries({ queryKey: sectionsQuery.queryKey });
     } catch (failure) {
       const effects = confirmationEffects(failure);
       if (effects) setPending({ body, effects, create, inSheet });

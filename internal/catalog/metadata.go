@@ -612,7 +612,8 @@ func (s *MovieIntake) addMissingVersions(ctx context.Context, titleID int64, ani
 				views = append(views, "v/"+key)
 			}
 		}
-		// The libraries in sync count as added: their minimum availability and their search follow the others'.
+		// The libraries in sync count as added: they are searched like the others, and take the minimum
+		// availability unless they have their own (ChoiceKeys).
 		added = append(added, synced...)
 		for _, k := range added {
 			if _, err := tx.ExecContext(ctx, `UPDATE version SET add_method=? WHERE title_id=? AND policy_key=?`,
@@ -629,7 +630,7 @@ func (s *MovieIntake) addMissingVersions(ctx context.Context, titleID int64, ani
 				return err
 			}
 		}
-		if err := availability.Choose(ctx, tx, titleID, added, minimum, now); err != nil {
+		if err := availability.Choose(ctx, tx, titleID, ChoiceKeys(s.Policy, added, synced), minimum, now); err != nil {
 			return err
 		}
 		return SyncMonitored(ctx, tx, titleID, now)
@@ -791,7 +792,7 @@ func (s *MovieIntake) addNewMovie(ctx context.Context, summary tmdb.MovieSummary
 				return err
 			}
 		}
-		return availability.Choose(ctx, tx, result.TitleID, result.Versions, minimum, now)
+		return availability.Choose(ctx, tx, result.TitleID, ChoiceKeys(s.Policy, result.Versions, result.Synced), minimum, now)
 	})
 	if err != nil {
 		return 0, false, err

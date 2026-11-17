@@ -331,18 +331,27 @@ func TurnOn(ctx context.Context, tx *sql.Tx, titleID int64, keys []string, monit
 func TurnOnSynced(ctx context.Context, tx *sql.Tx, pol *policy.Policy, titleID int64, keys []string, monitored bool,
 	now time.Time) (created, partners []string, err error) {
 	var gains []string
+	held := map[string]bool{} // the title's copies before this call: key → removed
 	if pol != nil && pol.Library != nil && len(pol.Library.SyncGroups) > 0 {
-		for _, k := range keys {
-			if pol.SyncGroup(k) == nil {
-				continue
-			}
-			var gain bool
-			if err := tx.QueryRowContext(ctx, `SELECT NOT EXISTS (SELECT 1 FROM version v WHERE v.title_id = ?
-				AND v.policy_key = ? AND NOT EXISTS (SELECT 1 FROM arrview_removed_version r
-				WHERE r.version_id = v.id))`, titleID, k).Scan(&gain); err != nil {
+		rows, err := tx.QueryContext(ctx, `SELECT v.policy_key, EXISTS (SELECT 1 FROM arrview_removed_version r
+			WHERE r.version_id = v.id) FROM version v WHERE v.title_id = ?`, titleID)
+		if err != nil {
+			return nil, nil, err
+		}
+		for rows.Next() {
+			var k string
+			var removed bool
+			if err := rows.Scan(&k, &removed); err != nil {
+				rows.Close()
 				return nil, nil, err
 			}
-			if gain {
+			held[k] = removed
+		}
+		if err := rows.Close(); err != nil {
+			return nil, nil, err
+		}
+		for _, k := range keys {
+			if removed, has := held[k]; pol.SyncGroup(k) != nil && (!has || removed) {
 				gains = append(gains, k)
 			}
 		}
@@ -358,15 +367,8 @@ func TurnOnSynced(ctx context.Context, tx *sql.Tx, pol *policy.Policy, titleID i
 	}
 	for _, k := range gains {
 		for _, p := range pol.SyncGroup(k) {
-			if slices.Contains(keys, p) || slices.Contains(partners, p) || !Fits(pol.Versions[p], kind, anime) {
-				continue
-			}
-			var has bool
-			if err := tx.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM version WHERE title_id = ? AND policy_key = ?)`,
-				titleID, p).Scan(&has); err != nil {
-				return nil, nil, err
-			}
-			if !has {
+			if _, has := held[p]; !has && !slices.Contains(keys, p) && !slices.Contains(partners, p) &&
+				Fits(pol.Versions[p], kind, anime) {
 				partners = append(partners, p)
 			}
 		}
@@ -379,6 +381,16 @@ func TurnOnSynced(ctx context.Context, tx *sql.Tx, pol *policy.Policy, titleID i
 		return nil, nil, err
 	}
 	return created, partners, nil
+}
+
+// ChoiceKeys are the libraries of keys an add stores its minimum availability choice for: every one it names, and
+// each library in sync (synced) that has no minimum availability of its own; one that has keeps it, as a library's
+// own value wins over a client's.
+func ChoiceKeys(pol *policy.Policy, keys, synced []string) []string {
+	return slices.DeleteFunc(slices.Clone(keys), func(k string) bool {
+		vp := pol.Versions[k]
+		return slices.Contains(synced, k) && vp != nil && vp.MinimumAvailability != ""
+	})
 }
 
 // versionIDs are the ids of the title's versions with these keys that are not removed from the views.

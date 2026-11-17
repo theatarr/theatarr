@@ -673,7 +673,8 @@ func (w *Web) addTitle(ctx context.Context, req AddRequest, source string) (*Add
 		if req.MinimumAvailability != "" {
 			// A deliberate choice for the libraries this add adds the movie to, new or restored, whether or not the
 			// library has a default of its own. A copy that stayed in the library keeps its rule.
-			keys := slices.DeleteFunc(slices.Clone(res.Versions), func(k string) bool { return slices.Contains(on, k) })
+			// A library in sync with its own minimum availability keeps it (catalog.ChoiceKeys).
+			keys := slices.DeleteFunc(catalog.ChoiceKeys(w.pol, res.Versions, res.Synced), func(k string) bool { return slices.Contains(on, k) })
 			if err := availability.Choose(ctx, tx, res.TitleID, keys, req.MinimumAvailability, w.now()); err != nil {
 				return err
 			}

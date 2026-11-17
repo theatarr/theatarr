@@ -1465,6 +1465,7 @@ func TestSyncGroupsRoutes(t *testing.T) {
 	e := newAddEnv(t, func(p *policy.Policy) {
 		hd := *p.Versions["movie-web"]
 		hd.Library = "/media/movies-hd"
+		hd.MinimumAvailability = "released"
 		p.Versions["movie-hd"] = &hd
 		tv := *p.Versions["tv-2160p"]
 		tv.Library = "/media/tv-1080p"
@@ -1488,6 +1489,15 @@ func TestSyncGroupsRoutes(t *testing.T) {
 		!slices.Equal(res.Versions, []string{"movie-web", "movie-hd"}) {
 		t.Errorf("native add: %+v", res)
 	}
+	// The add's minimum availability: movie-web takes it, movie-hd in sync keeps its own.
+	e.call("POST", APIBase+"/titles", map[string]any{"kind": "movie", "tmdb_id": 106, "title": "Zeta",
+		"versions": []string{"movie-web"}, "minimum_availability": "announced"}, 201, &res)
+	if n := e.count(`SELECT COUNT(*) FROM arrview_title WHERE title_id = ? AND view = 'v/movie-web' AND minimum_availability = 'announced'`, res.Title.ID); n != 1 {
+		t.Error("movie-web lacks the add's minimum availability")
+	}
+	if n := e.count(`SELECT COUNT(*) FROM arrview_title WHERE title_id = ? AND view = 'v/movie-hd' AND minimum_availability <> ''`, res.Title.ID); n != 0 {
+		t.Error("movie-hd took the add's minimum availability over its own")
+	}
 	// A series the catalogue has with its episodes and no library yet, added through the view of tv-2160p alone.
 	e.exec(`INSERT INTO title (id, kind, name, sort_name, tvdb_id, anime, created_at, updated_at) VALUES
 		(20, 'series', 'Lambda', 'lambda', 401, 0, 0, 0)`)
@@ -1509,5 +1519,24 @@ func TestSyncGroupsRoutes(t *testing.T) {
 	}
 	if s, i := e.acq.counts(); s+i != 0 {
 		t.Errorf("searches: %d %d", s, i)
+	}
+}
+
+// The Sonarr mass editor that makes a standard series anime and picks the anime profile creates the anime copy and
+// its anime-only partner: the edited type is stored before the copies are turned on.
+func TestSyncGroupsEditorSeriesType(t *testing.T) {
+	t.Parallel()
+	e := newAddEnv(t, func(p *policy.Policy) {
+		a2 := *p.Versions["anime-tv"]
+		a2.Library = "/media/anime-2"
+		p.Versions["anime-tv-2"] = &a2
+		p.Library.SyncGroups = [][]string{{"anime-tv", "anime-tv-2"}}
+	})
+	e.call("PUT", "/sonarr/api/v3/series/editor", map[string]any{"seriesIds": []int64{arrview.IDBase + 10},
+		"qualityProfileId": e.profile("sonarr", "Anime"), "seriesType": "anime"}, 202, nil)
+	for _, k := range []string{"anime-tv", "anime-tv-2"} {
+		if n := e.count(`SELECT COUNT(*) FROM version WHERE title_id = 10 AND policy_key = ?`, k); n != 1 {
+			t.Errorf("%s: %d copies, want 1", k, n)
+		}
 	}
 }

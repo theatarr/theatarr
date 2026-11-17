@@ -488,6 +488,13 @@ func (s *Service) editor(w http.ResponseWriter, r *request) {
 					return err
 				}
 			}
+			if v.Flavour == Sonarr {
+				// A series type the editor is given is an edit of the title's type, also when it is the one shown.
+				// Stored before the profile turns copies on: the libraries in sync fit by it.
+				if err := catalog.SetSeriesType(ctx, tx, e.id, in.SeriesType.value(seriesTypes...)); err != nil {
+					return err
+				}
+			}
 			if in.QualityProfileID != nil {
 				ti.QualityProfileID = *in.QualityProfileID
 				if p := v.profileByID(ti.QualityProfileID); p != nil {
@@ -515,12 +522,6 @@ func (s *Service) editor(w http.ResponseWriter, r *request) {
 						AND monitored <> ?`, mon, now, id, mon); err != nil {
 						return err
 					}
-				}
-			}
-			if v.Flavour == Sonarr {
-				// A series type the editor is given is an edit of the title's type, also when it is the one shown.
-				if err := catalog.SetSeriesType(ctx, tx, e.id, in.SeriesType.value(seriesTypes...)); err != nil {
-					return err
 				}
 			}
 			if err := s.saveRecord(ctx, tx, v, e.id, &ti); err != nil {

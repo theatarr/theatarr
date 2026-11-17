@@ -1269,3 +1269,43 @@ func TestSyncGroupsIntake(t *testing.T) {
 		t.Errorf("import: %s, %d copies, want one", change, countRows(t, st, `SELECT count(*) FROM version WHERE title_id=?`, imported))
 	}
 }
+
+// A list that adds a movie as announced to movie-web gives the synced movie-remux, which has its own minimum
+// availability (released), no choice of its own: Remux keeps released and is not searched before release, WEB is.
+func TestSyncGroupsPartnerKeepsOwnMinimum(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	m := &tmdb.Movie{ID: 301, Title: "Soon", ReleaseDate: "2026-12-01"}
+	s, st := newIntake(t, intakeSource{list: &tmdb.List{Items: []tmdb.MovieSummary{{ID: 301}, {ID: 302}}}, movies: map[int]*tmdb.Movie{301: m}})
+	s.Policy.Versions["movie-remux"] = &policy.VersionPolicy{Kind: policy.KindMovie, Enable: "default", MinimumAvailability: "released"}
+	s.Policy.Versions["movie-hd"] = &policy.VersionPolicy{Kind: policy.KindMovie, Enable: "default"}
+	s.Policy.Library = &policy.Library{SyncGroups: [][]string{{"movie-web", "movie-remux", "movie-hd"}}}
+	var searched []string
+	s.OnAdd = func(_ context.Context, _ int64, keys []string, _ bool) error {
+		searched = append(searched, keys...)
+		return nil
+	}
+	// 302 is held outside the group (addMissingVersions); 301 is new (addNewMovie).
+	execAll(t, st, `INSERT INTO title(id,kind,name,tmdb_id,created_at,updated_at) VALUES(70,'movie','Held',302,0,0)`,
+		`INSERT INTO version(title_id,policy_key,monitored,state,created_at,updated_at) VALUES(70,'movie-old',1,'wanted',0,0)`,
+		`INSERT INTO title_release_date(title_id,source,country,type,date,fetched_at) VALUES(70,'tmdb','','theatrical','2026-12-01',0)`,
+		`INSERT INTO import_list(name,tmdb_id,versions,minimum_availability,search_on_add,created_at,updated_at) VALUES('list',9,'["movie-web"]','announced',1,0,0)`)
+	if _, err := s.SyncLists(ctx); err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []int64{70} {
+		if n := countRows(t, st, `SELECT count(*) FROM version WHERE title_id=?`, id); n != 4 {
+			t.Fatalf("held movie: %d copies", n)
+		}
+	}
+	if n := countRows(t, st, `SELECT count(*) FROM arrview_title WHERE view='v/movie-remux' AND minimum_availability<>''`); n != 0 {
+		t.Errorf("movie-remux got %d choices, want its own released", n)
+	}
+	if n := countRows(t, st, `SELECT count(*) FROM arrview_title WHERE view IN ('v/movie-web','v/movie-hd') AND minimum_availability='announced'`); n != 4 {
+		t.Errorf("movie-web and movie-hd: %d announced choices, want 4", n)
+	}
+	slices.Sort(searched)
+	if !slices.Equal(searched, []string{"movie-hd", "movie-hd", "movie-web", "movie-web"}) {
+		t.Errorf("searched %v, want movie-web and movie-hd of both movies, not movie-remux", searched)
+	}
+}

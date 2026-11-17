@@ -64,18 +64,9 @@ func setSyncGroups(records *Records, index int, groups [][]string) error {
 	return nil
 }
 
-// syncRule is what every library of a group shares: its kind and its anime rule.
-type syncRule struct {
-	kind  policy.Kind
-	anime string
-}
-
-func ruleOf(vp *policy.VersionPolicy) syncRule {
-	r := syncRule{kind: vp.Kind, anime: "both"}
-	if vp.Anime != nil {
-		r.anime = fmt.Sprint(*vp.Anime)
-	}
-	return r
+// sameRule reports whether two libraries can share a sync group: one kind and one anime rule.
+func sameRule(a, b *policy.VersionPolicy) bool {
+	return a.Kind == b.Kind && policy.SameAnimeRule(a.Anime, b.Anime)
 }
 
 // PruneSyncGroups keeps library.sync_groups in step with records' libraries, for a save that deletes a library,
@@ -95,25 +86,28 @@ func PruneSyncGroups(records *Records) error {
 	changed := false
 	for _, g := range groups {
 		var known []string
-		count := map[syncRule]int{}
 		for _, k := range g {
-			if vp := versions[k]; vp != nil {
+			if versions[k] != nil {
 				known = append(known, k)
-				count[ruleOf(vp)]++
+			}
+		}
+		// The rule most of the group shares; on a tie, the first library's.
+		best, most := "", 0
+		for _, k := range known {
+			n := 0
+			for _, o := range known {
+				if sameRule(versions[k], versions[o]) {
+					n++
+				}
+			}
+			if n > most {
+				best, most = k, n
 			}
 		}
 		var keep []string
-		if len(known) > 0 {
-			best := ruleOf(versions[known[0]])
-			for _, k := range known {
-				if r := ruleOf(versions[k]); count[r] > count[best] {
-					best = r
-				}
-			}
-			for _, k := range known {
-				if ruleOf(versions[k]) == best {
-					keep = append(keep, k)
-				}
+		for _, k := range known {
+			if sameRule(versions[k], versions[best]) {
+				keep = append(keep, k)
 			}
 		}
 		if len(keep) != len(g) || len(keep) < 2 {
@@ -153,7 +147,7 @@ func SetSyncGroup(records *Records, key string, with []string) error {
 			continue
 		case vp == nil:
 			return &policy.Errors{List: []policy.FieldError{{Path: "sync_with", Msg: fmt.Sprintf("unknown library %q", k)}}}
-		case ruleOf(vp) != ruleOf(own):
+		case !sameRule(vp, own):
 			return &policy.Errors{List: []policy.FieldError{{Path: "sync_with",
 				Msg: fmt.Sprintf("%q is not of this library's kind and anime setting", k)}}}
 		}
