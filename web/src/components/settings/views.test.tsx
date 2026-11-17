@@ -189,6 +189,29 @@ describe("View editor", () => {
       versions: ["movie-remux"], profiles: { "WEB only": ["movie-remux"], Any: ["movie-remux"], Remux: ["movie-remux"] } });
   });
 
+  it("offers a Radarr app only movie libraries, keeps a ticked series library to untick, and offers profiles only its libraries", async () => {
+    const view = { ...radarr, versions: ["movie-web", "tv-web"], profiles: { "WEB only": ["movie-web"] } };
+    const withSeries = { ...versionsReply, versions: [...versionsReply.versions, library("anime-tv")].map((l) => l.key === "tv-web" || l.key === "anime-tv" ? { ...l, config: { ...l.config, kind: "series" } } : l) };
+    mockFetch(routes([view]).map((route) => route === librariesRoute ? { ...route, reply: withSeries } : route));
+    const user = userEvent.setup();
+    renderPage(<GeneralSettingsPage />);
+    await user.click(await screen.findByRole("button", { name: /Edit/ }));
+    const sheet = await screen.findByTestId("view-editor");
+    const boxes = () => within(within(sheet).getByRole("group", { name: "Libraries" })).getAllByRole("checkbox").map((b) => (b as HTMLInputElement).checked);
+    const names = (group: string) => within(within(sheet).getByRole("group", { name: group })).getAllByRole("checkbox").map((b) => b.closest("label")?.textContent);
+    // The ticked series library stays listed so it can be unticked; the other series library is not offered.
+    expect(names("Libraries")).toEqual([expect.stringMatching(/movie-web$/), expect.stringMatching(/movie-remux$/), expect.stringMatching(/tv-web$/)]);
+    expect(boxes()).toEqual([true, false, true]);
+    // A profile offers the libraries the app serves.
+    expect(names("Profile: WEB only")).toEqual([expect.stringMatching(/movie-web$/), expect.stringMatching(/tv-web$/)]);
+    await user.click(within(within(sheet).getByRole("group", { name: "Libraries" })).getByRole("checkbox", { name: /tv-web$/ }));
+    expect(names("Libraries")).toEqual([expect.stringMatching(/movie-web$/), expect.stringMatching(/movie-remux$/)]);
+    expect(names("Profile: WEB only")).toEqual([expect.stringMatching(/movie-web$/)]);
+    // A Sonarr app offers the series libraries instead.
+    await user.selectOptions(within(sheet).getByRole("combobox", { name: "Flavour" }), "sonarr");
+    expect(names("Libraries")).toEqual([expect.stringMatching(/movie-web$/), expect.stringMatching(/tv-web$/), expect.stringMatching(/anime-tv$/)]);
+  });
+
   it("locks the identity of a view not seeded yet", async () => {
     mockFetch(routes([{ ...radarr, identity: null, secret_set: false }]));
     const user = userEvent.setup();

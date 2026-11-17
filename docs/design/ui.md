@@ -945,7 +945,7 @@ and reload/confirmation behavior. Each page says its intro once, as its descript
 | Notifications | `/admin/settings/notifications` | Where and when Theatarr sends messages. |
 | Plex & playback | `/admin/settings/plex` | Plex connections, playback and playlists; read-only Playlists Theatarr keeps below the playlists panel, folded with its count ("90 playlists, 8 empty"). |
 | Metadata & artwork | `/admin/settings/metadata` | Metadata services, refresh schedules and the artwork cache. |
-| Connected apps | `/admin/settings/apps` | Compatible endpoints for Seerr and other apps: each app's libraries, profiles and API key (an app without its own key reads "uses admin API keys" beside its path). Replace a library puts a new library in an old one's place in the app's libraries and every profile, in the draft; Save sends both. |
+| Connected apps | `/admin/settings/apps` | Compatible endpoints for Seerr and other apps: each app's libraries, profiles and API key (an app without its own key reads "uses admin API keys" beside its path). The editor offers a Radarr app the movie libraries and a Sonarr app the series ones (a library already ticked stays listed so it can be unticked), and each profile the libraries the app serves. Replace a library puts a new library in an old one's place in the app's libraries and every profile, in the draft; Save sends both. |
 
 Other libraries' folders (`#scan-roots`) and the torrent-list backup schedule (`#torrent-backups`) are on Download
 clients › Torrents; Torrents says beside its filters what "Not used by Theatarr" checks and links the folders, and

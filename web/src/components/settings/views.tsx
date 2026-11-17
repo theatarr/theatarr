@@ -27,10 +27,17 @@ import { useSettingsEditor } from "./use-settings-editor";
 import { ExplainBox, Field, NamedChoices, SecretField, SELECT_CLASS } from "./parts";
 import { SyncNotes } from "@/components/sync-note";
 
-/** The library choices: every library in the settings, or (before they load) just the saved ones. */
-/** The libraries to tick, by name with the key the app sees beside it. */
-const libraryOptions = (data: VersionList | undefined, saved: string[], nameOf: (key: string) => string) =>
-  (data ? data.versions.map((v) => v.key) : saved).map((key) => ({ key, label: <>{nameOf(key)} <span className="font-mono text-[12px] text-muted-foreground">{key}</span></> }));
+/** The libraries to tick, by name with the key the app sees beside it: the libraries of the app's kind (a Radarr app
+ * serves movie libraries, a Sonarr app series ones; the server refuses others), or (before they load) just the saved
+ * ones. A library already ticked stays listed whatever its kind, so it can be unticked. */
+const libraryOptions = (data: VersionList | undefined, saved: string[], nameOf: (key: string) => string, kind: string) => {
+  const keys = data ? data.versions.filter((v) => v.config.kind === kind || saved.includes(v.key)).map((v) => v.key) : saved;
+  return keys.map(libraryOption(nameOf));
+};
+const libraryOption = (nameOf: (key: string) => string) => (key: string) => ({ key, label: <>{nameOf(key)} <span className="font-mono text-[12px] text-muted-foreground">{key}</span></> });
+/** A profile's choices: the libraries this app serves (ticked above), and any the profile already lists. */
+const profileOptions = (served: string[], listed: string[], nameOf: (key: string) => string) =>
+  [...served, ...listed.filter((k) => !served.includes(k))].map(libraryOption(nameOf));
 
 /** A library's state for the list; the same fallback as the Libraries page when the switches lack it. */
 const stateOf = (data: VersionList, key: string) => data.switches.versions.find((v) => v.key === key)?.grab_state ?? { paused: data.switches.paused, pause_forced: data.switches.pause_forced, will_grab: false };
@@ -229,7 +236,7 @@ export function ViewSheet({ view: opened, generation: openedAt, readOnly, onClos
           </Field>
           <Field label="Path" help="Where the view answers, e.g. /radarr."><Input value={path} onChange={(e) => setPath(e.target.value)} disabled={off || !seeded} /></Field>
           <NamedChoices legend="Libraries" help="What the app sees, in the order ticked." testid="view-libraries"
-            options={libraryOptions(libraries.data, versions, nameOf)} value={versions} onChange={setVersions} disabled={off} />
+            options={libraryOptions(libraries.data, versions, nameOf, kind)} value={versions} onChange={setVersions} disabled={off} />
           <SyncNotes groups={libraries.data?.sync_groups} keys={versions} nameOf={nameOf} className="sm:col-span-2" />
           {off ? null : (
             <div className="flex min-w-0 flex-col gap-2 sm:col-span-2" data-testid="view-replace">
@@ -253,7 +260,7 @@ export function ViewSheet({ view: opened, generation: openedAt, readOnly, onClos
             <p className="text-sm font-medium text-[var(--ink)]">Profiles <span className="font-normal text-muted-foreground">(clients see them as quality profiles)</span></p>
             {Object.entries(profiles).map(([name, keys]) => (
               <NamedChoices key={name} legend={`Profile: ${name}`} testid={`view-profile-${name}`}
-                options={libraryOptions(libraries.data, keys, nameOf)} value={keys} onChange={(next) => setProfiles({ ...profiles, [name]: next })} disabled={off}>
+                options={profileOptions(versions, keys, nameOf)} value={keys} onChange={(next) => setProfiles({ ...profiles, [name]: next })} disabled={off}>
                 {off ? null : <Button type="button" variant="ghost" size="xs" className="self-start" onClick={() => { const next = { ...profiles }; delete next[name]; setProfiles(next); }}>Remove profile <span className="sr-only">{name}</span></Button>}
               </NamedChoices>
             ))}
