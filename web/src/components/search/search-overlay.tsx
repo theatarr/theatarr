@@ -62,7 +62,7 @@ export function SearchOverlay({ initial, onClose, onAdd }: { initial: string; on
   const libProblem = searchProblem(lib.error);
   // A title shown in the library group is not shown again under TMDb.
   const allHits = tmNow?.tmdb ?? [];
-  const hits = hitsNotShown(allHits, libProblem || lib.isPending ? [] : libItems);
+  const { hits, hidden } = hitsNotShown(allHits, libProblem || lib.isPending ? [] : libItems);
   const tmProblem = searchProblem(tm.error, tm.data, "tmdb");
   return (
     <Modal
@@ -139,7 +139,7 @@ export function SearchOverlay({ initial, onClose, onAdd }: { initial: string; on
                 ) : (
                   <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
                     {libItems.map((t) => (
-                      <LibraryResultCard key={t.id} t={t} onOpen={onClose} onAdd={add} />
+                      <LibraryResultCard key={t.id} t={t} hit={hidden.get(t.id)} onOpen={onClose} onAdd={add} />
                     ))}
                   </div>
                 )}

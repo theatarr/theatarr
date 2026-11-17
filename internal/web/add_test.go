@@ -670,7 +670,7 @@ func TestSearchEndpoint(t *testing.T) {
 // TestSearchKindAndPaging: the kind applies before the limit (a movie-heavy match still returns its series), offset
 // pages the library part, and library_total counts every match of the kind.
 // A query ending in a year TMDb's multi search finds nothing for is searched again without the year, keeping that
-// year's hits; a query that finds something, a numeric title and an implausible year are searched once, as typed.
+// year's hits; a query that finds something and a numeric title alone are searched once, as typed.
 func TestSearchTrailingYearFallback(t *testing.T) {
 	t.Parallel()
 	e := newAddEnv(t, nil)
@@ -720,11 +720,14 @@ func TestSearchTrailingYearFallback(t *testing.T) {
 	if s.TMDbState != "ok" || len(s.TMDb) != 0 || len(qs) != 2 {
 		t.Errorf("the thing 1999: %+v, searched %q", s, qs)
 	}
-	// Not a plausible year: searched once, as typed.
-	for _, q := range []string{"Blade Runner 2099", "Blade Runner 1850"} {
-		if s, qs = search(q); len(s.TMDb) != 0 || len(qs) != 1 {
-			t.Errorf("%s: %+v, searched %q", q, s.TMDb, qs)
-		}
+	// Any four digits after a title: an announced film is found too, and digits nothing has give nothing.
+	e.tm.answers["blade runner"] = append(e.tm.answers["blade runner"], tmdb.MultiResult{MediaType: "movie", ID: 9099,
+		Title: "Blade Runner", ReleaseDate: "2099-01-01"})
+	if s, qs = search("Blade Runner 2099"); len(s.TMDb) != 1 || s.TMDb[0].TMDbID != 9099 || len(qs) != 2 {
+		t.Errorf("blade runner 2099: %+v, searched %q", s.TMDb, qs)
+	}
+	if s, qs = search("Blade Runner 1850"); len(s.TMDb) != 0 || len(qs) != 2 {
+		t.Errorf("blade runner 1850: %+v, searched %q", s.TMDb, qs)
 	}
 }
 

@@ -74,10 +74,11 @@ export function FacetPill({ facet, onArt, className }: { facet: Facet; onArt?: b
 }
 
 /** A library title as a row: poster, name, versions; opens the title, or adds versions to it. */
-export function LibraryResultCard({ t, onOpen, onAdd }: { t: LibraryHit; onOpen?: () => void; onAdd: (t: AddTarget) => void }) {
+export function LibraryResultCard({ t, hit, onOpen, onAdd }: { t: LibraryHit; hit?: SearchHit; onOpen?: () => void; onAdd: (t: AddTarget) => void }) {
   const { canAdd, canRequest } = useSearchUI();
   const requests = useMyOpenRequests(!canAdd && canRequest);
-  const mine = canAdd ? undefined : findRequest(requests, { kind: t.kind, title_id: t.id, tmdb_id: t.tmdb_id });
+  // hit: this title's TMDb hit, left out of the TMDb group; a request made by its TMDb id is found through it.
+  const mine = canAdd ? undefined : findRequest(requests, { kind: t.kind, title_id: t.id, tmdb_id: t.tmdb_id ?? hit?.tmdb_id });
   const facet = facetOf(t.kind, t.anime);
   const name = t.name ?? "?";
   // Without "see files" a title reads as watchability, not library keys (docs/design/users.md).
@@ -310,11 +311,18 @@ export function searchWords(canAdd: boolean, canRequest: boolean) {
 }
 
 /** The TMDb hits not already shown above: a hit marked In library whose library card is rendered on this page of
- *  results is left out (its card there has the Libraries action); one whose card is not shown (a later library page,
- *  the library group still loading or failed) stays, marked In library. */
-export function hitsNotShown(hits: SearchHit[], shown: { id?: number }[]): SearchHit[] {
+ *  results is left out (its card there has the Libraries action) and handed to that card by title id (hidden), so
+ *  the card still finds a request made by the hit's TMDb id; one whose card is not shown (a later library page, the
+ *  library group still loading or failed) stays, marked In library. */
+export function hitsNotShown(hits: SearchHit[], shown: { id?: number }[]): { hits: SearchHit[]; hidden: Map<number | undefined, SearchHit> } {
   const ids = new Set(shown.map((t) => t.id));
-  return hits.filter((h) => !(h.in_library && h.title_id != null && ids.has(h.title_id)));
+  const hidden = new Map<number | undefined, SearchHit>();
+  const rest = hits.filter((h) => {
+    if (!(h.in_library && h.title_id != null && ids.has(h.title_id))) return true;
+    if (!hidden.has(h.title_id)) hidden.set(h.title_id, h);
+    return false;
+  });
+  return { hits: rest, hidden };
 }
 
 export function GroupHeader({ title, note, count }: { title: string; note: string; count?: number }) {

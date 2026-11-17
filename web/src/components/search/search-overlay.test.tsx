@@ -75,3 +75,18 @@ it("shows a title in the library once: its TMDb hit leaves the TMDb group while 
   expect(tm.textContent).toContain("1 result");
   expect(tm.textContent).toContain("In library");
 });
+
+it("keeps a household member's View request on the library card when its TMDb hit is left out", async () => {
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: { id: 9, username: "someone", permissions: ["browse", "request"], csrf_token: "t" } },
+    { method: "GET", path: "/search", reply: (r: { search: string }) => (r.search.includes("scope=library")
+      ? { library: [{ id: 4, kind: "series", name: "Lanterns", year: 2026, versions: [] }], library_total: 1 }
+      : { tmdb_state: "ok", tmdb: [{ tmdb_id: 555, media_type: "tv", kind: "series", name: "Lanterns", year: 2026, in_library: true, title_id: 4 }] }) },
+    { method: "GET", path: "/requests", reply: { items: [{ id: 7, kind: "series", tmdb_id: 555, status: "pending", name: "Lanterns" }], total: 1 } },
+  ]);
+  renderPage(<SearchProvider><Opener /></SearchProvider>, "/");
+  await waitFor(() => expect(screen.getByTestId("search-group-tmdb").textContent).toContain("No additional matches."));
+  const lib = screen.getByTestId("search-group-library");
+  await waitFor(() => expect(lib.querySelector("[data-testid=view-request]")?.getAttribute("aria-label")).toBe("View your request for Lanterns"));
+  expect(screen.queryByRole("button", { name: "Request Lanterns" })).toBeNull();
+});

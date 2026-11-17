@@ -74,7 +74,7 @@ export function SearchPage() {
   const libProblem = searchProblem(lib.error);
   // A title shown in the library group is not shown again under TMDb.
   const allHits = tmNow?.tmdb ?? [];
-  const hits = hitsNotShown(allHits, libProblem || lib.isPending ? [] : libItems);
+  const { hits, hidden } = hitsNotShown(allHits, libProblem || lib.isPending ? [] : libItems);
   const tmProblem = searchProblem(tm.error, tm.data, "tmdb");
   const setKind = (k: SearchKind) =>
     setParams(
@@ -136,7 +136,7 @@ export function SearchPage() {
             ) : (
               <>
                 <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 2xl:grid-cols-3">
-                  {libItems.map((t) => <LibraryResultCard key={t.id} t={t} onAdd={openAdd} />)}
+                  {libItems.map((t) => <LibraryResultCard key={t.id} t={t} hit={hidden.get(t.id)} onAdd={openAdd} />)}
                 </div>
                 {lib.hasNextPage ? (
                   <div className="mt-3 flex items-center gap-3">
