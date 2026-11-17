@@ -7,7 +7,7 @@ export type HistoryColumnId = "library" | "quality" | "score" | "date" | "releas
 
 export const HISTORY_COLUMNS: ColumnDef<HistoryColumnId>[] = [
   { id: "library", label: "Library", hint: "The library it is about" },
-  { id: "quality", label: "Release quality", hint: "The release's quality, when it is known" },
+  { id: "quality", label: "Quality", hint: "The release's quality, when it is known" },
   { id: "score", label: "Score", hint: "The release's custom format score, when it was scored" },
   { id: "date", label: "Date", hint: "When it happened" },
   { id: "release", label: "Release", hint: "The release name; for an upgrade or an adoption, what it replaced" },

@@ -28,8 +28,6 @@ it("shows quality and score in cells, a dash where the event has none, and no da
   expect(rows[0].querySelector('[data-column="quality"]')?.textContent).toBe("WEBDL-2160p");
   expect(rows[0].querySelector('[data-column="score"]')?.textContent).toBe("1,500");
   expect(rows[1].querySelector('[data-column="quality"]')?.textContent).toBe("—");
-  // The value is the release's (a pack's), not the imported file's: its label says so.
-  expect(screen.getByRole("columnheader", { name: "Release quality" })).toBeTruthy();
   expect(rows[1].querySelector('[data-column="score"]')?.textContent).toBe("—");
   expect(screen.queryByText("Yesterday")).toBeNull();
   expect(document.querySelector("h3")).toBeNull();

@@ -234,7 +234,7 @@ function historyFixed(withTitle: boolean, except?: string): DataColumn<ActivityE
 
 const HISTORY_OPTIONAL: Record<HistoryColumnId, DataColumn<ActivityEvent>> = {
   library: { id: "library", label: "Library", cell: (e) => (e.version ? <VersionTag k={e.version} className="text-[11px]" /> : <Dash />) },
-  quality: { id: "quality", label: "Release quality", cellClassName: "whitespace-nowrap", cell: (e) => e.quality || <Dash /> },
+  quality: { id: "quality", label: "Quality", cellClassName: "whitespace-nowrap", cell: (e) => e.quality || <Dash /> },
   score: { id: "score", label: "Score", cellClassName: "tabular-nums", cell: (e) => <ScoreCell e={e} /> },
   date: { id: "date", label: "Date", card: "none", cellClassName: "whitespace-nowrap tabular-nums", cell: (e) => fmtTime(e.at) },
   release: { id: "release", label: "Release", cellClassName: "max-w-[13rem]", cell: (e) => <ReleaseCell e={e} /> },
