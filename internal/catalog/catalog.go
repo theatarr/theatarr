@@ -482,6 +482,33 @@ func syncPartnersOf(pol *policy.Policy, kind policy.Kind, anime bool, held Copie
 	return of
 }
 
+// SyncRemovals answers, without writing, which libraries a removal of keys from a title holding held also takes out
+// because they are in sync with them (policy library.sync_groups, docs/design/ui.md "Keep in sync"): for each named
+// key that holds a live copy (not removed), each other library of its group that holds a live copy and is not named
+// itself, with the named library it is in sync with (the first in keys). Monitored or not, the partner leaves; its fit
+// is not checked. A named key with no live copy (the files kept from a library removed before) brings none. Nil when
+// none. Removals have this one rule, beside SyncPartners for adds.
+func SyncRemovals(pol *policy.Policy, held Copies, keys []string) map[string]string {
+	var of map[string]string
+	for _, k := range keys {
+		if removed, has := held[k]; !has || removed {
+			continue
+		}
+		for _, p := range pol.SyncGroup(k) {
+			if _, seen := of[p]; seen || slices.Contains(keys, p) {
+				continue
+			}
+			if removed, has := held[p]; has && !removed {
+				if of == nil {
+					of = map[string]string{}
+				}
+				of[p] = k
+			}
+		}
+	}
+	return of
+}
+
 // ChoiceKeys are the libraries of keys an add stores its minimum availability choice for: every one it names, and
 // each library in sync (synced) that has no minimum availability of its own and whose copy is new; one that has keeps
 // it, as a library's own value wins over a client's, and a restored partner (restored) keeps its saved choice.

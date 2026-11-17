@@ -423,3 +423,51 @@ func TestSyncGroupsSeriesSeasons(t *testing.T) {
 		}
 	}
 }
+
+// The removal rule (SyncRemovals): a named key with a live copy takes out the other live copies of its group, each
+// in sync with the first named key of its group; a removed or missing named key seeds nothing; a named partner is not
+// a partner; a library in no group takes out nothing; monitoring and fit are not read.
+func TestSyncRemovals(t *testing.T) {
+	t.Parallel()
+	pol := syncPolicy(t)
+	str := func(of map[string]string) string {
+		var out []string
+		for p, k := range of {
+			out = append(out, p+"<"+k)
+		}
+		slices.Sort(out)
+		return strings.Join(out, " ")
+	}
+	for _, c := range []struct {
+		held Copies
+		keys []string
+		want string
+	}{
+		// A group of two and of three.
+		{Copies{"tv-2160p": false, "tv-1080p": false}, []string{"tv-2160p"}, "tv-1080p<tv-2160p"},
+		{Copies{"movie-remux": false, "movie-web": false, "movie-hd": false}, []string{"movie-web"},
+			"movie-hd<movie-web movie-remux<movie-web"},
+		// A partner already removed, or with no copy, does not leave again.
+		{Copies{"movie-remux": false, "movie-web": true}, []string{"movie-remux"}, ""},
+		// A named key with no live copy (a leftover's files) seeds nothing; one with no copy at all neither.
+		{Copies{"movie-remux": true, "movie-web": false}, []string{"movie-remux"}, ""},
+		{Copies{"movie-web": false}, []string{"movie-remux"}, ""},
+		// Both named: no partner; the third follows the first named.
+		{Copies{"tv-2160p": false, "tv-1080p": false}, []string{"tv-2160p", "tv-1080p"}, ""},
+		{Copies{"movie-remux": false, "movie-web": false, "movie-hd": false}, []string{"movie-hd", "movie-web"},
+			"movie-remux<movie-hd"},
+		// A library in no group, and a copy outside the group, are untouched.
+		{Copies{"anime-movie": false, "movie-remux": false}, []string{"anime-movie"}, ""},
+		{Copies{"movie-remux": false, "movie-web": false, "anime-movie": false}, []string{"movie-remux"},
+			"movie-web<movie-remux"},
+		// Every copy (no keys) names nothing to expand.
+		{Copies{"movie-remux": false, "movie-web": false}, nil, ""},
+	} {
+		if got := str(SyncRemovals(pol, c.held, c.keys)); got != c.want {
+			t.Errorf("%v from %v: got %q, want %q", c.keys, c.held, got, c.want)
+		}
+	}
+	if got := SyncRemovals(nil, Copies{"movie-remux": false, "movie-web": false}, []string{"movie-remux"}); got != nil {
+		t.Errorf("no policy: %v", got)
+	}
+}
