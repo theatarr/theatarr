@@ -245,18 +245,21 @@ export function JournalEntryPage() {
           <Card className="p-0">
             <Table>
               <TableBody>
-                {(e.attempts ?? []).map((a, i) => (
-                  <TableRow key={i}>
-                    <TableCell className="whitespace-nowrap text-[13px]">{fmtTime(a.at)}</TableCell>
-                    <TableCell>{a.provider ? <ProviderTag account={a.provider} className="font-medium" /> : null}</TableCell>
-                    <TableCell>
-                      <Badge tone={a.outcome === "accepted" ? "positive" : "warning"} title={[a.outcome, a.code].filter(Boolean).join(" · ")}>{a.code === "reused" ? "Reused" : attemptOutcomeWords(a.outcome)}</Badge>
-                      {/* On a phone the reason is a second line under the outcome; wider screens give it its own column. */}
-                      <div className="mt-1 break-words text-[12.5px] text-muted-foreground sm:hidden" data-testid="attempt-reason-phone">{attemptMessageWords(a.message) || attemptCodeWords(a.code)}</div>
-                    </TableCell>
-                    <TableCell className="hidden break-words text-[13px] text-muted-foreground sm:table-cell">{attemptMessageWords(a.message) || attemptCodeWords(a.code)}</TableCell>
-                  </TableRow>
-                ))}
+                {(e.attempts ?? []).map((a, i) => {
+                  const why = attemptMessageWords(a.message) || attemptCodeWords(a.code);
+                  return (
+                    <TableRow key={i}>
+                      <TableCell className="whitespace-nowrap text-[13px]">{fmtTime(a.at)}</TableCell>
+                      <TableCell>{a.provider ? <ProviderTag account={a.provider} className="font-medium" /> : null}</TableCell>
+                      <TableCell>
+                        <Badge tone={a.outcome === "accepted" ? "positive" : "warning"} title={[a.outcome, a.code].filter(Boolean).join(" · ")}>{a.code === "reused" ? "Reused" : attemptOutcomeWords(a.outcome)}</Badge>
+                        {/* On a phone the reason is a second line under the outcome; wider screens give it its own column. */}
+                        <div className="mt-1 break-words text-[12.5px] text-muted-foreground sm:hidden" data-testid="attempt-reason-phone">{why}</div>
+                      </TableCell>
+                      <TableCell className="hidden break-words text-[13px] text-muted-foreground sm:table-cell">{why}</TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </Card>
