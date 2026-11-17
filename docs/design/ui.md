@@ -1012,7 +1012,8 @@ value, so a save that does not touch them stores the library unchanged; a librar
 **Keep in sync.** The library editor's "Keep in sync" ticks the other libraries this one is kept in sync with: a
 title that gains a copy in one library of a group gains one in each other library of the group that fits it, unless
 the title has a copy there already: an unmonitored one stays unmonitored, and a removed one comes back (restored and
-monitored like the named copy: owner, 2026-11-17, "if they are supposed to be in sync then they should stay in
+monitored like the named copy, keeping its own saved minimum availability, which the add's choice does not
+overwrite: owner, 2026-11-17, "if they are supposed to be in sync then they should stay in
 sync"). The one exception is collections and import lists (`catalog.Input.AddMethod` list or collection) and the
 intake's missing-library fill, which never restore a removed copy, and Bring in sync, which leaves removed copies
 removed; every add a person makes (the add sheet, the library switch and bulk add, requests and their approval, the

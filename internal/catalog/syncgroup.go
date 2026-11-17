@@ -122,7 +122,7 @@ func BringInSync(ctx context.Context, tx *sql.Tx, pol *policy.Policy, group []st
 				return nil, err
 			}
 		} else if r := rules[g.SourceID]; r.Source == availability.SourceChoice {
-			if err := availability.Choose(ctx, tx, g.TitleID, ChoiceKeys(pol, g.Keys, g.Keys), r.Minimum,
+			if err := availability.Choose(ctx, tx, g.TitleID, ChoiceKeys(pol, g.Keys, g.Keys, nil), r.Minimum,
 				now); err != nil {
 				return nil, err
 			}

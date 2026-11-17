@@ -718,7 +718,9 @@ func (s *Service) addTitle(w http.ResponseWriter, r *request) {
 		}
 		titleID = res.TitleID
 		if v.Flavour == Radarr {
-			if err := s.chooseTurnedOn(ctx, tx, titleID, on, res.Versions, minAvail); err != nil {
+			// A partner restored in sync keeps its saved choice, as a copy already on keeps its rule.
+			if err := s.chooseTurnedOn(ctx, tx, titleID, append(slices.Clone(on), res.Restored...), res.Versions,
+				minAvail); err != nil {
 				return err
 			}
 		}

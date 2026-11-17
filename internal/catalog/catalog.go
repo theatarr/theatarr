@@ -89,6 +89,9 @@ type Result struct {
 	Versions []string
 	New      []string
 	Synced   []string
+	// Restored are the libraries of Synced whose removed copy came back (a person's add): each keeps its own saved
+	// minimum availability (ChoiceKeys).
+	Restored []string
 }
 
 // ErrNoID is returned for an input with neither a title id nor a TMDb or TVDB id.
@@ -146,7 +149,8 @@ func Add(ctx context.Context, tx *sql.Tx, in Input, now time.Time, log *slog.Log
 	// A person's add fills the whole group, restoring a removed partner copy; import lists and collections never
 	// restore one.
 	restore := in.AddMethod != "list" && in.AddMethod != "collection"
-	if res.New, res.Synced, err = TurnOnSynced(ctx, tx, in.Policy, titleID, keys, in.Monitored, restore, now); err != nil {
+	if res.New, res.Synced, res.Restored, err = turnOnSynced(ctx, tx, in.Policy, titleID, keys, in.Monitored, restore,
+		now); err != nil {
 		return nil, err
 	}
 	if in.Kind == policy.KindSeries && len(in.Seasons) == 0 && in.Monitor == "" {
@@ -343,24 +347,37 @@ func TurnOn(ctx context.Context, tx *sql.Tx, titleID int64, keys []string, monit
 // returns them); partners the rows created or restored for the groups. A nil policy, or one without groups, is TurnOn.
 func TurnOnSynced(ctx context.Context, tx *sql.Tx, pol *policy.Policy, titleID int64, keys []string, monitored,
 	restore bool, now time.Time) (created, partners []string, err error) {
+	created, partners, _, err = turnOnSynced(ctx, tx, pol, titleID, keys, monitored, restore, now)
+	return created, partners, err
+}
+
+// turnOnSynced is TurnOnSynced, also answering which partners were restored rather than created.
+func turnOnSynced(ctx context.Context, tx *sql.Tx, pol *policy.Policy, titleID int64, keys []string, monitored,
+	restore bool, now time.Time) (created, partners, restored []string, err error) {
 	if slices.ContainsFunc(keys, func(k string) bool { return pol.SyncGroup(k) != nil }) {
 		held, err := LoadCopies(ctx, tx, titleID)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 		kind, anime, err := TitleFit(ctx, tx, titleID)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 		partners = SyncPartners(pol, kind, anime, held, keys, restore)
 	}
 	if created, err = TurnOn(ctx, tx, titleID, keys, monitored, now); err != nil || len(partners) == 0 {
-		return created, nil, err
+		return created, nil, nil, err
 	}
-	if _, err := TurnOn(ctx, tx, titleID, partners, monitored, now); err != nil {
-		return nil, nil, err
+	fresh, err := TurnOn(ctx, tx, titleID, partners, monitored, now)
+	if err != nil {
+		return nil, nil, nil, err
 	}
-	return created, partners, nil
+	for _, p := range partners {
+		if !slices.Contains(fresh, p) {
+			restored = append(restored, p)
+		}
+	}
+	return created, partners, restored, nil
 }
 
 // PartnerSeasonIntent gives the partners just created or restored in sync with keys (TurnOnSynced) the season and
@@ -459,12 +476,12 @@ func SyncPartners(pol *policy.Policy, kind policy.Kind, anime bool, held Copies,
 }
 
 // ChoiceKeys are the libraries of keys an add stores its minimum availability choice for: every one it names, and
-// each library in sync (synced) that has no minimum availability of its own; one that has keeps it, as a library's
-// own value wins over a client's.
-func ChoiceKeys(pol *policy.Policy, keys, synced []string) []string {
+// each library in sync (synced) that has no minimum availability of its own and whose copy is new; one that has keeps
+// it, as a library's own value wins over a client's, and a restored partner (restored) keeps its saved choice.
+func ChoiceKeys(pol *policy.Policy, keys, synced, restored []string) []string {
 	return slices.DeleteFunc(slices.Clone(keys), func(k string) bool {
 		vp := pol.Versions[k]
-		return slices.Contains(synced, k) && vp != nil && vp.MinimumAvailability != ""
+		return slices.Contains(restored, k) || slices.Contains(synced, k) && vp != nil && vp.MinimumAvailability != ""
 	})
 }
 

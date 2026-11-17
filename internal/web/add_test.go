@@ -1810,6 +1810,48 @@ func TestSyncGroupsRestoreRemovedPartner(t *testing.T) {
 	}
 }
 
+// A movie partner restored in sync keeps its saved minimum availability: the add's choice is for the libraries it
+// names, through the native add and the Radarr-compatible one.
+func TestSyncGroupsRestoredPartnerKeepsMinimum(t *testing.T) {
+	t.Parallel()
+	e := newAddEnv(t, func(p *policy.Policy) {
+		hd := *p.Versions["movie-web"]
+		hd.Library = "/media/movies-hd"
+		hd.MinimumAvailability = ""
+		p.Versions["movie-hd"] = &hd
+		p.Versions["movie-web"].MinimumAvailability = ""
+		p.Library.SyncGroups = [][]string{{"movie-web", "movie-hd"}}
+	})
+	// Alpha (1): movie-remux, and a removed movie-hd copy saved as Released.
+	e.exec(`INSERT INTO version (id, title_id, policy_key, monitored, state, created_at, updated_at) VALUES
+		(2, 1, 'movie-hd', 0, 'wanted', 0, 0)`)
+	e.exec(`INSERT INTO arrview_removed_version (version_id, view, removed_at) VALUES (2, 'ui', 0)`)
+	e.exec(`INSERT INTO arrview_title (view, title_id, minimum_availability, added_at, updated_at) VALUES
+		('v/movie-hd', 1, 'released', 0, 0)`)
+	minimum := func(k string) string {
+		var m string
+		_ = e.st.Reader().QueryRow(`SELECT minimum_availability FROM arrview_title WHERE view = ? AND title_id = 1`,
+			"v/"+k).Scan(&m)
+		return m
+	}
+	var res AddResult
+	e.call("POST", APIBase+"/titles", map[string]any{"title_id": 1, "versions": []string{"movie-web"},
+		"minimum_availability": "announced"}, 201, &res)
+	if !slices.Equal(res.Synced, []string{"movie-hd"}) || minimum("movie-web") != "announced" || minimum("movie-hd") != "released" {
+		t.Errorf("native add: synced %v, movie-web %q, movie-hd %q", res.Synced, minimum("movie-web"), minimum("movie-hd"))
+	}
+	// Every copy removed again, then added through the Radarr view of movie-web.
+	e.exec(`UPDATE version SET monitored = 0 WHERE title_id = 1`)
+	e.exec(`INSERT INTO arrview_removed_version (version_id, view, removed_at) SELECT id, 'ui', 0 FROM version
+		WHERE title_id = 1`)
+	e.call("POST", "/v/movie-web/radarr/api/v3/movie", map[string]any{"title": "Alpha", "tmdbId": 101,
+		"minimumAvailability": "announced", "monitored": true}, 201, nil)
+	if n := e.count(`SELECT COUNT(*) FROM version v WHERE v.title_id = 1 AND v.policy_key = 'movie-hd' AND NOT EXISTS
+		(SELECT 1 FROM arrview_removed_version r WHERE r.version_id = v.id)`); n != 1 || minimum("movie-hd") != "released" {
+		t.Errorf("compatible add: movie-hd live %d, minimum %q", n, minimum("movie-hd"))
+	}
+}
+
 // One answer to "which libraries in sync would gain a copy" (catalog.SyncPartners) serves the add options, the title
 // page's library switch and a request's stored libraries: a partner the title has a live copy of is never listed, a
 // removed one is (a person's add restores it), and a request stores the partners next to the libraries it asks for.
