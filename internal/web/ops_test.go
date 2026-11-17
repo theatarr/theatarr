@@ -203,10 +203,21 @@ type opsEnv struct {
 }
 
 func newOpsEnv(t *testing.T) *opsEnv {
+	return newOpsEnvPolicy(t, nil)
+}
+
+// newOpsEnvPolicy is newOpsEnv with a chance to change the example policy first (it is validated after).
+func newOpsEnvPolicy(t *testing.T, mutate func(*policy.Policy)) *opsEnv {
 	o := &opsEnv{ops: &fakeOps{}, acq: &opsAcquirer{}}
 	o.env = newEnvWith(t, func(c *Config) {
 		c.Ops = o.ops
 		c.Add = AddConfig{Acquirer: o.acq}
+		if mutate != nil {
+			mutate(c.Policy)
+			if err := c.Policy.Validate(); err != nil {
+				t.Fatal(err)
+			}
+		}
 	})
 	mgr := o.account("mgr", auth.RoleManager, auth.StatusActive, false)
 	usr := o.account("usr", auth.RoleUser, auth.StatusActive, true)
@@ -813,4 +824,143 @@ func TestFailedDownloadVisibleAndDismissable(t *testing.T) {
 
 func (f *opsAcquirer) WantedList(context.Context, acquire.WantedQuery) (*acquire.WantedList, error) {
 	return &acquire.WantedList{Items: []acquire.WantedRow{}, Counts: map[string]int{}}, nil
+}
+
+// syncOpsEnv is newOpsEnv with a third movie library, movie-hd (a 4K WEB copy elsewhere), and the libraries of group
+// kept in sync; Alpha (1) also has a movie-hd copy (version 4) that shares Alpha's Remux file (link 901) and has a
+// file of its own (link 903).
+func syncOpsEnv(t *testing.T, group ...string) *opsEnv {
+	o := newOpsEnvPolicy(t, func(p *policy.Policy) {
+		hd := *p.Versions["movie-web"]
+		hd.Library = "/media/movies-hd"
+		p.Versions["movie-hd"] = &hd
+		p.Library.SyncGroups = [][]string{group}
+	})
+	now := store.Millis(testNow)
+	o.exec(`INSERT INTO version (id, title_id, policy_key, state, created_at, updated_at) VALUES
+		(4, 1, 'movie-hd', 'filled', ?, ?)`, now, now)
+	o.exec(`INSERT INTO link (id, path, target, kind, title_id, state, created_at, updated_at) VALUES
+		(903, '/hd/Alpha (2020)/Alpha.mkv', '/mnt/zurg/Alpha.WEB/Alpha.mkv', 'symlink', 1, 'active', ?, ?)`, now, now)
+	o.exec(`INSERT INTO link_version (link_id, version_id) VALUES (901, 4), (903, 4)`)
+	return o
+}
+
+// fresh empties a scope before it is read again (an omitted sync_of would keep the last one).
+func fresh(s *RemovalScope) *RemovalScope {
+	*s = RemovalScope{}
+	return s
+}
+
+func copyKeys(s RemovalScope) string {
+	var out []string
+	for _, c := range s.Copies {
+		k := c.Key
+		if c.SyncOf != "" {
+			k += "<" + c.SyncOf
+		}
+		out = append(out, k)
+	}
+	return strings.Join(out, " ")
+}
+
+// A removal from one library of a sync group of three takes the group's other copies too, before the scope says
+// whether the title goes: a whole-title removal, Exclude allowed although a library was named, the file two of them
+// share counted and moved once, and each partner's Removed action naming the library it followed.
+func TestRemoveSyncGroupOfThree(t *testing.T) {
+	t.Parallel()
+	o := syncOpsEnv(t, "movie-remux", "movie-web", "movie-hd")
+	var scope RemovalScope
+	if code := o.jsonCall("GET", APIBase+"/titles/1/removal?versions=movie-web", nil, o.mc, "", &scope); code != 200 ||
+		copyKeys(scope) != "movie-hd<movie-web movie-remux<movie-web movie-web" || !scope.Title {
+		t.Fatalf("scope: %d %s %+v", code, copyKeys(scope), scope)
+	}
+	// Per library: hd 2 files, remux 1; 901 is theirs both: 2 distinct.
+	if scope.Copies[0].Links != 2 || scope.Copies[1].Links != 1 || scope.Links != 2 || scope.UnlinkLinks != 2 {
+		t.Errorf("links: %+v", scope)
+	}
+	var got RemoveResult
+	if code := o.jsonCall("POST", APIBase+"/titles/1/remove", RemoveRequest{Versions: []string{"movie-web"}, Unlink: true,
+		Exclude: true}, o.mc, o.mcsrf, &got); code != 200 || !got.Title || len(got.Removed) != 3 {
+		t.Fatalf("remove: %d %+v", code, got)
+	}
+	slices.Sort(o.ops.unlinks)
+	if !slices.Equal(o.ops.unlinks, []int64{901, 903}) {
+		t.Errorf("unlinked %v, want each file once", o.ops.unlinks)
+	}
+	if n := o.count(`SELECT COUNT(*) FROM movie_exclusion WHERE tmdb_id = 101`); n != 1 {
+		t.Errorf("excluded %d", n)
+	}
+	o.web.cleanups.Wait()
+	syncs := map[string]string{}
+	for _, a := range o.actions() {
+		if a.Action == journal.ActRemoveTitle {
+			syncs[a.Version] = journal.ParseRemovalDetail(a.Detail).Sync
+		}
+	}
+	if len(syncs) != 3 || syncs["movie-web"] != "" || syncs["movie-remux"] != "movie-web" || syncs["movie-hd"] != "movie-web" {
+		t.Errorf("Removed actions' sync %v", syncs)
+	}
+}
+
+// In a group of two: the partner goes with the named library, the title stays for a library outside the group (no
+// Exclude); both named marks none; a named library with no live copy (the files kept from it) brings no partner and
+// its leftover stays its own; a library in no group takes nothing with it; a link a library outside the group uses
+// stays.
+func TestRemoveSyncGroupOfTwo(t *testing.T) {
+	t.Parallel()
+	o := syncOpsEnv(t, "movie-web", "movie-hd")
+	var scope RemovalScope
+	if code := o.jsonCall("GET", APIBase+"/titles/1/removal?versions=movie-hd", nil, o.mc, "", &scope); code != 200 ||
+		copyKeys(scope) != "movie-hd movie-web<movie-hd" || scope.Title {
+		t.Fatalf("scope: %d %s", code, copyKeys(scope))
+	}
+	if code := o.jsonCall("GET", APIBase+"/titles/1/removal?versions=movie-hd,movie-web", nil, o.mc, "", fresh(&scope)); code != 200 ||
+		copyKeys(scope) != "movie-hd movie-web" {
+		t.Fatalf("both named: %d %s", code, copyKeys(scope))
+	}
+	if code := o.jsonCall("GET", APIBase+"/titles/1/removal?versions=movie-remux", nil, o.mc, "", fresh(&scope)); code != 200 ||
+		copyKeys(scope) != "movie-remux" {
+		t.Fatalf("no group: %d %s", code, copyKeys(scope))
+	}
+	if code := o.jsonCall("POST", APIBase+"/titles/1/remove", RemoveRequest{Versions: []string{"movie-hd"}, Exclude: true},
+		o.mc, o.mcsrf, nil); code != 400 {
+		t.Errorf("exclude with a copy left: %d", code)
+	}
+	var got RemoveResult
+	if code := o.jsonCall("POST", APIBase+"/titles/1/remove", RemoveRequest{Versions: []string{"movie-hd"}, Unlink: true},
+		o.mc, o.mcsrf, &got); code != 200 || got.Title || !slices.Equal(got.Removed, []string{"movie-hd", "movie-web"}) {
+		t.Fatalf("remove: %d %+v", code, got)
+	}
+	// 901 is the Remux copy's too: it stays; 903 goes.
+	if !slices.Equal(o.ops.unlinks, []int64{903}) || len(got.Kept) != 1 {
+		t.Errorf("unlinked %v kept %+v", o.ops.unlinks, got.Kept)
+	}
+	if n := o.count(`SELECT COUNT(*) FROM arrview_removed_version r JOIN version v ON v.id = r.version_id
+		WHERE v.title_id = 1 AND v.policy_key = 'movie-remux'`); n != 0 {
+		t.Error("the library outside the group was removed")
+	}
+
+	// Beta: movie-web kept its files when movie-hd was removed before (link 904 left); naming movie-hd takes only
+	// its leftover, and movie-web stays.
+	now := store.Millis(testNow)
+	o.exec(`INSERT INTO version (id, title_id, policy_key, state, created_at, updated_at) VALUES
+		(5, 2, 'movie-hd', 'wanted', ?, ?)`, now, now)
+	o.exec(`INSERT INTO arrview_removed_version (version_id, view, removed_at) VALUES (5, 'ui', ?)`, now)
+	o.exec(`INSERT INTO link (id, path, target, kind, title_id, state, created_at, updated_at) VALUES
+		(904, '/hd/Beta (2021)/Beta.mkv', '/mnt/zurg/Beta/Beta.mkv', 'symlink', 2, 'active', ?, ?)`, now, now)
+	o.exec(`INSERT INTO link_version (link_id, version_id) VALUES (904, 5)`)
+	if code := o.jsonCall("GET", APIBase+"/titles/2/removal?versions=movie-hd", nil, o.mc, "", fresh(&scope)); code != 200 ||
+		len(scope.Copies) != 0 || len(scope.Leftover) != 1 || scope.UnlinkLinks != 1 {
+		t.Fatalf("leftover only: %d %+v", code, scope)
+	}
+	// Removing movie-web with its files leaves the partner's kept files alone (not named).
+	if code := o.jsonCall("GET", APIBase+"/titles/2/removal?versions=movie-web", nil, o.mc, "", fresh(&scope)); code != 200 ||
+		copyKeys(scope) != "movie-web" || len(scope.Leftover) != 0 || !scope.Title || scope.UnlinkLinks != 1 {
+		t.Fatalf("Beta web: %d %s %+v", code, copyKeys(scope), scope)
+	}
+	o.ops.unlinks = nil
+	if code := o.jsonCall("POST", APIBase+"/titles/2/remove", RemoveRequest{Versions: []string{"movie-web"}, Unlink: true},
+		o.mc, o.mcsrf, nil); code != 200 || slices.Contains(o.ops.unlinks, 904) {
+		t.Errorf("Beta web removal: %d, unlinked %v", code, o.ops.unlinks)
+	}
 }
