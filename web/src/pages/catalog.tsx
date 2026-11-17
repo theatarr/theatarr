@@ -277,7 +277,7 @@ export function Catalog({ id }: { id: CatalogId }) {
             {([[undefined, "All"], ["movie", "Movies"], ["series", "Series"]] as const).map(([k, label]) => (
               <button key={label} type="button" role="radio" aria-checked={kind === k} onClick={() =>
                   // Series status is for series: switching to Movies drops it. Lacks counts titles of its library's
-                  // kind only: switching to the other kind drops it, or nothing could match.
+                  // kind only: switching to a kind drops it unless its library is known (facets) to be of that kind.
                   setParams(
                     (p) => {
                       const n = new URLSearchParams(p);
@@ -285,7 +285,7 @@ export function Catalog({ id }: { id: CatalogId }) {
                       else n.delete("kind");
                       if (k === "movie") n.delete("series_status");
                       const lacks = facets.data?.versions?.find((v) => v.key === n.get("without"))?.kind;
-                      if (k && lacks && lacks !== k) n.delete("without");
+                      if (k && lacks !== k) n.delete("without");
                       return n;
                     },
                     { replace: true },

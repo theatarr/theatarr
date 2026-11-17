@@ -618,6 +618,18 @@ describe("Toolbar and filters", () => {
     expect(titles().some((r) => r.search.includes("kind=series") && r.search.includes("without="))).toBe(false);
   });
 
+  it("drops a Lacks filter on the segment switch when its library's kind is not known", async () => {
+    // The library has no facet (no current copies), as while the facets load: its kind is unknown.
+    const fetch = mockFetch(routes().map((r) => (r.path === "/titles/facets" ? { ...r, reply: { total: 40, versions: [] } } : r)));
+    const user = userEvent.setup();
+    renderPage(<Catalog id="anime" />, "/anime?without=anime-movie");
+    await screen.findAllByText("The Pellbrook Inquiries");
+    await user.click(screen.getByRole("radio", { name: "Series" }));
+    const titles = () => fetch.requests.filter((r) => r.path === "/titles");
+    await waitFor(() => expect(titles().at(-1)!.search).toContain("kind=series"));
+    expect(titles().at(-1)!.search).not.toContain("without=");
+  });
+
   it("drops Has for a library when its Lacks is picked, in one address update, and keeps Has 4K with Lacks of another", async () => {
     const versions = [{ key: "tv-2160p", label: "4K", titles: 2, with_file: 2 }, { key: "tv-web", label: "1080p WEB", titles: 2, with_file: 1 }];
     const fetch = mockFetch(routes().map((r) => (r.path === "/titles/facets" ? { ...r, reply: { total: 2, versions } } : r)));
