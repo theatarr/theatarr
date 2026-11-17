@@ -699,3 +699,38 @@ describe("Episode window status (J5)", () => {
     expect((await screen.findByTestId("episode-synopsis")).textContent).toBe("The lantern goes out.");
   });
 });
+
+describe("Jump to season (H6)", () => {
+  const many = (n: number) => ({
+    ...episodes,
+    seasons: [0, ...Array.from({ length: n }, (_, i) => i + 1)].map((season) => ({ season, episodes: 1, aired: 1, versions: { "anime-web": { have: 0, missing: 1, below_cutoff: 0, upgrade_seen: 0, monitored: 1 } } })),
+    episodes: [0, ...Array.from({ length: n }, (_, i) => i + 1)].map((season) => ({ id: 500 + season, season, number: 1, name: `Opener ${season}`, air_date: "2026-01-01", aired: true, monitored: true, versions: { "anime-web": cell(false) } })),
+  });
+
+  it("opens and focuses the season picked, Specials included, on a series with more than 8 seasons", async () => {
+    mockFetch([routes[0], { method: "GET", path: "/titles/1/episodes", reply: many(10) }]);
+    const user = userEvent.setup();
+    renderPage(<Seasons id="1" anime={false} />, "/title/1");
+    const jump = await screen.findByRole("combobox", { name: "Jump to season" });
+    expect([...(jump as HTMLSelectElement).options].map((o) => o.textContent).slice(1, 3)).toEqual(["Season 10", "Season 9"]);
+    const head = (n: number) => document.querySelector(`[data-season="${n}"] button[aria-expanded]`) as HTMLElement;
+    expect(head(3).getAttribute("aria-expanded")).toBe("false");
+    await user.selectOptions(jump, "3");
+    await vi.waitFor(() => expect(document.activeElement).toBe(head(3)));
+    expect(head(3).getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByText("Opener 3")).toBeTruthy();
+    // The latest season stays open; the selector is back on its prompt.
+    expect(head(10).getAttribute("aria-expanded")).toBe("true");
+    expect((jump as HTMLSelectElement).value).toBe("");
+    await user.selectOptions(jump, "0");
+    await vi.waitFor(() => expect(document.activeElement).toBe(head(0)));
+    expect(head(0).getAttribute("aria-expanded")).toBe("true");
+  });
+
+  it("is not offered on a series with 8 seasons or fewer", async () => {
+    mockFetch([routes[0], { method: "GET", path: "/titles/1/episodes", reply: many(8) }]);
+    renderPage(<Seasons id="1" anime={false} />, "/title/1");
+    await screen.findAllByTestId("season-header");
+    expect(screen.queryByRole("combobox", { name: "Jump to season" })).toBeNull();
+  });
+});

@@ -10,6 +10,7 @@
 //   with Why?, and the next search when the server sends it); in All a badge per library and the summary sentence;
 //   at the right Search and Interactive search;
 // - read-only monitoring and disabled search said once above the seasons, not on every line;
+// - on a series with more than 8 seasons, Jump to opens a season and moves the focus to its heading;
 // - All / In progress / Missing / Upgrade found filters per season, and a selection of episodes for bulk monitor,
 //   unmonitor and search whose bar shows only while something is selected and names the libraries it acts on; it acts
 //   only on ticked episodes on screen (a tick hidden by a filter or a collapsed season is dropped, as is one from
@@ -47,6 +48,7 @@ import { BELOW_PREFERRED, scoreOnly, upgradeFoundWord } from "@/lib/upgrade";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Select } from "@/components/ui/select";
 import { ColumnPicker } from "@/components/ui/column-picker";
 import { errText } from "@/components/ui/confirm-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -917,6 +919,33 @@ function LibrarySelector({ versions, all, view, wide, onPick }: { versions: Vers
   );
 }
 
+/** A series with more seasons than this gets Jump to above its seasons. */
+const JUMP_AFTER = 8;
+
+/** Jump to: opens the season picked (Specials included) and moves the focus to its heading. Nothing is stored. */
+function SeasonJump({ seasons, onJump }: { seasons: readonly SeasonT[]; onJump: (season: number) => void }) {
+  return (
+    <div className="flex items-center gap-2" data-testid="season-jump">
+      <span className="text-xs text-muted-foreground">Jump to</span>
+      <Select
+        className="w-auto"
+        aria-label="Jump to season"
+        value=""
+        onChange={(e) => {
+          if (e.target.value !== "") onJump(Number(e.target.value));
+        }}
+      >
+        <option value="">Season…</option>
+        {seasons.map((s) => (
+          <option key={s.season} value={s.season}>
+            {s.season === 0 ? "Specials" : `Season ${s.season}`}
+          </option>
+        ))}
+      </Select>
+    </div>
+  );
+}
+
 /** Seasons newest first, specials last (Sonarr's order). */
 export function newestFirst<T extends { season: number }>(seasons: readonly T[]): T[] {
   return [...seasons].sort((a, b) => (a.season === 0 ? 1 : b.season === 0 ? -1 : b.season - a.season));
@@ -934,6 +963,15 @@ export function Seasons({ id, anime, franchises = [], history }: { id: string; a
   const [picked, setPicked] = useState<Picked>(null);
   const [picker, setPicker] = useState(false);
   const [colPrefs, setColPrefs] = useColumnPrefs(EPISODE_COLUMNS_PREF, EPISODE_COLUMNS, DEFAULT_EPISODE_COLUMNS);
+  // The season picked in Jump to: once it is open, its heading takes the focus and comes into view.
+  const [jump, setJump] = useState<number | null>(null);
+  useEffect(() => {
+    if (jump === null) return;
+    const head = document.querySelector<HTMLElement>(`[data-season="${jump}"] [data-testid=season-header] button[aria-expanded]`);
+    head?.focus();
+    head?.scrollIntoView?.({ block: "start" });
+    setJump(null);
+  }, [jump]);
   const titleId = Number(id);
   const episode = Number(params.get("episode")) || null;
   const openEpisode = (eid: number | null) => {
@@ -1027,6 +1065,15 @@ export function Seasons({ id, anime, franchises = [], history }: { id: string; a
             </Button>
           ) : null}
         </div>
+      ) : null}
+      {l.seasons.filter((s) => s.season > 0).length > JUMP_AFTER ? (
+        <SeasonJump
+          seasons={newestFirst(l.seasons)}
+          onJump={(s) => {
+            if (!opened.includes(s)) setOpen([...opened, s]);
+            setJump(s);
+          }}
+        />
       ) : null}
       {newestFirst(l.seasons).map((s) => (
         <SeasonBlock
