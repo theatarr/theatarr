@@ -499,3 +499,28 @@ it("opens a one-episode Cutoff unmet row the same way, with its cutoff", async (
   expect(within(cell).getByRole("button", { name: "Unmonitor S01E03" })).toBeTruthy();
   expect(within(cell).getByText("Cutoff: WEBDL-2160p")).toBeTruthy();
 });
+
+it("finishes an episode's Unmonitor when the row is closed before it answers", async () => {
+  const user = userEvent.setup();
+  const season: Row = { title_id: 2, version: "tv-2160p", targets: ["s01"], reason: "missing", waiting: "due", next_at: "2026-11-01T00:00:00Z",
+    last_run: null, decision_id: null, season: 1, episodes: 2,
+    episode_list: [{ episode_id: 11, season: 1, number: 1 }, { episode_id: 12, season: 1, number: 2 }] };
+  const after: Row = { ...season, episodes: 1, episode_list: [season.episode_list![1]] };
+  let answer: () => void = () => {};
+  let unmonitored = false;
+  const fetch = mockFetch([admin,
+    { method: "GET", path: "/wanted", reply: () => ({ ...page, items: [unmonitored ? after : season], titles: { "2": "Beta" }, libraries: { "tv-2160p": "4K TV" } }) },
+    { method: "PUT", path: "/titles/2/episodes/monitor", reply: () => new Promise((done) => { answer = () => { unmonitored = true; done({ versions: ["tv-2160p"], skipped: [], episodes: 1, message: "1 episode" }); }; }) },
+    status]);
+  renderPage(<WantedPage />, "/wanted");
+  const cell = await screen.findByTestId("wanted-episodes");
+  await user.click(within(cell).getByText("S01, 2 episodes"));
+  await user.click(within(cell).getByRole("button", { name: "Unmonitor S01E01" }));
+  await waitFor(() => expect(fetch.calls("PUT", "/titles/2/episodes/monitor")).toHaveLength(1));
+  await user.click(within(cell).getByText("S01, 2 episodes"));
+  expect(within(cell).queryByTestId("wanted-episode")).toBeNull();
+  const reads = fetch.calls("GET", "/wanted").length;
+  answer();
+  await waitFor(() => expect(fetch.calls("GET", "/wanted").length).toBeGreaterThan(reads));
+  expect(await screen.findByText("S01, 1 episode")).toBeTruthy();
+});

@@ -248,7 +248,6 @@ func (a *Acquirer) wantedEpisodes(ctx context.Context, list []WantedRow) error {
 		return nil
 	}
 	be, _ := json.Marshal(eps)
-	bv, _ := json.Marshal(vids)
 	db := a.st.Reader()
 	info := map[int64]WantedEpisode{}
 	rows, err := db.QueryContext(ctx, `SELECT id, season, number, name, COALESCE(air_date, ''), air_date_utc_at FROM episode
@@ -276,6 +275,7 @@ func (a *Acquirer) wantedEpisodes(ctx context.Context, list []WantedRow) error {
 	quality := map[[2]int64]string{} // by version and episode; the newest link last
 	// The files' quality is read for Cutoff unmet rows only.
 	if len(vids) > 0 {
+		bv, _ := json.Marshal(vids)
 		rows, err = db.QueryContext(ctx, `SELECT lv.version_id, le.episode_id, COALESCE(l.quality, '') FROM link l
 			JOIN link_version lv ON lv.link_id = l.id JOIN link_episode le ON le.link_id = l.id
 			WHERE lv.version_id IN (SELECT value FROM json_each(?)) AND le.episode_id IN (SELECT value FROM json_each(?))

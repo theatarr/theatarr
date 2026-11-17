@@ -70,11 +70,14 @@ export function whatWords(row: Pick<WantedRow, "targets" | "episodes">): string 
  *  mounted only while open. */
 function WhatCell({ row }: { row: WantedRow }) {
   const [open, setOpen] = useState(false);
+  // Held here, always mounted, so an action's toast and refresh still run when the row is closed meanwhile.
+  const search = useScopedSearch(row.title_id);
+  const monitor = useMonitor(row.title_id);
   const eps = row.episode_list ?? [];
   if (!eps.length) return <>{whatWords(row)}</>;
   return <details data-testid="wanted-episodes" open={open} onToggle={(ev) => setOpen(ev.currentTarget.open)}>
     <summary className="cursor-pointer">{whatWords(row)}</summary>
-    {open ? <EpisodeLines row={row} eps={eps} /> : null}
+    {open ? <EpisodeLines row={row} eps={eps} search={search} monitor={monitor} /> : null}
     {row.cutoff ? <p className="mt-1 text-[13px] text-[var(--ink-3)]">Cutoff: {row.cutoff}</p> : null}
   </details>;
 }
@@ -83,10 +86,8 @@ type WantedEpisode = NonNullable<WantedRow["episode_list"]>[number];
 
 /** A Wanted row's episodes, each with Search (the existing episode search) and Unmonitor (the existing episode
  *  monitoring) for the row's library; after either the Wanted list is read again, so the row's count follows. */
-function EpisodeLines({ row, eps }: { row: WantedRow; eps: WantedEpisode[] }) {
+function EpisodeLines({ row, eps, search, monitor }: { row: WantedRow; eps: WantedEpisode[]; search: ReturnType<typeof useScopedSearch>; monitor: ReturnType<typeof useMonitor> }) {
   const qc = useQueryClient();
-  const search = useScopedSearch(row.title_id);
-  const monitor = useMonitor(row.title_id);
   const refresh = () => void qc.invalidateQueries({ queryKey: ["wanted"] });
   const why = blocked(row);
   const link = "text-primary hover:underline disabled:cursor-not-allowed disabled:text-[var(--ink-3)] disabled:no-underline";
