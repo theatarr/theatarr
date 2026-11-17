@@ -552,3 +552,23 @@ func TestRemovalDetailSync(t *testing.T) {
 		}
 	}
 }
+
+// Deleting the files a partner kept (a leftover) keeps the library it followed in its Removed action.
+func TestRunLeftoverKeepsSync(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	spec := Spec{TitleID: 1, Name: "Gone", Keys: []string{"movie-web", "movie-remux"}, View: "ui",
+		Action: journal.ActRemoveTitle, By: "mgr", SyncOf: map[string]string{"movie-remux": "movie-web"}}
+	if _, err := Run(context.Background(), f.deps(), spec); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Run(context.Background(), f.deps(), Spec{TitleID: 1, Name: "Gone", Leftover: []string{"movie-remux"},
+		View: "ui", Unlink: true, Action: journal.ActRemoveVersion, By: "mgr"}); err != nil {
+		t.Fatal(err)
+	}
+	rm := journal.ParseRemovalDetail(f.str(`SELECT detail FROM journal_action WHERE version_key = 'movie-remux'
+		AND action = ?`, journal.ActRemoveTitle))
+	if rm.Sync != "movie-web" || rm.Files == journal.RemovalFilesKept {
+		t.Errorf("leftover outcome %+v", rm)
+	}
+}

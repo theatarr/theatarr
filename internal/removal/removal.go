@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"slices"
 	"strings"
 	"time"
@@ -215,15 +216,25 @@ func Run(ctx context.Context, d Deps, s Spec) (*Result, error) {
 	if !s.Unlink {
 		return out, nil
 	}
-	// Leftover copies' latest Removed actions get the new outcome too.
+	// Leftover copies' latest Removed actions get the new outcome too, keeping the library they followed.
+	syncOf := maps.Clone(s.SyncOf)
 	for _, k := range s.Leftover {
 		if _, ok := actIDs[k]; ok {
 			continue
 		}
 		var id int64
-		err := d.Store.Reader().QueryRowContext(ctx, `SELECT id FROM journal_action WHERE title_id = ? AND version_key = ?
-			AND action IN (?, ?) ORDER BY id DESC LIMIT 1`, s.TitleID, k, journal.ActRemoveTitle,
-			journal.ActRemoveVersion).Scan(&id)
+		var detail string
+		err := d.Store.Reader().QueryRowContext(ctx, `SELECT id, detail FROM journal_action WHERE title_id = ?
+			AND version_key = ? AND action IN (?, ?) ORDER BY id DESC LIMIT 1`, s.TitleID, k, journal.ActRemoveTitle,
+			journal.ActRemoveVersion).Scan(&id, &detail)
+		if err == nil {
+			if sync := journal.ParseRemovalDetail(detail).Sync; sync != "" {
+				if syncOf == nil {
+					syncOf = map[string]string{}
+				}
+				syncOf[k] = sync
+			}
+		}
 		switch {
 		case err == nil:
 			actIDs[k] = id
@@ -253,12 +264,7 @@ func Run(ctx context.Context, d Deps, s Spec) (*Result, error) {
 			left := len(f.left)
 			// A library that had no file says nothing about files ("" reads as no outcome); the library it was
 			// removed in sync with stays said.
-			var detail string
-			if err := tx.QueryRowContext(ctx, `SELECT detail FROM journal_action WHERE id = ?`, id).Scan(
-				&detail); err != nil {
-				return err
-			}
-			rm := journal.Removal{Sync: journal.ParseRemovalDetail(detail).Sync}
+			rm := journal.Removal{Sync: syncOf[k]}
 			switch {
 			case left > 0 && f.unlinked == 0:
 				rm.Files, rm.Left, rm.Reason = journal.RemovalFilesKept, left, f.reason
