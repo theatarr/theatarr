@@ -203,6 +203,31 @@ describe("quality editors", () => {
     expect([...(screen.getByRole("combobox", { name: "Multi-episode style" }) as HTMLSelectElement).options].map((o) => o.textContent)).toContain("Prefixed range (S01E01-E03)");
   });
 
+  it("offers a movie library only the naming fields it takes and names it by its display name", async () => {
+    const versions = { source: "db", generation: 4, profiles: {}, format_sets: [], clients: [], indexers: [], providers: [], switches: { paused: false, pause_forced: false, notify_forced: false, versions: [] },
+      versions: [{ id: 1, key: "movie-remux-mm", created_at: "", updated_at: "", roots: [], config: { kind: "movie", anime: false, profile: "remux", library: "", storage: "debrid", indexers: [], providers: [], client: "", import: "symlink", upgrades: "auto" } },
+        { id: 2, key: "tv-web", created_at: "", updated_at: "", roots: [], config: { kind: "series", anime: false, profile: "web", library: "", storage: "debrid", indexers: [], providers: [], client: "", import: "symlink", upgrades: "auto" } }] };
+    mockFetch([...baseRoutes("naming", [{ id: 2, key: "movie-remux-mm", config: {} }, { id: 3, key: "tv-web", config: {} }]),
+      { method: "GET", path: "/settings/versions", reply: versions },
+      { method: "POST", path: "/settings/naming/preview", reply: json({ folder: "f", file: "f.mkv" }) }]);
+    const user = userEvent.setup();
+    renderPage(<QualityPanel entity="naming" />);
+    await user.click(await screen.findByRole("button", { name: "Edit Remux" }));
+    const form = await screen.findByTestId("quality-form");
+    await waitFor(() => expect(within(form).queryByRole("textbox", { name: "Season folder" })).toBeNull());
+    expect(within(form).getByText("Remux")).toBeTruthy();
+    expect(within(form).getByRole("textbox", { name: "Title folder" })).toBeTruthy();
+    expect(within(form).getByRole("textbox", { name: "File name" })).toBeTruthy();
+    for (const name of ["Specials folder", "Daily episode file name", "Anime episode file name"]) expect(within(form).queryByRole("textbox", { name })).toBeNull();
+    expect(within(form).queryByRole("combobox", { name: "Multi-episode style" })).toBeNull();
+    expect(within(form).getByRole("combobox", { name: "Colon replacement" })).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    await user.click(await screen.findByRole("button", { name: "Edit WEB" }));
+    const series = await screen.findByTestId("quality-form");
+    expect(within(series).getByRole("textbox", { name: "Season folder" })).toBeTruthy();
+    expect(within(series).getByRole("combobox", { name: "Multi-episode style" })).toBeTruthy();
+  });
+
   it("shows a naming preview refusal in the editor", async () => {
     const fetch = mockFetch([
       ...baseRoutes("naming", []),

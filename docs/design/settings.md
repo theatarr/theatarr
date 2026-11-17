@@ -900,7 +900,9 @@ existing keys (a format set is selected through the profile); naming has its own
 View records hold ordered version sets and named profile bindings, and also the identity (path,
 flavour, aliases) and the view's stored API key ("Sections and views"). The existing settings loader assembles and validates the one runtime policy.
 A version created in the editor gets its naming record at once, empty: it starts with the arr default names, edited
-in the naming editor (Settings › Libraries › Naming). A version's naming record cannot be deleted on its own; deleting
+in the naming editor (Settings › Libraries › Naming). The editor names the library by its display name and offers
+only the fields its kind takes: a movie library gets no season, specials, daily or anime names and no multi-episode
+style (the server refuses them for movies). A version's naming record cannot be deleted on its own; deleting
 the version removes it. Naming records stored with `FromVersion` (following, removed in 00121) were given the
 followed library's naming by that migration.
 
