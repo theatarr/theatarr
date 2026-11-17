@@ -397,3 +397,30 @@ it("says a failed download's reason in plain words, and a debrid account's premi
  expect(acct.textContent).toContain("Next: Renew at TorBox to keep premium access.");
  expect(acct.textContent).not.toContain("API key");
 });
+
+it("links the anime mappings notice to the review queue, and not once nothing waits", async () => {
+ const waiting = { source: "AnimeReviewCheck", name: "Anime mappings", type: "notice", message: "36 anime mappings wait for review", detail: { open: 36 } };
+ mockFetch([...reviewRoutes,
+  { method: "GET", path: "/readyz", reply: { status: "ok" } },
+  { method: "GET", path: "/status", reply: status },
+  { method: "GET", path: "/jobs", reply: { items: [], counts: {} } },
+  { method: "GET", path: "/gateway", reply: { egress: { vpn_ok: true }, backoffs: [] } },
+  { method: "GET", path: "/health", reply: { checks: [waiting] } },
+  { method: "GET", path: "/activity", reply: { now: [] } },
+ ]);
+ const { unmount } = renderPage(<Overview />);
+ const row = await screen.findByTestId("check-AnimeReviewCheck");
+ expect(within(row).getByRole("link", { name: "Review them" }).getAttribute("href")).toBe("/admin/settings/anime-mappings");
+ unmount();
+ mockFetch([...reviewRoutes,
+  { method: "GET", path: "/readyz", reply: { status: "ok" } },
+  { method: "GET", path: "/status", reply: status },
+  { method: "GET", path: "/jobs", reply: { items: [], counts: {} } },
+  { method: "GET", path: "/gateway", reply: { egress: { vpn_ok: true }, backoffs: [] } },
+  { method: "GET", path: "/health", reply: { checks: [{ ...waiting, type: "ok", message: "No anime mapping waits for review", detail: { open: 0 } }] } },
+  { method: "GET", path: "/activity", reply: { now: [] } },
+ ]);
+ renderPage(<Overview />);
+ const ok = await screen.findByTestId("check-AnimeReviewCheck");
+ expect(within(ok).queryByRole("link")).toBeNull();
+});

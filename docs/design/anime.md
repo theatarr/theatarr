@@ -239,7 +239,7 @@ next sync.
 
 ### Review screen and API (`internal/web/anime.go`)
 
-- **`/admin/settings/anime-mappings` (Settings › Anime mappings; System › Status has an "Anime mappings" notice while items wait):** items filtered by state (Waiting, Accepted, Rejected, Replaced, All) and
+- **`/admin/settings/anime-mappings` (Settings › Anime mappings; System › Status has an "Anime mappings" notice while items wait, linked "Review them" to this page):** items filtered by state (Waiting, Accepted, Rejected, Replaced, All) and
   franchise, one card each (`web/src/components/anime/review-card.tsx`, words in `web/src/lib/anime-review.ts`). A card
   shows the series (linked to its title page when it is a Theatarr title), the kind in words, a link to the franchise,
   and one plain question per kind:

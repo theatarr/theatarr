@@ -260,6 +260,9 @@ export function Overview() {
                     <TableCell className="text-[13px] text-muted-foreground [overflow-wrap:anywhere]">
                       {c.message}
                       {c.source === "DanglingLinksCheck" ? <BrokenLinks count={Number((c.detail as { dangling?: number } | undefined)?.dangling ?? 0)} /> : null}
+                      {c.source === "AnimeReviewCheck" && Number((c.detail as { open?: number } | undefined)?.open ?? 0) > 0 ? (
+                        <Link to="/admin/settings/anime-mappings" className="ml-2 text-primary hover:underline">Review them</Link>
+                      ) : null}
                     </TableCell>
                   </TableRow>
                 ))}
