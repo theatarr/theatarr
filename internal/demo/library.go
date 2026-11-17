@@ -406,7 +406,7 @@ func (s *seeder) library() {
 				t.runtime, b01(e.season > 0), ms(t.added), ms(t.added))
 			if t.anime && e.abs > 0 {
 				s.exec(`INSERT INTO episode_number (episode_id, title_id, scheme, season, number, source)
-					VALUES (?, ?, 'absolute', NULL, ?, 'tvdb'), (?, ?, 'tvdb', ?, ?, 'tvdb')`, e.id, t.id, e.abs,
+					VALUES (?, ?, 'absolute_tvdb', NULL, ?, 'tvdb'), (?, ?, 'tvdb', ?, ?, 'tvdb')`, e.id, t.id, e.abs,
 					e.id, t.id, e.season, e.number)
 			}
 			for _, v := range t.versions {

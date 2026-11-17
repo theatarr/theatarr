@@ -449,6 +449,23 @@ func TestTitleEpisodes(t *testing.T) {
 	if code := e.getKey(APIBase+"/titles/4/episodes?season=x", key, nil); code != 400 {
 		t.Errorf("bad season: %d", code)
 	}
+	// Absolute numbers: the refresh writes absolute_tvdb (S01E01 has only that); the legacy absolute scheme is the
+	// fallback (S01E02), and absolute_tvdb wins where both exist (S01E03).
+	e.exec(`INSERT INTO episode_number (episode_id, title_id, scheme, season, number, source) VALUES
+		(41, 4, 'absolute_tvdb', NULL, 101, 'tvdb'), (42, 4, 'absolute', NULL, 102, 'tvdb'),
+		(43, 4, 'absolute_tvdb', NULL, 103, 'tvdb'), (43, 4, 'absolute', NULL, 999, 'tvdb')`)
+	e.getKey(APIBase+"/titles/4/episodes?season=1", key, &l)
+	var abs []string
+	for _, ep := range l.Episodes {
+		a := "-"
+		if ep.Absolute != nil {
+			a = itoa(*ep.Absolute)
+		}
+		abs = append(abs, episodeCode(ep.Season, ep.Number)+"="+a)
+	}
+	if got := strings.Join(abs, " "); got != "S01E01=101 S01E02=102 S01E03=103" {
+		t.Errorf("absolute numbers: %s", got)
+	}
 }
 
 // An episode has aired once its air instant has passed, as the engine and Wanted have it; the UTC day of its air

@@ -884,7 +884,7 @@ func TestDemoTwoCopies(t *testing.T) {
 	// Anime: absolute numbers, and files on both copies.
 	if n := count(`SELECT COUNT(DISTINCT v.policy_key) FROM title t JOIN version v ON v.title_id = t.id
 		JOIN episode_version_state es ON es.version_id = v.id AND es.state <> 'wanted'
-		JOIN episode_number n ON n.episode_id = es.episode_id AND n.scheme = 'absolute'
+		JOIN episode_number n ON n.episode_id = es.episode_id AND n.scheme = 'absolute_tvdb'
 		WHERE t.anime = 1 AND t.kind = 'series'`); n != 2 {
 		t.Errorf("anime copies with absolute-numbered files: %d, want 2", n)
 	}

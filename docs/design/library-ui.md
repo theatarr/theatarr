@@ -30,7 +30,8 @@ catalog,title}.tsx`, `web/src/components/{library,title}/`.
   (series counts without specials) and `history` (Theatarr's downloads and searches, newest first, at most 50; a movie's
   second import is an upgrade), and `franchises` for the anime order panel.
 - **`GET titles/{id}/episodes?season=`**: seasons (specials last) with have/missing per version, and episodes with a
-  cell per version.
+  cell per version. An episode's absolute number is the one the TV refresh writes (`absolute_tvdb`), with the legacy
+  `absolute` scheme as fallback.
 - **`GET discover`**: recent, upcoming (next 30 days), missing (released and wanted; a movie is released on its
   `home_release`; without one, on its earliest US or worldwide digital or disc date, else TMDb's release date plus 90
   days, else the end of its year) and upgrades, 20 items each, with a note, a date, the total and a "more" link.

@@ -188,7 +188,9 @@ func (w *Web) titleEpisodes(ctx context.Context, id int64, season int, seeFiles 
 	idx := map[int64]int{}
 	clock := newAirClock(w.now())
 	if err := scanAll(ctx, db, `SELECT e.id, e.season, e.number, e.name, COALESCE(e.air_date, ''), e.runtime_minutes,
-		e.monitored, (SELECT MIN(n.number) FROM episode_number n WHERE n.episode_id = e.id AND n.scheme = 'absolute'),
+		e.monitored, COALESCE(
+			(SELECT MIN(n.number) FROM episode_number n WHERE n.episode_id = e.id AND n.scheme = 'absolute_tvdb'),
+			(SELECT MIN(n.number) FROM episode_number n WHERE n.episode_id = e.id AND n.scheme = 'absolute')),
 		e.air_date_utc_at
 		FROM episode e WHERE e.title_id = ? ORDER BY e.season, e.number`, []any{id}, func(r *sql.Rows) error {
 		var e Episode
