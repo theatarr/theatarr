@@ -199,8 +199,10 @@ describe("foldEpisodes", () => {
     expect(slots.map((s) => s.map((e) => e.kind === "episode" ? `${e.title.id}:${e.number}` : "movie"))).toEqual([["1:1", "1:2", "1:3"], ["movie"], ["2:5"]]);
     expect(foldCode(slots[0])).toBe("S02E01–E03");
   });
-  it("keeps a gap, another season and another series apart", () => {
+  it("keeps a series' season in one slot whatever the gaps, and another season or series apart", () => {
     const slots = foldEpisodes([ep(1, 2, 1), ep(1, 2, 2), ep(1, 2, 4), ep(1, 3, 3), ep(2, 2, 3)]);
-    expect(slots.map((s) => foldCode(s))).toEqual(["S02E01–E02", "S02E04", "S03E03", "S02E03"]);
+    expect(slots.map((s) => foldCode(s))).toEqual(["S02E01–E02, E04", "S03E03", "S02E03"]);
+    expect(foldCode(foldEpisodes([ep(1, 2, 1), ep(1, 2, 3)])[0])).toBe("S02E01, E03");
+    expect(foldCode(foldEpisodes([1, 3, 5, 7, 9].map((n) => ep(1, 2, n)))[0])).toBe("S02 · 5 episodes");
   });
 });

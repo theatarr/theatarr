@@ -212,6 +212,30 @@ it("folds a series' consecutive episodes of a day into one month slot; the day's
   expect(list[1].dataset.tone).toBe("bad");
 });
 
+it("keeps a season's episodes of a day in one slot when Monitored only leaves a gap, with one dot on the phone, and a time only when they share it", async () => {
+  vi.setSystemTime(new Date(2026, 10, 20, 12));
+  window.localStorage.setItem("theatarr.calendar.view", "month");
+  const drop = [1, 2, 3].map((n): Entry => ({ ...ep(80 + n, nov(17), "Gap"), title: title(8, "Gap", "series"), season: 1, number: n, monitored: n !== 2,
+    at: `2026-11-17T${n === 3 ? "21" : "20"}:00:00Z` }));
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["see_files"] } },
+    { method: "GET", path: "/calendar", reply: { from: nov(1), to: nov(30), items: [...drop, ep(91, nov(17), "Other"), ep(92, nov(17), "Third")] } },
+  ]);
+  renderPage(<CalendarPageView />, "/calendar?monitored=1");
+  const chip = (await screen.findByText("S01E01, E03")).closest("a")!;
+  expect(screen.getAllByTestId("cal-event")).toHaveLength(3);
+  expect(screen.queryByRole("button", { name: /more$/ })).toBeNull();
+  // E01 and E03 air at different times: no time on the chip, each in the tooltip.
+  expect(chip.querySelector(".theatarr-cal-event-time")).toBeNull();
+  const lines = chip.getAttribute("title")!.split("\n");
+  expect(lines[1]).toMatch(/^S01E01 · .+ · Missing$/);
+  expect(lines[2]).toMatch(/^S01E03 · .+ · Missing$/);
+  expect(lines[1]).not.toBe(lines[2].replace("E03", "E01"));
+  // The phone dots follow the same slots: three, not four.
+  const cell = document.querySelector('[data-day="2026-11-17"]')!;
+  expect(cell.querySelectorAll(".theatarr-cal-dot")).toHaveLength(3);
+});
+
 it("does not say no entries match while earlier ones of the month are behind Show earlier", async () => {
   vi.setSystemTime(new Date(2026, 10, 14, 12));
   const movie = { ...items[1], date: nov(3), title: title(1, "Alpha", "movie") };

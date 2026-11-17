@@ -85,38 +85,24 @@ function tooltip(e: Entry, status: string): string {
   return lines.join("\n");
 }
 
-function EventChip({ e, plain, now }: { e: Entry; plain: boolean; now: Date }) {
-  const time = airTime(e);
-  const s = calendarTone(e, now, plain);
-  return (
-    <Link
-      to={calendarHref(e)}
-      title={tooltip(e, s.label)}
-      data-testid="cal-event"
-      data-tone={s.tone}
-      className={cn("theatarr-cal-event", `theatarr-cal-tone-${s.tone}`, !e.monitored && "is-unmonitored")}
-    >
-      <div className="theatarr-cal-event-title">{e.title.name}</div>
-      <div className="theatarr-cal-event-meta">
-        <span className="theatarr-cal-event-badge">{badgeOf(e)}</span>
-        {e.available ? <Check className="size-3 shrink-0 text-[var(--ok)]" aria-label={s.label} /> : null}
-        {time ? <span className="theatarr-cal-event-time">{time}</span> : null}
-      </div>
-    </Link>
-  );
-}
-
 /** Which tone a folded slot shows when its episodes differ: the one most in need of a look. */
 const TONE_RANK: Record<string, number> = { bad: 0, progress: 1, neutral: 2, idle: 3, ok: 4 };
 
-/** A series' consecutive episodes of one day as one chip ("S02E01–E03"), linked to the first; its tooltip lists each
- * episode with its own status, and the day's list keeps every episode with its own link. */
-function FoldedChip({ slot, plain, now }: { slot: Entry[]; plain: boolean; now: Date }) {
+/** A slot's tone: its one entry's, or for a series' episodes of the day (foldEpisodes) the one most in need of a look. */
+function slotTone(slot: Entry[], now: Date, plain: boolean) {
+  return slot.map((x) => calendarTone(x, now, plain)).reduce((a, b) => (TONE_RANK[b.tone] < TONE_RANK[a.tone] ? b : a));
+}
+
+/** One slot of the month grid: an entry, or a series' episodes of one season on that day ("S02E01–E03", linked to the
+ * first). A group shows a time only when every episode shares it; its tooltip lists each episode with its own time
+ * and status. The day's list keeps every episode with its own link. */
+function EventChip({ slot, plain, now }: { slot: Entry[]; plain: boolean; now: Date }) {
   const e = slot[0];
-  const tones = slot.map((x) => calendarTone(x, now, plain));
-  const s = tones.reduce((a, b) => (TONE_RANK[b.tone] < TONE_RANK[a.tone] ? b : a));
-  const time = airTime(e);
-  const title = [titleWithYear(e.title.name, e.title.year), ...slot.map((x, i) => `${episodeCode(x.season, x.number)}${x.episode ? ` · ${x.episode}` : ""} · ${tones[i].label}`)].join("\n");
+  const s = slotTone(slot, now, plain);
+  const times = new Set(slot.map(airTime));
+  const time = times.size === 1 ? airTime(e) : null;
+  const title = slot.length < 2 ? tooltip(e, s.label)
+    : [titleWithYear(e.title.name, e.title.year), ...slot.map((x) => [episodeCode(x.season, x.number), x.episode, airTime(x), calendarTone(x, now, plain).label].filter(Boolean).join(" · "))].join("\n");
   return (
     <Link
       to={calendarHref(e)}
@@ -127,7 +113,7 @@ function FoldedChip({ slot, plain, now }: { slot: Entry[]; plain: boolean; now: 
     >
       <div className="theatarr-cal-event-title">{e.title.name}</div>
       <div className="theatarr-cal-event-meta">
-        <span className="theatarr-cal-event-badge">{foldCode(slot)}</span>
+        <span className="theatarr-cal-event-badge">{slot.length < 2 ? badgeOf(e) : foldCode(slot)}</span>
         {slot.every((x) => x.available) ? <Check className="size-3 shrink-0 text-[var(--ok)]" aria-label={s.label} /> : null}
         {time ? <span className="theatarr-cal-event-time">{time}</span> : null}
       </div>
@@ -272,6 +258,9 @@ function MonthGrid({
   plain: boolean;
   now: Date;
 }) {
+  // Each day's slots (foldEpisodes: a series' episodes of one season take one), worked out when the entries change,
+  // not on every day chosen.
+  const slotsByDay = useMemo(() => new Map([...byDay].map(([day, items]) => [day, foldEpisodes(items)])), [byDay]);
   return (
     <div className="theatarr-cal-grid">
       <div className="grid grid-cols-7">
@@ -286,8 +275,7 @@ function MonthGrid({
         {days.map((d) => {
           const key = ymd(d);
           const items = byDay.get(key) ?? [];
-          // A series' consecutive episodes take one slot (foldEpisodes) before the three-slot limit.
-          const slots = foldEpisodes(items);
+          const slots = slotsByDay.get(key) ?? [];
           const shown = slots.slice(0, 3);
           const more = slots.slice(3).reduce((n, slot) => n + slot.length, 0);
           return (
@@ -306,7 +294,7 @@ function MonthGrid({
                 <span className="theatarr-cal-day-pill">{d.getDate()}</span>
               </button>
               <div className="hidden sm:block">
-                {shown.map((slot, i) => (slot.length > 1 ? <FoldedChip key={i} slot={slot} plain={plain} now={now} /> : <EventChip key={i} e={slot[0]} plain={plain} now={now} />))}
+                {shown.map((slot, i) => <EventChip key={i} slot={slot} plain={plain} now={now} />)}
                 {more > 0 ? (
                   <button type="button" className="theatarr-cal-more" onClick={() => onSelect(key)}>
                     +{more} more
@@ -315,8 +303,8 @@ function MonthGrid({
               </div>
               {items.length > 0 ? (
                 <button type="button" onClick={() => onSelect(key)} className="mt-1 flex flex-wrap justify-center gap-1 sm:hidden" aria-hidden tabIndex={-1}>
-                  {items.slice(0, 4).map((e, i) => (
-                    <span key={i} className={cn("theatarr-cal-dot", `theatarr-cal-tone-${calendarTone(e, now, plain).tone}`)} />
+                  {slots.slice(0, 4).map((slot, i) => (
+                    <span key={i} className={cn("theatarr-cal-dot", `theatarr-cal-tone-${slotTone(slot, now, plain).tone}`)} />
                   ))}
                 </button>
               ) : null}
