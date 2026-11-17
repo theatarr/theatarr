@@ -21,11 +21,11 @@ export function Logs() {
   const q = useLogs(level, component);
   const files = useLogFiles();
 
-  // A text filter over the loaded lines only (message, component and fields), in the browser: no new request.
+  // A text filter over the loaded lines only (level, message, component and fields), in the browser: no new request.
   const [text, setText] = useState("");
   const loaded = [...(q.data?.items ?? [])].reverse();
   const match = wordMatcher(text);
-  const items = text.trim() ? loaded.filter((e) => match(e.msg, e.component, ...Object.entries(e.attrs ?? {}).map(([k, v]) => `${k}=${v}`))) : loaded;
+  const items = text.trim() ? loaded.filter((e) => match(e.level, e.msg, e.component, ...Object.entries(e.attrs ?? {}).map(([k, v]) => `${k}=${v}`))) : loaded;
   return (
     <div>
       <PageHeader crumb={[{ label: "System", to: "/admin" }]} title="Logs" description="The last 2,000 lines since the service started. Secret-looking fields are redacted." />

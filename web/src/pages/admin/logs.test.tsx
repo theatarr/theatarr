@@ -57,7 +57,7 @@ it("keeps the service log level apart from the viewing filter: a choice applies 
 it("filters the loaded lines by words in the browser and says how many of them match", async () => {
   const line = (seq: number, msg: string, component: string, attrs: Record<string, string> = {}) => ({ seq, time: "2026-11-17T12:00:00Z", level: "INFO", msg, component, attrs });
   const fetch = mockFetch([
-    { method: "GET", path: "/logs", reply: { items: [line(1, "grab accepted", "router", { hash: "abc123" }), line(2, "sync done", "provider"), line(3, "grab refused", "router", { hash: "def456" })], components: ["router", "provider"], boot_id: "b", after: 3, more: false, skipped: 0 } },
+    { method: "GET", path: "/logs", reply: { items: [line(1, "grab accepted", "router", { hash: "abc123" }), line(2, "sync done", "provider"), { ...line(3, "grab refused", "router", { hash: "def456" }), level: "ERROR" }], components: ["router", "provider"], boot_id: "b", after: 3, more: false, skipped: 0 } },
     { method: "GET", path: "/logs/files", reply: { items: [] } },
     { method: "GET", path: "/logs/level", reply: { level: "INFO" } },
   ]);
@@ -70,6 +70,10 @@ it("filters the loaded lines by words in the browser and says how many of them m
   expect(screen.getByTestId("log-filter-count").textContent).toBe("2 of 3 lines");
   // A field's value matches too.
   fireEvent.change(screen.getByRole("searchbox", { name: "Filter these lines" }), { target: { value: "def456" } });
+  expect(screen.getByTestId("log-filter-count").textContent).toBe("1 of 3 lines");
+  expect(screen.getByText("grab refused")).toBeTruthy();
+  // The level shown on the badge matches too.
+  fireEvent.change(screen.getByRole("searchbox", { name: "Filter these lines" }), { target: { value: "error router" } });
   expect(screen.getByTestId("log-filter-count").textContent).toBe("1 of 3 lines");
   expect(screen.getByText("grab refused")).toBeTruthy();
   fireEvent.change(screen.getByRole("searchbox", { name: "Filter these lines" }), { target: { value: "nothing-like-this" } });
