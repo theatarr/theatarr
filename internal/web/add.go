@@ -427,6 +427,9 @@ type AddRequest struct {
 	seasonVersions []string
 	moreVersions   []string
 	moreSeasons    []int
+	// newSeasonsOff: the copies this add turns on (and their partners in sync) leave a season they do not name
+	// unmonitored when it appears (monitor new items none); the copies the title had keep their own choice.
+	newSeasonsOff bool
 }
 
 // AddedTitle is a title after an add or a version change.
@@ -717,6 +720,11 @@ func (w *Web) addTitle(ctx context.Context, req AddRequest, source string) (*Add
 		if !res.Created && !restored && req.SeriesType != "" {
 			// The type is the series' one value, shared by the copies it has: an add never changes it.
 			return &addError{http.StatusBadRequest, fmt.Sprintf("series_type is for a new title: this one is already in the library (title %d)", res.TitleID)}
+		}
+		if req.newSeasonsOff && len(res.New) > 0 {
+			if err := catalog.SetMonitorNew(ctx, tx, res.TitleID, res.New, catalog.MonitorNone, w.now()); err != nil {
+				return err
+			}
 		}
 		if req.MinimumAvailability != "" {
 			// A deliberate choice for the libraries this add adds the movie to, new or restored, whether or not the

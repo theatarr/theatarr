@@ -1127,12 +1127,9 @@ func (w *Web) requestSeasons(ctx context.Context, req *Request, keys []string, s
 		var known bool
 		ar.Seasons, known = w.seasonChoices(ctx, titleID, ar.TMDbID, ar.TVDbID, ss)
 		ar.seasonVersions = added
-		if !known && len(ar.moreVersions) == 0 {
-			// The series' other seasons could not be read: the copies this add turns on leave every season they do
-			// not name unmonitored when it appears (monitor new items none), so the request stays the seasons it
-			// names. Only when every version is new, since monitor_new applies to every version of the add.
-			ar.MonitorNew = catalog.MonitorNone
-		}
+		// The series' other seasons could not be read: the copies this add turns on leave every season they do not
+		// name unmonitored when it appears (monitor new items none), so the request stays the seasons it names.
+		ar.newSeasonsOff = !known
 	}
 	if len(ar.moreVersions) == 0 {
 		return nil

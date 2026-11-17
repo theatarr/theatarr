@@ -197,8 +197,9 @@ func TestNewSeriesChosenSeasons(t *testing.T) {
 }
 
 // TestSeasonRequestWithoutSeasonList: a request for season 1 of a new series whose seasons cannot be read at approval
-// (TVDB answers an error, or too slowly) still gets only season 1 monitored and searched on the first refresh, which
-// brings seasons 0, 1 and 2: the copy leaves the seasons the request does not name unmonitored.
+// (TVDB answers an error, or too slowly: "slow" answers after 2.5 s, past the 2 s bound of the season lookup, which
+// cancels the request) still gets only season 1 monitored and searched on the first refresh, which brings seasons 0, 1
+// and 2: the copy leaves the seasons the request does not name unmonitored.
 func TestSeasonRequestWithoutSeasonList(t *testing.T) {
 	t.Parallel()
 	for _, down := range []string{"error", "slow"} {
@@ -234,6 +235,69 @@ func TestSeasonRequestWithoutSeasonList(t *testing.T) {
 				t.Errorf("%d searches beyond season 1", n)
 			}
 		})
+	}
+}
+
+// TestSeasonRequestWithoutSeasonListMixed: a request for season 1 in two libraries, one of which the series got
+// before the approval (added meanwhile, not refreshed yet): when the seasons cannot be read at approval, the copy the
+// approval adds monitors and searches season 1 only after the first refresh, and the copy that was there keeps its own
+// monitoring of new seasons.
+func TestSeasonRequestWithoutSeasonListMixed(t *testing.T) {
+	t.Parallel()
+	e := newEnvironment(t, func(p *policy.Policy) {
+		seriesPolicy(false)(p)
+		v := *p.Versions["tv"]
+		lv := *p.Library.Versions["tv"]
+		v.Library = filepath.Join(filepath.Dir(v.Library), "tv2")
+		lv.Roots = []string{v.Library}
+		p.Versions["tv2"], p.Library.Versions["tv2"] = &v, &lv
+	})
+	severanceFixtures(t, e)
+	now := e.now.UnixMilli()
+	res, err := e.st.Writer().ExecContext(e.ctx, `INSERT INTO request (user_id, kind, tmdb_id, tvdb_id, name, year, anime,
+		poster_path, versions, seasons, note, status, created_at, updated_at) VALUES (1, 'series', 95396, 371980,
+		'Severance', 2022, 0, '', '["tv","tv2"]', '[1]', '', 'pending', ?, ?)`, now, now)
+	must(t, err)
+	rid, _ := res.LastInsertId()
+	var added web.AddResult
+	e.request("POST", web.APIBase+"/titles", map[string]any{"kind": "series", "tmdb_id": 95396, "title": "Severance",
+		"year": 2022, "anime": false, "versions": []string{"tv"}}, &added)
+	id := added.Title.ID
+	e.edge.mu.Lock()
+	e.edge.tvdbDown = "error"
+	e.edge.mu.Unlock()
+	e.request("POST", fmt.Sprintf("%s/requests/%d/approve", web.APIBase, rid), map[string]any{}, nil)
+	e.edge.mu.Lock()
+	e.edge.tvdbDown = ""
+	e.edge.mu.Unlock()
+	newItems := func(key string) string {
+		return e.text(`SELECT m.monitor_new FROM series_monitor m JOIN version v ON v.id = m.version_id
+			WHERE v.title_id = ? AND v.policy_key = ?`, id, key)
+	}
+	if newItems("tv") != "all" || newItems("tv2") != "none" {
+		t.Fatalf("monitor new items: tv %q, tv2 %q", newItems("tv"), newItems("tv2"))
+	}
+	e.refreshBeforeSearch(id, 5)
+	e.drain()
+	monitored := func(key string, season int) int {
+		return e.count(`SELECT count(*) FROM episode_version_state s JOIN episode ep ON ep.id = s.episode_id
+			JOIN version v ON v.id = s.version_id WHERE ep.title_id = ? AND v.policy_key = ? AND ep.season = ?
+			AND s.monitored = 1`, id, key, season)
+	}
+	if monitored("tv2", 1) != 2 || monitored("tv2", 2) != 0 || monitored("tv2", 0) != 0 {
+		t.Errorf("new copy: season 1 %d, season 2 %d, specials %d monitored", monitored("tv2", 1), monitored("tv2", 2),
+			monitored("tv2", 0))
+	}
+	if monitored("tv", 1) != 2 || monitored("tv", 2) != 2 {
+		t.Errorf("the copy that was there: season 1 %d, season 2 %d monitored", monitored("tv", 1), monitored("tv", 2))
+	}
+	if n := e.count(`SELECT count(*) FROM acquire_run r JOIN version v ON v.id = r.version_id WHERE r.title_id = ?
+		AND v.policy_key = 'tv2'`, id); n == 0 {
+		t.Fatalf("the new copy was not searched\n%s", e.logs.String())
+	}
+	if n := e.count(`SELECT count(*) FROM acquire_run r JOIN version v ON v.id = r.version_id WHERE r.title_id = ?
+		AND v.policy_key = 'tv2' AND COALESCE(r.season, -1) <> 1`, id); n != 0 {
+		t.Errorf("%d searches of the new copy beyond season 1", n)
 	}
 }
 
