@@ -11,6 +11,7 @@ import (
 
 	"github.com/theatarr/theatarr/internal/activity"
 	"github.com/theatarr/theatarr/internal/auth"
+	"github.com/theatarr/theatarr/internal/notify"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/router"
 	"github.com/theatarr/theatarr/internal/store"
@@ -947,5 +948,51 @@ func TestOverlappingRequestsApproveApart(t *testing.T) {
 	e.web.syncRequests(ctx)
 	if a, b := e.requestStatus(s1.Request.ID), e.requestStatus(s2.Request.ID); a != ReqProcessing || b != ReqProcessing {
 		t.Errorf("whole series downloading: %s, %s", a, b)
+	}
+}
+
+// TestSeasonRequestAvailableDespiteOtherSeasonGap: a request naming seasons is available when its seasons are, even
+// while the copy is wanted for a gap in another season; the request for that other season is not.
+func TestSeasonRequestAvailableDespiteOtherSeasonGap(t *testing.T) {
+	t.Parallel()
+	e := newAddEnv(t, nil)
+	ctx := context.Background()
+	annID, _ := e.user("ann", auth.RoleUser)
+	_, mgr := e.user("mgr", auth.RoleManager)
+	now := store.Millis(addNow)
+	var available []int64
+	e.web.onRequest = func(ev RequestEvent) {
+		if ev.Notification != nil && ev.Notification.Kind == notify.RequestAvailable {
+			available = append(available, ev.ID)
+		}
+	}
+	e.exec(`INSERT INTO request (id, user_id, kind, title_id, name, versions, seasons, status, created_at, updated_at)
+		VALUES (501, ?, 'series', 10, 'The Show', '["tv-2160p"]', '[1]', 'approved', ?, ?),
+		(502, ?, 'series', 10, 'The Show', '["tv-2160p"]', '[2]', 'approved', ?, ?)`, annID, now, now, annID, now, now)
+	// Season 1 complete, season 2's aired episode missing: the copy stays wanted.
+	e.exec(`UPDATE episode SET air_date = '2020-01-01' WHERE id IN (101, 102, 103)`)
+	e.exec(`UPDATE episode_version_state SET state = 'filled' WHERE episode_id IN (101, 102)`)
+	for range 2 {
+		if err := e.web.syncRequests(ctx); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if s := e.requestStatus(501); s != ReqAvailable {
+		t.Errorf("season 1 request: %s", s)
+	}
+	if s := e.requestStatus(502); s == ReqAvailable {
+		t.Errorf("season 2 request: %s", s)
+	}
+	if !slices.Equal(available, []int64{501}) {
+		t.Errorf("available notifications: %v", available)
+	}
+	var page RequestPage
+	e.callAs(mgr, "GET", APIBase+"/requests?status=all", nil, 200, &page)
+	badge := map[int64]bool{}
+	for _, r := range page.Items {
+		badge[r.ID] = r.Versions[0].Available
+	}
+	if !badge[501] || badge[502] || len(badge) != 2 {
+		t.Errorf("library badges: %v", badge)
 	}
 }

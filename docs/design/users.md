@@ -147,7 +147,8 @@ and no other-requester list or count.
 - Status: `pending` → `approved` → `processing` (a download for a requested version is in hand; for a series request
   naming seasons, one for those seasons or the whole series, the season match the request detail uses) → `available` (every
   requested version has its file; for a series request naming seasons, every aired episode of those seasons, so a
-  version filled before the request does not count) or `failed` (a download counted as above failed since the
+  version filled before the request does not count and a gap in another season does not hold it back; the library's
+  available badge on such a request follows the same seasons) or `failed` (a download counted as above failed since the
   approval); also `declined`, `canceled`. A sync loop and the
   download events move it.
 - SSE `request` events go to the requesters and to accounts with `manage_requests`. `Config.OnRequest` is an

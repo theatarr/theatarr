@@ -345,6 +345,10 @@ func (w *Web) fillRequests(ctx context.Context, items []Request, viewer *auth.Id
 			return err
 		}
 	}
+	seasonsHeld, err := w.requestSeasonsFilled(ctx, items)
+	if err != nil {
+		return err
+	}
 	joined := map[int64]bool{}
 	otherUsers := map[int64][]RequestUser{}
 	if len(sharedIDs) > 0 {
@@ -397,6 +401,9 @@ func (w *Web) fillRequests(ctx context.Context, items []Request, viewer *auth.Id
 					v.State = states[*r.TitleID][k]
 				}
 				v.Available = filledState(v.State)
+				if held, ok := seasonsHeld[r.ID]; ok {
+					v.Available = held[k]
+				}
 			}
 			r.Versions = append(r.Versions, v)
 		}
@@ -1487,8 +1494,9 @@ func (w *Web) requestStatus(ctx context.Context, r *Request) (string, error) {
 			return "", err
 		}
 		filled := filledState(state)
-		if filled && r.Kind == string(policy.KindSeries) && len(r.Seasons) > 0 {
-			// A version can be filled from before the request: the requested seasons' aired episodes decide.
+		if r.Kind == string(policy.KindSeries) && len(r.Seasons) > 0 {
+			// The requested seasons' aired episodes decide, whatever the whole version's state: it can be filled from
+			// before the request, or wanted for a gap in a season the request did not ask for.
 			if filled, err = w.seasonsFilled(ctx, vid, r.Seasons); err != nil {
 				return "", err
 			}
@@ -1553,6 +1561,48 @@ func (w *Web) seasonsFilled(ctx context.Context, versionID int64, seasons []int)
 		AND e.air_date IS NOT NULL AND e.air_date <> '' AND e.air_date <= ? AND e.season IN (`+
 		store.Placeholders(len(seasons))+`)`, args...).Scan(&aired, &held)
 	return aired > 0 && held == aired, err
+}
+
+// requestSeasonsFilled is seasonsFilled for every decided series request naming seasons, in one query: per
+// request, per library, whether the library holds every aired episode of the request's seasons (and at least one).
+func (w *Web) requestSeasonsFilled(ctx context.Context, items []Request) (map[int64]map[string]bool, error) {
+	type ask struct {
+		ID      int64 `json:"id"`
+		TitleID int64 `json:"t"`
+		Seasons []int `json:"s"`
+	}
+	var asks []ask
+	out := map[int64]map[string]bool{}
+	for _, r := range items {
+		if r.TitleID != nil && r.Kind == string(policy.KindSeries) && len(r.Seasons) > 0 &&
+			r.Status != ReqPending && r.Status != ReqDeclined && r.Status != ReqCanceled {
+			asks = append(asks, ask{r.ID, *r.TitleID, r.Seasons})
+			out[r.ID] = map[string]bool{}
+		}
+	}
+	if len(asks) == 0 {
+		return out, nil
+	}
+	b, _ := json.Marshal(asks)
+	err := scanAll(ctx, w.st.Reader(), `WITH q AS (SELECT json_extract(a.value, '$.id') AS rid,
+			json_extract(a.value, '$.t') AS tid, s.value AS season
+			FROM json_each(?) a, json_each(json_extract(a.value, '$.s')) s)
+		SELECT q.rid, v.policy_key, COUNT(*), COALESCE(SUM(st.state IN ('filled', 'cutoff_met')), 0)
+		FROM q JOIN episode e ON e.title_id = q.tid AND e.season = q.season
+		JOIN version v ON v.title_id = q.tid
+		LEFT JOIN episode_version_state st ON st.episode_id = e.id AND st.version_id = v.id
+		WHERE e.removed_at IS NULL AND e.air_date IS NOT NULL AND e.air_date <> '' AND e.air_date <= ?
+		GROUP BY q.rid, v.policy_key`, []any{string(b), w.now().UTC().Format(time.DateOnly)}, func(rows *sql.Rows) error {
+		var id int64
+		var key string
+		var aired, held int
+		if err := rows.Scan(&id, &key, &aired, &held); err != nil {
+			return err
+		}
+		out[id][key] = aired > 0 && held == aired
+		return nil
+	})
+	return out, err
 }
 
 // runRequestSync moves requests along every few poll intervals.
