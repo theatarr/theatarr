@@ -778,7 +778,9 @@ including "Imported from Radarr's blocklist" for `arr:<instance>`) and the healt
   are for the whole list, before other filters."). Active filters show as chips under the toolbar, each a button that
   removes it ("Remove filter: Missing"), then **Clear all**: `Title: “dune”`, `Monitoring: on`, `Monitoring: off`, the
   availability word, `Has 4K`, `Lacks 4K`, `Quality: WEBDL-2160p`, `Provider: RD`, `2019–2024` (or `From 2019`,
-  `Up to 2024`), one per genre, `Series status: Ended`, one per tag (`Tag: kids`). Without See files there is no
+  `Up to 2024`), one per genre, `Series status: Ended`, one per tag (`Tag: kids`). Has and Lacks of one library
+  exclude each other: picking one drops the other for that library in the same address update (Has Remux with Lacks
+  WEB stays possible). Without See files there is no
   library, provider, tag or state chip. With nothing found:
   "No titles match these filters." and **Clear filters**. The sheet heads its first group **Monitoring** (On, Off:
   whether a library monitors the title); the status **Not monitored** (no file and nothing monitors it) is apart,

@@ -140,12 +140,13 @@ export function Catalog({ id }: { id: CatalogId }) {
   }, [id]);
 
   const set = useCallback(
-    (key: string, value: string | undefined) =>
+    (key: string, value: string | undefined, drop?: string[]) =>
       setParams(
         (p) => {
           const n = new URLSearchParams(p);
           if (value === undefined || value === "") n.delete(key);
           else n.set(key, value);
+          drop?.forEach((k) => n.delete(k));
           return n;
         },
         { replace: true },

@@ -579,6 +579,31 @@ describe("Toolbar and filters", () => {
     await waitFor(() => expect(screen.queryByTestId("active-filters")).toBeNull());
   });
 
+  it("drops Has for a library when its Lacks is picked, in one address update, and keeps Has 4K with Lacks of another", async () => {
+    const versions = [{ key: "tv-2160p", label: "4K", titles: 2, with_file: 2 }, { key: "tv-web", label: "1080p WEB", titles: 2, with_file: 1 }];
+    const fetch = mockFetch(routes().map((r) => (r.path === "/titles/facets" ? { ...r, reply: { total: 2, versions } } : r)));
+    const user = userEvent.setup();
+    renderPage(<Catalog id="series" />, "/series?with=tv-2160p");
+    await screen.findAllByText("The Pellbrook Inquiries");
+    await user.click(screen.getByTestId("filters-button"));
+    const panel = await screen.findByTestId("filters-panel");
+    const lacks = async (i: number) => (await within(panel).findAllByRole("button", { name: /^Lacks/ }))[i];
+    const titles = () => fetch.requests.filter((r) => r.path === "/titles");
+    // Lacks 1080p WEB keeps Has 4K.
+    await user.click(await lacks(1));
+    await waitFor(() => expect(titles().at(-1)!.search).toContain("without=tv-web"));
+    expect(titles().at(-1)!.search).toContain("with=tv-2160p");
+    // Lacks 4K drops Has 4K: no request ever asks for both.
+    await user.click(await lacks(0));
+    await waitFor(() => expect(titles().at(-1)!.search).toContain("without=tv-2160p"));
+    expect(titles().at(-1)!.search).not.toMatch(/(^|[?&])with=/);
+    expect(titles().some((r) => /(^|[?&])with=tv-2160p/.test(r.search) && r.search.includes("without=tv-2160p"))).toBe(false);
+    // And back: Has 4K drops Lacks 4K.
+    await user.click(within(panel).getAllByRole("button", { name: /^Has/ })[0]);
+    await waitFor(() => expect(titles().at(-1)!.search).toMatch(/(^|[?&])with=tv-2160p/));
+    expect(titles().at(-1)!.search).not.toContain("without=");
+  });
+
   it("keeps the saved filter the list showed on opening as Update's and Delete's target while the filters change", async () => {
     window.localStorage.setItem("theatarr.library.saved-filters.series.7", JSON.stringify([{ name: "Finished", query: "series_status=ended" }]));
     const fetch = mockFetch(routes());

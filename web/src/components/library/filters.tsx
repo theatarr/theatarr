@@ -183,8 +183,8 @@ export function FiltersPanel({
   className,
 }: {
   values: FilterValues;
-  /** Sets (or with undefined, removes) one URL parameter. */
-  set: (key: string, value: string | undefined) => void;
+  /** Sets (or with undefined, removes) one URL parameter, removing the keys of drop in the same URL update. */
+  set: (key: string, value: string | undefined, drop?: string[]) => void;
   clear: () => void;
   facets: TitleFacets | undefined;
   seeFiles: boolean;
@@ -197,6 +197,12 @@ export function FiltersPanel({
 }) {
   const any = Object.values(values).some(Boolean);
   const toggle = (key: string, v: string) => set(key, values[key] === v ? undefined : v);
+  // Has and Lacks of one library contradict each other: picking one drops the other for that library, in the same URL
+  // update (Has Remux with Lacks WEB stays possible).
+  const pickLibrary = (key: "with" | "without", lib: string) => {
+    const other = key === "with" ? "without" : "with";
+    set(key, values[key] === lib ? undefined : lib, values[other] === lib ? [other] : undefined);
+  };
   const genres = (values.genre ?? "").split(",").filter(Boolean);
   const tags = (values.tag ?? "").split(",").filter(Boolean);
   const years: number[] = [];
@@ -313,10 +319,10 @@ export function FiltersPanel({
                   <span className="size-2 rounded-[2px] bg-[var(--vc)]" />
                   {v.label}
                 </span>
-                <Chip selected={values.with === v.key} onClick={() => toggle("with", v.key)} title={`Titles with a ${v.label} file`}>
+                <Chip selected={values.with === v.key} onClick={() => pickLibrary("with", v.key)} title={`Titles with a ${v.label} file`}>
                   Has <span className="tabular-nums opacity-75">{v.with_file ?? 0}</span>
                 </Chip>
-                <Chip selected={values.without === v.key} onClick={() => toggle("without", v.key)} title={`Titles without a ${v.label} file`}>
+                <Chip selected={values.without === v.key} onClick={() => pickLibrary("without", v.key)} title={`Titles without a ${v.label} file`}>
                   Lacks <span className="tabular-nums opacity-75">{(facets?.total ?? 0) - (v.with_file ?? 0)}</span>
                 </Chip>
               </div>
