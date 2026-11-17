@@ -783,8 +783,8 @@ func (w *Web) searchScoped(rw http.ResponseWriter, r *http.Request, season *int)
 		out.Message = "Nothing searched: the acquirer is not running"
 	default:
 		sel.Versions = active
-		var searched []string
-		sel.Searched = &searched
+		var mine bool
+		sel.RequestedQueued = &mine
 		queued, found, err := w.add.Acquirer.Submit(ctx, 0, sel)
 		if err != nil {
 			w.internal(rw, err)
@@ -792,10 +792,9 @@ func (w *Web) searchScoped(rw http.ResponseWriter, r *http.Request, season *int)
 		}
 		out.Queued, out.Found, out.Started = queued, found, queued > 0
 		where := w.labelList(active)
-		if season != nil && len(searched) > 0 && !slices.ContainsFunc(active, func(k string) bool {
-			return slices.Contains(searched, k)
-		}) {
-			// The picked library has nothing to search in the season: the search went to the libraries that do.
+		if season != nil && (req.Versions == nil || !mine) {
+			// A season search reaches the libraries that monitor the season (acquire Submit widens it): named only
+			// when the one picked got a search.
 			where = "the libraries that monitor this season"
 		}
 		if queued == 0 {

@@ -479,28 +479,28 @@ func TestManageNoScoresForUsers(t *testing.T) {
 	}
 }
 
-// A season search in a picked library that monitors none of the season's searchable episodes goes to the libraries
-// that do (acquire Submit widens to them, and reports them in Selection.Searched): the answer names those, not the
-// picked library. Which episodes count is the acquirer's (TestSeasonSearchSearchedVersions: a dropped episode).
+// A season search says "the libraries that monitor this season" from All libraries, and for a picked library that
+// got no search of its own (acquire Submit widened it to others: Selection.RequestedQueued false); a picked library
+// that got one is named. Which episodes count is the acquirer's (TestSeasonSearchRequestedQueued).
 func TestSeasonSearchNamesTheMonitoringLibraries(t *testing.T) {
 	t.Parallel()
 	e := newManageEnv(t, func(p *policy.Policy) {
 		p.Router = &policy.Router{Enabled: true}
-		hd := *p.Versions["tv-2160p"]
-		hd.Library = "/media/tv-1080p"
-		p.Versions["tv-1080p"] = &hd
 	})
-	e.exec(`INSERT INTO version (id, title_id, policy_key, monitored, state, created_at, updated_at)
-		VALUES (11, 10, 'tv-1080p', 1, 'wanted', 0, 0)`)
-	e.acq.searched = []string{"tv-2160p"}
+	const generic = "Searching season 1 in the libraries that monitor this season"
 	var so SearchOutcome
-	e.call("POST", APIBase+"/titles/10/seasons/1/search", map[string]any{"versions": []string{"tv-1080p"}}, 200, &so)
-	if so.Message != "Searching season 1 in the libraries that monitor this season" {
+	e.call("POST", APIBase+"/titles/10/seasons/1/search", map[string]any{}, 200, &so)
+	if so.Message != generic {
+		t.Errorf("All libraries: %q", so.Message)
+	}
+	e.acq.notRequested = true
+	e.call("POST", APIBase+"/titles/10/seasons/1/search", map[string]any{"versions": []string{"tv-2160p"}}, 200, &so)
+	if so.Message != generic {
 		t.Errorf("the search went to another library: %q", so.Message)
 	}
-	e.acq.searched = nil
+	e.acq.notRequested = false
 	e.call("POST", APIBase+"/titles/10/seasons/1/search", map[string]any{"versions": []string{"tv-2160p"}}, 200, &so)
-	if !so.Started || strings.Contains(so.Message, "libraries that monitor") {
+	if !so.Started || so.Message == generic || !strings.HasPrefix(so.Message, "Searching season 1 in ") {
 		t.Errorf("the picked library is searched: %+v", so)
 	}
 }

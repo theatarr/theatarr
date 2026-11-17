@@ -50,8 +50,8 @@ type fakeAcquirer struct {
 	nextTitles []int64
 	// later: the titles put on the search schedule, as "id:key,key".
 	later []string
-	// searched is what Submit reports in Selection.Searched (nil: the versions it was given).
-	searched []string
+	// notRequested makes Submit report that no named library was queued (Selection.RequestedQueued).
+	notRequested bool
 }
 
 func (f *fakeAcquirer) NextSearches(_ context.Context, titleID int64) ([]acquire.NextSearch, error) {
@@ -68,11 +68,8 @@ func (f *fakeAcquirer) Submit(ctx context.Context, _ int64, sel acquire.Selectio
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.submits = append(f.submits, sel)
-	if sel.Searched != nil {
-		*sel.Searched = sel.Versions
-		if f.searched != nil {
-			*sel.Searched = f.searched
-		}
+	if sel.RequestedQueued != nil {
+		*sel.RequestedQueued = !f.notRequested
 	}
 	return len(sel.Versions), len(sel.Versions), nil
 }
