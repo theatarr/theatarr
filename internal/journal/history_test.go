@@ -259,6 +259,11 @@ func TestHistoryImportEpisodesAndNeverStarted(t *testing.T) {
 	if !slices.Equal(got, want) {
 		t.Errorf("rows:\n got %q\nwant %q", got, want)
 	}
+	// The grab, folded into the import, lists the episodes it asked for under the Grabbed filter.
+	got = e.history(Filter{Events: []string{EvGrabbed}})
+	if want := []string{"grabbed Gamma.S01E01-E04.WEB WEBDL-2160p 1000 [S01E01,S01E02,S01E03,S01E04]"}; !slices.Equal(got, want) {
+		t.Errorf("grabs:\n got %q\nwant %q", got, want)
+	}
 	// Paging: one row a page, each page after the last.
 	p, err := e.j.History(context.Background(), Filter{Limit: 1})
 	if err != nil || len(p.Items) != 1 || p.NextCursor == "" {

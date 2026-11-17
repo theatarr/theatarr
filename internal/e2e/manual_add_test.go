@@ -84,6 +84,13 @@ func TestManualAddByHash(t *testing.T) {
 	if !grab {
 		t.Errorf("the activity has no grab of the release")
 	}
+	// The raw grab, under the Grabbed filter.
+	var grabs web.ActivityPage
+	e.request("GET", web.APIBase+"/activity?state=history&events=grabbed", nil, &grabs)
+	if len(grabs.History) != 1 || grabs.History[0].Kind != "grab" || grabs.History[0].Release != rel.name ||
+		grabs.History[0].Provider != "rd" {
+		t.Errorf("grabs: %+v", grabs.History)
+	}
 	if n := e.count(`SELECT count(*) FROM journal_action WHERE action = 'grab' AND title_id = ? AND target = 'manual add'
 		AND info_hash = ?`, id, rel.hash); n != 1 {
 		t.Errorf("%d journal actions for the manual add", n)
