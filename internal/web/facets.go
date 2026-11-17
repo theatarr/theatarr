@@ -87,25 +87,16 @@ func (w *Web) titleFacets(ctx context.Context, f TitleFilter, seeFiles bool) (Ti
 	where, args := f.where()
 	out := TitleFacets{Availability: map[string]int{}, Versions: []VersionFacet{}, Qualities: []FacetCount{}, Genres: []FacetCount{}, Certifications: []FacetCount{}}
 	var ymin, ymax sql.NullInt64
-	if err := db.QueryRowContext(ctx, `SELECT COUNT(*), COALESCE(SUM(t.monitored), 0), MIN(t.year), MAX(t.year)`+
-		titleFrom+where, args...).Scan(&out.Total, &out.Monitored, &ymin, &ymax); err != nil {
+	var movies int
+	if err := db.QueryRowContext(ctx, `SELECT COUNT(*), COALESCE(SUM(t.monitored), 0), MIN(t.year), MAX(t.year),
+		COALESCE(SUM(t.kind = 'movie'), 0)`+titleFrom+where, args...).Scan(&out.Total, &out.Monitored, &ymin, &ymax,
+		&movies); err != nil {
 		return out, err
 	}
+	// The grid's titles by media kind, for each library's Lacks count.
+	byKind := map[string]int{"movie": movies, "series": out.Total - movies}
 	out.Unmonitored = out.Total - out.Monitored
 	out.YearMin, out.YearMax = nullInt(ymin), nullInt(ymax)
-	// The grid's titles by media kind, for each library's Lacks count.
-	byKind := map[string]int{}
-	if err := scanAll(ctx, db, `SELECT t.kind, COUNT(*)`+titleFrom+where+` GROUP BY t.kind`, args, func(r *sql.Rows) error {
-		var k string
-		var n int
-		if err := r.Scan(&k, &n); err != nil {
-			return err
-		}
-		byKind[k] = n
-		return nil
-	}); err != nil {
-		return out, err
-	}
 
 	// Versions and availability, from every version of the grid's titles.
 	states := map[int64][]versionState{}
