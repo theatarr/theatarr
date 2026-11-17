@@ -1026,40 +1026,30 @@ func (s *Service) deleteTitle(w http.ResponseWriter, r *request) {
 	slices.Sort(partners)
 	keys = append(keys, partners...)
 	if r.queryBool("deleteFiles", false) {
-		// A row per version: a link shared by two versions of the view is checked for each; the partners' links too,
-		// so a refusal still removes nothing.
-		fs, err := s.viewFiles(ctx, r.v, []int64{e.id})
+		// Every link the removal will take, active or dead, of the view's versions and their partners, a row per
+		// version (a link two of them share is checked for each), so a refusal still removes nothing.
+		type check struct{ version, path string }
+		var checks []check
+		rows, err := s.st.Reader().QueryContext(ctx, `SELECT v.policy_key, l.path FROM link l
+			JOIN link_version lv ON lv.link_id = l.id JOIN version v ON v.id = lv.version_id
+			WHERE v.title_id = ? AND v.policy_key IN (`+store.Placeholders(len(keys))+`)
+			AND l.state IN ('active', 'dead') ORDER BY l.id, v.policy_key`, append([]any{e.id}, anyKeys(keys)...)...)
 		if err != nil {
 			s.internal(w, r, err)
 			return
 		}
-		type check struct{ version, path string }
-		var checks []check
-		for _, f := range fs {
-			checks = append(checks, check{f.version, f.f.path})
+		for rows.Next() {
+			var c check
+			if err := rows.Scan(&c.version, &c.path); err != nil {
+				rows.Close()
+				s.internal(w, r, err)
+				return
+			}
+			checks = append(checks, c)
 		}
-		if len(partners) > 0 {
-			rows, err := s.st.Reader().QueryContext(ctx, `SELECT v.policy_key, l.path FROM link l
-				JOIN link_version lv ON lv.link_id = l.id JOIN version v ON v.id = lv.version_id
-				WHERE v.title_id = ? AND v.policy_key IN (`+store.Placeholders(len(partners))+`) AND l.state = 'active'
-				ORDER BY l.id`, append([]any{e.id}, anyKeys(partners)...)...)
-			if err != nil {
-				s.internal(w, r, err)
-				return
-			}
-			for rows.Next() {
-				var c check
-				if err := rows.Scan(&c.version, &c.path); err != nil {
-					rows.Close()
-					s.internal(w, r, err)
-					return
-				}
-				checks = append(checks, c)
-			}
-			if err := closeRows(rows); err != nil {
-				s.internal(w, r, err)
-				return
-			}
+		if err := closeRows(rows); err != nil {
+			s.internal(w, r, err)
+			return
 		}
 		for _, c := range checks {
 			if s.library == nil {

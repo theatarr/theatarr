@@ -201,3 +201,24 @@ func TestDeleteRemovesTheSyncPartners(t *testing.T) {
 		t.Errorf("without deleteFiles: removed %d, unlinked %v", n, e.lib.unlinks)
 	}
 }
+
+// The pre-check covers every link the removal takes, dead ones too: a partner outside the view whose dead link its
+// gate refuses answers 409 before anything is hidden, unlinked or handed to the clean-up; the same with Pause on.
+func TestDeleteChecksThePartnersDeadLinks(t *testing.T) {
+	t.Parallel()
+	for _, paused := range []bool{false, true} {
+		e := syncRemoveEnv(t)
+		e.pol.Router.Enabled = !paused
+		e.exec(`UPDATE link SET state = 'dead' WHERE id = 1`)
+		var started []removal.Cleanup
+		e.svc.SetCleanup(func(c removal.Cleanup) { started = append(started, c) })
+		rec := e.do("DELETE", "/v/movie-web/radarr/api/v3/movie/"+strconv.Itoa(IDBase+1)+"?deleteFiles=true", e.key, nil)
+		if rec.Code != 409 {
+			t.Fatalf("paused %v: %d %s", paused, rec.Code, rec.Body.String())
+		}
+		if n := e.one(`SELECT COUNT(*) FROM arrview_removed_version`); n != 0 || len(e.lib.unlinks) != 0 || len(started) != 0 ||
+			e.str(`SELECT state FROM link WHERE id = 8`) != "active" {
+			t.Errorf("paused %v: removed %d, unlinked %v, clean-ups %v", paused, n, e.lib.unlinks, started)
+		}
+	}
+}
