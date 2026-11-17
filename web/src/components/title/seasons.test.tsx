@@ -262,6 +262,17 @@ describe("Acting on the libraries in view", () => {
     expect(api.calls("POST", "/titles/1/seasons/1/search")).toHaveLength(0);
   });
 
+  it("disables a season's Search in a picked library that does not monitor the series, though another library monitors the season", async () => {
+    const off = { ...episodes, versions: [{ ...episodes.versions[0], control: managed }, { ...episodes.versions[1], monitored: false }] };
+    mockFetch([routes[0], { method: "GET", path: "/titles/1/episodes", reply: off }]);
+    const user = userEvent.setup();
+    renderPage(<Seasons id="1" anime />, "/title/1");
+    await user.click(await screen.findByRole("radio", { name: "Anime WEB" }));
+    const header = screen.getByTestId("season-header");
+    expect((within(header).getByRole("button", { name: "Search season 1 now in Anime WEB" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(within(header).getByTestId("season-search-why-1").getAttribute("title")).toBe("Anime WEB does not monitor this series");
+  });
+
   it("keeps a season's Search in a library that monitors none of it while another library that searches does (the server widens to it)", async () => {
     const s = episodes.seasons[0];
     const other = {

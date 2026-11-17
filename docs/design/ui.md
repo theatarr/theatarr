@@ -609,7 +609,8 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
     view searches live). Outcomes come back as toasts ("Search started" / "Not searched" with the server's
     sentence). The season's Search is disabled, with "No monitored episodes in this season" on hover, when the
     library in view may search but no library of the title that may search monitors an episode of it (the season
-    search takes monitored episodes only, and the server widens it to the title's other monitored libraries);
+    search takes monitored episodes only, and the server widens it to the title's other monitored libraries), and
+    with "<Library> does not monitor this series" when the picked library does not monitor the series;
     Interactive search stays. An episode's Search (row, episode window, selection) stays enabled for unmonitored episodes: a
     search that names its episodes takes them unmonitored too, as Sonarr's does.
   - **Jump to** (a series with more than 8 seasons, specials not counted): a select "Jump to season" above the

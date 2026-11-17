@@ -768,9 +768,11 @@ function SeasonBlock({
   // The automatic season search takes monitored episodes only. The library in view must allow a search (its gate),
   // and the server widens a title's search to its other monitored libraries that search (acquire Submit), so the
   // season counts as searchable when any library of the title that may search monitors an episode of it.
+  // A picked library must monitor the series itself: the server refuses a library that does not before it widens.
+  const pickedOff = scope.keys !== undefined && copies.some((v) => v.monitored === false);
   const searchable =
-    scope.search && list.versions.some((v) => v.monitored !== false && !!v.control?.can_search && (season.versions[v.key]?.monitored ?? 0) > 0);
-  const searchTitle = !scope.search ? scope.searchWhy : searchable ? searchWhat : NO_MONITORED_SEASON;
+    scope.search && !pickedOff && list.versions.some((v) => v.monitored !== false && !!v.control?.can_search && (season.versions[v.key]?.monitored ?? 0) > 0);
+  const searchTitle = !scope.search ? scope.searchWhy : pickedOff ? `${scope.name} does not monitor this series` : searchable ? searchWhat : NO_MONITORED_SEASON;
   // Every library in view is not monitored: the switches show the episodes kept for when it is monitored again.
   const inactive = seeFiles && copies.length > 0 && off.size === copies.length;
   const props: ListProps = { episodes: shown, copies, merged, anime, manage, seeFiles, selected, onSelect, onOpen, live, act, columns, inactive };
