@@ -746,8 +746,16 @@ describe("Jump to season (H6)", () => {
     expect([...(jump as HTMLSelectElement).options].map((o) => o.textContent).slice(1, 3)).toEqual(["Season 10", "Season 9"]);
     const head = (n: number) => document.querySelector(`[data-season="${n}"] button[aria-expanded]`) as HTMLElement;
     expect(head(3).getAttribute("aria-expanded")).toBe("false");
+    // It scrolls once the season has opened (before, the page may be too short to bring the heading up).
+    const expandedAtScroll: (string | null)[] = [];
+    const scroll = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = function (this: Element) {
+      expandedAtScroll.push(this.getAttribute("aria-expanded"));
+    };
     await user.selectOptions(jump, "3");
     await vi.waitFor(() => expect(document.activeElement).toBe(head(3)));
+    await vi.waitFor(() => expect(expandedAtScroll).toEqual(["true"]));
+    Element.prototype.scrollIntoView = scroll;
     expect(head(3).getAttribute("aria-expanded")).toBe("true");
     expect(head(3).id).toBe("season-heading-3");
     expect(screen.getByText("Opener 3")).toBeTruthy();

@@ -1072,11 +1072,13 @@ export function Seasons({ id, anime, franchises = [], history }: { id: string; a
           seasons={ordered}
           onJump={(s) => {
             if (!opened.includes(s)) setOpen([...opened, s]);
-            // The heading exists while the season is collapsed: it takes the focus and comes into view below the
-            // sticky header (its scroll margin).
-            const head = document.getElementById(seasonHeadingId(s));
-            head?.focus();
-            head?.scrollIntoView?.({ block: "start" });
+            // Once the opened season has rendered (the next frame; before it the page may be too short to scroll
+            // that far), its heading takes the focus and comes into view below the sticky header (its scroll margin).
+            requestAnimationFrame(() => {
+              const head = document.getElementById(seasonHeadingId(s));
+              head?.focus();
+              head?.scrollIntoView?.({ block: "start" });
+            });
           }}
         />
       ) : null}
