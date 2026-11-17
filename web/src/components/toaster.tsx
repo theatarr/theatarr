@@ -2,21 +2,29 @@
 // store outside React, so the event stream can push without a context; the Toaster renders the queue. No portal,
 // no inline style: a fixed stack in the corner, above the phone tab bar.
 import { CheckCircle2, Info, TriangleAlert, X, XCircle } from "lucide-react";
-import { useEffect, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { Link } from "react-router";
 import { cn } from "@/lib/utils";
 
 export type ToastTone = "ok" | "info" | "warn" | "bad";
 /** duration: how long it stays (ms), 6 s when unset; longer for a notice whose link is the point. */
-export type Toast = { id: number; title: string; body?: string; tone: ToastTone; to?: string; image?: string; duration?: number };
+/** count: how many times the same toast arrived (a repeat bumps it instead of stacking a copy). */
+export type Toast = { id: number; title: string; body?: string; tone: ToastTone; to?: string; image?: string; duration?: number; count?: number };
 
 let seq = 0;
 let toasts: Toast[] = [];
 const listeners = new Set<() => void>();
 const emit = () => listeners.forEach((l) => l());
 
-/** Shows a toast for a few seconds. At most four are on screen; the oldest goes first. */
-export function toast(t: Omit<Toast, "id">): number {
+/** Shows a toast for a few seconds. At most four are on screen; the oldest goes first. The same toast again (same
+ * words, tone and link) while one is on screen counts on that one ("×2") and starts its time again. */
+export function toast(t: Omit<Toast, "id" | "count">): number {
+  const same = toasts.find((x) => x.title === t.title && (x.body ?? "") === (t.body ?? "") && x.tone === t.tone && (x.to ?? "") === (t.to ?? ""));
+  if (same) {
+    toasts = toasts.map((x) => (x === same ? { ...x, count: (x.count ?? 1) + 1 } : x));
+    emit();
+    return same.id;
+  }
   const id = ++seq;
   toasts = [...toasts, { ...t, id }].slice(-4);
   emit();
@@ -42,10 +50,15 @@ const TONE: Record<ToastTone, string> = {
 };
 
 function ToastCard({ t }: { t: Toast }) {
+  // Hovered or focused, it stays; leaving it (or a repeat) gives it its full time again.
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const held = hovered || focused;
   useEffect(() => {
+    if (held) return;
     const h = window.setTimeout(() => dismiss(t.id), t.duration ?? 6000);
     return () => window.clearTimeout(h);
-  }, [t.id, t.duration]);
+  }, [t.id, t.duration, t.count, held]);
   const Icon = ICON[t.tone];
   const body = (
     <>
@@ -58,6 +71,7 @@ function ToastCard({ t }: { t: Toast }) {
         <div className="flex items-center gap-1.5 text-[13.5px] font-semibold text-[var(--ink)]">
           {t.image ? <Icon className={cn("size-4 shrink-0", TONE[t.tone])} /> : null}
           <span className="truncate">{t.title}</span>
+          {(t.count ?? 1) > 1 ? <span className="shrink-0 rounded-[3px] bg-[var(--hover)] px-1 text-[11.5px] font-medium tabular-nums text-[var(--ink-2)]" data-testid="toast-count" aria-label={`${t.count} times`}>×{t.count}</span> : null}
         </div>
         {t.body ? <div className="mt-0.5 text-[13px] text-muted-foreground">{t.body}</div> : null}
       </div>
@@ -67,6 +81,10 @@ function ToastCard({ t }: { t: Toast }) {
     <div
       role="status"
       data-testid="toast"
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onFocus={() => setFocused(true)}
+      onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocused(false); }}
       className="pointer-events-auto flex w-full items-start gap-3 rounded-[8px] border border-[var(--line)] bg-[var(--surface)] p-3 text-[var(--ink)] shadow-[var(--shadow-2)] animate-in fade-in slide-in-from-bottom-2"
     >
       {t.to ? (

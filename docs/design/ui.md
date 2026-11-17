@@ -72,7 +72,9 @@ calls them. The UI shares two things with them (§3, §6): the add path (`catalo
   switch to Plex Sans). The primitives (button, input, select, switch, checkbox, chip, tag, table, dialog, sheet,
   tabs, toast, skeleton, empty state) live in `web/src/components/ui`. Toasts stack above every dialog and sheet (z-[95]; dialogs and sheets are z-[70] to z-[85],
   the skip link z-[100]), so a grab's "Sent to the router" or "Not sent" shows over Interactive search; the stack
-  lets clicks through and each toast takes its own.
+  lets clicks through and each toast takes its own. A toast stays while it is hovered or focused and gets its full time
+  again after; the same toast again (same words, tone and link) while it shows counts on it ("×2") instead of stacking
+  a copy.
 - **Phone:** a bottom tab bar: Home, Browse (a sheet with Movies, Series, Anime, Collections for managers), Activity,
   Requests (with its badge), More (a sheet with Wanted (managers and admins; Manual import admins only), Now playing,
   Calendar and the admin pages the account may open, top level only). Search stays in the header.
