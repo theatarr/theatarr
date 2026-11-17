@@ -1004,3 +1004,21 @@ func TestGrabFlagsAfterResolvedHold(t *testing.T) {
 		t.Errorf("grab line flags %+v", g.Flags)
 	}
 }
+
+// A scoped import's files for other episodes were left out on purpose (the plan's "out of scope" reason, stored plans
+// too): they read apart from files that matched no episode.
+func TestImportSummaryLeftOut(t *testing.T) {
+	e := newEnv(t)
+	e.dlEvent(5, "imported", testNow.Add(-time.Hour), 3, 3, "tv-2160p", hashA, "Gamma.S01.2160p-A", "WEBDL-2160p",
+		100, 1<<30, []int64{101, 102}, "")
+	e.exec(`INSERT INTO library_import (download_id, state, mount_folder, plan, created_at, updated_at)
+		VALUES (5, 'linked', '/m/G', ?, ?, ?)`, `{"unmatched":["E03.mkv","E04.mkv","x.mkv","y.mkv"],
+		"unresolved":{"E03.mkv":"out of scope: maps to S01E03 (tvdb), not an episode of the download",
+		"E04.mkv":"out of scope: maps to S01E04 (tvdb), not an episode of the download",
+		"y.mkv":"conflict: S01E01 is another file's"}}`, msOf(testNow), msOf(testNow))
+	e.exec(`INSERT INTO link (id, path, target, title_id, download_id, state, created_at, updated_at) VALUES
+		(1, '/tv/G/E01.mkv', '/m/G/E01.mkv', 3, 5, 'active', 0, 0), (2, '/tv/G/E02.mkv', '/m/G/E02.mkv', 3, 5, 'active', 0, 0)`)
+	if g, w := e.get("dl:5:import").Summary, "Imported Gamma.S01.2160p-A · 2 linked · 2 for other episodes, left out · 2 files matched no episode"; g != w {
+		t.Errorf("summary %q, want %q", g, w)
+	}
+}

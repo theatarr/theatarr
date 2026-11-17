@@ -566,8 +566,9 @@ type planJSON struct {
 		Episodes   []string `json:"episodes"`
 		NotUpgrade bool     `json:"not_upgrade"`
 	} `json:"rejected"`
-	Unmatched []string `json:"unmatched"`
-	Refused   string   `json:"refused"`
+	Unmatched  []string          `json:"unmatched"`
+	Unresolved map[string]string `json:"unresolved"` // why an unmatched file's episodes were not used
+	Refused    string            `json:"refused"`
 }
 
 func (b *builder) libraryImport(e *Entry, d *dlRow) error {
@@ -663,14 +664,26 @@ func (b *builder) libraryImport(e *Entry, d *dlRow) error {
 			linked = append(linked, l.Path)
 		}
 	}
-	files := ""
-	if len(linked) > 1 {
+	// An unmatched file that maps to an episode outside the download's (library.resolver: "out of scope: …") was
+	// left out on purpose; only the others matched no episode.
+	other := 0
+	for _, rel := range p.Unmatched {
+		if strings.HasPrefix(p.Unresolved[rel], "out of scope") {
+			other++
+		}
+	}
+	files, left := "", ""
+	switch {
+	case other > 0:
+		files = fmt.Sprintf("%d linked", len(linked))
+		left = fmt.Sprintf("%d for other episodes, left out", other)
+	case len(linked) > 1:
 		files = fmt.Sprintf("%d files", len(linked))
 	}
 	e.Paths = linked
 	unmatched := ""
-	if len(p.Unmatched) > 0 {
-		unmatched = fmt.Sprintf("%d files matched no episode", len(p.Unmatched))
+	if n := len(p.Unmatched) - other; n > 0 {
+		unmatched = fmt.Sprintf("%d files matched no episode", n)
 	}
 	head := "Imported " + e.Release.Title
 	if state != "linked" {
@@ -680,7 +693,7 @@ func (b *builder) libraryImport(e *Entry, d *dlRow) error {
 			why = ""
 		}
 	}
-	e.Summary = join(head, files, why, unmatched)
+	e.Summary = join(head, files, left, why, unmatched)
 	return nil
 }
 

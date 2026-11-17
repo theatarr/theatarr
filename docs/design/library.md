@@ -639,7 +639,8 @@ takes a corrected episode first, and the other files still import as usual (`Tes
    authoritative even when it cannot be used: the arr's mapping error (several episodes match: `ambiguous`),
    episodes outside the download's (`out of scope`: a scene or franchise mapping that lands elsewhere) and episodes
    another file of the release took (`conflict`) leave the file unmatched, with the reason in the plan's
-   `unresolved`; it is not read by its canonical numbers. Example: with XEM swapping canonical E01 and E02, a
+   `unresolved`; it is not read by its canonical numbers. The journal's import line counts the out-of-scope ones
+   apart ("2 linked · 18 for other episodes, left out"); "N files matched no episode" counts the other unmatched files. Example: with XEM swapping canonical E01 and E02, a
    download for E01 does not link the file named S01E01 (canonical E02) as E01 (`TestResolverAnswerIsNotOverridden`). A
    manual choice (step 1) still decides such a file.
    In particular, an automatic multi-episode file overlapping an episode an earlier accepted file claimed is left
