@@ -99,7 +99,7 @@ function LibraryRow({ v, checked, disabled, onChange, note, admin, syncedWith }:
           <span className="text-sm font-medium text-[var(--ink)] [overflow-wrap:anywhere]" title={admin ? v.key : undefined}>{v.label || nameOf(v.key)}</span>
         </label>
         {fetchesWords(v) ? <p className="text-xs text-[var(--ink-2)]" title={admin && v.profile ? `Profile key ${v.profile}` : undefined} data-testid="add-fetches">{fetchesWords(v)}</p> : null}
-        {syncedWith ? <p className="text-xs text-[var(--ink-3)]" data-testid="add-synced-with">in sync with {syncedWith}</p> : note ? <p className="text-xs text-[var(--ink-3)]">{note}</p> : null}
+        {syncedWith ? <p className="text-xs text-[var(--ink-3)]" data-testid="add-synced-with">in sync with {syncedWith}{v.removed ? "; it was removed and comes back" : ""}</p> : note ? <p className="text-xs text-[var(--ink-3)]">{note}</p> : null}
         <div id={`${id}-state`}><VersionStatus state={v.grab_state} settingsKey={v.key} canManage={admin} quiet /></div>
       </div>
     </div>

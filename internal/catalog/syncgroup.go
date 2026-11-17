@@ -25,8 +25,8 @@ type SyncGain struct {
 }
 
 // SyncGains are the titles that hold a copy (not removed) in a library of group and would gain copies in its other
-// libraries by SyncPartners, as if the source copy were added now: a removed or existing unmonitored copy is left as
-// it is, and a library that does not fit the title is left out. Sorted by name.
+// libraries by SyncPartners, as if the source copy were added now without restore: a removed or existing unmonitored
+// copy is left as it is, and a library that does not fit the title is left out. Sorted by name.
 func SyncGains(ctx context.Context, q RowsQuerier, pol *policy.Policy, group []string) ([]SyncGain, error) {
 	if len(group) < 2 {
 		return nil, nil
@@ -84,7 +84,7 @@ func SyncGains(ctx context.Context, q RowsQuerier, pol *policy.Policy, group []s
 		}
 		// The rule of an add, as if the title gained its source copy now.
 		delete(t.held, src)
-		if t.gain.Keys = SyncPartners(pol, t.gain.Kind, t.anime, t.held, []string{src}); len(t.gain.Keys) > 0 {
+		if t.gain.Keys = SyncPartners(pol, t.gain.Kind, t.anime, t.held, []string{src}, false); len(t.gain.Keys) > 0 {
 			t.gain.Source, t.gain.SourceID, t.gain.Monitored = src, t.ids[src], t.monitored[src]
 			out = append(out, t.gain)
 		}

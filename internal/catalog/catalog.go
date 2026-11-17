@@ -143,7 +143,10 @@ func Add(ctx context.Context, tx *sql.Tx, in Input, now time.Time, log *slog.Log
 			return nil, err
 		}
 	}
-	if res.New, res.Synced, err = TurnOnSynced(ctx, tx, in.Policy, titleID, keys, in.Monitored, now); err != nil {
+	// A person's add fills the whole group, restoring a removed partner copy; import lists and collections never
+	// restore one.
+	restore := in.AddMethod != "list" && in.AddMethod != "collection"
+	if res.New, res.Synced, err = TurnOnSynced(ctx, tx, in.Policy, titleID, keys, in.Monitored, restore, now); err != nil {
 		return nil, err
 	}
 	if in.Kind == policy.KindSeries && len(in.Seasons) == 0 && in.Monitor == "" {
@@ -336,10 +339,10 @@ func TurnOn(ctx context.Context, tx *sql.Tx, titleID int64, keys []string, monit
 
 // TurnOnSynced is TurnOn for every route that gives a title a copy, plus the sync groups (policy library.sync_groups,
 // docs/design/ui.md "Keep in sync"): the partners SyncPartners answers for the title's copies before this call are
-// created with the same monitored flag. created are the named keys' new rows (as TurnOn returns them); partners the
-// rows created for the groups. A nil policy, or one without groups, is TurnOn.
-func TurnOnSynced(ctx context.Context, tx *sql.Tx, pol *policy.Policy, titleID int64, keys []string, monitored bool,
-	now time.Time) (created, partners []string, err error) {
+// created (or, with restore, restored) with the same monitored flag. created are the named keys' new rows (as TurnOn
+// returns them); partners the rows created or restored for the groups. A nil policy, or one without groups, is TurnOn.
+func TurnOnSynced(ctx context.Context, tx *sql.Tx, pol *policy.Policy, titleID int64, keys []string, monitored,
+	restore bool, now time.Time) (created, partners []string, err error) {
 	if slices.ContainsFunc(keys, func(k string) bool { return pol.SyncGroup(k) != nil }) {
 		held, err := LoadCopies(ctx, tx, titleID)
 		if err != nil {
@@ -349,7 +352,7 @@ func TurnOnSynced(ctx context.Context, tx *sql.Tx, pol *policy.Policy, titleID i
 		if err != nil {
 			return nil, nil, err
 		}
-		partners = SyncPartners(pol, kind, anime, held, keys)
+		partners = SyncPartners(pol, kind, anime, held, keys, restore)
 	}
 	if created, err = TurnOn(ctx, tx, titleID, keys, monitored, now); err != nil || len(partners) == 0 {
 		return created, nil, err
@@ -360,10 +363,10 @@ func TurnOnSynced(ctx context.Context, tx *sql.Tx, pol *policy.Policy, titleID i
 	return created, partners, nil
 }
 
-// PartnerSeasonIntent gives the partners just created in sync with keys (TurnOnSynced) the season and episode choices
-// of the first named copy that was there before (not in created) and has some stored, as Bring in sync does
-// (CopySeasonIntent with fill). For a turn-on that names no seasons; a partner beside a brand-new copy is left as it
-// is, and nothing is copied onto a copy that already existed.
+// PartnerSeasonIntent gives the partners just created or restored in sync with keys (TurnOnSynced) the season and
+// episode choices of the first named copy that was there before (not in created) and has some stored, as Bring in
+// sync does (CopySeasonIntent with fill). For a turn-on that names no seasons; a partner beside a brand-new copy is
+// left as it is, and nothing is copied onto a partner copy that stays as it was.
 func PartnerSeasonIntent(ctx context.Context, tx *sql.Tx, titleID int64, keys, created, partners []string,
 	now time.Time) error {
 	if len(partners) == 0 {
@@ -433,9 +436,10 @@ func TitleFit(ctx context.Context, q Querier, titleID int64) (kind policy.Kind, 
 // (policy library.sync_groups, docs/design/ui.md "Keep in sync") when a title of this kind and anime rule, holding
 // held (nil or empty: a title not in the catalogue), gains copies in keys: a named key that gains a copy (none yet, or
 // a removed one restored) brings each other library of its group that fits the title, is not named itself and of
-// which the title has no copy in any state. A removed or unmonitored partner copy is left as it is; monitoring an
+// which the title has no copy, or (restore: a person's add) only a removed one. An unmonitored partner copy is left
+// as it is, and so is a removed one without restore (import lists, collections, Bring in sync); monitoring an
 // existing copy again brings nothing. Sorted; nil when none. This is the one place of the rule.
-func SyncPartners(pol *policy.Policy, kind policy.Kind, anime bool, held Copies, keys []string) []string {
+func SyncPartners(pol *policy.Policy, kind policy.Kind, anime bool, held Copies, keys []string, restore bool) []string {
 	var partners []string
 	for _, k := range keys {
 		g := pol.SyncGroup(k)
@@ -443,7 +447,8 @@ func SyncPartners(pol *policy.Policy, kind policy.Kind, anime bool, held Copies,
 			continue
 		}
 		for _, p := range g {
-			if _, has := held[p]; !has && !slices.Contains(keys, p) && !slices.Contains(partners, p) &&
+			if removed, has := held[p]; (!has || restore && removed) && !slices.Contains(keys, p) &&
+				!slices.Contains(partners, p) &&
 				Fits(pol.Versions[p], kind, anime) {
 				partners = append(partners, p)
 			}

@@ -601,7 +601,7 @@ func (s *MovieIntake) addMissingVersions(ctx context.Context, titleID int64, ani
 		if len(added) == 0 {
 			return nil
 		}
-		_, synced, err := TurnOnSynced(ctx, tx, s.syncPolicy(cfg), titleID, added, cfg.monitored, now)
+		_, synced, err := TurnOnSynced(ctx, tx, s.syncPolicy(cfg), titleID, added, cfg.monitored, false, now)
 		if err != nil {
 			return err
 		}

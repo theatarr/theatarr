@@ -1765,9 +1765,54 @@ func TestSyncGroupsCompatibleReaddSeriesType(t *testing.T) {
 	}
 }
 
+// A person's add fills the whole group: The Show with both copies removed, added again to tv-2160p by the add sheet
+// and by the compatible API, gets its tv-1080p copy back, monitored, as the add options showed.
+func TestSyncGroupsRestoreRemovedPartner(t *testing.T) {
+	t.Parallel()
+	e := newAddEnv(t, func(p *policy.Policy) {
+		tv := *p.Versions["tv-2160p"]
+		tv.Library = "/media/tv-1080p"
+		p.Versions["tv-1080p"] = &tv
+		p.Library.SyncGroups = [][]string{{"tv-2160p", "tv-1080p"}}
+	})
+	e.exec(`INSERT INTO version (id, title_id, policy_key, monitored, state, created_at, updated_at) VALUES
+		(11, 10, 'tv-1080p', 1, 'wanted', 0, 0)`)
+	removeAll := func() {
+		e.exec(`UPDATE version SET monitored = 0 WHERE title_id = 10`)
+		e.exec(`INSERT INTO arrview_removed_version (version_id, view, removed_at) VALUES (10, 'ui', 0), (11, 'ui', 0)`)
+	}
+	live := func() int {
+		return e.count(`SELECT COUNT(*) FROM version v WHERE v.title_id = 10 AND v.monitored = 1 AND NOT EXISTS
+			(SELECT 1 FROM arrview_removed_version r WHERE r.version_id = v.id)`)
+	}
+	removeAll()
+	var o AddOptions
+	e.call("GET", APIBase+"/add/options?title_id=10", nil, 200, &o)
+	for _, v := range o.Versions {
+		if v.Key == "tv-2160p" && !slices.Equal(v.Synced, []string{"tv-1080p"}) {
+			t.Errorf("options: tv-2160p synced %v", v.Synced)
+		}
+	}
+	var res AddResult
+	e.call("POST", APIBase+"/titles", map[string]any{"title_id": 10, "versions": []string{"tv-2160p"}}, 201, &res)
+	if !slices.Equal(res.Synced, []string{"tv-1080p"}) || live() != 2 {
+		t.Errorf("add sheet: synced %v, %d live copies, want 2", res.Synced, live())
+	}
+	// The restored copy takes the named copy's episode choices (the add named no seasons).
+	if n := e.count(`SELECT COUNT(*) FROM episode_version_state WHERE version_id = 11 AND monitored = 1`); n != 3 {
+		t.Errorf("restored tv-1080p monitors %d episodes, want 3", n)
+	}
+	removeAll()
+	e.call("POST", "/v/tv-2160p/sonarr/api/v3/series", map[string]any{"title": "The Show", "tvdbId": 201,
+		"monitored": true}, 201, nil)
+	if n := live(); n != 2 {
+		t.Errorf("compatible add: %d live copies, want 2", n)
+	}
+}
+
 // One answer to "which libraries in sync would gain a copy" (catalog.SyncPartners) serves the add options, the title
-// page's library switch and a request's stored libraries: a partner the title has a copy of, removed or not, is
-// never listed, and a request stores the partners next to the libraries it asks for.
+// page's library switch and a request's stored libraries: a partner the title has a live copy of is never listed, a
+// removed one is (a person's add restores it), and a request stores the partners next to the libraries it asks for.
 func TestSyncGroupsAnswers(t *testing.T) {
 	t.Parallel()
 	e := newAddEnv(t, func(p *policy.Policy) {
@@ -1790,18 +1835,26 @@ func TestSyncGroupsAnswers(t *testing.T) {
 	if got := fmt.Sprint(synced(o)); got != "map[movie-hd:[movie-web] movie-web:[movie-hd]]" {
 		t.Errorf("new title: %s", got)
 	}
-	// Alpha (title 1, movie-remux) with a removed movie-hd copy: ticking movie-web brings nothing.
+	// Alpha (title 1, movie-remux) with a removed movie-hd copy: ticking movie-web brings it back, shown as synced
+	// and removed, and the switch restores exactly that.
 	e.exec(`INSERT INTO version (id, title_id, policy_key, monitored, state, created_at, updated_at) VALUES
 		(2, 1, 'movie-hd', 0, 'wanted', 0, 0)`)
 	e.exec(`INSERT INTO arrview_removed_version (version_id, view, removed_at) VALUES (2, 'ui', 0)`)
 	o = AddOptions{}
 	e.call("GET", APIBase+"/add/options?title_id=1", nil, 200, &o)
-	if got := fmt.Sprint(synced(o)); got != "map[movie-hd:[movie-web]]" {
+	if got := fmt.Sprint(synced(o)); got != "map[movie-hd:[movie-web] movie-web:[movie-hd]]" {
 		t.Errorf("removed partner: %s", got)
+	}
+	for _, v := range o.Versions {
+		if v.Removed != (v.Key == "movie-hd") {
+			t.Errorf("%s: removed %v", v.Key, v.Removed)
+		}
 	}
 	var vs VersionSet
 	e.call("PUT", APIBase+"/titles/1/versions/movie-web", map[string]any{"monitored": true}, 200, &vs)
-	if vs.ID != 1 || len(vs.Synced) != 0 {
+	if vs.ID != 1 || !slices.Equal(vs.Synced, []string{"movie-hd"}) ||
+		e.count(`SELECT COUNT(*) FROM version WHERE id = 2 AND monitored = 1 AND NOT EXISTS (SELECT 1 FROM
+			arrview_removed_version r WHERE r.version_id = 2)`) != 1 {
 		t.Errorf("switch with a removed partner: %+v", vs)
 	}
 	e.exec(`DELETE FROM version WHERE title_id = 1 AND policy_key IN ('movie-web', 'movie-hd')`)
@@ -1840,7 +1893,7 @@ func TestSyncGroupsAnswers(t *testing.T) {
 }
 
 // A request for a series the catalogue has by TVDB id only looks it up as its approval will: its removed copy in a
-// library in sync is not stored as a partner, and the approval leaves it removed. A series whose stored type is anime
+// library in sync is stored as a partner, and the approval restores it. A series whose stored type is anime
 // offers the anime library's partner in the add options.
 func TestSyncGroupsSeriesByTVDB(t *testing.T) {
 	t.Parallel()
@@ -1865,13 +1918,15 @@ func TestSyncGroupsSeriesByTVDB(t *testing.T) {
 	}
 	var cr CreateResult
 	e.callAs(ann, "POST", APIBase+"/requests", map[string]any{"kind": "series", "tvdb_id": 940, "name": "Omega"}, 201, &cr)
-	if got := keysOf(cr.Request); !slices.Equal(got, hd) {
+	// The removed tv-2160p copy is a partner of the request, and the approval restores it, monitored.
+	if got := keysOf(cr.Request); !slices.Equal(got, []string{"tv-1080p", "tv-2160p"}) {
 		t.Errorf("request: %v", got)
 	}
 	var ap ApproveResult
 	e.call("POST", fmt.Sprintf("%s/requests/%d/approve", APIBase, cr.Request.ID), map[string]any{}, 200, &ap)
-	if n := e.count(`SELECT COUNT(*) FROM arrview_removed_version WHERE version_id = 40`); n != 1 {
-		t.Error("approval restored the removed tv-2160p copy")
+	if n := e.count(`SELECT COUNT(*) FROM version v WHERE v.id = 40 AND v.monitored = 1 AND NOT EXISTS (SELECT 1
+		FROM arrview_removed_version r WHERE r.version_id = 40)`); n != 1 {
+		t.Error("approval left the removed tv-2160p copy removed")
 	}
 	// The Show (10) with a stored anime type: ticking anime-tv brings anime-tv-2.
 	e.exec(`UPDATE title SET series_type = 'anime' WHERE id = 10`)

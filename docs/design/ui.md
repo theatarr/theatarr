@@ -1011,9 +1011,13 @@ value, so a save that does not touch them stores the library unchanged; a librar
 
 **Keep in sync.** The library editor's "Keep in sync" ticks the other libraries this one is kept in sync with: a
 title that gains a copy in one library of a group gains one in each other library of the group that fits it, unless
-the title has a copy there already in any state (one removed from the library stays removed, an unmonitored one stays
-unmonitored); only an add that names that library itself restores a removed copy. Monitoring an existing copy again
-brings nothing. The new copy takes the add's monitored flag and, for a series, its seasons, preset and monitor-new
+the title has a copy there already: an unmonitored one stays unmonitored, and a removed one comes back (restored and
+monitored like the named copy: owner, 2026-11-17, "if they are supposed to be in sync then they should stay in
+sync"). The one exception is collections and import lists (`catalog.Input.AddMethod` list or collection) and the
+intake's missing-library fill, which never restore a removed copy, and Bring in sync, which leaves removed copies
+removed; every add a person makes (the add sheet, the library switch and bulk add, requests and their approval, the
+compatible API) restores it (`restore` on `catalog.SyncPartners` and `TurnOnSynced`). Monitoring an existing copy
+again brings nothing. The new copy takes the add's monitored flag and, for a series, its seasons, preset and monitor-new
 choice; when the add names no seasons (the library switch, bulk add, an add or restore without season choices) and
 the named copy was there before with season or episode choices of its own, the new copy takes those, as Bring in sync
 does (`catalog.PartnerSeasonIntent`: `CopySeasonIntent` with the episode rows filled in), so it does not monitor every
@@ -1038,11 +1042,12 @@ add will use: the stored flag and series type for a title with a live copy, else
 the add writes first), `PUT
 titles/{id}/versions/{key}` returns the keys it added as `synced` (as `POST titles` does), and a request stores it
 (users.md). The add sheet and "Add libraries" show a partner of a ticked library ticked and disabled, "in sync with
-<library>", and send only what was ticked (the server adds the partners); a partner that would not gain a copy
-(removed, or held unmonitored) stays an ordinary box, and unticking the named library frees it. The request sheet's
+<library>" (a partner whose copy was removed, `removed` on its option: "in sync with <library>; it was removed and
+comes back"), and send only what was ticked (the server adds the partners); a partner that would not gain a copy
+(held, monitored or not) stays an ordinary box, and unticking the named library frees it. The request sheet's
 "You are asking for" lists the partners the request stores beside the asked-for libraries, each "in sync with
 <library>". Bulk add says once, whenever the chosen library is in a saved group (add options carry `sync_groups`),
-"Also added to <partners> where a title has no copy there." and promises only that files stay, and its toast counts the copies added in sync; the title
+"Also added to <partners> where a title has no copy there or was removed from it." and promises only that files stay, and its toast counts the copies added in sync; the title
 page's library switch toasts "Also added to <libraries> (in sync)". Collections, import lists and Settings › Connected
 apps say under a chosen or shown library that is in a group "Titles added to <library> are also added to <partners>
 (in sync)." naming the partners not chosen there too (their pages carry `sync_groups`).

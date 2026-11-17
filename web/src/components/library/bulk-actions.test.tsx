@@ -289,10 +289,10 @@ describe("Bulk Add to a library kept in sync", () => {
     const user = userEvent.setup();
     await user.click(await within(await bar()).findByRole("button", { name: "Add to a library" }));
     let dialog = await screen.findByRole("dialog", { name: "Add 1 title to HD" });
-    expect(within(dialog).getByTestId("bulk-add-synced").textContent).toBe("Also added to 4K where a title has no copy there.");
+    expect(within(dialog).getByTestId("bulk-add-synced").textContent).toBe("Also added to 4K where a title has no copy there or was removed from it.");
     await user.selectOptions(within(dialog).getByRole("combobox", { name: "Library" }), "uhd");
     dialog = await screen.findByRole("dialog", { name: "Add 3 titles to 4K" });
-    expect(within(dialog).getByTestId("bulk-add-synced").textContent).toBe("Also added to HD where a title has no copy there.");
+    expect(within(dialog).getByTestId("bulk-add-synced").textContent).toBe("Also added to HD where a title has no copy there or was removed from it.");
     const keeps = within(dialog).getByTestId("confirm-keeps").textContent;
     expect(keeps).toContain("Their files");
     expect(keeps).not.toContain("other libraries");

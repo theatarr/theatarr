@@ -268,8 +268,8 @@ func copies(t *testing.T, st *store.Store, titleID int64) string {
 }
 
 // The sync groups' rule, one route at a time through catalog.Add and TurnOnSynced: a library in sync gets a copy
-// only when the add did not name it and the title has no copy of it in any state, and only when the named copy is
-// new or restored.
+// only when the add did not name it and the title has no copy of it, or a person's add finds it removed (restored),
+// and only when the named copy is new or restored.
 func TestSyncGroupsAdd(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -311,11 +311,23 @@ func TestSyncGroupsAdd(t *testing.T) {
 	if got := copies(t, st, r.TitleID); got != "movie-hd:off movie-remux:off movie-web:off" {
 		t.Errorf("unmonitored add: %s", got)
 	}
-	// A removed copy in a partner stays removed; the third library gets one.
+	// A person's add restores a removed copy in a partner; the third library gets one.
 	held(2001, "movie", "movie-web!")
 	r = add(t, st, Input{Kind: policy.KindMovie, TitleID: 2001, Monitored: true, Versions: fixed("movie-remux"), Policy: pol})
-	if got := copies(t, st, 2001); got != "movie-hd:on movie-remux:on movie-web:off:removed" || !slices.Equal(r.Synced, []string{"movie-hd"}) {
+	if got := copies(t, st, 2001); got != "movie-hd:on movie-remux:on movie-web:on" ||
+		!slices.Equal(r.Synced, []string{"movie-hd", "movie-web"}) {
 		t.Errorf("removed partner: %s %+v", got, r)
+	}
+	// An import list's or a collection's add leaves it removed.
+	for i, method := range []string{"list", "collection"} {
+		id := int64(2006 + i)
+		held(id, "movie", "movie-web!")
+		r = add(t, st, Input{Kind: policy.KindMovie, TitleID: id, Monitored: true, Versions: fixed("movie-remux"),
+			Policy: pol, AddMethod: method})
+		if got := copies(t, st, id); got != "movie-hd:on movie-remux:on movie-web:off:removed" ||
+			!slices.Equal(r.Synced, []string{"movie-hd"}) {
+			t.Errorf("%s with a removed partner: %s %+v", method, got, r)
+		}
 	}
 	// An unmonitored copy in a partner stays unmonitored.
 	held(2002, "movie", "movie-web-")
@@ -345,7 +357,7 @@ func TestSyncGroupsAdd(t *testing.T) {
 	}
 	execAll(t, st, `UPDATE version SET monitored = 0 WHERE title_id = 2005`)
 	if err := st.WriteTx(ctx, func(tx *sql.Tx) error {
-		_, partners, err := TurnOnSynced(ctx, tx, pol, 2005, []string{"movie-remux"}, true, now)
+		_, partners, err := TurnOnSynced(ctx, tx, pol, 2005, []string{"movie-remux"}, true, true, now)
 		if len(partners) != 0 {
 			t.Errorf("TurnOnSynced on an existing copy: %v", partners)
 		}

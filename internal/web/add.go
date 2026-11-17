@@ -119,8 +119,11 @@ type VersionOption struct {
 	Searchable bool   `json:"searchable"`
 	Reason     string `json:"reason,omitempty"`
 	// Synced: the libraries that would gain a copy too if the add ticks this one, because they are in sync with it
-	// (catalog.SyncPartners: removed and existing copies are left out); absent when none.
+	// (catalog.SyncPartners: a removed copy comes back, an existing one is left out); absent when none.
 	Synced []string `json:"synced,omitempty"`
+	// Removed: the title's copy in this library was removed (shown where the library is kept in sync, to say a
+	// partner comes back).
+	Removed bool `json:"removed,omitempty"`
 }
 
 // SeasonOption is a season of a series in the add sheet.
@@ -334,7 +337,8 @@ func (w *Web) apiAddOptions(rw http.ResponseWriter, r *http.Request) {
 			out.CanSearch = true
 		}
 		if grouped {
-			o.Synced = catalog.SyncPartners(w.pol, kind, fitAnime, copies, []string{k})
+			o.Synced = catalog.SyncPartners(w.pol, kind, fitAnime, copies, []string{k}, true)
+			o.Removed = copies[k]
 		}
 		out.Versions = append(out.Versions, o)
 	}
@@ -992,7 +996,7 @@ func (w *Web) apiSetVersion(rw http.ResponseWriter, r *http.Request) {
 		if *req.Monitored {
 			var created []string
 			var err error
-			created, synced, err = catalog.TurnOnSynced(ctx, tx, w.pol, id, []string{key}, true, now)
+			created, synced, err = catalog.TurnOnSynced(ctx, tx, w.pol, id, []string{key}, true, true, now)
 			if err != nil {
 				return err
 			}

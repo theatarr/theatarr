@@ -450,3 +450,20 @@ it("shows a library kept in sync with a ticked one ticked and disabled, and send
   expect(box("movie-a").checked || box("movie-b").checked || box("movie-b").disabled).toBe(false);
   expect(screen.queryByTestId("add-synced-with")).toBeNull();
 });
+
+it("says a removed copy in a library kept in sync comes back", async () => {
+  const versions = [
+    { key: "movie-a", label: "A", grab_state: { ...gates, will_grab: true }, synced: ["movie-b"] },
+    { key: "movie-b", label: "B", grab_state: { ...gates, will_grab: true }, synced: ["movie-a"], removed: true },
+  ].map((v) => ({ ...v, kind: "movie", enable: "", fits: true, default: true, on: false, searchable: true }));
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["admin", "add"] } },
+    { method: "GET", path: "/add/options", reply: { ...options, versions } },
+  ]);
+  const user = userEvent.setup();
+  renderPage(<AddSheet target={{ kind: "movie", name: "Alpha", year: 2024, tmdb_id: 7 }} onClose={() => {}} />);
+  await screen.findByTestId("add-versions");
+  await user.click(within(screen.getByTestId("add-version-movie-b")).getByRole("checkbox"));
+  expect(within(screen.getByTestId("add-version-movie-b")).getByTestId("add-synced-with").textContent)
+    .toBe("in sync with A; it was removed and comes back");
+});

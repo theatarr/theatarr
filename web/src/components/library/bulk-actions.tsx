@@ -268,7 +268,7 @@ export function BulkAddDialog({ titles, kinds, anime, onClose, onDone }: { title
       testid="bulk-add"
       top={select}
     >
-      {partners.length > 0 ? <p className="text-xs text-[var(--ink-3)]" data-testid="bulk-add-synced">Also added to {namesList(partners)} where a title has no copy there.</p> : null}
+      {partners.length > 0 ? <p className="text-xs text-[var(--ink-3)]" data-testid="bulk-add-synced">Also added to {namesList(partners)} where a title has no copy there or was removed from it.</p> : null}
       {progress !== null ? <p role="status" className="text-[var(--ink-2)]" data-testid="bulk-progress">Adding {progress + 1} of {n}…</p> : null}
     </ConfirmDialog>
   );

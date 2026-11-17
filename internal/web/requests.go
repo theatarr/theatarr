@@ -778,7 +778,7 @@ func (w *Web) apiCreateRequest(rw http.ResponseWriter, r *http.Request) {
 				fitAnime = ts.anime || ts.animeTyp
 			}
 		}
-		if synced := catalog.SyncPartners(w.pol, kind, fitAnime, copies, keys); len(synced) > 0 {
+		if synced := catalog.SyncPartners(w.pol, kind, fitAnime, copies, keys, true); len(synced) > 0 {
 			keys = append(keys, synced...)
 			slices.Sort(keys)
 		}
