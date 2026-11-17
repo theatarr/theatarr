@@ -178,8 +178,8 @@ func (w *Web) titleFacets(ctx context.Context, f TitleFilter, seeFiles bool) (Ti
 	for _, k := range sortedKeys(keys) {
 		vf := *keys[k]
 		vf.Lacks = out.Total - vf.WithFile
-		if kind := w.libraryKind(k); kind != "" {
-			vf.Lacks = byKind[kind] - vf.WithFile
+		if vf.Kind != "" {
+			vf.Lacks = byKind[vf.Kind] - vf.WithFile
 		}
 		if !seeFiles {
 			// Per-library file counts are file detail (docs/design/users.md): the facet keeps its titles only.
