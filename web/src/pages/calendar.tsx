@@ -90,19 +90,21 @@ const TONE_RANK: Record<string, number> = { bad: 0, progress: 1, neutral: 2, idl
 
 /** A slot's tone: its one entry's, or for a series' episodes of the day (foldEpisodes) the one most in need of a look. */
 function slotTone(slot: Entry[], now: Date, plain: boolean) {
-  return slot.map((x) => calendarTone(x, now, plain)).reduce((a, b) => (TONE_RANK[b.tone] < TONE_RANK[a.tone] ? b : a));
+  return pickTone(slot.map((x) => calendarTone(x, now, plain)));
 }
+const pickTone = <T extends { tone: string }>(tones: T[]) => tones.reduce((a, b) => (TONE_RANK[b.tone] < TONE_RANK[a.tone] ? b : a));
 
 /** One slot of the month grid: an entry, or a series' episodes of one season on that day ("S02E01–E03", linked to the
  * first). A group shows a time only when every episode shares it; its tooltip lists each episode with its own time
  * and status. The day's list keeps every episode with its own link. */
 function EventChip({ slot, plain, now }: { slot: Entry[]; plain: boolean; now: Date }) {
   const e = slot[0];
-  const s = slotTone(slot, now, plain);
-  const times = new Set(slot.map(airTime));
-  const time = times.size === 1 ? airTime(e) : null;
+  const tones = slot.map((x) => calendarTone(x, now, plain));
+  const s = pickTone(tones);
+  const times = slot.map(airTime);
+  const time = times.every((t) => t === times[0]) ? times[0] : null;
   const title = slot.length < 2 ? tooltip(e, s.label)
-    : [titleWithYear(e.title.name, e.title.year), ...slot.map((x) => [episodeCode(x.season, x.number), x.episode, airTime(x), calendarTone(x, now, plain).label].filter(Boolean).join(" · "))].join("\n");
+    : [titleWithYear(e.title.name, e.title.year), ...slot.map((x, i) => [episodeCode(x.season, x.number), x.episode, times[i], tones[i].label].filter(Boolean).join(" · "))].join("\n");
   return (
     <Link
       to={calendarHref(e)}

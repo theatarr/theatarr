@@ -53,6 +53,8 @@ describe("filters", () => {
     expect(filterTorrents(r, "", "", "dragon 155").map((x) => x.id)).toEqual(["9"]);
     expect(filterTorrents(r, "", "", "dragon 12").map((x) => x.id)).toEqual(["9"]);
     expect(filterTorrents(r, "", "", "dragon 999").map((x) => x.id)).toEqual([]);
+    // The range as the row shows it finds it too.
+    expect(filterTorrents(r, "", "", "14–291").map((x) => x.id)).toEqual(["9"]);
   });
   it("sorts by size, age and name", () => {
     expect(sortTorrents([A, B, C], "size").map((x) => x.id)).toEqual(["2", "1", "3"]);

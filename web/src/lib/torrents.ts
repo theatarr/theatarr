@@ -72,7 +72,15 @@ export function spelledOut(parsed: string | undefined): string | undefined {
   });
 }
 
-/** The torrents of one provider ("" for every one) in a group, matching text (name, hash or parsed title). */
+/** Each torrent's expanded episode text (spelledOut), made once per torrent of a report, not on every filter edit. */
+const spelled = new WeakMap<Torrent, string | undefined>();
+const spelledOf = (t: Torrent) => {
+  if (!spelled.has(t)) spelled.set(t, t.parsed && /\d–\d/.test(t.parsed) ? spelledOut(t.parsed) : undefined);
+  return spelled.get(t);
+};
+
+/** The torrents of one provider ("" for every one) in a group, matching text (name, hash, the parsed title as shown,
+ * or its ranges written out). */
 export function filterTorrents(r: TorrentReport, provider: string, group: GroupID, text: string): Torrent[] {
   const keys = groupKeys(r, group);
   const q = text.trim().toLowerCase();
@@ -82,7 +90,7 @@ export function filterTorrents(r: TorrentReport, provider: string, group: GroupI
     if (provider && p.provider !== provider) continue;
     for (const t of p.torrents) {
       if (keys && !keys.has(keyOf(t))) continue;
-      if (q && !match(t.name, spelledOut(t.parsed)) && !t.hash.startsWith(q)) continue;
+      if (q && !match(t.name, t.parsed, spelledOf(t)) && !t.hash.startsWith(q)) continue;
       out.push(t);
     }
   }

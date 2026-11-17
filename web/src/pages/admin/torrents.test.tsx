@@ -148,6 +148,12 @@ describe("torrents page", () => {
     expect(screen.queryByText(/1-2-3/)).toBeNull();
     fireEvent.click(screen.getByLabelText("Select all shown"));
     expect((screen.getByLabelText("Select [SoM] Dragon Ball Z 001-291") as HTMLInputElement).checked).toBe(true);
+    fireEvent.click(screen.getByLabelText("Select all shown"));
+    // The range as the row shows it finds the pack as well, and Select all shown takes it.
+    fireEvent.change(screen.getByRole("textbox", { name: "Filter torrents" }), { target: { value: "1–291" } });
+    await waitFor(() => expect(screen.getAllByTestId("torrent-row")).toHaveLength(1));
+    fireEvent.click(screen.getByLabelText("Select all shown"));
+    expect((screen.getByLabelText("Select [SoM] Dragon Ball Z 001-291") as HTMLInputElement).checked).toBe(true);
   });
 
   it("lists the first five references of a used torrent and how many more", async () => {
