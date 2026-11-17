@@ -1597,6 +1597,9 @@ func TestLacksSameKind(t *testing.T) {
 		out := map[string]int{}
 		for _, v := range f.Versions {
 			out[v.Key] = v.Lacks
+			if want := map[string]string{"anime-movie": "movie", "movie-web": "movie", "movie-remux": "movie", "anime-tv": "series"}[v.Key]; want != "" && v.Kind != want {
+				t.Errorf("facet %s kind %q, want %q", v.Key, v.Kind, want)
+			}
 		}
 		return out
 	}

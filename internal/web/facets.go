@@ -24,6 +24,8 @@ type VersionFacet struct {
 	Key    string `json:"key"`
 	Label  string `json:"label"`
 	Titles int    `json:"titles"` // titles with this version
+	// Kind is the library's media kind (movie or series) from the settings; absent for a library no longer there.
+	Kind string `json:"kind,omitempty"`
 	// The file counts, for callers who see files (absent otherwise, and when zero).
 	WithFile int `json:"with_file,omitempty"` // ... that have a file for it
 	// Lacks is what the without= filter returns for the library: the grid's titles of the library's media kind
@@ -128,7 +130,7 @@ func (w *Web) titleFacets(ctx context.Context, f TitleFilter, seeFiles bool) (Ti
 			kinds[tid] = kind
 			vf := keys[key]
 			if vf == nil {
-				vf = &VersionFacet{Key: key, Label: w.versionLabel(key)}
+				vf = &VersionFacet{Key: key, Label: w.versionLabel(key), Kind: w.libraryKind(key)}
 				keys[key] = vf
 			}
 			vf.Titles++

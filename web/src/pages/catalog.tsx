@@ -276,13 +276,16 @@ export function Catalog({ id }: { id: CatalogId }) {
           <div role="radiogroup" aria-label="Kind" className="flex rounded-lg border border-[var(--line)] p-0.5" data-testid="anime-kind">
             {([[undefined, "All"], ["movie", "Movies"], ["series", "Series"]] as const).map(([k, label]) => (
               <button key={label} type="button" role="radio" aria-checked={kind === k} onClick={() =>
-                  // Series status is for series: switching to Movies drops it.
+                  // Series status is for series: switching to Movies drops it. Lacks counts titles of its library's
+                  // kind only: switching to the other kind drops it, or nothing could match.
                   setParams(
                     (p) => {
                       const n = new URLSearchParams(p);
                       if (k) n.set("kind", k);
                       else n.delete("kind");
                       if (k === "movie") n.delete("series_status");
+                      const lacks = facets.data?.versions?.find((v) => v.key === n.get("without"))?.kind;
+                      if (k && lacks && lacks !== k) n.delete("without");
                       return n;
                     },
                     { replace: true },

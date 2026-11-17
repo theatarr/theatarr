@@ -1,15 +1,15 @@
 {
  "/titles/facets?anime=true": {
-  "sha256": "d61c706f96ebd4ff491c962e5f5f6729de5a0b27623abb7cfe1d388ee8f58941"
+  "sha256": "70189a1157e29ab9abc8598448c488b3abe744e2de138a08347015413dd3123e"
  },
  "/titles/facets?kind=movie\u0026anime=false": {
-  "sha256": "0553447d8b667c08f5aa256e9cda870ec12e75ab5663fa91ab70d8c0880d24b9"
+  "sha256": "a41975870d1809d8e5ddcce80878261eb7c872ca75bbd37b65dd59a0214f568e"
  },
  "/titles/facets?kind=series": {
-  "sha256": "cc8d2a0dce9cf434487373e62c9e8c9f4741dbbe5734cc3bfeea17d75e87b0ff"
+  "sha256": "21c6b22fc76a6aaa814ef886f6c56d019c111a0602991285d54708363d4e15e5"
  },
  "/titles/facets?kind=series\u0026anime=false": {
-  "sha256": "9d6a96e6f95ca42903e1ea39b69751af74141f5a8c94b106cddf2c7392fb4aa8"
+  "sha256": "688f20358970c82845497c34076d2f91cabe2032ee622e75ffde28eb734c05e5"
  },
  "/titles?anime=true\u0026limit=20\u0026offset=20\u0026sort=completion": {
   "sha256": "19580928772ab84c2f776f1eb04141bb427e6908c3d91e4f10310a1d94d4971d"

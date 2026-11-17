@@ -601,6 +601,23 @@ describe("Toolbar and filters", () => {
     expect((await within(panel).findByRole("button", { name: /^Lacks/ })).textContent).toBe("Lacks 1");
   });
 
+  it("drops Lacks of a movie library when Anime switches to Series, in the same address update, and keeps it on Movies", async () => {
+    const versions = [{ key: "anime-movie", label: "Anime movies", kind: "movie", titles: 3, with_file: 2, lacks: 1 }];
+    const fetch = mockFetch(routes().map((r) => (r.path === "/titles/facets" ? { ...r, reply: { total: 40, versions } } : r)));
+    const user = userEvent.setup();
+    renderPage(<Catalog id="anime" />, "/anime?without=anime-movie");
+    await screen.findAllByText("The Pellbrook Inquiries");
+    await waitFor(() => expect(fetch.calls("GET", "/titles/facets").length).toBeGreaterThan(0));
+    const titles = () => fetch.requests.filter((r) => r.path === "/titles");
+    await user.click(screen.getByRole("radio", { name: "Movies" }));
+    await waitFor(() => expect(titles().at(-1)!.search).toContain("kind=movie"));
+    expect(titles().at(-1)!.search).toContain("without=anime-movie");
+    await user.click(screen.getByRole("radio", { name: "Series" }));
+    await waitFor(() => expect(titles().at(-1)!.search).toContain("kind=series"));
+    expect(titles().at(-1)!.search).not.toContain("without=");
+    expect(titles().some((r) => r.search.includes("kind=series") && r.search.includes("without="))).toBe(false);
+  });
+
   it("drops Has for a library when its Lacks is picked, in one address update, and keeps Has 4K with Lacks of another", async () => {
     const versions = [{ key: "tv-2160p", label: "4K", titles: 2, with_file: 2 }, { key: "tv-web", label: "1080p WEB", titles: 2, with_file: 1 }];
     const fetch = mockFetch(routes().map((r) => (r.path === "/titles/facets" ? { ...r, reply: { total: 2, versions } } : r)));
