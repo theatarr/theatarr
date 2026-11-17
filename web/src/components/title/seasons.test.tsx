@@ -253,12 +253,32 @@ describe("Acting on the libraries in view", () => {
     const header = await screen.findByTestId("season-header");
     const search = within(header).getByRole("button", { name: "Search season 1 now in every library" });
     expect((search as HTMLButtonElement).disabled).toBe(true);
-    expect(search.getAttribute("title")).toBe("No monitored episodes in this season");
+    // A disabled button takes no hover: the reason is on its wrapper.
+    expect(within(header).getByTestId("season-search-why-1").getAttribute("title")).toBe("No monitored episodes in this season");
     expect((within(within(header).getByTestId("season-interactive")).getByRole("button") as HTMLButtonElement).disabled).toBe(false);
     // Picked alone, the library that searches still monitors none of it.
     await user.click(screen.getByRole("radio", { name: "Anime WEB" }));
     expect((within(header).getByRole("button", { name: "Search season 1 now in Anime WEB" }) as HTMLButtonElement).disabled).toBe(true);
     expect(api.calls("POST", "/titles/1/seasons/1/search")).toHaveLength(0);
+  });
+
+  it("keeps a season's Search in a library that monitors none of it while another library that searches does (the server widens to it)", async () => {
+    const s = episodes.seasons[0];
+    const other = {
+      ...episodes,
+      versions: episodes.versions.map((v) => ({ ...v, control: managed })),
+      seasons: [{ ...s, versions: { ...s.versions, "anime-web": { ...s.versions["anime-web"], monitored: 0 } } }],
+    };
+    const api = mockFetch([routes[0], { method: "GET", path: "/titles/1/episodes", reply: other }, ...acting.slice(3)]);
+    const user = userEvent.setup();
+    renderPage(<Seasons id="1" anime />, "/title/1");
+    await user.click(await screen.findByRole("radio", { name: "Anime WEB" }));
+    const header = screen.getByTestId("season-header");
+    const search = within(header).getByRole("button", { name: "Search season 1 now in Anime WEB" }) as HTMLButtonElement;
+    expect(search.disabled).toBe(false);
+    await user.click(search);
+    await vi.waitFor(() => expect(api.calls("POST", "/titles/1/seasons/1/search")).toHaveLength(1));
+    expect(api.calls("POST", "/titles/1/seasons/1/search")[0].body).toEqual({ versions: ["anime-web"] });
   });
 
   it("sends a row's switch and Search for that episode in the library in view", async () => {

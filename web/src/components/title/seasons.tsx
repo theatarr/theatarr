@@ -73,7 +73,6 @@ import {
   plainAvailable,
   NO_MONITORED_SEASON,
   restrictions,
-  searchableMonitors,
   seasonBadge,
   seasonSummary,
   statusWords,
@@ -766,8 +765,11 @@ function SeasonBlock({
   const on = mon.some((n) => n > 0);
   const monitorWhat = `${on ? "Stop monitoring" : "Monitor"} ${name.toLowerCase()} in ${scope.name}`;
   const searchWhat = `Search ${name.toLowerCase()} now in ${scope.name}`;
-  // The automatic season search takes monitored episodes only: without one in a library that searches, it is off.
-  const searchable = scope.search && searchableMonitors(copies, (k) => (season.versions[k]?.monitored ?? 0) > 0);
+  // The automatic season search takes monitored episodes only. The library in view must allow a search (its gate),
+  // and the server widens a title's search to its other monitored libraries that search (acquire Submit), so the
+  // season counts as searchable when any library of the title that may search monitors an episode of it.
+  const searchable =
+    scope.search && list.versions.some((v) => v.monitored !== false && !!v.control?.can_search && (season.versions[v.key]?.monitored ?? 0) > 0);
   const searchTitle = !scope.search ? scope.searchWhy : searchable ? searchWhat : NO_MONITORED_SEASON;
   // Every library in view is not monitored: the switches show the episodes kept for when it is monitored again.
   const inactive = seeFiles && copies.length > 0 && off.size === copies.length;
@@ -807,18 +809,20 @@ function SeasonBlock({
         </span>
         <span className="ml-auto flex shrink-0 items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
           {act ? (
-            <Button
-              size="icon-sm"
-              variant="ghost"
-              className={PHONE_ICON}
-              aria-label={searchWhat}
-              title={searchTitle}
-              disabled={!searchable || actions.busy}
-              onClick={() => actions.search({ season: season.season })}
-              data-testid={`season-search-${season.season}`}
-            >
-              {actions.searching ? <Loader2 className="animate-spin" /> : <Search />}
-            </Button>
+            // A disabled button takes no pointer events: its reason is on the wrapper, which shows it on hover.
+            <span className="inline-flex" title={searchTitle} data-testid={`season-search-why-${season.season}`}>
+              <Button
+                size="icon-sm"
+                variant="ghost"
+                className={PHONE_ICON}
+                aria-label={searchWhat}
+                disabled={!searchable || actions.busy}
+                onClick={() => actions.search({ season: season.season })}
+                data-testid={`season-search-${season.season}`}
+              >
+                {actions.searching ? <Loader2 className="animate-spin" /> : <Search />}
+              </Button>
+            </span>
           ) : null}
           {live ? (
             // An icon: the label is hidden but stays the button's name (iconOnly would name it "… for this title").

@@ -607,9 +607,10 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
     sentence, "8 of 10 available · 2 missing · 1 upgrade found · 1 not aired". "Of N" counts the episodes aired or
     already held. At the right, for managers: **Search** (icon) and **Interactive search** (icon, when a library in
     view searches live). Outcomes come back as toasts ("Search started" / "Not searched" with the server's
-    sentence). The season's Search is disabled, titled "No monitored episodes in this season", when no library in
-    view that may search monitors an episode of it (the season search takes monitored episodes only); Interactive
-    search stays. An episode's Search (row, episode window, selection) stays enabled for unmonitored episodes: a
+    sentence). The season's Search is disabled, with "No monitored episodes in this season" on hover, when the
+    library in view may search but no library of the title that may search monitors an episode of it (the season
+    search takes monitored episodes only, and the server widens it to the title's other monitored libraries);
+    Interactive search stays. An episode's Search (row, episode window, selection) stays enabled for unmonitored episodes: a
     search that names its episodes takes them unmonitored too, as Sonarr's does.
   - **Jump to** (a series with more than 8 seasons, specials not counted): a select "Jump to season" above the
     seasons, newest first and Specials last; picking one opens that season and moves the focus to its heading. No
