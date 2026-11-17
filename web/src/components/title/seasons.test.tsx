@@ -273,7 +273,7 @@ describe("Acting on the libraries in view", () => {
     expect(within(header).getByTestId("season-search-why-1").getAttribute("title")).toBe("Anime WEB does not monitor this series");
   });
 
-  it("keeps a season's Search in a library that monitors none of it while another library that searches does (the server widens to it)", async () => {
+  it("keeps a season's Search in a library that monitors none of it while another library that searches does (the server widens to it), naming the libraries that monitor it", async () => {
     const s = episodes.seasons[0];
     const other = {
       ...episodes,
@@ -285,8 +285,11 @@ describe("Acting on the libraries in view", () => {
     renderPage(<Seasons id="1" anime />, "/title/1");
     await user.click(await screen.findByRole("radio", { name: "Anime WEB" }));
     const header = screen.getByTestId("season-header");
-    const search = within(header).getByRole("button", { name: "Search season 1 now in Anime WEB" }) as HTMLButtonElement;
+    // Anime WEB monitors none of the season: the search goes to the library that does, and the button says so.
+    expect(within(header).queryByRole("button", { name: "Search season 1 now in Anime WEB" })).toBeNull();
+    const search = within(header).getByRole("button", { name: "Search season 1 now in the libraries that monitor this season" }) as HTMLButtonElement;
     expect(search.disabled).toBe(false);
+    expect(within(header).getByTestId("season-search-why-1").getAttribute("title")).toBe("Search season 1 now in the libraries that monitor this season");
     await user.click(search);
     await vi.waitFor(() => expect(api.calls("POST", "/titles/1/seasons/1/search")).toHaveLength(1));
     expect(api.calls("POST", "/titles/1/seasons/1/search")[0].body).toEqual({ versions: ["anime-web"] });

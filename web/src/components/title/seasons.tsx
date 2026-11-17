@@ -764,7 +764,6 @@ function SeasonBlock({
   const mon = copies.map((v) => season.versions[v.key]?.monitored ?? 0);
   const on = mon.some((n) => n > 0);
   const monitorWhat = `${on ? "Stop monitoring" : "Monitor"} ${name.toLowerCase()} in ${scope.name}`;
-  const searchWhat = `Search ${name.toLowerCase()} now in ${scope.name}`;
   // The automatic season search takes monitored episodes only. The library in view must allow a search (its gate),
   // and the server widens a title's search to its other monitored libraries that search (acquire Submit), so the
   // season counts as searchable when any library of the title that may search monitors an episode of it.
@@ -772,6 +771,8 @@ function SeasonBlock({
   const pickedOff = scope.keys !== undefined && copies.some((v) => v.monitored === false);
   const searchable =
     scope.search && !pickedOff && list.versions.some((v) => v.monitored !== false && !!v.control?.can_search && (season.versions[v.key]?.monitored ?? 0) > 0);
+  // No library in view monitors the season: the search goes to the libraries that do, so the button names those.
+  const searchWhat = `Search ${name.toLowerCase()} now in ${searchable && !on ? "the libraries that monitor this season" : scope.name}`;
   const searchTitle = !scope.search ? scope.searchWhy : pickedOff ? `${scope.name} does not monitor this series` : searchable ? searchWhat : NO_MONITORED_SEASON;
   // Every library in view is not monitored: the switches show the episodes kept for when it is monitored again.
   const inactive = seeFiles && copies.length > 0 && off.size === copies.length;
