@@ -50,6 +50,10 @@ func TestDetails(t *testing.T) {
 				return
 			}
 			io.WriteString(w, `{"movie_results": [], "tv_results": [{"id": 1396}]}`)
+		case "/3/tv/1396/external_ids":
+			io.WriteString(w, `{"id": 1396, "tvdb_id": 81189, "imdb_id": "tt0903747"}`)
+		case "/3/tv/7/external_ids":
+			io.WriteString(w, `{"id": 7, "tvdb_id": null}`)
 		case "/3/find/1":
 			io.WriteString(w, `{"movie_results": [], "tv_results": []}`)
 		default:
@@ -97,9 +101,18 @@ func TestDetails(t *testing.T) {
 	if _, err := c.FindTVByTVDB(ctx, 1); !errors.Is(err, ErrNotFound) {
 		t.Errorf("no match: %v", err)
 	}
+	// A TV id's TVDB id (the add sheet's season lookup) is cached as well.
+	for range 2 {
+		if id, err := c.TVDBID(ctx, 1396); err != nil || id != 81189 {
+			t.Errorf("tvdb id %d %v", id, err)
+		}
+	}
+	if _, err := c.TVDBID(ctx, 7); !errors.Is(err, ErrNotFound) {
+		t.Errorf("no TVDB id: %v", err)
+	}
 	mu.Lock()
 	defer mu.Unlock()
-	if calls["/3/movie/603"] != 2 || calls["/3/find/81189"] != 1 {
+	if calls["/3/movie/603"] != 2 || calls["/3/find/81189"] != 1 || calls["/3/tv/1396/external_ids"] != 1 {
 		t.Errorf("calls %v", calls)
 	}
 }

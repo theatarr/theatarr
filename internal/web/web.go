@@ -94,6 +94,9 @@ type Config struct {
 	Journal *journal.Journal
 	// Add serves search, add, search now and the releases panel (add.go); its parts may be nil.
 	Add AddConfig
+	// SeriesLookup reads a series not in the catalogue (tvrefresh.Service, as the arr views' lookup): the seasons the
+	// add and request sheets offer a new series. nil: none offered.
+	SeriesLookup SeriesLookup
 	// RSS says whether the RSS read picks up new releases for a library (acquire/rss Runner.Covers), for the title
 	// page's "still picked up from RSS"; nil says never.
 	RSS RSSCoverage
@@ -204,6 +207,7 @@ type Web struct {
 	art               ArtService
 	journal           *journal.Journal
 	add               AddConfig
+	seriesLookup      SeriesLookup
 	rss               RSSCoverage
 	perms             PermsFunc
 	jobs              *jobs.Queue
@@ -271,7 +275,7 @@ func New(cfg Config) (*Web, error) {
 	}
 	return &Web{st: cfg.Store, jobs: cfg.Jobs, tasks: cfg.Tasks, auth: cfg.Auth, pol: cfg.Policy, policyDir: cfg.PolicyDir, egress: cfg.Egress,
 		log: cfg.Logger.With("component", "web"), version: cfg.Version, now: cfg.Now, poll: cfg.PollInterval,
-		hub: newHub(), devices: cfg.Devices, art: cfg.Art, journal: cfg.Journal, ui: cfg.UI, logs: cfg.Logs, add: cfg.Add, rss: cfg.RSS,
+		hub: newHub(), devices: cfg.Devices, art: cfg.Art, journal: cfg.Journal, ui: cfg.UI, logs: cfg.Logs, add: cfg.Add, seriesLookup: cfg.SeriesLookup, rss: cfg.RSS,
 		perms: cfg.Perms, plex: cfg.Plex, health: cfg.Health, ops: cfg.Ops, onRequest: cfg.OnRequest, onProblem: cfg.OnProblem,
 		logLevel: cfg.LogLevel, logDir: cfg.LogDir, reloadSettings: cfg.ReloadSettings,
 		captureRuntime: cfg.CaptureRuntime, settings: cfg.Settings, settingsTester: cfg.SettingsTester, qualitySync: cfg.QualitySync, trashRoot: cfg.TrashRoot,

@@ -30,6 +30,7 @@ import (
 	"github.com/theatarr/theatarr/internal/indexer"
 	"github.com/theatarr/theatarr/internal/jobs"
 	"github.com/theatarr/theatarr/internal/metadata/tmdb"
+	"github.com/theatarr/theatarr/internal/metadata/tvrefresh"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/router"
 	"github.com/theatarr/theatarr/internal/router/routertest"
@@ -127,8 +128,24 @@ func (f *fakeTMDb) TVDetails(_ context.Context, id int) (*tmdb.TV, error) {
 	return t, nil
 }
 
-func (f *fakeTMDb) SeasonEpisodeCounts(context.Context, int) (map[int]int, error) {
-	return map[int]int{1: 12, 2: 12}, nil
+func (f *fakeTMDb) TVDBID(_ context.Context, id int) (int, error) {
+	if id == 777 {
+		return 7770, nil
+	}
+	return 0, tmdb.ErrNotFound
+}
+
+// fakeSeriesLookup is the series lookup (tvrefresh.Service.LookupSeries): TVDB 7770 (TMDb 777) has the seasons
+// given, numbered as TVDB numbers them.
+type fakeSeriesLookup struct{ seasons []int }
+
+func (f *fakeSeriesLookup) Enabled() bool { return true }
+
+func (f *fakeSeriesLookup) LookupSeries(_ context.Context, id int) (tvrefresh.LookupResult, error) {
+	if id != 7770 {
+		return tvrefresh.LookupResult{}, errors.New("tvrefresh: no such series")
+	}
+	return tvrefresh.LookupResult{Title: "Alpha Anime", Seasons: slices.Clone(f.seasons)}, nil
 }
 
 // addEnv is the native API and the arr views over one database, as in theatarr serve.
@@ -716,9 +733,25 @@ func TestAddOptions(t *testing.T) {
 		!o.CanSearch {
 		t.Errorf("series options: %+v", o)
 	}
+	// A new series without the series lookup (metadata off): no seasons, the sheet offers the presets only.
+	o = AddOptions{}
 	e.call("GET", APIBase+"/add/options?kind=series&tmdb_id=777&anime=1", nil, 200, &o)
-	if o.EpisodesKnown || len(o.Seasons) != 2 || o.Seasons[0].Number != 1 || !o.Anime {
+	if o.EpisodesKnown || o.OwnSeasons || len(o.Seasons) != 0 || !o.Anime {
+		t.Errorf("new series options without the lookup: %+v", o)
+	}
+	// With it: the series' own seasons (TVDB's numbering, by the TVDB id TMDb names), without episode counts.
+	e.web.seriesLookup = &fakeSeriesLookup{seasons: []int{0, 1, 2}}
+	o = AddOptions{}
+	e.call("GET", APIBase+"/add/options?kind=series&tmdb_id=777&anime=1", nil, 200, &o)
+	if o.EpisodesKnown || !o.OwnSeasons || len(o.Seasons) != 3 || o.Seasons[0].Number != 0 || o.Seasons[2].Number != 2 ||
+		o.Seasons[1].Episodes != 0 || o.Seasons[1].Monitored != nil {
 		t.Errorf("new series options: %+v", o)
+	}
+	// No TVDB id on TMDb: no seasons, never an error.
+	o = AddOptions{}
+	e.call("GET", APIBase+"/add/options?kind=series&tmdb_id=778", nil, 200, &o)
+	if o.OwnSeasons || len(o.Seasons) != 0 {
+		t.Errorf("series without a TVDB id: %+v", o)
 	}
 	e.call("GET", APIBase+"/add/options", nil, 400, nil)
 	e.call("GET", APIBase+"/add/options?title_id=99", nil, 404, nil)

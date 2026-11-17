@@ -1008,3 +1008,35 @@ func TestSeasonRequestAvailableDespiteOtherSeasonGap(t *testing.T) {
 		}
 	}
 }
+
+// TestRequestNewSeriesSeasonChoices: a request for season 1 of a series not in the library stores the series' other
+// seasons off, by the series' own seasons (the add sheet's source), so a season TVDB has and TMDb lacks (3 here; the
+// TMDb fake names none) is not monitored by default when the first refresh brings it.
+func TestRequestNewSeriesSeasonChoices(t *testing.T) {
+	t.Parallel()
+	e := newAddEnv(t, nil)
+	e.web.seriesLookup = &fakeSeriesLookup{seasons: []int{0, 1, 2, 3}}
+	_, ann := e.user("ann", auth.RoleUser)
+	_, mgr := e.user("mgr", auth.RoleManager)
+	var opts AddOptions
+	e.callAs(ann, "GET", APIBase+"/add/options?kind=series&tmdb_id=777", nil, 200, &opts)
+	if !opts.OwnSeasons || len(opts.Seasons) != 4 {
+		t.Fatalf("request sheet seasons: %+v", opts)
+	}
+	var cr CreateResult
+	e.callAs(ann, "POST", APIBase+"/requests", map[string]any{"kind": "series", "tmdb_id": 777, "name": "Alpha Anime",
+		"seasons": []int{1}}, 201, &cr)
+	var ap ApproveResult
+	e.callAs(mgr, "POST", fmt.Sprintf("%s/requests/%d/approve", APIBase, cr.Request.ID), map[string]any{}, 200, &ap)
+	if ap.Add == nil {
+		t.Fatalf("approve: %+v", ap)
+	}
+	var seasons, pending string
+	if err := e.st.Reader().QueryRow(`SELECT m.seasons, m.pending_monitor FROM series_monitor m JOIN version v
+		ON v.id = m.version_id WHERE v.title_id = ?`, ap.Add.Title.ID).Scan(&seasons, &pending); err != nil {
+		t.Fatal(err)
+	}
+	if seasons != `{"0":false,"1":true,"2":false,"3":false}` || pending != "" {
+		t.Errorf("stored season choice %s, pending %q", seasons, pending)
+	}
+}

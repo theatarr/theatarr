@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/theatarr/theatarr/internal/acquire"
 	"github.com/theatarr/theatarr/internal/auth"
@@ -17,6 +18,7 @@ import (
 	"github.com/theatarr/theatarr/internal/catalog"
 	"github.com/theatarr/theatarr/internal/metadata/art"
 	"github.com/theatarr/theatarr/internal/metadata/tmdb"
+	"github.com/theatarr/theatarr/internal/metadata/tvrefresh"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/router"
 	"github.com/theatarr/theatarr/internal/store"
@@ -66,7 +68,14 @@ type TMDbClient interface {
 	SearchMulti(ctx context.Context, query string) ([]tmdb.MultiResult, error)
 	MovieDetails(ctx context.Context, id int) (*tmdb.Movie, error)
 	TVDetails(ctx context.Context, id int) (*tmdb.TV, error)
-	SeasonEpisodeCounts(ctx context.Context, tvID int) (map[int]int, error)
+	// TVDBID is a TV id's TVDB id (its external ids), for the seasons of a series not in the catalogue.
+	TVDBID(ctx context.Context, tvID int) (int, error)
+}
+
+// SeriesLookup is the part of tvrefresh.Service the add and request sheets use for a series not in the catalogue.
+type SeriesLookup interface {
+	Enabled() bool
+	LookupSeries(ctx context.Context, tvdbID int) (tvrefresh.LookupResult, error)
 }
 
 func (w *Web) mountAddAPI(mux *http.ServeMux) {
@@ -113,8 +122,10 @@ type VersionOption struct {
 
 // SeasonOption is a season of a series in the add sheet.
 type SeasonOption struct {
-	Number   int `json:"season"`
-	Episodes int `json:"episodes"`
+	Number int `json:"season"`
+	// Episodes is the number of the season's episodes in the library; absent for a series' own seasons (OwnSeasons),
+	// whose lookup has no counts.
+	Episodes int `json:"episodes,omitempty"`
 	// Monitored is the season's state in the library: true when every known episode is monitored for some version.
 	Monitored *bool `json:"monitored,omitempty"`
 }
@@ -130,10 +141,12 @@ type AddOptions struct {
 	// RouterEnabled is router.enabled: false while Pause is on, when nothing is searched or grabbed.
 	RouterEnabled bool            `json:"router_enabled"`
 	Versions      []VersionOption `json:"versions"`
-	// Seasons come from the library's episodes (EpisodesKnown) or else from TMDb. Season choices apply to episodes
-	// the library knows, so the sheet offers them only when EpisodesKnown.
+	// Seasons come from the library's episodes (EpisodesKnown) or else, for a series whose episodes the library does
+	// not know yet, from the series' own seasons (OwnSeasons: its TVDB seasons in the order its episodes will be
+	// numbered, seriesSeasons), which a new series' add can choose from; else none.
 	Seasons       []SeasonOption `json:"seasons"`
 	EpisodesKnown bool           `json:"episodes_known"`
+	OwnSeasons    bool           `json:"own_seasons"`
 	// CanSearch: a search now would do something for at least one default version.
 	CanSearch bool `json:"can_search"`
 }
@@ -309,18 +322,50 @@ func (w *Web) apiAddOptions(rw http.ResponseWriter, r *http.Request) {
 			}
 			out.EpisodesKnown = len(out.Seasons) > 0
 		}
-		if !out.EpisodesKnown && tmdbID > 0 && w.add.TMDb != nil {
-			counts, err := w.add.TMDb.SeasonEpisodeCounts(ctx, int(tmdbID))
-			if err != nil {
-				w.log.Warn("add options: TMDb seasons", "tmdb", tmdbID, "err", err)
+		if !out.EpisodesKnown {
+			// Opening the sheet stays quick: past the bound the sheet offers the presets only.
+			lctx, cancel := context.WithTimeout(ctx, seasonLookupBound)
+			for _, n := range w.seriesSeasons(lctx, tmdbID, 0) {
+				out.Seasons = append(out.Seasons, SeasonOption{Number: n})
 			}
-			for n, c := range counts {
-				out.Seasons = append(out.Seasons, SeasonOption{Number: n, Episodes: c})
-			}
-			slices.SortFunc(out.Seasons, func(a, b SeasonOption) int { return a.Number - b.Number })
+			cancel()
+			out.OwnSeasons = len(out.Seasons) > 0
 		}
 	}
 	writeJSON(rw, http.StatusOK, out)
+}
+
+// seasonLookupBound bounds the add sheet's season lookup (seriesSeasons; the lookup's own bound is five seconds).
+const seasonLookupBound = 2 * time.Second
+
+// seriesSeasons are the season numbers of a series whose episodes the library does not know yet, numbered as its
+// episodes will be (TVDB's default order, the lookup the arr views' series lookup uses), by its TVDB id or else the
+// one TMDb names for tmdbID. nil when they cannot be read: metadata off, no TVDB id, an error or the context's end.
+// The add sheet's choices and a request's seasons both come from here, so a choice names the seasons the first
+// episode refresh brings.
+func (w *Web) seriesSeasons(ctx context.Context, tmdbID, tvdbID int64) []int {
+	if w.seriesLookup == nil || !w.seriesLookup.Enabled() {
+		return nil
+	}
+	if tvdbID <= 0 && tmdbID > 0 && w.add.TMDb != nil {
+		id, err := w.add.TMDb.TVDBID(ctx, int(tmdbID))
+		if err != nil {
+			if !errors.Is(err, tmdb.ErrNotFound) {
+				w.log.Warn("series seasons: TMDb external ids", "tmdb", tmdbID, "err", err)
+			}
+			return nil
+		}
+		tvdbID = int64(id)
+	}
+	if tvdbID <= 0 {
+		return nil
+	}
+	r, err := w.seriesLookup.LookupSeries(ctx, int(tvdbID))
+	if err != nil {
+		w.log.Warn("series seasons: lookup", "tvdb", tvdbID, "err", err)
+		return nil
+	}
+	return r.Seasons
 }
 
 // librarySeasons are a series' seasons from its episode rows, with whether each is monitored for some version.

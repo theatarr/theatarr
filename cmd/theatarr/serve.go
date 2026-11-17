@@ -702,7 +702,7 @@ func runServe(args []string) error {
 	backupSvc := &serveBackups{st: st, dir: *backupDir, dbPath: *dbPath, source: *settingsSource,
 		keep: *backupKeep, hour: *backupHour, policyNow: backupPolicy, now: time.Now}
 	uiConfig := web.Config{Backups: backupSvc, Restart: stop, Store: st, Auth: au, Policy: pol, PolicyDir: *policyDir, Egress: serveEgressSource{manager: runtimeManager, fallback: gw}, Logger: log,
-		Version: version, Devices: av, Art: refresher, Journal: jr, Logs: logs, Add: add, RSS: rssRunner, Jobs: q, Tasks: tbl, Plex: pl, Health: hc,
+		Version: version, Devices: av, Art: refresher, Journal: jr, Logs: logs, Add: add, SeriesLookup: tv, RSS: rssRunner, Jobs: q, Tasks: tbl, Plex: pl, Health: hc,
 		Ops: serveOps{av}, OnRequest: requestNotify, OnProblem: problemNotify, LogLevel: logLevel, LogDir: *logDir, ReloadSettings: runtimeManager.Reload,
 		CaptureRuntime: captureRuntime, SettingsTests: newSettingsTestLimits(), SettingsLookup: os.LookupEnv, TrashRoot: os.Getenv("THEATARR_TRASH"),
 		Torrents: torrentSvc, Background: ctx, NowPlaying: nowPlayingSnapshot, ArrImport: serveArrImport{manager: runtimeManager, st: st, log: log},
@@ -759,7 +759,7 @@ func runServe(args []string) error {
 		avCfg.Policy, avCfg.Engine, uiCfg.Policy = runtime.Policy, runtime.Engine, runtime.Policy
 		avCfg.Library = runtime.Library.lib
 		avCfg.TMDb, avCfg.Metadata, avCfg.SeriesLookup = meta.viewTMDb, meta.refresher, meta.tv
-		uiCfg.Art, uiCfg.Add, uiCfg.Plex = meta.refresher, meta.add, meta.plex
+		uiCfg.Art, uiCfg.Add, uiCfg.Plex, uiCfg.SeriesLookup = meta.refresher, meta.add, meta.plex, meta.tv
 		if c := serveCardigann.Load(); c != nil {
 			uiCfg.Cardigann = c
 		}

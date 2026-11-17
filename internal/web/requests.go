@@ -1124,7 +1124,7 @@ func (w *Web) requestSeasons(ctx context.Context, req *Request, keys []string, s
 		}
 	}
 	if len(added) > 0 && len(ss) > 0 {
-		ar.Seasons, ar.seasonVersions = w.seasonChoices(ctx, titleID, ar.TMDbID, ss), added
+		ar.Seasons, ar.seasonVersions = w.seasonChoices(ctx, titleID, ar.TMDbID, ar.TVDbID, ss), added
 	}
 	if len(ar.moreVersions) == 0 {
 		return nil
@@ -1146,8 +1146,8 @@ func (w *Web) requestSeasons(ctx context.Context, req *Request, keys []string, s
 }
 
 // seasonChoices turns the requested season numbers into catalog seasons: the requested ones monitored, the series'
-// other known seasons (library episodes, else TMDb) not.
-func (w *Web) seasonChoices(ctx context.Context, titleID *int64, tmdbID int64, want []int) []catalog.Season {
+// other known seasons (library episodes, else the series' own seasons, seriesSeasons, the add sheet's source) not.
+func (w *Web) seasonChoices(ctx context.Context, titleID *int64, tmdbID, tvdbID int64, want []int) []catalog.Season {
 	known := map[int]bool{}
 	if titleID != nil {
 		if ss, err := w.librarySeasons(ctx, *titleID); err == nil {
@@ -1156,11 +1156,9 @@ func (w *Web) seasonChoices(ctx context.Context, titleID *int64, tmdbID int64, w
 			}
 		}
 	}
-	if len(known) == 0 && tmdbID > 0 && w.add.TMDb != nil {
-		if counts, err := w.add.TMDb.SeasonEpisodeCounts(ctx, int(tmdbID)); err == nil {
-			for n := range counts {
-				known[n] = true
-			}
+	if len(known) == 0 {
+		for _, n := range w.seriesSeasons(ctx, tmdbID, tvdbID) {
+			known[n] = true
 		}
 	}
 	for _, n := range want {

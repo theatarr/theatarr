@@ -173,6 +173,23 @@ func (c *Client) FindTVByTVDB(ctx context.Context, tvdbID int) (int, error) {
 	return r.TVResults[0].ID, nil
 }
 
+// TVDBID returns a TMDb TV id's TVDB id from its external ids (cached a week). ErrNotFound when TMDb has none.
+func (c *Client) TVDBID(ctx context.Context, tvID int) (int, error) {
+	if tvID <= 0 {
+		return 0, fmt.Errorf("tmdb: bad TV id %d", tvID)
+	}
+	var r struct {
+		TVDbID int `json:"tvdb_id"`
+	}
+	if err := c.get(ctx, "/tv/"+strconv.Itoa(tvID)+"/external_ids", nil, &r, findTTL); err != nil {
+		return 0, err
+	}
+	if r.TVDbID <= 0 {
+		return 0, ErrNotFound
+	}
+	return r.TVDbID, nil
+}
+
 func findTTL(int, []byte) time.Duration { return 7 * 24 * time.Hour }
 
 // fresh sends GET base+path?query&api_key without the cache and decodes the answer.
