@@ -94,6 +94,7 @@ func (w *Web) mountOpsAPI(mux *http.ServeMux) {
 	w.handle(mux, "POST "+b+"/activity/blocked/unblock", SignedIn, auth.PermManage, w.apiUnblock)
 	w.mountRenameAPI(mux)
 	w.mountReassignAPI(mux)
+	w.mountFileFactsAPI(mux)
 }
 
 // actor names the caller for the journal: the user name, or key:<name> for an API key.

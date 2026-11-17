@@ -105,38 +105,9 @@ func loadLinksOf(ctx context.Context, db *sql.DB, versionIDs []int64) (map[int64
 		files := l.files
 		id = -id
 		if files[id] == nil {
-			var f ExistingFile
-			if err := json.Unmarshal([]byte(raw), &f); err != nil {
+			f, err := LinkFileInputs([]byte(raw), kind, title, quality)
+			if err != nil {
 				return nil, fmt.Errorf("decide: link %d metadata: %w", -id, err)
-			}
-			// Migration 00038 preserves the old release inputs. Reconstruct the parse on read for links made
-			// before parsed metadata was stored; new imports always record a nonzero revision, and their scene name
-			// as the import found it: a pack's file has none (its formats read its own file name), so the release
-			// title is not put back for them.
-			legacy := f.Revision == 0
-			if legacy {
-				var rel indexer.Release
-				if err := json.Unmarshal([]byte(raw), &rel); err != nil {
-					return nil, err
-				}
-				rel.Title = f.SceneName
-				if rel.Title == "" {
-					rel.Title = title
-				}
-				parsed := LinkedFile(policy.Kind(kind), Release{Release: rel}, f.Quality)
-				parsed.Size, parsed.InfoHash = f.Size, f.InfoHash
-				parsed.Formats, parsed.Score = f.Formats, f.Score
-				parsed.Added = f.Added
-				if len(f.Languages) > 0 {
-					parsed.Languages = f.Languages
-				}
-				f = *parsed
-			}
-			if f.Quality == "" {
-				f.Quality = quality
-			}
-			if f.SceneName == "" && legacy {
-				f.SceneName = title
 			}
 			if f.Size == 0 {
 				f.Size = size
@@ -161,4 +132,42 @@ func loadLinksOf(ctx context.Context, db *sql.DB, versionIDs []int64) (map[int64
 		}
 	}
 	return out, rows.Err()
+}
+
+// LinkFileInputs reads one link's stored file inputs (file_metadata) as the decisions do: for a link made before
+// parsed metadata was stored (revision 0) the parse is reconstructed from its release inputs (migration 00038); new
+// imports always record a nonzero revision, and their scene name as the import found it: a pack's file has none (its
+// formats read its own file name), so the release title is not put back for them. kind is the title's kind, title
+// the link's release title and quality its quality column.
+func LinkFileInputs(raw []byte, kind, title, quality string) (ExistingFile, error) {
+	var f ExistingFile
+	if err := json.Unmarshal(raw, &f); err != nil {
+		return f, err
+	}
+	legacy := f.Revision == 0
+	if legacy {
+		var rel indexer.Release
+		if err := json.Unmarshal(raw, &rel); err != nil {
+			return f, err
+		}
+		rel.Title = f.SceneName
+		if rel.Title == "" {
+			rel.Title = title
+		}
+		parsed := LinkedFile(policy.Kind(kind), Release{Release: rel}, f.Quality)
+		parsed.Size, parsed.InfoHash = f.Size, f.InfoHash
+		parsed.Formats, parsed.Score = f.Formats, f.Score
+		parsed.Added = f.Added
+		if len(f.Languages) > 0 {
+			parsed.Languages = f.Languages
+		}
+		f = *parsed
+	}
+	if f.Quality == "" {
+		f.Quality = quality
+	}
+	if f.SceneName == "" && legacy {
+		f.SceneName = title
+	}
+	return f, nil
 }

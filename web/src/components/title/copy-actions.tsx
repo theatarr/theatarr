@@ -1,5 +1,5 @@
 // Removal on the title page (docs/design/ui.md "Recovery actions"), for managers: Remove from this library (in the
-// library row's Details), Unlink one of its library files, Replace a movie's file (replace-file.tsx), Delete the files a library the title was removed from kept
+// library row's Details), Unlink one of its library files, Replace a movie's file (replace-file.tsx) or edit its facts (edit-facts.tsx), Delete the files a library the title was removed from kept
 // (the line under the Libraries table, and the kept-files line of a title in no library), and Remove the whole title
 // (the action bar). Each confirmation spells out the scope the server reports (copies, links, downloads in progress)
 // and what stays. The removal's two choices are on by default: "Delete the files" (Theatarr's own symlinks go to its
@@ -12,6 +12,7 @@ import { useNavigate } from "react-router";
 import type { Version } from "@/api/library";
 import { useRemovalScope, useRemove, useUnlink } from "@/api/ops";
 import { Mono } from "@/components/page";
+import { EditFacts } from "@/components/title/edit-facts";
 import { ReplaceFile } from "@/components/title/replace-file";
 import { toast } from "@/components/toaster";
 import { Button } from "@/components/ui/button";
@@ -122,7 +123,7 @@ export function linkGroups<T extends { path?: string }>(links: readonly T[]): { 
   return out.length === 1 ? [{ folder: "", links: out[0].links }] : out;
 }
 
-export function CopyActions({ v, label, onRemove }: { v: Version; label: string; onRemove: () => void }) {
+export function CopyActions({ v, label, onRemove, movie = false }: { v: Version; label: string; onRemove: () => void; movie?: boolean }) {
   const titleId = v.title_id ?? 0;
   const [path, setPath] = useState<{ id: number; path: string } | null>(null);
   const unlink = useUnlink(titleId);
@@ -144,7 +145,12 @@ export function CopyActions({ v, label, onRemove }: { v: Version; label: string;
                       <span className="min-w-0 flex-1">
                         <Mono className="block text-[var(--ink)] [overflow-wrap:anywhere]">{(l.path ?? "").split("/").pop()}</Mono>
                         <span className="block select-text" data-testid="library-file-path"><Mono className="text-[11.5px] text-muted-foreground [overflow-wrap:anywhere]">{l.path}</Mono></span>
-                        <ReplaceFile titleId={titleId} linkId={l.id ?? 0} path={l.path ?? ""} scope={l.replace_scope} />
+                        {movie ? (
+                          <span className="mt-1 flex flex-wrap items-center gap-1">
+                            <ReplaceFile titleId={titleId} linkId={l.id ?? 0} path={l.path ?? ""} scope={l.replace_scope} />
+                            <EditFacts titleId={titleId} linkId={l.id ?? 0} path={l.path ?? ""} />
+                          </span>
+                        ) : null}
                       </span>
                       <Button size="xs" variant="ghost" onClick={() => setPath({ id: l.id ?? 0, path: l.path ?? "" })} data-testid="link-unlink">
                         <FileX2 /> Unlink

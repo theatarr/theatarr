@@ -217,7 +217,7 @@ function RowDetails({ v, kind, minimumShown, statusShown, onRemove }: { v: Versi
         {listed && v.upgrade?.quality_met !== true && (v.state === "filled" || !!v.upgrade?.below) ? <Link className="text-primary hover:underline" to={`/wanted/cutoff?version=${encodeURIComponent(key)}${titleId ? `&title=${titleId}` : ""}`}>See in Cutoff unmet</Link> : null}
         {perms.manage && titleId ? <Link className="text-primary hover:underline" to={releasesHref(titleId, key)}>Last search results</Link> : null}
       </div>
-      {perms.manage ? <CopyActions v={v} label={nameOf(v)} onRemove={onRemove} /> : null}
+      {perms.manage ? <CopyActions v={v} label={nameOf(v)} onRemove={onRemove} movie={kind === "movie"} /> : null}
     </div>
   );
 }

@@ -27,6 +27,7 @@ const (
 	ActRemoveVersion  = "remove_version"  // a copy left the library (unmonitored, hidden from every view)
 	ActRemoveTitle    = "remove_title"    // every copy of a title left the library
 	ActUnlinkFile     = "unlink_file"     // one of Theatarr's library symlinks moved to the trash
+	ActEditFile       = "edit_file"       // an installed file's quality, languages or release group corrected (00150)
 )
 
 // Action is one operator action.
@@ -142,6 +143,7 @@ var actionWords = map[string][2]string{
 	ActRemoveVersion:  {"Removed", "Removed from the library"},
 	ActRemoveTitle:    {"Title removed", "Removed the title"},
 	ActUnlinkFile:     {"Removed", "Removed"},
+	ActEditFile:       {"Facts corrected", "Facts corrected"},
 }
 
 // actionDetail is an action's detail in plain words (in full for the entry page).
@@ -200,7 +202,7 @@ func (b *builder) actionEntry(e *Entry, rest string) error {
 		words = [2]string{a.Action, a.Action}
 	}
 	what := clean(a.Release)
-	if a.Action == ActUnlinkFile {
+	if a.Action == ActUnlinkFile || a.Action == ActEditFile {
 		what = baseName(a.Target)
 		if a.Target != "" {
 			e.Paths = []string{a.Target}

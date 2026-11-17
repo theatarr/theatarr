@@ -8,7 +8,9 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/library"
 	"github.com/theatarr/theatarr/internal/notify"
 	"github.com/theatarr/theatarr/internal/policy"
@@ -347,4 +349,45 @@ func TestManualImportSeries(t *testing.T) {
 	if n := e.str(`SELECT COUNT(*) FROM download_file WHERE download_id NOT IN (SELECT id FROM download)`); n != "0" {
 		t.Errorf("a dry run left %s file rows", n)
 	}
+}
+
+// TestFilesShowCorrectedFacts: after a manager corrects a file's facts (library.EditFileFacts), the compatible
+// moviefile and episodefile reads show the corrected quality, revision, languages and release group.
+func TestFilesShowCorrectedFacts(t *testing.T) {
+	t.Parallel()
+	e := newDevEnv(t)
+	e.seedFiles()
+	e.pol.Profiles["plain"] = &policy.Profile{Qualities: []policy.QualityItem{{Name: "WEBDL-2160p"}}, Cutoff: "WEBDL-2160p"}
+	for _, v := range e.pol.Versions {
+		v.Profile = "plain"
+	}
+	engine, err := decide.New(e.pol, decide.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	lib := library.New(library.Options{Store: e.st, Policy: e.pol, Engine: engine, Now: func() time.Time { return e.now }})
+	for _, c := range []struct {
+		link    int64
+		quality string
+	}{{7, "Bluray-1080p"}, {3, "Bluray-2160p"}} {
+		if _, err := lib.EditFileFacts(context.Background(), c.link, library.FileFactsEdit{Quality: c.quality, Revision: 2,
+			Languages: []string{"French"}, ReleaseGroup: "FIXED"}); err != nil {
+			t.Fatalf("link %d: %v", c.link, err)
+		}
+	}
+	check := func(what string, f map[string]any, quality string) {
+		t.Helper()
+		q := f["quality"].(map[string]any)
+		langs := f["languages"].([]any)
+		if q["quality"].(map[string]any)["name"] != quality || q["revision"].(map[string]any)["version"].(float64) != 2 ||
+			f["releaseGroup"] != "FIXED" || len(langs) != 1 || langs[0].(map[string]any)["name"] != "French" {
+			t.Errorf("%s: %v", what, f)
+		}
+	}
+	var one map[string]any
+	e.call("GET", "/radarr/api/v3/moviefile/"+strconv.Itoa(LinkFileBase+7), nil, 200, &one)
+	check("moviefile", one, "Bluray-1080p")
+	one = nil
+	e.call("GET", "/sonarr/api/v3/episodefile/"+strconv.Itoa(LinkFileBase+3), nil, 200, &one)
+	check("episodefile", one, "Bluray-2160p")
 }

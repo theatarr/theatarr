@@ -47,6 +47,20 @@ func (s *Service) ReassignEpisodes(ctx context.Context, linkID int64, episodeIDs
 	return rl.ReassignEpisodes(ctx, linkID, episodeIDs, replace)
 }
 
+type factsLibrary interface {
+	EditFileFacts(ctx context.Context, linkID int64, e library.FileFactsEdit) (*library.FileFactsEdited, error)
+}
+
+// EditFileFacts exposes the library's correction of an installed file's facts (a manager's "Edit file facts") to the
+// native web API.
+func (s *Service) EditFileFacts(ctx context.Context, linkID int64, e library.FileFactsEdit) (*library.FileFactsEdited, error) {
+	fl, ok := s.library.(factsLibrary)
+	if !ok {
+		return nil, refused("editing file facts is unavailable")
+	}
+	return fl.EditFileFacts(ctx, linkID, e)
+}
+
 // Operator actions for the web UI (docs/design/ui.md "Recovery actions"), on the same parts the arr views' grab, queue
 // and file endpoints use: the decision engine, the router and the library. They work on one title's versions
 // directly, not through a view. internal/web calls them (web.Ops) and records each in the journal.

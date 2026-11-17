@@ -122,6 +122,25 @@ export function useReplaceLink(titleId: number) {
   });
 }
 
+/** An installed file's stored facts and the form's choices (managers), read when Edit file facts opens. */
+export function useFileFacts(titleId: number, linkId: number) {
+  return useQuery({
+    queryKey: [...qk.title(titleId), "facts", linkId],
+    queryFn: () => api<Schemas["FileFacts"]>(`/links/${linkId}/facts`),
+    staleTime: 0,
+  });
+}
+
+/** Correct an installed file's quality, revision, languages and release group (managers). */
+export function useEditFileFacts(titleId: number) {
+  const refresh = useRefresh();
+  return useMutation({
+    mutationFn: ({ linkId, ...body }: Schemas["FileFactsEdit"] & { linkId: number }) =>
+      api<Schemas["FileFactsResult"]>(`/links/${linkId}/facts`, { method: "PATCH", body }),
+    onSuccess: () => refresh(titleId),
+  });
+}
+
 /** Change the episodes a library link holds (admins): the link is renamed for them, and the choice is kept. */
 export function useReassignEpisodes(titleId: number) {
   const refresh = useRefresh();

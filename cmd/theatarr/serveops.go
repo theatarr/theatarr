@@ -81,6 +81,12 @@ func (o serveOps) ReassignEpisodes(ctx context.Context, linkID int64, episodeIDs
 	return r, renameRefusal(err)
 }
 
+// EditFileFacts gives the title page's "Edit file facts" (internal/web/filefacts.go) the library's correction of an
+// installed file's facts through the arr views' service; web answers a library refusal 409.
+func (o serveOps) EditFileFacts(ctx context.Context, linkID int64, e library.FileFactsEdit) (*library.FileFactsEdited, error) {
+	return o.av.EditFileFacts(ctx, linkID, e)
+}
+
 func renameRefusal(err error) error {
 	if errors.Is(err, library.ErrRefused) {
 		return &arrview.Refused{Reason: err.Error()}

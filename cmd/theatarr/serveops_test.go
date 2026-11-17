@@ -136,4 +136,10 @@ func TestServeOpsReassign(t *testing.T) {
 	if _, err := re.ReassignEpisodes(ctx, 7, []int64{1}, false); !errors.As(err, &refusal) {
 		t.Fatalf("not a refusal (%T)", err)
 	}
+	// Edit file facts reaches the library the same way.
+	if _, ok := ops.(interface {
+		EditFileFacts(context.Context, int64, library.FileFactsEdit) (*library.FileFactsEdited, error)
+	}); !ok {
+		t.Fatal("serveOps does not offer Edit file facts to the web UI")
+	}
 }
