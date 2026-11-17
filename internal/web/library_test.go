@@ -205,24 +205,26 @@ func TestSeriesStatus(t *testing.T) {
 		t.Errorf("movie facets carry a series status: %v", f.SeriesStatus)
 	}
 	for scope, want := range map[string]map[string]int{
-		"":                        {"continuing": 1, "ended": 1},
-		"kind=series&anime=false": {"continuing": 1, "ended": 0},
-		"anime=true":              {"continuing": 0, "ended": 1},
+		"":                        {"continuing": 1, "upcoming": 0, "ended": 1},
+		"kind=series&anime=false": {"continuing": 1, "upcoming": 0, "ended": 0},
+		"anime=true":              {"continuing": 0, "upcoming": 0, "ended": 1},
 	} {
 		f = TitleFacets{}
 		if e.getKey(APIBase+"/titles/facets?"+scope, key, &f); !maps.Equal(f.SeriesStatus, want) {
 			t.Errorf("%q: series status %v, want %v", scope, f.SeriesStatus, want)
 		}
 	}
-	// TMDb's In Production, Planned and Pilot count as Continuing, in the filter and its counts.
+	// TMDb's In Production, Planned and Pilot are Upcoming, as the Series status column calls them, in the filter and
+	// its counts.
 	for _, st := range []string{"In Production", "Planned", "Pilot"} {
 		e.exec(`UPDATE title_meta SET status = ? WHERE title_id = 4`, st)
 		p = TitlePage{}
-		if e.getKey(APIBase+"/titles?series_status=continuing&q=Delta", key, &p); names(p) != "Delta" {
+		if e.getKey(APIBase+"/titles?series_status=upcoming", key, &p); names(p) != "Delta" {
 			t.Errorf("%s: %q", st, names(p))
 		}
 		f = TitleFacets{}
-		if e.getKey(APIBase+"/titles/facets", key, &f); !maps.Equal(f.SeriesStatus, map[string]int{"continuing": 2, "ended": 0}) {
+		if e.getKey(APIBase+"/titles/facets", key, &f); !maps.Equal(f.SeriesStatus,
+			map[string]int{"continuing": 1, "upcoming": 1, "ended": 0}) {
 			t.Errorf("%s: series status %v", st, f.SeriesStatus)
 		}
 	}

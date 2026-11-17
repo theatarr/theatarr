@@ -265,6 +265,7 @@ export const FILTER_KEYS = ["q", "with", "without", "state", "availability", "up
 /** The Series status filter (series_status=): series only; on Anime it is dropped while Movies is shown. */
 export const SERIES_STATUSES = [
   { id: "continuing", label: "Continuing", hint: "Still airing: TMDb Returning Series, TVDB Continuing" },
+  { id: "upcoming", label: "Upcoming", hint: "Not airing yet: in production, planned or at the pilot" },
   { id: "ended", label: "Ended", hint: "Ended or cancelled" },
 ] as const;
 

@@ -779,7 +779,7 @@ including "Imported from Radarr's blocklist" for `arr:<instance>`) and the healt
   "No titles match these filters." and **Clear filters**. The sheet heads its first group **Monitoring** (On, Off:
   whether a library monitors the title); the status **Not monitored** (no file and nothing monitors it) is apart,
   its option named **Not monitored, no file** so its count is not read as Monitoring Off's. Series and Anime have
-  **Series status** (Continuing: TMDb Returning Series, In Production, Planned or Pilot, or TVDB Continuing; Ended: Ended or Canceled; the title
+  **Series status** (Continuing: TMDb Returning Series or TVDB Continuing; Upcoming: TMDb In Production, Planned or Pilot, as the Series status column calls them; Ended: Ended or Canceled; the title
   metadata's status, else the series metadata's; `series_status=`, refused for movies; on Anime it matches series
   and is dropped when switching to Movies). **Tags** (See files only; `tag=`, refused without it): the labels
   compatible clients set on a title's libraries, with counts; picking several shows titles with any of them on any

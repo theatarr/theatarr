@@ -77,10 +77,11 @@ var (
 	availabilities = map[string]bool{"": true, "available": true, "partial": true, "missing": true, "upcoming": true,
 		"unmonitored": true, "none": true}
 	// seriesStatuses are the Series status filter's values and the stored statuses each stands for, lower case:
-	// TMDb's (title_meta) and TVDB's (series_meta); Canceled is Ended, as tvrefresh and Sonarr take it, and TMDb's
-	// In Production, Planned and Pilot are Continuing.
+	// TMDb's (title_meta) and TVDB's (series_meta); Canceled is Ended, as tvrefresh and Sonarr take it, and what the
+	// Series status column calls Upcoming (web/src/lib/tmdb-words.ts: TMDb's In Production, Planned, Pilot) is Upcoming.
 	seriesStatuses = map[string][]string{
-		"continuing": {"returning series", "continuing", "in production", "planned", "pilot"},
+		"continuing": {"returning series", "continuing"},
+		"upcoming":   {"in production", "post production", "planned", "pilot", "upcoming"},
 		"ended":      {"ended", "canceled", "cancelled"},
 	}
 )

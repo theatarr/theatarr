@@ -210,7 +210,7 @@ func (w *Web) titleFacets(ctx context.Context, f TitleFilter, seeFiles bool) (Ti
 	}
 	if f.Kind != "movie" {
 		// Series per stored status (lower case), summed into the Series status values.
-		out.SeriesStatus = map[string]int{"continuing": 0, "ended": 0}
+		out.SeriesStatus = map[string]int{"continuing": 0, "upcoming": 0, "ended": 0}
 		if err := scanAll(ctx, db, `SELECT `+seriesStatusSQL+`, COUNT(*)`+titleFrom+andWhere(where, "t.kind = 'series'")+` GROUP BY 1`,
 			args, func(r *sql.Rows) error {
 				var st string

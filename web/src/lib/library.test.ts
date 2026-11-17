@@ -59,6 +59,7 @@ describe("Series status and saved filters", () => {
     expect(gridQuery("anime", new URLSearchParams("series_status=ended&kind=movie"), false).series_status).toBeUndefined();
     expect(gridQuery("movies", new URLSearchParams("series_status=ended"), false).series_status).toBeUndefined();
     expect(filterChips(new URLSearchParams("series_status=continuing"), { seeFiles: false, kind: "series" }).map((c) => c.label)).toEqual(["Series status: Continuing"]);
+    expect(filterChips(new URLSearchParams("series_status=upcoming"), { seeFiles: false, kind: "series" }).map((c) => c.label)).toEqual(["Series status: Upcoming"]);
   });
   it("keeps the filters and sort, not the view; the kind on Anime only", () => {
     const p = new URLSearchParams("view=table&genre=Drama&sort=year&order=asc&kind=series&page=2");

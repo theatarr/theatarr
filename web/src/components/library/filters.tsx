@@ -262,22 +262,25 @@ export function FiltersPanel({
         ))}
         {/* Series and Anime: whether a series still airs (the status About shows), apart from the file status. */}
         {kind !== "movie" ? <div className="pt-2"><FilterLabel>Series status</FilterLabel></div> : null}
-        {kind !== "movie" ? (
-          <div role="group" aria-label="Series status" className={SPLIT_GROUP}>
-            {SERIES_STATUSES.map((x, j) => (
-              <FilterButton
-                key={x.id}
-                selected={values.series_status === x.id}
-                onClick={() => toggle("series_status", x.id)}
-                icon={x.id === "continuing" ? <CirclePlay /> : <CircleCheck />}
-                label={x.label}
-                title={x.hint}
-                count={facets?.series_status?.[x.id]}
-                className={segment(values.series_status === x.id, j > 0)}
-              />
-            ))}
-          </div>
-        ) : null}
+        {/* Two per row, as the status rows are, so the words fit at phone width. */}
+        {kind !== "movie"
+          ? [SERIES_STATUSES.slice(0, 2), SERIES_STATUSES.slice(2)].map((row, i) => (
+              <div key={i} role="group" aria-label="Series status" className={SPLIT_GROUP}>
+                {row.map((x, j) => (
+                  <FilterButton
+                    key={x.id}
+                    selected={values.series_status === x.id}
+                    onClick={() => toggle("series_status", x.id)}
+                    icon={x.id === "continuing" ? <CirclePlay /> : x.id === "upcoming" ? <CalendarDays /> : <CircleCheck />}
+                    label={x.label}
+                    title={x.hint}
+                    count={facets?.series_status?.[x.id]}
+                    className={segment(values.series_status === x.id, j > 0)}
+                  />
+                ))}
+              </div>
+            ))
+          : null}
         {/* Quality, apart from the status: among titles with a file (file detail). */}
         {seeFiles ? <div className="pt-2"><FilterLabel>Upgrades</FilterLabel></div> : null}
         {seeFiles ? (
