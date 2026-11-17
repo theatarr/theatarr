@@ -37,22 +37,30 @@ it("shows quality and score in cells, a dash where the event has none, and no da
   expect(fetch.calls("GET", "/activity").some((r) => r.search.includes("cursor=c2"))).toBe(true);
 });
 
-it("shows one row per download: an import or a failure says when it was grabbed, under its words", async () => {
+it("shows one row per download: an import or a failure says when it was grabbed under its words, an upgrade in its opened details", async () => {
   const imported = { id: "dl:7:import", at: "2026-11-12T14:05:00Z", kind: "import", event: "imported", title, version: "movie-web", words: "Imported", tone: "ok", release: "Alpha.2026.2160p.WEB-DL", grabbed_at: "2026-11-12T14:03:00Z" };
+  const upgraded = { ...link, grabbed_at: "2026-11-11T08:00:00Z", replaced: [{ path: "/movies/Alpha/old.mkv", release: "Alpha.2026.1080p.WEB" }] };
   const failed = { id: "dl:8:fail", at: "2026-11-12T13:00:00Z", kind: "failure", event: "failed", title, version: "movie-web", words: "Failed", tone: "bad", grabbed_at: "2026-11-12T12:50:00Z" };
   mockFetch([
     { method: "GET", path: "/auth/me", reply: me },
     { method: "GET", path: "/titles/facets", reply: {} },
-    { method: "GET", path: "/activity", reply: { state: "history", admin: true, history: [grab, imported, failed] } },
+    { method: "GET", path: "/activity", reply: { state: "history", admin: true, history: [grab, imported, failed, upgraded] } },
   ]);
   renderPage(<HistoryTab admin />, "/activity/history");
   const got = await screen.findAllByTestId("history-row");
-  expect(got.map((r) => r.querySelector('[data-testid="history-words"]')?.textContent)).toEqual(["Grabbed", "Imported", "Failed"]);
+  expect(got.map((r) => r.querySelector('[data-testid="history-words"]')?.textContent)).toEqual(["Grabbed", "Imported", "Failed", "Upgraded"]);
   expect(got.map((r) => r.querySelector('[data-testid="history-grabbed"]')?.textContent ?? null)).toEqual([
     null,
     `Grabbed ${fmtTime("2026-11-12T14:03:00Z")}`,
     `Grabbed ${fmtTime("2026-11-12T12:50:00Z")}`,
+    null,
   ]);
+  // The upgrade's grab time is in its details, above the replaced files.
+  expect(screen.queryByTestId("history-replaced")).toBeNull();
+  await userEvent.setup().click(got[3].querySelector<HTMLButtonElement>('[data-testid="history-replaced-toggle"]')!);
+  const details = await screen.findByTestId("history-replaced");
+  expect(details.querySelector('[data-testid="history-grabbed"]')?.textContent).toBe(`Grabbed ${fmtTime("2026-11-11T08:00:00Z")}`);
+  expect(screen.getAllByTestId("history-grabbed")).toHaveLength(3);
 });
 
 const series = { id: 3, name: "Gamma", year: 2019, kind: "series" };

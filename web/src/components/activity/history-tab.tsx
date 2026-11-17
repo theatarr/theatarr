@@ -127,9 +127,9 @@ function episodeKey(eps: readonly string[] | undefined): [number, number] {
 const fileName = (path: string) => path.split("/").pop() ?? "";
 const scoreWords = (score: number | null | undefined) => (score !== undefined && score !== null ? fmtNumber(score) : "");
 
-/** The files an upgrade or an adoption replaced, across the row, in episode order (then path): each file on its own
- *  lines, its parts labelled (file name, the path as tooltip; release; quality; score; episodes). When no file has a
- *  release name it is said once, not on every file. */
+/** An upgrade's or an adoption's details: when an upgrade was grabbed, then the files it replaced, across the row, in
+ *  episode order (then path): each file on its own lines, its parts labelled (file name, the path as tooltip; release;
+ *  quality; score; episodes). When no file has a release name it is said once, not on every file. */
 function ReplacedList({ e }: { e: ActivityEvent }) {
   const files = [...(e.replaced ?? [])].sort((a, b) => {
     const [as, ae] = episodeKey(a.episodes), [bs, be] = episodeKey(b.episodes);
@@ -138,6 +138,7 @@ function ReplacedList({ e }: { e: ActivityEvent }) {
   const named = files.some((f) => f.release);
   return (
     <div className="text-xs text-muted-foreground" data-testid="history-replaced">
+      {e.grabbed_at ? <p className="mb-2 tabular-nums" data-testid="history-grabbed">Grabbed {fmtTime(e.grabbed_at)}</p> : null}
       <p className="mb-1 font-semibold text-[var(--ink-2)]" data-testid="history-replaced-head">{files.length === 1 ? "Replaced file" : "Replaced files"}</p>
       {named ? null : <p className="mb-1">Release names not recorded.</p>}
       <ul className="space-y-2">
@@ -180,9 +181,10 @@ function ReplacedLine({ e }: { e: ActivityEvent }) {
 }
 
 /** When an outcome's download was grabbed (imported, upgraded, failed): its Grabbed row is this one (one row per
- *  download), so the time shows under the words. */
+ *  download). Under the words for a row with nothing to open; an upgrade's opens to it with its replaced files
+ *  (ReplacedList). */
 function GrabbedLine({ e }: { e: ActivityEvent }) {
-  if (!e.grabbed_at) return null;
+  if (!e.grabbed_at || e.replaced?.length) return null;
   return <p className="text-xs tabular-nums text-muted-foreground" data-testid="history-grabbed">Grabbed {fmtTime(e.grabbed_at)}</p>;
 }
 
