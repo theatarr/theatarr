@@ -68,7 +68,7 @@ export function problemToast(ev: ProblemEvent): { title: string; body: string; t
 }
 
 /** The text before Replace file runs: what is removed and where it is missing until a new one is found. */
-export function replaceScope(f: ReportFile): { title: string; does: string[]; keeps: string[]; confirm: string } {
+export function replaceScope(f: Pick<ReportFile, "libraries" | "episodes" | "pack">, report = true): { title: string; does: string[]; keeps: string[]; confirm: string } {
   const libs = joinAnd(f.libraries);
   const does = [`The file is removed now and a new one is searched. Until one is found it is missing in ${libs}.`];
   if (f.episodes && f.episodes.length > 0) does.push(`Episodes that lose the file: ${f.episodes.join(", ")}.`);
@@ -80,7 +80,7 @@ export function replaceScope(f: ReportFile): { title: string; does: string[]; ke
   return {
     title: "Replace this file?",
     does,
-    keeps: ["The debrid torrent and every other file stay as they are.", "The report stays open until you mark it fixed."],
+    keeps: ["The debrid torrent and every other file stay as they are.", ...(report ? ["The report stays open until you mark it fixed."] : [])],
     confirm: "Replace file",
   };
 }

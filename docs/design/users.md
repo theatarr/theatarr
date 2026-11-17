@@ -219,7 +219,7 @@ A household member says a film or an episode is broken without leaving the app; 
   symlink, its release known (a hash or a release name, so the blocklist keeps it out), searching running, Pause off,
   and each of those libraries monitored for the movie or each of those episodes. Otherwise the row says why and links
   to the title page; the server refuses the same cases (409) before anything changes. The report stays open. The
-  journal records it as an unlink with "replaced for problem report N".
+  journal records it as an unlink with "replaced for problem report N". The title page offers the same **Replace file…** without a report (a movie's library row and the episode overview, `POST links/{id}/replace`; [ui.md](ui.md) "Recovery actions").
 - **Mark fixed** with an optional reply: the reporter's list shows it, and the reporter gets an in-app toast (SSE
   `problem` event, to managers and the reporter, whose copy says `mine`).
 - **Notice**: the Requests sidebar count includes the open reports for managers (`GET /requests/summary` `problems`,

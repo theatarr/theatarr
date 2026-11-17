@@ -822,6 +822,8 @@ type EpisodeFile struct {
 	// AddTo is the cache codes of the providers with a key that do not hold the torrent complete: "Add to other
 	// providers" shows when it is not empty (copyTargets).
 	AddTo []string `json:"add_to,omitempty"`
+	// ReplaceScope: Replace file for the link (managers; linkreplace.go).
+	ReplaceScope *ReplaceScope `json:"replace_scope,omitempty"`
 }
 
 // EpisodeVersionDetail is one version of an episode.
@@ -947,6 +949,13 @@ func (w *Web) apiEpisode(rw http.ResponseWriter, r *http.Request) {
 	if seeFiles {
 		targets = w.copyTargets(ctx)
 	}
+	var scopes map[int64]*ReplaceScope // Replace file, for managers
+	if seeFiles && canManage(perms) {
+		if scopes, err = w.linkScopes(ctx, t.id, eid); err != nil {
+			w.internal(rw, err)
+			return
+		}
+	}
 	for i, v := range mvs {
 		c := out.Episode.Versions[v.key]
 		d := EpisodeVersionDetail{Key: v.key, Label: labels[v.key], State: c.State, Monitored: c.Monitored,
@@ -959,6 +968,9 @@ func (w *Web) apiEpisode(rw http.ResponseWriter, r *http.Request) {
 			if d.File, err = w.episodeFile(ctx, db, v.id, eid, targets); err != nil {
 				w.internal(rw, err)
 				return
+			}
+			if d.File != nil {
+				d.File.ReplaceScope = scopes[d.File.LinkID]
 			}
 		}
 		if seeFiles {

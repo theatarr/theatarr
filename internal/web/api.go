@@ -209,6 +209,11 @@ func (w *Web) apiTitle(rw http.ResponseWriter, r *http.Request) {
 	}
 	if !w.permsOf(r).SeeFiles {
 		redactTitle(d)
+	} else if canManage(w.permsOf(r)) {
+		if err := w.movieReplaceScopes(r.Context(), d); err != nil {
+			w.internal(rw, err)
+			return
+		}
 	}
 	writeJSON(rw, http.StatusOK, d)
 }

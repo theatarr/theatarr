@@ -353,6 +353,8 @@ type Link struct {
 	InfoHash     string `json:"info_hash,omitempty"`
 	// SizeBytes is the linked file's size where it is known (versions only; left out without "see files").
 	SizeBytes *int64 `json:"size_bytes,omitempty"`
+	// ReplaceScope: Replace file for the link (a movie's title page, managers who see files; linkreplace.go).
+	ReplaceScope *ReplaceScope `json:"replace_scope,omitempty"`
 }
 
 // Version is a version with its files.

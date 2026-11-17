@@ -1,5 +1,5 @@
 // Removal on the title page (docs/design/ui.md "Recovery actions"), for managers: Remove from this library (in the
-// library row's Details), Unlink one of its library files, Delete the files a library the title was removed from kept
+// library row's Details), Unlink one of its library files, Replace a movie's file (replace-file.tsx), Delete the files a library the title was removed from kept
 // (the line under the Libraries table, and the kept-files line of a title in no library), and Remove the whole title
 // (the action bar). Each confirmation spells out the scope the server reports (copies, links, downloads in progress)
 // and what stays. The removal's two choices are on by default: "Delete the files" (Theatarr's own symlinks go to its
@@ -12,6 +12,7 @@ import { useNavigate } from "react-router";
 import type { Version } from "@/api/library";
 import { useRemovalScope, useRemove, useUnlink } from "@/api/ops";
 import { Mono } from "@/components/page";
+import { ReplaceFile } from "@/components/title/replace-file";
 import { toast } from "@/components/toaster";
 import { Button } from "@/components/ui/button";
 import { Choice, ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -143,6 +144,7 @@ export function CopyActions({ v, label, onRemove }: { v: Version; label: string;
                       <span className="min-w-0 flex-1">
                         <Mono className="block text-[var(--ink)] [overflow-wrap:anywhere]">{(l.path ?? "").split("/").pop()}</Mono>
                         <span className="block select-text" data-testid="library-file-path"><Mono className="text-[11.5px] text-muted-foreground [overflow-wrap:anywhere]">{l.path}</Mono></span>
+                        <ReplaceFile titleId={titleId} linkId={l.id ?? 0} path={l.path ?? ""} scope={l.replace_scope} />
                       </span>
                       <Button size="xs" variant="ghost" onClick={() => setPath({ id: l.id ?? 0, path: l.path ?? "" })} data-testid="link-unlink">
                         <FileX2 /> Unlink

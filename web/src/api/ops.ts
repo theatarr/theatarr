@@ -109,6 +109,19 @@ export function useUnlink(titleId: number) {
   });
 }
 
+/** Replace file from the title page (managers): as the Problems page's, for one library link, without a report. */
+export function useReplaceLink(titleId: number) {
+  const refresh = useRefresh();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (linkId: number) => api<Schemas["ReplaceResult"]>(`/links/${linkId}/replace`, { method: "POST" }),
+    onSuccess: () => {
+      refresh(titleId);
+      void qc.invalidateQueries({ queryKey: ["reports"] });
+    },
+  });
+}
+
 /** Change the episodes a library link holds (admins): the link is renamed for them, and the choice is kept. */
 export function useReassignEpisodes(titleId: number) {
   const refresh = useRefresh();

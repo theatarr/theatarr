@@ -4,7 +4,8 @@
 // dialog); then, for callers who see files, three tabs:
 // Details (per copy its state against the cutoff with Why? and what Theatarr would take next, the download in hand,
 // the monitor switch and Search now for managers, read-only with the reason while an arr manages the copy,
-// Interactive search for a library that may search, and the file's facts with Held on, shown openly), History (per
+// Interactive search for a library that may search, and the file's facts with Held on, shown openly, with Replace
+// file… for managers), History (per
 // copy the title History's rows for the episode, the same table and words; its count the rows shown) and Last search
 // (the stored decision, read-only). Accounts without "see files" get
 // one availability line across copies and nothing else (the API sends no file, history or states for them). An
@@ -26,6 +27,7 @@ import { InteractiveSearchButton } from "@/components/title/interactive-search";
 import { ReleaseGrid } from "@/components/title/release-grid";
 import { Summary } from "@/components/title/show-releases";
 import { ChangeEpisodes } from "@/components/title/change-episodes";
+import { ReplaceFile } from "@/components/title/replace-file";
 import { AddToProviders } from "@/components/title/add-to-providers";
 import { ReportProblemButton } from "@/components/report/report-sheet";
 import { ProgressBar } from "@/components/activity-bits";
@@ -215,6 +217,11 @@ function DetailsPart({ titleId, eid, epCode, d, aired, manage, admin, single, ac
           {manage && d.file ? (
             <div className="mt-3">
               <AddToProviders hash={d.file.info_hash} addTo={d.file.add_to} pack />
+            </div>
+          ) : null}
+          {manage && d.file?.link_id && d.file.replace_scope ? (
+            <div className="mt-3">
+              <ReplaceFile titleId={titleId} linkId={d.file.link_id} path={d.file.path ?? ""} scope={d.file.replace_scope} />
             </div>
           ) : null}
           {admin && d.file?.link_id ? (

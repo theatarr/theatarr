@@ -230,3 +230,82 @@ func TestReplaceReportedFile(t *testing.T) {
 		t.Errorf("user replace: %d", code)
 	}
 }
+
+// TestReplaceFileFromTitlePage: a movie's file rows on the title page and the episode window's file carry Replace
+// file for managers who see files (household accounts get nothing), with the Problems page's refusal; POST
+// links/{id}/replace runs the same operation without a report, and the journal says a replacement search was
+// requested.
+func TestReplaceFileFromTitlePage(t *testing.T) {
+	t.Parallel()
+	o := newOpsEnv(t)
+	o.seedLibrary()
+	uid := o.account("household", auth.RoleUser, auth.StatusActive, true)
+	uc, ucsrf := o.session(uid)
+	scopeOf := func(c *http.Cookie) *ReplaceScope {
+		t.Helper()
+		var d TitleDetail
+		if code := o.jsonCall("GET", APIBase+"/titles/1", nil, c, "", &d); code != 200 {
+			t.Fatalf("title: %d", code)
+		}
+		for _, v := range d.Versions {
+			for _, l := range v.Links {
+				if l.ID == 901 {
+					return l.ReplaceScope
+				}
+			}
+		}
+		return nil
+	}
+	// Paused: the row says why, as the Problems page does, and the action is refused before anything changes.
+	s := scopeOf(o.mc)
+	if s == nil || s.Replace || s.Why == "" || len(s.Libraries) != 1 {
+		t.Fatalf("paused scope %+v", s)
+	}
+	var refused apiError
+	if code := o.jsonCall("POST", APIBase+"/links/901/replace", nil, o.mc, o.mcsrf, &refused); code != http.StatusConflict ||
+		refused.Error != s.Why || len(o.ops.unlinks) != 0 {
+		t.Fatalf("replace while paused: %d %+v unlinks %v", code, refused, o.ops.unlinks)
+	}
+	if s := scopeOf(uc); s != nil {
+		t.Errorf("household scope %+v", s)
+	}
+	o.activate("movie-remux")
+	if s := scopeOf(o.mc); s == nil || !s.Replace || s.Why != "" {
+		t.Fatalf("scope %+v", s)
+	}
+	// The episode window: the file's scope names its episodes.
+	o.exec(`UPDATE link SET release_title = 'Delta.S01E01.1080p.BluRay-GRP' WHERE id = 90`)
+	var ep EpisodeDetail
+	if code := o.jsonCall("GET", APIBase+"/titles/4/episodes/41", nil, o.mc, "", &ep); code != 200 || len(ep.Versions) != 1 ||
+		ep.Versions[0].File == nil || ep.Versions[0].File.ReplaceScope == nil || !ep.Versions[0].File.ReplaceScope.Replace ||
+		!slices.Equal(ep.Versions[0].File.ReplaceScope.Episodes, []string{"S01E01"}) {
+		t.Fatalf("episode: %d %+v", code, ep.Versions)
+	}
+	ep = EpisodeDetail{}
+	if code := o.jsonCall("GET", APIBase+"/titles/4/episodes/41", nil, uc, "", &ep); code != 200 || len(ep.Versions) != 1 ||
+		ep.Versions[0].File != nil {
+		t.Fatalf("household episode: %d %+v", code, ep.Versions)
+	}
+	if code := o.jsonCall("POST", APIBase+"/links/901/replace", nil, uc, ucsrf, nil); code != http.StatusForbidden {
+		t.Errorf("household replace: %d", code)
+	}
+	var got ReplaceResult
+	if code := o.jsonCall("POST", APIBase+"/links/901/replace", nil, o.mc, o.mcsrf, &got); code != 200 || got.Search == nil ||
+		!got.Search.Started || !strings.HasPrefix(got.Message, "Removed Alpha.mkv; the release is blocklisted in ") {
+		t.Fatalf("replace: %d %+v", code, got)
+	}
+	if !slices.Equal(o.ops.unlinks, []int64{901}) {
+		t.Errorf("unlinks %v", o.ops.unlinks)
+	}
+	if n := o.count(`SELECT COUNT(*) FROM router_blocklist WHERE title_id = 1 AND version_key = 'movie-remux'
+		AND source = 'ui' AND release_title = 'Alpha.2020.2160p.BluRay.REMUX-GRP'`); n != 1 {
+		t.Errorf("blocklist rows %d", n)
+	}
+	if n := o.count(`SELECT COUNT(*) FROM journal_action WHERE action = 'unlink_file' AND title_id = 1
+		AND detail LIKE 'replacement search requested; moved to %' AND by <> ''`); n != 1 {
+		t.Errorf("journal rows %d", n)
+	}
+	if n := o.count(`SELECT COUNT(*) FROM problem_report`); n != 0 {
+		t.Errorf("reports %d", n)
+	}
+}

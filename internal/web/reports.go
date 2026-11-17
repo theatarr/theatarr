@@ -52,6 +52,7 @@ func (w *Web) mountReportsAPI(mux *http.ServeMux) {
 	w.handle(mux, "POST "+b, SignedIn, auth.PermRequest, w.apiCreateReport)
 	w.handle(mux, "POST "+b+"/{id}/fix", SignedIn, auth.PermManageRequests, w.apiFixReport)
 	w.handle(mux, "POST "+b+"/{id}/replace", SignedIn, auth.PermManage, w.apiReplaceReported)
+	w.handle(mux, "POST "+APIBase+"/links/{id}/replace", SignedIn, auth.PermManage, w.apiReplaceLink)
 }
 
 // ProblemReport is one report as the API returns it.
@@ -451,6 +452,13 @@ func (w *Web) apiFixReport(rw http.ResponseWriter, r *http.Request) {
 // reportFiles are the files the title's libraries hold for a movie (episodeID 0) or an episode now: Theatarr's
 // active links, each with the libraries and episodes that lose it on an unlink, and whether Replace file can run.
 func (w *Web) reportFiles(ctx context.Context, titleID, episodeID int64) ([]ReportFile, error) {
+	return w.linkFiles(ctx, titleID, episodeID, 0)
+}
+
+// linkFiles is reportFiles for the title's active links (those holding episodeID when it is not 0; only linkID when
+// it is not 0), read in a few queries for the whole title: the Problems page, the title page's file rows and the
+// episode window use it alike (Replace file, linkreplace.go).
+func (w *Web) linkFiles(ctx context.Context, titleID, episodeID, linkID int64) ([]ReportFile, error) {
 	db := w.st.Reader()
 	q := `SELECT l.id, l.path, l.kind, COALESCE(NULLIF(l.release_title, ''), d.release_title, ''),
 		COALESCE(l.quality, ''), COALESCE(l.download_id, 0), COALESCE(` + router.LinkStoredHashSQL + `, ''),
@@ -463,6 +471,10 @@ func (w *Web) reportFiles(ctx context.Context, titleID, episodeID int64) ([]Repo
 	if episodeID > 0 {
 		q += ` AND EXISTS (SELECT 1 FROM link_episode x WHERE x.link_id = l.id AND x.episode_id = ?)`
 		args = append(args, episodeID)
+	}
+	if linkID > 0 {
+		q += ` AND l.id = ?`
+		args = append(args, linkID)
 	}
 	q += ` ORDER BY l.id`
 	var out []ReportFile
@@ -478,24 +490,59 @@ func (w *Web) reportFiles(ctx context.Context, titleID, episodeID int64) ([]Repo
 		out = append(out, f)
 		return nil
 	})
-	if err != nil {
+	if err != nil || len(out) == 0 {
 		return nil, err
 	}
 	on, err := w.versionsOn(ctx, titleID)
 	if err != nil {
 		return nil, err
 	}
-	kept := out[:0]
-	for _, f := range out {
-		if err := scanAll(ctx, db, `SELECT v.policy_key FROM link_version x JOIN version v ON v.id = x.version_id
-			WHERE x.link_id = ? ORDER BY v.policy_key`, []any{f.LinkID}, func(rows *sql.Rows) error {
-			var k string
-			err := rows.Scan(&k)
-			f.Versions = append(f.Versions, k)
+	// The libraries and episodes of the title's active links, in one read each.
+	active := `SELECT id FROM link WHERE title_id = ? AND state = 'active'`
+	versions := map[int64][]string{}
+	if err := scanAll(ctx, db, `SELECT x.link_id, v.policy_key FROM link_version x JOIN version v ON v.id = x.version_id
+		WHERE x.link_id IN (`+active+`) ORDER BY x.link_id, v.policy_key`, []any{titleID}, func(rows *sql.Rows) error {
+		var id int64
+		var k string
+		err := rows.Scan(&id, &k)
+		versions[id] = append(versions[id], k)
+		return err
+	}); err != nil {
+		return nil, err
+	}
+	type ep struct {
+		id   int64
+		code string
+	}
+	episodes := map[int64][]ep{}
+	if err := scanAll(ctx, db, `SELECT x.link_id, e.id, e.season, e.number FROM link_episode x
+		JOIN episode e ON e.id = x.episode_id WHERE x.link_id IN (`+active+`) ORDER BY e.season, e.number`,
+		[]any{titleID}, func(rows *sql.Rows) error {
+			var link, id, s, n int64
+			err := rows.Scan(&link, &id, &s, &n)
+			episodes[link] = append(episodes[link], ep{id, episodeCode(s, n)})
+			return err
+		}); err != nil {
+		return nil, err
+	}
+	// Each episode a link holds is monitored per library: the episode's own switch, else its default.
+	monitored := map[episodeKey]bool{}
+	if len(episodes) > 0 {
+		if err := scanAll(ctx, db, `SELECT e.id, v.policy_key FROM episode e JOIN version v ON v.title_id = e.title_id
+			LEFT JOIN episode_version_state s ON s.version_id = v.id AND s.episode_id = e.id
+			WHERE e.title_id = ? AND COALESCE(s.monitored, e.monitored) = 1 AND e.id IN (SELECT x.episode_id
+				FROM link_episode x WHERE x.link_id IN (`+active+`))`, []any{titleID, titleID}, func(rows *sql.Rows) error {
+			var k episodeKey
+			err := rows.Scan(&k.id, &k.version)
+			monitored[k] = true
 			return err
 		}); err != nil {
 			return nil, err
 		}
+	}
+	kept := out[:0]
+	for _, f := range out {
+		f.Versions = versions[f.LinkID]
 		if len(f.Versions) == 0 {
 			continue // a link of no library: nothing to replace there
 		}
@@ -503,39 +550,38 @@ func (w *Web) reportFiles(ctx context.Context, titleID, episodeID int64) ([]Repo
 		for _, k := range f.Versions {
 			f.Libraries = append(f.Libraries, labels[k])
 		}
-		if err := scanAll(ctx, db, `SELECT e.id, e.season, e.number FROM link_episode x JOIN episode e ON e.id = x.episode_id
-			WHERE x.link_id = ? ORDER BY e.season, e.number`, []any{f.LinkID}, func(rows *sql.Rows) error {
-			var id, s, n int64
-			err := rows.Scan(&id, &s, &n)
-			f.episodeIDs = append(f.episodeIDs, id)
-			f.Episodes = append(f.Episodes, episodeCode(s, n))
-			return err
-		}); err != nil {
-			return nil, err
+		for _, e := range episodes[f.LinkID] {
+			f.episodeIDs = append(f.episodeIDs, e.id)
+			f.Episodes = append(f.Episodes, e.code)
 		}
-		if f.Why, err = w.replaceBlocked(ctx, f, kinds[f.LinkID], on); err != nil {
-			return nil, err
-		}
+		f.Why = w.replaceBlocked(f, kinds[f.LinkID], on, monitored)
 		f.Replace = f.Why == ""
 		kept = append(kept, f)
 	}
 	return kept, nil
 }
 
+// episodeKey is an episode in one library (linkFiles).
+type episodeKey struct {
+	id      int64
+	version string
+}
+
 // replaceBlocked says why Replace file cannot run for f ("" when it can): it runs only when the search after it can,
-// in every library that loses the file, for the movie or every episode the file holds.
-func (w *Web) replaceBlocked(ctx context.Context, f ReportFile, kind string, on []string) (string, error) {
+// in every library that loses the file, for the movie or every episode the file holds (monitored: the episodes
+// monitored per library).
+func (w *Web) replaceBlocked(f ReportFile, kind string, on []string, monitored map[episodeKey]bool) string {
 	if kind != "symlink" {
-		return "This file is not one of Theatarr's links; change it from the title page", nil
+		return "This file is not one of Theatarr's links; change it from the title page"
 	}
 	if router.BlocklistKey(f.hash, f.ReleaseTitle) == "" {
-		return "Theatarr does not know this file's release, so it could come back; change it from the title page", nil
+		return "Theatarr does not know this file's release, so it could come back; change it from the title page"
 	}
 	if w.ops == nil || w.add.Acquirer == nil {
-		return "Searching is not running, so no new file would be searched", nil
+		return "Searching is not running, so no new file would be searched"
 	}
 	if _, skipped := catalog.Searchable(w.pol, f.Versions); len(skipped) > 0 {
-		return "Not searched now: " + skipWords(skipped), nil
+		return "Not searched now: " + skipWords(skipped)
 	}
 	var off []string
 	for _, k := range f.Versions {
@@ -544,37 +590,22 @@ func (w *Web) replaceBlocked(ctx context.Context, f ReportFile, kind string, on 
 		}
 	}
 	if len(off) > 0 {
-		return w.labelList(off) + " is not monitored, so no new file would be searched", nil
-	}
-	if len(f.episodeIDs) == 0 {
-		return "", nil
-	}
-	// Each episode the file holds is monitored in each library (an episode's own switch, else its default).
-	args := append(anys(f.episodeIDs), anys(f.Versions)...)
-	monitored := map[int64]bool{}
-	if err := scanAll(ctx, w.st.Reader(), `SELECT e.id FROM episode e JOIN version v ON v.title_id = e.title_id
-		LEFT JOIN episode_version_state s ON s.version_id = v.id AND s.episode_id = e.id
-		WHERE e.id IN (`+store.Placeholders(len(f.episodeIDs))+`) AND v.policy_key IN (`+
-		store.Placeholders(len(f.Versions))+`) AND COALESCE(s.monitored, e.monitored) = 1
-		GROUP BY e.id HAVING COUNT(*) = ?`, append(args, len(f.Versions)), func(rows *sql.Rows) error {
-		var id int64
-		err := rows.Scan(&id)
-		monitored[id] = true
-		return err
-	}); err != nil {
-		return "", err
+		return w.labelList(off) + " is not monitored, so no new file would be searched"
 	}
 	var codes []string
 	for i, eid := range f.episodeIDs {
-		if !monitored[eid] {
-			codes = append(codes, f.Episodes[i])
+		for _, k := range f.Versions {
+			if !monitored[episodeKey{eid, k}] {
+				codes = append(codes, f.Episodes[i])
+				break
+			}
 		}
 	}
 	if len(codes) > 0 {
 		return strings.Join(codes, ", ") + " is not monitored in every library that has this file, so no new file " +
-			"would be searched", nil
+			"would be searched"
 	}
-	return "", nil
+	return ""
 }
 
 // ReplaceReported is POST reports/{id}/replace.
@@ -627,13 +658,24 @@ func (w *Web) apiReplaceReported(rw http.ResponseWriter, r *http.Request) {
 		writeJSON(rw, http.StatusConflict, apiError{Error: "That file is no longer in the library for this report"})
 		return
 	}
-	f := files[i]
+	by := actor(r)
+	w.replaceFile(rw, r, p.TitleID, files[i], "replaced for a problem report by "+orSomeone(by),
+		"replaced for problem report "+strconv.FormatInt(p.ID, 10), "file replaced for a problem report",
+		"report", p.ID)
+}
+
+// replaceFile runs Replace file for f, one of the title's files (linkFiles), and answers it: 409 with the reason
+// when the search after it could not run, before anything changes; else unlink it (reason), blocklist its release in
+// each library that loses it, search those libraries for the movie or every episode the file held, and record it in
+// the journal (note first in the detail) and the log (logMsg, with logArgs).
+func (w *Web) replaceFile(rw http.ResponseWriter, r *http.Request, titleID int64, f ReportFile, reason, note,
+	logMsg string, logArgs ...any) {
 	if !f.Replace {
 		writeJSON(rw, http.StatusConflict, apiError{Error: f.Why})
 		return
 	}
+	ctx := r.Context()
 	by := actor(r)
-	reason := "replaced for a problem report by " + orSomeone(by)
 	u, err := w.ops.UnlinkLink(ctx, f.LinkID, reason)
 	if err != nil {
 		w.opsError(rw, err)
@@ -644,7 +686,7 @@ func (w *Web) apiReplaceReported(rw http.ResponseWriter, r *http.Request) {
 	at := store.Millis(w.now())
 	if err := w.st.WriteTx(ctx, func(tx *sql.Tx) error {
 		for _, k := range f.Versions {
-			if err := router.Blocklist(ctx, tx, k, f.hash, p.TitleID, f.downloadID, f.ReleaseTitle, reason, BlocklistUI,
+			if err := router.Blocklist(ctx, tx, k, f.hash, titleID, f.downloadID, f.ReleaseTitle, reason, BlocklistUI,
 				at); err != nil {
 				return err
 			}
@@ -654,19 +696,18 @@ func (w *Web) apiReplaceReported(rw http.ResponseWriter, r *http.Request) {
 		w.internal(rw, err)
 		return
 	}
-	s, err := w.searchReplaced(ctx, p.TitleID, f)
+	s, err := w.searchReplaced(ctx, titleID, f)
 	if err != nil {
 		w.internal(rw, err)
 		return
 	}
 	out := ReplaceResult{Search: s, Message: "Removed " + path.Base(f.Path) + "; the release is blocklisted in " +
 		w.labelList(f.Versions) + ". " + s.Message}
-	w.record(ctx, journal.Action{Action: journal.ActUnlinkFile, TitleID: p.TitleID, Version: strings.Join(f.Versions, ","),
+	w.record(ctx, journal.Action{Action: journal.ActUnlinkFile, TitleID: titleID, Version: strings.Join(f.Versions, ","),
 		InfoHash: f.hash, Release: f.ReleaseTitle, DownloadID: f.downloadID, Target: u.Path,
-		Detail: "replaced for problem report " + strconv.FormatInt(p.ID, 10) + "; moved to " + orDash(u.Trash) +
-			"; blocklisted; search: " + s.Message, By: by})
-	w.log.Info("file replaced for a problem report", "report", p.ID, "link", f.LinkID, "versions",
-		strings.Join(f.Versions, ","), "queued", s.Queued, "by", by)
+		Detail: note + "; moved to " + orDash(u.Trash) + "; blocklisted; search: " + s.Message, By: by})
+	w.log.Info(logMsg, append(logArgs, "link", f.LinkID, "versions", strings.Join(f.Versions, ","), "queued", s.Queued,
+		"by", by)...)
 	writeJSON(rw, http.StatusOK, out)
 }
 
@@ -687,14 +728,6 @@ func (w *Web) searchReplaced(ctx context.Context, titleID int64, f ReportFile) (
 		out.Message = "Nothing to search: no monitored episode in " + strings.Join(f.Episodes, ", ")
 	}
 	return out, nil
-}
-
-func anys[T any](xs []T) []any {
-	out := make([]any, len(xs))
-	for i, x := range xs {
-		out[i] = x
-	}
-	return out
 }
 
 // openReports counts the open problem reports (the managers' Requests badge and System › Status).
