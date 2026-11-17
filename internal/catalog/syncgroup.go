@@ -11,7 +11,7 @@ import (
 )
 
 // SyncGain is a title that Bring in sync gives copies (docs/design/ui.md "Keep in sync"): the group's libraries Keys
-// it gains, following its copy Source.
+// it gains, following its copy Source; Restored are those of Keys whose removed copy comes back.
 type SyncGain struct {
 	TitleID int64
 	Name    string
@@ -22,11 +22,12 @@ type SyncGain struct {
 	SourceID  int64
 	Monitored bool
 	Keys      []string
+	Restored  []string
 }
 
 // SyncGains are the titles that hold a copy (not removed) in a library of group and would gain copies in its other
-// libraries by SyncPartners, as if the source copy were added now without restore: a removed or existing unmonitored
-// copy is left as it is, and a library that does not fit the title is left out. Sorted by name.
+// libraries by SyncPartners, as if a person added the source copy now (restore): a removed copy comes back, an
+// existing unmonitored one is left as it is, and a library that does not fit the title is left out. Sorted by name.
 func SyncGains(ctx context.Context, q RowsQuerier, pol *policy.Policy, group []string) ([]SyncGain, error) {
 	if len(group) < 2 {
 		return nil, nil
@@ -84,18 +85,24 @@ func SyncGains(ctx context.Context, q RowsQuerier, pol *policy.Policy, group []s
 		}
 		// The rule of an add, as if the title gained its source copy now.
 		delete(t.held, src)
-		if t.gain.Keys = SyncPartners(pol, t.gain.Kind, t.anime, t.held, []string{src}, false); len(t.gain.Keys) > 0 {
+		if t.gain.Keys = SyncPartners(pol, t.gain.Kind, t.anime, t.held, []string{src}, true); len(t.gain.Keys) > 0 {
 			t.gain.Source, t.gain.SourceID, t.gain.Monitored = src, t.ids[src], t.monitored[src]
+			for _, k := range t.gain.Keys {
+				if _, had := t.held[k]; had {
+					t.gain.Restored = append(t.gain.Restored, k)
+				}
+			}
 			out = append(out, t.gain)
 		}
 	}
 	return out, nil
 }
 
-// BringInSync gives every title of SyncGains its missing copies in group, in tx: each new copy monitored like its
-// source copy; a series' new copy takes the source's season and episode monitoring and monitor-new choice
-// (CopySeasonIntent); a movie's takes the source's explicit minimum availability unless the library has its own
-// (ChoiceKeys). Existing copies, removed ones included, are not touched. Nothing is searched here.
+// BringInSync gives every title of SyncGains its missing copies in group, in tx, and restores its removed ones: each
+// copy monitored like its source copy; a series' copy takes the source's season and episode monitoring and
+// monitor-new choice (CopySeasonIntent); a new movie copy takes the source's explicit minimum availability unless the
+// library has its own, and a restored one keeps its saved choice (ChoiceKeys). Existing copies are not touched.
+// Nothing is searched here.
 func BringInSync(ctx context.Context, tx *sql.Tx, pol *policy.Policy, group []string, now time.Time) ([]SyncGain,
 	error) {
 	gains, err := SyncGains(ctx, tx, pol, group)
@@ -122,7 +129,7 @@ func BringInSync(ctx context.Context, tx *sql.Tx, pol *policy.Policy, group []st
 				return nil, err
 			}
 		} else if r := rules[g.SourceID]; r.Source == availability.SourceChoice {
-			if err := availability.Choose(ctx, tx, g.TitleID, ChoiceKeys(pol, g.Keys, g.Keys, nil), r.Minimum,
+			if err := availability.Choose(ctx, tx, g.TitleID, ChoiceKeys(pol, g.Keys, g.Keys, g.Restored), r.Minimum,
 				now); err != nil {
 				return nil, err
 			}

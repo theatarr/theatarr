@@ -34,3 +34,15 @@ export function syncNote(groups: string[][] | undefined, key: string, nameOf: (k
   if (partners.length === 0) return "";
   return `Titles added to ${nameOf(key)} are also added to ${namesList(partners.map(nameOf))} (in sync).`;
 }
+
+/** Connected apps' note on a delete from the app: "A delete from this app also removes the title from 4K WEB and HD
+ *  (in sync), with their files when the app asks for its files to be deleted."; empty when no library of keys (the
+ *  app's) has a partner outside them. */
+export function syncDeleteNote(groups: string[][] | undefined, keys: string[], nameOf: (key: string) => string): string {
+  const partners: string[] = [];
+  for (const k of keys) {
+    for (const p of groupOf(groups, k) ?? []) if (!keys.includes(p) && !partners.includes(p)) partners.push(p);
+  }
+  if (partners.length === 0) return "";
+  return `A delete from this app also removes the title from ${namesList(partners.map(nameOf))} (in sync), with ${partners.length === 1 ? "its" : "their"} files when the app asks for its files to be deleted.`;
+}

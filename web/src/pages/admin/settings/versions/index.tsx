@@ -537,7 +537,7 @@ function SyncPart({ record, saved, data, onChange }: { record: Draft; saved: Dra
   const changed = sync.join(",") !== (saved.sync ?? []).join(",");
   const toggle = (key: string, on: boolean) => onChange({ ...record, sync: (on ? [...sync, key] : sync.filter((k) => k !== key)).sort() });
   return <section className="space-y-3" aria-label="Keep in sync" data-testid="library-sync-part">
-    <div><h3 className="font-semibold">Keep in sync</h3><p className="text-xs text-muted-foreground" data-testid="library-sync-help">A title added to one of these libraries is added to the others too; a copy removed there comes back when a person adds the title, not from lists or collections. Monitoring, removals and files stay each library's own. Only libraries of the same kind and anime setting can be kept in sync.</p></div>
+    <div><h3 className="font-semibold">Keep in sync</h3><p className="text-xs text-muted-foreground" data-testid="library-sync-help">A title added to one of these libraries is added to the others too, and a title removed from one is removed from the others, with its files and debrid torrents when the removal deletes them. Monitoring stays each library's own. Only libraries of the same kind and anime setting can be kept in sync.</p></div>
     {offered.length ? <fieldset className="space-y-1"><legend className="sr-only">Keep in sync with</legend><div className="flex flex-wrap gap-3">{offered.map((r) => <label key={r.key} className="flex items-center gap-1 text-sm"><input type="checkbox" checked={sync.includes(r.key)} onChange={(event) => toggle(r.key, event.target.checked)} />{label(r)}</label>)}</div></fieldset>
       : <p className="text-sm text-muted-foreground">No other library can be kept in sync with this one.</p>}
     {refused.length ? <p className="text-xs text-muted-foreground [overflow-wrap:anywhere]" data-testid="library-sync-refused">Not offered: {refused.join("; ")}.</p> : null}
@@ -546,8 +546,16 @@ function SyncPart({ record, saved, data, onChange }: { record: Draft; saved: Dra
   </section>;
 }
 
+/** What Bring in sync gives one library: "<B> gains N titles, M of them were removed from it before and come back". */
+export function bringInSyncGain(l: { label: string; count: number; restored: number }): string {
+  const n = `${l.count} ${l.count === 1 ? "title" : "titles"}`;
+  if (!l.restored) return `${l.label} gains ${n}`;
+  const back = l.restored === 1 ? (l.count === 1 ? "it was removed from it before and comes back" : "1 of them was removed from it before and comes back") : `${l.restored} of them were removed from it before and come back`;
+  return `${l.label} gains ${n}, ${back}`;
+}
+
 /** Bring in sync, for a saved group: "N titles would gain a copy in this group" (hidden at 0) and the dialog that
- * adds those copies in one server action; searching for them is a choice, off by default, through the paced search
+ * adds those copies, and restores the ones removed from a library of the group, in one server action; searching for them is a choice, off by default, through the paced search
  * schedule, and not offered while Pause is on (nothing would be queued). */
 function BringInSyncLine({ libraryKey, paused }: { libraryKey: string; paused?: "locked" | "off" }) {
   const preview = useBringInSyncPreview(libraryKey, true);
@@ -585,8 +593,8 @@ function BringInSyncLine({ libraryKey, paused }: { libraryKey: string; paused?: 
     {open ? <ConfirmDialog danger={false} busy={busy} error={error} onClose={() => setOpen(false)} onConfirm={() => void run()} testid="bring-in-sync-dialog"
       scope={{
         title: "Bring this group in sync",
-        does: [...gains.map((l) => `${titles(l.count)} added to ${l.label}: ${l.names.join(", ")}${l.more ? `, and ${l.more} more` : ""}`), p.source],
-        keeps: ["Removed copies stay removed, and existing copies are left as they are", ...(search && !paused ? [] : ["No search queued by this action"])],
+        does: [...gains.map((l) => `${bringInSyncGain(l)}: ${l.names.join(", ")}${l.more ? `, and ${l.more} more` : ""}`), p.source],
+        keeps: ["Existing copies are left as they are", ...(search && !paused ? [] : ["No search queued by this action"])],
         confirm: `Add ${titles(p.titles)}`,
       }}>
       <Choice checked={search && !paused} onChange={setSearch} disabled={!!paused} testid="bring-in-sync-search">Search for the new copies (paced, within the hourly search budget)</Choice>

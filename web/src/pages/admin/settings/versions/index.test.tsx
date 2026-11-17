@@ -2,7 +2,7 @@
 import { cleanup, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
-import { VersionsPage } from ".";
+import { bringInSyncGain, VersionsPage } from ".";
 import { expectNamedControls, json, mockFetch, renderPage } from "@/test/page";
 
 /** Stands in for the header Pause: it reads the settings overview. */
@@ -39,7 +39,7 @@ describe("Versions page", () => {
     await user.click(within(row()).getByRole("button", { name: "Edit" }));
     const part = await screen.findByTestId("library-sync-part");
     // The help says what happens to a copy removed there: a person's add brings it back, lists and collections do not.
-    expect(within(part).getByTestId("library-sync-help").textContent).toBe("A title added to one of these libraries is added to the others too; a copy removed there comes back when a person adds the title, not from lists or collections. Monitoring, removals and files stay each library's own. Only libraries of the same kind and anime setting can be kept in sync.");
+    expect(within(part).getByTestId("library-sync-help").textContent).toBe("A title added to one of these libraries is added to the others too, and a title removed from one is removed from the others, with its files and debrid torrents when the removal deletes them. Monitoring stays each library's own. Only libraries of the same kind and anime setting can be kept in sync.");
     expect((within(part).getByRole("checkbox", { name: "Remux" }) as HTMLInputElement).checked).toBe(true);
     expect(within(part).queryByRole("checkbox", { name: "HD" })).toBeNull();
     expect(within(part).getByTestId("library-sync-refused").textContent).toBe("Not offered: Anime (anime only); HD (in sync with UHD); UHD (in sync with HD).");
@@ -47,6 +47,31 @@ describe("Versions page", () => {
     await user.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() => expect(fetch.calls("PUT", "/settings/versions/movie-web")).toHaveLength(1));
     expect(fetch.calls("PUT", "/settings/versions/movie-web")[0].body).toMatchObject({ sync_with: [] });
+  });
+  it("says removals follow the group too, and Bring in sync names the copies it brings back", async () => {
+    const lib = (key: string, name: string) => ({ ...version(), key, config: { ...version().config, name } });
+    const data = { ...versions(), versions: [lib("movie-web", "Web"), lib("movie-remux", "Remux")], sync_groups: [["movie-web", "movie-remux"]] };
+    const preview = { group: ["movie-web", "movie-remux"], titles: 3, source: "Each new copy is monitored like the title's first monitored copy in the group, or its first copy.", searched: 0,
+      libraries: [{ key: "movie-web", label: "Web", count: 0, names: [], more: 0, restored: 0 }, { key: "movie-remux", label: "Remux", count: 3, names: ["Alpha", "Beta", "Gamma"], more: 0, restored: 2 }] };
+    mockFetch([...getRoutes(data), { method: "GET", path: "/settings/versions/movie-web/bring-in-sync", reply: preview }]);
+    const user = userEvent.setup();
+    const page = renderPage(<VersionsPage />);
+    const row = () => page.container.querySelector<HTMLElement>('[data-record="movie-web"]')!;
+    await waitFor(() => expect(row()).toBeTruthy());
+    await user.click(within(row()).getByRole("button", { name: "Edit" }));
+    const part = await screen.findByTestId("library-sync-part");
+    expect(part.textContent).toContain("A title added to one of these libraries is added to the others too, and a title removed from one is removed from the others, with its files and debrid torrents when the removal deletes them. Monitoring stays each library's own.");
+    expect(part.textContent).not.toContain("unless it was removed");
+    await user.click(await within(part).findByRole("button", { name: "Bring in sync…" }));
+    const dialog = await screen.findByTestId("bring-in-sync-dialog");
+    expect(dialog.textContent).toContain("Remux gains 3 titles, 2 of them were removed from it before and come back: Alpha, Beta, Gamma");
+    expect(dialog.textContent).toContain("Existing copies are left as they are");
+    expect(dialog.textContent).not.toContain("Removed copies stay removed");
+  });
+  it("words what Bring in sync gives a library, with the copies that come back", () => {
+    expect(bringInSyncGain({ label: "HD", count: 4, restored: 0 })).toBe("HD gains 4 titles");
+    expect(bringInSyncGain({ label: "HD", count: 4, restored: 1 })).toBe("HD gains 4 titles, 1 of them was removed from it before and comes back");
+    expect(bringInSyncGain({ label: "HD", count: 1, restored: 1 })).toBe("HD gains 1 title, it was removed from it before and comes back");
   });
   it("saves curator preference separately from quality and grab settings", async () => {
     const fetch = mockFetch([...getRoutes(), { method: "PUT", path: "/settings/versions/movie-web", reply: json({ generation: 5 }) }]);

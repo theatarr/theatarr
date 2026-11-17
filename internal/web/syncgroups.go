@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"net/http"
+	"slices"
 
 	"github.com/theatarr/theatarr/internal/catalog"
 	"github.com/theatarr/theatarr/internal/store"
@@ -16,13 +17,14 @@ const syncSourceWords = "Each new copy is monitored like the title's first monit
 const syncPreviewNames = 5
 
 // SyncLibraryGain is what Bring in sync gives one library of a group: Count titles, the first of them named (Names)
-// and More the rest.
+// and More the rest; Restored of them were removed from it before and come back.
 type SyncLibraryGain struct {
-	Key   string   `json:"key"`
-	Label string   `json:"label"`
-	Count int      `json:"count"`
-	Names []string `json:"names"`
-	More  int      `json:"more"`
+	Key      string   `json:"key"`
+	Label    string   `json:"label"`
+	Count    int      `json:"count"`
+	Names    []string `json:"names"`
+	More     int      `json:"more"`
+	Restored int      `json:"restored"`
 }
 
 // BringInSync is the answer of GET and POST /settings/versions/{key}/bring-in-sync: for the saved sync group of the
@@ -52,6 +54,9 @@ func (w *Web) bringInSyncAnswer(group []string, gains []catalog.SyncGain) BringI
 					continue
 				}
 				lib.Count++
+				if slices.Contains(g.Restored, k) {
+					lib.Restored++
+				}
 				if len(lib.Names) < syncPreviewNames {
 					lib.Names = append(lib.Names, g.Name)
 				}

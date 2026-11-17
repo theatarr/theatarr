@@ -2090,10 +2090,18 @@ func TestBringInSync(t *testing.T) {
 		}
 		return fmt.Sprintf("%d %s", b.Titles, strings.Join(out, " "))
 	}
-	want := "4 tv-2160p:1[Only B] tv-b:2[Removed C The Show] tv-c:3[Only B The Show Unmonitored]"
+	// A copy removed from a library of the group comes back (Removed C's and Complete's tv-c); an existing
+	// unmonitored one stays as it is (Complete's tv-b).
+	want := "5 tv-2160p:1[Only B] tv-b:2[Removed C The Show] tv-c:5[Complete Only B Removed C The Show Unmonitored]"
 	if got := counts(b); got != want || b.Source == "" {
 		t.Errorf("preview %s, want %s", got, want)
 	}
+	if r := b.Libraries[2].Restored; r != 2 || b.Libraries[0].Restored+b.Libraries[1].Restored != 0 {
+		t.Errorf("restored %+v", b.Libraries)
+	}
+	// Removed C's source copy has its own season choices: the restored copy takes them.
+	e.exec(`INSERT INTO series_monitor (version_id, monitor_new, seasons, updated_at) SELECT id, 'all', '{"1":true}', 0
+		FROM version WHERE title_id = 41 AND policy_key = 'tv-2160p'`)
 	all := func() string {
 		var out []string
 		_ = scanAll(context.Background(), e.st.Reader(), `SELECT v.title_id || ':' || v.policy_key || ':' || v.monitored ||
@@ -2110,9 +2118,13 @@ func TestBringInSync(t *testing.T) {
 		t.Errorf("action %s, searched %d", got, b.Searched)
 	}
 	if got, want := all(), "10:tv-2160p:1 10:tv-b:1 10:tv-c:1 40:tv-2160p:1 40:tv-b:1 40:tv-c:1 "+
-		"41:tv-2160p:1 41:tv-b:1 41:tv-c:0:removed 42:tv-2160p:0 42:tv-b:0 42:tv-c:0 "+
-		"43:tv-2160p:1 43:tv-b:0 43:tv-c:0:removed"; got != want {
+		"41:tv-2160p:1 41:tv-b:1 41:tv-c:1 42:tv-2160p:0 42:tv-b:0 42:tv-c:0 "+
+		"43:tv-2160p:1 43:tv-b:0 43:tv-c:1"; got != want {
 		t.Errorf("copies\n%s\nwant\n%s", got, want)
+	}
+	if n := e.count(`SELECT COUNT(*) FROM series_monitor m JOIN version v ON v.id = m.version_id WHERE v.title_id = 41
+		AND v.policy_key = 'tv-c' AND m.monitor_new = 'all' AND m.seasons = '{"1":true}'`); n != 1 {
+		t.Error("the restored copy did not take the source's season choices")
 	}
 	// The Show's new copies monitor what tv-2160p does, episode by episode, with its intent.
 	for _, k := range []string{"tv-b", "tv-c"} {
@@ -2182,6 +2194,42 @@ func TestSyncGroupsRemovedTitleAnimeChoice(t *testing.T) {
 			201, &res)
 		if !slices.Equal(res.Synced, []string{c.synced}) {
 			t.Errorf("title %d: the add created %v in sync, want %s", c.id, res.Synced, c.synced)
+		}
+	}
+}
+
+// Bring in sync restores a movie's removed copy, monitored like its source, with the minimum availability choice the
+// copy had saved; a new copy takes the source's choice.
+func TestBringInSyncRestoresAMovie(t *testing.T) {
+	t.Parallel()
+	e := newAddEnv(t, func(p *policy.Policy) {
+		hd := *p.Versions["movie-web"]
+		hd.Library = "/media/movies-hd"
+		p.Versions["movie-hd"] = &hd
+		p.Library.SyncGroups = [][]string{{"movie-web", "movie-hd"}}
+	})
+	e.exec(`INSERT INTO title (id, kind, name, sort_name, tmdb_id, anime, created_at, updated_at) VALUES
+		(20, 'movie', 'Restored', 'restored', 520, 0, 0, 0), (21, 'movie', 'Fresh', 'fresh', 521, 0, 0, 0)`)
+	e.exec(`INSERT INTO version (id, title_id, policy_key, monitored, state, created_at, updated_at) VALUES
+		(20, 20, 'movie-web', 1, 'wanted', 0, 0), (21, 20, 'movie-hd', 0, 'wanted', 0, 0),
+		(22, 21, 'movie-web', 1, 'wanted', 0, 0)`)
+	e.exec(`INSERT INTO arrview_removed_version (version_id, view, removed_at) VALUES (21, 'ui', 0)`)
+	e.exec(`INSERT INTO arrview_title (view, title_id, minimum_availability, added_at, updated_at) VALUES
+		('v/movie-web', 20, 'announced', 0, 5), ('v/movie-hd', 20, 'inCinemas', 0, 5), ('v/movie-web', 21, 'announced', 0, 5)`)
+	var b BringInSync
+	e.call("POST", APIBase+"/settings/versions/movie-hd/bring-in-sync", map[string]any{"search": false}, 200, &b)
+	if b.Titles != 2 || b.Libraries[1].Key != "movie-hd" || b.Libraries[1].Count != 2 || b.Libraries[1].Restored != 1 {
+		t.Fatalf("answer %+v", b)
+	}
+	if n := e.count(`SELECT COUNT(*) FROM version v WHERE v.id = 21 AND v.monitored = 1 AND NOT EXISTS
+		(SELECT 1 FROM arrview_removed_version r WHERE r.version_id = v.id)`); n != 1 {
+		t.Error("the removed copy did not come back monitored")
+	}
+	for id, want := range map[int64]string{20: "inCinemas", 21: "announced"} {
+		var got string
+		if err := e.st.Reader().QueryRow(`SELECT minimum_availability FROM arrview_title WHERE view = 'v/movie-hd'
+			AND title_id = ?`, id).Scan(&got); err != nil || got != want {
+			t.Errorf("title %d: movie-hd minimum availability %q (%v), want %q", id, got, err, want)
 		}
 	}
 }

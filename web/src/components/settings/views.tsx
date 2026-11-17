@@ -87,7 +87,7 @@ export function ViewsCard({ readOnly }: { readOnly: boolean }) {
                   ))}
                 </ul>
               ) : <p className="text-[12.5px] text-muted-foreground">no libraries</p>}
-              <SyncNotes groups={libraries.data?.sync_groups} keys={v.versions} nameOf={nameOf} className="mt-1" />
+              <SyncNotes groups={libraries.data?.sync_groups} keys={v.versions} nameOf={nameOf} className="mt-1" deletes />
             </div>
             <Button type="button" size="xs" variant="outline" onClick={() => { setNotice(undefined); setOpen(v.key); }}>
               {writable ? "Edit" : "View"} <span className="sr-only">{v.key}</span>
@@ -242,7 +242,7 @@ export function ViewSheet({ view: opened, generation: openedAt, readOnly, onClos
           <Field label="Path" help="Where the view answers, e.g. /radarr."><Input value={path} onChange={(e) => setPath(e.target.value)} disabled={off || !seeded} /></Field>
           <NamedChoices legend="Libraries" help="What the app sees, in the order ticked." testid="view-libraries"
             options={libraryOptions(libraries.data, versions, nameOf, kind)} value={versions} onChange={serve} disabled={off} />
-          <SyncNotes groups={libraries.data?.sync_groups} keys={versions} nameOf={nameOf} className="sm:col-span-2" />
+          <SyncNotes groups={libraries.data?.sync_groups} keys={versions} nameOf={nameOf} className="sm:col-span-2" deletes />
           {off ? null : (
             <div className="flex min-w-0 flex-col gap-2 sm:col-span-2" data-testid="view-replace">
               <p className="text-sm font-medium text-[var(--ink)]">Replace a library</p>
