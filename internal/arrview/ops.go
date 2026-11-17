@@ -379,6 +379,15 @@ func (s *Service) RetryDownload(ctx context.Context, id int64, unblockBy, source
 	if err := s.refuseDryRunRoute(out.Version); err != nil {
 		return out, err
 	}
+	// A copy removed since the download failed is not fetched again (the interactive Grab's refusal).
+	var removed bool
+	if err := s.st.Reader().QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM download d JOIN
+		arrview_removed_version r ON r.version_id = d.version_id WHERE d.id = ?)`, id).Scan(&removed); err != nil {
+		return out, err
+	}
+	if removed {
+		return out, refused("the title was removed from library %q: add it there again first", out.Version)
+	}
 	// The release as the download stored it, as the router rebuilds a download it resumes (release_data: cache
 	// evidence and extras order the providers alike). It is routed as a new download by hand: no download id,
 	// decided under the running policy.

@@ -110,7 +110,8 @@ func TestManualGrabUnblocks(t *testing.T) {
 }
 
 // TestManualGrabRefusedKeepsBlock: with unblock set, every other refusal is said first and the block stays, for a
-// grab, an add by hash and a retry alike: Pause, in flight, upgrades off, the client-indexer rule.
+// grab, an add by hash and a retry alike: Pause, in flight, upgrades off, the client-indexer rule; and a retry of a
+// download whose copy was removed since (the web layer refuses a grab or an add for a removed copy before Ops).
 func TestManualGrabRefusedKeepsBlock(t *testing.T) {
 	t.Parallel()
 	rel := indexer.Release{Indexer: "prowlarr-public", Kind: "torznab", Privacy: policy.PrivacyPublic,
@@ -130,6 +131,9 @@ func TestManualGrabRefusedKeepsBlock(t *testing.T) {
 			v := e.pol.Versions["movie-web"]
 			v.AddVia, v.Client = policy.AddViaClient, "dc"
 			e.pol.Indexers["prowlarr-public"].Providers = []string{"rd"}
+		},
+		"removed copy": func(e *devEnv) {
+			e.exec(`INSERT INTO arrview_removed_version (version_id, view, removed_at) VALUES (2, 'radarr', 0)`)
 		},
 	}
 	routes := map[string]func(e *devEnv) error{
@@ -154,6 +158,9 @@ func TestManualGrabRefusedKeepsBlock(t *testing.T) {
 			if name == "client indexer" && route == "add" {
 				continue // a release added by hand has no indexer: the client-indexer rule never applies to it
 			}
+			if name == "removed copy" && route != "retry" {
+				continue // the web layer refuses these before Ops (refuseRemovedCopy)
+			}
 			t.Run(name+"/"+route, func(t *testing.T) {
 				t.Parallel()
 				e := newDevEnv(t)
@@ -163,6 +170,9 @@ func TestManualGrabRefusedKeepsBlock(t *testing.T) {
 				t.Logf("refused: %v", err)
 				if !isRefused(err) || blockedRefusal(err) != nil {
 					t.Fatalf("want another refusal than the block: %v", err)
+				}
+				if name == "removed copy" && !strings.Contains(err.Error(), `removed from library "movie-web": add it there again first`) {
+					t.Errorf("removed copy refusal: %v", err)
 				}
 				if n := e.str(`SELECT COUNT(*) FROM router_blocklist`); n != "3" {
 					t.Errorf("a refused grab left %s blocklist rows, want 3", n)
