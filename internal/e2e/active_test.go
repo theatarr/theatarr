@@ -255,16 +255,16 @@ func TestUpgrade(t *testing.T) {
 	_, err = os.Stat(first.Target)
 	must(t, err)
 	e.movieAvailable(id, "movie")
-	// History reads an upgrade like Radarr: Grabbed for the better release, then one Upgraded row (its import folded
-	// in) with the new release and the old one it replaced.
+	// History reads an upgrade as one Upgraded row (its grab and import folded in, with when it was grabbed) with the
+	// new release and the old one it replaced; no Grabbed row of its own.
 	grabbed, replaced := false, false
 	for _, event := range e.history(id, "movie", 4) {
 		grabbed = grabbed || event.Event == "grabbed" && event.Release == high.name
 		replaced = replaced || event.Event == "deleted" && event.Words == "Upgraded" && event.Release == high.name &&
-			len(event.Replaced) == 1 && event.Replaced[0].Release == low.name
+			len(event.Replaced) == 1 && event.Replaced[0].Release == low.name && event.GrabbedAt != nil
 	}
-	if !grabbed || !replaced {
-		t.Fatalf("native history lacks the upgrade (grabbed=%v, deleted naming old and new=%v)", grabbed, replaced)
+	if grabbed || !replaced {
+		t.Fatalf("native history: own grab row=%v, upgrade naming old and new with its grab time=%v", grabbed, replaced)
 	}
 	if state := e.text(`SELECT state FROM version WHERE title_id=?`, id); state != "cutoff_met" {
 		t.Fatalf("upgraded movie state=%s, want cutoff_met", state)

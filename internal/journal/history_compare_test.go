@@ -249,8 +249,8 @@ func TestStoredHistoryUpgradeIsOneRow(t *testing.T) {
 	}
 	checkStoredHistory(t, ctx, e.j, e.st)
 	// A row names its journal entry while the entry's source exists; once retention deleted the download, not.
-	entries := func() string {
-		p, err := e.j.History(ctx, Filter{})
+	entries := func(f Filter) string {
+		p, err := e.j.History(ctx, f)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -260,11 +260,13 @@ func TestStoredHistoryUpgradeIsOneRow(t *testing.T) {
 		}
 		return strings.Join(out, " ")
 	}
-	if got := entries(); got != "lib:81=lib:81 dl:60=dl:60" {
+	// The grab is the upgrade's row (one row per download); the Grabbed filter lists it.
+	grabs := Filter{Events: []string{EvGrabbed}}
+	if got := entries(Filter{}) + " " + entries(grabs); got != "lib:81=lib:81 dl:60=dl:60" {
 		t.Errorf("entries %s", got)
 	}
 	e.exec(`DELETE FROM download WHERE id = 60`)
-	if got := entries(); got != "lib:81=lib:81 dl:60=" {
+	if got := entries(Filter{}) + " " + entries(grabs); got != "lib:81=lib:81 dl:60=" {
 		t.Errorf("entries after retention %s", got)
 	}
 }

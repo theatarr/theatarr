@@ -217,6 +217,9 @@ type ActivityEvent struct {
 	Replaced []HistoryFile `json:"replaced,omitempty"`
 	// Entry is the row's journal entry (the Journal link); none for a copy or a release unblocked since.
 	Entry string `json:"entry,omitempty"`
+	// GrabbedAt is when an outcome's download (imported, deleted, failed) was grabbed: its Grabbed row is this row
+	// (journal.HistoryRow.Grabbed).
+	GrabbedAt *time.Time `json:"grabbed_at,omitempty"`
 	// A title_removed row: who removed the title from the library (Version), and what became of its files and,
 	// once the debrid clean-up ran, its torrents (journal.Removal).
 	By      string           `json:"by,omitempty"`
@@ -755,6 +758,9 @@ func (w *Web) historyEvents(ctx context.Context, hs []*journal.HistoryRow, admin
 				x.Replaced = append(x.Replaced, hf)
 			}
 			x.Entry = h.Entry
+			if !h.Grabbed.IsZero() {
+				x.GrabbedAt = &h.Grabbed
+			}
 			x.By, x.Removal = h.By, h.Removal
 			if h.Event == journal.EvAdopted {
 				// The instance, for the "From Sonarr" line's tooltip.

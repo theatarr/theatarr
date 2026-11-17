@@ -95,7 +95,6 @@ func TestHistoryRows(t *testing.T) {
 	got := e.history(Filter{Title: "3"})
 	want := []string{
 		"imported Gamma.S01.2160p.WEB-DL-GRP WEBDL-2160p 1200 [S01E01,S01E02,S01E03] @rd",
-		"grabbed Gamma.S01.2160p.WEB-DL-GRP WEBDL-2160p 1200 [S01E01,S01E02,S01E03] @rd",
 	}
 	if !slices.Equal(got, want) {
 		t.Errorf("pack:\n got %q\nwant %q", got, want)
@@ -124,7 +123,6 @@ func TestHistoryRows(t *testing.T) {
 	got = e.history(Filter{Title: "1", Version: "movie-web"})
 	want = []string{
 		"deleted Alpha.2020.2160p.WEB-DL-FLUX WEBDL-2160p 5000 replaced Alpha.2020.2160p.WEB-OLD",
-		"grabbed Alpha.2020.2160p.WEB-DL-FLUX WEBDL-2160p 5000",
 		"adopted Alpha.2020.2160p.WEB-OLD WEBDL-2160p 4000",
 	}
 	if !slices.Equal(got, want) {
@@ -149,7 +147,7 @@ func TestHistoryRows(t *testing.T) {
 			break
 		}
 	}
-	if len(ids) != 3 || slices.Contains(ids, "dl:20:import") {
+	if len(ids) != 2 || slices.Contains(ids, "dl:20:import") || slices.Contains(ids, "dl:20") {
 		t.Errorf("pages: %q", ids)
 	}
 	// Under an event filter a row reads as under all events: the upgrade's import is never Imported on its own (the
@@ -252,7 +250,6 @@ func TestHistoryImportEpisodesAndNeverStarted(t *testing.T) {
 	want := []string{
 		"failed Alpha.Never.Started WEBDL-2160p (route ended: router: router.enabled is false)",
 		"imported Gamma.S01E01-E04.WEB WEBDL-2160p 1000 [S01E02,S01E03]",
-		"grabbed Gamma.S01E01-E04.WEB WEBDL-2160p 1000 [S01E01,S01E02,S01E03,S01E04]",
 	}
 	if !slices.Equal(got, want) {
 		t.Errorf("rows:\n got %q\nwant %q", got, want)
@@ -263,7 +260,7 @@ func TestHistoryImportEpisodesAndNeverStarted(t *testing.T) {
 		t.Fatalf("page 1: %+v %v", p, err)
 	}
 	p2, err := e.j.History(context.Background(), Filter{Limit: 2, Cursor: p.NextCursor})
-	if err != nil || len(p2.Items) != 2 || p2.NextCursor != "" || p2.Items[0].Event != EvImported {
+	if err != nil || len(p2.Items) != 1 || p2.NextCursor != "" || p2.Items[0].Event != EvImported {
 		t.Fatalf("page 2: %+v %v", p2, err)
 	}
 	checkStoredHistory(t, context.Background(), e.j, e.st)
@@ -432,7 +429,6 @@ func TestHistoryPackUpgrade(t *testing.T) {
 	got := e.history(Filter{Title: "3"})
 	want := []string{
 		"deleted Gamma.S01.2160p.NEW WEBDL-2160p 2000 [S01E01,S01E02,S01E03] replaced Gamma.S01E01.OLD",
-		"grabbed Gamma.S01.2160p.NEW WEBDL-2160p 2000 [S01E01,S01E02,S01E03,S01E04]",
 	}
 	if !slices.Equal(got, want) {
 		t.Errorf("rows:\n got %q\nwant %q", got, want)
@@ -462,8 +458,8 @@ func (e *env) episodeHistory(f Filter, episode int64) []string {
 }
 
 // The episode window reads History's rows that hold the episode, folded as the title's: a pack upgrade is one
-// Upgraded row for the episode it replaced and for one it brought new; an episode the import did not bring has the
-// grab only; an adoption that replaced an episode's file is one Adopted row.
+// Upgraded row (its grab folded in) for the episode it replaced and for one it brought new; an episode the import did
+// not bring keeps its grab's row; an adoption that replaced an episode's file is one Adopted row.
 func TestEpisodeHistory(t *testing.T) {
 	e := newEnv(t)
 	at := testNow.Add(-time.Hour)
@@ -482,7 +478,7 @@ func TestEpisodeHistory(t *testing.T) {
 	f := Filter{Title: "3", Version: "tv-2160p"}
 	up := "deleted Gamma.S01.2160p.NEW WEBDL-2160p 2000 [S01E01,S01E02,S01E03] replaced Gamma.S01E01.OLD"
 	grab := "grabbed Gamma.S01.2160p.NEW WEBDL-2160p 2000 [S01E01,S01E02,S01E03,S01E04]"
-	for ep, want := range map[int64][]string{101: {up, grab}, 102: {up, grab}, 104: {grab}} {
+	for ep, want := range map[int64][]string{101: {up}, 102: {up}, 104: {grab}} {
 		if got := e.episodeHistory(f, ep); !slices.Equal(got, want) {
 			t.Errorf("episode %d:\n got %q\nwant %q", ep, got, want)
 		}
@@ -623,5 +619,110 @@ func TestHistoryRedownload(t *testing.T) {
 		if got := c.h.Redownload(); got != c.want {
 			t.Errorf("%s: %v, want %v", c.name, got, c.want)
 		}
+	}
+}
+
+// One row per download: a grab is folded into its outcome (Imported, Failed), which says when it was grabbed; a
+// retried download's new grab shows while it runs; the Grabbed filter lists the grabs; paging across a fold boundary
+// shows each download once.
+func TestHistoryGrabFolds(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	at := testNow.Add(-6 * time.Hour)
+	// Alpha movie-web: grabbed, imported an hour later.
+	e.dlEvent(10, "imported", at, 1, 2, "movie-web", hashA, "Alpha.2020.2160p.WEB-A", "WEBDL-2160p", 100, 1<<30, nil, "")
+	e.exec(`INSERT INTO library_import (download_id, state, mount_folder, plan, created_at, updated_at)
+		VALUES (10, 'linked', '/m/A', '{}', ?, ?)`, msOf(at.Add(time.Hour)), msOf(at.Add(time.Hour)))
+	e.exec(`INSERT INTO library_action (at, kind, mode, version_key, download_id, link_id, path, title_id) VALUES
+		(?, 'link', 'applied', 'movie-web', 10, 1, '/movies/A.mkv', 1)`, msOf(at.Add(time.Hour)))
+	// Beta movie-remux: grabbed, failed ten minutes later.
+	e.dlEvent(11, "failed", at.Add(2*time.Hour), 2, 4, "movie-remux", hashB, "Beta.2021.Remux-B", "Remux-2160p", 200,
+		2<<30, nil, "stalled: no seeders")
+	e.exec(`UPDATE download SET updated_at = ? WHERE id = 11`, msOf(at.Add(2*time.Hour+10*time.Minute)))
+	// Beta's release blocked after the failure: a row of its own, not the grab's.
+	e.exec(`INSERT INTO router_blocklist (version_key, info_hash, title_id, release_title, reason, source, download_id,
+		created_at) VALUES ('movie-remux', ?, 2, 'Beta.2021.Remux-B', 'stalled: no seeders', 'stalled', 11, ?)`, hashB,
+		msOf(at.Add(2*time.Hour+11*time.Minute)))
+	// Gamma tv-2160p: grabbed and still downloading.
+	e.dlEvent(12, "downloading", at.Add(3*time.Hour), 3, 3, "tv-2160p", hashC, "Gamma.S01E01.WEB", "WEBDL-2160p", 300,
+		3<<30, []int64{101}, "")
+
+	got := e.history(Filter{})
+	want := []string{
+		"grabbed Gamma.S01E01.WEB WEBDL-2160p 300 [S01E01]",
+		"blocked Beta.2021.Remux-B Remux-2160p 200 (stalled: no seeders)",
+		"failed Beta.2021.Remux-B Remux-2160p 200 (stalled: no seeders)",
+		"imported Alpha.2020.2160p.WEB-A WEBDL-2160p 100",
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("rows:\n got %q\nwant %q", got, want)
+	}
+	p, err := e.j.History(ctx, Filter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, x := range p.Items {
+		var grab time.Time
+		switch x.ID {
+		case "dl:11:fail":
+			grab = at.Add(2 * time.Hour)
+		case "dl:10:import":
+			grab = at
+		}
+		if !x.Grabbed.Equal(grab) {
+			t.Errorf("%s grabbed %v, want %v", x.ID, x.Grabbed, grab)
+		}
+	}
+	// The Grabbed filter lists every grab; Imported and upgraded, Failed and blocked each download once.
+	got = e.history(Filter{Events: []string{EvGrabbed}})
+	want = []string{
+		"grabbed Gamma.S01E01.WEB WEBDL-2160p 300 [S01E01]",
+		"grabbed Beta.2021.Remux-B Remux-2160p 200",
+		"grabbed Alpha.2020.2160p.WEB-A WEBDL-2160p 100",
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("grabs:\n got %q\nwant %q", got, want)
+	}
+	if got := e.history(Filter{Events: []string{EvFailed, EvBlocked}}); len(got) != 2 || !strings.HasPrefix(got[1], "failed") {
+		t.Errorf("failures: %q", got)
+	}
+	// Paging one row at a time and two at a time: each download once, none lost.
+	for _, limit := range []int{1, 2} {
+		var ids []string
+		for cur := ""; ; {
+			p, err := e.j.History(ctx, Filter{Limit: limit, Cursor: cur})
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, x := range p.Items {
+				ids = append(ids, x.ID)
+			}
+			if cur = p.NextCursor; cur == "" {
+				break
+			}
+		}
+		if want := []string{"dl:12", "bl:1", "dl:11:fail", "dl:10:import"}; !slices.Equal(ids, want) {
+			t.Errorf("pages of %d: %q, want %q", limit, ids, want)
+		}
+	}
+	// Beta retried: the same download grabbed again after its failure. The new grab is its own row while it runs;
+	// the failure keeps the grab it stands for.
+	if _, err := e.st.Writer().Exec(`UPDATE history SET at = ? WHERE ref = 'dl:11'`,
+		msOf(at.Add(4*time.Hour))); err != nil {
+		t.Fatal(err)
+	}
+	p, err = e.j.History(ctx, Filter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ids []string
+	for _, x := range p.Items {
+		ids = append(ids, x.ID)
+		if x.ID == "dl:11:fail" && !x.Grabbed.IsZero() {
+			t.Errorf("failure before the new grab: grabbed %v", x.Grabbed)
+		}
+	}
+	if want := []string{"dl:11", "dl:12", "bl:1", "dl:11:fail", "dl:10:import"}; !slices.Equal(ids, want) {
+		t.Errorf("after the retry: %q, want %q", ids, want)
 	}
 }

@@ -258,7 +258,15 @@ only into an adoption that holds the episode too:
   same download and library). It shows the new release (its quality, score, and the import's hash, indexer, size and
   formats), the import's episodes (what the new release brought; the old files' are in `Replaced`) and state (a
   partial import says so, as on Imported), the replaced files in `Replaced`, and links to the import's journal entry;
-  the import's own row is left out. A first import (nothing replaced) stays Grabbed then Imported; Grabbed is always its own row.
+  the import's own row is left out. A first import (nothing replaced) is one Imported row (its grab folded, below).
+- A grab: a `grabbed` row is left out when a row of the same download and library with event `imported`, `deleted`
+  (an upgrade) or `failed`, dated at or after it, passes the same filters (event, kind, title, library, since, and in
+  the episode window holds the episode, an upgrade's by its import's episodes). That row says when it was grabbed
+  (`HistoryRow.Grabbed`, the API's `grabbed_at`, admins only), read for the page's rows by download. Pairing is by
+  download id only, never by release or hash. "At or after" keeps a retried download's new grab its own row while it
+  runs; a grab with no outcome yet (still running) stays Grabbed. A Grabbed-only filter lists the grabs (no outcome
+  passes it). The cursor bounds the grab, not its outcome, so a page boundary never shows a download twice.
+  Household History, the compatible API's history and indexer statistics read the stored rows unchanged.
 - An adoption that replaced a file: a `removed` row is left out when an `adopted` row of the same title and library,
   dated within a minute of it, holds one of its episodes (both none for a movie); the adopted row lists it in
   `Replaced` (path from its library action, release, quality, score, episodes). A removal with no such adoption stays
@@ -270,4 +278,4 @@ every event filter as under all events and a page boundary never shows half of a
 listed as Imported (Activity's "Imported and upgraded" asks for imported and deleted; imported alone lists no upgrade),
 and a removal its adoption replaced is never Removed. Only what can leave the partner out lists the folded row on its
 own: a `kinds` filter without `link`, and the since bound (the partner shares the row's title and library). Rows at the same time keep their order: newest first by time, then
-by journal id, so an upgrade or import shows above its grab.
+by journal id, so an upgrade or import shows above an unfolded grab.

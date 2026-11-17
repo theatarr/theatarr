@@ -328,8 +328,17 @@ func TestActivityReleaseFacts(t *testing.T) {
 	for _, x := range h.History {
 		byID[x.ID] = x
 	}
-	g := byID["dl:1"]
-	if g.Kind != "grab" || g.Quality != "WEBDL-2160p" || g.Score == nil || *g.Score != 1500 || g.Indexer != "dmm" ||
+	// The grab is the upgrade's row (one row per download, dated when it was grabbed); the Grabbed filter lists it.
+	if r := byID["lib:3"]; r.GrabbedAt == nil || store.Millis(*r.GrabbedAt) != now {
+		t.Errorf("upgrade row's grab: %+v", r)
+	}
+	var grabbed ActivityPage
+	if code := e.getKey(APIBase+"/activity?state=history&events=grabbed", key, &grabbed); code != 200 ||
+		len(grabbed.History) != 1 {
+		t.Fatalf("grabs: %d %+v", code, grabbed.History)
+	}
+	g := grabbed.History[0]
+	if g.ID != "dl:1" || g.Kind != "grab" || g.Quality != "WEBDL-2160p" || g.Score == nil || *g.Score != 1500 || g.Indexer != "dmm" ||
 		g.Size != 18400000000 || len(g.Formats) != 1 || g.Formats[0].Name != "DV HDR10" || g.Formats[0].Score != 1500 {
 		t.Errorf("grab row: %+v", g)
 	}
@@ -349,14 +358,8 @@ func TestActivityReleaseFacts(t *testing.T) {
 
 	var u ActivityPage
 	e.getKey(APIBase+"/activity?state=history&as=user", key, &u)
-	// The same rows but Grabbed (household History has none).
-	grabs := 0
-	for _, x := range h.History {
-		if x.Event == "grabbed" {
-			grabs++
-		}
-	}
-	if grabs == 0 || len(u.History) != len(h.History)-grabs {
+	// The same rows (the grab is folded; household History has no Grabbed rows anyway).
+	if len(u.History) != len(h.History) {
 		t.Fatalf("user history: %+v", u.History)
 	}
 	for _, x := range u.History {
@@ -855,14 +858,14 @@ func TestHistorySameForTitle(t *testing.T) {
 			want = append(want, x)
 		}
 	}
-	if !reflect.DeepEqual(one.History, want) || len(want) != 3 {
+	if !reflect.DeepEqual(one.History, want) || len(want) != 2 {
 		t.Fatalf("title history:\n%+v\nwant\n%+v", one.History, want)
 	}
 	var words []string
 	for _, x := range one.History {
 		words = append(words, x.Words)
 	}
-	if !slices.Equal(words, []string{"Not cached on RD", "Imported", "Grabbed"}) {
+	if !slices.Equal(words, []string{"Not cached on RD", "Imported"}) {
 		t.Errorf("words: %q", words)
 	}
 	if c := one.History[0]; c.Event != "copy_not_cached" || c.Release != "Alpha.2020.2160p.WEB" || c.Reason != "" ||
@@ -906,7 +909,7 @@ func TestHistorySeriesRedaction(t *testing.T) {
 		now+5, now+5)
 	var a, u ActivityPage
 	e.getKey(APIBase+"/activity?state=history&title_id=3", key, &a)
-	if len(a.History) != 2 || !slices.Equal(a.History[0].Episodes, []string{"S01E01", "S01E02"}) {
+	if len(a.History) != 1 || !slices.Equal(a.History[0].Episodes, []string{"S01E01", "S01E02"}) {
 		t.Fatalf("admin series history: %+v", a.History)
 	}
 	e.getKey(APIBase+"/activity?state=history&title_id=3&as=user", key, &u)
@@ -1340,7 +1343,8 @@ func TestHistoryFilterMatrix(t *testing.T) {
 	const base = "/activity?state=history&title_id=3"
 	for _, as := range []string{"", "&as=user"} {
 		for filter, want := range map[string][]string{
-			"":                                      {"Removed", "Upgraded", "Grabbed"},
+			"":                                      {"Removed", "Upgraded"},
+			"&events=grabbed":                       {"Grabbed"},
 			"&events=imported,deleted":              {"Upgraded"},
 			"&events=imported":                      nil,
 			"&events=removed,missing,title_removed": {"Removed"},
@@ -1363,16 +1367,18 @@ func TestHistoryFilterMatrix(t *testing.T) {
 		t.Errorf("removal reason: %q", r.Reason)
 	}
 	if up := a.History[1]; up.Release != "Gamma.S01.2160p.WEB" || len(up.Replaced) != 1 ||
-		up.Replaced[0].Release != "Gamma.S01E01.OLD" || up.Entry != "dl:5:import" {
+		up.Replaced[0].Release != "Gamma.S01E01.OLD" || up.Entry != "dl:5:import" || up.GrabbedAt == nil ||
+		store.Millis(*up.GrabbedAt) != now {
 		t.Errorf("upgrade row: %+v", up)
 	}
 	_, u := words(base + "&as=user")
 	for _, x := range u.History {
-		if x.Reason != "" || x.Source != "" || x.Release != "" || x.Replaced != nil || x.Provider != "" || x.Entry != "" {
+		if x.Reason != "" || x.Source != "" || x.Release != "" || x.Replaced != nil || x.Provider != "" || x.Entry != "" ||
+			x.GrabbedAt != nil {
 			t.Errorf("household row: %+v", x)
 		}
 	}
-	// The episode window: S01E01's rows are the title's that hold it, the upgrade folded.
+	// The episode window: S01E01's rows are the title's that hold it, the upgrade (and its grab) folded.
 	var ep EpisodeDetail
 	if code := e.getKey(APIBase+"/titles/3/episodes/31", key, &ep); code != 200 || len(ep.Versions) != 1 {
 		t.Fatalf("episode: %d %+v", code, ep)
@@ -1381,7 +1387,7 @@ func TestHistoryFilterMatrix(t *testing.T) {
 	for _, x := range ep.Versions[0].History {
 		got = append(got, x.Words)
 	}
-	if h := ep.Versions[0].History; !slices.Equal(got, []string{"Upgraded", "Grabbed"}) || len(h[0].Replaced) != 1 ||
+	if h := ep.Versions[0].History; !slices.Equal(got, []string{"Upgraded"}) || len(h[0].Replaced) != 1 ||
 		h[0].Replaced[0].Release != "Gamma.S01E01.OLD" {
 		t.Errorf("episode window rows: %q %+v", got, h)
 	}

@@ -78,7 +78,8 @@ func TestManualAddByHash(t *testing.T) {
 	}
 	grab := false
 	for _, ev := range e.history(id, "movie", 2) {
-		grab = grab || ev.Kind == "grab" && ev.Release == rel.name && ev.Provider == "rd"
+		// The grab is folded into its import's row, which says when it was grabbed.
+		grab = grab || ev.Event == "imported" && ev.Release == rel.name && ev.Provider == "rd" && ev.GrabbedAt != nil
 	}
 	if !grab {
 		t.Errorf("the activity has no grab of the release")
