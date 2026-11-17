@@ -173,3 +173,64 @@ func TestAddSeriesMonitorOption(t *testing.T) {
 		}
 	}
 }
+
+// A profile edit that names no seasons (the mass editor, a PUT series without seasons) restores a removed copy and
+// gives its library in sync a copy: the partner takes the restored copy's season and episode choices, as the native
+// routes do (catalog.PartnerSeasonIntent).
+func TestProfileEditPartnerSeasons(t *testing.T) {
+	t.Parallel()
+	for _, route := range []string{"editor", "put"} {
+		t.Run(route, func(t *testing.T) {
+			t.Parallel()
+			e := newEnv(t)
+			cp := *e.pol.Versions["tv-2160p"]
+			cp.Library = "/media/tv-copy"
+			e.pol.Versions["tv-copy"] = &cp
+			hd := cp
+			hd.Library = "/media/tv-1080p"
+			e.pol.Versions["tv-1080p"] = &hd
+			e.pol.Library.SyncGroups = [][]string{{"tv-copy", "tv-1080p"}}
+			v := e.pol.Views["sonarr"]
+			v.Versions = []string{"tv-2160p", "tv-copy"}
+			v.Profiles = map[string][]string{"Original": {"tv-2160p"}, "Other copy": {"tv-copy"}}
+			// tv-copy was removed holding the pilot only, nothing new.
+			e.exec(`INSERT INTO version (id, title_id, policy_key, monitored, state, created_at, updated_at)
+				VALUES (20, 10, 'tv-copy', 0, 'wanted', 0, 0)`)
+			e.exec(`INSERT INTO episode_version_state (version_id, episode_id, monitored, state, updated_at)
+				SELECT 20, id, number = 1 AND season = 1, 'wanted', 0 FROM episode WHERE title_id = 10`)
+			e.exec(`INSERT INTO series_monitor (version_id, monitor_new, updated_at) VALUES (20, 'none', 0)`)
+			e.exec(`INSERT INTO arrview_removed_version (version_id, view, removed_at) VALUES (20, 'sonarr', 0)`)
+			e.start()
+			pid := e.profileID("sonarr", "Other copy")
+			path := "/sonarr/api/v3/series/" + strconv.Itoa(IDBase+10)
+			if route == "editor" {
+				e.call("PUT", "/sonarr/api/v3/series/editor", map[string]any{"seriesIds": []int{IDBase + 10},
+					"qualityProfileId": pid}, 202, nil)
+			} else {
+				var s map[string]any
+				e.call("GET", path, nil, 200, &s)
+				delete(s, "seasons")
+				s["qualityProfileId"] = pid
+				e.call("PUT", path, s, 202, nil)
+			}
+			if n := e.one(`SELECT COUNT(*) FROM arrview_removed_version WHERE version_id = 20`); n != 0 {
+				t.Fatal("fixture: the edit did not restore tv-copy")
+			}
+			if n := e.one(`SELECT COUNT(*) FROM version WHERE title_id = 10 AND policy_key = 'tv-1080p'`); n != 1 {
+				t.Fatalf("the edit gave the library in sync %d copies, want 1", n)
+			}
+			if got := e.str(`SELECT COALESCE(group_concat(e.number || ':' || s.monitored, ','), '') FROM (SELECT * FROM
+				episode_version_state ORDER BY episode_id) s JOIN version v ON v.id = s.version_id JOIN episode e
+				ON e.id = s.episode_id WHERE v.policy_key = 'tv-1080p' AND e.season = 1`); got != "1:1,2:0,3:0" {
+				t.Errorf("partner's season 1 %q, want the restored copy's 1:1,2:0,3:0", got)
+			}
+			// The PUT's echoed monitorNewItems is a choice for the view's copies and the partners alike.
+			want := map[string]string{"editor": "none", "put": "all"}[route]
+			if got := e.str(`SELECT group_concat(v.policy_key || ':' || COALESCE(m.monitor_new, ''), ',') FROM version v
+				LEFT JOIN series_monitor m ON m.version_id = v.id WHERE v.policy_key IN ('tv-copy', 'tv-1080p')
+				ORDER BY v.policy_key`); got != "tv-1080p:"+want+",tv-copy:"+want {
+				t.Errorf("monitor new %q, want %s on both", got, want)
+			}
+		})
+	}
+}

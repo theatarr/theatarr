@@ -327,7 +327,7 @@ func (s *Service) reclassify(ctx context.Context, v *View, titleID int64) error 
 		}
 		if v.Flavour == Sonarr {
 			// The libraries in sync take the same season monitoring as the view's new copies.
-			to := append(created, partners...)
+			to := append(created, partners.Keys...)
 			src, err := catalog.SeasonSource(ctx, tx, titleID, v.Versions, to)
 			if err != nil {
 				return err
@@ -373,14 +373,15 @@ func (s *Service) heldSeriesType(ctx context.Context, in *titleIn, ext int64) (s
 // turnOn makes sure the title has each version, monitored as asked: a new version starts wanted; a removed one is
 // restored; one that gains a copy brings the libraries in sync with it (catalog.TurnOnSynced). It returns the keys
 // of the versions it created for keys, and the libraries in sync it created (partners, outside the view as a rule).
+// The caller of an edit that names no seasons gives the partners their named copy's season choices
+// (catalog.PartnerSeasonIntent).
 func (s *Service) turnOn(ctx context.Context, tx *sqlTx, v *View, titleID int64, keys []string,
-	monitored bool) (created, partners []string, err error) {
-	created, p, err := catalog.TurnOnSynced(ctx, tx, s.pol, titleID, keys, monitored, true, s.now())
-	partners = p.Keys
+	monitored bool) (created []string, partners catalog.Partners, err error) {
+	created, partners, err = catalog.TurnOnSynced(ctx, tx, s.pol, titleID, keys, monitored, true, s.now())
 	for _, k := range created {
 		s.log.Info("version turned on", "view", v.Key, "title", titleID, "version", k)
 	}
-	for _, k := range partners {
+	for _, k := range partners.Keys {
 		s.log.Info("version turned on", "view", v.Key, "title", titleID, "version", k, "in_sync", true)
 	}
 	return created, partners, err
@@ -898,8 +899,16 @@ func (s *Service) updateTitle(w http.ResponseWriter, r *request) {
 				return err
 			}
 			picked = keys
-			if _, partners, err = s.turnOn(ctx, tx, v, e.id, keys, mon); err != nil {
+			created, sp, err := s.turnOn(ctx, tx, v, e.id, keys, mon)
+			if err != nil {
 				return err
+			}
+			partners = sp.Keys
+			// A PUT without seasons names none: each partner follows its named copy's own season choices.
+			if v.Flavour == Sonarr && len(in.Seasons) == 0 {
+				if err := catalog.PartnerSeasonIntent(ctx, tx, e.id, created, sp, s.now()); err != nil {
+					return err
+				}
 			}
 		}
 		if mon != e.monitored() {

@@ -507,8 +507,16 @@ func (s *Service) editor(w http.ResponseWriter, r *request) {
 					if err != nil && err != errNoVersion {
 						return err
 					}
-					if _, partners, err = s.turnOn(ctx, tx, v, e.id, keys, mon); err != nil {
+					created, sp, err := s.turnOn(ctx, tx, v, e.id, keys, mon)
+					if err != nil {
 						return err
+					}
+					partners = sp.Keys
+					// The editor names no seasons: each partner follows its named copy's own season choices.
+					if v.Flavour == Sonarr {
+						if err := catalog.PartnerSeasonIntent(ctx, tx, e.id, created, sp, s.now()); err != nil {
+							return err
+						}
 					}
 				}
 			}
