@@ -1005,21 +1005,33 @@ func TestGrabFlagsAfterResolvedHold(t *testing.T) {
 	}
 }
 
-// A scoped import's files for other episodes were left out on purpose (the plan's "out of scope" reason, stored plans
-// too): they read apart from files that matched no episode.
+// A scoped import's files for other episodes, or for episodes another file of it covers, were left out on purpose (the
+// plan's "out of scope" and "conflict" reasons, stored plans too): they read apart from files that matched no episode.
+// The count is what the import linked, also after an upgrade at the same path moved a link to a newer download.
 func TestImportSummaryLeftOut(t *testing.T) {
 	e := newEnv(t)
 	e.dlEvent(5, "imported", testNow.Add(-time.Hour), 3, 3, "tv-2160p", hashA, "Gamma.S01.2160p-A", "WEBDL-2160p",
 		100, 1<<30, []int64{101, 102}, "")
 	e.exec(`INSERT INTO library_import (download_id, state, mount_folder, plan, created_at, updated_at)
-		VALUES (5, 'linked', '/m/G', ?, ?, ?)`, `{"unmatched":["E03.mkv","E04.mkv","x.mkv","y.mkv"],
+		VALUES (5, 'linked', '/m/G', ?, ?, ?)`, `{"unmatched":["E03.mkv","E04.mkv","w.mkv","x.mkv","y.mkv"],
 		"unresolved":{"E03.mkv":"out of scope: maps to S01E03 (tvdb), not an episode of the download",
 		"E04.mkv":"out of scope: maps to S01E04 (tvdb), not an episode of the download",
 		"y.mkv":"conflict: S01E01 is another file's"}}`, msOf(testNow), msOf(testNow))
 	e.exec(`INSERT INTO link (id, path, target, title_id, download_id, state, created_at, updated_at) VALUES
 		(1, '/tv/G/E01.mkv', '/m/G/E01.mkv', 3, 5, 'active', 0, 0), (2, '/tv/G/E02.mkv', '/m/G/E02.mkv', 3, 5, 'active', 0, 0)`)
-	if g, w := e.get("dl:5:import").Summary, "Imported Gamma.S01.2160p-A · 2 linked · 2 for other episodes, left out · 2 files matched no episode"; g != w {
-		t.Errorf("summary %q, want %q", g, w)
+	e.exec(`INSERT INTO library_action (at, kind, mode, version_key, download_id, link_id, path, title_id) VALUES
+		(?, 'link', 'applied', 'tv-2160p', 5, 1, '/tv/G/E01.mkv', 3), (?, 'link', 'applied', 'tv-2160p', 5, 2, '/tv/G/E02.mkv', 3)`,
+		msOf(testNow), msOf(testNow))
+	const want = "Imported Gamma.S01.2160p-A · 2 linked · 2 for other episodes, left out · 1 for episodes already covered · 2 files matched no episode"
+	if g := e.get("dl:5:import").Summary; g != want {
+		t.Errorf("summary %q, want %q", g, want)
+	}
+	// An upgrade at the same path takes over both links (library apply reassigns the link row).
+	e.dlEvent(6, "imported", testNow.Add(-time.Minute), 3, 3, "tv-2160p", hashB, "Gamma.S01.2160p-B", "WEBDL-2160p",
+		200, 1<<30, []int64{101, 102}, "")
+	e.exec(`UPDATE link SET download_id = 6`)
+	if g := e.get("dl:5:import").Summary; g != want {
+		t.Errorf("after the upgrade %q, want %q", g, want)
 	}
 }
 

@@ -664,26 +664,47 @@ func (b *builder) libraryImport(e *Entry, d *dlRow) error {
 			linked = append(linked, l.Path)
 		}
 	}
-	// An unmatched file that maps to an episode outside the download's (library.resolver: "out of scope: …") was
-	// left out on purpose; only the others matched no episode.
-	other := 0
+	// How many files the import linked, as it recorded them (its applied link actions): a later upgrade at the same
+	// path moves the link row to the newer download (library apply), so today's rows can hold fewer.
+	n := len(linked)
+	var recorded int
+	if err := b.db.QueryRowContext(b.ctx, `SELECT COUNT(*) FROM library_action WHERE download_id = ? AND kind = 'link'
+		AND mode = 'applied'`, d.id).Scan(&recorded); err != nil {
+		return err
+	}
+	if recorded > 0 {
+		n = recorded
+	}
+	// Unmatched files the resolver mapped (library.resolver): to an episode outside the download's ("out of scope:
+	// …") or to one another file of the release took ("conflict: …") were left out on purpose; only the others matched
+	// no episode.
+	other, covered := 0, 0
 	for _, rel := range p.Unmatched {
-		if strings.HasPrefix(p.Unresolved[rel], "out of scope") {
+		switch why := p.Unresolved[rel]; {
+		case strings.HasPrefix(why, "out of scope"):
 			other++
+		case strings.HasPrefix(why, "conflict"):
+			covered++
 		}
 	}
-	files, left := "", ""
+	files := ""
 	switch {
-	case other > 0:
-		files = fmt.Sprintf("%d linked", len(linked))
+	case other > 0 || covered > 0:
+		files = fmt.Sprintf("%d linked", n)
+	case n > 1:
+		files = fmt.Sprintf("%d files", n)
+	}
+	left := ""
+	if other > 0 {
 		left = fmt.Sprintf("%d for other episodes, left out", other)
-	case len(linked) > 1:
-		files = fmt.Sprintf("%d files", len(linked))
+	}
+	if covered > 0 {
+		left = join(left, fmt.Sprintf("%d for episodes already covered", covered))
 	}
 	e.Paths = linked
 	unmatched := ""
-	if n := len(p.Unmatched) - other; n > 0 {
-		unmatched = fmt.Sprintf("%d files matched no episode", n)
+	if k := len(p.Unmatched) - other - covered; k > 0 {
+		unmatched = fmt.Sprintf("%d files matched no episode", k)
 	}
 	head := "Imported " + e.Release.Title
 	if state != "linked" {
