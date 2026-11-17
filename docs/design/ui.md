@@ -1014,13 +1014,15 @@ title that gains a copy in one library of a group gains one in each other librar
 the title has a copy there already: an unmonitored one stays unmonitored, and a removed one comes back (restored and
 monitored like the named copy, keeping its own saved minimum availability, which the add's choice does not
 overwrite: owner, 2026-11-17, "if they are supposed to be in sync then they should stay in
-sync"). The one exception is collections and import lists (`catalog.Input.AddMethod` list or collection) and the
+sync"). Known limit: a copy whose removal cleared its per-library minimum availability (removing the whole title, or
+removing it through a Radarr client) comes back with its library's default. The one exception is collections and import lists (`catalog.Input.AddMethod` list or collection) and the
 intake's missing-library fill, which never restore a removed copy, and Bring in sync, which leaves removed copies
 removed; every add a person makes (the add sheet, the library switch and bulk add, requests and their approval, the
 compatible API) restores it (`restore` on `catalog.SyncPartners` and `TurnOnSynced`). Monitoring an existing copy
 again brings nothing. The new copy takes the add's monitored flag and, for a series, its seasons, preset and monitor-new
 choice; when the add names no seasons (the library switch, bulk add, an add or restore without season choices) and
-the named copy was there before, the new copy takes its season, episode and monitor-new choices, as Bring in sync
+the named library the partner is in sync with had its copy before (never another library the add also names), the
+partner takes that copy's season, episode and monitor-new choices, as Bring in sync
 does (`catalog.PartnerSeasonIntent`: `CopySeasonIntent` with the episode rows filled in), so it does not monitor every
 season at the next refresh; a partner created beside a brand-new copy follows the add, and nothing is copied onto a
 partner copy that already exists; quality, profile, naming and providers are each library's own, and monitoring, removals and files stay each

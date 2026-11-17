@@ -1723,6 +1723,45 @@ func TestSyncPartnerTakesMonitorNewNone(t *testing.T) {
 	}
 }
 
+// Each partner takes the season choices of the named library it is in sync with, never of another library the add
+// also names: tv-2160p stands alone, tv-b and tv-c are kept in sync.
+func TestSyncPartnerTakesItsOwnLibrarysChoices(t *testing.T) {
+	t.Parallel()
+	e := newAddEnv(t, func(p *policy.Policy) {
+		for _, k := range []string{"tv-b", "tv-c"} {
+			v := *p.Versions["tv-2160p"]
+			v.Library = "/media/" + k
+			p.Versions[k] = &v
+		}
+		p.Library.SyncGroups = [][]string{{"tv-b", "tv-c"}}
+	})
+	monitorNew := func(k string) string {
+		var m string
+		_ = e.st.Reader().QueryRow(`SELECT m.monitor_new FROM series_monitor m JOIN version v ON v.id = m.version_id
+			WHERE v.title_id = 10 AND v.policy_key = ?`, k).Scan(&m)
+		return m
+	}
+	// tv-2160p, already there, keeps no new seasons; tv-b is new, so tv-c follows the add, not tv-2160p.
+	e.exec(`DELETE FROM episode_version_state WHERE version_id = 10`)
+	e.exec(`INSERT INTO series_monitor (version_id, monitor_new, seasons, updated_at) VALUES (10, 'none', '{}', 0)`)
+	var res AddResult
+	e.call("POST", APIBase+"/titles", map[string]any{"title_id": 10, "versions": []string{"tv-2160p", "tv-b"}}, 201, &res)
+	if !slices.Equal(res.Synced, []string{"tv-c"}) || monitorNew("tv-b") != "all" || monitorNew("tv-c") != "all" {
+		t.Errorf("new tv-b: synced %v, tv-b %q, tv-c %q", res.Synced, monitorNew("tv-b"), monitorNew("tv-c"))
+	}
+	// tv-b and tv-c removed, tv-b keeping no new seasons, tv-2160p back to all: the restored tv-c follows tv-b.
+	e.exec(`UPDATE series_monitor SET monitor_new = 'all' WHERE version_id = 10`)
+	e.exec(`UPDATE series_monitor SET monitor_new = 'none' WHERE version_id = (SELECT id FROM version
+		WHERE title_id = 10 AND policy_key = 'tv-b')`)
+	e.exec(`INSERT INTO arrview_removed_version (version_id, view, removed_at) SELECT id, 'ui', 0 FROM version
+		WHERE title_id = 10 AND policy_key IN ('tv-b', 'tv-c')`)
+	res = AddResult{}
+	e.call("POST", APIBase+"/titles", map[string]any{"title_id": 10, "versions": []string{"tv-2160p", "tv-b"}}, 201, &res)
+	if !slices.Equal(res.Synced, []string{"tv-c"}) || monitorNew("tv-c") != "none" {
+		t.Errorf("restored tv-b: synced %v, tv-c %q", res.Synced, monitorNew("tv-c"))
+	}
+}
+
 // The Sonarr mass editor that makes a standard series anime and picks the anime profile creates the anime copy and
 // its anime-only partner: the edited type is stored before the copies are turned on.
 func TestSyncGroupsEditorSeriesType(t *testing.T) {

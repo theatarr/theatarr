@@ -375,7 +375,8 @@ func (s *Service) heldSeriesType(ctx context.Context, in *titleIn, ext int64) (s
 // of the versions it created for keys, and the libraries in sync it created (partners, outside the view as a rule).
 func (s *Service) turnOn(ctx context.Context, tx *sqlTx, v *View, titleID int64, keys []string,
 	monitored bool) (created, partners []string, err error) {
-	created, partners, err = catalog.TurnOnSynced(ctx, tx, s.pol, titleID, keys, monitored, true, s.now())
+	created, p, err := catalog.TurnOnSynced(ctx, tx, s.pol, titleID, keys, monitored, true, s.now())
+	partners = p.Keys
 	for _, k := range created {
 		s.log.Info("version turned on", "view", v.Key, "title", titleID, "version", k)
 	}

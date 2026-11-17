@@ -995,15 +995,14 @@ func (w *Web) apiSetVersion(rw http.ResponseWriter, r *http.Request) {
 	err = w.st.WriteTx(ctx, func(tx *sql.Tx) error {
 		synced = nil
 		if *req.Monitored {
-			var created []string
-			var err error
-			created, synced, err = catalog.TurnOnSynced(ctx, tx, w.pol, id, []string{key}, true, true, now)
+			created, partners, err := catalog.TurnOnSynced(ctx, tx, w.pol, id, []string{key}, true, true, now)
 			if err != nil {
 				return err
 			}
+			synced = partners.Keys
 			// The switch names no seasons: a series' partners follow the copy's own season choices.
 			if t.kind == policy.KindSeries {
-				if err := catalog.PartnerSeasonIntent(ctx, tx, id, []string{key}, created, synced, now); err != nil {
+				if err := catalog.PartnerSeasonIntent(ctx, tx, id, created, partners, now); err != nil {
 					return err
 				}
 			}

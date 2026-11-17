@@ -358,7 +358,7 @@ func TestSyncGroupsAdd(t *testing.T) {
 	execAll(t, st, `UPDATE version SET monitored = 0 WHERE title_id = 2005`)
 	if err := st.WriteTx(ctx, func(tx *sql.Tx) error {
 		_, partners, err := TurnOnSynced(ctx, tx, pol, 2005, []string{"movie-remux"}, true, true, now)
-		if len(partners) != 0 {
+		if len(partners.Keys) != 0 {
 			t.Errorf("TurnOnSynced on an existing copy: %v", partners)
 		}
 		return err
