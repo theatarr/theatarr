@@ -1540,3 +1540,24 @@ func TestSyncGroupsEditorSeriesType(t *testing.T) {
 		}
 	}
 }
+
+// A series every copy of which was removed, added again as anime: its new type counts for the libraries in sync, so
+// the anime-only partner of the named anime library gets its copy.
+func TestSyncGroupsReaddedSeriesType(t *testing.T) {
+	t.Parallel()
+	e := newAddEnv(t, func(p *policy.Policy) {
+		a2 := *p.Versions["anime-tv"]
+		a2.Library = "/media/anime-2"
+		p.Versions["anime-tv-2"] = &a2
+		p.Library.SyncGroups = [][]string{{"anime-tv", "anime-tv-2"}}
+	})
+	e.exec(`UPDATE title SET series_type = 'standard' WHERE id = 10`)
+	e.exec(`INSERT INTO arrview_removed_version (version_id, view, removed_at) VALUES (10, 'ui', 0)`)
+	e.call("POST", APIBase+"/titles", map[string]any{"title_id": 10, "versions": []string{"anime-tv"},
+		"series_type": "anime"}, 201, nil)
+	for _, k := range []string{"anime-tv", "anime-tv-2"} {
+		if n := e.count(`SELECT COUNT(*) FROM version WHERE title_id = 10 AND policy_key = ?`, k); n != 1 {
+			t.Errorf("%s: %d copies, want 1", k, n)
+		}
+	}
+}

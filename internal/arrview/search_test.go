@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"log/slog"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -175,5 +176,41 @@ func TestSearchCommandActiveVersion(t *testing.T) {
 	// Three adds: the episode search finds S01E02 covered by the season search's pack, which is in flight.
 	if n := int64(len(e.rt.Adders["rd"].Adds())); n != e.one(`SELECT COUNT(*) FROM download`) || n != 3 {
 		t.Errorf("adds %d", n)
+	}
+}
+
+// A compatible add through the view of one library of a sync group, with its search option, searches the library in
+// sync it created too: movies (searchForMovie) and series (searchForMissingEpisodes).
+func TestSearchOnAddCoversSyncedLibrary(t *testing.T) {
+	t.Parallel()
+	e := newSearchEnv(t)
+	hd := *e.pol.Versions["movie-web"]
+	hd.Library = "/media/movies-hd"
+	e.pol.Versions["movie-hd"] = &hd
+	tv := *e.pol.Versions["tv-2160p"]
+	tv.Library = "/media/tv-1080p"
+	e.pol.Versions["tv-1080p"] = &tv
+	e.pol.Library.SyncGroups = [][]string{{"movie-web", "movie-hd"}, {"tv-2160p", "tv-1080p"}}
+	e.call("POST", "/v/movie-web/radarr/api/v3/movie", map[string]any{"title": "Iota", "year": 2024, "tmdbId": 109,
+		"minimumAvailability": "announced", "addOptions": map[string]any{"searchForMovie": true}}, 201, nil)
+	e.drain()
+	got := e.searches()
+	slices.Sort(got)
+	if strings.Join(got, "|") != "movie-hd Iota|movie-web Iota" {
+		t.Errorf("movie add search %v", got)
+	}
+	e.exec(`INSERT INTO title (id, kind, name, sort_name, tvdb_id, anime, created_at, updated_at) VALUES
+		(40, 'series', 'Mu', 'mu', 401, 0, 0, 0)`)
+	e.exec(`INSERT INTO episode (id, title_id, season, number, name, air_date, air_date_utc_at, runtime_minutes,
+		monitored, created_at, updated_at) VALUES (400, 40, 1, 1, 'One', '2019-01-07', ?, 45, 1, 0, 0)`,
+		ms(time.Date(2019, 1, 8, 2, 0, 0, 0, time.UTC)))
+	e.call("POST", "/v/tv-2160p/sonarr/api/v3/series", map[string]any{"title": "Mu", "tvdbId": 401,
+		"seasons":    []map[string]any{{"seasonNumber": 1, "monitored": true}},
+		"addOptions": map[string]any{"searchForMissingEpisodes": true}}, 201, nil)
+	e.drain()
+	got = e.searches()
+	slices.Sort(got)
+	if strings.Join(got, "|") != "tv-1080p Mu s1e1|tv-2160p Mu s1e1" {
+		t.Errorf("series add search %v", got)
 	}
 }

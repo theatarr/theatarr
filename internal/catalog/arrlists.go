@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
-	"slices"
 	"time"
 
 	"github.com/theatarr/theatarr/internal/arr"
@@ -165,8 +164,8 @@ func (s *MovieIntake) addSeries(ctx context.Context, it arrSeries, cfg movieInta
 		if err != nil {
 			return err
 		}
-		// The libraries in sync count as added: their search follows the others'.
-		titleID, added = res.TitleID, append(slices.Clone(missing), res.Synced...)
+		// The libraries in sync count as added (res.Versions has them): their search follows the others'.
+		titleID, added = res.TitleID, res.Versions
 		views := []string{cfg.view}
 		if cfg.view == "" {
 			views = nil

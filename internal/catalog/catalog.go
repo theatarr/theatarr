@@ -332,7 +332,7 @@ func TurnOnSynced(ctx context.Context, tx *sql.Tx, pol *policy.Policy, titleID i
 	now time.Time) (created, partners []string, err error) {
 	var gains []string
 	held := map[string]bool{} // the title's copies before this call: key → removed
-	if pol != nil && pol.Library != nil && len(pol.Library.SyncGroups) > 0 {
+	if slices.ContainsFunc(keys, func(k string) bool { return pol.SyncGroup(k) != nil }) {
 		rows, err := tx.QueryContext(ctx, `SELECT v.policy_key, EXISTS (SELECT 1 FROM arrview_removed_version r
 			WHERE r.version_id = v.id) FROM version v WHERE v.title_id = ?`, titleID)
 		if err != nil {

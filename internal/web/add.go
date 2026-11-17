@@ -648,19 +648,20 @@ func (w *Web) addTitle(ctx context.Context, req AddRequest, source string) (*Add
 			return err
 		}
 		restored := restoredID > 0
-		// Its anime choice applies before the add picks the libraries for it.
+		// Its anime choice and series type apply before the add picks the libraries for it (and the libraries in
+		// sync with them).
 		if restored && req.Anime != nil {
 			if _, err := tx.ExecContext(ctx, `UPDATE title SET anime = ? WHERE id = ?`, *req.Anime, restoredID); err != nil {
 				return err
 			}
 		}
-		if res, err = catalog.Add(ctx, tx, in, w.now(), w.log); err != nil {
-			return err
-		}
-		if restored && !res.Created {
-			if err := catalog.SetSeriesType(ctx, tx, res.TitleID, req.SeriesType); err != nil {
+		if restored {
+			if err := catalog.SetSeriesType(ctx, tx, restoredID, req.SeriesType); err != nil {
 				return err
 			}
+		}
+		if res, err = catalog.Add(ctx, tx, in, w.now(), w.log); err != nil {
+			return err
 		}
 		if !res.Created && !restored && req.Monitor != "" {
 			// It would rewrite the monitoring of the copies the title has.
