@@ -205,4 +205,16 @@ describe("the approval editor", () => {
     await user.click(within(again).getByRole("button", { name: "Approve these" }));
     expect(await approveBody(api)).toEqual({ versions: ["tv"] });
   });
+
+  it("hides the one-click Approve while the editor is open and brings it back when it closes", async () => {
+    const user = userEvent.setup();
+    setup();
+    expect(await screen.findByTestId("request-approve")).toBeTruthy();
+    await user.click(screen.getByTestId("request-edit"));
+    await screen.findByTestId("approve-editor");
+    expect(screen.queryByTestId("request-approve")).toBeNull();
+    await user.click(screen.getByTestId("request-edit"));
+    expect(screen.queryByTestId("approve-editor")).toBeNull();
+    expect(screen.getByTestId("request-approve")).toBeTruthy();
+  });
 });

@@ -278,9 +278,12 @@ function RequestRow({ r, manager, detail }: { r: Request; manager: boolean; deta
               {!detail ? <Button asChild size="sm" variant="outline"><Link to={`/requests/${r.id}`}>View request</Link></Button> : null}
               {manager && r.status === "pending" ? (
                 <>
-                  <Button size="sm" onClick={() => approve.mutate({ id: r.id })} disabled={approve.isPending} data-testid="request-approve">
-                    {approve.isPending ? <Loader2 className="animate-spin" /> : <Check />} Approve
-                  </Button>
+                  {/* While the editor is open, "Approve these" there is the approval. */}
+                  {mode !== "edit" ? (
+                    <Button size="sm" onClick={() => approve.mutate({ id: r.id })} disabled={approve.isPending} data-testid="request-approve">
+                      {approve.isPending ? <Loader2 className="animate-spin" /> : <Check />} Approve
+                    </Button>
+                  ) : null}
                   <Button
                     size="sm"
                     variant="outline"
