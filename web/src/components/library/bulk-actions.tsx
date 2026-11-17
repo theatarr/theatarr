@@ -17,7 +17,7 @@ import type { CopyColumn } from "@/lib/copies";
 import { plural } from "@/lib/format";
 import { bulkRemovalScope, REMOVAL_DEBRID_NEEDS_FILES, someNames, type Scope } from "@/lib/ops";
 import { cn } from "@/lib/utils";
-import { namesList } from "@/lib/sync-groups";
+import { groupOf, namesList } from "@/lib/sync-groups";
 
 /** The titles a loop over the selection could not do, by the server's reason: "2 titles not removed (Alpha and
  *  Beta): …". */
@@ -211,9 +211,10 @@ export function BulkAddDialog({ titles, kinds, anime, onClose, onDone }: { title
   const todo = titles.filter((t) => t.kind === lib.kind && !inIt(t));
   const n = todo.length;
   const kindWord = lib.kind === "series" ? "series" : "movies";
-  // The libraries kept in sync with this one (the server's answer for a title that has none of them).
+  // The libraries kept in sync with this one: its saved group, whatever each title's own fit (the line is general).
   const label = (k: string) => libs.find((v) => v.key === k)?.label || k;
-  const partners = (lib.synced ?? []).map(label);
+  const syncGroups = [...(movies.data?.sync_groups ?? []), ...(series.data?.sync_groups ?? [])];
+  const partners = (groupOf(syncGroups, lib.key) ?? []).filter((k) => k !== lib.key).map(label);
   const scope: Scope = {
     title: `Add ${plural(n, "title")} to ${name}`,
     does: [`${plural(n, "title")} ${n === 1 ? "is" : "are"} added to ${name} and monitored there: ${n === 1 ? "it is" : "they are"} wanted in that library from now on`],

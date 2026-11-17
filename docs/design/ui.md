@@ -1003,12 +1003,13 @@ library goes. Saving a group adds nothing to titles already in the library.
 
 Which libraries in sync would gain a copy is one read-only answer, `catalog.SyncPartners` (also used by
 `TurnOnSynced`): each add option carries it as `synced` (for that library ticked alone, with the anime reading the
-add will use: the stored flag and series type for a title the catalogue has), `PUT
+add will use: the stored flag and series type for a title with a live copy, else the sheet's anime choice, which
+the add writes first), `PUT
 titles/{id}/versions/{key}` returns the keys it added as `synced` (as `POST titles` does), and a request stores it
 (users.md). The add sheet and "Add libraries" show a partner of a ticked library ticked and disabled, "in sync with
 <library>", and send only what was ticked (the server adds the partners); a partner that would not gain a copy
-(removed, or held unmonitored) stays an ordinary box, and unticking the named library frees it. Bulk add says once
-"Also added to <partners> where a title has no copy there." and its toast counts the copies added in sync; the title
+(removed, or held unmonitored) stays an ordinary box, and unticking the named library frees it. Bulk add says once, whenever the chosen library is in a saved group (add options carry `sync_groups`),
+"Also added to <partners> where a title has no copy there." and promises only that files stay, and its toast counts the copies added in sync; the title
 page's library switch toasts "Also added to <libraries> (in sync)". Collections, import lists and Settings › Connected
 apps say under a chosen or shown library that is in a group "Titles added to <library> are also added to <partners>
 (in sync)." naming the partners not chosen there too (their pages carry `sync_groups`).

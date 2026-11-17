@@ -642,31 +642,30 @@ func Searchable(pol *policy.Policy, keys []string) (active []string, skipped []S
 	return active, skipped
 }
 
-// CopySeasonIntent gives the title's series versions with keys to (just created) the season monitoring of its first
-// version in from that is not in to and not removed: its series_monitor intent (seasons and monitor new) and its
-// episodes' monitored flags. fill also creates the wanted state rows the new copy lacks (Bring in sync); without it
-// only existing rows take the flags, and the rest come with the next metadata refresh from the intent (a compatible
-// view's reclassify). Nothing when from holds no such version.
-func CopySeasonIntent(ctx context.Context, tx *sql.Tx, titleID int64, from, to []string, fill bool, now time.Time) error {
-	if len(to) == 0 {
-		return nil
-	}
-	var src int64
+// SeasonSource is the version id of the title's first version in from that is not in to and not removed (0 when
+// none): the copy CopySeasonIntent copies from.
+func SeasonSource(ctx context.Context, tx *sql.Tx, titleID int64, from, to []string) (int64, error) {
 	for _, k := range from {
 		if slices.Contains(to, k) {
 			continue
 		}
+		var src int64
 		err := tx.QueryRowContext(ctx, `SELECT v.id FROM version v WHERE v.title_id = ? AND v.policy_key = ?
 			AND NOT EXISTS (SELECT 1 FROM arrview_removed_version r WHERE r.version_id = v.id)`, titleID, k).Scan(&src)
 		if errors.Is(err, sql.ErrNoRows) {
 			continue
 		}
-		if err != nil {
-			return err
-		}
-		break
+		return src, err
 	}
-	if src == 0 {
+	return 0, nil
+}
+
+// CopySeasonIntent gives the title's series versions with keys to (just created) the season monitoring of version
+// src: its series_monitor intent (seasons and monitor new) and its episodes' monitored flags. fill also creates the
+// wanted state rows the new copy lacks (Bring in sync); without it only existing rows take the flags, and the rest
+// come with the next metadata refresh from the intent (a compatible view's reclassify). Nothing when src is 0.
+func CopySeasonIntent(ctx context.Context, tx *sql.Tx, titleID, src int64, to []string, fill bool, now time.Time) error {
+	if len(to) == 0 || src == 0 {
 		return nil
 	}
 	m, err := LoadMonitor(ctx, tx, src)

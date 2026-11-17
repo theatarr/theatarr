@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/theatarr/theatarr/internal/catalog"
+	"github.com/theatarr/theatarr/internal/store"
 )
 
 // syncSourceWords says where Bring in sync's new copies take their choices from.
@@ -146,13 +147,26 @@ func (w *Web) apiBringInSync(rw http.ResponseWriter, r *http.Request) {
 	writeJSON(rw, http.StatusOK, out)
 }
 
-// syncFit is what catalog.SyncPartners needs about a title of the catalogue an add will find: its copies in any state,
-// and whether it counts as anime for the libraries in sync (catalog.TitleFit, as catalog.TurnOnSynced reads it).
-func (w *Web) syncFit(ctx context.Context, titleID int64) (catalog.Copies, bool, error) {
-	copies, err := catalog.LoadCopies(ctx, w.st.Reader(), titleID)
-	if err != nil {
-		return nil, false, err
+// titleSync is what catalog.SyncPartners needs about a title of the catalogue an add will find: its copies in any
+// state, its stored anime flag and whether its stored series type is anime (catalog.TurnOnSynced reads either as
+// anime, catalog.TitleFit), and live: it has a copy that is not removed. A title without one is added like a new one:
+// the add writes its anime choice first.
+type titleSync struct {
+	copies          catalog.Copies
+	anime, animeTyp bool
+	live            bool
+}
+
+func (w *Web) syncFit(ctx context.Context, titleID int64) (titleSync, error) {
+	var s titleSync
+	var err error
+	if s.copies, err = catalog.LoadCopies(ctx, w.st.Reader(), titleID); err != nil {
+		return s, err
 	}
-	_, anime, err := catalog.TitleFit(ctx, w.st.Reader(), titleID)
-	return copies, anime, err
+	for _, removed := range s.copies {
+		s.live = s.live || !removed
+	}
+	err = w.st.Reader().QueryRowContext(ctx, `SELECT t.anime, `+store.SeriesTypeSQL("t")+` = 'anime' FROM title t
+		WHERE t.id = ?`, titleID).Scan(&s.anime, &s.animeTyp)
+	return s, err
 }

@@ -1837,3 +1837,43 @@ func TestBringInSync(t *testing.T) {
 	// A library outside every group has no Bring in sync.
 	e.call("GET", APIBase+"/settings/versions/movie-web/bring-in-sync", nil, 404, nil)
 }
+
+// A title every copy of which was removed is added like a new one: the sheet's anime choice, which the add writes
+// first, decides the libraries in sync, so the add options show what the add creates, either way.
+func TestSyncGroupsRemovedTitleAnimeChoice(t *testing.T) {
+	t.Parallel()
+	e := newAddEnv(t, func(p *policy.Policy) {
+		hd := *p.Versions["movie-web"]
+		hd.Library = "/media/movies-hd"
+		p.Versions["movie-hd"] = &hd
+		a2 := *p.Versions["anime-movie"]
+		a2.Library = "/media/anime-movies-2"
+		p.Versions["anime-movie-2"] = &a2
+		p.Library.SyncGroups = [][]string{{"movie-web", "movie-hd"}, {"anime-movie", "anime-movie-2"}}
+	})
+	for _, c := range []struct {
+		id          int64
+		stored, now bool
+		key, synced string
+	}{{150, true, false, "movie-web", "movie-hd"}, {151, false, true, "anime-movie", "anime-movie-2"}} {
+		e.exec(`INSERT INTO title (id, kind, name, sort_name, tmdb_id, anime, created_at, updated_at) VALUES
+			(?, 'movie', 'Removed', 'removed', ?, ?, 0, 0)`, c.id, 100+c.id, c.stored)
+		e.exec(`INSERT INTO version (title_id, policy_key, monitored, state, created_at, updated_at) VALUES
+			(?, 'movie-remux', 0, 'wanted', 0, 0)`, c.id)
+		e.exec(`INSERT INTO arrview_removed_version (version_id, view, removed_at) SELECT id, 'ui', 0 FROM version
+			WHERE title_id = ?`, c.id)
+		var o AddOptions
+		e.call("GET", fmt.Sprintf("%s/add/options?title_id=%d&anime=%t", APIBase, c.id, c.now), nil, 200, &o)
+		for _, v := range o.Versions {
+			if v.Key == c.key && !slices.Equal(v.Synced, []string{c.synced}) {
+				t.Errorf("title %d: %s shows synced %v, want %s", c.id, c.key, v.Synced, c.synced)
+			}
+		}
+		var res AddResult
+		e.call("POST", APIBase+"/titles", map[string]any{"title_id": c.id, "anime": c.now, "versions": []string{c.key}},
+			201, &res)
+		if !slices.Equal(res.Synced, []string{c.synced}) {
+			t.Errorf("title %d: the add created %v in sync, want %s", c.id, res.Synced, c.synced)
+		}
+	}
+}

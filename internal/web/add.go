@@ -151,6 +151,8 @@ type AddOptions struct {
 	EpisodesKnown bool           `json:"episodes_known"`
 	// CanSearch: a search now would do something for at least one default version.
 	CanSearch bool `json:"can_search"`
+	// SyncGroups are the libraries kept in sync (library.sync_groups), for bulk add's general line.
+	SyncGroups [][]string `json:"sync_groups,omitempty"`
 }
 
 func parseKind(s string) (policy.Kind, bool) {
@@ -244,9 +246,9 @@ func (w *Web) apiAddOptions(rw http.ResponseWriter, r *http.Request) {
 	seeFiles := w.permsOf(r).SeeFiles
 	var on, held []string
 	var copies catalog.Copies
-	// Whether a library in sync fits, as the add will read it (catalog.TurnOnSynced): the sheet's choice for a new
-	// title; the stored flag and series type for one the catalogue has, and for a series every copy of which was
-	// removed also the sheet's anime type, which the add stores first.
+	// Whether a library in sync fits, as the add will read it (catalog.TurnOnSynced): the stored flag and series type
+	// for a title with a live copy; else the sheet's choice (anime, or an anime series type), which the add writes
+	// first (addTitle's restore).
 	fitAnime := anime
 	grouped := len(w.syncGroups()) > 0
 	if t != nil {
@@ -260,12 +262,15 @@ func (w *Web) apiAddOptions(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if grouped {
-			var stored bool
-			if copies, stored, err = w.syncFit(ctx, t.id); err != nil {
+			ts, err := w.syncFit(ctx, t.id)
+			if err != nil {
 				w.internal(rw, err)
 				return
 			}
-			fitAnime = stored || !t.inLib && kind == policy.KindSeries && anime
+			copies = ts.copies
+			if ts.live {
+				fitAnime = ts.anime || ts.animeTyp
+			}
 		}
 		if tmdbID == 0 {
 			tmdbID = t.tmdbID
@@ -280,7 +285,7 @@ func (w *Web) apiAddOptions(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	out := AddOptions{Kind: string(kind), Anime: anime, RouterEnabled: w.pol.RouterSettings().Enabled,
-		Versions: []VersionOption{}, Seasons: []SeasonOption{}}
+		Versions: []VersionOption{}, Seasons: []SeasonOption{}, SyncGroups: w.syncGroups()}
 	if t != nil {
 		out.TitleID, out.InLibrary = &t.id, t.inLib
 	}

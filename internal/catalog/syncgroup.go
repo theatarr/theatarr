@@ -3,7 +3,6 @@ package catalog
 import (
 	"context"
 	"database/sql"
-	"maps"
 	"time"
 
 	"github.com/theatarr/theatarr/internal/availability"
@@ -84,9 +83,8 @@ func SyncGains(ctx context.Context, q RowsQuerier, pol *policy.Policy, group []s
 			continue
 		}
 		// The rule of an add, as if the title gained its source copy now.
-		held := maps.Clone(t.held)
-		delete(held, src)
-		if t.gain.Keys = SyncPartners(pol, t.gain.Kind, t.anime, held, []string{src}); len(t.gain.Keys) > 0 {
+		delete(t.held, src)
+		if t.gain.Keys = SyncPartners(pol, t.gain.Kind, t.anime, t.held, []string{src}); len(t.gain.Keys) > 0 {
 			t.gain.Source, t.gain.SourceID, t.gain.Monitored = src, t.ids[src], t.monitored[src]
 			out = append(out, t.gain)
 		}
@@ -120,7 +118,7 @@ func BringInSync(ctx context.Context, tx *sql.Tx, pol *policy.Policy, group []st
 			return nil, err
 		}
 		if g.Kind == policy.KindSeries {
-			if err := CopySeasonIntent(ctx, tx, g.TitleID, []string{g.Source}, g.Keys, true, now); err != nil {
+			if err := CopySeasonIntent(ctx, tx, g.TitleID, g.SourceID, g.Keys, true, now); err != nil {
 				return nil, err
 			}
 		} else if r := rules[g.SourceID]; r.Source == availability.SourceChoice {

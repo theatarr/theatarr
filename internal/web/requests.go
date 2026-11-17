@@ -763,12 +763,19 @@ func (w *Web) apiCreateRequest(rw http.ResponseWriter, r *http.Request) {
 			w.internal(rw, err)
 			return
 		}
+		// As the approval's add will read it: a title with a live copy by its stored flag and type; one without by the
+		// request's anime choice, which the approval writes, and its stored type, which it keeps.
 		var copies catalog.Copies
 		fitAnime := anime
 		if found {
-			if copies, fitAnime, err = w.syncFit(ctx, id); err != nil {
+			ts, err := w.syncFit(ctx, id)
+			if err != nil {
 				w.internal(rw, err)
 				return
+			}
+			copies, fitAnime = ts.copies, anime || ts.animeTyp
+			if ts.live {
+				fitAnime = ts.anime || ts.animeTyp
 			}
 		}
 		if synced := catalog.SyncPartners(w.pol, kind, fitAnime, copies, keys); len(synced) > 0 {

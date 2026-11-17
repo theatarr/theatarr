@@ -277,9 +277,10 @@ describe("Bulk Add to a library", () => {
 
 describe("Bulk Add to a library kept in sync", () => {
   it("says what else is added and counts the copies added in sync", async () => {
-    mockFetch([me(["manage", "add"]), { method: "GET", path: "/add/options", reply: { kind: "movie", anime: false, router_enabled: true, seasons: [], versions: [
+    mockFetch([me(["manage", "add"]), // The line follows the saved group, not each option's synced answer (empty for a title type that fits no partner).
+    { method: "GET", path: "/add/options", reply: { kind: "movie", anime: false, router_enabled: true, seasons: [], sync_groups: [["uhd", "hd"]], versions: [
       { key: "hd", label: "HD", kind: "movie", fits: true },
-      { key: "uhd", label: "4K", kind: "movie", fits: true, synced: ["hd"] },
+      { key: "uhd", label: "4K", kind: "movie", fits: true },
     ] } },
     { method: "PUT", path: "/titles/2/versions/uhd", reply: { synced: [] } },
     { method: "PUT", path: "/titles/3/versions/uhd", reply: { synced: ["hd"] } },
@@ -288,7 +289,7 @@ describe("Bulk Add to a library kept in sync", () => {
     const user = userEvent.setup();
     await user.click(await within(await bar()).findByRole("button", { name: "Add to a library" }));
     let dialog = await screen.findByRole("dialog", { name: "Add 1 title to HD" });
-    expect(within(dialog).queryByTestId("bulk-add-synced")).toBeNull();
+    expect(within(dialog).getByTestId("bulk-add-synced").textContent).toBe("Also added to 4K where a title has no copy there.");
     await user.selectOptions(within(dialog).getByRole("combobox", { name: "Library" }), "uhd");
     dialog = await screen.findByRole("dialog", { name: "Add 3 titles to 4K" });
     expect(within(dialog).getByTestId("bulk-add-synced").textContent).toBe("Also added to HD where a title has no copy there.");
