@@ -104,14 +104,21 @@ type fakeTMDb struct {
 	searches int
 	details  int
 	fail     bool
+	// answers, when set, answers each search by its lowercased query (none: nothing found); queries records them.
+	answers map[string][]tmdb.MultiResult
+	queries []string
 }
 
 func (f *fakeTMDb) SearchMulti(_ context.Context, q string) ([]tmdb.MultiResult, error) {
 	f.mu.Lock()
 	f.searches++
+	f.queries = append(f.queries, q)
 	f.mu.Unlock()
 	if f.fail {
 		return nil, errors.New("tmdb: HTTP 503")
+	}
+	if f.answers != nil {
+		return f.answers[strings.ToLower(q)], nil
 	}
 	return []tmdb.MultiResult{
 		{MediaType: "movie", ID: 101, Title: "Alpha", ReleaseDate: "2020-05-01", PosterPath: "/abcdefghij12.jpg",
@@ -662,6 +669,65 @@ func TestSearchEndpoint(t *testing.T) {
 
 // TestSearchKindAndPaging: the kind applies before the limit (a movie-heavy match still returns its series), offset
 // pages the library part, and library_total counts every match of the kind.
+// A query ending in a year TMDb's multi search finds nothing for is searched again without the year, keeping that
+// year's hits; a query that finds something, a numeric title and an implausible year are searched once, as typed.
+func TestSearchTrailingYearFallback(t *testing.T) {
+	t.Parallel()
+	e := newAddEnv(t, nil)
+	thing := []tmdb.MultiResult{
+		{MediaType: "movie", ID: 60935, Title: "The Thing", ReleaseDate: "2011-10-12"},
+		{MediaType: "tv", ID: 4001, Name: "The Thing", FirstAirDate: "1982-01-01"},
+		{MediaType: "movie", ID: 1091, Title: "The Thing", ReleaseDate: "1982-06-25"},
+	}
+	e.tm.answers = map[string][]tmdb.MultiResult{
+		"the thing":         thing,
+		"blade runner 2049": {{MediaType: "movie", ID: 335984, Title: "Blade Runner 2049", ReleaseDate: "2017-10-04"}},
+		"blade runner":      {{MediaType: "movie", ID: 78, Title: "Blade Runner", ReleaseDate: "1982-06-25"}},
+		"1917":              {{MediaType: "movie", ID: 530915, Title: "1917", ReleaseDate: "2019-12-25"}},
+	}
+	search := func(q string) (SearchAnswer, []string) {
+		t.Helper()
+		e.tm.mu.Lock()
+		e.tm.queries = nil
+		e.tm.mu.Unlock()
+		var s SearchAnswer
+		e.call("GET", APIBase+"/search?scope=tmdb&q="+url.QueryEscape(q), nil, 200, &s)
+		e.tm.mu.Lock()
+		defer e.tm.mu.Unlock()
+		return s, append([]string(nil), e.tm.queries...)
+	}
+	s, qs := search("The Thing 1982")
+	if s.TMDbState != "ok" || len(s.TMDb) != 2 || s.TMDb[0].TMDbID != 4001 || s.TMDb[1].TMDbID != 1091 ||
+		!slices.Equal(qs, []string{"The Thing 1982", "The Thing"}) {
+		t.Errorf("the thing 1982: %+v, searched %q", s.TMDb, qs)
+	}
+	// The year is applied before the kind and the limit.
+	var k SearchAnswer
+	e.call("GET", APIBase+"/search?scope=tmdb&kind=movie&limit=1&q=The+Thing+1982", nil, 200, &k)
+	if len(k.TMDb) != 1 || k.TMDb[0].TMDbID != 1091 {
+		t.Errorf("the thing 1982, movies, limit 1: %+v", k.TMDb)
+	}
+	s, qs = search("Blade Runner 2049")
+	if len(s.TMDb) != 1 || s.TMDb[0].TMDbID != 335984 || len(qs) != 1 {
+		t.Errorf("blade runner 2049: %+v, searched %q", s.TMDb, qs)
+	}
+	s, qs = search("1917")
+	if len(s.TMDb) != 1 || s.TMDb[0].TMDbID != 530915 || len(qs) != 1 {
+		t.Errorf("1917: %+v, searched %q", s.TMDb, qs)
+	}
+	// A year that matches nothing: empty, no error, one extra search at most.
+	s, qs = search("The Thing 1999")
+	if s.TMDbState != "ok" || len(s.TMDb) != 0 || len(qs) != 2 {
+		t.Errorf("the thing 1999: %+v, searched %q", s, qs)
+	}
+	// Not a plausible year: searched once, as typed.
+	for _, q := range []string{"Blade Runner 2099", "Blade Runner 1850"} {
+		if s, qs = search(q); len(s.TMDb) != 0 || len(qs) != 1 {
+			t.Errorf("%s: %+v, searched %q", q, s.TMDb, qs)
+		}
+	}
+}
+
 func TestSearchKindAndPaging(t *testing.T) {
 	t.Parallel()
 	e := newAddEnv(t, nil)

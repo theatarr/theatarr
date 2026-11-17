@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"net/http"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 
@@ -13,8 +14,8 @@ import (
 )
 
 // GET /search: the search overlay and page. The library part is local and instant; the TMDb part goes through the
-// gateway and the tmdb budget (tmdb.Client.SearchMulti, cached a day), with posters through /img/tmdb so the browser
-// never talks to TMDb.
+// gateway and the tmdb budget (tmdb.Client.SearchMulti, cached a day; at most a second search for a query ending in a
+// year that finds nothing), with posters through /img/tmdb so the browser never talks to TMDb.
 
 // SearchHit is one TMDb result.
 type SearchHit struct {
@@ -186,6 +187,22 @@ func (w *Web) tmdbSearch(ctx context.Context, q, kind string, limit int) ([]Sear
 	if err != nil {
 		return nil, err
 	}
+	// TMDb's multi search takes no year, so "The Thing 1982" finds nothing: when the whole query finds nothing and
+	// ends in a plausible year, search the title without it and keep that year's hits (before kind and limit). A
+	// query that does find something is used as it is ("Blade Runner 2049").
+	if len(res) == 0 {
+		if title, year, ok := trailingYear(q, w.now().Year()+1); ok {
+			all, err := w.add.TMDb.SearchMulti(ctx, title)
+			if err != nil {
+				return nil, err
+			}
+			for i := range all {
+				if all[i].Year() == year {
+					res = append(res, all[i])
+				}
+			}
+		}
+	}
 	hits := []SearchHit{}
 	for i := range res {
 		x := &res[i]
@@ -216,6 +233,25 @@ func (w *Web) tmdbSearch(ctx context.Context, q, kind string, limit int) ([]Sear
 		return nil, err
 	}
 	return hits, w.markRequested(ctx, hits)
+}
+
+// trailingYear splits a query that ends in a four-digit year from 1900 to maxYear into the title before it and the
+// year; ok is false when there is no such year or nothing before it ("1917").
+func trailingYear(q string, maxYear int) (title string, year int, ok bool) {
+	i := strings.LastIndexByte(q, ' ')
+	if i < 0 {
+		return "", 0, false
+	}
+	w := q[i+1:]
+	if len(w) != 4 || strings.Trim(w, "0123456789") != "" {
+		return "", 0, false
+	}
+	year, _ = strconv.Atoi(w)
+	title = strings.TrimSpace(q[:i])
+	if year < 1900 || year > maxYear || title == "" {
+		return "", 0, false
+	}
+	return title, year, true
 }
 
 // markRequested marks the hits an open request asks for.
