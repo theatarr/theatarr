@@ -174,3 +174,30 @@ it("keeps the last rows with a notice and Retry when a refresh fails; the full e
   expect(await screen.findByText("Could not load this")).toBeTruthy();
   expect(screen.queryByTestId("stale-notice")).toBeNull();
 });
+
+it("keeps the rows when Load more fails, says so, and Retry reads the next page again", async () => {
+  let fail = true;
+  const fetch = mockFetch([
+    { method: "GET", path: "/auth/me", reply: me },
+    { method: "GET", path: "/titles/facets", reply: {} },
+    {
+      method: "GET",
+      path: "/activity",
+      reply: (r: { search: string }) =>
+        !r.search.includes("cursor=c2") ? { state: "history", admin: true, history: [grab, link], next_cursor: "c2" } : fail ? json({ error: "boom" }, 500) : { state: "history", admin: true, history: [{ ...link, id: "lib:2", at: "2026-11-01T09:00:00Z" }] },
+    },
+  ]);
+  renderPage(<HistoryTab admin />, "/activity/history");
+  expect(await screen.findAllByTestId("history-row")).toHaveLength(2);
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("button", { name: "Load more" }));
+  const notice = await screen.findByTestId("stale-notice");
+  expect(notice.textContent).toBe("Could not load more.Retry");
+  expect(screen.getAllByTestId("history-row")).toHaveLength(2);
+  expect(screen.queryByText(/Could not refresh/)).toBeNull();
+  fail = false;
+  await user.click(within(notice).getByRole("button", { name: "Retry" }));
+  await waitFor(() => expect(screen.getAllByTestId("history-row")).toHaveLength(3));
+  expect(screen.queryByTestId("stale-notice")).toBeNull();
+  expect(fetch.calls("GET", "/activity").filter((r) => r.search.includes("cursor=c2"))).toHaveLength(2);
+});

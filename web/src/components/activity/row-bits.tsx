@@ -76,12 +76,13 @@ export function tight<T>(columns: readonly DataColumn<T>[]): DataColumn<T>[] {
 }
 
 /** A background refresh failed while rows are shown: they stay, under this notice with Retry (the Queue and History;
- *  the full error only when nothing was loaded yet). at: when the rows were read (the query's dataUpdatedAt). */
-export function StaleNotice({ at, onRetry, retrying }: { at: number; onRetry: () => void; retrying: boolean }) {
+ *  the full error only when nothing was loaded yet). at: when the rows were read (the query's dataUpdatedAt); without
+ *  it, the next page (History's Load more) could not be read. */
+export function StaleNotice({ at, onRetry, retrying, className = "mb-3" }: { at?: number; onRetry: () => void; retrying: boolean; className?: string }) {
   return (
-    <div role="status" data-testid="stale-notice" className="mb-3 flex flex-wrap items-center gap-3 rounded-[5px] border border-l-[3px] border-[var(--line)] border-l-[var(--warn)] bg-[var(--surface)] px-4 py-2 text-[13px] text-[var(--ink-2)]">
+    <div role="status" data-testid="stale-notice" className={cn(className, "flex flex-wrap items-center gap-3 rounded-[5px] border border-l-[3px] border-[var(--line)] border-l-[var(--warn)] bg-[var(--surface)] px-4 py-2 text-[13px] text-[var(--ink-2)]")}>
       <AlertTriangle className="size-4 shrink-0 text-[var(--warn)]" aria-hidden />
-      <span className="min-w-0 flex-1">Could not refresh. Showing the list from {fmtClock(new Date(at))}.</span>
+      <span className="min-w-0 flex-1">{at === undefined ? "Could not load more." : `Could not refresh. Showing the list from ${fmtClock(new Date(at))}.`}</span>
       <Button variant="outline" size="sm" onClick={onRetry} disabled={retrying}>
         {retrying ? <Loader2 className="animate-spin" /> : <RotateCcw />}
         Retry

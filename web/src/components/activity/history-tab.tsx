@@ -282,7 +282,7 @@ export function HistoryTab({ admin, as, titleId }: { admin: boolean; as?: "user"
       {titleId ? (columns ? <div className="mb-3 flex justify-end">{columns}</div> : null) : <HistoryFilters admin={admin} tools={columns} />}
       {q.isPending ? <Loading /> : failed ? <ErrorState error={q.error} /> : (
         <>
-          {q.error ? <StaleNotice at={q.dataUpdatedAt} onRetry={() => void q.refetch()} retrying={q.isFetching} /> : null}
+          {q.error && !q.isFetchNextPageError ? <StaleNotice at={q.dataUpdatedAt} onRetry={() => void q.refetch()} retrying={q.isFetching} /> : null}
           <HistoryList q={q} admin={admin} prefs={prefs} filtered={!titleId && historyFilterCount(filters) > 0} withTitle={!titleId} />
         </>
       )}
@@ -358,7 +358,9 @@ function HistoryList({ q, admin, prefs, filtered, withTitle }: { q: ReturnType<t
         <Empty icon={HistoryIcon}>
           {filtered ? (q.hasNextPage ? "Nothing matches on this page." : "Nothing matches these filters.") : "Nothing has happened yet."}
         </Empty>
-        {q.hasNextPage ? (
+        {q.isFetchNextPageError ? (
+          <div className="px-4 pb-4"><StaleNotice className="" onRetry={() => void q.fetchNextPage()} retrying={q.isFetchingNextPage} /></div>
+        ) : q.hasNextPage ? (
           <div className="flex justify-center pb-4">
             <Button variant="outline" onClick={() => q.fetchNextPage()} disabled={q.isFetchingNextPage}>
               {q.isFetchingNextPage ? "Loading…" : "Look further back"}
@@ -368,7 +370,10 @@ function HistoryList({ q, admin, prefs, filtered, withTitle }: { q: ReturnType<t
       </Card>
     );
   }
-  const more = q.hasNextPage ? (
+  // A failed Load more keeps the rows; its Retry reads the next page again.
+  const more = q.isFetchNextPageError ? (
+    <StaleNotice className="" onRetry={() => void q.fetchNextPage()} retrying={q.isFetchingNextPage} />
+  ) : q.hasNextPage ? (
     <div className="flex justify-center">
       <Button variant="outline" onClick={() => q.fetchNextPage()} disabled={q.isFetchingNextPage}>
         {q.isFetchingNextPage ? "Loading…" : "Load more"}
