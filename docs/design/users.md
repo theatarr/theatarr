@@ -104,7 +104,7 @@ old way still works: someone signs in with Plex and waits as pending until an ad
 | `GET /requests` | browse | own; every request with `manage_requests` (`?mine=1`, `?status=`, `?kind=`) |
 | `GET /requests/summary` | browse | counts (the sidebar badge: pending for managers, open for users) |
 | `GET /requests/{id}` | browse | own/joined, or any with `manage_requests`; request facts plus safe acquisition progress and approval effects (no file/provider diagnostics) |
-| `POST /requests` | request | create; a second request for the same title merges (`request_user`) |
+| `POST /requests` | request | create; a second ask for the same title joins an open request that holds all of it (`request_user`), grows a pending one it holds all of, or is a request of its own |
 | `POST /requests/{id}/approve` | manage_requests | optional `versions` and `seasons` edits |
 | `POST /requests/{id}/decline` | manage_requests | with a reason |
 | `DELETE /requests/{id}` | request | cancel own pending request |
@@ -125,6 +125,15 @@ and no other-requester list or count.
   the request stays pending and the answer says why (`not_approved: "asks_more"`; the request sheet puts it in
   words, telling an account with `manage_requests` it can approve it in Requests rather than wait for a manager). Joining an approved or processing request approves nothing. The same rule holds for managers' asks. A
   joiner's approval notifies as an approval, not an auto-approval. `TestAutoApproveJoinsPendingRequest` and `TestAutoApproveJoinSeasons` cover it.
+- **Joining**: containment only (`askCovers`, `createRequest`). A new ask joins an open request (pending, approved or
+  processing) only when that one request holds all of it: every library asked, for every season asked (a request
+  naming no seasons holds every season). The requester is added to it (`request_user`); the request does not change.
+  A new ask that holds all of a *pending* request grows the first such request to the ask (its libraries and seasons
+  become the ask's), so a smaller request never waits for approval of work a larger one covers. Anything else is a
+  new request for exactly what was asked, even where an open request overlaps part of it: season 1 in library A and
+  season 2 in library B stay two requests. Approving overlapping requests leaves what is already there as it is (each
+  approval only adds monitoring and starts its own search). `TestRequestJoinIsContainment` and
+  `TestOverlappingRequestsApproveApart` cover it.
 - **More seasons**: what a request may ask for is decided per version and season.
   A version the title already has stays requestable for a series season it does not fully monitor (an episode
   unmonitored for it, or without a state row; `seasonGaps`); `GET add/options` lists those as `open_seasons` per
@@ -135,9 +144,11 @@ and no other-requester list or count.
   seasons it holds, so asking for season 3 after an approved request for seasons 1-2 makes a new request.
   The UI: the request card and hero say **Request more seasons**, the Episodes tab shows the same entry above the
   seasons, and the sheet greys out seasons already monitored in every wanted version.
-- Status: `pending` → `approved` → `processing` (a download for a requested version is in hand) → `available` (every
+- Status: `pending` → `approved` → `processing` (a download for a requested version is in hand; for a series request
+  naming seasons, one for those seasons or the whole series, the season match the request detail uses) → `available` (every
   requested version has its file; for a series request naming seasons, every aired episode of those seasons, so a
-  version filled before the request does not count) or `failed`; also `declined`, `canceled`. A sync loop and the
+  version filled before the request does not count) or `failed` (a download counted as above failed since the
+  approval); also `declined`, `canceled`. A sync loop and the
   download events move it.
 - SSE `request` events go to the requesters and to accounts with `manage_requests`. `Config.OnRequest` is an
   optional hook that hears every request change; request webhooks come from `internal/notify` ([manage.md](manage.md)

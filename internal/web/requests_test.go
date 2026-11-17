@@ -11,6 +11,7 @@ import (
 
 	"github.com/theatarr/theatarr/internal/activity"
 	"github.com/theatarr/theatarr/internal/auth"
+	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/router"
 	"github.com/theatarr/theatarr/internal/store"
 )
@@ -810,5 +811,141 @@ func TestRequestMoreSeasonsEveryOpenSeason(t *testing.T) {
 	e.st.Reader().QueryRow(`SELECT monitored FROM episode_version_state WHERE episode_id = 103`).Scan(&m103)
 	if m100 != 0 || m103 != 1 {
 		t.Errorf("specials %d, season 2 %d", m100, m103)
+	}
+}
+
+// TestRequestJoinIsContainment: a new ask joins an open request only when that request holds all of it, grows a
+// pending request it holds all of, and is otherwise a request of its own for exactly what was asked.
+func TestRequestJoinIsContainment(t *testing.T) {
+	t.Parallel()
+	e := newAddEnv(t, nil)
+	ctx := context.Background()
+	annID, _ := e.user("ann", auth.RoleUser)
+	bobID, _ := e.user("bob", auth.RoleUser)
+	type ask struct {
+		keys    []string
+		seasons []int
+	}
+	every := []int{}
+	for i, c := range []struct {
+		name     string
+		first    ask
+		approved bool
+		next     ask
+		joined   bool
+		stored   ask // the first request after the second ask
+	}{
+		{"same ask twice", ask{[]string{"A"}, []int{1}}, false, ask{[]string{"A"}, []int{1}}, true, ask{[]string{"A"}, []int{1}}},
+		{"grown by a library", ask{[]string{"A"}, every}, false, ask{[]string{"A", "B"}, every}, true, ask{[]string{"A", "B"}, every}},
+		{"grown by a season", ask{[]string{"A"}, []int{1}}, false, ask{[]string{"A"}, []int{1, 2}}, true, ask{[]string{"A"}, []int{1, 2}}},
+		{"other library, other season", ask{[]string{"A"}, []int{1}}, false, ask{[]string{"B"}, []int{2}}, false, ask{[]string{"A"}, []int{1}}},
+		{"fewer libraries, other season", ask{[]string{"A", "B"}, []int{1}}, false, ask{[]string{"A"}, []int{2}}, false, ask{[]string{"A", "B"}, []int{1}}},
+		{"every season holds one", ask{[]string{"A"}, every}, false, ask{[]string{"A"}, []int{2}}, true, ask{[]string{"A"}, every}},
+		{"approved covers the ask", ask{[]string{"A", "B"}, every}, true, ask{[]string{"A"}, []int{1}}, true, ask{[]string{"A", "B"}, every}},
+		{"approved does not cover the ask", ask{[]string{"A"}, []int{1}}, true, ask{[]string{"A"}, []int{1, 2}}, false, ask{[]string{"A"}, []int{1}}},
+	} {
+		n := newRequest{kind: "series", tmdbID: int64(900 + i), tvdbID: int64(9000 + i), name: c.name}
+		n.keys, n.seasons = c.first.keys, c.first.seasons
+		first, _, err := e.web.createRequest(ctx, annID, n)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if c.approved {
+			e.exec(`UPDATE request SET status = 'approved' WHERE id = ?`, first.Request.ID)
+		}
+		n.keys, n.seasons = c.next.keys, c.next.seasons
+		next, _, err := e.web.createRequest(ctx, bobID, n)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if next.Merged != c.joined || (next.Request.ID == first.Request.ID) != c.joined {
+			t.Errorf("%s: merged %v into %d, first %d", c.name, next.Merged, next.Request.ID, first.Request.ID)
+		}
+		got := func(id int64) string {
+			var vs, ss string
+			if err := e.st.Reader().QueryRow(`SELECT versions, seasons FROM request WHERE id = ?`, id).Scan(&vs, &ss); err != nil {
+				t.Fatal(err)
+			}
+			return vs + " " + ss
+		}
+		if want := jsonText(c.stored.keys) + " " + jsonText(c.stored.seasons); got(first.Request.ID) != want {
+			t.Errorf("%s: first request %s, want %s", c.name, got(first.Request.ID), want)
+		}
+		if !c.joined {
+			if want := jsonText(c.next.keys) + " " + jsonText(c.next.seasons); got(next.Request.ID) != want {
+				t.Errorf("%s: new request %s, want %s", c.name, got(next.Request.ID), want)
+			}
+		}
+	}
+}
+
+// TestOverlappingRequestsApproveApart: {A: S1} and {B: S2} are two requests; approved one after the other they end
+// with exactly season 1 monitored in A and season 2 in B. While both are open, a failed season 1 download fails the
+// season 1 request only, and an S1 download in progress moves only that request along.
+func TestOverlappingRequestsApproveApart(t *testing.T) {
+	t.Parallel()
+	e := newAddEnv(t, func(p *policy.Policy) {
+		for _, k := range []string{"tv-a", "tv-b"} {
+			v := *p.Versions["tv-2160p"]
+			p.Versions[k] = &v
+		}
+	})
+	ctx := context.Background()
+	annID, ann := e.user("ann", auth.RoleUser)
+	bobID, bob := e.user("bob", auth.RoleUser)
+	_, mgr := e.user("mgr", auth.RoleManager)
+	for id, k := range map[int64]string{annID: "tv-a", bobID: "tv-b"} {
+		keys := []string{k}
+		if err := e.au.UpdateUser(ctx, id, auth.UserPatch{RequestVersions: &keys}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var s1, s2 CreateResult
+	e.callAs(ann, "POST", APIBase+"/requests", map[string]any{"title_id": 10, "seasons": []int{1}}, 201, &s1)
+	e.callAs(bob, "POST", APIBase+"/requests", map[string]any{"title_id": 10, "seasons": []int{2}}, 201, &s2)
+	if s2.Merged || s2.Request.ID == s1.Request.ID || !slices.Equal(keysOf(s2.Request), []string{"tv-b"}) ||
+		!slices.Equal(s2.Request.Seasons, []int{2}) {
+		t.Fatalf("second request: %+v", s2)
+	}
+	for _, id := range []int64{s1.Request.ID, s2.Request.ID} {
+		e.callAs(mgr, "POST", fmt.Sprintf("%s/requests/%d/approve", APIBase, id), map[string]any{}, 200, nil)
+	}
+	var mon []string
+	scanAll(ctx, e.st.Reader(), `SELECT v.policy_key || ':' || e.season FROM episode_version_state s JOIN version v ON
+		v.id = s.version_id JOIN episode e ON e.id = s.episode_id WHERE v.title_id = 10 AND v.policy_key IN ('tv-a', 'tv-b')
+		AND s.monitored = 1 GROUP BY v.policy_key, e.season ORDER BY 1`, nil, func(rows *sql.Rows) error {
+		var s string
+		rows.Scan(&s)
+		mon = append(mon, s)
+		return nil
+	})
+	if !slices.Equal(mon, []string{"tv-a:1", "tv-b:2"}) {
+		t.Fatalf("monitored after both approvals: %v", mon)
+	}
+
+	// Both requests on one library (tv-a), seasons 1 and 2, approved: downloads count for their own seasons only.
+	e.exec(`UPDATE request SET versions = '["tv-a"]' WHERE id = ?`, s2.Request.ID)
+	var va int64
+	e.st.Reader().QueryRow(`SELECT id FROM version WHERE title_id = 10 AND policy_key = 'tv-a'`).Scan(&va)
+	now := store.Millis(addNow)
+	e.exec(`INSERT INTO download (title_id, version_id, version_key, info_hash, release_title, indexer, state, episodes,
+		created_at, updated_at) VALUES (10, ?, 'tv-a', 'h1', 'The.Show.S01E01.2160p', 'x', 'downloading', '[101]', ?, ?)`,
+		va, now, now+1)
+	if err := e.web.syncRequests(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if a, b := e.requestStatus(s1.Request.ID), e.requestStatus(s2.Request.ID); a != ReqProcessing || b != ReqApproved {
+		t.Errorf("season 1 downloading: %s, %s", a, b)
+	}
+	e.exec(`UPDATE download SET state = 'failed', updated_at = ?`, now+1)
+	e.web.syncRequests(ctx)
+	if a, b := e.requestStatus(s1.Request.ID), e.requestStatus(s2.Request.ID); a != ReqFailed || b != ReqApproved {
+		t.Errorf("season 1 failed: %s, %s", a, b)
+	}
+	// A download without episodes is the whole series: it counts for both.
+	e.exec(`UPDATE download SET episodes = '[]', state = 'downloading'`)
+	e.web.syncRequests(ctx)
+	if a, b := e.requestStatus(s1.Request.ID), e.requestStatus(s2.Request.ID); a != ReqProcessing || b != ReqProcessing {
+		t.Errorf("whole series downloading: %s, %s", a, b)
 	}
 }

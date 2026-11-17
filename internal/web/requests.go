@@ -861,7 +861,8 @@ func jsonText(v any) string {
 	return string(b)
 }
 
-// createRequest stores a request, merging it into an open one for the same title when it can.
+// createRequest stores a request, joining an open one for the same title that holds all of it, or growing a pending
+// one the ask holds all of.
 func (w *Web) createRequest(ctx context.Context, userID int64, n newRequest) (*CreateResult, RequestEvent, error) {
 	now := store.Millis(w.now())
 	res := &CreateResult{}
@@ -928,43 +929,25 @@ func (w *Web) createRequest(ctx context.Context, userID int64, n newRequest) (*C
 			ev = RequestEvent{ID: o.id, Status: o.status, Name: n.name, TitleID: n.titleID, Change: "merged"}
 			return nil
 		}
-		// An open request covers a version when it holds it for every season asked (an empty list is every season).
-		covers := func(o open, k string) bool {
-			return slices.Contains(o.versions, k) && (len(o.seasons) == 0 ||
-				len(n.seasons) > 0 && !slices.ContainsFunc(n.seasons, func(s int) bool { return !slices.Contains(o.seasons, s) }))
-		}
-		remaining := slices.Clone(n.keys)
+		// Containment only. An open request that holds all of the ask (every library, every season asked) takes the
+		// asker as it is.
 		for _, o := range opens {
-			remaining = slices.DeleteFunc(remaining, func(k string) bool { return covers(o, k) })
-		}
-		// Everything is covered by open requests: join the first that covers any of the versions.
-		if len(remaining) == 0 {
-			for _, o := range opens {
-				if slices.ContainsFunc(n.keys, func(k string) bool { return covers(o, k) }) {
-					return join(o, nil, nil)
-				}
+			if askCovers(o.versions, o.seasons, n.keys, n.seasons) {
+				return join(o, nil, nil)
 			}
 		}
-		// A pending request grows by the versions it lacks (and the seasons: an empty list is every season).
+		// The ask holds all of a pending request: the first such request grows to the ask, so a smaller request does not
+		// wait for approval of work the larger one covers.
 		for _, o := range opens {
-			if o.status != ReqPending {
-				continue
+			if o.status == ReqPending && askCovers(n.keys, n.seasons, o.versions, o.seasons) {
+				return join(o, n.keys, n.seasons)
 			}
-			keys := append(slices.Clone(o.versions), remaining...)
-			slices.Sort(keys)
-			seasons := []int{}
-			if len(o.seasons) > 0 && len(n.seasons) > 0 {
-				seasons = append(slices.Clone(o.seasons), n.seasons...)
-				slices.Sort(seasons)
-				seasons = slices.Compact(seasons)
-			}
-			return join(o, slices.Compact(keys), seasons)
 		}
-		// Otherwise a new request for what no open request covers.
+		// Otherwise a new request for exactly what was asked, even where an open request overlaps part of it.
 		r, err := tx.ExecContext(ctx, `INSERT INTO request (user_id, kind, tmdb_id, tvdb_id, title_id, name, year,
 			anime, poster_path, versions, seasons, note, status, created_at, updated_at)
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`, userID, string(n.kind), nullable(n.tmdbID),
-			nullable(n.tvdbID), n.titleID, n.name, nullable(int64(n.year)), n.anime, n.poster, jsonText(remaining),
+			nullable(n.tvdbID), n.titleID, n.name, nullable(int64(n.year)), n.anime, n.poster, jsonText(n.keys),
 			jsonText(n.seasons), n.note, now, now)
 		if err != nil {
 			return err
@@ -1521,13 +1504,23 @@ func (w *Web) requestStatus(ctx context.Context, r *Request) (string, error) {
 	if len(missing) == 0 {
 		return ReqApproved, nil
 	}
-	ph := store.Placeholders(len(missing))
+	where := `version_id IN (` + store.Placeholders(len(missing)) + `)`
 	args := make([]any, 0, len(missing)+1)
 	for _, id := range missing {
 		args = append(args, id)
 	}
+	// For a request naming seasons only downloads for its own seasons count (a download without episodes is the
+	// whole series), the season match the request detail uses: another request's season 1 download does not move
+	// a season 2 request along or fail it.
+	if r.Kind == string(policy.KindSeries) && len(r.Seasons) > 0 {
+		where += ` AND (json_array_length(download.episodes) = 0 OR EXISTS (SELECT 1 FROM json_each(download.episodes) j
+			JOIN episode e ON e.id = j.value WHERE e.season IN (` + store.Placeholders(len(r.Seasons)) + `)))`
+		for _, n := range r.Seasons {
+			args = append(args, n)
+		}
+	}
 	var inHand int
-	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM download WHERE version_id IN (`+ph+`)
+	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM download WHERE `+where+`
 		AND state NOT IN ('failed')`, args...).Scan(&inHand); err != nil {
 		return "", err
 	}
@@ -1537,7 +1530,7 @@ func (w *Web) requestStatus(ctx context.Context, r *Request) (string, error) {
 	// Failed: since the approval, a download of a missing version failed (one not started because downloads were off
 	// does not count: activity.NotStarted).
 	var failed int
-	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM download WHERE version_id IN (`+ph+`)
+	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM download WHERE `+where+`
 		AND state = 'failed' AND NOT `+activity.NotStartedSQL+` AND updated_at >= ?`, append(args, r.decidedAt)...).Scan(&failed); err != nil {
 		return "", err
 	}
