@@ -278,8 +278,8 @@ func (s *Service) decideAnime(ctx context.Context, v *View, in *titleIn, ext int
 // reclassify asks again about a title whose anime check could not reach TMDb (anime_source unknown in this view's
 // record). Once TMDb answers, every unknown record of the title takes the answer; an anime answer flags
 // the title anime and turns on the view's versions for it (chooseVersions with the record's profile and root),
-// monitored as the title is. The view's other versions stay. restore is TurnOnSynced's: a person's add or edit
-// brings a removed copy in sync back; a Refresh (restore false) only adds missing ones.
+// monitored as the title is. The view's other versions stay. A person's add or edit (restore) restores removed
+// copies, picked or in sync; a Refresh (restore false) only adds the copies the title has none of.
 func (s *Service) reclassify(ctx context.Context, v *View, titleID int64, restore bool) error {
 	var src, root string
 	var qp, tmdbID, tvdbID int64
@@ -316,6 +316,14 @@ func (s *Service) reclassify(ctx context.Context, v *View, titleID int64, restor
 		keys, err := s.chooseVersions(v, &in, true)
 		if err != nil {
 			return err
+		}
+		if !restore {
+			// A Refresh adds only the libraries the title has no copy in: removed and unmonitored copies stay.
+			held, err := catalog.LoadCopies(ctx, tx, titleID)
+			if err != nil {
+				return err
+			}
+			keys = slices.DeleteFunc(keys, func(k string) bool { _, ok := held[k]; return ok })
 		}
 		var mon bool
 		if err := tx.QueryRowContext(ctx, `SELECT COALESCE(MAX(monitored), 1) FROM version WHERE title_id = ?`,
