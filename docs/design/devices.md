@@ -161,7 +161,10 @@ SignalR, Sonarr v5, `downloadclient`.
   - Each event is emitted once (`notify_event`). The claim and the event's deliveries are written together, so an
     event whose preparation fails (a payload or title read) is tried again at the next scan, not lost.
 - **Targets.**
-  - Installed notifications of the payload's view with the matching `on*` flag.
+  - Installed notifications of the payload's view with the matching `on*` flag. One with `tags` gets a title's events
+    only when the title carries one of them in that view (an untagged title does not reach it), as in the arrs;
+    health, health-restored and Test events are not restricted, and policy targets have no tags
+    (`TestInstalledWebhookTags`, `TestWebhookPayloadTags`).
   - Policy event names: `grab`, `download`, `upgrade`, `rename`, `delete` (also file deletes), `health`,
     `health_restored`, `series_add`, `movie_added`, `manual_interaction_required`, `test`; empty means all events.
   - `notify.targets[k]`: the views it lists, filtered by `events`. With `native: true` it also gets Theatarr's own

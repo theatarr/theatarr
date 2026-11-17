@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -62,8 +63,12 @@ func (fakePayloads) Payloads(_ context.Context, ev Event) ([]Payload, error) {
 	if ev.View != "" && ev.View != "radarr" {
 		return nil, nil
 	}
+	var tags []int64
+	if ev.TitleID == 1 {
+		tags = []int64{5} // title 1 carries tag 5 in the view; title 2 none
+	}
 	return []Payload{{View: "radarr", EventType: et, Flag: flag, Body: map[string]any{"eventType": et,
-		"movie": map[string]any{"id": ev.TitleID}}}}, nil
+		"movie": map[string]any{"id": ev.TitleID}}, Tags: tags}}, nil
 }
 
 type nenv struct {
@@ -386,5 +391,54 @@ func TestOldPrivateDeliverySent(t *testing.T) {
 	}
 	if hits != 3 {
 		t.Errorf("hits %d", hits)
+	}
+}
+
+// TestInstalledWebhookTags: a webhook with tags gets the title events of titles carrying one of them, never an
+// untagged title's; health and test events reach it as before. A webhook without tags gets exactly what it got before.
+func TestInstalledWebhookTags(t *testing.T) {
+	t.Parallel()
+	e := newNEnv(t, true)
+	ctx := context.Background()
+	e.install("https://notify.ruddarr.com/push/none", "Grab", "HealthIssue")
+	for _, tags := range []string{"[5, 9]", "[7]"} {
+		e.exec(`INSERT INTO arrview_notification (view, name, implementation, resource, created_at, updated_at)
+			VALUES ('radarr', 'Tagged', 'Webhook', ?, 0, 0)`, `{"name":"Tagged","implementation":"Webhook",`+
+			`"fields":[{"name":"url","value":"https://notify.ruddarr.com/push/tags"}],"onGrab":true,"onHealthIssue":true,`+
+			`"tags":`+tags+`}`)
+	}
+	got := func() []string {
+		t.Helper()
+		var out []string
+		rows, err := e.st.Reader().Query(`SELECT target, payload FROM notify_delivery WHERE target LIKE 'notification:%'
+			ORDER BY id`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var target, payload string
+			rows.Scan(&target, &payload)
+			out = append(out, target+" "+payload)
+		}
+		e.exec(`DELETE FROM notify_delivery`)
+		return out
+	}
+	e.n.Emit(ctx, Event{Kind: Grab, TitleID: 1, Version: "movie-web"})
+	if d := got(); !slices.Equal(d, []string{`notification:1 {"eventType":"Grab","movie":{"id":1}}`,
+		`notification:2 {"eventType":"Grab","movie":{"id":1}}`}) {
+		t.Errorf("tagged title: %q", d)
+	}
+	e.n.Emit(ctx, Event{Kind: Grab, TitleID: 2, Version: "movie-web"})
+	if d := got(); !slices.Equal(d, []string{`notification:1 {"eventType":"Grab","movie":{"id":2}}`}) {
+		t.Errorf("untagged title: %q", d)
+	}
+	e.n.Emit(ctx, Event{Kind: Health, Health: []HealthItem{{Type: "error", Message: "down"}}})
+	if d := got(); len(d) != 3 {
+		t.Errorf("health: %q", d)
+	}
+	e.n.Emit(ctx, Event{Kind: Test, View: "radarr"})
+	if d := got(); len(d) != 3 {
+		t.Errorf("test: %q", d)
 	}
 }

@@ -35,6 +35,8 @@ type Notification struct {
 	Headers  map[string]string
 	// On are the enabled switches (Grab, Download, Upgrade, MovieDelete, ...), with includeHealthWarnings.
 	On map[string]bool
+	// Tags restrict the title events to titles carrying one of them (the resource's tags); none: every title.
+	Tags []int64
 }
 
 // ParseNotification reads a stored resource's settings.
@@ -69,6 +71,13 @@ func ParseNotification(id int64, view string, raw []byte) (*Notification, error)
 				if k != "" {
 					n.Headers[k] = v
 				}
+			}
+		}
+	}
+	if ts, ok := res["tags"].([]any); ok {
+		for _, t := range ts {
+			if f, ok := t.(float64); ok {
+				n.Tags = append(n.Tags, int64(f))
 			}
 		}
 	}

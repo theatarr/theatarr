@@ -4,6 +4,8 @@ import (
 	"slices"
 	"strconv"
 	"testing"
+
+	"github.com/theatarr/theatarr/internal/notify"
 )
 
 // Tags are per version: a tag set through one per-version view is not seen through another view of the same title,
@@ -129,4 +131,39 @@ func TestTagsSkipRemovedVersions(t *testing.T) {
 	}
 	// The tag held only by the removed version is free to delete.
 	e.call("DELETE", "/radarr/api/v3/tag/"+strconv.Itoa(int(tid)), nil, 200, nil)
+}
+
+// TestWebhookPayloadTags: a title event's payload carries the tags the title has in that view (for a webhook
+// restricted to tags); an untagged title's and a health event's carry none.
+func TestWebhookPayloadTags(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	var tag map[string]any
+	e.call("POST", "/radarr/api/v3/tag", map[string]any{"label": "kids"}, 201, &tag)
+	tid := int64(tag["id"].(float64))
+	e.call("PUT", "/radarr/api/v3/movie/editor", map[string]any{"movieIds": []int{IDBase + 1},
+		"tags": []int64{tid}, "applyTags": "add"}, 202, nil)
+	tags := func(ev notify.Event) map[string][]int64 {
+		t.Helper()
+		ps, err := e.svc.Payloads(t.Context(), ev)
+		if err != nil || len(ps) == 0 {
+			t.Fatalf("payloads %+v: %v %v", ev, ps, err)
+		}
+		out := map[string][]int64{}
+		for _, p := range ps {
+			out[p.View] = p.Tags
+		}
+		return out
+	}
+	if got := tags(notify.Event{Kind: notify.Delete, TitleID: 1, Version: "movie-remux"}); !slices.Equal(got["radarr"], []int64{tid}) {
+		t.Errorf("tagged title: %v", got)
+	}
+	for _, ev := range []notify.Event{{Kind: notify.Delete, TitleID: 2, Version: "movie-web"},
+		{Kind: notify.Health, Health: []notify.HealthItem{{Type: "error", Message: "x"}}}} {
+		for view, ts := range tags(ev) {
+			if ts != nil {
+				t.Errorf("%s in %s: tags %v", ev.Kind, view, ts)
+			}
+		}
+	}
 }

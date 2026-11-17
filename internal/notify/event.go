@@ -166,4 +166,7 @@ type Payload struct {
 	// onSeriesAdd, onMovieAdded, onManualInteractionRequired; "" for Test).
 	Flag string
 	Body any
+	// Tags are the tag ids the event's title carries in the view (a title event); nil for health, test and
+	// application events.
+	Tags []int64
 }

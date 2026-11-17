@@ -197,6 +197,13 @@ func (n *Notifier) deliveries(ctx context.Context, ev Event) ([]delivery, error)
 				if in.View != p.View || ev.NotificationID > 0 && in.ID != ev.NotificationID {
 					continue
 				}
+				// A webhook with tags gets a title's events only when the title carries one of them (as in the arrs);
+				// an untagged title has none. Health, test and application events are not titles.
+				if len(in.Tags) > 0 && ev.TitleID > 0 && !slices.ContainsFunc(p.Tags, func(t int64) bool {
+					return slices.Contains(in.Tags, t)
+				}) {
+					continue
+				}
 				if (ev.Kind == Health || ev.Kind == HealthRestored) && len(ev.Health) > 0 {
 					h := ev.Health[0]
 					if h.Type != "error" && (h.Type != "warning" || !in.On["includeHealthWarnings"]) {

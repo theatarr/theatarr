@@ -81,7 +81,7 @@ func (s *Service) Payloads(ctx context.Context, ev notify.Event) ([]notify.Paylo
 	return out, nil
 }
 
-func (s *Service) payload(ctx context.Context, v *View, ev notify.Event) (*notify.Payload, error) {
+func (s *Service) payload(ctx context.Context, v *View, ev notify.Event) (p *notify.Payload, err error) {
 	base := func(eventType string) obj {
 		return obj{"eventType": eventType, "instanceName": "theatarr " + v.Key}
 	}
@@ -106,6 +106,13 @@ func (s *Service) payload(ctx context.Context, v *View, ev notify.Event) (*notif
 	if err != nil || e == nil {
 		return nil, err
 	}
+	// The tags the title carries in this view (as its movie/series resource reports them), for a webhook restricted
+	// to tags.
+	defer func() {
+		if p != nil {
+			p.Tags = e.tags
+		}
+	}()
 	media, key := s.webhookMedia(ctx, v, e)
 	b := base("")
 	b[key] = media
