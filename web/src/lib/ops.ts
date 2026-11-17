@@ -331,10 +331,10 @@ export function blockedRelease(e: unknown): BlockedRelease | undefined {
 /** The confirmation of a grab (Grab, Add or Retry) the server refused only for the library's blocklist: confirming
  *  sends it again with unblock, which takes the release off that library's blocklist. */
 export function unblockGrabScope(b: BlockedRelease, verb: "Grab" | "Add" | "Retry"): Scope {
-  const reason = b.reason.replace(/\.+$/, "");
+  const reason = b.reason.trim().replace(/\.+$/, "");
   return {
     title: `${verb} a blocklisted release`,
-    does: [`This release is on ${b.library}'s blocklist: ${reason}. ${verb} it anyway? It is taken off the blocklist.`],
+    does: [`This release is on ${b.library}'s blocklist${reason ? `: ${reason}` : ""}. ${verb} it anyway? It is taken off the blocklist.`],
     keeps: ["Its other libraries' blocklists stay"],
     confirm: `${verb} anyway`,
   };

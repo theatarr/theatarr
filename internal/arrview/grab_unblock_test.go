@@ -109,8 +109,8 @@ func TestManualGrabUnblocks(t *testing.T) {
 	}
 }
 
-// TestManualGrabRefusedKeepsBlock: with unblock set, every other refusal is said first and the block stays: Pause,
-// in flight, upgrades off, the client-indexer rule.
+// TestManualGrabRefusedKeepsBlock: with unblock set, every other refusal is said first and the block stays, for a
+// grab, an add by hash and a retry alike: Pause, in flight, upgrades off, the client-indexer rule.
 func TestManualGrabRefusedKeepsBlock(t *testing.T) {
 	t.Parallel()
 	rel := indexer.Release{Indexer: "prowlarr-public", Kind: "torznab", Privacy: policy.PrivacyPublic,
@@ -132,23 +132,48 @@ func TestManualGrabRefusedKeepsBlock(t *testing.T) {
 			e.pol.Indexers["prowlarr-public"].Providers = []string{"rd"}
 		},
 	}
-	for name, set := range cases {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-			e := newDevEnv(t)
-			blockBoth(e, "movie-web", rel.InfoHash, rel.Title)
-			set(e)
+	routes := map[string]func(e *devEnv) error{
+		"grab": func(e *devEnv) error {
 			_, err := e.svc.GrabRelease(context.Background(), 1, "movie-web", rel, false, "user:admin", "ui:grab:test")
-			t.Logf("refused: %v", err)
-			if !isRefused(err) || blockedRefusal(err) != nil {
-				t.Fatalf("want another refusal than the block: %v", err)
+			return err
+		},
+		"add": func(e *devEnv) error {
+			_, err := e.svc.AddRelease(context.Background(), 1, "movie-web", rel, false, "user:admin", "ui:grab:test")
+			return err
+		},
+		"retry": func(e *devEnv) error {
+			e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer,
+				quality, score, episodes, state, error, created_at, updated_at) VALUES (50, 1, 2, 'movie-web', ?, ?,
+				'prowlarr-public', 'WEBDL-2160p', 50, '[]', 'failed', 'stalled', 0, 0)`, rel.InfoHash, rel.Title)
+			_, err := e.svc.RetryDownload(context.Background(), 50, "user:admin", "ui:retry:50")
+			return err
+		},
+	}
+	for name, set := range cases {
+		for route, run := range routes {
+			if name == "client indexer" && route == "add" {
+				continue // a release added by hand has no indexer: the client-indexer rule never applies to it
 			}
-			if n := e.str(`SELECT COUNT(*) FROM router_blocklist`); n != "3" {
-				t.Errorf("a refused grab left %s blocklist rows, want 3", n)
-			}
-			if n := e.str(`SELECT COUNT(*) FROM journal_action WHERE action = 'unblock'`); n != "0" {
-				t.Errorf("a refused grab recorded %s unblocks", n)
-			}
-		})
+			t.Run(name+"/"+route, func(t *testing.T) {
+				t.Parallel()
+				e := newDevEnv(t)
+				blockBoth(e, "movie-web", rel.InfoHash, rel.Title)
+				set(e)
+				err := run(e)
+				t.Logf("refused: %v", err)
+				if !isRefused(err) || blockedRefusal(err) != nil {
+					t.Fatalf("want another refusal than the block: %v", err)
+				}
+				if n := e.str(`SELECT COUNT(*) FROM router_blocklist`); n != "3" {
+					t.Errorf("a refused grab left %s blocklist rows, want 3", n)
+				}
+				if n := e.str(`SELECT COUNT(*) FROM journal_action WHERE action = 'unblock'`); n != "0" {
+					t.Errorf("a refused grab recorded %s unblocks", n)
+				}
+				if n := e.str(`SELECT COUNT(*) FROM job WHERE kind = 'router.route'`); n != "0" {
+					t.Errorf("a refused grab queued %s routes", n)
+				}
+			})
+		}
 	}
 }

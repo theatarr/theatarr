@@ -130,11 +130,13 @@ func ScreenOther(ctx context.Context, st *store.Store, pol *policy.Policy, profi
 
 // Unstartable is why a grab by hand would open no download: Code is the step code the route would record
 // (blocklisted, in_flight, upgrades_off, client_indexer, not_debrid) and Message its words; for in_flight, Download
-// and Release name the download that holds the release or its episodes already.
+// and Release name the download that holds the release or its episodes already; for blocklisted, Block is the
+// blocklist row (by hash or title key) that refuses it.
 type Unstartable struct {
 	Code, Message string
 	Download      int64
 	Release       string
+	Block         *Blocked
 }
 
 // ScreenManual runs on the one candidate of a grab by hand (req) the route's own screens that open no download,
@@ -194,11 +196,12 @@ func ScreenManual(ctx context.Context, st *store.Store, pol *policy.Policy, prof
 			return &Unstartable{Code: code, Message: msg}, nil
 		}
 	}
-	if why, err := r.blocklisted(ctx, req.Version, hash, c.Release.Title); err != nil || why != "" {
+	if b, err := BlockedRelease(ctx, st.Reader(), req.Version, hash, c.Release.Title); err != nil || b != nil {
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("router: blocklist: %w", err)
 		}
-		return &Unstartable{Code: "blocklisted", Message: why}, nil
+		return &Unstartable{Code: "blocklisted", Block: b,
+			Message: "blocklisted for " + req.Version + " by the " + b.Source + ": " + b.Reason}, nil
 	}
 	return nil, nil
 }

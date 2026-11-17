@@ -91,11 +91,15 @@ search's Grab, Add by magnet or hash and Retry of a failed download (`apiGrab`, 
 of a release on the library's blocklist (by hash or by title key, as the route matches it) answer 409 with `blocked`
 (the library's name and the reason in words) and change nothing; the UI asks "This release is on <library>'s
 blocklist: <reason>. Grab it anyway? It is taken off the blocklist." and sends the call again with `unblock: true`
-(not `override`, which the grid sends for any rejected release). Then every other refusal runs first (Pause, upgrades
-off, episodes or the release in flight, the client-indexer rule; Retry's indexer list), and only when none refuses is
+(not `override`, which the grid sends for any rejected release). A failed release the grid already knows is
+blocklisted (its outcome's `blocklisted`) asks that question before the first request and sends `unblock` with it
+(and `override` when it is also rejected). Then every other refusal runs first: Pause, Retry's indexer list, and for
+all three routes the same `router.ScreenManual` (upgrades off, episodes or the release in flight, the client-indexer
+rule; so Retry now says these too instead of queueing a route that skips), and only when none refuses is
 the release taken off the blocklist: both its hash row and its title-key row, for that library only
 (`router.UnblockRelease`), with one unblock in the journal by the person (as an unblock from Activity › Blocklist),
-in the transaction that queues the route (`arrview` `enqueueUnblocking`). A refused grab leaves both rows. Nothing
+in the transaction that queues the route (`arrview` `routeByHand`; the screen's own read of the row is the one the
+409 answers with). A refused grab leaves both rows. Nothing
 else keeps a memory of the block: a grab that fails again is blocklisted again by the normal rules. Automatic routes
 (search, RSS, upgrades, re-search after a failure, Replace file's search), the compatible API's release grab and
 release/push keep honouring the blocklist. Tests: `TestManualGrabUnblocks`, `TestManualGrabRefusedKeepsBlock`,

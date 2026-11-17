@@ -112,7 +112,7 @@ type Grabbed struct {
 // the arrs let a person grab a rejected release from an interactive search. The router then applies every rule it
 // applies to any route: the gate (router.enabled), the blocklist, pacing and budgets. A release on the version's
 // blocklist is refused with its Block unless unblockBy names who confirmed the grab: then, when nothing else refuses
-// it, the release is taken off the blocklist (enqueueUnblocking) as the route is queued.
+// it, the release is taken off the blocklist (routeByHand) as the route is queued.
 func (s *Service) GrabRelease(ctx context.Context, titleID int64, version string, rel indexer.Release, override bool,
 	unblockBy, source string) (*Grabbed, error) {
 	if s.pol.Indexers[rel.Indexer] == nil {
@@ -181,16 +181,8 @@ func (s *Service) grab(ctx context.Context, titleID int64, version string, rel i
 	req := router.Request{TitleID: titleID, VersionID: d.VersionID, Version: version,
 		Candidates: []router.Candidate{c}, Source: source, ManualSince: s.now()}
 	// What the route would skip without opening a download is said now, as a plain refusal (no rejections: nothing
-	// to grab anyway). The blocklist comes last (router.ScreenManual): only a grab nothing else refuses asks to take
-	// the release off it.
-	why, blocked, err := s.unstartable(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-	if why != "" {
-		return nil, refused("%s", why)
-	}
-	out.Job, err = s.enqueueUnblocking(ctx, req, blocked, unblockBy)
+	// to grab anyway).
+	out.Job, err = s.routeByHand(ctx, req, unblockBy)
 	if err != nil {
 		var ref *Refused
 		if errors.As(err, &ref) {
@@ -203,58 +195,32 @@ func (s *Service) grab(ctx context.Context, titleID int64, version string, rel i
 	return out, nil
 }
 
-// unstartable says in words why a grab by hand would open no download (router.ScreenManual); "" when it would try.
-// blocked: nothing refuses it but the version's blocklist (enqueueUnblocking).
-func (s *Service) unstartable(ctx context.Context, req router.Request) (why string, blocked bool, err error) {
+// routeByHand queues the route of a grab by hand (req, one candidate) after the route's own screens that open no
+// download (router.ScreenManual): one that would open none is refused in words and nothing changes. The blocklist
+// comes last, so only a grab nothing else refuses meets it: refused with its Block when unblockBy is "", otherwise
+// taken off the blocklist (both its hash and its title-key rows), recorded as an unblock by unblockBy, in the
+// transaction that queues the route.
+func (s *Service) routeByHand(ctx context.Context, req router.Request, unblockBy string) (int64, error) {
 	var profiles router.ProfileFunc
 	if s.engine != nil {
 		profiles = s.engine.Profile
 	}
 	u, err := router.ScreenManual(ctx, s.st, s.pol, profiles, s.now, req)
-	if err != nil || u == nil {
-		return "", false, err
+	if err != nil {
+		return 0, err
 	}
-	if u.Code == "blocklisted" {
-		return "", true, nil
-	}
-	return unstartableWords(s.pol, req.Version, u), false, nil
-}
-
-func unstartableWords(pol *policy.Policy, version string, u *router.Unstartable) string {
-	lib := policy.LibraryNames(pol)[version]
-	switch u.Code {
-	case "in_flight":
-		return "Already downloading: " + u.Release
-	case "upgrades_off":
-		_, files, _ := strings.Cut(u.Message, ": ")
-		return "Upgrades are off for " + lib + ": " + files
-	}
-	return "Not started: " + u.Message
-}
-
-// enqueueUnblocking queues the route of a grab by hand (req, one candidate) that nothing but the version's blocklist
-// refuses. A release on the blocklist (checked again here: blocked is only the screen's word) is refused with its
-// Block when unblockBy is "" and changes nothing; otherwise it is taken off the blocklist, both its hash and its
-// title-key rows, recorded as an unblock by unblockBy, in the transaction that queues the route.
-func (s *Service) enqueueUnblocking(ctx context.Context, req router.Request, blocked bool, unblockBy string) (int64, error) {
-	if !blocked {
+	switch {
+	case u == nil:
 		return s.router.Enqueue(ctx, req, time.Time{})
+	case u.Block == nil:
+		return 0, refused("%s", unstartableWords(s.pol, req.Version, u))
+	case unblockBy == "":
+		return 0, s.blockRefusal(u.Block)
 	}
 	rel := req.Candidates[0].Release
-	hash := indexer.NormalizeHash(rel.InfoHash)
-	if unblockBy == "" {
-		b, err := router.BlockedRelease(ctx, s.st.Reader(), req.Version, hash, rel.Title)
-		if err != nil {
-			return 0, err
-		}
-		if b != nil {
-			return 0, s.blockRefusal(b)
-		}
-		return s.router.Enqueue(ctx, req, time.Time{})
-	}
 	var job int64
-	err := s.st.WriteTx(ctx, func(tx *sqlTx) error {
-		b, err := router.UnblockRelease(ctx, tx, req.Version, hash, rel.Title)
+	err = s.st.WriteTx(ctx, func(tx *sqlTx) error {
+		b, err := router.UnblockRelease(ctx, tx, req.Version, indexer.NormalizeHash(rel.InfoHash), rel.Title)
 		if err == nil {
 			_, err = journal.RecordAction(ctx, tx, journal.Action{Action: journal.ActUnblock, TitleID: b.TitleID,
 				Version: b.Version, InfoHash: b.Hash, Release: b.Release, DownloadID: b.DownloadID, Target: b.Hash,
@@ -268,9 +234,21 @@ func (s *Service) enqueueUnblocking(ctx context.Context, req router.Request, blo
 		return err
 	})
 	if err == nil {
-		s.log.Info("release unblocked by a grab by hand", "version", req.Version, "hash", hash, "by", unblockBy)
+		s.log.Info("release unblocked by a grab by hand", "version", req.Version, "hash", u.Block.Hash, "by", unblockBy)
 	}
 	return job, err
+}
+
+func unstartableWords(pol *policy.Policy, version string, u *router.Unstartable) string {
+	lib := policy.LibraryNames(pol)[version]
+	switch u.Code {
+	case "in_flight":
+		return "Already downloading: " + u.Release
+	case "upgrades_off":
+		_, files, _ := strings.Cut(u.Message, ": ")
+		return "Upgrades are off for " + lib + ": " + files
+	}
+	return "Not started: " + u.Message
 }
 
 // blockRefusal is the refusal of a grab by hand of a release on version's blocklist (b), with the row's library and
@@ -359,7 +337,8 @@ func (s *Service) importOutcome(ctx context.Context, id int64, p *library.Plan, 
 }
 
 // RetryDownload tries a download again. A failed download's release is routed again for its version (a new
-// download row; refused while the router is disabled, and while the release is blocklisted unless unblockBy names who
+// download row; refused while the router is disabled or when the route would open no download (the grab's screens:
+// upgrades off, in flight, the client-indexer rule), and while the release is blocklisted unless unblockBy names who
 // confirmed taking it off: then, when nothing else refuses it, it is taken off as in GrabRelease), using
 // the stored hash, never a link. A download that finished but is not linked yet
 // (ready, importing) is imported now, without waiting for the import's back-off. Anything still on its way is
@@ -419,9 +398,9 @@ func (s *Service) RetryDownload(ctx context.Context, id int64, unblockBy, source
 		return out, refused("indexer %s is not one of version %s's indexers", req.Candidates[0].Release.Indexer, out.Version)
 	}
 	req.DownloadID, req.DecisionRev, req.Source, req.ManualSince = 0, "", source, s.now()
-	// The blocklist last, by hash or title key as the route matches it: a retry nothing else refuses may take the
-	// release off it.
-	out.Job, err = s.enqueueUnblocking(ctx, *req, len(req.Candidates) == 1, unblockBy)
+	// The grab's screens (routeByHand): what the route would skip is said now, and the blocklist last, so a retry
+	// nothing else refuses may take the release off it.
+	out.Job, err = s.routeByHand(ctx, *req, unblockBy)
 	if err != nil {
 		var ref *Refused
 		if errors.As(err, &ref) {

@@ -38,7 +38,9 @@ export function GrabDialog({ c, target, onClose, late: given, blocked: givenBloc
   const late = lateRejections(grab.error) ?? given;
   // A 409 with blocked: only the library's blocklist refuses it; the next confirm takes it off (unblock).
   const blocked = blockedRelease(grab.error) ?? (grab.error ? undefined : givenBlock);
-  const scope = blocked ? unblockGrabScope(blocked, "Grab") : grabConfirmScope(c, target.label ?? target.version, late);
+  const base = grabConfirmScope(c, target.label ?? target.version, late);
+  // Blocked: the blocklist question first, then what else the grab overrides (a rejection, a better-scored file).
+  const scope = blocked ? (({ does, ...u }) => ({ ...u, does: [...does, ...base.does.slice(1)] }))(unblockGrabScope(blocked, "Grab")) : base;
   const override = !c.accepted || !!late || !!grab.variables?.override;
   const send = () =>
     grab.mutate({ version: target.version, info_hash: c.info_hash ?? "", override, ...(blocked ? { unblock: true } : {}) }, { onSuccess: () => onSent?.() });
