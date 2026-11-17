@@ -429,7 +429,8 @@ stay the view's.
   (`catalog.SyncRemovals`, ui.md "Keep in sync"; also a partner outside the view), through the shared removal the web
   UI's Remove title uses (`internal/removal`), with the client's own flags. The partners count for whether the title
   goes (the remaining-copy count), their minimum availability choice goes as the view's own does, `deleteFiles=true`
-  checks their links before anything changes (a refused partner link answers 409 with nothing removed), and their
+  checks every link the removal takes, active or dead, of the view's versions and the partners, in one read before
+  anything changes (a refused link answers 409 with nothing hidden, unlinked or cleaned up), and their
   Removed actions say "in sync with <library>"; `deleteFiles` omitted keeps every file, the partners' too. On a Radarr view `addImportExclusion=true` also
   puts the movie on the exclusion list (`movie_exclusion`, by TMDb id, one list for every view, the row the
   `exclusions` POST writes) in the transaction of the remove, so list and collection intake skip it afterwards;

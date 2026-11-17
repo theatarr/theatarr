@@ -1080,14 +1080,20 @@ and the server expands again. A file the pair shares goes to the trash once; one
 group uses stays. Each library gets its Removed action as before; a partner's says "in sync with <library>" in History
 (`journal.Removal.Sync`). The dialogs list a partner like a named library and add "<Partner> is kept in sync with
 <Library> and is removed too", with ", its files and debrid torrents too" (or ", its files too") when the boxes take
-them; the bulk dialog says it once per pair "for N titles". File counts are the server's distinct counts (`links`,
-`unlink_links`: a file two libraries share counts once). A compatible client's DELETE does the same (arrview.md
+them; the bulk dialog says it once per pair "for N titles", and a title the removal leaves with no copy "has no copy
+left". No total of deleted files is promised (a file two libraries share is in both): the title dialog lists each
+library, named or partner, with its own file count (dead links included, they go too) and downloads in progress
+beside its name, and says which libraries' files are deleted or stay; the selection bar posts the person's own choice
+(one library, or none for the whole title). A compatible client's DELETE does the same (arrview.md
 "DELETE"). Unmonitoring, unlinking one file and Stop managing a library are not removals and do not follow the group.
 The Keep in sync help says: "A title added to one of these libraries is added to the others too, and a title removed
 from one is removed from the others, with its files and debrid torrents when the removal deletes them. Monitoring
 stays each library's own. Only libraries of the same kind and anime setting can be kept in sync." Settings ›
 Connected apps adds under an app whose libraries have partners outside it: "A delete from this app also removes the
-title from <partners> (in sync), with their files when the app asks for its files to be deleted."
+title from <partners> (in sync); a delete with its files takes their files and debrid torrents too.", and beside the
+libraries' own addresses (/v/<library>/…) one line per group: "<A> and <B> are kept in sync: a delete through the
+address of one also removes the title from the other; a delete with its files takes their files and debrid torrents
+too."
 
 Which libraries in sync would gain a copy is one read-only answer, `catalog.SyncPartners` (also used by
 `TurnOnSynced`): each add option carries it as `synced` (for that library ticked alone, with the anime reading the
