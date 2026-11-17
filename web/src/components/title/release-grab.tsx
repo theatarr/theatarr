@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { ConfirmDialog, errText } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { blockedRelease, unblockGrabScope, type BlockedRelease } from "@/lib/ops";
-import { grabConfirmScope, needsConfirm } from "@/lib/release-columns";
+import { blockedGrabScope, grabConfirmScope, needsConfirm } from "@/lib/release-columns";
 import { useLibraryName } from "@/lib/library-names";
 
 /** Where a grab goes: the title, the library (its key) and the library's name for the words. */
@@ -38,9 +38,7 @@ export function GrabDialog({ c, target, onClose, late: given, blocked: givenBloc
   const late = lateRejections(grab.error) ?? given;
   // A 409 with blocked: only the library's blocklist refuses it; the next confirm takes it off (unblock).
   const blocked = blockedRelease(grab.error) ?? (grab.error ? undefined : givenBlock);
-  const base = grabConfirmScope(c, target.label ?? target.version, late);
-  // Blocked: the blocklist question first, then what else the grab overrides (a rejection, a better-scored file).
-  const scope = blocked ? (({ does, ...u }) => ({ ...u, does: [...does, ...base.does.slice(1)] }))(unblockGrabScope(blocked, "Grab")) : base;
+  const scope = blocked ? blockedGrabScope(c, blocked, late) : grabConfirmScope(c, target.label ?? target.version, late);
   const override = !c.accepted || !!late || !!grab.variables?.override;
   const send = () =>
     grab.mutate({ version: target.version, info_hash: c.info_hash ?? "", override, ...(blocked ? { unblock: true } : {}) }, { onSuccess: () => onSent?.() });

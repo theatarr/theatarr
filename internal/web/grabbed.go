@@ -47,6 +47,9 @@ type ReleaseOutcome struct {
 	// blocked is confirmed). A grab by hand tries it again at once (it asks the providers again:
 	// router.Request.ManualSince).
 	Blocklisted bool `json:"blocklisted,omitempty"`
+	// BlockedReason, with Blocklisted: why the release was blocked, in the words of a grab's 409 (blocked.reason),
+	// which may differ from the download's failure (Reason): a release removed in Activity with blocklist.
+	BlockedReason string `json:"blocked_reason,omitempty"`
 	// Attempts, for failed: what each provider answered, the newest download's last attempt per provider in the
 	// order they were first tried, raw for the UI's attempt words (as Activity's attempts).
 	Attempts []ReleaseAttempt `json:"attempts,omitempty"`
@@ -726,7 +729,9 @@ func (w *Web) releaseOutcomes(ctx context.Context, db *sql.DB, titleID int64, ve
 					return nil, err
 				}
 			}
-			o.Blocklisted = blocked.Has(h, d.release)
+			if b := blocked.Row(h, d.release); b != nil {
+				o.Blocklisted, o.BlockedReason = true, w.blockedWords(b.Source, b.Reason)
+			}
 		case o.replaced:
 			o.Outcome, o.ReplacedBy = "replaced", replacedBy
 		case d.state == "imported" && episode > 0 && !imported[h]:

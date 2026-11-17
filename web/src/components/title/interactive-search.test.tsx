@@ -424,8 +424,8 @@ it("a failed release the library blocklisted asks once before the grab and sends
     ME, TITLE, CURRENT,
     { method: "GET", path: "/titles/7/releases", reply: answer() },
     outcomesRoute({ outcomes: {
-      aaa: { outcome: "failed", provider: "rd", download: 2, reason: "Stalled", blocklisted: true },
-      bbb: { outcome: "failed", provider: "rd", download: 3, reason: "Stalled", blocklisted: true },
+      aaa: { outcome: "failed", provider: "rd", download: 2, reason: "Download stalled", blocklisted: true, blocked_reason: "Removed in Activity by admin" },
+      bbb: { outcome: "failed", provider: "rd", download: 3, reason: "Download stalled", blocklisted: true, blocked_reason: "Stalled at RD" },
     } }),
     { method: "POST", path: "/titles/7/releases/grab", reply: sent },
     { method: "POST", path: "/titles/7/releases/grab", reply: { ...sent, info_hash: "bbb", accepted: false, overridden: true } },
@@ -436,7 +436,9 @@ it("a failed release the library blocklisted asks once before the grab and sends
   fireEvent.click(within(await rowOf("aaa")).getByTestId("release-grab"));
   let dialog = await screen.findByTestId("grab-dialog");
   expect(api.calls("POST", "/titles/7/releases/grab")).toHaveLength(0);
-  expect(dialog.textContent).toContain("This release is on WEB's blocklist: Stalled. Grab it anyway? It is taken off the blocklist.");
+  // The block's own reason (dismissed with blocklist), not the download's failure.
+  expect(dialog.textContent).toContain("This release is on WEB's blocklist: Removed in Activity by admin. Grab it anyway? It is taken off the blocklist.");
+  expect(dialog.textContent).not.toContain("Download stalled");
   fireEvent.click(within(dialog).getByText("Grab anyway"));
   await screen.findByTestId("confirm-done");
   fireEvent.click(screen.getByTestId("confirm-cancel"));
@@ -444,7 +446,7 @@ it("a failed release the library blocklisted asks once before the grab and sends
   // Rejected too: the one question names both, and the one request overrides and unblocks.
   fireEvent.click(within(await rowOf("bbb")).getByTestId("release-grab"));
   dialog = await screen.findByTestId("grab-dialog");
-  expect(dialog.textContent).toContain("WEB's blocklist: Stalled");
+  expect(dialog.textContent).toContain("WEB's blocklist: Stalled at RD");
   expect(dialog.textContent).toContain("WEBDL-720p is not wanted");
   fireEvent.click(within(dialog).getByText("Grab anyway"));
   await screen.findByTestId("confirm-done");

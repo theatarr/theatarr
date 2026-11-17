@@ -212,7 +212,7 @@ export function GrabCell({ c, target, o, sentFrom, onSent }: { c: Candidate; tar
   const [dialog, setDialog] = useState<{ late?: string[]; blocked?: BlockedRelease }>();
   const library = target.label ?? target.version;
   // A failed release this library has blocklisted asks first, once: the confirmation says so and sends unblock.
-  const known = o?.outcome === "failed" && o.blocklisted ? { library, reason: o.reason ?? "" } : undefined;
+  const known = o?.outcome === "failed" && o.blocklisted ? { library, reason: o.blocked_reason ?? "" } : undefined;
   const ask = needsConfirm(c) || !!known;
   const click = () => {
     if (ask) {

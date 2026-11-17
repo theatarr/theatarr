@@ -852,6 +852,19 @@ func TestReleaseOutcomesLive(t *testing.T) {
 	if g := o[hStall]; g.Outcome != "failed" || g.Blocklisted || g.Reason == "" || g.Attempts != nil {
 		t.Errorf("stalled: %+v", g)
 	}
+	if g := o[hBlock]; g.BlockedReason != e.web.blockedWords("router", "stalled") || g.BlockedReason == "" {
+		t.Errorf("blocked reason: %+v", g)
+	}
+	// The stalled download dismissed in Activity with blocklist: the block's own reason beside blocklisted, in the 409's
+	// words, while the Failed row keeps the download's failure.
+	e.exec(`INSERT INTO router_blocklist (version_key, info_hash, title_id, release_title, reason, source, created_at)
+		VALUES ('movie-remux', ?, 1, 'Alpha.STALL', 'removed in Activity by admin', ?, ?)`, hStall, BlocklistUI, now)
+	r = ReleaseOutcomes{}
+	e.call("GET", APIBase+"/titles/1/release-outcomes?version=movie-remux", nil, 200, &r)
+	if g := r.Outcomes[hStall]; !g.Blocklisted || g.BlockedReason != e.web.blockedWords(BlocklistUI, "removed in Activity by admin") ||
+		g.BlockedReason == g.Reason || g.Reason != o[hStall].Reason {
+		t.Errorf("dismissed with blocklist: %+v (failure %q)", g, o[hStall].Reason)
+	}
 
 	// The release lists give the same outcomes.
 	var rl Releases

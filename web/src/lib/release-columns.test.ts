@@ -15,6 +15,7 @@ import {
   indexersText,
   indexersTitle,
   rowIndexers,
+  blockedGrabScope,
   grabConfirmScope,
   needsConfirm,
   normalizeReleaseColumns,
@@ -172,6 +173,20 @@ describe("needsConfirm", () => {
     expect(scope.title).toBe("Replace a better-scored file");
     expect(scope.confirm).toBe("Grab anyway");
     expect(scope.does.at(-1)).toBe("It replaces the current file (Bluray-1080p, score 50), which scores higher");
+  });
+});
+
+describe("blockedGrabScope", () => {
+  it("asks the blocklist question, then names each other thing the grab overrides", () => {
+    const b = { library: "WEB", reason: "Removed in Activity by admin" };
+    const q = "This release is on WEB's blocklist: Removed in Activity by admin. Grab it anyway? It is taken off the blocklist.";
+    expect(blockedGrabScope(c(1, { score: 10 }), b).does).toEqual([q]);
+    const better = c(1, { score: 10, existing: { quality: "Bluray-1080p", score: 50 } });
+    expect(blockedGrabScope(better, b).does).toEqual([q, "It replaces the current file (Bluray-1080p, score 50), which scores higher"]);
+    const rejected = c(2, { accepted: false, rejections: [{ reason: "q", message: "720p is not wanted" }] });
+    expect(blockedGrabScope(rejected, b).does).toEqual([q, "Theatarr rejects it: 720p is not wanted. Grabbing overrides that"]);
+    expect(blockedGrabScope(c(1), b, ["late reason"]).does).toEqual([q, "Theatarr rejects it: late reason. Grabbing overrides that"]);
+    expect(blockedGrabScope(c(1), b).confirm).toBe("Grab anyway");
   });
 });
 

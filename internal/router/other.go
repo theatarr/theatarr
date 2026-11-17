@@ -226,28 +226,38 @@ func Blocklisted(ctx context.Context, db *sql.DB, version, hash, release string)
 	return n > 0, err
 }
 
-// BlockedSet is a version's blocklist keys (router_blocklist.info_hash), read once for many releases.
-type BlockedSet map[string]bool
+// BlockedSet is a version's blocklist rows by key (router_blocklist.info_hash), read once for many releases: each
+// row's source and reason.
+type BlockedSet map[string]*Blocked
 
 // Has is Blocklisted for one release of the set's version.
 func (b BlockedSet) Has(hash, release string) bool {
-	return b[BlocklistKey(hash, "")] || b[BlocklistKey("", release)]
+	return b.Row(hash, release) != nil
 }
 
-// VersionBlocklist reads version's blocklist keys in one query (Blocklisted for many releases).
+// Row is the row that blocks one release of the set's version (BlockedRelease: the hash row first), nil for none.
+func (b BlockedSet) Row(hash, release string) *Blocked {
+	if r := b[BlocklistKey(hash, "")]; r != nil {
+		return r
+	}
+	return b[BlocklistKey("", release)]
+}
+
+// VersionBlocklist reads version's blocklist rows in one query (Blocklisted for many releases).
 func VersionBlocklist(ctx context.Context, db *sql.DB, version string) (BlockedSet, error) {
-	rows, err := db.QueryContext(ctx, `SELECT info_hash FROM router_blocklist WHERE version_key = ?`, version)
+	rows, err := db.QueryContext(ctx, `SELECT info_hash, source, reason FROM router_blocklist WHERE version_key = ?`,
+		version)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	out := BlockedSet{}
 	for rows.Next() {
-		var k string
-		if err := rows.Scan(&k); err != nil {
+		b := &Blocked{Version: version}
+		if err := rows.Scan(&b.Hash, &b.Source, &b.Reason); err != nil {
 			return nil, err
 		}
-		out[k] = true
+		out[b.Hash] = b
 	}
 	return out, rows.Err()
 }

@@ -110,13 +110,18 @@ func (w *Web) refuseBlocked(rw http.ResponseWriter, err error) bool {
 	if !ok {
 		return false
 	}
-	why := w.blockedReason(activity.Blocked{Source: source, Reason: reason})
-	if why == "" {
-		why = blockWords(source)
-	}
+	why := w.blockedWords(source, reason)
 	writeJSON(rw, http.StatusConflict, apiError{Error: "This release is on " + lib + "'s blocklist: " + why,
 		Blocked: &BlockedRelease{Library: lib, Reason: why}})
 	return true
+}
+
+// blockedWords is a blocklist row's reason in plain words for a grab by hand: blockedReason, else its source's words.
+func (w *Web) blockedWords(source, reason string) string {
+	if why := w.blockedReason(activity.Blocked{Source: source, Reason: reason}); why != "" {
+		return why
+	}
+	return blockWords(source)
 }
 
 func (w *Web) mountOpsAPI(mux *http.ServeMux) {

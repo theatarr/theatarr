@@ -92,7 +92,8 @@ of a release on the library's blocklist (by hash or by title key, as the route m
 (the library's name and the reason in words) and change nothing; the UI asks "This release is on <library>'s
 blocklist: <reason>. Grab it anyway? It is taken off the blocklist." and sends the call again with `unblock: true`
 (not `override`, which the grid sends for any rejected release). A failed release the grid already knows is
-blocklisted (its outcome's `blocklisted`) asks that question before the first request and sends `unblock` with it
+blocklisted (its outcome's `blocklisted`, with the block's reason in the 409's words as `blocked_reason`, read with
+the version's blocklist once per answer: `router.VersionBlocklist`) asks that question before the first request and sends `unblock` with it
 (and `override` when it is also rejected). Then every other refusal runs first: Pause, Retry's indexer list, and for
 all three routes the same `router.ScreenManual` (upgrades off, episodes or the release in flight, the client-indexer
 rule; so Retry now says these too instead of queueing a route that skips), and only when none refuses is

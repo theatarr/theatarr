@@ -3,7 +3,7 @@
 // this browser like the library columns, lib/copies.ts prefs), sorting and filtering the rows, the cells' words, and
 // when a grab asks first. Title and Grab are fixed columns, not in the list.
 import type { Candidate, Releases } from "@/api/add";
-import { grabScope, type Scope } from "@/lib/ops";
+import { grabScope, rejectionWarning, unblockGrabScope, type BlockedRelease, type Scope } from "@/lib/ops";
 import { wordMatcher } from "@/lib/words";
 
 export type ReleaseColumnId =
@@ -335,14 +335,29 @@ export function needsConfirm(c: Candidate): boolean {
  *  it does. late: the server's reasons when it rejected the release at grab time. */
 export function grabConfirmScope(c: Candidate, library: string, late?: string[]): Scope {
   const base = grabScope(c, library, late);
-  const replaces = c.accepted && !late?.length && replacesBetter(c);
+  const replaces = replaceWarning(c, late);
   if (!replaces) return base;
   return {
     ...base,
     title: "Replace a better-scored file",
-    does: [...base.does, `It replaces the current file (${c.existing?.quality || "unknown quality"}, score ${c.existing?.score ?? 0}), which scores higher`],
+    does: [...base.does, replaces],
     confirm: "Grab anyway",
   };
+}
+
+/** The warning that an accepted release replaces a better-scored file; undefined when it does not (or is rejected:
+ *  late, the server's reasons at grab time). */
+export function replaceWarning(c: Candidate, late?: string[]): string | undefined {
+  if (!c.accepted || late?.length || !replacesBetter(c)) return undefined;
+  return `It replaces the current file (${c.existing?.quality || "unknown quality"}, score ${c.existing?.score ?? 0}), which scores higher`;
+}
+
+/** The grab confirmation of a release on the library's blocklist (b): the blocklist question, then what else the
+ *  grab overrides (a rejection, a better-scored file it replaces). */
+export function blockedGrabScope(c: Candidate, b: BlockedRelease, late?: string[]): Scope {
+  const s = unblockGrabScope(b, "Grab");
+  const also = [rejectionWarning(c, late), replaceWarning(c, late)].filter((w): w is string => !!w);
+  return { ...s, does: [...s.does, ...also] };
 }
 
 /** The reasons that say a release is of another title, not a worse copy of this one. */

@@ -301,14 +301,22 @@ export function unlinkable<T extends { kind?: string; state?: string; id?: numbe
 
 export type CandidateLike = { release?: string; accepted?: boolean; info_hash?: string; rejections?: { reason?: string; message?: string }[] };
 
-export function grabScope(c: CandidateLike, copy: string, rejections?: string[]): Scope {
+/** What a grab overrides when Theatarr rejects the release (rejections: the server's reasons at grab time, over the
+ *  candidate's own); undefined for an accepted release. */
+export function rejectionWarning(c: CandidateLike, rejections?: string[]): string | undefined {
   const why = rejections ?? (c.rejections ?? []).map((r) => r.message || r.reason || "").filter(Boolean);
   const rejected = !c.accepted || (rejections?.length ?? 0) > 0;
+  return rejected ? `Theatarr rejects it: ${why.join("; ") || "no reason given"}. Grabbing overrides that` : undefined;
+}
+
+export function grabScope(c: CandidateLike, copy: string, rejections?: string[]): Scope {
+  const rejection = rejectionWarning(c, rejections);
+  const rejected = !!rejection;
   return {
     title: rejected ? "Grab a rejected release" : "Grab this release",
     does: [
       `${c.release ?? "This release"} goes to the router for the ${copy} library, which adds it at the first provider that has it`,
-      ...(rejected ? [`Theatarr rejects it: ${why.join("; ") || "no reason given"}. Grabbing overrides that`] : []),
+      ...(rejection ? [rejection] : []),
     ],
     keeps: [
       "A blocklisted release asks first, and the router paces the add like any other",
