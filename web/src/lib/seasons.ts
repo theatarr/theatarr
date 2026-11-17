@@ -207,6 +207,21 @@ export function episodeNumber(e: Pick<Episode, "number" | "absolute">, anime: bo
 }
 
 /** "<reason> — <where to change it>", unless the reason already names it (forced Pause names THEATARR_FORCE_OFF). */
+/**
+ * Whether the libraries in view that may search monitor anything here (monitoredIn: does this library monitor an
+ * episode of it): a library that is not monitored, or that may not search, does not count. The automatic season
+ * search takes monitored episodes only, so without one it is disabled; Interactive search stays.
+ */
+export function searchableMonitors(
+  copies: readonly { key: string; monitored?: boolean; control?: VersionControl | null }[],
+  monitoredIn: (key: string) => boolean,
+): boolean {
+  return copies.some((v) => v.monitored !== false && !!v.control?.can_search && monitoredIn(v.key));
+}
+
+/** Why the automatic season search is disabled when no searchable library in view monitors an episode of it. */
+export const NO_MONITORED_SEASON = "No monitored episodes in this season";
+
 const withFix = (reason: string, fix: string) => (reason.includes(fix) ? reason : `${reason} — ${fix}`);
 
 /**

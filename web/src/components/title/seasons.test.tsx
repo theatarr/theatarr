@@ -243,6 +243,24 @@ describe("Acting on the libraries in view", () => {
     expect(api.calls("POST", "/titles/1/seasons/1/search")[1].body).toEqual({ versions: ["anime-web"] });
   });
 
+  it("disables a season's Search when no library that searches monitors an episode of it, and keeps Interactive search (T36)", async () => {
+    // anime-tv monitors the season but may not search; anime-web searches but monitors none of it.
+    const s = episodes.seasons[0];
+    const none = { ...episodes, seasons: [{ ...s, versions: { ...s.versions, "anime-web": { ...s.versions["anime-web"], monitored: 0 } } }] };
+    const api = mockFetch([routes[0], { method: "GET", path: "/titles/1/episodes", reply: none }, ...acting.slice(3)]);
+    const user = userEvent.setup();
+    renderPage(<Seasons id="1" anime />, "/title/1");
+    const header = await screen.findByTestId("season-header");
+    const search = within(header).getByRole("button", { name: "Search season 1 now in every library" });
+    expect((search as HTMLButtonElement).disabled).toBe(true);
+    expect(search.getAttribute("title")).toBe("No monitored episodes in this season");
+    expect((within(within(header).getByTestId("season-interactive")).getByRole("button") as HTMLButtonElement).disabled).toBe(false);
+    // Picked alone, the library that searches still monitors none of it.
+    await user.click(screen.getByRole("radio", { name: "Anime WEB" }));
+    expect((within(header).getByRole("button", { name: "Search season 1 now in Anime WEB" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(api.calls("POST", "/titles/1/seasons/1/search")).toHaveLength(0);
+  });
+
   it("sends a row's switch and Search for that episode in the library in view", async () => {
     const api = mockFetch(acting);
     const user = userEvent.setup();

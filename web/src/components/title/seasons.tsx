@@ -69,7 +69,9 @@ import {
   mergedUpgradeWord,
   offCopies,
   plainAvailable,
+  NO_MONITORED_SEASON,
   restrictions,
+  searchableMonitors,
   seasonBadge,
   seasonSummary,
   statusWords,
@@ -762,6 +764,9 @@ function SeasonBlock({
   const on = mon.some((n) => n > 0);
   const monitorWhat = `${on ? "Stop monitoring" : "Monitor"} ${name.toLowerCase()} in ${scope.name}`;
   const searchWhat = `Search ${name.toLowerCase()} now in ${scope.name}`;
+  // The automatic season search takes monitored episodes only: without one in a library that searches, it is off.
+  const searchable = scope.search && searchableMonitors(copies, (k) => (season.versions[k]?.monitored ?? 0) > 0);
+  const searchTitle = !scope.search ? scope.searchWhy : searchable ? searchWhat : NO_MONITORED_SEASON;
   // Every library in view is not monitored: the switches show the episodes kept for when it is monitored again.
   const inactive = seeFiles && copies.length > 0 && off.size === copies.length;
   const props: ListProps = { episodes: shown, copies, merged, anime, manage, seeFiles, selected, onSelect, onOpen, live, act, columns, inactive };
@@ -805,8 +810,8 @@ function SeasonBlock({
               variant="ghost"
               className={PHONE_ICON}
               aria-label={searchWhat}
-              title={scope.search ? searchWhat : scope.searchWhy}
-              disabled={!scope.search || actions.busy}
+              title={searchTitle}
+              disabled={!searchable || actions.busy}
               onClick={() => actions.search({ season: season.season })}
               data-testid={`season-search-${season.season}`}
             >
