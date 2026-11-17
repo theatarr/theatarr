@@ -188,6 +188,11 @@ func TestSeriesStatus(t *testing.T) {
 			t.Errorf("%s: %q, want %q", q, got, want)
 		}
 	}
+	// The row shows the status the filter reads: Delta has no TMDb status, so its series metadata's.
+	var row TitlePage
+	if e.getKey(APIBase+"/titles?q=Delta", key, &row); len(row.Items) != 1 || row.Items[0].Status != "Ended" {
+		t.Errorf("Delta's row status: %+v", row.Items)
+	}
 	// A TMDb Canceled counts as Ended, and wins over the series metadata's status.
 	e.exec(`INSERT INTO title_meta (title_id, status, refreshed_at, attempted_at, refresh_after) VALUES (4, 'Canceled', 0, 0, 0)`)
 	e.exec(`UPDATE series_meta SET status = 'Continuing' WHERE title_id = 4`)

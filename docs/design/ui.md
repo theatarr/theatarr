@@ -1275,7 +1275,7 @@ does not need the signed-in shell.
 | `runtime_minutes` | movie `runtime`, TV `episode_run_time[0]` |
 | `rating`, `rating_votes` | `vote_average`, `vote_count` |
 | `certification` | US theatrical (movies, from `release_dates`), US `content_ratings` (TV) |
-| `status`, `network` | TMDb status; TV first network |
+| `status`, `network` | TMDb status (a series without one: its series metadata's, TVDB, as the Series status filter reads it); TV first network |
 | `original_language` | |
 | `art_hash` | short hash of the three paths, used as `?v=` on image URLs |
 | `fetched_at`, `refresh_after`, `error` | refresh bookkeeping |

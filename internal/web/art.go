@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -158,7 +159,30 @@ func (w *Web) fillArt(ctx context.Context, db *sql.DB, items []TitleRow) error {
 		items[i].TitleArt = artFor(items[i].ID, mp)
 		items[i].TitleFacts = factsFor(mp)
 	}
-	return nil
+	// A series without a TMDb status shows the series metadata's (TVDB), as the Series status filter reads it
+	// (seriesStatusSQL).
+	var bare []int64
+	at := map[int64]int{}
+	for i := range items {
+		if items[i].Kind == "series" && items[i].Status == "" {
+			bare = append(bare, items[i].ID)
+			at[items[i].ID] = i
+		}
+	}
+	if len(bare) == 0 {
+		return nil
+	}
+	list, _ := json.Marshal(bare)
+	return scanAll(ctx, db, `SELECT title_id, status FROM series_meta WHERE title_id IN (SELECT value FROM json_each(?))
+		AND COALESCE(status, '') <> ''`, []any{string(list)}, func(r *sql.Rows) error {
+		var id int64
+		var st string
+		if err := r.Scan(&id, &st); err != nil {
+			return err
+		}
+		items[at[id]].Status = st
+		return nil
+	})
 }
 
 // titleMeta loads one title's art, facts (library.go) and metadata; meta is nil before the first try.
