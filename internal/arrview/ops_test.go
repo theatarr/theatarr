@@ -26,7 +26,7 @@ func TestGrabReleaseByHand(t *testing.T) {
 	ctx := context.Background()
 	good := indexer.Release{Indexer: "prowlarr-public", Kind: "torznab", Privacy: policy.PrivacyPublic,
 		Title: "Alpha.2020.2160p.WEB-DL.H265-GRP", InfoHash: strings.Repeat("9", 40), Size: 10 << 30}
-	g, err := e.svc.GrabRelease(ctx, 1, "movie-web", good, false, "ui:grab:test")
+	g, err := e.svc.GrabRelease(ctx, 1, "movie-web", good, false, "", "ui:grab:test")
 	if err != nil || !g.Decision.Accepted || g.Overridden || g.Job == 0 {
 		t.Fatalf("grab: %+v %v", g, err)
 	}
@@ -44,14 +44,14 @@ func TestGrabReleaseByHand(t *testing.T) {
 
 	bad := good
 	bad.Title, bad.InfoHash = "Alpha.2020.1080p.WEB-DL-GRP", strings.Repeat("8", 40)
-	g, err = e.svc.GrabRelease(ctx, 1, "movie-web", bad, false, "ui:grab:test")
+	g, err = e.svc.GrabRelease(ctx, 1, "movie-web", bad, false, "", "ui:grab:test")
 	if !isRefused(err) || g == nil || g.Decision.Accepted || !strings.Contains(err.Error(), "not wanted") {
 		t.Fatalf("rejected without override: %+v %v", g, err)
 	}
 	if n := e.str(`SELECT COUNT(*) FROM job WHERE kind = 'router.route' AND state = 'queued'`); n != "0" {
 		t.Errorf("a refused grab queued %s routes", n)
 	}
-	g, err = e.svc.GrabRelease(ctx, 1, "movie-web", bad, true, "ui:grab:test")
+	g, err = e.svc.GrabRelease(ctx, 1, "movie-web", bad, true, "", "ui:grab:test")
 	if err != nil || !g.Overridden {
 		t.Fatalf("override: %+v %v", g, err)
 	}
@@ -63,7 +63,7 @@ func TestGrabReleaseByHand(t *testing.T) {
 	private := good
 	private.Title, private.InfoHash = "Alpha.2020.2160p.WEB-DL-PRIV", strings.Repeat("6", 40)
 	private.Privacy = policy.PrivacyPrivate
-	if _, err := e.svc.GrabRelease(ctx, 1, "movie-web", private, false, "ui:grab:test"); err != nil {
+	if _, err := e.svc.GrabRelease(ctx, 1, "movie-web", private, false, "", "ui:grab:test"); err != nil {
 		t.Fatal(err)
 	}
 	e.drain()
@@ -73,11 +73,11 @@ func TestGrabReleaseByHand(t *testing.T) {
 
 	nohash := good
 	nohash.InfoHash = ""
-	if _, err := e.svc.GrabRelease(ctx, 1, "movie-web", nohash, true, "ui:grab:test"); !isRefused(err) {
+	if _, err := e.svc.GrabRelease(ctx, 1, "movie-web", nohash, true, "", "ui:grab:test"); !isRefused(err) {
 		t.Errorf("no hash: %v", err)
 	}
 	e.pol.Router.Enabled = false
-	if _, err := e.svc.GrabRelease(ctx, 1, "movie-web", good, true, "ui:grab:test"); !isRefused(err) ||
+	if _, err := e.svc.GrabRelease(ctx, 1, "movie-web", good, true, "", "ui:grab:test"); !isRefused(err) ||
 		!strings.Contains(err.Error(), "Theatarr is paused") {
 		t.Errorf("disabled grab: %v", err)
 	}
@@ -92,14 +92,14 @@ func TestAddReleaseByHand(t *testing.T) {
 	ctx := context.Background()
 	good := indexer.Release{Title: "Alpha.2020.2160p.WEB-DL.H265-GRP", InfoHash: strings.Repeat("9", 40), Seeders: -1,
 		Peers: -1}
-	if _, err := e.svc.GrabRelease(ctx, 1, "movie-web", good, true, "ui:grab:test"); !isRefused(err) ||
+	if _, err := e.svc.GrabRelease(ctx, 1, "movie-web", good, true, "", "ui:grab:test"); !isRefused(err) ||
 		!strings.Contains(err.Error(), "no longer enabled") {
 		t.Fatalf("grab without an indexer: %v", err)
 	}
 	// An indexer the caller names is not kept: a manual add never claims one.
 	named := good
 	named.Indexer = "prowlarr-public"
-	g, err := e.svc.AddRelease(ctx, 1, "movie-web", named, false, "ui:grab:test")
+	g, err := e.svc.AddRelease(ctx, 1, "movie-web", named, false, "", "ui:grab:test")
 	if err != nil || !g.Decision.Accepted || g.Overridden || g.Job == 0 {
 		t.Fatalf("add: %+v %v", g, err)
 	}
@@ -113,7 +113,7 @@ func TestAddReleaseByHand(t *testing.T) {
 	}
 	bad := good
 	bad.Title, bad.InfoHash = "Alpha.2020.1080p.WEB-DL-GRP", strings.Repeat("8", 40)
-	g, err = e.svc.AddRelease(ctx, 1, "movie-web", bad, false, "ui:grab:test")
+	g, err = e.svc.AddRelease(ctx, 1, "movie-web", bad, false, "", "ui:grab:test")
 	if !isRefused(err) || g == nil || g.Decision.Accepted || !strings.Contains(err.Error(), "not wanted") {
 		t.Fatalf("rejected without override: %+v %v", g, err)
 	}
@@ -121,7 +121,7 @@ func TestAddReleaseByHand(t *testing.T) {
 	if slices.Contains(e.adds(), bad.InfoHash) {
 		t.Fatal("a rejected add reached the provider")
 	}
-	if g, err = e.svc.AddRelease(ctx, 1, "movie-web", bad, true, "ui:grab:test"); err != nil || !g.Overridden {
+	if g, err = e.svc.AddRelease(ctx, 1, "movie-web", bad, true, "", "ui:grab:test"); err != nil || !g.Overridden {
 		t.Fatalf("override: %+v %v", g, err)
 	}
 	e.drain()
@@ -134,7 +134,7 @@ func TestAddReleaseByHand(t *testing.T) {
 	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, quality,
 		score, episodes, state, error, created_at, updated_at) VALUES (60, 1, 2, 'movie-web', ?,
 		'Alpha.2020.2160p.WEB-DL-MANUAL', 'manual add', 'WEBDL-2160p', 50, '[]', 'failed', 'stalled', ?, ?)`, failed, now, now)
-	if r, err := e.svc.RetryDownload(ctx, 60, "ui:retry:60"); err != nil || r.What != "routed again" {
+	if r, err := e.svc.RetryDownload(ctx, 60, "", "ui:retry:60"); err != nil || r.What != "routed again" {
 		t.Fatalf("retry of a manual add: %+v %v", r, err)
 	}
 	e.drain()
@@ -146,23 +146,23 @@ func TestAddReleaseByHand(t *testing.T) {
 	// and not as a rejection to override (no decision comes back). A name with its episode is routed.
 	pack := indexer.Release{Title: "The.Show.Complete.2160p.WEB-DL-GRP", InfoHash: strings.Repeat("c", 40), Seeders: -1, Peers: -1}
 	for _, override := range []bool{false, true} {
-		if g, err := e.svc.AddRelease(ctx, 10, "tv-2160p", pack, override, "ui:grab:test"); !isRefused(err) || g != nil ||
+		if g, err := e.svc.AddRelease(ctx, 10, "tv-2160p", pack, override, "", "ui:grab:test"); !isRefused(err) || g != nil ||
 			!strings.Contains(err.Error(), "The season belongs in the release name") {
 			t.Errorf("a season pack without its season (override %v): %+v %v", override, g, err)
 		}
 	}
 	pack.Title = "The.Show.S01E02.2160p.WEB-DL-GRP"
-	if g, err := e.svc.AddRelease(ctx, 10, "tv-2160p", pack, false, "ui:grab:test"); err != nil || g.Job == 0 {
+	if g, err := e.svc.AddRelease(ctx, 10, "tv-2160p", pack, false, "", "ui:grab:test"); err != nil || g.Job == 0 {
 		t.Errorf("an episode by its name: %+v %v", g, err)
 	}
 
 	nohash := good
 	nohash.InfoHash = ""
-	if _, err := e.svc.AddRelease(ctx, 1, "movie-web", nohash, true, "ui:grab:test"); !isRefused(err) {
+	if _, err := e.svc.AddRelease(ctx, 1, "movie-web", nohash, true, "", "ui:grab:test"); !isRefused(err) {
 		t.Errorf("no hash: %v", err)
 	}
 	e.pol.Router.Enabled = false
-	if _, err := e.svc.AddRelease(ctx, 1, "movie-web", good, true, "ui:grab:test"); !isRefused(err) ||
+	if _, err := e.svc.AddRelease(ctx, 1, "movie-web", good, true, "", "ui:grab:test"); !isRefused(err) ||
 		!strings.Contains(err.Error(), "Theatarr is paused") {
 		t.Errorf("disabled add: %v", err)
 	}
@@ -190,11 +190,11 @@ func TestRetryDownload(t *testing.T) {
 
 	e.exec(`INSERT INTO router_blocklist (version_key, info_hash, title_id, release_title, reason, source, created_at)
 		VALUES ('movie-web', ?, 1, 'x', 'stalled at the provider', 'stalled', ?)`, hash, now)
-	if _, err := e.svc.RetryDownload(ctx, 50, "ui:retry:50"); !isRefused(err) || !strings.Contains(err.Error(), "unblock") {
+	if _, err := e.svc.RetryDownload(ctx, 50, "", "ui:retry:50"); blockedRefusal(err) == nil {
 		t.Fatalf("blocklisted retry: %v", err)
 	}
 	e.exec(`DELETE FROM router_blocklist`)
-	r, err := e.svc.RetryDownload(ctx, 50, "ui:retry:50")
+	r, err := e.svc.RetryDownload(ctx, 50, "", "ui:retry:50")
 	if err != nil || r.What != "routed again" || r.Version != "movie-web" || r.Job == 0 {
 		t.Fatalf("retry: %+v %v", r, err)
 	}
@@ -206,7 +206,7 @@ func TestRetryDownload(t *testing.T) {
 		t.Errorf("%s route jobs asked by hand: Retry asks the providers again", n)
 	}
 
-	if _, err := e.svc.RetryDownload(ctx, 51, "ui:retry:51"); !isRefused(err) || !strings.Contains(err.Error(), "old-indexer") {
+	if _, err := e.svc.RetryDownload(ctx, 51, "", "ui:retry:51"); !isRefused(err) || !strings.Contains(err.Error(), "old-indexer") {
 		t.Fatalf("unlisted indexer: %v", err)
 	}
 	e.drain()
@@ -214,18 +214,18 @@ func TestRetryDownload(t *testing.T) {
 		t.Error("a release from an unknown indexer reached debrid")
 	}
 
-	if _, err := e.svc.RetryDownload(ctx, 52, "ui:retry:52"); !isRefused(err) {
+	if _, err := e.svc.RetryDownload(ctx, 52, "", "ui:retry:52"); !isRefused(err) {
 		t.Errorf("in hand: %v", err)
 	}
-	r, err = e.svc.RetryDownload(ctx, 53, "ui:retry:53")
+	r, err = e.svc.RetryDownload(ctx, 53, "", "ui:retry:53")
 	if err != nil || r.What != "imported" || len(e.lib.imports) != 1 || e.lib.imports[0] != "53" {
 		t.Errorf("ready: %+v %v %v", r, err, e.lib.imports)
 	}
-	if _, err := e.svc.RetryDownload(ctx, 999, "ui:retry:999"); err == nil {
+	if _, err := e.svc.RetryDownload(ctx, 999, "", "ui:retry:999"); err == nil {
 		t.Error("unknown download")
 	}
 	e.pol.Router.Enabled = false
-	if _, err := e.svc.RetryDownload(ctx, 50, "ui:retry:50"); !isRefused(err) ||
+	if _, err := e.svc.RetryDownload(ctx, 50, "", "ui:retry:50"); !isRefused(err) ||
 		!strings.Contains(err.Error(), "Theatarr is paused") {
 		t.Errorf("disabled retry: %v", err)
 	}
@@ -282,15 +282,15 @@ func TestGrabSaysWhyNothingStarts(t *testing.T) {
 	lib := policy.LibraryNames(e.pol)["movie-web"]
 	e.exec(`INSERT INTO router_blocklist (version_key, info_hash, title_id, release_title, reason, source, created_at)
 		VALUES ('movie-web', ?, 1, 'x', 'sample', 'library', 0)`, rel.InfoHash)
-	g, err := e.svc.GrabRelease(ctx, 1, "movie-web", rel, false, "ui:grab:test")
-	if !isRefused(err) || g != nil || err.Error() != "Blocklisted for "+lib+": unblock it under Activity › Blocklist" {
+	g, err := e.svc.GrabRelease(ctx, 1, "movie-web", rel, false, "", "ui:grab:test")
+	if !isRefused(err) || g != nil || err.Error() != "On "+lib+"'s blocklist: sample" || blockedRefusal(err) == nil {
 		t.Fatalf("blocklisted: %+v %v", g, err)
 	}
 	e.exec(`DELETE FROM router_blocklist`)
 	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, quality,
 		score, episodes, state, created_at, updated_at) VALUES (70, 1, 2, 'movie-web', ?, 'Alpha.2020.2160p.WEB-DL-HELD',
 		'prowlarr-public', 'WEBDL-2160p', 50, '[]', 'downloading', 0, 0)`, rel.InfoHash)
-	g, err = e.svc.AddRelease(ctx, 1, "movie-web", rel, false, "ui:grab:test")
+	g, err = e.svc.AddRelease(ctx, 1, "movie-web", rel, false, "", "ui:grab:test")
 	if !isRefused(err) || g != nil || err.Error() != "Already downloading: Alpha.2020.2160p.WEB-DL-HELD" {
 		t.Fatalf("in flight: %+v %v", g, err)
 	}

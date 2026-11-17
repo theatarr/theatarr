@@ -169,8 +169,8 @@ export function useRemoveDownload() {
 export function useRetryDownload() {
   const refresh = useRefresh();
   return useMutation({
-    mutationFn: ({ id }: { id: number; titleId?: number }) =>
-      api<RetryResult>(`/activity/downloads/${id}/retry`, { method: "POST" }),
+    mutationFn: ({ id, unblock }: { id: number; titleId?: number; unblock?: boolean }) =>
+      api<RetryResult>(`/activity/downloads/${id}/retry`, { method: "POST", ...(unblock ? { body: { unblock: true } } : {}) }),
     onSuccess: (_r, v) => refresh(v.titleId),
   });
 }

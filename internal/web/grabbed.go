@@ -43,8 +43,9 @@ type ReleaseOutcome struct {
 	// Idle, for grabbed: nothing is working on it now (an import held for review, a download waiting for its retry
 	// time), so the list shows no working spinner.
 	Idle bool `json:"idle,omitempty"`
-	// Blocklisted, for failed: a grab of it now would not be routed while it is on the library's blocklist;
-	// otherwise a grab by hand tries it again at once (it asks the providers again: router.Request.ManualSince).
+	// Blocklisted, for failed: it is on the library's blocklist; a grab by hand takes it off (after the 409 with
+	// blocked is confirmed). A grab by hand tries it again at once (it asks the providers again:
+	// router.Request.ManualSince).
 	Blocklisted bool `json:"blocklisted,omitempty"`
 	// Attempts, for failed: what each provider answered, the newest download's last attempt per provider in the
 	// order they were first tried, raw for the UI's attempt words (as Activity's attempts).

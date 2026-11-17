@@ -80,11 +80,26 @@ in-flight checks. A manual grab that every provider misses fails as before and i
 `TestManualGrabOpensDownloadWhenNothingCanBeAsked`, `TestScreenManualResumesStranded`.
 Before the Interactive search grab or Add by magnet or hash is queued, `router.ScreenManual` runs the route's own
 screens that open no download on it (the version not routed, `upgrades: off` with a file there, a series' episodes
-held by another download, the blocklist, the same hash in flight unless its queued row is stranded and the route would resume it, a client-routed version's
-indexer rule), and the
-grab is refused with the reason ("Blocklisted for <library>: unblock it under Activity › Blocklist", "Already
-downloading: <release>"), shown as the "Not sent" toast; a movie grab of another release while one downloads stays
-allowed (`TestGrabSaysWhyNothingStarts`).
+held by another download, the same hash in flight unless its queued row is stranded and the route would resume it, a client-routed version's
+indexer rule, and last the blocklist), and the
+grab is refused with the reason ("Already downloading: <release>", "Upgrades are off for <library>: ..."), shown as
+the "Not sent" toast; a movie grab of another release while one downloads stays allowed
+(`TestGrabSaysWhyNothingStarts`).
+
+**A grab by hand overrides the blocklist** (owner, 2026-11-17: "yes manual grabs should override it"). Interactive
+search's Grab, Add by magnet or hash and Retry of a failed download (`apiGrab`, `apiAddRelease`, `apiRetryDownload`)
+of a release on the library's blocklist (by hash or by title key, as the route matches it) answer 409 with `blocked`
+(the library's name and the reason in words) and change nothing; the UI asks "This release is on <library>'s
+blocklist: <reason>. Grab it anyway? It is taken off the blocklist." and sends the call again with `unblock: true`
+(not `override`, which the grid sends for any rejected release). Then every other refusal runs first (Pause, upgrades
+off, episodes or the release in flight, the client-indexer rule; Retry's indexer list), and only when none refuses is
+the release taken off the blocklist: both its hash row and its title-key row, for that library only
+(`router.UnblockRelease`), with one unblock in the journal by the person (as an unblock from Activity › Blocklist),
+in the transaction that queues the route (`arrview` `enqueueUnblocking`). A refused grab leaves both rows. Nothing
+else keeps a memory of the block: a grab that fails again is blocklisted again by the normal rules. Automatic routes
+(search, RSS, upgrades, re-search after a failure, Replace file's search), the compatible API's release grab and
+release/push keep honouring the blocklist. Tests: `TestManualGrabUnblocks`, `TestManualGrabRefusedKeepsBlock`,
+`TestManualGrabBlocklisted`.
 
 **Policy changes while a route waits**: every route job carries the policy revision it was decided
 under (`decision_rev`). A deferred automatic route that runs under another revision decides its candidates again

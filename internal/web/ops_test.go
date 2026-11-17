@@ -33,6 +33,10 @@ type fakeOps struct {
 	reassigned    []ReassignRequest
 	refuse        string
 	reject        bool
+	// block: the release is on the library's blocklist; a call without unblockBy is refused with the block, one
+	// with it is recorded in unblockedBy and goes through.
+	block       bool
+	unblockedBy []string
 	// retried, when set, is the next RetryDownload's answer.
 	retried *RetriedDownload
 	// unlinkErr, when set, is the next UnlinkLink's error.
@@ -65,6 +69,28 @@ func (f *fakeOps) ReassignEpisodes(_ context.Context, linkID int64, eps []int64,
 
 type fakeRefused string
 
+// fakeBlocked is arrview.Refused with its Block: only the blocklist refuses.
+type fakeBlocked struct{}
+
+func (fakeBlocked) Error() string { return "On 4K WEB's blocklist: sample" }
+func (fakeBlocked) Refused() bool { return true }
+func (fakeBlocked) BlockedBy() (string, string, string, bool) {
+	return "4K WEB", "stalled", "stalled at the provider", true
+}
+
+// unblock answers a call of a blocklisted release: refused without unblockBy, else taken off.
+func (f *fakeOps) unblock(unblockBy string) error {
+	if !f.block {
+		return nil
+	}
+	if unblockBy == "" {
+		return fakeBlocked{}
+	}
+	f.block = false
+	f.unblockedBy = append(f.unblockedBy, unblockBy)
+	return nil
+}
+
 func (f fakeRefused) Error() string { return string(f) }
 func (fakeRefused) Refused() bool   { return true }
 
@@ -78,7 +104,7 @@ func (f *fakeOps) take() error {
 }
 
 func (f *fakeOps) GrabRelease(_ context.Context, _ int64, version string, rel indexer.Release, override bool,
-	_ string) (*GrabbedRelease, error) {
+	unblockBy, _ string) (*GrabbedRelease, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	d := &decide.Decision{Release: rel.Title, Version: version, Accepted: !f.reject}
@@ -91,13 +117,16 @@ func (f *fakeOps) GrabRelease(_ context.Context, _ int64, version string, rel in
 	if err := f.take(); err != nil {
 		return &GrabbedRelease{Decision: d}, err
 	}
+	if err := f.unblock(unblockBy); err != nil {
+		return nil, err
+	}
 	f.grabs = append(f.grabs, rel)
 	return &GrabbedRelease{Decision: d, Overridden: f.reject, Job: 1}, nil
 }
 
 func (f *fakeOps) AddRelease(ctx context.Context, id int64, version string, rel indexer.Release, override bool,
-	source string) (*GrabbedRelease, error) {
-	g, err := f.GrabRelease(ctx, id, version, rel, override, source)
+	unblockBy, source string) (*GrabbedRelease, error) {
+	g, err := f.GrabRelease(ctx, id, version, rel, override, unblockBy, source)
 	if err == nil {
 		f.mu.Lock()
 		f.added = append(f.added, source)
@@ -106,10 +135,13 @@ func (f *fakeOps) AddRelease(ctx context.Context, id int64, version string, rel 
 	return g, err
 }
 
-func (f *fakeOps) RetryDownload(_ context.Context, id int64, _ string) (*RetriedDownload, error) {
+func (f *fakeOps) RetryDownload(_ context.Context, id int64, unblockBy, _ string) (*RetriedDownload, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if err := f.take(); err != nil {
+		return nil, err
+	}
+	if err := f.unblock(unblockBy); err != nil {
 		return nil, err
 	}
 	f.retries = append(f.retries, id)
@@ -339,6 +371,55 @@ func TestGrabFromLiveSearch(t *testing.T) {
 	}
 	if code := o.jsonCall("POST", b+"/releases/grab", map[string]any{"version": "movie-web"}, o.mc, o.mcsrf, nil); code != 400 {
 		t.Errorf("no hash: %d", code)
+	}
+}
+
+// TestManualGrabBlocklisted: a grab, an add by hash and a retry of a release on the library's blocklist answer 409
+// with Blocked (the library and the reason in words) and route nothing; sent again with unblock they go through, the
+// unblock taken by the person who confirmed.
+func TestManualGrabBlocklisted(t *testing.T) {
+	t.Parallel()
+	o := newOpsEnv(t)
+	ac, csrf := o.session(o.account("admin-unblock", auth.RoleAdmin, auth.StatusActive, false))
+	o.activate("movie-web")
+	hash := strings.Repeat("c", 40)
+	if code := o.jsonCall("GET", APIBase+"/titles/1/releases?version=movie-web&live=1", nil, o.mc, "", nil); code != 200 {
+		t.Fatalf("live search: %d", code)
+	}
+	add := AddReleaseRequest{Version: "movie-web", InfoHash: strings.Repeat("ab", 20), Name: "Alpha.2020.2160p.WEB-DL-GRP"}
+	calls := []struct {
+		name, path   string
+		body, unblck any
+		c            *http.Cookie
+	}{
+		{"grab", APIBase + "/titles/1/releases/grab", GrabRequest{Version: "movie-web", InfoHash: hash},
+			GrabRequest{Version: "movie-web", InfoHash: hash, Unblock: true}, o.mc},
+		{"add", APIBase + "/titles/1/releases/add", add, AddReleaseRequest{Version: add.Version, InfoHash: add.InfoHash,
+			Name: add.Name, Unblock: true}, ac},
+		{"retry", APIBase + "/activity/downloads/40/retry", nil, RetryRequest{Unblock: true}, o.mc},
+	}
+	for _, c := range calls {
+		token := o.mcsrf
+		if c.c == ac {
+			token = csrf
+		}
+		o.ops.block = true
+		grabs, retries := len(o.ops.grabs), len(o.ops.retries)
+		var apiErr apiError
+		if code := o.jsonCall("POST", c.path, c.body, c.c, token, &apiErr); code != http.StatusConflict ||
+			apiErr.Blocked == nil || apiErr.Blocked.Library != "4K WEB" || apiErr.Blocked.Reason == "" ||
+			len(apiErr.Detail) != 0 || !strings.Contains(apiErr.Error, "4K WEB's blocklist") {
+			t.Fatalf("%s blocked: %d %+v", c.name, code, apiErr)
+		}
+		if len(o.ops.grabs) != grabs || len(o.ops.retries) != retries {
+			t.Fatalf("%s: a blocked call went through", c.name)
+		}
+		if code := o.jsonCall("POST", c.path, c.unblck, c.c, token, nil); code != 200 {
+			t.Fatalf("%s with unblock: %d", c.name, code)
+		}
+		if n := len(o.ops.unblockedBy); n == 0 || o.ops.unblockedBy[n-1] == "" || o.ops.block {
+			t.Fatalf("%s: not unblocked by the person: %v", c.name, o.ops.unblockedBy)
+		}
 	}
 }
 

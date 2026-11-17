@@ -18,6 +18,7 @@ import { ColumnPicker } from "@/components/library/view-options";
 import { ProviderPills, ProviderTag, providerLabel } from "@/components/provider-pills";
 import { Formats } from "@/components/title/formats";
 import { GrabDialog, lateRejections, type GrabTarget } from "@/components/title/release-grab";
+import { blockedRelease, type BlockedRelease } from "@/lib/ops";
 import { ReleaseName } from "@/components/title/release-name";
 import { toast } from "@/components/toaster";
 import { Badge } from "@/components/ui/badge";
@@ -85,10 +86,10 @@ export function Outcome({ o }: { o?: ReleaseOutcome }) {
 
 const outcomeOf = (c: Candidate, outcomes?: Releases["outcomes"]) => (c.info_hash ? outcomes?.[c.info_hash.toLowerCase()] : undefined);
 
-/** Why a failed release has no Grab button: on the library's blocklist (the router refuses it even with the override).
- *  undefined: Try again (a grab by hand asks the providers again). */
-export function noRetryNote(o: ReleaseOutcome): string | undefined {
-  if (o.blocklisted) return "Blocklisted: unblock it under Activity › Blocklist to try again";
+/** A failed release's note beside "Try again": on the library's blocklist, which a grab by hand takes it off (after
+ *  the server's 409 is confirmed). undefined: none (a grab by hand asks the providers again). */
+export function retryNote(o: ReleaseOutcome): string | undefined {
+  if (o.blocklisted) return "On the blocklist: a grab by hand takes it off";
   return undefined;
 }
 
@@ -205,10 +206,10 @@ function Cell({ id, c, outcomes }: { id: ReleaseColumnId; c: Candidate; outcomes
  *  (then one confirmation overrides). sentFrom: sent in this window, with the id of the download its outcome showed
  *  then (0: none); "Sent" stands until an outcome of another download answers. In flight: the download's words, with
  *  a spinner while something works on it; imported or current: Imported; failed: Failed, with the button back
- *  ("Try again") and what each provider answered, unless it is blocklisted; replaced or nothing: the button. */
+ *  ("Try again") and what each provider answered, with a note when it is blocklisted (the grab asks first); replaced or nothing: the button. */
 export function GrabCell({ c, target, o, sentFrom, onSent }: { c: Candidate; target: GrabTarget; o?: ReleaseOutcome; sentFrom?: number; onSent: () => void }) {
   const grab = useGrab(target.titleId);
-  const [dialog, setDialog] = useState<{ late?: string[] }>();
+  const [dialog, setDialog] = useState<{ late?: string[]; blocked?: BlockedRelease }>();
   const library = target.label ?? target.version;
   const ask = needsConfirm(c);
   const click = () => {
@@ -225,15 +226,17 @@ export function GrabCell({ c, target, o, sentFrom, onSent }: { c: Candidate; tar
         },
         onError: (e) => {
           const late = lateRejections(e);
+          const blocked = blockedRelease(e);
           if (late) setDialog({ late });
+          else if (blocked) setDialog({ blocked });
           else toast({ tone: "bad", title: "Not sent", body: errText(e) });
         },
       },
     );
   };
-  const failed = grab.isError && !lateRejections(grab.error);
+  const failed = grab.isError && !lateRejections(grab.error) && !blockedRelease(grab.error);
   const fresh = o && (sentFrom === undefined || (o.download ?? 0) !== sentFrom) ? o : undefined;
-  const note = fresh?.outcome === "failed" ? noRetryNote(fresh) : undefined;
+  const note = fresh?.outcome === "failed" ? retryNote(fresh) : undefined;
   const answers = fresh?.outcome === "failed" ? providerAnswersWords(fresh.attempts) : undefined;
   let state: React.ReactNode = null;
   if (fresh?.outcome === "grabbed") {
@@ -281,12 +284,13 @@ export function GrabCell({ c, target, o, sentFrom, onSent }: { c: Candidate; tar
   );
   return (
     <>
-      {state ?? (failure ? <span className="inline-flex flex-wrap items-center gap-2">{failure}{note ? null : button}</span> : button)}
+      {state ?? (failure ? <span className="inline-flex flex-wrap items-center gap-2">{failure}{button}</span> : button)}
       {dialog ? (
         <GrabDialog
           c={c}
           target={target}
           late={dialog.late}
+          blocked={dialog.blocked}
           onSent={onSent}
           onClose={() => {
             grab.reset();

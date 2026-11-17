@@ -5,6 +5,7 @@ import {
   endedByRemoval,
   failedDownloadId,
   leftoverOnly,
+  blockedRelease,
   grabScope,
   leftoverLinks,
   removalLinks,
@@ -12,6 +13,7 @@ import {
   removeDownloadScope,
   retryKind,
   retryScope,
+  unblockGrabScope,
   SHARED_TORRENT,
   unblockScope,
   unlinkable,
@@ -189,6 +191,16 @@ describe("recovery scopes", () => {
     const late = grabScope({ release: "Dune.WEB", accepted: true, info_hash: "ab" }, "4K WEB", ["blocklisted"]);
     expect(late.confirm).toBe("Grab anyway");
     expect(grabScope({ release: "x", accepted: true }, "4K").blocked).toMatch(/no info hash/);
+  });
+
+  it("asks before a grab takes a release off the library's blocklist, only after the server's 409 says so", () => {
+    expect(grabScope({ release: "Dune.WEB", accepted: true, info_hash: "ab" }, "4K WEB").keeps[0]).toBe("A blocklisted release asks first, and the router paces the add like any other");
+    expect(blockedRelease({ status: 409, body: { blocked: { library: "4K WEB", reason: "Stalled at RD." } } })).toEqual({ library: "4K WEB", reason: "Stalled at RD." });
+    expect(blockedRelease({ status: 409, detail: ["720p is not wanted"] })).toBeUndefined();
+    const s = unblockGrabScope({ library: "4K WEB", reason: "Stalled at RD." }, "Grab");
+    expect(s.does).toEqual(["This release is on 4K WEB's blocklist: Stalled at RD. Grab it anyway? It is taken off the blocklist."]);
+    expect(s.confirm).toBe("Grab anyway");
+    expect(unblockGrabScope({ library: "HD", reason: "x" }, "Retry").confirm).toBe("Retry anyway");
   });
 });
 

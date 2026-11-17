@@ -2,12 +2,14 @@
 // release of a live search that asks first (release-grid.tsx: a rejected release, one that would replace a
 // better-scored file, or one the server rejected at grab time). It names the release and the library; the server
 // decides the release again, and a release it rejects (then or now) is grabbed only after "Grab anyway". A grab the
-// server refused late opens this with those reasons (late), so one confirmation sends it with the override. The
-// dialog cannot close while its grab is on its way.
+// server refused late opens this with those reasons (late), so one confirmation sends it with the override. A grab
+// the server refused only for the library's blocklist (a 409 with blocked, then or given) asks once more, and that
+// confirmation sends it with unblock. The dialog cannot close while its grab is on its way.
 //
 // AddByHash is the "Last search" page's other way in, for admins: a magnet link or info hash no search of ours found,
 // with the release name the rules judge it by. The server decides it and routes it as a grab; a release it rejects is
-// added only after "Add anyway". Nothing is sent before Add is pressed.
+// added only after "Add anyway", and one on the library's blocklist the same way, with unblock. Nothing is sent
+// before Add is pressed.
 import { Loader2, Plus } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import type { Candidate } from "@/api/add";
@@ -17,6 +19,7 @@ import { VersionTag } from "@/components/page";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog, errText } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
+import { blockedRelease, unblockGrabScope, type BlockedRelease } from "@/lib/ops";
 import { grabConfirmScope, needsConfirm } from "@/lib/release-columns";
 import { useLibraryName } from "@/lib/library-names";
 
@@ -28,14 +31,17 @@ export function lateRejections(e: unknown): string[] | undefined {
   return e instanceof ApiError && e.status === 409 && e.detail?.length ? e.detail : undefined;
 }
 
-export function GrabDialog({ c, target, onClose, late: given, onSent }: { c: Candidate; target: GrabTarget; onClose: () => void; late?: string[]; onSent?: () => void }) {
+export function GrabDialog({ c, target, onClose, late: given, blocked: givenBlock, onSent }: { c: Candidate; target: GrabTarget; onClose: () => void; late?: string[]; blocked?: BlockedRelease; onSent?: () => void }) {
   const grab = useGrab(target.titleId);
   // A 409 with rejections: the server's second look rejects it; the next confirm overrides. One refused before the
-  // dialog opened (given) counts the same.
+  // dialog opened (given) counts the same. An override once sent stays on.
   const late = lateRejections(grab.error) ?? given;
-  const scope = grabConfirmScope(c, target.label ?? target.version, late);
-  const override = !c.accepted || !!late;
-  const send = () => grab.mutate({ version: target.version, info_hash: c.info_hash ?? "", override }, { onSuccess: () => onSent?.() });
+  // A 409 with blocked: only the library's blocklist refuses it; the next confirm takes it off (unblock).
+  const blocked = blockedRelease(grab.error) ?? (grab.error ? undefined : givenBlock);
+  const scope = blocked ? unblockGrabScope(blocked, "Grab") : grabConfirmScope(c, target.label ?? target.version, late);
+  const override = !c.accepted || !!late || !!grab.variables?.override;
+  const send = () =>
+    grab.mutate({ version: target.version, info_hash: c.info_hash ?? "", override, ...(blocked ? { unblock: true } : {}) }, { onSuccess: () => onSent?.() });
   const close = () => {
     // A grab on its way is not left behind: the dialog stays until it settles.
     if (grab.isPending) return;
@@ -46,9 +52,9 @@ export function GrabDialog({ c, target, onClose, late: given, onSent }: { c: Can
     <ConfirmDialog
       scope={scope}
       subject={<span className="font-mono">{c.release}</span>}
-      danger={override || needsConfirm(c)}
+      danger={override || !!blocked || needsConfirm(c)}
       busy={grab.isPending}
-      error={lateRejections(grab.error) ? undefined : grab.error}
+      error={lateRejections(grab.error) || blocked ? undefined : grab.error}
       done={grab.data?.message}
       onClose={close}
       onConfirm={send}
@@ -88,10 +94,13 @@ export function AddByHash({ titleId, version, label }: { titleId: number; versio
   // for another reason (the title has no copy for the library), which is shown as it is. A name that matches no
   // episode is refused at the first request, with no rejections to override.
   const rejected = add.error instanceof ApiError && add.error.status === 409 && add.error.detail?.length && !add.variables?.override ? add.error.detail : undefined;
-  const send = (override: boolean) => {
+  // A 409 with blocked: only the library's blocklist refuses it; "Add anyway" sends it again with unblock (and the
+  // override it was sent with).
+  const blocked = blockedRelease(add.error);
+  const send = (override: boolean, unblock = false) => {
     const magnet = /^magnet:/i.test(source);
     add.mutate(
-      { version, name: name.trim(), override, ...(magnet ? { magnet: source } : { info_hash: source }) },
+      { version, name: name.trim(), override, ...(unblock ? { unblock: true } : {}), ...(magnet ? { magnet: source } : { info_hash: source }) },
       { onSuccess: () => { setLink(""); setName(""); setTyped(false); } },
     );
   };
@@ -130,6 +139,11 @@ export function AddByHash({ titleId, version, label }: { titleId: number; versio
           <p className="text-[var(--bad-ink)]">Theatarr rejects this release for {label || nameOf(version)}:</p>
           <ul className="list-disc pl-5 text-[var(--bad-ink)]">{rejected.map((r, i) => <li key={i}>{r}</li>)}</ul>
           <Button type="button" size="sm" variant="danger" disabled={add.isPending} onClick={() => send(true)} data-testid="add-by-hash-anyway">Add anyway</Button>
+        </div>
+      ) : blocked ? (
+        <div className="space-y-1.5 text-xs" role="alert" data-testid="add-by-hash-blocked">
+          <p className="text-[var(--bad-ink)]">{unblockGrabScope(blocked, "Add").does[0]}</p>
+          <Button type="button" size="sm" variant="danger" disabled={add.isPending} onClick={() => send(!!add.variables?.override, true)} data-testid="add-by-hash-unblock">Add anyway</Button>
         </div>
       ) : add.error ? (
         <p className="text-xs text-[var(--bad-ink)]" role="alert" data-testid="add-by-hash-error">{errText(add.error)}</p>

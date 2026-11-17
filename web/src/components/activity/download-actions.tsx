@@ -10,7 +10,7 @@ import { usePerms } from "@/api/library";
 import { useRemoveDownload, useRetryDownload, useUnblock } from "@/api/ops";
 import { Button } from "@/components/ui/button";
 import { Choice, ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { endedByRemoval, failedDownloadId, removeDownloadScope, retryKind, retryScope, unblockScope, type RemoveMode } from "@/lib/ops";
+import { blockedRelease, endedByRemoval, failedDownloadId, removeDownloadScope, retryKind, retryScope, unblockGrabScope, unblockScope, type RemoveMode } from "@/lib/ops";
 import { useLibraryName } from "@/lib/library-names";
 
 type Open = "remove" | "retry" | null;
@@ -33,6 +33,8 @@ export function DownloadActions({ d }: { d: ActivityDownload }) {
   const mode: RemoveMode = block ? "block" : "remove";
   const subject = <span className="font-mono">{d.release || d.title.name}</span>;
   const kind = retryKind(d.state);
+  // A 409 with blocked: only the library's blocklist refuses the retry; the next confirm takes it off.
+  const retryBlocked = blockedRelease(retry.error);
   return (
     <span className="inline-flex gap-1" data-testid="download-actions">
       {kind ? (
@@ -63,15 +65,15 @@ export function DownloadActions({ d }: { d: ActivityDownload }) {
       ) : null}
       {open === "retry" ? (
         <ConfirmDialog
-          scope={retryScope(d.state, nameOf(d.version))}
+          scope={retryBlocked ? unblockGrabScope(retryBlocked, "Retry") : retryScope(d.state, nameOf(d.version))}
           subject={subject}
-          danger={false}
+          danger={!!retryBlocked}
           busy={retry.isPending}
-          error={retry.error}
+          error={retryBlocked ? undefined : retry.error}
           done={retry.data?.message}
           doneWarning={importFellShort(retry.data?.outcome)}
           onClose={close}
-          onConfirm={() => retry.mutate({ id: d.id, titleId: d.title.id })}
+          onConfirm={() => retry.mutate({ id: d.id, titleId: d.title.id, unblock: !!retryBlocked })}
           testid="retry-download-dialog"
         />
       ) : null}
@@ -93,6 +95,7 @@ export function HistoryRetry({ e }: { e: ActivityEvent }) {
   const nameOf = useLibraryName();
   if (!perms.manage || !id || endedByRemoval(e.reason)) return null;
   const copy = e.version ? nameOf(e.version) : "this";
+  const blocked = blockedRelease(retry.error);
   return (
     <>
       <Button size="xs" variant="ghost" onClick={() => setOpen(true)} data-testid="history-retry">
@@ -100,18 +103,18 @@ export function HistoryRetry({ e }: { e: ActivityEvent }) {
       </Button>
       {open ? (
         <ConfirmDialog
-          scope={retryScope("failed", copy)}
+          scope={blocked ? unblockGrabScope(blocked, "Retry") : retryScope("failed", copy)}
           subject={<span className="font-mono">{e.release || e.title.name}</span>}
-          danger={false}
+          danger={!!blocked}
           busy={retry.isPending}
-          error={retry.error}
+          error={blocked ? undefined : retry.error}
           done={retry.data?.message}
           doneWarning={importFellShort(retry.data?.outcome)}
           onClose={() => {
             setOpen(false);
             retry.reset();
           }}
-          onConfirm={() => retry.mutate({ id, titleId: e.title.id })}
+          onConfirm={() => retry.mutate({ id, titleId: e.title.id, unblock: !!blocked })}
           testid="retry-download-dialog"
         />
       ) : null}

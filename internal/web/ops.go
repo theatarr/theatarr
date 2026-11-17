@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"slices"
@@ -13,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/theatarr/theatarr/internal/activity"
 	"github.com/theatarr/theatarr/internal/auth"
 	"github.com/theatarr/theatarr/internal/catalog"
 	"github.com/theatarr/theatarr/internal/decide"
@@ -38,9 +40,11 @@ import (
 
 // Ops is the arr views' service as the recovery actions use it (arrview.Service in theatarr serve). nil answers 503.
 type Ops interface {
+	// GrabRelease and RetryDownload refuse a release on the library's blocklist (blockedErr) unless unblockBy names
+	// who confirmed taking it off; then, when nothing else refuses it, it is taken off as the route is queued.
 	GrabRelease(ctx context.Context, titleID int64, version string, rel indexer.Release, override bool,
-		source string) (*GrabbedRelease, error)
-	RetryDownload(ctx context.Context, id int64, source string) (*RetriedDownload, error)
+		unblockBy, source string) (*GrabbedRelease, error)
+	RetryDownload(ctx context.Context, id int64, unblockBy, source string) (*RetriedDownload, error)
 	UnlinkLink(ctx context.Context, linkID int64, reason string) (*UnlinkedLink, error)
 	// UnlinkRemoved is UnlinkLink for a removal that deletes the files: a dead symlink too, and the folders the link
 	// leaves empty go, strictly below the library root.
@@ -79,6 +83,40 @@ type UnlinkedLink struct {
 type refusedErr interface {
 	error
 	Refused() bool
+}
+
+// blockedErr is a refusal by the library's blocklist alone (arrview.Refused with its Block): the library's name and
+// the blocklist row's source and reason.
+type blockedErr interface {
+	BlockedBy() (library, source, reason string, ok bool)
+}
+
+// BlockedRelease is a 409's word that only the library's blocklist refuses the release: a grab, an add by hash or a
+// retry sent again with unblock takes it off and goes through.
+type BlockedRelease struct {
+	// Library is the library's name.
+	Library string `json:"library"`
+	// Reason is why the release was blocked, in plain words.
+	Reason string `json:"reason"`
+}
+
+// refuseBlocked answers 409 with Blocked when err is a refusal by the blocklist alone, and says whether it did.
+func (w *Web) refuseBlocked(rw http.ResponseWriter, err error) bool {
+	var be blockedErr
+	if !errors.As(err, &be) {
+		return false
+	}
+	lib, source, reason, ok := be.BlockedBy()
+	if !ok {
+		return false
+	}
+	why := w.blockedReason(activity.Blocked{Source: source, Reason: reason})
+	if why == "" {
+		why = blockWords(source)
+	}
+	writeJSON(rw, http.StatusConflict, apiError{Error: "This release is on " + lib + "'s blocklist: " + why,
+		Blocked: &BlockedRelease{Library: lib, Reason: why}})
+	return true
 }
 
 func (w *Web) mountOpsAPI(mux *http.ServeMux) {
@@ -208,6 +246,9 @@ type GrabRequest struct {
 	InfoHash string `json:"info_hash"`
 	// Override grabs a release the decision engine rejects now (the person saw the rejections and confirmed).
 	Override bool `json:"override"`
+	// Unblock takes the release off the library's blocklist and grabs it (the person saw the 409's Blocked and
+	// confirmed); without it a blocklisted release is refused.
+	Unblock bool `json:"unblock,omitempty"`
 }
 
 // GrabResult is the answer of a grab.
@@ -223,7 +264,8 @@ type GrabResult struct {
 
 // POST /titles/{id}/releases/grab {version, info_hash, override}: route one release of the panel's last live search
 // (30 minutes) for the version. The release is decided again now; a rejected one needs override (409 with the
-// rejections otherwise). Only for a version a search would run for (router on).
+// rejections otherwise); one on the library's blocklist needs unblock (409 with Blocked otherwise), which takes it off
+// once nothing else refuses the grab. Only for a version a search would run for (router on).
 func (w *Web) apiGrab(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	id, ok := pathID(r)
@@ -261,7 +303,7 @@ func (w *Web) apiGrab(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	by := actor(r)
-	g, err := w.ops.GrabRelease(ctx, id, req.Version, rel, req.Override, "ui:grab:"+by)
+	g, err := w.ops.GrabRelease(ctx, id, req.Version, rel, req.Override, unblockBy(req.Unblock, by), "ui:grab:"+by)
 	w.grabbed(rw, r, id, req.Version, rel, g, err, "")
 }
 
@@ -282,6 +324,9 @@ func (w *Web) grabbed(rw http.ResponseWriter, r *http.Request, id int64, version
 		}
 	}
 	if err != nil {
+		if w.refuseBlocked(rw, err) {
+			return
+		}
 		var ref refusedErr
 		if errors.As(err, &ref) {
 			writeJSON(rw, http.StatusConflict, apiError{Error: ref.Error(), Detail: out.Rejections})
@@ -316,7 +361,7 @@ func (w *Web) grabbed(rw http.ResponseWriter, r *http.Request, id int64, version
 // addOps is the part of Ops that routes a release no search found (arrview.Service.AddRelease in theatarr serve).
 type addOps interface {
 	AddRelease(ctx context.Context, titleID int64, version string, rel indexer.Release, override bool,
-		source string) (*GrabbedRelease, error)
+		unblockBy, source string) (*GrabbedRelease, error)
 }
 
 // AddReleaseRequest is the body of POST /titles/{id}/releases/add.
@@ -329,6 +374,8 @@ type AddReleaseRequest struct {
 	Name string `json:"name,omitempty"`
 	// Override adds a release the decision engine rejects (the person saw the rejections and confirmed).
 	Override bool `json:"override"`
+	// Unblock takes the release off the library's blocklist and adds it, as a grab's.
+	Unblock bool `json:"unblock,omitempty"`
 }
 
 // magnetName is a magnet's display name (dn), "" when it has none.
@@ -462,7 +509,8 @@ func (w *Web) apiAddRelease(rw http.ResponseWriter, r *http.Request) {
 	}
 	// No size, seeders or peers are known for a release nobody searched for: 0 and -1 are "unknown".
 	rel := indexer.Release{Title: name, InfoHash: hash, Seeders: -1, Peers: -1}
-	g, err := ops.AddRelease(ctx, id, req.Version, rel, req.Override, "ui:grab:"+actor(r))
+	by := actor(r)
+	g, err := ops.AddRelease(ctx, id, req.Version, rel, req.Override, unblockBy(req.Unblock, by), "ui:grab:"+by)
 	w.grabbed(rw, r, id, req.Version, rel, g, err, "manual add")
 }
 
@@ -596,9 +644,24 @@ type RetryResult struct {
 	Outcome string `json:"outcome,omitempty"`
 }
 
-// POST /activity/downloads/{id}/retry: try a download again. A failed one's release is routed again for its copy
-// (refused while it is blocklisted); one that finished but is not linked is imported now. 409 with the reason when
-// there is nothing to retry.
+// RetryRequest is the optional body of POST /activity/downloads/{id}/retry.
+type RetryRequest struct {
+	// Unblock takes the failed release off its library's blocklist and routes it again (the person saw the 409's
+	// Blocked and confirmed).
+	Unblock bool `json:"unblock,omitempty"`
+}
+
+// unblockBy is who takes a release off the blocklist by a grab by hand: by when the request asked to, else "".
+func unblockBy(unblock bool, by string) string {
+	if !unblock {
+		return ""
+	}
+	return by
+}
+
+// POST /activity/downloads/{id}/retry [{unblock}]: try a download again. A failed one's release is routed again for
+// its copy (while it is on the copy's blocklist only with unblock, which takes it off: 409 with Blocked otherwise);
+// one that finished but is not linked is imported now. 409 with the reason when there is nothing to retry.
 func (w *Web) apiRetryDownload(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	id, ok := pathID(r)
@@ -606,12 +669,22 @@ func (w *Web) apiRetryDownload(rw http.ResponseWriter, r *http.Request) {
 		notFound(rw)
 		return
 	}
+	var req RetryRequest
+	if r.ContentLength != 0 {
+		if err := decodeJSON(r, &req); err != nil && !errors.Is(err, io.EOF) {
+			badRequest(rw, "invalid JSON: "+err.Error())
+			return
+		}
+	}
 	if w.noOps(rw) {
 		return
 	}
 	by := actor(r)
-	res, err := w.ops.RetryDownload(ctx, id, "ui:retry:"+strconv.FormatInt(id, 10))
+	res, err := w.ops.RetryDownload(ctx, id, unblockBy(req.Unblock, by), "ui:retry:"+strconv.FormatInt(id, 10))
 	if err != nil {
+		if w.refuseBlocked(rw, err) {
+			return
+		}
 		w.opsError(rw, err)
 		return
 	}

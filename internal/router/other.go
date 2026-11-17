@@ -140,9 +140,10 @@ type Unstartable struct {
 // ScreenManual runs on the one candidate of a grab by hand (req) the route's own screens that open no download,
 // with the same functions, so the grab can say why before it is queued: the version not routed (notRouted), upgrades
 // off with a file there (screenUpgrades), a series' episodes held by another download (episodesInFlight), the
-// blocklist (blocklisted), the same hash in flight (inFlight; a stranded queued row is resumed: strandedQueued) and,
-// for a client-routed version, an indexer that keeps its releases on providers (clientIndexer). A movie grab by hand is not held back by another release in flight, as
-// in the route. nil when the route would try it. It writes nothing.
+// same hash in flight (inFlight; a stranded queued row is resumed: strandedQueued), for a client-routed version, an
+// indexer that keeps its releases on providers (clientIndexer) and, last, the blocklist (blocklisted): a grab by hand
+// may take a release off the blocklist, so it is named only when nothing else refuses the grab. A movie grab by hand
+// is not held back by another release in flight, as in the route. nil when the route would try it. It writes nothing.
 func ScreenManual(ctx context.Context, st *store.Store, pol *policy.Policy, profiles ProfileFunc, now func() time.Time,
 	req Request) (*Unstartable, error) {
 	vp := pol.Versions[req.Version]
@@ -178,12 +179,6 @@ func ScreenManual(ctx context.Context, st *store.Store, pol *policy.Policy, prof
 			return held(id)
 		}
 	}
-	if why, err := r.blocklisted(ctx, req.Version, hash, c.Release.Title); err != nil || why != "" {
-		if err != nil {
-			return nil, err
-		}
-		return &Unstartable{Code: "blocklisted", Message: why}, nil
-	}
 	if id, ok, err := r.inFlight(ctx, s.req, hash); err != nil {
 		return nil, err
 	} else if ok {
@@ -198,6 +193,12 @@ func ScreenManual(ctx context.Context, st *store.Store, pol *policy.Policy, prof
 		if code, msg := r.clientIndexer(vp, &c.Release); code != "" {
 			return &Unstartable{Code: code, Message: msg}, nil
 		}
+	}
+	if why, err := r.blocklisted(ctx, req.Version, hash, c.Release.Title); err != nil || why != "" {
+		if err != nil {
+			return nil, err
+		}
+		return &Unstartable{Code: "blocklisted", Message: why}, nil
 	}
 	return nil, nil
 }

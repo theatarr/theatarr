@@ -143,6 +143,29 @@ it("an admin adds a release by magnet: the name comes from the magnet and a reje
   expect(link.value).toBe("");
 });
 
+it("an add the server refuses for the library's blocklist offers Add anyway, which sends it with unblock", async () => {
+  const api = mockFetch([
+    { method: "GET", path: "/auth/me", reply: ADMIN_PERMS },
+    { method: "GET", path: "/titles/7/releases", reply: stored([]) },
+    { method: "POST", path: "/titles/7/releases/add", reply: { status: 409, body: { error: "This release is on WEB's blocklist: Failed the library check", blocked: { library: "WEB", reason: "Failed the library check" } } } },
+    { method: "POST", path: "/titles/7/releases/add", reply: added },
+  ]);
+  renderPage(<ShowReleases titleId={7} defaultOpen initialVersion="movie-web" />);
+  const form = await screen.findByTestId("add-by-hash");
+  fireEvent.change(within(form).getByTestId("add-by-hash-link"), { target: { value: "c".repeat(40) } });
+  fireEvent.change(within(form).getByTestId("add-by-hash-name"), { target: { value: "Alpha.2020.2160p.WEB-DL-GRP" } });
+  fireEvent.click(within(form).getByTestId("add-by-hash-add"));
+  const blocked = await screen.findByTestId("add-by-hash-blocked");
+  expect(blocked.textContent).toContain("This release is on WEB's blocklist: Failed the library check. Add it anyway? It is taken off the blocklist.");
+  expect(screen.queryByTestId("add-by-hash-error")).toBeNull();
+  fireEvent.click(within(blocked).getByTestId("add-by-hash-unblock"));
+  expect((await screen.findByTestId("add-by-hash-done")).textContent).toContain("Sent to the router");
+  expect(api.calls("POST", "/titles/7/releases/add").map((c) => c.body)).toEqual([
+    { version: "movie-web", name: "Alpha.2020.2160p.WEB-DL-GRP", override: false, info_hash: "c".repeat(40) },
+    { version: "movie-web", name: "Alpha.2020.2160p.WEB-DL-GRP", override: false, unblock: true, info_hash: "c".repeat(40) },
+  ]);
+});
+
 it("a bare hash needs a release name before Add", async () => {
   const api = mockFetch([
     { method: "GET", path: "/auth/me", reply: ADMIN_PERMS },

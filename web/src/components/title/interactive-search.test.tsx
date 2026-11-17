@@ -397,7 +397,7 @@ it("opens a row's matched formats with each one's score from its score", async (
 const outcomesRoute = (reply: Route["reply"]): Route => ({ method: "GET", path: "/titles/7/release-outcomes", reply });
 const rowOf = async (hash: string) => within(await table()).getAllByRole("row").find((r) => r.dataset.releaseHash === hash)!;
 
-it("shows what came of each release now over the search's own outcome: progress, a blocklisted failure without Grab", async () => {
+it("shows what came of each release now over the search's own outcome: progress, a blocklisted failure with Try again", async () => {
   const api = mockFetch([
     ME, TITLE, CURRENT,
     { method: "GET", path: "/titles/7/releases", reply: answer() },
@@ -415,8 +415,33 @@ it("shows what came of each release now over the search's own outcome: progress,
   expect(within(a).queryByTestId("release-grab")).toBeNull();
   expect(within(a).getByTestId("release-outcome").textContent).toContain("Downloading (43%)");
   const b = await rowOf("bbb");
-  expect(within(b).getByTestId("release-failed").getAttribute("title")).toContain("Blocklisted: unblock it under Activity › Blocklist to try again");
-  expect(within(b).queryByTestId("release-grab")).toBeNull();
+  expect(within(b).getByTestId("release-failed").getAttribute("title")).toContain("On the blocklist: a grab by hand takes it off");
+  expect(within(b).getByTestId("release-grab").textContent).toContain("Try again");
+});
+
+it("a grab the server refuses for the library's blocklist asks once, then sends it with unblock", async () => {
+  const api = mockFetch([
+    ME, TITLE, CURRENT,
+    { method: "GET", path: "/titles/7/releases", reply: answer() },
+    outcomesRoute({ outcomes: { aaa: { outcome: "failed", provider: "rd", download: 2, reason: "Stalled", blocklisted: true } } }),
+    { method: "POST", path: "/titles/7/releases/grab", reply: { status: 409, body: { error: "This release is on WEB's blocklist: Stalled at RD", blocked: { library: "WEB", reason: "Stalled at RD." } } } },
+    { method: "POST", path: "/titles/7/releases/grab", reply: sent },
+  ]);
+  renderPage(<InteractiveSearchButton titleId={7} version="movie-web" />);
+  open();
+  await waitFor(async () => expect(within(await rowOf("aaa")).getByTestId("release-grab").textContent).toContain("Try again"));
+  // Nothing asks before the server says it is blocked.
+  expect(screen.queryByTestId("grab-dialog")).toBeNull();
+  fireEvent.click(within(await rowOf("aaa")).getByTestId("release-grab"));
+  const dialog = await screen.findByTestId("grab-dialog");
+  expect(dialog.textContent).toContain("This release is on WEB's blocklist: Stalled at RD. Grab it anyway? It is taken off the blocklist.");
+  expect(screen.queryByTestId("confirm-error")).toBeNull();
+  fireEvent.click(within(dialog).getByText("Grab anyway"));
+  await screen.findByTestId("confirm-done");
+  expect(api.calls("POST", "/titles/7/releases/grab").map((g) => g.body)).toEqual([
+    { version: "movie-web", info_hash: "aaa", override: false },
+    { version: "movie-web", info_hash: "aaa", override: false, unblock: true },
+  ]);
 });
 
 it("a failed release says what each provider answered and offers Try again at once", async () => {

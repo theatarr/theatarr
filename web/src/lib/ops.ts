@@ -89,7 +89,7 @@ export function retryScope(state: string | undefined, copy: string): Scope {
     does: [`The same release goes to the router again for the ${copy} library: a new download starts when a provider takes it`],
     keeps: [
       "The failed download stays in the history",
-      "A blocklisted release, or one from an indexer the library no longer lists, is refused, and nothing is added while Pause is on",
+      "A release from an indexer the library no longer lists is refused, a blocklisted one asks first, and nothing is added while Pause is on",
     ],
     confirm: "Retry",
     blocked: k === null ? `Nothing to retry: the download is ${state ?? "unknown"} and still on its way` : undefined,
@@ -311,10 +311,31 @@ export function grabScope(c: CandidateLike, copy: string, rejections?: string[])
       ...(rejected ? [`Theatarr rejects it: ${why.join("; ") || "no reason given"}. Grabbing overrides that`] : []),
     ],
     keeps: [
-      "The router still refuses a blocklisted release, and paces the add like any other",
+      "A blocklisted release asks first, and the router paces the add like any other",
       "The current file stays until the new one is imported",
     ],
     confirm: rejected ? "Grab anyway" : "Grab",
     blocked: c.info_hash ? undefined : "This release has no info hash: only magnets by hash can be grabbed",
+  };
+}
+
+/** What the server's 409 says when only the library's blocklist refuses a grab by hand (Error.blocked). */
+export type BlockedRelease = { library: string; reason: string };
+
+/** The block of a 409 that only the library's blocklist refused, if that is how it failed. */
+export function blockedRelease(e: unknown): BlockedRelease | undefined {
+  const b = (e as { status?: number; body?: { blocked?: BlockedRelease } } | undefined)?.body?.blocked;
+  return (e as { status?: number } | undefined)?.status === 409 && b?.library ? b : undefined;
+}
+
+/** The confirmation of a grab (Grab, Add or Retry) the server refused only for the library's blocklist: confirming
+ *  sends it again with unblock, which takes the release off that library's blocklist. */
+export function unblockGrabScope(b: BlockedRelease, verb: "Grab" | "Add" | "Retry"): Scope {
+  const reason = b.reason.replace(/\.+$/, "");
+  return {
+    title: `${verb} a blocklisted release`,
+    does: [`This release is on ${b.library}'s blocklist: ${reason}. ${verb} it anyway? It is taken off the blocklist.`],
+    keeps: ["Its other libraries' blocklists stay"],
+    confirm: `${verb} anyway`,
   };
 }

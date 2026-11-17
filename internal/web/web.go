@@ -468,6 +468,8 @@ func securityHeaders(rw http.ResponseWriter, api bool) {
 type apiError struct {
 	Error  string   `json:"error"`
 	Detail []string `json:"detail,omitempty"`
+	// Blocked: only the library's blocklist refuses a grab by hand (refuseBlocked).
+	Blocked *BlockedRelease `json:"blocked,omitempty"`
 }
 
 func writeJSON(rw http.ResponseWriter, code int, v any) {

@@ -24,7 +24,7 @@ func TestRetryKeepsStoredReleaseData(t *testing.T) {
 		 'stalled', ?, ?, ?)`, hash, now, now,
 		`{"title":"Alpha.2020.2160p.WEB-DL-RETRY","seeders":12,"cached_on":["ad"],"cached_via":{"ad":"dmm"},`+
 			`"extras":{"cached_on":"ad"}}`)
-	r, err := e.svc.RetryDownload(ctx, 50, "ui:retry:50")
+	r, err := e.svc.RetryDownload(ctx, 50, "", "ui:retry:50")
 	if err != nil || r.Job == 0 {
 		t.Fatalf("retry: %+v %v", r, err)
 	}

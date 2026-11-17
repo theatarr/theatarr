@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
-import { screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, it } from "vitest";
-import type { ActivityDownload } from "@/api/activity";
+import type { ActivityDownload, ActivityEvent } from "@/api/activity";
 import { mockFetch, renderPage } from "@/test/page";
-import { DownloadActions } from "./download-actions";
+import { DownloadActions, HistoryRetry } from "./download-actions";
 
 it("lets managers dismiss a failed download while keeping its history and provider torrent", async () => {
   const fetch = mockFetch([
@@ -21,4 +21,33 @@ it("lets managers dismiss a failed download while keeping its history and provid
   await waitFor(() => expect(fetch.calls("POST", "/activity/downloads/7/remove")).toHaveLength(1));
   expect(fetch.calls("POST", "/activity/downloads/7/remove")[0].body).toEqual({ blocklist: false, search: false });
   expect(await screen.findByText("Dismissed; history kept")).toBeTruthy();
+});
+
+const ME = { method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["browse", "see_files", "manage"] } };
+const failed = { id: "dl:40:fail", version: "movie-web", release: "Alpha.2020.2160p.WEB-DL-GRP", title: { id: 7, name: "Alpha" } } as unknown as ActivityEvent;
+
+it("a retry the server refuses for the library's blocklist asks once, then sends it with unblock", async () => {
+  const api = mockFetch([
+    ME,
+    { method: "POST", path: "/activity/downloads/40/retry", reply: { status: 409, body: { error: "This release is on WEB's blocklist: Stalled at RD", blocked: { library: "WEB", reason: "Stalled at RD" } } } },
+    { method: "POST", path: "/activity/downloads/40/retry", reply: { id: 40, version: "movie-web", message: "Sent to the router again" } },
+  ]);
+  renderPage(<HistoryRetry e={failed} />);
+  fireEvent.click(await screen.findByTestId("history-retry"));
+  let dialog = await screen.findByTestId("retry-download-dialog");
+  expect(dialog.textContent).toContain("a blocklisted one asks first");
+  fireEvent.click(within(dialog).getByText("Retry"));
+  dialog = await screen.findByTestId("retry-download-dialog");
+  await waitFor(() => expect(dialog.textContent).toContain("This release is on WEB's blocklist: Stalled at RD. Retry it anyway? It is taken off the blocklist."));
+  expect(screen.queryByTestId("confirm-error")).toBeNull();
+  fireEvent.click(within(dialog).getByText("Retry anyway"));
+  await screen.findByTestId("confirm-done");
+  expect(api.calls("POST", "/activity/downloads/40/retry").map((c) => c.body)).toEqual([undefined, { unblock: true }]);
+});
+
+it("a household account sees no Retry", async () => {
+  mockFetch([{ method: "GET", path: "/auth/me", reply: { id: 2, permissions: ["browse"] } }]);
+  renderPage(<HistoryRetry e={failed} />);
+  await new Promise((r) => setTimeout(r, 50));
+  expect(screen.queryByTestId("history-retry")).toBeNull();
 });

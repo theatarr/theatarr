@@ -44,7 +44,7 @@ func TestImportNowOutcome(t *testing.T) {
 	}
 	want := map[int64]string{60: "rejected", 61: "held", 62: "partial", 63: "imported", 64: "dry_run"}
 	for id, outcome := range want {
-		r, err := e.svc.RetryDownload(ctx, id, "ui:retry")
+		r, err := e.svc.RetryDownload(ctx, id, "", "ui:retry")
 		if err != nil {
 			t.Fatalf("%d: %v", id, err)
 		}
