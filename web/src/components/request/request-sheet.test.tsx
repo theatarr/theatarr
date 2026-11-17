@@ -60,3 +60,21 @@ it("says Request all seasons for a new series whose seasons could not be read, a
   await waitFor(() => expect(fetch.calls("POST", "/requests")).toHaveLength(1));
   expect("seasons" in (fetch.calls("POST", "/requests")[0].body as object)).toBe(false);
 });
+
+it("shows the libraries in sync with the asked-for one, which the request stores too", async () => {
+  const gs = { paused: false, pause_forced: false, library_writes: true, will_grab: true };
+  const movie = { ...options, anime: false, title_id: undefined, versions: [
+    { key: "movie-remux", label: "4K Remux", kind: "movie", enable: "", fits: true, default: true, on: false, searchable: true, grab_state: gs, synced: ["movie-web"] },
+    { key: "movie-web", label: "4K WEB", kind: "movie", enable: "", fits: true, default: true, on: false, searchable: true, grab_state: gs },
+  ] };
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: { id: 3, permissions: ["request"], request_versions: ["movie-remux"] } },
+    { method: "GET", path: "/add/options", reply: movie },
+    { method: "GET", path: "/requests", reply: { items: [], total: 0, counts: {} } },
+  ]);
+  renderPage(<RequestSheet target={{ kind: "movie", name: "Alpha", tmdb_id: 8 }} onClose={() => {}} />);
+  const list = await screen.findByTestId("request-versions");
+  await waitFor(() => expect(list.querySelector('[data-vkey="movie-web"]')).not.toBeNull());
+  expect(list.querySelector('[data-vkey="movie-remux"]')?.textContent).toBe("4K Remux");
+  expect(list.querySelector('[data-vkey="movie-web"]')?.textContent).toBe("4K WEBin sync with 4K Remux");
+});

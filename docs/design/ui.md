@@ -1039,7 +1039,9 @@ the add writes first), `PUT
 titles/{id}/versions/{key}` returns the keys it added as `synced` (as `POST titles` does), and a request stores it
 (users.md). The add sheet and "Add libraries" show a partner of a ticked library ticked and disabled, "in sync with
 <library>", and send only what was ticked (the server adds the partners); a partner that would not gain a copy
-(removed, or held unmonitored) stays an ordinary box, and unticking the named library frees it. Bulk add says once, whenever the chosen library is in a saved group (add options carry `sync_groups`),
+(removed, or held unmonitored) stays an ordinary box, and unticking the named library frees it. The request sheet's
+"You are asking for" lists the partners the request stores beside the asked-for libraries, each "in sync with
+<library>". Bulk add says once, whenever the chosen library is in a saved group (add options carry `sync_groups`),
 "Also added to <partners> where a title has no copy there." and promises only that files stay, and its toast counts the copies added in sync; the title
 page's library switch toasts "Also added to <libraries> (in sync)". Collections, import lists and Settings › Connected
 apps say under a chosen or shown library that is in a group "Titles added to <library> are also added to <partners>

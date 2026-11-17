@@ -1,6 +1,6 @@
 // The request sheet: what an account without the add permission gets in place of the add sheet (docs/design/users.md).
 // It shows the versions the request will ask for (the account's request set, kept to the versions that fit the title;
-// by default every one that fits), the seasons of a series, and a note, and posts to
+// by default every one that fits, and the libraries kept in sync with them, which the request stores too), the seasons of a series, and a note, and posts to
 // POST /requests. Users do not pick versions; an admin sets them per account. The layout is the add sheet's (Scryer's
 // add-to-catalog dialog, GPL-3.0) with Seerr's RequestModal (MIT, github.com/seerr-team/seerr src/components/
 // RequestModal @ c167958) for the wording and the season list. When the account already has an open request for the
@@ -35,6 +35,7 @@ import {
   requestVersions,
   seasonsToSend,
 } from "@/lib/request-state";
+import { syncedBy } from "@/lib/sync-groups";
 import { cn } from "@/lib/utils";
 import { nameWithoutYear } from "@/lib/format";
 
@@ -54,6 +55,11 @@ export function RequestSheet({ target, onClose }: { target: AddTarget; onClose: 
 
   const o = opts.data;
   const wanted = requestVersions(o?.versions ?? [], me.data?.request_versions);
+  // The libraries in sync with a wanted one: the request stores them too (the server's `synced`), so they are shown.
+  const wantedKeys = new Set(wanted.map((v) => v.key));
+  const partnerOf = syncedBy(o?.versions ?? [], (k) => wantedKeys.has(k));
+  const partners = (o?.versions ?? []).filter((v) => partnerOf[v.key] !== undefined);
+  const labelOf = (k: string) => o?.versions.find((v) => v.key === k)?.label || k;
   const applicable = new Set(mine?.versions?.map((v) => v.key) ?? applicableRequestVersionKeys(o?.versions ?? [], me.data?.request_versions));
   const fetching = versionFetching((o?.versions ?? []).filter((v) => applicable.has(v.key)));
   const allSeasons = (o?.seasons ?? []).filter((s) => s.season > 0);
@@ -140,6 +146,12 @@ export function RequestSheet({ target, onClose }: { target: AddTarget; onClose: 
                         {wanted.map((v) => (
                           <span key={v.key} data-vkey={v.key} className="rounded-lg border border-[var(--th-baccent)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] px-2.5 py-1 text-sm font-medium text-[var(--accent-ink)]">
                             {v.label}
+                          </span>
+                        ))}
+                        {partners.map((v) => (
+                          <span key={v.key} data-vkey={v.key} data-synced className="rounded-lg border border-[var(--th-baccent)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] px-2.5 py-1 text-sm font-medium text-[var(--accent-ink)]">
+                            {v.label || v.key}
+                            <span className="ml-1.5 text-xs font-normal text-[var(--ink-3)]">in sync with {labelOf(partnerOf[v.key])}</span>
                           </span>
                         ))}
                       </div>

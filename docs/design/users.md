@@ -120,7 +120,8 @@ and no other-requester list or count.
 - Libraries kept in sync (`library.sync_groups`, ui.md "Keep in sync"): at creation, before the joining rule runs,
   the request's libraries are widened by the libraries in sync with them that would gain a copy
   (`catalog.SyncPartners`: not one the title has a copy of in any state, removed or unmonitored), and the result is
-  stored in `request.versions`. The title is looked up as the approval will find it (`catalog.Lookup`: a series by
+  stored in `request.versions`. The request sheet's "You are asking for" shows them beside the asked-for libraries,
+  each with "in sync with <library>" (the add options' `synced`). The title is looked up as the approval will find it (`catalog.Lookup`: a series by
   TVDB id, then TMDb id), so a removed copy is never stored as a partner; a title without a live copy is read with
   the request's anime choice, which the approval writes. Known limit: a request that carries only a TMDb id for a
   series the catalogue knows only by its TVDB id is widened as if the partner were missing, so its approval can
