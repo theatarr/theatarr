@@ -147,3 +147,57 @@ func hasKey(m map[string][]string, k string) bool {
 	_, ok := m[k]
 	return ok
 }
+
+// syncRemoveEnv is removeEnv with Alpha's two libraries kept in sync; the /v/movie-web view covers movie-web only,
+// so movie-remux is a partner outside it. Its movie-remux row holds a minimum availability choice.
+func syncRemoveEnv(t *testing.T) *devEnv {
+	e := removeEnv(t)
+	e.pol.Library.SyncGroups = [][]string{{"movie-remux", "movie-web"}}
+	e.exec(`INSERT INTO arrview_title (view, title_id, minimum_availability, added_at, updated_at)
+		VALUES ('v/movie-remux', 1, 'released', 0, 0)`)
+	return e
+}
+
+// A compatible DELETE removes the libraries kept in sync with the view's too, also one outside the view: with
+// deleteFiles the partner's links are checked first (a refusal removes nothing) and go with the view's; without, every
+// file stays. The partner's Removed action names the library it followed, and its minimum availability choice goes.
+func TestDeleteRemovesTheSyncPartners(t *testing.T) {
+	t.Parallel()
+	alpha := "/v/movie-web/radarr/api/v3/movie/" + strconv.Itoa(IDBase+1)
+	// The gate refuses movie-remux's link (no root listed for it): nothing is removed.
+	e := syncRemoveEnv(t)
+	if rec := e.do("DELETE", alpha+"?deleteFiles=true", e.key, nil); rec.Code != 409 {
+		t.Fatalf("refused partner link: %d %s", rec.Code, rec.Body.String())
+	}
+	if n := e.one(`SELECT COUNT(*) FROM arrview_removed_version`); n != 0 || len(e.lib.unlinks) != 0 {
+		t.Fatalf("a refused DELETE removed %d versions, unlinked %v", n, e.lib.unlinks)
+	}
+	e.pol.Library.Versions["movie-remux"] = &policy.LibraryVersion{Roots: []string{"/media/movies"}}
+	e.lib.gate = library.NewGate(e.pol)
+	if rec := e.do("DELETE", alpha+"?deleteFiles=true", e.key, nil); rec.Code != 200 {
+		t.Fatalf("DELETE: %d %s", rec.Code, rec.Body.String())
+	}
+	if n := e.one(`SELECT COUNT(*) FROM arrview_removed_version WHERE version_id IN (1, 2)`); n != 2 {
+		t.Errorf("removed %d of the pair", n)
+	}
+	if e.str(`SELECT state FROM link WHERE id = 1`) != "unlinked" || e.str(`SELECT state FROM link WHERE id = 8`) != "unlinked" {
+		t.Errorf("links: unlinked %v", e.lib.unlinks)
+	}
+	if rm := journal.ParseRemovalDetail(e.str(`SELECT detail FROM journal_action WHERE action = 'remove_title'
+		AND version_key = 'movie-remux'`)); rm.Sync != "movie-web" {
+		t.Errorf("partner's action %+v", rm)
+	}
+	if got := e.str(`SELECT minimum_availability FROM arrview_title WHERE view = 'v/movie-remux' AND title_id = 1`); got != "" {
+		t.Errorf("partner's minimum availability %q", got)
+	}
+
+	// Without deleteFiles every file stays, the partner's too.
+	e = syncRemoveEnv(t)
+	if rec := e.do("DELETE", alpha, e.key, nil); rec.Code != 200 {
+		t.Fatalf("DELETE: %d %s", rec.Code, rec.Body.String())
+	}
+	if n := e.one(`SELECT COUNT(*) FROM arrview_removed_version WHERE version_id IN (1, 2)`); n != 2 ||
+		len(e.lib.unlinks) != 0 || e.str(`SELECT state FROM link WHERE id = 1`) != "active" {
+		t.Errorf("without deleteFiles: removed %d, unlinked %v", n, e.lib.unlinks)
+	}
+}

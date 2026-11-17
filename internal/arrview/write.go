@@ -984,8 +984,9 @@ func (s *Service) updateTitle(w http.ResponseWriter, r *request) {
 	s.respondTitle(w, r, e.id, http.StatusAccepted)
 }
 
-// DELETE movie|series/{id}[?deleteFiles&addImportExclusion]: unlinks only this view's versions of the title
-// (docs/design/arrview.md). They are unmonitored and hidden from every view; their rows and history stay. deleteFiles=true
+// DELETE movie|series/{id}[?deleteFiles&addImportExclusion]: unlinks only this view's versions of the title and the
+// libraries kept in sync with them (catalog.SyncRemovals; also one outside this view) (docs/design/arrview.md "Remove").
+// They are unmonitored and hidden from every view; their rows and history stay. deleteFiles=true
 // checks Theatarr's links first (a refusal changes nothing) and moves them to trash after the hide. The title stays for
 // other views. The versions' downloads in hand end in Theatarr's records (router.EndRemoved; never at the provider) in the
 // transaction that hides them, and the links are enumerated after it: an import that committed before the hide has
@@ -1010,19 +1011,62 @@ func (s *Service) deleteTitle(w http.ResponseWriter, r *request) {
 		notFound(w, strings.TrimSuffix(r.raw[0], "s")+" with ID "+strconv.FormatInt(id, 10)+" does not exist")
 		return
 	}
+	keys := e.versionKeys()
+	// The libraries kept in sync with the view's (catalog.SyncRemovals) go too, also those outside this view.
+	held, err := catalog.LoadCopies(ctx, s.st.Reader(), e.id)
+	if err != nil {
+		s.internal(w, r, err)
+		return
+	}
+	syncOf := catalog.SyncRemovals(s.pol, held, keys)
+	var partners []string
+	for p := range syncOf {
+		partners = append(partners, p)
+	}
+	slices.Sort(partners)
+	keys = append(keys, partners...)
 	if r.queryBool("deleteFiles", false) {
-		// A row per version: a link shared by two versions of the view is checked for each.
+		// A row per version: a link shared by two versions of the view is checked for each; the partners' links too,
+		// so a refusal still removes nothing.
 		fs, err := s.viewFiles(ctx, r.v, []int64{e.id})
 		if err != nil {
 			s.internal(w, r, err)
 			return
 		}
+		type check struct{ version, path string }
+		var checks []check
 		for _, f := range fs {
+			checks = append(checks, check{f.version, f.f.path})
+		}
+		if len(partners) > 0 {
+			rows, err := s.st.Reader().QueryContext(ctx, `SELECT v.policy_key, l.path FROM link l
+				JOIN link_version lv ON lv.link_id = l.id JOIN version v ON v.id = lv.version_id
+				WHERE v.title_id = ? AND v.policy_key IN (`+store.Placeholders(len(partners))+`) AND l.state = 'active'
+				ORDER BY l.id`, append([]any{e.id}, anyKeys(partners)...)...)
+			if err != nil {
+				s.internal(w, r, err)
+				return
+			}
+			for rows.Next() {
+				var c check
+				if err := rows.Scan(&c.version, &c.path); err != nil {
+					rows.Close()
+					s.internal(w, r, err)
+					return
+				}
+				checks = append(checks, c)
+			}
+			if err := closeRows(rows); err != nil {
+				s.internal(w, r, err)
+				return
+			}
+		}
+		for _, c := range checks {
 			if s.library == nil {
 				writeJSON(w, http.StatusConflict, errorBody{Message: "library is unavailable: nothing removed"})
 				return
 			}
-			if err := s.library.CheckUnlink(f.version, f.f.path); err != nil {
+			if err := s.library.CheckUnlink(c.version, c.path); err != nil {
 				if errors.Is(err, library.ErrRefused) {
 					writeJSON(w, http.StatusConflict, errorBody{Message: "nothing removed", Description: err.Error()})
 				} else {
@@ -1044,8 +1088,7 @@ func (s *Service) deleteTitle(w http.ResponseWriter, r *request) {
 	excludeSeries := r.v.Flavour == Sonarr && e.kind == "series" && e.tvdb > 0 &&
 		r.queryBool("addImportListExclusion", false)
 	deleteFiles := r.queryBool("deleteFiles", false)
-	keys := e.versionKeys()
-	// The whole title when no other library of it stays current.
+	// The whole title when no other library of it stays current (the partners go too).
 	var others int
 	if err := s.st.Reader().QueryRowContext(ctx, `SELECT COUNT(*) FROM version v WHERE v.title_id = ?
 		AND v.policy_key NOT IN (`+store.Placeholders(len(keys))+`)
@@ -1064,17 +1107,18 @@ func (s *Service) deleteTitle(w http.ResponseWriter, r *request) {
 	res, err := removal.Run(ctx, removal.Deps{Store: s.st, Unlinker: removalUnlinker{s}, AfterRemove: s.onRemoved,
 		StartCleanup: s.cleanup, Now: s.now, Log: s.log}, removal.Spec{TitleID: e.id, Name: e.name, Keys: keys,
 		View: r.v.Key, Unlink: deleteFiles, Action: act, By: "key:" + r.client, Reason: reason, OwnViewRecords: true,
+		SyncOf: syncOf,
 		Extra: func(ctx context.Context, tx *sqlTx) error {
 			now := store.Millis(s.now())
 			if _, err := tx.ExecContext(ctx, `DELETE FROM arrview_title WHERE view = ? AND title_id = ?`, r.v.Key,
 				e.id); err != nil {
 				return err
 			}
-			// The removed copies' minimum availability choices go with them, so a later add takes the library's
-			// rule again; whatever else a library's own row holds stays.
-			for _, x := range e.versions {
+			// The removed copies' minimum availability choices go with them, the partners' too, so a later add
+			// takes the library's rule again; whatever else a library's own row holds stays.
+			for _, k := range keys {
 				if _, err := tx.ExecContext(ctx, `UPDATE arrview_title SET minimum_availability = '' WHERE view = ?
-					AND title_id = ?`, "v/"+x.key, e.id); err != nil {
+					AND title_id = ?`, "v/"+k, e.id); err != nil {
 					return err
 				}
 			}
