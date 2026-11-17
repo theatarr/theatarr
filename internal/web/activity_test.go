@@ -1159,6 +1159,22 @@ func TestHistoryPartialUpgradeWords(t *testing.T) {
 	}
 }
 
+// History's Blocked rows say the reason in the Blocklist's words: an arr blocklist's own text adds nothing, a ready
+// timeout reads as the failure it was.
+func TestHistoryBlockedReasonWords(t *testing.T) {
+	for _, c := range []struct{ source, reason, want string }{
+		{"arr:radarr_4k_zurg", "arr blocklist (radarr_4k_zurg)", "Imported from Radarr's blocklist"},
+		{"ready_timeout", "ready timeout: not imported after 6h0m0s",
+			"Timed out before import: Finished at the provider, but its files could not be imported within 6 hours"},
+		{"journal", "", "Judged wrong in the journal"},
+	} {
+		h := &journal.HistoryRow{Event: journal.EvBlocked, Source: c.source, Reason: c.reason}
+		if r := historyReason(h, "", strings.ToUpper); r != c.want {
+			t.Errorf("%s: %q, want %q", c.source, r, c.want)
+		}
+	}
+}
+
 // TestActivityRefusedReason: a download the library refused as not an upgrade (the old wrapper, with the file's
 // rejection in its blocklist row) reads the same plain reason in the queue, its attempt details, the Blocklist, the
 // title page and History; the stage line ticks Download complete and crosses Not imported; the stored text stays as

@@ -874,10 +874,11 @@ func historyReason(h *journal.HistoryRow, notStarted string, tag func(string) st
 	case journal.EvFailed:
 		return "" // historyFailure says why (failureWords)
 	case journal.EvBlocked:
-		if h.Reason == "" {
-			return blockWords(h.Source)
+		// The reason in the Blocklist's words (blockedReason).
+		if r := blockedReasonWords(h.Source, h.Reason, h.Provider, tag); r != "" {
+			return blockWords(h.Source) + ": " + r
 		}
-		return blockWords(h.Source) + ": " + h.Reason
+		return blockWords(h.Source)
 	case journal.EvImported, journal.EvDeleted:
 		// An upgrade's row carries its import's state.
 		if h.Import == "partial" {
@@ -948,10 +949,16 @@ func removalWords(h *journal.HistoryRow) string {
 // (blockWords); a row taken over from an arr's blocklist has none ("arr blocklist (<instance>)" says no more than its
 // words).
 func (w *Web) blockedReason(b activity.Blocked) string {
-	if strings.HasPrefix(b.Source, "arr:") && strings.HasPrefix(b.Reason, "arr blocklist") {
+	return blockedReasonWords(b.Source, b.Reason, b.Provider, w.providerTag)
+}
+
+// blockedReasonWords is blockedReason from a block's source, stored reason and provider, for the Blocklist and
+// History's Blocked rows alike.
+func blockedReasonWords(source, reason, provider string, tag func(string) string) string {
+	if strings.HasPrefix(source, "arr:") && strings.HasPrefix(reason, "arr blocklist") {
 		return ""
 	}
-	h, d := failureWords(failureFacts{Blocked: b.Reason, Provider: b.Provider}, w.providerTag)
+	h, d := failureWords(failureFacts{Blocked: reason, Provider: provider}, tag)
 	if d != "" {
 		h += ". " + d
 	}
