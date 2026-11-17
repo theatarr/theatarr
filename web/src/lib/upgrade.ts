@@ -111,7 +111,8 @@ export function reasonWords(r: string): string {
 /**
  * The better release seen, why it is better (the reason stored with the search that saw it, about the file it was
  * judged against) and what came of it, or that none was seen: "Better release found 4 d ago: <release> (WEBDL-2160p,
- * score 6,200): better format score, 6,200 over 4,500."; when the library's history (given) has a failed download of
+ * score 6,200): better format score, 6,200 over 4,500."; for a
+ * pack that keeps some episodes' files (one comparison for the whole pack) "Better pack found for some episodes 4 d ago: …"; when the library's history (given) has a failed download of
  * it, "… Tried Nov 12: not cached on RD, AD and TB. Your file is unchanged." (the failure as the history row says it,
  * failureWords). The history on the page is capped, so a missing attempt is not read as "not downloaded".
  * "No better release seen yet (last search 2 d ago)." otherwise. "" for a copy that reads Preferred quality met
@@ -127,12 +128,14 @@ function foundLine(u: UpgradeInfo | undefined | null, now: Date, history?: reado
   if (n) {
     const facts = [n.quality, `score ${fmtNumber(n.score)}`].filter(Boolean).join(", ");
     const what = `${n.release} (${facts})${n.reason ? `: ${reasonWords(n.reason)}` : ""}`;
+    // A pack that keeps some episodes' files is judged once for the whole pack: it may keep this file.
+    const found = n.reason?.includes("keep their file") ? "Better pack found for some episodes" : "Better release found";
     const last = history ? releaseOutcome(history, n.release) : undefined;
     if (last?.event === "failed") {
       const why = failureWords(last);
-      return `Better release found ${dayWords(n.seen_at, now)}: ${what}. Tried ${dayWords(last.date, now)}${why ? `: ${why}` : ""}. Your file is unchanged.`;
+      return `${found} ${dayWords(n.seen_at, now)}: ${what}. Tried ${dayWords(last.date, now)}${why ? `: ${why}` : ""}. Your file is unchanged.`;
     }
-    return `Better release found ${fmtAgo(n.seen_at, now)}: ${what}.`;
+    return `${found} ${fmtAgo(n.seen_at, now)}: ${what}.`;
   }
   if (u.seen && u.seen > 0) return `A better release was seen for ${fmtNumber(u.seen)} of ${fmtNumber(u.below)} episodes.`;
   const last = u.last_search ? ` (last search ${fmtAgo(u.last_search, now)})` : "";

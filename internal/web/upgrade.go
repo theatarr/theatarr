@@ -29,7 +29,8 @@ import (
 //     upgrades count, and when it found none, older finds no longer count;
 //   - RSS sightings (journal RSS reads) newer than both the file and that search add to it;
 //   - a release counts when it was accepted and marked an upgrade over the file, and it maps to the item (a
-//     candidate's episodes, or a search target's season and episode);
+//     candidate's episodes, or a search target's season and episode); a pack that only fills episodes with no file
+//     (its reason starts "fills ", decide's episodes.go) is not an upgrade of a held file;
 //   - a release with a failed download of the title and library newer than the sighting (by its hash) was tried and
 //     failed: it is not found, so the best of the others is chosen; when every counted release was tried, the best
 //     tried one is still said (Why?'s "Tried …") without being found;
@@ -210,7 +211,7 @@ func judgeUpgrade(it evItem, recs []evRecord, failed map[string]int64) (*Upgrade
 	var best *UpgradeNext
 	for _, r := range pool {
 		for _, c := range r.cands {
-			if !c.Accepted || !c.Upgrade || !candCovers(c, it) ||
+			if !c.Accepted || !c.Upgrade || strings.HasPrefix(c.UpgradeWhy, "fills ") || !candCovers(c, it) ||
 				(it.hash != "" && strings.EqualFold(c.InfoHash, it.hash)) {
 				continue
 			}

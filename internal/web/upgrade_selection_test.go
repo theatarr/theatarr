@@ -251,3 +251,27 @@ func TestUpgradeEvidenceFloorIsTheCurrentDownload(t *testing.T) {
 		t.Fatalf("newer better release: %+v", u)
 	}
 }
+
+// T20: a pack that only fills episodes with no file is no upgrade of the held ones; a pack that upgrades and also
+// fills still is.
+func TestUpgradeIgnoresFillOnlyPacks(t *testing.T) {
+	t.Parallel()
+	e := newManageEnv(t, nil)
+	e.exec(`INSERT INTO journal_decision (source,title_id,version_key,target,created_at,candidates) VALUES
+		('search',10,'tv-2160p','s01',6000,'[{"release":"The.Show.S01.720p.WEB-DL-FILL","info_hash":"aaaa","accepted":true,
+		  "upgrade":true,"score":100,"upgrade_reason":"fills 1 episode(s) with no file; 2 episode(s) keep their file",
+		  "episodes":["S01E01","S01E02","S01E03"]}]')`)
+	if seen, n := seriesUpgrades(t, e); len(seen) != 0 || n != 0 {
+		t.Fatalf("fill-only pack: seen %v, count %d", seen, n)
+	}
+	e.exec(`INSERT INTO journal_decision (source,title_id,version_key,target,created_at,candidates) VALUES
+		('search',10,'tv-2160p','s01',7000,'[{"release":"The.Show.S01.720p.WEB-DL-FILL","info_hash":"aaaa","accepted":true,
+		  "upgrade":true,"score":100,"upgrade_reason":"fills 1 episode(s) with no file; 2 episode(s) keep their file",
+		  "episodes":["S01E01","S01E02","S01E03"]},
+		 {"release":"The.Show.S01.2160p.WEB-DL-UP","info_hash":"bbbb","accepted":true,"upgrade":true,"score":3000,
+		  "upgrade_reason":"better quality: WEBDL-2160p over WEBDL-1080p; fills 1 episode(s) with no file",
+		  "episodes":["S01E01","S01E02","S01E03"]}]')`)
+	if seen, n := seriesUpgrades(t, e); !seen[101] || !seen[102] || n != 2 {
+		t.Fatalf("upgrading pack that also fills: seen %v, count %d", seen, n)
+	}
+}

@@ -218,7 +218,9 @@ not."; nothing for a prefer-SeaDex library, which the server does not judge that
 release seen yet (last search 2 d ago)."; "Better release found 4 d ago: <release> (WEBDL-2160p, score 6,200): better
 format score, 6,200 over 4,500." (the reason stored with the search that saw it, about the file it was judged
 against); or, when the library's history on the page has a failed download of that release, "… Tried Nov 12: not
-cached on RD, AD and TB. Your file is unchanged." (the failure as the history row says it). Without such a row
+cached on RD, AD and TB. Your file is unchanged." (the failure as the history row says it). A pack that keeps some
+episodes' files (its reason says "… keep their file") was judged once for the whole pack, so it reads "Better pack
+found for some episodes 4 d ago: …". Without such a row
 nothing is said about downloading: the history on the page is capped. **Show releases** follows. The Libraries table's Details and the episode window say the same "Better
 release found …" sentence.
 

@@ -122,6 +122,11 @@ describe("upgrade words", () => {
     expect(reasonWords("fills 2 episode(s) with no file")).toBe("fills 2 episodes with no file");
     expect(reasonWords("better quality: Bluray-1080p over WEBDL-1080p")).toBe("better quality, Bluray-1080p over WEBDL-1080p");
     expect(nextLine({ state: "cutoff_met" }, now)).toBe("");
+    // A pack that keeps some episodes' files was judged once for the whole pack: pack-level words.
+    const mixed = { ...u, next: { ...u.next, release: "Show.S01.2160p.WEB-DL", reason: "better quality: WEBDL-2160p over WEBDL-1080p; 18 episode(s) keep their file" } };
+    expect(nextLine(mixed, now, [])).toBe(
+      "Better pack found for some episodes 4 d ago: Show.S01.2160p.WEB-DL (WEBDL-2160p, score 6,200): better quality, WEBDL-2160p over WEBDL-1080p; 18 episodes keep their file.",
+    );
   });
   it("keeps users to plain words", () => {
     expect(plainUpgrade({ state: "below_cutoff", cutoff: { quality: "Remux-2160p", upgrades: true } })).toBe(
