@@ -121,6 +121,9 @@ describe("upgrade words", () => {
     expect(nextLine({ ...u, next: { ...u.next, reason: undefined } }, now)).toBe("Better release found 4 d ago: Conclave.2024.2160p.WEB-DL (WEBDL-2160p, score 6,200).");
     expect(reasonWords("fills 2 episode(s) with no file")).toBe("fills 2 episodes with no file");
     expect(reasonWords("better quality: Bluray-1080p over WEBDL-1080p")).toBe("better quality, Bluray-1080p over WEBDL-1080p");
+    // One kept episode in the singular; an older reason's pack-policy suffix is left out.
+    expect(reasonWords("fills 1 episode(s) with no file; 1 episode(s) keep their file (packs: any_upgradable)")).toBe("fills 1 episode with no file; 1 episode keeps its file");
+    expect(reasonWords("better quality: Bluray-2160p over WEBDL-2160p; 2 episode(s) keep their file (packs: threshold)")).toBe("better quality, Bluray-2160p over WEBDL-2160p; 2 episodes keep their file");
     expect(nextLine({ state: "cutoff_met" }, now)).toBe("");
     // A pack that keeps some episodes' files was judged once for the whole pack: pack-level words.
     const mixed = { ...u, next: { ...u.next, release: "Show.S01.2160p.WEB-DL", reason: "better quality: WEBDL-2160p over WEBDL-1080p; 18 episode(s) keep their file" } };

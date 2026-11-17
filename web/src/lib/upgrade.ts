@@ -100,12 +100,16 @@ export function releaseOutcome(history: readonly HistoryEvent[], release: string
 }
 
 /** The decision engine's stored upgrade reason in plain words and readable numbers: "better format score: 6200 over
- *  4500" → "better format score, 6,200 over 4,500"; "fills 1 episode(s) with no file" → "fills 1 episode with no file". */
+ *  4500" → "better format score, 6,200 over 4,500"; "fills 1 episode(s) with no file" → "fills 1 episode with no file";
+ *  "1 episode(s) keep their file" → "1 episode keeps its file". The pack-policy suffix older reasons carry ("(packs:
+ *  any_upgradable)") is left out; the stored reason is unchanged. */
 export function reasonWords(r: string): string {
   return r
+    .replace(/\s*\(packs: [\w-]+\)/g, "")
     .replace(/:\s*/, ", ")
     .replace(/\b\d{4,}\b/g, (n) => fmtNumber(Number(n)))
-    .replace(/\b(\d+) (\w+)\(s\)/g, (_, n: string, w: string) => `${n} ${n === "1" ? w : `${w}s`}`);
+    .replace(/\b(\d+) (\w+)\(s\)/g, (_, n: string, w: string) => `${n} ${n === "1" ? w : `${w}s`}`)
+    .replace(/\b1 episode keep their file\b/g, "1 episode keeps its file");
 }
 
 /**

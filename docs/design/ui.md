@@ -220,7 +220,8 @@ format score, 6,200 over 4,500." (the reason stored with the search that saw it,
 against); or, when the library's history on the page has a failed download of that release, "… Tried Nov 12: not
 cached on RD, AD and TB. Your file is unchanged." (the failure as the history row says it). A pack that keeps some
 episodes' files (its reason says "… keep their file") was judged once for the whole pack, so it reads "Better pack
-found for some episodes 4 d ago: …". Without such a row
+found for some episodes 4 d ago: …". The reason reads in plain words: "1 episode keeps its file", "2 episodes keep their file", and an older
+reason's pack-policy suffix ("(packs: any_upgradable)") is left out; the stored reason is unchanged. Without such a row
 nothing is said about downloading: the history on the page is capped. **Show releases** follows. The Libraries table's Details and the episode window say the same "Better
 release found …" sentence.
 
