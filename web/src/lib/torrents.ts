@@ -63,6 +63,15 @@ export function groupKeys(r: TorrentReport, g: GroupID): Set<string> | null {
   return out;
 }
 
+/** A parsed label's episode ranges written out again ("1–291" as 1-2-…-291, as the server labelled them before ranges),
+ * so a filter for one episode number inside a pack still finds it. Matching only; the page shows the ranges. */
+export function spelledOut(parsed: string | undefined): string | undefined {
+  return parsed?.replace(/(\d+)–(\d+)/g, (all, a: string, b: string) => {
+    const from = Number(a), to = Number(b);
+    return to > from && to - from < 5000 ? Array.from({ length: to - from + 1 }, (_, i) => from + i).join("-") : all;
+  });
+}
+
 /** The torrents of one provider ("" for every one) in a group, matching text (name, hash or parsed title). */
 export function filterTorrents(r: TorrentReport, provider: string, group: GroupID, text: string): Torrent[] {
   const keys = groupKeys(r, group);
@@ -73,7 +82,7 @@ export function filterTorrents(r: TorrentReport, provider: string, group: GroupI
     if (provider && p.provider !== provider) continue;
     for (const t of p.torrents) {
       if (keys && !keys.has(keyOf(t))) continue;
-      if (q && !match(t.name, t.parsed) && !t.hash.startsWith(q)) continue;
+      if (q && !match(t.name, spelledOut(t.parsed)) && !t.hash.startsWith(q)) continue;
       out.push(t);
     }
   }

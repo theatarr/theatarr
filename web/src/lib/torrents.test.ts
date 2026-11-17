@@ -47,6 +47,13 @@ describe("filters", () => {
     expect(filterTorrents(report, "", "", " 2160P  beta ").map((x) => x.id)).toEqual(["2"]);
     expect(groupKeys(report, "")).toBeNull();
   });
+  it("finds an episode number inside a pack whose label shows a range", () => {
+    const pack = t("rd", "9", "[SoM] Dragon Ball Z 001-291", 900, "2026-10-01T00:00:00Z", { parsed: "Dragon Ball Z 1–12, 14–291" });
+    const r = { ...report, providers: [{ ...report.providers[0], torrents: [A, pack] }] };
+    expect(filterTorrents(r, "", "", "dragon 155").map((x) => x.id)).toEqual(["9"]);
+    expect(filterTorrents(r, "", "", "dragon 12").map((x) => x.id)).toEqual(["9"]);
+    expect(filterTorrents(r, "", "", "dragon 999").map((x) => x.id)).toEqual([]);
+  });
   it("sorts by size, age and name", () => {
     expect(sortTorrents([A, B, C], "size").map((x) => x.id)).toEqual(["2", "1", "3"]);
     expect(sortTorrents([A, B, C], "age").map((x) => x.id)).toEqual(["3", "1", "2"]);

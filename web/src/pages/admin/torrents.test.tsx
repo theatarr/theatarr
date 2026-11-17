@@ -133,6 +133,23 @@ describe("torrents page", () => {
     expect((screen.getByLabelText("Select Unused.Movie") as HTMLInputElement).checked).toBe(true);
   });
 
+  it("finds a pack by an episode number inside its range, shows the range, and Select all shown takes it", async () => {
+    const rep = { ...report, providers: [{ ...report.providers[0], torrents: [report.providers[0].torrents[0],
+      torrent("6", "6".repeat(40), "[SoM] Dragon Ball Z 001-291", "unused", { parsed: "Dragon Ball Z 1–291" })] }] };
+    mockFetch([
+      { method: "GET", path: "/torrents/report", reply: rep },
+      { method: "GET", path: "/torrents/journal", reply: { entries: [] } },
+      { method: "GET", path: "/status", reply: { versions: [] } },
+    ]);
+    renderPage(<TorrentsPage />);
+    await screen.findByText("[SoM] Dragon Ball Z 001-291");
+    fireEvent.change(screen.getByRole("textbox", { name: "Filter torrents" }), { target: { value: "dragon 155" } });
+    await waitFor(() => expect(screen.getAllByTestId("torrent-row")).toHaveLength(1));
+    expect(screen.queryByText(/1-2-3/)).toBeNull();
+    fireEvent.click(screen.getByLabelText("Select all shown"));
+    expect((screen.getByLabelText("Select [SoM] Dragon Ball Z 001-291") as HTMLInputElement).checked).toBe(true);
+  });
+
   it("lists the first five references of a used torrent and how many more", async () => {
     const list = Array.from({ length: 20 }, (_, i) => ({ kind: "link", detail: `/lib/E${i + 1}.mkv` }));
     const rep = { ...report, providers: [{ ...report.providers[0], torrents: [torrent("2", h2, "Used.Movie", "used", { refs: { link: 291 }, ref_list: list })] }] };
