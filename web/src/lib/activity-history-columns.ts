@@ -21,7 +21,7 @@ export const HISTORY_DEFAULT: HistoryColumnId[] = ["library", "quality", "score"
 
 /** What each History event means, by its words (the server words them: internal/web/activity.go entryWords). */
 export const EVENT_MEANINGS: { words: string; meaning: string }[] = [
-  { words: "Grabbed", meaning: "Theatarr picked this release and sent it to a provider or download client." },
+  { words: "Grabbed", meaning: "Theatarr picked this release and sent it to a provider or download client. Once it is imported or fails, that row stands for it and says when it was grabbed." },
   { words: "Imported", meaning: "The release's files were linked into the library." },
   { words: "Adopted", meaning: "Taken over from Sonarr/Radarr's library; Theatarr did not download it." },
   { words: "Upgraded", meaning: "A better release was imported; \"Replaced\" says which files it took the place of." },

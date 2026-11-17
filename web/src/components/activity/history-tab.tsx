@@ -1,7 +1,9 @@
 // History (pages/activity.tsx, and the title page's History tab): what happened to the titles' files, worded like
 // Radarr's (Grabbed, Imported, Adopted, Upgraded, Removed, Failed, Blocked, Added to / Not cached on a provider). The
 // server builds the rows (journal history.go, from the stored rows; GET /activity?state=history, the title tab with
-// title_id), so both places show the same rows. An upgrade is one row with the new release (its import folded in), an
+// title_id), so both places show the same rows. One row per download: an import, an upgrade or a failure stands for
+// its grab ("Grabbed <time>" under the words; the Grabbed filter lists the grabs). An upgrade is one row with the new
+// release (its import folded in), an
 // adoption that replaced a file one Adopted row (the removal folded in); "Replaced: …" under the release says what
 // went, and the row opens to the replaced files, labelled. Activity filters by title, copy, event and since date in the URL
 // (lib/activity-history.ts), newest first, 50 a page with Load more. Accounts that see files get a table (DataTable):
@@ -177,6 +179,13 @@ function ReplacedLine({ e }: { e: ActivityEvent }) {
   );
 }
 
+/** When an outcome's download was grabbed (imported, upgraded, failed): its Grabbed row is this one (one row per
+ *  download), so the time shows under the words. */
+function GrabbedLine({ e }: { e: ActivityEvent }) {
+  if (!e.grabbed_at) return null;
+  return <p className="text-xs tabular-nums text-muted-foreground" data-testid="history-grabbed">Grabbed {fmtTime(e.grabbed_at)}</p>;
+}
+
 /** A row's reason; an adoption's ("From Sonarr") names its instance on hover. */
 function Reason({ e, className }: { e: ActivityEvent; className?: string }) {
   if (!e.reason) return null;
@@ -189,6 +198,7 @@ function EventCell({ e, episodes, except }: { e: ActivityEvent; episodes: boolea
   return (
     <div className="min-w-0">
       <EventWords e={e} />
+      <GrabbedLine e={e} />
       {episodes ? <Episodes e={e} except={except} /> : null}
       <Reason e={e} className="mt-0.5 max-sm:break-words sm:line-clamp-2" />
       <ReplacedToggle e={e} />
@@ -319,6 +329,7 @@ function HistoryTable({ items, columns, withTitle, except }: { items: ActivityEv
               <EventWords e={e} />
               <span className="text-xs tabular-nums text-muted-foreground">{fmtTime(e.at)}</span>
             </div>
+            <GrabbedLine e={e} />
             {withTitle ? <TitleCell e={e} /> : <Episodes e={e} except={except} />}
             <Reason e={e} />
             <ReplacedToggle e={e} />

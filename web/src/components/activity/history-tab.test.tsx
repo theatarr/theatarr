@@ -4,6 +4,7 @@ import { focusManager } from "@tanstack/react-query";
 import userEvent from "@testing-library/user-event";
 import { expect, it } from "vitest";
 import { json, mockFetch, renderPage } from "@/test/page";
+import { fmtTime } from "@/lib/format";
 import { EpisodeHistoryRows, HistoryTab } from "./history-tab";
 
 const me = { id: 9, username: "manager", permissions: ["browse", "see_files", "manage"], csrf_token: "t" };
@@ -34,6 +35,24 @@ it("shows quality and score in cells, a dash where the event has none, and no da
   await userEvent.setup().click(screen.getByRole("button", { name: "Load more" }));
   await waitFor(() => expect(screen.getAllByTestId("history-row")).toHaveLength(3));
   expect(fetch.calls("GET", "/activity").some((r) => r.search.includes("cursor=c2"))).toBe(true);
+});
+
+it("shows one row per download: an import or a failure says when it was grabbed, under its words", async () => {
+  const imported = { id: "dl:7:import", at: "2026-11-12T14:05:00Z", kind: "import", event: "imported", title, version: "movie-web", words: "Imported", tone: "ok", release: "Alpha.2026.2160p.WEB-DL", grabbed_at: "2026-11-12T14:03:00Z" };
+  const failed = { id: "dl:8:fail", at: "2026-11-12T13:00:00Z", kind: "failure", event: "failed", title, version: "movie-web", words: "Failed", tone: "bad", grabbed_at: "2026-11-12T12:50:00Z" };
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: me },
+    { method: "GET", path: "/titles/facets", reply: {} },
+    { method: "GET", path: "/activity", reply: { state: "history", admin: true, history: [grab, imported, failed] } },
+  ]);
+  renderPage(<HistoryTab admin />, "/activity/history");
+  const got = await screen.findAllByTestId("history-row");
+  expect(got.map((r) => r.querySelector('[data-testid="history-words"]')?.textContent)).toEqual(["Grabbed", "Imported", "Failed"]);
+  expect(got.map((r) => r.querySelector('[data-testid="history-grabbed"]')?.textContent ?? null)).toEqual([
+    null,
+    `Grabbed ${fmtTime("2026-11-12T14:03:00Z")}`,
+    `Grabbed ${fmtTime("2026-11-12T12:50:00Z")}`,
+  ]);
 });
 
 const series = { id: 3, name: "Gamma", year: 2019, kind: "series" };
