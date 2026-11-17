@@ -25,7 +25,10 @@ type VersionFacet struct {
 	Label  string `json:"label"`
 	Titles int    `json:"titles"` // titles with this version
 	// The file counts, for callers who see files (absent otherwise, and when zero).
-	WithFile  int `json:"with_file,omitempty"` // ... that have a file for it
+	WithFile int `json:"with_file,omitempty"` // ... that have a file for it
+	// Lacks is what the without= filter returns for the library: the grid's titles of the library's media kind
+	// (with or without a copy there) minus those with a file there.
+	Lacks     int `json:"lacks,omitempty"`
 	Wanted    int `json:"wanted,omitempty"`
 	Filled    int `json:"filled,omitempty"`
 	CutoffMet int `json:"cutoff_met,omitempty"`
@@ -88,6 +91,19 @@ func (w *Web) titleFacets(ctx context.Context, f TitleFilter, seeFiles bool) (Ti
 	}
 	out.Unmonitored = out.Total - out.Monitored
 	out.YearMin, out.YearMax = nullInt(ymin), nullInt(ymax)
+	// The grid's titles by media kind, for each library's Lacks count.
+	byKind := map[string]int{}
+	if err := scanAll(ctx, db, `SELECT t.kind, COUNT(*)`+titleFrom+where+` GROUP BY t.kind`, args, func(r *sql.Rows) error {
+		var k string
+		var n int
+		if err := r.Scan(&k, &n); err != nil {
+			return err
+		}
+		byKind[k] = n
+		return nil
+	}); err != nil {
+		return out, err
+	}
 
 	// Versions and availability, from every version of the grid's titles.
 	states := map[int64][]versionState{}
@@ -168,9 +184,13 @@ func (w *Web) titleFacets(ctx context.Context, f TitleFilter, seeFiles bool) (Ti
 	}
 	for _, k := range sortedKeys(keys) {
 		vf := *keys[k]
+		vf.Lacks = out.Total - vf.WithFile
+		if kind := w.libraryKind(k); kind != "" {
+			vf.Lacks = byKind[kind] - vf.WithFile
+		}
 		if !seeFiles {
 			// Per-library file counts are file detail (docs/design/users.md): the facet keeps its titles only.
-			vf.WithFile, vf.Wanted, vf.Filled, vf.CutoffMet = 0, 0, 0, 0
+			vf.WithFile, vf.Lacks, vf.Wanted, vf.Filled, vf.CutoffMet = 0, 0, 0, 0, 0
 		}
 		out.Versions = append(out.Versions, vf)
 	}

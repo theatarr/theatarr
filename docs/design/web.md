@@ -98,7 +98,7 @@ the router list the same operations. JSON errors are `{"error": "..."}`. The bas
 | Route | Returns |
 |---|---|
 | `GET /status` | version, schema version, row counts |
-| `GET /titles` | titles with version coverage. Filters: `kind`, `q` (name contains), `with=<key>` (has a file for that version), `without=<key>` (no file: no such version or it is wanted; `without=movie-web` is "no WEB version"), `state`, `limit` (≤500), `offset` |
+| `GET /titles` | titles with version coverage. Filters: `kind`, `q` (name contains), `with=<key>` (has a file for that version), `without=<key>` (no file: no such version or it is wanted, among titles of that library's media kind, so a series never lacks a movie library; `without=movie-web` is "no WEB version"), `state`, `limit` (≤500), `offset` |
 | `GET /titles/{id}` | title, external ids, release dates, versions (each with its current file and links) |
 | `GET /versions`, `/versions/{id}` | versions; filters `key`, `state`, `has_file` |
 | `GET /jobs` | counts by state and jobs (running, queued by run time, latest finished); `state`, `kind`, `limit`. Payloads are left out |

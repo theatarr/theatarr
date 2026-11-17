@@ -463,7 +463,7 @@ func TestAPITitles(t *testing.T) {
 	for q, want := range map[string]string{
 		"kind=movie":                           "Alpha,Beta",
 		"kind=series":                          "Gamma",
-		"without=movie-web":                    "Alpha,Gamma",
+		"without=movie-web":                    "Alpha", // a series never lacks a movie library's file
 		"without=movie-web&kind=movie":         "Alpha",
 		"with=movie-remux":                     "Alpha",
 		"with=movie-web":                       "Beta",

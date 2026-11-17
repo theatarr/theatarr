@@ -124,7 +124,7 @@ func TestTitlesSortAndFilters(t *testing.T) {
 		"availability=upcoming":        "",
 		"availability=unmonitored":     "",
 		"sort=added&limit=2&offset=1":  "Delta,Alpha",
-		"without=movie-web&sort=added": "Delta,Alpha,Gamma",
+		"without=movie-web&sort=added": "Alpha", // the series (Delta, Gamma) never lack a movie library
 	} {
 		var p TitlePage
 		if code := e.getKey(APIBase+"/titles?"+q, key, &p); code != 200 {
@@ -1525,5 +1525,53 @@ func TestReleasedEarliestDate(t *testing.T) {
 	var d TitleDetail
 	if e.getKey(APIBase+"/titles/60", key, &d); d.Released != "1988-07-16" {
 		t.Errorf("title page released %q", d.Released)
+	}
+}
+
+// TestLacksSameKind: Lacks a library (without=) counts and lists only titles of that library's media kind, so the
+// mixed Anime list's "Lacks Anime movies" holds no series; the Movies and Series lists return what they did.
+func TestLacksSameKind(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	e.seedLibrary()
+	key := e.apiKey()
+	now := store.Millis(testNow)
+	e.exec(`INSERT INTO title (id, kind, name, year, tmdb_id, anime, monitored, created_at, updated_at) VALUES
+		(50, 'movie', 'Epsilon', 2020, 650, 1, 1, ?, ?)`, now, now)
+	e.exec(`INSERT INTO version (id, title_id, policy_key, monitored, state, created_at, updated_at) VALUES
+		(50, 50, 'anime-movie', 1, 'wanted', ?, ?)`, now, now)
+	for q, want := range map[string]string{
+		"anime=true":                                "Delta,Epsilon",
+		"anime=true&without=anime-movie":            "Epsilon", // not Delta, a series
+		"anime=true&without=anime-tv":               "",        // not Epsilon, a movie
+		"kind=movie&without=movie-web":              "Alpha,Epsilon",
+		"kind=series&without=tv-2160p":              "Delta,Gamma",
+		"kind=movie&anime=true&without=anime-movie": "Epsilon",
+	} {
+		var p TitlePage
+		if code := e.getKey(APIBase+"/titles?"+q, key, &p); code != 200 {
+			t.Errorf("%s: %d", q, code)
+			continue
+		}
+		if got := names(p); got != want {
+			t.Errorf("%s: %q, want %q", q, got, want)
+		}
+	}
+	lacks := func(scope string) map[string]int {
+		var f TitleFacets
+		if code := e.getKey(APIBase+"/titles/facets?"+scope, key, &f); code != 200 {
+			t.Fatalf("facets %s: %d", scope, code)
+		}
+		out := map[string]int{}
+		for _, v := range f.Versions {
+			out[v.Key] = v.Lacks
+		}
+		return out
+	}
+	if got := lacks("anime=true"); got["anime-movie"] != 1 || got["anime-tv"] != 0 {
+		t.Errorf("anime lacks %v, want anime-movie 1 (Epsilon), anime-tv 0", got)
+	}
+	if got := lacks("kind=movie"); got["movie-web"] != 2 || got["movie-remux"] != 2 {
+		t.Errorf("movie lacks %v, want movie-web 2 (Alpha, Epsilon), movie-remux 2 (Beta, Epsilon)", got)
 	}
 }

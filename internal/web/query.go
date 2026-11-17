@@ -38,8 +38,12 @@ type TitleFilter struct {
 	Kind string // movie or series
 	Q    string // words of the name, another name or the year (titlesearch.go)
 	// With: the title has a file for this version key. Without: it has no file for it (no version, or a version
-	// that is wanted). These give "no WEB version" and friends.
+	// that is wanted), among titles of that library's media kind (withoutKind). These give "no WEB version" and
+	// friends.
 	With, Without string
+	// withoutKind is the Without library's media kind (movie or series; listTitles sets it from the settings, empty
+	// for a library no longer there): a series never lacks a movie library's file.
+	withoutKind string
 	// State: some version of the title is in this state. With plainState, filled also takes cutoff_met (a caller
 	// without "see files" sees both as filled).
 	State      string
@@ -152,6 +156,10 @@ func (f TitleFilter) where() (string, []any) {
 		conds = append(conds, "NOT EXISTS (SELECT 1 FROM version v WHERE v.title_id = t.id AND v.policy_key = ? AND "+
 			liveVersion+" AND "+hasFileSQL+")")
 		args = append(args, f.Without)
+		if f.withoutKind != "" {
+			conds = append(conds, "t.kind = ?")
+			args = append(args, f.withoutKind)
+		}
 	}
 	switch {
 	case f.State == "filled" && f.plainState:
@@ -179,6 +187,7 @@ func (w *Web) listTitles(ctx context.Context, f TitleFilter) (TitlePage, error) 
 	if f.Provider != "" {
 		f.providerKeys = w.providerKeys(f.Provider)
 	}
+	f.withoutKind = w.libraryKind(f.Without)
 	f.clock = newAirClock(w.now())
 	db := w.st.Reader()
 	if f.Upgrade != "" {
@@ -236,6 +245,17 @@ func (w *Web) listTitles(ctx context.Context, f TitleFilter) (TitlePage, error) 
 	}
 	page.Items = items
 	return page, nil
+}
+
+// libraryKind is a library's media kind (movie or series) from the settings; empty for a key not there.
+func (w *Web) libraryKind(key string) string {
+	if key == "" || w.pol == nil {
+		return ""
+	}
+	if v := w.pol.Versions[key]; v != nil {
+		return string(v.Kind)
+	}
+	return ""
 }
 
 // titleCols and titleFrom are the list row's columns and tables; m is the title's title_meta row, if any.

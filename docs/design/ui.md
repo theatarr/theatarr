@@ -780,7 +780,8 @@ including "Imported from Radarr's blocklist" for `arr:<instance>`) and the healt
   availability word, `Has 4K`, `Lacks 4K`, `Quality: WEBDL-2160p`, `Provider: RD`, `2019–2024` (or `From 2019`,
   `Up to 2024`), one per genre, `Series status: Ended`, one per tag (`Tag: kids`). Has and Lacks of one library
   exclude each other: picking one drops the other for that library in the same address update (Has Remux with Lacks
-  WEB stays possible). Without See files there is no
+  WEB stays possible). Lacks counts and lists only titles of the library's media kind (the facet's `lacks`, sent by
+  the server), so on the mixed Anime list "Lacks Anime movies" holds no series. Without See files there is no
   library, provider, tag or state chip. With nothing found:
   "No titles match these filters." and **Clear filters**. The sheet heads its first group **Monitoring** (On, Off:
   whether a library monitors the title); the status **Not monitored** (no file and nothing monitors it) is apart,

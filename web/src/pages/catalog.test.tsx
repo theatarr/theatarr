@@ -579,6 +579,16 @@ describe("Toolbar and filters", () => {
     await waitFor(() => expect(screen.queryByTestId("active-filters")).toBeNull());
   });
 
+  it("counts Lacks as the server does, over the titles of the library's kind, not the whole mixed list", async () => {
+    const versions = [{ key: "anime-movie", label: "Anime movies", titles: 3, with_file: 2, lacks: 1 }];
+    mockFetch(routes().map((r) => (r.path === "/titles/facets" ? { ...r, reply: { total: 40, versions } } : r)));
+    renderPage(<Catalog id="anime" />, "/anime");
+    await screen.findAllByText("The Pellbrook Inquiries");
+    await userEvent.setup().click(screen.getByTestId("filters-button"));
+    const panel = await screen.findByTestId("filters-panel");
+    expect((await within(panel).findByRole("button", { name: /^Lacks/ })).textContent).toBe("Lacks 1");
+  });
+
   it("drops Has for a library when its Lacks is picked, in one address update, and keeps Has 4K with Lacks of another", async () => {
     const versions = [{ key: "tv-2160p", label: "4K", titles: 2, with_file: 2 }, { key: "tv-web", label: "1080p WEB", titles: 2, with_file: 1 }];
     const fetch = mockFetch(routes().map((r) => (r.path === "/titles/facets" ? { ...r, reply: { total: 2, versions } } : r)));

@@ -323,7 +323,7 @@ export function FiltersPanel({
                   Has <span className="tabular-nums opacity-75">{v.with_file ?? 0}</span>
                 </Chip>
                 <Chip selected={values.without === v.key} onClick={() => pickLibrary("without", v.key)} title={`Titles without a ${v.label} file`}>
-                  Lacks <span className="tabular-nums opacity-75">{(facets?.total ?? 0) - (v.with_file ?? 0)}</span>
+                  Lacks <span className="tabular-nums opacity-75">{v.lacks ?? 0}</span>
                 </Chip>
               </div>
             ))}
