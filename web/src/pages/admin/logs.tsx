@@ -8,7 +8,9 @@ import { Empty, ErrorState, Loading, Mono, PageHeader } from "@/components/page"
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { fmtBytes, fmtTime } from "@/lib/format";
+import { Input } from "@/components/ui/input";
+import { fmtBytes, fmtNumber, fmtTime } from "@/lib/format";
+import { wordMatcher } from "@/lib/words";
 import { cn } from "@/lib/utils";
 
 const LEVELS = ["debug", "info", "warn", "error"];
@@ -19,7 +21,11 @@ export function Logs() {
   const q = useLogs(level, component);
   const files = useLogFiles();
 
-  const items = [...(q.data?.items ?? [])].reverse();
+  // A text filter over the loaded lines only (message, component and fields), in the browser: no new request.
+  const [text, setText] = useState("");
+  const loaded = [...(q.data?.items ?? [])].reverse();
+  const match = wordMatcher(text);
+  const items = text.trim() ? loaded.filter((e) => match(e.msg, e.component, ...Object.entries(e.attrs ?? {}).map(([k, v]) => `${k}=${v}`))) : loaded;
   return (
     <div>
       <PageHeader crumb={[{ label: "System", to: "/admin" }]} title="Logs" description="The last 2,000 lines since the service started. Secret-looking fields are redacted." />
@@ -54,8 +60,10 @@ export function Logs() {
           <option value="">All components</option>
           {(q.data?.components ?? []).map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
+        <Input type="search" aria-label="Filter these lines" placeholder="Filter these lines" value={text} onChange={(e) => setText(e.target.value)} className="h-8 w-full sm:w-64" />
+        {text.trim() && q.data ? <span className="text-sm text-muted-foreground" role="status" data-testid="log-filter-count">{fmtNumber(items.length)} of {fmtNumber(loaded.length)} lines</span> : null}
       </div>
-      {q.isPending ? <Loading /> : q.error ? <ErrorState error={q.error} /> : items.length === 0 ? <Card><Empty>No lines at this level.</Empty></Card> : (
+      {q.isPending ? <Loading /> : q.error ? <ErrorState error={q.error} /> : loaded.length === 0 ? <Card><Empty>No lines at this level.</Empty></Card> : items.length === 0 ? <Card><Empty>No loaded line matches.</Empty></Card> : (
         <Card className="p-0">
           <ul className="divide-y divide-border font-mono text-[12.5px]">
             {items.map((e) => (
