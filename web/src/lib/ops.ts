@@ -142,6 +142,8 @@ export function leftoverOnly(s: RemovalScopeLike): boolean {
 /** The torrent clean-up a removal does with "Delete it from the debrid providers", and its guard. */
 export const REMOVAL_CLEANUP = "Its debrid torrents are deleted from the providers, after a backup, unless another title or library in Theatarr uses them";
 export const REMOVAL_LISTS = "Import lists will not restore the removed libraries; add it yourself to bring it back";
+/** The whole title's optional list exclusion: it extends REMOVAL_LISTS (always true) to every library. */
+export const REMOVAL_EXCLUDE = "Also keep lists from adding it to any other library";
 /** Why "Delete it from the debrid providers" is off while the files are kept. */
 export const REMOVAL_DEBRID_NEEDS_FILES = "Deleting the torrents needs the files deleted too: kept files would stop playing";
 const SHARED_FILE_STAYS = "A file another library of the title uses stays";
@@ -174,7 +176,9 @@ export function removalScope(s: RemovalScopeLike, files: boolean, debrid = files
   const does: string[] = [];
   if (s.title) does.push(`${s.name} is removed from every library it is in (${names}): it stops being wanted, searched or upgraded there`);
   else does.push(`${s.name} is removed from ${names}: ${s.copies.length === 1 ? "this copy stops" : "these copies stop"} being wanted, searched or upgraded`);
-  does.push(`${s.title ? "It is" : s.copies.length === 1 ? "It is" : "They are"} hidden from Seerr and the other arr clients`);
+  // The title leaves Seerr and the arr clients only with its last copy; apps connected to a library it stays in keep it.
+  if (s.title) does.push("It is hidden from Seerr and the other arr clients");
+  else does.push(`Seerr and the arr clients connected to ${names} no longer show it; apps connected to another library still show ${s.name}`);
   if (downloads > 0) does.push(`Theatarr stops following ${plural(downloads, "download")} in progress`);
   if (files && links > 0) does.push(`${plural(links, "library file")} ${links === 1 ? "is" : "are"} deleted from the library (moved to Theatarr's trash), and the folders they leave empty are removed`);
   if (debrid) does.push(REMOVAL_CLEANUP);

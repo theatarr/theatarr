@@ -82,7 +82,7 @@ describe("recovery scopes", () => {
     expect(keep.title).toBe("Remove from 4K WEB");
     expect(keep.does).toEqual([
       "Dune is removed from 4K WEB: this copy stops being wanted, searched or upgraded",
-      "It is hidden from Seerr and the other arr clients",
+      "Seerr and the arr clients connected to 4K WEB no longer show it; apps connected to another library still show Dune",
       "Theatarr stops following 1 download in progress",
     ]);
     expect(keep.keeps).toEqual([
@@ -125,6 +125,8 @@ describe("recovery scopes", () => {
     expect(s.does[0]).toBe("Dune is removed from every library it is in (4K Remux, 4K WEB): it stops being wanted, searched or upgraded there");
     expect(s.confirm).toBe("Remove title");
     expect(s.blocked).toBeUndefined();
+    // The last copy takes the title out of Seerr and every arr client.
+    expect(s.does[1]).toBe("It is hidden from Seerr and the other arr clients");
     // No library of the title stays, so no file is shared with one.
     expect(s.keeps).not.toContain("A file another library of the title uses stays");
     expect(removalScope({ name: "X", title: false, copies: [] }, false).blocked).toBe("Nothing to remove");

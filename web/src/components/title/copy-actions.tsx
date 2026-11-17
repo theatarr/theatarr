@@ -4,8 +4,9 @@
 // (the action bar). Each confirmation spells out the scope the server reports (copies, links, downloads in progress)
 // and what stays. The removal's two choices are on by default: "Delete the files" (Theatarr's own symlinks go to its
 // trash) and "Delete it from the debrid providers" (after a backup, the torrents no other title or library in
-// Theatarr uses; only with the files deleted). Removing the whole title also offers "Don't add it again from lists"
-// (off by default: the title goes on the list exclusions). An unlink moves only Theatarr's own symlink to the trash.
+// Theatarr uses; only with the files deleted). Removing the whole title also offers "Also keep lists from adding it to
+// any other library" (off by default: the title goes on the list exclusions; lists never restore the removed libraries
+// either way). An unlink moves only Theatarr's own symlink to the trash.
 import { FileX2, Loader2, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router";
@@ -19,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Choice, ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Modal } from "@/components/ui/modal";
 import { listToReturnTo } from "@/lib/last-list";
-import { leftoverLinks, leftoverOnly, REMOVAL_DEBRID_NEEDS_FILES, removalScope, unlinkable, unlinkScope } from "@/lib/ops";
+import { leftoverLinks, leftoverOnly, REMOVAL_DEBRID_NEEDS_FILES, REMOVAL_EXCLUDE, removalScope, unlinkable, unlinkScope } from "@/lib/ops";
 
 /** The removal confirmation: the server's scope for versions (none: the whole title), with the files choice. Once
  *  done, the outcome is a notice that opens the title's History (the Removed event, with the debrid clean-up's outcome
@@ -101,7 +102,7 @@ export function RemoveDialog({ titleId, versions, onClose, kind, anime, gone = f
       {!files ? <p className="pl-6 text-xs text-[var(--ink-3)]" data-testid="remove-debrid-why">{REMOVAL_DEBRID_NEEDS_FILES}.</p> : null}
       {whole ? (
         <Choice checked={exclude} onChange={setExclude} testid="remove-exclude">
-          Don't add it again from lists
+          {REMOVAL_EXCLUDE}
         </Choice>
       ) : null}
     </ConfirmDialog>

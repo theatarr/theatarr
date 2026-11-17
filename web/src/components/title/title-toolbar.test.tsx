@@ -169,7 +169,7 @@ it("shows Search now disabled while the add options load, and no Interactive sea
   expect(screen.queryByTestId("interactive-search-open")).toBeNull();
 });
 
-it("offers Don't add it again from lists, off by default, when removing the whole title", async () => {
+it("offers Also keep lists from adding it to any other library, off by default, when removing the whole title", async () => {
   const api = mockFetch([
     { method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["manage"] } },
     options([]),
@@ -182,7 +182,9 @@ it("offers Don't add it again from lists, off by default, when removing the whol
   await user.click(await screen.findByTestId("title-remove"));
   const box = (await screen.findByTestId("remove-exclude")) as HTMLInputElement;
   expect(box.checked).toBe(false);
-  expect(screen.getByTestId("remove-dialog").textContent).toContain("Don't add it again from lists");
+  expect(screen.getByTestId("remove-dialog").textContent).toContain("Also keep lists from adding it to any other library");
+  // Lists never restore the removed libraries, with the box ticked or not: a separate sentence.
+  expect(screen.getByTestId("remove-dialog").textContent).toContain("Import lists will not restore the removed libraries");
   await user.click(box);
   await user.click(screen.getByTestId("confirm-ok"));
   await waitFor(() => expect(api.calls("POST", "/titles/7/remove")).toHaveLength(1));

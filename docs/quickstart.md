@@ -354,7 +354,7 @@ Two details for clients and monitors:
   the movie or series on Theatarr's list exclusions, so lists and collections do not add it again. There is one
   exclusion list for the whole install, not one per library or view, and it does not stop you or a request from
   adding the title by hand. **Settings › Import lists** shows it under **List exclusions**, where **Remove** lets
-  lists add the title again; Theatarr's own **Remove title** has the same switch ("Don't add it again from lists").
+  lists add the title again; Theatarr's own **Remove title** has the same switch ("Also keep lists from adding it to any other library").
   A Radarr client reads and edits the movies through the view (`/api/v3/exclusions`), a Sonarr client the series
   (`/api/v3/importlistexclusion`).
 

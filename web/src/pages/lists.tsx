@@ -311,8 +311,8 @@ function ListRow({ l, libraries, seriesLibraries, syncGroups, canSync, m, edit, 
   </li>;
 }
 
-/** List exclusions: the movies and series no list adds (a title removed with "Don't add it again from lists", or
- *  excluded through an arr client), each with Remove. */
+/** List exclusions: the movies and series no list adds (a title removed with "Also keep lists from adding it to any
+ *  other library", or excluded through an arr client), each with Remove. */
 function Exclusions() {
   const q = useListExclusions();
   const remove = useRemoveExclusion();
@@ -321,7 +321,7 @@ function Exclusions() {
     <h2 className="font-heading text-lg font-medium text-[var(--ink)]">List exclusions</h2>
     <p className="text-sm text-muted-foreground">Lists never add these titles. Removing an exclusion lets lists add the title again, but does not bring back a library it was removed from; adding it by hand does.</p>
     {q.isLoading ? <Loading /> : q.error ? <ErrorState error={q.error} /> : list.length === 0
-      ? <p className="text-sm text-muted-foreground">No exclusions. Remove a title with "Don't add it again from lists" to add one.</p>
+      ? <p className="text-sm text-muted-foreground">No exclusions. Remove a title with "Also keep lists from adding it to any other library" to add one.</p>
       : <Card className="p-0"><ul className="divide-y divide-[var(--line)]">{list.map(x => {
         const busy = remove.isPending && remove.variables?.kind === x.kind && remove.variables.id === x.id;
         return <li key={`${x.kind}-${x.id}`} className="flex min-w-0 items-center gap-3 px-3 py-2 text-sm" data-testid={`exclusion-${x.kind}-${x.id}`}>
