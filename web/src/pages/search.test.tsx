@@ -195,7 +195,8 @@ it("hides an earlier query's TMDb cards while the new query's answer loads", asy
     { method: "GET", path: "/auth/me", reply: { id: 9, username: "someone", permissions: ["browse", "add"], csrf_token: "t" } },
     { method: "GET", path: "/search", reply: (r: { search: string }) => r.search.includes("scope=library")
       ? { library: [], library_total: 0 }
-      : r.search.includes("q=spiderman") ? { tmdb_state: "ok", tmdb: [{ tmdb_id: 99, media_type: "movie", kind: "movie", name: "Webslinger", year: 2026, in_library: true, title_id: 4 }],
+      : r.search.includes("q=spiderman") ? { tmdb_state: "ok", tmdb: [{ tmdb_id: 99, media_type: "movie", kind: "movie", name: "Spider-Man", year: 2026, in_library: true, title_id: 4 },
+        { tmdb_id: 98, media_type: "movie", kind: "movie", name: "Webslinger", year: 2026 }],
         library: [{ id: 4, kind: "movie", name: "Spider-Man: Brand New Day", year: 2026, versions: [] }], library_total: 1 } : new Promise(() => {}) },
     { method: "GET", path: "/requests", reply: { items: [], total: 0 } },
   ]);
@@ -220,4 +221,34 @@ it("names the groups for the chosen kind and caps the query at the server's 200 
   expect(screen.getByText("series")).toBeTruthy();
   expect(screen.queryByText("movies and series")).toBeNull();
   expect(screen.getByTestId("search-page-input").getAttribute("maxLength")).toBe("200");
+});
+
+describe("Search page: a title in the library shows once", () => {
+  function showDup(tmdb: object[]) {
+    mockFetch([
+      { method: "GET", path: "/auth/me", reply: { id: 9, username: "someone", permissions: ["browse", "add"], csrf_token: "t" } },
+      { method: "GET", path: "/search", reply: (r: { search: string }) => r.search.includes("scope=library")
+        ? { library: [{ id: 4, kind: "movie", name: "Juniper Signal", year: 2021, versions: [] }], library_total: 1 }
+        : { tmdb_state: "ok", tmdb } },
+      { method: "GET", path: "/requests", reply: { items: [], total: 0 } },
+    ]);
+    renderPage(<SearchProvider><SearchPage /></SearchProvider>, "/search?q=Signal");
+  }
+  const held = { tmdb_id: 98, media_type: "movie", kind: "movie", name: "Juniper Signal", year: 2021, in_library: true, title_id: 4 };
+
+  it("leaves out of the TMDb group a hit whose library card is shown, and counts what is left", async () => {
+    showDup([held, { tmdb_id: 99, media_type: "movie", kind: "movie", name: "Signal Fires", year: 2019 }]);
+    await screen.findByRole("button", { name: "Add Signal Fires (2019)" });
+    const tm = screen.getByTestId("search-page-tmdb");
+    expect(tm.textContent).not.toContain("Juniper Signal");
+    expect(tm.textContent).toContain("1 result");
+    expect(screen.getByTestId("search-page-library").textContent).toContain("Juniper Signal");
+  });
+
+  it("says No additional matches when every hit is shown above", async () => {
+    showDup([held]);
+    await waitFor(() => expect(screen.getByTestId("search-page-tmdb").textContent).toContain("No additional matches."));
+    expect(screen.getByTestId("search-page-tmdb").textContent).toContain("0 results");
+    expect(screen.queryByText(/TMDb has nothing/)).toBeNull();
+  });
 });

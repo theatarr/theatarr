@@ -57,3 +57,21 @@ it("starts with the previous text selected, and shows an in-library title's stat
   expect(input.maxLength).toBe(200);
   expect((await screen.findByTestId("search-status")).textContent).toBe("Not monitored");
 });
+
+it("shows a title in the library once: its TMDb hit leaves the TMDb group while its card is shown", async () => {
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: { id: 1, username: "admin", permissions: ["browse", "add", "admin"], csrf_token: "t" } },
+    { method: "GET", path: "/search", reply: (r: { search: string }) => (r.search.includes("scope=library")
+      ? { library: [{ id: 4, kind: "movie", name: "Signal", year: 2026, versions: [] }], library_total: 1 }
+      : { tmdb_state: "ok", tmdb: [{ tmdb_id: 99, media_type: "movie", kind: "movie", name: "Signal", year: 2026, in_library: true, title_id: 4 },
+        { tmdb_id: 7, media_type: "movie", kind: "movie", name: "Other Signal", year: 2020, in_library: true, title_id: 8 }] }) },
+    { method: "GET", path: "/requests", reply: { items: [], total: 0 } },
+  ]);
+  renderPage(<SearchProvider><Opener /></SearchProvider>, "/");
+  // The held hit whose card is not shown above (title 8) stays, marked In library.
+  await waitFor(() => expect(screen.getByTestId("search-group-tmdb").textContent).toContain("Other Signal"));
+  const tm = screen.getByTestId("search-group-tmdb");
+  expect(tm.querySelectorAll("[data-search-result=tmdb]").length).toBe(1);
+  expect(tm.textContent).toContain("1 result");
+  expect(tm.textContent).toContain("In library");
+});

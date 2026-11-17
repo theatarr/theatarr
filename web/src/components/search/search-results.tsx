@@ -309,6 +309,14 @@ export function searchWords(canAdd: boolean, canRequest: boolean) {
   };
 }
 
+/** The TMDb hits not already shown above: a hit marked In library whose library card is rendered on this page of
+ *  results is left out (its card there has the Libraries action); one whose card is not shown (a later library page,
+ *  the library group still loading or failed) stays, marked In library. */
+export function hitsNotShown(hits: SearchHit[], shown: { id?: number }[]): SearchHit[] {
+  const ids = new Set(shown.map((t) => t.id));
+  return hits.filter((h) => !(h.in_library && h.title_id != null && ids.has(h.title_id)));
+}
+
 export function GroupHeader({ title, note, count }: { title: string; note: string; count?: number }) {
   return (
     <div className="mb-3 flex items-baseline justify-between gap-3">

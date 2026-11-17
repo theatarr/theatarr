@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { useSearchUI } from "./search-context";
 import {
   GroupHeader,
+  hitsNotShown,
   LibraryResultCard,
   SearchEmpty,
   SectionError,
@@ -56,10 +57,12 @@ export function SearchOverlay({ initial, onClose, onAdd }: { initial: string; on
   // TMDb hits marked In library that the name search missed join the library group, so the two never disagree.
   const merged = withInLibrary(lib.data?.library ?? [], lib.data?.library_total, tmNow);
   const libItems = merged.items;
-  const hits = tmNow?.tmdb ?? [];
   const note = tmdbNote(tmNow?.tmdb_state);
   const perms = usePerms();
   const libProblem = searchProblem(lib.error);
+  // A title shown in the library group is not shown again under TMDb.
+  const allHits = tmNow?.tmdb ?? [];
+  const hits = hitsNotShown(allHits, libProblem || lib.isPending ? [] : libItems);
   const tmProblem = searchProblem(tm.error, tm.data, "tmdb");
   return (
     <Modal
@@ -151,8 +154,10 @@ export function SearchOverlay({ initial, onClose, onAdd }: { initial: string; on
                   <SectionLoading label="Searching TMDb" />
                 ) : note ? (
                   <TmdbNote state={tmNow?.tmdb_state} admin={perms.admin} onOpen={onClose} />
-                ) : hits.length === 0 ? (
+                ) : allHits.length === 0 ? (
                   <SectionNote>TMDb has nothing for “{query}”.</SectionNote>
+                ) : hits.length === 0 ? (
+                  <SectionNote>No additional matches.</SectionNote>
                 ) : (
                   <div className="-mx-1 grid auto-cols-[118px] grid-flow-col gap-3 overflow-x-auto overscroll-x-contain px-1 pb-2 [scrollbar-width:thin] sm:auto-cols-[128px]">
                     {hits.map((h) => (

@@ -12,6 +12,7 @@ import { PageHeader } from "@/components/page";
 import { useSearchUI } from "@/components/search/search-context";
 import {
   GroupHeader,
+  hitsNotShown,
   LibraryResultCard,
   SearchEmpty,
   SectionError,
@@ -68,10 +69,12 @@ export function SearchPage() {
   const tmNow = tm.isPlaceholderData ? undefined : tm.data;
   // TMDb hits marked In library that the name search missed join the library group, so the two never disagree.
   const { items: libItems, total: libTotal } = withInLibrary(lib.data?.pages.flatMap((p) => p.library) ?? [], lib.data?.pages[0]?.library_total, tmNow);
-  const hits = tmNow?.tmdb ?? [];
   const note = tmdbNote(tmNow?.tmdb_state);
   const perms = usePerms();
   const libProblem = searchProblem(lib.error);
+  // A title shown in the library group is not shown again under TMDb.
+  const allHits = tmNow?.tmdb ?? [];
+  const hits = hitsNotShown(allHits, libProblem || lib.isPending ? [] : libItems);
   const tmProblem = searchProblem(tm.error, tm.data, "tmdb");
   const setKind = (k: SearchKind) =>
     setParams(
@@ -159,8 +162,10 @@ export function SearchPage() {
               <SectionLoading label="Searching TMDb" />
             ) : note ? (
               <TmdbNote state={tmNow?.tmdb_state} admin={perms.admin} />
-            ) : hits.length === 0 ? (
+            ) : allHits.length === 0 ? (
               <SectionNote>TMDb has nothing for “{query}”.</SectionNote>
+            ) : hits.length === 0 ? (
+              <SectionNote>No additional matches.</SectionNote>
             ) : (
               <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 sm:gap-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8">
                 {hits.map((h) => <TmdbResultCard key={`${h.media_type}:${h.tmdb_id}`} h={h} onAdd={openAdd} />)}
