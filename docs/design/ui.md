@@ -1059,7 +1059,7 @@ mass editor and anime reclassify. The one-time import from an arr adds to its on
 more libraries of one kind and one anime rule (unset, anime only and not anime are three rules), a library is in at
 most one group; the editor offers only those, lists the same-kind libraries it does not offer with the reason (their
 anime setting, or the group they are in), and saves the group with the library (`sync_with`). Each library's row on
-Settings › Libraries says "In sync with …". Stored as `library.sync_groups` (lists of library keys) in the library
+Settings › Libraries says "In sync with …". The part's help: "A title added to one of these libraries is added to the others too; a copy removed there comes back when a person adds the title, not from lists or collections. Monitoring, removals and files stay each library's own. Only libraries of the same kind and anime setting can be kept in sync." Stored as `library.sync_groups` (lists of library keys) in the library
 settings section, which its form leaves as stored; a library that is deleted, or whose kind or anime setting no
 longer matches its group, leaves the group in the same save (also on a YAML import), and a group left with one
 library goes. Saving a group adds nothing to titles already in the library.

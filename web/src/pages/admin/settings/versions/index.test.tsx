@@ -38,6 +38,8 @@ describe("Versions page", () => {
     expect(within(row()).getByTestId("library-sync").textContent).toBe("In sync with Remux");
     await user.click(within(row()).getByRole("button", { name: "Edit" }));
     const part = await screen.findByTestId("library-sync-part");
+    // The help says what happens to a copy removed there: a person's add brings it back, lists and collections do not.
+    expect(within(part).getByTestId("library-sync-help").textContent).toBe("A title added to one of these libraries is added to the others too; a copy removed there comes back when a person adds the title, not from lists or collections. Monitoring, removals and files stay each library's own. Only libraries of the same kind and anime setting can be kept in sync.");
     expect((within(part).getByRole("checkbox", { name: "Remux" }) as HTMLInputElement).checked).toBe(true);
     expect(within(part).queryByRole("checkbox", { name: "HD" })).toBeNull();
     expect(within(part).getByTestId("library-sync-refused").textContent).toBe("Not offered: Anime (anime only); HD (in sync with UHD); UHD (in sync with HD).");
