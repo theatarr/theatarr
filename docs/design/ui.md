@@ -979,7 +979,9 @@ library exists). Prefer SeaDex is a switch; Upgrades
 reads "Automatic" and "Never". Write roots, Send grabs to and Client sit in an **Advanced** disclosure at the end of "Where", with Storage and Import mode, which are shown only
 when the saved or the draft value is not the one supported value (debrid, symlink). Advanced starts open when the
 library has write roots other than its root, sends its grabs to a download client, or shows Storage or Import mode, and a field inside that the server refuses keeps it open. The request body and its field
-names are the same as before. A movie library's "Which releases" also has **Minimum availability** (Not set,
+names are the same as before. Kind reads "Movies" and "Series", Anime "Not anime", "Anime only" and "Any", and the
+profile picker names the stored profiles in words as the add sheet does ("Radarr 4K zurg" for `radarr-4k-zurg`); the
+stored values are the same. A movie library's "Which releases" also has **Minimum availability** (Not set,
 Announced, In cinemas, Released; `minimum_availability`, for movies with neither a choice of their own nor an
 imported value) and **Availability delay (days)** (`availability_delay`, whole days, negative for earlier, empty
 for none). Like the name, each is left out of the request while unset and sent empty or 0 only to clear a stored

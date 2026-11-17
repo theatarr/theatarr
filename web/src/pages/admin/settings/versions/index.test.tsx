@@ -634,7 +634,8 @@ describe("Versions grouped by kind", () => {
     const releases = within(await screen.findByTestId("version-form")).getByRole("region", { name: "Which releases" });
     const profile = within(releases).getByRole("combobox", { name: "Profile" }) as HTMLSelectElement;
     await waitFor(() => expect(optionsOf(profile, "TRaSH defaults")).toHaveLength(2));
-    expect(optionsOf(profile, "Your profiles")).toEqual(["web=web", "sonarr-web=sonarr-web", "anime-tv=anime-tv"]);
+    // The stored profiles by name in words, as the add sheet shows them; the value stays the key.
+    expect(optionsOf(profile, "Your profiles")).toEqual(["web=Web", "sonarr-web=Sonarr web", "anime-tv=Anime TV"]);
     // The default "web" was made from stays listed, with the copy named; a guessed origin (sonarr-web) is no copy.
     expect(optionsOf(profile, "TRaSH defaults")).toEqual(["preset:fd16=Remux + WEB 2160p", "preset:0537=WEB 2160p (copy: web)"]);
     expect(profile.value).toBe("web");
@@ -829,7 +830,9 @@ describe("Versions grouped by kind", () => {
     await user.selectOptions(within(where).getByRole("combobox", { name: "Kind" }), "series");
     expect(profile.value).toBe("sonarr-web");
     const anime = within(where).getByRole("combobox", { name: "Anime" }) as HTMLSelectElement;
-    expect([...anime.options].map((o) => `${o.value}=${o.text}`)).toEqual(["false=Not anime", "true=Anime only", "both=Anime and not"]);
+    expect([...anime.options].map((o) => `${o.value}=${o.text}`)).toEqual(["false=Not anime", "true=Anime only", "both=Any"]);
+    // The kind in words; the stored values stay movie and series.
+    expect([...(within(where).getByRole("combobox", { name: "Kind" }) as HTMLSelectElement).options].map((o) => `${o.value}=${o.text}`)).toEqual(["movie=Movies", "series=Series"]);
     await user.selectOptions(within(where).getByRole("combobox", { name: "Anime" }), "true");
     expect(profile.value).toBe("anime-tv");
     expect(within(releases).getByText(/our own profile/)).toBeTruthy();

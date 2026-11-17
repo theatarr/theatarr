@@ -25,6 +25,7 @@ import { libraryLabel } from "@/lib/library-label";
 import { useLibraryName } from "@/lib/library-names";
 import { Choice, ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { toast } from "@/components/toaster";
+import { readableCode } from "@/lib/code-words";
 
 /** A library being edited: its record, and sync, the other libraries kept in sync with it (sorted). */
 type Draft = VersionRecord & { sync?: string[] };
@@ -465,8 +466,8 @@ function VersionForm({ session, data, defaults, profiles, error, onChange }: { s
     <Part title="Where" help="What the library holds, where its folder lives and how files get there.">
       <Field label="Name" help="Optional. Shown in place of the guessed label, such as 4K WEB. Connected apps never see it." changed={(config.name ?? "") !== (saved.config.name ?? "")} onUndo={() => setName(saved.config.name ?? "")} error={fieldError("name")}><Input value={config.name ?? ""} maxLength={40} onChange={(event) => setName(event.target.value)} /></Field>
       <Field label="Key" help={`${session.create && !record.key ? "Enter a name. " : ""}Used by connected apps and in settings; fixed once the library exists. Lower case letters, digits, - and _.`} changed={record.key !== saved.key} onUndo={() => onChange({ ...record, key: saved.key })} error={(record.key ? newKeyProblem(session) : undefined) ?? fieldError("key")}><Input value={record.key} disabled={!session.create} onChange={(event) => onChange({ ...record, key: event.target.value })} /></Field>
-      <Field label="Kind" {...mark("kind")}><Pick value={config.kind} options={["movie", "series"]} onChange={(value) => recategorize({ ...config, kind: value as VersionConfig["kind"] })} /></Field>
-      <Field label="Anime" {...mark("anime")}><Pick value={config.anime === null ? "both" : String(config.anime)} options={["false", "true", "both"]} labels={{ false: "Not anime", true: "Anime only", both: "Anime and not" }} onChange={(value) => recategorize({ ...config, anime: value === "both" ? null : value === "true" })} /></Field>
+      <Field label="Kind" {...mark("kind")}><Pick value={config.kind} options={["movie", "series"]} labels={{ movie: "Movies", series: "Series" }} onChange={(value) => recategorize({ ...config, kind: value as VersionConfig["kind"] })} /></Field>
+      <Field label="Anime" {...mark("anime")}><Pick value={config.anime === null ? "both" : String(config.anime)} options={["false", "true", "both"]} labels={{ false: "Not anime", true: "Anime only", both: "Any" }} onChange={(value) => recategorize({ ...config, anime: value === "both" ? null : value === "true" })} /></Field>
       <Field label="Root" changed={!same(config.library, saved.config.library)} error={fieldError("library")}><Input value={config.library} onChange={(event) => { const root = event.target.value; const roots = record.roots?.length && record.roots.length > 1 ? record.roots.map((value) => value === config.library ? root : value) : [root]; setRootsText(roots.join(", ")); onChange({ ...record, config: { ...config, library: root }, roots }); }} /><span role="status" className="text-xs [overflow-wrap:anywhere]">{rootStatus}</span></Field>
       <details className="md:col-span-2" open={advanced} data-testid="library-advanced">
         {/* The click is handled here, so the open state has one owner. */}
@@ -484,13 +485,13 @@ function VersionForm({ session, data, defaults, profiles, error, onChange }: { s
       <div className="flex flex-col gap-1"><Field label="Profile" {...mark("profile")} error={fieldError("profile")}><select className={SELECT_CLASS} value={config.profile} onChange={(event) => select(event.target.value)}>
           {/* One select element whether or not the TRaSH defaults have loaded, so a load never drops focus. */}
           {presets.length || picked ? <>
-            {config.profile === "" || (!picked && !stored.includes(config.profile)) ? <option value={config.profile}>{config.profile || "Choose a profile"}</option> : null}
-            {stored.length ? <optgroup label="Your profiles">{stored.map((key) => <option key={key} value={key}>{key}</option>)}</optgroup> : null}
+            {config.profile === "" || (!picked && !stored.includes(config.profile)) ? <option value={config.profile}>{readableCode(config.profile) || "Choose a profile"}</option> : null}
+            {stored.length ? <optgroup label="Your profiles">{stored.map((key) => <option key={key} value={key}>{readableCode(key)}</option>)}</optgroup> : null}
             <optgroup label="TRaSH defaults">
               {presets.map((p) => { const copies = copiesOf(p.trash_id); return <option key={p.trash_id} value={PRESET_PICK + p.trash_id}>{p.name}{copies.length ? ` (copy: ${copies.join(", ")})` : ""}</option>; })}
               {picked && !pickedPreset ? <option value={config.profile}>TRaSH default {picked}</option> : null}
             </optgroup>
-          </> : <>{config.profile === "" ? <option value="">Choose a profile</option> : null}{stored.map((key) => <option key={key} value={key}>{key || "None"}</option>)}</>}
+          </> : <>{config.profile === "" ? <option value="">Choose a profile</option> : null}{stored.map((key) => <option key={key} value={key}>{readableCode(key) || "None"}</option>)}</>}
         </select></Field>
         {picked
           ? <span className="text-xs text-muted-foreground [overflow-wrap:anywhere]" data-testid="preset-pick-note">TRaSH default{pickedPreset ? ` ${pickedPreset.name}` : ""}: saving first creates a profile of your own from it, named after this library{record.key.trim() ? <> (<span className="font-mono">{record.key.trim()}</span>, or the next free key)</> : null}, with its format set. You can edit it afterwards under <Link className="underline" to="/admin/settings/profiles">Profiles</Link>.{copiesOf(picked).length ? ` To reuse the copy you already have, pick ${copiesOf(picked).join(" or ")} under Your profiles.` : ""}</span>
