@@ -9,6 +9,7 @@ import {
   perLibrary,
   sortColumn,
   visibleIndexColumns,
+  type IndexColumnId,
 } from "./index-columns";
 import { normalizeColumnPrefs } from "./prefs";
 import { titleStatusWords } from "./tmdb-words";
@@ -36,6 +37,24 @@ describe("the lists' columns", () => {
     expect(label("series", "title_status")).toBe("Series status");
     expect(listColumns("movies")).toHaveLength(24);
     expect(listColumns("series")).toHaveLength(23);
+  });
+  it("gives Anime's Movies segment the movie columns and words and its Series segment the series words", () => {
+    const movie = indexColumns("anime", true, "movie");
+    for (const id of ["seasons", "previous", "series_type"]) expect(ids(movie)).not.toContain(id);
+    expect(movie.find((c) => c.id === "network")?.label).toBe("Studio");
+    expect(movie.find((c) => c.id === "next")?.label).toBe("Next release");
+    expect(movie.find((c) => c.id === "release")?.label).toBe("Release date");
+    for (const c of movie) expect(c.hint).not.toMatch(/season|episode|series|air(ed|ing)|continuing|ended/i);
+    const series = indexColumns("anime", true, "series");
+    expect(ids(series)).toEqual(ids(indexColumns("anime", true)));
+    expect(series.find((c) => c.id === "network")?.label).toBe("Network");
+    expect(series.find((c) => c.id === "release")?.label).toBe("First aired");
+    // All keeps the mixed words; a stored choice with Seasons shows it again on Series and All.
+    expect(label("anime", "network")).toBe("Network / studio");
+    const p = { order: ["status", "seasons", "network"] as IndexColumnId[], shown: ["status", "seasons", "network"] as IndexColumnId[] };
+    expect(visibleIndexColumns(p, "anime", true, "movie")).toEqual(["status", "network"]);
+    expect(visibleIndexColumns(p, "anime", true, "series")).toEqual(["status", "seasons", "network"]);
+    expect(visibleIndexColumns(p, "anime", true)).toEqual(["status", "seasons", "network"]);
   });
   it("explains Movies' columns without seasons, episodes or series words (Opus C25)", () => {
     for (const c of [...listColumns("movies"), ...indexColumns("movies", false)]) expect(c.hint).not.toMatch(/season|episode|series|air(ed|ing)|continuing|ended/i);

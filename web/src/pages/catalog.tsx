@@ -179,8 +179,9 @@ export function Catalog({ id }: { id: CatalogId }) {
   const onMore = useCallback(() => void grid.fetchNextPage(), [grid]);
   const sort = query.sort ?? "name";
   const desc = query.order ? query.order === "desc" : defaultDesc(sort);
-  const offered = indexColumns(id, perms.seeFiles);
-  const picked = visibleIndexColumns(columnsPref, id, perms.seeFiles).map((c) => offered.find((o) => o.id === c)!);
+  // Anime's Movies or Series segment: the columns and their words follow the kind shown; the stored choice is Anime's.
+  const offered = indexColumns(id, perms.seeFiles, kind);
+  const picked = visibleIndexColumns(columnsPref, id, perms.seeFiles, kind).map((c) => offered.find((o) => o.id === c)!);
   // The table shows what it is sorted by: a sort whose column is not chosen (Next release, Latest file) shows that
   // column first, for as long as the sort lasts; the chosen columns are not changed.
   const sortedBy = sortColumn(sort);

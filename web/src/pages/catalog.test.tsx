@@ -58,6 +58,18 @@ describe("Library table", () => {
     await waitFor(() => expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Title", "Next release", "Status", "Libraries", "Size", "Added", "Actions"]));
   });
 
+  it("heads Anime's Movies segment with the movie columns and words, and Series with the series ones", async () => {
+    mockFetch(routes());
+    const { unmount } = renderPage(<Catalog id="anime" />, "/anime?kind=movie");
+    await screen.findAllByRole("columnheader");
+    await waitFor(() => expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Title", "Status", "Libraries", "Studio", "Next release", "Size", "Actions"]));
+    unmount();
+    mockFetch(routes());
+    renderPage(<Catalog id="anime" />, "/anime?kind=series");
+    await screen.findAllByRole("columnheader");
+    await waitFor(() => expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Title", "Status", "Libraries", "Network", "Next airing", "Seasons", "Size", "Actions"]));
+  });
+
   // The frame is 800 px wide; the table as wide as its columns make it.
   const measured = async (tableWidth: number) => {
     const observers: (() => void)[] = [];

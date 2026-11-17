@@ -88,20 +88,34 @@ const DEFS: Def[] = [
   { id: "folder", ...both("Folder"), hint: "The title's folder in each library", seeFiles: true },
 ];
 
+/** The kind a list shows: Anime's Movies or Series segment (?kind=) shows one kind; undefined: both (All). */
+export type ShownKind = "movie" | "series" | undefined;
+
 const offered = (d: Def, list: ListId) => (list === "movies" ? d.movie : list === "anime" ? (d.series && (d.anime ?? d.series)) : d.series);
 const hintOf = (d: Def, list: ListId) => (list === "movies" ? d.movieHint : list === "series" ? d.seriesHint : undefined) ?? d.hint;
+
+/** A column's label where kind is shown: Anime's Movies segment drops the series-only columns and takes the movie
+ *  words ("Studio"), its Series segment the series words; the columns stay Anime's, so the stored choice is kept. */
+function shownLabel(d: Def, list: ListId, kind: ShownKind): string | undefined {
+  const label = offered(d, list);
+  if (!label || list !== "anime" || !kind) return label;
+  return kind === "movie" ? d.movie : d.series;
+}
+const shownHint = (d: Def, list: ListId, kind: ShownKind) =>
+  (list === "anime" && kind ? (kind === "movie" ? d.movieHint : d.seriesHint) : undefined) ?? hintOf(d, list);
 
 /** Every column a list has, in the default order (for the stored choice: lib/prefs.ts normalizeColumnPrefs). */
 export function listColumns(list: ListId): ColumnDef<IndexColumnId>[] {
   return DEFS.filter((d) => offered(d, list)).map((d) => ({ id: d.id, label: offered(d, list)!, hint: hintOf(d, list) }));
 }
 
-/** The columns a list offers this account: without "see files" no file column, and Status is headed Availability. */
-export function indexColumns(list: ListId, seeFiles: boolean): ColumnDef<IndexColumnId>[] {
-  return DEFS.filter((d) => offered(d, list) && (seeFiles || !d.seeFiles)).map((d) => ({
+/** The columns a list offers this account: without "see files" no file column, and Status is headed Availability.
+ *  kind: the kind Anime shows (shownLabel). */
+export function indexColumns(list: ListId, seeFiles: boolean, kind?: ShownKind): ColumnDef<IndexColumnId>[] {
+  return DEFS.filter((d) => shownLabel(d, list, kind) && (seeFiles || !d.seeFiles)).map((d) => ({
     id: d.id,
-    label: d.id === "status" && !seeFiles ? "Availability" : offered(d, list)!,
-    hint: d.id === "status" && !seeFiles ? "Whether it can be watched" : hintOf(d, list),
+    label: d.id === "status" && !seeFiles ? "Availability" : shownLabel(d, list, kind)!,
+    hint: d.id === "status" && !seeFiles ? "Whether it can be watched" : shownHint(d, list, kind),
   }));
 }
 
@@ -114,8 +128,8 @@ export function defaultColumns(list: ListId): IndexColumnId[] {
 }
 
 /** The chosen columns this account sees, in order. */
-export function visibleIndexColumns(p: { order: IndexColumnId[]; shown: IndexColumnId[] }, list: ListId, seeFiles: boolean): IndexColumnId[] {
-  const ok = new Set(indexColumns(list, seeFiles).map((c) => c.id));
+export function visibleIndexColumns(p: { order: IndexColumnId[]; shown: IndexColumnId[] }, list: ListId, seeFiles: boolean, kind?: ShownKind): IndexColumnId[] {
+  const ok = new Set(indexColumns(list, seeFiles, kind).map((c) => c.id));
   return p.order.filter((id) => p.shown.includes(id) && ok.has(id));
 }
 

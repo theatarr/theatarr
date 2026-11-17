@@ -826,7 +826,10 @@ including "Imported from Radarr's blocklist" for `arr:<instance>`) and the healt
   Latest file, Quality, Year, Release date, Runtime, Certification and Rating. The per-library completion sort
   (`sort=completion&sort_version=<key>`) stays in the API and old links, but no header offers it. The Sort menu and
   the column headers use the list's words (Movies: Next release, Studio, Release date; Series: Next airing, Network,
-  First aired; Anime, which mixes both: Next episode / release, Network / studio, Released / first aired). An undated
+  First aired; Anime, which mixes both: Next episode / release, Network / studio, Released / first aired). Anime's
+  Movies segment drops the series-only columns (Seasons, Previous airing, Series type) and heads the rest with the
+  movie words (Studio, Next release, Release date); its Series segment uses the series words. The stored column choice
+  stays Anime's, so a column hidden on Movies comes back on All and Series. An undated
   title sorts last by Release date. A sort whose column is not chosen (Next
   release, Latest file, Quality) shows that column first while the sort lasts, so the order follows a visible cell. Below 640 px rows
   are cards: thumbnail, title with Status on its own line under it, then the pills, then each chosen column as a line. Without See files the
