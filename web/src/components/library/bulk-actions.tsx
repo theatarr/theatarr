@@ -219,7 +219,8 @@ export function BulkAddDialog({ titles, kinds, anime, onClose, onDone }: { title
     does: [`${plural(n, "title")} ${n === 1 ? "is" : "are"} added to ${name} and monitored there: ${n === 1 ? "it is" : "they are"} wanted in that library from now on`],
     keeps: [
       "Nothing is searched now",
-      `${n === 1 ? "Its" : "Their"} other libraries and files`,
+      // A library kept in sync adds to its partners too (the line below the dialog says so): only the files stay.
+      partners.length > 0 ? `${n === 1 ? "Its" : "Their"} files` : `${n === 1 ? "Its" : "Their"} other libraries and files`,
       ...(already.length ? [`${plural(already.length, "title")} already in ${name}`] : []),
       ...(wrong.length ? [`${plural(wrong.length, lib.kind === "series" ? "movie" : "series", lib.kind === "series" ? "movies" : "series")} skipped: ${name} is a library for ${kindWord}`] : []),
     ],

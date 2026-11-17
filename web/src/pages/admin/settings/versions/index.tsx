@@ -7,7 +7,7 @@ import { Link } from "react-router";
 import { ApiError } from "@/api/client";
 import { bringInSync, checkRoot, confirmVersion, saveVersion, useBringInSyncPreview, useVersions, type Confirmation, type VersionBody, type VersionConfig, type VersionList, type VersionRecord } from "@/api/settings-versions";
 import { CATEGORY_LABEL, PRESET_PICK, categoryOf, ensurePresetProfile, originLabel, overviewKey, presetCopies, presetPick, usePresets, useQualityOverview, type Category, type Preset, type ProfileSummary } from "@/api/settings-profiles";
-import { DownloadsOffNotice, VersionStatus } from "@/components/version-status";
+import { DownloadsOffNotice, pausedWords, VersionStatus } from "@/components/version-status";
 import { PageHeader } from "@/components/page";
 import { EffectsConfirmDialog, useWriteConfirmation } from "@/components/settings/confirm-write";
 import { Announcer, ChangedMark, ExplainBox, SELECT_CLASS, useAnnouncement } from "@/components/settings/parts";
@@ -541,14 +541,14 @@ function SyncPart({ record, saved, data, onChange }: { record: Draft; saved: Dra
       : <p className="text-sm text-muted-foreground">No other library can be kept in sync with this one.</p>}
     {refused.length ? <p className="text-xs text-muted-foreground [overflow-wrap:anywhere]" data-testid="library-sync-refused">Not offered: {refused.join("; ")}.</p> : null}
     {changed ? <ChangedMark name="Keep in sync" onUndo={() => onChange({ ...record, sync: saved.sync ?? [] })} /> : null}
-    {!changed && (saved.sync ?? []).length > 0 ? <BringInSyncLine libraryKey={record.key} /> : null}
+    {!changed && (saved.sync ?? []).length > 0 ? <BringInSyncLine libraryKey={record.key} paused={data.switches.pause_forced ? "locked" : data.switches.paused ? "off" : undefined} /> : null}
   </section>;
 }
 
 /** Bring in sync, for a saved group: "N titles would gain a copy in this group" (hidden at 0) and the dialog that
  * adds those copies in one server action; searching for them is a choice, off by default, through the paced search
- * schedule. */
-function BringInSyncLine({ libraryKey }: { libraryKey: string }) {
+ * schedule, and not offered while Pause is on (nothing would be queued). */
+function BringInSyncLine({ libraryKey, paused }: { libraryKey: string; paused?: "locked" | "off" }) {
   const preview = useBringInSyncPreview(libraryKey, true);
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -563,12 +563,11 @@ function BringInSyncLine({ libraryKey }: { libraryKey: string }) {
     setBusy(true);
     setError(undefined);
     try {
-      const r = await bringInSync(libraryKey, search);
+      const r = await bringInSync(libraryKey, search && !paused);
       toast({
         tone: "ok",
         title: "Brought in sync",
-        body: [r.libraries.filter((l) => l.count > 0).map((l) => `${titles(l.count)} added to ${l.label}`).join("; ") + ".",
-          search ? `${titles(r.searched)} put on the search schedule.` : ""].filter(Boolean).join(" "),
+        body: r.libraries.filter((l) => l.count > 0).map((l) => `${titles(l.count)} added to ${l.label}`).join("; ") + ".",
         duration: 10_000,
       });
       setOpen(false);
@@ -586,10 +585,11 @@ function BringInSyncLine({ libraryKey }: { libraryKey: string }) {
       scope={{
         title: "Bring this group in sync",
         does: [...gains.map((l) => `${titles(l.count)} added to ${l.label}: ${l.names.join(", ")}${l.more ? `, and ${l.more} more` : ""}`), p.source],
-        keeps: ["Removed copies stay removed, and existing copies are left as they are", ...(search ? [] : ["No search queued by this action"])],
+        keeps: ["Removed copies stay removed, and existing copies are left as they are", ...(search && !paused ? [] : ["No search queued by this action"])],
         confirm: `Add ${titles(p.titles)}`,
       }}>
-      <Choice checked={search} onChange={setSearch} testid="bring-in-sync-search">Search for the new copies (paced, within the hourly search budget)</Choice>
+      <Choice checked={search && !paused} onChange={setSearch} disabled={!!paused} testid="bring-in-sync-search">Search for the new copies (paced, within the hourly search budget)</Choice>
+      {paused ? <p className="pl-6 text-xs text-[var(--ink-3)]" data-testid="bring-in-sync-paused">{pausedWords(paused)}</p> : null}
     </ConfirmDialog> : null}
   </div>;
 }

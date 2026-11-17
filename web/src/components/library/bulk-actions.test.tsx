@@ -292,6 +292,9 @@ describe("Bulk Add to a library kept in sync", () => {
     await user.selectOptions(within(dialog).getByRole("combobox", { name: "Library" }), "uhd");
     dialog = await screen.findByRole("dialog", { name: "Add 3 titles to 4K" });
     expect(within(dialog).getByTestId("bulk-add-synced").textContent).toBe("Also added to HD where a title has no copy there.");
+    const keeps = within(dialog).getByTestId("confirm-keeps").textContent;
+    expect(keeps).toContain("Their files");
+    expect(keeps).not.toContain("other libraries");
     await user.click(within(dialog).getByRole("button", { name: "Add 3 titles" }));
     expect(await screen.findByText("Added 3 titles to 4K and 1 also added to HD")).toBeTruthy();
   });
