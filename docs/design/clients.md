@@ -51,6 +51,11 @@ and can be retried instead of POSTing a stub with no seasons; an unknown id is a
 Overseerr's lookup → POST season selection is stored as durable intent and survives metadata refreshes. Seerr's
 existing-series PUT changes only the seasons whose flag differs from what Theatarr reports, as Sonarr does.
 
+Seerr with two services (a standard and a 4K Radarr or Sonarr server): give each its own single-library address
+(`/v/<library>/radarr`, `/v/<library>/sonarr`). A view of several libraries answers `hasFile: true` when any of
+its copies has a file, so a 4K service pointed at a combined address would see the standard copy and never add
+the second one.
+
 Seerr declares queue `timeleft` and `estimatedCompletionTime` as non-null strings, but the Radarr/Sonarr queue
 resources make both nullable. Theatarr omits unknown values just as the arr serializer does. Seerr turns
 `estimatedCompletionTime` into a `Date` without a null guard, so an unknown ETA may render poorly. The router
@@ -121,6 +126,18 @@ is part of the response type but is not used by autobrr's decision code.
 Pushes return HTTP 200 with the arr-shaped list. A rejected release has `rejected:true` and string
 rejections; a temporarily rejected release has `temporarilyRejected:true` and `rejected:false`, which autobrr still
 reports as a rejection. A `downloadUrl` alone can be evaluated but is not routed without an info hash.
+
+A push needs a magnet (`magnetUrl`, or a magnet in `downloadUrl`) or an `infoHash`: a `.torrent` URL is never
+fetched, so an otherwise acceptable release without one is refused with "No info hash: a .torrent link is never
+fetched; push a magnet or infoHash". In autobrr, use a filter or indexer that provides magnet links. The
+`indexer` must name an indexer the library lists (its key or its Prowlarr name). An accepted Radarr push:
+
+```json
+{"title": "Alpha.2020.2160p.WEB-DL.H265-GRP",
+ "magnetUrl": "magnet:?xt=urn:btih:7777777777777777777777777777777777777777",
+ "size": 1073741824, "indexer": "Public (Prowlarr)", "downloadProtocol": "torrent", "protocol": "torrent",
+ "publishDate": "2026-10-26T11:59:55Z", "tmdbId": 101}
+```
 
 ## Homepage
 

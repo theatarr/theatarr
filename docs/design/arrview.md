@@ -629,7 +629,9 @@ client in Settings › Connected apps (or set `THEATARR_VIEW_RADARR_KEY` and `TH
 Seerr's settings.
 
 - **Seerr** (Settings → Services): one Radarr server and one Sonarr server, both default, no 4K servers (one view
-  each) and no anime override rules: Theatarr decides anime itself (Writes).
+  each) and no anime override rules: Theatarr decides anime itself (Writes). To keep Seerr's standard and 4K
+  servers, point each at its own single-library view (`/v/<library>/radarr`) instead: a combined view answers
+  `hasFile` when any copy exists, so Seerr would not add the second copy.
   - Radarr: Theatarr's host, port `7700`, URL base `/radarr`, the key. Test, then pick the quality profile
     "Rules default", root folder `/media/movies` and minimum availability; re-select tags (the views'
     tag ids are new). An anime movie (mapping data, else TMDb's Japanese animation) lands in `anime-movie`.

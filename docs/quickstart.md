@@ -339,6 +339,10 @@ go to **Settings → Services → Add Radarr server** (Sonarr is the same):
   library's root). Mark it the default server.
 
 Seerr adds and removes titles through the view. Its requests become wanted titles for that view's libraries.
+
+For Seerr's standard and 4K servers, give each its own single-library address (for example `/v/movies/radarr` and
+`/v/movies-4k/radarr`), marking the second as a 4K server. A combined address (several libraries) answers "has a
+file" when any copy exists, so Seerr would not add the second copy.
 Homepage widgets, LunaSea and Ruddarr use the same URL and key ([arrview.md (internals)](design/arrview.md)).
 
 Two details for clients and monitors:

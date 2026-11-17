@@ -68,9 +68,9 @@ events it gets, or turn on the `native` option for Theatarr's own events. Then t
 
 The Radarr- and Sonarr-compatible views do not answer every call of the arr APIs. Known gaps:
 
-- **`PUT episode/{id}`**, **`DELETE queue/bulk`**, **`DELETE blocklist/bulk`** and the **iCal calendar feed**. No
-  client we checked calls them: they set episode monitoring with `PUT episode/monitor`, remove queue and blocklist
-  entries one at a time, and read the calendar as JSON, all of which work.
+- **`PUT episode/{id}`**. No client we checked calls it: they set episode monitoring with `PUT episode/monitor`,
+  which works.
+- **The iCal calendar feed.** Clients read the calendar as JSON (`GET calendar`), which works.
 
 ## Other gaps
 
@@ -82,5 +82,8 @@ The Radarr- and Sonarr-compatible views do not answer every call of the arr APIs
 - **IMDb lists.** IMDb answers a plain HTTP client with an empty page (a bot challenge), and Sonarr and Radarr read
   IMDb lists through their own hosted service. Use a **JSON list** made from the IMDb list instead (**Settings ›
   Import lists**). Trakt, Plex watchlist and the other arr list providers are not offered either.
-- **Tags.** There is no tag-based routing; each library lists its indexers and providers instead
+- **Tags.** Compatible clients such as Seerr and Ruddarr can set tags on a movie or series, per library,
+  and they are kept: the client sees them again and a Connect webhook with tags gets only the events of titles
+  carrying one of them. Theatarr's own pages do not show them, and **Import from Sonarr/Radarr** does not
+  bring them. There is no tag-based routing; each library lists its indexers and providers instead
   ([arr-map.md](arr-map.md)).
