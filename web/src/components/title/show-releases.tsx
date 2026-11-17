@@ -26,6 +26,12 @@ const SOURCE: Record<string, string> = {
   none: "Nothing stored",
 };
 
+/** The answer's badge: a stored RSS read is "Last RSS match", not a search. */
+function sourceWords(r: Releases): string {
+  if (r.source === "journal" && r.target === "rss") return "Last RSS match";
+  return SOURCE[r.source] ?? r.source;
+}
+
 // The notes a search stores (internal/router/search.go and the indexers' Notes) that are information, not trouble:
 // kept/dropped/added counts, the page cap, a pack-size caveat, a name-only query that did answer.
 const INFO = [
@@ -85,11 +91,14 @@ export function Summary({ r, reason, onReason }: { r: Releases; reason?: string;
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-2 text-sm">
-        <Badge tone={r.source === "live" ? "info" : r.source === "none" ? "neutral" : "accent"} data-testid="releases-source">{SOURCE[r.source] ?? r.source}</Badge>
-        {/* One text run, so a wrapped line never starts with a separator; what the search covered is in the message. */}
-        <span className="text-muted-foreground" data-testid="releases-facts">
-          {[r.at ? fmtAgo(r.at) : "", `${resultsWords(r)}, ${fmtNumber(r.accepted ?? 0)} accepted`].filter(Boolean).join(" · ")}
-        </span>
+        <Badge tone={r.source === "live" ? "info" : r.source === "none" ? "neutral" : "accent"} data-testid="releases-source">{sourceWords(r)}</Badge>
+        {/* One text run, so a wrapped line never starts with a separator; what the search covered is in the message.
+            Nothing stored has no counts: a stored search that returned nothing keeps its zero. */}
+        {r.source === "none" ? null : (
+          <span className="text-muted-foreground" data-testid="releases-facts">
+            {[r.at ? fmtAgo(r.at) : "", `${resultsWords(r)}, ${fmtNumber(r.accepted ?? 0)} accepted`].filter(Boolean).join(" · ")}
+          </span>
+        )}
       </div>
       {r.message ? <p className="text-xs text-[var(--ink-3)]" data-testid="releases-message">{r.message}</p> : null}
       {r.grabbed ? <p className="text-sm font-medium text-[var(--ink)]" data-testid="releases-grabbed">{r.grabbed}</p> : null}

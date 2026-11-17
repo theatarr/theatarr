@@ -576,6 +576,16 @@ func TestEpisodeOutcomeFromLinks(t *testing.T) {
 	if r.Grabbed != "No new grab for this episode from this search" {
 		t.Errorf("E02 after a season search that routed E01 only: %q", r.Grabbed)
 	}
+
+	// A newer RSS read is not called a search.
+	e.exec(`INSERT INTO journal_decision (id, source, title_id, version_key, target, results, accepted, candidates,
+		created_at) VALUES (101, 'rss', 10, 'tv-2160p', 'rss', 1, 1, ?, ?)`,
+		`[{"rank":1,"release":"The.Show.S01E02.2160p.WEB-RSS","info_hash":"`+h1+`","accepted":true,"episodes":["S01E02"]}]`, now-4000)
+	r = Releases{}
+	e.call("GET", APIBase+"/titles/10/episodes/102/releases", nil, 200, &r)
+	if r.Grabbed != "No new grab for this episode from this RSS match" {
+		t.Errorf("E02 after an RSS read: %q", r.Grabbed)
+	}
 }
 
 // A live search no indexer answered is a failed search: the stored decision answers, with the reason.

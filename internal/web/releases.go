@@ -509,6 +509,9 @@ func (w *Web) storedGrabbed(ctx context.Context, out *Releases, run sql.NullInt6
 		if len(dls) == 0 {
 			if state == "routed" {
 				out.Grabbed = "No new grab for this episode from this search"
+				if source == "rss" {
+					out.Grabbed = "No new grab for this episode from this RSS match"
+				}
 				return nil
 			}
 		} else {

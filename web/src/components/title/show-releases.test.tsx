@@ -3,7 +3,7 @@ import { fireEvent, screen, within } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 import { mockFetch, renderPage } from "@/test/page";
 import { ReleaseGrid } from "./release-grid";
-import { searchIncomplete, ShowReleases } from "./show-releases";
+import { searchIncomplete, ShowReleases, Summary } from "./show-releases";
 import { LibraryNamesProvider } from "@/lib/library-names";
 
 const cand = (rank: number, hash: string, accepted = true) => ({ rank, release: `Alpha.2020.2160p.WEB-${rank}`, info_hash: hash, accepted, score: 100 - rank, quality: "WEBDL-2160p" });
@@ -288,4 +288,21 @@ it("leaves no failure out of the line: HTTP errors, unprefixed fallbacks and gat
 it("names a fallback note by the indexer it carries before its usual owner", () => {
   expect(searchIncomplete("title search failed, IMDb results only: indexer my-zilean: upstream answered HTTP 503 Service Unavailable")).toBe(
     "Search incomplete: my-zilean was unavailable.");
+});
+
+it("names a stored RSS read as such, and says nothing about counts when nothing is stored", () => {
+  mockFetch([ME]);
+  const base = { title_id: 7, version: "tv", versions: ["tv"], live_allowed: false, candidates: [], rejections: {}, outcomes: {}, grab: false, grab_state: { paused: false, pause_forced: false, will_grab: false } };
+  const { unmount } = renderPage(<Summary r={{ ...base, source: "journal", target: "rss", results: 3, accepted: 1 }} />);
+  expect(screen.getByTestId("releases-source").textContent).toBe("Last RSS match");
+  expect(screen.getByTestId("releases-facts").textContent).toBe("3 releases returned by the indexers, 1 accepted");
+  unmount();
+  const none = renderPage(<Summary r={{ ...base, source: "none", results: 0, accepted: 0, message: "No search result is stored for this library yet" }} />);
+  expect(screen.getByTestId("releases-source").textContent).toBe("Nothing stored");
+  expect(screen.queryByTestId("releases-facts")).toBeNull();
+  none.unmount();
+  // A stored search that really returned nothing keeps its zero.
+  renderPage(<Summary r={{ ...base, source: "journal", target: "s01e02", results: 0, accepted: 0 }} />);
+  expect(screen.getByTestId("releases-source").textContent).toBe("Last decided search");
+  expect(screen.getByTestId("releases-facts").textContent).toBe("0 releases returned by the indexers, 0 accepted");
 });

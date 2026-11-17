@@ -548,7 +548,10 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   best-ranked copy stands for it, the Indexer cell names every indexer that returned it (the first two, then "+N"; the
   tooltip gives each copy's indexer and name; a narrow card lists them all), Peers is the copy with the most seeders and Cached on the union; the
   Indexer filter and the text filter match any of its indexers. A live answer counts rows; a stored one keeps its
-  search's own count ("N releases returned by the indexers"). A live search no indexer answered is a failed search ("Live search failed",
+  search's own count ("N releases returned by the indexers"). The badge says what the answer is: "Live search", "Last decided search", "Last
+  RSS match" for a stored RSS read (the episode window too), or "Nothing stored" alone, with no counts; a stored
+  search that returned nothing keeps its "0 releases returned by the indexers, 0 accepted". An episode an RSS match grabbed nothing
+  for reads "No new grab for this episode from this RSS match". A live search no indexer answered is a failed search ("Live search failed",
   the stored list shown), and a live search is never retried on its own. `?hash=` picks out the followed release's row, or says it is not in the list.
 - **Interactive search** (`components/title/interactive-search.tsx`, the grid `release-grid.tsx`, columns
   `lib/release-columns.ts`): a wide window (a full-height sheet on phones) that searches the indexers the moment it
