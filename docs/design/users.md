@@ -124,9 +124,10 @@ and no other-requester list or count.
   stored in `request.versions`. The request sheet's "You are asking for" shows them beside the asked-for libraries,
   each with "in sync with <library>" (the add options' `synced`). The title is looked up as the approval will find it (`catalog.Lookup`: a series by
   TVDB id, then TMDb id), so the partners stored are the ones the approval adds or restores; a title without a live copy is read with
-  the request's anime choice, which the approval writes. Known limit: a request that carries only a TMDb id for a
-  series the catalogue knows only by its TVDB id is widened as if the partner were missing, so its approval can
-  restore a removed partner (every live series carries both ids, so no metadata call is added for it). An approval stores the libraries it was
+  the request's anime choice, which the approval writes. Known limit: when every copy of a group was removed, each with
+  different season choices, and a request without seasons is approved, each restored copy keeps its own old choices
+  (the request names every library of the group, so none is a partner that copies another's). Rare, and live has no
+  native requests. An approval stores the libraries it was
   given plus those its add created in sync (`synced`), so an edited approval keeps following a partner it adds.
   Readiness, status and the library badges use that stored scope; nothing widens it when it is read. The approval editor shows the stored libraries as ordinary ticked boxes, and a library in sync with
   a ticked one that is not stored ticked and disabled, "in sync with …" (approval adds it). "Requests ask for" offers
