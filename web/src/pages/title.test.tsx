@@ -53,22 +53,8 @@ describe("Title page", () => {
     expect(facts.textContent).toContain("Latest file");
     expect(facts.textContent).not.toMatch(/Added/);
     old.unmount();
-    const coming = page({ year: 2027, release_date: "2999-06-18", released: "2999-06-18" });
+    page({ year: 2027, release_date: "2999-06-18", released: "2999-06-18" });
     expect((await screen.findByTestId("title-facts")).textContent).toContain("Releases");
-    coming.unmount();
-    // A cinema date to come names its milestone; the libraries' line names the home release.
-    const limited = page({ year: 2999, release_date: "2999-12-18", in_cinemas: "2999-12-18", released: "2999-11-20", released_cinema: true, home_release: "3000-03-18", monitored: true,
-      versions: [{ id: 1, key: "movie-web", label: "WEB", monitored: true, has_file: false, state: "wanted" }] });
-    // A limited opening before the wide date supplies the day: still a cinema date.
-    const cinema = await screen.findByTestId("title-facts");
-    expect(cinema.textContent).toContain("In cinemasNov 20, 2999");
-    expect(cinema.textContent).not.toContain("Releases");
-    limited.unmount();
-    // A digital-only film whose in_cinemas is a metadata fallback: the server says no cinema date supplied it.
-    page({ year: 2999, release_date: "2999-12-18", in_cinemas: "2999-12-18", released: "2999-12-18", digital_release: "2999-12-18" });
-    const digital = await screen.findByTestId("title-facts");
-    expect(digital.textContent).toContain("ReleasesDec 18, 2999");
-    expect(digital.textContent).not.toContain("In cinemas");
   });
 
   it("reads a title every copy of which was removed as one not in the library, with Add and its kept files", async () => {

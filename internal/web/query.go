@@ -116,9 +116,6 @@ type TitleRow struct {
 	// release date, whichever is earlier; a series' first air date. What the Released column, its sort and the title
 	// page's About show; in_cinemas and release_date keep their own meaning.
 	Released string `json:"released,omitempty"`
-	// ReleasedCinema: a stored cinema date (theatrical or theatrical_limited) supplied Released; About says "In
-	// cinemas" for such a day still to come.
-	ReleasedCinema bool `json:"released_cinema,omitempty"`
 	// SeasonCount is how many seasons (specials left out) a series has episodes in; PreviousAiring is the latest
 	// aired episode's day (YYYY-MM-DD). Series only.
 	SeasonCount    int    `json:"season_count,omitempty"`
@@ -263,7 +260,7 @@ func (w *Web) libraryKind(key string) string {
 
 // titleCols and titleFrom are the list row's columns and tables; m is the title's title_meta row, if any.
 var titleCols = `t.id, t.kind, t.name, t.year, t.tmdb_id, t.tvdb_id, COALESCE(t.imdb_id, ''), t.anime, t.monitored,
-	t.created_at, ` + store.SeriesTypeSQL("t") + `, COALESCE(` + releasedSQL + `, ''), ` + releasedCinemaSQL
+	t.created_at, ` + store.SeriesTypeSQL("t") + `, COALESCE(` + releasedSQL + `, '')`
 
 const titleFrom = ` FROM title t LEFT JOIN title_meta m ON m.title_id = t.id`
 
@@ -274,7 +271,7 @@ func (w *Web) titleRows(ctx context.Context, db *sql.DB, q string, args []any) (
 		var r TitleRow
 		var year, tmdb, tvdb, created sql.NullInt64
 		if err := rows.Scan(&r.ID, &r.Kind, &r.Name, &year, &tmdb, &tvdb, &r.IMDbID, &r.Anime, &r.Monitored, &created,
-			&r.SeriesType, &r.Released, &r.ReleasedCinema); err != nil {
+			&r.SeriesType, &r.Released); err != nil {
 			return err
 		}
 		r.Year, r.TMDbID, r.TVDbID, r.TitleAddedAt = nullInt(year), nullInt(tmdb), nullInt(tvdb), nullTS(created)
@@ -481,9 +478,9 @@ func (w *Web) getTitle(ctx context.Context, id int64) (*TitleDetail, error) {
 	var year, tmdb, tvdb sql.NullInt64
 	var created, updated int64
 	err := db.QueryRowContext(ctx, `SELECT t.id, t.kind, t.name, t.sort_name, t.year, t.tmdb_id, t.tvdb_id,
-		COALESCE(t.imdb_id, ''), t.anime, t.monitored, t.created_at, t.updated_at, COALESCE(`+releasedSQL+`, ''), `+
-		releasedCinemaSQL+titleFrom+` WHERE t.id = ?`, id).Scan(&d.ID, &d.Kind, &d.Name, &d.SortName,
-		&year, &tmdb, &tvdb, &d.IMDbID, &d.Anime, &d.Monitored, &created, &updated, &d.Released, &d.ReleasedCinema)
+		COALESCE(t.imdb_id, ''), t.anime, t.monitored, t.created_at, t.updated_at, COALESCE(`+releasedSQL+`, '')`+
+		titleFrom+` WHERE t.id = ?`, id).Scan(&d.ID, &d.Kind, &d.Name, &d.SortName,
+		&year, &tmdb, &tvdb, &d.IMDbID, &d.Anime, &d.Monitored, &created, &updated, &d.Released)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, errNotFound
 	}

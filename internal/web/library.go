@@ -483,10 +483,6 @@ const cinemaFirstSQL = `(SELECT MIN(substr(d.date, 1, 10)) FROM title_release_da
 const releasedSQL = `CASE WHEN t.kind = 'movie' THEN (SELECT MIN(x) FROM (SELECT ` + cinemaFirstSQL + ` AS x
 	UNION ALL SELECT NULLIF(substr(m.release_date, 1, 10), ''))) ELSE NULLIF(substr(m.release_date, 1, 10), '') END`
 
-// releasedCinemaSQL is true when a stored cinema date supplied releasedSQL's day (About then says "In cinemas" for one
-// still to come).
-const releasedCinemaSQL = `(t.kind = 'movie' AND COALESCE(` + cinemaFirstSQL + ` = (` + releasedSQL + `), 0))`
-
 func (g TitleGridFilter) orderBy() (string, []any) {
 	expr := ""
 	var args []any

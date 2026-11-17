@@ -1523,40 +1523,8 @@ func TestReleasedEarliestDate(t *testing.T) {
 		t.Errorf("sort=release asc: %s", n)
 	}
 	var d TitleDetail
-	if e.getKey(APIBase+"/titles/60", key, &d); d.Released != "1988-07-16" || !d.ReleasedCinema {
-		t.Errorf("title page released %q, from a cinema date %v", d.Released, d.ReleasedCinema)
-	}
-	if got["Plain"].ReleasedCinema || got["Delta"].ReleasedCinema {
-		t.Errorf("released_cinema without a cinema date: Plain %v, Delta %v", got["Plain"].ReleasedCinema, got["Delta"].ReleasedCinema)
-	}
-}
-
-// TestReleasedCinema: released_cinema says a stored cinema date supplied the release day: true for a limited opening
-// before the wide date, false for a digital-only film whose TMDb date is its release day.
-func TestReleasedCinema(t *testing.T) {
-	t.Parallel()
-	e := newEnv(t)
-	e.seedLibrary()
-	key := e.apiKey()
-	now := store.Millis(testNow)
-	e.exec(`INSERT INTO title (id, kind, name, year, tmdb_id, monitored, created_at, updated_at) VALUES
-		(62, 'movie', 'Limited first', 2027, 662, 1, ?, ?), (63, 'movie', 'Digital only', 2027, 663, 1, ?, ?)`, now, now, now, now)
-	e.exec(`INSERT INTO title_meta (title_id, release_date, movie_dates_at, attempted_at, refresh_after) VALUES
-		(62, '2027-02-01', 1, 1, 1), (63, '2027-03-01', 1, 1, 1)`)
-	e.exec(`INSERT INTO title_release_date (title_id, source, country, type, date) VALUES
-		(62, 'tmdb', 'US', 'theatrical_limited', '2027-01-10'), (62, 'tmdb', 'US', 'theatrical', '2027-02-01'),
-		(63, 'tmdb', 'US', 'digital', '2027-03-01')`)
-	for id, want := range map[int]struct {
-		day    string
-		cinema bool
-	}{62: {"2027-01-10", true}, 63: {"2027-03-01", false}} {
-		var d TitleDetail
-		if code := e.getKey(fmt.Sprintf("%s/titles/%d", APIBase, id), key, &d); code != 200 {
-			t.Fatalf("title %d: %d", id, code)
-		}
-		if d.Released != want.day || d.ReleasedCinema != want.cinema {
-			t.Errorf("title %d: released %q cinema %v, want %q %v", id, d.Released, d.ReleasedCinema, want.day, want.cinema)
-		}
+	if e.getKey(APIBase+"/titles/60", key, &d); d.Released != "1988-07-16" {
+		t.Errorf("title page released %q", d.Released)
 	}
 }
 
