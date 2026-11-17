@@ -94,11 +94,11 @@ export type ShownKind = "movie" | "series" | undefined;
 const offered = (d: Def, list: ListId) => (list === "movies" ? d.movie : list === "anime" ? (d.series && (d.anime ?? d.series)) : d.series);
 const hintOf = (d: Def, list: ListId) => (list === "movies" ? d.movieHint : list === "series" ? d.seriesHint : undefined) ?? d.hint;
 
-/** A column's label where kind is shown: Anime's Movies segment drops the series-only columns and takes the movie
- *  words ("Studio"), its Series segment the series words; the columns stay Anime's, so the stored choice is kept. */
+/** A column's label where kind is shown: Anime's Movies segment has the Movies columns under the movie words
+ *  ("Studio", In cinemas, Digital release), its Series segment the Series columns under the series words, All the mixed
+ *  ones; the choice is kept under Anime's key (listColumns holds every column of both). */
 function shownLabel(d: Def, list: ListId, kind: ShownKind): string | undefined {
-  const label = offered(d, list);
-  if (!label || list !== "anime" || !kind) return label;
+  if (list !== "anime" || !kind) return offered(d, list);
   return kind === "movie" ? d.movie : d.series;
 }
 const shownHint = (d: Def, list: ListId, kind: ShownKind) =>
@@ -106,7 +106,9 @@ const shownHint = (d: Def, list: ListId, kind: ShownKind) =>
 
 /** Every column a list has, in the default order (for the stored choice: lib/prefs.ts normalizeColumnPrefs). */
 export function listColumns(list: ListId): ColumnDef<IndexColumnId>[] {
-  return DEFS.filter((d) => offered(d, list)).map((d) => ({ id: d.id, label: offered(d, list)!, hint: hintOf(d, list) }));
+  // Anime also keeps the movie-only columns its Movies segment offers.
+  const label = (d: Def) => offered(d, list) ?? (list === "anime" ? d.movie : undefined);
+  return DEFS.filter((d) => label(d)).map((d) => ({ id: d.id, label: label(d)!, hint: hintOf(d, list) }));
 }
 
 /** The columns a list offers this account: without "see files" no file column, and Status is headed Availability.

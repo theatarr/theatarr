@@ -56,6 +56,17 @@ describe("the lists' columns", () => {
     expect(visibleIndexColumns(p, "anime", true, "series")).toEqual(["status", "seasons", "network"]);
     expect(visibleIndexColumns(p, "anime", true)).toEqual(["status", "seasons", "network"]);
   });
+  it("offers Anime's Movies segment the movie-only columns, kept in Anime's choice and hidden on All and Series", () => {
+    for (const id of ["in_cinemas", "digital", "physical", "min_availability"]) {
+      expect(ids(indexColumns("anime", true, "movie"))).toContain(id);
+      expect(ids(indexColumns("anime", true, "series"))).not.toContain(id);
+      expect(ids(indexColumns("anime", true))).not.toContain(id);
+      expect(ids(listColumns("anime"))).toContain(id);
+    }
+    const p = normalizeColumnPrefs(listColumns("anime"), defaultColumns("anime"))({ order: ["status", "in_cinemas", "seasons"], shown: ["status", "in_cinemas", "seasons"] });
+    expect(visibleIndexColumns(p, "anime", true, "movie")).toEqual(["status", "in_cinemas"]);
+    expect(visibleIndexColumns(p, "anime", true)).toEqual(["status", "seasons"]);
+  });
   it("explains Movies' columns without seasons, episodes or series words (Opus C25)", () => {
     for (const c of [...listColumns("movies"), ...indexColumns("movies", false)]) expect(c.hint).not.toMatch(/season|episode|series|air(ed|ing)|continuing|ended/i);
     const hint = (list: "movies" | "series" | "anime", id: string) => listColumns(list).find((c) => c.id === id)?.hint;
