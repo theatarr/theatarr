@@ -508,7 +508,9 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   explicit choice for that library only (libraries the movie is not in get none). An imported `tba` is shown but
   cannot be picked. A series' About facts show **Series type** (`series_type`, the title's one type for every
   library and arr view), which a manager changes with `POST /titles/series-type {title_ids, series_type}`
-  (`catalog.SetSeriesType`; the anime flag stays). The change is saved at once and can stop searches: acquisition
+  (`catalog.SetSeriesType`; the anime flag stays). A hint under the select (managers) says so: "Saves at once for
+  every library. Affects release matching and which libraries search this series." No dialog, no Save button.
+  The change is saved at once and can stop searches: acquisition
   searches a series only in libraries whose anime rule fits it (anime by its flag or its type; a library set to
   no anime skips an anime series, one set to anime only skips the rest), and neither Wanted nor search now says
   why a copy is left out. So the monitored copies left out in libraries searches run for

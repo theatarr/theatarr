@@ -8,6 +8,9 @@ import { Select } from "@/components/ui/select";
 export const MINIMUM_AVAILABILITY: readonly (readonly [MinimumAvailability, string])[] = [["announced", "Announced"], ["inCinemas", "In cinemas"], ["released", "Released"]];
 export const SERIES_TYPES: readonly (readonly [SeriesType, string])[] = [["standard", "Standard"], ["daily", "Daily"], ["anime", "Anime"]];
 
+/** Under the Series type select (managers): it saves at once, with no Save button. */
+export const SERIES_TYPE_HINT = "Saves at once for every library. Affects release matching and which libraries search this series.";
+
 const labelOf = (options: readonly (readonly [string, string])[], value: string) => options.find(([v]) => v === value)?.[1] ?? value;
 
 /** A movie's minimum availability in the library of the card. An imported value outside the list (tba) is shown,
@@ -54,6 +57,7 @@ export function SeriesTypeControl({ titleId, value, anime = false, versions = []
         onChange={(e) => save.mutate(e.target.value as SeriesType)} data-testid="title-series-type">
         {SERIES_TYPES.map(([o, l]) => <option key={o} value={o}>{l}</option>)}
       </Select>
+      <p className="mt-1 text-xs text-[var(--ink-3)]" data-testid="series-type-hint">{SERIES_TYPE_HINT}</p>
       {save.error ? <p className="mt-1 text-xs text-[var(--bad-ink)]" role="alert">{(save.error as Error).message}</p> : null}
       {note}
     </>
