@@ -1175,6 +1175,19 @@ func TestHistoryBlockedReasonWords(t *testing.T) {
 	}
 }
 
+// A title removed by an API key names it as a removed file's row does.
+func TestHistoryActorWords(t *testing.T) {
+	if r := historyReason(&journal.HistoryRow{Event: journal.EvRemoved, Reason: "copy removed by key:claude-automation"},
+		"", strings.ToUpper); r != "Removed by claude-automation (API key)" {
+		t.Errorf("removed %q", r)
+	}
+	h := &journal.HistoryRow{Event: journal.EvTitleRemoved, By: "key:claude-automation",
+		Removal: &journal.Removal{Files: journal.RemovalFilesKept}}
+	if r := historyReason(h, "", strings.ToUpper); r != "By claude-automation (API key). Files kept." {
+		t.Errorf("title removed %q", r)
+	}
+}
+
 // TestActivityRefusedReason: a download the library refused as not an upgrade (the old wrapper, with the file's
 // rejection in its blocklist row) reads the same plain reason in the queue, its attempt details, the Blocklist, the
 // title page and History; the stage line ticks Download complete and crosses Not imported; the stored text stays as

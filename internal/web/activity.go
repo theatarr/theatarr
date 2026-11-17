@@ -912,10 +912,15 @@ func removedByWords(reason string) string {
 	if !ok {
 		return reason
 	}
+	return "Removed by " + actorWords(who)
+}
+
+// actorWords names who did something (ops.go actor): an API key "key:<name>" is "<name> (API key)", a user their name.
+func actorWords(who string) string {
 	if key, ok := strings.CutPrefix(who, "key:"); ok {
-		return "Removed by " + key + " (API key)"
+		return key + " (API key)"
 	}
-	return "Removed by " + who
+	return who
 }
 
 // removalWords is a title_removed row's reason: who removed it, what became of the files, and the debrid
@@ -923,7 +928,7 @@ func removedByWords(reason string) string {
 func removalWords(h *journal.HistoryRow) string {
 	var out []string
 	if h.By != "" {
-		out = append(out, "By "+h.By+".")
+		out = append(out, "By "+actorWords(h.By)+".")
 	}
 	if rm := h.Removal; rm != nil {
 		left := ""
