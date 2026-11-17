@@ -239,7 +239,9 @@ func (a *Acquirer) wantedEpisodes(ctx context.Context, list []WantedRow) error {
 	for _, r := range list {
 		if len(r.episodeIDs) > 0 {
 			eps = append(eps, r.episodeIDs...)
-			vids = append(vids, r.versionID)
+			if r.Reason == OnlyCutoff {
+				vids = append(vids, r.versionID)
+			}
 		}
 	}
 	if len(eps) == 0 {
@@ -272,25 +274,28 @@ func (a *Acquirer) wantedEpisodes(ctx context.Context, list []WantedRow) error {
 		return err
 	}
 	quality := map[[2]int64]string{} // by version and episode; the newest link last
-	rows, err = db.QueryContext(ctx, `SELECT lv.version_id, le.episode_id, COALESCE(l.quality, '') FROM link l
-		JOIN link_version lv ON lv.link_id = l.id JOIN link_episode le ON le.link_id = l.id
-		WHERE lv.version_id IN (SELECT value FROM json_each(?)) AND le.episode_id IN (SELECT value FROM json_each(?))
-		AND l.state = 'active' ORDER BY l.created_at, l.id`, string(bv), string(be))
-	if err != nil {
-		return err
-	}
-	for rows.Next() {
-		var v, e int64
-		var q string
-		if err := rows.Scan(&v, &e, &q); err != nil {
-			rows.Close()
+	// The files' quality is read for Cutoff unmet rows only.
+	if len(vids) > 0 {
+		rows, err = db.QueryContext(ctx, `SELECT lv.version_id, le.episode_id, COALESCE(l.quality, '') FROM link l
+			JOIN link_version lv ON lv.link_id = l.id JOIN link_episode le ON le.link_id = l.id
+			WHERE lv.version_id IN (SELECT value FROM json_each(?)) AND le.episode_id IN (SELECT value FROM json_each(?))
+			AND l.state = 'active' ORDER BY l.created_at, l.id`, string(bv), string(be))
+		if err != nil {
 			return err
 		}
-		quality[[2]int64{v, e}] = q
-	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
-		return err
+		for rows.Next() {
+			var v, e int64
+			var q string
+			if err := rows.Scan(&v, &e, &q); err != nil {
+				rows.Close()
+				return err
+			}
+			quality[[2]int64{v, e}] = q
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return err
+		}
 	}
 	for i := range list {
 		r := &list[i]

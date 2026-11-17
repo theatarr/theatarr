@@ -484,15 +484,18 @@ it("opens a Missing season row to its episodes, each with Search and Unmonitor i
   expect(await screen.findByText("S01, 1 episode")).toBeTruthy();
 });
 
-it("offers no episode actions without the manage permission", async () => {
-  const season: Row = { title_id: 2, version: "tv-2160p", targets: ["s01e01"], reason: "missing", waiting: "due", next_at: "2026-11-01T00:00:00Z",
-    last_run: null, decision_id: null, season: 1, episodes: 1, episode_list: [{ episode_id: 11, season: 1, number: 1 }] };
-  mockFetch([{ method: "GET", path: "/auth/me", reply: { id: 2, permissions: ["browse"] } },
-    { method: "GET", path: "/wanted", reply: { ...page, items: [season], titles: { "2": "Beta" }, libraries: { "tv-2160p": "4K TV" } } }]);
-  renderPage(<WantedPage />, "/wanted");
-  // A one-episode row shows its episode in place, not behind a toggle.
+it("opens a one-episode Cutoff unmet row the same way, with its cutoff", async () => {
+  const user = userEvent.setup();
+  const one: Row = { title_id: 2, version: "tv-2160p", targets: ["s01e03"], reason: "cutoff", waiting: "due", next_at: "2026-11-01T00:00:00Z",
+    last_run: null, decision_id: null, season: 1, episodes: 1, cutoff: "WEBDL-2160p", episode_list: [{ episode_id: 13, season: 1, number: 3, quality: "WEBDL-1080p" }] };
+  mockFetch([admin, { method: "GET", path: "/wanted", reply: { ...page, items: [one], titles: { "2": "Beta" }, libraries: { "tv-2160p": "4K TV" } } }, status]);
+  renderPage(<WantedPage />, "/wanted/cutoff");
   const cell = await screen.findByTestId("wanted-episodes");
-  expect(cell.tagName).toBe("UL");
-  expect(within(cell).getByTestId("wanted-episode").textContent).toBe("S01E01");
-  expect(within(cell).queryByRole("button")).toBeNull();
+  expect(cell.tagName).toBe("DETAILS");
+  // Closed, the lines are not mounted.
+  expect(within(cell).queryByTestId("wanted-episode")).toBeNull();
+  await user.click(within(cell).getByText("S01E03"));
+  expect(within(cell).getByTestId("wanted-episode").textContent).toBe("S01E03 · WEBDL-1080p");
+  expect(within(cell).getByRole("button", { name: "Unmonitor S01E03" })).toBeTruthy();
+  expect(within(cell).getByText("Cutoff: WEBDL-2160p")).toBeTruthy();
 });
