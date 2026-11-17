@@ -441,6 +441,34 @@ describe("Library table", () => {
     await within(dialog).findByText("Monitored 500 libraries for the first 500 of 524 titles; the other 24 were not changed: database is locked");
   });
 
+  for (const how of ["Clear selection", "Done"]) {
+    it(`cancels Select all matches when ${how} is pressed before the last page answers`, { timeout: 30_000 }, async () => {
+      noScroll();
+      let release = () => {};
+      const held = new Promise<void>((r) => (release = r));
+      const fetch = mockFetch([routes()[0], { ...pages, reply: async (r: { search: string }) => {
+        if (new URLSearchParams(r.search).get("offset") === "480") await held;
+        return pages.reply(r);
+      } }, routes()[2]]);
+      const user = userEvent.setup();
+      renderPage(<Catalog id="movies" />, "/movies");
+      await screen.findAllByText("Film 1");
+      await user.click(screen.getByRole("button", { name: "Select" }));
+      await user.click(screen.getByRole("button", { name: "Select all 524 matches" }));
+      await waitFor(() => expect(fetch.calls("GET", "/titles").some((c) => c.search.includes("offset=480"))).toBe(true));
+      await user.click(screen.getByRole("button", { name: how }));
+      release();
+      await waitFor(() => expect(screen.queryByTestId("bulk-loading")).toBeNull());
+      await screen.findAllByText("Film 524");
+      expect(screen.queryByRole("region", { name: "Bulk edit" })).toBeNull();
+      if (how === "Done") {
+        await user.click(screen.getByRole("button", { name: "Select" }));
+        expect(screen.queryByRole("region", { name: "Bulk edit" })).toBeNull();
+      }
+      expect(screen.queryAllByRole("checkbox", { checked: true })).toHaveLength(0);
+    });
+  }
+
   it("previews Remove for all matches in groups of 500", { timeout: 30_000 }, async () => {
     noScroll();
     const fetch = mockFetch([routes()[0], pages, routes()[2], { method: "POST", path: "/titles/removal", reply: (r: { body?: { title_ids: number[] } }) => ({
@@ -550,17 +578,27 @@ describe("Toolbar and filters", () => {
     await user.type(within(sheet).getByRole("textbox", { name: "Name" }), "Finished{Enter}");
     expect(JSON.parse(window.localStorage.getItem("theatarr.library.saved-filters.series.7")!)).toEqual([{ name: "Finished", query: "series_status=ended&sort=year" }]);
     expectNamedControls();
-    // Clear, then pick it again: its filters and sort come back.
+    const menu = () => within(sheet).getByRole("combobox", { name: "Saved filters" }) as HTMLSelectElement;
+    expect(menu().value).toBe("Finished");
+    // Clear: the menu no longer names it (the list does not show it), so picking it is a real change that applies it.
     await user.click(within(sheet).getByRole("button", { name: "Clear all" }));
     await waitFor(() => expect(last()).not.toContain("series_status"));
-    await user.selectOptions(within(sheet).getByRole("combobox", { name: "Saved filters" }), "Finished");
+    expect(menu().value).toBe("");
+    await user.selectOptions(menu(), "Finished");
     await waitFor(() => expect(last()).toContain("series_status=ended"));
     expect(last()).toContain("sort=year");
-    // Update keeps the current ones under the picked name.
+    expect(menu().value).toBe("Finished");
+    // A change after picking it: the menu goes back to its placeholder and Update names the one it overwrites.
     await user.click(within(sheet).getByRole("button", { name: /^Continuing/ }));
-    await user.click(within(sheet).getByRole("button", { name: "Update" }));
+    await waitFor(() => expect(last()).toContain("series_status=continuing"));
+    expect(menu().value).toBe("");
+    await user.selectOptions(menu(), "Finished");
+    await waitFor(() => expect(last()).toContain("series_status=ended"));
+    await user.click(within(sheet).getByRole("button", { name: /^Continuing/ }));
+    await user.click(within(sheet).getByRole("button", { name: "Update “Finished”" }));
     expect(JSON.parse(window.localStorage.getItem("theatarr.library.saved-filters.series.7")!)).toEqual([{ name: "Finished", query: "series_status=continuing&sort=year" }]);
-    await user.click(within(sheet).getByRole("button", { name: "Delete" }));
+    expect(menu().value).toBe("Finished");
+    await user.click(within(sheet).getByRole("button", { name: "Delete “Finished”" }));
     expect(JSON.parse(window.localStorage.getItem("theatarr.library.saved-filters.series.7")!)).toEqual([]);
     // Movies keeps its own (none).
     await user.click(within(sheet).getByRole("button", { name: "Close filters" }));

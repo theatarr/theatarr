@@ -1,14 +1,15 @@
 // The filter sheet's Saved filters (docs/design/ui.md "Library views"): a list's filters and sort kept under a name,
 // per list and per user in this browser (lib/prefs.ts, theatarr.library.saved-filters.<list>.<user>). Picking one
-// applies it; Update overwrites the picked one with the current filters and sort; Delete forgets it; Save as… keeps
-// the current ones under a new name (the same name replaces that one). A saved filter is the list's query string
+// applies it, and the menu names it while the list shows it; Update “name” overwrites the last one picked with the
+// current filters and sort; Delete “name” forgets it; Save as… keeps the current ones under a new name (the same name
+// replaces that one). A saved filter is the list's query string
 // (lib/library savedQuery); a field it no longer recognises is ignored when it is applied.
 import { Bookmark } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SELECT_CLASS } from "@/components/ui/select";
-import { readPref, writePref } from "@/lib/prefs";
+import { readPref, useListPref } from "@/lib/prefs";
 import { cn } from "@/lib/utils";
 
 export type SavedFilter = { name: string; query: string };
@@ -28,15 +29,13 @@ export function SavedFilters({ list, uid, current, apply }: {
   apply: (query: string) => void;
 }) {
   const what = `saved-filters.${list}`;
-  const [saved, setSaved] = useState<SavedFilter[]>(() => readPref(what, uid, normalizeSaved));
-  // The picked one: at first the saved filter the list shows now, if any.
-  const [picked, setPicked] = useState<string>(() => saved.find((s) => s.query === current)?.name ?? "");
+  const [saved, store] = useListPref<SavedFilter[]>(what, uid, () => readPref(what, uid, normalizeSaved));
+  // The saved filter Update and Delete act on: the last one picked or saved here, else the one the list shows now.
+  const [picked, setPicked] = useState<string | null>(null);
   const [naming, setNaming] = useState<string | null>(null);
-  const store = (next: SavedFilter[]) => {
-    setSaved(next);
-    writePref(what, uid, next);
-  };
-  const pick = saved.find((s) => s.name === picked);
+  const pick = saved.find((s) => s.name === picked) ?? saved.find((s) => s.query === current);
+  // The menu names it only while the list shows it, so picking it again after a change applies it again.
+  const shown = pick && pick.query === current ? pick.name : "";
   const saveAs = () => {
     const name = (naming ?? "").trim();
     if (!name) return;
@@ -54,11 +53,12 @@ export function SavedFilters({ list, uid, current, apply }: {
         <select
           aria-label="Saved filters"
           className={cn(SELECT_CLASS, "w-full")}
-          value={pick ? picked : ""}
+          value={shown}
           onChange={(e) => {
             const s = saved.find((x) => x.name === e.target.value);
-            setPicked(s?.name ?? "");
-            if (s) apply(s.query);
+            if (!s) return;
+            setPicked(s.name);
+            apply(s.query);
           }}
         >
           <option value="">Choose a saved filter</option>
@@ -74,13 +74,13 @@ export function SavedFilters({ list, uid, current, apply }: {
             <>
               <Button variant="outline" size="sm" disabled={pick.query === current} title={`Keep the current filters and sort as ${pick.name}`}
                 onClick={() => store(saved.map((s) => (s.name === pick.name ? { ...s, query: current } : s)))}>
-                Update
+                Update “{pick.name}”
               </Button>
               <Button variant="outline" size="sm" onClick={() => {
                 store(saved.filter((s) => s.name !== pick.name));
-                setPicked("");
+                setPicked(null);
               }}>
-                Delete
+                Delete “{pick.name}”
               </Button>
             </>
           ) : null}

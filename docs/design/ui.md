@@ -749,8 +749,9 @@ including "Imported from Radarr's blocklist" for `arr:<instance>`) and the healt
   compatible clients set on a title's libraries, with counts; picking several shows titles with any of them on any
   library. **Saved filters** at the top of the sheet: **Save as…** keeps the
   list's filters and sort (on Anime also All / Movies / Series, never the view) under a name, the same name
-  replacing that one; picking one applies it; **Update** overwrites the picked one with the current filters and
-  sort; **Delete** forgets it. They are kept per list and per user in this browser (`localStorage`
+  replacing that one; picking one applies it, and the menu names it only while the list shows it (after a change it
+  shows its placeholder, so picking it again applies it again); **Update “name”** overwrites the last one picked with
+  the current filters and sort; **Delete “name”** forgets it. They are kept per list and per user in this browser (`localStorage`
   `theatarr.library.saved-filters.<list>.<user>`, the address's query string under a name); a field an old saved
   filter has that the list no longer knows is ignored. Filters, sort and a picked
   view (`?view=grid|table`) stay in the address, so a link opens the list as it was; a sort the account
@@ -803,7 +804,7 @@ including "Imported from Radarr's blocklist" for `arr:<instance>`) and the healt
   added) and Rating; Quality and Size need See files. Without See files a poster has the badge only.
 - **Select** (managers) works on both: tick titles ("Select all 60 shown" selects the loaded rows; with more matches
   than loaded, "Select all 524 matches" loads the remaining pages of the same query with a spinner, the bar waiting
-  until they are in, then selects every title); the bar counts titles ("12 titles selected") and offers Monitor, Unmonitor, Search now, Add to a library (with the add
+  until they are in, then selects every title; changing the selection, Done or another query meanwhile cancels it); the bar counts titles ("12 titles selected") and offers Monitor, Unmonitor, Search now, Add to a library (with the add
   permission), Remove from a library and Remove. Household accounts have no Select.
   - **Monitor / Unmonitor** open a review: the library (**Every library** by default, or one) is picked there, and
     each change asks `POST titles/monitor` with `dry_run`, listing what changes, what is already set and what is

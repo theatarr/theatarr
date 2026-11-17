@@ -44,8 +44,10 @@ type TitleFilter struct {
 	// without "see files" sees both as filled).
 	State      string
 	plainState bool
-	Limit      int
-	Offset     int
+	// withTags fills the rows' tags (callers who see files; apiTitles sets it).
+	withTags bool
+	Limit    int
+	Offset   int
 	// The grid filters and sort (library.go).
 	TitleGridFilter
 }
@@ -219,6 +221,15 @@ func (w *Web) listTitles(ctx context.Context, f TitleFilter) (TitlePage, error) 
 		at[id.(int64)] = i
 	}
 	slices.SortFunc(items, func(a, b TitleRow) int { return at[a.ID] - at[b.ID] })
+	if f.withTags {
+		tags, err := titleTags(ctx, db, ids)
+		if err != nil {
+			return page, err
+		}
+		for i := range items {
+			items[i].Tags = tags[items[i].ID]
+		}
+	}
 	page.Items = items
 	return page, nil
 }
@@ -283,13 +294,6 @@ func (w *Web) titleRows(ctx context.Context, db *sql.DB, q string, args []any) (
 	}
 	if err := w.fillVersionFiles(ctx, db, items, vf); err != nil {
 		return items, err
-	}
-	tags, err := titleTags(ctx, db, ids)
-	if err != nil {
-		return items, err
-	}
-	for i := range items {
-		items[i].Tags = tags[items[i].ID]
 	}
 	return items, w.fillCopies(ctx, db, items, vf.held)
 }

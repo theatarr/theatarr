@@ -171,6 +171,7 @@ func (w *Web) apiTitles(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	f.withTags = perms.SeeFiles
 	page, err := w.listTitles(r.Context(), f)
 	if err != nil {
 		w.internal(rw, err)
@@ -196,7 +197,7 @@ func (w *Web) apiTitle(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err == nil {
-		err = w.enrichTitle(r.Context(), d)
+		err = w.enrichTitle(r.Context(), d, w.permsOf(r).SeeFiles)
 	}
 	if err != nil {
 		w.internal(rw, err)

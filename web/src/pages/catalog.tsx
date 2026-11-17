@@ -7,7 +7,7 @@
 // "Select all N matches" loads the remaining pages of the same query first.
 // Anime has All / Movies / Series (?kind=); Series and Anime have a Monitored shortcut (?monitored=true) in the toolbar.
 import { ArrowDownWideNarrow, ArrowUpNarrowWide, CheckSquare, Columns3, Eye, LayoutGrid, Loader2, Plus, Rows3, Settings2, SlidersHorizontal, X } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
 import { useSearchParams } from "react-router";
 import { useAuth } from "@/api/auth";
 import { useFacets, usePerms, useTitleGrid } from "@/api/library";
@@ -28,7 +28,7 @@ import { fmtBytes, plural, pluralWord } from "@/lib/format";
 import { defaultColumns, defaultDesc, indexColumns, listColumns, sortColumn, visibleIndexColumns } from "@/lib/index-columns";
 import { activeFilters, applySaved, CATALOGS, catalogKind, FILTER_KEYS, filterChips, gridQuery, offeredSorts, savedQuery, viewOf, withoutChip, type CatalogId, type ListView } from "@/lib/library";
 import { normalizePosters, type PosterPrefs } from "@/lib/poster-options";
-import { prefKey, readPref, useColumnPrefs, writePref } from "@/lib/prefs";
+import { prefKey, readPref, useColumnPrefs, useListPref } from "@/lib/prefs";
 import { resolutionWords } from "@/lib/upgrade";
 import { cn } from "@/lib/utils";
 
@@ -36,6 +36,36 @@ import { cn } from "@/lib/utils";
 const OLD_VIEW_KEY = "theatarr.catalog.view";
 
 type View = ListView;
+
+/** The selection, and the list query a "Select all N matches" is loading the pages of (null: none). */
+type SelectionState = { chosen: ReadonlySet<number>; loadingFor: string | null };
+type SelectionStep =
+  | { t: "set"; chosen: ReadonlySet<number> }
+  | { t: "toggle"; id: number; on: boolean }
+  | { t: "start"; key: string }
+  | { t: "loaded"; key: string; ids: number[] | null }
+  | { t: "cancel"; unless: string };
+
+/** Any change to the selection cancels a pending select-all; its answer applies only while it is still pending. */
+function selectionStep(s: SelectionState, a: SelectionStep): SelectionState {
+  switch (a.t) {
+    case "set":
+      return { chosen: a.chosen, loadingFor: null };
+    case "toggle": {
+      const chosen = new Set(s.chosen);
+      if (a.on) chosen.add(a.id);
+      else chosen.delete(a.id);
+      return { chosen, loadingFor: null };
+    }
+    case "start":
+      return { ...s, loadingFor: a.key };
+    case "loaded":
+      if (s.loadingFor !== a.key) return s;
+      return { chosen: a.ids ? new Set(a.ids) : s.chosen, loadingFor: null };
+    case "cancel":
+      return s.loadingFor === null || s.loadingFor === a.unless ? s : { ...s, loadingFor: null };
+  }
+}
 
 /** The list's Add button opens the top search (it finds every kind), where a result's Add opens the add sheet. */
 const ADD_LABEL: Record<CatalogId, string> = { movies: "Add movie", series: "Add series", anime: "Add anime" };
@@ -59,21 +89,6 @@ function readPosters(list: CatalogId, uid: number | undefined): PosterPrefs {
     // fall through to the default
   }
   return readPref(`posters.${list}`, uid, normalizePosters);
-}
-
-/** A choice kept per user under theatarr.library.<what>.<user>: what was saved in this session, else what the browser
- *  holds (read). */
-function useListPref<T>(what: string, uid: number | undefined, read: () => T): [T, (v: T) => void] {
-  const key = prefKey(what, uid);
-  const [saved, setSaved] = useState<{ key: string; value: T } | null>(null);
-  const value = saved?.key === key ? saved.value : read();
-  return [
-    value,
-    (v: T) => {
-      setSaved({ key, value: v });
-      writePref(what, uid, v);
-    },
-  ];
 }
 
 function FilterSheet({ open, onClose, children }: { open: boolean; onClose: () => void; children: React.ReactNode }) {
@@ -111,16 +126,12 @@ export function Catalog({ id }: { id: CatalogId }) {
   const [columnsPref, saveColumns] = useColumnPrefs(`columns.${id}`, allColumns, defaultColumns(id));
   const [dialog, setDialog] = useState<"columns" | "posters" | null>(null);
   const [selecting, setSelecting] = useState(false);
-  const [chosen, setChosen] = useState<ReadonlySet<number>>(new Set());
-  // "Select all N matches" while it loads the remaining pages: the query it loads for (the bulk bar waits).
-  const [loadingAll, setLoadingAll] = useState(false);
-  const loadingFor = useRef<string | null>(null);
+  const [{ chosen, loadingFor }, pick] = useReducer(selectionStep, { chosen: new Set<number>(), loadingFor: null });
+  const loadingAll = loadingFor !== null;
   // A selection belongs to one catalog.
   useEffect(() => {
     setSelecting(false);
-    setChosen(new Set());
-    loadingFor.current = null;
-    setLoadingAll(false);
+    pick({ t: "set", chosen: new Set() });
   }, [id]);
 
   const set = useCallback(
@@ -189,36 +200,21 @@ export function Catalog({ id }: { id: CatalogId }) {
   const select: Selection | undefined = selecting
     ? {
         chosen,
-        toggle: (tid, on) =>
-          setChosen((c) => {
-            const n = new Set(c);
-            if (on) n.add(tid);
-            else n.delete(tid);
-            return n;
-          }),
-        all: (on) => setChosen(on ? new Set(titles.map((t) => t.id ?? 0)) : new Set()),
+        toggle: (tid, on) => pick({ t: "toggle", id: tid, on }),
+        all: (on) => pick({ t: "set", chosen: on ? new Set(titles.map((t) => t.id ?? 0)) : new Set() }),
       }
     : undefined;
-  // Select all N matches: the remaining pages of the same query, then every title of it. Stops when the list's query
-  // changes meanwhile (the pages would be another list's).
-  const selectAllMatches = async () => {
-    const key = JSON.stringify(query);
-    loadingFor.current = key;
-    setLoadingAll(true);
-    let r = await grid.fetchNextPage();
-    while (r.hasNextPage && !r.isError && loadingFor.current === key) r = await grid.fetchNextPage();
-    if (loadingFor.current !== key) return;
-    loadingFor.current = null;
-    setLoadingAll(false);
-    if (!r.isError) setChosen(new Set((r.data?.pages ?? []).flatMap((p) => p.items ?? []).map((t) => t.id ?? 0)));
-  };
+  // Select all N matches: the remaining pages of the same query, then every title of it. Changing the selection,
+  // leaving select mode or changing the list's query meanwhile cancels it: its answer then changes nothing.
   const queryKey = JSON.stringify(query);
-  useEffect(() => {
-    if (loadingFor.current !== null && loadingFor.current !== queryKey) {
-      loadingFor.current = null;
-      setLoadingAll(false);
-    }
-  }, [queryKey]);
+  const selectAllMatches = async () => {
+    pick({ t: "start", key: queryKey });
+    let r = await grid.fetchNextPage();
+    while (r.hasNextPage && !r.isError) r = await grid.fetchNextPage();
+    const ids = r.isError ? null : (r.data?.pages ?? []).flatMap((p) => p.items ?? []).map((t) => t.id ?? 0);
+    pick({ t: "loaded", key: queryKey, ids });
+  };
+  useEffect(() => pick({ t: "cancel", unless: queryKey }), [queryKey]);
   const moreMatches = total !== undefined && total > titles.length;
   const chosenTitles = titles.filter((t) => chosen.has(t.id ?? 0));
   const n = activeFilters(params);
@@ -260,7 +256,7 @@ export function Catalog({ id }: { id: CatalogId }) {
             aria-label={selecting ? "Done" : "Select"}
             onClick={() => {
               setSelecting(!selecting);
-              setChosen(new Set());
+              pick({ t: "set", chosen: new Set() });
             }}
           >
             <CheckSquare />
@@ -448,7 +444,7 @@ export function Catalog({ id }: { id: CatalogId }) {
           <Loader2 className="size-4 animate-spin" />
           <span role="status">Loading all {total} matches…</span>
         </section>
-      ) : selecting ? <BulkBar titles={chosenTitles} columns={libraries} kinds={kind ? [kind] : ["movie", "series"]} anime={cat.anime} onClear={() => setChosen(new Set())} /> : null}
+      ) : selecting ? <BulkBar titles={chosenTitles} columns={libraries} kinds={kind ? [kind] : ["movie", "series"]} anime={cat.anime} onClear={() => pick({ t: "set", chosen: new Set() })} /> : null}
       {dialog === "columns" ? <ColumnPicker label="Columns" note="Title always stays. On a phone the chosen columns show as lines under each title." columns={offered} prefs={columnsPref} onChange={saveColumns} onClose={() => setDialog(null)} /> : null}
       {dialog === "posters" ? <PosterOptions catalog={id} prefs={postersPref} seeFiles={perms.seeFiles} onChange={savePosters} onClose={() => setDialog(null)} /> : null}
       <FilterSheet open={sheet} onClose={() => setSheet(false)}>

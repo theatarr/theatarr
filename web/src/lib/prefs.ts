@@ -49,6 +49,21 @@ export function writePref(what: string, user: number | string | undefined, value
   }
 }
 
+/** A choice kept per user under theatarr.library.<what>.<user>: what was saved in this session, else what the browser
+ *  holds (read). It follows the user once /auth/me answers (uid undefined before). */
+export function useListPref<T>(what: string, uid: number | undefined, read: () => T): [T, (v: T) => void] {
+  const key = prefKey(what, uid);
+  const [saved, setSaved] = useState<{ key: string; value: T } | null>(null);
+  const value = saved?.key === key ? saved.value : read();
+  return [
+    value,
+    (v: T) => {
+      setSaved({ key, value: v });
+      writePref(what, uid, v);
+    },
+  ];
+}
+
 // ---- Chosen columns of a table ----
 
 /** A column a table offers in its picker. */
