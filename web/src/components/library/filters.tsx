@@ -30,7 +30,7 @@ import { HELD_ON, HELD_ON_TIP } from "@/lib/held-on";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SELECT_CLASS } from "@/components/ui/select";
-import { availabilityFilters, SERIES_STATUSES, UPGRADE_FILTERS } from "@/lib/library";
+import { availabilityFilters, availabilityOptionLabel, SERIES_STATUSES, UPGRADE_FILTERS } from "@/lib/library";
 
 /** The status filters in rows of two. */
 function availabilityRows(seeFiles: boolean, kind?: string) {
@@ -241,7 +241,7 @@ export function FiltersPanel({
           <FilterButton selected={values.monitored === "false"} onClick={() => toggle("monitored", "false")} icon={<EyeOff />} label="Off" title="No library monitors it, with or without a file" count={facets?.unmonitored} tone="danger" className={segment(values.monitored === "false", true)} />
         </div>
         {/* Each group is named: Monitoring Off is every title no library monitors; the status Not monitored is such a
-            title without a file, so its option says so ("Not monitored, no file"). */}
+            title without a file, so its option says so ("Not monitored, no file"); the chip takes the same words. */}
         {seeFiles ? <div className="pt-2"><FilterLabel>Status</FilterLabel></div> : null}
         {availabilityRows(seeFiles, kind).map((pair, i) => (
           <div key={i} role="group" aria-label={seeFiles ? "Status" : "Availability"} className={SPLIT_GROUP}>
@@ -251,7 +251,7 @@ export function FiltersPanel({
                 selected={values.availability === a.id}
                 onClick={() => toggle("availability", a.id)}
                 icon={icons[a.id as keyof typeof icons]}
-                label={a.id === "unmonitored" ? "Not monitored, no file" : a.label}
+                label={availabilityOptionLabel(a, seeFiles, kind)}
                 title={a.hint}
                 count={av[a.id]}
                 tone={tones[a.id as keyof typeof tones]}

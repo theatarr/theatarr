@@ -202,6 +202,16 @@ export function availabilityFilters(seeFiles: boolean, kind?: string): { id: Ava
   return kind === "movie" ? PLAIN_AVAILABILITY.filter((a) => a.id !== "partial") : PLAIN_AVAILABILITY;
 }
 
+/** A status filter's words in the sheet and on its chip (one source, so the chip never shortens them): Not monitored
+ *  says "no file" (Monitoring: Off counts every title no library monitors, with or without one); on Series, Missing
+ *  says it means no episode at all (a series with gaps is Partly available). The poster badges keep the short words. */
+export function availabilityOptionLabel(a: { id: Availability; label: string }, seeFiles: boolean, kind?: string): string {
+  if (!seeFiles) return a.label;
+  if (a.id === "unmonitored") return "Not monitored, no file";
+  if (a.id === "missing" && kind === "series") return "Missing (no episodes available)";
+  return a.label;
+}
+
 export function fmtRuntime(min: number | undefined | null): string | undefined {
   if (!min) return undefined;
   const h = Math.floor(min / 60);
@@ -393,7 +403,8 @@ export function filterChips(
   if (mon === "true") out.push({ key: "monitored", label: "Monitoring: on" });
   if (mon === "false") out.push({ key: "monitored", label: "Monitoring: off" });
   const av = get("availability");
-  if (av) out.push({ key: "availability", label: availabilityFilters(o.seeFiles, o.kind).find((a) => a.id === (av === "upgrade" ? "available" : av))?.label ?? AVAILABILITY.find((a) => a.id === av)?.label ?? av });
+  const avOption = av ? availabilityFilters(o.seeFiles, o.kind).find((a) => a.id === (av === "upgrade" ? "available" : av)) : undefined;
+  if (av) out.push({ key: "availability", label: avOption ? availabilityOptionLabel(avOption, o.seeFiles, o.kind) : (AVAILABILITY.find((a) => a.id === av)?.label ?? av) });
   const up = o.seeFiles && get("upgrade");
   if (up) out.push({ key: "upgrade", label: UPGRADE_FILTERS.find((u) => u.id === up)?.label ?? up });
   // Libraries, providers and copy states are file detail: no chip for them without "see files".

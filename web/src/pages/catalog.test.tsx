@@ -566,11 +566,11 @@ describe("Toolbar and filters", () => {
     await screen.findAllByText("The Pellbrook Inquiries");
     const line = screen.getByTestId("active-filters");
     expect(within(line).getAllByRole("button", { name: /^Remove filter: / }).map((b) => b.textContent)).toEqual([
-      "Title: “dune”", "Missing", "Provider: RD", "2019–2024", "Drama", "Crime",
+      "Title: “dune”", "Missing (no episodes available)", "Provider: RD", "2019–2024", "Drama", "Crime",
     ]);
     expect(screen.getByRole("button", { name: "Filter, 6 active" })).toBeTruthy();
     expect(screen.getByText(/match the filters/)).toBeTruthy();
-    await user.click(within(line).getByRole("button", { name: "Remove filter: Missing" }));
+    await user.click(within(line).getByRole("button", { name: "Remove filter: Missing (no episodes available)" }));
     await waitFor(() => expect(fetch.requests.filter((r) => r.path === "/titles").at(-1)!.search).not.toContain("availability"));
     await user.click(within(line).getByRole("button", { name: "Remove filter: Drama" }));
     await waitFor(() => expect(fetch.requests.filter((r) => r.path === "/titles").at(-1)!.search).toContain("genre=Crime"));

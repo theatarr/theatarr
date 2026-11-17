@@ -74,6 +74,15 @@ describe("the status filters", () => {
     expect(availabilityFilters(true).map((a) => a.label)).toEqual(["Available", "Partly available", "Missing", "Not monitored", "Upcoming"]);
     expect(availabilityFilters(true, "movie").map((a) => a.id)).toContain("partial");
   });
+  it("chips a status filter with its option's words: Not monitored keeps no file, Series' Missing says no episodes", () => {
+    const chip = (q: string, kind?: string, seeFiles = true) => filterChips(new URLSearchParams(q), { seeFiles, kind }).map((c) => c.label);
+    expect(chip("availability=unmonitored", "series")).toEqual(["Not monitored, no file"]);
+    expect(chip("availability=unmonitored", "movie")).toEqual(["Not monitored, no file"]);
+    expect(chip("availability=missing", "series")).toEqual(["Missing (no episodes available)"]);
+    expect(chip("availability=missing", "movie")).toEqual(["Missing"]);
+    expect(chip("availability=missing")).toEqual(["Missing"]);
+    expect(chip("availability=missing", "series", false)).toEqual(["Not available"]);
+  });
   it("reads an old saved Preferred quality not met link as Available", () => {
     expect(gridQuery("movies", new URLSearchParams("availability=upgrade"), true).availability).toBe("available");
     expect(gridQuery("movies", new URLSearchParams("availability=missing&upgrade=found"), true)).toMatchObject({ availability: "missing", upgrade: "found" });
