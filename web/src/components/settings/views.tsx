@@ -35,9 +35,8 @@ const libraryOptions = (data: VersionList | undefined, saved: string[], nameOf: 
   return keys.map(libraryOption(nameOf));
 };
 const libraryOption = (nameOf: (key: string) => string) => (key: string) => ({ key, label: <>{nameOf(key)} <span className="font-mono text-[12px] text-muted-foreground">{key}</span></> });
-/** A profile's choices: the libraries this app serves (ticked above), and any the profile already lists. */
-const profileOptions = (served: string[], listed: string[], nameOf: (key: string) => string) =>
-  [...served, ...listed.filter((k) => !served.includes(k))].map(libraryOption(nameOf));
+/** A profile's choices: the libraries this app serves (ticked above; unticking one there drops it from every profile). */
+const profileOptions = (served: string[], nameOf: (key: string) => string) => served.map(libraryOption(nameOf));
 
 /** A library's state for the list; the same fallback as the Libraries page when the switches lack it. */
 const stateOf = (data: VersionList, key: string) => data.switches.versions.find((v) => v.key === key)?.grab_state ?? { paused: data.switches.paused, pause_forced: data.switches.pause_forced, will_grab: false };
@@ -181,6 +180,12 @@ export function ViewSheet({ view: opened, generation: openedAt, readOnly, onClos
     setSwapOld("");
     setSwapNew("");
   };
+  // Unticking a library the app serves drops it from every profile too: a profile may list only served libraries.
+  const serve = (next: string[]) => {
+    setVersions(next);
+    setProfiles(Object.fromEntries(Object.entries(profiles).map(([name, keys]) => [name, keys.filter((k) => next.includes(k))])));
+  };
+  const emptyProfile = Object.values(profiles).some((keys) => keys.length === 0);
   const save = () => {
     if (action === "replace" && !apiKey) {
       setError({ kind: "other", title: "Enter the API key", message: create ? "A new view needs its API key." : "Enter the new key, or keep the stored one." });
@@ -214,7 +219,7 @@ export function ViewSheet({ view: opened, generation: openedAt, readOnly, onClos
         onClose={onClose}
         testid="view-editor"
         footer={readOnly ? <Button variant="outline" onClick={onClose}>Close</Button> : <>
-          <Button onClick={() => void save()} disabled={busy || (create && !!keyProblem(key))}>Save</Button>
+          <Button onClick={() => void save()} disabled={busy || emptyProfile || (create && !!keyProblem(key))}>Save</Button>
           <SheetCancel variant="outline" onClick={onClose}>Cancel</SheetCancel>
           {!create ? <Button className="ml-auto" variant="destructive" onClick={() => setDeleting(true)} disabled={busy}>Delete app</Button> : null}
         </>}
@@ -236,7 +241,7 @@ export function ViewSheet({ view: opened, generation: openedAt, readOnly, onClos
           </Field>
           <Field label="Path" help="Where the view answers, e.g. /radarr."><Input value={path} onChange={(e) => setPath(e.target.value)} disabled={off || !seeded} /></Field>
           <NamedChoices legend="Libraries" help="What the app sees, in the order ticked." testid="view-libraries"
-            options={libraryOptions(libraries.data, versions, nameOf, kind)} value={versions} onChange={setVersions} disabled={off} />
+            options={libraryOptions(libraries.data, versions, nameOf, kind)} value={versions} onChange={serve} disabled={off} />
           <SyncNotes groups={libraries.data?.sync_groups} keys={versions} nameOf={nameOf} className="sm:col-span-2" />
           {off ? null : (
             <div className="flex min-w-0 flex-col gap-2 sm:col-span-2" data-testid="view-replace">
@@ -260,7 +265,8 @@ export function ViewSheet({ view: opened, generation: openedAt, readOnly, onClos
             <p className="text-sm font-medium text-[var(--ink)]">Profiles <span className="font-normal text-muted-foreground">(clients see them as quality profiles)</span></p>
             {Object.entries(profiles).map(([name, keys]) => (
               <NamedChoices key={name} legend={`Profile: ${name}`} testid={`view-profile-${name}`}
-                options={profileOptions(versions, keys, nameOf)} value={keys} onChange={(next) => setProfiles({ ...profiles, [name]: next })} disabled={off}>
+                options={profileOptions(versions, nameOf)} value={keys} onChange={(next) => setProfiles({ ...profiles, [name]: next })} disabled={off}>
+                {keys.length === 0 && !off ? <p className="text-[13px] text-[var(--warn-ink)]" data-testid={`view-profile-empty-${name}`}>Tick a library for this profile, or remove it.</p> : null}
                 {off ? null : <Button type="button" variant="ghost" size="xs" className="self-start" onClick={() => { const next = { ...profiles }; delete next[name]; setProfiles(next); }}>Remove profile <span className="sr-only">{name}</span></Button>}
               </NamedChoices>
             ))}
