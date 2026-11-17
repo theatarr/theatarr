@@ -55,8 +55,9 @@ export function ViewsCard({ readOnly }: { readOnly: boolean }) {
         Each app's libraries, profiles and API key. Changes apply without a restart.
       </p>
       <p className="mt-1 text-sm text-muted-foreground">
-        Seerr with a standard and a 4K service: give each service its own app with a single library. An app with both
-        libraries answers "has a file" when either copy exists, so Seerr would not add the second copy.
+        Seerr with a standard and a 4K service: point each service at its library's own address
+        (<Mono>/v/&lt;library&gt;/radarr</Mono> or <Mono>/v/&lt;library&gt;/sonarr</Mono>), which needs no app here. An app
+        with both libraries answers "has a file" when either copy exists, so Seerr would not add the second copy.
       </p>
       {notice ? <p role="status" className="mt-3 text-sm">{notice}</p> : null}
       <ul className="mt-4 divide-y divide-[var(--line)]">

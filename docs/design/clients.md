@@ -52,7 +52,7 @@ Overseerr's lookup → POST season selection is stored as durable intent and sur
 existing-series PUT changes only the seasons whose flag differs from what Theatarr reports, as Sonarr does.
 
 Seerr with two services (a standard and a 4K Radarr or Sonarr server): give each its own single-library address
-(`/v/<library>/radarr`, `/v/<library>/sonarr`). A view of several libraries answers `hasFile: true` when any of
+(`/v/<library>/radarr`, `/v/<library>/sonarr`), which every library has with no app in Connected apps. A view of several libraries answers `hasFile: true` when any of
 its copies has a file, so a 4K service pointed at a combined address would see the standard copy and never add
 the second one.
 
