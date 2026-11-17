@@ -133,7 +133,9 @@ and no other-requester list or count.
   a ticked one that is not stored ticked and disabled, "in sync with …" (approval adds it). "Requests ask for" offers
   a group as one choice ("4K Remux + 4K WEB") whose tick stores every member's key; a stored set holding only part of
   a group (saved before the group existed) shows that group as its members. A stored member key is never read as
-  its group. `TestSyncGroupsAnswers` covers the stored scope.
+  its group. `TestSyncGroupsAnswers` covers the stored scope. A removal from one library of a group removes the
+  title from the group's other libraries too (ui.md "Keep in sync"); requests follow it as they follow any removal
+  (a request whose every library was removed is canceled), and household accounts see nothing new about files.
 - Approval runs `catalog.Add` (the arr views' add path, through `addTitle` in `add.go`) with the request's versions
   and seasons, and asks for a search only for versions `catalog.Searchable` lets through; nothing searches in shadow.
   `auto_approve` approves at creation, and when the ask joins a *pending* request it approves

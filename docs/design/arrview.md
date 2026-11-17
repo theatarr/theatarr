@@ -425,8 +425,12 @@ stay the view's.
     also when it is the value shown; without the field nothing changes (`TestSeriesTypeEditor`).
 - **`GET|HEAD <view>/ping`**: 200 `{"status":"OK"}` without a key, on every view, as the arrs' PingController
   (outside `api/v3`, so no `X-Application-Version`); any other method answers 405. It says nothing about the view.
-- **`DELETE movie|series/{id}`**: removes only the view's versions, through the shared removal the web UI's Remove
-  title uses (`internal/removal`), with the client's own flags. On a Radarr view `addImportExclusion=true` also
+- **`DELETE movie|series/{id}`**: removes only the view's versions and the libraries kept in sync with them
+  (`catalog.SyncRemovals`, ui.md "Keep in sync"; also a partner outside the view), through the shared removal the web
+  UI's Remove title uses (`internal/removal`), with the client's own flags. The partners count for whether the title
+  goes (the remaining-copy count), their minimum availability choice goes as the view's own does, `deleteFiles=true`
+  checks their links before anything changes (a refused partner link answers 409 with nothing removed), and their
+  Removed actions say "in sync with <library>"; `deleteFiles` omitted keeps every file, the partners' too. On a Radarr view `addImportExclusion=true` also
   puts the movie on the exclusion list (`movie_exclusion`, by TMDb id, one list for every view, the row the
   `exclusions` POST writes) in the transaction of the remove, so list and collection intake skip it afterwards;
   `false` or absent writes none. On a Sonarr view `addImportListExclusion=true` puts the series on the series
