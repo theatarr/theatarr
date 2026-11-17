@@ -26,6 +26,7 @@ import { useLibraryName } from "@/lib/library-names";
 import { useSettingsEditor } from "./use-settings-editor";
 import { ExplainBox, Field, NamedChoices, SecretField, SELECT_CLASS } from "./parts";
 import { SyncNotes } from "@/components/sync-note";
+import { syncAddressNotes } from "@/lib/sync-groups";
 
 /** The libraries to tick, by name with the key the app sees beside it: the libraries of the app's kind (a Radarr app
  * serves movie libraries, a Sonarr app series ones; the server refuses others), or (before they load) just the saved
@@ -64,6 +65,7 @@ export function ViewsCard({ readOnly }: { readOnly: boolean }) {
         (<Mono>/v/&lt;library&gt;/radarr</Mono> or <Mono>/v/&lt;library&gt;/sonarr</Mono>), which needs no app here. An app
         with both libraries answers "has a file" when either copy exists, so Seerr would not add the second copy.
       </p>
+      {syncAddressNotes(libraries.data?.sync_groups, nameOf).map((l) => <p key={l} className="mt-1 text-xs text-muted-foreground" data-testid="sync-address-note">{l}</p>)}
       {notice ? <p role="status" className="mt-3 text-sm">{notice}</p> : null}
       <ul className="mt-4 divide-y divide-[var(--line)]">
         {data.views.map((v) => (

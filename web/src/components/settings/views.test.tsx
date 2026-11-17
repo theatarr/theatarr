@@ -25,6 +25,14 @@ const routes = (list: unknown[] = [radarr]) => [
 ];
 
 describe("View editor", () => {
+  it("says a delete follows a sync group, beside the libraries' own addresses and on an app with a partner outside it", async () => {
+    mockFetch([{ ...librariesRoute, reply: { ...versionsReply, sync_groups: [["movie-web", "movie-remux"]] } }, ...routes().slice(1)]);
+    renderPage(<GeneralSettingsPage />);
+    const notes = await screen.findAllByTestId("sync-address-note");
+    expect(notes.map((n) => n.textContent)).toEqual([expect.stringContaining("are kept in sync: a delete through the address of one also removes the title from the other; a delete with its files takes their files and debrid torrents too.")]);
+    const row = await screen.findByTestId("sync-notes");
+    expect(row.textContent).toContain("A delete from this app also removes the title from");
+  });
   it("creates a view with its key after confirming what it exposes", async () => {
     const effects = [{ version: "", effect: "Create view radarr2 at /radarr2 (radarr): arr clients with its API key can use it." }];
     const fetch = mockFetch([

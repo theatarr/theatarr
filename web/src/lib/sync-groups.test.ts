@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { namesList, syncDeleteNote, syncedBy, syncNote } from "./sync-groups";
+import { namesList, syncAddressNotes, syncDeleteNote, syncedBy, syncNote } from "./sync-groups";
 
 it("lists the partners a ticked library brings, not one ticked itself", () => {
   const opts = [{ key: "a", synced: ["b", "c"] }, { key: "b", synced: ["a"] }, { key: "c" }];
@@ -19,8 +19,17 @@ it("words the note for a library in a group, and nothing for one outside", () =>
 
 it("words a connected app's delete note for its libraries' partners outside it, and nothing without one", () => {
   const name = (k: string) => k.toUpperCase();
-  expect(syncDeleteNote([["a", "b", "c"]], ["a"], name)).toBe("A delete from this app also removes the title from B and C (in sync), with their files when the app asks for its files to be deleted.");
-  expect(syncDeleteNote([["a", "b", "c"], ["d", "e"]], ["a", "b", "d"], name)).toBe("A delete from this app also removes the title from C and E (in sync), with their files when the app asks for its files to be deleted.");
+  expect(syncDeleteNote([["a", "b", "c"]], ["a"], name)).toBe("A delete from this app also removes the title from B and C (in sync); a delete with its files takes their files and debrid torrents too.");
+  expect(syncDeleteNote([["a", "b", "c"], ["d", "e"]], ["a", "b", "d"], name)).toBe("A delete from this app also removes the title from C and E (in sync); a delete with its files takes their files and debrid torrents too.");
   expect(syncDeleteNote([["a", "b"]], ["a", "b"], name)).toBe("");
   expect(syncDeleteNote([["a", "b"]], ["c"], name)).toBe("");
+});
+
+it("words the note beside the libraries' own addresses, one per group", () => {
+  const name = (k: string) => k.toUpperCase();
+  expect(syncAddressNotes([["a", "b"], ["c", "d", "e"]], name)).toEqual([
+    "A and B are kept in sync: a delete through the address of one also removes the title from the other; a delete with its files takes their files and debrid torrents too.",
+    "C, D and E are kept in sync: a delete through the address of one also removes the title from the others; a delete with its files takes their files and debrid torrents too.",
+  ]);
+  expect(syncAddressNotes(undefined, name)).toEqual([]);
 });

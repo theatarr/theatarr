@@ -36,7 +36,7 @@ export function syncNote(groups: string[][] | undefined, key: string, nameOf: (k
 }
 
 /** Connected apps' note on a delete from the app: "A delete from this app also removes the title from 4K WEB and HD
- *  (in sync), with their files when the app asks for its files to be deleted."; empty when no library of keys (the
+ *  (in sync); a delete with its files takes their files and debrid torrents too."; empty when no library of keys (the
  *  app's) has a partner outside them. */
 export function syncDeleteNote(groups: string[][] | undefined, keys: string[], nameOf: (key: string) => string): string {
   const partners: string[] = [];
@@ -44,5 +44,13 @@ export function syncDeleteNote(groups: string[][] | undefined, keys: string[], n
     for (const p of groupOf(groups, k) ?? []) if (!keys.includes(p) && !partners.includes(p)) partners.push(p);
   }
   if (partners.length === 0) return "";
-  return `A delete from this app also removes the title from ${namesList(partners.map(nameOf))} (in sync), with ${partners.length === 1 ? "its" : "their"} files when the app asks for its files to be deleted.`;
+  return `A delete from this app also removes the title from ${namesList(partners.map(nameOf))} (in sync); a delete with its files takes ${partners.length === 1 ? "its" : "their"} files and debrid torrents too.`;
+}
+
+/** Connected apps' note beside the libraries' own addresses (/v/<library>/…), one per sync group: "4K Remux and 4K WEB
+ *  are kept in sync: a delete through the address of one also removes the title from the others; a delete with its
+ *  files takes their files and debrid torrents too." */
+export function syncAddressNotes(groups: string[][] | undefined, nameOf: (key: string) => string): string[] {
+  return (groups ?? []).filter((g) => g.length > 1).map((g) =>
+    `${namesList(g.map(nameOf))} are kept in sync: a delete through the address of one also removes the title from the ${g.length === 2 ? "other" : "others"}; a delete with its files takes their files and debrid torrents too.`);
 }
