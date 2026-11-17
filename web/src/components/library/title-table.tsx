@@ -230,6 +230,8 @@ function cell(id: IndexColumnId, t: TitleRow, open: () => void): ReactNode {
       return or(t.rating ? t.rating.toFixed(1) : "", "tabular-nums");
     case "genres":
       return or((t.genres ?? []).slice(0, 3).join(", "));
+    case "tags":
+      return or((t.tags ?? []).join(", "));
     case "language":
       return or(languageWords(t.original_language));
     case "min_availability":

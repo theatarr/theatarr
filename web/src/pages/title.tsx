@@ -153,6 +153,16 @@ function About({ d }: { d: TitleDetail }) {
             {/* The newest current file's time (when the title was added is under Details: Added to Theatarr). */}
             {perms.seeFiles && d.added_at ? <Fact label="Latest file">{fmtAgo(d.added_at)}</Fact> : null}
             {perms.seeFiles && d.size_bytes ? <Fact label="On disk">{fmtBytes(d.size_bytes)}</Fact> : null}
+            {/* Tags compatible clients set on the title's libraries (see files only), each opening its list filtered by it. */}
+            {perms.seeFiles && (d.tags ?? []).length ? (
+              <Fact label="Tags">
+                <span className="flex flex-wrap gap-x-2 gap-y-0.5" data-testid="title-tags">
+                  {(d.tags ?? []).map((g) => (
+                    <Link key={g} to={`${d.anime ? "/anime" : series ? "/series" : "/movies"}?tag=${encodeURIComponent(g)}`} className="text-primary hover:underline">{g}</Link>
+                  ))}
+                </span>
+              </Fact>
+            ) : null}
             {d.collection ? <Fact label="Collection"><Link to={`/collections/${d.collection.tmdb_id}`} className="text-primary hover:underline" data-testid="title-collection">{d.collection.name}</Link></Fact> : null}
             {/* A title in no library (every copy removed) is not "not monitored": it is not there. */}
             {perms.seeFiles && !d.monitored && currentLibraries((d.versions ?? []) as Version[]).length > 0 ? <Fact label="Monitored">No</Fact> : null}

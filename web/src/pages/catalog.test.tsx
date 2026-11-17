@@ -585,6 +585,30 @@ describe("Toolbar and filters", () => {
     expect(fetch.calls("GET", "/titles").at(-1)!.search).not.toMatch(/colour|genre/);
   });
 
+  it("filters by tag from the sheet, chips each tag and offers a Tags column", async () => {
+    window.localStorage.setItem("theatarr.catalog.view", "table");
+    const fetch = mockFetch(routes().map((r) =>
+      r.path === "/titles/facets" ? { ...r, reply: { total: 2, tags: [{ value: "kids", count: 2 }, { value: "debrid-upgrade", count: 1 }] } }
+      : r.path === "/titles" ? { ...r, reply: { items: titles.map((t, i) => ({ ...t, tags: i ? ["kids"] : ["debrid-upgrade", "kids"] })), total: 2, offset: 0 } } : r));
+    const user = userEvent.setup();
+    renderPage(<Catalog id="series" />, "/series?tag=kids");
+    await screen.findAllByText("The Pellbrook Inquiries");
+    expect(fetch.calls("GET", "/titles").at(-1)!.search).toContain("tag=kids");
+    expect(within(screen.getByTestId("active-filters")).getByRole("button", { name: "Remove filter: Tag: kids" })).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Filter, 1 active" }));
+    const sheet = await screen.findByTestId("filters-panel");
+    const group = within(sheet).getByRole("group", { name: "Tags" });
+    expect(within(group).getByRole("button", { name: "kids 2" }).getAttribute("aria-pressed")).toBe("true");
+    await user.click(within(group).getByRole("button", { name: "debrid-upgrade 1" }));
+    await waitFor(() => expect(fetch.calls("GET", "/titles").at(-1)!.search).toContain("tag=kids%2Cdebrid-upgrade"));
+    await user.click(within(sheet).getByRole("button", { name: "Close filters" }));
+    await user.click(screen.getByRole("button", { name: "Columns" }));
+    await user.click(await screen.findByRole("checkbox", { name: /^Tags/ }));
+    await user.keyboard("{Escape}");
+    const row = screen.getByRole("link", { name: "The Pellbrook Inquiries" }).closest("tr") as HTMLElement;
+    expect(row.textContent).toContain("debrid-upgrade, kids");
+  });
+
   it("offers Clear filters when nothing matches", async () => {
     mockFetch(routes().map((r) => (r.path === "/titles" ? { ...r, reply: { items: [], total: 0, offset: 0 } } : r)));
     const user = userEvent.setup();
@@ -738,6 +762,14 @@ describe("Household view (no See files)", () => {
     expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Title", "Availability", "Network", "Next airing", "Seasons"]);
   });
 
+  it("does not ask for a tag from an address that carries one, nor chips it", async () => {
+    const fetch = mockFetch(household);
+    renderPage(<Catalog id="series" />, "/series?tag=kids");
+    await screen.findAllByText("The Pellbrook Inquiries");
+    expect(fetch.calls("GET", "/titles").every((c) => !c.search.includes("tag="))).toBe(true);
+    expect(screen.queryByTestId("active-filters")).toBeNull();
+  });
+
   it("does not offer the file columns", async () => {
     window.localStorage.setItem("theatarr.catalog.view", "table");
     mockFetch(household);
@@ -748,7 +780,7 @@ describe("Household view (no See files)", () => {
     const dialog = await screen.findByRole("dialog", { name: "Columns" });
     const offered = within(dialog).getAllByRole("button", { name: / up$/ }).map((b) => b.getAttribute("aria-label")!.slice(5, -3));
     expect(offered).toContain("Availability");
-    for (const file of ["Libraries", "Quality", "Quality profile", "Size", "Latest file", "Minimum availability", "Held on", "Folder"]) expect(offered).not.toContain(file);
+    for (const file of ["Libraries", "Quality", "Quality profile", "Size", "Latest file", "Minimum availability", "Held on", "Folder", "Tags"]) expect(offered).not.toContain(file);
     await user.click(within(dialog).getByRole("button", { name: "Done" }));
     const sorts = [...(screen.getByRole("combobox", { name: "Sort by" }) as HTMLSelectElement).options].map((o) => o.textContent);
     expect(sorts).toContain("Added");

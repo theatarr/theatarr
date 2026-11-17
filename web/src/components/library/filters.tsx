@@ -20,6 +20,7 @@ import {
   Search,
   SlidersHorizontal,
   Sparkle,
+  Tag,
   X,
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
@@ -197,6 +198,7 @@ export function FiltersPanel({
   const any = Object.values(values).some(Boolean);
   const toggle = (key: string, v: string) => set(key, values[key] === v ? undefined : v);
   const genres = (values.genre ?? "").split(",").filter(Boolean);
+  const tags = (values.tag ?? "").split(",").filter(Boolean);
   const years: number[] = [];
   if (facets?.year_min && facets?.year_max) for (let y = facets.year_max; y >= facets.year_min; y--) years.push(y);
   const av = facets?.availability ?? {};
@@ -374,6 +376,30 @@ export function FiltersPanel({
                   onClick={() => {
                     const next = on ? genres.filter((x) => x !== g.value) : [...genres, g.value];
                     set("genre", next.join(",") || undefined);
+                  }}
+                >
+                  {g.value} <span className="tabular-nums opacity-70">{g.count}</span>
+                </Chip>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
+      {/* Tags compatible clients set on the title's libraries: file detail, like the libraries' has/lacks. */}
+      {seeFiles && (facets?.tags ?? []).length > 0 ? (
+        <div className="mb-2 mt-2">
+          <FilterLabel icon={<Tag />}>Tags</FilterLabel>
+          <div role="group" aria-label="Tags" className="flex flex-wrap gap-1.5">
+            {(facets?.tags ?? []).map((g) => {
+              const on = tags.includes(g.value);
+              return (
+                <Chip
+                  key={g.value}
+                  selected={on}
+                  title={`Titles tagged ${g.value} in some library`}
+                  onClick={() => {
+                    const next = on ? tags.filter((x) => x !== g.value) : [...tags, g.value];
+                    set("tag", next.join(",") || undefined);
                   }}
                 >
                   {g.value} <span className="tabular-nums opacity-70">{g.count}</span>

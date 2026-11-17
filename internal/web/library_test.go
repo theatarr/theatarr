@@ -216,6 +216,63 @@ func TestSeriesStatus(t *testing.T) {
 	}
 }
 
+// Tags: the labels on the title's copies in the library, shown, counted and filtered for callers who see files only.
+func TestTitleTags(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	e.seedLibrary()
+	key := e.apiKey()
+	e.exec(`INSERT INTO arrview_tag (id, label, created_at) VALUES (1, 'kids', 0), (2, 'debrid-upgrade', 0), (3, 'unused', 0)`)
+	// Alpha: one label per copy; Beta: kids; Gamma: a label on a library it has no copy in, which counts nowhere.
+	e.exec(`INSERT INTO arrview_title_tag (version, title_id, tag_id) VALUES ('movie-remux', 1, 1), ('movie-web', 1, 2),
+		('movie-remux', 1, 2), ('movie-web', 2, 1), ('tv-2160p', 3, 2)`)
+	var p TitlePage
+	if e.getKey(APIBase+"/titles?q=Alpha", key, &p); strings.Join(p.Items[0].Tags, ",") != "debrid-upgrade,kids" {
+		t.Errorf("Alpha's tags: %v", p.Items[0].Tags)
+	}
+	for q, want := range map[string]string{
+		"tag=kids":                       "Alpha,Beta",
+		"tag=KIDS":                       "Alpha,Beta",
+		"tag=debrid-upgrade":             "Alpha",
+		"tag=unused":                     "",
+		"tag=unused,kids":                "Alpha,Beta",
+		"kind=series&tag=debrid-upgrade": "",
+	} {
+		if code := e.getKey(APIBase+"/titles?"+q, key, &p); code != 200 || names(p) != want {
+			t.Errorf("%s: %d %q, want %q", q, code, names(p), want)
+		}
+	}
+	var d TitleDetail
+	if e.getKey(APIBase+"/titles/1", key, &d); strings.Join(d.Tags, ",") != "debrid-upgrade,kids" {
+		t.Errorf("Alpha's page tags: %v", d.Tags)
+	}
+	var f TitleFacets
+	e.getKey(APIBase+"/titles/facets?kind=movie", key, &f)
+	if got := fmt.Sprint(f.Tags); got != "[{kids 2} {debrid-upgrade 1}]" {
+		t.Errorf("movie tag facet: %s", got)
+	}
+	f = TitleFacets{}
+	if e.getKey(APIBase+"/titles/facets?kind=series", key, &f); len(f.Tags) != 0 {
+		t.Errorf("series tag facet: %v", f.Tags)
+	}
+
+	// A household account: no tags anywhere, and the filter is refused.
+	uid := e.account("household", auth.RoleUser, auth.StatusActive, true)
+	ukey, _, err := e.auth.CreateKey(context.Background(), "k-household", uid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if code := e.getKey(APIBase+"/titles?tag=kids", ukey, nil); code != http.StatusForbidden {
+		t.Errorf("tag filter as user: %d, want 403", code)
+	}
+	for _, path := range []string{"/titles", "/titles/1", "/titles/facets?kind=movie"} {
+		var raw json.RawMessage
+		if code := e.getKey(APIBase+path, ukey, &raw); code != 200 || strings.Contains(string(raw), `"tags"`) || strings.Contains(string(raw), "kids") {
+			t.Errorf("%s as user: %d %s", path, code, raw)
+		}
+	}
+}
+
 func TestVersionLabels(t *testing.T) {
 	t.Parallel()
 	for _, c := range []struct {

@@ -214,6 +214,11 @@ func (w *Web) enrichTitle(ctx context.Context, d *TitleDetail) error {
 		return err
 	}
 	d.Availability = avail[d.ID]
+	tags, err := titleTags(ctx, db, []any{d.ID})
+	if err != nil {
+		return err
+	}
+	d.Tags = tags[d.ID]
 	if d.Kind == "movie" {
 		dates, err := activity.ReadMovieDates(ctx, db, []any{d.ID})
 		if err != nil {

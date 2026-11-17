@@ -165,8 +165,9 @@ and no other-requester list or count.
     the title's own `added_at` stays (Home's "Recently added"); a library facet (`GET titles/facets` versions) keeps
     its `titles` and drops `with_file`, `wanted`, `filled` and `cutoff_met` (`TestTitleFacets`);
   - `cutoff_met` reads as `filled`, a title below cutoff as `available`, the upgrades row is empty, and
-    `upgrade=`, `availability=upcoming|unmonitored`, `state=cutoff_met` and a source quality filter answer 403, like
-    sorting by size and the provider filter;
+    `upgrade=`, `availability=upcoming|unmonitored`, `state=cutoff_met`, `tag=` and a source quality filter answer
+    403, like sorting by size and the provider filter;
+  - no tags: rows and the title page carry no `tags`, and the facets no `tags` (`TestTitleTags`);
   - requests carry no `others` (how many others asked; for `manage_requests`), and the SSE `request` event never
     carries requester ids: they address it, and a requester's copy says `mine`;
   - a request the user joined carries no `user` (who asked first); `decided_by` is dropped unless it is the caller or

@@ -129,6 +129,7 @@ func redactRowWith(r *TitleRow, states []versionState) {
 	r.SizeBytes = nil
 	r.Availability = plainAvailability(r.Kind, states)
 	r.UpgradeSeen, r.UpgradeState = false, ""
+	r.Tags = nil
 	for i := range r.Versions {
 		redactVersionBrief(&r.Versions[i])
 	}
@@ -208,6 +209,9 @@ func (f *TitleFilter) plainFilter() string {
 	}
 	if f.Upgrade != "" {
 		return "filtering by upgrades needs the see-files permission"
+	}
+	if len(f.Tags) > 0 {
+		return "filtering by tags needs the see-files permission"
 	}
 	switch f.Availability {
 	case "upcoming", "unmonitored":

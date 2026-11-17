@@ -253,6 +253,15 @@ describe("Title page facts (J5)", () => {
     expect((await screen.findAllByTestId("library-why"))[0].textContent).toBe("Not searched yet. Automatic backlog searching is off; new releases are still picked up from RSS. Use Search now to request a search.");
   });
 
+  it("lists the title's tags on About, each opening its list filtered by it", async () => {
+    show({ tags: ["debrid-upgrade", "kids & teens"] }, "/title/70?tab=about");
+    const tags = await screen.findByTestId("title-tags");
+    expect([...tags.querySelectorAll("a")].map((a) => [a.textContent, a.getAttribute("href")])).toEqual([
+      ["debrid-upgrade", "/movies?tag=debrid-upgrade"],
+      ["kids & teens", "/movies?tag=kids%20%26%20teens"],
+    ]);
+  });
+
   it("links a film to its collection on About", async () => {
     show({ collection: { tmdb_id: 8091, name: "Alien Collection" } }, "/title/70?tab=about");
     expect((await screen.findByTestId("title-collection")).getAttribute("href")).toBe("/collections/8091");

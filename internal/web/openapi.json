@@ -138,6 +138,7 @@
           { "name": "provider", "in": "query", "description": "Some current file is held now by this debrid provider: a cache code (rd, ad, tb: every provider of that kind) or a provider key. Needs see_files (403 otherwise)", "schema": { "type": "string" } },
           { "name": "year_from", "in": "query", "schema": { "type": "integer", "minimum": 0 } },
           { "name": "year_to", "in": "query", "schema": { "type": "integer", "minimum": 0 } },
+          { "name": "tag", "in": "query", "description": "Tag labels, comma-separated or repeated; any of them on any copy in the library (labels compare ignoring case). Needs see_files (403 otherwise)", "schema": { "type": "string" } },
           { "name": "series_status", "in": "query", "description": "Series status, series only (400 with kind=movie; without kind, only series match): continuing (TMDb Returning Series, TVDB Continuing) or ended (Ended or Canceled); the title metadata's status, else the series metadata's", "schema": { "type": "string", "enum": ["continuing", "ended"] } },
           { "name": "sort", "in": "query", "description": "added: newest current file; release: TMDb release or first air date; size: current files (see files only, else 403); completion: the share of a series' aired episodes a copy holds (a movie copy: 1 with a file, else 0); quality: a copy's best current quality, resolution then source (see files only); activity: the newest change of a download in hand (see files only); next: the next episode's air date or a coming movie release (ascending by default); created: when the title was added (title_added_at); runtime: TMDb runtime; certification and network: A to Z by default. Default name. Titles without a value come last", "schema": { "type": "string", "enum": ["added", "created", "name", "year", "release", "rating", "runtime", "certification", "network", "size", "completion", "quality", "activity", "next"] } },
           { "name": "sort_version", "in": "query", "description": "The copy (version key) completion, quality and activity read; without it they take the title's best copy (activity: any copy)", "schema": { "type": "string" } },
@@ -149,7 +150,7 @@
           "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TitlePage" } } } },
           "400": { "$ref": "#/components/responses/BadRequest" },
           "401": { "$ref": "#/components/responses/Unauthorized" },
-          "403": { "description": "The provider filter without see_files" }
+          "403": { "description": "The provider or tag filter, or a file-only filter or sort, without see_files" }
         }
       }
     },
@@ -1063,7 +1064,8 @@
           "physical_release": { "type": "string", "description": "List rows, movies: the first physical release, YYYY-MM-DD" },
           "series_type": { "type": "string", "enum": ["standard", "daily", "anime"], "description": "Series: the type in force" },
           "season_count": { "type": "integer", "description": "List rows, series: seasons with episodes, specials left out" },
-          "previous_airing": { "type": "string", "description": "List rows, series: the latest aired episode's day, YYYY-MM-DD" }
+          "previous_airing": { "type": "string", "description": "List rows, series: the latest aired episode's day, YYYY-MM-DD" },
+          "tags": { "type": "array", "items": { "type": "string" }, "description": "see_files only: the tag labels compatible clients set on the title's copies in the library, each once, in label order; absent when none" }
         }
       },
       "TitleFacets": {
@@ -1073,6 +1075,7 @@
           "total": { "type": "integer" }, "monitored": { "type": "integer" }, "unmonitored": { "type": "integer" },
           "availability": { "type": "object", "additionalProperties": { "type": "integer" }, "description": "Titles per Availability value, as availability= filters them. Without see_files, watchability: missing, partial, available and none" },
           "upgrades": { "type": "object", "additionalProperties": { "type": "integer" }, "description": "see_files only: titles per quality filter (upgrade=found), as the filter counts them" },
+          "tags": { "type": "array", "items": { "$ref": "#/components/schemas/FacetCount" }, "description": "see_files only; absent otherwise. Titles per tag label on a copy in the library, as tag= filters them" },
           "series_status": { "type": "object", "additionalProperties": { "type": "integer" }, "description": "Series per Series status (continuing, ended), as series_status= filters them; absent for kind=movie" },
           "versions": { "type": "array", "items": { "type": "object", "required": ["key", "label", "titles"], "description": "with_file, wanted, filled and cutoff_met are for callers who see files; absent otherwise, and when zero", "properties": { "key": { "type": "string" }, "label": { "type": "string" }, "titles": { "type": "integer" }, "with_file": { "type": "integer" }, "wanted": { "type": "integer" }, "filled": { "type": "integer" }, "cutoff_met": { "type": "integer" } } } },
           "qualities": { "type": "array", "items": { "$ref": "#/components/schemas/FacetCount" }, "description": "Titles per current-file quality; without see_files, per resolution (2160p, 1080p, ...), highest first" },

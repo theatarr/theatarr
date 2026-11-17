@@ -260,7 +260,7 @@ export const SORTS = [
 ] as const;
 
 /** The filter keys the URL carries (the grid's own; kind and anime come from the catalog). */
-export const FILTER_KEYS = ["q", "with", "without", "state", "availability", "upgrade", "genre", "quality", "provider", "year_from", "year_to", "monitored", "series_status"] as const;
+export const FILTER_KEYS = ["q", "with", "without", "state", "availability", "upgrade", "genre", "quality", "provider", "year_from", "year_to", "monitored", "series_status", "tag"] as const;
 
 /** The Series status filter (series_status=): series only; on Anime it is dropped while Movies is shown. */
 export const SERIES_STATUSES = [
@@ -349,6 +349,8 @@ export function gridQuery(c: CatalogId, p: URLSearchParams, seeFiles: boolean): 
     year_to: num("year_to"),
     monitored: mon === "true" ? true : mon === "false" ? false : undefined,
     series_status: catalogKind(c, p) !== "movie" ? str("series_status") : undefined,
+    // Tags are file detail (GET /titles refuses tag= without "see files").
+    tag: seeFiles ? str("tag") : undefined,
     sort: sortOK ? asked : "name",
     sort_version: sortOK ? str("sort_version") : undefined,
     order: sortOK ? str("order") : undefined,
@@ -415,6 +417,11 @@ export function filterChips(
   for (const g of genres) {
     const rest = genres.filter((x) => x !== g).join(",");
     out.push({ key: "genre", label: g, next: rest || undefined });
+  }
+  const tags = files ? (get("tag") ?? "").split(",").filter(Boolean) : [];
+  for (const g of tags) {
+    const rest = tags.filter((x) => x !== g).join(",");
+    out.push({ key: "tag", label: `Tag: ${g}`, next: rest || undefined });
   }
   const st = files && get("state");
   if (st) out.push({ key: "state", label: `State: ${st}` });

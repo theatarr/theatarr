@@ -39,6 +39,7 @@ type TitleGridFilter struct {
 	Anime     *bool    // anime titles only (true) or none (false)
 	Monitored *bool    // the title is monitored
 	Genres    []string // TMDb genre names; any of them
+	Tags      []string // tag labels on a copy in the library; any of them (see files only)
 	Quality   string   // some current file of the title has this quality (WEBDL-2160p)
 	Provider  string   // some current file is held by this debrid provider: a cache code (rd) or a provider key (see files only)
 	YearFrom  int
@@ -414,6 +415,14 @@ func (g TitleGridFilter) where(conds []string, args []any) ([]string, []any) {
 			args = append(args, x)
 		}
 	}
+	if len(g.Tags) > 0 {
+		// Labels compare ignoring case (the column's collation).
+		conds = append(conds, "EXISTS (SELECT 1 FROM "+tagOfLiveCopy+" WHERE tt.title_id = t.id AND g.label IN ("+
+			store.Placeholders(len(g.Tags))+") AND "+liveVersion+")")
+		for _, x := range g.Tags {
+			args = append(args, x)
+		}
+	}
 	switch {
 	case isResolution(g.Quality):
 		// A bare resolution (1080p) matches every quality with it: WEBDL-1080p, Bluray-1080p.
@@ -529,6 +538,13 @@ func gridFilter(r *http.Request) (TitleGridFilter, error) {
 		for _, x := range strings.Split(v, ",") {
 			if x = strings.TrimSpace(x); x != "" {
 				g.Genres = append(g.Genres, x)
+			}
+		}
+	}
+	for _, v := range q["tag"] {
+		for _, x := range strings.Split(v, ",") {
+			if x = strings.TrimSpace(x); x != "" {
+				g.Tags = append(g.Tags, x)
 			}
 		}
 	}

@@ -37,6 +37,8 @@ export type GridQuery = {
   year_from?: number;
   year_to?: number;
   monitored?: boolean;
+  /** Tag labels, comma-separated: any of them (see files only). */
+  tag?: string;
   /** Series status: continuing or ended (series only). */
   series_status?: string;
   sort?: string;

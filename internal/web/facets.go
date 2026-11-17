@@ -46,6 +46,8 @@ type TitleFacets struct {
 	Genres    []FacetCount   `json:"genres"`
 	// Certifications are US ratings (title_meta).
 	Certifications []FacetCount `json:"certifications"`
+	// Tags counts titles per tag label on a copy in the library; for callers who see files, absent otherwise.
+	Tags []FacetCount `json:"tags,omitempty"`
 	// Providers is for callers who see files; absent otherwise. Values are cache codes (rd, ad, tb), as list rows
 	// carry them and the provider filter takes them.
 	Providers []FacetCount `json:"providers,omitempty"`
@@ -221,6 +223,11 @@ func (w *Web) titleFacets(ctx context.Context, f TitleFilter, seeFiles bool) (Ti
 		return out, err
 	}
 	if seeFiles {
+		if out.Tags, err = counts(`SELECT g.label, COUNT(DISTINCT t.id)`+titleFrom+` JOIN version v ON v.title_id = t.id
+			JOIN arrview_title_tag tt ON tt.title_id = t.id AND tt.version = v.policy_key JOIN arrview_tag g ON g.id = tt.tag_id`+
+			andWhere(where, liveVersion)+` GROUP BY g.id, g.label`, args); err != nil {
+			return out, err
+		}
 		// As the rows' pills and the provider filter: providers holding a current file of a version in the library
 		// now (providerHolds; a link's torrent is its hash, heldJoin), counted by cache code.
 		titles := map[string]map[int64]bool{}

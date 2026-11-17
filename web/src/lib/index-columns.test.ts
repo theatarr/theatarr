@@ -34,8 +34,8 @@ describe("the lists' columns", () => {
     expect(label("movies", "release")).toBe("Release date");
     expect(label("series", "release")).toBe("First aired");
     expect(label("series", "title_status")).toBe("Series status");
-    expect(listColumns("movies")).toHaveLength(23);
-    expect(listColumns("series")).toHaveLength(22);
+    expect(listColumns("movies")).toHaveLength(24);
+    expect(listColumns("series")).toHaveLength(23);
   });
   it("explains Movies' columns without seasons, episodes or series words (Opus C25)", () => {
     for (const c of [...listColumns("movies"), ...indexColumns("movies", false)]) expect(c.hint).not.toMatch(/season|episode|series|air(ed|ing)|continuing|ended/i);

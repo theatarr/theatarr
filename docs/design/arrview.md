@@ -530,7 +530,8 @@ tag delete's "in use" check). Writes (add, PUT, editor `add`/`remove`/`replace`)
 has and no other: `replace` replaces only within them. A version a view's DELETE removed is out of both: its tags
 are not shown and writes leave them alone (they show again when the version is turned back on); a request that turns
 versions on does so before its tags are written (`TestTagsSkipRemovedVersions`). Labels (`arrview_tag`) stay global, like an arr's tag list, and
-deleting a label removes it from every version. Rows from before 00105 were copied to every version the title had
+deleting a label removes it from every version. Theatarr's own pages show a title's tags (the union over its copies
+in the library) and filter by them, for accounts that see files, and never write them. Rows from before 00105 were copied to every version the title had
 (`TestTagsPerVersion`, `TestVersionTagsMigration`).
 
 ## Schema (00012)

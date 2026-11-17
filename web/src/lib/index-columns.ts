@@ -30,6 +30,7 @@ export type IndexColumnId =
   | "certification"
   | "rating"
   | "genres"
+  | "tags"
   | "language"
   | "min_availability"
   | "provider"
@@ -80,6 +81,7 @@ const DEFS: Def[] = [
   { id: "certification", ...both("Certification"), hint: "The age rating", sort: "certification" },
   { id: "rating", ...both("Rating"), hint: "TMDb's rating", sort: "rating" },
   { id: "genres", ...both("Genres"), hint: "The first three" },
+  { id: "tags", ...both("Tags"), hint: "Labels compatible clients set on the title's libraries", seeFiles: true },
   { id: "language", ...both("Original language"), hint: "From TMDb" },
   { id: "min_availability", movie: "Minimum availability", hint: "When a movie may be fetched; per library when they differ", seeFiles: true },
   { id: "provider", ...both(HELD_ON), hint: HELD_ON_TIP, seeFiles: true },

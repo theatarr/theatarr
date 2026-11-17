@@ -99,6 +99,9 @@ type TitleRow struct {
 	TitleAddedAt *time.Time `json:"title_added_at,omitempty"`
 	// SeriesType is a series' type in force (store.SeriesTypeSQL: standard, daily or anime); empty for a movie.
 	SeriesType string `json:"series_type,omitempty"`
+	// Tags are the labels compatible clients set on the title's copies in the library, each once (titleTags); see
+	// files only.
+	Tags []string `json:"tags,omitempty"`
 	// A movie's first canonical release of each kind (availability.DatesFor), YYYY-MM-DD.
 	InCinemas       string `json:"in_cinemas,omitempty"`
 	DigitalRelease  string `json:"digital_release,omitempty"`
@@ -281,7 +284,35 @@ func (w *Web) titleRows(ctx context.Context, db *sql.DB, q string, args []any) (
 	if err := w.fillVersionFiles(ctx, db, items, vf); err != nil {
 		return items, err
 	}
+	tags, err := titleTags(ctx, db, ids)
+	if err != nil {
+		return items, err
+	}
+	for i := range items {
+		items[i].Tags = tags[items[i].ID]
+	}
 	return items, w.fillCopies(ctx, db, items, vf.held)
+}
+
+// tagOfLiveCopy joins a title tag (tt) to its label (g) and to the copy it was set on (v), which must be in the
+// library: a removed copy's tags count nowhere.
+const tagOfLiveCopy = `arrview_title_tag tt JOIN version v ON v.title_id = tt.title_id AND v.policy_key = tt.version
+	JOIN arrview_tag g ON g.id = tt.tag_id`
+
+// titleTags reads the tag labels of the titles' copies in the library, each once per title, in label order.
+func titleTags(ctx context.Context, db *sql.DB, ids []any) (map[int64][]string, error) {
+	out := map[int64][]string{}
+	err := scanAll(ctx, db, `SELECT DISTINCT tt.title_id, g.label FROM `+tagOfLiveCopy+` WHERE tt.title_id IN (`+
+		store.Placeholders(len(ids))+`) AND `+liveVersion+` ORDER BY tt.title_id, g.label`, ids, func(r *sql.Rows) error {
+		var id int64
+		var label string
+		if err := r.Scan(&id, &label); err != nil {
+			return err
+		}
+		out[id] = append(out[id], label)
+		return nil
+	})
+	return out, err
 }
 
 func nullInt(n sql.NullInt64) *int64 {
