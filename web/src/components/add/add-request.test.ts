@@ -87,6 +87,20 @@ describe("add sheet request", () => {
       title_id: 10, kind: "series", versions: ["tv-2160p"], seasons: [{ season: 1, monitored: true }], search: false,
     });
   });
+  it("sends monitored false only for a new movie switched off", () => {
+    const movie = { kind: "movie" as const, name: "Alpha", year: 2024, tmdb_id: 101 };
+    const base = { versions: ["movie-web"], search: false, anime: false };
+    expect(addRequest(movie, { kind: "movie" }, { ...base, monitored: false })).toEqual({
+      kind: "movie", tmdb_id: 101, title: "Alpha", year: 2024, anime: false, versions: ["movie-web"], search: false, monitored: false,
+    });
+    expect(addRequest({ kind: "movie" as const, name: "Alpha", title_id: 5 }, { kind: "movie", in_library: false }, { ...base, monitored: false })).toMatchObject({ title_id: 5, monitored: false });
+    // On sends nothing; a movie in the library and a series never send it.
+    expect(JSON.stringify(addRequest(movie, { kind: "movie" }, { ...base, monitored: true }))).toBe(
+      '{"kind":"movie","tmdb_id":101,"title":"Alpha","year":2024,"anime":false,"versions":["movie-web"],"search":false}',
+    );
+    expect("monitored" in addRequest({ kind: "movie" as const, name: "Alpha", title_id: 1 }, { kind: "movie" }, { ...base, monitored: false })).toBe(false);
+    expect("monitored" in addRequest({ kind: "series" as const, name: "Kaiju", tmdb_id: 4321 }, { kind: "series" }, { ...choice, monitored: false })).toBe(false);
+  });
   it("sends neither choice for a title already in the library", () => {
     expect(addRequest({ kind: "series" as const, name: "The Show", title_id: 10 }, { kind: "series" }, { ...choice, monitor: "pilot", monitorNew: false })).toEqual({
       title_id: 10, kind: "series", versions: ["tv-2160p"], seasons: [{ season: 1, monitored: true }], search: false,

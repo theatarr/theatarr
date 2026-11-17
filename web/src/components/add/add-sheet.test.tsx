@@ -122,6 +122,43 @@ it("offers one Add and the explanation when no ticked library can search, ", asy
   expect(((await bodyOf(fetch)) as { search: boolean }).search).toBe(false);
 });
 
+it("adds a new movie unmonitored with the Monitored switch off: only Add, and the switch's line says why", async () => {
+  const fetch = mockFetch(routes(options));
+  const user = userEvent.setup();
+  renderPage(<AddSheet target={{ kind: "movie", name: "Alpha", year: 2024, tmdb_id: 7 }} onClose={() => {}} />);
+  const sw = await screen.findByRole("switch", { name: "Monitored" });
+  expect(sw.getAttribute("aria-checked")).toBe("true");
+  expect(screen.getByTestId("add-submit-search")).toBeTruthy();
+  expect(screen.queryByText(/won't search for or download/)).toBeNull();
+  await user.click(sw);
+  expect(screen.getByText("Theatarr won't search for or download this movie automatically until you monitor it.")).toBeTruthy();
+  expect(screen.queryByTestId("add-submit-search")).toBeNull();
+  await user.click(screen.getByTestId("add-submit"));
+  expect(await bodyOf(fetch)).toEqual({ kind: "movie", tmdb_id: 7, title: "Alpha", year: 2024, anime: false, versions: ["movie-web", "movie-remux", "movie-1080", "movie-4k", "movie-hdr", "movie-dv"], search: false, monitored: false });
+  cleanup();
+
+  // No library can search: off, the switch's line replaces the no-search paragraph.
+  const watch = versions.map((v) => ({ ...v, searchable: false, grab_state: { ...v.grab_state, will_grab: false } }));
+  mockFetch(routes({ ...options, versions: watch }));
+  renderPage(<AddSheet target={{ kind: "movie", name: "Alpha", tmdb_id: 7 }} onClose={() => {}} />);
+  expect(await screen.findByTestId("add-no-search")).toBeTruthy();
+  await user.click(screen.getByRole("switch", { name: "Monitored" }));
+  expect(screen.queryByTestId("add-no-search")).toBeNull();
+});
+
+it("offers no Monitored switch for a series or for a movie already in the library", async () => {
+  mockFetch(routes(seriesOptions));
+  renderPage(<AddSheet target={{ kind: "series", name: "Kappa", tmdb_id: 8 }} onClose={() => {}} />);
+  await screen.findByTestId("add-versions");
+  expect(screen.queryByRole("switch", { name: "Monitored" })).toBeNull();
+  cleanup();
+  const two = versions.map((v) => ({ ...v, on: v.key === "movie-web", default: v.key === "movie-4k" }));
+  mockFetch(routes({ ...options, title_id: 5, versions: two }));
+  renderPage(<AddSheet target={{ kind: "movie", name: "Alpha", title_id: 5 }} onClose={() => {}} />);
+  await screen.findByTestId("add-minimum-availability");
+  expect(screen.queryByRole("switch", { name: "Monitored" })).toBeNull();
+});
+
 it("keeps one Save seasons when only the seasons of a series in the library change", async () => {
   const inLibrary = { ...seriesOptions, title_id: 10, episodes_known: true, seasons: [{ season: 1, episodes: 8, monitored: true }], versions: [{ ...tv, key: "tv-old", on: true, default: false }] };
   const fetch = mockFetch(routes(inLibrary));

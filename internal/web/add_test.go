@@ -445,6 +445,30 @@ func TestAddNeverSearchesWhilePaused(t *testing.T) {
 	}
 }
 
+// TestAddMovieUnmonitored: the add sheet's Monitored switch off sends monitored false for a new movie: every copy it
+// adds is unmonitored and nothing is searched.
+func TestAddMovieUnmonitored(t *testing.T) {
+	t.Parallel()
+	e := newAddEnv(t, func(p *policy.Policy) {
+		p.Router = &policy.Router{Enabled: true}
+	})
+	var res AddResult
+	e.call("POST", APIBase+"/titles", map[string]any{"kind": "movie", "tmdb_id": 105, "title": "Epsilon",
+		"versions": []string{"movie-remux", "movie-web"}, "search": false, "monitored": false}, 201, &res)
+	if !res.Created || !slices.Equal(res.New, []string{"movie-remux", "movie-web"}) || res.Search != nil {
+		t.Fatalf("add: %+v", res)
+	}
+	if n := e.count(`SELECT COUNT(*) FROM version WHERE title_id = ? AND monitored = 0`, res.Title.ID); n != 2 {
+		t.Errorf("%d unmonitored copies, want 2", n)
+	}
+	if n := e.count(`SELECT COUNT(*) FROM title WHERE id = ? AND monitored = 0`, res.Title.ID); n != 1 {
+		t.Error("title monitored")
+	}
+	if n := len(searchCalls(e)); n != 0 {
+		t.Errorf("%d searches", n)
+	}
+}
+
 func TestSetVersion(t *testing.T) {
 	t.Parallel()
 	e := newAddEnv(t, nil)

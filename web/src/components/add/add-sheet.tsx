@@ -62,15 +62,15 @@ function CheckRow({
 }
 
 /** A switch row: the shared Switch, with the whole row as its label. */
-function SwitchRow({ on, onChange, title, detail, testid }: { on: boolean; onChange: (v: boolean) => void; title: string; detail: string; testid?: string }) {
+function SwitchRow({ on, onChange, title, detail, testid }: { on: boolean; onChange: (v: boolean) => void; title: string; detail?: string; testid?: string }) {
   const id = useId();
   return (
     <label className="flex w-full cursor-pointer items-center gap-3 rounded-[5px] border border-[var(--line)] bg-[var(--surface)] px-3 py-2.5 transition-colors hover:bg-[var(--hover)]">
       <span className="min-w-0 flex-1">
         <span id={`${id}-t`} className="block text-sm font-medium text-[var(--ink)]">{title}</span>
-        <span id={`${id}-d`} className="block text-xs text-[var(--ink-3)]">{detail}</span>
+        {detail ? <span id={`${id}-d`} className="block text-xs text-[var(--ink-3)]">{detail}</span> : null}
       </span>
-      <Switch checked={on} onCheckedChange={onChange} aria-labelledby={`${id}-t`} aria-describedby={`${id}-d`} data-testid={testid} />
+      <Switch checked={on} onCheckedChange={onChange} aria-labelledby={`${id}-t`} aria-describedby={detail ? `${id}-d` : undefined} data-testid={testid} />
     </label>
   );
 }
@@ -161,6 +161,7 @@ export function AddSheet({ target, onClose }: { target: AddTarget; onClose: () =
   const [monitor, setMonitor] = useState<MonitorPreset | "">("");
   const [monitorNew, setMonitorNew] = useState(true);
   const [minimum, setMinimum] = useState<AddChoice["minimumAvailability"]>();
+  const [monitored, setMonitored] = useState(true);
   const [showOther, setShowOther] = useState(false);
   const navigate = useNavigate();
   const nameOf = useLibraryName();
@@ -185,7 +186,9 @@ export function AddSheet({ target, onClose }: { target: AddTarget; onClose: () =
   const epKnown = Boolean(o?.episodes_known);
   // Two buttons, "Add" and "Add and search", when something new is ticked and a ticked library can search; a change of
   // seasons alone keeps its one "Save seasons".
-  const searchOffered = !!o && canSearch && chosen.length > 0;
+  // A new movie added unmonitored is not searched: only "Add" is offered.
+  const unmonitored = o?.kind === "movie" && !current && !monitored;
+  const searchOffered = !!o && canSearch && chosen.length > 0 && !unmonitored;
   // The type a new series has without a choice: anime for an anime title, else standard.
   const typeDefault = anime ? "anime" : "standard";
 
@@ -202,6 +205,7 @@ export function AddSheet({ target, onClose }: { target: AddTarget; onClose: () =
         monitorNew,
         seriesType: seriesType === typeDefault ? undefined : seriesType,
         minimumAvailability: chosen.length > 0 ? minimum : undefined,
+        monitored: o.kind === "movie" && !current ? monitored : undefined,
       }),
       { onSuccess: (r) => done(r) },
     );
@@ -340,16 +344,27 @@ export function AddSheet({ target, onClose }: { target: AddTarget; onClose: () =
                     </section>
                   ) : null}
                   {o.kind === "movie" && chosen.length > 0 ? (
-                    <SelectRow
-                      label="Minimum availability"
-                      detail={`When the movie counts as out and is searched${current ? ", for the libraries added now" : ""}. Library default keeps each library's own setting.`}
-                      value={minimum ?? ""}
-                      onChange={(v) => setMinimum((v || undefined) as AddChoice["minimumAvailability"])}
-                      options={[["", "Library default"], ...MINIMUM_AVAILABILITY]}
-                      testid="add-minimum-availability"
-                    />
+                    <div className="space-y-2">
+                      {!current ? (
+                        <SwitchRow
+                          on={monitored}
+                          onChange={setMonitored}
+                          title="Monitored"
+                          detail={monitored ? undefined : "Theatarr won't search for or download this movie automatically until you monitor it."}
+                          testid="add-monitored"
+                        />
+                      ) : null}
+                      <SelectRow
+                        label="Minimum availability"
+                        detail={`When the movie counts as out and is searched${current ? ", for the libraries added now" : ""}. Library default keeps each library's own setting.`}
+                        value={minimum ?? ""}
+                        onChange={(v) => setMinimum((v || undefined) as AddChoice["minimumAvailability"])}
+                        options={[["", "Library default"], ...MINIMUM_AVAILABILITY]}
+                        testid="add-minimum-availability"
+                      />
+                    </div>
                   ) : null}
-                  {canSearch || globalOff ? null : (
+                  {canSearch || globalOff || unmonitored ? null : (
                     <section>
                       <p className="flex items-start gap-2 text-xs leading-5 text-[var(--ink-3)]" data-testid="add-no-search">
                         <Search className="mt-0.5 size-3.5 shrink-0" />

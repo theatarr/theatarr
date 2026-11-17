@@ -18,6 +18,8 @@ export type AddChoice = {
   seriesType?: NonNullable<AddRequest["series_type"]>;
   /** A movie's minimum availability for the libraries added now; unset ("Library default") sends nothing. */
   minimumAvailability?: NonNullable<AddRequest["minimum_availability"]>;
+  /** A new movie: false adds it unmonitored; unset or true sends nothing. */
+  monitored?: boolean;
 };
 
 /** The library title the sheet adds to, if any: the target's, else the one GET /add/options found by TMDb id. */
@@ -52,6 +54,8 @@ export function addRequest(target: AddTarget, opts: Pick<AddOptions, "kind" | "t
     ...(monitorNew ? { monitor_new: monitorNew } : {}),
     ...(seriesType ? { series_type: seriesType } : {}),
   } : {};
-  if (restore) return { title_id: titleId, kind, anime: c.anime, ...common, ...series };
-  return { kind, tmdb_id: target.tmdb_id || undefined, title: target.name, year: target.year, anime: c.anime, ...common, ...series };
+  // A new movie added unmonitored; on (the default) adds no key.
+  const unmonitored: Partial<AddRequest> = kind === "movie" && c.monitored === false ? { monitored: false } : {};
+  if (restore) return { title_id: titleId, kind, anime: c.anime, ...common, ...series, ...unmonitored };
+  return { kind, tmdb_id: target.tmdb_id || undefined, title: target.name, year: target.year, anime: c.anime, ...common, ...series, ...unmonitored };
 }

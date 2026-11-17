@@ -142,7 +142,12 @@ the type Anime ticks the libraries of an anime series, as the Anime box does (th
 **Library default** (the start; sends nothing, so each library's own rule applies) or Announced, In cinemas,
 Released, sent as `minimum_availability` and stored as the explicit choice (`availability.Choose`, the library's own
 `v/<key>` row) of each library the add adds the movie to, new or restored, whether or not that library has a
-default; a library the movie already had keeps its rule.
+default; a library the movie already had keeps its rule. A new movie (not in the library, or every copy removed) also
+gets a **Monitored** switch beside it, on by default (sends nothing). Off, it sends `monitored: false`: every library
+it adds the movie to holds it unmonitored, only **Add** is offered, and the line under the switch ("Theatarr won't
+search for or download this movie automatically until you monitor it.") replaces the no-search line; a search started
+by hand still works. A series has the monitoring preset instead, and a movie already in the library its title page's
+Monitored switch.
 
 ### Status words
 
