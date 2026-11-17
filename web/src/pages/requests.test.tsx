@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { screen, waitFor, within } from "@testing-library/react";
+import { cleanup, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Route, Routes } from "react-router";
 import { describe, expect, it } from "vitest";
@@ -156,5 +156,53 @@ describe("problem reports", () => {
     expect(screen.getByRole("option", { name: "Problems (2)" })).toBeTruthy();
     expect(screen.getByRole("tab", { name: /To decide/ }).textContent).toBe("To decide3");
     expect(screen.getByRole("option", { name: "To decide (3)" })).toBeTruthy();
+  });
+});
+
+describe("the approval editor", () => {
+  const series = { id: 1, kind: "series", name: "Kappa", anime: false, tmdb_id: 34, status: "pending", mine: false, seasons: [], created_at: "2026-10-30T12:00:00Z", updated_at: "2026-10-30T12:00:00Z", approved_at_creation: false,
+    versions: [{ key: "tv", label: "TV", available: false, grab_state: on }], progress: [{ key: "tv", words: "Waiting for approval", approval: "Records the request" }] };
+  const setup = () => {
+    const api = mockFetch([
+      { method: "GET", path: "/auth/me", reply: { username: "admin", permissions: ["admin", "manage_requests"], csrf_token: "fixture" } },
+      { method: "GET", path: "/requests/1", reply: json(series) },
+      { method: "GET", path: "/add/options", reply: { kind: "series", versions: [{ key: "tv", label: "TV", fits: true, on: false, grab_state: on, searchable: true }], seasons: [{ season: 0, episodes: 1 }, { season: 1, episodes: 8 }, { season: 2, episodes: 8 }] } },
+      { method: "POST", path: "/requests/1/approve", reply: json({}) },
+    ]);
+    renderPage(<Routes><Route path="/requests/:tab" element={<RequestsPage />} /></Routes>, "/requests/1");
+    return api;
+  };
+  const approveBody = async (api: ReturnType<typeof mockFetch>) => {
+    await waitFor(() => expect(api.calls("POST", "/requests/1/approve")).toHaveLength(1));
+    return api.calls("POST", "/requests/1/approve")[0].body;
+  };
+
+  it("cannot approve a series with no season selected; untouched and every season ticked send what they sent", async () => {
+    const user = userEvent.setup();
+    let api = setup();
+    await user.click(await screen.findByTestId("request-edit"));
+    const editor = await screen.findByTestId("approve-editor");
+    const approve = within(editor).getByRole("button", { name: "Approve these" }) as HTMLButtonElement;
+    await within(editor).findByRole("button", { name: "Season 2" });
+    expect(approve.disabled).toBe(false);
+    await user.click(within(editor).getByRole("button", { name: "Season 1" }));
+    await user.click(within(editor).getByRole("button", { name: "Season 2" }));
+    expect(approve.disabled).toBe(true);
+    expect(within(editor).getByText("Pick at least one season")).toBeTruthy();
+    // Every season ticked again: [] (every season), as today.
+    await user.click(within(editor).getByRole("button", { name: "Season 1" }));
+    await user.click(within(editor).getByRole("button", { name: "Season 2" }));
+    expect(within(editor).queryByText("Pick at least one season")).toBeNull();
+    await user.click(approve);
+    expect(await approveBody(api)).toEqual({ versions: ["tv"], seasons: [] });
+    cleanup();
+
+    // Untouched: no seasons sent.
+    api = setup();
+    await user.click(await screen.findByTestId("request-edit"));
+    const again = await screen.findByTestId("approve-editor");
+    await within(again).findByRole("button", { name: "Season 2" });
+    await user.click(within(again).getByRole("button", { name: "Approve these" }));
+    expect(await approveBody(api)).toEqual({ versions: ["tv"] });
   });
 });

@@ -363,6 +363,8 @@ function ApproveEditor({ r, onDone }: { r: Request; onDone: () => void }) {
   const chosenSeasons = seasons ?? (r.seasons.length > 0 ? r.seasons : all);
   const toggle = <T,>(list: T[], v: T) => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
   const choices = (opts.data?.versions ?? []).filter((v) => v.fits || versions.includes(v.key) || v.on);
+  // Seasons edited down to none: [] on the wire means every season, so it cannot be sent for none.
+  const noSeason = r.kind === "series" && seasons !== null && seasons.length === 0;
   return (
     <div className="space-y-3 border-t border-[var(--line)] p-3 sm:p-4" data-testid="approve-editor">
       {opts.isPending ? <Loading /> : null}
@@ -412,7 +414,7 @@ function ApproveEditor({ r, onDone }: { r: Request; onDone: () => void }) {
       <div className="flex flex-wrap items-center gap-2">
         <Button
           size="sm"
-          disabled={versions.length === 0 || approve.isPending}
+          disabled={versions.length === 0 || noSeason || approve.isPending}
           onClick={() =>
             approve.mutate(
               { id: r.id, versions, seasons: r.kind === "series" && seasons !== null ? (seasons.length === all.length ? [] : seasons) : undefined },
@@ -423,6 +425,7 @@ function ApproveEditor({ r, onDone }: { r: Request; onDone: () => void }) {
           {approve.isPending ? <Loader2 className="animate-spin" /> : <Check />} Approve these
         </Button>
         <Button size="sm" variant="ghost" onClick={onDone}>Cancel</Button>
+        {noSeason ? <span className="text-xs text-[var(--ink-3)]" data-testid="approve-no-season">Pick at least one season</span> : null}
         {approve.error ? <span className="text-xs text-[var(--bad-ink)]">{String((approve.error as Error).message)}</span> : null}
       </div>
     </div>
