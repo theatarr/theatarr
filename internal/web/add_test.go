@@ -1702,6 +1702,27 @@ func TestSyncPartnerTakesSeasonChoices(t *testing.T) {
 	}
 }
 
+// A copy whose only stored choice is "monitor new seasons: none", restored by the library switch: its new partner
+// takes that choice too.
+func TestSyncPartnerTakesMonitorNewNone(t *testing.T) {
+	t.Parallel()
+	e := newAddEnv(t, func(p *policy.Policy) {
+		tv := *p.Versions["tv-2160p"]
+		tv.Library = "/media/tv-1080p"
+		p.Versions["tv-1080p"] = &tv
+		p.Library.SyncGroups = [][]string{{"tv-2160p", "tv-1080p"}}
+	})
+	e.exec(`DELETE FROM episode_version_state WHERE version_id = 10`)
+	e.exec(`INSERT INTO series_monitor (version_id, monitor_new, seasons, updated_at) VALUES (10, 'none', '{}', 0)`)
+	e.exec(`INSERT INTO arrview_removed_version (version_id, view, removed_at) VALUES (10, 'ui', 0)`)
+	var vs VersionSet
+	e.call("PUT", APIBase+"/titles/10/versions/tv-2160p", map[string]any{"monitored": true}, 200, &vs)
+	if n := e.count(`SELECT COUNT(*) FROM series_monitor m JOIN version v ON v.id = m.version_id WHERE v.title_id = 10
+		AND v.policy_key = 'tv-1080p' AND m.monitor_new = 'none'`); !slices.Equal(vs.Synced, []string{"tv-1080p"}) || n != 1 {
+		t.Errorf("synced %v; tv-1080p with monitor new none: %d", vs.Synced, n)
+	}
+}
+
 // The Sonarr mass editor that makes a standard series anime and picks the anime profile creates the anime copy and
 // its anime-only partner: the edited type is stored before the copies are turned on.
 func TestSyncGroupsEditorSeriesType(t *testing.T) {

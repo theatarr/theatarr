@@ -1001,9 +1001,11 @@ func (w *Web) apiSetVersion(rw http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				return err
 			}
-			// The switch names no seasons: the partners follow the copy's own season choices.
-			if err := catalog.PartnerSeasonIntent(ctx, tx, id, []string{key}, created, synced, now); err != nil {
-				return err
+			// The switch names no seasons: a series' partners follow the copy's own season choices.
+			if t.kind == policy.KindSeries {
+				if err := catalog.PartnerSeasonIntent(ctx, tx, id, []string{key}, created, synced, now); err != nil {
+					return err
+				}
 			}
 			if len(created) > 0 {
 				w.log.Info("version turned on", "source", "ui", "title", id, "version", key)

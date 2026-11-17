@@ -1020,7 +1020,7 @@ removed; every add a person makes (the add sheet, the library switch and bulk ad
 compatible API) restores it (`restore` on `catalog.SyncPartners` and `TurnOnSynced`). Monitoring an existing copy
 again brings nothing. The new copy takes the add's monitored flag and, for a series, its seasons, preset and monitor-new
 choice; when the add names no seasons (the library switch, bulk add, an add or restore without season choices) and
-the named copy was there before with season or episode choices of its own, the new copy takes those, as Bring in sync
+the named copy was there before, the new copy takes its season, episode and monitor-new choices, as Bring in sync
 does (`catalog.PartnerSeasonIntent`: `CopySeasonIntent` with the episode rows filled in), so it does not monitor every
 season at the next refresh; a partner created beside a brand-new copy follows the add, and nothing is copied onto a
 partner copy that already exists; quality, profile, naming and providers are each library's own, and monitoring, removals and files stay each
