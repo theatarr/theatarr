@@ -739,7 +739,7 @@ func (w *Web) historyEvents(ctx context.Context, hs []*journal.HistoryRow, admin
 		}
 		if admin {
 			x.Files, x.Provider = h.Files, h.Provider
-			x.Reason = historyReason(h, notStarted, w.providerTag)
+			x.Reason = historyReason(h, notStarted, w.providerTag, w.versionLabel)
 			if r := w.historyFailure(h, extras); r != "" && notStarted == "" {
 				x.Reason = r // failureWords' headline (m-reasons), as the queue says it
 			}
@@ -875,7 +875,7 @@ func entryWords(h *journal.HistoryRow, notStarted string, tag func(string) strin
 
 // historyReason is a History row's reason in plain words: why a download failed or stalled, why a release was blocked,
 // why a file was removed, what is left of a partial import, a copy's message when it says more than the words.
-func historyReason(h *journal.HistoryRow, notStarted string, tag func(string) string) string {
+func historyReason(h *journal.HistoryRow, notStarted string, tag, label func(string) string) string {
 	switch h.Event {
 	case journal.EvFailed:
 		return "" // historyFailure says why (failureWords)
@@ -902,7 +902,7 @@ func historyReason(h *journal.HistoryRow, notStarted string, tag func(string) st
 		}
 		return "From Sonarr"
 	case journal.EvTitleRemoved:
-		return removalWords(h)
+		return removalWords(h, label)
 	case journal.EvCopyAdded, journal.EvCopyAlready, journal.EvCopyNotCached:
 		if w, _ := entryWords(h, "", tag); !strings.EqualFold(h.Reason, w) {
 			return h.Reason
@@ -929,12 +929,24 @@ func actorWords(who string) string {
 	return who
 }
 
-// removalWords is a title_removed row's reason: who removed it, what became of the files, and the debrid
-// clean-up's outcome once it ran ("By ann. Files kept.", "By ann. Files deleted. Debrid: deleted on RD.").
-func removalWords(h *journal.HistoryRow) string {
+// removalWords is a title_removed row's reason: who removed it, the library (named by label) it was removed in sync
+// with, what became of the files, and the debrid clean-up's outcome once it ran ("By ann. Files kept.", "By ann, in
+// sync with 4K. Files deleted. Debrid: deleted on RD.").
+func removalWords(h *journal.HistoryRow, label func(string) string) string {
 	var out []string
+	by := ""
 	if h.By != "" {
-		out = append(out, "By "+actorWords(h.By)+".")
+		by = "By " + actorWords(h.By)
+	}
+	if rm := h.Removal; rm != nil && rm.Sync != "" {
+		if by == "" {
+			by = "In sync with " + label(rm.Sync)
+		} else {
+			by += ", in sync with " + label(rm.Sync)
+		}
+	}
+	if by != "" {
+		out = append(out, by+".")
 	}
 	if rm := h.Removal; rm != nil {
 		left := ""

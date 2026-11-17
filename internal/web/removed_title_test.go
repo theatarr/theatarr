@@ -144,11 +144,20 @@ func TestRemovalDetail(t *testing.T) {
 	}
 	h := &journal.HistoryRow{Event: journal.EvTitleRemoved, By: "ann",
 		Removal: &journal.Removal{Files: journal.RemovalFilesDeleted, Cleanup: "deleted on RD"}}
-	if got := removalWords(h); got != "By ann. Files deleted. Debrid: deleted on RD." {
+	if got := removalWords(h, strings.ToUpper); got != "By ann. Files deleted. Debrid: deleted on RD." {
 		t.Errorf("words %q", got)
 	}
 	h.Removal = &journal.Removal{Files: journal.RemovalFilesPartial, Left: 1, Reason: "no space left on device"}
-	if got := removalWords(h); got != "By ann. Files partly deleted (1 left in place: no space left on device)." {
+	if got := removalWords(h, strings.ToUpper); got != "By ann. Files partly deleted (1 left in place: no space left on device)." {
+		t.Errorf("words %q", got)
+	}
+	// A library removed with the one it is kept in sync with names that library.
+	h.Removal = &journal.Removal{Files: journal.RemovalFilesKept, Sync: "tv-a"}
+	if got := removalWords(h, strings.ToUpper); got != "By ann, in sync with TV-A. Files kept." {
+		t.Errorf("words %q", got)
+	}
+	h.By = ""
+	if got := removalWords(h, strings.ToUpper); got != "In sync with TV-A. Files kept." {
 		t.Errorf("words %q", got)
 	}
 }

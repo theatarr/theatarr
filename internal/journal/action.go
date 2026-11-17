@@ -232,6 +232,9 @@ type Removal struct {
 	// <title>", "AD: failed, <reason>"); empty when none ran. Written into the action after the removal, by its id
 	// (SetActionDetail).
 	Cleanup string `json:"cleanup,omitempty"`
+	// Sync is the library (policy key) this one was removed with because they are kept in sync (removal.Spec.SyncOf);
+	// empty for a library named by whoever removed it.
+	Sync string `json:"sync,omitempty"`
 }
 
 // Removal files.
@@ -245,12 +248,17 @@ const (
 const (
 	removalCleanup = "; clean-up: "
 	removalLeft    = "; left in place: "
+	removalSync    = "; in sync with "
 )
 
-// RemovalDetail is the action detail that records r: "files kept|deleted|partial|unknown", then "; left in place: <n>:
-// <reason>" when files were left, then "; clean-up: <outcome>" when a clean-up ran.
+// RemovalDetail is the action detail that records r: "files kept|deleted|partial|unknown", then "; in sync with
+// <key>" for a library removed with the one it is in sync with, then "; left in place: <n>: <reason>" when files were
+// left, then "; clean-up: <outcome>" when a clean-up ran.
 func RemovalDetail(r Removal) string {
 	d := "files " + cmp.Or(r.Files, "unknown")
+	if r.Sync != "" {
+		d += removalSync + r.Sync
+	}
 	if r.Left > 0 {
 		d += removalLeft + strconv.Itoa(r.Left) + ": " + r.Reason
 	}
@@ -264,8 +272,9 @@ func RemovalDetail(r Removal) string {
 // linked" (kept) or "its library links go to the trash next ..." (outcome unknown).
 func ParseRemovalDetail(detail string) Removal {
 	head, cleanup, _ := strings.Cut(detail, removalCleanup)
-	files, left, _ := strings.Cut(head, removalLeft)
-	r := Removal{Cleanup: cleanup}
+	head, left, _ := strings.Cut(head, removalLeft)
+	files, sync, _ := strings.Cut(head, removalSync)
+	r := Removal{Cleanup: cleanup, Sync: sync}
 	switch files {
 	case "files left linked":
 		r.Files = RemovalFilesKept

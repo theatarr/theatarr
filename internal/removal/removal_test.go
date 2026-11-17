@@ -483,3 +483,72 @@ func TestRunNormalisesKeptLinkHashes(t *testing.T) {
 		}
 	}
 }
+
+// A library removed with the one it is kept in sync with (the web scope's and an arr view's expansion): the link the
+// pair shares goes to the trash once, the partner's Removed action says which library it followed, through the
+// files' outcome; a third current library outside the pair keeps the shared link.
+func TestRunSyncPartner(t *testing.T) {
+	t.Parallel()
+	spec := Spec{TitleID: 1, Name: "Gone", Keys: []string{"movie-web", "movie-remux"}, View: "ui", Unlink: true,
+		Action: journal.ActRemoveTitle, By: "mgr", Reason: "copy removed by mgr",
+		SyncOf: map[string]string{"movie-remux": "movie-web"}}
+	f := newFixture(t)
+	res, err := Run(context.Background(), f.deps(), spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var shared int
+	for _, u := range res.Unlinked {
+		if filepath.Base(u.Path) == "c.mkv" {
+			shared++
+			if !slices.Equal(u.Versions, []string{"movie-remux", "movie-web"}) && !slices.Equal(u.Versions,
+				[]string{"movie-web", "movie-remux"}) {
+				t.Errorf("c.mkv unlinked for %v", u.Versions)
+			}
+		}
+	}
+	if shared != 1 || len(res.Shared) != 0 || slices.Contains(paths(res.Kept), "c.mkv") {
+		t.Errorf("the pair's shared link: unlinked %d times, shared %v kept %v", shared, paths(res.Shared), paths(res.Kept))
+	}
+	detail := func(f *fixture, key string) journal.Removal {
+		return journal.ParseRemovalDetail(f.str(`SELECT detail FROM journal_action WHERE version_key = ? AND action = ?`,
+			key, journal.ActRemoveTitle))
+	}
+	if rm := detail(f, "movie-remux"); rm.Sync != "movie-web" || rm.Files != journal.RemovalFilesDeleted {
+		t.Errorf("partner's action %+v", rm)
+	}
+	if rm := detail(f, "movie-web"); rm.Sync != "" {
+		t.Errorf("named library's action %+v", rm)
+	}
+	// The clean-up's outcome keeps the library it followed.
+	RecordCleanup(context.Background(), f.st, nil, f.started[0].Actions["movie-remux"], "deleted on RD")
+	if rm := detail(f, "movie-remux"); rm.Sync != "movie-web" || rm.Cleanup != "deleted on RD" {
+		t.Errorf("after the clean-up %+v", rm)
+	}
+
+	// A third library outside the group, still current, uses c.mkv: it stays for it.
+	g := newFixture(t)
+	g.exec(`INSERT INTO version (id, title_id, policy_key, monitored, state, created_at, updated_at) VALUES
+		(4, 1, 'anime-movie', 1, 'filled', 0, 0)`)
+	g.exec(`INSERT INTO link_version (link_id, version_id) VALUES (12, 4)`)
+	spec.Action = journal.ActRemoveVersion
+	res, err = Run(context.Background(), g.deps(), spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(paths(res.Shared), []string{"c.mkv"}) || g.str(`SELECT state FROM link WHERE id = 12`) != "active" {
+		t.Errorf("third library's link: shared %v", paths(res.Shared))
+	}
+}
+
+// The detail's sync part reads back, alone and with every other part.
+func TestRemovalDetailSync(t *testing.T) {
+	t.Parallel()
+	for _, rm := range []journal.Removal{{Files: journal.RemovalFilesKept, Sync: "tv-a"},
+		{Files: journal.RemovalFilesPartial, Left: 2, Reason: "refused; really", Cleanup: "deleted on RD", Sync: "tv-a"},
+		{Files: journal.RemovalFilesDeleted}} {
+		if got := journal.ParseRemovalDetail(journal.RemovalDetail(rm)); got != rm {
+			t.Errorf("%q read back as %+v", journal.RemovalDetail(rm), got)
+		}
+	}
+}

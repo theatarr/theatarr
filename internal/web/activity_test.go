@@ -1157,7 +1157,7 @@ func TestHistoryPartialUpgradeWords(t *testing.T) {
 	if w, tone := historyWords(h); w != "Upgraded" || tone != "warn" {
 		t.Errorf("words %q %q", w, tone)
 	}
-	if r := historyReason(h, "", strings.ToUpper); r != "Partly imported; the rest is tried again" {
+	if r := historyReason(h, "", strings.ToUpper, nil); r != "Partly imported; the rest is tried again" {
 		t.Errorf("reason %q", r)
 	}
 }
@@ -1172,7 +1172,7 @@ func TestHistoryBlockedReasonWords(t *testing.T) {
 		{"journal", "", "Judged wrong in the journal"},
 	} {
 		h := &journal.HistoryRow{Event: journal.EvBlocked, Source: c.source, Reason: c.reason}
-		if r := historyReason(h, "", strings.ToUpper); r != c.want {
+		if r := historyReason(h, "", strings.ToUpper, nil); r != c.want {
 			t.Errorf("%s: %q, want %q", c.source, r, c.want)
 		}
 	}
@@ -1181,12 +1181,12 @@ func TestHistoryBlockedReasonWords(t *testing.T) {
 // A title removed by an API key names it as a removed file's row does.
 func TestHistoryActorWords(t *testing.T) {
 	if r := historyReason(&journal.HistoryRow{Event: journal.EvRemoved, Reason: "copy removed by key:claude-automation"},
-		"", strings.ToUpper); r != "Removed by claude-automation (API key)" {
+		"", strings.ToUpper, nil); r != "Removed by claude-automation (API key)" {
 		t.Errorf("removed %q", r)
 	}
 	h := &journal.HistoryRow{Event: journal.EvTitleRemoved, By: "key:claude-automation",
 		Removal: &journal.Removal{Files: journal.RemovalFilesKept}}
-	if r := historyReason(h, "", strings.ToUpper); r != "By claude-automation (API key). Files kept." {
+	if r := historyReason(h, "", strings.ToUpper, nil); r != "By claude-automation (API key). Files kept." {
 		t.Errorf("title removed %q", r)
 	}
 }

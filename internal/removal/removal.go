@@ -74,6 +74,9 @@ type Spec struct {
 	// Extra handles the title's arr view records (catalog.Hide instead of catalog.Remove).
 	Extra          func(ctx context.Context, tx *sql.Tx) error
 	OwnViewRecords bool
+	// SyncOf are the Keys removed because they are kept in sync with a named one (catalog.SyncRemovals): partner →
+	// the named key; their Removed actions say so (journal.Removal.Sync).
+	SyncOf map[string]string
 }
 
 // Left is a link a removal left in place, and why.
@@ -170,7 +173,7 @@ func Run(ctx context.Context, d Deps, s Spec) (*Result, error) {
 		// The files' fate: kept now, or with Unlink unknown until the links are done (below). A library that had no
 		// file records no file outcome.
 		for _, k := range out.Removed {
-			rm := journal.Removal{}
+			rm := journal.Removal{Sync: s.SyncOf[k]}
 			if !s.Unlink {
 				var files bool
 				if err := tx.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM link l JOIN link_version lv
@@ -248,8 +251,14 @@ func Run(ctx context.Context, d Deps, s Spec) (*Result, error) {
 		for k, id := range actIDs {
 			f := fates[k]
 			left := len(f.left)
-			// A library that had no file says nothing about files ("" reads as no outcome).
-			rm := journal.Removal{}
+			// A library that had no file says nothing about files ("" reads as no outcome); the library it was
+			// removed in sync with stays said.
+			var detail string
+			if err := tx.QueryRowContext(ctx, `SELECT detail FROM journal_action WHERE id = ?`, id).Scan(
+				&detail); err != nil {
+				return err
+			}
+			rm := journal.Removal{Sync: journal.ParseRemovalDetail(detail).Sync}
 			switch {
 			case left > 0 && f.unlinked == 0:
 				rm.Files, rm.Left, rm.Reason = journal.RemovalFilesKept, left, f.reason
