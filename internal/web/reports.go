@@ -491,6 +491,12 @@ func (w *Web) linkFiles(ctx context.Context, titleID, episodeID, linkID int64) (
 	if err != nil {
 		return nil, err
 	}
+	// Anime as the search reads it (acquire): the anime flag or the anime series type.
+	var anime bool
+	if err := db.QueryRowContext(ctx, `SELECT t.anime = 1 OR `+store.SeriesTypeSQL("t")+` = 'anime' FROM title t
+		WHERE t.id = ?`, titleID).Scan(&anime); err != nil {
+		return nil, err
+	}
 	// The libraries and episodes of those links, in one read each.
 	ids := make([]int64, len(out))
 	for i, f := range out {
@@ -553,7 +559,7 @@ func (w *Web) linkFiles(ctx context.Context, titleID, episodeID, linkID int64) (
 			f.episodeIDs = append(f.episodeIDs, e.id)
 			f.Episodes = append(f.Episodes, e.code)
 		}
-		f.Why = w.replaceBlocked(f, kinds[f.LinkID], on, monitored)
+		f.Why = w.replaceBlocked(f, kinds[f.LinkID], on, monitored, anime)
 		f.Replace = f.Why == ""
 		kept = append(kept, f)
 	}
@@ -568,8 +574,9 @@ type episodeKey struct {
 
 // replaceBlocked says why Replace file cannot run for f ("" when it can): it runs only when the search after it can,
 // in every library that loses the file, for the movie or every episode the file holds (monitored: the episodes
-// monitored per library).
-func (w *Web) replaceBlocked(f ReportFile, kind string, on []string, monitored map[episodeKey]bool) string {
+// monitored per library; anime: the title is anime as the search reads it, which skips a library whose anime
+// setting does not match).
+func (w *Web) replaceBlocked(f ReportFile, kind string, on []string, monitored map[episodeKey]bool, anime bool) string {
 	if kind != "symlink" {
 		return "This file is not one of Theatarr's links; change it from the title page"
 	}
@@ -581,6 +588,22 @@ func (w *Web) replaceBlocked(f ReportFile, kind string, on []string, monitored m
 	}
 	if _, skipped := catalog.Searchable(w.pol, f.Versions); len(skipped) > 0 {
 		return "Not searched now: " + skipWords(skipped)
+	}
+	var unfit []string
+	for _, k := range f.Versions {
+		if vp := w.pol.Versions[k]; vp.Anime != nil && *vp.Anime != anime {
+			unfit = append(unfit, k)
+		}
+	}
+	if len(unfit) > 0 {
+		verb, why := " does not", "it is for anime only"
+		if len(unfit) > 1 {
+			verb, why = " do not", "they are for anime only"
+		}
+		if anime {
+			why = strings.Replace(why, "for anime only", "not for anime", 1)
+		}
+		return w.labelList(unfit) + verb + " search this title (" + why + "), so no new file would be searched"
 	}
 	var off []string
 	for _, k := range f.Versions {

@@ -173,6 +173,26 @@ func TestReplaceReportedFile(t *testing.T) {
 		t.Fatalf("unknown release %+v", fs[0])
 	}
 	o.exec(`UPDATE link SET release_title = 'Delta.S01.1080p.BluRay-GRP' WHERE id = 90`)
+	// The title is no longer anime: the anime library's search skips it, so it would never search again.
+	o.exec(`UPDATE title SET anime = 0 WHERE id = 4`)
+	if fs := files(); fs[0].Replace || !strings.Contains(fs[0].Why, " does not search this title (it is for anime only), "+
+		"so no new file would be searched") {
+		t.Fatalf("anime library, title not anime %+v", fs[0])
+	}
+	if code := replace(); code != http.StatusConflict || len(o.ops.unlinks) != 0 {
+		t.Fatalf("replace in a library that skips the title: %d", code)
+	}
+	o.exec(`UPDATE title SET anime = 1 WHERE id = 4`)
+	// A file two libraries share: refused when either one would not search the title.
+	o.exec(`INSERT INTO version (id, title_id, policy_key, state, monitored, created_at, updated_at)
+		VALUES (99, 4, 'tv-2160p', 'filled', 1, 0, 0)`)
+	o.exec(`INSERT INTO link_version (link_id, version_id) VALUES (90, 99)`)
+	if fs := files(); fs[0].Replace || len(fs[0].Versions) != 2 ||
+		!strings.Contains(fs[0].Why, " does not search this title (it is not for anime), ") {
+		t.Fatalf("shared with a library not for anime %+v", fs[0])
+	}
+	o.exec(`DELETE FROM link_version WHERE version_id = 99`)
+	o.exec(`DELETE FROM version WHERE id = 99`)
 
 	fs := files()
 	if !fs[0].Replace || fs[0].Why != "" || !slices.Equal(fs[0].Versions, []string{"anime-tv"}) || len(fs[0].Libraries) != 1 {
@@ -273,6 +293,18 @@ func TestReplaceFileFromTitlePage(t *testing.T) {
 	if s := scopeOf(o.mc); s == nil || !s.Replace || s.Why != "" {
 		t.Fatalf("scope %+v", s)
 	}
+	// An anime title: the library is not for anime, its search skips the title, so the file is not replaced.
+	o.exec(`UPDATE title SET anime = 1 WHERE id = 1`)
+	if s := scopeOf(o.mc); s == nil || s.Replace || !strings.HasSuffix(s.Why,
+		" does not search this title (it is not for anime), so no new file would be searched") {
+		t.Fatalf("anime title scope %+v", s)
+	}
+	refused = apiError{}
+	if code := o.jsonCall("POST", APIBase+"/links/901/replace", nil, o.mc, o.mcsrf, &refused); code != http.StatusConflict ||
+		!strings.Contains(refused.Error, "does not search this title") || len(o.ops.unlinks) != 0 {
+		t.Fatalf("replace of an anime title's file: %d %+v", code, refused)
+	}
+	o.exec(`UPDATE title SET anime = 0 WHERE id = 1`)
 	// The episode window: the file's scope names its episodes.
 	o.exec(`UPDATE link SET release_title = 'Delta.S01E01.1080p.BluRay-GRP' WHERE id = 90`)
 	var ep EpisodeDetail
