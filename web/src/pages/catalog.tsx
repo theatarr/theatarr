@@ -442,7 +442,7 @@ export function Catalog({ id }: { id: CatalogId }) {
               select={select}
             />
           ) : (
-            <PosterGrid titles={titles} more={more && !loadingAll} onMore={onMore} library={{ prefs: postersPref, select }} />
+            <PosterGrid titles={titles} more={more && !loadingAll} onMore={onMore} library={{ prefs: postersPref, select, sort, catalog: id }} />
           )}
         </>
       )}

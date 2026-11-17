@@ -838,6 +838,19 @@ describe("Library posters", () => {
     expect(bar.getAttribute("data-tone")).toBe("ok");
   });
 
+  it("shows the active sort's value under each poster, and nothing for Title", async () => {
+    const rows = [{ ...titles[0], rating: 8.4 }, titles[1]];
+    mockFetch(routes().map((r) => (r.path === "/titles" ? { ...r, reply: { items: rows, total: 2, offset: 0 } } : r)));
+    const { unmount } = renderPage(<Catalog id="series" />, "/series?sort=rating");
+    await screen.findAllByText("The Pellbrook Inquiries");
+    expect(screen.getAllByTestId("poster-details").map((d) => d.textContent)).toEqual(["Rating 8.4"]);
+    unmount();
+    mockFetch(routes().map((r) => (r.path === "/titles" ? { ...r, reply: { items: rows, total: 2, offset: 0 } } : r)));
+    renderPage(<Catalog id="series" />, "/series");
+    await screen.findAllByText("The Pellbrook Inquiries");
+    expect(screen.queryAllByTestId("poster-details")).toHaveLength(0);
+  });
+
   it("selects on posters into the same bulk bar", async () => {
     mockFetch(routes());
     const user = userEvent.setup();

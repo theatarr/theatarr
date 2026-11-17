@@ -22,7 +22,7 @@ import { searchOffWords } from "@/components/version-status";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
 import type { RowSelection } from "@/components/ui/row-select";
 import { activityHref, copyBar, nextWords, stageTone, stageWords, titleAcquisition } from "@/lib/copies";
-import { fmtAgo, fmtBytes, localDay, nameWithoutYear } from "@/lib/format";
+import { nameWithoutYear } from "@/lib/format";
 import {
   columnSort,
   languageWords,
@@ -35,6 +35,7 @@ import {
 import { badgeTone, copyTone, copyWords, monitoredHeldWords, type CopyTone } from "@/lib/library-status";
 import { fmtDay, fmtRuntime, notAiredYet, POSTER_STATUS_LABEL, posterStatus, qualityWord, statusDay, titleWatchWords, undatedUpcoming, upcomingRelease, type PosterStatus } from "@/lib/library";
 import { releasedText } from "@/lib/released";
+import { addedText, latestFileText, ratingText, sizeText } from "@/lib/sort-line";
 import { cn } from "@/lib/utils";
 import { StageLink, useMinWidth } from "./copy-bits";
 import { CopyDialog } from "./copy-dialog";
@@ -197,11 +198,11 @@ function cell(id: IndexColumnId, t: TitleRow, open: () => void): ReactNode {
     case "seasons":
       return or(t.season_count, "tabular-nums");
     case "size":
-      return or(t.size_bytes ? fmtBytes(t.size_bytes) : "", "tabular-nums");
+      return or(sizeText(t), "tabular-nums");
     case "added":
-      return or(t.title_added_at ? fmtDay(localDay(t.title_added_at)) : "", "text-muted-foreground");
+      return or(addedText(t), "text-muted-foreground");
     case "latest_file":
-      return or(t.added_at ? fmtAgo(t.added_at) : "", "text-muted-foreground");
+      return or(latestFileText(t), "text-muted-foreground");
     case "previous":
       return or(dayOf(t.previous_airing));
     case "quality":
@@ -228,7 +229,7 @@ function cell(id: IndexColumnId, t: TitleRow, open: () => void): ReactNode {
     case "certification":
       return or(t.certification);
     case "rating":
-      return or(t.rating ? t.rating.toFixed(1) : "", "tabular-nums");
+      return or(ratingText(t), "tabular-nums");
     case "genres":
       return or((t.genres ?? []).slice(0, 3).join(", "));
     case "tags":

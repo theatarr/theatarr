@@ -849,7 +849,12 @@ including "Imported from Radarr's blocklist" for `arr:<instance>`) and the healt
   The status bar and the library lines always show."): size (small, medium, large; on a phone small fits three
   across, the others two) and the details under each poster: Year (the default), Next release / Next airing, Studio /
   Network (Anime: "Next episode / release", "Network / studio"), Quality ("4K: Remux-2160p · WEB: WEBDL-2160p"), Size (the title's total), Added (the day the title was
-  added) and Rating; Quality and Size need See files. Without See files a poster has the badge only.
+  added) and Rating; Quality and Size need See files. Without See files a poster has the badge only. Sorted by
+  Rating, Size, Runtime, Added, Latest file or Release date, each poster first shows that value as one line in the
+  table's words ("Rating 7.9", "Size 48.4 GiB", "Runtime 2 h 4 min", "Added Oct 1, 2025", "Latest file 3 d ago",
+  "Released Jul 16, 1988" or "First aired Mar 1, 2019"; `lib/sort-line.ts`), so the order follows a visible line;
+  none for Title, Year and the other sorts, none for a value a chosen detail already shows, and Size and Latest file
+  only with See files.
 - **Select** (managers) works on both: tick titles ("Select all 60 shown" selects the loaded rows; with more matches
   than loaded, "Select all 524 matches" loads the remaining pages of the same query with a spinner, the bar waiting
   until they are in, then selects every title; changing the selection, Done or another query meanwhile cancels it); the bar counts titles ("12 titles selected") and offers Monitor, Unmonitor, Search now, Add to a library (with the add
