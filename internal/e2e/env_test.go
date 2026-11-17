@@ -76,6 +76,9 @@ type edges struct {
 	refuse, stalled        bool
 	tvdb                   map[string][]byte
 	client                 *qbittest.Fake // the "fixture" download client's qBittorrent API, under /client
+
+	// tvdbDown makes the TVDB series record fail: "error" answers 500, "slow" answers after 2.5 s.
+	tvdbDown string
 }
 
 const caps = `<caps><limits default="100" max="100"/><searching><search available="yes" supportedParams="q"/><movie-search available="yes" supportedParams="q,imdbid,tmdbid"/><tv-search available="yes" supportedParams="q,tvdbid,season,ep"/></searching><categories><category id="2000" name="Movies"/><category id="5000" name="TV"/></categories></caps>`
@@ -188,6 +191,13 @@ func (f *edges) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		if p := r.URL.Query().Get("page"); p != "" {
 			path += "?page=" + p
+		}
+		if strings.HasSuffix(path, "/extended") && f.tvdbDown == "error" {
+			http.Error(w, `{"status":"failure"}`, http.StatusInternalServerError)
+			return
+		}
+		if strings.HasSuffix(path, "/extended") && f.tvdbDown == "slow" {
+			time.Sleep(2500 * time.Millisecond)
 		}
 		if b, ok := f.tvdb[path]; ok {
 			w.Write(b)

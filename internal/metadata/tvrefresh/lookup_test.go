@@ -30,7 +30,7 @@ func TestLookupSeriesSourcesAndCache(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got.Title != "Severance" || got.Year != 2022 || got.Runtime != 49 || got.IMDbID != "tt11280740" ||
-		got.TMDbID != 95396 || got.Status != StatusContinuing || !reflect.DeepEqual(got.Seasons, []int{0, 1, 2}) {
+		got.TMDbID != 95396 || got.Status != StatusContinuing || !reflect.DeepEqual(got.Seasons, []int{0, 1, 2}) || got.Source != "tvdb" {
 		t.Fatalf("TVDB lookup: %+v", got)
 	}
 	if len(e.tvdb.reqs) != 1 {
@@ -51,7 +51,7 @@ func TestLookupSeriesSourcesAndCache(t *testing.T) {
 	// TVDB 404 falls back to the existing TMDb client, reading its series record only, including empty seasons.
 	got, err = e.svc.LookupSeries(ctx, 800800)
 	if err != nil || got.Title != "Only On TMDb" || got.Year != 2019 || got.Runtime != 30 ||
-		got.TMDbID != 5000 || got.Status != StatusEnded || !reflect.DeepEqual(got.Seasons, []int{0, 1}) || e.tmdb.calls != 2 {
+		got.TMDbID != 5000 || got.Status != StatusEnded || !reflect.DeepEqual(got.Seasons, []int{0, 1}) || got.Source != "tmdb" || e.tmdb.calls != 2 {
 		t.Fatalf("TMDb lookup: %+v, %v; calls %d", got, err, e.tmdb.calls)
 	}
 	var n int

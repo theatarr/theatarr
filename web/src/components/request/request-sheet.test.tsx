@@ -22,7 +22,7 @@ it("asks for a removed title's options without overriding its stored anime flag"
 });
 
 it("shows a new series' own seasons without episode counts and asks for the picked ones", async () => {
-  const series = { ...options, kind: "series", anime: false, title_id: undefined, own_seasons: true, seasons: [{ season: 0 }, { season: 1 }, { season: 2 }],
+  const series = { ...options, kind: "series", anime: false, title_id: undefined, seasons: [{ season: 0 }, { season: 1 }, { season: 2 }],
     versions: [{ key: "tv-web", label: "TV", kind: "series", enable: "", fits: true, default: true, on: false, searchable: true, grab_state: { paused: false, pause_forced: false, library_writes: true, will_grab: true } }] };
   const fetch = mockFetch([
     { method: "GET", path: "/auth/me", reply: { id: 3, permissions: ["request"] } },
@@ -35,8 +35,28 @@ it("shows a new series' own seasons without episode counts and asks for the pick
   const list = await screen.findByTestId("request-seasons");
   expect(within(list).getAllByRole("checkbox")).toHaveLength(2);
   expect(list.textContent).not.toMatch(/ep\./);
+  expect(screen.getByTestId("request-submit").textContent).toBe("Request");
   await user.click(within(list).getAllByRole("checkbox")[1]);
   await user.click(screen.getByTestId("request-submit"));
   await waitFor(() => expect(fetch.calls("POST", "/requests")).toHaveLength(1));
   expect(fetch.calls("POST", "/requests")[0].body).toMatchObject({ kind: "series", tmdb_id: 8, seasons: [1] });
+});
+
+it("says Request all seasons for a new series whose seasons could not be read, and asks for the whole series", async () => {
+  const series = { ...options, kind: "series", anime: false, title_id: undefined, seasons: [],
+    versions: [{ key: "tv-web", label: "TV", kind: "series", enable: "", fits: true, default: true, on: false, searchable: true, grab_state: { paused: false, pause_forced: false, library_writes: true, will_grab: true } }] };
+  const fetch = mockFetch([
+    { method: "GET", path: "/auth/me", reply: { id: 3, permissions: ["request"] } },
+    { method: "GET", path: "/add/options", reply: series },
+    { method: "GET", path: "/requests", reply: { items: [], total: 0, counts: {} } },
+    { method: "POST", path: "/requests", reply: json({ approved: false, merged: false, request: { id: 4, name: "Kappa", status: "pending", versions: [{ key: "tv-web", label: "TV" }], seasons: [] } }) },
+  ]);
+  const user = userEvent.setup();
+  renderPage(<RequestSheet target={{ kind: "series", name: "Kappa", tmdb_id: 8 }} onClose={() => {}} />);
+  const submit = await screen.findByTestId("request-submit");
+  await waitFor(() => expect(submit.textContent).toBe("Request all seasons"));
+  expect(screen.queryByTestId("request-seasons")).toBeNull();
+  await user.click(submit);
+  await waitFor(() => expect(fetch.calls("POST", "/requests")).toHaveLength(1));
+  expect("seasons" in (fetch.calls("POST", "/requests")[0].body as object)).toBe(false);
 });

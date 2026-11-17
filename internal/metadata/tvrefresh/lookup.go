@@ -15,6 +15,9 @@ type LookupResult struct {
 	Title, Status, IMDbID string
 	Year, Runtime, TMDbID int
 	Seasons               []int
+	// Source is where the seasons come from: "tvdb" (its default order, the one the refresh numbers episodes by) or
+	// "tmdb" (the fallback when TVDB has no such series).
+	Source string
 }
 
 type lookupEntry struct {
@@ -92,7 +95,9 @@ func (s *Service) lookupSeries(ctx context.Context, id int) (LookupResult, error
 			return LookupResult{}, err
 		}
 	}
+	source := "tvdb"
 	if sh == nil {
+		source = "tmdb"
 		if s.tmdb == nil {
 			return LookupResult{}, errNotFound
 		}
@@ -116,7 +121,7 @@ func (s *Service) lookupSeries(ctx context.Context, id int) (LookupResult, error
 		}
 	}
 	result := LookupResult{Title: sh.name, Status: sh.status, IMDbID: sh.imdbID, Year: sh.year,
-		Runtime: sh.runtime, TMDbID: sh.tmdbID, Seasons: []int{}}
+		Runtime: sh.runtime, TMDbID: sh.tmdbID, Seasons: []int{}, Source: source}
 	for season := range seasons {
 		if season >= 0 {
 			result.Seasons = append(result.Seasons, season)

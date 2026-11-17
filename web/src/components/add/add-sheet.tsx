@@ -194,8 +194,9 @@ export function AddSheet({ target, onClose }: { target: AddTarget; onClose: () =
   const seasonDefault = (s: { season: number; monitored?: boolean }) => s.monitored ?? s.season > 0;
   const seasonsChanged = (o?.seasons ?? []).some((s) => seasons[s.season] !== undefined && seasons[s.season] !== seasonDefault(s));
   const epKnown = Boolean(o?.episodes_known);
-  // A new series whose own seasons the options carry can choose them; a preset decides otherwise.
-  const ownSeasons = !current && !epKnown && Boolean(o?.own_seasons);
+  // A new series whose own seasons the options carry (seasons without known episodes) can choose them; a preset
+  // decides otherwise.
+  const ownSeasons = !current && !epKnown && (o?.seasons ?? []).length > 0;
   const choosing = ownSeasons && monitor === CHOOSE_SEASONS;
   const preset = monitor && monitor !== CHOOSE_SEASONS ? monitor : undefined;
   // Two buttons, "Add" and "Add and search", when something new is ticked and a ticked library can search; a change of

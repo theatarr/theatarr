@@ -1124,7 +1124,15 @@ func (w *Web) requestSeasons(ctx context.Context, req *Request, keys []string, s
 		}
 	}
 	if len(added) > 0 && len(ss) > 0 {
-		ar.Seasons, ar.seasonVersions = w.seasonChoices(ctx, titleID, ar.TMDbID, ar.TVDbID, ss), added
+		var known bool
+		ar.Seasons, known = w.seasonChoices(ctx, titleID, ar.TMDbID, ar.TVDbID, ss)
+		ar.seasonVersions = added
+		if !known && len(ar.moreVersions) == 0 {
+			// The series' other seasons could not be read: the copies this add turns on leave every season they do
+			// not name unmonitored when it appears (monitor new items none), so the request stays the seasons it
+			// names. Only when every version is new, since monitor_new applies to every version of the add.
+			ar.MonitorNew = catalog.MonitorNone
+		}
 	}
 	if len(ar.moreVersions) == 0 {
 		return nil
@@ -1147,7 +1155,8 @@ func (w *Web) requestSeasons(ctx context.Context, req *Request, keys []string, s
 
 // seasonChoices turns the requested season numbers into catalog seasons: the requested ones monitored, the series'
 // other known seasons (library episodes, else the series' own seasons, seriesSeasons, the add sheet's source) not.
-func (w *Web) seasonChoices(ctx context.Context, titleID *int64, tmdbID, tvdbID int64, want []int) []catalog.Season {
+// read is false when neither could be read, so the result holds just the requested seasons.
+func (w *Web) seasonChoices(ctx context.Context, titleID *int64, tmdbID, tvdbID int64, want []int) (_ []catalog.Season, read bool) {
 	known := map[int]bool{}
 	if titleID != nil {
 		if ss, err := w.librarySeasons(ctx, *titleID); err == nil {
@@ -1161,6 +1170,7 @@ func (w *Web) seasonChoices(ctx context.Context, titleID *int64, tmdbID, tvdbID 
 			known[n] = true
 		}
 	}
+	read = len(known) > 0
 	for _, n := range want {
 		known[n] = true
 	}
@@ -1173,7 +1183,7 @@ func (w *Web) seasonChoices(ctx context.Context, titleID *int64, tmdbID, tvdbID 
 	for _, n := range nums {
 		out = append(out, catalog.Season{Number: n, Monitored: slices.Contains(want, n)})
 	}
-	return out
+	return out, read
 }
 
 func (w *Web) apiDeclineRequest(rw http.ResponseWriter, r *http.Request) {

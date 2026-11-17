@@ -98,7 +98,8 @@ it("says Pause once, not on every row", async () => {
 });
 
 const tv = { key: "tv-web", label: "TV", kind: "series", enable: "", fits: true, default: true, on: false, searchable: true, grab_state: { ...gates, will_grab: true } };
-const seriesOptions = { kind: "series", anime: false, router_enabled: true, episodes_known: false, can_search: true, seasons: [{ season: 1, episodes: 8 }], versions: [tv] };
+// A new series whose own seasons could not be read: no seasons (the usual offline case).
+const seriesOptions = { kind: "series", anime: false, router_enabled: true, episodes_known: false, can_search: true, seasons: [], versions: [tv] };
 const posted = { created: true, new: ["tv-web"], title: { id: 9, name: "Kappa", versions: [] } };
 const routes = (opts: unknown) => [
   { method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["admin", "add"] } },
@@ -224,7 +225,7 @@ it("hides the season ticks when a preset is chosen and sends no seasons", async 
 });
 
 it("offers Choose seasons for a new series with its own seasons: specials off, every shown season sent, no preset", async () => {
-  const own = { ...seriesOptions, own_seasons: true, seasons: [{ season: 0 }, { season: 1 }, { season: 2 }] };
+  const own = { ...seriesOptions, seasons: [{ season: 0 }, { season: 1 }, { season: 2 }] };
   const fetch = mockFetch(routes(own));
   const user = userEvent.setup();
   renderPage(<AddSheet target={{ kind: "series", name: "Kappa", year: 2025, tmdb_id: 8 }} onClose={() => {}} />);
@@ -246,7 +247,7 @@ it("offers Choose seasons for a new series with its own seasons: specials off, e
 });
 
 it("sends a preset and no seasons for a new series with its own seasons, and offers no Choose seasons without them", async () => {
-  const own = { ...seriesOptions, own_seasons: true, seasons: [{ season: 1 }, { season: 2 }] };
+  const own = { ...seriesOptions, seasons: [{ season: 1 }, { season: 2 }] };
   const fetch = mockFetch(routes(own));
   const user = userEvent.setup();
   renderPage(<AddSheet target={{ kind: "series", name: "Kappa", year: 2025, tmdb_id: 8 }} onClose={() => {}} />);

@@ -8,7 +8,8 @@
 // request, View availability) in place of a disabled Request button (request-state.ts). For a series the library has,
 // the seasons already monitored in every wanted version show as such and only the others can be picked ("Request more
 // seasons"; approval monitors just those). A series not in the library shows its own seasons, numbered as its episodes
-// will be (GET /add/options, the add sheet's source), without episode counts; none when they cannot be read.
+// will be (GET /add/options, the add sheet's source), without episode counts; when they cannot be read none are listed
+// and the button reads "Request all seasons".
 import { AlertTriangle, ArrowUpRight, CheckCircle2, Clock, Inbox, Loader2, Send, X } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router";
@@ -63,6 +64,8 @@ export function RequestSheet({ target, onClose }: { target: AddTarget; onClose: 
   const seasonOn = (n: number) => open.includes(n) && (seasons[n] ?? true);
   const picked = allNums.filter(seasonOn);
   const sendSeasons = seasonsToSend(picked, open, allNums);
+  // A new series whose seasons could not be read lists none: the request is for every season, and the button says so.
+  const wholeSeries = o?.kind === "series" && !inLibrary && allSeasons.length === 0;
   // Request, View request or Available (nothing left to ask for); unknown until the options load.
   const action = requestAction({ mine, requestable: o ? wanted.length : undefined, titleId: target.title_id });
 
@@ -200,7 +203,7 @@ export function RequestSheet({ target, onClose }: { target: AddTarget; onClose: 
                 <Button variant="ghost" onClick={onClose}>Cancel</Button>
                 <Button onClick={submit} disabled={!o || !me.data || wanted.length === 0 || (o.kind === "series" && open.length > 0 && picked.length === 0) || create.isPending} data-testid="request-submit">
                   {create.isPending ? <Loader2 className="animate-spin" /> : <Send />}
-                  Request
+                  {wholeSeries ? "Request all seasons" : "Request"}
                 </Button>
               </div>
             </div>

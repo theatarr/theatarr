@@ -163,6 +163,83 @@ func TestSeriesImportUpdatesEpisodeStateAndWantedSet(t *testing.T) {
 func TestNewSeriesChosenSeasons(t *testing.T) {
 	t.Parallel()
 	e := newEnvironment(t, seriesPolicy(false))
+	severanceFixtures(t, e)
+	// The add sheet's options: the series' own seasons, by the TVDB id TMDb names.
+	var opts web.AddOptions
+	e.request("GET", web.APIBase+"/add/options?kind=series&tmdb_id=95396", nil, &opts)
+	var nums []int
+	for _, s := range opts.Seasons {
+		nums = append(nums, s.Number)
+	}
+	if opts.EpisodesKnown || !slices.Equal(nums, []int{0, 1, 2}) {
+		t.Fatalf("add options: %+v", opts)
+	}
+	// What the sheet sends with chosen seasons: every shown season's choice and no preset.
+	var res web.AddResult
+	e.request("POST", web.APIBase+"/titles", map[string]any{"kind": "series", "tmdb_id": 95396, "title": "Severance",
+		"year": 2022, "anime": false, "versions": []string{"tv"}, "search": true, "seasons": []map[string]any{
+			{"season": 0, "monitored": false}, {"season": 1, "monitored": true}, {"season": 2, "monitored": false}}}, &res)
+	id := res.Title.ID
+	e.refreshBeforeSearch(id, 5)
+	e.drain()
+	for season, want := range map[int]int{0: 0, 1: 2, 2: 0} {
+		if n := e.count(`SELECT count(*) FROM episode_version_state s JOIN episode ep ON ep.id = s.episode_id
+			WHERE ep.title_id = ? AND ep.season = ? AND s.monitored = 1`, id, season); n != want {
+			t.Errorf("season %d: %d episodes monitored, want %d", season, n, want)
+		}
+	}
+	if n := e.count(`SELECT count(*) FROM acquire_run WHERE title_id = ?`, id); n == 0 {
+		t.Fatalf("the held search did not run\n%s", e.logs.String())
+	}
+	if n := e.count(`SELECT count(*) FROM acquire_run WHERE title_id = ? AND COALESCE(season, -1) <> 1`, id); n != 0 {
+		t.Errorf("%d searches beyond season 1", n)
+	}
+}
+
+// TestSeasonRequestWithoutSeasonList: a request for season 1 of a new series whose seasons cannot be read at approval
+// (TVDB answers an error, or too slowly) still gets only season 1 monitored and searched on the first refresh, which
+// brings seasons 0, 1 and 2: the copy leaves the seasons the request does not name unmonitored.
+func TestSeasonRequestWithoutSeasonList(t *testing.T) {
+	t.Parallel()
+	for _, down := range []string{"error", "slow"} {
+		t.Run(down, func(t *testing.T) {
+			t.Parallel()
+			e := newEnvironment(t, seriesPolicy(false))
+			severanceFixtures(t, e)
+			e.edge.mu.Lock()
+			e.edge.tvdbDown = down
+			e.edge.mu.Unlock()
+			var cr web.CreateResult
+			e.request("POST", web.APIBase+"/requests", map[string]any{"kind": "series", "tmdb_id": 95396, "name": "Severance",
+				"seasons": []int{1}}, &cr)
+			if !cr.Approved || cr.Request.TitleID == nil {
+				t.Fatalf("request: %+v", cr)
+			}
+			e.edge.mu.Lock()
+			e.edge.tvdbDown = ""
+			e.edge.mu.Unlock()
+			id := *cr.Request.TitleID
+			e.refreshBeforeSearch(id, 5)
+			e.drain()
+			for season, want := range map[int]int{0: 0, 1: 2, 2: 0} {
+				if n := e.count(`SELECT count(*) FROM episode_version_state s JOIN episode ep ON ep.id = s.episode_id
+					WHERE ep.title_id = ? AND ep.season = ? AND s.monitored = 1`, id, season); n != want {
+					t.Errorf("season %d: %d episodes monitored, want %d", season, n, want)
+				}
+			}
+			if n := e.count(`SELECT count(*) FROM acquire_run WHERE title_id = ?`, id); n == 0 {
+				t.Fatalf("the held search did not run\n%s", e.logs.String())
+			}
+			if n := e.count(`SELECT count(*) FROM acquire_run WHERE title_id = ? AND COALESCE(season, -1) <> 1`, id); n != 0 {
+				t.Errorf("%d searches beyond season 1", n)
+			}
+		})
+	}
+}
+
+// severanceFixtures serves TVDB 371980 trimmed to S00E11, S01E01-02 and S02E01-02.
+func severanceFixtures(t *testing.T, e *environment) {
+	t.Helper()
 	for _, suffix := range []string{"series", "default_0", "absolute_0"} {
 		b, err := os.ReadFile("../metadata/tvrefresh/testdata/371980_" + suffix + ".json")
 		must(t, err)
@@ -185,36 +262,6 @@ func TestNewSeriesChosenSeasons(t *testing.T) {
 			path = "/series/371980/episodes/" + strings.TrimSuffix(suffix, "_0") + "?page=0"
 		}
 		e.edge.tvdb[path] = b
-	}
-	// The add sheet's options: the series' own seasons, by the TVDB id TMDb names.
-	var opts web.AddOptions
-	e.request("GET", web.APIBase+"/add/options?kind=series&tmdb_id=95396", nil, &opts)
-	var nums []int
-	for _, s := range opts.Seasons {
-		nums = append(nums, s.Number)
-	}
-	if !opts.OwnSeasons || !slices.Equal(nums, []int{0, 1, 2}) {
-		t.Fatalf("add options: %+v", opts)
-	}
-	// What the sheet sends with chosen seasons: every shown season's choice and no preset.
-	var res web.AddResult
-	e.request("POST", web.APIBase+"/titles", map[string]any{"kind": "series", "tmdb_id": 95396, "title": "Severance",
-		"year": 2022, "anime": false, "versions": []string{"tv"}, "search": true, "seasons": []map[string]any{
-			{"season": 0, "monitored": false}, {"season": 1, "monitored": true}, {"season": 2, "monitored": false}}}, &res)
-	id := res.Title.ID
-	e.refreshBeforeSearch(id, 5)
-	e.drain()
-	for season, want := range map[int]int{0: 0, 1: 2, 2: 0} {
-		if n := e.count(`SELECT count(*) FROM episode_version_state s JOIN episode ep ON ep.id = s.episode_id
-			WHERE ep.title_id = ? AND ep.season = ? AND s.monitored = 1`, id, season); n != want {
-			t.Errorf("season %d: %d episodes monitored, want %d", season, n, want)
-		}
-	}
-	if n := e.count(`SELECT count(*) FROM acquire_run WHERE title_id = ?`, id); n == 0 {
-		t.Fatalf("the held search did not run\n%s", e.logs.String())
-	}
-	if n := e.count(`SELECT count(*) FROM acquire_run WHERE title_id = ? AND COALESCE(season, -1) <> 1`, id); n != 0 {
-		t.Errorf("%d searches beyond season 1", n)
 	}
 }
 

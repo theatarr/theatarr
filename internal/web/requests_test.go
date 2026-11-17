@@ -1020,7 +1020,7 @@ func TestRequestNewSeriesSeasonChoices(t *testing.T) {
 	_, mgr := e.user("mgr", auth.RoleManager)
 	var opts AddOptions
 	e.callAs(ann, "GET", APIBase+"/add/options?kind=series&tmdb_id=777", nil, 200, &opts)
-	if !opts.OwnSeasons || len(opts.Seasons) != 4 {
+	if opts.EpisodesKnown || len(opts.Seasons) != 4 {
 		t.Fatalf("request sheet seasons: %+v", opts)
 	}
 	var cr CreateResult
