@@ -918,11 +918,12 @@ other libraries kept in sync with it; empty takes it out of its group) sets the 
 version save or delete, and a YAML import, prune the stored groups first: a library no longer in the records, or
 whose kind or anime setting differs from the rule most of its group shares, leaves it, and a group left with one
 library is dropped. The save carries the library section only when its groups change. The section's own form does
-not show the field and keeps it as stored.
+not show the field and keeps it as stored. Saving a group adds nothing; Bring in sync adds the missing copies on
+request (ui.md "Bring in sync").
 
 The Libraries settings page is `/admin/settings/libraries`; it links to Connected apps for view bindings and to the naming editor
 (`/admin/settings/libraries/naming`). Admin APIs under `/api/theatarr/v1/settings` provide version CRUD, `versions/validate-root`,
-`versions/confirm`, view-binding list/update and `import/confirm`. Session writes require CSRF; writes require the
+`versions/confirm`, `versions/{key}/bring-in-sync` (Bring in sync for the library's saved group, ui.md), view-binding list/update and `import/confirm`. Session writes require CSRF; writes require the
 base generation and honor `If-Match`. Validation errors include field paths. Forms retain the generation they
 opened with and offer explicit reload/discard or reload/keep after a conflict. The live root field reports failed
 checks as `root check: ...` (a relative path first: "must be an absolute path"); this check alone does not attempt or

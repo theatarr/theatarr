@@ -48,6 +48,8 @@ type fakeAcquirer struct {
 	// next is what NextSearches answers (the title page's next search); nextTitles the titles it was asked for.
 	next       []acquire.NextSearch
 	nextTitles []int64
+	// later: the titles put on the search schedule, as "id:key,key".
+	later []string
 }
 
 func (f *fakeAcquirer) NextSearches(_ context.Context, titleID int64) ([]acquire.NextSearch, error) {
@@ -80,6 +82,14 @@ func (f *fakeAcquirer) Interactive(_ context.Context, titleID int64, version str
 		Rejections: []decide.Rejection{{Reason: "quality", Message: "HDTV-720p is not wanted"}}}
 	return &router.Searched{Ranked: []*decide.Decision{good, bad}, Releases: map[*decide.Decision]indexer.Release{
 		good: {Title: good.Release, Indexer: "dmm", Size: 9e9}, bad: {Title: bad.Release, Indexer: "dmm"}}}, nil
+}
+
+// RequestSearchLater records a title put on the paced search schedule (Bring in sync).
+func (f *fakeAcquirer) RequestSearchLater(_ context.Context, titleID int64, versions []string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.later = append(f.later, fmt.Sprintf("%d:%s", titleID, strings.Join(versions, ",")))
+	return nil
 }
 
 func (f *fakeAcquirer) counts() (int, int) {
@@ -1675,3 +1685,102 @@ func TestSyncGroupsAnswers(t *testing.T) {
 	}
 }
 
+// Bring in sync over a group {tv-2160p, tv-b, tv-c}: the preview counts per library what the action adds, the
+// action gives each title its missing copies like its first monitored copy (a series' season and episode
+// monitoring included), restores nothing, touches no existing copy, and searches only when asked, through the
+// paced schedule.
+func TestBringInSync(t *testing.T) {
+	t.Parallel()
+	e := newAddEnv(t, func(p *policy.Policy) {
+		for _, k := range []string{"tv-b", "tv-c"} {
+			v := *p.Versions["tv-2160p"]
+			v.Library = "/media/" + k
+			p.Versions[k] = &v
+		}
+		p.Library.SyncGroups = [][]string{{"tv-2160p", "tv-b", "tv-c"}}
+	})
+	// The Show (10) is in tv-2160p with seasons 1 and 2 monitored, specials not, and new seasons not.
+	e.exec(`INSERT INTO series_monitor (version_id, monitor_new, seasons, updated_at) VALUES (10, 'none',
+		'{"0":false,"1":true,"2":true}', 0)`)
+	series := func(id int64, name string, copies ...string) {
+		e.exec(`INSERT INTO title (id, kind, name, sort_name, tvdb_id, anime, created_at, updated_at) VALUES
+			(?, 'series', ?, ?, ?, 0, 0, 0)`, id, name, strings.ToLower(name), 500+id)
+		for _, c := range copies {
+			k, mon := strings.TrimRight(c, "-!"), !strings.HasSuffix(c, "-") && !strings.HasSuffix(c, "!")
+			e.exec(`INSERT INTO version (title_id, policy_key, monitored, state, created_at, updated_at) VALUES
+				(?, ?, ?, 'wanted', 0, 0)`, id, k, mon)
+			if strings.HasSuffix(c, "!") {
+				e.exec(`INSERT INTO arrview_removed_version (version_id, view, removed_at) SELECT id, 'ui', 0
+					FROM version WHERE title_id = ? AND policy_key = ?`, id, k)
+			}
+		}
+	}
+	series(40, "Only B", "tv-b")
+	series(41, "Removed C", "tv-2160p", "tv-c!")
+	series(42, "Unmonitored", "tv-2160p-", "tv-b-")
+	series(43, "Complete", "tv-2160p", "tv-b-", "tv-c!")
+	path := APIBase + "/settings/versions/tv-b/bring-in-sync"
+	var b BringInSync
+	e.call("GET", path, nil, 200, &b)
+	counts := func(b BringInSync) string {
+		var out []string
+		for _, l := range b.Libraries {
+			out = append(out, fmt.Sprintf("%s:%d%v", l.Key, l.Count, l.Names))
+		}
+		return fmt.Sprintf("%d %s", b.Titles, strings.Join(out, " "))
+	}
+	want := "4 tv-2160p:1[Only B] tv-b:2[Removed C The Show] tv-c:3[Only B The Show Unmonitored]"
+	if got := counts(b); got != want || b.Source == "" {
+		t.Errorf("preview %s, want %s", got, want)
+	}
+	all := func() string {
+		var out []string
+		_ = scanAll(context.Background(), e.st.Reader(), `SELECT v.title_id || ':' || v.policy_key || ':' || v.monitored ||
+			CASE WHEN EXISTS (SELECT 1 FROM arrview_removed_version r WHERE r.version_id = v.id) THEN ':removed' ELSE '' END
+			FROM version v WHERE v.title_id >= 10 ORDER BY v.title_id, v.policy_key`, nil, func(r *sql.Rows) error {
+			var s string
+			out = append(out, s)
+			return r.Scan(&out[len(out)-1])
+		})
+		return strings.Join(out, " ")
+	}
+	e.call("POST", path, map[string]any{"search": false}, 200, &b)
+	if got := counts(b); got != want || b.Searched != 0 {
+		t.Errorf("action %s, searched %d", got, b.Searched)
+	}
+	if got, want := all(), "10:tv-2160p:1 10:tv-b:1 10:tv-c:1 40:tv-2160p:1 40:tv-b:1 40:tv-c:1 "+
+		"41:tv-2160p:1 41:tv-b:1 41:tv-c:0:removed 42:tv-2160p:0 42:tv-b:0 42:tv-c:0 "+
+		"43:tv-2160p:1 43:tv-b:0 43:tv-c:0:removed"; got != want {
+		t.Errorf("copies\n%s\nwant\n%s", got, want)
+	}
+	// The Show's new copies monitor what tv-2160p does, episode by episode, with its intent.
+	for _, k := range []string{"tv-b", "tv-c"} {
+		if n := e.count(`SELECT COUNT(*) FROM episode_version_state a JOIN version va ON va.id = a.version_id
+			JOIN version vb ON vb.title_id = va.title_id AND vb.policy_key = ? JOIN episode_version_state b
+			ON b.version_id = vb.id AND b.episode_id = a.episode_id AND b.monitored = a.monitored
+			WHERE va.id = 10`, k); n != 4 {
+			t.Errorf("%s: %d episodes monitored like tv-2160p, want 4", k, n)
+		}
+		if n := e.count(`SELECT COUNT(*) FROM series_monitor m JOIN version v ON v.id = m.version_id WHERE
+			v.title_id = 10 AND v.policy_key = ? AND m.monitor_new = 'none' AND m.seasons =
+			(SELECT seasons FROM series_monitor WHERE version_id = 10)`, k); n != 1 {
+			t.Errorf("%s: intent not copied", k)
+		}
+	}
+	if s, i := e.acq.counts(); s+i != 0 || len(e.acq.later) != 0 {
+		t.Errorf("search off: submits %d, interactive %d, later %v", s, i, e.acq.later)
+	}
+	e.call("GET", path, nil, 200, &b)
+	if b.Titles != 0 {
+		t.Errorf("after the action: %s", counts(b))
+	}
+	// With search: the new copies of a monitored source go on the paced schedule, nothing searches at once.
+	series(44, "Late", "tv-2160p")
+	series(45, "Late unmonitored", "tv-2160p-")
+	e.call("POST", path, map[string]any{"search": true}, 200, &b)
+	if s, i := e.acq.counts(); s+i != 0 || !slices.Equal(e.acq.later, []string{"44:tv-b,tv-c"}) || b.Searched != 1 {
+		t.Errorf("search on: submits %d, interactive %d, later %v, searched %d", s, i, e.acq.later, b.Searched)
+	}
+	// A library outside every group has no Bring in sync.
+	e.call("GET", APIBase+"/settings/versions/movie-web/bring-in-sync", nil, 404, nil)
+}

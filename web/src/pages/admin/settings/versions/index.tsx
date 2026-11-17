@@ -5,7 +5,7 @@ import { qk } from "@/api/query-keys";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router";
 import { ApiError } from "@/api/client";
-import { checkRoot, confirmVersion, saveVersion, useVersions, type Confirmation, type VersionBody, type VersionConfig, type VersionList, type VersionRecord } from "@/api/settings-versions";
+import { bringInSync, checkRoot, confirmVersion, saveVersion, useBringInSyncPreview, useVersions, type Confirmation, type VersionBody, type VersionConfig, type VersionList, type VersionRecord } from "@/api/settings-versions";
 import { CATEGORY_LABEL, PRESET_PICK, categoryOf, ensurePresetProfile, originLabel, overviewKey, presetCopies, presetPick, usePresets, useQualityOverview, type Category, type Preset, type ProfileSummary } from "@/api/settings-profiles";
 import { DownloadsOffNotice, VersionStatus } from "@/components/version-status";
 import { PageHeader } from "@/components/page";
@@ -23,6 +23,8 @@ import { explainError } from "@/lib/settings";
 import { sectionsQuery } from "@/api/settings";
 import { libraryLabel } from "@/lib/library-label";
 import { useLibraryName } from "@/lib/library-names";
+import { Choice, ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { toast } from "@/components/toaster";
 
 /** A library being edited: its record, and sync, the other libraries kept in sync with it (sorted). */
 type Draft = VersionRecord & { sync?: string[] };
@@ -539,5 +541,55 @@ function SyncPart({ record, saved, data, onChange }: { record: Draft; saved: Dra
       : <p className="text-sm text-muted-foreground">No other library can be kept in sync with this one.</p>}
     {refused.length ? <p className="text-xs text-muted-foreground [overflow-wrap:anywhere]" data-testid="library-sync-refused">Not offered: {refused.join("; ")}.</p> : null}
     {changed ? <ChangedMark name="Keep in sync" onUndo={() => onChange({ ...record, sync: saved.sync ?? [] })} /> : null}
+    {!changed && (saved.sync ?? []).length > 0 ? <BringInSyncLine libraryKey={record.key} /> : null}
   </section>;
+}
+
+/** Bring in sync, for a saved group: "N titles would gain a copy in this group" (hidden at 0) and the dialog that
+ * adds those copies in one server action; searching for them is a choice, off by default, through the paced search
+ * schedule. */
+function BringInSyncLine({ libraryKey }: { libraryKey: string }) {
+  const preview = useBringInSyncPreview(libraryKey, true);
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>();
+  const p = preview.data;
+  if (!p || p.titles === 0) return null;
+  const gains = p.libraries.filter((l) => l.count > 0);
+  const titles = (n: number) => `${n} ${n === 1 ? "title" : "titles"}`;
+  const run = async () => {
+    setBusy(true);
+    setError(undefined);
+    try {
+      const r = await bringInSync(libraryKey, search);
+      toast({
+        tone: "ok",
+        title: "Brought in sync",
+        body: [r.libraries.filter((l) => l.count > 0).map((l) => `${titles(l.count)} added to ${l.label}`).join("; ") + ".",
+          search ? `${titles(r.searched)} put on the search schedule.` : ""].filter(Boolean).join(" "),
+        duration: 10_000,
+      });
+      setOpen(false);
+      await qc.invalidateQueries({ queryKey: ["settings", "versions", "bring-in-sync"] });
+    } catch (e) {
+      setError(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return <div className="flex flex-wrap items-center gap-2" data-testid="bring-in-sync">
+    <span className="text-sm">{titles(p.titles)} would gain a copy in this group</span>
+    <Button type="button" size="xs" variant="outline" onClick={() => { setSearch(false); setError(undefined); setOpen(true); }}>Bring in sync…</Button>
+    {open ? <ConfirmDialog danger={false} busy={busy} error={error} onClose={() => setOpen(false)} onConfirm={() => void run()} testid="bring-in-sync-dialog"
+      scope={{
+        title: "Bring this group in sync",
+        does: [...gains.map((l) => `${titles(l.count)} added to ${l.label}: ${l.names.join(", ")}${l.more ? `, and ${l.more} more` : ""}`), p.source],
+        keeps: ["Removed copies stay removed, and existing copies are left as they are", ...(search ? [] : ["No search queued by this action"])],
+        confirm: `Add ${titles(p.titles)}`,
+      }}>
+      <Choice checked={search} onChange={setSearch} testid="bring-in-sync-search">Search for the new copies (paced, within the hourly search budget)</Choice>
+    </ConfirmDialog> : null}
+  </div>;
 }

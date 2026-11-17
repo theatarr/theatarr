@@ -1012,6 +1012,19 @@ page's library switch toasts "Also added to <libraries> (in sync)". Collections,
 apps say under a chosen or shown library that is in a group "Titles added to <library> are also added to <partners>
 (in sync)." naming the partners not chosen there too (their pages carry `sync_groups`).
 
+**Bring in sync.** A library's Keep in sync part, for a saved group without unsaved changes, says "N titles would
+gain a copy in this group" (hidden at 0) with **Bring in sync…** (`GET` and `POST
+settings/versions/{key}/bring-in-sync`, admin). N counts the titles with a copy in a library of the group that would
+gain copies in the others by the add rule (`catalog.SyncGains`, as if the title's source copy were added now: removed
+and existing unmonitored copies are left out). The dialog names per library the count and the first five titles
+("and 495 more") and "Each new copy is monitored like the title's first monitored copy in the group, or its first
+copy."; a series' new copy takes that copy's season and episode monitoring and monitor-new choice
+(`catalog.CopySeasonIntent`, also used by the compatible API's anime reclassify), and a movie's its explicit minimum
+availability unless the library has its own (`catalog.ChoiceKeys`). The action runs in one transaction
+(`catalog.BringInSync`). "Search for the new copies" is off by default ("No search queued by this action"); ticked,
+the new copies of a monitored source go on the paced search schedule (`RequestSearchLater`, the hourly budget,
+cancellable on Wanted), never an immediate search. A toast gives the per-library counts.
+
 Advanced includes **YAML settings**
 (`/admin/advanced/config`, with Policy files, Sections and Import & export tabs), **Settings history**
 (`/admin/advanced/history`) and **Request limits** (`/admin/advanced/limits`, including back-offs and budgets).

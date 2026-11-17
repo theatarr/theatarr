@@ -634,3 +634,53 @@ func Searchable(pol *policy.Policy, keys []string) (active []string, skipped []S
 	slices.Sort(active)
 	return active, skipped
 }
+
+// CopySeasonIntent gives the title's series versions with keys to (just created) the season monitoring of its first
+// version in from that is not in to and not removed: its series_monitor intent (seasons and monitor new) and its
+// episodes' monitored flags, as wanted state rows. Nothing when from holds no such version. Used where a copy follows
+// another: a compatible view's reclassify, and Bring in sync.
+func CopySeasonIntent(ctx context.Context, tx *sql.Tx, titleID int64, from, to []string, now time.Time) error {
+	if len(to) == 0 {
+		return nil
+	}
+	var src int64
+	for _, k := range from {
+		if slices.Contains(to, k) {
+			continue
+		}
+		err := tx.QueryRowContext(ctx, `SELECT v.id FROM version v WHERE v.title_id = ? AND v.policy_key = ?
+			AND NOT EXISTS (SELECT 1 FROM arrview_removed_version r WHERE r.version_id = v.id)`, titleID, k).Scan(&src)
+		if errors.Is(err, sql.ErrNoRows) {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		break
+	}
+	if src == 0 {
+		return nil
+	}
+	m, err := LoadMonitor(ctx, tx, src)
+	if err != nil {
+		return err
+	}
+	ms := store.Millis(now)
+	for _, k := range to {
+		var id int64
+		if err := tx.QueryRowContext(ctx, `SELECT id FROM version WHERE title_id = ? AND policy_key = ?`, titleID,
+			k).Scan(&id); err != nil {
+			return err
+		}
+		if err := SaveMonitor(ctx, tx, id, m, now); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO episode_version_state (version_id, episode_id, monitored, state,
+			updated_at) SELECT ?, s.episode_id, s.monitored, 'wanted', ? FROM episode_version_state s
+			WHERE s.version_id = ? ON CONFLICT (version_id, episode_id) DO UPDATE SET monitored = excluded.monitored,
+			updated_at = excluded.updated_at WHERE monitored <> excluded.monitored`, id, ms, src); err != nil {
+			return err
+		}
+	}
+	return nil
+}

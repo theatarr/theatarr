@@ -327,62 +327,12 @@ func (s *Service) reclassify(ctx context.Context, v *View, titleID int64) error 
 		}
 		if v.Flavour == Sonarr {
 			// The libraries in sync take the same season monitoring as the view's new copies.
-			if err := s.copySeasonIntent(ctx, tx, v, titleID, append(created, partners...)); err != nil {
+			if err := catalog.CopySeasonIntent(ctx, tx, titleID, v.Versions, append(created, partners...), s.now()); err != nil {
 				return err
 			}
 		}
 		return syncTitleMonitored(ctx, tx, titleID, store.Millis(s.now()))
 	})
-}
-
-// copySeasonIntent gives the series versions with these keys (just created by reclassify) the season monitoring
-// the original request gave the view's other version of the title: its series_monitor intent and its episodes'
-// monitored flags. Nothing when the view has no other version of the title.
-func (s *Service) copySeasonIntent(ctx context.Context, tx *sqlTx, v *View, titleID int64, created []string) error {
-	if len(created) == 0 {
-		return nil
-	}
-	var src int64
-	for _, k := range v.Versions {
-		if slices.Contains(created, k) {
-			continue
-		}
-		var id int64
-		err := tx.QueryRowContext(ctx, `SELECT v.id FROM version v WHERE v.title_id = ? AND v.policy_key = ?
-			AND NOT EXISTS (SELECT 1 FROM arrview_removed_version r WHERE r.version_id = v.id)`, titleID, k).Scan(&id)
-		if errors.Is(err, sql.ErrNoRows) {
-			continue
-		}
-		if err != nil {
-			return err
-		}
-		src = id
-		break
-	}
-	if src == 0 {
-		return nil
-	}
-	m, err := catalog.LoadMonitor(ctx, tx, src)
-	if err != nil {
-		return err
-	}
-	now := s.now()
-	for _, k := range created {
-		var id int64
-		if err := tx.QueryRowContext(ctx, `SELECT id FROM version WHERE title_id = ? AND policy_key = ?`, titleID,
-			k).Scan(&id); err != nil {
-			return err
-		}
-		if err := catalog.SaveMonitor(ctx, tx, id, m, now); err != nil {
-			return err
-		}
-		if _, err := tx.ExecContext(ctx, `UPDATE episode_version_state SET monitored = s.monitored, updated_at = ?
-			FROM episode_version_state s WHERE s.version_id = ? AND s.episode_id = episode_version_state.episode_id
-			AND episode_version_state.version_id = ?`, store.Millis(now), src, id); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 // holds reports whether the catalog has the title an add names (a movie by TMDb id; a series by TVDB id, else by

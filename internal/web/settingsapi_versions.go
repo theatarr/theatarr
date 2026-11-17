@@ -42,6 +42,8 @@ func (w *Web) mountVersionSettingsAPI(mux *http.ServeMux, base string) {
 	h("DELETE "+base+"/versions/{key}", w.apiSettingsVersionDelete)
 	h("POST "+base+"/versions/confirm", w.apiSettingsVersionConfirm)
 	h("POST "+base+"/versions/validate-root", w.apiSettingsValidateRoot)
+	h("GET "+base+"/versions/{key}/bring-in-sync", w.apiBringInSyncPreview)
+	h("POST "+base+"/versions/{key}/bring-in-sync", w.apiBringInSync)
 	h("GET "+base+"/view-bindings", w.apiSettingsViewBindings)
 	h("POST "+base+"/view-bindings", w.apiSettingsViewCreate)
 	h("PUT "+base+"/view-bindings/{key}", w.apiSettingsViewUpdate)

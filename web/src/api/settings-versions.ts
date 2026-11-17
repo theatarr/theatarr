@@ -14,3 +14,10 @@ export const saveVersion = (body: VersionBody, create: boolean) => body.delete
   ? api<Schemas["SettingsWrite"]>(`/settings/versions/${encodeURIComponent(body.key ?? "")}` + qs({ generation: body.generation }), { method: "DELETE", headers: confirmationHeaders(body.confirmation_token) })
   : api<Schemas["SettingsWrite"]>(create ? "/settings/versions" : `/settings/versions/${encodeURIComponent(body.key ?? "")}`, { method: create ? "POST" : "PUT", body });
 export const checkRoot = (generation: number, key: string, root: string, signal: AbortSignal) => api<Schemas["SettingsRootCheck"]>("/settings/versions/validate-root", { method: "POST", body: { generation, key, root }, signal });
+
+/** Bring in sync (a library's saved sync group): what it would add, and the action. */
+export type BringInSync = Schemas["BringInSync"];
+const bringInSyncPath = (key: string) => `/settings/versions/${encodeURIComponent(key)}/bring-in-sync`;
+export const useBringInSyncPreview = (key: string, enabled: boolean) =>
+  useQuery({ enabled, queryKey: ["settings", "versions", "bring-in-sync", key], queryFn: () => api<BringInSync>(bringInSyncPath(key)) });
+export const bringInSync = (key: string, search: boolean) => api<BringInSync>(bringInSyncPath(key), { method: "POST", body: { search } });
