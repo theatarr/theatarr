@@ -98,20 +98,21 @@ type WantedRow struct {
 	SearchBlocked string     `json:"search_blocked,omitempty"`
 	LastRun       *WantedRun `json:"last_run"`
 	DecisionID    *int64     `json:"decision_id"`
-	// BelowCutoff (Cutoff unmet, a whole-season row) are the row's episodes with the quality each holds, and Cutoff the
-	// library's cutoff quality: what Sonarr's Cutoff Unmet lists episode by episode.
-	BelowCutoff []WantedEpisode `json:"below_cutoff,omitempty"`
+	// EpisodeList are a series row's episodes (both tabs) with their air date and, on Cutoff unmet, the quality each
+	// holds; Cutoff (Cutoff unmet) is the library's cutoff quality: what Sonarr's Wanted lists episode by episode.
+	EpisodeList []WantedEpisode `json:"episode_list,omitempty"`
 	Cutoff      string          `json:"cutoff,omitempty"`
-	// episodeIDs are a Cutoff unmet whole-season row's episodes.
+	// episodeIDs are a series row's episodes.
 	episodeIDs []int64
 }
 
-// WantedEpisode is one episode of a Cutoff unmet season row and the quality of its file.
+// WantedEpisode is one episode of a series row: its air date and, on Cutoff unmet, the quality of its file.
 type WantedEpisode struct {
 	EpisodeID int64  `json:"episode_id"`
 	Season    int    `json:"season"`
 	Number    int    `json:"number"`
 	Name      string `json:"name,omitempty"`
+	AirDate   string `json:"air_date,omitempty"`
 	Quality   string `json:"quality,omitempty"`
 }
 
@@ -166,10 +167,8 @@ func (a *Acquirer) WantedList(ctx context.Context, q WantedQuery) (*WantedList, 
 	if q.Offset < len(rows) {
 		out.Items = rows[q.Offset:min(q.Offset+q.Limit, len(rows))]
 	}
-	if q.Only == OnlyCutoff {
-		if err := a.belowCutoffEpisodes(ctx, out.Items); err != nil {
-			return nil, err
-		}
+	if err := a.wantedEpisodes(ctx, out.Items); err != nil {
+		return nil, err
 	}
 	// A date sort has read the films' dates for every row already.
 	if strings.TrimPrefix(q.Sort, "-") != "date" {
@@ -232,9 +231,10 @@ func (a *Acquirer) wantedRows(ctx context.Context, q WantedQuery, out *WantedLis
 	return a.sortWanted(ctx, list, v.last, q.Sort)
 }
 
-// belowCutoffEpisodes fills the whole-season rows' BelowCutoff and Cutoff: each episode with the quality of its file (the
-// newest active link of the row's library, as decide judges it), in season and number order.
-func (a *Acquirer) belowCutoffEpisodes(ctx context.Context, list []WantedRow) error {
+// wantedEpisodes fills the series rows' EpisodeList, in season and number order: each episode with its air date and, on
+// Cutoff unmet, the quality of its file (the newest active link of the row's library, as decide judges it) and the
+// row's Cutoff.
+func (a *Acquirer) wantedEpisodes(ctx context.Context, list []WantedRow) error {
 	var eps, vids []int64
 	for _, r := range list {
 		if len(r.episodeIDs) > 0 {
@@ -249,16 +249,21 @@ func (a *Acquirer) belowCutoffEpisodes(ctx context.Context, list []WantedRow) er
 	bv, _ := json.Marshal(vids)
 	db := a.st.Reader()
 	info := map[int64]WantedEpisode{}
-	rows, err := db.QueryContext(ctx, `SELECT id, season, number, name FROM episode
+	rows, err := db.QueryContext(ctx, `SELECT id, season, number, name, COALESCE(air_date, ''), air_date_utc_at FROM episode
 		WHERE id IN (SELECT value FROM json_each(?))`, string(be))
 	if err != nil {
 		return err
 	}
 	for rows.Next() {
 		var e WantedEpisode
-		if err := rows.Scan(&e.EpisodeID, &e.Season, &e.Number, &e.Name); err != nil {
+		var aired sql.NullInt64
+		if err := rows.Scan(&e.EpisodeID, &e.Season, &e.Number, &e.Name, &e.AirDate, &aired); err != nil {
 			rows.Close()
 			return err
+		}
+		// The stored air date; the instant's UTC day without one (as the row's Date).
+		if e.AirDate == "" && aired.Valid {
+			e.AirDate = time.UnixMilli(aired.Int64).UTC().Format(time.DateOnly)
 		}
 		info[e.EpisodeID] = e
 	}
@@ -292,17 +297,19 @@ func (a *Acquirer) belowCutoffEpisodes(ctx context.Context, list []WantedRow) er
 		if len(r.episodeIDs) == 0 {
 			continue
 		}
-		if vp := a.pol.Versions[r.Version]; vp != nil {
+		if vp := a.pol.Versions[r.Version]; vp != nil && r.Reason == OnlyCutoff {
 			if pr := a.pol.Profiles[vp.Profile]; pr != nil && len(pr.Qualities) > 0 {
 				r.Cutoff = pr.Cutoff
 			}
 		}
 		for _, id := range r.episodeIDs {
 			e := info[id]
-			e.Quality = quality[[2]int64{r.versionID, id}]
-			r.BelowCutoff = append(r.BelowCutoff, e)
+			if r.Reason == OnlyCutoff {
+				e.Quality = quality[[2]int64{r.versionID, id}]
+			}
+			r.EpisodeList = append(r.EpisodeList, e)
 		}
-		slices.SortFunc(r.BelowCutoff, func(x, y WantedEpisode) int {
+		slices.SortFunc(r.EpisodeList, func(x, y WantedEpisode) int {
 			return cmp.Or(cmp.Compare(x.Season, y.Season), cmp.Compare(x.Number, y.Number))
 		})
 	}
@@ -481,11 +488,9 @@ func (a *Acquirer) wantedRow(ctx context.Context, v *wantedView, only string, gr
 	if row.Season != nil {
 		row.Episodes = len(episodes)
 	}
-	// A whole-season row of Cutoff unmet lists its episodes (belowCutoffEpisodes).
-	if only == OnlyCutoff && slices.ContainsFunc(group, func(t target) bool { return seasonTarget(t.name) }) {
-		for id := range episodes {
-			row.episodeIDs = append(row.episodeIDs, id)
-		}
+	// A series row lists its episodes (wantedEpisodes).
+	for id := range episodes {
+		row.episodeIDs = append(row.episodeIDs, id)
 	}
 	row.versionID = group[0].versionID
 	for _, t := range group {

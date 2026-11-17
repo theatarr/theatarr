@@ -43,8 +43,8 @@ claim of Sonarr v5 API parity. Recyclarr has no web pages; its table maps the CL
 | Activity › Queue | Activity › Queue — `/activity` | Downloads and imports as a table with the columns you choose (accounts that see files); remove several at once; each action follows the account's permissions. |
 | Activity › History | Activity › History — `/activity/history` | Grabs, imports, failures and search decisions as a table with the columns you choose (accounts that see files); admin decision links explain outcomes. |
 | Activity › Blocklist | Activity › Blocklist — `/activity/blocklist` | Requires See files; filter by title and library, 50 a page, unblock several at once; provider deletes remain separate. |
-| Wanted › Missing | Wanted › Missing — `/wanted` | Managers and admins: each item's next automatic search and why. **Search now** for a row, the selection or the whole tab makes them due; searches start as the hourly limit allows. |
-| Wanted › Cutoff Unmet | Wanted › Cutoff unmet — `/wanted/cutoff` | Upgrade queue with the same **Search now** actions; library and global gates remain visible. |
+| Wanted › Missing | Wanted › Missing — `/wanted` | Managers and admins: each item's next automatic search and why. **Search now** for a row, the selection or the whole tab makes them due; searches start as the hourly limit allows. A season row opens to its episodes, each with **Search** and **Unmonitor** in that library. |
+| Wanted › Cutoff Unmet | Wanted › Cutoff unmet — `/wanted/cutoff` | Upgrade queue with the same **Search now** actions and the same per-episode **Search** and **Unmonitor**; library and global gates remain visible. |
 
 ## Radarr
 

@@ -448,11 +448,51 @@ it("opens a Cutoff unmet season row to its episodes, each with the quality it ho
   const user = userEvent.setup();
   const season: Row = { title_id: 2, version: "tv-2160p", targets: ["s01"], reason: "cutoff", waiting: "due", next_at: "2026-11-01T00:00:00Z",
     last_run: null, decision_id: null, season: 1, episodes: 2, cutoff: "WEBDL-2160p",
-    below_cutoff: [{ episode_id: 11, season: 1, number: 1, name: "Pilot", quality: "WEBDL-1080p" }, { episode_id: 12, season: 1, number: 2, quality: "HDTV-720p" }] };
+    episode_list: [{ episode_id: 11, season: 1, number: 1, name: "Pilot", quality: "WEBDL-1080p", air_date: "2020-01-01" }, { episode_id: 12, season: 1, number: 2, quality: "HDTV-720p" }] };
   mockFetch([admin, { method: "GET", path: "/wanted", reply: { ...page, items: [season], titles: { "2": "Beta" }, libraries: { "tv-2160p": "4K TV" } } }, status]);
   renderPage(<WantedPage />, "/wanted/cutoff");
-  const cell = await screen.findByTestId("wanted-below-cutoff");
+  const cell = await screen.findByTestId("wanted-episodes");
   await user.click(within(cell).getByText("S01, 2 episodes"));
-  expect(within(cell).getAllByRole("listitem").map(li => li.textContent)).toEqual(["S01E01 · Pilot · WEBDL-1080p", "S01E02 · HDTV-720p"]);
+  expect(within(cell).getAllByTestId("wanted-episode").map(li => li.textContent)).toEqual(["S01E01 · Pilot · WEBDL-1080p", "S01E02 · HDTV-720p"]);
   expect(within(cell).getByText("Cutoff: WEBDL-2160p")).toBeTruthy();
+});
+
+it("opens a Missing season row to its episodes, each with Search and Unmonitor in the row's library", async () => {
+  const user = userEvent.setup();
+  const season: Row = { title_id: 2, version: "tv-2160p", targets: ["s01"], reason: "missing", waiting: "due", next_at: "2026-11-01T00:00:00Z",
+    last_run: null, decision_id: null, season: 1, episodes: 2,
+    episode_list: [{ episode_id: 11, season: 1, number: 1, name: "Pilot", air_date: "2020-01-01" }, { episode_id: 12, season: 1, number: 2 }] };
+  const after: Row = { ...season, episodes: 1, episode_list: [season.episode_list![1]] };
+  let unmonitored = false;
+  const fetch = mockFetch([admin,
+    { method: "GET", path: "/wanted", reply: () => ({ ...page, items: [unmonitored ? after : season], titles: { "2": "Beta" }, libraries: { "tv-2160p": "4K TV" } }) },
+    { method: "POST", path: "/titles/2/episodes/search", reply: { started: true, versions: ["tv-2160p"], skipped: [], queued: false, found: 0, message: "Searching" } },
+    { method: "PUT", path: "/titles/2/episodes/monitor", reply: () => { unmonitored = true; return { versions: ["tv-2160p"], skipped: [], episodes: 1, message: "1 episode" }; } },
+    status]);
+  renderPage(<WantedPage />, "/wanted");
+  const cell = await screen.findByTestId("wanted-episodes");
+  await user.click(within(cell).getByText("S01, 2 episodes"));
+  expect(within(cell).getAllByTestId("wanted-episode").map(li => li.textContent)).toEqual(["S01E01 · Pilot · Jan 1, 2020", "S01E02"]);
+  expect(within(cell).queryByText(/Cutoff/)).toBeNull();
+  await user.click(within(cell).getByRole("button", { name: "Search S01E01" }));
+  await waitFor(() => expect(fetch.calls("POST", "/titles/2/episodes/search")).toHaveLength(1));
+  expect(fetch.calls("POST", "/titles/2/episodes/search")[0].body).toEqual({ episode_ids: [11], versions: ["tv-2160p"] });
+  await user.click(within(cell).getByRole("button", { name: "Unmonitor S01E01" }));
+  await waitFor(() => expect(fetch.calls("PUT", "/titles/2/episodes/monitor")).toHaveLength(1));
+  expect(fetch.calls("PUT", "/titles/2/episodes/monitor")[0].body).toEqual({ episode_ids: [11], versions: ["tv-2160p"], monitored: false });
+  // The list is read again: the row's count follows.
+  expect(await screen.findByText("S01, 1 episode")).toBeTruthy();
+});
+
+it("offers no episode actions without the manage permission", async () => {
+  const season: Row = { title_id: 2, version: "tv-2160p", targets: ["s01e01"], reason: "missing", waiting: "due", next_at: "2026-11-01T00:00:00Z",
+    last_run: null, decision_id: null, season: 1, episodes: 1, episode_list: [{ episode_id: 11, season: 1, number: 1 }] };
+  mockFetch([{ method: "GET", path: "/auth/me", reply: { id: 2, permissions: ["browse"] } },
+    { method: "GET", path: "/wanted", reply: { ...page, items: [season], titles: { "2": "Beta" }, libraries: { "tv-2160p": "4K TV" } } }]);
+  renderPage(<WantedPage />, "/wanted");
+  // A one-episode row shows its episode in place, not behind a toggle.
+  const cell = await screen.findByTestId("wanted-episodes");
+  expect(cell.tagName).toBe("UL");
+  expect(within(cell).getByTestId("wanted-episode").textContent).toBe("S01E01");
+  expect(within(cell).queryByRole("button")).toBeNull();
 });

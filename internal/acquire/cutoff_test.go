@@ -218,6 +218,23 @@ func TestWantedCutoffListFollowsMode(t *testing.T) {
 		if g := sortWords(strings.Join(got, " ")); g != sortWords(tc.list) || l.Total != len(got) {
 			t.Errorf("cutoff_unmet %q: lists %s (total %d), want %s", tc.mode, g, l.Total, sortWords(tc.list))
 		}
+		// The series row lists its episodes with the quality each holds, the one-episode row too.
+		for _, r := range l.Items {
+			if r.TitleID != 10 {
+				continue
+			}
+			var eps []string
+			for _, ep := range r.EpisodeList {
+				eps = append(eps, fmt.Sprintf("%d:%s", ep.EpisodeID, ep.Quality))
+			}
+			want := "1003:WEBDL-1080p"
+			if tc.mode == policy.CutoffScore {
+				want = "1002:WEBDL-2160p 1003:WEBDL-1080p"
+			}
+			if g := strings.Join(eps, " "); g != want || r.Cutoff != "WEBDL-2160p" {
+				t.Errorf("cutoff_unmet %q: episodes %s cutoff %q, want %s and WEBDL-2160p", tc.mode, g, r.Cutoff, want)
+			}
+		}
 		if _, err := e.a.RequestSearchNowAll(e.ctx, WantedQuery{Only: OnlyCutoff}); err != nil {
 			t.Fatal(err)
 		}

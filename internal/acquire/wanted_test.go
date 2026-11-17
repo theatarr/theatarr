@@ -546,6 +546,11 @@ func TestWantedTitleFilterSortAndDates(t *testing.T) {
 			t.Errorf("season %v date %v, want the instant's UTC day without a stored date", r.Season, r.Date)
 		case r.TitleID == 10 && seasonOf(r.Season) == 1 && r.Episodes != 2:
 			t.Errorf("season 1: %d episodes, want 2", r.Episodes)
+		case r.TitleID == 10 && seasonOf(r.Season) == 1 && (len(r.EpisodeList) != 2 || r.EpisodeList[0].AirDate != "2026-10-24" ||
+			r.EpisodeList[0].Number > r.EpisodeList[1].Number || r.EpisodeList[0].Quality != "" || r.Cutoff != ""):
+			t.Errorf("season 1's missing episodes %+v cutoff %q, want both in order with their air date", r.EpisodeList, r.Cutoff)
+		case r.TitleID != 10 && r.EpisodeList != nil:
+			t.Errorf("film with an episode list %+v", r)
 		case r.TitleID != 10 && r.Episodes != 0:
 			t.Errorf("film with episodes %+v", r)
 		case r.TitleID == 1 && (r.LastRun == nil || !r.LastRun.Downloaded || r.LastRun.DownloadID == nil || *r.LastRun.DownloadID != 40 || r.LastRun.DownloadState != "failed"):

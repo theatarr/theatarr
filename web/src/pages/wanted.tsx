@@ -1,12 +1,16 @@
 import { Columns3, X } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useLocation, useSearchParams } from "react-router";
 import { useStatus } from "@/api/hooks";
+import { useMonitor, useScopedSearch } from "@/api/manage";
 import { useLibraryName } from "@/lib/library-names";
 import { usePerms } from "@/api/library";
 import { useClearWantedSearch, useWanted, useWantedSearch, type WantedRow, type WantedSearchBody, type WantedSearchResult, type WantedSort } from "@/api/wanted";
 import { Empty, ErrorState, Loading, PageHeader, VersionTag } from "@/components/page";
 import { InteractiveSearchButton } from "@/components/title/interactive-search";
+import { failed, searched } from "@/components/title/seasons";
+import { toast } from "@/components/toaster";
 import { WantedTabs } from "@/components/wanted-tabs";
 import { journalLink } from "@/lib/admin-links";
 import { Card } from "@/components/ui/card";
@@ -61,17 +65,48 @@ export function whatWords(row: Pick<WantedRow, "targets" | "episodes">): string 
   return row.episodes && row.targets.some((t) => /^s\d+$/.test(t)) ? `${words}, ${plural(row.episodes, "episode")}` : words;
 }
 
-/** The What cell; a Cutoff unmet whole-season row opens to its episodes, each with the quality it holds, and the cutoff. */
-function WhatCell({ row }: { row: WantedRow }) {
-  const eps = row.below_cutoff ?? [];
+/** The What cell; a series row opens to its episodes (a one-episode row shows it in place): on Missing each with its air date, on Cutoff unmet with the
+ *  quality it holds, and the cutoff. Managers get Search and Unmonitor per episode, in the row's library only. */
+function WhatCell({ row, manage }: { row: WantedRow; manage: boolean }) {
+  const eps = row.episode_list ?? [];
   if (!eps.length) return <>{whatWords(row)}</>;
-  return <details data-testid="wanted-below-cutoff">
+  // A one-episode row shows its episode in place.
+  if (eps.length === 1 && !row.targets.some((t) => /^s\d+$/.test(t))) {
+    return <ul data-testid="wanted-episodes"><EpisodeLine row={row} e={eps[0]} manage={manage} /></ul>;
+  }
+  return <details data-testid="wanted-episodes">
     <summary className="cursor-pointer">{whatWords(row)}</summary>
-    <ul className="mt-1 space-y-0.5 text-[13px] text-[var(--ink-2)]">
-      {eps.map(e => <li key={e.episode_id} className="[overflow-wrap:anywhere]">{episodeCode(e)}{e.name ? ` · ${e.name}` : ""} · {e.quality || "Unknown quality"}</li>)}
+    <ul className="mt-1 space-y-1 text-[13px] text-[var(--ink-2)]">
+      {eps.map(e => <EpisodeLine key={e.episode_id} row={row} e={e} manage={manage} />)}
     </ul>
     {row.cutoff ? <p className="mt-1 text-[13px] text-[var(--ink-3)]">Cutoff: {row.cutoff}</p> : null}
   </details>;
+}
+
+type WantedEpisode = NonNullable<WantedRow["episode_list"]>[number];
+
+/** One episode of a Wanted row, with Search (the existing episode search) and Unmonitor (the existing episode
+ *  monitoring) for the row's library; after either the Wanted list is read again, so the row's count follows. */
+function EpisodeLine({ row, e, manage }: { row: WantedRow; e: WantedEpisode; manage: boolean }) {
+  const qc = useQueryClient();
+  const search = useScopedSearch(row.title_id);
+  const monitor = useMonitor(row.title_id);
+  const refresh = () => void qc.invalidateQueries({ queryKey: ["wanted"] });
+  const target = { episode_ids: [e.episode_id], versions: [row.version] };
+  const why = blocked(row);
+  const code = episodeCode(e);
+  const detail = row.reason === "cutoff" ? e.quality || "Unknown quality" : e.air_date ? fmtDay(e.air_date) : "";
+  return <li className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
+    <span className="[overflow-wrap:anywhere]" data-testid="wanted-episode">{code}{e.name ? ` · ${e.name}` : ""}{detail ? ` · ${detail}` : ""}</span>
+    {manage ? <span className="inline-flex gap-3">
+      <button type="button" className="text-primary hover:underline disabled:cursor-not-allowed disabled:text-[var(--ink-3)] disabled:no-underline" aria-label={`Search ${code}`}
+        disabled={!!why || search.isPending} title={why || undefined}
+        onClick={() => search.mutate(target, { onSuccess: (o) => searched(o), onError: failed("Not searched"), onSettled: refresh })}>Search</button>
+      <button type="button" className="text-primary hover:underline disabled:cursor-not-allowed disabled:text-[var(--ink-3)] disabled:no-underline" aria-label={`Unmonitor ${code}`}
+        disabled={monitor.isPending}
+        onClick={() => monitor.mutate({ ...target, monitored: false }, { onSuccess: (o) => toast({ tone: "ok", title: "Not monitored", body: o.message }), onError: failed("Not changed"), onSettled: refresh })}>Unmonitor</button>
+    </span> : null}
+  </li>;
 }
 
 const episodeCode = (e: { season: number; number: number }) =>
@@ -223,7 +258,7 @@ export function WantedPage() {
   const titleLink = (row: WantedRow) => <Link className="font-semibold text-[var(--ink)] hover:text-[var(--accent-ink)] [overflow-wrap:anywhere]" to={`/title/${row.title_id}`}>{name(row)}</Link>;
   const cells: Record<Column, DataColumn<WantedRow>> = {
     library: { id: "library", label: "Library", cell: row => <VersionTag k={row.version} label={d?.libraries[row.version]} /> },
-    what: { id: "what", label: "What", cellClassName: "max-w-[22rem]", cell: row => <WhatCell row={row} /> },
+    what: { id: "what", label: "What", cellClassName: "max-w-[22rem]", cell: row => <WhatCell row={row} manage={perms.manage} /> },
     date: { id: "date", label: "Released", sortable: true, cell: row => row.date ? fmtDay(row.date) : "—" },
     next: { id: "next", label: "Next search", cell: row => <NextSearch row={row} state={states.get(row.version)} off={off} admin={perms.admin} /> },
     // The decision behind the last search sits with it, so the row's actions keep their place.
