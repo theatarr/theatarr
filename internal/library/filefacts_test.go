@@ -1,8 +1,11 @@
 package library
 
 import (
+	"context"
 	"errors"
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -75,5 +78,44 @@ func TestEditFileFacts(t *testing.T) {
 	e.exec(`UPDATE link SET state = 'dead' WHERE id = 1`)
 	if _, err := e.lib.EditFileFacts(e.ctx, 1, FileFactsEdit{Quality: "WEBDL-1080p", Revision: 1}); !errors.Is(err, ErrRefused) {
 		t.Errorf("dead link: %v", err)
+	}
+}
+
+// TestEditFileFactsRenamePreview: an adopted link names its custom formats as adopt found them while it stores none;
+// once its facts are corrected to match no format (stored as an empty list) the rename preview drops the old labels,
+// and names the corrected quality with its revision.
+func TestEditFileFactsRenamePreview(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true)
+	e.pol.Versions["movie-remux"].Naming.File = "{Movie CleanTitle} {[Custom Formats]}{[Quality Full]}"
+	e.lib.formats = func(context.Context, string, int64, string) []string { return []string{"IMAX", "HDR"} }
+	old := filepath.Join(e.movies, "Amelie (2001)", "old.mkv")
+	if err := os.MkdirAll(filepath.Dir(old), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(e.mount, "__all__", "x.mkv"), old); err != nil {
+		t.Fatal(err)
+	}
+	e.exec(`INSERT INTO link (id, path, target, title_id, release_title, quality, file_metadata, state, adopted,
+		adopted_from, created_at, updated_at) VALUES (1, ?, '/mnt/zurg/x.mkv', 1, 'Amelie.2001.1080p.BluRay-GRP',
+		'Bluray-1080p', '{"Quality":"Bluray-1080p","Revision":1,"RelativePath":"a.mkv","SceneName":"Amelie.2001.1080p.BluRay-GRP"}', 'active', 1,
+		'radarr /movies/Amelie (2001)/Amelie.2001.1080p.BluRay-GRP.mkv', 0, 0)`, old)
+	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (1, 10)`)
+	name := func() string {
+		t.Helper()
+		p, err := e.lib.PreviewRename(e.ctx, 1, nil)
+		if err != nil || len(p.Files) != 1 {
+			t.Fatalf("preview %+v %v", p, err)
+		}
+		return filepath.Base(p.Files[0].NewPath)
+	}
+	if got := name(); !strings.Contains(got, "[IMAX HDR]") {
+		t.Fatalf("adopted preview %s", got)
+	}
+	if _, err := e.lib.EditFileFacts(e.ctx, 1, FileFactsEdit{Quality: "WEBDL-1080p", Revision: 2}); err != nil {
+		t.Fatal(err)
+	}
+	if got := name(); strings.Contains(got, "IMAX") || !strings.Contains(got, "[WEBDL-1080p Proper]") {
+		t.Errorf("corrected preview %s", got)
 	}
 }

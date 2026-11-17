@@ -158,7 +158,9 @@ func (l *Library) previewRename(ctx context.Context, titleID int64, season *int,
 		var formats []string
 		if vn.NamesFormats {
 			formats = l.storedRenameFormats(ctx, key, facts)
-			if len(facts.Formats) == 0 {
+			// An adopted link with no stored formats decides its release again; a stored empty list (facts
+			// corrected by hand that match no format) is the answer and stays.
+			if facts.Formats == nil {
 				if cfs, ok := l.adoptedRenameFormats(ctx, pl.adoptedFrom, &v, facts); ok {
 					formats = cfs
 				}
@@ -234,7 +236,7 @@ func (l *Library) applyRename(ctx context.Context, titleID int64, season *int, a
 }
 
 func factsToFileFacts(f decide.ExistingFile) decide.FileFacts {
-	return decide.FileFacts{Quality: f.Quality, Revision: f.Revision, Real: f.Real, ReleaseGroup: f.ReleaseGroup,
+	return decide.FileFacts{Quality: f.Quality, Revision: f.Revision, Real: f.Real, IsRepack: f.IsRepack, ReleaseGroup: f.ReleaseGroup,
 		ReleaseHash: f.ReleaseHash, Edition: f.Edition, SceneName: f.SceneName, Languages: f.Languages}
 }
 

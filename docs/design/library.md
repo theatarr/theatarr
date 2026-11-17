@@ -702,14 +702,17 @@ is stored. `library.EditFileFacts` (`internal/library/filefacts.go`) writes them
 (`link.quality` and `file_metadata`: quality, revision, languages, release group; a Repack stays one only while the
 revision is 2 or more; Real is kept), calculates the formats and score again with `ScoreFile` for each library the
 file serves (their profiles differ: the answer and the journal give each library's own score; `link.score` and the
-stored formats are the first library's, and the formats are stored as an empty list when none match), and judges
+stored formats are the first library's, and the formats are stored as an empty list when none match, which the
+rename preview takes as the answer rather than naming an adopted file's formats again), and judges
 each of those libraries again at once (`recomputeVersion`: state against the cutoff, below-the-quality-cutoff flags,
 so Wanted and Cutoff unmet follow). There is no "set by hand" marker: nothing parses an installed link's facts again
 after its import (a re-probe writes only `content_file.probe`; the stored revision stays 1 or more, so the legacy
 re-parse of rows from before migration 00038 never applies), and a new import of a file replaces the link with the
 new file's own facts. Nothing is renamed; the rename preview shows a new name if the naming uses the changed facts.
 The compatible API's `moviefile` and `episodefile` reads show the corrected values (they read the same link); there
-is no compatible file-edit call. The journal records an `edit_file` action (migration 00150): "Facts corrected
+is no compatible file-edit call. For a file several libraries share, the library rows and the compatible file reads show that one stored score
+for every library, as after an ordinary import; the dialog's answer lists each library's own, and each library's
+state and Cutoff unmet are its own. The journal records an `edit_file` action (migration 00150): "Facts corrected
 <file> by <user>: WEBDL-1080p → Bluray-1080p", with each library's score.
 
 ## Relink and verify
