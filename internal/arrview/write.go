@@ -790,7 +790,9 @@ func (s *Service) addTitle(w http.ResponseWriter, r *request) {
 			}
 		}
 	}
-	if in.AddOptions != nil && (in.AddOptions.SearchForMovie || in.AddOptions.SearchForMissingEpisodes) {
+	// The add's own search runs only while Pause is off, as the native add's (catalog.Searchable).
+	if in.AddOptions != nil && (in.AddOptions.SearchForMovie || in.AddOptions.SearchForMissingEpisodes) &&
+		s.pol.RouterSettings().Enabled {
 		name, body := "MoviesSearch", map[string]any{"movieIds": []any{float64(viewID(titleID))}}
 		if v.Flavour == Sonarr {
 			name, body = "MissingEpisodeSearch", map[string]any{"seriesId": float64(viewID(titleID))}

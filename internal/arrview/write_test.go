@@ -197,6 +197,7 @@ func TestPutMovie(t *testing.T) {
 func TestCommands(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t)
+	e.pol.Router.Enabled = true // Pause off: an add's search option is recorded only then
 	var c map[string]any
 	e.call("POST", "/radarr/api/v3/command", map[string]any{"name": "MoviesSearch", "movieIds": []int{IDBase + 1}},
 		201, &c)
@@ -243,6 +244,7 @@ func TestCommands(t *testing.T) {
 func TestSonarrWrites(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t)
+	e.pol.Router.Enabled = true // Pause off: an add's search option is recorded only then
 	// Anime series via Seerr's anime settings: seriesType anime and the anime profile.
 	var s map[string]any
 	e.call("POST", "/sonarr/api/v3/series", map[string]any{"tvdbId": 301, "title": "Kaiju", "qualityProfileId": e.profileID("sonarr", "Anime"), "languageProfileId": 1, "seasons": []map[string]any{}, "tags": []int{},

@@ -214,3 +214,20 @@ func TestSearchOnAddCoversSyncedLibrary(t *testing.T) {
 		t.Errorf("series add search %v", got)
 	}
 }
+
+// A compatible add with its search option while Pause is on adds the title but searches no indexer, as the native
+// add (catalog.Searchable).
+func TestSearchOnAddPaused(t *testing.T) {
+	t.Parallel()
+	e := newSearchEnv(t)
+	e.pol.Router.Enabled = false
+	e.call("POST", "/v/movie-web/radarr/api/v3/movie", map[string]any{"title": "Iota", "year": 2024, "tmdbId": 109,
+		"minimumAvailability": "announced", "addOptions": map[string]any{"searchForMovie": true}}, 201, nil)
+	e.drain()
+	if got := e.searches(); len(got) != 0 {
+		t.Errorf("searched while paused: %v", got)
+	}
+	if n := e.one(`SELECT COUNT(*) FROM title WHERE tmdb_id = 109`); n != 1 {
+		t.Errorf("the add did not add the title: %d", n)
+	}
+}

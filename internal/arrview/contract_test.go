@@ -184,6 +184,7 @@ func seerrAddMovie(t *testing.T, c *client, opts map[string]any, searchNow bool)
 func TestSeerrRadarrContract(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t)
+	e.pol.Router.Enabled = true // Pause off: an add's search option is recorded only then
 	c := &client{t: t, e: e, base: "/radarr/api/v3"}
 	profiles, roots := seerrSettingsTest(t, c, "6")
 	def := profileNamed(t, profiles, "Rules default")
@@ -350,6 +351,7 @@ func seerrAddSeries(t *testing.T, c *client, opts map[string]any, seasons []int,
 func TestSeerrSonarrContract(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t)
+	e.pol.Router.Enabled = true // Pause off: an add's search option is recorded only then
 	c := &client{t: t, e: e, base: "/sonarr/api/v3"}
 	profiles, roots := seerrSettingsTest(t, c, "4")
 	def := profileNamed(t, profiles, "Rules default")
