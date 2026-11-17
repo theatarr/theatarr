@@ -117,6 +117,15 @@ and no other-requester list or count.
   movie-remux for a movie, tv-2160p for a series, the anime versions for anime), cut to the account's
   `request_versions` when an admin set them. Users do not pick versions. The title request card reports readiness
   for those applicable versions; the hero remains title-wide.
+- Libraries kept in sync (`library.sync_groups`, ui.md "Keep in sync"): at creation, before the joining rule runs,
+  the request's libraries are widened by the libraries in sync with them that would gain a copy
+  (`catalog.SyncPartners`: not one the title has a copy of in any state, removed or unmonitored), and the result is
+  stored in `request.versions`. Readiness, status and the library badges use that stored scope; nothing widens it
+  when it is read. The approval editor shows the stored libraries as ordinary ticked boxes, and a library in sync with
+  a ticked one that is not stored ticked and disabled, "in sync with …" (approval adds it). "Requests ask for" offers
+  a group as one choice ("4K Remux + 4K WEB") whose tick stores every member's key; a stored set holding only part of
+  a group (saved before the group existed) shows that group as its members. A stored member key is never read as
+  its group. `TestSyncGroupsAnswers` covers the stored scope.
 - Approval runs `catalog.Add` (the arr views' add path, through `addTitle` in `add.go`) with the request's versions
   and seasons, and asks for a search only for versions `catalog.Searchable` lets through; nothing searches in shadow.
   `auto_approve` approves at creation, and when the ask joins a *pending* request it approves

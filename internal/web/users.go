@@ -281,6 +281,8 @@ type UsersPage struct {
 	Settings UserSettings `json:"settings"`
 	// Versions are the version keys an admin may pick for a user's requests, with their labels.
 	Versions []VersionChoice `json:"versions"`
+	// SyncGroups are the libraries kept in sync (library.sync_groups): "Requests ask for" offers each as one choice.
+	SyncGroups [][]string `json:"sync_groups,omitempty"`
 }
 
 // VersionChoice is a version key with its label and kind.
@@ -289,6 +291,15 @@ type VersionChoice struct {
 	Label string `json:"label"`
 	Kind  string `json:"kind"`
 	Anime *bool  `json:"anime,omitempty"`
+}
+
+// syncGroups are the libraries kept in sync (library.sync_groups), for the pages that name an add's libraries; nil
+// when there are none.
+func (w *Web) syncGroups() [][]string {
+	if w.pol == nil || w.pol.Library == nil {
+		return nil
+	}
+	return w.pol.Library.SyncGroups
 }
 
 func (w *Web) versionChoices() []VersionChoice {
@@ -316,7 +327,8 @@ func (w *Web) apiUsers(rw http.ResponseWriter, r *http.Request) {
 		w.internal(rw, err)
 		return
 	}
-	writeJSON(rw, http.StatusOK, UsersPage{Items: us, Settings: set, Versions: w.versionChoices()})
+	writeJSON(rw, http.StatusOK, UsersPage{Items: us, Settings: set, Versions: w.versionChoices(),
+		SyncGroups: w.syncGroups()})
 }
 
 // UserPatchRequest is the body of PATCH users/{id}. Absent fields stay; request_versions null resets to every

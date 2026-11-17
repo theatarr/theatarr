@@ -334,7 +334,7 @@ The remaining pages use the same tokens and primitives:
 - **Login**: a ruled card, a Newsreader heading, Sign in with Plex as the primary button (no Plex orange), and the
   error and pending notices as edge-marked notes.
 - **Users & access**: the role select, Discord id input and switches are the primitives; the "Requests ask for"
-  libraries are square toggle chips.
+  libraries are square toggle chips (a group of libraries kept in sync is one chip, "4K Remux + 4K WEB").
 - **Switches**: the monitor switch (library rows, title page, episode drawer, collections) and the add drawer's
   Monitor seasons that appear later use the Switch primitive (size `sm` for dense rows); a locked monitor switch stays
   focusable (`aria-disabled`) with its reason as the title. The add drawer's switch row is its whole label.

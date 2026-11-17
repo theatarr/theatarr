@@ -21,6 +21,7 @@ import { Switch } from "@/components/ui/switch";
 import { fmtAgo, fmtTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { readableCode } from "@/lib/code-words";
+import { groupOf } from "@/lib/sync-groups";
 
 // What each permission lets an account do (internal/auth/perms.go), in words; the stored names stay as they are.
 const PERMISSION_WORDS: Record<string, string> = {
@@ -365,12 +366,35 @@ export function DiscordID({ u, busy, onSave }: { u: User; busy: boolean; onSave:
   );
 }
 
+/** The choices of "Requests ask for": one per library, and one per group of libraries kept in sync ("4K Remux + 4K
+ *  WEB"), whose tick stores every member's key. A group the stored keys hold only part of (saved before the group
+ *  existed) shows as its members, so nothing stored is hidden. */
+export function requestChoices(versions: UsersPage["versions"], groups: string[][] | undefined, set: string[] | null): { keys: string[]; label: string }[] {
+  const out: { keys: string[]; label: string }[] = [];
+  const done = new Set<string>();
+  const label = (v: UsersPage["versions"][number]) => `${v.label}${v.anime === true && !/anime/i.test(v.label) ? " · anime" : ""}`;
+  for (const v of versions) {
+    if (done.has(v.key)) continue;
+    const g = (groupOf(groups, v.key) ?? []).filter((k) => versions.some((x) => x.key === k));
+    const held = g.filter((k) => set?.includes(k)).length;
+    if (g.length > 1 && (held === 0 || held === g.length)) {
+      g.forEach((k) => done.add(k));
+      out.push({ keys: g, label: g.map((k) => label(versions.find((x) => x.key === k)!)).join(" + ") });
+    } else {
+      done.add(v.key);
+      out.push({ keys: [v.key], label: label(v) });
+    }
+  }
+  return out;
+}
+
 /** The versions this account's requests ask for: every version that fits (the default), or the ones ticked. */
 function RequestVersions({ u, page, onChange }: { u: User; page: UsersPage; onChange: (v: string[] | null) => void }) {
   const set = u.request_versions ?? null;
-  const toggle = (k: string) => {
+  const toggle = (keys: string[]) => {
     const cur = set ?? [];
-    const next = cur.includes(k) ? cur.filter((x) => x !== k) : [...cur, k];
+    const on = keys.every((k) => cur.includes(k));
+    const next = on ? cur.filter((x) => !keys.includes(x)) : [...cur, ...keys.filter((k) => !cur.includes(k))];
     onChange(next.length === 0 ? null : next);
   };
   const kinds: { id: string; label: string }[] = [
@@ -394,23 +418,23 @@ function RequestVersions({ u, page, onChange }: { u: User; page: UsersPage; onCh
         {kinds.map((k) => (
           <div key={k.id} className="flex flex-wrap items-center gap-1.5">
             <span className="w-full text-xs text-[var(--ink-3)] sm:w-32">{k.label}</span>
-            {page.versions.filter((v) => v.kind === k.id).map((v) => {
-              const on = set === null || set.includes(v.key);
+            {requestChoices(page.versions.filter((v) => v.kind === k.id), page.sync_groups, set).map((c) => {
+              const ticked = set !== null && c.keys.every((key) => set.includes(key));
+              const on = set === null || ticked;
               return (
                 <button
-                  key={v.key}
+                  key={c.keys.join("+")}
                   type="button"
-                  aria-pressed={set !== null && set.includes(v.key)}
-                  data-vkey={v.key}
-                  onClick={() => toggle(v.key)}
+                  aria-pressed={ticked}
+                  data-vkey={c.keys.join("+")}
+                  onClick={() => toggle(c.keys)}
                   className={cn(
                     "h-7 rounded-[3px] px-2.5 text-xs font-medium text-[var(--ink-3)] shadow-[inset_0_0_0_1px_var(--line-2)] transition-colors outline-none focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--line-focus)]",
                     on && "bg-[var(--accent-soft)] text-[var(--accent-ink)] shadow-[inset_0_0_0_1px_var(--accent)]",
                     set === null && "opacity-75",
                   )}
                 >
-                  {v.label}
-                  {v.anime === true && !/anime/i.test(v.label) ? " · anime" : ""}
+                  {c.label}
                 </button>
               );
             })}

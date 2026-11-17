@@ -754,6 +754,25 @@ func (w *Web) apiCreateRequest(rw http.ResponseWriter, r *http.Request) {
 		writeJSON(rw, http.StatusConflict, apiError{Error: msg})
 		return
 	}
+	// The libraries in sync with the asked ones that would gain a copy are part of the request from the start
+	// (catalog.SyncPartners), so its readiness and badges cover them.
+	var copies catalog.Copies
+	fitAnime := anime
+	if t != nil {
+		var typeAnime bool
+		if copies, err = catalog.LoadCopies(ctx, w.st.Reader(), t.id); err == nil {
+			_, typeAnime, err = catalog.TitleFit(ctx, w.st.Reader(), t.id)
+		}
+		if err != nil {
+			w.internal(rw, err)
+			return
+		}
+		fitAnime = anime || typeAnime
+	}
+	if synced := catalog.SyncPartners(w.pol, kind, fitAnime, copies, keys); len(synced) > 0 {
+		keys = append(keys, synced...)
+		slices.Sort(keys)
+	}
 
 	res, ev, err := w.createRequest(ctx, viewer.UserID, newRequest{kind: kind, anime: anime, tmdbID: tmdbID,
 		tvdbID: tvdbID, titleID: titleID, name: name, year: year, poster: poster, keys: keys, seasons: seasons,

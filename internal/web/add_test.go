@@ -1608,3 +1608,70 @@ func TestSyncGroupsReaddedSeriesType(t *testing.T) {
 		}
 	}
 }
+
+// One answer to "which libraries in sync would gain a copy" (catalog.SyncPartners) serves the add options, the title
+// page's library switch and a request's stored libraries: a partner the title has a copy of, removed or not, is
+// never listed, and a request stores the partners next to the libraries it asks for.
+func TestSyncGroupsAnswers(t *testing.T) {
+	t.Parallel()
+	e := newAddEnv(t, func(p *policy.Policy) {
+		hd := *p.Versions["movie-web"]
+		hd.Library = "/media/movies-hd"
+		p.Versions["movie-hd"] = &hd
+		p.Library.SyncGroups = [][]string{{"movie-web", "movie-hd"}}
+	})
+	synced := func(o AddOptions) map[string][]string {
+		out := map[string][]string{}
+		for _, v := range o.Versions {
+			if len(v.Synced) > 0 {
+				out[v.Key] = v.Synced
+			}
+		}
+		return out
+	}
+	var o AddOptions
+	e.call("GET", APIBase+"/add/options?kind=movie&tmdb_id=900", nil, 200, &o)
+	if got := fmt.Sprint(synced(o)); got != "map[movie-hd:[movie-web] movie-web:[movie-hd]]" {
+		t.Errorf("new title: %s", got)
+	}
+	// Alpha (title 1, movie-remux) with a removed movie-hd copy: ticking movie-web brings nothing.
+	e.exec(`INSERT INTO version (id, title_id, policy_key, monitored, state, created_at, updated_at) VALUES
+		(2, 1, 'movie-hd', 0, 'wanted', 0, 0)`)
+	e.exec(`INSERT INTO arrview_removed_version (version_id, view, removed_at) VALUES (2, 'ui', 0)`)
+	o = AddOptions{}
+	e.call("GET", APIBase+"/add/options?title_id=1", nil, 200, &o)
+	if got := fmt.Sprint(synced(o)); got != "map[movie-hd:[movie-web]]" {
+		t.Errorf("removed partner: %s", got)
+	}
+	var vs VersionSet
+	e.call("PUT", APIBase+"/titles/1/versions/movie-web", map[string]any{"monitored": true}, 200, &vs)
+	if vs.ID != 1 || len(vs.Synced) != 0 {
+		t.Errorf("switch with a removed partner: %+v", vs)
+	}
+	e.exec(`DELETE FROM version WHERE title_id = 1 AND policy_key IN ('movie-web', 'movie-hd')`)
+	vs = VersionSet{}
+	e.call("PUT", APIBase+"/titles/1/versions/movie-web", map[string]any{"monitored": true}, 200, &vs)
+	if !slices.Equal(vs.Synced, []string{"movie-hd"}) || len(vs.Versions) != 3 {
+		t.Errorf("switch: %+v", vs)
+	}
+	// A request for movie-web stores movie-hd with it; one for a title holding movie-hd unmonitored does not.
+	annID, ann := e.user("ann", auth.RoleUser)
+	web := []string{"movie-web"}
+	if err := e.au.UpdateUser(context.Background(), annID, auth.UserPatch{RequestVersions: &web}); err != nil {
+		t.Fatal(err)
+	}
+	var cr CreateResult
+	e.callAs(ann, "POST", APIBase+"/requests", map[string]any{"kind": "movie", "tmdb_id": 106, "name": "Zeta"}, 201, &cr)
+	if got := keysOf(cr.Request); !slices.Equal(got, []string{"movie-hd", "movie-web"}) {
+		t.Errorf("request: %v", got)
+	}
+	e.exec(`INSERT INTO title (id, kind, name, sort_name, tmdb_id, anime, created_at, updated_at) VALUES
+		(30, 'movie', 'Mu', 'mu', 130, 0, 0, 0)`)
+	e.exec(`INSERT INTO version (title_id, policy_key, monitored, state, created_at, updated_at) VALUES
+		(30, 'movie-hd', 0, 'wanted', 0, 0)`)
+	e.callAs(ann, "POST", APIBase+"/requests", map[string]any{"title_id": 30}, 201, &cr)
+	if got := keysOf(cr.Request); !slices.Equal(got, []string{"movie-web"}) {
+		t.Errorf("request with an unmonitored partner: %v", got)
+	}
+}
+
