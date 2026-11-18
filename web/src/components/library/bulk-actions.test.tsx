@@ -89,7 +89,8 @@ describe("Bulk Remove", () => {
     // Each whole title (no library named), checked against its preview first.
     expect([1, 2, 3, 4].map((id) => api.calls("POST", `/titles/${id}/remove`)[0]?.body)).toEqual([1, 2, 3, 4].map(
       () => ({ versions: [], unlink: true, debrid: true })));
-    expect(api.calls("GET", "/titles/1/removal")).toHaveLength(1);
+    // The whole title: no versions parameter, as the preview read it.
+    expect(api.calls("GET", "/titles/1/removal").map((c) => c.search)).toEqual([""]);
     expect(screen.getByText("Their debrid torrents are being cleaned up; each title's History shows the outcome.")).toBeTruthy();
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(cleared()).toBe(1);
@@ -180,7 +181,8 @@ describe("Bulk Remove after the preview", () => {
     await screen.findByText("Removed 1 of 2 titles");
     expect(screen.getByText(/^1 title not removed \(Alpha\): changed since the preview\./)).toBeTruthy();
     // Alpha's check read the whole title again, as the preview did, and Alpha was not removed.
-    expect(api.calls("GET", "/titles/1/removal")).toHaveLength(1);
+    // The whole title: no versions parameter, as the preview read it.
+    expect(api.calls("GET", "/titles/1/removal").map((c) => c.search)).toEqual([""]);
     expect(api.calls("POST", "/titles/1/remove")).toHaveLength(0);
     expect(api.calls("POST", "/titles/2/remove")[0].body).toEqual({ versions: [], unlink: true, debrid: true });
   });
