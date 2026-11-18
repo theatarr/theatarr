@@ -253,8 +253,9 @@ type ActivityBlocked struct {
 	// Quality and Indexer are the blocked download's, when it is known.
 	Quality string `json:"quality,omitempty"`
 	Indexer string `json:"indexer,omitempty"`
-	// SearchReason is why Unblock's search of the copy would not run now (copySearchBlock: the copy is not monitored,
-	// or Pause as the title page's search buttons say); empty when it would. Unblock's "search again" box is off with it.
+	// SearchReason is why Unblock's search of the copy would not run now (copySearchWords: no title, the title not in
+	// the library, the copy not monitored, or Pause as the title page's search buttons say); empty when it would.
+	// Unblock's "search again" box is off with it.
 	SearchReason string `json:"search_reason,omitempty"`
 }
 
@@ -437,15 +438,17 @@ func (w *Web) apiActivity(rw http.ResponseWriter, r *http.Request) {
 			w.internal(rw, err)
 			return
 		}
+		copies, err := w.copyStates(ctx, ids)
+		if err != nil {
+			w.internal(rw, err)
+			return
+		}
 		page.Blocked = []ActivityBlocked{}
 		for _, b := range bs {
 			x := ActivityBlocked{Version: b.Version, Hash: b.Hash, Release: b.Release, Reason: w.blockedReason(b), Source: b.Source,
 				Words: blockWords(b.Source), DownloadID: b.DownloadID, Created: b.Created, Quality: b.Quality, Indexer: b.Indexer,
-				Title: activityTitle(b.TitleID, b.TitleName, b.TitleYear, b.TitleKind, b.Anime, posters)}
-			if x.SearchReason, err = w.copySearchBlock(ctx, b.TitleID, b.Version); err != nil {
-				w.internal(rw, err)
-				return
-			}
+				Title:        activityTitle(b.TitleID, b.TitleName, b.TitleYear, b.TitleKind, b.Anime, posters),
+				SearchReason: w.copySearchWords(b.TitleID, copies[b.TitleID], b.Version)}
 			if !b.Researched.IsZero() {
 				t := b.Researched
 				x.Researched = &t

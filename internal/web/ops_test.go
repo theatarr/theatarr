@@ -666,6 +666,21 @@ func TestUnblockSearchReasonAndLibraryName(t *testing.T) {
 	if b := blocked(); b.SearchReason != "The "+label+" library is not monitored" {
 		t.Errorf("not monitored: search reason %q", b.SearchReason)
 	}
+	// The title removed from that library: the box says so, and so does a search of the copy.
+	o.exec(`INSERT INTO arrview_removed_version (version_id, view, removed_at)
+		SELECT id, 'radarr', 0 FROM version WHERE title_id = 1 AND policy_key = 'movie-web'`)
+	if b := blocked(); b.SearchReason != "The title is not in the "+label+" library" {
+		t.Errorf("removed: search reason %q", b.SearchReason)
+	}
+	if s, err := o.web.searchCopy(context.Background(), 1, "movie-web"); err != nil ||
+		s.Message != "Not searched: the title is not in the "+label+" library" {
+		t.Errorf("search of a removed copy: %+v %v", s, err)
+	}
+	// A row with no title: the unblock only unblocks.
+	o.exec(`UPDATE router_blocklist SET title_id = NULL`)
+	if b := blocked(); !strings.HasPrefix(b.SearchReason, "This release has no title in Theatarr") {
+		t.Errorf("no title: search reason %q", b.SearchReason)
+	}
 }
 
 // TestRemoveCopiesAndTitle: the removal scope names each copy with its links and downloads; a copy an arr still owns

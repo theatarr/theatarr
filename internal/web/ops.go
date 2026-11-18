@@ -626,25 +626,58 @@ func orSomeone(s string) string {
 }
 
 // searchCopy searches one copy of a title now when it is monitored (searchNow's rules: router on).
-// copySearchBlock is why searchCopy would not search the title's copy now, or "": the copy is not monitored (searchCopy's
-// own check), else searchBlock's reason (Pause).
-func (w *Web) copySearchBlock(ctx context.Context, titleID int64, version string) (string, error) {
-	if titleID > 0 {
-		on, err := w.versionsOn(ctx, titleID)
-		if err != nil {
-			return "", err
-		}
-		if !slices.Contains(on, version) {
-			return "The " + w.versionLabel(version) + " library is not monitored", nil
+// copyStates reads, for the titles named, each live copy's monitored state by library key (removed copies left out, as
+// versionsHeld does): one query for a page of blocked releases.
+func (w *Web) copyStates(ctx context.Context, titleIDs []int64) (map[int64]map[string]bool, error) {
+	out := map[int64]map[string]bool{}
+	var in []any
+	for _, id := range titleIDs {
+		if id > 0 && out[id] == nil {
+			out[id] = map[string]bool{}
+			in = append(in, id)
 		}
 	}
-	return w.searchBlock(version), nil
+	if len(in) == 0 {
+		return out, nil
+	}
+	err := scanAll(ctx, w.st.Reader(), `SELECT v.title_id, v.policy_key, v.monitored FROM version v
+		WHERE v.title_id IN (`+store.Placeholders(len(in))+`) AND `+liveVersion, in, func(r *sql.Rows) error {
+		var id int64
+		var k string
+		var m bool
+		if err := r.Scan(&id, &k, &m); err != nil {
+			return err
+		}
+		out[id][k] = m
+		return nil
+	})
+	return out, err
+}
+
+// copySearchWords is why searchCopy would not search a title's copy now, or "", from the title's copies
+// (copyStates): no title (the unblock only unblocks), the title no longer in that library, the copy not monitored,
+// else searchBlock's reason (Pause).
+func (w *Web) copySearchWords(titleID int64, copies map[string]bool, version string) string {
+	monitored, held := copies[version]
+	switch {
+	case titleID <= 0:
+		return "This release has no title in Theatarr: Unblock only takes it off the blocklist"
+	case !held:
+		return "The title is not in the " + w.versionLabel(version) + " library"
+	case !monitored:
+		return "The " + w.versionLabel(version) + " library is not monitored"
+	}
+	return w.searchBlock(version)
 }
 
 func (w *Web) searchCopy(ctx context.Context, titleID int64, version string) (*SearchOutcome, error) {
-	on, err := w.versionsOn(ctx, titleID)
+	on, held, err := w.versionsHeld(ctx, titleID)
 	if err != nil {
 		return nil, err
+	}
+	if !slices.Contains(held, version) {
+		return &SearchOutcome{Versions: []string{}, Skipped: []catalog.Skip{},
+			Message: "Not searched: the title is not in the " + w.versionLabel(version) + " library"}, nil
 	}
 	if !slices.Contains(on, version) {
 		return &SearchOutcome{Versions: []string{}, Skipped: []catalog.Skip{},
