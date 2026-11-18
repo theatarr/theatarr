@@ -386,7 +386,7 @@ func (l *Library) importDownload(ctx context.Context, d *importDownload, dryRun 
 	if l.decy != nil && d.InfoHash != "" && !sourced && len(d.Manual) == 0 {
 		dnames, known := l.decypharrNames(ctx, d.InfoHash, l.justReady(d))
 		if !known {
-			plan.Waiting, plan.Why = true, notOnMount
+			plan.Waiting, plan.Why = true, NotOnMount
 			if !dryRun {
 				if err := l.markWaiting(ctx, d); err != nil {
 					return nil, err
@@ -473,7 +473,7 @@ func (l *Library) importDownload(ctx context.Context, d *importDownload, dryRun 
 			"folder", filepath.Base(folder), "name", d.Name)
 	}
 	if folder == "" {
-		plan.Waiting, plan.Why = true, notOnMount
+		plan.Waiting, plan.Why = true, NotOnMount
 		if !dryRun {
 			if (zurgListed || decyListed) && !plan.DryRun {
 				// zurg (or decypharr) has the folder; the mount's cached listing of the root does not show it yet.
@@ -516,7 +516,7 @@ func (l *Library) importDownload(ctx context.Context, d *importDownload, dryRun 
 		}
 		if recheck {
 			// An empty listing says nothing about the disagreement: the mismatch wait stays (markWaitingWithError).
-			plan.Waiting, plan.Why = true, notOnMount
+			plan.Waiting, plan.Why = true, NotOnMount
 			return plan, l.markWaiting(ctx, d)
 		}
 		return l.holdForReview(ctx, d, plan, dryRun, "no video files in "+folder)
@@ -831,14 +831,11 @@ func (l *Library) unreadable(ctx context.Context, d *importDownload, err error) 
 	return fmt.Errorf("%w: %w", ErrUnreadable, err)
 }
 
-// notOnMount is the import error of a download whose release folder is not on the mount yet.
-const notOnMount = "release not on the mount yet"
-
-// NotOnMount is notOnMount, for a Plan.Why that reads it.
-const NotOnMount = notOnMount
+// NotOnMount is the import error of a download whose release folder is not on the mount yet (also a Plan.Why).
+const NotOnMount = "release not on the mount yet"
 
 func (l *Library) markWaiting(ctx context.Context, d *importDownload) error {
-	return l.markWaitingWithError(ctx, d, notOnMount)
+	return l.markWaitingWithError(ctx, d, NotOnMount)
 }
 
 // waitMismatch leaves an import waiting while the mount and zurg or decypharr disagree about its files
@@ -959,7 +956,7 @@ func (l *Library) FreshWaiting(ctx context.Context) bool {
 	rows, err := l.st.Reader().QueryContext(ctx, `SELECT DISTINCT d.version_key FROM library_import li
 		JOIN download d ON d.id = li.download_id
 		WHERE li.state = 'waiting_mount' AND li.last_error = ? AND d.state = 'ready' AND d.ready_at > ? AND d.ready_at <= ?`,
-		notOnMount, store.Millis(now.Add(-ReadyRecheckWindow)), store.Millis(now))
+		NotOnMount, store.Millis(now.Add(-ReadyRecheckWindow)), store.Millis(now))
 	if err != nil {
 		return false
 	}
@@ -992,7 +989,7 @@ func (l *Library) markWaitingWithError(ctx context.Context, d *importDownload, r
 			return err
 		}
 		mismatch := st == "waiting_mount" && strings.HasPrefix(lastErr, router.ImportMismatchPrefix)
-		if mismatch && (reason == notOnMount || strings.HasPrefix(reason, UnreadablePrefix)) {
+		if mismatch && (reason == NotOnMount || strings.HasPrefix(reason, UnreadablePrefix)) {
 			// A pass that cannot see the folder or its files, or read them, says nothing about the disagreement.
 			reason = lastErr
 		}

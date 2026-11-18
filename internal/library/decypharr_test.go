@@ -107,7 +107,7 @@ func TestImportDecypharrFolder(t *testing.T) {
 		if err != nil || !plan.Waiting {
 			t.Fatalf("plan %+v, err %v", plan, err)
 		}
-		if s := e.one(`SELECT last_error FROM library_import WHERE download_id = 1`); s != notOnMount {
+		if s := e.one(`SELECT last_error FROM library_import WHERE download_id = 1`); s != NotOnMount {
 			t.Errorf("waits with %q", s)
 		}
 		if forgot != 1 {
@@ -124,7 +124,7 @@ func TestImportDecypharrFolder(t *testing.T) {
 		if err != nil || !plan.Waiting {
 			t.Fatalf("plan %+v, err %v", plan, err)
 		}
-		if s := e.one(`SELECT last_error FROM library_import WHERE download_id = 1`); s != notOnMount {
+		if s := e.one(`SELECT last_error FROM library_import WHERE download_id = 1`); s != NotOnMount {
 			t.Errorf("waits with %q", s)
 		}
 		if e.movieTarget() != "" {

@@ -475,7 +475,7 @@ func TestFreshWaiting(t *testing.T) {
 	if e.lib.FreshWaiting(e.ctx) {
 		t.Error("an unreadable download is re-checked soon")
 	}
-	e.exec(`UPDATE library_import SET last_error = ? WHERE download_id = 1`, notOnMount)
+	e.exec(`UPDATE library_import SET last_error = ? WHERE download_id = 1`, NotOnMount)
 	e.exec(`UPDATE download SET ready_at = ? WHERE id = 1`, store.Millis(e.now.Add(time.Second)))
 	if e.lib.FreshWaiting(e.ctx) {
 		t.Error("a ready time in the future is fresh")

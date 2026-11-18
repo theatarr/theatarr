@@ -856,19 +856,7 @@ func (w *Web) searchNow(ctx context.Context, titleID int64, keys []string) (*Sea
 		out.Message = "Nothing to search: the title has no monitored library"
 		return out, nil
 	case len(active) == 0:
-		why := map[string][]string{}
-		var order []string
-		for _, s := range skipped {
-			if _, ok := why[s.Reason]; !ok {
-				order = append(order, s.Reason)
-			}
-			why[s.Reason] = append(why[s.Reason], s.Version)
-		}
-		var parts []string
-		for _, reason := range order {
-			parts = append(parts, reason+" ("+w.labelList(why[reason])+")")
-		}
-		out.Message = "Nothing searched: " + strings.Join(parts, "; ")
+		out.Message = "Nothing searched: " + w.skipWords(skipped)
 		return out, nil
 	case w.add.Acquirer == nil:
 		out.Versions = []string{}
