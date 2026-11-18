@@ -1419,8 +1419,21 @@ func TestHistoryFilterMatrix(t *testing.T) {
 			t.Errorf("another release replaced, said re-downloaded: %+v", h)
 		}
 	}
-	// The same release fetched again for the file it replaced: Re-downloaded, in History and on the title page.
+	// The same release name at a better score (700 over the replaced file's 300) is an upgrade, not a re-download.
 	e.exec(`UPDATE library_action SET release_title = 'Gamma.S01.2160p.WEB' WHERE path = '/tv/G/S01E01.old.mkv'`)
+	if got, _ := words(base + "&events=imported,deleted"); !slices.Equal(got, []string{"Upgraded"}) {
+		t.Errorf("same name, better score: %q", got)
+	}
+	d = TitleDetail{}
+	e.getKey(APIBase+"/titles/3", key, &d)
+	for _, h := range d.Versions[0].History {
+		if h.Redownload {
+			t.Errorf("same name at a better score, said re-downloaded: %+v", h)
+		}
+	}
+	// The same release fetched again for the file it replaced, at no better score: Re-downloaded, in History and on
+	// the title page.
+	e.exec(`UPDATE library_action SET score = 700 WHERE path = '/tv/G/S01E01.old.mkv'`)
 	if got, _ := words(base + "&events=imported,deleted"); !slices.Equal(got, []string{"Re-downloaded"}) {
 		t.Errorf("same release: %q", got)
 	}

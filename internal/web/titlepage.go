@@ -115,12 +115,14 @@ const heldNowSQL = `(CASE WHEN json_array_length(COALESCE(download.episodes, '[]
 var notStartedCol = `(state = 'failed' AND ` + activity.NotStartedSQL + `)`
 
 // redownloadSQL is whether download's upgrade rows (history, deleted) fetched the same release again: some file was
-// replaced and every replaced file has a release name, the row's own (journal HistoryRow.Redownload).
+// replaced and every replaced file has a release name, the row's own, at a score no lower than the row's (journal
+// HistoryRow.Redownload).
 const redownloadSQL = `(EXISTS (SELECT 1 FROM history x, json_each(COALESCE(x.replaced, '[]')) WHERE x.download_id = download.id
 		AND x.event = 'deleted')
 	AND NOT EXISTS (SELECT 1 FROM history x, json_each(COALESCE(x.replaced, '[]')) f WHERE x.download_id = download.id
 		AND x.event = 'deleted' AND (COALESCE(json_extract(f.value, '$.release'), '') = ''
-			OR json_extract(f.value, '$.release') IS NOT x.release)))`
+			OR json_extract(f.value, '$.release') IS NOT x.release
+			OR COALESCE(x.score > json_extract(f.value, '$.score'), 0))))`
 
 // downloadEvents appends a Theatarr download's events: grabbed, then imported or failed; a download that was never
 // tried (notStarted, notStartedCol) ends with not_started and Activity's words as the reason, not failed. h carries
