@@ -16,6 +16,7 @@ import (
 
 	"github.com/theatarr/theatarr/internal/acquire"
 	"github.com/theatarr/theatarr/internal/auth"
+	"github.com/theatarr/theatarr/internal/catalog"
 	"github.com/theatarr/theatarr/internal/policy"
 )
 
@@ -376,6 +377,11 @@ func TestManageActive(t *testing.T) {
 	if out.Episodes != 2 || !slices.Equal(out.Versions, []string{"tv-2160p"}) {
 		t.Errorf("season unmonitor: %+v", out)
 	}
+	// The library by its name, and the count's own word (W1).
+	label := e.web.versionLabel("tv-2160p")
+	if label == "tv-2160p" || out.Message != "Unmonitored 2 episodes in "+label {
+		t.Errorf("season unmonitor message %q (library %q)", out.Message, label)
+	}
 	var mon int
 	e.st.Reader().QueryRow(`SELECT SUM(monitored) FROM episode WHERE season = 1`).Scan(&mon)
 	if mon != 0 {
@@ -385,6 +391,12 @@ func TestManageActive(t *testing.T) {
 	e.st.Reader().QueryRow(`SELECT monitored FROM episode_version_state WHERE episode_id = 102`).Scan(&mon)
 	if mon != 1 || out.Episodes != 1 {
 		t.Errorf("episode monitor: %d %+v", mon, out)
+	}
+	if out.Message != "Monitored 1 episode in "+label {
+		t.Errorf("episode monitor message %q", out.Message)
+	}
+	if got := e.web.skipWords([]catalog.Skip{{Version: "tv-2160p", Reason: "Paused"}}); got != "Paused ("+label+")" {
+		t.Errorf("skip words %q", got)
 	}
 	e.call("PUT", APIBase+"/titles/10/episodes/monitor", map[string]any{"monitored": true, "episode_ids": []int64{1}}, 400, nil)
 	e.call("PUT", APIBase+"/titles/10/seasons/9/monitor", map[string]any{"monitored": true}, 404, nil)

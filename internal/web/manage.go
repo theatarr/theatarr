@@ -641,7 +641,7 @@ func (w *Web) monitor(rw http.ResponseWriter, r *http.Request, season *int) {
 		out.Versions = append(out.Versions, v.key)
 	}
 	if len(out.Versions) == 0 {
-		out.Message = "Nothing changed: " + skipWords(out.Skipped)
+		out.Message = "Nothing changed: " + w.skipWords(out.Skipped)
 		if len(picked) == 0 {
 			out.Message = "Nothing changed: the title is in no library"
 		}
@@ -679,17 +679,21 @@ func (w *Web) monitor(rw http.ResponseWriter, r *http.Request, season *int) {
 	if !*req.Monitored {
 		word = "Unmonitored"
 	}
-	out.Message = fmt.Sprintf("%s %d episode(s) in %s", word, out.Episodes, strings.Join(out.Versions, ", "))
+	noun := "episodes"
+	if out.Episodes == 1 {
+		noun = "episode"
+	}
+	out.Message = fmt.Sprintf("%s %d %s in %s", word, out.Episodes, noun, w.labelList(out.Versions))
 	if len(out.Skipped) > 0 {
-		out.Message += "; not changed: " + skipWords(out.Skipped)
+		out.Message += "; not changed: " + w.skipWords(out.Skipped)
 	}
 	w.log.Info("episodes monitored", "title", t.id, "versions", strings.Join(out.Versions, ","), "monitored",
 		*req.Monitored, "episodes", out.Episodes)
 	writeJSON(rw, http.StatusOK, out)
 }
 
-// skipWords joins skips as "reason (versions)" by reason.
-func skipWords(skipped []catalog.Skip) string {
+// skipWords joins skips as "reason (libraries)" by reason, the libraries by name.
+func (w *Web) skipWords(skipped []catalog.Skip) string {
 	why := map[string][]string{}
 	var order []string
 	for _, s := range skipped {
@@ -700,7 +704,7 @@ func skipWords(skipped []catalog.Skip) string {
 	}
 	var parts []string
 	for _, reason := range order {
-		parts = append(parts, reason+" ("+strings.Join(why[reason], ", ")+")")
+		parts = append(parts, reason+" ("+w.labelList(why[reason])+")")
 	}
 	return strings.Join(parts, "; ")
 }
@@ -777,7 +781,7 @@ func (w *Web) searchScoped(rw http.ResponseWriter, r *http.Request, season *int)
 	case len(keys) == 0:
 		out.Message = "Nothing to search: the title has no monitored library"
 	case len(active) == 0:
-		out.Message = "Nothing searched: " + skipWords(skipped)
+		out.Message = "Nothing searched: " + w.skipWords(skipped)
 	case w.add.Acquirer == nil:
 		out.Versions = []string{}
 		out.Message = "Nothing searched: the acquirer is not running"
@@ -803,7 +807,7 @@ func (w *Web) searchScoped(rw http.ResponseWriter, r *http.Request, season *int)
 			out.Message = fmt.Sprintf("Searching %s in %s", scope, where)
 		}
 		if len(skipped) > 0 {
-			out.Message += "; not searched: " + skipWords(skipped)
+			out.Message += "; not searched: " + w.skipWords(skipped)
 		}
 		w.log.Info("search now", "title", t.id, "scope", scope, "versions", strings.Join(active, ","), "queued", queued)
 	}

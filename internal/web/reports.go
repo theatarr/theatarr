@@ -591,7 +591,7 @@ func (w *Web) replaceBlocked(f ReportFile, kind string, on []string, monitored m
 		for i := range skipped {
 			skipped[i].Version = w.versionLabel(skipped[i].Version)
 		}
-		return "Not searched now: " + skipWords(skipped)
+		return "Not searched now: " + w.skipWords(skipped)
 	}
 	var unfit []string
 	for _, k := range f.Versions {
