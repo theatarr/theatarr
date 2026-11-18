@@ -112,6 +112,17 @@ describe("recovery scopes", () => {
     expect(filesOnly.cleanup).toBeDefined();
   });
 
+  it("says how many requests a removal cancels, only when it cancels any", () => {
+    const one = { name: "Dune", title: false, copies: [{ key: "movie-web", label: "4K WEB", links: 0, downloads: 0 }] };
+    expect(removalScope(one, false).does.join("\n")).not.toContain("request");
+    expect(removalScope({ ...one, requests: 1 }, false).does).toContain("1 request for it is canceled");
+    expect(removalScope({ ...one, requests: 2 }, true).does).toContain("2 requests for it are canceled");
+    const other = { ...one, name: "Arrival" };
+    expect(bulkRemovalScope([one, other], false).does.join("\n")).not.toContain("request");
+    expect(bulkRemovalScope([{ ...one, requests: 1 }, { ...other, requests: 2 }], false).does).toContain("3 requests for them are canceled");
+    expect(bulkRemovalScope([{ ...one, requests: 1 }], false, false, "4K WEB").does).toContain("1 request for it is canceled");
+  });
+
   it("scopes a title removal", () => {
     const all = {
       name: "Dune",

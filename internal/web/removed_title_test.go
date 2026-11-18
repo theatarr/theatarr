@@ -376,3 +376,52 @@ func TestTitleRemovedFollowsArrDelete(t *testing.T) {
 		t.Errorf("request after an arr delete: %s %q %v", s, reason, err)
 	}
 }
+
+// The removal scope counts the open requests the removal cancels, by the cancellation's own rule: after the sync
+// expansion, with libraries removed before counted as gone, pending requests left out; the removal then cancels
+// exactly those.
+func TestRemovalScopeCountsCanceledRequests(t *testing.T) {
+	t.Parallel()
+	o := syncOpsEnv(t, "movie-web", "movie-hd")
+	now := store.Millis(testNow)
+	o.exec(`INSERT INTO request (id, user_id, kind, title_id, name, versions, status, decided_at, created_at, updated_at)
+		VALUES (401, 1, 'movie', 1, 'Alpha', '["movie-hd"]', 'approved', ?, ?, ?),
+		(402, 1, 'movie', 1, 'Alpha', '["movie-remux","movie-web"]', 'available', ?, ?, ?),
+		(403, 1, 'movie', 1, 'Alpha', '["movie-web"]', 'failed', ?, ?, ?),
+		(404, 1, 'movie', 1, 'Alpha', '["movie-web"]', 'pending', NULL, ?, ?),
+		(405, 1, 'movie', 2, 'Beta', '["movie-web"]', 'processing', ?, ?, ?)`,
+		now, now, now, now, now, now, now, now, now, now, now, now, now, now)
+	scope := func(q string) int {
+		var s RemovalScope
+		if code := o.jsonCall("GET", APIBase+"/titles/1/removal"+q, nil, o.mc, "", &s); code != 200 {
+			t.Fatalf("scope %s: %d", q, code)
+		}
+		return s.Requests
+	}
+	// web takes hd along: 401 and 403 lose every library, 402 keeps remux.
+	if n := scope("?versions=movie-web"); n != 2 {
+		t.Errorf("web: %d requests, want 2", n)
+	}
+	if n := scope("?versions=movie-remux"); n != 0 {
+		t.Errorf("remux: %d requests, want 0", n)
+	}
+	// Remux removed before: 402 has nothing left either.
+	o.exec(`INSERT INTO arrview_removed_version (version_id, view, removed_at)
+		SELECT id, 'radarr', 0 FROM version WHERE title_id = 1 AND policy_key = 'movie-remux'`)
+	if n := scope("?versions=movie-web"); n != 3 {
+		t.Errorf("web after remux: %d requests, want 3", n)
+	}
+	var bulk BulkRemovalScope
+	if code := o.jsonCall("POST", APIBase+"/titles/removal", BulkRemovalRequest{TitleIDs: []int64{1, 2},
+		Versions: []string{"movie-web"}}, o.mc, o.mcsrf, &bulk); code != 200 || len(bulk.Scopes) != 2 ||
+		bulk.Scopes[0].Requests != 3 || bulk.Scopes[1].Requests != 1 {
+		t.Fatalf("bulk: %d %+v", code, bulk)
+	}
+	if code := o.jsonCall("POST", APIBase+"/titles/1/remove", RemoveRequest{Versions: []string{"movie-web"}}, o.mc,
+		o.mcsrf, nil); code != 200 {
+		t.Fatalf("remove: %d", code)
+	}
+	if n := o.count(`SELECT COUNT(*) FROM request WHERE title_id = 1 AND status = 'canceled'`); n != 3 {
+		t.Errorf("canceled %d, want the 3 counted", n)
+	}
+}

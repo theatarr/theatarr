@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -804,6 +805,9 @@ type RemovalScope struct {
 	// with unlink whose file moves failed part way, or one without unlink): a removal with unlink moves their links to
 	// the trash too, and finishes the earlier one.
 	Leftover []RemovalCopy `json:"leftover"`
+	// Requests is how many of the title's open requests (approved, processing, failed, available) the removal cancels:
+	// those left with no library they ask for that is not removed (the rule of syncRequestsAfter).
+	Requests int `json:"requests"`
 }
 
 // removalScope reads what removing keys (every copy when empty) of a title would touch.
@@ -823,7 +827,7 @@ type scopeRead struct {
 	err   error
 }
 
-// removalScopes reads removalScope for many titles in three queries (the selection bar's Remove). Named keys bring
+// removalScopes reads removalScope for many titles in a few queries (the selection bar's Remove). Named keys bring
 // the copies kept in sync with them (catalog.SyncRemovals) before the scope says whether the title goes; the bad-key
 // check and the leftover copies stay on the keys named.
 func (w *Web) removalScopes(ctx context.Context, ids []int64, keys []string) (map[int64]scopeRead, error) {
@@ -921,7 +925,68 @@ func (w *Web) removalScopes(ctx context.Context, ids []int64, keys []string) (ma
 		s.Title = len(live[id]) > 0 && len(s.Copies) == len(live[id])
 		out[id] = scopeRead{scope: s, err: bad}
 	}
+	if err := w.removalRequests(ctx, where, in, scopes); err != nil {
+		return nil, err
+	}
 	return out, nil
+}
+
+// removalRequests counts in each scope the open requests its removal cancels, by the rule the cancellation uses
+// (dropRemovedVersions): a request is canceled when every library it asks for is in the scope or removed before.
+func (w *Web) removalRequests(ctx context.Context, where string, in []any, scopes map[int64]*RemovalScope) error {
+	asked := map[int64][][]string{}
+	err := scanAll(ctx, w.st.Reader(), `SELECT title_id, versions FROM request WHERE title_id IN `+where+`
+		AND status IN ('approved', 'processing', 'failed', 'available')`, in, func(r *sql.Rows) error {
+		var id int64
+		var versions string
+		if err := r.Scan(&id, &versions); err != nil {
+			return err
+		}
+		var keys []string
+		if err := json.Unmarshal([]byte(versions), &keys); err != nil {
+			return err
+		}
+		asked[id] = append(asked[id], keys)
+		return nil
+	})
+	if err != nil || len(asked) == 0 {
+		return err
+	}
+	gone := map[int64]map[string]bool{}
+	err = scanAll(ctx, w.st.Reader(), `SELECT v.title_id, v.policy_key FROM version v WHERE v.title_id IN `+where+`
+		AND NOT `+liveVersion, in, func(r *sql.Rows) error {
+		var id int64
+		var k string
+		if err := r.Scan(&id, &k); err != nil {
+			return err
+		}
+		if gone[id] == nil {
+			gone[id] = map[string]bool{}
+		}
+		gone[id][k] = true
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	for id, reqs := range asked {
+		s := scopes[id]
+		if s == nil {
+			continue
+		}
+		for _, c := range s.Copies {
+			if gone[id] == nil {
+				gone[id] = map[string]bool{}
+			}
+			gone[id][c.Key] = true
+		}
+		for _, keys := range reqs {
+			if len(keys) > 0 && !slices.ContainsFunc(keys, func(k string) bool { return !gone[id][k] }) {
+				s.Requests++
+			}
+		}
+	}
+	return nil
 }
 
 var errBadRemoval = errors.New("bad removal")

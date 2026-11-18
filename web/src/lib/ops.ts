@@ -129,7 +129,13 @@ export function unblockScope(release: string, copy: string, search: boolean): Sc
 export type RemovalCopyLike = { key: string; label: string; links: number; downloads: number; sync_of?: string };
 /** leftover: copies removed before whose library links are still active (an earlier removal's failed moves).
  *  A copy's links are its library links, active or dead (a removal with the files moves both). */
-export type RemovalScopeLike = { name: string; title: boolean; copies: RemovalCopyLike[]; leftover?: RemovalCopyLike[] };
+export type RemovalScopeLike = { name: string; title: boolean; copies: RemovalCopyLike[]; leftover?: RemovalCopyLike[]; requests?: number };
+
+/** The requests a removal cancels (those left with no library they ask for), when there are any: "1 request for it
+ *  is canceled". */
+function requestsLine(n: number, them: boolean): string[] {
+  return n > 0 ? [`${plural(n, "request")} for ${them ? "them" : "it"} ${n === 1 ? "is" : "are"} canceled`] : [];
+}
 
 /** A library with what it holds, as the removal dialog lists it: "4K WEB (2 files, 1 download in progress)". The
  *  counts are the library's own: a file two libraries share is in both. */
@@ -212,6 +218,7 @@ export function removalScope(s: RemovalScopeLike, files: boolean, debrid = files
   // (a view can cover several) still shows it.
   if (s.title) does.push("It is hidden from Seerr and the other arr clients");
   else does.push(`${names} ${s.copies.length === 1 ? "loses its copy" : "lose their copies"}. ${REMAINING_COPY} ${s.name}`);
+  does.push(...requestsLine(s.requests ?? 0, false));
   if (downloads > 0) does.push(`Theatarr stops following ${plural(downloads, "download")} in progress`);
   if (files && withFiles.length) does.push(`The library files of ${namesList(withFiles)} are deleted from the library (moved to Theatarr's trash), and the folders they leave empty are removed`);
   if (debrid) does.push(REMOVAL_CLEANUP);
@@ -282,6 +289,7 @@ export function bulkRemovalScope(scopes: readonly RemovalScopeLike[], files: boo
   if (library && !partly && whole > 0) does.push(`${plural(whole, "title")} ${whole === 1 ? "has no copy left and leaves" : "have no copy left and leave"} the library`);
   if (!partly) does.push(`${they} hidden from Seerr and the other arr clients`);
   does.push(...syncLines(scopes, files, debrid));
+  does.push(...requestsLine(sum((s) => s.requests ?? 0), !one));
   if ([...byLibrary.values()].some((c) => c.links || c.downloads)) does.push(`By library: ${[...byLibrary.values()].map(withCounts).join(", ")}`);
   if (downloads > 0) does.push(`Theatarr stops following ${plural(downloads, "download")} in progress`);
   if (files && links > 0) does.push(`${one ? "Its" : "Their"} library files are deleted from the library (moved to Theatarr's trash), and the folders they leave empty are removed`);
