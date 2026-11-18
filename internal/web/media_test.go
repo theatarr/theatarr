@@ -25,6 +25,14 @@ func wantProbeMedia(t *testing.T, m *MediaInfo) {
 	}
 }
 
+// wantProbeTracks checks mediaProbe's audio tracks: every one, in the formatter's words.
+func wantProbeTracks(t *testing.T, m *MediaInfo) {
+	t.Helper()
+	if want := []AudioTrack{{Codec: "EAC3", Channels: 5.1, Language: "eng"}, {Codec: "AAC", Channels: 2, Language: "jpn"}}; !slices.Equal(m.AudioTracks, want) || m.AudioStreams != 0 {
+		t.Fatalf("audio tracks %+v streams %d", m.AudioTracks, m.AudioStreams)
+	}
+}
+
 // TestTitleMediaFromProbe: a movie version with a file Theatarr imported shows the media of its stored probe.
 func TestTitleMediaFromProbe(t *testing.T) {
 	t.Parallel()
@@ -44,6 +52,12 @@ func TestTitleMediaFromProbe(t *testing.T) {
 		t.Fatalf("no current file: %+v", d.Versions[0])
 	}
 	wantProbeMedia(t, d.Versions[0].Current.Media)
+	wantProbeTracks(t, d.Versions[0].Current.Media)
+	// A household account sees no media: it is file detail.
+	if body := e.userBody(APIBase + "/titles/1"); strings.Contains(body, `"media"`) || strings.Contains(body, `"audio_tracks"`) ||
+		strings.Contains(body, "EAC3") {
+		t.Errorf("household %s", body)
+	}
 }
 
 // TestTitleMediaFromAdoptedLink: an adopted link (no download, no probe) shows the media info its arr had recorded.
@@ -54,7 +68,7 @@ func TestTitleMediaFromAdoptedLink(t *testing.T) {
 	e.exec(`INSERT INTO link (id, path, target, title_id, release_title, adopted_from, adopted_media, state, created_at,
 		updated_at) VALUES (1, '/theatarr/Alpha (2020)/Alpha.mkv', '/mount/Alpha.mkv', 1, 'Alpha.2020.2160p.WEB-DL-GRP',
 		'radarr /movies/Alpha.mkv', '{"resolution":"3840x2160","videoCodec":"x265","videoDynamicRangeType":"DV HDR10",
-		"audioCodec":"TrueHD Atmos","audioChannels":7.1}', 'active', 0, 0)`)
+		"audioCodec":"TrueHD Atmos","audioChannels":7.1,"audioStreamCount":13}', 'active', 0, 0)`)
 	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (1, 1)`)
 	var d TitleDetail
 	e.call("GET", APIBase+"/titles/1", nil, 200, &d)
@@ -62,6 +76,14 @@ func TestTitleMediaFromAdoptedLink(t *testing.T) {
 	if c == nil || c.Media == nil || c.Media.VideoCodec != "x265" || c.Media.VideoDynamicRange != "DV HDR10" ||
 		c.Media.AudioCodec != "TrueHD Atmos" || c.Media.AudioChannels != 7.1 || c.Media.Resolution != "3840x2160" {
 		t.Fatalf("current %+v", c)
+	}
+	// The arr recorded the first track only: no track list, its stream count instead.
+	if c.Media.AudioTracks != nil || c.Media.AudioStreams != 13 {
+		t.Fatalf("adopted audio %+v streams %d", c.Media.AudioTracks, c.Media.AudioStreams)
+	}
+	// One stream is no count.
+	if m := parseMedia(`{"audioCodec":"AC3","audioStreamCount":1}`); m == nil || m.AudioStreams != 0 {
+		t.Fatalf("one stream %+v", m)
 	}
 }
 
@@ -85,6 +107,7 @@ func TestEpisodeMediaFromProbe(t *testing.T) {
 		t.Fatalf("file %+v", ep.Versions[0].File)
 	}
 	wantProbeMedia(t, ep.Versions[0].File.Media)
+	wantProbeTracks(t, ep.Versions[0].File.Media)
 }
 
 // TestEpisodeListFileFacts: the episode list's cells carry the file's media (an adopted file's arr media info, or
@@ -134,6 +157,9 @@ func TestEpisodeListFileFacts(t *testing.T) {
 	e.exec(`INSERT INTO link_episode (link_id, episode_id) VALUES (1, 101)`)
 	c1, _ = cells()
 	wantProbeMedia(t, c1.Media)
+	if c1.Media.AudioTracks != nil { // the episode window lists them; no list cell reads them
+		t.Errorf("list cell audio tracks %+v", c1.Media.AudioTracks)
+	}
 	if c1.ReleaseGroup != "NEW" || c1.Quality != "WEBDL-2160p" || !slices.Equal(c1.Languages, []string{"English", "Japanese"}) ||
 		len(c1.Formats) != 2 || c1.Formats[0].Name != "HDR10" || c1.Formats[0].Score != 500 || c1.Formats[1].Name != "WEB Tier 01" ||
 		c1.InfoHash != "aa" || !slices.Equal(c1.CachedOn, []string{"new-acct"}) {

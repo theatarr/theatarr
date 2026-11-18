@@ -20,6 +20,7 @@ import (
 	"github.com/theatarr/theatarr/internal/indexer"
 	"github.com/theatarr/theatarr/internal/journal"
 	"github.com/theatarr/theatarr/internal/journal/snapshot"
+	"github.com/theatarr/theatarr/internal/library/naming"
 	"github.com/theatarr/theatarr/internal/library/probe"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/store"
@@ -169,6 +170,26 @@ type MediaInfo struct {
 	AudioLanguages    string  `json:"audio_languages,omitempty"`
 	Subtitles         string  `json:"subtitles,omitempty"`
 	RunTime           string  `json:"run_time,omitempty"`
+	// AudioTracks is every audio track of Theatarr's own probe, in file order; a taken-over file has none (its arr
+	// recorded only the first track) and AudioStreams instead: the arr's audioStreamCount when above one. A Matroska
+	// probe read the profile (Atmos, DTS-HD MA) of the first track only, so later tracks there read as their codec
+	// family ("TrueHD", "DTS"). AudioCodec and AudioChannels stay the first track's.
+	AudioTracks  []AudioTrack `json:"audio_tracks,omitempty"`
+	AudioStreams int          `json:"audio_streams,omitempty"`
+}
+
+// AudioTrack is one audio track of a probed file, its codec and channels in the formatter's words.
+type AudioTrack struct {
+	Codec    string  `json:"codec,omitempty"`
+	Channels float64 `json:"channels,omitempty"`
+	Language string  `json:"language,omitempty"`
+}
+
+// empty reports whether m carries nothing.
+func (m *MediaInfo) empty() bool {
+	return m.Resolution == "" && m.VideoCodec == "" && m.VideoBitDepth == 0 && m.VideoDynamicRange == "" &&
+		m.AudioCodec == "" && m.AudioChannels == 0 && m.AudioLanguages == "" && m.Subtitles == "" && m.RunTime == "" &&
+		len(m.AudioTracks) == 0 && m.AudioStreams == 0
 }
 
 func parseMedia(s string) *MediaInfo {
@@ -183,6 +204,7 @@ func parseMedia(s string) *MediaInfo {
 		AudioLanguages        string  `json:"audioLanguages"`
 		Subtitles             string  `json:"subtitles"`
 		RunTime               string  `json:"runTime"`
+		AudioStreamCount      int     `json:"audioStreamCount"`
 	}
 	if s == "" || json.Unmarshal([]byte(s), &raw) != nil {
 		return nil
@@ -193,7 +215,10 @@ func parseMedia(s string) *MediaInfo {
 	if m.VideoDynamicRange == "" {
 		m.VideoDynamicRange = raw.VideoDynamicRange
 	}
-	if *m == (MediaInfo{}) {
+	if raw.AudioStreamCount > 1 {
+		m.AudioStreams = raw.AudioStreamCount
+	}
+	if m.empty() {
 		return nil
 	}
 	return m
@@ -219,7 +244,12 @@ func probeMedia(raw, scene string, sonarr bool) *MediaInfo {
 	if secs := int64(r.RunTimeSeconds); secs > 0 {
 		m.RunTime = fmt.Sprintf("%d:%02d:%02d", secs/3600, secs/60%60, secs%60)
 	}
-	if *m == (MediaInfo{}) {
+	for _, a := range r.Audio {
+		tm := a.Model()
+		m.AudioTracks = append(m.AudioTracks, AudioTrack{Codec: naming.FormatAudioCodec(tm),
+			Channels: naming.FormatAudioChannels(tm), Language: strings.TrimSpace(a.Language)})
+	}
+	if m.empty() {
 		return nil
 	}
 	return m

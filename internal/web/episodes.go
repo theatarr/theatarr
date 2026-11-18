@@ -266,6 +266,9 @@ func (w *Web) titleEpisodes(ctx context.Context, id int64, season int, seeFiles 
 				if !ok && (season < 0 || all[i].Season == int64(season)) {
 					linkFacts(&f.file, meta.String)
 					f.media = linkMedia(pr, am, adopted, release, true)
+					if f.media != nil {
+						f.media.AudioTracks = nil // the episode window lists the tracks; no list cell reads them
+					}
 					parsed[lid] = f
 				}
 				c.SizeBytes, c.Score, c.ReleaseGroup, c.ReleaseTitle, c.Path, c.InfoHash = nullInt(size), nullInt(score),

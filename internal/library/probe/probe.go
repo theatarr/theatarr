@@ -206,6 +206,13 @@ func channelLayout(ch int) string {
 	return ""
 }
 
+// Model is the audio part of the arrs' MediaInfoModel for this one track, from which naming formats its codec and
+// channels (FormatAudioCodec, FormatAudioChannels) as it does the first track's.
+func (a Audio) Model() *naming.Model {
+	return &naming.Model{AudioFormat: a.Codec, AudioCodecID: a.Tag, AudioProfile: a.Profile, AudioChannels: a.Channels,
+		AudioChannelPositions: channelLayout(a.Channels)}
+}
+
 // Model converts the result to the arrs' MediaInfoModel, from which naming formats the tokens.
 func (r *Result) Model() *naming.Model {
 	m := &naming.Model{ContainerFormat: r.Container, RunTimeSeconds: r.RunTimeSeconds, AudioStreamCount: len(r.Audio)}
@@ -229,9 +236,9 @@ func (r *Result) Model() *naming.Model {
 		m.VideoHdrFormat = naming.HdrFormatOf(m.VideoBitDepth, v.Primaries, v.Transfer, v.DoviCompat, v.HDR10Plus, v.Mastering)
 	}
 	if len(r.Audio) > 0 {
-		a := r.Audio[0]
-		m.AudioFormat, m.AudioCodecID, m.AudioProfile, m.AudioChannels = a.Codec, a.Tag, a.Profile, a.Channels
-		m.AudioChannelPositions = channelLayout(a.Channels)
+		a := r.Audio[0].Model()
+		m.AudioFormat, m.AudioCodecID, m.AudioProfile, m.AudioChannels = a.AudioFormat, a.AudioCodecID, a.AudioProfile, a.AudioChannels
+		m.AudioChannelPositions = a.AudioChannelPositions
 	}
 	for _, a := range r.Audio {
 		if strings.TrimSpace(a.Language) != "" {
