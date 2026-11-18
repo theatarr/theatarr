@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/theatarr/theatarr/internal/catalog"
 	"github.com/theatarr/theatarr/internal/store"
@@ -61,8 +62,8 @@ func (w *Web) bringInSyncAnswer(group []string, gains []catalog.SyncGain) BringI
 				if len(lib.Names) < syncPreviewNames {
 					// With its year: two titles can share a name.
 					name := g.Name
-					if g.Year > 0 {
-						name += " (" + strconv.Itoa(g.Year) + ")"
+					if y := " (" + strconv.Itoa(g.Year) + ")"; g.Year > 0 && !strings.HasSuffix(name, y) {
+						name += y
 					}
 					lib.Names = append(lib.Names, name)
 				}

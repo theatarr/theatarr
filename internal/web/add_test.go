@@ -2080,6 +2080,8 @@ func TestBringInSync(t *testing.T) {
 	series(41, "Removed C", "tv-2160p", "tv-c!")
 	series(42, "Unmonitored", "tv-2160p-", "tv-b-")
 	series(43, "Complete", "tv-2160p", "tv-b-", "tv-c!")
+	// A name that already ends in its year is not given it twice.
+	e.exec(`UPDATE title SET name = 'Only B (2024)', year = 2024 WHERE id = 40`)
 	path := APIBase + "/settings/versions/tv-b/bring-in-sync"
 	var b BringInSync
 	e.call("GET", path, nil, 200, &b)
@@ -2093,7 +2095,7 @@ func TestBringInSync(t *testing.T) {
 	// A copy removed from a library of the group comes back (Removed C's and Complete's tv-c); an existing
 	// unmonitored one stays as it is (Complete's tv-b). A title is named with its year when it has one ("Scream" is two
 	// films).
-	want := "5 tv-2160p:1[Only B] tv-b:2[Removed C The Show (2019)] tv-c:5[Complete Only B Removed C The Show (2019) Unmonitored]"
+	want := "5 tv-2160p:1[Only B (2024)] tv-b:2[Removed C The Show (2019)] tv-c:5[Complete Only B (2024) Removed C The Show (2019) Unmonitored]"
 	if got := counts(b); got != want || b.Source == "" {
 		t.Errorf("preview %s, want %s", got, want)
 	}
