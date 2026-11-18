@@ -551,3 +551,29 @@ func TestReplaceBlockedNamesLibrariesOnce(t *testing.T) {
 		t.Errorf("replace blocked: %q", got)
 	}
 }
+
+// The episode window's file says when its link has no download (taken over from an arr), where Change episodes
+// cannot keep a choice; a file of Theatarr's own download does not.
+func TestEpisodeFileNoDownload(t *testing.T) {
+	t.Parallel()
+	e := newManageEnv(t, nil)
+	file := func() *EpisodeFile {
+		t.Helper()
+		var ep EpisodeDetail
+		e.call("GET", APIBase+"/titles/10/episodes/101", nil, 200, &ep)
+		if len(ep.Versions) == 0 || ep.Versions[0].File == nil {
+			t.Fatalf("no file: %+v", ep)
+		}
+		return ep.Versions[0].File
+	}
+	if f := file(); f.LinkID != 900 || !f.NoDownload {
+		t.Errorf("adopted: %+v", f)
+	}
+	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, provider,
+		state, source, episodes, created_at, updated_at) VALUES (40, 10, 10, 'tv-2160p', ?, 'The.Show.S01E01.1080p.WEB-DL-GRP',
+		'idx', 'rd', 'imported', 'acquire:1', '[101]', 0, 0)`, strings.Repeat("ef", 20))
+	e.exec(`UPDATE link SET download_id = 40, adopted = 0 WHERE id = 900`)
+	if f := file(); f.LinkID != 900 || f.NoDownload {
+		t.Errorf("own download: %+v", f)
+	}
+}

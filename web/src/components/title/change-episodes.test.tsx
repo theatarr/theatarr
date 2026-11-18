@@ -69,3 +69,13 @@ it("offers Change episodes to admins only", async () => {
   expect(within(drawer).getByText(path)).toBeTruthy();
   expect(within(drawer).queryByTestId("change-episodes")).toBeNull();
 });
+
+it("disables Change episodes, with the reason, for a file taken over from Sonarr or Radarr", async () => {
+  const adopted = { ...detail, versions: [{ ...detail.versions[0], file: { ...detail.versions[0].file, no_download: true } }] };
+  mockFetch([me(["admin", "manage", "see_files"]), { method: "GET", path: "/titles/1/episodes", reply: episodes }, { method: "GET", path: "/titles/1/episodes/201", reply: adopted }]);
+  renderPage(<Seasons id="1" anime={false} />, "/title/1?episode=201");
+  const drawer = await screen.findByRole("dialog");
+  await within(drawer).findByTestId("episode-file");
+  expect(within(drawer).getByTestId("change-episodes").hasAttribute("disabled")).toBe(true);
+  expect(within(drawer).getByTestId("change-episodes-why").textContent).toBe("Taken over from Sonarr or Radarr: use Manual import to change its episodes");
+});

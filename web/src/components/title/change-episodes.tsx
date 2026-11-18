@@ -59,14 +59,20 @@ function ChangeEpisodesDialog({ titleId, linkId, path, copy, held, onClose }: { 
   );
 }
 
-/** The File section's "Change episodes" for one of Theatarr's links (admins only; the caller checks). */
-export function ChangeEpisodes({ titleId, linkId, path, copy, held }: { titleId: number; linkId: number; path: string; copy: string; held: string[] }) {
+/** Why Change episodes is off for a link without a download (taken over from an arr): the choice has nowhere to be
+ *  kept, so the server would refuse it. */
+export const CHANGE_EPISODES_NO_DOWNLOAD = "Taken over from Sonarr or Radarr: use Manual import to change its episodes";
+
+/** The File section's "Change episodes" for one of Theatarr's links (admins only; the caller checks). A link with no
+ *  download gets the button disabled, with the reason. */
+export function ChangeEpisodes({ titleId, linkId, path, copy, held, noDownload = false }: { titleId: number; linkId: number; path: string; copy: string; held: string[]; noDownload?: boolean }) {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <Button size="xs" variant="outline" onClick={() => setOpen(true)} data-testid="change-episodes">
+      <Button size="xs" variant="outline" onClick={() => setOpen(true)} disabled={noDownload} data-testid="change-episodes">
         <ListOrdered /> Change episodes
       </Button>
+      {noDownload ? <p className="mt-1 text-xs text-[var(--ink-3)]" data-testid="change-episodes-why">{CHANGE_EPISODES_NO_DOWNLOAD}</p> : null}
       {open ? <ChangeEpisodesDialog titleId={titleId} linkId={linkId} path={path} copy={copy} held={held} onClose={() => setOpen(false)} /> : null}
     </>
   );

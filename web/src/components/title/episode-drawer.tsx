@@ -228,7 +228,7 @@ function DetailsPart({ titleId, eid, epCode, d, aired, manage, admin, single, ac
           ) : null}
           {admin && d.file?.link_id ? (
             <div className="mt-3">
-              <ChangeEpisodes titleId={titleId} linkId={d.file.link_id} path={d.file.path ?? ""} copy={d.label || nameOf(d.key)} held={d.file.episodes ?? []} />
+              <ChangeEpisodes titleId={titleId} linkId={d.file.link_id} path={d.file.path ?? ""} copy={d.label || nameOf(d.key)} held={d.file.episodes ?? []} noDownload={!!d.file.no_download} />
             </div>
           ) : null}
         </div>

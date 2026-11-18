@@ -836,6 +836,8 @@ type EpisodeFile struct {
 	AddTo []string `json:"add_to,omitempty"`
 	// ReplaceScope: Replace file for the link (managers; linkreplace.go).
 	ReplaceScope *ReplaceScope `json:"replace_scope,omitempty"`
+	// NoDownload: the link has no download (taken over from an arr), so Change episodes cannot keep a choice on it.
+	NoDownload bool `json:"no_download,omitempty"`
 }
 
 // EpisodeVersionDetail is one version of an episode.
@@ -1029,7 +1031,7 @@ func (w *Web) episodeFile(ctx context.Context, db *sql.DB, versionID, eid int64,
 	if err != nil {
 		return nil, err
 	}
-	f.LinkID, f.Score, f.SizeBytes = linkID, nullInt(score), nullInt(size)
+	f.LinkID, f.Score, f.SizeBytes, f.NoDownload = linkID, nullInt(score), nullInt(size), adopted
 	f.Media = linkMedia(pr, am, adopted, f.ReleaseTitle, true)
 	held, err := heldByHash(ctx, db, f.InfoHash)
 	if err != nil {
