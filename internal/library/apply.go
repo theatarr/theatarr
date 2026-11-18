@@ -57,18 +57,15 @@ func (l *Library) apply(ctx context.Context, d *importDownload, vn *VersionNamin
 	files := map[string]linkedFile{}
 	for i := range plan.Links {
 		lk := &plan.Links[i]
-		file := withFacts(*metadata, lk.facts, lk.File, lk.Target, lk.size)
-		if d.Manual[lk.File].Overrides != nil {
-			// Scored once, with its own standing, as the plan named it (fileFormats).
-			mf := lk.manual
-			if mf == nil {
-				if mf, err = l.manualMetadata(ctx, d, lk.facts, lk.File, lk.Target, lk.size, lk.Episodes); err != nil {
-					return err
-				}
+		var file decide.ExistingFile
+		if lk.manual != nil {
+			// A file with manual choices: scored once, with its own standing, as the plan named it (fileFormats).
+			file = *lk.manual
+		} else {
+			file = withFacts(*metadata, lk.facts, lk.File, lk.Target, lk.size)
+			if v.Policy.PreferSeaDex {
+				decide.ResolveIncomingSeaDexFile(ctx, title, &file, lk.Episodes)
 			}
-			file = *mf
-		} else if v.Policy.PreferSeaDex {
-			decide.ResolveIncomingSeaDexFile(ctx, title, &file, lk.Episodes)
 		}
 		b, err := json.Marshal(&file)
 		if err != nil {
