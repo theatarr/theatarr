@@ -1660,6 +1660,10 @@ func TestEditTitleTags(t *testing.T) {
 	if out := post(`{"title_ids":[3],"add":["kids"]}`, 200); out["changed"] != 0.0 || copies(3, "kids") != "" {
 		t.Errorf("no copy: %v", out)
 	}
+	// A new label for titles none of which has a current copy is not created.
+	if out := post(`{"title_ids":[3],"add":["stray"]}`, 200); out["changed"] != 0.0 || labels("stray") != 0 {
+		t.Errorf("stray label: %v, %d labels", out, labels("stray"))
+	}
 	// Two titles at once.
 	if out := post(`{"title_ids":[1,2],"add":["bulk"]}`, 200); out["changed"] != 2.0 || out["tags"] != nil {
 		t.Errorf("bulk add: %v", out)

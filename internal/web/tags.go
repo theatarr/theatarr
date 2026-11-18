@@ -2,6 +2,7 @@ package web
 
 import (
 	"database/sql"
+	"encoding/json"
 	"net/http"
 	"slices"
 	"strings"
@@ -100,7 +101,19 @@ func (w *Web) apiTitleTags(rw http.ResponseWriter, r *http.Request) {
 	err := w.st.WriteTx(ctx, func(tx *sql.Tx) error {
 		out.Changed = 0
 		var addIDs, removeIDs []int64
+		// A label is created only for titles that have a current copy to put it on.
+		var current bool
+		if len(add) > 0 {
+			if err := tx.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM version v WHERE v.title_id IN
+				(SELECT value FROM json_each(?)) AND NOT EXISTS (SELECT 1 FROM arrview_removed_version r WHERE r.version_id = v.id))`,
+				titleIDsJSON(ids)).Scan(&current); err != nil {
+				return err
+			}
+		}
 		for _, l := range add {
+			if !current {
+				break
+			}
 			id, _, err := catalog.FindOrCreateTag(ctx, tx, l, w.now())
 			if err != nil {
 				return err
@@ -162,4 +175,10 @@ func (w *Web) apiTitleTags(rw http.ResponseWriter, r *http.Request) {
 		out.Tags = tags[ids[0]]
 	}
 	writeJSON(rw, http.StatusOK, out)
+}
+
+// titleIDsJSON is ids as a JSON array, for json_each.
+func titleIDsJSON(ids []int64) string {
+	b, _ := json.Marshal(ids)
+	return string(b)
 }
