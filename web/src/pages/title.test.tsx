@@ -310,6 +310,34 @@ describe("Title page facts (J5)", () => {
       await waitFor(() => expect(screen.queryByTestId("title-tags-dialog")).toBeNull());
     });
 
+    it("treats a label another app spelled Kids as kids: one chip, and × on it sends only the remove", async () => {
+      const api = page({ versions: inLib, tags: ["Kids", "old"] });
+      const user = userEvent.setup();
+      await user.click(await screen.findByTestId("title-tags-edit"));
+      const dialog = await screen.findByTestId("title-tags-dialog");
+      const box = within(dialog).getByTestId("tag-input");
+      await user.type(box, "kids{Enter}");
+      expect(within(dialog).getByTestId("tag-chips").textContent).toBe("Kidsold");
+      // × on a label added in this edit only cancels it.
+      await user.type(box, "new{Enter}");
+      await user.click(within(dialog).getByRole("button", { name: "Remove new" }));
+      await user.click(within(dialog).getByRole("button", { name: "Remove Kids" }));
+      expect(within(dialog).getByTestId("tag-chips").textContent).toBe("old");
+      await user.click(within(dialog).getByTestId("confirm-ok"));
+      await waitFor(() => expect(api.calls("POST", "/titles/tags")).toHaveLength(1));
+      expect(api.calls("POST", "/titles/tags")[0].body).toEqual({ title_ids: [70], add: [], remove: ["kids"] });
+    });
+
+    it("has nothing to save once a label added in this edit is taken off again", async () => {
+      page({ versions: inLib, tags: ["old"] });
+      const user = userEvent.setup();
+      await user.click(await screen.findByTestId("title-tags-edit"));
+      const dialog = await screen.findByTestId("title-tags-dialog");
+      await user.type(within(dialog).getByTestId("tag-input"), "new{Enter}");
+      await user.click(within(dialog).getByRole("button", { name: "Remove new" }));
+      expect(within(dialog).getByTestId("confirm-ok").hasAttribute("disabled")).toBe(true);
+    });
+
     it("shows labels without Edit to an account that sees files but cannot manage", async () => {
       page({ versions: inLib, tags: ["kids"] }, ["see_files"]);
       expect((await screen.findByTestId("title-tags")).textContent).toBe("kids");

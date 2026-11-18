@@ -68,25 +68,29 @@ export function TagChips({ tags, onRemove, empty }: { tags: string[]; onRemove: 
   );
 }
 
-/** The edit: what was added (typed, also a label already a chip) and what was taken off. */
+/** The edit, by the stored (lower-case) label: what was added (typed, also a label already a chip) and which of the
+ *  title's own labels were taken off. */
 export type TagEdit = { add: string[]; remove: string[] };
 
 export const addTag = (e: TagEdit, tag: string): TagEdit => ({ add: e.add.includes(tag) ? e.add : [...e.add, tag], remove: e.remove.filter((g) => g !== tag) });
-export const removeTag = (e: TagEdit, tag: string): TagEdit => ({ add: e.add.filter((g) => g !== tag), remove: e.remove.includes(tag) ? e.remove : [...e.remove, tag] });
+/** × on a chip: cancels a pending add; on one of the title's own labels also records the removal. */
+export const removeTag = (e: TagEdit, tag: string, own: boolean): TagEdit => ({ add: e.add.filter((g) => g !== tag), remove: own && !e.remove.includes(tag) ? [...e.remove, tag] : e.remove });
 
-/** The title page's dialog. */
+/** The title page's dialog. Labels are compared lower-case (a connected app may have stored "Kids"); a chip shows the
+ *  title's own spelling. */
 export function TitleTagsDialog({ titleId, name, tags, onClose }: { titleId: number; name: string; tags: string[]; onClose: () => void }) {
   const [edit, setEdit] = useState<TagEdit>({ add: [], remove: [] });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>();
   const saved = useTagsSaved();
+  const own = new Set(tags.map(tagOf));
   // The chips: the title's labels less the ones taken off, plus the new ones, in label order.
-  const chips = [...new Set([...tags.filter((g) => !edit.remove.includes(g)), ...edit.add])].sort();
+  const chips = [...tags.filter((g) => !edit.remove.includes(tagOf(g))), ...edit.add.filter((g) => !own.has(g))].sort((a, b) => tagOf(a).localeCompare(tagOf(b)));
   const save = async () => {
     setBusy(true);
     setError(undefined);
     try {
-      await editTags([titleId], edit.add, edit.remove.filter((g) => tags.includes(g)));
+      await editTags([titleId], edit.add, edit.remove);
       saved();
       onClose();
     } catch (e) {
@@ -94,7 +98,7 @@ export function TitleTagsDialog({ titleId, name, tags, onClose }: { titleId: num
     }
     setBusy(false);
   };
-  const changed = edit.add.length > 0 || edit.remove.some((g) => tags.includes(g));
+  const changed = edit.add.length > 0 || edit.remove.length > 0;
   return (
     <ConfirmDialog
       scope={{ title: "Edit tags", does: [], keeps: [], confirm: "Save" }}
@@ -108,7 +112,7 @@ export function TitleTagsDialog({ titleId, name, tags, onClose }: { titleId: num
       testid="title-tags-dialog"
       top={
         <div className="space-y-3">
-          <TagChips tags={chips} empty="No tags" onRemove={(g) => setEdit((e) => removeTag(e, g))} />
+          <TagChips tags={chips} empty="No tags" onRemove={(g) => setEdit((e) => removeTag(e, tagOf(g), own.has(tagOf(g))))} />
           <TagBox onAdd={(g) => setEdit((e) => addTag(e, g))} />
           <p className="text-xs text-[var(--ink-3)]" data-testid="title-tags-help">{TAGS_HELP}</p>
         </div>
