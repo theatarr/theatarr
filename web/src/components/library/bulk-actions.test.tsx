@@ -381,6 +381,25 @@ describe("Bulk Tags…", () => {
     await waitFor(() => expect(screen.getAllByTestId("toast").at(-1)?.textContent).toContain("Removed kids from 2 titles"));
   });
 
+  it("sends a label left typed in the box, and refuses while the box holds a bad one", async () => {
+    const { api } = setup([
+      { method: "GET", path: "/tags", reply: { tags: [] } },
+      { method: "POST", path: "/titles/tags", reply: { changed: 5 } },
+    ]);
+    const user = userEvent.setup();
+    await user.click(await within(await bar()).findByRole("button", { name: "Tags…" }));
+    const dialog = await screen.findByRole("dialog", { name: "Tags for 5 titles" });
+    const box = within(dialog).getByTestId("tag-input");
+    await user.type(box, "kids{Enter}");
+    await user.type(box, "no way");
+    expect(within(dialog).getByRole("button", { name: "Add tags" }).hasAttribute("disabled")).toBe(true);
+    await user.clear(box);
+    await user.type(box, "new");
+    await user.click(within(dialog).getByRole("button", { name: "Add tags" }));
+    await waitFor(() => expect(api.calls("POST", "/titles/tags")).toHaveLength(1));
+    expect(api.calls("POST", "/titles/tags")[0].body).toEqual({ title_ids: [1, 2, 3, 4, 5], add: ["kids", "new"], remove: [] });
+  });
+
   it("is not offered to a manager who cannot see files", async () => {
     setup([], ["manage"]);
     expect(await within(await bar()).findByRole("button", { name: "Remove" })).toBeTruthy();

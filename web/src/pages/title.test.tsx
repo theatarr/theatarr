@@ -338,6 +338,22 @@ describe("Title page facts (J5)", () => {
       expect(within(dialog).getByTestId("confirm-ok").hasAttribute("disabled")).toBe(true);
     });
 
+    it("saves a label left typed in the box, and refuses Save while the box holds a bad one", async () => {
+      const api = page({ versions: inLib, tags: ["old"] });
+      const user = userEvent.setup();
+      await user.click(await screen.findByTestId("title-tags-edit"));
+      const dialog = await screen.findByTestId("title-tags-dialog");
+      const box = within(dialog).getByTestId("tag-input");
+      await user.click(within(dialog).getByRole("button", { name: "Remove old" }));
+      await user.type(box, "no way");
+      expect(within(dialog).getByTestId("confirm-ok").hasAttribute("disabled")).toBe(true);
+      await user.clear(box);
+      await user.type(box, "Kids");
+      await user.click(within(dialog).getByTestId("confirm-ok"));
+      await waitFor(() => expect(api.calls("POST", "/titles/tags")).toHaveLength(1));
+      expect(api.calls("POST", "/titles/tags")[0].body).toEqual({ title_ids: [70], add: ["kids"], remove: ["old"] });
+    });
+
     it("shows labels without Edit to an account that sees files but cannot manage", async () => {
       page({ versions: inLib, tags: ["kids"] }, ["see_files"]);
       expect((await screen.findByTestId("title-tags")).textContent).toBe("kids");

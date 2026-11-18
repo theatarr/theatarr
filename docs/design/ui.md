@@ -511,7 +511,8 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   (disabled until something changed) and Cancel. Save applies only what changed (docs/design/arrview.md "Tags per
   version"): a typed label, also one already a chip, goes on every library that has the title; one taken off comes
   off every library. Labels are compared ignoring case: a label a connected app stored as "Kids" is one chip with
-  "kids", and × on a label added in this edit only cancels it. About's Files inventory includes old-manager
+  "kids", and × on a label added in this edit only cancels it. A good label left typed in the box counts as added on Save (and
+  in the bulk dialog); while the box holds a refused one, Save is disabled. About's Files inventory includes old-manager
   files (with their instance) and active native library links (with their size, no instance word), deduplicated by
   path. Release dates list the primary release's stored rows (Library and activity
   pages, Release dates), the country named once under the table and a fallback cinema date marked first release; type and source in words, the raw value as tooltip.

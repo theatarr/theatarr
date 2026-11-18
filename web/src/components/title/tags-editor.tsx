@@ -16,24 +16,29 @@ import { plural } from "@/lib/format";
 /** The title page dialog's help line. */
 export const TAGS_HELP = "Changes apply to every library that has this title. Connected apps see these tags, and a webhook limited to a tag gets this title's future events.";
 
+/** What is in the box: the label it would add (trimmed, lower-case; empty when nothing is typed) and whether that
+ *  breaks the rule. A dialog counts a good one as added on Save and refuses to confirm while it is bad. */
+export function draftOf(text: string): { tag: string; bad: boolean } {
+  const tag = tagOf(text);
+  return { tag, bad: tag !== "" && !TAG_RULE.test(tag) };
+}
+
 /** The box that adds a label: Enter or Add puts what is typed (trimmed, lower-case) through onAdd; a label outside
- *  the rule is refused with the rule's words as it is typed. */
-export function TagBox({ onAdd, label = "Add a tag" }: { onAdd: (tag: string) => void; label?: string }) {
-  const [text, setText] = useState("");
+ *  the rule is refused with the rule's words as it is typed. The dialog holds the text (draftOf). */
+export function TagBox({ text, onText, onAdd, label = "Add a tag" }: { text: string; onText: (t: string) => void; onAdd: (tag: string) => void; label?: string }) {
   const list = useId();
   const labels = useTagLabels(true);
-  const tag = tagOf(text);
-  const bad = tag !== "" && !TAG_RULE.test(tag);
+  const { tag, bad } = draftOf(text);
   const add = () => {
     if (tag === "" || bad) return;
     onAdd(tag);
-    setText("");
+    onText("");
   };
   return (
     <div>
       <div className="flex gap-2">
         <Input aria-label={label} placeholder={label} value={text} list={list} autoComplete="off" aria-invalid={bad || undefined}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => onText(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
               e.preventDefault();
@@ -79,6 +84,8 @@ export const removeTag = (e: TagEdit, tag: string, own: boolean): TagEdit => ({ 
  *  title's own spelling. */
 export function TitleTagsDialog({ titleId, name, tags, onClose }: { titleId: number; name: string; tags: string[]; onClose: () => void }) {
   const [edit, setEdit] = useState<TagEdit>({ add: [], remove: [] });
+  const [text, setText] = useState("");
+  const draft = draftOf(text);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>();
   const saved = useTagsSaved();
@@ -89,7 +96,9 @@ export function TitleTagsDialog({ titleId, name, tags, onClose }: { titleId: num
     setBusy(true);
     setError(undefined);
     try {
-      await editTags([titleId], edit.add, edit.remove);
+      // A good label left in the box counts as added.
+      const all = draft.tag && !draft.bad ? addTag(edit, draft.tag) : edit;
+      await editTags([titleId], all.add, all.remove);
       saved();
       onClose();
     } catch (e) {
@@ -97,14 +106,14 @@ export function TitleTagsDialog({ titleId, name, tags, onClose }: { titleId: num
     }
     setBusy(false);
   };
-  const changed = edit.add.length > 0 || edit.remove.length > 0;
+  const changed = edit.add.length > 0 || edit.remove.length > 0 || draft.tag !== "";
   return (
     <ConfirmDialog
       scope={{ title: "Edit tags", does: [], keeps: [], confirm: "Save" }}
       subject={name}
       danger={false}
       busy={busy}
-      disabled={!changed}
+      disabled={!changed || draft.bad}
       error={error}
       onClose={onClose}
       onConfirm={() => void save()}
@@ -112,7 +121,7 @@ export function TitleTagsDialog({ titleId, name, tags, onClose }: { titleId: num
       top={
         <div className="space-y-3">
           <TagChips tags={chips} empty="No tags" onRemove={(g) => setEdit((e) => removeTag(e, tagOf(g), own.has(tagOf(g))))} />
-          <TagBox onAdd={(g) => setEdit((e) => addTag(e, g))} />
+          <TagBox text={text} onText={setText} onAdd={(g) => setEdit((e) => addTag(e, g))} />
           <p className="text-xs text-[var(--ink-3)]" data-testid="title-tags-help">{TAGS_HELP}</p>
         </div>
       }
@@ -140,11 +149,15 @@ export const BULK_TAGS_HELP = "Changes apply to every library that has these tit
 /** The selection bar's Tags…: add labels to, or remove labels from, the selected titles (no "replace all"). */
 export function BulkTagsDialog({ titleIds, onClose, onDone }: { titleIds: number[]; onClose: () => void; onDone: () => void }) {
   const [mode, setMode] = useState<"add" | "remove">("add");
-  const [tags, setTags] = useState<string[]>([]);
+  const [chosen, setTags] = useState<string[]>([]);
+  const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>();
   const saved = useTagsSaved();
   const add = mode === "add";
+  // A good label left in the box counts as chosen.
+  const draft = draftOf(text);
+  const tags = draft.tag && !draft.bad && !chosen.includes(draft.tag) ? [...chosen, draft.tag] : chosen;
   const save = async () => {
     setBusy(true);
     setError(undefined);
@@ -171,7 +184,7 @@ export function BulkTagsDialog({ titleIds, onClose, onDone }: { titleIds: number
       scope={{ title: `Tags for ${plural(titleIds.length, "title")}`, does: [], keeps: [], confirm: add ? "Add tags" : "Remove tags" }}
       danger={false}
       busy={busy}
-      disabled={tags.length === 0}
+      disabled={tags.length === 0 || draft.bad}
       error={error}
       onClose={onClose}
       onConfirm={() => void save()}
@@ -182,8 +195,8 @@ export function BulkTagsDialog({ titleIds, onClose, onDone }: { titleIds: number
             {radio("add", "Add to these titles")}
             {radio("remove", "Remove from these titles")}
           </div>
-          <TagChips tags={tags} empty="No tags chosen" onRemove={(g) => setTags((ts) => ts.filter((t) => t !== g))} />
-          <TagBox onAdd={(g) => setTags((ts) => (ts.includes(g) ? ts : [...ts, g]))} />
+          <TagChips tags={chosen} empty="No tags chosen" onRemove={(g) => setTags((ts) => ts.filter((t) => t !== g))} />
+          <TagBox text={text} onText={setText} onAdd={(g) => setTags((ts) => (ts.includes(g) ? ts : [...ts, g]))} />
           <p className="text-xs text-[var(--ink-3)]" data-testid="bulk-tags-help">{BULK_TAGS_HELP}</p>
         </div>
       }
