@@ -626,6 +626,21 @@ func orSomeone(s string) string {
 }
 
 // searchCopy searches one copy of a title now when it is monitored (searchNow's rules: router on).
+// copySearchBlock is why searchCopy would not search the title's copy now, or "": the copy is not monitored (searchCopy's
+// own check), else searchBlock's reason (Pause).
+func (w *Web) copySearchBlock(ctx context.Context, titleID int64, version string) (string, error) {
+	if titleID > 0 {
+		on, err := w.versionsOn(ctx, titleID)
+		if err != nil {
+			return "", err
+		}
+		if !slices.Contains(on, version) {
+			return "The " + w.versionLabel(version) + " library is not monitored", nil
+		}
+	}
+	return w.searchBlock(version), nil
+}
+
 func (w *Web) searchCopy(ctx context.Context, titleID int64, version string) (*SearchOutcome, error) {
 	on, err := w.versionsOn(ctx, titleID)
 	if err != nil {

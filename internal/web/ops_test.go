@@ -661,6 +661,11 @@ func TestUnblockSearchReasonAndLibraryName(t *testing.T) {
 	if b := blocked(); b.SearchReason != "" {
 		t.Errorf("running: search reason %q", b.SearchReason)
 	}
+	// A copy the title does not monitor: searchCopy would not search it, so the box is off with that reason.
+	o.exec(`UPDATE version SET monitored = 0 WHERE title_id = 1 AND policy_key = 'movie-web'`)
+	if b := blocked(); b.SearchReason != "The "+label+" library is not monitored" {
+		t.Errorf("not monitored: search reason %q", b.SearchReason)
+	}
 }
 
 // TestRemoveCopiesAndTitle: the removal scope names each copy with its links and downloads; a copy an arr still owns
