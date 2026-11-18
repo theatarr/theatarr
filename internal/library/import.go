@@ -45,6 +45,10 @@ type Plan struct {
 	Refused    string            `json:"refused,omitempty"` // why the gate made it a dry run
 	Naming     string            `json:"naming,omitempty"`
 	Probes     map[string]any    `json:"-"`
+	// Why is why the plan links nothing, as an import that runs would store it: the wait (a title hold, the release
+	// not on the mount, a mount mismatch, an unreadable file) or the hold or rejection reason. Dry runs carry it too,
+	// for the web UI's Manual import (arrview); it is not stored.
+	Why        string            `json:"-"`
 	seaDexVeto map[string]string // files markVeto marked (upgrade.go)
 }
 
@@ -316,7 +320,7 @@ func (l *Library) importDownload(ctx context.Context, d *importDownload, dryRun 
 			}
 		}
 		if reason, msg := l.engine.EpisodeTitleHold(t, vToDecideVersion(v), eps); reason != "" {
-			plan.Waiting = true
+			plan.Waiting, plan.Why = true, TitleHoldPrefix+msg
 			if !dryRun {
 				if err := l.markTitleWaiting(ctx, d, msg); err != nil {
 					return nil, err
@@ -382,7 +386,7 @@ func (l *Library) importDownload(ctx context.Context, d *importDownload, dryRun 
 	if l.decy != nil && d.InfoHash != "" && !sourced && len(d.Manual) == 0 {
 		dnames, known := l.decypharrNames(ctx, d.InfoHash, l.justReady(d))
 		if !known {
-			plan.Waiting = true
+			plan.Waiting, plan.Why = true, notOnMount
 			if !dryRun {
 				if err := l.markWaiting(ctx, d); err != nil {
 					return nil, err
@@ -469,7 +473,7 @@ func (l *Library) importDownload(ctx context.Context, d *importDownload, dryRun 
 			"folder", filepath.Base(folder), "name", d.Name)
 	}
 	if folder == "" {
-		plan.Waiting = true
+		plan.Waiting, plan.Why = true, notOnMount
 		if !dryRun {
 			if (zurgListed || decyListed) && !plan.DryRun {
 				// zurg (or decypharr) has the folder; the mount's cached listing of the root does not show it yet.
@@ -512,7 +516,7 @@ func (l *Library) importDownload(ctx context.Context, d *importDownload, dryRun 
 		}
 		if recheck {
 			// An empty listing says nothing about the disagreement: the mismatch wait stays (markWaitingWithError).
-			plan.Waiting = true
+			plan.Waiting, plan.Why = true, notOnMount
 			return plan, l.markWaiting(ctx, d)
 		}
 		return l.holdForReview(ctx, d, plan, dryRun, "no video files in "+folder)
@@ -830,6 +834,9 @@ func (l *Library) unreadable(ctx context.Context, d *importDownload, err error) 
 // notOnMount is the import error of a download whose release folder is not on the mount yet.
 const notOnMount = "release not on the mount yet"
 
+// NotOnMount is notOnMount, for a Plan.Why that reads it.
+const NotOnMount = notOnMount
+
 func (l *Library) markWaiting(ctx context.Context, d *importDownload) error {
 	return l.markWaitingWithError(ctx, d, notOnMount)
 }
@@ -838,7 +845,7 @@ func (l *Library) markWaiting(ctx context.Context, d *importDownload) error {
 // (router.ImportMismatchPrefix): looked at again after the partial-import back-off, failed without blocklist at the
 // ready deadline.
 func (l *Library) waitMismatch(ctx context.Context, d *importDownload, plan *Plan, dryRun bool, reason string) (*Plan, error) {
-	plan.Waiting = true
+	plan.Waiting, plan.Why = true, router.ImportMismatchPrefix+reason
 	if dryRun {
 		return plan, nil
 	}
@@ -881,8 +888,8 @@ func fsError(err error) bool {
 // waitInconclusive keeps a mismatch wait and its reason when a re-check cannot list or read the files; the back-off
 // advances.
 func (l *Library) waitInconclusive(ctx context.Context, d *importDownload, plan *Plan, err error) (*Plan, error) {
-	plan.Waiting = true
-	return plan, l.markWaitingWithError(ctx, d, UnreadablePrefix+err.Error())
+	plan.Waiting, plan.Why = true, UnreadablePrefix+err.Error()
+	return plan, l.markWaitingWithError(ctx, d, plan.Why)
 }
 
 // legacyMismatch reports a hold an earlier build wrote where the import now waits (waitMismatch): the periodic pass
@@ -1021,6 +1028,7 @@ func (l *Library) markWaitingWithError(ctx context.Context, d *importDownload, r
 
 // reject fails and blocklists an import rejected by a file guard; nothing is linked or deleted on the provider.
 func (l *Library) reject(ctx context.Context, d *importDownload, plan *Plan, dryRun bool, reason string) (*Plan, error) {
+	plan.Why = reason
 	if dryRun {
 		return plan, nil
 	}
@@ -1061,6 +1069,7 @@ func (l *Library) reject(ctx context.Context, d *importDownload, plan *Plan, dry
 // holdForReview leaves a non-dangerous import in the queue for manual resolution. Its ready state keeps it in flight
 // for wanted decisions, while the library row carries the reason shown by the arr queue and native activity views.
 func (l *Library) holdForReview(ctx context.Context, d *importDownload, plan *Plan, dryRun bool, reason string) (*Plan, error) {
+	plan.Why = reason
 	if dryRun {
 		return plan, nil
 	}

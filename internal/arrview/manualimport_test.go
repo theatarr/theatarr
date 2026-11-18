@@ -275,6 +275,16 @@ func TestManualNativeSaysWhyNothingIsListed(t *testing.T) {
 	known := strings.Repeat("b", 40)
 	e.exec(`INSERT INTO download(id,title_id,version_id,version_key,info_hash,release_title,indexer,name,state,created_at,updated_at)
 		VALUES(41,1,2,'movie-web',?,'Alpha.2020.2160p.WEB-DL-GRP','import','Alpha.2020.2160p.WEB-DL-GRP','failed',0,0)`, known)
+	// A download whose folder on the mount holds no video: the plan holds it, and the page says so.
+	nfo := strings.Repeat("d", 40)
+	if err := os.MkdirAll(filepath.Join(mount, "__all__", "Alpha.2020.1080p.WEB-DL-NFO"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(mount, "__all__", "Alpha.2020.1080p.WEB-DL-NFO", "a.nfo"), []byte("x"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	e.exec(`INSERT INTO download(id,title_id,version_id,version_key,info_hash,release_title,indexer,name,state,created_at,updated_at)
+		VALUES(42,1,2,'movie-web',?,'Alpha.2020.1080p.WEB-DL-NFO','import','Alpha.2020.1080p.WEB-DL-NFO','ready',0,0)`, nfo)
 	native := func(q string) (int, string) {
 		w := httptest.NewRecorder()
 		e.svc.ServeManualImport(w, httptest.NewRequest("GET", "/api/theatarr/v1/manualimport?version=movie-web&"+q, nil))
@@ -288,7 +298,8 @@ func TestManualNativeSaysWhyNothingIsListed(t *testing.T) {
 		code    int
 	}{
 		{"downloadId=" + strings.Repeat("c", 40), "No download with this hash in this library", 404},
-		{"downloadId=" + known, "Its files cannot be listed now: ", 409},
+		{"downloadId=" + known, "Its files cannot be listed now: the release folder is not on the mount yet", 409},
+		{"downloadId=" + nfo, "Nothing to import: no video files in ", 409},
 		{"folder=" + filepath.Join(mount, "missing"), "The folder cannot be read: no such file or directory", 422},
 	} {
 		code, why := native(c.q)
@@ -303,6 +314,20 @@ func TestManualNativeSaysWhyNothingIsListed(t *testing.T) {
 	}
 	if code, why := native("folder=" + filepath.Join(mount, "empty")); code != 200 || why != "" {
 		t.Errorf("empty folder: %d %q", code, why)
+	}
+}
+
+// The plan's reason for linking nothing is said as the queue says it: a title hold by its message, the release not on
+// the mount, a mismatch; a hold or rejection as stored.
+func TestPlanWhyWords(t *testing.T) {
+	for in, want := range map[string]string{
+		library.TitleHoldPrefix + "Episode title is TBA": "Episode title is TBA",
+		library.NotOnMount:         "the release folder is not on the mount yet",
+		"no video files in /mnt/x": "no video files in /mnt/x",
+	} {
+		if got := planWhy(in); got != want {
+			t.Errorf("%q: %q", in, got)
+		}
 	}
 }
 

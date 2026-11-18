@@ -22,6 +22,7 @@ import (
 	"github.com/theatarr/theatarr/internal/indexer"
 	"github.com/theatarr/theatarr/internal/library"
 	"github.com/theatarr/theatarr/internal/policy"
+	"github.com/theatarr/theatarr/internal/router"
 	"github.com/theatarr/theatarr/internal/store"
 )
 
@@ -395,6 +396,20 @@ func unreadableFolder(err error) *manualEmpty {
 // out as History does.
 var libraryPrefixRe = regexp.MustCompile(`^library: (download \d+: )?`)
 
+// planWhy is the plan's reason for linking nothing (library.Plan.Why) as the page says it: a wait in the queue's words
+// (activity), a title hold by its message, a hold or rejection as stored, without the library's prefix.
+func planWhy(why string) string {
+	switch {
+	case strings.HasPrefix(why, library.TitleHoldPrefix):
+		return strings.TrimPrefix(why, library.TitleHoldPrefix)
+	case why == library.NotOnMount:
+		return "the release folder is not on the mount yet"
+	case strings.HasPrefix(why, router.ImportMismatchPrefix):
+		return "waiting for the mount to show this download's files (" + strings.TrimPrefix(why, router.ImportMismatchPrefix) + ")"
+	}
+	return libraryPrefixRe.ReplaceAllString(why, "")
+}
+
 // planReason is an import error as the page says it: without the library's prefix.
 func planReason(err error) string {
 	return libraryPrefixRe.ReplaceAllString(err.Error(), "")
@@ -428,8 +443,11 @@ func (s *Service) manualFromDownload(ctx context.Context, r *request, hash strin
 		s.log.Info("manualimport: no plan", "download", id, "err", err)
 		return nil, &manualEmpty{http.StatusConflict, "Its files cannot be listed now: " + planReason(err)}
 	}
-	if plan.Waiting && len(plan.Files) == 0 && len(plan.Rejected) == 0 {
-		return nil, &manualEmpty{http.StatusConflict, "Its files cannot be listed now: they are not on the mount yet"}
+	if len(plan.Files) == 0 && len(plan.Rejected) == 0 && plan.Why != "" {
+		if plan.Waiting {
+			return nil, &manualEmpty{http.StatusConflict, "Its files cannot be listed now: " + planWhy(plan.Why)}
+		}
+		return nil, &manualEmpty{http.StatusConflict, "Nothing to import: " + planWhy(plan.Why)}
 	}
 	e, err := s.loadOne(ctx, r.v, tid)
 	if err != nil || e == nil {
