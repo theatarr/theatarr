@@ -854,7 +854,9 @@ row). It writes nothing while Pause is on, never turns a due row into `added` (a
 out items with a download in flight or a loop search queued or running. A new series has no episodes until its first
 metadata refresh: its request waits in `series_search_wait` marked later, and `ReleaseWaiting` then makes one
 `added` row per season with something wanted. Sync now while Pause is on is refused (409) before anything is added.
-History calls such a search "added by a list". Tests: `TestAddedRowOnTheSchedule`, `TestAddedSeriesWaitsForMetadata`,
+History calls such a search "added by a list". A person adding or refreshing one collection searches its new movies
+at once, except while Pause is on: then they are only added, as a title added by hand
+(`TestMovieIntakeSearchWhilePaused`). Tests: `TestAddedRowOnTheSchedule`, `TestAddedSeriesWaitsForMetadata`,
 `TestAddedRunDoesNotBlockFailure`, `TestManualSearchTakesAddedRow`.
 
 **Upgrading from the wanted loop.** Migration 00126 adds the columns; Search now requests still queued become due

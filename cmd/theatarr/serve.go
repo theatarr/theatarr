@@ -626,7 +626,7 @@ func runServe(args []string) error {
 		return err
 	}
 	if mi != nil {
-		mi.OnAdd, mi.Now, mi.Log = movieIntakeSearch(acService), time.Now, log
+		mi.OnAdd, mi.Now, mi.Log = movieIntakeSearch(acService, pol), time.Now, log
 	}
 	// Share metadata refresh with the native API and queue the arr maintenance commands; a series refresh also
 	// queues its episodes' refresh.

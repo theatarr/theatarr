@@ -741,3 +741,50 @@ func TestServeRoundStartsDueRows(t *testing.T) {
 		t.Fatalf("row %d %q: %v", tries, why, err)
 	}
 }
+
+// A person's collection add or refresh (later false) asks no add-time search while Theatarr is paused, as the native
+// add and the compatible add; unpaused it asks one at once.
+func TestMovieIntakeSearchWhilePaused(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	for _, paused := range []bool{true, false} {
+		db, err := store.Open(ctx, storetest.Seed(t, filepath.Join(t.TempDir(), "theatarr.db")), store.Options{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { db.Close() })
+		if _, err := db.Migrate(ctx); err != nil {
+			t.Fatal(err)
+		}
+		pol := &policy.Policy{Router: &policy.Router{Enabled: !paused},
+			Versions: map[string]*policy.VersionPolicy{"movie": {Kind: policy.KindMovie, Storage: policy.StorageDebrid}}}
+		for _, q := range []string{
+			`INSERT INTO title (id, kind, name, year, created_at, updated_at) VALUES (1, 'movie', 'One', 2026, 0, 0)`,
+			`INSERT INTO version (id, title_id, policy_key, state, created_at, updated_at) VALUES (101, 1, 'movie', 'wanted', 0, 0)`,
+		} {
+			if _, err := db.Writer().ExecContext(ctx, q); err != nil {
+				t.Fatal(err)
+			}
+		}
+		var searched atomic.Int32
+		ac, err := acquire.New(acquire.Config{Store: db, Policy: pol, Queue: jobs.NewQueue(db), Router: &serveRouter{},
+			Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+			Search: func(_ context.Context, title decide.Title, v decide.Version, _ *decide.ExistingFile, _ *decide.SeriesSearch) (*router.Searched, error) {
+				searched.Add(1)
+				return &router.Searched{Request: router.Request{TitleID: title.ID, VersionID: v.ID, Version: v.Key}}, nil
+			}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := movieIntakeSearch(&serveAcquirer{fallback: ac}, pol)(ctx, 1, []string{"movie"}, false); err != nil {
+			t.Fatal(err)
+		}
+		var jobsQueued int
+		if err := db.Reader().QueryRowContext(ctx, `SELECT COUNT(*) FROM job`).Scan(&jobsQueued); err != nil {
+			t.Fatal(err)
+		}
+		if asked := searched.Load() > 0 || jobsQueued > 0; asked == paused {
+			t.Errorf("paused %v: searched %d, jobs %d", paused, searched.Load(), jobsQueued)
+		}
+	}
+}

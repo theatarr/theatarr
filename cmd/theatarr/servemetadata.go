@@ -168,7 +168,7 @@ func prepareServeMetadata(prev *serveMetadata, pol *policy.Policy, gw *gateway.G
 	if m.intake != nil {
 		m.intake.Now, m.intake.Log = time.Now, d.log
 		if d.acquirer != nil {
-			m.intake.OnAdd = movieIntakeSearch(d.acquirer)
+			m.intake.OnAdd = movieIntakeSearch(d.acquirer, pol)
 		}
 	}
 	// The Collections page adds and refreshes through this generation's intake, also when search and add were kept.
@@ -186,10 +186,15 @@ func prepareServeMetadata(prev *serveMetadata, pol *policy.Policy, gw *gateway.G
 
 // movieIntakeSearch asks the add-time search of a title the intake added: on the search schedule when later (list
 // syncs, the timed collection sync), else at once (a person adding or refreshing one collection).
-func movieIntakeSearch(ac *serveAcquirer) func(context.Context, int64, []string, bool) error {
+func movieIntakeSearch(ac *serveAcquirer, pol *policy.Policy) func(context.Context, int64, []string, bool) error {
 	return func(ctx context.Context, titleID int64, versions []string, later bool) error {
 		if later {
 			return ac.RequestSearchLater(ctx, titleID, versions)
+		}
+		// A person's collection add or refresh searches nothing while Theatarr is paused, as the native add
+		// (catalog.Searchable) and the compatible add.
+		if pol == nil || !pol.RouterSettings().Enabled {
+			return nil
 		}
 		_, _, err := ac.Submit(ctx, 0, acquire.Selection{TitleIDs: []int64{titleID}, Versions: versions})
 		return err
