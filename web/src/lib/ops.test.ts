@@ -8,7 +8,6 @@ import {
   blockedRelease,
   grabScope,
   leftoverLinks,
-  removalLinks,
   removalScope,
   removeDownloadScope,
   retryKind,
@@ -158,6 +157,12 @@ describe("recovery scopes", () => {
     expect(bulk.does).toContain("2 titles have no copy left and leave the library");
     expect(bulk.does.some((d) => d.includes("no other library"))).toBe(false);
     expect(bulkRemovalScope([s], false, false, "4K WEB").does).toContain("HD is kept in sync with 4K WEB and is removed too");
+    // Each library's files and downloads over the selection, the partner's download under its own name.
+    expect(bulk.does).toContain("By library: HD (3 files, 1 download in progress), 4K WEB (2 files)");
+    // The files two removed libraries kept: each with its own count, no total.
+    const kept = removalScope({ name: "Dune", title: false, copies: [], leftover: [
+      { key: "movie-hd", label: "HD", links: 1, downloads: 0 }, { key: "movie-web", label: "4K WEB", links: 1, downloads: 0 }] }, true);
+    expect(kept.does[0]).toBe("The library files kept from HD (1 file) and 4K WEB (1 file) are deleted from the library (moved to Theatarr's trash)");
   });
 
   it("offers to delete the files removed libraries kept, with or without their torrents", () => {
@@ -166,7 +171,7 @@ describe("recovery scopes", () => {
     expect(s.blocked).toBeUndefined();
     expect(s.confirm).toBe("Delete files");
     expect(s.does).toEqual([
-      "2 library files of removed libraries are deleted from the library (moved to Theatarr's trash)",
+      "The library files kept from 4K WEB (2 files) are deleted from the library (moved to Theatarr's trash)",
       "Its debrid torrents are deleted from the providers, after a backup, unless another title or library in Theatarr uses them",
     ]);
     expect(removalScope({ name: "Dune", title: false, copies: [], leftover: [left] }, true, false).keeps).toContain("Its debrid torrents stay");
@@ -176,7 +181,6 @@ describe("recovery scopes", () => {
     expect(removalScope({ name: "Dune", title: false, copies: [], leftover: [left] }, true, true, true).keeps).not.toContain("A file another library of the title uses stays");
     expect(leftoverOnly({ name: "Dune", title: false, copies: [], leftover: [left] })).toBe(true);
     const one = { name: "Dune", title: true, copies: [{ key: "movie-remux", label: "4K Remux", links: 1, downloads: 0 }], leftover: [left] };
-    expect(removalLinks(one)).toBe(3);
     expect(removalScope(one, true).does).toContain("The library files of 4K Remux and 4K WEB are deleted from the library (moved to Theatarr's trash), and the folders they leave empty are removed");
     expect(removalScope(one, false).keeps).toContain("The library files of 4K Remux stay linked");
   });

@@ -131,11 +131,6 @@ export type RemovalCopyLike = { key: string; label: string; links: number; downl
  *  A copy's links are its library links, active or dead (a removal with the files moves both). */
 export type RemovalScopeLike = { name: string; title: boolean; copies: RemovalCopyLike[]; leftover?: RemovalCopyLike[] };
 
-/** The library links a removal with the files deleted takes out: its copies' and the leftover copies'. */
-export function removalLinks(s: RemovalScopeLike): number {
-  return [...s.copies, ...(s.leftover ?? [])].reduce((n, c) => n + c.links, 0);
-}
-
 /** A library with what it holds, as the removal dialog lists it: "4K WEB (2 files, 1 download in progress)". The
  *  counts are the library's own: a file two libraries share is in both. */
 function withCounts(c: RemovalCopyLike): string {
@@ -187,15 +182,15 @@ const SHARED_FILE_STAYS = "A file another library of the title uses stays";
  *  a file. */
 export function removalScope(s: RemovalScopeLike, files: boolean, debrid = files, gone = false): Scope {
   debrid = files && debrid;
-  const leftover = removalLinks(s);
   const torrents = debrid ? [] : ["Its debrid torrents stay"];
   if (leftoverOnly(s)) {
     // Only the files libraries removed before kept: deleting them takes their torrents along when asked, with the
-    // same guard.
+    // same guard. Each library with its own count, no total (a file two libraries share is in both).
+    const kept = (s.leftover ?? []).filter((c) => c.links > 0).map(withCounts);
     return {
       title: `Delete the files kept from ${s.name}`,
       does: [
-        `${plural(leftover, "library file")} of removed libraries ${leftover === 1 ? "is" : "are"} deleted from the library (moved to Theatarr's trash)`,
+        `The library files kept from ${namesList(kept)} are deleted from the library (moved to Theatarr's trash)`,
         ...(debrid ? [REMOVAL_CLEANUP] : []),
       ],
       keeps: [...(gone ? [] : [SHARED_FILE_STAYS]), ...torrents, "The libraries stay removed; its history stays"],
@@ -254,6 +249,16 @@ export function bulkRemovalScope(scopes: readonly RemovalScopeLike[], files: boo
   const sum = (f: (s: RemovalScopeLike) => number) => scopes.reduce((t, s) => t + f(s), 0);
   const links = sum((s) => [...s.copies, ...(files ? (s.leftover ?? []) : [])].reduce((t, c) => t + c.links, 0));
   const downloads = sum((s) => s.copies.reduce((t, c) => t + c.downloads, 0));
+  // Each library, named or in sync, with its files and downloads in progress over the selection.
+  const byLibrary = new Map<string, RemovalCopyLike>();
+  for (const s of scopes) {
+    for (const c of [...s.copies, ...(files ? (s.leftover ?? []) : [])]) {
+      const t = byLibrary.get(c.label) ?? { key: c.key, label: c.label, links: 0, downloads: 0 };
+      t.links += c.links;
+      t.downloads += c.downloads;
+      byLibrary.set(c.label, t);
+    }
+  }
   // Titles the removal takes out of every library: all of them without a library, else those with no other.
   const whole = scopes.filter((s) => s.title).length;
   const they = one ? "It is" : "They are";
@@ -277,6 +282,7 @@ export function bulkRemovalScope(scopes: readonly RemovalScopeLike[], files: boo
   if (library && !partly && whole > 0) does.push(`${plural(whole, "title")} ${whole === 1 ? "has no copy left and leaves" : "have no copy left and leave"} the library`);
   if (!partly) does.push(`${they} hidden from Seerr and the other arr clients`);
   does.push(...syncLines(scopes, files, debrid));
+  if ([...byLibrary.values()].some((c) => c.links || c.downloads)) does.push(`By library: ${[...byLibrary.values()].map(withCounts).join(", ")}`);
   if (downloads > 0) does.push(`Theatarr stops following ${plural(downloads, "download")} in progress`);
   if (files && links > 0) does.push(`${one ? "Its" : "Their"} library files are deleted from the library (moved to Theatarr's trash), and the folders they leave empty are removed`);
   if (debrid) does.push(one ? REMOVAL_CLEANUP : "Their debrid torrents are deleted from the providers, after a backup, unless another title or library in Theatarr uses them");

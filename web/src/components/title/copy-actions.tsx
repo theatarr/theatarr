@@ -206,7 +206,8 @@ export function LeftoverLinks({ titleId, versions, label = "Delete files…", go
  *  was removed", and for managers Delete them (LeftoverLinks for those libraries). */
 export function KeptFiles({ titleId, versions, manage }: { titleId: number; versions: Version[]; manage: boolean }) {
   const kept = versions.filter((v) => v.removed && v.key && leftoverLinks(v.links).length > 0);
-  const n = kept.reduce((sum, v) => sum + leftoverLinks(v.links).length, 0);
+  // Each file once: two libraries kept in sync can share one.
+  const n = new Set(kept.flatMap((v) => leftoverLinks(v.links).map((l) => l.id))).size;
   if (n === 0) return null;
   return (
     <div className="space-y-1 text-sm text-[var(--ink-2)]">

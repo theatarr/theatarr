@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { json, mockFetch, renderPage } from "@/test/page";
 import { Toaster } from "@/components/toaster";
 import { noteLocation } from "@/lib/last-list";
+import { KeptFiles } from "./copy-actions";
 import { LibraryRows } from "./library-rows";
 
 afterEach(() => window.localStorage.clear());
@@ -251,6 +252,14 @@ describe("fix round 1", () => {
     await waitFor(() => expect(fetch.calls("POST", "/titles/7/remove")).toHaveLength(1));
     // The named library only: the server takes the one in sync again.
     expect(fetch.calls("POST", "/titles/7/remove")[0].body).toEqual({ versions: ["movie-web"], unlink: true, debrid: true, exclude: true });
+  });
+
+  it("counts a file two removed libraries kept in sync share once in the kept files line", async () => {
+    manager();
+    const shared = { id: 9, kind: "symlink", state: "active", path: "/media/movies/Alpha/a.mkv" };
+    const versions = [{ ...web, removed: true, links: [shared] }, { ...remux, removed: true, links: [shared, { ...shared, id: 10, path: "/media/remux/Alpha/b.mkv", state: "dead" }] }];
+    renderPage(<KeptFiles titleId={7} versions={versions as never} manage={false} />);
+    expect((await screen.findByTestId("kept-files")).textContent).toBe("2 files kept from before it was removed.");
   });
 
   it("says a row's search may serve the title's other Live libraries", async () => {
