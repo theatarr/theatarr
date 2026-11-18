@@ -449,7 +449,7 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   only when it adds something: **Downloads off** with its small **?**, or "New files won't be linked") and the row
   actions. **Columns** picks the rest ("Monitored, Library and the actions always stay. Kept for your account in this
   browser."; `theatarr.library.title-libraries.<user>`). On by default: **Status**, **Quality**, **Score**, **Size**,
-  **Held on** and **File** (the file name, the full path as tooltip). On offer: Preferred quality (the profile's
+  **Held on** and **File** (the whole file name, wrapping; the full path as tooltip). On offer: Preferred quality (the profile's
   cutoff, "· upgrades off" when so), Minimum availability, Release, Release group, Languages, Video / audio, Formats,
   Added, Last search, Next search and Path. A series row offers Status, Quality, Size, Held on, Preferred quality,
   Added and Last search. The switch column is headed **Monitored**. Quality is the technical name ("WEBDL-2160p").
@@ -482,7 +482,7 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   (managers), each library link with **Unlink**, and **Remove from this library** (managers). Below 768 px each
   library is a stacked block: switch, name, tag and status; quality · score · size, and the provider pills when any
   provider holds the file; a movie file's media line as the Media column writes it (wrapping, nothing without media);
-  the file name; then
+  the whole file name, wrapping (never cut with an ellipsis); then
   Search now, Interactive search and Details with their words. There is no Columns button there. A library the
   title was removed from has no row; if it still has links, one line under the table says "Still linked from a
   library this title was removed from: <library> (N files)." with **Delete files…** (managers). With no library:

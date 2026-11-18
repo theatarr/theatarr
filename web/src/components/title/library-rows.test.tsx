@@ -42,6 +42,9 @@ describe("Libraries table", () => {
     expect(a.getAllByTestId("cached-on").map((p) => p.textContent)).toEqual(["RD", "TB"]);
     expect(a.getByTestId("library-file").textContent).toBe("Alpha.2020.2160p.WEB-A.mkv");
     expect(a.getByTestId("library-file").getAttribute("title")).toBe(web.current.path);
+    // The whole name is readable: it wraps, it is not cut with an ellipsis.
+    expect(a.getByTestId("library-file").className).toContain("break-all");
+    expect(a.getByTestId("library-file").className).not.toContain("truncate");
     expect(a.getByText("1,500").getAttribute("title")).toBe("DV HDR10 +1,500");
     const b = rowOf("movie-remux");
     // A score never recorded reads "—", as History says it.
@@ -429,6 +432,17 @@ describe("a file's media (Y6)", () => {
     expect(within(rowOf("movie-web")).getByTestId("library-media").textContent)
       .toBe("3840x2160 · x265 10-bit · DV HDR10 · TrueHD Atmos 7.1 · English, Japanese · subtitles English, Arabic, Chinese, Croatian +26 · 2:03:04");
     expect(within(rowOf("movie-remux")).queryByTestId("library-media")).toBeNull();
+  });
+
+  it("wraps the file name on a phone card instead of cutting it", async () => {
+    phone();
+    manager();
+    renderPage(<LibraryRows title={title as never} versions={[web, remux] as never} />);
+    await waitFor(() => expect(screen.getAllByTestId("library-row")).toHaveLength(2));
+    const file = within(rowOf("movie-web")).getByTestId("library-file");
+    expect(file.textContent).toBe("Alpha.2020.2160p.WEB-A.mkv");
+    expect(file.className).toContain("break-all");
+    expect(file.className).not.toContain("truncate");
   });
 
   it("shows a Media group in a movie row's Details: every subtitle once in full, each audio track on a line, no tooltip", async () => {
