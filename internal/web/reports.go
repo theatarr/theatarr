@@ -587,10 +587,7 @@ func (w *Web) replaceBlocked(f ReportFile, kind string, on []string, monitored m
 		return "Searching is not running, so no new file would be searched"
 	}
 	if _, skipped := catalog.Searchable(w.pol, f.Versions); len(skipped) > 0 {
-		// The libraries by name, not by key.
-		for i := range skipped {
-			skipped[i].Version = w.versionLabel(skipped[i].Version)
-		}
+		// skipWords names the libraries (it takes their keys).
 		return "Not searched now: " + w.skipWords(skipped)
 	}
 	var unfit []string

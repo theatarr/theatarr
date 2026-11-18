@@ -535,3 +535,19 @@ func TestSeasonSearchNamesTheMonitoringLibraries(t *testing.T) {
 		t.Errorf("the picked library is searched: %+v", so)
 	}
 }
+
+// Replace's "not searched now" names each library once by its own name: a name that holds another library's name or
+// key is not looked up again (skipWords takes keys).
+func TestReplaceBlockedNamesLibrariesOnce(t *testing.T) {
+	t.Parallel()
+	o := newOpsEnvPolicy(t, func(p *policy.Policy) {
+		p.Versions["movie-web"].Name = "movie-remux"
+		p.Versions["movie-remux"].Name = "Family 4K"
+	})
+	o.web.pol.Router.Enabled = false
+	f := ReportFile{Versions: []string{"movie-web"}, ReleaseTitle: "Alpha.2020.2160p.WEB-DL-GRP"}
+	f.hash = strings.Repeat("a", 40)
+	if got := o.web.replaceBlocked(f, "symlink", nil, nil, false); !strings.HasSuffix(got, "(movie-remux)") {
+		t.Errorf("replace blocked: %q", got)
+	}
+}
