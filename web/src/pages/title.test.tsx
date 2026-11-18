@@ -347,8 +347,11 @@ describe("Title page facts (J5)", () => {
       await user.click(within(dialog).getByRole("button", { name: "Remove old" }));
       await user.type(box, "no way");
       expect(within(dialog).getByTestId("confirm-ok").hasAttribute("disabled")).toBe(true);
+      expect(within(dialog).getByText("No tags")).toBeTruthy();
       await user.clear(box);
       await user.type(box, "Kids");
+      // "No tags" goes while the box holds a good label Save would add.
+      expect(within(dialog).queryByText("No tags")).toBeNull();
       await user.click(within(dialog).getByTestId("confirm-ok"));
       await waitFor(() => expect(api.calls("POST", "/titles/tags")).toHaveLength(1));
       expect(api.calls("POST", "/titles/tags")[0].body).toEqual({ title_ids: [70], add: ["kids"], remove: ["old"] });

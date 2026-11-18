@@ -622,9 +622,10 @@ func TestMinimumAvailabilityEndpoint(t *testing.T) {
 	e.call("GET", APIBase+"/titles/1", nil, 200, &d)
 	var got []string
 	for _, v := range d.Versions {
-		got = append(got, fmt.Sprintf("%s=%s/%t", v.Key, v.MinimumAvailability, v.MinimumAvailabilityDefault))
+		got = append(got, fmt.Sprintf("%s=%s/%t/%s", v.Key, v.MinimumAvailability, v.MinimumAvailabilityDefault, v.LibraryMinimumAvailability))
 	}
-	if strings.Join(got, " ") != "movie-remux=inCinemas/false movie-web=inCinemas/true" {
+	// Each library's own default comes along, also under a choice, so "Library default" can name it.
+	if strings.Join(got, " ") != "movie-remux=inCinemas/false/released movie-web=inCinemas/true/inCinemas" {
 		t.Errorf("after library default: %s", got)
 	}
 	// A household account (no see_files) is not told where the value comes from.
@@ -632,7 +633,8 @@ func TestMinimumAvailabilityEndpoint(t *testing.T) {
 	ur.Header.Set(auth.APIKeyHeader, e.key)
 	urec := httptest.NewRecorder()
 	e.userMux().ServeHTTP(urec, ur)
-	if urec.Code != 200 || strings.Contains(urec.Body.String(), "minimum_availability_default") {
+	if urec.Code != 200 || strings.Contains(urec.Body.String(), "minimum_availability_default") ||
+		strings.Contains(urec.Body.String(), "library_minimum_availability") {
 		t.Errorf("household: %d %s", urec.Code, urec.Body.String())
 	}
 }

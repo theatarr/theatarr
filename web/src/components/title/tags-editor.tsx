@@ -64,9 +64,10 @@ export function TagBox({ text, onText, onAdd, label = "Add a tag" }: { text: str
   );
 }
 
-/** Labels as chips, each with × to take it off. */
+/** Labels as chips, each with × to take it off; with none, the empty words (nothing when they are "", as while the
+ *  box holds a good label). */
 export function TagChips({ tags, onRemove, empty }: { tags: string[]; onRemove: (tag: string) => void; empty: string }) {
-  if (tags.length === 0) return <p className="text-muted-foreground" data-testid="tag-chips">{empty}</p>;
+  if (tags.length === 0) return empty ? <p className="text-muted-foreground" data-testid="tag-chips">{empty}</p> : null;
   return (
     <ul className="flex flex-wrap gap-1.5" data-testid="tag-chips">
       {tags.map((g) => (
@@ -136,7 +137,7 @@ export function TitleTagsDialog({ titleId, name, tags, onClose }: { titleId: num
       testid="title-tags-dialog"
       top={
         <div className="space-y-3">
-          <TagChips tags={chips} empty="No tags" onRemove={unchip} />
+          <TagChips tags={chips} empty={draft.tag && !draft.bad ? "" : "No tags"} onRemove={unchip} />
           <TagBox text={text} onText={setText} onAdd={(g) => setEdit((e) => addTag(e, g))} />
           <p className="text-xs text-[var(--ink-3)]" data-testid="title-tags-help">{TAGS_HELP}</p>
         </div>
@@ -223,8 +224,8 @@ export function BulkTagsDialog({ titleIds, onClose, onDone }: { titleIds: number
             {radio("add", "Add to these titles")}
             {radio("remove", "Remove from these titles")}
           </div>
-          <TagChips tags={chosen.map(spell)} empty="No tags chosen" onRemove={unchip} />
-          <TagBox text={text} onText={setText} onAdd={(g) => setTags((ts) => (ts.includes(g) ? ts : [...ts, g]))} />
+          <TagChips tags={chosen.map(spell)} empty={draft.tag && !draft.bad ? "" : "No tags chosen"} onRemove={unchip} />
+          <TagBox text={text} onText={setText} onAdd={(g) => setTags((ts) => (ts.includes(g) ? ts : [...ts, g]))} label={add ? "Add a tag" : "Tag to remove"} />
           <p className="text-xs text-[var(--ink-3)]" data-testid="bulk-tags-help">{BULK_TAGS_HELP}</p>
         </div>
       }

@@ -415,6 +415,9 @@ type Version struct {
 	MinimumAvailability string `json:"minimum_availability,omitempty"`
 	// MinimumAvailabilityDefault: that value is the library's default (no explicit choice, or "Library default").
 	MinimumAvailabilityDefault bool `json:"minimum_availability_default,omitempty"`
+	// LibraryMinimumAvailability is the library's own default, which "Library default" would put in force (see files
+	// only, as MinimumAvailabilityDefault).
+	LibraryMinimumAvailability string `json:"library_minimum_availability,omitempty"`
 	// AnimeSkip (title page, series): a monitored copy in a library searches run for (catalog.Searchable) that
 	// acquisition does not search, because the library's anime rule does not fit the series (its anime flag, or its
 	// type anime; acquire's targets).
@@ -569,6 +572,7 @@ func (w *Web) getTitle(ctx context.Context, id int64) (*TitleDetail, error) {
 			r := rules[d.Versions[i].ID]
 			d.Versions[i].MinimumAvailability = r.Minimum
 			d.Versions[i].MinimumAvailabilityDefault = r.Source == availability.SourceDefault
+			d.Versions[i].LibraryMinimumAvailability = availability.LibraryDefault(w.pol, d.Versions[i].Key)
 		}
 	}
 	return d, nil

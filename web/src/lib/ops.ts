@@ -161,7 +161,7 @@ function syncLines(scopes: readonly RemovalScopeLike[], files: boolean, debrid: 
   const many = scopes.length > 1;
   return [...pairs.values()].map(({ partner, named, n }) => {
     const its = many && n > 1 ? "their" : "its";
-    const tail = files ? (debrid ? `, ${its} files and debrid torrents too` : `, ${its} files too`) : "";
+    const tail = files ? (debrid ? `, with ${its} files and debrid torrents` : `, with ${its} files`) : "";
     return `${partner} is kept in sync with ${named} and is removed too${many ? ` for ${plural(n, "title")}` : ""}${tail}`;
   });
 }

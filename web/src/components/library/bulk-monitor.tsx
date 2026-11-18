@@ -20,6 +20,7 @@ import { BulkAddDialog, BulkRemoveDialog } from "./bulk-actions";
 import { BulkTagsDialog } from "@/components/title/tags-editor";
 import { CopyDot } from "./copy-bits";
 import { plural } from "@/lib/format";
+import { PAUSE_STOPS } from "@/lib/version-grab";
 
 /** POST /wanted/search takes at most this many items (internal/web/wanted.go maxSearchNowItems). */
 const SEARCH_CHUNK = 200;
@@ -167,7 +168,7 @@ function SearchConfirm({ titles, items, busy, onClose, onConfirm }: { titles: Ti
           ...(none ? [`${plural(none, "title")} monitored in no library: not searched`] : []),
         ],
         // While paused the answer would be POST /wanted/search's 409: its sentence, before the button is pressed.
-        blocked: wanted.data?.downloads_enabled === false ? "Theatarr is paused, so nothing can be searched." : items === 0 ? "None of these titles is monitored in a library" : undefined,
+        blocked: wanted.data?.downloads_enabled === false ? `Paused: ${PAUSE_STOPS}.` : items === 0 ? "None of these titles is monitored in a library" : undefined,
       }}
     >
       <p data-testid="bulk-search-estimate">

@@ -148,7 +148,7 @@ func redactVersion(v *Version) {
 	v.Upgrade = nil
 	v.Acquisition = nil
 	v.LastSearch, v.Searching, v.RSS = nil, "", false
-	v.MinimumAvailabilityDefault = false
+	v.MinimumAvailabilityDefault, v.LibraryMinimumAvailability = false, ""
 	// Watchability: an aired episode no library holds is missing whatever the library's monitoring.
 	if v.Episodes != nil {
 		v.Episodes.Missing = v.Episodes.watchMissing

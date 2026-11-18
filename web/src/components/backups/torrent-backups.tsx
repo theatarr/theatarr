@@ -115,12 +115,13 @@ export function TorrentBackups() {
                     {!failed && unreadable.length ? <div className="mt-0.5 text-xs text-[var(--warn-ink)] md:hidden" data-testid="torrent-backup-unreadable">{unreadable.map((p, i) => <span key={p.provider}>{i > 0 ? ", " : ""}<ProviderTag account={p.provider} /> unreadable</span>)}</div> : null}
                   </TableCell>
                   <TableCell className="hidden sm:table-cell"><Badge tone={b.reason === "pre-delete" ? "warning" : "neutral"}>{b.reason}</Badge></TableCell>
-                  <TableCell className="hidden whitespace-nowrap text-right tabular-nums sm:table-cell">{failed ? <span className="text-destructive">{FAILED}</span> : <>{fmtNumber(b.torrents)} · {fmtBytes(b.bytes)}</>}</TableCell>
+                  <TableCell className={`hidden whitespace-nowrap tabular-nums sm:table-cell ${failed ? "text-left" : "text-right"}`}>{failed ? <span className="text-destructive">{FAILED}</span> : <>{fmtNumber(b.torrents)} · {fmtBytes(b.bytes)}</>}</TableCell>
                   <TableCell className="hidden text-xs md:table-cell">{b.providers.map((p, i) => <span key={p.provider}>{i > 0 ? ", " : ""}<ProviderTag account={p.provider} /> {p.ok ? p.torrents : "unreadable"}</span>)}</TableCell>
                   <TableCell className="text-right">
                     <span className="inline-flex flex-col items-end gap-1 sm:flex-row sm:items-center sm:gap-2">
-                      <a className="text-sm hover:text-primary" href={backupURL(b.id)} download>Download</a>
-                      <a className="text-sm hover:text-primary" href={backupURL(b.id, "dmm")} download title="Download in Debrid Media Manager's format">DMM</a>
+                      {/* A failed backup holds no torrents: nothing to download or restore. */}
+                      {failed ? null : <a className="text-sm hover:text-primary" href={backupURL(b.id)} download>Download</a>}
+                      {failed ? null : <a className="text-sm hover:text-primary" href={backupURL(b.id, "dmm")} download title="Download in Debrid Media Manager's format">DMM</a>}
                       {failed ? null : <Button size="xs" variant="outline" onClick={() => openRestore(b.id)} disabled={actions.restorePreview.isPending}>Restore…</Button>}
                     </span>
                   </TableCell>

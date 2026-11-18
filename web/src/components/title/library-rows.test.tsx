@@ -241,7 +241,7 @@ describe("fix round 1", () => {
     await user.click(await screen.findByTestId("copy-details-movie-web"));
     await user.click(screen.getByTestId("copy-remove-movie-web"));
     const does = () => screen.getByTestId("confirm-does").textContent;
-    await waitFor(() => expect(does()).toContain("Remux is kept in sync with WEB and is removed too, its files and debrid torrents too"));
+    await waitFor(() => expect(does()).toContain("Remux is kept in sync with WEB and is removed too, with its files and debrid torrents"));
     // Each library with its own files; which lose their files, with no total.
     expect(does()).toContain("Alpha is removed from every library it is in (Remux (1 file), WEB (1 file))");
     expect(does()).toContain("The library files of Remux and WEB are deleted from the library");
@@ -315,10 +315,11 @@ describe("fix round 1", () => {
     expect(select.value).toBe("default");
     expect([...select.options].map((o) => o.textContent)).toEqual(["Library default (Released)", "Announced", "In cinemas", "Released"]);
     page.unmount();
-    renderPage(<LibraryRows title={title as never} versions={[{ ...web, minimum_availability: "announced" }] as never} />);
+    renderPage(<LibraryRows title={title as never} versions={[{ ...web, minimum_availability: "announced", library_minimum_availability: "released" }] as never} />);
     const chosen = (await screen.findByTestId("version-minimum-availability-movie-web")) as HTMLSelectElement;
     expect(chosen.value).toBe("announced");
-    expect(chosen.options[0].textContent).toBe("Library default");
+    // Under a choice of its own, Library default still names the value it would put in force.
+    expect(chosen.options[0].textContent).toBe("Library default (Released)");
     await user.selectOptions(chosen, "default");
     await waitFor(() => expect(fetch.calls("POST", "/titles/minimum-availability")).toHaveLength(1));
     expect(fetch.calls("POST", "/titles/minimum-availability")[0].body).toEqual({ title_ids: [7], versions: ["movie-web"], minimum_availability: "default" });

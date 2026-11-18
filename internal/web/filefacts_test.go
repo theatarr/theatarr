@@ -71,3 +71,12 @@ func TestFileFactsAPI(t *testing.T) {
 		t.Errorf("journal rows %d", n)
 	}
 }
+
+// The saved edit's line writes scores as the page does: 6,200, not 6200 (browser pass of the release candidate).
+func TestFileFactsMessageThousands(t *testing.T) {
+	t.Parallel()
+	got := factsMessage("Bluray-1080p", []FileFactsScore{{Library: "Anime series", Score: 6200}, {Library: "TV", Score: -1500}})
+	if want := "Saved: Bluray-1080p. Score: Anime series 6,200, TV -1,500."; got != want {
+		t.Errorf("message %q, want %q", got, want)
+	}
+}

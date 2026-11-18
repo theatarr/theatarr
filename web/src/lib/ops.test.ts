@@ -151,10 +151,10 @@ describe("recovery scopes", () => {
     ] };
     const both = removalScope(s, true, true);
     expect(both.does[0]).toBe("Dune is removed from every library it is in (HD (2 files, 1 download in progress), 4K WEB (1 file)): it stops being wanted, searched or upgraded there");
-    expect(both.does).toContain("HD is kept in sync with 4K WEB and is removed too, its files and debrid torrents too");
+    expect(both.does).toContain("HD is kept in sync with 4K WEB and is removed too, with its files and debrid torrents");
     // No total: a file two libraries share is in both counts.
     expect(both.does).toContain("The library files of HD and 4K WEB are deleted from the library (moved to Theatarr's trash), and the folders they leave empty are removed");
-    expect(removalScope(s, true, false).does).toContain("HD is kept in sync with 4K WEB and is removed too, its files too");
+    expect(removalScope(s, true, false).does).toContain("HD is kept in sync with 4K WEB and is removed too, with its files");
     const keep = removalScope(s, false);
     expect(keep.does).toContain("HD is kept in sync with 4K WEB and is removed too");
     expect(keep.keeps).toContain("The library files of HD and 4K WEB stay linked");
@@ -164,7 +164,7 @@ describe("recovery scopes", () => {
       { key: "movie-web", label: "4K WEB", links: 1, downloads: 0 },
     ] };
     const bulk = bulkRemovalScope([s, other], true, true, "4K WEB");
-    expect(bulk.does).toContain("HD is kept in sync with 4K WEB and is removed too for 2 titles, their files and debrid torrents too");
+    expect(bulk.does).toContain("HD is kept in sync with 4K WEB and is removed too for 2 titles, with their files and debrid torrents");
     expect(bulk.does).toContain("2 titles have no copy left and leave the library");
     expect(bulk.does.some((d) => d.includes("no other library"))).toBe(false);
     expect(bulkRemovalScope([s], false, false, "4K WEB").does).toContain("HD is kept in sync with 4K WEB and is removed too");

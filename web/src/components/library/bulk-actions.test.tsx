@@ -153,7 +153,7 @@ describe("Bulk Remove in a sync group", () => {
     await user.click(await within(await bar()).findByRole("button", { name: "Remove from a library" }));
     const dialog = await screen.findByRole("dialog", { name: "Remove 1 title from HD" });
     const does = within(dialog).getByTestId("confirm-does").textContent;
-    expect(does).toContain("4K is kept in sync with HD and is removed too, its files and debrid torrents too");
+    expect(does).toContain("4K is kept in sync with HD and is removed too, with its files and debrid torrents");
     expect(does).toContain("Its library files are deleted from the library");
     expect(does).toContain("1 title has no copy left and leaves the library");
     await user.click(within(dialog).getByRole("button", { name: "Remove 1 title from HD" }));
@@ -373,8 +373,16 @@ describe("Bulk Tags…", () => {
     const user = userEvent.setup();
     await user.click(await within(await bar()).findByRole("button", { name: "Tags…" }));
     const dialog = await screen.findByRole("dialog", { name: "Tags for 5 titles" });
+    expect(within(dialog).getByLabelText("Add a tag")).toBeTruthy();
     await user.click(within(dialog).getByTestId("bulk-tags-remove"));
-    await user.type(within(dialog).getByTestId("tag-input"), "kids{Enter}");
+    // The box names what it does in remove mode.
+    const box = within(dialog).getByLabelText("Tag to remove");
+    expect(box.getAttribute("placeholder")).toBe("Tag to remove");
+    // "No tags chosen" goes while the box holds a label the button would take.
+    expect(within(dialog).getByText("No tags chosen")).toBeTruthy();
+    await user.type(box, "kids");
+    expect(within(dialog).queryByText("No tags chosen")).toBeNull();
+    await user.type(box, "{Enter}");
     await user.click(within(dialog).getByRole("button", { name: "Remove tags" }));
     await waitFor(() => expect(api.calls("POST", "/titles/tags")).toHaveLength(1));
     expect(api.calls("POST", "/titles/tags")[0].body).toEqual({ title_ids: [1, 2, 3, 4, 5], add: [], remove: ["kids"] });

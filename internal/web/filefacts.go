@@ -66,6 +66,20 @@ type FileFactsScore struct {
 	Score   int    `json:"score"`
 }
 
+// factsMessage is the saved edit's line: "Saved: <change>. Score: Anime series 6,200." (scores as the page writes
+// numbers).
+func factsMessage(change string, scores []FileFactsScore) string {
+	msg := "Saved: " + change + "."
+	if len(scores) > 0 {
+		words := make([]string, len(scores))
+		for i, s := range scores {
+			words[i] = s.Library + " " + thousands(s.Score)
+		}
+		msg += " Score: " + strings.Join(words, ", ") + "."
+	}
+	return msg
+}
+
 func (w *Web) mountFileFactsAPI(mux *http.ServeMux) {
 	w.handle(mux, "GET "+APIBase+"/links/{id}/facts", SignedIn, auth.PermManage, w.apiFileFacts)
 	w.handle(mux, "PATCH "+APIBase+"/links/{id}/facts", SignedIn, auth.PermManage, w.apiEditFileFacts)
@@ -229,7 +243,7 @@ func (w *Web) apiEditFileFacts(rw http.ResponseWriter, r *http.Request) {
 	}
 	out := FileFactsResult{Scores: []FileFactsScore{}}
 	labels := w.keyLabels(res.Versions)
-	var scores []string
+	var scores []string // the journal's detail, as before
 	for i, k := range res.Versions {
 		if i < len(res.Scores) {
 			out.Scores = append(out.Scores, FileFactsScore{Library: labels[k], Score: res.Scores[i]})
@@ -237,10 +251,7 @@ func (w *Web) apiEditFileFacts(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 	change := factsChange(res.Before, res.After)
-	out.Message = "Saved: " + change + "."
-	if len(scores) > 0 {
-		out.Message += " Score: " + strings.Join(scores, ", ") + "."
-	}
+	out.Message = factsMessage(change, out.Scores)
 	by := actor(r)
 	detail := change
 	if len(scores) > 0 {

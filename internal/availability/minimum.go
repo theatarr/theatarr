@@ -33,6 +33,14 @@ type Rule struct {
 	Source string
 }
 
+// LibraryDefault is a library's default minimum availability: its minimum_availability, released when unset.
+func LibraryDefault(pol *policy.Policy, key string) string {
+	if vp := pol.Versions[key]; vp != nil && vp.MinimumAvailability != "" {
+		return vp.MinimumAvailability
+	}
+	return "released"
+}
+
 // queryer is a *sql.DB or *sql.Tx.
 type queryer interface {
 	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
@@ -117,12 +125,9 @@ func rulesInto(ctx context.Context, db queryer, pol *policy.Policy, copies []cop
 		return err
 	}
 	for _, c := range copies {
-		r := Rule{Minimum: "released", Source: SourceDefault}
+		r := Rule{Minimum: LibraryDefault(pol, c.key), Source: SourceDefault}
 		if vp := pol.Versions[c.key]; vp != nil {
 			r.Delay = vp.AvailabilityDelay
-			if vp.MinimumAvailability != "" {
-				r.Minimum = vp.MinimumAvailability
-			}
 		}
 		for _, ch := range choices[c.titleID] {
 			v := pol.Views[ch.view]

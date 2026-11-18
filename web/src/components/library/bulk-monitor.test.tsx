@@ -139,7 +139,7 @@ describe("Bulk Search now", () => {
     const bar = await screen.findByRole("region", { name: "Bulk edit" });
     await user.click(await within(bar).findByRole("button", { name: "Search now" }));
     const dialog = await screen.findByRole("dialog", { name: "Search 3 titles" });
-    expect((await within(dialog).findByTestId("confirm-blocked")).textContent).toBe("Theatarr is paused, so nothing can be searched.");
+    expect((await within(dialog).findByTestId("confirm-blocked")).textContent).toBe("Paused: searches, new grabs and imports stop for every library; Interactive search can still look up releases.");
     expect(within(dialog).getByRole("button", { name: "Search 3 titles in their monitored libraries" })).toHaveProperty("disabled", true);
     expect(api.calls("POST", "/wanted/search")).toHaveLength(0);
   });

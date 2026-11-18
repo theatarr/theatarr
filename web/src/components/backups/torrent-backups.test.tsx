@@ -35,6 +35,14 @@ it("shows a backup no provider could be read as failed, at every width, with no 
  expect(within(failed).getByTestId("torrent-backup-failed").textContent).toBe("Failed: no provider could be read");
  expect(within(failed).getAllByText("Failed: no provider could be read")).toHaveLength(2);
  expect(within(failed).queryByRole("button", { name: "Restore…" })).toBeNull();
+ // It holds no torrents: nothing to download either, and its words read left like the other notes.
+ expect(within(failed).queryByRole("link", { name: "Download" })).toBeNull();
+ expect(within(failed).queryByRole("link", { name: "DMM" })).toBeNull();
+ const column = within(failed).getAllByText("Failed: no provider could be read").find((s) => !s.hasAttribute("data-testid"))!.closest("td")!;
+ expect(column.className).toContain("text-left");
+ expect(column.className).not.toContain("text-right");
+ expect(within(partial).getByRole("link", { name: "Download" })).toBeTruthy();
+ expect(within(partial).getByRole("link", { name: "DMM" })).toBeTruthy();
  expect(within(failed).queryByTestId("torrent-backup-unreadable")).toBeNull();
  expect(within(partial).getByTestId("torrent-backup-unreadable").textContent).toContain("unreadable");
  expect(within(partial).getByTestId("torrent-backup-unreadable").className).toContain("md:hidden");

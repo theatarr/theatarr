@@ -102,6 +102,8 @@ describe("the request queue", () => {
     ]);
     renderPage(<Routes><Route path="/requests/:tab?" element={<RequestsPage />} /></Routes>, "/requests");
     await screen.findAllByText("Film 1");
+    // The intro says no Pause clause of its own (Pause has its shared wording where it applies).
+    expect(screen.getByText(/^What the household asked for/).textContent).toBe("What the household asked for. Approving adds the title with the requested libraries.");
     await user.click(screen.getByRole("tab", { name: "All" }));
     await waitFor(() => expect(screen.getByRole("button", { name: /^Open/ }).getAttribute("aria-pressed")).toBe("true"));
     expect(screen.getByTestId("pager-range").textContent).toBe("1–50 of 120");
