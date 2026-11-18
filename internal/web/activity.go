@@ -220,6 +220,9 @@ type ActivityEvent struct {
 	// GrabbedAt is when an outcome's download (imported, deleted, failed) was grabbed: its Grabbed row is this row
 	// (journal.HistoryRow.Grabbed).
 	GrabbedAt *time.Time `json:"grabbed_at,omitempty"`
+	// GrabEntry is that grab's journal entry (the "Grabbed <time>" link): it has the reasoning and the provider
+	// attempts, which the outcome's own entry does not.
+	GrabEntry string `json:"grab_entry,omitempty"`
 	// A title_removed row: who removed the title from the library (Version), and what became of its files and,
 	// once the debrid clean-up ran, its torrents (journal.Removal).
 	By      string           `json:"by,omitempty"`
@@ -759,7 +762,7 @@ func (w *Web) historyEvents(ctx context.Context, hs []*journal.HistoryRow, admin
 			}
 			x.Entry = h.Entry
 			if !h.Grabbed.IsZero() {
-				x.GrabbedAt = &h.Grabbed
+				x.GrabbedAt, x.GrabEntry = &h.Grabbed, h.GrabEntry
 			}
 			x.By, x.Removal = h.By, h.Removal
 			if h.Event == journal.EvAdopted {

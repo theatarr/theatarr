@@ -102,7 +102,9 @@ type HistoryRow struct {
 	Entry string
 	// Grabbed is when an outcome's download (imported, deleted, failed) was grabbed (grabbedAtSQL): its grab's row,
 	// which the outcome's row stands for (historyWhere); zero when none, for a manual import, and for Filter.Household.
-	Grabbed time.Time
+	// GrabEntry is that grab's journal entry (dl:<download id>), which has the reasoning and the provider attempts.
+	Grabbed   time.Time
+	GrabEntry string
 }
 
 // Redownload reports whether an upgrade's row (deleted) fetched the same release again: every file it replaced has
@@ -383,6 +385,9 @@ func (j *Journal) history(ctx context.Context, f Filter, episode int64) (*Histor
 		}
 		if s.grabbed.Valid {
 			x.Grabbed = store.FromMillis(s.grabbed.Int64)
+			if s.dl.Valid {
+				x.GrabEntry = fmt.Sprintf("dl:%d", s.dl.Int64)
+			}
 		}
 		if x.Event == EvAdopted {
 			// "adopted from <instance> <path>"

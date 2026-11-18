@@ -228,3 +228,31 @@ it("keeps the rows when Load more fails, says so, and Retry reads the next page 
   expect(screen.queryByTestId("stale-notice")).toBeNull();
   expect(fetch.calls("GET", "/activity").filter((r) => r.search.includes("cursor=c2"))).toHaveLength(2);
 });
+
+it("links Grabbed <time> to the grab's journal entry for admins, in the row and in an upgrade's opened details; plain text for others", async () => {
+  const imported = { id: "dl:7:import", at: "2026-11-12T14:05:00Z", kind: "import", event: "imported", title, version: "movie-web", words: "Imported", tone: "ok", entry: "dl:7:import", grabbed_at: "2026-11-12T14:03:00Z", grab_entry: "dl:7" };
+  const upgraded = { ...link, entry: "dl:9:import", grabbed_at: "2026-11-11T08:00:00Z", grab_entry: "dl:9", replaced: [{ path: "/movies/Alpha/old.mkv", release: "Alpha.2026.1080p.WEB" }] };
+  for (const perms of [["browse", "see_files", "manage", "admin"], ["browse", "see_files", "manage"]]) {
+    mockFetch([
+      { method: "GET", path: "/auth/me", reply: { ...me, permissions: perms } },
+      { method: "GET", path: "/titles/facets", reply: {} },
+      { method: "GET", path: "/activity", reply: { state: "history", admin: true, history: [imported, upgraded] } },
+    ]);
+    renderPage(<HistoryTab admin />, "/activity/history");
+    const got = await screen.findAllByTestId("history-row");
+    await userEvent.setup().click(got[1].querySelector<HTMLButtonElement>('[data-testid="history-replaced-toggle"]')!);
+    await screen.findByTestId("history-replaced");
+    const links = screen.queryAllByTestId("history-grabbed-link");
+    if (perms.includes("admin")) {
+      expect(links.map((a) => a.getAttribute("href"))).toEqual(["/admin/system/journal/dl%3A7", "/admin/system/journal/dl%3A9"]);
+      expect(links[0].textContent).toBe(`Grabbed ${fmtTime("2026-11-12T14:03:00Z")}`);
+    } else {
+      expect(links).toHaveLength(0);
+      expect(screen.getAllByTestId("history-grabbed").map((p) => p.textContent)).toEqual([
+        `Grabbed ${fmtTime("2026-11-12T14:03:00Z")}`,
+        `Grabbed ${fmtTime("2026-11-11T08:00:00Z")}`,
+      ]);
+    }
+    cleanup();
+  }
+});

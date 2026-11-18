@@ -138,7 +138,7 @@ function ReplacedList({ e }: { e: ActivityEvent }) {
   const named = files.some((f) => f.release);
   return (
     <div className="text-xs text-muted-foreground" data-testid="history-replaced">
-      {e.grabbed_at ? <p className="mb-2 tabular-nums" data-testid="history-grabbed">Grabbed {fmtTime(e.grabbed_at)}</p> : null}
+      {e.grabbed_at ? <p className="mb-2 tabular-nums" data-testid="history-grabbed"><GrabbedWords e={e} /></p> : null}
       <p className="mb-1 font-semibold text-[var(--ink-2)]" data-testid="history-replaced-head">{files.length === 1 ? "Replaced file" : "Replaced files"}</p>
       {named ? null : <p className="mb-1">Release names not recorded.</p>}
       <ul className="space-y-2">
@@ -180,12 +180,21 @@ function ReplacedLine({ e }: { e: ActivityEvent }) {
   );
 }
 
+/** "Grabbed <time>": for those who get Journal links (admins), a link to the grab's journal entry, which has the
+ *  reasoning and the provider attempts (the outcome's own entry does not); plain text for others. */
+function GrabbedWords({ e }: { e: ActivityEvent }) {
+  const admin = usePerms().admin;
+  const words = `Grabbed ${fmtTime(e.grabbed_at)}`;
+  const to = e.grab_entry ? adminLink(admin, journalLink(e.grab_entry)) : undefined;
+  return to ? <Link to={to} className="hover:text-primary hover:underline" data-testid="history-grabbed-link">{words}</Link> : <>{words}</>;
+}
+
 /** When an outcome's download was grabbed (imported, upgraded, failed): its Grabbed row is this one (one row per
  *  download). Under the words for a row with nothing to open; an upgrade's opens to it with its replaced files
  *  (ReplacedList). */
 function GrabbedLine({ e }: { e: ActivityEvent }) {
   if (!e.grabbed_at || e.replaced?.length) return null;
-  return <p className="text-xs tabular-nums text-muted-foreground" data-testid="history-grabbed">Grabbed {fmtTime(e.grabbed_at)}</p>;
+  return <p className="text-xs tabular-nums text-muted-foreground" data-testid="history-grabbed"><GrabbedWords e={e} /></p>;
 }
 
 /** A row's reason; an adoption's ("From Sonarr") names its instance on hover. */

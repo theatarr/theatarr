@@ -682,14 +682,15 @@ func TestHistoryGrabFolds(t *testing.T) {
 	}
 	for _, x := range p.Items {
 		var grab time.Time
+		var entry string
 		switch x.ID {
 		case "dl:11:fail":
-			grab = at.Add(2 * time.Hour)
+			grab, entry = at.Add(2*time.Hour), "dl:11"
 		case "dl:10:import":
-			grab = at
+			grab, entry = at, "dl:10"
 		}
-		if !x.Grabbed.Equal(grab) {
-			t.Errorf("%s grabbed %v, want %v", x.ID, x.Grabbed, grab)
+		if !x.Grabbed.Equal(grab) || x.GrabEntry != entry {
+			t.Errorf("%s grabbed %v (%q), want %v (%q)", x.ID, x.Grabbed, x.GrabEntry, grab, entry)
 		}
 	}
 	// The Grabbed filter lists every grab; Imported and upgraded, Failed and blocked each download once.
