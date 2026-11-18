@@ -225,8 +225,9 @@ func parseMedia(s string) *MediaInfo {
 }
 
 // probeMedia is the media of Theatarr's own probe of a file (content_file.probe, stored at import), formatted as the
-// arrs format theirs (the formatter naming uses), so it reads like parseMedia's. nil when the probe gives nothing.
-func probeMedia(raw, scene string, sonarr bool) *MediaInfo {
+// arrs format theirs (the formatter naming uses), so it reads like parseMedia's, with every audio track when tracks.
+// nil when the probe gives nothing.
+func probeMedia(raw, scene string, sonarr, tracks bool) *MediaInfo {
 	var r probe.Result
 	if raw == "" || json.Unmarshal([]byte(raw), &r) != nil {
 		return nil
@@ -244,7 +245,8 @@ func probeMedia(raw, scene string, sonarr bool) *MediaInfo {
 	if secs := int64(r.RunTimeSeconds); secs > 0 {
 		m.RunTime = fmt.Sprintf("%d:%02d:%02d", secs/3600, secs/60%60, secs%60)
 	}
-	for _, a := range r.Audio {
+	for i := 0; tracks && i < len(r.Audio); i++ {
+		a := r.Audio[i]
 		tm := a.Model()
 		m.AudioTracks = append(m.AudioTracks, AudioTrack{Codec: naming.FormatAudioCodec(tm),
 			Channels: naming.FormatAudioChannels(tm), Language: strings.TrimSpace(a.Language)})
@@ -256,9 +258,9 @@ func probeMedia(raw, scene string, sonarr bool) *MediaInfo {
 }
 
 // linkMedia is the media of a link's file: Theatarr's own probe first, else, for an adopted link (no download), the
-// media info its arr had recorded (link.adopted_media).
-func linkMedia(probeRaw, adoptedMedia sql.NullString, adopted bool, scene string, sonarr bool) *MediaInfo {
-	if m := probeMedia(probeRaw.String, scene, sonarr); m != nil {
+// media info its arr had recorded (link.adopted_media). tracks lists every probed audio track (AudioTracks).
+func linkMedia(probeRaw, adoptedMedia sql.NullString, adopted bool, scene string, sonarr, tracks bool) *MediaInfo {
+	if m := probeMedia(probeRaw.String, scene, sonarr, tracks); m != nil {
 		return m
 	}
 	if adopted {
@@ -332,7 +334,7 @@ func (w *Web) enrichManage(ctx context.Context, db *sql.DB, d *TitleDetail) erro
 			if err != nil {
 				return err
 			}
-			c.Media = linkMedia(pr, am, adopted, scene, false)
+			c.Media = linkMedia(pr, am, adopted, scene, false, true)
 			linkFacts(c, meta.String)
 		}
 	}
@@ -1067,7 +1069,7 @@ func (w *Web) episodeFile(ctx context.Context, db *sql.DB, versionID, eid int64,
 		return nil, err
 	}
 	f.LinkID, f.Score, f.SizeBytes, f.NoDownload = linkID, nullInt(score), nullInt(size), adopted
-	f.Media = linkMedia(pr, am, adopted, f.ReleaseTitle, true)
+	f.Media = linkMedia(pr, am, adopted, f.ReleaseTitle, true, true)
 	held, err := heldByHash(ctx, db, f.InfoHash)
 	if err != nil {
 		return nil, err

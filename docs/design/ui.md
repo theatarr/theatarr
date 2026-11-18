@@ -488,11 +488,12 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   library this title was removed from: <library> (N files)." with **Delete files…** (managers). With no library:
   "This title is in no library yet."
 - **Media group** (a movie row's Details at every width, and the episode window): the file's media in plain text
-  under "Media", one row per fact it has, nothing on hover: **Video** (resolution · codec and bit depth · dynamic
-  range), **Audio** ("TrueHD Atmos 7.1" for one track; with several probed tracks each on its own line, "Japanese ·
-  FLAC 2.0", the codec alone for a track without a language; a taken-over file whose arr counted several tracks
-  "13 tracks; first: TrueHD Atmos 7.1"; channels always with one decimal, as everywhere), **Audio languages** (each once, by name; only when the
-  Audio row does not list the tracks), **Subtitles** (every language once, by name, in full, wrapping) and
+  under "Media", one row per fact it has, nothing on hover: **Video** (resolution · codec and bit depth when stored,
+  "x264 8-bit" too · dynamic range; the compact line names a depth above 8 only), **Audio** (every probed track on
+  its own line, one track too, "Japanese · FLAC 2.0", the codec alone for a track without a language or with "und";
+  a taken-over file: its first track, "TrueHD Atmos 7.1", or "13 tracks; first: TrueHD Atmos 7.1" when its arr
+  counted several; channels always with one decimal, as everywhere), **Audio languages** (each once, by name; only
+  for a taken-over file, which has no track list), **Subtitles** (every language once, by name, in full, wrapping) and
   **Runtime**. The tracks come from Theatarr's own probe; a Matroska probe read the profile words (Atmos, DTS-HD MA)
   of the first track only, so a later track there reads as its codec family ("TrueHD 7.1"); a taken-over file has
   the arr's first track and its track count only. A file with no media (taken over without the arr's media info) has no group, and neither has a movie

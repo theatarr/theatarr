@@ -331,6 +331,7 @@ export function LibraryRows({ title, versions }: { title: TitleDetail; versions:
       v.has_file && c?.score != null ? `score ${fmtNumber(c.score)}` : "",
       v.has_file && c?.size_bytes ? fmtBytes(c.size_bytes) : "",
     ].filter(Boolean).join(" · ");
+    const media = mediaLine(c?.media);
     return (
       <div className="space-y-1.5">
         {/* The status moves under the name when both do not fit, so the name is never cut to a letter. */}
@@ -346,8 +347,8 @@ export function LibraryRows({ title, versions }: { title: TitleDetail; versions:
             <TorrentLink hash={c?.info_hash} />
           </div>
         ) : null}
-        {kind === "movie" && v.has_file && mediaLine(c?.media) ? (
-          <div className="text-xs text-[var(--ink-2)] [overflow-wrap:anywhere]" data-testid="library-media">{mediaLine(c?.media)}</div>
+        {kind === "movie" && v.has_file && media ? (
+          <div className="text-xs text-[var(--ink-2)] [overflow-wrap:anywhere]" data-testid="library-media">{media}</div>
         ) : null}
         {v.has_file && c?.path ? <div className="truncate font-mono text-[12px] text-muted-foreground" title={c.path} data-testid="library-file">{fileName(c.path)}</div> : null}
       </div>

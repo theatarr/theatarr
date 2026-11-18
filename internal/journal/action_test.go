@@ -100,8 +100,21 @@ func TestTitleFilterTypedNumberAndExactID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := titles(p.Items); len(got) != 5 || !got[1] || !got[4] {
+	if got := titles(p.Items); len(got) != 5 || !got[1] || !got[4] || !got[5] || !got[6] || !got[7] {
 		t.Errorf("typed \" 1 \": titles %v", got)
+	}
+	// 0 (or a negative number) is no id: it does not bring back the entries without a title; the name search runs.
+	if _, err := e.j.Record(ctx, Action{Action: ActUnblock, Target: "0000000000000000000000000000000000000000", By: "mgr"}); err != nil {
+		t.Fatal(err)
+	}
+	for typed, want := range map[string]int64{"0": 7, "-1": -1} { // "2001: A Space Odyssey" holds a 0
+		p, err = e.j.List(ctx, Filter{Title: typed})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := titles(p.Items); got[0] || len(got) > 1 || want > 0 && !got[want] {
+			t.Errorf("typed %s: titles %v", typed, got)
+		}
 	}
 	p, err = e.j.List(ctx, Filter{TitleID: 1})
 	if err != nil {

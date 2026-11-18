@@ -32,6 +32,12 @@ describe("mediaRows (the Media group)", () => {
     expect(rows.Subtitles[0]).not.toContain("+");
   });
 
+  it("shows any stored bit depth in the Video row, the compact line only above 8", () => {
+    const m = { resolution: "1920x1080", video_codec: "x264", video_bit_depth: 8 };
+    expect(mediaRows(m)).toEqual([["Video", ["1920x1080 · x264 8-bit"]]]);
+    expect(mediaLine(m)).toBe("1920x1080 · x264");
+  });
+
   it("gives only the rows the file has, the video in one line", () => {
     expect(mediaRows({ resolution: "3840x2160", video_codec: "x265", video_bit_depth: 10, video_dynamic_range: "HDR10", run_time: "2:03:04" }))
       .toEqual([["Video", ["3840x2160 · x265 10-bit · HDR10"]], ["Runtime", ["2:03:04"]]]);
@@ -46,9 +52,12 @@ describe("mediaRows (the Media group)", () => {
     expect(mediaRows(m).map(([k]) => k)).toEqual(["Audio"]);
   });
 
-  it("reads one track, or a taken-over file's first track, as its codec and channels with the languages row", () => {
-    const one = { audio_codec: "TrueHD Atmos", audio_channels: 7.1, audio_languages: "eng", audio_tracks: [{ codec: "TrueHD Atmos", channels: 7.1, language: "eng" }] };
-    expect(mediaRows(one)).toEqual([["Audio", ["TrueHD Atmos 7.1"]], ["Audio languages", ["English"]]]);
+  it("reads one probed track like several, a taken-over file's first track with the languages row", () => {
+    const one = { audio_codec: "AAC", audio_channels: 2, audio_languages: "jpn", audio_tracks: [{ codec: "AAC", channels: 2, language: "jpn" }] };
+    expect(mediaRows(one)).toEqual([["Audio", ["Japanese · AAC 2.0"]]]);
+    // "und" or no language is no language.
+    expect(audioLines({ audio_tracks: [{ codec: "AC3", channels: 5.1, language: "und" }, { codec: "AAC", channels: 2, language: "UND" }, { codec: "DTS", channels: 6, language: " " }] }))
+      .toEqual(["AC3 5.1", "AAC 2.0", "DTS 6.0"]);
     expect(mediaRows({ audio_codec: "EAC3", audio_channels: 5.1, audio_languages: "eng/en/fre" })).toEqual([["Audio", ["EAC3 5.1"]], ["Audio languages", ["English, French"]]]);
   });
 

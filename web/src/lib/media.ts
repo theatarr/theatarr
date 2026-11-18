@@ -50,28 +50,31 @@ export function mediaLine(m: MediaInfo | undefined | null): string {
   return [videoWords(m), audio, languages(m.audio_languages), subs, m.run_time].filter(Boolean).join(" · ");
 }
 
-/** The video: "3840x2160 · x265 10-bit · HDR10". */
-export function videoWords(m: MediaInfo | undefined | null): string {
+/** The video: "3840x2160 · x265 10-bit · HDR10". The compact line names a bit depth above 8 only; the Media group
+ *  (every) names any stored one. */
+export function videoWords(m: MediaInfo | undefined | null, every = false): string {
   if (!m) return "";
-  const codec = [m.video_codec, m.video_bit_depth && m.video_bit_depth > 8 ? `${m.video_bit_depth}-bit` : ""].filter(Boolean).join(" ");
+  const depth = m.video_bit_depth ?? 0;
+  const codec = [m.video_codec, depth > (every ? 0 : 8) ? `${depth}-bit` : ""].filter(Boolean).join(" ");
   return [m.resolution, codec, m.video_dynamic_range].filter(Boolean).join(" · ");
 }
 
-/** The Audio row's lines: each probed track on its own line when the file has several ("Japanese · FLAC 2.0", the
- *  codec alone for a track without a language); for a taken-over file whose arr counted several tracks, the count and
- *  the first ("13 tracks; first: TrueHD Atmos 7.1"); else the first track's codec and channels ("TrueHD Atmos 7.1"). */
+/** The Audio row's lines: each probed track on its own line ("Japanese · FLAC 2.0", the codec alone for a track
+ *  without a language or "und"); for a taken-over file whose arr counted several tracks, the count and the first
+ *  ("13 tracks; first: TrueHD Atmos 7.1"); else the first track's codec and channels ("TrueHD Atmos 7.1"). */
 export function audioLines(m: MediaInfo | undefined | null): string[] {
   const tracks = m?.audio_tracks ?? [];
-  if (tracks.length > 1) {
-    return tracks.map((t) => [t.language ? languageName(t.language) : "", audioWords({ audio_codec: t.codec, audio_channels: t.channels })].filter(Boolean).join(" · ")).filter(Boolean);
+  if (tracks.length > 0) {
+    const lang = (code = "") => (code.trim() === "" || code.trim().toLowerCase() === "und" ? "" : languageName(code));
+    return tracks.map((t) => [lang(t.language), audioWords({ audio_codec: t.codec, audio_channels: t.channels })].filter(Boolean).join(" · ")).filter(Boolean);
   }
   const one = audioWords(m);
-  if (tracks.length === 0 && (m?.audio_streams ?? 0) > 1) return [`${m?.audio_streams} tracks${one ? `; first: ${one}` : ""}`];
+  if ((m?.audio_streams ?? 0) > 1) return [`${m?.audio_streams} tracks${one ? `; first: ${one}` : ""}`];
   return one ? [one] : [];
 }
 
 /** The Media group (a row's Details, the episode window): one row per fact the file has, each in full. Audio
- *  languages only when the Audio row does not already list the tracks with theirs. */
+ *  languages only without a track list (a taken-over file): the Audio row lists the tracks with theirs. */
 export function mediaRows(m: MediaInfo | undefined | null): [string, string[]][] {
   if (!m) return [];
   const rows: [string, string[]][] = [];
@@ -79,9 +82,9 @@ export function mediaRows(m: MediaInfo | undefined | null): [string, string[]][]
     const kept = lines.filter(Boolean);
     if (kept.length) rows.push([label, kept]);
   };
-  add("Video", [videoWords(m)]);
+  add("Video", [videoWords(m, true)]);
   add("Audio", audioLines(m));
-  if ((m.audio_tracks ?? []).length <= 1) add("Audio languages", [languages(m.audio_languages)]);
+  if ((m.audio_tracks ?? []).length === 0) add("Audio languages", [languages(m.audio_languages)]);
   add("Subtitles", [subsList(m.subtitles)]);
   add("Runtime", [m.run_time ?? ""]);
   return rows;
