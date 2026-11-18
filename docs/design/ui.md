@@ -510,7 +510,8 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   Connected apps see these tags, and a webhook limited to a tag gets this title's future events.", and Save
   (disabled until something changed) and Cancel. Save applies only what changed (docs/design/arrview.md "Tags per
   version"): a typed label, also one already a chip, goes on every library that has the title; one taken off comes
-  off every library. About's Files inventory includes old-manager
+  off every library. Labels are compared ignoring case: a label a connected app stored as "Kids" is one chip with
+  "kids", and × on a label added in this edit only cancels it. About's Files inventory includes old-manager
   files (with their instance) and active native library links (with their size, no instance word), deduplicated by
   path. Release dates list the primary release's stored rows (Library and activity
   pages, Release dates), the country named once under the table and a fallback cinema date marked first release; type and source in words, the raw value as tooltip.
@@ -925,7 +926,7 @@ including "Imported from Radarr's blocklist" for `arr:<instance>`) and the healt
     webhook limited to a tag gets those titles' future events.", and **Add tags** / **Remove tags** (disabled until
     a label is chosen). It sends one `POST titles/tags` per 500 titles, with only those labels (docs/design/arrview.md
     "Tags per version"); no "replace all". The notice counts the titles that changed: "Added kids to 4 titles",
-    "Removed kids from 2 titles".
+    "Removed kids from 2 titles", or with several labels "Updated tags on 4 titles".
 - **Series page:** an episode cell shows its stage (and progress while downloading); an **In progress** filter sits
   beside Missing; the episode overview shows each library's acquisition (words, progress, last update, waits,
   retries) with an Activity link. Anime keep "E13 · absolute 13".

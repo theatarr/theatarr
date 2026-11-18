@@ -361,7 +361,7 @@ describe("Bulk Tags…", () => {
     await user.click(within(dialog).getByRole("button", { name: "Add tags" }));
     await waitFor(() => expect(api.calls("POST", "/titles/tags")).toHaveLength(1));
     expect(api.calls("POST", "/titles/tags")[0].body).toEqual({ title_ids: [1, 2, 3, 4, 5], add: ["kids", "new"], remove: [] });
-    await waitFor(() => expect(screen.getAllByTestId("toast").at(-1)?.textContent).toContain("Added kids and new to 4 titles"));
+    await waitFor(() => expect(screen.getAllByTestId("toast").at(-1)?.textContent).toContain("Updated tags on 4 titles"));
     expect(cleared()).toBe(1);
   });
 

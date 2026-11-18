@@ -12,7 +12,6 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/components/toaster";
 import { plural } from "@/lib/format";
-import { namesList } from "@/lib/sync-groups";
 
 /** The title page dialog's help line. */
 export const TAGS_HELP = "Changes apply to every library that has this title. Connected apps see these tags, and a webhook limited to a tag gets this title's future events.";
@@ -152,7 +151,9 @@ export function BulkTagsDialog({ titleIds, onClose, onDone }: { titleIds: number
     try {
       const r = await editTags(titleIds, add ? tags : [], add ? [] : tags);
       saved();
-      toast({ tone: "ok", title: `${add ? "Added" : "Removed"} ${namesList(tags)} ${add ? "to" : "from"} ${plural(r.changed, "title")}` });
+      // The count is of titles changed, not per label: with several labels only the total is true.
+      const n = plural(r.changed, "title");
+      toast({ tone: "ok", title: tags.length > 1 ? `Updated tags on ${n}` : `${add ? "Added" : "Removed"} ${tags[0]} ${add ? "to" : "from"} ${n}` });
       onDone();
     } catch (e) {
       setError(e);
