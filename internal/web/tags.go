@@ -100,40 +100,9 @@ func (w *Web) apiTitleTags(rw http.ResponseWriter, r *http.Request) {
 	var out TitleTagsResult
 	err := w.st.WriteTx(ctx, func(tx *sql.Tx) error {
 		out.Changed = 0
-		var addIDs, removeIDs []int64
-		// A label is created only for titles that have a current copy to put it on.
-		var current bool
-		if len(add) > 0 {
-			if err := tx.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM version v WHERE v.title_id IN
-				(SELECT value FROM json_each(?)) AND NOT EXISTS (SELECT 1 FROM arrview_removed_version r WHERE r.version_id = v.id))`,
-				titleIDsJSON(ids)).Scan(&current); err != nil {
-				return err
-			}
-		}
-		for _, l := range add {
-			if !current {
-				break
-			}
-			id, _, err := catalog.FindOrCreateTag(ctx, tx, l, w.now())
-			if err != nil {
-				return err
-			}
-			addIDs = append(addIDs, id)
-		}
-		// An unknown label has nothing to take off: it is not created.
-		for _, l := range remove {
-			var id int64
-			switch err := tx.QueryRowContext(ctx, `SELECT id FROM arrview_tag WHERE label = ?`, l).Scan(&id); err {
-			case nil:
-				removeIDs = append(removeIDs, id)
-			case sql.ErrNoRows:
-			default:
-				return err
-			}
-		}
+		list := titleIDsJSON(ids)
 		// One statement per label over the whole batch; changed counts the distinct titles a row was written for.
 		changed := map[int64]bool{}
-		list := titleIDsJSON(ids)
 		run := func(q string, args ...any) error {
 			return queryEach(ctx, tx, q, args, func(rows *sql.Rows) error {
 				var id int64
@@ -144,7 +113,23 @@ func (w *Web) apiTitleTags(rw http.ResponseWriter, r *http.Request) {
 				return nil
 			})
 		}
-		for _, tag := range addIDs {
+		// A label is created only for titles that have a current copy to put it on.
+		var current bool
+		if len(add) > 0 {
+			if err := tx.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM version v WHERE v.title_id IN
+				(SELECT value FROM json_each(?)) AND NOT EXISTS (SELECT 1 FROM arrview_removed_version r WHERE r.version_id = v.id))`,
+				list).Scan(&current); err != nil {
+				return err
+			}
+		}
+		for _, l := range add {
+			if !current {
+				break
+			}
+			tag, _, err := catalog.FindOrCreateTag(ctx, tx, l, w.now())
+			if err != nil {
+				return err
+			}
 			// Every current copy (not one removed from its library), whichever library it is in.
 			if err := run(`INSERT INTO arrview_title_tag (version, title_id, tag_id)
 				SELECT v.policy_key, v.title_id, ? FROM version v WHERE v.title_id IN (SELECT value FROM json_each(?)) AND NOT EXISTS
@@ -153,10 +138,11 @@ func (w *Web) apiTitleTags(rw http.ResponseWriter, r *http.Request) {
 				return err
 			}
 		}
-		for _, tag := range removeIDs {
-			// Removed copies too, so the label does not come back with a restored copy.
-			if err := run(`DELETE FROM arrview_title_tag WHERE tag_id = ? AND title_id IN (SELECT value FROM json_each(?))
-				RETURNING title_id`, tag, list); err != nil {
+		for _, l := range remove {
+			// Removed copies too, so the label does not come back with a restored copy; an unknown label matches
+			// nothing and is not created.
+			if err := run(`DELETE FROM arrview_title_tag WHERE tag_id IN (SELECT id FROM arrview_tag WHERE label = ?)
+				AND title_id IN (SELECT value FROM json_each(?)) RETURNING title_id`, l, list); err != nil {
 				return err
 			}
 		}
