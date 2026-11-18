@@ -144,7 +144,7 @@ type AddOptions struct {
 	// InLibrary: the title (TitleID) has a current library copy; false for a new title and for one every copy of
 	// which was removed (the add restores it, by its title id).
 	InLibrary bool `json:"in_library"`
-	// RouterEnabled is router.enabled: false while Pause is on, when nothing is searched or grabbed.
+	// RouterEnabled is router.enabled: false while Pause is on (policy.PauseStops says what stops).
 	RouterEnabled bool            `json:"router_enabled"`
 	Versions      []VersionOption `json:"versions"`
 	// Seasons come from the library's episodes (EpisodesKnown) or else, for a series whose episodes the library does

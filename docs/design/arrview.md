@@ -6,7 +6,7 @@ read: [clients.md](clients.md). Code: `internal/arrview`, migration `00012_arrvi
 comments in `examples/policy/views.yaml`.
 
 The views answer from Theatarr's database, with metadata lookups for new series, and write only to that database.
-While Pause is on nothing is searched or grabbed. Search commands go to the acquirer and the router (Commands). Pointing clients at the views: see Cutover.
+While Pause is on, searches, new grabs and imports stop for every library; Interactive search can still look up releases. Search commands go to the acquirer and the router (Commands). Pointing clients at the views: see Cutover.
 
 Files are the version's active links: Theatarr's own imports and links adopted from an arr alike. An adopted
 link's media detail is not read into `mediaInfo` (resolution only).
