@@ -231,6 +231,25 @@ describe("torrents page", () => {
     expect((sent[0].body as { confirmation_token: string }).confirmation_token).toBe("d1-2");
   });
 
+  it("names a refused torrent by its selected name when the provider could not be listed", async () => {
+    const refusal = { items: [{ provider: "rd", id: "2", hash: h2, name: "", bytes: 0, action: "refuse", refusal: "the provider could not be listed: rd: gateway: backing off" }],
+      count: 0, bytes: 0, refused: 1, digest: "d", confirmation_token: "d0", warning: "", deleted: 0, failed: 0 };
+    mockFetch([
+      { method: "GET", path: "/torrents/report", reply: report },
+      { method: "GET", path: "/torrents/backups", reply: { backups: [], every_s: 0, keep: 30 } },
+      { method: "GET", path: "/torrents/journal", reply: { entries: [] } },
+      { method: "POST", path: "/torrents/delete/preview", reply: refusal },
+    ]);
+    renderPage(<TorrentsPage />);
+    expect(await screen.findByText("Used.Movie")).toBeTruthy();
+    fireEvent.click(screen.getByTestId("group-all"));
+    fireEvent.click(screen.getByLabelText("Select all shown"));
+    fireEvent.click(screen.getByTestId("delete-selected"));
+    const item = await screen.findByTestId("refused-item");
+    expect(item.textContent).toContain("Used.Movie: the provider could not be listed: rd: gateway: backing off");
+    expect(item.textContent).not.toContain(" 2:");
+  });
+
   it("shows each account's Provider tag under All providers, takes ?q= into the filter, and links a used torrent's titles", async () => {
     const tb = { provider: "tb", kind: "torbox", ok: true, as_of: "2026-10-29T11:00:00Z", account_torrents: 1, unique_hashes: 1, bytes: 1024, usage: { used: 0, unused: 0, unknown: 1, unused_bytes: 0, unknown_bytes: 1024 },
       torrents: [{ ...torrent("9", "9".repeat(40), "Other.Movie", "unknown"), provider: "tb" }] };

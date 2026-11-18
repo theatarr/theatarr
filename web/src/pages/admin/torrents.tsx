@@ -224,7 +224,7 @@ export function TorrentsPage() {
           </Choice>
           {plan.items.filter((it) => it.action === "refuse").map((it) => (
             <div key={`${it.provider}:${it.id}`} className="rounded-md border border-[var(--line)] p-2 text-[13px]" data-testid="refused-item">
-              <div className="[overflow-wrap:anywhere]"><span className="font-medium" title={it.provider}>{providerLabel(codes[it.provider] ?? it.provider)}</span> {it.name || it.id}: {it.refusal}</div>
+              <div className="[overflow-wrap:anywhere]"><span className="font-medium" title={it.provider}>{providerLabel(codes[it.provider] ?? it.provider)}</span> {it.name || selected[keyOf(it)]?.name || it.id}: {it.refusal}</div>
               {it.needs_override && it.expected_override_token ? (
                 <Choice
                   checked={overrides[`${it.provider}:${it.id}`] === it.expected_override_token}

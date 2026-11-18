@@ -496,7 +496,8 @@ line opens the expanded row), one
 table at every width (below 640 px Added, Status and the Size column hide; the size leads the name's second line),
 multi-select and **Delete selected**: the preview opens a
 confirmation with the count, size and the backup it takes first; refused torrents are
-listed with why, and used or unknown ones with a checkbox naming their references to override. The filter
+listed by name (the selected row's name when the refusal has none, as when the provider could not be listed) with
+why, and used or unknown ones with a checkbox naming their references to override. The filter
 **Not used by Theatarr** (the unused group) has a line beside the filters: it checks Theatarr's libraries and the
 **Other libraries' folders** (`torrents.scan_roots`), which are edited in Settings › Download clients › Torrents
 (`#scan-roots`, linked there); other apps on the same accounts are not seen. The provider tab, filter, text and sort
