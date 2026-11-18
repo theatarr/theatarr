@@ -266,5 +266,61 @@ describe("Title page facts (J5)", () => {
     show({ collection: { tmdb_id: 8091, name: "Alien Collection" } }, "/title/70?tab=about");
     expect((await screen.findByTestId("title-collection")).getAttribute("href")).toBe("/collections/8091");
   });
+
+  describe("tag editor", () => {
+    const page = (t: object, perms = me.permissions) => {
+      const api = mockFetch([
+        { method: "GET", path: "/auth/me", reply: { ...me, permissions: perms } },
+        { method: "GET", path: "/titles/70", reply: { ...title, ...t } },
+        { method: "GET", path: "/tags", reply: { tags: ["kids", "old", "upgrade"] } },
+        { method: "POST", path: "/titles/tags", reply: { changed: 1, tags: ["kids", "new"] } },
+        { method: "GET", path: "/add/options", reply: { kind: "movie", anime: false, title_id: 70, router_enabled: true, episodes_known: false, can_search: true, seasons: [], versions: [] } },
+      ]);
+      renderPage(<SearchProvider><Routes><Route path="/title/:id" element={<TitlePage />} /></Routes></SearchProvider>, "/title/70?tab=about");
+      return api;
+    };
+    const inLib = [{ id: 5, key: "movie-web", label: "4K WEB", state: "wanted", monitored: true, has_file: false }];
+
+    it("offers None and Edit to a manager on a title without tags", async () => {
+      page({ versions: inLib });
+      const tags = await screen.findByTestId("title-tags");
+      expect(tags.textContent).toBe("NoneEdit");
+    });
+
+    it("sends only the labels added or taken off, a typed one trimmed and lower-cased, a refused one with the rule", async () => {
+      const api = page({ versions: inLib, tags: ["kids", "old"] });
+      const user = userEvent.setup();
+      await user.click(await screen.findByTestId("title-tags-edit"));
+      const dialog = await screen.findByTestId("title-tags-dialog");
+      expect(within(dialog).getByTestId("title-tags-help").textContent).toBe("Changes apply to every library that has this title. Connected apps see these tags, and a webhook limited to a tag gets this title's future events.");
+      expect(within(dialog).getByTestId("confirm-ok").hasAttribute("disabled")).toBe(true);
+      const box = within(dialog).getByTestId("tag-input");
+      await user.type(box, "no spaces");
+      expect(within(dialog).getByTestId("tag-bad").textContent).toBe("Allowed characters a-z, 0-9 and -");
+      expect(within(dialog).getByTestId("tag-add").hasAttribute("disabled")).toBe(true);
+      await user.clear(box);
+      await user.type(box, " New {Enter}");
+      // A label already a chip, typed again: put on every library.
+      await user.type(box, "KIDS{Enter}");
+      await user.click(within(dialog).getByRole("button", { name: "Remove old" }));
+      expect(within(dialog).getByTestId("tag-chips").textContent).toBe("kidsnew");
+      await user.click(within(dialog).getByTestId("confirm-ok"));
+      await waitFor(() => expect(api.calls("POST", "/titles/tags")).toHaveLength(1));
+      expect(api.calls("POST", "/titles/tags")[0].body).toEqual({ title_ids: [70], add: ["new", "kids"], remove: ["old"] });
+      await waitFor(() => expect(screen.queryByTestId("title-tags-dialog")).toBeNull());
+    });
+
+    it("shows labels without Edit to an account that sees files but cannot manage", async () => {
+      page({ versions: inLib, tags: ["kids"] }, ["see_files"]);
+      expect((await screen.findByTestId("title-tags")).textContent).toBe("kids");
+      expect(screen.queryByTestId("title-tags-edit")).toBeNull();
+    });
+
+    it("has no Tags fact for a title in no library without tags", async () => {
+      page({ versions: [] });
+      await screen.findByTestId("title-facts");
+      expect(screen.queryByTestId("title-tags")).toBeNull();
+    });
+  });
 });
 

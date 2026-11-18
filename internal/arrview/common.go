@@ -4,16 +4,17 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
-	"regexp"
 	"slices"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/theatarr/theatarr/internal/catalog"
 	"github.com/theatarr/theatarr/internal/decide/format"
 	"github.com/theatarr/theatarr/internal/decide/profile"
 	"github.com/theatarr/theatarr/internal/notify"
@@ -224,8 +225,6 @@ func (s *Service) diskSpace(w http.ResponseWriter, r *request) {
 
 // Tags.
 
-var tagLabel = regexp.MustCompile(`(?i)^[a-z0-9-]+$`)
-
 func (s *Service) allTags(r *request) ([]tagResource, error) {
 	rows, err := s.st.Reader().QueryContext(r.Context(), `SELECT id, label FROM arrview_tag ORDER BY id`)
 	if err != nil {
@@ -278,26 +277,16 @@ func (s *Service) createTag(w http.ResponseWriter, r *request) {
 		badRequest(w, "", err.Error(), nil)
 		return
 	}
-	if in.Label == "" || !tagLabel.MatchString(in.Label) {
-		badRequest(w, "Label", "Allowed characters a-z, 0-9 and -", in.Label)
-		return
-	}
 	var t tagResource
 	err := s.st.WriteTx(r.Context(), func(tx *sqlTx) error {
-		err := tx.QueryRowContext(r.Context(), `SELECT id, label FROM arrview_tag WHERE label = ?`, in.Label).
-			Scan(&t.ID, &t.Label)
-		if err != sql.ErrNoRows {
-			return err
-		}
-		t.Label = strings.ToLower(in.Label)
-		res, err := tx.ExecContext(r.Context(), `INSERT INTO arrview_tag (label, created_at) VALUES (?, ?)`, t.Label,
-			store.Millis(s.now()))
-		if err != nil {
-			return err
-		}
-		t.ID, err = res.LastInsertId()
+		var err error
+		t.ID, t.Label, err = catalog.FindOrCreateTag(r.Context(), tx, in.Label, s.now())
 		return err
 	})
+	if errors.Is(err, catalog.ErrTagLabel) {
+		badRequest(w, "Label", catalog.TagLabelWords, in.Label)
+		return
+	}
 	if err != nil {
 		s.internal(w, r, err)
 		return
@@ -315,8 +304,8 @@ func (s *Service) updateTag(w http.ResponseWriter, r *request) {
 	if id, ok := r.pathID(1); ok {
 		in.ID = id
 	}
-	if in.Label == "" || !tagLabel.MatchString(in.Label) {
-		badRequest(w, "Label", "Allowed characters a-z, 0-9 and -", in.Label)
+	if !catalog.ValidTagLabel(in.Label) {
+		badRequest(w, "Label", catalog.TagLabelWords, in.Label)
 		return
 	}
 	res, err := s.st.Writer().ExecContext(r.Context(), `UPDATE arrview_tag SET label = ? WHERE id = ?`, in.Label, in.ID)

@@ -31,6 +31,7 @@ import { KeptFiles } from "@/components/title/copy-actions";
 import { TitleToolbar, inEveryLibrary, monitorOnly } from "@/components/title/title-toolbar";
 import { RequestMoreSeasons, TitleRequest, TitleRequestButton } from "@/components/title/title-request";
 import { SeriesTypeControl } from "@/components/title/title-choices";
+import { EditTitleTags } from "@/components/title/tags-editor";
 import { ReportProblemButton } from "@/components/report/report-sheet";
 import { HistoryTab } from "@/components/activity/history-tab";
 import { Button } from "@/components/ui/button";
@@ -122,6 +123,7 @@ function About({ d }: { d: TitleDetail }) {
   // The general release day (lib/released.ts): a movie's earliest cinema date or TMDb's date, a series' first air date.
   const releasedDay = d.released;
   const links = outsideLinks(d);
+  const tagsEditable = perms.manage && currentLibraries((d.versions ?? []) as Version[]).length > 0;
   return (
     <div data-testid="title-about">
       <div className="flex flex-col gap-6 lg:flex-row lg:gap-8">
@@ -154,13 +156,15 @@ function About({ d }: { d: TitleDetail }) {
             {/* The newest current file's time (when the title was added is under Details: Added to Theatarr). */}
             {perms.seeFiles && d.added_at ? <Fact label="Latest file">{fmtAgo(d.added_at)}</Fact> : null}
             {perms.seeFiles && d.size_bytes ? <Fact label="On disk">{fmtBytes(d.size_bytes)}</Fact> : null}
-            {/* Tags compatible clients set on the title's libraries (see files only), each opening its list filtered by it. */}
-            {perms.seeFiles && (d.tags ?? []).length ? (
+            {/* Tags on the title's libraries (see files only), each opening its list filtered by it. Managers edit them
+                (tags-editor.tsx): "None" gives a title without tags a place to start; a title in no library has no Edit. */}
+            {perms.seeFiles && ((d.tags ?? []).length || tagsEditable) ? (
               <Fact label="Tags">
                 <span className="flex flex-wrap gap-x-2 gap-y-0.5" data-testid="title-tags">
-                  {(d.tags ?? []).map((g) => (
+                  {(d.tags ?? []).length ? (d.tags ?? []).map((g) => (
                     <Link key={g} to={`${d.anime ? "/anime" : series ? "/series" : "/movies"}?tag=${encodeURIComponent(g)}`} className="text-primary hover:underline">{g}</Link>
-                  ))}
+                  )) : <span>None</span>}
+                  {tagsEditable && d.id ? <EditTitleTags titleId={d.id} name={d.name ?? ""} tags={d.tags ?? []} /> : null}
                 </span>
               </Fact>
             ) : null}

@@ -41,6 +41,7 @@ func (w *Web) mountAPI(mux *http.ServeMux) {
 	w.mountJournalAPI(mux)
 	w.mountLibraryAPI(mux)
 	w.mountCopiesAPI(mux)
+	w.mountTagsAPI(mux)
 	w.mountActivityAPI(mux)
 	w.mountJobsAPI(mux)
 

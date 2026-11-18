@@ -612,8 +612,8 @@ var (
 	seriesTypes           = []string{"standard", "daily", "anime"}
 )
 
-// choiceTitles checks a choice request's title ids: 1 to maxBulkTitles titles, every one of kind. It answers the
-// refusal itself and returns the ids sorted, without repeats.
+// choiceTitles checks a choice request's title ids: 1 to maxBulkTitles titles, every one of kind (any kind when
+// empty). It answers the refusal itself and returns the ids sorted, without repeats.
 func (w *Web) choiceTitles(rw http.ResponseWriter, r *http.Request, titleIDs []int64, kind, field string) ([]int64, bool) {
 	ids := slices.Clone(titleIDs)
 	slices.Sort(ids)
@@ -646,7 +646,7 @@ func (w *Web) choiceTitles(rw http.ResponseWriter, r *http.Request, titleIDs []i
 		case !ok:
 			notFound(rw)
 			return nil, false
-		case k != kind:
+		case kind != "" && k != kind:
 			badRequest(rw, fmt.Sprintf("%s is for a %s: title %d is a %s", field, kind, id, k))
 			return nil, false
 		}

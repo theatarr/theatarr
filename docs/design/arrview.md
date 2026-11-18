@@ -544,7 +544,16 @@ has and no other: `replace` replaces only within them. A version a view's DELETE
 are not shown and writes leave them alone (they show again when the version is turned back on); a request that turns
 versions on does so before its tags are written (`TestTagsSkipRemovedVersions`). Labels (`arrview_tag`) stay global, like an arr's tag list, and
 deleting a label removes it from every version. Theatarr's own pages show a title's tags (the union over its copies
-in the library) and filter by them, for accounts that see files, and never write them. Rows from before 00105 were copied to every version the title had
+in the library) and filter by them, for accounts that see files. Managers (manage and see files) edit them in Theatarr
+with one call, `POST /titles/tags` (`{title_ids, add, remove}`, the title page's About **Tags** › Edit), which applies only the labels named: a label in `add` goes on every current copy of each title (not a
+removed one), a label in `remove` comes off every copy, removed ones included (so it cannot come back with a restored
+copy), and every other label stays as each copy has it. A copy added later gets no tags by itself. Labels follow the
+compatible tag create's rule (`catalog.FindOrCreateTag`, shared by both: letters, digits and hyphens, an existing
+label in any case reused, a new one stored lower-case); the native side trims and lower-cases what is typed, and a
+remove creates nothing. `GET /tags` lists every label for the editor's suggestions. A save writes no journal entry
+and sends no event; it is logged with who made it. A connected app that sends a title back with its older tag list
+replaces the tags on its own view's copies, as the arrs do, so a label added in Theatarr can leave those copies that
+way (`TestEditTitleTags`, `TestTagEditReachesWebhooks`). Rows from before 00105 were copied to every version the title had
 (`TestTagsPerVersion`, `TestVersionTagsMigration`).
 
 ## Schema (00012)

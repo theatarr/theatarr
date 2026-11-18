@@ -501,9 +501,16 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   column, the episodes under each event; admins also the title's journal). There is no Libraries tab: the table is under
   the hero. About's facts say **Released** (a series **First aired**), or **Releases** / **First airs** for a day still
   to come, and **Latest file** ("see files" only: when the newest current file came; when the title was added is under Details, "Added
-  to Theatarr"); **On disk** counts a file two libraries share once; **Tags** ("see files" only, hidden when none)
-  lists the labels compatible clients set on the title's libraries, each once, each a link to its list filtered by
-  it (`/movies?tag=kids`). About's Files inventory includes old-manager
+  to Theatarr"); **On disk** counts a file two libraries share once; **Tags** ("see files" only)
+  lists the labels on the title's libraries, each once, each a link to its list filtered by it (`/movies?tag=kids`);
+  it is hidden when there are none, except for managers on a title in a library, who see **None** and **Edit**.
+  Edit opens **Edit tags**: the labels as chips (× takes one off), a box that adds one (Enter or Add; it suggests
+  the labels there are; what is typed is trimmed and lower-cased, and anything but a-z, 0-9 and - is refused as it
+  is typed with "Allowed characters a-z, 0-9 and -"), the line "Changes apply to every library that has this title.
+  Connected apps see these tags, and a webhook limited to a tag gets this title's future events.", and Save
+  (disabled until something changed) and Cancel. Save applies only what changed (docs/design/arrview.md "Tags per
+  version"): a typed label, also one already a chip, goes on every library that has the title; one taken off comes
+  off every library. About's Files inventory includes old-manager
   files (with their instance) and active native library links (with their size, no instance word), deduplicated by
   path. Release dates list the primary release's stored rows (Library and activity
   pages, Release dates), the country named once under the table and a fallback cinema date marked first release; type and source in words, the raw value as tooltip.

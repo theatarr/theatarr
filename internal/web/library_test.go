@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -1576,5 +1577,138 @@ func TestLacksSameKind(t *testing.T) {
 	}
 	if got := lacks("kind=movie"); got["movie-web"] != 2 || got["movie-remux"] != 2 {
 		t.Errorf("movie lacks %v, want movie-web 2 (Alpha, Epsilon), movie-remux 2 (Beta, Epsilon)", got)
+	}
+}
+
+// Tags edited in Theatarr (POST /titles/tags): only the labels added or removed change; an add goes on every current
+// copy, a remove off every copy (a removed one too); the list's Tag filter and the title page follow at once.
+func TestEditTitleTags(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	e.seedLibrary()
+	key := e.apiKey()
+	now := store.Millis(testNow)
+	// Alpha has a third copy, removed from its library.
+	e.exec(`INSERT INTO version (id, title_id, policy_key, state, created_at, updated_at) VALUES (5, 1, 'anime-movie', 'wanted', ?, ?)`, now, now)
+	e.exec(`INSERT INTO arrview_removed_version (version_id, view, removed_at) VALUES (5, 'radarr', ?)`, now)
+	e.exec(`INSERT INTO arrview_tag (id, label, created_at) VALUES (1, 'kids', 0), (2, 'old', 0), (3, 'beta', 0)`)
+	// kids only on Alpha's remux copy (untouched, it stays there only); old on the web copy and the removed copy.
+	e.exec(`INSERT INTO arrview_title_tag (version, title_id, tag_id) VALUES ('movie-remux', 1, 1), ('movie-web', 1, 2),
+		('anime-movie', 1, 2), ('movie-web', 2, 3)`)
+	copies := func(title int64, label string) string {
+		t.Helper()
+		var s sql.NullString
+		if err := e.st.Reader().QueryRow(`SELECT group_concat(tt.version, ',') FROM (SELECT tt.version FROM arrview_title_tag tt
+			JOIN arrview_tag g ON g.id = tt.tag_id WHERE tt.title_id = ? AND g.label = ? ORDER BY tt.version) tt`, title, label).Scan(&s); err != nil {
+			t.Fatal(err)
+		}
+		return s.String
+	}
+	labels := func(label string) int {
+		t.Helper()
+		var n int
+		if err := e.st.Reader().QueryRow(`SELECT count(*) FROM arrview_tag WHERE label = ?`, label).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	post := func(body string, wantCode int) map[string]any {
+		t.Helper()
+		code, out := e.postKeyJSON(APIBase+"/titles/tags", key, body)
+		if code != wantCode {
+			t.Fatalf("%s: %d %v, want %d", body, code, out, wantCode)
+		}
+		return out
+	}
+
+	out := post(`{"title_ids":[1],"add":[" New-Label "],"remove":["old"]}`, 200)
+	if out["changed"] != 1.0 || fmt.Sprint(out["tags"]) != "[kids new-label]" {
+		t.Errorf("first save: %v", out)
+	}
+	if got := copies(1, "new-label"); got != "movie-remux,movie-web" {
+		t.Errorf("new-label on %q, want the current copies only", got)
+	}
+	if got := copies(1, "old"); got != "" {
+		t.Errorf("old still on %q, want off every copy, the removed one too", got)
+	}
+	if got := copies(1, "kids"); got != "movie-remux" {
+		t.Errorf("untouched kids on %q", got)
+	}
+	// The same label again in another case: created once, nothing changes.
+	if out := post(`{"title_ids":[1],"add":["NEW-LABEL"]}`, 200); out["changed"] != 0.0 || labels("new-label") != 1 {
+		t.Errorf("again: %v, %d labels", out, labels("new-label"))
+	}
+	// A label already a chip, typed again: on every library that has the title.
+	if out := post(`{"title_ids":[1],"add":["kids"]}`, 200); out["changed"] != 1.0 || copies(1, "kids") != "movie-remux,movie-web" {
+		t.Errorf("kids completed: %v, on %q", out, copies(1, "kids"))
+	}
+	// Refusals change nothing.
+	for _, body := range []string{`{"title_ids":[1],"add":["no spaces"]}`, `{"title_ids":[1],"add":["kids"],"remove":["KIDS"]}`,
+		`{"title_ids":[1],"add":[""]}`} {
+		if out := post(body, 400); body != `{"title_ids":[1],"add":["kids"],"remove":["KIDS"]}` && out["error"] != "Allowed characters a-z, 0-9 and -" {
+			t.Errorf("%s: %v", body, out)
+		}
+	}
+	// An empty remove does nothing (not "every tag"); an unknown label is not created by a remove.
+	if out := post(`{"title_ids":[2],"add":[],"remove":[]}`, 200); out["changed"] != 0.0 || copies(2, "beta") != "movie-web" {
+		t.Errorf("empty: %v, beta on %q", out, copies(2, "beta"))
+	}
+	if out := post(`{"title_ids":[2],"remove":["ghost"]}`, 200); out["changed"] != 0.0 || labels("ghost") != 0 {
+		t.Errorf("unknown remove: %v", out)
+	}
+	// A title with no current copy (Gamma) gets nothing and is not counted.
+	if out := post(`{"title_ids":[3],"add":["kids"]}`, 200); out["changed"] != 0.0 || copies(3, "kids") != "" {
+		t.Errorf("no copy: %v", out)
+	}
+	// Two titles at once.
+	if out := post(`{"title_ids":[1,2],"add":["bulk"]}`, 200); out["changed"] != 2.0 || out["tags"] != nil {
+		t.Errorf("bulk add: %v", out)
+	}
+	if out := post(`{"title_ids":[1,2],"remove":["bulk"]}`, 200); out["changed"] != 2.0 || copies(1, "bulk")+copies(2, "bulk") != "" {
+		t.Errorf("bulk remove: %v", out)
+	}
+	if out := post(`{"title_ids":[1,99],"add":["bulk"]}`, 404); copies(1, "bulk") != "" {
+		t.Errorf("unknown title: %v", out)
+	}
+
+	// The list's filter and the title page follow at once.
+	var p TitlePage
+	if e.getKey(APIBase+"/titles?tag=new-label", key, &p); names(p) != "Alpha" {
+		t.Errorf("tag filter: %q", names(p))
+	}
+	var d TitleDetail
+	if e.getKey(APIBase+"/titles/1", key, &d); strings.Join(d.Tags, ",") != "kids,new-label" {
+		t.Errorf("title page: %v", d.Tags)
+	}
+	var all TagList
+	if e.getKey(APIBase+"/tags", key, &all); strings.Join(all.Tags, ",") != "beta,bulk,kids,new-label,old" {
+		t.Errorf("GET /tags: %v", all.Tags)
+	}
+
+	// A household account, and a key that may manage but not see files, are refused.
+	uid := e.account("household", auth.RoleUser, auth.StatusActive, true)
+	ukey, _, err := e.auth.CreateKey(context.Background(), "k-household", uid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if code, _ := e.postKeyJSON(APIBase+"/titles/tags", ukey, `{"title_ids":[1],"add":["x"]}`); code != http.StatusForbidden {
+		t.Errorf("household: %d", code)
+	}
+	if code := e.getKey(APIBase+"/tags", ukey, nil); code != http.StatusForbidden {
+		t.Errorf("household GET /tags: %d", code)
+	}
+	w, err := New(Config{Store: e.st, Auth: e.auth, Policy: e.web.pol, Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Now: func() time.Time { return testNow }, UI: testUI, Perms: func(*auth.Identity) Perms { return PermsOf(auth.PermBrowse | auth.PermManage) }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	mux := http.NewServeMux()
+	w.Mount(mux)
+	r := httptest.NewRequest("POST", APIBase+"/titles/tags", strings.NewReader(`{"title_ids":[1],"add":["x"]}`))
+	r.Header.Set(auth.APIKeyHeader, key)
+	r.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	if mux.ServeHTTP(rec, r); rec.Code != http.StatusForbidden || labels("x") != 0 {
+		t.Errorf("manage without see files: %d %s", rec.Code, rec.Body.String())
 	}
 }
