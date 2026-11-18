@@ -417,6 +417,21 @@ describe("Bulk Tags…", () => {
     await waitFor(() => expect(api.calls("GET", "/tags").length).toBeGreaterThan(1));
   });
 
+  it("clears the box when × takes off the chip it names, and shows a label in the list's spelling", async () => {
+    setup([{ method: "GET", path: "/tags", reply: { tags: ["Kids"] } }]);
+    const user = userEvent.setup();
+    await user.click(await within(await bar()).findByRole("button", { name: "Tags…" }));
+    const dialog = await screen.findByRole("dialog", { name: "Tags for 5 titles" });
+    const box = within(dialog).getByTestId("tag-input") as HTMLInputElement;
+    await waitFor(() => expect(within(dialog).getByTestId("confirm-ok")).toBeTruthy());
+    await user.type(box, "kids{Enter}");
+    await waitFor(() => expect(within(dialog).getByTestId("tag-chips").textContent).toBe("Kids"));
+    await user.type(box, "kids");
+    await user.click(within(dialog).getByRole("button", { name: "Remove Kids" }));
+    expect(box.value).toBe("");
+    expect(within(dialog).getByRole("button", { name: "Add tags" }).hasAttribute("disabled")).toBe(true);
+  });
+
   it("is not offered to a manager who cannot see files", async () => {
     setup([], ["manage"]);
     expect(await within(await bar()).findByRole("button", { name: "Remove" })).toBeTruthy();

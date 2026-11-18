@@ -23,6 +23,15 @@ export function draftOf(text: string): { tag: string; bad: boolean } {
   return { tag, bad: tag !== "" && !TAG_RULE.test(tag) };
 }
 
+/** How a label is shown: the spelling it is stored in (the title's own, then the label list's), else the typed
+ *  lower-case label. Comparisons and the request use the lower-case label. */
+function useSpelling(own: string[] = []): (tag: string) => string {
+  const labels = useTagLabels(true);
+  const known = new Map<string, string>();
+  for (const l of [...(labels.data?.tags ?? []), ...own]) known.set(tagOf(l), l);
+  return (tag) => known.get(tag) ?? tag;
+}
+
 /** The box that adds a label: Enter or Add puts what is typed (trimmed, lower-case) through onAdd; a label outside
  *  the rule is refused with the rule's words as it is typed. The dialog holds the text (draftOf). */
 export function TagBox({ text, onText, onAdd, label = "Add a tag" }: { text: string; onText: (t: string) => void; onAdd: (tag: string) => void; label?: string }) {
@@ -90,8 +99,15 @@ export function TitleTagsDialog({ titleId, name, tags, onClose }: { titleId: num
   const [error, setError] = useState<unknown>();
   const saved = useTagsSaved();
   const own = new Set(tags.map(tagOf));
+  const spell = useSpelling(tags);
   // The chips: the title's labels less the ones taken off, plus the new ones, in label order.
-  const chips = [...tags.filter((g) => !edit.remove.includes(tagOf(g))), ...edit.add.filter((g) => !own.has(g))].sort((a, b) => tagOf(a).localeCompare(tagOf(b)));
+  const chips = [...tags.filter((g) => !edit.remove.includes(tagOf(g))), ...edit.add.filter((g) => !own.has(g)).map(spell)].sort((a, b) => tagOf(a).localeCompare(tagOf(b)));
+  // × on the chip the box names also clears the box, so the draft does not put it back.
+  const unchip = (g: string) => {
+    const key = tagOf(g);
+    if (key === draft.tag) setText("");
+    setEdit((e) => removeTag(e, key, own.has(key)));
+  };
   const save = async () => {
     setBusy(true);
     setError(undefined);
@@ -120,7 +136,7 @@ export function TitleTagsDialog({ titleId, name, tags, onClose }: { titleId: num
       testid="title-tags-dialog"
       top={
         <div className="space-y-3">
-          <TagChips tags={chips} empty="No tags" onRemove={(g) => setEdit((e) => removeTag(e, tagOf(g), own.has(tagOf(g))))} />
+          <TagChips tags={chips} empty="No tags" onRemove={unchip} />
           <TagBox text={text} onText={setText} onAdd={(g) => setEdit((e) => addTag(e, g))} />
           <p className="text-xs text-[var(--ink-3)]" data-testid="title-tags-help">{TAGS_HELP}</p>
         </div>
@@ -158,6 +174,12 @@ export function BulkTagsDialog({ titleIds, onClose, onDone }: { titleIds: number
   // A good label left in the box counts as chosen.
   const draft = draftOf(text);
   const tags = draft.tag && !draft.bad && !chosen.includes(draft.tag) ? [...chosen, draft.tag] : chosen;
+  const spell = useSpelling();
+  const unchip = (g: string) => {
+    const key = tagOf(g);
+    if (key === draft.tag) setText("");
+    setTags((ts) => ts.filter((t) => t !== key));
+  };
   const save = async () => {
     setBusy(true);
     setError(undefined);
@@ -172,7 +194,7 @@ export function BulkTagsDialog({ titleIds, onClose, onDone }: { titleIds: number
       }
       // The count is of titles changed, not per label: with several labels only the total is true.
       const n = plural(r.changed, "title");
-      toast({ tone: "ok", title: tags.length > 1 ? `Updated tags on ${n}` : `${add ? "Added" : "Removed"} ${tags[0]} ${add ? "to" : "from"} ${n}` });
+      toast({ tone: "ok", title: tags.length > 1 ? `Updated tags on ${n}` : `${add ? "Added" : "Removed"} ${spell(tags[0])} ${add ? "to" : "from"} ${n}` });
       onDone();
     } catch (e) {
       setError(e);
@@ -201,7 +223,7 @@ export function BulkTagsDialog({ titleIds, onClose, onDone }: { titleIds: number
             {radio("add", "Add to these titles")}
             {radio("remove", "Remove from these titles")}
           </div>
-          <TagChips tags={chosen} empty="No tags chosen" onRemove={(g) => setTags((ts) => ts.filter((t) => t !== g))} />
+          <TagChips tags={chosen.map(spell)} empty="No tags chosen" onRemove={unchip} />
           <TagBox text={text} onText={setText} onAdd={(g) => setTags((ts) => (ts.includes(g) ? ts : [...ts, g]))} />
           <p className="text-xs text-[var(--ink-3)]" data-testid="bulk-tags-help">{BULK_TAGS_HELP}</p>
         </div>

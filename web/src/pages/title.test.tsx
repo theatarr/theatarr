@@ -268,11 +268,11 @@ describe("Title page facts (J5)", () => {
   });
 
   describe("tag editor", () => {
-    const page = (t: object, perms = me.permissions) => {
+    const page = (t: object, perms = me.permissions, labels = ["kids", "old", "upgrade"]) => {
       const api = mockFetch([
         { method: "GET", path: "/auth/me", reply: { ...me, permissions: perms } },
         { method: "GET", path: "/titles/70", reply: { ...title, ...t } },
-        { method: "GET", path: "/tags", reply: { tags: ["kids", "old", "upgrade"] } },
+        { method: "GET", path: "/tags", reply: { tags: labels } },
         { method: "POST", path: "/titles/tags", reply: { changed: 1, tags: ["kids", "new"] } },
         { method: "GET", path: "/add/options", reply: { kind: "movie", anime: false, title_id: 70, router_enabled: true, episodes_known: false, can_search: true, seasons: [], versions: [] } },
       ]);
@@ -352,6 +352,33 @@ describe("Title page facts (J5)", () => {
       await user.click(within(dialog).getByTestId("confirm-ok"));
       await waitFor(() => expect(api.calls("POST", "/titles/tags")).toHaveLength(1));
       expect(api.calls("POST", "/titles/tags")[0].body).toEqual({ title_ids: [70], add: ["kids"], remove: ["old"] });
+    });
+
+    it("clears the box when × takes off the chip it names, so Save sends only the remove", async () => {
+      const api = page({ versions: inLib, tags: ["Kids"] });
+      const user = userEvent.setup();
+      await user.click(await screen.findByTestId("title-tags-edit"));
+      const dialog = await screen.findByTestId("title-tags-dialog");
+      const box = within(dialog).getByTestId("tag-input") as HTMLInputElement;
+      await user.type(box, "kids");
+      await user.click(within(dialog).getByRole("button", { name: "Remove Kids" }));
+      expect(box.value).toBe("");
+      await user.click(within(dialog).getByTestId("confirm-ok"));
+      await waitFor(() => expect(api.calls("POST", "/titles/tags")).toHaveLength(1));
+      expect(api.calls("POST", "/titles/tags")[0].body).toEqual({ title_ids: [70], add: [], remove: ["kids"] });
+    });
+
+    it("shows a typed label in the spelling the label list has", async () => {
+      const api = page({ versions: inLib, tags: [] }, me.permissions, ["Kids"]);
+      const user = userEvent.setup();
+      await user.click(await screen.findByTestId("title-tags-edit"));
+      const dialog = await screen.findByTestId("title-tags-dialog");
+      await waitFor(() => expect(api.calls("GET", "/tags")).toHaveLength(1));
+      await user.type(within(dialog).getByTestId("tag-input"), "kids{Enter}");
+      expect(within(dialog).getByTestId("tag-chips").textContent).toBe("Kids");
+      await user.click(within(dialog).getByTestId("confirm-ok"));
+      await waitFor(() => expect(api.calls("POST", "/titles/tags")).toHaveLength(1));
+      expect(api.calls("POST", "/titles/tags")[0].body).toEqual({ title_ids: [70], add: ["kids"], remove: [] });
     });
 
     it("shows labels without Edit to an account that sees files but cannot manage", async () => {
