@@ -60,10 +60,14 @@ export function downloadSettings(state?: VersionGrabState): { label: string; to?
     : { label: "Settings › Libraries", to: "/admin/settings/libraries" };
 }
 
+/** What Pause stops, in the one wording every Pause notice uses (internal/catalog Searchable, preflight and the CLI
+ *  say the same): Interactive search still looks releases up while paused, on purpose (docs/design/router.md). */
+export const PAUSE_STOPS = "searches, new grabs and imports stop for every library; Interactive search can still look up releases";
+
 const VERDICT_REASON: Record<Verdict, string> = {
   "Downloads on": "Downloads on",
   "Downloads off": "Downloads off",
-  Paused: "Paused: nothing is searched, downloaded or linked",
+  Paused: `Paused: ${PAUSE_STOPS}`,
 };
 
 /** Closed download gates read as the verdict; other search blocks retain the server's explanation. */

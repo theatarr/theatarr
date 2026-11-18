@@ -5,6 +5,7 @@ import { Switch } from "@/components/ui/switch";
 import { api } from "@/api/client";
 import { qk } from "@/api/query-keys";
 import { confirmationHeaders, useSettings } from "@/api/settings";
+import { PAUSE_STOPS } from "@/lib/version-grab";
 import { useWriteConfirmation } from "./confirm-write";
 
 // Pause stops searches, new downloads, list syncs and library changes for every library; RSS skips its runs while paused.
@@ -65,7 +66,7 @@ export function PauseSwitch() {
   return (
     <>
       <span className={PILL} data-testid="pause" data-paused={paused || undefined}
-        title={paused ? "Paused: nothing is searched, downloaded or linked. Turn off to resume." : "Pause stops searches, new downloads, list syncs and changes in your library folders, for every library. Downloads already started finish at the provider and are imported when you turn Pause off."}>
+        title={paused ? `Paused: ${PAUSE_STOPS}. Turn off to resume.` : "Pause stops searches, new downloads, list syncs and changes in your library folders, for every library. Downloads already started finish at the provider and are imported when you turn Pause off."}>
         <Switch id={id} size="sm" aria-label="Pause" checked={paused} disabled={busy || !o.writable || o.source !== "db"}
           onCheckedChange={(on) => void save(on, o.generation)} />
         <label htmlFor={id} className={paused ? "cursor-pointer whitespace-nowrap font-medium text-[var(--warn-ink)]" : "cursor-pointer whitespace-nowrap"}>{paused ? "Paused" : "Pause"}</label>

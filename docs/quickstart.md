@@ -250,7 +250,8 @@ the indexers it searches and the providers it adds to. **Setup** builds the firs
      the debrid mount and the trash folder (**Settings › Libraries › File management**) are set. If
      `THEATARR_FORCE_OFF` forces Pause, the library is still created and Setup says Pause stays on.
    - **Create library, Pause stays on**, then **Create library**: the library is created and Pause does not
-     change, so nothing is searched, downloaded or linked until you turn it off.
+     change, so searches, new grabs and imports stop until you turn it off (Interactive search can still look
+     up releases).
 
 
 A debrid library needs no download client: Theatarr adds to the providers itself. Edit libraries later

@@ -16,7 +16,7 @@ import { createFromPreset, usePresets } from "@/api/settings-profiles";
 import { checkRoot, confirmVersion, saveVersion, useVersions, type Confirmation, type VersionBody, type VersionConfig, type VersionList } from "@/api/settings-versions";
 import { useChangePassword } from "@/api/users";
 import { DownloadsOffNotice, VersionStatus } from "@/components/version-status";
-import { globalDownloadsOff } from "@/lib/version-grab";
+import { globalDownloadsOff, PAUSE_STOPS } from "@/lib/version-grab";
 import { ErrorState, Loading, PageHeader } from "@/components/page";
 import { EffectsConfirmDialog } from "@/components/settings/confirm-write";
 import { SELECT_CLASS, TestResult } from "@/components/settings/parts";
@@ -94,7 +94,7 @@ export function SetupPage() {
         {s.versions > 0
           ? <p>{s.versions} {s.versions === 1 ? "library" : "libraries"}, {s.versions_with_roots} with a library root. Edit them under <Link className="underline" to="/admin/settings/libraries">Libraries</Link>.</p>
           : <FirstVersion state={s} onDone={(forced) => { setForcedOff(forced ?? []); refresh(); void qc.invalidateQueries({ queryKey: qk.settings.overview }); void qc.invalidateQueries({ queryKey: qk.me }); }} />}
-        {forcedOff.length ? <p role="status" data-testid="start-forced-off">The library was created and Pause is saved as off, but THEATARR_FORCE_OFF keeps Pause on: nothing is searched, downloaded or linked until that override is removed and the service restarted.</p> : null}
+        {forcedOff.length ? <p role="status" data-testid="start-forced-off">The library was created and Pause is saved as off, but THEATARR_FORCE_OFF keeps Pause on until that override is removed and the service restarted: {PAUSE_STOPS}.</p> : null}
         <DownloadsOffNotice off={globalDownloadsOff((s.version_states ?? []).map((v) => v.grab_state))} canManage />
         <div className="space-y-1">{(s.version_states ?? []).map((v) => <div key={v.key} className="flex flex-wrap items-start gap-2"><span className="text-[13px] font-medium" title={v.key}>{v.label || v.key}</span><VersionStatus state={v.grab_state} settingsKey={v.key} canManage /></div>)}</div>
       </Step>

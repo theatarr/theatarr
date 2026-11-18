@@ -96,7 +96,7 @@ describe("Title page", () => {
     const fetch = mockFetch([
       { method: "GET", path: "/auth/me", reply: me },
       { method: "GET", path: "/titles/70", reply: { ...title, versions: [{ id: 5, key: "anime-tv-theatarr", label: "Anime", state: "wanted", monitored: true,
-        control: { can_edit: true, can_search: false, live_releases: true, search_reason: "Paused: nothing is searched or downloaded", grab_state } }] } },
+        control: { can_edit: true, can_search: false, live_releases: true, search_reason: "Paused: searches, new grabs and imports stop for every library; Interactive search can still look up releases", grab_state } }] } },
       { method: "GET", path: "/add/options", reply: { kind: "movie", anime: false, title_id: 70, router_enabled: false, episodes_known: false, can_search: false, seasons: [],
         versions: [{ key: "anime-tv-theatarr", kind: "movie", enable: "", fits: true, default: true, on: true, searchable: false, label: "Anime", grab_state }] } },
     ]);
@@ -109,18 +109,18 @@ describe("Title page", () => {
       "/title/70",
     );
     // One notice for the page; no row repeats Paused, and no note repeats the global switch.
-    expect((await screen.findByTestId("downloads-off-notice")).textContent).toContain("Paused: nothing is searched, downloaded or linked for any library");
+    expect((await screen.findByTestId("downloads-off-notice")).textContent).toContain("Paused: searches, new grabs and imports stop for every library; Interactive search can still look up releases.");
     await waitFor(() => expect(fetch.calls("GET", "/add/options")).toHaveLength(1));
     await act(() => new Promise((resolve) => setTimeout(resolve, 20)));
     expect(screen.queryByTestId("title-no-search")).toBeNull();
     expect(screen.queryByTestId("control-note")).toBeNull();
     expect(screen.getAllByTestId("downloads-off-notice")).toHaveLength(1);
     expect(within(screen.getByTestId("library-row")).queryByText("Paused")).toBeNull();
-    expect(document.body.textContent?.split("for any library")).toHaveLength(2);
+    expect(document.body.textContent?.split("Interactive search can still look up releases")).toHaveLength(2);
     // Search now stays, disabled, with Pause as its tooltip (not another line on the page).
     const search = screen.getByTestId("title-search-now");
     expect(search.hasAttribute("disabled")).toBe(true);
-    expect(search.getAttribute("title")).toBe("Paused: nothing is searched, downloaded or linked for any library.");
+    expect(search.getAttribute("title")).toBe("Paused: searches, new grabs and imports stop for every library; Interactive search can still look up releases.");
   });
 
   it("offers no hero action when every library that fits is on the title, other libraries aside", async () => {

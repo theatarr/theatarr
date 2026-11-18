@@ -165,7 +165,7 @@ it("names no cause until the lock state is known (status failed)", async () => {
   const r = await screen.findByTestId("wanted-row");
   expect(within(r).getByText("Paused")).toBeTruthy();
   expect(screen.queryByText(/THEATARR_FORCE_OFF/)).toBeNull();
-  expect(screen.getByTestId("downloads-off-notice").textContent).toBe("Paused: nothing is searched, downloaded or linked for any library.");
+  expect(screen.getByTestId("downloads-off-notice").textContent).toBe("Paused: searches, new grabs and imports stop for every library; Interactive search can still look up releases.");
   expect(screen.getByRole("button", { name: "Paused (1)" })).toBeTruthy();
 });
 

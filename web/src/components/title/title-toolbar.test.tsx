@@ -118,7 +118,7 @@ it("says a series' Search now also looks for upgrades", async () => {
 
 it("shows Search now disabled with the reason when nothing would search, and none to a non-manager", async () => {
   const cases: [object[], boolean, string][] = [
-    [[lib("movie-web", { ...gates, paused: true, will_grab: false })], true, "Paused: nothing is searched, downloaded or linked for any library."],
+    [[lib("movie-web", { ...gates, paused: true, will_grab: false })], true, "Paused: searches, new grabs and imports stop for every library; Interactive search can still look up releases."],
     [[lib("movie-web", { ...gates, will_grab: false })], false, "Nothing is searched now: MOVIE-WEB: Downloads off"],
     [[{ ...lib("movie-web", gates), on: false }], true, "No library is monitored."],
     [[lib("movie-web", { ...gates, will_grab: false })], true, "Nothing is searched now: MOVIE-WEB: Downloads off"],

@@ -35,7 +35,7 @@ type SetupStarted struct {
 	Generation int64  `json:"generation"`
 	Revision   string `json:"revision"`
 	// ForcedOff is ["pause"] when the environment (THEATARR_FORCE_OFF) keeps Pause on although this save turned it
-	// off: nothing is searched, downloaded or linked until the override is removed.
+	// off: searches, new grabs and imports stop for every library until the override is removed.
 	ForcedOff []string `json:"forced_off"`
 }
 

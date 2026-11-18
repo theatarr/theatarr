@@ -265,6 +265,10 @@ type RouterSettings struct {
 	ReadyTimeout       time.Duration
 }
 
+// PauseStops is what Pause stops, in the words every Pause notice uses (the web UI's PAUSE_STOPS, preflight and the
+// CLI): Interactive search still looks releases up while paused, on purpose (docs/design/router.md).
+const PauseStops = "searches, new grabs and imports stop for every library; Interactive search can still look up releases"
+
 // RouterSettings returns the router section with defaults. With no section the router is disabled.
 func (p *Policy) RouterSettings() RouterSettings {
 	s := RouterSettings{CachedOnly: true, AllDebridDeleteUncached: true, MissTTL: DefaultRouterMissTTL, PollInterval: DefaultRouterPollInterval,

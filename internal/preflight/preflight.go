@@ -652,7 +652,7 @@ func (c *checker) egress() {
 // switches reports Pause. It is reported, never changed: Admin › Settings changes it (DB settings).
 func (c *checker) switches() {
 	const next = uipages.Switches
-	const why = "nothing is searched, downloaded or linked"
+	const why = policy.PauseStops
 	switch {
 	case slices.Contains(c.p.ForcedOff, "pause"):
 		c.add(AreaSwitches, "pause", OK, "remove pause, router and library from THEATARR_FORCE_OFF and restart",

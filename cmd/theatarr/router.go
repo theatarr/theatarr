@@ -277,7 +277,7 @@ func runRouterStatus(args []string, out io.Writer) error {
 	}
 	sw := "OFF"
 	if !s.Enabled {
-		sw = "ON: nothing is searched, downloaded or linked"
+		sw = "ON: " + policy.PauseStops
 		if slices.Contains(pol.ForcedOff, "pause") {
 			sw += " [forced by THEATARR_FORCE_OFF]"
 		}

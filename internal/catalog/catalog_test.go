@@ -84,6 +84,10 @@ func TestSearchable(t *testing.T) {
 		!strings.Contains(skipped[1].Reason, "Paused") || !strings.Contains(skipped[2].Reason, "not in the policy") {
 		t.Fatalf("router off: %v %v", active, skipped)
 	}
+	// Pause in the one wording: Interactive search still looks releases up (E3).
+	if skipped[1].Reason != "Paused: searches, new grabs and imports stop for every library; Interactive search can still look up releases" {
+		t.Errorf("pause reason %q", skipped[1].Reason)
+	}
 	// Pause off: every library in the policy.
 	pol.Router = &policy.Router{Enabled: true}
 	active, skipped = Searchable(pol, keys)

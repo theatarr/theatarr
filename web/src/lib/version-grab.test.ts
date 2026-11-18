@@ -56,9 +56,9 @@ it("points a paused library at Pause, everything else at Libraries", () => {
 });
 
 it("words search notes as the verdict and keeps other server reasons", () => {
-  const c = (grab_state: object, search_reason = "Paused: nothing is searched or downloaded") => ({ can_edit: true, live_releases: false, can_search: false, search_reason, grab_state }) as Parameters<typeof downloadReason>[0];
+  const c = (grab_state: object, search_reason = "Paused: searches, new grabs and imports stop for every library; Interactive search can still look up releases") => ({ can_edit: true, live_releases: false, can_search: false, search_reason, grab_state }) as Parameters<typeof downloadReason>[0];
   const on = { paused: false, pause_forced: false, will_grab: false };
-  expect(downloadReason(c({ ...on, paused: true }))).toBe("Paused: nothing is searched, downloaded or linked");
+  expect(downloadReason(c({ ...on, paused: true }))).toBe("Paused: searches, new grabs and imports stop for every library; Interactive search can still look up releases");
   expect(downloadReason(c({ ...on, paused: true, pause_forced: true }))).toBe("Paused by the environment (THEATARR_FORCE_OFF)");
   expect(downloadReason(c(on))).toBe("Downloads off");
   // A server hold with every displayed gate open keeps the server's reason beside the verdict.

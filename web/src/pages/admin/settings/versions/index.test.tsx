@@ -141,7 +141,7 @@ describe("Versions page", () => {
     renderPage(<VersionsPage />);
     const paused = (await screen.findByRole("button", { name: "Edit" })).closest("tr")!;
     expect(within(paused).getByTestId("state-words").textContent).toBe("Paused");
-    expect(screen.getByTestId("downloads-off-notice").textContent).toContain("Paused: nothing is searched, downloaded or linked for any library.");
+    expect(screen.getByTestId("downloads-off-notice").textContent).toContain("Paused: searches, new grabs and imports stop for every library; Interactive search can still look up releases.");
   });
 
   it("keeps a multi-character create key focused and links to naming", async () => {

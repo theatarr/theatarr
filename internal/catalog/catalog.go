@@ -728,7 +728,7 @@ func Searchable(pol *policy.Policy, keys []string) (active []string, skipped []S
 		case vp == nil:
 			skipped = append(skipped, Skip{k, "not in the policy"})
 		case !on:
-			skipped = append(skipped, Skip{k, "Paused: nothing is searched or downloaded"})
+			skipped = append(skipped, Skip{k, "Paused: " + policy.PauseStops})
 		case !slices.Contains(active, k):
 			active = append(active, k)
 		}

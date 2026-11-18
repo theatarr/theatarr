@@ -5,6 +5,7 @@
 // (history, last_search, searching, auto_search, acquisition); accounts without it get none of them.
 import type { Schemas } from "@/api/client";
 import type { Version } from "@/api/library";
+import { PAUSE_STOPS } from "@/lib/version-grab";
 import { fmtNumber, localDay } from "./format";
 import { fmtDay } from "./library";
 
@@ -89,7 +90,7 @@ export function missingLine(f: { last_search?: LastSearch | null; searching?: st
   const never = !f.searching && !f.last_search;
   const first = searchingWords(f.searching) || (never ? "Not searched yet" : lastSearchWords(f.last_search, now));
   if (!auto) return first;
-  if (!auto.enabled) return `${first}. Paused: nothing is searched or downloaded.`;
+  if (!auto.enabled) return `${first}. Paused: ${PAUSE_STOPS}.`;
   if (!auto.missing) {
     const ask = never && canSearch ? " Use Search now to request a search." : "";
     return `${first}. Automatic backlog searching is off${f.rss ? "; new releases are still picked up from RSS" : ""}.${ask}`;

@@ -18,19 +18,19 @@ it("states a library no longer in the policy once with the server's reason", () 
 });
 
 it("states forced Pause once", () => {
-  expect(restrictions([{ label: "Anime", control: { can_edit: true, live_releases: false, can_search: false, search_reason: "Paused: nothing is searched or downloaded", grab_state: { paused: true, pause_forced: true, will_grab: false } } }])).toEqual(["Anime: Paused by the environment (THEATARR_FORCE_OFF)"]);
+  expect(restrictions([{ label: "Anime", control: { can_edit: true, live_releases: false, can_search: false, search_reason: "Paused: searches, new grabs and imports stop for every library; Interactive search can still look up releases", grab_state: { paused: true, pause_forced: true, will_grab: false } } }])).toEqual(["Anime: Paused by the environment (THEATARR_FORCE_OFF)"]);
 });
 
 it("says forced Pause once in a library's note", async () => {
   mockFetch([{ method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["admin", "manage"] } }]);
-  renderPage(<ControlNote kind="search" c={{ can_edit: true, live_releases: false, can_search: false, search_reason: "Paused: nothing is searched or downloaded", grab_state: { paused: true, pause_forced: true, will_grab: false } }} />);
+  renderPage(<ControlNote kind="search" c={{ can_edit: true, live_releases: false, can_search: false, search_reason: "Paused: searches, new grabs and imports stop for every library; Interactive search can still look up releases", grab_state: { paused: true, pause_forced: true, will_grab: false } }} />);
   expect((await screen.findByTestId("control-note")).textContent).toBe("Paused by the environment (THEATARR_FORCE_OFF)");
 });
 
 
 it.each([
-  [{ paused: true }, "Paused: nothing is searched or downloaded", "Paused: nothing is searched, downloaded or linked"],
-  [{ paused: true, pause_forced: true }, "Paused: nothing is searched or downloaded", "Paused by the environment (THEATARR_FORCE_OFF)"],
+  [{ paused: true }, "Paused: searches, new grabs and imports stop for every library; Interactive search can still look up releases", "Paused: searches, new grabs and imports stop for every library; Interactive search can still look up releases"],
+  [{ paused: true, pause_forced: true }, "Paused: searches, new grabs and imports stop for every library; Interactive search can still look up releases", "Paused by the environment (THEATARR_FORCE_OFF)"],
 ] as const)("uses grab state for download notes %j", async (state, search_reason, expected) => {
   mockFetch([]);
   renderPage(<ControlNote kind="search" c={{ can_edit: true, live_releases: false, can_search: false, search_reason,

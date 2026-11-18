@@ -1017,7 +1017,9 @@ Notifications page's Destinations panel (`notify.enabled`; "Off: events are reco
 **Pause.** Admins see one **Pause** switch in the top bar of every page; it sends `{generation, paused}` in one
 `PUT /settings/switches`. Off, its tooltip says "Pause stops searches, new downloads, list syncs and changes in your
 library folders, for every library. Downloads already started wait and are imported when you turn Pause off."; on, "Paused:
-nothing is searched, downloaded or linked. Turn off to resume." Turning it off asks for confirmation; turning it on
+searches, new grabs and imports stop for every library; Interactive search can still look up releases. Turn off to resume." Every Pause notice uses that one wording (the pages' notice "Paused: searches, new grabs and imports stop for every library; Interactive search can still look up releases." or "Paused by the
+environment (THEATARR_FORCE_OFF): …", the reason on disabled search buttons, a library row's missing line, the unblock
+box, `theatarr router status` and preflight): Interactive search still looks releases up while paused, on purpose. Turning it off asks for confirmation; turning it on
 does not. When `THEATARR_FORCE_OFF` forces it, the switch is a disabled pill **Paused (locked)** titled "Paused by
 THEATARR_FORCE_OFF. Remove it and restart to resume." Searches that are due (Search now, the schedule) wait while paused and start when Pause is turned off; downloads
 already sent keep going. The Wanted page shows those rows as Paused, never with a time, and its Search now line says

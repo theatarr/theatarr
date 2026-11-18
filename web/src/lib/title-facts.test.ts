@@ -37,7 +37,7 @@ describe("missingLine", () => {
     // An account that can search is told what to do, only for an item never searched.
     expect(missingLine({}, auto, now, true)).toBe("Not searched yet. Automatic backlog searching is off. Use Search now to request a search.");
     expect(missingLine({ last_search: run("nothing", 0, 0) }, auto, now, true)).toBe("Last searched Nov 12: nothing found. Automatic backlog searching is off.");
-    expect(missingLine({}, { ...auto, enabled: false }, now, true)).toBe("Not searched yet. Paused: nothing is searched or downloaded.");
+    expect(missingLine({}, { ...auto, enabled: false }, now, true)).toBe("Not searched yet. Paused: searches, new grabs and imports stop for every library; Interactive search can still look up releases.");
     expect(missingLine({ last_search: run("nothing", 12, 0) }, { ...auto, missing: true }, now)).toBe("Last searched Nov 12: 12 results, none accepted. Theatarr searches for it automatically.");
     expect(missingLine({ last_search: run("nothing", 0, 0) }, null, now)).toBe("Last searched Nov 12: nothing found");
     // A failed or skipped search found nothing because it did not search: said so.
@@ -45,7 +45,7 @@ describe("missingLine", () => {
     expect(missingLine({ last_search: run("skipped", 0, 0) }, null, now)).toBe("Last search Nov 12 was skipped");
     // An episode covered by a season's search: when only, no counts.
     expect(missingLine({ last_search: run("routed") }, null, now)).toBe("Last searched Nov 12");
-    expect(missingLine({ searching: "queued" }, { ...auto, enabled: false }, now)).toBe("Search queued. Paused: nothing is searched or downloaded.");
+    expect(missingLine({ searching: "queued" }, { ...auto, enabled: false }, now)).toBe("Search queued. Paused: searches, new grabs and imports stop for every library; Interactive search can still look up releases.");
   });
 });
 

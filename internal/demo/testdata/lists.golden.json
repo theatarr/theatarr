@@ -15,7 +15,7 @@
   "sha256": "19580928772ab84c2f776f1eb04141bb427e6908c3d91e4f10310a1d94d4971d"
  },
  "/titles?anime=true\u0026limit=500\u0026availability=available": {
-  "sha256": "53422fa90dd86906a70d1369fc395feb269eeb121eb9bde267a3312812bc649d",
+  "sha256": "d94cc9dace8f1b9c4e854929036dc122a307629f2165831216463cc238b0322e",
   "ids": [
    84,
    62,
@@ -32,14 +32,14 @@
   ]
  },
  "/titles?anime=true\u0026limit=500\u0026availability=missing": {
-  "sha256": "213ed723e9a65e450fb45cfc629ef52c88a5367e844b5b9802e6034958b7285d",
+  "sha256": "4336481b3504da2ea8d3baacf68d68c5db7fdda1ae64e7cb291d034a962dcb55",
   "ids": [
    63,
    90
   ]
  },
  "/titles?anime=true\u0026limit=500\u0026availability=partial": {
-  "sha256": "b16afab28b6440d8559f6f8eaa97ef017061538eba8b766e810ca506a360fcfe",
+  "sha256": "70d0bbf3aecb1436d0d8a3deaced3c149eaa494e48e10e60b2628bec7b47ae19",
   "ids": [
    85,
    89,
@@ -51,13 +51,13 @@
   "sha256": "22970c0d53c21b4b186100d49c10112eccdfd50f5a653e8c128de1496f392743"
  },
  "/titles?anime=true\u0026limit=500\u0026availability=upcoming": {
-  "sha256": "715f46cdcd4f7d57946e4f0a2e97cf3e39999d4ba6acd3770d43f05a0c22da27",
+  "sha256": "00a4455545fab047c5e7a2bd37920d84b2b88d9c31aa3ee3a414e1015ecd61d5",
   "ids": [
    64
   ]
  },
  "/titles?anime=true\u0026limit=500\u0026genre=Drama": {
-  "sha256": "f0981784f27c0d4356fb64cd502d40b226dfb41dfd48314b76f61889f52f9d5e",
+  "sha256": "2f0326929941f8e0e58c65a53dc42507a19e9355898331dfde0d0acc1ca45a1a",
   "ids": [
    91,
    80,
@@ -70,7 +70,7 @@
   "sha256": "22970c0d53c21b4b186100d49c10112eccdfd50f5a653e8c128de1496f392743"
  },
  "/titles?anime=true\u0026limit=500\u0026provider=ad": {
-  "sha256": "0237a081d2e2fbc0dbf30914276aebeebc266f87e2294c546da117ed61ba459d",
+  "sha256": "7c7f75c62ea726dd6e32e6ffc301bb79384f98f2f11a38bc715a901505b3a731",
   "ids": [
    92,
    91,
@@ -79,7 +79,7 @@
   ]
  },
  "/titles?anime=true\u0026limit=500\u0026provider=rd": {
-  "sha256": "933681e89a14fb40cdfc546cbe7879886210c82b6ec636d2653a47d0701d9770",
+  "sha256": "64f598b8c1d1de7ed31df83d30c9bd5b846b35c89faff57dd6b4ecc800f36731",
   "ids": [
    84,
    62,
@@ -96,7 +96,7 @@
   ]
  },
  "/titles?anime=true\u0026limit=500\u0026provider=tb": {
-  "sha256": "6b22829d0ad0ad7b92c2df575c87db209278cd7bbcbf33597789126b974fdfe5",
+  "sha256": "1db21ecd9988e78a0eb80da957387191d9e8d2749a9af2fc9cada974da093539",
   "ids": [
    84,
    87,
@@ -107,7 +107,7 @@
   ]
  },
  "/titles?anime=true\u0026limit=500\u0026quality=1080p": {
-  "sha256": "c571fea7e3a0b8c8b9e7266392591bfb88f2353bafa86f15c7053070de59630c",
+  "sha256": "0ec83b21cad4f8b95015f8b2ff55184d4cdcb0dd3b0b877c47699d17c19546c2",
   "ids": [
    84,
    62,
@@ -131,7 +131,7 @@
   "sha256": "22970c0d53c21b4b186100d49c10112eccdfd50f5a653e8c128de1496f392743"
  },
  "/titles?anime=true\u0026limit=500\u0026quality=WEBDL-1080p": {
-  "sha256": "3e8d983b2c224caff8410f7b410e602f4281ead638e04cb4185a71adeef81fc5",
+  "sha256": "7c17cb5c88b97c356ecfa21a2f9aca13703710db48241cf9e2414e2feea596a6",
   "ids": [
    81,
    87,
@@ -141,7 +141,7 @@
   ]
  },
  "/titles?anime=true\u0026limit=500\u0026sort=\u0026order=": {
-  "sha256": "bda6e02d92ed7fba23ae0f5d6e0617033c278f6a86ebad4db8b0c68b3e1280dc",
+  "sha256": "37c25c9690d434c46d95ac879a759f6843b6f96ec40e9dee66fe745a67e84521",
   "ids": [
    84,
    64,
@@ -165,7 +165,7 @@
   ]
  },
  "/titles?anime=true\u0026limit=500\u0026sort=\u0026order=asc": {
-  "sha256": "bda6e02d92ed7fba23ae0f5d6e0617033c278f6a86ebad4db8b0c68b3e1280dc",
+  "sha256": "37c25c9690d434c46d95ac879a759f6843b6f96ec40e9dee66fe745a67e84521",
   "ids": [
    84,
    64,
@@ -189,7 +189,7 @@
   ]
  },
  "/titles?anime=true\u0026limit=500\u0026sort=\u0026order=desc": {
-  "sha256": "9b22f0c34d465f68e263e269ac76d6f30f92364c33fbb5eb62190289338cf35a",
+  "sha256": "81d1274ea9ae663fd346de7094db62dd57823c12d598616723f48668caf3d9ba",
   "ids": [
    86,
    88,
@@ -213,7 +213,7 @@
   ]
  },
  "/titles?anime=true\u0026limit=500\u0026sort=activity\u0026order=": {
-  "sha256": "fc976edf567c7d69a574bb666bbb61cf36c593afa70d7d3110b15e0c62e5a59e",
+  "sha256": "16af7ac3c7f1a9ed52322a05907c10d57b95283d89fb7068d4dc0def83236f46",
   "ids": [
    85,
    89,
@@ -237,7 +237,7 @@
   ]
  },
  "/titles?anime=true\u0026limit=500\u0026sort=activity\u0026order=asc": {
-  "sha256": "86a2f6fdd57764687f694856256597adacbdd6a00e7288c3bdcd6f048d57b393",
+  "sha256": "9a2f50f78cbd1b4db24d8eee0d9eef04d6ef9671f6f05bcb3d0a9fa9ba7f7b75",
   "ids": [
    62,
    60,
@@ -261,7 +261,7 @@
   ]
  },
  "/titles?anime=true\u0026limit=500\u0026sort=activity\u0026order=desc": {
-  "sha256": "fc976edf567c7d69a574bb666bbb61cf36c593afa70d7d3110b15e0c62e5a59e",
+  "sha256": "16af7ac3c7f1a9ed52322a05907c10d57b95283d89fb7068d4dc0def83236f46",
   "ids": [
    85,
    89,
@@ -285,7 +285,7 @@
   ]
  },
  "/titles?anime=true\u0026limit=500\u0026sort=activity\u0026sort_version=anime-tv": {
-  "sha256": "bda6e02d92ed7fba23ae0f5d6e0617033c278f6a86ebad4db8b0c68b3e1280dc",
+  "sha256": "37c25c9690d434c46d95ac879a759f6843b6f96ec40e9dee66fe745a67e84521",
   "ids": [
    84,
    64,
@@ -309,7 +309,7 @@
   ]
  },
  "/titles?anime=true\u0026limit=500\u0026sort=activity\u0026sort_version=movie-remux": {
-  "sha256": "bda6e02d92ed7fba23ae0f5d6e0617033c278f6a86ebad4db8b0c68b3e1280dc",
+  "sha256": "37c25c9690d434c46d95ac879a759f6843b6f96ec40e9dee66fe745a67e84521",
   "ids": [
    84,
    64,
@@ -333,7 +333,7 @@
   ]
  },
  "/titles?anime=true\u0026limit=500\u0026sort=activity\u0026sort_version=movie-web": {
-  "sha256": "bda6e02d92ed7fba23ae0f5d6e0617033c278f6a86ebad4db8b0c68b3e1280dc",
+  "sha256": "37c25c9690d434c46d95ac879a759f6843b6f96ec40e9dee66fe745a67e84521",
   "ids": [
    84,
    64,
@@ -357,7 +357,7 @@
   ]
  },
  "/titles?anime=true\u0026limit=500\u0026sort=activity\u0026sort_version=tv-2160p": {
-  "sha256": "bda6e02d92ed7fba23ae0f5d6e0617033c278f6a86ebad4db8b0c68b3e1280dc",
+  "sha256": "37c25c9690d434c46d95ac879a759f6843b6f96ec40e9dee66fe745a67e84521",
   "ids": [
    84,
    64,
@@ -381,7 +381,7 @@
   ]
  },
  "/titles?anime=true\u0026limit=500\u0026sort=activity\u0026sort_version=tv-2160p-theatarr": {
-  "sha256": "bda6e02d92ed7fba23ae0f5d6e0617033c278f6a86ebad4db8b0c68b3e1280dc",
+  "sha256": "37c25c9690d434c46d95ac879a759f6843b6f96ec40e9dee66fe745a67e84521",
   "ids": [
    84,
    64,
@@ -405,7 +405,7 @@
   ]
  },
  "/titles?anime=true\u0026limit=500\u0026sort=added\u0026order=": {
-  "sha256": "a995fb19384734689c6a30a19eab04a1f45ecbf72fc307a74d47dcf6fea99471",
+  "sha256": "048521bbec2094aacc8af6a3f66731ce3eb172dd0c00a4b3c67e1b35fee34336",
   "ids": [
    86,
    88,
@@ -429,7 +429,7 @@
   ]
  },
  "/titles?anime=true\u0026limit=500\u0026sort=added\u0026order=asc": {
-  "sha256": "d91a38fad6d9d4efb6fbb5c698d2bc49ae9c7198ff144353ae83ceaba2269ce7",
+  "sha256": "d446f533ead82a335d1b06f8db305a6a0a13681e322cd43dc05decb448bcec63",
   "ids": [
    62,
    60,
@@ -453,7 +453,7 @@
   ]
  },
  "/titles?anime=true\u0026limit=500\u0026sort=added\u0026order=desc": {
-  "sha256": "a995fb19384734689c6a30a19eab04a1f45ecbf72fc307a74d47dcf6fea99471",
+  "sha256": "048521bbec2094aacc8af6a3f66731ce3eb172dd0c00a4b3c67e1b35fee34336",
   "ids": [
    86,
    88,
@@ -477,7 +477,7 @@
   ]
  },
  "/titles?anime=true\u0026limit=500\u0026sort=certification\u0026order=": {
-  "sha256": "57d7e804f2358e7acfec739870d86628498927da3fe5d8e6f6820720cbe535f3",
+  "sha256": "f4a7a2beb1b5d766a2a14e3ca7232e2aae374c589c7001b9f700aca04c26b12e",
   "ids": [
    64,
    62,
@@ -501,7 +501,7 @@
   ]
  },
  "/titles?anime=true\u0026limit=500\u0026sort=certification\u0026order=asc": {
-  "sha256": "57d7e804f2358e7acfec739870d86628498927da3fe5d8e6f6820720cbe535f3",
+  "sha256": "f4a7a2beb1b5d766a2a14e3ca7232e2aae374c589c7001b9f700aca04c26b12e",
   "ids": [
    64,
    62,
@@ -525,7 +525,7 @@
   ]
  },
  "/titles?anime=true\u0026limit=500\u0026sort=certification\u0026order=desc": {
-  "sha256": "5a86dd16a8c910e19eb3d058919106d5e9caebd63e08c4e50ed0cb0230b789d1",
+  "sha256": "4e8702898921ea57f0dc5fd6d91d1744dab987f9bbc4aa690d805f04385dbab1",
   "ids": [
    84,
    81,
@@ -549,7 +549,7 @@
   ]
  },
  "/titles?anime=true\u0026limit=500\u0026sort=completion\u0026order=": {
-  "sha256": "22869b95699cddb75b42d0476e41fca0f4e94131f4b0c0879bb770329dd966e2",
+  "sha256": "1cc91d187e9299e4d8748f63cbc689c84e2827ae6083b83dfce1390f04177b4e",
   "ids": [
    84,
    62,
@@ -573,7 +573,7 @@
   ]
  },
  "/titles?anime=true\u0026limit=500\u0026sort=completion\u0026order=asc": {
-  "sha256": "93207c42ab057701ac7bb7f58824eb5469a2ddbf35e925a12d977efc7c4752de",
+  "sha256": "3db583c57a5c6aafd480a9f73d29be3f5e3e6f25f788b3987042c258457c8273",
   "ids": [
    64,
    63,
@@ -597,7 +597,7 @@
   ]
  },
  "/titles?anime=true\u0026limit=500\u0026sort=completion\u0026order=desc": {
-  "sha256": "22869b95699cddb75b42d0476e41fca0f4e94131f4b0c0879bb770329dd966e2",
+  "sha256": "1cc91d187e9299e4d8748f63cbc689c84e2827ae6083b83dfce1390f04177b4e",
   "ids": [
    84,
    62,
@@ -621,7 +621,7 @@
   ]
  },
  "/titles?anime=true\u0026limit=500\u0026sort=completion\u0026sort_version=anime-tv": {
-  "sha256": "407e8e6dca5778db6347564368623696ed9c7f35c7a91911dd7c70c009471cef",
+  "sha256": "afe52d9159691728014d1a304794d8da3c8b96e5cab9468ed8457502952e431a",
   "ids": [
    84,
    81,
@@ -645,7 +645,7 @@
   ]
  },
  "/titles?anime=true\u0026limit=500\u0026sort=completion\u0026sort_version=movie-remux": {
-  "sha256": "bda6e02d92ed7fba23ae0f5d6e0617033c278f6a86ebad4db8b0c68b3e1280dc",
+  "sha256": "37c25c9690d434c46d95ac879a759f6843b6f96ec40e9dee66fe745a67e84521",
   "ids": [
    84,
    64,
@@ -669,7 +669,7 @@
   ]
  },
  "/titles?anime=true\u0026limit=500\u0026sort=completion\u0026sort_version=movie-web": {
-  "sha256": "bda6e02d92ed7fba23ae0f5d6e0617033c278f6a86ebad4db8b0c68b3e1280dc",
+  "sha256": "37c25c9690d434c46d95ac879a759f6843b6f96ec40e9dee66fe745a67e84521",
   "ids": [
    84,
    64,
@@ -693,7 +693,7 @@
   ]
  },
  "/titles?anime=true\u0026limit=500\u0026sort=completion\u0026sort_version=tv-2160p": {
-  "sha256": "bda6e02d92ed7fba23ae0f5d6e0617033c278f6a86ebad4db8b0c68b3e1280dc",
+  "sha256": "37c25c9690d434c46d95ac879a759f6843b6f96ec40e9dee66fe745a67e84521",
   "ids": [
    84,
    64,
@@ -717,7 +717,7 @@
   ]
  },
  "/titles?anime=true\u0026limit=500\u0026sort=completion\u0026sort_version=tv-2160p-theatarr": {
-  "sha256": "bda6e02d92ed7fba23ae0f5d6e0617033c278f6a86ebad4db8b0c68b3e1280dc",
+  "sha256": "37c25c9690d434c46d95ac879a759f6843b6f96ec40e9dee66fe745a67e84521",
   "ids": [
    84,
    64,
@@ -741,7 +741,7 @@
   ]
  },
  "/titles?anime=true\u0026limit=500\u0026sort=created\u0026order=": {
-  "sha256": "96d1fb50fd8d1adf87a1936ca6eb7b3d0d38906b415e0dac8b4378661e8d1467",
+  "sha256": "8aca053eff9a108344bc7ddbd59ebc466ea784f3b5600da4123c99911cad5ac2",
   "ids": [
    64,
    82,
@@ -765,7 +765,7 @@
   ]
  },
  "/titles?anime=true\u0026limit=500\u0026sort=created\u0026order=asc": {
-  "sha256": "8c723d1ba34e5077c4c8e3d55a0701e78063fd78acd782e8ca3dcbba4cbe9e1f",
+  "sha256": "7a53e83a051fb2f5ee35fbf2d793d2a403e10779786b17ec9dc756c3307e3d62",
   "ids": [
    81,
    93,
@@ -789,7 +789,7 @@
   ]
  },
  "/titles?anime=true\u0026limit=500\u0026sort=created\u0026order=desc": {
-  "sha256": "96d1fb50fd8d1adf87a1936ca6eb7b3d0d38906b415e0dac8b4378661e8d1467",
+  "sha256": "8aca053eff9a108344bc7ddbd59ebc466ea784f3b5600da4123c99911cad5ac2",
   "ids": [
    64,
    82,
@@ -813,7 +813,7 @@
   ]
  },
  "/titles?anime=true\u0026limit=500\u0026sort=name\u0026order=": {
-  "sha256": "bda6e02d92ed7fba23ae0f5d6e0617033c278f6a86ebad4db8b0c68b3e1280dc",
+  "sha256": "37c25c9690d434c46d95ac879a759f6843b6f96ec40e9dee66fe745a67e84521",
   "ids": [
    84,
    64,
@@ -837,7 +837,7 @@
   ]
  },
  "/titles?anime=true\u0026limit=500\u0026sort=name\u0026order=asc": {
-  "sha256": "bda6e02d92ed7fba23ae0f5d6e0617033c278f6a86ebad4db8b0c68b3e1280dc",
+  "sha256": "37c25c9690d434c46d95ac879a759f6843b6f96ec40e9dee66fe745a67e84521",
   "ids": [
    84,
    64,
@@ -861,7 +861,7 @@
   ]
  },
  "/titles?anime=true\u0026limit=500\u0026sort=name\u0026order=desc": {
-  "sha256": "9b22f0c34d465f68e263e269ac76d6f30f92364c33fbb5eb62190289338cf35a",
+  "sha256": "81d1274ea9ae663fd346de7094db62dd57823c12d598616723f48668caf3d9ba",
   "ids": [
    86,
    88,
@@ -885,7 +885,7 @@
   ]
  },
  "/titles?anime=true\u0026limit=500\u0026sort=network\u0026order=": {
-  "sha256": "20b7ca03c867e3348b57da7a9bdc4bbbc705cdfbb07d5adefab54b579ae4e18c",
+  "sha256": "06178ef86b2f3e676762bbe256e19a42805e325bedaffb13b2a946293de1d1e8",
   "ids": [
    91,
    85,
@@ -909,7 +909,7 @@
   ]
  },
  "/titles?anime=true\u0026limit=500\u0026sort=network\u0026order=asc": {
-  "sha256": "20b7ca03c867e3348b57da7a9bdc4bbbc705cdfbb07d5adefab54b579ae4e18c",
+  "sha256": "06178ef86b2f3e676762bbe256e19a42805e325bedaffb13b2a946293de1d1e8",
   "ids": [
    91,
    85,
@@ -933,7 +933,7 @@
   ]
  },
  "/titles?anime=true\u0026limit=500\u0026sort=network\u0026order=desc": {
-  "sha256": "ce4144ed410ad9d65cdbc250bd3e66609a32291110781863da32843351bd7105",
+  "sha256": "b7e7893f20b21b120265461a4383b8ff72906fd80393c04126b3027abdae4be8",
   "ids": [
    92,
    87,
@@ -957,7 +957,7 @@
   ]
  },
  "/titles?anime=true\u0026limit=500\u0026sort=next\u0026order=": {
-  "sha256": "f57eb68db3df13454f3dea6b4cd0017f0e6812f5ded36169a8a58d511efb1ab8",
+  "sha256": "df7bd784cbff3226fd441e427873bbdbea1418202ce591b60e6160593a4f85ad",
   "ids": [
    91,
    93,
@@ -981,7 +981,7 @@
   ]
  },
  "/titles?anime=true\u0026limit=500\u0026sort=next\u0026order=asc": {
-  "sha256": "f57eb68db3df13454f3dea6b4cd0017f0e6812f5ded36169a8a58d511efb1ab8",
+  "sha256": "df7bd784cbff3226fd441e427873bbdbea1418202ce591b60e6160593a4f85ad",
   "ids": [
    91,
    93,
@@ -1005,7 +1005,7 @@
   ]
  },
  "/titles?anime=true\u0026limit=500\u0026sort=next\u0026order=desc": {
-  "sha256": "04793122cd21662a0874160af6567589252266f49408b72397680c9e72b9d20f",
+  "sha256": "2587299b19723d033922c215e40da70ff7b2afed87478b90c34e8a4c2bf0b2b7",
   "ids": [
    64,
    91,
@@ -1029,7 +1029,7 @@
   ]
  },
  "/titles?anime=true\u0026limit=500\u0026sort=quality\u0026order=": {
-  "sha256": "991fcd5eaefdb13519358fa7328610824ac3d0e1f0d0c8896d7c6c71dc1ba1e3",
+  "sha256": "5814ba503607ceb17fc918ea9ac9aa967b74afab7b63e67c54d56f47663541bd",
   "ids": [
    62,
    60,
@@ -1053,7 +1053,7 @@
   ]
  },
  "/titles?anime=true\u0026limit=500\u0026sort=quality\u0026order=asc": {
-  "sha256": "c4f98eac87ced5920ee8ad366a9ac38b07dbcd0e5cfd80cbebc3d47de2bafe70",
+  "sha256": "eda063e00dbd4de399ba6b80058c55e1b5537171ce443901b1e6b16394680f8f",
   "ids": [
    81,
    87,
@@ -1077,7 +1077,7 @@
   ]
  },
  "/titles?anime=true\u0026limit=500\u0026sort=quality\u0026order=desc": {
-  "sha256": "991fcd5eaefdb13519358fa7328610824ac3d0e1f0d0c8896d7c6c71dc1ba1e3",
+  "sha256": "5814ba503607ceb17fc918ea9ac9aa967b74afab7b63e67c54d56f47663541bd",
   "ids": [
    62,
    60,
@@ -1101,7 +1101,7 @@
   ]
  },
  "/titles?anime=true\u0026limit=500\u0026sort=quality\u0026sort_version=anime-tv": {
-  "sha256": "9d71f402d3c4c1f8a54280db8ae7942041bd674f9b6351fe912f0f16261b08f0",
+  "sha256": "fcba13761271445bab8934e91fa508ceec630232dfb4d92a1f621cfc4278929e",
   "ids": [
    84,
    92,
@@ -1125,7 +1125,7 @@
   ]
  },
  "/titles?anime=true\u0026limit=500\u0026sort=quality\u0026sort_version=movie-remux": {
-  "sha256": "bda6e02d92ed7fba23ae0f5d6e0617033c278f6a86ebad4db8b0c68b3e1280dc",
+  "sha256": "37c25c9690d434c46d95ac879a759f6843b6f96ec40e9dee66fe745a67e84521",
   "ids": [
    84,
    64,
@@ -1149,7 +1149,7 @@
   ]
  },
  "/titles?anime=true\u0026limit=500\u0026sort=quality\u0026sort_version=movie-web": {
-  "sha256": "bda6e02d92ed7fba23ae0f5d6e0617033c278f6a86ebad4db8b0c68b3e1280dc",
+  "sha256": "37c25c9690d434c46d95ac879a759f6843b6f96ec40e9dee66fe745a67e84521",
   "ids": [
    84,
    64,
@@ -1173,7 +1173,7 @@
   ]
  },
  "/titles?anime=true\u0026limit=500\u0026sort=quality\u0026sort_version=tv-2160p": {
-  "sha256": "bda6e02d92ed7fba23ae0f5d6e0617033c278f6a86ebad4db8b0c68b3e1280dc",
+  "sha256": "37c25c9690d434c46d95ac879a759f6843b6f96ec40e9dee66fe745a67e84521",
   "ids": [
    84,
    64,
@@ -1197,7 +1197,7 @@
   ]
  },
  "/titles?anime=true\u0026limit=500\u0026sort=quality\u0026sort_version=tv-2160p-theatarr": {
-  "sha256": "bda6e02d92ed7fba23ae0f5d6e0617033c278f6a86ebad4db8b0c68b3e1280dc",
+  "sha256": "37c25c9690d434c46d95ac879a759f6843b6f96ec40e9dee66fe745a67e84521",
   "ids": [
    84,
    64,
@@ -1221,7 +1221,7 @@
   ]
  },
  "/titles?anime=true\u0026limit=500\u0026sort=rating\u0026order=": {
-  "sha256": "bba22c13f628a7d3c53523c4c4269b15bcc9e57937cc1d1be237f14ef249dfe4",
+  "sha256": "6162823638156712a5034aad65ae41eefa5e8ae38c924fe44da202588d712a8d",
   "ids": [
    60,
    61,
@@ -1245,7 +1245,7 @@
   ]
  },
  "/titles?anime=true\u0026limit=500\u0026sort=rating\u0026order=asc": {
-  "sha256": "d132e116da1e64bfd6cdbd6c2b17bf364e8ecd2a6cb46b97ab2fbb714ff4685b",
+  "sha256": "390a07ac4a1c363f975643fe87f24235002136a3281bbae7fdac3f943c0dbb74",
   "ids": [
    63,
    90,
@@ -1269,7 +1269,7 @@
   ]
  },
  "/titles?anime=true\u0026limit=500\u0026sort=rating\u0026order=desc": {
-  "sha256": "bba22c13f628a7d3c53523c4c4269b15bcc9e57937cc1d1be237f14ef249dfe4",
+  "sha256": "6162823638156712a5034aad65ae41eefa5e8ae38c924fe44da202588d712a8d",
   "ids": [
    60,
    61,
@@ -1293,7 +1293,7 @@
   ]
  },
  "/titles?anime=true\u0026limit=500\u0026sort=release\u0026order=": {
-  "sha256": "dac37f44d254480ea7e515fe419e4dfa3965c805b798eb69150b3d6122220abb",
+  "sha256": "ce3a092fa29d33cb83732e15f69061a8cacf215520446af41246e904e9f4b071",
   "ids": [
    91,
    64,
@@ -1317,7 +1317,7 @@
   ]
  },
  "/titles?anime=true\u0026limit=500\u0026sort=release\u0026order=asc": {
-  "sha256": "b52d15194385b5e90e26e89df7c6c0993e0a14bbb2cda6a0f594b41bfb4037b3",
+  "sha256": "20737dbe6acc1c556f4d3d0135ff8d6920d83f3de029d7b2c8747fe0fb6b1af7",
   "ids": [
    80,
    84,
@@ -1341,7 +1341,7 @@
   ]
  },
  "/titles?anime=true\u0026limit=500\u0026sort=release\u0026order=desc": {
-  "sha256": "dac37f44d254480ea7e515fe419e4dfa3965c805b798eb69150b3d6122220abb",
+  "sha256": "ce3a092fa29d33cb83732e15f69061a8cacf215520446af41246e904e9f4b071",
   "ids": [
    91,
    64,
@@ -1365,7 +1365,7 @@
   ]
  },
  "/titles?anime=true\u0026limit=500\u0026sort=runtime\u0026order=": {
-  "sha256": "2cf1eead3d025e5966b07be9489acdf35c562451a7783f8d4501f0afca9d417c",
+  "sha256": "965c6865ed52fa72aa5a69de513eca784fbf78143358e80fb5ad25537fe3ec7d",
   "ids": [
    62,
    61,
@@ -1389,7 +1389,7 @@
   ]
  },
  "/titles?anime=true\u0026limit=500\u0026sort=runtime\u0026order=asc": {
-  "sha256": "74ee71106e8cce88afb3ccbe67ad3104bf20fc78b02b6a6fb05d81ff255fad0b",
+  "sha256": "d2e9809faab87df29ac6108f7428f6c581e937efe6e56074aecfef5045fab23a",
   "ids": [
    84,
    81,
@@ -1413,7 +1413,7 @@
   ]
  },
  "/titles?anime=true\u0026limit=500\u0026sort=runtime\u0026order=desc": {
-  "sha256": "2cf1eead3d025e5966b07be9489acdf35c562451a7783f8d4501f0afca9d417c",
+  "sha256": "965c6865ed52fa72aa5a69de513eca784fbf78143358e80fb5ad25537fe3ec7d",
   "ids": [
    62,
    61,
@@ -1437,7 +1437,7 @@
   ]
  },
  "/titles?anime=true\u0026limit=500\u0026sort=size\u0026order=": {
-  "sha256": "8172762918058ecf048621c7364e94eee169c935854ea04ce0c1343d7fe4471a",
+  "sha256": "bf439a46a8157c668d9dceb109468613e72bcfe39b9333056232ecdeb644686a",
   "ids": [
    84,
    88,
@@ -1461,7 +1461,7 @@
   ]
  },
  "/titles?anime=true\u0026limit=500\u0026sort=size\u0026order=asc": {
-  "sha256": "fecb96286dad065f895a366a3e8d88c0f7c1c1c111b64990ae7bd0924d297f98",
+  "sha256": "35a02d28343b3d6f15dd05ff8d42b9bfa5f8dbbdbf856b8567dbd771c32db70f",
   "ids": [
    91,
    93,
@@ -1485,7 +1485,7 @@
   ]
  },
  "/titles?anime=true\u0026limit=500\u0026sort=size\u0026order=desc": {
-  "sha256": "8172762918058ecf048621c7364e94eee169c935854ea04ce0c1343d7fe4471a",
+  "sha256": "bf439a46a8157c668d9dceb109468613e72bcfe39b9333056232ecdeb644686a",
   "ids": [
    84,
    88,
@@ -1509,7 +1509,7 @@
   ]
  },
  "/titles?anime=true\u0026limit=500\u0026sort=year\u0026order=": {
-  "sha256": "ac5bcbc806922955db57cde8b3927262b21a7736cc9ae5003bac06d53c1e8361",
+  "sha256": "804fdaf09a2dac6bb3e02d8ee745adce6621f0ca28688fecf0f23db3b2c3320c",
   "ids": [
    64,
    91,
@@ -1533,7 +1533,7 @@
   ]
  },
  "/titles?anime=true\u0026limit=500\u0026sort=year\u0026order=asc": {
-  "sha256": "dd865ee03f1f920565f7a891697c00e3ffa552c549e53a7f7052e640bcbb5e36",
+  "sha256": "e27b29aea111b7b7669c3f07ff4ba62147fff3e3673bdcff633c48448af17eb7",
   "ids": [
    84,
    80,
@@ -1557,7 +1557,7 @@
   ]
  },
  "/titles?anime=true\u0026limit=500\u0026sort=year\u0026order=desc": {
-  "sha256": "ac5bcbc806922955db57cde8b3927262b21a7736cc9ae5003bac06d53c1e8361",
+  "sha256": "804fdaf09a2dac6bb3e02d8ee745adce6621f0ca28688fecf0f23db3b2c3320c",
   "ids": [
    64,
    91,
@@ -1584,7 +1584,7 @@
   "sha256": "22970c0d53c21b4b186100d49c10112eccdfd50f5a653e8c128de1496f392743"
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=20\u0026offset=20\u0026sort=completion": {
-  "sha256": "88084940ab661320505fdccf087a6f0883fb386c9b98e87409662327dce3a60a",
+  "sha256": "46cdf28c4cd79f3067790368b5e41646d01f6c2be6642585928b494076ebf33a",
   "ids": [
    46,
    9,
@@ -1609,7 +1609,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026availability=available": {
-  "sha256": "c19069038c29adfa95a0aa892c276c1d4b963cb4a219a2d71159cb813bce042f",
+  "sha256": "8a6a5ed60a102b69e110c5e96dcb5c2aeb227bc3dc178ec75b2d28ef3137db5f",
   "ids": [
    5,
    36,
@@ -1655,7 +1655,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026availability=missing": {
-  "sha256": "3734cb564f1d4764eb04cf656d1fe37362139052674885542760b4a9449cf483",
+  "sha256": "459a4bd02f68ef5e898632fdf180ba6dacc023801a644b0a4dcab1e9476cc731",
   "ids": [
    52,
    23,
@@ -1665,7 +1665,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026availability=partial": {
-  "sha256": "da516c1696ebb031eca465c0f40fea6719ec905168c304c9acc553a89dd92d86",
+  "sha256": "598e7d69dae6ffb99cda65631bb732c40597e83f4637ef74e39948a5c440b908",
   "ids": [
    45,
    27,
@@ -1680,7 +1680,7 @@
   "sha256": "22970c0d53c21b4b186100d49c10112eccdfd50f5a653e8c128de1496f392743"
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026availability=upcoming": {
-  "sha256": "93b38d61363c9410169396f4bb9307df3f27758ffcb9e111bd6b1e7b4422e09e",
+  "sha256": "353aeb882e20e74ac350d3e152b9eea9356f09f69d15f7124036f7ed15151ced",
   "ids": [
    48,
    18,
@@ -1691,7 +1691,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026genre=Drama": {
-  "sha256": "7be85fa3f473aa52fb4e21f671241490acc6e99db325e16d6d87af3e1028208d",
+  "sha256": "15b8619485b6f1f1af8c0a0922880f513bb9ae8d94221b6838173c604f3b6c81",
   "ids": [
    48,
    5,
@@ -1717,7 +1717,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026monitored=false": {
-  "sha256": "bb0358341bcb93d5b2cd209d6880a29a17135850bb7d52a1809d93c538a0042e",
+  "sha256": "da9ecc60711c49e162aaeebdf1b9df14686098b575b448f08462523e44e30507",
   "ids": [
    51,
    39,
@@ -1725,7 +1725,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026provider=ad": {
-  "sha256": "3cc4f3d242efb54554657cfa89ffe8e11fb2ee182a1598e550298d0287ffe674",
+  "sha256": "d6fd0c0f76e129e94897de13d10a7b1caab88473920d7a5bc37901765bc0b90c",
   "ids": [
    5,
    34,
@@ -1748,7 +1748,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026provider=rd": {
-  "sha256": "259e445c374c4f1a5f57d32f6578602a384844aef26ae67032fc1c8d7c488f47",
+  "sha256": "46606f34ec27385e2137a382d978e75ea9b05efdad1d80fbef92687ed4441637",
   "ids": [
    5,
    36,
@@ -1789,7 +1789,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026provider=tb": {
-  "sha256": "66de812f640ac9b06816f504e69a05aead121ea4c73f9d187437a1c3dccf6eaa",
+  "sha256": "fb06975bee188ce8f29a640f24b06d9140136629170b875b9752158594734ef9",
   "ids": [
    54,
    45,
@@ -1815,7 +1815,7 @@
   "sha256": "22970c0d53c21b4b186100d49c10112eccdfd50f5a653e8c128de1496f392743"
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026quality=2160p": {
-  "sha256": "80f2317cdfc74a0c02ae958333ee711c96ed9de8b83e57cda8655ee6e0ecc7a4",
+  "sha256": "6f158b20775e452791f8206a6bde71259046a36445fc2048610a4b8ab293b4dc",
   "ids": [
    5,
    36,
@@ -1871,7 +1871,7 @@
   "sha256": "22970c0d53c21b4b186100d49c10112eccdfd50f5a653e8c128de1496f392743"
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026sort=\u0026order=": {
-  "sha256": "ce4e8e50814cd05eff7853484b6cbfec2d07d80ff0b58a18d241900dd5892f24",
+  "sha256": "e69a1c9cabc14e4ee939c07412acd187e1004f0e5370ba81b2d44658f6ca82de",
   "ids": [
    48,
    52,
@@ -1935,7 +1935,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026sort=\u0026order=asc": {
-  "sha256": "ce4e8e50814cd05eff7853484b6cbfec2d07d80ff0b58a18d241900dd5892f24",
+  "sha256": "e69a1c9cabc14e4ee939c07412acd187e1004f0e5370ba81b2d44658f6ca82de",
   "ids": [
    48,
    52,
@@ -1999,7 +1999,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026sort=\u0026order=desc": {
-  "sha256": "180d5d67d685ffa10016fb44af166a33c1dcc14ed92c8220561878dbc867194d",
+  "sha256": "a4601a7ed2f57e0242b23a4421f05a2651b0e35371c3a108fe8cb310789520c0",
   "ids": [
    22,
    2,
@@ -2063,7 +2063,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026sort=activity\u0026order=": {
-  "sha256": "c350b3a17f10c00be6eeb61731d4953dfa7ca16b1865d586794cd6d0cfeec5e7",
+  "sha256": "3c6d7c020c1398de26754651af3bdbf0f0b3cf52fb7ea11ffabe426eb8994e9a",
   "ids": [
    35,
    45,
@@ -2127,7 +2127,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026sort=activity\u0026order=asc": {
-  "sha256": "ea39a54e667788bbc358e0190abeb866446146d99f51714629194e12c51e87d6",
+  "sha256": "ced9b7364e168e84a33d1768855cf6b1da21c8ff6869017d70fba6183626b5c0",
   "ids": [
    27,
    8,
@@ -2191,7 +2191,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026sort=activity\u0026order=desc": {
-  "sha256": "c350b3a17f10c00be6eeb61731d4953dfa7ca16b1865d586794cd6d0cfeec5e7",
+  "sha256": "3c6d7c020c1398de26754651af3bdbf0f0b3cf52fb7ea11ffabe426eb8994e9a",
   "ids": [
    35,
    45,
@@ -2255,7 +2255,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026sort=activity\u0026sort_version=anime-tv": {
-  "sha256": "ce4e8e50814cd05eff7853484b6cbfec2d07d80ff0b58a18d241900dd5892f24",
+  "sha256": "e69a1c9cabc14e4ee939c07412acd187e1004f0e5370ba81b2d44658f6ca82de",
   "ids": [
    48,
    52,
@@ -2319,7 +2319,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026sort=activity\u0026sort_version=movie-remux": {
-  "sha256": "cea08959fa92dfdd22863db7ea12221b3573511c66612b07e1cd798f026fadde",
+  "sha256": "4c427509ccb90a3c5114d318165361f7ec0ac113ef8327764d24fd21be743ad6",
   "ids": [
    45,
    13,
@@ -2383,7 +2383,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026sort=activity\u0026sort_version=movie-web": {
-  "sha256": "8519f9f922bee32d0217a91c73119cb0aae2c73e0fd91ec6a6480e4699e2ab1a",
+  "sha256": "0d71842f5e93bdd5c276ca0e070ce1128e53933902e3cc091b11969e70f556fa",
   "ids": [
    35,
    11,
@@ -2447,7 +2447,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026sort=activity\u0026sort_version=tv-2160p": {
-  "sha256": "ce4e8e50814cd05eff7853484b6cbfec2d07d80ff0b58a18d241900dd5892f24",
+  "sha256": "e69a1c9cabc14e4ee939c07412acd187e1004f0e5370ba81b2d44658f6ca82de",
   "ids": [
    48,
    52,
@@ -2511,7 +2511,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026sort=activity\u0026sort_version=tv-2160p-theatarr": {
-  "sha256": "ce4e8e50814cd05eff7853484b6cbfec2d07d80ff0b58a18d241900dd5892f24",
+  "sha256": "e69a1c9cabc14e4ee939c07412acd187e1004f0e5370ba81b2d44658f6ca82de",
   "ids": [
    48,
    52,
@@ -2575,7 +2575,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026sort=added\u0026order=": {
-  "sha256": "0dd50facc118f2466e0085610bd77078f25bb590d6a5d91427b6c01def4372fe",
+  "sha256": "7e83c20f17394307beaaf3f3bec033886e11df855f54b9ced2440752f71cfd12",
   "ids": [
    7,
    28,
@@ -2639,7 +2639,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026sort=added\u0026order=asc": {
-  "sha256": "4ade9d1b5483048f8ad0e8da1439129643974a0e084586eeecae3c4435d0724b",
+  "sha256": "f7c242d0c37443edea4ede2b742607ec6f1af85481b342c039e985e10c323349",
   "ids": [
    38,
    53,
@@ -2703,7 +2703,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026sort=added\u0026order=desc": {
-  "sha256": "0dd50facc118f2466e0085610bd77078f25bb590d6a5d91427b6c01def4372fe",
+  "sha256": "7e83c20f17394307beaaf3f3bec033886e11df855f54b9ced2440752f71cfd12",
   "ids": [
    7,
    28,
@@ -2767,7 +2767,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026sort=certification\u0026order=": {
-  "sha256": "9f69d77b1154c45f8342b7f566021cd2004153f9a8e8455c8562396e099aa40d",
+  "sha256": "641d1444a661db4b924a905edeb986261c12a9051cb8bb82fec6b2252d7a5e7e",
   "ids": [
    52,
    5,
@@ -2831,7 +2831,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026sort=certification\u0026order=asc": {
-  "sha256": "9f69d77b1154c45f8342b7f566021cd2004153f9a8e8455c8562396e099aa40d",
+  "sha256": "641d1444a661db4b924a905edeb986261c12a9051cb8bb82fec6b2252d7a5e7e",
   "ids": [
    52,
    5,
@@ -2895,7 +2895,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026sort=certification\u0026order=desc": {
-  "sha256": "1dede75f2296b8d7f077efef3562bbbdda3b7044a9e1c445c9aa267b532cf854",
+  "sha256": "7ba8eb61b1d355758b9f54e856e6797068060eb38ce98ada53a46a439dcfeaff",
   "ids": [
    48,
    56,
@@ -2959,7 +2959,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026sort=completion\u0026order=": {
-  "sha256": "f5b59b34302b0c36a627a2fa3d7f4caa8502d89be844efd9c01b25ebda83007d",
+  "sha256": "6c1902bbe07fe18ea06b7ee258412591d50289ab6bfc6e74918b5b7a79a8fa70",
   "ids": [
    5,
    36,
@@ -3023,7 +3023,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026sort=completion\u0026order=asc": {
-  "sha256": "8c48e34bdc93c8b992712f30c17c8c663b8c2485c00ac178c866b4db885eb095",
+  "sha256": "a00217883990a12b7bc2fca48ea68f5a8800b6c4d096912981a7c25e2aedda9d",
   "ids": [
    48,
    52,
@@ -3087,7 +3087,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026sort=completion\u0026order=desc": {
-  "sha256": "f5b59b34302b0c36a627a2fa3d7f4caa8502d89be844efd9c01b25ebda83007d",
+  "sha256": "6c1902bbe07fe18ea06b7ee258412591d50289ab6bfc6e74918b5b7a79a8fa70",
   "ids": [
    5,
    36,
@@ -3151,7 +3151,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026sort=completion\u0026sort_version=anime-tv": {
-  "sha256": "ce4e8e50814cd05eff7853484b6cbfec2d07d80ff0b58a18d241900dd5892f24",
+  "sha256": "e69a1c9cabc14e4ee939c07412acd187e1004f0e5370ba81b2d44658f6ca82de",
   "ids": [
    48,
    52,
@@ -3215,7 +3215,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026sort=completion\u0026sort_version=movie-remux": {
-  "sha256": "e56b378a424837250034a1ea54d5ff063df378dfdd3a13d5af1add8c8fd2fd98",
+  "sha256": "2dc33a1408c2480dc6c8269d707938f81180f1dd60dbb79f841b62ac52244959",
   "ids": [
    5,
    36,
@@ -3279,7 +3279,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026sort=completion\u0026sort_version=movie-web": {
-  "sha256": "ccf459bf9eebdc24bb9bf045f1e95325f6ff944b26727a69a043ace9aae0adda",
+  "sha256": "725aa0ffef60f6132c1ac79147c8ad75e9539ed628ef72c50373f46fe2a27b32",
   "ids": [
    5,
    36,
@@ -3343,7 +3343,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026sort=completion\u0026sort_version=tv-2160p": {
-  "sha256": "ce4e8e50814cd05eff7853484b6cbfec2d07d80ff0b58a18d241900dd5892f24",
+  "sha256": "e69a1c9cabc14e4ee939c07412acd187e1004f0e5370ba81b2d44658f6ca82de",
   "ids": [
    48,
    52,
@@ -3407,7 +3407,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026sort=completion\u0026sort_version=tv-2160p-theatarr": {
-  "sha256": "ce4e8e50814cd05eff7853484b6cbfec2d07d80ff0b58a18d241900dd5892f24",
+  "sha256": "e69a1c9cabc14e4ee939c07412acd187e1004f0e5370ba81b2d44658f6ca82de",
   "ids": [
    48,
    52,
@@ -3471,7 +3471,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026sort=created\u0026order=": {
-  "sha256": "0785d9c1786d1738ae3693f2b9ef435ea5de137c56357da996842338857e2774",
+  "sha256": "5665dcbb13caecf4e00bba004fb8dfe0f88dbeb30bd58e0977d8328cee2597c9",
   "ids": [
    48,
    30,
@@ -3535,7 +3535,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026sort=created\u0026order=asc": {
-  "sha256": "ecf0bd2e5e191a8f2a066d5a45392885718b938ec332f88c3aba0c1bda766f60",
+  "sha256": "4e514323daf7a8df1590b673006c2e8395ecdaccadbfb3f4e0e58eac0a43632a",
   "ids": [
    27,
    29,
@@ -3599,7 +3599,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026sort=created\u0026order=desc": {
-  "sha256": "0785d9c1786d1738ae3693f2b9ef435ea5de137c56357da996842338857e2774",
+  "sha256": "5665dcbb13caecf4e00bba004fb8dfe0f88dbeb30bd58e0977d8328cee2597c9",
   "ids": [
    48,
    30,
@@ -3663,7 +3663,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026sort=name\u0026order=": {
-  "sha256": "ce4e8e50814cd05eff7853484b6cbfec2d07d80ff0b58a18d241900dd5892f24",
+  "sha256": "e69a1c9cabc14e4ee939c07412acd187e1004f0e5370ba81b2d44658f6ca82de",
   "ids": [
    48,
    52,
@@ -3727,7 +3727,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026sort=name\u0026order=asc": {
-  "sha256": "ce4e8e50814cd05eff7853484b6cbfec2d07d80ff0b58a18d241900dd5892f24",
+  "sha256": "e69a1c9cabc14e4ee939c07412acd187e1004f0e5370ba81b2d44658f6ca82de",
   "ids": [
    48,
    52,
@@ -3791,7 +3791,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026sort=name\u0026order=desc": {
-  "sha256": "180d5d67d685ffa10016fb44af166a33c1dcc14ed92c8220561878dbc867194d",
+  "sha256": "a4601a7ed2f57e0242b23a4421f05a2651b0e35371c3a108fe8cb310789520c0",
   "ids": [
    22,
    2,
@@ -3855,7 +3855,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026sort=network\u0026order=": {
-  "sha256": "ce4e8e50814cd05eff7853484b6cbfec2d07d80ff0b58a18d241900dd5892f24",
+  "sha256": "e69a1c9cabc14e4ee939c07412acd187e1004f0e5370ba81b2d44658f6ca82de",
   "ids": [
    48,
    52,
@@ -3919,7 +3919,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026sort=network\u0026order=asc": {
-  "sha256": "ce4e8e50814cd05eff7853484b6cbfec2d07d80ff0b58a18d241900dd5892f24",
+  "sha256": "e69a1c9cabc14e4ee939c07412acd187e1004f0e5370ba81b2d44658f6ca82de",
   "ids": [
    48,
    52,
@@ -3983,7 +3983,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026sort=network\u0026order=desc": {
-  "sha256": "ce4e8e50814cd05eff7853484b6cbfec2d07d80ff0b58a18d241900dd5892f24",
+  "sha256": "e69a1c9cabc14e4ee939c07412acd187e1004f0e5370ba81b2d44658f6ca82de",
   "ids": [
    48,
    52,
@@ -4047,7 +4047,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026sort=next\u0026order=": {
-  "sha256": "54fa4e184767129875bf4983c7b2ed9b867ae5ae6c8cb268eb9289762cf2a93b",
+  "sha256": "3b6ae899fff76cf320f0eba971a24032b82dd5e0ad5366c81b24b6180ab01ded",
   "ids": [
    59,
    18,
@@ -4111,7 +4111,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026sort=next\u0026order=asc": {
-  "sha256": "54fa4e184767129875bf4983c7b2ed9b867ae5ae6c8cb268eb9289762cf2a93b",
+  "sha256": "3b6ae899fff76cf320f0eba971a24032b82dd5e0ad5366c81b24b6180ab01ded",
   "ids": [
    59,
    18,
@@ -4175,7 +4175,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026sort=next\u0026order=desc": {
-  "sha256": "e6030e07ac37f328001506f233a261e7ebb9458c70c18b482b07eeffdceb0fbf",
+  "sha256": "103c45997534a8e7cf3f267c0b603820212a89fc7a55ef5d5567325a8f7b9211",
   "ids": [
    56,
    42,
@@ -4239,7 +4239,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026sort=quality\u0026order=": {
-  "sha256": "c3ef96f0bb98f36847b046d4b5c56d5f2cb6366c5bc30c0773cc6b75564c222b",
+  "sha256": "a1ffe70523809fcaf5592118a8a9fcb49ea0da27afa8590d3e8dee78a2857578",
   "ids": [
    5,
    36,
@@ -4303,7 +4303,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026sort=quality\u0026order=asc": {
-  "sha256": "28f192961049312422841aa4a5af18006405ae858fb54b4ff5cf8c9d3e3e425a",
+  "sha256": "ece7a61ccd572454417bc40a86584eb5a90d175e67457d137d597ea8f271119c",
   "ids": [
    45,
    27,
@@ -4367,7 +4367,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026sort=quality\u0026order=desc": {
-  "sha256": "c3ef96f0bb98f36847b046d4b5c56d5f2cb6366c5bc30c0773cc6b75564c222b",
+  "sha256": "a1ffe70523809fcaf5592118a8a9fcb49ea0da27afa8590d3e8dee78a2857578",
   "ids": [
    5,
    36,
@@ -4431,7 +4431,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026sort=quality\u0026sort_version=anime-tv": {
-  "sha256": "ce4e8e50814cd05eff7853484b6cbfec2d07d80ff0b58a18d241900dd5892f24",
+  "sha256": "e69a1c9cabc14e4ee939c07412acd187e1004f0e5370ba81b2d44658f6ca82de",
   "ids": [
    48,
    52,
@@ -4495,7 +4495,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026sort=quality\u0026sort_version=movie-remux": {
-  "sha256": "ba73deea352e3cb4956f29b38fb489e6f8f3a82595bb73a27fa6b237cdabcfc4",
+  "sha256": "f65565a90b76e250a458b3770995e69ae15927d9eb66220f01c57084f3519cb6",
   "ids": [
    5,
    36,
@@ -4559,7 +4559,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026sort=quality\u0026sort_version=movie-web": {
-  "sha256": "ccf459bf9eebdc24bb9bf045f1e95325f6ff944b26727a69a043ace9aae0adda",
+  "sha256": "725aa0ffef60f6132c1ac79147c8ad75e9539ed628ef72c50373f46fe2a27b32",
   "ids": [
    5,
    36,
@@ -4623,7 +4623,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026sort=quality\u0026sort_version=tv-2160p": {
-  "sha256": "ce4e8e50814cd05eff7853484b6cbfec2d07d80ff0b58a18d241900dd5892f24",
+  "sha256": "e69a1c9cabc14e4ee939c07412acd187e1004f0e5370ba81b2d44658f6ca82de",
   "ids": [
    48,
    52,
@@ -4687,7 +4687,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026sort=quality\u0026sort_version=tv-2160p-theatarr": {
-  "sha256": "ce4e8e50814cd05eff7853484b6cbfec2d07d80ff0b58a18d241900dd5892f24",
+  "sha256": "e69a1c9cabc14e4ee939c07412acd187e1004f0e5370ba81b2d44658f6ca82de",
   "ids": [
    48,
    52,
@@ -4751,7 +4751,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026sort=rating\u0026order=": {
-  "sha256": "538285b74d1163def77bf4f14a24eec3d6932954f083377bb9b6c4cd7dac70a9",
+  "sha256": "bf65124a7297e0d32018d484e53bd6fea2a98ad95e12569a9d8e5a63e56ba711",
   "ids": [
    24,
    53,
@@ -4815,7 +4815,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026sort=rating\u0026order=asc": {
-  "sha256": "3c0ccb213fefde84eb03a89519c05648a6fdb149ecc683c1cd7bdf3a0c33b65e",
+  "sha256": "bf6264486a6b2bb602afe668e056ddf548e1f8d28e27d4eb07cd376718a7bf7a",
   "ids": [
    28,
    54,
@@ -4879,7 +4879,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026sort=rating\u0026order=desc": {
-  "sha256": "538285b74d1163def77bf4f14a24eec3d6932954f083377bb9b6c4cd7dac70a9",
+  "sha256": "bf65124a7297e0d32018d484e53bd6fea2a98ad95e12569a9d8e5a63e56ba711",
   "ids": [
    24,
    53,
@@ -4943,7 +4943,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026sort=release\u0026order=": {
-  "sha256": "6d8d7766845fd1ccb100c5ba4973d0e3f1f811811d7ed602c9a00f4fda64db95",
+  "sha256": "587dc663b826a5cad5bb5990ce1aa5ad62a6e0bb45b09fa8412355414df454fc",
   "ids": [
    56,
    42,
@@ -5007,7 +5007,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026sort=release\u0026order=asc": {
-  "sha256": "c9f52f95344914eee772c2fd54b39c964741330855c2d809372c35f7326a1227",
+  "sha256": "7f12a8c97cccf877be3bd15f0b59d69ab3eae7705c00c05aa03034954e5b2fe8",
   "ids": [
    14,
    12,
@@ -5071,7 +5071,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026sort=release\u0026order=desc": {
-  "sha256": "6d8d7766845fd1ccb100c5ba4973d0e3f1f811811d7ed602c9a00f4fda64db95",
+  "sha256": "587dc663b826a5cad5bb5990ce1aa5ad62a6e0bb45b09fa8412355414df454fc",
   "ids": [
    56,
    42,
@@ -5135,7 +5135,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026sort=runtime\u0026order=": {
-  "sha256": "d6c188d71dd64abef10cef970bd4f4832a0bd8d9668dec0b32d252d31dabbb8b",
+  "sha256": "8a0fde7cd5a40bedcbd2c5f32e3c9191774caab87749eb2a0628df0ae38e8139",
   "ids": [
    36,
    50,
@@ -5199,7 +5199,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026sort=runtime\u0026order=asc": {
-  "sha256": "84068e3e299b08810168b1f5e46687e39562b46a12ff885b7efd3e3fb1f82d86",
+  "sha256": "acfb6651fd03667290846383baab9ec30b8384129d97d2dd43284ef715f41731",
   "ids": [
    5,
    19,
@@ -5263,7 +5263,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026sort=runtime\u0026order=desc": {
-  "sha256": "d6c188d71dd64abef10cef970bd4f4832a0bd8d9668dec0b32d252d31dabbb8b",
+  "sha256": "8a0fde7cd5a40bedcbd2c5f32e3c9191774caab87749eb2a0628df0ae38e8139",
   "ids": [
    36,
    50,
@@ -5327,7 +5327,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026sort=size\u0026order=": {
-  "sha256": "815b03b51c021dfe948062a0d856cffcafc317e05799dd12680ff7f75b0cb72b",
+  "sha256": "453658aca9eb14c2ec9896b836ffaa08329ddaceaa1289dfe4ad800d47218b8c",
   "ids": [
    16,
    57,
@@ -5391,7 +5391,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026sort=size\u0026order=asc": {
-  "sha256": "ce1d57dcab6d6fe0b16342a60f1313b9b8590b548ff85037a59e81822cd50ec2",
+  "sha256": "40b594531497a99b331468681c46c2f38dd6a184bd3ef57f1d03be55c1662a6c",
   "ids": [
    32,
    8,
@@ -5455,7 +5455,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026sort=size\u0026order=desc": {
-  "sha256": "815b03b51c021dfe948062a0d856cffcafc317e05799dd12680ff7f75b0cb72b",
+  "sha256": "453658aca9eb14c2ec9896b836ffaa08329ddaceaa1289dfe4ad800d47218b8c",
   "ids": [
    16,
    57,
@@ -5519,7 +5519,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026sort=year\u0026order=": {
-  "sha256": "985276301fe5bc5cd71b7a560242cc1934785b1c64c3e36c4a562677f3a538fc",
+  "sha256": "50619a027b4a86a02d33e679aa9af9b3f89be3dc08e1efbda9f009692ce20912",
   "ids": [
    56,
    42,
@@ -5583,7 +5583,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026sort=year\u0026order=asc": {
-  "sha256": "47dffd64b15944a2de9551f2d389b99859014e1ce205dd0320fa2f743aeea8ec",
+  "sha256": "9ac5354688d12cf35eacdd2a57a8884cffa839c7e61f9b4bba6f93da2276e687",
   "ids": [
    14,
    34,
@@ -5647,7 +5647,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026sort=year\u0026order=desc": {
-  "sha256": "985276301fe5bc5cd71b7a560242cc1934785b1c64c3e36c4a562677f3a538fc",
+  "sha256": "50619a027b4a86a02d33e679aa9af9b3f89be3dc08e1efbda9f009692ce20912",
   "ids": [
    56,
    42,
@@ -5711,7 +5711,7 @@
   ]
  },
  "/titles?kind=movie\u0026anime=false\u0026limit=500\u0026upgrade=found": {
-  "sha256": "109c92e0dc844d02fd964a4436828dff18a6f302f304bbd297b10c8c8cc5a2c3",
+  "sha256": "7dfa65c04c414b949dab02dbb9cf212aeb56df3118bd7d382df3c5f6e2282cb0",
   "ids": [
    7
   ]
@@ -5720,7 +5720,7 @@
   "sha256": "e8413fe5ac2f733a564be7e0181e56e55b43d119540ca9e648fe588e5e6e63eb"
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026availability=available": {
-  "sha256": "832fa0e1fc8bef40a508218307f3d1e688f4b50cab64e9668485fff0c9f756c0",
+  "sha256": "6bfa0a16a4f74cbf5bd39832a19d2a876ec2a849b4cf0a17c686db30d0af64e9",
   "ids": [
    67,
    75,
@@ -5733,13 +5733,13 @@
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026availability=missing": {
-  "sha256": "31e7703ee0c50c391de698f3cd3531a060828a08d04f29f636424e1941092ea7",
+  "sha256": "104f32d6fb7a55aa00cc0da48f1bbea81e722de316ab7df73a4884155e509875",
   "ids": [
    76
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026availability=partial": {
-  "sha256": "4134d813c01a4553d949a1ed11c339aadf569a3b85de4211cfb94899549596e5",
+  "sha256": "3dd0f6f0e9f8c64fa198bb009a60460beaf4df26a3d35154904550854c3604d7",
   "ids": [
    79,
    77,
@@ -5752,13 +5752,13 @@
   "sha256": "22970c0d53c21b4b186100d49c10112eccdfd50f5a653e8c128de1496f392743"
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026availability=upcoming": {
-  "sha256": "1b0798352fc4a61b90d11616e71f5c241e9f707524da05152aa596303d4964ca",
+  "sha256": "8b5b91d23644c46180c66f70d07ceaaef3376daff9de621a4133375d9788bdc3",
   "ids": [
    74
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026genre=Drama": {
-  "sha256": "bed495ebd0a07694682f522a4e1541aceb1c5edec321da788c2dfe3af9a35431",
+  "sha256": "7a0755588beae4be0f1ec4ee4a1fba23e4c782ab8523f9afd7d4691b7f86c873",
   "ids": [
    77,
    74,
@@ -5773,7 +5773,7 @@
   "sha256": "22970c0d53c21b4b186100d49c10112eccdfd50f5a653e8c128de1496f392743"
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026provider=ad": {
-  "sha256": "0fb23fe29df6af4a34bc22a8fb68922f75aeb6701f8943e6d277a3753d7f594a",
+  "sha256": "878db71883789f8054689f50d0b0fdab38461f506a0726c1f7cb0a7224e9ce39",
   "ids": [
    79,
    77,
@@ -5786,7 +5786,7 @@
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026provider=rd": {
-  "sha256": "df2881b3f7fee973bd09664150f7a1c33c9d155fd42a8bb66bf51741102f3508",
+  "sha256": "3c0788fa454ff3d19e16db1ac68ca8c801a19d73f06add309b5fb72ceae5f7fa",
   "ids": [
    79,
    67,
@@ -5804,7 +5804,7 @@
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026provider=tb": {
-  "sha256": "3c18dd9028700ee81ecc11a4bf989029e02c6676fa1d30bbeea211092463126a",
+  "sha256": "6095cf18031fa23d31a96549f0cdab8eeda38f65bb3bbce94f755b19d23cc9d2",
   "ids": [
    77,
    65,
@@ -5813,13 +5813,13 @@
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026quality=1080p": {
-  "sha256": "0d9f9acd6fff7107936ea94d4f400b5b16e2cfb56e331bfef4da48524ff420d5",
+  "sha256": "7834bface4c69fea3798920ffa1cfd50dc318dbe18115512ff3c3c455098d2c3",
   "ids": [
    70
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026quality=2160p": {
-  "sha256": "df2881b3f7fee973bd09664150f7a1c33c9d155fd42a8bb66bf51741102f3508",
+  "sha256": "3c0788fa454ff3d19e16db1ac68ca8c801a19d73f06add309b5fb72ceae5f7fa",
   "ids": [
    79,
    67,
@@ -5837,13 +5837,13 @@
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026quality=WEBDL-1080p": {
-  "sha256": "0d9f9acd6fff7107936ea94d4f400b5b16e2cfb56e331bfef4da48524ff420d5",
+  "sha256": "7834bface4c69fea3798920ffa1cfd50dc318dbe18115512ff3c3c455098d2c3",
   "ids": [
    70
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026sort=\u0026order=": {
-  "sha256": "00ecebea106a1f7e0c7d1f8e04b8c433b7ff731bc69e3a18ea76fd51df24d9e7",
+  "sha256": "4c5bf37306dc986fe6d78babcdf030d3b777abf2302fdbeb31c87cb3c9f4a60f",
   "ids": [
    79,
    67,
@@ -5863,7 +5863,7 @@
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026sort=\u0026order=asc": {
-  "sha256": "00ecebea106a1f7e0c7d1f8e04b8c433b7ff731bc69e3a18ea76fd51df24d9e7",
+  "sha256": "4c5bf37306dc986fe6d78babcdf030d3b777abf2302fdbeb31c87cb3c9f4a60f",
   "ids": [
    79,
    67,
@@ -5883,7 +5883,7 @@
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026sort=\u0026order=desc": {
-  "sha256": "8fe6eb40def39a7353ccb7fbd673fdbc00c288682b91066fbc3c42867bb9bbab",
+  "sha256": "a0c5b17c60c98561c0d2f04e194390a9dc7407ce48e512e45f5eaf86c1f9d42d",
   "ids": [
    68,
    73,
@@ -5903,7 +5903,7 @@
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026sort=activity\u0026order=": {
-  "sha256": "8f84549b9d187fa007ac25546942294b3578406f85ff59ec61bc1a40f581416d",
+  "sha256": "23cfdb5a313671954f91a25443b46f4c5f615a4bca30cea9ebbf494fc1af13d5",
   "ids": [
    77,
    70,
@@ -5923,7 +5923,7 @@
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026sort=activity\u0026order=asc": {
-  "sha256": "ee0d2fdd5e98a78c5e4e5e974bab1474bf4e5d2942fb334aef6137ccf1719a5f",
+  "sha256": "f8c55e478e7efddf2b80d4ddcf8b35ae1c7eb5812a518ba1943eb5685818f8f1",
   "ids": [
    72,
    71,
@@ -5943,7 +5943,7 @@
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026sort=activity\u0026order=desc": {
-  "sha256": "8f84549b9d187fa007ac25546942294b3578406f85ff59ec61bc1a40f581416d",
+  "sha256": "23cfdb5a313671954f91a25443b46f4c5f615a4bca30cea9ebbf494fc1af13d5",
   "ids": [
    77,
    70,
@@ -5963,7 +5963,7 @@
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026sort=activity\u0026sort_version=anime-tv": {
-  "sha256": "00ecebea106a1f7e0c7d1f8e04b8c433b7ff731bc69e3a18ea76fd51df24d9e7",
+  "sha256": "4c5bf37306dc986fe6d78babcdf030d3b777abf2302fdbeb31c87cb3c9f4a60f",
   "ids": [
    79,
    67,
@@ -5983,7 +5983,7 @@
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026sort=activity\u0026sort_version=movie-remux": {
-  "sha256": "00ecebea106a1f7e0c7d1f8e04b8c433b7ff731bc69e3a18ea76fd51df24d9e7",
+  "sha256": "4c5bf37306dc986fe6d78babcdf030d3b777abf2302fdbeb31c87cb3c9f4a60f",
   "ids": [
    79,
    67,
@@ -6003,7 +6003,7 @@
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026sort=activity\u0026sort_version=movie-web": {
-  "sha256": "00ecebea106a1f7e0c7d1f8e04b8c433b7ff731bc69e3a18ea76fd51df24d9e7",
+  "sha256": "4c5bf37306dc986fe6d78babcdf030d3b777abf2302fdbeb31c87cb3c9f4a60f",
   "ids": [
    79,
    67,
@@ -6023,7 +6023,7 @@
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026sort=activity\u0026sort_version=tv-2160p": {
-  "sha256": "00ecebea106a1f7e0c7d1f8e04b8c433b7ff731bc69e3a18ea76fd51df24d9e7",
+  "sha256": "4c5bf37306dc986fe6d78babcdf030d3b777abf2302fdbeb31c87cb3c9f4a60f",
   "ids": [
    79,
    67,
@@ -6043,7 +6043,7 @@
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026sort=activity\u0026sort_version=tv-2160p-theatarr": {
-  "sha256": "8f84549b9d187fa007ac25546942294b3578406f85ff59ec61bc1a40f581416d",
+  "sha256": "23cfdb5a313671954f91a25443b46f4c5f615a4bca30cea9ebbf494fc1af13d5",
   "ids": [
    77,
    70,
@@ -6063,7 +6063,7 @@
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026sort=added\u0026order=": {
-  "sha256": "286df95371cebf010c66b4f3456a3af829bf6e4341ed33f7f6591293bd7cf01e",
+  "sha256": "b6d99684ba877710b44d7adbaedae66583f90419c682b936ad4d37da6a4b2129",
   "ids": [
    79,
    75,
@@ -6083,7 +6083,7 @@
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026sort=added\u0026order=asc": {
-  "sha256": "ced0ecccfca430a26ec596549ae27213e403a4e96e7c21c02f5c6b6e5a5e71de",
+  "sha256": "12e27b5e6c6c9ce516a4d66263e7b5701a5b97c873e6bb1f8004c05aad3857e5",
   "ids": [
    66,
    71,
@@ -6103,7 +6103,7 @@
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026sort=added\u0026order=desc": {
-  "sha256": "286df95371cebf010c66b4f3456a3af829bf6e4341ed33f7f6591293bd7cf01e",
+  "sha256": "b6d99684ba877710b44d7adbaedae66583f90419c682b936ad4d37da6a4b2129",
   "ids": [
    79,
    75,
@@ -6123,7 +6123,7 @@
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026sort=certification\u0026order=": {
-  "sha256": "9f084de4dcd84ca3381ae13eac2a8ed083a9e56679981b251c66d4fb880d048a",
+  "sha256": "32444fa2c8d1c9f4ca5c1957161f48a743dbbbb6dc523bbe7f4b08207cb607ea",
   "ids": [
    79,
    67,
@@ -6143,7 +6143,7 @@
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026sort=certification\u0026order=asc": {
-  "sha256": "9f084de4dcd84ca3381ae13eac2a8ed083a9e56679981b251c66d4fb880d048a",
+  "sha256": "32444fa2c8d1c9f4ca5c1957161f48a743dbbbb6dc523bbe7f4b08207cb607ea",
   "ids": [
    79,
    67,
@@ -6163,7 +6163,7 @@
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026sort=certification\u0026order=desc": {
-  "sha256": "75a183dfc5f67f76070310d78d4c748c71d6cba5a58afa90d16f577f23d70a65",
+  "sha256": "08091b5d57d936da299d55afcee5120c92e701a3b97def7c72654010c810009d",
   "ids": [
    77,
    74,
@@ -6183,7 +6183,7 @@
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026sort=completion\u0026order=": {
-  "sha256": "cda96adbd290f6625f06dcfe4cd7bda99407796a663abe89689fd26c657f52f7",
+  "sha256": "e6be322b6c69681eaedc7ca2a0dec724c61b9fb4f1b5888adef6109836d385cf",
   "ids": [
    79,
    67,
@@ -6203,7 +6203,7 @@
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026sort=completion\u0026order=asc": {
-  "sha256": "8e6e963d614d3fc0121787774d38dc4223a460aa09afc6a79ff2ce472b78fecd",
+  "sha256": "31d271b9783521475bbdbbe7d5e73bb0189fc68454c4e58af2c408c0c9949a03",
   "ids": [
    76,
    66,
@@ -6223,7 +6223,7 @@
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026sort=completion\u0026order=desc": {
-  "sha256": "cda96adbd290f6625f06dcfe4cd7bda99407796a663abe89689fd26c657f52f7",
+  "sha256": "e6be322b6c69681eaedc7ca2a0dec724c61b9fb4f1b5888adef6109836d385cf",
   "ids": [
    79,
    67,
@@ -6243,7 +6243,7 @@
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026sort=completion\u0026sort_version=anime-tv": {
-  "sha256": "00ecebea106a1f7e0c7d1f8e04b8c433b7ff731bc69e3a18ea76fd51df24d9e7",
+  "sha256": "4c5bf37306dc986fe6d78babcdf030d3b777abf2302fdbeb31c87cb3c9f4a60f",
   "ids": [
    79,
    67,
@@ -6263,7 +6263,7 @@
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026sort=completion\u0026sort_version=movie-remux": {
-  "sha256": "00ecebea106a1f7e0c7d1f8e04b8c433b7ff731bc69e3a18ea76fd51df24d9e7",
+  "sha256": "4c5bf37306dc986fe6d78babcdf030d3b777abf2302fdbeb31c87cb3c9f4a60f",
   "ids": [
    79,
    67,
@@ -6283,7 +6283,7 @@
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026sort=completion\u0026sort_version=movie-web": {
-  "sha256": "00ecebea106a1f7e0c7d1f8e04b8c433b7ff731bc69e3a18ea76fd51df24d9e7",
+  "sha256": "4c5bf37306dc986fe6d78babcdf030d3b777abf2302fdbeb31c87cb3c9f4a60f",
   "ids": [
    79,
    67,
@@ -6303,7 +6303,7 @@
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026sort=completion\u0026sort_version=tv-2160p": {
-  "sha256": "673c6fb0966ba4c619e2e3becc5d000d078a517ffb1e89f181b97dd3300814ce",
+  "sha256": "8eb8200df8af0b45bc3aaee93d10113a3032ed2420990f7d0177021e93af833d",
   "ids": [
    79,
    67,
@@ -6323,7 +6323,7 @@
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026sort=completion\u0026sort_version=tv-2160p-theatarr": {
-  "sha256": "165fda71ef82a0ff1996bfe603a7d195191b2325e974808b516c28abd427a7a1",
+  "sha256": "4e273b8b0d1302d7d22a4a6216c6965bafd0f3f18238947b0f4a7ef70b7cdc27",
   "ids": [
    67,
    72,
@@ -6343,7 +6343,7 @@
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026sort=created\u0026order=": {
-  "sha256": "b15cf5671638e575ef25104da36d1433ac5c758c9e7f527d94df6289de2d0d20",
+  "sha256": "635fac6e670fa753ae713a26af1d98fd70ebc2f31e9f2941ffd5d873a5fbbb76",
   "ids": [
    74,
    66,
@@ -6363,7 +6363,7 @@
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026sort=created\u0026order=asc": {
-  "sha256": "d95b1cb8b3948c6c25db15bde1d391d7b6b0a73fa6db19f57f803621a1969f5d",
+  "sha256": "7adaff6099e8ee448f68ca6f0390cbe26faff9c554d57f82de5eca3842a53d15",
   "ids": [
    65,
    73,
@@ -6383,7 +6383,7 @@
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026sort=created\u0026order=desc": {
-  "sha256": "b15cf5671638e575ef25104da36d1433ac5c758c9e7f527d94df6289de2d0d20",
+  "sha256": "635fac6e670fa753ae713a26af1d98fd70ebc2f31e9f2941ffd5d873a5fbbb76",
   "ids": [
    74,
    66,
@@ -6403,7 +6403,7 @@
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026sort=name\u0026order=": {
-  "sha256": "00ecebea106a1f7e0c7d1f8e04b8c433b7ff731bc69e3a18ea76fd51df24d9e7",
+  "sha256": "4c5bf37306dc986fe6d78babcdf030d3b777abf2302fdbeb31c87cb3c9f4a60f",
   "ids": [
    79,
    67,
@@ -6423,7 +6423,7 @@
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026sort=name\u0026order=asc": {
-  "sha256": "00ecebea106a1f7e0c7d1f8e04b8c433b7ff731bc69e3a18ea76fd51df24d9e7",
+  "sha256": "4c5bf37306dc986fe6d78babcdf030d3b777abf2302fdbeb31c87cb3c9f4a60f",
   "ids": [
    79,
    67,
@@ -6443,7 +6443,7 @@
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026sort=name\u0026order=desc": {
-  "sha256": "8fe6eb40def39a7353ccb7fbd673fdbc00c288682b91066fbc3c42867bb9bbab",
+  "sha256": "a0c5b17c60c98561c0d2f04e194390a9dc7407ce48e512e45f5eaf86c1f9d42d",
   "ids": [
    68,
    73,
@@ -6463,7 +6463,7 @@
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026sort=network\u0026order=": {
-  "sha256": "b66ee81767e3670151011289b92460c60c65a0a22284126a6ca52214d3539d11",
+  "sha256": "82d56abcefeeb77730b1ff3af6b14fdfa72db2ad1660800f28f34c049c21fa66",
   "ids": [
    72,
    78,
@@ -6483,7 +6483,7 @@
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026sort=network\u0026order=asc": {
-  "sha256": "b66ee81767e3670151011289b92460c60c65a0a22284126a6ca52214d3539d11",
+  "sha256": "82d56abcefeeb77730b1ff3af6b14fdfa72db2ad1660800f28f34c049c21fa66",
   "ids": [
    72,
    78,
@@ -6503,7 +6503,7 @@
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026sort=network\u0026order=desc": {
-  "sha256": "d2d0fdffd721901be8b85ea696e1311ae9eb35e0c3d0fdffe3ce7b14040d7734",
+  "sha256": "a1a684a7c400cc3cc95b7349ca972bd79ab0137b92b2455ccc004ad55af258cb",
   "ids": [
    67,
    74,
@@ -6523,7 +6523,7 @@
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026sort=next\u0026order=": {
-  "sha256": "6ca6ca335ab5508e58a84ee99a2247a4eab63a433bdd376c921cecee221c3ad0",
+  "sha256": "70a98295bb37b241835532dc9aa913b902302f8a63819f1bead9b63892eb02f3",
   "ids": [
    78,
    71,
@@ -6543,7 +6543,7 @@
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026sort=next\u0026order=asc": {
-  "sha256": "6ca6ca335ab5508e58a84ee99a2247a4eab63a433bdd376c921cecee221c3ad0",
+  "sha256": "70a98295bb37b241835532dc9aa913b902302f8a63819f1bead9b63892eb02f3",
   "ids": [
    78,
    71,
@@ -6563,7 +6563,7 @@
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026sort=next\u0026order=desc": {
-  "sha256": "bf98e14993420a8adb1249d9791e06e5469349a5e672787f910b864984bf0032",
+  "sha256": "7f8442fa3d312218058771535a677e46d9d36b573feaa786a1a9912cb61b5f23",
   "ids": [
    74,
    78,
@@ -6583,7 +6583,7 @@
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026sort=quality\u0026order=": {
-  "sha256": "7373161fa6d9cfb43bf895754aa6d23357dab9a6116fa8606b47182f49d2f174",
+  "sha256": "6c9e42aafb3b41048c10bb707dac9ce54c7183e3bd88fa3239926f34025f6c98",
   "ids": [
    79,
    67,
@@ -6603,7 +6603,7 @@
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026sort=quality\u0026order=asc": {
-  "sha256": "7373161fa6d9cfb43bf895754aa6d23357dab9a6116fa8606b47182f49d2f174",
+  "sha256": "6c9e42aafb3b41048c10bb707dac9ce54c7183e3bd88fa3239926f34025f6c98",
   "ids": [
    79,
    67,
@@ -6623,7 +6623,7 @@
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026sort=quality\u0026order=desc": {
-  "sha256": "7373161fa6d9cfb43bf895754aa6d23357dab9a6116fa8606b47182f49d2f174",
+  "sha256": "6c9e42aafb3b41048c10bb707dac9ce54c7183e3bd88fa3239926f34025f6c98",
   "ids": [
    79,
    67,
@@ -6643,7 +6643,7 @@
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026sort=quality\u0026sort_version=anime-tv": {
-  "sha256": "00ecebea106a1f7e0c7d1f8e04b8c433b7ff731bc69e3a18ea76fd51df24d9e7",
+  "sha256": "4c5bf37306dc986fe6d78babcdf030d3b777abf2302fdbeb31c87cb3c9f4a60f",
   "ids": [
    79,
    67,
@@ -6663,7 +6663,7 @@
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026sort=quality\u0026sort_version=movie-remux": {
-  "sha256": "00ecebea106a1f7e0c7d1f8e04b8c433b7ff731bc69e3a18ea76fd51df24d9e7",
+  "sha256": "4c5bf37306dc986fe6d78babcdf030d3b777abf2302fdbeb31c87cb3c9f4a60f",
   "ids": [
    79,
    67,
@@ -6683,7 +6683,7 @@
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026sort=quality\u0026sort_version=movie-web": {
-  "sha256": "00ecebea106a1f7e0c7d1f8e04b8c433b7ff731bc69e3a18ea76fd51df24d9e7",
+  "sha256": "4c5bf37306dc986fe6d78babcdf030d3b777abf2302fdbeb31c87cb3c9f4a60f",
   "ids": [
    79,
    67,
@@ -6703,7 +6703,7 @@
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026sort=quality\u0026sort_version=tv-2160p": {
-  "sha256": "7373161fa6d9cfb43bf895754aa6d23357dab9a6116fa8606b47182f49d2f174",
+  "sha256": "6c9e42aafb3b41048c10bb707dac9ce54c7183e3bd88fa3239926f34025f6c98",
   "ids": [
    79,
    67,
@@ -6723,7 +6723,7 @@
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026sort=quality\u0026sort_version=tv-2160p-theatarr": {
-  "sha256": "7373161fa6d9cfb43bf895754aa6d23357dab9a6116fa8606b47182f49d2f174",
+  "sha256": "6c9e42aafb3b41048c10bb707dac9ce54c7183e3bd88fa3239926f34025f6c98",
   "ids": [
    79,
    67,
@@ -6743,7 +6743,7 @@
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026sort=rating\u0026order=": {
-  "sha256": "f1f12ddd62074c09f4e79407a6fe264e16ee9be8a27b688e1305fa324add7fc0",
+  "sha256": "79ef62c66f67d9db6d0de134a7d1f2a6fd8be0b1dc98382c6ac47891d25925e5",
   "ids": [
    71,
    74,
@@ -6763,7 +6763,7 @@
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026sort=rating\u0026order=asc": {
-  "sha256": "027a75f3ec96c9cd50aac2d9e890effbdaeb4aca51f5f2f4d5cf9ee7801edbd1",
+  "sha256": "c1290d366560e911b82da6c43be0e7a44fe9fb033af4a2bb3fa0b6ca223e9157",
   "ids": [
    78,
    75,
@@ -6783,7 +6783,7 @@
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026sort=rating\u0026order=desc": {
-  "sha256": "f1f12ddd62074c09f4e79407a6fe264e16ee9be8a27b688e1305fa324add7fc0",
+  "sha256": "79ef62c66f67d9db6d0de134a7d1f2a6fd8be0b1dc98382c6ac47891d25925e5",
   "ids": [
    71,
    74,
@@ -6803,7 +6803,7 @@
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026sort=release\u0026order=": {
-  "sha256": "dc56c1ad7e5938517fb62264edfc88e38e6f774fd080ef59a0feb88b63508da7",
+  "sha256": "bf0f92762b6fed7e6f7a49b12ccb6b4e0a2d60e8e265ba26e86485714ce71056",
   "ids": [
    74,
    78,
@@ -6823,7 +6823,7 @@
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026sort=release\u0026order=asc": {
-  "sha256": "9e02d5ba773be1db415880874e9278f1a35483f901da33c65bd8d3a347be0fdf",
+  "sha256": "d0355eed3dda8694558aaf931aa9f746b2ebd69417d0bf8b756dd5ccf733eea9",
   "ids": [
    75,
    70,
@@ -6843,7 +6843,7 @@
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026sort=release\u0026order=desc": {
-  "sha256": "dc56c1ad7e5938517fb62264edfc88e38e6f774fd080ef59a0feb88b63508da7",
+  "sha256": "bf0f92762b6fed7e6f7a49b12ccb6b4e0a2d60e8e265ba26e86485714ce71056",
   "ids": [
    74,
    78,
@@ -6863,7 +6863,7 @@
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026sort=runtime\u0026order=": {
-  "sha256": "65577ed94144b0a595879512801e403ed3927f016accb3d55aa1f15e44b859ed",
+  "sha256": "4878466f1e4b5e2c585a46db15d777fd5ace24ba4727c50d64ddd583e046d949",
   "ids": [
    66,
    78,
@@ -6883,7 +6883,7 @@
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026sort=runtime\u0026order=asc": {
-  "sha256": "1062a805d4263488323a3ad64d2d20576bcccbb471d3b3534e2115259ff1271b",
+  "sha256": "5ba4bdd48282997839c787dd6e06b4c0288d3468e45f08f460ca8657db9fd22b",
   "ids": [
    73,
    67,
@@ -6903,7 +6903,7 @@
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026sort=runtime\u0026order=desc": {
-  "sha256": "65577ed94144b0a595879512801e403ed3927f016accb3d55aa1f15e44b859ed",
+  "sha256": "4878466f1e4b5e2c585a46db15d777fd5ace24ba4727c50d64ddd583e046d949",
   "ids": [
    66,
    78,
@@ -6923,7 +6923,7 @@
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026sort=size\u0026order=": {
-  "sha256": "e8f06325dbfa37d7f613b494cd685af064d499948fed2e1742586ad9d681b45e",
+  "sha256": "af5fef4784871eefafcf9c9ebe1e05ebc4596023f79c6202eff0970427197733",
   "ids": [
    75,
    77,
@@ -6943,7 +6943,7 @@
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026sort=size\u0026order=asc": {
-  "sha256": "18b4505c98d28bbb39de8f46a2aa80559550194ff2155ca9299123a80425f67a",
+  "sha256": "ae8f611a53e92cc971206055c486e804b669f1e524c91cd3b50591ee09be3968",
   "ids": [
    78,
    71,
@@ -6963,7 +6963,7 @@
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026sort=size\u0026order=desc": {
-  "sha256": "e8f06325dbfa37d7f613b494cd685af064d499948fed2e1742586ad9d681b45e",
+  "sha256": "af5fef4784871eefafcf9c9ebe1e05ebc4596023f79c6202eff0970427197733",
   "ids": [
    75,
    77,
@@ -6983,7 +6983,7 @@
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026sort=year\u0026order=": {
-  "sha256": "dc56c1ad7e5938517fb62264edfc88e38e6f774fd080ef59a0feb88b63508da7",
+  "sha256": "bf0f92762b6fed7e6f7a49b12ccb6b4e0a2d60e8e265ba26e86485714ce71056",
   "ids": [
    74,
    78,
@@ -7003,7 +7003,7 @@
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026sort=year\u0026order=asc": {
-  "sha256": "f6a62f275df4496fcb3b572b84aa081b4882b04cbbd09c055fbe4943e1406ec3",
+  "sha256": "a7f66fe0609a13d8553adf16ebfa7addbff740d4d140cb126a496b1486137c4a",
   "ids": [
    75,
    70,
@@ -7023,7 +7023,7 @@
   ]
  },
  "/titles?kind=series\u0026anime=false\u0026limit=500\u0026sort=year\u0026order=desc": {
-  "sha256": "dc56c1ad7e5938517fb62264edfc88e38e6f774fd080ef59a0feb88b63508da7",
+  "sha256": "bf0f92762b6fed7e6f7a49b12ccb6b4e0a2d60e8e265ba26e86485714ce71056",
   "ids": [
    74,
    78,
@@ -7046,7 +7046,7 @@
   "sha256": "22970c0d53c21b4b186100d49c10112eccdfd50f5a653e8c128de1496f392743"
  },
  "/titles?kind=series\u0026limit=20\u0026offset=20\u0026sort=completion": {
-  "sha256": "d2dd2268607cb861ed0c35bb0db630b6bfa3f82a3b5367ddab3b0937393cd8fa",
+  "sha256": "6ae40ea9e3e6ae0d44ffd52880870172f06d2bc8cf3981b235b9a68ef826a3cf",
   "ids": [
    88,
    68,
@@ -7060,7 +7060,7 @@
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026availability=available": {
-  "sha256": "ba67bb60cc1a612a6b7ba1276487deff05cfcd048614ef9ce3deef044301e721",
+  "sha256": "086906c007779d2bc7a9a05507031405a79a76a717297ef1d5e11838ff4f3af9",
   "ids": [
    84,
    81,
@@ -7082,14 +7082,14 @@
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026availability=missing": {
-  "sha256": "ce4eab52429758664e9ba56aee5e7ed81cb7b55f062a798945bb2372d98c9bd3",
+  "sha256": "d807d306b107d05b1b1ba79ec03f21dd2afda1a047afd3453a3323b7f3abf909",
   "ids": [
    90,
    76
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026availability=partial": {
-  "sha256": "33fe5112b69fd6e59093da739ddb27512f6d21e8474c1bb42f1c98fcb5426ebc",
+  "sha256": "541788d5321eed21b64644b39a2f3be3bd252f0cb90e72669175261fd628d147",
   "ids": [
    79,
    77,
@@ -7106,13 +7106,13 @@
   "sha256": "22970c0d53c21b4b186100d49c10112eccdfd50f5a653e8c128de1496f392743"
  },
  "/titles?kind=series\u0026limit=500\u0026availability=upcoming": {
-  "sha256": "1b0798352fc4a61b90d11616e71f5c241e9f707524da05152aa596303d4964ca",
+  "sha256": "8b5b91d23644c46180c66f70d07ceaaef3376daff9de621a4133375d9788bdc3",
   "ids": [
    74
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026genre=Drama": {
-  "sha256": "d5ac31ce8defa9ba63aeae31206a974b9214b5d7fa4e4df2da30e28923d2e98a",
+  "sha256": "2a7cfcdcbf4754407788c1e0ef2057d3971218aef1831c4c092a5f7bbbe8770d",
   "ids": [
    77,
    74,
@@ -7131,7 +7131,7 @@
   "sha256": "22970c0d53c21b4b186100d49c10112eccdfd50f5a653e8c128de1496f392743"
  },
  "/titles?kind=series\u0026limit=500\u0026provider=ad": {
-  "sha256": "13021d57d5744e3a8428a924647c50f645d844770bc4ae427147009ddcb7fbbb",
+  "sha256": "031f3eaccaf408dee235a91145ad0918d8b6a6ecd59da6c892585eacf8a0fa8d",
   "ids": [
    79,
    77,
@@ -7148,7 +7148,7 @@
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026provider=rd": {
-  "sha256": "d474f1c94a5a11645220cd2fd529270a719987772a5299593799dc7d34e75856",
+  "sha256": "c6dcfd589fbd308306f58f700002d1dc6267320f9b7904715a7852532a7055b9",
   "ids": [
    84,
    81,
@@ -7175,7 +7175,7 @@
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026provider=tb": {
-  "sha256": "697371b2243f4432402d7cefc482a14f7dfd4b075a4e40b6319c01e312f05429",
+  "sha256": "ae2f1324146ee34cf7c85e112b5148ca6bdd52e5e008c0260f62d14299d1a6ee",
   "ids": [
    84,
    77,
@@ -7190,7 +7190,7 @@
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026quality=1080p": {
-  "sha256": "d1c477e556196b24c9f6026f9291d4383dda629d0f05bec92e157f9a4f98be46",
+  "sha256": "c0d238f45ac4300241a76ae7c9352eac2745f0c09a96797e6afeeccef9791cc8",
   "ids": [
    84,
    81,
@@ -7209,7 +7209,7 @@
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026quality=2160p": {
-  "sha256": "df2881b3f7fee973bd09664150f7a1c33c9d155fd42a8bb66bf51741102f3508",
+  "sha256": "3c0788fa454ff3d19e16db1ac68ca8c801a19d73f06add309b5fb72ceae5f7fa",
   "ids": [
    79,
    67,
@@ -7227,7 +7227,7 @@
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026quality=WEBDL-1080p": {
-  "sha256": "3e437cce4001b11714ee00cfb30283b7ce78ebb90aaf30733966f3840ad2b259",
+  "sha256": "664c290b0cb7aca1f92067c19f827a03be3919985a520b7d68849bba9e6c363e",
   "ids": [
    81,
    87,
@@ -7238,7 +7238,7 @@
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026sort=\u0026order=": {
-  "sha256": "24ac30f1877390d6ba0cb838f52218f0e28542b34172b59711284619fe64da71",
+  "sha256": "712a40a9eb4509ff775d0ce2171102d578e598e54cba27a6f57e9265f45e8a91",
   "ids": [
    84,
    81,
@@ -7272,7 +7272,7 @@
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026sort=\u0026order=asc": {
-  "sha256": "24ac30f1877390d6ba0cb838f52218f0e28542b34172b59711284619fe64da71",
+  "sha256": "712a40a9eb4509ff775d0ce2171102d578e598e54cba27a6f57e9265f45e8a91",
   "ids": [
    84,
    81,
@@ -7306,7 +7306,7 @@
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026sort=\u0026order=desc": {
-  "sha256": "d675ce4419ff0a78c4f9784b266f60d93b8ad86492117d3ed6bbc6034f7c914e",
+  "sha256": "3ed7197525985c66ae39f6b2f2fc9a9d39606bf5ea93143571d2b980ee9a9cbc",
   "ids": [
    86,
    68,
@@ -7340,7 +7340,7 @@
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026sort=activity\u0026order=": {
-  "sha256": "888f6518ab249f110b857d6b78538afa21271500f67735a4ecb0e9aaff182d71",
+  "sha256": "cada05165faddaea876cb7587a286a68d9e5ac353d16410ec4d14aca892b5d1c",
   "ids": [
    77,
    85,
@@ -7374,7 +7374,7 @@
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026sort=activity\u0026order=asc": {
-  "sha256": "5c4a37c733ae24f831151da2620ae5050fcb2e1d296179d155365a2c2803099f",
+  "sha256": "4e874076e4ad5b4ebe86dd6d31d02106e9db04193813109c6466c2a2bf908635",
   "ids": [
    72,
    91,
@@ -7408,7 +7408,7 @@
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026sort=activity\u0026order=desc": {
-  "sha256": "888f6518ab249f110b857d6b78538afa21271500f67735a4ecb0e9aaff182d71",
+  "sha256": "cada05165faddaea876cb7587a286a68d9e5ac353d16410ec4d14aca892b5d1c",
   "ids": [
    77,
    85,
@@ -7442,7 +7442,7 @@
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026sort=activity\u0026sort_version=anime-tv": {
-  "sha256": "24ac30f1877390d6ba0cb838f52218f0e28542b34172b59711284619fe64da71",
+  "sha256": "712a40a9eb4509ff775d0ce2171102d578e598e54cba27a6f57e9265f45e8a91",
   "ids": [
    84,
    81,
@@ -7476,7 +7476,7 @@
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026sort=activity\u0026sort_version=movie-remux": {
-  "sha256": "24ac30f1877390d6ba0cb838f52218f0e28542b34172b59711284619fe64da71",
+  "sha256": "712a40a9eb4509ff775d0ce2171102d578e598e54cba27a6f57e9265f45e8a91",
   "ids": [
    84,
    81,
@@ -7510,7 +7510,7 @@
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026sort=activity\u0026sort_version=movie-web": {
-  "sha256": "24ac30f1877390d6ba0cb838f52218f0e28542b34172b59711284619fe64da71",
+  "sha256": "712a40a9eb4509ff775d0ce2171102d578e598e54cba27a6f57e9265f45e8a91",
   "ids": [
    84,
    81,
@@ -7544,7 +7544,7 @@
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026sort=activity\u0026sort_version=tv-2160p": {
-  "sha256": "24ac30f1877390d6ba0cb838f52218f0e28542b34172b59711284619fe64da71",
+  "sha256": "712a40a9eb4509ff775d0ce2171102d578e598e54cba27a6f57e9265f45e8a91",
   "ids": [
    84,
    81,
@@ -7578,7 +7578,7 @@
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026sort=activity\u0026sort_version=tv-2160p-theatarr": {
-  "sha256": "0911f38d61bfcbf1191e91c11243c8cafccfff7deba55821f6aab7365c53e27c",
+  "sha256": "cdb6ee46096b7e446df004a3b0a089b07e525bf1b9b956e890b49cf8e5519199",
   "ids": [
    77,
    70,
@@ -7612,7 +7612,7 @@
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026sort=added\u0026order=": {
-  "sha256": "743757d5c6c701d7b6a6dd6a90a96e3285364578c005384270f1f572b8b09ba0",
+  "sha256": "472b9680af0fb94657a191ecbc2a406906b960dbaa97efe547d614d5c3b0f57a",
   "ids": [
    79,
    75,
@@ -7646,7 +7646,7 @@
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026sort=added\u0026order=asc": {
-  "sha256": "480c163daf7a3417106de0075b28348497c871398ac01fa726e7082b202fa43b",
+  "sha256": "82a4c55ec12f22ffb04d721eefc6b049866c4b1a52521e7e9ae4738409c6ef27",
   "ids": [
    85,
    83,
@@ -7680,7 +7680,7 @@
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026sort=added\u0026order=desc": {
-  "sha256": "743757d5c6c701d7b6a6dd6a90a96e3285364578c005384270f1f572b8b09ba0",
+  "sha256": "472b9680af0fb94657a191ecbc2a406906b960dbaa97efe547d614d5c3b0f57a",
   "ids": [
    79,
    75,
@@ -7714,7 +7714,7 @@
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026sort=certification\u0026order=": {
-  "sha256": "00d6dcb8fbfe21a7dbb372f63d6ae43606a439335571577b1e65a8367af00316",
+  "sha256": "64ae3b998fb2ecda201f9b43c67603afb93f2274d8ef7fa8888479cf2c34b83f",
   "ids": [
    79,
    67,
@@ -7748,7 +7748,7 @@
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026sort=certification\u0026order=asc": {
-  "sha256": "00d6dcb8fbfe21a7dbb372f63d6ae43606a439335571577b1e65a8367af00316",
+  "sha256": "64ae3b998fb2ecda201f9b43c67603afb93f2274d8ef7fa8888479cf2c34b83f",
   "ids": [
    79,
    67,
@@ -7782,7 +7782,7 @@
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026sort=certification\u0026order=desc": {
-  "sha256": "3115fc49ea138b25cccaef5a30798c9eeac2239298968bbdcc56b862346afc6c",
+  "sha256": "db4d10ba52125cd475b1c9dae54c5ee752fa6c0e494b2762358e4da5ed9abc6b",
   "ids": [
    84,
    81,
@@ -7816,7 +7816,7 @@
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026sort=completion\u0026order=": {
-  "sha256": "d103532bc300b83f942b3b67daba7aef7359bec7d56a07db6c72cf35b1447d08",
+  "sha256": "a8e3d75dbbc26d1b7113026406aee6c2c4933eb9070ccbe0b6e4de1d9757efb7",
   "ids": [
    84,
    81,
@@ -7850,7 +7850,7 @@
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026sort=completion\u0026order=asc": {
-  "sha256": "2afb032e7540bbd7d219f613330609af5ca5833f01af7de3af5f0d9984804591",
+  "sha256": "23e9a8cbe7da20de575806967f636c4587b5d2c0e1127701ed13e0f4b64a9afc",
   "ids": [
    90,
    76,
@@ -7884,7 +7884,7 @@
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026sort=completion\u0026order=desc": {
-  "sha256": "d103532bc300b83f942b3b67daba7aef7359bec7d56a07db6c72cf35b1447d08",
+  "sha256": "a8e3d75dbbc26d1b7113026406aee6c2c4933eb9070ccbe0b6e4de1d9757efb7",
   "ids": [
    84,
    81,
@@ -7918,7 +7918,7 @@
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026sort=completion\u0026sort_version=anime-tv": {
-  "sha256": "a5e3ad220bb40cca9c0ce2d62d9f5e6ffd8adcbc6d0bcfc72ec1b1e7d0196b9c",
+  "sha256": "bfc4d03ebc030eb5277d82a1503024882597b5745c1d1a94f4be62428fea9644",
   "ids": [
    84,
    81,
@@ -7952,7 +7952,7 @@
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026sort=completion\u0026sort_version=movie-remux": {
-  "sha256": "24ac30f1877390d6ba0cb838f52218f0e28542b34172b59711284619fe64da71",
+  "sha256": "712a40a9eb4509ff775d0ce2171102d578e598e54cba27a6f57e9265f45e8a91",
   "ids": [
    84,
    81,
@@ -7986,7 +7986,7 @@
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026sort=completion\u0026sort_version=movie-web": {
-  "sha256": "24ac30f1877390d6ba0cb838f52218f0e28542b34172b59711284619fe64da71",
+  "sha256": "712a40a9eb4509ff775d0ce2171102d578e598e54cba27a6f57e9265f45e8a91",
   "ids": [
    84,
    81,
@@ -8020,7 +8020,7 @@
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026sort=completion\u0026sort_version=tv-2160p": {
-  "sha256": "f101008189de7d59c3d833f56e4f4b1a5b20a86ca51489187779cc3f22c04fe2",
+  "sha256": "b1505b628f105a24aa883b0fd746167cc2ac30f814777bca4525dc99b59db7e3",
   "ids": [
    79,
    67,
@@ -8054,7 +8054,7 @@
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026sort=completion\u0026sort_version=tv-2160p-theatarr": {
-  "sha256": "db75514e7f4a796eb837643bde04152f5dc85227689d3258579f4747be59f15b",
+  "sha256": "6685e30b05b8f2488a1efd3bc722f0ccd0fd0b90ee7dbaa4611b576171a4575a",
   "ids": [
    67,
    72,
@@ -8088,7 +8088,7 @@
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026sort=created\u0026order=": {
-  "sha256": "9d8e671e03d65d3e55ba5ccc0e18c3dbcfcb28ed7b8984a1ad32798704cd0df0",
+  "sha256": "da1991f218cec661884f01f5752dc4b8b49f8d183aa7c907770c509a0a37cf04",
   "ids": [
    82,
    92,
@@ -8122,7 +8122,7 @@
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026sort=created\u0026order=asc": {
-  "sha256": "f37c0352d50ddf0f54e22dcac549ff5e64cc0ba5b7f181842eb0148bda39b23d",
+  "sha256": "346e50dd308a514079525591977b4cc8f409934639f0671773a267ee10637b2c",
   "ids": [
    81,
    93,
@@ -8156,7 +8156,7 @@
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026sort=created\u0026order=desc": {
-  "sha256": "9d8e671e03d65d3e55ba5ccc0e18c3dbcfcb28ed7b8984a1ad32798704cd0df0",
+  "sha256": "da1991f218cec661884f01f5752dc4b8b49f8d183aa7c907770c509a0a37cf04",
   "ids": [
    82,
    92,
@@ -8190,7 +8190,7 @@
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026sort=name\u0026order=": {
-  "sha256": "24ac30f1877390d6ba0cb838f52218f0e28542b34172b59711284619fe64da71",
+  "sha256": "712a40a9eb4509ff775d0ce2171102d578e598e54cba27a6f57e9265f45e8a91",
   "ids": [
    84,
    81,
@@ -8224,7 +8224,7 @@
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026sort=name\u0026order=asc": {
-  "sha256": "24ac30f1877390d6ba0cb838f52218f0e28542b34172b59711284619fe64da71",
+  "sha256": "712a40a9eb4509ff775d0ce2171102d578e598e54cba27a6f57e9265f45e8a91",
   "ids": [
    84,
    81,
@@ -8258,7 +8258,7 @@
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026sort=name\u0026order=desc": {
-  "sha256": "d675ce4419ff0a78c4f9784b266f60d93b8ad86492117d3ed6bbc6034f7c914e",
+  "sha256": "3ed7197525985c66ae39f6b2f2fc9a9d39606bf5ea93143571d2b980ee9a9cbc",
   "ids": [
    86,
    68,
@@ -8292,7 +8292,7 @@
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026sort=network\u0026order=": {
-  "sha256": "7a092049accc590fedbcd240c0f4f9e2d18829f1557a75913033f14bdb627e7f",
+  "sha256": "a93387dfe2af599baf7f2e31efd44f0d3e0089ad6bf0627e6ad33873ab07acd7",
   "ids": [
    72,
    78,
@@ -8326,7 +8326,7 @@
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026sort=network\u0026order=asc": {
-  "sha256": "7a092049accc590fedbcd240c0f4f9e2d18829f1557a75913033f14bdb627e7f",
+  "sha256": "a93387dfe2af599baf7f2e31efd44f0d3e0089ad6bf0627e6ad33873ab07acd7",
   "ids": [
    72,
    78,
@@ -8360,7 +8360,7 @@
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026sort=network\u0026order=desc": {
-  "sha256": "c274627910d7a27ad5d84d2bc6aa46021ce9f2b327d5bfd5b13cf047b09c3330",
+  "sha256": "58080ba8dc6df435b3c12c4c79086b4b7272a1936f959bfef9fd3c56a02dd2da",
   "ids": [
    92,
    87,
@@ -8394,7 +8394,7 @@
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026sort=next\u0026order=": {
-  "sha256": "f7a8de82200afedf2933f300eedd950c35222a86c18c5798bde139c2b1ab4b4f",
+  "sha256": "96d3b209677c9d11e38bbc35e0544772e2ce0f4f1f5e1a7867e5ecdf81656a50",
   "ids": [
    91,
    93,
@@ -8428,7 +8428,7 @@
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026sort=next\u0026order=asc": {
-  "sha256": "f7a8de82200afedf2933f300eedd950c35222a86c18c5798bde139c2b1ab4b4f",
+  "sha256": "96d3b209677c9d11e38bbc35e0544772e2ce0f4f1f5e1a7867e5ecdf81656a50",
   "ids": [
    91,
    93,
@@ -8462,7 +8462,7 @@
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026sort=next\u0026order=desc": {
-  "sha256": "797a460568d78d1b21ce2d550d252a24f26e004deaf86b4051c99b4e8a456bb3",
+  "sha256": "12411d9face25c73d1dbd5b0d3873072888b1626986b6c780cf914484e97ca9a",
   "ids": [
    74,
    91,
@@ -8496,7 +8496,7 @@
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026sort=quality\u0026order=": {
-  "sha256": "d7406464e15f89cb63435867d0673be2d0112ac1d1cddd1c3c7fa38c434826b7",
+  "sha256": "af5884f286426173e853d71d457709af4409749c327e8a275d8225cb1c39f21b",
   "ids": [
    79,
    67,
@@ -8530,7 +8530,7 @@
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026sort=quality\u0026order=asc": {
-  "sha256": "ef1ea5364c0a9c9486cf8473dab443b98ba0764480200754b237d4bb5e506d22",
+  "sha256": "7c51f7ceb98029edffabd4bd0bd13fcf3f7dadc2ad22ada2c6794523534ee2f2",
   "ids": [
    81,
    87,
@@ -8564,7 +8564,7 @@
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026sort=quality\u0026order=desc": {
-  "sha256": "d7406464e15f89cb63435867d0673be2d0112ac1d1cddd1c3c7fa38c434826b7",
+  "sha256": "af5884f286426173e853d71d457709af4409749c327e8a275d8225cb1c39f21b",
   "ids": [
    79,
    67,
@@ -8598,7 +8598,7 @@
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026sort=quality\u0026sort_version=anime-tv": {
-  "sha256": "0f58aac205aa1ba297fe3e5d050668ada430505a08847383ddefaa9d723f3e71",
+  "sha256": "b7aafa1c1dfde4ed5181c4e889dde84d4003a559ba633d1da552aacb1f1866d1",
   "ids": [
    84,
    92,
@@ -8632,7 +8632,7 @@
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026sort=quality\u0026sort_version=movie-remux": {
-  "sha256": "24ac30f1877390d6ba0cb838f52218f0e28542b34172b59711284619fe64da71",
+  "sha256": "712a40a9eb4509ff775d0ce2171102d578e598e54cba27a6f57e9265f45e8a91",
   "ids": [
    84,
    81,
@@ -8666,7 +8666,7 @@
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026sort=quality\u0026sort_version=movie-web": {
-  "sha256": "24ac30f1877390d6ba0cb838f52218f0e28542b34172b59711284619fe64da71",
+  "sha256": "712a40a9eb4509ff775d0ce2171102d578e598e54cba27a6f57e9265f45e8a91",
   "ids": [
    84,
    81,
@@ -8700,7 +8700,7 @@
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026sort=quality\u0026sort_version=tv-2160p": {
-  "sha256": "6d34a3f6537c74ab61deb600a929d146bbe672dca36e08400bb38d73d600bb50",
+  "sha256": "2598d02b92ddec7ed3522f84c9d6e97fb666c397f3550df7e21094182d2318dc",
   "ids": [
    79,
    67,
@@ -8734,7 +8734,7 @@
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026sort=quality\u0026sort_version=tv-2160p-theatarr": {
-  "sha256": "6d34a3f6537c74ab61deb600a929d146bbe672dca36e08400bb38d73d600bb50",
+  "sha256": "2598d02b92ddec7ed3522f84c9d6e97fb666c397f3550df7e21094182d2318dc",
   "ids": [
    79,
    67,
@@ -8768,7 +8768,7 @@
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026sort=rating\u0026order=": {
-  "sha256": "e2f0aab8923bdda5eda854830d086f154331eb5af4e5c23530ee6f341c185aea",
+  "sha256": "bbc25bf159ea124679e1259c9c1e94d7e1c140590ec590b99db9b9d4ebf9e249",
   "ids": [
    71,
    74,
@@ -8802,7 +8802,7 @@
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026sort=rating\u0026order=asc": {
-  "sha256": "1574e1bf36728309e1a3000d231f4c7191774c1c0bc07c88db2169aebe274d31",
+  "sha256": "701a13b3c00835494ed0b247784388928a7fc8ab363c311b6a3a9b619367a9eb",
   "ids": [
    78,
    90,
@@ -8836,7 +8836,7 @@
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026sort=rating\u0026order=desc": {
-  "sha256": "e2f0aab8923bdda5eda854830d086f154331eb5af4e5c23530ee6f341c185aea",
+  "sha256": "bbc25bf159ea124679e1259c9c1e94d7e1c140590ec590b99db9b9d4ebf9e249",
   "ids": [
    71,
    74,
@@ -8870,7 +8870,7 @@
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026sort=release\u0026order=": {
-  "sha256": "57bb055282d59b990a1ed05a7df9f473ca2bb55cc20932e016411a5636c49456",
+  "sha256": "dc35a9b7dd2c0b917f8729206f456e83c219cc350dcd8707c950343edcb55853",
   "ids": [
    74,
    91,
@@ -8904,7 +8904,7 @@
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026sort=release\u0026order=asc": {
-  "sha256": "c4e51d9211160f55d1047843335e0b9cc202802bda72fd85a21a31dbeac17a85",
+  "sha256": "a60c179d39c0415c284929d4349ca72f4624ae0eb65db58d5fa993d307733990",
   "ids": [
    75,
    80,
@@ -8938,7 +8938,7 @@
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026sort=release\u0026order=desc": {
-  "sha256": "57bb055282d59b990a1ed05a7df9f473ca2bb55cc20932e016411a5636c49456",
+  "sha256": "dc35a9b7dd2c0b917f8729206f456e83c219cc350dcd8707c950343edcb55853",
   "ids": [
    74,
    91,
@@ -8972,7 +8972,7 @@
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026sort=runtime\u0026order=": {
-  "sha256": "1e2a2906a7be8fd8915eb7c14f00e493c4dceb03b77c678b11a8b7298047e6d9",
+  "sha256": "fe256a076f69ae8db4a7a7fe0d63080ec0f46b7313f7f196ed2d396276bb6892",
   "ids": [
    66,
    78,
@@ -9006,7 +9006,7 @@
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026sort=runtime\u0026order=asc": {
-  "sha256": "766c8dda2afd5630577703b712c5bb9a18de1d9a5e2112fa731fce3f3151ddbc",
+  "sha256": "0b87422b4b3806ae7718dc4c2b1bf8e1fc54d5cbea8b2bcb62481916a259287f",
   "ids": [
    84,
    81,
@@ -9040,7 +9040,7 @@
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026sort=runtime\u0026order=desc": {
-  "sha256": "1e2a2906a7be8fd8915eb7c14f00e493c4dceb03b77c678b11a8b7298047e6d9",
+  "sha256": "fe256a076f69ae8db4a7a7fe0d63080ec0f46b7313f7f196ed2d396276bb6892",
   "ids": [
    66,
    78,
@@ -9074,7 +9074,7 @@
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026sort=size\u0026order=": {
-  "sha256": "654e1a0d7074b84949dedcca9cba43a7b9382d253043ec08b6e77bcb3662bac5",
+  "sha256": "8c6e35fc23f49b28662aee6fcb9ba6da777812fd13b61e867857fe95f3c3049d",
   "ids": [
    75,
    77,
@@ -9108,7 +9108,7 @@
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026sort=size\u0026order=asc": {
-  "sha256": "d0cfefcdc381e49a4debc0725066810305dfdca7377ebcc0506f141a90c2a78e",
+  "sha256": "81c45381eab07481ae63d564c0e39b1a2d94a07a000321559d804ab893750f67",
   "ids": [
    91,
    93,
@@ -9142,7 +9142,7 @@
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026sort=size\u0026order=desc": {
-  "sha256": "654e1a0d7074b84949dedcca9cba43a7b9382d253043ec08b6e77bcb3662bac5",
+  "sha256": "8c6e35fc23f49b28662aee6fcb9ba6da777812fd13b61e867857fe95f3c3049d",
   "ids": [
    75,
    77,
@@ -9176,7 +9176,7 @@
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026sort=year\u0026order=": {
-  "sha256": "65a0c68edaa4535739a0b01e5bc532e5897da3ba14e676c55c8043d93975cf0a",
+  "sha256": "6159821bcd4049d0839d0bc5ae802b92d1dbe3ceb49a07502818644d6fc7b5b4",
   "ids": [
    74,
    91,
@@ -9210,7 +9210,7 @@
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026sort=year\u0026order=asc": {
-  "sha256": "9b541cacba6ea907a09fdf75cad7a4cc2bc7ecd2da3a5b90837b648e7013179a",
+  "sha256": "b0835fe48299a6e24f588edce81e82c2961c00a88531b55f91c2ff43672cd071",
   "ids": [
    84,
    80,
@@ -9244,7 +9244,7 @@
   ]
  },
  "/titles?kind=series\u0026limit=500\u0026sort=year\u0026order=desc": {
-  "sha256": "65a0c68edaa4535739a0b01e5bc532e5897da3ba14e676c55c8043d93975cf0a",
+  "sha256": "6159821bcd4049d0839d0bc5ae802b92d1dbe3ceb49a07502818644d6fc7b5b4",
   "ids": [
    74,
    91,

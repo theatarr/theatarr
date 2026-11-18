@@ -139,7 +139,7 @@ it("says restrictions only about the library in view", async () => {
 });
 
 it("leaves Pause for every library to the title page's bar: no notice or restriction line in the tab", async () => {
-  const control = { ...managed, can_search: false, search_reason: "Paused: nothing is searched or downloaded", grab_state: { paused: true, pause_forced: false, will_grab: false } };
+  const control = { ...managed, can_search: false, search_reason: "Paused: searches, new grabs and imports stop for every library; Interactive search can still look up releases", grab_state: { paused: true, pause_forced: false, will_grab: false } };
   mockFetch([{ ...routes[0], reply: { id: 1, permissions: ["admin", "manage", "see_files"] } }, { method: "GET", path: "/titles/1/episodes", reply: { ...episodes, versions: [{ ...episodes.versions[1], control }] } }]);
   renderPage(<Seasons id="1" anime />, "/title/1");
   await screen.findByTestId("season-header");

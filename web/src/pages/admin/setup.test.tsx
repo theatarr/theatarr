@@ -380,7 +380,7 @@ describe("setup", () => {
     // The form is gone once the library exists; the forced-off notice stays.
     await screen.findByText(/^1 library, 1 with a library root/);
     expect(screen.queryByTestId("first-version")).toBeNull();
-    expect(screen.getByTestId("start-forced-off").textContent).toBe("The library was created and Pause is saved as off, but THEATARR_FORCE_OFF keeps Pause on: nothing is searched, downloaded or linked until that override is removed and the service restarted.");
+    expect(screen.getByTestId("start-forced-off").textContent).toBe("The library was created and Pause is saved as off, but THEATARR_FORCE_OFF keeps Pause on until that override is removed and the service restarted: searches, new grabs and imports stop for every library; Interactive search can still look up releases.");
   });
 
   it("reads the settings overview again after the start, so the header Pause shows it as it is now", async () => {

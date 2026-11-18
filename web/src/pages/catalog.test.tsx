@@ -1122,8 +1122,8 @@ describe("Row actions", () => {
     expect(interactive.getAttribute("title")).toBe("No library of this title can search live now");
     // Each reason, from the row's own libraries.
     const v = (control: object, monitored = true) => ({ key: "movie-web", label: "WEB", monitored, control }) as never;
-    expect(searchOff([v({ ...live, can_search: false, grab_state: { ...on, paused: true, will_grab: false } })])).toBe("Paused: nothing is searched, downloaded or linked for any library.");
-    expect(searchOff([v({ ...live, can_search: false, grab_state: { ...on, pause_forced: true, will_grab: false } })])).toBe("Paused by the environment (THEATARR_FORCE_OFF): nothing is searched, downloaded or linked for any library.");
+    expect(searchOff([v({ ...live, can_search: false, grab_state: { ...on, paused: true, will_grab: false } })])).toBe("Paused: searches, new grabs and imports stop for every library; Interactive search can still look up releases.");
+    expect(searchOff([v({ ...live, can_search: false, grab_state: { ...on, pause_forced: true, will_grab: false } })])).toBe("Paused by the environment (THEATARR_FORCE_OFF): searches, new grabs and imports stop for every library; Interactive search can still look up releases.");
     expect(searchOff([v({ ...held, grab_state: { ...on, will_grab: false } })])).toBe("Nothing is searched now: WEB: Downloads off");
     expect(searchOff([v(live, false)])).toBe("No library is monitored.");
     expect(searchOff([v(live)])).toBe("");

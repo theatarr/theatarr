@@ -107,9 +107,9 @@ it("shows no dense Why? button when downloads are on", () => {
 
 it("says Pause once, pointing admins at the header", () => {
   const { rerender } = render(<MemoryRouter><DownloadsOffNotice off="off" canManage /></MemoryRouter>);
-  expect(screen.getByTestId("downloads-off-notice").textContent).toBe("Paused: nothing is searched, downloaded or linked for any library. Turn Pause off at the top of the page to resume.");
+  expect(screen.getByTestId("downloads-off-notice").textContent).toBe("Paused: searches, new grabs and imports stop for every library; Interactive search can still look up releases. Turn Pause off at the top of the page to resume.");
   rerender(<MemoryRouter><DownloadsOffNotice off="locked" canManage /></MemoryRouter>);
-  expect(screen.getByTestId("downloads-off-notice").textContent).toBe("Paused by the environment (THEATARR_FORCE_OFF): nothing is searched, downloaded or linked for any library.");
+  expect(screen.getByTestId("downloads-off-notice").textContent).toBe("Paused by the environment (THEATARR_FORCE_OFF): searches, new grabs and imports stop for every library; Interactive search can still look up releases.");
   expect(screen.queryByRole("link")).toBeNull();
   rerender(<MemoryRouter><DownloadsOffNotice /></MemoryRouter>);
   expect(screen.queryByTestId("downloads-off-notice")).toBeNull();

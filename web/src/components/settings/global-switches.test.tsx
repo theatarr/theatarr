@@ -91,7 +91,7 @@ describe("Pause in the admin header", () => {
     const pause = await screen.findByRole("switch", { name: "Pause" });
     expect(pause.getAttribute("aria-checked")).toBe("true");
     expect(screen.getByText("Paused")).toBeTruthy();
-    expect(screen.getByTestId("pause").getAttribute("title")).toBe("Paused: nothing is searched, downloaded or linked. Turn off to resume.");
+    expect(screen.getByTestId("pause").getAttribute("title")).toBe("Paused: searches, new grabs and imports stop for every library; Interactive search can still look up releases. Turn off to resume.");
     await user.click(pause);
     await screen.findByRole("dialog", { name: "Confirm what this change enables" });
     expect(screen.getByText(effects[0].effect)).toBeTruthy();

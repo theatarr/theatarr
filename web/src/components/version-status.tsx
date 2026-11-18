@@ -4,7 +4,7 @@ import { useId, useState } from "react";
 import { Popover } from "radix-ui";
 import { Link } from "react-router";
 import { Badge } from "@/components/ui/badge";
-import { closedGates, globalDownloadsOff, linksOff, stateWords, verdict, type VersionGrabState } from "@/lib/version-grab";
+import { closedGates, globalDownloadsOff, linksOff, PAUSE_STOPS, stateWords, verdict, type VersionGrabState } from "@/lib/version-grab";
 
 export function VersionStatus({ state, words = false, settingsKey, canManage = false, why = true, quiet = false }: {
   state?: VersionGrabState;
@@ -82,7 +82,7 @@ export function VersionStatus({ state, words = false, settingsKey, canManage = f
 
 /** Pause in words, for a notice or a disabled control's tooltip. */
 export const pausedWords = (off: "locked" | "off" | "unknown") =>
-  off === "locked" ? "Paused by the environment (THEATARR_FORCE_OFF): nothing is searched, downloaded or linked for any library." : "Paused: nothing is searched, downloaded or linked for any library.";
+  off === "locked" ? `Paused by the environment (THEATARR_FORCE_OFF): ${PAUSE_STOPS}.` : `Paused: ${PAUSE_STOPS}.`;
 
 type SearchLibrary = { label?: string; key?: string; grab_state?: VersionGrabState | null };
 

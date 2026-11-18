@@ -402,7 +402,7 @@ func TestPreflightInvalidInitializedSettings(t *testing.T) {
 		if item.Check == "validation" && item.Status == preflight.Fail && strings.Contains(item.Why, "metadata.overrides_dir") {
 			validation = true
 		}
-		if item.Area == preflight.AreaSwitches && item.Check == "pause" && item.Status == preflight.OK && item.Why == "on, forced by environment (THEATARR_FORCE_OFF): nothing is searched, downloaded or linked" {
+		if item.Area == preflight.AreaSwitches && item.Check == "pause" && item.Status == preflight.OK && item.Why == "on, forced by environment (THEATARR_FORCE_OFF): searches, new grabs and imports stop for every library; Interactive search can still look up releases" {
 			switches = true
 		}
 	}
