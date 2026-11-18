@@ -1083,8 +1083,11 @@ group uses stays. Each library gets its Removed action as before; a partner's sa
 them; the bulk dialog says it once per pair "for N titles", and a title the removal leaves with no copy "has no copy
 left". No total of deleted files is promised (a file two libraries share is in both): the title dialog lists each
 library, named or partner, with its own file count (dead links included, they go too) and downloads in progress
-beside its name, and says which libraries' files are deleted or stay; the selection bar posts the person's own choice
-(one library, or none for the whole title). A compatible client's DELETE does the same (arrview.md
+beside its name, and says which libraries' files are deleted or stay; the bulk dialog adds "By library: …" with each
+library's files and downloads in progress summed over the selection; Delete files… on kept files names each removed
+library with its own count, and the title page's "N files kept" line counts a shared file once. The selection bar posts
+the person's own choice (one library, or none for the whole title). A compatible DELETE whose libraries in sync take
+the title's last copies drops every app's record of the title (as the web removal does), so a re-add starts fresh. A compatible client's DELETE does the same (arrview.md
 "DELETE"). Unmonitoring, unlinking one file and Stop managing a library are not removals and do not follow the group.
 The Keep in sync help says: "A title added to one of these libraries is added to the others too, and a title removed
 from one is removed from the others, with its files and debrid torrents when the removal deletes them. Monitoring

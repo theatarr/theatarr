@@ -430,7 +430,9 @@ stay the view's.
   UI's Remove title uses (`internal/removal`), with the client's own flags. The partners count for whether the title
   goes (the remaining-copy count), their minimum availability choice goes as the view's own does, `deleteFiles=true`
   checks every link the removal takes, active or dead, of the view's versions and the partners, in one read before
-  anything changes (a refused link answers 409 with nothing hidden, unlinked or cleaned up), and their
+  anything changes (a refused link answers 409 with nothing hidden, unlinked or cleaned up); when the partners take the
+  title's last copies, every view's `arrview_title` record goes (`catalog.Remove`), so a re-add through any view starts
+  fresh, while a DELETE that leaves a copy keeps the other views' records as before; and their
   Removed actions say "in sync with <library>"; `deleteFiles` omitted keeps every file, the partners' too. On a Radarr view `addImportExclusion=true` also
   puts the movie on the exclusion list (`movie_exclusion`, by TMDb id, one list for every view, the row the
   `exclusions` POST writes) in the transaction of the remove, so list and collection intake skip it afterwards;
