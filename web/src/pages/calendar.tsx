@@ -123,17 +123,22 @@ function EventChip({ slot, plain, now }: { slot: Entry[]; plain: boolean; now: D
   );
 }
 
-function AgendaItem({ e, plain, now }: { e: Entry; plain: boolean; now: Date }) {
-  const s = calendarTone(e, now, plain);
+/** One agenda line: an entry, or a series' episodes of one season on that day ("S02E01–E03", linked to the first) as
+ * the month's chip folds them, with a time only when every episode shares it. */
+function AgendaItem({ slot, plain, now }: { slot: Entry[]; plain: boolean; now: Date }) {
+  const e = slot[0];
+  const s = slotTone(slot, now, plain);
+  const times = slot.map(airTime);
+  const time = times.every((t) => t === times[0]) ? times[0] : null;
   return (
     <li>
-      <Link to={calendarHref(e)} data-tone={s.tone} className={cn("flex items-center gap-3 px-3 py-2.5 hover:bg-[var(--hover)] sm:px-4", !e.monitored && "opacity-60")} data-testid="agenda-item">
+      <Link to={calendarHref(e)} data-tone={s.tone} className={cn("flex items-center gap-3 px-3 py-2.5 hover:bg-[var(--hover)] sm:px-4", slot.every((x) => !x.monitored) && "opacity-60")} data-testid="agenda-item">
         <img src={e.title.poster} alt="" loading="lazy" decoding="async" className="aspect-[2/3] w-9 shrink-0 rounded-[4px] object-cover ring-1 ring-[var(--line)]" />
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-medium text-[var(--ink)]">{e.title.name}</div>
           <div className="truncate text-xs text-muted-foreground">
-            {e.kind === "episode" ? `${episodeCode(e.season, e.number)}${e.episode ? ` · ${e.episode}` : ""}` : releasesOf(e)}
-            {airTime(e) ? ` · ${airTime(e)}` : ""}
+            {slot.length > 1 ? foldCode(slot) : e.kind === "episode" ? `${episodeCode(e.season, e.number)}${e.episode ? ` · ${e.episode}` : ""}` : releasesOf(e)}
+            {time ? ` · ${time}` : ""}
           </div>
         </div>
         <Chip tone={CHIP_TONE[s.tone]}>{s.label}</Chip>
@@ -230,8 +235,8 @@ function Agenda({
           </h3>
           <Card className="p-0">
             <ul className="divide-y divide-border">
-              {items.map((e, i) => (
-                <AgendaItem key={i} e={e} plain={plain} now={now} />
+              {foldEpisodes(items).map((slot, i) => (
+                <AgendaItem key={i} slot={slot} plain={plain} now={now} />
               ))}
             </ul>
           </Card>
@@ -513,7 +518,7 @@ export function CalendarPageView() {
                 <Card className="p-0">
                   <ul className="divide-y divide-border">
                     {selectedItems.map((e, i) => (
-                      <AgendaItem key={i} e={e} plain={plain} now={now} />
+                      <AgendaItem key={i} slot={[e]} plain={plain} now={now} />
                     ))}
                   </ul>
                 </Card>

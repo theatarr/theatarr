@@ -212,6 +212,21 @@ it("folds a series' consecutive episodes of a day into one month slot; the day's
   expect(list[1].dataset.tone).toBe("bad");
 });
 
+it("folds a series' same-day episodes of one season into one Agenda line, as Month does", async () => {
+  const pair = [5, 6].map((n): Entry => ({ date: day(1), kind: "episode", type: "episode", title: title(8, "Hacks", "series"), episode_id: 80 + n, season: 3, number: n, episode: `Part ${n}`, monitored: true, available: n === 5, acquiring: false }));
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["see_files"] } },
+    { method: "GET", path: "/calendar", reply: { from: day(1), to: day(28), items: [...pair, items[1]] } },
+  ]);
+  renderPage(<CalendarPageView />, "/calendar");
+  const line = (await screen.findByText("Hacks")).closest("a")!;
+  expect(screen.getAllByTestId("agenda-item")).toHaveLength(2);
+  expect(line.textContent).toContain("S03E05–E06");
+  expect(line.getAttribute("href")).toBe("/title/8?tab=episodes&episode=85");
+  // The line's colour is the one most in need of a look, as the month's chip.
+  expect(line.dataset.tone).toBe("bad");
+});
+
 it("keeps a season's episodes of a day in one slot when Monitored only leaves a gap, with one dot on the phone, and a time only when they share it", async () => {
   vi.setSystemTime(new Date(2026, 10, 20, 12));
   window.localStorage.setItem("theatarr.calendar.view", "month");
