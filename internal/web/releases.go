@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"slices"
 	"strconv"
@@ -434,7 +435,7 @@ func (w *Web) storedReleases(ctx context.Context, out *Releases) error {
 		if out.Message == "" {
 			out.Message = "From " + sourceWord(target)
 		}
-		if err := w.storedGrabbed(ctx, out, run, jSource, jAt, 0); err != nil {
+		if err := w.storedGrabbed(ctx, out, run, jSource, jAt, 0, ""); err != nil {
 			return err
 		}
 	}
@@ -451,7 +452,10 @@ func (w *Web) storedReleases(ctx context.Context, out *Releases) error {
 // storedGrabbed fills the stored decision's outcomes and its one-line summary: the downloads its acquire run
 // opened, or for an RSS read (no run) the version's RSS downloads of its candidates since it. episode > 0 keeps to
 // the downloads and files of that episode.
-func (w *Web) storedGrabbed(ctx context.Context, out *Releases, run sql.NullInt64, source string, at, episode int64) error {
+// scope ("season" or "series", episode > 0 only) names the wider search whose result count a run that accepted nothing
+// gives: "no accepted release among N results of the season search".
+func (w *Web) storedGrabbed(ctx context.Context, out *Releases, run sql.NullInt64, source string, at, episode int64,
+	scope string) error {
 	db := w.st.Reader()
 	oc, err := w.releaseOutcomes(ctx, db, out.TitleID, out.Version, episode)
 	if err != nil {
@@ -469,10 +473,15 @@ func (w *Web) storedGrabbed(ctx context.Context, out *Releases, run sql.NullInt6
 		return nil
 	}
 	if run.Valid {
-		err := db.QueryRowContext(ctx, `SELECT state, message FROM acquire_run WHERE id = ?`, run.Int64).Scan(&state,
-			&message)
+		var results int
+		err := db.QueryRowContext(ctx, `SELECT state, message, COALESCE(results, 0) FROM acquire_run WHERE id = ?`, run.Int64).Scan(&state,
+			&message, &results)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return err
+		}
+		if state == "nothing" && scope != "" {
+			// The search's notes are the panel's own (Notes); the line names the count as the whole search's.
+			message = fmt.Sprintf("no accepted release among %d results of the %s search", results, scope)
 		}
 		err = scanAll(ctx, db, `SELECT id, info_hash, release_title, COALESCE(provider, ''), state, COALESCE(error, '')
 			FROM download WHERE source = ? AND (? = 0 OR EXISTS (SELECT 1 FROM json_each(download.episodes) j
