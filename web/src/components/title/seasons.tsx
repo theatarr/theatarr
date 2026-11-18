@@ -771,8 +771,9 @@ function SeasonBlock({
   const pickedOff = scope.keys !== undefined && copies.some((v) => v.monitored === false);
   const searchable =
     scope.search && !pickedOff && list.versions.some((v) => v.monitored !== false && !!v.control?.can_search && (season.versions[v.key]?.monitored ?? 0) > 0);
-  // No library in view monitors the season: the search goes to the libraries that do, so the button names those.
-  const searchWhat = `Search ${name.toLowerCase()} now in ${searchable && !on ? "the libraries that monitor this season" : scope.name}`;
+  // The automatic search goes to the libraries that monitor the season, so the button names those whenever no single
+  // library is picked (as the toast does), and when the picked one monitors none of it (the server widens).
+  const searchWhat = `Search ${name.toLowerCase()} now in ${scope.keys === undefined || (searchable && !on) ? "the libraries that monitor this season" : scope.name}`;
   const searchTitle = !scope.search ? scope.searchWhy : pickedOff ? `${scope.name} does not monitor this series` : searchable ? searchWhat : NO_MONITORED_SEASON;
   // Every library in view is not monitored: the switches show the episodes kept for when it is monitored again.
   const inactive = seeFiles && copies.length > 0 && off.size === copies.length;

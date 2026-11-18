@@ -222,13 +222,13 @@ describe("Acting on the libraries in view", () => {
     { method: "POST", path: "/titles/1/episodes/search", reply: outcome },
   ];
 
-  it("sends the season header's switch and Search to every library in All and to the picked library alone", async () => {
+  it("sends the season header's switch and Search to every library in All (the Search naming the libraries that monitor the season) and to the picked library alone", async () => {
     const api = mockFetch(acting);
     const user = userEvent.setup();
     renderPage(<><Seasons id="1" anime /><Toaster /></>, "/title/1");
     const header = await screen.findByTestId("season-header");
     await user.click(within(header).getByRole("switch", { name: "Stop monitoring season 1 in every library" }));
-    await user.click(within(header).getByRole("button", { name: "Search season 1 now in every library" }));
+    await user.click(within(header).getByRole("button", { name: "Search season 1 now in the libraries that monitor this season" }));
     await vi.waitFor(() => expect(api.calls("POST", "/titles/1/seasons/1/search")).toHaveLength(1));
     expect(api.calls("PUT", "/titles/1/seasons/1/monitor")[0].body).toEqual({ monitored: false });
     expect(api.calls("POST", "/titles/1/seasons/1/search")[0].body).toEqual({});
@@ -251,7 +251,7 @@ describe("Acting on the libraries in view", () => {
     const user = userEvent.setup();
     renderPage(<Seasons id="1" anime />, "/title/1");
     const header = await screen.findByTestId("season-header");
-    const search = within(header).getByRole("button", { name: "Search season 1 now in every library" });
+    const search = within(header).getByRole("button", { name: "Search season 1 now in the libraries that monitor this season" });
     expect((search as HTMLButtonElement).disabled).toBe(true);
     // A disabled button takes no hover: the reason is on its wrapper.
     expect(within(header).getByTestId("season-search-why-1").getAttribute("title")).toBe("No monitored episodes in this season");
