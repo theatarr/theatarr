@@ -126,7 +126,7 @@ The `reasoning` object:
 
 | Field | What |
 |---|---|
-| `chosen` | The release that was picked, with quality, score, formats, languages, rejections, `cached_on`, and `existing` (the file it would replace) |
+| `chosen` | The release that was picked, with quality, score, formats, languages, rejections, `cached_on`, `kept` (for a pack, the episodes whose file it would keep), and `existing` (the file it would replace) |
 | `runners_up` | The other kept candidates. That is up to 8 accepted ones in rank order, then the 4 rejected ones with the highest scores, each with its rejections. |
 | `rejection_counts` | How many results each rejection reason (the arr's `DownloadRejectionReason` names) refused |
 | `results`, `accepted` | How many releases the search found, and how many it accepted |

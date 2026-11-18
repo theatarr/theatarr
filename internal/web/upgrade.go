@@ -115,20 +115,6 @@ type evCand struct {
 	Kept []string `json:"kept"`
 }
 
-// keeps reports whether the candidate is an accepted pack that keeps the item's file.
-func (c evCand) keeps(it evItem) bool {
-	if it.episodeID == 0 {
-		return false
-	}
-	code := it.code()
-	for _, e := range c.Kept {
-		if strings.EqualFold(e, code) {
-			return true
-		}
-	}
-	return false
-}
-
 // evRecord is one stored decision about a title's version.
 type evRecord struct {
 	id     int64
@@ -231,7 +217,7 @@ func judgeUpgrade(it evItem, recs []evRecord, failed map[string]int64) (*Upgrade
 	for _, r := range pool {
 		for _, c := range r.cands {
 			if !c.Accepted || !c.Upgrade || strings.HasPrefix(c.UpgradeWhy, "fills ") || !candCovers(c, it) ||
-				c.keeps(it) || (it.hash != "" && strings.EqualFold(c.InfoHash, it.hash)) {
+				(len(c.Kept) > 0 && slices.Contains(c.Kept, it.code())) || (it.hash != "" && strings.EqualFold(c.InfoHash, it.hash)) {
 				continue
 			}
 			at, ok := failed[strings.ToLower(c.InfoHash)]
