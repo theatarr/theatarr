@@ -461,14 +461,14 @@ func seriesName(ep *sonarr.ParsedEpisodeInfo) (key, label, quality string) {
 		for _, e := range ep.EpisodeNumbers {
 			es = append(es, fmt.Sprintf("E%02d", e))
 		}
-		label += strings.Join(es, "")
+		label += numberRanges(ep.EpisodeNumbers, "E%02d")
 		key += ":" + strings.ToLower(strings.Join(es, ""))
 	case len(ep.AbsoluteEpisodeNumbers) > 0:
 		var es []string
 		for _, e := range ep.AbsoluteEpisodeNumbers {
 			es = append(es, fmt.Sprint(e))
 		}
-		label = fmt.Sprintf("%s %s", ep.SeriesTitle, numberRanges(ep.AbsoluteEpisodeNumbers))
+		label = fmt.Sprintf("%s %s", ep.SeriesTitle, numberRanges(ep.AbsoluteEpisodeNumbers, "%d"))
 		key = "series:" + norm(ep.SeriesTitle) + ":abs" + strings.Join(es, "-")
 	default:
 		key += ":pack"
@@ -476,9 +476,10 @@ func seriesName(ep *sonarr.ParsedEpisodeInfo) (key, label, quality string) {
 	return key, label, ep.Quality.Quality.Name
 }
 
-// numberRanges is a label's episode numbers with each run of consecutive numbers as one range: "1–291", and a pack
-// with gaps as "1–12, 14–26". Only the label; the duplicate-title key keeps every number.
-func numberRanges(ns []int) string {
+// numberRanges is a label's episode numbers, each written by format, with each run of consecutive numbers as one
+// range: "1–291", and a pack with gaps as "1–12, 14–26" ("E01–E13" in a season). Only the label; the duplicate-title
+// key keeps every number.
+func numberRanges(ns []int, format string) string {
 	var parts []string
 	for i := 0; i < len(ns); {
 		j := i
@@ -486,9 +487,9 @@ func numberRanges(ns []int) string {
 			j++
 		}
 		if j > i {
-			parts = append(parts, fmt.Sprintf("%d–%d", ns[i], ns[j]))
+			parts = append(parts, fmt.Sprintf(format+"–"+format, ns[i], ns[j]))
 		} else {
-			parts = append(parts, fmt.Sprint(ns[i]))
+			parts = append(parts, fmt.Sprintf(format, ns[i]))
 		}
 		i = j + 1
 	}

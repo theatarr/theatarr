@@ -505,6 +505,28 @@ func TestParseNameFilmYear(t *testing.T) {
 	}
 }
 
+// A run of episodes in one season reads as a range ("S07E01–E13"), a gap as two ranges, a single episode as itself;
+// the duplicate-title key keeps every episode.
+func TestSeriesNameEpisodeRanges(t *testing.T) {
+	t.Parallel()
+	ep := func(ns ...int) *sonarr.ParsedEpisodeInfo {
+		return &sonarr.ParsedEpisodeInfo{SeriesTitle: "All American", SeasonNumber: 7, EpisodeNumbers: ns}
+	}
+	run, runLabel, _ := seriesName(ep(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13))
+	if runLabel != "All American S07E01–E13" {
+		t.Errorf("run: %q", runLabel)
+	}
+	if run != "series:allamerican:s7:e01e02e03e04e05e06e07e08e09e10e11e12e13" {
+		t.Errorf("key changed: %q", run)
+	}
+	if _, l, _ := seriesName(ep(1, 2, 3, 4, 6, 7)); l != "All American S07E01–E04, E06–E07" {
+		t.Errorf("gap: %q", l)
+	}
+	if _, l, _ := seriesName(ep(5)); l != "All American S07E05" {
+		t.Errorf("one episode: %q", l)
+	}
+}
+
 // A contiguous absolute-numbered pack reads as one range and gaps as separate ranges; the duplicate-title key keeps
 // every number, so packs that differed before still differ.
 func TestSeriesNameAbsoluteRanges(t *testing.T) {

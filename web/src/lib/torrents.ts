@@ -63,10 +63,17 @@ export function groupKeys(r: TorrentReport, g: GroupID): Set<string> | null {
   return out;
 }
 
-/** A parsed label's episode ranges written out again ("1–291" as 1-2-…-291, as the server labelled them before ranges),
- * so a filter for one episode number inside a pack still finds it. Matching only; the page shows the ranges. */
+/** A parsed label's episode ranges written out again ("1–291" as 1-2-…-291, as the server labelled them before ranges;
+ * a season's "S07E01–E04, E06" as S07E01 S07E02 S07E03 S07E04 S07E06), so a filter for one episode inside a pack
+ * still finds it. Matching only; the page shows the ranges. */
 export function spelledOut(parsed: string | undefined): string | undefined {
-  return parsed?.replace(/(\d+)–(\d+)/g, (all, a: string, b: string) => {
+  const episodes = parsed?.replace(/S(\d+)(E\d+(?:–E\d+)?(?:, E\d+(?:–E\d+)?)*)/g, (_all, season: string, list: string) =>
+    list.split(", ").map((part) => {
+      const [from, to = from] = part.split("–").map((e) => Number(e.slice(1)));
+      if (!(to >= from && to - from < 5000)) return part;
+      return Array.from({ length: to - from + 1 }, (_, i) => `S${season}E${String(from + i).padStart(2, "0")}`).join(" ");
+    }).join(" "));
+  return episodes?.replace(/(\d+)–(\d+)/g, (all, a: string, b: string) => {
     const from = Number(a), to = Number(b);
     return to > from && to - from < 5000 ? Array.from({ length: to - from + 1 }, (_, i) => from + i).join("-") : all;
   });
@@ -75,7 +82,7 @@ export function spelledOut(parsed: string | undefined): string | undefined {
 /** Each torrent's expanded episode text (spelledOut), made once per torrent of a report, not on every filter edit. */
 const spelled = new WeakMap<Torrent, string | undefined>();
 const spelledOf = (t: Torrent) => {
-  if (!spelled.has(t)) spelled.set(t, t.parsed && /\d–\d/.test(t.parsed) ? spelledOut(t.parsed) : undefined);
+  if (!spelled.has(t)) spelled.set(t, t.parsed && /\d–E?\d/.test(t.parsed) ? spelledOut(t.parsed) : undefined);
   return spelled.get(t);
 };
 

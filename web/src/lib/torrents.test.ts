@@ -56,6 +56,12 @@ describe("filters", () => {
     // The range as the row shows it finds it too.
     expect(filterTorrents(r, "", "", "14–291").map((x) => x.id)).toEqual(["9"]);
   });
+  it("finds an episode inside a season's run of episodes shown as a range", () => {
+    const run = t("rd", "8", "All.American.S07E01-E13.1080p.WEB", 900, "2026-10-01T00:00:00Z", { parsed: "All American S07E01–E04, E06–E13, E15" });
+    const r = { ...report, providers: [{ ...report.providers[0], torrents: [A, run] }] };
+    expect(filterTorrents(r, "", "", "S07E05").map((x) => x.id)).toEqual([]);
+    for (const q of ["S07E02", "s07e10", "All American S07E15", "S07E01–E04"]) expect(filterTorrents(r, "", "", q).map((x) => x.id)).toEqual(["8"]);
+  });
   it("sorts by size, age and name", () => {
     expect(sortTorrents([A, B, C], "size").map((x) => x.id)).toEqual(["2", "1", "3"]);
     expect(sortTorrents([A, B, C], "age").map((x) => x.id)).toEqual(["3", "1", "2"]);
