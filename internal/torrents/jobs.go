@@ -78,6 +78,12 @@ func backup(ctx context.Context, m *Manager, p BackupPayload) error {
 		m.journal(ctx, JournalEntry{Action: "backup", Outcome: "failed", Detail: err.Error(), By: p.By})
 		return err
 	}
+	if info.Failed() {
+		// Written all the same (the scheduler keeps its interval), but nothing in it can be restored.
+		m.journal(ctx, JournalEntry{Action: "backup", BackupID: b.ID, Outcome: "failed", By: p.By,
+			Detail: fmt.Sprintf("%s: no provider could be read", p.Reason)})
+		return nil
+	}
 	m.journal(ctx, JournalEntry{Action: "backup", BackupID: b.ID, Outcome: "ok", By: p.By,
 		Detail: fmt.Sprintf("%s: %d torrents", p.Reason, info.Torrents)})
 	return nil

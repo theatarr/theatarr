@@ -186,7 +186,11 @@ every torrent. A torrent whose files the backup never read is restored with all 
 
 - Stored in `torrent-backups/` next to the database: the directory `0700`, each file `0600`, written atomically. No
   keys are in them.
-- Retention: the newest `torrents.backup.keep` (default 30) plus every backup from the last 7 days.
+- Retention: the newest `torrents.backup.keep` (default 30) good backups plus every backup from the last 7 days. A
+  failed backup (it lists providers and none could be read; one with no provider, or an account listed with zero
+  torrents, is good) does not count toward the number, so an outage never pushes out the last good ones, and it is
+  deleted once older than 7 days (until then it stays, so the scheduler keeps its interval). Its journal line is
+  `backup failed` "<reason>: no provider could be read" (`TestBackupPruneKeepsGoodOverFailed`).
 - Scheduled backups: off by default; `torrents.backup.every` (at least 1h) turns them on. `theatarr serve` checks every
   10 minutes and queues one when the newest scheduled backup is older.
 - Listed in the UI with date, reason (`manual`, `scheduled`, `pre-delete`, `import`), counts and size; downloadable

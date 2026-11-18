@@ -13,6 +13,11 @@ import { restoreScope, type RestorePlan } from "@/lib/torrents";
 import { settingHref } from "@/lib/settings-map";
 import { ProviderTag } from "@/components/provider-pills";
 
+/** A backup taken while no provider could be read: it holds nothing to restore. One with no provider at all, or with an
+ * account listed (even with zero torrents), is good. */
+const backupFailed = (b: { providers: { ok: boolean }[] }) => b.providers.length > 0 && b.providers.every((p) => !p.ok);
+const FAILED = "Failed: no provider could be read";
+
 export function TorrentBackups() {
   const q = useTorrentBackups();
   const report = useTorrentReport();
@@ -100,25 +105,27 @@ export function TorrentBackups() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {(q.data?.backups ?? []).map((b) => (
-                <TableRow key={b.id}>
+              {(q.data?.backups ?? []).map((b) => { const failed = backupFailed(b); const unreadable = b.providers.filter((p) => !p.ok); return (
+                <TableRow key={b.id} data-testid="torrent-backup-row">
                   <TableCell title={b.id}>
                     <div className="whitespace-nowrap">{fmtTime(b.created_at)}</div>
                     {/* On a phone the reason and count go under the date, the actions stack in their column. */}
-                    <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground sm:hidden"><Badge tone={b.reason === "pre-delete" ? "warning" : "neutral"}>{b.reason}</Badge>{fmtNumber(b.torrents)} · {fmtBytes(b.bytes)}</div>
+                    <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground sm:hidden"><Badge tone={b.reason === "pre-delete" ? "warning" : "neutral"}>{b.reason}</Badge>{failed ? <span className="text-destructive" data-testid="torrent-backup-failed">{FAILED}</span> : <>{fmtNumber(b.torrents)} · {fmtBytes(b.bytes)}</>}</div>
+                    {/* The unreadable providers, which the Providers column shows from md up. */}
+                    {!failed && unreadable.length ? <div className="mt-0.5 text-xs text-[var(--warn-ink)] md:hidden" data-testid="torrent-backup-unreadable">{unreadable.map((p, i) => <span key={p.provider}>{i > 0 ? ", " : ""}<ProviderTag account={p.provider} /> unreadable</span>)}</div> : null}
                   </TableCell>
                   <TableCell className="hidden sm:table-cell"><Badge tone={b.reason === "pre-delete" ? "warning" : "neutral"}>{b.reason}</Badge></TableCell>
-                  <TableCell className="hidden whitespace-nowrap text-right tabular-nums sm:table-cell">{fmtNumber(b.torrents)} · {fmtBytes(b.bytes)}</TableCell>
+                  <TableCell className="hidden whitespace-nowrap text-right tabular-nums sm:table-cell">{failed ? <span className="text-destructive">{FAILED}</span> : <>{fmtNumber(b.torrents)} · {fmtBytes(b.bytes)}</>}</TableCell>
                   <TableCell className="hidden text-xs md:table-cell">{b.providers.map((p, i) => <span key={p.provider}>{i > 0 ? ", " : ""}<ProviderTag account={p.provider} /> {p.ok ? p.torrents : "unreadable"}</span>)}</TableCell>
                   <TableCell className="text-right">
                     <span className="inline-flex flex-col items-end gap-1 sm:flex-row sm:items-center sm:gap-2">
                       <a className="text-sm hover:text-primary" href={backupURL(b.id)} download>Download</a>
                       <a className="text-sm hover:text-primary" href={backupURL(b.id, "dmm")} download title="Download in Debrid Media Manager's format">DMM</a>
-                      <Button size="xs" variant="outline" onClick={() => openRestore(b.id)} disabled={actions.restorePreview.isPending}>Restore…</Button>
+                      {failed ? null : <Button size="xs" variant="outline" onClick={() => openRestore(b.id)} disabled={actions.restorePreview.isPending}>Restore…</Button>}
                     </span>
                   </TableCell>
                 </TableRow>
-              ))}
+              ); })}
             </TableBody>
           </Table>
         </Card>

@@ -633,6 +633,63 @@ func TestBackupPrune(t *testing.T) {
 	}
 }
 
+// A backup taken while no provider could be read is failed: it never pushes out a good one, goes once a week old, and
+// the journal says so. A listed account with zero torrents is a good backup (UI sweep 5, B1).
+func TestBackupPruneKeepsGoodOverFailed(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	ctx := context.Background()
+	e.pol.Torrents = &policy.Torrents{Backup: policy.TorrentBackup{Keep: 2}}
+	var good []string
+	for range 2 {
+		b, info, err := e.m.TakeBackup(ctx, BackupOptions{})
+		if err != nil || info.Failed() {
+			t.Fatalf("good backup: %+v %v", info, err)
+		}
+		good = append(good, b.ID)
+		e.now = e.now.Add(24 * time.Hour)
+	}
+	e.rd.listErr, e.tb.listErr = errors.New("rd down"), errors.New("tb down")
+	for range 10 {
+		e.now = e.now.Add(2 * 24 * time.Hour)
+		if err := backup(ctx, e.m, BackupPayload{Reason: ReasonScheduled}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	list, _ := e.m.Backups()
+	var ids []string
+	failed := 0
+	for _, in := range list {
+		ids = append(ids, in.ID)
+		if in.Failed() {
+			failed++
+			if e.now.Sub(in.CreatedAt) >= keepRecent {
+				t.Errorf("failed backup older than a week kept: %s", in.ID)
+			}
+		}
+	}
+	for _, id := range good {
+		if !slices.Contains(ids, id) {
+			t.Errorf("good backup %s pushed out by failed ones: %v", id, ids)
+		}
+	}
+	if failed != 4 {
+		t.Errorf("failed backups from the last week: %d of %v", failed, ids)
+	}
+	var outcome, detail string
+	if err := e.st.Reader().QueryRow(`SELECT outcome, detail FROM torrent_journal WHERE action = 'backup' ORDER BY id DESC LIMIT 1`).Scan(&outcome, &detail); err != nil {
+		t.Fatal(err)
+	}
+	if outcome != "failed" || detail != "scheduled: no provider could be read" {
+		t.Errorf("journal: %q %q", outcome, detail)
+	}
+	// One account listed, with no torrents: a good backup.
+	e.rd.listErr, e.rd.list = nil, nil
+	if _, info, err := e.m.TakeBackup(ctx, BackupOptions{}); err != nil || info.Failed() {
+		t.Errorf("an empty listed account is a good backup: %+v %v", info, err)
+	}
+}
+
 func TestImportBackup(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t)

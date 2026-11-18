@@ -111,6 +111,17 @@ type BackupInfo struct {
 	Providers []BackupProvCount `json:"providers"`
 }
 
+// Failed says no provider could be read: the backup lists providers and none was listed. One with no provider at
+// all, or with an account listed (even with zero torrents), is a good backup.
+func (in *BackupInfo) Failed() bool {
+	for _, p := range in.Providers {
+		if p.OK {
+			return false
+		}
+	}
+	return len(in.Providers) > 0
+}
+
 // BackupProvCount is one provider in a BackupInfo.
 type BackupProvCount struct {
 	Provider string `json:"provider"`
@@ -451,7 +462,9 @@ func (b *Backup) normalize() {
 	}
 }
 
-// prune keeps the newest torrents.backup.keep backups and every one from the last week, and never keep.
+// prune keeps the newest torrents.backup.keep good backups and every one from the last week, and never keep. A
+// failed backup (no provider could be read) does not count toward the number, so failures never push out a good one;
+// it goes once it is a week old (it stays until then so the scheduler keeps its interval).
 func (m *Manager) prune(ctx context.Context, keep string) {
 	list, err := m.Backups()
 	if err != nil {
@@ -459,8 +472,13 @@ func (m *Manager) prune(ctx context.Context, keep string) {
 	}
 	n := m.Policy.TorrentBackupKeep()
 	now := m.now()
-	for i, in := range list {
-		if i < n || in.ID == keep || now.Sub(in.CreatedAt) < keepRecent {
+	good := 0
+	for _, in := range list {
+		failed := in.Failed()
+		if !failed {
+			good++
+		}
+		if (!failed && good <= n) || in.ID == keep || now.Sub(in.CreatedAt) < keepRecent {
 			continue
 		}
 		path := filepath.Join(m.Dir, in.ID+".json")
