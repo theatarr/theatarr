@@ -578,10 +578,10 @@ type episodeKey struct {
 // setting does not match).
 func (w *Web) replaceBlocked(f ReportFile, kind string, on []string, monitored map[episodeKey]bool, anime bool) string {
 	if kind != "symlink" {
-		return "This file is not one of Theatarr's links. Use Edit file facts"
+		return "This file is not one of Theatarr's links, so Theatarr cannot replace it"
 	}
 	if router.BlocklistKey(f.hash, f.ReleaseTitle) == "" {
-		return "Theatarr does not know this file's release, so it could come back. Use Edit file facts"
+		return "Theatarr does not know this file's release, so it cannot keep it from coming back"
 	}
 	if w.ops == nil || w.add.Acquirer == nil {
 		return "Searching is not running, so no new file would be searched"

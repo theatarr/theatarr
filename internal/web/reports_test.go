@@ -309,15 +309,15 @@ func TestReplaceFileFromTitlePage(t *testing.T) {
 		t.Fatalf("replace of an anime title's file: %d %+v", code, refused)
 	}
 	o.exec(`UPDATE title SET anime = 0 WHERE id = 1`)
-	// A file that is not one of Theatarr's links: the reason says what to do, the same on the title page and Problems.
+	// A file that is not one of Theatarr's links: the reason says why, the same on the title page and Problems.
 	o.exec(`UPDATE link SET kind = 'copy' WHERE id = 901`)
 	if s := scopeOf(o.mc); s == nil || s.Replace ||
-		s.Why != "This file is not one of Theatarr's links. Use Edit file facts" {
+		s.Why != "This file is not one of Theatarr's links, so Theatarr cannot replace it" {
 		t.Fatalf("copied file scope %+v", s)
 	}
 	refused = apiError{}
 	if code := o.jsonCall("POST", APIBase+"/links/901/replace", nil, o.mc, o.mcsrf, &refused); code != http.StatusConflict ||
-		refused.Error != "This file is not one of Theatarr's links. Use Edit file facts" {
+		refused.Error != "This file is not one of Theatarr's links, so Theatarr cannot replace it" {
 		t.Fatalf("replace of a copied file: %d %+v", code, refused)
 	}
 	o.exec(`UPDATE link SET kind = 'symlink' WHERE id = 901`)
