@@ -473,15 +473,19 @@ func (w *Web) storedGrabbed(ctx context.Context, out *Releases, run sql.NullInt6
 		return nil
 	}
 	if run.Valid {
-		var results int
-		err := db.QueryRowContext(ctx, `SELECT state, message, COALESCE(results, 0) FROM acquire_run WHERE id = ?`, run.Int64).Scan(&state,
-			&message, &results)
+		var results, infra int
+		err := db.QueryRowContext(ctx, `SELECT state, message, COALESCE(results, 0), infra FROM acquire_run WHERE id = ?`,
+			run.Int64).Scan(&state, &message, &results, &infra)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return err
 		}
 		if state == "nothing" && scope != "" {
-			// The search's notes are the panel's own (Notes); the line names the count as the whole search's.
+			// The search's notes are the panel's own (Notes); the line names the count as the whole search's, and
+			// keeps the run's early-retry hint (acquire's partialNote for a runPartial run, infra 2).
 			message = fmt.Sprintf("no accepted release among %d results of the %s search", results, scope)
+			if infra == 2 {
+				message += "; partial answer: due again sooner"
+			}
 		}
 		err = scanAll(ctx, db, `SELECT id, info_hash, release_title, COALESCE(provider, ''), state, COALESCE(error, '')
 			FROM download WHERE source = ? AND (? = 0 OR EXISTS (SELECT 1 FROM json_each(download.episodes) j

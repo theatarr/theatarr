@@ -567,7 +567,7 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   search counts the stored candidates for the episode, "N stored candidates for this episode", and its "Nothing
   grabbed" line names the count as the search's: "no accepted release among N results of the season search" (or "of
   the series search"), built from the run's count (`storedGrabbed`'s scope; the search's notes stay in the panel's own
-  lines). The badge says what the answer is: "Live search", "Last decided search", "Last
+  lines), with "; partial answer: due again sooner" when the run was partial. The badge says what the answer is: "Live search", "Last decided search", "Last
   RSS match" for a stored RSS read (the episode window too), or "Nothing stored" alone, with no counts, no message and no empty-list line (a live-search failure still says why); a stored
   search that returned nothing keeps its "0 releases returned by the indexers, 0 accepted". An episode an RSS match grabbed nothing
   for reads "No new grab for this episode from this RSS match". A live search no indexer answered is a failed search ("Live search failed",

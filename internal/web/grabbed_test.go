@@ -900,4 +900,11 @@ func TestEpisodeNothingGrabbedNamesSeasonSearch(t *testing.T) {
 	if r.Grabbed != "Nothing grabbed: no accepted release among 508 results (indexer nyaa: timeout)" {
 		t.Errorf("season: %q", r.Grabbed)
 	}
+	// A partial run (an indexer timed out) keeps its early-retry hint in the episode's line.
+	e.exec(`UPDATE acquire_run SET infra = 2, message = message || '; partial answer: due again sooner' WHERE id = 71`)
+	r = Releases{}
+	e.call("GET", APIBase+"/titles/10/episodes/102/releases", nil, 200, &r)
+	if r.Grabbed != "Nothing grabbed: no accepted release among 508 results of the season search; partial answer: due again sooner" {
+		t.Errorf("E02 partial: %q", r.Grabbed)
+	}
 }
