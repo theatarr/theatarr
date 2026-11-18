@@ -157,8 +157,9 @@ func (r evRecord) covers(it evItem) bool {
 	switch {
 	case t == "" || t == "movie" || t == "rss":
 		return true
-	case len(t) == 3 && t[0] == 's':
-		return t == strings.ToLower(it.code()[:3])
+	case len(t) > 1 && t[0] == 's' && strings.Trim(t[1:], "0123456789") == "":
+		// A season: compared with the item's whole season code, as acquire writes it (s01, s100, s2024).
+		return t == fmt.Sprintf("s%02d", it.season)
 	}
 	return t == strings.ToLower(it.code())
 }
