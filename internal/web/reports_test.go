@@ -13,6 +13,7 @@ import (
 
 	"github.com/theatarr/theatarr/internal/auth"
 	"github.com/theatarr/theatarr/internal/notify"
+	"github.com/theatarr/theatarr/internal/policy"
 )
 
 // TestProblemReports: a household member reports a movie with a file; a second report of it updates the open one;
@@ -281,9 +282,9 @@ func TestReplaceFileFromTitlePage(t *testing.T) {
 	if s == nil || s.Replace || s.Why == "" || len(s.Libraries) != 1 {
 		t.Fatalf("paused scope %+v", s)
 	}
-	// The reason names the library, not its key.
-	if strings.Contains(s.Why, "(movie-remux)") || !strings.Contains(s.Why, "("+o.web.versionLabel("movie-remux")+")") {
-		t.Errorf("paused reason names the key: %q", s.Why)
+	// The Pause reason holds for every library: it names none, neither by key nor by name.
+	if s.Why != "Not searched now: Paused: "+policy.PauseStops {
+		t.Errorf("paused reason: %q", s.Why)
 	}
 	var refused apiError
 	if code := o.jsonCall("POST", APIBase+"/links/901/replace", nil, o.mc, o.mcsrf, &refused); code != http.StatusConflict ||

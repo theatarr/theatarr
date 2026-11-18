@@ -692,7 +692,8 @@ func (w *Web) monitor(rw http.ResponseWriter, r *http.Request, season *int) {
 	writeJSON(rw, http.StatusOK, out)
 }
 
-// skipWords joins skips as "reason (libraries)" by reason, the libraries by name.
+// skipWords joins skips as "reason (libraries)" by reason, the libraries by name. The Pause reason holds for every
+// library and is given alone.
 func (w *Web) skipWords(skipped []catalog.Skip) string {
 	why := map[string][]string{}
 	var order []string
@@ -704,6 +705,10 @@ func (w *Web) skipWords(skipped []catalog.Skip) string {
 	}
 	var parts []string
 	for _, reason := range order {
+		if reason == "Paused: "+policy.PauseStops {
+			parts = append(parts, reason)
+			continue
+		}
 		parts = append(parts, reason+" ("+w.labelList(why[reason])+")")
 	}
 	return strings.Join(parts, "; ")

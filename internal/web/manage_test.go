@@ -403,6 +403,11 @@ func TestManageActive(t *testing.T) {
 	if got := e.web.skipWords([]catalog.Skip{{Version: "tv-2160p", Reason: "Paused"}}); got != "Paused ("+label+")" {
 		t.Errorf("skip words %q", got)
 	}
+	// The Pause reason holds for every library: no libraries after it.
+	pause := "Paused: " + policy.PauseStops
+	if got := "Nothing searched: " + e.web.skipWords([]catalog.Skip{{Version: "tv-2160p", Reason: pause}, {Version: "tv-2160p", Reason: "Not monitored"}}); got != "Nothing searched: "+pause+"; Not monitored ("+label+")" {
+		t.Errorf("pause skip words %q", got)
+	}
 	e.call("PUT", APIBase+"/titles/10/episodes/monitor", map[string]any{"monitored": true, "episode_ids": []int64{1}}, 400, nil)
 	e.call("PUT", APIBase+"/titles/10/seasons/9/monitor", map[string]any{"monitored": true}, 404, nil)
 	e.call("PUT", APIBase+"/titles/1/seasons/1/monitor", map[string]any{"monitored": true}, 400, nil)
@@ -541,8 +546,8 @@ func TestSeasonSearchNamesTheMonitoringLibraries(t *testing.T) {
 	}
 }
 
-// Replace's "not searched now" names each library once by its own name: a name that holds another library's name or
-// key is not looked up again (skipWords takes keys).
+// The "not searched now" words name each library once by its own name: a name that holds another library's name or
+// key is not looked up again (skipWords takes keys). Pause's reason names none.
 func TestReplaceBlockedNamesLibrariesOnce(t *testing.T) {
 	t.Parallel()
 	o := newOpsEnvPolicy(t, func(p *policy.Policy) {
@@ -552,8 +557,12 @@ func TestReplaceBlockedNamesLibrariesOnce(t *testing.T) {
 	o.web.pol.Router.Enabled = false
 	f := ReportFile{Versions: []string{"movie-web"}, ReleaseTitle: "Alpha.2020.2160p.WEB-DL-GRP"}
 	f.hash = strings.Repeat("a", 40)
-	if got := o.web.replaceBlocked(f, "symlink", nil, nil, false); !strings.HasSuffix(got, "(movie-remux)") {
+	// Pause holds for every library, so its reason names none.
+	if got := o.web.replaceBlocked(f, "symlink", nil, nil, false); got != "Not searched now: Paused: "+policy.PauseStops {
 		t.Errorf("replace blocked: %q", got)
+	}
+	if got := o.web.skipWords([]catalog.Skip{{Version: "movie-web", Reason: "not in the policy"}}); !strings.HasSuffix(got, "(movie-remux)") {
+		t.Errorf("skip words: %q", got)
 	}
 }
 
