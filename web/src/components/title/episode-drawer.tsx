@@ -78,7 +78,7 @@ function Releases({ titleId, eid, d }: { titleId: number; eid: number; d: Episod
         <ErrorState error={q.error} />
       ) : r ? (
         <>
-          <Summary r={r} />
+          <Summary r={r} episode />
           {(r.candidates ?? []).length === 0 ? (r.source === "none" ? null : <Empty>No releases stored for this episode.</Empty>) : <ReleaseGrid items={r.candidates ?? []} kind="series" outcomes={oc.data?.outcomes ?? r.outcomes} />}
         </>
       ) : null}

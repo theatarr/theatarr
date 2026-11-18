@@ -877,3 +877,26 @@ func TestReleaseOutcomesLive(t *testing.T) {
 	e.call("GET", APIBase+"/titles/10/release-outcomes?version=tv-2160p&episode=999999", nil, 404, nil)
 	e.call("GET", APIBase+"/titles/10/release-outcomes?version=tv-2160p&episode=101", nil, 200, &r)
 }
+
+// A season search that grabbed nothing says, in an episode's window, that its result count is the season search's.
+func TestEpisodeNothingGrabbedNamesSeasonSearch(t *testing.T) {
+	t.Parallel()
+	e := newManageEnv(t, nil)
+	now := store.Millis(addNow)
+	e.exec(`INSERT INTO acquire_run (id, source, title_id, version_id, version_key, target, state, results, accepted,
+		message, created_at, updated_at) VALUES (71, 'wanted', 10, 10, 'tv-2160p', 's01', 'nothing', 508, 0,
+		'no accepted release among 508 results', ?, ?)`, now-1000, now-1000)
+	e.exec(`INSERT INTO journal_decision (id, source, run_id, title_id, version_key, target, results, accepted,
+		candidates, created_at) VALUES (100, 'acquire:71', 71, 10, 'tv-2160p', 's01', 508, 0, ?, ?)`,
+		`[{"rank":0,"release":"The.Show.S01E02.1080p.WEB-GRP","accepted":false,"episodes":["S01E02"],"rejections":[{"reason":"size"}]}]`, now-1000)
+	var r Releases
+	e.call("GET", APIBase+"/titles/10/episodes/102/releases", nil, 200, &r)
+	if r.Results != 1 || r.Grabbed != "Nothing grabbed: no accepted release among 508 results of the season search" {
+		t.Errorf("E02: results %d, %q", r.Results, r.Grabbed)
+	}
+	r = Releases{}
+	e.call("GET", APIBase+"/titles/10/releases?version=tv-2160p", nil, 200, &r)
+	if r.Grabbed != "Nothing grabbed: no accepted release among 508 results" {
+		t.Errorf("season: %q", r.Grabbed)
+	}
+}

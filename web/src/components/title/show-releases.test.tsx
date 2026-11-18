@@ -329,3 +329,17 @@ it("names a stored RSS read as such, and says nothing about counts when nothing 
   expect(screen.getByTestId("releases-source").textContent).toBe("Last decided search");
   expect(screen.getByTestId("releases-facts").textContent).toBe("0 releases returned by the indexers, 0 accepted");
 });
+
+it("counts a season search's stored candidates for the episode in an episode's window, and an episode search's results as returned", () => {
+  mockFetch([ME]);
+  const base = { title_id: 7, version: "tv", versions: ["tv"], live_allowed: false, candidates: [], rejections: {}, outcomes: {}, grab: false, grab_state: { paused: false, pause_forced: false, will_grab: false } };
+  const season = renderPage(<Summary episode r={{ ...base, source: "journal", target: "S02", results: 4, accepted: 0 }} />);
+  expect(screen.getByTestId("releases-facts").textContent).toBe("4 stored candidates for this episode, 0 accepted");
+  season.unmount();
+  const own = renderPage(<Summary episode r={{ ...base, source: "journal", target: "s02e01", results: 30, accepted: 2 }} />);
+  expect(screen.getByTestId("releases-facts").textContent).toBe("30 releases returned by the indexers, 2 accepted");
+  own.unmount();
+  // The season's own panel keeps the search's count.
+  renderPage(<Summary r={{ ...base, source: "journal", target: "S02", results: 508, accepted: 0 }} />);
+  expect(screen.getByTestId("releases-facts").textContent).toBe("508 releases returned by the indexers, 0 accepted");
+});

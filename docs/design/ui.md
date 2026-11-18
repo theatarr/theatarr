@@ -563,7 +563,10 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   best-ranked copy stands for it, the Indexer cell names every indexer that returned it (the first two, then "+N"; the
   tooltip gives each copy's indexer and name; a narrow card lists them all), Peers is the copy with the most seeders and Cached on the union; the
   Indexer filter and the text filter match any of its indexers. A live answer counts rows; a stored one keeps its
-  search's own count ("N releases returned by the indexers"). The badge says what the answer is: "Live search", "Last decided search", "Last
+  search's own count ("N releases returned by the indexers"); in the episode window a stored season, series or RSS
+  search counts the stored candidates for the episode, "N stored candidates for this episode", and its "Nothing
+  grabbed: no accepted release among N results" names the count as the search's ("… results of the season search",
+  or "of the series search"). The badge says what the answer is: "Live search", "Last decided search", "Last
   RSS match" for a stored RSS read (the episode window too), or "Nothing stored" alone, with no counts, no message and no empty-list line (a live-search failure still says why); a stored
   search that returned nothing keeps its "0 releases returned by the indexers, 0 accepted". An episode an RSS match grabbed nothing
   for reads "No new grab for this episode from this RSS match". A live search no indexer answered is a failed search ("Live search failed",

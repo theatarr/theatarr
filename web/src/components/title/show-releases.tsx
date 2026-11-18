@@ -77,15 +77,18 @@ export function searchIncomplete(notes: string): string {
 }
 
 /** The count in the facts line. A live answer counts its rows (one per torrent); a stored one keeps the search's own
- *  count of every indexer's copy, so it says so rather than read as the number of rows. */
-function resultsWords(r: Releases): string {
+ *  count of every indexer's copy, so it says so rather than read as the number of rows. In an episode's window a
+ *  stored season or series search counts only the stored candidates for the episode. */
+function resultsWords(r: Releases, episode: boolean): string {
   const n = r.results ?? 0;
-  return r.source === "journal" ? `${plural(n, "release")} returned by the indexers` : plural(n, "result");
+  if (r.source !== "journal") return plural(n, "result");
+  if (episode && !/^s\d+e\d+$/i.test(r.target ?? "")) return `${plural(n, "stored candidate")} for this episode`;
+  return `${plural(n, "release")} returned by the indexers`;
 }
 
 /** The search's facts and rejection counts. With onReason (interactive search) each count is a toggle that keeps
  *  the list to the releases rejected for it. */
-export function Summary({ r, reason, onReason }: { r: Releases; reason?: string; onReason?: (code: string | undefined) => void }) {
+export function Summary({ r, reason, onReason, episode = false }: { r: Releases; reason?: string; onReason?: (code: string | undefined) => void; episode?: boolean }) {
   const rej = Object.entries(r.rejections ?? {}).sort((a, b) => b[1] - a[1]);
   const incomplete = searchIncomplete(r.notes ?? "");
   return (
@@ -96,7 +99,7 @@ export function Summary({ r, reason, onReason }: { r: Releases; reason?: string;
             Nothing stored has no counts: a stored search that returned nothing keeps its zero. */}
         {r.source === "none" ? null : (
           <span className="text-muted-foreground" data-testid="releases-facts">
-            {[r.at ? fmtAgo(r.at) : "", `${resultsWords(r)}, ${fmtNumber(r.accepted ?? 0)} accepted`].filter(Boolean).join(" · ")}
+            {[r.at ? fmtAgo(r.at) : "", `${resultsWords(r, episode)}, ${fmtNumber(r.accepted ?? 0)} accepted`].filter(Boolean).join(" · ")}
           </span>
         )}
       </div>

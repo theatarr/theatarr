@@ -1240,5 +1240,19 @@ func (w *Web) storedEpisodeReleases(ctx context.Context, out *Releases, it evIte
 			out.Message += ", which covered " + it.code()
 		}
 	}
-	return w.storedGrabbed(ctx, out, best.run, best.decided, best.at, it.episodeID)
+	if err := w.storedGrabbed(ctx, out, best.run, best.decided, best.at, it.episodeID); err != nil {
+		return err
+	}
+	// A wider search's "among N results" counts the whole search, not this episode's candidates.
+	if t := strings.ToLower(best.target); it.episodeID > 0 && t != strings.ToLower(it.code()) {
+		const nothing = "Nothing grabbed: no accepted release among "
+		if rest, ok := strings.CutPrefix(out.Grabbed, nothing); ok {
+			scope := " of the series search"
+			if len(t) == 3 && t[0] == 's' {
+				scope = " of the season search"
+			}
+			out.Grabbed = nothing + strings.Replace(rest, " results", " results"+scope, 1)
+		}
+	}
+	return nil
 }
