@@ -381,6 +381,10 @@ func (j *Journal) history(ctx context.Context, f Filter, episode int64) (*Histor
 					x.Reason = cleanMessage(r[:i])
 				}
 			}
+		case x.Event == EvBlocked:
+			// Whole, as the Blocklist reads it: its words (the web's blockedReasonWords) come from the text inside the
+			// wrapper, which the short cut would lose.
+			x.Reason = cleanText(s.reason, true)
 		case s.reason != "":
 			x.Reason = cleanMessage(s.reason)
 		}

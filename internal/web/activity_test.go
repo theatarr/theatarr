@@ -1275,6 +1275,19 @@ func TestActivityRefusedReason(t *testing.T) {
 	if r := failedRow("dl:1:fail"); r.Reason != head {
 		t.Errorf("history failed row %q", r.Reason)
 	}
+	// Its Blocked row says what the Blocklist says, from the whole stored reason (not the History's short cut).
+	store.HistoryBlocklist(context.Background(), e.st.Writer(), "movie-web", hashA)
+	var bh ActivityPage
+	e.getKey(APIBase+"/activity?state=history&title_id=1", key, &bh)
+	blockedRow := ""
+	for _, x := range bh.History {
+		if x.Event == "blocked" {
+			blockedRow = x.Reason
+		}
+	}
+	if blockedRow != "Failed the library check: "+head+". "+detail {
+		t.Errorf("history blocked row %q", blockedRow)
+	}
 	// Held for review (in hand): a household account sees the row, without reason or stored text.
 	e.exec(`UPDATE download SET state = 'ready', error = NULL WHERE id = 1`)
 	e.exec(`DELETE FROM router_blocklist`)
