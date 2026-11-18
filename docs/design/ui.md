@@ -1107,7 +1107,9 @@ titles/{id}/versions/{key}` returns the keys it added as `synced` (as `POST titl
 (users.md). The add sheet and "Add libraries" show a partner of a ticked library ticked and disabled, "in sync with
 <library>" (a partner whose copy was removed, `removed` on its option: "in sync with <library>; it was removed and
 comes back"), and send only what was ticked (the server adds the partners); a partner that would not gain a copy
-(held, monitored or not) stays an ordinary box, and unticking the named library frees it. The request sheet's
+(held, monitored or not) stays an ordinary box, and unticking the named library frees it. The add's toast names
+the libraries the person chose first, a removed copy brought back included, then the partners: "Turned on: 4K WEB.
+4K Remux too (in sync)." The request sheet's
 "You are asking for" lists the partners the request stores beside the asked-for libraries, each "in sync with
 <library>". Bulk add says once, whenever the chosen library is in a saved group (add options carry `sync_groups`),
 "Also added to <partners> where a title has no copy there or was removed from it." and promises only that files stay, and its toast counts the copies added in sync; the title

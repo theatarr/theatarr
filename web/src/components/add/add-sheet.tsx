@@ -238,10 +238,15 @@ export function AddSheet({ target, onClose }: { target: AddTarget; onClose: () =
     );
   };
 
-  // The add's outcome: the sheet closes on the title page and a toast says what happened, by library name.
+  // The add's outcome: the sheet closes on the title page and a toast says what happened, by library name: the
+  // libraries the person chose first (a removed copy brought back included), then the ones in sync with them.
   const done = (r: AddResult) => {
-    const turned = r.new.map((k) => nameOf(k)).join(", ");
-    const body = [turned ? `Turned on: ${turned}.` : "Saved.", r.search?.message ? r.search.message.replace(/([^.!?])$/, "$1.") : ""].filter(Boolean).join(" ");
+    const partners = r.synced ?? [];
+    const named = [...new Set([...chosen, ...r.new])].filter((k) => !partners.includes(k));
+    const turned = named.map((k) => nameOf(k)).join(", ");
+    const inSync = partners.map((k) => nameOf(k)).join(", ");
+    const said = turned ? `Turned on: ${turned}.${inSync ? ` ${inSync} too (in sync).` : ""}` : inSync ? `Turned on: ${inSync} (in sync).` : "Saved.";
+    const body = [said, r.search?.message ? r.search.message.replace(/([^.!?])$/, "$1.") : ""].filter(Boolean).join(" ");
     toast({ tone: r.search && !r.search.started ? "warn" : "ok", title: r.created ? `${r.title.name} is in the library` : `${r.title.name} updated`, body, image: target.poster });
     onClose();
     navigate(`/title/${r.title.id}`);

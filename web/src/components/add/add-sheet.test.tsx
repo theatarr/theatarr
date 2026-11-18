@@ -6,6 +6,7 @@ import { cleanup, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, it, vi } from "vitest";
 import { json, mockFetch, renderPage } from "@/test/page";
+import { Toaster } from "@/components/toaster";
 import { AddSheet } from "./add-sheet";
 
 afterEach(() => vi.restoreAllMocks());
@@ -466,4 +467,24 @@ it("says a removed copy in a library kept in sync comes back", async () => {
   await user.click(within(screen.getByTestId("add-version-movie-b")).getByRole("checkbox"));
   expect(within(screen.getByTestId("add-version-movie-b")).getByTestId("add-synced-with").textContent)
     .toBe("in sync with A; it was removed and comes back");
+});
+
+it("names the library the person chose when the add brings back its removed copy, and the partner as in sync", async () => {
+  const versions = [
+    { key: "movie-a", label: "A", grab_state: { ...gates, will_grab: true }, synced: ["movie-b"], removed: true },
+    { key: "movie-b", label: "B", grab_state: { ...gates, will_grab: true }, synced: ["movie-a"], removed: true },
+  ].map((v) => ({ ...v, kind: "movie", enable: "", fits: true, default: false, on: false, searchable: true }));
+  // The removed copy of A comes back (not a new row); its partner B is restored in sync. (No library names are
+  // served here, so the toast names them by key.)
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["admin", "add"] } },
+    { method: "GET", path: "/add/options", reply: { ...options, versions } },
+    { method: "POST", path: "/titles", reply: json({ created: false, versions: ["movie-a", "movie-b"], new: ["movie-b"], synced: ["movie-b"], title: { id: 9, name: "Alpha", versions: [] } }) },
+  ]);
+  const user = userEvent.setup();
+  renderPage(<><AddSheet target={{ kind: "movie", name: "Alpha", year: 2024, tmdb_id: 7 }} onClose={() => {}} /><Toaster /></>);
+  await screen.findByTestId("add-versions");
+  await user.click(within(screen.getByTestId("add-version-movie-a")).getByRole("checkbox"));
+  await user.click(screen.getByTestId("add-submit"));
+  await waitFor(() => expect(screen.getAllByTestId("toast").at(-1)?.textContent).toContain("Turned on: movie-a. movie-b too (in sync)."));
 });
