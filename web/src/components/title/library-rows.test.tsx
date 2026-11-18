@@ -43,7 +43,7 @@ describe("Libraries table", () => {
     expect(a.getByTestId("library-file").textContent).toBe("Alpha.2020.2160p.WEB-A.mkv");
     expect(a.getByTestId("library-file").getAttribute("title")).toBe(web.current.path);
     // The whole name is readable: it wraps, it is not cut with an ellipsis.
-    expect(a.getByTestId("library-file").className).toContain("break-all");
+    expect(a.getByTestId("library-file").className).toContain("[overflow-wrap:anywhere]");
     expect(a.getByTestId("library-file").className).not.toContain("truncate");
     expect(a.getByText("1,500").getAttribute("title")).toBe("DV HDR10 +1,500");
     const b = rowOf("movie-remux");
@@ -441,7 +441,7 @@ describe("a file's media (Y6)", () => {
     await waitFor(() => expect(screen.getAllByTestId("library-row")).toHaveLength(2));
     const file = within(rowOf("movie-web")).getByTestId("library-file");
     expect(file.textContent).toBe("Alpha.2020.2160p.WEB-A.mkv");
-    expect(file.className).toContain("break-all");
+    expect(file.className).toContain("[overflow-wrap:anywhere]");
     expect(file.className).not.toContain("truncate");
   });
 

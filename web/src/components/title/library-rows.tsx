@@ -139,7 +139,7 @@ function cellOf(id: LibraryColumn, v: Version, kind: Kind, title: TitleDetail): 
         </span>
       );
     case "file":
-      return held && c?.path ? <span className="block max-w-[16rem] break-all font-mono text-[12px]" title={c.path} data-testid="library-file">{fileName(c.path)}</span> : blank;
+      return held && c?.path ? <span className="block min-w-[14rem] max-w-[22rem] [overflow-wrap:anywhere] font-mono text-[12px]" title={c.path} data-testid="library-file">{fileName(c.path)}</span> : blank;
     case "preferred": {
       const cut = v.upgrade?.cutoff;
       return cut?.quality ? <span className="whitespace-nowrap">{cut.quality}{cut.upgrades ? "" : " · upgrades off"}</span> : blank;
@@ -147,7 +147,7 @@ function cellOf(id: LibraryColumn, v: Version, kind: Kind, title: TitleDetail): 
     case "minimum_availability":
       return v.minimum_availability ? <MinimumAvailabilityControl v={v} label={nameOf(v)} /> : blank;
     case "release":
-      return held && c?.release_title ? <span className="block max-w-[22rem] break-all font-mono text-[12px]" title={c.release_title}>{c.release_title}</span> : blank;
+      return held && c?.release_title ? <span className="block min-w-[14rem] max-w-[22rem] [overflow-wrap:anywhere] font-mono text-[12px]" title={c.release_title}>{c.release_title}</span> : blank;
     case "release_group":
       return held && c?.release_group ? c.release_group : blank;
     case "languages":
@@ -350,7 +350,7 @@ export function LibraryRows({ title, versions }: { title: TitleDetail; versions:
         {kind === "movie" && v.has_file && media ? (
           <div className="text-xs text-[var(--ink-2)] [overflow-wrap:anywhere]" data-testid="library-media">{media}</div>
         ) : null}
-        {v.has_file && c?.path ? <div className="break-all font-mono text-[12px] text-muted-foreground" title={c.path} data-testid="library-file">{fileName(c.path)}</div> : null}
+        {v.has_file && c?.path ? <div className="[overflow-wrap:anywhere] font-mono text-[12px] text-muted-foreground" title={c.path} data-testid="library-file">{fileName(c.path)}</div> : null}
       </div>
     );
   };

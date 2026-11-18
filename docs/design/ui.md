@@ -449,7 +449,8 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   only when it adds something: **Downloads off** with its small **?**, or "New files won't be linked") and the row
   actions. **Columns** picks the rest ("Monitored, Library and the actions always stay. Kept for your account in this
   browser."; `theatarr.library.title-libraries.<user>`). On by default: **Status**, **Quality**, **Score**, **Size**,
-  **Held on** and **File** (the whole file name, wrapping; the full path as tooltip). On offer: Preferred quality (the profile's
+  **Held on** and **File** (the whole file name, wrapping in a column at least 14rem wide; the full path as
+  tooltip). On offer: Preferred quality (the profile's
   cutoff, "· upgrades off" when so), Minimum availability, Release, Release group, Languages, Video / audio, Formats,
   Added, Last search, Next search and Path. A series row offers Status, Quality, Size, Held on, Preferred quality,
   Added and Last search. The switch column is headed **Monitored**. Quality is the technical name ("WEBDL-2160p").
