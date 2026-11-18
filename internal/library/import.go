@@ -110,6 +110,8 @@ type PlannedLink struct {
 	probe *probe.Result
 	size  int64
 	facts decide.FileFacts
+	// manual is the file with manual choices as planned and named (fileFormats): what the import stores.
+	manual *decide.ExistingFile
 }
 
 // replaceID is the link id of Replaces[i], 0 when unknown (a plan recorded before ReplaceIDs).
@@ -1171,7 +1173,7 @@ func (l *Library) planMovie(ctx context.Context, d *importDownload, vn *VersionN
 		return err
 	}
 	pick.Facts = &facts
-	formats, err := l.fileFormats(ctx, d, pick, facts)
+	formats, manual, err := l.fileFormats(ctx, d, pick, facts, nil)
 	if err != nil {
 		return err
 	}
@@ -1180,7 +1182,7 @@ func (l *Library) planMovie(ctx context.Context, d *importDownload, vn *VersionN
 		return err
 	}
 	lk := PlannedLink{Path: path, Target: l.mount.ToLink(pick.Path), File: pick.Rel, Quality: facts.Quality,
-		probe: pick.Probe, size: pick.Size, facts: facts}
+		probe: pick.Probe, size: pick.Size, facts: facts, manual: manual}
 	existing, err := existingFiles(ctx, l.st.Reader(), v.VersionID, v.Title.ID)
 	if err != nil {
 		return err
@@ -1411,7 +1413,7 @@ func (l *Library) planSeries(ctx context.Context, d *importDownload, vn *Version
 			ids = append(ids, e.ID)
 			taken[e.ID] = true
 		}
-		formats, err := l.fileFormats(ctx, d, f, facts)
+		formats, manual, err := l.fileFormats(ctx, d, f, facts, ids)
 		if err != nil {
 			return err
 		}
@@ -1428,7 +1430,7 @@ func (l *Library) planSeries(ctx context.Context, d *importDownload, vn *Version
 			continue
 		}
 		lk := PlannedLink{Path: path, Target: target, File: f.Rel, Episodes: ids, How: how, Quality: facts.Quality,
-			probe: f.Probe, size: f.Size, facts: facts}
+			probe: f.Probe, size: f.Size, facts: facts, manual: manual}
 		lk.Exists = linkPointsAt(path, lk.Target)
 		lk.prev, _ = os.Readlink(path)
 		plan.Links = append(plan.Links, lk)

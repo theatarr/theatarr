@@ -59,21 +59,16 @@ func (l *Library) apply(ctx context.Context, d *importDownload, vn *VersionNamin
 		lk := &plan.Links[i]
 		file := withFacts(*metadata, lk.facts, lk.File, lk.Target, lk.size)
 		if d.Manual[lk.File].Overrides != nil {
-			mf, err := l.manualMetadata(ctx, d, lk.facts, lk.File, lk.Target, lk.size)
-			if err != nil {
-				return err
-			}
-			file = *mf
-		}
-		if v.Policy.PreferSeaDex {
-			decide.ResolveIncomingSeaDexFile(ctx, title, &file, lk.Episodes)
-			if d.Manual[lk.File].Overrides != nil && l.engine != nil && title != nil {
-				// The overrides are scored with the file's own standing, not the release's.
-				vv := decide.Version{ID: v.VersionID, Key: v.Key, Policy: v.Policy}
-				if err := l.engine.ScoreFile(title, vv, &file); err != nil {
+			// Scored once, with its own standing, as the plan named it (fileFormats).
+			mf := lk.manual
+			if mf == nil {
+				if mf, err = l.manualMetadata(ctx, d, lk.facts, lk.File, lk.Target, lk.size, lk.Episodes); err != nil {
 					return err
 				}
 			}
+			file = *mf
+		} else if v.Policy.PreferSeaDex {
+			decide.ResolveIncomingSeaDexFile(ctx, title, &file, lk.Episodes)
 		}
 		b, err := json.Marshal(&file)
 		if err != nil {

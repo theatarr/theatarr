@@ -127,16 +127,17 @@ func TestManualFactsChangeUpgradeDecision(t *testing.T) {
 	}
 }
 
-// TestManualOverridesScoredWithFileStanding: in a prefer-SeaDex library, a pack's file imported with manual overrides
-// is scored with its own SeaDex standing (the entry listing the pack covers E01 only, so E02 has none), not with the
-// pack's.
+// TestManualOverridesScoredWithFileStanding: in a prefer-SeaDex library, a pack's files imported with manual overrides
+// are scored and named with their own SeaDex standing (the entry listing the pack covers E01 only, so E02 has none),
+// not with the pack's, and the rename preview right after proposes nothing.
 func TestManualOverridesScoredWithFileStanding(t *testing.T) {
 	t.Parallel()
 	e := importUpEnv(t, "")
 	e.pol.Versions["tv"].PreferSeaDex = true
+	e.pol.Versions["tv"].Naming.File = "{Series CleanTitleWithoutYear} - S{season:00}E{episode:00} {[Custom Formats]}"
 	p := e.lib.engine.Profile(e.pol.Versions["tv"].Profile, format.Sonarr)
-	fs, err := format.ParseArrFormats(format.Sonarr, []byte(`[{"id":900,"name":"SeaDex best","specifications":[
-				{"name":"best","implementation":"SeaDexSpecification","negate":false,"required":true,"fields":{"value":"best"}}]}]`))
+	fs, err := format.ParseArrFormats(format.Sonarr, []byte(`[{"id":900,"name":"SeaDex best","includeCustomFormatWhenRenaming":true,
+		"specifications":[{"name":"best","implementation":"SeaDexSpecification","negate":false,"required":true,"fields":{"value":"best"}}]}]`))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -148,13 +149,22 @@ func TestManualOverridesScoredWithFileStanding(t *testing.T) {
 	group := "GRP"
 	b, _ := json.Marshal(&decide.ManualOverrides{ReleaseGroup: &group})
 	e.exec(`INSERT INTO download_file (download_id, rel, episodes, source, how, updated_at, overrides)
-				VALUES (1, ?, '[202]', 'manual', 'manual', 0, ?)`, e2+".mkv", string(b))
+		VALUES (1, ?, '[201]', 'manual', 'manual', 0, ?), (1, ?, '[202]', 'manual', 'manual', 0, ?)`,
+		e1+".mkv", string(b), e2+".mkv", string(b))
 	if _, err := e.lib.Import(e.ctx, 1, false); err != nil {
 		t.Fatal(err)
 	}
-	got := e.one(`SELECT GROUP_CONCAT(le.episode_id || '=' || l.score || ' ' || json_extract(l.file_metadata, '$.SeaDex'), ', ')
-				FROM link l JOIN link_episode le ON le.link_id = l.id WHERE l.state = 'active' ORDER BY le.episode_id`)
-	if got != "202=0 0" {
+	got := e.one(`SELECT GROUP_CONCAT(x, ', ') FROM (SELECT le.episode_id || '=' || l.score || ' ' ||
+		json_extract(l.file_metadata, '$.SeaDex') || ' ' || replace(l.path, rtrim(l.path, replace(l.path, '/', '')), '') AS x
+		FROM link l JOIN link_episode le ON le.link_id = l.id WHERE l.state = 'active' ORDER BY le.episode_id)`)
+	if got != "201=100 2 Show - S01E01 [SeaDex best].mkv, 202=0 0 Show - S01E02.mkv" {
 		t.Errorf("links %s", got)
+	}
+	preview, err := e.lib.PreviewRename(e.ctx, 2, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(preview.Files) != 0 {
+		t.Errorf("rename right after the import: %+v", preview.Files)
 	}
 }

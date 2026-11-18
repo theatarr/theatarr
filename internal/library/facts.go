@@ -85,9 +85,10 @@ func withFacts(base decide.ExistingFile, f decide.FileFacts, rel, target string,
 	return x
 }
 
-// manualMetadata scores the client's file choices, rather than the release-level parse.
+// manualMetadata scores the client's file choices, rather than the release-level parse. In a prefer-SeaDex library
+// the file first takes its own standing for its episodes eps (as the import stores it), not the release's.
 func (l *Library) manualMetadata(ctx context.Context, d *importDownload, facts decide.FileFacts, rel, target string,
-	size int64) (*decide.ExistingFile, error) {
+	size int64, eps []int64) (*decide.ExistingFile, error) {
 	base, title, err := l.linkedMetadata(ctx, d)
 	if err != nil {
 		return nil, err
@@ -97,6 +98,9 @@ func (l *Library) manualMetadata(ctx context.Context, d *importDownload, facts d
 		if o.IndexerFlags != nil {
 			file.IndexerFlags = *o.IndexerFlags
 		}
+		if d.Version.Policy.PreferSeaDex {
+			decide.ResolveIncomingSeaDexFile(ctx, title, &file, eps)
+		}
 		if l.engine != nil && title != nil {
 			err = l.engine.ScoreFile(title, decide.Version{ID: d.Version.VersionID, Key: d.Version.Key, Policy: d.Version.Policy}, &file)
 		}
@@ -104,36 +108,39 @@ func (l *Library) manualMetadata(ctx context.Context, d *importDownload, facts d
 	return &file, err
 }
 
-func (l *Library) fileFormats(ctx context.Context, d *importDownload, f *PlannedFile, facts decide.FileFacts) ([]string, error) {
+// fileFormats names the formats of file f (episodes eps) for its library path; for a file with manual choices it also
+// gives the scored file, which the import then stores (apply).
+func (l *Library) fileFormats(ctx context.Context, d *importDownload, f *PlannedFile, facts decide.FileFacts,
+	eps []int64) ([]string, *decide.ExistingFile, error) {
 	if d.Manual[f.Rel].Overrides == nil {
 		if !d.HasFormats && l.matched != nil && l.engine != nil {
 			// No formats saved with the download: name from the formats the link's metadata keeps (the release
 			// decided with its size and saved inputs), so a rename right after import proposes nothing.
 			base, _, err := l.linkedMetadata(ctx, d)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			names := make([]string, 0, len(base.Formats))
 			for _, cf := range base.Formats {
 				names = append(names, cf.Name)
 			}
-			return l.matched(ctx, d.Version.Key, names), nil
+			return l.matched(ctx, d.Version.Key, names), nil, nil
 		}
-		return l.renameFormats(ctx, d), nil
+		return l.renameFormats(ctx, d), nil, nil
 	}
-	file, err := l.manualMetadata(ctx, d, facts, f.Rel, l.mount.ToLink(f.Path), f.Size)
+	file, err := l.manualMetadata(ctx, d, facts, f.Rel, l.mount.ToLink(f.Path), f.Size, eps)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	var names []string
 	for _, cf := range file.Formats {
 		names = append(names, cf.Name)
 	}
 	if l.matched != nil {
-		return l.matched(ctx, d.Version.Key, names), nil
+		return l.matched(ctx, d.Version.Key, names), file, nil
 	}
 	if l.engine == nil {
-		return nil, nil
+		return nil, file, nil
 	}
 	fl := format.Radarr
 	if d.Version.Policy.Kind == policy.KindSeries {
@@ -146,5 +153,5 @@ func (l *Library) fileFormats(ctx context.Context, d *importDownload, f *Planned
 			included = append(included, cf.Name)
 		}
 	}
-	return included, nil
+	return included, file, nil
 }
