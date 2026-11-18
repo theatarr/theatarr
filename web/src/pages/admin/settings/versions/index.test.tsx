@@ -39,7 +39,7 @@ describe("Versions page", () => {
     await user.click(within(row()).getByRole("button", { name: "Edit" }));
     const part = await screen.findByTestId("library-sync-part");
     // The help says what happens to a copy removed there: a person's add brings it back, lists and collections do not.
-    expect(within(part).getByTestId("library-sync-help").textContent).toBe("A title added to one of these libraries is added to the others too, and a title removed from one is removed from the others, with its files and debrid torrents when the removal deletes them. Monitoring stays each library's own. Only libraries of the same kind and anime setting can be kept in sync.");
+    expect(within(part).getByTestId("library-sync-help").textContent).toBe("A title added to one of these libraries is added to the others too, and a title removed from one is removed from the others, with its files and debrid torrents when the removal deletes them. Adding a title by hand brings it back to a library it was removed from, while lists and collections leave it removed. Monitoring stays each library's own. Only libraries of the same kind and anime setting can be kept in sync.");
     expect((within(part).getByRole("checkbox", { name: "Remux" }) as HTMLInputElement).checked).toBe(true);
     expect(within(part).queryByRole("checkbox", { name: "HD" })).toBeNull();
     expect(within(part).getByTestId("library-sync-refused").textContent).toBe("Not offered: Anime (anime only); HD (in sync with UHD); UHD (in sync with HD).");
@@ -60,7 +60,7 @@ describe("Versions page", () => {
     await waitFor(() => expect(row()).toBeTruthy());
     await user.click(within(row()).getByRole("button", { name: "Edit" }));
     const part = await screen.findByTestId("library-sync-part");
-    expect(part.textContent).toContain("A title added to one of these libraries is added to the others too, and a title removed from one is removed from the others, with its files and debrid torrents when the removal deletes them. Monitoring stays each library's own.");
+    expect(part.textContent).toContain("A title added to one of these libraries is added to the others too, and a title removed from one is removed from the others, with its files and debrid torrents when the removal deletes them. Adding a title by hand brings it back to a library it was removed from, while lists and collections leave it removed. Monitoring stays each library's own.");
     expect(part.textContent).not.toContain("unless it was removed");
     await user.click(await within(part).findByRole("button", { name: "Bring in sync…" }));
     const dialog = await screen.findByTestId("bring-in-sync-dialog");

@@ -1090,8 +1090,9 @@ the person's own choice (one library, or none for the whole title). A compatible
 the title's last copies drops every app's record of the title (as the web removal does), so a re-add starts fresh. A compatible client's DELETE does the same (arrview.md
 "DELETE"). Unmonitoring, unlinking one file and Stop managing a library are not removals and do not follow the group.
 The Keep in sync help says: "A title added to one of these libraries is added to the others too, and a title removed
-from one is removed from the others, with its files and debrid torrents when the removal deletes them. Monitoring
-stays each library's own. Only libraries of the same kind and anime setting can be kept in sync." Settings ›
+from one is removed from the others, with its files and debrid torrents when the removal deletes them. Adding a
+title by hand brings it back to a library it was removed from, while lists and collections leave it removed.
+Monitoring stays each library's own. Only libraries of the same kind and anime setting can be kept in sync." Settings ›
 Connected apps adds under an app whose libraries have partners outside it: "A delete from this app also removes the
 title from <partners> (in sync); a delete with its files takes their files and debrid torrents too.", and beside the
 libraries' own addresses (/v/<library>/…) one line per group: "<A> and <B> are kept in sync: a delete through the
