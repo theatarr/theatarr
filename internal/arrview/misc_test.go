@@ -232,3 +232,32 @@ func TestCalendarWindowBeforeResourceLoading(t *testing.T) {
 		t.Fatalf("movie candidates: %v %v", titles, episodes)
 	}
 }
+
+// The mass editor turns copies on only for a title whose profile differs from the one named, as the single-title PUT:
+// Alpha already has the profile (its 4K WEB copy unmonitored by hand stays so), Beta does not (its copies for the profile are turned on). Monitored in the same request still applies to both.
+func TestEditorProfileChangesOnlyTitlesThatDiffer(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	var alpha map[string]any
+	e.call("GET", "/radarr/api/v3/movie/"+strconv.Itoa(IDBase+1), nil, 200, &alpha)
+	qp := alpha["qualityProfileId"].(float64)
+	var beta map[string]any
+	e.call("GET", "/radarr/api/v3/movie/"+strconv.Itoa(IDBase+2), nil, 200, &beta)
+	if beta["qualityProfileId"].(float64) == qp {
+		t.Fatalf("Alpha and Beta share profile %v", qp)
+	}
+	e.exec(`UPDATE version SET monitored = 0 WHERE id = 2`)
+	e.call("PUT", "/radarr/api/v3/movie/editor", map[string]any{"movieIds": []int{IDBase + 1, IDBase + 2},
+		"qualityProfileId": qp}, 202, nil)
+	if n := e.one(`SELECT monitored FROM version WHERE id = 2`); n != 0 {
+		t.Errorf("Alpha's unmonitored copy monitored again")
+	}
+	if n := e.one(`SELECT COUNT(*) FROM version WHERE title_id = 2`); n < 2 {
+		t.Errorf("Beta's copies for the profile not turned on: %d", n)
+	}
+	e.call("PUT", "/radarr/api/v3/movie/editor", map[string]any{"movieIds": []int{IDBase + 1, IDBase + 2},
+		"qualityProfileId": qp, "monitored": false}, 202, nil)
+	if n := e.one(`SELECT COUNT(*) FROM version WHERE title_id IN (1, 2) AND monitored = 1`); n != 0 {
+		t.Errorf("monitored false left %d copies monitored", n)
+	}
+}

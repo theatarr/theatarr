@@ -497,7 +497,9 @@ func (s *Service) editor(w http.ResponseWriter, r *request) {
 			}
 			if in.QualityProfileID != nil {
 				ti.QualityProfileID = *in.QualityProfileID
-				if p := v.profileByID(ti.QualityProfileID); p != nil {
+				// Only a title whose profile differs turns copies on, as the single-title PUT: one that already has
+				// it is left alone (nothing restored, nothing monitored), as the arrs treat a same value.
+				if p := v.profileByID(ti.QualityProfileID); p != nil && p.ID != qualityProfileID(v, e) {
 					// Anime as acquisition will see the title after this edit: its flag, or its type.
 					after := e.seriesType
 					if typ := in.SeriesType.value(seriesTypes...); v.Flavour == Sonarr && typ != "" {

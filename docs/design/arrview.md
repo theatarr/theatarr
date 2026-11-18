@@ -302,7 +302,9 @@ The write convention (`TestMinimumAvailabilityEchoChangesNothing`, `TestMinimumA
 - **`PUT movie/editor`** is outside the echo guarantee. A supplied `minimumAvailability` is a deliberate edit, as
   Radarr applies it only when the field is present (`MovieEditorController.cs:64`): it becomes the choice of every
   library the view shows for each movie, even when it equals the value shown (on a combined view whose libraries differ, all of them take it). As
-  in a PUT, a copy the same call turns on by its profile takes its library's own rule. Without the field nothing is
+  in a PUT, a copy the same call turns on by its profile takes its library's own rule. A `qualityProfileId` turns
+  copies on only for a title whose profile differs from it, as the single-title PUT; a title that already has it is
+  left alone, nothing restored or monitored (`TestEditorProfileChangesOnlyTitlesThatDiffer`). Without the field nothing is
   stored
   (`TestMinimumAvailabilityEditor`).
 - **`POST movie`** is decided per library the add turns on (new, restored or unmonitored before): a library with
