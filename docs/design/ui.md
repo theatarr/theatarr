@@ -1482,7 +1482,7 @@ plan says so, a mount mismatch or an unreadable file), "Nothing to import: <the 
 folder with only an .nfo), "The title was removed from this library: add it there again first" (409, checked before
 the plan), "The folder cannot be read:
 <why>" (422), and for a readable folder without video files "No video files in this folder"; a listing says "N
-candidate files". Changing Source clears the result and the candidates, and each source keeps its own typed value;
+candidate files". Changing Library or Source clears the result, the error and the candidates, and each source keeps its own typed value;
 every new listing clears the old candidates first, so a failed one leaves none to import. Review choices refreshes
 the decisions before Import selected files; errors receive
 focus and results use a live region. The admin/CSRF-protected native `/manualimport`, `/manualimport/options` and

@@ -89,6 +89,16 @@ describe("manual import page", () => {
     expect((screen.getByRole("textbox", { name: "Download hash" }) as HTMLInputElement).value).toBe("abc");
   });
 
+  it("clears the old error when the library changes", async () => {
+    page([json({ error: "The folder cannot be read: permission denied" }, 422)]);
+    await pick();
+    fireEvent.change(screen.getByRole("textbox", { name: "Folder under the mount" }), { target: { value: "/mount/Alpha" } });
+    await listFiles();
+    expect((await screen.findByRole("alert")).textContent).toBe("The folder cannot be read: permission denied");
+    fireEvent.change(screen.getByRole("combobox", { name: "Library" }), { target: { value: "" } });
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
   it("leaves no candidates of an earlier listing when a later one fails", async () => {
     page([[movieCandidate], json({ error: "The folder cannot be read: permission denied" }, 422)]);
     await pick();

@@ -131,7 +131,7 @@ export function ManualImportPage() {
     <div ref={errorRef} tabIndex={-1} role={problem ? "alert" : undefined}>{problem}</div>
     <div role="status" aria-live="polite">{busy ? "Working…" : result}</div>
     <form onSubmit={list} className="my-4 flex flex-wrap items-end gap-3">
-      <label>Library<Select required disabled={busy} className="block w-auto" value={version} onChange={(e) => { setVersion(e.target.value); setRows([]); setResult(""); }}><option value="">Choose a library</option>{(policy.data?.versions ?? []).map((v) => <option key={v.key} value={v.key}>{nameOf(v.key)}</option>)}</Select></label>
+      <label>Library<Select required disabled={busy} className="block w-auto" value={version} onChange={(e) => { setVersion(e.target.value); clear(); }}><option value="">Choose a library</option>{(policy.data?.versions ?? []).map((v) => <option key={v.key} value={v.key}>{nameOf(v.key)}</option>)}</Select></label>
       <label>Source<Select disabled={busy} className="block w-auto" value={kind} onChange={(e) => { setKind(e.target.value); clear(); }}><option value="folder">Mount folder</option><option value="downloadId">Download hash</option></Select></label>
       <label className="min-w-64 flex-1">{kind === "folder" ? "Folder under the mount" : "Download hash"}<Input required disabled={busy} value={source} onChange={(e) => setSource(e.target.value)} /></label>
       <Button disabled={busy || !version || !source.trim() || !options.data} type="submit">List files</Button>
