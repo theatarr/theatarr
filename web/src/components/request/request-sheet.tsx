@@ -45,7 +45,8 @@ function seasonLabel(n: number) {
 
 export function RequestSheet({ target, onClose }: { target: AddTarget; onClose: () => void }) {
   const me = useAuth();
-  const inLibrary = target.title_id !== undefined;
+  // A title Theatarr knows (current copies or not): the request names it by id.
+  const known = target.title_id !== undefined;
   const opts = useAddOptions(target, Boolean(target.anime));
   const create = useCreateRequest();
   const mine = findRequest(useMyOpenRequests(), target);
@@ -71,7 +72,7 @@ export function RequestSheet({ target, onClose }: { target: AddTarget; onClose: 
   const picked = allNums.filter(seasonOn);
   const sendSeasons = seasonsToSend(picked, open, allNums);
   // A new series whose seasons could not be read lists none: the request is for every season, and the button says so.
-  const wholeSeries = o?.kind === "series" && !inLibrary && allSeasons.length === 0;
+  const wholeSeries = o?.kind === "series" && !o.in_library && allSeasons.length === 0;
   // Request, View request or Available (nothing left to ask for); unknown until the options load.
   const action = requestAction({ mine, requestable: o ? wanted.length : undefined, titleId: target.title_id });
 
@@ -82,9 +83,9 @@ export function RequestSheet({ target, onClose }: { target: AddTarget; onClose: 
         kind: o.kind,
         tmdb_id: target.tmdb_id || undefined,
         title_id: target.title_id,
-        name: inLibrary ? undefined : target.name,
-        year: inLibrary ? undefined : target.year,
-        anime: inLibrary ? undefined : Boolean(target.anime),
+        name: known ? undefined : target.name,
+        year: known ? undefined : target.year,
+        anime: known ? undefined : Boolean(target.anime),
         poster_path: target.poster_path,
         seasons: o.kind === "series" ? sendSeasons : undefined,
         note: note.trim() || undefined,
@@ -108,7 +109,8 @@ export function RequestSheet({ target, onClose }: { target: AddTarget; onClose: 
           <div className="min-w-0">
             <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
               <FacetPill facet={facetOf(target.kind, target.anime)} />
-              {inLibrary ? <Badge tone="positive">In library</Badge> : null}
+              {/* The title's current copies, not its id: a title whose every copy was removed is not in the library. */}
+              {o?.in_library ? <Badge tone="positive">In library</Badge> : null}
             </div>
             <h2 className="text-lg font-semibold leading-tight text-[var(--ink)] [overflow-wrap:anywhere]">
               {nameWithoutYear(target.name, target.year)}

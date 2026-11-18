@@ -1237,7 +1237,9 @@ Managers keep inline queue Approve/Decline and see what approval does per reques
    fits the title) without asking them to pick copies. The sheet says whether approval is needed; for a series they
    choose seasons (for a series not in the library, its own seasons, the add sheet's **Choose seasons** source,
    without episode counts; none listed when they cannot be read, and the button then reads **Request all seasons**),
-   and may add a note.
+   and may add a note. The sheet's **In library** badge follows the title's current copies (`in_library` of
+   `GET /add/options`): a title whose every copy was removed shows none, and counts as not in the library for the
+   seasons too; the request still names it by its title id.
 2. Theatarr stores a `request` row, `pending` (or `approved` at once with `auto_approve`). Duplicates merge: a second request
    for the same title and version adds the user to the existing one; an `auto_approve` ask approves a pending one it
    joins only when the request asks for nothing beyond that ask (docs/design/users.md), and the sheet says so.

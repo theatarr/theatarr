@@ -21,6 +21,40 @@ it("asks for a removed title's options without overriding its stored anime flag"
   expect(fetch.calls("GET", "/add/options")[0].search).not.toContain("anime=");
 });
 
+it("shows In library only while the title has a current copy, not for one whose every copy was removed", async () => {
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: { id: 3, permissions: ["request"] } },
+    { method: "GET", path: "/add/options", reply: options },
+    { method: "GET", path: "/requests", reply: { items: [], total: 0, counts: {} } },
+  ]);
+  const { unmount } = renderPage(<RequestSheet target={{ kind: "movie", name: "Alpha", title_id: 5 }} onClose={() => {}} />);
+  await screen.findByTestId("request-sheet");
+  await waitFor(() => expect(screen.queryByTestId("request-submit") ?? screen.queryByText(/Available|View/)).not.toBeNull());
+  expect(screen.queryByText("In library")).toBeNull();
+  unmount();
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: { id: 3, permissions: ["request"] } },
+    { method: "GET", path: "/add/options", reply: { ...options, in_library: true } },
+    { method: "GET", path: "/requests", reply: { items: [], total: 0, counts: {} } },
+  ]);
+  renderPage(<RequestSheet target={{ kind: "movie", name: "Alpha", title_id: 5 }} onClose={() => {}} />);
+  expect(await screen.findByText("In library")).toBeTruthy();
+});
+
+it("asks for a whole removed series whose seasons could not be read, by its title id", async () => {
+  const series = { ...options, kind: "series", anime: false, seasons: [],
+    versions: [{ key: "tv-web", label: "TV", kind: "series", enable: "", fits: true, default: true, on: false, searchable: true, grab_state: { paused: false, pause_forced: false, library_writes: true, will_grab: true } }] };
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: { id: 3, permissions: ["request"] } },
+    { method: "GET", path: "/add/options", reply: series },
+    { method: "GET", path: "/requests", reply: { items: [], total: 0, counts: {} } },
+  ]);
+  renderPage(<RequestSheet target={{ kind: "series", name: "Kappa", title_id: 5 }} onClose={() => {}} />);
+  const submit = await screen.findByTestId("request-submit");
+  await waitFor(() => expect(submit.textContent).toBe("Request all seasons"));
+  expect(screen.queryByText("In library")).toBeNull();
+});
+
 it("shows a new series' own seasons without episode counts and asks for the picked ones", async () => {
   const series = { ...options, kind: "series", anime: false, title_id: undefined, seasons: [{ season: 0 }, { season: 1 }, { season: 2 }],
     versions: [{ key: "tv-web", label: "TV", kind: "series", enable: "", fits: true, default: true, on: false, searchable: true, grab_state: { paused: false, pause_forced: false, library_writes: true, will_grab: true } }] };
