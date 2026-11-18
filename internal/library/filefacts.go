@@ -120,8 +120,14 @@ func (l *Library) editFileFacts(ctx context.Context, linkID int64, e FileFactsEd
 	if err != nil {
 		return nil, err
 	}
+	// A prefer-SeaDex library resolves the file's standing for its episodes: read once, and only then.
 	var episodes []int64
-	if policy.Kind(kind) == policy.KindSeries {
+	seaDex := slices.ContainsFunc(versions, func(v stateVersion) bool { return l.pol.Versions[v.key].PreferSeaDex })
+	episodeTitle := t
+	if seaDex && policy.Kind(kind) == policy.KindSeries {
+		if episodeTitle.Episodes, err = decide.LoadEpisodes(ctx, db, out.TitleID, 0); err != nil {
+			return nil, err
+		}
 		if err := scanRows(ctx, db, `SELECT episode_id FROM link_episode WHERE link_id = ? ORDER BY episode_id`,
 			[]any{linkID}, func(r *sql.Rows) error {
 				var id int64
@@ -150,7 +156,7 @@ func (l *Library) editFileFacts(ctx context.Context, linkID int64, e FileFactsEd
 				x.InfoHash = hash
 			}
 			// As adoption scores it: the file's SeaDex standing for its episodes (a film's for the title), then the score.
-			if err := l.resolveFactsStanding(ctx, v, vp, episodes, &x); err != nil {
+			if err := l.resolveFactsStanding(ctx, v, vp, &episodeTitle, episodes, &x); err != nil {
 				return nil, err
 			}
 		}
@@ -198,9 +204,10 @@ func (l *Library) editFileFacts(ctx context.Context, linkID int64, e FileFactsEd
 }
 
 // resolveFactsStanding gives x its SeaDex standing in the prefer-SeaDex library v, as adoption does before scoring
-// (recordAdopted): the operation's stored standing, then the file's for the link's episodes, or a film's.
-func (l *Library) resolveFactsStanding(ctx context.Context, v stateVersion, vp *policy.VersionPolicy, episodes []int64,
-	x *decide.ExistingFile) error {
+// (recordAdopted): the operation's stored standing, then the file's for the link's episodes (of t, the title with its
+// episodes), or a film's.
+func (l *Library) resolveFactsStanding(ctx context.Context, v stateVersion, vp *policy.VersionPolicy, t *decide.Title,
+	episodes []int64, x *decide.ExistingFile) error {
 	ctx, err := decide.WithStoredSeaDex(ctx, l.st.Reader())
 	if err != nil {
 		return err
@@ -211,10 +218,6 @@ func (l *Library) resolveFactsStanding(ctx context.Context, v stateVersion, vp *
 	}
 	if vp.Kind != policy.KindSeries {
 		return decide.ResolveSeaDexFiles(ctx, l.st.Reader(), []*decide.ExistingFile{x})
-	}
-	t, err := l.cutoffTitle(ctx, v.titleID, v.id, vp)
-	if err != nil {
-		return err
 	}
 	decide.ResolveSeaDexFileEpisodes(ctx, t, x, episodes)
 	return nil
