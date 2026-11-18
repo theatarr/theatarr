@@ -893,7 +893,9 @@ including "Imported from Radarr's blocklist" for `arr:<instance>`) and the healt
     3 of 12…" and ends in one notice: how many were removed, which were not and why, files left in place. Closing
     the dialog stops after the title in hand and leaves the selection as it is.
   - **Remove from a library** is the same dialog with one library picked in it (the libraries the list shows):
-    titles not in it are skipped and counted; a title in no other library leaves the library, as on its page.
+    titles not in it are skipped and counted; a title in no other library leaves the library, as on its page. Its
+    notice names the copies removed with it because they are kept in sync ("Removed 5 titles from 4K WEB" / "Also
+    removed from 4K Remux (in sync) for 4 titles.").
   - **Add to a library** picks one library of the list's kinds (Anime: movie and series libraries) and turns it on
     for each title through `PUT titles/{id}/versions/{key}` (monitored), as the add sheet does; titles of the other
     kind and titles already monitored there are skipped and counted. The library preselected is the first one that

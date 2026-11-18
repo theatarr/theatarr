@@ -99,6 +99,8 @@ export function BulkRemoveDialog({ titles, libraries, onClose, onDone }: { title
     let left = 0;
     let cleanup = false;
     let done = 0;
+    // The copies removed with the chosen library because they are kept in sync with it, per library name.
+    const partners = new Map<string, number>();
     for (const s of scopes) {
       if (stop.current) break;
       setProgress(done);
@@ -113,6 +115,11 @@ export function BulkRemoveDialog({ titles, libraries, onClose, onDone }: { title
         }
         const r = await removeTitle(s.title_id, { versions, unlink: files, debrid: files && debrid });
         removed++;
+        for (const k of r.removed ?? []) {
+          if (!versions.length || k === lib) continue;
+          const partner = s.copies.find((c) => c.key === k)?.label ?? k;
+          partners.set(partner, (partners.get(partner) ?? 0) + 1);
+        }
         left += r.kept.length + r.failed.length;
         cleanup ||= r.cleanup;
       } catch (e) {
@@ -122,6 +129,7 @@ export function BulkRemoveDialog({ titles, libraries, onClose, onDone }: { title
     }
     refresh();
     const body = [
+      ...[...partners].map(([name, n]) => `Also removed from ${name} (in sync)${scopes.length > 1 ? ` for ${plural(n, "title")}` : ""}.`),
       ...failedWords(failed, "removed"),
       ...(done < scopes.length ? [`Stopped after ${done} of ${plural(scopes.length, "title")}.`] : []),
       ...(left > 0 ? [`${plural(left, "library file")} left in place; each title's History says why.`] : []),

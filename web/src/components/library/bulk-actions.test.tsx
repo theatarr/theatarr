@@ -147,7 +147,7 @@ describe("Bulk Remove in a sync group", () => {
     const { api } = setup([
       { method: "POST", path: "/titles/removal", reply: { scopes: [alpha], skipped: [2, 3, 4, 5].map((id) => ({ title_id: id, reason: "not in this library" })) } },
       { method: "GET", path: "/titles/1/removal", reply: alpha },
-      { method: "POST", path: "/titles/1/remove", reply: removed() },
+      { method: "POST", path: "/titles/1/remove", reply: removed({ removed: ["hd", "uhd"] }) },
     ]);
     const user = userEvent.setup();
     await user.click(await within(await bar()).findByRole("button", { name: "Remove from a library" }));
@@ -158,6 +158,8 @@ describe("Bulk Remove in a sync group", () => {
     expect(does).toContain("1 title has no copy left and leaves the library");
     await user.click(within(dialog).getByRole("button", { name: "Remove 1 title from HD" }));
     await screen.findByText("Removed 1 title from HD");
+    // The result names the copy removed in sync, as the dialog announced it.
+    expect(screen.getAllByTestId("toast").at(-1)?.textContent).toContain("Also removed from 4K (in sync).");
     // The person's choice, not the preview's libraries: the server adds the one kept in sync again.
     expect(api.calls("GET", "/titles/1/removal")[0].search).toBe("?versions=hd");
     expect(api.calls("POST", "/titles/1/remove")[0].body).toEqual({ versions: ["hd"], unlink: true, debrid: true });
