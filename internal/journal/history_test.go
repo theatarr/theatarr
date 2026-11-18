@@ -746,3 +746,46 @@ func TestHistoryGrabFolds(t *testing.T) {
 		t.Errorf("after the retry: %q, want %q", ids, want)
 	}
 }
+
+// A held import's row (dl:<id>:held) does not stand for its grab: the grab keeps its own row (it carries the
+// episodes) beside "Import held for review", and the held row says nothing of a grab. Once the held import is
+// imported, the grab folds into that outcome as for any download.
+func TestHistoryHeldImportKeepsItsGrab(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	at := testNow.Add(-6 * time.Hour)
+	e.dlEvent(20, "ready", at, 3, 3, "tv-2160p", hashA, "Gamma.S01E01.WEB", "WEBDL-2160p", 300, 3<<30,
+		[]int64{101}, "")
+	e.exec(`INSERT INTO library_import (download_id, state, mount_folder, last_error, plan, created_at, updated_at)
+		VALUES (20, 'rejected', '/m/G', 'sample guard: the file runs 4 min', '{}', ?, ?)`, msOf(at.Add(time.Hour)),
+		msOf(at.Add(time.Hour)))
+	got := e.history(Filter{})
+	if len(got) != 2 || !strings.HasPrefix(got[0], "failed") || got[1] != "grabbed Gamma.S01E01.WEB WEBDL-2160p 300 [S01E01]" {
+		t.Errorf("held import's rows: %q", got)
+	}
+	ep, err := e.j.EpisodeHistory(ctx, Filter{}, 101)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ep.Items) != 1 || ep.Items[0].Event != EvGrabbed {
+		t.Errorf("episode window: %+v", ep.Items)
+	}
+	p, err := e.j.History(ctx, Filter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, x := range p.Items {
+		if x.ID == "dl:20:held" && !x.Grabbed.IsZero() {
+			t.Errorf("held row grabbed %v", x.Grabbed)
+		}
+	}
+	// Imported after the review: one row, the import, with the grab's time.
+	e.exec(`UPDATE download SET state = 'imported', imported_at = ? WHERE id = 20`, msOf(at.Add(2*time.Hour)))
+	e.exec(`UPDATE library_import SET state = 'linked', updated_at = ? WHERE download_id = 20`, msOf(at.Add(2*time.Hour)))
+	e.exec(`INSERT INTO library_action (at, kind, mode, version_key, download_id, link_id, path, title_id, episodes) VALUES
+		(?, 'link', 'applied', 'tv-2160p', 20, 1, '/tv/G/S01E01.mkv', 3, '[101]')`, msOf(at.Add(2*time.Hour)))
+	e.dirty = true
+	if got := e.history(Filter{}); slices.ContainsFunc(got, func(s string) bool { return strings.HasPrefix(s, "grabbed") }) {
+		t.Errorf("after the import: %q", got)
+	}
+}

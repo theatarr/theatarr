@@ -601,8 +601,9 @@ func historyWhere(f Filter, titles []int64, episode int64) (string, []any) {
 	// upgrade, and in the episode window it holds the episode (an upgrade's by its import's episodes), or a pack's
 	// left-out episode would lose its only row. A Grabbed-only filter lists the grabs. The cursor bounds the grab only,
 	// so a page boundary never shows a download twice. Pairing is by download id only.
+	// A held import's row (dl:<id>:held) is no outcome of the grab: the grab keeps its row (it holds the episodes).
 	outcome := []string{`p.download_id = history.download_id`, `p.event IN ('imported', 'deleted', 'failed')`,
-		`p.at >= history.at`}
+		`p.at >= history.at`, `p.ref NOT LIKE '%:held'`}
 	var outcomeArgs []any
 	if len(f.Events) > 0 {
 		outcome = append(outcome, `p.event IN (`+store.Placeholders(len(f.Events))+`)`)
@@ -635,11 +636,11 @@ func historyWhere(f Filter, titles []int64, episode int64) (string, []any) {
 }
 
 // grabbedAtSQL is when an outcome's download (imported, deleted, failed) was grabbed: its grab's row (dl:<id>, dated
-// at or before it), which the outcome's row stands for (historyWhere). A manual import's download (indexer import: a
-// file already on the mount, arrview insertImport) was never grabbed; its stored grab row is folded all the same, but
-// says nothing.
-const grabbedAtSQL = `CASE WHEN event IN ('imported', 'deleted', 'failed') THEN (SELECT g.at FROM history g
-	WHERE g.ref = 'dl:' || history.download_id AND g.event = 'grabbed' AND g.at <= history.at
+// at or before it), which the outcome's row stands for (historyWhere); none for a held import's row, which does not.
+// A manual import's download (indexer import: a file already on the mount, arrview insertImport) was never grabbed;
+// its stored grab row is folded all the same, but says nothing.
+const grabbedAtSQL = `CASE WHEN event IN ('imported', 'deleted', 'failed') AND ref NOT LIKE '%:held'
+	THEN (SELECT g.at FROM history g WHERE g.ref = 'dl:' || history.download_id AND g.event = 'grabbed' AND g.at <= history.at
 		AND g.indexer <> '` + manualImportIndexer + `') END`
 
 // manualImportIndexer is a manual import's download's indexer (arrview insertImport).
