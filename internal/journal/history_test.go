@@ -790,3 +790,38 @@ func TestHistoryHeldImportKeepsItsGrab(t *testing.T) {
 		t.Errorf("after the import: %q", got)
 	}
 }
+
+// Retention prunes an old failed download while its History row stays: the row keeps its grab time, but no longer
+// names the grab's journal entry (the page would be missing), so History shows the time as plain text.
+func TestHistoryGrabEntryGoneWithRetention(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	at := testNow.Add(-6 * time.Hour)
+	e.dlEvent(11, "failed", at, 2, 4, "movie-remux", hashB, "Beta.2021.Remux-B", "Remux-2160p", 200, 2<<30, nil,
+		"stalled: no seeders")
+	e.exec(`UPDATE download SET updated_at = ? WHERE id = 11`, msOf(at.Add(10*time.Minute)))
+	grab := func() (time.Time, string) {
+		t.Helper()
+		e.flag()
+		p, err := e.j.History(ctx, Filter{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, x := range p.Items {
+			if x.ID == "dl:11:fail" {
+				return x.Grabbed, x.GrabEntry
+			}
+		}
+		t.Fatalf("no failed row: %+v", p.Items)
+		return time.Time{}, ""
+	}
+	if at2, entry := grab(); !at2.Equal(at) || entry != "dl:11" {
+		t.Fatalf("before retention: %v %q", at2, entry)
+	}
+	if _, err := e.st.Writer().Exec(`DELETE FROM download WHERE id = 11`); err != nil {
+		t.Fatal(err)
+	}
+	if at2, entry := grab(); !at2.Equal(at) || entry != "" {
+		t.Errorf("after retention: %v %q, want the time and no entry", at2, entry)
+	}
+}

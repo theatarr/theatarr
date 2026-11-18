@@ -102,7 +102,8 @@ type HistoryRow struct {
 	Entry string
 	// Grabbed is when an outcome's download (imported, deleted, failed) was grabbed (grabbedAtSQL): its grab's row,
 	// which the outcome's row stands for (historyWhere); zero when none, for a manual import, and for Filter.Household.
-	// GrabEntry is that grab's journal entry (dl:<download id>), which has the reasoning and the provider attempts.
+	// GrabEntry is that grab's journal entry (dl:<download id>), which has the reasoning and the provider attempts;
+	// empty once retention has pruned it.
 	Grabbed   time.Time
 	GrabEntry string
 }
@@ -339,6 +340,9 @@ func (j *Journal) history(ctx context.Context, f Filter, episode int64) (*Histor
 		if e := entryOf(s.h.id); e != "" {
 			entries = append(entries, e)
 		}
+		if s.grabbed.Valid && s.dl.Valid {
+			entries = append(entries, fmt.Sprintf("dl:%d", s.dl.Int64))
+		}
 	}
 	live, err := l.liveEntries(entries)
 	if err != nil {
@@ -385,8 +389,9 @@ func (j *Journal) history(ctx context.Context, f Filter, episode int64) (*Histor
 		}
 		if s.grabbed.Valid {
 			x.Grabbed = store.FromMillis(s.grabbed.Int64)
-			if s.dl.Valid {
-				x.GrabEntry = fmt.Sprintf("dl:%d", s.dl.Int64)
+			// Its journal entry, while retention has kept its source; none once it is gone (plain text then).
+			if e := fmt.Sprintf("dl:%d", s.dl.Int64); s.dl.Valid && live[e] {
+				x.GrabEntry = e
 			}
 		}
 		if x.Event == EvAdopted {
