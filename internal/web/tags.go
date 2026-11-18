@@ -131,32 +131,36 @@ func (w *Web) apiTitleTags(rw http.ResponseWriter, r *http.Request) {
 				return err
 			}
 		}
-		for _, title := range ids {
-			var n int64
-			for _, tag := range addIDs {
-				// Every current copy (not one removed from its library), whichever library it is in.
-				res, err := tx.ExecContext(ctx, `INSERT INTO arrview_title_tag (version, title_id, tag_id)
-					SELECT v.policy_key, v.title_id, ? FROM version v WHERE v.title_id = ? AND NOT EXISTS
-					(SELECT 1 FROM arrview_removed_version r WHERE r.version_id = v.id) ON CONFLICT DO NOTHING`, tag, title)
-				if err != nil {
+		// One statement per label over the whole batch; changed counts the distinct titles a row was written for.
+		changed := map[int64]bool{}
+		list := titleIDsJSON(ids)
+		run := func(q string, args ...any) error {
+			return queryEach(ctx, tx, q, args, func(rows *sql.Rows) error {
+				var id int64
+				if err := rows.Scan(&id); err != nil {
 					return err
 				}
-				k, _ := res.RowsAffected()
-				n += k
-			}
-			for _, tag := range removeIDs {
-				// Removed copies too, so the label does not come back with a restored copy.
-				res, err := tx.ExecContext(ctx, `DELETE FROM arrview_title_tag WHERE title_id = ? AND tag_id = ?`, title, tag)
-				if err != nil {
-					return err
-				}
-				k, _ := res.RowsAffected()
-				n += k
-			}
-			if n > 0 {
-				out.Changed++
+				changed[id] = true
+				return nil
+			})
+		}
+		for _, tag := range addIDs {
+			// Every current copy (not one removed from its library), whichever library it is in.
+			if err := run(`INSERT INTO arrview_title_tag (version, title_id, tag_id)
+				SELECT v.policy_key, v.title_id, ? FROM version v WHERE v.title_id IN (SELECT value FROM json_each(?)) AND NOT EXISTS
+				(SELECT 1 FROM arrview_removed_version r WHERE r.version_id = v.id) ON CONFLICT DO NOTHING RETURNING title_id`,
+				tag, list); err != nil {
+				return err
 			}
 		}
+		for _, tag := range removeIDs {
+			// Removed copies too, so the label does not come back with a restored copy.
+			if err := run(`DELETE FROM arrview_title_tag WHERE tag_id = ? AND title_id IN (SELECT value FROM json_each(?))
+				RETURNING title_id`, tag, list); err != nil {
+				return err
+			}
+		}
+		out.Changed = len(changed)
 		return nil
 	})
 	if err != nil {
