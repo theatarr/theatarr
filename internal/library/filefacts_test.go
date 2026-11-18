@@ -3,6 +3,7 @@ package library
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/theatarr/theatarr/internal/decide"
+	"github.com/theatarr/theatarr/internal/decide/format"
 	"github.com/theatarr/theatarr/internal/policy"
 )
 
@@ -117,5 +119,85 @@ func TestEditFileFactsRenamePreview(t *testing.T) {
 	}
 	if got := name(); strings.Contains(got, "IMAX") || !strings.Contains(got, "[WEBDL-1080p Proper]") {
 		t.Errorf("corrected preview %s", got)
+	}
+}
+
+// TestEditFileFactsKeepsSeaDexStanding: an episode file whose stored score includes the SeaDex format keeps its
+// formats, score and cutoff state when its facts are saved unchanged in a prefer-SeaDex library (the edit resolves
+// the file's standing for its episodes as adoption does), while the same link in a library that does not prefer
+// SeaDex is scored without it. A real edit still recalculates. The file's hash is its stored one, or else its
+// content's.
+func TestEditFileFactsKeepsSeaDexStanding(t *testing.T) {
+	t.Parallel()
+	for _, fromContent := range []bool{false, true} {
+		t.Run(fmt.Sprint("hash from content ", fromContent), func(t *testing.T) {
+			t.Parallel()
+			editFactsSeaDex(t, fromContent)
+		})
+	}
+}
+
+func editFactsSeaDex(t *testing.T, fromContent bool) {
+	e := importUpEnv(t, "")
+	e.pol.Versions["tv"].PreferSeaDex = true
+	e.pol.Versions["tv-off"] = &policy.VersionPolicy{Kind: policy.KindSeries, Profile: "tv-state", Library: e.shows}
+	e.pol.Profiles["tv-state"].Cutoff, e.pol.Profiles["tv-state"].CutoffScore = "WEBDL-2160p", 100
+	engine, err := decide.New(e.pol, decide.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.lib.engine = engine
+	p := engine.Profile("tv-state", format.Sonarr)
+	fs, err := format.ParseArrFormats(format.Sonarr, []byte(`[{"id":900,"name":"SeaDex best","specifications":[
+		{"name":"best","implementation":"SeaDexSpecification","negate":false,"required":true,"fields":{"value":"best"}}]}]`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	p.Formats = fs
+	p.Profile.FormatItems = []format.FormatItem{{Format: 900, Score: 100}}
+	scopeEntry(e, 11, `[[1,1]]`, false, false)
+	e.exec(`INSERT INTO version (id, title_id, policy_key, created_at, updated_at) VALUES (21, 2, 'tv-off', 0, 0)`)
+	e.heldLink(1, "WEBDL-2160p", "Show.S01E01.2160p.WEB-DL-GRP", 201)
+	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (1, 21)`)
+	ownHash := hashA
+	if fromContent {
+		ownHash = ""
+		e.exec(`INSERT INTO content (id, info_hash, first_seen_at, last_seen_at) VALUES (1, ?, 0, 0)`, hashA)
+		e.exec(`INSERT INTO content_file (id, content_id, path, size_bytes, probed_at) VALUES (1, 1, 'Held/e01.mkv', 5, 1)`)
+		e.exec(`UPDATE link SET content_file_id = 1 WHERE id = 1`)
+	}
+	e.exec(`UPDATE link SET score = 100, file_metadata = ? WHERE id = 1`, fmt.Sprintf(`{"Quality":"WEBDL-2160p","Revision":1,
+		"SceneName":"Show.S01E01.2160p.WEB-DL-GRP","Languages":["English"],"ReleaseGroup":"GRP","InfoHash":"%s",
+		"Size":5,"Formats":[{"name":"SeaDex best","score":100}],"Score":100}`, ownHash))
+	e.exec(`INSERT INTO episode_version_state (version_id, episode_id, monitored, state, cutoff_met, updated_at)
+		VALUES (20, 201, 1, 'cutoff_met', 1, 0), (21, 201, 1, 'filled', 0, 0)`)
+	stored := func() string {
+		t.Helper()
+		return e.one(`SELECT l.score || ' ' || json_extract(l.file_metadata, '$.Formats') || ' ' ||
+			(SELECT GROUP_CONCAT(version_id || '=' || state, ',') FROM (SELECT version_id, state FROM episode_version_state
+			WHERE episode_id = 201 ORDER BY version_id)) FROM link l WHERE l.id = 1`)
+	}
+	before := stored()
+	res, err := e.lib.EditFileFacts(e.ctx, 1, FileFactsEdit{Quality: "WEBDL-2160p", Revision: 1, Languages: []string{"English"},
+		ReleaseGroup: "GRP"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := fmt.Sprint(res.Versions, res.Scores); got != "[tv tv-off] [100 0]" {
+		t.Errorf("scores %s", got)
+	}
+	if got := stored(); got != before {
+		t.Errorf("unchanged save: %s, was %s", got, before)
+	}
+	// A real edit: below the quality cutoff now, so the prefer-SeaDex library's episode is no longer cutoff met.
+	if _, err := e.lib.EditFileFacts(e.ctx, 1, FileFactsEdit{Quality: "WEBDL-1080p", Revision: 1, Languages: []string{"English"},
+		ReleaseGroup: "GRP"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := e.one(`SELECT quality || ' ' || score FROM link WHERE id = 1`); got != "WEBDL-1080p 100" {
+		t.Errorf("real edit: %s", got)
+	}
+	if got := e.one(`SELECT state FROM episode_version_state WHERE version_id = 20 AND episode_id = 201`); got != "filled" {
+		t.Errorf("real edit state: %s", got)
 	}
 }

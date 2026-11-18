@@ -704,7 +704,9 @@ Repack, as manual import sets it), the languages manual import offers, and the r
 is stored. `library.EditFileFacts` (`internal/library/filefacts.go`) writes them as the link's file inputs
 (`link.quality` and `file_metadata`: quality, revision, languages, release group; a Repack stays one only while the
 revision is 2 or more; Real is kept), calculates the formats and score again with `ScoreFile` for each library the
-file serves (their profiles differ: the answer and the journal give each library's own score; `link.score` and the
+file serves (their profiles differ: the answer and the journal give each library's own score; a library that
+prefers SeaDex first resolves the file's SeaDex standing as adoption does, for the link's episodes or the film, with
+the content's hash when the file has none stored, so an unchanged save keeps the score; `link.score` and the
 stored formats are the first library's, and the formats are stored as an empty list when none match, which the
 rename preview takes as the answer rather than naming an adopted file's formats again), and judges
 each of those libraries again at once (`recomputeVersion`: state against the cutoff, below-the-quality-cutoff flags,

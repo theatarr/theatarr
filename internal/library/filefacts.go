@@ -57,13 +57,15 @@ func (l *Library) editFileFacts(ctx context.Context, linkID int64, e FileFactsEd
 		return &Refused{Reason: "facts", Detail: fmt.Sprintf(format, args...)}
 	}
 	db := l.st.Reader()
-	var raw, kind, state, release, quality, path, target string
+	var raw, kind, state, release, quality, path, target, hash string
 	var size int64
 	out := &FileFactsEdited{LinkID: linkID}
 	err := db.QueryRowContext(ctx, `SELECT l.title_id, t.kind, l.state, COALESCE(l.file_metadata, '{}'),
-		COALESCE(l.release_title, ''), COALESCE(l.quality, ''), l.path, l.target, COALESCE(cf.size_bytes, 0)
+		COALESCE(l.release_title, ''), COALESCE(l.quality, ''), l.path, l.target, COALESCE(cf.size_bytes, 0),
+		COALESCE(c.info_hash, '')
 		FROM link l JOIN title t ON t.id = l.title_id LEFT JOIN content_file cf ON cf.id = l.content_file_id
-		WHERE l.id = ?`, linkID).Scan(&out.TitleID, &kind, &state, &raw, &release, &quality, &path, &target, &size)
+		LEFT JOIN content c ON c.id = cf.content_id
+		WHERE l.id = ?`, linkID).Scan(&out.TitleID, &kind, &state, &raw, &release, &quality, &path, &target, &size, &hash)
 	if err != nil {
 		return nil, err
 	}
@@ -118,6 +120,18 @@ func (l *Library) editFileFacts(ctx context.Context, linkID int64, e FileFactsEd
 	if err != nil {
 		return nil, err
 	}
+	var episodes []int64
+	if policy.Kind(kind) == policy.KindSeries {
+		if err := scanRows(ctx, db, `SELECT episode_id FROM link_episode WHERE link_id = ? ORDER BY episode_id`,
+			[]any{linkID}, func(r *sql.Rows) error {
+				var id int64
+				err := r.Scan(&id)
+				episodes = append(episodes, id)
+				return err
+			}); err != nil {
+			return nil, err
+		}
+	}
 	stored := f
 	for i, v := range versions {
 		x := f
@@ -130,7 +144,17 @@ func (l *Library) editFileFacts(ctx context.Context, linkID int64, e FileFactsEd
 		if l.engine == nil {
 			break
 		}
-		if err := l.engine.ScoreFile(&t, decide.Version{ID: v.id, Key: v.key, Policy: l.pol.Versions[v.key]}, &x); err != nil {
+		vp := l.pol.Versions[v.key]
+		if vp.PreferSeaDex {
+			if x.InfoHash == "" { // as the link loaders read it (decide.loadLinksOf)
+				x.InfoHash = hash
+			}
+			// As adoption scores it: the file's SeaDex standing for its episodes (a film's for the title), then the score.
+			if err := l.resolveFactsStanding(ctx, v, vp, episodes, &x); err != nil {
+				return nil, err
+			}
+		}
+		if err := l.engine.ScoreFile(&t, decide.Version{ID: v.id, Key: v.key, Policy: vp}, &x); err != nil {
 			return nil, err
 		}
 		if i == 0 {
@@ -171,4 +195,27 @@ func (l *Library) editFileFacts(ctx context.Context, linkID int64, e FileFactsEd
 	}
 	l.log.Info("library: file facts corrected", "link", linkID, "quality", q.Name, "revision", f.Revision)
 	return out, nil
+}
+
+// resolveFactsStanding gives x its SeaDex standing in the prefer-SeaDex library v, as adoption does before scoring
+// (recordAdopted): the operation's stored standing, then the file's for the link's episodes, or a film's.
+func (l *Library) resolveFactsStanding(ctx context.Context, v stateVersion, vp *policy.VersionPolicy, episodes []int64,
+	x *decide.ExistingFile) error {
+	ctx, err := decide.WithStoredSeaDex(ctx, l.st.Reader())
+	if err != nil {
+		return err
+	}
+	ctx = decide.WithSeaDexTitle(decide.WithSeaDexPolicy(ctx, l.pol, vp), v.titleID)
+	if err := decide.SeaDexError(ctx); err != nil {
+		return err
+	}
+	if vp.Kind != policy.KindSeries {
+		return decide.ResolveSeaDexFiles(ctx, l.st.Reader(), []*decide.ExistingFile{x})
+	}
+	t, err := l.cutoffTitle(ctx, v.titleID, v.id, vp)
+	if err != nil {
+		return err
+	}
+	decide.ResolveSeaDexFileEpisodes(ctx, t, x, episodes)
+	return nil
 }
