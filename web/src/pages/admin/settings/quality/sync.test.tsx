@@ -51,6 +51,30 @@ describe("TRaSH sync", () => {
     expect(screen.queryByText(/updates waiting/)).toBeNull();
   });
 
+  it("says a source that could not be read could not be previewed, run or linked, not saved; a conflict keeps its words", async () => {
+    mockFetch([
+      { method: "GET", path: "/settings", reply: overview() },
+      { method: "GET", path: "/settings/sync_sources", reply: sources },
+      { method: "GET", path: "/settings/formats/schema", reply: [] },
+      { method: "GET", path: "/settings/sync/changes", reply: [] },
+      { method: "GET", path: "/settings/sync/runs", reply: [] },
+      { method: "POST", path: "/settings/sync/preview", reply: json({ error: "trash-main could not be read" }, 502) },
+      { method: "POST", path: "/settings/sync_sources/9/run", reply: json({ error: "trash-main could not be read" }, 502) },
+      { method: "POST", path: "/settings/sync_sources/9/link/preview", reply: json({ error: "trash-main could not be read" }, 502) },
+    ]);
+    const user = userEvent.setup();
+    renderPage(<QualityPanel entity="sync_sources" />);
+    await user.click(await screen.findByRole("button", { name: "Preview" }));
+    const box = await screen.findByTestId("settings-error");
+    expect(box.textContent).toContain("Could not preview");
+    expect(box.textContent).toContain("trash-main could not be read");
+    expect(box.textContent).not.toContain("Could not save");
+    await user.click(screen.getByRole("button", { name: "Run sync now" }));
+    await waitFor(() => expect(screen.getByTestId("settings-error").textContent).toContain("Could not run sync"));
+    await user.click(screen.getByRole("button", { name: "Link formats to TRaSH" }));
+    await waitFor(() => expect(screen.getAllByTestId("settings-error").some((b) => b.textContent?.includes("Could not link formats") && b.textContent.includes("trash-main could not be read"))).toBe(true));
+  });
+
   it("lists the update log with counts, and an entry expands to its changes", async () => {
     const entry = { ...preview, id: 7, state: "applied", applied_at: Date.UTC(2026, 10, 12), commit: "c".repeat(40), held_fields: [{ profile: "household-web", field: "min_score", ours: 7, last: 5, upstream: 9 }],
       fields: [{ profile: "household-web", field: "sizes/Remux-2160p", before: null, after: { min: 187.4, preferred: 0, max: 0 } }] };

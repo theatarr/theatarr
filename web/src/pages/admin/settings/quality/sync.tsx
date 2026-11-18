@@ -4,7 +4,7 @@ import { api, ApiError } from "@/api/client";
 import { Announcer, ExplainBox, useAnnouncement } from "@/components/settings/parts";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { explainError } from "@/lib/settings";
+import { explainError, explainSyncError } from "@/lib/settings";
 import { text } from "./fields";
 import type { QualityRecord } from "./index";
 import { TrashLink } from "./link";
@@ -72,24 +72,24 @@ export function SyncSources({ records, generation, draft, baseGeneration, onChan
   const runs = useQuery({ queryKey: ["quality-runs", generation], queryFn: () => api<Run[]>("/settings/sync/runs"), refetchInterval: 60_000 });
   const [preview, setPreview] = useState<Preview>();
   const [linking, setLinking] = useState<QualityRecord>();
-  const [error, setError] = useState<unknown>();
+  const [error, setError] = useState<{ error: unknown; verb: string }>();
   const [busy, setBusy] = useState(false);
   const [announcement, announce] = useAnnouncement();
   const errorBox = useRef<HTMLDivElement>(null);
   const previewHeading = useRef<HTMLHeadingElement>(null);
   useEffect(() => { if (error) errorBox.current?.querySelector<HTMLElement>("[role=alert]")?.focus(); }, [error]);
   useEffect(() => { if (preview) previewHeading.current?.focus(); }, [preview]);
-  const action = async (fn: () => Promise<void>) => { setBusy(true); setError(undefined); try { await fn(); await changes.refetch(); await runs.refetch(); announce("Sync action finished."); } catch (e) { setError(e); announce("Sync action failed; review the error."); } finally { setBusy(false); } };
-  const inspect = (r: QualityRecord, base: number) => action(async () => { setPreview(await api<Preview>("/settings/sync/preview", { method: "POST", body: { generation: base, key: r.key, config: r.config } })); });
+  const action = async (verb: string, fn: () => Promise<void>) => { setBusy(true); setError(undefined); try { await fn(); await changes.refetch(); await runs.refetch(); announce("Sync action finished."); } catch (e) { setError({ error: e, verb }); announce("Sync action failed; review the error."); } finally { setBusy(false); } };
+  const inspect = (r: QualityRecord, base: number) => action("preview", async () => { setPreview(await api<Preview>("/settings/sync/preview", { method: "POST", body: { generation: base, key: r.key, config: r.config } })); });
   return <section className="space-y-4" aria-label="TRaSH and Recyclarr sync">
     <h2 className="text-lg font-semibold">TRaSH / Recyclarr sync</h2>
     <details><summary>How sync works</summary><p className="text-sm text-muted-foreground">Each enabled source runs on its schedule and applies what changed upstream by itself, as Recyclarr does. Formats and profiles are never deleted: a format TRaSH no longer has is kept as it is. A score of a profile bound to a TRaSH score set follows TRaSH while it still has TRaSH's last score; a score you changed is yours and stays, and the log notes when TRaSH changed it. The first run after you bind a profile or link a format takes TRaSH's scores. A Recyclarr source changes only the profile values its config sets, with the same rule for values you changed. Turn a source off to stop its updates.</p></details>
     <Announcer announcement={announcement} testid="quality-sync-announcer" />
     {changes.data?.unavailable ? <p>{changes.data.unavailable === 409 ? "Quality sync is not available while settings come from YAML" : "Quality sync is not running"}</p> : null}
-    <div ref={errorBox}>{error ? <ExplainBox error={explainError(error)} onReload={() => { void onChanged(); void changes.refetch(); }} /> : null}</div>
+    <div ref={errorBox}>{error ? <ExplainBox error={explainSyncError(error.error, error.verb)} onReload={() => { void onChanged(); void changes.refetch(); }} /> : null}</div>
     {changes.error || runs.error ? <ExplainBox error={explainError(changes.error ?? runs.error)} /> : null}
     {draft ? <Button disabled={busy || !draft.key} onClick={() => { void inspect(draft, baseGeneration ?? generation); }}>Preview draft import</Button> : null}
-    {records.map((r) => <div className="flex flex-wrap items-center gap-2" key={r.id}><span>{r.key}</span><span className="text-sm text-muted-foreground" data-testid={`sync-source-${r.key}`}>{describeSource(r, runs.data ?? [])}</span><Button disabled={busy} onClick={() => { void inspect(r, generation); }}>Preview</Button><Button disabled={busy} variant="outline" onClick={() => { void action(async () => { await api(`/settings/sync_sources/${r.id}/run`, { method: "POST", body: { generation } }); await onChanged(); }); }}>Run sync now</Button><Button disabled={busy} variant="outline" onClick={() => setLinking(r)}>Link formats to TRaSH</Button></div>)}
+    {records.map((r) => <div className="flex flex-wrap items-center gap-2" key={r.id}><span>{r.key}</span><span className="text-sm text-muted-foreground" data-testid={`sync-source-${r.key}`}>{describeSource(r, runs.data ?? [])}</span><Button disabled={busy} onClick={() => { void inspect(r, generation); }}>Preview</Button><Button disabled={busy} variant="outline" onClick={() => { void action("run sync", async () => { await api(`/settings/sync_sources/${r.id}/run`, { method: "POST", body: { generation } }); await onChanged(); }); }}>Run sync now</Button><Button disabled={busy} variant="outline" onClick={() => setLinking(r)}>Link formats to TRaSH</Button></div>)}
     {linking ? <TrashLink key={linking.id} source={linking} generation={generation} onChanged={onChanged} onClose={() => setLinking(undefined)} /> : null}
     {preview ? <Card className="space-y-3 p-4"><h3 ref={previewHeading} tabIndex={-1} className="font-semibold outline-none">{preview.source} · <span title={preview.commit}>{preview.commit.slice(0, 12)}</span></h3>
       <ChangeLists p={preview} retiredLabel="Retired (retained)" />

@@ -17,6 +17,17 @@ func (w *Web) qualitySyncAvailable(rw http.ResponseWriter) bool {
 	return false
 }
 
+// qualitySyncError answers a sync step's failure: a source whose TRaSH data could not be read is 502 naming the source
+// (the cause goes to the log), anything else as a settings error.
+func (w *Web) qualitySyncError(rw http.ResponseWriter, r *http.Request, key string, err error) {
+	if errors.Is(err, settings.ErrSourceUnreadable) {
+		w.log.Warn("quality sync: reading the source failed", "source", key, "err", scrubText(err.Error(), nil))
+		writeJSON(rw, http.StatusBadGateway, apiError{Error: key + " could not be read"})
+		return
+	}
+	w.settingsError(rw, r, err, nil)
+}
+
 func (w *Web) apiQualitySyncPreview(rw http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Generation *int64          `json:"generation"`
@@ -45,7 +56,7 @@ func (w *Web) apiQualitySyncPreview(rw http.ResponseWriter, r *http.Request) {
 	// A dry run: it stores and applies nothing.
 	p, err := w.qualitySync.Preview(r.Context(), settings.QualitySyncSource{Record: settings.Record{Key: body.Key}, Config: config})
 	if err != nil {
-		w.settingsError(rw, r, err, nil)
+		w.qualitySyncError(rw, r, body.Key, err)
 		return
 	}
 	// A concurrent edit during the fetch may never rebase the admin's preview silently.
@@ -75,7 +86,7 @@ func (w *Web) apiQualitySyncRun(rw http.ResponseWriter, r *http.Request) {
 	for _, source := range snap.Records.SyncSources {
 		if source.ID == id {
 			if err := w.qualitySync.RunSource(r.Context(), source, true); err != nil {
-				w.settingsError(rw, r, err, nil)
+				w.qualitySyncError(rw, r, source.Key, err)
 				return
 			}
 			writeJSON(rw, 200, map[string]bool{"ok": true})
@@ -155,7 +166,7 @@ func (w *Web) apiTrashLinkPreview(rw http.ResponseWriter, r *http.Request) {
 	}
 	p, err := w.qualitySync.LinkPreview(r.Context(), source)
 	if err != nil {
-		w.settingsError(rw, r, err, nil)
+		w.qualitySyncError(rw, r, source.Key, err)
 		return
 	}
 	if p.Generation != snap.Generation {

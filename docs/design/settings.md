@@ -705,7 +705,10 @@ formats and explicitly selected additions; they do not score every global format
 added/spec-changed/retired formats, per-profile score changes and the effect on existing files (score, cutoff and upgrade
 eligibility, with examples). Removed or renamed upstream IDs are retained and marked retired. A preview
 (`POST /settings/sync/preview`, "Preview" and the editor's "Preview draft import") is a dry run: it stores and applies
-nothing, and the next run applies what it shows. A draft preview (a config that is not the saved source's) applies
+nothing, and the next run applies what it shows. A preview, Run sync now or a link preview whose source cannot be
+read (the GitHub commit, the archive or the TRaSH tree) answers 502 "<source> could not be read" (the cause goes to the
+log), and the page says "Could not preview" (or "Could not run sync", "Could not link formats") with it; conflicts and
+policy refusals keep their words (`TestQualitySyncUnreadableSourceIs502`). A draft preview (a config that is not the saved source's) applies
 a bound score set's scores as a whole and remembers nothing; a saved source's preview or run follows the score rules
 below.
 

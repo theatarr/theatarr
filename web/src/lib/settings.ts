@@ -295,6 +295,13 @@ export function explainError(e: unknown, now = Date.now()): Explained {
   return { kind: "other", title: "Could not save", message: "Nothing was changed.", server, detail };
 }
 
+/** A sync step's error: a source that could not be read (502) or a step that did not finish (503) says what failed to
+ * happen, "Could not preview" and the server's words ("radarr could not be read"); other failures as settings errors. */
+export function explainSyncError(e: unknown, verb: string): Explained {
+  if (e instanceof ApiError && (e.status === 502 || e.status === 503)) return { kind: "other", title: `Could not ${verb}`, message: e.message };
+  return explainError(e);
+}
+
 // ---- secrets ----
 
 export type SecretAction = "keep" | "replace" | "clear";

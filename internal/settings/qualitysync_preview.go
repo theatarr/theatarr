@@ -334,7 +334,7 @@ func (s *QualitySync) loadTree(ctx context.Context, c QualitySyncConfig) (string
 	t, err := format.LoadTrash(root, format.Flavour(c.Flavour))
 	if err != nil {
 		cleanup()
-		return "", nil, "", func() {}, err
+		return "", nil, "", func() {}, unreadable(err)
 	}
 	return root, t, commit, cleanup, nil
 }
@@ -351,6 +351,9 @@ func (s *QualitySync) trashTree(ctx context.Context, c QualitySyncConfig) (root,
 	}
 	if c.ArchiveURL == "" {
 		commit, err = trashCommit(s.TrashRoot)
+		if err != nil {
+			err = unreadable(err)
+		}
 		return s.TrashRoot, commit, cleanup, err
 	}
 	if s.FetchArchive == nil {
@@ -358,11 +361,11 @@ func (s *QualitySync) trashTree(ctx context.Context, c QualitySyncConfig) (root,
 	}
 	data, err := s.FetchArchive(ctx, c)
 	if err != nil {
-		return "", "", cleanup, err
+		return "", "", cleanup, unreadable(err)
 	}
 	dir, err := unpackQualityArchive(data)
 	if err != nil {
-		return "", "", cleanup, err
+		return "", "", cleanup, unreadable(err)
 	}
 	return dir, c.Commit, func() { os.RemoveAll(dir) }, nil
 }

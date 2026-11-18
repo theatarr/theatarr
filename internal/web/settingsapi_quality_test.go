@@ -516,3 +516,27 @@ func TestProfileScoreAddsStandaloneFormatToSet(t *testing.T) {
 		t.Fatalf("set after the save: %+v", set.Formats)
 	}
 }
+
+// A sync step whose source cannot be read answers 502 naming the source, not a failed save (UI sweep 5, Q1).
+func TestQualitySyncUnreadableSourceIs502(t *testing.T) {
+	t.Parallel()
+	se := newQualityEnv(t)
+	config := map[string]any{"kind": "trash", "flavour": "radarr"}
+	se.want(se.call("POST", "/sync_sources", map[string]any{"generation": se.generation(), "key": "radarr", "config": config}), 200, "create sync source")
+	id := qualityID(t, se, "sync_sources", "radarr")
+	se.web.qualitySync.TrashRoot = filepath.Join(t.TempDir(), "missing")
+	for _, step := range []struct {
+		path string
+		body map[string]any
+	}{
+		{"/sync/preview", map[string]any{"generation": se.generation(), "key": "radarr", "config": config}},
+		{fmt.Sprintf("/sync_sources/%d/run", id), map[string]any{"generation": se.generation()}},
+		{fmt.Sprintf("/sync_sources/%d/link/preview", id), map[string]any{"generation": se.generation()}},
+	} {
+		res := se.call("POST", step.path, step.body)
+		se.want(res, http.StatusBadGateway, step.path)
+		if !strings.Contains(res.Body.String(), `"error":"radarr could not be read"`) {
+			t.Errorf("%s: %s", step.path, res.Body.String())
+		}
+	}
+}

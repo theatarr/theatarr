@@ -262,6 +262,17 @@ type QualitySync struct {
 	linkTree *linkTree
 }
 
+// ErrSourceUnreadable marks a sync step that could not read its source's TRaSH data: the branch's newest commit, the
+// archive, or the tree. The web answers it 502 with the source's name, not as a failed save.
+var ErrSourceUnreadable = errors.New("settings: the sync source could not be read")
+
+// sourceReadError is a read of the source that failed; it is ErrSourceUnreadable and keeps the cause for the log.
+type sourceReadError struct{ err error }
+
+func (e sourceReadError) Error() string   { return e.err.Error() }
+func (e sourceReadError) Unwrap() []error { return []error{e.err, ErrSourceUnreadable} }
+func unreadable(err error) error          { return sourceReadError{err: err} }
+
 // resolve turns a tracked source into the archive pinned to its branch's newest commit. Other sources pass through.
 func (s *QualitySync) resolve(ctx context.Context, c QualitySyncConfig) (QualitySyncConfig, error) {
 	if c.Origin != OriginGitHub {
@@ -272,11 +283,11 @@ func (s *QualitySync) resolve(ctx context.Context, c QualitySyncConfig) (Quality
 	}
 	sha, err := s.FetchCommit(ctx, c)
 	if err != nil {
-		return c, err
+		return c, unreadable(err)
 	}
 	sha = strings.ToLower(strings.TrimSpace(sha))
 	if !commitRE.MatchString(sha) {
-		return c, errors.New("settings: GitHub returned no commit id")
+		return c, unreadable(errors.New("settings: GitHub returned no commit id"))
 	}
 	c.ArchiveURL, c.Commit = TrackedArchiveURL(c, sha), sha
 	return c, nil

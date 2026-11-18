@@ -15,6 +15,7 @@ import {
   editorReturn,
   explainError,
   explainReloadError,
+  explainSyncError,
   fieldWords,
   formFromConfig,
   hasAdvancedValues,
@@ -64,6 +65,11 @@ describe("refusals explained", () => {
     expect(e).toMatchObject({ kind: "stale", title: "Settings changed elsewhere", generation: 9, reload: true });
     expect(e.message).toMatch(/generation 9/);
     expect(e.message).toMatch(/Nothing was saved/);
+  });
+  it("words a sync step's unreadable source by the step, and keeps a conflict's and a policy refusal's words", () => {
+    expect(explainSyncError(new ApiError(502, "radarr could not be read"), "preview")).toMatchObject({ title: "Could not preview", message: "radarr could not be read" });
+    expect(explainSyncError(new ApiError(409, "stale", undefined, { error: "x", generation: 9 }), "preview").kind).toBe("stale");
+    expect(explainSyncError(new ApiError(422, "settings refused: x"), "run sync").title).toBe("Not saved");
   });
   it("tells changed downloads apart from a stale generation", () => {
     expect(explainError(new ApiError(409, "downloads changed during save; retry")).kind).toBe("downloads_changed");
