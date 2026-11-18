@@ -591,7 +591,7 @@ func (w *Web) apiRemoveDownload(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if out.Blocklisted {
-		out.Message += "; the release is blocklisted for " + d.Version
+		out.Message += "; the release is blocklisted for " + w.versionLabel(d.Version)
 	}
 	detail := []string{"ended " + d.State}
 	if !d.Ended {

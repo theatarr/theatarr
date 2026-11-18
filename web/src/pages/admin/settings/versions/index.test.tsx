@@ -418,8 +418,8 @@ describe("Versions page", () => {
     second.unmount();
 
     // A series library has neither field; a movie library turned into one drops what it had.
-    mockFetch([...getRoutes({ ...versions(), versions: [set] }), put]);
-    renderPage(<VersionsPage />);
+    const third = mockFetch([...getRoutes({ ...versions(), versions: [set] }), put]);
+    const thirdPage = renderPage(<VersionsPage />);
     await user.click(await screen.findByRole("button", { name: "Edit" }));
     await user.selectOptions(screen.getByRole("combobox", { name: "Kind" }), "series");
     expect(screen.queryByRole("combobox", { name: "Minimum availability" })).toBeNull();
@@ -428,6 +428,27 @@ describe("Versions page", () => {
     await user.selectOptions(screen.getByRole("combobox", { name: "Kind" }), "movie");
     expect((screen.getByRole("combobox", { name: "Minimum availability" }) as HTMLSelectElement).value).toBe("announced");
     expect((screen.getByRole("textbox", { name: "Availability delay (days)" }) as HTMLInputElement).value).toBe("7");
+    // Saved as a series library, it sends both cleared.
+    await user.selectOptions(screen.getByRole("combobox", { name: "Kind" }), "series");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(third.calls("PUT", "/settings/versions/movie-web")).toHaveLength(1));
+    expect(third.calls("PUT", "/settings/versions/movie-web")[0].body).toMatchObject({ config: { kind: "series", minimum_availability: "", availability_delay: 0 } });
+    thirdPage.unmount();
+
+    // A library saved as series, taken to Movies with both fields set, then to Series and Movies again: both are empty
+    // (only a library saved as movies gets its saved values back).
+    const series = { ...version(), config: { ...version().config, kind: "series" } };
+    mockFetch([...getRoutes({ ...versions(), versions: [series] }), put]);
+    renderPage(<VersionsPage />);
+    await user.click(await screen.findByRole("button", { name: "Edit" }));
+    await user.selectOptions(screen.getByRole("combobox", { name: "Kind" }), "movie");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Minimum availability" }), "announced");
+    await user.type(screen.getByRole("textbox", { name: "Availability delay (days)" }), "5");
+    expect((screen.getByRole("textbox", { name: "Availability delay (days)" }) as HTMLInputElement).value).toBe("5");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Kind" }), "series");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Kind" }), "movie");
+    expect((screen.getByRole("combobox", { name: "Minimum availability" }) as HTMLSelectElement).value).toBe("");
+    expect((screen.getByRole("textbox", { name: "Availability delay (days)" }) as HTMLInputElement).value).toBe("");
   });
 
   it("names a library, and clears a stored name by sending it empty", async () => {

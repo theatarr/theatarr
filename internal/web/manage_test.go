@@ -564,6 +564,11 @@ func TestReplaceBlockedNamesLibrariesOnce(t *testing.T) {
 	if got := o.web.skipWords([]catalog.Skip{{Version: "movie-web", Reason: "not in the policy"}}); !strings.HasSuffix(got, "(movie-remux)") {
 		t.Errorf("skip words: %q", got)
 	}
+	// With the router on, replaceBlocked itself names the unmonitored library once, by its own name.
+	o.web.pol.Router.Enabled = true
+	if got := o.web.replaceBlocked(f, "symlink", nil, nil, false); got != "movie-remux is not monitored, so no new file would be searched" {
+		t.Errorf("replace blocked, router on: %q", got)
+	}
 }
 
 // The episode window's file says when its link has no download (taken over from an arr), where Change episodes

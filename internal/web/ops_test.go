@@ -550,6 +550,10 @@ func TestRemoveAndRetryDownload(t *testing.T) {
 		&got); code != 200 || !got.Ended || !got.Blocklisted || got.Search == nil || !got.Search.Started {
 		t.Fatalf("remove: %d %+v", code, got)
 	}
+	// The message names the library as people see it, not its key.
+	if want := "; the release is blocklisted for " + o.web.versionLabel("movie-web"); !strings.Contains(got.Message, want) || strings.Contains(got.Message, "for movie-web") {
+		t.Errorf("remove message %q", got.Message)
+	}
 	var state, errText, tid string
 	if err := o.st.Reader().QueryRow(`SELECT state, error, provider_torrent_id FROM download WHERE id = 40`).Scan(&state,
 		&errText, &tid); err != nil || state != "failed" || !strings.Contains(errText, "mgr") || tid != "TID1" {

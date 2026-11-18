@@ -253,7 +253,8 @@ export function VersionsPage({ embedded = false }: { embedded?: boolean }) {
       void qc.invalidateQueries({ queryKey: qk.settings.overview });
       // The name as saved (the names from auth/me still hold the old one until they reload).
       const saved = body.delete || !body.config ? nameOf(body.key ?? "") : libraryLabel(body.key ?? "", body.config.profile, body.config.name, body.config.kind);
-      // The partners the server took out of its sync group (its new kind or anime setting no longer matches them).
+      // The partners the library was in sync with before the save and is not after it (its new kind or anime setting
+      // no longer matches them, or Keep in sync left them out), as the server names them.
       const dropped = (result.sync_dropped ?? []).map((key) => { const c = data?.versions.find((v) => v.key === key)?.config; return nameOf(key, libraryLabel(key, c?.profile ?? "", c?.name, c?.kind)); });
       setNotice(`${saved} ${body.delete ? "is no longer managed" : "saved"}.${dropped.length ? ` It is no longer in sync with ${dropped.join(", ")}.` : ""}`);
       // Library names (auth/me) follow a renamed, added or removed library.
