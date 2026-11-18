@@ -1244,11 +1244,21 @@ func (w *Web) storedEpisodeReleases(ctx context.Context, out *Releases, it evIte
 	}
 	// A wider search's result count is the whole search's, not this episode's candidates: storedGrabbed says so.
 	scope := ""
-	if t := strings.ToLower(best.target); it.episodeID > 0 && t != strings.ToLower(it.code()) {
-		scope = "series"
-		if len(t) == 3 && t[0] == 's' {
-			scope = "season"
-		}
+	if it.episodeID > 0 {
+		scope = searchScope(best.target, it.code())
 	}
 	return w.storedGrabbed(ctx, out, best.run, best.decided, best.at, it.episodeID, scope)
+}
+
+// searchScope names a stored search wider than the episode code: "season" for a season target ("s" and digits, as
+// acquire writes it: s01, s100, s2024), "series" for any other, "" for the episode's own.
+func searchScope(target, code string) string {
+	t := strings.ToLower(target)
+	if t == strings.ToLower(code) {
+		return ""
+	}
+	if n, ok := strings.CutPrefix(t, "s"); ok && n != "" && strings.Trim(n, "0123456789") == "" {
+		return "season"
+	}
+	return "series"
 }

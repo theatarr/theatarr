@@ -908,3 +908,14 @@ func TestEpisodeNothingGrabbedNamesSeasonSearch(t *testing.T) {
 		t.Errorf("E02 partial: %q", r.Grabbed)
 	}
 }
+
+// searchScope: a season target is "s" and digits only, as acquire writes it (s01, s100, s2024).
+func TestSearchScope(t *testing.T) {
+	t.Parallel()
+	for target, want := range map[string]string{"s01": "season", "S100": "season", "s2024": "season", "": "series",
+		"series": "series", "s01e02": "", "S01E02": ""} {
+		if got := searchScope(target, "S01E02"); got != want {
+			t.Errorf("%q: %q, want %q", target, got, want)
+		}
+	}
+}
