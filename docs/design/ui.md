@@ -219,8 +219,10 @@ release seen yet (last search 2 d ago)."; "Better release found 4 d ago: <releas
 format score, 6,200 over 4,500." (the reason stored with the search that saw it, about the file it was judged
 against); or, when the library's history on the page has a failed download of that release, "… Tried Nov 12: not
 cached on RD, AD and TB. Your file is unchanged." (the failure as the history row says it). A pack that keeps some
-episodes' files (its reason says "… keep their file") was judged once for the whole pack, so it reads "Better pack
-found for some episodes 4 d ago: …", and its badge (the episode cell's word, the Details badge and Why?'s heading)
+episodes' files (its reason says "… keep their file") was accepted for the episodes it upgrades, so it reads "Better
+pack found for some episodes 4 d ago: …" there; an episode whose file it keeps gets no badge from it (the stored
+candidate's `kept`; a pack stored before `kept` was recorded still counts for every episode until a newer search
+replaces it), and its badge (the episode cell's word, the Details badge and Why?'s heading)
 reads "Better pack found" instead of "Upgrade found". The reason reads in plain words: "1 episode keeps its file", "2 episodes keep their file", and an older
 reason's pack-policy suffix ("(packs: any_upgradable)") is left out; the stored reason is unchanged. Without such a row
 nothing is said about downloading: the history on the page is capped. **Show releases** follows. The Libraries table's Details and the episode window say the same "Better

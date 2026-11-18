@@ -24,6 +24,8 @@ func TestJudgeUpgrade(t *testing.T) {
 	up := func(rel string, score int, eps ...string) evCand {
 		return evCand{Release: rel, Accepted: true, Upgrade: true, Score: score, UpgradeWhy: "better", Episodes: eps}
 	}
+	mixed := up("S01.Mixed", 5000, "S01E01", "S01E02")
+	mixed.Kept = []string{"S01E02"}
 	movie := evItem{fileAt: 1000}
 	cases := []struct {
 		name  string
@@ -70,6 +72,23 @@ func TestJudgeUpgrade(t *testing.T) {
 		{name: "RSS at the search timestamp is excluded", it: movie,
 			recs: []evRecord{{at: 2000, search: true}, {at: 2000, target: "rss", cands: []evCand{up("Tied.RSS", 5000)}}},
 			last: 2000},
+		{name: "a pack that keeps the episode's file is no upgrade of it",
+			it:   evItem{episodeID: 7, season: 1, number: 2, fileAt: 1000},
+			recs: []evRecord{{at: 2000, search: true, target: "s01", cands: []evCand{mixed}}},
+			last: 2000},
+		{name: "the same pack upgrades another episode", it: evItem{episodeID: 6, season: 1, number: 1, fileAt: 1000},
+			recs: []evRecord{{at: 2000, search: true, target: "s01", cands: []evCand{mixed}}},
+			want: "S01.Mixed", last: 2000},
+		{name: "an RSS pack that keeps the episode's file is no upgrade of it",
+			it:   evItem{episodeID: 7, season: 1, number: 2, fileAt: 1000},
+			recs: []evRecord{{at: 2000, source: "rss", target: "rss", cands: []evCand{mixed}}}},
+		{name: "the same RSS pack upgrades another episode", it: evItem{episodeID: 6, season: 1, number: 1, fileAt: 1000},
+			recs: []evRecord{{at: 2000, source: "rss", target: "rss", cands: []evCand{mixed}}},
+			want: "S01.Mixed"},
+		{name: "a pack stored without kept is judged as before",
+			it:   evItem{episodeID: 7, season: 1, number: 2, fileAt: 1000},
+			recs: []evRecord{{at: 2000, search: true, target: "s01", cands: []evCand{up("S01.Mixed", 5000, "S01E01", "S01E02")}}},
+			want: "S01.Mixed", last: 2000},
 		{name: "newer candidate wins a score tie", it: movie,
 			recs: []evRecord{{at: 2000, search: true, cands: []evCand{up("Search", 5000)}},
 				{at: 2001, target: "rss", cands: []evCand{up("Newer.RSS", 5000)}}}, want: "Newer.RSS", last: 2000},

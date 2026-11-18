@@ -278,7 +278,8 @@ func TestLevenshtein(t *testing.T) {
 
 // The season pack rule (the fork's ACCEPT_RELEASE_ANY_UPGRADABLE, every series version's): the S01 pack over a WEB
 // file (E01) and a remux at its best (E03), E02 with no file, is taken, as it upgrades E01 and fills E02. A pack that
-// upgrades nothing and fills nothing is refused, with the first file's reason.
+// upgrades nothing and fills nothing is refused, with the first file's reason. An accepted pack lists the episodes
+// whose file it keeps (Kept); none when it upgrades every file, when its episodes have no file, or when it is refused.
 func TestSeasonPackRule(t *testing.T) {
 	t.Parallel()
 	e := seriesEngine(t)
@@ -294,15 +295,18 @@ func TestSeasonPackRule(t *testing.T) {
 		accepted bool
 		reason   string
 		upgrade  string
+		kept     string
 	}{
 		{"mixed", map[int64]*ExistingFile{101: webFile, 103: remuxFile}, true, "",
-			"better quality: Bluray-2160p over WEBDL-2160p; fills 1 episode(s) with no file; 1 episode(s) keep their file"},
+			"better quality: Bluray-2160p over WEBDL-2160p; fills 1 episode(s) with no file; 1 episode(s) keep their file",
+			"S01E03"},
 		{"fills only", map[int64]*ExistingFile{101: remuxFile, 103: remuxFile}, true, "",
-			"fills 1 episode(s) with no file; 2 episode(s) keep their file"},
+			"fills 1 episode(s) with no file; 2 episode(s) keep their file", "S01E01,S01E03"},
 		{"every file at its best", map[int64]*ExistingFile{101: remuxFile, 102: remuxFile, 103: remuxFile}, false,
-			"DiskHigherPreference", ""},
+			"DiskHigherPreference", "", ""},
 		{"every file upgraded", map[int64]*ExistingFile{101: webFile, 102: webFile, 103: webFile}, true, "",
-			"better quality: Bluray-2160p over WEBDL-2160p"},
+			"better quality: Bluray-2160p over WEBDL-2160p", ""},
+		{"no file", nil, true, "", "", ""},
 	} {
 		tt := show()
 		for id, f := range c.files {
@@ -317,6 +321,9 @@ func TestSeasonPackRule(t *testing.T) {
 		}
 		if c.accepted && c.upgrade != "" && (!d.Upgrade || d.UpgradeReason != c.upgrade) {
 			t.Errorf("%s: upgrade %v %q, want %q", c.name, d.Upgrade, d.UpgradeReason, c.upgrade)
+		}
+		if got := strings.Join(d.Kept, ","); got != c.kept {
+			t.Errorf("%s: kept %q, want %q", c.name, got, c.kept)
 		}
 	}
 }

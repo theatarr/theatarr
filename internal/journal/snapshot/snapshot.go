@@ -50,9 +50,11 @@ type Candidate struct {
 	Languages  []string             `json:"languages,omitempty"`
 	CachedOn   []string             `json:"cached_on,omitempty"`
 	Episodes   []string             `json:"episodes,omitempty"`
-	Existing   *decide.Existing     `json:"existing,omitempty"`
-	Upgrade    bool                 `json:"upgrade,omitempty"`
-	UpgradeWhy string               `json:"upgrade_reason,omitempty"`
+	// Kept is Decision.Kept: the episodes whose file the accepted pack does not upgrade.
+	Kept       []string         `json:"kept,omitempty"`
+	Existing   *decide.Existing `json:"existing,omitempty"`
+	Upgrade    bool             `json:"upgrade,omitempty"`
+	UpgradeWhy string           `json:"upgrade_reason,omitempty"`
 	// Source is the indexer kind (torznab, cardigann, dmm, ...); Privacy the release's privacy label.
 	Source  string `json:"source,omitempty"`
 	Privacy string `json:"privacy,omitempty"`
@@ -124,7 +126,7 @@ func summarize(rank int, d *decide.Decision, rel indexer.Release) Candidate {
 	c := Candidate{Rank: rank, Release: d.Release, Indexer: rel.Indexer, InfoHash: strings.ToLower(rel.InfoHash),
 		Size: rel.Size, Seeders: rel.Seeders, Accepted: d.Accepted, Quality: d.Quality, Revision: d.Revision.Version,
 		Formats: d.Formats, Score: d.Score, Languages: d.Languages, CachedOn: rel.CachedList(), Episodes: d.Episodes,
-		Existing: d.Existing, Upgrade: d.Upgrade, UpgradeWhy: d.UpgradeReason, Source: rel.Kind,
+		Kept: d.Kept, Existing: d.Existing, Upgrade: d.Upgrade, UpgradeWhy: d.UpgradeReason, Source: rel.Kind,
 		Privacy: string(rel.Privacy), Flags: releaseFlags(rel), QualityRank: d.ProfileRank}
 	if rel.Seeders >= 0 && rel.Peers >= rel.Seeders {
 		n := rel.Peers - rel.Seeders

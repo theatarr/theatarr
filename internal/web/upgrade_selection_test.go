@@ -290,3 +290,26 @@ func TestUpgradeIgnoresFillOnlyPacks(t *testing.T) {
 		t.Fatalf("upgrading pack that also fills: seen %v, count %d", seen, n)
 	}
 }
+
+// A mixed pack (accepted because it upgrades some episodes) is no upgrade of an episode whose file it keeps; the
+// episode it upgrades still counts it, and so does the season. The episode's stored Releases list still shows the
+// pack, with the same counts.
+func TestUpgradeSkipsAKeptEpisode(t *testing.T) {
+	t.Parallel()
+	e := newManageEnv(t, nil)
+	e.exec(`INSERT INTO journal_decision (source,title_id,version_key,target,results,accepted,created_at,candidates) VALUES
+		('search',10,'tv-2160p','s01',1,1,6000,'[{"release":"The.Show.S01.2160p.WEB-DL-MIXED","info_hash":"aaaa",
+		  "accepted":true,"upgrade":true,"score":3000,
+		  "upgrade_reason":"better quality: WEBDL-2160p over WEBDL-1080p; 1 episode(s) keep their file",
+		  "episodes":["S01E01","S01E02","S01E03"],"kept":["S01E01"]}]')`)
+	if seen, n := seriesUpgrades(t, e); seen[101] || !seen[102] || n != 1 {
+		t.Fatalf("mixed pack: seen %v, count %d", seen, n)
+	}
+	var r Releases
+	e.call("GET", APIBase+"/titles/10/episodes/101/releases", nil, 200, &r)
+	if r.Source == "none" || len(r.Candidates) != 1 || r.Candidates[0].Release != "The.Show.S01.2160p.WEB-DL-MIXED" ||
+		r.Results != 1 || r.Accepted != 1 {
+		t.Fatalf("kept episode's stored releases: source %q, %d rows, results %d, accepted %d", r.Source,
+			len(r.Candidates), r.Results, r.Accepted)
+	}
+}

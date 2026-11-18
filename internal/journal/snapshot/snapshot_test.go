@@ -1,6 +1,7 @@
 package snapshot
 
 import (
+	"encoding/json"
 	"slices"
 	"testing"
 
@@ -61,6 +62,24 @@ func TestCandidatesCarrySourceFlagsPeers(t *testing.T) {
 	got, _ = Candidates([]*decide.Decision{d}, map[*decide.Decision]indexer.Release{d: rel})
 	if want := []string{"seadex"}; !slices.Equal(got[0].Flags, want) {
 		t.Errorf("public flags = %v, want %v", got[0].Flags, want)
+	}
+}
+
+// A mixed pack's candidate keeps the episodes whose file it does not upgrade, through the stored JSON.
+func TestCandidateKeepsKept(t *testing.T) {
+	d := &decide.Decision{Release: "Show.S01.2160p.WEB-DL-GRP", Accepted: true, Upgrade: true,
+		Episodes: []string{"S01E01", "S01E02"}, Kept: []string{"S01E02"}}
+	got, _ := Candidates([]*decide.Decision{d}, map[*decide.Decision]indexer.Release{d: {Title: d.Release}})
+	b, err := json.Marshal(got)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var back []Candidate
+	if err := json.Unmarshal(b, &back); err != nil {
+		t.Fatal(err)
+	}
+	if len(back) != 1 || !slices.Equal(back[0].Kept, []string{"S01E02"}) {
+		t.Fatalf("stored %s", b)
 	}
 }
 

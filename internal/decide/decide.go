@@ -220,6 +220,9 @@ type Decision struct {
 	Episodes    []string `json:"episodes,omitempty"`
 	EpisodeIDs  []int64  `json:"episode_ids,omitempty"`
 	Missing     int      `json:"missing,omitempty"`
+	// Kept are the episodes (as Episodes) whose file an accepted pack does not upgrade: a series version takes a
+	// pack that upgrades or fills any episode, and these keep their file.
+	Kept []string `json:"kept,omitempty"`
 	// Anime (franchise mappings, anime.go): how the episodes were mapped (franchise, alt_cut:<name>, sonarr), the
 	// franchise entry, and the episodes that used Sonarr's numbering because their franchise mapping is not
 	// importable (conflict, rejected).

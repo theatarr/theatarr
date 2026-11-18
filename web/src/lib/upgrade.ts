@@ -34,8 +34,9 @@ export const BETTER_PACK = "Better pack found";
 
 /**
  * Whether the release found is a pack that upgrades some episodes and keeps others' files (its stored reason says
- * "… keep their file"): it is judged once for the whole pack, so it may keep this file. Its badge reads "Better pack
- * found" and Why? says "Better pack found for some episodes …". Nothing is stored for it.
+ * "… keep their file"). The server leaves it out for an episode whose file it keeps (the candidate's kept), so it
+ * upgrades this file; a pack stored before kept was recorded may still keep it. Its badge reads "Better pack found"
+ * and Why? says "Better pack found for some episodes …".
  */
 export function mixedPack(u: Pick<UpgradeInfo, "next"> | undefined | null): boolean {
   return !!u?.next?.reason?.includes("keep their file");
@@ -153,7 +154,7 @@ function foundLine(u: UpgradeInfo | undefined | null, now: Date, history?: reado
   if (n) {
     const facts = [n.quality, `score ${fmtNumber(n.score)}`].filter(Boolean).join(", ");
     const what = `${n.release} (${facts})${n.reason ? `: ${reasonWords(n.reason)}` : ""}`;
-    // A pack that keeps some episodes' files is judged once for the whole pack: it may keep this file.
+    // A pack that keeps some episodes' files upgrades this one (a pack stored before kept was recorded may keep it).
     const found = mixedPack(u) ? "Better pack found for some episodes" : "Better release found";
     const last = history ? releaseOutcome(history, n.release) : undefined;
     if (last?.event === "failed") {

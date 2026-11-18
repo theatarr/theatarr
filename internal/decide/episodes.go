@@ -224,7 +224,7 @@ func (e *Engine) decideSeries(ctx context.Context, d *Decision, p *Profile, rel 
 	// fills any episode (AcceptReleaseAnyUpgradable), so an accepted pack may keep some files: the reason is the first
 	// upgraded file's, or the episodes it fills.
 	if firstFile != nil {
-		file, kept := firstFile, 0
+		file, kept := firstFile, []string(nil)
 		if p.Engine.Config.AcceptReleaseAnyUpgradable && len(d.Rejections) == 0 {
 			file, kept = firstUpgraded(p, episodes, qm, matched)
 		}
@@ -239,18 +239,21 @@ func (e *Engine) decideSeries(ctx context.Context, d *Decision, p *Profile, rel 
 				d.UpgradeReason += fmt.Sprintf("; fills %d episode(s) with no file", d.Missing)
 			}
 		}
-		if d.Upgrade && kept > 0 {
-			d.UpgradeReason += fmt.Sprintf("; %d episode(s) keep their file", kept)
+		if d.Upgrade && len(kept) > 0 {
+			d.Kept = kept
+			d.UpgradeReason += fmt.Sprintf("; %d episode(s) keep their file", len(kept))
 		}
 	}
 	return nil
 }
 
 // firstUpgraded is the first episode file the release upgrades (cutoff not met and an upgrade, as UpgradeDisk
-// judges each file), nil when it upgrades none; kept counts the episodes whose file it does not upgrade.
-func firstUpgraded(p *Profile, episodes []*profile.Episode, qm profile.QualityModel, formats []*format.Format) (*profile.File, int) {
+// judges each file), nil when it upgrades none; kept are the codes (as Decision.Episodes) of the episodes whose file
+// it does not upgrade.
+func firstUpgraded(p *Profile, episodes []*profile.Episode, qm profile.QualityModel,
+	formats []*format.Format) (*profile.File, []string) {
 	var first *profile.File
-	kept := 0
+	var kept []string
 	for _, ep := range episodes {
 		f := ep.File
 		if f == nil {
@@ -263,7 +266,7 @@ func firstUpgraded(p *Profile, episodes []*profile.Episode, qm profile.QualityMo
 			}
 			continue
 		}
-		kept++
+		kept = append(kept, fmt.Sprintf("S%02dE%02d", ep.SeasonNumber, ep.EpisodeNumber))
 	}
 	return first, kept
 }
