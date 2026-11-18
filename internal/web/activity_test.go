@@ -1507,8 +1507,8 @@ func TestActivityRefusedBlocklistedLeavesQueue(t *testing.T) {
 	}
 }
 
-// A title's History (title_id) shows its own rows only, also when another title is named like its id (UI sweep 5, J1;
-// the journal's typed box, which finds both, is internal/journal TestTitleFilterTypedNumberAndExactID).
+// A title's History (title_id) shows its own rows only, also when another title is named like its id (UI sweep 5, J1);
+// the typed box finds both, as the journal's (internal/journal TestTitleFilterTypedNumberAndExactID).
 func TestHistoryTitleIDNotMatchedByName(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t)
@@ -1525,12 +1525,17 @@ func TestHistoryTitleIDNotMatchedByName(t *testing.T) {
 	if len(one.History) != 1 || one.History[0].Title.ID != 1 {
 		t.Errorf("title 1's History: %+v", one.History)
 	}
-	// Activity › History's typed title box: a number is the id only, as before (the wider match is the journal's).
+	// Activity › History's typed title box, as the journal's: a number is the title with that id and every title whose
+	// name holds it (the owner, 2026-11-18: "2001 should show 2001 space odyssey").
 	var typed ActivityPage
 	if code := e.getKey(APIBase+"/activity?state=history&title=1", key, &typed); code != 200 {
 		t.Fatalf("typed history: %d", code)
 	}
-	if len(typed.History) != 1 || typed.History[0].Title.ID != 1 {
+	got := map[int64]bool{}
+	for _, x := range typed.History {
+		got[x.Title.ID] = true
+	}
+	if len(typed.History) != 2 || !got[1] || !got[2] {
 		t.Errorf("History typed 1: %+v", typed.History)
 	}
 	if code := e.getKey(APIBase+"/journal?title_id=x", key, nil); code != 400 {

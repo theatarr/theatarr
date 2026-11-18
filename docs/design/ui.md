@@ -1004,7 +1004,7 @@ One admin-only screen lives outside `/admin`, beside the page it belongs with:
 | Screen | Path | Holds |
 |---|---|---|
 | Wanted › Manual import | `/wanted/manual-import` | Existing file linking workflow, as the third tab of Wanted. |
-| System › Decision journal | `/admin/system/journal[/:id]` | Decisions and their evidence (admin); **Flagged** (`?suspect=1`) lists the entries with a stored warn or error flag; the "Title or id" box matches a typed number as the id and as a whole title name (Activity › History's box keeps it as the id only), while a title's **Open in the journal** link passes `?title_id=` (one title exactly, "Only <title>" with **Show every title**); they are not under Status's Needs attention and have no sidebar count (nothing asks for an action). No verdicts. `/activity/journal[/:id]` redirects here. |
+| System › Decision journal | `/admin/system/journal[/:id]` | Decisions and their evidence (admin); **Flagged** (`?suspect=1`) lists the entries with a stored warn or error flag; the "Title or id" box matches part of a title's name, and a typed number also as the id ("2001" finds title 2001 and "2001: A Space Odyssey"; Activity › History's box does the same), while a title's **Open in the journal** link passes `?title_id=` (one title exactly, "Only <title>" with **Show every title**); they are not under Status's Needs attention and have no sidebar count (nothing asks for an action). No verdicts. `/activity/journal[/:id]` redirects here. |
 
 Older Jobs, Errors, Logs, Database, Metadata review, inventory, migration, journal (`/admin/journal[/:id]`,
 `/admin/advanced/journal[/:id]`, `/activity/journal[/:id]`) and manual import (`/admin/advanced/manual-import`) URLs redirect in one hop to the current

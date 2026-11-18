@@ -119,8 +119,8 @@ func (j *Journal) policy(ctx context.Context) *policy.Policy {
 type Filter struct {
 	// Since keeps entries at or after it.
 	Since time.Time
-	// Title is what a person typed: a number matches the title with that id and the titles whose whole name is that
-	// number; other text, words that must all be in a title's name (case-insensitive).
+	// Title is what a person typed: words that must all be in a title's name (case-insensitive); a number also
+	// matches the title with that id ("2001" finds title 2001 and "2001: A Space Odyssey").
 	Title string
 	// TitleID keeps one title's entries, by its id (a title's own History and links from it); it takes the place of
 	// Title.
@@ -426,9 +426,8 @@ func (j *Journal) heads(ctx context.Context, f Filter, titles []int64, cur *curs
 // byTitle says whether the filter keeps some titles only (TitleID or Title).
 func (f *Filter) byTitle() bool { return f.TitleID > 0 || f.Title != "" }
 
-// titleIDs resolves the title filter: TitleID exactly; a typed number as that id and the titles whose whole name is
-// that number (a film named "1923", not "Hollywood in 1923"); other text as words that must all be in
-// the name.
+// titleIDs resolves the title filter: TitleID exactly; typed text as words that must all be in the name, and a
+// typed number as that id too ("2001" finds title 2001 and "2001: A Space Odyssey"; "1923" also "Hollywood in 1923").
 func (j *Journal) titleIDs(ctx context.Context, f Filter) ([]int64, error) {
 	if f.TitleID > 0 {
 		return []int64{f.TitleID}, nil
@@ -438,14 +437,13 @@ func (j *Journal) titleIDs(ctx context.Context, f Filter) ([]int64, error) {
 		return nil, nil
 	}
 	var out []int64
-	var where string
-	var args []any
+	where, args := textsearch.Where(s, "name")
 	if id, err := strconv.ParseInt(s, 10, 64); err == nil {
 		// The id counts even when its title row is gone (entries outlive a removed title), as before.
 		out = append(out, id)
-		where, args = `name = ? AND id <> ?`, []any{s, id}
-	} else {
-		where, args = textsearch.Where(s, "name")
+		if where != "" {
+			where, args = where+` AND id <> ?`, append(args, id)
+		}
 	}
 	if where == "" {
 		return out, nil

@@ -332,10 +332,6 @@ func (w *Web) apiActivity(rw http.ResponseWriter, r *http.Request) {
 	case "history":
 		f := journal.Filter{Cursor: q.Get("cursor"), Limit: limit,
 			Title: strings.TrimSpace(q.Get("title")), Version: strings.TrimSpace(q.Get("version"))}
-		if n, err := strconv.ParseInt(f.Title, 10, 64); err == nil && n > 0 {
-			// A typed number is the title id only here, as it always was (the journal's box also matches a name).
-			f.Title, f.TitleID = "", n
-		}
 		if titleID > 0 {
 			// A title's own History: that title exactly, never one named like its id.
 			f.Title, f.TitleID = "", titleID

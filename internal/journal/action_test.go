@@ -53,20 +53,22 @@ func TestActionEntries(t *testing.T) {
 	}
 }
 
-// The typed title filter finds a title named by a number ("1923") by its whole name as well as the title with that id
-// (not "Hollywood in 1923" or "19230"); a
-// title's own History and journal (TitleID) keep that title's entries only, even when another title is named like its
-// id (UI sweep 5, J1).
+// The typed title filter finds, for a number, the title with that id and every title whose name holds it ("2001" finds
+// "2001: A Space Odyssey"; the owner, 2026-11-18, overruling the whole-name rule of UI sweep 5's J1); a title's own
+// History and journal (TitleID) keep that title's entries only, even when another title is named like its id.
 func TestTitleFilterTypedNumberAndExactID(t *testing.T) {
 	e := newEnv(t)
 	ctx := context.Background()
 	now := msOf(testNow)
 	e.exec(`INSERT INTO title (id, kind, name, year, tmdb_id, created_at, updated_at) VALUES (4, 'movie', '1', 2022, 104, ?, ?),
-		(5, 'movie', 'Hollywood in 1', 2023, 105, ?, ?), (6, 'movie', '1917', 2019, 106, ?, ?)`, now, now, now, now, now, now)
+		(5, 'movie', 'Hollywood in 1', 2023, 105, ?, ?), (6, 'movie', '1917', 2019, 106, ?, ?),
+		(7, 'movie', '2001: A Space Odyssey', 1968, 107, ?, ?), (2001, 'movie', 'Zeta', 2020, 108, ?, ?)`, now, now, now, now, now, now, now, now, now, now)
 	for _, a := range []Action{{Action: ActUnblock, TitleID: 1, Version: "movie-web", Target: hashA, By: "mgr"},
 		{Action: ActUnblock, TitleID: 4, Version: "movie-web", Target: hashB, By: "mgr"},
 		{Action: ActUnblock, TitleID: 5, Version: "movie-web", Target: hashC, By: "mgr"},
-		{Action: ActUnblock, TitleID: 6, Version: "movie-web", Target: "dddddddddddddddddddddddddddddddddddddddd", By: "mgr"}} {
+		{Action: ActUnblock, TitleID: 6, Version: "movie-web", Target: "dddddddddddddddddddddddddddddddddddddddd", By: "mgr"},
+		{Action: ActUnblock, TitleID: 7, Version: "movie-web", Target: "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", By: "mgr"},
+		{Action: ActUnblock, TitleID: 2001, Version: "movie-web", Target: "ffffffffffffffffffffffffffffffffffffffff", By: "mgr"}} {
 		if _, err := e.j.Record(ctx, a); err != nil {
 			t.Fatal(err)
 		}
@@ -82,16 +84,23 @@ func TestTitleFilterTypedNumberAndExactID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// A typed number is the id or the whole name, never part of a name.
-	if got := titles(p.Items); len(got) != 2 || !got[1] || !got[4] {
-		t.Errorf("typed 1: titles %v, want the title with id 1 and the one named 1", got)
+	// A typed number is the id and the name search: every title whose name holds it.
+	if got := titles(p.Items); len(got) != 5 || !got[1] || !got[4] || !got[5] || !got[6] || !got[7] {
+		t.Errorf("typed 1: titles %v, want the title with id 1 and those named with a 1", got)
+	}
+	p, err = e.j.List(ctx, Filter{Title: "2001"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := titles(p.Items); len(got) != 2 || !got[7] || !got[2001] {
+		t.Errorf("typed 2001: titles %v, want 2001: A Space Odyssey and the title with id 2001", got)
 	}
 	// The CLI passes -title as typed: spaces around it count for nothing, as in the web box.
 	p, err = e.j.List(ctx, Filter{Title: " 1 "})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := titles(p.Items); len(got) != 2 || !got[1] || !got[4] {
+	if got := titles(p.Items); len(got) != 5 || !got[1] || !got[4] {
 		t.Errorf("typed \" 1 \": titles %v", got)
 	}
 	p, err = e.j.List(ctx, Filter{TitleID: 1})
