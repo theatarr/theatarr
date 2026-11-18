@@ -31,7 +31,6 @@ func (w *Web) linkScopes(ctx context.Context, titleID, episodeID int64) (map[int
 	}
 	out := make(map[int64]*ReplaceScope, len(files))
 	for _, f := range files {
-		f.Why = titlePageWhy(f.Why)
 		out[f.LinkID] = &f.ReplaceScope
 	}
 	return out, nil
@@ -84,7 +83,6 @@ func (w *Web) apiReplaceLink(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	by := actor(r)
-	files[0].Why = titlePageWhy(files[0].Why)
 	w.replaceFile(rw, r, titleID, files[0], "removed; replacement search requested by "+orSomeone(by),
 		"replacement search requested", "file replaced from the title page")
 }
