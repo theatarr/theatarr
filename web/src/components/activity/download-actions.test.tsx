@@ -2,9 +2,9 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, it } from "vitest";
-import type { ActivityDownload, ActivityEvent } from "@/api/activity";
+import type { ActivityBlocked, ActivityDownload, ActivityEvent } from "@/api/activity";
 import { mockFetch, renderPage } from "@/test/page";
-import { DownloadActions, HistoryRetry } from "./download-actions";
+import { DownloadActions, HistoryRetry, UnblockAction } from "./download-actions";
 
 it("lets managers dismiss a failed download while keeping its history and provider torrent", async () => {
   const fetch = mockFetch([
@@ -50,4 +50,35 @@ it("a household account sees no Retry", async () => {
   renderPage(<HistoryRetry e={failed} />);
   await new Promise((r) => setTimeout(r, 50));
   expect(screen.queryByTestId("history-retry")).toBeNull();
+});
+
+it("Unblock's search box is off with the reason while the library cannot search, and the unblock sends no search", async () => {
+  const api = mockFetch([
+    ME,
+    { method: "POST", path: "/activity/blocked/unblock", reply: { version: "movie-web", info_hash: "abc", release: "Alpha.BAD", message: "Unblocked: the release may be grabbed again for 4K WEB" } },
+  ]);
+  const b = { version: "movie-web", info_hash: "abc", release: "Alpha.BAD", title: { id: 7, name: "Alpha" }, search_reason: "Paused: no automatic search" } as unknown as ActivityBlocked;
+  renderPage(<UnblockAction b={b} />);
+  fireEvent.click(await screen.findByTestId("blocked-unblock"));
+  const dialog = await screen.findByTestId("unblock-dialog");
+  const box = within(dialog).getByTestId("unblock-search") as HTMLInputElement;
+  expect(box.disabled).toBe(true);
+  expect(within(dialog).getByTestId("unblock-search-reason").textContent).toBe("Paused: no automatic search");
+  expect(dialog.textContent).not.toContain("starts now");
+  fireEvent.click(within(dialog).getByRole("button", { name: "Unblock" }));
+  await waitFor(() => expect(api.calls("POST", "/activity/blocked/unblock")).toHaveLength(1));
+  expect(api.calls("POST", "/activity/blocked/unblock")[0].body).toMatchObject({ search: false });
+});
+
+it("Unblock's search box can be ticked while the library can search", async () => {
+  mockFetch([ME]);
+  const b = { version: "movie-web", info_hash: "abc", release: "Alpha.BAD", title: { id: 7, name: "Alpha" } } as unknown as ActivityBlocked;
+  renderPage(<UnblockAction b={b} />);
+  fireEvent.click(await screen.findByTestId("blocked-unblock"));
+  const dialog = await screen.findByTestId("unblock-dialog");
+  const box = within(dialog).getByTestId("unblock-search") as HTMLInputElement;
+  expect(box.disabled).toBe(false);
+  fireEvent.click(box);
+  await waitFor(() => expect(dialog.textContent).toContain("starts now"));
+  expect(within(dialog).queryByTestId("unblock-search-reason")).toBeNull();
 });

@@ -137,7 +137,7 @@ export function UnblockAction({ b }: { b: ActivityBlocked }) {
       </Button>
       {open ? (
         <ConfirmDialog
-          scope={unblockScope(b.release, nameOf(b.version), search)}
+          scope={unblockScope(b.release, nameOf(b.version), search && !b.search_reason)}
           subject={<span className="font-mono">{b.release}</span>}
           danger={false}
           busy={unblock.isPending}
@@ -148,13 +148,17 @@ export function UnblockAction({ b }: { b: ActivityBlocked }) {
             setSearch(false);
             unblock.reset();
           }}
-          onConfirm={() => unblock.mutate({ version: b.version, info_hash: b.info_hash, search, titleId: b.title.id })}
+          onConfirm={() => unblock.mutate({ version: b.version, info_hash: b.info_hash, search: search && !b.search_reason, titleId: b.title.id })}
           testid="unblock-dialog"
         >
           {unblock.data ? null : (
-            <Choice checked={search} onChange={setSearch} testid="unblock-search">
-              Search for the {nameOf(b.version)} library again now
-            </Choice>
+            <div className="space-y-1">
+              {/* Off while the library cannot search now (Pause), with the reason the title page's search buttons give. */}
+              <Choice checked={search && !b.search_reason} onChange={setSearch} disabled={!!b.search_reason} testid="unblock-search">
+                Search for the {nameOf(b.version)} library again now
+              </Choice>
+              {b.search_reason ? <p className="pl-6 text-xs text-[var(--ink-3)]" data-testid="unblock-search-reason">{b.search_reason}</p> : null}
+            </div>
           )}
         </ConfirmDialog>
       ) : null}

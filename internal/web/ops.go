@@ -633,7 +633,7 @@ func (w *Web) searchCopy(ctx context.Context, titleID int64, version string) (*S
 	}
 	if !slices.Contains(on, version) {
 		return &SearchOutcome{Versions: []string{}, Skipped: []catalog.Skip{},
-			Message: "Not searched: the " + version + " library is not monitored"}, nil
+			Message: "Not searched: the " + w.versionLabel(version) + " library is not monitored"}, nil
 	}
 	if w.pol == nil {
 		return &SearchOutcome{Versions: []string{}, Skipped: []catalog.Skip{}, Message: "Not searched: no policy loaded"}, nil
@@ -765,7 +765,7 @@ func (w *Web) apiUnblock(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	out := UnblockResult{Version: b.Version, InfoHash: b.Hash, Release: b.Release,
-		Message: "Unblocked: the release may be grabbed again for " + b.Version}
+		Message: "Unblocked: the release may be grabbed again for " + w.versionLabel(b.Version)}
 	if req.Search && b.TitleID > 0 {
 		s, err := w.searchCopy(ctx, b.TitleID, b.Version)
 		if err != nil {

@@ -625,6 +625,44 @@ func TestUnblock(t *testing.T) {
 	}
 }
 
+// A blocked release says when its library cannot search now (the reason the title page's search buttons give), and
+// the unblock's answer names the library, not its key.
+func TestUnblockSearchReasonAndLibraryName(t *testing.T) {
+	t.Parallel()
+	o := newOpsEnv(t)
+	now := store.Millis(testNow)
+	hash := strings.Repeat("f", 40)
+	o.exec(`INSERT INTO router_blocklist (version_key, info_hash, title_id, release_title, reason, source, created_at)
+		VALUES ('movie-web', ?, 1, 'Alpha.BAD', 'sample', 'library', ?)`, hash, now)
+	label := o.web.versionLabel("movie-web")
+	if label == "movie-web" {
+		t.Fatalf("label %q", label)
+	}
+	blocked := func() ActivityBlocked {
+		var page ActivityPage
+		if code := o.jsonCall("GET", APIBase+"/activity?state=blocked", nil, o.mc, "", &page); code != 200 || len(page.Blocked) != 1 {
+			t.Fatalf("blocked: %d %+v", code, page)
+		}
+		return page.Blocked[0]
+	}
+	o.web.pol.Router.Enabled = false
+	if b := blocked(); b.SearchReason == "" || b.SearchReason != o.web.searchBlock("movie-web") {
+		t.Errorf("paused: search reason %q", b.SearchReason)
+	}
+	var got UnblockResult
+	if code := o.jsonCall("POST", APIBase+"/activity/blocked/unblock", UnblockRequest{Version: "movie-web", InfoHash: hash,
+		Search: true}, o.mc, o.mcsrf, &got); code != 200 || strings.Contains(got.Message, "movie-web") ||
+		!strings.HasPrefix(got.Message, "Unblocked: the release may be grabbed again for "+label) {
+		t.Fatalf("unblock: %d %+v", code, got)
+	}
+	o.exec(`INSERT INTO router_blocklist (version_key, info_hash, title_id, release_title, reason, source, created_at)
+		VALUES ('movie-web', ?, 1, 'Alpha.BAD', 'sample', 'library', ?)`, hash, now)
+	o.web.pol.Router.Enabled = true
+	if b := blocked(); b.SearchReason != "" {
+		t.Errorf("running: search reason %q", b.SearchReason)
+	}
+}
+
 // TestRemoveCopiesAndTitle: the removal scope names each copy with its links and downloads; a copy an arr still owns
 // is refused; removing a copy hides and unmonitors it, ends its downloads in hand in Theatarr's records only, and
 // with unlink sends its symlinks to Ops (the gate decides); without unlink nothing on disk changes. Removing every
