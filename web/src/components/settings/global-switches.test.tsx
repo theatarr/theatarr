@@ -44,7 +44,7 @@ describe("Pause in the admin header", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
     // It acts at once, so it says what it did.
     expect(await screen.findByText("Paused")).toBeTruthy();
-    expect(screen.getByText(/Nothing is searched, downloaded or linked until you turn Pause off/)).toBeTruthy();
+    expect(screen.getByText("Searches, new grabs and imports stop for every library; Interactive search can still look up releases. Downloads already started finish at the provider.")).toBeTruthy();
   });
 
   it("a save reads the status and Wanted again, so due rows and search buttons follow Pause", async () => {

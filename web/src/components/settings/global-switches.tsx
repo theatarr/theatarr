@@ -35,7 +35,7 @@ function useSwitchSave() {
       void qc.invalidateQueries({ queryKey: qk.titles.all });
       // Pause acts at once, without a confirm: say what it did.
       toast(paused
-        ? { tone: "warn", title: "Paused", body: "Nothing is searched, downloaded or linked until you turn Pause off. Downloads already started finish at the provider." }
+        ? { tone: "warn", title: "Paused", body: `${PAUSE_STOPS[0].toUpperCase()}${PAUSE_STOPS.slice(1)}. Downloads already started finish at the provider.` }
         : { tone: "ok", title: "Pause is off", body: "Searches, downloads and library changes run again; downloads that finished meanwhile are imported now." });
     } catch (e) {
       if (!confirm.ask(e, (next) => void save(paused, generation, next))) setError(e instanceof Error ? e.message : String(e));
