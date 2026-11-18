@@ -413,6 +413,8 @@ type Version struct {
 	// the explicit choice, else the imported value, else the library's default, else released); the title route
 	// only, empty for a series.
 	MinimumAvailability string `json:"minimum_availability,omitempty"`
+	// MinimumAvailabilityDefault: that value is the library's default (no explicit choice, or "Library default").
+	MinimumAvailabilityDefault bool `json:"minimum_availability_default,omitempty"`
 	// AnimeSkip (title page, series): a monitored copy in a library searches run for (catalog.Searchable) that
 	// acquisition does not search, because the library's anime rule does not fit the series (its anime flag, or its
 	// type anime; acquire's targets).
@@ -564,7 +566,9 @@ func (w *Web) getTitle(ctx context.Context, id int64) (*TitleDetail, error) {
 			return nil, err
 		}
 		for i := range d.Versions {
-			d.Versions[i].MinimumAvailability = rules[d.Versions[i].ID].Minimum
+			r := rules[d.Versions[i].ID]
+			d.Versions[i].MinimumAvailability = r.Minimum
+			d.Versions[i].MinimumAvailabilityDefault = r.Source == availability.SourceDefault
 		}
 	}
 	return d, nil

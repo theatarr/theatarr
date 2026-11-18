@@ -14,17 +14,20 @@ export const SERIES_TYPE_HINT = "Saves at once for every library. Affects releas
 const labelOf = (options: readonly (readonly [string, string])[], value: string) => options.find(([v]) => v === value)?.[1] ?? value;
 
 /** A movie's minimum availability in the library of the card. An imported value outside the list (tba) is shown,
- *  and can be changed, but not picked. */
+ *  and can be changed, but not picked. Library default returns the copy to the library's own setting, and names the
+ *  value it gives while it is in force. */
 export function MinimumAvailabilityControl({ v, label }: { v: Version; label: string }) {
   const perms = usePerms();
   const save = useMinimumAvailability(v.title_id ?? 0);
   const value = v.minimum_availability ?? "";
+  const isDefault = !!v.minimum_availability_default;
   if (!perms.manage) return <>{labelOf(MINIMUM_AVAILABILITY, value)}</>;
   return (
     <>
-      <Select className="w-auto" aria-label={`Minimum availability for ${label}`} value={value} disabled={save.isPending}
+      <Select className="w-auto" aria-label={`Minimum availability for ${label}`} value={isDefault ? "default" : value} disabled={save.isPending}
         onChange={(e) => save.mutate({ version: v.key ?? "", value: e.target.value as MinimumAvailability })} data-testid={`version-minimum-availability-${v.key}`}>
-        {MINIMUM_AVAILABILITY.some(([o]) => o === value) ? null : <option value={value}>{value}</option>}
+        <option value="default">{isDefault ? `Library default (${labelOf(MINIMUM_AVAILABILITY, value)})` : "Library default"}</option>
+        {isDefault || MINIMUM_AVAILABILITY.some(([o]) => o === value) ? null : <option value={value}>{value}</option>}
         {MINIMUM_AVAILABILITY.map(([o, l]) => <option key={o} value={o}>{l}</option>)}
       </Select>
       {save.error ? <p className="mt-1 text-xs text-[var(--bad-ink)]" role="alert">{(save.error as Error).message}</p> : null}

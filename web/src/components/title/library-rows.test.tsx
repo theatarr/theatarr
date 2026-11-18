@@ -303,6 +303,24 @@ describe("fix round 1", () => {
     expect(within(screen.getByTestId("library-row-details-movie-web")).getByTestId("upgrade-why")).toBeTruthy();
   });
 
+  it("offers Library default, shows the default in force by name, and sends default to go back to it", async () => {
+    window.localStorage.setItem("theatarr.library.title-libraries.3", JSON.stringify({ order: ["minimum_availability"], shown: ["minimum_availability"] }));
+    const fetch = manager([{ method: "POST", path: "/titles/minimum-availability", reply: { changed: 1 } }, { method: "GET", path: "/titles/7", reply: {} }]);
+    const user = userEvent.setup();
+    const page = renderPage(<LibraryRows title={title as never} versions={[{ ...web, minimum_availability: "released", minimum_availability_default: true }] as never} />);
+    const select = (await screen.findByTestId("version-minimum-availability-movie-web")) as HTMLSelectElement;
+    expect(select.value).toBe("default");
+    expect([...select.options].map((o) => o.textContent)).toEqual(["Library default (Released)", "Announced", "In cinemas", "Released"]);
+    page.unmount();
+    renderPage(<LibraryRows title={title as never} versions={[{ ...web, minimum_availability: "announced" }] as never} />);
+    const chosen = (await screen.findByTestId("version-minimum-availability-movie-web")) as HTMLSelectElement;
+    expect(chosen.value).toBe("announced");
+    expect(chosen.options[0].textContent).toBe("Library default");
+    await user.selectOptions(chosen, "default");
+    await waitFor(() => expect(fetch.calls("POST", "/titles/minimum-availability")).toHaveLength(1));
+    expect(fetch.calls("POST", "/titles/minimum-availability")[0].body).toEqual({ title_ids: [7], versions: ["movie-web"], minimum_availability: "default" });
+  });
+
   it("shows an imported tba without offering it, says when nothing changed, and gives a non-manager text", async () => {
     window.localStorage.setItem("theatarr.library.title-libraries.3", JSON.stringify({ order: ["minimum_availability"], shown: ["minimum_availability"] }));
     manager([{ method: "POST", path: "/titles/minimum-availability", reply: { changed: 0 } }]);
@@ -310,7 +328,7 @@ describe("fix round 1", () => {
     const page = renderPage(<LibraryRows title={title as never} versions={[{ ...web, minimum_availability: "tba" }] as never} />);
     const imported = (await screen.findByTestId("version-minimum-availability-movie-web")) as HTMLSelectElement;
     expect(imported.value).toBe("tba");
-    expect([...imported.options].map((o) => o.value)).toEqual(["tba", "announced", "inCinemas", "released"]);
+    expect([...imported.options].map((o) => o.value)).toEqual(["default", "tba", "announced", "inCinemas", "released"]);
     await user.selectOptions(imported, "released");
     expect(await screen.findByText(/the movie is not in this library now/)).toBeTruthy();
     page.unmount();

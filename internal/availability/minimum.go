@@ -19,6 +19,10 @@ const (
 	SourceDefault = "default"
 )
 
+// ChooseDefault, stored as a library's own choice (Choose), returns it to the library's default: as the newest choice
+// it also stands over an older one of a view holding the library.
+const ChooseDefault = "default"
+
 // Rule is one library's availability rule for a movie.
 type Rule struct {
 	// Minimum is tba, announced, inCinemas or released.
@@ -123,7 +127,9 @@ func rulesInto(ctx context.Context, db queryer, pol *policy.Policy, copies []cop
 		for _, ch := range choices[c.titleID] {
 			v := pol.Views[ch.view]
 			if ch.view == "v/"+c.key || v != nil && slices.Contains(v.Versions, c.key) {
-				r.Minimum, r.Source = ch.value, SourceChoice
+				if ch.value != ChooseDefault {
+					r.Minimum, r.Source = ch.value, SourceChoice
+				}
 				break
 			}
 		}
@@ -166,7 +172,7 @@ type execer interface {
 }
 
 // Choose stores value as the explicit minimum availability of the title's libraries keys, on each library's own
-// v/<key> row. A new row carries nothing else (no profile, root folder or added time), and an existing one keeps
+// v/<key> row (ChooseDefault: the library's default again). A new row carries nothing else (no profile, root folder or added time), and an existing one keeps
 // the rest.
 func Choose(ctx context.Context, tx execer, titleID int64, keys []string, value string, now time.Time) error {
 	for _, k := range keys {

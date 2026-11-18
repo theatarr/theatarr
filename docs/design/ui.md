@@ -513,8 +513,10 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   force for that library (`versions[].minimum_availability`, from `availability.Rules`: the explicit choice, else
   the imported value, else the library's setting, else released), with no word on where it comes from. A manager
   changes it there: `POST /titles/minimum-availability {title_ids, versions, minimum_availability}` writes an
-  explicit choice for that library only (libraries the movie is not in get none). An imported `tba` is shown but
-  cannot be picked. A series' About facts show **Series type** (`series_type`, the title's one type for every
+  explicit choice for that library only (libraries the movie is not in get none). **Library default** (the first
+  option; `minimum_availability: "default"`) returns the copy to the library's own setting; while the default is in
+  force (`versions[].minimum_availability_default`) the option reads "Library default (Released)" with the value it
+  gives. An imported `tba` is shown but cannot be picked. A series' About facts show **Series type** (`series_type`, the title's one type for every
   library and arr view), which a manager changes with `POST /titles/series-type {title_ids, series_type}`
   (`catalog.SetSeriesType`; the anime flag stays). A hint under the select (managers) says so: "Saves at once for
   every library. Affects release matching and which libraries search this series." No dialog, no Save button.

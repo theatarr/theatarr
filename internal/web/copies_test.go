@@ -610,6 +610,23 @@ func TestMinimumAvailabilityEndpoint(t *testing.T) {
 	if got := stored(); out.Changed != 1 || got != "v/movie-remux/1=inCinemas v/movie-web/1=released" {
 		t.Errorf("a removed copy: changed %d, %s", out.Changed, got)
 	}
+	// Library default: stored on the library's own row as "default", so an older choice of a Radarr view holding
+	// the library does not take over; the title page shows the library's value and that it is the default.
+	e.exec(`DELETE FROM arrview_removed_version`)
+	e.exec(`INSERT INTO arrview_title (view, title_id, minimum_availability, added_at, updated_at) VALUES ('radarr', 1, 'announced', 0, 1)`)
+	e.call("POST", path, map[string]any{"title_ids": []int64{1}, "versions": []string{"movie-web"}, "minimum_availability": "default"}, 200, &out)
+	if got := stored(); out.Changed != 1 || got != "radarr/1=announced v/movie-remux/1=inCinemas v/movie-web/1=default" {
+		t.Errorf("library default: changed %d, %s", out.Changed, got)
+	}
+	var d TitleDetail
+	e.call("GET", APIBase+"/titles/1", nil, 200, &d)
+	var got []string
+	for _, v := range d.Versions {
+		got = append(got, fmt.Sprintf("%s=%s/%t", v.Key, v.MinimumAvailability, v.MinimumAvailabilityDefault))
+	}
+	if strings.Join(got, " ") != "movie-remux=inCinemas/false movie-web=inCinemas/true" {
+		t.Errorf("after library default: %s", got)
+	}
 }
 
 // TestSeriesTypeEndpoint: POST /titles/series-type edits the series' one type and leaves the anime flag; a movie, a

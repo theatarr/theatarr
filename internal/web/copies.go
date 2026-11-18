@@ -655,7 +655,7 @@ func (w *Web) choiceTitles(rw http.ResponseWriter, r *http.Request, titleIDs []i
 }
 
 // apiMinimumAvailability sets movies' minimum availability as an explicit choice, per library: the title page's
-// control sends one movie and one library. Only libraries the movie is in get a choice.
+// control sends one movie and one library; "default" returns the library to its own default. Only libraries the movie is in get a choice.
 func (w *Web) apiMinimumAvailability(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var req MinimumAvailabilityRequest
@@ -663,8 +663,8 @@ func (w *Web) apiMinimumAvailability(rw http.ResponseWriter, r *http.Request) {
 		badRequest(rw, "invalid JSON: "+err.Error())
 		return
 	}
-	if !slices.Contains(minimumAvailabilities, req.MinimumAvailability) {
-		badRequest(rw, "minimum_availability must be one of "+strings.Join(minimumAvailabilities, ", "))
+	if !slices.Contains(minimumAvailabilities, req.MinimumAvailability) && req.MinimumAvailability != availability.ChooseDefault {
+		badRequest(rw, "minimum_availability must be one of "+strings.Join(minimumAvailabilities, ", ")+" or default")
 		return
 	}
 	if req.Versions != nil && len(req.Versions) == 0 {

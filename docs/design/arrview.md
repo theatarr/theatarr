@@ -262,7 +262,9 @@ Theatarr owns a movie's minimum availability, one rule per library (`availabilit
    library's own (`v/<key>`) or a configured view that holds the library today. A value an arr import set (the
    owning arr's record, else the first other one by instance name) was copied to the library's own row with
    `updated_at` 0 by migration 00125 (00121 for former followers), so it ranks behind any later choice; a value equal
-   to the library's default needs no row.
+   to the library's default needs no row. The value `default` on the library's own row (the title page's **Library
+   default**) is a choice of the default: as the newest row it stands over an older view's value, and the rule is
+   the default below.
 2. **Default**: the library's `minimum_availability` setting (`announced`, `inCinemas` or `released`; movie libraries
    only, left out of the stored settings when unset), else `released`.
 
