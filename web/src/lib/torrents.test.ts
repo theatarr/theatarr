@@ -61,6 +61,11 @@ describe("filters", () => {
     const r = { ...report, providers: [{ ...report.providers[0], torrents: [A, run] }] };
     expect(filterTorrents(r, "", "", "S07E05").map((x) => x.id)).toEqual([]);
     for (const q of ["S07E02", "s07e10", "All American S07E15", "S07E01–E04", "S07E01E02", "S07E01E02E03E04E06"]) expect(filterTorrents(r, "", "", q).map((x) => x.id)).toEqual(["8"]);
+    // A gap without a range is a list too.
+    const pair = t("rd", "7", "All.American.S07.Pair.1080p.WEB", 900, "2026-10-01T00:00:00Z", { parsed: "All American S07E01, E03" });
+    const r2 = { ...report, providers: [{ ...report.providers[0], torrents: [A, pair] }] };
+    for (const q of ["S07E03", "S07E01E03"]) expect(filterTorrents(r2, "", "", q).map((x) => x.id)).toEqual(["7"]);
+    expect(filterTorrents(r2, "", "", "S07E02").map((x) => x.id)).toEqual([]);
   });
   it("sorts by size, age and name", () => {
     expect(sortTorrents([A, B, C], "size").map((x) => x.id)).toEqual(["2", "1", "3"]);

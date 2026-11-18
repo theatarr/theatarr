@@ -84,10 +84,11 @@ export function spelledOut(parsed: string | undefined): string | undefined {
   });
 }
 
-/** Each torrent's expanded episode text (spelledOut), made once per torrent of a report, not on every filter edit. */
+/** Each torrent's expanded episode text (spelledOut: a range, or a season's list with a gap), made once per torrent of a
+ * report, not on every filter edit. */
 const spelled = new WeakMap<Torrent, string | undefined>();
 const spelledOf = (t: Torrent) => {
-  if (!spelled.has(t)) spelled.set(t, t.parsed && /\d–E?\d/.test(t.parsed) ? spelledOut(t.parsed) : undefined);
+  if (!spelled.has(t)) spelled.set(t, t.parsed && /\d–E?\d|E\d+, E\d/.test(t.parsed) ? spelledOut(t.parsed) : undefined);
   return spelled.get(t);
 };
 
