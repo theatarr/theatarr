@@ -60,7 +60,7 @@ describe("filters", () => {
     const run = t("rd", "8", "All.American.S07E01-E13.1080p.WEB", 900, "2026-10-01T00:00:00Z", { parsed: "All American S07E01–E04, E06–E13, E15" });
     const r = { ...report, providers: [{ ...report.providers[0], torrents: [A, run] }] };
     expect(filterTorrents(r, "", "", "S07E05").map((x) => x.id)).toEqual([]);
-    for (const q of ["S07E02", "s07e10", "All American S07E15", "S07E01–E04"]) expect(filterTorrents(r, "", "", q).map((x) => x.id)).toEqual(["8"]);
+    for (const q of ["S07E02", "s07e10", "All American S07E15", "S07E01–E04", "S07E01E02", "S07E01E02E03E04E06"]) expect(filterTorrents(r, "", "", q).map((x) => x.id)).toEqual(["8"]);
   });
   it("sorts by size, age and name", () => {
     expect(sortTorrents([A, B, C], "size").map((x) => x.id)).toEqual(["2", "1", "3"]);

@@ -64,15 +64,20 @@ export function groupKeys(r: TorrentReport, g: GroupID): Set<string> | null {
 }
 
 /** A parsed label's episode ranges written out again ("1–291" as 1-2-…-291, as the server labelled them before ranges;
- * a season's "S07E01–E04, E06" as S07E01 S07E02 S07E03 S07E04 S07E06), so a filter for one episode inside a pack
- * still finds it. Matching only; the page shows the ranges. */
+ * a season's "S07E01–E04, E06" as S07E01 S07E02 S07E03 S07E04 S07E06 and the compact S07E01E02E03E04E06 the label
+ * was before), so a filter for one episode inside a pack, or for the old compact form, still finds it. Matching only; the page shows the ranges. */
 export function spelledOut(parsed: string | undefined): string | undefined {
-  const episodes = parsed?.replace(/S(\d+)(E\d+(?:–E\d+)?(?:, E\d+(?:–E\d+)?)*)/g, (_all, season: string, list: string) =>
-    list.split(", ").map((part) => {
+  const episodes = parsed?.replace(/S(\d+)(E\d+(?:–E\d+)?(?:, E\d+(?:–E\d+)?)*)/g, (all, season: string, list: string) => {
+    const ns: number[] = [];
+    for (const part of list.split(", ")) {
       const [from, to = from] = part.split("–").map((e) => Number(e.slice(1)));
-      if (!(to >= from && to - from < 5000)) return part;
-      return Array.from({ length: to - from + 1 }, (_, i) => `S${season}E${String(from + i).padStart(2, "0")}`).join(" ");
-    }).join(" "));
+      if (!(to >= from && to - from < 5000)) return all;
+      for (let n = from; n <= to; n++) ns.push(n);
+    }
+    const code = (n: number) => `E${String(n).padStart(2, "0")}`;
+    // Each episode on its own, then the run as the label read before ranges (S07E01E02…E13).
+    return [...ns.map((n) => `S${season}${code(n)}`), `S${season}${ns.map(code).join("")}`].join(" ");
+  });
   return episodes?.replace(/(\d+)–(\d+)/g, (all, a: string, b: string) => {
     const from = Number(a), to = Number(b);
     return to > from && to - from < 5000 ? Array.from({ length: to - from + 1 }, (_, i) => from + i).join("-") : all;

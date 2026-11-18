@@ -138,7 +138,8 @@ references, also those past the listed 20, read with the references themselves (
   the parsed label shows a run of consecutive absolute numbers as one range ("Dragon Ball Z 1–291", gaps as separate
   ranges: "1–12, 14–26"), and a run of episodes in one season likewise ("All American S07E01–E13", gaps as
   "S07E01–E04, E06–E13", one episode stays "S07E05"); the group key still lists every number, and the text filter
-  matches the numbers inside a range ("dragon 155" finds the 1–291 pack, "S07E05" the S07E01–E13 one).
+  matches the numbers inside a range ("dragon 155" finds the 1–291 pack, "S07E05" the S07E01–E13 one, and so does the compact "S07E01E02" the label read
+  before).
 - **failed** (the provider's error states), **stalled** (queued or downloading for over a day), **largest** (25).
 
 A failed torrent that library links reference carries `served_by`: the cache codes (rd, ad, tb) of the other torrents
