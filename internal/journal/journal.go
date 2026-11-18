@@ -433,7 +433,7 @@ func (j *Journal) titleIDs(ctx context.Context, f Filter) ([]int64, error) {
 	if f.TitleID > 0 {
 		return []int64{f.TitleID}, nil
 	}
-	s := f.Title
+	s := strings.TrimSpace(f.Title)
 	if s == "" {
 		return nil, nil
 	}

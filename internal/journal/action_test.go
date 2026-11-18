@@ -86,6 +86,14 @@ func TestTitleFilterTypedNumberAndExactID(t *testing.T) {
 	if got := titles(p.Items); len(got) != 2 || !got[1] || !got[4] {
 		t.Errorf("typed 1: titles %v, want the title with id 1 and the one named 1", got)
 	}
+	// The CLI passes -title as typed: spaces around it count for nothing, as in the web box.
+	p, err = e.j.List(ctx, Filter{Title: " 1 "})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := titles(p.Items); len(got) != 2 || !got[1] || !got[4] {
+		t.Errorf("typed \" 1 \": titles %v", got)
+	}
 	p, err = e.j.List(ctx, Filter{TitleID: 1})
 	if err != nil {
 		t.Fatal(err)

@@ -1099,6 +1099,9 @@ library goes. Saving a group adds nothing to titles already in the library. Whil
 excludes a saved partner, the part says "Saving this takes 4K Remux out of its sync group with 4K WEB." (not undoable
 on its own: undoing the kind or anime change ends it); Keep in sync compares the draft with the saved partners that
 still qualify, so Undo never puts an excluded partner back and the save never sends it, and Bring in sync is hidden.
+The Kind and Anime fields' Undo restores the rule with what it took: the saved partners come back, partners picked under
+the undone rule go, and a movie library's minimum availability and delay are the saved ones again, so an Undo with
+nothing else changed leaves no unsaved change.
 The save's answer names the partners the server took out (`sync_dropped`), and the result reads "4K Remux saved. It is
 no longer in sync with 4K WEB." (UI sweep 5, S3.)
 
